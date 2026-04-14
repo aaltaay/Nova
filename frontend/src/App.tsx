@@ -1,4 +1,10 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import {
+  SMALL_CAP_MIN, SMALL_CAP_MAX,
+  NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS,
+  REL_VOLUME_HIGH,
+  GAPPER_MIN_GAP_PCT,
+} from './constants';
 
 type Mode = 'premarket' | 'market' | 'closed' | 'loading';
 type SortDir = 'asc' | 'desc' | null;
@@ -174,8 +180,11 @@ function timeAgo(iso: string): string {
 function NewsCell({ newest_headline_at }: { newest_headline_at: string | null }) {
   if (!newest_headline_at) return <span className="na-muted">—</span>;
   const ageHours = (Date.now() - new Date(newest_headline_at).getTime()) / 3_600_000;
-  if (ageHours > 24) return <span className="na-muted">—</span>;
-  const colorClass = ageHours <= 2 ? 'flame-hot' : 'flame-warm';
+  if (ageHours > NEWS_FLAME_MAX_HOURS) return <span className="na-muted">—</span>;
+  let colorClass: string;
+  if (ageHours <= NEWS_FLAME_HOT_HOURS) colorClass = 'flame-hot';
+  else if (ageHours <= NEWS_FLAME_WARM_HOURS) colorClass = 'flame-warm';
+  else colorClass = 'flame-cool';
   const label = ageHours < 1 ? `${Math.round(ageHours * 60)}m ago` : `${Math.floor(ageHours)}h ago`;
   return <span className={`news-flame ${colorClass}`} title={label}>🔥</span>;
 }
@@ -209,7 +218,7 @@ function EmptyState({
   if (context === 'premarket') {
     return (
       <div className="empty-state">
-        No gappers above the minimum threshold yet — scan running…
+        No gappers with a gap of at least {GAPPER_MIN_GAP_PCT}% yet — scan running…
       </div>
     );
   }
@@ -376,7 +385,7 @@ function TickerDetailPanel({
                 <DetailRow
                   label="Rel. Volume"
                   value={detail.rel_volume != null ? `${detail.rel_volume}x` : '—'}
-                  className={detail.rel_volume != null && detail.rel_volume >= 2 ? 'positive' : undefined}
+                  className={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
                 />
               </DetailSection>
 
@@ -504,6 +513,7 @@ function App() {
   const [now, setNow] = useState(() => Date.now() / 1000);
   const [activeTab, setActiveTab] = useState<'gappers' | 'gainers'>('gappers');
   const [tabOverridden, setTabOverridden] = useState(false);
+  const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
 
@@ -550,6 +560,20 @@ function App() {
   const sortedGappers = useMemo(
     () => sortedArray(gappers, gapperSort),
     [gappers, gapperSort],
+  );
+
+  const smallCapGappers = useMemo(
+    () => gappers.filter(g =>
+      g.market_cap != null &&
+      g.market_cap >= SMALL_CAP_MIN &&
+      g.market_cap < SMALL_CAP_MAX
+    ),
+    [gappers],
+  );
+
+  const sortedSmallCapGappers = useMemo(
+    () => sortedArray(smallCapGappers, gapperSort),
+    [smallCapGappers, gapperSort],
   );
 
   const sortedGainers = useMemo(
@@ -759,7 +783,23 @@ function App() {
         {/* ── Gappers tab ───────────────────────────────────────────── */}
         {activeTab === 'gappers' && (
           <>
-            {gappers.length > 0 ? (
+            <div className="sub-tab-bar">
+              <button
+                className={`sub-tab ${gapperSubTab === 'all' ? 'active' : ''}`}
+                onClick={() => setGapperSubTab('all')}
+              >
+                All Gaps
+                {gappers.length > 0 && <span className="tab-count">{gappers.length}</span>}
+              </button>
+              <button
+                className={`sub-tab ${gapperSubTab === 'small_cap' ? 'active' : ''}`}
+                onClick={() => setGapperSubTab('small_cap')}
+              >
+                Small Cap
+                {smallCapGappers.length > 0 && <span className="tab-count">{smallCapGappers.length}</span>}
+              </button>
+            </div>
+            {(gapperSubTab === 'all' ? gappers : smallCapGappers).length > 0 ? (
               <div className="table-wrapper">
                 <table>
                   <thead>
@@ -802,7 +842,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedGappers.map(g => (
+                    {(gapperSubTab === 'all' ? sortedGappers : sortedSmallCapGappers).map(g => (
                       <tr key={g.symbol} className={selectedSymbol === g.symbol ? 'row-selected' : ''}>
                         <td>
                           <button

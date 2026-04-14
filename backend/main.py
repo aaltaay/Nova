@@ -14,23 +14,31 @@ from zoneinfo import ZoneInfo
 import yfinance as yf
 import websockets
 
+from constants import (
+    CLOSED_INTERVAL_SEC,
+    DISCOVERY_INTERVAL_SEC,
+    FOCUS_INTERVAL_SEC,
+    GAINERS_INTERVAL_SEC,
+    GAPPER_MIN_GAP_PCT,
+    SCAN_CAP_DEFAULT,
+    TOP_N_DEFAULT,
+)
+
 load_dotenv()
 
 _BLAST_REV = "4"
 _ET = ZoneInfo("America/New_York")
 _DATA_URL = "https://data.alpaca.markets"
 
-# Scan intervals (seconds) — these control symbol-discovery cadence.
-# Real-time price updates come from the WebSocket stream, not these loops.
-_DISCOVERY_INTERVAL = 120.0   # full universe scan every 2 min (pre-market)
-_FOCUS_INTERVAL = 30.0        # gapper reconciliation every 30 sec (WS handles prices)
-_GAINERS_INTERVAL = 20.0      # market-hours screener refresh every 20 sec
-_CLOSED_INTERVAL = 60.0       # closed-hours refresh every 60 sec (reduced from 5 min)
+# Scan intervals — authoritative values in `constants.py`
+_DISCOVERY_INTERVAL = DISCOVERY_INTERVAL_SEC
+_FOCUS_INTERVAL = FOCUS_INTERVAL_SEC
+_GAINERS_INTERVAL = GAINERS_INTERVAL_SEC
+_CLOSED_INTERVAL = CLOSED_INTERVAL_SEC
 
-# Config
-_SCAN_CAP = int(os.environ.get("ALPACA_SCAN_SYMBOL_CAP", "800"))
-_MIN_GAP_PCT = float(os.environ.get("BLAST_MIN_GAP_PCT", "2.0"))
-_TOP_N = int(os.environ.get("BLAST_TOP_N", "50"))
+_SCAN_CAP = int(os.environ.get("ALPACA_SCAN_SYMBOL_CAP", str(SCAN_CAP_DEFAULT)))
+_MIN_GAP_PCT = float(os.environ.get("BLAST_MIN_GAP_PCT", str(GAPPER_MIN_GAP_PCT)))
+_TOP_N = int(os.environ.get("BLAST_TOP_N", str(TOP_N_DEFAULT)))
 
 # ── Assets cache (1-hour TTL) ─────────────────────────────────────────────────
 _assets_cache: list[str] = []
@@ -290,6 +298,17 @@ def _ping_health(base_url: str, headers: dict) -> bool:
 
 # ── Gapper helpers ────────────────────────────────────────────────────────────
 
+def _gapper_meets_min_gap(gap_frac: float | None) -> bool:
+    """True if gap as a fraction (e.g. 0.1 = 10%) is at or above the configured floor."""
+    if gap_frac is None:
+        return False
+    return gap_frac * 100 >= _MIN_GAP_PCT
+
+
+def _prune_gappers_below_min(gappers: list[dict]) -> list[dict]:
+    return [g for g in gappers if _gapper_meets_min_gap(g.get("gap_percent"))]
+
+
 def _compute_gappers(snaps: dict) -> list[dict]:
     gappers: list[dict] = []
     for sym, snap in snaps.items():
@@ -302,7 +321,7 @@ def _compute_gappers(snaps: dict) -> list[dict]:
         if not price or not prev_close:
             continue
         gap_frac = (price - prev_close) / prev_close
-        if gap_frac * 100 < _MIN_GAP_PCT:
+        if not _gapper_meets_min_gap(gap_frac):
             continue
         gappers.append({
             "symbol": sym,
@@ -366,7 +385,10 @@ def _handle_trade(msg: dict) -> None:
             if g["symbol"] == sym:
                 prev_close = g["previous_close"]
                 new_gap = (price - prev_close) / prev_close if prev_close else g["gap_percent"]
-                _gapper_cache[i] = {**g, "current_price": price, "gap_percent": new_gap}
+                if not _gapper_meets_min_gap(new_gap):
+                    del _gapper_cache[i]
+                else:
+                    _gapper_cache[i] = {**g, "current_price": price, "gap_percent": new_gap}
                 _gapper_cache_ts = now
                 break
 
@@ -461,6 +483,7 @@ def _run_focus_scan() -> None:
         })
 
     updated.sort(key=lambda x: x["gap_percent"], reverse=True)
+    updated = _prune_gappers_below_min(updated)
     _gapper_cache = updated
     _gapper_cache_ts = time.time()
 
