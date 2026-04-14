@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+python-dotenv
+alpaca-py
+requests
+tzdata
+yfinance
