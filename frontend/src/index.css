@@ -390,10 +390,23 @@ th {
   font-weight: 300;
 }
 
-.news-dot {
-  color: var(--accent-color);
-  font-size: 0.7rem;
+.news-flame {
+  display: inline-block;
+  font-size: 0.8rem;
+  line-height: 1;
   cursor: default;
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.flame-hot {
+  background-color: #dc2626;
+  box-shadow: 0 0 5px #dc2626;
+}
+
+.flame-warm {
+  background-color: #a16207;
+  box-shadow: 0 0 5px #ca8a04;
 }
 
 .na-muted {

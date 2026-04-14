@@ -18,6 +18,7 @@ interface Gapper {
   volume: number;
   rel_volume: number | null;
   has_news: boolean;
+  newest_headline_at: string | null;
   market_cap: number | null;
   float: number | null;
   short_interest: number | null;
@@ -33,6 +34,7 @@ interface Gainer {
   gap_percent: number | null;
   rel_volume: number | null;
   has_news: boolean;
+  newest_headline_at: string | null;
   market_cap: number | null;
   float: number | null;
   short_interest: number | null;
@@ -169,10 +171,13 @@ function timeAgo(iso: string): string {
 
 // ── Small UI Helpers ──────────────────────────────────────────────────────────
 
-function NewsCell({ has_news }: { has_news: boolean }) {
-  return has_news
-    ? <span className="news-dot" title="News today">●</span>
-    : <span className="na-muted">—</span>;
+function NewsCell({ newest_headline_at }: { newest_headline_at: string | null }) {
+  if (!newest_headline_at) return <span className="na-muted">—</span>;
+  const ageHours = (Date.now() - new Date(newest_headline_at).getTime()) / 3_600_000;
+  if (ageHours > 24) return <span className="na-muted">—</span>;
+  const colorClass = ageHours <= 2 ? 'flame-hot' : 'flame-warm';
+  const label = ageHours < 1 ? `${Math.round(ageHours * 60)}m ago` : `${Math.floor(ageHours)}h ago`;
+  return <span className={`news-flame ${colorClass}`} title={label}>🔥</span>;
 }
 
 function EmptyState({
@@ -625,7 +630,7 @@ function App() {
   useEffect(() => {
     fetchConfig();
     fetchData();
-    const dataInterval = setInterval(fetchData, 5000);
+    const dataInterval = setInterval(fetchData, 1000);
     const clockInterval = setInterval(() => setNow(Date.now() / 1000), 1000);
     return () => {
       clearInterval(dataInterval);
@@ -767,7 +772,7 @@ function App() {
                           ['gap_percent', 'Gap %'],
                           ['volume', 'Volume'],
                           ['rel_volume', 'Rel. Volume'],
-                          ['has_news', 'News'],
+                          ['newest_headline_at', 'News'],
                           ['market_cap', 'Mkt Cap'],
                           ['float', 'Float'],
                           ['short_interest', 'Short Int.'],
@@ -814,7 +819,7 @@ function App() {
                         </td>
                         <td>{fmtVolume(g.volume)}</td>
                         <td>{g.rel_volume != null ? `${g.rel_volume}x` : <span className="na-muted">N/A</span>}</td>
-                        <td><NewsCell has_news={g.has_news} /></td>
+                        <td><NewsCell newest_headline_at={g.newest_headline_at} /></td>
                         <td>{g.market_cap != null ? fmtMarketCap(g.market_cap) : <span className="na-muted">—</span>}</td>
                         <td>{g.float != null ? fmtVolume(g.float) : <span className="na-muted">—</span>}</td>
                         <td>{g.short_interest != null ? fmtVolume(g.short_interest) : <span className="na-muted">—</span>}</td>
@@ -846,7 +851,7 @@ function App() {
                           ['gap_percent', 'Gap %'],
                           ['volume', 'Volume'],
                           ['rel_volume', 'Rel. Volume'],
-                          ['has_news', 'News'],
+                          ['newest_headline_at', 'News'],
                           ['market_cap', 'Mkt Cap'],
                           ['float', 'Float'],
                           ['short_interest', 'Short Int.'],
@@ -895,7 +900,7 @@ function App() {
                         </td>
                         <td>{fmtVolume(g.volume)}</td>
                         <td>{g.rel_volume != null ? `${g.rel_volume}x` : <span className="na-muted">N/A</span>}</td>
-                        <td><NewsCell has_news={g.has_news} /></td>
+                        <td><NewsCell newest_headline_at={g.newest_headline_at} /></td>
                         <td>{g.market_cap != null ? fmtMarketCap(g.market_cap) : <span className="na-muted">—</span>}</td>
                         <td>{g.float != null ? fmtVolume(g.float) : <span className="na-muted">—</span>}</td>
                         <td>{g.short_interest != null ? fmtVolume(g.short_interest) : <span className="na-muted">—</span>}</td>

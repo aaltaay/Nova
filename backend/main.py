@@ -9,8 +9,10 @@ from datetime import datetime, date
 import math
 import time
 import asyncio
+import json
 from zoneinfo import ZoneInfo
 import yfinance as yf
+import websockets
 
 load_dotenv()
 
@@ -18,11 +20,12 @@ _BLAST_REV = "4"
 _ET = ZoneInfo("America/New_York")
 _DATA_URL = "https://data.alpaca.markets"
 
-# Scan intervals (seconds)
+# Scan intervals (seconds) — these control symbol-discovery cadence.
+# Real-time price updates come from the WebSocket stream, not these loops.
 _DISCOVERY_INTERVAL = 120.0   # full universe scan every 2 min (pre-market)
-_FOCUS_INTERVAL = 20.0        # top gappers re-price every 20 sec
-_GAINERS_INTERVAL = 20.0      # market-hours gainers refresh every 20 sec
-_CLOSED_INTERVAL = 300.0      # closed-hours refresh every 5 min
+_FOCUS_INTERVAL = 30.0        # gapper reconciliation every 30 sec (WS handles prices)
+_GAINERS_INTERVAL = 20.0      # market-hours screener refresh every 20 sec
+_CLOSED_INTERVAL = 60.0       # closed-hours refresh every 60 sec (reduced from 5 min)
 
 # Config
 _SCAN_CAP = int(os.environ.get("ALPACA_SCAN_SYMBOL_CAP", "800"))
@@ -55,6 +58,12 @@ _FUNDAMENTALS_CACHE_TTL = 900.0  # 15 minutes
 # ── Health + mode ──────────────────────────────────────────────────────────────
 _cached_health: dict = {"status": "loading", "latency_ms": 0}
 _current_mode: str = "closed"   # "premarket" | "market" | "closed"
+
+# ── WebSocket streaming state ──────────────────────────────────────────────────
+# The WS stream receives real-time trades and updates _gapper_cache / _gainer_cache
+# in-place, decoupling price freshness from the REST scan cadence.
+_ws_subscribed: set[str] = set()   # symbols the WS is currently subscribed to
+_ws_needs_resub: bool = False       # scan loop sets True when symbol list changes
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -234,10 +243,10 @@ def _ensure_avg_volume(symbols: list[str], headers: dict) -> None:
 
 # ── News ──────────────────────────────────────────────────────────────────────
 
-def _check_news(symbols: list[str], headers: dict) -> set[str]:
-    """Return set of symbols with at least one news article today (ET date)."""
+def _check_news(symbols: list[str], headers: dict) -> dict[str, str]:
+    """Return dict mapping symbol -> newest article created_at (ISO string) for articles today (ET date)."""
     if not symbols:
-        return set()
+        return {}
     today = _now_et().date().isoformat()
     try:
         resp = requests.get(
@@ -247,14 +256,17 @@ def _check_news(symbols: list[str], headers: dict) -> set[str]:
             timeout=10,
         )
         if resp.status_code != 200:
-            return set()
-        out: set[str] = set()
+            return {}
+        out: dict[str, str] = {}
         for article in resp.json().get("news", []):
+            created_at = article.get("created_at", "")
             for s in article.get("symbols", []):
-                out.add(s)
+                # Keep the most recent created_at per symbol
+                if s not in out or created_at > out[s]:
+                    out[s] = created_at
         return out
     except Exception:
-        return set()
+        return {}
 
 
 # ── Health ping ───────────────────────────────────────────────────────────────
@@ -303,7 +315,7 @@ def _compute_gappers(snaps: dict) -> list[dict]:
     return gappers[:_TOP_N]
 
 
-def _enrich_gappers(gappers: list[dict], news: set[str]) -> list[dict]:
+def _enrich_gappers(gappers: list[dict], news: dict[str, str]) -> list[dict]:
     symbols = [g["symbol"] for g in gappers]
     _fetch_fundamentals_batch(symbols)
     for g in gappers:
@@ -312,12 +324,70 @@ def _enrich_gappers(gappers: list[dict], news: set[str]) -> list[dict]:
         vol = g["volume"]
         g["rel_volume"] = round(vol / avg_vol, 2) if avg_vol and avg_vol > 0 and vol > 0 else None
         g["has_news"] = sym in news
+        g["newest_headline_at"] = news.get(sym)
         fund = _fundamentals_cache.get(sym, {})
         g["market_cap"] = fund.get("market_cap")
         g["float"] = fund.get("float_shares")
         g["short_interest"] = fund.get("short_interest")
         g["short_ratio"] = fund.get("short_ratio")
     return gappers
+
+
+# ── WebSocket helpers ─────────────────────────────────────────────────────────
+
+def _ws_mark_resub() -> None:
+    """Signal the WebSocket loop to sync subscriptions on next iteration."""
+    global _ws_needs_resub
+    _ws_needs_resub = True
+
+
+def _ws_current_symbols() -> set[str]:
+    """Return the union of all symbols currently in the gapper and gainer caches."""
+    syms: set[str] = set()
+    for g in _gapper_cache:
+        syms.add(g["symbol"])
+    for g in _gainer_cache:
+        syms.add(g["symbol"])
+    return syms
+
+
+def _handle_trade(msg: dict) -> None:
+    """Apply a real-time trade message to the in-memory caches."""
+    global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts
+    sym = msg.get("S")
+    price = msg.get("p")
+    if not sym or not price:
+        return
+    now = time.time()
+
+    # Update gappers — only during pre-market; after 9:30 the list is preserved as-is.
+    if _current_mode == "premarket":
+        for i, g in enumerate(_gapper_cache):
+            if g["symbol"] == sym:
+                prev_close = g["previous_close"]
+                new_gap = (price - prev_close) / prev_close if prev_close else g["gap_percent"]
+                _gapper_cache[i] = {**g, "current_price": price, "gap_percent": new_gap}
+                _gapper_cache_ts = now
+                break
+
+    # Update gainers — always apply (regardless of mode/time).
+    for i, g in enumerate(_gainer_cache):
+        if g["symbol"] == sym:
+            prev_close = g.get("prev_close") or 0.0
+            if prev_close:
+                new_change_abs = price - prev_close
+                new_change_pct = new_change_abs / prev_close
+            else:
+                new_change_abs = g.get("change_abs", 0)
+                new_change_pct = g.get("change_pct", 0)
+            _gainer_cache[i] = {
+                **g,
+                "price": price,
+                "change_abs": new_change_abs,
+                "change_pct": new_change_pct,
+            }
+            _gainer_cache_ts = now
+            break
 
 
 # ── Pre-market scan functions ─────────────────────────────────────────────────
@@ -346,6 +416,7 @@ def _run_discovery_scan() -> None:
     _gapper_cache = gappers
     _gapper_cache_ts = time.time()      # wall-clock for frontend display
     _last_discovery_ts = time.monotonic()  # monotonic for internal TTL check
+    _ws_mark_resub()  # notify WebSocket loop to subscribe to newly discovered symbols
 
 
 def _run_focus_scan() -> None:
@@ -386,6 +457,7 @@ def _run_focus_scan() -> None:
             "volume": volume,
             "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
             "has_news": sym in news,
+            "newest_headline_at": news.get(sym),
         })
 
     updated.sort(key=lambda x: x["gap_percent"], reverse=True)
@@ -467,14 +539,94 @@ def _run_gainers_update() -> None:
             "gap_percent": gap_pct,
             "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
             "has_news": sym in news,
+            "newest_headline_at": news.get(sym),
             "market_cap": fund.get("market_cap"),
             "float": fund.get("float_shares"),
             "short_interest": fund.get("short_interest"),
             "short_ratio": fund.get("short_ratio"),
+            # Internal field used by the WebSocket trade handler to compute change_pct/change_abs.
+            # Not rendered by the frontend.
+            "prev_close": prev_close,
         })
 
     _gainer_cache = gainers
     _gainer_cache_ts = time.time()
+    _ws_mark_resub()  # notify WebSocket loop to subscribe to newly discovered symbols
+
+
+# ── WebSocket streaming loop ──────────────────────────────────────────────────
+
+async def _ws_stream_loop() -> None:
+    """Persistent WebSocket connection to Alpaca's real-time SIP feed.
+
+    Subscribes to trades for all symbols in the gapper/gainer caches and
+    applies each trade message to the in-memory cache instantly, giving the
+    frontend sub-second price freshness on every 1s poll.
+
+    Auto-reconnects with exponential backoff on any failure.
+    """
+    global _ws_subscribed, _ws_needs_resub
+    backoff = 1.0
+
+    while True:
+        try:
+            api_key = _env("APCA_API_KEY_ID")
+            api_secret = _env("APCA_API_SECRET_KEY")
+            if not api_key or not api_secret:
+                await asyncio.sleep(10)
+                continue
+
+            feed = _get_feed()
+            url = f"wss://stream.data.alpaca.markets/v2/{feed}"
+
+            async with websockets.connect(url, ping_interval=20, open_timeout=15) as ws:
+                # Receive the initial "connected" banner
+                await ws.recv()
+
+                # Authenticate
+                await ws.send(json.dumps({"action": "auth", "key": api_key, "secret": api_secret}))
+                auth_msgs = json.loads(await ws.recv())
+                if not any(m.get("T") == "success" and m.get("msg") == "authenticated"
+                           for m in auth_msgs):
+                    # Auth failed — back off and retry (keys may have just changed)
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 60.0)
+                    continue
+
+                # Successfully connected and authenticated — reset backoff
+                backoff = 1.0
+                _ws_subscribed = set()
+                _ws_needs_resub = True  # subscribe to whatever is cached right now
+
+                while True:
+                    # Sync subscriptions whenever the scan loop adds/removes symbols
+                    if _ws_needs_resub:
+                        _ws_needs_resub = False
+                        wanted = _ws_current_symbols()
+                        to_add = wanted - _ws_subscribed
+                        to_remove = _ws_subscribed - wanted
+                        if to_add:
+                            await ws.send(json.dumps({"action": "subscribe", "trades": list(to_add)}))
+                        if to_remove:
+                            await ws.send(json.dumps({"action": "unsubscribe", "trades": list(to_remove)}))
+                        _ws_subscribed = wanted
+
+                    # Wait for the next message (1s timeout lets us check _ws_needs_resub)
+                    try:
+                        raw = await asyncio.wait_for(ws.recv(), timeout=1.0)
+                        msgs = json.loads(raw)
+                        for msg in msgs:
+                            if msg.get("T") == "t":
+                                _handle_trade(msg)
+                    except asyncio.TimeoutError:
+                        pass  # no message arrived; loop back to check resub flag
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            _ws_subscribed = set()
+            await asyncio.sleep(backoff)
+            backoff = min(backoff * 2, 60.0)
 
 
 # ── Background scan loop ──────────────────────────────────────────────────────
@@ -516,13 +668,16 @@ async def lifespan(app: FastAPI):
     headers = _alpaca_headers()
     if headers:
         await loop.run_in_executor(None, lambda: _ping_health(base_url, headers))
-    task = asyncio.create_task(_scan_loop())
+    scan_task = asyncio.create_task(_scan_loop())
+    ws_task = asyncio.create_task(_ws_stream_loop())
     yield
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    scan_task.cancel()
+    ws_task.cancel()
+    for t in (scan_task, ws_task):
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
