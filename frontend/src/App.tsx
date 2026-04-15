@@ -254,20 +254,25 @@ function EmptyState({
 
 // ── useTickerStream hook ──────────────────────────────────────────────────────
 
-function useTickerStream(symbol: string | null): { detail: TickerDetail | null; loading: boolean } {
+function useTickerStream(symbol: string | null): { detail: TickerDetail | null; loading: boolean; refreshing: boolean } {
   const [detail, setDetail] = useState<TickerDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  // True while waiting for the initial frame for a new symbol (fast-data not yet arrived)
+  const [refreshing, setRefreshing] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     if (!symbol) {
       setDetail(null);
       setLoading(false);
+      setRefreshing(false);
       return;
     }
 
-    setDetail(null);
-    setLoading(true);
+    // Keep the previous detail visible (stale) while the new symbol loads so the
+    // panel never goes blank — only show spinner overlay via `refreshing`.
+    setRefreshing(true);
+    setLoading(detail === null);
 
     const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
     wsRef.current = ws;
@@ -276,16 +281,29 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
       try {
         const msg = JSON.parse(e.data);
         if (msg.type === 'initial') {
+          // Phase 1: fast data (asset + snapshot) — render immediately
           const { type: _t, ...data } = msg;
           setDetail(data as TickerDetail);
           setLoading(false);
+          setRefreshing(false);
+        } else if (msg.type === 'detail_update') {
+          // Phase 2: slow data (news + fundamentals + fresh avg/rel volume)
+          setDetail(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              news: msg.news ?? prev.news,
+              fundamentals: msg.fundamentals ?? prev.fundamentals,
+              avg_volume: msg.avg_volume ?? prev.avg_volume,
+              rel_volume: msg.rel_volume ?? prev.rel_volume,
+            };
+          });
         } else if (msg.type === 'trade_update') {
           const update = msg as TickerTradeUpdate;
           setDetail(prev => {
             if (!prev) return prev;
             const prevClose = prev.snapshot?.prev_daily_bar?.close ?? null;
             const newPrice = update.price;
-            // Rebuild snapshot with updated trade price
             const newSnapshot = {
               ...prev.snapshot,
               latest_trade: {
@@ -295,13 +313,12 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
                 exchange: prev.snapshot?.latest_trade?.exchange ?? null,
               },
             };
-            // Recompute rel_volume if avg is known
             const dailyVol = prev.snapshot?.daily_bar?.volume ?? null;
             const avgVol = prev.avg_volume;
             const relVol = dailyVol != null && avgVol != null && avgVol > 0
               ? Math.round((dailyVol / avgVol) * 100) / 100
               : prev.rel_volume;
-            void prevClose; // prevClose used implicitly via derived values in render
+            void prevClose;
             return { ...prev, snapshot: newSnapshot, rel_volume: relVol };
           });
         }
@@ -311,18 +328,19 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
       }
     };
 
-    ws.onerror = () => setLoading(false);
+    ws.onerror = () => { setLoading(false); setRefreshing(false); };
     ws.onclose = () => {
-      if (wsRef.current === ws) setLoading(false);
+      if (wsRef.current === ws) { setLoading(false); setRefreshing(false); }
     };
 
     return () => {
       wsRef.current = null;
       ws.close();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol]);
 
-  return { detail, loading };
+  return { detail, loading, refreshing };
 }
 
 // ── Compact Ticker Detail ─────────────────────────────────────────────────────
@@ -605,7 +623,7 @@ function SidePanel({
   setSelectedSymbol: (sym: string | null) => void;
 }) {
   const [input, setInput] = useState(selectedSymbol ?? '');
-  const { detail, loading } = useTickerStream(selectedSymbol);
+  const { detail, loading, refreshing } = useTickerStream(selectedSymbol);
 
   useEffect(() => {
     setInput(selectedSymbol ?? '');
@@ -640,12 +658,18 @@ function SidePanel({
             <span>Loading…</span>
           </div>
         )}
+        {!loading && refreshing && detail && (
+          <div className="detail-refreshing-bar">
+            <div className="detail-loading-spinner detail-loading-spinner--small" />
+            <span>Updating {selectedSymbol}…</span>
+          </div>
+        )}
         {!loading && detail && (
           <div className="detail-body">
             <TickerDetailContent detail={detail} />
           </div>
         )}
-        {!loading && !detail && selectedSymbol && (
+        {!loading && !refreshing && !detail && selectedSymbol && (
           <div className="detail-empty">No data found for {selectedSymbol}.</div>
         )}
         {!loading && !selectedSymbol && (

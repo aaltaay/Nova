@@ -82,3 +82,11 @@ HISTORY_RETENTION_DAYS = 30   # delete dated cache files older than this many da
 # Max retry backoff in seconds. 15 s keeps reconnect attempts frequent enough
 # to recover quickly when Alpaca frees a stale connection slot (typically 30–60 s).
 ALPACA_WS_BACKOFF_CAP = 60.0
+
+# ── Ticker detail caches ──────────────────────────────────────────────────────
+# Fundamentals (yfinance/Yahoo) are slow; cache aggressively.
+FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
+# Asset metadata (name, exchange, tradability) rarely changes intraday.
+TICKER_ASSET_CACHE_TTL = 300.0      # 5 minutes
+# Snapshot (price, quote, bars) is live data; only cache briefly to de-dup rapid clicks.
+TICKER_SNAPSHOT_CACHE_TTL = 10.0    # 10 seconds

@@ -860,6 +860,22 @@ th {
   animation: spin 0.7s linear infinite;
 }
 
+.detail-loading-spinner--small {
+  width: 14px;
+  height: 14px;
+}
+
+.detail-refreshing-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }

@@ -42,6 +42,7 @@ from constants import (
     DISCOVERY_INTERVAL_SEC,
     EXCLUDED_NAME_KEYWORDS,
     FOCUS_INTERVAL_SEC,
+    FUNDAMENTALS_CACHE_TTL,
     GAINERS_INTERVAL_SEC,
     GAPPER_MIN_GAP_PCT,
     HISTORY_RETENTION_DAYS,
@@ -55,6 +56,8 @@ from constants import (
     SCANNER_MIN_PRICE,
     SNAPSHOT_WORKERS,
     SYMBOL_EXCLUDE_RE,
+    TICKER_ASSET_CACHE_TTL,
+    TICKER_SNAPSHOT_CACHE_TTL,
     TOP_N_DEFAULT,
 )
 from cache import (
@@ -127,10 +130,15 @@ _last_catalyst_scan_ts: float = 0.0
 _avg_volume_cache: dict[str, float] = {}
 _avg_volume_date: str = ""
 
-# ── Fundamentals cache (15-min TTL, keyed by symbol) ──────────────────────────
+# ── Fundamentals cache (TTL from constants, keyed by symbol) ──────────────────
 _fundamentals_cache: dict[str, dict] = {}
 _fundamentals_cache_ts: dict[str, float] = {}
-_FUNDAMENTALS_CACHE_TTL = 900.0  # 15 minutes
+
+# ── Ticker-detail sub-caches (asset + snapshot; TTLs from constants) ──────────
+_ticker_asset_cache: dict[str, dict] = {}
+_ticker_asset_cache_ts: dict[str, float] = {}
+_ticker_snapshot_cache: dict[str, dict] = {}
+_ticker_snapshot_cache_ts: dict[str, float] = {}
 
 # ── Health + mode ──────────────────────────────────────────────────────────────
 _cached_health: dict = {"status": "loading", "latency_ms": 0}
@@ -200,7 +208,7 @@ def _fetch_fundamentals(symbol: str) -> dict:
     global _fundamentals_cache, _fundamentals_cache_ts
     now = time.monotonic()
     cached_ts = _fundamentals_cache_ts.get(symbol, 0.0)
-    if symbol in _fundamentals_cache and (now - cached_ts) < _FUNDAMENTALS_CACHE_TTL:
+    if symbol in _fundamentals_cache and (now - cached_ts) < FUNDAMENTALS_CACHE_TTL:
         return _fundamentals_cache[symbol]
     try:
         info = yf.Ticker(symbol).info
@@ -279,7 +287,7 @@ def _fetch_fundamentals_batch(symbols: list[str]) -> None:
     missing = [
         s for s in symbols
         if s not in _fundamentals_cache
-        or (now - _fundamentals_cache_ts.get(s, 0.0)) >= _FUNDAMENTALS_CACHE_TTL
+        or (now - _fundamentals_cache_ts.get(s, 0.0)) >= FUNDAMENTALS_CACHE_TTL
     ]
     for sym in missing:
         _fetch_fundamentals(sym)
@@ -1392,16 +1400,12 @@ def get_news_catalysts():
     }
 
 
-def _build_ticker_detail(symbol: str) -> dict:
-    """Fetch and assemble full ticker detail for a symbol. Used by both REST and WS endpoints."""
-    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = _alpaca_headers()
-    if not headers:
-        return {"error": "API keys not configured"}
-
-    feed = _get_feed()
-
-    # 1. Asset info from Trading API
+def _fetch_ticker_asset(symbol: str, base_url: str, headers: dict) -> dict:
+    """Fetch asset metadata from Alpaca Trading API with short-lived TTL cache."""
+    global _ticker_asset_cache, _ticker_asset_cache_ts
+    now = time.monotonic()
+    if symbol in _ticker_asset_cache and (now - _ticker_asset_cache_ts.get(symbol, 0.0)) < TICKER_ASSET_CACHE_TTL:
+        return _ticker_asset_cache[symbol]
     asset: dict = {}
     try:
         r = requests.get(f"{base_url}/v2/assets/{symbol}", headers=headers, timeout=10)
@@ -1425,10 +1429,34 @@ def _build_ticker_detail(symbol: str) -> dict:
                 "margin_requirement_short": a.get("margin_requirement_short"),
                 "attributes": [str(x) for x in attrs if x is not None],
             }
+            _ticker_asset_cache[symbol] = asset
+            _ticker_asset_cache_ts[symbol] = now
     except Exception:
         pass
+    return asset
 
-    # 2. Single-symbol snapshot
+
+def _fetch_ticker_snapshot(symbol: str, headers: dict, feed: str) -> dict:
+    """Fetch latest snapshot from Alpaca Data API with short-lived TTL cache."""
+    global _ticker_snapshot_cache, _ticker_snapshot_cache_ts
+    now = time.monotonic()
+    if symbol in _ticker_snapshot_cache and (now - _ticker_snapshot_cache_ts.get(symbol, 0.0)) < TICKER_SNAPSHOT_CACHE_TTL:
+        return _ticker_snapshot_cache[symbol]
+
+    def _bar(b: dict | None) -> dict | None:
+        if not b:
+            return None
+        return {
+            "open": b.get("o"),
+            "high": b.get("h"),
+            "low": b.get("l"),
+            "close": b.get("c"),
+            "volume": b.get("v"),
+            "trade_count": b.get("n"),
+            "vwap": b.get("vw"),
+            "timestamp": b.get("t"),
+        }
+
     snapshot: dict = {}
     try:
         r = requests.get(
@@ -1439,21 +1467,6 @@ def _build_ticker_detail(symbol: str) -> dict:
         )
         if r.status_code == 200:
             raw = r.json()
-
-            def _bar(b: dict | None) -> dict | None:
-                if not b:
-                    return None
-                return {
-                    "open": b.get("o"),
-                    "high": b.get("h"),
-                    "low": b.get("l"),
-                    "close": b.get("c"),
-                    "volume": b.get("v"),
-                    "trade_count": b.get("n"),
-                    "vwap": b.get("vw"),
-                    "timestamp": b.get("t"),
-                }
-
             lt = raw.get("latestTrade") or {}
             lq = raw.get("latestQuote") or {}
             snapshot = {
@@ -1474,10 +1487,15 @@ def _build_ticker_detail(symbol: str) -> dict:
                 "daily_bar": _bar(raw.get("dailyBar")),
                 "prev_daily_bar": _bar(raw.get("prevDailyBar")),
             }
+            _ticker_snapshot_cache[symbol] = snapshot
+            _ticker_snapshot_cache_ts[symbol] = now
     except Exception:
         pass
+    return snapshot
 
-    # 3. News articles (up to 10)
+
+def _fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
+    """Fetch today's news articles for a symbol from Alpaca Data API."""
     news: list[dict] = []
     try:
         today = _now_et().date().isoformat()
@@ -1501,18 +1519,75 @@ def _build_ticker_detail(symbol: str) -> dict:
                 })
     except Exception:
         pass
+    return news
 
-    # 4. Average volume from cache (may be None if not yet populated)
+
+def _fetch_ticker_avg_volume(symbol: str, headers: dict) -> float | None:
+    """Return average daily volume for symbol, fetching bars from Alpaca if needed."""
     avg_vol = _avg_volume_cache.get(symbol)
     if avg_vol is None:
         _ensure_avg_volume([symbol], headers)
         avg_vol = _avg_volume_cache.get(symbol)
+    return avg_vol
+
+
+def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> dict:
+    """Fetch asset + snapshot concurrently — the fast subset of ticker detail."""
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
+        f_snap  = pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
+        asset    = f_asset.result()
+        snapshot = f_snap.result()
+
+    avg_vol  = _avg_volume_cache.get(symbol)
+    daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
+    rel_vol  = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None
+
+    return {
+        "symbol": symbol,
+        "asset": asset,
+        "snapshot": snapshot,
+        "avg_volume": avg_vol,
+        "rel_volume": rel_vol,
+    }
+
+
+def _build_ticker_slow(symbol: str, headers: dict) -> dict:
+    """Fetch news + avg volume bars + fundamentals concurrently — the slow subset."""
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_news  = pool.submit(_fetch_ticker_news, symbol, headers)
+        f_avg   = pool.submit(_fetch_ticker_avg_volume, symbol, headers)
+        f_fund  = pool.submit(_fetch_fundamentals, symbol)
+        news    = f_news.result()
+        avg_vol = f_avg.result()
+        fund    = f_fund.result()
+
+    return {"news": news, "avg_volume": avg_vol, "fundamentals": fund}
+
+
+def _build_ticker_detail(symbol: str) -> dict:
+    """Fetch and assemble full ticker detail for a symbol. Used by the REST endpoint."""
+    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+    headers = _alpaca_headers()
+    if not headers:
+        return {"error": "API keys not configured"}
+
+    feed = _get_feed()
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
+        f_snap  = pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
+        f_news  = pool.submit(_fetch_ticker_news, symbol, headers)
+        f_avg   = pool.submit(_fetch_ticker_avg_volume, symbol, headers)
+        f_fund  = pool.submit(_fetch_fundamentals, symbol)
+        asset    = f_asset.result()
+        snapshot = f_snap.result()
+        news     = f_news.result()
+        avg_vol  = f_avg.result()
+        fundamentals = f_fund.result()
 
     daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
     rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None
-
-    # 5. Fundamentals via yfinance
-    fundamentals = _fetch_fundamentals(symbol)
 
     return {
         "symbol": symbol,
@@ -1533,29 +1608,56 @@ def get_ticker_detail(symbol: str):
 
 @app.websocket("/ws/ticker/{symbol}")
 async def ws_ticker_detail(websocket: WebSocket, symbol: str):
-    """WebSocket endpoint: sends full detail on connect, then streams real-time trade updates."""
+    """WebSocket endpoint: sends full detail on connect, then streams real-time trade updates.
+
+    Two-phase send for perceived speed:
+      1. 'initial' — fast data (asset + snapshot + cached avg volume) sent first (~300 ms).
+      2. 'detail_update' — slow data (news + fresh avg volume + fundamentals) sent when ready.
+    """
     symbol = symbol.upper()
     await websocket.accept()
 
-    # Register this client
     if symbol not in _ticker_ws_clients:
         _ticker_ws_clients[symbol] = set()
     _ticker_ws_clients[symbol].add(websocket)
-    _ws_mark_resub()  # ensure the Alpaca WS subscribes to this symbol
+    _ws_mark_resub()
 
     loop = asyncio.get_event_loop()
-    try:
-        # Send the full initial detail payload (blocking I/O — run in thread pool)
-        detail = await loop.run_in_executor(None, lambda: _build_ticker_detail(symbol))
-        await websocket.send_text(json.dumps({"type": "initial", **detail}))
+    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+    headers = _alpaca_headers()
 
-        # Keep the connection alive; real-time updates are pushed via _broadcast_trade_update.
-        # We only need to detect client disconnect here.
+    try:
+        if not headers:
+            await websocket.send_text(json.dumps({"type": "initial", "error": "API keys not configured"}))
+        else:
+            feed = _get_feed()
+
+            # Phase 1: asset + snapshot (fast, cached) — send immediately
+            fast = await loop.run_in_executor(
+                None, lambda: _build_ticker_fast(symbol, base_url, headers, feed)
+            )
+            await websocket.send_text(json.dumps({"type": "initial", **fast}))
+
+            # Phase 2: news + avg volume bars + fundamentals (slow) — send as update
+            slow = await loop.run_in_executor(
+                None, lambda: _build_ticker_slow(symbol, headers)
+            )
+            # Recompute rel_volume with freshly fetched avg_vol
+            avg_vol = slow.get("avg_volume")
+            daily_vol = (fast.get("snapshot", {}).get("daily_bar") or {}).get("volume") or 0
+            rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else fast.get("rel_volume")
+            await websocket.send_text(json.dumps({
+                "type": "detail_update",
+                "news": slow["news"],
+                "fundamentals": slow["fundamentals"],
+                "avg_volume": avg_vol,
+                "rel_volume": rel_vol,
+            }))
+
         while True:
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
             except asyncio.TimeoutError:
-                # Send a lightweight heartbeat so the client can detect stale connections
                 await websocket.send_text(json.dumps({"type": "ping"}))
     except (WebSocketDisconnect, Exception):
         pass
