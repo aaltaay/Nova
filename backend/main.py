@@ -4,6 +4,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import logging
+import logging.handlers
 import os
 from dotenv import load_dotenv, set_key
 import requests
@@ -18,7 +19,22 @@ import websockets
 
 logger = logging.getLogger(__name__)
 
+# ── Persistent rotating log file ──────────────────────────────────────────────
+_log_dir = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_file_handler = logging.handlers.RotatingFileHandler(
+    os.path.join(_log_dir, "blast.log"),
+    maxBytes=5_000_000,
+    backupCount=3,
+)
+_file_handler.setFormatter(
+    logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+)
+logging.getLogger().addHandler(_file_handler)
+logging.getLogger().setLevel(logging.INFO)
+
 from constants import (
+    ALPACA_WS_BACKOFF_CAP,
     CLOSED_INTERVAL_SEC,
     DISCOVERY_INTERVAL_SEC,
     ETF_NAME_KEYWORDS,
@@ -823,7 +839,7 @@ async def _ws_stream_loop() -> None:
                     # Auth failed — back off and retry (keys may have just changed)
                     logger.warning("Alpaca WS auth failed (response: %s), retrying in %.1fs", auth_msgs, backoff)
                     await asyncio.sleep(backoff)
-                    backoff = min(backoff * 2, 60.0)
+                    backoff = min(backoff * 2, ALPACA_WS_BACKOFF_CAP)
                     continue
 
                 # Successfully connected and authenticated — reset backoff
@@ -869,12 +885,13 @@ async def _ws_stream_loop() -> None:
                         pass  # no message arrived; loop back to check resub flag
 
         except asyncio.CancelledError:
+            logger.info("Alpaca WS shutting down cleanly")
             raise
         except Exception as exc:
             logger.warning("Alpaca WS disconnected: %s, retrying in %.1fs", exc, backoff)
             _ws_subscribed = set()
             await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60.0)
+            backoff = min(backoff * 2, ALPACA_WS_BACKOFF_CAP)
 
 
 # ── News catalyst scan ────────────────────────────────────────────────────────

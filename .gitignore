@@ -19,6 +19,9 @@ env/
 # Scanner persistence cache (in-process snapshots, not for VCS)
 backend/.cache/
 
+# Runtime log files
+backend/logs/
+
 # Node / frontend
 node_modules/
 frontend/dist/

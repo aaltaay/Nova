@@ -61,3 +61,8 @@ NEWS_CATALYST_INTERVAL_SEC  = 60.0    # news-first catalyst scan interval
 # ── News catalyst scanner ────────────────────────────────────────────────────
 NEWS_CATALYST_LOOKBACK_HOURS = 2      # how far back to scan for news articles
 NEWS_CATALYST_ARTICLE_LIMIT  = 50     # max articles per news API call (Alpaca hard cap)
+
+# ── Alpaca WebSocket stream ──────────────────────────────────────────────────
+# Max retry backoff in seconds. 15 s keeps reconnect attempts frequent enough
+# to recover quickly when Alpaca frees a stale connection slot (typically 30–60 s).
+ALPACA_WS_BACKOFF_CAP = 15.0
