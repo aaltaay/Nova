@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+import logging
 import os
 from dotenv import load_dotenv, set_key
 import requests
@@ -14,6 +15,8 @@ import json
 from zoneinfo import ZoneInfo
 import yfinance as yf
 import websockets
+
+logger = logging.getLogger(__name__)
 
 from constants import (
     CLOSED_INTERVAL_SEC,
@@ -338,12 +341,14 @@ def _ensure_avg_volume(symbols: list[str], headers: dict) -> None:
                     "symbols": ",".join(chunk),
                     "timeframe": "1Day",
                     "limit": RVOL_LOOKBACK_DAYS,
-                    "end": (date.today() - timedelta(days=1)).isoformat(),
+                    "start": (date.today() - timedelta(days=45)).isoformat(),
+                    "end": date.today().isoformat(),
                     "feed": feed,
                 },
                 timeout=20,
             )
             if resp.status_code != 200:
+                logger.warning("avg_volume bars API returned %s: %s", resp.status_code, resp.text[:200])
                 continue
             bars_data = resp.json().get("bars", {})
             for sym, bars in bars_data.items():
@@ -351,7 +356,7 @@ def _ensure_avg_volume(symbols: list[str], headers: dict) -> None:
                 if vols:
                     _avg_volume_cache[sym] = sum(vols) / len(vols)
         except Exception:
-            continue
+            logger.exception("avg_volume fetch failed for chunk %s", chunk)
 
 
 # ── News ──────────────────────────────────────────────────────────────────────
@@ -433,10 +438,16 @@ def _compute_gappers(snaps: dict) -> list[dict]:
         gap_frac = (price - prev_close) / prev_close
         if not _gapper_meets_min_gap(gap_frac):
             continue
+        change_abs = price - prev_close
+        change_pct = gap_frac  # same ratio as gap for gappers
         gappers.append({
             "symbol": sym,
-            "previous_close": prev_close,
-            "current_price": price,
+            "price": price,
+            "prev_close": prev_close,
+            "change_pct": change_pct,
+            "change_abs": change_abs,
+            "previous_close": prev_close,   # kept for WS handler compat
+            "current_price": price,         # kept for WS handler compat
             "gap_percent": gap_frac,
             "volume": volume,
         })
@@ -532,7 +543,14 @@ def _handle_trade(msg: dict) -> None:
                 if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
                     del _gapper_cache[i]
                 else:
-                    _gapper_cache[i] = {**g, "current_price": price, "gap_percent": new_gap}
+                    _gapper_cache[i] = {
+                        **g,
+                        "price": price,
+                        "current_price": price,
+                        "change_pct": new_gap,
+                        "change_abs": price - prev_close,
+                        "gap_percent": new_gap,
+                    }
                 _gapper_cache_ts = now
                 save_gapper_snapshot(_gapper_cache, _gapper_cache_ts)
                 break
@@ -630,9 +648,15 @@ def _run_focus_scan() -> None:
         volume = daily_bar.get("v") or g["volume"]
         gap_frac = (price - prev_close) / prev_close if price and prev_close else g["gap_percent"]
         avg_vol = _avg_volume_cache.get(sym)
+        change_abs = price - prev_close
         updated.append({
             **g,
+            "price": price,
+            "prev_close": prev_close,
+            "change_pct": gap_frac,
+            "change_abs": change_abs,
             "current_price": price,
+            "previous_close": prev_close,
             "gap_percent": gap_frac,
             "volume": volume,
             "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,

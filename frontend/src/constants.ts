@@ -27,3 +27,21 @@ export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show 
 // ── News Catalysts tab ────────────────────────────────────────────────────────
 // Label shown on the experimental Catalysts tab badge
 export const CATALYSTS_EXPERIMENTAL_LABEL = 'Experimental';
+
+// ── Scanner table columns ─────────────────────────────────────────────────────
+// Single source of truth for the columns shown in the Gappers and Movers tables.
+// The key must match the ScannerRow field name; the label is the column header text.
+export const SCANNER_COLUMNS: [string, string][] = [
+  ['symbol',          'Symbol'],
+  ['price',           'Price'],
+  ['change_pct',      'Change %'],
+  ['change_abs',      'Change $'],
+  ['gap_percent',     'Gap %'],
+  ['volume',          'Volume'],
+  ['rel_volume',      'Daily Rel. Volume'],
+  ['newest_headline_at', 'News'],
+  ['market_cap',      'Mkt Cap'],
+  ['float',           'Float'],
+  ['short_interest',  'Short Int.'],
+  ['short_ratio',     'Short Ratio'],
+];

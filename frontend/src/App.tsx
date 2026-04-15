@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
   SMALL_CAP_MIN, SMALL_CAP_MAX,
   NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS,
   REL_VOLUME_HIGH,
   GAPPER_MIN_GAP_PCT,
   CATALYSTS_EXPERIMENTAL_LABEL,
+  SCANNER_COLUMNS,
 } from './constants';
 
 type Mode = 'premarket' | 'market' | 'closed' | 'loading';
@@ -17,28 +18,14 @@ interface HealthStatus {
   message?: string;
 }
 
-interface Gapper {
-  symbol: string;
-  previous_close: number;
-  current_price: number;
-  gap_percent: number;
-  volume: number;
-  rel_volume: number | null;
-  has_news: boolean;
-  newest_headline_at: string | null;
-  market_cap: number | null;
-  float: number | null;
-  short_interest: number | null;
-  short_ratio: number | null;
-}
-
-interface Gainer {
+interface ScannerRow {
   symbol: string;
   price: number;
+  prev_close: number;
   change_pct: number;
   change_abs: number;
-  volume: number;
   gap_percent: number | null;
+  volume: number;
   rel_volume: number | null;
   has_news: boolean;
   newest_headline_at: string | null;
@@ -48,8 +35,10 @@ interface Gainer {
   short_ratio: number | null;
 }
 
-// Movers: gainers and losers share the same shape
-type Mover = Gainer;
+// Legacy aliases — kept for any remaining narrower references
+type Gapper = ScannerRow;
+type Gainer = ScannerRow;
+type Mover  = ScannerRow;
 
 interface Catalyst {
   symbol: string;
@@ -575,6 +564,118 @@ const MODE_LABELS: Record<Mode, string> = {
 const API_URL = 'http://localhost:8000/api';
 const WS_URL = 'ws://localhost:8000/ws';
 
+// ── Scanner Table ─────────────────────────────────────────────────────────────
+
+interface ScannerTableProps {
+  columns: [string, string][];
+  data: ScannerRow[];
+  sortState: SortConfig;
+  onSort: (key: string) => void;
+  selectedSymbol: string | null;
+  onSelect: (symbol: string) => void;
+}
+
+function renderCell(key: string, row: ScannerRow): React.ReactNode {
+  switch (key) {
+    case 'symbol':
+      return null; // handled as the symbol button in the row
+    case 'price':
+      return fmtPrice(row.price);
+    case 'prev_close':
+      return fmtPrice(row.prev_close);
+    case 'change_pct':
+      return (
+        <span className={row.change_pct != null && row.change_pct >= 0 ? 'positive' : 'negative'}>
+          {fmtPct(row.change_pct)}
+        </span>
+      );
+    case 'change_abs':
+      return (
+        <span className={row.change_abs != null && row.change_abs >= 0 ? 'positive' : 'negative'}>
+          {row.change_abs != null ? `${row.change_abs >= 0 ? '+' : ''}${row.change_abs.toFixed(2)}` : '—'}
+        </span>
+      );
+    case 'gap_percent':
+      return (
+        <span className={row.gap_percent != null && row.gap_percent >= 0 ? 'positive' : row.gap_percent != null ? 'negative' : ''}>
+          {fmtPct(row.gap_percent)}
+        </span>
+      );
+    case 'volume':
+      return fmtVolume(row.volume);
+    case 'rel_volume':
+      return row.rel_volume != null
+        ? `${row.rel_volume}x`
+        : <span className="na-muted">N/A</span>;
+    case 'newest_headline_at':
+      return <NewsCell newest_headline_at={row.newest_headline_at} />;
+    case 'market_cap':
+      return row.market_cap != null ? fmtMarketCap(row.market_cap) : <span className="na-muted">—</span>;
+    case 'float':
+      return row.float != null ? fmtVolume(row.float) : <span className="na-muted">—</span>;
+    case 'short_interest':
+      return row.short_interest != null ? fmtVolume(row.short_interest) : <span className="na-muted">—</span>;
+    case 'short_ratio':
+      return row.short_ratio != null ? row.short_ratio.toFixed(1) : <span className="na-muted">—</span>;
+    default:
+      return <span className="na-muted">—</span>;
+  }
+}
+
+function ScannerTable({ columns, data, sortState, onSort, selectedSymbol, onSelect }: ScannerTableProps) {
+  return (
+    <div className="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            {columns.map(([key, label]) => (
+              <th
+                key={key}
+                className="sortable-th"
+                onClick={() => onSort(key)}
+                aria-sort={
+                  sortState.key === key
+                    ? sortState.dir === 'asc' ? 'ascending' : 'descending'
+                    : 'none'
+                }
+              >
+                <span className="th-inner">
+                  {label}
+                  <span className={`sort-arrow${sortState.key === key ? ' active' : ''}`}>
+                    {sortState.key === key
+                      ? sortState.dir === 'asc' ? '↑' : '↓'
+                      : '↕'}
+                  </span>
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(row => (
+            <tr key={row.symbol} className={selectedSymbol === row.symbol ? 'row-selected' : ''}>
+              {columns.map(([key]) =>
+                key === 'symbol' ? (
+                  <td key={key}>
+                    <button
+                      className={`symbol-btn${selectedSymbol === row.symbol ? ' active' : ''}`}
+                      onClick={() => onSelect(row.symbol)}
+                    >
+                      {row.symbol}
+                    </button>
+                  </td>
+                ) : (
+                  <td key={key}>{renderCell(key, row)}</td>
+                )
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 
 function App() {
@@ -876,75 +977,14 @@ function App() {
               </button>
             </div>
             {(gapperSubTab === 'all' ? gappers : smallCapGappers).length > 0 ? (
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      {(
-                        [
-                          ['symbol', 'Symbol'],
-                          ['previous_close', 'Prev Close'],
-                          ['current_price', 'Price'],
-                          ['gap_percent', 'Gap %'],
-                          ['volume', 'Volume'],
-                          ['rel_volume', 'Rel. Volume'],
-                          ['newest_headline_at', 'News'],
-                          ['market_cap', 'Mkt Cap'],
-                          ['float', 'Float'],
-                          ['short_interest', 'Short Int.'],
-                          ['short_ratio', 'Short Ratio'],
-                        ] as [string, string][]
-                      ).map(([key, label]) => (
-                        <th
-                          key={key}
-                          className="sortable-th"
-                          onClick={() => toggleSort(gapperSort, setGapperSort, key)}
-                          aria-sort={
-                            gapperSort.key === key
-                              ? gapperSort.dir === 'asc' ? 'ascending' : 'descending'
-                              : 'none'
-                          }
-                        >
-                          <span className="th-inner">
-                            {label}
-                            <span className={`sort-arrow${gapperSort.key === key ? ' active' : ''}`}>
-                              {gapperSort.key === key
-                                ? gapperSort.dir === 'asc' ? '↑' : '↓'
-                                : '↕'}
-                            </span>
-                          </span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(gapperSubTab === 'all' ? sortedGappers : sortedSmallCapGappers).map(g => (
-                      <tr key={g.symbol} className={selectedSymbol === g.symbol ? 'row-selected' : ''}>
-                        <td>
-                          <button
-                            className={`symbol-btn${selectedSymbol === g.symbol ? ' active' : ''}`}
-                            onClick={() => setSelectedSymbol(g.symbol)}
-                          >
-                            {g.symbol}
-                          </button>
-                        </td>
-                        <td>${g.previous_close.toFixed(2)}</td>
-                        <td>${g.current_price.toFixed(2)}</td>
-                        <td className={g.gap_percent >= 0 ? 'positive' : 'negative'}>
-                          {fmtPct(g.gap_percent)}
-                        </td>
-                        <td>{fmtVolume(g.volume)}</td>
-                        <td>{g.rel_volume != null ? `${g.rel_volume}x` : <span className="na-muted">N/A</span>}</td>
-                        <td><NewsCell newest_headline_at={g.newest_headline_at} /></td>
-                        <td>{g.market_cap != null ? fmtMarketCap(g.market_cap) : <span className="na-muted">—</span>}</td>
-                        <td>{g.float != null ? fmtVolume(g.float) : <span className="na-muted">—</span>}</td>
-                        <td>{g.short_interest != null ? fmtVolume(g.short_interest) : <span className="na-muted">—</span>}</td>
-                        <td>{g.short_ratio != null ? g.short_ratio.toFixed(1) : <span className="na-muted">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ScannerTable
+                columns={SCANNER_COLUMNS}
+                data={gapperSubTab === 'all' ? sortedGappers : sortedSmallCapGappers}
+                sortState={gapperSort}
+                onSort={key => toggleSort(gapperSort, setGapperSort, key)}
+                selectedSymbol={selectedSymbol}
+                onSelect={setSelectedSymbol}
+              />
             ) : (
               <EmptyState health={health} context={mode === 'market' ? 'premarket' : mode} />
             )}
@@ -1058,81 +1098,14 @@ function App() {
         {activeTab === 'movers' && (
           <>
             {sortedMovers.length > 0 ? (
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      {(
-                        [
-                          ['symbol', 'Symbol'],
-                          ['price', 'Price'],
-                          ['change_pct', 'Change %'],
-                          ['change_abs', 'Change $'],
-                          ['gap_percent', 'Gap %'],
-                          ['volume', 'Volume'],
-                          ['rel_volume', 'Rel. Volume'],
-                          ['newest_headline_at', 'News'],
-                          ['market_cap', 'Mkt Cap'],
-                          ['float', 'Float'],
-                          ['short_interest', 'Short Int.'],
-                          ['short_ratio', 'Short Ratio'],
-                        ] as [string, string][]
-                      ).map(([key, label]) => (
-                        <th
-                          key={key}
-                          className="sortable-th"
-                          onClick={() => toggleSort(moverSort, setMoverSort, key)}
-                          aria-sort={
-                            moverSort.key === key
-                              ? moverSort.dir === 'asc' ? 'ascending' : 'descending'
-                              : 'none'
-                          }
-                        >
-                          <span className="th-inner">
-                            {label}
-                            <span className={`sort-arrow${moverSort.key === key ? ' active' : ''}`}>
-                              {moverSort.key === key
-                                ? moverSort.dir === 'asc' ? '↑' : '↓'
-                                : '↕'}
-                            </span>
-                          </span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedMovers.map(m => (
-                      <tr key={m.symbol} className={selectedSymbol === m.symbol ? 'row-selected' : ''}>
-                        <td>
-                          <button
-                            className={`symbol-btn${selectedSymbol === m.symbol ? ' active' : ''}`}
-                            onClick={() => setSelectedSymbol(m.symbol)}
-                          >
-                            {m.symbol}
-                          </button>
-                        </td>
-                        <td>${m.price.toFixed(2)}</td>
-                        <td className={m.change_pct >= 0 ? 'positive' : 'negative'}>
-                          {fmtPct(m.change_pct)}
-                        </td>
-                        <td className={m.change_abs >= 0 ? 'positive' : 'negative'}>
-                          {m.change_abs >= 0 ? '+' : ''}{m.change_abs.toFixed(2)}
-                        </td>
-                        <td className={m.gap_percent != null && m.gap_percent >= 0 ? 'positive' : m.gap_percent != null ? 'negative' : ''}>
-                          {fmtPct(m.gap_percent)}
-                        </td>
-                        <td>{fmtVolume(m.volume)}</td>
-                        <td>{m.rel_volume != null ? `${m.rel_volume}x` : <span className="na-muted">N/A</span>}</td>
-                        <td><NewsCell newest_headline_at={m.newest_headline_at} /></td>
-                        <td>{m.market_cap != null ? fmtMarketCap(m.market_cap) : <span className="na-muted">—</span>}</td>
-                        <td>{m.float != null ? fmtVolume(m.float) : <span className="na-muted">—</span>}</td>
-                        <td>{m.short_interest != null ? fmtVolume(m.short_interest) : <span className="na-muted">—</span>}</td>
-                        <td>{m.short_ratio != null ? m.short_ratio.toFixed(1) : <span className="na-muted">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ScannerTable
+                columns={SCANNER_COLUMNS}
+                data={sortedMovers}
+                sortState={moverSort}
+                onSort={key => toggleSort(moverSort, setMoverSort, key)}
+                selectedSymbol={selectedSymbol}
+                onSelect={setSelectedSymbol}
+              />
             ) : (
               <EmptyState health={health} context={mode === 'premarket' ? 'market' : mode} />
             )}
