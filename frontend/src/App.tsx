@@ -174,10 +174,6 @@ function fmtPrice(p: number | null | undefined): string {
   return `$${p.toFixed(2)}`;
 }
 
-function fmtNum(n: number | null | undefined, decimals = 2): string {
-  if (n == null) return '—';
-  return n.toFixed(decimals);
-}
 
 function timeAgo(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -237,31 +233,101 @@ function EmptyState({
   return <div className="empty-state">No gainers in the feed right now.</div>;
 }
 
-// ── Ticker Detail Panel ───────────────────────────────────────────────────────
+// ── useTickerStream hook ──────────────────────────────────────────────────────
 
-function DetailRow({ label, value, className }: { label: string; value: React.ReactNode; className?: string }) {
-  return (
-    <div className="detail-row">
-      <span className="detail-label">{label}</span>
-      <span className={`detail-value${className ? ' ' + className : ''}`}>{value}</span>
-    </div>
-  );
+function useTickerStream(symbol: string | null): { detail: TickerDetail | null; loading: boolean } {
+  const [detail, setDetail] = useState<TickerDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!symbol) {
+      setDetail(null);
+      setLoading(false);
+      return;
+    }
+
+    setDetail(null);
+    setLoading(true);
+
+    const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
+    wsRef.current = ws;
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'initial') {
+          const { type: _t, ...data } = msg;
+          setDetail(data as TickerDetail);
+          setLoading(false);
+        } else if (msg.type === 'trade_update') {
+          const update = msg as TickerTradeUpdate;
+          setDetail(prev => {
+            if (!prev) return prev;
+            const prevClose = prev.snapshot?.prev_daily_bar?.close ?? null;
+            const newPrice = update.price;
+            // Rebuild snapshot with updated trade price
+            const newSnapshot = {
+              ...prev.snapshot,
+              latest_trade: {
+                price: newPrice,
+                size: update.size ?? prev.snapshot?.latest_trade?.size ?? null,
+                timestamp: update.timestamp ?? prev.snapshot?.latest_trade?.timestamp ?? null,
+                exchange: prev.snapshot?.latest_trade?.exchange ?? null,
+              },
+            };
+            // Recompute rel_volume if avg is known
+            const dailyVol = prev.snapshot?.daily_bar?.volume ?? null;
+            const avgVol = prev.avg_volume;
+            const relVol = dailyVol != null && avgVol != null && avgVol > 0
+              ? Math.round((dailyVol / avgVol) * 100) / 100
+              : prev.rel_volume;
+            void prevClose; // prevClose used implicitly via derived values in render
+            return { ...prev, snapshot: newSnapshot, rel_volume: relVol };
+          });
+        }
+        // ignore 'ping' messages
+      } catch {
+        // ignore parse errors
+      }
+    };
+
+    ws.onerror = () => setLoading(false);
+    ws.onclose = () => {
+      if (wsRef.current === ws) setLoading(false);
+    };
+
+    return () => {
+      wsRef.current = null;
+      ws.close();
+    };
+  }, [symbol]);
+
+  return { detail, loading };
 }
 
-function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="detail-section">
-      <div className="detail-section-title">{title}</div>
-      {children}
-    </div>
-  );
+// ── Compact Ticker Detail ─────────────────────────────────────────────────────
+
+function fmtTimestamp(iso: string | null | undefined): string {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      timeZoneName: 'short',
+    });
+  } catch {
+    return iso;
+  }
 }
 
-function BoolBadge({ value, trueLabel = 'Yes', falseLabel = 'No' }: { value: boolean; trueLabel?: string; falseLabel?: string }) {
+function CompactGridCell({ label, value, valueClass }: { label: string; value: React.ReactNode; valueClass?: string }) {
   return (
-    <span className={`bool-badge ${value ? 'bool-yes' : 'bool-no'}`}>
-      {value ? trueLabel : falseLabel}
-    </span>
+    <div className="cq-cell">
+      <span className="cq-label">{label}</span>
+      <span className={`cq-value${valueClass ? ' ' + valueClass : ''}`}>{value}</span>
+    </div>
   );
 }
 
@@ -270,13 +336,12 @@ function TickerDetailContent({
 }: {
   detail: TickerDetail;
 }) {
+  const [newsExpanded, setNewsExpanded] = useState(false);
   const snap = detail.snapshot;
   const asset = detail.asset;
   const trade = snap?.latest_trade;
-  const quote = snap?.latest_quote;
   const daily = snap?.daily_bar;
   const prevDaily = snap?.prev_daily_bar;
-  const minuteBar = snap?.minute_bar;
 
   const price = trade?.price ?? daily?.close ?? null;
   const prevClose = prevDaily?.close ?? null;
@@ -284,191 +349,156 @@ function TickerDetailContent({
   const changePct = (changeAbs != null && prevClose) ? changeAbs / prevClose : null;
   const isPositive = (changePct ?? 0) >= 0;
 
+  const lastUpdated = trade?.timestamp ?? snap?.latest_quote?.timestamp ?? null;
+
+  // Pipe-delimited description: Name | Country | Exchange | Sector | Industry
+  const descParts: string[] = [];
+  if (asset?.name) descParts.push(asset.name);
+  if (asset?.exchange) descParts.push(asset.exchange);
+  if (detail.fundamentals?.sector) descParts.push(detail.fundamentals.sector);
+  if (detail.fundamentals?.industry) descParts.push(detail.fundamentals.industry);
+
+  const NEWS_DEFAULT = 3;
+  const visibleNews = newsExpanded ? detail.news : detail.news.slice(0, NEWS_DEFAULT);
+
+  // Gap % from prev close to today's open (or current price if no open)
+  const todayOpen = daily?.open ?? null;
+  const gapPct = (todayOpen != null && prevClose != null && prevClose !== 0)
+    ? (todayOpen - prevClose) / prevClose
+    : null;
+
   return (
-    <>
-      {/* Price Overview */}
-      <DetailSection title="Price">
-        <DetailRow label="Last Trade" value={fmtPrice(price)} />
-        {changeAbs != null && (
-          <DetailRow
-            label="Change"
-            value={`${changeAbs >= 0 ? '+' : ''}${fmtNum(changeAbs)} (${fmtPct(changePct)})`}
-            className={isPositive ? 'positive' : 'negative'}
-          />
-        )}
-        {quote && (
-          <>
-            <DetailRow
-              label="Bid"
-              value={`${fmtPrice(quote.bid_price)} × ${quote.bid_size ?? '—'}`}
-            />
-            <DetailRow
-              label="Ask"
-              value={`${fmtPrice(quote.ask_price)} × ${quote.ask_size ?? '—'}`}
-            />
-            {quote.bid_price != null && quote.ask_price != null && (
-              <DetailRow
-                label="Spread"
-                value={`$${(quote.ask_price - quote.bid_price).toFixed(3)}`}
-              />
+    <div className="cq-root">
+      {/* Header row */}
+      <div className="cq-header">
+        <div className="cq-symbol-row">
+          <span className="cq-symbol">{detail.symbol}</span>
+          {changeAbs != null && (
+            <span className="cq-trend">{isPositive ? '▲' : '▼'}</span>
+          )}
+        </div>
+        {price != null && (
+          <div className="cq-price-row">
+            <span className="cq-price">{price.toFixed(2)}</span>
+            {changeAbs != null && (
+              <span className={`cq-change ${isPositive ? 'positive' : 'negative'}`}>
+                {changeAbs >= 0 ? '+' : ''}{changeAbs.toFixed(2)} ({fmtPct(changePct)})
+              </span>
             )}
-          </>
+          </div>
         )}
-      </DetailSection>
+      </div>
 
-      {/* Daily Bar */}
-      {daily && (
-        <DetailSection title="Today's Bar">
-          <DetailRow label="Open" value={fmtPrice(daily.open)} />
-          <DetailRow label="High" value={fmtPrice(daily.high)} />
-          <DetailRow label="Low" value={fmtPrice(daily.low)} />
-          <DetailRow label="Close" value={fmtPrice(daily.close)} />
-          <DetailRow label="VWAP" value={fmtPrice(daily.vwap)} />
-          <DetailRow label="Trades" value={daily.trade_count?.toLocaleString() ?? '—'} />
-        </DetailSection>
+      {/* Description */}
+      {descParts.length > 0 && (
+        <div className="cq-description">{descParts.join(' | ')}</div>
       )}
 
-      {/* Previous Daily Bar */}
-      {prevDaily && (
-        <DetailSection title="Previous Day">
-          <DetailRow label="Open" value={fmtPrice(prevDaily.open)} />
-          <DetailRow label="High" value={fmtPrice(prevDaily.high)} />
-          <DetailRow label="Low" value={fmtPrice(prevDaily.low)} />
-          <DetailRow label="Close" value={fmtPrice(prevDaily.close)} />
-          <DetailRow label="VWAP" value={fmtPrice(prevDaily.vwap)} />
-          <DetailRow label="Trades" value={prevDaily.trade_count?.toLocaleString() ?? '—'} />
-        </DetailSection>
+      {/* Last updated */}
+      {lastUpdated && (
+        <div className="cq-timestamp">Last updated on {fmtTimestamp(lastUpdated)}</div>
       )}
 
-      {/* Minute Bar */}
-      {minuteBar && (
-        <DetailSection title="Last Minute Bar">
-          <DetailRow label="Open" value={fmtPrice(minuteBar.open)} />
-          <DetailRow label="High" value={fmtPrice(minuteBar.high)} />
-          <DetailRow label="Low" value={fmtPrice(minuteBar.low)} />
-          <DetailRow label="Close" value={fmtPrice(minuteBar.close)} />
-          <DetailRow label="Volume" value={fmtVolume(minuteBar.volume)} />
-          <DetailRow label="VWAP" value={fmtPrice(minuteBar.vwap)} />
-        </DetailSection>
-      )}
-
-      {/* Volume */}
-      <DetailSection title="Volume">
-        <DetailRow label="Today" value={fmtVolume(daily?.volume)} />
-        <DetailRow label="Avg (20d)" value={fmtVolume(detail.avg_volume)} />
-        <DetailRow
-          label="Rel. Volume"
-          value={detail.rel_volume != null ? `${detail.rel_volume}x` : '—'}
-          className={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
-        />
-      </DetailSection>
-
-      {/* Fundamentals */}
-      {detail.fundamentals && (
-        <DetailSection title="Fundamentals">
-          <DetailRow label="Market Cap" value={fmtMarketCap(detail.fundamentals.market_cap)} />
-          <DetailRow label="Shares Out." value={fmtVolume(detail.fundamentals.shares_outstanding)} />
-          <DetailRow label="Float" value={fmtVolume(detail.fundamentals.float_shares)} />
-          <DetailRow label="Short Interest" value={fmtVolume(detail.fundamentals.short_interest)} />
-          <DetailRow label="Short Ratio" value={detail.fundamentals.short_ratio != null ? detail.fundamentals.short_ratio.toFixed(2) : '—'} />
-          <DetailRow
-            label="Short % Float"
-            value={detail.fundamentals.short_percent_of_float != null
-              ? `${(detail.fundamentals.short_percent_of_float * 100).toFixed(1)}%`
-              : '—'}
-          />
-          <DetailRow label="P/E (TTM)" value={detail.fundamentals.pe_ratio != null ? detail.fundamentals.pe_ratio.toFixed(2) : '—'} />
-          <DetailRow label="Forward P/E" value={detail.fundamentals.forward_pe != null ? detail.fundamentals.forward_pe.toFixed(2) : '—'} />
-          <DetailRow label="EPS (TTM)" value={detail.fundamentals.eps != null ? `$${detail.fundamentals.eps.toFixed(2)}` : '—'} />
-          <DetailRow label="Beta" value={detail.fundamentals.beta != null ? detail.fundamentals.beta.toFixed(2) : '—'} />
-          <DetailRow
-            label="Dividend Yield"
-            value={detail.fundamentals.dividend_yield != null
-              ? `${(detail.fundamentals.dividend_yield * 100).toFixed(2)}%`
-              : '—'}
-          />
-          <DetailRow label="52W High" value={fmtPrice(detail.fundamentals.fifty_two_week_high)} />
-          <DetailRow label="52W Low" value={fmtPrice(detail.fundamentals.fifty_two_week_low)} />
-          {detail.fundamentals.sector && (
-            <DetailRow label="Sector" value={detail.fundamentals.sector} />
-          )}
-          {detail.fundamentals.industry && (
-            <DetailRow label="Industry" value={detail.fundamentals.industry} />
-          )}
-        </DetailSection>
-      )}
-
-      {/* Asset Info */}
-      {asset && (
-        <DetailSection title="Asset Info">
-          <DetailRow label="Class" value={asset.asset_class || '—'} />
-          <DetailRow label="Tradable" value={<BoolBadge value={asset.tradable} />} />
-          <DetailRow label="Marginable" value={<BoolBadge value={asset.marginable} />} />
-          <DetailRow label="Shortable" value={<BoolBadge value={asset.shortable} />} />
-          <DetailRow label="Easy to Borrow" value={<BoolBadge value={asset.easy_to_borrow} />} />
-          <DetailRow label="Fractionable" value={<BoolBadge value={asset.fractionable} />} />
-          {asset.maintenance_margin_requirement != null && (
-            <DetailRow label="Margin Req." value={`${asset.maintenance_margin_requirement}%`} />
-          )}
-        </DetailSection>
-      )}
-
-      {/* News */}
+      {/* News section */}
       {detail.news.length > 0 && (
-        <DetailSection title={`News (${detail.news.length})`}>
-          <div className="news-list">
-            {detail.news.map((article, i) => (
-              <div key={i} className="news-card">
-                {article.images.find(img => img.size === 'thumb') && (
-                  <img
-                    className="news-thumb"
-                    src={article.images.find(img => img.size === 'thumb')!.url}
-                    alt=""
-                    loading="lazy"
-                  />
-                )}
-                <div className="news-card-body">
+        <div className="cq-news-section">
+          <div className="cq-news-header">
+            <span className="cq-news-title">News Headline</span>
+            {detail.news.length > NEWS_DEFAULT && (
+              <button className="cq-news-more" onClick={() => setNewsExpanded(x => !x)}>
+                {newsExpanded ? 'Less ▲' : `More ▼`}
+              </button>
+            )}
+          </div>
+          <div className="cq-news-list">
+            {visibleNews.map((article, i) => {
+              const ageHours = (Date.now() - new Date(article.created_at).getTime()) / 3_600_000;
+              const hasFlame = ageHours <= NEWS_FLAME_MAX_HOURS;
+              const flameClass = ageHours <= NEWS_FLAME_HOT_HOURS ? 'flame-hot'
+                : ageHours <= NEWS_FLAME_WARM_HOURS ? 'flame-warm' : 'flame-cool';
+              return (
+                <div key={i} className="cq-news-item">
+                  <span className={`cq-news-icon ${hasFlame ? `news-flame ${flameClass}` : 'cq-news-icon-blank'}`}>
+                    {hasFlame ? '🔥' : ''}
+                  </span>
                   <a
-                    className="news-headline"
+                    className="cq-news-link"
                     href={article.url}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     {article.headline}
                   </a>
-                  {article.summary && (
-                    <p className="news-summary">{article.summary}</p>
-                  )}
-                  <div className="news-meta">
-                    <span>{article.source}</span>
-                    {article.author && <span>· {article.author}</span>}
-                    <span>· {timeAgo(article.created_at)}</span>
-                  </div>
+                  <span className="cq-news-time">{timeAgo(article.created_at)}</span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </DetailSection>
+        </div>
       )}
 
-      {detail.news.length === 0 && (
-        <DetailSection title="News">
-          <p className="detail-empty">No news today for {detail.symbol}.</p>
-        </DetailSection>
+      {/* Data grid */}
+      <div className="cq-grid">
+        <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
+        <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
+
+        <CompactGridCell
+          label="Relative Volume (Daily)"
+          value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
+          valueClass={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
+        />
+        <CompactGridCell label="Relative Volume (5 min %)" value="—" />
+
+        <CompactGridCell
+          label="Gap(%)"
+          value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}
+          valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
+        />
+        <CompactGridCell label="Volume In 5 Minutes" value="—" />
+
+        <CompactGridCell label="Previous Close" value={fmtPrice(prevClose)} />
+        <CompactGridCell label="High Price" value={fmtPrice(daily?.high)} />
+
+        <CompactGridCell label="Low Price" value={fmtPrice(daily?.low)} />
+        <CompactGridCell label="High In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_high)} />
+
+        <CompactGridCell label="Low In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_low)} />
+        <CompactGridCell label="Short Interest" value={fmtVolume(detail.fundamentals?.short_interest)} />
+
+        <CompactGridCell
+          label="Earnings Date"
+          value={detail.fundamentals?.earnings_date ?? '—'}
+        />
+        <CompactGridCell label="Market Cap" value={fmtMarketCap(detail.fundamentals?.market_cap)} />
+
+        <CompactGridCell label="Industry" value={detail.fundamentals?.industry ?? '—'} />
+        <CompactGridCell label="Sector" value={detail.fundamentals?.sector ?? '—'} />
+
+        <CompactGridCell
+          label="Recent Split"
+          value={detail.fundamentals?.recent_split ?? '—'}
+        />
+        <CompactGridCell label="Exchange Group" value={asset?.exchange ?? '—'} />
+      </div>
+
+      {/* Bottom timestamp */}
+      {lastUpdated && (
+        <div className="cq-timestamp cq-timestamp-bottom">Last updated on {fmtTimestamp(lastUpdated)}</div>
       )}
-    </>
+    </div>
   );
 }
 
+// ── Ticker Detail Panel ───────────────────────────────────────────────────────
+
 function TickerDetailPanel({
-  detail,
-  loading,
+  symbol,
   onClose,
 }: {
-  detail: TickerDetail | null;
-  loading: boolean;
+  symbol: string;
   onClose: () => void;
 }) {
+  const { detail, loading } = useTickerStream(symbol);
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -479,35 +509,22 @@ function TickerDetailPanel({
     return () => document.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
-  const asset = detail?.asset;
-
   return (
     <>
       <div className="detail-overlay" onClick={onClose} />
       <div className="detail-panel" ref={panelRef} role="dialog" aria-modal="true">
+        <div className="detail-panel-close-row">
+          <button className="detail-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
         {loading || !detail ? (
           <div className="detail-loading">
             <div className="detail-loading-spinner" />
             <span>Loading…</span>
           </div>
         ) : (
-          <>
-            <div className="detail-header">
-              <div className="detail-header-left">
-                <span className="detail-symbol">{detail.symbol}</span>
-                {asset?.exchange && (
-                  <span className="detail-exchange-badge">{asset.exchange}</span>
-                )}
-                {asset?.name && (
-                  <span className="detail-company-name">{asset.name}</span>
-                )}
-              </div>
-              <button className="detail-close" onClick={onClose} aria-label="Close">✕</button>
-            </div>
-            <div className="detail-body">
-              <TickerDetailContent detail={detail} />
-            </div>
-          </>
+          <div className="detail-body">
+            <TickerDetailContent detail={detail} />
+          </div>
         )}
       </div>
     </>
@@ -516,28 +533,16 @@ function TickerDetailPanel({
 
 // ── Stock Quote Tab ───────────────────────────────────────────────────────────
 
-function StockQuoteTab({
-  input,
-  onInputChange,
-  onSearch,
-  symbol,
-  detail,
-  loading,
-}: {
-  input: string;
-  onInputChange: (v: string) => void;
-  onSearch: (symbol: string) => void;
-  symbol: string | null;
-  detail: TickerDetail | null;
-  loading: boolean;
-}) {
+function StockQuoteTab() {
+  const [input, setInput] = useState('');
+  const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
+  const { detail, loading } = useTickerStream(activeSymbol);
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const sym = input.trim().toUpperCase();
-    if (sym) onSearch(sym);
+    if (sym) setActiveSymbol(sym);
   }
-
-  const asset = detail?.asset;
 
   return (
     <div className="quote-tab">
@@ -546,7 +551,7 @@ function StockQuoteTab({
           className="quote-search-input"
           type="text"
           value={input}
-          onChange={e => onInputChange(e.target.value.toUpperCase())}
+          onChange={e => setInput(e.target.value.toUpperCase())}
           placeholder="Enter symbol, e.g. AAPL"
           autoComplete="off"
           spellCheck={false}
@@ -564,29 +569,16 @@ function StockQuoteTab({
 
       {!loading && detail && (
         <div className="quote-content">
-          <div className="quote-content-header">
-            <div className="detail-header-left">
-              <span className="detail-symbol">{detail.symbol}</span>
-              {asset?.exchange && (
-                <span className="detail-exchange-badge">{asset.exchange}</span>
-              )}
-              {asset?.name && (
-                <span className="detail-company-name">{asset.name}</span>
-              )}
-            </div>
-          </div>
-          <div className="quote-content-body">
-            <TickerDetailContent detail={detail} />
-          </div>
+          <TickerDetailContent detail={detail} />
         </div>
       )}
 
-      {!loading && !detail && !symbol && (
+      {!loading && !detail && !activeSymbol && (
         <div className="empty-state">Enter a ticker symbol above to look up a stock quote.</div>
       )}
 
-      {!loading && !detail && symbol && (
-        <div className="empty-state">No data found for {symbol}.</div>
+      {!loading && !detail && activeSymbol && (
+        <div className="empty-state">No data found for {activeSymbol}.</div>
       )}
     </div>
   );
@@ -628,14 +620,6 @@ function App() {
 
   // Ticker detail state (side panel)
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [tickerDetail, setTickerDetail] = useState<TickerDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-
-  // Stock Quote tab state
-  const [quoteInput, setQuoteInput] = useState('');
-  const [quoteSymbol, setQuoteSymbol] = useState<string | null>(null);
-  const [quoteDetail, setQuoteDetail] = useState<TickerDetail | null>(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
 
   // Settings form state
   const [apiKey, setApiKey] = useState('');
@@ -753,45 +737,6 @@ function App() {
     }
   }, []);
 
-  const fetchTickerDetail = useCallback(async (symbol: string) => {
-    setSelectedSymbol(symbol);
-    setDetailLoading(true);
-    setTickerDetail(null);
-    try {
-      const res = await fetch(`${API_URL}/ticker/${symbol}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTickerDetail(data);
-      }
-    } catch {
-      // silent — panel will show loading indefinitely but won't crash
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
-
-  const closeDetail = useCallback(() => {
-    setSelectedSymbol(null);
-    setTickerDetail(null);
-    setDetailLoading(false);
-  }, []);
-
-  const handleQuoteSearch = useCallback(async (symbol: string) => {
-    setQuoteSymbol(symbol);
-    setQuoteLoading(true);
-    setQuoteDetail(null);
-    try {
-      const res = await fetch(`${API_URL}/ticker/${symbol}`);
-      if (res.ok) {
-        const data = await res.json();
-        setQuoteDetail(data);
-      }
-    } catch {
-      // silent — empty state will show
-    } finally {
-      setQuoteLoading(false);
-    }
-  }, []);
 
   // Auto-switch tab when mode changes, unless user has manually picked a tab
   useEffect(() => {
@@ -1011,7 +956,7 @@ function App() {
                         <td>
                           <button
                             className={`symbol-btn${selectedSymbol === g.symbol ? ' active' : ''}`}
-                            onClick={() => fetchTickerDetail(g.symbol)}
+                            onClick={() => setSelectedSymbol(g.symbol)}
                           >
                             {g.symbol}
                           </button>
@@ -1041,14 +986,7 @@ function App() {
 
         {/* ── Stock Quote tab ───────────────────────────────────────── */}
         {activeTab === 'quote' && (
-          <StockQuoteTab
-            input={quoteInput}
-            onInputChange={setQuoteInput}
-            onSearch={handleQuoteSearch}
-            symbol={quoteSymbol}
-            detail={quoteDetail}
-            loading={quoteLoading}
-          />
+          <StockQuoteTab />
         )}
 
         {/* ── Top Movers tab ────────────────────────────────────────── */}
@@ -1118,7 +1056,7 @@ function App() {
                         <td>
                           <button
                             className={`symbol-btn${selectedSymbol === m.symbol ? ' active' : ''}`}
-                            onClick={() => fetchTickerDetail(m.symbol)}
+                            onClick={() => setSelectedSymbol(m.symbol)}
                           >
                             {m.symbol}
                           </button>
@@ -1205,7 +1143,7 @@ function App() {
                         <td>
                           <button
                             className={`symbol-btn${selectedSymbol === g.symbol ? ' active' : ''}`}
-                            onClick={() => fetchTickerDetail(g.symbol)}
+                            onClick={() => setSelectedSymbol(g.symbol)}
                           >
                             {g.symbol}
                           </button>
@@ -1239,9 +1177,8 @@ function App() {
       {/* ── Ticker Detail Panel ────────────────────────────────────── */}
       {selectedSymbol && (
         <TickerDetailPanel
-          detail={tickerDetail}
-          loading={detailLoading}
-          onClose={closeDetail}
+          symbol={selectedSymbol}
+          onClose={() => setSelectedSymbol(null)}
         />
       )}
     </div>

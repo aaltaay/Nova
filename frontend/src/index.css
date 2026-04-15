@@ -521,52 +521,11 @@ th {
   to   { transform: translateX(0); }
 }
 
-.detail-header {
+.detail-panel-close-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 1.25rem 1.5rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  justify-content: flex-end;
+  padding: 0.75rem 1rem 0.25rem;
   flex-shrink: 0;
-}
-
-.detail-header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.detail-symbol {
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: 1px;
-  color: var(--text-primary);
-  line-height: 1;
-}
-
-.detail-exchange-badge {
-  display: inline-block;
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  background: transparent;
-  width: fit-content;
-}
-
-.detail-company-name {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 280px;
 }
 
 .detail-close {
@@ -594,68 +553,217 @@ th {
 .detail-body {
   flex: 1;
   overflow-y: auto;
-  padding: 0 1.5rem 2rem;
+  padding: 0 1.25rem 2rem;
 }
 
-/* ── Detail sections ─────────────────────────────────────────────────────── */
+/* ── Compact Quote Layout ────────────────────────────────────────────────── */
 
-.detail-section {
-  padding: 1rem 0;
+.cq-root {
+  padding: 0.75rem 0;
+}
+
+/* Header */
+.cq-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-bottom: 0.35rem;
+}
+
+.cq-symbol-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cq-symbol {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.cq-trend {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.cq-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cq-price {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.cq-change {
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Description */
+.cq-description {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.2rem;
+  line-height: 1.4;
+}
+
+/* Timestamps */
+.cq-timestamp {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  opacity: 0.65;
+  margin-bottom: 0.75rem;
+}
+
+.cq-timestamp-bottom {
+  margin-top: 0.75rem;
+  margin-bottom: 0;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.5rem;
+}
+
+/* News section */
+.cq-news-section {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.cq-news-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem;
+  background: rgba(255,255,255,0.03);
   border-bottom: 1px solid var(--border-color);
 }
 
-.detail-section:last-child {
+.cq-news-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+}
+
+.cq-news-more {
+  background: transparent;
+  border: none;
+  color: var(--accent-color);
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cq-news-more:hover {
+  text-decoration: underline;
+}
+
+.cq-news-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.cq-news-item {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr auto;
+  align-items: start;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.78rem;
+}
+
+.cq-news-item:last-child {
   border-bottom: none;
 }
 
-.detail-section-title {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-secondary);
-  margin-bottom: 0.625rem;
+.cq-news-icon {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
+  min-width: 1.25rem;
 }
 
-.detail-row {
+.cq-news-icon-blank {
+  display: inline-block;
+}
+
+.cq-news-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  line-height: 1.4;
+}
+
+.cq-news-link:hover {
+  color: var(--accent-color);
+  text-decoration: underline;
+}
+
+.cq-news-time {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+/* Data grid — two-column layout */
+.cq-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cq-cell {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.275rem 0;
-  gap: 1rem;
+  padding: 0.3rem 0.65rem;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.78rem;
 }
 
-.detail-label {
-  font-size: 0.825rem;
+/* Alternate row shading: rows 1,3,5,… (pairs 1-2, 5-6, 9-10, …) */
+.cq-cell:nth-child(4n+1),
+.cq-cell:nth-child(4n+2) {
+  background: rgba(255,255,255,0.025);
+}
+
+/* Left-column cells get a right divider */
+.cq-cell:nth-child(odd) {
+  border-right: 1px solid var(--border-color);
+}
+
+/* Remove bottom border for last row pair */
+.cq-cell:nth-last-child(-n+2) {
+  border-bottom: none;
+}
+
+.cq-label {
   color: var(--text-secondary);
   flex-shrink: 0;
 }
 
-.detail-value {
-  font-size: 0.825rem;
+.cq-value {
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   text-align: right;
-}
-
-/* ── Bool badge ──────────────────────────────────────────────────────────── */
-
-.bool-badge {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.15rem 0.45rem;
-  border-radius: 4px;
-}
-
-.bool-yes {
-  color: var(--success);
-  background: rgba(16, 185, 129, 0.1);
-}
-
-.bool-no {
-  color: var(--text-secondary);
-  background: var(--border-color);
 }
 
 /* ── Loading state ───────────────────────────────────────────────────────── */
@@ -682,77 +790,6 @@ th {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-/* ── News list ───────────────────────────────────────────────────────────── */
-
-.news-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 0.25rem;
-}
-
-.news-card {
-  display: flex;
-  gap: 0.75rem;
-  background: var(--bg-color);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 0.75rem;
-}
-
-.news-thumb {
-  width: 64px;
-  height: 48px;
-  object-fit: cover;
-  border-radius: 4px;
-  flex-shrink: 0;
-  background: var(--border-color);
-}
-
-.news-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 0;
-}
-
-.news-headline {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--text-primary);
-  text-decoration: none;
-  line-height: 1.35;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.news-headline:hover {
-  color: var(--accent-color);
-  text-decoration: underline;
-}
-
-.news-summary {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  line-height: 1.4;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.news-meta {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
-  opacity: 0.7;
-  display: flex;
-  gap: 0.25rem;
-  flex-wrap: wrap;
 }
 
 .detail-empty {
@@ -798,22 +835,6 @@ th {
 .quote-content {
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  overflow: hidden;
-}
-
-.quote-content-header {
-  display: flex;
-  align-items: flex-start;
-  padding: 1.25rem 1.5rem 1rem;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--bg-color);
-}
-
-.quote-content-body {
-  padding: 0 1.5rem 1.5rem;
+  padding: 0 1.25rem 1.25rem;
   max-width: 700px;
-}
-
-.quote-content-body .detail-loading {
-  min-height: 120px;
 }
