@@ -49,6 +49,7 @@ from constants import (
     RVOL_LOOKBACK_DAYS,
     SCAN_CAP_DEFAULT,
     SCAN_EXCHANGES,
+    SCAN_REQUIRE_TRADABLE,
     SCANNER_MIN_PRICE,
     SNAPSHOT_WORKERS,
     SYMBOL_EXCLUDE_RE,
@@ -78,6 +79,11 @@ _AH_FOCUS_INTERVAL = AFTERHOURS_FOCUS_INTERVAL_SEC
 _SCAN_CAP = int(os.environ.get("ALPACA_SCAN_SYMBOL_CAP", str(SCAN_CAP_DEFAULT)))  # emergency override only
 _MIN_GAP_PCT = float(os.environ.get("BLAST_MIN_GAP_PCT", str(GAPPER_MIN_GAP_PCT)))
 _TOP_N = int(os.environ.get("BLAST_TOP_N", str(TOP_N_DEFAULT)))
+_raw_scan_tradable = os.environ.get("BLAST_SCAN_REQUIRE_TRADABLE")
+if _raw_scan_tradable is None or not str(_raw_scan_tradable).strip():
+    _SCAN_REQUIRE_TRADABLE = SCAN_REQUIRE_TRADABLE
+else:
+    _SCAN_REQUIRE_TRADABLE = str(_raw_scan_tradable).strip().lower() in ("1", "true", "yes", "on")
 _NEWS_CATALYST_INTERVAL = NEWS_CATALYST_INTERVAL_SEC
 
 # ── Assets cache (1-hour TTL) ─────────────────────────────────────────────────
@@ -302,7 +308,7 @@ def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
 
         symbols: list[str] = []
         for a in all_assets:
-            if not a.get("tradable"):
+            if _SCAN_REQUIRE_TRADABLE and not a.get("tradable"):
                 continue
             sym = a.get("symbol", "")
             if SYMBOL_EXCLUDE_RE.search(sym):

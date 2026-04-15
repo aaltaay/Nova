@@ -34,6 +34,11 @@ GAPPER_MIN_GAP_PCT = 10.0   # exclude symbols below this gap %
 # Excluded intentionally: ARCA/NYSEARCA (ETF-only venues), BATS (ETF listings), OTC.
 SCAN_EXCHANGES = ("NYSE", "NASDAQ", "AMEX")
 
+# When True, only include Alpaca assets with `tradable: true`. Some active listings are
+# marked `tradable: false` (e.g. overnight halt / restriction) and are otherwise dropped
+# from the scan universe. Override with env `BLAST_SCAN_REQUIRE_TRADABLE` (false | true).
+SCAN_REQUIRE_TRADABLE = True
+
 # Symbols whose name contains any of these keywords are excluded from the
 # gapper universe. ETFs do not produce catalyst-driven gap events.
 ETF_NAME_KEYWORDS = ("ETF", "Fund", "Trust", "Index")

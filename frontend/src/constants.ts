@@ -21,6 +21,8 @@ export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 // ── Minimum price filter (mirror backend SCANNER_MIN_PRICE) ─────────────────
 export const SCANNER_MIN_PRICE = 0.50;  // exclude any stock priced below $0.50 (gainers + gappers)
 
+// Scanner universe: mirror backend SCAN_REQUIRE_TRADABLE / BLAST_SCAN_REQUIRE_TRADABLE (backend-only toggle).
+
 // ── Gapper filter (mirror backend GAPPER_MIN_GAP_PCT) ───────────────────────
 export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show as a gapper
 
