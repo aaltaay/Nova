@@ -1,0 +1,75 @@
+---
+description: Enforce modular design in the backend — no logic dumped into main.py
+globs: backend/**/*.py
+alwaysApply: true
+---
+
+# Backend Modularity Policy
+
+`backend/main.py` is the **app entry point only**. It must contain nothing but:
+- FastAPI app creation + middleware
+- `lifespan` / startup hooks that wire together modules
+- Route registrations (via `app.include_router` or thin `@app.get` calls that delegate immediately)
+
+Everything else lives in a purpose-built module. When adding or refactoring code, always place it in the correct module below.
+
+## Module Layout
+
+```
+backend/
+  main.py            # app factory + lifespan only
+  constants.py       # all tunables (see centralized-constants rule)
+  market.py          # _now_et, _in_premarket, _in_market_hours, _get_mode
+  alpaca.py          # _alpaca_headers, _env, all Alpaca REST + WS client calls
+  cache.py           # shared in-memory cache dicts, TTL helpers, invalidation
+  scanner.py         # gapper / gainer / loser discovery and scoring logic
+  news.py            # news-catalyst fetch, dedup, scoring
+  fundamentals.py    # yfinance fetch + TTL cache wrapper
+  websocket.py       # WS connection manager, subscription state, streaming loop
+  routes/
+    health.py        # /health endpoint
+    scan.py          # /gappers, /gainers, /losers endpoints
+    ticker.py        # /ticker/{symbol} + ticker detail WS
+    settings.py      # /settings GET/POST
+```
+
+## Rules
+
+1. **Never add a function to `main.py`** unless it is a `@app.on_event` / lifespan hook or a one-liner route that calls an imported function.
+
+2. **Each module owns its state.** Module-level globals (caches, flags) live in the module that reads/writes them. `main.py` must not declare any `_*` globals.
+
+3. **Cross-module calls go through imports, not globals.** If `scanner.py` needs a cache, it imports it from `cache.py`. Do not pass state through `main.py` as a middleman.
+
+4. **Route handlers are thin.** A route handler calls one service function and returns its result. Business logic (filtering, scoring, enrichment) belongs in `scanner.py`, `news.py`, etc.
+
+5. **New features = new module or clear extension of an existing one.** Do not add a new domain (e.g. alerts, watchlist) to an existing module; create `alerts.py` instead.
+
+## Bad vs Good
+
+```python
+# ❌ BAD — logic piled into main.py
+@app.get("/gappers")
+async def get_gappers():
+    symbols = _fetch_assets()          # defined 300 lines above in same file
+    filtered = [s for s in symbols if _score(s) > _MIN_GAP_PCT]
+    ...
+
+# ✅ GOOD — main.py delegates
+from routes.scan import router as scan_router
+app.include_router(scan_router)
+
+# routes/scan.py
+from scanner import get_gappers
+@router.get("/gappers")
+async def get_gappers_route():
+    return await get_gappers()
+```
+
+## Refactoring Existing Code
+
+When touching any function currently in `main.py`:
+1. Move it to the correct module (see layout above).
+2. Import it back in `main.py` if still referenced there.
+3. Do not leave the old copy in `main.py`.
+4. Update all callers in the same PR/commit.
