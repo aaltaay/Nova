@@ -253,6 +253,201 @@ function BoolBadge({ value, trueLabel = 'Yes', falseLabel = 'No' }: { value: boo
   );
 }
 
+function TickerDetailContent({
+  detail,
+}: {
+  detail: TickerDetail;
+}) {
+  const snap = detail.snapshot;
+  const asset = detail.asset;
+  const trade = snap?.latest_trade;
+  const quote = snap?.latest_quote;
+  const daily = snap?.daily_bar;
+  const prevDaily = snap?.prev_daily_bar;
+  const minuteBar = snap?.minute_bar;
+
+  const price = trade?.price ?? daily?.close ?? null;
+  const prevClose = prevDaily?.close ?? null;
+  const changeAbs = (price != null && prevClose != null) ? price - prevClose : null;
+  const changePct = (changeAbs != null && prevClose) ? changeAbs / prevClose : null;
+  const isPositive = (changePct ?? 0) >= 0;
+
+  return (
+    <>
+      {/* Price Overview */}
+      <DetailSection title="Price">
+        <DetailRow label="Last Trade" value={fmtPrice(price)} />
+        {changeAbs != null && (
+          <DetailRow
+            label="Change"
+            value={`${changeAbs >= 0 ? '+' : ''}${fmtNum(changeAbs)} (${fmtPct(changePct)})`}
+            className={isPositive ? 'positive' : 'negative'}
+          />
+        )}
+        {quote && (
+          <>
+            <DetailRow
+              label="Bid"
+              value={`${fmtPrice(quote.bid_price)} × ${quote.bid_size ?? '—'}`}
+            />
+            <DetailRow
+              label="Ask"
+              value={`${fmtPrice(quote.ask_price)} × ${quote.ask_size ?? '—'}`}
+            />
+            {quote.bid_price != null && quote.ask_price != null && (
+              <DetailRow
+                label="Spread"
+                value={`$${(quote.ask_price - quote.bid_price).toFixed(3)}`}
+              />
+            )}
+          </>
+        )}
+      </DetailSection>
+
+      {/* Daily Bar */}
+      {daily && (
+        <DetailSection title="Today's Bar">
+          <DetailRow label="Open" value={fmtPrice(daily.open)} />
+          <DetailRow label="High" value={fmtPrice(daily.high)} />
+          <DetailRow label="Low" value={fmtPrice(daily.low)} />
+          <DetailRow label="Close" value={fmtPrice(daily.close)} />
+          <DetailRow label="VWAP" value={fmtPrice(daily.vwap)} />
+          <DetailRow label="Trades" value={daily.trade_count?.toLocaleString() ?? '—'} />
+        </DetailSection>
+      )}
+
+      {/* Previous Daily Bar */}
+      {prevDaily && (
+        <DetailSection title="Previous Day">
+          <DetailRow label="Open" value={fmtPrice(prevDaily.open)} />
+          <DetailRow label="High" value={fmtPrice(prevDaily.high)} />
+          <DetailRow label="Low" value={fmtPrice(prevDaily.low)} />
+          <DetailRow label="Close" value={fmtPrice(prevDaily.close)} />
+          <DetailRow label="VWAP" value={fmtPrice(prevDaily.vwap)} />
+          <DetailRow label="Trades" value={prevDaily.trade_count?.toLocaleString() ?? '—'} />
+        </DetailSection>
+      )}
+
+      {/* Minute Bar */}
+      {minuteBar && (
+        <DetailSection title="Last Minute Bar">
+          <DetailRow label="Open" value={fmtPrice(minuteBar.open)} />
+          <DetailRow label="High" value={fmtPrice(minuteBar.high)} />
+          <DetailRow label="Low" value={fmtPrice(minuteBar.low)} />
+          <DetailRow label="Close" value={fmtPrice(minuteBar.close)} />
+          <DetailRow label="Volume" value={fmtVolume(minuteBar.volume)} />
+          <DetailRow label="VWAP" value={fmtPrice(minuteBar.vwap)} />
+        </DetailSection>
+      )}
+
+      {/* Volume */}
+      <DetailSection title="Volume">
+        <DetailRow label="Today" value={fmtVolume(daily?.volume)} />
+        <DetailRow label="Avg (20d)" value={fmtVolume(detail.avg_volume)} />
+        <DetailRow
+          label="Rel. Volume"
+          value={detail.rel_volume != null ? `${detail.rel_volume}x` : '—'}
+          className={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
+        />
+      </DetailSection>
+
+      {/* Fundamentals */}
+      {detail.fundamentals && (
+        <DetailSection title="Fundamentals">
+          <DetailRow label="Market Cap" value={fmtMarketCap(detail.fundamentals.market_cap)} />
+          <DetailRow label="Shares Out." value={fmtVolume(detail.fundamentals.shares_outstanding)} />
+          <DetailRow label="Float" value={fmtVolume(detail.fundamentals.float_shares)} />
+          <DetailRow label="Short Interest" value={fmtVolume(detail.fundamentals.short_interest)} />
+          <DetailRow label="Short Ratio" value={detail.fundamentals.short_ratio != null ? detail.fundamentals.short_ratio.toFixed(2) : '—'} />
+          <DetailRow
+            label="Short % Float"
+            value={detail.fundamentals.short_percent_of_float != null
+              ? `${(detail.fundamentals.short_percent_of_float * 100).toFixed(1)}%`
+              : '—'}
+          />
+          <DetailRow label="P/E (TTM)" value={detail.fundamentals.pe_ratio != null ? detail.fundamentals.pe_ratio.toFixed(2) : '—'} />
+          <DetailRow label="Forward P/E" value={detail.fundamentals.forward_pe != null ? detail.fundamentals.forward_pe.toFixed(2) : '—'} />
+          <DetailRow label="EPS (TTM)" value={detail.fundamentals.eps != null ? `$${detail.fundamentals.eps.toFixed(2)}` : '—'} />
+          <DetailRow label="Beta" value={detail.fundamentals.beta != null ? detail.fundamentals.beta.toFixed(2) : '—'} />
+          <DetailRow
+            label="Dividend Yield"
+            value={detail.fundamentals.dividend_yield != null
+              ? `${(detail.fundamentals.dividend_yield * 100).toFixed(2)}%`
+              : '—'}
+          />
+          <DetailRow label="52W High" value={fmtPrice(detail.fundamentals.fifty_two_week_high)} />
+          <DetailRow label="52W Low" value={fmtPrice(detail.fundamentals.fifty_two_week_low)} />
+          {detail.fundamentals.sector && (
+            <DetailRow label="Sector" value={detail.fundamentals.sector} />
+          )}
+          {detail.fundamentals.industry && (
+            <DetailRow label="Industry" value={detail.fundamentals.industry} />
+          )}
+        </DetailSection>
+      )}
+
+      {/* Asset Info */}
+      {asset && (
+        <DetailSection title="Asset Info">
+          <DetailRow label="Class" value={asset.asset_class || '—'} />
+          <DetailRow label="Tradable" value={<BoolBadge value={asset.tradable} />} />
+          <DetailRow label="Marginable" value={<BoolBadge value={asset.marginable} />} />
+          <DetailRow label="Shortable" value={<BoolBadge value={asset.shortable} />} />
+          <DetailRow label="Easy to Borrow" value={<BoolBadge value={asset.easy_to_borrow} />} />
+          <DetailRow label="Fractionable" value={<BoolBadge value={asset.fractionable} />} />
+          {asset.maintenance_margin_requirement != null && (
+            <DetailRow label="Margin Req." value={`${asset.maintenance_margin_requirement}%`} />
+          )}
+        </DetailSection>
+      )}
+
+      {/* News */}
+      {detail.news.length > 0 && (
+        <DetailSection title={`News (${detail.news.length})`}>
+          <div className="news-list">
+            {detail.news.map((article, i) => (
+              <div key={i} className="news-card">
+                {article.images.find(img => img.size === 'thumb') && (
+                  <img
+                    className="news-thumb"
+                    src={article.images.find(img => img.size === 'thumb')!.url}
+                    alt=""
+                    loading="lazy"
+                  />
+                )}
+                <div className="news-card-body">
+                  <a
+                    className="news-headline"
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {article.headline}
+                  </a>
+                  {article.summary && (
+                    <p className="news-summary">{article.summary}</p>
+                  )}
+                  <div className="news-meta">
+                    <span>{article.source}</span>
+                    {article.author && <span>· {article.author}</span>}
+                    <span>· {timeAgo(article.created_at)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </DetailSection>
+      )}
+
+      {detail.news.length === 0 && (
+        <DetailSection title="News">
+          <p className="detail-empty">No news today for {detail.symbol}.</p>
+        </DetailSection>
+      )}
+    </>
+  );
+}
+
 function TickerDetailPanel({
   detail,
   loading,
@@ -272,19 +467,7 @@ function TickerDetailPanel({
     return () => document.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
-  const snap = detail?.snapshot;
   const asset = detail?.asset;
-  const trade = snap?.latest_trade;
-  const quote = snap?.latest_quote;
-  const daily = snap?.daily_bar;
-  const prevDaily = snap?.prev_daily_bar;
-  const minuteBar = snap?.minute_bar;
-
-  const price = trade?.price ?? daily?.close ?? null;
-  const prevClose = prevDaily?.close ?? null;
-  const changeAbs = (price != null && prevClose != null) ? price - prevClose : null;
-  const changePct = (changeAbs != null && prevClose) ? changeAbs / prevClose : null;
-  const isPositive = (changePct ?? 0) >= 0;
 
   return (
     <>
@@ -297,7 +480,6 @@ function TickerDetailPanel({
           </div>
         ) : (
           <>
-            {/* Header */}
             <div className="detail-header">
               <div className="detail-header-left">
                 <span className="detail-symbol">{detail.symbol}</span>
@@ -310,183 +492,91 @@ function TickerDetailPanel({
               </div>
               <button className="detail-close" onClick={onClose} aria-label="Close">✕</button>
             </div>
-
             <div className="detail-body">
-              {/* Price Overview */}
-              <DetailSection title="Price">
-                <DetailRow label="Last Trade" value={fmtPrice(price)} />
-                {changeAbs != null && (
-                  <DetailRow
-                    label="Change"
-                    value={`${changeAbs >= 0 ? '+' : ''}${fmtNum(changeAbs)} (${fmtPct(changePct)})`}
-                    className={isPositive ? 'positive' : 'negative'}
-                  />
-                )}
-                {quote && (
-                  <>
-                    <DetailRow
-                      label="Bid"
-                      value={`${fmtPrice(quote.bid_price)} × ${quote.bid_size ?? '—'}`}
-                    />
-                    <DetailRow
-                      label="Ask"
-                      value={`${fmtPrice(quote.ask_price)} × ${quote.ask_size ?? '—'}`}
-                    />
-                    {quote.bid_price != null && quote.ask_price != null && (
-                      <DetailRow
-                        label="Spread"
-                        value={`$${(quote.ask_price - quote.bid_price).toFixed(3)}`}
-                      />
-                    )}
-                  </>
-                )}
-              </DetailSection>
-
-              {/* Daily Bar */}
-              {daily && (
-                <DetailSection title="Today's Bar">
-                  <DetailRow label="Open" value={fmtPrice(daily.open)} />
-                  <DetailRow label="High" value={fmtPrice(daily.high)} />
-                  <DetailRow label="Low" value={fmtPrice(daily.low)} />
-                  <DetailRow label="Close" value={fmtPrice(daily.close)} />
-                  <DetailRow label="VWAP" value={fmtPrice(daily.vwap)} />
-                  <DetailRow label="Trades" value={daily.trade_count?.toLocaleString() ?? '—'} />
-                </DetailSection>
-              )}
-
-              {/* Previous Daily Bar */}
-              {prevDaily && (
-                <DetailSection title="Previous Day">
-                  <DetailRow label="Open" value={fmtPrice(prevDaily.open)} />
-                  <DetailRow label="High" value={fmtPrice(prevDaily.high)} />
-                  <DetailRow label="Low" value={fmtPrice(prevDaily.low)} />
-                  <DetailRow label="Close" value={fmtPrice(prevDaily.close)} />
-                  <DetailRow label="VWAP" value={fmtPrice(prevDaily.vwap)} />
-                  <DetailRow label="Trades" value={prevDaily.trade_count?.toLocaleString() ?? '—'} />
-                </DetailSection>
-              )}
-
-              {/* Minute Bar */}
-              {minuteBar && (
-                <DetailSection title="Last Minute Bar">
-                  <DetailRow label="Open" value={fmtPrice(minuteBar.open)} />
-                  <DetailRow label="High" value={fmtPrice(minuteBar.high)} />
-                  <DetailRow label="Low" value={fmtPrice(minuteBar.low)} />
-                  <DetailRow label="Close" value={fmtPrice(minuteBar.close)} />
-                  <DetailRow label="Volume" value={fmtVolume(minuteBar.volume)} />
-                  <DetailRow label="VWAP" value={fmtPrice(minuteBar.vwap)} />
-                </DetailSection>
-              )}
-
-              {/* Volume */}
-              <DetailSection title="Volume">
-                <DetailRow label="Today" value={fmtVolume(daily?.volume)} />
-                <DetailRow label="Avg (20d)" value={fmtVolume(detail.avg_volume)} />
-                <DetailRow
-                  label="Rel. Volume"
-                  value={detail.rel_volume != null ? `${detail.rel_volume}x` : '—'}
-                  className={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
-                />
-              </DetailSection>
-
-              {/* Fundamentals */}
-              {detail.fundamentals && (
-                <DetailSection title="Fundamentals">
-                  <DetailRow label="Market Cap" value={fmtMarketCap(detail.fundamentals.market_cap)} />
-                  <DetailRow label="Shares Out." value={fmtVolume(detail.fundamentals.shares_outstanding)} />
-                  <DetailRow label="Float" value={fmtVolume(detail.fundamentals.float_shares)} />
-                  <DetailRow label="Short Interest" value={fmtVolume(detail.fundamentals.short_interest)} />
-                  <DetailRow label="Short Ratio" value={detail.fundamentals.short_ratio != null ? detail.fundamentals.short_ratio.toFixed(2) : '—'} />
-                  <DetailRow
-                    label="Short % Float"
-                    value={detail.fundamentals.short_percent_of_float != null
-                      ? `${(detail.fundamentals.short_percent_of_float * 100).toFixed(1)}%`
-                      : '—'}
-                  />
-                  <DetailRow label="P/E (TTM)" value={detail.fundamentals.pe_ratio != null ? detail.fundamentals.pe_ratio.toFixed(2) : '—'} />
-                  <DetailRow label="Forward P/E" value={detail.fundamentals.forward_pe != null ? detail.fundamentals.forward_pe.toFixed(2) : '—'} />
-                  <DetailRow label="EPS (TTM)" value={detail.fundamentals.eps != null ? `$${detail.fundamentals.eps.toFixed(2)}` : '—'} />
-                  <DetailRow label="Beta" value={detail.fundamentals.beta != null ? detail.fundamentals.beta.toFixed(2) : '—'} />
-                  <DetailRow
-                    label="Dividend Yield"
-                    value={detail.fundamentals.dividend_yield != null
-                      ? `${(detail.fundamentals.dividend_yield * 100).toFixed(2)}%`
-                      : '—'}
-                  />
-                  <DetailRow label="52W High" value={fmtPrice(detail.fundamentals.fifty_two_week_high)} />
-                  <DetailRow label="52W Low" value={fmtPrice(detail.fundamentals.fifty_two_week_low)} />
-                  {detail.fundamentals.sector && (
-                    <DetailRow label="Sector" value={detail.fundamentals.sector} />
-                  )}
-                  {detail.fundamentals.industry && (
-                    <DetailRow label="Industry" value={detail.fundamentals.industry} />
-                  )}
-                </DetailSection>
-              )}
-
-              {/* Asset Info */}
-              {asset && (
-                <DetailSection title="Asset Info">
-                  <DetailRow label="Class" value={asset.asset_class || '—'} />
-                  <DetailRow label="Tradable" value={<BoolBadge value={asset.tradable} />} />
-                  <DetailRow label="Marginable" value={<BoolBadge value={asset.marginable} />} />
-                  <DetailRow label="Shortable" value={<BoolBadge value={asset.shortable} />} />
-                  <DetailRow label="Easy to Borrow" value={<BoolBadge value={asset.easy_to_borrow} />} />
-                  <DetailRow label="Fractionable" value={<BoolBadge value={asset.fractionable} />} />
-                  {asset.maintenance_margin_requirement != null && (
-                    <DetailRow label="Margin Req." value={`${asset.maintenance_margin_requirement}%`} />
-                  )}
-                </DetailSection>
-              )}
-
-              {/* News */}
-              {detail.news.length > 0 && (
-                <DetailSection title={`News (${detail.news.length})`}>
-                  <div className="news-list">
-                    {detail.news.map((article, i) => (
-                      <div key={i} className="news-card">
-                        {article.images.find(img => img.size === 'thumb') && (
-                          <img
-                            className="news-thumb"
-                            src={article.images.find(img => img.size === 'thumb')!.url}
-                            alt=""
-                            loading="lazy"
-                          />
-                        )}
-                        <div className="news-card-body">
-                          <a
-                            className="news-headline"
-                            href={article.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {article.headline}
-                          </a>
-                          {article.summary && (
-                            <p className="news-summary">{article.summary}</p>
-                          )}
-                          <div className="news-meta">
-                            <span>{article.source}</span>
-                            {article.author && <span>· {article.author}</span>}
-                            <span>· {timeAgo(article.created_at)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </DetailSection>
-              )}
-
-              {detail.news.length === 0 && (
-                <DetailSection title="News">
-                  <p className="detail-empty">No news today for {detail.symbol}.</p>
-                </DetailSection>
-              )}
+              <TickerDetailContent detail={detail} />
             </div>
           </>
         )}
       </div>
     </>
+  );
+}
+
+// ── Stock Quote Tab ───────────────────────────────────────────────────────────
+
+function StockQuoteTab({
+  input,
+  onInputChange,
+  onSearch,
+  symbol,
+  detail,
+  loading,
+}: {
+  input: string;
+  onInputChange: (v: string) => void;
+  onSearch: (symbol: string) => void;
+  symbol: string | null;
+  detail: TickerDetail | null;
+  loading: boolean;
+}) {
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const sym = input.trim().toUpperCase();
+    if (sym) onSearch(sym);
+  }
+
+  const asset = detail?.asset;
+
+  return (
+    <div className="quote-tab">
+      <form className="quote-search-bar" onSubmit={handleSubmit}>
+        <input
+          className="quote-search-input"
+          type="text"
+          value={input}
+          onChange={e => onInputChange(e.target.value.toUpperCase())}
+          placeholder="Enter symbol, e.g. AAPL"
+          autoComplete="off"
+          spellCheck={false}
+          autoFocus
+        />
+        <button type="submit" className="quote-search-btn">Look Up</button>
+      </form>
+
+      {loading && (
+        <div className="detail-loading">
+          <div className="detail-loading-spinner" />
+          <span>Loading…</span>
+        </div>
+      )}
+
+      {!loading && detail && (
+        <div className="quote-content">
+          <div className="quote-content-header">
+            <div className="detail-header-left">
+              <span className="detail-symbol">{detail.symbol}</span>
+              {asset?.exchange && (
+                <span className="detail-exchange-badge">{asset.exchange}</span>
+              )}
+              {asset?.name && (
+                <span className="detail-company-name">{asset.name}</span>
+              )}
+            </div>
+          </div>
+          <div className="quote-content-body">
+            <TickerDetailContent detail={detail} />
+          </div>
+        </div>
+      )}
+
+      {!loading && !detail && !symbol && (
+        <div className="empty-state">Enter a ticker symbol above to look up a stock quote.</div>
+      )}
+
+      {!loading && !detail && symbol && (
+        <div className="empty-state">No data found for {symbol}.</div>
+      )}
+    </div>
   );
 }
 
@@ -511,16 +601,22 @@ function App() {
   const [lastScan, setLastScan] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
-  const [activeTab, setActiveTab] = useState<'gappers' | 'gainers'>('gappers');
+  const [activeTab, setActiveTab] = useState<'gappers' | 'gainers' | 'quote'>('gappers');
   const [tabOverridden, setTabOverridden] = useState(false);
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
 
-  // Ticker detail state
+  // Ticker detail state (side panel)
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [tickerDetail, setTickerDetail] = useState<TickerDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Stock Quote tab state
+  const [quoteInput, setQuoteInput] = useState('');
+  const [quoteSymbol, setQuoteSymbol] = useState<string | null>(null);
+  const [quoteDetail, setQuoteDetail] = useState<TickerDetail | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   // Settings form state
   const [apiKey, setApiKey] = useState('');
@@ -644,6 +740,23 @@ function App() {
     setDetailLoading(false);
   }, []);
 
+  const handleQuoteSearch = useCallback(async (symbol: string) => {
+    setQuoteSymbol(symbol);
+    setQuoteLoading(true);
+    setQuoteDetail(null);
+    try {
+      const res = await fetch(`${API_URL}/ticker/${symbol}`);
+      if (res.ok) {
+        const data = await res.json();
+        setQuoteDetail(data);
+      }
+    } catch {
+      // silent — empty state will show
+    } finally {
+      setQuoteLoading(false);
+    }
+  }, []);
+
   // Auto-switch tab when mode changes, unless user has manually picked a tab
   useEffect(() => {
     if (!tabOverridden) {
@@ -662,7 +775,7 @@ function App() {
     };
   }, [fetchConfig, fetchData]);
 
-  const handleTabClick = (tab: 'gappers' | 'gainers') => {
+  const handleTabClick = (tab: 'gappers' | 'gainers' | 'quote') => {
     setActiveTab(tab);
     setTabOverridden(true);
   };
@@ -774,6 +887,12 @@ function App() {
             Gainers
             {gainers.length > 0 && <span className="tab-count">{gainers.length}</span>}
           </button>
+          <button
+            className={`tab ${activeTab === 'quote' ? 'active' : ''}`}
+            onClick={() => handleTabClick('quote')}
+          >
+            Stock Quote
+          </button>
           <div className="tab-spacer" />
           {secondsAgo != null && (
             <span className="scan-age">updated {secondsAgo}s ago</span>
@@ -873,6 +992,18 @@ function App() {
               <EmptyState health={health} context={mode === 'market' ? 'premarket' : mode} />
             )}
           </>
+        )}
+
+        {/* ── Stock Quote tab ───────────────────────────────────────── */}
+        {activeTab === 'quote' && (
+          <StockQuoteTab
+            input={quoteInput}
+            onInputChange={setQuoteInput}
+            onSearch={handleQuoteSearch}
+            symbol={quoteSymbol}
+            detail={quoteDetail}
+            loading={quoteLoading}
+          />
         )}
 
         {/* ── Gainers tab ───────────────────────────────────────────── */}

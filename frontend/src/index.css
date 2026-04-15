@@ -768,3 +768,52 @@ th {
     width: 100vw;
   }
 }
+
+/* ── Stock Quote Tab ─────────────────────────────────────────────────────── */
+
+.quote-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.quote-search-bar {
+  display: flex;
+  flex-direction: row;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.quote-search-input {
+  flex: 1;
+  max-width: 320px;
+  text-transform: uppercase;
+}
+
+.quote-search-btn {
+  flex-shrink: 0;
+  padding: 0.75rem 1.25rem;
+}
+
+.quote-content {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.quote-content-header {
+  display: flex;
+  align-items: flex-start;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color);
+}
+
+.quote-content-body {
+  padding: 0 1.5rem 1.5rem;
+  max-width: 700px;
+}
+
+.quote-content-body .detail-loading {
+  min-height: 120px;
+}
