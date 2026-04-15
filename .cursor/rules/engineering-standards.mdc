@@ -1,0 +1,42 @@
+---
+description: Scale-ready engineering — Tailwind direction, tests, CI, deps, observability
+alwaysApply: true
+---
+
+# Engineering standards (scale readiness)
+
+This project is expected to grow. Agents and contributors should align new work with these policies alongside `centralized-constants.mdc`, `backend-modularity.mdc`, and `commit-after-tasks.mdc`.
+
+## Styling: shift toward Tailwind (incremental)
+
+- **Direction:** Prefer **Tailwind CSS** for new UI and for refactors that touch layout or styling, **once** Tailwind is installed and wired in the frontend (official Vite integration or PostCSS, per current Tailwind docs). Until that wiring exists, keep using `frontend/src/index.css` and existing class names.
+- **Coexistence:** Do not rip out global CSS or `:root` design tokens in one change. Tailwind should **map to the same visual system**: extend Tailwind theme (or `@theme` in v4) so colors, spacing, and typography stay consistent with existing CSS variables and with **`frontend/src/constants.ts`** for any named tunables shared across the app.
+- **Constants:** Tunable thresholds, tiers, and product-level numbers still belong in **`constants.ts` / `constants.py`**, not as unexplained literals in `className` strings. If a value is purely presentational and comes only from the design scale, Tailwind utilities are fine.
+- **Components:** Prefer small reusable React components over pasting the same long utility string everywhere. Use `@apply` sparingly; favor utilities in JSX or a thin wrapper component.
+
+## Automated testing (grow with the code)
+
+- **Backend:** Use **pytest** for API behavior and pure Python logic. When changing behavior under `backend/`, add or update tests that cover the change when the change is non-trivial.
+- **Frontend:** Use **Vitest** (and **React Testing Library** for components) for logic and regressions; add tests when introducing or fixing non-trivial UI behavior.
+- **Bar:** New modules or risky changes should include at least a **minimal** test (happy path or one critical edge case) rather than shipping untested core paths.
+
+## CI and quality gates
+
+- When CI exists (lint, test, build), task completion means **keeping the pipeline green**. Do not leave the repo in a state with known failing checks unless the task explicitly documents a follow-up and scope.
+- **Python:** Prefer **Ruff** for lint/format when the project adopts it. **Frontend:** follow existing **ESLint** configuration.
+
+## Dependencies (reproducible installs)
+
+- **Python:** Prefer **pinned** or lockfile-based dependencies (e.g. `uv` lock, Poetry, or `pip-tools` with a compiled requirements file) instead of loose, unpinned packages in `requirements.txt`. When adding or upgrading dependencies, move toward reproducible installs.
+- **Node:** Keep the lockfile (**`package-lock.json`**) committed; use **`npm ci`** in automation when that is the project standard.
+
+## Observability and secrets
+
+- Backend changes should use **clear, structured logging** suitable for production debugging (no secrets or tokens in log messages).
+- Never commit secrets, API keys, or full `.env` files; use environment variables and documented safe examples only.
+
+## Cross-references
+
+- **Constants:** `centralized-constants.mdc`
+- **Backend layout:** `backend-modularity.mdc`
+- **Incidents:** prepend to `PROBLEM_LOG.md` when resolving non-trivial bugs (see `problem-log.mdc`)
