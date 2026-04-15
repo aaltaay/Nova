@@ -1074,18 +1074,6 @@ def get_gappers():
     }
 
 
-@app.get("/api/gainers")
-def get_gainers():
-    """Market-hours top gainers list. Returns cached data instantly."""
-    return {
-        "rev": _BLAST_REV,
-        "mode": _current_mode,
-        "health": _cached_health,
-        "gainers": _gainer_cache,
-        "last_scan": _gainer_cache_ts,
-    }
-
-
 @app.get("/api/movers")
 def get_movers():
     """Top gainers and losers from the Alpaca screener. Returns cached data instantly."""

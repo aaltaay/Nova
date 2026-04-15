@@ -48,7 +48,7 @@ interface Gainer {
   short_ratio: number | null;
 }
 
-// Movers (top gainers + top losers from screener) share the same shape as Gainer
+// Movers: gainers and losers share the same shape
 type Mover = Gainer;
 
 interface Catalyst {
@@ -581,25 +581,19 @@ function App() {
   const [mode, setMode] = useState<Mode>('loading');
   const [health, setHealth] = useState<HealthStatus>({ status: 'loading', latency_ms: 0 });
   const [gappers, setGappers] = useState<Gapper[]>([]);
-  const [gainers, setGainers] = useState<Gainer[]>([]);
+  const [movers, setMovers] = useState<Mover[]>([]);
   const [lastScan, setLastScan] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
-  const [activeTab, setActiveTab] = useState<'gappers' | 'gainers' | 'movers' | 'catalysts'>('gappers');
+  const [activeTab, setActiveTab] = useState<'gappers' | 'movers' | 'catalysts'>('gappers');
   const [tabOverridden, setTabOverridden] = useState(false);
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
-  const [moversSubTab, setMoversSubTab] = useState<'gainers' | 'losers'>('gainers');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
-  const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [moverSort, setMoverSort] = useState<SortConfig>({ key: '', dir: null });
   const [catalystSort, setCatalystSort] = useState<SortConfig>({ key: '', dir: null });
 
   // Catalysts tab state
   const [catalysts, setCatalysts] = useState<Catalyst[]>([]);
-
-  // Top Movers tab state
-  const [moverGainers, setMoverGainers] = useState<Mover[]>([]);
-  const [moverLosers, setMoverLosers] = useState<Mover[]>([]);
 
   // Ticker detail state (side panel)
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -658,19 +652,9 @@ function App() {
     [smallCapGappers, gapperSort],
   );
 
-  const sortedGainers = useMemo(
-    () => sortedArray(gainers, gainerSort),
-    [gainers, gainerSort],
-  );
-
-  const sortedMoverGainers = useMemo(
-    () => sortedArray(moverGainers, moverSort),
-    [moverGainers, moverSort],
-  );
-
-  const sortedMoverLosers = useMemo(
-    () => sortedArray(moverLosers, moverSort),
-    [moverLosers, moverSort],
+  const sortedMovers = useMemo(
+    () => sortedArray(movers, moverSort),
+    [movers, moverSort],
   );
 
   const sortedCatalysts = useMemo(
@@ -694,9 +678,8 @@ function App() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [gr, gainRes, moversRes, catalystRes] = await Promise.all([
+      const [gr, moversRes, catalystRes] = await Promise.all([
         fetch(`${API_URL}/gappers`),
-        fetch(`${API_URL}/gainers`),
         fetch(`${API_URL}/movers`),
         fetch(`${API_URL}/news-catalysts`),
       ]);
@@ -706,20 +689,16 @@ function App() {
         if (data.health) setHealth(data.health);
         if (data.mode) setMode(data.mode as Mode);
         if (Array.isArray(data.gappers)) setGappers(data.gappers);
-        if (data.mode === 'premarket' && data.last_scan) setLastScan(data.last_scan);
-      }
-
-      if (gainRes.ok) {
-        const data = await gainRes.json();
-        if (data.mode) setMode(data.mode as Mode);
-        if (Array.isArray(data.gainers)) setGainers(data.gainers);
-        if (data.mode === 'market' && data.last_scan) setLastScan(data.last_scan);
+        if (data.last_scan) setLastScan(data.last_scan);
       }
 
       if (moversRes.ok) {
         const data = await moversRes.json();
-        if (Array.isArray(data.gainers)) setMoverGainers(data.gainers);
-        if (Array.isArray(data.losers)) setMoverLosers(data.losers);
+        if (data.mode) setMode(data.mode as Mode);
+        if (data.last_scan) setLastScan(data.last_scan);
+        const gainers: Mover[] = Array.isArray(data.gainers) ? data.gainers : [];
+        const losers: Mover[] = Array.isArray(data.losers) ? data.losers : [];
+        setMovers([...gainers, ...losers]);
       }
 
       if (catalystRes.ok) {
@@ -735,7 +714,7 @@ function App() {
   // Auto-switch tab when mode changes, unless user has manually picked a tab
   useEffect(() => {
     if (!tabOverridden) {
-      setActiveTab(mode === 'market' ? 'gainers' : 'gappers');
+      setActiveTab(mode === 'market' ? 'movers' : 'gappers');
     }
   }, [mode, tabOverridden]);
 
@@ -750,7 +729,7 @@ function App() {
     };
   }, [fetchConfig, fetchData]);
 
-  const handleTabClick = (tab: 'gappers' | 'gainers' | 'movers' | 'catalysts') => {
+  const handleTabClick = (tab: 'gappers' | 'movers' | 'catalysts') => {
     setActiveTab(tab);
     setTabOverridden(true);
   };
@@ -857,20 +836,11 @@ function App() {
             {gappers.length > 0 && <span className="tab-count">{gappers.length}</span>}
           </button>
           <button
-            className={`tab ${activeTab === 'gainers' ? 'active' : ''}`}
-            onClick={() => handleTabClick('gainers')}
-          >
-            Gainers
-            {gainers.length > 0 && <span className="tab-count">{gainers.length}</span>}
-          </button>
-          <button
             className={`tab ${activeTab === 'movers' ? 'active' : ''}`}
             onClick={() => handleTabClick('movers')}
           >
-            Top Movers
-            {(moverGainers.length > 0 || moverLosers.length > 0) && (
-              <span className="tab-count">{moverGainers.length + moverLosers.length}</span>
-            )}
+            Movers
+            {movers.length > 0 && <span className="tab-count">{movers.length}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'catalysts' ? 'active' : ''}`}
@@ -1084,26 +1054,10 @@ function App() {
           </>
         )}
 
-        {/* ── Top Movers tab ────────────────────────────────────────── */}
+        {/* ── Movers tab ────────────────────────────────────────────── */}
         {activeTab === 'movers' && (
           <>
-            <div className="sub-tab-bar">
-              <button
-                className={`sub-tab ${moversSubTab === 'gainers' ? 'active' : ''}`}
-                onClick={() => setMoversSubTab('gainers')}
-              >
-                Top Gainers
-                {moverGainers.length > 0 && <span className="tab-count">{moverGainers.length}</span>}
-              </button>
-              <button
-                className={`sub-tab ${moversSubTab === 'losers' ? 'active' : ''}`}
-                onClick={() => setMoversSubTab('losers')}
-              >
-                Top Losers
-                {moverLosers.length > 0 && <span className="tab-count">{moverLosers.length}</span>}
-              </button>
-            </div>
-            {(moversSubTab === 'gainers' ? moverGainers : moverLosers).length > 0 ? (
+            {sortedMovers.length > 0 ? (
               <div className="table-wrapper">
                 <table>
                   <thead>
@@ -1114,6 +1068,7 @@ function App() {
                           ['price', 'Price'],
                           ['change_pct', 'Change %'],
                           ['change_abs', 'Change $'],
+                          ['gap_percent', 'Gap %'],
                           ['volume', 'Volume'],
                           ['rel_volume', 'Rel. Volume'],
                           ['newest_headline_at', 'News'],
@@ -1146,7 +1101,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(moversSubTab === 'gainers' ? sortedMoverGainers : sortedMoverLosers).map(m => (
+                    {sortedMovers.map(m => (
                       <tr key={m.symbol} className={selectedSymbol === m.symbol ? 'row-selected' : ''}>
                         <td>
                           <button
@@ -1163,6 +1118,9 @@ function App() {
                         <td className={m.change_abs >= 0 ? 'positive' : 'negative'}>
                           {m.change_abs >= 0 ? '+' : ''}{m.change_abs.toFixed(2)}
                         </td>
+                        <td className={m.gap_percent != null && m.gap_percent >= 0 ? 'positive' : m.gap_percent != null ? 'negative' : ''}>
+                          {fmtPct(m.gap_percent)}
+                        </td>
                         <td>{fmtVolume(m.volume)}</td>
                         <td>{m.rel_volume != null ? `${m.rel_volume}x` : <span className="na-muted">N/A</span>}</td>
                         <td><NewsCell newest_headline_at={m.newest_headline_at} /></td>
@@ -1170,93 +1128,6 @@ function App() {
                         <td>{m.float != null ? fmtVolume(m.float) : <span className="na-muted">—</span>}</td>
                         <td>{m.short_interest != null ? fmtVolume(m.short_interest) : <span className="na-muted">—</span>}</td>
                         <td>{m.short_ratio != null ? m.short_ratio.toFixed(1) : <span className="na-muted">—</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="empty-state">
-                {health.status === 'disconnected' || health.status === 'error'
-                  ? (health.message || 'Check API keys in Settings.')
-                  : mode === 'loading'
-                    ? 'Loading market data…'
-                    : 'Fetching previous session\'s movers — loading…'}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ── Gainers tab ───────────────────────────────────────────── */}
-        {activeTab === 'gainers' && (
-          <>
-            {gainers.length > 0 ? (
-              <div className="table-wrapper">
-                <table>
-                  <thead>
-                    <tr>
-                      {(
-                        [
-                          ['symbol', 'Symbol'],
-                          ['price', 'Price'],
-                          ['change_pct', 'Change %'],
-                          ['gap_percent', 'Gap %'],
-                          ['volume', 'Volume'],
-                          ['rel_volume', 'Rel. Volume'],
-                          ['newest_headline_at', 'News'],
-                          ['market_cap', 'Mkt Cap'],
-                          ['float', 'Float'],
-                          ['short_interest', 'Short Int.'],
-                          ['short_ratio', 'Short Ratio'],
-                        ] as [string, string][]
-                      ).map(([key, label]) => (
-                        <th
-                          key={key}
-                          className="sortable-th"
-                          onClick={() => toggleSort(gainerSort, setGainerSort, key)}
-                          aria-sort={
-                            gainerSort.key === key
-                              ? gainerSort.dir === 'asc' ? 'ascending' : 'descending'
-                              : 'none'
-                          }
-                        >
-                          <span className="th-inner">
-                            {label}
-                            <span className={`sort-arrow${gainerSort.key === key ? ' active' : ''}`}>
-                              {gainerSort.key === key
-                                ? gainerSort.dir === 'asc' ? '↑' : '↓'
-                                : '↕'}
-                            </span>
-                          </span>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedGainers.map(g => (
-                      <tr key={g.symbol} className={selectedSymbol === g.symbol ? 'row-selected' : ''}>
-                        <td>
-                          <button
-                            className={`symbol-btn${selectedSymbol === g.symbol ? ' active' : ''}`}
-                            onClick={() => setSelectedSymbol(g.symbol)}
-                          >
-                            {g.symbol}
-                          </button>
-                        </td>
-                        <td>${g.price.toFixed(2)}</td>
-                        <td className={g.change_pct >= 0 ? 'positive' : 'negative'}>
-                          {fmtPct(g.change_pct)}
-                        </td>
-                        <td className={g.gap_percent != null && g.gap_percent >= 0 ? 'positive' : g.gap_percent != null ? 'negative' : ''}>
-                          {fmtPct(g.gap_percent)}
-                        </td>
-                        <td>{fmtVolume(g.volume)}</td>
-                        <td>{g.rel_volume != null ? `${g.rel_volume}x` : <span className="na-muted">N/A</span>}</td>
-                        <td><NewsCell newest_headline_at={g.newest_headline_at} /></td>
-                        <td>{g.market_cap != null ? fmtMarketCap(g.market_cap) : <span className="na-muted">—</span>}</td>
-                        <td>{g.float != null ? fmtVolume(g.float) : <span className="na-muted">—</span>}</td>
-                        <td>{g.short_interest != null ? fmtVolume(g.short_interest) : <span className="na-muted">—</span>}</td>
-                        <td>{g.short_ratio != null ? g.short_ratio.toFixed(1) : <span className="na-muted">—</span>}</td>
                       </tr>
                     ))}
                   </tbody>
