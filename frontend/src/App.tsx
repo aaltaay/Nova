@@ -260,9 +260,13 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
   // True while waiting for the initial frame for a new symbol (fast-data not yet arrived)
   const [refreshing, setRefreshing] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  // Mirrors whether `detail` is non-null so the effect can read it synchronously
+  // without a stale closure — avoids calling setState inside another setState updater.
+  const hasDetailRef = useRef(false);
 
   useEffect(() => {
     if (!symbol) {
+      hasDetailRef.current = false;
       setDetail(null);
       setLoading(false);
       setRefreshing(false);
@@ -273,13 +277,12 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
     // after cleanup (React StrictMode double-mount, or rapid symbol changes).
     let cancelled = false;
 
-    // Show full spinner only when there's nothing to display yet; otherwise
-    // keep the previous detail visible and show the slim refreshing bar.
-    setDetail(prev => {
-      setLoading(prev === null);
-      setRefreshing(true);
-      return prev;
-    });
+    // Show the full spinner only when there is nothing to display yet.
+    // When switching symbols, keep the previous detail visible and use the
+    // slim refreshing bar. All setters called directly — no side effects
+    // inside updater functions (React would call those twice in StrictMode).
+    setLoading(!hasDetailRef.current);
+    setRefreshing(true);
 
     const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
     wsRef.current = ws;
@@ -291,6 +294,7 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
         if (msg.type === 'initial') {
           // Phase 1: fast data (asset + snapshot) — render immediately
           const { type: _t, ...data } = msg;
+          hasDetailRef.current = true;
           setDetail(data as TickerDetail);
           setLoading(false);
           setRefreshing(false);
