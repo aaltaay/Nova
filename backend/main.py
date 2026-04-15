@@ -54,6 +54,10 @@ _last_discovery_ts: float = 0.0
 _gainer_cache: list[dict] = []
 _gainer_cache_ts: float = 0.0
 
+# ── Losers cache (market hours) ───────────────────────────────────────────────
+_loser_cache: list[dict] = []
+_loser_cache_ts: float = 0.0
+
 # ── Average daily volume cache (reset each day, lazy-filled for RVOL) ─────────
 _avg_volume_cache: dict[str, float] = {}
 _avg_volume_date: str = ""
@@ -361,18 +365,41 @@ def _ws_mark_resub() -> None:
 
 
 def _ws_current_symbols() -> set[str]:
-    """Return the union of all symbols currently in the gapper and gainer caches."""
+    """Return the union of all symbols currently in the gapper, gainer, and loser caches."""
     syms: set[str] = set()
     for g in _gapper_cache:
         syms.add(g["symbol"])
     for g in _gainer_cache:
         syms.add(g["symbol"])
+    for g in _loser_cache:
+        syms.add(g["symbol"])
     return syms
+
+
+def _apply_trade_to_mover_list(cache: list[dict], sym: str, price: float) -> bool:
+    """Update price/change fields for a symbol in a mover list (gainers or losers). Returns True if found."""
+    for i, g in enumerate(cache):
+        if g["symbol"] == sym:
+            prev_close = g.get("prev_close") or 0.0
+            if prev_close:
+                new_change_abs = price - prev_close
+                new_change_pct = new_change_abs / prev_close
+            else:
+                new_change_abs = g.get("change_abs", 0)
+                new_change_pct = g.get("change_pct", 0)
+            cache[i] = {
+                **g,
+                "price": price,
+                "change_abs": new_change_abs,
+                "change_pct": new_change_pct,
+            }
+            return True
+    return False
 
 
 def _handle_trade(msg: dict) -> None:
     """Apply a real-time trade message to the in-memory caches."""
-    global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts
+    global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
     sym = msg.get("S")
     price = msg.get("p")
     if not sym or not price:
@@ -392,24 +419,13 @@ def _handle_trade(msg: dict) -> None:
                 _gapper_cache_ts = now
                 break
 
-    # Update gainers — always apply (regardless of mode/time).
-    for i, g in enumerate(_gainer_cache):
-        if g["symbol"] == sym:
-            prev_close = g.get("prev_close") or 0.0
-            if prev_close:
-                new_change_abs = price - prev_close
-                new_change_pct = new_change_abs / prev_close
-            else:
-                new_change_abs = g.get("change_abs", 0)
-                new_change_pct = g.get("change_pct", 0)
-            _gainer_cache[i] = {
-                **g,
-                "price": price,
-                "change_abs": new_change_abs,
-                "change_pct": new_change_pct,
-            }
-            _gainer_cache_ts = now
-            break
+    # Update gainers — always apply.
+    if _apply_trade_to_mover_list(_gainer_cache, sym, price):
+        _gainer_cache_ts = now
+
+    # Update losers — always apply.
+    if _apply_trade_to_mover_list(_loser_cache, sym, price):
+        _loser_cache_ts = now
 
 
 # ── Pre-market scan functions ─────────────────────────────────────────────────
@@ -490,9 +506,46 @@ def _run_focus_scan() -> None:
 
 # ── Market-hours gainers ──────────────────────────────────────────────────────
 
+def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
+    """Build an enriched mover dict from a raw movers API item and snapshot data."""
+    sym = raw["symbol"]
+    snap = snaps.get(sym, {})
+    daily_bar = snap.get("dailyBar") or {}
+    prev_bar = snap.get("prevDailyBar") or {}
+    volume = daily_bar.get("v", 0)
+    prev_close = prev_bar.get("c", 0)
+
+    if sym in premarket_gap_map and premarket_gap_map[sym] is not None:
+        gap_pct = premarket_gap_map[sym]
+    elif prev_close:
+        open_price = daily_bar.get("o", 0)
+        gap_pct = (open_price - prev_close) / prev_close if open_price and prev_close else None
+    else:
+        gap_pct = None
+
+    avg_vol = _avg_volume_cache.get(sym)
+    fund = _fundamentals_cache.get(sym, {})
+    return {
+        "symbol": sym,
+        "price": raw.get("price", 0),
+        "change_pct": raw.get("percent_change", 0) / 100.0,
+        "change_abs": raw.get("change", 0),
+        "volume": volume,
+        "gap_percent": gap_pct,
+        "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
+        "has_news": False,   # filled in by caller after news check
+        "newest_headline_at": None,
+        "market_cap": fund.get("market_cap"),
+        "float": fund.get("float_shares"),
+        "short_interest": fund.get("short_interest"),
+        "short_ratio": fund.get("short_ratio"),
+        "prev_close": prev_close,
+    }
+
+
 def _run_gainers_update() -> None:
-    """Fetch top gainers via Alpaca Screener Movers API, enrich with snapshots + RVOL + news."""
-    global _gainer_cache, _gainer_cache_ts
+    """Fetch top gainers and losers via Alpaca Screener Movers API, enrich with snapshots + RVOL + news."""
+    global _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     headers = _alpaca_headers()
     if not headers:
@@ -500,7 +553,7 @@ def _run_gainers_update() -> None:
     if not _ping_health(base_url, headers):
         return
 
-    # 1. Movers API — 1 call, top N gainers market-wide
+    # 1. Movers API — 1 call, returns top N gainers AND losers market-wide
     try:
         resp = requests.get(
             f"{_DATA_URL}/v1beta1/screener/stocks/movers",
@@ -510,70 +563,52 @@ def _run_gainers_update() -> None:
         )
         if resp.status_code != 200:
             return
-        gainers_raw = resp.json().get("gainers", [])
+        movers_json = resp.json()
+        gainers_raw = movers_json.get("gainers", [])
+        losers_raw = movers_json.get("losers", [])
     except Exception:
         return
 
-    if not gainers_raw:
+    if not gainers_raw and not losers_raw:
         return
 
-    gainer_symbols = [g["symbol"] for g in gainers_raw]
+    all_symbols = list({r["symbol"] for r in gainers_raw + losers_raw})
 
-    # 2. Snapshot enrichment — 1 call for ~50 symbols
-    snaps = _fetch_snapshots(gainer_symbols, headers)
+    # 2. Snapshot enrichment — 1 call for all mover symbols
+    snaps = _fetch_snapshots(all_symbols, headers)
 
     # 3. Average volume for RVOL (lazy, cached per day)
-    _ensure_avg_volume(gainer_symbols, headers)
+    _ensure_avg_volume(all_symbols, headers)
 
-    # 4. News check — 1 call
-    news = _check_news(gainer_symbols, headers)
+    # 4. News check — 1 call covering all symbols
+    news = _check_news(all_symbols, headers)
 
-    # 5. Fetch fundamentals for all gainer symbols
-    _fetch_fundamentals_batch(gainer_symbols)
+    # 5. Fetch fundamentals for all mover symbols
+    _fetch_fundamentals_batch(all_symbols)
 
-    # 6. Build enriched list
+    # 6. Build enriched lists
     premarket_gap_map = {g["symbol"]: g.get("gap_percent") for g in _gapper_cache}
+
     gainers: list[dict] = []
     for raw in gainers_raw:
-        sym = raw["symbol"]
-        snap = snaps.get(sym, {})
-        daily_bar = snap.get("dailyBar") or {}
-        prev_bar = snap.get("prevDailyBar") or {}
-        volume = daily_bar.get("v", 0)
-        prev_close = prev_bar.get("c", 0)
+        entry = _build_mover_entry(raw, snaps, premarket_gap_map)
+        sym = entry["symbol"]
+        entry["has_news"] = sym in news
+        entry["newest_headline_at"] = news.get(sym)
+        gainers.append(entry)
 
-        # Gap %: prefer pre-market measurement; fall back to open-vs-prev-close
-        if sym in premarket_gap_map and premarket_gap_map[sym] is not None:
-            gap_pct = premarket_gap_map[sym]  # already a fraction
-        elif prev_close:
-            open_price = daily_bar.get("o", 0)
-            gap_pct = (open_price - prev_close) / prev_close if open_price and prev_close else None
-        else:
-            gap_pct = None
-
-        avg_vol = _avg_volume_cache.get(sym)
-        fund = _fundamentals_cache.get(sym, {})
-        gainers.append({
-            "symbol": sym,
-            "price": raw.get("price", 0),
-            "change_pct": raw.get("percent_change", 0) / 100.0,  # normalize to fraction
-            "change_abs": raw.get("change", 0),
-            "volume": volume,
-            "gap_percent": gap_pct,
-            "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
-            "has_news": sym in news,
-            "newest_headline_at": news.get(sym),
-            "market_cap": fund.get("market_cap"),
-            "float": fund.get("float_shares"),
-            "short_interest": fund.get("short_interest"),
-            "short_ratio": fund.get("short_ratio"),
-            # Internal field used by the WebSocket trade handler to compute change_pct/change_abs.
-            # Not rendered by the frontend.
-            "prev_close": prev_close,
-        })
+    losers: list[dict] = []
+    for raw in losers_raw:
+        entry = _build_mover_entry(raw, snaps, premarket_gap_map)
+        sym = entry["symbol"]
+        entry["has_news"] = sym in news
+        entry["newest_headline_at"] = news.get(sym)
+        losers.append(entry)
 
     _gainer_cache = gainers
     _gainer_cache_ts = time.time()
+    _loser_cache = losers
+    _loser_cache_ts = time.time()
     _ws_mark_resub()  # notify WebSocket loop to subscribe to newly discovered symbols
 
 
@@ -781,6 +816,19 @@ def get_gainers():
         "mode": _current_mode,
         "health": _cached_health,
         "gainers": _gainer_cache,
+        "last_scan": _gainer_cache_ts,
+    }
+
+
+@app.get("/api/movers")
+def get_movers():
+    """Top gainers and losers from the Alpaca screener. Returns cached data instantly."""
+    return {
+        "rev": _BLAST_REV,
+        "mode": _current_mode,
+        "health": _cached_health,
+        "gainers": _gainer_cache,
+        "losers": _loser_cache,
         "last_scan": _gainer_cache_ts,
     }
 
