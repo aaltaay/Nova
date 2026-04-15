@@ -575,13 +575,15 @@ interface ScannerTableProps {
 }
 
 function renderCell(key: string, row: ScannerRow): React.ReactNode {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyRow = row as any;
   switch (key) {
     case 'symbol':
       return null; // handled as the symbol button in the row
     case 'price':
-      return fmtPrice(row.price);
+      return fmtPrice(row.price ?? anyRow.current_price);
     case 'prev_close':
-      return fmtPrice(row.prev_close);
+      return fmtPrice(row.prev_close ?? anyRow.previous_close);
     case 'change_pct':
       return (
         <span className={row.change_pct != null && row.change_pct >= 0 ? 'positive' : 'negative'}>

@@ -44,6 +44,30 @@ def save_gapper_snapshot(gappers: list[dict], ts: float) -> None:
         pass  # never crash the caller over a persistence failure
 
 
+def _normalize_gapper_row(row: dict) -> dict:
+    """Ensure every gapper dict carries both the legacy and current field names.
+
+    The on-disk snapshot may have been written by older code that only stored
+    ``previous_close`` / ``current_price``.  The current frontend ScannerRow
+    type binds to ``price`` / ``prev_close`` / ``change_pct`` / ``change_abs``.
+    This helper bridges the two shapes so restored rows always render correctly.
+    """
+    price = row.get("price") or row.get("current_price", 0)
+    prev_close = row.get("prev_close") or row.get("previous_close", 0)
+    gap_pct = row.get("gap_percent", 0)
+    change_abs = (price - prev_close) if (price and prev_close) else 0
+    change_pct = gap_pct  # for gappers change == gap
+    return {
+        **row,
+        "price": price,
+        "prev_close": prev_close,
+        "change_pct": change_pct,
+        "change_abs": change_abs,
+        "current_price": price,
+        "previous_close": prev_close,
+    }
+
+
 def load_gapper_snapshot() -> tuple[list[dict], float]:
     """
     Load today's gapper snapshot from disk.
@@ -56,10 +80,11 @@ def load_gapper_snapshot() -> tuple[list[dict], float]:
             data = json.load(f)
         if data.get("date") != _today_et():
             return [], 0.0
-        gappers = data.get("gappers", [])
+        raw = data.get("gappers", [])
         ts = float(data.get("ts", 0.0))
-        if not isinstance(gappers, list):
+        if not isinstance(raw, list):
             return [], 0.0
+        gappers = [_normalize_gapper_row(g) for g in raw]
         return gappers, ts
     except Exception:
         return [], 0.0
