@@ -803,11 +803,13 @@ async def _ws_stream_loop() -> None:
             api_key = _env("APCA_API_KEY_ID")
             api_secret = _env("APCA_API_SECRET_KEY")
             if not api_key or not api_secret:
+                logger.warning("Alpaca WS: no API keys configured, sleeping 10s")
                 await asyncio.sleep(10)
                 continue
 
             feed = _get_feed()
             url = f"wss://stream.data.alpaca.markets/v2/{feed}"
+            logger.info("Alpaca WS connecting to %s", url)
 
             async with websockets.connect(url, ping_interval=20, open_timeout=15) as ws:
                 # Receive the initial "connected" banner
@@ -819,11 +821,13 @@ async def _ws_stream_loop() -> None:
                 if not any(m.get("T") == "success" and m.get("msg") == "authenticated"
                            for m in auth_msgs):
                     # Auth failed — back off and retry (keys may have just changed)
+                    logger.warning("Alpaca WS auth failed (response: %s), retrying in %.1fs", auth_msgs, backoff)
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, 60.0)
                     continue
 
                 # Successfully connected and authenticated — reset backoff
+                logger.info("Alpaca WS authenticated")
                 backoff = 1.0
                 _ws_subscribed = set()
                 _ws_needs_resub = True  # subscribe to whatever is cached right now
@@ -835,6 +839,11 @@ async def _ws_stream_loop() -> None:
                         wanted = _ws_current_symbols()
                         to_add = wanted - _ws_subscribed
                         to_remove = _ws_subscribed - wanted
+                        if to_add or to_remove:
+                            logger.info(
+                                "Alpaca WS subscribing +%d / -%d symbols (total %d)",
+                                len(to_add), len(to_remove), len(wanted),
+                            )
                         if to_add:
                             await ws.send(json.dumps({"action": "subscribe", "trades": list(to_add)}))
                         if to_remove:
@@ -861,7 +870,8 @@ async def _ws_stream_loop() -> None:
 
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
+            logger.warning("Alpaca WS disconnected: %s, retrying in %.1fs", exc, backoff)
             _ws_subscribed = set()
             await asyncio.sleep(backoff)
             backoff = min(backoff * 2, 60.0)
