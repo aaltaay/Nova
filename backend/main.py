@@ -27,6 +27,7 @@ from constants import (
     NEWS_CATALYST_LOOKBACK_HOURS,
     SCAN_CAP_DEFAULT,
     SCAN_EXCHANGES,
+    SCANNER_MIN_PRICE,
     SNAPSHOT_WORKERS,
     SYMBOL_EXCLUDE_RE,
     TOP_N_DEFAULT,
@@ -419,6 +420,8 @@ def _compute_gappers(snaps: dict) -> list[dict]:
         volume = daily_bar.get("v", 0)
         if not price or not prev_close:
             continue
+        if price < SCANNER_MIN_PRICE:
+            continue
         gap_frac = (price - prev_close) / prev_close
         if not _gapper_meets_min_gap(gap_frac):
             continue
@@ -711,6 +714,8 @@ def _run_gainers_update() -> None:
     gainers: list[dict] = []
     for raw in gainers_raw:
         entry = _build_mover_entry(raw, snaps, premarket_gap_map)
+        if entry["price"] < SCANNER_MIN_PRICE:
+            continue
         sym = entry["symbol"]
         entry["has_news"] = sym in news
         entry["newest_headline_at"] = news.get(sym)

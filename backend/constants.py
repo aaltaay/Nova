@@ -20,6 +20,9 @@ NEWS_FLAME_MAX_HOURS  = 24   # yellow badge (12 – 24 h); hide above this
 # ── Relative volume ────────────────────────────────────────────────────────
 REL_VOLUME_HIGH = 2   # highlight threshold
 
+# ── Minimum price filter ─────────────────────────────────────────────────────
+SCANNER_MIN_PRICE = 0.50   # exclude any stock priced below $0.50 (applies to gappers and gainers)
+
 # ── Gapper filter ───────────────────────────────────────────────────────────
 # Gap is (last price − previous close) / previous close, expressed as % for this threshold.
 GAPPER_MIN_GAP_PCT = 10.0   # exclude symbols below this gap %
