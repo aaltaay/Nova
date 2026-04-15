@@ -279,11 +279,13 @@ function EmptyState({
 
 // ── useTickerStream hook ──────────────────────────────────────────────────────
 
-function useTickerStream(symbol: string | null): { detail: TickerDetail | null; loading: boolean; refreshing: boolean } {
+function useTickerStream(symbol: string | null): { detail: TickerDetail | null; loading: boolean; refreshing: boolean; fetchFailed: boolean } {
   const [detail, setDetail] = useState<TickerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   // True while waiting for the initial frame for a new symbol (fast-data not yet arrived)
   const [refreshing, setRefreshing] = useState(false);
+  // True after the WS closes without a successful `initial` (real failure, not StrictMode cleanup).
+  const [fetchFailed, setFetchFailed] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   // Mirrors whether `detail` is non-null so the effect can read it synchronously
   // without a stale closure — avoids calling setState inside another setState updater.
@@ -295,12 +297,16 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
       setDetail(null);
       setLoading(false);
       setRefreshing(false);
+      setFetchFailed(false);
       return;
     }
 
     // `cancelled` guards against the old WebSocket's onclose/onerror firing
     // after cleanup (React StrictMode double-mount, or rapid symbol changes).
     let cancelled = false;
+    let initialReceived = false;
+
+    setFetchFailed(false);
 
     // Show the full spinner only when there is nothing to display yet.
     // When switching symbols, keep the previous detail visible and use the
@@ -308,6 +314,9 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
     // inside updater functions (React would call those twice in StrictMode).
     setLoading(!hasDetailRef.current);
     setRefreshing(true);
+    // #region agent log
+    fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:useTickerStream:effect', message: 'ws_connect_start', data: { symbol, hasDetailRef: hasDetailRef.current, willSetLoading: !hasDetailRef.current }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H1' }) }).catch(() => {});
+    // #endregion
 
     const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
     wsRef.current = ws;
@@ -319,10 +328,15 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
         if (msg.type === 'initial') {
           // Phase 1: fast data (asset + snapshot) — render immediately
           const { type: _t, ...data } = msg;
+          initialReceived = true;
           hasDetailRef.current = true;
+          // #region agent log
+          fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:useTickerStream:onmessage', message: 'initial_rx', data: { requestedSymbol: symbol, payloadSymbol: (data as TickerDetail).symbol, hasError: !!(data as { error?: string }).error }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H4' }) }).catch(() => {});
+          // #endregion
           setDetail(data as TickerDetail);
           setLoading(false);
           setRefreshing(false);
+          setFetchFailed(false);
         } else if (msg.type === 'detail_update') {
           // Phase 2: slow data (news + fundamentals + fresh avg/rel volume)
           setDetail(prev => {
@@ -365,8 +379,26 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
       }
     };
 
-    ws.onerror = () => { if (!cancelled) { setLoading(false); setRefreshing(false); } };
-    ws.onclose = () => { if (!cancelled) { setLoading(false); setRefreshing(false); } };
+    ws.onerror = () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:useTickerStream:onerror', message: 'ws_error', data: { symbol, cancelled, initialReceived }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H2' }) }).catch(() => {});
+      // #endregion
+      if (!cancelled) {
+        setLoading(false);
+        setRefreshing(false);
+        if (!initialReceived) setFetchFailed(true);
+      }
+    };
+    ws.onclose = () => {
+      // #region agent log
+      fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:useTickerStream:onclose', message: 'ws_close', data: { symbol, cancelled, willClearUi: !cancelled, initialReceived }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H2' }) }).catch(() => {});
+      // #endregion
+      if (!cancelled) {
+        setLoading(false);
+        setRefreshing(false);
+        if (!initialReceived) setFetchFailed(true);
+      }
+    };
 
     return () => {
       cancelled = true;
@@ -375,7 +407,7 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
     };
   }, [symbol]);
 
-  return { detail, loading, refreshing };
+  return { detail, loading, refreshing, fetchFailed };
 }
 
 // ── Compact Ticker Detail ─────────────────────────────────────────────────────
@@ -658,11 +690,25 @@ function SidePanel({
   setSelectedSymbol: (sym: string | null) => void;
 }) {
   const [input, setInput] = useState(selectedSymbol ?? '');
-  const { detail, loading, refreshing } = useTickerStream(selectedSymbol);
+  const { detail, loading, refreshing, fetchFailed } = useTickerStream(selectedSymbol);
+
+  // One render happens after selecting a symbol before the WS effect runs; without this,
+  // loading/refreshing are still false and detail is null → a false "No data" flash.
+  const awaitingPreEffectFrame =
+    !!selectedSymbol && detail == null && !loading && !refreshing && !fetchFailed;
+  const showFullSpinner = loading || awaitingPreEffectFrame;
 
   useEffect(() => {
     setInput(selectedSymbol ?? '');
   }, [selectedSymbol]);
+
+  useEffect(() => {
+    const showDetail = !showFullSpinner && !!detail;
+    const showEmpty = fetchFailed && !detail && !!selectedSymbol;
+    // #region agent log
+    fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:SidePanel:render_state', message: 'panel_branch', data: { selectedSymbol, loading, refreshing, fetchFailed, awaitingPreEffectFrame, showFullSpinner, detailSymbol: detail?.symbol ?? null, showDetail, showEmpty, symbolMismatch: !!(selectedSymbol && detail?.symbol && selectedSymbol !== detail.symbol) }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H5' }) }).catch(() => {});
+    // #endregion
+  }, [selectedSymbol, loading, refreshing, detail, fetchFailed, showFullSpinner, awaitingPreEffectFrame]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -687,27 +733,27 @@ function SidePanel({
         </form>
       </div>
       <div className="side-panel-body">
-        {loading && (
+        {showFullSpinner && (
           <div className="detail-loading">
             <div className="detail-loading-spinner" />
             <span>Loading…</span>
           </div>
         )}
-        {!loading && refreshing && detail && (
+        {!showFullSpinner && selectedSymbol && refreshing && detail && (
           <div className="detail-refreshing-bar">
             <div className="detail-loading-spinner detail-loading-spinner--small" />
             <span>Updating {selectedSymbol}…</span>
           </div>
         )}
-        {!loading && detail && (
+        {!showFullSpinner && selectedSymbol && detail && (
           <div className="detail-body">
             <TickerDetailContent detail={detail} />
           </div>
         )}
-        {!loading && !refreshing && !detail && selectedSymbol && (
+        {!showFullSpinner && fetchFailed && !detail && selectedSymbol && (
           <div className="detail-empty">No data found for {selectedSymbol}.</div>
         )}
-        {!loading && !selectedSymbol && (
+        {!showFullSpinner && !selectedSymbol && (
           <div className="detail-empty">Enter a ticker symbol above to look up a stock quote.</div>
         )}
       </div>
