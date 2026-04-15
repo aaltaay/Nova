@@ -37,7 +37,6 @@ interface ScannerRow {
 
 // Legacy aliases — kept for any remaining narrower references
 type Gapper = ScannerRow;
-type Gainer = ScannerRow;
 type Mover  = ScannerRow;
 
 interface Catalyst {

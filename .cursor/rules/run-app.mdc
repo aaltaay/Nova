@@ -1,0 +1,37 @@
+---
+description: How to run Stock Alert and what to do when the user says "run the app"
+alwaysApply: true
+---
+
+# Run Stock Alert (local dev)
+
+## Default way to open the app (Windows)
+
+From the **repository root** (`stock_alert/`):
+
+1. **Double-click** `Run Stock Alert.bat`, **or** in a terminal: run `Run Stock Alert.bat` from that folder.
+
+That script:
+
+- Starts the **API** in a titled window: FastAPI at `http://127.0.0.1:8000` (`uvicorn main:app --reload` in `backend/`).
+- Starts the **UI** in another window: Vite dev server at `http://localhost:5173` (`npm run dev` in `frontend/`).
+- Opens the browser to the UI after a short delay.
+
+Close each titled CMD window to stop that server.
+
+**Prerequisites:** Python with `py` launcher (or `python` on PATH), `backend` dependencies available for uvicorn; Node/npm in `frontend` (run `npm install` in `frontend/` once if needed).
+
+## Manual equivalent (if not using the batch file)
+
+- Terminal A, repo `backend/`: `py -3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000` (or `python -m uvicorn ...`).
+- Terminal B, repo `frontend/`: `npm run dev`.
+- Open `http://localhost:5173` in the browser.
+
+## Agent behavior: "run the app" / "open the app"
+
+When the user asks to **run** or **open** the app (or similar), **do it without debating**:
+
+1. Prefer **starting from repo root** using `Run Stock Alert.bat` on Windows when an interactive dev experience (separate windows + browser) matches what they use day to day.
+2. If the environment cannot launch `.bat` or needs headless terminals, start **both** servers the same way the batch file does: uvicorn in `backend/` and `npm run dev` in `frontend/` (background as appropriate), then note URLs `http://127.0.0.1:8000` and `http://localhost:5173`.
+
+Do not spend turns listing options unless something fails; execute first, then report URLs and how to stop.
