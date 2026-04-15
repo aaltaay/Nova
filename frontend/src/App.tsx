@@ -6,6 +6,7 @@ import {
   GAPPER_MIN_GAP_PCT,
   CATALYSTS_EXPERIMENTAL_LABEL,
   SCANNER_COLUMNS,
+  QUOTE_CARD_TITLE,
   QUOTE_AVG_VOLUME_LABEL,
   QUOTE_BROKER_SECTION_TITLE,
   QUOTE_ASSET_LABELS,
@@ -411,6 +412,7 @@ function TickerDetailContent({
 
   return (
     <div className="cq-root">
+      <div className="cq-section-title cq-card-title">{QUOTE_CARD_TITLE}</div>
       {/* Header row */}
       <div className="cq-header">
         <div className="cq-symbol-row">

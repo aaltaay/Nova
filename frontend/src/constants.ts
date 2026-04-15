@@ -20,6 +20,9 @@ export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 /** Trading days used for avg daily volume / RVOL denominator (mirror backend RVOL_LOOKBACK_DAYS). */
 export const RVOL_LOOKBACK_DAYS = 30;
 
+/** Visible title at the top of the side-panel quote card (for orientation in UI and discussion). */
+export const QUOTE_CARD_TITLE = 'Stock quote';
+
 /** Side panel quote card — row label for average volume used in RVOL. */
 export const QUOTE_AVG_VOLUME_LABEL = `Avg volume (${RVOL_LOOKBACK_DAYS}d)`;
 

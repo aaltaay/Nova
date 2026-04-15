@@ -608,6 +608,11 @@ th {
   padding: 0.75rem 0;
 }
 
+/* First section title in quote card — avoid double gap with panel padding */
+.cq-root > .cq-card-title {
+  margin-top: 0;
+}
+
 /* Header */
 .cq-header {
   display: flex;
