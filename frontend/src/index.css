@@ -172,6 +172,62 @@ h1 {
   color: var(--text-primary);
 }
 
+/* ── History / time-travel controls ──────────────────────────────────────── */
+
+.history-select {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.history-select:hover,
+.history-select:focus {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.history-select--active {
+  border-color: var(--positive-color, #22c55e);
+  color: var(--text-primary);
+}
+
+.history-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 1rem;
+  background: color-mix(in srgb, var(--border-color) 60%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.history-banner-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.history-banner-btn:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
 .btn-secondary {
   background: transparent;
   color: var(--text-secondary);

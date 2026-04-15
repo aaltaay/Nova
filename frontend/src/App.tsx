@@ -811,6 +811,10 @@ function App() {
   const [apiSecret, setApiSecret] = useState('');
   const [baseUrl, setBaseUrl] = useState('https://api.alpaca.markets');
 
+  // History / time-travel state
+  const [historyDate, setHistoryDate] = useState<string | null>(null); // null = live
+  const [historyDates, setHistoryDates] = useState<string[]>([]);
+
   function toggleSort<T extends SortConfig>(
     current: T,
     setter: (s: SortConfig) => void,
@@ -931,6 +935,45 @@ function App() {
     }
   }, []);
 
+  const fetchHistoryDates = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/history/dates?type=gappers`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.dates)) setHistoryDates(data.dates);
+      }
+    } catch {
+      // silent — history dropdown just stays empty
+    }
+  }, []);
+
+  const fetchHistoryData = useCallback(async (date: string) => {
+    try {
+      const [gr, moversRes, ahRes] = await Promise.all([
+        fetch(`${API_URL}/history/gappers/${date}`),
+        fetch(`${API_URL}/history/movers/${date}`),
+        fetch(`${API_URL}/history/afterhours/${date}`),
+      ]);
+      if (gr.ok) {
+        const data = await gr.json();
+        if (Array.isArray(data.gappers)) setGappers(data.gappers);
+        else setGappers([]);
+      }
+      if (moversRes.ok) {
+        const data = await moversRes.json();
+        const gainers: Mover[] = Array.isArray(data.gainers) ? data.gainers : [];
+        const losers: Mover[] = Array.isArray(data.losers) ? data.losers : [];
+        setMovers([...gainers, ...losers]);
+      }
+      if (ahRes.ok) {
+        const data = await ahRes.json();
+        if (Array.isArray(data.afterhours)) setAfterhours(data.afterhours);
+        else setAfterhours([]);
+      }
+    } catch {
+      // silent
+    }
+  }, []);
 
   // Auto-switch tab when mode changes, unless user has manually picked a tab
   useEffect(() => {
@@ -941,8 +984,11 @@ function App() {
     }
   }, [mode, tabOverridden]);
 
+  // Live poll — only runs when not in history mode
   useEffect(() => {
     fetchConfig();
+    fetchHistoryDates();
+    if (historyDate !== null) return; // history mode: no polling
     fetchData();
     const dataInterval = setInterval(fetchData, 1000);
     const clockInterval = setInterval(() => setNow(Date.now() / 1000), 1000);
@@ -950,7 +996,14 @@ function App() {
       clearInterval(dataInterval);
       clearInterval(clockInterval);
     };
-  }, [fetchConfig, fetchData]);
+  }, [fetchConfig, fetchData, fetchHistoryDates, historyDate]);
+
+  // Load historical snapshot when historyDate changes
+  useEffect(() => {
+    if (historyDate) {
+      fetchHistoryData(historyDate);
+    }
+  }, [historyDate, fetchHistoryData]);
 
   const handleTabClick = (tab: 'gappers' | 'movers' | 'afterhours' | 'catalysts') => {
     setActiveTab(tab);
@@ -977,6 +1030,24 @@ function App() {
   // lastScan is a Unix wall-clock timestamp (seconds) from the server
   const secondsAgo = lastScan > 0 ? Math.max(0, Math.floor(now - lastScan)) : null;
 
+  function fmtHistoryDate(dateStr: string): string {
+    // "2026-04-14" → "Mon, Apr 14"
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const dt = new Date(y, m - 1, d);
+    return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  function handleHistoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value;
+    if (val === '') {
+      setHistoryDate(null);
+      // resume live data immediately
+      fetchData();
+    } else {
+      setHistoryDate(val);
+    }
+  }
+
   return (
     <div className="container">
       <div className="main-col">
@@ -996,6 +1067,17 @@ function App() {
               </span>
             )}
           </div>
+          <select
+            className={`history-select${historyDate ? ' history-select--active' : ''}`}
+            value={historyDate ?? ''}
+            onChange={handleHistoryChange}
+            title="Browse historical snapshots"
+          >
+            <option value="">Today (Live)</option>
+            {historyDates.map(d => (
+              <option key={d} value={d}>{fmtHistoryDate(d)}</option>
+            ))}
+          </select>
           <button
             className={`settings-btn ${showSettings ? 'active' : ''}`}
             onClick={() => setShowSettings(s => !s)}
@@ -1081,10 +1163,22 @@ function App() {
             {catalysts.length > 0 && <span className="tab-count">{catalysts.length}</span>}
           </button>
           <div className="tab-spacer" />
-          {secondsAgo != null && (
+          {!historyDate && secondsAgo != null && (
             <span className="scan-age">updated {secondsAgo}s ago</span>
           )}
         </div>
+
+        {historyDate && (
+          <div className="history-banner">
+            <span>Viewing {fmtHistoryDate(historyDate)}</span>
+            <button
+              className="history-banner-btn"
+              onClick={() => { setHistoryDate(null); fetchData(); }}
+            >
+              Back to Live
+            </button>
+          </div>
+        )}
 
         {/* ── Gappers tab ───────────────────────────────────────────── */}
         {activeTab === 'gappers' && (

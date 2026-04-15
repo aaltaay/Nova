@@ -1,54 +1,141 @@
 """
 Thin persistence helpers for scanner caches that must survive process restarts.
 
-Snapshots are persisted for caches that cannot be re-populated immediately
-after a restart:
-- Gappers: frozen at 9:30 AM ET until next pre-market.
-- After-hours: frozen at 8:00 PM ET until the next after-hours session.
-- Movers (gainers/losers): the scan loop does not call the movers refresh
-  during the after-hours window (4-8 PM ET), so a restart in that window
-  would leave movers empty for hours without persistence.
+Each cache type is written to a date-stamped file in backend/.cache/:
+  gappers-YYYY-MM-DD.json
+  movers-YYYY-MM-DD.json
+  afterhours-YYYY-MM-DD.json
 
-News catalysts are continuously refreshed in all active windows and do not
-need persistence.
+Today's file is updated continuously by the scan loop. Past files are kept for
+HISTORY_RETENTION_DAYS days so the frontend can browse historical snapshots.
+
+At startup, _migrate_legacy_files() renames any old fixed-name files
+(gappers.json, movers.json, afterhours.json) to the dated format so existing
+data is not lost.
 """
 
 import json
 import os
+import re
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")
 _CACHE_DIR = os.path.join(os.path.dirname(__file__), ".cache")
-_GAPPER_FILE = os.path.join(_CACHE_DIR, "gappers.json")
-_AFTERHOURS_FILE = os.path.join(_CACHE_DIR, "afterhours.json")
-_MOVERS_FILE = os.path.join(_CACHE_DIR, "movers.json")
+
+# Legacy fixed filenames — only referenced for the one-time migration.
+_LEGACY_FILES = {
+    "gappers": os.path.join(_CACHE_DIR, "gappers.json"),
+    "movers": os.path.join(_CACHE_DIR, "movers.json"),
+    "afterhours": os.path.join(_CACHE_DIR, "afterhours.json"),
+}
 
 
 def _today_et() -> str:
     return datetime.now(_ET).strftime("%Y-%m-%d")
 
 
-def save_gapper_snapshot(gappers: list[dict], ts: float) -> None:
-    """Atomically persist the gapper cache to disk."""
+def _dated_path(prefix: str, date: str) -> str:
+    """Return the absolute path for a dated cache file."""
+    return os.path.join(_CACHE_DIR, f"{prefix}-{date}.json")
+
+
+def _atomic_write(path: str, payload: dict) -> None:
+    """Write *payload* to *path* atomically via a temp file in the same dir."""
+    os.makedirs(_CACHE_DIR, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=_CACHE_DIR, suffix=".tmp")
     try:
-        os.makedirs(_CACHE_DIR, exist_ok=True)
-        payload = {"date": _today_et(), "ts": ts, "gappers": gappers}
-        fd, tmp_path = tempfile.mkstemp(dir=_CACHE_DIR, suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        os.replace(tmp_path, path)
+    except Exception:
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f)
-            os.replace(tmp_path, _GAPPER_FILE)
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+# ── Migration ─────────────────────────────────────────────────────────────────
+
+def _migrate_legacy_files() -> None:
+    """
+    One-time rename of old fixed-name files to the dated format.
+    Safe to call on every startup — skips any file that doesn't exist or
+    whose destination already exists.
+    """
+    for prefix, old_path in _LEGACY_FILES.items():
+        if not os.path.exists(old_path):
+            continue
+        try:
+            with open(old_path, encoding="utf-8") as f:
+                data = json.load(f)
+            date = data.get("date")
+            if not date or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+                continue
+            new_path = _dated_path(prefix, date)
+            if os.path.exists(new_path):
+                os.unlink(old_path)
+            else:
+                os.rename(old_path, new_path)
         except Exception:
+            pass  # never crash startup over a migration failure
+
+
+# ── Retention cleanup ─────────────────────────────────────────────────────────
+
+def cleanup_old_snapshots(retention_days: int) -> None:
+    """Delete dated cache files older than *retention_days* days."""
+    if not os.path.isdir(_CACHE_DIR):
+        return
+    cutoff = (datetime.now(_ET) - timedelta(days=retention_days)).strftime("%Y-%m-%d")
+    pattern = re.compile(r"^(gappers|movers|afterhours)-(\d{4}-\d{2}-\d{2})\.json$")
+    for fname in os.listdir(_CACHE_DIR):
+        m = pattern.match(fname)
+        if m and m.group(2) < cutoff:
             try:
-                os.unlink(tmp_path)
+                os.unlink(os.path.join(_CACHE_DIR, fname))
             except OSError:
                 pass
-            raise
-    except Exception:
-        pass  # never crash the caller over a persistence failure
 
+
+# ── History helpers ───────────────────────────────────────────────────────────
+
+def list_history_dates(cache_type: str) -> list[str]:
+    """
+    Return all dates for which a snapshot of *cache_type* exists on disk,
+    sorted descending (newest first). Does not include today — today is live.
+    """
+    if not os.path.isdir(_CACHE_DIR):
+        return []
+    pattern = re.compile(rf"^{re.escape(cache_type)}-(\d{{4}}-\d{{2}}-\d{{2}})\.json$")
+    today = _today_et()
+    dates = []
+    for fname in os.listdir(_CACHE_DIR):
+        m = pattern.match(fname)
+        if m:
+            d = m.group(1)
+            if d != today:
+                dates.append(d)
+    dates.sort(reverse=True)
+    return dates
+
+
+def load_snapshot_for_date(cache_type: str, date: str) -> dict:
+    """
+    Load any dated snapshot. Returns the raw JSON dict from the file, or an
+    empty dict if the file does not exist or cannot be parsed.
+    """
+    path = _dated_path(cache_type, date)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+# ── Normalisation (backward compat for old on-disk shapes) ───────────────────
 
 def _normalize_gapper_row(row: dict) -> dict:
     """Ensure every gapper dict carries both the legacy and current field names.
@@ -74,6 +161,17 @@ def _normalize_gapper_row(row: dict) -> dict:
     }
 
 
+# ── Gappers ───────────────────────────────────────────────────────────────────
+
+def save_gapper_snapshot(gappers: list[dict], ts: float) -> None:
+    """Atomically persist the gapper cache to today's dated file."""
+    try:
+        payload = {"date": _today_et(), "ts": ts, "gappers": gappers}
+        _atomic_write(_dated_path("gappers", _today_et()), payload)
+    except Exception:
+        pass
+
+
 def load_gapper_snapshot() -> tuple[list[dict], float]:
     """
     Load today's gapper snapshot from disk.
@@ -82,7 +180,8 @@ def load_gapper_snapshot() -> tuple[list[dict], float]:
     otherwise returns ([], 0.0) so the scan loop starts fresh.
     """
     try:
-        with open(_GAPPER_FILE, encoding="utf-8") as f:
+        path = _dated_path("gappers", _today_et())
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         if data.get("date") != _today_et():
             return [], 0.0
@@ -90,30 +189,20 @@ def load_gapper_snapshot() -> tuple[list[dict], float]:
         ts = float(data.get("ts", 0.0))
         if not isinstance(raw, list):
             return [], 0.0
-        gappers = [_normalize_gapper_row(g) for g in raw]
-        return gappers, ts
+        return [_normalize_gapper_row(g) for g in raw], ts
     except Exception:
         return [], 0.0
 
 
+# ── After-hours ───────────────────────────────────────────────────────────────
+
 def save_afterhours_snapshot(rows: list[dict], ts: float) -> None:
-    """Atomically persist the after-hours cache to disk."""
+    """Atomically persist the after-hours cache to today's dated file."""
     try:
-        os.makedirs(_CACHE_DIR, exist_ok=True)
         payload = {"date": _today_et(), "ts": ts, "afterhours": rows}
-        fd, tmp_path = tempfile.mkstemp(dir=_CACHE_DIR, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f)
-            os.replace(tmp_path, _AFTERHOURS_FILE)
-        except Exception:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+        _atomic_write(_dated_path("afterhours", _today_et()), payload)
     except Exception:
-        pass  # never crash the caller over a persistence failure
+        pass
 
 
 def load_afterhours_snapshot() -> tuple[list[dict], float]:
@@ -124,7 +213,8 @@ def load_afterhours_snapshot() -> tuple[list[dict], float]:
     otherwise returns ([], 0.0) so the scan loop starts fresh.
     """
     try:
-        with open(_AFTERHOURS_FILE, encoding="utf-8") as f:
+        path = _dated_path("afterhours", _today_et())
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         if data.get("date") != _today_et():
             return [], 0.0
@@ -132,30 +222,20 @@ def load_afterhours_snapshot() -> tuple[list[dict], float]:
         ts = float(data.get("ts", 0.0))
         if not isinstance(raw, list):
             return [], 0.0
-        rows = [_normalize_gapper_row(g) for g in raw]
-        return rows, ts
+        return [_normalize_gapper_row(g) for g in raw], ts
     except Exception:
         return [], 0.0
 
 
+# ── Movers (gainers + losers) ─────────────────────────────────────────────────
+
 def save_movers_snapshot(gainers: list[dict], losers: list[dict], ts: float) -> None:
-    """Atomically persist the movers (gainers + losers) cache to disk."""
+    """Atomically persist the movers (gainers + losers) cache to today's dated file."""
     try:
-        os.makedirs(_CACHE_DIR, exist_ok=True)
         payload = {"date": _today_et(), "ts": ts, "gainers": gainers, "losers": losers}
-        fd, tmp_path = tempfile.mkstemp(dir=_CACHE_DIR, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(payload, f)
-            os.replace(tmp_path, _MOVERS_FILE)
-        except Exception:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+        _atomic_write(_dated_path("movers", _today_et()), payload)
     except Exception:
-        pass  # never crash the caller over a persistence failure
+        pass
 
 
 def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
@@ -166,7 +246,8 @@ def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
     otherwise returns ([], [], 0.0) so the scan loop starts fresh.
     """
     try:
-        with open(_MOVERS_FILE, encoding="utf-8") as f:
+        path = _dated_path("movers", _today_et())
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         if data.get("date") != _today_et():
             return [], [], 0.0

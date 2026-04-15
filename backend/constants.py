@@ -75,6 +75,9 @@ NEWS_CATALYST_LOOKBACK_HOURS = 2      # how far back to scan for news articles
 # max articles per news API call (Alpaca hard cap)
 NEWS_CATALYST_ARTICLE_LIMIT = 50
 
+# ── Historical snapshot retention ───────────────────────────────────────────
+HISTORY_RETENTION_DAYS = 30   # delete dated cache files older than this many days
+
 # ── Alpaca WebSocket stream ──────────────────────────────────────────────────
 # Max retry backoff in seconds. 15 s keeps reconnect attempts frequent enough
 # to recover quickly when Alpaca frees a stale connection slot (typically 30–60 s).

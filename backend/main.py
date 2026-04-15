@@ -10,6 +10,7 @@ from dotenv import load_dotenv, set_key
 import requests
 from datetime import datetime, date, timedelta
 import math
+import re
 import time
 import asyncio
 import json
@@ -43,6 +44,7 @@ from constants import (
     FOCUS_INTERVAL_SEC,
     GAINERS_INTERVAL_SEC,
     GAPPER_MIN_GAP_PCT,
+    HISTORY_RETENTION_DAYS,
     NEWS_CATALYST_ARTICLE_LIMIT,
     NEWS_CATALYST_INTERVAL_SEC,
     NEWS_CATALYST_LOOKBACK_HOURS,
@@ -56,9 +58,13 @@ from constants import (
     TOP_N_DEFAULT,
 )
 from cache import (
+    _migrate_legacy_files,
+    cleanup_old_snapshots,
+    list_history_dates,
     load_afterhours_snapshot,
     load_gapper_snapshot,
     load_movers_snapshot,
+    load_snapshot_for_date,
     save_afterhours_snapshot,
     save_gapper_snapshot,
     save_movers_snapshot,
@@ -1206,6 +1212,10 @@ async def _scan_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Migrate old fixed-name cache files to date-stamped format, then prune old ones.
+    _migrate_legacy_files()
+    cleanup_old_snapshots(HISTORY_RETENTION_DAYS)
+
     # Restore gapper snapshot from disk so the pre-market list survives restarts
     # during market hours (when the scan loop never re-runs discovery).
     global _gapper_cache, _gapper_cache_ts, _afterhours_cache, _afterhours_cache_ts
@@ -1343,6 +1353,26 @@ def get_afterhours():
         "afterhours": _afterhours_cache,
         "last_scan": _afterhours_cache_ts,
     }
+
+
+@app.get("/api/history/dates")
+def get_history_dates(type: str = "gappers"):
+    """Return available past dates for a cache type. ?type=gappers|movers|afterhours"""
+    allowed = {"gappers", "movers", "afterhours"}
+    if type not in allowed:
+        return {"dates": []}
+    return {"dates": list_history_dates(type)}
+
+
+@app.get("/api/history/{cache_type}/{date}")
+def get_history_snapshot(cache_type: str, date: str):
+    """Return a historical snapshot for a specific cache type and date (YYYY-MM-DD)."""
+    allowed = {"gappers", "movers", "afterhours"}
+    if cache_type not in allowed:
+        return {}
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        return {}
+    return load_snapshot_for_date(cache_type, date)
 
 
 @app.get("/api/news-catalysts")
