@@ -502,98 +502,64 @@ function TickerDetailContent({
   );
 }
 
-// ── Ticker Detail Panel ───────────────────────────────────────────────────────
+// ── Persistent Side Panel ─────────────────────────────────────────────────────
 
-function TickerDetailPanel({
-  symbol,
-  onClose,
+function SidePanel({
+  selectedSymbol,
+  setSelectedSymbol,
 }: {
-  symbol: string;
-  onClose: () => void;
+  selectedSymbol: string | null;
+  setSelectedSymbol: (sym: string | null) => void;
 }) {
-  const { detail, loading } = useTickerStream(symbol);
-  const panelRef = useRef<HTMLDivElement>(null);
+  const [input, setInput] = useState(selectedSymbol ?? '');
+  const { detail, loading } = useTickerStream(selectedSymbol);
 
   useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose]);
-
-  return (
-    <>
-      <div className="detail-overlay" onClick={onClose} />
-      <div className="detail-panel" ref={panelRef} role="dialog" aria-modal="true">
-        <div className="detail-panel-close-row">
-          <button className="detail-close" onClick={onClose} aria-label="Close">✕</button>
-        </div>
-        {loading || !detail ? (
-          <div className="detail-loading">
-            <div className="detail-loading-spinner" />
-            <span>Loading…</span>
-          </div>
-        ) : (
-          <div className="detail-body">
-            <TickerDetailContent detail={detail} />
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-// ── Stock Quote Tab ───────────────────────────────────────────────────────────
-
-function StockQuoteTab() {
-  const [input, setInput] = useState('');
-  const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
-  const { detail, loading } = useTickerStream(activeSymbol);
+    setInput(selectedSymbol ?? '');
+  }, [selectedSymbol]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const sym = input.trim().toUpperCase();
-    if (sym) setActiveSymbol(sym);
+    setSelectedSymbol(sym || null);
   }
 
   return (
-    <div className="quote-tab">
-      <form className="quote-search-bar" onSubmit={handleSubmit}>
-        <input
-          className="quote-search-input"
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value.toUpperCase())}
-          placeholder="Enter symbol, e.g. AAPL"
-          autoComplete="off"
-          spellCheck={false}
-          autoFocus
-        />
-        <button type="submit" className="quote-search-btn">Look Up</button>
-      </form>
-
-      {loading && (
-        <div className="detail-loading">
-          <div className="detail-loading-spinner" />
-          <span>Loading…</span>
-        </div>
-      )}
-
-      {!loading && detail && (
-        <div className="quote-content">
-          <TickerDetailContent detail={detail} />
-        </div>
-      )}
-
-      {!loading && !detail && !activeSymbol && (
-        <div className="empty-state">Enter a ticker symbol above to look up a stock quote.</div>
-      )}
-
-      {!loading && !detail && activeSymbol && (
-        <div className="empty-state">No data found for {activeSymbol}.</div>
-      )}
-    </div>
+    <aside className="side-panel">
+      <div className="side-panel-search">
+        <form className="side-search-form" onSubmit={handleSubmit}>
+          <input
+            className="side-search-input"
+            type="text"
+            value={input}
+            onChange={e => setInput(e.target.value.toUpperCase())}
+            placeholder="Symbol, e.g. AAPL"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <button type="submit" className="side-search-btn">Look Up</button>
+        </form>
+      </div>
+      <div className="side-panel-body">
+        {loading && (
+          <div className="detail-loading">
+            <div className="detail-loading-spinner" />
+            <span>Loading…</span>
+          </div>
+        )}
+        {!loading && detail && (
+          <div className="detail-body">
+            <TickerDetailContent detail={detail} />
+          </div>
+        )}
+        {!loading && !detail && selectedSymbol && (
+          <div className="detail-empty">No data found for {selectedSymbol}.</div>
+        )}
+        {!loading && !selectedSymbol && (
+          <div className="detail-empty">Enter a ticker symbol above to look up a stock quote.</div>
+        )}
+      </div>
+    </aside>
   );
 }
 
@@ -619,7 +585,7 @@ function App() {
   const [lastScan, setLastScan] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
-  const [activeTab, setActiveTab] = useState<'gappers' | 'gainers' | 'movers' | 'catalysts' | 'quote'>('gappers');
+  const [activeTab, setActiveTab] = useState<'gappers' | 'gainers' | 'movers' | 'catalysts'>('gappers');
   const [tabOverridden, setTabOverridden] = useState(false);
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [moversSubTab, setMoversSubTab] = useState<'gainers' | 'losers'>('gainers');
@@ -784,7 +750,7 @@ function App() {
     };
   }, [fetchConfig, fetchData]);
 
-  const handleTabClick = (tab: 'gappers' | 'gainers' | 'movers' | 'catalysts' | 'quote') => {
+  const handleTabClick = (tab: 'gappers' | 'gainers' | 'movers' | 'catalysts') => {
     setActiveTab(tab);
     setTabOverridden(true);
   };
@@ -811,6 +777,7 @@ function App() {
 
   return (
     <div className="container">
+      <div className="main-col">
       <header>
         <div className="header-left">
           <h1>B.L.A.S.T.</h1>
@@ -912,12 +879,6 @@ function App() {
             Catalysts
             <span className="tab-badge-experimental">{CATALYSTS_EXPERIMENTAL_LABEL}</span>
             {catalysts.length > 0 && <span className="tab-count">{catalysts.length}</span>}
-          </button>
-          <button
-            className={`tab ${activeTab === 'quote' ? 'active' : ''}`}
-            onClick={() => handleTabClick('quote')}
-          >
-            Stock Quote
           </button>
           <div className="tab-spacer" />
           {secondsAgo != null && (
@@ -1123,11 +1084,6 @@ function App() {
           </>
         )}
 
-        {/* ── Stock Quote tab ───────────────────────────────────────── */}
-        {activeTab === 'quote' && (
-          <StockQuoteTab />
-        )}
-
         {/* ── Top Movers tab ────────────────────────────────────────── */}
         {activeTab === 'movers' && (
           <>
@@ -1312,14 +1268,8 @@ function App() {
           </>
         )}
       </main>
-
-      {/* ── Ticker Detail Panel ────────────────────────────────────── */}
-      {selectedSymbol && (
-        <TickerDetailPanel
-          symbol={selectedSymbol}
-          onClose={() => setSelectedSymbol(null)}
-        />
-      )}
+      </div>
+      <SidePanel selectedSymbol={selectedSymbol} setSelectedSymbol={setSelectedSymbol} />
     </div>
   );
 }
