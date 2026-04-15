@@ -25,6 +25,7 @@ from constants import (
     NEWS_CATALYST_ARTICLE_LIMIT,
     NEWS_CATALYST_INTERVAL_SEC,
     NEWS_CATALYST_LOOKBACK_HOURS,
+    RVOL_LOOKBACK_DAYS,
     SCAN_CAP_DEFAULT,
     SCAN_EXCHANGES,
     SCANNER_MIN_PRICE,
@@ -333,7 +334,13 @@ def _ensure_avg_volume(symbols: list[str], headers: dict) -> None:
             resp = requests.get(
                 f"{_DATA_URL}/v2/stocks/bars",
                 headers=headers,
-                params={"symbols": ",".join(chunk), "timeframe": "1Day", "limit": 20, "feed": feed},
+                params={
+                    "symbols": ",".join(chunk),
+                    "timeframe": "1Day",
+                    "limit": RVOL_LOOKBACK_DAYS,
+                    "end": (date.today() - timedelta(days=1)).isoformat(),
+                    "feed": feed,
+                },
                 timeout=20,
             )
             if resp.status_code != 200:

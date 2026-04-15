@@ -18,7 +18,8 @@ NEWS_FLAME_WARM_HOURS = 12   # orange badge (2 – 12 h)
 NEWS_FLAME_MAX_HOURS  = 24   # yellow badge (12 – 24 h); hide above this
 
 # ── Relative volume ────────────────────────────────────────────────────────
-REL_VOLUME_HIGH = 2   # highlight threshold
+REL_VOLUME_HIGH = 2         # highlight threshold
+RVOL_LOOKBACK_DAYS = 30     # trading days of history used to compute avg daily volume
 
 # ── Minimum price filter ─────────────────────────────────────────────────────
 SCANNER_MIN_PRICE = 0.50   # exclude any stock priced below $0.50 (applies to gappers and gainers)
