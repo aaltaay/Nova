@@ -1,0 +1,27 @@
+---
+description: Maintain PROBLEM_LOG.md when fixing errors or diagnosing issues
+alwaysApply: true
+---
+
+# Problem log — append resolved issues
+
+The repo root file `PROBLEM_LOG.md` is a **problem database** for future agent and human sessions.
+
+## Before deep debugging
+
+When the task involves an error, failing check, or wrong behavior, **search `PROBLEM_LOG.md`** (and the codebase) for matching keywords or symptoms. If a prior entry fits, reuse that fix pattern when appropriate.
+
+## After fixing or fully diagnosing
+
+When this session **resolves** any of the following, **prepend a new entry** to `PROBLEM_LOG.md` (newest first, directly under the `<!-- ENTRIES_START -->` line):
+
+- Build, test, or linter failure
+- Runtime or API error
+- Incorrect behavior that required code or config changes
+- A subtle root cause that would not be obvious on the next occurrence
+
+**Skip** logging only for purely cosmetic edits with no failure involved, or a one-line typo with no diagnostic story.
+
+Each entry must use the template in `PROBLEM_LOG.md` (Symptom, Cause, Fix, Keywords). Do not log secrets, tokens, or personal data.
+
+This is part of **task completion**: add the log entry in the same session as the fix when practical, before or alongside commit.
