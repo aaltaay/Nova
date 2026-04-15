@@ -6,23 +6,24 @@ Define scan cadence, filters, and tier rules here; import from this module in
 import re
 
 # ── Market cap tiers (USD) ────────────────────────────────────────────────
-SMALL_CAP_MIN =   300_000_000   #  $300 M
-SMALL_CAP_MAX = 2_000_000_000   #   $2 B
-MID_CAP_MIN   = 2_000_000_000   #   $2 B
-MID_CAP_MAX   = 10_000_000_000  #  $10 B
-LARGE_CAP_MIN = 10_000_000_000  #  $10 B
+SMALL_CAP_MIN = 300_000_000  # $300 M
+SMALL_CAP_MAX = 2_000_000_000  # $2 B
+MID_CAP_MIN = 2_000_000_000  # $2 B
+MID_CAP_MAX = 10_000_000_000  # $10 B
+LARGE_CAP_MIN = 10_000_000_000  # $10 B
 
 # ── News flame thresholds (hours) ─────────────────────────────────────────
-NEWS_FLAME_HOT_HOURS  =  2   # red badge    (0 –  2 h)
+NEWS_FLAME_HOT_HOURS = 2   # red badge    (0 –  2 h)
 NEWS_FLAME_WARM_HOURS = 12   # orange badge (2 – 12 h)
-NEWS_FLAME_MAX_HOURS  = 24   # yellow badge (12 – 24 h); hide above this
+NEWS_FLAME_MAX_HOURS = 24   # yellow badge (12 – 24 h); hide above this
 
 # ── Relative volume ────────────────────────────────────────────────────────
 REL_VOLUME_HIGH = 2         # highlight threshold
 RVOL_LOOKBACK_DAYS = 30     # trading days of history used to compute avg daily volume
 
 # ── Minimum price filter ─────────────────────────────────────────────────────
-SCANNER_MIN_PRICE = 0.50   # exclude any stock priced below $0.50 (applies to gappers and gainers)
+# exclude any stock priced below $0.50 (applies to gappers and gainers)
+SCANNER_MIN_PRICE = 0.50
 
 # ── Gapper filter ───────────────────────────────────────────────────────────
 # Gap is (last price − previous close) / previous close, expressed as % for this threshold.
@@ -37,11 +38,14 @@ SCAN_EXCHANGES = ("NYSE", "NASDAQ", "AMEX")
 # When True, only include Alpaca assets with `tradable: true`. Some active listings are
 # marked `tradable: false` (e.g. overnight halt / restriction) and are otherwise dropped
 # from the scan universe. Override with env `BLAST_SCAN_REQUIRE_TRADABLE` (false | true).
-SCAN_REQUIRE_TRADABLE = True
+SCAN_REQUIRE_TRADABLE = False
 
-# Symbols whose name contains any of these keywords are excluded from the
-# gapper universe. ETFs do not produce catalyst-driven gap events.
-ETF_NAME_KEYWORDS = ("ETF", "Fund", "Trust", "Index")
+# Words found in Alpaca asset names that identify non-common-stock securities.
+# Used exclusively inside _is_common_stock() in main.py — nowhere else.
+EXCLUDED_NAME_KEYWORDS = (
+    "ETF", "Fund", "Trust", "Index",  # passive vehicles
+    "Warrant", "Rights",              # derivative securities
+)
 
 # Regex matching non-standard security symbols within primary exchanges:
 # warrants (/W, /WS), units (/U), rights (/R), preferred shares (/P*, .P*),
@@ -57,17 +61,19 @@ SNAPSHOT_WORKERS = 10    # parallel threads for batch snapshot fetching
 
 # ── Scan intervals (seconds) ────────────────────────────────────────────────
 # Real-time prices still come from the WebSocket; these control REST discovery cadence.
-DISCOVERY_INTERVAL_SEC           = 120.0   # full universe scan (pre-market)
-FOCUS_INTERVAL_SEC               = 30.0    # reconcile current gapper list
-GAINERS_INTERVAL_SEC             = 20.0    # market-hours screener refresh
-CLOSED_INTERVAL_SEC              = 60.0    # closed-hours background refresh
-NEWS_CATALYST_INTERVAL_SEC       = 60.0    # news-first catalyst scan interval
-AFTERHOURS_DISCOVERY_INTERVAL_SEC = 120.0  # full universe scan (after-hours, same cadence as pre-market)
-AFTERHOURS_FOCUS_INTERVAL_SEC     = 30.0   # reconcile current after-hours list
+DISCOVERY_INTERVAL_SEC = 120.0   # full universe scan (pre-market)
+FOCUS_INTERVAL_SEC = 30.0    # reconcile current gapper list
+GAINERS_INTERVAL_SEC = 20.0    # market-hours screener refresh
+CLOSED_INTERVAL_SEC = 60.0    # closed-hours background refresh
+NEWS_CATALYST_INTERVAL_SEC = 60.0    # news-first catalyst scan interval
+# full universe scan (after-hours, same cadence as pre-market)
+AFTERHOURS_DISCOVERY_INTERVAL_SEC = 120.0
+AFTERHOURS_FOCUS_INTERVAL_SEC = 30.0   # reconcile current after-hours list
 
 # ── News catalyst scanner ────────────────────────────────────────────────────
 NEWS_CATALYST_LOOKBACK_HOURS = 2      # how far back to scan for news articles
-NEWS_CATALYST_ARTICLE_LIMIT  = 50     # max articles per news API call (Alpaca hard cap)
+# max articles per news API call (Alpaca hard cap)
+NEWS_CATALYST_ARTICLE_LIMIT = 50
 
 # ── Alpaca WebSocket stream ──────────────────────────────────────────────────
 # Max retry backoff in seconds. 15 s keeps reconnect attempts frequent enough

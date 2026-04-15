@@ -39,7 +39,7 @@ from constants import (
     ALPACA_WS_BACKOFF_CAP,
     CLOSED_INTERVAL_SEC,
     DISCOVERY_INTERVAL_SEC,
-    ETF_NAME_KEYWORDS,
+    EXCLUDED_NAME_KEYWORDS,
     FOCUS_INTERVAL_SEC,
     GAINERS_INTERVAL_SEC,
     GAPPER_MIN_GAP_PCT,
@@ -88,6 +88,7 @@ _NEWS_CATALYST_INTERVAL = NEWS_CATALYST_INTERVAL_SEC
 
 # ── Assets cache (1-hour TTL) ─────────────────────────────────────────────────
 _assets_cache: list[str] = []
+_assets_cache_set: set[str] = set()   # O(1) membership check used by all scanners
 _assets_cache_ts: float = 0.0
 _ASSETS_CACHE_TTL = 3600.0
 
@@ -278,16 +279,32 @@ def _fetch_fundamentals_batch(symbols: list[str]) -> None:
 
 # ── Tradable assets ───────────────────────────────────────────────────────────
 
+def _is_common_stock(asset: dict) -> bool:
+    """Single source of truth: should this Alpaca asset appear in any scan?
+
+    All symbol-exclusion rules live here. To add a new exclusion, add it here.
+    To remove one, remove it here. No other function should make this decision.
+    """
+    if _SCAN_REQUIRE_TRADABLE and not asset.get("tradable"):
+        return False
+    sym = asset.get("symbol", "")
+    if SYMBOL_EXCLUDE_RE.search(sym):                                    # structural: slashes, test symbols
+        return False
+    name = (asset.get("name") or "").lower()
+    if any(kw.lower() in name for kw in EXCLUDED_NAME_KEYWORDS):        # semantic: Warrant, ETF, etc.
+        return False
+    return True
+
+
 def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
     """Fetch common-stock symbols for scanning, cached for one hour.
 
-    Uses exchange-based filtering (NYSE, NASDAQ, AMEX) instead of an arbitrary
-    count cap so that any listed common stock can appear as a gapper. Within
-    those exchanges, warrants, units, rights, preferred shares, test symbols,
-    and ETFs (by name keyword) are excluded — leaving ~3,500–4,000 tradeable
-    common stocks that are the meaningful gapper universe.
+    Uses exchange-based filtering (NYSE, NASDAQ, AMEX) so that any listed
+    common stock can appear as a gapper (~3,500–4,000 symbols). All exclusion
+    logic (ETFs, warrants, rights, test symbols, etc.) is centralised in
+    _is_common_stock(); do not add filter conditions here.
     """
-    global _assets_cache, _assets_cache_ts
+    global _assets_cache, _assets_cache_set, _assets_cache_ts
     now = time.monotonic()
     if _assets_cache and (now - _assets_cache_ts) < _ASSETS_CACHE_TTL:
         return _assets_cache
@@ -306,19 +323,9 @@ def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
         if not all_assets:
             return _assets_cache
 
-        symbols: list[str] = []
-        for a in all_assets:
-            if _SCAN_REQUIRE_TRADABLE and not a.get("tradable"):
-                continue
-            sym = a.get("symbol", "")
-            if SYMBOL_EXCLUDE_RE.search(sym):
-                continue
-            name = (a.get("name") or "").lower()
-            if any(kw.lower() in name for kw in ETF_NAME_KEYWORDS):
-                continue
-            symbols.append(sym)
-
+        symbols = [a["symbol"] for a in all_assets if _is_common_stock(a)]
         _assets_cache = symbols
+        _assets_cache_set = set(symbols)
         _assets_cache_ts = now
         return _assets_cache
     except Exception:
@@ -1089,9 +1096,12 @@ def _run_news_catalyst_scan() -> None:
                         "url": url,
                     }
 
+        # Trust the validated universe set — no per-scanner filter logic here.
+        # Falls back to allowing all symbols on cold start (set not yet populated).
+        universe = _assets_cache_set
         news_symbols = [
             s for s in symbol_to_article.keys()
-            if not SYMBOL_EXCLUDE_RE.search(s)
+            if not universe or s in universe
         ]
         print(f"[catalyst] {len(news_symbols)} unique symbols from news", flush=True)
         if not news_symbols:
@@ -1258,13 +1268,14 @@ def get_config():
 
 @app.post("/api/config")
 def update_config(config: ConfigUpdate):
-    global _assets_cache_ts, _last_discovery_ts
+    global _assets_cache_ts, _assets_cache_set, _last_discovery_ts
     env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
     set_key(env_path, "APCA_API_KEY_ID", config.api_key)
     set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
     set_key(env_path, "APCA_API_BASE_URL", config.base_url)
     load_dotenv(env_path, override=True)
     _assets_cache_ts = 0.0
+    _assets_cache_set = set()
     _last_discovery_ts = 0.0
     return {"status": "success"}
 
