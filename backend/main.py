@@ -478,9 +478,17 @@ def _ws_current_symbols() -> set[str]:
 
 
 def _apply_trade_to_mover_list(cache: list[dict], sym: str, price: float) -> bool:
-    """Update price/change fields for a symbol in a mover list (gainers or losers). Returns True if found."""
+    """Update price/change fields for a symbol in a mover list (gainers or losers).
+
+    Evicts the entry if the new price falls below SCANNER_MIN_PRICE — keeping the
+    cache consistent with the scan-time filter without waiting for the next poll.
+    Returns True if the symbol was found (updated or evicted), False if not present.
+    """
     for i, g in enumerate(cache):
         if g["symbol"] == sym:
+            if price < SCANNER_MIN_PRICE:
+                del cache[i]
+                return True
             prev_close = g.get("prev_close") or 0.0
             if prev_close:
                 new_change_abs = price - prev_close
@@ -513,7 +521,7 @@ def _handle_trade(msg: dict) -> None:
             if g["symbol"] == sym:
                 prev_close = g["previous_close"]
                 new_gap = (price - prev_close) / prev_close if prev_close else g["gap_percent"]
-                if not _gapper_meets_min_gap(new_gap):
+                if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
                     del _gapper_cache[i]
                 else:
                     _gapper_cache[i] = {**g, "current_price": price, "gap_percent": new_gap}
@@ -606,6 +614,8 @@ def _run_focus_scan() -> None:
         prev_bar = snap.get("prevDailyBar") or {}
         daily_bar = snap.get("dailyBar") or {}
         price = latest_trade.get("p") or g["current_price"]
+        if price < SCANNER_MIN_PRICE:
+            continue
         prev_close = prev_bar.get("c") or g["previous_close"]
         volume = daily_bar.get("v") or g["volume"]
         gap_frac = (price - prev_close) / prev_close if price and prev_close else g["gap_percent"]
@@ -694,6 +704,11 @@ def _run_gainers_update() -> None:
     if not gainers_raw and not losers_raw:
         return
 
+    # Apply price floor early — before any enrichment calls — so we never fetch
+    # snapshots, fundamentals, or news for sub-threshold stocks.
+    gainers_raw = [r for r in gainers_raw if r.get("price", 0) >= SCANNER_MIN_PRICE]
+    losers_raw  = [r for r in losers_raw  if r.get("price", 0) >= SCANNER_MIN_PRICE]
+
     all_symbols = list({r["symbol"] for r in gainers_raw + losers_raw})
 
     # 2. Snapshot enrichment — 1 call for all mover symbols
@@ -714,8 +729,6 @@ def _run_gainers_update() -> None:
     gainers: list[dict] = []
     for raw in gainers_raw:
         entry = _build_mover_entry(raw, snaps, premarket_gap_map)
-        if entry["price"] < SCANNER_MIN_PRICE:
-            continue
         sym = entry["symbol"]
         entry["has_news"] = sym in news
         entry["newest_headline_at"] = news.get(sym)
@@ -891,6 +904,8 @@ def _run_news_catalyst_scan() -> None:
             prev_close = prev_bar.get("c", 0)
             volume = daily_bar.get("v", 0)
             if not price or not prev_close:
+                continue
+            if price < SCANNER_MIN_PRICE:
                 continue
             gap_frac = (price - prev_close) / prev_close
             article_info = symbol_to_article.get(sym, {})
