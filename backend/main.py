@@ -34,6 +34,8 @@ logging.getLogger().addHandler(_file_handler)
 logging.getLogger().setLevel(logging.INFO)
 
 from constants import (
+    AFTERHOURS_DISCOVERY_INTERVAL_SEC,
+    AFTERHOURS_FOCUS_INTERVAL_SEC,
     ALPACA_WS_BACKOFF_CAP,
     CLOSED_INTERVAL_SEC,
     DISCOVERY_INTERVAL_SEC,
@@ -52,7 +54,12 @@ from constants import (
     SYMBOL_EXCLUDE_RE,
     TOP_N_DEFAULT,
 )
-from cache import load_gapper_snapshot, save_gapper_snapshot
+from cache import (
+    load_afterhours_snapshot,
+    load_gapper_snapshot,
+    save_afterhours_snapshot,
+    save_gapper_snapshot,
+)
 
 load_dotenv()
 
@@ -65,6 +72,8 @@ _DISCOVERY_INTERVAL = DISCOVERY_INTERVAL_SEC
 _FOCUS_INTERVAL = FOCUS_INTERVAL_SEC
 _GAINERS_INTERVAL = GAINERS_INTERVAL_SEC
 _CLOSED_INTERVAL = CLOSED_INTERVAL_SEC
+_AH_DISCOVERY_INTERVAL = AFTERHOURS_DISCOVERY_INTERVAL_SEC
+_AH_FOCUS_INTERVAL = AFTERHOURS_FOCUS_INTERVAL_SEC
 
 _SCAN_CAP = int(os.environ.get("ALPACA_SCAN_SYMBOL_CAP", str(SCAN_CAP_DEFAULT)))  # emergency override only
 _MIN_GAP_PCT = float(os.environ.get("BLAST_MIN_GAP_PCT", str(GAPPER_MIN_GAP_PCT)))
@@ -80,6 +89,11 @@ _ASSETS_CACHE_TTL = 3600.0
 _gapper_cache: list[dict] = []
 _gapper_cache_ts: float = 0.0
 _last_discovery_ts: float = 0.0
+
+# ── After-hours cache (4–8 PM ET) ────────────────────────────────────────────
+_afterhours_cache: list[dict] = []
+_afterhours_cache_ts: float = 0.0
+_last_afterhours_discovery_ts: float = 0.0
 
 # ── Gainers cache (market hours) ──────────────────────────────────────────────
 _gainer_cache: list[dict] = []
@@ -105,7 +119,7 @@ _FUNDAMENTALS_CACHE_TTL = 900.0  # 15 minutes
 
 # ── Health + mode ──────────────────────────────────────────────────────────────
 _cached_health: dict = {"status": "loading", "latency_ms": 0}
-_current_mode: str = "closed"   # "premarket" | "market" | "closed"
+_current_mode: str = "closed"   # "premarket" | "market" | "afterhours" | "closed"
 
 # ── WebSocket streaming state ──────────────────────────────────────────────────
 # The WS stream receives real-time trades and updates _gapper_cache / _gainer_cache
@@ -151,6 +165,13 @@ def _in_market_hours() -> bool:
     open_ = now.replace(hour=9, minute=30, second=0, microsecond=0)
     close = now.replace(hour=16, minute=0, second=0, microsecond=0)
     return open_ <= now < close
+
+
+def _in_after_hours() -> bool:
+    now = _now_et()
+    start = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    end = now.replace(hour=20, minute=0, second=0, microsecond=0)
+    return start <= now < end
 
 
 def _get_feed() -> str:
@@ -435,17 +456,23 @@ def _prune_gappers_below_min(gappers: list[dict]) -> list[dict]:
     return [g for g in gappers if _gapper_meets_min_gap(g.get("gap_percent"))]
 
 
-def _compute_gappers(snaps: dict) -> list[dict]:
+def _compute_gappers(snaps: dict, ref_bar_key: str = "prevDailyBar") -> list[dict]:
+    """Compute gap entries from snapshot data.
+
+    ref_bar_key controls which bar supplies the reference close price:
+    - "prevDailyBar" (default): gap vs previous session close — used for pre-market.
+    - "dailyBar": gap vs today's regular-session close — used for after-hours.
+    """
     gappers: list[dict] = []
     for sym, snap in snaps.items():
         latest_trade = snap.get("latestTrade") or {}
-        prev_bar = snap.get("prevDailyBar") or {}
+        ref_bar = snap.get(ref_bar_key) or {}
         daily_bar = snap.get("dailyBar") or {}
         # Prefer the latest executed trade price; fall back to the current
-        # session's bar close (dailyBar.c) for stocks that have pre-market
-        # price movement reflected in bid/ask but no executed trade yet.
+        # session's bar close (dailyBar.c) for stocks that have price
+        # movement reflected in bid/ask but no executed trade yet.
         price = latest_trade.get("p") or daily_bar.get("c", 0)
-        prev_close = prev_bar.get("c", 0)
+        prev_close = ref_bar.get("c", 0)
         volume = daily_bar.get("v", 0)
         if not price or not prev_close:
             continue
@@ -498,9 +525,11 @@ def _ws_mark_resub() -> None:
 
 
 def _ws_current_symbols() -> set[str]:
-    """Return the union of all symbols in gapper/gainer/loser caches plus any open ticker detail WS clients."""
+    """Return the union of all symbols in gapper/afterhours/gainer/loser caches plus any open ticker detail WS clients."""
     syms: set[str] = set()
     for g in _gapper_cache:
+        syms.add(g["symbol"])
+    for g in _afterhours_cache:
         syms.add(g["symbol"])
     for g in _gainer_cache:
         syms.add(g["symbol"])
@@ -543,7 +572,8 @@ def _apply_trade_to_mover_list(cache: list[dict], sym: str, price: float) -> boo
 
 def _handle_trade(msg: dict) -> None:
     """Apply a real-time trade message to the in-memory caches."""
-    global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
+    global _gapper_cache, _gapper_cache_ts, _afterhours_cache, _afterhours_cache_ts
+    global _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
     sym = msg.get("S")
     price = msg.get("p")
     if not sym or not price:
@@ -569,6 +599,27 @@ def _handle_trade(msg: dict) -> None:
                     }
                 _gapper_cache_ts = now
                 save_gapper_snapshot(_gapper_cache, _gapper_cache_ts)
+                break
+
+    # Update after-hours list — only during after-hours; list is preserved after 8 PM.
+    if _current_mode == "afterhours":
+        for i, g in enumerate(_afterhours_cache):
+            if g["symbol"] == sym:
+                prev_close = g["previous_close"]
+                new_gap = (price - prev_close) / prev_close if prev_close else g["gap_percent"]
+                if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
+                    del _afterhours_cache[i]
+                else:
+                    _afterhours_cache[i] = {
+                        **g,
+                        "price": price,
+                        "current_price": price,
+                        "change_pct": new_gap,
+                        "change_abs": price - prev_close,
+                        "gap_percent": new_gap,
+                    }
+                _afterhours_cache_ts = now
+                save_afterhours_snapshot(_afterhours_cache, _afterhours_cache_ts)
                 break
 
     # Update gainers — always apply.
@@ -685,6 +736,93 @@ def _run_focus_scan() -> None:
     _gapper_cache = updated
     _gapper_cache_ts = time.time()
     save_gapper_snapshot(_gapper_cache, _gapper_cache_ts)
+
+
+# ── After-hours scan functions ────────────────────────────────────────────────
+
+def _run_afterhours_discovery_scan() -> None:
+    """Full universe scan for after-hours movers: same pipeline as pre-market gappers
+    but gap is computed vs today's regular-session close (dailyBar.c)."""
+    global _afterhours_cache, _afterhours_cache_ts, _last_afterhours_discovery_ts
+    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+    headers = _alpaca_headers()
+    if not headers:
+        return
+    if not _ping_health(base_url, headers):
+        return
+
+    symbols = _get_tradable_symbols(base_url, headers)
+    if not symbols:
+        return
+
+    snaps = _fetch_snapshots(symbols, headers)
+    rows = _compute_gappers(snaps, ref_bar_key="dailyBar")
+    row_syms = [r["symbol"] for r in rows]
+    _ensure_avg_volume(row_syms, headers)
+    news = _check_news(row_syms, headers)
+    rows = _enrich_gappers(rows, news)
+
+    _afterhours_cache = rows
+    _afterhours_cache_ts = time.time()
+    _last_afterhours_discovery_ts = time.monotonic()
+    _ws_mark_resub()
+    save_afterhours_snapshot(_afterhours_cache, _afterhours_cache_ts)
+
+
+def _run_afterhours_focus_scan() -> None:
+    """Re-price only current after-hours candidates (fast 30-sec refresh)."""
+    global _afterhours_cache, _afterhours_cache_ts
+    if not _afterhours_cache:
+        _run_afterhours_discovery_scan()
+        return
+    headers = _alpaca_headers()
+    if not headers:
+        return
+
+    symbols = [r["symbol"] for r in _afterhours_cache]
+    snaps = _fetch_snapshots(symbols, headers)
+    if not snaps:
+        return
+    news = _check_news(symbols, headers)
+
+    updated: list[dict] = []
+    for r in _afterhours_cache:
+        sym = r["symbol"]
+        snap = snaps.get(sym)
+        if not snap:
+            updated.append(r)
+            continue
+        latest_trade = snap.get("latestTrade") or {}
+        ref_bar = snap.get("dailyBar") or {}
+        daily_bar = snap.get("dailyBar") or {}
+        price = latest_trade.get("p") or r["current_price"]
+        if price < SCANNER_MIN_PRICE:
+            continue
+        prev_close = ref_bar.get("c") or r["previous_close"]
+        volume = daily_bar.get("v") or r["volume"]
+        gap_frac = (price - prev_close) / prev_close if price and prev_close else r["gap_percent"]
+        avg_vol = _avg_volume_cache.get(sym)
+        change_abs = price - prev_close
+        updated.append({
+            **r,
+            "price": price,
+            "prev_close": prev_close,
+            "change_pct": gap_frac,
+            "change_abs": change_abs,
+            "current_price": price,
+            "previous_close": prev_close,
+            "gap_percent": gap_frac,
+            "volume": volume,
+            "rel_volume": round(volume / avg_vol, 2) if avg_vol and avg_vol > 0 and volume > 0 else None,
+            "has_news": sym in news,
+            "newest_headline_at": news.get(sym),
+        })
+
+    updated.sort(key=lambda x: x["gap_percent"], reverse=True)
+    updated = _prune_gappers_below_min(updated)
+    _afterhours_cache = updated
+    _afterhours_cache_ts = time.time()
+    save_afterhours_snapshot(_afterhours_cache, _afterhours_cache_ts)
 
 
 # ── Market-hours gainers ──────────────────────────────────────────────────────
@@ -1022,6 +1160,15 @@ async def _scan_loop() -> None:
                 if catalyst_due:
                     await loop.run_in_executor(None, _run_news_catalyst_scan)
                 await asyncio.sleep(_GAINERS_INTERVAL)
+            elif _in_after_hours():
+                _current_mode = "afterhours"
+                if not _afterhours_cache or (mono - _last_afterhours_discovery_ts) > _AH_DISCOVERY_INTERVAL:
+                    await loop.run_in_executor(None, _run_afterhours_discovery_scan)
+                else:
+                    await loop.run_in_executor(None, _run_afterhours_focus_scan)
+                if catalyst_due:
+                    await loop.run_in_executor(None, _run_news_catalyst_scan)
+                await asyncio.sleep(_AH_FOCUS_INTERVAL)
             else:
                 _current_mode = "closed"
                 await loop.run_in_executor(None, _run_discovery_scan)
@@ -1037,11 +1184,17 @@ async def _scan_loop() -> None:
 async def lifespan(app: FastAPI):
     # Restore gapper snapshot from disk so the pre-market list survives restarts
     # during market hours (when the scan loop never re-runs discovery).
-    global _gapper_cache, _gapper_cache_ts
+    global _gapper_cache, _gapper_cache_ts, _afterhours_cache, _afterhours_cache_ts
     restored, restored_ts = load_gapper_snapshot()
     if restored:
         _gapper_cache = restored
         _gapper_cache_ts = restored_ts
+
+    # Restore after-hours snapshot so the list survives restarts after 8 PM.
+    ah_restored, ah_restored_ts = load_afterhours_snapshot()
+    if ah_restored:
+        _afterhours_cache = ah_restored
+        _afterhours_cache_ts = ah_restored_ts
 
     # Ping Alpaca health immediately at startup so the frontend never sits on
     # "loading" status during closed-market hours when no scan would run.
@@ -1142,6 +1295,18 @@ def get_movers():
         "gainers": _gainer_cache,
         "losers": _loser_cache,
         "last_scan": _gainer_cache_ts,
+    }
+
+
+@app.get("/api/afterhours")
+def get_afterhours():
+    """After-hours gapper list (4–8 PM ET). Gap computed vs today's regular-session close."""
+    return {
+        "rev": _BLAST_REV,
+        "mode": _current_mode,
+        "health": _cached_health,
+        "afterhours": _afterhours_cache,
+        "last_scan": _afterhours_cache_ts,
     }
 
 

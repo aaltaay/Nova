@@ -52,11 +52,13 @@ SNAPSHOT_WORKERS = 10    # parallel threads for batch snapshot fetching
 
 # ── Scan intervals (seconds) ────────────────────────────────────────────────
 # Real-time prices still come from the WebSocket; these control REST discovery cadence.
-DISCOVERY_INTERVAL_SEC      = 120.0   # full universe scan (pre-market)
-FOCUS_INTERVAL_SEC          = 30.0    # reconcile current gapper list
-GAINERS_INTERVAL_SEC        = 20.0    # market-hours screener refresh
-CLOSED_INTERVAL_SEC         = 60.0    # closed-hours background refresh
-NEWS_CATALYST_INTERVAL_SEC  = 60.0    # news-first catalyst scan interval
+DISCOVERY_INTERVAL_SEC           = 120.0   # full universe scan (pre-market)
+FOCUS_INTERVAL_SEC               = 30.0    # reconcile current gapper list
+GAINERS_INTERVAL_SEC             = 20.0    # market-hours screener refresh
+CLOSED_INTERVAL_SEC              = 60.0    # closed-hours background refresh
+NEWS_CATALYST_INTERVAL_SEC       = 60.0    # news-first catalyst scan interval
+AFTERHOURS_DISCOVERY_INTERVAL_SEC = 120.0  # full universe scan (after-hours, same cadence as pre-market)
+AFTERHOURS_FOCUS_INTERVAL_SEC     = 30.0   # reconcile current after-hours list
 
 # ── News catalyst scanner ────────────────────────────────────────────────────
 NEWS_CATALYST_LOOKBACK_HOURS = 2      # how far back to scan for news articles

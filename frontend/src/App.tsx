@@ -8,7 +8,7 @@ import {
   SCANNER_COLUMNS,
 } from './constants';
 
-type Mode = 'premarket' | 'market' | 'closed' | 'loading';
+type Mode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
 type SortDir = 'asc' | 'desc' | null;
 interface SortConfig { key: string; dir: SortDir; }
 
@@ -36,8 +36,9 @@ interface ScannerRow {
 }
 
 // Legacy aliases — kept for any remaining narrower references
-type Gapper = ScannerRow;
-type Mover  = ScannerRow;
+type Gapper    = ScannerRow;
+type Mover     = ScannerRow;
+type Afterhours = ScannerRow;
 
 interface Catalyst {
   symbol: string;
@@ -228,6 +229,13 @@ function EmptyState({
     return (
       <div className="empty-state">
         No gappers with a gap of at least {GAPPER_MIN_GAP_PCT}% yet — scan running…
+      </div>
+    );
+  }
+  if (context === 'afterhours') {
+    return (
+      <div className="empty-state">
+        No after-hours movers with a gap of at least {GAPPER_MIN_GAP_PCT}% yet — scan running…
       </div>
     );
   }
@@ -557,6 +565,7 @@ const MODE_LABELS: Record<Mode, string> = {
   loading: 'Connecting…',
   premarket: 'Pre-Market',
   market: 'Market Hours',
+  afterhours: 'After Hours',
   closed: 'Market Closed',
 };
 
@@ -684,14 +693,16 @@ function App() {
   const [health, setHealth] = useState<HealthStatus>({ status: 'loading', latency_ms: 0 });
   const [gappers, setGappers] = useState<Gapper[]>([]);
   const [movers, setMovers] = useState<Mover[]>([]);
+  const [afterhours, setAfterhours] = useState<Afterhours[]>([]);
   const [lastScan, setLastScan] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
-  const [activeTab, setActiveTab] = useState<'gappers' | 'movers' | 'catalysts'>('gappers');
+  const [activeTab, setActiveTab] = useState<'gappers' | 'movers' | 'afterhours' | 'catalysts'>('gappers');
   const [tabOverridden, setTabOverridden] = useState(false);
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [moverSort, setMoverSort] = useState<SortConfig>({ key: '', dir: null });
+  const [afterhoursSort, setAfterhoursSort] = useState<SortConfig>({ key: '', dir: null });
   const [catalystSort, setCatalystSort] = useState<SortConfig>({ key: '', dir: null });
 
   // Catalysts tab state
@@ -759,6 +770,11 @@ function App() {
     [movers, moverSort],
   );
 
+  const sortedAfterhours = useMemo(
+    () => sortedArray(afterhours, afterhoursSort),
+    [afterhours, afterhoursSort],
+  );
+
   const sortedCatalysts = useMemo(
     () => sortedArray(catalysts, catalystSort),
     [catalysts, catalystSort],
@@ -780,9 +796,10 @@ function App() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [gr, moversRes, catalystRes] = await Promise.all([
+      const [gr, moversRes, ahRes, catalystRes] = await Promise.all([
         fetch(`${API_URL}/gappers`),
         fetch(`${API_URL}/movers`),
+        fetch(`${API_URL}/afterhours`),
         fetch(`${API_URL}/news-catalysts`),
       ]);
 
@@ -803,6 +820,13 @@ function App() {
         setMovers([...gainers, ...losers]);
       }
 
+      if (ahRes.ok) {
+        const data = await ahRes.json();
+        if (data.mode) setMode(data.mode as Mode);
+        if (data.last_scan) setLastScan(data.last_scan);
+        if (Array.isArray(data.afterhours)) setAfterhours(data.afterhours);
+      }
+
       if (catalystRes.ok) {
         const data = await catalystRes.json();
         if (Array.isArray(data.catalysts)) setCatalysts(data.catalysts);
@@ -816,7 +840,9 @@ function App() {
   // Auto-switch tab when mode changes, unless user has manually picked a tab
   useEffect(() => {
     if (!tabOverridden) {
-      setActiveTab(mode === 'market' ? 'movers' : 'gappers');
+      if (mode === 'market') setActiveTab('movers');
+      else if (mode === 'afterhours') setActiveTab('afterhours');
+      else setActiveTab('gappers');
     }
   }, [mode, tabOverridden]);
 
@@ -831,7 +857,7 @@ function App() {
     };
   }, [fetchConfig, fetchData]);
 
-  const handleTabClick = (tab: 'gappers' | 'movers' | 'catalysts') => {
+  const handleTabClick = (tab: 'gappers' | 'movers' | 'afterhours' | 'catalysts') => {
     setActiveTab(tab);
     setTabOverridden(true);
   };
@@ -943,6 +969,13 @@ function App() {
           >
             Movers
             {movers.length > 0 && <span className="tab-count">{movers.length}</span>}
+          </button>
+          <button
+            className={`tab ${activeTab === 'afterhours' ? 'active' : ''}`}
+            onClick={() => handleTabClick('afterhours')}
+          >
+            After Hours
+            {afterhours.length > 0 && <span className="tab-count">{afterhours.length}</span>}
           </button>
           <button
             className={`tab ${activeTab === 'catalysts' ? 'active' : ''}`}
@@ -1109,6 +1142,24 @@ function App() {
               />
             ) : (
               <EmptyState health={health} context={mode === 'premarket' ? 'market' : mode} />
+            )}
+          </>
+        )}
+
+        {/* ── After Hours tab ───────────────────────────────────────── */}
+        {activeTab === 'afterhours' && (
+          <>
+            {sortedAfterhours.length > 0 ? (
+              <ScannerTable
+                columns={SCANNER_COLUMNS}
+                data={sortedAfterhours}
+                sortState={afterhoursSort}
+                onSort={key => toggleSort(afterhoursSort, setAfterhoursSort, key)}
+                selectedSymbol={selectedSymbol}
+                onSelect={setSelectedSymbol}
+              />
+            ) : (
+              <EmptyState health={health} context={mode === 'market' ? 'afterhours' : mode} />
             )}
           </>
         )}
