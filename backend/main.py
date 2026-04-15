@@ -32,6 +32,7 @@ from constants import (
     SYMBOL_EXCLUDE_RE,
     TOP_N_DEFAULT,
 )
+from cache import load_gapper_snapshot, save_gapper_snapshot
 
 load_dotenv()
 
@@ -526,6 +527,7 @@ def _handle_trade(msg: dict) -> None:
                 else:
                     _gapper_cache[i] = {**g, "current_price": price, "gap_percent": new_gap}
                 _gapper_cache_ts = now
+                save_gapper_snapshot(_gapper_cache, _gapper_cache_ts)
                 break
 
     # Update gainers — always apply.
@@ -585,6 +587,7 @@ def _run_discovery_scan() -> None:
     _gapper_cache_ts = time.time()      # wall-clock for frontend display
     _last_discovery_ts = time.monotonic()  # monotonic for internal TTL check
     _ws_mark_resub()  # notify WebSocket loop to subscribe to newly discovered symbols
+    save_gapper_snapshot(_gapper_cache, _gapper_cache_ts)
 
 
 def _run_focus_scan() -> None:
@@ -634,6 +637,7 @@ def _run_focus_scan() -> None:
     updated = _prune_gappers_below_min(updated)
     _gapper_cache = updated
     _gapper_cache_ts = time.time()
+    save_gapper_snapshot(_gapper_cache, _gapper_cache_ts)
 
 
 # ── Market-hours gainers ──────────────────────────────────────────────────────
@@ -973,6 +977,14 @@ async def _scan_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Restore gapper snapshot from disk so the pre-market list survives restarts
+    # during market hours (when the scan loop never re-runs discovery).
+    global _gapper_cache, _gapper_cache_ts
+    restored, restored_ts = load_gapper_snapshot()
+    if restored:
+        _gapper_cache = restored
+        _gapper_cache_ts = restored_ts
+
     # Ping Alpaca health immediately at startup so the frontend never sits on
     # "loading" status during closed-market hours when no scan would run.
     loop = asyncio.get_event_loop()
