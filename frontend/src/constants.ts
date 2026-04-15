@@ -17,6 +17,42 @@ export const NEWS_FLAME_MAX_HOURS  = 24;   // yellow badge (12 – 24 h); hide a
 
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
+/** Trading days used for avg daily volume / RVOL denominator (mirror backend RVOL_LOOKBACK_DAYS). */
+export const RVOL_LOOKBACK_DAYS = 30;
+
+/** Side panel quote card — row label for average volume used in RVOL. */
+export const QUOTE_AVG_VOLUME_LABEL = `Avg volume (${RVOL_LOOKBACK_DAYS}d)`;
+
+/** Section title for Alpaca asset / trading flags on the quote card. */
+export const QUOTE_BROKER_SECTION_TITLE = 'Broker listing (Alpaca)';
+
+/** Quote card row labels (Alpaca asset fields). */
+export const QUOTE_ASSET_LABELS = {
+  assetClass: 'Asset class',
+  status: 'Asset status',
+  tradable: 'Tradable',
+  shortable: 'Shortable',
+  marginable: 'Marginable',
+  fractionable: 'Fractionable',
+  easyToBorrow: 'Easy to borrow',
+  maintMargin: 'Maint. margin',
+  marginLong: 'Margin req. (long)',
+  marginShort: 'Margin req. (short)',
+  attributes: 'Flags',
+  /** Shown beside Flags so the broker grid stays an even cell count (2-column layout). */
+  listingFeed: 'Listing feed',
+} as const;
+
+/** Display value for listing feed row (source of asset metadata on the quote card). */
+export const QUOTE_LISTING_FEED_VALUE = 'Alpaca Trading API';
+
+/** Human-readable labels for Alpaca `attributes` tokens (unknown keys shown as-is). */
+export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {
+  overnight_halted: 'Overnight session halted',
+  overnight_tradable: 'Overnight tradable',
+  has_options: 'Listed options',
+  fractional_eh_enabled: 'Fractional extended hours',
+};
 
 // ── Minimum price filter (mirror backend SCANNER_MIN_PRICE) ─────────────────
 export const SCANNER_MIN_PRICE = 0.50;  // exclude any stock priced below $0.50 (gainers + gappers)

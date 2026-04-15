@@ -1348,16 +1348,23 @@ def _build_ticker_detail(symbol: str) -> dict:
         r = requests.get(f"{base_url}/v2/assets/{symbol}", headers=headers, timeout=10)
         if r.status_code == 200:
             a = r.json()
+            attrs = a.get("attributes")
+            if not isinstance(attrs, list):
+                attrs = []
             asset = {
                 "name": a.get("name", ""),
                 "exchange": a.get("exchange", ""),
                 "asset_class": a.get("class", ""),
+                "status": a.get("status", ""),
                 "tradable": a.get("tradable", False),
                 "marginable": a.get("marginable", False),
                 "shortable": a.get("shortable", False),
                 "easy_to_borrow": a.get("easy_to_borrow", False),
                 "fractionable": a.get("fractionable", False),
                 "maintenance_margin_requirement": a.get("maintenance_margin_requirement"),
+                "margin_requirement_long": a.get("margin_requirement_long"),
+                "margin_requirement_short": a.get("margin_requirement_short"),
+                "attributes": [str(x) for x in attrs if x is not None],
             }
     except Exception:
         pass

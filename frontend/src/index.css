@@ -710,6 +710,16 @@ th {
   line-height: 1.6;
 }
 
+/* Section title between quote metric blocks */
+.cq-section-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 0.85rem 0 0.35rem;
+}
+
 /* Data grid — two-column layout */
 .cq-grid {
   display: grid;
@@ -717,6 +727,10 @@ th {
   border: 1px solid var(--border-color);
   border-radius: 4px;
   overflow: hidden;
+}
+
+.cq-grid-broker {
+  margin-bottom: 0.25rem;
 }
 
 .cq-cell {
@@ -754,6 +768,13 @@ th {
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.cq-value.cq-value-flags {
+  white-space: normal;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  max-width: 58%;
 }
 
 /* ── Loading state ───────────────────────────────────────────────────────── */

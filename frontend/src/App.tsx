@@ -6,6 +6,11 @@ import {
   GAPPER_MIN_GAP_PCT,
   CATALYSTS_EXPERIMENTAL_LABEL,
   SCANNER_COLUMNS,
+  QUOTE_AVG_VOLUME_LABEL,
+  QUOTE_BROKER_SECTION_TITLE,
+  QUOTE_ASSET_LABELS,
+  ALPACA_ASSET_ATTRIBUTE_LABELS,
+  QUOTE_LISTING_FEED_VALUE,
 } from './constants';
 
 type Mode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
@@ -89,15 +94,19 @@ interface SnapshotData {
 }
 
 interface AssetInfo {
-  name: string;
-  exchange: string;
-  asset_class: string;
-  tradable: boolean;
-  marginable: boolean;
-  shortable: boolean;
-  easy_to_borrow: boolean;
-  fractionable: boolean;
-  maintenance_margin_requirement: number | null;
+  name?: string;
+  exchange?: string;
+  asset_class?: string;
+  status?: string;
+  tradable?: boolean;
+  marginable?: boolean;
+  shortable?: boolean;
+  easy_to_borrow?: boolean;
+  fractionable?: boolean;
+  maintenance_margin_requirement?: number | null;
+  margin_requirement_long?: string | null;
+  margin_requirement_short?: string | null;
+  attributes?: string[];
 }
 
 interface NewsArticle {
@@ -331,6 +340,30 @@ function fmtTimestamp(iso: string | null | undefined): string {
   }
 }
 
+function fmtYesNo(v: boolean | undefined): string {
+  if (v === true) return 'Yes';
+  if (v === false) return 'No';
+  return '—';
+}
+
+function fmtMaintMarginPct(v: number | null | undefined): string {
+  if (v == null) return '—';
+  return `${Number(v)}%`;
+}
+
+function fmtMarginReqString(v: string | null | undefined): string {
+  if (v == null || v === '') return '—';
+  const s = String(v).trim();
+  return s.endsWith('%') ? s : `${s}%`;
+}
+
+function formatAssetAttributeList(attrs: string[] | undefined): string {
+  if (!attrs?.length) return '—';
+  return attrs
+    .map(a => ALPACA_ASSET_ATTRIBUTE_LABELS[a] ?? a.replace(/_/g, ' '))
+    .join(', ');
+}
+
 function CompactGridCell({ label, value, valueClass }: { label: string; value: React.ReactNode; valueClass?: string }) {
   return (
     <div className="cq-cell">
@@ -451,12 +484,15 @@ function TickerDetailContent({
         <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
         <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
 
+        <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />
         <CompactGridCell
           label="Relative Volume (Daily)"
           value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
           valueClass={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
         />
+
         <CompactGridCell label="Relative Volume (5 min %)" value="—" />
+        <CompactGridCell label="Volume In 5 Minutes" value="—" />
 
         <CompactGridCell
           label="Gap(%)"
@@ -488,6 +524,65 @@ function TickerDetailContent({
           value={detail.fundamentals?.recent_split ?? '—'}
         />
         <CompactGridCell label="Exchange Group" value={asset?.exchange ?? '—'} />
+      </div>
+
+      <div className="cq-section-title">{QUOTE_BROKER_SECTION_TITLE}</div>
+      <div className="cq-grid cq-grid-broker">
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.status}
+          value={asset?.status ? String(asset.status) : '—'}
+        />
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.tradable}
+          value={fmtYesNo(asset?.tradable)}
+          valueClass={asset?.tradable === false ? 'negative' : undefined}
+        />
+
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.assetClass}
+          value={asset?.asset_class ? String(asset.asset_class) : '—'}
+        />
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.shortable}
+          value={fmtYesNo(asset?.shortable)}
+        />
+
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.marginable}
+          value={fmtYesNo(asset?.marginable)}
+        />
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.fractionable}
+          value={fmtYesNo(asset?.fractionable)}
+        />
+
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.easyToBorrow}
+          value={fmtYesNo(asset?.easy_to_borrow)}
+        />
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.maintMargin}
+          value={fmtMaintMarginPct(asset?.maintenance_margin_requirement ?? null)}
+        />
+
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.marginLong}
+          value={fmtMarginReqString(asset?.margin_requirement_long ?? null)}
+        />
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.marginShort}
+          value={fmtMarginReqString(asset?.margin_requirement_short ?? null)}
+        />
+
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.listingFeed}
+          value={QUOTE_LISTING_FEED_VALUE}
+        />
+        <CompactGridCell
+          label={QUOTE_ASSET_LABELS.attributes}
+          value={formatAssetAttributeList(asset?.attributes)}
+          valueClass="cq-value-flags"
+        />
       </div>
 
       {/* Bottom timestamp */}
