@@ -58,8 +58,10 @@ from constants import (
 from cache import (
     load_afterhours_snapshot,
     load_gapper_snapshot,
+    load_movers_snapshot,
     save_afterhours_snapshot,
     save_gapper_snapshot,
+    save_movers_snapshot,
 )
 
 load_dotenv()
@@ -636,12 +638,17 @@ def _handle_trade(msg: dict) -> None:
                 break
 
     # Update gainers — always apply.
-    if _apply_trade_to_mover_list(_gainer_cache, sym, price):
+    gainer_updated = _apply_trade_to_mover_list(_gainer_cache, sym, price)
+    if gainer_updated:
         _gainer_cache_ts = now
 
     # Update losers — always apply.
-    if _apply_trade_to_mover_list(_loser_cache, sym, price):
+    loser_updated = _apply_trade_to_mover_list(_loser_cache, sym, price)
+    if loser_updated:
         _loser_cache_ts = now
+
+    if gainer_updated or loser_updated:
+        save_movers_snapshot(_gainer_cache, _loser_cache, now)
 
 
 async def _broadcast_trade_update(sym: str, price: float, size: int | None, timestamp: str | None) -> None:
@@ -948,6 +955,7 @@ def _run_gainers_update() -> None:
     _gainer_cache_ts = time.time()
     _loser_cache = losers
     _loser_cache_ts = time.time()
+    save_movers_snapshot(_gainer_cache, _loser_cache, _gainer_cache_ts)
     _ws_mark_resub()  # notify WebSocket loop to subscribe to newly discovered symbols
 
 
@@ -1201,6 +1209,7 @@ async def lifespan(app: FastAPI):
     # Restore gapper snapshot from disk so the pre-market list survives restarts
     # during market hours (when the scan loop never re-runs discovery).
     global _gapper_cache, _gapper_cache_ts, _afterhours_cache, _afterhours_cache_ts
+    global _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
     restored, restored_ts = load_gapper_snapshot()
     if restored:
         _gapper_cache = restored
@@ -1211,6 +1220,15 @@ async def lifespan(app: FastAPI):
     if ah_restored:
         _afterhours_cache = ah_restored
         _afterhours_cache_ts = ah_restored_ts
+
+    # Restore movers snapshot so gainers/losers survive restarts during the
+    # after-hours window (4-8 PM ET) when the scan loop does not refresh them.
+    mv_gainers, mv_losers, mv_ts = load_movers_snapshot()
+    if mv_gainers or mv_losers:
+        _gainer_cache = mv_gainers
+        _loser_cache = mv_losers
+        _gainer_cache_ts = mv_ts
+        _loser_cache_ts = mv_ts
 
     # Ping Alpaca health immediately at startup so the frontend never sits on
     # "loading" status during closed-market hours when no scan would run.

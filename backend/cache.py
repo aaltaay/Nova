@@ -1,13 +1,16 @@
 """
 Thin persistence helpers for scanner caches that must survive process restarts.
 
-Gapper and after-hours snapshots need persistence because they are frozen once
-their active window ends and never re-populated until the next matching session:
+Snapshots are persisted for caches that cannot be re-populated immediately
+after a restart:
 - Gappers: frozen at 9:30 AM ET until next pre-market.
 - After-hours: frozen at 8:00 PM ET until the next after-hours session.
+- Movers (gainers/losers): the scan loop does not call the movers refresh
+  during the after-hours window (4-8 PM ET), so a restart in that window
+  would leave movers empty for hours without persistence.
 
-All other caches (gainers, losers, news catalysts) are continuously refreshed
-during their active windows and do not need persistence.
+News catalysts are continuously refreshed in all active windows and do not
+need persistence.
 """
 
 import json
@@ -20,6 +23,7 @@ _ET = ZoneInfo("America/New_York")
 _CACHE_DIR = os.path.join(os.path.dirname(__file__), ".cache")
 _GAPPER_FILE = os.path.join(_CACHE_DIR, "gappers.json")
 _AFTERHOURS_FILE = os.path.join(_CACHE_DIR, "afterhours.json")
+_MOVERS_FILE = os.path.join(_CACHE_DIR, "movers.json")
 
 
 def _today_et() -> str:
@@ -132,3 +136,45 @@ def load_afterhours_snapshot() -> tuple[list[dict], float]:
         return rows, ts
     except Exception:
         return [], 0.0
+
+
+def save_movers_snapshot(gainers: list[dict], losers: list[dict], ts: float) -> None:
+    """Atomically persist the movers (gainers + losers) cache to disk."""
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        payload = {"date": _today_et(), "ts": ts, "gainers": gainers, "losers": losers}
+        fd, tmp_path = tempfile.mkstemp(dir=_CACHE_DIR, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(payload, f)
+            os.replace(tmp_path, _MOVERS_FILE)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+    except Exception:
+        pass  # never crash the caller over a persistence failure
+
+
+def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
+    """
+    Load today's movers snapshot from disk.
+
+    Returns (gainers, losers, ts) if the file exists and was written today (ET),
+    otherwise returns ([], [], 0.0) so the scan loop starts fresh.
+    """
+    try:
+        with open(_MOVERS_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("date") != _today_et():
+            return [], [], 0.0
+        gainers = data.get("gainers", [])
+        losers = data.get("losers", [])
+        ts = float(data.get("ts", 0.0))
+        if not isinstance(gainers, list) or not isinstance(losers, list):
+            return [], [], 0.0
+        return gainers, losers, ts
+    except Exception:
+        return [], [], 0.0
