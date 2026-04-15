@@ -499,7 +499,7 @@ function TickerDetailContent({
           value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}
           valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
         />
-        <CompactGridCell label="Volume In 5 Minutes" value="—" />
+        <CompactGridCell label="Open" value={fmtPrice(daily?.open)} />
 
         <CompactGridCell label="Previous Close" value={fmtPrice(prevClose)} />
         <CompactGridCell label="High Price" value={fmtPrice(daily?.high)} />
