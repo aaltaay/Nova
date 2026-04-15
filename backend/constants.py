@@ -36,8 +36,8 @@ ETF_NAME_KEYWORDS = ("ETF", "Fund", "Trust", "Index")
 
 # Regex matching non-standard security symbols within primary exchanges:
 # warrants (/W, /WS), units (/U), rights (/R), preferred shares (/P*, .P*),
-# and known Alpaca test symbols.
-SYMBOL_EXCLUDE_RE = re.compile(r"[./]|^ZVZZT$|^NTEST", re.IGNORECASE)
+# exchange-prefixed foreign tickers (TSX:DOO), and known Alpaca test symbols.
+SYMBOL_EXCLUDE_RE = re.compile(r"[./:]|^ZVZZT$|^NTEST", re.IGNORECASE)
 
 # ── Scanner sizing ──────────────────────────────────────────────────────────
 # SCAN_CAP_DEFAULT is retained as an emergency env-var override only.
@@ -56,4 +56,4 @@ NEWS_CATALYST_INTERVAL_SEC  = 60.0    # news-first catalyst scan interval
 
 # ── News catalyst scanner ────────────────────────────────────────────────────
 NEWS_CATALYST_LOOKBACK_HOURS = 2      # how far back to scan for news articles
-NEWS_CATALYST_ARTICLE_LIMIT  = 100    # max articles per news API call
+NEWS_CATALYST_ARTICLE_LIMIT  = 50     # max articles per news API call (Alpaca hard cap)

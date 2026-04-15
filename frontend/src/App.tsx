@@ -1114,7 +1114,11 @@ function App() {
                 </table>
               </div>
             ) : (
-              <EmptyState health={health} context={mode} />
+              <div className="empty-state">
+                {health.status === 'disconnected' || health.status === 'error'
+                  ? (health.message || 'Check API keys in Settings.')
+                  : 'No news catalysts found yet — scan running\u2026'}
+              </div>
             )}
           </>
         )}

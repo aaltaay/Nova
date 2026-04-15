@@ -840,9 +840,14 @@ def _run_news_catalyst_scan() -> None:
             timeout=15,
         )
         if resp.status_code != 200:
+            print(
+                f"[catalyst] news API error {resp.status_code}: {resp.text[:200]}",
+                flush=True,
+            )
             return
 
         articles = resp.json().get("news", [])
+        print(f"[catalyst] fetched {len(articles)} articles", flush=True)
         if not articles:
             return
 
@@ -860,7 +865,11 @@ def _run_news_catalyst_scan() -> None:
                         "url": url,
                     }
 
-        news_symbols = list(symbol_to_article.keys())
+        news_symbols = [
+            s for s in symbol_to_article.keys()
+            if not SYMBOL_EXCLUDE_RE.search(s)
+        ]
+        print(f"[catalyst] {len(news_symbols)} unique symbols from news", flush=True)
         if not news_symbols:
             return
 
@@ -893,12 +902,13 @@ def _run_news_catalyst_scan() -> None:
             })
 
         catalysts.sort(key=lambda x: abs(x["gap_percent"]), reverse=True)
+        print(f"[catalyst] scan complete — {len(catalysts)} catalysts", flush=True)
         _news_catalyst_cache = catalysts
         _news_catalyst_cache_ts = time.time()
         _last_catalyst_scan_ts = time.monotonic()
 
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[catalyst] scan exception: {exc}", flush=True)
 
 
 # ── Background scan loop ──────────────────────────────────────────────────────
