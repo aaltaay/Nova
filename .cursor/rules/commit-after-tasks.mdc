@@ -1,0 +1,16 @@
+---
+description: After each completed task, commit and push to GitHub
+alwaysApply: true
+---
+
+# Commit and push after tasks
+
+When you finish a task that touched the codebase or project files:
+
+1. **Build and run** — Follow the project’s normal build/run steps (see existing user or project rules) so the change is verified before publishing.
+2. **Commit** — Stage only intentional changes. Use a clear, imperative subject line (and optional body) that states what changed and why. Do not commit secrets, local env files, or generated artifacts you would not want on GitHub.
+3. **Push** — Push to `origin` on the current branch (e.g. `git push -u origin HEAD` when upstream is missing).
+
+If there is nothing new to commit, say so briefly. If `git push` fails (auth, network, conflicts), report the error and what the user should do; do not claim the push succeeded.
+
+This applies at **task completion** — after the requested work is done and validated, not after every tiny intermediate edit.
