@@ -269,15 +269,23 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
       return;
     }
 
-    // Keep the previous detail visible (stale) while the new symbol loads so the
-    // panel never goes blank — only show spinner overlay via `refreshing`.
-    setRefreshing(true);
-    setLoading(detail === null);
+    // `cancelled` guards against the old WebSocket's onclose/onerror firing
+    // after cleanup (React StrictMode double-mount, or rapid symbol changes).
+    let cancelled = false;
+
+    // Show full spinner only when there's nothing to display yet; otherwise
+    // keep the previous detail visible and show the slim refreshing bar.
+    setDetail(prev => {
+      setLoading(prev === null);
+      setRefreshing(true);
+      return prev;
+    });
 
     const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
     wsRef.current = ws;
 
     ws.onmessage = (e) => {
+      if (cancelled) return;
       try {
         const msg = JSON.parse(e.data);
         if (msg.type === 'initial') {
@@ -328,16 +336,14 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
       }
     };
 
-    ws.onerror = () => { setLoading(false); setRefreshing(false); };
-    ws.onclose = () => {
-      if (wsRef.current === ws) { setLoading(false); setRefreshing(false); }
-    };
+    ws.onerror = () => { if (!cancelled) { setLoading(false); setRefreshing(false); } };
+    ws.onclose = () => { if (!cancelled) { setLoading(false); setRefreshing(false); } };
 
     return () => {
+      cancelled = true;
       wsRef.current = null;
       ws.close();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol]);
 
   return { detail, loading, refreshing };
