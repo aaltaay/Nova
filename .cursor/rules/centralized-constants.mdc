@@ -1,0 +1,47 @@
+---
+description: Enforce centralized constants policy for B.L.A.S.T.
+globs:
+  - "backend/**/*.py"
+  - "frontend/src/**/*.ts"
+  - "frontend/src/**/*.tsx"
+alwaysApply: true
+---
+
+# Centralized Constants Policy
+
+All configuration values in this project — thresholds, filters, regex patterns, keyword lists, intervals, counts, and any other named constant — **must** be defined in one of the two authoritative constants files:
+
+- **Backend:** `backend/constants.py`
+- **Frontend:** `frontend/src/constants.ts`
+
+## Rules
+
+1. **No magic numbers or inline strings in `main.py` or `App.tsx`.** If a value has a name or meaning, it belongs in the constants file and must be imported.
+
+2. **Import, don't re-declare.** Never copy a value from constants and redefine it in another file. Always import it directly.
+
+3. **Both files stay in sync** for values shared between backend and frontend (e.g. `GAPPER_MIN_GAP_PCT`, market-cap tiers). The frontend `constants.ts` comment block must note when a value mirrors a backend constant.
+
+4. **New constants go in the constants file first.** When adding a feature, define all its tunable values in `constants.py` / `constants.ts` before writing the logic that uses them.
+
+5. **Environment variable overrides** are permitted in `main.py` for ops-level tuning (e.g. `_MIN_GAP_PCT = float(os.environ.get("BLAST_MIN_GAP_PCT", str(GAPPER_MIN_GAP_PCT)))`), but the **default value** must still come from `constants.py` — never a bare literal.
+
+## What belongs in constants
+
+- Gap percentage floors and thresholds
+- Exchange filter lists (`SCAN_EXCHANGES`)
+- Symbol exclusion regex patterns (`SYMBOL_EXCLUDE_RE`)
+- ETF / non-equity name keyword lists (`ETF_NAME_KEYWORDS`)
+- Scan intervals (discovery, focus, gainers, catalyst, closed)
+- Cache TTLs
+- Top-N limits
+- Market cap tier boundaries
+- News flame hour thresholds
+- Relative volume highlight thresholds
+- Any future filter, tier, or tunable value
+
+## What does NOT belong in constants
+
+- Runtime state (caches, timestamps, flags)
+- API URLs derived from environment variables
+- One-off computed values used only within a single function

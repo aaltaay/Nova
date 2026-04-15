@@ -20,3 +20,7 @@ export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 
 // ── Gapper filter (mirror backend GAPPER_MIN_GAP_PCT) ───────────────────────
 export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show as a gapper
+
+// ── News Catalysts tab ────────────────────────────────────────────────────────
+// Label shown on the experimental Catalysts tab badge
+export const CATALYSTS_EXPERIMENTAL_LABEL = 'Experimental';

@@ -1,11 +1,12 @@
 from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 from dotenv import load_dotenv, set_key
 import requests
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import math
 import time
 import asyncio
@@ -17,10 +18,17 @@ import websockets
 from constants import (
     CLOSED_INTERVAL_SEC,
     DISCOVERY_INTERVAL_SEC,
+    ETF_NAME_KEYWORDS,
     FOCUS_INTERVAL_SEC,
     GAINERS_INTERVAL_SEC,
     GAPPER_MIN_GAP_PCT,
+    NEWS_CATALYST_ARTICLE_LIMIT,
+    NEWS_CATALYST_INTERVAL_SEC,
+    NEWS_CATALYST_LOOKBACK_HOURS,
     SCAN_CAP_DEFAULT,
+    SCAN_EXCHANGES,
+    SNAPSHOT_WORKERS,
+    SYMBOL_EXCLUDE_RE,
     TOP_N_DEFAULT,
 )
 
@@ -36,9 +44,10 @@ _FOCUS_INTERVAL = FOCUS_INTERVAL_SEC
 _GAINERS_INTERVAL = GAINERS_INTERVAL_SEC
 _CLOSED_INTERVAL = CLOSED_INTERVAL_SEC
 
-_SCAN_CAP = int(os.environ.get("ALPACA_SCAN_SYMBOL_CAP", str(SCAN_CAP_DEFAULT)))
+_SCAN_CAP = int(os.environ.get("ALPACA_SCAN_SYMBOL_CAP", str(SCAN_CAP_DEFAULT)))  # emergency override only
 _MIN_GAP_PCT = float(os.environ.get("BLAST_MIN_GAP_PCT", str(GAPPER_MIN_GAP_PCT)))
 _TOP_N = int(os.environ.get("BLAST_TOP_N", str(TOP_N_DEFAULT)))
+_NEWS_CATALYST_INTERVAL = NEWS_CATALYST_INTERVAL_SEC
 
 # ── Assets cache (1-hour TTL) ─────────────────────────────────────────────────
 _assets_cache: list[str] = []
@@ -57,6 +66,11 @@ _gainer_cache_ts: float = 0.0
 # ── Losers cache (market hours) ───────────────────────────────────────────────
 _loser_cache: list[dict] = []
 _loser_cache_ts: float = 0.0
+
+# ── News catalyst cache (pre-market + market hours, news-first algorithm) ─────
+_news_catalyst_cache: list[dict] = []
+_news_catalyst_cache_ts: float = 0.0
+_last_catalyst_scan_ts: float = 0.0
 
 # ── Average daily volume cache (reset each day, lazy-filled for RVOL) ─────────
 _avg_volume_cache: dict[str, float] = {}
@@ -216,22 +230,46 @@ def _fetch_fundamentals_batch(symbols: list[str]) -> None:
 # ── Tradable assets ───────────────────────────────────────────────────────────
 
 def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
-    """Fetch active US equity symbols, capped and cached for one hour."""
+    """Fetch common-stock symbols for scanning, cached for one hour.
+
+    Uses exchange-based filtering (NYSE, NASDAQ, AMEX) instead of an arbitrary
+    count cap so that any listed common stock can appear as a gapper. Within
+    those exchanges, warrants, units, rights, preferred shares, test symbols,
+    and ETFs (by name keyword) are excluded — leaving ~3,500–4,000 tradeable
+    common stocks that are the meaningful gapper universe.
+    """
     global _assets_cache, _assets_cache_ts
     now = time.monotonic()
     if _assets_cache and (now - _assets_cache_ts) < _ASSETS_CACHE_TTL:
         return _assets_cache
     try:
-        resp = requests.get(
-            f"{base_url}/v2/assets",
-            headers=headers,
-            params={"status": "active", "asset_class": "us_equity"},
-            timeout=20,
-        )
-        if resp.status_code != 200:
+        all_assets: list[dict] = []
+        for exchange in SCAN_EXCHANGES:
+            resp = requests.get(
+                f"{base_url}/v2/assets",
+                headers=headers,
+                params={"status": "active", "asset_class": "us_equity", "exchange": exchange},
+                timeout=20,
+            )
+            if resp.status_code == 200:
+                all_assets.extend(resp.json())
+
+        if not all_assets:
             return _assets_cache
-        tradable = [a["symbol"] for a in resp.json() if a.get("tradable")]
-        _assets_cache = tradable[:_SCAN_CAP]
+
+        symbols: list[str] = []
+        for a in all_assets:
+            if not a.get("tradable"):
+                continue
+            sym = a.get("symbol", "")
+            if SYMBOL_EXCLUDE_RE.search(sym):
+                continue
+            name = (a.get("name") or "").lower()
+            if any(kw.lower() in name for kw in ETF_NAME_KEYWORDS):
+                continue
+            symbols.append(sym)
+
+        _assets_cache = symbols
         _assets_cache_ts = now
         return _assets_cache
     except Exception:
@@ -241,11 +279,17 @@ def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
 # ── Snapshots ─────────────────────────────────────────────────────────────────
 
 def _fetch_snapshots(symbols: list[str], headers: dict) -> dict:
-    """Fetch snapshots for a list of symbols in batches of 100."""
-    result: dict = {}
+    """Fetch snapshots for a list of symbols in parallel batches of 100.
+
+    Uses a thread pool so that large universes (~4,000 symbols = ~40 batches)
+    complete in ~1 second instead of ~8 seconds sequential.
+    """
+    if not symbols:
+        return {}
     feed = _get_feed()
-    for i in range(0, len(symbols), 100):
-        chunk = symbols[i: i + 100]
+    chunks = [symbols[i: i + 100] for i in range(0, len(symbols), 100)]
+
+    def _fetch_chunk(chunk: list[str]) -> dict:
         try:
             resp = requests.get(
                 f"{_DATA_URL}/v2/stocks/snapshots",
@@ -253,10 +297,18 @@ def _fetch_snapshots(symbols: list[str], headers: dict) -> dict:
                 params={"symbols": ",".join(chunk), "feed": feed},
                 timeout=15,
             )
-            if resp.status_code == 200:
-                result.update(resp.json())
+            return resp.json() if resp.status_code == 200 else {}
         except Exception:
-            continue
+            return {}
+
+    result: dict = {}
+    with ThreadPoolExecutor(max_workers=SNAPSHOT_WORKERS) as pool:
+        futures = {pool.submit(_fetch_chunk, c): c for c in chunks}
+        for fut in as_completed(futures):
+            try:
+                result.update(fut.result())
+            except Exception:
+                continue
     return result
 
 
@@ -359,7 +411,10 @@ def _compute_gappers(snaps: dict) -> list[dict]:
         latest_trade = snap.get("latestTrade") or {}
         prev_bar = snap.get("prevDailyBar") or {}
         daily_bar = snap.get("dailyBar") or {}
-        price = latest_trade.get("p", 0)
+        # Prefer the latest executed trade price; fall back to the current
+        # session's bar close (dailyBar.c) for stocks that have pre-market
+        # price movement reflected in bid/ask but no executed trade yet.
+        price = latest_trade.get("p") or daily_bar.get("c", 0)
         prev_close = prev_bar.get("c", 0)
         volume = daily_bar.get("v", 0)
         if not price or not prev_close:
@@ -495,7 +550,7 @@ async def _broadcast_trade_update(sym: str, price: float, size: int | None, time
 # ── Pre-market scan functions ─────────────────────────────────────────────────
 
 def _run_discovery_scan() -> None:
-    """Full universe scan: fetch all ~800 symbols, filter gappers, enrich."""
+    """Full universe scan: fetch all NYSE/NASDAQ/AMEX common stocks (~3,500–4,000), filter gappers, enrich."""
     global _gapper_cache, _gapper_cache_ts, _last_discovery_ts
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     headers = _alpaca_headers()
@@ -759,6 +814,93 @@ async def _ws_stream_loop() -> None:
             backoff = min(backoff * 2, 60.0)
 
 
+# ── News catalyst scan ────────────────────────────────────────────────────────
+
+def _run_news_catalyst_scan() -> None:
+    """News-first catalyst scanner.
+
+    Queries Alpaca news with no symbol filter to get all recent market-wide
+    articles, extracts every ticker mentioned, fetches their snapshots, and
+    stores any with a non-trivial gap vs prior close in _news_catalyst_cache.
+    This catches IMMP-type situations that the universe-based scanner misses
+    because those stocks are not in any pre-screened list until news breaks.
+    """
+    global _news_catalyst_cache, _news_catalyst_cache_ts, _last_catalyst_scan_ts
+    headers = _alpaca_headers()
+    if not headers:
+        return
+
+    try:
+        now_et = _now_et()
+        lookback_start = (now_et - timedelta(hours=NEWS_CATALYST_LOOKBACK_HOURS)).isoformat()
+        resp = requests.get(
+            f"{_DATA_URL}/v1beta1/news",
+            headers=headers,
+            params={"start": lookback_start, "limit": NEWS_CATALYST_ARTICLE_LIMIT},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return
+
+        articles = resp.json().get("news", [])
+        if not articles:
+            return
+
+        # Build: symbol → most recent article for that symbol
+        symbol_to_article: dict[str, dict] = {}
+        for article in articles:
+            created_at = article.get("created_at", "")
+            headline = article.get("headline", "")
+            url = article.get("url", "")
+            for sym in article.get("symbols", []):
+                if sym not in symbol_to_article or created_at > symbol_to_article[sym]["created_at"]:
+                    symbol_to_article[sym] = {
+                        "created_at": created_at,
+                        "headline": headline,
+                        "url": url,
+                    }
+
+        news_symbols = list(symbol_to_article.keys())
+        if not news_symbols:
+            return
+
+        snaps = _fetch_snapshots(news_symbols, headers)
+        if not snaps:
+            return
+
+        catalysts: list[dict] = []
+        for sym, snap in snaps.items():
+            latest_trade = snap.get("latestTrade") or {}
+            prev_bar = snap.get("prevDailyBar") or {}
+            daily_bar = snap.get("dailyBar") or {}
+            price = latest_trade.get("p") or daily_bar.get("c", 0)
+            prev_close = prev_bar.get("c", 0)
+            volume = daily_bar.get("v", 0)
+            if not price or not prev_close:
+                continue
+            gap_frac = (price - prev_close) / prev_close
+            article_info = symbol_to_article.get(sym, {})
+            catalysts.append({
+                "symbol": sym,
+                "previous_close": prev_close,
+                "current_price": price,
+                "gap_percent": gap_frac,
+                "volume": volume,
+                "has_news": True,
+                "newest_headline_at": article_info.get("created_at"),
+                "catalyst_headline": article_info.get("headline"),
+                "catalyst_url": article_info.get("url"),
+            })
+
+        catalysts.sort(key=lambda x: abs(x["gap_percent"]), reverse=True)
+        _news_catalyst_cache = catalysts
+        _news_catalyst_cache_ts = time.time()
+        _last_catalyst_scan_ts = time.monotonic()
+
+    except Exception:
+        pass
+
+
 # ── Background scan loop ──────────────────────────────────────────────────────
 
 async def _scan_loop() -> None:
@@ -766,9 +908,11 @@ async def _scan_loop() -> None:
     loop = asyncio.get_event_loop()
     while True:
         try:
+            mono = time.monotonic()
+            catalyst_due = (mono - _last_catalyst_scan_ts) > _NEWS_CATALYST_INTERVAL
+
             if _in_premarket():
                 _current_mode = "premarket"
-                mono = time.monotonic()
                 if not _gapper_cache or (mono - _last_discovery_ts) > _DISCOVERY_INTERVAL:
                     await loop.run_in_executor(None, _run_discovery_scan)
                 else:
@@ -777,10 +921,14 @@ async def _scan_loop() -> None:
                 # Alpaca returns the prior session's movers until the next market open.
                 if not _gainer_cache:
                     await loop.run_in_executor(None, _run_gainers_update)
+                if catalyst_due:
+                    await loop.run_in_executor(None, _run_news_catalyst_scan)
                 await asyncio.sleep(_FOCUS_INTERVAL)
             elif _in_market_hours():
                 _current_mode = "market"
                 await loop.run_in_executor(None, _run_gainers_update)
+                if catalyst_due:
+                    await loop.run_in_executor(None, _run_news_catalyst_scan)
                 await asyncio.sleep(_GAINERS_INTERVAL)
             else:
                 _current_mode = "closed"
@@ -906,6 +1054,23 @@ def get_movers():
         "gainers": _gainer_cache,
         "losers": _loser_cache,
         "last_scan": _gainer_cache_ts,
+    }
+
+
+@app.get("/api/news-catalysts")
+def get_news_catalysts():
+    """News-driven catalyst list. Returns all news-mentioned tickers with price data.
+
+    Unlike the gapper scanner (which scans a fixed universe), this endpoint
+    surfaces any ticker that appeared in recent market news regardless of
+    exchange or size — the news event is the selection criterion.
+    """
+    return {
+        "rev": _BLAST_REV,
+        "mode": _current_mode,
+        "health": _cached_health,
+        "catalysts": _news_catalyst_cache,
+        "last_scan": _news_catalyst_cache_ts,
     }
 
 

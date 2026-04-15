@@ -838,3 +838,48 @@ th {
   padding: 0 1.25rem 1.25rem;
   max-width: 700px;
 }
+
+/* ── News Catalysts tab ───────────────────────────────────────────────────── */
+
+.tab-badge-experimental {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(234, 179, 8, 0.15);
+  color: #ca8a04;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
+.tab.active .tab-badge-experimental {
+  background: rgba(234, 179, 8, 0.25);
+  color: #b45309;
+}
+
+.catalysts-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  padding: 0.6rem 0.25rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0.5rem;
+}
+
+.catalyst-headline-cell {
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.catalyst-headline-link {
+  color: var(--accent-color);
+  text-decoration: none;
+}
+
+.catalyst-headline-link:hover {
+  text-decoration: underline;
+}

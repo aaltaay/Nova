@@ -4,6 +4,7 @@ import {
   NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS,
   REL_VOLUME_HIGH,
   GAPPER_MIN_GAP_PCT,
+  CATALYSTS_EXPERIMENTAL_LABEL,
 } from './constants';
 
 type Mode = 'premarket' | 'market' | 'closed' | 'loading';
@@ -49,6 +50,18 @@ interface Gainer {
 
 // Movers (top gainers + top losers from screener) share the same shape as Gainer
 type Mover = Gainer;
+
+interface Catalyst {
+  symbol: string;
+  previous_close: number;
+  current_price: number;
+  gap_percent: number;
+  volume: number;
+  has_news: boolean;
+  newest_headline_at: string | null;
+  catalyst_headline: string | null;
+  catalyst_url: string | null;
+}
 
 // ── Ticker Detail Types ────────────────────────────────────────────────────────
 
@@ -606,13 +619,17 @@ function App() {
   const [lastScan, setLastScan] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
-  const [activeTab, setActiveTab] = useState<'gappers' | 'gainers' | 'movers' | 'quote'>('gappers');
+  const [activeTab, setActiveTab] = useState<'gappers' | 'gainers' | 'movers' | 'catalysts' | 'quote'>('gappers');
   const [tabOverridden, setTabOverridden] = useState(false);
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [moversSubTab, setMoversSubTab] = useState<'gainers' | 'losers'>('gainers');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [moverSort, setMoverSort] = useState<SortConfig>({ key: '', dir: null });
+  const [catalystSort, setCatalystSort] = useState<SortConfig>({ key: '', dir: null });
+
+  // Catalysts tab state
+  const [catalysts, setCatalysts] = useState<Catalyst[]>([]);
 
   // Top Movers tab state
   const [moverGainers, setMoverGainers] = useState<Mover[]>([]);
@@ -690,6 +707,11 @@ function App() {
     [moverLosers, moverSort],
   );
 
+  const sortedCatalysts = useMemo(
+    () => sortedArray(catalysts, catalystSort),
+    [catalysts, catalystSort],
+  );
+
   const fetchConfig = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/config`);
@@ -706,10 +728,11 @@ function App() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [gr, gainRes, moversRes] = await Promise.all([
+      const [gr, gainRes, moversRes, catalystRes] = await Promise.all([
         fetch(`${API_URL}/gappers`),
         fetch(`${API_URL}/gainers`),
         fetch(`${API_URL}/movers`),
+        fetch(`${API_URL}/news-catalysts`),
       ]);
 
       if (gr.ok) {
@@ -731,6 +754,11 @@ function App() {
         const data = await moversRes.json();
         if (Array.isArray(data.gainers)) setMoverGainers(data.gainers);
         if (Array.isArray(data.losers)) setMoverLosers(data.losers);
+      }
+
+      if (catalystRes.ok) {
+        const data = await catalystRes.json();
+        if (Array.isArray(data.catalysts)) setCatalysts(data.catalysts);
       }
     } catch {
       setHealth({ status: 'disconnected', latency_ms: 0, message: 'Backend unreachable' });
@@ -756,7 +784,7 @@ function App() {
     };
   }, [fetchConfig, fetchData]);
 
-  const handleTabClick = (tab: 'gappers' | 'gainers' | 'movers' | 'quote') => {
+  const handleTabClick = (tab: 'gappers' | 'gainers' | 'movers' | 'catalysts' | 'quote') => {
     setActiveTab(tab);
     setTabOverridden(true);
   };
@@ -878,6 +906,14 @@ function App() {
             )}
           </button>
           <button
+            className={`tab ${activeTab === 'catalysts' ? 'active' : ''}`}
+            onClick={() => handleTabClick('catalysts')}
+          >
+            Catalysts
+            <span className="tab-badge-experimental">{CATALYSTS_EXPERIMENTAL_LABEL}</span>
+            {catalysts.length > 0 && <span className="tab-count">{catalysts.length}</span>}
+          </button>
+          <button
             className={`tab ${activeTab === 'quote' ? 'active' : ''}`}
             onClick={() => handleTabClick('quote')}
           >
@@ -980,6 +1016,105 @@ function App() {
               </div>
             ) : (
               <EmptyState health={health} context={mode === 'market' ? 'premarket' : mode} />
+            )}
+          </>
+        )}
+
+        {/* ── News Catalysts tab (experimental) ────────────────────── */}
+        {activeTab === 'catalysts' && (
+          <>
+            <div className="catalysts-description">
+              News-first scanner — surfaces any ticker mentioned in recent market
+              news regardless of exchange or size. Sorted by absolute gap magnitude.
+            </div>
+            {sortedCatalysts.length > 0 ? (
+              <div className="table-wrapper">
+                <table>
+                  <thead>
+                    <tr>
+                      {(
+                        [
+                          ['symbol', 'Symbol'],
+                          ['previous_close', 'Prev Close'],
+                          ['current_price', 'Price'],
+                          ['gap_percent', 'Gap %'],
+                          ['volume', 'Volume'],
+                          ['catalyst_headline', 'Catalyst Headline'],
+                          ['newest_headline_at', 'News Time'],
+                        ] as [string, string][]
+                      ).map(([key, label]) => (
+                        <th
+                          key={key}
+                          className="sortable-th"
+                          onClick={() => toggleSort(catalystSort, setCatalystSort, key)}
+                          aria-sort={
+                            catalystSort.key === key
+                              ? catalystSort.dir === 'asc' ? 'ascending' : 'descending'
+                              : 'none'
+                          }
+                        >
+                          <span className="th-inner">
+                            {label}
+                            <span className={`sort-arrow${catalystSort.key === key ? ' active' : ''}`}>
+                              {catalystSort.key === key
+                                ? catalystSort.dir === 'asc' ? '↑' : '↓'
+                                : '↕'}
+                            </span>
+                          </span>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedCatalysts.map(c => (
+                      <tr key={c.symbol} className={selectedSymbol === c.symbol ? 'row-selected' : ''}>
+                        <td>
+                          <button
+                            className={`symbol-btn${selectedSymbol === c.symbol ? ' active' : ''}`}
+                            onClick={() => setSelectedSymbol(c.symbol)}
+                          >
+                            {c.symbol}
+                          </button>
+                        </td>
+                        <td>${c.previous_close.toFixed(2)}</td>
+                        <td>${c.current_price.toFixed(2)}</td>
+                        <td className={c.gap_percent >= 0 ? 'positive' : 'negative'}>
+                          {fmtPct(c.gap_percent)}
+                        </td>
+                        <td>{fmtVolume(c.volume)}</td>
+                        <td className="catalyst-headline-cell">
+                          {c.catalyst_headline ? (
+                            c.catalyst_url ? (
+                              <a
+                                href={c.catalyst_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="catalyst-headline-link"
+                                title={c.catalyst_headline}
+                              >
+                                {c.catalyst_headline.length > 80
+                                  ? `${c.catalyst_headline.slice(0, 80)}…`
+                                  : c.catalyst_headline}
+                              </a>
+                            ) : (
+                              <span title={c.catalyst_headline}>
+                                {c.catalyst_headline.length > 80
+                                  ? `${c.catalyst_headline.slice(0, 80)}…`
+                                  : c.catalyst_headline}
+                              </span>
+                            )
+                          ) : (
+                            <span className="na-muted">—</span>
+                          )}
+                        </td>
+                        <td><NewsCell newest_headline_at={c.newest_headline_at} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState health={health} context={mode} />
             )}
           </>
         )}
