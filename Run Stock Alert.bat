@@ -2,8 +2,8 @@
 cd /d "%~dp0"
 
 REM Prefer Windows Python launcher; fall back to python on PATH
-set "UV=py -3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000"
-where py >nul 2>&1 || set "UV=python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000"
+set "UV=py -3 -m uvicorn main:app --reload --reload-exclude logs --reload-exclude .cache --host 127.0.0.1 --port 8000"
+where py >nul 2>&1 || set "UV=python -m uvicorn main:app --reload --reload-exclude logs --reload-exclude .cache --host 127.0.0.1 --port 8000"
 
 echo Starting Stock Alert (API + UI)...
 echo.

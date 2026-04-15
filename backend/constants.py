@@ -65,4 +65,4 @@ NEWS_CATALYST_ARTICLE_LIMIT  = 50     # max articles per news API call (Alpaca h
 # ── Alpaca WebSocket stream ──────────────────────────────────────────────────
 # Max retry backoff in seconds. 15 s keeps reconnect attempts frequent enough
 # to recover quickly when Alpaca frees a stale connection slot (typically 30–60 s).
-ALPACA_WS_BACKOFF_CAP = 15.0
+ALPACA_WS_BACKOFF_CAP = 60.0
