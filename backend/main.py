@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
@@ -77,6 +77,10 @@ _current_mode: str = "closed"   # "premarket" | "market" | "closed"
 _ws_subscribed: set[str] = set()   # symbols the WS is currently subscribed to
 _ws_needs_resub: bool = False       # scan loop sets True when symbol list changes
 
+# ── Ticker detail WebSocket clients ───────────────────────────────────────────
+# Maps symbol -> set of active WebSocket connections watching that symbol's detail.
+_ticker_ws_clients: dict[str, set] = {}
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -128,6 +132,40 @@ def _fetch_fundamentals(symbol: str) -> dict:
         return _fundamentals_cache[symbol]
     try:
         info = yf.Ticker(symbol).info
+
+        # Earnings date: yfinance returns a list of timestamps or a single Timestamp
+        earnings_date: str | None = None
+        raw_ed = info.get("earningsDate") or info.get("earningsTimestamp")
+        if raw_ed is not None:
+            try:
+                # May be a list (next + last) or a single value; take the first
+                if isinstance(raw_ed, (list, tuple)) and len(raw_ed) > 0:
+                    raw_ed = raw_ed[0]
+                # pandas Timestamp or epoch int
+                if hasattr(raw_ed, "strftime"):
+                    earnings_date = raw_ed.strftime("%Y-%m-%d")
+                else:
+                    earnings_date = datetime.fromtimestamp(int(raw_ed)).strftime("%Y-%m-%d")
+            except Exception:
+                earnings_date = None
+
+        # Recent split: combine factor + date if available
+        recent_split: str | None = None
+        split_factor = info.get("lastSplitFactor")
+        split_date = info.get("lastSplitDate")
+        if split_factor:
+            if split_date:
+                try:
+                    if hasattr(split_date, "strftime"):
+                        date_str = split_date.strftime("%Y-%m-%d")
+                    else:
+                        date_str = datetime.fromtimestamp(int(split_date)).strftime("%Y-%m-%d")
+                    recent_split = f"{split_factor} ({date_str})"
+                except Exception:
+                    recent_split = str(split_factor)
+            else:
+                recent_split = str(split_factor)
+
         fundamentals = {
             "market_cap": info.get("marketCap"),
             "shares_outstanding": info.get("sharesOutstanding"),
@@ -144,6 +182,8 @@ def _fetch_fundamentals(symbol: str) -> dict:
             "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
             "dividend_yield": info.get("dividendYield"),
             "beta": info.get("beta"),
+            "earnings_date": earnings_date,
+            "recent_split": recent_split,
         }
         _fundamentals_cache[symbol] = fundamentals
         _fundamentals_cache_ts[symbol] = now
@@ -154,7 +194,7 @@ def _fetch_fundamentals(symbol: str) -> dict:
             "short_interest": None, "short_ratio": None, "short_percent_of_float": None,
             "pe_ratio": None, "forward_pe": None, "eps": None, "sector": None,
             "industry": None, "fifty_two_week_high": None, "fifty_two_week_low": None,
-            "dividend_yield": None, "beta": None,
+            "dividend_yield": None, "beta": None, "earnings_date": None, "recent_split": None,
         }
         _fundamentals_cache[symbol] = empty
         _fundamentals_cache_ts[symbol] = now
@@ -365,7 +405,7 @@ def _ws_mark_resub() -> None:
 
 
 def _ws_current_symbols() -> set[str]:
-    """Return the union of all symbols currently in the gapper, gainer, and loser caches."""
+    """Return the union of all symbols in gapper/gainer/loser caches plus any open ticker detail WS clients."""
     syms: set[str] = set()
     for g in _gapper_cache:
         syms.add(g["symbol"])
@@ -373,6 +413,9 @@ def _ws_current_symbols() -> set[str]:
         syms.add(g["symbol"])
     for g in _loser_cache:
         syms.add(g["symbol"])
+    for sym, clients in _ticker_ws_clients.items():
+        if clients:
+            syms.add(sym)
     return syms
 
 
@@ -426,6 +469,27 @@ def _handle_trade(msg: dict) -> None:
     # Update losers — always apply.
     if _apply_trade_to_mover_list(_loser_cache, sym, price):
         _loser_cache_ts = now
+
+
+async def _broadcast_trade_update(sym: str, price: float, size: int | None, timestamp: str | None) -> None:
+    """Push a lightweight trade update to all ticker detail WS clients watching this symbol."""
+    clients = _ticker_ws_clients.get(sym)
+    if not clients:
+        return
+    payload = json.dumps({
+        "type": "trade_update",
+        "price": price,
+        "size": size,
+        "timestamp": timestamp,
+    })
+    dead: list = []
+    for ws in list(clients):
+        try:
+            await ws.send_text(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        clients.discard(ws)
 
 
 # ── Pre-market scan functions ─────────────────────────────────────────────────
@@ -676,6 +740,14 @@ async def _ws_stream_loop() -> None:
                         for msg in msgs:
                             if msg.get("T") == "t":
                                 _handle_trade(msg)
+                                sym = msg.get("S")
+                                if sym and sym in _ticker_ws_clients and _ticker_ws_clients[sym]:
+                                    asyncio.create_task(_broadcast_trade_update(
+                                        sym,
+                                        msg.get("p"),
+                                        msg.get("s"),
+                                        msg.get("t"),
+                                    ))
                     except asyncio.TimeoutError:
                         pass  # no message arrived; loop back to check resub flag
 
@@ -701,6 +773,10 @@ async def _scan_loop() -> None:
                     await loop.run_in_executor(None, _run_discovery_scan)
                 else:
                     await loop.run_in_executor(None, _run_focus_scan)
+                # Populate movers/gainers with previous day's data during pre-market.
+                # Alpaca returns the prior session's movers until the next market open.
+                if not _gainer_cache:
+                    await loop.run_in_executor(None, _run_gainers_update)
                 await asyncio.sleep(_FOCUS_INTERVAL)
             elif _in_market_hours():
                 _current_mode = "market"
@@ -833,10 +909,8 @@ def get_movers():
     }
 
 
-@app.get("/api/ticker/{symbol}")
-def get_ticker_detail(symbol: str):
-    """Fetch full detail for a single symbol: asset info, snapshot, news, avg volume."""
-    symbol = symbol.upper()
+def _build_ticker_detail(symbol: str) -> dict:
+    """Fetch and assemble full ticker detail for a symbol. Used by both REST and WS endpoints."""
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     headers = _alpaca_headers()
     if not headers:
@@ -959,3 +1033,44 @@ def get_ticker_detail(symbol: str):
         "news": news,
         "fundamentals": fundamentals,
     }
+
+
+@app.get("/api/ticker/{symbol}")
+def get_ticker_detail(symbol: str):
+    """Fetch full detail for a single symbol: asset info, snapshot, news, avg volume."""
+    return _build_ticker_detail(symbol.upper())
+
+
+@app.websocket("/ws/ticker/{symbol}")
+async def ws_ticker_detail(websocket: WebSocket, symbol: str):
+    """WebSocket endpoint: sends full detail on connect, then streams real-time trade updates."""
+    symbol = symbol.upper()
+    await websocket.accept()
+
+    # Register this client
+    if symbol not in _ticker_ws_clients:
+        _ticker_ws_clients[symbol] = set()
+    _ticker_ws_clients[symbol].add(websocket)
+    _ws_mark_resub()  # ensure the Alpaca WS subscribes to this symbol
+
+    loop = asyncio.get_event_loop()
+    try:
+        # Send the full initial detail payload (blocking I/O — run in thread pool)
+        detail = await loop.run_in_executor(None, lambda: _build_ticker_detail(symbol))
+        await websocket.send_text(json.dumps({"type": "initial", **detail}))
+
+        # Keep the connection alive; real-time updates are pushed via _broadcast_trade_update.
+        # We only need to detect client disconnect here.
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                # Send a lightweight heartbeat so the client can detect stale connections
+                await websocket.send_text(json.dumps({"type": "ping"}))
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        _ticker_ws_clients.get(symbol, set()).discard(websocket)
+        if not _ticker_ws_clients.get(symbol):
+            _ticker_ws_clients.pop(symbol, None)
+        _ws_mark_resub()

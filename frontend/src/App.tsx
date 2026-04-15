@@ -125,6 +125,15 @@ interface FundamentalsData {
   fifty_two_week_low: number | null;
   dividend_yield: number | null;
   beta: number | null;
+  earnings_date: string | null;
+  recent_split: string | null;
+}
+
+interface TickerTradeUpdate {
+  type: 'trade_update';
+  price: number;
+  size: number | null;
+  timestamp: string | null;
 }
 
 interface TickerDetail {
@@ -593,6 +602,7 @@ const MODE_LABELS: Record<Mode, string> = {
 };
 
 const API_URL = 'http://localhost:8000/api';
+const WS_URL = 'ws://localhost:8000/ws';
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 
@@ -1133,7 +1143,13 @@ function App() {
                 </table>
               </div>
             ) : (
-              <EmptyState health={health} context={mode} />
+              <div className="empty-state">
+                {health.status === 'disconnected' || health.status === 'error'
+                  ? (health.message || 'Check API keys in Settings.')
+                  : mode === 'loading'
+                    ? 'Loading market data…'
+                    : 'Fetching previous session\'s movers — loading…'}
+              </div>
             )}
           </>
         )}
