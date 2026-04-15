@@ -75,7 +75,7 @@ from cache import (
 
 load_dotenv()
 
-_BLAST_REV = "4"
+_NOVA_REV = "4"
 _ET = ZoneInfo("America/New_York")
 _DATA_URL = "https://data.alpaca.markets"
 
@@ -88,9 +88,9 @@ _AH_DISCOVERY_INTERVAL = AFTERHOURS_DISCOVERY_INTERVAL_SEC
 _AH_FOCUS_INTERVAL = AFTERHOURS_FOCUS_INTERVAL_SEC
 
 _SCAN_CAP = int(os.environ.get("ALPACA_SCAN_SYMBOL_CAP", str(SCAN_CAP_DEFAULT)))  # emergency override only
-_MIN_GAP_PCT = float(os.environ.get("BLAST_MIN_GAP_PCT", str(GAPPER_MIN_GAP_PCT)))
-_TOP_N = int(os.environ.get("BLAST_TOP_N", str(TOP_N_DEFAULT)))
-_raw_scan_tradable = os.environ.get("BLAST_SCAN_REQUIRE_TRADABLE")
+_MIN_GAP_PCT = float(os.environ.get("NOVA_MIN_GAP_PCT", os.environ.get("BLAST_MIN_GAP_PCT", str(GAPPER_MIN_GAP_PCT))))
+_TOP_N = int(os.environ.get("NOVA_TOP_N", os.environ.get("BLAST_TOP_N", str(TOP_N_DEFAULT))))
+_raw_scan_tradable = os.environ.get("NOVA_SCAN_REQUIRE_TRADABLE") or os.environ.get("BLAST_SCAN_REQUIRE_TRADABLE")
 if _raw_scan_tradable is None or not str(_raw_scan_tradable).strip():
     _SCAN_REQUIRE_TRADABLE = SCAN_REQUIRE_TRADABLE
 else:
@@ -1269,7 +1269,7 @@ async def lifespan(app: FastAPI):
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="B.L.A.S.T. API", lifespan=lifespan)
+app = FastAPI(title="Nova API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1330,7 +1330,7 @@ def get_mode():
 def get_gappers():
     """Pre-market gapper list. Returns cached data instantly."""
     return {
-        "rev": _BLAST_REV,
+        "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
         "gappers": _gapper_cache,
@@ -1342,7 +1342,7 @@ def get_gappers():
 def get_movers():
     """Top gainers and losers from the Alpaca screener. Returns cached data instantly."""
     return {
-        "rev": _BLAST_REV,
+        "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
         "gainers": _gainer_cache,
@@ -1355,7 +1355,7 @@ def get_movers():
 def get_afterhours():
     """After-hours gapper list (4–8 PM ET). Gap computed vs today's regular-session close."""
     return {
-        "rev": _BLAST_REV,
+        "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
         "afterhours": _afterhours_cache,
@@ -1392,7 +1392,7 @@ def get_news_catalysts():
     exchange or size — the news event is the selection criterion.
     """
     return {
-        "rev": _BLAST_REV,
+        "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
         "catalysts": _news_catalyst_cache,

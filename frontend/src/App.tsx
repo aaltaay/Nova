@@ -1,4 +1,29 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+
+function NovaLogo() {
+  return (
+    <svg
+      className="nova-logo"
+      xmlns="http://www.w3.org/2000/svg"
+      width="40"
+      height="38"
+      fill="none"
+      viewBox="0 0 48 46"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="nova-grad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#863bff" />
+          <stop offset="100%" stopColor="#47bfff" />
+        </linearGradient>
+      </defs>
+      <path
+        fill="url(#nova-grad)"
+        d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"
+      />
+    </svg>
+  );
+}
 import {
   SMALL_CAP_MIN, SMALL_CAP_MAX,
   NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS,
@@ -1089,7 +1114,13 @@ function App() {
       <div className="main-col">
       <header>
         <div className="header-left">
-          <h1>B.L.A.S.T.</h1>
+          <div className="brand">
+            <NovaLogo />
+            <div className="brand-text">
+              <span className="brand-wordmark">NOVA</span>
+              <span className="brand-tagline">Stock Scanner</span>
+            </div>
+          </div>
           <span className={`mode-badge mode-${mode}`}>{MODE_LABELS[mode]}</span>
         </div>
         <div className="header-right">

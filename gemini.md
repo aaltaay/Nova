@@ -1,7 +1,7 @@
 # 🏛️ gemini.md — Project Constitution
 > **Status:** BLUEPRINT — Awaiting User Approval
 > **Last Updated:** 2026-04-13
-> **Project:** Stock Alert Automation System (B.L.A.S.T.)
+> **Project:** Nova — Stock Alert Automation System
 
 ---
 

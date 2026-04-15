@@ -1,5 +1,5 @@
 /**
- * Authoritative UI policy and thresholds for B.L.A.S.T.
+ * Authoritative UI policy and thresholds for Nova.
  * Keep numeric rules in sync with `backend/constants.py` where they overlap.
  */
 
@@ -60,7 +60,7 @@ export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {
 // ── Minimum price filter (mirror backend SCANNER_MIN_PRICE) ─────────────────
 export const SCANNER_MIN_PRICE = 0.50;  // exclude any stock priced below $0.50 (gainers + gappers)
 
-// Scanner universe: mirror backend SCAN_REQUIRE_TRADABLE / BLAST_SCAN_REQUIRE_TRADABLE (backend-only toggle).
+// Scanner universe: mirror backend SCAN_REQUIRE_TRADABLE / NOVA_SCAN_REQUIRE_TRADABLE (backend-only toggle).
 
 // ── Gapper filter (mirror backend GAPPER_MIN_GAP_PCT) ───────────────────────
 export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show as a gapper

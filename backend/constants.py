@@ -1,5 +1,5 @@
 """
-Authoritative policy and thresholds for B.L.A.S.T.
+Authoritative policy and thresholds for Nova.
 Define scan cadence, filters, and tier rules here; import from this module in
 `main.py` and elsewhere instead of scattering magic numbers.
 """
@@ -37,7 +37,7 @@ SCAN_EXCHANGES = ("NYSE", "NASDAQ", "AMEX")
 
 # When True, only include Alpaca assets with `tradable: true`. Some active listings are
 # marked `tradable: false` (e.g. overnight halt / restriction) and are otherwise dropped
-# from the scan universe. Override with env `BLAST_SCAN_REQUIRE_TRADABLE` (false | true).
+# from the scan universe. Override with env `NOVA_SCAN_REQUIRE_TRADABLE` (false | true).
 SCAN_REQUIRE_TRADABLE = False
 
 # Words found in Alpaca asset names that identify non-common-stock securities.

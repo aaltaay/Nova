@@ -1,4 +1,4 @@
-# 📋 task_plan.md — B.L.A.S.T. Task Plan
+# 📋 task_plan.md — Nova Task Plan
 > **Project:** Stock Alert Automation System
 > **Status:** 🔴 BLOCKED — Awaiting Discovery Question answers
 > **Last Updated:** 2026-04-13
