@@ -1249,7 +1249,7 @@ function App() {
             <div className="form-group">
               <label>API Secret Key</label>
               <input
-                type="password"
+                type="text"
                 value={apiSecret}
                 onChange={e => setApiSecret(e.target.value)}
                 placeholder="••••••••••••••••"
