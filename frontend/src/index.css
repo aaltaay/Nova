@@ -523,13 +523,13 @@ th {
 }
 
 .flame-hot {
-  background-color: #ef4444;
-  box-shadow: 0 0 4px #ef4444;
+  background-color: #ff1a1a;
+  box-shadow: 0 0 6px #ff1a1a;
 }
 
 .flame-warm {
-  background-color: #f97316;
-  box-shadow: 0 0 4px #f97316;
+  background-color: #ff7a00;
+  box-shadow: 0 0 6px #ff7a00;
 }
 
 .flame-cool {
