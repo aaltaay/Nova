@@ -69,6 +69,19 @@ export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show 
 // Label shown on the experimental Catalysts tab badge
 export const CATALYSTS_EXPERIMENTAL_LABEL = 'Experimental';
 
+// ── Backend URL ───────────────────────────────────────────────────────────────
+// Set VITE_API_BASE_URL to your Railway public HTTPS domain in production,
+// e.g. https://your-service.up.railway.app  (no trailing slash).
+// Dev fallback: http://localhost:8000  (matches local uvicorn).
+const _rawApiBase: string = (import.meta.env.VITE_API_BASE_URL as string | undefined)
+  ?.replace(/\/$/, '') ?? 'http://localhost:8000';
+/** REST base, e.g. https://your-service.up.railway.app */
+export const API_BASE_URL: string = _rawApiBase;
+/** WebSocket base derived from API_BASE_URL (https → wss, http → ws). */
+export const WS_BASE_URL: string = _rawApiBase
+  .replace(/^https:\/\//, 'wss://')
+  .replace(/^http:\/\//, 'ws://');
+
 // ── Scanner table columns ─────────────────────────────────────────────────────
 // Single source of truth for the columns shown in the Gappers and Movers tables.
 // The key must match the ScannerRow field name; the label is the column header text.

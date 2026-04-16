@@ -37,6 +37,8 @@ import {
   QUOTE_ASSET_LABELS,
   ALPACA_ASSET_ATTRIBUTE_LABELS,
   QUOTE_LISTING_FEED_VALUE,
+  API_BASE_URL,
+  WS_BASE_URL,
 } from './constants';
 
 type Mode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
@@ -803,8 +805,8 @@ const MODE_LABELS: Record<Mode, string> = {
   closed: 'Market Closed',
 };
 
-const API_URL = 'http://localhost:8000/api';
-const WS_URL = 'ws://localhost:8000/ws';
+const API_URL = `${API_BASE_URL}/api`;
+const WS_URL = `${WS_BASE_URL}/ws`;
 
 // ── Scanner Table ─────────────────────────────────────────────────────────────
 
