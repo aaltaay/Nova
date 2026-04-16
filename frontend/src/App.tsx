@@ -117,6 +117,12 @@ interface SnapshotData {
   minute_bar: BarData | null;
   daily_bar: BarData | null;
   prev_daily_bar: BarData | null;
+  // Timestamp-aware previous regular-session close (use this for change math, not prev_daily_bar.close).
+  prev_close: number | null;
+  // Last completed regular-session close (the "main line" price in extended-hours display).
+  session_close: number | null;
+  // The session close before session_close (for computing the main line's change).
+  session_prev_close: number | null;
 }
 
 interface AssetInfo {
@@ -181,6 +187,8 @@ interface TickerDetail {
   rel_volume: number | null;
   news: NewsArticle[];
   fundamentals: FundamentalsData | null;
+  // Current session mode from the backend — drives the two-line quote layout.
+  mode: string | null;
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -457,13 +465,36 @@ function TickerDetailContent({
   const asset = detail.asset;
   const trade = snap?.latest_trade;
   const daily = snap?.daily_bar;
-  const prevDaily = snap?.prev_daily_bar;
 
-  const price = trade?.price ?? daily?.close ?? null;
-  const prevClose = prevDaily?.close ?? null;
-  const changeAbs = (price != null && prevClose != null) ? price - prevClose : null;
-  const changePct = (changeAbs != null && prevClose) ? changeAbs / prevClose : null;
-  const isPositive = (changePct ?? 0) >= 0;
+  // Use the backend-resolved prev_close (timestamp-aware — correct during pre-market).
+  // Falls back to prev_daily_bar.close for older snapshots that may not have the field.
+  const prevClose = snap?.prev_close ?? snap?.prev_daily_bar?.close ?? null;
+
+  const isExtendedHours = detail.mode === 'premarket' || detail.mode === 'afterhours';
+
+  // ---------- Main line ----------
+  // Extended hours: show the last completed regular-session close + its change.
+  // Regular hours:  show the live price + its change vs yesterday.
+  const sessionClose     = snap?.session_close ?? null;
+  const sessionPrevClose = snap?.session_prev_close ?? null;
+  const livePrice        = trade?.price ?? daily?.close ?? null;
+
+  const mainPrice    = isExtendedHours ? sessionClose : livePrice;
+  const mainPrevRef  = isExtendedHours ? sessionPrevClose : prevClose;
+  const mainChangeAbs = (mainPrice != null && mainPrevRef != null) ? mainPrice - mainPrevRef : null;
+  const mainChangePct = (mainChangeAbs != null && mainPrevRef) ? mainChangeAbs / mainPrevRef : null;
+
+  // ---------- Sub line (pre/after-market only) ----------
+  const extPrice      = isExtendedHours ? livePrice : null;
+  const extChangeAbs  = (extPrice != null && sessionClose != null) ? extPrice - sessionClose : null;
+  const extChangePct  = (extChangeAbs != null && sessionClose) ? extChangeAbs / sessionClose : null;
+  const extLabel      = detail.mode === 'premarket' ? 'Pre' : 'After';
+  const extIsPositive = (extChangePct ?? 0) >= 0;
+
+  // Trend arrow reflects the most "live" change direction.
+  const isPositive = isExtendedHours
+    ? extIsPositive
+    : (mainChangePct ?? 0) >= 0;
 
   const lastUpdated = trade?.timestamp ?? snap?.latest_quote?.timestamp ?? null;
 
@@ -491,16 +522,27 @@ function TickerDetailContent({
       <div className="cq-header">
         <div className="cq-symbol-row">
           <span className="cq-symbol">{detail.symbol}</span>
-          {changeAbs != null && (
+          {(mainChangeAbs != null || extChangeAbs != null) && (
             <span className="cq-trend">{isPositive ? '▲' : '▼'}</span>
           )}
         </div>
-        {price != null && (
+        {mainPrice != null && (
           <div className="cq-price-row">
-            <span className="cq-price">{price.toFixed(2)}</span>
-            {changeAbs != null && (
-              <span className={`cq-change ${isPositive ? 'positive' : 'negative'}`}>
-                {changeAbs >= 0 ? '+' : ''}{changeAbs.toFixed(2)} ({fmtPct(changePct)})
+            <span className="cq-price">{mainPrice.toFixed(2)}</span>
+            {mainChangeAbs != null && (
+              <span className={`cq-change ${(mainChangePct ?? 0) >= 0 ? 'positive' : 'negative'}`}>
+                {mainChangeAbs >= 0 ? '+' : ''}{mainChangeAbs.toFixed(2)} ({fmtPct(mainChangePct)})
+              </span>
+            )}
+          </div>
+        )}
+        {isExtendedHours && extPrice != null && (
+          <div className="cq-ext-row">
+            <span className="cq-ext-label">{extLabel}:</span>
+            <span className="cq-ext-price">{extPrice.toFixed(2)}</span>
+            {extChangeAbs != null && (
+              <span className={`cq-ext-change ${extIsPositive ? 'positive' : 'negative'}`}>
+                {extChangeAbs >= 0 ? '+' : ''}{extChangeAbs.toFixed(2)} ({fmtPct(extChangePct)})
               </span>
             )}
           </div>

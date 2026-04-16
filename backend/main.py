@@ -474,6 +474,32 @@ def _ping_health(base_url: str, headers: dict) -> bool:
 
 # ── Gapper helpers ────────────────────────────────────────────────────────────
 
+def _pick_prev_close(snap: dict) -> float:
+    """Return the correct 'previous regular-session close' from an Alpaca snapshot dict.
+
+    Alpaca's bar semantics differ by session:
+      - Pre-market (before 9:30 ET): dailyBar is the *last completed* regular session
+        (yesterday). prevDailyBar is the session before that (two days ago).
+      - Market/after-hours: dailyBar is today's developing/completed bar.
+        prevDailyBar is yesterday's completed bar.
+
+    We detect which case we're in by comparing dailyBar's timestamp date to today.
+    If dailyBar is from a prior date → it IS yesterday's close → return dailyBar.c.
+    Otherwise → dailyBar is today's bar → yesterday's close is prevDailyBar.c.
+    """
+    daily_bar = snap.get("dailyBar") or {}
+    prev_bar = snap.get("prevDailyBar") or {}
+    daily_ts = daily_bar.get("t")
+    if daily_ts:
+        try:
+            ts = datetime.fromisoformat(daily_ts.replace("Z", "+00:00"))
+            if ts.astimezone(_ET).date() < _now_et().date():
+                return daily_bar.get("c") or 0
+        except (ValueError, AttributeError):
+            pass
+    return prev_bar.get("c") or 0
+
+
 def _gapper_meets_min_gap(gap_frac: float | None) -> bool:
     """True if gap as a fraction (e.g. 0.1 = 10%) is at or above the configured floor."""
     if gap_frac is None:
@@ -490,18 +516,23 @@ def _compute_gappers(snaps: dict, ref_bar_key: str = "prevDailyBar") -> list[dic
 
     ref_bar_key controls which bar supplies the reference close price:
     - "prevDailyBar" (default): gap vs previous session close — used for pre-market.
+      Uses _pick_prev_close() which detects whether dailyBar is yesterday's or today's
+      bar based on its timestamp, resolving the Alpaca pre-market bar ambiguity.
     - "dailyBar": gap vs today's regular-session close — used for after-hours.
     """
     gappers: list[dict] = []
     for sym, snap in snaps.items():
         latest_trade = snap.get("latestTrade") or {}
-        ref_bar = snap.get(ref_bar_key) or {}
         daily_bar = snap.get("dailyBar") or {}
         # Prefer the latest executed trade price; fall back to the current
         # session's bar close (dailyBar.c) for stocks that have price
         # movement reflected in bid/ask but no executed trade yet.
         price = latest_trade.get("p") or daily_bar.get("c", 0)
-        prev_close = ref_bar.get("c", 0)
+        if ref_bar_key == "prevDailyBar":
+            # Use timestamp-aware helper: during pre-market dailyBar IS yesterday's close.
+            prev_close = _pick_prev_close(snap)
+        else:
+            prev_close = (snap.get(ref_bar_key) or {}).get("c", 0)
         volume = daily_bar.get("v", 0)
         if not price or not prev_close:
             continue
@@ -740,12 +771,11 @@ def _run_focus_scan() -> None:
             updated.append(g)
             continue
         latest_trade = snap.get("latestTrade") or {}
-        prev_bar = snap.get("prevDailyBar") or {}
         daily_bar = snap.get("dailyBar") or {}
         price = latest_trade.get("p") or g["current_price"]
         if price < SCANNER_MIN_PRICE:
             continue
-        prev_close = prev_bar.get("c") or g["previous_close"]
+        prev_close = _pick_prev_close(snap) or g["previous_close"]
         volume = daily_bar.get("v") or g["volume"]
         gap_frac = (price - prev_close) / prev_close if price and prev_close else g["gap_percent"]
         avg_vol = _avg_volume_cache.get(sym)
@@ -1486,6 +1516,18 @@ def _fetch_ticker_snapshot(symbol: str, headers: dict, feed: str) -> dict:
                 "minute_bar": _bar(raw.get("minuteBar")),
                 "daily_bar": _bar(raw.get("dailyBar")),
                 "prev_daily_bar": _bar(raw.get("prevDailyBar")),
+                # Correctly resolved previous regular-session close (timestamp-aware).
+                # During pre-market dailyBar is yesterday's completed bar, so
+                # _pick_prev_close returns dailyBar.c.  During market/after-hours it
+                # returns prevDailyBar.c.  Frontends should use this for change math.
+                "prev_close": _pick_prev_close(raw),
+                # Last completed regular-session close (always dailyBar.c).
+                # Used by the frontend as the "main line" price in the Webull-style
+                # two-row quote during pre-market / after-hours.
+                "session_close": (raw.get("dailyBar") or {}).get("c"),
+                # Close of the session prior to session_close (always prevDailyBar.c).
+                # Used to compute the main line's change (session_close - session_prev_close).
+                "session_prev_close": (raw.get("prevDailyBar") or {}).get("c"),
             }
             _ticker_snapshot_cache[symbol] = snapshot
             _ticker_snapshot_cache_ts[symbol] = now
@@ -1551,6 +1593,8 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
         "rel_volume": rel_vol,
         "news": [],
         "fundamentals": {},
+        # Expose current session mode so the frontend can choose which quote layout to render.
+        "mode": _current_mode,
     }
 
 
