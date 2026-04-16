@@ -177,6 +177,7 @@ interface TickerTradeUpdate {
   price: number;
   size: number | null;
   timestamp: string | null;
+  volume: number | null;
 }
 
 interface TickerDetail {
@@ -194,7 +195,7 @@ interface TickerDetail {
 // ── Formatters ────────────────────────────────────────────────────────────────
 
 function fmtVolume(v: number | null | undefined): string {
-  if (!v) return '—';
+  if (v == null) return '—';
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
   return String(v);
@@ -357,8 +358,18 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
             if (!prev) return prev;
             const prevClose = prev.snapshot?.prev_daily_bar?.close ?? null;
             const newPrice = update.price;
+            const prevDailyBar = prev.snapshot?.daily_bar ?? null;
+            const newDailyBar: BarData | null = update.volume != null
+              ? {
+                  open: null, high: null, low: null, close: null,
+                  trade_count: null, vwap: null, timestamp: null,
+                  ...prevDailyBar,
+                  volume: update.volume,
+                }
+              : prevDailyBar;
             const newSnapshot = {
               ...prev.snapshot,
+              daily_bar: newDailyBar,
               latest_trade: {
                 price: newPrice,
                 size: update.size ?? prev.snapshot?.latest_trade?.size ?? null,
@@ -366,7 +377,7 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
                 exchange: prev.snapshot?.latest_trade?.exchange ?? null,
               },
             };
-            const dailyVol = prev.snapshot?.daily_bar?.volume ?? null;
+            const dailyVol = newDailyBar?.volume ?? null;
             const avgVol = prev.avg_volume;
             const relVol = dailyVol != null && avgVol != null && avgVol > 0
               ? Math.round((dailyVol / avgVol) * 100) / 100

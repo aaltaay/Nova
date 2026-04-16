@@ -601,8 +601,8 @@ def _ws_current_symbols() -> set[str]:
     return syms
 
 
-def _apply_trade_to_mover_list(cache: list[dict], sym: str, price: float) -> bool:
-    """Update price/change fields for a symbol in a mover list (gainers or losers).
+def _apply_trade_to_mover_list(cache: list[dict], sym: str, price: float, size: int = 0) -> bool:
+    """Update price/change/volume fields for a symbol in a mover list (gainers or losers).
 
     Evicts the entry if the new price falls below SCANNER_MIN_PRICE — keeping the
     cache consistent with the scan-time filter without waiting for the next poll.
@@ -625,20 +625,27 @@ def _apply_trade_to_mover_list(cache: list[dict], sym: str, price: float) -> boo
                 "price": price,
                 "change_abs": new_change_abs,
                 "change_pct": new_change_pct,
+                "volume": g.get("volume", 0) + size,
             }
             return True
     return False
 
 
-def _handle_trade(msg: dict) -> None:
-    """Apply a real-time trade message to the in-memory caches."""
+def _handle_trade(msg: dict) -> int | None:
+    """Apply a real-time trade message to the in-memory caches.
+
+    Returns the updated cumulative volume for the symbol from whichever cache
+    was touched, or None if the symbol was not found in any cache.
+    """
     global _gapper_cache, _gapper_cache_ts, _afterhours_cache, _afterhours_cache_ts
     global _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
     sym = msg.get("S")
     price = msg.get("p")
     if not sym or not price:
-        return
+        return None
+    size = int(msg.get("s") or 0)
     now = time.time()
+    updated_volume: int | None = None
 
     # Update gappers — only during pre-market; after 9:30 the list is preserved as-is.
     if _current_mode == "premarket":
@@ -649,6 +656,7 @@ def _handle_trade(msg: dict) -> None:
                 if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
                     del _gapper_cache[i]
                 else:
+                    new_vol = g.get("volume", 0) + size
                     _gapper_cache[i] = {
                         **g,
                         "price": price,
@@ -656,7 +664,9 @@ def _handle_trade(msg: dict) -> None:
                         "change_pct": new_gap,
                         "change_abs": price - prev_close,
                         "gap_percent": new_gap,
+                        "volume": new_vol,
                     }
+                    updated_volume = new_vol
                 _gapper_cache_ts = now
                 save_gapper_snapshot(_gapper_cache, _gapper_cache_ts)
                 break
@@ -670,6 +680,7 @@ def _handle_trade(msg: dict) -> None:
                 if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
                     del _afterhours_cache[i]
                 else:
+                    new_vol = g.get("volume", 0) + size
                     _afterhours_cache[i] = {
                         **g,
                         "price": price,
@@ -677,26 +688,44 @@ def _handle_trade(msg: dict) -> None:
                         "change_pct": new_gap,
                         "change_abs": price - prev_close,
                         "gap_percent": new_gap,
+                        "volume": new_vol,
                     }
+                    updated_volume = new_vol
                 _afterhours_cache_ts = now
                 save_afterhours_snapshot(_afterhours_cache, _afterhours_cache_ts)
                 break
 
     # Update gainers — always apply.
-    gainer_updated = _apply_trade_to_mover_list(_gainer_cache, sym, price)
+    gainer_updated = _apply_trade_to_mover_list(_gainer_cache, sym, price, size)
     if gainer_updated:
         _gainer_cache_ts = now
+        if updated_volume is None:
+            entry = next((g for g in _gainer_cache if g["symbol"] == sym), None)
+            if entry:
+                updated_volume = entry.get("volume")
 
     # Update losers — always apply.
-    loser_updated = _apply_trade_to_mover_list(_loser_cache, sym, price)
+    loser_updated = _apply_trade_to_mover_list(_loser_cache, sym, price, size)
     if loser_updated:
         _loser_cache_ts = now
+        if updated_volume is None:
+            entry = next((g for g in _loser_cache if g["symbol"] == sym), None)
+            if entry:
+                updated_volume = entry.get("volume")
 
     if gainer_updated or loser_updated:
         save_movers_snapshot(_gainer_cache, _loser_cache, now)
 
+    return updated_volume
 
-async def _broadcast_trade_update(sym: str, price: float, size: int | None, timestamp: str | None) -> None:
+
+async def _broadcast_trade_update(
+    sym: str,
+    price: float,
+    size: int | None,
+    timestamp: str | None,
+    volume: int | None = None,
+) -> None:
     """Push a lightweight trade update to all ticker detail WS clients watching this symbol."""
     clients = _ticker_ws_clients.get(sym)
     if not clients:
@@ -706,6 +735,7 @@ async def _broadcast_trade_update(sym: str, price: float, size: int | None, time
         "price": price,
         "size": size,
         "timestamp": timestamp,
+        "volume": volume,
     })
     dead: list = []
     for ws in list(clients):
@@ -1075,7 +1105,7 @@ async def _ws_stream_loop() -> None:
                         msgs = json.loads(raw)
                         for msg in msgs:
                             if msg.get("T") == "t":
-                                _handle_trade(msg)
+                                updated_vol = _handle_trade(msg)
                                 sym = msg.get("S")
                                 if sym and sym in _ticker_ws_clients and _ticker_ws_clients[sym]:
                                     asyncio.create_task(_broadcast_trade_update(
@@ -1083,6 +1113,7 @@ async def _ws_stream_loop() -> None:
                                         msg.get("p"),
                                         msg.get("s"),
                                         msg.get("t"),
+                                        updated_vol,
                                     ))
                     except asyncio.TimeoutError:
                         pass  # no message arrived; loop back to check resub flag
