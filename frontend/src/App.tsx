@@ -475,7 +475,8 @@ function TickerDetailContent({
   if (detail.fundamentals?.industry) descParts.push(detail.fundamentals.industry);
 
   const NEWS_DEFAULT = 3;
-  const visibleNews = newsExpanded ? detail.news : detail.news.slice(0, NEWS_DEFAULT);
+  const news = detail.news ?? [];
+  const visibleNews = newsExpanded ? news : news.slice(0, NEWS_DEFAULT);
 
   // Gap % from prev close to today's open (or current price if no open)
   const todayOpen = daily?.open ?? null;
@@ -517,11 +518,11 @@ function TickerDetailContent({
       )}
 
       {/* News section */}
-      {detail.news.length > 0 && (
+      {news.length > 0 && (
         <div className="cq-news-section">
           <div className="cq-news-header">
             <span className="cq-news-title">News Headline</span>
-            {detail.news.length > NEWS_DEFAULT && (
+            {news.length > NEWS_DEFAULT && (
               <button className="cq-news-more" onClick={() => setNewsExpanded(x => !x)}>
                 {newsExpanded ? 'Less ▲' : `More ▼`}
               </button>

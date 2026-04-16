@@ -1549,6 +1549,8 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
         "snapshot": snapshot,
         "avg_volume": avg_vol,
         "rel_volume": rel_vol,
+        "news": [],
+        "fundamentals": {},
     }
 
 
