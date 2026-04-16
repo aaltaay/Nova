@@ -514,26 +514,27 @@ th {
 
 .news-flame {
   display: inline-block;
-  font-size: 0.8rem;
-  line-height: 1;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   cursor: default;
-  border-radius: 4px;
-  padding: 1px 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
 }
 
 .flame-hot {
-  background-color: #dc2626;
-  box-shadow: 0 0 5px #dc2626;
+  background-color: #ef4444;
+  box-shadow: 0 0 4px #ef4444;
 }
 
 .flame-warm {
-  background-color: #c2410c;
-  box-shadow: 0 0 5px #ea580c;
+  background-color: #f97316;
+  box-shadow: 0 0 4px #f97316;
 }
 
 .flame-cool {
-  background-color: #854d0e;
-  box-shadow: 0 0 5px #ca8a04;
+  background-color: #eab308;
+  box-shadow: 0 0 4px #eab308;
 }
 
 .sub-tab-bar {
@@ -787,8 +788,8 @@ th {
 
 .cq-news-item {
   display: grid;
-  grid-template-columns: 1.25rem 1fr auto;
-  align-items: start;
+  grid-template-columns: 0.75rem 1fr auto;
+  align-items: center;
   gap: 0.4rem;
   padding: 0.4rem 0.75rem;
   border-bottom: 1px solid var(--border-color);
@@ -800,14 +801,17 @@ th {
 }
 
 .cq-news-icon {
-  font-size: 0.8rem;
-  line-height: 1.4;
-  text-align: center;
-  min-width: 1.25rem;
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  align-self: center;
 }
 
 .cq-news-icon-blank {
   display: inline-block;
+  width: 8px;
+  height: 8px;
 }
 
 .cq-news-link {

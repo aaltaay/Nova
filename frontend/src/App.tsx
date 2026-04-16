@@ -231,7 +231,7 @@ function NewsCell({ newest_headline_at }: { newest_headline_at: string | null })
   else if (ageHours <= NEWS_FLAME_WARM_HOURS) colorClass = 'flame-warm';
   else colorClass = 'flame-cool';
   const label = ageHours < 1 ? `${Math.round(ageHours * 60)}m ago` : `${Math.floor(ageHours)}h ago`;
-  return <span className={`news-flame ${colorClass}`} title={label}>🔥</span>;
+  return <span className={`news-flame ${colorClass}`} title={label} />;
 }
 
 function EmptyState({
@@ -536,9 +536,7 @@ function TickerDetailContent({
                 : ageHours <= NEWS_FLAME_WARM_HOURS ? 'flame-warm' : 'flame-cool';
               return (
                 <div key={i} className="cq-news-item">
-                  <span className={`cq-news-icon ${hasFlame ? `news-flame ${flameClass}` : 'cq-news-icon-blank'}`}>
-                    {hasFlame ? '🔥' : ''}
-                  </span>
+                  <span className={`cq-news-icon ${hasFlame ? `news-flame ${flameClass}` : 'cq-news-icon-blank'}`} />
                   <a
                     className="cq-news-link"
                     href={article.url}
