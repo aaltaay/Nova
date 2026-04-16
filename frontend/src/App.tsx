@@ -314,9 +314,6 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
     // inside updater functions (React would call those twice in StrictMode).
     setLoading(!hasDetailRef.current);
     setRefreshing(true);
-    // #region agent log
-    fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:useTickerStream:effect', message: 'ws_connect_start', data: { symbol, hasDetailRef: hasDetailRef.current, willSetLoading: !hasDetailRef.current }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H1' }) }).catch(() => {});
-    // #endregion
 
     const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
     wsRef.current = ws;
@@ -330,9 +327,6 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
           const { type: _t, ...data } = msg;
           initialReceived = true;
           hasDetailRef.current = true;
-          // #region agent log
-          fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:useTickerStream:onmessage', message: 'initial_rx', data: { requestedSymbol: symbol, payloadSymbol: (data as TickerDetail).symbol, hasError: !!(data as { error?: string }).error }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H4' }) }).catch(() => {});
-          // #endregion
           setDetail(data as TickerDetail);
           setLoading(false);
           setRefreshing(false);
@@ -380,9 +374,6 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
     };
 
     ws.onerror = () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:useTickerStream:onerror', message: 'ws_error', data: { symbol, cancelled, initialReceived }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H2' }) }).catch(() => {});
-      // #endregion
       if (!cancelled) {
         setLoading(false);
         setRefreshing(false);
@@ -390,9 +381,6 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
       }
     };
     ws.onclose = () => {
-      // #region agent log
-      fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:useTickerStream:onclose', message: 'ws_close', data: { symbol, cancelled, willClearUi: !cancelled, initialReceived }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H2' }) }).catch(() => {});
-      // #endregion
       if (!cancelled) {
         setLoading(false);
         setRefreshing(false);
@@ -701,14 +689,6 @@ function SidePanel({
   useEffect(() => {
     setInput(selectedSymbol ?? '');
   }, [selectedSymbol]);
-
-  useEffect(() => {
-    const showDetail = !showFullSpinner && !!detail;
-    const showEmpty = fetchFailed && !detail && !!selectedSymbol;
-    // #region agent log
-    fetch('http://127.0.0.1:7533/ingest/10619fc6-baf7-4235-bfc0-4b4237d07754', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '1cbb3a' }, body: JSON.stringify({ sessionId: '1cbb3a', location: 'App.tsx:SidePanel:render_state', message: 'panel_branch', data: { selectedSymbol, loading, refreshing, fetchFailed, awaitingPreEffectFrame, showFullSpinner, detailSymbol: detail?.symbol ?? null, showDetail, showEmpty, symbolMismatch: !!(selectedSymbol && detail?.symbol && selectedSymbol !== detail.symbol) }, timestamp: Date.now(), runId: 'post-fix', hypothesisId: 'H5' }) }).catch(() => {});
-    // #endregion
-  }, [selectedSymbol, loading, refreshing, detail, fetchFailed, showFullSpinner, awaitingPreEffectFrame]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
