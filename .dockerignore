@@ -1,0 +1,11 @@
+.git
+.github
+.cursor
+.vercel
+brand_guideline
+tools
+frontend/node_modules
+frontend/dist
+**/__pycache__
+*.pyc
+.env
