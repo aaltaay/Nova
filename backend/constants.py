@@ -86,7 +86,13 @@ ALPACA_WS_BACKOFF_CAP = 60.0
 # ── Ticker detail caches ──────────────────────────────────────────────────────
 # Fundamentals (yfinance/Yahoo) are slow; cache aggressively.
 FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
+# Hard timeout for a single yfinance .info call; prevents Yahoo stalls from blocking Phase 2.
+# On timeout, stale cached data (if any) is returned; otherwise an empty dict is used.
+YFINANCE_TIMEOUT_S = 5.0
 # Asset metadata (name, exchange, tradability) rarely changes intraday.
-TICKER_ASSET_CACHE_TTL = 300.0      # 5 minutes
+TICKER_ASSET_CACHE_TTL = 900.0      # 15 minutes (extended from 5 min — static intraday)
 # Snapshot (price, quote, bars) is live data; only cache briefly to de-dup rapid clicks.
 TICKER_SNAPSHOT_CACHE_TTL = 10.0    # 10 seconds
+# Short-lived cache for the full Phase 2 payload (news + fundamentals + avg_vol).
+# Serves repeat clicks and rapid tab-switching without re-fetching from external APIs.
+TICKER_SLOW_CACHE_TTL = 90.0        # 90 seconds

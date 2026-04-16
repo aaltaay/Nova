@@ -57,8 +57,10 @@ from constants import (
     SNAPSHOT_WORKERS,
     SYMBOL_EXCLUDE_RE,
     TICKER_ASSET_CACHE_TTL,
+    TICKER_SLOW_CACHE_TTL,
     TICKER_SNAPSHOT_CACHE_TTL,
     TOP_N_DEFAULT,
+    YFINANCE_TIMEOUT_S,
 )
 from cache import (
     _migrate_legacy_files,
@@ -139,6 +141,10 @@ _ticker_asset_cache: dict[str, dict] = {}
 _ticker_asset_cache_ts: dict[str, float] = {}
 _ticker_snapshot_cache: dict[str, dict] = {}
 _ticker_snapshot_cache_ts: dict[str, float] = {}
+# Phase 2 ("slow") result cache: news + fundamentals + avg_vol bundled together.
+# Short TTL so repeated clicks / tab-switches skip redundant external API calls.
+_ticker_slow_cache: dict[str, dict] = {}
+_ticker_slow_cache_ts: dict[str, float] = {}
 
 # ── Health + mode ──────────────────────────────────────────────────────────────
 _cached_health: dict = {"status": "loading", "latency_ms": 0}
@@ -211,7 +217,19 @@ def _fetch_fundamentals(symbol: str) -> dict:
     if symbol in _fundamentals_cache and (now - cached_ts) < FUNDAMENTALS_CACHE_TTL:
         return _fundamentals_cache[symbol]
     try:
-        info = yf.Ticker(symbol).info
+        # yfinance has no built-in timeout; a stalled Yahoo request can block for 15-20s.
+        # Run it in a dedicated thread so we can cap the wait at YFINANCE_TIMEOUT_S.
+        # On timeout, fall through to the stale-cache / empty-dict fallback below.
+        with ThreadPoolExecutor(max_workers=1) as _yf_pool:
+            _yf_future = _yf_pool.submit(lambda: yf.Ticker(symbol).info)
+            try:
+                info = _yf_future.result(timeout=YFINANCE_TIMEOUT_S)
+            except Exception:
+                stale = _fundamentals_cache.get(symbol)
+                if stale is not None:
+                    logger.warning("yfinance timeout/error for %s — returning stale cache", symbol)
+                    return stale
+                raise
 
         # Earnings date: yfinance returns a list of timestamps or a single Timestamp
         earnings_date: str | None = None
@@ -1630,7 +1648,17 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
 
 
 def _build_ticker_slow(symbol: str, headers: dict) -> dict:
-    """Fetch news + avg volume bars + fundamentals concurrently — the slow subset."""
+    """Fetch news + avg volume bars + fundamentals concurrently — the slow subset.
+
+    Results are cached for TICKER_SLOW_CACHE_TTL seconds so rapid re-clicks and
+    tab-switches skip redundant external API calls entirely.
+    """
+    global _ticker_slow_cache, _ticker_slow_cache_ts
+    now = time.monotonic()
+    cached_ts = _ticker_slow_cache_ts.get(symbol, 0.0)
+    if symbol in _ticker_slow_cache and (now - cached_ts) < TICKER_SLOW_CACHE_TTL:
+        return _ticker_slow_cache[symbol]
+
     with ThreadPoolExecutor(max_workers=3) as pool:
         f_news  = pool.submit(_fetch_ticker_news, symbol, headers)
         f_avg   = pool.submit(_fetch_ticker_avg_volume, symbol, headers)
@@ -1639,7 +1667,10 @@ def _build_ticker_slow(symbol: str, headers: dict) -> dict:
         avg_vol = f_avg.result()
         fund    = f_fund.result()
 
-    return {"news": news, "avg_volume": avg_vol, "fundamentals": fund}
+    result = {"news": news, "avg_volume": avg_vol, "fundamentals": fund}
+    _ticker_slow_cache[symbol] = result
+    _ticker_slow_cache_ts[symbol] = now
+    return result
 
 
 def _build_ticker_detail(symbol: str) -> dict:
@@ -1709,16 +1740,20 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
         else:
             feed = _get_feed()
 
-            # Phase 1: asset + snapshot (fast, cached) — send immediately
-            fast = await loop.run_in_executor(
+            # Start both phases immediately so Phase 2 runs while Phase 1 is awaited.
+            fast_task = loop.run_in_executor(
                 None, lambda: _build_ticker_fast(symbol, base_url, headers, feed)
             )
-            await websocket.send_text(json.dumps({"type": "initial", **fast}))
-
-            # Phase 2: news + avg volume bars + fundamentals (slow) — send as update
-            slow = await loop.run_in_executor(
+            slow_task = loop.run_in_executor(
                 None, lambda: _build_ticker_slow(symbol, headers)
             )
+
+            # Phase 1 result arrives first — send immediately so the UI can render price/asset.
+            fast = await fast_task
+            await websocket.send_text(json.dumps({"type": "initial", **fast}))
+
+            # Phase 2 has been running in parallel; await whatever remains.
+            slow = await slow_task
             # Recompute rel_volume with freshly fetched avg_vol
             avg_vol = slow.get("avg_volume")
             daily_vol = (fast.get("snapshot", {}).get("daily_bar") or {}).get("volume") or 0
