@@ -65,6 +65,13 @@ def _atomic_write(path: str, payload: dict) -> None:
 
 # ── Migration ─────────────────────────────────────────────────────────────────
 
+from constants import (
+    HOD_MOMO_ALERTS_PREFIX,
+    HOD_MOMO_CONFIG_FILE,
+    HOD_MOMO_BLOCKLIST_FILE,
+)
+
+
 def _migrate_legacy_files() -> None:
     """
     One-time rename of old fixed-name files to the dated format.
@@ -96,7 +103,7 @@ def cleanup_old_snapshots(retention_days: int) -> None:
     if not os.path.isdir(_CACHE_DIR):
         return
     cutoff = (datetime.now(_ET) - timedelta(days=retention_days)).strftime("%Y-%m-%d")
-    pattern = re.compile(r"^(gappers|movers|afterhours)-(\d{4}-\d{2}-\d{2})\.json$")
+    pattern = re.compile(r"^(gappers|movers|afterhours|hod-momo)-(\d{4}-\d{2}-\d{2})\.json$")
     for fname in os.listdir(_CACHE_DIR):
         m = pattern.match(fname)
         if m and m.group(2) < cutoff:
@@ -108,7 +115,7 @@ def cleanup_old_snapshots(retention_days: int) -> None:
 
 # ── History helpers ───────────────────────────────────────────────────────────
 
-def list_history_dates(cache_type: str) -> list[str]:
+def list_history_dates(cache_type: str, extra_allowed: set[str] | None = None) -> list[str]:
     """
     Return all dates for which a snapshot of *cache_type* exists on disk,
     sorted descending (newest first). Does not include today — today is live.
@@ -116,6 +123,7 @@ def list_history_dates(cache_type: str) -> list[str]:
     if not os.path.isdir(_CACHE_DIR):
         return []
     pattern = re.compile(rf"^{re.escape(cache_type)}-(\d{{4}}-\d{{2}}-\d{{2}})\.json$")
+    _ = extra_allowed  # reserved for future use
     today = _today_et()
     dates = []
     for fname in os.listdir(_CACHE_DIR):
@@ -265,3 +273,88 @@ def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
         return gainers, losers, ts
     except Exception:
         return [], [], 0.0
+
+
+# ── HOD Momo — alert snapshots ────────────────────────────────────────────────
+
+def save_hod_momo_snapshot(alerts: list[dict], ts: float) -> None:
+    """Atomically persist today's HOD Momo alert list."""
+    try:
+        payload = {"date": _today_et(), "ts": ts, "alerts": alerts}
+        _atomic_write(_dated_path(HOD_MOMO_ALERTS_PREFIX, _today_et()), payload)
+    except Exception:
+        pass
+
+
+def load_hod_momo_snapshot() -> tuple[list[dict], float]:
+    """Load today's HOD Momo alerts from disk.
+
+    Returns (alerts, ts) or ([], 0.0) if not found / stale.
+    """
+    try:
+        path = _dated_path(HOD_MOMO_ALERTS_PREFIX, _today_et())
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("date") != _today_et():
+            return [], 0.0
+        raw = data.get("alerts", [])
+        ts = float(data.get("ts", 0.0))
+        if not isinstance(raw, list):
+            return [], 0.0
+        return raw, ts
+    except Exception:
+        return [], 0.0
+
+
+def load_hod_momo_snapshot_for_date(date_str: str) -> dict:
+    """Load HOD Momo alerts for an arbitrary past date (YYYY-MM-DD)."""
+    try:
+        path = _dated_path(HOD_MOMO_ALERTS_PREFIX, date_str)
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+# ── HOD Momo — configs ────────────────────────────────────────────────────────
+
+def save_hod_momo_configs(payload: dict) -> None:
+    """Persist strategy configs + master gate to the fixed config file."""
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        _atomic_write(HOD_MOMO_CONFIG_FILE, payload)
+    except Exception:
+        pass
+
+
+def load_hod_momo_configs() -> dict:
+    """Load strategy configs + master gate. Returns {} if file doesn't exist."""
+    try:
+        with open(HOD_MOMO_CONFIG_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+# ── HOD Momo — blocklist ─────────────────────────────────────────────────────
+
+def save_hod_momo_blocklist(symbols: list[str]) -> None:
+    """Persist the HOD Momo global blocklist."""
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        _atomic_write(HOD_MOMO_BLOCKLIST_FILE, {"symbols": symbols})
+    except Exception:
+        pass
+
+
+def load_hod_momo_blocklist() -> list[str]:
+    """Load the HOD Momo global blocklist. Returns [] if not found."""
+    try:
+        with open(HOD_MOMO_BLOCKLIST_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        raw = data.get("symbols", [])
+        if not isinstance(raw, list):
+            return []
+        return [str(s) for s in raw]
+    except Exception:
+        return []

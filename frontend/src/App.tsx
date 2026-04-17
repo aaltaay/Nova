@@ -1,4 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { HodMomoTab } from './hod_momo/HodMomoTab';
+import { HodMomoSettings } from './hod_momo/HodMomoSettings';
+import { useHodMomoStream } from './hod_momo/useHodMomoStream';
+import { useHodMomoConfig } from './hod_momo/useHodMomoConfig';
 
 function NovaLogo() {
   return (
@@ -42,6 +46,7 @@ import {
 } from './constants';
 
 type Mode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
+type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo';
 type SortDir = 'asc' | 'desc' | null;
 interface SortConfig { key: string; dir: SortDir; }
 
@@ -933,7 +938,8 @@ function App() {
   const [lastScan, setLastScan] = useState<number>(0);
   const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
-  const [activeTab, setActiveTab] = useState<'gappers' | 'movers' | 'afterhours' | 'catalysts'>('gappers');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('gappers');
+  const [showHodSettings, setShowHodSettings] = useState(false);
   const [tabOverridden, setTabOverridden] = useState(false);
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
@@ -955,6 +961,10 @@ function App() {
   // History / time-travel state
   const [historyDate, setHistoryDate] = useState<string | null>(null); // null = live
   const [historyDates, setHistoryDates] = useState<string[]>([]);
+
+  // HOD Momo Scanner
+  const hodMomoStream = useHodMomoStream();
+  const hodMomoConfig = useHodMomoConfig();
 
   function toggleSort<T extends SortConfig>(
     current: T,
@@ -1146,7 +1156,7 @@ function App() {
     }
   }, [historyDate, fetchHistoryData]);
 
-  const handleTabClick = (tab: 'gappers' | 'movers' | 'afterhours' | 'catalysts') => {
+  const handleTabClick = (tab: ActiveTab) => {
     setActiveTab(tab);
     setTabOverridden(true);
   };
@@ -1308,6 +1318,15 @@ function App() {
             Catalysts
             <span className="tab-badge-experimental">{CATALYSTS_EXPERIMENTAL_LABEL}</span>
             {catalysts.length > 0 && <span className="tab-count">{catalysts.length}</span>}
+          </button>
+          <button
+            className={`tab ${activeTab === 'hod_momo' ? 'active' : ''}`}
+            onClick={() => handleTabClick('hod_momo')}
+          >
+            HOD Momo
+            {hodMomoStream.alerts.length > 0 && (
+              <span className="tab-count">{hodMomoStream.alerts.length}</span>
+            )}
           </button>
           <div className="tab-spacer" />
           {!historyDate && secondsAgo != null && (
@@ -1497,6 +1516,26 @@ function App() {
             ) : (
               <EmptyState health={health} context={mode === 'market' ? 'afterhours' : mode} />
             )}
+          </>
+        )}
+
+        {/* ── HOD Momo tab ──────────────────────────────────────────── */}
+        {activeTab === 'hod_momo' && (
+          <>
+            {showHodSettings && (
+              <HodMomoSettings
+                config={hodMomoConfig}
+                onClose={() => setShowHodSettings(false)}
+              />
+            )}
+            <HodMomoTab
+              alerts={hodMomoStream.alerts}
+              connected={hodMomoStream.connected}
+              config={hodMomoConfig}
+              selectedSymbol={selectedSymbol}
+              onSelectSymbol={setSelectedSymbol}
+              onOpenSettings={() => setShowHodSettings(s => !s)}
+            />
           </>
         )}
       </main>

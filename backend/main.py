@@ -46,6 +46,7 @@ from constants import (
     GAINERS_INTERVAL_SEC,
     GAPPER_MIN_GAP_PCT,
     HISTORY_RETENTION_DAYS,
+    HOD_MOMO_UNIVERSE_INTERVAL_SEC,
     NEWS_CATALYST_ARTICLE_LIMIT,
     NEWS_CATALYST_INTERVAL_SEC,
     NEWS_CATALYST_LOOKBACK_HOURS,
@@ -74,6 +75,7 @@ from cache import (
     save_gapper_snapshot,
     save_movers_snapshot,
 )
+import hod_momo as _hod_momo
 
 load_dotenv()
 
@@ -159,6 +161,13 @@ _ws_needs_resub: bool = False       # scan loop sets True when symbol list chang
 # ── Ticker detail WebSocket clients ───────────────────────────────────────────
 # Maps symbol -> set of active WebSocket connections watching that symbol's detail.
 _ticker_ws_clients: dict[str, set] = {}
+
+# ── HOD Momo universe state ────────────────────────────────────────────────────
+# Symbols currently subscribed for the HOD Momo engine (union of all common-stock
+# symbols that pass the master-gate prefilter above min RVOL or are already being
+# watched for other scanners).  Refreshed every HOD_MOMO_UNIVERSE_INTERVAL_SEC.
+_hod_momo_universe: set[str] = set()
+_hod_momo_universe_ts: float = 0.0
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -602,8 +611,35 @@ def _ws_mark_resub() -> None:
     _ws_needs_resub = True
 
 
+def _refresh_hod_momo_universe() -> None:
+    """Populate _hod_momo_universe with the full common-stock universe so the HOD Momo
+    engine receives trade updates for all eligible symbols.
+
+    Uses the existing asset cache (_get_tradable_symbols) so it does not issue
+    extra Alpaca API calls when the cache is warm.  Only runs when the interval
+    has elapsed to avoid hammering the API during active scans.
+    """
+    global _hod_momo_universe, _hod_momo_universe_ts
+    now = time.monotonic()
+    if _hod_momo_universe and (now - _hod_momo_universe_ts) < HOD_MOMO_UNIVERSE_INTERVAL_SEC:
+        return
+    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+    headers = _alpaca_headers()
+    if not headers:
+        return
+    try:
+        symbols = _get_tradable_symbols(base_url, headers)
+        _hod_momo_universe = set(symbols)
+        _hod_momo_universe_ts = now
+        _ws_mark_resub()
+        logger.info("HOD Momo: universe refreshed — %d symbols subscribed", len(_hod_momo_universe))
+    except Exception as exc:
+        logger.warning("HOD Momo universe refresh failed: %s", exc)
+
+
 def _ws_current_symbols() -> set[str]:
-    """Return the union of all symbols in gapper/afterhours/gainer/loser caches plus any open ticker detail WS clients."""
+    """Return the union of all symbols across all scanner caches, open ticker WS clients,
+    and the HOD Momo universe."""
     syms: set[str] = set()
     for g in _gapper_cache:
         syms.add(g["symbol"])
@@ -616,6 +652,7 @@ def _ws_current_symbols() -> set[str]:
     for sym, clients in _ticker_ws_clients.items():
         if clients:
             syms.add(sym)
+    syms.update(_hod_momo_universe)
     return syms
 
 
@@ -1125,6 +1162,16 @@ async def _ws_stream_loop() -> None:
                             if msg.get("T") == "t":
                                 updated_vol = _handle_trade(msg)
                                 sym = msg.get("S")
+                                price = msg.get("p")
+                                if sym and price:
+                                    trade_ts = time.time()
+                                    # Feed HOD Momo engine (non-blocking — runs in same thread)
+                                    _hod_momo.on_trade_update(
+                                        sym,
+                                        float(price),
+                                        trade_ts,
+                                        volume=updated_vol,
+                                    )
                                 if sym and sym in _ticker_ws_clients and _ticker_ws_clients[sym]:
                                     asyncio.create_task(_broadcast_trade_update(
                                         sym,
@@ -1257,6 +1304,8 @@ async def _scan_loop() -> None:
         try:
             mono = time.monotonic()
             catalyst_due = (mono - _last_catalyst_scan_ts) > _NEWS_CATALYST_INTERVAL
+            # Refresh HOD Momo trade universe periodically (uses cached asset list — cheap)
+            await loop.run_in_executor(None, _refresh_hod_momo_universe)
 
             if _in_premarket():
                 _current_mode = "premarket"
@@ -1327,6 +1376,9 @@ async def lifespan(app: FastAPI):
         _gainer_cache_ts = mv_ts
         _loser_cache_ts = mv_ts
 
+    # Load HOD Momo persisted state (configs, blocklist, today's alerts)
+    _hod_momo.load_state()
+
     # Ping Alpaca health immediately at startup so the frontend never sits on
     # "loading" status during closed-market hours when no scan would run.
     loop = asyncio.get_event_loop()
@@ -1336,10 +1388,14 @@ async def lifespan(app: FastAPI):
         await loop.run_in_executor(None, lambda: _ping_health(base_url, headers))
     scan_task = asyncio.create_task(_scan_loop())
     ws_task = asyncio.create_task(_ws_stream_loop())
+    hod_flush_task = asyncio.create_task(_hod_momo.flush_consolidated_loop())
+    hod_reset_task = asyncio.create_task(_hod_momo.session_reset_loop())
     yield
     scan_task.cancel()
     ws_task.cancel()
-    for t in (scan_task, ws_task):
+    hod_flush_task.cancel()
+    hod_reset_task.cancel()
+    for t in (scan_task, ws_task, hod_flush_task, hod_reset_task):
         try:
             await t
         except asyncio.CancelledError:
@@ -1477,6 +1533,115 @@ def get_news_catalysts():
         "catalysts": _news_catalyst_cache,
         "last_scan": _news_catalyst_cache_ts,
     }
+
+
+# ── HOD Momo endpoints ────────────────────────────────────────────────────────
+
+@app.get("/api/hod-momo/alerts")
+def hod_momo_get_alerts():
+    """Today's HOD Momo alert feed (newest first)."""
+    return {"date": _hod_momo._current_date_et(), "alerts": _hod_momo.get_today_alerts()}
+
+
+@app.get("/api/hod-momo/history/dates")
+def hod_momo_history_dates():
+    """Past dates for which HOD Momo alert snapshots exist."""
+    from cache import list_history_dates as _list_dates
+    return {"dates": _list_dates("hod-momo")}
+
+
+@app.get("/api/hod-momo/history/{date}")
+def hod_momo_history_snapshot(date: str):
+    """HOD Momo alerts for a historical date (YYYY-MM-DD)."""
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        return {}
+    return _hod_momo.get_history_alerts(date)
+
+
+@app.get("/api/hod-momo/config")
+def hod_momo_get_config():
+    """Return all strategy configs + master gate config."""
+    return _hod_momo.get_configs()
+
+
+class HodMomoConfigPatch(BaseModel):
+    scope: str                   # "master" | "strategy" | "all"
+    strategy_id: int | None = None
+    patch: dict | None = None
+
+
+@app.post("/api/hod-momo/config")
+def hod_momo_update_config(body: HodMomoConfigPatch):
+    """Update a strategy config, the master gate, or reset everything.
+
+    scope="master"   → patch applied to master gate
+    scope="strategy" → patch applied to strategy_id (required)
+    scope="reset_one"→ reset strategy_id to defaults
+    scope="reset_all"→ reset all strategies + master gate to defaults
+    """
+    if body.scope == "reset_all":
+        return _hod_momo.reset_all()
+    if body.scope == "reset_one":
+        if body.strategy_id is None:
+            return {"error": "strategy_id required"}
+        result = _hod_momo.reset_config(body.strategy_id)
+        if result is None:
+            return {"error": "unknown strategy_id"}
+        return result
+    if body.scope == "master":
+        return _hod_momo.update_master(body.patch or {})
+    if body.scope == "strategy":
+        if body.strategy_id is None:
+            return {"error": "strategy_id required"}
+        result = _hod_momo.update_config(body.strategy_id, body.patch or {})
+        if result is None:
+            return {"error": "unknown strategy_id"}
+        return result
+    return {"error": "unknown scope"}
+
+
+@app.get("/api/hod-momo/blocklist")
+def hod_momo_get_blocklist():
+    return {"symbols": _hod_momo.get_blocklist()}
+
+
+class HodMomoBlocklistUpdate(BaseModel):
+    symbol: str
+
+
+@app.post("/api/hod-momo/blocklist")
+def hod_momo_add_block(body: HodMomoBlocklistUpdate):
+    return {"symbols": _hod_momo.add_block(body.symbol)}
+
+
+@app.delete("/api/hod-momo/blocklist/{symbol}")
+def hod_momo_remove_block(symbol: str):
+    return {"symbols": _hod_momo.remove_block(symbol)}
+
+
+@app.websocket("/ws/hod-momo")
+async def ws_hod_momo(websocket: WebSocket):
+    """WebSocket endpoint: sends today's alerts on connect, then pushes live alerts."""
+    await websocket.accept()
+    _hod_momo.add_ws_client(websocket)
+    try:
+        # Send initial payload with all of today's alerts
+        initial = json.dumps({
+            "type": "initial",
+            "alerts": _hod_momo.get_today_alerts(),
+        })
+        await websocket.send_text(initial)
+        # Keep the connection alive until the client disconnects
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                # Send a keepalive ping
+                await websocket.send_text(json.dumps({"type": "ping"}))
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        _hod_momo.remove_ws_client(websocket)
 
 
 def _fetch_ticker_asset(symbol: str, base_url: str, headers: dict) -> dict:

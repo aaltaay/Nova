@@ -96,3 +96,131 @@ TICKER_SNAPSHOT_CACHE_TTL = 10.0    # 10 seconds
 # Short-lived cache for the full Phase 2 payload (news + fundamentals + avg_vol).
 # Serves repeat clicks and rapid tab-switching without re-fetching from external APIs.
 TICKER_SLOW_CACHE_TTL = 90.0        # 90 seconds
+
+
+# ── HOD Momo Scanner ──────────────────────────────────────────────────────────
+
+import os as _os
+
+# Cache file keys / prefixes (kept in constants so cache.py and hod_momo.py share one source)
+HOD_MOMO_ALERTS_PREFIX = "hod-momo"
+HOD_MOMO_CONFIG_FILE = _os.path.join(
+    _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH",
+                    _os.path.join(_os.path.dirname(__file__), ".cache")),
+    "hod-momo-config.json",
+)
+HOD_MOMO_BLOCKLIST_FILE = _os.path.join(
+    _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH",
+                    _os.path.join(_os.path.dirname(__file__), ".cache")),
+    "hod-momo-blocklist.json",
+)
+
+# Engine timing
+HOD_MOMO_COOLDOWN_SEC = 60.0         # suppress re-alert for ticker+strategy after firing
+HOD_MOMO_CONSOLIDATION_SEC = 5.0     # batch alerts for same ticker within this window
+HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh HOD universe subscription every 5 min
+HOD_MOMO_SESSION_RESET_HOUR_ET = 4   # reset session state at 4:00 AM ET
+
+# Master gate defaults
+HOD_MOMO_MASTER_HOD_REQUIRED = True
+HOD_MOMO_MASTER_SURGE_PCT = 3.0      # price must rise this % within lookback window
+HOD_MOMO_MASTER_SURGE_WINDOW_MIN = 5  # minutes
+HOD_MOMO_MASTER_MIN_RVOL = 2.0
+HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 1.0   # relaxed during 4–9:30 AM and 4–8 PM ET
+HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 1.0
+
+# Strategy names (canonical order 1–11)
+HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {
+    1:  "Former Momo Stock",
+    2:  "Squeeze Alert - 52wk Breakout",
+    3:  "Low Float - Med Rel Vol",
+    4:  "Low Float - High Rel Vol - Price $20+",
+    5:  "Low Float Volatility Hunter",
+    6:  "Medium Float - High Rel Vol - Price under $20",
+    7:  "Low Float - High Rel Vol",
+    8:  "Medium Float - High Rel Vol - Price $20+",
+    9:  "Medium Float - Med Rel Vol - Price $20+",
+    10: "Squeeze Alert - Up 10% in 10min",
+    11: "Squeeze Alert - Up 5% in 5min",
+}
+
+# Strategy default colors (hex)
+HOD_MOMO_STRATEGY_COLORS: dict[int, str] = {
+    1:  "#FF9100",
+    2:  "#FFD600",
+    3:  "#66BB6A",
+    4:  "#00BFA5",
+    5:  "#FF5252",
+    6:  "#B388FF",
+    7:  "#00E676",
+    8:  "#448AFF",
+    9:  "#78909C",
+    10: "#00E5FF",
+    11: "#40C4FF",
+}
+
+# Audio ON by default for all except 8 and 9
+HOD_MOMO_STRATEGY_AUDIO_DEFAULT: dict[int, bool] = {
+    1: True, 2: True, 3: True, 4: True, 5: True,
+    6: True, 7: True, 8: False, 9: False, 10: True, 11: True,
+}
+
+# Per-strategy default config values.
+# Keys match StrategyConfig field names. Missing keys use the universal 0-disabled default.
+HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
+    1: {  # Former Momo Stock
+        "min_rvol": 2.0,
+    },
+    2: {  # Squeeze Alert - 52wk Breakout
+        "proximity_52wk_pct": 1.0,
+        "min_rvol": 1.5,
+        "surge_pct": 3.0,
+        "surge_window_min": 5,
+    },
+    3: {  # Low Float - Med Rel Vol
+        "max_float": 10_000_000,
+        "min_rvol": 2.0,
+        "max_rvol": 4.9,
+    },
+    4: {  # Low Float - High Rel Vol - Price $20+
+        "max_float": 10_000_000,
+        "min_rvol": 5.0,
+        "min_price": 20.0,
+    },
+    5: {  # Low Float Volatility Hunter
+        "max_float": 10_000_000,
+        "min_rvol": 3.0,
+        "min_change_pct": 5.0,
+    },
+    6: {  # Medium Float - High Rel Vol - Price under $20
+        "min_float": 10_000_000,
+        "max_float": 50_000_000,
+        "min_rvol": 5.0,
+        "max_price": 19.99,
+    },
+    7: {  # Low Float - High Rel Vol
+        "max_float": 10_000_000,
+        "min_rvol": 5.0,
+    },
+    8: {  # Medium Float - High Rel Vol - Price $20+
+        "min_float": 10_000_000,
+        "max_float": 50_000_000,
+        "min_rvol": 5.0,
+        "min_price": 20.0,
+    },
+    9: {  # Medium Float - Med Rel Vol - Price $20+
+        "min_float": 10_000_000,
+        "max_float": 50_000_000,
+        "min_rvol": 2.0,
+        "max_rvol": 4.9,
+        "min_price": 20.0,
+    },
+    10: {  # Squeeze Alert - Up 10% in 10min
+        "surge_pct": 10.0,
+        "surge_window_min": 10,
+    },
+    11: {  # Squeeze Alert - Up 5% in 5min
+        "surge_pct": 5.0,
+        "surge_window_min": 5,
+    },
+}

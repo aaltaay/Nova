@@ -99,3 +99,79 @@ export const SCANNER_COLUMNS: [string, string][] = [
   ['short_interest',  'Short Int.'],
   ['short_ratio',     'Short Ratio'],
 ];
+
+// ── HOD Momo Scanner ──────────────────────────────────────────────────────────
+
+export interface StrategyMeta {
+  id: number;
+  name: string;
+  color: string;
+  audioDefault: boolean;
+}
+
+/** Canonical strategy metadata — mirrors backend constants.py HOD_MOMO_STRATEGY_* */
+export const STRATEGY_META: StrategyMeta[] = [
+  { id: 1,  name: 'Former Momo Stock',                          color: '#FF9100', audioDefault: true  },
+  { id: 2,  name: 'Squeeze Alert - 52wk Breakout',              color: '#FFD600', audioDefault: true  },
+  { id: 3,  name: 'Low Float - Med Rel Vol',                    color: '#66BB6A', audioDefault: true  },
+  { id: 4,  name: 'Low Float - High Rel Vol - Price $20+',      color: '#00BFA5', audioDefault: true  },
+  { id: 5,  name: 'Low Float Volatility Hunter',                color: '#FF5252', audioDefault: true  },
+  { id: 6,  name: 'Medium Float - High Rel Vol - Price under $20', color: '#B388FF', audioDefault: true },
+  { id: 7,  name: 'Low Float - High Rel Vol',                   color: '#00E676', audioDefault: true  },
+  { id: 8,  name: 'Medium Float - High Rel Vol - Price $20+',   color: '#448AFF', audioDefault: false },
+  { id: 9,  name: 'Medium Float - Med Rel Vol - Price $20+',    color: '#78909C', audioDefault: false },
+  { id: 10, name: 'Squeeze Alert - Up 10% in 10min',            color: '#00E5FF', audioDefault: true  },
+  { id: 11, name: 'Squeeze Alert - Up 5% in 5min',              color: '#40C4FF', audioDefault: true  },
+];
+
+export const STRATEGY_META_MAP: Record<number, StrategyMeta> = Object.fromEntries(
+  STRATEGY_META.map(s => [s.id, s]),
+);
+
+/** HOD Momo feed columns — Time + shared scanner columns (reusing SCANNER_COLUMNS keys) + Strategy */
+export const HOD_MOMO_COLUMNS: [string, string][] = [
+  ['time',        'Time'],
+  ['symbol',      'Symbol'],
+  ['price',       'Price'],
+  ['change_pct',  'Change %'],
+  ['rvol',        'RVOL'],
+  ['float',       'Float'],
+  ['gap_pct',     'Gap %'],
+  ['volume',      'Volume'],
+  ['strategy',    'Strategy'],
+];
+
+/** Default master gate config — mirrors backend MasterGateConfig defaults */
+export const DEFAULT_MASTER_GATE = {
+  hod_required: true,
+  surge_pct: 3.0,
+  surge_window_min: 5,
+  min_rvol: 2.0,
+  premarket_min_rvol: 1.0,
+  afterhours_min_rvol: 1.0,
+  cooldown_sec: 60.0,
+  consolidation_sec: 5.0,
+};
+
+/** Universal strategy config zero-defaults (all filters disabled). */
+export const DEFAULT_STRATEGY_CONFIG = {
+  enabled: true,
+  audio: true,
+  notes: '',
+  min_price: 0,
+  max_price: 0,
+  min_float: 0,
+  max_float: 0,
+  min_volume: 0,
+  min_rvol: 0,
+  max_rvol: 0,
+  min_gap_pct: 0,
+  max_gap_pct: 0,
+  min_change_pct: 0,
+  max_change_pct: 0,
+  surge_pct: 0,
+  surge_window_min: 0,
+  surge_method: 'low_to_current' as const,
+  proximity_52wk_pct: 0,
+  former_momo_list: [] as string[],
+};
