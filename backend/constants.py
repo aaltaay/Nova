@@ -121,6 +121,10 @@ HOD_MOMO_CONSOLIDATION_SEC = 5.0     # batch alerts for same ticker within this 
 HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh HOD universe subscription every 5 min
 HOD_MOMO_SESSION_RESET_HOUR_ET = 4   # reset session state at 4:00 AM ET
 
+# Enrichment loop intervals
+HOD_MOMO_ENRICH_INTERVAL_SEC = 30.0          # batch snapshot enrichment cadence
+HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC = 5.0  # fundamentals per-symbol drain cadence
+
 # Master gate defaults
 HOD_MOMO_MASTER_HOD_REQUIRED = True
 HOD_MOMO_MASTER_SURGE_PCT = 3.0      # price must rise this % within lookback window

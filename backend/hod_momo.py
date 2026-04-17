@@ -4,8 +4,10 @@ HOD Momo Scanner engine.
 All engine state lives here — no state leaks into main.py (per backend-modularity rule).
 main.py calls:
   - load_state()               at lifespan startup
-  - on_trade_update(sym, price, ts, rvol, float_, gap_pct, volume, change_pct)
+  - on_trade_update(sym, price, ts, volume)
                                from _ws_stream_loop / _handle_trade path
+                               (RVOL/float/gap/change come from the enrichment loop)
+  - update_ticker_snapshot(...)from hod_momo_enrichment.py (rich per-symbol data)
   - flush_consolidated_loop()  as a background asyncio task
   - session_reset_loop()       as a background asyncio task
   - get_ws_clients()           to push alerts to connected WS clients
@@ -14,6 +16,9 @@ main.py calls:
   - get_configs() / update_config() / reset_config() / reset_all()
   - get_master() / update_master()
   - get_blocklist() / add_block() / remove_block()
+  - mark_needs_fundamentals(sym) called by enrichment when symbol qualifies
+  - get_fundamentals_queue()   consumed by hod_momo_enrichment
+  - get_debug_counters() / get_debug_symbol(sym) / get_debug_recent(limit) / get_debug_snaps(limit)
 """
 
 from __future__ import annotations
@@ -21,8 +26,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import logging.handlers
+import os
 import time
-from collections import deque
+from collections import defaultdict, deque
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Any
@@ -48,6 +55,22 @@ from constants import (
 
 logger = logging.getLogger(__name__)
 _ET = ZoneInfo("America/New_York")
+
+# ── Dedicated rotating log for per-trade debug lines ──────────────────────────
+
+_log_dir = os.path.join(os.path.dirname(__file__), "logs")
+os.makedirs(_log_dir, exist_ok=True)
+_trade_log = logging.getLogger("hod_momo.trades")
+if not _trade_log.handlers:
+    _trade_handler = logging.handlers.RotatingFileHandler(
+        os.path.join(_log_dir, "hod_momo.log"),
+        maxBytes=10_000_000,
+        backupCount=3,
+    )
+    _trade_handler.setFormatter(logging.Formatter("%(message)s"))
+    _trade_log.addHandler(_trade_handler)
+    _trade_log.setLevel(logging.DEBUG)
+    _trade_log.propagate = False
 
 
 # ── Dataclasses ────────────────────────────────────────────────────────────────
@@ -116,6 +139,18 @@ class AlertObject:
     consolidated_ids: list[str] = field(default_factory=list)
 
 
+@dataclass
+class DecisionRecord:
+    """One record per on_trade_update call that makes it past the blocklist."""
+    ts: float
+    symbol: str
+    price: float
+    snap: dict                   # snapshot fields at decision time
+    gate_blocked: str | None     # "blocklist" | "master_hod" | "master_rvol" | "master_surge" | None
+    strategies: list[dict]       # [{id, name, passed, blocked_by}]
+    would_fire: bool
+
+
 # ── Module-level state ─────────────────────────────────────────────────────────
 
 # Rolling (unix_ts, price) buffer per symbol — trimmed to max surge window
@@ -147,6 +182,19 @@ _today_alerts: list[AlertObject] = []
 
 # Connected WS clients for the HOD Momo feed
 _hod_ws_clients: set[Any] = set()
+
+# ── Debug state ────────────────────────────────────────────────────────────────
+
+_total_trades_seen: int = 0
+_gate_counters: dict[str, int] = defaultdict(int)
+# last 500 decisions across all symbols
+_recent_decisions: deque[DecisionRecord] = deque(maxlen=500)
+# last 20 decisions per symbol
+_per_symbol_decisions: dict[str, deque[DecisionRecord]] = {}
+
+# Fundamentals request queue — enrichment loop drains this
+_fundamentals_queue: deque[str] = deque()
+_fundamentals_queued: set[str] = set()
 
 
 # ── Default config builder ─────────────────────────────────────────────────────
@@ -269,7 +317,6 @@ def _check_and_reset_session() -> bool:
     """
     global _session_date, _today_alerts, _session_highs, _cooldown, _pending_consolidation
     now_et = datetime.now(_ET)
-    # Only reset once we're at or past the session-reset hour
     if now_et.hour < HOD_MOMO_SESSION_RESET_HOUR_ET:
         return False
     current = now_et.strftime("%Y-%m-%d")
@@ -313,7 +360,6 @@ _MAX_BUFFER_MINUTES = 60  # keep at most 60 minutes of price history per symbol
 def _update_price_buffer(symbol: str, price: float, ts: float) -> None:
     buf = _price_buffer.setdefault(symbol, deque())
     buf.append((ts, price))
-    # Trim entries older than max buffer window
     cutoff = ts - _MAX_BUFFER_MINUTES * 60
     while buf and buf[0][0] < cutoff:
         buf.popleft()
@@ -356,6 +402,7 @@ class _TickerSnap:
     volume: int | None = None
     change_pct: float | None = None
     fifty_two_week_high: float | None = None
+    last_enriched: float = 0.0   # monotonic timestamp of last enrichment update
 
 
 _ticker_snaps: dict[str, _TickerSnap] = {}
@@ -371,7 +418,7 @@ def update_ticker_snapshot(
     change_pct: float | None = None,
     fifty_two_week_high: float | None = None,
 ) -> None:
-    """Called by main.py whenever fresh snapshot data arrives for a symbol.
+    """Called by hod_momo_enrichment.py whenever fresh snapshot data arrives.
 
     Merges in non-None values so callers can do partial updates.
     """
@@ -389,104 +436,136 @@ def update_ticker_snapshot(
         snap.change_pct = change_pct
     if fifty_two_week_high is not None:
         snap.fifty_two_week_high = fifty_two_week_high
+    snap.last_enriched = time.monotonic()
 
 
-# ── Filter evaluation ──────────────────────────────────────────────────────────
+# ── Fundamentals queue ─────────────────────────────────────────────────────────
 
-def _passes(value: float | None, min_val: float, max_val: float, disabled_on_zero: bool = True) -> bool:
-    """Generic min/max check. 0 = disabled when disabled_on_zero=True."""
+def mark_needs_fundamentals(symbol: str) -> None:
+    """Request that hod_momo_enrichment fetches float/52wk-high for this symbol."""
+    if symbol not in _fundamentals_queued:
+        _fundamentals_queued.add(symbol)
+        _fundamentals_queue.append(symbol)
+
+
+def get_fundamentals_queue() -> deque[str]:
+    return _fundamentals_queue
+
+
+def pop_fundamentals_request() -> str | None:
+    try:
+        sym = _fundamentals_queue.popleft()
+        _fundamentals_queued.discard(sym)
+        return sym
+    except IndexError:
+        return None
+
+
+# ── Filter evaluation — returns (passed, reason) ──────────────────────────────
+
+def _passes(value: float | None, min_val: float, max_val: float) -> tuple[bool, str]:
+    """Generic min/max check. 0 = disabled.
+    Returns (True, '') on pass, (False, '<field>:<detail>') on fail.
+    """
     if value is None:
-        # Unknown value: only fail if a concrete filter is active
-        if (disabled_on_zero and min_val == 0 and max_val == 0):
-            return True
-        if not disabled_on_zero:
-            return True
-        return min_val == 0 and max_val == 0
-    if disabled_on_zero:
-        if min_val > 0 and value < min_val:
-            return False
-        if max_val > 0 and value > max_val:
-            return False
-    else:
-        if value < min_val:
-            return False
-        if max_val > 0 and value > max_val:
-            return False
-    return True
+        if min_val == 0 and max_val == 0:
+            return True, ""
+        return False, f"value_unknown(min={min_val},max={max_val})"
+    if min_val > 0 and value < min_val:
+        return False, f"below_min({value:.4g}<{min_val})"
+    if max_val > 0 and value > max_val:
+        return False, f"above_max({value:.4g}>{max_val})"
+    return True, ""
 
 
-def _evaluate_strategy(cfg: StrategyConfig, snap: _TickerSnap, surge_pct: float | None) -> bool:
-    """Returns True if the ticker passes ALL active filters in `cfg`."""
+def _evaluate_strategy(
+    cfg: StrategyConfig,
+    snap: _TickerSnap,
+    surge_pct: float | None,
+) -> tuple[bool, str]:
+    """Returns (passed, blocked_by_reason). blocked_by_reason is '' on pass."""
     if not cfg.enabled:
-        return False
+        return False, "disabled"
 
-    # Price
-    if not _passes(snap.price, cfg.min_price, cfg.max_price):
-        return False
+    ok, reason = _passes(snap.price, cfg.min_price, cfg.max_price)
+    if not ok:
+        return False, f"price:{reason}"
 
-    # Float (float unknown → fail if filter active)
     float_val = snap.float_shares
-    if (cfg.min_float > 0 or cfg.max_float > 0) and float_val is None:
-        return False
-    if float_val is not None:
+    if cfg.min_float > 0 or cfg.max_float > 0:
+        if float_val is None:
+            mark_needs_fundamentals(_active_symbol())  # best-effort
+            return False, "float:unknown"
         if cfg.min_float > 0 and float_val < cfg.min_float:
-            return False
+            return False, f"float:below_min({float_val:.3g}<{cfg.min_float:.3g})"
         if cfg.max_float > 0 and float_val > cfg.max_float:
-            return False
+            return False, f"float:above_max({float_val:.3g}>{cfg.max_float:.3g})"
 
-    # Volume
     if cfg.min_volume > 0 and (snap.volume is None or snap.volume < cfg.min_volume):
-        return False
+        return False, f"volume:below_min({snap.volume}<{cfg.min_volume})"
 
-    # RVOL
-    if not _passes(snap.rvol, cfg.min_rvol, cfg.max_rvol):
-        return False
+    ok, reason = _passes(snap.rvol, cfg.min_rvol, cfg.max_rvol)
+    if not ok:
+        return False, f"rvol:{reason}"
 
-    # Gap %
-    if not _passes(snap.gap_pct, cfg.min_gap_pct, cfg.max_gap_pct):
-        return False
+    ok, reason = _passes(snap.gap_pct, cfg.min_gap_pct, cfg.max_gap_pct)
+    if not ok:
+        return False, f"gap_pct:{reason}"
 
-    # Change %
-    if not _passes(snap.change_pct, cfg.min_change_pct, cfg.max_change_pct):
-        return False
+    ok, reason = _passes(snap.change_pct, cfg.min_change_pct, cfg.max_change_pct)
+    if not ok:
+        return False, f"change_pct:{reason}"
 
-    # Surge / momentum
     if cfg.surge_pct > 0 and cfg.surge_window_min > 0:
         if surge_pct is None or surge_pct < cfg.surge_pct:
-            return False
+            return False, f"surge:{surge_pct} < {cfg.surge_pct}% in {cfg.surge_window_min}min"
 
-    # 52-week high proximity
     if cfg.proximity_52wk_pct > 0:
         high52 = snap.fifty_two_week_high
         if high52 is None or high52 <= 0:
-            return False
+            mark_needs_fundamentals(_active_symbol())
+            return False, "52wk_high:unknown"
         proximity = ((high52 - snap.price) / high52) * 100.0
         if proximity > cfg.proximity_52wk_pct:
-            return False
+            return False, f"52wk_proximity:{proximity:.2f}%>{cfg.proximity_52wk_pct}%"
 
-    return True
+    return True, ""
 
 
-def _passes_master_gate(symbol: str, snap: _TickerSnap) -> bool:
-    """Global pre-check that every symbol must pass before strategy evaluation."""
-    # HOD check
+# Thread-local-ish helper: set briefly during on_trade_update so that
+# mark_needs_fundamentals called from _evaluate_strategy has the symbol.
+_active_symbol_name: str = ""
+
+
+def _active_symbol() -> str:
+    return _active_symbol_name
+
+
+def _passes_master_gate(symbol: str, snap: _TickerSnap) -> tuple[bool, str]:
+    """Global pre-check that every symbol must pass before strategy evaluation.
+
+    Returns (passed, blocked_reason).
+    """
     if _master.hod_required:
         session_high = _session_highs.get(symbol, 0.0)
         if snap.price < session_high:
-            return False
+            return False, f"master_hod(price={snap.price:.4g}<hod={session_high:.4g})"
 
-    # RVOL
     eff_min_rvol = _effective_min_rvol()
-    if eff_min_rvol > 0 and (snap.rvol is None or snap.rvol < eff_min_rvol):
-        return False
+    if eff_min_rvol > 0:
+        if snap.rvol is None:
+            return False, "master_rvol:unknown"
+        if snap.rvol < eff_min_rvol:
+            return False, f"master_rvol({snap.rvol:.2f}<{eff_min_rvol})"
 
-    # Momentum surge
     if _master.surge_pct > 0 and _master.surge_window_min > 0:
         surge = _price_surge(symbol, _master.surge_window_min, "low_to_current")
-        if surge is None or surge < _master.surge_pct:
-            return False
+        if surge is None:
+            return False, f"master_surge:insufficient_data(window={_master.surge_window_min}min)"
+        if surge < _master.surge_pct:
+            return False, f"master_surge({surge:.2f}%<{_master.surge_pct}%)"
 
-    return True
+    return True, ""
 
 
 # ── Alert emission ─────────────────────────────────────────────────────────────
@@ -505,19 +584,20 @@ def on_trade_update(
     symbol: str,
     price: float,
     ts: float,
-    rvol: float | None = None,
-    float_shares: float | None = None,
-    gap_pct: float | None = None,
     volume: int | None = None,
-    change_pct: float | None = None,
-    fifty_two_week_high: float | None = None,
 ) -> None:
     """Called synchronously from the trade-processing path in main.py.
 
-    Updates internal state and queues any triggered alerts onto the asyncio broadcast queue.
+    Only price/volume come from the WS message. RVOL / float / gap / change /
+    52wk-high come from the enrichment loop via update_ticker_snapshot().
     """
+    global _total_trades_seen, _active_symbol_name
+
     if not _configs:
         return
+
+    _total_trades_seen += 1
+    _active_symbol_name = symbol
 
     # Update rolling price buffer
     _update_price_buffer(symbol, price, ts)
@@ -527,26 +607,30 @@ def on_trade_update(
     if price > prev_high:
         _session_highs[symbol] = price
 
-    # Update snapshot store
-    update_ticker_snapshot(
-        symbol, price,
-        rvol=rvol,
-        float_shares=float_shares,
-        gap_pct=gap_pct,
-        volume=volume,
-        change_pct=change_pct,
-        fifty_two_week_high=fifty_two_week_high,
-    )
+    # Merge price/volume into snapshot (enrichment keeps other fields current)
+    snap = _ticker_snaps.setdefault(symbol, _TickerSnap())
+    snap.price = price
+    if volume is not None:
+        snap.volume = volume
 
-    # Blocklist check
+    # Blocklist check — record and bail
     if symbol.upper() in _blocklist:
+        _gate_counters["blocklist"] += 1
+        _record_decision(ts, symbol, price, snap, "blocklist", [])
+        _active_symbol_name = ""
         return
-
-    snap = _ticker_snaps[symbol]
 
     # Master gate
-    if not _passes_master_gate(symbol, snap):
+    gate_ok, gate_reason = _passes_master_gate(symbol, snap)
+    if not gate_ok:
+        # Increment the first word of the reason as the counter key
+        counter_key = gate_reason.split("(")[0]
+        _gate_counters[counter_key] += 1
+        _record_decision(ts, symbol, price, snap, gate_reason, [])
+        _active_symbol_name = ""
         return
+
+    _gate_counters["passed_master"] += 1
 
     # Pre-compute surge values for all active surge windows
     _surge_cache: dict[tuple[int, str], float | None] = {}
@@ -559,24 +643,35 @@ def on_trade_update(
 
     now_ts = time.time()
     queue = get_broadcast_queue()
+    strategy_decisions: list[dict] = []
+    any_fired = False
 
     for strategy_id, cfg in _configs.items():
         if not cfg.enabled:
+            strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": "disabled"})
             continue
 
-        # Former Momo list check (only gates if the list is non-empty for this strategy)
+        # Former Momo list check
         if cfg.former_momo_list and symbol.upper() not in [s.upper() for s in cfg.former_momo_list]:
+            strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": "not_in_former_momo_list"})
             continue
 
         # Cooldown check
         key = (symbol, strategy_id)
         if now_ts < _cooldown.get(key, 0.0):
+            strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": "cooldown"})
             continue
 
         surge = _get_surge(cfg.surge_window_min, cfg.surge_method) if cfg.surge_window_min > 0 else None
+        passed, blocked_by = _evaluate_strategy(cfg, snap, surge)
+        strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": passed, "blocked_by": blocked_by})
 
-        if not _evaluate_strategy(cfg, snap, surge):
+        if not passed:
+            _gate_counters[f"strategy_{strategy_id}_blocked"] += 1
             continue
+
+        _gate_counters[f"strategy_{strategy_id}_fired"] += 1
+        any_fired = True
 
         # Build alert
         ts_iso = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -596,21 +691,67 @@ def on_trade_update(
             momentum_pct=surge,
         )
 
-        # Set cooldown
         _cooldown[key] = now_ts + _master.cooldown_sec
-
-        # Queue for consolidation
         emit_after = now_ts + _master.consolidation_sec
         bucket = _pending_consolidation.setdefault(symbol, [])
         bucket.append((emit_after, alert))
 
         logger.debug("HOD Momo: queued alert %s / strategy %d", symbol, strategy_id)
 
-        # Put on broadcast queue for async flush
         try:
             queue.put_nowait(("pending", alert))
         except asyncio.QueueFull:
             pass
+
+    _record_decision(ts, symbol, price, snap, None, strategy_decisions, would_fire=any_fired)
+
+    # Structured trade log line
+    snap_summary = (
+        f"rvol={snap.rvol} float={snap.float_shares} "
+        f"gap={snap.gap_pct} change={snap.change_pct} vol={snap.volume}"
+    )
+    fired_ids = [str(d["id"]) for d in strategy_decisions if d["passed"]]
+    blocked_summary = "; ".join(
+        f"{d['id']}:{d['blocked_by']}" for d in strategy_decisions if not d["passed"] and d["blocked_by"] not in ("disabled",)
+    )
+    _trade_log.debug(
+        "%s TRADE %s price=%.4g snap={%s} gate=passed fired=[%s] blocked=[%s]",
+        datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:23],
+        symbol, price, snap_summary,
+        ",".join(fired_ids) if fired_ids else "none",
+        blocked_summary or "none",
+    )
+
+    _active_symbol_name = ""
+
+
+def _record_decision(
+    ts: float,
+    symbol: str,
+    price: float,
+    snap: _TickerSnap,
+    gate_blocked: str | None,
+    strategies: list[dict],
+    would_fire: bool = False,
+) -> None:
+    snap_dict = {
+        "price": snap.price,
+        "rvol": snap.rvol,
+        "float_shares": snap.float_shares,
+        "gap_pct": snap.gap_pct,
+        "change_pct": snap.change_pct,
+        "volume": snap.volume,
+        "fifty_two_week_high": snap.fifty_two_week_high,
+        "last_enriched": snap.last_enriched,
+    }
+    rec = DecisionRecord(
+        ts=ts, symbol=symbol, price=price,
+        snap=snap_dict, gate_blocked=gate_blocked,
+        strategies=strategies, would_fire=would_fire,
+    )
+    _recent_decisions.append(rec)
+    per_sym = _per_symbol_decisions.setdefault(symbol, deque(maxlen=20))
+    per_sym.append(rec)
 
 
 # ── Consolidation flush loop ───────────────────────────────────────────────────
@@ -627,7 +768,6 @@ async def flush_consolidated_loop() -> None:
 
             for symbol in list(_pending_consolidation.keys()):
                 bucket = _pending_consolidation[symbol]
-                # Partition into ready (window expired) and still-pending
                 ready = [a for emit_ts, a in bucket if now >= emit_ts]
                 still_pending = [(et, a) for et, a in bucket if now < et]
                 _pending_consolidation[symbol] = still_pending
@@ -638,14 +778,13 @@ async def flush_consolidated_loop() -> None:
                 if len(ready) == 1:
                     to_emit.append(ready[0])
                 else:
-                    # Consolidate into first alert
                     primary = ready[0]
                     primary.consolidation_count = len(ready)
                     primary.consolidated_ids = [a.id for a in ready[1:]]
                     to_emit.append(primary)
 
             for alert in to_emit:
-                _today_alerts.insert(0, alert)  # newest first
+                _today_alerts.insert(0, alert)
                 _save_alerts()
                 payload = json.dumps({"type": "alert", "alert": _alert_to_dict(alert)})
                 dead: list = []
@@ -656,7 +795,6 @@ async def flush_consolidated_loop() -> None:
                         dead.append(ws)
                 for ws in dead:
                     _hod_ws_clients.discard(ws)
-                # Clear the "pending" marker from broadcast queue if any
                 try:
                     queue.get_nowait()
                 except Exception:
@@ -764,25 +902,127 @@ def remove_block(symbol: str) -> list[str]:
     return get_blocklist()
 
 
+# ── Debug API ──────────────────────────────────────────────────────────────────
+
+def get_debug_counters() -> dict:
+    snaps_populated = sum(
+        1 for s in _ticker_snaps.values()
+        if s.rvol is not None or s.change_pct is not None
+    )
+    return {
+        "total_trades_seen": _total_trades_seen,
+        "universe_size": len(_ticker_snaps),
+        "snaps_populated": snaps_populated,
+        "counters": dict(_gate_counters),
+        "session_highs_tracked": len(_session_highs),
+        "fundamentals_queue_depth": len(_fundamentals_queue),
+    }
+
+
+def get_debug_symbol(symbol: str) -> dict:
+    sym = symbol.upper()
+    snap = _ticker_snaps.get(sym)
+    decisions = [
+        {
+            "ts": r.ts,
+            "price": r.price,
+            "snap": r.snap,
+            "gate_blocked": r.gate_blocked,
+            "strategies": r.strategies,
+            "would_fire": r.would_fire,
+        }
+        for r in list(_per_symbol_decisions.get(sym, []))
+    ]
+    return {
+        "symbol": sym,
+        "snap": {
+            "price": snap.price if snap else None,
+            "rvol": snap.rvol if snap else None,
+            "float_shares": snap.float_shares if snap else None,
+            "gap_pct": snap.gap_pct if snap else None,
+            "change_pct": snap.change_pct if snap else None,
+            "volume": snap.volume if snap else None,
+            "fifty_two_week_high": snap.fifty_two_week_high if snap else None,
+            "last_enriched": snap.last_enriched if snap else 0.0,
+        },
+        "session_high": _session_highs.get(sym),
+        "decisions": decisions,
+        "would_fire_now": _would_fire_now(sym) if snap else None,
+    }
+
+
+def _would_fire_now(symbol: str) -> dict:
+    snap = _ticker_snaps.get(symbol)
+    if not snap:
+        return {"gate": "no_snap", "strategies": []}
+    gate_ok, gate_reason = _passes_master_gate(symbol, snap)
+    if not gate_ok:
+        return {"gate": gate_reason, "strategies": []}
+    results = []
+    for strategy_id, cfg in _configs.items():
+        if not cfg.enabled:
+            continue
+        surge = _price_surge(symbol, cfg.surge_window_min, cfg.surge_method) if cfg.surge_window_min > 0 else None
+        passed, reason = _evaluate_strategy(cfg, snap, surge)
+        results.append({"id": strategy_id, "name": cfg.name, "passed": passed, "blocked_by": reason})
+    return {"gate": "passed", "strategies": results}
+
+
+def get_debug_recent(limit: int = 100) -> list[dict]:
+    records = list(_recent_decisions)[-limit:]
+    return [
+        {
+            "ts": r.ts,
+            "symbol": r.symbol,
+            "price": r.price,
+            "rvol": r.snap.get("rvol"),
+            "gap_pct": r.snap.get("gap_pct"),
+            "change_pct": r.snap.get("change_pct"),
+            "gate_blocked": r.gate_blocked,
+            "strategies_fired": [d["id"] for d in r.strategies if d.get("passed")],
+            "would_fire": r.would_fire,
+        }
+        for r in records
+    ]
+
+
+def get_debug_snaps(limit: int = 50) -> list[dict]:
+    """Return top-N snapshots sorted by recency of enrichment."""
+    enriched = [
+        (sym, snap) for sym, snap in _ticker_snaps.items()
+        if snap.rvol is not None or snap.change_pct is not None
+    ]
+    enriched.sort(key=lambda x: x[1].last_enriched, reverse=True)
+    return [
+        {
+            "symbol": sym,
+            "price": snap.price,
+            "rvol": snap.rvol,
+            "float_shares": snap.float_shares,
+            "gap_pct": snap.gap_pct,
+            "change_pct": snap.change_pct,
+            "volume": snap.volume,
+            "last_enriched": snap.last_enriched,
+        }
+        for sym, snap in enriched[:limit]
+    ]
+
+
 # ── Startup ────────────────────────────────────────────────────────────────────
 
 def load_state() -> None:
     """Called once at lifespan startup. Loads persisted configs, blocklist, and today's alerts."""
     global _configs, _master, _blocklist, _today_alerts, _session_date
 
-    # Initialise configs with defaults first, then overlay from disk
     _configs = _build_default_configs()
     _load_configs_from_disk()
 
-    # Load blocklist
     bl = _cache.load_hod_momo_blocklist()
     _blocklist = {s.upper() for s in bl}
 
-    # Load today's alerts
     alerts_raw, _ = _cache.load_hod_momo_snapshot()
     _today_alerts = [_alert_from_dict(a) for a in alerts_raw]
 
-    # Initialise session date so rollover detection works
     _check_and_reset_session()
     if not _session_date:
         _session_date = _current_date_et()

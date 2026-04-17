@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { HOD_MOMO_COLUMNS, STRATEGY_META, STRATEGY_META_MAP } from '../constants';
 import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
+import { HodMomoDebugPanel } from './HodMomoDebugPanel';
 
 // ── Formatters ────────────────────────────────────────────────────────────────
 
@@ -242,14 +243,16 @@ function StrategyFilterDropdown({
 
 // ── Sub-panel tab strip ───────────────────────────────────────────────────────
 
+type SubPanel = number | 'main' | 'debug';
+
 function SubPanelStrip({
   activeSubPanel,
   onSelect,
   counts,
   configColors,
 }: {
-  activeSubPanel: number | 'main';
-  onSelect: (panel: number | 'main') => void;
+  activeSubPanel: SubPanel;
+  onSelect: (panel: SubPanel) => void;
   counts: Record<number, number>;
   configColors: Record<number, string>;
 }) {
@@ -278,6 +281,13 @@ function SubPanelStrip({
           </button>
         );
       })}
+      <button
+        className={`hod-subpanel-btn hod-subpanel-debug${activeSubPanel === 'debug' ? ' active' : ''}`}
+        onClick={() => onSelect('debug')}
+        title="Debug panel — gate counters, decisions, symbol inspector"
+      >
+        🔍 Debug
+      </button>
     </div>
   );
 }
@@ -301,7 +311,7 @@ export function HodMomoTab({
   onSelectSymbol,
   onOpenSettings,
 }: HodMomoTabProps) {
-  const [activeSubPanel, setActiveSubPanel] = useState<number | 'main'>('main');
+  const [activeSubPanel, setActiveSubPanel] = useState<SubPanel>('main');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   // Which strategy IDs are currently visible (all enabled by default)
   const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
@@ -370,61 +380,68 @@ export function HodMomoTab({
         configColors={configColors}
       />
 
-      {/* Strategy filter dropdown (portal-like, positioned relative to Strategy header) */}
-      <div className="table-wrapper hod-table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              {HOD_MOMO_COLUMNS.map(([key, label]) => (
-                <th
-                  key={key}
-                  className={`sortable-th${key === 'strategy' ? ' hod-strategy-th' : ''}`}
-                  onClick={key === 'strategy' ? () => setShowFilterDropdown(x => !x) : undefined}
-                  style={key === 'strategy' ? { cursor: 'pointer', userSelect: 'none' } : undefined}
-                >
-                  <span className="th-inner">
-                    {label}
-                    {key === 'strategy' && (
-                      <span className="hod-filter-icon">▾</span>
-                    )}
-                  </span>
-                  {key === 'strategy' && showFilterDropdown && (
-                    <StrategyFilterDropdown
-                      enabledStrategies={visibleStrategies}
-                      counts={strategyCounts}
-                      onToggle={toggleStrategy}
-                      onClose={() => setShowFilterDropdown(false)}
-                      configColors={configColors}
-                    />
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {visibleAlerts.length === 0 ? (
+      {/* Debug panel — shown instead of the alert table */}
+      {activeSubPanel === 'debug' && (
+        <HodMomoDebugPanel />
+      )}
+
+      {/* Alert table — hidden when debug panel is active */}
+      {activeSubPanel !== 'debug' && (
+        <div className="table-wrapper hod-table-wrapper">
+          <table>
+            <thead>
               <tr>
-                <td colSpan={HOD_MOMO_COLUMNS.length} className="hod-empty-cell">
-                  {connected
-                    ? 'Waiting for HOD Momo alerts…'
-                    : 'Connecting to HOD Momo feed…'}
-                </td>
+                {HOD_MOMO_COLUMNS.map(([key, label]) => (
+                  <th
+                    key={key}
+                    className={`sortable-th${key === 'strategy' ? ' hod-strategy-th' : ''}`}
+                    onClick={key === 'strategy' ? () => setShowFilterDropdown(x => !x) : undefined}
+                    style={key === 'strategy' ? { cursor: 'pointer', userSelect: 'none' } : undefined}
+                  >
+                    <span className="th-inner">
+                      {label}
+                      {key === 'strategy' && (
+                        <span className="hod-filter-icon">▾</span>
+                      )}
+                    </span>
+                    {key === 'strategy' && showFilterDropdown && (
+                      <StrategyFilterDropdown
+                        enabledStrategies={visibleStrategies}
+                        counts={strategyCounts}
+                        onToggle={toggleStrategy}
+                        onClose={() => setShowFilterDropdown(false)}
+                        configColors={configColors}
+                      />
+                    )}
+                  </th>
+                ))}
               </tr>
-            ) : (
-              visibleAlerts.map(alert => (
-                <AlertRow
-                  key={alert.id}
-                  alert={alert}
-                  strategyColorOverride={configColors[alert.strategy_id]}
-                  selected={selectedSymbol === alert.ticker}
-                  onSelect={onSelectSymbol}
-                  consolidationSec={consolidationSec}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {visibleAlerts.length === 0 ? (
+                <tr>
+                  <td colSpan={HOD_MOMO_COLUMNS.length} className="hod-empty-cell">
+                    {connected
+                      ? 'Waiting for HOD Momo alerts…'
+                      : 'Connecting to HOD Momo feed…'}
+                  </td>
+                </tr>
+              ) : (
+                visibleAlerts.map(alert => (
+                  <AlertRow
+                    key={alert.id}
+                    alert={alert}
+                    strategyColorOverride={configColors[alert.strategy_id]}
+                    selected={selectedSymbol === alert.ticker}
+                    onSelect={onSelectSymbol}
+                    consolidationSec={consolidationSec}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

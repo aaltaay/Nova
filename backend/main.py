@@ -63,6 +63,7 @@ from constants import (
     TOP_N_DEFAULT,
     YFINANCE_TIMEOUT_S,
 )
+import hod_momo_enrichment as _hod_momo_enrichment
 from cache import (
     _migrate_legacy_files,
     cleanup_old_snapshots,
@@ -635,6 +636,11 @@ def _refresh_hod_momo_universe() -> None:
         logger.info("HOD Momo: universe refreshed — %d symbols subscribed", len(_hod_momo_universe))
     except Exception as exc:
         logger.warning("HOD Momo universe refresh failed: %s", exc)
+
+
+def get_hod_momo_universe() -> set[str]:
+    """Expose the current HOD Momo universe to hod_momo_enrichment.py."""
+    return _hod_momo_universe
 
 
 def _ws_current_symbols() -> set[str]:
@@ -1390,12 +1396,16 @@ async def lifespan(app: FastAPI):
     ws_task = asyncio.create_task(_ws_stream_loop())
     hod_flush_task = asyncio.create_task(_hod_momo.flush_consolidated_loop())
     hod_reset_task = asyncio.create_task(_hod_momo.session_reset_loop())
+    hod_enrich_task = asyncio.create_task(_hod_momo_enrichment.universe_enrichment_loop())
+    hod_fund_task = asyncio.create_task(_hod_momo_enrichment.fundamentals_enrichment_loop())
     yield
     scan_task.cancel()
     ws_task.cancel()
     hod_flush_task.cancel()
     hod_reset_task.cancel()
-    for t in (scan_task, ws_task, hod_flush_task, hod_reset_task):
+    hod_enrich_task.cancel()
+    hod_fund_task.cancel()
+    for t in (scan_task, ws_task, hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task):
         try:
             await t
         except asyncio.CancelledError:
@@ -1617,6 +1627,32 @@ def hod_momo_add_block(body: HodMomoBlocklistUpdate):
 @app.delete("/api/hod-momo/blocklist/{symbol}")
 def hod_momo_remove_block(symbol: str):
     return {"symbols": _hod_momo.remove_block(symbol)}
+
+
+# ── HOD Momo debug endpoints ──────────────────────────────────────────────────
+
+@app.get("/api/hod-momo/debug/counters")
+def hod_momo_debug_counters():
+    """Gate counters, universe size, and snaps populated — polled by the Debug panel."""
+    return _hod_momo.get_debug_counters()
+
+
+@app.get("/api/hod-momo/debug/symbol/{sym}")
+def hod_momo_debug_symbol(sym: str):
+    """Current snapshot + last 20 decisions for a specific symbol."""
+    return _hod_momo.get_debug_symbol(sym.upper())
+
+
+@app.get("/api/hod-momo/debug/recent")
+def hod_momo_debug_recent(limit: int = 100):
+    """Last N decisions across all symbols."""
+    return {"decisions": _hod_momo.get_debug_recent(min(limit, 500))}
+
+
+@app.get("/api/hod-momo/debug/snaps")
+def hod_momo_debug_snaps(limit: int = 50):
+    """Top-N most-recently enriched snapshots (sanity-check for the enrichment loop)."""
+    return {"snaps": _hod_momo.get_debug_snaps(min(limit, 200))}
 
 
 @app.websocket("/ws/hod-momo")
