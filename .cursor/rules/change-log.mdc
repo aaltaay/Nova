@@ -1,0 +1,61 @@
+---
+description: Maintain CHANGELOG.md with a human-readable summary after every task
+alwaysApply: true
+---
+
+# Change log — summarize every task
+
+The repo root file `CHANGELOG.md` is a **shared narrative** of what changed in this project and **why**. It exists so future agent and human sessions can get oriented in minutes without reading diffs or digging through files.
+
+This rule is a peer of `problem-log.mdc` and `commit-after-tasks.mdc`. All three fire at task completion.
+
+## When to add an entry
+
+Prepend a new entry after completing any task that changes:
+
+- Code behavior, logic, or control flow
+- Public API shapes, endpoints, or WebSocket payloads
+- Module boundaries or the file layout in `backend-modularity.mdc`
+- Constants in `backend/constants.py` or `frontend/src/constants.ts`
+- Build, run, CI, dependencies, or deployment config
+- Rules in `.cursor/rules/` or top-level docs that agents rely on
+- User-visible UI behavior or copy
+
+**Skip** entries only for: pure typo fixes, formatting-only edits, scratch files under `backend/logs/` or `backend/.cache/`, or edits to generated artifacts.
+
+## Where and how
+
+1. Open `CHANGELOG.md`.
+2. Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top — same convention as `PROBLEM_LOG.md`).
+3. Fill in every field in the template that applies:
+
+   ```markdown
+   ## YYYY-MM-DD — Short descriptive title
+
+   - **What:** 1–2 sentences on what changed (user-visible + internal).
+   - **Why:** Trigger for the change (user request, bug, performance, cleanup).
+   - **Files touched:** Key files only.
+   - **How it works now:** The mental model a future agent needs.
+   - **Verified by:** How you confirmed it works (built + ran, test, click path).
+   - **Follow-ups:** (optional) anything deferred.
+   - **Related:** (optional) commit SHA, PROBLEM_LOG date, issue link.
+   ```
+
+4. Keep each field to a few lines. The **"How it works now"** field matters most — write it for a cold agent re-entering the repo.
+
+## Relationship to PROBLEM_LOG.md
+
+- `CHANGELOG.md` = "what does the codebase do now and why" (every non-trivial task).
+- `PROBLEM_LOG.md` = "what went wrong and how was it fixed" (bugs, failures, subtle root causes only — see `problem-log.mdc`).
+- When a task is a bug fix, write **both**, and cross-reference in the `Related` field.
+
+## Commit discipline
+
+- The changelog entry must ship in the **same commit** as the code it describes. Never push code without the matching entry.
+- Task completion is **not** complete until the entry exists. This rule runs alongside `commit-after-tasks.mdc`: write entry → stage all → commit → push.
+
+## Content guardrails
+
+- No secrets, tokens, API keys, or personal data in entries.
+- No verbatim stack traces longer than one line (summarize).
+- If an entry would duplicate an existing recent one, extend the existing entry's fields instead of creating a near-identical new one.
