@@ -337,7 +337,16 @@ def _is_common_stock(asset: dict) -> bool:
     name = (asset.get("name") or "").lower()
     if any(kw.lower() in name for kw in EXCLUDED_NAME_KEYWORDS):        # semantic: Warrant, ETF, etc.
         return False
+    if _hod_momo.is_blocked(sym):                                        # user blocklist
+        return False
     return True
+
+
+def invalidate_universe_cache() -> None:
+    """Force the next _get_tradable_symbols call to re-fetch (e.g. after blocklist change)."""
+    global _assets_cache_ts
+    _assets_cache_ts = 0.0
+    _ws_mark_resub()
 
 
 def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
@@ -655,10 +664,13 @@ def _ws_current_symbols() -> set[str]:
         syms.add(g["symbol"])
     for g in _loser_cache:
         syms.add(g["symbol"])
+    # Ticker detail WS clients are kept even if blocked (needed for unblock workflow).
     for sym, clients in _ticker_ws_clients.items():
         if clients:
             syms.add(sym)
     syms.update(_hod_momo_universe)
+    # Strip blocked symbols from trade subscriptions (except open detail clients above).
+    syms = {s for s in syms if not _hod_momo.is_blocked(s) or s in _ticker_ws_clients}
     return syms
 
 
@@ -1384,6 +1396,8 @@ async def lifespan(app: FastAPI):
 
     # Load HOD Momo persisted state (configs, blocklist, today's alerts)
     _hod_momo.load_state()
+    # Wire invalidation so blocklist add/remove flushes the universe cache.
+    _hod_momo._on_blocklist_changed = invalidate_universe_cache
 
     # Ping Alpaca health immediately at startup so the frontend never sits on
     # "loading" status during closed-market hours when no scan would run.
@@ -1471,6 +1485,11 @@ def get_mode():
     }
 
 
+def _strip_blocked(rows: list[dict]) -> list[dict]:
+    """Remove any rows whose symbol is on the global blocklist."""
+    return [r for r in rows if not _hod_momo.is_blocked(r.get("symbol", ""))]
+
+
 @app.get("/api/gappers")
 def get_gappers():
     """Pre-market gapper list. Returns cached data instantly."""
@@ -1478,7 +1497,7 @@ def get_gappers():
         "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
-        "gappers": _gapper_cache,
+        "gappers": _strip_blocked(_gapper_cache),
         "last_scan": _gapper_cache_ts,
     }
 
@@ -1490,8 +1509,8 @@ def get_movers():
         "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
-        "gainers": _gainer_cache,
-        "losers": _loser_cache,
+        "gainers": _strip_blocked(_gainer_cache),
+        "losers": _strip_blocked(_loser_cache),
         "last_scan": _gainer_cache_ts,
     }
 
@@ -1503,7 +1522,7 @@ def get_afterhours():
         "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
-        "afterhours": _afterhours_cache,
+        "afterhours": _strip_blocked(_afterhours_cache),
         "last_scan": _afterhours_cache_ts,
     }
 
@@ -1540,7 +1559,7 @@ def get_news_catalysts():
         "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
-        "catalysts": _news_catalyst_cache,
+        "catalysts": _strip_blocked(_news_catalyst_cache),
         "last_scan": _news_catalyst_cache_ts,
     }
 

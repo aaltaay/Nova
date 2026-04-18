@@ -479,6 +479,17 @@ function TickerDetailContent({
   detail: TickerDetail;
 }) {
   const [newsExpanded, setNewsExpanded] = useState(false);
+  // ── Block button ──────────────────────────────────────────────────────────
+  const [blocked, setBlocked] = useState(false);
+  useEffect(() => { setBlocked(false); }, [detail.symbol]);
+  function onBlock() {
+    fetch(`${API_URL}/hod-momo/blocklist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: detail.symbol }),
+    }).then(r => { if (r.ok) setBlocked(true); }).catch(() => {});
+  }
+  // ─────────────────────────────────────────────────────────────────────────
   const snap = detail.snapshot;
   const asset = detail.asset;
   const trade = snap?.latest_trade;
@@ -543,6 +554,12 @@ function TickerDetailContent({
           {(mainChangeAbs != null || extChangeAbs != null) && (
             <span className="cq-trend">{isPositive ? '▲' : '▼'}</span>
           )}
+          <button
+            className={`cq-block-btn${blocked ? ' cq-block-btn--blocked' : ''}`}
+            onClick={onBlock}
+            disabled={blocked}
+            title="Add to HOD Momo blocklist"
+          >{blocked ? 'Blocked' : 'Block'}</button>
         </div>
         {mainPrice != null && (
           <div className="cq-price-row">

@@ -701,6 +701,31 @@ th {
   line-height: 1;
 }
 
+/* ── Block button (in symbol row) ────────────────────────────────────────── */
+.cq-block-btn {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  line-height: 1.4;
+  transition: border-color 0.15s, color 0.15s;
+}
+.cq-block-btn:hover:not(:disabled) {
+  border-color: #c0392b;
+  color: #c0392b;
+}
+.cq-block-btn--blocked,
+.cq-block-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 .cq-price-row {
   display: flex;
   align-items: baseline;

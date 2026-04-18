@@ -32,7 +32,7 @@ import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import cache as _cache
@@ -890,15 +890,28 @@ def get_blocklist() -> list[str]:
     return sorted(_blocklist)
 
 
+def is_blocked(symbol: str) -> bool:
+    return symbol.upper() in _blocklist
+
+
+# Optional hook set by main.py at startup to invalidate the asset/universe cache
+# when the blocklist changes. Avoids a circular-import at module level.
+_on_blocklist_changed: Callable[[], None] | None = None
+
+
 def add_block(symbol: str) -> list[str]:
     _blocklist.add(symbol.upper())
     _cache.save_hod_momo_blocklist(list(_blocklist))
+    if _on_blocklist_changed:
+        _on_blocklist_changed()
     return get_blocklist()
 
 
 def remove_block(symbol: str) -> list[str]:
     _blocklist.discard(symbol.upper())
     _cache.save_hod_momo_blocklist(list(_blocklist))
+    if _on_blocklist_changed:
+        _on_blocklist_changed()
     return get_blocklist()
 
 

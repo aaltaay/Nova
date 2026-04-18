@@ -282,7 +282,7 @@ function BlocklistPanel() {
       <div className="hod-cfg-section-header">
         <span className="hod-cfg-section-title">Global Blocklist</span>
       </div>
-      <p className="hod-cfg-hint">Blocked tickers are excluded from all HOD Momo strategy evaluations.</p>
+      <p className="hod-cfg-hint">Blocked tickers are excluded from every scanner (Gappers, Movers, After-Hours, News Catalysts) and HOD Momo alerts.</p>
       <div className="hod-momo-list">
         {symbols.map(sym => (
           <span key={sym} className="hod-momo-tag hod-block-tag">
