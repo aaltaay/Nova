@@ -30,6 +30,12 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-04-23 — Skip `railway up` deploy job when `RAILWAY_TOKEN` is unset
+
+- **What:** The **Deploy to Railway** job’s `if` now requires `secrets.RAILWAY_TOKEN != ''`. Header comments mark the token as optional when using Railway-only Git deploys.
+- **Why:** An empty or placeholder secret still made the job run and fail; operators who only use Railway’s dashboard deploy don’t need `railway up` from GitHub at all. A bad/expired token still fails until the user replaces it at https://railway.com/account/tokens .
+- **Files touched:** `.github/workflows/deploy.yml`.
+
 ## 2026-04-23 — Fix backend CI when pytest collects zero tests (exit 5)
 
 - **What:** The `Run tests` step in `.github/workflows/deploy.yml` wraps pytest in `set +e` / `set -e` so exit code **5** (“no tests collected”) is handled before `errexit` kills the step.

@@ -5,8 +5,10 @@
 #   2. frontend-build — npm ci + vite build (catches TypeScript / import errors)
 #   3. deploy (main push only, after both jobs pass) — Railway CLI deploy
 #
-# Required GitHub secrets:
-#   RAILWAY_TOKEN       — Railway API token (Settings → Tokens → New token)
+# Optional GitHub secret (omit if you only deploy via Railway’s Git integration):
+#   RAILWAY_TOKEN       — Railway CLI token: https://railway.com/account/tokens
+#                         Repo → Settings → Secrets and variables → Actions → New secret
+#                         If missing or invalid, the deploy job is skipped or fails respectively.
 #
 # Required GitHub variables (Settings → Variables → Actions):
 #   RAILWAY_SERVICE_NAME   — name of the Railway service (e.g. "backend")
@@ -89,7 +91,8 @@ jobs:
     needs: [backend-test, frontend-build]
     runs-on: ubuntu-latest
     # Only deploy on direct pushes to main/master, not on PRs.
-    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && github.event_name == 'push'
+    # Skip when RAILWAY_TOKEN is unset (Railway’s native Git deploy still runs on Railway).
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.RAILWAY_TOKEN != ''
     steps:
       - uses: actions/checkout@v4
 
