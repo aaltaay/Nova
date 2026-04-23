@@ -1332,47 +1332,48 @@ function App() {
       <main className="panel">
         {/* ── Tab bar ───────────────────────────────────────────────── */}
         <div className="tab-bar">
-          <button
-            className={`tab ${activeTab === 'gappers' ? 'active' : ''}`}
-            onClick={() => handleTabClick('gappers')}
-          >
-            Gappers
-            {gappers.length > 0 && <span className="tab-count">{gappers.length}</span>}
-          </button>
-          <button
-            className={`tab ${activeTab === 'movers' ? 'active' : ''}`}
-            onClick={() => handleTabClick('movers')}
-          >
-            Movers
-            {movers.length > 0 && <span className="tab-count">{movers.length}</span>}
-          </button>
-          <button
-            className={`tab ${activeTab === 'afterhours' ? 'active' : ''}`}
-            onClick={() => handleTabClick('afterhours')}
-          >
-            After Hours
-            {afterhours.length > 0 && <span className="tab-count">{afterhours.length}</span>}
-          </button>
-          <button
-            className={`tab ${activeTab === 'catalysts' ? 'active' : ''}`}
-            onClick={() => handleTabClick('catalysts')}
-          >
-            Catalysts
-            <span className="tab-badge-experimental">{CATALYSTS_EXPERIMENTAL_LABEL}</span>
-            {catalysts.length > 0 && <span className="tab-count">{catalysts.length}</span>}
-          </button>
-          <button
-            className={`tab ${activeTab === 'hod_momo' ? 'active' : ''}`}
-            onClick={() => handleTabClick('hod_momo')}
-          >
-            HOD Momo
-            {hodMomoStream.alerts.length > 0 && (
-              <span className="tab-count">{hodMomoStream.alerts.length}</span>
-            )}
-          </button>
-          <div className="tab-spacer" />
+          <div className="tab-bar-scroll">
+            <button
+              className={`tab ${activeTab === 'gappers' ? 'active' : ''}`}
+              onClick={() => handleTabClick('gappers')}
+            >
+              Gappers
+              {gappers.length > 0 && <span className="tab-count">{gappers.length}</span>}
+            </button>
+            <button
+              className={`tab ${activeTab === 'movers' ? 'active' : ''}`}
+              onClick={() => handleTabClick('movers')}
+            >
+              Movers
+              {movers.length > 0 && <span className="tab-count">{movers.length}</span>}
+            </button>
+            <button
+              className={`tab ${activeTab === 'afterhours' ? 'active' : ''}`}
+              onClick={() => handleTabClick('afterhours')}
+            >
+              After Hours
+              {afterhours.length > 0 && <span className="tab-count">{afterhours.length}</span>}
+            </button>
+            <button
+              className={`tab ${activeTab === 'catalysts' ? 'active' : ''}`}
+              onClick={() => handleTabClick('catalysts')}
+            >
+              Catalysts
+              <span className="tab-badge-experimental">{CATALYSTS_EXPERIMENTAL_LABEL}</span>
+              {catalysts.length > 0 && <span className="tab-count">{catalysts.length}</span>}
+            </button>
+            <button
+              className={`tab ${activeTab === 'hod_momo' ? 'active' : ''}`}
+              onClick={() => handleTabClick('hod_momo')}
+            >
+              HOD Momo
+              {hodMomoStream.alerts.length > 0 && (
+                <span className="tab-count">{hodMomoStream.alerts.length}</span>
+              )}
+            </button>
+          </div>
           {!historyDate && secondsAgo != null && (
-            <span className="scan-age">updated {secondsAgo}s ago</span>
+            <span className="scan-age tab-bar-meta">updated {secondsAgo}s ago</span>
           )}
         </div>
 
