@@ -1447,6 +1447,20 @@ class ConfigUpdate(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+
+@app.get("/")
+def root():
+    """Human-friendly root when someone opens the API host in a browser (not an error)."""
+    return {
+        "service": "Nova API",
+        "ok": True,
+        "health": "/api/health",
+        "docs": "/docs",
+        "openapi": "/openapi.json",
+        "note": "REST routes live under /api/… A 404 here used to confuse operators; use /api/health to verify connectivity.",
+    }
+
+
 @app.get("/api/health")
 def health_check():
     return _cached_health

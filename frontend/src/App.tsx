@@ -44,6 +44,7 @@ import {
   API_BASE_URL,
   WS_BASE_URL,
 } from './constants';
+import { isNovaApiDebug } from './debug';
 
 type Mode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
 type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo';
@@ -1098,7 +1099,31 @@ function App() {
         const data = await catalystRes.json();
         if (Array.isArray(data.catalysts)) setCatalysts(data.catalysts);
       }
-    } catch {
+
+      if (isNovaApiDebug()) {
+        for (const [label, res] of [
+          ['gappers', gr],
+          ['movers', moversRes],
+          ['afterhours', ahRes],
+          ['catalysts', catalystRes],
+        ] as const) {
+          if (!res.ok) {
+            console.warn(`[Nova] GET ${API_URL}/${label} -> HTTP ${res.status}`, res.statusText);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Nova] Scanner API network error', {
+        API_URL,
+        API_BASE_URL,
+        hint: 'Backend root / returns 404 by design. Test: ' + `${API_BASE_URL}/api/health`,
+        trace: isNovaApiDebug() ? e : '(set localStorage novaApiDebug=1 and reload for details)',
+      });
+      if (isNovaApiDebug()) {
+        console.info(
+          '[Nova] F12 → Network: find failed request to /api/gappers. Console: localStorage.setItem("novaApiDebug","1") then reload.',
+        );
+      }
       setHealth({ status: 'disconnected', latency_ms: 0, message: 'Backend unreachable' });
     }
   }, []);
