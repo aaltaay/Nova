@@ -71,11 +71,13 @@ jobs:
         working-directory: frontend
 
       - name: Build
-        run: npm run build
+        # Default URL keeps vite/meta/postbuild happy when Actions var is unset
+        # (Railway still injects the real VITE_API_BASE_URL on Railway builds).
+        run: |
+          export VITE_API_BASE_URL="${VITE_API_BASE_URL:-https://ci-placeholder.invalid}"
+          npm run build
         working-directory: frontend
         env:
-          # Use the production backend URL so the build verifies against the
-          # real API base; falls back to localhost if variable is not set.
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
 
   deploy:
