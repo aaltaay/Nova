@@ -31,7 +31,21 @@ async function bootstrap(): Promise<void> {
   );
 }
 
+function readApiBaseFromMeta(): string | null {
+  if (typeof document === 'undefined') return null;
+  const el = document.querySelector('meta[name="nova-api-base"]');
+  const v = el?.getAttribute('content')?.trim();
+  if (v && v.startsWith('http')) return v.replace(/\/$/, '');
+  return null;
+}
+
 async function resolveApiBase(): Promise<string> {
+  const fromMeta = readApiBaseFromMeta();
+  if (fromMeta) {
+    if (isNovaApiDebug()) console.info('[Nova] API base from index.html meta:', fromMeta);
+    return fromMeta;
+  }
+
   const raw = import.meta.env.VITE_API_BASE_URL;
   if (typeof raw === 'string' && raw.trim()) {
     const b = raw.replace(/\/$/, '');
@@ -40,16 +54,28 @@ async function resolveApiBase(): Promise<string> {
   }
   try {
     const res = await fetch('/config.json', { cache: 'no-store' });
-    if (res.ok) {
-      const data = (await res.json()) as { apiBase?: string };
-      const b = data.apiBase?.trim();
-      if (b) {
-        const out = b.replace(/\/$/, '');
-        if (isNovaApiDebug()) console.info('[Nova] API base from /config.json:', out);
-        return out;
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!res.ok) {
+      if (isNovaApiDebug()) console.warn('[Nova] /config.json HTTP', res.status);
+    } else {
+      const text = await res.text();
+      const looksJson = text.trimStart().startsWith('{');
+      if (ct.includes('application/json') && looksJson) {
+        const data = JSON.parse(text) as { apiBase?: string };
+        const b = data.apiBase?.trim();
+        if (b && b.startsWith('http')) {
+          const out = b.replace(/\/$/, '');
+          if (isNovaApiDebug()) console.info('[Nova] API base from /config.json:', out);
+          return out;
+        }
+      } else if (isNovaApiDebug()) {
+        console.warn(
+          '[Nova] /config.json is not real JSON (often SPA fallback HTML).',
+          'content-type:',
+          ct,
+          'Redeploy frontend with VITE_API_BASE_URL at build time, or use meta injection.',
+        );
       }
-    } else if (isNovaApiDebug()) {
-      console.warn('[Nova] /config.json HTTP', res.status, res.statusText);
     }
   } catch (e) {
     if (isNovaApiDebug()) console.warn('[Nova] /config.json fetch failed:', e);
