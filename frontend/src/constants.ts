@@ -70,11 +70,27 @@ export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show 
 export const CATALYSTS_EXPERIMENTAL_LABEL = 'Experimental';
 
 // ── Backend URL ───────────────────────────────────────────────────────────────
-// Set VITE_API_BASE_URL to your Railway public HTTPS domain in production,
-// e.g. https://your-service.up.railway.app  (no trailing slash).
-// Dev fallback: http://localhost:8000  (matches local uvicorn).
-const _rawApiBase: string = (import.meta.env.VITE_API_BASE_URL as string | undefined)
-  ?.replace(/\/$/, '') ?? 'http://localhost:8000';
+// 1) `main.tsx` sets `window.__NOVA_API_BASE__` after optional fetch of `/config.json`
+//    (written at deploy from VITE_API_BASE_URL / NOVA_API_BASE when Vite inlining fails).
+// 2) `VITE_API_BASE_URL` at build time (Vite inlining).
+// 3) Dev fallback: http://localhost:8000  (local uvicorn).
+declare global {
+  interface Window {
+    __NOVA_API_BASE__?: string;
+  }
+}
+
+function readApiBase(): string {
+  if (typeof window !== 'undefined') {
+    const fromBootstrap = window.__NOVA_API_BASE__?.trim();
+    if (fromBootstrap) return fromBootstrap.replace(/\/$/, '');
+  }
+  const fromVite = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (fromVite) return fromVite.replace(/\/$/, '');
+  return 'http://localhost:8000';
+}
+
+const _rawApiBase: string = readApiBase();
 /** REST base, e.g. https://your-service.up.railway.app */
 export const API_BASE_URL: string = _rawApiBase;
 /** WebSocket base derived from API_BASE_URL (https → wss, http → ws). */

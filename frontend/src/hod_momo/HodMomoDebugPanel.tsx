@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { API_BASE_URL } from '../constants';
 
-const API = 'http://localhost:8000';
+const API = `${API_BASE_URL}/api`;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -202,7 +203,7 @@ function SymbolInspector() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`${API}/api/hod-momo/debug/symbol/${sym}`);
+      const resp = await fetch(`${API}/hod-momo/debug/symbol/${sym}`);
       const data = await resp.json();
       setResult(data);
     } catch (e) {
@@ -367,7 +368,7 @@ export function HodMomoDebugPanel() {
 
   async function fetchCounters() {
     try {
-      const r = await fetch(`${API}/api/hod-momo/debug/counters`);
+      const r = await fetch(`${API}/hod-momo/debug/counters`);
       const d = await r.json();
       setCounters(d);
       setCountersUpdated(Date.now());
@@ -376,7 +377,7 @@ export function HodMomoDebugPanel() {
 
   async function fetchDecisions() {
     try {
-      const r = await fetch(`${API}/api/hod-momo/debug/recent?limit=50`);
+      const r = await fetch(`${API}/hod-momo/debug/recent?limit=50`);
       const d = await r.json();
       setDecisions((d.decisions ?? []).slice().reverse());
     } catch { /* silent */ }
@@ -384,7 +385,7 @@ export function HodMomoDebugPanel() {
 
   async function fetchSnaps() {
     try {
-      const r = await fetch(`${API}/api/hod-momo/debug/snaps?limit=50`);
+      const r = await fetch(`${API}/hod-momo/debug/snaps?limit=50`);
       const d = await r.json();
       setSnaps(d.snaps ?? []);
     } catch { /* silent */ }
