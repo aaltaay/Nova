@@ -338,6 +338,11 @@ header > * {
   margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 0;
+  /* .main-col uses overflow: hidden — without this, the 5th tab (HOD Momo) is clipped on common widths */
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tab {
@@ -356,6 +361,7 @@ header > * {
   gap: 0.4rem;
   transition: color 0.15s, border-color 0.15s;
   margin-bottom: -1px;
+  flex-shrink: 0;
 }
 
 .tab:hover {
