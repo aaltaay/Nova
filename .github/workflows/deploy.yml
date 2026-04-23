@@ -45,15 +45,17 @@ jobs:
 
       - name: Run tests
         # Exit 5 means "no tests collected" — acceptable until tests are added.
-        # Any other non-zero exit (real failures) still blocks the workflow.
+        # GitHub's bash runs with `set -e`; pytest exit 5 would abort before we read $?.
         run: |
+          set +e
           pytest backend/ -x -q --tb=short
           PYTEST_EXIT=$?
-          if [ $PYTEST_EXIT -eq 5 ]; then
+          set -e
+          if [ "$PYTEST_EXIT" -eq 5 ]; then
             echo "No tests collected — OK"
             exit 0
           fi
-          exit $PYTEST_EXIT
+          exit "$PYTEST_EXIT"
         shell: bash
 
   frontend-build:

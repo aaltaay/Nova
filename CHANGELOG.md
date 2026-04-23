@@ -30,6 +30,12 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-04-23 — Fix backend CI when pytest collects zero tests (exit 5)
+
+- **What:** The `Run tests` step in `.github/workflows/deploy.yml` wraps pytest in `set +e` / `set -e` so exit code **5** (“no tests collected”) is handled before `errexit` kills the step.
+- **Why:** Default Actions `bash` uses `-e`; `pytest` returning 5 made the step fail immediately, so the “treat 5 as OK” branch never ran and **Backend tests** failed even with no tests.
+- **Files touched:** `.github/workflows/deploy.yml`.
+
 ## 2026-04-23 — Manual `workflow_dispatch` for CI / Deploy
 
 - **What:** Added `workflow_dispatch` to `.github/workflows/deploy.yml`.
