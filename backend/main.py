@@ -492,6 +492,22 @@ def _check_news(symbols: list[str], headers: dict) -> dict[str, str]:
 
 # ── Health ping ───────────────────────────────────────────────────────────────
 
+
+def _set_health_broker_keys_missing() -> None:
+    """Alpaca headers unavailable — scans cannot run; avoid leaving /api/health stuck on 'loading'."""
+    global _cached_health
+    _cached_health = {
+        "status": "error",
+        "latency_ms": 0,
+        "message": (
+            "Broker API keys are not set on this server. "
+            "In Railway (Backend service → Variables), add APCA_API_KEY_ID and "
+            "APCA_API_SECRET_KEY, then redeploy or restart. "
+            "Until then, /api/health stays in this state instead of 'loading'."
+        ),
+    }
+
+
 def _ping_health(base_url: str, headers: dict) -> bool:
     global _cached_health
     start = datetime.now()
@@ -1406,6 +1422,12 @@ async def lifespan(app: FastAPI):
     headers = _alpaca_headers()
     if headers:
         await loop.run_in_executor(None, lambda: _ping_health(base_url, headers))
+    else:
+        _set_health_broker_keys_missing()
+        logger.warning(
+            "Alpaca credentials missing (APCA_API_KEY_ID / APCA_API_SECRET_KEY); "
+            "scanner cannot run until they are set in the host environment."
+        )
     scan_task = asyncio.create_task(_scan_loop())
     ws_task = asyncio.create_task(_ws_stream_loop())
     hod_flush_task = asyncio.create_task(_hod_momo.flush_consolidated_loop())
