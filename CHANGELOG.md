@@ -30,6 +30,12 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-04-23 — Manual `workflow_dispatch` for CI / Deploy
+
+- **What:** Added `workflow_dispatch` to `.github/workflows/deploy.yml`.
+- **Why:** Operators may see the workflow listed with zero runs; they can start it from the Actions UI without an empty commit.
+- **Files touched:** `.github/workflows/deploy.yml`.
+
 ## 2026-04-23 — GitHub Actions vs Railway `prebuild` (fix CI blocking Railway)
 
 - **What:** `check-railway-api-base.mjs` treats a build as “Railway” only when `RAILWAY_PROJECT_ID` is set **and** `GITHUB_ACTIONS` is unset. The `frontend-build` job uses a bash default for `VITE_API_BASE_URL` when the Actions variable is empty.

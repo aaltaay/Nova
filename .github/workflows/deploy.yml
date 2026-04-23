@@ -24,6 +24,8 @@ on:
     branches: [main, master]
   pull_request:
     branches: [main, master]
+  # Lets you run CI from Actions → CI / Deploy → “Run workflow” when nothing has triggered yet
+  workflow_dispatch:
 
 jobs:
   backend-test:
