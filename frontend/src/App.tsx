@@ -3,6 +3,7 @@ import { HodMomoTab } from './hod_momo/HodMomoTab';
 import { HodMomoSettings } from './hod_momo/HodMomoSettings';
 import { useHodMomoStream } from './hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from './hod_momo/useHodMomoConfig';
+import { TickerChart } from './TickerChart';
 
 function NovaLogo() {
   return (
@@ -584,6 +585,12 @@ function TickerDetailContent({
           </div>
         )}
       </div>
+
+      {/* Interactive price chart */}
+      <TickerChart
+        symbol={detail.symbol}
+        lastTrade={trade?.price != null ? { price: trade.price, timestamp: trade.timestamp ?? null } : undefined}
+      />
 
       {/* Description */}
       {descParts.length > 0 && (

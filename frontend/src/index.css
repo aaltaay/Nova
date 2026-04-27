@@ -1873,3 +1873,153 @@ th {
 .dbg-decisions-title { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.25rem; }
 .dbg-dec-row { display: flex; gap: 0.75rem; font-size: 0.76rem; padding: 0.15rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); align-items: center; flex-wrap: wrap; }
 .dbg-strat-summary { font-family: monospace; color: #00e676; font-size: 0.72rem; }
+
+/* ── Ticker Chart ────────────────────────────────────────────────────────── */
+
+.chart-card {
+  margin: 0.75rem 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chart-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chart-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.chart-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-family: 'Inter', sans-serif;
+  padding: 0.2rem 0.45rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chart-tab:hover {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-primary);
+}
+
+.chart-tab--active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.chart-body {
+  position: relative;
+  width: 100%;
+}
+
+.chart-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  background: rgba(22, 25, 33, 0.7);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.chart-overlay--error {
+  color: var(--danger);
+}
+
+/* ── Chart Drawing Toolbar ──────────────────────────────────────────────── */
+
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0.3rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.chart-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chart-tool-btn:hover {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-primary);
+}
+
+.chart-tool-btn--active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: var(--accent-color);
+}
+
+.chart-tool-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.chart-tool-icon {
+  font-family: monospace;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.chart-toolbar-spacer {
+  flex: 1;
+}
+
+/* ── Chart Maximized Overlay ────────────────────────────────────────────── */
+
+.chart-card--maximized {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-card--maximized .chart-body {
+  flex: 1;
+  height: 0; /* let flex handle sizing */
+}
+

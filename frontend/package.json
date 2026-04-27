@@ -12,6 +12,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "lightweight-charts": "^5.1.0",
+    "lightweight-charts-drawing": "^0.1.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

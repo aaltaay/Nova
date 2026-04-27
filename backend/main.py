@@ -47,6 +47,8 @@ from constants import (
     GAPPER_MIN_GAP_PCT,
     HISTORY_RETENTION_DAYS,
     HOD_MOMO_UNIVERSE_INTERVAL_SEC,
+    CHART_DEFAULT_BARS,
+    CHART_DEFAULT_TIMEFRAME,
     NEWS_CATALYST_ARTICLE_LIMIT,
     NEWS_CATALYST_INTERVAL_SEC,
     NEWS_CATALYST_LOOKBACK_HOURS,
@@ -77,6 +79,7 @@ from cache import (
     save_movers_snapshot,
 )
 import hod_momo as _hod_momo
+from bars import fetch_bars as _fetch_bars
 
 load_dotenv()
 
@@ -1968,6 +1971,16 @@ def _build_ticker_detail(symbol: str) -> dict:
 def get_ticker_detail(symbol: str):
     """Fetch full detail for a single symbol: asset info, snapshot, news, avg volume."""
     return _build_ticker_detail(symbol.upper())
+
+
+@app.get("/api/ticker/{symbol}/bars")
+def get_ticker_bars(
+    symbol: str,
+    timeframe: str = CHART_DEFAULT_TIMEFRAME,
+    limit: int = CHART_DEFAULT_BARS,
+):
+    """Fetch OHLCV bars for a symbol. Powered by the Alpaca Data API."""
+    return _fetch_bars(symbol.upper(), timeframe, limit)
 
 
 @app.websocket("/ws/ticker/{symbol}")

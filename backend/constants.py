@@ -98,6 +98,31 @@ TICKER_SNAPSHOT_CACHE_TTL = 10.0    # 10 seconds
 TICKER_SLOW_CACHE_TTL = 90.0        # 90 seconds
 
 
+# ── Ticker chart (Alpaca bars) ────────────────────────────────────────────────
+# Valid Alpaca timeframe strings accepted by GET /v2/stocks/{symbol}/bars.
+CHART_TIMEFRAMES: tuple[str, ...] = (
+    "1Min", "5Min", "15Min", "30Min", "1Hour", "4Hour", "1Day", "1Week", "1Month",
+)
+CHART_DEFAULT_TIMEFRAME = "5Min"
+
+# How many calendar days to look back when no explicit `start` is passed.
+# SIP bars include extended hours (pre-market + after-hours), so actual bar
+# counts per day are higher than regular-session-only estimates.
+CHART_LOOKBACK_DAYS: dict[str, int] = {
+    "1Min":  5,
+    "5Min":  10,
+    "15Min": 30,
+    "30Min": 60,
+    "1Hour": 90,
+    "4Hour": 180,
+    "1Day":  1825,   # ~5 years
+    "1Week": 3650,   # ~10 years
+    "1Month": 7300,  # ~20 years
+}
+CHART_DEFAULT_BARS = 500   # bars returned when caller doesn't specify limit
+CHART_MAX_BARS     = 5000  # hard ceiling — prevents runaway requests
+
+
 # ── HOD Momo Scanner ──────────────────────────────────────────────────────────
 
 import os as _os

@@ -69,6 +69,28 @@ export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show 
 // Label shown on the experimental Catalysts tab badge
 export const CATALYSTS_EXPERIMENTAL_LABEL = 'Experimental';
 
+// ── Ticker chart ─────────────────────────────────────────────────────────────
+// Mirrors backend CHART_TIMEFRAMES / CHART_DEFAULT_TIMEFRAME in constants.py.
+export interface ChartTimeframe {
+  /** Alpaca API timeframe string (also used as query param) */
+  id: string;
+  /** Short label shown on the timeframe tab buttons */
+  label: string;
+}
+export const CHART_TIMEFRAMES: ChartTimeframe[] = [
+  { id: '1Min',   label: '1m'  },
+  { id: '5Min',   label: '5m'  },
+  { id: '15Min',  label: '15m' },
+  { id: '30Min',  label: '30m' },
+  { id: '1Hour',  label: '1H'  },
+  { id: '4Hour',  label: '4H'  },
+  { id: '1Day',   label: '1D'  },
+  { id: '1Week',  label: '1W'  },
+  { id: '1Month', label: '1M'  },
+];
+export const CHART_DEFAULT_TIMEFRAME = '5Min';
+export const CHART_CARD_TITLE = 'Price Chart';
+
 // ── Backend URL ───────────────────────────────────────────────────────────────
 // 1) `main.tsx` sets `window.__NOVA_API_BASE__` after optional fetch of `/config.json`
 //    (written at deploy from VITE_API_BASE_URL / NOVA_API_BASE when Vite inlining fails).
