@@ -68,6 +68,7 @@
 - **Read-Only Mode**: The system only reads market data from API and does not execute or manipulate trades.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
+- **Git Commit & Push After Every Task**: After completing any task, the assistant MUST run `git add .`, `git commit -m "<descriptive message>"`, and `git push origin master`. No exceptions — the user should never have to remind this.
 
 ---
 
@@ -75,4 +76,5 @@
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-04-27 | Added mandatory git commit & push rule | User Directive |
 | 2026-04-13 | Project Constitution initialized | System Pilot |
