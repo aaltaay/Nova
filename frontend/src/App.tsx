@@ -1626,6 +1626,7 @@ function App() {
               selectedSymbol={selectedSymbol}
               onSelectSymbol={setSelectedSymbol}
               onOpenSettings={() => setShowHodSettings(s => !s)}
+              dataFeed={activeFeed}
             />
           </>
         )}

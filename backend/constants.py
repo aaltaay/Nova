@@ -154,7 +154,8 @@ HOD_MOMO_SESSION_RESET_HOUR_ET = 4   # reset session state at 4:00 AM ET
 
 # Enrichment loop intervals
 HOD_MOMO_ENRICH_INTERVAL_SEC = 30.0          # batch snapshot enrichment cadence
-HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC = 5.0  # fundamentals per-symbol drain cadence
+HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC = 2.0  # fundamentals per-symbol drain cadence
+HOD_MOMO_FUNDAMENTALS_BATCH_SIZE = 10            # symbols per fundamentals tick (warm up faster)
 
 # Master gate defaults
 HOD_MOMO_MASTER_HOD_REQUIRED = True
@@ -163,6 +164,11 @@ HOD_MOMO_MASTER_SURGE_WINDOW_MIN = 5  # minutes
 HOD_MOMO_MASTER_MIN_RVOL = 2.0
 HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 1.0   # relaxed during 4–9:30 AM and 4–8 PM ET
 HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 1.0
+
+# RVOL fallback: when on IEX free tier, Alpaca historical bars are mostly empty.
+# During warmup (first N seconds after startup), skip the RVOL master gate entirely
+# so the scanner can fire while yfinance data loads progressively.
+HOD_MOMO_RVOL_WARMUP_GRACE_SEC = 300            # 5 min: skip RVOL gate while yfinance warms up
 
 # Strategy names (canonical order 1–11)
 HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {

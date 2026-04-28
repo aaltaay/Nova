@@ -46,6 +46,7 @@ from constants import (
     HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL,
     HOD_MOMO_MASTER_SURGE_PCT,
     HOD_MOMO_MASTER_SURGE_WINDOW_MIN,
+    HOD_MOMO_RVOL_WARMUP_GRACE_SEC,
     HOD_MOMO_SESSION_RESET_HOUR_ET,
     HOD_MOMO_STRATEGY_AUDIO_DEFAULT,
     HOD_MOMO_STRATEGY_COLORS,
@@ -135,6 +136,7 @@ class AlertObject:
     gap_pct: float | None
     volume: int | None
     momentum_pct: float | None   # surge % that triggered (if applicable)
+    rvol_source: str | None = None  # "alpaca" | "yfinance" | None
     consolidation_count: int = 1
     consolidated_ids: list[str] = field(default_factory=list)
 
@@ -195,6 +197,9 @@ _per_symbol_decisions: dict[str, deque[DecisionRecord]] = {}
 # Fundamentals request queue — enrichment loop drains this
 _fundamentals_queue: deque[str] = deque()
 _fundamentals_queued: set[str] = set()
+
+# Startup timestamp — used for RVOL warmup grace period
+_startup_ts: float = 0.0
 
 
 # ── Default config builder ─────────────────────────────────────────────────────
@@ -265,6 +270,7 @@ def _alert_from_dict(d: dict) -> AlertObject:
         gap_pct=d.get("gap_pct"),
         volume=d.get("volume"),
         momentum_pct=d.get("momentum_pct"),
+        rvol_source=d.get("rvol_source"),
         consolidation_count=d.get("consolidation_count", 1),
         consolidated_ids=d.get("consolidated_ids", []),
     )
@@ -402,6 +408,7 @@ class _TickerSnap:
     volume: int | None = None
     change_pct: float | None = None
     fifty_two_week_high: float | None = None
+    rvol_source: str | None = None   # "alpaca" | "yfinance" | None
     last_enriched: float = 0.0   # monotonic timestamp of last enrichment update
 
 
@@ -417,6 +424,7 @@ def update_ticker_snapshot(
     volume: int | None = None,
     change_pct: float | None = None,
     fifty_two_week_high: float | None = None,
+    rvol_source: str | None = None,
 ) -> None:
     """Called by hod_momo_enrichment.py whenever fresh snapshot data arrives.
 
@@ -436,6 +444,8 @@ def update_ticker_snapshot(
         snap.change_pct = change_pct
     if fifty_two_week_high is not None:
         snap.fifty_two_week_high = fifty_two_week_high
+    if rvol_source is not None:
+        snap.rvol_source = rvol_source
     snap.last_enriched = time.monotonic()
 
 
@@ -554,8 +564,13 @@ def _passes_master_gate(symbol: str, snap: _TickerSnap) -> tuple[bool, str]:
     eff_min_rvol = _effective_min_rvol()
     if eff_min_rvol > 0:
         if snap.rvol is None:
-            return False, "master_rvol:unknown"
-        if snap.rvol < eff_min_rvol:
+            # Warmup grace: skip RVOL gate for first N seconds after startup
+            # so the scanner works while yfinance data loads progressively.
+            if _startup_ts and (time.monotonic() - _startup_ts) < HOD_MOMO_RVOL_WARMUP_GRACE_SEC:
+                pass  # grace period — let it through without RVOL
+            else:
+                return False, "master_rvol:unknown"
+        elif snap.rvol < eff_min_rvol:
             return False, f"master_rvol({snap.rvol:.2f}<{eff_min_rvol})"
 
     if _master.surge_pct > 0 and _master.surge_window_min > 0:
@@ -689,6 +704,7 @@ def on_trade_update(
             gap_pct=snap.gap_pct,
             volume=snap.volume,
             momentum_pct=surge,
+            rvol_source=snap.rvol_source,
         )
 
         _cooldown[key] = now_ts + _master.cooldown_sec
@@ -956,6 +972,7 @@ def get_debug_symbol(symbol: str) -> dict:
             "change_pct": snap.change_pct if snap else None,
             "volume": snap.volume if snap else None,
             "fifty_two_week_high": snap.fifty_two_week_high if snap else None,
+            "rvol_source": snap.rvol_source if snap else None,
             "last_enriched": snap.last_enriched if snap else 0.0,
         },
         "session_high": _session_highs.get(sym),
@@ -1015,6 +1032,7 @@ def get_debug_snaps(limit: int = 50) -> list[dict]:
             "gap_pct": snap.gap_pct,
             "change_pct": snap.change_pct,
             "volume": snap.volume,
+            "rvol_source": snap.rvol_source,
             "last_enriched": snap.last_enriched,
         }
         for sym, snap in enriched[:limit]
@@ -1025,7 +1043,9 @@ def get_debug_snaps(limit: int = 50) -> list[dict]:
 
 def load_state() -> None:
     """Called once at lifespan startup. Loads persisted configs, blocklist, and today's alerts."""
-    global _configs, _master, _blocklist, _today_alerts, _session_date
+    global _configs, _master, _blocklist, _today_alerts, _session_date, _startup_ts
+
+    _startup_ts = time.monotonic()
 
     _configs = _build_default_configs()
     _load_configs_from_disk()

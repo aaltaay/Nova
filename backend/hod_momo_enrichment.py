@@ -13,6 +13,12 @@ Two loops are registered as asyncio tasks in main.py lifespan:
 
 Both loops call back into main.py for HTTP helpers to avoid duplicating that code;
 the import is done lazily inside the loops to prevent circular imports.
+
+Feed-level RVOL routing (§ yfinance fallback):
+  - SIP feed: RVOL = Alpaca snapshot volume / Alpaca historical avg volume (consolidated)
+  - IEX feed: RVOL = yfinance current_volume / yfinance average_volume (consolidated)
+    Alpaca IEX bars return empty/zero data for most symbols, so we route ALL
+    RVOL through yfinance when on IEX free tier.
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ import hod_momo as _hod_momo
 from constants import (
     HOD_MOMO_ENRICH_INTERVAL_SEC,
     HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC,
+    HOD_MOMO_FUNDAMENTALS_BATCH_SIZE,
     RVOL_LOOKBACK_DAYS,
 )
 
@@ -36,7 +43,8 @@ async def universe_enrichment_loop() -> None:
     """Batch-fetch Alpaca snapshots for the full HOD universe every ~30 s.
 
     For each symbol, computes: price, prev_close, change_pct, gap_pct, volume,
-    rvol (using main._avg_volume_cache), and writes into hod_momo._ticker_snaps.
+    rvol (using main._avg_volume_cache or yfinance fallback), and writes into
+    hod_momo._ticker_snaps.
     """
     import main as _main  # lazy to avoid circular import
 
@@ -55,8 +63,12 @@ async def universe_enrichment_loop() -> None:
                 continue
 
             symbols = list(universe)
+            feed = _main._get_feed()
+            is_iex = feed != "sip"
+
             logger.info(
-                "HOD Momo enrichment: fetching snapshots for %d symbols", len(symbols)
+                "HOD Momo enrichment: fetching snapshots for %d symbols (feed=%s)",
+                len(symbols), feed,
             )
 
             # Run blocking HTTP calls in executor to avoid stalling the event loop
@@ -69,25 +81,25 @@ async def universe_enrichment_loop() -> None:
                 logger.warning("HOD Momo enrichment: snapshot fetch returned empty")
                 continue
 
-            # Progressively fill avg_vol for symbols that are missing it — one chunk of
-            # 200 per enrichment cycle to avoid the 20s×60-batch timeout that blocks the
-            # event loop.  Most symbols become enriched within a few cycles.
-            snap_syms = list(snaps.keys())
-            missing_avg = [s for s in snap_syms if s not in _main._avg_volume_cache]
-            if missing_avg:
-                chunk = missing_avg[:200]
-                try:
-                    await loop.run_in_executor(
-                        None, lambda: _main._ensure_avg_volume(chunk, headers)
-                    )
-                    logger.debug(
-                        "HOD Momo enrichment: avg_vol chunk %d/%d done",
-                        len(chunk), len(missing_avg),
-                    )
-                except Exception as avg_exc:
-                    logger.debug("HOD Momo enrichment: avg_vol chunk failed: %s", avg_exc)
+            # ── SIP path: fill avg_vol from Alpaca bars (consolidated) ──────────
+            if not is_iex:
+                snap_syms = list(snaps.keys())
+                missing_avg = [s for s in snap_syms if s not in _main._avg_volume_cache]
+                if missing_avg:
+                    chunk = missing_avg[:200]
+                    try:
+                        await loop.run_in_executor(
+                            None, lambda: _main._ensure_avg_volume(chunk, headers)
+                        )
+                        logger.debug(
+                            "HOD Momo enrichment: avg_vol chunk %d/%d done",
+                            len(chunk), len(missing_avg),
+                        )
+                    except Exception as avg_exc:
+                        logger.debug("HOD Momo enrichment: avg_vol chunk failed: %s", avg_exc)
 
             enriched = 0
+            fundamentals_queued = 0
             for sym, snap in snaps.items():
                 try:
                     latest_trade = snap.get("latestTrade") or {}
@@ -101,7 +113,6 @@ async def universe_enrichment_loop() -> None:
                     # Correct prev-close using the same timestamp-aware helper main.py uses
                     prev_close = _main._pick_prev_close(snap) or 0.0
                     volume = int(daily_bar.get("v") or 0)
-                    avg_vol = _main._avg_volume_cache.get(sym)
 
                     if prev_close and prev_close > 0:
                         change_pct = (price - prev_close) / prev_close * 100.0
@@ -114,9 +125,28 @@ async def universe_enrichment_loop() -> None:
                         change_pct = None
                         gap_pct = None
 
+                    # ── RVOL computation: feed-level switch ────────────────────
                     rvol: float | None = None
-                    if avg_vol and avg_vol > 0 and volume > 0:
-                        rvol = round(volume / avg_vol, 2)
+                    rvol_source: str | None = None
+
+                    if is_iex:
+                        # IEX path: use yfinance consolidated data for BOTH sides
+                        fund = _main._fundamentals_cache.get(sym, {})
+                        yf_avg = fund.get("average_volume")
+                        yf_vol = fund.get("current_volume")
+                        if yf_avg and yf_avg > 0 and yf_vol and yf_vol > 0:
+                            rvol = round(yf_vol / yf_avg, 2)
+                            rvol_source = "yfinance"
+                        elif sym not in _main._fundamentals_cache:
+                            # Queue for yfinance fetch so RVOL becomes available next cycle
+                            _hod_momo.mark_needs_fundamentals(sym)
+                            fundamentals_queued += 1
+                    else:
+                        # SIP path: use Alpaca consolidated data
+                        avg_vol = _main._avg_volume_cache.get(sym)
+                        if avg_vol and avg_vol > 0 and volume > 0:
+                            rvol = round(volume / avg_vol, 2)
+                            rvol_source = "alpaca"
 
                     _hod_momo.update_ticker_snapshot(
                         sym,
@@ -125,13 +155,15 @@ async def universe_enrichment_loop() -> None:
                         gap_pct=gap_pct,
                         volume=volume if volume else None,
                         change_pct=change_pct,
+                        rvol_source=rvol_source,
                     )
                     enriched += 1
                 except Exception as sym_exc:
                     logger.debug("HOD Momo enrichment: error for %s: %s", sym, sym_exc)
 
             logger.info(
-                "HOD Momo enrichment: enriched %d / %d symbols", enriched, len(snaps)
+                "HOD Momo enrichment: enriched %d / %d symbols (rvol_source=%s, queued_fund=%d)",
+                enriched, len(snaps), "yfinance" if is_iex else "alpaca", fundamentals_queued,
             )
 
         except asyncio.CancelledError:
@@ -141,10 +173,10 @@ async def universe_enrichment_loop() -> None:
 
 
 async def fundamentals_enrichment_loop() -> None:
-    """Drain the fundamentals queue, fetching float + 52wk-high for each symbol.
+    """Drain the fundamentals queue, fetching float + 52wk-high + avg volume for each symbol.
 
-    Called every HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC.  Processes one symbol
-    per tick to avoid hammering yfinance.
+    Called every HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC.  Processes up to
+    HOD_MOMO_FUNDAMENTALS_BATCH_SIZE symbols per tick to warm up faster on IEX.
     """
     import main as _main
 
@@ -152,36 +184,56 @@ async def fundamentals_enrichment_loop() -> None:
         try:
             await asyncio.sleep(HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC)
 
-            sym = _hod_momo.pop_fundamentals_request()
-            if not sym:
-                continue
+            # Process a batch of symbols per tick (was 1, now configurable)
+            processed = 0
+            for _ in range(HOD_MOMO_FUNDAMENTALS_BATCH_SIZE):
+                sym = _hod_momo.pop_fundamentals_request()
+                if not sym:
+                    break
 
-            logger.debug("HOD Momo fundamentals: fetching for %s", sym)
+                logger.debug("HOD Momo fundamentals: fetching for %s", sym)
 
-            loop = asyncio.get_event_loop()
-            fund: dict = await loop.run_in_executor(
-                None, lambda: _main._fetch_fundamentals(sym)
-            )
+                loop = asyncio.get_event_loop()
+                fund: dict = await loop.run_in_executor(
+                    None, lambda s=sym: _main._fetch_fundamentals(s)
+                )
 
-            float_shares = fund.get("float_shares")
-            fifty_two_week_high = fund.get("fifty_two_week_high")
+                float_shares = fund.get("float_shares")
+                fifty_two_week_high = fund.get("fifty_two_week_high")
 
-            snap = _hod_momo._ticker_snaps.get(sym)
-            if snap is None:
-                # Symbol has no price yet — keep it warm for next enrichment cycle
-                _hod_momo.mark_needs_fundamentals(sym)
-                continue
+                snap = _hod_momo._ticker_snaps.get(sym)
+                if snap is None:
+                    # Symbol has no price yet — keep it warm for next enrichment cycle
+                    _hod_momo.mark_needs_fundamentals(sym)
+                    continue
 
-            _hod_momo.update_ticker_snapshot(
-                sym,
-                price=snap.price,
-                float_shares=float_shares,
-                fifty_two_week_high=fifty_two_week_high,
-            )
-            logger.debug(
-                "HOD Momo fundamentals: %s float=%s 52wkH=%s",
-                sym, float_shares, fifty_two_week_high,
-            )
+                # On IEX, also compute RVOL from yfinance data now that we have it
+                rvol: float | None = None
+                rvol_source: str | None = None
+                feed = _main._get_feed()
+                if feed != "sip":
+                    yf_avg = fund.get("average_volume")
+                    yf_vol = fund.get("current_volume")
+                    if yf_avg and yf_avg > 0 and yf_vol and yf_vol > 0:
+                        rvol = round(yf_vol / yf_avg, 2)
+                        rvol_source = "yfinance"
+
+                _hod_momo.update_ticker_snapshot(
+                    sym,
+                    price=snap.price,
+                    float_shares=float_shares,
+                    fifty_two_week_high=fifty_two_week_high,
+                    rvol=rvol,
+                    rvol_source=rvol_source,
+                )
+                processed += 1
+                logger.debug(
+                    "HOD Momo fundamentals: %s float=%s 52wkH=%s rvol=%s (src=%s)",
+                    sym, float_shares, fifty_two_week_high, rvol, rvol_source,
+                )
+
+            if processed > 0:
+                logger.info("HOD Momo fundamentals: processed %d symbols this tick", processed)
 
         except asyncio.CancelledError:
             raise

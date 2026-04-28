@@ -130,7 +130,19 @@ function AlertRow({
             case 'rvol':
               return (
                 <td key={key}>
-                  {alert.rvol != null ? `${alert.rvol.toFixed(2)}x` : <span className="na-muted">—</span>}
+                  {alert.rvol != null ? (
+                    <span className="hod-rvol-cell">
+                      {alert.rvol.toFixed(2)}x
+                      {alert.rvol_source === 'yfinance' && (
+                        <span
+                          className="hod-rvol-badge yf"
+                          title="RVOL from yfinance consolidated data (IEX free tier)"
+                        >
+                          YF
+                        </span>
+                      )}
+                    </span>
+                  ) : <span className="na-muted">—</span>}
                 </td>
               );
             case 'float':
@@ -301,6 +313,7 @@ interface HodMomoTabProps {
   selectedSymbol: string | null;
   onSelectSymbol: (sym: string) => void;
   onOpenSettings: () => void;
+  dataFeed?: string;
 }
 
 export function HodMomoTab({
@@ -310,6 +323,7 @@ export function HodMomoTab({
   selectedSymbol,
   onSelectSymbol,
   onOpenSettings,
+  dataFeed,
 }: HodMomoTabProps) {
   const [activeSubPanel, setActiveSubPanel] = useState<SubPanel>('main');
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -371,6 +385,17 @@ export function HodMomoTab({
           </button>
         </div>
       </div>
+
+      {/* IEX free tier RVOL source banner */}
+      {dataFeed === 'iex' && (
+        <div className="hod-iex-banner">
+          <span className="hod-iex-banner-icon">ⓘ</span>
+          <span>
+            <strong>IEX Free Tier</strong> — RVOL sourced from yfinance (consolidated).
+            Upgrade to SIP for real-time RVOL.
+          </span>
+        </div>
+      )}
 
       {/* Sub-panel strip */}
       <SubPanelStrip

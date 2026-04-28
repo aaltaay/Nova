@@ -1295,6 +1295,52 @@ th {
   text-overflow: ellipsis;
 }
 
+/* RVOL cell with source badge */
+.hod-rvol-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.hod-rvol-badge {
+  display: inline-block;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  line-height: 1.4;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.hod-rvol-badge.yf {
+  background: rgba(234, 179, 8, 0.18);
+  color: #ca8a04;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+/* IEX free tier banner */
+.hod-iex-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  margin: 0.4rem 0.25rem 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.hod-iex-banner-icon {
+  font-size: 1rem;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
 /* Time cell */
 .hod-time-cell {
   white-space: nowrap;

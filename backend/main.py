@@ -343,6 +343,8 @@ def _fetch_fundamentals(symbol: str) -> dict:
             "beta": info.get("beta"),
             "earnings_date": earnings_date,
             "recent_split": recent_split,
+            "average_volume": info.get("averageVolume"),
+            "current_volume": info.get("volume"),
         }
         _fundamentals_cache[symbol] = fundamentals
         _fundamentals_cache_ts[symbol] = now
@@ -354,6 +356,7 @@ def _fetch_fundamentals(symbol: str) -> dict:
             "pe_ratio": None, "forward_pe": None, "eps": None, "sector": None,
             "industry": None, "fifty_two_week_high": None, "fifty_two_week_low": None,
             "dividend_yield": None, "beta": None, "earnings_date": None, "recent_split": None,
+            "average_volume": None, "current_volume": None,
         }
         _fundamentals_cache[symbol] = empty
         _fundamentals_cache_ts[symbol] = now

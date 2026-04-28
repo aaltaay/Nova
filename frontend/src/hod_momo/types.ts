@@ -15,6 +15,7 @@ export interface AlertObject {
   gap_pct: number | null;
   volume: number | null;
   momentum_pct: number | null;
+  rvol_source: string | null;     // "alpaca" | "yfinance" | null
   consolidation_count: number;
   consolidated_ids: string[];
 }
