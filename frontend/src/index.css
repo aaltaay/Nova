@@ -200,6 +200,65 @@ header > * {
   100% { opacity: 0.5; }
 }
 
+/* ── Data feed badge (header) ─────────────────────────────────────────────── */
+
+.feed-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  text-transform: uppercase;
+  border: 1px solid;
+  margin-left: 0.15rem;
+}
+
+.feed-badge.feed-iex {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.feed-badge.feed-sip {
+  color: #a78bfa;
+  border-color: rgba(167, 139, 250, 0.35);
+  background: rgba(167, 139, 250, 0.08);
+}
+
+.feed-fallback-hint {
+  font-size: 0.7rem;
+  color: #f59e0b;
+  cursor: help;
+  white-space: nowrap;
+}
+
+/* ── Feed select (settings panel) ─────────────────────────────────────────── */
+
+.feed-select {
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  transition: border-color 0.2s;
+  cursor: pointer;
+  width: 100%;
+}
+
+.feed-select:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.form-hint {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  line-height: 1.3;
+}
+
 .settings-panel {
   margin-bottom: 1.5rem;
   max-width: 480px;

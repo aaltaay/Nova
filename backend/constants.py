@@ -83,6 +83,12 @@ HISTORY_RETENTION_DAYS = 30   # delete dated cache files older than this many da
 # to recover quickly when Alpaca frees a stale connection slot (typically 30–60 s).
 ALPACA_WS_BACKOFF_CAP = 60.0
 
+# ── Data feed ─────────────────────────────────────────────────────────────────
+# "iex" is the free-tier Alpaca feed; "sip" requires a paid data subscription.
+# Override at runtime via env var ALPACA_DATA_FEED or through the UI Settings panel.
+DATA_FEED_DEFAULT = "iex"
+DATA_FEED_OPTIONS = ("iex", "sip")
+
 # ── Ticker detail caches ──────────────────────────────────────────────────────
 # Fundamentals (yfinance/Yahoo) are slow; cache aggressively.
 FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes

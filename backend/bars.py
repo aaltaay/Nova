@@ -15,6 +15,7 @@ from constants import (
     CHART_LOOKBACK_DAYS,
     CHART_MAX_BARS,
     CHART_TIMEFRAMES,
+    DATA_FEED_DEFAULT,
 )
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ def _alpaca_headers() -> dict[str, str] | None:
 
 
 def _get_feed() -> str:
-    return (_env("ALPACA_DATA_FEED") or "sip").lower()
+    return (_env("ALPACA_DATA_FEED") or DATA_FEED_DEFAULT).lower()
 
 
 def fetch_bars(

@@ -39,6 +39,8 @@ from constants import (
     AFTERHOURS_FOCUS_INTERVAL_SEC,
     ALPACA_WS_BACKOFF_CAP,
     CLOSED_INTERVAL_SEC,
+    DATA_FEED_DEFAULT,
+    DATA_FEED_OPTIONS,
     DISCOVERY_INTERVAL_SEC,
     EXCLUDED_NAME_KEYWORDS,
     FOCUS_INTERVAL_SEC,
@@ -216,8 +218,54 @@ def _in_after_hours() -> bool:
     return start <= now < end
 
 
+# ── Active data feed tracking ─────────────────────────────────────────────────
+# Tracks which feed is actually in use (may differ from configured if fallback fires).
+_active_feed: str = ""  # set at first _get_feed() call
+_feed_fell_back: bool = False  # True if SIP→IEX fallback was triggered this session
+
+
 def _get_feed() -> str:
-    return (_env("ALPACA_DATA_FEED") or "sip").lower()
+    """Return the active Alpaca data feed (iex or sip).
+
+    Priority: _active_feed (runtime) > env ALPACA_DATA_FEED > DATA_FEED_DEFAULT.
+    """
+    global _active_feed
+    if _active_feed:
+        return _active_feed
+    raw = (_env("ALPACA_DATA_FEED") or DATA_FEED_DEFAULT).lower()
+    if raw not in DATA_FEED_OPTIONS:
+        raw = DATA_FEED_DEFAULT
+    _active_feed = raw
+    return _active_feed
+
+
+def _set_feed(feed: str) -> None:
+    """Change the active data feed at runtime (e.g. from Settings or auto-fallback)."""
+    global _active_feed, _feed_fell_back
+    feed = feed.lower()
+    if feed not in DATA_FEED_OPTIONS:
+        feed = DATA_FEED_DEFAULT
+    _active_feed = feed
+    _feed_fell_back = False  # reset fallback flag when user explicitly changes
+    logger.info("Data feed set to '%s'", _active_feed)
+
+
+def _try_fallback_to_iex(context: str) -> bool:
+    """If currently on SIP and a subscription error occurs, fall back to IEX.
+
+    Returns True if the fallback was applied (caller should retry), False otherwise.
+    """
+    global _active_feed, _feed_fell_back
+    if _active_feed == "sip" and not _feed_fell_back:
+        logger.warning(
+            "SIP feed rejected (%s) — falling back to IEX. "
+            "Change feed in Settings or set ALPACA_DATA_FEED=sip if your plan supports it.",
+            context,
+        )
+        _active_feed = "iex"
+        _feed_fell_back = True
+        return True
+    return False
 
 
 # ── Fundamentals (yfinance / Yahoo Finance) ───────────────────────────────────
@@ -453,7 +501,30 @@ def _ensure_avg_volume(symbols: list[str], headers: dict) -> None:
                 },
                 timeout=20,
             )
-            if resp.status_code != 200:
+            if resp.status_code == 403 and "sip" in resp.text.lower():
+                    if _try_fallback_to_iex("avg_volume bars 403 SIP rejection"):
+                        feed = _get_feed()
+                        # Retry this chunk with the new feed
+                        resp = requests.get(
+                            f"{_DATA_URL}/v2/stocks/bars",
+                            headers=headers,
+                            params={
+                                "symbols": ",".join(chunk),
+                                "timeframe": "1Day",
+                                "limit": RVOL_LOOKBACK_DAYS,
+                                "start": (date.today() - timedelta(days=45)).isoformat(),
+                                "end": date.today().isoformat(),
+                                "feed": feed,
+                            },
+                            timeout=20,
+                        )
+                        if resp.status_code != 200:
+                            logger.warning("avg_volume bars API returned %s after fallback: %s", resp.status_code, resp.text[:200])
+                            continue
+                    else:
+                        logger.warning("avg_volume bars API returned %s: %s", resp.status_code, resp.text[:200])
+                        continue
+            elif resp.status_code != 200:
                 logger.warning("avg_volume bars API returned %s: %s", resp.status_code, resp.text[:200])
                 continue
             bars_data = resp.json().get("bars", {})
@@ -856,6 +927,11 @@ def _run_discovery_scan() -> None:
         return
 
     snaps = _fetch_snapshots(symbols, headers)
+
+    # Auto-fallback: if SIP returned nothing and we haven't fallen back yet, try IEX
+    if not snaps and _try_fallback_to_iex("snapshot fetch returned empty on discovery scan"):
+        snaps = _fetch_snapshots(symbols, headers)
+
     gappers = _compute_gappers(snaps)
     gapper_syms = [g["symbol"] for g in gappers]
     _ensure_avg_volume(gapper_syms, headers)
@@ -1161,6 +1237,11 @@ async def _ws_stream_loop() -> None:
                 auth_msgs = json.loads(await ws.recv())
                 if not any(m.get("T") == "success" and m.get("msg") == "authenticated"
                            for m in auth_msgs):
+                    # Check if the failure is a subscription-level error (409 = insufficient subscription)
+                    is_sub_error = any(m.get("code") == 409 for m in auth_msgs)
+                    if is_sub_error and _try_fallback_to_iex("WS auth 409 insufficient subscription"):
+                        backoff = 1.0  # reset backoff since we're trying a different feed
+                        continue
                     # Auth failed — back off and retry (keys may have just changed)
                     logger.warning("Alpaca WS auth failed (response: %s), retrying in %.1fs", auth_msgs, backoff)
                     await asyncio.sleep(backoff)
@@ -1468,6 +1549,7 @@ class ConfigUpdate(BaseModel):
     api_key: str
     api_secret: str
     base_url: str
+    data_feed: str = DATA_FEED_DEFAULT
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -1488,7 +1570,11 @@ def root():
 
 @app.get("/api/health")
 def health_check():
-    return _cached_health
+    return {
+        **_cached_health,
+        "data_feed": _get_feed(),
+        "feed_fell_back": _feed_fell_back,
+    }
 
 
 @app.get("/api/config")
@@ -1497,6 +1583,8 @@ def get_config():
         "api_key": _env("APCA_API_KEY_ID") or "",
         "api_secret": _env("APCA_API_SECRET_KEY") or "",
         "base_url": _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets",
+        "data_feed": _get_feed(),
+        "data_feed_options": list(DATA_FEED_OPTIONS),
     }
 
 
@@ -1507,11 +1595,14 @@ def update_config(config: ConfigUpdate):
     set_key(env_path, "APCA_API_KEY_ID", config.api_key)
     set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
     set_key(env_path, "APCA_API_BASE_URL", config.base_url)
+    set_key(env_path, "ALPACA_DATA_FEED", config.data_feed)
     load_dotenv(env_path, override=True)
+    _set_feed(config.data_feed)
     _assets_cache_ts = 0.0
     _assets_cache_set = set()
     _last_discovery_ts = 0.0
-    return {"status": "success"}
+    _ws_mark_resub()  # WS stream URL changes with feed
+    return {"status": "success", "data_feed": _get_feed()}
 
 
 @app.get("/api/mode")
@@ -1536,6 +1627,7 @@ def get_gappers():
         "rev": _NOVA_REV,
         "mode": _current_mode,
         "health": _cached_health,
+        "data_feed": _get_feed(),
         "gappers": _strip_blocked(_gapper_cache),
         "last_scan": _gapper_cache_ts,
     }

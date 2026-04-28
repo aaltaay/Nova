@@ -49,6 +49,14 @@ export const QUOTE_ASSET_LABELS = {
 /** Display value for listing feed row (source of asset metadata on the quote card). */
 export const QUOTE_LISTING_FEED_VALUE = 'Alpaca Trading API';
 
+// ── Data feed (mirrors backend DATA_FEED_DEFAULT / DATA_FEED_OPTIONS) ───────
+export const DATA_FEED_DEFAULT = 'iex';
+/** Human-readable labels for the Alpaca data feed tiers. */
+export const DATA_FEED_LABELS: Record<string, string> = {
+  iex: 'IEX (Free)',
+  sip: 'SIP (Paid)',
+};
+
 /** Human-readable labels for Alpaca `attributes` tokens (unknown keys shown as-is). */
 export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {
   overnight_halted: 'Overnight session halted',

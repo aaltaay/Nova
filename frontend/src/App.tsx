@@ -42,6 +42,8 @@ import {
   QUOTE_ASSET_LABELS,
   ALPACA_ASSET_ATTRIBUTE_LABELS,
   QUOTE_LISTING_FEED_VALUE,
+  DATA_FEED_DEFAULT,
+  DATA_FEED_LABELS,
   API_BASE_URL,
   WS_BASE_URL,
 } from './constants';
@@ -982,6 +984,10 @@ function App() {
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
   const [baseUrl, setBaseUrl] = useState('https://api.alpaca.markets');
+  const [dataFeed, setDataFeed] = useState(DATA_FEED_DEFAULT);
+  const [dataFeedOptions, setDataFeedOptions] = useState<string[]>(['iex', 'sip']);
+  const [feedFellBack, setFeedFellBack] = useState(false);
+  const [activeFeed, setActiveFeed] = useState(DATA_FEED_DEFAULT);
 
   // History / time-travel state
   const [historyDate, setHistoryDate] = useState<string | null>(null); // null = live
@@ -1063,6 +1069,11 @@ function App() {
         setApiKey(data.api_key);
         setApiSecret(data.api_secret);
         setBaseUrl(data.base_url);
+        if (data.data_feed) {
+          setDataFeed(data.data_feed);
+          setActiveFeed(data.data_feed);
+        }
+        if (Array.isArray(data.data_feed_options)) setDataFeedOptions(data.data_feed_options);
       }
     } catch {
       // silent
@@ -1080,8 +1091,12 @@ function App() {
 
       if (gr.ok) {
         const data = await gr.json();
-        if (data.health) setHealth(data.health);
+        if (data.health) {
+          setHealth(data.health);
+          if (data.health.feed_fell_back != null) setFeedFellBack(data.health.feed_fell_back);
+        }
         if (data.mode) setMode(data.mode as Mode);
+        if (data.data_feed) setActiveFeed(data.data_feed);
         if (Array.isArray(data.gappers)) setGappers(data.gappers);
         if (data.last_scan) setLastScan(data.last_scan);
       }
@@ -1216,9 +1231,12 @@ function App() {
       const res = await fetch(`${API_URL}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret, base_url: baseUrl }),
+        body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret, base_url: baseUrl, data_feed: dataFeed }),
       });
       if (res.ok) {
+        const result = await res.json();
+        if (result.data_feed) setActiveFeed(result.data_feed);
+        setFeedFellBack(false);
         setShowSettings(false);
         fetchData();
       }
@@ -1267,6 +1285,14 @@ function App() {
             <span className={`dot ${dotClass(health.status)}`} />
             <span style={{ textTransform: 'capitalize' }}>{health.status}</span>
             {health.latency_ms > 0 && <span>({health.latency_ms}ms)</span>}
+            <span className={`feed-badge feed-${activeFeed}`} title={`Data feed: ${DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase()}`}>
+              {activeFeed.toUpperCase()}
+            </span>
+            {feedFellBack && (
+              <span className="feed-fallback-hint" title="SIP feed was rejected; automatically fell back to IEX. Change in Settings if your plan supports SIP.">
+                ⚠ fallback
+              </span>
+            )}
             {health.message && health.status !== 'connected' && (
               <span className="status-hint" title={health.message}>
                 {' '}— {health.message.length > 80 ? `${health.message.slice(0, 80)}…` : health.message}
@@ -1325,6 +1351,21 @@ function App() {
                 onChange={e => setBaseUrl(e.target.value)}
                 required
               />
+            </div>
+            <div className="form-group">
+              <label>Data Feed</label>
+              <select
+                value={dataFeed}
+                onChange={e => setDataFeed(e.target.value)}
+                className="feed-select"
+              >
+                {dataFeedOptions.map(f => (
+                  <option key={f} value={f}>{DATA_FEED_LABELS[f] || f.toUpperCase()}</option>
+                ))}
+              </select>
+              <span className="form-hint">
+                IEX is free. SIP requires a paid Alpaca data subscription.
+              </span>
             </div>
             <div className="form-row">
               <button type="submit">Update &amp; Connect</button>

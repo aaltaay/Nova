@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-04-28 — Empty gapper list after server restart (SIP feed not supported)
+
+- **Symptom:** No gappers appeared after starting the backend despite many market gaps. Logs showed: `Alpaca WS auth failed: code 409, 'insufficient subscription'` (repeating), `avg_volume bars API returned 403: "subscription does not permit querying recent SIP data"`, `HOD Momo enrichment: snapshot fetch returned empty`. `gappers-2026-04-28.json` contained `{"gappers": []}`.
+- **Cause:** `_get_feed()` defaulted to `"sip"` (hardcoded fallback) when `ALPACA_DATA_FEED` was not set in `.env`. The user's Alpaca account only supports the IEX (free) feed, so all SIP REST calls got 403 and the SIP WebSocket got 409 — resulting in zero data.
+- **Fix:** Changed default to `"iex"` via `DATA_FEED_DEFAULT` in `constants.py`. Added auto-fallback (`_try_fallback_to_iex()`) triggered on 403 REST and 409 WS errors. Added UI Settings dropdown for feed selection. Set `ALPACA_DATA_FEED=iex` in `.env`.
+- **Keywords:** gappers empty, SIP, IEX, 403, 409, insufficient subscription, data feed, ALPACA_DATA_FEED, fallback
+
 ## 2026-04-23 — GitHub Actions “Backend tests” exit 5 with no tests
 
 - **Symptom:** `CI / Deploy` failed on **Backend tests** with “Process completed with exit code 5”; **Frontend build** passed; **Deploy to Railway** skipped.
