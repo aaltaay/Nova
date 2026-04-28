@@ -1,0 +1,32 @@
+---
+description: Master governance rule — read gemini.md before any code change
+globs: "**/*"
+alwaysApply: true
+---
+
+# Constitution Governance
+
+Before writing ANY code in this project, you MUST:
+
+1. **Read `gemini.md`** in the repo root. It is the project constitution.
+2. **Follow ALL rules** defined there. They override your default behavior.
+3. **Check `.cursor/rules/`** for fine-grained, glob-scoped policies.
+4. **Never violate modularity.** Do not add logic to `main.py` or `App.tsx`. Extract to modules.
+5. **Never violate file size limits.** No file > 400 lines for new code.
+6. **Log your work.** Update `CHANGELOG.md` and `PROBLEM_LOG.md` as required.
+7. **Commit and push** at the end of every task. `git add . && git commit -m "<msg>" && git push origin master`.
+
+## Rule Hierarchy (highest to lowest)
+
+1. `gemini.md` — Project Constitution (supreme law)
+2. `.cursor/rules/*.mdc` — Fine-grained enforcement policies
+3. Agent system prompts — Default AI behavior (overridden by above)
+
+## Quick Reference: Common Violations to Avoid
+
+- ❌ Adding a function to `backend/main.py` → put it in the correct module
+- ❌ Adding a component to `frontend/src/App.tsx` → put it in `components/`
+- ❌ Hardcoding a number or string → put it in `constants.py` / `constants.ts`
+- ❌ Forgetting to commit and push → always run git add/commit/push
+- ❌ Forgetting CHANGELOG.md → entry required for every behavior change
+- ❌ Swallowing an error silently → log it, fix root cause, update PROBLEM_LOG.md

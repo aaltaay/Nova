@@ -1,0 +1,28 @@
+---
+description: Self-annealing error protocol — never band-aid, always root-cause fix
+alwaysApply: true
+---
+
+# Self-Annealing Protocol
+
+When ANY error occurs during a task — build failure, runtime exception, incorrect behavior, test failure — follow this protocol without exception:
+
+## Steps
+
+1. **STOP** — Do not apply a quick band-aid or workaround.
+2. **Search** — Check `PROBLEM_LOG.md` for prior matching entries by symptom or keyword.
+3. **Analyze** — Identify the ROOT CAUSE, not the symptom. Read the actual error, trace the call stack, check the code.
+4. **Patch** — Fix the root cause in the CORRECT MODULE (not in `main.py` or `App.tsx`).
+5. **Test** — Verify the fix works (build, run, test, or manual verification).
+6. **Document** — Add entry to `PROBLEM_LOG.md` using the template (Symptom, Cause, Fix, Keywords).
+7. **Update SOP** — If the error reveals a gap in rules, update the relevant `.cursor/rules/*.mdc` file or `gemini.md`.
+8. **Commit** — Ship the fix, the log entry, and any rule updates in the same commit.
+
+## Anti-Patterns (NEVER do these)
+
+- ❌ Catching an exception and silently ignoring it
+- ❌ Adding a `try/except: pass` to make an error disappear
+- ❌ Fixing the symptom without understanding the cause
+- ❌ Applying a fix in `main.py` when the bug is in a module
+- ❌ Skipping the PROBLEM_LOG entry because the fix was "obvious"
+- ❌ Moving on without verifying the fix actually works

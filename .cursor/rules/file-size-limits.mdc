@@ -1,0 +1,34 @@
+---
+description: Enforce maximum file size limits to prevent monolith files
+globs:
+  - "backend/**/*.py"
+  - "frontend/src/**/*.ts"
+  - "frontend/src/**/*.tsx"
+alwaysApply: true
+---
+
+# File Size Limits
+
+No single source file may grow beyond the limits below. When a file approaches or exceeds its limit, the agent MUST refactor before adding more code.
+
+## Limits
+
+| File Category | Max Lines | Action |
+|---------------|-----------|--------|
+| `backend/main.py` | 200 | Extract logic to modules |
+| `frontend/src/App.tsx` | 150 | Extract to components/pages |
+| Any new Python module | 400 | Split into sub-modules |
+| Any new React component | 300 | Break into child components |
+| Any new TypeScript file | 400 | Split into focused modules |
+
+## Enforcement
+
+1. **Before adding code to ANY file**, check its current line count.
+2. If the file is at or above its limit, **extract first, add second.**
+3. If you are creating a new file and it will exceed 400 lines, design it as multiple files from the start.
+4. **Never make a monolith worse.** If touching a file that already violates limits, extract at least one function/component to its correct module before adding new code.
+
+## Known Violations (must be addressed incrementally)
+
+- `backend/main.py` (~1,757 lines → target 200) — extract on every backend task
+- `frontend/src/App.tsx` (~1,471 lines → target 150) — extract on every frontend task

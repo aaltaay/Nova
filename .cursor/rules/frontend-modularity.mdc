@@ -1,0 +1,94 @@
+---
+description: Enforce modular design in the frontend — no logic dumped into App.tsx
+globs: frontend/src/**/*.{ts,tsx}
+alwaysApply: true
+---
+
+# Frontend Modularity Policy
+
+`frontend/src/App.tsx` is the **root layout + router ONLY**. It must contain nothing but:
+- Provider wrappers (Theme, Context, etc.)
+- Top-level layout shell (header, sidebar skeleton, tab container)
+- Route/tab definitions that delegate to page-level components
+
+Everything else lives in a purpose-built module. When adding or refactoring code, always place it in the correct module.
+
+## Module Layout
+
+```
+frontend/src/
+  App.tsx             # root layout + router ONLY (target: <150 lines)
+  main.tsx            # entry point
+  constants.ts        # all tunables
+  index.css           # global styles + design tokens
+  App.css             # app-specific styles
+  components/         # reusable UI components
+    GapperTable.tsx
+    GainerTable.tsx
+    LoserTable.tsx
+    NewsCatalystPanel.tsx
+    TickerDetail.tsx
+    SettingsPanel.tsx
+    HealthBadge.tsx
+  hooks/              # custom React hooks
+    useWebSocket.ts
+    useGappers.ts
+    useGainers.ts
+    useTicker.ts
+  pages/              # page-level components (one per tab/view)
+    DashboardPage.tsx
+    SettingsPage.tsx
+  types/              # shared TypeScript types
+    scanner.ts
+    ticker.ts
+  hod_momo/           # HOD Momo feature module (already modular ✅)
+```
+
+## Rules
+
+1. **Never add a component, hook, or utility function to `App.tsx`** unless it is purely a layout wrapper or tab-switch handler.
+
+2. **Each module owns its state.** Component-level state lives in the component. Shared state lives in a custom hook or context. `App.tsx` must not declare business logic state.
+
+3. **Cross-component communication goes through hooks or context, not prop drilling through App.tsx.** If a child needs data, it imports a hook. Do not pass data through App.tsx as a middleman.
+
+4. **Components are focused and reusable.** Each `.tsx` file = one component. One concern per file. If a component exceeds 300 lines, break it up.
+
+5. **New features = new component or new hook.** Do not add a new domain (e.g. watchlist, alerts UI) into an existing component; create a new file.
+
+6. **Types live in `types/`.** Shared interfaces and type definitions must not be inline in components. Define them in a dedicated types file.
+
+## Bad vs Good
+
+```typescript
+// ❌ BAD — 1500-line App.tsx with everything inline
+function App() {
+  const [gappers, setGappers] = useState([]);
+  const [gainers, setGainers] = useState([]);
+  // ... 1400 more lines of inline logic and JSX
+}
+
+// ✅ GOOD — App.tsx delegates to focused components
+function App() {
+  return (
+    <ThemeProvider>
+      <Layout>
+        <TabRouter
+          tabs={[
+            { id: 'gappers', label: 'Gappers', component: <GappersPage /> },
+            { id: 'gainers', label: 'Gainers', component: <GainersPage /> },
+          ]}
+        />
+      </Layout>
+    </ThemeProvider>
+  );
+}
+```
+
+## Refactoring Existing Code
+
+When touching any component or logic currently in `App.tsx`:
+1. Extract it to a new component in `components/` or a hook in `hooks/`.
+2. Import it back in `App.tsx` if still referenced there.
+3. Do not leave the old copy in `App.tsx`.
+4. Update all callers in the same commit.
