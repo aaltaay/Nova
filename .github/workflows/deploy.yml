@@ -92,7 +92,7 @@ jobs:
     runs-on: ubuntu-latest
     # Only deploy on direct pushes to main/master, not on PRs.
     # Skip when RAILWAY_TOKEN is unset (Railway’s native Git deploy still runs on Railway).
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') && secrets.RAILWAY_TOKEN != ''
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - uses: actions/checkout@v4
 
@@ -102,7 +102,12 @@ jobs:
       - name: Deploy backend service
         # --detach: don't wait for the deployment to finish (Railway streams
         # build logs in the dashboard; CI just triggers and moves on).
-        run: railway up --service "$RAILWAY_SERVICE_NAME" --detach
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "RAILWAY_TOKEN is unset. Skipping Railway CLI deploy."
+            exit 0
+          fi
+          railway up --service "$RAILWAY_SERVICE_NAME" --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_SERVICE_NAME: ${{ vars.RAILWAY_SERVICE_NAME }}
