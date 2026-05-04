@@ -21,6 +21,12 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-05-04 — GitHub Actions invalid workflow due to secrets in job conditional
+
+- **Symptom:** GitHub Actions Check Suite failed immediately with "Invalid workflow file... Unrecognized named-value: 'secrets'". The deploy didn't trigger in Railway.
+- **Cause:** GitHub Actions does not allow accessing `secrets.*` within job-level `if` conditionals. The expression `secrets.RAILWAY_TOKEN != ''` caused a parsing error that failed the entire workflow before any jobs could run.
+- **Fix:** Removed the secret check from the job's `if` condition in `.github/workflows/deploy.yml`. Instead, moved the check into the `Deploy backend service` bash step, where it verifies `[ -z "$RAILWAY_TOKEN" ]` and safely exits if the token is omitted.
+- **Keywords:** GitHub Actions, Invalid workflow file, Unrecognized named-value: 'secrets', job conditional, deploy.yml
 ## 2026-04-28 — Empty gapper list after server restart (SIP feed not supported)
 
 - **Symptom:** No gappers appeared after starting the backend despite many market gaps. Logs showed: `Alpaca WS auth failed: code 409, 'insufficient subscription'` (repeating), `avg_volume bars API returned 403: "subscription does not permit querying recent SIP data"`, `HOD Momo enrichment: snapshot fetch returned empty`. `gappers-2026-04-28.json` contained `{"gappers": []}`.
