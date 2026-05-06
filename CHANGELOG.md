@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-05-06 — Add nova.altaystudio.com domain to Vercel
+
+- **What:** Assigned the custom domain `nova.altaystudio.com` to the frontend Vercel project (`stock-alert`).
+- **Why:** To make the stock alert frontend accessible via a branded, production-ready domain.
+- **Files touched:** None locally (Vercel configuration only).
+- **How it works now:** Vercel will automatically route requests for `nova.altaystudio.com` to the latest production deployment of the frontend.
+- **Verified by:** Vercel CLI domain addition success output.
+
 ## 2026-05-04 — Add frontend-specific Railway configuration
 
 - **What:** Added `frontend/railway.toml` to explicitly configure the builder and healthcheck for the frontend service.
