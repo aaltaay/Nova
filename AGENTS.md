@@ -1,4 +1,4 @@
-# 🏛️ GEMINI.MD — Project Constitution (Law)
+﻿# 🏛️ GEMINI.MD — Project Constitution (Law)
 > **Status:** ENFORCED — Active governance document
 > **Last Updated:** 2026-04-27
 > **Project:** Nova — Stock Alert Automation System
@@ -250,7 +250,6 @@ Run Nova Desktop.bat
 
 # Windows installer:
 cd frontend && npm run electron:pack
-# → frontend/release/Nova-Setup-*.exe (or %TEMP% if release/ is locked)
 
 # Or manually:
 # Terminal A (backend/): py -3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000

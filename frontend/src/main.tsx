@@ -40,6 +40,12 @@ function readApiBaseFromMeta(): string | null {
 }
 
 async function resolveApiBase(): Promise<string> {
+  const fromDesktop = window.novaDesktop?.apiBase?.trim();
+  if (fromDesktop && fromDesktop.startsWith('http')) {
+    if (isNovaApiDebug()) console.info('[Nova] API base from Electron:', fromDesktop);
+    return fromDesktop.replace(/\/$/, '');
+  }
+
   const fromMeta = readApiBaseFromMeta();
   if (fromMeta) {
     if (isNovaApiDebug()) console.info('[Nova] API base from index.html meta:', fromMeta);
@@ -81,7 +87,7 @@ async function resolveApiBase(): Promise<string> {
     if (isNovaApiDebug()) console.warn('[Nova] /config.json fetch failed:', e);
   }
   if (isNovaApiDebug()) {
-    console.warn('[Nova] API base falling back to http://localhost:8000');
+    console.warn('[Nova] API base falling back to http://127.0.0.1:8000');
   }
-  return 'http://localhost:8000';
+  return 'http://127.0.0.1:8000';
 }

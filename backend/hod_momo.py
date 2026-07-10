@@ -58,9 +58,9 @@ logger = logging.getLogger(__name__)
 _ET = ZoneInfo("America/New_York")
 
 # ── Dedicated rotating log for per-trade debug lines ──────────────────────────
+from paths import log_dir as _nova_log_dir
 
-_log_dir = os.path.join(os.path.dirname(__file__), "logs")
-os.makedirs(_log_dir, exist_ok=True)
+_log_dir = str(_nova_log_dir())
 _trade_log = logging.getLogger("hod_momo.trades")
 if not _trade_log.handlers:
     _trade_handler = logging.handlers.RotatingFileHandler(

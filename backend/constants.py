@@ -135,16 +135,18 @@ import os as _os
 
 # Cache file keys / prefixes (kept in constants so cache.py and hod_momo.py share one source)
 HOD_MOMO_ALERTS_PREFIX = "hod-momo"
-HOD_MOMO_CONFIG_FILE = _os.path.join(
-    _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH",
-                    _os.path.join(_os.path.dirname(__file__), ".cache")),
-    "hod-momo-config.json",
-)
-HOD_MOMO_BLOCKLIST_FILE = _os.path.join(
-    _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH",
-                    _os.path.join(_os.path.dirname(__file__), ".cache")),
-    "hod-momo-blocklist.json",
-)
+
+
+def _hod_momo_cache_root() -> str:
+    return (
+        _os.environ.get("NOVA_CACHE_DIR")
+        or _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+        or _os.path.join(_os.path.dirname(__file__), ".cache")
+    )
+
+
+HOD_MOMO_CONFIG_FILE = _os.path.join(_hod_momo_cache_root(), "hod-momo-config.json")
+HOD_MOMO_BLOCKLIST_FILE = _os.path.join(_hod_momo_cache_root(), "hod-momo-blocklist.json")
 
 # Engine timing
 HOD_MOMO_COOLDOWN_SEC = 60.0         # suppress re-alert for ticker+strategy after firing
@@ -265,3 +267,8 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
         "surge_window_min": 5,
     },
 }
+
+# ── Desktop (Electron) local API ──────────────────────────────────────────────
+# Sidecar binds here; Electron UI always talks to this loopback address.
+NOVA_DESKTOP_API_HOST = "127.0.0.1"
+NOVA_DESKTOP_API_PORT = 8000

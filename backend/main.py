@@ -21,8 +21,9 @@ import websockets
 logger = logging.getLogger(__name__)
 
 # ── Persistent rotating log file ──────────────────────────────────────────────
-_log_dir = os.path.join(os.path.dirname(__file__), "logs")
-os.makedirs(_log_dir, exist_ok=True)
+from paths import env_file_path, log_dir as _nova_log_dir
+
+_log_dir = str(_nova_log_dir())
 _file_handler = logging.handlers.RotatingFileHandler(
     os.path.join(_log_dir, "blast.log"),
     maxBytes=5_000_000,
@@ -83,7 +84,7 @@ from cache import (
 import hod_momo as _hod_momo
 from bars import fetch_bars as _fetch_bars
 
-load_dotenv()
+load_dotenv(env_file_path())
 
 _NOVA_REV = "4"
 _ET = ZoneInfo("America/New_York")
@@ -1594,7 +1595,8 @@ def get_config():
 @app.post("/api/config")
 def update_config(config: ConfigUpdate):
     global _assets_cache_ts, _assets_cache_set, _last_discovery_ts
-    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
+    env_path = str(env_file_path())
+    os.makedirs(os.path.dirname(env_path) or ".", exist_ok=True)
     set_key(env_path, "APCA_API_KEY_ID", config.api_key)
     set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
     set_key(env_path, "APCA_API_BASE_URL", config.base_url)

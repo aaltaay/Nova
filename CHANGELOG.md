@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-10 — Windows Electron desktop + local API sidecar
+
+- **What:** Added an Electron shell around the existing Vite/React UI and a local FastAPI sidecar (dev: `run_api.py` / packaged: PyInstaller `nova-api.exe`). Web UI on Vercel is unchanged.
+- **Why:** User wants a full local stack (faster/stabler for a future trading machine) plus an installable Windows app, without rewriting the scanner UI.
+- **Files touched:** `frontend/electron/*`, `frontend/package.json`, `frontend/vite.config.ts`, `frontend/src/main.tsx`, `frontend/src/constants.ts`, `backend/run_api.py`, `backend/paths.py`, `backend/nova_api.spec`, `backend/main.py`, `backend/cache.py`, `backend/constants.py`, `backend/hod_momo.py`, `README.md`.
+- **How it works now:** `npm run electron:dev` starts Vite + Electron; Electron spawns the API on `127.0.0.1:8000`, waits for `/api/health`, then loads the UI. `npm run electron:pack` builds the sidecar, builds the renderer with `base: './'`, and produces an NSIS installer via electron-builder. Desktop data lives under `%APPDATA%\Nova` via `NOVA_ENV_PATH` / `NOVA_CACHE_DIR` / `NOVA_LOG_DIR`.
+- **Verified by:** `npm run build` (web) OK; Electron launched against Vite and reused healthy API; packaged `nova-api.exe` returned `/api/health` connected; `electron-builder` produced `Nova-Setup-0.1.0.exe` (~156 MB).
+- **Follow-ups:** App icon / code-signing; if `frontend/release` hits Windows EPERM during pack, build with `--config.directories.output` under `%TEMP%`.
+
+
 ## 2026-05-06 — Add nova.altaystudio.com domain to Vercel
 
 - **What:** Assigned the custom domain `nova.altaystudio.com` to the frontend Vercel project (`stock-alert`).

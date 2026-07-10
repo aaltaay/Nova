@@ -100,24 +100,37 @@ export const CHART_DEFAULT_TIMEFRAME = '5Min';
 export const CHART_CARD_TITLE = 'Price Chart';
 
 // ── Backend URL ───────────────────────────────────────────────────────────────
-// 1) `main.tsx` sets `window.__NOVA_API_BASE__` after optional fetch of `/config.json`
+// 1) Electron preload may set `window.novaDesktop.apiBase`.
+// 2) `main.tsx` sets `window.__NOVA_API_BASE__` after optional fetch of `/config.json`
 //    (written at deploy from VITE_API_BASE_URL / NOVA_API_BASE when Vite inlining fails).
-// 2) `VITE_API_BASE_URL` at build time (Vite inlining).
-// 3) Dev fallback: http://localhost:8000  (local uvicorn).
+// 3) `VITE_API_BASE_URL` at build time (Vite inlining).
+// 4) Dev fallback: http://127.0.0.1:8000  (local uvicorn / Electron sidecar).
+/** Loopback API used by the Windows Electron desktop shell (mirrors backend). */
+export const NOVA_DESKTOP_API_HOST = '127.0.0.1';
+export const NOVA_DESKTOP_API_PORT = 8000;
+export const NOVA_DESKTOP_API_BASE = `http://${NOVA_DESKTOP_API_HOST}:${NOVA_DESKTOP_API_PORT}`;
+
 declare global {
   interface Window {
     __NOVA_API_BASE__?: string;
+    novaDesktop?: {
+      isDesktop: boolean;
+      apiBase: string;
+      getVersion: () => Promise<string>;
+    };
   }
 }
 
 function readApiBase(): string {
   if (typeof window !== 'undefined') {
+    const fromDesktop = window.novaDesktop?.apiBase?.trim();
+    if (fromDesktop) return fromDesktop.replace(/\/$/, '');
     const fromBootstrap = window.__NOVA_API_BASE__?.trim();
     if (fromBootstrap) return fromBootstrap.replace(/\/$/, '');
   }
   const fromVite = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
   if (fromVite) return fromVite.replace(/\/$/, '');
-  return 'http://localhost:8000';
+  return NOVA_DESKTOP_API_BASE;
 }
 
 const _rawApiBase: string = readApiBase();

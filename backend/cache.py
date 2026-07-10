@@ -22,13 +22,10 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 _ET = ZoneInfo("America/New_York")
-# When a Railway Volume is attached, RAILWAY_VOLUME_MOUNT_PATH is set to the
-# mount point (e.g. /data).  Fall back to the local .cache/ directory for
-# local dev and ephemeral Railway deploys without a volume.
-_CACHE_DIR = os.environ.get(
-    "RAILWAY_VOLUME_MOUNT_PATH",
-    os.path.join(os.path.dirname(__file__), ".cache"),
-)
+# Prefer NOVA_CACHE_DIR (Electron desktop), then Railway volume, then local .cache/.
+from paths import cache_dir as _nova_cache_dir
+
+_CACHE_DIR = str(_nova_cache_dir())
 
 # Legacy fixed filenames — only referenced for the one-time migration.
 _LEGACY_FILES = {

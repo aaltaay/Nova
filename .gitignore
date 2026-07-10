@@ -27,6 +27,13 @@ node_modules/
 frontend/dist/
 frontend/build/
 frontend/.next/
+frontend/release/
+frontend/dist-electron/
+
+# PyInstaller / desktop sidecar
+backend/dist/
+backend/build/
+backend/*.spec.bak
 
 # OS
 .DS_Store
