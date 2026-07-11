@@ -95,6 +95,7 @@ export interface JournalTradeRow {
   pnl: number | null;
   adherent: number | null;
   notes: string;
+  is_mock: number;
 }
 
 export interface GoNoGoCriterion {
@@ -113,6 +114,7 @@ export interface GoNoGo {
 }
 
 export interface JournalMetrics {
+  includes_mock_data: boolean;
   total_closed_trades: number;
   win_rate_pct: number | null;
   avg_win_dollars: number | null;
@@ -121,4 +123,18 @@ export interface JournalMetrics {
   total_pnl_dollars: number | null;
   adherence_pct: number | null;
   go_no_go: GoNoGo;
+}
+
+/** Mirrors backend/strategy/risk.py RiskState.to_dict(). */
+export interface RiskStatus {
+  session_date: string;
+  daily_realized_pnl: number;
+  peak_daily_pnl: number;
+  consecutive_losses: number;
+  consecutive_wins: number;
+  trades_today: number;
+  can_trade: boolean;
+  halt_reason: string | null;
+  position_size_shares: number;
+  daily_goal_dollars: number;
 }

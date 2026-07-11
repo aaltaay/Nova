@@ -66,13 +66,13 @@ export function SignalsPanel({ signals, connected, selectedSymbol, onSelectSymbo
           <table>
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Symbol</th>
-                <th>Setup</th>
-                <th>Entry</th>
-                <th>Stop</th>
-                <th>Target</th>
-                <th>Detail</th>
+                <th title="When this setup was detected as eligible.">Time</th>
+                <th title="Click a symbol to load its chart and detail panel.">Symbol</th>
+                <th title="Which pattern triggered: Gap and Go, Bull Flag, or ABCD. See backend/strategy/*.py for the exact rule.">Setup</th>
+                <th title="Suggested entry price if this signal were acted on.">Entry</th>
+                <th title="Suggested stop-loss price if this signal were acted on.">Stop</th>
+                <th title="Suggested target price if this signal were acted on.">Target</th>
+                <th title="The setup module's own explanation of why it triggered (or didn't fully qualify).">Detail</th>
               </tr>
             </thead>
             <tbody>

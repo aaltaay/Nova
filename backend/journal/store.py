@@ -64,15 +64,19 @@ def record_trade(
     opened_ts: float | None = None,
     closed_ts: float | None = None,
     notes: str = "",
+    is_mock: bool = False,
 ) -> int:
+    """is_mock=True tags a synthetic row inserted by journal/mock_data.py for
+    UI/logic testing before Phase D (paper execution) exists. Real callers
+    (Phase D, once built) must never pass is_mock=True."""
     conn = get_connection()
     try:
         cur = conn.execute(
             """
             INSERT INTO trades (
                 opened_ts, closed_ts, symbol, setup, side, qty, entry_price,
-                exit_price, stop_price, target_price, pnl, adherent, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                exit_price, stop_price, target_price, pnl, adherent, notes, is_mock
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 opened_ts if opened_ts is not None else time.time(),
@@ -88,6 +92,7 @@ def record_trade(
                 pnl,
                 None if adherent is None else int(adherent),
                 notes,
+                int(is_mock),
             ),
         )
         conn.commit()
@@ -96,24 +101,39 @@ def record_trade(
         conn.close()
 
 
-def get_trades(limit: int = JOURNAL_TRADES_DEFAULT_LIMIT) -> list[dict]:
+def get_trades(limit: int = JOURNAL_TRADES_DEFAULT_LIMIT, include_mock: bool = False) -> list[dict]:
     conn = get_connection()
     try:
+        where = "" if include_mock else "WHERE is_mock = 0"
         rows = conn.execute(
-            "SELECT * FROM trades ORDER BY opened_ts DESC LIMIT ?", (limit,)
+            f"SELECT * FROM trades {where} ORDER BY opened_ts DESC LIMIT ?", (limit,)
         ).fetchall()
         return [dict(row) for row in rows]
     finally:
         conn.close()
 
 
-def get_closed_trades() -> list[dict]:
-    """All trades with a recorded pnl -- the population metrics.py scores."""
+def get_closed_trades(include_mock: bool = False) -> list[dict]:
+    """All trades with a recorded pnl -- the population metrics.py scores.
+    Excludes mock rows by default so real-money go/no-go metrics can never be
+    silently inflated by test data."""
     conn = get_connection()
     try:
+        mock_clause = "" if include_mock else "AND is_mock = 0"
         rows = conn.execute(
-            "SELECT * FROM trades WHERE pnl IS NOT NULL ORDER BY opened_ts ASC"
+            f"SELECT * FROM trades WHERE pnl IS NOT NULL {mock_clause} ORDER BY opened_ts ASC"
         ).fetchall()
         return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def clear_mock_trades() -> int:
+    """Delete every mock-tagged trade. Returns the number of rows removed."""
+    conn = get_connection()
+    try:
+        cur = conn.execute("DELETE FROM trades WHERE is_mock = 1")
+        conn.commit()
+        return cur.rowcount
     finally:
         conn.close()

@@ -25,6 +25,14 @@ export const WATCHLIST_SUBSCORE_LABELS: Record<string, string> = {
   catalyst: 'News',
 };
 
+/** Hover tooltips explaining each composite sub-score, 0-100 scale. */
+export const WATCHLIST_SUBSCORE_TOOLTIPS: Record<string, string> = {
+  change_pct: "0-100 score from today's % price change — bigger moves score higher, capped at WATCHLIST_CHANGE_PCT_SCORE_CAP.",
+  relative_volume: "0-100 score from volume vs. this symbol's own average — higher relative volume scores higher, capped at WATCHLIST_REL_VOLUME_SCORE_CAP.",
+  float: '0-100 score for a tighter (smaller) share float — tighter floats move faster and score higher.',
+  catalyst: "0-100 score for how fresh the news catalyst is — a headline within the last few minutes scores highest, fading to 0 once it's stale.",
+};
+
 /** Display labels for the setup-signal stream (mirrors backend SETUP_NAMES). */
 export const SETUP_LABELS: Record<string, string> = {
   gap_and_go: 'Gap and Go',

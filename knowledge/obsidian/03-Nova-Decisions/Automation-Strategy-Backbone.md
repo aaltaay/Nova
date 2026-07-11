@@ -207,3 +207,24 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
   full backend suite green. Verified live against the running scanner (metrics/signals endpoints
   correct) and in-browser via headless screenshot (NO-GO bar + empty-state metrics render correctly
   with zero trades). Next: **Phase D (paper execution)**.
+- **2026-07-11** — **Journal E2E hardening**: since Phase D doesn't exist yet, the `trades` table has
+  no real feeder, so there was no way to actually exercise the metrics/go-no-go math or see the UI
+  populated. Added an `is_mock` column on `trades` (auto-migrated in for existing DBs via a
+  `PRAGMA table_info` check in `init_db()`), a fixed 12-trade synthetic dataset
+  (`backend/journal/mock_data.py`, seeded/cleared only from the terminal —
+  `py -3 -m journal.mock_data seed|clear`, deliberately never a clickable API action), and an
+  `include_mock` param on `/api/journal/{trades,metrics}` that defaults `False` everywhere so real
+  go/no-go results can never be silently inflated by test data. The Journal panel got a "Show demo
+  data" checkbox (off by default) that shows a persistent "DEMO DATA ACTIVE" banner and a `DEMO` chip
+  on every synthetic row whenever checked — full transparency, no hidden state. Also wired in the real
+  `/api/strategy/risk` status as a "Today's risk state" card (the piece promised in the Phase C entry
+  above but not actually delivered until now), and added `title=` hover tooltips to every interactive
+  element and metric across Watchlist/Signals/Journal so hovering explains exactly what each number
+  means and where it comes from. 109/109 backend tests green (5 new). Verified live: seeded the mock
+  set against the running dev server, confirmed default responses exclude it while `?include_mock=true`
+  shows a deliberately mixed pass/fail/pending go/no-go result (58.3% win rate, 2.22:1 P/L ratio, 91.7%
+  adherence), screenshotted the populated UI in a headless browser, unchecked the toggle and confirmed
+  it reverted to the honest empty state, then cleared the mock rows so the dev DB is clean again. Along
+  the way, found and fixed a `uvicorn --reload` orphan-worker bug that was serving stale code (logged in
+  `PROBLEM_LOG.md`) — killing only the reloader PID left its child worker running on the same port.
+  Next: **Phase D (paper execution)**.

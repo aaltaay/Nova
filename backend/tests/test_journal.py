@@ -74,6 +74,7 @@ class TestTrades:
         assert rows[0]["symbol"] == "MSFT"
         assert rows[0]["pnl"] == 40.0
         assert rows[0]["adherent"] == 1
+        assert rows[0]["is_mock"] == 0
 
     def test_get_closed_trades_excludes_open_trades(self):
         from journal.store import get_closed_trades, record_trade
@@ -85,11 +86,93 @@ class TestTrades:
         assert closed[0]["symbol"] == "BBB"
 
 
+class TestMockTrades:
+    def test_mock_trades_excluded_by_default(self):
+        from journal.store import get_closed_trades, get_trades, record_trade
+
+        record_trade("REAL", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True, is_mock=False)
+        record_trade("FAKE", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True, is_mock=True)
+
+        assert [t["symbol"] for t in get_trades()] == ["REAL"]
+        assert [t["symbol"] for t in get_closed_trades()] == ["REAL"]
+
+    def test_mock_trades_included_when_requested(self):
+        from journal.store import get_closed_trades, get_trades, record_trade
+
+        record_trade("REAL", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True, is_mock=False)
+        record_trade("FAKE", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True, is_mock=True)
+
+        assert {t["symbol"] for t in get_trades(include_mock=True)} == {"REAL", "FAKE"}
+        assert {t["symbol"] for t in get_closed_trades(include_mock=True)} == {"REAL", "FAKE"}
+
+    def test_clear_mock_trades_only_removes_mock_rows(self):
+        from journal.store import clear_mock_trades, get_trades, record_trade
+
+        record_trade("REAL", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True, is_mock=False)
+        record_trade("FAKE", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True, is_mock=True)
+
+        removed = clear_mock_trades()
+        assert removed == 1
+        assert [t["symbol"] for t in get_trades(include_mock=True)] == ["REAL"]
+
+    def test_seed_mock_trades_is_idempotent_and_tagged(self):
+        from journal.mock_data import _MOCK_TRADES, seed_mock_trades
+        from journal.store import get_trades
+
+        n1 = seed_mock_trades()
+        n2 = seed_mock_trades()  # re-running must not duplicate rows
+        assert n1 == n2 == len(_MOCK_TRADES)
+
+        rows = get_trades(include_mock=True)
+        assert len(rows) == len(_MOCK_TRADES)
+        assert all(r["is_mock"] == 1 for r in rows)
+
+    def test_migration_adds_is_mock_column_to_pre_existing_table(self):
+        """Simulates a journal.db created before is_mock existed -- init_db()
+        must ALTER the column in without losing existing rows."""
+        conn = db.get_connection()
+        conn.executescript(
+            """
+            DROP TABLE IF EXISTS trades;
+            CREATE TABLE trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                opened_ts REAL NOT NULL,
+                closed_ts REAL,
+                symbol TEXT NOT NULL,
+                setup TEXT,
+                side TEXT NOT NULL,
+                qty INTEGER NOT NULL,
+                entry_price REAL NOT NULL,
+                exit_price REAL,
+                stop_price REAL,
+                target_price REAL,
+                pnl REAL,
+                adherent INTEGER,
+                notes TEXT
+            );
+            """
+        )
+        conn.execute(
+            "INSERT INTO trades (opened_ts, symbol, side, qty, entry_price) VALUES (1.0, 'OLD', 'long', 100, 5.0)"
+        )
+        conn.commit()
+        conn.close()
+
+        db.init_db()  # should ALTER TABLE ADD COLUMN is_mock without dropping OLD's row
+
+        from journal.store import get_trades
+        rows = get_trades(include_mock=True)
+        assert len(rows) == 1
+        assert rows[0]["symbol"] == "OLD"
+        assert rows[0]["is_mock"] == 0
+
+
 class TestMetrics:
     def test_empty_journal_reports_no_data_honestly(self):
         from journal.metrics import compute_metrics
 
         result = compute_metrics()
+        assert result["includes_mock_data"] is False
         assert result["total_closed_trades"] == 0
         assert result["win_rate_pct"] is None
         assert result["profit_loss_ratio"] is None
@@ -127,3 +210,16 @@ class TestMetrics:
         assert criteria["adherence"]["met"] is False  # one non-adherent trade
         assert criteria["min_sample_size"]["met"] is False  # only 2 of 100 required
         assert result["go_no_go"]["overall_go"] is False
+
+    def test_mock_trades_never_leak_into_default_metrics(self):
+        from journal.metrics import compute_metrics
+        from journal.mock_data import seed_mock_trades
+
+        seed_mock_trades()
+        real_metrics = compute_metrics()
+        assert real_metrics["total_closed_trades"] == 0
+        assert real_metrics["includes_mock_data"] is False
+
+        demo_metrics = compute_metrics(include_mock=True)
+        assert demo_metrics["total_closed_trades"] > 0
+        assert demo_metrics["includes_mock_data"] is True

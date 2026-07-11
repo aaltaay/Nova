@@ -1,9 +1,8 @@
 /** Watchlist tab — Five Pillars ranked table + live setup Signals sub-panel. Signal-only; no orders placed. */
 import { useState } from 'react';
-import { WATCHLIST_SUBSCORE_LABELS } from '../constants';
+import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
 import { JournalPanel } from './JournalPanel';
 import { SignalsPanel } from './SignalsPanel';
-import { useJournal } from './useJournal';
 import { useSignalsStream } from './useSignalsStream';
 import type { WatchlistEntry } from './types';
 
@@ -42,12 +41,16 @@ function WatchlistRow({
         <button
           className={`symbol-btn${selected ? ' active' : ''}`}
           onClick={() => onSelect(entry.symbol)}
+          title={`Load ${entry.symbol}'s chart and detail panel`}
         >
           {entry.symbol}
         </button>
       </td>
       <td>
-        <span className={entry.five_pillars.all_pass ? 'positive' : 'na-muted'}>
+        <span
+          className={entry.five_pillars.all_pass ? 'positive' : 'na-muted'}
+          title={`${entry.five_pillars.pass_count} of ${entry.five_pillars.total} pillars pass`}
+        >
           {entry.five_pillars.checkmark}
         </span>
       </td>
@@ -73,7 +76,6 @@ type WatchlistSubTab = 'watchlist' | 'signals' | 'journal';
 export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelectSymbol }: WatchlistTabProps) {
   const [subTab, setSubTab] = useState<WatchlistSubTab>('watchlist');
   const signalsStream = useSignalsStream();
-  const journal = useJournal(subTab === 'journal');
 
   return (
     <div className="watchlist-tab">
@@ -81,6 +83,7 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
         <button
           className={`sub-tab ${subTab === 'watchlist' ? 'active' : ''}`}
           onClick={() => setSubTab('watchlist')}
+          title="Every gapper/gainer scored against the Five Pillars and ranked by composite score. Refreshes continuously. No orders are placed."
         >
           Watchlist
           {entries.length > 0 && <span className="tab-count">{entries.length}</span>}
@@ -88,6 +91,7 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
         <button
           className={`sub-tab ${subTab === 'signals' ? 'active' : ''}`}
           onClick={() => setSubTab('signals')}
+          title="Live feed of Gap and Go / Bull Flag / ABCD triggers as the background scanner finds them. No orders are placed."
         >
           Signals
           {signalsStream.signals.length > 0 && <span className="tab-count">{signalsStream.signals.length}</span>}
@@ -95,6 +99,7 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
         <button
           className={`sub-tab ${subTab === 'journal' ? 'active' : ''}`}
           onClick={() => setSubTab('journal')}
+          title="Trade log, win-rate/profit-loss metrics, today's risk state, and the live-money go/no-go bar. Includes an optional 'Show demo data' toggle for testing before real trades exist."
         >
           Journal
         </button>
@@ -116,13 +121,13 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
               <table>
                 <thead>
                   <tr>
-                    <th>Symbol</th>
-                    <th>Pillars</th>
-                    <th>Detail</th>
-                    {Object.values(WATCHLIST_SUBSCORE_LABELS).map(label => (
-                      <th key={label}>{label}</th>
+                    <th title="Click a symbol to load its chart and detail panel.">Symbol</th>
+                    <th title="How many of the 5 Pillars (price, % change, relative volume, catalyst, float) currently pass. All 5 passing ranks a symbol above any partial match.">Pillars</th>
+                    <th title="Hover a chip above to see exactly why that pillar passed or failed for this symbol.">Detail</th>
+                    {Object.entries(WATCHLIST_SUBSCORE_LABELS).map(([key, label]) => (
+                      <th key={label} title={WATCHLIST_SUBSCORE_TOOLTIPS[key] ?? label}>{label}</th>
                     ))}
-                    <th>Score</th>
+                    <th title="Weighted 0-100 composite of the 4 sub-scores to the left — breaks ties among symbols with the same pillar pass count.">Score</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -150,14 +155,7 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
         />
       )}
 
-      {subTab === 'journal' && (
-        <JournalPanel
-          metrics={journal.metrics}
-          signals={journal.signals}
-          loading={journal.loading}
-          error={journal.error}
-        />
-      )}
+      {subTab === 'journal' && <JournalPanel active={subTab === 'journal'} />}
     </div>
   );
 }

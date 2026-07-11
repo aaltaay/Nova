@@ -784,6 +784,62 @@ th {
   letter-spacing: 0.5px;
 }
 
+.journal-demo-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: fit-content;
+}
+
+.journal-demo-toggle input {
+  cursor: pointer;
+}
+
+.journal-demo-banner {
+  border: 1px solid var(--accent-color);
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent-color);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.journal-risk-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.journal-halt-reason {
+  font-size: 0.8rem;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.mock-tag {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--accent-color);
+  border: 1px solid var(--accent-color);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  vertical-align: middle;
+}
+
+.row-mock {
+  opacity: 0.75;
+}
+
 /* ── Clickable symbol button ─────────────────────────────────────────────── */
 
 .symbol-btn {

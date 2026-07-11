@@ -13,8 +13,8 @@ from constants import JOURNAL_MIN_TRADES_FOR_GO_LIVE, RISK_TARGET_PROFIT_LOSS_RA
 from journal.store import get_closed_trades
 
 
-def compute_metrics() -> dict:
-    trades = get_closed_trades()
+def compute_metrics(include_mock: bool = False) -> dict:
+    trades = get_closed_trades(include_mock=include_mock)
     total = len(trades)
     wins = [t for t in trades if t["pnl"] > 0]
     losses = [t for t in trades if t["pnl"] < 0]
@@ -29,6 +29,7 @@ def compute_metrics() -> dict:
     adherence_pct = (sum(adherent_flags) / len(adherent_flags) * 100.0) if adherent_flags else None
 
     return {
+        "includes_mock_data": include_mock,
         "total_closed_trades": total,
         "win_rate_pct": None if win_rate is None else round(win_rate, 1),
         "avg_win_dollars": None if avg_win is None else round(avg_win, 2),

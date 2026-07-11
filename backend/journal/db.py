@@ -48,11 +48,19 @@ CREATE TABLE IF NOT EXISTS trades (
     target_price REAL,
     pnl REAL,
     adherent INTEGER,
-    notes TEXT
+    notes TEXT,
+    is_mock INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_closed_ts ON trades(closed_ts);
 """
+
+# Columns added after the tables above first shipped. init_db() ALTERs them in
+# if missing, so an existing journal.db from before this column existed still
+# works -- no destructive migration, no data loss.
+_TRADES_MIGRATIONS = [
+    ("is_mock", "INTEGER NOT NULL DEFAULT 0"),
+]
 
 
 def _db_path() -> Path:
@@ -70,11 +78,20 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _migrate_trades_columns(conn: sqlite3.Connection) -> None:
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(trades)")}
+    for name, ddl in _TRADES_MIGRATIONS:
+        if name not in existing:
+            conn.execute(f"ALTER TABLE trades ADD COLUMN {name} {ddl}")
+
+
 def init_db() -> None:
-    """Create tables if they don't exist yet. Safe to call repeatedly."""
+    """Create tables if they don't exist yet and apply column migrations.
+    Safe to call repeatedly."""
     conn = get_connection()
     try:
         conn.executescript(_SCHEMA)
+        _migrate_trades_columns(conn)
         conn.commit()
     finally:
         conn.close()
