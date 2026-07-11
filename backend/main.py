@@ -31,6 +31,13 @@ _file_handler = logging.handlers.RotatingFileHandler(
     os.path.join(_log_dir, "blast.log"),
     maxBytes=5_000_000,
     backupCount=3,
+    # Without an explicit encoding, Python opens the file using the platform's
+    # locale-preferred encoding (cp1252 on Windows) with strict error handling,
+    # so any non-ASCII log character (e.g. an arrow in a status message) raises
+    # UnicodeEncodeError. run_api.py's _force_utf8_io() only fixes console
+    # stdio, not this file handler — it needs its own explicit encoding.
+    encoding="utf-8",
+    errors="backslashreplace",
 )
 _file_handler.setFormatter(
     logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
