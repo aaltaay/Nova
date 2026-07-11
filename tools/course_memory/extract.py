@@ -21,6 +21,9 @@ class PageDoc:
     page: int
     text: str
     rel_path: str
+    source: str = "warrior-trading-slides"
+    unit: str = ""
+    timestamp_start: str = ""
 
 
 _LAYOUT_RE = re.compile(r"-(1pp|2pp)\.pdf$", re.IGNORECASE)

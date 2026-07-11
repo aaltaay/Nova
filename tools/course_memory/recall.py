@@ -36,6 +36,14 @@ _PINECONE_HINTS = re.compile(
 )
 
 
+def _configure_utf8_console() -> None:
+    """Allow arbitrary note text to print safely in Windows terminals."""
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name)
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+
+
 def choose_source(question: str, forced: str | None) -> str:
     if forced in {"obsidian", "pinecone", "both"}:
         return forced
@@ -68,7 +76,24 @@ def recall_pinecone(question: str, top_k: int, course: str | None) -> list[dict]
         return [{"error": str(exc), "score": 0}]
 
 
+def format_pinecone_match(match: dict, index: int) -> str:
+    location = f"p{match.get('page')}"
+    if match.get("timestamp_start"):
+        location = f"@ {match['timestamp_start']}"
+    return "\n".join(
+        [
+            (
+                f"[{index}] score={match.get('score', 0):.4f} | "
+                f"{match.get('course')} / {match.get('chapter')} {location}"
+            ),
+            match.get("text", ""),
+            f"source: {match.get('source')} | {match.get('rel_path')}",
+        ]
+    )
+
+
 def main() -> None:
+    _configure_utf8_console()
     load_dotenv(REPO_ROOT / ".env")
     parser = argparse.ArgumentParser(description="Recall from Obsidian and/or Pinecone")
     parser.add_argument("question", nargs="+")
@@ -111,17 +136,12 @@ def main() -> None:
         print("=== OBSIDIAN ===\n(no note hits)\n")
 
     if payload["pinecone"]:
-        print("=== PINECONE (course slides) ===")
+        print("=== PINECONE (course materials) ===")
         for i, m in enumerate(payload["pinecone"], 1):
             if m.get("error"):
                 print(f"[{i}] {m['error']}\n")
                 continue
-            print(
-                f"[{i}] score={m.get('score', 0):.4f} | "
-                f"{m.get('course')} / {m.get('chapter')} p{m.get('page')}"
-            )
-            print(m.get("text", ""))
-            print(f"source: {m.get('rel_path')}\n")
+            print(f"{format_pinecone_match(m, i)}\n")
     elif source in {"pinecone", "both"}:
         print("=== PINECONE ===\n(no matches)\n")
 

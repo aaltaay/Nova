@@ -64,9 +64,24 @@ def chunk_to_record(chunk: Chunk, values: list[float]) -> dict:
             "page": chunk.page,
             "chunk_index": chunk.chunk_index,
             "rel_path": chunk.rel_path,
-            "source": "warrior-trading-slides",
+            "source": chunk.source,
+            "unit": chunk.unit,
+            "timestamp_start": chunk.timestamp_start,
         },
     }
+
+
+def delete_by_source(
+    sources: list[str],
+    namespace: str | None = None,
+) -> None:
+    """Remove vectors whose metadata.source is in ``sources`` (exact match)."""
+    if not sources:
+        return
+    index = get_index()
+    namespace = namespace or env("PINECONE_NAMESPACE", DEFAULT_NAMESPACE) or DEFAULT_NAMESPACE
+    for source in sources:
+        index.delete(filter={"source": {"$eq": source}}, namespace=namespace)
 
 
 def upsert_chunks(
@@ -119,8 +134,11 @@ def query_memory(
                 "text": meta.get("text", ""),
                 "course": meta.get("course", ""),
                 "chapter": meta.get("chapter", ""),
+                "unit": meta.get("unit", ""),
                 "page": meta.get("page"),
                 "rel_path": meta.get("rel_path", ""),
+                "source": meta.get("source", ""),
+                "timestamp_start": meta.get("timestamp_start", ""),
             }
         )
     return matches

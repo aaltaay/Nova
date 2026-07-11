@@ -20,6 +20,9 @@ class Chunk:
     page: int
     chunk_index: int
     rel_path: str
+    source: str = "warrior-trading-slides"
+    unit: str = ""
+    timestamp_start: str = ""
 
 
 def _chunk_id(rel_path: str, page: int, chunk_index: int, text: str) -> str:
@@ -45,6 +48,9 @@ def chunk_page(page: PageDoc) -> list[Chunk]:
                 page=page.page,
                 chunk_index=0,
                 rel_path=page.rel_path,
+                source=page.source,
+                unit=page.unit,
+                timestamp_start=page.timestamp_start,
             )
         ]
 
@@ -72,6 +78,9 @@ def chunk_page(page: PageDoc) -> list[Chunk]:
                     page=page.page,
                     chunk_index=index,
                     rel_path=page.rel_path,
+                    source=page.source,
+                    unit=page.unit,
+                    timestamp_start=page.timestamp_start,
                 )
             )
             index += 1

@@ -41,5 +41,5 @@ backend/*.spec.bak
 Thumbs.db
 .vercel
 
-# Local course handouts (large PDFs)
+# Local course handouts (large PDFs / videos — keep on disk, do not push)
 downloads/
