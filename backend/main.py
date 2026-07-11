@@ -26,6 +26,7 @@ from ibkr import client as _ibkr_client
 from routes.trading import router as _trading_router, ws_router as _trading_ws_router
 from routes.strategy import router as _strategy_router
 from routes.journal import router as _journal_router
+from routes.executor import router as _executor_router
 
 _log_dir = str(_nova_log_dir())
 _file_handler = logging.handlers.RotatingFileHandler(
@@ -95,6 +96,7 @@ from cache import (
 import hod_momo as _hod_momo
 import strategy.risk as _risk
 import strategy.setups_stream as _setups_stream
+import strategy.executor as _executor
 import journal.db as _journal_db
 from bars import fetch_bars as _fetch_bars
 
@@ -1539,6 +1541,7 @@ async def lifespan(app: FastAPI):
     hod_fund_task = asyncio.create_task(_hod_momo_enrichment.fundamentals_enrichment_loop())
     setups_scan_task = asyncio.create_task(_setups_stream.scan_loop())
     risk_reset_task = asyncio.create_task(_risk.session_reset_loop())
+    executor_fill_task = asyncio.create_task(_executor.fill_poll_loop())
     # IBKR client — best-effort, never blocks the Alpaca scan loop
     await _ibkr_client.startup()
     yield
@@ -1550,6 +1553,7 @@ async def lifespan(app: FastAPI):
     hod_fund_task.cancel()
     setups_scan_task.cancel()
     risk_reset_task.cancel()
+    executor_fill_task.cancel()
     for t in (scan_task, ws_task, hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task):
         try:
             await t
@@ -1566,6 +1570,7 @@ app.include_router(_trading_router)
 app.include_router(_trading_ws_router)
 app.include_router(_strategy_router)
 app.include_router(_journal_router)
+app.include_router(_executor_router)
 
 app.add_middleware(
     CORSMiddleware,

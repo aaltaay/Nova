@@ -228,3 +228,34 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
   the way, found and fixed a `uvicorn --reload` orphan-worker bug that was serving stale code (logged in
   `PROBLEM_LOG.md`) — killing only the reloader PID left its child worker running on the same port.
   Next: **Phase D (paper execution)**.
+- **2026-07-11** — Implemented **Phase D (Paper execution via IBKR)**: `backend/ibkr/orders.py`
+  gained `place_bracket_order()` using `ib_async`'s native `IB.bracketOrder()` helper (LMT entry +
+  linked LMT target + linked STP stop; TWS handles the OCA cancel-the-other-leg behavior natively —
+  nothing here reimplements that), gated by the same `_safety_check()` (`IBKR_ENABLED`, connected,
+  paper-vs-`IBKR_LIVE_TRADING_CONFIRMED`) as every other order call. New `backend/strategy/executor.py`
+  is the only caller: it starts **disarmed on every restart** and only places an order when ALL of
+  (1) armed, (2) `risk.can_trade()`, (3) `risk.validate_trade_plan()`, (4) no existing open position
+  for that symbol pass — hooked into `setups_stream._scan_once()` right after a signal is journaled,
+  wrapped in its own try/except so an executor failure can never break the signal broadcast. A
+  background `fill_poll_loop()` (mirrors `setups_stream.scan_loop()`) polls IBKR's open orders every
+  `EXECUTOR_FILL_POLL_INTERVAL_SEC`; once none of a bracket's three order IDs remain open, it resolves
+  the fill from `ib.fills()`, records the trade to the journal (a trade is only ever written once, at
+  close — matches the original design note in `journal/store.py`, so no schema change was needed), and
+  calls `risk.record_trade_result()`. New `backend/routes/executor.py` exposes
+  `GET /api/strategy/executor/status` and `POST .../arm|disarm|kill-switch|reset-kill-switch` — the
+  **only** endpoints that can turn automated order placement on, each returning the plain-language
+  disclosure inline. Frontend: new **Automation** sub-tab (`ExecutorPanel.tsx` + `useExecutor.ts`)
+  shows the armed/disarmed/kill-switch state, IBKR connection status, and open automated positions;
+  arming requires a native `confirm()` dialog that restates the disclosure verbatim before the click
+  takes effect — per the transparency principle, nothing here can be armed by an accidental click.
+  **Known, deliberate limitation:** open positions are tracked in executor memory only (not the DB),
+  so a backend restart mid-bracket loses the in-app record (IB itself is unaffected); acceptable for a
+  paper-trading learning tool, called out explicitly in the module docstring. Kill switch cancels this
+  module's own open bracket orders but does **not** flatten an already-filled position — that stays a
+  deliberate human decision. All current setups (Gap and Go, Bull Flag, ABCD) are long-only, so the
+  entry side is a fixed constant (`EXECUTOR_ENTRY_SIDE_IBKR`/`_JOURNAL`) for now. 17 new unit tests
+  (`test_executor.py`, IBKR/risk mocked, no live Gateway needed) — 121/121 full backend suite green.
+  Verified: `main.py` boots with the new router + background task wired into the lifespan; frontend
+  builds clean (`tsc -b && vite build`) with no new lint errors. Not yet verified against a live IB
+  Gateway paper session (none was running this session) — that remains the real-world proof pending a
+  manual test with Gateway up. Next: **Phase F (Level 2 learning)**.

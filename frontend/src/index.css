@@ -840,6 +840,84 @@ th {
   opacity: 0.75;
 }
 
+/* ── Automation / executor panel (Phase D) ───────────────────────────────── */
+
+.executor-status-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.executor-armed {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.executor-disarmed {
+  border-color: var(--border-color);
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.executor-status-headline {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.executor-armed .executor-status-headline {
+  color: var(--danger);
+}
+
+.executor-disclosure {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.executor-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.executor-arm-btn,
+.executor-disarm-btn,
+.executor-kill-btn {
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+}
+
+.executor-arm-btn {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.executor-arm-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.executor-kill-btn {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.executor-kill-btn:hover {
+  opacity: 0.85;
+}
+
+.executor-disarm-btn:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+
 /* ── Clickable symbol button ─────────────────────────────────────────────── */
 
 .symbol-btn {

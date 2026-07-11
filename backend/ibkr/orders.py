@@ -76,6 +76,67 @@ def place_order(
         return {"ok": False, "order_id": None, "error": str(exc), "mode": _client.account_mode()}
 
 
+def place_bracket_order(
+    symbol: str,
+    side: OrderSide,
+    qty: int,
+    entry_price: float,
+    stop_price: float,
+    target_price: float,
+) -> dict:
+    """
+    Place a bracket order: a LMT entry with a linked LMT profit target and a
+    linked STP loss. Uses ib_async's native IB.bracketOrder() helper — the
+    three orders share one parent/child relationship, so once the entry
+    fills the target and stop become active together, and either one
+    filling automatically cancels the other (standard TWS bracket behavior;
+    nothing here re-implements OCA logic).
+
+    Returns {"ok": bool, "parent_order_id": int|None, "target_order_id": int|None,
+             "stop_order_id": int|None, "error": str|None, "mode": str}.
+    """
+    ok, reason = _safety_check()
+    if not ok:
+        logger.warning("IBKR bracket order blocked: %s", reason)
+        return {
+            "ok": False, "parent_order_id": None, "target_order_id": None,
+            "stop_order_id": None, "error": reason, "mode": _client.account_mode(),
+        }
+
+    ib = _client.get_ib()
+    if ib is None:
+        return {
+            "ok": False, "parent_order_id": None, "target_order_id": None,
+            "stop_order_id": None, "error": "Not connected", "mode": "disconnected",
+        }
+
+    try:
+        from ib_async import Stock
+        contract = Stock(symbol, "SMART", "USD")
+        bracket = ib.bracketOrder(side, qty, entry_price, target_price, stop_price)
+        for order in bracket:
+            ib.placeOrder(contract, order)
+        logger.info(
+            "IBKR: placed %s bracket %s %s qty=%s entry=%s target=%s stop=%s (parent=%s)",
+            _client.account_mode(), side, symbol, qty, entry_price, target_price, stop_price,
+            bracket.parent.orderId,
+        )
+        return {
+            "ok": True,
+            "parent_order_id": bracket.parent.orderId,
+            "target_order_id": bracket.takeProfit.orderId,
+            "stop_order_id": bracket.stopLoss.orderId,
+            "error": None,
+            "mode": _client.account_mode(),
+        }
+    except Exception as exc:
+        logger.error("IBKR: bracket order error for %s: %s", symbol, exc)
+        return {
+            "ok": False, "parent_order_id": None, "target_order_id": None,
+            "stop_order_id": None, "error": str(exc), "mode": _client.account_mode(),
+        }
+
+
 def cancel_order(order_id: int) -> dict:
     """
     Cancel an open order by ID.

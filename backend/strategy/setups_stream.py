@@ -24,6 +24,7 @@ from constants import (
     SETUPS_SCAN_TOP_N,
 )
 from journal.store import record_signal
+from strategy import executor as _executor
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
 
@@ -116,6 +117,10 @@ async def _scan_once() -> None:
             _last_alert_ts[key] = now
             record = _record_signal(symbol, setup_name, result[setup_name])
             await _broadcast({"type": "signal", **record})
+            try:
+                await _executor.on_signal(symbol, setup_name, result[setup_name])
+            except Exception:
+                logger.exception("setups_stream: executor.on_signal failed for %s/%s", symbol, setup_name)
 
 
 async def scan_loop() -> None:

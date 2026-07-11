@@ -138,3 +138,24 @@ export interface RiskStatus {
   position_size_shares: number;
   daily_goal_dollars: number;
 }
+
+/** Mirrors backend/strategy/executor.py OpenPosition (as returned by status()). */
+export interface ExecutorOpenPosition {
+  symbol: string;
+  setup: string;
+  qty: number;
+  entry_price: number;
+  stop_price: number;
+  target_price: number;
+  opened_ts: number;
+}
+
+/** Mirrors backend/strategy/executor.py status(). */
+export interface ExecutorStatus {
+  disclosure: string;
+  armed: boolean;
+  kill_switch_tripped: boolean;
+  ibkr_connected: boolean;
+  ibkr_mode: string;
+  open_positions: ExecutorOpenPosition[];
+}

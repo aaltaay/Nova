@@ -1,6 +1,7 @@
 /** Watchlist tab — Five Pillars ranked table + live setup Signals sub-panel. Signal-only; no orders placed. */
 import { useState } from 'react';
 import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
+import { ExecutorPanel } from './ExecutorPanel';
 import { JournalPanel } from './JournalPanel';
 import { SignalsPanel } from './SignalsPanel';
 import { useSignalsStream } from './useSignalsStream';
@@ -71,7 +72,7 @@ interface WatchlistTabProps {
   onSelectSymbol: (symbol: string) => void;
 }
 
-type WatchlistSubTab = 'watchlist' | 'signals' | 'journal';
+type WatchlistSubTab = 'watchlist' | 'signals' | 'journal' | 'automation';
 
 export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelectSymbol }: WatchlistTabProps) {
   const [subTab, setSubTab] = useState<WatchlistSubTab>('watchlist');
@@ -102,6 +103,13 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
           title="Trade log, win-rate/profit-loss metrics, today's risk state, and the live-money go/no-go bar. Includes an optional 'Show demo data' toggle for testing before real trades exist."
         >
           Journal
+        </button>
+        <button
+          className={`sub-tab ${subTab === 'automation' ? 'active' : ''}`}
+          onClick={() => setSubTab('automation')}
+          title="Arm/disarm automated paper bracket orders on IBKR, and the kill switch. Disarmed by default and on every backend restart."
+        >
+          Automation
         </button>
       </div>
 
@@ -156,6 +164,8 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
       )}
 
       {subTab === 'journal' && <JournalPanel active={subTab === 'journal'} />}
+
+      {subTab === 'automation' && <ExecutorPanel active={subTab === 'automation'} />}
     </div>
   );
 }
