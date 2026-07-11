@@ -220,7 +220,7 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
   `/api/strategy/risk` status as a "Today's risk state" card (the piece promised in the Phase C entry
   above but not actually delivered until now), and added `title=` hover tooltips to every interactive
   element and metric across Watchlist/Signals/Journal so hovering explains exactly what each number
-  means and where it comes from. 109/109 backend tests green (5 new). Verified live: seeded the mock
+  means and where it comes from. 104/104 backend tests green (6 new). Verified live: seeded the mock
   set against the running dev server, confirmed default responses exclude it while `?include_mock=true`
   shows a deliberately mixed pass/fail/pending go/no-go result (58.3% win rate, 2.22:1 P/L ratio, 91.7%
   adherence), screenshotted the populated UI in a headless browser, unchecked the toggle and confirmed
