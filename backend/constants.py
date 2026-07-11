@@ -283,3 +283,20 @@ IBKR_CLIENT_ID = 1
 IBKR_MAX_DEPTH_SYMBOLS = 3   # IBKR plan cap: 3 simultaneous Level 2 streams
 IBKR_ACCOUNT_POLL_SEC = 5    # How often to refresh account/positions
 IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt
+
+# ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
+# Signal-only thresholds (see backend/strategy/five_pillars.py). These never place
+# orders — they only score a candidate dict (same shape as gapper/gainer cache rows).
+# Source: knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md
+FIVE_PILLARS_MIN_PRICE = 2.0            # Pillar 1: price floor
+FIVE_PILLARS_MAX_PRICE = 20.0           # Pillar 1: price ceiling
+FIVE_PILLARS_MIN_CHANGE_PCT = 10.0      # Pillar 2: % up vs prior close (or vs LOD on continuation)
+FIVE_PILLARS_MIN_REL_VOLUME = 5.0       # Pillar 3: relative volume multiple
+FIVE_PILLARS_MAX_FLOAT_SHARES = 20_000_000  # Pillar 5: float ceiling (shares)
+
+# ── Strategy: Gap and Go setup ────────────────────────────────────────────────
+# Codeable rules only — tape-reading / Level 2 nuance is intentionally NOT encoded.
+GAP_AND_GO_WINDOW_START_ET = (9, 30)    # session open
+GAP_AND_GO_WINDOW_END_ET = (10, 0)      # end of the Gap and Go entry window
+GAP_AND_GO_MAX_STOP_DOLLARS = 0.20      # max risk per share (stop distance)
+GAP_AND_GO_MIN_PROFIT_LOSS_RATIO = 2.0  # target = entry + risk * this ratio

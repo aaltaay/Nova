@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 from paths import env_file_path, log_dir as _nova_log_dir
 from ibkr import client as _ibkr_client
 from routes.trading import router as _trading_router, ws_router as _trading_ws_router
+from routes.strategy import router as _strategy_router
 
 _log_dir = str(_nova_log_dir())
 _file_handler = logging.handlers.RotatingFileHandler(
@@ -1547,6 +1548,7 @@ app = FastAPI(title="Nova API", lifespan=lifespan)
 
 app.include_router(_trading_router)
 app.include_router(_trading_ws_router)
+app.include_router(_strategy_router)
 
 app.add_middleware(
     CORSMiddleware,

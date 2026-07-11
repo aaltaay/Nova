@@ -15,6 +15,7 @@ env/
 
 # Environment variables
 .env
+.env.local
 
 # Scanner persistence cache (in-process snapshots, not for VCS)
 backend/.cache/
@@ -39,3 +40,6 @@ backend/*.spec.bak
 .DS_Store
 Thumbs.db
 .vercel
+
+# Local course handouts (large PDFs)
+downloads/

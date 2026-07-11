@@ -30,6 +30,47 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-10 — Five Pillars scoring + Gap and Go signal (Phase 1, signal-only)
+
+- **What:** Added `backend/strategy/` with two pure-logic modules: `five_pillars.py` scores
+  any candidate stock dict against the 5 Pillars (price, % change, relative volume, catalyst,
+  float) and returns a ✅ checkmark only when all 5 pass; `gap_and_go.py` layers on the 9:30–10:00
+  AM ET entry window and a pre-market-high breakout check, computing entry/stop/target from
+  `constants.py` thresholds. Exposed read-only via three new `GET /api/strategy/*` endpoints
+  (`backend/routes/strategy.py`). 22 new pytest unit tests run against mock data.
+- **Why:** User asked to formalize the 5 Pillars as a pass/fail checklist with a checkmark,
+  verify it with unit tests against mock data, and implement Gap and Go as the first automated
+  setup — while guaranteeing no hidden automation (every automated capability must be legible
+  to the user).
+- **Files touched:** `backend/constants.py` (new `FIVE_PILLARS_*` / `GAP_AND_GO_*` constants),
+  `backend/strategy/__init__.py`, `five_pillars.py`, `gap_and_go.py`, `backend/routes/strategy.py`,
+  `backend/main.py` (router registration only), `backend/tests/test_five_pillars.py`,
+  `test_gap_and_go.py`, `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`,
+  `knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md` (decision log).
+- **How it works now:** Both strategy modules are pure functions over plain dicts — no network
+  calls, no state, no order-placing code path anywhere in either file. `GapAndGoSignal` hard-codes
+  `would_execute = False`. The new routes are strictly `GET` (no `POST`/`PUT`/`DELETE`) and every
+  response carries a `note` field stating it never places, modifies, or cancels orders. `routes/strategy.py`
+  imports `main` lazily inside functions (same pattern as `hod_momo_enrichment.py`) to avoid a
+  circular import with `main.py`, which registers the router. There is still no "Automate" button
+  in the UI — this is backend signal logic only; the transparency principle (every automation
+  control must state what it does/doesn't do, in plain language, next to the control) is now
+  written into the backbone doc so it applies whenever that UI is built.
+- **Verified by:** `py -3 -m pytest backend/tests/ -v` → 30/30 passed (22 new + 8 pre-existing
+  IBKR safety tests unaffected). Confirmed `main.py` still imports cleanly with the new router
+  registered (no circular-import regression).
+- **Follow-ups:** No UI panel yet for these signals; Phase 2 (paper execution via IBKR) is not
+  started — see backbone doc §5 for the phased plan and go/no-go bar before any order is placed.
+
+## 2026-07-10 — Dual memory: Pinecone course RAG + Obsidian vault + recall router
+
+- **What:** Added `tools/course_memory/` to ingest Warrior slide PDFs into Pinecone, plus an Obsidian vault at `knowledge/obsidian/` for curated Nova decisions. `recall.py` auto-routes questions to Obsidian, Pinecone, or both.
+- **Why:** User wants accurate long-term recall of course material and a place for “what should Nova automate?” decisions without manually choosing a database.
+- **Files touched:** `tools/course_memory/*`, `knowledge/obsidian/**`, `.env.example`, `.gitignore`.
+- **How it works now:** PDFs → chunk/embed → Pinecone (`ingest.py`). Decisions live in Obsidian notes. Ask via `py recall.py "…"`. Router: Nova/build/decide → Obsidian first; course/setup/rules → Pinecone first; ambiguous → both. Trust order: Obsidian decisions > Pinecone citations > model guesses.
+- **Verified by:** `ingest.py --dry-run` (1080 chunks from 34 1pp PDFs); `recall.py` Obsidian path after Unicode fix.
+- **Follow-ups:** User adds `PINECONE_API_KEY` + `OPENAI_API_KEY`, runs full `ingest.py`, opens vault in Obsidian.
+
 ## 2026-07-10 — IBKR optional trading module (Level 2 depth + paper order execution)
 
 - **What:** Added an opt-in Interactive Brokers trading module alongside the existing Alpaca-powered scanner. New "Trading" tab provides IBKR connection status, Level 2 order book (with L1 fallback while entitlement processes), an order ticket (market + limit, buy + sell), and a positions/account panel. All existing Alpaca tabs (Gappers, Movers, Afterhours, Catalysts, HOD Momo) are untouched.
