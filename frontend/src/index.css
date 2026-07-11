@@ -686,6 +686,104 @@ th {
   color: var(--accent-color);
 }
 
+/* ── Journal panel (go/no-go bar + metrics) ──────────────────────────────── */
+
+.journal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 0.9rem 1rem;
+}
+
+.go-no-go-bar {
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color);
+}
+
+.go-no-go-go {
+  border-color: var(--success);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.go-no-go-nogo {
+  border-color: var(--border-color);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.go-no-go-headline {
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin-bottom: 0.5rem;
+}
+
+.go-no-go-go .go-no-go-headline {
+  color: var(--success);
+}
+
+.go-no-go-nogo .go-no-go-headline {
+  color: var(--danger);
+}
+
+.go-no-go-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.go-no-go-criterion {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.go-no-go-icon {
+  display: inline-block;
+  width: 1.1rem;
+}
+
+.go-no-go-pass .go-no-go-icon {
+  color: var(--success);
+}
+
+.go-no-go-fail .go-no-go-icon {
+  color: var(--danger);
+}
+
+.journal-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.6rem;
+}
+
+.journal-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-weight: 700;
+}
+
+.journal-metric-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.journal-section-heading {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin: 0.4rem 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* ── Clickable symbol button ─────────────────────────────────────────────── */
 
 .symbol-btn {

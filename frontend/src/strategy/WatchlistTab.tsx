@@ -1,7 +1,9 @@
 /** Watchlist tab — Five Pillars ranked table + live setup Signals sub-panel. Signal-only; no orders placed. */
 import { useState } from 'react';
 import { WATCHLIST_SUBSCORE_LABELS } from '../constants';
+import { JournalPanel } from './JournalPanel';
 import { SignalsPanel } from './SignalsPanel';
+import { useJournal } from './useJournal';
 import { useSignalsStream } from './useSignalsStream';
 import type { WatchlistEntry } from './types';
 
@@ -66,11 +68,12 @@ interface WatchlistTabProps {
   onSelectSymbol: (symbol: string) => void;
 }
 
-type WatchlistSubTab = 'watchlist' | 'signals';
+type WatchlistSubTab = 'watchlist' | 'signals' | 'journal';
 
 export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelectSymbol }: WatchlistTabProps) {
   const [subTab, setSubTab] = useState<WatchlistSubTab>('watchlist');
   const signalsStream = useSignalsStream();
+  const journal = useJournal(subTab === 'journal');
 
   return (
     <div className="watchlist-tab">
@@ -88,6 +91,12 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
         >
           Signals
           {signalsStream.signals.length > 0 && <span className="tab-count">{signalsStream.signals.length}</span>}
+        </button>
+        <button
+          className={`sub-tab ${subTab === 'journal' ? 'active' : ''}`}
+          onClick={() => setSubTab('journal')}
+        >
+          Journal
         </button>
       </div>
 
@@ -138,6 +147,15 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
           connected={signalsStream.connected}
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelectSymbol}
+        />
+      )}
+
+      {subTab === 'journal' && (
+        <JournalPanel
+          metrics={journal.metrics}
+          signals={journal.signals}
+          loading={journal.loading}
+          error={journal.error}
         />
       )}
     </div>

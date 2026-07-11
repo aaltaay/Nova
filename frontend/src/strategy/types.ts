@@ -67,3 +67,58 @@ export interface SetupSignal extends SetupSignalDetail {
   setup: SetupName;
   timestamp: number; // unix seconds
 }
+
+/** Mirrors backend/journal/*.py row + metrics shapes. */
+export interface JournalSignalRow {
+  id: number;
+  ts: number; // unix seconds
+  symbol: string;
+  setup: SetupName;
+  entry_price: number | null;
+  stop_price: number | null;
+  target_price: number | null;
+  payload_json: string;
+}
+
+export interface JournalTradeRow {
+  id: number;
+  opened_ts: number;
+  closed_ts: number | null;
+  symbol: string;
+  setup: string | null;
+  side: string;
+  qty: number;
+  entry_price: number;
+  exit_price: number | null;
+  stop_price: number | null;
+  target_price: number | null;
+  pnl: number | null;
+  adherent: number | null;
+  notes: string;
+}
+
+export interface GoNoGoCriterion {
+  met: boolean | null;
+  label: string;
+  value: number | null;
+}
+
+export interface GoNoGo {
+  overall_go: boolean;
+  criteria: {
+    min_sample_size: GoNoGoCriterion;
+    profit_loss_ratio: GoNoGoCriterion;
+    adherence: GoNoGoCriterion;
+  };
+}
+
+export interface JournalMetrics {
+  total_closed_trades: number;
+  win_rate_pct: number | null;
+  avg_win_dollars: number | null;
+  avg_loss_dollars: number | null;
+  profit_loss_ratio: number | null;
+  total_pnl_dollars: number | null;
+  adherence_pct: number | null;
+  go_no_go: GoNoGo;
+}

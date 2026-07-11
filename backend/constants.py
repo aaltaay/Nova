@@ -360,3 +360,9 @@ RISK_PREFERRED_STOP_DOLLARS_HIGH = 0.10
 RISK_MAX_CONSECUTIVE_LOSSES = 3       # walk-away guardrail: 3 losses in a row halts the day
 RISK_MAX_GIVEBACK_FRACTION_OF_PEAK = 0.50  # walk-away guardrail: gave back half of today's peak profit
 RISK_SESSION_RESET_HOUR_ET = 4        # daily state resets at 4:00 AM ET, mirrors HOD_MOMO_SESSION_RESET_HOUR_ET
+
+# ── Journal (Phase E) ────────────────────────────────────────────────────────
+JOURNAL_DB_FILENAME = "journal.db"      # lives under paths.cache_dir(), not git-tracked
+JOURNAL_SIGNALS_DEFAULT_LIMIT = 100
+JOURNAL_TRADES_DEFAULT_LIMIT = 200
+JOURNAL_MIN_TRADES_FOR_GO_LIVE = 100     # go/no-go bar: minimum sample size before trusting the stats

@@ -193,3 +193,17 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
   `session_reset_loop()` (mirrors `hod_momo.py`'s pattern) resets state at 4 AM ET. 15 new unit
   tests (`test_risk.py`) — 90/90 full backend suite green. No frontend UI yet — the go/no-go bar
   ships with Phase E (Journal), which will read this same `/api/strategy/risk` endpoint.
+- **2026-07-11** — Implemented **Phase E (Journal + go/no-go bar)**: new `backend/journal/` package
+  (`db.py`/`store.py`/`metrics.py`) persists every setup signal to a SQLite `signals` table the
+  moment `setups_stream.py` detects it — the journal exists and is already logging before any
+  order-placing code (Phase D) is written. A `trades` table + `record_trade()` are ready for Phase D
+  to populate; until then, `metrics.compute_metrics()` honestly reports `null`/pending rather than a
+  fabricated rate from zero trades. The go/no-go bar checks the plan's three live-money criteria
+  (`JOURNAL_MIN_TRADES_FOR_GO_LIVE` = 100 closed trades, `RISK_TARGET_PROFIT_LOSS_RATIO` = 2:1,
+  100% adherence) and folds "max daily loss never breached" into the adherence flag itself — a trade
+  marked non-adherent covers any risk-rule violation, including trading through a halt. Exposed via
+  `GET /api/journal/{signals,trades,metrics}`; new **Journal** sub-tab (next to Watchlist/Signals)
+  renders the bar, a metrics grid, and recent signals. 8 new unit tests (`test_journal.py`) — 98/98
+  full backend suite green. Verified live against the running scanner (metrics/signals endpoints
+  correct) and in-browser via headless screenshot (NO-GO bar + empty-state metrics render correctly
+  with zero trades). Next: **Phase D (paper execution)**.

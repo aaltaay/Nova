@@ -32,6 +32,10 @@ export const SETUP_LABELS: Record<string, string> = {
   abcd: 'ABCD',
 };
 
+/** Journal panel poll interval — metrics/signals change slowly, no need for the watchlist's cadence. */
+export const JOURNAL_POLL_INTERVAL_MS = 15000;
+export const JOURNAL_RECENT_SIGNALS_LIMIT = 25;
+
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 /** Trading days used for avg daily volume / RVOL denominator (mirror backend RVOL_LOOKBACK_DAYS). */

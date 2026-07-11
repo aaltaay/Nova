@@ -23,6 +23,7 @@ from constants import (
     SETUPS_SCAN_INTERVAL_SEC,
     SETUPS_SCAN_TOP_N,
 )
+from journal.store import record_signal
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
 
@@ -70,10 +71,21 @@ async def _broadcast(payload: dict) -> None:
         _ws_clients.discard(ws)
 
 
-def _record_signal(setup_name: str, signal_dict: dict) -> dict:
+def _record_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict:
     record = {"setup": setup_name, "timestamp": time.time(), **signal_dict}
     _signal_history.append(record)
     del _signal_history[:-SETUPS_MAX_HISTORY]
+    try:
+        record_signal(
+            symbol=symbol,
+            setup=setup_name,
+            entry_price=signal_dict.get("entry_price"),
+            stop_price=signal_dict.get("stop_price"),
+            target_price=signal_dict.get("target_price"),
+            payload=signal_dict,
+        )
+    except Exception:
+        logger.exception("setups_stream: failed to journal signal for %s/%s", symbol, setup_name)
     return record
 
 
@@ -102,7 +114,7 @@ async def _scan_once() -> None:
             if now - last < SETUPS_ALERT_COOLDOWN_SEC:
                 continue
             _last_alert_ts[key] = now
-            record = _record_signal(setup_name, result[setup_name])
+            record = _record_signal(symbol, setup_name, result[setup_name])
             await _broadcast({"type": "signal", **record})
 
 
