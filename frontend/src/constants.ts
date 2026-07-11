@@ -73,6 +73,8 @@ export const SETUP_LABELS: Record<string, string> = {
 /** Journal panel poll interval — metrics/signals change slowly, no need for the watchlist's cadence. */
 export const JOURNAL_POLL_INTERVAL_MS = 15000;
 export const JOURNAL_RECENT_SIGNALS_LIMIT = 25;
+/** Mirrors backend JOURNAL_CALENDAR_TIMEZONE — calendar days are America/New_York. */
+export const JOURNAL_CALENDAR_TIMEZONE = 'America/New_York';
 
 /** Executor (Phase D) status poll interval — armed state and open positions can change
  * quickly once a bracket fills, so this polls faster than the Journal panel. */

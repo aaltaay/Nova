@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Single-click must keep sidebar; full page is double-click only
+
+- **Symptom:** After the prior fix, any ticker click replaced the scanner with a full detail page — removing the side panel UX users still wanted for quick lookup.
+- **Cause:** `selectedSymbol` was overloaded to mean “navigate to full page,” so single-click left the scanner.
+- **Fix:** Split state: `selectedSymbol` → `SidePanel` only; `tradingSymbol` → `TickerDetailPage`. Symbol rows use `SymbolSelectButton` (click / double-click). Back clears `tradingSymbol` only.
+- **Keywords:** double-click, SidePanel, tradingSymbol, selectedSymbol, TickerDetailPage, SymbolSelectButton
+
 ## 2026-07-11 — Clicking a ticker did not open a trading/detail screen with charts
 
 - **Symptom:** User clicked a symbol and expected a dedicated trading/detail view with graphs; the UI stayed on the scanner with only a narrow side panel (often perceived as “no graphs”).

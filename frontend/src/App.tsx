@@ -5,11 +5,14 @@ import { useHodMomoStream } from './hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from './hod_momo/useHodMomoConfig';
 import { TabNav } from './components/TabNav';
 import type { ActiveTab } from './components/TabNav';
+import { SidePanel } from './components/SidePanel';
 import { SymbolSearchBox } from './components/SymbolSearchBox';
+import { SymbolSelectButton } from './components/SymbolSelectButton';
 import type { NewsImpactVerdict } from './types/newsImpact';
 import { TradingTab } from './ibkr/TradingTab';
 import { WatchlistTab } from './strategy/WatchlistTab';
 import { useWatchlist } from './strategy/useWatchlist';
+import { ReportsTab } from './reports/ReportsTab';
 import { TickerDetailPage } from './pages/TickerDetailPage';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from './utils/quoteFormat';
 
@@ -174,6 +177,7 @@ interface ScannerTableProps {
   onSort: (key: string) => void;
   selectedSymbol: string | null;
   onSelect: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }
 
 function renderCell(key: string, row: ScannerRow): React.ReactNode {
@@ -225,7 +229,9 @@ function renderCell(key: string, row: ScannerRow): React.ReactNode {
   }
 }
 
-function ScannerTable({ columns, data, sortState, onSort, selectedSymbol, onSelect }: ScannerTableProps) {
+function ScannerTable({
+  columns, data, sortState, onSort, selectedSymbol, onSelect, onOpenTrading,
+}: ScannerTableProps) {
   return (
     <div className="table-wrapper">
       <table>
@@ -260,12 +266,12 @@ function ScannerTable({ columns, data, sortState, onSort, selectedSymbol, onSele
               {columns.map(([key]) =>
                 key === 'symbol' ? (
                   <td key={key}>
-                    <button
-                      className={`symbol-btn${selectedSymbol === row.symbol ? ' active' : ''}`}
-                      onClick={() => onSelect(row.symbol)}
-                    >
-                      {row.symbol}
-                    </button>
+                    <SymbolSelectButton
+                      symbol={row.symbol}
+                      selected={selectedSymbol === row.symbol}
+                      onSelect={onSelect}
+                      onOpenTrading={onOpenTrading}
+                    />
                   </td>
                 ) : (
                   <td key={key}>{renderCell(key, row)}</td>
@@ -305,8 +311,16 @@ function App() {
   // Catalysts tab state
   const [catalysts, setCatalysts] = useState<Catalyst[]>([]);
 
-  // Ticker detail state (side panel)
+  // selectedSymbol → side panel only; tradingSymbol → full trading page (double-click)
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+  const [tradingSymbol, setTradingSymbol] = useState<string | null>(null);
+
+  const openTradingView = useCallback((symbol: string) => {
+    const sym = symbol.trim().toUpperCase();
+    if (!sym) return;
+    setSelectedSymbol(sym);
+    setTradingSymbol(sym);
+  }, []);
 
   // Settings form state
   const [apiKey, setApiKey] = useState('');
@@ -594,7 +608,7 @@ function App() {
     }
   }
 
-  if (selectedSymbol) {
+  if (tradingSymbol) {
     return (
       <div className="container container--ticker-detail">
         <div className="main-col main-col--full">
@@ -619,9 +633,9 @@ function App() {
           </header>
           <main className="ticker-detail-main">
             <TickerDetailPage
-              symbol={selectedSymbol}
-              onBack={() => setSelectedSymbol(null)}
-              onSelectSymbol={setSelectedSymbol}
+              symbol={tradingSymbol}
+              onBack={() => setTradingSymbol(null)}
+              onSelectSymbol={openTradingView}
             />
           </main>
         </div>
@@ -673,9 +687,7 @@ function App() {
               <option key={d} value={d}>{fmtHistoryDate(d)}</option>
             ))}
           </select>
-          {!selectedSymbol && (
-            <SymbolSearchBox onLookup={setSelectedSymbol} />
-          )}
+          <SymbolSearchBox onLookup={setSelectedSymbol} />
           <button
             className={`settings-btn ${showSettings ? 'active' : ''}`}
             onClick={() => setShowSettings(s => !s)}
@@ -799,6 +811,7 @@ function App() {
                 onSort={key => toggleSort(gapperSort, setGapperSort, key)}
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
+                onOpenTrading={openTradingView}
               />
             ) : (
               <EmptyState health={health} context={mode === 'market' ? 'premarket' : mode} />
@@ -855,12 +868,12 @@ function App() {
                     {sortedCatalysts.map(c => (
                       <tr key={c.symbol} className={selectedSymbol === c.symbol ? 'row-selected' : ''}>
                         <td>
-                          <button
-                            className={`symbol-btn${selectedSymbol === c.symbol ? ' active' : ''}`}
-                            onClick={() => setSelectedSymbol(c.symbol)}
-                          >
-                            {c.symbol}
-                          </button>
+                          <SymbolSelectButton
+                            symbol={c.symbol}
+                            selected={selectedSymbol === c.symbol}
+                            onSelect={setSelectedSymbol}
+                            onOpenTrading={openTradingView}
+                          />
                         </td>
                         <td>${c.previous_close.toFixed(2)}</td>
                         <td>${c.current_price.toFixed(2)}</td>
@@ -935,6 +948,7 @@ function App() {
                 onSort={key => toggleSort(moverSort, setMoverSort, key)}
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
+                onOpenTrading={openTradingView}
               />
             ) : (
               <EmptyState health={health} context={mode === 'premarket' ? 'market' : mode} />
@@ -953,6 +967,7 @@ function App() {
                 onSort={key => toggleSort(afterhoursSort, setAfterhoursSort, key)}
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
+                onOpenTrading={openTradingView}
               />
             ) : (
               <EmptyState health={health} context={mode === 'market' ? 'afterhours' : mode} />
@@ -975,6 +990,7 @@ function App() {
               config={hodMomoConfig}
               selectedSymbol={selectedSymbol}
               onSelectSymbol={setSelectedSymbol}
+              onOpenTrading={openTradingView}
               onOpenSettings={() => setShowHodSettings(s => !s)}
               dataFeed={activeFeed}
             />
@@ -990,10 +1006,19 @@ function App() {
             error={watchlist.error}
             selectedSymbol={selectedSymbol}
             onSelectSymbol={setSelectedSymbol}
+            onOpenTrading={openTradingView}
           />
         )}
+
+        {/* ── Reports (P&L calendar) ────────────────────────────────── */}
+        {activeTab === 'reports' && <ReportsTab />}
       </main>
       </div>
+      <SidePanel
+        selectedSymbol={selectedSymbol}
+        setSelectedSymbol={setSelectedSymbol}
+        onOpenTrading={openTradingView}
+      />
     </div>
   );
 }

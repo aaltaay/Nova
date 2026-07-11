@@ -1,5 +1,6 @@
 /** Watchlist tab — Five Pillars ranked table + live setup Signals sub-panel. Signal-only; no orders placed. */
 import { useState } from 'react';
+import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
 import { ExecutorPanel } from './ExecutorPanel';
 import { JournalPanel } from './JournalPanel';
@@ -31,21 +32,22 @@ function WatchlistRow({
   entry,
   selected,
   onSelect,
+  onOpenTrading,
 }: {
   entry: WatchlistEntry;
   selected: boolean;
   onSelect: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }) {
   return (
     <tr className={selected ? 'row-selected' : ''}>
       <td>
-        <button
-          className={`symbol-btn${selected ? ' active' : ''}`}
-          onClick={() => onSelect(entry.symbol)}
-          title={`Load ${entry.symbol}'s chart and detail panel`}
-        >
-          {entry.symbol}
-        </button>
+        <SymbolSelectButton
+          symbol={entry.symbol}
+          selected={selected}
+          onSelect={onSelect}
+          onOpenTrading={onOpenTrading}
+        />
       </td>
       <td>
         <span
@@ -70,11 +72,14 @@ interface WatchlistTabProps {
   error: string | null;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }
 
 type WatchlistSubTab = 'watchlist' | 'signals' | 'journal' | 'automation';
 
-export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelectSymbol }: WatchlistTabProps) {
+export function WatchlistTab({
+  entries, loading, error, selectedSymbol, onSelectSymbol, onOpenTrading,
+}: WatchlistTabProps) {
   const [subTab, setSubTab] = useState<WatchlistSubTab>('watchlist');
   const signalsStream = useSignalsStream();
 
@@ -118,6 +123,7 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
           <div className="watchlist-description">
             Ranked by the Five Pillars (price, % change, relative volume, catalyst, float) with a
             composite score breaking ties. Signal only — no orders are placed from this tab.
+            Click a symbol for the side panel; double-click for the full trading view.
           </div>
           {error && <div className="empty-state">{error}</div>}
           {!error && entries.length === 0 ? (
@@ -129,7 +135,7 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
               <table>
                 <thead>
                   <tr>
-                    <th title="Click a symbol to load its chart and detail panel.">Symbol</th>
+                    <th title="Click: side panel. Double-click: full trading view.">Symbol</th>
                     <th title="How many of the 5 Pillars (price, % change, relative volume, catalyst, float) currently pass. All 5 passing ranks a symbol above any partial match.">Pillars</th>
                     <th title="Hover a chip above to see exactly why that pillar passed or failed for this symbol.">Detail</th>
                     {Object.entries(WATCHLIST_SUBSCORE_LABELS).map(([key, label]) => (
@@ -145,6 +151,7 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
                       entry={entry}
                       selected={selectedSymbol === entry.symbol}
                       onSelect={onSelectSymbol}
+                      onOpenTrading={onOpenTrading}
                     />
                   ))}
                 </tbody>
@@ -160,6 +167,7 @@ export function WatchlistTab({ entries, loading, error, selectedSymbol, onSelect
           connected={signalsStream.connected}
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelectSymbol}
+          onOpenTrading={onOpenTrading}
         />
       )}
 

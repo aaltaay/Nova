@@ -1,4 +1,5 @@
 /** Signals panel — live feed of Gap and Go / Bull Flag / ABCD triggers from /ws/strategy. */
+import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { SETUP_LABELS } from '../constants';
 import type { SetupSignal } from './types';
 
@@ -16,21 +17,23 @@ function SignalRow({
   signal,
   selected,
   onSelect,
+  onOpenTrading,
 }: {
   signal: SetupSignal;
   selected: boolean;
   onSelect: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }) {
   return (
     <tr className={selected ? 'row-selected' : ''}>
       <td className="hod-time-cell">{fmtTime(signal.timestamp)}</td>
       <td>
-        <button
-          className={`symbol-btn${selected ? ' active' : ''}`}
-          onClick={() => onSelect(signal.symbol)}
-        >
-          {signal.symbol}
-        </button>
+        <SymbolSelectButton
+          symbol={signal.symbol}
+          selected={selected}
+          onSelect={onSelect}
+          onOpenTrading={onOpenTrading}
+        />
       </td>
       <td>
         <span className="pillar-chip pillar-pass">{SETUP_LABELS[signal.setup] ?? signal.setup}</span>
@@ -48,13 +51,17 @@ interface SignalsPanelProps {
   connected: boolean;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }
 
-export function SignalsPanel({ signals, connected, selectedSymbol, onSelectSymbol }: SignalsPanelProps) {
+export function SignalsPanel({
+  signals, connected, selectedSymbol, onSelectSymbol, onOpenTrading,
+}: SignalsPanelProps) {
   return (
     <div className="signals-panel">
       <div className="watchlist-description">
         Live setup triggers (Gap and Go, Bull Flag, ABCD) — signal only, no orders are placed.
+        Click a symbol for the side panel; double-click for the full trading view.
         {!connected && <span className="na-muted"> Reconnecting…</span>}
       </div>
       {signals.length === 0 ? (
@@ -67,7 +74,7 @@ export function SignalsPanel({ signals, connected, selectedSymbol, onSelectSymbo
             <thead>
               <tr>
                 <th title="When this setup was detected as eligible.">Time</th>
-                <th title="Click a symbol to load its chart and detail panel.">Symbol</th>
+                <th title="Click: side panel. Double-click: full trading view.">Symbol</th>
                 <th title="Which pattern triggered: Gap and Go, Bull Flag, or ABCD. See backend/strategy/*.py for the exact rule.">Setup</th>
                 <th title="Suggested entry price if this signal were acted on.">Entry</th>
                 <th title="Suggested stop-loss price if this signal were acted on.">Stop</th>
@@ -82,6 +89,7 @@ export function SignalsPanel({ signals, connected, selectedSymbol, onSelectSymbo
                   signal={s}
                   selected={selectedSymbol === s.symbol}
                   onSelect={onSelectSymbol}
+                  onOpenTrading={onOpenTrading}
                 />
               ))}
             </tbody>

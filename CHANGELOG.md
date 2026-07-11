@@ -30,6 +30,25 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Single-click keeps sidebar; double-click opens full trading page
+
+- **What:** Restored the scanner **side panel** for single-click symbol select. Double-click (or side-panel **Full view**) opens the dedicated `TickerDetailPage` with large charts + drawing tools. Back clears only the full-page state and returns to the prior scanner tab with the sidebar still selected.
+- **Why:** User clarified UX: keep the sidebar on click; only open a full trading/detail screen when ready to act (double-click).
+- **Files touched:** `frontend/src/App.tsx`, `components/{SidePanel,SymbolSelectButton,TickerDetailContent}.tsx`, `pages/TickerDetailPage.tsx`, `strategy/{WatchlistTab,SignalsPanel}.tsx`, `hod_momo/HodMomoTab.tsx`, `index.css`, CHANGELOG/PROBLEM_LOG.
+- **How it works now:** `selectedSymbol` drives `SidePanel` only (scanner tabs stay). `tradingSymbol` drives full-page `TickerDetailPage`. `SymbolSelectButton` wires click → select, double-click → `openTradingView`. Panel chart uses `variant="panel"`; page chart uses `variant="page"` (mock bars if Alpaca empty).
+- **Verified by:** `npm run build`; browser: single-click → sidebar + tabs remain; double-click → full page + Back.
+- **Related:** supersedes prior “click opens full page” CHANGELOG entry same day; PROBLEM_LOG same date.
+
+## 2026-07-11 — Reports tab: TraderVue-style P&L calendar
+
+- **What:** New top-level **Reports** tab with a year calendar of daily net P&L from journal closed trades, month Open detail (daily $ + trade count + week totals), and a growth summary (year P&L, win/loss days, best/worst day). Backend `GET /api/journal/calendar?year=&month=`. Import is intentionally skipped (journal already has trades).
+- **Why:** User asked to mirror TraderVue reporting skills — calendar first — without broker import.
+- **Files touched:** `backend/journal/calendar.py` (new), `backend/routes/journal.py`, `backend/constants.py`, `backend/journal/mock_data.py` (multi-day seed), `backend/tests/test_journal_calendar.py` (new), `frontend/src/reports/*` (new), `frontend/src/components/TabNav.tsx`, `frontend/src/App.tsx`, `frontend/src/constants.ts`, `frontend/src/index.css`, `knowledge/obsidian/03-Nova-Decisions/TraderVue-Reporting-Parity.md`.
+- **How it works now:** Closed trades are bucketed by `closed_ts` into America/New_York calendar days. Year response returns 12 months + analytics; `&month=` returns every day in the month plus Sunday-start week totals. UI demo toggle uses `include_mock` like Journal.
+- **Verified by:** `pytest backend/tests/test_journal_calendar.py`; `npm run build`; browser check of Reports tab.
+- **Follow-ups:** Recent 30/60/90 charts, drawdown, tag breakdown.
+- **Related:** TraderVue-Reporting-Parity.md
+
 ## 2026-07-11 — Click ticker opens full detail page with working charts
 
 - **What:** Clicking a symbol no longer only fills a narrow side panel beside the scanner. It navigates to a dedicated full-width **Ticker Detail** page with Back, symbol lookup, large price chart (drawing tools: trend / horizontal / vertical), and fundamentals/news. Header Look Up also opens that page. Empty Alpaca bar responses fall back to demo candles so the chart and drawings stay usable.

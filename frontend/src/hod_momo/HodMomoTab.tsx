@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { HOD_MOMO_COLUMNS, STRATEGY_META, STRATEGY_META_MAP } from '../constants';
 import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
@@ -75,12 +76,14 @@ function AlertRow({
   strategyColorOverride,
   selected,
   onSelect,
+  onOpenTrading,
   consolidationSec,
 }: {
   alert: AlertObject;
   strategyColorOverride?: string;
   selected: boolean;
   onSelect: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
   consolidationSec: number;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -109,12 +112,12 @@ function AlertRow({
             case 'symbol':
               return (
                 <td key={key}>
-                  <button
-                    className={`symbol-btn${selected ? ' active' : ''}`}
-                    onClick={() => onSelect(alert.ticker)}
-                  >
-                    {alert.ticker}
-                  </button>
+                  <SymbolSelectButton
+                    symbol={alert.ticker}
+                    selected={selected}
+                    onSelect={onSelect}
+                    onOpenTrading={onOpenTrading}
+                  />
                 </td>
               );
             case 'price':
@@ -312,6 +315,7 @@ interface HodMomoTabProps {
   config: UseHodMomoConfigReturn;
   selectedSymbol: string | null;
   onSelectSymbol: (sym: string) => void;
+  onOpenTrading: (sym: string) => void;
   onOpenSettings: () => void;
   dataFeed?: string;
 }
@@ -322,6 +326,7 @@ export function HodMomoTab({
   config,
   selectedSymbol,
   onSelectSymbol,
+  onOpenTrading,
   onOpenSettings,
   dataFeed,
 }: HodMomoTabProps) {
@@ -459,6 +464,7 @@ export function HodMomoTab({
                     strategyColorOverride={configColors[alert.strategy_id]}
                     selected={selectedSymbol === alert.ticker}
                     onSelect={onSelectSymbol}
+                    onOpenTrading={onOpenTrading}
                     consolidationSec={consolidationSec}
                   />
                 ))

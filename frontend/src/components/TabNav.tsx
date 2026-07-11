@@ -5,7 +5,7 @@
  */
 import { CATALYSTS_EXPERIMENTAL_LABEL } from '../constants';
 
-export type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo' | 'trading' | 'strategy';
+export type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo' | 'trading' | 'strategy' | 'reports';
 
 interface Props {
   activeTab: ActiveTab;
@@ -75,6 +75,12 @@ export function TabNav({ activeTab, onTabClick, counts, secondsAgo, historyDate 
         >
           Watchlist
           {counts.watchlist > 0 && <span className="tab-count">{counts.watchlist}</span>}
+        </button>
+        <button
+          className={`tab ${activeTab === 'reports' ? 'active' : ''}`}
+          onClick={() => onTabClick('reports')}
+        >
+          Reports
         </button>
       </div>
       {!historyDate && secondsAgo != null && (

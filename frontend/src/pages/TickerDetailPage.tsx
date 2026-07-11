@@ -1,4 +1,4 @@
-/** Full-page ticker trading view — replaces the scanner when a symbol is selected. */
+/** Full-page ticker trading view — opened via double-click (or Full view); Back returns to scanner. */
 import { TickerChart } from '../TickerChart';
 import { TickerDetailContent } from '../components/TickerDetailContent';
 import { useTickerStream } from '../hooks/useTickerStream';

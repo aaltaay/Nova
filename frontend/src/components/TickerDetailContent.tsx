@@ -1,5 +1,6 @@
-/** Fundamentals + news + broker grid for a ticker (chart lives on the parent page). */
+/** Fundamentals + news + broker grid for a ticker; optional panel chart / 3-col layout. */
 import { useEffect, useState } from 'react';
+import { TickerChart } from '../TickerChart';
 import { NewsHeadlineSection } from './NewsHeadlineSection';
 import {
   API_BASE_URL,
@@ -47,9 +48,18 @@ interface Props {
   detail: TickerDetail;
   /** When true, omit the quote header (symbol/price) — parent page already shows it. */
   hideHeader?: boolean;
+  /** When true, render the panel-height chart (side panel). */
+  showChart?: boolean;
+  /** Side-by-side columns when width allows (quote | chart | fundamentals). */
+  layout?: 'stack' | 'columns';
 }
 
-export function TickerDetailContent({ detail, hideHeader = false }: Props) {
+export function TickerDetailContent({
+  detail,
+  hideHeader = false,
+  showChart = false,
+  layout = 'stack',
+}: Props) {
   const [blocked, setBlocked] = useState(false);
   useEffect(() => { setBlocked(false); }, [detail.symbol]);
 
@@ -94,8 +104,21 @@ export function TickerDetailContent({ detail, hideHeader = false }: Props) {
     ? (todayOpen - prevClose) / prevClose
     : null;
 
-  return (
-    <div className="cq-root">
+  const columns = layout === 'columns';
+  const chartEl = showChart ? (
+    <TickerChart
+      symbol={detail.symbol}
+      variant="panel"
+      lastTrade={
+        trade?.price != null
+          ? { price: trade.price, timestamp: trade.timestamp ?? null }
+          : undefined
+      }
+    />
+  ) : null;
+
+  const quoteHeader = (
+    <>
       {!hideHeader && (
         <>
           <div className="cq-section-title cq-card-title">{QUOTE_CARD_TITLE}</div>
@@ -136,7 +159,6 @@ export function TickerDetailContent({ detail, hideHeader = false }: Props) {
           </div>
         </>
       )}
-
       {hideHeader && (
         <div className="cq-symbol-row cq-detail-actions">
           <button
@@ -147,52 +169,76 @@ export function TickerDetailContent({ detail, hideHeader = false }: Props) {
           >{blocked ? 'Blocked' : 'Block'}</button>
         </div>
       )}
-
       {descParts.length > 0 && (
         <div className="cq-description">{descParts.join(' | ')}</div>
       )}
-
       {lastUpdated && (
         <div className="cq-timestamp">Last updated on {fmtTimestamp(lastUpdated)}</div>
       )}
+    </>
+  );
 
-      <NewsHeadlineSection
-        news={news}
-        newsImpact={detail.news_impact}
-        timeAgo={timeAgo}
+  const keyStats = (
+    <div className="cq-grid cq-grid-key">
+      <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
+      <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
+      <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />
+      <CompactGridCell
+        label="Relative Volume (Daily)"
+        value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
+        valueClass={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
       />
+      <CompactGridCell
+        label="Gap(%)"
+        value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}
+        valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
+      />
+      <CompactGridCell label="Open" value={fmtPrice(daily?.open)} />
+      <CompactGridCell label="Previous Close" value={fmtPrice(prevClose)} />
+      <CompactGridCell label="High Price" value={fmtPrice(daily?.high)} />
+      <CompactGridCell label="Low Price" value={fmtPrice(daily?.low)} />
+    </div>
+  );
 
-      <div className="cq-grid">
-        <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
-        <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
-        <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />
-        <CompactGridCell
-          label="Relative Volume (Daily)"
-          value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
-          valueClass={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
-        />
-        <CompactGridCell label="Relative Volume (5 min %)" value="—" />
-        <CompactGridCell label="Volume In 5 Minutes" value="—" />
-        <CompactGridCell
-          label="Gap(%)"
-          value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}
-          valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
-        />
-        <CompactGridCell label="Open" value={fmtPrice(daily?.open)} />
-        <CompactGridCell label="Previous Close" value={fmtPrice(prevClose)} />
-        <CompactGridCell label="High Price" value={fmtPrice(daily?.high)} />
-        <CompactGridCell label="Low Price" value={fmtPrice(daily?.low)} />
-        <CompactGridCell label="High In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_high)} />
-        <CompactGridCell label="Low In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_low)} />
-        <CompactGridCell label="Short Interest" value={fmtVolume(detail.fundamentals?.short_interest)} />
-        <CompactGridCell label="Earnings Date" value={detail.fundamentals?.earnings_date ?? '—'} />
-        <CompactGridCell label="Market Cap" value={fmtMarketCap(detail.fundamentals?.market_cap)} />
-        <CompactGridCell label="Industry" value={detail.fundamentals?.industry ?? '—'} />
-        <CompactGridCell label="Sector" value={detail.fundamentals?.sector ?? '—'} />
-        <CompactGridCell label="Recent Split" value={detail.fundamentals?.recent_split ?? '—'} />
-        <CompactGridCell label="Exchange Group" value={asset?.exchange ?? '—'} />
-      </div>
+  const fundGrid = (
+    <div className="cq-grid">
+      {!columns && (
+        <>
+          <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
+          <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
+          <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />
+          <CompactGridCell
+            label="Relative Volume (Daily)"
+            value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
+            valueClass={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
+          />
+          <CompactGridCell label="Relative Volume (5 min %)" value="—" />
+          <CompactGridCell label="Volume In 5 Minutes" value="—" />
+          <CompactGridCell
+            label="Gap(%)"
+            value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}
+            valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
+          />
+          <CompactGridCell label="Open" value={fmtPrice(daily?.open)} />
+          <CompactGridCell label="Previous Close" value={fmtPrice(prevClose)} />
+          <CompactGridCell label="High Price" value={fmtPrice(daily?.high)} />
+          <CompactGridCell label="Low Price" value={fmtPrice(daily?.low)} />
+        </>
+      )}
+      <CompactGridCell label="High In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_high)} />
+      <CompactGridCell label="Low In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_low)} />
+      <CompactGridCell label="Short Interest" value={fmtVolume(detail.fundamentals?.short_interest)} />
+      <CompactGridCell label="Earnings Date" value={detail.fundamentals?.earnings_date ?? '—'} />
+      <CompactGridCell label="Market Cap" value={fmtMarketCap(detail.fundamentals?.market_cap)} />
+      <CompactGridCell label="Industry" value={detail.fundamentals?.industry ?? '—'} />
+      <CompactGridCell label="Sector" value={detail.fundamentals?.sector ?? '—'} />
+      <CompactGridCell label="Recent Split" value={detail.fundamentals?.recent_split ?? '—'} />
+      <CompactGridCell label="Exchange Group" value={asset?.exchange ?? '—'} />
+    </div>
+  );
 
+  const brokerGrid = (
+    <>
       <div className="cq-section-title">{QUOTE_BROKER_SECTION_TITLE}</div>
       <div className="cq-grid cq-grid-broker">
         <CompactGridCell label={QUOTE_ASSET_LABELS.status} value={asset?.status ? String(asset.status) : '—'} />
@@ -216,7 +262,37 @@ export function TickerDetailContent({ detail, hideHeader = false }: Props) {
           valueClass="cq-value-flags"
         />
       </div>
+    </>
+  );
 
+  if (columns) {
+    return (
+      <div className="cq-root cq-root--columns">
+        <div className="cq-col cq-col--quote">
+          {quoteHeader}
+          {keyStats}
+          <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
+        </div>
+        <div className="cq-col cq-col--chart">{chartEl}</div>
+        <div className="cq-col cq-col--fund">
+          <div className="cq-section-title">Fundamentals</div>
+          {fundGrid}
+          {brokerGrid}
+          {lastUpdated && (
+            <div className="cq-timestamp cq-timestamp-bottom">Last updated on {fmtTimestamp(lastUpdated)}</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="cq-root">
+      {quoteHeader}
+      {chartEl}
+      <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
+      {fundGrid}
+      {brokerGrid}
       {lastUpdated && (
         <div className="cq-timestamp cq-timestamp-bottom">Last updated on {fmtTimestamp(lastUpdated)}</div>
       )}
