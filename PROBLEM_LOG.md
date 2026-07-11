@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-10 — UnicodeEncodeError crashing the API process on Windows console output
+
+- **Symptom:** Log/print statements containing non-ASCII characters (e.g. `→`) raised `UnicodeEncodeError: 'charmap' codec can't encode character ... : character maps to <undefined>` when run from a plain Windows console/`cmd.exe` window, killing the process.
+- **Cause:** Windows consoles default to the `cp1252` codepage for Python's `stdout`/`stderr`, which cannot represent most Unicode characters. `uvicorn --reload` also spawns a fresh child interpreter via `multiprocessing.spawn`, which re-reads `PYTHONIOENCODING` from the environment at startup rather than inheriting the parent's already-reconfigured streams — so a fix applied only to the running process's `sys.stdout` didn't survive a reload.
+- **Fix:** `backend/run_api.py` now calls `_force_utf8_io()` before importing `uvicorn`: it sets `PYTHONIOENCODING=utf-8:backslashreplace` and `PYTHONUTF8=1` in `os.environ` (so any spawned reload child inherits UTF-8 stdio) and also calls `sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")` / same for `stderr` for the in-process (non-reload) path. As a narrower, immediate fix in the same class of bug, `tools/course_memory/recall.py` also had a literal `→` replaced with `->` in a print statement.
+- **Keywords:** UnicodeEncodeError, charmap codec, cp1252, Windows console encoding, PYTHONIOENCODING, PYTHONUTF8, uvicorn --reload multiprocessing spawn, stdout reconfigure
+
 ## 2026-07-10 — pytest collection SyntaxError "source code string cannot contain null bytes"
 
 - **Symptom:** `py -3 -m pytest backend/tests/test_ibkr_safety.py` failed at collection with `SyntaxError: source code string cannot contain null bytes`, even though the test file itself had no syntax errors.
