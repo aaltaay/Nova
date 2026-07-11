@@ -1,4 +1,5 @@
 import { useIbkrDepth } from './useIbkrDepth';
+import { computeL2Heuristics } from './l2Heuristics';
 import type { DepthLevel } from './types';
 
 interface Props {
@@ -49,11 +50,20 @@ export function DepthLadder({ symbol }: Props) {
     );
   }
 
+  const { askStacked, bidHeavy, wideSpread } = computeL2Heuristics(book);
+
   return (
     <div className="ibkr-depth-ladder">
       {l1Fallback && (
         <div className="ibkr-depth-fallback-badge">
           Level 1 only — depth entitlement pending
+        </div>
+      )}
+      {(askStacked || bidHeavy || wideSpread) && (
+        <div className="ibkr-depth-heuristics" title="Rule-of-thumb read of resting size on the book right now. Display-only — never feeds the automated executor.">
+          {askStacked && <span className="ibkr-heuristic-badge ibkr-heuristic-ask">Seller stacked on ask</span>}
+          {bidHeavy && <span className="ibkr-heuristic-badge ibkr-heuristic-bid">Bid heavy</span>}
+          {wideSpread && <span className="ibkr-heuristic-badge ibkr-heuristic-spread">Wide spread</span>}
         </div>
       )}
       <table className="ibkr-depth-table">

@@ -24,6 +24,7 @@ from constants import (
     SETUPS_SCAN_TOP_N,
 )
 from journal.store import record_signal
+from l2 import recorder as _l2_recorder
 from strategy import executor as _executor
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
@@ -121,6 +122,10 @@ async def _scan_once() -> None:
                 await _executor.on_signal(symbol, setup_name, result[setup_name])
             except Exception:
                 logger.exception("setups_stream: executor.on_signal failed for %s/%s", symbol, setup_name)
+            try:
+                await _l2_recorder.on_signal(symbol, setup_name, record["timestamp"])
+            except Exception:
+                logger.exception("setups_stream: l2 recorder failed for %s/%s", symbol, setup_name)
 
 
 async def scan_loop() -> None:

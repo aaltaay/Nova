@@ -48,6 +48,16 @@ export const JOURNAL_RECENT_SIGNALS_LIMIT = 25;
  * quickly once a bracket fills, so this polls faster than the Journal panel. */
 export const EXECUTOR_POLL_INTERVAL_MS = 5000;
 
+/** Level 2 heuristic badge thresholds (Phase F). Mirrors backend/constants.py
+ * L2_ASK_STACKED_RATIO / L2_BID_HEAVY_RATIO / L2_SPREAD_WIDE_DOLLARS — kept in
+ * sync manually since these badges are single-snapshot-only display heuristics
+ * on the live DepthLadder (the backend also computes a fuller feature series,
+ * including a multi-snapshot "drying up" trend, for the recorded dataset in
+ * l2/features.py). Never fed into automation — see Automation-Strategy-Backbone.md #3. */
+export const L2_ASK_STACKED_RATIO = 1.5;
+export const L2_BID_HEAVY_RATIO = 1.5;
+export const L2_SPREAD_WIDE_DOLLARS = 0.05;
+
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 /** Trading days used for avg daily volume / RVOL denominator (mirror backend RVOL_LOOKBACK_DAYS). */

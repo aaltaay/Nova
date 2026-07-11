@@ -259,3 +259,33 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
   builds clean (`tsc -b && vite build`) with no new lint errors. Not yet verified against a live IB
   Gateway paper session (none was running this session) — that remains the real-world proof pending a
   manual test with Gateway up. Next: **Phase F (Level 2 learning)**.
+- **2026-07-11** — Implemented **Phase F (Level 2 learning — record first, automate later)**: new
+  `backend/l2/` package. `recorder.py` hooks into `setups_stream._scan_once()` the same
+  try/except-wrapped way the executor does — on every signal it subscribes IBKR depth for that symbol
+  (reusing `ibkr/depth.py`'s existing subscription refcounting so it never exceeds IBKR's symbol cap
+  or steps on an already-open `DepthLadder` subscription) and snapshots `current_book()` every
+  `L2_SNAPSHOT_INTERVAL_SEC` for `L2_RECORD_WINDOW_SEC` around the signal, writing rows to a new
+  `l2.db` (`l2_snapshots` table, own SQLite file per the journal's one-db-per-domain pattern) via
+  `l2/store.py`. `l2/features.py` is pure math, no I/O: `bid_ask_imbalance`, `is_ask_stacked`,
+  `is_bid_heavy` (single-snapshot), and `is_buying_pressure_drying_up` (trailing-window comparison,
+  needs >= 2 snapshots) — these are the same qualitative reads Ross describes on the tape, turned into
+  numbers. `l2/labeling.py` joins each recording's signal symbol/timestamp against
+  `journal.store.get_trades()` (closest matching trade within `L2_LABEL_MATCH_TOLERANCE_SEC`, mock
+  trades excluded by default) to tag each recording `win`/`loss`/`unlabeled` — this labeled set is the
+  future training data, not consumed by anything yet. New `GET /api/l2/recordings` (`routes/l2.py`)
+  returns labeled recordings for future analysis tooling; read-only, no control surface needed since
+  recording is fully automatic. Frontend: per the plan's "heuristic badges, not automation yet" scope,
+  added single-snapshot heuristic badges (`ibkr/l2Heuristics.ts`, mirrors the backend's single-snapshot
+  math exactly so what a trader sees on the live `DepthLadder` matches what gets recorded/labeled) —
+  "Seller stacked on ask" / "Bid heavy" / "Wide spread" badges above the ladder, thresholds duplicated
+  intentionally in `frontend/src/constants.ts` (`L2_ASK_STACKED_RATIO`/`L2_BID_HEAVY_RATIO`/
+  `L2_SPREAD_WIDE_DOLLARS`, commented as mirroring backend/constants.py) since the frontend has no
+  shared-constants build step. Deliberately did **not** wire the multi-snapshot "drying up" feature or
+  any L2 read into the executor or risk engine — per section 3 of this doc, tape-based automation
+  waits until enough labeled recordings exist to trust a rule or model; today's badges are a live
+  display aid only. 23 new unit tests (`test_l2.py`: features, store, recorder subscribe/unsubscribe
+  refcounting, labeling match/no-match/tolerance/mock-exclusion) — 144/144 full backend suite green.
+  Verified: `main.py` boots with `l2.db` initialized and the new router registered (58 routes total);
+  frontend builds clean (`tsc -b && vite build`) and lints clean. Not yet verified against a live IB
+  Gateway paper session with real depth data (none was running this session). **All six plan phases
+  (A–F) are now implemented.**

@@ -27,6 +27,7 @@ from routes.trading import router as _trading_router, ws_router as _trading_ws_r
 from routes.strategy import router as _strategy_router
 from routes.journal import router as _journal_router
 from routes.executor import router as _executor_router
+from routes.l2 import router as _l2_router
 
 _log_dir = str(_nova_log_dir())
 _file_handler = logging.handlers.RotatingFileHandler(
@@ -98,6 +99,7 @@ import strategy.risk as _risk
 import strategy.setups_stream as _setups_stream
 import strategy.executor as _executor
 import journal.db as _journal_db
+import l2.db as _l2_db
 from bars import fetch_bars as _fetch_bars
 
 load_dotenv(env_file_path())
@@ -1517,6 +1519,7 @@ async def lifespan(app: FastAPI):
     # Load HOD Momo persisted state (configs, blocklist, today's alerts)
     _hod_momo.load_state()
     _journal_db.init_db()
+    _l2_db.init_db()
     # Wire invalidation so blocklist add/remove flushes the universe cache.
     _hod_momo._on_blocklist_changed = invalidate_universe_cache
 
@@ -1571,6 +1574,7 @@ app.include_router(_trading_ws_router)
 app.include_router(_strategy_router)
 app.include_router(_journal_router)
 app.include_router(_executor_router)
+app.include_router(_l2_router)
 
 app.add_middleware(
     CORSMiddleware,

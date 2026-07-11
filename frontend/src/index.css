@@ -2601,6 +2601,42 @@ th {
   text-align: center;
 }
 
+/* Level 2 heuristic badges (Phase F) — display-only rule-of-thumb reads of the
+   live book. Never feeds the automated executor. */
+.ibkr-depth-heuristics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+  justify-content: center;
+}
+
+.ibkr-heuristic-badge {
+  font-size: 0.62rem;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.ibkr-heuristic-ask {
+  background: rgba(239,68,68,0.1);
+  color: #ef4444;
+  border-color: rgba(239,68,68,0.3);
+}
+
+.ibkr-heuristic-bid {
+  background: rgba(34,197,94,0.1);
+  color: #22c55e;
+  border-color: rgba(34,197,94,0.3);
+}
+
+.ibkr-heuristic-spread {
+  background: rgba(148,163,184,0.12);
+  color: #94a3b8;
+  border-color: rgba(148,163,184,0.3);
+}
+
 /* Order ticket */
 .ibkr-order-ticket {
   display: flex;
