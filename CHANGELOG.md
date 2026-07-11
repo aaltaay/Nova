@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Risk / discipline engine (Phase C)
+
+- **What:** New `backend/strategy/risk.py` — a pure state machine tracking today's realized P&L, win/loss streaks, and position sizing, enforcing three walk-away guardrails (daily max loss, 3 losses in a row, giving back 50% of the day's peak profit). `validate_trade_plan()` checks a proposed trade's stop distance and profit/loss ratio. Exposed via `GET /api/strategy/risk` and `POST /api/strategy/risk/validate-trade`.
+- **Why:** Phase C of the trading automation plan — the discipline layer that will gate Phase D (paper execution).
+- **Files touched:** `backend/strategy/risk.py` (new), `backend/routes/strategy.py`, `backend/main.py` (session-reset background task), `backend/constants.py` (`RISK_*`), `backend/tests/test_risk.py` (new).
+- **How it works now:** `RiskState` is a plain dataclass; a module-level singleton is mutated by `record_trade_result()` (not yet called by anything — Phase D/E will call it after each paper fill closes). Sizing looks at *current* daily P&L (not the historical peak), so a big win followed by a big loss correctly drops back to a cut quarter size. Halting is sticky for the rest of the day once tripped; only `reset_day()` (called automatically at 4 AM ET) clears it. This module places no orders and is not yet wired to any execution path.
+- **Verified by:** 15 new unit tests + 90/90 full backend suite passing; live `GET /api/strategy/risk` verified against the running server.
+- **Follow-ups:** Phase E (Journal + go/no-go bar) will read this endpoint in the UI; Phase D (paper execution) will call `record_trade_result()` after each fill.
+
 ## 2026-07-11 — Setup trigger engine: Bull Flag + ABCD + live signal stream (Phase B)
 
 - **What:** Two new signal-only setup detectors — Bull Flag and ABCD — join Gap and Go behind a shared `evaluate_setups()` aggregator. Exposed on-demand (`GET /api/strategy/setups/{symbol}`) and live over a new `/ws/strategy` WebSocket fed by a background scan loop over the top-ranked watchlist symbols. New **Signals** sub-tab inside the Watchlist tab shows live triggers with entry/stop/target math.

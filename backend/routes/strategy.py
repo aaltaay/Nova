@@ -10,14 +10,18 @@ Endpoints:
   GET /api/strategy/gap-and-go/{symbol}      -- Gap and Go signal for one symbol
   GET /api/strategy/watchlist                -- ranked Five Pillars watchlist (gappers + gainers)
   GET /api/strategy/setups/{symbol}          -- Gap and Go + Bull Flag + ABCD signals for one symbol
+  GET /api/strategy/risk                     -- current discipline state (P&L, streaks, size, halt)
+  POST /api/strategy/risk/validate-trade     -- check a proposed entry/stop/target against risk rules
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from bars import fetch_bars as _fetch_bars
 from strategy.five_pillars import evaluate_many
 from strategy.gap_and_go import evaluate_gap_and_go
+from strategy.risk import get_state as _get_risk_state, validate_trade_plan
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
 
@@ -111,3 +115,24 @@ def setups_one(symbol: str) -> dict:
     candidate = _find_gapper(symbol) or {"symbol": symbol.upper()}
     bars_payload = _fetch_bars(symbol.upper(), timeframe="1Min", limit=100)
     return {"note": _TRANSPARENCY_NOTE, **evaluate_setups(candidate, bars_payload.get("bars", []))}
+
+
+class TradePlanRequest(BaseModel):
+    entry_price: float
+    stop_price: float
+    target_price: float
+
+
+@router.get("/risk")
+def risk_status() -> dict:
+    """Current discipline state: today's realized P&L, streaks, position size,
+    and whether the walk-away guardrails have halted trading for the day."""
+    return {"note": _TRANSPARENCY_NOTE, **_get_risk_state().to_dict()}
+
+
+@router.post("/risk/validate-trade")
+def risk_validate_trade(body: TradePlanRequest) -> dict:
+    """Check a proposed entry/stop/target against the stop-distance ceiling
+    and minimum profit/loss ratio. Does not place, size, or track a trade."""
+    ok, issues = validate_trade_plan(body.entry_price, body.stop_price, body.target_price)
+    return {"note": _TRANSPARENCY_NOTE, "ok": ok, "issues": issues}

@@ -178,3 +178,18 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
   and `/ws/strategy` both tested against the running scanner with real 1-min bars (pattern math
   correct, no order-placing code path anywhere in the chain); Signals sub-tab confirmed connected
   in-browser via headless screenshot.
+- **2026-07-11** — Implemented **Phase C (Risk / discipline engine)**: `backend/strategy/risk.py`
+  is a pure `RiskState` state machine (no orders, ever) tracking today's realized P&L, win/loss
+  streaks, and a "peak" high-water mark. Position sizing follows the course exactly — 100-share
+  blocks, quarter size (`RISK_QUARTER_SIZE_MULTIPLIER`) until a profit cushion of ¼ the daily goal
+  (`RISK_PROFIT_CUSHION_FRACTION`) is reached, then a `RISK_SIZE_CUT_MULTIPLIER` cut after losing
+  more than 10% of the daily goal — sizing reacts to *current* P&L, not the day's peak, so giving
+  back a cushion drops you back down. Three walk-away guardrails halt the day (sticky until
+  `reset_day()`): daily max loss = daily goal (`RISK_DAILY_GOAL_DOLLARS`, currently a placeholder
+  constant pending a real Settings field), 3 losses in a row (`RISK_MAX_CONSECUTIVE_LOSSES`), and
+  giving back 50% of the day's peak profit (`RISK_MAX_GIVEBACK_FRACTION_OF_PEAK`).
+  `validate_trade_plan()` separately checks the 20c stop ceiling and the 1:1 profit/loss floor.
+  Exposed read-only via `GET /api/strategy/risk` and `POST /api/strategy/risk/validate-trade`; a
+  `session_reset_loop()` (mirrors `hod_momo.py`'s pattern) resets state at 4 AM ET. 15 new unit
+  tests (`test_risk.py`) — 90/90 full backend suite green. No frontend UI yet — the go/no-go bar
+  ships with Phase E (Journal), which will read this same `/api/strategy/risk` endpoint.

@@ -340,3 +340,23 @@ SETUPS_SCAN_INTERVAL_SEC = 15.0     # how often the background loop re-scans the
 SETUPS_SCAN_TOP_N = 15              # only fetch bars for this many top-ranked watchlist symbols
 SETUPS_ALERT_COOLDOWN_SEC = 120.0   # suppress a repeat alert for the same symbol+setup
 SETUPS_MAX_HISTORY = 200            # cap on in-memory signal history for the initial WS payload
+
+# ── Risk / discipline engine (Phase C) ──────────────────────────────────────
+# Source: SS101 Ch.2, Ch.12; Basics Ch.15. This is a pure state machine — no
+# orders are ever placed by backend/strategy/risk.py.
+RISK_DAILY_GOAL_DOLLARS = 500.0       # daily profit target; also the daily max-loss walk-away trigger
+                                       # NOTE: placeholder default — should become a per-user Settings
+                                       # value once the journal/execution phases exist.
+RISK_BASE_SHARE_BLOCK = 100           # standard position size, in shares
+RISK_QUARTER_SIZE_MULTIPLIER = 0.25   # size used before the profit cushion is reached
+RISK_PROFIT_CUSHION_FRACTION = 0.25   # fraction of daily goal that unlocks full size
+RISK_SIZE_CUT_LOSS_FRACTION_OF_GOAL = 0.10  # losing this fraction of the daily goal cuts size
+RISK_SIZE_CUT_MULTIPLIER = 0.5        # size multiplier applied while in a loss-cut state
+RISK_MIN_PROFIT_LOSS_RATIO = 1.0      # absolute floor — never trade below 1:1
+RISK_TARGET_PROFIT_LOSS_RATIO = 2.0   # target ratio the setups aim for
+RISK_MAX_STOP_DOLLARS = 0.20          # hard ceiling on stop distance for scalps
+RISK_PREFERRED_STOP_DOLLARS_LOW = 0.05
+RISK_PREFERRED_STOP_DOLLARS_HIGH = 0.10
+RISK_MAX_CONSECUTIVE_LOSSES = 3       # walk-away guardrail: 3 losses in a row halts the day
+RISK_MAX_GIVEBACK_FRACTION_OF_PEAK = 0.50  # walk-away guardrail: gave back half of today's peak profit
+RISK_SESSION_RESET_HOUR_ET = 4        # daily state resets at 4:00 AM ET, mirrors HOD_MOMO_SESSION_RESET_HOUR_ET

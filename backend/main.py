@@ -92,6 +92,7 @@ from cache import (
     save_movers_snapshot,
 )
 import hod_momo as _hod_momo
+import strategy.risk as _risk
 import strategy.setups_stream as _setups_stream
 from bars import fetch_bars as _fetch_bars
 
@@ -1534,6 +1535,7 @@ async def lifespan(app: FastAPI):
     hod_enrich_task = asyncio.create_task(_hod_momo_enrichment.universe_enrichment_loop())
     hod_fund_task = asyncio.create_task(_hod_momo_enrichment.fundamentals_enrichment_loop())
     setups_scan_task = asyncio.create_task(_setups_stream.scan_loop())
+    risk_reset_task = asyncio.create_task(_risk.session_reset_loop())
     # IBKR client — best-effort, never blocks the Alpaca scan loop
     await _ibkr_client.startup()
     yield
@@ -1544,6 +1546,7 @@ async def lifespan(app: FastAPI):
     hod_enrich_task.cancel()
     hod_fund_task.cancel()
     setups_scan_task.cancel()
+    risk_reset_task.cancel()
     for t in (scan_task, ws_task, hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task):
         try:
             await t
