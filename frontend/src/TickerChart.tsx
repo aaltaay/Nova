@@ -18,6 +18,7 @@ import {
   CHART_CARD_TITLE,
   CHART_HEIGHT_PANEL,
   CHART_HEIGHT_PAGE,
+  CHART_HEIGHT_GRID,
   CHART_MOCK_BAR_COUNT,
   CHART_MOCK_BASE_PRICE,
   CHART_MOCK_DATA_LABEL,
@@ -111,20 +112,32 @@ export function TickerChart({
   symbol,
   lastTrade,
   variant = 'panel',
+  fixedTimeframe,
+  title,
+  subtitle,
 }: {
   symbol: string;
   lastTrade?: ChartTradeUpdate | null;
-  /** `page` = full ticker detail (taller chart); `panel` = legacy side-panel height. */
-  variant?: 'panel' | 'page';
+  /** `page` = tall single chart; `panel` = side panel; `grid` = 2×2 cell. */
+  variant?: 'panel' | 'page' | 'grid';
+  /** Lock to one timeframe (hides timeframe tabs). */
+  fixedTimeframe?: string;
+  /** Override card title (defaults to CHART_CARD_TITLE). */
+  title?: string;
+  /** Optional note under the title (e.g. temp 15m stand-in). */
+  subtitle?: string;
 }) {
-  const chartHeight = variant === 'page' ? CHART_HEIGHT_PAGE : CHART_HEIGHT_PANEL;
+  const chartHeight =
+    variant === 'grid' ? CHART_HEIGHT_GRID
+    : variant === 'page' ? CHART_HEIGHT_PAGE
+    : CHART_HEIGHT_PANEL;
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const managerRef = useRef<DrawingManager | null>(null);
 
-  const [timeframe, setTimeframe] = useState(CHART_DEFAULT_TIMEFRAME);
+  const [timeframe, setTimeframe] = useState(fixedTimeframe ?? CHART_DEFAULT_TIMEFRAME);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usingMock, setUsingMock] = useState(false);
@@ -133,6 +146,11 @@ export function TickerChart({
 
   const lastCandleRef = useRef<CandlestickData<Time> | null>(null);
   const prevTradeTsRef = useRef<string | null>(null);
+  const lockTimeframe = !!fixedTimeframe;
+
+  useEffect(() => {
+    if (fixedTimeframe) setTimeframe(fixedTimeframe);
+  }, [fixedTimeframe]);
 
   // ── Create / destroy chart + drawing manager ──────────────────────────
   useEffect(() => {
@@ -312,24 +330,32 @@ export function TickerChart({
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div className={`chart-card${maximized ? ' chart-card--maximized' : ''}`}>
+    <div className={`chart-card${maximized ? ' chart-card--maximized' : ''}${variant === 'grid' ? ' chart-card--grid' : ''}`}>
       <div className="chart-header">
-        <span className="chart-title">{CHART_CARD_TITLE}</span>
+        <div className="chart-title-block">
+          <span className="chart-title">{title ?? CHART_CARD_TITLE}</span>
+          {subtitle && <span className="chart-subtitle" title={subtitle}>{subtitle}</span>}
+        </div>
         {usingMock && (
           <span className="chart-mock-badge" title={CHART_MOCK_DATA_LABEL}>{CHART_MOCK_DATA_LABEL}</span>
         )}
-        <div className="chart-tabs" role="group" aria-label="Timeframe">
-          {CHART_TIMEFRAMES.map(tf => (
-            <button
-              key={tf.id}
-              className={`chart-tab${timeframe === tf.id ? ' chart-tab--active' : ''}`}
-              onClick={() => setTimeframe(tf.id)}
-              aria-pressed={timeframe === tf.id}
-            >
-              {tf.label}
-            </button>
-          ))}
-        </div>
+        {!lockTimeframe && (
+          <div className="chart-tabs" role="group" aria-label="Timeframe">
+            {CHART_TIMEFRAMES.map(tf => (
+              <button
+                key={tf.id}
+                className={`chart-tab${timeframe === tf.id ? ' chart-tab--active' : ''}`}
+                onClick={() => setTimeframe(tf.id)}
+                aria-pressed={timeframe === tf.id}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {lockTimeframe && (
+          <span className="chart-tf-badge" aria-label={`Timeframe ${timeframe}`}>{timeframe}</span>
+        )}
       </div>
 
       {/* Drawing toolbar */}

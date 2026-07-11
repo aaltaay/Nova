@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Sidebar chart sat beside Stock Quote again (layout regression)
+
+- **Symptom:** After a layout update, single-click sidebar showed Price Chart and Stock Quote side-by-side; user had previously had chart on its own top row.
+- **Cause:** JSX was stacked (chart then `.cq-info-row`) but `.cq-root--columns` CSS still used `display:grid` with three columns, so the chart and info-row became peer grid cells. `.chart-grid` styles for the full-page 2×2 were also missing.
+- **Fix:** Root is now flex column (`cq-root--stacked`); multi-col only on `.cq-info-row`. Added `.chart-grid { grid-template-columns: 1fr 1fr }`.
+- **Keywords:** sidebar regression, cq-root--columns, cq-root--stacked, chart beside quote, chart-grid 2x2
+
 ## 2026-07-11 — Single-click must keep sidebar; full page is double-click only
 
 - **Symptom:** After the prior fix, any ticker click replaced the scanner with a full detail page — removing the side panel UX users still wanted for quick lookup.

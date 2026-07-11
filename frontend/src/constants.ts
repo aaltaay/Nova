@@ -132,6 +132,11 @@ export const DATA_FEED_LABELS: Record<string, string> = {
   sip: 'SIP (Paid)',
 };
 
+/** Header badge: scanner rows come from Alpaca (not IBKR). */
+export const SCANNER_DATA_SOURCE_LABEL = 'Data: Alpaca';
+export const SCANNER_DATA_SOURCE_TITLE =
+  'Scanner data provided by Alpaca Markets (free IEX or SIP feed)';
+
 /** Human-readable labels for Alpaca `attributes` tokens (unknown keys shown as-is). */
 export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {
   overnight_halted: 'Overnight session halted',
@@ -173,10 +178,27 @@ export const CHART_TIMEFRAMES: ChartTimeframe[] = [
 ];
 export const CHART_DEFAULT_TIMEFRAME = '5Min';
 export const CHART_CARD_TITLE = 'Price Chart';
-/** Chart body height (px) in the widened 3-column side panel. */
+/** Chart body height (px) in the widened side panel. */
 export const CHART_HEIGHT_PANEL = 320;
-/** Chart body height (px) on the full ticker detail page. */
+/** Chart body height (px) on the full ticker detail page (single chart / legacy). */
 export const CHART_HEIGHT_PAGE = 440;
+/** Chart body height (px) for each cell in the 2×2 trading-page grid. */
+export const CHART_HEIGHT_GRID = 260;
+/**
+ * Full trading page (double-click) 2×2 panels.
+ * Fourth panel is 15Min temporarily — Alpaca has no historical sub-minute;
+ * a live 10-second tape panel will replace/add later.
+ */
+export const CHART_GRID_PANELS: { id: string; label: string; note?: string }[] = [
+  { id: '1Min', label: '1-Minute' },
+  { id: '5Min', label: '5-Minute' },
+  { id: '1Day', label: 'Full Day' },
+  {
+    id: '15Min',
+    label: '15-Minute',
+    note: 'Temp stand-in — 10s live tape coming later',
+  },
+];
 /** Side panel width (px) on wide viewports — room for quote | chart | fundamentals. */
 export const SIDE_PANEL_WIDTH_PX = 820;
 /** Side panel max share of viewport width (CSS max-width: Nvw). */

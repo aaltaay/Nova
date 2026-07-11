@@ -266,21 +266,26 @@ export function TickerDetailContent({
   );
 
   if (columns) {
+    // Stacked sidebar: chart full-width on top; multi-col details ONLY underneath.
     return (
-      <div className="cq-root cq-root--columns">
-        <div className="cq-col cq-col--quote">
-          {quoteHeader}
-          {keyStats}
-          <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
-        </div>
+      <div className="cq-root cq-root--stacked">
         <div className="cq-col cq-col--chart">{chartEl}</div>
-        <div className="cq-col cq-col--fund">
-          <div className="cq-section-title">Fundamentals</div>
-          {fundGrid}
-          {brokerGrid}
-          {lastUpdated && (
-            <div className="cq-timestamp cq-timestamp-bottom">Last updated on {fmtTimestamp(lastUpdated)}</div>
-          )}
+        <div className="cq-info-row">
+          <div className="cq-col cq-col--quote">
+            {quoteHeader}
+            {keyStats}
+          </div>
+          <div className="cq-col cq-col--news">
+            <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
+          </div>
+          <div className="cq-col cq-col--fund">
+            <div className="cq-section-title">Fundamentals</div>
+            {fundGrid}
+            {brokerGrid}
+            {lastUpdated && (
+              <div className="cq-timestamp cq-timestamp-bottom">Last updated on {fmtTimestamp(lastUpdated)}</div>
+            )}
+          </div>
         </div>
       </div>
     );

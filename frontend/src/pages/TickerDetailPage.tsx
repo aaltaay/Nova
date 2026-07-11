@@ -1,5 +1,5 @@
 /** Full-page ticker trading view — opened via double-click (or Full view); Back returns to scanner. */
-import { TickerChart } from '../TickerChart';
+import { ChartGrid } from '../components/ChartGrid';
 import { TickerDetailContent } from '../components/TickerDetailContent';
 import { useTickerStream } from '../hooks/useTickerStream';
 import { fmtPct } from '../utils/quoteFormat';
@@ -27,6 +27,10 @@ export function TickerDetailPage({ symbol, onBack, onSelectSymbol }: Props) {
   const isPositive = (mainChangePct ?? 0) >= 0;
 
   const showSpinner = (loading || (!detail && !fetchFailed)) && !detail;
+  const lastTrade =
+    trade?.price != null
+      ? { price: trade.price, timestamp: trade.timestamp ?? null }
+      : undefined;
 
   return (
     <div className="ticker-detail-page">
@@ -91,11 +95,7 @@ export function TickerDetailPage({ symbol, onBack, onSelectSymbol }: Props) {
             )}
           </header>
 
-          <TickerChart
-            symbol={detail.symbol}
-            variant="page"
-            lastTrade={trade?.price != null ? { price: trade.price, timestamp: trade.timestamp ?? null } : undefined}
-          />
+          <ChartGrid symbol={detail.symbol} lastTrade={lastTrade} />
 
           <TickerDetailContent detail={detail} hideHeader />
         </>

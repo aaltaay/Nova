@@ -30,6 +30,42 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Single-row tabs + header meta cleanup
+
+- **What:** Main tabs stay on one horizontal line (no wrap). Scan age ("updated Xs ago") and "Data: Alpaca" moved from the tab bar into the header beside Connected / latency / IEX. Header layout reorganized: brand | market mode | connection+feed+scan meta | history+symbol lookup+settings.
+- **Why:** User screenshot — tabs wrapping onto a second row, meta cluttering the tab bar, header spacing felt incoherent.
+- **Files touched:** `frontend/src/components/{AppHeader,TabNav}.tsx`, `frontend/src/App.tsx`, `frontend/src/constants.ts`, `frontend/src/index.css`, `CHANGELOG.md`.
+- **How it works now:** `TabNav` is tabs-only. `AppHeader` owns brand, mode badge, status cluster (scan age + Alpaca source inline with Connected), and actions. Tab CSS uses `flex-wrap: nowrap`, denser padding/font, equal-flex tabs across full width; overflow-x auto with hidden scrollbar only as a tiny-viewport fallback.
+- **Verified by:** `npm run build`; browser eval: `tabBarH≈31`, single `tabTops`, meta not in `.tab-bar`.
+- **Follow-ups:** None.
+
+## 2026-07-11 — Fix sidebar chart/quote side-by-side regression + lock 2×2 grid
+
+- **What:** Restored sidebar to **chart full-width on top**, quote/news/fundamentals in `.cq-info-row` **underneath** (not beside). Renamed root class to `cq-root--stacked`. Full trading page keeps a true **2×2 cube** (`.chart-grid`: 1Min|5Min / 1Day|15Min).
+- **Why:** Regression — `.cq-root--columns` still used a 3-column CSS grid, so chart and info-row became peer columns. Chart-grid CSS was also missing from `index.css`.
+- **Files touched:** `frontend/src/index.css`, `frontend/src/components/TickerDetailContent.tsx`, CHANGELOG.
+- **How it works now:** Stacked root is `display:flex; flex-direction:column`. Multi-col applies only to `.cq-info-row`. `.chart-grid` is `grid-template-columns: 1fr 1fr`.
+- **Verified by:** Browser hard-check: chartAboveInfo + 4 grid cells in 2×2.
+- **Related:** prior 2×2 / sidebar layout entries same day.
+
+## 2026-07-11 — Full trading page 2×2 multi-timeframe chart grid
+
+- **What:** Double-click / Full view now shows a **2×2 chart grid** (1Min, 5Min, Full Day / 1Day, 15Min) instead of a single chart. Each cell has its own drawing toolbar. Sidebar still uses one full-width chart on top with info columns underneath.
+- **Why:** User still only saw one chart on the trading page and asked for multi-chart panels.
+- **Files touched:** `frontend/src/components/ChartGrid.tsx` (new), `frontend/src/pages/TickerDetailPage.tsx`, `frontend/src/TickerChart.tsx` (`fixedTimeframe` / `variant="grid"`), `frontend/src/constants.ts` (`CHART_GRID_PANELS`, `CHART_HEIGHT_GRID`), `frontend/src/index.css` (`.chart-grid`, sidebar `.cq-info-row`).
+- **How it works now:** `ChartGrid` maps `CHART_GRID_PANELS`. Fourth panel is **15Min** labeled as a temporary stand-in — Alpaca has no historical sub-minute; a live **10s** tape panel will replace/add later. Sidebar `layout="columns"` = chart row then `.cq-info-row`.
+- **Verified by:** `npm run build`; browser double-click → four `.chart-grid-cell` panels with bars.
+- **Follow-ups:** Replace/add 10-second live tape as fourth (or fifth) panel when feed exists.
+
+## 2026-07-11 — Side panel: full-width chart above info columns
+
+- **What:** Sidebar ticker layout is now chart (full width + drawing toolbar) on top, then a multi-column info row underneath (quote/stats | news/impact | fundamentals/broker). Wider panel and click/double-click rules unchanged.
+- **Why:** User feedback — chart must not sit in a side column next to the quote; it should dominate the top of the panel.
+- **Files touched:** `frontend/src/components/TickerDetailContent.tsx`, `frontend/src/index.css` (`.cq-root--columns`, `.cq-info-row`), CHANGELOG.
+- **How it works now:** `layout="columns"` renders `.cq-col--chart` first (100% width), then `.cq-info-row` as a 3-col grid that stacks via container queries at ≤640px / ≤420px.
+- **Verified by:** `npm run build`; browser: single-click → chart on top, info row below; double-click still opens full page.
+- **Related:** prior 3-column side-by-side entry same day (superseded for chart placement).
+
 ## 2026-07-11 — Side panel 3-column layout (wider)
 
 - **What:** Scanner side panel widened (~820px / 48vw) and ticker detail content laid out in three columns when width allows: quote + key stats + news | chart | fundamentals + broker. Narrow viewports stack. Click/double-click rules unchanged.

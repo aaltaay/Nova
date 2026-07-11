@@ -5,8 +5,9 @@ import { useHodMomoStream } from './hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from './hod_momo/useHodMomoConfig';
 import { TabNav } from './components/TabNav';
 import type { ActiveTab } from './components/TabNav';
+import { AppHeader, fmtHistoryDate } from './components/AppHeader';
+import type { MarketMode } from './components/AppHeader';
 import { SidePanel } from './components/SidePanel';
-import { SymbolSearchBox } from './components/SymbolSearchBox';
 import { SymbolSelectButton } from './components/SymbolSelectButton';
 import type { NewsImpactVerdict } from './types/newsImpact';
 import { TradingTab } from './ibkr/TradingTab';
@@ -15,31 +16,6 @@ import { useWatchlist } from './strategy/useWatchlist';
 import { ReportsTab } from './reports/ReportsTab';
 import { TickerDetailPage } from './pages/TickerDetailPage';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from './utils/quoteFormat';
-
-function NovaLogo() {
-  return (
-    <svg
-      className="nova-logo"
-      xmlns="http://www.w3.org/2000/svg"
-      width="40"
-      height="38"
-      fill="none"
-      viewBox="0 0 48 46"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="nova-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#863bff" />
-          <stop offset="100%" stopColor="#47bfff" />
-        </linearGradient>
-      </defs>
-      <path
-        fill="url(#nova-grad)"
-        d="M25.946 44.938c-.664.845-2.021.375-2.021-.698V33.937a2.26 2.26 0 0 0-2.262-2.262H10.287c-.92 0-1.456-1.04-.92-1.788l7.48-10.471c1.07-1.497 0-3.578-1.842-3.578H1.237c-.92 0-1.456-1.04-.92-1.788L10.013.474c.214-.297.556-.474.92-.474h28.894c.92 0 1.456 1.04.92 1.788l-7.48 10.471c-1.07 1.498 0 3.579 1.842 3.579h11.377c.943 0 1.473 1.088.89 1.83L25.947 44.94z"
-      />
-    </svg>
-  );
-}
 import {
   SMALL_CAP_MIN, SMALL_CAP_MAX,
   NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS,
@@ -53,7 +29,7 @@ import {
 } from './constants';
 import { isNovaApiDebug } from './debug';
 
-type Mode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
+type Mode = MarketMode;
 // ActiveTab is imported from components/TabNav — includes 'trading'
 type SortDir = 'asc' | 'desc' | null;
 interface SortConfig { key: string; dir: SortDir; }
@@ -157,14 +133,6 @@ function EmptyState({
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const MODE_LABELS: Record<Mode, string> = {
-  loading: 'Connecting…',
-  premarket: 'Pre-Market',
-  market: 'Market Hours',
-  afterhours: 'After Hours',
-  closed: 'Market Closed',
-};
 
 const API_URL = `${API_BASE_URL}/api`;
 
@@ -587,15 +555,7 @@ function App() {
     }
   };
 
-  // lastScan is a Unix wall-clock timestamp (seconds) from the server
   const secondsAgo = lastScan > 0 ? Math.max(0, Math.floor(now - lastScan)) : null;
-
-  function fmtHistoryDate(dateStr: string): string {
-    // "2026-04-14" → "Mon, Apr 14"
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const dt = new Date(y, m - 1, d);
-    return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-  }
 
   function handleHistoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const val = e.target.value;
@@ -612,25 +572,21 @@ function App() {
     return (
       <div className="container container--ticker-detail">
         <div className="main-col main-col--full">
-          <header>
-            <div className="header-left">
-              <div className="brand">
-                <NovaLogo />
-                <div className="brand-text">
-                  <span className="brand-wordmark">NOVA</span>
-                  <span className="brand-tagline">Stock Scanner</span>
-                </div>
-              </div>
-              <span className={`mode-badge mode-${mode}`}>{MODE_LABELS[mode]}</span>
-            </div>
-            <div className="header-right">
-              <div className="status-indicator">
-                <span className={`dot ${dotClass(health.status)}`} />
-                <span style={{ textTransform: 'capitalize' }}>{health.status}</span>
-                {health.latency_ms > 0 && <span>({health.latency_ms}ms)</span>}
-              </div>
-            </div>
-          </header>
+          <AppHeader
+            compact
+            mode={mode}
+            health={health}
+            activeFeed={activeFeed}
+            feedFellBack={feedFellBack}
+            secondsAgo={null}
+            historyDate={null}
+            historyDates={[]}
+            onHistoryChange={handleHistoryChange}
+            onLookup={openTradingView}
+            showSettings={false}
+            onToggleSettings={() => {}}
+            showScannerSource={false}
+          />
           <main className="ticker-detail-main">
             <TickerDetailPage
               symbol={tradingSymbol}
@@ -646,56 +602,20 @@ function App() {
   return (
     <div className="container">
       <div className="main-col">
-      <header>
-        <div className="header-left">
-          <div className="brand">
-            <NovaLogo />
-            <div className="brand-text">
-              <span className="brand-wordmark">NOVA</span>
-              <span className="brand-tagline">Stock Scanner</span>
-            </div>
-          </div>
-          <span className={`mode-badge mode-${mode}`}>{MODE_LABELS[mode]}</span>
-        </div>
-        <div className="header-right">
-          <div className="status-indicator">
-            <span className={`dot ${dotClass(health.status)}`} />
-            <span style={{ textTransform: 'capitalize' }}>{health.status}</span>
-            {health.latency_ms > 0 && <span>({health.latency_ms}ms)</span>}
-            <span className={`feed-badge feed-${activeFeed}`} title={`Data feed: ${DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase()}`}>
-              {activeFeed.toUpperCase()}
-            </span>
-            {feedFellBack && (
-              <span className="feed-fallback-hint" title="SIP feed was rejected; automatically fell back to IEX. Change in Settings if your plan supports SIP.">
-                ⚠ fallback
-              </span>
-            )}
-            {health.message && health.status !== 'connected' && (
-              <span className="status-hint" title={health.message}>
-                {' '}— {health.message.length > 80 ? `${health.message.slice(0, 80)}…` : health.message}
-              </span>
-            )}
-          </div>
-          <select
-            className={`history-select${historyDate ? ' history-select--active' : ''}`}
-            value={historyDate ?? ''}
-            onChange={handleHistoryChange}
-            title="Browse historical snapshots"
-          >
-            <option value="">Today (Live)</option>
-            {historyDates.map(d => (
-              <option key={d} value={d}>{fmtHistoryDate(d)}</option>
-            ))}
-          </select>
-          <SymbolSearchBox onLookup={setSelectedSymbol} />
-          <button
-            className={`settings-btn ${showSettings ? 'active' : ''}`}
-            onClick={() => setShowSettings(s => !s)}
-          >
-            Settings
-          </button>
-        </div>
-      </header>
+      <AppHeader
+        mode={mode}
+        health={health}
+        activeFeed={activeFeed}
+        feedFellBack={feedFellBack}
+        secondsAgo={secondsAgo}
+        historyDate={historyDate}
+        historyDates={historyDates}
+        onHistoryChange={handleHistoryChange}
+        onLookup={setSelectedSymbol}
+        showSettings={showSettings}
+        onToggleSettings={() => setShowSettings(s => !s)}
+        showScannerSource={activeTab !== 'trading'}
+      />
 
       {showSettings && (
         <div className="panel settings-panel">
@@ -768,8 +688,6 @@ function App() {
             hodMomo: hodMomoStream.alerts.length,
             watchlist: watchlist.entries.length,
           }}
-          secondsAgo={secondsAgo}
-          historyDate={historyDate}
         />
 
         {historyDate && (
@@ -1021,12 +939,6 @@ function App() {
       />
     </div>
   );
-}
-
-function dotClass(status: string): string {
-  if (status === 'connected') return 'connected';
-  if (status === 'loading') return 'loading';
-  return 'disconnected';
 }
 
 export default App;

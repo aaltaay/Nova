@@ -1,7 +1,7 @@
 /**
  * TabNav — renders the top tab-bar buttons for Nova.
  * Extracted from App.tsx to keep it under its 150-line target.
- * All existing CSS classes are preserved exactly.
+ * Tab row is tabs-only; scan age / data source live in AppHeader.
  */
 import { CATALYSTS_EXPERIMENTAL_LABEL } from '../constants';
 
@@ -18,11 +18,9 @@ interface Props {
     hodMomo: number;
     watchlist: number;
   };
-  secondsAgo: number | null;
-  historyDate: string | null;
 }
 
-export function TabNav({ activeTab, onTabClick, counts, secondsAgo, historyDate }: Props) {
+export function TabNav({ activeTab, onTabClick, counts }: Props) {
   return (
     <div className="tab-bar">
       <div className="tab-bar-scroll">
@@ -83,15 +81,6 @@ export function TabNav({ activeTab, onTabClick, counts, secondsAgo, historyDate 
           Reports
         </button>
       </div>
-      {!historyDate && secondsAgo != null && (
-        <span className="scan-age tab-bar-meta">updated {secondsAgo}s ago</span>
-      )}
-      <span
-        className="tab-data-source-badge"
-        title="Scanner data provided by Alpaca Markets (free IEX or SIP feed)"
-      >
-        {activeTab !== 'trading' ? 'Data: Alpaca' : ''}
-      </span>
     </div>
   );
 }
