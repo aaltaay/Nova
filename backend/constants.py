@@ -392,3 +392,51 @@ L2_PRESSURE_DRYING_LOOKBACK = 5         # snapshots compared to flag "buying pre
 L2_PRESSURE_DRYING_DROP_FRACTION = 0.30  # bid size must drop by at least this fraction to flag drying up
 L2_LABEL_MATCH_TOLERANCE_SEC = 600.0    # max gap between a signal and a journal trade's opened_ts to link them
 L2_SPREAD_WIDE_DOLLARS = 0.05           # spread at/above this is flagged "wide" in the UI badge
+# Efficient local recorders (hot SQLite window — see Local-Market-Data-Recorders.md)
+L2_CONTINUOUS_SNAPSHOT_INTERVAL_SEC = 1.0  # book sample rate while a depth session is open
+L2_BATCH_SIZE = 64                         # flush L2 snapshot queue after this many pending rows
+L2_BATCH_FLUSH_INTERVAL_SEC = 0.25         # or flush at least this often (whichever comes first)
+TAPE_BATCH_SIZE = 256                      # flush time & sales queue after this many pending rows
+TAPE_BATCH_FLUSH_INTERVAL_SEC = 0.25
+L2_RETENTION_DAYS = 14                     # purge l2_snapshots / tape_trades / ended sessions older than this
+L2_RETENTION_SWEEP_INTERVAL_SEC = 3600.0   # how often the background retention task runs
+L2_RECALL_DEFAULT_WINDOW_SEC = 2.0         # default ±window for point-in-time recall API
+TAPE_SOURCE_ALPACA = "alpaca"              # tape_trades.source for Alpaca WS prints
+L2_SESSION_REASON_SIGNAL = "signal"        # record_sessions.reason when setup signal fires
+L2_SESSION_REASON_DEPTH = "depth"          # record_sessions.reason when DepthLadder / depth WS is open
+
+# ── News impact decision layer (rules-first; not a black box) ────────────────
+# Explicit thresholds for whether news actually moved a ticker / Level 2.
+# Every value here is surfaced in NewsImpactVerdict.factors and UI tooltips.
+# Future "Lincoln AI" reasoning fills ai_reasoning; rules stay authoritative until then.
+NEWS_IMPACT_RULE_VERSION = "rules-v1"
+NEWS_IMPACT_FRESH_HOURS = 2.0          # age ≤ this → fresh (mirrors NEWS_FLAME_HOT_HOURS)
+NEWS_IMPACT_AGING_HOURS = 6.0          # age ≤ this → aging (still attributable)
+NEWS_IMPACT_STALE_HOURS = 24.0         # age ≤ this → stale; above → expired
+NEWS_IMPACT_STRONG_MOVE_PCT = 10.0     # |gap%| ≥ this → strong price reaction
+NEWS_IMPACT_MILD_MOVE_PCT = 3.0        # |gap%| ≥ this → mild price reaction
+NEWS_IMPACT_ATTENTION_RVOL = 2.0       # RVOL ≥ this → attention spike (mirrors REL_VOLUME_HIGH)
+NEWS_IMPACT_L2_IMBALANCE_MIN = 0.35    # |bid/ask imbalance| ≥ this → L2 reacting
+NEWS_IMPACT_MULTI_SOURCE_CONFIRM = 2   # ≥ this many major/official sources → confirmed
+# Confidence floors/ceilings applied after rule scoring (0–1).
+NEWS_IMPACT_CONFIDENCE_FLOOR = 0.15
+NEWS_IMPACT_CONFIDENCE_CEILING = 0.95
+# Source-name substrings (case-insensitive) for credibility tiers.
+NEWS_IMPACT_OFFICIAL_SOURCE_KEYWORDS = (
+    "sec", "edgar", "fda", "business wire", "globe newswire", "pr newswire",
+    "accesswire", "company press", "investor relations",
+)
+NEWS_IMPACT_OFFICIAL_URL_KEYWORDS = (
+    "sec.gov", "fda.gov", "businesswire.com", "globenewswire.com",
+    "prnewswire.com", "accesswire.com",
+)
+NEWS_IMPACT_MAJOR_SOURCE_KEYWORDS = (
+    "bloomberg", "reuters", "wsj", "wall street journal", "cnbc", "marketwatch",
+    "benzinga", "dow jones", "associated press", "ap news", "financial times",
+    "barron", "the street", "yahoo finance",
+)
+NEWS_IMPACT_SECONDARY_SOURCE_KEYWORDS = (
+    "motley fool", "seeking alpha", "investopedia", "zacks", "tipranks",
+    "investorplace", "fool.com",
+)
+

@@ -6,6 +6,8 @@ import { useHodMomoConfig } from './hod_momo/useHodMomoConfig';
 import { TickerChart } from './TickerChart';
 import { TabNav } from './components/TabNav';
 import type { ActiveTab } from './components/TabNav';
+import { NewsHeadlineSection } from './components/NewsHeadlineSection';
+import type { NewsImpactVerdict } from './types/newsImpact';
 import { TradingTab } from './ibkr/TradingTab';
 import { WatchlistTab } from './strategy/WatchlistTab';
 import { useWatchlist } from './strategy/useWatchlist';
@@ -50,6 +52,8 @@ import {
   DATA_FEED_LABELS,
   API_BASE_URL,
   WS_BASE_URL,
+  NEWS_IMPACT_CLASS_LABELS,
+  NEWS_IMPACT_CLASS_TOOLTIPS,
 } from './constants';
 import { isNovaApiDebug } from './debug';
 
@@ -96,6 +100,7 @@ interface Catalyst {
   newest_headline_at: string | null;
   catalyst_headline: string | null;
   catalyst_url: string | null;
+  news_impact?: NewsImpactVerdict | null;
 }
 
 // ── Ticker Detail Types ────────────────────────────────────────────────────────
@@ -205,6 +210,7 @@ interface TickerDetail {
   fundamentals: FundamentalsData | null;
   // Current session mode from the backend — drives the two-line quote layout.
   mode: string | null;
+  news_impact?: NewsImpactVerdict | null;
 }
 
 // ── Formatters ────────────────────────────────────────────────────────────────
@@ -356,7 +362,7 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
           setRefreshing(false);
           setFetchFailed(false);
         } else if (msg.type === 'detail_update') {
-          // Phase 2: slow data (news + fundamentals + fresh avg/rel volume)
+          // Phase 2: slow data (news + fundamentals + fresh avg/rel volume + impact)
           setDetail(prev => {
             if (!prev) return prev;
             return {
@@ -365,6 +371,7 @@ function useTickerStream(symbol: string | null): { detail: TickerDetail | null; 
               fundamentals: msg.fundamentals ?? prev.fundamentals,
               avg_volume: msg.avg_volume ?? prev.avg_volume,
               rel_volume: msg.rel_volume ?? prev.rel_volume,
+              news_impact: msg.news_impact ?? prev.news_impact,
             };
           });
         } else if (msg.type === 'trade_update') {
@@ -486,7 +493,6 @@ function TickerDetailContent({
 }: {
   detail: TickerDetail;
 }) {
-  const [newsExpanded, setNewsExpanded] = useState(false);
   // ── Block button ──────────────────────────────────────────────────────────
   const [blocked, setBlocked] = useState(false);
   useEffect(() => { setBlocked(false); }, [detail.symbol]);
@@ -542,9 +548,7 @@ function TickerDetailContent({
   if (detail.fundamentals?.sector) descParts.push(detail.fundamentals.sector);
   if (detail.fundamentals?.industry) descParts.push(detail.fundamentals.industry);
 
-  const NEWS_DEFAULT = 3;
   const news = detail.news ?? [];
-  const visibleNews = newsExpanded ? news : news.slice(0, NEWS_DEFAULT);
 
   // Gap % from prev close to today's open (or current price if no open)
   const todayOpen = daily?.open ?? null;
@@ -608,41 +612,12 @@ function TickerDetailContent({
         <div className="cq-timestamp">Last updated on {fmtTimestamp(lastUpdated)}</div>
       )}
 
-      {/* News section */}
-      {news.length > 0 && (
-        <div className="cq-news-section">
-          <div className="cq-news-header">
-            <span className="cq-news-title">News Headline</span>
-            {news.length > NEWS_DEFAULT && (
-              <button className="cq-news-more" onClick={() => setNewsExpanded(x => !x)}>
-                {newsExpanded ? 'Less ▲' : `More ▼`}
-              </button>
-            )}
-          </div>
-          <div className="cq-news-list">
-            {visibleNews.map((article, i) => {
-              const ageHours = (Date.now() - new Date(article.created_at).getTime()) / 3_600_000;
-              const hasFlame = ageHours <= NEWS_FLAME_MAX_HOURS;
-              const flameClass = ageHours <= NEWS_FLAME_HOT_HOURS ? 'flame-hot'
-                : ageHours <= NEWS_FLAME_WARM_HOURS ? 'flame-warm' : 'flame-cool';
-              return (
-                <div key={i} className="cq-news-item">
-                  <span className={`cq-news-icon ${hasFlame ? `news-flame ${flameClass}` : 'cq-news-icon-blank'}`} />
-                  <a
-                    className="cq-news-link"
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {article.headline}
-                  </a>
-                  <span className="cq-news-time">{timeAgo(article.created_at)}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* News section + explicit impact verdict */}
+      <NewsHeadlineSection
+        news={news}
+        newsImpact={detail.news_impact}
+        timeAgo={timeAgo}
+      />
 
       {/* Data grid */}
       <div className="cq-grid">
@@ -1532,6 +1507,21 @@ function App() {
                             )
                           ) : (
                             <span className="na-muted">—</span>
+                          )}
+                          {c.news_impact && (
+                            <span
+                              className="ni-catalyst-badge"
+                              title={
+                                (NEWS_IMPACT_CLASS_TOOLTIPS[c.news_impact.impact_class] ?? '') +
+                                '\n\n' +
+                                (c.news_impact.reasons?.slice(0, 4).join('\n') ?? '')
+                              }
+                            >
+                              {NEWS_IMPACT_CLASS_LABELS[c.news_impact.impact_class] ??
+                                c.news_impact.impact_class}
+                              {' · '}
+                              {(c.news_impact.confidence * 100).toFixed(0)}%
+                            </span>
                           )}
                         </td>
                         <td><NewsCell newest_headline_at={c.newest_headline_at} /></td>

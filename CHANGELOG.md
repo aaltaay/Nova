@@ -30,6 +30,27 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Efficient local L2 + tape recorders (WAL SQLite, batching, recall API)
+
+- **What:** Extended Phase F `backend/l2/` into a high-write local recorder stack: WAL SQLite, batched inserts, continuous L2 while depth is open, Alpaca time & sales for watched symbols, session metadata, retention purge, and minimal point-in-time recall (`GET /api/l2/at`, `/range`, `/sessions`, `/status`). Decision note: `knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md`.
+- **Why:** User wants efficient local recorders to later ask “what did L2 / tape look like at second T?” and recover data for relearning/backtesting — without a replay UI yet.
+- **Files touched:** `backend/l2/{db,batch,store,sessions,tape,continuous,recall,recorder}.py`, `backend/routes/{l2,trading}.py`, `backend/main.py` (thin tape + flush/retention wiring), `backend/constants.py` (`L2_BATCH_*`, `TAPE_*`, retention/recall), `backend/tests/test_l2_recorder.py`, `backend/tests/test_l2.py` (session_id on `_record_window`), decision note + CHANGELOG.
+- **How it works now:** Signal windows still use `recorder.on_signal`. Opening DepthLadder / depth WS also starts `continuous` snapshots (~1 Hz) and watches the symbol for Alpaca prints (`tape.on_alpaca_trade` from the existing WS loop). Writes enqueue in `l2.batch` and flush by size or interval into `l2.db`. Recall via `l2.recall.recall_at(symbol, ts)` or `GET /api/l2/at?symbol=&ts=`. Parquet cold archive deferred.
+- **Verified by:** `pytest backend/tests/test_l2.py backend/tests/test_l2_recorder.py`; app boot with new routes.
+- **Follow-ups:** Replay UI, full backtester, optional Parquet archive, optional full-universe tape recording.
+- **Related:** `Local-Market-Data-Recorders.md`; Phase F L2 entry below.
+
+## 2026-07-11 — Explicit news-impact decision layer (rules-first)
+
+- **What:** Nova now classifies whether news actually affects a ticker / Level 2 with a visible `NewsImpactVerdict` (`moved_price` / `attention_only` / `no_effect` / `insufficient_data`), including age, source credibility, official confirmation, price reaction, attention (RVOL), L2 reaction, `reasons[]`, exposed `factors` thresholds, and `ai_reasoning: null` (Lincoln AI placeholder). Surfaced on ticker detail, Catalysts row badges, and `GET /api/news/impact/{symbol}`.
+- **Why:** User asked for news comprehension that feeds an explicit decision layer — not a black box — covering bump-due-to-news vs attention-only vs no effect, with tunable age/credibility/official-source factors.
+- **Files touched:** `backend/news/{__init__,sources,impact,enrich}.py` (new), `backend/routes/news.py` (new), `backend/constants.py` (`NEWS_IMPACT_*`), `backend/main.py` (router + catalyst enrich + ticker/WS payload), `backend/tests/test_news_impact.py` (new), `frontend/src/{types/newsImpact.ts,hooks/useNewsImpact.ts,components/NewsImpactPanel.tsx,components/NewsHeadlineSection.tsx,constants.ts,App.tsx,index.css}`, `knowledge/obsidian/03-Nova-Decisions/News-Impact-Decision-Layer.md`.
+- **How it works now:** Existing Alpaca news + catalyst scan stay the data source. `news.impact.evaluate_news_impact()` is pure rules over articles + gap% + RVOL + optional L2 features; every threshold is in `NEWS_IMPACT_*` and copied into `verdict.factors`. Catalyst scan attaches `news_impact` per row; ticker WS `detail_update` and REST ticker detail include it; UI shows summary + expandable reasons. AI narrative is intentionally null until Lincoln AI is wired.
+- **Verified by:** `pytest backend/tests/test_news_impact.py`; frontend build; API import/boot with `/api/news/impact/{symbol}` registered.
+- **Follow-ups:** Wire Lincoln AI into `ai_reasoning`; refine source keyword lists from live Alpaca `source` values; optionally feed impact_class into Five Pillars / watchlist scoring later.
+- **Related:** Builds on existing flame thresholds, catalyst scan, and L2 features — does not invent a parallel news pipeline.
+
+
 ## 2026-07-11 — Arithmetic correctness + automation transparency test suite
 
 - **What:** Added `backend/tests/test_arithmetic_correctness.py` with hard-number expectations for risk stop/R:R math, position-sizing boundaries, setup entry/stop/target 2:1 brackets (Gap and Go / Bull Flag / ABCD), Five Pillars thresholds, L2 imbalance/stacked/spread/drying-up ratios, journal win-rate/avg/ratio/go-no-go arithmetic, and executor disclosure / disarmed-by-default contracts. Fixed two real bugs in `validate_trade_plan` found by those tests.

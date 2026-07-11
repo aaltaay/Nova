@@ -15,6 +15,36 @@ export const NEWS_FLAME_HOT_HOURS  =  2;   // red badge    (0 –  2 h)
 export const NEWS_FLAME_WARM_HOURS = 12;   // orange badge (2 – 12 h)
 export const NEWS_FLAME_MAX_HOURS  = 24;   // yellow badge (12 – 24 h); hide above this
 
+// ── News impact decision layer (mirrors backend/constants.py NEWS_IMPACT_*) ─
+/** Display labels for impact_class — keep in sync with backend IMPACT_CLASSES. */
+export const NEWS_IMPACT_CLASS_LABELS: Record<string, string> = {
+  moved_price: 'Bump due to news',
+  attention_only: 'Attention only',
+  no_effect: 'No effect on ticker',
+  insufficient_data: 'Insufficient data',
+};
+
+export const NEWS_IMPACT_CLASS_TOOLTIPS: Record<string, string> = {
+  moved_price:
+    'Fresh/aging headline plus a mild or strong price move — rules attribute the bump to news.',
+  attention_only:
+    'News is present and relative volume is elevated, but price has not moved enough to count as a reaction.',
+  no_effect:
+    'News is present (or expired) but rules do not attribute a meaningful ticker move to it.',
+  insufficient_data:
+    'Missing articles and/or market context needed to classify impact.',
+};
+
+export const NEWS_IMPACT_FACTOR_TOOLTIPS = {
+  age: 'How old the newest headline is. Tunables: NEWS_IMPACT_FRESH/AGING/STALE_HOURS in backend/constants.py.',
+  source: 'Credibility tier from source name/URL keywords (official > major > secondary > unknown).',
+  price: 'Price reaction from |gap%| vs NEWS_IMPACT_STRONG_MOVE_PCT / MILD_MOVE_PCT.',
+  attention: 'Relative volume vs NEWS_IMPACT_ATTENTION_RVOL — elevated means an attention spike.',
+  l2: 'Level 2 reaction from live book imbalance / bid-heavy (or insufficient_data if no book).',
+  confidence: 'Rules-first score clamped by NEWS_IMPACT_CONFIDENCE_FLOOR/CEILING — not a black-box model.',
+  ai: 'Lincoln AI narrative slot. Always pending/null until the AI reasoning hook is wired.',
+};
+
 // ── Strategy / Watchlist tab (mirrors backend constants.py WATCHLIST_*) ────
 export const WATCHLIST_POLL_INTERVAL_MS = 3000;
 /** Composite score column headers, in display order. */

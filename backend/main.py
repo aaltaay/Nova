@@ -28,6 +28,8 @@ from routes.strategy import router as _strategy_router
 from routes.journal import router as _journal_router
 from routes.executor import router as _executor_router
 from routes.l2 import router as _l2_router
+from routes.news import router as _news_router
+from news.enrich import enrich_catalyst_row, build_ticker_news_impact
 
 _log_dir = str(_nova_log_dir())
 _file_handler = logging.handlers.RotatingFileHandler(
@@ -1426,6 +1428,8 @@ def _run_news_catalyst_scan() -> None:
             })
 
         catalysts.sort(key=lambda x: abs(x["gap_percent"]), reverse=True)
+        # Attach explicit news-impact verdicts (rules-first; see news/impact.py).
+        catalysts = [enrich_catalyst_row(c) for c in catalysts]
         print(f"[catalyst] scan complete — {len(catalysts)} catalysts", flush=True)
         _news_catalyst_cache = catalysts
         _news_catalyst_cache_ts = time.time()
@@ -1545,6 +1549,21 @@ async def lifespan(app: FastAPI):
     setups_scan_task = asyncio.create_task(_setups_stream.scan_loop())
     risk_reset_task = asyncio.create_task(_risk.session_reset_loop())
     executor_fill_task = asyncio.create_task(_executor.fill_poll_loop())
+    from l2 import batch as _l2_batch
+    from constants import L2_RETENTION_SWEEP_INTERVAL_SEC
+
+    async def _l2_retention_loop() -> None:
+        while True:
+            try:
+                await asyncio.sleep(L2_RETENTION_SWEEP_INTERVAL_SEC)
+                _l2_db.purge_older_than()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("l2 retention sweep failed")
+
+    l2_flush_task = asyncio.create_task(_l2_batch.flush_loop())
+    l2_retention_task = asyncio.create_task(_l2_retention_loop())
     # IBKR client — best-effort, never blocks the Alpaca scan loop
     await _ibkr_client.startup()
     yield
@@ -1557,11 +1576,17 @@ async def lifespan(app: FastAPI):
     setups_scan_task.cancel()
     risk_reset_task.cancel()
     executor_fill_task.cancel()
+    l2_flush_task.cancel()
+    l2_retention_task.cancel()
     for t in (scan_task, ws_task, hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task):
         try:
             await t
         except asyncio.CancelledError:
             pass
+    try:
+        _l2_batch.flush()
+    except Exception:
+        logger.exception("l2.batch: final flush failed")
     await _ibkr_client.shutdown()
 
 
@@ -1575,6 +1600,7 @@ app.include_router(_strategy_router)
 app.include_router(_journal_router)
 app.include_router(_executor_router)
 app.include_router(_l2_router)
+app.include_router(_news_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -2122,6 +2148,7 @@ def _build_ticker_detail(symbol: str) -> dict:
         "rel_volume": rel_vol,
         "news": news,
         "fundamentals": fundamentals,
+        "news_impact": build_ticker_news_impact(symbol, news, snapshot, rel_vol),
     }
 
 
@@ -2185,12 +2212,16 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
             avg_vol = slow.get("avg_volume")
             daily_vol = (fast.get("snapshot", {}).get("daily_bar") or {}).get("volume") or 0
             rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else fast.get("rel_volume")
+            news_impact = build_ticker_news_impact(
+                symbol, slow.get("news") or [], fast.get("snapshot"), rel_vol
+            )
             await websocket.send_text(json.dumps({
                 "type": "detail_update",
                 "news": slow["news"],
                 "fundamentals": slow["fundamentals"],
                 "avg_volume": avg_vol,
                 "rel_volume": rel_vol,
+                "news_impact": news_impact,
             }))
 
         while True:

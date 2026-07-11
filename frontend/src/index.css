@@ -1227,6 +1227,106 @@ th {
   line-height: 1.6;
 }
 
+/* News impact decision panel (explicit rules, not a black box) */
+.news-impact-panel {
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 0.78rem;
+}
+
+.news-impact-panel.ni-moved {
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.news-impact-panel.ni-attention {
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.news-impact-panel.ni-none {
+  border-color: rgba(139, 146, 165, 0.4);
+}
+
+.news-impact-panel.ni-unknown,
+.news-impact-panel.ni-loading {
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.ni-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.ni-badge {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ni-confidence,
+.ni-rule {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.ni-summary {
+  margin: 0 0 0.5rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.ni-factors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 0.75rem;
+  margin: 0 0 0.5rem;
+}
+
+.ni-factors dt {
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ni-factors dd {
+  margin: 0.1rem 0 0;
+  color: var(--text-primary);
+}
+
+.ni-reasons summary {
+  cursor: pointer;
+  color: var(--accent-color);
+  font-size: 0.72rem;
+}
+
+.ni-reasons ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.ni-ai {
+  margin-top: 0.45rem;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.ni-catalyst-badge {
+  display: inline-block;
+  margin-top: 0.25rem;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  cursor: help;
+}
+
 /* Section title between quote metric blocks */
 .cq-section-title {
   font-size: 0.72rem;

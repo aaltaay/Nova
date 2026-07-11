@@ -1,0 +1,88 @@
+"""
+News impact routes — READ-ONLY decision layer over existing Alpaca news /
+catalyst data. Never places orders.
+
+Endpoints:
+  GET /api/news/impact/{symbol}  -- explicit NewsImpactVerdict for one symbol
+"""
+from __future__ import annotations
+
+from fastapi import APIRouter
+
+from news.impact import evaluate_news_impact
+
+router = APIRouter(prefix="/api/news", tags=["news"])
+
+_TRANSPARENCY_NOTE = (
+    "Rules-first news impact verdict. Every threshold is in constants.py "
+    "(NEWS_IMPACT_*) and echoed in factors. ai_reasoning is null until Lincoln AI is wired."
+)
+
+
+def _gather_context(symbol: str) -> dict:
+    """Pull articles + market context from main caches / ticker helpers.
+
+    Lazy-imports main to avoid circular import at module load (same pattern as
+    routes/strategy.py).
+    """
+    import main as _main
+
+    symbol = symbol.upper()
+    headers = _main._alpaca_headers()
+    articles: list[dict] = []
+    if headers:
+        articles = _main._fetch_ticker_news(symbol, headers)
+
+    gap_percent = None
+    rel_volume = None
+    for cache_name in ("_news_catalyst_cache", "_gapper_cache", "_gainer_cache", "_afterhours_cache"):
+        rows = getattr(_main, cache_name, []) or []
+        for row in rows:
+            if row.get("symbol") == symbol:
+                if gap_percent is None and row.get("gap_percent") is not None:
+                    gap_percent = row.get("gap_percent")
+                if rel_volume is None:
+                    rel_volume = row.get("relative_volume") or row.get("rel_volume")
+                if not articles and row.get("catalyst_headline"):
+                    articles = [{
+                        "headline": row.get("catalyst_headline"),
+                        "url": row.get("catalyst_url") or "",
+                        "source": "",
+                        "created_at": row.get("newest_headline_at") or "",
+                    }]
+                break
+
+    # Live L2 book when IBKR depth is already subscribed for this symbol.
+    l2_features = None
+    try:
+        from ibkr.depth import current_book
+        from l2.features import compute_feature_dict
+
+        book = current_book(symbol)
+        if book:
+            l2_features = compute_feature_dict(book)
+    except Exception:
+        l2_features = None
+
+    return {
+        "articles": articles,
+        "gap_percent": gap_percent,
+        "rel_volume": rel_volume,
+        "l2_features": l2_features,
+    }
+
+
+@router.get("/impact/{symbol}")
+def news_impact(symbol: str) -> dict:
+    ctx = _gather_context(symbol)
+    verdict = evaluate_news_impact(
+        symbol.upper(),
+        ctx["articles"],
+        gap_percent=ctx["gap_percent"],
+        rel_volume=ctx["rel_volume"],
+        l2_features=ctx["l2_features"],
+    )
+    return {
+        "note": _TRANSPARENCY_NOTE,
+        **verdict.to_dict(),
+    }
