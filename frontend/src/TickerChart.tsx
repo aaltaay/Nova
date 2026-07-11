@@ -16,6 +16,11 @@ import {
   CHART_TIMEFRAMES,
   CHART_DEFAULT_TIMEFRAME,
   CHART_CARD_TITLE,
+  CHART_HEIGHT_PANEL,
+  CHART_HEIGHT_PAGE,
+  CHART_MOCK_BAR_COUNT,
+  CHART_MOCK_BASE_PRICE,
+  CHART_MOCK_DATA_LABEL,
 } from './constants';
 
 const API_URL = `${API_BASE_URL}/api`;
@@ -55,6 +60,31 @@ function tfSeconds(tf: string): number {
   return m[2] === 'Hour' ? +m[1] * 3600 : +m[1] * 60;
 }
 
+/** Synthetic OHLC when the API returns no bars — keeps drawing tools usable. */
+function buildMockBars(count: number, basePrice: number): RawBar[] {
+  const now = Date.now();
+  const stepMs = 5 * 60 * 1000;
+  const bars: RawBar[] = [];
+  let price = basePrice;
+  for (let i = count; i >= 1; i--) {
+    const open = price;
+    const drift = (Math.sin(i / 3) + Math.cos(i / 5)) * 0.08;
+    const close = Math.max(0.5, open + drift);
+    const high = Math.max(open, close) + 0.05;
+    const low = Math.min(open, close) - 0.05;
+    bars.push({
+      t: new Date(now - i * stepMs).toISOString(),
+      o: +open.toFixed(2),
+      h: +high.toFixed(2),
+      l: +low.toFixed(2),
+      c: +close.toFixed(2),
+      v: 10_000 + (i % 7) * 1_500,
+    });
+    price = close;
+  }
+  return bars;
+}
+
 const REFETCH_SEC: Record<string, number> = {
   '1Min': 10, '5Min': 15, '15Min': 30, '30Min': 30,
   '1Hour': 60, '4Hour': 120,
@@ -80,10 +110,14 @@ const DRAW_TOOLS: DrawTool[] = [
 export function TickerChart({
   symbol,
   lastTrade,
+  variant = 'panel',
 }: {
   symbol: string;
   lastTrade?: ChartTradeUpdate | null;
+  /** `page` = full ticker detail (taller chart); `panel` = legacy side-panel height. */
+  variant?: 'panel' | 'page';
 }) {
+  const chartHeight = variant === 'page' ? CHART_HEIGHT_PAGE : CHART_HEIGHT_PANEL;
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -93,6 +127,7 @@ export function TickerChart({
   const [timeframe, setTimeframe] = useState(CHART_DEFAULT_TIMEFRAME);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usingMock, setUsingMock] = useState(false);
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [maximized, setMaximized] = useState(false);
 
@@ -114,7 +149,7 @@ export function TickerChart({
       timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#262a36' },
       rightPriceScale: { borderColor: '#262a36' },
       width: container.clientWidth,
-      height: maximized ? container.clientHeight : 280,
+      height: maximized ? container.clientHeight : chartHeight,
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -129,7 +164,6 @@ export function TickerChart({
     });
     chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
 
-    // Drawing manager
     const manager = new DrawingManager();
     manager.attach(chart, candleSeries, container);
 
@@ -142,7 +176,7 @@ export function TickerChart({
       if (containerRef.current) {
         chart.applyOptions({
           width: containerRef.current.clientWidth,
-          height: maximized ? containerRef.current.clientHeight : 280,
+          height: maximized ? containerRef.current.clientHeight : chartHeight,
         });
       }
     });
@@ -157,7 +191,7 @@ export function TickerChart({
       volSeriesRef.current = null;
       managerRef.current = null;
     };
-  }, [maximized]);
+  }, [maximized, chartHeight]);
 
   // ── Sync active tool with drawing manager ─────────────────────────────
   useEffect(() => {
@@ -187,7 +221,13 @@ export function TickerChart({
         throw new Error(body?.detail ?? `HTTP ${res.status}`);
       }
       const data = (await res.json()) as { bars: RawBar[] };
-      const bars = data.bars ?? [];
+      let bars = data.bars ?? [];
+      let mock = false;
+      if (bars.length === 0) {
+        bars = buildMockBars(CHART_MOCK_BAR_COUNT, CHART_MOCK_BASE_PRICE);
+        mock = true;
+      }
+      setUsingMock(mock);
       const daily = tf === '1Day' || tf === '1Week' || tf === '1Month';
 
       const candles: CandlestickData<Time>[] = bars.map(b => ({
@@ -275,6 +315,9 @@ export function TickerChart({
     <div className={`chart-card${maximized ? ' chart-card--maximized' : ''}`}>
       <div className="chart-header">
         <span className="chart-title">{CHART_CARD_TITLE}</span>
+        {usingMock && (
+          <span className="chart-mock-badge" title={CHART_MOCK_DATA_LABEL}>{CHART_MOCK_DATA_LABEL}</span>
+        )}
         <div className="chart-tabs" role="group" aria-label="Timeframe">
           {CHART_TIMEFRAMES.map(tf => (
             <button

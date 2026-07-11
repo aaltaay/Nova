@@ -1,16 +1,17 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { HodMomoTab } from './hod_momo/HodMomoTab';
 import { HodMomoSettings } from './hod_momo/HodMomoSettings';
 import { useHodMomoStream } from './hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from './hod_momo/useHodMomoConfig';
-import { TickerChart } from './TickerChart';
 import { TabNav } from './components/TabNav';
 import type { ActiveTab } from './components/TabNav';
-import { NewsHeadlineSection } from './components/NewsHeadlineSection';
+import { SymbolSearchBox } from './components/SymbolSearchBox';
 import type { NewsImpactVerdict } from './types/newsImpact';
 import { TradingTab } from './ibkr/TradingTab';
 import { WatchlistTab } from './strategy/WatchlistTab';
 import { useWatchlist } from './strategy/useWatchlist';
+import { TickerDetailPage } from './pages/TickerDetailPage';
+import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from './utils/quoteFormat';
 
 function NovaLogo() {
   return (
@@ -39,19 +40,11 @@ function NovaLogo() {
 import {
   SMALL_CAP_MIN, SMALL_CAP_MAX,
   NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS,
-  REL_VOLUME_HIGH,
   GAPPER_MIN_GAP_PCT,
   SCANNER_COLUMNS,
-  QUOTE_CARD_TITLE,
-  QUOTE_AVG_VOLUME_LABEL,
-  QUOTE_BROKER_SECTION_TITLE,
-  QUOTE_ASSET_LABELS,
-  ALPACA_ASSET_ATTRIBUTE_LABELS,
-  QUOTE_LISTING_FEED_VALUE,
   DATA_FEED_DEFAULT,
   DATA_FEED_LABELS,
   API_BASE_URL,
-  WS_BASE_URL,
   NEWS_IMPACT_CLASS_LABELS,
   NEWS_IMPACT_CLASS_TOOLTIPS,
 } from './constants';
@@ -103,154 +96,7 @@ interface Catalyst {
   news_impact?: NewsImpactVerdict | null;
 }
 
-// ── Ticker Detail Types ────────────────────────────────────────────────────────
-
-interface BarData {
-  open: number | null;
-  high: number | null;
-  low: number | null;
-  close: number | null;
-  volume: number | null;
-  trade_count: number | null;
-  vwap: number | null;
-  timestamp: string | null;
-}
-
-interface TradeData {
-  price: number | null;
-  size: number | null;
-  exchange: string | null;
-  timestamp: string | null;
-}
-
-interface QuoteData {
-  bid_price: number | null;
-  bid_size: number | null;
-  ask_price: number | null;
-  ask_size: number | null;
-  timestamp: string | null;
-}
-
-interface SnapshotData {
-  latest_trade: TradeData | null;
-  latest_quote: QuoteData | null;
-  minute_bar: BarData | null;
-  daily_bar: BarData | null;
-  prev_daily_bar: BarData | null;
-  // Timestamp-aware previous regular-session close (use this for change math, not prev_daily_bar.close).
-  prev_close: number | null;
-  // Last completed regular-session close (the "main line" price in extended-hours display).
-  session_close: number | null;
-  // The session close before session_close (for computing the main line's change).
-  session_prev_close: number | null;
-}
-
-interface AssetInfo {
-  name?: string;
-  exchange?: string;
-  asset_class?: string;
-  status?: string;
-  tradable?: boolean;
-  marginable?: boolean;
-  shortable?: boolean;
-  easy_to_borrow?: boolean;
-  fractionable?: boolean;
-  maintenance_margin_requirement?: number | null;
-  margin_requirement_long?: string | null;
-  margin_requirement_short?: string | null;
-  attributes?: string[];
-}
-
-interface NewsArticle {
-  headline: string;
-  summary: string;
-  author: string;
-  source: string;
-  url: string;
-  created_at: string;
-  symbols: string[];
-  images: { url: string; size: string }[];
-}
-
-interface FundamentalsData {
-  market_cap: number | null;
-  shares_outstanding: number | null;
-  float_shares: number | null;
-  short_interest: number | null;
-  short_ratio: number | null;
-  short_percent_of_float: number | null;
-  pe_ratio: number | null;
-  forward_pe: number | null;
-  eps: number | null;
-  sector: string | null;
-  industry: string | null;
-  fifty_two_week_high: number | null;
-  fifty_two_week_low: number | null;
-  dividend_yield: number | null;
-  beta: number | null;
-  earnings_date: string | null;
-  recent_split: string | null;
-}
-
-interface TickerTradeUpdate {
-  type: 'trade_update';
-  price: number;
-  size: number | null;
-  timestamp: string | null;
-  volume: number | null;
-}
-
-interface TickerDetail {
-  symbol: string;
-  asset: AssetInfo;
-  snapshot: SnapshotData;
-  avg_volume: number | null;
-  rel_volume: number | null;
-  news: NewsArticle[];
-  fundamentals: FundamentalsData | null;
-  // Current session mode from the backend — drives the two-line quote layout.
-  mode: string | null;
-  news_impact?: NewsImpactVerdict | null;
-}
-
-// ── Formatters ────────────────────────────────────────────────────────────────
-
-function fmtVolume(v: number | null | undefined): string {
-  if (v == null) return '—';
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
-  return String(v);
-}
-
-function fmtMarketCap(v: number | null | undefined): string {
-  if (v == null) return '—';
-  if (v >= 1_000_000_000_000) return `$${(v / 1_000_000_000_000).toFixed(2)}T`;
-  if (v >= 1_000_000_000) return `$${(v / 1_000_000_000).toFixed(2)}B`;
-  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
-  return `$${v}`;
-}
-
-function fmtPct(frac: number | null, fallback = 'N/A'): string {
-  if (frac == null) return fallback;
-  return `${frac > 0 ? '+' : ''}${(frac * 100).toFixed(2)}%`;
-}
-
-function fmtPrice(p: number | null | undefined): string {
-  if (p == null) return '—';
-  return `$${p.toFixed(2)}`;
-}
-
-
-function timeAgo(iso: string): string {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return `${Math.floor(diff)}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
-
-// ── Small UI Helpers ──────────────────────────────────────────────────────────
+// Scanner formatters imported from utils/quoteFormat
 
 function NewsCell({ newest_headline_at }: { newest_headline_at: string | null }) {
   if (!newest_headline_at) return <span className="na-muted">—</span>;
@@ -307,505 +153,6 @@ function EmptyState({
   return <div className="empty-state">No gainers in the feed right now.</div>;
 }
 
-// ── useTickerStream hook ──────────────────────────────────────────────────────
-
-function useTickerStream(symbol: string | null): { detail: TickerDetail | null; loading: boolean; refreshing: boolean; fetchFailed: boolean } {
-  const [detail, setDetail] = useState<TickerDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  // True while waiting for the initial frame for a new symbol (fast-data not yet arrived)
-  const [refreshing, setRefreshing] = useState(false);
-  // True after the WS closes without a successful `initial` (real failure, not StrictMode cleanup).
-  const [fetchFailed, setFetchFailed] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
-  // Mirrors whether `detail` is non-null so the effect can read it synchronously
-  // without a stale closure — avoids calling setState inside another setState updater.
-  const hasDetailRef = useRef(false);
-
-  useEffect(() => {
-    if (!symbol) {
-      hasDetailRef.current = false;
-      setDetail(null);
-      setLoading(false);
-      setRefreshing(false);
-      setFetchFailed(false);
-      return;
-    }
-
-    // `cancelled` guards against the old WebSocket's onclose/onerror firing
-    // after cleanup (React StrictMode double-mount, or rapid symbol changes).
-    let cancelled = false;
-    let initialReceived = false;
-
-    setFetchFailed(false);
-
-    // Show the full spinner only when there is nothing to display yet.
-    // When switching symbols, keep the previous detail visible and use the
-    // slim refreshing bar. All setters called directly — no side effects
-    // inside updater functions (React would call those twice in StrictMode).
-    setLoading(!hasDetailRef.current);
-    setRefreshing(true);
-
-    const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
-    wsRef.current = ws;
-
-    ws.onmessage = (e) => {
-      if (cancelled) return;
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'initial') {
-          // Phase 1: fast data (asset + snapshot) — render immediately
-          const { type: _t, ...data } = msg;
-          initialReceived = true;
-          hasDetailRef.current = true;
-          setDetail(data as TickerDetail);
-          setLoading(false);
-          setRefreshing(false);
-          setFetchFailed(false);
-        } else if (msg.type === 'detail_update') {
-          // Phase 2: slow data (news + fundamentals + fresh avg/rel volume + impact)
-          setDetail(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              news: msg.news ?? prev.news,
-              fundamentals: msg.fundamentals ?? prev.fundamentals,
-              avg_volume: msg.avg_volume ?? prev.avg_volume,
-              rel_volume: msg.rel_volume ?? prev.rel_volume,
-              news_impact: msg.news_impact ?? prev.news_impact,
-            };
-          });
-        } else if (msg.type === 'trade_update') {
-          const update = msg as TickerTradeUpdate;
-          setDetail(prev => {
-            if (!prev) return prev;
-            const prevClose = prev.snapshot?.prev_daily_bar?.close ?? null;
-            const newPrice = update.price;
-            const prevDailyBar = prev.snapshot?.daily_bar ?? null;
-            const newDailyBar: BarData | null = update.volume != null
-              ? {
-                  open: null, high: null, low: null, close: null,
-                  trade_count: null, vwap: null, timestamp: null,
-                  ...prevDailyBar,
-                  volume: update.volume,
-                }
-              : prevDailyBar;
-            const newSnapshot = {
-              ...prev.snapshot,
-              daily_bar: newDailyBar,
-              latest_trade: {
-                price: newPrice,
-                size: update.size ?? prev.snapshot?.latest_trade?.size ?? null,
-                timestamp: update.timestamp ?? prev.snapshot?.latest_trade?.timestamp ?? null,
-                exchange: prev.snapshot?.latest_trade?.exchange ?? null,
-              },
-            };
-            const dailyVol = newDailyBar?.volume ?? null;
-            const avgVol = prev.avg_volume;
-            const relVol = dailyVol != null && avgVol != null && avgVol > 0
-              ? Math.round((dailyVol / avgVol) * 100) / 100
-              : prev.rel_volume;
-            void prevClose;
-            return { ...prev, snapshot: newSnapshot, rel_volume: relVol };
-          });
-        }
-        // ignore 'ping' messages
-      } catch {
-        // ignore parse errors
-      }
-    };
-
-    ws.onerror = () => {
-      if (!cancelled) {
-        setLoading(false);
-        setRefreshing(false);
-        if (!initialReceived) setFetchFailed(true);
-      }
-    };
-    ws.onclose = () => {
-      if (!cancelled) {
-        setLoading(false);
-        setRefreshing(false);
-        if (!initialReceived) setFetchFailed(true);
-      }
-    };
-
-    return () => {
-      cancelled = true;
-      wsRef.current = null;
-      ws.close();
-    };
-  }, [symbol]);
-
-  return { detail, loading, refreshing, fetchFailed };
-}
-
-// ── Compact Ticker Detail ─────────────────────────────────────────────────────
-
-function fmtTimestamp(iso: string | null | undefined): string {
-  if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-      timeZoneName: 'short',
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function fmtYesNo(v: boolean | undefined): string {
-  if (v === true) return 'Yes';
-  if (v === false) return 'No';
-  return '—';
-}
-
-function fmtMaintMarginPct(v: number | null | undefined): string {
-  if (v == null) return '—';
-  return `${Number(v)}%`;
-}
-
-function fmtMarginReqString(v: string | null | undefined): string {
-  if (v == null || v === '') return '—';
-  const s = String(v).trim();
-  return s.endsWith('%') ? s : `${s}%`;
-}
-
-function formatAssetAttributeList(attrs: string[] | undefined): string {
-  if (!attrs?.length) return '—';
-  return attrs
-    .map(a => ALPACA_ASSET_ATTRIBUTE_LABELS[a] ?? a.replace(/_/g, ' '))
-    .join(', ');
-}
-
-function CompactGridCell({ label, value, valueClass }: { label: string; value: React.ReactNode; valueClass?: string }) {
-  return (
-    <div className="cq-cell">
-      <span className="cq-label">{label}</span>
-      <span className={`cq-value${valueClass ? ' ' + valueClass : ''}`}>{value}</span>
-    </div>
-  );
-}
-
-function TickerDetailContent({
-  detail,
-}: {
-  detail: TickerDetail;
-}) {
-  // ── Block button ──────────────────────────────────────────────────────────
-  const [blocked, setBlocked] = useState(false);
-  useEffect(() => { setBlocked(false); }, [detail.symbol]);
-  function onBlock() {
-    fetch(`${API_URL}/hod-momo/blocklist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: detail.symbol }),
-    }).then(r => { if (r.ok) setBlocked(true); }).catch(() => {});
-  }
-  // ─────────────────────────────────────────────────────────────────────────
-  const snap = detail.snapshot;
-  const asset = detail.asset;
-  const trade = snap?.latest_trade;
-  const daily = snap?.daily_bar;
-
-  // Use the backend-resolved prev_close (timestamp-aware — correct during pre-market).
-  // Falls back to prev_daily_bar.close for older snapshots that may not have the field.
-  const prevClose = snap?.prev_close ?? snap?.prev_daily_bar?.close ?? null;
-
-  const isExtendedHours = detail.mode === 'premarket' || detail.mode === 'afterhours';
-
-  // ---------- Main line ----------
-  // Extended hours: show the last completed regular-session close + its change.
-  // Regular hours:  show the live price + its change vs yesterday.
-  const sessionClose     = snap?.session_close ?? null;
-  const sessionPrevClose = snap?.session_prev_close ?? null;
-  const livePrice        = trade?.price ?? daily?.close ?? null;
-
-  const mainPrice    = isExtendedHours ? sessionClose : livePrice;
-  const mainPrevRef  = isExtendedHours ? sessionPrevClose : prevClose;
-  const mainChangeAbs = (mainPrice != null && mainPrevRef != null) ? mainPrice - mainPrevRef : null;
-  const mainChangePct = (mainChangeAbs != null && mainPrevRef) ? mainChangeAbs / mainPrevRef : null;
-
-  // ---------- Sub line (pre/after-market only) ----------
-  const extPrice      = isExtendedHours ? livePrice : null;
-  const extChangeAbs  = (extPrice != null && sessionClose != null) ? extPrice - sessionClose : null;
-  const extChangePct  = (extChangeAbs != null && sessionClose) ? extChangeAbs / sessionClose : null;
-  const extLabel      = detail.mode === 'premarket' ? 'Pre' : 'After';
-  const extIsPositive = (extChangePct ?? 0) >= 0;
-
-  // Trend arrow reflects the most "live" change direction.
-  const isPositive = isExtendedHours
-    ? extIsPositive
-    : (mainChangePct ?? 0) >= 0;
-
-  const lastUpdated = trade?.timestamp ?? snap?.latest_quote?.timestamp ?? null;
-
-  // Pipe-delimited description: Name | Country | Exchange | Sector | Industry
-  const descParts: string[] = [];
-  if (asset?.name) descParts.push(asset.name);
-  if (asset?.exchange) descParts.push(asset.exchange);
-  if (detail.fundamentals?.sector) descParts.push(detail.fundamentals.sector);
-  if (detail.fundamentals?.industry) descParts.push(detail.fundamentals.industry);
-
-  const news = detail.news ?? [];
-
-  // Gap % from prev close to today's open (or current price if no open)
-  const todayOpen = daily?.open ?? null;
-  const gapPct = (todayOpen != null && prevClose != null && prevClose !== 0)
-    ? (todayOpen - prevClose) / prevClose
-    : null;
-
-  return (
-    <div className="cq-root">
-      <div className="cq-section-title cq-card-title">{QUOTE_CARD_TITLE}</div>
-      {/* Header row */}
-      <div className="cq-header">
-        <div className="cq-symbol-row">
-          <span className="cq-symbol">{detail.symbol}</span>
-          {(mainChangeAbs != null || extChangeAbs != null) && (
-            <span className="cq-trend">{isPositive ? '▲' : '▼'}</span>
-          )}
-          <button
-            className={`cq-block-btn${blocked ? ' cq-block-btn--blocked' : ''}`}
-            onClick={onBlock}
-            disabled={blocked}
-            title="Add to HOD Momo blocklist"
-          >{blocked ? 'Blocked' : 'Block'}</button>
-        </div>
-        {mainPrice != null && (
-          <div className="cq-price-row">
-            <span className="cq-price">{mainPrice.toFixed(2)}</span>
-            {mainChangeAbs != null && (
-              <span className={`cq-change ${(mainChangePct ?? 0) >= 0 ? 'positive' : 'negative'}`}>
-                {mainChangeAbs >= 0 ? '+' : ''}{mainChangeAbs.toFixed(2)} ({fmtPct(mainChangePct)})
-              </span>
-            )}
-          </div>
-        )}
-        {isExtendedHours && extPrice != null && (
-          <div className="cq-ext-row">
-            <span className="cq-ext-label">{extLabel}:</span>
-            <span className="cq-ext-price">{extPrice.toFixed(2)}</span>
-            {extChangeAbs != null && (
-              <span className={`cq-ext-change ${extIsPositive ? 'positive' : 'negative'}`}>
-                {extChangeAbs >= 0 ? '+' : ''}{extChangeAbs.toFixed(2)} ({fmtPct(extChangePct)})
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Interactive price chart */}
-      <TickerChart
-        symbol={detail.symbol}
-        lastTrade={trade?.price != null ? { price: trade.price, timestamp: trade.timestamp ?? null } : undefined}
-      />
-
-      {/* Description */}
-      {descParts.length > 0 && (
-        <div className="cq-description">{descParts.join(' | ')}</div>
-      )}
-
-      {/* Last updated */}
-      {lastUpdated && (
-        <div className="cq-timestamp">Last updated on {fmtTimestamp(lastUpdated)}</div>
-      )}
-
-      {/* News section + explicit impact verdict */}
-      <NewsHeadlineSection
-        news={news}
-        newsImpact={detail.news_impact}
-        timeAgo={timeAgo}
-      />
-
-      {/* Data grid */}
-      <div className="cq-grid">
-        <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
-        <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
-
-        <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />
-        <CompactGridCell
-          label="Relative Volume (Daily)"
-          value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
-          valueClass={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
-        />
-
-        <CompactGridCell label="Relative Volume (5 min %)" value="—" />
-        <CompactGridCell label="Volume In 5 Minutes" value="—" />
-
-        <CompactGridCell
-          label="Gap(%)"
-          value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}
-          valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
-        />
-        <CompactGridCell label="Open" value={fmtPrice(daily?.open)} />
-
-        <CompactGridCell label="Previous Close" value={fmtPrice(prevClose)} />
-        <CompactGridCell label="High Price" value={fmtPrice(daily?.high)} />
-
-        <CompactGridCell label="Low Price" value={fmtPrice(daily?.low)} />
-        <CompactGridCell label="High In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_high)} />
-
-        <CompactGridCell label="Low In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_low)} />
-        <CompactGridCell label="Short Interest" value={fmtVolume(detail.fundamentals?.short_interest)} />
-
-        <CompactGridCell
-          label="Earnings Date"
-          value={detail.fundamentals?.earnings_date ?? '—'}
-        />
-        <CompactGridCell label="Market Cap" value={fmtMarketCap(detail.fundamentals?.market_cap)} />
-
-        <CompactGridCell label="Industry" value={detail.fundamentals?.industry ?? '—'} />
-        <CompactGridCell label="Sector" value={detail.fundamentals?.sector ?? '—'} />
-
-        <CompactGridCell
-          label="Recent Split"
-          value={detail.fundamentals?.recent_split ?? '—'}
-        />
-        <CompactGridCell label="Exchange Group" value={asset?.exchange ?? '—'} />
-      </div>
-
-      <div className="cq-section-title">{QUOTE_BROKER_SECTION_TITLE}</div>
-      <div className="cq-grid cq-grid-broker">
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.status}
-          value={asset?.status ? String(asset.status) : '—'}
-        />
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.tradable}
-          value={fmtYesNo(asset?.tradable)}
-          valueClass={asset?.tradable === false ? 'negative' : undefined}
-        />
-
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.assetClass}
-          value={asset?.asset_class ? String(asset.asset_class) : '—'}
-        />
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.shortable}
-          value={fmtYesNo(asset?.shortable)}
-        />
-
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.marginable}
-          value={fmtYesNo(asset?.marginable)}
-        />
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.fractionable}
-          value={fmtYesNo(asset?.fractionable)}
-        />
-
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.easyToBorrow}
-          value={fmtYesNo(asset?.easy_to_borrow)}
-        />
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.maintMargin}
-          value={fmtMaintMarginPct(asset?.maintenance_margin_requirement ?? null)}
-        />
-
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.marginLong}
-          value={fmtMarginReqString(asset?.margin_requirement_long ?? null)}
-        />
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.marginShort}
-          value={fmtMarginReqString(asset?.margin_requirement_short ?? null)}
-        />
-
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.listingFeed}
-          value={QUOTE_LISTING_FEED_VALUE}
-        />
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.attributes}
-          value={formatAssetAttributeList(asset?.attributes)}
-          valueClass="cq-value-flags"
-        />
-      </div>
-
-      {/* Bottom timestamp */}
-      {lastUpdated && (
-        <div className="cq-timestamp cq-timestamp-bottom">Last updated on {fmtTimestamp(lastUpdated)}</div>
-      )}
-    </div>
-  );
-}
-
-// ── Persistent Side Panel ─────────────────────────────────────────────────────
-
-function SidePanel({
-  selectedSymbol,
-  setSelectedSymbol,
-}: {
-  selectedSymbol: string | null;
-  setSelectedSymbol: (sym: string | null) => void;
-}) {
-  const [input, setInput] = useState(selectedSymbol ?? '');
-  const { detail, loading, refreshing, fetchFailed } = useTickerStream(selectedSymbol);
-
-  // One render happens after selecting a symbol before the WS effect runs; without this,
-  // loading/refreshing are still false and detail is null → a false "No data" flash.
-  const awaitingPreEffectFrame =
-    !!selectedSymbol && detail == null && !loading && !refreshing && !fetchFailed;
-  const showFullSpinner = loading || awaitingPreEffectFrame;
-
-  useEffect(() => {
-    setInput(selectedSymbol ?? '');
-  }, [selectedSymbol]);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const sym = input.trim().toUpperCase();
-    setSelectedSymbol(sym || null);
-  }
-
-  return (
-    <aside className="side-panel">
-      <div className="side-panel-search">
-        <form className="side-search-form" onSubmit={handleSubmit}>
-          <input
-            className="side-search-input"
-            type="text"
-            value={input}
-            onChange={e => setInput(e.target.value.toUpperCase())}
-            placeholder="Symbol, e.g. AAPL"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <button type="submit" className="side-search-btn">Look Up</button>
-        </form>
-      </div>
-      <div className="side-panel-body">
-        {showFullSpinner && (
-          <div className="detail-loading">
-            <div className="detail-loading-spinner" />
-            <span>Loading…</span>
-          </div>
-        )}
-        {!showFullSpinner && selectedSymbol && refreshing && detail && (
-          <div className="detail-refreshing-bar">
-            <div className="detail-loading-spinner detail-loading-spinner--small" />
-            <span>Updating {selectedSymbol}…</span>
-          </div>
-        )}
-        {!showFullSpinner && selectedSymbol && detail && (
-          <div className="detail-body">
-            <TickerDetailContent detail={detail} />
-          </div>
-        )}
-        {!showFullSpinner && fetchFailed && !detail && selectedSymbol && (
-          <div className="detail-empty">No data found for {selectedSymbol}.</div>
-        )}
-        {!showFullSpinner && !selectedSymbol && (
-          <div className="detail-empty">Enter a ticker symbol above to look up a stock quote.</div>
-        )}
-      </div>
-    </aside>
-  );
-}
-
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MODE_LABELS: Record<Mode, string> = {
@@ -817,7 +164,6 @@ const MODE_LABELS: Record<Mode, string> = {
 };
 
 const API_URL = `${API_BASE_URL}/api`;
-const WS_URL = `${WS_BASE_URL}/ws`;
 
 // ── Scanner Table ─────────────────────────────────────────────────────────────
 
@@ -1248,6 +594,41 @@ function App() {
     }
   }
 
+  if (selectedSymbol) {
+    return (
+      <div className="container container--ticker-detail">
+        <div className="main-col main-col--full">
+          <header>
+            <div className="header-left">
+              <div className="brand">
+                <NovaLogo />
+                <div className="brand-text">
+                  <span className="brand-wordmark">NOVA</span>
+                  <span className="brand-tagline">Stock Scanner</span>
+                </div>
+              </div>
+              <span className={`mode-badge mode-${mode}`}>{MODE_LABELS[mode]}</span>
+            </div>
+            <div className="header-right">
+              <div className="status-indicator">
+                <span className={`dot ${dotClass(health.status)}`} />
+                <span style={{ textTransform: 'capitalize' }}>{health.status}</span>
+                {health.latency_ms > 0 && <span>({health.latency_ms}ms)</span>}
+              </div>
+            </div>
+          </header>
+          <main className="ticker-detail-main">
+            <TickerDetailPage
+              symbol={selectedSymbol}
+              onBack={() => setSelectedSymbol(null)}
+              onSelectSymbol={setSelectedSymbol}
+            />
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container">
       <div className="main-col">
@@ -1292,6 +673,9 @@ function App() {
               <option key={d} value={d}>{fmtHistoryDate(d)}</option>
             ))}
           </select>
+          {!selectedSymbol && (
+            <SymbolSearchBox onLookup={setSelectedSymbol} />
+          )}
           <button
             className={`settings-btn ${showSettings ? 'active' : ''}`}
             onClick={() => setShowSettings(s => !s)}
@@ -1610,7 +994,6 @@ function App() {
         )}
       </main>
       </div>
-      <SidePanel selectedSymbol={selectedSymbol} setSelectedSymbol={setSelectedSymbol} />
     </div>
   );
 }

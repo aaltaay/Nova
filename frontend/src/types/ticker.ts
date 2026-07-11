@@ -1,0 +1,106 @@
+/** Shared ticker-detail types (mirrors /ws/ticker/{symbol} payloads). */
+import type { NewsImpactVerdict } from './newsImpact';
+
+export interface BarData {
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  volume: number | null;
+  trade_count: number | null;
+  vwap: number | null;
+  timestamp: string | null;
+}
+
+export interface TradeData {
+  price: number | null;
+  size: number | null;
+  exchange: string | null;
+  timestamp: string | null;
+}
+
+export interface QuoteData {
+  bid_price: number | null;
+  bid_size: number | null;
+  ask_price: number | null;
+  ask_size: number | null;
+  timestamp: string | null;
+}
+
+export interface SnapshotData {
+  latest_trade: TradeData | null;
+  latest_quote: QuoteData | null;
+  minute_bar: BarData | null;
+  daily_bar: BarData | null;
+  prev_daily_bar: BarData | null;
+  prev_close: number | null;
+  session_close: number | null;
+  session_prev_close: number | null;
+}
+
+export interface AssetInfo {
+  name?: string;
+  exchange?: string;
+  asset_class?: string;
+  status?: string;
+  tradable?: boolean;
+  marginable?: boolean;
+  shortable?: boolean;
+  easy_to_borrow?: boolean;
+  fractionable?: boolean;
+  maintenance_margin_requirement?: number | null;
+  margin_requirement_long?: string | null;
+  margin_requirement_short?: string | null;
+  attributes?: string[];
+}
+
+export interface NewsArticle {
+  headline: string;
+  summary: string;
+  author: string;
+  source: string;
+  url: string;
+  created_at: string;
+  symbols: string[];
+  images: { url: string; size: string }[];
+}
+
+export interface FundamentalsData {
+  market_cap: number | null;
+  shares_outstanding: number | null;
+  float_shares: number | null;
+  short_interest: number | null;
+  short_ratio: number | null;
+  short_percent_of_float: number | null;
+  pe_ratio: number | null;
+  forward_pe: number | null;
+  eps: number | null;
+  sector: string | null;
+  industry: string | null;
+  fifty_two_week_high: number | null;
+  fifty_two_week_low: number | null;
+  dividend_yield: number | null;
+  beta: number | null;
+  earnings_date: string | null;
+  recent_split: string | null;
+}
+
+export interface TickerTradeUpdate {
+  type: 'trade_update';
+  price: number;
+  size: number | null;
+  timestamp: string | null;
+  volume: number | null;
+}
+
+export interface TickerDetail {
+  symbol: string;
+  asset: AssetInfo;
+  snapshot: SnapshotData;
+  avg_volume: number | null;
+  rel_volume: number | null;
+  news: NewsArticle[];
+  fundamentals: FundamentalsData | null;
+  mode: string | null;
+  news_impact?: NewsImpactVerdict | null;
+}

@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Clicking a ticker did not open a trading/detail screen with charts
+
+- **Symptom:** User clicked a symbol and expected a dedicated trading/detail view with graphs; the UI stayed on the scanner with only a narrow side panel (often perceived as “no graphs”).
+- **Cause:** `selectedSymbol` only drove `SidePanel` beside the scanner — there was no full-page navigation. Charts existed in the 380px panel but did not replace the main content.
+- **Fix:** When `selectedSymbol` is set, `App.tsx` renders `TickerDetailPage` (Back + large `TickerChart` + fundamentals) instead of the scanner layout. Extracted `useTickerStream`, `TickerDetailContent`, types/formatters. Empty bars fall back to mock candles for drawing-tool verification.
+- **Keywords:** ticker click, SidePanel, TickerDetailPage, chart missing, navigation, drawing tools, mock bars
+
 ## 2026-07-11 — `validate_trade_plan` accepted inverted longs and rejected exact $0.20 stops
 
 - **Symptom:** (1) A long plan with stop *above* entry (e.g. entry `$5.00`, stop `$5.10`, target `$5.30`) could pass risk validation because distances used `abs()`. (2) A correct plan with stop exactly `$0.20` below entry (entry `$5.00`, stop `$4.80`) was rejected with "Stop of $0.20 exceeds the $0.20 max."

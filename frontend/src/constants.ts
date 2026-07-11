@@ -171,6 +171,15 @@ export const CHART_TIMEFRAMES: ChartTimeframe[] = [
 ];
 export const CHART_DEFAULT_TIMEFRAME = '5Min';
 export const CHART_CARD_TITLE = 'Price Chart';
+/** Chart body height (px) in the narrow side-panel layout (legacy). */
+export const CHART_HEIGHT_PANEL = 280;
+/** Chart body height (px) on the full ticker detail page. */
+export const CHART_HEIGHT_PAGE = 440;
+/** When Alpaca returns zero bars (weekend / thin symbols), synthesize this many
+ * candles so the chart + drawing tools remain usable for verification. */
+export const CHART_MOCK_BAR_COUNT = 48;
+export const CHART_MOCK_BASE_PRICE = 10;
+export const CHART_MOCK_DATA_LABEL = 'Demo candles (no live bars for this timeframe)';
 
 // ── Backend URL ───────────────────────────────────────────────────────────────
 // 1) Electron preload may set `window.novaDesktop.apiBase`.

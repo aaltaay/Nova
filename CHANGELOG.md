@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Click ticker opens full detail page with working charts
+
+- **What:** Clicking a symbol no longer only fills a narrow side panel beside the scanner. It navigates to a dedicated full-width **Ticker Detail** page with Back, symbol lookup, large price chart (drawing tools: trend / horizontal / vertical), and fundamentals/news. Header Look Up also opens that page. Empty Alpaca bar responses fall back to demo candles so the chart and drawings stay usable.
+- **Why:** User reported that clicking a ticker did not open an active trading/detail screen with visible graphs — the old SidePanel UX felt blank / not navigational.
+- **Files touched:** `frontend/src/pages/TickerDetailPage.tsx` (new), `frontend/src/components/{TickerDetailContent,SymbolSearchBox}.tsx` (new), `frontend/src/hooks/useTickerStream.ts`, `frontend/src/types/ticker.ts`, `frontend/src/utils/quoteFormat.ts`, `frontend/src/TickerChart.tsx` (`variant`, mock bars), `frontend/src/App.tsx` (navigation; SidePanel removed), `frontend/src/constants.ts` (`CHART_HEIGHT_*`, `CHART_MOCK_*`), `frontend/src/index.css`.
+- **How it works now:** `selectedSymbol` set → App renders `TickerDetailPage` instead of the scanner layout. Back clears `selectedSymbol` and restores the prior tab. Chart uses `variant="page"` (440px). If `/api/ticker/{symbol}/bars` returns zero bars, `TickerChart` synthesizes `CHART_MOCK_BAR_COUNT` candles and shows a demo badge.
+- **Verified by:** `npm run build`; agent-browser: click QTTB → detail page (no side panel, chartH=440, 6 tools); draw horizontal + vertical + trend; Back → Gappers; screenshots `ticker-detail-page.png` / `ticker-detail-drawings.png`.
+- **Follow-ups:** Optional 2x2 multi-timeframe grid from the earlier chart redesign plan; keep drawings across symbol switches.
+- **Related:** PROBLEM_LOG 2026-07-11 ticker click navigation.
+
 ## 2026-07-11 — Efficient local L2 + tape recorders (WAL SQLite, batching, recall API)
 
 - **What:** Extended Phase F `backend/l2/` into a high-write local recorder stack: WAL SQLite, batched inserts, continuous L2 while depth is open, Alpaca time & sales for watched symbols, session metadata, retention purge, and minimal point-in-time recall (`GET /api/l2/at`, `/range`, `/sessions`, `/status`). Decision note: `knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md`.
