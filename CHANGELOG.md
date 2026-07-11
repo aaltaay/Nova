@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Full ticker page is an active trading screen
+
+- **What:** Double-click / Full view is no longer a sidebar info dump. Layout is **2×2 charts (primary) + compact side column (quote/stats/news/depth/position) + sticky bottom action bar** with Open (BUY/SELL ticket), Close (flatten), and Automate (arm/disarm/kill via `useExecutor`).
+- **Why:** User asked for a page built for acting on a trade, reusing IBKR paper order paths and existing executor controls.
+- **Files touched:** `pages/TickerDetailPage.tsx`, `ibkr/{TickerTradeSideColumn,TickerTradeActionBar,TickerTradeAutomateControls,useIbkrAccount}.tsx`, `constants.ts`, `index.css`, CHANGELOG.
+- **How it works now:** `TickerDetailPage` wires `useTickerStream` + `useIbkrStatus`/`useIbkrAccount`. Side column is compact (not `TickerDetailContent`). Action bar POSTs `/api/ibkr/order` for open/close; automate reuses executor status/actions with the same disclosure dialogs. Disabled states explain IBKR disconnected / no position. Sidebar single-click path unchanged (`TickerDetailContent layout="columns"`).
+- **Verified by:** `npm run build`; browser open Full view — charts + side column + Open/Close/Automate bar with clear disabled why when IBKR offline.
+- **Follow-ups:** Optional: cancel open orders for this symbol from the side column; richer depth truncation to `TICKER_TRADE_DEPTH_LEVELS`.
+
 ## 2026-07-11 — Single-row tabs + header meta cleanup
 
 - **What:** Main tabs stay on one horizontal line (no wrap). Scan age ("updated Xs ago") and "Data: Alpaca" moved from the tab bar into the header beside Connected / latency / IEX. Header layout reorganized: brand | market mode | connection+feed+scan meta | history+symbol lookup+settings.

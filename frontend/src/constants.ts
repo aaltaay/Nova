@@ -332,6 +332,19 @@ export const IBKR_LIVE_PORT = 4001;
 /** Max simultaneous Level 2 depth streams (IBKR plan cap). */
 export const IBKR_MAX_DEPTH_SYMBOLS = 3;
 
+// ── Full ticker trading page (double-click / Full view) ───────────────────────
+/** Side column width (px) for compact quote/stats/news on the trading page. */
+export const TICKER_TRADE_SIDE_WIDTH_PX = 300;
+/** Headlines shown in the trading-page side column before "More". */
+export const TICKER_TRADE_SIDE_NEWS_COUNT = 3;
+/** Default share quantity prefilled in the Open Position ticket. */
+export const TICKER_TRADE_DEFAULT_QTY = 100;
+/** Plain-language disclosure under the trading action bar. */
+export const TICKER_TRADE_ORDER_DISCLOSURE =
+  'Orders go through Interactive Brokers only (paper by default). Alpaca scanning stays read-only.';
+/** Depth ladder levels shown in the compact side column (bids + asks each). */
+export const TICKER_TRADE_DEPTH_LEVELS = 5;
+
 /** Universal strategy config zero-defaults (all filters disabled). */
 export const DEFAULT_STRATEGY_CONFIG = {
   enabled: true,
