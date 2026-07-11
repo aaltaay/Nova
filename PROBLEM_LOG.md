@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-10 — pytest collection SyntaxError "source code string cannot contain null bytes"
+
+- **Symptom:** `py -3 -m pytest backend/tests/test_ibkr_safety.py` failed at collection with `SyntaxError: source code string cannot contain null bytes`, even though the test file itself had no syntax errors.
+- **Cause:** `backend/tests/__init__.py` was created via PowerShell `'' | Out-File 'backend/tests/__init__.py'`, which defaults to **UTF-16 with BOM** encoding on Windows PowerShell. Python's import machinery reads `.py` files as UTF-8/ASCII by default, so the UTF-16 null bytes between characters were interpreted as literal null bytes, breaking the package import before the test module itself was even reached.
+- **Fix:** Rewrote `backend/tests/__init__.py` using the `Write` tool (which writes plain UTF-8, no BOM) instead of PowerShell `Out-File`/`echo` redirection.
+- **Keywords:** SyntaxError, null bytes, pytest collection error, UTF-16 BOM, PowerShell Out-File, __init__.py encoding, Windows
+
 ## 2026-05-04 — GitHub Actions invalid workflow due to secrets in job conditional
 
 - **Symptom:** GitHub Actions Check Suite failed immediately with "Invalid workflow file... Unrecognized named-value: 'secrets'". The deploy didn't trigger in Railway.

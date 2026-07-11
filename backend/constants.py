@@ -272,3 +272,14 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
 # Sidecar binds here; Electron UI always talks to this loopback address.
 NOVA_DESKTOP_API_HOST = "127.0.0.1"
 NOVA_DESKTOP_API_PORT = 8000
+
+# ── Interactive Brokers (optional trading module) ──────────────────────────────
+# Set IBKR_ENABLED=true in .env to activate. Defaults to paper trading.
+# For live money, ALSO set IBKR_LIVE_TRADING_CONFIRMED=true.
+IBKR_HOST = "127.0.0.1"
+IBKR_PAPER_PORT = 4002       # IB Gateway paper trading port
+IBKR_LIVE_PORT = 4001        # IB Gateway live trading port
+IBKR_CLIENT_ID = 1
+IBKR_MAX_DEPTH_SYMBOLS = 3   # IBKR plan cap: 3 simultaneous Level 2 streams
+IBKR_ACCOUNT_POLL_SEC = 5    # How often to refresh account/positions
+IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt

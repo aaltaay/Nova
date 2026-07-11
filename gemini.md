@@ -29,7 +29,7 @@ These rules CANNOT be violated under ANY circumstance:
 | 4 | **`.tmp/` is ephemeral** | Never treat `.tmp/` files as a source of truth. |
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
 | 6 | **Self-Annealing** | Any error → Analyze → Patch → Test → Update SOP/rules → Log in `PROBLEM_LOG.md`. |
-| 7 | **Read-Only Mode** | The system only reads market data from API. It does NOT execute or manipulate trades. EVER. |
+| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module, defaults to a **paper** account, and requires both `IBKR_ENABLED=true` AND (for live money) `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. |
 | 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a maintenance log entry, THEN write the code. |
 
 ---
@@ -293,6 +293,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-10 | Invariant #7 amended: Alpaca scanning stays read-only; IBKR opt-in module (`backend/ibkr/`) now permitted for paper/live order execution, gated by `IBKR_ENABLED` + `IBKR_LIVE_TRADING_CONFIRMED` flags. Constitution updated first per §1.8. | User Directive + Cursor Agent |
 | 2026-04-27 | Complete constitution rewrite — added modularity laws, file limits, compliance audit, self-annealing protocol, coding standards | Antigravity + User Directive |
 | 2026-04-27 | Added mandatory git commit & push rule | User Directive |
 | 2026-04-13 | Project Constitution initialized | System Pilot |

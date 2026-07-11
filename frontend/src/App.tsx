@@ -4,6 +4,9 @@ import { HodMomoSettings } from './hod_momo/HodMomoSettings';
 import { useHodMomoStream } from './hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from './hod_momo/useHodMomoConfig';
 import { TickerChart } from './TickerChart';
+import { TabNav } from './components/TabNav';
+import type { ActiveTab } from './components/TabNav';
+import { TradingTab } from './ibkr/TradingTab';
 
 function NovaLogo() {
   return (
@@ -34,7 +37,6 @@ import {
   NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS,
   REL_VOLUME_HIGH,
   GAPPER_MIN_GAP_PCT,
-  CATALYSTS_EXPERIMENTAL_LABEL,
   SCANNER_COLUMNS,
   QUOTE_CARD_TITLE,
   QUOTE_AVG_VOLUME_LABEL,
@@ -50,7 +52,7 @@ import {
 import { isNovaApiDebug } from './debug';
 
 type Mode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
-type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo';
+// ActiveTab is imported from components/TabNav — includes 'trading'
 type SortDir = 'asc' | 'desc' | null;
 interface SortConfig { key: string; dir: SortDir; }
 
@@ -1379,51 +1381,19 @@ function App() {
 
       <main className="panel">
         {/* ── Tab bar ───────────────────────────────────────────────── */}
-        <div className="tab-bar">
-          <div className="tab-bar-scroll">
-            <button
-              className={`tab ${activeTab === 'gappers' ? 'active' : ''}`}
-              onClick={() => handleTabClick('gappers')}
-            >
-              Gappers
-              {gappers.length > 0 && <span className="tab-count">{gappers.length}</span>}
-            </button>
-            <button
-              className={`tab ${activeTab === 'movers' ? 'active' : ''}`}
-              onClick={() => handleTabClick('movers')}
-            >
-              Movers
-              {movers.length > 0 && <span className="tab-count">{movers.length}</span>}
-            </button>
-            <button
-              className={`tab ${activeTab === 'afterhours' ? 'active' : ''}`}
-              onClick={() => handleTabClick('afterhours')}
-            >
-              After Hours
-              {afterhours.length > 0 && <span className="tab-count">{afterhours.length}</span>}
-            </button>
-            <button
-              className={`tab ${activeTab === 'catalysts' ? 'active' : ''}`}
-              onClick={() => handleTabClick('catalysts')}
-            >
-              Catalysts
-              <span className="tab-badge-experimental">{CATALYSTS_EXPERIMENTAL_LABEL}</span>
-              {catalysts.length > 0 && <span className="tab-count">{catalysts.length}</span>}
-            </button>
-            <button
-              className={`tab ${activeTab === 'hod_momo' ? 'active' : ''}`}
-              onClick={() => handleTabClick('hod_momo')}
-            >
-              HOD Momo
-              {hodMomoStream.alerts.length > 0 && (
-                <span className="tab-count">{hodMomoStream.alerts.length}</span>
-              )}
-            </button>
-          </div>
-          {!historyDate && secondsAgo != null && (
-            <span className="scan-age tab-bar-meta">updated {secondsAgo}s ago</span>
-          )}
-        </div>
+        <TabNav
+          activeTab={activeTab}
+          onTabClick={handleTabClick}
+          counts={{
+            gappers: gappers.length,
+            movers: movers.length,
+            afterhours: afterhours.length,
+            catalysts: catalysts.length,
+            hodMomo: hodMomoStream.alerts.length,
+          }}
+          secondsAgo={secondsAgo}
+          historyDate={historyDate}
+        />
 
         {historyDate && (
           <div className="history-banner">
@@ -1630,6 +1600,7 @@ function App() {
             />
           </>
         )}
+        {activeTab === 'trading' && <TradingTab />}
       </main>
       </div>
       <SidePanel selectedSymbol={selectedSymbol} setSelectedSymbol={setSelectedSymbol} />

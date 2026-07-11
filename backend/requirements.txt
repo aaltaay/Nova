@@ -7,3 +7,4 @@ tzdata
 yfinance
 websockets
 watchfiles
+ib_async

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-10 — IBKR optional trading module (Level 2 depth + paper order execution)
+
+- **What:** Added an opt-in Interactive Brokers trading module alongside the existing Alpaca-powered scanner. New "Trading" tab provides IBKR connection status, Level 2 order book (with L1 fallback while entitlement processes), an order ticket (market + limit, buy + sell), and a positions/account panel. All existing Alpaca tabs (Gappers, Movers, Afterhours, Catalysts, HOD Momo) are untouched.
+- **Why:** User requested IBKR integration for Level 2 data and paper/live order execution. Alpaca has no L2; IBKR is the cheapest option (~$27.50/mo) with a 3-symbol simultaneous depth cap.
+- **Files touched:** `backend/ibkr/` (new package: `client.py`, `depth.py`, `orders.py`, `account.py`), `backend/routes/` (new: `trading.py`, `__init__.py`), `backend/constants.py` (IBKR_* constants), `backend/requirements.txt` (`ib_async`), `backend/main.py` (router wire-in + lifespan hooks only), `frontend/src/ibkr/` (new module: all types, hooks, DepthLadder, OrderTicket, PositionsPanel, TradingTab), `frontend/src/components/TabNav.tsx` (new: tab bar extracted + Trading tab added), `frontend/src/App.tsx` (imports + new tab panel only), `frontend/src/constants.ts` (IBKR_* constants), `frontend/src/index.css` (IBKR styles + badge styles), `.env.example` (IBKR vars), `gemini.md` + `AGENTS.md` (Invariant #7 amendment), `backend/tests/test_ibkr_safety.py` (pytest coverage).
+- **How it works now:** `IBKR_ENABLED` defaults `false` — Nova behaves exactly as before when the flag is absent or when IB Gateway isn't running. Setting `IBKR_ENABLED=true` in `.env` activates the client; it connects to IB Gateway paper port (4002) automatically and reconnects on drop. For live money, `IBKR_LIVE_TRADING_CONFIRMED=true` is also required (hard gate in `orders.py`). The depth subscription manager caps at 3 simultaneous symbols and falls back to L1 top-of-book if depth entitlement is not yet active. Nova does NOT launch Gateway — user runs it manually once per week (IBKR Mobile 2FA).
+- **Verified by:** Frontend TypeScript build (`npm run build`), `pytest backend/tests/test_ibkr_safety.py` (all tests pass without a live Gateway), manual dev run confirming existing tabs render identically and Trading tab shows the disconnected guide when Gateway is not running.
+- **Follow-ups:** Automated momentum strategy execution (needs user-provided symbol list + strategy rules), bracket/OCO order support.
+- **Related:** gemini.md §11 maintenance-log entry 2026-07-10.
+
 ## 2026-07-10 — Windows Electron desktop + local API sidecar
 
 - **What:** Added an Electron shell around the existing Vite/React UI and a local FastAPI sidecar (dev: `run_api.py` / packaged: PyInstaller `nova-api.exe`). Web UI on Vercel is unchanged.

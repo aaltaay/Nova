@@ -22,6 +22,8 @@ logger = logging.getLogger(__name__)
 
 # ── Persistent rotating log file ──────────────────────────────────────────────
 from paths import env_file_path, log_dir as _nova_log_dir
+from ibkr import client as _ibkr_client
+from routes.trading import router as _trading_router, ws_router as _trading_ws_router
 
 _log_dir = str(_nova_log_dir())
 _file_handler = logging.handlers.RotatingFileHandler(
@@ -1522,6 +1524,8 @@ async def lifespan(app: FastAPI):
     hod_reset_task = asyncio.create_task(_hod_momo.session_reset_loop())
     hod_enrich_task = asyncio.create_task(_hod_momo_enrichment.universe_enrichment_loop())
     hod_fund_task = asyncio.create_task(_hod_momo_enrichment.fundamentals_enrichment_loop())
+    # IBKR client — best-effort, never blocks the Alpaca scan loop
+    await _ibkr_client.startup()
     yield
     scan_task.cancel()
     ws_task.cancel()
@@ -1534,11 +1538,15 @@ async def lifespan(app: FastAPI):
             await t
         except asyncio.CancelledError:
             pass
+    await _ibkr_client.shutdown()
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Nova API", lifespan=lifespan)
+
+app.include_router(_trading_router)
+app.include_router(_trading_ws_router)
 
 app.add_middleware(
     CORSMiddleware,

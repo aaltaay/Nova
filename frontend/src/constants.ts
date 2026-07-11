@@ -212,6 +212,14 @@ export const DEFAULT_MASTER_GATE = {
   consolidation_sec: 5.0,
 };
 
+// ── Interactive Brokers (mirrors backend/constants.py IBKR_* block) ───────────
+/** IB Gateway paper trading port (default when IBKR_LIVE_TRADING_CONFIRMED is not set). */
+export const IBKR_PAPER_PORT = 4002;
+/** IB Gateway live trading port. */
+export const IBKR_LIVE_PORT = 4001;
+/** Max simultaneous Level 2 depth streams (IBKR plan cap). */
+export const IBKR_MAX_DEPTH_SYMBOLS = 3;
+
 /** Universal strategy config zero-defaults (all filters disabled). */
 export const DEFAULT_STRATEGY_CONFIG = {
   enabled: true,
