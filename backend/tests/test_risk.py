@@ -115,3 +115,19 @@ class TestValidateTradePlan:
     def test_zero_stop_distance_blocks(self):
         ok, issues = validate_trade_plan(entry_price=5.00, stop_price=5.00, target_price=5.20)
         assert ok is False
+        assert any("zero" in i.lower() for i in issues)
+
+    def test_stop_above_entry_blocks_long(self):
+        ok, issues = validate_trade_plan(entry_price=5.00, stop_price=5.10, target_price=5.30)
+        assert ok is False
+        assert any("below entry" in i for i in issues)
+
+    def test_target_below_entry_blocks_long(self):
+        ok, issues = validate_trade_plan(entry_price=5.00, stop_price=4.90, target_price=4.80)
+        assert ok is False
+        assert any("above entry" in i for i in issues)
+
+    def test_exact_max_stop_with_2_to_1_passes(self):
+        ok, issues = validate_trade_plan(entry_price=5.00, stop_price=4.80, target_price=5.40)
+        assert ok is True
+        assert issues == []

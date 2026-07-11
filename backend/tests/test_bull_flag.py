@@ -49,8 +49,8 @@ class TestPerfectSetup:
         signal = evaluate_bull_flag(_candidate(price=4.00), _perfect_bars())
         assert signal.entry_price == 4.00
         assert signal.stop_price == 3.57  # pullback low
-        risk = signal.entry_price - signal.stop_price
-        assert signal.target_price == round(signal.entry_price + risk * 2.0, 2)
+        # risk = 0.43; target = 4.00 + 0.43 * 2.0 = 4.86
+        assert signal.target_price == 4.86
 
     def test_not_triggered_when_price_below_flagpole_high(self):
         signal = evaluate_bull_flag(_candidate(price=3.50), _perfect_bars())

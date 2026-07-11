@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — `validate_trade_plan` accepted inverted longs and rejected exact $0.20 stops
+
+- **Symptom:** (1) A long plan with stop *above* entry (e.g. entry `$5.00`, stop `$5.10`, target `$5.30`) could pass risk validation because distances used `abs()`. (2) A correct plan with stop exactly `$0.20` below entry (entry `$5.00`, stop `$4.80`) was rejected with "Stop of $0.20 exceeds the $0.20 max."
+- **Cause:** (1) Absolute-value distance math treated upside-down longs as valid. (2) Binary float: `5.0 - 4.8 == 0.20000000000000018`, so `stop_distance > RISK_MAX_STOP_DOLLARS` was True at the exact ceiling.
+- **Fix:** `backend/strategy/risk.py` `validate_trade_plan` now requires stop `<` entry and target `>` entry for longs, and rounds stop/reward distances to 2 decimal places (cents) before comparing to `RISK_MAX_STOP_DOLLARS` / computing R:R. Locked by `tests/test_arithmetic_correctness.py` and extended `tests/test_risk.py`.
+- **Keywords:** validate_trade_plan, abs stop distance, inverted long, float precision, RISK_MAX_STOP_DOLLARS, 0.20 exceeds 0.20, round cents, profit loss ratio
+
 ## 2026-07-11 — `electron-builder` fails with `EPERM: ... rename 'release\win-unpacked.tmp' -> 'release\win-unpacked'`
 
 - **Symptom:** `npm run electron:pack` (and a bare `npx electron-builder --win nsis --x64` retry) consistently failed at the packaging step with `⨯ EPERM: operation not permitted, rename '...\release\win-unpacked.tmp' -> '...\release\win-unpacked'`, immediately after `downloaded label=electron progress=100%`. The failure was 100% reproducible on retry (not a one-off), which ruled out the usual "transient antivirus scan" explanation. Manually deleting `release\win-unpacked.tmp` between attempts worked fine (proving the *directory* itself, not a locked file inside it, was the problem) — `[System.IO.File]::Open(...,'ReadWrite','None')` on the largest file in that folder (`electron.exe`) succeeded with no lock, confirming no single file was held open.

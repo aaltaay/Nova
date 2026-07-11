@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Arithmetic correctness + automation transparency test suite
+
+- **What:** Added `backend/tests/test_arithmetic_correctness.py` with hard-number expectations for risk stop/R:R math, position-sizing boundaries, setup entry/stop/target 2:1 brackets (Gap and Go / Bull Flag / ABCD), Five Pillars thresholds, L2 imbalance/stacked/spread/drying-up ratios, journal win-rate/avg/ratio/go-no-go arithmetic, and executor disclosure / disarmed-by-default contracts. Fixed two real bugs in `validate_trade_plan` found by those tests.
+- **Why:** User cannot afford arithmetic mistakes or unclear execution messaging; existing tests often asserted shape/`not None` rather than exact dollars and ratios.
+- **Files touched:** `backend/strategy/risk.py`, `backend/tests/test_arithmetic_correctness.py`, `backend/tests/test_risk.py`, `backend/tests/test_bull_flag.py`, `CHANGELOG.md`, `PROBLEM_LOG.md`.
+- **How it works now:** Long trade plans must have stop strictly below entry and target strictly above; stop/reward distances are rounded to cents before the `$0.20` max-stop check (avoids float false rejects). New tests lock exact expected numbers (e.g. bull-flag target `4.86`, gap/ABCD `$0.20` stop + 2:1 target) and assert executor status disclosure still says paper / disarmed-by-default / restart.
+- **Verified by:** `py -3 -m pytest` in `backend/` — 176 passed.
+- **Follow-ups:** No Vitest yet — frontend Automation copy remains covered indirectly via backend disclosure contract; add a minimal frontend test when Vitest is wired.
+- **Related:** PROBLEM_LOG 2026-07-11 — inverted long plans + float max-stop reject.
+
 ## 2026-07-11 — Tab bar wraps instead of horizontally scrolling
 
 - **What:** The top tab bar (Gappers/Movers/After Hours/Catalysts/HOD Momo/Trading/Watchlist) no longer shows a horizontal scrollbar when it doesn't fit the available width. Tabs now wrap onto additional rows instead.

@@ -136,25 +136,48 @@ class RiskState:
 
 
 def validate_trade_plan(entry_price: float, stop_price: float, target_price: float) -> tuple[bool, list[str]]:
-    """Check a proposed trade's stop distance and profit/loss ratio against
+    """Check a proposed long trade's stop distance and profit/loss ratio against
     the risk rules. Returns (ok, issues) — ok is False if any rule blocks the
-    trade; issues includes both blocking problems and informational notes."""
+    trade; issues includes both blocking problems and informational notes.
+
+    Long-only: stop must be strictly below entry and target strictly above.
+    Using abs() here would let inverted plans (stop above entry) slip through.
+    """
     issues: list[str] = []
-    stop_distance = abs(entry_price - stop_price)
-    reward = abs(target_price - entry_price)
+    blocking = False
+
+    if stop_price >= entry_price:
+        issues.append(
+            f"Stop ${stop_price:.2f} must be below entry ${entry_price:.2f} for a long."
+        )
+        blocking = True
+    if target_price <= entry_price:
+        issues.append(
+            f"Target ${target_price:.2f} must be above entry ${entry_price:.2f} for a long."
+        )
+        blocking = True
+
+    stop_distance = round(entry_price - stop_price, 2)
+    reward = round(target_price - entry_price, 2)
 
     if stop_distance <= 0:
-        return False, ["Stop distance is zero — cannot size or validate this trade."]
+        # Directional failure already recorded when stop >= entry; keep the
+        # legacy zero-distance message when stop exactly equals entry.
+        if stop_distance == 0:
+            issues.append("Stop distance is zero — cannot size or validate this trade.")
+        return False, issues
 
-    blocking = False
     if stop_distance > RISK_MAX_STOP_DOLLARS:
         issues.append(f"Stop of ${stop_distance:.2f} exceeds the ${RISK_MAX_STOP_DOLLARS:.2f} max.")
         blocking = True
 
-    ratio = reward / stop_distance
-    if ratio < RISK_MIN_PROFIT_LOSS_RATIO:
-        issues.append(f"Profit/loss ratio {ratio:.1f}:1 is below the {RISK_MIN_PROFIT_LOSS_RATIO:.0f}:1 floor.")
-        blocking = True
+    if reward > 0:
+        ratio = reward / stop_distance
+        if ratio < RISK_MIN_PROFIT_LOSS_RATIO:
+            issues.append(
+                f"Profit/loss ratio {ratio:.1f}:1 is below the {RISK_MIN_PROFIT_LOSS_RATIO:.0f}:1 floor."
+            )
+            blocking = True
 
     return not blocking, issues
 
