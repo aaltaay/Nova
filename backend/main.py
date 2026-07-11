@@ -92,6 +92,7 @@ from cache import (
     save_movers_snapshot,
 )
 import hod_momo as _hod_momo
+import strategy.setups_stream as _setups_stream
 from bars import fetch_bars as _fetch_bars
 
 load_dotenv(env_file_path())
@@ -1532,6 +1533,7 @@ async def lifespan(app: FastAPI):
     hod_reset_task = asyncio.create_task(_hod_momo.session_reset_loop())
     hod_enrich_task = asyncio.create_task(_hod_momo_enrichment.universe_enrichment_loop())
     hod_fund_task = asyncio.create_task(_hod_momo_enrichment.fundamentals_enrichment_loop())
+    setups_scan_task = asyncio.create_task(_setups_stream.scan_loop())
     # IBKR client — best-effort, never blocks the Alpaca scan loop
     await _ibkr_client.startup()
     yield
@@ -1541,6 +1543,7 @@ async def lifespan(app: FastAPI):
     hod_reset_task.cancel()
     hod_enrich_task.cancel()
     hod_fund_task.cancel()
+    setups_scan_task.cancel()
     for t in (scan_task, ws_task, hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task):
         try:
             await t
@@ -1850,6 +1853,31 @@ async def ws_hod_momo(websocket: WebSocket):
         pass
     finally:
         _hod_momo.remove_ws_client(websocket)
+
+
+@app.websocket("/ws/strategy")
+async def ws_strategy(websocket: WebSocket):
+    """WebSocket endpoint: sends recent setup signal history on connect, then
+    pushes newly-eligible Gap and Go / Bull Flag / ABCD signals live.
+    Signal only — never places, modifies, or cancels an order."""
+    await websocket.accept()
+    _setups_stream.add_ws_client(websocket)
+    try:
+        initial = json.dumps({
+            "type": "initial",
+            "note": "Signal only. This stream never places, modifies, or cancels orders.",
+            "signals": _setups_stream.get_signal_history(),
+        })
+        await websocket.send_text(initial)
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                await websocket.send_text(json.dumps({"type": "ping"}))
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        _setups_stream.remove_ws_client(websocket)
 
 
 def _fetch_ticker_asset(symbol: str, base_url: str, headers: dict) -> dict:

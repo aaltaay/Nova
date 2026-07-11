@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Setup trigger engine: Bull Flag + ABCD + live signal stream (Phase B)
+
+- **What:** Two new signal-only setup detectors — Bull Flag and ABCD — join Gap and Go behind a shared `evaluate_setups()` aggregator. Exposed on-demand (`GET /api/strategy/setups/{symbol}`) and live over a new `/ws/strategy` WebSocket fed by a background scan loop over the top-ranked watchlist symbols. New **Signals** sub-tab inside the Watchlist tab shows live triggers with entry/stop/target math.
+- **Why:** Phase B of the full trading automation plan — mechanical setup detection layered on top of the Phase A watchlist.
+- **Files touched:** `backend/strategy/{indicators,bull_flag,abcd,setups,setups_stream}.py` (new), `backend/routes/strategy.py`, `backend/main.py` (`/ws/strategy` route + lifespan task), `backend/constants.py` (`BULL_FLAG_*`, `ABCD_*`, `SETUPS_*`), `backend/tests/{test_indicators,test_bull_flag,test_abcd,test_setups}.py` (new), `frontend/src/strategy/{types,useSignalsStream,SignalsPanel,WatchlistTab}.ts(x)`, `frontend/src/constants.ts`.
+- **How it works now:** `bull_flag.py`/`abcd.py` are pure functions over a candidate dict + a list of 1-min OHLCV bars — no fetching, no state, `would_execute` hard-coded `False`, matching `gap_and_go.py`'s existing contract exactly. `setups_stream.py` runs a 15s loop (`SETUPS_SCAN_INTERVAL_SEC`) that re-scores the top 15 watchlist symbols, fetches fresh bars via `bars.fetch_bars` in a thread executor, and broadcasts newly-eligible signals to `/ws/strategy` clients with a 2-minute per-symbol+setup cooldown so the same trigger doesn't spam every cycle.
+- **Verified by:** 34 new unit tests + 75/75 full backend suite passing; live endpoint and WebSocket both tested against the running scanner with real bars; headless-browser screenshot confirms the Signals sub-tab connects and renders.
+- **Follow-ups:** Phase C (risk engine) is next per the backbone doc.
+
 ## 2026-07-11 — Watchlist dashboard (Phase A of full trading automation plan)
 
 - **What:** New composite-ranked watchlist on top of the existing Five Pillars scorer. `GET /api/strategy/watchlist` merges gapper + gainer caches, scores every symbol, and ranks all-pillars-pass candidates first with a weighted 0-100 composite score (change %, RVOL, float tightness, catalyst freshness) breaking ties. New **Watchlist** tab in the frontend shows a ranked table with per-pillar pass/fail chips.

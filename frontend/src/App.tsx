@@ -7,6 +7,8 @@ import { TickerChart } from './TickerChart';
 import { TabNav } from './components/TabNav';
 import type { ActiveTab } from './components/TabNav';
 import { TradingTab } from './ibkr/TradingTab';
+import { WatchlistTab } from './strategy/WatchlistTab';
+import { useWatchlist } from './strategy/useWatchlist';
 
 function NovaLogo() {
   return (
@@ -968,6 +970,9 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
   const [activeTab, setActiveTab] = useState<ActiveTab>('gappers');
+  // Polls continuously (cheap — scored from already-cached scanner data) so the
+  // tab badge count stays accurate even when the Watchlist tab isn't open.
+  const watchlist = useWatchlist(true);
   const [showHodSettings, setShowHodSettings] = useState(false);
   const [tabOverridden, setTabOverridden] = useState(false);
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
@@ -1390,6 +1395,7 @@ function App() {
             afterhours: afterhours.length,
             catalysts: catalysts.length,
             hodMomo: hodMomoStream.alerts.length,
+            watchlist: watchlist.entries.length,
           }}
           secondsAgo={secondsAgo}
           historyDate={historyDate}
@@ -1601,6 +1607,17 @@ function App() {
           </>
         )}
         {activeTab === 'trading' && <TradingTab />}
+
+        {/* ── Watchlist tab (Five Pillars) ──────────────────────────── */}
+        {activeTab === 'strategy' && (
+          <WatchlistTab
+            entries={watchlist.entries}
+            loading={watchlist.loading}
+            error={watchlist.error}
+            selectedSymbol={selectedSymbol}
+            onSelectSymbol={setSelectedSymbol}
+          />
+        )}
       </main>
       </div>
       <SidePanel selectedSymbol={selectedSymbol} setSelectedSymbol={setSelectedSymbol} />

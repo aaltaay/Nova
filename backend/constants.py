@@ -300,3 +300,43 @@ GAP_AND_GO_WINDOW_START_ET = (9, 30)    # session open
 GAP_AND_GO_WINDOW_END_ET = (10, 0)      # end of the Gap and Go entry window
 GAP_AND_GO_MAX_STOP_DOLLARS = 0.20      # max risk per share (stop distance)
 GAP_AND_GO_MIN_PROFIT_LOSS_RATIO = 2.0  # target = entry + risk * this ratio
+
+# ── Bull Flag setup (Phase B) ────────────────────────────────────────────────
+# Source: SS101 Ch.5 — flagpole of green candles, shallow pullback holding the
+# 9 EMA, entry on break back above the flagpole high.
+BULL_FLAG_LOOKBACK_BARS = 30       # recent 1-min bars scanned for the pattern
+BULL_FLAG_MIN_FLAGPOLE_CANDLES = 3  # consecutive green candles forming the pole
+BULL_FLAG_MIN_PULLBACK_CANDLES = 2  # consecutive pullback candles forming the flag
+BULL_FLAG_EMA_PERIOD = 9
+BULL_FLAG_MAX_RETRACE_PCT = 0.50    # pullback must retrace less than this of the pole
+BULL_FLAG_MIN_PROFIT_LOSS_RATIO = 2.0
+
+# ── ABCD setup (Phase B) ─────────────────────────────────────────────────────
+# Source: SS101 Ch.5 — A-to-B impulsive move, C pullback holding the 9 EMA,
+# entry D on break back above point B.
+ABCD_LOOKBACK_BARS = 40            # recent 1-min bars scanned for A/B/C points
+ABCD_MIN_AB_MOVE_PCT = 5.0         # minimum % move from A to B to qualify as impulsive
+ABCD_EMA_PERIOD = 9
+ABCD_MAX_RETRACE_PCT = 0.50        # C must retrace less than this of the A-B move
+ABCD_MAX_STOP_DOLLARS = 0.20
+ABCD_MIN_PROFIT_LOSS_RATIO = 2.0
+
+# ── Watchlist composite ranking (Phase A) ───────────────────────────────────
+# Weighted 0-100 score layered on top of the Five Pillars pass/fail chips.
+# Symbols that pass all 5 pillars are always ranked above ones that don't;
+# the composite score only breaks ties within each group.
+WATCHLIST_WEIGHT_CHANGE_PCT = 0.30
+WATCHLIST_WEIGHT_REL_VOLUME = 0.30
+WATCHLIST_WEIGHT_FLOAT = 0.20
+WATCHLIST_WEIGHT_CATALYST = 0.20
+WATCHLIST_CHANGE_PCT_SCORE_CAP = 200.0   # % change that maps to a perfect sub-score
+WATCHLIST_REL_VOLUME_SCORE_CAP = 50.0    # RVOL multiple that maps to a perfect sub-score
+WATCHLIST_CATALYST_FRESH_MINUTES = 60.0  # headline age considered "fully fresh"
+WATCHLIST_CATALYST_STALE_MINUTES = 24 * 60.0  # headline age at which freshness hits 0
+WATCHLIST_MAX_ROWS = 60                  # cap on rows returned to the UI
+
+# ── Setup signal stream (Phase B, /ws/strategy) ─────────────────────────────
+SETUPS_SCAN_INTERVAL_SEC = 15.0     # how often the background loop re-scans the watchlist
+SETUPS_SCAN_TOP_N = 15              # only fetch bars for this many top-ranked watchlist symbols
+SETUPS_ALERT_COOLDOWN_SEC = 120.0   # suppress a repeat alert for the same symbol+setup
+SETUPS_MAX_HISTORY = 200            # cap on in-memory signal history for the initial WS payload

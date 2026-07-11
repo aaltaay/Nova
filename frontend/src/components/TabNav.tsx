@@ -5,7 +5,7 @@
  */
 import { CATALYSTS_EXPERIMENTAL_LABEL } from '../constants';
 
-export type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo' | 'trading';
+export type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo' | 'trading' | 'strategy';
 
 interface Props {
   activeTab: ActiveTab;
@@ -16,6 +16,7 @@ interface Props {
     afterhours: number;
     catalysts: number;
     hodMomo: number;
+    watchlist: number;
   };
   secondsAgo: number | null;
   historyDate: string | null;
@@ -67,6 +68,13 @@ export function TabNav({ activeTab, onTabClick, counts, secondsAgo, historyDate 
         >
           Trading
           <span className="tab-badge-broker">IBKR</span>
+        </button>
+        <button
+          className={`tab ${activeTab === 'strategy' ? 'active' : ''}`}
+          onClick={() => onTabClick('strategy')}
+        >
+          Watchlist
+          {counts.watchlist > 0 && <span className="tab-count">{counts.watchlist}</span>}
         </button>
       </div>
       {!historyDate && secondsAgo != null && (

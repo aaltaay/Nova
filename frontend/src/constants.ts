@@ -15,6 +15,23 @@ export const NEWS_FLAME_HOT_HOURS  =  2;   // red badge    (0 –  2 h)
 export const NEWS_FLAME_WARM_HOURS = 12;   // orange badge (2 – 12 h)
 export const NEWS_FLAME_MAX_HOURS  = 24;   // yellow badge (12 – 24 h); hide above this
 
+// ── Strategy / Watchlist tab (mirrors backend constants.py WATCHLIST_*) ────
+export const WATCHLIST_POLL_INTERVAL_MS = 3000;
+/** Composite score column headers, in display order. */
+export const WATCHLIST_SUBSCORE_LABELS: Record<string, string> = {
+  change_pct: '% Chg',
+  relative_volume: 'RVOL',
+  float: 'Float',
+  catalyst: 'News',
+};
+
+/** Display labels for the setup-signal stream (mirrors backend SETUP_NAMES). */
+export const SETUP_LABELS: Record<string, string> = {
+  gap_and_go: 'Gap and Go',
+  bull_flag: 'Bull Flag',
+  abcd: 'ABCD',
+};
+
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
 /** Trading days used for avg daily volume / RVOL denominator (mirror backend RVOL_LOOKBACK_DAYS). */

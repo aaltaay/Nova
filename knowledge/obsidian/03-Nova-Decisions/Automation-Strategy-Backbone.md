@@ -149,3 +149,32 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
   a signal panel, etc.) must state in plain language, next to the control, exactly what it does
   and does not do (e.g. "Signal only — no orders are placed"). No control may trigger behavior
   the user wasn't told about. This applies to every phase, including Phase 2 paper execution.
+- **2026-07-11** — Adopted the full 6-phase automation build plan (Watchlist -> Setups -> Risk ->
+  Journal -> Paper Execution -> Level 2 learning). Order chosen so the journal exists before any
+  order is ever placed. Implemented **Phase A (Watchlist dashboard)**: `backend/strategy/watchlist.py`
+  adds a weighted composite score (change %, RVOL, float tightness, catalyst freshness — constants
+  in `backend/constants.py` `WATCHLIST_*`) on top of Five Pillars scoring; all-pillars-pass symbols
+  always rank above partial passes. Exposed via `GET /api/strategy/watchlist` (merges gapper +
+  gainer caches, deduped by symbol). New frontend module `frontend/src/strategy/` (`WatchlistTab.tsx`,
+  `useWatchlist.ts`, `types.ts`) adds a **Watchlist** tab to `TabNav` showing per-pillar pass/fail
+  chips, sub-scores, and composite rank; polls continuously so the tab badge count stays live.
+  12 new unit tests (`backend/tests/test_watchlist.py`). Verified live against the running scanner
+  (30 ranked candidates returned, correct pillar chips) and in-browser via headless screenshot.
+- **2026-07-11** — Implemented **Phase B (Setup trigger engine)**: `backend/strategy/indicators.py`
+  adds shared pure helpers (`ema()`, `is_green()`/`is_red()`) reused by two new pattern modules —
+  `bull_flag.py` (flagpole of 3+ green candles -> shallow pullback holding the 9 EMA, retrace <50%,
+  entry on break back above the flagpole high) and `abcd.py` (impulsive A-B move >=5%, pullback C
+  holding the 9 EMA, entry D on break back above point B, fixed 20c stop per the course material).
+  Both mirror `gap_and_go.py`'s contract exactly: pure functions, `would_execute` hard-coded `False`,
+  full `notes` explaining why a signal isn't eligible yet. `setups.py` aggregates all three into one
+  `evaluate_setups()` call. Exposed on-demand via `GET /api/strategy/setups/{symbol}` and live via a
+  new `strategy/setups_stream.py` background loop (`SETUPS_SCAN_INTERVAL_SEC` = 15s, scans the top
+  `SETUPS_SCAN_TOP_N` watchlist symbols, per-symbol+setup cooldown `SETUPS_ALERT_COOLDOWN_SEC` to
+  avoid repeat spam) broadcasting over a new `/ws/strategy` WebSocket — same client-set pattern as
+  `hod_momo.py`'s `/ws/hod-momo`. Frontend: `useSignalsStream.ts` + `SignalsPanel.tsx` add a
+  **Signals** sub-tab inside the Watchlist tab showing live triggers with entry/stop/target and the
+  latest note. 34 new unit tests (`test_indicators.py`, `test_bull_flag.py`, `test_abcd.py`,
+  `test_setups.py`) — 75/75 full backend suite green. Verified live: `/api/strategy/setups/{symbol}`
+  and `/ws/strategy` both tested against the running scanner with real 1-min bars (pattern math
+  correct, no order-placing code path anywhere in the chain); Signals sub-tab confirmed connected
+  in-browser via headless screenshot.
