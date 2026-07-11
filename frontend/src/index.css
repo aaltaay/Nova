@@ -24,7 +24,7 @@ body {
 .container {
   display: flex;
   align-items: flex-start;
-  max-width: 1600px;
+  max-width: 1920px;
   margin: 0 auto;
   min-height: 100vh;
 }
@@ -1229,7 +1229,9 @@ th {
 /* ── Persistent Side Panel ───────────────────────────────────────────────── */
 
 .side-panel {
-  width: 380px;
+  /* Mirrors SIDE_PANEL_WIDTH_PX in constants.ts (820) */
+  width: 820px;
+  max-width: 55vw;
   flex-shrink: 0;
   border-left: 1px solid var(--border-color);
   background: var(--panel-bg);
@@ -1239,12 +1241,18 @@ th {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  container-type: inline-size;
+  container-name: side-panel;
 }
 
 .side-panel-search {
   flex-shrink: 0;
-  padding: 1rem 1.25rem 0.875rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .side-search-form {
@@ -1252,25 +1260,28 @@ th {
   flex-direction: row;
   gap: 0.5rem;
   align-items: center;
+  flex: 1;
+  min-width: 200px;
 }
 
 .side-search-input {
   flex: 1;
   min-width: 0;
   text-transform: uppercase;
-  padding: 0.6rem 0.75rem;
+  padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
 }
 
 .side-search-btn {
   flex-shrink: 0;
-  padding: 0.6rem 1rem;
+  padding: 0.5rem 0.85rem;
   font-size: 0.8rem;
 }
 
 .side-open-trading-btn {
-  margin-top: 0.5rem;
-  width: 100%;
+  margin-top: 0;
+  width: auto;
+  flex-shrink: 0;
   padding: 0.45rem 0.75rem;
   font-size: 0.75rem;
   background: transparent;
@@ -1295,13 +1306,74 @@ th {
 .detail-body {
   flex: 1;
   overflow-y: auto;
-  padding: 0 1.25rem 2rem;
+  padding: 0 0.75rem 1rem;
 }
 
 /* ── Compact Quote Layout ────────────────────────────────────────────────── */
 
 .cq-root {
-  padding: 0.75rem 0;
+  padding: 0.5rem 0;
+}
+
+.cq-root--columns {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.85fr) minmax(220px, 1.4fr) minmax(150px, 1fr);
+  gap: 0.65rem 0.75rem;
+  align-items: start;
+}
+
+/* When the panel itself is too narrow for 3 cols, drop to quote+chart / fund below */
+@container side-panel (max-width: 640px) {
+  .cq-root--columns {
+    grid-template-columns: minmax(140px, 1fr) minmax(200px, 1.2fr);
+  }
+
+  .cq-col--fund {
+    grid-column: 1 / -1;
+  }
+}
+
+@container side-panel (max-width: 420px) {
+  .cq-root--columns {
+    grid-template-columns: 1fr;
+  }
+
+  .cq-col--fund {
+    grid-column: auto;
+  }
+}
+
+.cq-col {
+  min-width: 0;
+}
+
+.cq-col--chart .chart-card {
+  margin: 0;
+}
+
+.cq-col--quote .cq-grid-key {
+  margin-top: 0.5rem;
+}
+
+.cq-col--fund .cq-section-title:first-child {
+  margin-top: 0;
+}
+
+/* Single-column stat grids inside each sidebar column (readable at ~250px) */
+.cq-root--columns .cq-grid {
+  grid-template-columns: 1fr;
+}
+
+.cq-root--columns .cq-cell:nth-child(odd) {
+  border-right: none;
+}
+
+.cq-root--columns .cq-cell:nth-last-child(-n+2) {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cq-root--columns .cq-cell:last-child {
+  border-bottom: none;
 }
 
 /* First section title in quote card — avoid double gap with panel padding */
@@ -1740,21 +1812,23 @@ th {
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .container {
     flex-direction: column;
   }
 
   .side-panel {
     width: 100%;
+    max-width: none;
     height: auto;
+    max-height: none;
     position: static;
     border-left: none;
     border-top: 1px solid var(--border-color);
   }
 
   .side-panel-body {
-    min-height: 300px;
+    min-height: 280px;
   }
 }
 

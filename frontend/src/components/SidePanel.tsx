@@ -71,7 +71,7 @@ export function SidePanel({ selectedSymbol, setSelectedSymbol, onOpenTrading }: 
         )}
         {!showFullSpinner && selectedSymbol && detail && (
           <div className="detail-body">
-            <TickerDetailContent detail={detail} showChart />
+            <TickerDetailContent detail={detail} showChart layout="columns" />
           </div>
         )}
         {!showFullSpinner && fetchFailed && !detail && selectedSymbol && (

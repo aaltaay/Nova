@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Side panel 3-column layout (wider)
+
+- **What:** Scanner side panel widened (~820px / 48vw) and ticker detail content laid out in three columns when width allows: quote + key stats + news | chart | fundamentals + broker. Narrow viewports stack. Click/double-click rules unchanged.
+- **Why:** User reported the tall vertical sidebar wasted horizontal space and forced needless scrolling.
+- **Files touched:** `frontend/src/components/{SidePanel,TickerDetailContent}.tsx`, `frontend/src/constants.ts` (`SIDE_PANEL_WIDTH_PX`, `CHART_HEIGHT_PANEL`), `frontend/src/index.css`.
+- **How it works now:** `TickerDetailContent layout="columns"` uses CSS grid (`cq-root--columns`). At ≤1400px fund column spans full width under quote+chart; at ≤1100px panel stacks under scanner. Full trading page still via double-click / Full view.
+- **Verified by:** `npm run build`; browser screenshot of 3-col sidebar on wide viewport.
+- **Related:** single-click/double-click entry same day.
+
 ## 2026-07-11 — Single-click keeps sidebar; double-click opens full trading page
 
 - **What:** Restored the scanner **side panel** for single-click symbol select. Double-click (or side-panel **Full view**) opens the dedicated `TickerDetailPage` with large charts + drawing tools. Back clears only the full-page state and returns to the prior scanner tab with the sidebar still selected.

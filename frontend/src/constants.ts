@@ -173,10 +173,16 @@ export const CHART_TIMEFRAMES: ChartTimeframe[] = [
 ];
 export const CHART_DEFAULT_TIMEFRAME = '5Min';
 export const CHART_CARD_TITLE = 'Price Chart';
-/** Chart body height (px) in the narrow side-panel layout (legacy). */
-export const CHART_HEIGHT_PANEL = 280;
+/** Chart body height (px) in the widened 3-column side panel. */
+export const CHART_HEIGHT_PANEL = 320;
 /** Chart body height (px) on the full ticker detail page. */
 export const CHART_HEIGHT_PAGE = 440;
+/** Side panel width (px) on wide viewports — room for quote | chart | fundamentals. */
+export const SIDE_PANEL_WIDTH_PX = 820;
+/** Side panel max share of viewport width (CSS max-width: Nvw). */
+export const SIDE_PANEL_MAX_VIEWPORT_PCT = 55;
+/** Below this viewport width, side panel stacks under the scanner (full width). */
+export const SIDE_PANEL_STACK_BREAKPOINT_PX = 1100;
 /** When Alpaca returns zero bars (weekend / thin symbols), synthesize this many
  * candles so the chart + drawing tools remain usable for verification. */
 export const CHART_MOCK_BAR_COUNT = 48;
