@@ -440,3 +440,16 @@ NEWS_IMPACT_SECONDARY_SOURCE_KEYWORDS = (
     "investorplace", "fool.com",
 )
 
+
+# Efficient local recorders (hot SQLite window — see knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md)
+L2_CONTINUOUS_SNAPSHOT_INTERVAL_SEC = 1.0  # book sample rate while a depth session is open
+L2_BATCH_SIZE = 64                         # flush L2 snapshot queue after this many pending rows
+L2_BATCH_FLUSH_INTERVAL_SEC = 0.25         # or flush at least this often (whichever comes first)
+TAPE_BATCH_SIZE = 256                      # flush time & sales queue after this many pending rows
+TAPE_BATCH_FLUSH_INTERVAL_SEC = 0.25
+L2_RETENTION_DAYS = 14                     # purge l2_snapshots / tape_trades / ended sessions older than this
+L2_RETENTION_SWEEP_INTERVAL_SEC = 3600.0   # how often the background retention task runs
+L2_RECALL_DEFAULT_WINDOW_SEC = 2.0         # default ±window for point-in-time recall API
+TAPE_SOURCE_ALPACA = "alpaca"              # tape_trades.source for Alpaca WS prints
+L2_SESSION_REASON_SIGNAL = "signal"        # record_sessions.reason when setup signal fires
+L2_SESSION_REASON_DEPTH = "depth"          # record_sessions.reason when DepthLadder / depth WS is open

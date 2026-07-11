@@ -24,7 +24,13 @@ def isolated_dbs(tmp_path, monkeypatch):
     monkeypatch.setattr(journal_db, "cache_dir", lambda: tmp_path)
     l2_db.init_db()
     journal_db.init_db()
+    import l2.batch as l2_batch
+    import l2.tape as l2_tape
+    l2_batch.clear_queues_for_tests()
+    l2_tape.clear_watched_for_tests()
     yield
+    l2_batch.clear_queues_for_tests()
+    l2_tape.clear_watched_for_tests()
 
 
 @pytest.fixture(autouse=True)
@@ -152,7 +158,11 @@ class TestRecorder:
         unsubscribed = []
         monkeypatch.setattr(depth_mod, "unsubscribe", lambda s: unsubscribed.append(s))
 
-        asyncio.run(recorder._record_window("AAPL", "gap_and_go", 100.0, release_subscription=True))
+        from l2 import sessions as sessions_mod
+        session_id = sessions_mod.start_session("AAPL", "signal", setup="gap_and_go", signal_ts=100.0)
+        asyncio.run(recorder._record_window(
+            "AAPL", "gap_and_go", 100.0, release_subscription=True, session_id=session_id,
+        ))
 
         from l2.store import get_snapshots
         rows = get_snapshots("AAPL:100.0")
@@ -167,7 +177,11 @@ class TestRecorder:
         unsubscribed = []
         monkeypatch.setattr(depth_mod, "unsubscribe", lambda s: unsubscribed.append(s))
 
-        asyncio.run(recorder._record_window("AAPL", "gap_and_go", 100.0, release_subscription=False))
+        from l2 import sessions as sessions_mod
+        session_id = sessions_mod.start_session("AAPL", "signal", setup="gap_and_go", signal_ts=100.0)
+        asyncio.run(recorder._record_window(
+            "AAPL", "gap_and_go", 100.0, release_subscription=False, session_id=session_id,
+        ))
 
         assert unsubscribed == []
 

@@ -94,12 +94,27 @@ class DepthSubscribeRequest(BaseModel):
 
 @router.post("/depth/subscribe")
 async def depth_subscribe(req: DepthSubscribeRequest) -> dict:
-    return _depth.subscribe(req.symbol.upper())
+    symbol = req.symbol.upper()
+    result = _depth.subscribe(symbol)
+    if result.get("ok"):
+        # Continuous local L2 + tape recorder while DepthLadder is open.
+        from l2 import continuous as _l2_continuous
+        try:
+            _l2_continuous.start(symbol)
+        except Exception:
+            logger.exception("l2.continuous: failed to start for %s", symbol)
+    return result
 
 
 @router.post("/depth/unsubscribe")
 async def depth_unsubscribe(req: DepthSubscribeRequest) -> None:
-    _depth.unsubscribe(req.symbol.upper())
+    symbol = req.symbol.upper()
+    from l2 import continuous as _l2_continuous
+    try:
+        await _l2_continuous.stop(symbol)
+    except Exception:
+        logger.exception("l2.continuous: failed to stop for %s", symbol)
+    _depth.unsubscribe(symbol)
 
 
 @router.get("/depth")
@@ -122,6 +137,12 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
             await websocket.close()
             return
 
+    from l2 import continuous as _l2_continuous
+    try:
+        _l2_continuous.start(symbol)
+    except Exception:
+        logger.exception("l2.continuous: failed to start for WS %s", symbol)
+
     await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
 
     try:
@@ -135,3 +156,8 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
         logger.debug("IBKR depth WS disconnected: %s", symbol)
     except Exception as exc:
         logger.error("IBKR depth WS error for %s: %s", symbol, exc)
+    finally:
+        try:
+            await _l2_continuous.stop(symbol)
+        except Exception:
+            logger.exception("l2.continuous: failed to stop for WS %s", symbol)

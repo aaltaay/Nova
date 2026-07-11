@@ -1314,6 +1314,18 @@ async def _ws_stream_loop() -> None:
                                         trade_ts,
                                         volume=updated_vol,
                                     )
+                                    # Local tape recorder for watched L2/session symbols
+                                    try:
+                                        from l2 import tape as _l2_tape
+                                        _l2_tape.on_alpaca_trade(
+                                            sym,
+                                            float(price),
+                                            float(msg.get("s") or 0),
+                                            trade_ts,
+                                            exchange=msg.get("x"),
+                                        )
+                                    except Exception:
+                                        logger.exception("l2.tape: ingest failed for %s", sym)
                                 if sym and sym in _ticker_ws_clients and _ticker_ws_clients[sym]:
                                     asyncio.create_task(_broadcast_trade_update(
                                         sym,
