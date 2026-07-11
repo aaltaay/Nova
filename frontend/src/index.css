@@ -393,24 +393,22 @@ header > * {
 .tab-bar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
   border-bottom: 1px solid var(--border-color);
   padding-bottom: 0;
 }
 
-/* Scroll only the tab buttons; `tab-spacer` + one flex row prevented min-width:0 so HOD Momo clipped */
+/* Tabs wrap onto additional rows instead of horizontally scrolling — the tab
+   bar should always show every tab at full width, never a scrollbar. */
 .tab-bar-scroll {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.25rem;
   flex: 1;
   min-width: 0;
-  overflow-x: auto;
-  flex-wrap: nowrap;
-  scrollbar-width: thin;
-  -webkit-overflow-scrolling: touch;
-  margin-bottom: -1px;
 }
 
 .tab-bar-meta {

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-11 — Tab bar wraps instead of horizontally scrolling
+
+- **What:** The top tab bar (Gappers/Movers/After Hours/Catalysts/HOD Momo/Trading/Watchlist) no longer shows a horizontal scrollbar when it doesn't fit the available width. Tabs now wrap onto additional rows instead.
+- **Why:** User feedback — the horizontal scroll/scrollbar under the tab row looked broken and was disliked; the bar should always show every tab at full width.
+- **Files touched:** `frontend/src/index.css` (`.tab-bar`, `.tab-bar-scroll`).
+- **How it works now:** `.tab-bar-scroll` switched from `flex-wrap: nowrap` + `overflow-x: auto` (with a thin scrollbar) to `flex-wrap: wrap`; `.tab-bar` itself also got `flex-wrap: wrap` so the row height grows cleanly to fit however many lines the tabs need. No JS changes — `TabNav.tsx` is unchanged.
+- **Verified by:** `npm run build` clean; visually confirmed via `agent-browser` screenshots at 1024px, 1440px, and 1920px viewport widths — no scrollbar at any width, tabs wrap onto a second row when the (fixed-width) main panel is narrower than the full tab set.
+- **Follow-ups:** None — the fixed max-width of the main content column (separate from this change) is why tabs still wrap even at very wide windows; that's pre-existing layout, not a regression.
+
 ## 2026-07-11 — Phase F: L2 recorder + tape feature extraction + outcome labeling + heuristic badges (final phase of the Trading Automation Machine plan)
 
 - **What:** Nova now automatically records the Level 2 order book around every setup signal, computes tape/order-book features on it, labels each recording with its eventual trade outcome from the journal, and surfaces single-snapshot heuristic badges ("Seller stacked on ask", "Bid heavy", "Wide spread") on the live `DepthLadder`. New `backend/l2/` package: `db.py`/`store.py` (own `l2.db` SQLite file, `l2_snapshots` table), `recorder.py` (subscribes IBKR depth on signal, snapshots the book every `L2_SNAPSHOT_INTERVAL_SEC` for `L2_RECORD_WINDOW_SEC`), `features.py` (pure math: bid/ask imbalance, ask-stacked, bid-heavy, buying-pressure-drying-up), `labeling.py` (joins recordings to `journal` trades by symbol + closest timestamp within `L2_LABEL_MATCH_TOLERANCE_SEC`). New `GET /api/l2/recordings` route. Frontend: `ibkr/l2Heuristics.ts` mirrors the backend's single-snapshot math for live badges on `DepthLadder.tsx`.
