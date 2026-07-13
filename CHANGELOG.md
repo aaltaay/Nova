@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Price chart defaults to 1-minute timeframe
+
+- **What:** Opening a ticker’s Price Chart now starts on **1m** instead of **5m**. Users can still switch timeframes with the chart tabs.
+- **Why:** User requested 1-minute as the default chart interval.
+- **Files touched:** `frontend/src/constants.ts`, `backend/constants.py`.
+- **How it works now:** `TickerChart` initializes from `CHART_DEFAULT_TIMEFRAME` (`1Min`). The bars API default query param mirrors the same constant. There is no Settings UI for this — change the constant to retune.
+- **Verified by:** Frontend build; app run with chart opening on 1m.
+- **Follow-ups:** Optional Settings toggle if users want a per-session preference without editing constants.
+
 ## 2026-07-12 — Watchlist Five Pillars score infused into scanner tables
 
 - **What:** Gappers / Movers / After Hours tables gained a new dense `Watch` column (between `News` and `Float`) showing each symbol's Five Pillars checkmark (e.g. `3/5`, green `✅` when `all_pass`) stacked over its composite score (e.g. `25 pts`), hover tooltip lists which pillars are failing. The Watchlist tab itself is unchanged — same sub-tabs, same ranked table, same Signals/Journal/Automation panels.

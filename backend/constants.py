@@ -109,7 +109,7 @@ TICKER_SLOW_CACHE_TTL = 90.0        # 90 seconds
 CHART_TIMEFRAMES: tuple[str, ...] = (
     "1Min", "5Min", "15Min", "30Min", "1Hour", "4Hour", "1Day", "1Week", "1Month",
 )
-CHART_DEFAULT_TIMEFRAME = "5Min"
+CHART_DEFAULT_TIMEFRAME = "1Min"
 
 # How many calendar days to look back when no explicit `start` is passed.
 # SIP bars include extended hours (pre-market + after-hours), so actual bar

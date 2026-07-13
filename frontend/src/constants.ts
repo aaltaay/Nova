@@ -176,7 +176,7 @@ export const CHART_TIMEFRAMES: ChartTimeframe[] = [
   { id: '1Week',  label: '1W'  },
   { id: '1Month', label: '1M'  },
 ];
-export const CHART_DEFAULT_TIMEFRAME = '5Min';
+export const CHART_DEFAULT_TIMEFRAME = '1Min';
 export const CHART_CARD_TITLE = 'Price Chart';
 /** Chart body height (px) in the widened side panel. */
 export const CHART_HEIGHT_PANEL = 320;
