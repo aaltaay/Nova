@@ -4,6 +4,7 @@ import { SymbolSelectButton } from './SymbolSelectButton';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import { NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS } from '../constants';
 import type { ScannerRow, SortConfig } from '../types/scanner';
+import type { WatchlistEntry } from '../strategy/types';
 
 export function NewsCell({ newest_headline_at }: { newest_headline_at: string | null }) {
   if (!newest_headline_at) return <span className="na-muted">—</span>;
@@ -15,6 +16,26 @@ export function NewsCell({ newest_headline_at }: { newest_headline_at: string | 
   else colorClass = 'flame-cool';
   const label = ageHours < 1 ? `${Math.round(ageHours * 60)}m ago` : `${Math.floor(ageHours)}h ago`;
   return <span className={`news-flame ${colorClass}`} title={label} />;
+}
+
+/** Compact Five Pillars checkmark + composite score, joined from the Watchlist tab's
+ * own scoring (see strategy/useWatchlistOverlay.ts). Null when the symbol isn't
+ * currently ranked (e.g. outside the top WATCHLIST_MAX_ROWS candidates). */
+export function WatchCell({ watchlist }: { watchlist: WatchlistEntry | null | undefined }) {
+  if (!watchlist) return <span className="na-muted">—</span>;
+  const { five_pillars, composite_score } = watchlist;
+  const failing = five_pillars.pillars.filter(p => !p.passed).map(p => p.name.replace('_', ' '));
+  const title = `${five_pillars.pass_count}/${five_pillars.total} pillars pass` +
+    (failing.length ? ` (failing: ${failing.join(', ')})` : ' — all pass') +
+    ` · composite score ${composite_score.toFixed(0)}/100`;
+  return (
+    <span className="cell-stack" title={title}>
+      <span className={`cell-stack-primary ${five_pillars.all_pass ? 'positive' : 'na-muted'}`}>
+        {five_pillars.checkmark}
+      </span>
+      <span className="cell-stack-secondary">{composite_score.toFixed(0)} pts</span>
+    </span>
+  );
 }
 
 interface ScannerTableProps {
@@ -68,6 +89,8 @@ function renderCell(key: string, row: ScannerRow): React.ReactNode {
       );
     case 'newest_headline_at':
       return <NewsCell newest_headline_at={row.newest_headline_at} />;
+    case 'watchlist_score':
+      return <WatchCell watchlist={row.watchlist} />;
     case 'market_cap':
       return row.market_cap != null ? fmtMarketCap(row.market_cap) : <span className="na-muted">—</span>;
     case 'float':

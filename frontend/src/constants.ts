@@ -257,8 +257,11 @@ export const WS_BASE_URL: string = _rawApiBase
 // Single source of truth for the columns shown in the Gappers and Movers tables.
 // The key must match the ScannerRow field name; the label is the column header text.
 // Dense layout: Change combines change_pct/change_abs, Volume combines volume/rel_volume,
-// and Short Int. combines short_interest/short_ratio into stacked dual-value cells
+// Watch combines watchlist_score (sort key) with the Five Pillars checkmark, and
+// Short Int. combines short_interest/short_ratio into stacked dual-value cells
 // (see renderCell in components/ScannerTable.tsx). Sort keys stay on the primary field.
+// Watch is joined client-side from the Watchlist tab's own scoring (see
+// strategy/useWatchlistOverlay.ts) — it does not re-run any scoring logic here.
 export const SCANNER_COLUMNS: [string, string][] = [
   ['symbol',              'Symbol'],
   ['price',               'Price'],
@@ -266,6 +269,7 @@ export const SCANNER_COLUMNS: [string, string][] = [
   ['gap_percent',         'Gap %'],
   ['volume',              'Volume'],
   ['newest_headline_at',  'News'],
+  ['watchlist_score',     'Watch'],
   ['float',               'Float'],
   ['short_interest',      'Short Int.'],
   ['market_cap',          'Mkt Cap'],
