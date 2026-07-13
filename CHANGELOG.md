@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Fixed Level 2 depth ladder flicker caused by a stale listener on a reused IBKR ticker
+
+- **What:** `backend/ibkr/depth.py` now precisely detaches a symbol's previous `ticker.updateEvent` listener before wiring a new one, instead of only ever adding listeners. `routes/trading.py`'s `ws_depth` also sends the current cached book immediately on connect when it's already meaningful (has bids/asks or is on L1 fallback), instead of waiting for the next tick.
+- **Why:** The user still reported "I only see 'Waiting for book data,' I don't really see level 2" even after the async-rejection L1 fallback landed. A raw WebSocket probe against `/ws/ibkr/depth/SHPH` showed every real tick emitting *two* `book` messages back to back: an empty one (`l1_fallback=False`) immediately followed by the real one (`l1_fallback=True`). Root cause: `ib_async` caches `Ticker` objects per `hash(contract)`, so `reqMktData()` during the L1 fallback returned the exact same `Ticker` that `reqMktDepth()` had already returned — both the old depth listener and the new L1 listener stayed wired to it, racing an always-empty depth read against the real L1 read on every tick.
+- **Files touched:** `backend/ibkr/depth.py` (`_attach_update_handler`, `_detach_update_handler`, `_update_handlers`), `backend/routes/trading.py` (`ws_depth` initial snapshot), `backend/tests/test_ibkr_safety.py` (`TestUpdateHandlerReplacement`).
+- **How it works now:** `_update_handlers` tracks the exact listener function currently wired per symbol. `_attach_update_handler()` detaches whatever was wired before adding the new listener; used in `subscribe_async()`'s depth path, its L1-fallback except branch, and `_fallback_to_l1()`. `unsubscribe()` detaches on cleanup too. A symbol can now only ever have one live `updateEvent` listener, regardless of how many times it flips between depth and L1 across reconnects.
+- **Verified by:** `pytest` (252 passed, incl. new `TestUpdateHandlerReplacement`). Live: restarted the backend, ran a raw WS probe against SHPH for 45s post-fix — 60+ consecutive `book` messages, all `l1_fallback=True` with real bid/ask, zero empty frames (pre-fix probe on the same symbol showed the empty/real pair racing every tick). Confirmed in the browser via `agent-browser`: SHPH's side panel Level 2 section renders a populated ladder (bid 900@$5.22, ask 400@$5.25, "Bid heavy" heuristic, "Level 1 only" badge) and stays stable.
+- **Related:** PROBLEM_LOG.md 2026-07-13 "Level 2 depth ladder flickered between empty and real book after L1 fallback".
+
 ## 2026-07-13 — Level 2 depth falls back to L1 on async IBKR rejection; fixed a viewer-refcount leak
 
 - **What:** `backend/ibkr/depth.py` now listens for IBKR's `errorEvent` and automatically switches a symbol to L1 top-of-book when the Gateway asynchronously rejects a depth request (error 10092, "Deep market data is not supported for this combination of security type/exchange"). Also fixed `routes/trading.py`'s `ws_depth` so a client disconnecting immediately after connecting can no longer leak a Level 2 viewer-count slot.

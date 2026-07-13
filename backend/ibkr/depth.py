@@ -22,6 +22,34 @@ _queues: dict[str, asyncio.Queue] = {}
 _tickers: dict[str, Any] = {}
 _contracts: dict[str, Any] = {}
 
+# The exact updateEvent listener currently wired for each symbol's ticker, so
+# it can be precisely disconnected before wiring a new one. ib_async caches
+# Ticker objects per contract hash, so reqMktData(contract) after
+# reqMktDepth(contract) on the SAME contract returns the SAME Ticker
+# instance — attaching a second listener without removing the first leaves
+# both firing on every real tick, interleaving a stale empty depth-book
+# message with the real L1 book forever (see PROBLEM_LOG 2026-07-13,
+# "Level 2 depth ladder flickers between empty and real book after L1
+# fallback").
+_update_handlers: dict[str, Any] = {}
+
+
+def _detach_update_handler(symbol: str) -> None:
+    ticker = _tickers.get(symbol)
+    handler = _update_handlers.pop(symbol, None)
+    if ticker is not None and handler is not None:
+        try:
+            ticker.updateEvent -= handler
+        except Exception:
+            pass
+
+
+def _attach_update_handler(symbol: str, ticker: Any, handler: Any) -> None:
+    _detach_update_handler(symbol)
+    ticker.updateEvent += handler
+    _tickers[symbol] = ticker
+    _update_handlers[symbol] = handler
+
 # Counts live depth WebSocket viewers per symbol (DepthLadder can be open in
 # more than one place at once — SidePanel + TradingTab + TickerDetailPage all
 # use the same /ws/ibkr/depth/{symbol} route). Only the LAST viewer closing
@@ -53,6 +81,19 @@ def subscribed_symbols() -> list[str]:
 
 def current_book(symbol: str) -> dict | None:
     return _subscriptions.get(symbol)
+
+
+def should_send_current_book(book: dict | None) -> bool:
+    """A freshly-opened WS viewer only gets the *next* tick from stream()
+    otherwise — for an illiquid after-hours symbol that can be minutes away
+    or never, leaving the DepthLadder stuck on "Waiting for book data" even
+    though the line is already subscribed. Skip the placeholder
+    pre-first-tick state ({bids: [], asks: [], l1_fallback: False}) so a
+    brand new subscription still shows "Connecting…" instead of a
+    momentarily-empty ladder."""
+    if book is None:
+        return False
+    return bool(book["bids"] or book["asks"] or book["l1_fallback"])
 
 
 def _on_update_book(ticker: Any, symbol: str) -> None:
@@ -119,9 +160,20 @@ def _fallback_to_l1(symbol: str, contract: Any) -> None:
         pass
     try:
         ticker = ib.reqMktData(contract, "", False, False)
-        ticker.updateEvent += lambda t: _on_update_ticker(t, symbol)
-        _tickers[symbol] = ticker
-        _subscriptions[symbol]["l1_fallback"] = True
+        _attach_update_handler(symbol, ticker, lambda t: _on_update_ticker(t, symbol))
+        book = {"bids": [], "asks": [], "l1_fallback": True}
+        _subscriptions[symbol] = book
+        # Push the fallback itself onto the queue — an illiquid after-hours
+        # symbol may not print another tick for minutes (or the rest of the
+        # session), and any WS viewer already connected only learns about
+        # state changes via the queue, not by re-reading current_book(). See
+        # PROBLEM_LOG 2026-07-13.
+        q = _queues.get(symbol)
+        if q:
+            try:
+                q.put_nowait(book)
+            except asyncio.QueueFull:
+                pass
         logger.info("IBKR: subscribed L1 fallback for %s (conId=%s)", symbol, contract.conId)
     except Exception as exc:
         logger.error("IBKR: L1 fallback after depth rejection failed for %s: %s", symbol, exc)
@@ -170,15 +222,13 @@ async def subscribe_async(symbol: str) -> dict:
 
     try:
         ticker = ib.reqMktDepth(contract, numRows=10)
-        ticker.updateEvent += lambda t: _on_update_book(t, symbol)
-        _tickers[symbol] = ticker
+        _attach_update_handler(symbol, ticker, lambda t: _on_update_book(t, symbol))
         logger.info("IBKR: subscribed depth for %s (conId=%s)", symbol, contract.conId)
     except Exception as exc:
         logger.warning("IBKR: depth unavailable for %s (%s), falling back to L1", symbol, exc)
         try:
             ticker = ib.reqMktData(contract, "", False, False)
-            ticker.updateEvent += lambda t: _on_update_ticker(t, symbol)
-            _tickers[symbol] = ticker
+            _attach_update_handler(symbol, ticker, lambda t: _on_update_ticker(t, symbol))
             _subscriptions[symbol]["l1_fallback"] = True
             logger.info("IBKR: subscribed L1 fallback for %s (conId=%s)", symbol, contract.conId)
         except Exception as exc2:
@@ -228,6 +278,7 @@ def ws_viewer_closed(symbol: str) -> bool:
 def unsubscribe(symbol: str) -> None:
     ib = _client.get_ib()
     contract = _contracts.pop(symbol, None)
+    _detach_update_handler(symbol)
     _tickers.pop(symbol, None)
     _subscriptions.pop(symbol, None)
     _queues.pop(symbol, None)

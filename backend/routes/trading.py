@@ -163,6 +163,13 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
         viewer_opened = True
         await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
 
+        # A symbol already subscribed by another viewer (or a fresh page
+        # reload re-attaching to a still-open depth line) needs today's
+        # snapshot right away — see should_send_current_book().
+        current = _depth.current_book(symbol)
+        if _depth.should_send_current_book(current):
+            await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": current}))
+
         async for book in _depth.stream(symbol):
             if book is None:
                 # Heartbeat timeout

@@ -163,6 +163,11 @@ class _FakeEvent:
         self._listeners.append(fn)
         return self
 
+    def __isub__(self, fn):
+        if fn in self._listeners:
+            self._listeners.remove(fn)
+        return self
+
     def emit(self, *args):
         for fn in list(self._listeners):
             fn(*args)
@@ -204,6 +209,7 @@ class TestDepthAsyncErrorFallback:
         self.depth = depth_mod
 
     def test_matching_conid_falls_back_to_l1(self, monkeypatch):
+        import asyncio
         from constants import IBKR_ERROR_DEPTH_NOT_SUPPORTED
         import ibkr.client as client_mod
         fake_ib = _FakeIbForErrors()
@@ -212,12 +218,18 @@ class TestDepthAsyncErrorFallback:
         contract = _FakeContract(890751584)
         self.depth._contracts["SHPH"] = contract
         self.depth._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
+        self.depth._queues["SHPH"] = asyncio.Queue(maxsize=100)
 
         self.depth._on_ib_error(6, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "Deep market data is not supported", contract)
 
         assert self.depth._subscriptions["SHPH"]["l1_fallback"] is True
         assert fake_ib.cancel_depth_calls == [contract]
         assert fake_ib.l1_calls == [contract]
+        # A viewer already connected before the async rejection arrived must
+        # learn about the fallback via the queue — it won't re-poll
+        # current_book() on its own (see PROBLEM_LOG 2026-07-13).
+        queued = self.depth._queues["SHPH"].get_nowait()
+        assert queued["l1_fallback"] is True
 
     def test_unrelated_error_code_ignored(self, monkeypatch):
         import ibkr.client as client_mod
@@ -252,6 +264,87 @@ class TestDepthAsyncErrorFallback:
         self.depth._install_error_hook(fake_ib)
         self.depth._install_error_hook(fake_ib)
         assert len(fake_ib.errorEvent._listeners) == 1
+
+
+class TestUpdateHandlerReplacement:
+    """ib_async caches Ticker objects per contract hash, so reqMktData(contract)
+    after reqMktDepth(contract) on the same contract can return the SAME
+    Ticker instance. Attaching the L1 fallback listener without detaching the
+    original depth listener left both firing on every real tick — the stale
+    depth handler kept pushing an empty book (l1_fallback=False) that raced
+    with the real L1 book (l1_fallback=True), flickering the DepthLadder
+    between empty and populated forever. See PROBLEM_LOG 2026-07-13."""
+
+    def setup_method(self):
+        import ibkr.depth as depth_mod
+        importlib.reload(depth_mod)
+        self.depth = depth_mod
+
+    def test_fallback_detaches_old_depth_listener_from_shared_ticker(self, monkeypatch):
+        import asyncio
+        import ibkr.client as client_mod
+
+        shared_ticker = _FakeTicker()
+
+        class _FakeIbSharedTicker(_FakeIbForErrors):
+            def reqMktData(self, contract, *_args):
+                self.l1_calls.append(contract)
+                return shared_ticker
+
+        fake_ib = _FakeIbSharedTicker()
+        monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+
+        contract = _FakeContract(890751584)
+        self.depth._contracts["SHPH"] = contract
+        self.depth._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
+        self.depth._queues["SHPH"] = asyncio.Queue(maxsize=100)
+        # Simulate reqMktDepth() having wired the depth handler onto the same
+        # ticker object that reqMktData() will later return for the fallback.
+        self.depth._attach_update_handler(
+            "SHPH", shared_ticker, lambda t: self.depth._on_update_book(t, "SHPH")
+        )
+
+        self.depth._fallback_to_l1("SHPH", contract)
+        assert len(shared_ticker.updateEvent._listeners) == 1
+
+        shared_ticker.bid = 1.23
+        shared_ticker.bidSize = 100
+        shared_ticker.ask = 1.24
+        shared_ticker.askSize = 50
+        shared_ticker.domBids = []
+        shared_ticker.domAsks = []
+        shared_ticker.updateEvent.emit(shared_ticker)
+
+        book = self.depth._subscriptions["SHPH"]
+        assert book["l1_fallback"] is True
+        assert book["bids"][0]["price"] == 1.23
+
+
+class TestShouldSendCurrentBook:
+    """A fresh WS viewer attaching to an already-subscribed symbol should get
+    today's snapshot immediately instead of waiting for the next tick — but
+    not the pre-first-tick placeholder, which would show an empty ladder
+    instead of the more honest "Connecting…" state."""
+
+    def setup_method(self):
+        import ibkr.depth as depth_mod
+        importlib.reload(depth_mod)
+        self.depth = depth_mod
+
+    def test_none_book_is_not_sent(self):
+        assert self.depth.should_send_current_book(None) is False
+
+    def test_placeholder_pre_first_tick_is_not_sent(self):
+        book = {"bids": [], "asks": [], "l1_fallback": False}
+        assert self.depth.should_send_current_book(book) is False
+
+    def test_l1_fallback_with_no_ticks_yet_is_sent(self):
+        book = {"bids": [], "asks": [], "l1_fallback": True}
+        assert self.depth.should_send_current_book(book) is True
+
+    def test_populated_depth_book_is_sent(self):
+        book = {"bids": [{"price": 1.0, "size": 100, "side": "bid"}], "asks": [], "l1_fallback": False}
+        assert self.depth.should_send_current_book(book) is True
 
 
 class TestAccountSummaryCache:
