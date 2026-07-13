@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-12 — Full-view charts expand to ~80% of the viewport
+
+- **What:** Double-click trading page now gives the 2×2 chart cube almost all available height/width: full-bleed container, tiny chrome gaps, narrower side column (220px), charts fill parent cells via ResizeObserver instead of a fixed 260px height. Symbol/price sits inline in the toolbar.
+- **Why:** User asked for graphs to dominate (~80% of screen) with bare-minimum margins; bottom Open/Close/Automate bar stays compact.
+- **Files touched:** `frontend/src/index.css`, `frontend/src/TickerChart.tsx`, `frontend/src/pages/TickerDetailPage.tsx`, `frontend/src/constants.ts`.
+- **How it works now:** Trading full-view drops the compact AppHeader (Back + symbol live in the page toolbar). `.ticker-trade-body` targets ~80vh; `.chart-grid` uses equal `1fr` rows/cols at `height: 100%`; each grid chart card flexes so `.chart-body` owns leftover cell height. Side column is 220px.
+- **Verified by:** `npm run build` (tsc + vite).
+- **Follow-ups:** Live 10s panel still deferred; action bar can be refined later without stealing chart space.
+
 ## 2026-07-11 — Full ticker page is an active trading screen
 
 - **What:** Double-click / Full view is no longer a sidebar info dump. Layout is **2×2 charts (primary) + compact side column (quote/stats/news/depth/position) + sticky bottom action bar** with Open (BUY/SELL ticket), Close (flatten), and Automate (arm/disarm/kill via `useExecutor`).

@@ -66,6 +66,32 @@ export function TickerDetailPage({ symbol, onBack, onSelectSymbol }: Props) {
         >
           ← Back
         </button>
+        {detail && (
+          <header className="ticker-detail-header">
+            <div className="cq-symbol-row">
+              <span className="cq-symbol">{detail.symbol}</span>
+              {mainChangeAbs != null && (
+                <span className="cq-trend">{isPositive ? '▲' : '▼'}</span>
+              )}
+              {refreshing && (
+                <span className="na-muted ticker-detail-refreshing">Updating…</span>
+              )}
+            </div>
+            {mainPrice != null && (
+              <div className="cq-price-row">
+                <span className="cq-price">{mainPrice.toFixed(2)}</span>
+                {mainChangeAbs != null && (
+                  <span
+                    className={`cq-change ${(mainChangePct ?? 0) >= 0 ? 'positive' : 'negative'}`}
+                  >
+                    {mainChangeAbs >= 0 ? '+' : ''}
+                    {mainChangeAbs.toFixed(2)} ({fmtPct(mainChangePct)})
+                  </span>
+                )}
+              </div>
+            )}
+          </header>
+        )}
         <form
           className="ticker-detail-lookup"
           onSubmit={(e) => {
@@ -105,31 +131,6 @@ export function TickerDetailPage({ symbol, onBack, onSelectSymbol }: Props) {
 
       {detail && (
         <>
-          <header className="ticker-detail-header">
-            <div className="cq-symbol-row">
-              <span className="cq-symbol">{detail.symbol}</span>
-              {mainChangeAbs != null && (
-                <span className="cq-trend">{isPositive ? '▲' : '▼'}</span>
-              )}
-              {refreshing && (
-                <span className="na-muted ticker-detail-refreshing">Updating…</span>
-              )}
-            </div>
-            {mainPrice != null && (
-              <div className="cq-price-row">
-                <span className="cq-price">{mainPrice.toFixed(2)}</span>
-                {mainChangeAbs != null && (
-                  <span
-                    className={`cq-change ${(mainChangePct ?? 0) >= 0 ? 'positive' : 'negative'}`}
-                  >
-                    {mainChangeAbs >= 0 ? '+' : ''}
-                    {mainChangeAbs.toFixed(2)} ({fmtPct(mainChangePct)})
-                  </span>
-                )}
-              </div>
-            )}
-          </header>
-
           <div className="ticker-trade-body">
             <div className="ticker-trade-charts">
               <ChartGrid symbol={detail.symbol} lastTrade={lastTrade} />

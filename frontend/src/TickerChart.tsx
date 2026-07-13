@@ -143,6 +143,8 @@ export function TickerChart({
   const [usingMock, setUsingMock] = useState(false);
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [maximized, setMaximized] = useState(false);
+  /** Grid cells (and maximize) fill the parent — ResizeObserver drives pixel height. */
+  const fillParentHeight = variant === 'grid' || maximized;
 
   const lastCandleRef = useRef<CandlestickData<Time> | null>(null);
   const prevTradeTsRef = useRef<string | null>(null);
@@ -167,7 +169,9 @@ export function TickerChart({
       timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#262a36' },
       rightPriceScale: { borderColor: '#262a36' },
       width: container.clientWidth,
-      height: maximized ? container.clientHeight : chartHeight,
+      height: fillParentHeight
+        ? Math.max(container.clientHeight || chartHeight, chartHeight)
+        : chartHeight,
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -191,12 +195,14 @@ export function TickerChart({
     managerRef.current = manager;
 
     const ro = new ResizeObserver(() => {
-      if (containerRef.current) {
-        chart.applyOptions({
-          width: containerRef.current.clientWidth,
-          height: maximized ? containerRef.current.clientHeight : chartHeight,
-        });
-      }
+      if (!containerRef.current) return;
+      const h = fillParentHeight
+        ? Math.max(containerRef.current.clientHeight || chartHeight, chartHeight)
+        : chartHeight;
+      chart.applyOptions({
+        width: containerRef.current.clientWidth,
+        height: h,
+      });
     });
     ro.observe(container);
 
@@ -209,7 +215,7 @@ export function TickerChart({
       volSeriesRef.current = null;
       managerRef.current = null;
     };
-  }, [maximized, chartHeight]);
+  }, [maximized, chartHeight, fillParentHeight]);
 
   // ── Sync active tool with drawing manager ─────────────────────────────
   useEffect(() => {

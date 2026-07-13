@@ -3008,7 +3008,25 @@ th {
 /* ── Full ticker detail page (click symbol → dedicated trading view) ───────── */
 
 .container--ticker-detail {
-  max-width: 1600px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.container--ticker-detail .main-col {
+  padding: 0.25rem 0.35rem 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.container--ticker-detail .app-header {
+  margin-bottom: 0.25rem;
+  padding: 0.35rem 0.65rem;
+  flex-shrink: 0;
 }
 
 .main-col--full {
@@ -3017,47 +3035,65 @@ th {
 }
 
 .ticker-detail-main {
-  padding: 0 0 2rem;
+  padding: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .ticker-detail-page {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.35rem;
 }
 
 .ticker-detail-page--trading {
-  min-height: calc(100vh - 8rem);
-  padding-bottom: 0.5rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  gap: 0.25rem;
+  padding-bottom: 0;
 }
 
 .ticker-trade-body {
   display: grid;
-  grid-template-columns: 1fr var(--ticker-trade-side-width, 300px);
-  gap: 0.75rem;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) var(--ticker-trade-side-width, 220px);
+  gap: 0.35rem;
+  align-items: stretch;
+  flex: 1 1 auto;
   min-height: 0;
+  /* Charts claim the bulk of the viewport (~80%+) */
+  min-height: 80vh;
 }
 
 .ticker-trade-charts {
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .ticker-trade-charts .chart-grid {
   margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
 }
 
 .ticker-trade-side {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  max-height: min(72vh, 820px);
+  gap: 0.4rem;
+  max-height: none;
+  height: 100%;
   overflow-y: auto;
-  padding: 0.65rem 0.75rem;
+  padding: 0.4rem 0.5rem;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg-secondary, rgba(255, 255, 255, 0.02));
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .ticker-trade-side-mode {
@@ -3157,20 +3193,21 @@ th {
   flex-wrap: wrap;
 }
 
-/* Bottom trading action bar */
+/* Bottom trading action bar — compact chrome; charts keep the height */
 .ticker-trade-bar {
   position: sticky;
   bottom: 0;
   z-index: 20;
-  margin-top: 0.5rem;
-  padding: 0.65rem 0.75rem 0.55rem;
+  margin-top: 0;
+  flex-shrink: 0;
+  padding: 0.4rem 0.55rem 0.35rem;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--bg-primary, #0f1117);
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.35);
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.25rem;
 }
 
 .ticker-trade-bar-top {
@@ -3310,63 +3347,104 @@ th {
   }
 }
 
-/* Full-view 2×2 “cube” — equal cells, two per row */
+/* Full-view 2×2 “cube” — equal cells fill remaining viewport height */
 .chart-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: auto auto;
-  gap: 0.75rem;
+  grid-template-rows: 1fr 1fr;
+  gap: 0.3rem;
   width: 100%;
+  height: 100%;
+  min-height: 0;
 }
 
 .chart-grid-cell {
   min-width: 0;
   min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-card--grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  margin: 0 !important;
+  border-radius: 6px;
 }
 
 .chart-card--grid .chart-header {
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  padding: 0.25rem 0.4rem;
+  flex-shrink: 0;
+}
+
+.chart-card--grid .chart-toolbar {
+  padding: 0.15rem 0.35rem;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.chart-card--grid .chart-body {
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  height: auto !important;
 }
 
 .chart-title-block {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.05rem;
   min-width: 0;
 }
 
+.chart-card--grid .chart-title {
+  font-size: 0.75rem;
+}
+
 .chart-subtitle {
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   color: var(--text-secondary, #8b92a5);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 280px;
+  max-width: 220px;
 }
 
 .chart-tf-badge {
   margin-left: auto;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 600;
   color: var(--text-secondary, #8b92a5);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  padding: 0.15rem 0.45rem;
+  padding: 0.1rem 0.35rem;
 }
 
 @media (max-width: 900px) {
   .chart-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    height: auto;
+  }
+
+  .chart-card--grid .chart-body {
+    min-height: 220px !important;
   }
 }
 
 .ticker-detail-toolbar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.25rem;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  margin-bottom: 0;
+  flex-shrink: 0;
+  padding: 0.15rem 0;
 }
 
 .ticker-detail-back {
@@ -3374,10 +3452,11 @@ th {
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   border-radius: 6px;
-  padding: 0.4rem 0.85rem;
-  font-size: 0.85rem;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .ticker-detail-back:hover {
@@ -3387,20 +3466,38 @@ th {
 
 .ticker-detail-lookup {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.35rem;
   margin-left: auto;
+  flex-shrink: 0;
 }
 
 .ticker-detail-header {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  margin-bottom: 0.25rem;
+  flex-direction: row;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0;
+  flex-shrink: 0;
+  padding: 0 0.1rem;
+}
+
+.ticker-detail-header .cq-symbol-row,
+.ticker-detail-header .cq-price-row {
+  margin: 0;
+}
+
+.ticker-detail-header .cq-symbol {
+  font-size: 1.05rem;
+}
+
+.ticker-detail-header .cq-price {
+  font-size: 1.05rem;
 }
 
 .ticker-detail-refreshing {
-  font-size: 0.75rem;
-  margin-left: 0.5rem;
+  font-size: 0.7rem;
+  margin-left: 0.35rem;
 }
 
 .header-symbol-search {
@@ -3427,7 +3524,7 @@ th {
 }
 
 .ticker-detail-page--trading .chart-body {
-  min-height: 260px;
+  min-height: 0;
 }
 
 .cq-detail-actions {

@@ -572,21 +572,6 @@ function App() {
     return (
       <div className="container container--ticker-detail">
         <div className="main-col main-col--full">
-          <AppHeader
-            compact
-            mode={mode}
-            health={health}
-            activeFeed={activeFeed}
-            feedFellBack={feedFellBack}
-            secondsAgo={null}
-            historyDate={null}
-            historyDates={[]}
-            onHistoryChange={handleHistoryChange}
-            onLookup={openTradingView}
-            showSettings={false}
-            onToggleSettings={() => {}}
-            showScannerSource={false}
-          />
           <main className="ticker-detail-main">
             <TickerDetailPage
               symbol={tradingSymbol}

@@ -182,8 +182,8 @@ export const CHART_CARD_TITLE = 'Price Chart';
 export const CHART_HEIGHT_PANEL = 320;
 /** Chart body height (px) on the full ticker detail page (single chart / legacy). */
 export const CHART_HEIGHT_PAGE = 440;
-/** Chart body height (px) for each cell in the 2×2 trading-page grid. */
-export const CHART_HEIGHT_GRID = 260;
+/** Minimum chart body height (px) per 2×2 grid cell — cells stretch to fill ~80% of the trading viewport. */
+export const CHART_HEIGHT_GRID = 180;
 /**
  * Full trading page (double-click) 2×2 panels.
  * Fourth panel is 15Min temporarily — Alpaca has no historical sub-minute;
@@ -333,8 +333,8 @@ export const IBKR_LIVE_PORT = 4001;
 export const IBKR_MAX_DEPTH_SYMBOLS = 3;
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
-/** Side column width (px) for compact quote/stats/news on the trading page. */
-export const TICKER_TRADE_SIDE_WIDTH_PX = 300;
+/** Side column width (px) for compact quote/stats/news on the trading page — keep narrow so charts own the screen. */
+export const TICKER_TRADE_SIDE_WIDTH_PX = 220;
 /** Headlines shown in the trading-page side column before "More". */
 export const TICKER_TRADE_SIDE_NEWS_COUNT = 3;
 /** Default share quantity prefilled in the Open Position ticket. */
