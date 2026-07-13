@@ -4,7 +4,6 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import logging
-import logging.handlers
 import os
 from dotenv import load_dotenv, set_key
 import requests
@@ -19,8 +18,9 @@ import websockets
 
 logger = logging.getLogger(__name__)
 
-# ── Persistent rotating log file ──────────────────────────────────────────────
-from paths import env_file_path, log_dir as _nova_log_dir
+# ── Console + persistent rotating log file ────────────────────────────────────
+from paths import env_file_path
+from logging_setup import configure_logging
 from ibkr import client as _ibkr_client
 from ibkr import discovery as _ibkr_discovery
 from routes.trading import router as _trading_router, ws_router as _trading_ws_router
@@ -31,24 +31,7 @@ from routes.l2 import router as _l2_router
 from routes.news import router as _news_router
 from news.enrich import enrich_catalyst_row, build_ticker_news_impact
 
-_log_dir = str(_nova_log_dir())
-_file_handler = logging.handlers.RotatingFileHandler(
-    os.path.join(_log_dir, "blast.log"),
-    maxBytes=5_000_000,
-    backupCount=3,
-    # Without an explicit encoding, Python opens the file using the platform's
-    # locale-preferred encoding (cp1252 on Windows) with strict error handling,
-    # so any non-ASCII log character (e.g. an arrow in a status message) raises
-    # UnicodeEncodeError. run_api.py's _force_utf8_io() only fixes console
-    # stdio, not this file handler — it needs its own explicit encoding.
-    encoding="utf-8",
-    errors="backslashreplace",
-)
-_file_handler.setFormatter(
-    logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-)
-logging.getLogger().addHandler(_file_handler)
-logging.getLogger().setLevel(logging.INFO)
+configure_logging()
 
 from constants import (
     AFTERHOURS_DISCOVERY_INTERVAL_SEC,

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Root logger now prints to console too, not just blast.log
+
+- **What:** Extracted the logging bootstrap out of `main.py` into a new `backend/logging_setup.py` (`configure_logging()`). The root logger now has both a console `StreamHandler` and the existing rotating file handler, so every module's `logger.info`/`warning`/`error` call is visible in whatever terminal is running the backend, not just in `logs/blast.log`.
+- **Why:** Diagnosing the Level 2 flicker (see entry below / PROBLEM_LOG.md) took longer than it should have because the diagnostic logs that would have shown the bug immediately were invisible in the terminal — only `logs/blast.log` had them. Root-caused: no `StreamHandler` was ever attached, only the `RotatingFileHandler`.
+- **Files touched:** `backend/logging_setup.py` (new), `backend/main.py` (now just calls `configure_logging()`).
+- **How it works now:** `configure_logging()` builds one shared formatter, attaches a console handler and the rotating file handler to `logging.getLogger()`, and reconfigures `sys.stdout`/`stderr` to UTF-8 (previously only `run_api.py`'s entrypoint did this, which is skipped when running `uvicorn main:app` directly for local dev). Also shrinks `main.py` slightly, which was already over its 200-line target.
+- **Verified by:** `pytest` (252 passed). Restarted the backend and confirmed `ibkr.depth`/`ibkr.client`/etc. log lines now print live in the terminal alongside uvicorn's own access logs.
+- **Related:** PROBLEM_LOG.md 2026-07-13 "Root logger had no console handler, slowing down live debugging".
+
 ## 2026-07-13 — Fixed Level 2 depth ladder flicker caused by a stale listener on a reused IBKR ticker
 
 - **What:** `backend/ibkr/depth.py` now precisely detaches a symbol's previous `ticker.updateEvent` listener before wiring a new one, instead of only ever adding listeners. `routes/trading.py`'s `ws_depth` also sends the current cached book immediately on connect when it's already meaningful (has bids/asks or is on L1 fallback), instead of waiting for the next tick.

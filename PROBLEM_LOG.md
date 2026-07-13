@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Root logger had no console handler, slowing down live debugging
+
+- **Symptom:** While diagnosing the Level 2 flicker (entry below), `ibkr.depth`'s `logger.info`/`warning`/`error` calls that would have shown the bug immediately (`"IBKR: subscribed depth for SHPH"`, `"depth rejected server-side..."`, etc.) never appeared in the terminal running `uvicorn`/`run_api.py` — only `uvicorn`'s own access-log lines did. Had to open and `grep` `backend/logs/blast.log` by hand to see what our own code was actually doing.
+- **Cause:** `main.py` only ever attached a `RotatingFileHandler` to the root logger (`logging.getLogger().addHandler(_file_handler)`), never a `logging.StreamHandler()`. Every module logger (`logging.getLogger(__name__)`) propagates to root by default, so all of it silently went to disk only.
+- **Fix:** Extracted logging bootstrap out of `main.py` into `backend/logging_setup.py` (`configure_logging()`), which now attaches both a console `StreamHandler` and the rotating file handler to the root logger with the same formatter, plus the UTF-8 console reconfiguration that previously only existed in `run_api.py` (needed for the `uvicorn main:app` direct-import dev path, which skips `run_api.py`'s entrypoint fix). This is also a `backend-modularity`/file-size-limit cleanup — `main.py` was already over its 200-line target.
+- **Keywords:** invisible logs, root logger no console handler, blast.log grep, StreamHandler, propagate, live debugging slow, logging_setup.py
+
 ## 2026-07-13 — Level 2 depth ladder flickered between empty and real book after L1 fallback
 
 - **Symptom:** After the previous L1-fallback fix (see entry below), the user still reported "I only see 'Waiting for book data'... I don't really see level 2" and the panel sometimes needing a refresh. A raw WS probe against `/ws/ibkr/depth/SHPH` showed the real bug: every real L1 tick produced **two** `book` messages back-to-back — one empty (`bids=0 asks=0 l1_fallback=False`) immediately followed by the real one (`bids=1 asks=1 l1_fallback=True`) — repeating for the life of the connection.
