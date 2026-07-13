@@ -1,17 +1,30 @@
 /** Scanner side panel — quote, panel chart, fundamentals for selectedSymbol. */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTickerStream } from '../hooks/useTickerStream';
+import type { WatchlistEntry } from '../strategy/types';
 import { TickerDetailContent } from './TickerDetailContent';
 
 interface Props {
   selectedSymbol: string | null;
   setSelectedSymbol: (sym: string | null) => void;
   onOpenTrading?: (symbol: string) => void;
+  /** Live watchlist ranks from App's useWatchlist poll — used for the side-panel strip. */
+  watchlistEntries?: WatchlistEntry[];
 }
 
-export function SidePanel({ selectedSymbol, setSelectedSymbol, onOpenTrading }: Props) {
+export function SidePanel({
+  selectedSymbol,
+  setSelectedSymbol,
+  onOpenTrading,
+  watchlistEntries = [],
+}: Props) {
   const [input, setInput] = useState(selectedSymbol ?? '');
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(selectedSymbol);
+
+  const watchlistEntry = useMemo(() => {
+    if (!selectedSymbol) return null;
+    return watchlistEntries.find(e => e.symbol === selectedSymbol) ?? null;
+  }, [selectedSymbol, watchlistEntries]);
 
   // One render happens after selecting a symbol before the WS effect runs; without this,
   // loading/refreshing are still false and detail is null → a false "No data" flash.
@@ -71,7 +84,12 @@ export function SidePanel({ selectedSymbol, setSelectedSymbol, onOpenTrading }: 
         )}
         {!showFullSpinner && selectedSymbol && detail && (
           <div className="detail-body">
-            <TickerDetailContent detail={detail} showChart layout="columns" />
+            <TickerDetailContent
+              detail={detail}
+              showChart
+              layout="columns"
+              watchlistEntry={watchlistEntry}
+            />
           </div>
         )}
         {!showFullSpinner && fetchFailed && !detail && selectedSymbol && (

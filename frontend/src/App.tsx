@@ -10,6 +10,7 @@ import type { MarketMode } from './components/AppHeader';
 import { SidePanel } from './components/SidePanel';
 import { ScannerTable } from './components/ScannerTable';
 import { CatalystsTable } from './components/CatalystsTable';
+import { EmptyState } from './components/EmptyState';
 import type { Gapper, Mover, Afterhours, SortConfig } from './types/scanner';
 import type { Catalyst } from './types/catalyst';
 import { TradingTab } from './ibkr/TradingTab';
@@ -20,7 +21,6 @@ import { ReportsTab } from './reports/ReportsTab';
 import { TickerDetailPage } from './pages/TickerDetailPage';
 import {
   SMALL_CAP_MIN, SMALL_CAP_MAX,
-  GAPPER_MIN_GAP_PCT,
   SCANNER_COLUMNS,
   DATA_FEED_DEFAULT,
   DATA_FEED_LABELS,
@@ -40,49 +40,7 @@ interface HealthStatus {
 
 // Catalyst type now lives in types/catalyst.ts; Scanner formatters imported from
 // utils/quoteFormat; ScannerTable + NewsCell live in components/ScannerTable
-
-function EmptyState({
-  health,
-  context,
-}: {
-  health: HealthStatus;
-  context: Mode;
-}) {
-  // Still waiting for first API response
-  if (context === 'loading') {
-    return <div className="empty-state">Loading market data…</div>;
-  }
-  // Mode is known — show the right message regardless of health ping state
-  if (health.status === 'disconnected' || health.status === 'error') {
-    return (
-      <div className="empty-state">
-        {health.message || 'Check API keys in Settings.'}
-      </div>
-    );
-  }
-  if (context === 'closed') {
-    return (
-      <div className="empty-state">
-        Market is closed — showing last available data. Scanning continues in the background.
-      </div>
-    );
-  }
-  if (context === 'premarket') {
-    return (
-      <div className="empty-state">
-        No gappers with a gap of at least {GAPPER_MIN_GAP_PCT}% yet — scan running…
-      </div>
-    );
-  }
-  if (context === 'afterhours') {
-    return (
-      <div className="empty-state">
-        No after-hours movers with a gap of at least {GAPPER_MIN_GAP_PCT}% yet — scan running…
-      </div>
-    );
-  }
-  return <div className="empty-state">No gainers in the feed right now.</div>;
-}
+// EmptyState lives in components/EmptyState.tsx
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -657,6 +615,7 @@ function App() {
         selectedSymbol={selectedSymbol}
         setSelectedSymbol={setSelectedSymbol}
         onOpenTrading={openTradingView}
+        watchlistEntries={watchlist.entries}
       />
     </div>
   );

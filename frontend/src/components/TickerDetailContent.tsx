@@ -1,7 +1,9 @@
-/** Fundamentals + news + broker grid for a ticker; optional panel chart / 3-col layout. */
+/** Fundamentals + news + broker grid for a ticker; optional panel chart / stacked layout. */
 import { useEffect, useState } from 'react';
 import { TickerChart } from '../TickerChart';
+import { CompactGridCell } from './CompactGridCell';
 import { NewsHeadlineSection } from './NewsHeadlineSection';
+import { TickerWatchlistStrip } from './TickerWatchlistStrip';
 import {
   API_BASE_URL,
   QUOTE_AVG_VOLUME_LABEL,
@@ -11,6 +13,7 @@ import {
   QUOTE_LISTING_FEED_VALUE,
   REL_VOLUME_HIGH,
 } from '../constants';
+import type { WatchlistEntry } from '../strategy/types';
 import type { TickerDetail } from '../types/ticker';
 import {
   fmtMaintMarginPct,
@@ -27,31 +30,16 @@ import {
 
 const API_URL = `${API_BASE_URL}/api`;
 
-function CompactGridCell({
-  label,
-  value,
-  valueClass,
-}: {
-  label: string;
-  value: React.ReactNode;
-  valueClass?: string;
-}) {
-  return (
-    <div className="cq-cell">
-      <span className="cq-label">{label}</span>
-      <span className={`cq-value${valueClass ? ' ' + valueClass : ''}`}>{value}</span>
-    </div>
-  );
-}
-
 interface Props {
   detail: TickerDetail;
   /** When true, omit the quote header (symbol/price) — parent page already shows it. */
   hideHeader?: boolean;
   /** When true, render the panel-height chart (side panel). */
   showChart?: boolean;
-  /** Side-by-side columns when width allows (quote | chart | fundamentals). */
+  /** Side-by-side columns when width allows (quote | fundamentals under chart). */
   layout?: 'stack' | 'columns';
+  /** Five Pillars / sub-scores for this symbol when ranked on the watchlist. */
+  watchlistEntry?: WatchlistEntry | null;
 }
 
 export function TickerDetailContent({
@@ -59,6 +47,7 @@ export function TickerDetailContent({
   hideHeader = false,
   showChart = false,
   layout = 'stack',
+  watchlistEntry = null,
 }: Props) {
   const [blocked, setBlocked] = useState(false);
   useEffect(() => { setBlocked(false); }, [detail.symbol]);
@@ -266,17 +255,18 @@ export function TickerDetailContent({
   );
 
   if (columns) {
-    // Stacked sidebar: chart full-width on top; multi-col details ONLY underneath.
+    // Stacked sidebar: chart → news row → watchlist strip → quote | fundamentals.
     return (
       <div className="cq-root cq-root--stacked">
         <div className="cq-col cq-col--chart">{chartEl}</div>
-        <div className="cq-info-row">
+        <div className="cq-news-row">
+          <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
+        </div>
+        <TickerWatchlistStrip entry={watchlistEntry} />
+        <div className="cq-info-row cq-info-row--two">
           <div className="cq-col cq-col--quote">
             {quoteHeader}
             {keyStats}
-          </div>
-          <div className="cq-col cq-col--news">
-            <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
           </div>
           <div className="cq-col cq-col--fund">
             <div className="cq-section-title">Fundamentals</div>

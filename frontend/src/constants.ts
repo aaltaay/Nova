@@ -63,6 +63,10 @@ export const WATCHLIST_SUBSCORE_TOOLTIPS: Record<string, string> = {
   catalyst: "0-100 score for how fresh the news catalyst is — a headline within the last few minutes scores highest, fading to 0 once it's stale.",
 };
 
+/** Side-panel strip under News Headline — mirrors Watchlist tab columns without Symbol. */
+export const TICKER_WATCHLIST_STRIP_TITLE = 'Watchlist';
+export const TICKER_WATCHLIST_STRIP_EMPTY = 'Not ranked on the current watchlist.';
+
 /** Display labels for the setup-signal stream (mirrors backend SETUP_NAMES). */
 export const SETUP_LABELS: Record<string, string> = {
   gap_and_go: 'Gap and Go',

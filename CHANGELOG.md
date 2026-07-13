@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Side panel: news row + watchlist pillars strip
+
+- **What:** Under the Price Chart, News Headline is now a full-width row. Directly below it, a Watchlist strip shows Pillars / Detail chips / % Chg / RVOL / Float / News / Score for the selected symbol (same data as the Watchlist tab). Quote + Fundamentals sit in a two-column row underneath.
+- **Why:** User asked to see headlines alone, then watchlist pillars/details/scoring in their own row under the chart.
+- **Files touched:** `TickerDetailContent.tsx`, `TickerWatchlistStrip.tsx` (new), `PillarChips.tsx` (extracted), `SidePanel.tsx`, `App.tsx` (`EmptyState` extracted), `constants.ts`, `index.css`.
+- **How it works now:** `App` passes `watchlist.entries` into `SidePanel`, which joins the selected symbol to a `WatchlistEntry` and feeds `TickerWatchlistStrip`. Symbols not currently ranked show “Not ranked on the current watchlist.”
+- **Verified by:** `npm run build`; agent-browser on AGEN confirmed `.cq-news-row`, strip with `3/5` pillars + chips + score `26`.
+
 ## 2026-07-13 — Price chart defaults to 1-minute timeframe
 
 - **What:** Opening a ticker’s Price Chart now starts on **1m** instead of **5m**. Users can still switch timeframes with the chart tabs.
