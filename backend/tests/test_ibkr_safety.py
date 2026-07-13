@@ -124,6 +124,136 @@ class TestDepthCap:
         assert set(self.depth.subscribed_symbols()) == {"AAPL", "TSLA"}
 
 
+class TestDepthWsViewerRefcount:
+    """Multiple DepthLadder mounts (side panel + trading tab) can watch the same
+    symbol; the line must only release once the LAST viewer disconnects."""
+
+    def setup_method(self):
+        import ibkr.depth as depth_mod
+        importlib.reload(depth_mod)
+        self.depth = depth_mod
+
+    def test_single_viewer_open_close_releases(self):
+        self.depth.ws_viewer_opened("AAPL")
+        assert self.depth.ws_viewer_closed("AAPL") is True
+
+    def test_second_viewer_defers_release_until_last_closes(self):
+        self.depth.ws_viewer_opened("AAPL")
+        self.depth.ws_viewer_opened("AAPL")
+        assert self.depth.ws_viewer_closed("AAPL") is False
+        assert self.depth.ws_viewer_closed("AAPL") is True
+
+    def test_close_without_open_does_not_go_negative(self):
+        assert self.depth.ws_viewer_closed("AAPL") is True
+        assert self.depth.ws_viewer_closed("AAPL") is True
+
+    def test_viewers_tracked_independently_per_symbol(self):
+        self.depth.ws_viewer_opened("AAPL")
+        self.depth.ws_viewer_opened("TSLA")
+        assert self.depth.ws_viewer_closed("TSLA") is True
+        assert self.depth.ws_viewer_closed("AAPL") is True
+
+
+class _FakeEvent:
+    """Minimal stand-in for ib_async's Event, supporting += like the real one."""
+    def __init__(self):
+        self._listeners = []
+
+    def __iadd__(self, fn):
+        self._listeners.append(fn)
+        return self
+
+    def emit(self, *args):
+        for fn in list(self._listeners):
+            fn(*args)
+
+
+class _FakeContract:
+    def __init__(self, conId):
+        self.conId = conId
+
+
+class _FakeTicker:
+    def __init__(self):
+        self.updateEvent = _FakeEvent()
+
+
+class _FakeIbForErrors:
+    def __init__(self):
+        self.errorEvent = _FakeEvent()
+        self.cancel_depth_calls = []
+        self.l1_calls = []
+
+    def cancelMktDepth(self, contract):
+        self.cancel_depth_calls.append(contract)
+
+    def reqMktData(self, contract, *_args):
+        self.l1_calls.append(contract)
+        return _FakeTicker()
+
+
+class TestDepthAsyncErrorFallback:
+    """Error 10092 ('Deep market data not supported') arrives asynchronously
+    AFTER reqMktDepth() already returned, so the try/except around that call
+    never sees it — without this fallback the DepthLadder hangs on "Waiting
+    for book data" forever. See PROBLEM_LOG 2026-07-13."""
+
+    def setup_method(self):
+        import ibkr.depth as depth_mod
+        importlib.reload(depth_mod)
+        self.depth = depth_mod
+
+    def test_matching_conid_falls_back_to_l1(self, monkeypatch):
+        from constants import IBKR_ERROR_DEPTH_NOT_SUPPORTED
+        import ibkr.client as client_mod
+        fake_ib = _FakeIbForErrors()
+        monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+
+        contract = _FakeContract(890751584)
+        self.depth._contracts["SHPH"] = contract
+        self.depth._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
+
+        self.depth._on_ib_error(6, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "Deep market data is not supported", contract)
+
+        assert self.depth._subscriptions["SHPH"]["l1_fallback"] is True
+        assert fake_ib.cancel_depth_calls == [contract]
+        assert fake_ib.l1_calls == [contract]
+
+    def test_unrelated_error_code_ignored(self, monkeypatch):
+        import ibkr.client as client_mod
+        fake_ib = _FakeIbForErrors()
+        monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+
+        contract = _FakeContract(1)
+        self.depth._contracts["AAPL"] = contract
+        self.depth._subscriptions["AAPL"] = {"bids": [], "asks": [], "l1_fallback": False}
+
+        self.depth._on_ib_error(1, 200, "No security definition found", contract)
+
+        assert self.depth._subscriptions["AAPL"]["l1_fallback"] is False
+        assert fake_ib.l1_calls == []
+
+    def test_already_on_l1_is_not_re_triggered(self, monkeypatch):
+        from constants import IBKR_ERROR_DEPTH_NOT_SUPPORTED
+        import ibkr.client as client_mod
+        fake_ib = _FakeIbForErrors()
+        monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+
+        contract = _FakeContract(2)
+        self.depth._contracts["TSLA"] = contract
+        self.depth._subscriptions["TSLA"] = {"bids": [], "asks": [], "l1_fallback": True}
+
+        self.depth._on_ib_error(2, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "Deep market data is not supported", contract)
+
+        assert fake_ib.l1_calls == []
+
+    def test_install_error_hook_is_idempotent_per_ib_instance(self):
+        fake_ib = _FakeIbForErrors()
+        self.depth._install_error_hook(fake_ib)
+        self.depth._install_error_hook(fake_ib)
+        assert len(fake_ib.errorEvent._listeners) == 1
+
+
 class TestAccountSummaryCache:
     def test_summary_from_items_usd(self):
         import ibkr.account as account_mod

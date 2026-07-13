@@ -1,6 +1,7 @@
 /** Scanner side panel — quote, panel chart, fundamentals for selectedSymbol. */
 import { useEffect, useMemo, useState } from 'react';
 import { useTickerStream } from '../hooks/useTickerStream';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { WatchlistEntry } from '../strategy/types';
 import { TickerDetailContent } from './TickerDetailContent';
 
@@ -20,6 +21,7 @@ export function SidePanel({
 }: Props) {
   const [input, setInput] = useState(selectedSymbol ?? '');
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(selectedSymbol);
+  const ibkrStatus = useIbkrStatus();
 
   const watchlistEntry = useMemo(() => {
     if (!selectedSymbol) return null;
@@ -89,6 +91,7 @@ export function SidePanel({
               showChart
               layout="columns"
               watchlistEntry={watchlistEntry}
+              ibkrConnected={ibkrStatus.connected}
             />
           </div>
         )}

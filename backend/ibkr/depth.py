@@ -12,7 +12,7 @@ import asyncio
 import logging
 from typing import Any
 
-from constants import IBKR_MAX_DEPTH_SYMBOLS
+from constants import IBKR_ERROR_DEPTH_NOT_SUPPORTED, IBKR_MAX_DEPTH_SYMBOLS
 from ibkr import client as _client
 
 logger = logging.getLogger(__name__)
@@ -21,6 +21,18 @@ _subscriptions: dict[str, dict] = {}
 _queues: dict[str, asyncio.Queue] = {}
 _tickers: dict[str, Any] = {}
 _contracts: dict[str, Any] = {}
+
+# Counts live depth WebSocket viewers per symbol (DepthLadder can be open in
+# more than one place at once — SidePanel + TradingTab + TickerDetailPage all
+# use the same /ws/ibkr/depth/{symbol} route). Only the LAST viewer closing
+# should release the line, otherwise the small IBKR_MAX_DEPTH_SYMBOLS budget
+# gets burned by clicking through a few rows in the scanner (see PROBLEM_LOG
+# 2026-07-13, "Level 2 not visible in scanner side panel").
+_ws_viewers: dict[str, int] = {}
+
+# Tracks which `ib` connections already have the depth-rejection error hook
+# wired (keyed by id() since a fresh IB() is created on every reconnect).
+_error_hooked_ib_ids: set[int] = set()
 
 _Stock = None
 
@@ -71,6 +83,50 @@ def _on_update_ticker(ticker: Any, symbol: str) -> None:
             pass
 
 
+def _install_error_hook(ib: Any) -> None:
+    """Wire a one-time errorEvent listener so an async depth rejection (see
+    IBKR_ERROR_DEPTH_NOT_SUPPORTED) degrades to L1 instead of leaving the
+    DepthLadder stuck on "Waiting for book data" forever."""
+    if id(ib) in _error_hooked_ib_ids:
+        return
+    ib.errorEvent += _on_ib_error
+    _error_hooked_ib_ids.add(id(ib))
+
+
+def _on_ib_error(reqId: int, errorCode: int, errorString: str, contract: Any) -> None:
+    if errorCode != IBKR_ERROR_DEPTH_NOT_SUPPORTED or contract is None:
+        return
+    con_id = getattr(contract, "conId", None)
+    if con_id is None:
+        return
+    for sym, c in list(_contracts.items()):
+        if getattr(c, "conId", None) == con_id and not _subscriptions.get(sym, {}).get("l1_fallback"):
+            logger.warning(
+                "IBKR: depth rejected server-side for %s (%s: %s) — falling back to L1",
+                sym, errorCode, errorString,
+            )
+            _fallback_to_l1(sym, c)
+            return
+
+
+def _fallback_to_l1(symbol: str, contract: Any) -> None:
+    ib = _client.get_ib()
+    if ib is None or symbol not in _subscriptions:
+        return
+    try:
+        ib.cancelMktDepth(contract)
+    except Exception:
+        pass
+    try:
+        ticker = ib.reqMktData(contract, "", False, False)
+        ticker.updateEvent += lambda t: _on_update_ticker(t, symbol)
+        _tickers[symbol] = ticker
+        _subscriptions[symbol]["l1_fallback"] = True
+        logger.info("IBKR: subscribed L1 fallback for %s (conId=%s)", symbol, contract.conId)
+    except Exception as exc:
+        logger.error("IBKR: L1 fallback after depth rejection failed for %s: %s", symbol, exc)
+
+
 async def subscribe_async(symbol: str) -> dict:
     """
     Qualify + subscribe to Level 2 (or L1 fallback).
@@ -95,6 +151,8 @@ async def subscribe_async(symbol: str) -> dict:
     ib = _client.get_ib()
     if ib is None:
         return {"ok": False, "error": "IBKR not connected", "symbols": subscribed_symbols()}
+
+    _install_error_hook(ib)
 
     contract = _Stock(symbol, "SMART", "USD")
     try:
@@ -149,6 +207,22 @@ def subscribe(symbol: str) -> dict:
             "symbols": subscribed_symbols(),
         }
     return asyncio.run(subscribe_async(symbol))
+
+
+def ws_viewer_opened(symbol: str) -> None:
+    """Record that another WS client is now watching this symbol's book."""
+    _ws_viewers[symbol] = _ws_viewers.get(symbol, 0) + 1
+
+
+def ws_viewer_closed(symbol: str) -> bool:
+    """Record a WS client leaving. Returns True when it was the last viewer
+    (safe for the caller to release the depth line), False if others remain."""
+    remaining = _ws_viewers.get(symbol, 0) - 1
+    if remaining <= 0:
+        _ws_viewers.pop(symbol, None)
+        return True
+    _ws_viewers[symbol] = remaining
+    return False
 
 
 def unsubscribe(symbol: str) -> None:

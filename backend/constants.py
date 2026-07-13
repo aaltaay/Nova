@@ -286,6 +286,11 @@ IBKR_CLIENT_ID = 1
 IBKR_MAX_DEPTH_SYMBOLS = 3   # IBKR plan cap: 3 simultaneous Level 2 streams
 IBKR_ACCOUNT_POLL_SEC = 5    # How often to refresh account/positions
 IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt
+# TWS API error code: "Deep market data is not supported for this combination
+# of security type/exchange." Arrives asynchronously via errorEvent AFTER
+# reqMktDepth() already returned successfully, so it can't be caught by a
+# try/except around the call — see ibkr/depth.py._on_ib_error.
+IBKR_ERROR_DEPTH_NOT_SUPPORTED = 10092
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
 

@@ -151,9 +151,18 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
     except Exception:
         logger.exception("l2.continuous: failed to start for WS %s", symbol)
 
-    await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
-
+    # Everything from here on must be inside the try/finally: if the client
+    # disconnects before the first send_text() completes (React effect
+    # double-invoke, rapid symbol switching), send_text() itself raises
+    # WebSocketDisconnect. That used to happen *before* ws_viewer_opened() was
+    # paired with a matching close, permanently inflating the viewer count and
+    # defeating cleanup (see PROBLEM_LOG 2026-07-13, "Level 2 depth line leak").
+    viewer_opened = False
     try:
+        _depth.ws_viewer_opened(symbol)
+        viewer_opened = True
+        await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
+
         async for book in _depth.stream(symbol):
             if book is None:
                 # Heartbeat timeout
@@ -169,3 +178,11 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
             await _l2_continuous.stop(symbol)
         except Exception:
             logger.exception("l2.continuous: failed to stop for WS %s", symbol)
+        # Release the depth line once the LAST viewer of this symbol disconnects,
+        # unless a signal-triggered recording (l2/recorder.py) is still using it —
+        # otherwise browsing a handful of symbols in the always-open scanner side
+        # panel exhausts the small IBKR_MAX_DEPTH_SYMBOLS budget in one session.
+        if viewer_opened and _depth.ws_viewer_closed(symbol):
+            from l2 import recorder as _l2_recorder
+            if not _l2_recorder.is_recording(symbol):
+                _depth.unsubscribe(symbol)

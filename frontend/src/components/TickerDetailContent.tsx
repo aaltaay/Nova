@@ -3,28 +3,24 @@ import { useEffect, useState } from 'react';
 import { TickerChart } from '../TickerChart';
 import { CompactGridCell } from './CompactGridCell';
 import { NewsHeadlineSection } from './NewsHeadlineSection';
+import { TickerBrokerGrid } from './TickerBrokerGrid';
 import { TickerWatchlistStrip } from './TickerWatchlistStrip';
+import { DepthLadder } from '../ibkr/DepthLadder';
 import {
   API_BASE_URL,
   QUOTE_AVG_VOLUME_LABEL,
-  QUOTE_ASSET_LABELS,
-  QUOTE_BROKER_SECTION_TITLE,
   QUOTE_CARD_TITLE,
-  QUOTE_LISTING_FEED_VALUE,
   REL_VOLUME_HIGH,
+  TICKER_TRADE_DEPTH_LEVELS,
 } from '../constants';
 import type { WatchlistEntry } from '../strategy/types';
 import type { TickerDetail } from '../types/ticker';
 import {
-  fmtMaintMarginPct,
-  fmtMarginReqString,
   fmtMarketCap,
   fmtPct,
   fmtPrice,
   fmtTimestamp,
   fmtVolume,
-  fmtYesNo,
-  formatAssetAttributeList,
   timeAgo,
 } from '../utils/quoteFormat';
 
@@ -40,6 +36,8 @@ interface Props {
   layout?: 'stack' | 'columns';
   /** Five Pillars / sub-scores for this symbol when ranked on the watchlist. */
   watchlistEntry?: WatchlistEntry | null;
+  /** IB Gateway connection state — gates the Level 2 depth section below the quote. */
+  ibkrConnected?: boolean;
 }
 
 export function TickerDetailContent({
@@ -48,6 +46,7 @@ export function TickerDetailContent({
   showChart = false,
   layout = 'stack',
   watchlistEntry = null,
+  ibkrConnected = false,
 }: Props) {
   const [blocked, setBlocked] = useState(false);
   useEffect(() => { setBlocked(false); }, [detail.symbol]);
@@ -189,6 +188,15 @@ export function TickerDetailContent({
     </div>
   );
 
+  const depthSection = ibkrConnected ? (
+    <>
+      <div className="cq-section-title">
+        Level 2 <span className="na-muted">(top {TICKER_TRADE_DEPTH_LEVELS})</span>
+      </div>
+      <DepthLadder symbol={detail.symbol} />
+    </>
+  ) : null;
+
   const fundGrid = (
     <div className="cq-grid">
       {!columns && (
@@ -226,33 +234,7 @@ export function TickerDetailContent({
     </div>
   );
 
-  const brokerGrid = (
-    <>
-      <div className="cq-section-title">{QUOTE_BROKER_SECTION_TITLE}</div>
-      <div className="cq-grid cq-grid-broker">
-        <CompactGridCell label={QUOTE_ASSET_LABELS.status} value={asset?.status ? String(asset.status) : '—'} />
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.tradable}
-          value={fmtYesNo(asset?.tradable)}
-          valueClass={asset?.tradable === false ? 'negative' : undefined}
-        />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.assetClass} value={asset?.asset_class ? String(asset.asset_class) : '—'} />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.shortable} value={fmtYesNo(asset?.shortable)} />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.marginable} value={fmtYesNo(asset?.marginable)} />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.fractionable} value={fmtYesNo(asset?.fractionable)} />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.easyToBorrow} value={fmtYesNo(asset?.easy_to_borrow)} />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.maintMargin} value={fmtMaintMarginPct(asset?.maintenance_margin_requirement ?? null)} />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.marginLong} value={fmtMarginReqString(asset?.margin_requirement_long ?? null)} />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.marginShort} value={fmtMarginReqString(asset?.margin_requirement_short ?? null)} />
-        <CompactGridCell label={QUOTE_ASSET_LABELS.listingFeed} value={QUOTE_LISTING_FEED_VALUE} />
-        <CompactGridCell
-          label={QUOTE_ASSET_LABELS.attributes}
-          value={formatAssetAttributeList(asset?.attributes)}
-          valueClass="cq-value-flags"
-        />
-      </div>
-    </>
-  );
+  const brokerGrid = <TickerBrokerGrid asset={asset} />;
 
   if (columns) {
     // Stacked sidebar: chart → news row → watchlist strip → quote | fundamentals.
@@ -267,6 +249,7 @@ export function TickerDetailContent({
           <div className="cq-col cq-col--quote">
             {quoteHeader}
             {keyStats}
+            {depthSection}
           </div>
           <div className="cq-col cq-col--fund">
             <div className="cq-section-title">Fundamentals</div>
@@ -284,6 +267,7 @@ export function TickerDetailContent({
   return (
     <div className="cq-root">
       {quoteHeader}
+      {depthSection}
       {chartEl}
       <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
       {fundGrid}
