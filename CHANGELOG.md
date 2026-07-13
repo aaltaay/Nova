@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-12 — News column restored to the main scanner tables
+
+- **What:** Gappers / Movers / After Hours tables show `Symbol | Price | Change | Gap % | Volume | News | Float | Short Int. | Mkt Cap` again — the `News` column (red/orange/yellow hotness dot for how fresh the newest headline is) is back between `Volume` and `Float`.
+- **Why:** The prior densify pass (see the entry below) dropped `newest_headline_at`/`News` from `SCANNER_COLUMNS` entirely, so users lost the at-a-glance news-freshness signal on the main scanner grid (it only remained on the separate Catalysts tab).
+- **Files touched:** `frontend/src/constants.ts` (`SCANNER_COLUMNS`).
+- **How it works now:** `ScannerTable.tsx`'s `renderCell` already had a `case 'newest_headline_at'` wired to the existing `NewsCell` component (red `flame-hot` ≤ `NEWS_FLAME_HOT_HOURS`, orange `flame-warm` ≤ `NEWS_FLAME_WARM_HOURS`, yellow `flame-cool` ≤ `NEWS_FLAME_MAX_HOURS`, dash beyond that or when null) — it was never removed, just orphaned when the column entry was dropped from `SCANNER_COLUMNS`. Re-adding `['newest_headline_at', 'News']` to the column list was the only change needed; no new render/CSS logic required.
+- **Verified by:** `npm run build` (tsc + vite) succeeds; loaded the running dev server in a browser and confirmed the `News` header/column renders in Gappers and Movers, with a live yellow `flame-cool` dot showing for a symbol (SILO) that had a headline in the last ~24h.
+- **Related:** follows directly from the densify entry below.
+
 ## 2026-07-12 — Scanner tables consolidate into dense dual-value columns
 
 - **What:** Gappers / Movers / After Hours tables now show `Symbol | Price | Change | Gap % | Volume | Float | Short Int. | Mkt Cap` — 8 columns instead of 12. `Change` stacks Change % (primary, colored) over Change $ (secondary); `Volume` stacks raw volume over rel. volume (`x rel`); `Short Int.` stacks short interest over short ratio (`x ratio`). The standalone Change $, Daily Rel. Volume, Short Ratio, and News columns are gone from the main scanner grid (News stays on the Catalysts tab).

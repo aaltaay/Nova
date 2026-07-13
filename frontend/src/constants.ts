@@ -260,14 +260,15 @@ export const WS_BASE_URL: string = _rawApiBase
 // and Short Int. combines short_interest/short_ratio into stacked dual-value cells
 // (see renderCell in components/ScannerTable.tsx). Sort keys stay on the primary field.
 export const SCANNER_COLUMNS: [string, string][] = [
-  ['symbol',          'Symbol'],
-  ['price',           'Price'],
-  ['change_pct',      'Change'],
-  ['gap_percent',     'Gap %'],
-  ['volume',          'Volume'],
-  ['float',           'Float'],
-  ['short_interest',  'Short Int.'],
-  ['market_cap',      'Mkt Cap'],
+  ['symbol',              'Symbol'],
+  ['price',               'Price'],
+  ['change_pct',          'Change'],
+  ['gap_percent',         'Gap %'],
+  ['volume',              'Volume'],
+  ['newest_headline_at',  'News'],
+  ['float',               'Float'],
+  ['short_interest',      'Short Int.'],
+  ['market_cap',          'Mkt Cap'],
 ];
 
 // ── HOD Momo Scanner ──────────────────────────────────────────────────────────

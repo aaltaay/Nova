@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-12 — News/hotness column missing from Gappers, Movers, After Hours tables
+
+- **Symptom:** The red/orange/yellow news-freshness indicator was gone from the main scanner tables (only visible on the separate Catalysts tab).
+- **Cause:** An earlier densify pass (`73acb8c`) trimmed `SCANNER_COLUMNS` in `frontend/src/constants.ts` down to 8 columns and dropped the `['newest_headline_at', 'News']` entry. The render path (`NewsCell`, the `case 'newest_headline_at'` in `renderCell`, and the `.news-flame`/`.flame-hot`/`.flame-warm`/`.flame-cool` CSS) was never removed — it just had nothing pointing to it since `SCANNER_COLUMNS` drives which columns `ScannerTable` renders.
+- **Fix:** Re-added `['newest_headline_at', 'News']` to `SCANNER_COLUMNS` (after `Volume`, closest to the pre-densify layout). No changes needed in `ScannerTable.tsx` — the rendering logic was already intact.
+- **Keywords:** News column missing, newest_headline_at, NewsCell, flame-hot, flame-warm, flame-cool, SCANNER_COLUMNS, densify regression
+
 ## 2026-07-11 — Sidebar chart sat beside Stock Quote again (layout regression)
 
 - **Symptom:** After a layout update, single-click sidebar showed Price Chart and Stock Quote side-by-side; user had previously had chart on its own top row.
