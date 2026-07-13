@@ -3,6 +3,8 @@ import type { WatchlistEntry } from '../strategy/types';
 /** Shared row shape for the Gappers / Movers / After Hours scanner tables. */
 export interface ScannerRow {
   symbol: string;
+  /** Listing venue from Alpaca assets (e.g. NASDAQ, NYSE, ARCA, AMEX). */
+  exchange?: string | null;
   price: number;
   prev_close: number;
   change_pct: number;

@@ -274,8 +274,11 @@ NOVA_DESKTOP_API_HOST = "127.0.0.1"
 NOVA_DESKTOP_API_PORT = 8000
 
 # ── Interactive Brokers (optional trading module) ──────────────────────────────
-# Set IBKR_ENABLED=true in .env to activate. Defaults to paper trading.
-# For live money, ALSO set IBKR_LIVE_TRADING_CONFIRMED=true.
+# Set IBKR_ENABLED=true in .env to activate.
+# IBKR_GATEWAY_MODE=paper|live  → which Gateway port to connect (data / L2).
+# IBKR_ORDERS_ENABLED=false     → master kill switch; default OFF so live Gateway
+#                                 cannot place buys/sells until you opt in.
+# IBKR_LIVE_TRADING_CONFIRMED   → second key required when gateway/account is live.
 IBKR_HOST = "127.0.0.1"
 IBKR_PAPER_PORT = 4002       # IB Gateway paper trading port
 IBKR_LIVE_PORT = 4001        # IB Gateway live trading port
@@ -283,6 +286,8 @@ IBKR_CLIENT_ID = 1
 IBKR_MAX_DEPTH_SYMBOLS = 3   # IBKR plan cap: 3 simultaneous Level 2 streams
 IBKR_ACCOUNT_POLL_SEC = 5    # How often to refresh account/positions
 IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt
+IBKR_GATEWAY_MODE_DEFAULT = "paper"
+IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
 # Signal-only thresholds (see backend/strategy/five_pillars.py). These never place

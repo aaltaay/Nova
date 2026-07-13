@@ -7,6 +7,11 @@ export interface IbkrStatus {
   enabled: boolean;
   connected: boolean;
   mode: IbkrMode;
+  gateway_mode?: 'paper' | 'live';
+  orders_enabled?: boolean;
+  live_trading_confirmed?: boolean;
+  /** locked | locked_live_unconfirmed | paper_armed | live_armed */
+  spend_status?: string;
 }
 
 export interface IbkrAccountSummary {

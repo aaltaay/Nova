@@ -36,11 +36,18 @@ ws_router = APIRouter(tags=["ibkr-ws"])
 
 @router.get("/status")
 async def ibkr_status() -> dict:
+    snap = _client_safety_status()
     return {
         "enabled": _client.is_enabled(),
         "connected": _client.is_connected(),
         "mode": _client.account_mode(),
+        **snap,
     }
+
+
+def _client_safety_status() -> dict:
+    from ibkr import safety as _safety
+    return _safety.status_snapshot()
 
 
 # ── Account ────────────────────────────────────────────────────────────────────

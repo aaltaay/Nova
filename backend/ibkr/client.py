@@ -1,9 +1,12 @@
 """
 IBKR IB singleton connection manager.
 
-Connects to a user-managed IB Gateway process (paper port 4002 by default).
+Connects to a user-managed IB Gateway process.
 Nova never launches or logs in to Gateway — that requires one manual
 IBKR-Mobile 2FA confirmation once per week.
+
+Port selection uses IBKR_GATEWAY_MODE (paper→4002, live→4001), independent
+of IBKR_ORDERS_ENABLED / IBKR_LIVE_TRADING_CONFIRMED (see ibkr.safety).
 
 State:
   _ib       -- the ib_async.IB() instance (always exists, may be disconnected)
@@ -33,6 +36,7 @@ from constants import (
     IBKR_CLIENT_ID,
     IBKR_RECONNECT_DELAY_SEC,
 )
+from ibkr import safety as _safety
 
 # ── Module-level state ─────────────────────────────────────────────────────────
 _ib: "IB | None" = None
@@ -41,17 +45,15 @@ _enabled: bool = False
 _reconnect_task: asyncio.Task | None = None
 
 
-def _resolve_config() -> tuple[bool, str, int]:
-    """Return (enabled, host, port) from env, never raises."""
+def _resolve_config() -> tuple[bool, str, int, str]:
+    """Return (enabled, host, port, mode_label) from env, never raises."""
     enabled = os.environ.get("IBKR_ENABLED", "false").lower() in ("1", "true", "yes")
-    live_confirmed = os.environ.get("IBKR_LIVE_TRADING_CONFIRMED", "false").lower() in ("1", "true", "yes")
     host = os.environ.get("IBKR_HOST", IBKR_HOST)
-    if live_confirmed:
+    mode_label = _safety.gateway_mode()
+    if mode_label == "live":
         port = int(os.environ.get("IBKR_LIVE_PORT", str(IBKR_LIVE_PORT)))
-        mode_label = "live"
     else:
         port = int(os.environ.get("IBKR_PAPER_PORT", str(IBKR_PAPER_PORT)))
-        mode_label = "paper"
     return enabled, host, port, mode_label
 
 
@@ -103,13 +105,18 @@ async def reconnect_loop() -> None:
 
     _ib = IB()
     _mode = mode_label
+    spend = _safety.status_snapshot()["spend_status"]
+    logger.info(
+        "IBKR: gateway_mode=%s port=%s spend_status=%s",
+        mode_label, port, spend,
+    )
 
     while True:
         if not _ib.isConnected():
             logger.info("IBKR: attempting connect to %s:%s (%s)", host, port, mode_label)
             ok = await _attempt_connect(_ib, host, port)
             if ok:
-                logger.info("IBKR: connected in %s mode", mode_label)
+                logger.info("IBKR: connected in %s mode (orders still gated by safety.py)", mode_label)
             else:
                 await asyncio.sleep(IBKR_RECONNECT_DELAY_SEC)
                 continue

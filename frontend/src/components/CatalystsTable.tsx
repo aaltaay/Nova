@@ -84,6 +84,7 @@ export function CatalystsTable({
                   <td>
                     <SymbolSelectButton
                       symbol={c.symbol}
+                      exchange={c.exchange}
                       selected={selectedSymbol === c.symbol}
                       onSelect={onSelect}
                       onOpenTrading={onOpenTrading}

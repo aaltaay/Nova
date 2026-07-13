@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Live IB Gateway without paper; spend risk
+
+- **Symptom:** User could not complete paper Gateway login; logged into live Gateway with real funds while wiring Nova.
+- **Cause:** Paper account uses a separate username; Gateway “Paper Trading” mode must use that paper user. Connection mode was previously tied to `IBKR_LIVE_TRADING_CONFIRMED`, conflating data vs orders.
+- **Fix:** `IBKR_GATEWAY_MODE` for port; `IBKR_ORDERS_ENABLED` default false; `ibkr/safety.py` SSOT blocks all place/bracket until unlocked.
+- **Keywords:** IBKR live Gateway, paper trading, ORDERS_ENABLED, safety.py, spend lock, Level 2
+
 ## 2026-07-12 — News/hotness column missing from Gappers, Movers, After Hours tables
 
 - **Symptom:** The red/orange/yellow news-freshness indicator was gone from the main scanner tables (only visible on the separate Catalysts tab).

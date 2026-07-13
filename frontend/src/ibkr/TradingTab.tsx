@@ -51,6 +51,27 @@ export function TradingTab() {
             IB Gateway connected
           </span>
         )}
+        {status.connected && (
+          <span
+            style={{
+              marginLeft: 12,
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              color: status.spend_status === 'locked' || status.spend_status === 'locked_live_unconfirmed'
+                ? 'var(--green)'
+                : 'var(--red)',
+            }}
+            title="Orders are gated by ibkr/safety.py (IBKR_ORDERS_ENABLED + live confirmation)"
+          >
+            {status.spend_status === 'locked' || status.spend_status === 'locked_live_unconfirmed'
+              ? 'ORDERS LOCKED — no spends'
+              : status.spend_status === 'live_armed'
+                ? 'LIVE ORDERS ARMED'
+                : status.spend_status === 'paper_armed'
+                  ? 'PAPER ORDERS ON'
+                  : ''}
+          </span>
+        )}
       </div>
 
       {/* ── Not connected / not enabled: setup guide ───────────────────── */}

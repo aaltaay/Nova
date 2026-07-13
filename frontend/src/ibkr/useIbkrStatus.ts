@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import type { IbkrStatus } from './types';
 
-const DEFAULT: IbkrStatus = { enabled: false, connected: false, mode: 'disconnected' };
+const DEFAULT: IbkrStatus = {
+  enabled: false,
+  connected: false,
+  mode: 'disconnected',
+  orders_enabled: false,
+  spend_status: 'locked',
+};
 
 /** Polls /api/ibkr/status every 5 s to reflect IB Gateway connection state. */
 export function useIbkrStatus(): IbkrStatus {

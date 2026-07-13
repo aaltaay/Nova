@@ -1,19 +1,16 @@
 """
 IBKR order placement and cancellation.
 
-SAFETY GATES (both must pass before any order reaches the wire):
-  1. IBKR_ENABLED=true in env
-  2. IBKR_LIVE_TRADING_CONFIRMED=true OR we are on the paper port
-
-Never placed from any other module. Never called by the Alpaca scan pipeline.
+SAFETY: all spending goes through ibkr.safety.assert_orders_allowed() — the
+single source of truth. See that module for the env gate list.
 """
 from __future__ import annotations
 
 import logging
-import os
 from typing import Literal
 
 from ibkr import client as _client
+from ibkr import safety as _safety
 
 logger = logging.getLogger(__name__)
 
@@ -22,17 +19,11 @@ OrderType = Literal["MKT", "LMT"]
 
 
 def _safety_check() -> tuple[bool, str]:
-    """Returns (ok, reason). Both flags must be set for live orders."""
-    if not _client.is_enabled():
-        return False, "IBKR_ENABLED is not set"
-    if not _client.is_connected():
-        return False, "IBKR not connected"
-    mode = _client.account_mode()
-    if mode == "live":
-        live_ok = os.environ.get("IBKR_LIVE_TRADING_CONFIRMED", "false").lower() in ("1", "true", "yes")
-        if not live_ok:
-            return False, "Live trading requires IBKR_LIVE_TRADING_CONFIRMED=true"
-    return True, ""
+    return _safety.assert_orders_allowed(
+        client_enabled=_client.is_enabled(),
+        connected=_client.is_connected(),
+        account_mode=_client.account_mode(),
+    )
 
 
 def place_order(
@@ -86,14 +77,7 @@ def place_bracket_order(
 ) -> dict:
     """
     Place a bracket order: a LMT entry with a linked LMT profit target and a
-    linked STP loss. Uses ib_async's native IB.bracketOrder() helper — the
-    three orders share one parent/child relationship, so once the entry
-    fills the target and stop become active together, and either one
-    filling automatically cancels the other (standard TWS bracket behavior;
-    nothing here re-implements OCA logic).
-
-    Returns {"ok": bool, "parent_order_id": int|None, "target_order_id": int|None,
-             "stop_order_id": int|None, "error": str|None, "mode": str}.
+    linked STP loss. Uses ib_async's native IB.bracketOrder() helper.
     """
     ok, reason = _safety_check()
     if not ok:
@@ -140,9 +124,12 @@ def place_bracket_order(
 def cancel_order(order_id: int) -> dict:
     """
     Cancel an open order by ID.
-    Returns {"ok": bool, "error": str|None}.
+    Allowed whenever connected (does not require IBKR_ORDERS_ENABLED).
     """
-    ok, reason = _safety_check()
+    ok, reason = _safety.assert_cancel_allowed(
+        client_enabled=_client.is_enabled(),
+        connected=_client.is_connected(),
+    )
     if not ok:
         return {"ok": False, "error": reason}
 

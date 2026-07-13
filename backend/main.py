@@ -97,6 +97,7 @@ from cache import (
     save_movers_snapshot,
 )
 import hod_momo as _hod_momo
+import exchanges as _exchanges
 import strategy.risk as _risk
 import strategy.setups_stream as _setups_stream
 import strategy.executor as _executor
@@ -421,6 +422,7 @@ def invalidate_universe_cache() -> None:
     """Force the next _get_tradable_symbols call to re-fetch (e.g. after blocklist change)."""
     global _assets_cache_ts
     _assets_cache_ts = 0.0
+    _exchanges.clear()
     _ws_mark_resub()
 
 
@@ -451,7 +453,9 @@ def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
         if not all_assets:
             return _assets_cache
 
-        symbols = [a["symbol"] for a in all_assets if _is_common_stock(a)]
+        kept = [a for a in all_assets if _is_common_stock(a)]
+        symbols = [a["symbol"] for a in kept]
+        _exchanges.update_from_assets(kept)
         _assets_cache = symbols
         _assets_cache_set = set(symbols)
         _assets_cache_ts = now
@@ -724,6 +728,7 @@ def _enrich_gappers(gappers: list[dict], news: dict[str, str]) -> list[dict]:
         g["float"] = fund.get("float_shares")
         g["short_interest"] = fund.get("short_interest")
         g["short_ratio"] = fund.get("short_ratio")
+        _exchanges.attach_exchange(g)
     return gappers
 
 
@@ -1132,7 +1137,7 @@ def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
 
     avg_vol = _avg_volume_cache.get(sym)
     fund = _fundamentals_cache.get(sym, {})
-    return {
+    entry = {
         "symbol": sym,
         "price": raw.get("price", 0),
         "change_pct": raw.get("percent_change", 0) / 100.0,
@@ -1148,6 +1153,7 @@ def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
         "short_ratio": fund.get("short_ratio"),
         "prev_close": prev_close,
     }
+    return _exchanges.attach_exchange(entry)
 
 
 def _run_gainers_update() -> None:
@@ -1427,7 +1433,7 @@ def _run_news_catalyst_scan() -> None:
                 continue
             gap_frac = (price - prev_close) / prev_close
             article_info = symbol_to_article.get(sym, {})
-            catalysts.append({
+            catalysts.append(_exchanges.attach_exchange({
                 "symbol": sym,
                 "previous_close": prev_close,
                 "current_price": price,
@@ -1437,7 +1443,7 @@ def _run_news_catalyst_scan() -> None:
                 "newest_headline_at": article_info.get("created_at"),
                 "catalyst_headline": article_info.get("headline"),
                 "catalyst_url": article_info.get("url"),
-            })
+            }))
 
         catalysts.sort(key=lambda x: abs(x["gap_percent"]), reverse=True)
         # Attach explicit news-impact verdicts (rules-first; see news/impact.py).
@@ -1679,6 +1685,7 @@ def update_config(config: ConfigUpdate):
     _set_feed(config.data_feed)
     _assets_cache_ts = 0.0
     _assets_cache_set = set()
+    _exchanges.clear()
     _last_discovery_ts = 0.0
     _ws_mark_resub()  # WS stream URL changes with feed
     return {"status": "success", "data_feed": _get_feed()}
@@ -1695,8 +1702,9 @@ def get_mode():
 
 
 def _strip_blocked(rows: list[dict]) -> list[dict]:
-    """Remove any rows whose symbol is on the global blocklist."""
-    return [r for r in rows if not _hod_momo.is_blocked(r.get("symbol", ""))]
+    """Remove blocklisted symbols and ensure each row has listing ``exchange``."""
+    out = [r for r in rows if not _hod_momo.is_blocked(r.get("symbol", ""))]
+    return _exchanges.attach_exchanges(out)
 
 
 @app.get("/api/gappers")
@@ -1965,6 +1973,10 @@ def _fetch_ticker_asset(symbol: str, base_url: str, headers: dict) -> dict:
             }
             _ticker_asset_cache[symbol] = asset
             _ticker_asset_cache_ts[symbol] = now
+            if asset.get("exchange"):
+                _exchanges.update_from_assets(
+                    [{"symbol": symbol, "exchange": asset["exchange"]}]
+                )
     except Exception:
         pass
     return asset

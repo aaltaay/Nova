@@ -30,6 +30,24 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Live IB Gateway OK; orders locked by default (safety SSOT)
+
+- **What:** Split Gateway connection mode from spending. New `ibkr/safety.py` is the single gate for place_order / brackets. Defaults: `IBKR_ORDERS_ENABLED=false`. Live Gateway can supply L1/L2 while buys/sells stay blocked unless orders are enabled **and** (for live) `IBKR_LIVE_TRADING_CONFIRMED=true`. Status API + Trading tab show `spend_status` / “ORDERS LOCKED”.
+- **Why:** User connected live Gateway (~$600) after paper login failed; needed hard guardrails against accidental spends.
+- **Files touched:** `backend/ibkr/safety.py`, `client.py`, `orders.py`, `routes/trading.py`, `constants.py`, `tests/test_ibkr_safety.py`, frontend IBKR status/types/TradingTab, `.env.example`, decision note.
+- **How it works now:** `IBKR_GATEWAY_MODE=live` → port 4001 for data. Spending requires `IBKR_ORDERS_ENABLED=true` (+ live confirm on live). Cancel still works when connected.
+- **Verified by:** `pytest backend/tests/test_ibkr_safety.py` (9 passed); frontend build.
+- **Related:** PROBLEM_LOG 2026-07-13 live Gateway spend risk; `knowledge/obsidian/03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md`
+
+## 2026-07-13 — Listing exchange under each scanner ticker
+
+- **What:** Scanner Symbol cells (Gappers / Movers / After Hours / Catalysts) now show the stock’s listing venue in small secondary text under the ticker — same stack style as dollar change under %. Values come from Alpaca asset metadata (e.g. NASDAQ, NYSE, AMEX, ARCA).
+- **Why:** User needs to see which exchange each name is listed on because data feeds can differ by venue.
+- **Files touched:** `backend/exchanges.py` (new), `backend/main.py`, `backend/tests/test_exchanges.py`, `SymbolSelectButton.tsx`, `ScannerTable.tsx`, `CatalystsTable.tsx`, `types/scanner.ts`, `types/catalyst.ts`.
+- **How it works now:** Universe refresh builds a symbol→exchange map from Alpaca `/v2/assets`. Enrichment and `_strip_blocked` attach `exchange` on rows before the API returns them. `SymbolSelectButton` renders `exchange` via `cell-stack-secondary` under the symbol button.
+- **Verified by:** pytest `test_exchanges.py`; frontend build; app run + browser check on Gappers.
+- **Follow-ups:** Optionally plumb exchange into HOD Momo / Watchlist rows the same way.
+
 ## 2026-07-13 — Click anywhere on a scanner row to load the chart
 
 - **What:** Clicking any cell in a Gappers / Movers / After Hours / Catalysts / Watchlist / Signals row selects that symbol and updates the side-panel price chart (not only the Symbol button). Double-click anywhere on the row still opens full trading view.

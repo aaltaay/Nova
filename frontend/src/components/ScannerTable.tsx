@@ -157,6 +157,7 @@ export function ScannerTable({
                   <td key={key}>
                     <SymbolSelectButton
                       symbol={row.symbol}
+                      exchange={row.exchange}
                       selected={selectedSymbol === row.symbol}
                       onSelect={onSelect}
                       onOpenTrading={onOpenTrading}

@@ -4,6 +4,8 @@ import type { NewsImpactVerdict } from './newsImpact';
  * market news, regardless of exchange/size (unlike the Gappers/Movers scanners). */
 export interface Catalyst {
   symbol: string;
+  /** Listing venue from Alpaca assets (e.g. NASDAQ, NYSE, ARCA). */
+  exchange?: string | null;
   previous_close: number;
   current_price: number;
   gap_percent: number;
