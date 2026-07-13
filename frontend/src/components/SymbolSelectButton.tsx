@@ -18,9 +18,13 @@ export function SymbolSelectButton({
     <button
       type="button"
       className={`symbol-btn${selected ? ' active' : ''}${className ? ` ${className}` : ''}`}
-      onClick={() => onSelect(symbol)}
+      onClick={e => {
+        e.stopPropagation();
+        onSelect(symbol);
+      }}
       onDoubleClick={e => {
         e.preventDefault();
+        e.stopPropagation();
         onOpenTrading(symbol);
       }}
       title="Click: load side panel · Double-click: open full trading view"

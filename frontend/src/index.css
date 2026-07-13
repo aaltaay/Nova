@@ -1350,6 +1350,19 @@ th {
   background: rgba(59, 130, 246, 0.06);
 }
 
+.selectable-row {
+  cursor: pointer;
+}
+
+.selectable-row:hover:not(.row-selected) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.selectable-row:focus-visible {
+  outline: 1px solid var(--accent-color);
+  outline-offset: -1px;
+}
+
 /* ── Persistent Side Panel ───────────────────────────────────────────────── */
 
 .side-panel {

@@ -1,6 +1,7 @@
 /** Dense scanner table: Gappers / Movers / After Hours tabs share this rendering. */
 import React from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
+import { SelectableTableRow } from './SelectableTableRow';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import { NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS } from '../constants';
 import type { ScannerRow, SortConfig } from '../types/scanner';
@@ -144,7 +145,13 @@ export function ScannerTable({
         </thead>
         <tbody>
           {data.map(row => (
-            <tr key={row.symbol} className={selectedSymbol === row.symbol ? 'row-selected' : ''}>
+            <SelectableTableRow
+              key={row.symbol}
+              symbol={row.symbol}
+              selected={selectedSymbol === row.symbol}
+              onSelect={onSelect}
+              onOpenTrading={onOpenTrading}
+            >
               {columns.map(([key]) =>
                 key === 'symbol' ? (
                   <td key={key}>
@@ -159,7 +166,7 @@ export function ScannerTable({
                   <td key={key}>{renderCell(key, row)}</td>
                 )
               )}
-            </tr>
+            </SelectableTableRow>
           ))}
         </tbody>
       </table>

@@ -1,5 +1,6 @@
 /** Watchlist tab — Five Pillars ranked table + live setup Signals sub-panel. Signal-only; no orders placed. */
 import { useState } from 'react';
+import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
 import { ExecutorPanel } from './ExecutorPanel';
@@ -25,7 +26,12 @@ function WatchlistRow({
   onOpenTrading: (symbol: string) => void;
 }) {
   return (
-    <tr className={selected ? 'row-selected' : ''}>
+    <SelectableTableRow
+      symbol={entry.symbol}
+      selected={selected}
+      onSelect={onSelect}
+      onOpenTrading={onOpenTrading}
+    >
       <td>
         <SymbolSelectButton
           symbol={entry.symbol}
@@ -47,7 +53,7 @@ function WatchlistRow({
         <td key={key}>{fmtScore(entry.sub_scores[key as keyof typeof entry.sub_scores])}</td>
       ))}
       <td className="watchlist-composite-cell">{fmtScore(entry.composite_score)}</td>
-    </tr>
+    </SelectableTableRow>
   );
 }
 

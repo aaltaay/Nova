@@ -1,4 +1,5 @@
 /** Signals panel — live feed of Gap and Go / Bull Flag / ABCD triggers from /ws/strategy. */
+import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { SETUP_LABELS } from '../constants';
 import type { SetupSignal } from './types';
@@ -25,7 +26,12 @@ function SignalRow({
   onOpenTrading: (symbol: string) => void;
 }) {
   return (
-    <tr className={selected ? 'row-selected' : ''}>
+    <SelectableTableRow
+      symbol={signal.symbol}
+      selected={selected}
+      onSelect={onSelect}
+      onOpenTrading={onOpenTrading}
+    >
       <td className="hod-time-cell">{fmtTime(signal.timestamp)}</td>
       <td>
         <SymbolSelectButton
@@ -42,7 +48,7 @@ function SignalRow({
       <td>{fmtPrice(signal.stop_price)}</td>
       <td>{fmtPrice(signal.target_price)}</td>
       <td className="na-muted">{signal.notes[signal.notes.length - 1] ?? ''}</td>
-    </tr>
+    </SelectableTableRow>
   );
 }
 

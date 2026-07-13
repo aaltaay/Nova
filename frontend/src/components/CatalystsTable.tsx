@@ -2,6 +2,7 @@
  * regardless of exchange or size — sorted by absolute gap magnitude. Extracted from
  * App.tsx to keep the root layout file thin (see frontend-modularity rule). */
 import { SymbolSelectButton } from './SymbolSelectButton';
+import { SelectableTableRow } from './SelectableTableRow';
 import { NewsCell } from './ScannerTable';
 import { fmtPct, fmtVolume } from '../utils/quoteFormat';
 import { NEWS_IMPACT_CLASS_LABELS, NEWS_IMPACT_CLASS_TOOLTIPS } from '../constants';
@@ -73,7 +74,13 @@ export function CatalystsTable({
             </thead>
             <tbody>
               {catalysts.map(c => (
-                <tr key={c.symbol} className={selectedSymbol === c.symbol ? 'row-selected' : ''}>
+                <SelectableTableRow
+                  key={c.symbol}
+                  symbol={c.symbol}
+                  selected={selectedSymbol === c.symbol}
+                  onSelect={onSelect}
+                  onOpenTrading={onOpenTrading}
+                >
                   <td>
                     <SymbolSelectButton
                       symbol={c.symbol}
@@ -97,6 +104,7 @@ export function CatalystsTable({
                           rel="noopener noreferrer"
                           className="catalyst-headline-link"
                           title={c.catalyst_headline}
+                          onClick={e => e.stopPropagation()}
                         >
                           {c.catalyst_headline.length > 80
                             ? `${c.catalyst_headline.slice(0, 80)}…`
@@ -129,7 +137,7 @@ export function CatalystsTable({
                     )}
                   </td>
                   <td><NewsCell newest_headline_at={c.newest_headline_at} /></td>
-                </tr>
+                </SelectableTableRow>
               ))}
             </tbody>
           </table>

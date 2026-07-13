@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Click anywhere on a scanner row to load the chart
+
+- **What:** Clicking any cell in a Gappers / Movers / After Hours / Catalysts / Watchlist / Signals row selects that symbol and updates the side-panel price chart (not only the Symbol button). Double-click anywhere on the row still opens full trading view.
+- **Why:** User wanted row-wide selection so they don’t have to hit the ticker text specifically.
+- **Files touched:** `SelectableTableRow.tsx` (new), `ScannerTable.tsx`, `CatalystsTable.tsx`, `WatchlistTab.tsx`, `SignalsPanel.tsx`, `SymbolSelectButton.tsx`, `index.css`.
+- **How it works now:** `SelectableTableRow` owns click / double-click / Enter-Space. Symbol buttons stopPropagation so they don’t double-fire. Catalyst headline links also stopPropagation so they open without changing selection unless you click elsewhere in the row.
+- **Verified by:** Frontend build + agent-browser row click outside the symbol cell.
+
 ## 2026-07-13 — Side panel: news row + watchlist pillars strip
 
 - **What:** Under the Price Chart, News Headline is now a full-width row. Directly below it, a Watchlist strip shows Pillars / Detail chips / % Chg / RVOL / Float / News / Score for the selected symbol (same data as the Watchlist tab). Quote + Fundamentals sit in a two-column row underneath.
