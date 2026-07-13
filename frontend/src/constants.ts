@@ -136,10 +136,26 @@ export const DATA_FEED_LABELS: Record<string, string> = {
   sip: 'SIP (Paid)',
 };
 
-/** Header badge: scanner rows come from Alpaca (not IBKR). */
-export const SCANNER_DATA_SOURCE_LABEL = 'Data: Alpaca';
-export const SCANNER_DATA_SOURCE_TITLE =
-  'Scanner data provided by Alpaca Markets (free IEX or SIP feed)';
+// ── Discovery provider (mirrors backend DISCOVERY_PROVIDER_DEFAULT / _OPTIONS) ─
+// Which source powers gappers/gainers/losers: Alpaca's free screener, or a live
+// scan through the user's own IBKR Gateway connection. Reversible any time via
+// Settings — see backend/ibkr/discovery.py.
+export const DISCOVERY_PROVIDER_DEFAULT = 'alpaca';
+/** Human-readable labels for the discovery provider toggle. */
+export const DISCOVERY_PROVIDER_LABELS: Record<string, string> = {
+  alpaca: 'Alpaca (Free)',
+  ibkr: 'Interactive Brokers (Live)',
+};
+
+/** Header badge: which provider currently sources scanner rows. */
+export const SCANNER_DATA_SOURCE_LABELS: Record<string, string> = {
+  alpaca: 'Data: Alpaca',
+  ibkr: 'Data: IBKR',
+};
+export const SCANNER_DATA_SOURCE_TITLES: Record<string, string> = {
+  alpaca: 'Scanner data provided by Alpaca Markets (free IEX or SIP feed)',
+  ibkr: 'Scanner data provided by your live Interactive Brokers Gateway connection',
+};
 
 /** Human-readable labels for Alpaca `attributes` tokens (unknown keys shown as-is). */
 export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {

@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ _ib: "IB | None" = None
 _mode: str = "disconnected"
 _enabled: bool = False
 _reconnect_task: asyncio.Task | None = None
+_loop: asyncio.AbstractEventLoop | None = None  # captured at startup() — where IB lives
 
 
 def _resolve_config() -> tuple[bool, str, int, str]:
@@ -77,6 +79,20 @@ def get_ib() -> "IB | None":
     if is_connected():
         return _ib
     return None
+
+
+def run_coro(coro, timeout: float) -> Any:
+    """
+    Bridge: run an ib_async coroutine on the loop IB is connected to, blocking
+    the calling thread until done. ib_async's IB instance is bound to whichever
+    event loop called connectAsync(), so scan-loop code running in a
+    ThreadPoolExecutor worker (see main.py's run_in_executor calls) cannot
+    await IBKR coroutines directly — this bridges that gap safely.
+    """
+    if _loop is None or not _loop.is_running():
+        raise RuntimeError("IBKR event loop not running (client not started)")
+    future = asyncio.run_coroutine_threadsafe(coro, _loop)
+    return future.result(timeout=timeout)
 
 
 async def _attempt_connect(ib: "IB", host: str, port: int) -> bool:
@@ -125,7 +141,8 @@ async def reconnect_loop() -> None:
 
 async def startup() -> None:
     """Called from main.py lifespan. Starts reconnect loop as a background task."""
-    global _reconnect_task
+    global _reconnect_task, _loop
+    _loop = asyncio.get_running_loop()
     _reconnect_task = asyncio.create_task(reconnect_loop())
     logger.info("IBKR client task started")
 

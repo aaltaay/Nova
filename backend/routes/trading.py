@@ -54,7 +54,8 @@ def _client_safety_status() -> dict:
 
 @router.get("/account")
 async def ibkr_account() -> dict:
-    return _account.get_account_summary()
+    # Async refresh avoids "event loop is already running" from sync IB waits.
+    return await _account.refresh_account_summary()
 
 
 @router.get("/positions")
@@ -102,7 +103,7 @@ class DepthSubscribeRequest(BaseModel):
 @router.post("/depth/subscribe")
 async def depth_subscribe(req: DepthSubscribeRequest) -> dict:
     symbol = req.symbol.upper()
-    result = _depth.subscribe(symbol)
+    result = await _depth.subscribe_async(symbol)
     if result.get("ok"):
         # Continuous local L2 + tape recorder while DepthLadder is open.
         from l2 import continuous as _l2_continuous
@@ -138,7 +139,7 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
 
     # Auto-subscribe if not already
     if symbol not in _depth.subscribed_symbols():
-        result = _depth.subscribe(symbol)
+        result = await _depth.subscribe_async(symbol)
         if not result["ok"]:
             await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
             await websocket.close()

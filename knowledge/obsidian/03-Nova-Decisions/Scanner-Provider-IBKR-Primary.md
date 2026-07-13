@@ -1,7 +1,7 @@
 ---
 title: Scanner Data Provider Decision (IBKR primary vs Alpaca SIP)
 date: 2026-07-13
-status: decided-direction
+status: implemented
 ---
 
 # Scanner Data Provider — IBKR primary (no Alpaca SIP)
@@ -69,6 +69,58 @@ QUOTE_STREAM_PROVIDER = "alpaca" | "ibkr"
 ## Undo
 
 Set providers back to `alpaca`. No deletion of Alpaca scan/WS/news code in the transition PR.
+
+## Implementation (2026-07-13)
+
+Shipped as a clean, self-contained module rather than threading IBKR calls into
+the existing Alpaca-shaped functions:
+
+- **`backend/ibkr/discovery.py`** (new) — `scan_symbols()` wraps
+  `reqScannerDataAsync`, `snapshot_quotes()` wraps `qualifyContractsAsync` +
+  `reqTickersAsync` (batched). `get_gappers()` / `get_gainers()` / `get_losers()`
+  return rows in the **exact same dict shape** Alpaca's path already produces
+  (`_compute_gappers` / `_build_mover_entry` in `main.py`), so the existing
+  news/fundamentals/RVOL/exchange enrichment pipeline needed zero changes.
+- **Scan codes:** `TOP_OPEN_PERC_GAIN` (gappers, today's open vs prior close),
+  `TOP_PERC_GAIN` / `TOP_PERC_LOSE` (intraday movers). Location `STK.US.MAJOR`,
+  50-row IB cap. All in `constants.py` (`IBKR_SCAN_*`).
+- **Thread → event-loop bridge:** `main.py`'s scan loop runs Alpaca-style sync
+  functions via `run_in_executor` (a worker thread), but `ib_async`'s `IB`
+  instance is bound to the event loop that called `connectAsync()`. Added
+  `ibkr/client.run_coro(coro, timeout)` using
+  `asyncio.run_coroutine_threadsafe` so the worker thread can safely await
+  IBKR coroutines. `main.py`'s `_run_ibkr()` wraps this with try/except →
+  degrades to an empty scan on any Gateway hiccup rather than crashing the tick.
+- **Provider toggle:** `DISCOVERY_PROVIDER` (`alpaca` default | `ibkr`), env
+  override `NOVA_DISCOVERY_PROVIDER`, persisted via `/api/config` same as the
+  existing Alpaca `data_feed` toggle. Frontend: new "Scanner Source" dropdown
+  in Settings (`SettingsPanel.tsx`) + header badge
+  (`SCANNER_DATA_SOURCE_LABELS`/`_TITLES` in `constants.ts`).
+- **News/fundamentals unchanged either way** — `_ensure_avg_volume`,
+  `_check_news`, `_fetch_fundamentals_batch` still run against Alpaca/yfinance
+  regardless of discovery provider, exactly as this doc specified.
+- **Bug found + fixed during live validation:** Alpaca's WS trade stream
+  (`_handle_trade` in `main.py`) was still overlaying live "price" onto
+  IBKR-sourced cache rows without a matching recompute basis (Alpaca ticks vs
+  an IBKR-snapshot `prev_close`), producing internally-inconsistent rows
+  (price/change_pct/prev_close no longer added up). Fixed by early-returning
+  from `_handle_trade` when `discovery_provider == "ibkr"` — IBKR rows now only
+  refresh on the normal scan cadence (20s for gainers/losers) instead of a
+  mixed dual-feed. See `PROBLEM_LOG.md` 2026-07-13.
+- **Also extracted** `backend/market.py` (`now_et`/`in_premarket`/
+  `in_market_hours`/`in_after_hours`) out of `main.py` — required by
+  `file-size-limits.mdc` before adding new code to an already-oversized file;
+  zero behavior change, pure move.
+- **Verified live** (2026-07-13, market hours): switched `discovery_provider`
+  to `ibkr` against the running server, confirmed `/api/movers` returns live
+  IBKR scanner data with self-consistent price/change/prev_close/exchange
+  fields, and confirmed the frontend header badge + Settings dropdown reflect
+  the switch (screenshots taken via agent-browser, not committed).
+- **Not yet done:** gapper path (`TOP_OPEN_PERC_GAIN`) verified live via a
+  standalone scan (10 symbols returned) but not exercised end-to-end through
+  `/api/gappers` this session — premarket window had already passed. Ticker
+  detail page (`/api/ticker/{symbol}`) and HOD Momo universe still use Alpaca
+  regardless of this toggle (out of scope — see Risk #5 above).
 
 ## Related
 

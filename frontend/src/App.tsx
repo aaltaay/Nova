@@ -11,6 +11,7 @@ import { SidePanel } from './components/SidePanel';
 import { ScannerTable } from './components/ScannerTable';
 import { CatalystsTable } from './components/CatalystsTable';
 import { EmptyState } from './components/EmptyState';
+import { SettingsPanel } from './components/SettingsPanel';
 import type { Gapper, Mover, Afterhours, SortConfig } from './types/scanner';
 import type { Catalyst } from './types/catalyst';
 import { TradingTab } from './ibkr/TradingTab';
@@ -23,7 +24,7 @@ import {
   SMALL_CAP_MIN, SMALL_CAP_MAX,
   SCANNER_COLUMNS,
   DATA_FEED_DEFAULT,
-  DATA_FEED_LABELS,
+  DISCOVERY_PROVIDER_DEFAULT,
   API_BASE_URL,
 } from './constants';
 import { isNovaApiDebug } from './debug';
@@ -91,6 +92,8 @@ function App() {
   const [dataFeedOptions, setDataFeedOptions] = useState<string[]>(['iex', 'sip']);
   const [feedFellBack, setFeedFellBack] = useState(false);
   const [activeFeed, setActiveFeed] = useState(DATA_FEED_DEFAULT);
+  const [discoveryProvider, setDiscoveryProvider] = useState(DISCOVERY_PROVIDER_DEFAULT);
+  const [discoveryProviderOptions, setDiscoveryProviderOptions] = useState<string[]>(['alpaca', 'ibkr']);
 
   // History / time-travel state
   const [historyDate, setHistoryDate] = useState<string | null>(null); // null = live
@@ -183,6 +186,8 @@ function App() {
           setActiveFeed(data.data_feed);
         }
         if (Array.isArray(data.data_feed_options)) setDataFeedOptions(data.data_feed_options);
+        if (data.discovery_provider) setDiscoveryProvider(data.discovery_provider);
+        if (Array.isArray(data.discovery_provider_options)) setDiscoveryProviderOptions(data.discovery_provider_options);
       }
     } catch {
       // silent
@@ -340,11 +345,18 @@ function App() {
       const res = await fetch(`${API_URL}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ api_key: apiKey, api_secret: apiSecret, base_url: baseUrl, data_feed: dataFeed }),
+        body: JSON.stringify({
+          api_key: apiKey,
+          api_secret: apiSecret,
+          base_url: baseUrl,
+          data_feed: dataFeed,
+          discovery_provider: discoveryProvider,
+        }),
       });
       if (res.ok) {
         const result = await res.json();
         if (result.data_feed) setActiveFeed(result.data_feed);
+        if (result.discovery_provider) setDiscoveryProvider(result.discovery_provider);
         setFeedFellBack(false);
         setShowSettings(false);
         fetchData();
@@ -399,64 +411,26 @@ function App() {
         showSettings={showSettings}
         onToggleSettings={() => setShowSettings(s => !s)}
         showScannerSource={activeTab !== 'trading'}
+        discoveryProvider={discoveryProvider}
       />
 
       {showSettings && (
-        <div className="panel settings-panel">
-          <h2 className="panel-title">Settings</h2>
-          <form onSubmit={handleConfigUpdate}>
-            <div className="form-group">
-              <label>API Key ID</label>
-              <input
-                type="text"
-                value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
-                placeholder="APCA_API_KEY_ID"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>API Secret Key</label>
-              <input
-                type="text"
-                value={apiSecret}
-                onChange={e => setApiSecret(e.target.value)}
-                placeholder="••••••••••••••••"
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Base URL</label>
-              <input
-                type="url"
-                value={baseUrl}
-                onChange={e => setBaseUrl(e.target.value)}
-                required
-              />
-            </div>
-            <div className="form-group">
-              <label>Data Feed</label>
-              <select
-                value={dataFeed}
-                onChange={e => setDataFeed(e.target.value)}
-                className="feed-select"
-              >
-                {dataFeedOptions.map(f => (
-                  <option key={f} value={f}>{DATA_FEED_LABELS[f] || f.toUpperCase()}</option>
-                ))}
-              </select>
-              <span className="form-hint">
-                IEX is free. SIP requires a paid Alpaca data subscription.
-              </span>
-            </div>
-            <div className="form-row">
-              <button type="submit">Update &amp; Connect</button>
-              <button type="button" className="btn-secondary" onClick={() => setShowSettings(false)}>
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+        <SettingsPanel
+          apiKey={apiKey}
+          onApiKeyChange={setApiKey}
+          apiSecret={apiSecret}
+          onApiSecretChange={setApiSecret}
+          baseUrl={baseUrl}
+          onBaseUrlChange={setBaseUrl}
+          dataFeed={dataFeed}
+          onDataFeedChange={setDataFeed}
+          dataFeedOptions={dataFeedOptions}
+          discoveryProvider={discoveryProvider}
+          onDiscoveryProviderChange={setDiscoveryProvider}
+          discoveryProviderOptions={discoveryProviderOptions}
+          onSubmit={handleConfigUpdate}
+          onCancel={() => setShowSettings(false)}
+        />
       )}
 
       <main className="panel">

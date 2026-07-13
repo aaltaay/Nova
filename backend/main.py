@@ -14,7 +14,6 @@ import re
 import time
 import asyncio
 import json
-from zoneinfo import ZoneInfo
 import yfinance as yf
 import websockets
 
@@ -23,6 +22,7 @@ logger = logging.getLogger(__name__)
 # ── Persistent rotating log file ──────────────────────────────────────────────
 from paths import env_file_path, log_dir as _nova_log_dir
 from ibkr import client as _ibkr_client
+from ibkr import discovery as _ibkr_discovery
 from routes.trading import router as _trading_router, ws_router as _trading_ws_router
 from routes.strategy import router as _strategy_router
 from routes.journal import router as _journal_router
@@ -58,6 +58,8 @@ from constants import (
     DATA_FEED_DEFAULT,
     DATA_FEED_OPTIONS,
     DISCOVERY_INTERVAL_SEC,
+    DISCOVERY_PROVIDER_DEFAULT,
+    DISCOVERY_PROVIDER_OPTIONS,
     EXCLUDED_NAME_KEYWORDS,
     FOCUS_INTERVAL_SEC,
     FUNDAMENTALS_CACHE_TTL,
@@ -65,6 +67,7 @@ from constants import (
     GAPPER_MIN_GAP_PCT,
     HISTORY_RETENTION_DAYS,
     HOD_MOMO_UNIVERSE_INTERVAL_SEC,
+    IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC,
     CHART_DEFAULT_BARS,
     CHART_DEFAULT_TIMEFRAME,
     NEWS_CATALYST_ARTICLE_LIMIT,
@@ -104,11 +107,17 @@ import strategy.executor as _executor
 import journal.db as _journal_db
 import l2.db as _l2_db
 from bars import fetch_bars as _fetch_bars
+from market import (
+    ET as _ET,
+    now_et as _now_et,
+    in_premarket as _in_premarket,
+    in_market_hours as _in_market_hours,
+    in_after_hours as _in_after_hours,
+)
 
 load_dotenv(env_file_path())
 
 _NOVA_REV = "4"
-_ET = ZoneInfo("America/New_York")
 _DATA_URL = "https://data.alpaca.markets"
 
 # Scan intervals — authoritative values in `constants.py`
@@ -215,31 +224,6 @@ def _alpaca_headers() -> dict[str, str] | None:
     return {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": api_secret}
 
 
-def _now_et() -> datetime:
-    return datetime.now(_ET)
-
-
-def _in_premarket() -> bool:
-    now = _now_et()
-    start = now.replace(hour=4, minute=0, second=0, microsecond=0)
-    open_ = now.replace(hour=9, minute=30, second=0, microsecond=0)
-    return start <= now < open_
-
-
-def _in_market_hours() -> bool:
-    now = _now_et()
-    open_ = now.replace(hour=9, minute=30, second=0, microsecond=0)
-    close = now.replace(hour=16, minute=0, second=0, microsecond=0)
-    return open_ <= now < close
-
-
-def _in_after_hours() -> bool:
-    now = _now_et()
-    start = now.replace(hour=16, minute=0, second=0, microsecond=0)
-    end = now.replace(hour=20, minute=0, second=0, microsecond=0)
-    return start <= now < end
-
-
 # ── Active data feed tracking ─────────────────────────────────────────────────
 # Tracks which feed is actually in use (may differ from configured if fallback fires).
 _active_feed: str = ""  # set at first _get_feed() call
@@ -288,6 +272,63 @@ def _try_fallback_to_iex(context: str) -> bool:
         _feed_fell_back = True
         return True
     return False
+
+
+# ── Discovery provider (Alpaca vs IBKR) ────────────────────────────────────────
+# Soft toggle — Alpaca stays the default and its code paths are untouched.
+# See DISCOVERY_PROVIDER_DEFAULT in constants.py and ibkr/discovery.py.
+_active_discovery_provider: str = ""
+
+
+def _get_discovery_provider() -> str:
+    global _active_discovery_provider
+    if _active_discovery_provider:
+        return _active_discovery_provider
+    raw = (_env("NOVA_DISCOVERY_PROVIDER") or DISCOVERY_PROVIDER_DEFAULT).lower()
+    if raw not in DISCOVERY_PROVIDER_OPTIONS:
+        raw = DISCOVERY_PROVIDER_DEFAULT
+    _active_discovery_provider = raw
+    return _active_discovery_provider
+
+
+def _set_discovery_provider(provider: str) -> None:
+    global _active_discovery_provider
+    provider = provider.lower()
+    if provider not in DISCOVERY_PROVIDER_OPTIONS:
+        provider = DISCOVERY_PROVIDER_DEFAULT
+    _active_discovery_provider = provider
+    logger.info("Discovery provider set to '%s'", _active_discovery_provider)
+
+
+def _run_ibkr(coro):
+    """Bridge an ibkr/discovery.py coroutine into this thread; [] on any failure
+    (disconnected Gateway, timeout, etc.) so callers degrade like an empty scan."""
+    try:
+        return _ibkr_client.run_coro(coro, timeout=IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC)
+    except Exception as exc:
+        logger.warning("IBKR discovery bridge failed: %s", exc)
+        return []
+
+
+def _enrich_ibkr_mover(entry: dict, news: dict[str, str]) -> dict:
+    """Attach RVOL / news / fundamentals / exchange to an ibkr.discovery mover row.
+
+    Mirrors what _build_mover_entry does for the Alpaca path, reading the same
+    module-level caches (already populated by _ensure_avg_volume /
+    _fetch_fundamentals_batch before this is called).
+    """
+    sym = entry["symbol"]
+    avg_vol = _avg_volume_cache.get(sym)
+    vol = entry["volume"]
+    fund = _fundamentals_cache.get(sym, {})
+    entry["rel_volume"] = round(vol / avg_vol, 2) if avg_vol and avg_vol > 0 and vol > 0 else None
+    entry["has_news"] = sym in news
+    entry["newest_headline_at"] = news.get(sym)
+    entry["market_cap"] = fund.get("market_cap")
+    entry["float"] = fund.get("float_shares")
+    entry["short_interest"] = fund.get("short_interest")
+    entry["short_ratio"] = fund.get("short_ratio")
+    return _exchanges.attach_exchange(entry)
 
 
 # ── Fundamentals (yfinance / Yahoo Finance) ───────────────────────────────────
@@ -839,6 +880,14 @@ def _handle_trade(msg: dict) -> int | None:
     now = time.time()
     updated_volume: int | None = None
 
+    # Alpaca's WS trade stream only overlays live price onto Alpaca-sourced cache
+    # rows. IBKR-provider rows carry change_pct/change_abs computed from IBKR's own
+    # snapshot basis; letting a separate feed's ticks overwrite just the price field
+    # would desync those from prev_close without a matching recompute basis. IBKR
+    # rows instead refresh on the normal scan cadence (see ibkr/discovery.py).
+    if _get_discovery_provider() == "ibkr":
+        return None
+
     # Update gappers — only during pre-market; after 9:30 the list is preserved as-is.
     if _current_mode == "premarket":
         for i, g in enumerate(_gapper_cache):
@@ -942,26 +991,39 @@ async def _broadcast_trade_update(
 # ── Pre-market scan functions ─────────────────────────────────────────────────
 
 def _run_discovery_scan() -> None:
-    """Full universe scan: fetch all NYSE/NASDAQ/AMEX common stocks (~3,500–4,000), filter gappers, enrich."""
+    """Full universe scan: filter gappers, enrich.
+
+    Provider-switchable: Alpaca (default, free IEX universe snapshot) or IBKR
+    (live market scanner, see ibkr/discovery.py). News + fundamentals + RVOL
+    enrichment is identical either way — only the raw symbol/price source differs.
+    """
     global _gapper_cache, _gapper_cache_ts, _last_discovery_ts
-    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = _alpaca_headers()
-    if not headers:
-        return
-    if not _ping_health(base_url, headers):
-        return
+    headers = _alpaca_headers()  # still used for avg-volume / news even on IBKR provider
+    provider = _get_discovery_provider()
 
-    symbols = _get_tradable_symbols(base_url, headers)
-    if not symbols:
-        return
+    if provider == "ibkr":
+        gappers = _run_ibkr(_ibkr_discovery.get_gappers())
+        if not headers:
+            return
+    else:
+        base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+        if not headers:
+            return
+        if not _ping_health(base_url, headers):
+            return
 
-    snaps = _fetch_snapshots(symbols, headers)
+        symbols = _get_tradable_symbols(base_url, headers)
+        if not symbols:
+            return
 
-    # Auto-fallback: if SIP returned nothing and we haven't fallen back yet, try IEX
-    if not snaps and _try_fallback_to_iex("snapshot fetch returned empty on discovery scan"):
         snaps = _fetch_snapshots(symbols, headers)
 
-    gappers = _compute_gappers(snaps)
+        # Auto-fallback: if SIP returned nothing and we haven't fallen back yet, try IEX
+        if not snaps and _try_fallback_to_iex("snapshot fetch returned empty on discovery scan"):
+            snaps = _fetch_snapshots(symbols, headers)
+
+        gappers = _compute_gappers(snaps)
+
     gapper_syms = [g["symbol"] for g in gappers]
     _ensure_avg_volume(gapper_syms, headers)
     news = _check_news(gapper_syms, headers)
@@ -1156,72 +1218,101 @@ def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
     return _exchanges.attach_exchange(entry)
 
 
+def _run_gainers_update_ibkr(headers: dict) -> tuple[list[dict], list[dict]] | None:
+    """IBKR-provider path: live market scanner instead of Alpaca's movers endpoint."""
+    gainers_rows = _run_ibkr(_ibkr_discovery.get_gainers())
+    losers_rows = _run_ibkr(_ibkr_discovery.get_losers())
+    if not gainers_rows and not losers_rows:
+        return None
+
+    all_symbols = list({r["symbol"] for r in gainers_rows + losers_rows})
+    _ensure_avg_volume(all_symbols, headers)
+    news = _check_news(all_symbols, headers)
+    _fetch_fundamentals_batch(all_symbols)
+
+    gainers = [_enrich_ibkr_mover(r, news) for r in gainers_rows]
+    losers = [_enrich_ibkr_mover(r, news) for r in losers_rows]
+    return gainers, losers
+
+
 def _run_gainers_update() -> None:
-    """Fetch top gainers and losers via Alpaca Screener Movers API, enrich with snapshots + RVOL + news."""
+    """Fetch top gainers and losers, enrich with snapshots + RVOL + news.
+
+    Provider-switchable: Alpaca Screener Movers API (default) or IBKR market
+    scanner (see ibkr/discovery.py). News/fundamentals stay on Alpaca/yfinance
+    either way — headers must still be present for those.
+    """
     global _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
-    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     headers = _alpaca_headers()
     if not headers:
         return
-    if not _ping_health(base_url, headers):
-        return
 
-    # 1. Movers API — 1 call, returns top N gainers AND losers market-wide
-    try:
-        resp = requests.get(
-            f"{_DATA_URL}/v1beta1/screener/stocks/movers",
-            headers=headers,
-            params={"top": min(_TOP_N, 50)},   # endpoint max is 50
-            timeout=10,
-        )
-        if resp.status_code != 200:
+    if _get_discovery_provider() == "ibkr":
+        result = _run_gainers_update_ibkr(headers)
+        if result is None:
             return
-        movers_json = resp.json()
-        gainers_raw = movers_json.get("gainers", [])
-        losers_raw = movers_json.get("losers", [])
-    except Exception:
-        return
+        gainers, losers = result
+    else:
+        base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+        if not _ping_health(base_url, headers):
+            return
 
-    if not gainers_raw and not losers_raw:
-        return
+        # 1. Movers API — 1 call, returns top N gainers AND losers market-wide
+        try:
+            resp = requests.get(
+                f"{_DATA_URL}/v1beta1/screener/stocks/movers",
+                headers=headers,
+                params={"top": min(_TOP_N, 50)},   # endpoint max is 50
+                timeout=10,
+            )
+            if resp.status_code != 200:
+                return
+            movers_json = resp.json()
+            gainers_raw = movers_json.get("gainers", [])
+            losers_raw = movers_json.get("losers", [])
+        except Exception:
+            return
 
-    # Apply price floor early — before any enrichment calls — so we never fetch
-    # snapshots, fundamentals, or news for sub-threshold stocks.
-    gainers_raw = [r for r in gainers_raw if r.get("price", 0) >= SCANNER_MIN_PRICE]
-    losers_raw  = [r for r in losers_raw  if r.get("price", 0) >= SCANNER_MIN_PRICE]
+        if not gainers_raw and not losers_raw:
+            return
 
-    all_symbols = list({r["symbol"] for r in gainers_raw + losers_raw})
+        # Apply price floor early — before any enrichment calls — so we never fetch
+        # snapshots, fundamentals, or news for sub-threshold stocks.
+        gainers_raw = [r for r in gainers_raw if r.get("price", 0) >= SCANNER_MIN_PRICE]
+        losers_raw  = [r for r in losers_raw  if r.get("price", 0) >= SCANNER_MIN_PRICE]
 
-    # 2. Snapshot enrichment — 1 call for all mover symbols
-    snaps = _fetch_snapshots(all_symbols, headers)
+        all_symbols = list({r["symbol"] for r in gainers_raw + losers_raw})
 
-    # 3. Average volume for RVOL (lazy, cached per day)
-    _ensure_avg_volume(all_symbols, headers)
+        # 2. Snapshot enrichment — 1 call for all mover symbols
+        snaps = _fetch_snapshots(all_symbols, headers)
 
-    # 4. News check — 1 call covering all symbols
-    news = _check_news(all_symbols, headers)
+        # 3. Average volume for RVOL (lazy, cached per day)
+        _ensure_avg_volume(all_symbols, headers)
 
-    # 5. Fetch fundamentals for all mover symbols
-    _fetch_fundamentals_batch(all_symbols)
+        # 4. News check — 1 call covering all symbols
+        news = _check_news(all_symbols, headers)
 
-    # 6. Build enriched lists
-    premarket_gap_map = {g["symbol"]: g.get("gap_percent") for g in _gapper_cache}
+        # 5. Fetch fundamentals for all mover symbols
+        _fetch_fundamentals_batch(all_symbols)
 
-    gainers: list[dict] = []
-    for raw in gainers_raw:
-        entry = _build_mover_entry(raw, snaps, premarket_gap_map)
-        sym = entry["symbol"]
-        entry["has_news"] = sym in news
-        entry["newest_headline_at"] = news.get(sym)
-        gainers.append(entry)
+        # 6. Build enriched lists
+        premarket_gap_map = {g["symbol"]: g.get("gap_percent") for g in _gapper_cache}
 
-    losers: list[dict] = []
-    for raw in losers_raw:
-        entry = _build_mover_entry(raw, snaps, premarket_gap_map)
-        sym = entry["symbol"]
-        entry["has_news"] = sym in news
-        entry["newest_headline_at"] = news.get(sym)
-        losers.append(entry)
+        gainers = []
+        for raw in gainers_raw:
+            entry = _build_mover_entry(raw, snaps, premarket_gap_map)
+            sym = entry["symbol"]
+            entry["has_news"] = sym in news
+            entry["newest_headline_at"] = news.get(sym)
+            gainers.append(entry)
+
+        losers = []
+        for raw in losers_raw:
+            entry = _build_mover_entry(raw, snaps, premarket_gap_map)
+            sym = entry["symbol"]
+            entry["has_news"] = sym in news
+            entry["newest_headline_at"] = news.get(sym)
+            losers.append(entry)
 
     _gainer_cache = gainers
     _gainer_cache_ts = time.time()
@@ -1634,6 +1725,7 @@ class ConfigUpdate(BaseModel):
     api_secret: str
     base_url: str
     data_feed: str = DATA_FEED_DEFAULT
+    discovery_provider: str = DISCOVERY_PROVIDER_DEFAULT
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -1669,6 +1761,9 @@ def get_config():
         "base_url": _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets",
         "data_feed": _get_feed(),
         "data_feed_options": list(DATA_FEED_OPTIONS),
+        "discovery_provider": _get_discovery_provider(),
+        "discovery_provider_options": list(DISCOVERY_PROVIDER_OPTIONS),
+        "ibkr_connected": _ibkr_client.is_connected(),
     }
 
 
@@ -1681,14 +1776,20 @@ def update_config(config: ConfigUpdate):
     set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
     set_key(env_path, "APCA_API_BASE_URL", config.base_url)
     set_key(env_path, "ALPACA_DATA_FEED", config.data_feed)
+    set_key(env_path, "NOVA_DISCOVERY_PROVIDER", config.discovery_provider)
     load_dotenv(env_path, override=True)
     _set_feed(config.data_feed)
+    _set_discovery_provider(config.discovery_provider)
     _assets_cache_ts = 0.0
     _assets_cache_set = set()
     _exchanges.clear()
     _last_discovery_ts = 0.0
     _ws_mark_resub()  # WS stream URL changes with feed
-    return {"status": "success", "data_feed": _get_feed()}
+    return {
+        "status": "success",
+        "data_feed": _get_feed(),
+        "discovery_provider": _get_discovery_provider(),
+    }
 
 
 @app.get("/api/mode")

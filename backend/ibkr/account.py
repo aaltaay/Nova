@@ -1,8 +1,8 @@
 """
-IBKR account summary and positions polling.
+IBKR account summary and positions.
 
-Polls on demand (called by the /api/ibkr/account and /api/ibkr/positions
-routes). No background loop — data is fetched per-request to keep it fresh.
+Reads from ib_async caches. Sync helpers that wait on the IB event loop
+must not run under FastAPI — use Async variants for refresh.
 """
 from __future__ import annotations
 
@@ -12,55 +12,93 @@ from ibkr import client as _client
 
 logger = logging.getLogger(__name__)
 
+_SUMMARY_TAGS = (
+    "NetLiquidation",
+    "TotalCashValue",
+    "BuyingPower",
+    "UnrealizedPnL",
+    "RealizedPnL",
+    "GrossPositionValue",
+)
+
 
 def get_positions() -> list[dict]:
-    """Return a list of current positions as plain dicts."""
     ib = _client.get_ib()
     if ib is None:
         return []
     try:
-        positions = ib.positions()
         return [
             {
                 "symbol": p.contract.symbol,
                 "qty": p.position,
                 "avg_cost": p.avgCost,
-                "market_value": None,  # populated separately via portfolio()
+                "market_value": None,
             }
-            for p in positions
+            for p in ib.positions()
         ]
     except Exception as exc:
         logger.error("IBKR: get_positions error: %s", exc)
         return []
 
 
+def _summary_from_items(items: list) -> dict:
+    summary: dict = {"connected": True, "mode": _client.account_mode()}
+    for item in items:
+        tag = getattr(item, "tag", None)
+        if tag not in _SUMMARY_TAGS:
+            continue
+        currency = getattr(item, "currency", "") or ""
+        if currency and currency not in ("USD", "BASE", ""):
+            continue
+        raw = getattr(item, "value", None)
+        try:
+            summary[tag] = float(raw) if raw not in (None, "") else None
+        except (TypeError, ValueError):
+            summary[tag] = None
+    return summary
+
+
 def get_account_summary() -> dict:
-    """Return key account metrics as a plain dict."""
+    """Snapshot from Gateway cache (no nested event-loop wait)."""
     ib = _client.get_ib()
     if ib is None:
         return {"connected": False, "mode": "disconnected"}
 
     try:
-        summary_items = ib.accountSummary()
-        summary: dict = {"connected": True, "mode": _client.account_mode()}
-        for item in summary_items:
-            tag = item.tag
-            if tag in ("NetLiquidation", "TotalCashValue", "BuyingPower",
-                       "UnrealizedPnL", "RealizedPnL", "GrossPositionValue"):
-                summary[tag] = float(item.value) if item.value else None
+        values = list(ib.accountValues())
+        summary = _summary_from_items(values)
+        if "NetLiquidation" not in summary:
+            summary["pending"] = True
         return summary
     except Exception as exc:
         logger.error("IBKR: get_account_summary error: %s", exc)
         return {"connected": False, "mode": _client.account_mode(), "error": str(exc)}
 
 
+async def refresh_account_summary() -> dict:
+    """Async refresh via accountSummaryAsync, then return snapshot."""
+    ib = _client.get_ib()
+    if ib is None:
+        return {"connected": False, "mode": "disconnected"}
+    try:
+        items = await ib.accountSummaryAsync()
+        if items:
+            return _summary_from_items(list(items))
+        return get_account_summary()
+    except Exception as exc:
+        logger.error("IBKR: refresh_account_summary error: %s", exc)
+        # Fall back to whatever is already cached.
+        snap = get_account_summary()
+        if "error" not in snap:
+            snap["error"] = str(exc)
+        return snap
+
+
 def get_portfolio() -> list[dict]:
-    """Return portfolio items (positions with market value)."""
     ib = _client.get_ib()
     if ib is None:
         return []
     try:
-        portfolio = ib.portfolio()
         return [
             {
                 "symbol": item.contract.symbol,
@@ -71,7 +109,7 @@ def get_portfolio() -> list[dict]:
                 "unrealized_pnl": item.unrealizedPNL,
                 "realized_pnl": item.realizedPNL,
             }
-            for item in portfolio
+            for item in ib.portfolio()
         ]
     except Exception as exc:
         logger.error("IBKR: get_portfolio error: %s", exc)

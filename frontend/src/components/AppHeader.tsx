@@ -6,8 +6,9 @@ import type { ChangeEvent } from 'react';
 import { SymbolSearchBox } from './SymbolSearchBox';
 import {
   DATA_FEED_LABELS,
-  SCANNER_DATA_SOURCE_LABEL,
-  SCANNER_DATA_SOURCE_TITLE,
+  DISCOVERY_PROVIDER_DEFAULT,
+  SCANNER_DATA_SOURCE_LABELS,
+  SCANNER_DATA_SOURCE_TITLES,
 } from '../constants';
 
 export type MarketMode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
@@ -78,8 +79,10 @@ interface Props {
   onToggleSettings: () => void;
   /** Compact header for ticker-detail full page (no lookup / history / settings). */
   compact?: boolean;
-  /** Show Alpaca scanner source badge (hide on Trading tab). */
+  /** Show scanner source badge (hide on Trading tab). */
   showScannerSource?: boolean;
+  /** Which provider sources gappers/gainers/losers ('alpaca' or 'ibkr'). */
+  discoveryProvider?: string;
 }
 
 export function AppHeader({
@@ -96,6 +99,7 @@ export function AppHeader({
   onToggleSettings,
   compact = false,
   showScannerSource = true,
+  discoveryProvider = DISCOVERY_PROVIDER_DEFAULT,
 }: Props) {
   return (
     <header className={compact ? 'app-header app-header--compact' : 'app-header'}>
@@ -138,8 +142,11 @@ export function AppHeader({
           {!compact && showScannerSource && (
             <>
               <span className="header-meta-sep" aria-hidden="true">·</span>
-              <span className="header-data-source" title={SCANNER_DATA_SOURCE_TITLE}>
-                {SCANNER_DATA_SOURCE_LABEL}
+              <span
+                className="header-data-source"
+                title={SCANNER_DATA_SOURCE_TITLES[discoveryProvider] || SCANNER_DATA_SOURCE_TITLES[DISCOVERY_PROVIDER_DEFAULT]}
+              >
+                {SCANNER_DATA_SOURCE_LABELS[discoveryProvider] || SCANNER_DATA_SOURCE_LABELS[DISCOVERY_PROVIDER_DEFAULT]}
               </span>
             </>
           )}

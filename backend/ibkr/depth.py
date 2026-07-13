@@ -1,16 +1,10 @@
 """
 IBKR Level 2 depth subscription manager.
 
-Hard cap: IBKR_MAX_DEPTH_SYMBOLS concurrent depth streams (matches the
-plan's 3-symbol simultaneous limit).
+Hard cap: IBKR_MAX_DEPTH_SYMBOLS concurrent depth streams.
 
-If depth entitlement is not yet active (e.g. Non-Professional status
-still processing), falls back to Level 1 top-of-book so the UI still
-works without errors.
-
-State (module-level, this module owns it):
-  _subscriptions  -- {symbol: {"bids": [...], "asks": [...], "l1_fallback": bool}}
-  _queues         -- {symbol: asyncio.Queue} for WebSocket push
+Contracts are qualified (conId) before depth/L1 requests — required by ib_async.
+If depth entitlement is unavailable, falls back to L1 top-of-book.
 """
 from __future__ import annotations
 
@@ -25,14 +19,14 @@ logger = logging.getLogger(__name__)
 
 _subscriptions: dict[str, dict] = {}
 _queues: dict[str, asyncio.Queue] = {}
+_tickers: dict[str, Any] = {}
+_contracts: dict[str, Any] = {}
 
-# ib_async contract types (imported lazily to avoid hard ImportError)
-_Contract = None
 _Stock = None
 
 
 def _load_ib_types() -> bool:
-    global _Contract, _Stock
+    global _Stock
     try:
         from ib_async import Stock
         _Stock = Stock
@@ -50,18 +44,19 @@ def current_book(symbol: str) -> dict | None:
 
 
 def _on_update_book(ticker: Any, symbol: str) -> None:
-    """ib_async ticker event handler — normalizes to {bids, asks}."""
-    bids = [{"price": d.price, "size": d.size, "side": "bid"} for d in ticker.domBids]
-    asks = [{"price": d.price, "size": d.size, "side": "ask"} for d in ticker.domAsks]
+    bids = [{"price": d.price, "size": d.size, "side": "bid"} for d in (ticker.domBids or [])]
+    asks = [{"price": d.price, "size": d.size, "side": "ask"} for d in (ticker.domAsks or [])]
     book = {"bids": bids[:10], "asks": asks[:10], "l1_fallback": False}
     _subscriptions[symbol] = book
     q = _queues.get(symbol)
     if q:
-        q.put_nowait(book)
+        try:
+            q.put_nowait(book)
+        except asyncio.QueueFull:
+            pass
 
 
 def _on_update_ticker(ticker: Any, symbol: str) -> None:
-    """L1 top-of-book fallback when depth entitlement is unavailable."""
     book = {
         "bids": [{"price": ticker.bid, "size": ticker.bidSize, "side": "bid"}] if ticker.bid else [],
         "asks": [{"price": ticker.ask, "size": ticker.askSize, "side": "ask"}] if ticker.ask else [],
@@ -70,13 +65,16 @@ def _on_update_ticker(ticker: Any, symbol: str) -> None:
     _subscriptions[symbol] = book
     q = _queues.get(symbol)
     if q:
-        q.put_nowait(book)
+        try:
+            q.put_nowait(book)
+        except asyncio.QueueFull:
+            pass
 
 
-def subscribe(symbol: str) -> dict:
+async def subscribe_async(symbol: str) -> dict:
     """
-    Subscribe to Level 2 depth for symbol.
-    Returns {"ok": bool, "error": str|None, "symbols": [...]}.
+    Qualify + subscribe to Level 2 (or L1 fallback).
+    Safe under FastAPI's running event loop.
     """
     if not _client.is_connected():
         return {"ok": False, "error": "IBKR not connected", "symbols": subscribed_symbols()}
@@ -99,36 +97,73 @@ def subscribe(symbol: str) -> dict:
         return {"ok": False, "error": "IBKR not connected", "symbols": subscribed_symbols()}
 
     contract = _Stock(symbol, "SMART", "USD")
+    try:
+        qualified = await ib.qualifyContractsAsync(contract)
+        if not qualified:
+            return {"ok": False, "error": f"Could not qualify contract for {symbol}", "symbols": subscribed_symbols()}
+        contract = qualified[0]
+    except Exception as exc:
+        logger.error("IBKR: qualify failed for %s: %s", symbol, exc)
+        return {"ok": False, "error": f"Qualify failed: {exc}", "symbols": subscribed_symbols()}
+
     _subscriptions[symbol] = {"bids": [], "asks": [], "l1_fallback": False}
     _queues[symbol] = asyncio.Queue(maxsize=100)
+    _contracts[symbol] = contract
 
     try:
         ticker = ib.reqMktDepth(contract, numRows=10)
         ticker.updateEvent += lambda t: _on_update_book(t, symbol)
-        logger.info("IBKR: subscribed depth for %s", symbol)
+        _tickers[symbol] = ticker
+        logger.info("IBKR: subscribed depth for %s (conId=%s)", symbol, contract.conId)
     except Exception as exc:
         logger.warning("IBKR: depth unavailable for %s (%s), falling back to L1", symbol, exc)
         try:
             ticker = ib.reqMktData(contract, "", False, False)
             ticker.updateEvent += lambda t: _on_update_ticker(t, symbol)
+            _tickers[symbol] = ticker
             _subscriptions[symbol]["l1_fallback"] = True
+            logger.info("IBKR: subscribed L1 fallback for %s (conId=%s)", symbol, contract.conId)
         except Exception as exc2:
-            del _subscriptions[symbol]
-            del _queues[symbol]
+            _subscriptions.pop(symbol, None)
+            _queues.pop(symbol, None)
+            _contracts.pop(symbol, None)
             logger.error("IBKR: L1 fallback also failed for %s: %s", symbol, exc2)
             return {"ok": False, "error": str(exc2), "symbols": subscribed_symbols()}
 
     return {"ok": True, "error": None, "symbols": subscribed_symbols()}
 
 
+def subscribe(symbol: str) -> dict:
+    """
+    Sync entry — only safe when no event loop is running (tests).
+    Prefer subscribe_async from FastAPI routes.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        return {
+            "ok": False,
+            "error": "Use async depth subscribe under a running event loop",
+            "symbols": subscribed_symbols(),
+        }
+    return asyncio.run(subscribe_async(symbol))
+
+
 def unsubscribe(symbol: str) -> None:
     ib = _client.get_ib()
+    contract = _contracts.pop(symbol, None)
+    _tickers.pop(symbol, None)
     _subscriptions.pop(symbol, None)
     _queues.pop(symbol, None)
-    if ib:
+    if ib and contract is not None:
         try:
-            from ib_async import Stock
-            ib.cancelMktDepth(_Stock(symbol, "SMART", "USD"))
+            ib.cancelMktDepth(contract)
+        except Exception:
+            pass
+        try:
+            ib.cancelMktData(contract)
         except Exception:
             pass
 
@@ -143,4 +178,4 @@ async def stream(symbol: str):
             book = await asyncio.wait_for(q.get(), timeout=15)
             yield book
         except asyncio.TimeoutError:
-            yield None  # heartbeat — caller sends ping
+            yield None

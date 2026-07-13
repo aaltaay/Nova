@@ -122,3 +122,24 @@ class TestDepthCap:
     def test_subscribed_symbols_list(self):
         self.depth._subscriptions = {"AAPL": {}, "TSLA": {}}
         assert set(self.depth.subscribed_symbols()) == {"AAPL", "TSLA"}
+
+
+class TestAccountSummaryCache:
+    def test_summary_from_items_usd(self):
+        import ibkr.account as account_mod
+
+        class Item:
+            def __init__(self, tag, value, currency="USD"):
+                self.tag = tag
+                self.value = value
+                self.currency = currency
+
+        out = account_mod._summary_from_items([
+            Item("NetLiquidation", "600.00"),
+            Item("BuyingPower", "600.00"),
+            Item("TotalCashValue", "600.00", "EUR"),  # skipped
+        ])
+        assert out["connected"] is True
+        assert out["NetLiquidation"] == 600.0
+        assert out["BuyingPower"] == 600.0
+        assert "TotalCashValue" not in out

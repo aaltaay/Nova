@@ -289,6 +289,29 @@ IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
 
+# ── Market-data discovery provider (gappers / gainers / losers source) ────────
+# "alpaca" (default — no behavior change, free IEX feed, no cost) or
+# "ibkr" (live scan through IB Gateway using the account's paid data lines).
+# Alpaca code paths are never removed, so this is reversible at any time —
+# switch back via Settings or NOVA_DISCOVERY_PROVIDER without redeploying.
+# News (Alpaca free) and fundamentals (yfinance) stay the same either way —
+# only the raw symbol/price/volume discovery source changes.
+# See knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md
+DISCOVERY_PROVIDER_DEFAULT = "alpaca"
+DISCOVERY_PROVIDER_OPTIONS = ("alpaca", "ibkr")
+
+# IB market scanner — https://interactivebrokers.github.io/tws-api/market_scanners.html
+# Limits enforced by IB itself: max 50 rows per scan code, max 10 active scans.
+IBKR_SCAN_INSTRUMENT = "STK"
+IBKR_SCAN_LOCATION = "STK.US.MAJOR"            # all major US exchanges
+IBKR_SCAN_CODE_GAPPERS = "TOP_OPEN_PERC_GAIN"  # today's open vs prior close (premarket gap)
+IBKR_SCAN_CODE_GAINERS = "TOP_PERC_GAIN"       # current price vs prior close, intraday
+IBKR_SCAN_CODE_LOSERS = "TOP_PERC_LOSE"
+IBKR_SCAN_MAX_ROWS = 50                        # IB hard cap per scan code
+IBKR_SCAN_ABOVE_PRICE = SCANNER_MIN_PRICE       # mirrors the Alpaca price floor above
+IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # per-batch reqTickersAsync timeout
+IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ceiling
+
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
 # Signal-only thresholds (see backend/strategy/five_pillars.py). These never place
 # orders — they only score a candidate dict (same shape as gapper/gainer cache rows).

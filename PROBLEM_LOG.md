@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — IBKR-sourced mover rows had internally inconsistent price/change fields
+
+- **Symptom:** After switching `discovery_provider` to `ibkr`, some `/api/movers` rows showed `price - prev_close != change_abs` and `change_abs / prev_close != change_pct` (e.g. VEEE: price=24.42, prev_close=4.34, but change_abs=19.6 when it should be 20.08).
+- **Cause:** `_handle_trade` (Alpaca's WS trade stream handler in `main.py`) always overlays the latest Alpaca trade price onto `_gainer_cache`/`_loser_cache` rows regardless of which provider built them, via `_apply_trade_to_mover_list`. It recomputes `change_pct`/`change_abs` from the row's own `prev_close`, so each individual update stays self-consistent — but it runs on Alpaca's own price ticks, which race against the periodic IBKR scan tick (every `GAINERS_INTERVAL_SEC`) that rebuilds the same rows from a different snapshot basis. The two feeds interleaving on the same cache produced rows whose fields were correct at two different instants, not one.
+- **Fix:** Added an early return in `_handle_trade` when `_get_discovery_provider() == "ibkr"`, so Alpaca's WS overlay no longer touches gapper/mover caches while IBKR is the active provider. IBKR-sourced rows now only refresh on the scan cadence (20s), which is internally consistent by construction.
+- **Keywords:** discovery provider, IBKR scanner, prev_close mismatch, change_pct inconsistent, _handle_trade, _apply_trade_to_mover_list, WS overlay race, movers endpoint
+
 ## 2026-07-13 — Live IB Gateway without paper; spend risk
 
 - **Symptom:** User could not complete paper Gateway login; logged into live Gateway with real funds while wiring Nova.
