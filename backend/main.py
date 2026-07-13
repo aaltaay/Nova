@@ -8,7 +8,7 @@ import logging.handlers
 import os
 from dotenv import load_dotenv, set_key
 import requests
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 import math
 import re
 import time
@@ -68,6 +68,7 @@ from constants import (
     HISTORY_RETENTION_DAYS,
     HOD_MOMO_UNIVERSE_INTERVAL_SEC,
     IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC,
+    IBKR_REPRICE_INTERVAL_SEC,
     CHART_DEFAULT_BARS,
     CHART_DEFAULT_TIMEFRAME,
     NEWS_CATALYST_ARTICLE_LIMIT,
@@ -329,6 +330,53 @@ def _enrich_ibkr_mover(entry: dict, news: dict[str, str]) -> dict:
     entry["short_interest"] = fund.get("short_interest")
     entry["short_ratio"] = fund.get("short_ratio")
     return _exchanges.attach_exchange(entry)
+
+
+def _reprice_ibkr_caches() -> None:
+    """Fast between-scan price refresh for IBKR-sourced caches.
+
+    Alpaca's WS trade overlay (_handle_trade) is intentionally disabled while
+    DISCOVERY_PROVIDER=ibkr — mixing a second feed's ticks onto IBKR-basis rows
+    desynced price from prev_close (see PROBLEM_LOG 2026-07-13). This replaces
+    it with an IBKR-native refresh: re-snapshot the symbols already in cache
+    (cheap — no rescan/re-rank of the universe) every IBKR_REPRICE_INTERVAL_SEC
+    so the table doesn't sit frozen for a full scan interval at a time.
+    """
+    global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
+    if _get_discovery_provider() != "ibkr":
+        return
+    detail_symbols = [sym for sym, clients in _ticker_ws_clients.items() if clients]
+    symbols = list({r["symbol"] for r in _gapper_cache + _gainer_cache + _loser_cache} | set(detail_symbols))
+    if not symbols:
+        return
+    quotes = _run_ibkr(_ibkr_discovery.snapshot_quotes(symbols))
+    if not quotes:
+        return
+
+    now = time.time()
+    if _gapper_cache:
+        _gapper_cache = [_ibkr_discovery.reprice_gapper_row(g, quotes[g["symbol"]]) if g["symbol"] in quotes else g for g in _gapper_cache]
+        _gapper_cache_ts = now
+    if _gainer_cache:
+        _gainer_cache = [_ibkr_discovery.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m for m in _gainer_cache]
+        _gainer_cache_ts = now
+    if _loser_cache:
+        _loser_cache = [_ibkr_discovery.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m for m in _loser_cache]
+        _loser_cache_ts = now
+
+    # Keep any open ticker-detail panels (see _fetch_ticker_snapshot_ibkr) live too.
+    # Prefer the just-repriced cache row's own price so the panel always shows
+    # exactly what the table shows for the same symbol.
+    for sym in detail_symbols:
+        row = _find_ibkr_cache_row(sym)
+        price = (row.get("current_price") or row.get("price")) if row else None
+        volume = row.get("volume") if row else None
+        if price is None:
+            q = quotes.get(sym)
+            if not q:
+                continue
+            price, volume = q["price"], q.get("volume")
+        _run_ibkr(_broadcast_trade_update(sym, price, None, datetime.now(timezone.utc).isoformat(), volume))
 
 
 # ── Fundamentals (yfinance / Yahoo Finance) ───────────────────────────────────
@@ -1042,6 +1090,10 @@ def _run_focus_scan() -> None:
     if not _gapper_cache:
         _run_discovery_scan()
         return
+    if _get_discovery_provider() == "ibkr":
+        # IBKR-sourced rows are repriced by the fast _reprice_ibkr_caches tick
+        # in _scan_loop's sleep, not this Alpaca-only reconcile.
+        return
     headers = _alpaca_headers()
     if not headers:
         return
@@ -1423,7 +1475,14 @@ async def _ws_stream_loop() -> None:
                                         )
                                     except Exception:
                                         logger.exception("l2.tape: ingest failed for %s", sym)
-                                if sym and sym in _ticker_ws_clients and _ticker_ws_clients[sym]:
+                                # Same reasoning as _handle_trade's IBKR guard: don't let
+                                # Alpaca ticks update a ticker-detail panel whose prev_close
+                                # basis came from IBKR (see PROBLEM_LOG 2026-07-13). The
+                                # IBKR-native reprice tick (_reprice_ibkr_caches) covers it.
+                                if (
+                                    sym and sym in _ticker_ws_clients and _ticker_ws_clients[sym]
+                                    and _get_discovery_provider() != "ibkr"
+                                ):
                                     asyncio.create_task(_broadcast_trade_update(
                                         sym,
                                         msg.get("p"),
@@ -1550,6 +1609,21 @@ def _run_news_catalyst_scan() -> None:
 
 # ── Background scan loop ──────────────────────────────────────────────────────
 
+async def _sleep_with_ibkr_reprice(loop: asyncio.AbstractEventLoop, total_seconds: float) -> None:
+    """Sleep until the next full scan tick, repricing IBKR-sourced caches in
+    short increments along the way (see _reprice_ibkr_caches). No-op reprice
+    when the Alpaca provider is active — behaves like a plain sleep."""
+    if _get_discovery_provider() != "ibkr":
+        await asyncio.sleep(total_seconds)
+        return
+    elapsed = 0.0
+    while elapsed < total_seconds:
+        step = min(IBKR_REPRICE_INTERVAL_SEC, total_seconds - elapsed)
+        await asyncio.sleep(step)
+        elapsed += step
+        await loop.run_in_executor(None, _reprice_ibkr_caches)
+
+
 async def _scan_loop() -> None:
     global _current_mode
     loop = asyncio.get_event_loop()
@@ -1572,13 +1646,13 @@ async def _scan_loop() -> None:
                     await loop.run_in_executor(None, _run_gainers_update)
                 if catalyst_due:
                     await loop.run_in_executor(None, _run_news_catalyst_scan)
-                await asyncio.sleep(_FOCUS_INTERVAL)
+                await _sleep_with_ibkr_reprice(loop, _FOCUS_INTERVAL)
             elif _in_market_hours():
                 _current_mode = "market"
                 await loop.run_in_executor(None, _run_gainers_update)
                 if catalyst_due:
                     await loop.run_in_executor(None, _run_news_catalyst_scan)
-                await asyncio.sleep(_GAINERS_INTERVAL)
+                await _sleep_with_ibkr_reprice(loop, _GAINERS_INTERVAL)
             elif _in_after_hours():
                 _current_mode = "afterhours"
                 if not _afterhours_cache or (mono - _last_afterhours_discovery_ts) > _AH_DISCOVERY_INTERVAL:
@@ -2153,6 +2227,81 @@ def _fetch_ticker_snapshot(symbol: str, headers: dict, feed: str) -> dict:
     return snapshot
 
 
+def _find_ibkr_cache_row(symbol: str) -> dict | None:
+    """Look up a symbol's current row in whichever IBKR-sourced cache has it.
+
+    Gainer/loser rows are checked before gapper rows on purpose: gappers
+    intentionally stop refreshing once the market formally opens (see the
+    "Market Open Halt" rule), so a symbol that shows up in both caches would
+    otherwise resolve to a frozen premarket snapshot even while its
+    gainer/loser row keeps getting live reprice ticks (see PROBLEM_LOG
+    2026-07-13, "ticker detail stuck on premarket gapper snapshot").
+    """
+    for cache in (_gainer_cache, _loser_cache, _gapper_cache):
+        for row in cache:
+            if row["symbol"] == symbol:
+                return row
+    return None
+
+
+def _fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
+    """IBKR counterpart to _fetch_ticker_snapshot.
+
+    Only used when DISCOVERY_PROVIDER=ibkr, so the ticker detail panel's price
+    comes from the SAME feed as the movers/gappers table instead of Alpaca's —
+    mixing feeds produced two different prices/percents on screen for the same
+    symbol at the same moment (see PROBLEM_LOG 2026-07-13).
+
+    For a symbol already tracked by the discovery cache (the common case —
+    the user is looking at a row from the table), mirror that row exactly
+    instead of issuing an independent live query: IB's CLOSE tick (type 9) is
+    a send-once field on our long-lived client connection and was observed
+    returning a stale/wrong value on repeat ad-hoc queries for the same
+    contract (a brand-new client connection got the correct value
+    immediately). The cache's own reprice tick (_reprice_ibkr_caches) already
+    keeps that row fresh every IBKR_REPRICE_INTERVAL_SEC without hitting this
+    problem, so reuse it rather than re-deriving from a fresh, unreliable
+    snapshot. Only fall back to a live query for a symbol that isn't in any
+    cache (e.g. manually searched, not a current mover).
+    """
+    cached_row = _find_ibkr_cache_row(symbol)
+    if cached_row:
+        price = cached_row.get("current_price") or cached_row.get("price")
+        prev_close = cached_row.get("previous_close") or cached_row.get("prev_close")
+        volume = cached_row.get("volume", 0)
+        exchange = cached_row.get("exchange")
+        open_price = None
+    else:
+        quotes = _run_ibkr(_ibkr_discovery.snapshot_quotes([symbol]))
+        q = quotes.get(symbol)
+        if not q:
+            return {}
+        price, prev_close = q["price"], q.get("prev_close")
+        volume = q.get("volume", 0)
+        exchange = q.get("exchange")
+        open_price = q.get("open")
+
+    if price is None or prev_close is None:
+        return {}
+    now_iso = datetime.now(timezone.utc).isoformat()
+    return {
+        "latest_trade": {"price": price, "size": None, "exchange": exchange, "timestamp": now_iso},
+        "latest_quote": None,
+        "minute_bar": None,
+        "daily_bar": {
+            "open": open_price, "high": None, "low": None, "close": price,
+            "volume": volume, "trade_count": None, "vwap": None, "timestamp": now_iso,
+        },
+        "prev_daily_bar": {
+            "open": None, "high": None, "low": None, "close": prev_close,
+            "volume": None, "trade_count": None, "vwap": None, "timestamp": None,
+        },
+        "prev_close": prev_close,
+        "session_close": price,
+        "session_prev_close": prev_close,
+    }
+
+
 def _fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
     """Fetch today's news articles for a symbol from Alpaca Data API."""
     news: list[dict] = []
@@ -2249,10 +2398,14 @@ def _build_ticker_detail(symbol: str) -> dict:
         return {"error": "API keys not configured"}
 
     feed = _get_feed()
+    use_ibkr = _get_discovery_provider() == "ibkr"
 
     with ThreadPoolExecutor(max_workers=5) as pool:
         f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
-        f_snap  = pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
+        f_snap  = (
+            pool.submit(_fetch_ticker_snapshot_ibkr, symbol) if use_ibkr
+            else pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
+        )
         f_news  = pool.submit(_fetch_ticker_news, symbol, headers)
         f_avg   = pool.submit(_fetch_ticker_avg_volume, symbol, headers)
         f_fund  = pool.submit(_fetch_fundamentals, symbol)
@@ -2261,6 +2414,11 @@ def _build_ticker_detail(symbol: str) -> dict:
         news     = f_news.result()
         avg_vol  = f_avg.result()
         fundamentals = f_fund.result()
+
+    # IBKR snapshot can come back empty (e.g. contract not qualifiable) — fall
+    # back to Alpaca's rather than showing a blank quote.
+    if use_ibkr and not snapshot:
+        snapshot = _fetch_ticker_snapshot(symbol, headers, feed)
 
     daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
     rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None

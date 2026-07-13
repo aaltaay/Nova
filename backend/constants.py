@@ -311,6 +311,11 @@ IBKR_SCAN_MAX_ROWS = 50                        # IB hard cap per scan code
 IBKR_SCAN_ABOVE_PRICE = SCANNER_MIN_PRICE       # mirrors the Alpaca price floor above
 IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # per-batch reqTickersAsync timeout
 IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ceiling
+# Alpaca's WS trade stream gives sub-second price freshness between the 20-30s
+# scan ticks (see DISCOVERY_INTERVAL_SEC comment above) — that overlay is
+# intentionally disabled while DISCOVERY_PROVIDER=ibkr (see PROBLEM_LOG
+# 2026-07-13), so this replaces it with a fast IBKR-native reprice tick.
+IBKR_REPRICE_INTERVAL_SEC = 3.0
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
 # Signal-only thresholds (see backend/strategy/five_pillars.py). These never place

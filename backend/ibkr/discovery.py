@@ -204,3 +204,39 @@ async def get_gainers() -> list[dict]:
 async def get_losers() -> list[dict]:
     """Top % losers, intraday (current price vs prior close)."""
     return await _get_movers(IBKR_SCAN_CODE_LOSERS, reverse=False)
+
+
+def reprice_gapper_row(g: dict, q: dict) -> dict:
+    """Apply a fresh snapshot_quotes() entry to an existing gapper row,
+    recomputing change fields from the row's own prev_close so price and
+    change_pct/change_abs never drift apart (see main.py _reprice_ibkr_caches)."""
+    prev_close = g.get("previous_close") or g.get("prev_close") or q.get("prev_close")
+    price = q["price"]
+    if not prev_close:
+        return g
+    gap_frac = (price - prev_close) / prev_close
+    return {
+        **g,
+        "price": price,
+        "current_price": price,
+        "change_pct": gap_frac,
+        "change_abs": price - prev_close,
+        "gap_percent": gap_frac,
+        "volume": q.get("volume", g.get("volume", 0)),
+    }
+
+
+def reprice_mover_row(m: dict, q: dict) -> dict:
+    """Gainer/loser counterpart to reprice_gapper_row."""
+    prev_close = m.get("prev_close") or q.get("prev_close")
+    price = q["price"]
+    if not prev_close:
+        return m
+    change_pct = (price - prev_close) / prev_close
+    return {
+        **m,
+        "price": price,
+        "change_pct": change_pct,
+        "change_abs": price - prev_close,
+        "volume": q.get("volume", m.get("volume", 0)),
+    }

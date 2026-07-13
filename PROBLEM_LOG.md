@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Ticker detail panel stuck on frozen premarket gapper price while movers table stayed live
+
+- **Symptom:** With `discovery_provider=ibkr`, a symbol's ticker detail panel showed a stale price/prev_close (e.g. VEEE: price=12.01, prev_close=4.34) while the exact same symbol's row in the Gainers/Losers table was live and correct (price=25.05, prev_close=4.82). Confirmed via direct API comparison (`/api/movers` vs `/api/ticker/{symbol}`) — not a caching/browser issue.
+- **Cause:** `_find_ibkr_cache_row()` in `main.py` searched `(_gapper_cache, _gainer_cache, _loser_cache)` in that order and returned the first match. Gappers intentionally stop refreshing once the market formally opens (see the "Market Open Halt" rule), so `_gapper_cache` holds a permanently frozen premarket snapshot for any symbol discovered as a gapper earlier in the session. When that same symbol later also becomes an active gainer/loser (continuously repriced every `IBKR_REPRICE_INTERVAL_SEC` by `_reprice_ibkr_caches`), the lookup kept resolving to the frozen gapper row instead of the live gainer/loser row, because gapper cache was checked first. `_fetch_ticker_snapshot_ibkr` (used by the ticker detail endpoint) relies on this helper, so the detail panel inherited the stale value while `/api/movers` (which reads `_gainer_cache`/`_loser_cache` directly, bypassing the helper) stayed correct.
+- **Fix:** Reordered the search in `_find_ibkr_cache_row()` to `(_gainer_cache, _loser_cache, _gapper_cache)` so a live gainer/loser row always wins over a frozen gapper row for the same symbol; gapper cache is now only consulted as a fallback for symbols that aren't an active mover. Also removed leftover `[DEBUG]` print statements and a throwaway `_debug_timing.py` script used to diagnose this. Added `backend/tests/test_ibkr_cache_priority.py` covering the priority order.
+- **Keywords:** ticker detail stuck, ticker panel stale, VEEE, _find_ibkr_cache_row, _fetch_ticker_snapshot_ibkr, gapper cache frozen, market open halt, IBKR discovery provider, movers table vs ticker detail mismatch
+
 ## 2026-07-13 — IBKR-sourced mover rows had internally inconsistent price/change fields
 
 - **Symptom:** After switching `discovery_provider` to `ibkr`, some `/api/movers` rows showed `price - prev_close != change_abs` and `change_abs / prev_close != change_pct` (e.g. VEEE: price=24.42, prev_close=4.34, but change_abs=19.6 when it should be 20.08).

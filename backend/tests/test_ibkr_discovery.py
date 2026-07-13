@@ -151,3 +151,43 @@ class TestGetMovers:
         row = rows[0]
         assert math.isclose(row["change_pct"], 0.2)
         assert math.isclose(row["gap_percent"], 0.1)
+
+
+class TestRepriceRows:
+    """Between-scan reprice tick (main.py _reprice_ibkr_caches) — keeps price
+    and change fields derived from the SAME prev_close so they never drift
+    apart, regardless of how often a fresh snapshot arrives."""
+
+    def test_reprice_gapper_row_recomputes_change_from_new_price(self):
+        row = {
+            "symbol": "AAA",
+            "price": 11.0,
+            "current_price": 11.0,
+            "previous_close": 10.0,
+            "prev_close": 10.0,
+            "change_pct": 0.1,
+            "change_abs": 1.0,
+            "gap_percent": 0.1,
+            "volume": 1000,
+        }
+        updated = discovery.reprice_gapper_row(row, {"price": 12.0, "prev_close": 9.0, "volume": 2000})
+        assert updated["price"] == updated["current_price"] == 12.0
+        assert math.isclose(updated["change_pct"], 0.2)
+        assert math.isclose(updated["change_abs"], 2.0)
+        assert math.isclose(updated["gap_percent"], 0.2)
+        assert updated["volume"] == 2000
+        # prev_close is anchored to the row's own basis, not the fresh quote's
+        assert updated["previous_close"] == 10.0
+
+    def test_reprice_gapper_row_missing_prev_close_returns_unchanged(self):
+        row = {"symbol": "AAA", "price": 11.0}
+        updated = discovery.reprice_gapper_row(row, {"price": 12.0, "prev_close": None})
+        assert updated == row
+
+    def test_reprice_mover_row_recomputes_change_from_new_price(self):
+        row = {"symbol": "BBB", "price": 9.0, "prev_close": 10.0, "change_pct": -0.1, "change_abs": -1.0, "volume": 500}
+        updated = discovery.reprice_mover_row(row, {"price": 8.0, "prev_close": 12.0, "volume": 600})
+        assert updated["price"] == 8.0
+        assert math.isclose(updated["change_pct"], -0.2)
+        assert math.isclose(updated["change_abs"], -2.0)
+        assert updated["volume"] == 600

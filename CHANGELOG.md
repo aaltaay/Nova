@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Ticker detail panel now matches the movers table for IBKR-sourced symbols
+
+- **What:** Fixed `_find_ibkr_cache_row()` in `backend/main.py` so it checks `_gainer_cache`/`_loser_cache` before `_gapper_cache` when looking up a symbol's current row. Removed leftover `[DEBUG]` print statements and the throwaway `backend/_debug_timing.py` diagnostic script from this session's investigation.
+- **Why:** User reported the ticker detail panel showing a different (stuck) price than the Gainers/Losers table for the same symbol. Verified live against the running IBKR-backed server: `/api/movers` showed VEEE at 25.05 (prev_close 4.82, live), `/api/ticker/VEEE` showed 12.01 (prev_close 4.34, frozen) — a real backend bug, not a frontend caching issue.
+- **Files touched:** `backend/main.py` (`_find_ibkr_cache_row`, `_build_ticker_detail`, `_fetch_ticker_snapshot_ibkr`), `backend/tests/test_ibkr_cache_priority.py` (new), `backend/_debug_timing.py` (deleted).
+- **How it works now:** Gappers intentionally freeze once the market opens (the "Market Open Halt" rule), so `_gapper_cache` can hold a stale premarket snapshot for a symbol that later also becomes an active gainer/loser and gets continuously repriced. `_find_ibkr_cache_row()` now searches `(_gainer_cache, _loser_cache, _gapper_cache)` in that order, so the live gainer/loser row always wins for any symbol tracked in both; `_gapper_cache` is only consulted as a fallback for symbols that aren't a current mover. `_fetch_ticker_snapshot_ibkr` (backing the ticker detail endpoint) and `/api/movers` now read the exact same row object for a given symbol.
+- **Verified by:** `pytest` (239 passed, incl. 4 new tests covering the priority order), and a live comparison against the running IBKR-backed server for all 8 symbols currently present in both the gapper cache and a gainer/loser cache — every one now matches exactly between `/api/movers` and `/api/ticker/{symbol}`.
+- **Related:** `PROBLEM_LOG.md` 2026-07-13 ("Ticker detail panel stuck on frozen premarket gapper price").
+
 ## 2026-07-13 — Gappers/gainers/losers can now run on live IBKR data, toggleable back to Alpaca
 
 - **What:** New `backend/ibkr/discovery.py` scans IBKR's own market scanner (`TOP_OPEN_PERC_GAIN` for gappers, `TOP_PERC_GAIN`/`TOP_PERC_LOSE` for movers) and snapshots live quotes via `reqTickersAsync`, producing rows in the exact shape the existing Alpaca pipeline already used. A new `DISCOVERY_PROVIDER` setting (`alpaca` default, `ibkr`) switches the source at runtime — persisted to `.env`, exposed via `/api/config`, and toggleable from a new "Scanner Source" dropdown in Settings. Header badge now shows "Data: Alpaca" or "Data: IBKR" accordingly.
