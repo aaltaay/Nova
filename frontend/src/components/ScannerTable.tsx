@@ -1,0 +1,145 @@
+/** Dense scanner table: Gappers / Movers / After Hours tabs share this rendering. */
+import React from 'react';
+import { SymbolSelectButton } from './SymbolSelectButton';
+import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
+import { NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS } from '../constants';
+import type { ScannerRow, SortConfig } from '../types/scanner';
+
+export function NewsCell({ newest_headline_at }: { newest_headline_at: string | null }) {
+  if (!newest_headline_at) return <span className="na-muted">—</span>;
+  const ageHours = (Date.now() - new Date(newest_headline_at).getTime()) / 3_600_000;
+  if (ageHours > NEWS_FLAME_MAX_HOURS) return <span className="na-muted">—</span>;
+  let colorClass: string;
+  if (ageHours <= NEWS_FLAME_HOT_HOURS) colorClass = 'flame-hot';
+  else if (ageHours <= NEWS_FLAME_WARM_HOURS) colorClass = 'flame-warm';
+  else colorClass = 'flame-cool';
+  const label = ageHours < 1 ? `${Math.round(ageHours * 60)}m ago` : `${Math.floor(ageHours)}h ago`;
+  return <span className={`news-flame ${colorClass}`} title={label} />;
+}
+
+interface ScannerTableProps {
+  columns: [string, string][];
+  data: ScannerRow[];
+  sortState: SortConfig;
+  onSort: (key: string) => void;
+  selectedSymbol: string | null;
+  onSelect: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
+}
+
+function fmtChangeAbs(v: number | null | undefined): string {
+  if (v == null) return '—';
+  return `${v >= 0 ? '+' : '-'}$${Math.abs(v).toFixed(2)}`;
+}
+
+function renderCell(key: string, row: ScannerRow): React.ReactNode {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyRow = row as any;
+  switch (key) {
+    case 'symbol':
+      return null; // handled as the symbol button in the row
+    case 'price':
+      return fmtPrice(row.price ?? anyRow.current_price);
+    case 'prev_close':
+      return fmtPrice(row.prev_close ?? anyRow.previous_close);
+    case 'change_pct':
+      return (
+        <span className="cell-stack">
+          <span className={`cell-stack-primary ${row.change_pct != null && row.change_pct >= 0 ? 'positive' : 'negative'}`}>
+            {fmtPct(row.change_pct)}
+          </span>
+          <span className="cell-stack-secondary">{fmtChangeAbs(row.change_abs)}</span>
+        </span>
+      );
+    case 'gap_percent':
+      return (
+        <span className={row.gap_percent != null && row.gap_percent >= 0 ? 'positive' : row.gap_percent != null ? 'negative' : ''}>
+          {fmtPct(row.gap_percent)}
+        </span>
+      );
+    case 'volume':
+      return (
+        <span className="cell-stack">
+          <span className="cell-stack-primary">{fmtVolume(row.volume)}</span>
+          <span className="cell-stack-secondary">
+            {row.rel_volume != null ? `${row.rel_volume}x rel` : <span className="na-muted">N/A</span>}
+          </span>
+        </span>
+      );
+    case 'newest_headline_at':
+      return <NewsCell newest_headline_at={row.newest_headline_at} />;
+    case 'market_cap':
+      return row.market_cap != null ? fmtMarketCap(row.market_cap) : <span className="na-muted">—</span>;
+    case 'float':
+      return row.float != null ? fmtVolume(row.float) : <span className="na-muted">—</span>;
+    case 'short_interest':
+      return (
+        <span className="cell-stack">
+          <span className="cell-stack-primary">
+            {row.short_interest != null ? fmtVolume(row.short_interest) : <span className="na-muted">—</span>}
+          </span>
+          <span className="cell-stack-secondary">
+            {row.short_ratio != null ? `${row.short_ratio.toFixed(1)}x ratio` : <span className="na-muted">N/A</span>}
+          </span>
+        </span>
+      );
+    default:
+      return <span className="na-muted">—</span>;
+  }
+}
+
+export function ScannerTable({
+  columns, data, sortState, onSort, selectedSymbol, onSelect, onOpenTrading,
+}: ScannerTableProps) {
+  return (
+    <div className="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            {columns.map(([key, label]) => (
+              <th
+                key={key}
+                className="sortable-th"
+                onClick={() => onSort(key)}
+                aria-sort={
+                  sortState.key === key
+                    ? sortState.dir === 'asc' ? 'ascending' : 'descending'
+                    : 'none'
+                }
+              >
+                <span className="th-inner">
+                  {label}
+                  <span className={`sort-arrow${sortState.key === key ? ' active' : ''}`}>
+                    {sortState.key === key
+                      ? sortState.dir === 'asc' ? '↑' : '↓'
+                      : '↕'}
+                  </span>
+                </span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {data.map(row => (
+            <tr key={row.symbol} className={selectedSymbol === row.symbol ? 'row-selected' : ''}>
+              {columns.map(([key]) =>
+                key === 'symbol' ? (
+                  <td key={key}>
+                    <SymbolSelectButton
+                      symbol={row.symbol}
+                      selected={selectedSymbol === row.symbol}
+                      onSelect={onSelect}
+                      onOpenTrading={onOpenTrading}
+                    />
+                  </td>
+                ) : (
+                  <td key={key}>{renderCell(key, row)}</td>
+                )
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-12 — Scanner tables consolidate into dense dual-value columns
+
+- **What:** Gappers / Movers / After Hours tables now show `Symbol | Price | Change | Gap % | Volume | Float | Short Int. | Mkt Cap` — 8 columns instead of 12. `Change` stacks Change % (primary, colored) over Change $ (secondary); `Volume` stacks raw volume over rel. volume (`x rel`); `Short Int.` stacks short interest over short ratio (`x ratio`). The standalone Change $, Daily Rel. Volume, Short Ratio, and News columns are gone from the main scanner grid (News stays on the Catalysts tab).
+- **Why:** User asked to match a denser mockup layout with combined metric cells instead of separate columns per value.
+- **Files touched:** `frontend/src/constants.ts` (`SCANNER_COLUMNS`), `frontend/src/components/ScannerTable.tsx` (new), `frontend/src/types/scanner.ts` (new), `frontend/src/App.tsx`, `frontend/src/index.css`.
+- **How it works now:** `ScannerTable`, `renderCell`, and `NewsCell` were extracted out of `App.tsx` into `components/ScannerTable.tsx` per the frontend-modularity rule; `ScannerRow`/`Gapper`/`Mover`/`Afterhours`/`SortConfig`/`SortDir` moved to `types/scanner.ts` so both `App.tsx` and the new component share one definition. `renderCell` renders dual-value cells with a shared `.cell-stack` / `.cell-stack-primary` / `.cell-stack-secondary` CSS pattern (primary bold line, secondary dim smaller line) added to `index.css`. Column keys stay on the primary field (`change_pct`, `volume`, `short_interest`) so existing generic `sortedArray`/`toggleSort` logic in `App.tsx` keeps sorting correctly with no changes needed. `App.tsx` now imports `ScannerTable`/`NewsCell` instead of defining them inline; the Catalysts tab keeps using `NewsCell` directly since it isn't part of `SCANNER_COLUMNS`.
+- **Verified by:** `npm run build` (tsc + vite) succeeds; `npm run lint` shows the same pre-existing error count as before this change (no new lint errors introduced).
+- **Follow-ups:** `App.tsx` is still well over the 150-line target; further extraction (e.g. the Catalysts table) is out of scope for this task.
+
 ## 2026-07-12 — Full-view charts expand to ~80% of the viewport
 
 - **What:** Double-click trading page now gives the 2×2 chart cube almost all available height/width: full-bleed container, tiny chrome gaps, narrower side column (220px), charts fill parent cells via ResizeObserver instead of a fixed 260px height. Symbol/price sits inline in the toolbar.

@@ -752,6 +752,24 @@ th {
   font-size: 0.8rem;
 }
 
+/* ── Dense dual-value scanner cells (Change, Volume, Short Int.) ────────────── */
+
+.cell-stack {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.cell-stack-primary {
+  font-weight: 600;
+}
+
+.cell-stack-secondary {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
 /* ── Watchlist tab (Five Pillars) ─────────────────────────────────────────── */
 
 .watchlist-description {

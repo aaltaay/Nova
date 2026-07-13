@@ -9,16 +9,17 @@ import { AppHeader, fmtHistoryDate } from './components/AppHeader';
 import type { MarketMode } from './components/AppHeader';
 import { SidePanel } from './components/SidePanel';
 import { SymbolSelectButton } from './components/SymbolSelectButton';
+import { ScannerTable, NewsCell } from './components/ScannerTable';
 import type { NewsImpactVerdict } from './types/newsImpact';
+import type { Gapper, Mover, Afterhours, SortConfig } from './types/scanner';
 import { TradingTab } from './ibkr/TradingTab';
 import { WatchlistTab } from './strategy/WatchlistTab';
 import { useWatchlist } from './strategy/useWatchlist';
 import { ReportsTab } from './reports/ReportsTab';
 import { TickerDetailPage } from './pages/TickerDetailPage';
-import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from './utils/quoteFormat';
+import { fmtPct, fmtVolume } from './utils/quoteFormat';
 import {
   SMALL_CAP_MIN, SMALL_CAP_MAX,
-  NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS,
   GAPPER_MIN_GAP_PCT,
   SCANNER_COLUMNS,
   DATA_FEED_DEFAULT,
@@ -31,36 +32,13 @@ import { isNovaApiDebug } from './debug';
 
 type Mode = MarketMode;
 // ActiveTab is imported from components/TabNav — includes 'trading'
-type SortDir = 'asc' | 'desc' | null;
-interface SortConfig { key: string; dir: SortDir; }
+// SortDir / SortConfig now live in types/scanner (shared with ScannerTable)
 
 interface HealthStatus {
   status: string;
   latency_ms: number;
   message?: string;
 }
-
-interface ScannerRow {
-  symbol: string;
-  price: number;
-  prev_close: number;
-  change_pct: number;
-  change_abs: number;
-  gap_percent: number | null;
-  volume: number;
-  rel_volume: number | null;
-  has_news: boolean;
-  newest_headline_at: string | null;
-  market_cap: number | null;
-  float: number | null;
-  short_interest: number | null;
-  short_ratio: number | null;
-}
-
-// Legacy aliases — kept for any remaining narrower references
-type Gapper    = ScannerRow;
-type Mover     = ScannerRow;
-type Afterhours = ScannerRow;
 
 interface Catalyst {
   symbol: string;
@@ -75,19 +53,7 @@ interface Catalyst {
   news_impact?: NewsImpactVerdict | null;
 }
 
-// Scanner formatters imported from utils/quoteFormat
-
-function NewsCell({ newest_headline_at }: { newest_headline_at: string | null }) {
-  if (!newest_headline_at) return <span className="na-muted">—</span>;
-  const ageHours = (Date.now() - new Date(newest_headline_at).getTime()) / 3_600_000;
-  if (ageHours > NEWS_FLAME_MAX_HOURS) return <span className="na-muted">—</span>;
-  let colorClass: string;
-  if (ageHours <= NEWS_FLAME_HOT_HOURS) colorClass = 'flame-hot';
-  else if (ageHours <= NEWS_FLAME_WARM_HOURS) colorClass = 'flame-warm';
-  else colorClass = 'flame-cool';
-  const label = ageHours < 1 ? `${Math.round(ageHours * 60)}m ago` : `${Math.floor(ageHours)}h ago`;
-  return <span className={`news-flame ${colorClass}`} title={label} />;
-}
+// Scanner formatters imported from utils/quoteFormat; ScannerTable + NewsCell live in components/ScannerTable
 
 function EmptyState({
   health,
@@ -135,123 +101,6 @@ function EmptyState({
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const API_URL = `${API_BASE_URL}/api`;
-
-// ── Scanner Table ─────────────────────────────────────────────────────────────
-
-interface ScannerTableProps {
-  columns: [string, string][];
-  data: ScannerRow[];
-  sortState: SortConfig;
-  onSort: (key: string) => void;
-  selectedSymbol: string | null;
-  onSelect: (symbol: string) => void;
-  onOpenTrading: (symbol: string) => void;
-}
-
-function renderCell(key: string, row: ScannerRow): React.ReactNode {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const anyRow = row as any;
-  switch (key) {
-    case 'symbol':
-      return null; // handled as the symbol button in the row
-    case 'price':
-      return fmtPrice(row.price ?? anyRow.current_price);
-    case 'prev_close':
-      return fmtPrice(row.prev_close ?? anyRow.previous_close);
-    case 'change_pct':
-      return (
-        <span className={row.change_pct != null && row.change_pct >= 0 ? 'positive' : 'negative'}>
-          {fmtPct(row.change_pct)}
-        </span>
-      );
-    case 'change_abs':
-      return (
-        <span className={row.change_abs != null && row.change_abs >= 0 ? 'positive' : 'negative'}>
-          {row.change_abs != null ? `${row.change_abs >= 0 ? '+' : ''}${row.change_abs.toFixed(2)}` : '—'}
-        </span>
-      );
-    case 'gap_percent':
-      return (
-        <span className={row.gap_percent != null && row.gap_percent >= 0 ? 'positive' : row.gap_percent != null ? 'negative' : ''}>
-          {fmtPct(row.gap_percent)}
-        </span>
-      );
-    case 'volume':
-      return fmtVolume(row.volume);
-    case 'rel_volume':
-      return row.rel_volume != null
-        ? `${row.rel_volume}x`
-        : <span className="na-muted">N/A</span>;
-    case 'newest_headline_at':
-      return <NewsCell newest_headline_at={row.newest_headline_at} />;
-    case 'market_cap':
-      return row.market_cap != null ? fmtMarketCap(row.market_cap) : <span className="na-muted">—</span>;
-    case 'float':
-      return row.float != null ? fmtVolume(row.float) : <span className="na-muted">—</span>;
-    case 'short_interest':
-      return row.short_interest != null ? fmtVolume(row.short_interest) : <span className="na-muted">—</span>;
-    case 'short_ratio':
-      return row.short_ratio != null ? row.short_ratio.toFixed(1) : <span className="na-muted">—</span>;
-    default:
-      return <span className="na-muted">—</span>;
-  }
-}
-
-function ScannerTable({
-  columns, data, sortState, onSort, selectedSymbol, onSelect, onOpenTrading,
-}: ScannerTableProps) {
-  return (
-    <div className="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            {columns.map(([key, label]) => (
-              <th
-                key={key}
-                className="sortable-th"
-                onClick={() => onSort(key)}
-                aria-sort={
-                  sortState.key === key
-                    ? sortState.dir === 'asc' ? 'ascending' : 'descending'
-                    : 'none'
-                }
-              >
-                <span className="th-inner">
-                  {label}
-                  <span className={`sort-arrow${sortState.key === key ? ' active' : ''}`}>
-                    {sortState.key === key
-                      ? sortState.dir === 'asc' ? '↑' : '↓'
-                      : '↕'}
-                  </span>
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map(row => (
-            <tr key={row.symbol} className={selectedSymbol === row.symbol ? 'row-selected' : ''}>
-              {columns.map(([key]) =>
-                key === 'symbol' ? (
-                  <td key={key}>
-                    <SymbolSelectButton
-                      symbol={row.symbol}
-                      selected={selectedSymbol === row.symbol}
-                      onSelect={onSelect}
-                      onOpenTrading={onOpenTrading}
-                    />
-                  </td>
-                ) : (
-                  <td key={key}>{renderCell(key, row)}</td>
-                )
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 

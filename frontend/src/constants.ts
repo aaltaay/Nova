@@ -256,19 +256,18 @@ export const WS_BASE_URL: string = _rawApiBase
 // ── Scanner table columns ─────────────────────────────────────────────────────
 // Single source of truth for the columns shown in the Gappers and Movers tables.
 // The key must match the ScannerRow field name; the label is the column header text.
+// Dense layout: Change combines change_pct/change_abs, Volume combines volume/rel_volume,
+// and Short Int. combines short_interest/short_ratio into stacked dual-value cells
+// (see renderCell in components/ScannerTable.tsx). Sort keys stay on the primary field.
 export const SCANNER_COLUMNS: [string, string][] = [
   ['symbol',          'Symbol'],
   ['price',           'Price'],
-  ['change_pct',      'Change %'],
-  ['change_abs',      'Change $'],
+  ['change_pct',      'Change'],
   ['gap_percent',     'Gap %'],
   ['volume',          'Volume'],
-  ['rel_volume',      'Daily Rel. Volume'],
-  ['newest_headline_at', 'News'],
-  ['market_cap',      'Mkt Cap'],
   ['float',           'Float'],
   ['short_interest',  'Short Int.'],
-  ['short_ratio',     'Short Ratio'],
+  ['market_cap',      'Mkt Cap'],
 ];
 
 // ── HOD Momo Scanner ──────────────────────────────────────────────────────────
