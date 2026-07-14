@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Level 2 / scanner stability regression tests
+
+- **What:** Added a dedicated backend suite (`tests/test_depth_stability.py`) and frontend unit tests for depth book guards, DepthLadder status badges, overnight-only books, L2 heuristics, and tab-aware scan age. Extracted pure helpers (`depthBookGuards.ts`, `depthUiStatus.ts`) so these invariants stay testable without a browser. Thin OVERNIGHT-only books now show an explicit hint that sparse after-close quotes are normal.
+- **Why:** User asked for durable regression coverage after repeated L2 reconnect / Symbol-cap / stale-age failures, and was still seeing only OVERNIGHT rows (expected when MARKET CLOSED — not a broken ladder).
+- **Files touched:** `backend/tests/test_depth_stability.py`, `frontend/src/ibkr/depthBookGuards.ts`, `depthUiStatus.ts`, `DepthLadder.tsx`, `useIbkrDepth.ts`, `constants.ts`, plus matching `*.test.ts` files.
+- **How it works now:** CI/local `pytest tests/test_depth_stability.py` locks concurrent-subscribe, cap eviction with leaked viewers, MM forwarding, and stream heartbeats. `npm test` locks empty-book keep, Symbol-cap badge preference, overnight-only detection, and Movers-vs-afterhours scan age. Helpers are the source of truth; React components call them.
+- **Verified by:** `pytest tests/test_depth_stability.py tests/test_ibkr_safety.py` (38 passed); `npm test` (32+ passed); `npm run build`.
+- **Related:** PROBLEM_LOG entries on Symbol cap / Reconnecting / scan age (2026-07-13).
+
 ## 2026-07-13 — Stabilize Level 2 slot thrash + misleading "updated Xs ago"
 
 - **What:** Level 2 no longer sits on a forever "Reconnecting…" badge when the real failure is the 3-symbol IBKR depth cap. Depth subscribe is serialized under a lock, reserves the slot before `qualifyContractsAsync`, and actively evicts idle/leaked slots (also stopping `l2.continuous`) so the viewed ticker can take a line. Header scan age is now tab-aware so Movers is not shown as hours-stale from a frozen after-hours `last_scan`.

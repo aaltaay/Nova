@@ -4,9 +4,16 @@ import {
   L2_DAS_MM_FALLBACK,
   L2_DAS_SIZE_BAR_ASK,
   L2_DAS_SIZE_BAR_BID,
+  L2_OVERNIGHT_BOOK_HINT,
   TICKER_TRADE_DEPTH_LEVELS,
 } from '../constants';
 import { assignPriceTiers, maxSize, padLevels, tierBackground } from './dasDepthTiers';
+import { isOvernightOnlyBook } from './depthBookGuards';
+import {
+  depthEmptyMessage,
+  depthLiveBadge,
+  depthLiveBadgeText,
+} from './depthUiStatus';
 import { computeL2Heuristics } from './l2Heuristics';
 import { useIbkrDepth } from './useIbkrDepth';
 import type { DepthLevel } from './types';
@@ -120,11 +127,7 @@ export function DepthLadder({ symbol }: Props) {
   if (!book) {
     return (
       <div className="ibkr-depth-empty">
-        {error
-          ? error
-          : connected
-            ? 'Waiting for book data…'
-            : `Connecting depth for ${symbol}…`}
+        {depthEmptyMessage(symbol, connected, error)}
       </div>
     );
   }
@@ -134,20 +137,20 @@ export function DepthLadder({ symbol }: Props) {
   const bestAsk = book.asks[0]?.price;
   const spread =
     bestBid != null && bestAsk != null ? Math.abs(bestAsk - bestBid) : null;
+  const liveBadge = depthLiveBadge(connected, error, l1Fallback);
+  const liveBadgeText = depthLiveBadgeText(liveBadge);
+  const overnightOnly = isOvernightOnlyBook(book);
 
   return (
     <div className="das-l2">
-      {error && (
-        <div className="ibkr-depth-fallback-badge" title={error}>
-          {error}
+      {liveBadgeText && (
+        <div className="ibkr-depth-fallback-badge" title={liveBadgeText}>
+          {liveBadgeText}
         </div>
       )}
-      {!connected && !error && (
-        <div className="ibkr-depth-fallback-badge">Reconnecting depth…</div>
-      )}
-      {l1Fallback && (
-        <div className="ibkr-depth-fallback-badge">
-          Level 1 only — depth entitlement pending
+      {overnightOnly && !l1Fallback && (
+        <div className="ibkr-depth-fallback-badge" title={L2_OVERNIGHT_BOOK_HINT}>
+          {L2_OVERNIGHT_BOOK_HINT}
         </div>
       )}
       {(askStacked || bidHeavy || wideSpread) && (

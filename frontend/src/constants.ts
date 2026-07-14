@@ -398,6 +398,10 @@ export const L2_DAS_TIER_ASK: readonly string[] = [
 export const L2_DAS_SIZE_BAR_BID = 'rgba(34, 197, 94, 0.35)';
 export const L2_DAS_SIZE_BAR_ASK = 'rgba(239, 68, 68, 0.35)';
 export const L2_DAS_MM_FALLBACK = '—';
+/** IBKR overnight / extended session market-maker id on thin closed-market books. */
+export const L2_MM_OVERNIGHT = 'OVERNIGHT';
+export const L2_OVERNIGHT_BOOK_HINT =
+  'Overnight session book — thin quotes are normal while the regular market is closed.';
 export const L2_DAS_HEADERS = {
   bidMm: 'MM',
   bidSize: 'Size',

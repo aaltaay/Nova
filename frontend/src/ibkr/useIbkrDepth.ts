@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
+import { shouldKeepPriorBook } from './depthBookGuards';
 import type { DepthBook } from './types';
 
 interface DepthState {
@@ -7,10 +8,6 @@ interface DepthState {
   connected: boolean;
   l1Fallback: boolean;
   error: string | null;
-}
-
-function bookIsEmpty(book: DepthBook): boolean {
-  return book.bids.length === 0 && book.asks.length === 0;
 }
 
 /**
@@ -71,14 +68,7 @@ export function useIbkrDepth(symbol: string | null): DepthState {
           } else if (msg.type === 'book') {
             const book: DepthBook = msg.data;
             setState(s => {
-              // IBKR DOM refreshes can emit a transient empty book between
-              // real updates. Ignoring those keeps the montage from blanking.
-              if (
-                bookIsEmpty(book) &&
-                !book.l1_fallback &&
-                s.book != null &&
-                !bookIsEmpty(s.book)
-              ) {
+              if (shouldKeepPriorBook(book, s.book)) {
                 return { ...s, connected: true, error: null };
               }
               return {
