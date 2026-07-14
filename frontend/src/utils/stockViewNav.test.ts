@@ -33,8 +33,10 @@ describe('stockViewNav', () => {
 
   it('uses desktop IPC when novaDesktop.openStockView is available', async () => {
     const openStockView = vi.fn(async () => true);
-    (window as Window & { novaDesktop?: unknown }).novaDesktop = {
+    window.novaDesktop = {
       isDesktop: true,
+      apiBase: 'http://127.0.0.1:8000',
+      getVersion: async () => 'test',
       openStockView,
     };
     const openSpy = vi.fn();

@@ -27,6 +27,19 @@ export function fmtPrice(p: number | null | undefined): string {
   return `$${p.toFixed(2)}`;
 }
 
+/**
+ * Session open / high / low. Treat null, 0, and negative as missing —
+ * IBKR discovery often omits OHLC, and a literal 0 must not render as "$0.00".
+ */
+export function sessionPriceOrNull(p: number | null | undefined): number | null {
+  if (p == null || !(p > 0)) return null;
+  return p;
+}
+
+export function fmtSessionPrice(p: number | null | undefined): string {
+  return fmtPrice(sessionPriceOrNull(p));
+}
+
 export function timeAgo(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
   if (diff < 60) return `${Math.floor(diff)}s ago`;

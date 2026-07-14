@@ -13,7 +13,6 @@ import re
 import time
 import asyncio
 import json
-import yfinance as yf
 import websockets
 
 logger = logging.getLogger(__name__)
@@ -23,6 +22,12 @@ from paths import env_file_path
 from logging_setup import configure_logging
 from ibkr import client as _ibkr_client
 from ibkr import discovery as _ibkr_discovery
+from fundamentals import (
+    _fundamentals_cache,
+    _fundamentals_cache_ts,
+    fetch_fundamentals as _fetch_fundamentals,
+    fetch_fundamentals_batch as _fetch_fundamentals_batch,
+)
 from routes.trading import router as _trading_router, ws_router as _trading_ws_router
 from routes.strategy import router as _strategy_router
 from routes.journal import router as _journal_router
@@ -45,7 +50,6 @@ from constants import (
     DISCOVERY_PROVIDER_OPTIONS,
     EXCLUDED_NAME_KEYWORDS,
     FOCUS_INTERVAL_SEC,
-    FUNDAMENTALS_CACHE_TTL,
     GAINERS_INTERVAL_SEC,
     GAPPER_MIN_GAP_PCT,
     HISTORY_RETENTION_DAYS,
@@ -68,7 +72,6 @@ from constants import (
     TICKER_SLOW_CACHE_TTL,
     TICKER_SNAPSHOT_CACHE_TTL,
     TOP_N_DEFAULT,
-    YFINANCE_TIMEOUT_S,
 )
 import hod_momo_enrichment as _hod_momo_enrichment
 from cache import (
@@ -155,9 +158,8 @@ _last_catalyst_scan_ts: float = 0.0
 _avg_volume_cache: dict[str, float] = {}
 _avg_volume_date: str = ""
 
-# ── Fundamentals cache (TTL from constants, keyed by symbol) ──────────────────
-_fundamentals_cache: dict[str, dict] = {}
-_fundamentals_cache_ts: dict[str, float] = {}
+# Fundamentals cache lives in fundamentals.py (imported above as
+# _fundamentals_cache / _fundamentals_cache_ts for hod_momo_enrichment compat).
 
 # ── Ticker-detail sub-caches (asset + snapshot; TTLs from constants) ──────────
 _ticker_asset_cache: dict[str, dict] = {}
@@ -360,113 +362,6 @@ def _reprice_ibkr_caches() -> None:
                 continue
             price, volume = q["price"], q.get("volume")
         _run_ibkr(_broadcast_trade_update(sym, price, None, datetime.now(timezone.utc).isoformat(), volume))
-
-
-# ── Fundamentals (yfinance / Yahoo Finance) ───────────────────────────────────
-
-def _fetch_fundamentals(symbol: str) -> dict:
-    """Fetch fundamental data for a single symbol via yfinance with TTL caching."""
-    global _fundamentals_cache, _fundamentals_cache_ts
-    now = time.monotonic()
-    cached_ts = _fundamentals_cache_ts.get(symbol, 0.0)
-    if symbol in _fundamentals_cache and (now - cached_ts) < FUNDAMENTALS_CACHE_TTL:
-        return _fundamentals_cache[symbol]
-    try:
-        # yfinance has no built-in timeout; a stalled Yahoo request can block for 15-20s.
-        # Run it in a dedicated thread so we can cap the wait at YFINANCE_TIMEOUT_S.
-        # On timeout, fall through to the stale-cache / empty-dict fallback below.
-        with ThreadPoolExecutor(max_workers=1) as _yf_pool:
-            _yf_future = _yf_pool.submit(lambda: yf.Ticker(symbol).info)
-            try:
-                info = _yf_future.result(timeout=YFINANCE_TIMEOUT_S)
-            except Exception:
-                stale = _fundamentals_cache.get(symbol)
-                if stale is not None:
-                    logger.warning("yfinance timeout/error for %s — returning stale cache", symbol)
-                    return stale
-                raise
-
-        # Earnings date: yfinance returns a list of timestamps or a single Timestamp
-        earnings_date: str | None = None
-        raw_ed = info.get("earningsDate") or info.get("earningsTimestamp")
-        if raw_ed is not None:
-            try:
-                # May be a list (next + last) or a single value; take the first
-                if isinstance(raw_ed, (list, tuple)) and len(raw_ed) > 0:
-                    raw_ed = raw_ed[0]
-                # pandas Timestamp or epoch int
-                if hasattr(raw_ed, "strftime"):
-                    earnings_date = raw_ed.strftime("%Y-%m-%d")
-                else:
-                    earnings_date = datetime.fromtimestamp(int(raw_ed)).strftime("%Y-%m-%d")
-            except Exception:
-                earnings_date = None
-
-        # Recent split: combine factor + date if available
-        recent_split: str | None = None
-        split_factor = info.get("lastSplitFactor")
-        split_date = info.get("lastSplitDate")
-        if split_factor:
-            if split_date:
-                try:
-                    if hasattr(split_date, "strftime"):
-                        date_str = split_date.strftime("%Y-%m-%d")
-                    else:
-                        date_str = datetime.fromtimestamp(int(split_date)).strftime("%Y-%m-%d")
-                    recent_split = f"{split_factor} ({date_str})"
-                except Exception:
-                    recent_split = str(split_factor)
-            else:
-                recent_split = str(split_factor)
-
-        fundamentals = {
-            "market_cap": info.get("marketCap"),
-            "shares_outstanding": info.get("sharesOutstanding"),
-            "float_shares": info.get("floatShares"),
-            "short_interest": info.get("sharesShort"),
-            "short_ratio": info.get("shortRatio"),
-            "short_percent_of_float": info.get("shortPercentOfFloat"),
-            "pe_ratio": info.get("trailingPE"),
-            "forward_pe": info.get("forwardPE"),
-            "eps": info.get("trailingEps"),
-            "sector": info.get("sector"),
-            "industry": info.get("industry"),
-            "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
-            "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
-            "dividend_yield": info.get("dividendYield"),
-            "beta": info.get("beta"),
-            "earnings_date": earnings_date,
-            "recent_split": recent_split,
-            "average_volume": info.get("averageVolume"),
-            "current_volume": info.get("volume"),
-        }
-        _fundamentals_cache[symbol] = fundamentals
-        _fundamentals_cache_ts[symbol] = now
-        return fundamentals
-    except Exception:
-        empty: dict = {
-            "market_cap": None, "shares_outstanding": None, "float_shares": None,
-            "short_interest": None, "short_ratio": None, "short_percent_of_float": None,
-            "pe_ratio": None, "forward_pe": None, "eps": None, "sector": None,
-            "industry": None, "fifty_two_week_high": None, "fifty_two_week_low": None,
-            "dividend_yield": None, "beta": None, "earnings_date": None, "recent_split": None,
-            "average_volume": None, "current_volume": None,
-        }
-        _fundamentals_cache[symbol] = empty
-        _fundamentals_cache_ts[symbol] = now
-        return empty
-
-
-def _fetch_fundamentals_batch(symbols: list[str]) -> None:
-    """Populate the fundamentals cache for a list of symbols (skips already-cached ones)."""
-    now = time.monotonic()
-    missing = [
-        s for s in symbols
-        if s not in _fundamentals_cache
-        or (now - _fundamentals_cache_ts.get(s, 0.0)) >= FUNDAMENTALS_CACHE_TTL
-    ]
-    for sym in missing:
-        _fetch_fundamentals(sym)
 
 
 # ── Tradable assets ───────────────────────────────────────────────────────────
@@ -2147,13 +2042,23 @@ def _fetch_ticker_snapshot(symbol: str, headers: dict, feed: str) -> dict:
     if symbol in _ticker_snapshot_cache and (now - _ticker_snapshot_cache_ts.get(symbol, 0.0)) < TICKER_SNAPSHOT_CACHE_TTL:
         return _ticker_snapshot_cache[symbol]
 
+    def _session_px(v) -> float | None:
+        """Open/high/low of 0 (or missing) means 'not provided' — never paint $0.00."""
+        if v is None:
+            return None
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        return f if f > 0 else None
+
     def _bar(b: dict | None) -> dict | None:
         if not b:
             return None
         return {
-            "open": b.get("o"),
-            "high": b.get("h"),
-            "low": b.get("l"),
+            "open": _session_px(b.get("o")),
+            "high": _session_px(b.get("h")),
+            "low": _session_px(b.get("l")),
             "close": b.get("c"),
             "volume": b.get("v"),
             "trade_count": b.get("n"),
@@ -2272,7 +2177,12 @@ def _fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
         "latest_quote": None,
         "minute_bar": None,
         "daily_bar": {
-            "open": open_price, "high": None, "low": None, "close": price,
+            # IBKR discovery rows do not carry session OHLC; leave open/high/low
+            # null so the UI shows "—" instead of inventing 0 / prev-close.
+            "open": open_price if open_price and open_price > 0 else None,
+            "high": None,
+            "low": None,
+            "close": price,
             "volume": volume, "trade_count": None, "vwap": None, "timestamp": now_iso,
         },
         "prev_daily_bar": {

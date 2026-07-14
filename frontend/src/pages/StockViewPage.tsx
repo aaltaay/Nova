@@ -7,7 +7,9 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { ChartGrid } from '../components/ChartGrid';
+import { ResizeHandle } from '../components/ResizeHandle';
 import { TickerDetailContent } from '../components/TickerDetailContent';
+import { useResizableWidth } from '../hooks/useResizableWidth';
 import { useTickerStream } from '../hooks/useTickerStream';
 import { TickerTradeActionBar } from '../ibkr/TickerTradeActionBar';
 import { useIbkrAccount } from '../ibkr/useIbkrAccount';
@@ -20,7 +22,10 @@ import {
   STOCK_VIEW_CHARTS_COLLAPSED_KEY,
   STOCK_VIEW_CHARTS_HIDE_LABEL,
   STOCK_VIEW_CHARTS_SHOW_LABEL,
+  STOCK_VIEW_SIDE_WIDTH_KEY,
   STOCK_VIEW_TITLE,
+  TICKER_TRADE_SIDE_WIDTH_MAX_PX,
+  TICKER_TRADE_SIDE_WIDTH_MIN_PX,
   TICKER_TRADE_SIDE_WIDTH_PX,
 } from '../constants';
 import { fmtPct } from '../utils/quoteFormat';
@@ -57,6 +62,16 @@ export function StockViewPage({
   const [chartsCollapsed, setChartsCollapsed] = useState(readChartsCollapsed);
   const [discoveryProvider, setDiscoveryProvider] = useState(DISCOVERY_PROVIDER_DEFAULT);
   const [alpacaFeed, setAlpacaFeed] = useState(DATA_FEED_DEFAULT);
+  const {
+    width: sideWidth,
+    onDragStart: onSideResizeStart,
+    reset: resetSideWidth,
+  } = useResizableWidth({
+    storageKey: STOCK_VIEW_SIDE_WIDTH_KEY,
+    defaultPx: TICKER_TRADE_SIDE_WIDTH_PX,
+    minPx: TICKER_TRADE_SIDE_WIDTH_MIN_PX,
+    maxPx: TICKER_TRADE_SIDE_WIDTH_MAX_PX,
+  });
 
   useEffect(() => {
     document.title = `${symbol} · ${STOCK_VIEW_TITLE} · Nova`;
@@ -135,7 +150,7 @@ export function StockViewPage({
   return (
     <div
       className={`stock-view-page${chartsCollapsed ? ' stock-view-page--charts-collapsed' : ''}`}
-      style={{ ['--ticker-trade-side-width' as string]: `${TICKER_TRADE_SIDE_WIDTH_PX}px` }}
+      style={{ ['--ticker-trade-side-width' as string]: `${sideWidth}px` }}
     >
       <div className="ticker-detail-toolbar stock-view-toolbar">
         <button
@@ -216,9 +231,16 @@ export function StockViewPage({
         <>
           <div className="stock-view-body">
             {!chartsCollapsed && (
-              <div className="stock-view-charts">
-                <ChartGrid symbol={detail.symbol} lastTrade={lastTrade} />
-              </div>
+              <>
+                <div className="stock-view-charts">
+                  <ChartGrid symbol={detail.symbol} lastTrade={lastTrade} />
+                </div>
+                <ResizeHandle
+                  onPointerDown={onSideResizeStart}
+                  onDoubleClick={resetSideWidth}
+                  label="Resize quote panel"
+                />
+              </>
             )}
             <div className="stock-view-quote" aria-label={STOCK_VIEW_TITLE}>
               <TickerDetailContent

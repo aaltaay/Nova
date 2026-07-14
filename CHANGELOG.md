@@ -30,6 +30,24 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Stock View quote-panel width is now drag-to-resize
+
+- **What:** The Stock View quote/watchlist/Level 2 column (previously a fixed 380px) now has a draggable divider between it and the chart grid. Users can drag it between 300–640px; the width persists across sessions, and double-clicking the divider resets it to the 380px default.
+- **Why:** User request for micro-adjustable UI, plus an explicit ask for a reusable pattern so future "make X adjustable" requests don't need bespoke code each time.
+- **Files touched:** `frontend/src/hooks/useResizableWidth.ts` (new), `frontend/src/components/ResizeHandle.tsx` (new), `frontend/src/pages/StockViewPage.tsx`, `frontend/src/constants.ts`, `frontend/src/index.css`.
+- **How it works now:** `useResizableWidth({ storageKey, defaultPx, minPx, maxPx, anchor })` is a generic hook — it tracks a pixel width in state, persists it to `localStorage` under `storageKey`, and exposes `onDragStart` (wire to a `ResizeHandle`'s `onPointerDown`) plus `reset`. `ResizeHandle` is a thin, styled `role="separator"` div (`.resize-handle` in `index.css`, supports `vertical`/`horizontal`) with no business logic — any future split layout (sidebar width, panel height, etc.) can reuse both pieces by picking a new storage key and CSS grid slot. `StockViewPage` wires this into `--ticker-trade-side-width` (the existing CSS var) instead of the old constant, with the handle sitting between `.stock-view-charts` and `.stock-view-quote` in the grid.
+- **Verified by:** `npm run build` + `npm run lint` (no new errors); CDP-driven synthetic pointer drag confirmed width grows/shrinks and clamps at 300/640px, persists to `localStorage`, and double-click resets to 380px on the live Stock View page (`?view=stock&symbol=AAPL`).
+- **Follow-ups:** Apply the same hook/component to other panels if/when requested (e.g. sidebar, chart grid rows).
+
+## 2026-07-13 — Stock View double-click uses timed click pairing
+
+- **What:** Ticker rows/buttons no longer rely on native `dblclick`. Two clicks within `SYMBOL_DOUBLE_CLICK_MS` (280ms) open Stock View; a single click still loads the Quote Panel after the delay. Electron Stock View windows are shown/focused after load.
+- **Why:** Real mouse double-clicks failed when the first click selected a symbol and re-rendered/shifted the row before the second click, so native `dblclick` never fired (IPC itself was fine).
+- **Files touched:** `utils/clickVsDoubleClick.ts`, `SymbolSelectButton.tsx`, `SelectableTableRow.tsx`, `constants.ts`, `electron/main.mjs`.
+- **How it works now:** `createClickVsDoubleClick` owns a short timer per control. Second click cancels the pending Quote Panel select and calls `onOpenTrading` → `openStockViewWindow` (desktop IPC).
+- **Verified by:** Vitest `clickVsDoubleClick.test.ts`; CDP real mouse double-click on a scanner symbol opens `?view=stock&symbol=…` in a new BrowserWindow.
+- **Related:** PROBLEM_LOG 2026-07-13 "Stock View double-click lost to layout re-render".
+
 ## 2026-07-13 — Fix Stock View double-click opening in the same window
 
 - **What:** Double-click / Stock View now opens a real new Electron window (IPC `nova:openStockView`). Browser `window.open` no longer uses `noopener` (that returned null and falsely triggered same-tab fallback).

@@ -73,8 +73,13 @@ ipcMain.handle('nova:openStockView', (_event, url) => {
   }
   const child = new BrowserWindow(windowOptions());
   child.setTitle('Nova — Stock View');
-  void child.loadURL(url);
   attachStockViewWindowOpen(child);
+  void child.loadURL(url).then(() => {
+    if (!child.isDestroyed()) {
+      child.show();
+      child.focus();
+    }
+  });
   return true;
 });
 

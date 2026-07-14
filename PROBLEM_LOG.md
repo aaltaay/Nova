@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Stock View double-click lost to layout re-render
+
+- **Symptom:** Double-clicking a ticker in Electron did not open Stock View in a new window (Quote Panel updated; no child window). Direct `novaDesktop.openStockView` IPC worked.
+- **Cause:** Native `dblclick` requires both clicks on the same target. The first click called `setSelectedSymbol`, re-rendering the row / shifting layout so the second click was not paired as a double-click. Synthetic `dblclick` events still worked, which hid the bug in earlier checks.
+- **Fix:** Replace `onDoubleClick` with timed click pairing (`createClickVsDoubleClick`, `SYMBOL_DOUBLE_CLICK_MS`). Second click within the window opens Stock View; single click selects after the delay. Electron child window `show()`/`focus()` after load.
+- **Keywords:** Stock View, double-click, dblclick, layout shift, SymbolSelectButton, SelectableTableRow, clickVsDoubleClick, Quote Panel
+
 ## 2026-07-13 — Stock View double-click stayed in the same window
 
 - **Symptom:** Double-clicking a ticker (Electron desktop) did not open a new window; Stock View replaced the scanner in the current window.

@@ -6,7 +6,9 @@ import {
   fmtMarketCap,
   fmtPct,
   fmtPrice,
+  fmtSessionPrice,
   fmtVolume,
+  sessionPriceOrNull,
   timeAgo,
 } from '../utils/quoteFormat';
 import { DepthLadder } from './DepthLadder';
@@ -33,7 +35,7 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
   const asset = detail.asset;
   const daily = snap?.daily_bar;
   const prevClose = snap?.prev_close ?? snap?.prev_daily_bar?.close ?? null;
-  const todayOpen = daily?.open ?? null;
+  const todayOpen = sessionPriceOrNull(daily?.open);
   const gapPct =
     todayOpen != null && prevClose != null && prevClose !== 0
       ? (todayOpen - prevClose) / prevClose
@@ -76,10 +78,10 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
           value={gapPct != null ? fmtPct(gapPct) : '—'}
           valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
         />
-        <Stat label="Open" value={fmtPrice(daily?.open)} />
+        <Stat label="Open" value={fmtSessionPrice(daily?.open)} />
         <Stat label="Prev close" value={fmtPrice(prevClose)} />
-        <Stat label="High" value={fmtPrice(daily?.high)} />
-        <Stat label="Low" value={fmtPrice(daily?.low)} />
+        <Stat label="High" value={fmtSessionPrice(daily?.high)} />
+        <Stat label="Low" value={fmtSessionPrice(daily?.low)} />
         <Stat label="Mkt cap" value={fmtMarketCap(detail.fundamentals?.market_cap)} />
         <Stat label="Short int" value={fmtVolume(detail.fundamentals?.short_interest)} />
       </div>

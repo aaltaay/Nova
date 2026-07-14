@@ -4,15 +4,6 @@ export const STOCK_VIEW_QUERY_VIEW = 'stock';
 export const STOCK_VIEW_QUERY_KEY = 'view';
 export const STOCK_VIEW_SYMBOL_KEY = 'symbol';
 
-declare global {
-  interface Window {
-    novaDesktop?: {
-      isDesktop?: boolean;
-      openStockView?: (url: string) => Promise<boolean>;
-    };
-  }
-}
-
 export function buildStockViewUrl(symbol: string, baseHref = window.location.href): string {
   const url = new URL(baseHref);
   url.searchParams.set(STOCK_VIEW_QUERY_KEY, STOCK_VIEW_QUERY_VIEW);

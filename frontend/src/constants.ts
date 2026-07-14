@@ -258,6 +258,8 @@ declare global {
       isDesktop: boolean;
       apiBase: string;
       getVersion: () => Promise<string>;
+      /** Electron IPC: open Stock View in a child BrowserWindow. */
+      openStockView?: (url: string) => Promise<boolean>;
     };
   }
 }
@@ -366,6 +368,12 @@ export const IBKR_LIVE_PORT = 4001;
 export const IBKR_MAX_DEPTH_SYMBOLS = 3;
 
 // ── Quote Panel (scanner right sidebar) vs Stock View (double-click tab) ─────
+/**
+ * Delay before a single click selects the Quote Panel. A second click within
+ * this window opens Stock View instead (native dblclick is unreliable when the
+ * first click re-renders / shifts layout).
+ */
+export const SYMBOL_DOUBLE_CLICK_MS = 280;
 /** Right-hand scanner sidebar that shows quote + fundamentals for the selected symbol. */
 export const QUOTE_PANEL_TITLE = 'Quote Panel';
 /** Full single-stock page opened by double-click / “Stock View” (detachable tab). */
@@ -380,8 +388,13 @@ export const STOCK_VIEW_CHARTS_SHOW_LABEL = 'Show charts';
 export const STOCK_VIEW_CHARTS_HIDE_LABEL = 'Hide charts';
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
-/** Quote column width (px) on Stock View when charts are expanded. */
+/** Quote column width (px) on Stock View when charts are expanded — used until the user drags the resize handle. */
 export const TICKER_TRADE_SIDE_WIDTH_PX = 380;
+/** Drag-to-resize range (px) for the Stock View quote-panel width. */
+export const TICKER_TRADE_SIDE_WIDTH_MIN_PX = 300;
+export const TICKER_TRADE_SIDE_WIDTH_MAX_PX = 640;
+/** localStorage key: user's saved Stock View quote-panel width (drag-to-resize). */
+export const STOCK_VIEW_SIDE_WIDTH_KEY = 'nova.stockView.sideWidthPx';
 /** Headlines shown in the trading-page side column before "More". */
 export const TICKER_TRADE_SIDE_NEWS_COUNT = 3;
 /** Default share quantity prefilled in the Open Position ticket. */

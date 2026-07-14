@@ -3212,8 +3212,8 @@ th {
 
 .stock-view-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--ticker-trade-side-width, 380px);
-  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) 10px var(--ticker-trade-side-width, 380px);
+  column-gap: 0.4rem;
   flex: 1;
   min-height: 0;
   padding: 0.5rem 0.75rem 0;
@@ -3245,6 +3245,50 @@ th {
 
 .stock-view-page--charts-collapsed .stock-view-quote {
   max-height: none;
+}
+
+/* Generic drag-to-resize divider — pairs with hooks/useResizableWidth.
+   Reused for any future split layout, not just Stock View. */
+.resize-handle {
+  position: relative;
+  align-self: stretch;
+  touch-action: none;
+}
+
+.resize-handle--vertical {
+  cursor: col-resize;
+}
+
+.resize-handle--horizontal {
+  cursor: row-resize;
+}
+
+.resize-handle::before {
+  content: '';
+  position: absolute;
+  background: var(--border-color);
+  transition: background-color 0.15s ease;
+}
+
+.resize-handle--vertical::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+}
+
+.resize-handle--horizontal::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.resize-handle:hover::before,
+.resize-handle:active::before {
+  background: var(--accent, #3b82f6);
 }
 
 .ticker-detail-page {
