@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Block button in quote panel could not be undone
+
+- **Symptom:** User clicked "Block" on a ticker (LVLU) in the quote panel, then clicked the button again to undo it — nothing happened. The ticker stayed on the HOD Momo blocklist with no way to remove it from that button.
+- **Cause:** `TickerDetailContent.tsx`'s block button only ever called `POST /api/hod-momo/blocklist` (add) and set local `blocked` state to `true`, then rendered `disabled={blocked}` — once true, the button could never be clicked again, and there was no code path calling the `DELETE /api/hod-momo/blocklist/{symbol}` endpoint that already existed in `backend/main.py`/`hod_momo.py`. Separately, `blocked` was reset to a hardcoded `false` on every symbol change instead of checking the real blocklist, so an already-blocked symbol misleadingly showed "Block" instead of "Blocked" on first load.
+- **Fix:** Fetch the real blocklist on mount/symbol-change and derive `blocked` from it. Replace the one-way `onBlock` with `onToggleBlock`, which `DELETE`s when already blocked (no confirmation — restorative) or shows a `window.confirm()` dialog before `POST`ing to block (per user request: confirm before every block). Button is never `disabled`; label reads "Block"/"Unblock" from the real state.
+- **Keywords:** Block button, HOD Momo blocklist, disabled button, unblock, onToggleBlock, TickerDetailContent, quote panel, window.confirm
+
 ## 2026-07-14 — Catalyst rows always showed "unknown" source tier
 
 - **Symptom:** Every row on the Catalysts tab classified `source_tier` as `unknown`/`none` and `confirmed_by_official` as `False`, even for headlines from official wires like Business Wire/PR Newswire, and the frontend had no way to show the reader where a catalyst headline actually came from.

@@ -61,9 +61,30 @@ export function TickerDetailContent({
   alpacaFeed = DATA_FEED_DEFAULT,
 }: Props) {
   const [blocked, setBlocked] = useState(false);
-  useEffect(() => { setBlocked(false); }, [detail.symbol]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_URL}/hod-momo/blocklist`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!cancelled) setBlocked(!!data?.symbols?.includes(detail.symbol));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [detail.symbol]);
 
-  function onBlock() {
+  function onToggleBlock() {
+    if (blocked) {
+      fetch(`${API_URL}/hod-momo/blocklist/${detail.symbol}`, { method: 'DELETE' })
+        .then(r => { if (r.ok) setBlocked(false); })
+        .catch(() => {});
+      return;
+    }
+    if (!window.confirm(
+      `Block ${detail.symbol}?\n\nThis removes it from every scanner (Gappers, Movers, ` +
+      'After-Hours, News Catalysts) and HOD Momo alerts until you unblock it.'
+    )) {
+      return;
+    }
     fetch(`${API_URL}/hod-momo/blocklist`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -130,10 +151,9 @@ export function TickerDetailContent({
               )}
               <button
                 className={`cq-block-btn${blocked ? ' cq-block-btn--blocked' : ''}`}
-                onClick={onBlock}
-                disabled={blocked}
-                title="Add to HOD Momo blocklist"
-              >{blocked ? 'Blocked' : 'Block'}</button>
+                onClick={onToggleBlock}
+                title={blocked ? 'Remove from HOD Momo blocklist' : 'Add to HOD Momo blocklist'}
+              >{blocked ? 'Unblock' : 'Block'}</button>
             </div>
             {mainPrice != null && (
               <div className="cq-price-row">
@@ -163,10 +183,9 @@ export function TickerDetailContent({
         <div className="cq-symbol-row cq-detail-actions">
           <button
             className={`cq-block-btn${blocked ? ' cq-block-btn--blocked' : ''}`}
-            onClick={onBlock}
-            disabled={blocked}
-            title="Add to HOD Momo blocklist"
-          >{blocked ? 'Blocked' : 'Block'}</button>
+            onClick={onToggleBlock}
+            title={blocked ? 'Remove from HOD Momo blocklist' : 'Add to HOD Momo blocklist'}
+          >{blocked ? 'Unblock' : 'Block'}</button>
         </div>
       )}
       {descParts.length > 0 && (

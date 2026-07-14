@@ -1656,7 +1656,16 @@ th {
   border-color: #c0392b;
   color: #c0392b;
 }
-.cq-block-btn--blocked,
+.cq-block-btn--blocked {
+  border-color: #c0392b;
+  color: #c0392b;
+  background: rgba(192, 57, 43, 0.12);
+}
+.cq-block-btn--blocked:hover {
+  border-color: #16a34a;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.12);
+}
 .cq-block-btn:disabled {
   opacity: 0.45;
   cursor: default;
