@@ -4,8 +4,8 @@
 > Not a black box — every threshold lives in `backend/constants.py` (`NEWS_IMPACT_*`)
 > and is echoed in each verdict's `factors` + `reasons[]`.
 
-**Status:** Implemented (rules-v1). FinBERT headline sentiment is live (always on, local, free). Lincoln AI reasoning is wired but off by default — opt in with `LINCOLN_AI_ENABLED=true` + `OPENAI_API_KEY`.
-**Last updated:** 2026-07-13
+**Status:** Implemented (rules-v1). FinBERT and Loughran-McDonald headline sentiment are both live (always on, local, free, independent of each other). Lincoln AI reasoning is wired but off by default — opt in with `LINCOLN_AI_ENABLED=true` + `OPENAI_API_KEY`.
+**Last updated:** 2026-07-14
 
 ---
 
@@ -38,6 +38,7 @@
 5. **Attention** — RVOL ≥ 2×
 6. **Level 2** — reacting if bid-heavy or \|imbalance\| ≥ 0.35; else quiet / insufficient_data
 7. **`sentiment` / `sentiment_score`** — local FinBERT (`ProsusAI/finbert`) read of the headline text (`backend/news/sentiment.py`); positive/negative/neutral, informational only, never changes `impact_class`/`confidence`
-8. **`ai_reasoning`** — opt-in LLM narrative ("Lincoln AI", `backend/news/ai_reasoning.py`); `null` unless `LINCOLN_AI_ENABLED=true` and `OPENAI_API_KEY` are set
+8. **`lexicon_sentiment` / `lexicon_polarity`** — independent Loughran-McDonald financial word-list read (`pysentiment2`, `backend/news/lexicon.py`); a hand-built lexicon (not a neural model), zero GPU/download cost, also informational only
+9. **`ai_reasoning`** — opt-in LLM narrative ("Lincoln AI", `backend/news/ai_reasoning.py`); `null` unless `LINCOLN_AI_ENABLED=true` and `OPENAI_API_KEY` are set
 
-Tune by editing `NEWS_IMPACT_*` / `NEWS_SENTIMENT_*` / `LINCOLN_AI_*` in `backend/constants.py` only.
+Tune by editing `NEWS_IMPACT_*` / `NEWS_SENTIMENT_*` / `NEWS_LEXICON_*` / `LINCOLN_AI_*` in `backend/constants.py` only.

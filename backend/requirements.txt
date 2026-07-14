@@ -11,3 +11,4 @@ ib_async
 transformers==4.57.6
 torch==2.8.0
 openai==2.45.0
+pysentiment2==0.1.1

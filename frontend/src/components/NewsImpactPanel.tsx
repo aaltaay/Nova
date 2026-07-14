@@ -81,10 +81,17 @@ export function NewsImpactPanel({ verdict, loading }: Props) {
           <dd>{verdict.l2_reaction}</dd>
         </div>
         <div>
-          <dt title={NEWS_IMPACT_FACTOR_TOOLTIPS.sentiment}>Sentiment</dt>
+          <dt title={NEWS_IMPACT_FACTOR_TOOLTIPS.sentiment}>Sentiment (FinBERT)</dt>
           <dd>
             {verdict.sentiment}
             {verdict.sentiment_score != null ? ` (${(verdict.sentiment_score * 100).toFixed(0)}%)` : ''}
+          </dd>
+        </div>
+        <div>
+          <dt title={NEWS_IMPACT_FACTOR_TOOLTIPS.lexicon}>Sentiment (Lexicon)</dt>
+          <dd>
+            {verdict.lexicon_sentiment}
+            {verdict.lexicon_polarity != null ? ` (${verdict.lexicon_polarity.toFixed(2)})` : ''}
           </dd>
         </div>
       </dl>

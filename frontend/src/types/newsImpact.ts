@@ -19,6 +19,8 @@ export interface NewsImpactVerdict {
   l2_reaction: string;
   sentiment: string;
   sentiment_score: number | null;
+  lexicon_sentiment: string;
+  lexicon_polarity: number | null;
   headline: string | null;
   summary: string;
   reasons: string[];

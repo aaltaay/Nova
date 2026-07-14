@@ -129,6 +129,17 @@ class TestImpactClassification:
         assert v.sentiment in ("positive", "negative", "neutral", "unavailable")
         assert v.impact_class == "moved_price"
 
+    def test_lexicon_field_present_and_non_authoritative(self):
+        """lexicon_sentiment/lexicon_polarity are informational; impact_class is unaffected."""
+        v = evaluate_news_impact(
+            "WWW",
+            [_article(hours_ago=0.5, headline="Test")],
+            gap_percent=0.12,
+            now=_now(),
+        )
+        assert v.lexicon_sentiment in ("positive", "negative", "neutral", "unavailable")
+        assert v.impact_class == "moved_price"
+
     def test_bump_due_to_news_strong_fresh(self):
         gap = NEWS_IMPACT_STRONG_MOVE_PCT / 100.0
         v = evaluate_news_impact(

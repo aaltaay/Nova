@@ -501,6 +501,13 @@ NEWS_SENTIMENT_ENABLED = True
 NEWS_SENTIMENT_MODEL_NAME = "ProsusAI/finbert"
 NEWS_SENTIMENT_CACHE_MAX_ENTRIES = 500
 
+# Loughran-McDonald financial lexicon (pysentiment2) — a hand-built financial
+# word list, not a fine-tuned model. Zero GPU/model-download cost, so it runs
+# alongside FinBERT as a second, instant, independent read of the headline.
+# Also purely informational; never changes impact_class/confidence.
+NEWS_LEXICON_ENABLED = True
+NEWS_LEXICON_CACHE_MAX_ENTRIES = 500
+
 # Lincoln AI — optional LLM narrative that fills NewsImpactVerdict.ai_reasoning
 # with a plain-English read of the catalyst type. Off by default: it calls an
 # external API and costs money, so it mirrors the IBKR opt-in gate pattern

@@ -16,9 +16,10 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 _TRANSPARENCY_NOTE = (
     "Rules-first news impact verdict. Every threshold is in constants.py "
     "(NEWS_IMPACT_*) and echoed in factors. `sentiment` is a local FinBERT read "
-    "of the headline; `ai_reasoning` is an opt-in Lincoln AI narrative (null "
-    "unless LINCOLN_AI_ENABLED=true + OPENAI_API_KEY are set). Neither overrides "
-    "impact_class/confidence — the rules remain authoritative."
+    "of the headline; `lexicon_sentiment` is an independent Loughran-McDonald "
+    "financial word-list read; `ai_reasoning` is an opt-in Lincoln AI narrative "
+    "(null unless LINCOLN_AI_ENABLED=true + OPENAI_API_KEY are set). None of "
+    "the three override impact_class/confidence — the rules remain authoritative."
 )
 
 

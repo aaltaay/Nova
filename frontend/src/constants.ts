@@ -42,6 +42,7 @@ export const NEWS_IMPACT_FACTOR_TOOLTIPS = {
   attention: 'Relative volume vs NEWS_IMPACT_ATTENTION_RVOL — elevated means an attention spike.',
   l2: 'Level 2 reaction from live book imbalance / bid-heavy (or insufficient_data if no book).',
   sentiment: 'Local FinBERT read of the headline text (positive/negative/neutral). Informational only — does not change impact_class.',
+  lexicon: 'Independent Loughran-McDonald financial word-list read of the headline. Informational only — does not change impact_class.',
   confidence: 'Rules-first score clamped by NEWS_IMPACT_CONFIDENCE_FLOOR/CEILING — not a black-box model.',
   ai: 'Lincoln AI narrative. Opt-in via LINCOLN_AI_ENABLED + OPENAI_API_KEY (backend/news/ai_reasoning.py) — null when disabled.',
 };

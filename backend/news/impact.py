@@ -1,10 +1,12 @@
 """Rules-first news → ticker / Level 2 impact verdict.
 
 Every threshold comes from constants.py. Every outcome carries human-readable
-`reasons[]`. `sentiment` comes from a local FinBERT model (news.sentiment) and
-`ai_reasoning` from an opt-in LLM call (news.ai_reasoning) — both are
-informational narrative layered on top; the rules remain the visible,
-authoritative decision layer and are never overridden by either signal.
+`reasons[]`. `sentiment` comes from a local FinBERT model (news.sentiment),
+`lexicon_sentiment` from the Loughran-McDonald financial word list
+(news.lexicon), and `ai_reasoning` from an opt-in LLM call
+(news.ai_reasoning) — all three are informational narrative layered on top;
+the rules remain the visible, authoritative decision layer and are never
+overridden by any of them.
 """
 from __future__ import annotations
 
@@ -26,6 +28,7 @@ from constants import (
     NEWS_IMPACT_STRONG_MOVE_PCT,
 )
 from news.ai_reasoning import generate_ai_reasoning
+from news.lexicon import classify_headline_lexicon
 from news.sentiment import classify_headline_sentiment
 from news.sources import any_official, best_source_tier, count_confirming_sources
 
@@ -156,6 +159,8 @@ class NewsImpactVerdict:
     l2_reaction: str
     sentiment: str
     sentiment_score: float | None
+    lexicon_sentiment: str
+    lexicon_polarity: float | None
     headline: str | None
     summary: str
     reasons: list[str] = field(default_factory=list)
@@ -213,6 +218,7 @@ def evaluate_news_impact(
     attention = _attention_state(rel_volume)
     l2 = _l2_reaction(l2_features)
     sentiment_result = classify_headline_sentiment(headline)
+    lexicon_result = classify_headline_lexicon(headline)
 
     factors["observed"] = {
         "article_count": len(articles),
@@ -223,6 +229,8 @@ def evaluate_news_impact(
         "l2_bid_heavy": (l2_features or {}).get("bid_heavy"),
         "sentiment": sentiment_result["label"],
         "sentiment_score": sentiment_result["score"],
+        "lexicon_sentiment": lexicon_result["label"],
+        "lexicon_polarity": lexicon_result["polarity"],
     }
 
     # --- Visible factor narration ---
@@ -277,6 +285,13 @@ def evaluate_news_impact(
         reasons.append(
             f"FinBERT headline sentiment is '{sentiment_result['label']}' "
             f"(score={sentiment_result['score']}) — informational only, does not change impact_class."
+        )
+    if lexicon_result["label"] == "unavailable":
+        reasons.append("Loughran-McDonald lexicon sentiment unavailable (dependency missing or no headline text).")
+    else:
+        reasons.append(
+            f"Loughran-McDonald lexicon sentiment is '{lexicon_result['label']}' "
+            f"(polarity={lexicon_result['polarity']}) — informational only, does not change impact_class."
         )
 
     # --- Classification ---
@@ -374,6 +389,8 @@ def evaluate_news_impact(
         l2_reaction=l2,
         sentiment=sentiment_result["label"],
         sentiment_score=sentiment_result["score"],
+        lexicon_sentiment=lexicon_result["label"],
+        lexicon_polarity=lexicon_result["polarity"],
         headline=headline,
         summary=summary,
         reasons=reasons,
