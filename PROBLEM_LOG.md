@@ -21,7 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
-## 2026-07-14 — Empty gappers/movers/after-hours despite real gaps existing (IB Gateway disconnected)
+## 2026-07-14 — IBKR gappers empty in premarket (TOP_OPEN_PERC_GAIN returns 0)
+
+- **Symptom:** After IB Gateway connected (`/api/ibkr/status` connected:true), `/api/gappers` still returned `[]` during premarket despite real gaps (NXTC +300%, etc. visible via IB `TOP_PERC_GAIN`).
+- **Cause:** `get_gappers()` only used scan code `TOP_OPEN_PERC_GAIN` (today's open vs prior close). Before the regular session open, IB often returns 0 rows / error 162 "API scanner subscription cancelled" for that code. Premarket gaps are correctly described by `TOP_PERC_GAIN` (last vs prior close).
+- **Fix:** `backend/ibkr/discovery.py` `get_gappers()` now falls back to `TOP_PERC_GAIN` when `TOP_OPEN_PERC_GAIN` is empty, then applies the existing `GAPPER_MIN_GAP_PCT` filter. Added scanner result logging.
+- **Keywords:** TOP_OPEN_PERC_GAIN, TOP_PERC_GAIN, premarket gappers, error 162, scanner cancelled, get_gappers, IBKR discovery
+
 
 - **Symptom:** User reported "nothing is being scanned" and knew real gappers existed, but `/api/gappers`, `/api/movers`, `/api/afterhours` all returned empty lists, and the UI showed the generic "No gappers with a gap of at least X% yet — scan running..." message that implied everything was healthy.
 - **Cause:** `.env` has `NOVA_DISCOVERY_PROVIDER='ibkr'`, so scanner discovery is sourced from IBKR (`backend/ibkr/discovery.py`), not Alpaca — but IB Gateway was not logged in. Launching `C:\Jts\ibgateway\1045\ibgateway.exe` alone is not enough: until login (+ weekly 2FA) completes, Gateway opens **no** local API socket, so Nova's reconnect loop gets `ConnectionRefusedError` on `127.0.0.1:4001` forever. `_run_ibkr()` then returns `[]`, which the UI treated as "no gaps yet". Red herring: port `40001` was listening but owned by `Immersed-service` (VR), not IB — TCP connect succeeded then IB API handshake timed out with WinError 64.

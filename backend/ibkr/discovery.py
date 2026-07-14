@@ -90,6 +90,13 @@ async def scan_symbols(scan_code: str, num_rows: int = IBKR_SCAN_MAX_ROWS) -> li
         if sym and sym not in seen:
             seen.add(sym)
             symbols.append(sym)
+    if not symbols:
+        logger.warning(
+            "IBKR scanner %s returned 0 symbols (common for TOP_OPEN_PERC_GAIN before RTH open)",
+            scan_code,
+        )
+    else:
+        logger.info("IBKR scanner %s → %d symbols", scan_code, len(symbols))
     return symbols
 
 
@@ -139,8 +146,21 @@ def _meets_min_gap(gap_frac: float | None) -> bool:
 
 
 async def get_gappers() -> list[dict]:
-    """Premarket-style gap scan: today's price vs prior session close."""
+    """Gap scan: current price vs prior session close.
+
+    Prefers ``TOP_OPEN_PERC_GAIN`` (open vs prior close). Before the regular
+    open IB often returns an empty/cancelled result for that code — fall back
+    to ``TOP_PERC_GAIN`` (last vs prior close), which is the correct premarket
+    gap definition and matches what traders mean by "gappers" at 4:00–9:30 ET.
+    """
     symbols = await scan_symbols(IBKR_SCAN_CODE_GAPPERS)
+    if not symbols:
+        logger.info(
+            "IBKR gappers: %s empty — falling back to %s (premarket / pre-open)",
+            IBKR_SCAN_CODE_GAPPERS,
+            IBKR_SCAN_CODE_GAINERS,
+        )
+        symbols = await scan_symbols(IBKR_SCAN_CODE_GAINERS)
     quotes = await snapshot_quotes(symbols)
 
     rows: list[dict] = []
@@ -164,6 +184,7 @@ async def get_gappers() -> list[dict]:
             "exchange": q.get("exchange"),
         })
     rows.sort(key=lambda x: x["gap_percent"], reverse=True)
+    logger.info("IBKR gappers: %d rows after %.0f%% filter", len(rows), GAPPER_MIN_GAP_PCT)
     return rows
 
 

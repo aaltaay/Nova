@@ -30,7 +30,18 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Premarket IBKR gappers fall back to TOP_PERC_GAIN; loud Gateway-login rule
+
+- **What:** IBKR gapper discovery no longer relies solely on `TOP_OPEN_PERC_GAIN` (empty before RTH open). When that scan returns 0 symbols, it falls back to `TOP_PERC_GAIN` and keeps the ≥10% gap filter. Added `.cursor/rules/ibkr-gateway-login-warning.mdc` so agents must loudly tell the user when Gateway needs manual login/2FA instead of silently waiting.
+- **Why:** User logged into Gateway (mobile 2FA) but gappers stayed empty; live probe showed `TOP_OPEN_PERC_GAIN` → 0 rows while `TOP_PERC_GAIN` returned real premarket gaps (NXTC, MVO, etc.). Earlier session also failed to surface "look at Gateway and log in" clearly enough.
+- **Files touched:** `backend/ibkr/discovery.py`, `.cursor/rules/ibkr-gateway-login-warning.mdc`, `PROBLEM_LOG.md`.
+- **How it works now:** `get_gappers()` tries open-gap scan first, then last-vs-prior-close scan in premarket/pre-open. Scanner row counts are logged. Agents must warn loudly on IBKR disconnect (see the new always-apply rule).
+- **Verified by:** Live IB scanner probe on port 4001; backend restarted with fix; waiting on `/api/gappers` population after reconnect.
+- **Follow-ups:** Optional IBC auto-login (local secrets only, never in git) for Gateway credentials + 2FA handoff.
+- **Related:** `PROBLEM_LOG.md` 2026-07-14 premarket TOP_OPEN empty.
+
 ## 2026-07-14 — Empty scanner now names IB Gateway disconnect; Gateway launched for login
+
 
 - **What:** When `discovery_provider=ibkr` but IB Gateway is offline/not logged in, Gappers/Movers/After Hours no longer show the misleading "No gappers with a gap of at least 10% yet — scan running…" copy. They show `EMPTY_IBKR_DISCONNECTED` instead. Also launched the installed IB Gateway (`C:\Jts\ibgateway\1045\ibgateway.exe`) and brought its login window forward so the user can complete live login + 2FA; Nova keeps retrying `127.0.0.1:4001` every ~10s.
 - **Why:** Empty gappers were caused by Gateway not being logged in (no API socket), not by a lack of real gaps. The old empty state hid that.

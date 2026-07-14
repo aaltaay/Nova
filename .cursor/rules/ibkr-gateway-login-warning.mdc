@@ -1,0 +1,45 @@
+---
+description: When IB Gateway needs manual login/2FA, stop and warn the user loudly — never silently wait
+alwaysApply: true
+---
+
+# IB Gateway login — never go silent
+
+Nova's scanner discovery uses IBKR (`NOVA_DISCOVERY_PROVIDER=ibkr`). If IB Gateway is not **logged in**, every gapper/mover scan returns an empty list and looks like "no gaps" — that is a **login blocker**, not a market condition.
+
+## When this rule fires
+
+Any of these means Gateway needs the user:
+
+- `GET /api/ibkr/status` → `"connected": false` while discovery is `ibkr`
+- Logs: `ConnectionRefusedError` to `127.0.0.1:4001` (or configured `IBKR_LIVE_PORT`)
+- Gateway window title is `IBKR Gateway` / `Authenticating...` / waiting for IBKR Mobile 2FA
+- Gateway process running but **no** local LISTEN on the API port (usually `4001` live / `4002` paper)
+
+## Mandatory agent behavior
+
+1. **Stop and warn immediately** — do not keep "working on it" in silence for minutes while the user thinks you are fixing code.
+2. Put a **large, explicit warning** in the chat, for example:
+
+   > **ACTION REQUIRED — IB Gateway login**
+   > Gappers/movers cannot populate until you log into IB Gateway (Live + IB API).
+   > Complete username/password and IBKR Mobile 2FA if prompted.
+   > I will keep reconnecting automatically once the API port opens.
+
+3. Tell the user to **look back at their desktop** — Gateway may be behind other windows or they may have been kicked out / session expired.
+4. Launch Gateway if it is not running (`C:\Jts\ibgateway\1045\ibgateway.exe` or the Desktop "IB Gateway" shortcut) and bring its window to the foreground.
+5. If credentials are already filled, you may click **Log In** via UI automation — you still must warn that **2FA may be required on their phone**.
+6. Keep polling `/api/ibkr/status` in the background after the warning; do not claim "fixed" until `"connected": true` and `/api/gappers` has rows (or a clear IBKR error that is not connection-refused).
+
+## Do NOT
+
+- Treat empty gappers as "no market activity" when IBKR is disconnected
+- Wait indefinitely without telling the user
+- Confuse other listeners (e.g. Immersed on port `40001`) with the IB API port
+- Store IBKR passwords in the repo, git, or chat logs
+
+## Programmatic login (preferred long-term)
+
+IBC (IB Controller) can auto-type credentials into Gateway. That requires a **local-only** secrets file outside git (never commit passwords). Until IBC is installed and documented for this machine, manual login + loud warning is required.
+
+See also: `knowledge/obsidian/03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md`, Trading tab onboarding copy in `frontend/src/ibkr/TradingTab.tsx`.
