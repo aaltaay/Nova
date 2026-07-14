@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Fix Stock View double-click opening in the same window
+
+- **What:** Double-click / Stock View now opens a real new Electron window (IPC `nova:openStockView`). Browser `window.open` no longer uses `noopener` (that returned null and falsely triggered same-tab fallback).
+- **Why:** User reported double-click did not open a new window; desktop was navigating in-place.
+- **Files touched:** `utils/stockViewNav.ts`, `App.tsx`, `electron/main.mjs`, `electron/preload.cjs`.
+- **How it works now:** Desktop prefers `window.novaDesktop.openStockView(url)` → child BrowserWindow. Web uses `window.open` without noopener, then clears `opener`. Same-tab fallback only if both fail.
+- **Verified by:** Vitest `stockViewNav.test.ts`; restart Electron `electron:dev` and double-click a symbol.
+- **Related:** PROBLEM_LOG 2026-07-13 "Stock View double-click stayed in the same window".
+
 ## 2026-07-13 — Stock View page (detachable) mirrors Quote Panel
 
 - **What:** Double-click / “Stock View” opens a named **Stock View** page in a new browser tab (`?view=stock&symbol=LVLU`). It reuses the same `TickerDetailContent` as the scanner **Quote Panel** (fundamentals, broker listing, data sources, news). The 2×2 chart grid is collapsible (“Hide charts” / “Show charts”). IBKR Open/Close/Automate bar stays at the bottom. Electron opens a real child window for the same URL.

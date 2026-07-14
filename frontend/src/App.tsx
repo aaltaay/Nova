@@ -96,11 +96,12 @@ function App() {
     const sym = symbol.trim().toUpperCase();
     if (!sym) return;
     setSelectedSymbol(sym);
-    const opened = openStockViewWindow(sym);
-    if (!opened) {
-      // Popup blocked — keep Stock View in this tab.
-      setStockViewSymbol(sym);
-    }
+    void openStockViewWindow(sym).then(opened => {
+      if (!opened) {
+        // Popup blocked — keep Stock View in this tab.
+        setStockViewSymbol(sym);
+      }
+    });
   }, []);
 
   // Settings form state

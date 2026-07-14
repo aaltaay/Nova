@@ -67,6 +67,17 @@ function createWindow() {
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('nova:apiBase', () => API_BASE);
 
+ipcMain.handle('nova:openStockView', (_event, url) => {
+  if (typeof url !== 'string' || !url.startsWith('http')) {
+    throw new Error('Invalid Stock View URL');
+  }
+  const child = new BrowserWindow(windowOptions());
+  child.setTitle('Nova — Stock View');
+  void child.loadURL(url);
+  attachStockViewWindowOpen(child);
+  return true;
+});
+
 app.whenReady().then(async () => {
   try {
     await startApiSidecar();

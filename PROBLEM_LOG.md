@@ -21,6 +21,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Stock View double-click stayed in the same window
+
+- **Symptom:** Double-clicking a ticker (Electron desktop) did not open a new window; Stock View replaced the scanner in the current window.
+- **Cause:** `window.open(url, '_blank', 'noopener,noreferrer')` returns `null` when `noopener` is set (by design). `openStockView` treated null as "popup blocked" and called `setStockViewSymbol`, navigating the current tab. Electron also needs an explicit BrowserWindow path — `window.open` alone is unreliable without a trusted IPC open.
+- **Fix:** Drop `noopener` from `window.open` (still clear `win.opener` after open). Add `novaDesktop.openStockView(url)` IPC → main creates a child `BrowserWindow`. Prefer IPC when running in the desktop shell.
+- **Keywords:** Stock View, double-click, window.open null, noopener, Electron setWindowOpenHandler, nova:openStockView, same window fallback
+
+## 2026-07-13 — LVLU Open 0 / wrong split date on quote card
+
+- **Symptom:** LVLU side panel showed Open `0`, High/Low equal to a stale Previous Close, and Recent Split `1:15` with a calendar day that did not match the Nasdaq trading-effective date (Jul 7, 2025).
+- **Cause:** (1) IBKR discovery snapshots omit session OHLC; when a feed sent `0` or the UI formatted a zero open, `fmtPrice(0)` painted `$0.00`. (2) `recent_split` used `datetime.fromtimestamp(epoch)` in the local timezone, so Yahoo’s UTC-midnight epoch for LVLU became `2025-07-06` in US/Eastern.
+- **Fix:** Extracted fundamentals to `backend/fundamentals.py` with UTC `_yf_date_str` / `format_recent_split`. Coerce non-positive O/H/L to null in Alpaca `_bar` and IBKR snapshot. Frontend `fmtSessionPrice` / `sessionPriceOrNull` show "—" for missing OHLC.
+- **Keywords:** LVLU, Open 0, fmtSessionPrice, recent_split, lastSplitDate, yfinance UTC, OHLC missing, IBKR discovery
+
 ## 2026-07-13 — Level 2 Reconnecting forever on Symbol cap + stale scan age
 
 - **Symptom:** Scanner looked unstable: header showed "updated ~5962s ago" on Movers, Level 2 for SHPH showed a book with a yellow "Reconnecting…" badge that never cleared, latency looked high.
