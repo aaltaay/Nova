@@ -4,8 +4,8 @@
 > Not a black box — every threshold lives in `backend/constants.py` (`NEWS_IMPACT_*`)
 > and is echoed in each verdict's `factors` + `reasons[]`.
 
-**Status:** Implemented (rules-v1). Lincoln AI reasoning slot is a placeholder (`ai_reasoning: null`).
-**Last updated:** 2026-07-11
+**Status:** Implemented (rules-v1). FinBERT headline sentiment is live (always on, local, free). Lincoln AI reasoning is wired but off by default — opt in with `LINCOLN_AI_ENABLED=true` + `OPENAI_API_KEY`.
+**Last updated:** 2026-07-13
 
 ---
 
@@ -37,6 +37,7 @@
 4. **Price reaction** — strong ≥ 10% \|gap\|, mild ≥ 3%, else flat
 5. **Attention** — RVOL ≥ 2×
 6. **Level 2** — reacting if bid-heavy or \|imbalance\| ≥ 0.35; else quiet / insufficient_data
-7. **`ai_reasoning`** — always `null` until Lincoln AI is wired
+7. **`sentiment` / `sentiment_score`** — local FinBERT (`ProsusAI/finbert`) read of the headline text (`backend/news/sentiment.py`); positive/negative/neutral, informational only, never changes `impact_class`/`confidence`
+8. **`ai_reasoning`** — opt-in LLM narrative ("Lincoln AI", `backend/news/ai_reasoning.py`); `null` unless `LINCOLN_AI_ENABLED=true` and `OPENAI_API_KEY` are set
 
-Tune by editing `NEWS_IMPACT_*` in `backend/constants.py` only.
+Tune by editing `NEWS_IMPACT_*` / `NEWS_SENTIMENT_*` / `LINCOLN_AI_*` in `backend/constants.py` only.

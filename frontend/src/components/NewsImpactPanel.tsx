@@ -80,6 +80,13 @@ export function NewsImpactPanel({ verdict, loading }: Props) {
           <dt title={NEWS_IMPACT_FACTOR_TOOLTIPS.l2}>Level 2</dt>
           <dd>{verdict.l2_reaction}</dd>
         </div>
+        <div>
+          <dt title={NEWS_IMPACT_FACTOR_TOOLTIPS.sentiment}>Sentiment</dt>
+          <dd>
+            {verdict.sentiment}
+            {verdict.sentiment_score != null ? ` (${(verdict.sentiment_score * 100).toFixed(0)}%)` : ''}
+          </dd>
+        </div>
       </dl>
       <details className="ni-reasons">
         <summary title="Every rule that fired, in order — nothing hidden">Why this verdict</summary>
@@ -90,7 +97,7 @@ export function NewsImpactPanel({ verdict, loading }: Props) {
         </ul>
       </details>
       <div className="ni-ai" title={NEWS_IMPACT_FACTOR_TOOLTIPS.ai}>
-        AI reasoning: {verdict.ai_reasoning ?? 'pending (Lincoln AI placeholder)'}
+        AI reasoning: {verdict.ai_reasoning ?? 'unavailable (Lincoln AI is opt-in — see .env.example)'}
       </div>
     </div>
   );

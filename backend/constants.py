@@ -459,7 +459,7 @@ L2_SESSION_REASON_DEPTH = "depth"          # record_sessions.reason when DepthLa
 # ── News impact decision layer (rules-first; not a black box) ────────────────
 # Explicit thresholds for whether news actually moved a ticker / Level 2.
 # Every value here is surfaced in NewsImpactVerdict.factors and UI tooltips.
-# Future "Lincoln AI" reasoning fills ai_reasoning; rules stay authoritative until then.
+# "Lincoln AI" reasoning (see below) fills ai_reasoning; rules stay authoritative.
 NEWS_IMPACT_RULE_VERSION = "rules-v1"
 NEWS_IMPACT_FRESH_HOURS = 2.0          # age ≤ this → fresh (mirrors NEWS_FLAME_HOT_HOURS)
 NEWS_IMPACT_AGING_HOURS = 6.0          # age ≤ this → aging (still attributable)
@@ -490,6 +490,27 @@ NEWS_IMPACT_SECONDARY_SOURCE_KEYWORDS = (
     "motley fool", "seeking alpha", "investopedia", "zacks", "tipranks",
     "investorplace", "fool.com",
 )
+
+# ── News language understanding (FinBERT sentiment + Lincoln AI narrative) ───
+# FinBERT (ProsusAI/finbert) reads the headline text itself and returns a
+# positive/negative/neutral label. It runs locally (no API key, no per-call
+# cost), lazily loading the model on first real headline. It is informational
+# only — it never changes impact_class/confidence, so the rules stay the
+# visible, authoritative decision layer per this module's own contract.
+NEWS_SENTIMENT_ENABLED = True
+NEWS_SENTIMENT_MODEL_NAME = "ProsusAI/finbert"
+NEWS_SENTIMENT_CACHE_MAX_ENTRIES = 500
+
+# Lincoln AI — optional LLM narrative that fills NewsImpactVerdict.ai_reasoning
+# with a plain-English read of the catalyst type. Off by default: it calls an
+# external API and costs money, so it mirrors the IBKR opt-in gate pattern
+# (env var overrides this default; see .env.example). Requires OPENAI_API_KEY.
+LINCOLN_AI_ENABLED = False
+LINCOLN_AI_MODEL = "gpt-4o-mini"
+LINCOLN_AI_MAX_TOKENS = 220
+LINCOLN_AI_TEMPERATURE = 0.2
+LINCOLN_AI_TIMEOUT_SECONDS = 8.0
+LINCOLN_AI_CACHE_MAX_ENTRIES = 200
 
 
 # Efficient local recorders (hot SQLite window — see knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md)

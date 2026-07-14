@@ -1,8 +1,10 @@
 """Rules-first news → ticker / Level 2 impact verdict.
 
 Every threshold comes from constants.py. Every outcome carries human-readable
-`reasons[]`. `ai_reasoning` is always None until Lincoln AI is wired — the
-rules remain the visible decision layer.
+`reasons[]`. `sentiment` comes from a local FinBERT model (news.sentiment) and
+`ai_reasoning` from an opt-in LLM call (news.ai_reasoning) — both are
+informational narrative layered on top; the rules remain the visible,
+authoritative decision layer and are never overridden by either signal.
 """
 from __future__ import annotations
 
@@ -23,6 +25,8 @@ from constants import (
     NEWS_IMPACT_STALE_HOURS,
     NEWS_IMPACT_STRONG_MOVE_PCT,
 )
+from news.ai_reasoning import generate_ai_reasoning
+from news.sentiment import classify_headline_sentiment
 from news.sources import any_official, best_source_tier, count_confirming_sources
 
 IMPACT_CLASSES = ("moved_price", "attention_only", "no_effect", "insufficient_data")
@@ -150,6 +154,8 @@ class NewsImpactVerdict:
     price_reaction: str
     attention: str
     l2_reaction: str
+    sentiment: str
+    sentiment_score: float | None
     headline: str | None
     summary: str
     reasons: list[str] = field(default_factory=list)
@@ -206,6 +212,7 @@ def evaluate_news_impact(
     price = _price_reaction(gap_pct)
     attention = _attention_state(rel_volume)
     l2 = _l2_reaction(l2_features)
+    sentiment_result = classify_headline_sentiment(headline)
 
     factors["observed"] = {
         "article_count": len(articles),
@@ -214,6 +221,8 @@ def evaluate_news_impact(
         "rel_volume": rel_volume,
         "l2_imbalance": (l2_features or {}).get("imbalance"),
         "l2_bid_heavy": (l2_features or {}).get("bid_heavy"),
+        "sentiment": sentiment_result["label"],
+        "sentiment_score": sentiment_result["score"],
     }
 
     # --- Visible factor narration ---
@@ -262,7 +271,13 @@ def evaluate_news_impact(
         reasons.append("Level 2 book is available but not showing a reaction signal.")
     else:
         reasons.append("Level 2 reaction insufficient_data — no book features available.")
-    reasons.append("Lincoln AI reasoning not yet wired (ai_reasoning=null placeholder).")
+    if sentiment_result["label"] == "unavailable":
+        reasons.append("FinBERT headline sentiment unavailable (model not loaded or no headline text).")
+    else:
+        reasons.append(
+            f"FinBERT headline sentiment is '{sentiment_result['label']}' "
+            f"(score={sentiment_result['score']}) — informational only, does not change impact_class."
+        )
 
     # --- Classification ---
     impact = "insufficient_data"
@@ -332,6 +347,19 @@ def evaluate_news_impact(
         summary = "Mixed or incomplete signals — cannot classify news impact yet."
         reasons.append("Rule: fallthrough → impact_class=insufficient_data.")
 
+    if not articles:
+        ai_reasoning = None
+        reasons.append("Lincoln AI reasoning skipped — no articles to interpret.")
+    else:
+        ai_reasoning = generate_ai_reasoning(symbol, headline, summary, sentiment_result)
+        if ai_reasoning:
+            reasons.append("Lincoln AI reasoning generated from the headline and rules-based verdict.")
+        else:
+            reasons.append(
+                "Lincoln AI reasoning unavailable (disabled by default — set LINCOLN_AI_ENABLED=true "
+                "and OPENAI_API_KEY to enable, or the LLM call failed)."
+            )
+
     return NewsImpactVerdict(
         symbol=symbol.upper(),
         impact_class=impact,
@@ -344,9 +372,11 @@ def evaluate_news_impact(
         price_reaction=price,
         attention=attention,
         l2_reaction=l2,
+        sentiment=sentiment_result["label"],
+        sentiment_score=sentiment_result["score"],
         headline=headline,
         summary=summary,
         reasons=reasons,
         factors=factors,
-        ai_reasoning=None,
+        ai_reasoning=ai_reasoning,
     )

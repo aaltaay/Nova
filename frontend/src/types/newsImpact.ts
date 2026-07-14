@@ -17,6 +17,8 @@ export interface NewsImpactVerdict {
   price_reaction: string;
   attention: string;
   l2_reaction: string;
+  sentiment: string;
+  sentiment_score: number | null;
   headline: string | null;
   summary: string;
   reasons: string[];

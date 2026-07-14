@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — News impact layer gains FinBERT sentiment + opt-in Lincoln AI narrative
+
+- **What:** `NewsImpactVerdict` now carries a real language-model read of the headline: `sentiment`/`sentiment_score` from a local FinBERT model (always on, free, no API key), and a filled-in `ai_reasoning` from an opt-in LLM call ("Lincoln AI") that was previously always `null`. Both are informational — `impact_class`/`confidence` are still decided purely by the existing rules in `impact.py`.
+- **Why:** User asked whether a library already exists that's fine-tuned to interpret news; agreed to wire both a free local sentiment model and the previously-placeholder LLM narrative slot into the existing rules-first news impact layer.
+- **Files touched:** `backend/news/sentiment.py` (new), `backend/news/ai_reasoning.py` (new), `backend/news/impact.py`, `backend/constants.py`, `backend/routes/news.py`, `backend/requirements.txt`, `.env.example`, `frontend/src/types/newsImpact.ts`, `frontend/src/constants.ts`, `frontend/src/components/NewsImpactPanel.tsx`.
+- **How it works now:** `news/sentiment.py` lazily loads `ProsusAI/finbert` via `transformers` on the first real headline, caches the pipeline for the process lifetime, and degrades to `{"label": "unavailable", "score": None}` on any load/inference failure — it never raises. `news/ai_reasoning.py` calls OpenAI (`LINCOLN_AI_MODEL`, default `gpt-4o-mini`) only when `LINCOLN_AI_ENABLED=true` (env override; default `False` in `constants.py`, same opt-in gate pattern as IBKR) **and** `OPENAI_API_KEY` is set; otherwise it returns `None` with zero network calls, so tests stay deterministic and offline-safe. `impact.py` calls both after computing the headline/rule factors, appends narration to `reasons[]`, and attaches the results to the verdict — neither signal can change `impact_class` or `confidence`, preserving the "rules remain the visible decision layer" contract in the module's own docstring.
+- **Verified by:** `python -m pytest` in `backend/` — 278 passed (new `test_news_sentiment.py` + 2 new cases in `test_news_impact.py` covering off-by-default AI reasoning and the non-authoritative sentiment field); `npx tsc --noEmit` in `frontend/` — no type errors.
+- **Follow-ups:** Enable `LINCOLN_AI_ENABLED=true` + `OPENAI_API_KEY` in `.env` to turn on real narrative generation; currently off by default to avoid surprise API costs.
+
 ## 2026-07-13 — Stock View quote-panel width is now drag-to-resize
 
 - **What:** The Stock View quote/watchlist/Level 2 column (previously a fixed 380px) now has a draggable divider between it and the chart grid. Users can drag it between 300–640px; the width persists across sessions, and double-clicking the divider resets it to the 380px default.

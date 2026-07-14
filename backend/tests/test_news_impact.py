@@ -107,6 +107,28 @@ class TestImpactClassification:
         assert v.ai_reasoning is None
         assert any("Lincoln AI" in r for r in v.reasons)
 
+    def test_ai_reasoning_off_by_default(self):
+        """LINCOLN_AI_ENABLED defaults False, so no network/API call happens in tests."""
+        v = evaluate_news_impact(
+            "ZZZ",
+            [_article(hours_ago=0.5)],
+            gap_percent=0.12,
+            now=_now(),
+        )
+        assert v.ai_reasoning is None
+        assert any("Lincoln AI" in r for r in v.reasons)
+
+    def test_sentiment_field_present_and_non_authoritative(self):
+        """sentiment/sentiment_score are informational; impact_class is unaffected."""
+        v = evaluate_news_impact(
+            "YYY",
+            [_article(hours_ago=0.5, headline="Test")],
+            gap_percent=0.12,
+            now=_now(),
+        )
+        assert v.sentiment in ("positive", "negative", "neutral", "unavailable")
+        assert v.impact_class == "moved_price"
+
     def test_bump_due_to_news_strong_fresh(self):
         gap = NEWS_IMPACT_STRONG_MOVE_PCT / 100.0
         v = evaluate_news_impact(
