@@ -2,6 +2,7 @@
 Tests for IBKR safety gates and depth-cap logic.
 No live IB Gateway required — all tests run with environment mocking.
 """
+import asyncio
 import os
 import importlib
 import pytest
@@ -102,15 +103,25 @@ class TestDepthCap:
         assert result["ok"] is False
         assert "connect" in result["error"].lower()
 
-    def test_subscribe_cap_enforced(self, monkeypatch):
-        import ibkr.client as client_mod
+    def test_subscribe_evicts_idle_when_at_cap(self):
         from constants import IBKR_MAX_DEPTH_SYMBOLS
-        monkeypatch.setattr(client_mod, "is_connected", lambda: True)
         for i in range(IBKR_MAX_DEPTH_SYMBOLS):
             self.depth._subscriptions[f"SYM{i}"] = {}
-        result = self.depth.subscribe("EXTRA")
-        assert result["ok"] is False
-        assert str(IBKR_MAX_DEPTH_SYMBOLS) in result["error"]
+        self.depth._ws_viewers["SYM0"] = 1  # busy
+        asyncio.run(self.depth._evict_for_capacity("EXTRA"))
+        assert "SYM0" in self.depth._subscriptions
+        assert len(self.depth._subscriptions) == IBKR_MAX_DEPTH_SYMBOLS - 1
+        assert "EXTRA" not in self.depth._subscriptions
+
+    def test_subscribe_force_evicts_when_all_slots_look_busy(self):
+        from constants import IBKR_MAX_DEPTH_SYMBOLS
+        for i in range(IBKR_MAX_DEPTH_SYMBOLS):
+            self.depth._subscriptions[f"SYM{i}"] = {}
+            self.depth._ws_viewers[f"SYM{i}"] = 1  # leaked viewer counts
+        asyncio.run(self.depth._evict_for_capacity("EXTRA"))
+        assert len(self.depth._subscriptions) == IBKR_MAX_DEPTH_SYMBOLS - 1
+        # Force path clears the leaked viewer count on the victim.
+        assert sum(1 for s in ("SYM0", "SYM1", "SYM2") if s in self.depth._subscriptions) == 2
 
     def test_resubscribe_same_symbol_is_idempotent(self, monkeypatch):
         import ibkr.client as client_mod
@@ -153,6 +164,28 @@ class TestDepthWsViewerRefcount:
         assert self.depth.ws_viewer_closed("TSLA") is True
         assert self.depth.ws_viewer_closed("AAPL") is True
 
+    def test_release_when_idle_true_after_grace(self, monkeypatch):
+        import asyncio
+        monkeypatch.setattr(self.depth, "IBKR_DEPTH_RELEASE_GRACE_SEC", 0)
+        self.depth.ws_viewer_opened("AAPL")
+        assert self.depth.ws_viewer_closed("AAPL") is True
+        assert asyncio.run(self.depth.release_when_idle("AAPL")) is True
+
+    def test_release_when_idle_false_if_viewer_reattaches(self, monkeypatch):
+        import asyncio
+        monkeypatch.setattr(self.depth, "IBKR_DEPTH_RELEASE_GRACE_SEC", 0.05)
+
+        async def scenario():
+            self.depth.ws_viewer_opened("AAPL")
+            assert self.depth.ws_viewer_closed("AAPL") is True
+            task = asyncio.create_task(self.depth.release_when_idle("AAPL"))
+            await asyncio.sleep(0.01)
+            self.depth.ws_viewer_opened("AAPL")
+            return await task
+
+        assert asyncio.run(scenario()) is False
+        assert self.depth.viewer_count("AAPL") == 1
+
 
 class _FakeEvent:
     """Minimal stand-in for ib_async's Event, supporting += like the real one."""
@@ -189,12 +222,70 @@ class _FakeIbForErrors:
         self.cancel_depth_calls = []
         self.l1_calls = []
 
-    def cancelMktDepth(self, contract):
-        self.cancel_depth_calls.append(contract)
+    def cancelMktDepth(self, contract, isSmartDepth=False):
+        self.cancel_depth_calls.append((contract, isSmartDepth))
 
     def reqMktData(self, contract, *_args):
         self.l1_calls.append(contract)
         return _FakeTicker()
+
+
+class _FakeIbForSmartDepth(_FakeIbForErrors):
+    def __init__(self):
+        super().__init__()
+        self.depth_calls = []
+
+    async def qualifyContractsAsync(self, contract):
+        contract.conId = 265598
+        return [contract]
+
+    def reqMktDepth(self, contract, numRows=5, isSmartDepth=False, mktDepthOptions=None):
+        self.depth_calls.append(
+            {"contract": contract, "numRows": numRows, "isSmartDepth": isSmartDepth}
+        )
+        return _FakeTicker()
+
+
+class TestSmartDepthFlag:
+    """SMART-routed depth must pass isSmartDepth=True or IBKR rejects with 10092
+    even when NASDAQ TotalView is subscribed (PROBLEM_LOG 2026-07-13)."""
+
+    def setup_method(self):
+        import ibkr.depth as depth_mod
+        importlib.reload(depth_mod)
+        self.depth = depth_mod
+
+    def test_subscribe_async_requests_smart_depth(self, monkeypatch):
+        import asyncio
+        from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_SMART
+        import ibkr.client as client_mod
+
+        fake_ib = _FakeIbForSmartDepth()
+        monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+        monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+        monkeypatch.setattr(self.depth, "_load_ib_types", lambda: True)
+        monkeypatch.setattr(self.depth, "_Stock", lambda *a, **k: _FakeContract(0))
+
+        result = asyncio.run(self.depth.subscribe_async("AAPL"))
+        assert result["ok"] is True
+        assert len(fake_ib.depth_calls) == 1
+        assert fake_ib.depth_calls[0]["isSmartDepth"] is IBKR_DEPTH_SMART
+        assert fake_ib.depth_calls[0]["numRows"] == IBKR_DEPTH_NUM_ROWS
+
+    def test_fallback_cancels_with_matching_smart_flag(self, monkeypatch):
+        import asyncio
+        from constants import IBKR_DEPTH_SMART, IBKR_ERROR_DEPTH_NOT_SUPPORTED
+        import ibkr.client as client_mod
+
+        fake_ib = _FakeIbForErrors()
+        monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+        contract = _FakeContract(265598)
+        self.depth._contracts["AAPL"] = contract
+        self.depth._subscriptions["AAPL"] = {"bids": [], "asks": [], "l1_fallback": False}
+        self.depth._queues["AAPL"] = asyncio.Queue(maxsize=100)
+
+        self.depth._on_ib_error(1, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "not supported", contract)
+        assert fake_ib.cancel_depth_calls == [(contract, IBKR_DEPTH_SMART)]
 
 
 class TestDepthAsyncErrorFallback:
@@ -210,7 +301,7 @@ class TestDepthAsyncErrorFallback:
 
     def test_matching_conid_falls_back_to_l1(self, monkeypatch):
         import asyncio
-        from constants import IBKR_ERROR_DEPTH_NOT_SUPPORTED
+        from constants import IBKR_DEPTH_SMART, IBKR_ERROR_DEPTH_NOT_SUPPORTED
         import ibkr.client as client_mod
         fake_ib = _FakeIbForErrors()
         monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
@@ -223,7 +314,7 @@ class TestDepthAsyncErrorFallback:
         self.depth._on_ib_error(6, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "Deep market data is not supported", contract)
 
         assert self.depth._subscriptions["SHPH"]["l1_fallback"] is True
-        assert fake_ib.cancel_depth_calls == [contract]
+        assert fake_ib.cancel_depth_calls == [(contract, IBKR_DEPTH_SMART)]
         assert fake_ib.l1_calls == [contract]
         # A viewer already connected before the async rejection arrived must
         # learn about the fallback via the queue — it won't re-poll

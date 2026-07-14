@@ -28,6 +28,8 @@ import {
   API_BASE_URL,
 } from './constants';
 import { isNovaApiDebug } from './debug';
+import { scanAgeForTab } from './utils/scanAge';
+import type { ScannerScanAges } from './utils/scanAge';
 
 type Mode = MarketMode;
 // ActiveTab is imported from components/TabNav — includes 'trading'
@@ -55,7 +57,11 @@ function App() {
   const [gappers, setGappers] = useState<Gapper[]>([]);
   const [movers, setMovers] = useState<Mover[]>([]);
   const [afterhours, setAfterhours] = useState<Afterhours[]>([]);
-  const [lastScan, setLastScan] = useState<number>(0);
+  const [scanAges, setScanAges] = useState<ScannerScanAges>({
+    gappers: 0,
+    movers: 0,
+    afterhours: 0,
+  });
   const [showSettings, setShowSettings] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
   const [activeTab, setActiveTab] = useState<ActiveTab>('gappers');
@@ -203,6 +209,8 @@ function App() {
         fetch(`${API_URL}/news-catalysts`),
       ]);
 
+      let nextAges: Partial<ScannerScanAges> = {};
+
       if (gr.ok) {
         const data = await gr.json();
         if (data.health) {
@@ -212,13 +220,13 @@ function App() {
         if (data.mode) setMode(data.mode as Mode);
         if (data.data_feed) setActiveFeed(data.data_feed);
         if (Array.isArray(data.gappers)) setGappers(data.gappers);
-        if (data.last_scan) setLastScan(data.last_scan);
+        if (data.last_scan) nextAges = { ...nextAges, gappers: data.last_scan };
       }
 
       if (moversRes.ok) {
         const data = await moversRes.json();
         if (data.mode) setMode(data.mode as Mode);
-        if (data.last_scan) setLastScan(data.last_scan);
+        if (data.last_scan) nextAges = { ...nextAges, movers: data.last_scan };
         const gainers: Mover[] = Array.isArray(data.gainers) ? data.gainers : [];
         const losers: Mover[] = Array.isArray(data.losers) ? data.losers : [];
         setMovers([...gainers, ...losers]);
@@ -227,8 +235,12 @@ function App() {
       if (ahRes.ok) {
         const data = await ahRes.json();
         if (data.mode) setMode(data.mode as Mode);
-        if (data.last_scan) setLastScan(data.last_scan);
+        if (data.last_scan) nextAges = { ...nextAges, afterhours: data.last_scan };
         if (Array.isArray(data.afterhours)) setAfterhours(data.afterhours);
+      }
+
+      if (Object.keys(nextAges).length > 0) {
+        setScanAges(prev => ({ ...prev, ...nextAges }));
       }
 
       if (catalystRes.ok) {
@@ -366,6 +378,7 @@ function App() {
     }
   };
 
+  const lastScan = scanAgeForTab(activeTab, scanAges);
   const secondsAgo = lastScan > 0 ? Math.max(0, Math.floor(now - lastScan)) : null;
 
   function handleHistoryChange(e: React.ChangeEvent<HTMLSelectElement>) {

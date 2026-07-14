@@ -30,6 +30,51 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Stabilize Level 2 slot thrash + misleading "updated Xs ago"
+
+- **What:** Level 2 no longer sits on a forever "Reconnecting…" badge when the real failure is the 3-symbol IBKR depth cap. Depth subscribe is serialized under a lock, reserves the slot before `qualifyContractsAsync`, and actively evicts idle/leaked slots (also stopping `l2.continuous`) so the viewed ticker can take a line. Header scan age is now tab-aware so Movers is not shown as hours-stale from a frozen after-hours `last_scan`.
+- **Why:** Live probe of SHPH while EHGO/GFUZ/LVLU held the cap returned `Symbol cap reached`; the UI kept the last book and only showed "Reconnecting…". Separately, `fetchData` always overwrote `lastScan` with after-hours (often frozen after 8pm), producing "updated 5962s ago" on the Movers tab.
+- **Files touched:** `backend/ibkr/depth.py`, `backend/tests/test_ibkr_safety.py`, `frontend/src/ibkr/DepthLadder.tsx`, `frontend/src/App.tsx`, `frontend/src/utils/scanAge.ts`.
+- **How it works now:** Concurrent WS opens for the same symbol share one `reqMktDepth`. Cap pressure always frees a slot for the active symbol. DepthLadder surfaces backend error text even when a prior book is still on screen. Header "updated Xs ago" uses the active tab's feed timestamp (`scanAgeForTab`).
+- **Verified by:** `pytest tests/test_ibkr_safety.py`; Vitest `scanAge.test.ts`; live WS probe of SHPH after reload; frontend build.
+- **Related:** PROBLEM_LOG.md 2026-07-13 "Level 2 Reconnecting forever on Symbol cap + stale scan age".
+
+## 2026-07-13 — Level 2 "Connecting depth…" reconnect flicker
+
+- **What:** Depth ladder no longer blanks to "Connecting depth for SYMBOL…" on every brief WebSocket reconnect. Last book stays visible (with a small "Reconnecting depth…" badge). Backend keeps the IBKR depth line alive for `IBKR_DEPTH_RELEASE_GRACE_SEC` (0.75s) after the last viewer disconnects so React remounts can reattach without tearing down `reqMktDepth`. When the 3-slot IBKR depth cap is full, `subscribe_async` now evicts an idle (or force-evicts a leaked) slot so the actively viewed ticker can load instead of reconnect-looping on "Symbol cap reached".
+- **Why:** User saw Level 2 cycle Connecting → book → Connecting on EHGO while sitting on one symbol. Live probe showed the real blocker: slots stuck on AAPL/VMAR/SHPH with EHGO rejected at cap.
+- **Files touched:** `frontend/src/ibkr/useIbkrDepth.ts`, `DepthLadder.tsx`, `backend/ibkr/depth.py`, `backend/routes/trading.py`, `backend/constants.py`, `backend/tests/test_ibkr_safety.py`.
+- **How it works now:** UI only shows the full Connecting placeholder when there is no book yet (and shows the backend error text when subscribe fails). Transient empty DOM frames are ignored if a prior non-empty book exists. WS cleanup waits the grace window before `unsubscribe` / `continuous.stop`. Cap pressure calls `_evict_for_capacity()` (idle first, then force-evict + clear leaked viewer count).
+- **Verified by:** `pytest tests/test_ibkr_safety.py`; frontend build; browser on EHGO after freeing stuck slots — error surface + eviction path.
+- **Related:** PROBLEM_LOG.md 2026-07-13 "Level 2 Connecting depth flicker on reconnect".
+
+## 2026-07-13 — DAS-style Level 2 montage (tier colors + MMID)
+
+- **What:** Replaced the plain two-column depth table with a DAS Trader–style side-by-side montage: Bid (MM / Size / Price) | Ask (Price / Size / MM), price-tier background colors, size heat bars. Backend now forwards `marketMaker` as `mm` on each DOM level.
+- **Why:** User could not “see the depth” — prior UI looked like a thin L1-ish list without colors or market-maker IDs.
+- **Files touched:** `frontend/src/ibkr/DepthLadder.tsx`, `dasDepthTiers.ts`, `types.ts`, `constants.ts`, `index.css`, `backend/ibkr/depth.py`.
+- **How it works now:** Smart Depth rows keep exchange/MM labels; each distinct price band gets the next color from `L2_DAS_TIER_BID` / `L2_DAS_TIER_ASK`. Montage shows up to `TICKER_TRADE_DEPTH_LEVELS` (10) rows per side. After-hours books can still be thin — that is venue data, not the UI.
+- **Verified by:** Vitest `dasDepthTiers.test.ts`; browser check on a live IBKR depth symbol.
+- **Related:** PROBLEM_LOG prior entry on `isSmartDepth=True` (data path); this entry is presentation.
+
+## 2026-07-13 — Level 2 depth now uses SMART depth (`isSmartDepth=True`)
+
+- **What:** `reqMktDepth` / `cancelMktDepth` now pass `isSmartDepth=True` (and `IBKR_DEPTH_NUM_ROWS`) for SMART-routed US stocks. Constants: `IBKR_DEPTH_SMART`, `IBKR_DEPTH_NUM_ROWS`.
+- **Why:** User had NASDAQ TotalView but every symbol (including AAPL/F) got IBKR error 10092 and fell back to L1. Root cause was our request shape, not the subscription.
+- **Files touched:** `backend/ibkr/depth.py`, `backend/constants.py`, `backend/tests/test_ibkr_safety.py`.
+- **How it works now:** Depth on SMART contracts is requested as Smart Depth (TWS API ≥974). Gateway warning 2152 may still list missing non-NASDAQ depth packs (ARCA/NYSE/BATS); NASDAQ TotalView alone is enough for NASDAQ-listed names. Cancel uses the same smart flag so it matches the subscribe.
+- **Verified by:** `pytest tests/test_ibkr_safety.py` (25 passed); live WS probe `/ws/ibkr/depth/AAPL` returned `l1_fallback=False` with real bid/ask rows; blast.log shows `smart=True` and no 10092 for that subscribe.
+- **Related:** PROBLEM_LOG.md 2026-07-13 "SMART depth requested without isSmartDepth=True".
+
+## 2026-07-13 — Prevent chart errors from blanking Nova
+
+- **What:** `TickerChart` now drops invalid/out-of-order live trades, ignores stale REST responses after symbol/timeframe changes, and runs inside a chart-local React error boundary. Added Vitest with permanent chart-ordering regression coverage.
+- **Why:** The user's intermittent black page was a real `TickerChart` crash, not merely dev-server churn. A delayed WebSocket trade could be older than the newest REST candle; passing it to `lightweight-charts` violated the library's monotonic-time requirement and threw an uncaught exception that unmounted the app.
+- **Files touched:** `frontend/src/TickerChart.tsx`, `frontend/src/tickerChartData.ts`, `frontend/src/tickerChartData.test.ts`, `frontend/src/components/TickerChartControls.tsx`, `frontend/src/components/TickerChartErrorBoundary.tsx`, `frontend/src/constants.ts`, `frontend/package.json`, `frontend/package-lock.json`, `.cursor/rules/browser-testing.mdc`.
+- **How it works now:** Live trades are bucketed and compared with the current candle before `series.update()`; older buckets and invalid timestamps never enter the imperative chart library. Each REST request receives a generation number and only the newest generation may update chart state. If another chart-library exception occurs, the chart card shows a retry message while the scanner remains mounted. Browser verification now requires a clean console after exercising affected interactions.
+- **Verified by:** `npm test` (3/3 chart ordering tests), targeted ESLint (clean), `npm run build` (success), and a fresh browser session with five rapid switches across SHPH/LVLU/GMEX/VEEE/SHPH; the scanner and chart remained rendered and the browser console contained no errors.
+- **Related:** PROBLEM_LOG.md 2026-07-13 "Out-of-order chart trade crashed React and blanked the entire app."
+
 ## 2026-07-13 — Root logger now prints to console too, not just blast.log
 
 - **What:** Extracted the logging bootstrap out of `main.py` into a new `backend/logging_setup.py` (`configure_logging()`). The root logger now has both a console `StreamHandler` and the existing rotating file handler, so every module's `logger.info`/`warning`/`error` call is visible in whatever terminal is running the backend, not just in `logs/blast.log`.

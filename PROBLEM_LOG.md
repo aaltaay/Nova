@@ -21,6 +21,34 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Level 2 Reconnecting forever on Symbol cap + stale scan age
+
+- **Symptom:** Scanner looked unstable: header showed "updated ~5962s ago" on Movers, Level 2 for SHPH showed a book with a yellow "Reconnecting…" badge that never cleared, latency looked high.
+- **Cause:** (1) IBKR depth hard-capped at 3 symbols; EHGO/GFUZ/LVLU held the slots. Concurrent `subscribe_async` calls raced through `qualifyContractsAsync` before reserving a slot (triple `reqMktDepth` for EHGO in logs). Eviction either was not loaded in the live process or did not stop `l2.continuous`, so SHPH reconnects got `Symbol cap reached` and closed the WS. DepthLadder hid that error whenever a prior book existed and only showed "Reconnecting…". (2) `App.tsx` `fetchData` wrote `lastScan` from gappers, then movers, then afterhours — after-hours timestamps freeze after the session, so Movers inherited a multi-hour-old age.
+- **Fix:** Serialize depth subscribe with an asyncio lock; reserve the subscription slot before qualify; make eviction async, loop until under cap, and stop continuous L2 for the victim. DepthLadder shows backend error text even with a cached book. Tab-aware `scanAgeForTab` drives the header age.
+- **Keywords:** Reconnecting depth, Symbol cap reached, IBKR_MAX_DEPTH_SYMBOLS, subscribe race, qualifyContractsAsync, updated 5962s ago, last_scan afterhours overwrite, scanAgeForTab, EHGO GFUZ LVLU SHPH
+
+## 2026-07-13 — Level 2 Connecting depth flicker on reconnect
+
+- **Symptom:** Side-panel Level 2 for EHGO (and others) cycled between "Connecting depth for EHGO…" and a real book, then back again, without the user changing symbols.
+- **Cause:** Stacked issues. (1) `DepthLadder` treated `!connected` as "wipe the ladder", so any WebSocket close/remount replaced a healthy book with Connecting even though the last book was still in state. (2) `ws_depth` unsubscribed / stopped continuous immediately on last-viewer close, so React remounts tore down `reqMktDepth` before reattach. (3) Live probe on EHGO showed the reconnect loop was actually hitting `Symbol cap reached (3 max…)` — slots stuck on AAPL/VMAR/SHPH from earlier browsing with leaked/orphaned viewer counts, so EHGO could never hold a stable subscribe.
+- **Fix:** Keep last book visible across reconnects; ignore transient empty DOM frames; surface backend error text; add `IBKR_DEPTH_RELEASE_GRACE_SEC` + `release_when_idle()`; only stop continuous / unsubscribe after grace when still idle; `_evict_for_capacity()` frees idle slots (or force-evicts a leaked one) when a new symbol needs a line.
+- **Keywords:** Connecting depth, Level 2 flicker, Symbol cap reached, IBKR_MAX_DEPTH_SYMBOLS, _evict_for_capacity, DepthLadder, useIbkrDepth, release_when_idle, EHGO, AAPL VMAR SHPH slot leak
+
+## 2026-07-13 — SMART depth requested without isSmartDepth=True (false 10092 / L1-only forever)
+
+- **Symptom:** User bought NASDAQ TotalView but Nova only ever showed L1 (`l1_fallback=True`) for every ticker tested (SHPH, YSXT, QTTB, F, AAPL). Gateway logs showed `snapshot perms=REALTIME_TOP` and every `reqMktDepth` was rejected with error 10092 ("Deep market data is not supported for this combination of security type/exchange").
+- **Cause:** `backend/ibkr/depth.py` called `ib.reqMktDepth(contract, numRows=10)` on a SMART-qualified Stock with the default `isSmartDepth=False`. IBKR requires either a *direct* exchange (e.g. `ISLAND` for TotalView) or `isSmartDepth=True` on SMART (TWS API ≥974 / BookTrader-style aggregated depth). With `False` on SMART, Gateway rejects the combination for *all* symbols — independent of TotalView entitlement. Confirming evidence after the fix: Gateway warning 2152 listed `Depth: NASDAQ; IEX` as available for AAPL.
+- **Fix:** Added `IBKR_DEPTH_SMART=True` and `IBKR_DEPTH_NUM_ROWS=10` to `constants.py`. `subscribe_async` now calls `reqMktDepth(..., numRows=..., isSmartDepth=True)`; `cancelMktDepth` / L1-fallback cancel use the same flag. Regression tests in `TestSmartDepthFlag`.
+- **Keywords:** Level 2, TotalView, isSmartDepth, SMART, error 10092, REALTIME_TOP, reqMktDepth, L1 fallback, AAPL depth
+
+## 2026-07-13 — Out-of-order chart trade crashed React and blanked the entire app
+
+- **Symptom:** Clicking/switching symbols could turn the whole Nova page black. Chrome DevTools showed an uncaught `TickerChart` exception from `lightweight-charts` ("Cannot update oldest data ...") followed by React reporting that an error occurred in `<TickerChart>` and recommending an error boundary.
+- **Cause:** `TickerChart` merged REST candles with live WebSocket trades. Its update effect handled only `trade bucket == latest candle` and `else`, treating every unequal timestamp as a newer candle. A delayed/out-of-order trade whose bucket was *older* than the latest REST candle therefore reached `candleSeries.update()`. `lightweight-charts` requires monotonic time and throws on older data. The exception was uncaught, and no chart-level error boundary existed, so React unmounted the application tree. Concurrent REST requests also lacked stale-response protection, allowing a previous symbol/timeframe response to overwrite the current chart after rapid switching.
+- **Fix:** Extracted chart time/order helpers to `frontend/src/tickerChartData.ts`; `TickerChart` now rejects invalid and older trade buckets before calling the chart library. REST loads use a monotonically increasing request version so stale responses cannot mutate the current chart. Added `TickerChartErrorBoundary` around the imperative chart so any future library exception degrades only the chart, not the scanner. Extracted chart controls to keep `TickerChart.tsx` at 300 lines. Added Vitest and three ordering regression tests.
+- **Keywords:** blank page, black screen, TickerChart crash, Cannot update oldest data, lightweight-charts monotonic time, out-of-order WebSocket trade, stale REST response, error boundary, rapid symbol switching
+
 ## 2026-07-13 — Root logger had no console handler, slowing down live debugging
 
 - **Symptom:** While diagnosing the Level 2 flicker (entry below), `ibkr.depth`'s `logger.info`/`warning`/`error` calls that would have shown the bug immediately (`"IBKR: subscribed depth for SHPH"`, `"depth rejected server-side..."`, etc.) never appeared in the terminal running `uvicorn`/`run_api.py` — only `uvicorn`'s own access-log lines did. Had to open and `grep` `backend/logs/blast.log` by hand to see what our own code was actually doing.

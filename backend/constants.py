@@ -284,6 +284,15 @@ IBKR_PAPER_PORT = 4002       # IB Gateway paper trading port
 IBKR_LIVE_PORT = 4001        # IB Gateway live trading port
 IBKR_CLIENT_ID = 1
 IBKR_MAX_DEPTH_SYMBOLS = 3   # IBKR plan cap: 3 simultaneous Level 2 streams
+IBKR_DEPTH_NUM_ROWS = 10     # Bid/ask rows requested per side of the book
+# SMART-routed depth requires isSmartDepth=True (TWS API ≥974). With False,
+# IBKR rejects every SMART contract with error 10092 even when TotalView /
+# OpenBook is subscribed — see PROBLEM_LOG 2026-07-13.
+IBKR_DEPTH_SMART = True
+# After the last DepthLadder WS viewer disconnects, keep the IBKR depth line
+# alive briefly so React StrictMode remounts / fast reconnects can reattach
+# without tearing down reqMktDepth (which flashes "Connecting depth…").
+IBKR_DEPTH_RELEASE_GRACE_SEC = 0.75
 IBKR_ACCOUNT_POLL_SEC = 5    # How often to refresh account/positions
 IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt
 # TWS API error code: "Deep market data is not supported for this combination

@@ -50,6 +50,8 @@ export interface DepthLevel {
   price: number;
   size: number;
   side: 'bid' | 'ask';
+  /** Market maker / exchange id from IBKR Smart Depth (e.g. ISLAND, ARCA). */
+  mm?: string;
 }
 
 export interface DepthBook {

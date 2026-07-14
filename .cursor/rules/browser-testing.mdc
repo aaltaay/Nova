@@ -8,6 +8,13 @@ alwaysApply: true
 ## 1. Web Verification Requirement
 At the end of every task involving web deployments or changes, you MUST open a headless/headed browser (using `agent-browser` or Playwright) and test the actual live URL or local dev server to ensure it loads successfully and functions correctly before declaring the task complete.
 
+For interactive React changes, a screenshot alone is not verification:
+1. Start a fresh browser session so old errors do not contaminate the result.
+2. Exercise the affected interaction, including rapid switching when async data is involved.
+3. Run `npx agent-browser@latest console` and confirm there are no new uncaught errors or React component-crash warnings.
+4. If a user reports a blank page, treat it as a code defect until the exact browser exception and component stack are captured. Do not attribute it to HMR/reload churn merely because it is intermittent.
+5. Components wrapping imperative third-party UI libraries (charts, maps, editors) must have a local error boundary so one library exception cannot unmount the whole application.
+
 ## 2. Available Browser Skills
 - **Agent Browser CLI (`agent-browser`):** Used for fast, lightweight browser tasks.
   - Commands:

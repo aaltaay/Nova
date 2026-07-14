@@ -137,6 +137,8 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
     symbol = symbol.upper()
     await websocket.accept()
 
+    from l2 import continuous as _l2_continuous
+
     # Auto-subscribe if not already
     if symbol not in _depth.subscribed_symbols():
         result = await _depth.subscribe_async(symbol)
@@ -145,7 +147,6 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
             await websocket.close()
             return
 
-    from l2 import continuous as _l2_continuous
     try:
         _l2_continuous.start(symbol)
     except Exception:
@@ -161,6 +162,20 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
     try:
         _depth.ws_viewer_opened(symbol)
         viewer_opened = True
+
+        # Remount race: a previous viewer's cleanup may have dropped the line
+        # between our initial subscribe check and viewer_opened. Re-subscribe
+        # before streaming so stream() does not exit immediately on a missing queue.
+        if not _depth.has_queue(symbol):
+            result = await _depth.subscribe_async(symbol)
+            if not result["ok"]:
+                await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
+                return
+            try:
+                _l2_continuous.start(symbol)
+            except Exception:
+                logger.exception("l2.continuous: failed to restart for WS %s", symbol)
+
         await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
 
         # A symbol already subscribed by another viewer (or a fresh page
@@ -181,15 +196,18 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
     except Exception as exc:
         logger.error("IBKR depth WS error for %s: %s", symbol, exc)
     finally:
-        try:
-            await _l2_continuous.stop(symbol)
-        except Exception:
-            logger.exception("l2.continuous: failed to stop for WS %s", symbol)
-        # Release the depth line once the LAST viewer of this symbol disconnects,
-        # unless a signal-triggered recording (l2/recorder.py) is still using it —
-        # otherwise browsing a handful of symbols in the always-open scanner side
-        # panel exhausts the small IBKR_MAX_DEPTH_SYMBOLS budget in one session.
+        # Release only once the LAST viewer is gone — and only after a short
+        # grace window so React StrictMode / DepthLadder reconnects can
+        # reattach without tearing down reqMktDepth (Connecting-depth flicker).
+        # continuous.stop belongs here too: stopping it on every viewer close
+        # killed recording for any remaining viewers of the same symbol.
         if viewer_opened and _depth.ws_viewer_closed(symbol):
-            from l2 import recorder as _l2_recorder
-            if not _l2_recorder.is_recording(symbol):
-                _depth.unsubscribe(symbol)
+            idle = await _depth.release_when_idle(symbol)
+            if idle:
+                try:
+                    await _l2_continuous.stop(symbol)
+                except Exception:
+                    logger.exception("l2.continuous: failed to stop for WS %s", symbol)
+                from l2 import recorder as _l2_recorder
+                if not _l2_recorder.is_recording(symbol):
+                    _depth.unsubscribe(symbol)

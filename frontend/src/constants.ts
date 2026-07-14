@@ -230,6 +230,7 @@ export const SIDE_PANEL_STACK_BREAKPOINT_PX = 1100;
 export const CHART_MOCK_BAR_COUNT = 48;
 export const CHART_MOCK_BASE_PRICE = 10;
 export const CHART_MOCK_DATA_LABEL = 'Demo candles (no live bars for this timeframe)';
+export const CHART_REFETCH_SEC: Record<string, number> = { '1Min': 10, '5Min': 15, '15Min': 30, '30Min': 30, '1Hour': 60, '4Hour': 120 };
 
 // ── Backend URL ───────────────────────────────────────────────────────────────
 // 1) Electron preload may set `window.novaDesktop.apiBase`.
@@ -367,7 +368,44 @@ export const TICKER_TRADE_DEFAULT_QTY = 100;
 export const TICKER_TRADE_ORDER_DISCLOSURE =
   'Orders go through Interactive Brokers only (paper by default). Alpaca scanning stays read-only.';
 /** Depth ladder levels shown in the compact side column (bids + asks each). */
-export const TICKER_TRADE_DEPTH_LEVELS = 5;
+export const TICKER_TRADE_DEPTH_LEVELS = 10;
+
+/**
+ * DAS-style Level 2 montage — dark-theme tier palette (price-level groups).
+ * Mirrors the classic “each price band gets the next color” montage look.
+ * Bid tiers lean green; ask tiers lean red/pink.
+ */
+export const L2_DAS_TIER_BID: readonly string[] = [
+  'rgba(34, 197, 94, 0.55)',
+  'rgba(34, 197, 94, 0.38)',
+  'rgba(22, 163, 74, 0.28)',
+  'rgba(74, 222, 128, 0.22)',
+  'rgba(21, 128, 61, 0.20)',
+  'rgba(34, 197, 94, 0.14)',
+  'rgba(110, 231, 183, 0.12)',
+  'rgba(6, 95, 70, 0.18)',
+];
+export const L2_DAS_TIER_ASK: readonly string[] = [
+  'rgba(239, 68, 68, 0.55)',
+  'rgba(239, 68, 68, 0.38)',
+  'rgba(220, 38, 38, 0.28)',
+  'rgba(248, 113, 113, 0.22)',
+  'rgba(185, 28, 28, 0.20)',
+  'rgba(239, 68, 68, 0.14)',
+  'rgba(252, 165, 165, 0.12)',
+  'rgba(127, 29, 29, 0.18)',
+];
+export const L2_DAS_SIZE_BAR_BID = 'rgba(34, 197, 94, 0.35)';
+export const L2_DAS_SIZE_BAR_ASK = 'rgba(239, 68, 68, 0.35)';
+export const L2_DAS_MM_FALLBACK = '—';
+export const L2_DAS_HEADERS = {
+  bidMm: 'MM',
+  bidSize: 'Size',
+  bidPrice: 'Bid',
+  askPrice: 'Ask',
+  askSize: 'Size',
+  askMm: 'MM',
+} as const;
 
 /** Universal strategy config zero-defaults (all filters disabled). */
 export const DEFAULT_STRATEGY_CONFIG = {
