@@ -195,6 +195,21 @@ class TestImpactClassification:
         )
         assert v.confirmed_by_official is True
         assert v.source_tier == "official"
+        assert v.source_name == "Business Wire"
+
+    def test_source_name_none_when_no_articles(self):
+        v = evaluate_news_impact("NNN", [], gap_percent=0.1, now=_now())
+        assert v.source_name is None
+
+    def test_headline_url_captured_from_newest_article(self):
+        v = evaluate_news_impact(
+            "UUU",
+            [_article(hours_ago=0.2, source="Reuters", url="https://reuters.com/x", headline="Deal news")],
+            gap_percent=0.12,
+            now=_now(),
+        )
+        assert v.headline == "Deal news"
+        assert v.headline_url == "https://reuters.com/x"
 
     def test_l2_reacting_when_imbalance_high(self):
         v = evaluate_news_impact(

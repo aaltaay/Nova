@@ -72,3 +72,19 @@ def count_confirming_sources(articles: list[dict]) -> int:
 
 def any_official(articles: list[dict]) -> bool:
     return any(classify_source_tier(a) == "official" for a in articles)
+
+
+def best_source_name(articles: list[dict]) -> str | None:
+    """Literal source string (e.g. 'Business Wire') of the best-tier article.
+
+    Ties on tier break by most recent `created_at`. Returns None when there
+    are no articles or the winning article has no source string.
+    """
+    if not articles:
+        return None
+    best = max(
+        articles,
+        key=lambda a: (SOURCE_TIER_RANK.get(classify_source_tier(a), 0), str(a.get("created_at") or "")),
+    )
+    name = str(best.get("source") or "").strip()
+    return name or None

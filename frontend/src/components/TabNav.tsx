@@ -3,8 +3,6 @@
  * Extracted from App.tsx to keep it under its 150-line target.
  * Tab row is tabs-only; scan age / data source live in AppHeader.
  */
-import { CATALYSTS_EXPERIMENTAL_LABEL } from '../constants';
-
 export type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo' | 'trading' | 'strategy' | 'reports';
 
 interface Props {
@@ -50,7 +48,6 @@ export function TabNav({ activeTab, onTabClick, counts }: Props) {
           onClick={() => onTabClick('catalysts')}
         >
           Catalysts
-          <span className="tab-badge-experimental">{CATALYSTS_EXPERIMENTAL_LABEL}</span>
           {counts.catalysts > 0 && <span className="tab-count">{counts.catalysts}</span>}
         </button>
         <button

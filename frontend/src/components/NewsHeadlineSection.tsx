@@ -62,14 +62,19 @@ export function NewsHeadlineSection({ news, newsImpact, timeAgo }: Props) {
                   <span
                     className={`cq-news-icon ${hasFlame ? `news-flame ${flameClass}` : 'cq-news-icon-blank'}`}
                   />
-                  <a
-                    className="cq-news-link"
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {article.headline}
-                  </a>
+                  <span className="cq-news-main">
+                    <a
+                      className="cq-news-link"
+                      href={article.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {article.headline}
+                    </a>
+                    {article.source && (
+                      <span className="cq-news-source">{article.source}</span>
+                    )}
+                  </span>
                   <span className="cq-news-time">{timeAgo(article.created_at)}</span>
                 </div>
               );

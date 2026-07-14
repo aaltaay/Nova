@@ -14,5 +14,6 @@ export interface Catalyst {
   newest_headline_at: string | null;
   catalyst_headline: string | null;
   catalyst_url: string | null;
+  catalyst_source?: string | null;
   news_impact?: NewsImpactVerdict | null;
 }

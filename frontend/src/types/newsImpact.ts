@@ -12,6 +12,7 @@ export interface NewsImpactVerdict {
   age_hours: number | null;
   age_bucket: string;
   source_tier: string;
+  source_name: string | null;
   confirmed_by_official: boolean;
   confirming_source_count: number;
   price_reaction: string;
@@ -22,6 +23,7 @@ export interface NewsImpactVerdict {
   lexicon_sentiment: string;
   lexicon_polarity: number | null;
   headline: string | null;
+  headline_url: string | null;
   summary: string;
   reasons: string[];
   factors: Record<string, unknown>;

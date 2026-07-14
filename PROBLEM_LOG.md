@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Catalyst rows always showed "unknown" source tier
+
+- **Symptom:** Every row on the Catalysts tab classified `source_tier` as `unknown`/`none` and `confirmed_by_official` as `False`, even for headlines from official wires like Business Wire/PR Newswire, and the frontend had no way to show the reader where a catalyst headline actually came from.
+- **Cause:** `_run_news_catalyst_scan()` in `backend/main.py` built `symbol_to_article` from the Alpaca `/v1beta1/news` response but only kept `created_at`/`headline`/`url` — it dropped the article's `source` field entirely. Downstream, `enrich_catalyst_row()` (`backend/news/enrich.py`) and the ticker-detail fallback path in `_gather_context()` (`backend/routes/news.py`) both hardcoded `"source": ""` when constructing the article dict passed into `evaluate_news_impact()`, so `classify_source_tier()` had nothing to classify beyond headline/URL keyword matches.
+- **Fix:** Capture `article.get("source", "")` into `symbol_to_article` and thread it through as `catalyst_source` on each catalyst row; `enrich_catalyst_row()` and `_gather_context()` now read `row.get("catalyst_source")` instead of a literal `""`. Also added `news/sources.py::best_source_name()` and a new `source_name`/`headline_url` field on `NewsImpactVerdict` so the frontend can show the literal publisher name (not just the tier bucket) next to every headline, in both the Catalysts tab and the quote panel's `NewsImpactPanel`.
+- **Keywords:** source_tier, confirmed_by_official, catalyst_source, enrich_catalyst_row, _gather_context, _run_news_catalyst_scan, best_source_name, NewsImpactVerdict, classify_source_tier
+
 ## 2026-07-13 — Stock View double-click lost to layout re-render
 
 - **Symptom:** Double-clicking a ticker in Electron did not open Stock View in a new window (Quote Panel updated; no child window). Direct `novaDesktop.openStockView` IPC worked.

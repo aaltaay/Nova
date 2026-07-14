@@ -14,7 +14,7 @@ def enrich_catalyst_row(row: dict) -> dict:
     article = {
         "headline": row.get("catalyst_headline") or "",
         "url": row.get("catalyst_url") or "",
-        "source": "",
+        "source": row.get("catalyst_source") or "",
         "created_at": row.get("newest_headline_at") or "",
     }
     articles = [article] if article["created_at"] or article["headline"] else []

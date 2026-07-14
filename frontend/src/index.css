@@ -1804,6 +1804,12 @@ th {
   height: 24px;
 }
 
+.cq-news-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .cq-news-link {
   color: var(--text-primary);
   text-decoration: none;
@@ -1813,6 +1819,13 @@ th {
 .cq-news-link:hover {
   color: var(--accent-color);
   text-decoration: underline;
+}
+
+.cq-news-source {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .cq-news-time {
@@ -1869,6 +1882,22 @@ th {
   font-size: 0.7rem;
 }
 
+.ni-headline {
+  margin: 0 0 0.4rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.ni-headline a {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.ni-headline a:hover {
+  color: var(--accent-color);
+  text-decoration: underline;
+}
+
 .ni-summary {
   margin: 0 0 0.5rem;
   color: var(--text-primary);
@@ -1915,11 +1944,26 @@ th {
 }
 
 .ni-catalyst-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   margin-top: 0.25rem;
   font-size: 0.65rem;
   color: var(--text-secondary);
-  cursor: help;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  cursor: pointer;
+}
+
+.ni-catalyst-badge:hover {
+  border-color: var(--accent-color);
+  color: var(--text-primary);
+}
+
+.ni-catalyst-badge-caret {
+  font-size: 0.55rem;
 }
 
 /* Section title between quote metric blocks */
@@ -2078,25 +2122,6 @@ th {
 
 /* ── News Catalysts tab ───────────────────────────────────────────────────── */
 
-.tab-badge-experimental {
-  font-size: 0.55rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  background: rgba(234, 179, 8, 0.15);
-  color: #ca8a04;
-  border: 1px solid rgba(234, 179, 8, 0.3);
-  padding: 0.04rem 0.25rem;
-  border-radius: 3px;
-  margin-left: 0.1rem;
-  vertical-align: middle;
-}
-
-.tab.active .tab-badge-experimental {
-  background: rgba(234, 179, 8, 0.25);
-  color: #b45309;
-}
-
 .catalysts-description {
   font-size: 0.8rem;
   color: var(--text-secondary);
@@ -2107,6 +2132,10 @@ th {
 
 .catalyst-headline-cell {
   max-width: 360px;
+}
+
+.catalyst-headline-text {
+  display: block;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2119,6 +2148,25 @@ th {
 
 .catalyst-headline-link:hover {
   text-decoration: underline;
+}
+
+.catalyst-source-tag {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 0.15rem;
+}
+
+.catalyst-expand-row td {
+  padding: 0.5rem 0.75rem 0.75rem;
+  background: rgba(255, 255, 255, 0.015);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.catalyst-expand-row .news-impact-panel {
+  margin-bottom: 0;
 }
 
 

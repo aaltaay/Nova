@@ -183,10 +183,6 @@ export const SCANNER_MIN_PRICE = 0.50;  // exclude any stock priced below $0.50 
 // ── Gapper filter (mirror backend GAPPER_MIN_GAP_PCT) ───────────────────────
 export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show as a gapper
 
-// ── News Catalysts tab ────────────────────────────────────────────────────────
-// Label shown on the experimental Catalysts tab badge
-export const CATALYSTS_EXPERIMENTAL_LABEL = 'Experimental';
-
 // ── Ticker chart ─────────────────────────────────────────────────────────────
 // Mirrors backend CHART_TIMEFRAMES / CHART_DEFAULT_TIMEFRAME in constants.py.
 export interface ChartTimeframe {

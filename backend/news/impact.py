@@ -30,7 +30,7 @@ from constants import (
 from news.ai_reasoning import generate_ai_reasoning
 from news.lexicon import classify_headline_lexicon
 from news.sentiment import classify_headline_sentiment
-from news.sources import any_official, best_source_tier, count_confirming_sources
+from news.sources import any_official, best_source_name, best_source_tier, count_confirming_sources
 
 IMPACT_CLASSES = ("moved_price", "attention_only", "no_effect", "insufficient_data")
 AGE_BUCKETS = ("fresh", "aging", "stale", "expired", "unknown")
@@ -152,6 +152,7 @@ class NewsImpactVerdict:
     age_hours: float | None
     age_bucket: str
     source_tier: str
+    source_name: str | None
     confirmed_by_official: bool
     confirming_source_count: int
     price_reaction: str
@@ -162,6 +163,7 @@ class NewsImpactVerdict:
     lexicon_sentiment: str
     lexicon_polarity: float | None
     headline: str | None
+    headline_url: str | None
     summary: str
     reasons: list[str] = field(default_factory=list)
     factors: dict[str, Any] = field(default_factory=_factors_snapshot)
@@ -199,6 +201,7 @@ def evaluate_news_impact(
 
     newest = newest_headline_at
     headline: str | None = None
+    headline_url: str | None = None
     if articles:
         sorted_arts = sorted(
             articles,
@@ -207,10 +210,12 @@ def evaluate_news_impact(
         )
         newest = newest or sorted_arts[0].get("created_at")
         headline = sorted_arts[0].get("headline") or sorted_arts[0].get("catalyst_headline")
+        headline_url = sorted_arts[0].get("url") or sorted_arts[0].get("catalyst_url")
 
     age = _age_hours(newest, now=now)
     bucket = _age_bucket(age)
     tier = best_source_tier(articles)
+    source_name = best_source_name(articles)
     confirm_count = count_confirming_sources(articles)
     official = any_official(articles) or confirm_count >= NEWS_IMPACT_MULTI_SOURCE_CONFIRM
     gap_pct = _gap_pct_points(gap_percent)
@@ -244,7 +249,9 @@ def evaluate_news_impact(
                 f"(fresh≤{NEWS_IMPACT_FRESH_HOURS}h, aging≤{NEWS_IMPACT_AGING_HOURS}h, "
                 f"stale≤{NEWS_IMPACT_STALE_HOURS}h)."
             )
-    reasons.append(f"Best source tier is '{tier}'.")
+    reasons.append(
+        f"Best source tier is '{tier}'" + (f" ({source_name})." if source_name else ".")
+    )
     if official:
         reasons.append(
             f"Confirmed by official/major sources "
@@ -382,6 +389,7 @@ def evaluate_news_impact(
         age_hours=round(age, 3) if age is not None else None,
         age_bucket=bucket,
         source_tier=tier,
+        source_name=source_name,
         confirmed_by_official=bool(official),
         confirming_source_count=confirm_count,
         price_reaction=price,
@@ -392,6 +400,7 @@ def evaluate_news_impact(
         lexicon_sentiment=lexicon_result["label"],
         lexicon_polarity=lexicon_result["polarity"],
         headline=headline,
+        headline_url=headline_url,
         summary=summary,
         reasons=reasons,
         factors=factors,

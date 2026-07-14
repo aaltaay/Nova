@@ -51,7 +51,7 @@ def _gather_context(symbol: str) -> dict:
                     articles = [{
                         "headline": row.get("catalyst_headline"),
                         "url": row.get("catalyst_url") or "",
-                        "source": "",
+                        "source": row.get("catalyst_source") or "",
                         "created_at": row.get("newest_headline_at") or "",
                     }]
                 break

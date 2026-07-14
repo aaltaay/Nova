@@ -1424,12 +1424,14 @@ def _run_news_catalyst_scan() -> None:
             created_at = article.get("created_at", "")
             headline = article.get("headline", "")
             url = article.get("url", "")
+            source = article.get("source", "")
             for sym in article.get("symbols", []):
                 if sym not in symbol_to_article or created_at > symbol_to_article[sym]["created_at"]:
                     symbol_to_article[sym] = {
                         "created_at": created_at,
                         "headline": headline,
                         "url": url,
+                        "source": source,
                     }
 
         # Trust the validated universe set — no per-scanner filter logic here.
@@ -1471,6 +1473,7 @@ def _run_news_catalyst_scan() -> None:
                 "newest_headline_at": article_info.get("created_at"),
                 "catalyst_headline": article_info.get("headline"),
                 "catalyst_url": article_info.get("url"),
+                "catalyst_source": article_info.get("source"),
             }))
 
         catalysts.sort(key=lambda x: abs(x["gap_percent"]), reverse=True)

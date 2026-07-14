@@ -53,6 +53,17 @@ export function NewsImpactPanel({ verdict, loading }: Props) {
           {verdict.rule_version}
         </span>
       </div>
+      {verdict.headline && (
+        <p className="ni-headline">
+          {verdict.headline_url ? (
+            <a href={verdict.headline_url} target="_blank" rel="noopener noreferrer">
+              {verdict.headline}
+            </a>
+          ) : (
+            verdict.headline
+          )}
+        </p>
+      )}
       <p className="ni-summary">{verdict.summary}</p>
       <dl className="ni-factors">
         <div>
@@ -64,8 +75,10 @@ export function NewsImpactPanel({ verdict, loading }: Props) {
         <div>
           <dt title={NEWS_IMPACT_FACTOR_TOOLTIPS.source}>Source</dt>
           <dd>
+            {verdict.source_name ? `${verdict.source_name} · ` : ''}
             {verdict.source_tier}
-            {verdict.confirmed_by_official ? ' · official/major confirmed' : ' · not officially confirmed'}
+            {verdict.confirmed_by_official ? ' · confirmed' : ' · not confirmed'}
+            {verdict.confirming_source_count > 0 ? ` (${verdict.confirming_source_count})` : ''}
           </dd>
         </div>
         <div>
