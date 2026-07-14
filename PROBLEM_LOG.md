@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Empty gappers/movers/after-hours despite real gaps existing (IB Gateway disconnected)
+
+- **Symptom:** User reported "nothing is being scanned" and knew real gappers existed, but `/api/gappers`, `/api/movers`, `/api/afterhours` all returned empty lists, and the UI showed the generic "No gappers with a gap of at least X% yet — scan running..." message that implied everything was healthy.
+- **Cause:** `.env` has `NOVA_DISCOVERY_PROVIDER='ibkr'`, so scanner discovery is sourced from IBKR (`backend/ibkr/discovery.py`), not Alpaca — but IB Gateway/TWS was not running on the machine (`Get-Process` found no `ibgateway`/`tws`/`javaw`), and `backend/logs/blast.log` showed a `ConnectionRefusedError` to `127.0.0.1:4001` every ~12s. `backend/main.py`'s `_run_ibkr()` wraps every IBKR call in a try/except that returns `[]` on any failure "so callers degrade like an empty scan" — a deliberate design choice (avoid crashing the scan tick on a Gateway hiccup) that has the side effect of making a fully-disconnected Gateway indistinguishable from "no gaps right now" in the UI.
+- **Fix:** No code fix — this is a connectivity/config issue, not a bug: IB Gateway needs to be running and logged in (live session, since `IBKR_GATEWAY_MODE=live` → port 4001), with API access enabled and `127.0.0.1` trusted in Gateway's **Configure → Settings → API → Settings**. Confirmed via `GET /api/ibkr/status` returning `connected: false`. Diagnosis also surfaced a real gap worth fixing later: nothing in the UI distinguishes "IBKR discovery provider configured but Gateway disconnected" from "genuinely no gaps yet" — a warning banner for that state would prevent this confusion next time.
+- **Keywords:** empty gappers, no movers, ConnectionRefusedError, IB Gateway not running, NOVA_DISCOVERY_PROVIDER, _run_ibkr, /api/ibkr/status, silent degrade, port 4001, IBKR_GATEWAY_MODE
+
 ## 2026-07-14 — Block button in quote panel could not be undone
 
 - **Symptom:** User clicked "Block" on a ticker (LVLU) in the quote panel, then clicked the button again to undo it — nothing happened. The ticker stayed on the HOD Momo blocklist with no way to remove it from that button.
