@@ -192,6 +192,8 @@ HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK = 200  # max symbols per Alpaca WS subscribe mes
 HOD_MOMO_SESSION_RESET_HOUR_ET = 4   # reset session state at 4:00 AM ET
 HOD_MOMO_SEED_REFRESH_SEC = 30.0     # IBKR volume-scanner seed cadence
 HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1  # empty former_momo_list → never fire
+HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12  # Warrior Running Up — no HOD required
+HOD_MOMO_STRATEGY_ID_MAX = 12
 
 # Enrichment loop intervals
 HOD_MOMO_ENRICH_INTERVAL_SEC = 30.0          # batch snapshot enrichment cadence
@@ -213,15 +215,19 @@ HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 1.0
 # Floor = ~14 min of the 04:00–16:00 ET volume day — avoids insane RVOL at 4:01.
 HOD_MOMO_RVOL_PACE_FLOOR = 0.02
 HOD_MOMO_RVOL_USE_PACE = True
+# Warrior "Relative Volume (5 min %)": last-5m vol ÷ (avg_daily / bars_in_session).
+# Session = 04:00–16:00 ET (720 min → 144 five-minute bars), matching pace RVOL day.
+HOD_MOMO_RVOL_5MIN_WINDOW_SEC = 300
+HOD_MOMO_RVOL_5MIN_SESSION_MINUTES = 720.0
 
 # RVOL fallback: when on IEX free tier, Alpaca historical bars are mostly empty.
 # During warmup (first N seconds after startup), skip the RVOL master gate entirely
 # so the scanner can fire while yfinance data loads progressively.
 HOD_MOMO_RVOL_WARMUP_GRACE_SEC = 300            # 5 min: skip RVOL gate while yfinance warms up
 # Bump when master/strategy defaults change so persisted configs migrate once.
-HOD_MOMO_CONFIG_SCHEMA_VERSION = 2
+HOD_MOMO_CONFIG_SCHEMA_VERSION = 3
 
-# Strategy names (canonical order 1–11)
+# Strategy names (canonical order 1–12)
 HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {
     1:  "Former Momo Stock",
     2:  "Squeeze Alert - 52wk Breakout",
@@ -234,6 +240,7 @@ HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {
     9:  "Medium Float - Med Rel Vol - Price $20+",
     10: "Squeeze Alert - Up 10% in 10min",
     11: "Squeeze Alert - Up 5% in 5min",
+    12: "Running Up Alert",
 }
 
 # Strategy default colors (hex)
@@ -249,12 +256,13 @@ HOD_MOMO_STRATEGY_COLORS: dict[int, str] = {
     9:  "#78909C",
     10: "#00E5FF",
     11: "#40C4FF",
+    12: "#FF6E40",
 }
 
 # Audio ON by default for all except 8 and 9
 HOD_MOMO_STRATEGY_AUDIO_DEFAULT: dict[int, bool] = {
     1: True, 2: True, 3: True, 4: True, 5: True,
-    6: True, 7: True, 8: False, 9: False, 10: True, 11: True,
+    6: True, 7: True, 8: False, 9: False, 10: True, 11: True, 12: True,
 }
 
 # Per-strategy default config values.
@@ -314,6 +322,12 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
     11: {  # Squeeze Alert - Up 5% in 5min
         "surge_pct": 5.0,
         "surge_window_min": 5,
+    },
+    12: {  # Running Up Alert — Warrior separate scanner; momentum without HOD
+        "requires_hod": False,
+        "surge_pct": 5.0,
+        "surge_window_min": 5,
+        "min_rvol": 2.0,
     },
 }
 

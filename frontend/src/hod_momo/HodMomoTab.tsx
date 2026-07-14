@@ -136,15 +136,23 @@ function AlertRow({
                   {alert.rvol != null ? (
                     <span className="hod-rvol-cell">
                       {alert.rvol.toFixed(2)}x
-                      {alert.rvol_source === 'yfinance' && (
+                      {(alert.rvol_source === 'yfinance' || alert.rvol_source === 'yfinance_pace') && (
                         <span
                           className="hod-rvol-badge yf"
-                          title="RVOL from yfinance consolidated data (IEX free tier)"
+                          title="Pace RVOL from yfinance (IEX free tier)"
                         >
                           YF
                         </span>
                       )}
                     </span>
+                  ) : <span className="na-muted">—</span>}
+                </td>
+              );
+            case 'rvol_5min':
+              return (
+                <td key={key}>
+                  {alert.rvol_5min != null ? (
+                    <span className="hod-rvol-cell">{alert.rvol_5min.toFixed(2)}x</span>
                   ) : <span className="na-muted">—</span>}
                 </td>
               );

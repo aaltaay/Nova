@@ -350,19 +350,21 @@ export const STRATEGY_META: StrategyMeta[] = [
   { id: 9,  name: 'Medium Float - Med Rel Vol - Price $20+',    color: '#78909C', audioDefault: false },
   { id: 10, name: 'Squeeze Alert - Up 10% in 10min',            color: '#00E5FF', audioDefault: true  },
   { id: 11, name: 'Squeeze Alert - Up 5% in 5min',              color: '#40C4FF', audioDefault: true  },
+  { id: 12, name: 'Running Up Alert',                           color: '#FF6E40', audioDefault: true  },
 ];
 
 export const STRATEGY_META_MAP: Record<number, StrategyMeta> = Object.fromEntries(
   STRATEGY_META.map(s => [s.id, s]),
 );
 
-/** HOD Momo feed columns — Time + shared scanner columns (reusing SCANNER_COLUMNS keys) + Strategy */
+/** HOD Momo feed columns — mirrors Warrior Daily Rate + 5-min Rel Vol */
 export const HOD_MOMO_COLUMNS: [string, string][] = [
   ['time',        'Time'],
   ['symbol',      'Symbol'],
   ['price',       'Price'],
   ['change_pct',  'Change %'],
-  ['rvol',        'RVOL'],
+  ['rvol',        'RVOL (Daily)'],
+  ['rvol_5min',   'RVOL (5m)'],
   ['float',       'Float'],
   ['gap_pct',     'Gap %'],
   ['volume',      'Volume'],
@@ -521,4 +523,5 @@ export const DEFAULT_STRATEGY_CONFIG = {
   surge_method: 'low_to_current' as const,
   proximity_52wk_pct: 0,
   former_momo_list: [] as string[],
+  requires_hod: true,
 };

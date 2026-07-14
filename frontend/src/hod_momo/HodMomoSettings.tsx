@@ -151,6 +151,14 @@ function StrategyConfigurator({
         <NumField label="Surge %" value={cfg.surge_pct} onChange={v => onChange({ surge_pct: v })} step={0.5} />
         <NumField label="Surge Window (min)" value={cfg.surge_window_min} onChange={v => onChange({ surge_window_min: Math.round(v) })} step={1} />
       </div>
+      <label className="hod-cfg-check">
+        <input
+          type="checkbox"
+          checked={cfg.requires_hod !== false}
+          onChange={e => onChange({ requires_hod: e.target.checked })}
+        />
+        Require new HOD (off = Running Up style)
+      </label>
       <div className="hod-cfg-row">
         <div className="hod-cfg-field">
           <label className="hod-cfg-label">Measurement Method</label>

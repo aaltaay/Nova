@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — HOD 5-min RVOL + Running Up Alert
+
+- **What:** HOD table shows Warrior-style **RVOL (Daily)** and **RVOL (5m)**. New strategy **#12 Running Up Alert** fires on surge/RVOL without requiring a new HOD (`requires_hod=false`).
+- **Why:** Follow-up after Warrior parity — Day Trade Dash shows both Rel Vol columns and a separate Running Up scanner.
+- **Files touched:** `backend/hod_momo_metrics.py` (new), `hod_momo.py`, `hod_momo_enrichment.py`, `constants.py`, frontend HOD types/columns/settings, tests.
+- **How it works now:** Cumulative day-volume samples → 5m delta ÷ (avg_daily / 144 bars). Master gate no longer owns HOD; each strategy’s `requires_hod` does. Schema v3 adds strategy 12.
+- **Verified by:** `pytest` HOD suite 18 passed; frontend build.
+- **Related:** commit after Warrior parity `94b8f6e`.
+
 ## 2026-07-14 — HOD Momo Warrior parity (pace RVOL, volume seeds, gates)
 
 - **What:** Nova HOD Momo now closer to Warrior Day Trade Dash: pace RVOL (Daily Rate), IBKR volume-scanner seeds, Former Momo no longer fires on an empty list, master surge default off so float/RVOL strategies are not double-gated.

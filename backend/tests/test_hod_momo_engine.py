@@ -142,6 +142,42 @@ def test_former_momo_fires_when_on_list(monkeypatch):
     assert any(a.strategy_id == 1 and a.ticker == sym for a in pending)
 
 
+def test_running_up_fires_without_hod(monkeypatch):
+    """Warrior Running Up alerts on momentum without requiring a new HOD."""
+    _reset_engine(monkeypatch)
+    for sid, cfg in hm._configs.items():
+        cfg.enabled = sid == 12
+        if sid == 12:
+            cfg.requires_hod = False
+            cfg.surge_pct = 5.0
+            cfg.surge_window_min = 5
+            cfg.min_rvol = 2.0
+
+    hm._master.hod_required = True
+    hm._master.surge_pct = 0.0
+    hm._master.min_rvol = 2.0
+
+    sym = "VEEE"
+    now = time.time()
+    # Establish a prior HOD well above current path
+    hm._session_highs[sym] = 50.0
+    hm.update_ticker_snapshot(
+        sym, price=43.0, change_pct=40.0, rvol=8.0,
+        float_shares=5_000_000, gap_pct=-10.0, volume=20_000_000,
+        fifty_two_week_high=60.0, rvol_source="test", avg_volume=2_000_000,
+    )
+    # Squeeze up but stay below prior HOD
+    for i, px in enumerate([40.0, 41.0, 42.0, 43.0]):
+        hm.on_trade_update(sym, px, now - (4 - i) * 30.0, volume=20_000_000 + i * 10_000)
+
+    pending = [
+        a for bucket in hm._pending_consolidation.values() for _, a in bucket
+    ]
+    assert any(a.strategy_id == 12 and a.ticker == sym for a in pending)
+    # Classic HOD strategies must still be blocked below HOD
+    assert all(a.strategy_id == 12 for a in pending)
+
+
 def test_medium_float_fires_without_master_surge(monkeypatch):
     """Warrior Medium Float Med Rel Vol needs HOD+float+RVOL, not a global 3% surge."""
     _reset_engine(monkeypatch)
@@ -159,7 +195,6 @@ def test_medium_float_fires_without_master_surge(monkeypatch):
         float_shares=25_000_000, gap_pct=2.0, volume=5_000_000,
         fifty_two_week_high=40.0, rvol_source="test",
     )
-    # Tiny grind to HOD — would fail a 3%/5m master surge
     for i, px in enumerate([22.50, 22.55, 22.60, 22.65]):
         hm.on_trade_update(sym, px, now - (4 - i) * 60.0, volume=5_000_000)
 

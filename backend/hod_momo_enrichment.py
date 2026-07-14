@@ -132,10 +132,12 @@ async def universe_enrichment_loop() -> None:
                     rvol: float | None = None
                     rvol_source: str | None = None
 
+                    avg_for_5min: float | None = None
                     if is_iex:
                         fund = _main._fundamentals_cache.get(sym, {})
                         yf_avg = fund.get("average_volume")
                         yf_vol = fund.get("current_volume")
+                        avg_for_5min = float(yf_avg) if yf_avg else None
                         if yf_avg and yf_avg > 0 and yf_vol and yf_vol > 0:
                             if HOD_MOMO_RVOL_USE_PACE:
                                 rvol = pace_relative_volume(yf_vol, yf_avg)
@@ -148,6 +150,7 @@ async def universe_enrichment_loop() -> None:
                             fundamentals_queued += 1
                     else:
                         avg_vol = _main._avg_volume_cache.get(sym)
+                        avg_for_5min = float(avg_vol) if avg_vol else None
                         if avg_vol and avg_vol > 0 and volume > 0:
                             if HOD_MOMO_RVOL_USE_PACE:
                                 rvol = pace_relative_volume(volume, avg_vol)
@@ -164,6 +167,7 @@ async def universe_enrichment_loop() -> None:
                         volume=volume if volume else None,
                         change_pct=change_pct,
                         rvol_source=rvol_source,
+                        avg_volume=avg_for_5min,
                     )
                     enriched += 1
                 except Exception as sym_exc:

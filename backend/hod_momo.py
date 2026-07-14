@@ -53,8 +53,10 @@ from constants import (
     HOD_MOMO_STRATEGY_AUDIO_DEFAULT,
     HOD_MOMO_STRATEGY_COLORS,
     HOD_MOMO_STRATEGY_DEFAULTS,
+    HOD_MOMO_STRATEGY_ID_MAX,
     HOD_MOMO_STRATEGY_NAMES,
 )
+import hod_momo_metrics as _metrics
 
 logger = logging.getLogger(__name__)
 _ET = ZoneInfo("America/New_York")
@@ -110,6 +112,8 @@ class StrategyConfig:
     proximity_52wk_pct: float = 0.0
     # Former Momo ticker list (only used / non-empty for strategy #1)
     former_momo_list: list[str] = field(default_factory=list)
+    # Warrior Running Up: False → may fire without a new HOD
+    requires_hod: bool = True
 
 
 @dataclass
@@ -138,7 +142,8 @@ class AlertObject:
     gap_pct: float | None
     volume: int | None
     momentum_pct: float | None   # surge % that triggered (if applicable)
-    rvol_source: str | None = None  # "alpaca" | "yfinance" | None
+    rvol_source: str | None = None  # "alpaca" | "yfinance" | "yfinance_pace" | ...
+    rvol_5min: float | None = None  # Warrior Rel Vol (5 min %)
     consolidation_count: int = 1
     consolidated_ids: list[str] = field(default_factory=list)
 
@@ -219,7 +224,7 @@ def _build_default_config(strategy_id: int) -> StrategyConfig:
 
 
 def _build_default_configs() -> dict[int, StrategyConfig]:
-    return {sid: _build_default_config(sid) for sid in range(1, 12)}
+    return {sid: _build_default_config(sid) for sid in range(1, HOD_MOMO_STRATEGY_ID_MAX + 1)}
 
 
 # ── Serialization helpers ──────────────────────────────────────────────────────
@@ -273,6 +278,7 @@ def _alert_from_dict(d: dict) -> AlertObject:
         volume=d.get("volume"),
         momentum_pct=d.get("momentum_pct"),
         rvol_source=d.get("rvol_source"),
+        rvol_5min=d.get("rvol_5min"),
         consolidation_count=d.get("consolidation_count", 1),
         consolidated_ids=d.get("consolidated_ids", []),
     )
@@ -291,12 +297,11 @@ def _save_configs() -> None:
 
 def _migrate_loaded_configs(data: dict) -> bool:
     """Apply one-time schema migrations. Returns True if config was changed."""
-    global _master
+    global _master, _configs
     version = int(data.get("schema_version") or 1)
     changed = False
     if version < 2:
         # v2: Warrior parity — master surge off (strategies own momentum).
-        # Old default was 3%/5m and blocked Medium Float / Rel Vol HOD alerts.
         if abs(float(_master.surge_pct) - 3.0) < 1e-9:
             _master.surge_pct = HOD_MOMO_MASTER_SURGE_PCT
             changed = True
@@ -304,6 +309,12 @@ def _migrate_loaded_configs(data: dict) -> bool:
                 "HOD Momo: migrated master surge_pct 3.0 → %s (schema v2 Warrior parity)",
                 HOD_MOMO_MASTER_SURGE_PCT,
             )
+    if version < 3:
+        # v3: Running Up Alert (strategy 12) + requires_hod on StrategyConfig.
+        if 12 not in _configs:
+            _configs[12] = _build_default_config(12)
+        logger.info("HOD Momo: schema v3 — Running Up Alert + 5-min RVOL fields")
+        changed = True
     return changed
 
 
@@ -319,9 +330,14 @@ def _load_configs_from_disk() -> bool:
         if "strategies" in data:
             for sid_str, d in data["strategies"].items():
                 sid = int(sid_str)
-                if 1 <= sid <= 11:
+                if 1 <= sid <= HOD_MOMO_STRATEGY_ID_MAX:
                     _configs[sid] = _config_from_dict(d)
-        if _migrate_loaded_configs(data):
+        added = False
+        for sid in range(1, HOD_MOMO_STRATEGY_ID_MAX + 1):
+            if sid not in _configs:
+                _configs[sid] = _build_default_config(sid)
+                added = True
+        if _migrate_loaded_configs(data) or added:
             _save_configs()
         return True
     except Exception:
@@ -357,6 +373,7 @@ def _check_and_reset_session() -> bool:
     _session_highs = {}
     _cooldown = {}
     _pending_consolidation = {}
+    _metrics.clear_volume_buffers()
     return True
 
 
@@ -426,12 +443,14 @@ def _price_surge(symbol: str, window_min: int, method: str) -> float | None:
 class _TickerSnap:
     price: float = 0.0
     rvol: float | None = None
+    rvol_5min: float | None = None
+    avg_volume: float | None = None  # for 5-min RVOL typical bar
     float_shares: float | None = None
     gap_pct: float | None = None
     volume: int | None = None
     change_pct: float | None = None
     fifty_two_week_high: float | None = None
-    rvol_source: str | None = None   # "alpaca" | "yfinance" | None
+    rvol_source: str | None = None   # "alpaca" | "yfinance" | "yfinance_pace" | ...
     last_enriched: float = 0.0   # monotonic timestamp of last enrichment update
 
 
@@ -448,6 +467,8 @@ def update_ticker_snapshot(
     change_pct: float | None = None,
     fifty_two_week_high: float | None = None,
     rvol_source: str | None = None,
+    avg_volume: float | None = None,
+    rvol_5min: float | None = None,
 ) -> None:
     """Called by hod_momo_enrichment.py whenever fresh snapshot data arrives.
 
@@ -463,12 +484,19 @@ def update_ticker_snapshot(
         snap.gap_pct = gap_pct
     if volume is not None:
         snap.volume = volume
+        _metrics.update_cum_volume(symbol, volume, time.time())
     if change_pct is not None:
         snap.change_pct = change_pct
     if fifty_two_week_high is not None:
         snap.fifty_two_week_high = fifty_two_week_high
     if rvol_source is not None:
         snap.rvol_source = rvol_source
+    if avg_volume is not None:
+        snap.avg_volume = avg_volume
+    if rvol_5min is not None:
+        snap.rvol_5min = rvol_5min
+    elif snap.avg_volume is not None:
+        snap.rvol_5min = _metrics.compute_symbol_rvol_5min(symbol, snap.avg_volume)
     snap.last_enriched = time.monotonic()
 
 
@@ -575,22 +603,16 @@ def _active_symbol() -> str:
 
 
 def _passes_master_gate(symbol: str, snap: _TickerSnap) -> tuple[bool, str]:
-    """Global pre-check that every symbol must pass before strategy evaluation.
+    """Global pre-check before strategy evaluation (RVOL + optional master surge).
 
-    Returns (passed, blocked_reason).
+    HOD is enforced per-strategy via ``StrategyConfig.requires_hod`` so Warrior
+    Running Up alerts can fire without a new high of day.
     """
-    if _master.hod_required:
-        session_high = _session_highs.get(symbol, 0.0)
-        if snap.price < session_high:
-            return False, f"master_hod(price={snap.price:.4g}<hod={session_high:.4g})"
-
     eff_min_rvol = _effective_min_rvol()
     if eff_min_rvol > 0:
         if snap.rvol is None:
-            # Warmup grace: skip RVOL gate for first N seconds after startup
-            # so the scanner works while yfinance data loads progressively.
             if _startup_ts and (time.monotonic() - _startup_ts) < HOD_MOMO_RVOL_WARMUP_GRACE_SEC:
-                pass  # grace period — let it through without RVOL
+                pass
             else:
                 return False, "master_rvol:unknown"
         elif snap.rvol < eff_min_rvol:
@@ -604,6 +626,16 @@ def _passes_master_gate(symbol: str, snap: _TickerSnap) -> tuple[bool, str]:
             return False, f"master_surge({surge:.2f}%<{_master.surge_pct}%)"
 
     return True, ""
+
+
+def _fails_hod_gate(symbol: str, snap: _TickerSnap, cfg: StrategyConfig) -> str | None:
+    """Return a block reason if this strategy requires HOD and price is below it."""
+    if not (cfg.requires_hod and _master.hod_required):
+        return None
+    session_high = _session_highs.get(symbol, 0.0)
+    if snap.price < session_high:
+        return f"hod(price={snap.price:.4g}<hod={session_high:.4g})"
+    return None
 
 
 # ── Alert emission ─────────────────────────────────────────────────────────────
@@ -650,6 +682,9 @@ def on_trade_update(
     snap.price = price
     if volume is not None:
         snap.volume = volume
+        _metrics.update_cum_volume(symbol, volume, ts)
+        if snap.avg_volume is not None:
+            snap.rvol_5min = _metrics.compute_symbol_rvol_5min(symbol, snap.avg_volume, ts=ts)
 
     # Blocklist check — record and bail
     if symbol.upper() in _blocklist:
@@ -715,6 +750,12 @@ def on_trade_update(
             strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": "cooldown"})
             continue
 
+        hod_block = _fails_hod_gate(symbol, snap, cfg)
+        if hod_block:
+            strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": hod_block})
+            _gate_counters[f"strategy_{strategy_id}_hod"] += 1
+            continue
+
         surge = _get_surge(cfg.surge_window_min, cfg.surge_method) if cfg.surge_window_min > 0 else None
         passed, blocked_by = _evaluate_strategy(cfg, snap, surge)
         strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": passed, "blocked_by": blocked_by})
@@ -743,6 +784,7 @@ def on_trade_update(
             volume=snap.volume,
             momentum_pct=surge,
             rvol_source=snap.rvol_source,
+            rvol_5min=snap.rvol_5min,
         )
 
         _cooldown[key] = now_ts + _master.cooldown_sec

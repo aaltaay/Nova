@@ -1,6 +1,6 @@
 /** TypeScript interfaces for the HOD Momo Scanner feature. */
 
-export type StrategyId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+export type StrategyId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
 export interface AlertObject {
   id: string;
@@ -11,11 +11,12 @@ export interface AlertObject {
   price: number;
   change_pct: number;
   rvol: number | null;
+  rvol_5min?: number | null;
   float_shares: number | null;
   gap_pct: number | null;
   volume: number | null;
   momentum_pct: number | null;
-  rvol_source: string | null;     // "alpaca" | "yfinance" | null
+  rvol_source: string | null;     // "alpaca" | "yfinance" | "yfinance_pace" | ...
   consolidation_count: number;
   consolidated_ids: string[];
 }
@@ -43,6 +44,7 @@ export interface StrategyConfig {
   surge_method: 'low_to_current' | 'fixed_start';
   proximity_52wk_pct: number;
   former_momo_list: string[];
+  requires_hod: boolean;
 }
 
 export interface MasterGateConfig {
