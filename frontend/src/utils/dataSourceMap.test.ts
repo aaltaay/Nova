@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { buildTickerDataSources } from './dataSourceMap';
 
 describe('buildTickerDataSources', () => {
-  it('labels broker listing as Alpaca Assets (not the price feed)', () => {
+  it('labels listing flags as Alpaca metadata (not the price feed)', () => {
     const rows = buildTickerDataSources({
       discoveryProvider: 'ibkr',
       alpacaFeed: 'iex',
       ibkrConnected: true,
     });
-    const listing = rows.find(r => r.role === 'Broker listing');
+    const listing = rows.find(r => r.role === 'Listing flags');
     expect(listing?.source).toContain('Alpaca');
     expect(listing?.detail?.toLowerCase()).toContain('not prices');
   });
@@ -44,5 +44,16 @@ describe('buildTickerDataSources', () => {
       ibkrConnected: false,
     });
     expect(rows.find(r => r.role === 'Quote & chart')?.source).toContain('SIP');
+  });
+
+  it('IBKR quote/chart copy does not advertise Alpaca fallback', () => {
+    const rows = buildTickerDataSources({
+      discoveryProvider: 'ibkr',
+      alpacaFeed: 'iex',
+      ibkrConnected: true,
+    });
+    const quote = rows.find(r => r.role === 'Quote & chart');
+    expect(quote?.source).toBe('Interactive Brokers');
+    expect(quote?.detail?.toLowerCase()).toContain('no alpaca fallback');
   });
 });

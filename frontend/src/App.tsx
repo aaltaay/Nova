@@ -31,6 +31,10 @@ import { isNovaApiDebug } from './debug';
 import { scanAgeForTab } from './utils/scanAge';
 import type { ScannerScanAges } from './utils/scanAge';
 import {
+  applyScannerPricePatch,
+  useScannerPriceStream,
+} from './hooks/useScannerPriceStream';
+import {
   leaveStockViewUrl,
   openStockViewWindow,
   parseStockViewSymbol,
@@ -120,6 +124,24 @@ function App() {
   // History / time-travel state
   const [historyDate, setHistoryDate] = useState<string | null>(null); // null = live
   const [historyDates, setHistoryDates] = useState<string[]>([]);
+
+  const onScannerPricePatch = useCallback((rows: Parameters<typeof applyScannerPricePatch>[1], ts: number) => {
+    setGappers(prev => applyScannerPricePatch(prev, rows));
+    setGainers(prev => applyScannerPricePatch(prev, rows));
+    setLosers(prev => applyScannerPricePatch(prev, rows));
+    setAfterhours(prev => applyScannerPricePatch(prev, rows));
+    setScanAges(prev => ({
+      ...prev,
+      gappers: Math.max(prev.gappers, ts),
+      movers: Math.max(prev.movers, ts),
+      afterhours: Math.max(prev.afterhours, ts),
+    }));
+  }, []);
+
+  const { pricesStale, flashSymbols, lastPriceTs } = useScannerPriceStream({
+    enabled: discoveryProvider === 'ibkr' && historyDate === null,
+    onPatch: onScannerPricePatch,
+  });
 
   // HOD Momo Scanner
   const hodMomoStream = useHodMomoStream();
@@ -399,7 +421,8 @@ function App() {
   };
 
   const lastScan = scanAgeForTab(activeTab, scanAges);
-  const secondsAgo = lastScan > 0 ? Math.max(0, Math.floor(now - lastScan)) : null;
+  const priceAgeTs = lastPriceTs > 0 ? lastPriceTs : lastScan;
+  const secondsAgo = priceAgeTs > 0 ? Math.max(0, Math.floor(now - priceAgeTs)) : null;
 
   function handleHistoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const val = e.target.value;
@@ -453,6 +476,7 @@ function App() {
         activeFeed={activeFeed}
         feedFellBack={feedFellBack}
         secondsAgo={secondsAgo}
+        pricesStale={pricesStale && discoveryProvider === 'ibkr' && historyDate === null}
         historyDate={historyDate}
         historyDates={historyDates}
         onHistoryChange={handleHistoryChange}
@@ -537,6 +561,8 @@ function App() {
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
                 onOpenTrading={openStockView}
+                pricesStale={pricesStale}
+                flashSymbols={flashSymbols}
               />
             ) : (
               <EmptyState
@@ -589,6 +615,8 @@ function App() {
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
                 onOpenTrading={openStockView}
+                pricesStale={pricesStale}
+                flashSymbols={flashSymbols}
               />
             ) : (
               <EmptyState
@@ -613,6 +641,8 @@ function App() {
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
                 onOpenTrading={openStockView}
+                pricesStale={pricesStale}
+                flashSymbols={flashSymbols}
               />
             ) : (
               <EmptyState

@@ -35,22 +35,18 @@ def test_reprice_detail_symbols_falls_back_to_cache_row_when_quote_empty():
     this is the exact failure mode that made the panel look frozen."""
     broadcasts = []
 
-    async def broadcast_trade_update(sym, price, size, ts, volume, prev_close):
+    def schedule_broadcast(sym, price, size, ts, volume, prev_close):
         broadcasts.append((sym, price, volume, prev_close))
 
-    calls = {"n": 0}
-
     def run_ibkr(coro):
-        calls["n"] += 1
-        if calls["n"] == 1:
+        if asyncio.iscoroutine(coro):
             coro.close()
-            return {}  # simulate an empty/failed snapshot_quotes() response
-        return asyncio.run(coro)
+        return {}  # simulate an empty/failed snapshot_quotes() response
 
     def find_cache_row(sym):
         return {"symbol": sym, "current_price": 4.45, "volume": 12345, "previous_close": 2.96}
 
-    reprice.reprice_detail_symbols(["SHPH"], run_ibkr, broadcast_trade_update, find_cache_row)
+    reprice.reprice_detail_symbols(["SHPH"], run_ibkr, schedule_broadcast, find_cache_row)
 
     assert broadcasts == [("SHPH", 4.45, 12345, 2.96)]
 
@@ -61,9 +57,7 @@ def test_reprice_detail_symbols_skips_symbol_with_no_price_anywhere():
             coro.close()
         return {}
 
-    reprice.reprice_detail_symbols(["ZZZZ"], run_ibkr, lambda *a, **k: None, lambda s: None)
-    # No assertion needed beyond "doesn't raise" — absence of a cache row and
-    # an empty quote means there's nothing to broadcast.
+    reprice.reprice_detail_symbols(["ZZZZ"], run_ibkr, lambda *a: None, lambda s: None)
 
 
 def test_reprice_table_caches_returns_none_when_all_caches_empty():
@@ -78,3 +72,52 @@ def test_reprice_table_caches_returns_none_when_quotes_empty():
 
     gapper = [{"symbol": "ABC", "price": 1.0, "prev_close": 0.5}]
     assert reprice.reprice_table_caches(gapper, [], [], run_ibkr) is None
+
+
+def test_reprice_table_caches_returns_patch_rows():
+    def run_ibkr(coro):
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return {"ABC": {"price": 2.0, "prev_close": 1.0, "volume": 100, "open": 1.5}}
+
+    gapper = [{
+        "symbol": "ABC", "price": 1.0, "prev_close": 1.0,
+        "change_pct": 0.0, "change_abs": 0.0, "volume": 10, "gap_percent": 0.0,
+    }]
+    out = reprice.reprice_table_caches(gapper, [], [], run_ibkr)
+    assert out is not None
+    gappers, gainers, losers, ts, rows = out
+    assert gappers[0]["price"] == 2.0
+    assert rows[0]["symbol"] == "ABC"
+    assert rows[0]["price"] == 2.0
+    assert isinstance(ts, float)
+
+
+def test_table_reprice_loop_emits_stale_when_busy():
+    """Skip-if-busy must tell the UI prices are not refreshing — never hide it."""
+    from constants import IBKR_TABLE_REPRICE_INTERVAL_SEC
+
+    pushes = []
+
+    async def push(payload):
+        pushes.append(payload)
+
+    reprice._table_reprice_busy = True
+
+    async def run_one():
+        task = asyncio.create_task(reprice.table_reprice_loop(
+            lambda: "ibkr",
+            lambda: ["AAPL"],
+            lambda quotes: None,
+            push,
+        ))
+        await asyncio.sleep(IBKR_TABLE_REPRICE_INTERVAL_SEC + 0.25)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run_one())
+    reprice._table_reprice_busy = False
+    assert any(p.get("type") == "price_heartbeat" and p.get("stale") for p in pushes)

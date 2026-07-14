@@ -45,9 +45,9 @@ export function buildTickerDataSources(input: DataSourceInputs): DataSourceRow[]
     },
     {
       role: 'Quote & chart',
-      source: scannerIsIbkr ? 'IBKR + Alpaca' : alpaca,
+      source: scannerIsIbkr ? 'Interactive Brokers' : alpaca,
       detail: scannerIsIbkr
-        ? 'Price prefers IBKR cache; bars/chart still Alpaca'
+        ? 'IBKR only — historical bars + live last-price (no Alpaca fallback)'
         : 'Alpaca snapshot + historical bars',
     },
     {
@@ -58,9 +58,16 @@ export function buildTickerDataSources(input: DataSourceInputs): DataSourceRow[]
         : 'Connect IB Gateway to stream depth',
     },
     {
-      role: 'Broker listing',
+      role: 'Time & Sales',
+      source: ibkrConnected ? 'Interactive Brokers' : 'IBKR (offline)',
+      detail: ibkrConnected
+        ? 'reqTickByTickData AllLast — every print, IBKR only'
+        : 'Connect IB Gateway to stream Time & Sales',
+    },
+    {
+      role: 'Listing flags',
       source: 'Alpaca Assets API',
-      detail: 'Tradable / shortable / margin flags only — not prices',
+      detail: 'Tradable / shortable / margin metadata only — not prices or depth',
     },
     {
       role: 'Fundamentals',

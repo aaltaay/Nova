@@ -87,6 +87,8 @@ export interface FundamentalsData {
 
 export interface TickerTradeUpdate {
   type: 'trade_update';
+  /** Present on IBKR broadcasts — clients must ignore mismatches vs selected symbol. */
+  symbol?: string;
   price: number;
   size: number | null;
   timestamp: string | null;

@@ -26,6 +26,7 @@ from constants import (
     IBKR_SCAN_CODE_GAINERS,
     IBKR_SCAN_CODE_GAPPERS,
     IBKR_SCAN_CODE_LOSERS,
+    IBKR_SCAN_HOD_SEED_CODES,
     IBKR_SCAN_INSTRUMENT,
     IBKR_SCAN_LOCATION,
     IBKR_SCAN_MAX_ROWS,
@@ -37,6 +38,8 @@ logger = logging.getLogger(__name__)
 
 _Stock = None
 _ScannerSubscription = None
+# Qualified Stock contracts reused by the 1Hz table reprice path.
+_qualified_contracts: dict[str, object] = {}
 
 
 def _load_ib_types() -> bool:
@@ -101,18 +104,32 @@ async def scan_symbols(scan_code: str, num_rows: int = IBKR_SCAN_MAX_ROWS) -> li
 
 
 async def snapshot_quotes(symbols: list[str]) -> dict[str, dict]:
-    """Qualify + snapshot each symbol. Returns {symbol: {price, prev_close, open, volume}}."""
+    """Qualify + snapshot each symbol. Returns {symbol: {price, prev_close, open, volume}}.
+
+    Reuses qualified contracts across ticks so the 1Hz table reprice loop does not
+    pay qualifyContractsAsync on every second for the same universe.
+    """
     ib = _client.get_ib()
     if ib is None or not symbols or not _load_ib_types():
         return {}
 
-    contracts = [_Stock(sym, "SMART", "USD") for sym in symbols]
-    try:
-        qualified = await ib.qualifyContractsAsync(*contracts)
-    except Exception as exc:
-        logger.error("IBKR: qualify batch failed: %s", exc)
-        return {}
-    qualified = [c for c in qualified if c is not None]
+    symbols = [s.upper() for s in symbols]
+    missing = [s for s in symbols if s not in _qualified_contracts]
+    if missing:
+        contracts = [_Stock(sym, "SMART", "USD") for sym in missing]
+        try:
+            qualified = await ib.qualifyContractsAsync(*contracts)
+        except Exception as exc:
+            logger.error("IBKR: qualify batch failed: %s", exc)
+            qualified = []
+        for c in qualified:
+            if c is None:
+                continue
+            sym = getattr(c, "symbol", None)
+            if sym:
+                _qualified_contracts[sym.upper()] = c
+
+    qualified = [_qualified_contracts[s] for s in symbols if s in _qualified_contracts]
     if not qualified:
         return {}
 
@@ -225,6 +242,22 @@ async def get_gainers() -> list[dict]:
 async def get_losers() -> list[dict]:
     """Top % losers, intraday (current price vs prior close)."""
     return await _get_movers(IBKR_SCAN_CODE_LOSERS, reverse=False)
+
+
+async def scan_hod_momentum_seeds() -> list[str]:
+    """Union of IBKR volume/activity scanners used to seed HOD Momo watch set.
+
+    Warrior's HOD scanner watches the whole tape; Nova approximates mid-day
+    volume runners via HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE (50 each).
+    """
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for code in IBKR_SCAN_HOD_SEED_CODES:
+        for sym in await scan_symbols(code):
+            if sym not in seen:
+                seen.add(sym)
+                ordered.append(sym)
+    return ordered
 
 
 def reprice_gapper_row(g: dict, q: dict) -> dict:

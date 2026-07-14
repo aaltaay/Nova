@@ -58,4 +58,6 @@ export interface DepthBook {
   bids: DepthLevel[];
   asks: DepthLevel[];
   l1_fallback: boolean;
+  /** Set by the depth WS / hook — used to reject cross-symbol stale books. */
+  symbol?: string;
 }

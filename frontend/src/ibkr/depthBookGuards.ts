@@ -30,6 +30,13 @@ export function shouldKeepPriorBook(
   incoming: DepthBook,
   prior: DepthBook | null,
 ): boolean {
+  if (
+    prior?.symbol != null &&
+    incoming.symbol != null &&
+    prior.symbol !== incoming.symbol
+  ) {
+    return false;
+  }
   return (
     bookIsEmpty(incoming) &&
     !incoming.l1_fallback &&

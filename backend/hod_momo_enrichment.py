@@ -14,11 +14,10 @@ Two loops are registered as asyncio tasks in main.py lifespan:
 Both loops call back into main.py for HTTP helpers to avoid duplicating that code;
 the import is done lazily inside the loops to prevent circular imports.
 
-Feed-level RVOL routing (§ yfinance fallback):
-  - SIP feed: RVOL = Alpaca snapshot volume / Alpaca historical avg volume (consolidated)
-  - IEX feed: RVOL = yfinance current_volume / yfinance average_volume (consolidated)
-    Alpaca IEX bars return empty/zero data for most symbols, so we route ALL
-    RVOL through yfinance when on IEX free tier.
+Feed-level RVOL routing (§ yfinance fallback + Warrior pace):
+  - SIP feed: pace RVOL = Alpaca volume / (Alpaca avg × elapsed 04:00–16:00 ET frac)
+  - IEX feed: same formula with yfinance current_volume / average_volume
+  - HOD_MOMO_RVOL_USE_PACE=False falls back to raw daily/avg
 """
 
 from __future__ import annotations
@@ -33,8 +32,10 @@ from constants import (
     HOD_MOMO_ENRICH_INTERVAL_SEC,
     HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC,
     HOD_MOMO_FUNDAMENTALS_BATCH_SIZE,
+    HOD_MOMO_RVOL_USE_PACE,
     RVOL_LOOKBACK_DAYS,
 )
+from market import pace_relative_volume
 
 logger = logging.getLogger(__name__)
 
@@ -125,28 +126,35 @@ async def universe_enrichment_loop() -> None:
                         change_pct = None
                         gap_pct = None
 
-                    # ── RVOL computation: feed-level switch ────────────────────
+                    # ── RVOL: Warrior Daily Rate (pace) when enabled ───────────
+                    # Pace = today_vol / (avg_daily * fraction of 04:00–16:00 ET).
+                    # Raw daily/avg understates mid-morning and mid-day runners.
                     rvol: float | None = None
                     rvol_source: str | None = None
 
                     if is_iex:
-                        # IEX path: use yfinance consolidated data for BOTH sides
                         fund = _main._fundamentals_cache.get(sym, {})
                         yf_avg = fund.get("average_volume")
                         yf_vol = fund.get("current_volume")
                         if yf_avg and yf_avg > 0 and yf_vol and yf_vol > 0:
-                            rvol = round(yf_vol / yf_avg, 2)
-                            rvol_source = "yfinance"
+                            if HOD_MOMO_RVOL_USE_PACE:
+                                rvol = pace_relative_volume(yf_vol, yf_avg)
+                                rvol_source = "yfinance_pace"
+                            else:
+                                rvol = round(yf_vol / yf_avg, 2)
+                                rvol_source = "yfinance"
                         elif sym not in _main._fundamentals_cache:
-                            # Queue for yfinance fetch so RVOL becomes available next cycle
                             _hod_momo.mark_needs_fundamentals(sym)
                             fundamentals_queued += 1
                     else:
-                        # SIP path: use Alpaca consolidated data
                         avg_vol = _main._avg_volume_cache.get(sym)
                         if avg_vol and avg_vol > 0 and volume > 0:
-                            rvol = round(volume / avg_vol, 2)
-                            rvol_source = "alpaca"
+                            if HOD_MOMO_RVOL_USE_PACE:
+                                rvol = pace_relative_volume(volume, avg_vol)
+                                rvol_source = "alpaca_pace"
+                            else:
+                                rvol = round(volume / avg_vol, 2)
+                                rvol_source = "alpaca"
 
                     _hod_momo.update_ticker_snapshot(
                         sym,
@@ -215,8 +223,12 @@ async def fundamentals_enrichment_loop() -> None:
                     yf_avg = fund.get("average_volume")
                     yf_vol = fund.get("current_volume")
                     if yf_avg and yf_avg > 0 and yf_vol and yf_vol > 0:
-                        rvol = round(yf_vol / yf_avg, 2)
-                        rvol_source = "yfinance"
+                        if HOD_MOMO_RVOL_USE_PACE:
+                            rvol = pace_relative_volume(yf_vol, yf_avg)
+                            rvol_source = "yfinance_pace"
+                        else:
+                            rvol = round(yf_vol / yf_avg, 2)
+                            rvol_source = "yfinance"
 
                 _hod_momo.update_ticker_snapshot(
                     sym,

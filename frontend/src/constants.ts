@@ -108,7 +108,7 @@ export const QUOTE_CARD_TITLE = 'Stock quote';
 export const QUOTE_AVG_VOLUME_LABEL = `Avg volume (${RVOL_LOOKBACK_DAYS}d)`;
 
 /** Section title for Alpaca asset / trading flags on the quote card. */
-export const QUOTE_BROKER_SECTION_TITLE = 'Broker listing (Alpaca)';
+export const QUOTE_BROKER_SECTION_TITLE = 'Listing flags (Alpaca metadata)';
 
 /** Quote card row labels (Alpaca asset fields). */
 export const QUOTE_ASSET_LABELS = {
@@ -240,7 +240,27 @@ export const SIDE_PANEL_STACK_BREAKPOINT_PX = 1100;
 export const CHART_MOCK_BAR_COUNT = 48;
 export const CHART_MOCK_BASE_PRICE = 10;
 export const CHART_MOCK_DATA_LABEL = 'Demo candles (no live bars for this timeframe)';
-export const CHART_REFETCH_SEC: Record<string, number> = { '1Min': 10, '5Min': 15, '15Min': 30, '30Min': 30, '1Hour': 60, '4Hour': 120 };
+export const CHART_REFETCH_SEC: Record<string, number> = {
+  // Live forming candle comes from WS ticks; poll is reconciliation only.
+  '1Min': 30,
+  '5Min': 30,
+  '15Min': 45,
+  '30Min': 60,
+  '1Hour': 120,
+  '4Hour': 180,
+};
+
+/** Chart oscillator toggles — computed via lightweight-charts-indicators (not hand-rolled). */
+export type ChartIndicatorId = 'rsi' | 'macd';
+export const CHART_INDICATORS: { id: ChartIndicatorId; label: string }[] = [
+  { id: 'rsi', label: 'RSI' },
+  { id: 'macd', label: 'MACD' },
+];
+export const CHART_INDICATOR_PANE_HEIGHT = 110;
+export const CHART_RSI_LENGTH = 14;
+export const CHART_MACD_FAST = 12;
+export const CHART_MACD_SLOW = 26;
+export const CHART_MACD_SIGNAL = 9;
 
 // ── Backend URL ───────────────────────────────────────────────────────────────
 // 1) Electron preload may set `window.novaDesktop.apiBase`.
@@ -349,10 +369,15 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
   ['strategy',    'Strategy'],
 ];
 
+/** Empty-state copy when the HOD Momo WS is connected but no alerts have fired yet. */
+export const HOD_MOMO_EMPTY_WAITING =
+  'Waiting for HOD + momentum alerts (gainers + IBKR volume seeds)…';
+export const HOD_MOMO_EMPTY_CONNECTING = 'Connecting to HOD Momo feed…';
+
 /** Default master gate config — mirrors backend MasterGateConfig defaults */
 export const DEFAULT_MASTER_GATE = {
   hod_required: true,
-  surge_pct: 3.0,
+  surge_pct: 0.0, // strategies own surge; Warrior does not global-gate 3%/5m
   surge_window_min: 5,
   min_rvol: 2.0,
   premarket_min_rvol: 1.0,
@@ -368,6 +393,12 @@ export const IBKR_PAPER_PORT = 4002;
 export const IBKR_LIVE_PORT = 4001;
 /** Max simultaneous Level 2 depth streams (IBKR plan cap). */
 export const IBKR_MAX_DEPTH_SYMBOLS = 3;
+/** Scanner table price refresh target (mirrors backend IBKR_TABLE_REPRICE_INTERVAL_SEC). */
+export const IBKR_TABLE_REPRICE_INTERVAL_SEC = 1.0;
+/** Mark table prices stale if no successful tick within this many seconds. */
+export const SCANNER_PRICE_STALE_SEC = 6.0;
+/** Brief flash duration when a table price ticks up/down. */
+export const SCANNER_PRICE_FLASH_MS = 400;
 
 // ── Quote Panel (scanner right sidebar) vs Stock View (double-click tab) ─────
 /**
@@ -447,6 +478,27 @@ export const L2_DAS_HEADERS = {
   askSize: 'Size',
   askMm: 'MM',
 } as const;
+
+// ── Time & Sales panel ─────────────────────────────────────────────────────
+/** Max rows kept in the TimeSalesPanel (mirrors backend TAPE_UI_MAX_ROWS). */
+export const TAPE_UI_MAX_ROWS = 200;
+export const TAPE_SECTION_TITLE = 'Time & Sales';
+export const TAPE_COL_HEADERS = {
+  time: 'Time',
+  price: 'Price',
+  size: 'Size',
+  side: 'Side',
+  exchange: 'Exch',
+} as const;
+/** Labels for aggressor side (not color-only). */
+export const TAPE_SIDE_LABELS = {
+  ask: 'ASK',
+  bid: 'BID',
+  between: 'MID',
+  unknown: '—',
+} as const;
+/** Stack L2 | T&S to one column below this width (px). */
+export const DEPTH_TAPE_STACK_BREAKPOINT_PX = 560;
 
 /** Universal strategy config zero-defaults (all filters disabled). */
 export const DEFAULT_STRATEGY_CONFIG = {

@@ -21,6 +21,48 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — HOD Momo ≠ Warrior Day Trade Dash (wrong universe / RVOL / gates)
+
+- **Symptom:** Warrior Small-Cap HOD showed TSSI / YG / FRE with Squeeze and Medium Float strategies; Nova showed CNEY spam (Former Momo + Squeeze) and missed the same names.
+- **Cause:** (1) Watch set was only Top Gainer/Gapper shortlist — Warrior scans the tape including volume runners. (2) RVOL was raw daily/avg, not Warrior "Daily Rate" pace RVOL. (3) Master gate required +3% in 5min on *every* strategy, blocking Medium Float HOD grinds. (4) Former Momo with empty list treated every symbol as a former runner.
+- **Fix:** IBKR HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE seeds; pace RVOL via `market.pace_relative_volume`; master surge default 0 + schema v2 migrate; Former Momo requires non-empty list; table reprice includes HOD seeds.
+- **Keywords:** HOD Momo, Warrior Trading, Day Trade Dash, pace RVOL, Daily Rate, Former Momo, HOT_BY_VOLUME, master surge, Medium Float
+
+## 2026-07-14 — HOD Momo tab empty (total_trades_seen=0)
+
+- **Symptom:** HOD Momo showed no alerts all session; debug counters had `universe_size≈6022`, `snaps_populated≈6020`, but `total_trades_seen=0` and empty decisions.
+- **Cause:** `_refresh_hod_momo_universe` subscribed Alpaca IEX trades to the full common-stock list (~6k). Free IEX does not deliver a usable tape at that scale (probe: 5 top-gainers → trades; 6k subscribe → silence). Ross / Warrior scanners watch a Top Gainer shortlist, not the full tape — already noted in `Scanner-Provider-IBKR-Primary.md`. A follow-on bug shadowed `import hod_momo_universe as _hod_momo_universe` with the `_hod_momo_universe: set` global (`AttributeError: 'set' object has no attribute 'build_focus_universe'`), which broke the scan loop until the import was renamed `_hod_uni`.
+- **Fix:** Default `HOD_MOMO_UNIVERSE_MODE=focus` builds watch set from gappers/gainers/losers/AH + open details; chunk Alpaca subscribe; feed IBKR 1Hz table reprice into `on_trade_update` when discovery=ibkr; import alias `_hod_uni`; add universe + engine tests.
+- **Keywords:** HOD Momo empty, total_trades_seen, Alpaca IEX, 6000 symbols, Ross shortlist, focus universe, table_reprice, on_trade_update
+
+## 2026-07-14 — Empty Time & Sales; Level 2 cramped beside it
+
+- **Symptom:** Quote panel showed Level 2 and Time & Sales squeezed side-by-side; T&S headers visible but no prints. Data sources still listed Interactive Brokers for both.
+- **Cause:** (1) Layout: `DepthAndTape` used a horizontal flex split inside the half-width quote column. (2) Data: the live uvicorn process had not picked up `/ws/ibkr/tape/{symbol}` — unmatched WS paths return HTTP 403, so `useIbkrTape` never got `subscribed`/prints. Empty-state text also collapsed (`flex: 1 1 0` with no min-height).
+- **Fix:** Stack L2 + T&S as full-width rows under Watchlist; give `.ts-panel` a min-height; restart API so the tape route loads; surface IB tick-by-tick subscription errors on the WS.
+- **Keywords:** Time & Sales empty, Level 2 cramped, DepthAndTape, /ws/ibkr/tape, WebSocket 403, reqTickByTickData, AllLast, Watchlist layout
+
+## 2026-07-14 — Scanner “updated 10–12s ago” / table prices frozen during movers scan
+
+- **Symptom:** Header age climbed to ~10–12+ seconds; Gainers table prices lagged the open quote panel even though both said IBKR.
+- **Cause:** `reprice_table_caches` only ran inside `_sleep_with_ibkr_reprice` after `_run_gainers_update` finished. A full IBKR movers scan often takes 20–90s, so table prices and `_gainer_cache_ts` (drives “updated Xs ago”) did not advance during the scan.
+- **Fix:** Independent 1Hz `table_reprice_loop` + `/ws/scanner` patches + honest stale UI; contract cache for snapshots; removed mid-sleep table reprice.
+- **Keywords:** updated 10s ago, table lag, IBKR_TABLE_REPRICE_INTERVAL_SEC, table_reprice_loop, scan loop starvation, reqTickersAsync, scanner_push, stale
+
+## 2026-07-14 — Level 2 book from prior ticker under new quote (MVO vs ~$7 NXTC)
+
+- **Symptom:** Quote panel showed MVO at $0.80 (+363%) while Level 2 showed bids/asks around $7.14–$7.28 (prior ticker NXTC). Data sources said IBKR for quote/L2 but “Broker listing (Alpaca)” looked like a mixed feed.
+- **Cause:** (1) `useTickerStream` kept prior `detail` across symbol changes, so `DepthLadder symbol={detail.symbol}` stayed on the old name while the header/scanner reflected the new selection. (2) SidePanel rendered whenever `detail` was truthy without `detail.symbol === selectedSymbol`. (3) `useIbkrDepth` did not ignore stale WebSocket instances or `msg.symbol` mismatches. Separately, `chart_bars` silently fell back to Alpaca when IBKR failed — a second class of “unaware dual feed” risk.
+- **Fix:** Clear detail on switch; gate panel on symbol match; bind L2 to `selectedSymbol` + WS/`msg.symbol` guards; IBKR-mode chart bars hard-fail (no Alpaca fallback); project rule `single-market-data-feed.mdc`; retitle listing as metadata.
+- **Keywords:** Level 2 wrong symbol, MVO, NXTC, stale detail, useTickerStream, useIbkrDepth, single source of truth, Alpaca fallback, chart_bars, quote panel gate
+
+## 2026-07-14 — 1Min chart looked wrong vs other tools; live candle not tick-fast (IBKR mode)
+
+- **Symptom:** With `NOVA_DISCOVERY_PROVIDER=ibkr`, the quote price could move (slowly) while the 1-minute chart looked sparse/"weird" vs Webull/other tools, and the forming candle did not update tick-by-tick. Level 2 still felt live.
+- **Cause:** (1) Chart bars always came from Alpaca IEX (`bars.fetch_bars`) regardless of discovery provider — thin IEX history vs IBKR live quotes = mismatched candles. (2) Live `trade_update`s were only from 3s `snapshot_quotes` reprice, and broadcasts were scheduled through `_run_ibkr` on the contended IB bridge, so gaps often stretched to ~10–14s. No `reqMktData` last-price stream existed for detail panels (unlike Level 2).
+- **Fix:** Added `backend/ibkr/bars.py` + `chart_bars.fetch_chart_bars` (IBKR historical when connected, Alpaca fallback). Added `backend/ibkr/ticks.py` streaming last-price on ticker-detail WS open/close. Reprice broadcasts now `run_coroutine_threadsafe` onto the main loop instead of `_run_ibkr`. Relaxed frontend `CHART_REFETCH_SEC` for 1Min (ticks own the live candle).
+- **Keywords:** chart wrong, IEX sparse bars, IBKR historical, reqHistoricalData, trade_update slow, reqMktData ticks, dual data source, chart_bars, ibkr/ticks.py
+
 ## 2026-07-14 — Agent shell env var (`NOVA_API_RELOAD`) silently survived across an entire session, made every "stable restart" still use `--reload`
 
 - **Symptom:** Mid-session, an agent set `NOVA_API_RELOAD=1` once to force a hot-reload restart, then later deliberately started the backend "without reload" for stability several times (`py -3 run_api.py`, no flag). Each of those "stable" restarts still printed `WatchFiles detected changes ... Reloading...` on the next file edit and then the whole process silently exited (`exit_code: 0`, no traceback) — looking exactly like a mysterious app crash-on-reload bug, when editing files should not have restarted anything at all.

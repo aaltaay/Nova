@@ -12,6 +12,7 @@ Endpoints:
   POST /api/ibkr/depth/unsubscribe -- unsubscribe symbol
   GET  /api/ibkr/depth            -- list currently subscribed depth symbols
   WS   /ws/ibkr/depth/{symbol}    -- streaming Level 2 book updates
+  WS   /ws/ibkr/tape/{symbol}     -- streaming Time & Sales (AllLast tick-by-tick)
 """
 from __future__ import annotations
 
@@ -25,6 +26,7 @@ from ibkr import client as _client
 from ibkr import depth as _depth
 from ibkr import orders as _orders
 from ibkr import account as _account
+from ibkr import tape_stream as _tape
 
 logger = logging.getLogger(__name__)
 
@@ -211,3 +213,70 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
                 from l2 import recorder as _l2_recorder
                 if not _l2_recorder.is_recording(symbol):
                     _depth.unsubscribe(symbol)
+
+
+# ── Time & Sales WebSocket ─────────────────────────────────────────────────────
+
+@ws_router.websocket("/ws/ibkr/tape/{symbol}")
+async def ws_tape(websocket: WebSocket, symbol: str) -> None:
+    """Stream IBKR AllLast tick-by-tick Time & Sales prints for a symbol.
+
+    Auto-subscribes on first viewer, refcounts concurrent viewers, and
+    unsubscribes when the last viewer disconnects — same lifecycle as depth.
+    Symbol gates applied on every message (msg.symbol == requested symbol).
+    """
+    symbol = symbol.upper()
+    await websocket.accept()
+
+    if not _client.is_connected():
+        await websocket.send_text(json.dumps({"type": "error", "message": "IBKR not connected"}))
+        await websocket.close()
+        return
+
+    if not _tape.has_queue(symbol):
+        result = await _tape.subscribe_async(symbol)
+        if not result["ok"]:
+            await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
+            await websocket.close()
+            return
+
+    viewer_opened = False
+    try:
+        _tape.ws_viewer_opened(symbol)
+        viewer_opened = True
+
+        # Remount race: previous viewer cleanup may have dropped the queue.
+        if not _tape.has_queue(symbol):
+            result = await _tape.subscribe_async(symbol)
+            if not result["ok"]:
+                await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
+                return
+
+        await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
+
+        async for print_data in _tape.stream(symbol):
+            if print_data is None:
+                await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol}))
+                continue
+            if print_data.get("symbol") != symbol:
+                continue
+            msg_type = print_data.get("type") or "print"
+            if msg_type == "error":
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "symbol": symbol,
+                            "message": print_data.get("message") or "Tape error",
+                        }
+                    )
+                )
+            else:
+                await websocket.send_text(json.dumps({**print_data, "type": "print"}))
+    except WebSocketDisconnect:
+        logger.debug("IBKR tape WS disconnected: %s", symbol)
+    except Exception as exc:
+        logger.error("IBKR tape WS error for %s: %s", symbol, exc)
+    finally:
+        if viewer_opened and _tape.ws_viewer_closed(symbol):
+            _tape.unsubscribe(symbol)

@@ -11,7 +11,7 @@ import {
   sessionPriceOrNull,
   timeAgo,
 } from '../utils/quoteFormat';
-import { DepthLadder } from './DepthLadder';
+import { DepthAndTape } from './DepthAndTape';
 import type { IbkrMode, IbkrPosition } from './types';
 
 interface Props {
@@ -127,10 +127,11 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
       {ibkrConnected && (
         <>
           <div className="ticker-trade-side-section-title">
-            Depth <span className="na-muted">(top {TICKER_TRADE_DEPTH_LEVELS})</span>
+            Level 2{' '}
+            <span className="na-muted">(top {TICKER_TRADE_DEPTH_LEVELS})</span>
           </div>
           <div className="ticker-trade-side-depth">
-            <DepthLadder symbol={detail.symbol} />
+            <DepthAndTape symbol={detail.symbol} />
           </div>
         </>
       )}

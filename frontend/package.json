@@ -23,6 +23,8 @@
   "dependencies": {
     "lightweight-charts": "^5.1.0",
     "lightweight-charts-drawing": "^0.1.1",
+    "lightweight-charts-indicators": "^0.4.2",
+    "oakscriptjs": "^0.3.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

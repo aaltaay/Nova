@@ -23,6 +23,8 @@ from logging_setup import configure_logging
 from ibkr import client as _ibkr_client
 from ibkr import discovery as _ibkr_discovery
 from ibkr import reprice as _ibkr_reprice
+from ibkr import ticks as _ibkr_ticks
+from chart_bars import fetch_chart_bars as _fetch_chart_bars
 from fundamentals import (
     _fundamentals_cache,
     _fundamentals_cache_ts,
@@ -35,6 +37,7 @@ from routes.journal import router as _journal_router
 from routes.executor import router as _executor_router
 from routes.l2 import router as _l2_router
 from routes.news import router as _news_router
+from scanner_push import broadcast as _scanner_broadcast, router as _scanner_ws_router
 from news.enrich import enrich_catalyst_row, build_ticker_news_impact
 
 configure_logging()
@@ -54,9 +57,15 @@ from constants import (
     GAINERS_INTERVAL_SEC,
     GAPPER_MIN_GAP_PCT,
     HISTORY_RETENTION_DAYS,
+    HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK,
+    HOD_MOMO_FOCUS_REFRESH_SEC,
     HOD_MOMO_UNIVERSE_INTERVAL_SEC,
+    HOD_MOMO_UNIVERSE_MODE,
+    HOD_MOMO_UNIVERSE_MODE_BROAD,
+    HOD_MOMO_UNIVERSE_MODE_FOCUS,
     IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC,
     IBKR_REPRICE_INTERVAL_SEC,
+    IBKR_TABLE_REPRICE_MAX_SYMBOLS,
     CHART_DEFAULT_BARS,
     CHART_DEFAULT_TIMEFRAME,
     NEWS_CATALYST_ARTICLE_LIMIT,
@@ -88,13 +97,14 @@ from cache import (
     save_movers_snapshot,
 )
 import hod_momo as _hod_momo
+import hod_momo_universe as _hod_uni
+import hod_momo_seed as _hod_momo_seed
 import exchanges as _exchanges
 import strategy.risk as _risk
 import strategy.setups_stream as _setups_stream
 import strategy.executor as _executor
 import journal.db as _journal_db
 import l2.db as _l2_db
-from bars import fetch_bars as _fetch_bars
 from market import (
     ET as _ET,
     now_et as _now_et,
@@ -323,27 +333,36 @@ def _get_ibkr_detail_symbols() -> list[str]:
     return [sym for sym, clients in _ticker_ws_clients.items() if clients]
 
 
-def _reprice_ibkr_caches() -> None:
-    """Fast between-scan price refresh for the IBKR-sourced scanner tables.
+def _table_reprice_symbols() -> list[str]:
+    """Symbols for the 1Hz table snapshot (scanner rows + HOD watch seeds).
 
-    Alpaca's WS trade overlay (_handle_trade) is intentionally disabled while
-    DISCOVERY_PROVIDER=ibkr — mixing a second feed's ticks onto IBKR-basis rows
-    desynced price from prev_close (see PROBLEM_LOG 2026-07-13). This replaces
-    it with an IBKR-native refresh: re-snapshot the symbols already in cache
-    every IBKR_REPRICE_INTERVAL_SEC so the table doesn't sit frozen for a full
-    scan interval at a time. Note this batch (gapper+gainer+loser, often 100+
-    symbols) is NOT cheap once the universe is large — the ticker-detail panel
-    is repriced independently by ibkr.reprice.detail_reprice_loop instead of
-    waiting on this call (see PROBLEM_LOG 2026-07-14).
+    Priority: gainer/loser (or gappers pre-open), then HOD universe extras so
+    volume-seeded names still get IBKR ticks for surge/HOD evaluation.
+    """
+    if _gainer_cache or _loser_cache:
+        rows = _gainer_cache + _loser_cache
+    else:
+        rows = _gapper_cache
+    primary = list({r["symbol"] for r in rows})
+    primary_set = set(primary)
+    extra = [s for s in _hod_momo_universe if s not in primary_set]
+    return (primary + extra)[:IBKR_TABLE_REPRICE_MAX_SYMBOLS]
+
+
+def _apply_table_quotes(quotes: dict) -> dict | None:
+    """Apply async snapshot quotes onto scanner caches; return WS price_patch or None.
+
+    Also feeds HOD Momo: with discovery=ibkr, Alpaca IEX trades are too thin to
+    drive the alert engine alone — 1Hz IBKR table snapshots are the Ross shortlist
+    tape substitute for HOD / surge evaluation.
     """
     global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
-    if _get_discovery_provider() != "ibkr":
-        return
-    result = _ibkr_reprice.reprice_table_caches(_gapper_cache, _gainer_cache, _loser_cache, _run_ibkr)
+    gapper_in = [] if (_gainer_cache or _loser_cache) else _gapper_cache
+    result = _ibkr_reprice.apply_quote_patches(gapper_in, _gainer_cache, _loser_cache, quotes)
     if result is None:
-        return
-    gapper_cache, gainer_cache, loser_cache, now = result
-    if _gapper_cache:
+        return None
+    gapper_cache, gainer_cache, loser_cache, now, rows = result
+    if gapper_in and _gapper_cache:
         _gapper_cache = gapper_cache
         _gapper_cache_ts = now
     if _gainer_cache:
@@ -352,6 +371,24 @@ def _reprice_ibkr_caches() -> None:
     if _loser_cache:
         _loser_cache = loser_cache
         _loser_cache_ts = now
+
+    trade_ts = time.time()
+    for sym, q in quotes.items():
+        price = (q or {}).get("price")
+        if price is None:
+            continue
+        vol = (q or {}).get("volume")
+        try:
+            _hod_momo.on_trade_update(
+                sym,
+                float(price),
+                trade_ts,
+                volume=int(vol) if vol is not None else None,
+            )
+        except Exception:
+            logger.exception("HOD Momo: IBKR table tick failed for %s", sym)
+
+    return {"type": "price_patch", "ts": now, "stale": False, "rows": rows}
 
 
 # ── Tradable assets ───────────────────────────────────────────────────────────
@@ -698,29 +735,56 @@ def _ws_mark_resub() -> None:
 
 
 def _refresh_hod_momo_universe() -> None:
-    """Populate _hod_momo_universe with the full common-stock universe so the HOD Momo
-    engine receives trade updates for all eligible symbols.
+    """Rebuild the HOD Momo trade-watch set and nudge Alpaca WS to resubscribe.
 
-    Uses the existing asset cache (_get_tradable_symbols) so it does not issue
-    extra Alpaca API calls when the cache is warm.  Only runs when the interval
-    has elapsed to avoid hammering the API during active scans.
+    Default ``focus`` mode (Ross-style): Top Gainer/Gapper/Loser/AH shortlist +
+    open ticker-detail symbols. Free Alpaca IEX cannot stream ~6k symbols —
+    that path produced ``total_trades_seen=0`` and an empty HOD tab.
+
+    ``broad`` mode keeps the legacy full common-stock asset list (SIP only).
     """
     global _hod_momo_universe, _hod_momo_universe_ts
     now = time.monotonic()
-    if _hod_momo_universe and (now - _hod_momo_universe_ts) < HOD_MOMO_UNIVERSE_INTERVAL_SEC:
+    mode = (HOD_MOMO_UNIVERSE_MODE or HOD_MOMO_UNIVERSE_MODE_FOCUS).strip().lower()
+    interval = (
+        HOD_MOMO_FOCUS_REFRESH_SEC
+        if mode == HOD_MOMO_UNIVERSE_MODE_FOCUS
+        else HOD_MOMO_UNIVERSE_INTERVAL_SEC
+    )
+    if _hod_momo_universe and (now - _hod_momo_universe_ts) < interval:
         return
-    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = _alpaca_headers()
-    if not headers:
-        return
-    try:
-        symbols = _get_tradable_symbols(base_url, headers)
-        _hod_momo_universe = set(symbols)
-        _hod_momo_universe_ts = now
+
+    if mode == HOD_MOMO_UNIVERSE_MODE_BROAD:
+        base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+        headers = _alpaca_headers()
+        if not headers:
+            return
+        try:
+            symbols = set(_get_tradable_symbols(base_url, headers))
+        except Exception as exc:
+            logger.warning("HOD Momo broad universe refresh failed: %s", exc)
+            return
+    else:
+        detail = [sym for sym, clients in _ticker_ws_clients.items() if clients]
+        symbols = _hod_uni.build_focus_universe(
+            gapper_rows=_gapper_cache,
+            gainer_rows=_gainer_cache,
+            loser_rows=_loser_cache,
+            afterhours_rows=_afterhours_cache,
+            detail_symbols=detail,
+            is_blocked=_hod_momo.is_blocked,
+        )
+
+    changed = symbols != _hod_momo_universe
+    _hod_momo_universe = symbols
+    _hod_momo_universe_ts = now
+    if changed:
         _ws_mark_resub()
-        logger.info("HOD Momo: universe refreshed — %d symbols subscribed", len(_hod_momo_universe))
-    except Exception as exc:
-        logger.warning("HOD Momo universe refresh failed: %s", exc)
+        logger.info(
+            "HOD Momo: universe refreshed mode=%s — %d symbols subscribed",
+            mode,
+            len(_hod_momo_universe),
+        )
 
 
 def get_hod_momo_universe() -> set[str]:
@@ -890,6 +954,7 @@ async def _broadcast_trade_update(
         return
     payload_obj: dict = {
         "type": "trade_update",
+        "symbol": sym,
         "price": price,
         "size": size,
         "timestamp": timestamp,
@@ -1312,9 +1377,15 @@ async def _ws_stream_loop() -> None:
                                 len(to_add), len(to_remove), len(wanted),
                             )
                         if to_add:
-                            await ws.send(json.dumps({"action": "subscribe", "trades": list(to_add)}))
+                            for chunk in _hod_uni.chunk_symbols(
+                                to_add, HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK
+                            ):
+                                await ws.send(json.dumps({"action": "subscribe", "trades": chunk}))
                         if to_remove:
-                            await ws.send(json.dumps({"action": "unsubscribe", "trades": list(to_remove)}))
+                            for chunk in _hod_uni.chunk_symbols(
+                                to_remove, HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK
+                            ):
+                                await ws.send(json.dumps({"action": "unsubscribe", "trades": chunk}))
                         _ws_subscribed = wanted
 
                     # Wait for the next message (1s timeout lets us check _ws_needs_resub)
@@ -1485,18 +1556,13 @@ def _run_news_catalyst_scan() -> None:
 # ── Background scan loop ──────────────────────────────────────────────────────
 
 async def _sleep_with_ibkr_reprice(loop: asyncio.AbstractEventLoop, total_seconds: float) -> None:
-    """Sleep until the next full scan tick, repricing IBKR-sourced caches in
-    short increments along the way (see _reprice_ibkr_caches). No-op reprice
-    when the Alpaca provider is active — behaves like a plain sleep."""
-    if _get_discovery_provider() != "ibkr":
-        await asyncio.sleep(total_seconds)
-        return
-    elapsed = 0.0
-    while elapsed < total_seconds:
-        step = min(IBKR_REPRICE_INTERVAL_SEC, total_seconds - elapsed)
-        await asyncio.sleep(step)
-        elapsed += step
-        await loop.run_in_executor(None, _reprice_ibkr_caches)
+    """Sleep until the next full scan tick.
+
+    Table price freshness is owned by ``table_reprice_loop`` (1Hz snapshots),
+    not by mid-sleep reprice here — nesting reprice inside the scan loop was
+    what froze "updated Xs ago" for 10–12+ seconds during a movers scan.
+    """
+    await asyncio.sleep(total_seconds)
 
 
 async def _scan_loop() -> None:
@@ -1605,6 +1671,9 @@ async def lifespan(app: FastAPI):
     hod_reset_task = asyncio.create_task(_hod_momo.session_reset_loop())
     hod_enrich_task = asyncio.create_task(_hod_momo_enrichment.universe_enrichment_loop())
     hod_fund_task = asyncio.create_task(_hod_momo_enrichment.fundamentals_enrichment_loop())
+    hod_seed_task = asyncio.create_task(
+        _hod_momo_seed.seed_refresh_loop(_get_discovery_provider)
+    )
     setups_scan_task = asyncio.create_task(_setups_stream.scan_loop())
     risk_reset_task = asyncio.create_task(_risk.session_reset_loop())
     executor_fill_task = asyncio.create_task(_executor.fill_poll_loop())
@@ -1627,25 +1696,34 @@ async def lifespan(app: FastAPI):
     # _scan_loop so a slow full IBKR discovery/movers scan can never delay it
     # (see PROBLEM_LOG 2026-07-14, "Detail panel updates every ~30s instead
     # of every tick").
+    # IBKR client — best-effort, never blocks the Alpaca scan loop
+    await _ibkr_client.startup()
+    _ibkr_ticks.configure(_broadcast_trade_update, _find_ibkr_cache_row)
     detail_reprice_task = asyncio.create_task(_ibkr_reprice.detail_reprice_loop(
         _get_ibkr_detail_symbols, _run_ibkr, _broadcast_trade_update, _find_ibkr_cache_row,
     ))
-    # IBKR client — best-effort, never blocks the Alpaca scan loop
-    await _ibkr_client.startup()
+    table_reprice_task = asyncio.create_task(_ibkr_reprice.table_reprice_loop(
+        _get_discovery_provider, _table_reprice_symbols, _apply_table_quotes, _scanner_broadcast,
+    ))
     yield
     detail_reprice_task.cancel()
+    table_reprice_task.cancel()
     scan_task.cancel()
     ws_task.cancel()
     hod_flush_task.cancel()
     hod_reset_task.cancel()
     hod_enrich_task.cancel()
     hod_fund_task.cancel()
+    hod_seed_task.cancel()
     setups_scan_task.cancel()
     risk_reset_task.cancel()
     executor_fill_task.cancel()
     l2_flush_task.cancel()
     l2_retention_task.cancel()
-    for t in (detail_reprice_task, scan_task, ws_task, hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task):
+    for t in (
+        detail_reprice_task, table_reprice_task, scan_task, ws_task,
+        hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task, hod_seed_task,
+    ):
         try:
             await t
         except asyncio.CancelledError:
@@ -1663,6 +1741,7 @@ app = FastAPI(title="Nova API", lifespan=lifespan)
 
 app.include_router(_trading_router)
 app.include_router(_trading_ws_router)
+app.include_router(_scanner_ws_router)
 app.include_router(_strategy_router)
 app.include_router(_journal_router)
 app.include_router(_executor_router)
@@ -1930,7 +2009,13 @@ def hod_momo_remove_block(symbol: str):
 @app.get("/api/hod-momo/debug/counters")
 def hod_momo_debug_counters():
     """Gate counters, universe size, and snaps populated — polled by the Debug panel."""
-    return _hod_momo.get_debug_counters()
+    out = _hod_momo.get_debug_counters()
+    out["watch_universe_size"] = len(_hod_momo_universe)
+    out["watch_universe_mode"] = (
+        (HOD_MOMO_UNIVERSE_MODE or HOD_MOMO_UNIVERSE_MODE_FOCUS).strip().lower()
+    )
+    out["watch_seed_size"] = len(_hod_uni.get_seed_symbols())
+    return out
 
 
 @app.get("/api/hod-momo/debug/symbol/{sym}")
@@ -2357,8 +2442,13 @@ def get_ticker_bars(
     timeframe: str = CHART_DEFAULT_TIMEFRAME,
     limit: int = CHART_DEFAULT_BARS,
 ):
-    """Fetch OHLCV bars for a symbol. Powered by the Alpaca Data API."""
-    return _fetch_bars(symbol.upper(), timeframe, limit)
+    """Fetch OHLCV bars for a symbol (IBKR when discovery=ibkr, else Alpaca)."""
+    return _fetch_chart_bars(
+        symbol.upper(),
+        timeframe,
+        limit,
+        discovery_provider=_get_discovery_provider(),
+    )
 
 
 @app.websocket("/ws/ticker/{symbol}")
@@ -2376,6 +2466,8 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
         _ticker_ws_clients[symbol] = set()
     _ticker_ws_clients[symbol].add(websocket)
     _ws_mark_resub()
+    if _get_discovery_provider() == "ibkr":
+        asyncio.create_task(_ibkr_ticks.subscribe(symbol))
 
     loop = asyncio.get_event_loop()
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
@@ -2428,4 +2520,6 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
         _ticker_ws_clients.get(symbol, set()).discard(websocket)
         if not _ticker_ws_clients.get(symbol):
             _ticker_ws_clients.pop(symbol, None)
+            if _get_discovery_provider() == "ibkr":
+                asyncio.create_task(_ibkr_ticks.unsubscribe(symbol))
         _ws_mark_resub()

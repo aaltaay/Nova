@@ -128,6 +128,34 @@ CHART_LOOKBACK_DAYS: dict[str, int] = {
 CHART_DEFAULT_BARS = 500   # bars returned when caller doesn't specify limit
 CHART_MAX_BARS     = 5000  # hard ceiling — prevents runaway requests
 
+# IBKR historical bars (reqHistoricalData) — used when discovery_provider=ibkr
+# so the chart matches IBKR live quotes instead of Alpaca IEX.
+IBKR_BAR_SIZE: dict[str, str] = {
+    "1Min": "1 min",
+    "5Min": "5 mins",
+    "15Min": "15 mins",
+    "30Min": "30 mins",
+    "1Hour": "1 hour",
+    "4Hour": "4 hours",
+    "1Day": "1 day",
+    "1Week": "1 week",
+    "1Month": "1 month",
+}
+IBKR_BAR_DURATION: dict[str, str] = {
+    "1Min": "5 D",
+    "5Min": "10 D",
+    "15Min": "1 M",
+    "30Min": "2 M",
+    "1Hour": "3 M",
+    "4Hour": "6 M",
+    "1Day": "5 Y",
+    "1Week": "10 Y",
+    "1Month": "20 Y",
+}
+IBKR_HISTORICAL_USE_RTH = False          # include extended hours (match chart live session)
+IBKR_HISTORICAL_TIMEOUT_SEC = 30.0
+IBKR_HISTORICAL_WHAT_TO_SHOW = "TRADES"
+
 
 # ── HOD Momo Scanner ──────────────────────────────────────────────────────────
 
@@ -151,26 +179,47 @@ HOD_MOMO_BLOCKLIST_FILE = _os.path.join(_hod_momo_cache_root(), "hod-momo-blockl
 # Engine timing
 HOD_MOMO_COOLDOWN_SEC = 60.0         # suppress re-alert for ticker+strategy after firing
 HOD_MOMO_CONSOLIDATION_SEC = 5.0     # batch alerts for same ticker within this window
-HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh HOD universe subscription every 5 min
+HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh cadence for broad (full-asset) mode
+# Ross-style focus: Top Gainer/Gapper shortlist + IBKR volume seeds — not the
+# full US tape. Broad mode subscribed ~6k IEX symbols → zero trades (empty tab).
+# Warrior Day Trade Dash scans the whole market; Nova approximates that by
+# unioning Top % Gain/Lose with HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE.
+HOD_MOMO_UNIVERSE_MODE_FOCUS = "focus"
+HOD_MOMO_UNIVERSE_MODE_BROAD = "broad"
+HOD_MOMO_UNIVERSE_MODE = HOD_MOMO_UNIVERSE_MODE_FOCUS
+HOD_MOMO_FOCUS_REFRESH_SEC = 5.0     # how often to rebuild focus set from scanner caches
+HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK = 200  # max symbols per Alpaca WS subscribe message
 HOD_MOMO_SESSION_RESET_HOUR_ET = 4   # reset session state at 4:00 AM ET
+HOD_MOMO_SEED_REFRESH_SEC = 30.0     # IBKR volume-scanner seed cadence
+HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1  # empty former_momo_list → never fire
 
 # Enrichment loop intervals
 HOD_MOMO_ENRICH_INTERVAL_SEC = 30.0          # batch snapshot enrichment cadence
 HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC = 2.0  # fundamentals per-symbol drain cadence
 HOD_MOMO_FUNDAMENTALS_BATCH_SIZE = 10            # symbols per fundamentals tick (warm up faster)
 
-# Master gate defaults
+# Master gate defaults.
+# Warrior HOD Momo = new HOD + *per-strategy* momentum (float/RVOL/surge bands).
+# Master surge is OFF by default so Medium Float / Low Float Rel Vol strategies
+# are not double-gated by a global 3%/5min filter that Warrior does not apply.
 HOD_MOMO_MASTER_HOD_REQUIRED = True
-HOD_MOMO_MASTER_SURGE_PCT = 3.0      # price must rise this % within lookback window
-HOD_MOMO_MASTER_SURGE_WINDOW_MIN = 5  # minutes
+HOD_MOMO_MASTER_SURGE_PCT = 0.0      # 0 = disabled; squeeze strategies keep their own surge
+HOD_MOMO_MASTER_SURGE_WINDOW_MIN = 5  # minutes (used only when surge_pct > 0)
 HOD_MOMO_MASTER_MIN_RVOL = 2.0
 HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 1.0   # relaxed during 4–9:30 AM and 4–8 PM ET
 HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 1.0
+
+# Pace RVOL (Warrior "Relative Volume (Daily Rate)"): today_vol / (avg * elapsed_frac).
+# Floor = ~14 min of the 04:00–16:00 ET volume day — avoids insane RVOL at 4:01.
+HOD_MOMO_RVOL_PACE_FLOOR = 0.02
+HOD_MOMO_RVOL_USE_PACE = True
 
 # RVOL fallback: when on IEX free tier, Alpaca historical bars are mostly empty.
 # During warmup (first N seconds after startup), skip the RVOL master gate entirely
 # so the scanner can fire while yfinance data loads progressively.
 HOD_MOMO_RVOL_WARMUP_GRACE_SEC = 300            # 5 min: skip RVOL gate while yfinance warms up
+# Bump when master/strategy defaults change so persisted configs migrate once.
+HOD_MOMO_CONFIG_SCHEMA_VERSION = 2
 
 # Strategy names (canonical order 1–11)
 HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {
@@ -300,6 +349,9 @@ IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt
 # reqMktDepth() already returned successfully, so it can't be caught by a
 # try/except around the call — see ibkr/depth.py._on_ib_error.
 IBKR_ERROR_DEPTH_NOT_SUPPORTED = 10092
+# Tick-by-tick Time & Sales subscription failures (async via errorEvent).
+# 10089/10189: requires additional market-data subscription; 354: not subscribed.
+IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 354})
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
 
@@ -321,8 +373,20 @@ IBKR_SCAN_LOCATION = "STK.US.MAJOR"            # all major US exchanges
 IBKR_SCAN_CODE_GAPPERS = "TOP_OPEN_PERC_GAIN"  # today's open vs prior close (premarket gap)
 IBKR_SCAN_CODE_GAINERS = "TOP_PERC_GAIN"       # current price vs prior close, intraday
 IBKR_SCAN_CODE_LOSERS = "TOP_PERC_LOSE"
+# Extra seeds for HOD Momo — Warrior catches mid-day volume runners that are
+# not always in the top-% gainer list (e.g. FRE / TSSI / YG style alerts).
+IBKR_SCAN_CODE_HOT_VOLUME = "HOT_BY_VOLUME"
+IBKR_SCAN_CODE_TOP_VOLUME_RATE = "TOP_VOLUME_RATE"
+IBKR_SCAN_CODE_MOST_ACTIVE = "MOST_ACTIVE"
+IBKR_SCAN_HOD_SEED_CODES = (
+    IBKR_SCAN_CODE_HOT_VOLUME,
+    IBKR_SCAN_CODE_TOP_VOLUME_RATE,
+    IBKR_SCAN_CODE_MOST_ACTIVE,
+)
 IBKR_SCAN_MAX_ROWS = 50                        # IB hard cap per scan code
 IBKR_SCAN_ABOVE_PRICE = SCANNER_MIN_PRICE       # mirrors the Alpaca price floor above
+# 1Hz table reprice may include HOD seed symbols beyond gainer/loser rows.
+IBKR_TABLE_REPRICE_MAX_SYMBOLS = 100
 IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # per-batch reqTickersAsync timeout
 IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ceiling
 # Alpaca's WS trade stream gives sub-second price freshness between the 20-30s
@@ -330,6 +394,13 @@ IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ce
 # intentionally disabled while DISCOVERY_PROVIDER=ibkr (see PROBLEM_LOG
 # 2026-07-13), so this replaces it with a fast IBKR-native reprice tick.
 IBKR_REPRICE_INTERVAL_SEC = 3.0
+# Scanner TABLE prices: independent 1Hz reqTickersAsync snapshots (not reqMktData).
+# Must not wait on the full movers scan — that starvation caused "updated 10–12s ago".
+IBKR_TABLE_REPRICE_INTERVAL_SEC = 1.0
+# UI / heartbeat: if no successful table price tick within this window, mark stale.
+# Full ~100-symbol reqTickersAsync often takes 3–6s; threshold must exceed that
+# so we don't yellow-flag a healthy loop that is simply mid-batch.
+SCANNER_PRICE_STALE_SEC = 6.0
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
 # Signal-only thresholds (see backend/strategy/five_pillars.py). These never place
@@ -453,6 +524,9 @@ L2_RETENTION_DAYS = 14                     # purge l2_snapshots / tape_trades / 
 L2_RETENTION_SWEEP_INTERVAL_SEC = 3600.0   # how often the background retention task runs
 L2_RECALL_DEFAULT_WINDOW_SEC = 2.0         # default ±window for point-in-time recall API
 TAPE_SOURCE_ALPACA = "alpaca"              # tape_trades.source for Alpaca WS prints
+TAPE_SOURCE_IBKR = "ibkr"                 # tape_trades.source for IBKR tick-by-tick prints
+IBKR_TAPE_TICK_TYPE = "AllLast"           # tick-by-tick type (AllLast = every print like TWS Time & Sales)
+TAPE_UI_MAX_ROWS = 200                    # max rows kept in the frontend Time & Sales panel
 L2_SESSION_REASON_SIGNAL = "signal"        # record_sessions.reason when setup signal fires
 L2_SESSION_REASON_DEPTH = "depth"          # record_sessions.reason when DepthLadder / depth WS is open
 

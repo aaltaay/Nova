@@ -40,6 +40,8 @@ from constants import (
     HOD_MOMO_ALERTS_PREFIX,
     HOD_MOMO_COOLDOWN_SEC,
     HOD_MOMO_CONSOLIDATION_SEC,
+    HOD_MOMO_CONFIG_SCHEMA_VERSION,
+    HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
     HOD_MOMO_MASTER_HOD_REQUIRED,
     HOD_MOMO_MASTER_MIN_RVOL,
     HOD_MOMO_MASTER_PREMARKET_MIN_RVOL,
@@ -280,10 +282,29 @@ def _alert_from_dict(d: dict) -> AlertObject:
 
 def _save_configs() -> None:
     payload = {
+        "schema_version": HOD_MOMO_CONFIG_SCHEMA_VERSION,
         "master": _master_to_dict(_master),
         "strategies": {str(sid): _config_to_dict(cfg) for sid, cfg in _configs.items()},
     }
     _cache.save_hod_momo_configs(payload)
+
+
+def _migrate_loaded_configs(data: dict) -> bool:
+    """Apply one-time schema migrations. Returns True if config was changed."""
+    global _master
+    version = int(data.get("schema_version") or 1)
+    changed = False
+    if version < 2:
+        # v2: Warrior parity — master surge off (strategies own momentum).
+        # Old default was 3%/5m and blocked Medium Float / Rel Vol HOD alerts.
+        if abs(float(_master.surge_pct) - 3.0) < 1e-9:
+            _master.surge_pct = HOD_MOMO_MASTER_SURGE_PCT
+            changed = True
+            logger.info(
+                "HOD Momo: migrated master surge_pct 3.0 → %s (schema v2 Warrior parity)",
+                HOD_MOMO_MASTER_SURGE_PCT,
+            )
+    return changed
 
 
 def _load_configs_from_disk() -> bool:
@@ -300,6 +321,8 @@ def _load_configs_from_disk() -> bool:
                 sid = int(sid_str)
                 if 1 <= sid <= 11:
                     _configs[sid] = _config_from_dict(d)
+        if _migrate_loaded_configs(data):
+            _save_configs()
         return True
     except Exception:
         logger.warning("HOD Momo: failed to load configs from disk — using defaults")
@@ -666,8 +689,23 @@ def on_trade_update(
             strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": "disabled"})
             continue
 
-        # Former Momo list check
-        if cfg.former_momo_list and symbol.upper() not in [s.upper() for s in cfg.former_momo_list]:
+        # Former Momo (strategy 1): Warrior tags known former runners only.
+        # Empty list must NOT mean "every symbol" — that spam is not Warrior parity.
+        if strategy_id == HOD_MOMO_FORMER_MOMO_STRATEGY_ID:
+            if not cfg.former_momo_list:
+                strategy_decisions.append({
+                    "id": strategy_id, "name": cfg.name, "passed": False,
+                    "blocked_by": "former_momo_list_empty",
+                })
+                continue
+            allow = {s.upper() for s in cfg.former_momo_list}
+            if symbol.upper() not in allow:
+                strategy_decisions.append({
+                    "id": strategy_id, "name": cfg.name, "passed": False,
+                    "blocked_by": "not_in_former_momo_list",
+                })
+                continue
+        elif cfg.former_momo_list and symbol.upper() not in [s.upper() for s in cfg.former_momo_list]:
             strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": "not_in_former_momo_list"})
             continue
 
@@ -945,6 +983,8 @@ def get_debug_counters() -> dict:
         "counters": dict(_gate_counters),
         "session_highs_tracked": len(_session_highs),
         "fundamentals_queue_depth": len(_fundamentals_queue),
+        "pending_symbols": len(_pending_consolidation),
+        "alerts_today": len(_today_alerts),
     }
 
 

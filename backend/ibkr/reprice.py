@@ -1,24 +1,11 @@
 """IBKR-sourced price repricing between full discovery/movers scans.
 
-Extracted out of main.py (see PROBLEM_LOG 2026-07-14, "Quote panel frozen,
-only Level 2 stayed live" and "Detail panel updates every ~30s instead of
-every tick"). Two independent concerns live here, on purpose:
+Extracted out of main.py (see PROBLEM_LOG 2026-07-14). Two independent loops:
 
-- ``reprice_detail_symbols`` / ``detail_reprice_loop``: a tiny, fast
-  snapshot_quotes() call for the 0-2 symbols with an open ticker-detail
-  WebSocket. This runs on its own independent timer task
-  (``detail_reprice_loop``), started separately in main.py's lifespan —
-  NOT nested inside the main scan loop's sleep. The main scan loop's
-  per-iteration work (``_run_gainers_update`` doing a full IBKR market
-  scan + snapshot for up to 100 symbols) routinely takes well over
-  IBKR_REPRICE_INTERVAL_SEC by itself, which silently starved detail
-  repricing when it was called from inside that loop's sleep helper.
-
-- ``reprice_table_caches``: re-snapshots every symbol already in the
-  gapper/gainer/loser caches. This batch can be 100+ symbols and is NOT
-  cheap — callers must not depend on it for low-latency updates. It stays
-  tied to the main scan loop's cadence since it's a best-effort refresh
-  between full scans, not a per-tick guarantee.
+- ``detail_reprice_loop``: 0–2 open ticker-detail symbols (panel backstop).
+- ``table_reprice_loop``: 1Hz ``reqTickersAsync`` snapshots for scanner rows —
+  must NOT wait on the full movers scan (that starvation made "updated 10–12s
+  ago"). Uses snapshots only — never ``reqMktData`` for the whole universe.
 """
 from __future__ import annotations
 
@@ -26,26 +13,37 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
-from constants import IBKR_REPRICE_INTERVAL_SEC
+from constants import IBKR_REPRICE_INTERVAL_SEC, IBKR_TABLE_REPRICE_INTERVAL_SEC
 from ibkr import discovery as _ibkr_discovery
 
 logger = logging.getLogger(__name__)
 
 RunIbkrFn = Callable[[Awaitable], object]
 BroadcastFn = Callable[..., Awaitable[None]]
+ScheduleBroadcastFn = Callable[..., None]
 FindCacheRowFn = Callable[[str], Optional[dict]]
 GetDetailSymbolsFn = Callable[[], list[str]]
+GetProviderFn = Callable[[], str]
+RepriceCachesFn = Callable[[], Optional[dict[str, Any]]]
+PushFn = Callable[[dict[str, Any]], Awaitable[None]]
+
+_table_reprice_busy = False
 
 
 def reprice_detail_symbols(
     detail_symbols: list[str],
     run_ibkr: RunIbkrFn,
-    broadcast_trade_update: BroadcastFn,
+    schedule_broadcast: ScheduleBroadcastFn,
     find_cache_row: FindCacheRowFn,
 ) -> None:
-    """Reprice only the symbols with an open ticker-detail WS (usually 0-2)."""
+    """Reprice only the symbols with an open ticker-detail WS (usually 0-2).
+
+    ``schedule_broadcast`` must push the coroutine onto the FastAPI/main event
+    loop (not through ``run_ibkr``) — broadcasting over the IB bridge contended
+    with snapshot_quotes and made trade_update feel 10–14s apart.
+    """
     if not detail_symbols:
         return
     quotes = run_ibkr(_ibkr_discovery.snapshot_quotes(detail_symbols))
@@ -61,30 +59,34 @@ def reprice_detail_symbols(
             prev_close = (row.get("previous_close") or row.get("prev_close")) or prev_close
         if price is None:
             continue
-        run_ibkr(broadcast_trade_update(
+        schedule_broadcast(
             sym, price, None, datetime.now(timezone.utc).isoformat(), volume, prev_close,
-        ))
+        )
 
 
-def reprice_table_caches(
+def _patch_row(row: dict) -> dict:
+    price = row.get("price")
+    if price is None:
+        price = row.get("current_price")
+    return {
+        "symbol": row["symbol"],
+        "price": price,
+        "change_pct": row.get("change_pct"),
+        "change_abs": row.get("change_abs"),
+        "volume": row.get("volume"),
+        "gap_percent": row.get("gap_percent"),
+    }
+
+
+def apply_quote_patches(
     gapper_cache: list[dict],
     gainer_cache: list[dict],
     loser_cache: list[dict],
-    run_ibkr: RunIbkrFn,
-) -> Optional[tuple[list[dict], list[dict], list[dict], float]]:
-    """Re-snapshot every symbol in the scanner table caches.
-
-    Returns the (possibly repriced) caches plus the timestamp, or None if
-    there was nothing to reprice / the IBKR call came back empty — callers
-    should leave their caches untouched in that case.
-    """
-    symbols = list({r["symbol"] for r in gapper_cache + gainer_cache + loser_cache})
-    if not symbols:
-        return None
-    quotes = run_ibkr(_ibkr_discovery.snapshot_quotes(symbols))
+    quotes: dict[str, dict],
+) -> Optional[tuple[list[dict], list[dict], list[dict], float, list[dict]]]:
+    """Apply a quotes dict to caches; returns patched caches + ts + rows, or None."""
     if not quotes:
         return None
-
     now = time.time()
     if gapper_cache:
         gapper_cache = [
@@ -101,7 +103,34 @@ def reprice_table_caches(
             _ibkr_discovery.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m
             for m in loser_cache
         ]
-    return gapper_cache, gainer_cache, loser_cache, now
+    by_sym: dict[str, dict] = {}
+    for row in gapper_cache + gainer_cache + loser_cache:
+        by_sym[row["symbol"]] = _patch_row(row)
+    return gapper_cache, gainer_cache, loser_cache, now, list(by_sym.values())
+
+
+def reprice_table_caches(
+    gapper_cache: list[dict],
+    gainer_cache: list[dict],
+    loser_cache: list[dict],
+    run_ibkr: RunIbkrFn,
+) -> Optional[tuple[list[dict], list[dict], list[dict], float, list[dict]]]:
+    """Sync path: snapshot via ``run_ibkr`` then apply (tests / legacy)."""
+    symbols = list({r["symbol"] for r in gapper_cache + gainer_cache + loser_cache})
+    if not symbols:
+        return None
+    quotes = run_ibkr(_ibkr_discovery.snapshot_quotes(symbols))
+    if not isinstance(quotes, dict):
+        return None
+    return apply_quote_patches(gapper_cache, gainer_cache, loser_cache, quotes)
+
+
+async def snapshot_table_quotes(symbols: list[str]) -> dict[str, dict]:
+    """Await IBKR snapshots on the running event loop (no thread bridge)."""
+    if not symbols:
+        return {}
+    result = await _ibkr_discovery.snapshot_quotes(symbols)
+    return result if isinstance(result, dict) else {}
 
 
 async def detail_reprice_loop(
@@ -110,13 +139,12 @@ async def detail_reprice_loop(
     broadcast_trade_update: BroadcastFn,
     find_cache_row: FindCacheRowFn,
 ) -> None:
-    """Independent fast timer for the ticker-detail panel.
+    """Independent timer for the ticker-detail panel (volume/prev_close backstop)."""
+    loop = asyncio.get_running_loop()
 
-    Runs every IBKR_REPRICE_INTERVAL_SEC forever, completely decoupled from
-    the (much slower) main scan loop, so a watched ticker detail panel never
-    waits on a full gapper/gainer/loser discovery or movers scan to finish.
-    """
-    loop = asyncio.get_event_loop()
+    def schedule_broadcast(*args) -> None:
+        asyncio.run_coroutine_threadsafe(broadcast_trade_update(*args), loop)
+
     while True:
         await asyncio.sleep(IBKR_REPRICE_INTERVAL_SEC)
         try:
@@ -126,10 +154,55 @@ async def detail_reprice_loop(
                 reprice_detail_symbols,
                 detail_symbols,
                 run_ibkr,
-                broadcast_trade_update,
+                schedule_broadcast,
                 find_cache_row,
             )
         except asyncio.CancelledError:
             raise
         except Exception:
             logger.exception("Detail reprice tick failed")
+
+
+async def table_reprice_loop(
+    get_provider: GetProviderFn,
+    get_symbols: Callable[[], list[str]],
+    apply_quotes: Callable[[dict[str, dict]], Optional[dict[str, Any]]],
+    push: PushFn,
+) -> None:
+    """1Hz scanner-table snapshots on the IB event loop (interleaves with scans).
+
+    Skip-if-busy: if the previous snapshot is still running, emit a stale
+    heartbeat instead of overlapping IB calls.
+    """
+    global _table_reprice_busy
+
+    while True:
+        await asyncio.sleep(IBKR_TABLE_REPRICE_INTERVAL_SEC)
+        try:
+            if get_provider() != "ibkr":
+                continue
+            if _table_reprice_busy:
+                await push({"type": "price_heartbeat", "ts": time.time(), "stale": True})
+                continue
+            symbols = get_symbols()
+            if not symbols:
+                continue
+            _table_reprice_busy = True
+            try:
+                quotes = await snapshot_table_quotes(symbols)
+                result = apply_quotes(quotes)
+                if result is None:
+                    await push({"type": "price_heartbeat", "ts": time.time(), "stale": True})
+                else:
+                    await push(result)
+            finally:
+                _table_reprice_busy = False
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Table reprice tick failed")
+            _table_reprice_busy = False
+            try:
+                await push({"type": "price_heartbeat", "ts": time.time(), "stale": True})
+            except Exception:
+                logger.exception("Table reprice stale heartbeat failed")

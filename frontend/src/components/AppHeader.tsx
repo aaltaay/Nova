@@ -71,6 +71,8 @@ interface Props {
   feedFellBack: boolean;
   /** Live scan age in seconds; null when unknown or viewing history. */
   secondsAgo: number | null;
+  /** True when IBKR table price ticks are late — show warning color, never hide. */
+  pricesStale?: boolean;
   historyDate: string | null;
   historyDates: string[];
   onHistoryChange: (e: ChangeEvent<HTMLSelectElement>) => void;
@@ -91,6 +93,7 @@ export function AppHeader({
   activeFeed,
   feedFellBack,
   secondsAgo,
+  pricesStale = false,
   historyDate,
   historyDates,
   onHistoryChange,
@@ -136,7 +139,16 @@ export function AppHeader({
           {!compact && !historyDate && secondsAgo != null && (
             <>
               <span className="header-meta-sep" aria-hidden="true">·</span>
-              <span className="scan-age">updated {secondsAgo}s ago</span>
+              <span
+                className={`scan-age${pricesStale ? ' scan-age--stale' : ''}`}
+                title={
+                  pricesStale
+                    ? 'Table price refresh is late or skipped — not live right now'
+                    : 'Age of last successful table price tick'
+                }
+              >
+                {pricesStale ? `stale · updated ${secondsAgo}s ago` : `updated ${secondsAgo}s ago`}
+              </span>
             </>
           )}
           {!compact && showScannerSource && (

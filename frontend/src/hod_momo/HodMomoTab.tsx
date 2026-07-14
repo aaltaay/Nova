@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
-import { HOD_MOMO_COLUMNS, STRATEGY_META, STRATEGY_META_MAP } from '../constants';
+import { HOD_MOMO_COLUMNS, HOD_MOMO_EMPTY_CONNECTING, HOD_MOMO_EMPTY_WAITING, STRATEGY_META, STRATEGY_META_MAP } from '../constants';
 import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';
@@ -452,8 +452,8 @@ export function HodMomoTab({
                 <tr>
                   <td colSpan={HOD_MOMO_COLUMNS.length} className="hod-empty-cell">
                     {connected
-                      ? 'Waiting for HOD Momo alerts…'
-                      : 'Connecting to HOD Momo feed…'}
+                      ? HOD_MOMO_EMPTY_WAITING
+                      : HOD_MOMO_EMPTY_CONNECTING}
                   </td>
                 </tr>
               ) : (

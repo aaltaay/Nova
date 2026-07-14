@@ -4,11 +4,16 @@ Eastern-time market session helpers.
 Extracted from main.py (backend-modularity.mdc target layout). Behavior is
 unchanged — same premarket/regular/after-hours boundaries used by the scan
 loop to decide which discovery function runs.
+
+Also owns Warrior-style pace RVOL (Daily Rate): today's volume ÷ expected
+volume by this time of day.
 """
 from __future__ import annotations
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+from constants import HOD_MOMO_RVOL_PACE_FLOOR
 
 ET = ZoneInfo("America/New_York")
 
@@ -36,3 +41,45 @@ def in_after_hours() -> bool:
     start = now.replace(hour=16, minute=0, second=0, microsecond=0)
     end = now.replace(hour=20, minute=0, second=0, microsecond=0)
     return start <= now < end
+
+
+def volume_day_elapsed_fraction(now: datetime | None = None) -> float:
+    """Fraction of the volume day (04:00–16:00 ET) elapsed, for pace RVOL.
+
+    Warrior / Trade-Ideas "Relative Volume (Daily Rate)" compares cumulative
+    volume to *expected* volume by this clock time, not raw daily/avg.
+    Floor avoids divide-by-near-zero in the first minutes after 4:00.
+    """
+    now = now or now_et()
+    start = now.replace(hour=4, minute=0, second=0, microsecond=0)
+    end = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    if now < start:
+        return HOD_MOMO_RVOL_PACE_FLOOR
+    if now >= end:
+        return 1.0
+    total = (end - start).total_seconds()
+    if total <= 0:
+        return 1.0
+    frac = (now - start).total_seconds() / total
+    return max(HOD_MOMO_RVOL_PACE_FLOOR, min(1.0, frac))
+
+
+def pace_relative_volume(
+    today_vol: float | None,
+    avg_daily_vol: float | None,
+    now: datetime | None = None,
+) -> float | None:
+    """Warrior-style Daily Rate RVOL: today_vol / (avg_daily_vol * elapsed_frac)."""
+    if today_vol is None or avg_daily_vol is None:
+        return None
+    try:
+        tv = float(today_vol)
+        av = float(avg_daily_vol)
+    except (TypeError, ValueError):
+        return None
+    if tv <= 0 or av <= 0:
+        return None
+    expected = av * volume_day_elapsed_fraction(now)
+    if expected <= 0:
+        return None
+    return round(tv / expected, 2)

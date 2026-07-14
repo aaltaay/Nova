@@ -30,6 +30,88 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — HOD Momo Warrior parity (pace RVOL, volume seeds, gates)
+
+- **What:** Nova HOD Momo now closer to Warrior Day Trade Dash: pace RVOL (Daily Rate), IBKR volume-scanner seeds, Former Momo no longer fires on an empty list, master surge default off so float/RVOL strategies are not double-gated.
+- **Why:** Side-by-side with Warrior showed different symbols (TSSI/YG/FRE vs CNEY spam); strategy names matched but gates/universe/RVOL did not.
+- **Files touched:** `backend/market.py`, `hod_momo.py`, `hod_momo_universe.py`, `hod_momo_seed.py` (new), `hod_momo_enrichment.py`, `ibkr/discovery.py`, `constants.py`, `main.py`, `frontend/src/constants.ts`, tests.
+- **How it works now:** Focus watch set = gappers/gainers/losers/AH + IBKR `HOT_BY_VOLUME` / `TOP_VOLUME_RATE` / `MOST_ACTIVE` seeds + open details. RVOL = today_vol / (avg × 04:00–16:00 ET elapsed frac). Master gate is HOD + min RVOL; squeeze strategies keep their own surge. Former Momo requires a non-empty list. Persisted configs with master surge 3.0 migrate to 0 once (schema v2). Table reprice includes HOD seeds (cap 100).
+- **Verified by:** `pytest tests/test_hod_momo_engine.py tests/test_hod_momo_universe.py tests/test_pace_rvol.py` (14 passed).
+- **Follow-ups:** True 5-min RVOL column; Running Up scanner (no HOD required); optional former-runner list import from Warrior history.
+- **Related:** PROBLEM_LOG 2026-07-14 HOD Momo ≠ Warrior; closes CHANGELOG follow-up on Daily Rate RVOL.
+
+## 2026-07-14 — L2 | T&S side-by-side + bid/ask tape colors
+
+- **What:** Level 2 and Time & Sales sit side-by-side in one full-width row again. Each T&S print is classified against the open symbol’s live BBO and highlighted: green ASK (at/above ask), red BID (at/below bid), black MID (inside spread).
+- **Why:** User asked for side-by-side panels (not stacked rows) and aggressor-side coloring; prior uptick/downtick coloring did not answer bid vs ask.
+- **Files touched:** `backend/ibkr/tape_side.py`, `backend/ibkr/tape_stream.py`, `backend/tests/test_ibkr_tape_side.py`, `backend/tests/test_ibkr_tape_stream.py`, `frontend/src/ibkr/DepthAndTape.tsx`, `frontend/src/ibkr/TimeSalesPanel.tsx`, `frontend/src/ibkr/useIbkrTape.ts`, `frontend/src/constants.ts`, `frontend/src/index.css`.
+- **How it works now:** On each AllLast print, `tape_stream` reads `depth.current_book(symbol)` top-of-book and sets `side`/`bid`/`ask` on the WS payload. UI uses row block highlights + `ASK`/`BID`/`MID` labels (not color-only). Grid stacks to one column below 560px.
+- **Verified by:** `pytest tests/test_ibkr_tape_side.py tests/test_ibkr_tape_stream.py`; frontend build; browser check of layout + colors.
+- **Follow-ups:** (none for RVOL — see Warrior parity entry above).
+
+## 2026-07-14 — HOD Momo empty: Ross focus universe + IBKR ticks
+
+- **What:** HOD Momo now watches the Top Gainer/Gapper/Loser shortlist (Ross-style) instead of subscribing Alpaca IEX to ~6k symbols. IBKR 1Hz table reprice also feeds `on_trade_update` when discovery=ibkr. Alpaca WS subscribe/unsubscribe is chunked. Unit tests cover universe building and alert firing.
+- **Why:** Tab stayed empty (`total_trades_seen=0`) despite enriched snaps — free IEX cannot deliver a usable tape for a full-universe subscribe. Project decision note already required shrinking under IBKR.
+- **Files touched:** `backend/hod_momo_universe.py` (new), `backend/main.py`, `backend/constants.py`, `backend/hod_momo.py`, `backend/tests/test_hod_momo_universe.py`, `backend/tests/test_hod_momo_engine.py`, `frontend/src/constants.ts`, `frontend/src/hod_momo/HodMomoTab.tsx`.
+- **How it works now:** `HOD_MOMO_UNIVERSE_MODE=focus` (default) rebuilds watch set from scanner caches every 5s. Enrichment follows that set. IBKR table snapshots call `hod_momo.on_trade_update`. Debug counters expose `watch_universe_size` / `watch_universe_mode`.
+- **Verified by:** `pytest tests/test_hod_momo_universe.py tests/test_hod_momo_engine.py`; live Alpaca IEX probe confirmed trades on a 5-symbol shortlist; post-reload debug counters.
+- **Related:** PROBLEM_LOG 2026-07-14 HOD Momo empty / IEX 6k subscribe.
+
+## 2026-07-14 — Level 2 / Time & Sales full-width stack + tape WS live
+
+- **What:** Level 2 and Time & Sales now each occupy a full-width row (stacked like Watchlist) instead of a cramped side-by-side pair inside the quote column. Empty T&S was fixed: the running API had not loaded `/ws/ibkr/tape/{symbol}` (WS 403), so the panel never received prints; after restart prints flow, and IB tick-by-tick errors surface in the panel.
+- **Why:** User reported cramped L2 beside an empty T&S under CNEY.
+- **Files touched:** `frontend/src/ibkr/DepthAndTape.tsx`, `frontend/src/components/TickerDetailContent.tsx`, `frontend/src/ibkr/TickerTradeSideColumn.tsx`, `frontend/src/index.css`, `backend/ibkr/tape_stream.py`, `backend/routes/trading.py`, `backend/constants.py`, `backend/tests/test_ibkr_tape_stream.py`.
+- **How it works now:** `DepthAndTape` is always a vertical stack. In the side panel, the depth stack sits full-width under Watchlist (not inside the half-width quote column). Tape uses `reqTickByTickData(AllLast)`; subscription errors (10089/10189/354) are pushed to the WS as `type:error`.
+- **Verified by:** `pytest tests/test_ibkr_tape_stream.py`; live WS probe received CNEY prints; `npm run build`.
+- **Related:** PROBLEM_LOG 2026-07-14 empty Time & Sales / tape 403.
+
+## 2026-07-14 — Live Time & Sales panel next to Level 2 (IBKR AllLast)
+
+- **What:** Added a Webull-style Time & Sales tape beside Level 2 for the open symbol, fed by IBKR `reqTickByTickData(AllLast)` — not Alpaca. Rows coloured green/red vs prior print, newest-first, capped at 200 rows. Appears wherever `DepthLadder` was: side panel quote view and trading side column.
+- **Why:** User request — match the Webull T&S experience beside L2; IBKR is the single data source.
+- **Files touched:** `backend/ibkr/tape_stream.py` (new), `backend/routes/trading.py` (new `/ws/ibkr/tape/{symbol}` endpoint), `backend/constants.py` (`TAPE_SOURCE_IBKR`, `IBKR_TAPE_TICK_TYPE`, `TAPE_UI_MAX_ROWS`), `frontend/src/constants.ts`, `frontend/src/ibkr/useIbkrTape.ts` (new), `frontend/src/ibkr/TimeSalesPanel.tsx` (new), `frontend/src/ibkr/DepthAndTape.tsx` (new), `frontend/src/components/TickerDetailContent.tsx`, `frontend/src/ibkr/TickerTradeSideColumn.tsx`, `frontend/src/utils/dataSourceMap.ts`, `frontend/src/index.css`, `.cursor/rules/single-market-data-feed.mdc`.
+- **How it works now:** `tape_stream.py` manages refcounted `reqTickByTickData` subscriptions (15s resubscribe guard). WS route `ws_tape` follows identical viewer pattern as `ws_depth`. `useIbkrTape` clears prints on symbol change and gates all messages on `msg.symbol === symbol`. `DepthAndTape` wraps both panels side-by-side (CSS flex, stacks below 600px). `dataSourceMap` now includes a "Time & Sales" row with IBKR attribution.
+- **Verified by:** TypeScript build check; visual inspection of component structure.
+
+## 2026-07-14 — Scanner table 1Hz IBKR snapshots (fix 10–12s freeze)
+
+- **What:** Independent `table_reprice_loop` refreshes Gainers/Losers/Gappers prices every 1s via `reqTickersAsync` (not streaming MD). `/ws/scanner` pushes patches; UI flashes price changes and shows yellow “stale · updated Xs ago” when a tick is late. Open quote panel still uses ticks + L2.
+- **Why:** Header showed “updated 10–12s ago” because table reprice was nested after the full movers scan (20–90s), so prices froze during scans.
+- **Files touched:** `backend/ibkr/reprice.py`, `discovery.py` (contract cache), `scanner_push.py`, `main.py`, `constants.py`, `useScannerPriceStream.ts`, `ScannerTable`/`AppHeader`/`App.tsx`, CSS, rule.
+- **How it works now:** Full scan still rebuilds membership on its own cadence; price freshness is a separate 1Hz loop + WS. Skip-if-busy emits stale heartbeats instead of hiding lag.
+- **Verified by:** pytest `test_ibkr_reprice`; frontend build; browser header age + NXTC table ticks.
+- **Related:** PROBLEM_LOG 2026-07-14 table reprice starvation.
+
+## 2026-07-14 — Quote panel symbol gate + IBKR-only chart bars (no silent Alpaca)
+
+- **What:** Fixed Level 2 showing a previous ticker’s book under a new quote (e.g. MVO @ $0.80 with NXTC ~$7 depth). Cleared detail on symbol change, gated SidePanel/Stock View on `detail.symbol === selectedSymbol`, bound DepthLadder to `selectedSymbol` with WS identity/`msg.symbol` checks. When discovery=ibkr, `chart_bars` no longer falls back to Alpaca — fails with HTTP 503. Added `.cursor/rules/single-market-data-feed.mdc`. Listing section retitled as Alpaca metadata (not a price feed).
+- **Why:** User cannot tolerate cross-symbol L2/quote desync or unaware Alpaca price fallback while IBKR is the discovery feed.
+- **Files touched:** `useTickerStream.ts`, `useIbkrDepth.ts`, `depthBookGuards.ts`, `SidePanel.tsx`, `TickerDetailContent.tsx`, `StockViewPage.tsx`, `chart_bars.py`, `main.py` (`trade_update.symbol`), `dataSourceMap.ts`, `constants.ts`, rule + tests + logs.
+- **How it works now:** Quote panel surfaces only paint when selection and detail agree. L2 ignores stale sockets and wrong symbols. IBKR mode chart bars are IBKR-only; Alpaca bars only when discovery=alpaca. Attribution copy says “no Alpaca fallback.”
+- **Verified by:** pytest `test_ibkr_bars`; vitest dataSourceMap + depthBookGuards; frontend build + browser switch NXTC→MVO.
+- **Related:** PROBLEM_LOG 2026-07-14 Level 2 / quote desync; single-market-data-feed rule.
+
+## 2026-07-14 — Chart data/live path: IBKR historical bars + streaming last-price ticks
+
+- **What:** When `discovery_provider=ibkr`, `/api/ticker/{symbol}/bars` now pulls OHLCV from IBKR `reqHistoricalData` (same JSON shape as Alpaca). Opening a ticker-detail WebSocket also starts an IBKR `reqMktData` last-price stream so `trade_update` (quote panel + forming chart candle) can move on real ticks, not only the 3s snapshot reprice. Reprice still runs as a volume/prev_close backstop, but broadcasts no longer go through the IB `run_coro` bridge.
+- **Why:** User needed the deferred "data/live path" fix — chart looked wrong/sparse on Alpaca IEX while live price was IBKR, and updates were not tick-fast.
+- **Files touched:** `backend/ibkr/bars.py`, `backend/ibkr/ticks.py`, `backend/chart_bars.py`, `backend/ibkr/reprice.py`, `backend/main.py`, `backend/constants.py`, `backend/tests/test_ibkr_bars.py`, `backend/tests/test_ibkr_reprice.py`, `frontend/src/constants.ts` (`CHART_REFETCH_SEC`), `frontend/src/utils/dataSourceMap.ts`.
+- **How it works now:** Bars facade prefers IBKR when Gateway is connected (Alpaca fallback otherwise). Detail WS subscribe/unsubscribe refcounts tick streams. Active names see sub-second `trade_update`s; flat names still get ~3s reprice heartbeats. Chart poll intervals were relaxed (1Min 10s→30s) because ticks own the live candle.
+- **Verified by:** pytest `test_ibkr_bars` + `test_ibkr_reprice`; `/api/ticker/MVO/bars` returns `source=ibkr` with 500 bars; NXTC WS saw 36 `trade_update`s / 20s with ~0.2s gaps; frontend build + dataSourceMap tests.
+- **Follow-ups:** Strategy setup routes still call Alpaca `bars.fetch_bars` directly — can switch to `chart_bars` later.
+
+## 2026-07-14 — Integrate lightweight-charts-indicators (RSI + MACD panes)
+
+- **What:** Chart toolbar now has RSI / MACD toggles. Enabling either opens a synced oscillator pane under the price chart. Indicator math comes from `lightweight-charts-indicators` (+ `oakscriptjs` peer), not hand-rolled formulas.
+- **Why:** User asked to adopt existing Lightweight Charts ecosystem tech for indicators (RSI/MACD now; more later) instead of reinventing them.
+- **Files touched:** `frontend/package.json` / lockfile (`lightweight-charts-indicators`, `oakscriptjs`), `frontend/src/constants.ts`, `frontend/src/chartIndicators.ts` (+ test), `frontend/src/components/TickerChartOscillatorPanes.tsx`, `frontend/src/components/TickerChartControls.tsx`, `frontend/src/TickerChart.tsx`, `frontend/src/index.css`.
+- **How it works now:** On each bars fetch, Nova stores OHLC as indicator bars. Toggling RSI/MACD mounts a separate lightweight-charts pane that calls `RSI.calculate` / `MACD.calculate` and syncs the visible time range with the main chart. More indicators from the same library can be added by extending `CHART_INDICATORS` + a pane branch — no need to rewrite TA math.
+- **Verified by:** `tsc --noEmit`; Vitest for adapters; browser toggle RSI/MACD on quote-panel chart.
+- **Follow-ups:** Broader indicator picker (446 available); live tick recalculation of oscillators (currently refreshes with bar polls).
+
+
 ## 2026-07-14 — Restore "Gainers" tab name with a Losers sub-tab (was merged into unlabeled "Movers")
 
 - **What:** The tab formerly labeled "Movers" is now labeled "Gainers" and has "Gainers"/"Losers" sub-tabs (mirroring the Gappers tab's "All Gaps"/"Small Cap" sub-tabs), instead of silently concatenating gainers+losers into one unlabeled combined table.

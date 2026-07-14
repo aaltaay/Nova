@@ -2,6 +2,7 @@
 import React from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
+import { ScannerPriceCell } from './ScannerPriceCell';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import { NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS } from '../constants';
 import type { ScannerRow, SortConfig } from '../types/scanner';
@@ -47,6 +48,10 @@ interface ScannerTableProps {
   selectedSymbol: string | null;
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
+  /** When true, tint price cells — table refresh is late / skipped. */
+  pricesStale?: boolean;
+  /** Per-symbol up/down flash from the latest 1Hz price patch. */
+  flashSymbols?: Record<string, 'up' | 'down'>;
 }
 
 function fmtChangeAbs(v: number | null | undefined): string {
@@ -54,14 +59,26 @@ function fmtChangeAbs(v: number | null | undefined): string {
   return `${v >= 0 ? '+' : '-'}$${Math.abs(v).toFixed(2)}`;
 }
 
-function renderCell(key: string, row: ScannerRow): React.ReactNode {
+function renderCell(
+  key: string,
+  row: ScannerRow,
+  pricesStale: boolean,
+  flashSymbols: Record<string, 'up' | 'down'>,
+): React.ReactNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyRow = row as any;
   switch (key) {
     case 'symbol':
       return null; // handled as the symbol button in the row
     case 'price':
-      return fmtPrice(row.price ?? anyRow.current_price);
+      return (
+        <ScannerPriceCell
+          symbol={row.symbol}
+          price={row.price ?? anyRow.current_price}
+          flash={flashSymbols[row.symbol.toUpperCase()]}
+          stale={pricesStale}
+        />
+      );
     case 'prev_close':
       return fmtPrice(row.prev_close ?? anyRow.previous_close);
     case 'change_pct':
@@ -114,6 +131,8 @@ function renderCell(key: string, row: ScannerRow): React.ReactNode {
 
 export function ScannerTable({
   columns, data, sortState, onSort, selectedSymbol, onSelect, onOpenTrading,
+  pricesStale = false,
+  flashSymbols = {},
 }: ScannerTableProps) {
   return (
     <div className="table-wrapper">
@@ -164,7 +183,7 @@ export function ScannerTable({
                     />
                   </td>
                 ) : (
-                  <td key={key}>{renderCell(key, row)}</td>
+                  <td key={key}>{renderCell(key, row, pricesStale, flashSymbols)}</td>
                 )
               )}
             </SelectableTableRow>

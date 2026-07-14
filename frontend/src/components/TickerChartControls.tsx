@@ -1,7 +1,8 @@
-import { CHART_CARD_TITLE, CHART_MOCK_DATA_LABEL, CHART_TIMEFRAMES } from '../constants';
+import { CHART_CARD_TITLE, CHART_INDICATORS, CHART_MOCK_DATA_LABEL, CHART_TIMEFRAMES, type ChartIndicatorId } from '../constants';
 
 interface Props {
   activeTool: string | null;
+  enabledIndicators: ChartIndicatorId[];
   lockTimeframe: boolean;
   maximized: boolean;
   subtitle?: string;
@@ -9,6 +10,7 @@ interface Props {
   title?: string;
   usingMock: boolean;
   onClearAll: () => void;
+  onIndicatorToggle: (id: ChartIndicatorId) => void;
   onMaximize: () => void;
   onTimeframeChange: (timeframe: string) => void;
   onToolClick: (toolId: string) => void;
@@ -23,6 +25,7 @@ const DRAW_TOOLS = [
 
 export function TickerChartControls({
   activeTool,
+  enabledIndicators = [],
   lockTimeframe,
   maximized,
   subtitle,
@@ -30,6 +33,7 @@ export function TickerChartControls({
   title,
   usingMock,
   onClearAll,
+  onIndicatorToggle,
   onMaximize,
   onTimeframeChange,
   onToolClick,
@@ -77,6 +81,20 @@ export function TickerChartControls({
         >
           <span className="chart-tool-icon">✕</span>
         </button>
+        <div className="chart-toolbar-divider" aria-hidden="true" />
+        <div className="chart-tabs" role="group" aria-label="Indicators">
+          {CHART_INDICATORS.map(ind => (
+            <button
+              key={ind.id}
+              className={`chart-tab${enabledIndicators.includes(ind.id) ? ' chart-tab--active' : ''}`}
+              onClick={() => onIndicatorToggle(ind.id)}
+              aria-pressed={enabledIndicators.includes(ind.id)}
+              title={`${ind.label} (from lightweight-charts-indicators)`}
+            >
+              {ind.label}
+            </button>
+          ))}
+        </div>
         <div className="chart-toolbar-spacer" />
         <button
           className={`chart-tool-btn${maximized ? ' chart-tool-btn--active' : ''}`}

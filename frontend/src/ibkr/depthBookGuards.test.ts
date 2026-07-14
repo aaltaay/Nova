@@ -45,6 +45,12 @@ describe('shouldKeepPriorBook', () => {
   it('does not keep prior when there is nothing to keep', () => {
     expect(shouldKeepPriorBook(book([], []), null)).toBe(false);
   });
+
+  it('never keeps a prior book from a different symbol', () => {
+    const prior = { ...overnightThin, symbol: 'NXTC' };
+    const empty = { ...book([], [], false), symbol: 'MVO' };
+    expect(shouldKeepPriorBook(empty, prior)).toBe(false);
+  });
 });
 
 describe('isRenderableBook', () => {

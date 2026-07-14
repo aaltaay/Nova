@@ -6,7 +6,7 @@ import { NewsHeadlineSection } from './NewsHeadlineSection';
 import { TickerBrokerGrid } from './TickerBrokerGrid';
 import { TickerDataSources } from './TickerDataSources';
 import { TickerWatchlistStrip } from './TickerWatchlistStrip';
-import { DepthLadder } from '../ibkr/DepthLadder';
+import { DepthAndTape } from '../ibkr/DepthAndTape';
 import {
   API_BASE_URL,
   DATA_FEED_DEFAULT,
@@ -34,6 +34,11 @@ const API_URL = `${API_BASE_URL}/api`;
 
 interface Props {
   detail: TickerDetail;
+  /**
+   * Panel selection source of truth. Level 2 / live surfaces must bind to this,
+   * never a stale detail.symbol from a previous ticker.
+   */
+  selectedSymbol?: string;
   /** When true, omit the quote header (symbol/price) — parent page already shows it. */
   hideHeader?: boolean;
   /** When true, render the panel-height chart (side panel). */
@@ -52,6 +57,7 @@ interface Props {
 
 export function TickerDetailContent({
   detail,
+  selectedSymbol,
   hideHeader = false,
   showChart = false,
   layout = 'stack',
@@ -60,6 +66,8 @@ export function TickerDetailContent({
   discoveryProvider = DISCOVERY_PROVIDER_DEFAULT,
   alpacaFeed = DATA_FEED_DEFAULT,
 }: Props) {
+  const depthSymbol = (selectedSymbol ?? detail.symbol).toUpperCase();
+  const detailMatchesSelection = detail.symbol.toUpperCase() === depthSymbol;
   const [blocked, setBlocked] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -227,16 +235,16 @@ export function TickerDetailContent({
     </div>
   );
 
-  const depthSection = ibkrConnected ? (
-    <>
+  const depthSection = ibkrConnected && detailMatchesSelection ? (
+    <div className="cq-depth-stack">
       <div className="cq-section-title">
         Level 2{' '}
         <span className="na-muted">
           (top {TICKER_TRADE_DEPTH_LEVELS} · {TICKER_L2_SOURCE_LABEL})
         </span>
       </div>
-      <DepthLadder symbol={detail.symbol} />
-    </>
+      <DepthAndTape key={depthSymbol} symbol={depthSymbol} />
+    </div>
   ) : null;
 
   const dataSources = (
@@ -295,11 +303,11 @@ export function TickerDetailContent({
           <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
         </div>
         <TickerWatchlistStrip entry={watchlistEntry} />
+        {depthSection}
         <div className="cq-info-row cq-info-row--two">
           <div className="cq-col cq-col--quote">
             {quoteHeader}
             {keyStats}
-            {depthSection}
           </div>
           <div className="cq-col cq-col--fund">
             <div className="cq-section-title">Fundamentals</div>

@@ -130,9 +130,10 @@ export function StockViewPage({
     mainChangeAbs != null && mainPrevRef ? mainChangeAbs / mainPrevRef : null;
   const isPositive = (mainChangePct ?? 0) >= 0;
 
-  const showSpinner = (loading || (!detail && !fetchFailed)) && !detail;
+  const detailReady = detail != null && detail.symbol.toUpperCase() === symbol.toUpperCase();
+  const showSpinner = (loading || refreshing || (!detailReady && !fetchFailed)) && !detailReady;
   const lastTrade =
-    trade?.price != null
+    detailReady && trade?.price != null
       ? { price: trade.price, timestamp: trade.timestamp ?? null }
       : undefined;
 
@@ -170,7 +171,7 @@ export function StockViewPage({
         </button>
         <div className="stock-view-brand">
           <span className="stock-view-brand-label">{STOCK_VIEW_TITLE}</span>
-          {detail && (
+          {detailReady && (
             <header className="ticker-detail-header">
               <div className="cq-symbol-row">
                 <span className="cq-symbol">{detail.symbol}</span>
@@ -230,17 +231,17 @@ export function StockViewPage({
         </div>
       )}
 
-      {fetchFailed && !detail && (
+      {fetchFailed && !detailReady && (
         <div className="empty-state">No data found for {symbol}.</div>
       )}
 
-      {detail && (
+      {detailReady && detail && (
         <>
           <div className="stock-view-body">
             {!chartsCollapsed && (
               <>
                 <div className="stock-view-charts">
-                  <ChartGrid symbol={detail.symbol} lastTrade={lastTrade} />
+                  <ChartGrid symbol={symbol} lastTrade={lastTrade} />
                 </div>
                 <ResizeHandle
                   onPointerDown={onSideResizeStart}
@@ -252,6 +253,7 @@ export function StockViewPage({
             <div className="stock-view-quote" aria-label={STOCK_VIEW_TITLE}>
               <TickerDetailContent
                 detail={detail}
+                selectedSymbol={symbol}
                 showChart={false}
                 layout="columns"
                 watchlistEntry={watchlistEntry}
@@ -263,7 +265,7 @@ export function StockViewPage({
           </div>
 
           <TickerTradeActionBar
-            symbol={detail.symbol}
+            symbol={symbol}
             mode={ibkrStatus.mode}
             connected={ibkrStatus.connected}
             position={symbolPosition}

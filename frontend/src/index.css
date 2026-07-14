@@ -479,6 +479,188 @@ header > *,
   white-space: nowrap;
 }
 
+.scan-age--stale {
+  color: #eab308;
+  opacity: 1;
+  font-weight: 600;
+}
+
+.scanner-price-cell--stale {
+  color: #eab308;
+}
+
+.price-flash-up {
+  color: #10b981;
+  transition: color 0.05s ease;
+}
+
+.price-flash-down {
+  color: #ef4444;
+  transition: color 0.05s ease;
+}
+
+/* ── Level 2 + Time & Sales (side-by-side in one full-width row) ─────────── */
+.depth-and-tape {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  width: 100%;
+}
+.depth-and-tape__col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.depth-and-tape__col > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+@media (max-width: 560px) {
+  .depth-and-tape {
+    grid-template-columns: 1fr;
+  }
+}
+.cq-depth-stack {
+  width: 100%;
+  margin: 0.35rem 0 0.5rem;
+}
+
+.ts-panel {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--color-surface, #1a1a2e);
+  border: 1px solid var(--color-border, #2a2a3e);
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: 200px;
+  max-height: 360px;
+  height: 100%;
+}
+
+.ts-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--color-surface-2, #22223a);
+  border-bottom: 1px solid var(--color-border, #2a2a3e);
+  flex-shrink: 0;
+}
+.ts-panel__title {
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: var(--color-muted, #9ca3af);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ts-panel__status {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.ts-panel__status--live {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+}
+.ts-panel__status--off {
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.12);
+}
+
+.ts-panel__cols {
+  display: grid;
+  grid-template-columns: 62px 58px 44px 36px 1fr;
+  padding: 3px 8px;
+  background: var(--color-surface-2, #22223a);
+  border-bottom: 1px solid var(--color-border, #2a2a3e);
+  color: var(--color-muted, #9ca3af);
+  font-weight: 600;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.ts-panel__rows {
+  overflow-y: auto;
+  flex: 1 1 0;
+}
+
+.ts-panel__empty {
+  padding: 12px 8px;
+  color: var(--color-muted, #9ca3af);
+  text-align: center;
+  font-size: 0.7rem;
+}
+
+.ts-row {
+  display: grid;
+  grid-template-columns: 62px 58px 44px 36px 1fr;
+  padding: 2px 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  color: #e5e7eb;
+}
+.ts-row:hover {
+  filter: brightness(1.08);
+}
+/* Ask hit (buyer lifted) — green block highlight */
+.ts-row--ask {
+  background: rgba(34, 197, 94, 0.55);
+  color: #ecfdf5;
+}
+.ts-row--ask .ts-col--price,
+.ts-row--ask .ts-col--side {
+  color: #bbf7d0;
+  font-weight: 700;
+}
+/* Bid hit (seller hit) — red block highlight */
+.ts-row--bid {
+  background: rgba(239, 68, 68, 0.55);
+  color: #fef2f2;
+}
+.ts-row--bid .ts-col--price,
+.ts-row--bid .ts-col--side {
+  color: #fecaca;
+  font-weight: 700;
+}
+/* Inside the spread — black / neutral */
+.ts-row--mid {
+  background: #000000;
+  color: #c4c4c4;
+}
+.ts-row--mid .ts-col--price {
+  color: #e5e7eb;
+  font-weight: 600;
+}
+.ts-row--mid .ts-col--side {
+  color: #9ca3af;
+  font-weight: 600;
+}
+.ts-row--unknown {
+  background: transparent;
+  color: #e5e7eb;
+}
+.ts-col--time {
+  color: inherit;
+  opacity: 0.85;
+}
+.ts-col--side {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+.ts-col--exch {
+  color: inherit;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .table-wrapper {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -3150,6 +3332,45 @@ th {
   flex: 1;
 }
 
+.chart-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 0.35rem;
+  background: var(--border-color);
+}
+
+.chart-oscillators {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color);
+}
+
+.chart-oscillator-pane {
+  position: relative;
+  border-top: 1px solid var(--border-color);
+}
+
+.chart-oscillator-pane:first-child {
+  border-top: none;
+}
+
+.chart-oscillator-label {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  z-index: 2;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.chart-oscillator-body {
+  width: 100%;
+  height: 110px;
+}
+
 /* ── Chart Maximized Overlay ────────────────────────────────────────────── */
 
 .chart-card--maximized {
@@ -3492,7 +3713,7 @@ th {
 }
 
 .ticker-trade-side-depth {
-  max-height: 220px;
+  max-height: 380px;
   overflow: auto;
   font-size: 0.72rem;
 }

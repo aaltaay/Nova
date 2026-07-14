@@ -1,0 +1,63 @@
+---
+description: Single market-data feed + quote-panel symbol gates — no silent cross-provider fallbacks or stale L2
+globs:
+  - backend/**/*.py
+  - frontend/src/**/*.{ts,tsx}
+alwaysApply: true
+---
+
+# Single market-data feed & quote-panel coherence
+
+When `NOVA_DISCOVERY_PROVIDER` / Settings discovery is **ibkr**, Interactive Brokers is the **only** price/volume/depth/chart feed. Do not silently mix Alpaca market data into quote, chart, scanner, or Level 2.
+
+## Hard rules
+
+1. **One discovery feed for prices.**
+   - `discovery=ibkr` → scanner rows, quote ticks, chart bars, Level 2 from IBKR.
+   - `discovery=alpaca` → Alpaca for those surfaces.
+   - Never fall back from IBKR → Alpaca (or the reverse) without an **explicit** user-visible error / Settings change. Silent fallback is forbidden.
+
+2. **Alpaca listing metadata is not a price feed.**
+   Asset flags (tradable / shortable / margin) may still come from Alpaca Assets API. Label them as listing/metadata — never as the quote source. Do not imply Alpaca is pricing the panel.
+
+3. **Quote panel symbol gate (mandatory).**
+   When opening or switching the quote / side panel / Stock View:
+   - Clear prior ticker state immediately on symbol change (`detail`, Level 2 book, tape prints, chart series).
+   - Render quote body / Level 2 / T&S / live chart only when `detail.symbol === selectedSymbol` (or show loading / empty — never the previous symbol's surfaces).
+   - Depth and tape hooks must ignore WS messages whose `symbol` ≠ the hook's current symbol, and ignore events from a non-current WebSocket instance.
+   - Prefer binding Level 2 and T&S to `selectedSymbol` (with `key={symbol}`), not a stale `detail.symbol`.
+
+4. **Fail loud, not quiet.**
+   If IBKR bars/ticks/depth/tape are unavailable while discovery is ibkr, return/show a clear error (e.g. HTTP 503). Do not serve Alpaca candles under an IBKR quote.
+
+5. **Scanner tables vs open ticker (two tiers).**
+   - **Table:** 1Hz IBKR `reqTickersAsync` snapshots via independent `table_reprice_loop` — never wait on the full movers scan, never open `reqMktData` for the whole universe. Push `/ws/scanner` patches so the UI is second-by-second.
+   - **Open ticker:** `reqMktData` ticks + Level 2 — as fast as IBKR delivers.
+   - **Honesty:** If a table tick is late/skipped, show stale color / "stale · updated Xs ago". Never hide lag behind a frozen green "updated" badge.
+
+6. **Time & Sales = IBKR only (open symbol).**
+   - Feed: `reqTickByTickData(AllLast)` via `backend/ibkr/tape_stream.py`.
+   - Scope: selected/open symbol only — same lifecycle as Level 2 (refcounted, 15s resubscribe guard).
+   - Transport: `/ws/ibkr/tape/{symbol}` with `msg.symbol` gates on every message.
+   - No Alpaca tape in the live UI. `backend/l2/tape.py` (Alpaca recorder) is for historical recording only.
+   - Clear tape immediately on symbol switch (never bleed prior symbol's prints into the new view).
+
+## Anti-patterns
+
+- ❌ Keeping previous `detail` while loading the next ticker so L2 stays on NXTC under an MVO quote
+- ❌ `chart_bars` catching IBKR errors and calling Alpaca when discovery=ibkr
+- ❌ UI copy that says "IBKR" while a silent Alpaca path still runs
+- ❌ Applying `trade_update` / book updates before the matching `initial` / `subscribed` for the current symbol
+- ❌ Nesting table reprice inside `_scan_loop` sleep (starves prices for 10–90s during movers scans)
+- ❌ Pretending table prices are live when the 1Hz snapshot skipped
+- ❌ Feeding T&S from the Alpaca recorder (`l2.tape`) instead of `tape_stream.py`
+- ❌ Showing prior symbol's prints in T&S after a symbol switch
+
+## Related
+
+- `backend/chart_bars.py` — IBKR-only when discovery=ibkr
+- `backend/ibkr/reprice.py` — `table_reprice_loop` + `detail_reprice_loop`
+- `backend/ibkr/tape_stream.py` — `reqTickByTickData AllLast` subscriber
+- `backend/scanner_push.py` — `/ws/scanner`
+- `frontend/src/hooks/useTickerStream.ts`, `useIbkrDepth.ts`, `useIbkrTape.ts`, `useScannerPriceStream.ts`
+- `frontend/src/utils/dataSourceMap.ts` — honest attribution

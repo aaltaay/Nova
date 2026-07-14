@@ -92,16 +92,17 @@ export function SidePanel({
             <span>Loading…</span>
           </div>
         )}
-        {!showFullSpinner && selectedSymbol && refreshing && detail && (
+        {!showFullSpinner && selectedSymbol && refreshing && detail?.symbol === selectedSymbol && (
           <div className="detail-refreshing-bar">
             <div className="detail-loading-spinner detail-loading-spinner--small" />
             <span>Updating {selectedSymbol}…</span>
           </div>
         )}
-        {!showFullSpinner && selectedSymbol && detail && (
+        {!showFullSpinner && selectedSymbol && detail?.symbol === selectedSymbol && (
           <div className="detail-body">
             <TickerDetailContent
               detail={detail}
+              selectedSymbol={selectedSymbol}
               showChart
               layout="columns"
               watchlistEntry={watchlistEntry}
@@ -111,7 +112,7 @@ export function SidePanel({
             />
           </div>
         )}
-        {!showFullSpinner && fetchFailed && !detail && selectedSymbol && (
+        {!showFullSpinner && fetchFailed && !(detail?.symbol === selectedSymbol) && selectedSymbol && (
           <div className="detail-empty">No data found for {selectedSymbol}.</div>
         )}
         {!showFullSpinner && !selectedSymbol && (

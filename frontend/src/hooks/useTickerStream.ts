@@ -31,28 +31,39 @@ export function useTickerStream(symbol: string | null): {
     let cancelled = false;
     let initialReceived = false;
 
+    // Symbol gate: never keep the previous ticker's detail while the new one loads.
+    // Otherwise quote can show a new price (from scanner) while DepthLadder still
+    // receives detail.symbol from the prior name (MVO quote + NXTC Level 2).
+    hasDetailRef.current = false;
+    setDetail(null);
     setFetchFailed(false);
-    setLoading(!hasDetailRef.current);
+    setLoading(true);
     setRefreshing(true);
 
     const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
     wsRef.current = ws;
 
     ws.onmessage = (e) => {
-      if (cancelled) return;
+      if (cancelled || ws !== wsRef.current) return;
       try {
         const msg = JSON.parse(e.data);
+        const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
+        if (msgSym != null && msgSym !== symbol) return;
+
         if (msg.type === 'initial') {
           const { type: _t, ...data } = msg;
+          const next = data as TickerDetail;
+          if (next.symbol && next.symbol.toUpperCase() !== symbol) return;
           initialReceived = true;
           hasDetailRef.current = true;
-          setDetail(data as TickerDetail);
+          setDetail(next);
           setLoading(false);
           setRefreshing(false);
           setFetchFailed(false);
         } else if (msg.type === 'detail_update') {
+          if (!initialReceived) return;
           setDetail(prev => {
-            if (!prev) return prev;
+            if (!prev || prev.symbol.toUpperCase() !== symbol) return prev;
             return {
               ...prev,
               news: msg.news ?? prev.news,
@@ -63,9 +74,10 @@ export function useTickerStream(symbol: string | null): {
             };
           });
         } else if (msg.type === 'trade_update') {
+          if (!initialReceived) return;
           const update = msg as TickerTradeUpdate;
           setDetail(prev => {
-            if (!prev) return prev;
+            if (!prev || prev.symbol.toUpperCase() !== symbol) return prev;
             const newPrice = update.price;
             const prevDailyBar = prev.snapshot?.daily_bar ?? null;
             const newDailyBar: BarData | null = prevDailyBar
@@ -114,14 +126,14 @@ export function useTickerStream(symbol: string | null): {
     };
 
     ws.onerror = () => {
-      if (!cancelled) {
+      if (!cancelled && ws === wsRef.current) {
         setLoading(false);
         setRefreshing(false);
         if (!initialReceived) setFetchFailed(true);
       }
     };
     ws.onclose = () => {
-      if (!cancelled) {
+      if (!cancelled && ws === wsRef.current) {
         setLoading(false);
         setRefreshing(false);
         if (!initialReceived) setFetchFailed(true);
@@ -130,7 +142,7 @@ export function useTickerStream(symbol: string | null): {
 
     return () => {
       cancelled = true;
-      wsRef.current = null;
+      if (wsRef.current === ws) wsRef.current = null;
       ws.close();
     };
   }, [symbol]);

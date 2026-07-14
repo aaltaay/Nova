@@ -14,6 +14,10 @@ interface DepthState {
  * Opens /ws/ibkr/depth/{symbol}, receives book updates.
  * Reconnects on disconnect. Keeps the last book visible across brief
  * reconnects so the ladder does not flash "Connecting depth…" every cycle.
+ *
+ * Symbol gate: ignore books / events from a stale WebSocket or whose
+ * ``msg.symbol`` does not match the hook's current symbol. Without this,
+ * a late NXTC book can paint under an MVO quote after a fast switch.
  */
 export function useIbkrDepth(symbol: string | null): DepthState {
   const [state, setState] = useState<DepthState>({
@@ -55,18 +59,21 @@ export function useIbkrDepth(symbol: string | null): DepthState {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || ws !== wsRef.current) return;
         backoffRef.current = 1000;
       };
 
       ws.onmessage = (e) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || ws !== wsRef.current) return;
         try {
           const msg = JSON.parse(e.data as string);
+          const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
+          if (msgSym != null && msgSym !== symbol) return;
+
           if (msg.type === 'subscribed') {
             setState(s => ({ ...s, connected: true, error: null }));
           } else if (msg.type === 'book') {
-            const book: DepthBook = msg.data;
+            const book: DepthBook = { ...msg.data, symbol };
             setState(s => {
               if (shouldKeepPriorBook(book, s.book)) {
                 return { ...s, connected: true, error: null };
@@ -94,7 +101,7 @@ export function useIbkrDepth(symbol: string | null): DepthState {
       // onerror immediately before onclose, and that alone was enough to swap
       // a healthy ladder for "Connecting depth…" for a frame.
       ws.onclose = () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || ws !== wsRef.current) return;
         setState(s => ({ ...s, connected: false }));
         const delay = backoffRef.current;
         backoffRef.current = Math.min(delay * 2, 30_000);
@@ -110,8 +117,9 @@ export function useIbkrDepth(symbol: string | null): DepthState {
         clearTimeout(reconnectTimerRef.current);
         reconnectTimerRef.current = null;
       }
-      wsRef.current?.close();
+      const ws = wsRef.current;
       wsRef.current = null;
+      ws?.close();
     };
   }, [symbol]);
 
