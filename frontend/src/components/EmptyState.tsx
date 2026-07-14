@@ -1,5 +1,6 @@
 /** Scanner empty / loading / disconnected messages for the main feed area. */
-import { GAPPER_MIN_GAP_PCT } from '../constants';
+import { EMPTY_IBKR_DISCONNECTED, GAPPER_MIN_GAP_PCT } from '../constants';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { MarketMode } from './AppHeader';
 
 interface HealthStatus {
@@ -11,10 +12,15 @@ interface HealthStatus {
 export function EmptyState({
   health,
   context,
+  discoveryProvider,
 }: {
   health: HealthStatus;
   context: MarketMode;
+  /** When 'ibkr' and Gateway is down, show that instead of "no gaps yet". */
+  discoveryProvider?: string;
 }) {
+  const ibkr = useIbkrStatus();
+
   if (context === 'loading') {
     return <div className="empty-state">Loading market data…</div>;
   }
@@ -24,6 +30,9 @@ export function EmptyState({
         {health.message || 'Check API keys in Settings.'}
       </div>
     );
+  }
+  if (discoveryProvider === 'ibkr' && !ibkr.connected) {
+    return <div className="empty-state empty-state--ibkr-down">{EMPTY_IBKR_DISCONNECTED}</div>;
   }
   if (context === 'closed') {
     return (

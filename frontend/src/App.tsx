@@ -533,7 +533,11 @@ function App() {
                 onOpenTrading={openStockView}
               />
             ) : (
-              <EmptyState health={health} context={mode === 'market' ? 'premarket' : mode} />
+              <EmptyState
+                health={health}
+                context={mode === 'market' ? 'premarket' : mode}
+                discoveryProvider={discoveryProvider}
+              />
             )}
           </>
         )}
@@ -565,7 +569,11 @@ function App() {
                 onOpenTrading={openStockView}
               />
             ) : (
-              <EmptyState health={health} context={mode === 'premarket' ? 'market' : mode} />
+              <EmptyState
+                health={health}
+                context={mode === 'premarket' ? 'market' : mode}
+                discoveryProvider={discoveryProvider}
+              />
             )}
           </>
         )}
@@ -584,7 +592,11 @@ function App() {
                 onOpenTrading={openStockView}
               />
             ) : (
-              <EmptyState health={health} context={mode === 'market' ? 'afterhours' : mode} />
+              <EmptyState
+                health={health}
+                context={mode === 'market' ? 'afterhours' : mode}
+                discoveryProvider={discoveryProvider}
+              />
             )}
           </>
         )}

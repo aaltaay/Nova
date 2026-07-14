@@ -167,6 +167,10 @@ export const SCANNER_DATA_SOURCE_TITLES: Record<string, string> = {
   ibkr: 'Scanner data provided by your live Interactive Brokers Gateway connection',
 };
 
+/** Shown when discovery_provider=ibkr but Gateway is offline (not "no gaps yet"). */
+export const EMPTY_IBKR_DISCONNECTED =
+  'IB Gateway is not connected — gappers and movers cannot scan. Log into IB Gateway (live, API port 4001), then Nova reconnects automatically.';
+
 /** Human-readable labels for Alpaca `attributes` tokens (unknown keys shown as-is). */
 export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {
   overnight_halted: 'Overnight session halted',

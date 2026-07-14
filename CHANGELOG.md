@@ -30,7 +30,18 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Empty scanner now names IB Gateway disconnect; Gateway launched for login
+
+- **What:** When `discovery_provider=ibkr` but IB Gateway is offline/not logged in, Gappers/Movers/After Hours no longer show the misleading "No gappers with a gap of at least 10% yet — scan running…" copy. They show `EMPTY_IBKR_DISCONNECTED` instead. Also launched the installed IB Gateway (`C:\Jts\ibgateway\1045\ibgateway.exe`) and brought its login window forward so the user can complete live login + 2FA; Nova keeps retrying `127.0.0.1:4001` every ~10s.
+- **Why:** Empty gappers were caused by Gateway not being logged in (no API socket), not by a lack of real gaps. The old empty state hid that.
+- **Files touched:** `frontend/src/components/EmptyState.tsx`, `frontend/src/constants.ts`, `frontend/src/App.tsx`, `PROBLEM_LOG.md`.
+- **How it works now:** `EmptyState` polls `useIbkrStatus()`. If `discoveryProvider === 'ibkr'` and `!connected`, it renders the IBKR-down message before any "no gaps yet" copy. Once Gateway login opens port 4001, the existing `ibkr.client` reconnect loop connects and the next discovery scan fills gappers.
+- **Verified by:** Confirmed Gateway process up with title "IBKR Gateway" but zero sockets until login; `/api/ibkr/status` still `connected:false`; `tsc --noEmit` clean on EmptyState changes. Live gapper population still blocked on user Gateway login (cannot automate IBKR Mobile 2FA).
+- **Follow-ups:** After login, confirm `/api/gappers` populates; optional future: surface the same IBKR-down state in the header badge, not only the empty table.
+- **Related:** `PROBLEM_LOG.md` 2026-07-14 (empty gappers / Immersed port 40001 red herring).
+
 ## 2026-07-14 — Diagnosed empty gappers (IB Gateway disconnected) and documented every Alpaca dependency before any removal
+
 
 - **What:** Diagnosed why gappers/movers/after-hours showed empty despite real gaps existing: `.env` has `NOVA_DISCOVERY_PROVIDER='ibkr'` (scanner already sourced from IBKR, not Alpaca), but IB Gateway wasn't running on the machine, so `_run_ibkr()`'s try/except in `backend/main.py` silently degraded every scan to an empty list — by design (`_run_ibkr` "so callers degrade like an empty scan"), but with no visible signal that the real cause was connectivity, not a lack of gaps. Also added a full written inventory of everywhere Alpaca is used today, since the user wants to move off Alpaca entirely (too slow on the free IEX feed) but a same-day full removal would break News, Charts, RVOL, After-Hours, HOD Momo's real-time feed, and L2 tape — none of which have an IBKR replacement yet.
 - **Why:** User reported real gappers weren't showing up; root-cause investigation showed a disconnected IB Gateway, not a code bug. Follow-up ask was to fully remove Alpaca from the active codebase and preserve how it worked in an MD file for later reconstruction — but before touching any code, every Alpaca dependency needed to be mapped so removal doesn't silently break features that have no IBKR equivalent.
