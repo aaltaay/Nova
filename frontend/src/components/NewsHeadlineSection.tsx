@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   NEWS_FLAME_HOT_HOURS,
   NEWS_FLAME_MAX_HOURS,
@@ -24,14 +23,13 @@ interface Props {
   timeAgo: (iso: string) => string;
 }
 
-const NEWS_DEFAULT = 3;
-
-/** Ticker-detail news list + explicit impact verdict (extracted from App.tsx). */
+/**
+ * Ticker-detail news strip + explicit impact verdict (extracted from App.tsx).
+ * Headlines render as a horizontally-scrolling row of clickable cards so every
+ * title (and its source) stays visible without eating vertical space.
+ */
 export function NewsHeadlineSection({ news, newsImpact, timeAgo }: Props) {
-  const [newsExpanded, setNewsExpanded] = useState(false);
   if (!news.length && !newsImpact) return null;
-
-  const visibleNews = newsExpanded ? news : news.slice(0, NEWS_DEFAULT);
 
   return (
     <div className="cq-news-section">
@@ -40,14 +38,10 @@ export function NewsHeadlineSection({ news, newsImpact, timeAgo }: Props) {
         <>
           <div className="cq-news-header">
             <span className="cq-news-title">News Headline</span>
-            {news.length > NEWS_DEFAULT && (
-              <button className="cq-news-more" onClick={() => setNewsExpanded((x) => !x)}>
-                {newsExpanded ? 'Less ▲' : 'More ▼'}
-              </button>
-            )}
+            <span className="cq-news-count">{news.length}</span>
           </div>
           <div className="cq-news-list">
-            {visibleNews.map((article, i) => {
+            {news.map((article, i) => {
               const ageHours =
                 (Date.now() - new Date(article.created_at).getTime()) / 3_600_000;
               const hasFlame = ageHours <= NEWS_FLAME_MAX_HOURS;
@@ -58,25 +52,23 @@ export function NewsHeadlineSection({ news, newsImpact, timeAgo }: Props) {
                     ? 'flame-warm'
                     : 'flame-cool';
               return (
-                <div key={i} className="cq-news-item">
-                  <span
-                    className={`cq-news-icon ${hasFlame ? `news-flame ${flameClass}` : 'cq-news-icon-blank'}`}
-                  />
-                  <span className="cq-news-main">
-                    <a
-                      className="cq-news-link"
-                      href={article.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {article.headline}
-                    </a>
+                <a
+                  key={i}
+                  className="cq-news-chip"
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={article.headline}
+                >
+                  <span className="cq-news-chip-headline">{article.headline}</span>
+                  <span className="cq-news-chip-meta">
+                    {hasFlame && <span className={`cq-news-chip-flame ${flameClass}`} />}
                     {article.source && (
                       <span className="cq-news-source">{article.source}</span>
                     )}
+                    <span className="cq-news-time">{timeAgo(article.created_at)}</span>
                   </span>
-                  <span className="cq-news-time">{timeAgo(article.created_at)}</span>
-                </div>
+                </a>
               );
             })}
           </div>

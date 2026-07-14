@@ -1767,67 +1767,65 @@ th {
   color: var(--text-secondary);
 }
 
-.cq-news-more {
-  background: transparent;
-  border: none;
-  color: var(--accent-color);
-  font-size: 0.72rem;
-  cursor: pointer;
-  padding: 0;
+.cq-news-count {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
 }
 
-.cq-news-more:hover {
-  text-decoration: underline;
-}
-
+/* Horizontally-scrolling strip of headline cards — click any card to open the article. */
 .cq-news-list {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.5rem 0.75rem;
 }
 
-.cq-news-item {
-  display: grid;
-  grid-template-columns: 1.75rem 1fr auto;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.75rem;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 0.78rem;
-}
-
-.cq-news-item:last-child {
-  border-bottom: none;
-}
-
-.cq-news-icon {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  align-self: center;
-}
-
-.cq-news-icon-blank {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-}
-
-.cq-news-main {
+.cq-news-chip {
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  gap: 0.35rem;
+  flex: 0 0 210px;
+  min-width: 210px;
+  max-width: 210px;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: rgba(255,255,255,0.02);
+  text-decoration: none;
+  color: inherit;
+}
+
+.cq-news-chip:hover {
+  border-color: var(--accent-color);
+  background: rgba(255,255,255,0.06);
+}
+
+.cq-news-chip-headline {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cq-news-chip-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   min-width: 0;
 }
 
-.cq-news-link {
-  color: var(--text-primary);
-  text-decoration: none;
-  line-height: 1.4;
-}
-
-.cq-news-link:hover {
-  color: var(--accent-color);
-  text-decoration: underline;
+.cq-news-chip-flame {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .cq-news-source {
@@ -1835,13 +1833,17 @@ th {
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .cq-news-time {
   font-size: 0.68rem;
   color: var(--text-secondary);
   white-space: nowrap;
-  line-height: 1.6;
+  margin-left: auto;
 }
 
 /* News impact decision panel (explicit rules, not a black box) */
