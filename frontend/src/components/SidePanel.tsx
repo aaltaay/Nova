@@ -11,6 +11,10 @@ interface Props {
   onOpenTrading?: (symbol: string) => void;
   /** Live watchlist ranks from App's useWatchlist poll — used for the side-panel strip. */
   watchlistEntries?: WatchlistEntry[];
+  /** Scanner discovery provider for the Data sources panel. */
+  discoveryProvider?: string;
+  /** Alpaca IEX/SIP tier for the Data sources panel. */
+  alpacaFeed?: string;
 }
 
 export function SidePanel({
@@ -18,6 +22,8 @@ export function SidePanel({
   setSelectedSymbol,
   onOpenTrading,
   watchlistEntries = [],
+  discoveryProvider,
+  alpacaFeed,
 }: Props) {
   const [input, setInput] = useState(selectedSymbol ?? '');
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(selectedSymbol);
@@ -92,6 +98,8 @@ export function SidePanel({
               layout="columns"
               watchlistEntry={watchlistEntry}
               ibkrConnected={ibkrStatus.connected}
+              discoveryProvider={discoveryProvider}
+              alpacaFeed={alpacaFeed}
             />
           </div>
         )}

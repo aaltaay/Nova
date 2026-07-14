@@ -125,8 +125,16 @@ export const QUOTE_ASSET_LABELS = {
   listingFeed: 'Listing feed',
 } as const;
 
-/** Display value for listing feed row (source of asset metadata on the quote card). */
-export const QUOTE_LISTING_FEED_VALUE = 'Alpaca Trading API';
+/** Display value for listing feed row (Alpaca asset metadata only — not prices/L2). */
+export const QUOTE_LISTING_FEED_VALUE = 'Alpaca Assets API (flags only)';
+
+/** Side-panel section that lists which provider powers each ticker surface. */
+export const TICKER_DATA_SOURCES_SECTION_TITLE = 'Data sources';
+export const TICKER_DATA_SOURCES_SECTION_HINT =
+  'Each row shows which API feeds that part of the panel. Switch scanner discovery or Alpaca IEX/SIP in Settings.';
+
+/** Suffix on the Level 2 section title so depth is never confused with Alpaca listing flags. */
+export const TICKER_L2_SOURCE_LABEL = 'IBKR';
 
 // ── Data feed (mirrors backend DATA_FEED_DEFAULT / DATA_FEED_OPTIONS) ───────
 export const DATA_FEED_DEFAULT = 'iex';

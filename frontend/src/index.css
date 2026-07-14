@@ -1945,6 +1945,22 @@ th {
   margin-bottom: 0.25rem;
 }
 
+.cq-data-sources {
+  margin-top: 0.15rem;
+}
+
+.cq-data-sources-hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.cq-grid-data-sources .cq-data-source-row .cq-value {
+  font-weight: 600;
+  text-align: right;
+}
+
 .cq-cell {
   display: flex;
   justify-content: space-between;

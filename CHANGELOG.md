@@ -30,6 +30,24 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Explicit Data sources panel on ticker detail
+
+- **What:** Added a **Data sources** section on the ticker side panel that lists which API powers scanner rows, quote/chart, Level 2, broker listing flags, and fundamentals. Clarified the broker grid “Listing feed” row as Alpaca Assets API (flags only). Level 2 title now shows `· IBKR`.
+- **Why:** User saw “Listing feed: Alpaca Trading API” next to IBKR overnight Level 2 and reasonably assumed prices/depth were Alpaca. Feeds are already switchable (Settings discovery + IEX/SIP); attribution needs to stay visible when they change.
+- **Files touched:** `frontend/src/utils/dataSourceMap.ts`, `components/TickerDataSources.tsx`, `TickerDetailContent.tsx`, `SidePanel.tsx`, `App.tsx`, `constants.ts`, `index.css`.
+- **How it works now:** `buildTickerDataSources({ discoveryProvider, alpacaFeed, ibkrConnected })` drives the grid. Header still shows the short `IEX` + `Data: IBKR` badges; the panel has the full breakdown.
+- **Verified by:** Vitest `dataSourceMap.test.ts` (4 tests); `npm test` (39 passed); `npm run build`.
+- **Related:** Settings discovery provider / Alpaca feed toggles.
+
+## 2026-07-13 — Quote OHLC "—" for missing data + UTC split dates
+
+- **What:** Session Open/High/Low now render as "—" when missing or zero (instead of `$0.00` / bogus copies of prev close). Recent-split dates from yfinance use UTC calendar days so LVLU shows `1:15 (2025-07-07)` (trading-effective date) instead of a local-tz off-by-one. Fundamentals fetch extracted to `backend/fundamentals.py`.
+- **Why:** User audit of LVLU panel showed Open `0`, High/Low equal to a stale prev close, and split date off vs official Jul 7, 2025.
+- **Files touched:** `backend/fundamentals.py`, `backend/main.py`, `backend/tests/test_fundamentals_dates.py`, `frontend/src/utils/quoteFormat.ts`, `quoteFormat.test.ts`, `TickerDetailContent.tsx`, `TickerTradeSideColumn.tsx`.
+- **How it works now:** `fmtSessionPrice` / `sessionPriceOrNull` gate OHLC display; Alpaca `_bar` coerces non-positive O/H/L to null; IBKR snapshot leaves OHLC null when unknown. `_yf_date_str` formats Yahoo epochs with `timezone.utc`.
+- **Verified by:** `pytest tests/test_fundamentals_dates.py` (6 passed); Vitest `quoteFormat.test.ts` (3 passed); `npm run build`; live `fetch_fundamentals('LVLU')` → `1:15 (2025-07-07)`.
+- **Related:** PROBLEM_LOG.md 2026-07-13 "LVLU Open 0 / wrong split date".
+
 ## 2026-07-13 — Level 2 / scanner stability regression tests
 
 - **What:** Added a dedicated backend suite (`tests/test_depth_stability.py`) and frontend unit tests for depth book guards, DepthLadder status badges, overnight-only books, L2 heuristics, and tab-aware scan age. Extracted pure helpers (`depthBookGuards.ts`, `depthUiStatus.ts`) so these invariants stay testable without a browser. Thin OVERNIGHT-only books now show an explicit hint that sparse after-close quotes are normal.

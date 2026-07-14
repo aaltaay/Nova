@@ -603,6 +603,8 @@ function App() {
         setSelectedSymbol={setSelectedSymbol}
         onOpenTrading={openTradingView}
         watchlistEntries={watchlist.entries}
+        discoveryProvider={discoveryProvider}
+        alpacaFeed={activeFeed}
       />
     </div>
   );

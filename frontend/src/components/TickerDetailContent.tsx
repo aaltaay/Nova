@@ -4,13 +4,17 @@ import { TickerChart } from '../TickerChart';
 import { CompactGridCell } from './CompactGridCell';
 import { NewsHeadlineSection } from './NewsHeadlineSection';
 import { TickerBrokerGrid } from './TickerBrokerGrid';
+import { TickerDataSources } from './TickerDataSources';
 import { TickerWatchlistStrip } from './TickerWatchlistStrip';
 import { DepthLadder } from '../ibkr/DepthLadder';
 import {
   API_BASE_URL,
+  DATA_FEED_DEFAULT,
+  DISCOVERY_PROVIDER_DEFAULT,
   QUOTE_AVG_VOLUME_LABEL,
   QUOTE_CARD_TITLE,
   REL_VOLUME_HIGH,
+  TICKER_L2_SOURCE_LABEL,
   TICKER_TRADE_DEPTH_LEVELS,
 } from '../constants';
 import type { WatchlistEntry } from '../strategy/types';
@@ -19,8 +23,10 @@ import {
   fmtMarketCap,
   fmtPct,
   fmtPrice,
+  fmtSessionPrice,
   fmtTimestamp,
   fmtVolume,
+  sessionPriceOrNull,
   timeAgo,
 } from '../utils/quoteFormat';
 
@@ -38,6 +44,10 @@ interface Props {
   watchlistEntry?: WatchlistEntry | null;
   /** IB Gateway connection state — gates the Level 2 depth section below the quote. */
   ibkrConnected?: boolean;
+  /** Scanner discovery provider ('alpaca' | 'ibkr') — drives Data sources attribution. */
+  discoveryProvider?: string;
+  /** Alpaca market-data tier ('iex' | 'sip') — shown on quote/chart attribution. */
+  alpacaFeed?: string;
 }
 
 export function TickerDetailContent({
@@ -47,6 +57,8 @@ export function TickerDetailContent({
   layout = 'stack',
   watchlistEntry = null,
   ibkrConnected = false,
+  discoveryProvider = DISCOVERY_PROVIDER_DEFAULT,
+  alpacaFeed = DATA_FEED_DEFAULT,
 }: Props) {
   const [blocked, setBlocked] = useState(false);
   useEffect(() => { setBlocked(false); }, [detail.symbol]);
@@ -87,7 +99,7 @@ export function TickerDetailContent({
   if (detail.fundamentals?.industry) descParts.push(detail.fundamentals.industry);
 
   const news = detail.news ?? [];
-  const todayOpen = daily?.open ?? null;
+  const todayOpen = sessionPriceOrNull(daily?.open);
   const gapPct = (todayOpen != null && prevClose != null && prevClose !== 0)
     ? (todayOpen - prevClose) / prevClose
     : null;
@@ -181,21 +193,32 @@ export function TickerDetailContent({
         value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}
         valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
       />
-      <CompactGridCell label="Open" value={fmtPrice(daily?.open)} />
+      <CompactGridCell label="Open" value={fmtSessionPrice(daily?.open)} />
       <CompactGridCell label="Previous Close" value={fmtPrice(prevClose)} />
-      <CompactGridCell label="High Price" value={fmtPrice(daily?.high)} />
-      <CompactGridCell label="Low Price" value={fmtPrice(daily?.low)} />
+      <CompactGridCell label="High Price" value={fmtSessionPrice(daily?.high)} />
+      <CompactGridCell label="Low Price" value={fmtSessionPrice(daily?.low)} />
     </div>
   );
 
   const depthSection = ibkrConnected ? (
     <>
       <div className="cq-section-title">
-        Level 2 <span className="na-muted">(top {TICKER_TRADE_DEPTH_LEVELS})</span>
+        Level 2{' '}
+        <span className="na-muted">
+          (top {TICKER_TRADE_DEPTH_LEVELS} · {TICKER_L2_SOURCE_LABEL})
+        </span>
       </div>
       <DepthLadder symbol={detail.symbol} />
     </>
   ) : null;
+
+  const dataSources = (
+    <TickerDataSources
+      discoveryProvider={discoveryProvider}
+      alpacaFeed={alpacaFeed}
+      ibkrConnected={ibkrConnected}
+    />
+  );
 
   const fundGrid = (
     <div className="cq-grid">
@@ -216,10 +239,10 @@ export function TickerDetailContent({
             value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}
             valueClass={gapPct != null ? (gapPct >= 0 ? 'positive' : 'negative') : undefined}
           />
-          <CompactGridCell label="Open" value={fmtPrice(daily?.open)} />
+          <CompactGridCell label="Open" value={fmtSessionPrice(daily?.open)} />
           <CompactGridCell label="Previous Close" value={fmtPrice(prevClose)} />
-          <CompactGridCell label="High Price" value={fmtPrice(daily?.high)} />
-          <CompactGridCell label="Low Price" value={fmtPrice(daily?.low)} />
+          <CompactGridCell label="High Price" value={fmtSessionPrice(daily?.high)} />
+          <CompactGridCell label="Low Price" value={fmtSessionPrice(daily?.low)} />
         </>
       )}
       <CompactGridCell label="High In 52 Weeks" value={fmtPrice(detail.fundamentals?.fifty_two_week_high)} />
@@ -255,6 +278,7 @@ export function TickerDetailContent({
             <div className="cq-section-title">Fundamentals</div>
             {fundGrid}
             {brokerGrid}
+            {dataSources}
             {lastUpdated && (
               <div className="cq-timestamp cq-timestamp-bottom">Last updated on {fmtTimestamp(lastUpdated)}</div>
             )}
@@ -272,6 +296,7 @@ export function TickerDetailContent({
       <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
       {fundGrid}
       {brokerGrid}
+      {dataSources}
       {lastUpdated && (
         <div className="cq-timestamp cq-timestamp-bottom">Last updated on {fmtTimestamp(lastUpdated)}</div>
       )}
