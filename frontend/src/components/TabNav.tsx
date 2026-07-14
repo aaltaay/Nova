@@ -33,7 +33,7 @@ export function TabNav({ activeTab, onTabClick, counts }: Props) {
           className={`tab ${activeTab === 'movers' ? 'active' : ''}`}
           onClick={() => onTabClick('movers')}
         >
-          Movers
+          Gainers
           {counts.movers > 0 && <span className="tab-count">{counts.movers}</span>}
         </button>
         <button

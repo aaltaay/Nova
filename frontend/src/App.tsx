@@ -61,7 +61,8 @@ function App() {
   const [mode, setMode] = useState<Mode>('loading');
   const [health, setHealth] = useState<HealthStatus>({ status: 'loading', latency_ms: 0 });
   const [gappers, setGappers] = useState<Gapper[]>([]);
-  const [movers, setMovers] = useState<Mover[]>([]);
+  const [gainers, setGainers] = useState<Mover[]>([]);
+  const [losers, setLosers] = useState<Mover[]>([]);
   const [afterhours, setAfterhours] = useState<Afterhours[]>([]);
   const [scanAges, setScanAges] = useState<ScannerScanAges>({
     gappers: 0,
@@ -77,6 +78,7 @@ function App() {
   const [showHodSettings, setShowHodSettings] = useState(false);
   const [tabOverridden, setTabOverridden] = useState(false);
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
+  const [moverSubTab, setMoverSubTab] = useState<'gainers' | 'losers'>('gainers');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [moverSort, setMoverSort] = useState<SortConfig>({ key: '', dir: null });
   const [afterhoursSort, setAfterhoursSort] = useState<SortConfig>({ key: '', dir: null });
@@ -156,7 +158,8 @@ function App() {
   // Joins the polled Watchlist entries onto each scanner row by symbol (Five Pillars
   // + composite score) before sorting, so the new "Watch" column sorts correctly.
   const gappersWithWatchlist = useWatchlistOverlay(gappers, watchlist.entries);
-  const moversWithWatchlist = useWatchlistOverlay(movers, watchlist.entries);
+  const gainersWithWatchlist = useWatchlistOverlay(gainers, watchlist.entries);
+  const losersWithWatchlist = useWatchlistOverlay(losers, watchlist.entries);
   const afterhoursWithWatchlist = useWatchlistOverlay(afterhours, watchlist.entries);
 
   const sortedGappers = useMemo(
@@ -178,9 +181,14 @@ function App() {
     [smallCapGappers, gapperSort],
   );
 
-  const sortedMovers = useMemo(
-    () => sortedArray(moversWithWatchlist, moverSort),
-    [moversWithWatchlist, moverSort],
+  const sortedGainers = useMemo(
+    () => sortedArray(gainersWithWatchlist, moverSort),
+    [gainersWithWatchlist, moverSort],
+  );
+
+  const sortedLosers = useMemo(
+    () => sortedArray(losersWithWatchlist, moverSort),
+    [losersWithWatchlist, moverSort],
   );
 
   const sortedAfterhours = useMemo(
@@ -241,9 +249,8 @@ function App() {
         const data = await moversRes.json();
         if (data.mode) setMode(data.mode as Mode);
         if (data.last_scan) nextAges = { ...nextAges, movers: data.last_scan };
-        const gainers: Mover[] = Array.isArray(data.gainers) ? data.gainers : [];
-        const losers: Mover[] = Array.isArray(data.losers) ? data.losers : [];
-        setMovers([...gainers, ...losers]);
+        if (Array.isArray(data.gainers)) setGainers(data.gainers);
+        if (Array.isArray(data.losers)) setLosers(data.losers);
       }
 
       if (ahRes.ok) {
@@ -316,9 +323,8 @@ function App() {
       }
       if (moversRes.ok) {
         const data = await moversRes.json();
-        const gainers: Mover[] = Array.isArray(data.gainers) ? data.gainers : [];
-        const losers: Mover[] = Array.isArray(data.losers) ? data.losers : [];
-        setMovers([...gainers, ...losers]);
+        setGainers(Array.isArray(data.gainers) ? data.gainers : []);
+        setLosers(Array.isArray(data.losers) ? data.losers : []);
       }
       if (ahRes.ok) {
         const data = await ahRes.json();
@@ -483,7 +489,7 @@ function App() {
           onTabClick={handleTabClick}
           counts={{
             gappers: gappers.length,
-            movers: movers.length,
+            movers: gainers.length + losers.length,
             afterhours: afterhours.length,
             catalysts: catalysts.length,
             hodMomo: hodMomoStream.alerts.length,
@@ -555,13 +561,29 @@ function App() {
           />
         )}
 
-        {/* ── Movers tab ────────────────────────────────────────────── */}
+        {/* ── Gainers tab (top gainers / top losers sub-tabs) ────────── */}
         {activeTab === 'movers' && (
           <>
-            {sortedMovers.length > 0 ? (
+            <div className="sub-tab-bar">
+              <button
+                className={`sub-tab ${moverSubTab === 'gainers' ? 'active' : ''}`}
+                onClick={() => setMoverSubTab('gainers')}
+              >
+                Gainers
+                {gainers.length > 0 && <span className="tab-count">{gainers.length}</span>}
+              </button>
+              <button
+                className={`sub-tab ${moverSubTab === 'losers' ? 'active' : ''}`}
+                onClick={() => setMoverSubTab('losers')}
+              >
+                Losers
+                {losers.length > 0 && <span className="tab-count">{losers.length}</span>}
+              </button>
+            </div>
+            {(moverSubTab === 'gainers' ? gainers : losers).length > 0 ? (
               <ScannerTable
                 columns={SCANNER_COLUMNS}
-                data={sortedMovers}
+                data={moverSubTab === 'gainers' ? sortedGainers : sortedLosers}
                 sortState={moverSort}
                 onSort={key => toggleSort(moverSort, setMoverSort, key)}
                 selectedSymbol={selectedSymbol}
@@ -573,6 +595,7 @@ function App() {
                 health={health}
                 context={mode === 'premarket' ? 'market' : mode}
                 discoveryProvider={discoveryProvider}
+                emptyLabel={moverSubTab}
               />
             )}
           </>

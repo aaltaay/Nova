@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Restore "Gainers" tab name with a Losers sub-tab (was merged into unlabeled "Movers")
+
+- **What:** The tab formerly labeled "Movers" is now labeled "Gainers" and has "Gainers"/"Losers" sub-tabs (mirroring the Gappers tab's "All Gaps"/"Small Cap" sub-tabs), instead of silently concatenating gainers+losers into one unlabeled combined table.
+- **Why:** User remembered a "Gainers" view, couldn't find it, and didn't recognize "Movers" — a prior change (commit `94e7388`) had merged the separate Gainers/Losers tabs into one "Movers" tab without the user's buy-in on the rename. Confirmed via `AskQuestion` that the user wanted the Gainers name back with Losers as a distinct sub-tab (not dropped, not silently merged).
+- **Files touched:** `frontend/src/components/TabNav.tsx` (label only — internal tab id/route stays `movers`, no backend or history-endpoint changes), `frontend/src/App.tsx` (split single `movers` state into `gainers`/`losers`, added `moverSubTab` state + sub-tab bar), `frontend/src/components/EmptyState.tsx` (new optional `emptyLabel` prop so the empty message says "No losers…" on that sub-tab instead of always "No gainers…").
+- **How it works now:** `/api/movers` is unchanged (still returns `{gainers, losers}` from `_gainer_cache`/`_loser_cache`, refreshing continuously through market hours, never freezing — this is exactly the "gappers freeze at the open, gainers don't" behavior the user described, and it already worked correctly before this change). The frontend just stopped hiding that structure: `gainers` and `losers` are separate arrays in state again, rendered via a sub-tab toggle under one top-level "Gainers" tab, both using the same `ScannerTable` component Gappers uses (same columns, same look, as requested).
+- **Verified by:** `npm run build` (clean, no type errors); `agent-browser` — fresh session, clicked into the Gainers tab (50 rows, all positive % change) and the Losers sub-tab (50 rows, all negative % change), confirmed no console errors on a clean reload.
+- **Related:** Gappers tab's existing "freeze after market open" behavior was confirmed unchanged/correct and required no code change (already implemented — see `_scan_loop`'s premarket-only discovery/focus scan calls in `backend/main.py`).
+
 ## 2026-07-14 — Decouple ticker-detail repricing from the scan loop; add Ruff + a regression test for the bug class
 
 - **What:** The ticker-detail panel's fast price refresh (IBKR provider) is now its own independent `asyncio` task on a flat `IBKR_REPRICE_INTERVAL_SEC` timer, instead of being nested inside the main scan loop's sleep — so it can no longer be starved by a slow `_run_gainers_update()` scan. The reprice logic moved out of `main.py` into a new `backend/ibkr/reprice.py` module. Also added a Ruff config (`backend/ruff.toml`, `backend/requirements-dev.txt`) and a new test file (`backend/tests/test_ibkr_reprice.py`) targeting the exact bug classes hit this session (silent exception swallowing, reprice starvation).

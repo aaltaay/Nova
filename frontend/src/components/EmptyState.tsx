@@ -13,11 +13,14 @@ export function EmptyState({
   health,
   context,
   discoveryProvider,
+  emptyLabel = 'gainers',
 }: {
   health: HealthStatus;
   context: MarketMode;
   /** When 'ibkr' and Gateway is down, show that instead of "no gaps yet". */
   discoveryProvider?: string;
+  /** Which feed's default "no X in the feed" message to show (Gainers/Losers sub-tabs). */
+  emptyLabel?: 'gainers' | 'losers';
 }) {
   const ibkr = useIbkrStatus();
 
@@ -55,5 +58,5 @@ export function EmptyState({
       </div>
     );
   }
-  return <div className="empty-state">No gainers in the feed right now.</div>;
+  return <div className="empty-state">No {emptyLabel} in the feed right now.</div>;
 }
