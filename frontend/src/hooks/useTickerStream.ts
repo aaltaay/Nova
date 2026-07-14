@@ -68,17 +68,31 @@ export function useTickerStream(symbol: string | null): {
             if (!prev) return prev;
             const newPrice = update.price;
             const prevDailyBar = prev.snapshot?.daily_bar ?? null;
-            const newDailyBar: BarData | null = update.volume != null
+            const newDailyBar: BarData | null = prevDailyBar
               ? {
-                  open: null, high: null, low: null, close: null,
-                  trade_count: null, vwap: null, timestamp: null,
                   ...prevDailyBar,
-                  volume: update.volume,
+                  close: newPrice,
+                  volume: update.volume ?? prevDailyBar.volume,
                 }
-              : prevDailyBar;
+              : {
+                  open: null,
+                  high: null,
+                  low: null,
+                  close: newPrice,
+                  volume: update.volume ?? null,
+                  trade_count: null,
+                  vwap: null,
+                  timestamp: null,
+                };
+            const nextPrevClose = update.prev_close ?? prev.snapshot?.prev_close ?? null;
             const newSnapshot = {
               ...prev.snapshot,
               daily_bar: newDailyBar,
+              prev_close: nextPrevClose,
+              // Keep Webull Pre: basis = prior close when IBKR sends prev_close.
+              session_close: update.prev_close != null
+                ? update.prev_close
+                : prev.snapshot?.session_close ?? null,
               latest_trade: {
                 price: newPrice,
                 size: update.size ?? prev.snapshot?.latest_trade?.size ?? null,

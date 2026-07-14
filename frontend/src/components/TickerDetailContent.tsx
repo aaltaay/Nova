@@ -97,12 +97,20 @@ export function TickerDetailContent({
   const trade = snap?.latest_trade;
   const daily = snap?.daily_bar;
   const prevClose = snap?.prev_close ?? snap?.prev_daily_bar?.close ?? null;
-  const isExtendedHours = detail.mode === 'premarket' || detail.mode === 'afterhours';
+  // IBKR discovery: one live price vs IBKR prev_close — same math as the scanner row.
+  // Alpaca discovery keeps Webull two-line Pre:/After: layout.
+  const useIbkrUnifiedQuote = discoveryProvider === 'ibkr';
+  const isExtendedHours =
+    !useIbkrUnifiedQuote && (detail.mode === 'premarket' || detail.mode === 'afterhours');
   const sessionClose = snap?.session_close ?? null;
   const sessionPrevClose = snap?.session_prev_close ?? null;
   const livePrice = trade?.price ?? daily?.close ?? null;
-  const mainPrice = isExtendedHours ? sessionClose : livePrice;
-  const mainPrevRef = isExtendedHours ? sessionPrevClose : prevClose;
+  const mainPrice = useIbkrUnifiedQuote
+    ? livePrice
+    : (isExtendedHours ? sessionClose : livePrice);
+  const mainPrevRef = useIbkrUnifiedQuote
+    ? prevClose
+    : (isExtendedHours ? sessionPrevClose : prevClose);
   const mainChangeAbs = (mainPrice != null && mainPrevRef != null) ? mainPrice - mainPrevRef : null;
   const mainChangePct = (mainChangeAbs != null && mainPrevRef) ? mainChangeAbs / mainPrevRef : null;
   const extPrice = isExtendedHours ? livePrice : null;

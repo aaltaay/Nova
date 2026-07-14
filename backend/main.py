@@ -22,6 +22,7 @@ from paths import env_file_path
 from logging_setup import configure_logging
 from ibkr import client as _ibkr_client
 from ibkr import discovery as _ibkr_discovery
+from ibkr import reprice as _ibkr_reprice
 from fundamentals import (
     _fundamentals_cache,
     _fundamentals_cache_ts,
@@ -317,51 +318,40 @@ def _enrich_ibkr_mover(entry: dict, news: dict[str, str]) -> dict:
     return _exchanges.attach_exchange(entry)
 
 
+def _get_ibkr_detail_symbols() -> list[str]:
+    """Symbols with an open ticker-detail WebSocket right now (usually 0-2)."""
+    return [sym for sym, clients in _ticker_ws_clients.items() if clients]
+
+
 def _reprice_ibkr_caches() -> None:
-    """Fast between-scan price refresh for IBKR-sourced caches.
+    """Fast between-scan price refresh for the IBKR-sourced scanner tables.
 
     Alpaca's WS trade overlay (_handle_trade) is intentionally disabled while
     DISCOVERY_PROVIDER=ibkr — mixing a second feed's ticks onto IBKR-basis rows
     desynced price from prev_close (see PROBLEM_LOG 2026-07-13). This replaces
     it with an IBKR-native refresh: re-snapshot the symbols already in cache
-    (cheap — no rescan/re-rank of the universe) every IBKR_REPRICE_INTERVAL_SEC
-    so the table doesn't sit frozen for a full scan interval at a time.
+    every IBKR_REPRICE_INTERVAL_SEC so the table doesn't sit frozen for a full
+    scan interval at a time. Note this batch (gapper+gainer+loser, often 100+
+    symbols) is NOT cheap once the universe is large — the ticker-detail panel
+    is repriced independently by ibkr.reprice.detail_reprice_loop instead of
+    waiting on this call (see PROBLEM_LOG 2026-07-14).
     """
     global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
     if _get_discovery_provider() != "ibkr":
         return
-    detail_symbols = [sym for sym, clients in _ticker_ws_clients.items() if clients]
-    symbols = list({r["symbol"] for r in _gapper_cache + _gainer_cache + _loser_cache} | set(detail_symbols))
-    if not symbols:
+    result = _ibkr_reprice.reprice_table_caches(_gapper_cache, _gainer_cache, _loser_cache, _run_ibkr)
+    if result is None:
         return
-    quotes = _run_ibkr(_ibkr_discovery.snapshot_quotes(symbols))
-    if not quotes:
-        return
-
-    now = time.time()
+    gapper_cache, gainer_cache, loser_cache, now = result
     if _gapper_cache:
-        _gapper_cache = [_ibkr_discovery.reprice_gapper_row(g, quotes[g["symbol"]]) if g["symbol"] in quotes else g for g in _gapper_cache]
+        _gapper_cache = gapper_cache
         _gapper_cache_ts = now
     if _gainer_cache:
-        _gainer_cache = [_ibkr_discovery.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m for m in _gainer_cache]
+        _gainer_cache = gainer_cache
         _gainer_cache_ts = now
     if _loser_cache:
-        _loser_cache = [_ibkr_discovery.reprice_mover_row(m, quotes[m["symbol"]]) if m["symbol"] in quotes else m for m in _loser_cache]
+        _loser_cache = loser_cache
         _loser_cache_ts = now
-
-    # Keep any open ticker-detail panels (see _fetch_ticker_snapshot_ibkr) live too.
-    # Prefer the just-repriced cache row's own price so the panel always shows
-    # exactly what the table shows for the same symbol.
-    for sym in detail_symbols:
-        row = _find_ibkr_cache_row(sym)
-        price = (row.get("current_price") or row.get("price")) if row else None
-        volume = row.get("volume") if row else None
-        if price is None:
-            q = quotes.get(sym)
-            if not q:
-                continue
-            price, volume = q["price"], q.get("volume")
-        _run_ibkr(_broadcast_trade_update(sym, price, None, datetime.now(timezone.utc).isoformat(), volume))
 
 
 # ── Tradable assets ───────────────────────────────────────────────────────────
@@ -892,18 +882,22 @@ async def _broadcast_trade_update(
     size: int | None,
     timestamp: str | None,
     volume: int | None = None,
+    prev_close: float | None = None,
 ) -> None:
     """Push a lightweight trade update to all ticker detail WS clients watching this symbol."""
     clients = _ticker_ws_clients.get(sym)
     if not clients:
         return
-    payload = json.dumps({
+    payload_obj: dict = {
         "type": "trade_update",
         "price": price,
         "size": size,
         "timestamp": timestamp,
         "volume": volume,
-    })
+    }
+    if prev_close is not None:
+        payload_obj["prev_close"] = prev_close
+    payload = json.dumps(payload_obj)
     dead: list = []
     for ws in list(clients):
         try:
@@ -1551,6 +1545,7 @@ async def _scan_loop() -> None:
         except asyncio.CancelledError:
             break
         except Exception:
+            logger.exception("Scan loop iteration failed — retrying in 30s")
             await asyncio.sleep(30)
 
 
@@ -1628,9 +1623,17 @@ async def lifespan(app: FastAPI):
 
     l2_flush_task = asyncio.create_task(_l2_batch.flush_loop())
     l2_retention_task = asyncio.create_task(_l2_retention_loop())
+    # Independent fast timer for the ticker-detail panel — decoupled from
+    # _scan_loop so a slow full IBKR discovery/movers scan can never delay it
+    # (see PROBLEM_LOG 2026-07-14, "Detail panel updates every ~30s instead
+    # of every tick").
+    detail_reprice_task = asyncio.create_task(_ibkr_reprice.detail_reprice_loop(
+        _get_ibkr_detail_symbols, _run_ibkr, _broadcast_trade_update, _find_ibkr_cache_row,
+    ))
     # IBKR client — best-effort, never blocks the Alpaca scan loop
     await _ibkr_client.startup()
     yield
+    detail_reprice_task.cancel()
     scan_task.cancel()
     ws_task.cancel()
     hod_flush_task.cancel()
@@ -1642,7 +1645,7 @@ async def lifespan(app: FastAPI):
     executor_fill_task.cancel()
     l2_flush_task.cancel()
     l2_retention_task.cancel()
-    for t in (scan_task, ws_task, hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task):
+    for t in (detail_reprice_task, scan_task, ws_task, hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task):
         try:
             await t
         except asyncio.CancelledError:
@@ -2175,6 +2178,8 @@ def _fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
     if price is None or prev_close is None:
         return {}
     now_iso = datetime.now(timezone.utc).isoformat()
+    # session_close = prior regular close (same basis as scanner gap %). Never the
+    # live last — that broke Pre: % vs the gappers table (see PROBLEM_LOG 2026-07-14).
     return {
         "latest_trade": {"price": price, "size": None, "exchange": exchange, "timestamp": now_iso},
         "latest_quote": None,
@@ -2193,8 +2198,8 @@ def _fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
             "volume": None, "trade_count": None, "vwap": None, "timestamp": None,
         },
         "prev_close": prev_close,
-        "session_close": price,
-        "session_prev_close": prev_close,
+        "session_close": prev_close,
+        "session_prev_close": None,
     }
 
 
@@ -2236,10 +2241,19 @@ def _fetch_ticker_avg_volume(symbol: str, headers: dict) -> float | None:
 
 
 def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> dict:
-    """Fetch asset + snapshot concurrently — the fast subset of ticker detail."""
+    """Fetch asset + snapshot concurrently — the fast subset of ticker detail.
+
+    When DISCOVERY_PROVIDER=ibkr, Phase-1 WS must use the IBKR snapshot (same
+    feed as the gappers/movers table). Using Alpaca here produced the dual-price
+    bug: table showed IBKR last/gap while the quote panel showed Alpaca session.
+    """
+    use_ibkr = _get_discovery_provider() == "ibkr"
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
-        f_snap  = pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
+        f_snap = (
+            pool.submit(_fetch_ticker_snapshot_ibkr, symbol) if use_ibkr
+            else pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
+        )
         asset    = f_asset.result()
         snapshot = f_snap.result()
 

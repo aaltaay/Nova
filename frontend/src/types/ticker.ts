@@ -91,6 +91,8 @@ export interface TickerTradeUpdate {
   size: number | null;
   timestamp: string | null;
   volume: number | null;
+  /** IBKR reprice ticks include this so gap % stays aligned with the scanner row. */
+  prev_close?: number | null;
 }
 
 export interface TickerDetail {

@@ -1,0 +1,31 @@
+# Ruff config — see PROBLEM_LOG 2026-07-14 "Detail panel updates every ~30s
+# instead of every tick" / "silent exception swallowing in _scan_loop".
+#
+# Rule selection is deliberately narrow: this is meant to catch the specific
+# class of mistake that caused multi-day, hard-to-reproduce debugging in this
+# project (a background loop silently swallowing exceptions with no log line,
+# so a broken feature looked like "just no data" instead of an error). It is
+# not a general style enforcer — do not add noisy rules without a concrete
+# bug they would have caught.
+line-length = 120
+target-version = "py313"
+
+[lint]
+select = [
+    "F",      # pyflakes — unused imports/vars, undefined names
+    "E",      # pycodestyle errors
+    "B",      # bugbear — common bug-prone patterns (mutable defaults, etc.)
+    "BLE",    # blind-except: `except Exception:` / bare `except:` with no re-raise/log
+    "TRY203", # useless `except ... : raise` (dead exception handling)
+    "TRY400", # `except Exception: logging.error(...)` instead of `logger.exception(...)`
+             # (loses the traceback — the exact shape of the bug that hid the scan-loop failure)
+]
+ignore = [
+    "E501",   # long lines — not the bug class this config targets
+    "E402",   # main.py deliberately imports after configure_logging()/load_dotenv()
+              # calls and uses deferred imports to dodge circular deps — established
+              # project pattern, not a bug.
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["F401", "F811"]
