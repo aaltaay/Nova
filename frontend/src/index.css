@@ -3156,6 +3156,97 @@ th {
   flex-direction: column;
 }
 
+/* Quote Panel label (scanner sidebar) */
+.quote-panel-title {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 0.35rem 0.65rem 0.15rem;
+}
+
+/* Stock View — detachable single-stock page */
+.stock-view-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  gap: 0;
+}
+
+.stock-view-toolbar {
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+}
+
+.stock-view-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.stock-view-brand-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent, #3b82f6);
+}
+
+.stock-view-charts-toggle {
+  margin-left: auto;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 4px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.stock-view-charts-toggle:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.stock-view-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--ticker-trade-side-width, 380px);
+  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+  padding: 0.5rem 0.75rem 0;
+  align-items: stretch;
+}
+
+.stock-view-page--charts-collapsed .stock-view-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.stock-view-charts {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.stock-view-charts .chart-grid {
+  flex: 1;
+  min-height: 280px;
+}
+
+.stock-view-quote {
+  min-width: 0;
+  overflow: auto;
+  max-height: calc(100vh - 11rem);
+  padding-right: 0.25rem;
+}
+
+.stock-view-page--charts-collapsed .stock-view-quote {
+  max-height: none;
+}
+
 .ticker-detail-page {
   display: flex;
   flex-direction: column;

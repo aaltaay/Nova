@@ -19,7 +19,7 @@ import { WatchlistTab } from './strategy/WatchlistTab';
 import { useWatchlist } from './strategy/useWatchlist';
 import { useWatchlistOverlay } from './strategy/useWatchlistOverlay';
 import { ReportsTab } from './reports/ReportsTab';
-import { TickerDetailPage } from './pages/TickerDetailPage';
+import { StockViewPage } from './pages/StockViewPage';
 import {
   SMALL_CAP_MIN, SMALL_CAP_MAX,
   SCANNER_COLUMNS,
@@ -30,6 +30,12 @@ import {
 import { isNovaApiDebug } from './debug';
 import { scanAgeForTab } from './utils/scanAge';
 import type { ScannerScanAges } from './utils/scanAge';
+import {
+  leaveStockViewUrl,
+  openStockViewWindow,
+  parseStockViewSymbol,
+  replaceStockViewUrl,
+} from './utils/stockViewNav';
 
 type Mode = MarketMode;
 // ActiveTab is imported from components/TabNav — includes 'trading'
@@ -79,15 +85,22 @@ function App() {
   // Catalysts tab state
   const [catalysts, setCatalysts] = useState<Catalyst[]>([]);
 
-  // selectedSymbol → side panel only; tradingSymbol → full trading page (double-click)
+  // selectedSymbol → Quote Panel (sidebar); stockViewSymbol → Stock View page
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [tradingSymbol, setTradingSymbol] = useState<string | null>(null);
+  // Populated from ?view=stock&symbol=… (detachable tab) or in-app fallback if popup blocked.
+  const [stockViewSymbol, setStockViewSymbol] = useState<string | null>(() =>
+    parseStockViewSymbol(),
+  );
 
-  const openTradingView = useCallback((symbol: string) => {
+  const openStockView = useCallback((symbol: string) => {
     const sym = symbol.trim().toUpperCase();
     if (!sym) return;
     setSelectedSymbol(sym);
-    setTradingSymbol(sym);
+    const opened = openStockViewWindow(sym);
+    if (!opened) {
+      // Popup blocked — keep Stock View in this tab.
+      setStockViewSymbol(sym);
+    }
   }, []);
 
   // Settings form state
@@ -392,15 +405,31 @@ function App() {
     }
   }
 
-  if (tradingSymbol) {
+  if (stockViewSymbol) {
+    const detached = parseStockViewSymbol() != null;
     return (
       <div className="container container--ticker-detail">
         <div className="main-col main-col--full">
           <main className="ticker-detail-main">
-            <TickerDetailPage
-              symbol={tradingSymbol}
-              onBack={() => setTradingSymbol(null)}
-              onSelectSymbol={openTradingView}
+            <StockViewPage
+              symbol={stockViewSymbol}
+              detached={detached}
+              onBack={() => {
+                if (detached) {
+                  leaveStockViewUrl();
+                  if (window.opener) {
+                    window.close();
+                  } else {
+                    setStockViewSymbol(null);
+                  }
+                } else {
+                  setStockViewSymbol(null);
+                }
+              }}
+              onSelectSymbol={sym => {
+                setStockViewSymbol(sym);
+                if (detached) replaceStockViewUrl(sym);
+              }}
             />
           </main>
         </div>
@@ -500,7 +529,7 @@ function App() {
                 onSort={key => toggleSort(gapperSort, setGapperSort, key)}
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
-                onOpenTrading={openTradingView}
+                onOpenTrading={openStockView}
               />
             ) : (
               <EmptyState health={health} context={mode === 'market' ? 'premarket' : mode} />
@@ -516,7 +545,7 @@ function App() {
             onSort={key => toggleSort(catalystSort, setCatalystSort, key)}
             selectedSymbol={selectedSymbol}
             onSelect={setSelectedSymbol}
-            onOpenTrading={openTradingView}
+            onOpenTrading={openStockView}
             health={health}
           />
         )}
@@ -532,7 +561,7 @@ function App() {
                 onSort={key => toggleSort(moverSort, setMoverSort, key)}
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
-                onOpenTrading={openTradingView}
+                onOpenTrading={openStockView}
               />
             ) : (
               <EmptyState health={health} context={mode === 'premarket' ? 'market' : mode} />
@@ -551,7 +580,7 @@ function App() {
                 onSort={key => toggleSort(afterhoursSort, setAfterhoursSort, key)}
                 selectedSymbol={selectedSymbol}
                 onSelect={setSelectedSymbol}
-                onOpenTrading={openTradingView}
+                onOpenTrading={openStockView}
               />
             ) : (
               <EmptyState health={health} context={mode === 'market' ? 'afterhours' : mode} />
@@ -574,7 +603,7 @@ function App() {
               config={hodMomoConfig}
               selectedSymbol={selectedSymbol}
               onSelectSymbol={setSelectedSymbol}
-              onOpenTrading={openTradingView}
+              onOpenTrading={openStockView}
               onOpenSettings={() => setShowHodSettings(s => !s)}
               dataFeed={activeFeed}
             />
@@ -590,7 +619,7 @@ function App() {
             error={watchlist.error}
             selectedSymbol={selectedSymbol}
             onSelectSymbol={setSelectedSymbol}
-            onOpenTrading={openTradingView}
+            onOpenTrading={openStockView}
           />
         )}
 
@@ -601,7 +630,7 @@ function App() {
       <SidePanel
         selectedSymbol={selectedSymbol}
         setSelectedSymbol={setSelectedSymbol}
-        onOpenTrading={openTradingView}
+        onOpenTrading={openStockView}
         watchlistEntries={watchlist.entries}
         discoveryProvider={discoveryProvider}
         alpacaFeed={activeFeed}

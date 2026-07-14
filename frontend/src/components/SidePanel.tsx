@@ -1,5 +1,10 @@
 /** Scanner side panel — quote, panel chart, fundamentals for selectedSymbol. */
 import { useEffect, useMemo, useState } from 'react';
+import {
+  QUOTE_PANEL_TITLE,
+  STOCK_VIEW_OPEN_LABEL,
+  STOCK_VIEW_OPEN_TITLE,
+} from '../constants';
 import { useTickerStream } from '../hooks/useTickerStream';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { WatchlistEntry } from '../strategy/types';
@@ -71,13 +76,16 @@ export function SidePanel({
             type="button"
             className="side-open-trading-btn"
             onClick={() => onOpenTrading(selectedSymbol)}
-            title="Open full trading view (same as double-clicking the symbol)"
+            title={STOCK_VIEW_OPEN_TITLE}
           >
-            Full view
+            {STOCK_VIEW_OPEN_LABEL}
           </button>
         )}
       </div>
       <div className="side-panel-body">
+        <div className="quote-panel-title" title="Scanner sidebar quote — same data as Stock View">
+          {QUOTE_PANEL_TITLE}
+        </div>
         {showFullSpinner && (
           <div className="detail-loading">
             <div className="detail-loading-spinner" />

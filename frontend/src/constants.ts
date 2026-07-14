@@ -365,9 +365,23 @@ export const IBKR_LIVE_PORT = 4001;
 /** Max simultaneous Level 2 depth streams (IBKR plan cap). */
 export const IBKR_MAX_DEPTH_SYMBOLS = 3;
 
+// ── Quote Panel (scanner right sidebar) vs Stock View (double-click tab) ─────
+/** Right-hand scanner sidebar that shows quote + fundamentals for the selected symbol. */
+export const QUOTE_PANEL_TITLE = 'Quote Panel';
+/** Full single-stock page opened by double-click / “Stock View” (detachable tab). */
+export const STOCK_VIEW_TITLE = 'Stock View';
+/** Button / tooltip copy for opening the detachable Stock View tab. */
+export const STOCK_VIEW_OPEN_LABEL = 'Stock View';
+export const STOCK_VIEW_OPEN_TITLE =
+  'Open Stock View in a new tab (same quote data as the Quote Panel, plus charts and trading)';
+/** localStorage key: whether the 2×2 chart grid is collapsed on Stock View. */
+export const STOCK_VIEW_CHARTS_COLLAPSED_KEY = 'nova.stockView.chartsCollapsed';
+export const STOCK_VIEW_CHARTS_SHOW_LABEL = 'Show charts';
+export const STOCK_VIEW_CHARTS_HIDE_LABEL = 'Hide charts';
+
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
-/** Side column width (px) for compact quote/stats/news on the trading page — keep narrow so charts own the screen. */
-export const TICKER_TRADE_SIDE_WIDTH_PX = 220;
+/** Quote column width (px) on Stock View when charts are expanded. */
+export const TICKER_TRADE_SIDE_WIDTH_PX = 380;
 /** Headlines shown in the trading-page side column before "More". */
 export const TICKER_TRADE_SIDE_NEWS_COUNT = 3;
 /** Default share quantity prefilled in the Open Position ticket. */

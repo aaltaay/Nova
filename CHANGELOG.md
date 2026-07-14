@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-13 — Stock View page (detachable) mirrors Quote Panel
+
+- **What:** Double-click / “Stock View” opens a named **Stock View** page in a new browser tab (`?view=stock&symbol=LVLU`). It reuses the same `TickerDetailContent` as the scanner **Quote Panel** (fundamentals, broker listing, data sources, news). The 2×2 chart grid is collapsible (“Hide charts” / “Show charts”). IBKR Open/Close/Automate bar stays at the bottom. Electron opens a real child window for the same URL.
+- **Why:** User wanted the full quote panel on the single-stock page (not the old compact side column), clear names for each surface, detachable tabs, and more room for quote data when charts are minimized.
+- **Files touched:** `pages/StockViewPage.tsx`, `utils/stockViewNav.ts`, `App.tsx`, `SidePanel.tsx`, `SymbolSelectButton.tsx`, `constants.ts`, `index.css`, `electron/main.mjs`.
+- **How it works now:** Click → Quote Panel (sidebar). Double-click → `openStockViewWindow` (new tab). Both poll `useTickerStream` so they stay API-synced. Popup blocked → in-tab fallback. Charts collapsed state persists in `localStorage`.
+- **Verified by:** Vitest `stockViewNav.test.ts`; `npm test`; `npm run build`.
+- **Naming for agents/users:** **Quote Panel** = scanner right sidebar; **Stock View** = detachable single-stock page.
+
 ## 2026-07-13 — Explicit Data sources panel on ticker detail
 
 - **What:** Added a **Data sources** section on the ticker side panel that lists which API powers scanner rows, quote/chart, Level 2, broker listing flags, and fundamentals. Clarified the broker grid “Listing feed” row as Alpaca Assets API (flags only). Level 2 title now shows `· IBKR`.

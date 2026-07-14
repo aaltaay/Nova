@@ -1,6 +1,8 @@
-/** Symbol button: click → side panel; double-click → full trading page.
+/** Symbol button: click → Quote Panel; double-click → Stock View (new tab).
  * Optional listing exchange renders under the ticker (same secondary stack
  * style as dollar change under %). */
+import { QUOTE_PANEL_TITLE, STOCK_VIEW_TITLE } from '../constants';
+
 interface Props {
   symbol: string;
   exchange?: string | null;
@@ -32,7 +34,7 @@ export function SymbolSelectButton({
           e.stopPropagation();
           onOpenTrading(symbol);
         }}
-        title="Click: load side panel · Double-click: open full trading view"
+        title={`Click: ${QUOTE_PANEL_TITLE} · Double-click: ${STOCK_VIEW_TITLE} (new tab)`}
       >
         {symbol}
       </button>

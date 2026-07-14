@@ -19,8 +19,8 @@ const isDev = !app.isPackaged;
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
+function windowOptions() {
+  return {
     width: 1440,
     height: 900,
     minWidth: 1024,
@@ -33,7 +33,21 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
     },
+  };
+}
+
+/** Stock View double-click opens ?view=stock&symbol=… in a real child window. */
+function attachStockViewWindowOpen(win) {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    const child = new BrowserWindow(windowOptions());
+    void child.loadURL(url);
+    attachStockViewWindowOpen(child);
+    return { action: 'deny' };
   });
+}
+
+function createWindow() {
+  mainWindow = new BrowserWindow(windowOptions());
 
   if (isDev) {
     const viteUrl = process.env.NOVA_VITE_URL || 'http://127.0.0.1:5173';
@@ -42,6 +56,8 @@ function createWindow() {
   } else {
     void mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
+
+  attachStockViewWindowOpen(mainWindow);
 
   mainWindow.on('closed', () => {
     mainWindow = null;
