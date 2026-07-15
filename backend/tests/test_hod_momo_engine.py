@@ -202,3 +202,72 @@ def test_medium_float_fires_without_master_surge(monkeypatch):
         a for bucket in hm._pending_consolidation.values() for _, a in bucket
     ]
     assert any(a.strategy_id == 9 and a.ticker == sym for a in pending)
+
+
+def test_same_ticker_shares_consolidation_emit_deadline(monkeypatch):
+    """Warrior batches same-ticker fires into one window (not per-alert deadlines)."""
+    _reset_engine(monkeypatch)
+    for sid, cfg in hm._configs.items():
+        cfg.enabled = sid == 11
+
+    hm._master.hod_required = True
+    hm._master.surge_pct = 0.0
+    hm._master.min_rvol = 2.0
+    hm._master.cooldown_sec = 0.0
+    hm._master.consolidation_sec = 5.0
+
+    sym = "TRT"
+    now = time.time()
+    hm.update_ticker_snapshot(
+        sym, price=12.0, change_pct=20.0, rvol=5.0,
+        float_shares=5_000_000, gap_pct=2.0, volume=1_000_000,
+        fifty_two_week_high=20.0, rvol_source="test", avg_volume=100_000,
+    )
+    for i, px in enumerate([11.0, 11.3, 11.6, 12.0]):
+        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=1_000_000)
+    assert sym in hm._pending_consolidation
+    first_deadline = hm._pending_consolidation[sym][0][0]
+
+    # Second burst within the open window — must share the same emit_after.
+    hm.on_trade_update(sym, 12.2, now + 1.0, volume=1_100_000)
+    bucket = hm._pending_consolidation[sym]
+    assert len(bucket) >= 2
+    assert all(et == first_deadline for et, _ in bucket)
+
+
+def test_effective_min_rvol_uses_afterhours_setting(monkeypatch):
+    hm._master.min_rvol = 5.0
+    hm._master.premarket_min_rvol = 2.0
+    hm._master.afterhours_min_rvol = 1.5
+    monkeypatch.setattr(hm, "_in_afterhours_et", lambda: True)
+    monkeypatch.setattr(hm, "_in_premarket_et", lambda: False)
+    assert hm._effective_min_rvol() == 1.5
+    monkeypatch.setattr(hm, "_in_afterhours_et", lambda: False)
+    monkeypatch.setattr(hm, "_in_premarket_et", lambda: True)
+    assert hm._effective_min_rvol() == 2.0
+    monkeypatch.setattr(hm, "_in_premarket_et", lambda: False)
+    assert hm._effective_min_rvol() == 5.0
+
+
+def test_on_trade_update_recomputes_ibkr_pace_rvol(monkeypatch):
+    """IBKR cum volume should refresh pace RVOL (not leave stale yfinance ~1.3x)."""
+    _reset_engine(monkeypatch)
+    for sid, cfg in hm._configs.items():
+        cfg.enabled = False
+    hm._master.min_rvol = 2.0
+    hm._master.surge_pct = 0.0
+    monkeypatch.setattr(hm, "_in_afterhours_et", lambda: True)
+    monkeypatch.setattr(hm, "_in_premarket_et", lambda: False)
+
+    import market as m
+    monkeypatch.setattr(m, "volume_day_elapsed_fraction", lambda now=None: 1.0)
+
+    sym = "XCUR"
+    hm.update_ticker_snapshot(
+        sym, price=2.38, rvol=1.34, volume=27_000,
+        rvol_source="yfinance_pace", avg_volume=100_000.0, change_pct=44.0,
+    )
+    hm.on_trade_update(sym, 2.55, time.time(), volume=4_170_000)
+    snap = hm._ticker_snaps[sym]
+    assert snap.rvol == 41.7
+    assert snap.rvol_source == "ibkr_pace"

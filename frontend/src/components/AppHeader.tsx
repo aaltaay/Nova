@@ -10,6 +10,7 @@ import {
   SCANNER_DATA_SOURCE_LABELS,
   SCANNER_DATA_SOURCE_TITLES,
 } from '../constants';
+import type { HealthStatus } from '../types/health';
 
 export type MarketMode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
 
@@ -58,15 +59,9 @@ function dotClass(status: string): string {
   return 'loading';
 }
 
-interface HealthProps {
-  status: string;
-  latency_ms: number;
-  message?: string;
-}
-
 interface Props {
   mode: MarketMode;
-  health: HealthProps;
+  health: HealthStatus;
   activeFeed: string;
   feedFellBack: boolean;
   /** Live scan age in seconds; null when unknown or viewing history. */
@@ -122,13 +117,15 @@ export function AppHeader({
           <span className={`dot ${dotClass(health.status)}`} />
           <span style={{ textTransform: 'capitalize' }}>{health.status}</span>
           {health.latency_ms > 0 && <span>({health.latency_ms}ms)</span>}
-          <span
-            className={`feed-badge feed-${activeFeed}`}
-            title={`Data feed: ${DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase()}`}
-          >
-            {activeFeed.toUpperCase()}
-          </span>
-          {feedFellBack && (
+          {discoveryProvider !== 'ibkr' && (
+            <span
+              className={`feed-badge feed-${activeFeed}`}
+              title={`Alpaca data feed: ${DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase()}`}
+            >
+              {activeFeed.toUpperCase()}
+            </span>
+          )}
+          {discoveryProvider !== 'ibkr' && feedFellBack && (
             <span
               className="feed-fallback-hint"
               title="SIP feed was rejected; automatically fell back to IEX. Change in Settings if your plan supports SIP."

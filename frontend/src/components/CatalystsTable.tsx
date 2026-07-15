@@ -10,6 +10,7 @@ import { fmtPct, fmtVolume } from '../utils/quoteFormat';
 import { NEWS_IMPACT_CLASS_LABELS, NEWS_IMPACT_CLASS_TOOLTIPS } from '../constants';
 import type { Catalyst } from '../types/catalyst';
 import type { SortConfig } from '../types/scanner';
+import type { HealthStatus } from '../types/health';
 
 const CATALYST_COLUMNS: [string, string][] = [
   ['symbol', 'Symbol'],
@@ -20,12 +21,6 @@ const CATALYST_COLUMNS: [string, string][] = [
   ['catalyst_headline', 'Catalyst Headline'],
   ['newest_headline_at', 'News Time'],
 ];
-
-interface HealthStatus {
-  status: string;
-  latency_ms: number;
-  message?: string;
-}
 
 interface CatalystsTableProps {
   catalysts: Catalyst[];

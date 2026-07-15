@@ -227,9 +227,9 @@ def _fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
         exchange = cached_row.get("exchange")
         open_price = None
     else:
-        import main as _main
         from ibkr import discovery as _ibkr_discovery
-        quotes = _main._run_ibkr(_ibkr_discovery.snapshot_quotes([symbol]))
+        from ibkr_bridge import run_ibkr
+        quotes = run_ibkr(_ibkr_discovery.snapshot_quotes([symbol]))
         q = quotes.get(symbol)
         if not q:
             return {}
@@ -293,11 +293,39 @@ def _fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
 def _fetch_ticker_avg_volume(symbol: str, headers: dict) -> float | None:
     """Return average daily volume for symbol, fetching bars from Alpaca if needed."""
     import main as _main
+    from universe import ensure_avg_volume
     avg_vol = _main._avg_volume_cache.get(symbol)
     if avg_vol is None:
-        _main._ensure_avg_volume([symbol], headers)
+        ensure_avg_volume([symbol], headers)
         avg_vol = _main._avg_volume_cache.get(symbol)
     return avg_vol
+
+
+def _rvol_5min_fields(
+    symbol: str,
+    avg_vol: float | None,
+    daily_vol: int | float | None,
+) -> dict[str, float | int | None]:
+    """Warrior 5-min RVOL fields for the quote panel.
+
+    Seeds the shared cum-vol buffer from today's cumulative volume so an open
+    ticker starts tracking immediately; returns None when history is too thin.
+    """
+    import time
+    import hod_momo as _hod_momo
+    import hod_momo_metrics as _metrics
+
+    now = time.time()
+    if daily_vol is not None:
+        try:
+            _metrics.update_cum_volume(symbol, int(daily_vol), now)
+        except (TypeError, ValueError):
+            pass
+    vol_5m = _metrics.volume_in_window(symbol, ts=now)
+    rvol5 = _hod_momo.peek_rvol_5min(symbol)
+    if rvol5 is None:
+        rvol5 = _metrics.compute_symbol_rvol_5min(symbol, avg_vol, ts=now)
+    return {"volume_in_5min": vol_5m, "rvol_5min": rvol5}
 
 
 # ── Builder functions ─────────────────────────────────────────────────────────
@@ -323,6 +351,7 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
     avg_vol = _main._avg_volume_cache.get(symbol)
     daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
     rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None
+    rvol5 = _rvol_5min_fields(symbol, avg_vol, daily_vol)
 
     return {
         "symbol": symbol,
@@ -330,6 +359,7 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
         "snapshot": snapshot,
         "avg_volume": avg_vol,
         "rel_volume": rel_vol,
+        **rvol5,
         "news": [],
         "fundamentals": {},
         "mode": _main._current_mode,
@@ -398,6 +428,7 @@ def _build_ticker_detail(symbol: str) -> dict:
 
     daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
     rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None
+    rvol5 = _rvol_5min_fields(symbol, avg_vol, daily_vol)
 
     from news.enrich import build_ticker_news_impact
     return {
@@ -406,6 +437,7 @@ def _build_ticker_detail(symbol: str) -> dict:
         "snapshot": snapshot,
         "avg_volume": avg_vol,
         "rel_volume": rel_vol,
+        **rvol5,
         "news": news,
         "fundamentals": fundamentals,
         "news_impact": build_ticker_news_impact(symbol, news, snapshot, rel_vol),

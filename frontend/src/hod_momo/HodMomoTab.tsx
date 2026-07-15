@@ -1,353 +1,121 @@
-import { useMemo, useRef, useState } from 'react';
-import { SymbolSelectButton } from '../components/SymbolSelectButton';
-import { HOD_MOMO_COLUMNS, HOD_MOMO_EMPTY_CONNECTING, HOD_MOMO_EMPTY_WAITING, STRATEGY_META, STRATEGY_META_MAP } from '../constants';
+import { useMemo, useState } from 'react';
+import { HOD_MOMO_RUNNING_UP_STRATEGY_ID, STRATEGY_META } from '../constants';
 import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
+import { collapseConsecutiveTickerAlerts } from './collapseConsecutiveTickerAlerts';
+import { HodMomoAlertTable } from './HodMomoAlertTable';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';
 
-// ── Formatters ────────────────────────────────────────────────────────────────
+type SubPanel = 'main' | 'debug';
 
-function fmtClock(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
-    });
-  } catch {
-    return iso;
-  }
-}
-
-function fmtPrice(v: number | null | undefined): string {
-  if (v == null) return '—';
-  return `$${v.toFixed(2)}`;
-}
-
-function fmtPct(v: number | null | undefined): string {
-  if (v == null) return '—';
-  return `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
-}
-
-function fmtVolume(v: number | null | undefined): string {
-  if (v == null) return '—';
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
-  return String(v);
-}
-
-// ── Strategy pill ─────────────────────────────────────────────────────────────
-
-function StrategyPill({
-  strategyId,
-  strategyName,
-  colorOverride,
-}: {
-  strategyId: number;
-  strategyName: string;
-  colorOverride?: string;
-}) {
-  const meta = STRATEGY_META_MAP[strategyId];
-  const color = colorOverride || meta?.color || '#888';
-  return (
-    <span
-      className="hod-strategy-pill"
-      style={{ background: color + '33', color, border: `1px solid ${color}66` }}
-      title={strategyName}
-    >
-      {strategyName}
-    </span>
-  );
-}
-
-// ── Consolidated badge ────────────────────────────────────────────────────────
-
-function ConsolidationBadge({ count, seconds }: { count: number; seconds: number }) {
-  return (
-    <span className="hod-consolidation-badge" title={`${count} alerts within ${seconds}s`}>
-      {count} in {seconds}s
-    </span>
-  );
-}
-
-// ── Alert row ─────────────────────────────────────────────────────────────────
-
-function AlertRow({
-  alert,
-  strategyColorOverride,
-  selected,
-  onSelect,
-  onOpenTrading,
-  consolidationSec,
-}: {
-  alert: AlertObject;
-  strategyColorOverride?: string;
-  selected: boolean;
-  onSelect: (symbol: string) => void;
-  onOpenTrading: (symbol: string) => void;
-  consolidationSec: number;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const isConsolidated = alert.consolidation_count > 1;
-
-  return (
-    <>
-      <tr className={selected ? 'row-selected' : ''}>
-        {HOD_MOMO_COLUMNS.map(([key]) => {
-          switch (key) {
-            case 'time':
-              return (
-                <td key={key} className="hod-time-cell">
-                  <span>{fmtClock(alert.timestamp)}</span>
-                  {isConsolidated && (
-                    <button
-                      className="hod-expand-btn"
-                      onClick={() => setExpanded(x => !x)}
-                      title={expanded ? 'Collapse' : 'Expand consolidated alerts'}
-                    >
-                      <ConsolidationBadge count={alert.consolidation_count} seconds={Math.round(consolidationSec)} />
-                    </button>
-                  )}
-                </td>
-              );
-            case 'symbol':
-              return (
-                <td key={key}>
-                  <SymbolSelectButton
-                    symbol={alert.ticker}
-                    selected={selected}
-                    onSelect={onSelect}
-                    onOpenTrading={onOpenTrading}
-                  />
-                </td>
-              );
-            case 'price':
-              return <td key={key}>{fmtPrice(alert.price)}</td>;
-            case 'change_pct':
-              return (
-                <td key={key}>
-                  <span className={alert.change_pct >= 0 ? 'positive' : 'negative'}>
-                    {fmtPct(alert.change_pct)}
-                  </span>
-                </td>
-              );
-            case 'rvol':
-              return (
-                <td key={key}>
-                  {alert.rvol != null ? (
-                    <span className="hod-rvol-cell">
-                      {alert.rvol.toFixed(2)}x
-                      {(alert.rvol_source === 'yfinance' || alert.rvol_source === 'yfinance_pace') && (
-                        <span
-                          className="hod-rvol-badge yf"
-                          title="Pace RVOL from yfinance (IEX free tier)"
-                        >
-                          YF
-                        </span>
-                      )}
-                    </span>
-                  ) : <span className="na-muted">—</span>}
-                </td>
-              );
-            case 'rvol_5min':
-              return (
-                <td key={key}>
-                  {alert.rvol_5min != null ? (
-                    <span className="hod-rvol-cell">{alert.rvol_5min.toFixed(2)}x</span>
-                  ) : <span className="na-muted">—</span>}
-                </td>
-              );
-            case 'float':
-              return (
-                <td key={key}>
-                  {alert.float_shares != null ? fmtVolume(alert.float_shares) : <span className="na-muted">—</span>}
-                </td>
-              );
-            case 'gap_pct':
-              return (
-                <td key={key}>
-                  {alert.gap_pct != null ? (
-                    <span className={alert.gap_pct >= 0 ? 'positive' : 'negative'}>
-                      {fmtPct(alert.gap_pct)}
-                    </span>
-                  ) : <span className="na-muted">—</span>}
-                </td>
-              );
-            case 'volume':
-              return <td key={key}>{fmtVolume(alert.volume)}</td>;
-            case 'strategy':
-              return (
-                <td key={key}>
-                  <StrategyPill
-                    strategyId={alert.strategy_id}
-                    strategyName={alert.strategy_name}
-                    colorOverride={strategyColorOverride}
-                  />
-                </td>
-              );
-            default:
-              return <td key={key}><span className="na-muted">—</span></td>;
-          }
-        })}
-      </tr>
-      {expanded && isConsolidated && (
-        <tr className="hod-expanded-row">
-          <td colSpan={HOD_MOMO_COLUMNS.length} className="hod-expanded-cell">
-            <div className="hod-expanded-inner">
-              <span className="hod-expanded-label">Consolidated alerts:</span>
-              <span>{fmtClock(alert.timestamp)} — {alert.strategy_name}</span>
-              {alert.consolidated_ids.map((cid, i) => (
-                <span key={i} className="hod-consolidated-id">{cid}</span>
-              ))}
-            </div>
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-// ── Strategy filter dropdown ──────────────────────────────────────────────────
-
-function StrategyFilterDropdown({
-  enabledStrategies,
-  counts,
-  onToggle,
-  onClose,
-  configColors,
-}: {
-  enabledStrategies: Set<number>;
-  counts: Record<number, number>;
-  onToggle: (id: number) => void;
-  onClose: () => void;
-  configColors: Record<number, string>;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  return (
-    <div className="hod-filter-dropdown" ref={ref}>
-      <div className="hod-filter-header">
-        <span>Filter Strategies</span>
-        <button className="hod-filter-close" onClick={onClose}>✕</button>
-      </div>
-      <label className="hod-filter-row hod-filter-all">
-        <input
-          type="checkbox"
-          checked={enabledStrategies.size === STRATEGY_META.length}
-          onChange={() => {
-            if (enabledStrategies.size === STRATEGY_META.length) {
-              STRATEGY_META.forEach(s => enabledStrategies.has(s.id) && onToggle(s.id));
-            } else {
-              STRATEGY_META.forEach(s => !enabledStrategies.has(s.id) && onToggle(s.id));
-            }
-          }}
-        />
-        <span>Select / Unselect All</span>
-      </label>
-      {STRATEGY_META.map(s => {
-        const color = configColors[s.id] || s.color;
-        return (
-          <label key={s.id} className="hod-filter-row">
-            <input
-              type="checkbox"
-              checked={enabledStrategies.has(s.id)}
-              onChange={() => onToggle(s.id)}
-            />
-            <span className="hod-filter-dot" style={{ background: color }} />
-            <span className="hod-filter-name">{s.name}</span>
-            {(counts[s.id] ?? 0) > 0 && (
-              <span className="hod-filter-count">{counts[s.id]}</span>
-            )}
-          </label>
-        );
-      })}
-    </div>
-  );
-}
-
-// ── Sub-panel tab strip ───────────────────────────────────────────────────────
-
-type SubPanel = number | 'main' | 'debug';
-
-function SubPanelStrip({
+function StrategyChipStrip({
   activeSubPanel,
-  onSelect,
+  onSelectPanel,
+  visibleStrategies,
+  onToggleStrategy,
+  onRunningUpOnly,
   counts,
   configColors,
 }: {
   activeSubPanel: SubPanel;
-  onSelect: (panel: SubPanel) => void;
+  onSelectPanel: (panel: SubPanel) => void;
+  visibleStrategies: Set<number>;
+  onToggleStrategy: (id: number) => void;
+  onRunningUpOnly: () => void;
   counts: Record<number, number>;
   configColors: Record<number, string>;
 }) {
+  const runningUpOnly =
+    visibleStrategies.size === 1 && visibleStrategies.has(HOD_MOMO_RUNNING_UP_STRATEGY_ID);
   return (
-    <div className="hod-subpanel-strip">
+    <div className="hod-subpanel-strip" role="toolbar" aria-label="HOD strategy filters">
       <button
+        type="button"
         className={`hod-subpanel-btn${activeSubPanel === 'main' ? ' active' : ''}`}
-        onClick={() => onSelect('main')}
+        onClick={() => onSelectPanel('main')}
       >
         Main feed
+      </button>
+      <button
+        type="button"
+        className={`hod-subpanel-btn hod-strategy-chip${runningUpOnly ? ' active' : ''}`}
+        onClick={() => {
+          onSelectPanel('main');
+          onRunningUpOnly();
+        }}
+        title={
+          runningUpOnly
+            ? 'Show all strategies'
+            : 'Show Running Up only (Warrior parity — no new HOD required)'
+        }
+        aria-pressed={runningUpOnly}
+      >
+        Running Up only
       </button>
       {STRATEGY_META.map(s => {
         const color = configColors[s.id] || s.color;
         const count = counts[s.id] ?? 0;
+        const enabled = visibleStrategies.has(s.id);
         return (
           <button
             key={s.id}
-            className={`hod-subpanel-btn${activeSubPanel === s.id ? ' active' : ''}`}
-            style={activeSubPanel === s.id ? { borderBottomColor: color } : {}}
-            onClick={() => onSelect(s.id)}
-            title={s.name}
+            type="button"
+            className={`hod-subpanel-btn hod-strategy-chip${enabled ? '' : ' hod-strategy-chip--off'}`}
+            style={enabled ? { borderBottomColor: color } : undefined}
+            onClick={() => {
+              onSelectPanel('main');
+              onToggleStrategy(s.id);
+            }}
+            title={enabled ? `Hide ${s.name}` : `Show ${s.name}`}
+            aria-pressed={enabled}
           >
-            <span className="hod-subpanel-dot" style={{ background: color }} />
+            <span className="hod-subpanel-dot" style={{ background: enabled ? color : 'transparent', outline: `1px solid ${color}` }} />
             <span className="hod-subpanel-label">{s.name}</span>
             {count > 0 && <span className="hod-subpanel-count">{count}</span>}
           </button>
         );
       })}
       <button
+        type="button"
         className={`hod-subpanel-btn hod-subpanel-debug${activeSubPanel === 'debug' ? ' active' : ''}`}
-        onClick={() => onSelect('debug')}
+        onClick={() => onSelectPanel('debug')}
         title="Debug panel — gate counters, decisions, symbol inspector"
       >
-        🔍 Debug
+        Debug
       </button>
     </div>
   );
 }
 
-// ── Main HOD Momo Tab ─────────────────────────────────────────────────────────
-
 interface HodMomoTabProps {
   alerts: AlertObject[];
+  /** Full-day alert count (may exceed alerts.length when UI is capped). */
+  totalToday?: number;
   connected: boolean;
   config: UseHodMomoConfigReturn;
   selectedSymbol: string | null;
   onSelectSymbol: (sym: string) => void;
   onOpenTrading: (sym: string) => void;
   onOpenSettings: () => void;
-  dataFeed?: string;
 }
 
 export function HodMomoTab({
   alerts,
+  totalToday,
   connected,
   config,
   selectedSymbol,
   onSelectSymbol,
   onOpenTrading,
   onOpenSettings,
-  dataFeed,
 }: HodMomoTabProps) {
   const [activeSubPanel, setActiveSubPanel] = useState<SubPanel>('main');
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  // Which strategy IDs are currently visible (all enabled by default)
   const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
     new Set(STRATEGY_META.map(s => s.id)),
   );
 
   const consolidationSec = config.state.master.consolidation_sec;
 
-  // Build color override map from loaded configs
   const configColors = useMemo<Record<number, string>>(() => {
     const result: Record<number, string> = {};
     for (const [sid, cfg] of Object.entries(config.state.strategies)) {
@@ -356,7 +124,6 @@ export function HodMomoTab({
     return result;
   }, [config.state.strategies]);
 
-  // Count alerts per strategy
   const strategyCounts = useMemo<Record<number, number>>(() => {
     const c: Record<number, number> = {};
     for (const a of alerts) {
@@ -365,14 +132,11 @@ export function HodMomoTab({
     return c;
   }, [alerts]);
 
-  // Filtered + sub-panel sliced alerts
   const visibleAlerts = useMemo(() => {
-    let filtered = alerts.filter(a => visibleStrategies.has(a.strategy_id));
-    if (activeSubPanel !== 'main') {
-      filtered = filtered.filter(a => a.strategy_id === activeSubPanel);
-    }
-    return filtered;
-  }, [alerts, visibleStrategies, activeSubPanel]);
+    const filtered = alerts.filter(a => visibleStrategies.has(a.strategy_id));
+    const windowSec = Math.max(5, consolidationSec * 3);
+    return collapseConsecutiveTickerAlerts(filtered, windowSec);
+  }, [alerts, visibleStrategies, consolidationSec]);
 
   function toggleStrategy(id: number) {
     setVisibleStrategies(prev => {
@@ -383,14 +147,22 @@ export function HodMomoTab({
     });
   }
 
+  function toggleRunningUpOnly() {
+    setVisibleStrategies(prev => {
+      const only =
+        prev.size === 1 && prev.has(HOD_MOMO_RUNNING_UP_STRATEGY_ID);
+      if (only) return new Set(STRATEGY_META.map(s => s.id));
+      return new Set([HOD_MOMO_RUNNING_UP_STRATEGY_ID]);
+    });
+  }
+
   return (
     <div className="hod-momo-tab">
-      {/* Header bar */}
       <div className="hod-header-bar">
         <div className="hod-header-left">
           <span className={`hod-connection-dot ${connected ? 'connected' : 'disconnected'}`} />
           <span className="hod-header-title">HOD Momo Scanner</span>
-          <span className="hod-alert-count">{alerts.length} alerts today</span>
+          <span className="hod-alert-count">{totalToday ?? alerts.length} alerts today</span>
         </div>
         <div className="hod-header-right">
           <button className="hod-settings-btn" onClick={onOpenSettings} title="Configure strategies">
@@ -399,87 +171,31 @@ export function HodMomoTab({
         </div>
       </div>
 
-      {/* IEX free tier RVOL source banner */}
-      {dataFeed === 'iex' && (
-        <div className="hod-iex-banner">
-          <span className="hod-iex-banner-icon">ⓘ</span>
-          <span>
-            <strong>IEX Free Tier</strong> — RVOL sourced from yfinance (consolidated).
-            Upgrade to SIP for real-time RVOL.
-          </span>
-        </div>
-      )}
-
-      {/* Sub-panel strip */}
-      <SubPanelStrip
+      <StrategyChipStrip
         activeSubPanel={activeSubPanel}
-        onSelect={setActiveSubPanel}
+        onSelectPanel={setActiveSubPanel}
+        visibleStrategies={visibleStrategies}
+        onToggleStrategy={toggleStrategy}
+        onRunningUpOnly={toggleRunningUpOnly}
         counts={strategyCounts}
         configColors={configColors}
       />
 
-      {/* Debug panel — shown instead of the alert table */}
-      {activeSubPanel === 'debug' && (
+      {activeSubPanel === 'debug' ? (
         <HodMomoDebugPanel />
-      )}
-
-      {/* Alert table — hidden when debug panel is active */}
-      {activeSubPanel !== 'debug' && (
-        <div className="table-wrapper hod-table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                {HOD_MOMO_COLUMNS.map(([key, label]) => (
-                  <th
-                    key={key}
-                    className={`sortable-th${key === 'strategy' ? ' hod-strategy-th' : ''}`}
-                    onClick={key === 'strategy' ? () => setShowFilterDropdown(x => !x) : undefined}
-                    style={key === 'strategy' ? { cursor: 'pointer', userSelect: 'none' } : undefined}
-                  >
-                    <span className="th-inner">
-                      {label}
-                      {key === 'strategy' && (
-                        <span className="hod-filter-icon">▾</span>
-                      )}
-                    </span>
-                    {key === 'strategy' && showFilterDropdown && (
-                      <StrategyFilterDropdown
-                        enabledStrategies={visibleStrategies}
-                        counts={strategyCounts}
-                        onToggle={toggleStrategy}
-                        onClose={() => setShowFilterDropdown(false)}
-                        configColors={configColors}
-                      />
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {visibleAlerts.length === 0 ? (
-                <tr>
-                  <td colSpan={HOD_MOMO_COLUMNS.length} className="hod-empty-cell">
-                    {connected
-                      ? HOD_MOMO_EMPTY_WAITING
-                      : HOD_MOMO_EMPTY_CONNECTING}
-                  </td>
-                </tr>
-              ) : (
-                visibleAlerts.map(alert => (
-                  <AlertRow
-                    key={alert.id}
-                    alert={alert}
-                    strategyColorOverride={configColors[alert.strategy_id]}
-                    selected={selectedSymbol === alert.ticker}
-                    onSelect={onSelectSymbol}
-                    onOpenTrading={onOpenTrading}
-                    consolidationSec={consolidationSec}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      ) : (
+        <HodMomoAlertTable
+          alerts={visibleAlerts}
+          connected={connected}
+          consolidationSec={consolidationSec}
+          configColors={configColors}
+          strategyCounts={strategyCounts}
+          visibleStrategies={visibleStrategies}
+          onToggleStrategy={toggleStrategy}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelectSymbol}
+          onOpenTrading={onOpenTrading}
+        />
       )}
     </div>
   );

@@ -303,6 +303,8 @@ const _rawApiBase: string = readApiBase();
 export const API_BASE_URL: string = _rawApiBase;
 /** REST API prefix, e.g. https://host/api */
 export const API_URL = `${API_BASE_URL}/api`;
+/** When true, React/window errors POST to /api/client-errors for blast.log. */
+export const CLIENT_ERROR_REPORT_ENABLED = true;
 /** WebSocket base derived from API_BASE_URL (https → wss, http → ws). */
 export const WS_BASE_URL: string = _rawApiBase
   .replace(/^https:\/\//, 'wss://')
@@ -354,6 +356,9 @@ export const STRATEGY_META: StrategyMeta[] = [
   { id: 11, name: 'Squeeze Alert - Up 5% in 5min',              color: '#40C4FF', audioDefault: true  },
   { id: 12, name: 'Running Up Alert',                           color: '#FF6E40', audioDefault: true  },
 ];
+
+/** Warrior Running Up — strategy id 12 (requires_hod=false on the backend). */
+export const HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12;
 
 export const STRATEGY_META_MAP: Record<number, StrategyMeta> = Object.fromEntries(
   STRATEGY_META.map(s => [s.id, s]),

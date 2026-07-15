@@ -2435,66 +2435,108 @@ th {
   color: var(--text-primary);
 }
 
-/* Sub-panel strip */
+/* Strategy chip strip — wrap so all filters stay visible (no horizontal scroll) */
 .hod-subpanel-strip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0;
-  overflow-x: auto;
+  gap: 0.35rem 0.25rem;
+  overflow: visible;
   border-bottom: 1px solid var(--border-color);
-  padding: 0 0.25rem;
-  scrollbar-width: thin;
+  padding: 0.45rem 0.35rem 0.5rem;
 }
 
 .hod-subpanel-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.35rem 0.6rem;
-  background: none;
-  border: none;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  background: var(--hover-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
   border-bottom: 2px solid transparent;
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: 0.75rem;
-  white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  white-space: normal;
+  text-align: left;
+  transition: color 0.15s, border-color 0.15s, opacity 0.15s, background 0.15s;
   flex-shrink: 0;
+  max-width: none;
 }
 
 .hod-subpanel-btn:hover {
   color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .hod-subpanel-btn.active {
   color: var(--text-primary);
   border-bottom-color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hod-strategy-chip {
+  border-bottom-width: 2px;
+}
+
+.hod-strategy-chip--off {
+  opacity: 0.45;
+  border-bottom-color: transparent !important;
+}
+
+.hod-strategy-chip--off:hover {
+  opacity: 0.75;
 }
 
 .hod-subpanel-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .hod-subpanel-label {
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  max-width: none;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  font-weight: 500;
 }
 
 .hod-subpanel-count {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   background: var(--hover-bg);
   border-radius: 8px;
-  padding: 0 0.3rem;
+  padding: 0.05rem 0.35rem;
+  flex-shrink: 0;
 }
 
-/* Table */
+/* Table — fixed viewport (~14 rows); body scrolls with virtual spacers */
 .hod-table-wrapper {
   flex: 1;
   overflow: auto;
+}
+
+.hod-table-virtual {
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  margin-top: 0.35rem;
+}
+
+.hod-table-virtual thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-secondary, var(--panel-bg, #111));
+}
+
+.hod-table-virtual .hod-virtual-spacer td {
+  line-height: 0;
 }
 
 .hod-empty-cell {
@@ -2569,15 +2611,34 @@ th {
   min-width: 110px;
 }
 
-/* Consolidation badge */
+.hod-symbol-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  line-height: 1.2;
+}
+
+.hod-symbol-burst {
+  margin-left: 0.1rem;
+}
+
 .hod-consolidation-badge {
   display: inline-block;
-  font-size: 0.65rem;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  padding: 0.05rem 0.35rem;
-  margin-left: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 600;
   color: var(--text-secondary);
+  letter-spacing: 0.01em;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+/* legacy expand helpers (unused for Warrior-style symbol burst) */
+.hod-expand-btn {
+  background: none;
+  border: none;
+  padding: 0;
   cursor: pointer;
 }
 

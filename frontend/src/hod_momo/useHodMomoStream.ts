@@ -1,26 +1,49 @@
 import { useEffect, useRef, useState } from 'react';
-import { WS_BASE_URL } from '../constants';
+import { HOD_MOMO_ALERT_BATCH_MS, WS_BASE_URL } from '../constants';
 import type { AlertObject } from './types';
 
 interface HodMomoStreamState {
+  /** Newest-first full day list — table virtualizes; nothing is discarded. */
   alerts: AlertObject[];
+  /** Same as alerts.length (kept for badge / header). */
+  totalToday: number;
   connected: boolean;
 }
 
 /**
- * Opens /ws/hod-momo, receives the initial alert list, then appends live alerts.
- * Automatically reconnects on disconnect with exponential backoff.
- * New alerts are prepended so the list stays newest-first.
+ * Opens /ws/hod-momo, receives today's full alert list, then batches live alerts.
+ * Keeps every alert in memory; the table only mounts the visible row window.
+ * Batching limits App re-render rate without dropping older entries.
  */
 export function useHodMomoStream(): HodMomoStreamState {
   const [alerts, setAlerts] = useState<AlertObject[]>([]);
+  const [totalToday, setTotalToday] = useState(0);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(1000);
   const mountedRef = useRef(true);
+  const pendingRef = useRef<AlertObject[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
+
+    function flushPending() {
+      flushTimerRef.current = null;
+      if (!mountedRef.current || pendingRef.current.length === 0) return;
+      const batch = pendingRef.current;
+      pendingRef.current = [];
+      setAlerts(prev => {
+        const next = [...batch, ...prev];
+        setTotalToday(next.length);
+        return next;
+      });
+    }
+
+    function scheduleFlush() {
+      if (flushTimerRef.current != null) return;
+      flushTimerRef.current = setTimeout(flushPending, HOD_MOMO_ALERT_BATCH_MS);
+    }
 
     function connect() {
       if (!mountedRef.current) return;
@@ -38,11 +61,20 @@ export function useHodMomoStream(): HodMomoStreamState {
         try {
           const msg = JSON.parse(e.data as string);
           if (msg.type === 'initial') {
-            setAlerts(Array.isArray(msg.alerts) ? msg.alerts : []);
-          } else if (msg.type === 'alert') {
-            setAlerts(prev => [msg.alert as AlertObject, ...prev]);
+            pendingRef.current = [];
+            if (flushTimerRef.current != null) {
+              clearTimeout(flushTimerRef.current);
+              flushTimerRef.current = null;
+            }
+            const list = Array.isArray(msg.alerts) ? (msg.alerts as AlertObject[]) : [];
+            setAlerts(list);
+            setTotalToday(
+              typeof msg.total === 'number' && msg.total >= 0 ? msg.total : list.length,
+            );
+          } else if (msg.type === 'alert' && msg.alert) {
+            pendingRef.current.push(msg.alert as AlertObject);
+            scheduleFlush();
           }
-          // ignore "ping"
         } catch {
           // ignore parse errors
         }
@@ -66,10 +98,11 @@ export function useHodMomoStream(): HodMomoStreamState {
 
     return () => {
       mountedRef.current = false;
+      if (flushTimerRef.current != null) clearTimeout(flushTimerRef.current);
       wsRef.current?.close();
       wsRef.current = null;
     };
   }, []);
 
-  return { alerts, connected };
+  return { alerts, totalToday, connected };
 }

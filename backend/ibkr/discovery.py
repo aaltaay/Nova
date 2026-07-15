@@ -17,11 +17,13 @@ unchanged regardless of which provider found the symbols.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 
 from constants import (
     GAPPER_MIN_GAP_PCT,
+    IBKR_QUOTE_BATCH_TIMEOUT_SEC,
     IBKR_SCAN_ABOVE_PRICE,
     IBKR_SCAN_CODE_GAINERS,
     IBKR_SCAN_CODE_GAPPERS,
@@ -103,11 +105,16 @@ async def scan_symbols(scan_code: str, num_rows: int = IBKR_SCAN_MAX_ROWS) -> li
     return symbols
 
 
-async def snapshot_quotes(symbols: list[str]) -> dict[str, dict]:
+async def snapshot_quotes(
+    symbols: list[str],
+    *,
+    timeout_sec: float = IBKR_QUOTE_BATCH_TIMEOUT_SEC,
+) -> dict[str, dict]:
     """Qualify + snapshot each symbol. Returns {symbol: {price, prev_close, open, volume}}.
 
     Reuses qualified contracts across ticks so the 1Hz table reprice loop does not
     pay qualifyContractsAsync on every second for the same universe.
+    ``timeout_sec`` bounds a hung reqTickersAsync so table chunks stay responsive.
     """
     ib = _client.get_ib()
     if ib is None or not symbols or not _load_ib_types():
@@ -134,7 +141,16 @@ async def snapshot_quotes(symbols: list[str]) -> dict[str, dict]:
         return {}
 
     try:
-        tickers = await ib.reqTickersAsync(*qualified)
+        tickers = await asyncio.wait_for(
+            ib.reqTickersAsync(*qualified),
+            timeout=max(0.5, float(timeout_sec)),
+        )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "IBKR: snapshot timeout (%.1fs) for %d symbols",
+            timeout_sec, len(qualified),
+        )
+        return {}
     except Exception as exc:
         logger.error("IBKR: snapshot batch failed: %s", exc)
         return {}
@@ -156,6 +172,14 @@ async def snapshot_quotes(symbols: list[str]) -> dict[str, dict]:
             "exchange": getattr(t.contract, "primaryExchange", None) or None,
         }
     return out
+
+
+def chunk_symbols(symbols: list[str], chunk_size: int) -> list[list[str]]:
+    """Split symbols into fixed-size batches for progressive table reprice."""
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    ordered = [s for s in symbols if s]
+    return [ordered[i : i + chunk_size] for i in range(0, len(ordered), chunk_size)]
 
 
 def _meets_min_gap(gap_frac: float | None) -> bool:

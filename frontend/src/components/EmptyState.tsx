@@ -2,12 +2,7 @@
 import { EMPTY_IBKR_DISCONNECTED, GAPPER_MIN_GAP_PCT } from '../constants';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { MarketMode } from './AppHeader';
-
-interface HealthStatus {
-  status: string;
-  latency_ms: number;
-  message?: string;
-}
+import type { HealthStatus } from '../types/health';
 
 export function EmptyState({
   health,

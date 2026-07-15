@@ -15,7 +15,12 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
-from constants import IBKR_REPRICE_INTERVAL_SEC, IBKR_TABLE_REPRICE_INTERVAL_SEC
+from constants import (
+    IBKR_REPRICE_INTERVAL_SEC,
+    IBKR_TABLE_REPRICE_CHUNK_SIZE,
+    IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC,
+    IBKR_TABLE_REPRICE_INTERVAL_SEC,
+)
 from ibkr import discovery as _ibkr_discovery
 
 logger = logging.getLogger(__name__)
@@ -28,8 +33,10 @@ GetDetailSymbolsFn = Callable[[], list[str]]
 GetProviderFn = Callable[[], str]
 RepriceCachesFn = Callable[[], Optional[dict[str, Any]]]
 PushFn = Callable[[dict[str, Any]], Awaitable[None]]
+GetSymbolsFn = Callable[[], list[str]]
 
 _table_reprice_busy = False
+_table_chunk_rotate = 0
 
 
 def reprice_detail_symbols(
@@ -125,11 +132,15 @@ def reprice_table_caches(
     return apply_quote_patches(gapper_cache, gainer_cache, loser_cache, quotes)
 
 
-async def snapshot_table_quotes(symbols: list[str]) -> dict[str, dict]:
+async def snapshot_table_quotes(
+    symbols: list[str],
+    *,
+    timeout_sec: float = IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC,
+) -> dict[str, dict]:
     """Await IBKR snapshots on the running event loop (no thread bridge)."""
     if not symbols:
         return {}
-    result = await _ibkr_discovery.snapshot_quotes(symbols)
+    result = await _ibkr_discovery.snapshot_quotes(symbols, timeout_sec=timeout_sec)
     return result if isinstance(result, dict) else {}
 
 
@@ -165,16 +176,19 @@ async def detail_reprice_loop(
 
 async def table_reprice_loop(
     get_provider: GetProviderFn,
-    get_symbols: Callable[[], list[str]],
+    get_symbols: GetSymbolsFn,
     apply_quotes: Callable[[dict[str, dict]], Optional[dict[str, Any]]],
     push: PushFn,
 ) -> None:
-    """1Hz scanner-table snapshots on the IB event loop (interleaves with scans).
+    """Scanner-table snapshots in progressive chunks (IB event loop).
 
-    Skip-if-busy: if the previous snapshot is still running, emit a stale
-    heartbeat instead of overlapping IB calls.
+    One giant ``reqTickersAsync(~100)`` took 7–10s and painted the whole UI
+    "stale". Instead: each 1Hz tick snapshots one chunk of
+    ``IBKR_TABLE_REPRICE_CHUNK_SIZE`` and pushes immediately, rotating so the
+    full scanner universe refreshes over a few seconds while the header age
+    stays ~1s.
     """
-    global _table_reprice_busy
+    global _table_reprice_busy, _table_chunk_rotate
 
     while True:
         await asyncio.sleep(IBKR_TABLE_REPRICE_INTERVAL_SEC)
@@ -187,9 +201,15 @@ async def table_reprice_loop(
             symbols = get_symbols()
             if not symbols:
                 continue
+            chunks = _ibkr_discovery.chunk_symbols(symbols, IBKR_TABLE_REPRICE_CHUNK_SIZE)
+            if not chunks:
+                continue
+            chunk = chunks[_table_chunk_rotate % len(chunks)]
+            _table_chunk_rotate += 1
+
             _table_reprice_busy = True
             try:
-                quotes = await snapshot_table_quotes(symbols)
+                quotes = await snapshot_table_quotes(chunk)
                 result = apply_quotes(quotes)
                 if result is None:
                     await push({"type": "price_heartbeat", "ts": time.time(), "stale": True})

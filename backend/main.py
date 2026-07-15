@@ -173,6 +173,7 @@ from scanner_push import router as _scanner_ws_router  # noqa: E402
 from routes.health import router as _health_router  # noqa: E402
 from routes.scan import router as _scan_router  # noqa: E402
 from routes.hod_momo import router as _hod_momo_router, ws_router as _hod_momo_ws_router  # noqa: E402
+from routes.client_errors import router as _client_errors_router  # noqa: E402
 
 app = FastAPI(title="Nova API", lifespan=lifespan)
 
@@ -189,6 +190,7 @@ app.include_router(_health_router)
 app.include_router(_scan_router)
 app.include_router(_hod_momo_router)
 app.include_router(_hod_momo_ws_router)
+app.include_router(_client_errors_router)
 
 app.add_middleware(
     CORSMiddleware,

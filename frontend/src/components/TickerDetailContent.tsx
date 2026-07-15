@@ -267,8 +267,17 @@ export function TickerDetailContent({
             value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
             valueClass={detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined}
           />
-          <CompactGridCell label="Relative Volume (5 min %)" value="—" />
-          <CompactGridCell label="Volume In 5 Minutes" value="—" />
+          <CompactGridCell
+            label="Relative Volume (5 min)"
+            value={detail.rvol_5min != null ? `${detail.rvol_5min.toFixed(2)}x` : '—'}
+            valueClass={
+              detail.rvol_5min != null && detail.rvol_5min >= REL_VOLUME_HIGH ? 'positive' : undefined
+            }
+          />
+          <CompactGridCell
+            label="Volume In 5 Minutes"
+            value={detail.volume_in_5min != null ? fmtVolume(detail.volume_in_5min) : '—'}
+          />
           <CompactGridCell
             label="Gap(%)"
             value={gapPct != null ? `${(gapPct * 100).toFixed(2)}` : '—'}

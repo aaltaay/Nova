@@ -70,6 +70,8 @@ export function useTickerStream(symbol: string | null): {
               fundamentals: msg.fundamentals ?? prev.fundamentals,
               avg_volume: msg.avg_volume ?? prev.avg_volume,
               rel_volume: msg.rel_volume ?? prev.rel_volume,
+              rvol_5min: msg.rvol_5min ?? prev.rvol_5min,
+              volume_in_5min: msg.volume_in_5min ?? prev.volume_in_5min,
               news_impact: msg.news_impact ?? prev.news_impact,
             };
           });

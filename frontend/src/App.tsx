@@ -3,6 +3,7 @@
  * Business logic lives in pages/hooks/components (frontend-modularity rule).
  */
 import { useCallback, useState } from 'react';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { DashboardPage } from './pages/DashboardPage';
 import { StockViewPage } from './pages/StockViewPage';
 import {
@@ -30,38 +31,42 @@ function App() {
   if (stockViewSymbol) {
     const detached = parseStockViewSymbol() != null;
     return (
-      <div className="container container--ticker-detail">
-        <div className="main-col main-col--full">
-          <main className="ticker-detail-main">
-            <StockViewPage
-              symbol={stockViewSymbol}
-              detached={detached}
-              onBack={() => {
-                if (detached) {
-                  leaveStockViewUrl();
-                  if (window.opener) window.close();
-                  else setStockViewSymbol(null);
-                } else {
-                  setStockViewSymbol(null);
-                }
-              }}
-              onSelectSymbol={sym => {
-                setStockViewSymbol(sym);
-                if (detached) replaceStockViewUrl(sym);
-              }}
-            />
-          </main>
+      <AppErrorBoundary source="stock-view">
+        <div className="container container--ticker-detail">
+          <div className="main-col main-col--full">
+            <main className="ticker-detail-main">
+              <StockViewPage
+                symbol={stockViewSymbol}
+                detached={detached}
+                onBack={() => {
+                  if (detached) {
+                    leaveStockViewUrl();
+                    if (window.opener) window.close();
+                    else setStockViewSymbol(null);
+                  } else {
+                    setStockViewSymbol(null);
+                  }
+                }}
+                onSelectSymbol={sym => {
+                  setStockViewSymbol(sym);
+                  if (detached) replaceStockViewUrl(sym);
+                }}
+              />
+            </main>
+          </div>
         </div>
-      </div>
+      </AppErrorBoundary>
     );
   }
 
   return (
-    <DashboardPage
-      selectedSymbol={selectedSymbol}
-      setSelectedSymbol={setSelectedSymbol}
-      onOpenTrading={openStockView}
-    />
+    <AppErrorBoundary source="dashboard">
+      <DashboardPage
+        selectedSymbol={selectedSymbol}
+        setSelectedSymbol={setSelectedSymbol}
+        onOpenTrading={openStockView}
+      />
+    </AppErrorBoundary>
   );
 }
 

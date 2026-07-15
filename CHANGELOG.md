@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Tracks A/C/D: Warrior quote RVOL, cleanup, client-error intake
+
+- **What:** Quote panel now shows live **5-min RVOL** + **volume in 5 min** from the shared HOD cum-vol buffer; HOD tab gets a **Running Up only** chip (strategy #12). Deduped `HealthStatus` to `types/health.ts`. Added `POST /api/client-errors` + `AppErrorBoundary` / window error reporting into `blast.log`. Fixed ticker WS route to import `ibkr.ticks` directly (was broken `_ibkr_ticks` on main).
+- **Why:** User asked for remaining product-health tracks A (Warrior parity), C (cleanup), D (observability) after Phases 1–7 + smoke.
+- **Files touched:** `backend/ticker.py`, `backend/hod_momo.py`, `backend/routes/ticker.py`, `backend/routes/client_errors.py`, `frontend/src/components/TickerDetailContent.tsx`, `HodMomoTab.tsx`, `AppErrorBoundary.tsx`, `App.tsx`, `main.tsx`, `types/health.ts`.
+- **How it works now:** Opening a ticker seeds cum-vol and returns `rvol_5min` / `volume_in_5min` on REST + WS `initial`/`detail_update`. Running Up is still strategy #12 (`requires_hod=false`); the chip just filters the feed. Browser crashes POST to `/api/client-errors` (capped payload) when `CLIENT_ERRORS_ENABLED` / `CLIENT_ERROR_REPORT_ENABLED` are true.
+- **Verified by:** 335 pytest + 60 vitest; `npm run build` clean; client-errors endpoint tests.
+- **Follow-ups:** Optional Sentry; TOD 5-min RVOL profile; further `_main` re-export thinning; manual rapid-switch L2/T&S checklist.
+- **Related:** Track B smoke SOP entry same day.
+
 ## 2026-07-14 — Live smoke SOP: fix smoke_check.ps1 + expand checklist
 
 - **What:** Rewrote `scripts/smoke_check.ps1` to hit real routes (`/api/movers`, `/api/afterhours`, `/api/news-catalysts`, `/api/hod-momo/alerts`, `/api/config`) instead of dead `/api/gainers`/`/api/losers`. Loud WARN when discovery=ibkr but Gateway disconnected. Expanded `scripts/ibkr_smoke_checklist.md` so the automated script is the first step.

@@ -103,6 +103,10 @@ export interface TickerDetail {
   snapshot: SnapshotData;
   avg_volume: number | null;
   rel_volume: number | null;
+  /** Warrior Rel Vol (5 min) — last-5m vol ÷ typical 5m bar; null until buffer warm. */
+  rvol_5min?: number | null;
+  /** Shares traded in the last ~5 minutes from cum-vol deltas. */
+  volume_in_5min?: number | null;
   news: NewsArticle[];
   fundamentals: FundamentalsData | null;
   mode: string | null;

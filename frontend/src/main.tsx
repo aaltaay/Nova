@@ -29,6 +29,31 @@ async function bootstrap(): Promise<void> {
       <App />
     </StrictMode>,
   );
+
+  installGlobalErrorReporting();
+}
+
+function installGlobalErrorReporting(): void {
+  window.addEventListener('error', (ev) => {
+    const msg = ev.message || String(ev.error ?? 'window.error');
+    const stack = ev.error instanceof Error ? ev.error.stack : undefined;
+    void import('./utils/reportClientError').then(({ reportClientError }) => {
+      reportClientError({ message: msg, stack, source: 'window.onerror' });
+    });
+  });
+  window.addEventListener('unhandledrejection', (ev) => {
+    const reason = ev.reason;
+    const msg =
+      reason instanceof Error
+        ? reason.message
+        : typeof reason === 'string'
+          ? reason
+          : 'unhandledrejection';
+    const stack = reason instanceof Error ? reason.stack : undefined;
+    void import('./utils/reportClientError').then(({ reportClientError }) => {
+      reportClientError({ message: msg, stack, source: 'unhandledrejection' });
+    });
+  });
 }
 
 function readApiBaseFromMeta(): string | null {

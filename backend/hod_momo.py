@@ -38,6 +38,7 @@ from zoneinfo import ZoneInfo
 import cache as _cache
 from constants import (
     HOD_MOMO_ALERTS_PREFIX,
+    HOD_MOMO_ALERT_SAVE_INTERVAL_SEC,
     HOD_MOMO_COOLDOWN_SEC,
     HOD_MOMO_CONSOLIDATION_SEC,
     HOD_MOMO_CONFIG_SCHEMA_VERSION,
@@ -48,6 +49,7 @@ from constants import (
     HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL,
     HOD_MOMO_MASTER_SURGE_PCT,
     HOD_MOMO_MASTER_SURGE_WINDOW_MIN,
+    HOD_MOMO_RVOL_USE_PACE,
     HOD_MOMO_RVOL_WARMUP_GRACE_SEC,
     HOD_MOMO_SESSION_RESET_HOUR_ET,
     HOD_MOMO_STRATEGY_AUDIO_DEFAULT,
@@ -57,6 +59,7 @@ from constants import (
     HOD_MOMO_STRATEGY_NAMES,
 )
 import hod_momo_metrics as _metrics
+from market import pace_relative_volume
 
 logger = logging.getLogger(__name__)
 _ET = ZoneInfo("America/New_York")
@@ -146,6 +149,10 @@ class AlertObject:
     rvol_5min: float | None = None  # Warrior Rel Vol (5 min %)
     consolidation_count: int = 1
     consolidated_ids: list[str] = field(default_factory=list)
+    # Actual burst duration in seconds (Warrior "(3 in 5sec)"); None if single fire.
+    consolidation_span_sec: int | None = None
+    # Unix time when the alert was created (for span math / display collapse).
+    created_ts: float = 0.0
 
 
 @dataclass
@@ -281,6 +288,8 @@ def _alert_from_dict(d: dict) -> AlertObject:
         rvol_5min=d.get("rvol_5min"),
         consolidation_count=d.get("consolidation_count", 1),
         consolidated_ids=d.get("consolidated_ids", []),
+        consolidation_span_sec=d.get("consolidation_span_sec"),
+        created_ts=float(d.get("created_ts") or 0.0),
     )
 
 
@@ -345,8 +354,30 @@ def _load_configs_from_disk() -> bool:
         return False
 
 
-def _save_alerts() -> None:
+_alerts_dirty: bool = False
+_last_alert_save_mono: float = 0.0
+
+
+def _save_alerts(*, force: bool = False) -> None:
+    """Persist today's alerts, rate-limited so hot sessions do not freeze the event loop.
+
+    Serializing 3k+ alerts to disk on every emit blocked asyncio (WS / scanners felt frozen).
+    """
+    global _alerts_dirty, _last_alert_save_mono
+    now = time.monotonic()
+    if not force and (now - _last_alert_save_mono) < HOD_MOMO_ALERT_SAVE_INTERVAL_SEC:
+        _alerts_dirty = True
+        return
     _cache.save_hod_momo_snapshot([_alert_to_dict(a) for a in _today_alerts], time.time())
+    _last_alert_save_mono = now
+    _alerts_dirty = False
+
+
+def flush_pending_alert_save() -> None:
+    """Write if a deferred save is outstanding (call from flush loop / shutdown)."""
+    global _alerts_dirty
+    if _alerts_dirty:
+        _save_alerts(force=True)
 
 
 # ── Session management ─────────────────────────────────────────────────────────
@@ -393,7 +424,9 @@ def _in_afterhours_et() -> bool:
 
 def _effective_min_rvol() -> float:
     """Return the RVOL threshold for the current session window."""
-    if _in_premarket_et() or _in_afterhours_et():
+    if _in_afterhours_et():
+        return _master.afterhours_min_rvol
+    if _in_premarket_et():
         return _master.premarket_min_rvol
     return _master.min_rvol
 
@@ -683,7 +716,17 @@ def on_trade_update(
     if volume is not None:
         snap.volume = volume
         _metrics.update_cum_volume(symbol, volume, ts)
-        if snap.avg_volume is not None:
+        # IBKR table ticks carry consolidated cum volume — recompute pace RVOL
+        # so AH names are not stuck on thin yfinance/IEX values (~1.3x vs 30x).
+        if snap.avg_volume is not None and snap.avg_volume > 0 and volume > 0:
+            if HOD_MOMO_RVOL_USE_PACE:
+                paced = pace_relative_volume(volume, snap.avg_volume)
+                if paced is not None:
+                    snap.rvol = paced
+                    snap.rvol_source = "ibkr_pace"
+            else:
+                snap.rvol = round(volume / snap.avg_volume, 2)
+                snap.rvol_source = "ibkr"
             snap.rvol_5min = _metrics.compute_symbol_rvol_5min(symbol, snap.avg_volume, ts=ts)
 
     # Blocklist check — record and bail
@@ -785,11 +828,17 @@ def on_trade_update(
             momentum_pct=surge,
             rvol_source=snap.rvol_source,
             rvol_5min=snap.rvol_5min,
+            created_ts=now_ts,
         )
 
         _cooldown[key] = now_ts + _master.cooldown_sec
-        emit_after = now_ts + _master.consolidation_sec
+        # Warrior-style window: first alert in the burst sets emit time; later
+        # same-ticker fires join that bucket instead of each getting a new deadline.
         bucket = _pending_consolidation.setdefault(symbol, [])
+        if bucket:
+            emit_after = bucket[0][0]
+        else:
+            emit_after = now_ts + _master.consolidation_sec
         bucket.append((emit_after, alert))
 
         logger.debug("HOD Momo: queued alert %s / strategy %d", symbol, strategy_id)
@@ -874,9 +923,14 @@ async def flush_consolidated_loop() -> None:
                 if len(ready) == 1:
                     to_emit.append(ready[0])
                 else:
-                    primary = ready[0]
+                    # Newest price/strategy wins; badge uses real first→last span.
+                    primary = ready[-1]
                     primary.consolidation_count = len(ready)
-                    primary.consolidated_ids = [a.id for a in ready[1:]]
+                    primary.consolidated_ids = [a.id for a in ready[:-1]]
+                    first_ts = min((a.created_ts or 0.0) for a in ready) or now
+                    last_ts = max((a.created_ts or 0.0) for a in ready) or now
+                    span = int(round(max(0.0, last_ts - first_ts)))
+                    primary.consolidation_span_sec = max(1, span) if span > 0 else 1
                     to_emit.append(primary)
 
             for alert in to_emit:
@@ -895,6 +949,8 @@ async def flush_consolidated_loop() -> None:
                     queue.get_nowait()
                 except Exception:
                     pass
+
+            flush_pending_alert_save()
 
         except asyncio.CancelledError:
             raise
@@ -934,6 +990,16 @@ def get_ws_clients() -> set:
 
 def get_today_alerts() -> list[dict]:
     return [_alert_to_dict(a) for a in _today_alerts]
+
+
+def get_ws_initial_payload() -> dict:
+    """Full day's alerts (newest first). UI virtualizes rows — do not truncate here."""
+    all_alerts = get_today_alerts()
+    return {
+        "type": "initial",
+        "alerts": all_alerts,
+        "total": len(all_alerts),
+    }
 
 
 def get_configs() -> dict:
@@ -1119,6 +1185,12 @@ def get_debug_snaps(limit: int = 50) -> list[dict]:
         }
         for sym, snap in enriched[:limit]
     ]
+
+
+def peek_rvol_5min(symbol: str) -> float | None:
+    """Return cached Warrior 5-min RVOL for an open/HOD-watched symbol, if any."""
+    snap = _ticker_snaps.get(symbol.upper())
+    return snap.rvol_5min if snap else None
 
 
 # ── Startup ────────────────────────────────────────────────────────────────────

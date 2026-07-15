@@ -121,3 +121,46 @@ def test_table_reprice_loop_emits_stale_when_busy():
     asyncio.run(run_one())
     reprice._table_reprice_busy = False
     assert any(p.get("type") == "price_heartbeat" and p.get("stale") for p in pushes)
+
+
+def test_table_reprice_loop_pushes_one_chunk_per_tick(monkeypatch):
+    """Progressive chunks: each 1Hz tick snapshots one batch and pushes immediately."""
+    from constants import IBKR_TABLE_REPRICE_CHUNK_SIZE, IBKR_TABLE_REPRICE_INTERVAL_SEC
+
+    symbols = [f"S{i:02d}" for i in range(IBKR_TABLE_REPRICE_CHUNK_SIZE * 2 + 3)]
+    snapped: list[list[str]] = []
+    pushes: list[dict] = []
+
+    async def fake_snapshot(syms, *, timeout_sec=4.0):
+        snapped.append(list(syms))
+        return {s: {"price": 1.0, "prev_close": 1.0, "volume": 1, "open": 1.0} for s in syms}
+
+    def apply_quotes(quotes):
+        return {"type": "price_patch", "ts": 1.0, "rows": list(quotes.keys())}
+
+    async def push(payload):
+        pushes.append(payload)
+
+    monkeypatch.setattr(reprice, "snapshot_table_quotes", fake_snapshot)
+    reprice._table_reprice_busy = False
+    reprice._table_chunk_rotate = 0
+
+    async def run_two_ticks():
+        task = asyncio.create_task(reprice.table_reprice_loop(
+            lambda: "ibkr",
+            lambda: symbols,
+            apply_quotes,
+            push,
+        ))
+        await asyncio.sleep(IBKR_TABLE_REPRICE_INTERVAL_SEC * 2 + 0.4)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run_two_ticks())
+    assert len(snapped) >= 2
+    assert len(snapped[0]) == IBKR_TABLE_REPRICE_CHUNK_SIZE
+    assert snapped[0] != snapped[1]
+    assert all(p.get("type") == "price_patch" for p in pushes[:2])

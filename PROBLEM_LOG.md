@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Ticker WS used missing main._ibkr_ticks after Phase 4 extract
+
+- **Symptom:** Opening a ticker under discovery=ibkr could fail to subscribe ticks / raise AttributeError if the old route path ran (`m._ibkr_ticks`).
+- **Cause:** `routes/ticker.py` still did `import main as m` and called `m._ibkr_ticks.subscribe`, but ticks live in `ibkr.ticks` and were never re-exported on `main` after the router extract.
+- **Fix:** Route imports `from ibkr import ticks as _ibkr_ticks`, `alpaca` helpers, and `websocket.mark_resub` directly — no main indirection for tick subscribe.
+- **Keywords:** routes/ticker, _ibkr_ticks, AttributeError, websocket ticker, Phase 4 extract
+
 ## 2026-07-14 — Strategy bars + catalyst prices mixed Alpaca when discovery=ibkr
 
 - **Symptom:** Strategy endpoints (`/api/strategy/gap-and-go`, `/api/strategy/setups`) always used Alpaca IEX bars regardless of provider; Catalysts tab prices disagreed with IBKR scanner rows. REST `/api/ticker/{sym}` silently served Alpaca snapshot when IBKR snapshot was empty.

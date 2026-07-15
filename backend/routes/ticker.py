@@ -14,16 +14,13 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
 from constants import CHART_DEFAULT_BARS, CHART_DEFAULT_TIMEFRAME
+from ibkr import ticks as _ibkr_ticks
+from websocket import mark_resub
 
 router = APIRouter(tags=["ticker"])
 logger = logging.getLogger(__name__)
-
-
-def _m():
-    """Lazy access to main to avoid load-time circular imports."""
-    import main
-    return main
 
 
 @router.get("/api/ticker/{symbol}")
@@ -41,12 +38,11 @@ def get_ticker_bars(
 ):
     """Fetch OHLCV bars for a symbol (IBKR when discovery=ibkr, else Alpaca)."""
     from chart_bars import fetch_chart_bars
-    m = _m()
     return fetch_chart_bars(
         symbol.upper(),
         timeframe,
         limit,
-        discovery_provider=m._get_discovery_provider(),
+        discovery_provider=_get_discovery_provider(),
     )
 
 
@@ -59,27 +55,25 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
       2. 'detail_update' — slow data (news + fresh avg volume + fundamentals) sent when ready.
     """
     import ticker as _ticker_mod
-    m = _m()
 
     symbol = symbol.upper()
     await websocket.accept()
 
     _ticker_mod._ticker_ws_clients.setdefault(symbol, set()).add(websocket)
-    m._ws_mark_resub()
-    if m._get_discovery_provider() == "ibkr":
-        asyncio.create_task(m._ibkr_ticks.subscribe(symbol))
+    mark_resub()
+    if _get_discovery_provider() == "ibkr":
+        asyncio.create_task(_ibkr_ticks.subscribe(symbol))
 
     loop = asyncio.get_event_loop()
-    base_url = m._env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = m._alpaca_headers()
+    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+    headers = _alpaca_headers()
 
     try:
         if not headers:
             await websocket.send_text(json.dumps({"type": "initial", "error": "API keys not configured"}))
         else:
-            feed = m._get_feed()
+            feed = _get_feed()
 
-            # Start both phases immediately so Phase 2 runs while Phase 1 is awaited.
             fast_task = loop.run_in_executor(
                 None, lambda: _ticker_mod._build_ticker_fast(symbol, base_url, headers, feed)
             )
@@ -87,11 +81,9 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
                 None, lambda: _ticker_mod._build_ticker_slow(symbol, headers)
             )
 
-            # Phase 1 result arrives first — send immediately so the UI can render price/asset.
             fast = await fast_task
             await websocket.send_text(json.dumps({"type": "initial", **fast}))
 
-            # Phase 2 has been running in parallel; await whatever remains.
             slow = await slow_task
             avg_vol = slow.get("avg_volume")
             daily_vol = (fast.get("snapshot", {}).get("daily_bar") or {}).get("volume") or 0
@@ -106,6 +98,8 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
                 "fundamentals": slow["fundamentals"],
                 "avg_volume": avg_vol,
                 "rel_volume": rel_vol,
+                "rvol_5min": fast.get("rvol_5min"),
+                "volume_in_5min": fast.get("volume_in_5min"),
                 "news_impact": news_impact,
             }))
 
@@ -121,6 +115,6 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
         _ticker_mod2._ticker_ws_clients.get(symbol, set()).discard(websocket)
         if not _ticker_mod2._ticker_ws_clients.get(symbol):
             _ticker_mod2._ticker_ws_clients.pop(symbol, None)
-            if m._get_discovery_provider() == "ibkr":
-                asyncio.create_task(m._ibkr_ticks.unsubscribe(symbol))
-        m._ws_mark_resub()
+            if _get_discovery_provider() == "ibkr":
+                asyncio.create_task(_ibkr_ticks.unsubscribe(symbol))
+        mark_resub()

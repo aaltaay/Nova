@@ -21,6 +21,11 @@ NEWS_FLAME_MAX_HOURS = 24   # yellow badge (12 – 24 h); hide above this
 REL_VOLUME_HIGH = 2         # highlight threshold
 RVOL_LOOKBACK_DAYS = 30     # trading days of history used to compute avg daily volume
 
+# ── Client error telemetry (browser → API) ─────────────────────────────────
+CLIENT_ERRORS_ENABLED = True
+CLIENT_ERRORS_MAX_BODY_BYTES = 16_384
+CLIENT_ERRORS_MAX_MESSAGE_CHARS = 2_000
+
 # ── Minimum price filter ─────────────────────────────────────────────────────
 # exclude any stock priced below $0.50 (applies to gappers and gainers)
 SCANNER_MIN_PRICE = 0.50
@@ -178,7 +183,9 @@ HOD_MOMO_BLOCKLIST_FILE = _os.path.join(_hod_momo_cache_root(), "hod-momo-blockl
 
 # Engine timing
 HOD_MOMO_COOLDOWN_SEC = 60.0         # suppress re-alert for ticker+strategy after firing
-HOD_MOMO_CONSOLIDATION_SEC = 5.0     # batch alerts for same ticker within this window
+HOD_MOMO_CONSOLIDATION_SEC = 5.0     # batch same-ticker alerts into one row (Warrior "N in Xs")
+# Persist at most this often — writing the full day list on every emit freezes the API.
+HOD_MOMO_ALERT_SAVE_INTERVAL_SEC = 5.0
 HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh cadence for broad (full-asset) mode
 # Ross-style focus: Top Gainer/Gapper shortlist + IBKR volume seeds — not the
 # full US tape. Broad mode subscribed ~6k IEX symbols → zero trades (empty tab).
@@ -399,9 +406,13 @@ IBKR_SCAN_HOD_SEED_CODES = (
 )
 IBKR_SCAN_MAX_ROWS = 50                        # IB hard cap per scan code
 IBKR_SCAN_ABOVE_PRICE = SCANNER_MIN_PRICE       # mirrors the Alpaca price floor above
-# 1Hz table reprice may include HOD seed symbols beyond gainer/loser rows.
+# 1Hz table reprice may include scanner rows (gainers/losers/AH/gappers).
 IBKR_TABLE_REPRICE_MAX_SYMBOLS = 100
-IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # per-batch reqTickersAsync timeout
+# Progressive batches so the UI gets a price_patch every ~1–2s instead of
+# waiting on one 100-symbol reqTickersAsync (that ran 7–10s → "stale").
+IBKR_TABLE_REPRICE_CHUNK_SIZE = 20
+IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # per-batch reqTickersAsync timeout (discovery)
+IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC = 4.0      # tighter timeout for table chunks
 IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ceiling
 # Alpaca's WS trade stream gives sub-second price freshness between the 20-30s
 # scan ticks (see DISCOVERY_INTERVAL_SEC comment above) — that overlay is
@@ -412,9 +423,9 @@ IBKR_REPRICE_INTERVAL_SEC = 3.0
 # Must not wait on the full movers scan — that starvation caused "updated 10–12s ago".
 IBKR_TABLE_REPRICE_INTERVAL_SEC = 1.0
 # UI / heartbeat: if no successful table price tick within this window, mark stale.
-# Full ~100-symbol reqTickersAsync often takes 3–6s; threshold must exceed that
-# so we don't yellow-flag a healthy loop that is simply mid-batch.
-SCANNER_PRICE_STALE_SEC = 6.0
+# Chunked 1Hz pushes normally reset age every ~1s; this is the honesty margin
+# when a chunk times out or skip-if-busy stacks.
+SCANNER_PRICE_STALE_SEC = 5.0
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
 # Signal-only thresholds (see backend/strategy/five_pillars.py). These never place

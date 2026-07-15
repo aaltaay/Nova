@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { reportClientError } from '../utils/reportClientError';
 
 interface Props {
   children: ReactNode;
@@ -17,6 +18,12 @@ export class TickerChartErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('[Nova] Ticker chart crashed', error, info.componentStack);
+    reportClientError({
+      message: error.message || String(error),
+      stack: error.stack,
+      componentStack: info.componentStack,
+      source: 'ticker-chart',
+    });
   }
 
   render(): ReactNode {
