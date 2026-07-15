@@ -8,7 +8,7 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 
 - Phase: P5
 - State: verified
-- Last verified commit: (pending)
+- Last verified commit: 181b16e12029fc74ce57a07a9620f94893a2d819
 - Last updated: 2026-07-15 ~16:00 ET
 
 ## Completed this phase
