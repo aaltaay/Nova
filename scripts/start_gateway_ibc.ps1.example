@@ -1,0 +1,33 @@
+# Example — copy to %USERPROFILE%\.nova\ibc\start_gateway.ps1 and edit paths.
+# Do NOT put passwords in this file; IBC reads them from config.ini beside it.
+
+param(
+    [string]$IbcHome = "C:\IBC",
+    [string]$ConfigIni = "$env:USERPROFILE\.nova\ibc\config.ini",
+    [string]$GatewayVersion = "1045"
+)
+
+$ErrorActionPreference = "Stop"
+
+if (-not (Test-Path $ConfigIni)) {
+    Write-Host "Missing IBC config: $ConfigIni" -ForegroundColor Red
+    Write-Host "Create it from IBC's sample config (never commit passwords)." -ForegroundColor Yellow
+    exit 1
+}
+
+$startBat = Join-Path $IbcHome "StartGateway.bat"
+if (-not (Test-Path $startBat)) {
+    Write-Host "IBC StartGateway.bat not found at $startBat" -ForegroundColor Red
+    Write-Host "Install IBC from https://github.com/IbcAlpha/IBC/releases" -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "Starting IB Gateway via IBC (version=$GatewayVersion)..." -ForegroundColor Cyan
+Write-Host "Complete IBKR Mobile 2FA on your phone if prompted." -ForegroundColor Yellow
+
+# IBC env: see IBC docs for IbDir / TWSVERSION equivalents on Windows.
+$env:TWS_MAJOR_VRSN = $GatewayVersion
+Start-Process -FilePath $startBat -WorkingDirectory $IbcHome -ArgumentList "`"$ConfigIni`""
+
+Write-Host "After login, verify: GET http://127.0.0.1:8000/api/ibkr/status" -ForegroundColor Green
+Write-Host "Then: .\scripts\smoke_check.ps1" -ForegroundColor Green

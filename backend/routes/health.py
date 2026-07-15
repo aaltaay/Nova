@@ -27,6 +27,7 @@ from constants import (
     DISCOVERY_PROVIDER_DEFAULT,
     DISCOVERY_PROVIDER_OPTIONS,
 )
+from websocket import mark_resub
 from paths import env_file_path
 
 router = APIRouter(tags=["health"])
@@ -104,7 +105,7 @@ def update_config(config: ConfigUpdate):
     _set_discovery_provider(config.discovery_provider)
     m.reset_scan_caches()
     _exchanges.clear()
-    m._ws_mark_resub()
+    mark_resub()
     return {
         "status": "success",
         "data_feed": _get_feed(),

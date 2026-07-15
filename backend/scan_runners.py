@@ -40,6 +40,15 @@ import afterhours_discovery as _ah_discovery
 import exchanges as _exchanges
 import hod_momo as _hod_momo
 from ibkr import discovery as _ibkr_discovery
+from ibkr_bridge import enrich_ibkr_mover, run_ibkr
+from universe import (
+    enrich_gappers,
+    ensure_avg_volume,
+    get_tradable_symbols,
+    refresh_hod_momo_universe,
+)
+from health_status import ping_health
+from websocket import mark_resub
 
 logger = logging.getLogger(__name__)
 
@@ -58,16 +67,16 @@ def run_discovery_scan() -> None:
     provider = _get_discovery_provider()
 
     if provider == "ibkr":
-        gappers = m._run_ibkr(_ibkr_discovery.get_gappers())
+        gappers = run_ibkr(_ibkr_discovery.get_gappers())
         if not headers:
             return
     else:
         base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
         if not headers:
             return
-        if not m._ping_health(base_url, headers):
+        if not ping_health(base_url, headers):
             return
-        symbols = m._get_tradable_symbols(base_url, headers)
+        symbols = get_tradable_symbols(base_url, headers)
         if not symbols:
             return
         snaps = _fetch_snapshots(symbols, headers)
@@ -76,14 +85,14 @@ def run_discovery_scan() -> None:
         gappers = _compute_gappers(snaps)
 
     gapper_syms = [g["symbol"] for g in gappers]
-    m._ensure_avg_volume(gapper_syms, headers)
+    ensure_avg_volume(gapper_syms, headers)
     news = _check_news(gapper_syms, headers)
-    gappers = m._enrich_gappers(gappers, news)
+    gappers = enrich_gappers(gappers, news)
 
     m._gapper_cache = gappers
     m._gapper_cache_ts = time.time()
     m._last_discovery_ts = time.monotonic()
-    m._ws_mark_resub()
+    mark_resub()
     save_gapper_snapshot(m._gapper_cache, m._gapper_cache_ts)
 
 
@@ -154,7 +163,7 @@ def run_afterhours_discovery_scan() -> None:
     if _get_discovery_provider() == "ibkr":
         raw = list(m._gainer_cache) if m._gainer_cache else []
         if not raw:
-            raw = m._run_ibkr(_ibkr_discovery.get_gainers()) or []
+            raw = run_ibkr(_ibkr_discovery.get_gainers()) or []
         rows = _ah_discovery.build_afterhours_rows_from_ibkr_gainers(raw)
         if not rows:
             logger.warning(
@@ -166,7 +175,7 @@ def run_afterhours_discovery_scan() -> None:
         syms = [r["symbol"] for r in rows]
         news: dict = {}
         if headers:
-            m._ensure_avg_volume(syms, headers)
+            ensure_avg_volume(syms, headers)
             news = _check_news(syms, headers)
             _fetch_fundamentals_batch(syms)
         for r in rows:
@@ -194,7 +203,7 @@ def run_afterhours_discovery_scan() -> None:
         m._afterhours_cache = rows
         m._afterhours_cache_ts = time.time()
         m._last_afterhours_discovery_ts = time.monotonic()
-        m._ws_mark_resub()
+        mark_resub()
         save_afterhours_snapshot(m._afterhours_cache, m._afterhours_cache_ts)
         for r in rows:
             sym = r["symbol"]
@@ -214,28 +223,28 @@ def run_afterhours_discovery_scan() -> None:
             except Exception:
                 logger.debug("AH discovery: HOD snap seed failed for %s", sym, exc_info=True)
         m._hod_momo_universe_ts = 0.0
-        m._refresh_hod_momo_universe()
+        refresh_hod_momo_universe()
         logger.info("AH discovery (IBKR): %d movers", len(rows))
         return
 
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     if not headers:
         return
-    if not m._ping_health(base_url, headers):
+    if not ping_health(base_url, headers):
         return
-    symbols = m._get_tradable_symbols(base_url, headers)
+    symbols = get_tradable_symbols(base_url, headers)
     if not symbols:
         return
     snaps = _fetch_snapshots(symbols, headers)
     rows = _compute_gappers(snaps, ref_bar_key="dailyBar")
     row_syms = [r["symbol"] for r in rows]
-    m._ensure_avg_volume(row_syms, headers)
+    ensure_avg_volume(row_syms, headers)
     news = _check_news(row_syms, headers)
-    rows = m._enrich_gappers(rows, news)
+    rows = enrich_gappers(rows, news)
     m._afterhours_cache = rows
     m._afterhours_cache_ts = time.time()
     m._last_afterhours_discovery_ts = time.monotonic()
-    m._ws_mark_resub()
+    mark_resub()
     save_afterhours_snapshot(m._afterhours_cache, m._afterhours_cache_ts)
 
 
@@ -248,7 +257,7 @@ def run_afterhours_focus_scan() -> None:
 
     if _get_discovery_provider() == "ibkr":
         symbols = [r["symbol"] for r in m._afterhours_cache]
-        quotes = m._run_ibkr(_ibkr_discovery.snapshot_quotes(symbols)) or {}
+        quotes = run_ibkr(_ibkr_discovery.snapshot_quotes(symbols)) or {}
         m._afterhours_cache = _ah_discovery.reprice_afterhours_rows_ibkr(
             m._afterhours_cache, quotes, m._avg_volume_cache,
         )
@@ -348,16 +357,16 @@ def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
 
 def _run_gainers_update_ibkr(headers: dict) -> tuple[list[dict], list[dict]] | None:
     m = _m()
-    gainers_rows = m._run_ibkr(_ibkr_discovery.get_gainers())
-    losers_rows = m._run_ibkr(_ibkr_discovery.get_losers())
+    gainers_rows = run_ibkr(_ibkr_discovery.get_gainers())
+    losers_rows = run_ibkr(_ibkr_discovery.get_losers())
     if not gainers_rows and not losers_rows:
         return None
     all_symbols = list({r["symbol"] for r in gainers_rows + losers_rows})
-    m._ensure_avg_volume(all_symbols, headers)
+    ensure_avg_volume(all_symbols, headers)
     news = _check_news(all_symbols, headers)
     _fetch_fundamentals_batch(all_symbols)
-    gainers = [m._enrich_ibkr_mover(r, news) for r in gainers_rows]
-    losers = [m._enrich_ibkr_mover(r, news) for r in losers_rows]
+    gainers = [enrich_ibkr_mover(r, news) for r in gainers_rows]
+    losers = [enrich_ibkr_mover(r, news) for r in losers_rows]
     return gainers, losers
 
 
@@ -375,7 +384,7 @@ def run_gainers_update() -> None:
         gainers, losers = result
     else:
         base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-        if not m._ping_health(base_url, headers):
+        if not ping_health(base_url, headers):
             return
         try:
             resp = requests.get(
@@ -401,7 +410,7 @@ def run_gainers_update() -> None:
         losers_raw = [r for r in losers_raw if r.get("price", 0) >= SCANNER_MIN_PRICE]
         all_symbols = list({r["symbol"] for r in gainers_raw + losers_raw})
         snaps = _fetch_snapshots(all_symbols, headers)
-        m._ensure_avg_volume(all_symbols, headers)
+        ensure_avg_volume(all_symbols, headers)
         news = _check_news(all_symbols, headers)
         _fetch_fundamentals_batch(all_symbols)
         premarket_gap_map = {g["symbol"]: g.get("gap_percent") for g in m._gapper_cache}
@@ -427,4 +436,4 @@ def run_gainers_update() -> None:
     m._loser_cache = losers
     m._loser_cache_ts = time.time()
     save_movers_snapshot(m._gainer_cache, m._loser_cache, m._gainer_cache_ts)
-    m._ws_mark_resub()
+    mark_resub()

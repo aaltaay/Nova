@@ -109,6 +109,13 @@ TICKER_SNAPSHOT_CACHE_TTL = 10.0    # 10 seconds
 # Short-lived cache for the full Phase 2 payload (news + fundamentals + avg_vol).
 # Serves repeat clicks and rapid tab-switching without re-fetching from external APIs.
 TICKER_SLOW_CACHE_TTL = 90.0        # 90 seconds
+# Short timeouts for ticker asset/news HTTP (IBKR snapshot dominates wall time).
+TICKER_HTTP_TIMEOUT_SEC = 4.0
+# Cache-only avg volume on ticker path — do not block REST on Alpaca bars.
+TICKER_AVG_VOLUME_CACHE_ONLY = True
+# Single-symbol IBKR snapshot budget (table discovery keeps the longer 15s/25s).
+TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC = 4.0
+TICKER_IBKR_BRIDGE_TIMEOUT_SEC = 6.0
 
 
 # ── Ticker chart (Alpaca bars) ────────────────────────────────────────────────
@@ -228,6 +235,19 @@ HOD_MOMO_RVOL_USE_PACE = True
 # Session = 04:00–16:00 ET (720 min → 144 five-minute bars), matching pace RVOL day.
 HOD_MOMO_RVOL_5MIN_WINDOW_SEC = 300
 HOD_MOMO_RVOL_5MIN_SESSION_MINUTES = 720.0
+# When True, typical 5-min volume uses a coarse ET time-of-day curve (open/close heavy).
+HOD_MOMO_RVOL_5MIN_USE_TOD = True
+# Cumulative fraction of daily volume by ET minute-of-day (midnight=0). Coarse U-shape.
+# Interpolated between knots; last knot should be ~1.0 at end of extended session.
+HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC: tuple[tuple[int, float], ...] = (
+    (4 * 60, 0.00),       # 04:00 premarket open
+    (9 * 60 + 30, 0.12),  # 09:30 RTH open
+    (10 * 60, 0.28),      # open spike
+    (12 * 60, 0.45),      # midday
+    (15 * 60, 0.65),      # afternoon
+    (16 * 60, 0.88),      # RTH close
+    (20 * 60, 1.00),      # 20:00 AH end
+)
 
 # RVOL fallback: when on IEX free tier, Alpaca historical bars are mostly empty.
 # During warmup (first N seconds after startup), skip the RVOL master gate entirely

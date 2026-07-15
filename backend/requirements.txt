@@ -8,6 +8,7 @@ yfinance
 websockets
 watchfiles
 ib_async
+sentry-sdk[fastapi]>=2.0.0,<3
 transformers==4.57.6
 torch==2.8.0
 openai==2.45.0

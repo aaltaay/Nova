@@ -40,6 +40,7 @@ from scan_runners import (
     run_focus_scan,
     run_gainers_update,
 )
+from universe import refresh_hod_momo_universe
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ async def scan_loop() -> None:
         try:
             mono = time.monotonic()
             catalyst_due = (mono - m._last_catalyst_scan_ts) > m._NEWS_CATALYST_INTERVAL
-            await loop.run_in_executor(None, m._refresh_hod_momo_universe)
+            await loop.run_in_executor(None, refresh_hod_momo_universe)
 
             if _in_premarket():
                 m._current_mode = "premarket"

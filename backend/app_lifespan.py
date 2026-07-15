@@ -43,6 +43,7 @@ from scan_loop import scan_loop
 from ticker import _find_ibkr_cache_row
 from universe import invalidate_universe_cache
 from websocket import broadcast_trade_update, stream_loop
+from observability import init_sentry
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ def _m():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_sentry()
     m = _m()
     _migrate_legacy_files()
     cleanup_old_snapshots(HISTORY_RETENTION_DAYS)

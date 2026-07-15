@@ -40,6 +40,9 @@ Any of these means Gateway needs the user:
 
 ## Programmatic login (preferred long-term)
 
-IBC (IB Controller) can auto-type credentials into Gateway. That requires a **local-only** secrets file outside git (never commit passwords). Until IBC is installed and documented for this machine, manual login + loud warning is required.
+IBC (IB Controller) can auto-type credentials into Gateway. That requires a
+**local-only** secrets file outside git (never commit passwords). Setup guide:
+`docs/ibc-gateway-setup.md` + `scripts/start_gateway_ibc.ps1.example`.
+Until IBC is installed on this machine, manual login + loud warning is required.
 
 See also: `knowledge/obsidian/03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md`, Trading tab onboarding copy in `frontend/src/ibkr/TradingTab.tsx`.

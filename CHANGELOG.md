@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Ticker speed, TOD RVOL, Sentry opt-in, IBC docs, _main thin
+
+- **What:** REST ticker composes fast+slow builders, cache-only avg volume, shorter HTTP + IBKR snapshot budgets. 5-min RVOL uses a coarse ET TOD curve. Optional Sentry via `SENTRY_DSN`. IBC setup docs + example launcher. `scan_runners` / `scan_loop` / `routes/health` call leaf modules directly for functions.
+- **Why:** User asked for the full next queue (ticker latency, cleanup, deferred deepeners).
+- **Files touched:** `backend/ticker.py`, `hod_momo_metrics.py`, `observability.py`, `scan_runners.py`, `scan_loop.py`, `routes/health.py`, `docs/ibc-gateway-setup.md`, `scripts/start_gateway_ibc.ps1.example`.
+- **How it works now:** `/api/ticker/{sym}` wall time ≈ max(IBKR snap ≤6s bridge, news/fund); avg volume never blocks. `typical_5min_volume` weights open/close when `HOD_MOMO_RVOL_5MIN_USE_TOD`. Sentry no-ops without DSN. IBC credentials stay under `%USERPROFILE%\.nova\ibc\`.
+- **Verified by:** 341 pytest; smoke 10/10; ticker timing after IBKR budget change.
+- **Follow-ups:** Tune TOD knots from live Warrior curves; frontend Sentry if desired.
+
 ## 2026-07-15 — Smoke: longer timeout for IBKR ticker detail
 
 - **What:** `smoke_check.ps1` uses 25s for `/api/ticker/{sym}` and 20s for bars (other checks stay at 8s).

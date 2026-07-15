@@ -23,6 +23,10 @@ from datetime import datetime, timezone
 
 from constants import (
     TICKER_ASSET_CACHE_TTL,
+    TICKER_AVG_VOLUME_CACHE_ONLY,
+    TICKER_HTTP_TIMEOUT_SEC,
+    TICKER_IBKR_BRIDGE_TIMEOUT_SEC,
+    TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC,
     TICKER_SLOW_CACHE_TTL,
     TICKER_SNAPSHOT_CACHE_TTL,
 )
@@ -95,7 +99,7 @@ def _fetch_ticker_asset(symbol: str, base_url: str, headers: dict) -> dict:
         return _ticker_asset_cache[symbol]
     asset: dict = {}
     try:
-        r = requests.get(f"{base_url}/v2/assets/{symbol}", headers=headers, timeout=10)
+        r = requests.get(f"{base_url}/v2/assets/{symbol}", headers=headers, timeout=TICKER_HTTP_TIMEOUT_SEC)
         if r.status_code == 200:
             a = r.json()
             attrs = a.get("attributes")
@@ -162,7 +166,7 @@ def _fetch_ticker_snapshot(symbol: str, headers: dict, feed: str) -> dict:
             f"{_DATA_URL}/v2/stocks/{symbol}/snapshot",
             headers=headers,
             params={"feed": feed},
-            timeout=10,
+            timeout=TICKER_HTTP_TIMEOUT_SEC,
         )
         if r.status_code == 200:
             raw = r.json()
@@ -227,9 +231,18 @@ def _fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
         exchange = cached_row.get("exchange")
         open_price = None
     else:
+        from ibkr import client as _ibkr_client
         from ibkr import discovery as _ibkr_discovery
-        from ibkr_bridge import run_ibkr
-        quotes = run_ibkr(_ibkr_discovery.snapshot_quotes([symbol]))
+        try:
+            quotes = _ibkr_client.run_coro(
+                _ibkr_discovery.snapshot_quotes(
+                    [symbol], timeout_sec=TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC
+                ),
+                timeout=TICKER_IBKR_BRIDGE_TIMEOUT_SEC,
+            ) or {}
+        except Exception as exc:
+            logger.warning("ticker IBKR snapshot failed for %s: %s", symbol, exc)
+            return {}
         q = quotes.get(symbol)
         if not q:
             return {}
@@ -271,7 +284,7 @@ def _fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
             f"{_DATA_URL}/v1beta1/news",
             headers=headers,
             params={"symbols": symbol, "start": today, "limit": 10},
-            timeout=10,
+            timeout=TICKER_HTTP_TIMEOUT_SEC,
         )
         if r.status_code == 200:
             for article in r.json().get("news", []):
@@ -291,14 +304,18 @@ def _fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
 
 
 def _fetch_ticker_avg_volume(symbol: str, headers: dict) -> float | None:
-    """Return average daily volume for symbol, fetching bars from Alpaca if needed."""
+    """Return average daily volume for symbol.
+
+    By default (TICKER_AVG_VOLUME_CACHE_ONLY) never blocks REST/WS on Alpaca
+    bars — scanners already warm ``_avg_volume_cache``. Cold miss → None.
+    """
     import main as _main
-    from universe import ensure_avg_volume
     avg_vol = _main._avg_volume_cache.get(symbol)
-    if avg_vol is None:
-        ensure_avg_volume([symbol], headers)
-        avg_vol = _main._avg_volume_cache.get(symbol)
-    return avg_vol
+    if avg_vol is not None or TICKER_AVG_VOLUME_CACHE_ONLY:
+        return avg_vol
+    from universe import ensure_avg_volume
+    ensure_avg_volume([symbol], headers)
+    return _main._avg_volume_cache.get(symbol)
 
 
 def _rvol_5min_fields(
@@ -394,7 +411,12 @@ def _build_ticker_slow(symbol: str, headers: dict) -> dict:
 
 
 def _build_ticker_detail(symbol: str) -> dict:
-    """Fetch and assemble full ticker detail for a symbol. Used by the REST endpoint."""
+    """Fetch and assemble full ticker detail for a symbol. Used by the REST endpoint.
+
+    Composes the same fast + slow builders as the WS path so the slow-cache
+    hits, and wall time is max(fast, slow) rather than a cold avg-volume fetch
+    blocking the critical path.
+    """
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     headers = _alpaca_headers()
     if not headers:
@@ -403,42 +425,34 @@ def _build_ticker_detail(symbol: str) -> dict:
     feed = _get_feed()
     use_ibkr = _get_discovery_provider() == "ibkr"
 
-    from fundamentals import fetch_fundamentals as _fetch_fundamentals
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
-        f_snap  = (
-            pool.submit(_fetch_ticker_snapshot_ibkr, symbol) if use_ibkr
-            else pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
-        )
-        f_news  = pool.submit(_fetch_ticker_news, symbol, headers)
-        f_avg   = pool.submit(_fetch_ticker_avg_volume, symbol, headers)
-        f_fund  = pool.submit(_fetch_fundamentals, symbol)
-        asset    = f_asset.result()
-        snapshot = f_snap.result()
-        news     = f_news.result()
-        avg_vol  = f_avg.result()
-        fundamentals = f_fund.result()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_fast = pool.submit(_build_ticker_fast, symbol, base_url, headers, feed)
+        f_slow = pool.submit(_build_ticker_slow, symbol, headers)
+        fast = f_fast.result()
+        slow = f_slow.result()
 
+    snapshot = fast.get("snapshot") or {}
     # Single-feed rule: when discovery=ibkr, do NOT fall back to Alpaca if IBKR
-    # returns an empty snapshot. Return the empty snapshot so the frontend shows
-    # a clear empty/loading state rather than mixing IBKR quotes with Alpaca prices.
-    # Matches _build_ticker_fast and chart_bars.fetch_chart_bars (both hard-fail).
+    # returns an empty snapshot.
     if use_ibkr and not snapshot:
         logger.warning("ticker REST: IBKR snapshot empty for %s — returning empty (no Alpaca fallback)", symbol)
 
+    avg_vol = slow.get("avg_volume") if slow.get("avg_volume") is not None else fast.get("avg_volume")
     daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
-    rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None
+    rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else fast.get("rel_volume")
+    news = slow.get("news") or []
     rvol5 = _rvol_5min_fields(symbol, avg_vol, daily_vol)
 
     from news.enrich import build_ticker_news_impact
     return {
         "symbol": symbol,
-        "asset": asset,
+        "asset": fast.get("asset") or {},
         "snapshot": snapshot,
         "avg_volume": avg_vol,
         "rel_volume": rel_vol,
         **rvol5,
         "news": news,
-        "fundamentals": fundamentals,
+        "fundamentals": slow.get("fundamentals") or {},
         "news_impact": build_ticker_news_impact(symbol, news, snapshot, rel_vol),
+        "mode": fast.get("mode"),
     }
