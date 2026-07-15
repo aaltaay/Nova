@@ -47,6 +47,15 @@ Optional: `.\scripts\smoke_check.ps1 -Base http://127.0.0.1:8000 -SampleSymbol S
    - Chart replaces A candles with B
 3. Click back to A → same checks
 
+**2026-07-15 — PASS (automated via `agent-browser`, live Gateway connected).** Rapidly
+switched five Gainers rows (AEHG → KUST → VTAK → AEHR → JLHL, and back to AEHR/JLHL) with
+Level 2 + Time & Sales + chart visible. Quote symbol, depth book, and chart price always
+matched the just-selected symbol on both first visit and revisit; no leftover rows from a
+prior symbol; no console errors or React crash warnings during the switching sequence. See
+`CHANGELOG.md` 2026-07-15 "Live-verified rapid symbol-switch quote panel" for detail. This
+item no longer requires a human to run manually — re-run any time via `agent-browser` with
+Gateway logged in.
+
 ## HOD Momo
 
 - [ ] HOD tab loads; alerts stream when the shortlist is active
