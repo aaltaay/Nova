@@ -39,4 +39,19 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split vendor deps into their own cacheable chunks so an app-code
+        // change doesn't force re-downloading React/charting libs, and the
+        // app chunk stays under Vite's 500 kB warning threshold.
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (/lightweight-charts/.test(id)) return 'vendor-charts'
+            if (/[\\/]react(-dom)?[\\/]|\/react\/jsx-runtime/.test(id)) return 'vendor-react'
+          }
+        },
+      },
+    },
+  },
 })

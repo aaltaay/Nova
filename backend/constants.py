@@ -26,6 +26,13 @@ CLIENT_ERRORS_ENABLED = True
 CLIENT_ERRORS_MAX_BODY_BYTES = 16_384
 CLIENT_ERRORS_MAX_MESSAGE_CHARS = 2_000
 
+# ── CORS ─────────────────────────────────────────────────────────────────────
+# Local dev default: any origin (Vite runs on a fixed localhost port, no
+# cookies/credentials are used). Override for non-local deploys with the
+# NOVA_CORS_ALLOWED_ORIGINS env var (comma-separated exact origins, e.g.
+# "https://nova.up.railway.app,https://nova.vercel.app").
+CORS_ALLOWED_ORIGINS_DEFAULT = ["*"]
+
 # ── Minimum price filter ─────────────────────────────────────────────────────
 # exclude any stock priced below $0.50 (applies to gappers and gainers)
 SCANNER_MIN_PRICE = 0.50

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -29,6 +30,7 @@ from cache import (
     load_movers_snapshot,
 )
 from constants import (
+    CORS_ALLOWED_ORIGINS_DEFAULT,
     HISTORY_RETENTION_DAYS,
     IBKR_DETAIL_STREAM_FRESH_SEC,
     L2_RETENTION_SWEEP_INTERVAL_SEC,
@@ -60,11 +62,24 @@ def _m():
 
 def configure_cors(app: FastAPI) -> None:
     """Register the CORS middleware — extracted out of main.py's app factory
-    (see backend-modularity rule) so that file stays under the file-size limit."""
+    (see backend-modularity rule) so that file stays under the file-size limit.
+
+    Origins default to "*" for local dev (see centralized-constants.mdc);
+    set NOVA_CORS_ALLOWED_ORIGINS (comma-separated) to lock this down for any
+    non-local deploy. Nova's frontend never sends cookies/auth credentials, so
+    allow_credentials stays False — required anyway for a wildcard origin per
+    the CORS spec.
+    """
+    origins_env = os.environ.get("NOVA_CORS_ALLOWED_ORIGINS", "").strip()
+    origins = (
+        [o.strip() for o in origins_env.split(",") if o.strip()]
+        if origins_env
+        else CORS_ALLOWED_ORIGINS_DEFAULT
+    )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=origins,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )

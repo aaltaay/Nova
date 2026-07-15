@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Configurable CORS + frontend vendor chunk-splitting
+
+- **What:** CORS origins are now configurable via `NOVA_CORS_ALLOWED_ORIGINS` (comma-separated), defaulting to `CORS_ALLOWED_ORIGINS_DEFAULT = ["*"]` for local dev; `allow_credentials` dropped to `False` since the frontend never sends cookies/auth (also fixes the spec-invalid `*` + `credentials=True` combo). Vite build now splits `react`/`react-dom` and the `lightweight-charts*` libs into dedicated vendor chunks via `manualChunks` in `vite.config.ts`.
+- **Why:** Last two "optional low-priority" items from the 2026-07-14/15 codebase audit (`allow_origins=["*"]` before non-local deploy, and the ~673 kB app bundle warning).
+- **Files touched:** `backend/constants.py`, `backend/app_lifespan.py`, `frontend/vite.config.ts`, `frontend/.env.example`.
+- **How it works now:** `configure_cors()` reads `NOVA_CORS_ALLOWED_ORIGINS` at startup; unset (local dev) keeps the permissive `*` default, set it on the Railway/Vercel backend once the frontend has a real deployed origin to lock CORS down. The app JS chunk dropped from ~673 kB to ~168 kB after code-splitting; `vendor-react` (~190 kB) and `vendor-charts` (~505 kB) are now separate, independently cacheable chunks — the charting-library chunk still exceeds Vite's 500 kB warning threshold, which is expected and fine since it rarely changes between deploys.
+- **Verified by:** `pytest` 399 passed; `npm run build` clean (verified new chunk sizes); `npx vitest run` 60 passed.
+- **Follow-ups:** None — this closes out the last two audit pickups from 2026-07-15.
+
 ## 2026-07-15 — Fix reset_config(12) off-by-one and stale-symbol fundamentals queueing in HOD Momo debug path
 
 - **What:** Fixed the two latent bugs flagged (but deliberately not fixed) in the `hod_momo.py` module-split entry below: (1) `reset_config()` now accepts strategy ID 12 ("Running Up Alert") by checking against `HOD_MOMO_STRATEGY_ID_MAX + 1` instead of a hardcoded `range(1, 12)`; (2) `_would_fire_now()` (the HOD Momo debug-symbol evaluator) now calls `mark_needs_fundamentals(symbol)` with its own `symbol` argument instead of routing through the `_active_symbol_name` global that only the live `on_trade_update` path sets, so it no longer queues a stale/wrong ticker for fundamentals.
