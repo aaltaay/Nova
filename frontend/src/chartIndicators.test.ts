@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { computeMacdPane, computeRsiPane, rawBarsToIndicatorBars, toggleIndicator } from './chartIndicators';
+import {
+  computeEmaLine,
+  computeEmaOverlays,
+  computeMacdPane,
+  computeRsiPane,
+  computeVwapLine,
+  rawBarsToIndicatorBars,
+  toggleIndicator,
+} from './chartIndicators';
+import { CHART_EMA_LENGTHS } from './constants';
 import type { RawBar } from './tickerChartData';
 
 function makeBars(n: number): RawBar[] {
@@ -44,9 +53,28 @@ describe('chartIndicators (library adapters)', () => {
     expect(signal.length).toBeGreaterThan(0);
   });
 
+  it('computes finite 9/20/50/200 EMA overlays via EMA.calculate', () => {
+    const bars = rawBarsToIndicatorBars(makeBars(220), '1Min');
+    const emas = computeEmaOverlays(bars);
+    for (const length of CHART_EMA_LENGTHS) {
+      expect(emas[length].length).toBeGreaterThan(0);
+      expect(emas[length].every(p => Number.isFinite(p.value))).toBe(true);
+    }
+    const ema9 = computeEmaLine(bars, 9);
+    expect(ema9.length).toBe(emas[9].length);
+  });
+
+  it('computes finite VWAP via VwapMvwapEmaCrossover plot0', () => {
+    const bars = rawBarsToIndicatorBars(makeBars(40), '1Min');
+    const vwap = computeVwapLine(bars);
+    expect(vwap.length).toBeGreaterThan(0);
+    expect(vwap.every(p => Number.isFinite(p.value))).toBe(true);
+  });
+
   it('toggles indicator ids without duplicates', () => {
     expect(toggleIndicator([], 'rsi')).toEqual(['rsi']);
     expect(toggleIndicator(['rsi'], 'macd')).toEqual(['rsi', 'macd']);
     expect(toggleIndicator(['rsi', 'macd'], 'rsi')).toEqual(['macd']);
+    expect(toggleIndicator(['emas', 'vwap'], 'emas')).toEqual(['vwap']);
   });
 });

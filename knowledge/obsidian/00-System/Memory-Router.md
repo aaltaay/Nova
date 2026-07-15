@@ -19,3 +19,8 @@ This note is the human-readable twin of `tools/course_memory/recall.py`.
 3. **Model prior knowledge** (lowest — never override 1–2)
 
 If Pinecone is empty (not ingested yet), say so and fall back to Obsidian + ask to run ingest.
+
+## Library inventory
+
+On-disk Warrior materials + merge rule: [[Warrior-Trading/Local-Library-Inventory]], [[Warrior-Trading-Library-Merge]].  
+Course table: [[Course-Index]].

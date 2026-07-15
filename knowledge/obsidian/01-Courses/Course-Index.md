@@ -1,17 +1,26 @@
 # Course Index
 
+Updated **2026-07-14** — see [[Warrior-Trading/Local-Library-Inventory]] and [[Warrior-Trading-Library-Merge]].
+
 | # | Course | PDFs on disk | In Pinecone |
 |---|---|---|---|
 | 1 | Day Trading - The Basics | Yes | Yes (ingested) |
-| 2 | Day Trading - Strategies & Scaling | Yes | Yes (ingested) |
+| 2 | Day Trading - Strategies & Scaling | Yes (+ ss-07, ss-16…20 added 2026-07-14) | Yes (new 1pp upserted 2026-07-14) |
 | 3 | Live Trading Archives | No slides found | — |
-| 4 | Trader Rehab | No slides found | — |
-| 5 | Platform Demos & Layouts | No slides found | — |
+| 4 | Trader Rehab | `trader-rehab-complete.pdf` | Yes (ingested 2026-07-14) |
+| 5 | Platform Demos & Layouts | DAS/TOS/Sterling packs + TOS PDFs | TOS PDFs ingested 2026-07-14 |
 | 6 | Trading Psychology | No slides found | — |
 | 7 | Algo Scalping Strategy | Yes | Yes (ingested) |
-| 8–12 | IRA / Interviews / Grad courses | No slides found | — |
+| 8 | Day Trading in an IRA | No slides found | — |
+| 9 | Member Interviews | No slides found | — |
+| 10 | Grad — High Volatility Momentum (Jess) | `jess-course.pdf` | Yes (ingested 2026-07-14) |
+| 11 | Grad — Thinkorswim Momentum (Danny) | `danny-course.pdf` | Yes (ingested 2026-07-14) |
+| 12 | Grad — Scalping Small Cap (Max) | `max-course.pdf` | Yes (ingested 2026-07-14) |
+
+**Free ebook / Excel / eSignal:** `downloads/warrior-trading-resources/` — ebook ingested to Pinecone as course `0. Free Resources` (2026-07-14).
 
 PDF root: `downloads/warrior-trading-slides/`  
+Resources root: `downloads/warrior-trading-resources/`  
 Video root: `downloads/warrior-trading-videos/` (local only — gitignored under `downloads/`)  
 **Full transcripts (local only):** `downloads/warrior-trading-caption-notes/{BA101,SS101,LTA,DE101}/`  
 Pinecone index: `nova-warrior-courses` · namespace: `warrior-slides` · slide PDFs (transcript ingest optional)

@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Chart maximize collided with app header; bars blanked then loaded late
+
+- **Symptom:** Maximize chart → Nova header / Symbol Look Up mixed into chart toolbar; candlesticks missing then appeared much later.
+- **Cause:** `.side-panel` `container-type: inline-size` made `position: fixed` relative to the panel, not the viewport. Chart `useEffect` listed `maximized` as a dependency, so toggle destroyed and recreated lightweight-charts (empty until refetch).
+- **Fix:** Stable portal host reparented to `document.body` while maximized; remove `maximized` from chart create deps; resize in place; Escape to restore.
+- **Keywords:** chart maximize, header overlap, container-type, position fixed, side-panel, createPortal, lightweight-charts remount
+
 ## 2026-07-15 — HOD Momo alerts wiped on every API restart after 4 AM ET
 
 - **Symptom:** Full-day HOD list (~1000 alerts) shrank to ~90 after restarting the backend; UI scroll ended because the data was gone, not because of virtualization.

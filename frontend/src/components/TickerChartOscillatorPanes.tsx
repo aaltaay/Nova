@@ -9,7 +9,7 @@ import {
 } from 'lightweight-charts';
 import {
   CHART_INDICATOR_PANE_HEIGHT,
-  type ChartIndicatorId,
+  type ChartOscillatorId,
 } from '../constants';
 import {
   computeMacdPane,
@@ -20,7 +20,7 @@ import {
 interface Props {
   parentChart: IChartApi | null;
   bars: IndicatorBar[];
-  enabled: ChartIndicatorId[];
+  enabled: ChartOscillatorId[];
 }
 
 /**

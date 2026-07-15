@@ -30,6 +30,23 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Dashboard tab + exchange filter
+
+- **What:** Added a Dashboard tab before Gappers with a multi-select exchange dropdown (NASDAQ checked by default). The exchange filter applies across Dashboard, Gappers, Gainers, After Hours — rows from unchecked venues disappear everywhere. Selection persists via `localStorage`.
+- **Why:** User wants to focus on NASDAQ (or chosen exchanges) without seeing AMEX/BATS/etc. noise across all scanner tabs.
+- **Files touched:** `frontend/src/constants.ts`, `frontend/src/components/TabNav.tsx`, `frontend/src/hooks/useExchangeFilter.ts`, `frontend/src/components/ExchangeFilterDropdown.tsx`, `frontend/src/pages/DashboardTab.tsx`, `frontend/src/pages/DashboardPage.tsx`, `frontend/src/index.css`, `frontend/src/hooks/useExchangeFilter.test.ts`.
+- **How it works now:** `useExchangeFilter` (singleton in DashboardPage) holds the selected exchanges and exposes `filterRows()`. Dashboard tab renders a toolbar with sub-tabs (Gappers/Gainers/Losers) + the `ExchangeFilterDropdown`. `DashboardPage` filters all scanner arrays and passes them to both `DashboardTab` and `ScannerTabPanels`. App opens on Dashboard by default; tab counts reflect the filtered lists.
+- **Verified by:** `npm run build` clean + `vitest run` 5/5 pass; live app smoke check.
+
+## 2026-07-15 — Chart maximize: fix header collision + blank candles
+
+- **What:** Maximizing the price chart now covers the true viewport (above the app header) without remounting the lightweight-charts instance. Escape restores; body scroll locks while open.
+- **Why:** Maximize used `position: fixed` inside `.side-panel` (`container-type: inline-size`), so the overlay was trapped in the panel and collided with the Nova header. Chart effect also depended on `maximized`, destroying/recreating the chart and making bars appear much later.
+- **Files touched:** `frontend/src/TickerChart.tsx`, `frontend/src/hooks/useMaximizedChartPortal.ts`, `frontend/src/index.css`.
+- **How it works now:** A stable portal host moves between an in-flow slot and `document.body` on maximize. Chart create effect no longer depends on `maximized` — only ResizeObserver / a post-toggle resize pass.
+- **Verified by:** frontend build + local app; maximize click path.
+- **Related:** PROBLEM_LOG 2026-07-15 chart maximize header.
+
 ## 2026-07-15 — HOD Momo: stop wiping today's alerts on API restart
 
 - **What:** Fixed a false "session rollover" on every cold start after 4 AM ET that cleared alerts just loaded from disk, then overwrote today's snapshot with the tiny post-restart list. Real day changes now archive the previous day's alerts before clearing. Added explicit **Clear today** (`DELETE /api/hod-momo/alerts`) so only the user wipes the feed.

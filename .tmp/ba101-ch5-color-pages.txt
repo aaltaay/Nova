@@ -1,0 +1,65 @@
+--- page 23 ---
+Long Body Candles
+A Long Body Candle shows extreme strength in the market.  The price 
+opens at the bottom of the candle, then surges and closes at the top of 
+the candle.  This is a very bullish indicator.  
+This is the same with long body red candles.  They are a sign of extreme 
+weakness.  
+
+
+--- page 28 ---
+Doji Candles
+In order for a Doji candle to be created, the price must open, then 
+fall, then rise, then close back at more or less the same price.  
+Doji candles are considered candles of indecision. 
+Indecision after a strong trend indicates a possible reversal. 
+Therefore we pay close attention to Doji Candles at the top or 
+bottom of a long series of trending candles.
+
+
+--- page 50 ---
+Bearish Engulﬁng Candles
+A Bearish Engulﬁng Candles is one of the worst candles we can see while 
+holding a long position.  It’s a sure sign of weakness, as the red candle is 
+larger than the entire candle that preceded it. 
+
+
+--- page 133 ---
+My Favorite Moving Averages
+9 Period EMA (Grey)
+20 Period EMA (Light Blue)
+200 Period EMA (Purple)
+I use these on all time frames (10 second, 1 minute, 5 minute, daily, etc)
+
+
+--- page 134 ---
+Moving Average
+Settings
+Source = Close
+Length = 9, 20, 200
+ALL TIME FRAMES
+Because the 200 SMA is used by many 
+trades on the Daily, I add it to my daily 
+chart in addition to the others. I put it in 
+a dotted purple line.
+
+
+--- page 144 ---
+2. VWAP
+The VWAP is the Volume Weighted 
+Average Price.  Like a moving average, 
+this is an average price of a stock.  
+What is unique is that it takes into 
+account the amount of volume at each 
+price.  Like exponential moving 
+averages, it gives us more information 
+than a simple moving average.
+VWAP is Orange Dotted Line.
+
+
+--- page 154 ---
+Weak Daily Chart
+Recent drop, below the 200 EMA. 
+History of bigger red candles on 
+the daily.
+

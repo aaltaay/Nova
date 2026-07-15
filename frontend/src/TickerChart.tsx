@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   createChart,
   CandlestickSeries,
@@ -27,12 +28,17 @@ import {
   CHART_HEIGHT_GRID,
   CHART_MOCK_BAR_COUNT,
   CHART_MOCK_BASE_PRICE,
+  CHART_DEFAULT_INDICATORS,
+  CHART_OSCILLATOR_IDS,
   CHART_REFETCH_SEC,
   type ChartIndicatorId,
+  type ChartOscillatorId,
 } from './constants';
 import { TickerChartControls } from './components/TickerChartControls';
 import { TickerChartErrorBoundary } from './components/TickerChartErrorBoundary';
+import { TickerChartOverlays } from './components/TickerChartOverlays';
 import { TickerChartOscillatorPanes } from './components/TickerChartOscillatorPanes';
+import { useMaximizedChartPortal } from './hooks/useMaximizedChartPortal';
 import {
   rawBarsToIndicatorBars,
   toggleIndicator,
@@ -102,10 +108,20 @@ function TickerChartInner({
   const [usingMock, setUsingMock] = useState(false);
   const [activeTool, setActiveTool] = useState<string | null>(null);
   const [maximized, setMaximized] = useState(false);
-  const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicatorId[]>([]);
+  const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicatorId[]>(
+    () => [...CHART_DEFAULT_INDICATORS],
+  );
   const [indicatorBars, setIndicatorBars] = useState<IndicatorBar[]>([]);
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
+  const oscillatorEnabled = enabledIndicators.filter((id): id is ChartOscillatorId =>
+    (CHART_OSCILLATOR_IDS as readonly ChartOscillatorId[]).includes(id as ChartOscillatorId),
+  );
   const fillParentHeight = variant === 'grid' || maximized;
+  const { slotRef, host } = useMaximizedChartPortal(maximized);
+  const fillParentHeightRef = useRef(fillParentHeight);
+  const chartHeightRef = useRef(chartHeight);
+  fillParentHeightRef.current = fillParentHeight;
+  chartHeightRef.current = chartHeight;
 
   const lastCandleRef = useRef<CandlestickData<Time> | null>(null);
   const prevTradeTsRef = useRef<string | null>(null);
@@ -190,9 +206,10 @@ function TickerChartInner({
 
     const ro = new ResizeObserver(() => {
       if (!containerRef.current) return;
-      const h = fillParentHeight
-        ? Math.max(containerRef.current.clientHeight || chartHeight, chartHeight)
-        : chartHeight;
+      const ch = chartHeightRef.current;
+      const h = fillParentHeightRef.current
+        ? Math.max(containerRef.current.clientHeight || ch, ch)
+        : ch;
       chart.applyOptions({
         width: containerRef.current.clientWidth,
         height: h,
@@ -211,7 +228,7 @@ function TickerChartInner({
       volSeriesRef.current = null;
       managerRef.current = null;
     };
-  }, [maximized, chartHeight, fillParentHeight, handleChartClick]);
+  }, [handleChartClick]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -223,13 +240,17 @@ function TickerChartInner({
   }, [activeTool]);
 
   useEffect(() => {
-    if (!activeTool) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setActiveTool(null);
+      if (e.key !== 'Escape') return;
+      if (activeToolRef.current) {
+        setActiveTool(null);
+        return;
+      }
+      if (maximized) setMaximized(false);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeTool]);
+  }, [maximized]);
 
   useEffect(() => {
     const manager = managerRef.current;
@@ -238,7 +259,20 @@ function TickerChartInner({
       setActiveTool(null);
     });
     return unsub;
-  }, [maximized]);
+  }, [chartApi]);
+
+  // Reparenting the portal host changes size; ResizeObserver usually catches it,
+  // but apply once after maximize toggle so the canvas never stays panel-sized.
+  useEffect(() => {
+    const container = containerRef.current;
+    const chart = chartRef.current;
+    if (!container || !chart) return;
+    const ch = chartHeightRef.current;
+    const h = fillParentHeightRef.current
+      ? Math.max(container.clientHeight || ch, ch)
+      : ch;
+    chart.applyOptions({ width: container.clientWidth, height: h });
+  }, [maximized, fillParentHeight, chartHeight]);
 
   const lastTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);
   useEffect(() => {
@@ -378,7 +412,7 @@ function TickerChartInner({
     setEnabledIndicators(prev => toggleIndicator(prev, id));
   }
 
-  return (
+  const card = (
     <div className={`chart-card${maximized ? ' chart-card--maximized' : ''}${variant === 'grid' ? ' chart-card--grid' : ''}`}>
       <TickerChartControls
         activeTool={activeTool}
@@ -400,13 +434,28 @@ function TickerChartInner({
         {loading && <div className="chart-overlay">Loading…</div>}
         {!loading && error && <div className="chart-overlay chart-overlay--error">{error}</div>}
       </div>
-      {enabledIndicators.length > 0 && (
+      <TickerChartOverlays
+        chart={chartApi}
+        bars={indicatorBars}
+        enabled={enabledIndicators}
+      />
+      {oscillatorEnabled.length > 0 && (
         <TickerChartOscillatorPanes
           parentChart={chartApi}
           bars={indicatorBars}
-          enabled={enabledIndicators}
+          enabled={oscillatorEnabled}
         />
       )}
+    </div>
+  );
+
+  return (
+    <div
+      ref={slotRef}
+      className={`chart-portal-slot${maximized ? ' chart-portal-slot--maximized' : ''}`}
+      style={maximized ? { minHeight: chartHeight } : undefined}
+    >
+      {createPortal(card, host)}
     </div>
   );
 }

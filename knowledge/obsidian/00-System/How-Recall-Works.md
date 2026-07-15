@@ -16,8 +16,10 @@ There is no honest “100% word-perfect” guarantee for any ASR/caption pipelin
 
 | Store | Holds | Use when |
 |---|---|---|
-| **Pinecone** | Course slide PDFs + official LMS caption transcripts | “What does the course say…?”, rules, definitions, setups |
-| **Obsidian** | Curated decisions/roadmap + keyword search over official transcripts on disk | “What should Nova automate?” plus course keyword hits |
+| **Pinecone** | Course slide PDFs + free ebook + grad/rehab PDFs + official LMS caption transcripts | “What does the course say…?”, rules, definitions, setups |
+| **Obsidian** | Curated decisions/roadmap + library inventory + keyword search over official transcripts on disk | “What should Nova automate?” plus course keyword hits |
+
+Library paths / de-dupe rule: [[Warrior-Trading/Local-Library-Inventory]], [[Warrior-Trading-Library-Merge]].
 
 Full transcripts stay under gitignored `downloads/warrior-trading-caption-notes/` so paid course text is not committed. Obsidian recall also searches that folder for official-caption files.
 

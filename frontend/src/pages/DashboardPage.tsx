@@ -13,12 +13,14 @@ import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
 import { SidePanel } from '../components/SidePanel';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { ScannerTabPanels } from '../components/ScannerTabPanels';
+import { DashboardTab } from './DashboardTab';
 import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { ReportsTab } from '../reports/ReportsTab';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSettingsForm } from '../hooks/useSettingsForm';
+import { useExchangeFilter } from '../hooks/useExchangeFilter';
 import { scanAgeForTab } from '../utils/scanAge';
 import { API_BASE_URL } from '../constants';
 
@@ -29,8 +31,9 @@ interface Props {
 }
 
 export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading }: Props) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('gappers');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [tabOverridden, setTabOverridden] = useState(false);
+  const exchangeFilter = useExchangeFilter();
   const [showHodSettings, setShowHodSettings] = useState(false);
   const watchlist = useWatchlist(true);
   const hodMomoStream = useHodMomoStream();
@@ -51,9 +54,15 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
 
   useEffect(() => {
     if (!tabOverridden) {
-      if (scanner.mode === 'market') setActiveTab('movers');
-      else if (scanner.mode === 'afterhours') setActiveTab('afterhours');
-      else setActiveTab('gappers');
+      // Keep user on Dashboard; mode-based tab switching only after they navigate away
+      setActiveTab(prev => {
+        if (prev !== 'dashboard') {
+          if (scanner.mode === 'market') return 'movers';
+          if (scanner.mode === 'afterhours') return 'afterhours';
+          return 'gappers';
+        }
+        return prev;
+      });
     }
   }, [scanner.mode, tabOverridden]);
 
@@ -77,6 +86,12 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
     activeTab === 'movers' ||
     activeTab === 'afterhours' ||
     activeTab === 'catalysts';
+
+  // Exchange-filtered arrays — applied to scanner tabs and Dashboard
+  const filteredGappers = exchangeFilter.filterRows(scanner.gappers);
+  const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
+  const filteredLosers  = exchangeFilter.filterRows(scanner.losers);
+  const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
 
   return (
     <div className="container">
@@ -129,9 +144,9 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
               setTabOverridden(true);
             }}
             counts={{
-              gappers: scanner.gappers.length,
-              movers: scanner.gainers.length + scanner.losers.length,
-              afterhours: scanner.afterhours.length,
+              gappers: filteredGappers.length,
+              movers: filteredGainers.length + filteredLosers.length,
+              afterhours: filteredAfterhours.length,
               catalysts: scanner.catalysts.length,
               hodMomo: hodMomoStream.totalToday || hodMomoStream.alerts.length,
               watchlist: watchlist.entries.length,
@@ -153,16 +168,35 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
             </div>
           )}
 
+          {activeTab === 'dashboard' && (
+            <DashboardTab
+              filter={exchangeFilter}
+              apiKey={settings.apiKey}
+              onApiKeyChange={settings.setApiKey}
+              apiSecret={settings.apiSecret}
+              onApiSecretChange={settings.setApiSecret}
+              baseUrl={settings.baseUrl}
+              onBaseUrlChange={settings.setBaseUrl}
+              dataFeed={settings.dataFeed}
+              onDataFeedChange={settings.setDataFeed}
+              dataFeedOptions={settings.dataFeedOptions}
+              discoveryProvider={settings.discoveryProvider}
+              onDiscoveryProviderChange={settings.setDiscoveryProvider}
+              discoveryProviderOptions={settings.discoveryProviderOptions}
+              onSubmit={settings.handleConfigUpdate}
+            />
+          )}
+
           {scannerTab && (
             <ScannerTabPanels
               activeTab={activeTab}
               mode={scanner.mode}
               health={scanner.health}
               discoveryProvider={settings.discoveryProvider}
-              gappers={scanner.gappers}
-              gainers={scanner.gainers}
-              losers={scanner.losers}
-              afterhours={scanner.afterhours}
+              gappers={filteredGappers}
+              gainers={filteredGainers}
+              losers={filteredLosers}
+              afterhours={filteredAfterhours}
               catalysts={scanner.catalysts}
               watchlistEntries={watchlist.entries}
               selectedSymbol={selectedSymbol}

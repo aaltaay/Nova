@@ -934,6 +934,102 @@ th {
   font-size: 0.8rem;
 }
 
+/* ── Dashboard tab (config page) ─────────────────────────────────────────────── */
+
+.dashboard-tab {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-config {
+  padding: 1.25rem 1rem;
+  gap: 1.75rem;
+  max-width: 560px;
+}
+
+.dashboard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dashboard-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.dashboard-section-title {
+  margin: 0 0 0.1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.dashboard-section-hint {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.dashboard-settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── Exchange filter button ──────────────────────────────────────────────────── */
+
+.exchange-filter-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 0.77rem;
+  padding: 0.25rem 0.55rem;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s;
+  margin: 0.3rem 0;
+}
+
+.exchange-filter-btn:hover {
+  border-color: var(--accent-color);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.exchange-filter-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.exchange-filter-summary {
+  color: var(--accent-color);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exchange-filter-caret {
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+}
+
+.exchange-filter-dropdown {
+  left: 0;
+  right: auto;
+  min-width: 180px;
+  top: calc(100% + 2px);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
 /* ── Dense dual-value scanner cells (Change, Volume, Short Int.) ────────────── */
 
 .cell-stack {
@@ -2730,6 +2826,10 @@ th {
   font-weight: 600;
   color: var(--text-primary);
   border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background: var(--card-bg);
+  z-index: 1;
 }
 
 .hod-filter-close {
@@ -3451,20 +3551,57 @@ th {
 
 /* ── Chart Maximized Overlay ────────────────────────────────────────────── */
 
-.chart-card--maximized {
+.chart-portal-slot {
+  display: block;
+}
+
+.chart-portal-slot--maximized {
+  /* Reserve panel height so the side panel does not jump when host moves to body */
+  width: 100%;
+}
+
+.chart-portal-host {
+  display: block;
+  width: 100%;
+}
+
+.chart-portal-host--maximized {
+  display: flex;
+  flex-direction: column;
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 10000;
+  background: var(--panel-bg, #161921);
+}
+
+body.chart-maximized-open {
+  overflow: hidden;
+}
+
+.chart-card--maximized {
   margin: 0;
   border: none;
   border-radius: 0;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel-bg, #161921);
+}
+
+.chart-card--maximized .chart-header,
+.chart-card--maximized .chart-toolbar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  flex-shrink: 0;
 }
 
 .chart-card--maximized .chart-body {
   flex: 1;
   height: 0; /* let flex handle sizing */
+  min-height: 0;
 }
 
 .chart-mock-badge {

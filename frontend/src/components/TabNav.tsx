@@ -3,7 +3,7 @@
  * Extracted from App.tsx to keep it under its 150-line target.
  * Tab row is tabs-only; scan age / data source live in AppHeader.
  */
-export type ActiveTab = 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo' | 'trading' | 'strategy' | 'reports';
+export type ActiveTab = 'dashboard' | 'gappers' | 'movers' | 'afterhours' | 'catalysts' | 'hod_momo' | 'trading' | 'strategy' | 'reports';
 
 interface Props {
   activeTab: ActiveTab;
@@ -22,6 +22,12 @@ export function TabNav({ activeTab, onTabClick, counts }: Props) {
   return (
     <div className="tab-bar">
       <div className="tab-bar-scroll">
+        <button
+          className={`tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => onTabClick('dashboard')}
+        >
+          Dashboard
+        </button>
         <button
           className={`tab ${activeTab === 'gappers' ? 'active' : ''}`}
           onClick={() => onTabClick('gappers')}

@@ -1,15 +1,17 @@
 /**
- * Adapters around lightweight-charts-indicators (RSI / MACD and later peers).
+ * Adapters around lightweight-charts-indicators (EMA / VWAP / RSI / MACD).
  * Calculation stays in the library — this file only maps Nova bars ↔ plot series.
  */
-import { RSI, MACD } from 'lightweight-charts-indicators';
+import { EMA, MACD, RSI, VwapMvwapEmaCrossover } from 'lightweight-charts-indicators';
 import type { Time, LineData, HistogramData } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import {
+  CHART_EMA_LENGTHS,
   CHART_MACD_FAST,
   CHART_MACD_SIGNAL,
   CHART_MACD_SLOW,
   CHART_RSI_LENGTH,
+  type ChartEmaLength,
   type ChartIndicatorId,
 } from './constants';
 import { isoToEtTime, type RawBar } from './tickerChartData';
@@ -67,6 +69,34 @@ export interface MacdPaneData {
   histogram: HistogramData<Time>[];
   macd: LineData<Time>[];
   signal: LineData<Time>[];
+}
+
+export type EmaOverlayData = Record<ChartEmaLength, LineData<Time>[]>;
+
+export function computeEmaLine(bars: IndicatorBar[], length: ChartEmaLength): LineData<Time>[] {
+  const result = EMA.calculate(bars, {
+    length,
+    src: 'close',
+    offset: 0,
+    maType: 'None',
+    maLength: length,
+    bbMult: 2,
+  });
+  return finiteLinePoints(result.plots.plot0);
+}
+
+export function computeEmaOverlays(bars: IndicatorBar[]): EmaOverlayData {
+  const out = {} as EmaOverlayData;
+  for (const length of CHART_EMA_LENGTHS) {
+    out[length] = computeEmaLine(bars, length);
+  }
+  return out;
+}
+
+/** Session-style VWAP from library community indicator — take plot0 only. */
+export function computeVwapLine(bars: IndicatorBar[]): LineData<Time>[] {
+  const result = VwapMvwapEmaCrossover.calculate(bars, { vwapLength: 1 });
+  return finiteLinePoints(result.plots.plot0);
 }
 
 export function computeRsiPane(bars: IndicatorBar[]): RsiPaneData {

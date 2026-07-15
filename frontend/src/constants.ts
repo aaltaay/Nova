@@ -146,6 +146,18 @@ export const DATA_FEED_LABELS: Record<string, string> = {
   sip: 'SIP (Paid)',
 };
 
+// ── Dashboard tab ─────────────────────────────────────────────────────────────
+/** Max rows shown per section on the Dashboard snapshot view. */
+export const DASHBOARD_TOP_N = 50;
+
+// ── Exchange filter (Dashboard + scanner tabs) ────────────────────────────────
+/** All exchanges that can appear in scanner rows. Displayed in order in the dropdown. */
+export const SCANNER_EXCHANGE_OPTIONS = ['NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS', 'IEX', 'CBOE'] as const;
+/** Exchanges selected by default (NASDAQ only). */
+export const SCANNER_EXCHANGE_DEFAULTS: string[] = ['NASDAQ'];
+/** localStorage key used by useExchangeFilter. */
+export const SCANNER_EXCHANGE_STORAGE_KEY = 'nova_exchange_filter_v1';
+
 // ── Discovery provider (mirrors backend DISCOVERY_PROVIDER_DEFAULT / _OPTIONS) ─
 // Which source powers gappers/gainers/losers: Alpaca's free screener, or a live
 // scan through the user's own IBKR Gateway connection. Reversible any time via
@@ -250,12 +262,40 @@ export const CHART_REFETCH_SEC: Record<string, number> = {
   '4Hour': 180,
 };
 
-/** Chart oscillator toggles — computed via lightweight-charts-indicators (not hand-rolled). */
-export type ChartIndicatorId = 'rsi' | 'macd';
+/**
+ * Chart indicator toggles — computed via lightweight-charts-indicators (not hand-rolled).
+ * `emas` / `vwap` are price-pane overlays; `rsi` / `macd` are oscillator panes.
+ */
+export type ChartIndicatorId = 'emas' | 'vwap' | 'rsi' | 'macd';
+export type ChartOverlayId = 'emas' | 'vwap';
+export type ChartOscillatorId = 'rsi' | 'macd';
+
 export const CHART_INDICATORS: { id: ChartIndicatorId; label: string }[] = [
+  { id: 'emas', label: 'EMAs' },
+  { id: 'vwap', label: 'VWAP' },
   { id: 'rsi', label: 'RSI' },
   { id: 'macd', label: 'MACD' },
 ];
+
+/** Warrior-style overlays default on (Ross always shows these on the chart). */
+export const CHART_DEFAULT_INDICATORS: ChartIndicatorId[] = ['emas', 'vwap'];
+
+export const CHART_OVERLAY_IDS: ChartOverlayId[] = ['emas', 'vwap'];
+export const CHART_OSCILLATOR_IDS: ChartOscillatorId[] = ['rsi', 'macd'];
+
+/** Warrior EMA lengths: 9 / 20 / 50 / 200 (BA101 Ch.5 + free ebook). */
+export const CHART_EMA_LENGTHS = [9, 20, 50, 200] as const;
+export type ChartEmaLength = (typeof CHART_EMA_LENGTHS)[number];
+
+/** Warrior chart overlay colors (BA101 Ch.5 + ebook MA/VWAP legend). */
+export const CHART_EMA_COLORS: Record<ChartEmaLength, string> = {
+  9: '#9CA3AF',   // grey
+  20: '#7DD3FC',  // light blue
+  50: '#EF4444',  // red
+  200: '#A855F7', // purple
+};
+export const CHART_VWAP_COLOR = '#F97316'; // orange
+
 export const CHART_INDICATOR_PANE_HEIGHT = 110;
 export const CHART_RSI_LENGTH = 14;
 export const CHART_MACD_FAST = 12;
