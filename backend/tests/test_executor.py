@@ -14,25 +14,32 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import journal.db as db
+import nova_os.events_db as events_db
 import strategy.executor as executor
 import strategy.risk as risk_mod
+from constants import NOVA_OS_MODE_AUTO_PAPER, NOVA_OS_MODE_CONFIRM
 from ibkr import orders as orders_mod
+from nova_os import control_mode, staged_tickets
 
 
 @pytest.fixture(autouse=True)
 def isolated_journal_db(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(events_db, "cache_dir", lambda: tmp_path)
     db.init_db()
+    events_db.init_db()
     yield
 
 
 @pytest.fixture(autouse=True)
 def reset_executor_state():
-    executor._armed = False
+    control_mode.reset_for_tests()
+    staged_tickets.reset_for_tests()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
     yield
-    executor._armed = False
+    control_mode.reset_for_tests()
+    staged_tickets.reset_for_tests()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
 
@@ -46,6 +53,12 @@ def _approve_risk(monkeypatch, qty=100):
     monkeypatch.setattr(risk_mod, "position_size_shares", lambda: qty)
 
 
+def _enable_auto_paper():
+    """P4 rejects set_mode(auto_paper); tests poke the in-memory mode for the P5 path."""
+    control_mode._mode = NOVA_OS_MODE_AUTO_PAPER
+    executor._kill_switch_tripped = False
+
+
 class TestArmDisarmKillSwitch:
     def test_disarmed_by_default(self):
         assert executor.is_armed() is False
@@ -53,18 +66,22 @@ class TestArmDisarmKillSwitch:
     def test_arm_sets_armed_true(self):
         result = executor.arm()
         assert result["armed"] is True
+        assert result["control_mode"] == NOVA_OS_MODE_CONFIRM
         assert executor.is_armed() is True
 
     def test_disarm_sets_armed_false(self):
         executor.arm()
         result = executor.disarm()
         assert result["armed"] is False
+        assert result["control_mode"] == "signal"
         assert executor.is_armed() is False
 
-    def test_kill_switch_disarms_and_cancels_open_orders(self, monkeypatch):
+    def test_kill_switch_cancels_only_when_parent_unfilled(self, monkeypatch):
         executor.arm()
         cancelled_ids = []
-        monkeypatch.setattr(orders_mod, "cancel_order", lambda oid: cancelled_ids.append(oid))
+        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [{"order_id": 1}])
+        monkeypatch.setattr(orders_mod, "cancel_order", lambda oid: cancelled_ids.append(oid) or {"ok": True})
         executor._open_positions["AAPL"] = executor.OpenPosition(
             symbol="AAPL", setup="gap_and_go", qty=100,
             entry_price=5.0, stop_price=4.9, target_price=5.2,
@@ -75,6 +92,20 @@ class TestArmDisarmKillSwitch:
         assert result["kill_switch_tripped"] is True
         assert executor.is_armed() is False
         assert sorted(cancelled_ids) == [1, 2, 3]
+
+    def test_kill_switch_preserves_stops_when_parent_filled(self, monkeypatch):
+        executor.arm()
+        cancelled_ids = []
+        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [{"order_id": 2}, {"order_id": 3}])
+        monkeypatch.setattr(orders_mod, "cancel_order", lambda oid: cancelled_ids.append(oid) or {"ok": True})
+        executor._open_positions["AAPL"] = executor.OpenPosition(
+            symbol="AAPL", setup="gap_and_go", qty=100,
+            entry_price=5.0, stop_price=4.9, target_price=5.2,
+            parent_order_id=1, target_order_id=2, stop_order_id=3, opened_ts=time.time(),
+        )
+        executor.kill_switch()
+        assert cancelled_ids == []
 
     def test_reset_kill_switch_clears_flag_without_arming(self):
         executor.arm()
@@ -93,8 +124,18 @@ class TestOnSignal:
         assert result is None
         assert called == []
 
-    def test_skips_when_position_already_open_for_symbol(self, monkeypatch):
+    def test_confirm_stages_instead_of_placing(self, monkeypatch):
         executor.arm()
+        called = []
+        monkeypatch.setattr(orders_mod, "place_bracket_order", lambda *a, **k: called.append(1))
+        result = asyncio.run(executor.on_signal("AAPL", "gap_and_go", {**_SIGNAL, "shares": 50}))
+        assert result is not None
+        assert result["status"] == "staged"
+        assert called == []
+        assert len(staged_tickets.list_staged()) == 1
+
+    def test_skips_when_position_already_open_for_symbol(self, monkeypatch):
+        _enable_auto_paper()
         _approve_risk(monkeypatch)
         executor._open_positions["AAPL"] = executor.OpenPosition(
             symbol="AAPL", setup="gap_and_go", qty=100,
@@ -108,7 +149,7 @@ class TestOnSignal:
         assert called == []
 
     def test_skips_when_risk_halted(self, monkeypatch):
-        executor.arm()
+        _enable_auto_paper()
         monkeypatch.setattr(risk_mod, "can_trade", lambda: (False, "Daily max loss reached."))
         called = []
         monkeypatch.setattr(orders_mod, "place_bracket_order", lambda *a, **k: called.append(1))
@@ -117,7 +158,7 @@ class TestOnSignal:
         assert called == []
 
     def test_skips_when_plan_fails_validation(self, monkeypatch):
-        executor.arm()
+        _enable_auto_paper()
         monkeypatch.setattr(risk_mod, "can_trade", lambda: (True, "OK"))
         monkeypatch.setattr(risk_mod, "validate_trade_plan", lambda e, s, t: (False, ["Stop too wide."]))
         called = []
@@ -127,7 +168,7 @@ class TestOnSignal:
         assert called == []
 
     def test_skips_when_bracket_order_rejected(self, monkeypatch):
-        executor.arm()
+        _enable_auto_paper()
         _approve_risk(monkeypatch)
         monkeypatch.setattr(
             orders_mod, "place_bracket_order",
@@ -138,8 +179,8 @@ class TestOnSignal:
         assert result is None
         assert "AAPL" not in executor._open_positions
 
-    def test_places_bracket_when_all_checks_pass(self, monkeypatch):
-        executor.arm()
+    def test_places_bracket_when_auto_paper_and_checks_pass(self, monkeypatch):
+        _enable_auto_paper()
         _approve_risk(monkeypatch, qty=100)
         placed_args = []
         monkeypatch.setattr(
@@ -157,7 +198,6 @@ class TestOnSignal:
         assert pos.parent_order_id == 10
         assert pos.target_order_id == 11
         assert pos.stop_order_id == 12
-        # side, qty passed through to the order call
         assert placed_args[0][0] == "AAPL"
         assert placed_args[0][2] == 100
 

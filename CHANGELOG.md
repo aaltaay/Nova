@@ -30,6 +30,38 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Nova OS P4 confirm mode + emergency controls
+
+- **What:** In-memory control modes (`signal`/`confirm`; auto_* rejected until P5), staged-ticket queue with TTL Approve/Reject, safer kill (preserve filled protective stops), cancel-working-entry, typed FLATTEN flatten, Automation panel mode ladder + staged queue UI.
+- **Why:** Phase P4 — per-trade manual approval end-to-end with no automatic order path enabled.
+- **Files touched:** `backend/nova_os/control_mode.py`, `staged_tickets.py`, `strategy/executor.py`, `routes/executor.py`, `constants.py` (policy `nova-os-p4-2026-07-15`), `ExecutorPanel.tsx`, `useExecutor.ts`, tests.
+- **How it works now:** Restart → `signal`. Raise to Confirm stages BUY tickets (45s TTL). Approve places paper bracket. Kill → signal + reject staged + cancel unfilled parents only. Flatten requires typing `FLATTEN`.
+- **Verified by:** pytest control_mode/staged/executor; `npm run build` PASS.
+- **Follow-ups:** P5 auto_paper + restart reconciliation.
+- **Related:** [[Nova-OS-Status]] P4.
+
+- **Related:** Nova-OS-Status P4.
+
+## 2026-07-15 — Fail-loud HOD/scanner integrity checks
+
+- **What:** Continuous integrity evaluators + API + CLI + HOD tab banner so silent data-flow bugs (no ticks, surge cold-start, empty volume seeds, IBKR down, stale scanner caches) cannot look like “quiet market.”
+- **Why:** HKIT Squeeze miss was an invisible `surge:None` / empty-history bug; user asked how we make sure this class of error does not happen again across scanners.
+- **Files touched:** `hod_momo_integrity.py`, `integrity_live.py`, `hod_momo.py`, `ibkr/reprice.py`, `routes/hod_momo.py`, `routes/scan.py`, `app_lifespan.py`, `tools/hod_momo_integrity_check.py`, `HodMomoIntegrityBanner.tsx`, `HodMomoTab.tsx`, constants, tests.
+- **How it works now:** Poll `GET /api/integrity` (or `/api/hod-momo/debug/integrity`, `/api/scan/integrity`). Background loop logs `INTEGRITY FAIL/WARN`. Banner on HOD tab surfaces fail/warn. CLI: `py -3 tools/hod_momo_integrity_check.py` (exit 0/1/2).
+- **Verified by:** `pytest tests/test_hod_momo_integrity.py` + surge-seed tests; frontend build.
+- **Follow-ups:** Warrior live parity poller once real auth cookies available; fix `watch_seed_size=0` when integrity warns.
+- **Related:** PROBLEM_LOG HKIT surge:None; surge bar-seed CHANGELOG entry.
+
+## 2026-07-15 — HOD Momo Squeeze cold-start: seed surge buffer from 1-min bars
+
+- **What:** When a symbol first gets a HOD tick, Nova now seeds the Squeeze price buffer from recent 1-min bars (IBKR when discovery=ibkr), then re-evaluates strategies. Fixes `surge:None` / flat-surge misses like HKIT vs Warrior.
+- **Why:** Warrior already has tape history; Nova only started measuring after the name entered the focus watch set — too late for Up 5% in 5min.
+- **Files touched:** `backend/hod_momo_surge_seed.py`, `backend/hod_momo.py`, `backend/app_lifespan.py`, `backend/constants.py`, `backend/tests/test_hod_momo_surge_seed.py`.
+- **How it works now:** `on_trade_update` queues `request_surge_seed(sym)` once/session → background `surge_seed_loop` fetches 1Min bars → merges low+close points into `_price_buffer` → `reevaluate_after_surge_seed`. Session rollover clears seed state.
+- **Verified by:** `pytest tests/test_hod_momo_surge_seed.py` (+ existing HOD engine tests).
+- **Follow-ups:** Warrior ↔ Nova alert parity poller once real auth cookies are available (analytics cookies alone are not enough); investigate `watch_seed_size=0`.
+- **Related:** PROBLEM_LOG 2026-07-15 HKIT surge:None.
+
 ## 2026-07-15 — Nova OS Phase P3: Decision UX + attention
 
 - **What:** Watchlist **Decision** sub-tab with gate-by-gate audit UI; Signals column for Nova OS verdict; muteable attention strip/sounds; read-only `tools/nova_os_cli.py`.

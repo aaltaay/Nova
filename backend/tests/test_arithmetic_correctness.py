@@ -445,26 +445,30 @@ class TestJournalMetricsArithmetic:
 
 @pytest.fixture(autouse=False)
 def reset_executor():
-    executor._armed = False
+    from nova_os import control_mode, staged_tickets
+
+    control_mode.reset_for_tests()
+    staged_tickets.reset_for_tests()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
     yield
-    executor._armed = False
+    control_mode.reset_for_tests()
+    staged_tickets.reset_for_tests()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
 
 
 class TestExecutorTransparencyContracts:
-    def test_status_disclosure_names_paper_and_disarmed_default(self, reset_executor):
+    def test_status_disclosure_names_modes_and_signal_default(self, reset_executor):
         status = executor.status()
         assert status["armed"] is False
+        assert status["control_mode"] == "signal"
         assert status["kill_switch_tripped"] is False
         assert executor.is_armed() is False
         text = status["disclosure"]
-        assert "PAPER" in text.upper() or "paper" in text
-        assert "Disarmed by default" in text
+        assert "signal" in text.lower()
+        assert "confirm" in text.lower()
         assert "restart" in text.lower()
-        assert "IBKR_LIVE_TRADING_CONFIRMED" in text
         assert status["open_positions"] == []
 
     def test_disarmed_on_signal_never_places_and_returns_none(self, reset_executor, monkeypatch):

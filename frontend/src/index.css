@@ -1377,6 +1377,20 @@ button.linkish {
   font-size: 0.75rem;
 }
 
+.nova-os-mode-bar {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+  padding: 0.35rem 0;
+}
+
+.nova-os-staged-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
 @media (max-width: 900px) {
   .nova-os-decision-layout {
     grid-template-columns: 1fr;
@@ -2859,6 +2873,44 @@ body.is-resizing-side-panel * {
 
 .hod-connection-dot.disconnected {
   background: #ef4444;
+}
+
+.hod-integrity {
+  margin: 0.25rem 0.25rem 0;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary, #1a1a1a);
+}
+
+.hod-integrity-pass {
+  color: #86efac;
+  border-color: #166534;
+  background: #052e16;
+}
+
+.hod-integrity-warn {
+  color: #fde68a;
+  border-color: #a16207;
+  background: #422006;
+}
+
+.hod-integrity-fail,
+.hod-integrity-error {
+  color: #fecaca;
+  border-color: #991b1b;
+  background: #450a0a;
+}
+
+.hod-integrity-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.hod-integrity-id {
+  font-family: ui-monospace, monospace;
+  opacity: 0.9;
 }
 
 .hod-header-title {

@@ -150,13 +150,30 @@ export interface ExecutorOpenPosition {
   opened_ts: number;
 }
 
-/** Mirrors backend/strategy/executor.py status(). */
+/** Mirrors backend/strategy/executor.py status() — Nova OS P4 fields included. */
+export interface ExecutorStagedTicket {
+  id: string;
+  symbol: string;
+  setup: string;
+  entry: number;
+  stop: number;
+  target: number;
+  shares: number;
+  expires_at: number;
+  created_at: number;
+  [key: string]: unknown;
+}
+
 export interface ExecutorStatus {
   disclosure: string;
   armed: boolean;
+  control_mode?: string;
+  effective_mode?: string;
+  loss_policy_reason?: string | null;
   kill_switch_tripped: boolean;
   ibkr_connected: boolean;
   ibkr_mode: string;
+  staged?: ExecutorStagedTicket[];
   open_positions: ExecutorOpenPosition[];
 }
 

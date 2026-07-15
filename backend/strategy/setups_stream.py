@@ -30,6 +30,7 @@ from constants import NOVA_OS_DECISION_BUY, NOVA_OS_DEFAULT_MODE
 from journal.store import record_signal
 from l2 import recorder as _l2_recorder
 from nova_os.decide import decide as nova_os_decide
+from nova_os import staged_tickets as _staged
 from strategy import executor as _executor
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
@@ -197,6 +198,7 @@ async def scan_loop() -> None:
     """Background asyncio task — call once from the app lifespan."""
     while True:
         try:
+            _staged.expire_due()
             await _scan_once()
         except asyncio.CancelledError:
             raise

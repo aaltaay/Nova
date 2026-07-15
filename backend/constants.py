@@ -219,6 +219,22 @@ HOD_MOMO_FOCUS_REFRESH_SEC = 5.0     # how often to rebuild focus set from scann
 HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK = 200  # max symbols per Alpaca WS subscribe message
 HOD_MOMO_SESSION_RESET_HOUR_ET = 4   # reset session state at 4:00 AM ET
 HOD_MOMO_SEED_REFRESH_SEC = 30.0     # IBKR volume-scanner seed cadence
+# Squeeze surge cold-start: live ticks alone start empty, so strategy 10/11 get
+# surge:None (or ~0%) when a name first joins the focus universe mid-move.
+# Seed the rolling price buffer from recent 1-min bars once per symbol/session.
+HOD_MOMO_SURGE_SEED_TIMEFRAME = "1Min"
+HOD_MOMO_SURGE_SEED_BARS = 15          # last ~15 minutes of 1-min OHLCV
+HOD_MOMO_SURGE_SEED_POLL_SEC = 1.0     # drain pending seed queue
+HOD_MOMO_SURGE_SEED_MAX_PER_TICK = 2   # IBKR historical pacing — keep low
+# Integrity / fail-loud data-flow checks (invisible-bug detectors).
+HOD_MOMO_INTEGRITY_TICK_STALE_SEC = 15.0       # no HOD ticks while universe non-empty → fail
+HOD_MOMO_INTEGRITY_WARMUP_SEC = 45.0           # grace after process start before tick check fails
+HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC = 240.0  # buffer span for "ready" (4 of 5 min window)
+HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT = 40.0  # % of buffered symbols that must be ready
+HOD_MOMO_INTEGRITY_SEED_WARN_AFTER_SEC = 90.0  # ibkr + empty volume seeds after this → warn
+HOD_MOMO_INTEGRITY_POLL_SEC = 20.0             # background integrity logger cadence
+HOD_MOMO_INTEGRITY_ENRICHED_MIN_PCT = 30.0     # snaps with rvol vs tracked snaps
+SCANNER_INTEGRITY_CACHE_STALE_SEC = 120.0      # gappers/gainers/losers cache age → warn/fail
 HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1  # empty former_momo_list → never fire
 HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12  # Warrior Running Up — no HOD required
 HOD_MOMO_STRATEGY_ID_MAX = 12
@@ -684,7 +700,7 @@ LINCOLN_AI_CACHE_MAX_ENTRIES = 200
 # read back by the UI. Treat them like an API contract — add new codes, never
 # silently rename or repurpose an existing one, and bump NOVA_OS_POLICY_VERSION
 # when the decision semantics behind them change.
-NOVA_OS_POLICY_VERSION = "nova-os-p2-2026-07-15"  # bump when decision semantics change
+NOVA_OS_POLICY_VERSION = "nova-os-p4-2026-07-15"  # bump when decision semantics change
 
 NOVA_OS_EVENTS_DB_FILENAME = "nova_os_events.db"  # lives under paths.cache_dir(), not git-tracked
 NOVA_OS_EVENTS_DEFAULT_LIMIT = 200                # default rows returned by the read API
@@ -721,6 +737,11 @@ NOVA_OS_MODES = (
     NOVA_OS_MODE_AUTO_LIVE,
 )
 NOVA_OS_DEFAULT_MODE = NOVA_OS_MODE_SIGNAL  # safest default; never persisted as anything else on restart
+
+# P4 — confirm-mode staging + emergency controls (never persist mode across restart)
+NOVA_OS_CONFIRM_TIMEOUT_SEC = 45           # staged ticket TTL; Gap and Go moves fast
+NOVA_OS_MAX_CONCURRENT_POSITIONS = 2       # open executor positions + staged tickets combined
+NOVA_OS_FLATTEN_CONFIRM_TOKEN = "FLATTEN"  # typed confirm for flatten_positions()
 
 # Action codes — what Nova OS actually did with a decision. The "no silent
 # action" contract means every one of these is recorded as an event receipt.

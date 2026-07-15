@@ -1,30 +1,24 @@
 """
-Paper-execution engine (Phase D). Consumes risk-approved setup signals and
-places IBKR bracket orders. Disarmed by default and on every restart —
-signals stay display-only until a human explicitly hits "Arm Automation" in
-the UI.
+Paper-execution engine — Nova OS control modes (Phase P4).
 
-Safety model (defense in depth; each layer is independent of the others):
-  1. `is_armed()` must be True — always starts False, never persisted.
-  2. `risk.can_trade()` — session halts (daily max loss, loss streaks, giveback).
-  3. `risk.validate_trade_plan()` — stop-distance ceiling + minimum profit/loss ratio.
-  4. Only one open executor position per symbol at a time (no pyramiding).
-  5. `ibkr.orders.place_bracket_order()`'s own IBKR_ENABLED / paper-vs-live gate
-     (see backend/ibkr/orders.py) — this is the last line of defense and is
-     never bypassed, even if every check above were somehow removed.
+Control modes (in-memory; restart → signal):
+  signal     — display only; on_signal returns None
+  confirm    — stage expiring tickets; human Approve places
+  auto_paper — auto-place brackets (code path kept for P5; set_mode rejects it in P4)
+  auto_live  — not enabled
 
-Known limitations (by design, not oversight):
-  - Open positions are tracked in memory only. A backend restart while a
-    bracket is still working loses the in-app position record (IB itself
-    still has the real orders/position; this module just stops watching
-    them and will not journal that trade). Acceptable for a paper-trading
-    learning tool; would need durable state before ever being used live.
-  - `kill_switch()` disarms and cancels this module's own open bracket
-    orders. It does NOT flatten a position that already filled — closing an
-    open position is a deliberate decision this module does not make for you.
-  - A trade is only written to the journal once, when its bracket fully
-    closes (matches the original design note in journal/store.py). No row
-    exists for a position that is still open.
+Safety model (defense in depth):
+  1. Kill switch / force_signal — no new entries; staged rejected.
+  2. risk.can_trade() + validate_trade_plan().
+  3. One open executor position per symbol; max concurrent = open + staged.
+  4. ibkr.orders.place_bracket_order() env/paper gates — never bypassed.
+
+Emergency semantics:
+  - kill_switch: force signal, reject staged, cancel ONLY unfilled parents
+    (+ children). If parent already filled, protective stop/target are preserved.
+  - cancel_working_entry: cancel one symbol's unfilled parent (+ children).
+  - flatten_positions: typed FLATTEN token; market-close tracked longs via
+    place_order; fail loud if IBKR unavailable.
 """
 from __future__ import annotations
 
@@ -37,10 +31,18 @@ from constants import (
     EXECUTOR_ENTRY_SIDE_IBKR,
     EXECUTOR_ENTRY_SIDE_JOURNAL,
     EXECUTOR_FILL_POLL_INTERVAL_SEC,
+    NOVA_OS_FLATTEN_CONFIRM_TOKEN,
+    NOVA_OS_MODE_AUTO_PAPER,
+    NOVA_OS_MODE_CONFIRM,
+    NOVA_OS_MODE_SIGNAL,
 )
+from ibkr import account as _account
 from ibkr import client as _ibkr_client
 from ibkr import orders as _orders
 from journal.store import record_trade
+from nova_os import control_mode as _control_mode
+from nova_os import staged_tickets as _staged
+from nova_os.events import KIND_ACTION, KIND_SYSTEM, record_receipt
 from strategy import risk as _risk
 
 logger = logging.getLogger(__name__)
@@ -60,31 +62,40 @@ class OpenPosition:
     opened_ts: float
 
 
-# ── Module-level state — mirrors risk.py's singleton pattern ────────────────
-_armed: bool = False
 _kill_switch_tripped: bool = False
 _open_positions: dict[str, OpenPosition] = {}
 
-_ARM_DISCLOSURE = (
-    "Arming automation places PAPER bracket orders (entry + stop + target) on "
-    "IBKR whenever an already risk-approved setup signal fires, with no "
-    "further confirmation per trade. Paper account only, unless "
-    "IBKR_LIVE_TRADING_CONFIRMED=true is also set in .env. Disarmed by "
-    "default and on every backend restart."
+_MODE_DISCLOSURE = (
+    "Control mode starts at signal on every restart and is never persisted. "
+    "P4 allows signal (display only) and confirm (stage ticket → human Approve). "
+    "auto_paper/auto_live are not selectable yet. Kill forces signal, rejects "
+    "staged tickets, and cancels only unfilled entry parents — protective stops "
+    "on filled positions are preserved. Flatten requires typing FLATTEN."
 )
 
 
+def open_positions() -> dict[str, OpenPosition]:
+    return _open_positions
+
+
 def is_armed() -> bool:
-    return _armed and not _kill_switch_tripped
+    """Legacy: True when mode is not signal and kill is clear (confirm stages)."""
+    return (not _kill_switch_tripped) and _control_mode.get_mode() != NOVA_OS_MODE_SIGNAL
 
 
 def status() -> dict:
+    effective, loss_reason = _control_mode.get_effective_mode_detail()
+    _staged.expire_due()
     return {
-        "disclosure": _ARM_DISCLOSURE,
-        "armed": _armed,
+        "disclosure": _MODE_DISCLOSURE,
+        "armed": is_armed(),
+        "control_mode": _control_mode.get_mode(),
+        "effective_mode": effective,
+        "loss_policy_reason": loss_reason,
         "kill_switch_tripped": _kill_switch_tripped,
         "ibkr_connected": _ibkr_client.is_connected(),
         "ibkr_mode": _ibkr_client.account_mode(),
+        "staged": [t.to_dict() for t in _staged.list_staged()],
         "open_positions": [
             {
                 "symbol": p.symbol,
@@ -94,6 +105,9 @@ def status() -> dict:
                 "stop_price": p.stop_price,
                 "target_price": p.target_price,
                 "opened_ts": p.opened_ts,
+                "parent_order_id": p.parent_order_id,
+                "target_order_id": p.target_order_id,
+                "stop_order_id": p.stop_order_id,
             }
             for p in _open_positions.values()
         ],
@@ -101,81 +115,214 @@ def status() -> dict:
 
 
 def arm() -> dict:
-    global _armed, _kill_switch_tripped
+    """P4: arm → confirm mode (stage tickets). Clears kill trip."""
+    global _kill_switch_tripped
     _kill_switch_tripped = False
-    _armed = True
-    logger.warning("EXECUTOR ARMED — will place paper bracket orders on risk-approved signals")
+    _control_mode.set_mode(NOVA_OS_MODE_CONFIRM)
+    logger.warning("EXECUTOR ARMED — confirm mode (stage tickets; Approve to place)")
     return status()
 
 
 def disarm() -> dict:
-    global _armed
-    _armed = False
-    logger.info("Executor disarmed")
+    _control_mode.force_signal("disarm")
+    logger.info("Executor disarmed → signal")
     return status()
 
 
-def kill_switch() -> dict:
-    """Immediately disarms and cancels every bracket order this module has
-    open. Does not flatten a position that has already filled."""
-    global _armed, _kill_switch_tripped
-    _armed = False
-    _kill_switch_tripped = True
+def _cancel_bracket_if_parent_unfilled(pos: OpenPosition) -> tuple[list[int], str]:
+    """Cancel parent+children only when parent is still in open_orders.
+
+    Returns (cancelled_ids, outcome) where outcome is
+    'cancelled_unfilled' | 'preserved_protective' | 'unknown_state'.
+    """
+    if not _ibkr_client.is_connected():
+        return [], "unknown_state"
+    open_ids = {o["order_id"] for o in _orders.open_orders()}
+    if pos.parent_order_id not in open_ids:
+        return [], "preserved_protective"
     cancelled: list[int] = []
+    for order_id in (pos.parent_order_id, pos.target_order_id, pos.stop_order_id):
+        try:
+            _orders.cancel_order(order_id)
+            cancelled.append(order_id)
+        except Exception:
+            logger.exception("cancel failed for order %s (%s)", order_id, pos.symbol)
+    return cancelled, "cancelled_unfilled"
+
+
+def kill_switch() -> dict:
+    """Stop automation: force signal, reject staged, cancel unfilled parents only."""
+    global _kill_switch_tripped
+    _kill_switch_tripped = True
+    _control_mode.force_signal("kill_switch")
+    rejected = _staged.reject_all("kill_switch")
+    cancelled: list[int] = []
+    preserved: list[str] = []
+    unknown: list[str] = []
     for symbol, pos in list(_open_positions.items()):
-        for order_id in (pos.parent_order_id, pos.target_order_id, pos.stop_order_id):
-            try:
-                _orders.cancel_order(order_id)
-                cancelled.append(order_id)
-            except Exception:
-                logger.exception("kill_switch: failed to cancel order %s for %s", order_id, symbol)
-    logger.warning("KILL SWITCH TRIPPED — disarmed, requested cancel of orders: %s", cancelled)
+        ids, outcome = _cancel_bracket_if_parent_unfilled(pos)
+        cancelled.extend(ids)
+        if outcome == "preserved_protective":
+            preserved.append(symbol)
+        elif outcome == "unknown_state":
+            unknown.append(symbol)
+    record_receipt(
+        kind=KIND_SYSTEM,
+        mode=NOVA_OS_MODE_SIGNAL,
+        payload={
+            "event": "kill_switch",
+            "cancelled_order_ids": cancelled,
+            "preserved_symbols": preserved,
+            "unknown_symbols": unknown,
+            "rejected_staged": len(rejected),
+        },
+    )
+    logger.warning(
+        "KILL SWITCH — cancelled=%s preserved=%s unknown=%s staged_rejected=%s",
+        cancelled, preserved, unknown, len(rejected),
+    )
     return status()
 
 
 def reset_kill_switch() -> dict:
-    """Clears the tripped flag WITHOUT re-arming — call arm() separately."""
     global _kill_switch_tripped
     _kill_switch_tripped = False
     return status()
 
 
-async def on_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict | None:
-    """Called by setups_stream right after a new eligible signal is recorded.
-    Returns the position dict if a bracket order was placed, else None."""
-    if not is_armed():
-        return None
-    if symbol in _open_positions:
-        return None  # one executor position per symbol at a time
+def cancel_working_entry(symbol: str) -> dict:
+    """Cancel one symbol's unfilled parent (+ children). Preserve filled stops."""
+    symbol = symbol.upper()
+    pos = _open_positions.get(symbol)
+    if pos is None:
+        return {"ok": False, "error": f"no tracked position for {symbol}", **status()}
+    ids, outcome = _cancel_bracket_if_parent_unfilled(pos)
+    if outcome == "cancelled_unfilled":
+        del _open_positions[symbol]
+        record_receipt(
+            kind=KIND_ACTION,
+            symbol=symbol,
+            mode=_control_mode.get_mode(),
+            payload={"event": "cancel_working_entry", "cancelled_order_ids": ids},
+        )
+        return {"ok": True, "cancelled_order_ids": ids, "outcome": outcome, **status()}
+    return {
+        "ok": False,
+        "error": (
+            "parent already filled — protective stop/target preserved"
+            if outcome == "preserved_protective"
+            else "IBKR not connected — cannot prove fill state; nothing cancelled"
+        ),
+        "outcome": outcome,
+        **status(),
+    }
 
-    entry = signal_dict.get("entry_price")
-    stop = signal_dict.get("stop_price")
-    target = signal_dict.get("target_price")
-    if entry is None or stop is None or target is None:
+
+def flatten_preview() -> dict:
+    tracked = [
+        {
+            "symbol": p.symbol,
+            "qty": p.qty,
+            "side": "SELL",
+            "entry_price": p.entry_price,
+            "stop_order_id": p.stop_order_id,
+            "target_order_id": p.target_order_id,
+            "source": "executor_tracked",
+        }
+        for p in _open_positions.values()
+    ]
+    return {
+        "disclosure": (
+            f"Flatten closes tracked executor longs with a market SELL and cancels "
+            f"working bracket legs when the parent is still unfilled. Type "
+            f"{NOVA_OS_FLATTEN_CONFIRM_TOKEN} to confirm. Protective stops are "
+            f"cancelled only as part of this deliberate flatten."
+        ),
+        "confirm_token_required": NOVA_OS_FLATTEN_CONFIRM_TOKEN,
+        "account_mode": _ibkr_client.account_mode(),
+        "ibkr_connected": _ibkr_client.is_connected(),
+        "positions": tracked,
+        "ibkr_positions": _account.get_positions(),
+    }
+
+
+def flatten_positions(confirm_token: str) -> dict:
+    if confirm_token != NOVA_OS_FLATTEN_CONFIRM_TOKEN:
+        raise ValueError(
+            f"flatten requires confirm_token={NOVA_OS_FLATTEN_CONFIRM_TOKEN!r}"
+        )
+    if not _ibkr_client.is_connected():
+        return {
+            "ok": False,
+            "error": "IBKR not connected — cannot flatten; close manually in TWS/Gateway",
+            "preview": flatten_preview(),
+        }
+
+    results: list[dict] = []
+    for symbol, pos in list(_open_positions.items()):
+        ids, outcome = _cancel_bracket_if_parent_unfilled(pos)
+        close = _orders.place_order(symbol, "SELL", float(pos.qty), order_type="MKT")
+        row = {
+            "symbol": symbol,
+            "qty": pos.qty,
+            "cancel_outcome": outcome,
+            "cancelled_order_ids": ids,
+            "close": close,
+        }
+        results.append(row)
+        if close.get("ok"):
+            del _open_positions[symbol]
+        else:
+            logger.error("flatten: market close failed for %s: %s", symbol, close.get("error"))
+
+    ok = all(r["close"].get("ok") for r in results) if results else True
+    record_receipt(
+        kind=KIND_ACTION,
+        mode=_control_mode.get_mode(),
+        would_execute=True,
+        executed=ok and bool(results),
+        payload={"event": "flatten", "results": results},
+    )
+    return {"ok": ok, "results": results, **status()}
+
+
+def place_from_ticket(
+    symbol: str,
+    setup: str,
+    entry: float,
+    stop: float,
+    target: float,
+    shares: int | None = None,
+) -> dict | None:
+    """Place a risk-checked paper bracket. Used by approve + auto_paper path."""
+    symbol = symbol.upper()
+    if symbol in _open_positions:
         return None
 
     can_trade, halt_reason = _risk.can_trade()
     if not can_trade:
-        logger.info("Executor: %s/%s skipped — risk halt: %s", symbol, setup_name, halt_reason)
+        logger.info("Executor: %s/%s skipped — risk halt: %s", symbol, setup, halt_reason)
         return None
 
     plan_ok, issues = _risk.validate_trade_plan(entry, stop, target)
     if not plan_ok:
-        logger.info("Executor: %s/%s failed risk validation: %s", symbol, setup_name, issues)
+        logger.info("Executor: %s/%s failed risk validation: %s", symbol, setup, issues)
         return None
 
-    qty = _risk.position_size_shares()
+    qty = int(shares) if shares and shares > 0 else _risk.position_size_shares()
     if qty <= 0:
         return None
 
-    result = _orders.place_bracket_order(symbol, EXECUTOR_ENTRY_SIDE_IBKR, qty, entry, stop, target)
+    result = _orders.place_bracket_order(
+        symbol, EXECUTOR_ENTRY_SIDE_IBKR, qty, entry, stop, target
+    )
     if not result["ok"]:
-        logger.warning("Executor: bracket order rejected for %s: %s", symbol, result["error"])
+        logger.warning("Executor: bracket rejected for %s: %s", symbol, result["error"])
         return None
 
     pos = OpenPosition(
         symbol=symbol,
-        setup=setup_name,
+        setup=setup,
         qty=qty,
         entry_price=entry,
         stop_price=stop,
@@ -187,14 +334,47 @@ async def on_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict | N
     )
     _open_positions[symbol] = pos
     logger.warning(
-        "Executor: placed paper bracket %s/%s qty=%s entry=%s stop=%s target=%s (parent=%s)",
-        symbol, setup_name, qty, entry, stop, target, pos.parent_order_id,
+        "Executor: placed bracket %s/%s qty=%s entry=%s stop=%s target=%s (parent=%s)",
+        symbol, setup, qty, entry, stop, target, pos.parent_order_id,
     )
-    return status()["open_positions"][-1]
+    return {
+        "symbol": pos.symbol,
+        "setup": pos.setup,
+        "qty": pos.qty,
+        "entry_price": pos.entry_price,
+        "stop_price": pos.stop_price,
+        "target_price": pos.target_price,
+        "opened_ts": pos.opened_ts,
+    }
+
+
+async def on_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict | None:
+    """Route a BUY signal by effective control mode. Never places in signal/confirm."""
+    _staged.expire_due()
+    if _kill_switch_tripped:
+        return None
+
+    effective = _control_mode.get_effective_mode()
+    if effective == NOVA_OS_MODE_SIGNAL:
+        return None
+
+    if effective == NOVA_OS_MODE_CONFIRM:
+        meta = signal_dict.get("nova_os") if isinstance(signal_dict.get("nova_os"), dict) else {}
+        ticket = _staged.stage_from_signal(symbol, setup_name, signal_dict, decision_meta=meta)
+        return ticket.to_dict() if ticket else None
+
+    if effective == NOVA_OS_MODE_AUTO_PAPER:
+        entry = signal_dict.get("entry_price")
+        stop = signal_dict.get("stop_price")
+        target = signal_dict.get("target_price")
+        if entry is None or stop is None or target is None:
+            return None
+        return place_from_ticket(symbol, setup_name, entry, stop, target)
+
+    return None
 
 
 def _resolve_exit_price(ib, pos: OpenPosition) -> float | None:
-    """Look up the fill that closed this bracket's target or stop leg."""
     exit_price: float | None = None
     for fill in ib.fills():
         if fill.contract.symbol != pos.symbol:
@@ -205,9 +385,6 @@ def _resolve_exit_price(ib, pos: OpenPosition) -> float | None:
 
 
 async def _check_fills_once() -> None:
-    """Poll IBKR's open orders; once none of a tracked position's three
-    bracket legs remain open, the bracket has finished (filled or was
-    cancelled) — resolve the outcome and journal it."""
     if not _open_positions:
         return
     ib = _ibkr_client.get_ib()
@@ -223,8 +400,6 @@ async def _check_fills_once() -> None:
         exit_price = _resolve_exit_price(ib, pos)
         del _open_positions[symbol]
         if exit_price is None:
-            # No fill found (e.g. cancelled before the entry ever filled) —
-            # nothing to journal.
             continue
 
         pnl = (exit_price - pos.entry_price) * pos.qty
@@ -238,7 +413,7 @@ async def _check_fills_once() -> None:
             target_price=pos.target_price,
             exit_price=exit_price,
             pnl=pnl,
-            adherent=True,  # automation never deviates from the risk-approved plan
+            adherent=True,
             opened_ts=pos.opened_ts,
             closed_ts=time.time(),
             notes=f"Automated paper bracket (parent order {pos.parent_order_id}).",
@@ -248,11 +423,10 @@ async def _check_fills_once() -> None:
 
 
 async def fill_poll_loop() -> None:
-    """Background asyncio task — call once from the app lifespan, mirrors
-    setups_stream.scan_loop()'s pattern."""
     while True:
         try:
             await _check_fills_once()
+            _staged.expire_due()
         except asyncio.CancelledError:
             raise
         except Exception:

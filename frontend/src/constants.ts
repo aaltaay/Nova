@@ -108,7 +108,13 @@ export const NOVA_OS_ATTENTION_COPY: Record<string, string> = {
   decision_no_buy: 'Nova OS: NO BUY — see the first failing gate.',
   mode_reset: 'Automation reset to Signal — nothing will place until you raise the mode.',
   risk_halt: 'Risk halt — new entries blocked for the session.',
+  staged: 'Ticket staged — Approve before the countdown expires to place the paper bracket.',
 };
+
+/** Mirrors backend NOVA_OS_FLATTEN_CONFIRM_TOKEN — typed confirm for flatten. */
+export const NOVA_OS_FLATTEN_CONFIRM_TOKEN = 'FLATTEN';
+/** Mirrors backend NOVA_OS_CONFIRM_TIMEOUT_SEC (display only). */
+export const NOVA_OS_CONFIRM_TIMEOUT_SEC = 45;
 
 /** Level 2 heuristic badge thresholds (Phase F). Mirrors backend/constants.py
  * L2_ASK_STACKED_RATIO / L2_BID_HEAVY_RATIO / L2_SPREAD_WIDE_DOLLARS — kept in
@@ -511,6 +517,9 @@ export const HOD_MOMO_ALERT_BATCH_MS = 150;
 export const HOD_MOMO_EMPTY_WAITING =
   'Waiting for HOD + momentum alerts (gainers + IBKR volume seeds)…';
 export const HOD_MOMO_EMPTY_CONNECTING = 'Connecting to HOD Momo feed…';
+
+/** Poll interval for fail-loud HOD/scanner integrity banner (ms). */
+export const HOD_MOMO_INTEGRITY_POLL_MS = 10_000;
 
 /** Default master gate config — mirrors backend MasterGateConfig defaults */
 export const DEFAULT_MASTER_GATE = {
