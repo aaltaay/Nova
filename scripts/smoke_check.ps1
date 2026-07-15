@@ -24,8 +24,8 @@ function Warn([string]$label) {
     $script:warn++
 }
 
-function Get-Json([string]$url) {
-    $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+function Get-Json([string]$url, [int]$TimeoutSec = 8) {
+    $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec $TimeoutSec -ErrorAction Stop
     return ($r.Content | ConvertFrom-Json)
 }
 
@@ -115,8 +115,9 @@ try {
 }
 
 # ── Ticker / bars (feed-coherence smoke) ──────────────────────────────────────
+# IBKR overnight detail can take ~10–15s (snapshot + news + fundamentals).
 try {
-    $t = Get-Json "$Base/api/ticker/$SampleSymbol"
+    $t = Get-Json "$Base/api/ticker/$SampleSymbol" -TimeoutSec 25
     if ($t.symbol -eq $SampleSymbol -or $t.symbol -eq $SampleSymbol.ToUpper()) {
         Pass "Ticker detail $SampleSymbol"
     } else {
@@ -128,7 +129,7 @@ try {
 }
 
 try {
-    $bars = Get-Json "$Base/api/ticker/$SampleSymbol/bars?timeframe=1Min&limit=10"
+    $bars = Get-Json "$Base/api/ticker/$SampleSymbol/bars?timeframe=1Min&limit=10" -TimeoutSec 20
     $bn = @($bars.bars).Count
     if ($bn -gt 0) { Pass "Ticker bars $SampleSymbol ($bn bars)" }
     else {

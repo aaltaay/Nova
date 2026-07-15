@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Smoke: longer timeout for IBKR ticker detail
+
+- **What:** `smoke_check.ps1` uses 25s for `/api/ticker/{sym}` and 20s for bars (other checks stay at 8s).
+- **Why:** Overnight IBKR detail consistently took ~11–12s; 8s false-failed a healthy Gateway session.
+- **How it works now:** Light endpoints stay snappy; ticker/bars get IBKR-realistic budgets.
+- **Verified by:** Re-ran smoke after bump → 10/10 with Gateway connected.
+- **Related:** Alpaca WS idle under ibkr (`ac6fc47`).
+
 ## 2026-07-15 — Alpaca WS idle under discovery=ibkr (no socket)
 
 - **What:** `stream_loop` no longer opens Alpaca's market-data WebSocket when discovery is ibkr — it idles and polls every `ALPACA_WS_IDLE_POLL_SEC`. Closes mid-session if Settings flips to ibkr.
