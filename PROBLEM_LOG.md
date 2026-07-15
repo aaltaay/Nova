@@ -21,6 +21,41 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Strategy bars + catalyst prices mixed Alpaca when discovery=ibkr
+
+- **Symptom:** Strategy endpoints (`/api/strategy/gap-and-go`, `/api/strategy/setups`) always used Alpaca IEX bars regardless of provider; Catalysts tab prices disagreed with IBKR scanner rows. REST `/api/ticker/{sym}` silently served Alpaca snapshot when IBKR snapshot was empty.
+- **Cause:** (1) `routes/strategy.py` and `strategy/setups_stream.py` imported `bars.fetch_bars` directly (Alpaca-only) instead of the provider-aware `chart_bars.fetch_chart_bars`. (2) `_run_news_catalyst_scan` always called `_fetch_snapshots` (Alpaca) for prices regardless of `_get_discovery_provider()`. (3) `_build_ticker_detail` explicitly fell back to `_fetch_ticker_snapshot` (Alpaca) when IBKR returned `{}`.
+- **Fix:** (1) Strategy routes + setups stream → `chart_bars.fetch_chart_bars(discovery_provider=...)`. (2) Catalyst scan → use `_find_ibkr_cache_row` for prices when `ibkr`, Alpaca path only for `alpaca`. (3) REST ticker — removed Alpaca fallback; logs warning and returns empty snapshot matching WS behavior.
+- **Keywords:** strategy bars, setups_stream, catalyst price, _build_ticker_detail, Alpaca fallback, single-market-data-feed, fetch_chart_bars, discovery_provider
+
+## 2026-07-14 — Scanner table prices stale 7–10s (giant reqTickersAsync)
+
+- **Symptom:** Header showed "stale · updated 7s ago" / up to ~10s on Gainers even while Connected; prices felt stuck.
+- **Cause:** `table_reprice_loop` called one `reqTickersAsync` for ~100 symbols (gainers+losers+AH+HOD seeds). That call often took 7–10s; skip-if-busy then emitted stale heartbeats until it finished, so the UI age never reset mid-batch.
+- **Fix:** Chunk snapshots (`IBKR_TABLE_REPRICE_CHUNK_SIZE=20`) with per-chunk timeout; one chunk per 1Hz tick + rotate; push after each chunk; drop HOD seeds from `_table_reprice_symbols` (scanner rows only).
+- **Keywords:** stale updated 7s ago, table reprice, reqTickersAsync, IBKR_TABLE_REPRICE_CHUNK_SIZE, price_patch, scanner
+
+## 2026-07-14 — HOD same-ticker spam (no Warrior consolidation)
+
+- **Symptom:** HOD feed repeated the same ticker row after row (CNEY/TRT/…) instead of one row with "(3 in 5sec)".
+- **Cause:** Each queued alert set its own `emit_after = now + consolidation_sec`, so staggered fires in the same burst never landed in one flush bucket.
+- **Fix:** First alert opens the window; later same-ticker fires share that deadline; emit newest price + real `consolidation_span_sec`; UI shows `(N in Xs)` under Symbol and collapses leftover consecutive rows.
+- **Keywords:** HOD Momo, consolidation, Warrior, N in Xs, same ticker, TRT, AEHR
+
+## 2026-07-14 — HOD Momo freezes with 3k+ alerts (save + UI thrash)
+
+- **Symptom:** UI glitches/freezes with HOD Momo at ~3000 alerts; whole app felt sticky. Follow-up: truncating the live list to 500 hid older alerts users still needed.
+- **Cause:** (1) Every emitted alert serialized+wrote the full day list to disk on the asyncio thread. (2) Each live alert re-rendered App. (3) Mounting every `<tr>` (pre-virtualization). Truncating data was the wrong fix for (3).
+- **Fix:** Rate-limit alert persistence (5s); keep **all** alerts in memory/WS; virtualize row render only; batch live prepends (150ms); rAF-throttle scroll.
+- **Keywords:** HOD Momo freeze, 3000 alerts, _save_alerts, virtualization, useHodMomoStream, do not truncate
+
+## 2026-07-14 — After-hours HOD missed Warrior names (ATHE/TRT/XCUR)
+
+- **Symptom:** Warrior Small Cap HOD AH showed ATHE/TRT/XCUR; Nova HOD showed DYAI squeeze spam; XCUR open in quote but not alerting; After Hours tab ~2 rows.
+- **Cause:** (1) AH discovery used Alpaca IEX full-universe scan while `discovery=ibkr` — often 0–2 rows, starving HOD universe. (2) First IBKR AH call raced Gateway connect → 0 rows → **silent Alpaca fallback** locked in a 2-row snapshot for the discovery interval. (3) Enrichment/fundamentals overwrote RVOL with thin yfinance volume. (4) AH scan loop stopped refreshing Top Gainers. (5) `_effective_min_rvol` ignored `afterhours_min_rvol`.
+- **Fix:** AH rows reshape from live IBKR `_gainer_cache` every AH cycle (no Alpaca fallback when discovery=ibkr); IBKR focus reprice + HOD snap seed; enrichment/on_trade `ibkr_pace` RVOL; AH loop runs `_run_gainers_update`; master gate uses `afterhours_min_rvol`.
+- **Keywords:** after hours, HOD Momo, ATHE, TRT, XCUR, DYAI, IBKR TOP_PERC_GAIN, ibkr_pace, yfinance_pace, afterhours_min_rvol, Alpaca fallback
+
 ## 2026-07-14 — HOD Momo ≠ Warrior Day Trade Dash (wrong universe / RVOL / gates)
 
 - **Symptom:** Warrior Small-Cap HOD showed TSSI / YG / FRE with Squeeze and Medium Float strategies; Nova showed CNEY spam (Former Momo + Squeeze) and missed the same names.

@@ -92,9 +92,11 @@ def _record_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict:
 
 
 async def _scan_once() -> None:
-    from bars import fetch_bars
+    import main as _main
+    from chart_bars import fetch_chart_bars
 
     loop = asyncio.get_event_loop()
+    discovery_provider = _main._get_discovery_provider()
     universe = _watchlist_universe()
     by_symbol = {c["symbol"]: c for c in universe if c.get("symbol")}
     candidates = build_watchlist(universe, limit=SETUPS_SCAN_TOP_N)
@@ -104,9 +106,12 @@ async def _scan_once() -> None:
         symbol = entry.symbol
         row = by_symbol.get(symbol, {"symbol": symbol})
         try:
-            bars_payload = await loop.run_in_executor(None, fetch_bars, symbol, "1Min", 60)
+            bars_payload = await loop.run_in_executor(
+                None,
+                lambda sym=symbol: fetch_chart_bars(sym, "1Min", 60, discovery_provider=discovery_provider),
+            )
         except Exception as exc:
-            logger.warning("setups_stream: bars fetch failed for %s: %s", symbol, exc)
+            logger.warning("setups_stream: bars unavailable for %s (provider=%s): %s", symbol, discovery_provider, exc)
             continue
 
         result = evaluate_setups(row, bars_payload.get("bars", []))

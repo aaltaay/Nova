@@ -18,7 +18,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from bars import fetch_bars as _fetch_bars
+from chart_bars import fetch_chart_bars as _fetch_chart_bars
 from strategy.five_pillars import evaluate_many
 from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import get_state as _get_risk_state, validate_trade_plan
@@ -33,10 +33,13 @@ _TRANSPARENCY_NOTE = (
 
 
 def _gapper_cache() -> list[dict]:
-    # Lazy import — main.py imports this router, so importing main at module
-    # load time would be circular. Same pattern as hod_momo_enrichment.py.
     import main as _main
     return _main._gapper_cache
+
+
+def _get_discovery_provider() -> str:
+    import main as _main
+    return _main._get_discovery_provider()
 
 
 def _gainer_cache() -> list[dict]:
@@ -88,7 +91,10 @@ def gap_and_go_one(symbol: str) -> dict:
     """Gap and Go signal for one symbol. Fetches today's 5-min bars for the
     pre-market-high calculation; combines with the current gapper cache row."""
     candidate = _find_gapper(symbol) or {"symbol": symbol.upper()}
-    bars_payload = _fetch_bars(symbol.upper(), timeframe="5Min", limit=200)
+    try:
+        bars_payload = _fetch_chart_bars(symbol.upper(), timeframe="5Min", limit=200, discovery_provider=_get_discovery_provider())
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=f"Bars unavailable for gap-and-go: {exc.detail}") from exc
     signal = evaluate_gap_and_go(candidate, bars_payload.get("bars", []))
     return {"note": _TRANSPARENCY_NOTE, **signal.to_dict()}
 
@@ -113,7 +119,10 @@ def watchlist() -> dict:
 def setups_one(symbol: str) -> dict:
     """Gap and Go + Bull Flag + ABCD signals for one symbol, using 1-min bars."""
     candidate = _find_gapper(symbol) or {"symbol": symbol.upper()}
-    bars_payload = _fetch_bars(symbol.upper(), timeframe="1Min", limit=100)
+    try:
+        bars_payload = _fetch_chart_bars(symbol.upper(), timeframe="1Min", limit=100, discovery_provider=_get_discovery_provider())
+    except HTTPException as exc:
+        raise HTTPException(status_code=exc.status_code, detail=f"Bars unavailable for setups: {exc.detail}") from exc
     return {"note": _TRANSPARENCY_NOTE, **evaluate_setups(candidate, bars_payload.get("bars", []))}
 
 

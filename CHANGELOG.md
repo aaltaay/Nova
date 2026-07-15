@@ -30,6 +30,68 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Phase 1 reliability: feed coherence + ticker module extraction
+
+- **What:** Eliminated all remaining silent Alpaca-fallback paths under `discovery=ibkr`; extracted ticker domain (~440 lines) from `main.py` into `backend/ticker.py` + `backend/routes/ticker.py`; added live smoke checklist.
+- **Why:** Product-health audit identified 3 open dual-feed surfaces (REST ticker, strategy bars, catalyst prices) and `main.py` at 2300+ lines well over the 200-line target.
+- **Files touched:** `backend/main.py`, `backend/ticker.py` (new), `backend/routes/ticker.py` (new), `backend/routes/strategy.py`, `backend/strategy/setups_stream.py`, `backend/tests/test_ibkr_cache_priority.py`, `scripts/ibkr_smoke_checklist.md` (new), `scripts/smoke_check.ps1` (new).
+- **How it works now:** (1) `GET /api/ticker/{symbol}` with IBKR discovery returns empty snapshot when IBKR is empty — no silent Alpaca price fallback. (2) Strategy endpoints and background setups scanner use `chart_bars.fetch_chart_bars` (discovery-aware) — IBKR failure surfaces as 503 not silent Alpaca. (3) Catalyst price/gap% comes from IBKR scanner cache when discovery=ibkr; Alpaca is still used for news headlines. (4) Ticker builders, caches, WS client registry, and routes live in `ticker.py` + `routes/ticker.py`; `main.py` imports `_ticker_ws_clients` + `_find_ibkr_cache_row` from ticker so all reprice/WS/HOD paths stay unchanged. `main.py` shrinks from ~2300 to ~1820 lines.
+- **Verified by:** `pytest backend/tests/ -x -q` → 333 passed; `npm run build` → clean; `python -c "import main; import ticker"` → OK.
+- **Follow-ups:** Phase 2 — extract `alpaca.py` client + continue blind-except triage. Phase 3 — scanner/news catalyst extraction. Phase 4 — Warrior parity (5-min RVOL, Running-Up). Phase 5 — IBC / telemetry.
+- **Related:** PROBLEM_LOG 2026-07-14 (catalyst feed, strategy bars).
+
+## 2026-07-14 — Faster scanner table prices (chunked IBKR snapshots)
+
+- **What:** Gainers/Gappers/Losers table prices refresh in batches of 20 via rotating `reqTickersAsync` chunks, with a push after each chunk so the header age stays ~1s instead of 7–10s.
+- **Why:** One 100-symbol snapshot blocked the UI until the whole batch finished; HOD seed symbols on the same path made it worse.
+- **Files touched:** `backend/ibkr/reprice.py`, `backend/ibkr/discovery.py`, `backend/main.py` (`_table_reprice_symbols`), `backend/constants.py`, `frontend/src/constants.ts`, `backend/tests/test_ibkr_reprice.py`.
+- **How it works now:** `table_reprice_loop` takes one chunk per 1Hz tick (size `IBKR_TABLE_REPRICE_CHUNK_SIZE`, timeout `IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC`), rotates across the scanner universe, and pushes `/ws/scanner` `price_patch` immediately. Scanner rows only — no HOD seeds on this hot path.
+- **Verified by:** `pytest backend/tests/test_ibkr_reprice.py`; frontend build; API restart.
+- **Related:** PROBLEM_LOG 2026-07-14 table reprice 7–10s stale.
+
+## 2026-07-14 — HOD consolidates same-ticker bursts like Warrior "(N in Xs)"
+
+- **What:** Same-ticker alerts in a short window merge into one feed row with `(3 in 5sec)` under the symbol (not a stack of duplicate tickers).
+- **Why:** Each alert previously got its own consolidation deadline, so bursts never merged; UI also hid the badge under Time instead of Symbol.
+- **Files touched:** `backend/hod_momo.py`; `collapseConsecutiveTickerAlerts.ts`; `HodMomoAlertRow.tsx`; `HodMomoTab.tsx`.
+- **How it works now:** First fire in a burst opens a consolidation window; later same-ticker fires join it. Emit uses newest price + real span seconds. UI also collapses leftover consecutive rows within ~3× consolidation window.
+- **Verified by:** pytest consolidation window test; vitest collapse helper; frontend build.
+
+## 2026-07-14 — HOD Momo performance: full list + virtualize + debounce disk saves
+
+- **What:** Live HOD feed keeps the **full** day's alerts in memory; the table virtualizes (~14 visible rows). Disk saves are rate-limited to ≤1 / 5s. Live WS alerts are batched; scroll updates are rAF-throttled. (An earlier UI/WS truncate-to-500 was reverted — users must still scroll to older alerts.)
+- **Why:** 3k+ entries caused freezes from full-list disk writes + mounting every row. Truncating the list hid history; virtualization alone is the right DOM fix.
+- **Files touched:** `backend/hod_momo.py`, `constants.py`, `main.py` WS init; `useHodMomoStream.ts`, `useWindowedRows.ts`, `HodMomoAlertTable.tsx`.
+- **How it works now:** All alerts stay in the array / on disk. Only the scroll window mounts `<tr>` nodes. Persistence dirty-flags until the save interval elapses.
+- **Verified by:** pytest persist + full WS payload tests; frontend build.
+- **Related:** PROBLEM_LOG 2026-07-14 HOD freeze.
+
+## 2026-07-14 — Hide IEX chrome on IBKR; HOD strategy chips wrap
+
+- **What:** Header no longer shows the Alpaca IEX/SIP badge when discovery is IBKR. Removed the HOD "IEX Free Tier" banner. Strategy filter chips wrap (no horizontal scrollbar), show full names, are larger, and click toggles that strategy on/off.
+- **Why:** With IBKR discovery, IEX badges were misleading; truncated chip strip forced horizontal scroll and made filters hard to disable.
+- **Files touched:** `AppHeader.tsx`, `HodMomoTab.tsx`, `App.tsx`, `index.css`.
+- **How it works now:** Feed badge is Alpaca-only. Strategy chips = visibility toggles on the main feed; Main feed / Debug switch panels.
+- **Verified by:** frontend build.
+
+## 2026-07-14 — HOD Momo table virtualized (~14-row window)
+
+- **What:** HOD alert table no longer mounts every alert in the DOM. It shows a fixed ~14-row scroll viewport and only renders the visible slice (+ overscan).
+- **Why:** 2k+ alerts were crashing/janking the UI; overflow alone still creates thousands of `<tr>` nodes. Windowing is the standard list pattern.
+- **Files touched:** `frontend/src/hod_momo/HodMomoAlertTable.tsx`, `useWindowedRows.ts`, `HodMomoTab.tsx`, `constants.ts`, `index.css`.
+- **How it works now:** `computeWindowSlice` + spacer rows keep scroll height correct while mounting ~20 rows. Sticky header; consolidation detail is a tooltip (no expanding second row that breaks fixed row height).
+- **Verified by:** vitest window math; frontend build; UI scroll on HOD tab.
+- **Follow-ups:** Apply same pattern to other multi-thousand scanners if needed.
+
+## 2026-07-14 — After-hours HOD Momo uses IBKR gainers + IBKR volume RVOL
+
+- **What:** After-hours discovery/focus now pulls IBKR top % gainers (not thin Alpaca IEX AH scans). HOD enrichment and table ticks recompute pace RVOL from IBKR cum volume. AH scan loop also refreshes Top Gainers; master RVOL gate uses `afterhours_min_rvol`.
+- **Why:** Warrior AH HOD showed ATHE/TRT/XCUR while Nova showed DYAI spam / missed XCUR — AH tab had ~2 Alpaca rows and RVOL stuck at yfinance ~1.3x.
+- **Files touched:** `backend/afterhours_discovery.py` (new), `main.py`, `hod_momo.py`, `hod_momo_enrichment.py`, tests.
+- **How it works now:** During after-hours with `discovery=ibkr`, each scan cycle refreshes Top Gainers then reshapes them into the After Hours cache (same names Warrior watches). No Alpaca fallback. 1Hz IBKR ticks / enrichment set `ibkr_pace` RVOL. Master RVOL uses `afterhours_min_rvol`.
+- **Verified by:** pytest afterhours + HOD engine tests; build + run app.
+- **Related:** PROBLEM_LOG 2026-07-14 AH HOD mismatch.
+
 ## 2026-07-14 — HOD 5-min RVOL + Running Up Alert
 
 - **What:** HOD table shows Warrior-style **RVOL (Daily)** and **RVOL (5m)**. New strategy **#12 Running Up Alert** fires on surge/RVOL without requiring a new HOD (`requires_hod=false`).

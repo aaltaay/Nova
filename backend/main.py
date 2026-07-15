@@ -37,8 +37,15 @@ from routes.journal import router as _journal_router
 from routes.executor import router as _executor_router
 from routes.l2 import router as _l2_router
 from routes.news import router as _news_router
+from routes.ticker import router as _ticker_router
 from scanner_push import broadcast as _scanner_broadcast, router as _scanner_ws_router
-from news.enrich import enrich_catalyst_row, build_ticker_news_impact
+from news.enrich import enrich_catalyst_row
+# Ticker state and helpers — live in ticker.py; imported here so existing
+# code in main.py (reprice, WS stream, HOD block) can reference them unchanged.
+from ticker import (
+    _ticker_ws_clients,
+    _find_ibkr_cache_row,
+)
 
 configure_logging()
 
@@ -78,9 +85,6 @@ from constants import (
     SCANNER_MIN_PRICE,
     SNAPSHOT_WORKERS,
     SYMBOL_EXCLUDE_RE,
-    TICKER_ASSET_CACHE_TTL,
-    TICKER_SLOW_CACHE_TTL,
-    TICKER_SNAPSHOT_CACHE_TTL,
     TOP_N_DEFAULT,
 )
 import hod_momo_enrichment as _hod_momo_enrichment
@@ -99,6 +103,7 @@ from cache import (
 import hod_momo as _hod_momo
 import hod_momo_universe as _hod_uni
 import hod_momo_seed as _hod_momo_seed
+import afterhours_discovery as _ah_discovery
 import exchanges as _exchanges
 import strategy.risk as _risk
 import strategy.setups_stream as _setups_stream
@@ -172,16 +177,6 @@ _avg_volume_date: str = ""
 # Fundamentals cache lives in fundamentals.py (imported above as
 # _fundamentals_cache / _fundamentals_cache_ts for hod_momo_enrichment compat).
 
-# ── Ticker-detail sub-caches (asset + snapshot; TTLs from constants) ──────────
-_ticker_asset_cache: dict[str, dict] = {}
-_ticker_asset_cache_ts: dict[str, float] = {}
-_ticker_snapshot_cache: dict[str, dict] = {}
-_ticker_snapshot_cache_ts: dict[str, float] = {}
-# Phase 2 ("slow") result cache: news + fundamentals + avg_vol bundled together.
-# Short TTL so repeated clicks / tab-switches skip redundant external API calls.
-_ticker_slow_cache: dict[str, dict] = {}
-_ticker_slow_cache_ts: dict[str, float] = {}
-
 # ── Health + mode ──────────────────────────────────────────────────────────────
 _cached_health: dict = {"status": "loading", "latency_ms": 0}
 _current_mode: str = "closed"   # "premarket" | "market" | "afterhours" | "closed"
@@ -191,10 +186,6 @@ _current_mode: str = "closed"   # "premarket" | "market" | "afterhours" | "close
 # in-place, decoupling price freshness from the REST scan cadence.
 _ws_subscribed: set[str] = set()   # symbols the WS is currently subscribed to
 _ws_needs_resub: bool = False       # scan loop sets True when symbol list changes
-
-# ── Ticker detail WebSocket clients ───────────────────────────────────────────
-# Maps symbol -> set of active WebSocket connections watching that symbol's detail.
-_ticker_ws_clients: dict[str, set] = {}
 
 # ── HOD Momo universe state ────────────────────────────────────────────────────
 # Symbols currently subscribed for the HOD Momo engine (union of all common-stock
@@ -334,19 +325,28 @@ def _get_ibkr_detail_symbols() -> list[str]:
 
 
 def _table_reprice_symbols() -> list[str]:
-    """Symbols for the 1Hz table snapshot (scanner rows + HOD watch seeds).
+    """Symbols for the 1Hz table snapshot — scanner rows only (fast path).
 
-    Priority: gainer/loser (or gappers pre-open), then HOD universe extras so
-    volume-seeded names still get IBKR ticks for surge/HOD evaluation.
+    HOD seed symbols are enriched separately; mixing them into this list made
+    one reqTickersAsync span 100 names and feel 7–10s stale on Gainers/Gappers.
     """
-    if _gainer_cache or _loser_cache:
+    if _current_mode == "afterhours" and _afterhours_cache:
+        rows = _afterhours_cache + _gainer_cache + _loser_cache
+    elif _gainer_cache or _loser_cache:
         rows = _gainer_cache + _loser_cache
     else:
         rows = _gapper_cache
-    primary = list({r["symbol"] for r in rows})
-    primary_set = set(primary)
-    extra = [s for s in _hod_momo_universe if s not in primary_set]
-    return (primary + extra)[:IBKR_TABLE_REPRICE_MAX_SYMBOLS]
+    # Preserve first-seen order (top gainers first) while deduping.
+    out: list[str] = []
+    seen: set[str] = set()
+    for r in rows:
+        sym = (r.get("symbol") or "").strip().upper()
+        if sym and sym not in seen:
+            seen.add(sym)
+            out.append(sym)
+        if len(out) >= IBKR_TABLE_REPRICE_MAX_SYMBOLS:
+            break
+    return out
 
 
 def _apply_table_quotes(quotes: dict) -> dict | None:
@@ -356,7 +356,8 @@ def _apply_table_quotes(quotes: dict) -> dict | None:
     drive the alert engine alone — 1Hz IBKR table snapshots are the Ross shortlist
     tape substitute for HOD / surge evaluation.
     """
-    global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts, _loser_cache, _loser_cache_ts
+    global _gapper_cache, _gapper_cache_ts, _gainer_cache, _gainer_cache_ts
+    global _loser_cache, _loser_cache_ts, _afterhours_cache, _afterhours_cache_ts
     gapper_in = [] if (_gainer_cache or _loser_cache) else _gapper_cache
     result = _ibkr_reprice.apply_quote_patches(gapper_in, _gainer_cache, _loser_cache, quotes)
     if result is None:
@@ -371,6 +372,22 @@ def _apply_table_quotes(quotes: dict) -> dict | None:
     if _loser_cache:
         _loser_cache = loser_cache
         _loser_cache_ts = now
+    if _afterhours_cache and _current_mode == "afterhours":
+        _afterhours_cache = _ah_discovery.reprice_afterhours_rows_ibkr(
+            _afterhours_cache, quotes, _avg_volume_cache,
+        )
+        _afterhours_cache_ts = now
+        by_sym = {r["symbol"]: r for r in rows}
+        for r in _afterhours_cache:
+            by_sym[r["symbol"]] = {
+                "symbol": r["symbol"],
+                "price": r.get("price") or r.get("current_price"),
+                "change_pct": r.get("change_pct"),
+                "change_abs": r.get("change_abs"),
+                "volume": r.get("volume"),
+                "gap_percent": r.get("gap_percent"),
+            }
+        rows = list(by_sym.values())
 
     trade_ts = time.time()
     for sym, q in quotes.items():
@@ -1083,11 +1100,88 @@ def _run_focus_scan() -> None:
 # ── After-hours scan functions ────────────────────────────────────────────────
 
 def _run_afterhours_discovery_scan() -> None:
-    """Full universe scan for after-hours movers: same pipeline as pre-market gappers
-    but gap is computed vs today's regular-session close (dailyBar.c)."""
+    """After-hours movers: IBKR top % gainers when discovery=ibkr, else Alpaca.
+
+    Warrior AH HOD watches live % gainers after the close. The Alpaca IEX
+    full-universe AH scan often returns 0–2 rows and starves HOD of ATHE/TRT/XCUR.
+
+    When discovery=ibkr, never silently fall back to Alpaca (single-feed rule).
+    Prefer the already-fetched ``_gainer_cache`` so we do not race IBKR connect
+    with a second empty ``get_gainers`` call at startup.
+    """
     global _afterhours_cache, _afterhours_cache_ts, _last_afterhours_discovery_ts
-    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+    global _hod_momo_universe_ts
     headers = _alpaca_headers()
+
+    if _get_discovery_provider() == "ibkr":
+        raw = list(_gainer_cache) if _gainer_cache else []
+        if not raw:
+            raw = _run_ibkr(_ibkr_discovery.get_gainers()) or []
+        rows = _ah_discovery.build_afterhours_rows_from_ibkr_gainers(raw)
+        if not rows:
+            logger.warning(
+                "AH discovery (IBKR): empty (gainers=%d) — retrying next cycle; no Alpaca fallback",
+                len(raw),
+            )
+            return
+        from market import pace_relative_volume as _pace_rvol
+        syms = [r["symbol"] for r in rows]
+        news: dict = {}
+        if headers:
+            _ensure_avg_volume(syms, headers)
+            news = _check_news(syms, headers)
+            _fetch_fundamentals_batch(syms)
+        for r in rows:
+            sym = r["symbol"]
+            vol = int(r.get("volume") or 0)
+            avg = _avg_volume_cache.get(sym)
+            fund = _fundamentals_cache.get(sym, {})
+            paced = _pace_rvol(vol, avg) if avg and vol else None
+            raw_rvol = round(vol / avg, 2) if avg and avg > 0 and vol > 0 else None
+            # Prefer RVOL already computed on the gainer row when present.
+            gainer_rvol = None
+            for g in _gainer_cache:
+                if g.get("symbol") == sym and g.get("rel_volume") is not None:
+                    gainer_rvol = g.get("rel_volume")
+                    break
+            r["rel_volume"] = gainer_rvol if gainer_rvol is not None else (
+                paced if paced is not None else raw_rvol
+            )
+            r["has_news"] = sym in news
+            r["newest_headline_at"] = None
+            r["market_cap"] = fund.get("market_cap")
+            r["float"] = fund.get("float_shares")
+            r["short_interest"] = fund.get("short_interest")
+            r["short_ratio"] = fund.get("short_ratio")
+            r["exchange"] = r.get("exchange") or fund.get("exchange")
+        _afterhours_cache = rows
+        _afterhours_cache_ts = time.time()
+        _last_afterhours_discovery_ts = time.monotonic()
+        _ws_mark_resub()
+        save_afterhours_snapshot(_afterhours_cache, _afterhours_cache_ts)
+        for r in rows:
+            sym = r["symbol"]
+            avg = _avg_volume_cache.get(sym)
+            try:
+                _hod_momo.update_ticker_snapshot(
+                    sym,
+                    price=float(r["current_price"]),
+                    rvol=r.get("rel_volume"),
+                    volume=int(r.get("volume") or 0) or None,
+                    change_pct=float(r["gap_percent"]) * 100.0 if r.get("gap_percent") is not None else None,
+                    gap_pct=float(r["gap_percent"]) * 100.0 if r.get("gap_percent") is not None else None,
+                    float_shares=r.get("float"),
+                    rvol_source="ibkr_pace" if r.get("rel_volume") is not None else None,
+                    avg_volume=float(avg) if avg else None,
+                )
+            except Exception:
+                logger.debug("AH discovery: HOD snap seed failed for %s", sym, exc_info=True)
+        _hod_momo_universe_ts = 0.0
+        _refresh_hod_momo_universe()
+        logger.info("AH discovery (IBKR): %d movers", len(rows))
+        return
+
+    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     if not headers:
         return
     if not _ping_health(base_url, headers):
@@ -1112,11 +1206,22 @@ def _run_afterhours_discovery_scan() -> None:
 
 
 def _run_afterhours_focus_scan() -> None:
-    """Re-price only current after-hours candidates (fast 30-sec refresh)."""
+    """Re-price current after-hours candidates (IBKR snapshots when discovery=ibkr)."""
     global _afterhours_cache, _afterhours_cache_ts
     if not _afterhours_cache:
         _run_afterhours_discovery_scan()
         return
+
+    if _get_discovery_provider() == "ibkr":
+        symbols = [r["symbol"] for r in _afterhours_cache]
+        quotes = _run_ibkr(_ibkr_discovery.snapshot_quotes(symbols)) or {}
+        _afterhours_cache = _ah_discovery.reprice_afterhours_rows_ibkr(
+            _afterhours_cache, quotes, _avg_volume_cache,
+        )
+        _afterhours_cache_ts = time.time()
+        save_afterhours_snapshot(_afterhours_cache, _afterhours_cache_ts)
+        return
+
     headers = _alpaca_headers()
     if not headers:
         return
@@ -1510,36 +1615,65 @@ def _run_news_catalyst_scan() -> None:
         if not news_symbols:
             return
 
-        snaps = _fetch_snapshots(news_symbols, headers)
-        if not snaps:
-            return
-
+        use_ibkr = _get_discovery_provider() == "ibkr"
         catalysts: list[dict] = []
-        for sym, snap in snaps.items():
-            latest_trade = snap.get("latestTrade") or {}
-            prev_bar = snap.get("prevDailyBar") or {}
-            daily_bar = snap.get("dailyBar") or {}
-            price = latest_trade.get("p") or daily_bar.get("c", 0)
-            prev_close = prev_bar.get("c", 0)
-            volume = daily_bar.get("v", 0)
-            if not price or not prev_close:
-                continue
-            if price < SCANNER_MIN_PRICE:
-                continue
-            gap_frac = (price - prev_close) / prev_close
-            article_info = symbol_to_article.get(sym, {})
-            catalysts.append(_exchanges.attach_exchange({
-                "symbol": sym,
-                "previous_close": prev_close,
-                "current_price": price,
-                "gap_percent": gap_frac,
-                "volume": volume,
-                "has_news": True,
-                "newest_headline_at": article_info.get("created_at"),
-                "catalyst_headline": article_info.get("headline"),
-                "catalyst_url": article_info.get("url"),
-                "catalyst_source": article_info.get("source"),
-            }))
+
+        if use_ibkr:
+            # When discovery=ibkr, pull prices exclusively from IBKR scanner caches.
+            # Alpaca snapshot prices here would disagree with every other IBKR surface.
+            for sym in news_symbols:
+                row = _find_ibkr_cache_row(sym)
+                if not row:
+                    continue
+                price = row.get("current_price") or row.get("price") or 0
+                prev_close = row.get("previous_close") or row.get("prev_close") or 0
+                volume = row.get("volume", 0)
+                if not price or not prev_close or price < SCANNER_MIN_PRICE:
+                    continue
+                gap_frac = (price - prev_close) / prev_close
+                article_info = symbol_to_article.get(sym, {})
+                catalysts.append(_exchanges.attach_exchange({
+                    "symbol": sym,
+                    "previous_close": prev_close,
+                    "current_price": price,
+                    "gap_percent": gap_frac,
+                    "volume": volume,
+                    "has_news": True,
+                    "newest_headline_at": article_info.get("created_at"),
+                    "catalyst_headline": article_info.get("headline"),
+                    "catalyst_url": article_info.get("url"),
+                    "catalyst_source": article_info.get("source"),
+                }))
+        else:
+            snaps = _fetch_snapshots(news_symbols, headers)
+            if not snaps:
+                return
+
+            for sym, snap in snaps.items():
+                latest_trade = snap.get("latestTrade") or {}
+                prev_bar = snap.get("prevDailyBar") or {}
+                daily_bar = snap.get("dailyBar") or {}
+                price = latest_trade.get("p") or daily_bar.get("c", 0)
+                prev_close = prev_bar.get("c", 0)
+                volume = daily_bar.get("v", 0)
+                if not price or not prev_close:
+                    continue
+                if price < SCANNER_MIN_PRICE:
+                    continue
+                gap_frac = (price - prev_close) / prev_close
+                article_info = symbol_to_article.get(sym, {})
+                catalysts.append(_exchanges.attach_exchange({
+                    "symbol": sym,
+                    "previous_close": prev_close,
+                    "current_price": price,
+                    "gap_percent": gap_frac,
+                    "volume": volume,
+                    "has_news": True,
+                    "newest_headline_at": article_info.get("created_at"),
+                    "catalyst_headline": article_info.get("headline"),
+                    "catalyst_url": article_info.get("url"),
+                    "catalyst_source": article_info.get("source"),
+                }))
 
         catalysts.sort(key=lambda x: abs(x["gap_percent"]), reverse=True)
         # Attach explicit news-impact verdicts (rules-first; see news/impact.py).
@@ -1596,7 +1730,13 @@ async def _scan_loop() -> None:
                 await _sleep_with_ibkr_reprice(loop, _GAINERS_INTERVAL)
             elif _in_after_hours():
                 _current_mode = "afterhours"
-                if not _afterhours_cache or (mono - _last_afterhours_discovery_ts) > _AH_DISCOVERY_INTERVAL:
+                # Warrior keeps Top Gainers live after the close; HOD watches those names.
+                await loop.run_in_executor(None, _run_gainers_update)
+                # With IBKR, reshape AH from the gainers we just fetched every cycle
+                # (avoids startup race + stale 2-row Alpaca snapshot).
+                if _get_discovery_provider() == "ibkr" and _gainer_cache:
+                    await loop.run_in_executor(None, _run_afterhours_discovery_scan)
+                elif not _afterhours_cache or (mono - _last_afterhours_discovery_ts) > _AH_DISCOVERY_INTERVAL:
                     await loop.run_in_executor(None, _run_afterhours_discovery_scan)
                 else:
                     await loop.run_in_executor(None, _run_afterhours_focus_scan)
@@ -1706,6 +1846,10 @@ async def lifespan(app: FastAPI):
         _get_discovery_provider, _table_reprice_symbols, _apply_table_quotes, _scanner_broadcast,
     ))
     yield
+    try:
+        _hod_momo.flush_pending_alert_save()
+    except Exception:
+        logger.exception("HOD Momo: final alert flush failed")
     detail_reprice_task.cancel()
     table_reprice_task.cancel()
     scan_task.cancel()
@@ -1747,6 +1891,7 @@ app.include_router(_journal_router)
 app.include_router(_executor_router)
 app.include_router(_l2_router)
 app.include_router(_news_router)
+app.include_router(_ticker_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -2042,11 +2187,8 @@ async def ws_hod_momo(websocket: WebSocket):
     await websocket.accept()
     _hod_momo.add_ws_client(websocket)
     try:
-        # Send initial payload with all of today's alerts
-        initial = json.dumps({
-            "type": "initial",
-            "alerts": _hod_momo.get_today_alerts(),
-        })
+        # Send newest slice only — full day stays on disk / REST (avoids UI freeze).
+        initial = json.dumps(_hod_momo.get_ws_initial_payload())
         await websocket.send_text(initial)
         # Keep the connection alive until the client disconnects
         while True:
@@ -2085,441 +2227,3 @@ async def ws_strategy(websocket: WebSocket):
     finally:
         _setups_stream.remove_ws_client(websocket)
 
-
-def _fetch_ticker_asset(symbol: str, base_url: str, headers: dict) -> dict:
-    """Fetch asset metadata from Alpaca Trading API with short-lived TTL cache."""
-    global _ticker_asset_cache, _ticker_asset_cache_ts
-    now = time.monotonic()
-    if symbol in _ticker_asset_cache and (now - _ticker_asset_cache_ts.get(symbol, 0.0)) < TICKER_ASSET_CACHE_TTL:
-        return _ticker_asset_cache[symbol]
-    asset: dict = {}
-    try:
-        r = requests.get(f"{base_url}/v2/assets/{symbol}", headers=headers, timeout=10)
-        if r.status_code == 200:
-            a = r.json()
-            attrs = a.get("attributes")
-            if not isinstance(attrs, list):
-                attrs = []
-            asset = {
-                "name": a.get("name", ""),
-                "exchange": a.get("exchange", ""),
-                "asset_class": a.get("class", ""),
-                "status": a.get("status", ""),
-                "tradable": a.get("tradable", False),
-                "marginable": a.get("marginable", False),
-                "shortable": a.get("shortable", False),
-                "easy_to_borrow": a.get("easy_to_borrow", False),
-                "fractionable": a.get("fractionable", False),
-                "maintenance_margin_requirement": a.get("maintenance_margin_requirement"),
-                "margin_requirement_long": a.get("margin_requirement_long"),
-                "margin_requirement_short": a.get("margin_requirement_short"),
-                "attributes": [str(x) for x in attrs if x is not None],
-            }
-            _ticker_asset_cache[symbol] = asset
-            _ticker_asset_cache_ts[symbol] = now
-            if asset.get("exchange"):
-                _exchanges.update_from_assets(
-                    [{"symbol": symbol, "exchange": asset["exchange"]}]
-                )
-    except Exception:
-        pass
-    return asset
-
-
-def _fetch_ticker_snapshot(symbol: str, headers: dict, feed: str) -> dict:
-    """Fetch latest snapshot from Alpaca Data API with short-lived TTL cache."""
-    global _ticker_snapshot_cache, _ticker_snapshot_cache_ts
-    now = time.monotonic()
-    if symbol in _ticker_snapshot_cache and (now - _ticker_snapshot_cache_ts.get(symbol, 0.0)) < TICKER_SNAPSHOT_CACHE_TTL:
-        return _ticker_snapshot_cache[symbol]
-
-    def _session_px(v) -> float | None:
-        """Open/high/low of 0 (or missing) means 'not provided' — never paint $0.00."""
-        if v is None:
-            return None
-        try:
-            f = float(v)
-        except (TypeError, ValueError):
-            return None
-        return f if f > 0 else None
-
-    def _bar(b: dict | None) -> dict | None:
-        if not b:
-            return None
-        return {
-            "open": _session_px(b.get("o")),
-            "high": _session_px(b.get("h")),
-            "low": _session_px(b.get("l")),
-            "close": b.get("c"),
-            "volume": b.get("v"),
-            "trade_count": b.get("n"),
-            "vwap": b.get("vw"),
-            "timestamp": b.get("t"),
-        }
-
-    snapshot: dict = {}
-    try:
-        r = requests.get(
-            f"{_DATA_URL}/v2/stocks/{symbol}/snapshot",
-            headers=headers,
-            params={"feed": feed},
-            timeout=10,
-        )
-        if r.status_code == 200:
-            raw = r.json()
-            lt = raw.get("latestTrade") or {}
-            lq = raw.get("latestQuote") or {}
-            snapshot = {
-                "latest_trade": {
-                    "price": lt.get("p"),
-                    "size": lt.get("s"),
-                    "exchange": lt.get("x"),
-                    "timestamp": lt.get("t"),
-                } if lt else None,
-                "latest_quote": {
-                    "bid_price": lq.get("bp"),
-                    "bid_size": lq.get("bs"),
-                    "ask_price": lq.get("ap"),
-                    "ask_size": lq.get("as"),
-                    "timestamp": lq.get("t"),
-                } if lq else None,
-                "minute_bar": _bar(raw.get("minuteBar")),
-                "daily_bar": _bar(raw.get("dailyBar")),
-                "prev_daily_bar": _bar(raw.get("prevDailyBar")),
-                # Correctly resolved previous regular-session close (timestamp-aware).
-                # During pre-market dailyBar is yesterday's completed bar, so
-                # _pick_prev_close returns dailyBar.c.  During market/after-hours it
-                # returns prevDailyBar.c.  Frontends should use this for change math.
-                "prev_close": _pick_prev_close(raw),
-                # Last completed regular-session close (always dailyBar.c).
-                # Used by the frontend as the "main line" price in the Webull-style
-                # two-row quote during pre-market / after-hours.
-                "session_close": (raw.get("dailyBar") or {}).get("c"),
-                # Close of the session prior to session_close (always prevDailyBar.c).
-                # Used to compute the main line's change (session_close - session_prev_close).
-                "session_prev_close": (raw.get("prevDailyBar") or {}).get("c"),
-            }
-            _ticker_snapshot_cache[symbol] = snapshot
-            _ticker_snapshot_cache_ts[symbol] = now
-    except Exception:
-        pass
-    return snapshot
-
-
-def _find_ibkr_cache_row(symbol: str) -> dict | None:
-    """Look up a symbol's current row in whichever IBKR-sourced cache has it.
-
-    Gainer/loser rows are checked before gapper rows on purpose: gappers
-    intentionally stop refreshing once the market formally opens (see the
-    "Market Open Halt" rule), so a symbol that shows up in both caches would
-    otherwise resolve to a frozen premarket snapshot even while its
-    gainer/loser row keeps getting live reprice ticks (see PROBLEM_LOG
-    2026-07-13, "ticker detail stuck on premarket gapper snapshot").
-    """
-    for cache in (_gainer_cache, _loser_cache, _gapper_cache):
-        for row in cache:
-            if row["symbol"] == symbol:
-                return row
-    return None
-
-
-def _fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
-    """IBKR counterpart to _fetch_ticker_snapshot.
-
-    Only used when DISCOVERY_PROVIDER=ibkr, so the ticker detail panel's price
-    comes from the SAME feed as the movers/gappers table instead of Alpaca's —
-    mixing feeds produced two different prices/percents on screen for the same
-    symbol at the same moment (see PROBLEM_LOG 2026-07-13).
-
-    For a symbol already tracked by the discovery cache (the common case —
-    the user is looking at a row from the table), mirror that row exactly
-    instead of issuing an independent live query: IB's CLOSE tick (type 9) is
-    a send-once field on our long-lived client connection and was observed
-    returning a stale/wrong value on repeat ad-hoc queries for the same
-    contract (a brand-new client connection got the correct value
-    immediately). The cache's own reprice tick (_reprice_ibkr_caches) already
-    keeps that row fresh every IBKR_REPRICE_INTERVAL_SEC without hitting this
-    problem, so reuse it rather than re-deriving from a fresh, unreliable
-    snapshot. Only fall back to a live query for a symbol that isn't in any
-    cache (e.g. manually searched, not a current mover).
-    """
-    cached_row = _find_ibkr_cache_row(symbol)
-    if cached_row:
-        price = cached_row.get("current_price") or cached_row.get("price")
-        prev_close = cached_row.get("previous_close") or cached_row.get("prev_close")
-        volume = cached_row.get("volume", 0)
-        exchange = cached_row.get("exchange")
-        open_price = None
-    else:
-        quotes = _run_ibkr(_ibkr_discovery.snapshot_quotes([symbol]))
-        q = quotes.get(symbol)
-        if not q:
-            return {}
-        price, prev_close = q["price"], q.get("prev_close")
-        volume = q.get("volume", 0)
-        exchange = q.get("exchange")
-        open_price = q.get("open")
-
-    if price is None or prev_close is None:
-        return {}
-    now_iso = datetime.now(timezone.utc).isoformat()
-    # session_close = prior regular close (same basis as scanner gap %). Never the
-    # live last — that broke Pre: % vs the gappers table (see PROBLEM_LOG 2026-07-14).
-    return {
-        "latest_trade": {"price": price, "size": None, "exchange": exchange, "timestamp": now_iso},
-        "latest_quote": None,
-        "minute_bar": None,
-        "daily_bar": {
-            # IBKR discovery rows do not carry session OHLC; leave open/high/low
-            # null so the UI shows "—" instead of inventing 0 / prev-close.
-            "open": open_price if open_price and open_price > 0 else None,
-            "high": None,
-            "low": None,
-            "close": price,
-            "volume": volume, "trade_count": None, "vwap": None, "timestamp": now_iso,
-        },
-        "prev_daily_bar": {
-            "open": None, "high": None, "low": None, "close": prev_close,
-            "volume": None, "trade_count": None, "vwap": None, "timestamp": None,
-        },
-        "prev_close": prev_close,
-        "session_close": prev_close,
-        "session_prev_close": None,
-    }
-
-
-def _fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
-    """Fetch today's news articles for a symbol from Alpaca Data API."""
-    news: list[dict] = []
-    try:
-        today = _now_et().date().isoformat()
-        r = requests.get(
-            f"{_DATA_URL}/v1beta1/news",
-            headers=headers,
-            params={"symbols": symbol, "start": today, "limit": 10},
-            timeout=10,
-        )
-        if r.status_code == 200:
-            for article in r.json().get("news", []):
-                news.append({
-                    "headline": article.get("headline", ""),
-                    "summary": article.get("summary", ""),
-                    "author": article.get("author", ""),
-                    "source": article.get("source", ""),
-                    "url": article.get("url", ""),
-                    "created_at": article.get("created_at", ""),
-                    "symbols": article.get("symbols", []),
-                    "images": article.get("images", []),
-                })
-    except Exception:
-        pass
-    return news
-
-
-def _fetch_ticker_avg_volume(symbol: str, headers: dict) -> float | None:
-    """Return average daily volume for symbol, fetching bars from Alpaca if needed."""
-    avg_vol = _avg_volume_cache.get(symbol)
-    if avg_vol is None:
-        _ensure_avg_volume([symbol], headers)
-        avg_vol = _avg_volume_cache.get(symbol)
-    return avg_vol
-
-
-def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> dict:
-    """Fetch asset + snapshot concurrently — the fast subset of ticker detail.
-
-    When DISCOVERY_PROVIDER=ibkr, Phase-1 WS must use the IBKR snapshot (same
-    feed as the gappers/movers table). Using Alpaca here produced the dual-price
-    bug: table showed IBKR last/gap while the quote panel showed Alpaca session.
-    """
-    use_ibkr = _get_discovery_provider() == "ibkr"
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
-        f_snap = (
-            pool.submit(_fetch_ticker_snapshot_ibkr, symbol) if use_ibkr
-            else pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
-        )
-        asset    = f_asset.result()
-        snapshot = f_snap.result()
-
-    avg_vol  = _avg_volume_cache.get(symbol)
-    daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
-    rel_vol  = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None
-
-    return {
-        "symbol": symbol,
-        "asset": asset,
-        "snapshot": snapshot,
-        "avg_volume": avg_vol,
-        "rel_volume": rel_vol,
-        "news": [],
-        "fundamentals": {},
-        # Expose current session mode so the frontend can choose which quote layout to render.
-        "mode": _current_mode,
-    }
-
-
-def _build_ticker_slow(symbol: str, headers: dict) -> dict:
-    """Fetch news + avg volume bars + fundamentals concurrently — the slow subset.
-
-    Results are cached for TICKER_SLOW_CACHE_TTL seconds so rapid re-clicks and
-    tab-switches skip redundant external API calls entirely.
-    """
-    global _ticker_slow_cache, _ticker_slow_cache_ts
-    now = time.monotonic()
-    cached_ts = _ticker_slow_cache_ts.get(symbol, 0.0)
-    if symbol in _ticker_slow_cache and (now - cached_ts) < TICKER_SLOW_CACHE_TTL:
-        return _ticker_slow_cache[symbol]
-
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        f_news  = pool.submit(_fetch_ticker_news, symbol, headers)
-        f_avg   = pool.submit(_fetch_ticker_avg_volume, symbol, headers)
-        f_fund  = pool.submit(_fetch_fundamentals, symbol)
-        news    = f_news.result()
-        avg_vol = f_avg.result()
-        fund    = f_fund.result()
-
-    result = {"news": news, "avg_volume": avg_vol, "fundamentals": fund}
-    _ticker_slow_cache[symbol] = result
-    _ticker_slow_cache_ts[symbol] = now
-    return result
-
-
-def _build_ticker_detail(symbol: str) -> dict:
-    """Fetch and assemble full ticker detail for a symbol. Used by the REST endpoint."""
-    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = _alpaca_headers()
-    if not headers:
-        return {"error": "API keys not configured"}
-
-    feed = _get_feed()
-    use_ibkr = _get_discovery_provider() == "ibkr"
-
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
-        f_snap  = (
-            pool.submit(_fetch_ticker_snapshot_ibkr, symbol) if use_ibkr
-            else pool.submit(_fetch_ticker_snapshot, symbol, headers, feed)
-        )
-        f_news  = pool.submit(_fetch_ticker_news, symbol, headers)
-        f_avg   = pool.submit(_fetch_ticker_avg_volume, symbol, headers)
-        f_fund  = pool.submit(_fetch_fundamentals, symbol)
-        asset    = f_asset.result()
-        snapshot = f_snap.result()
-        news     = f_news.result()
-        avg_vol  = f_avg.result()
-        fundamentals = f_fund.result()
-
-    # IBKR snapshot can come back empty (e.g. contract not qualifiable) — fall
-    # back to Alpaca's rather than showing a blank quote.
-    if use_ibkr and not snapshot:
-        snapshot = _fetch_ticker_snapshot(symbol, headers, feed)
-
-    daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
-    rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None
-
-    return {
-        "symbol": symbol,
-        "asset": asset,
-        "snapshot": snapshot,
-        "avg_volume": avg_vol,
-        "rel_volume": rel_vol,
-        "news": news,
-        "fundamentals": fundamentals,
-        "news_impact": build_ticker_news_impact(symbol, news, snapshot, rel_vol),
-    }
-
-
-@app.get("/api/ticker/{symbol}")
-def get_ticker_detail(symbol: str):
-    """Fetch full detail for a single symbol: asset info, snapshot, news, avg volume."""
-    return _build_ticker_detail(symbol.upper())
-
-
-@app.get("/api/ticker/{symbol}/bars")
-def get_ticker_bars(
-    symbol: str,
-    timeframe: str = CHART_DEFAULT_TIMEFRAME,
-    limit: int = CHART_DEFAULT_BARS,
-):
-    """Fetch OHLCV bars for a symbol (IBKR when discovery=ibkr, else Alpaca)."""
-    return _fetch_chart_bars(
-        symbol.upper(),
-        timeframe,
-        limit,
-        discovery_provider=_get_discovery_provider(),
-    )
-
-
-@app.websocket("/ws/ticker/{symbol}")
-async def ws_ticker_detail(websocket: WebSocket, symbol: str):
-    """WebSocket endpoint: sends full detail on connect, then streams real-time trade updates.
-
-    Two-phase send for perceived speed:
-      1. 'initial' — fast data (asset + snapshot + cached avg volume) sent first (~300 ms).
-      2. 'detail_update' — slow data (news + fresh avg volume + fundamentals) sent when ready.
-    """
-    symbol = symbol.upper()
-    await websocket.accept()
-
-    if symbol not in _ticker_ws_clients:
-        _ticker_ws_clients[symbol] = set()
-    _ticker_ws_clients[symbol].add(websocket)
-    _ws_mark_resub()
-    if _get_discovery_provider() == "ibkr":
-        asyncio.create_task(_ibkr_ticks.subscribe(symbol))
-
-    loop = asyncio.get_event_loop()
-    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = _alpaca_headers()
-
-    try:
-        if not headers:
-            await websocket.send_text(json.dumps({"type": "initial", "error": "API keys not configured"}))
-        else:
-            feed = _get_feed()
-
-            # Start both phases immediately so Phase 2 runs while Phase 1 is awaited.
-            fast_task = loop.run_in_executor(
-                None, lambda: _build_ticker_fast(symbol, base_url, headers, feed)
-            )
-            slow_task = loop.run_in_executor(
-                None, lambda: _build_ticker_slow(symbol, headers)
-            )
-
-            # Phase 1 result arrives first — send immediately so the UI can render price/asset.
-            fast = await fast_task
-            await websocket.send_text(json.dumps({"type": "initial", **fast}))
-
-            # Phase 2 has been running in parallel; await whatever remains.
-            slow = await slow_task
-            # Recompute rel_volume with freshly fetched avg_vol
-            avg_vol = slow.get("avg_volume")
-            daily_vol = (fast.get("snapshot", {}).get("daily_bar") or {}).get("volume") or 0
-            rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else fast.get("rel_volume")
-            news_impact = build_ticker_news_impact(
-                symbol, slow.get("news") or [], fast.get("snapshot"), rel_vol
-            )
-            await websocket.send_text(json.dumps({
-                "type": "detail_update",
-                "news": slow["news"],
-                "fundamentals": slow["fundamentals"],
-                "avg_volume": avg_vol,
-                "rel_volume": rel_vol,
-                "news_impact": news_impact,
-            }))
-
-        while True:
-            try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-            except asyncio.TimeoutError:
-                await websocket.send_text(json.dumps({"type": "ping"}))
-    except (WebSocketDisconnect, Exception):
-        pass
-    finally:
-        _ticker_ws_clients.get(symbol, set()).discard(websocket)
-        if not _ticker_ws_clients.get(symbol):
-            _ticker_ws_clients.pop(symbol, None)
-            if _get_discovery_provider() == "ibkr":
-                asyncio.create_task(_ibkr_ticks.unsubscribe(symbol))
-        _ws_mark_resub()
