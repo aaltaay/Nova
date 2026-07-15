@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Bound HOD Momo to 40-row incremental rendering
+
+- **What:** HOD Momo now mounts 40 rows initially and adds exactly 40 more when the table's own scroller reaches the bottom. The table viewport is fixed and contains its overscroll, so thousands of alerts no longer expand the main document.
+- **Why:** The prior WebSocket de-duplication removed duplicate alerts but did not fix the remaining endless-page stall. TanStack virtualization was observing a flex item that could grow to its table's intrinsic height, defeating the intended bounded viewport.
+- **Files touched:** `frontend/src/hod_momo/HodMomoAlertTable.tsx`, `frontend/src/hod_momo/HodMomoAlertTable.test.ts`, `frontend/src/constants.ts`, `frontend/src/index.css`, `.cursor/rules/browser-testing.mdc`.
+- **How it works now:** A 40-row render limit grows by one batch per distinct bottom reach; a latch absorbs duplicate bottom events until the user scrolls through the newly mounted batch. Live alerts remain in memory, but only the bounded prefix is represented in the DOM.
+- **Verified by:** Live browser: 40 rows initially, exactly 80 after one bottom reach, wrapper stayed 532px, document height stayed constant, and console remained clean. `npm run build`; `npm run test -- --run` (75/75).
+- **Related:** `PROBLEM_LOG.md` 2026-07-15 “HOD Momo virtualization still expanded the document.”
+
 ## 2026-07-15 — HOD Momo alert stream no longer double-delivers on WS reconnect/remount
 
 - **What:** `frontend/src/hod_momo/useHodMomoStream.ts` now ignores events from a stale/superseded WebSocket instance (checks `wsRef.current === ws` on every handler, in addition to the existing `mountedRef` flag) and de-duplicates incoming alerts by `id` via an O(1) `Set` lookup instead of trusting every 'alert' message to be new.

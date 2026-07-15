@@ -511,15 +511,14 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
 
 /** Visible row window height for the HOD table (~18 dense rows). */
 export const HOD_MOMO_VISIBLE_ROWS = 18;
-/** Estimated row height (px) for @tanstack/react-virtual — dense scanner density. */
+/** Fixed HOD row height used to size the bounded table viewport. */
 export const HOD_MOMO_ROW_HEIGHT_PX = 28;
 /** Sticky header row height included in the scroll viewport. */
 export const HOD_MOMO_HEADER_HEIGHT_PX = 28;
-/**
- * Extra rows TanStack Virtual keeps mounted above/below the viewport.
- * Keep this small — large overscan defeats virtualization and makes scroll janky.
- */
-export const HOD_MOMO_VIRTUAL_OVERSCAN = 6;
+/** Rows rendered initially and added whenever the HOD table reaches its bottom. */
+export const HOD_MOMO_RENDER_BATCH_SIZE = 40;
+/** Bottom proximity that triggers the next HOD row batch. */
+export const HOD_MOMO_LOAD_MORE_THRESHOLD_PX = 24;
 /** Batch live alert prepends so App does not re-render on every single fire. */
 export const HOD_MOMO_ALERT_BATCH_MS = 150;
 

@@ -21,6 +21,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo virtualization still expanded the document to the full alert history
+
+- **Symptom:** After duplicate WebSocket delivery was fixed, opening HOD Momo remained extremely slow and the main document still had effectively endless vertical scrolling through thousands of alerts.
+- **Cause:** The TanStack virtualizer was attached to `.hod-table-wrapper`, but that wrapper was also `flex: 1` inside a parent with no constrained height and retained the flex item's default intrinsic minimum size. The wrapper expanded toward the table's full content height instead of remaining a bounded scroll viewport, so the virtualizer's observed viewport could include the full list. The previous verification checked console errors and live delivery but never measured mounted `<tr>` count, wrapper geometry, or document height.
+- **Fix:** Replaced the fragile virtualizer/table-spacer combination with deterministic incremental rendering: mount 40 alerts initially, keep them in a fixed-height internal scroller, and mount exactly 40 more only after a new bottom reach. A bottom-edge latch prevents duplicate scroll events from loading multiple batches. `.hod-table-wrapper` now uses `flex: 0 0 auto`, `min-height: 0`, and contained overscroll so the table cannot expand the page. Updated browser-testing policy to require DOM-count and scroll-geometry checks for large lists. The now-unused TanStack package remains declared but is not imported or bundled: attempting a normal uninstall exposed a pre-existing npm peer conflict (`lightweight-charts-indicators@0.4.2` expects `oakscriptjs@^0.2.8`, while the app has `^0.3.0`); no `--force`/`--legacy-peer-deps` workaround was used.
+- **Verified by:** Live browser measured 40 mounted rows initially, fixed 532px table height, then exactly 80 rows after one bottom reach; document height remained unchanged. Browser console stayed clean. Frontend build and all 75 tests pass.
+- **Keywords:** HOD Momo infinite scroll, endless page, TanStack virtualizer, flex min-height, mounted rows, incremental rendering, 40 rows, bottom latch, scroll geometry
+
 ## 2026-07-15 — HOD Momo tab still crash-level laggy after three prior "fixes" — every alert was silently duplicated in frontend state
 
 - **Symptom:** User reported the HOD Momo tab was so laggy that opening it felt like it would crash the browser, despite this having been "fixed" repeatedly (virtualization, alert-persistence throttling, batched live prepends — see the three 2026-07-14/15 entries below titled "HOD Momo freezes" / "HOD Momo UI lag"). Browser console (`npx agent-browser console`) showed a continuous flood of React `"Encountered two children with the same key"` errors, one per HOD alert id, for nearly every visible row.
