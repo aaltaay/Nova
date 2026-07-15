@@ -26,13 +26,13 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 
 ## In progress / uncommitted
 
-- P6/P7 archive sources need recreate (pycache present; sources lost in branch switch) — next
+- P6/P7 archive package recreated on master (sources restored; not committed) — awaiting parent verify + commit
 - Unrelated HOD/earnings WIP in stash
 
 ## Crash or blocker
 
 - none for P5
-- Safe next: recreate P6/P7 archive package, then P8–P10
+- Safe next: parent verify P6/P7 → commit+push → then P8–P10
 
 ## Verification ledger
 

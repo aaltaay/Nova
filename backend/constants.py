@@ -627,6 +627,38 @@ TAPE_UI_MAX_ROWS = 200                    # max rows kept in the frontend Time &
 L2_SESSION_REASON_SIGNAL = "signal"        # record_sessions.reason when setup signal fires
 L2_SESSION_REASON_DEPTH = "depth"          # record_sessions.reason when DepthLadder / depth WS is open
 
+# ── Permanent market-data archive (Nova OS P6–P7) ───────────────────────────
+# Hot SQLite capture + local cold compact/restore. Does NOT bump
+# NOVA_OS_POLICY_VERSION — archive schema is versioned separately.
+# R2 upload / verified-trim is P8; until then never timer-purge unverified hot data.
+ARCHIVE_SCHEMA_VERSION = "archive-v1-2026-07-15"
+ARCHIVE_DB_FILENAME = "archive.db"              # under paths.cache_dir(), not git-tracked
+ARCHIVE_COLD_DIRNAME = "archive_cold"           # finished-day JSONL + manifests
+ARCHIVE_HOT_RETENTION_DAYS = 30                 # hot window before a day is compact-eligible
+ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM = True     # skip L2 timer purge until P8 verify
+ARCHIVE_MAINTENANCE_ENABLED = False             # opt-in via env ARCHIVE_MAINTENANCE_ENABLED
+ARCHIVE_MAINTENANCE_INTERVAL_SEC = 3600.0       # hourly stub when maintenance enabled
+ARCHIVE_SOURCE_IBKR = "ibkr"
+ARCHIVE_SOURCE_ALPACA = "alpaca"
+ARCHIVE_STREAM_TAPE = "tape"
+ARCHIVE_STREAM_L2 = "l2"
+ARCHIVE_STREAM_BARS_1M = "bars_1m"
+ARCHIVE_STREAM_BARS_1D = "bars_1d"
+ARCHIVE_COUNTER_TAPE_RECEIVED = "tape_received"
+ARCHIVE_COUNTER_TAPE_DROPPED = "tape_dropped"
+ARCHIVE_COUNTER_L2_SNAPSHOTS = "l2_snapshots"
+ARCHIVE_COUNTER_BARS_1M = "bars_1m"
+ARCHIVE_COUNTER_BARS_1D = "bars_1d"
+ARCHIVE_COUNTER_GAPS = "capture_gaps"
+ARCHIVE_COUNTER_INCOMPLETE_WINDOWS = "incomplete_windows"
+ARCHIVE_TABLES_COLD = (
+    "bars_1m",
+    "bars_1d",
+    "tape_ibkr",
+    "capture_gaps",
+    "incomplete_windows",
+)
+
 # ── News impact decision layer (rules-first; not a black box) ────────────────
 # Explicit thresholds for whether news actually moved a ticker / Level 2.
 # Every value here is surfaced in NewsImpactVerdict.factors and UI tooltips.

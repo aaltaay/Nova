@@ -104,6 +104,7 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
         bid, ask = best_bid_ask(_depth.current_book(symbol))
         side = classify_print_side(price, bid, ask)
 
+        size_i = int(size) if size is not None else 0
         _push_queue(
             symbol,
             {
@@ -111,7 +112,7 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
                 "symbol": symbol,
                 "time": ts_iso,
                 "price": price,
-                "size": int(size) if size is not None else 0,
+                "size": size_i,
                 "exchange": exchange,
                 "conditions": conditions,
                 "side": side,
@@ -119,6 +120,26 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
                 "ask": ask,
             },
         )
+        # P6 — durable local archive (non-fatal if archive package fails)
+        try:
+            from archive.capture import parse_iso_to_unix, record_tape_print
+            from constants import ARCHIVE_SOURCE_IBKR
+
+            record_tape_print(
+                symbol=symbol,
+                ts=parse_iso_to_unix(ts_iso),
+                price=price,
+                size=float(size_i),
+                exchange=exchange,
+                conditions=conditions,
+                side=side,
+                bid=bid,
+                ask=ask,
+                receive_ts=time.time(),
+                source=ARCHIVE_SOURCE_IBKR,
+            )
+        except Exception:
+            logger.exception("IBKR tape: archive.record_tape_print failed for %s", symbol)
 
     # Clear consumed ticks to avoid re-processing on next updateEvent
     try:

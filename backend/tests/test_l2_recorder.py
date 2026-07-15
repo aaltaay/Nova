@@ -116,13 +116,30 @@ class TestSessionsAndRetention:
         assert sessions.session_covering("AAPL", 150.0)["session_id"] == sid
         assert sessions.session_covering("AAPL", 250.0) is None
 
-    def test_purge_older_than(self):
+    def test_purge_older_than(self, monkeypatch):
+        # P6 default refuses timer purge until cloud verify; tests opt out.
+        monkeypatch.setattr(
+            "constants.ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM",
+            False,
+        )
         old_ts = time.time() - (20 * 86400)
         record_snapshot("AAPL:old", "AAPL", "depth", old_ts, old_ts, _book())
         record_snapshot("AAPL:new", "AAPL", "depth", time.time(), time.time(), _book())
         result = l2_db.purge_older_than(retention_days=14)
         assert result["snapshots"] >= 1
         assert get_nearest_snapshot("AAPL", old_ts, window_sec=1.0) is None
+
+    def test_purge_skipped_when_archive_trim_required(self, monkeypatch):
+        monkeypatch.setattr(
+            "constants.ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM",
+            True,
+        )
+        old_ts = time.time() - (20 * 86400)
+        record_snapshot("AAPL:guard", "AAPL", "depth", old_ts, old_ts, _book())
+        result = l2_db.purge_older_than(retention_days=14)
+        assert result.get("skipped") is True
+        assert result["snapshots"] == 0
+        assert get_nearest_snapshot("AAPL", old_ts, window_sec=1.0) is not None
 
 
 class TestRecorderGracefulSkip:

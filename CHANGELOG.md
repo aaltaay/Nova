@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Nova OS P6/P7 local archive capture + cold compact
+
+- **What:** New `backend/archive/` package: hot SQLite capture (`bars_1m`, `bars_1d`, `tape_ibkr`, gaps, incomplete windows, integrity counters) and stdlib JSONL+sha256 cold compact/restore. IBKR tape prints also call `record_tape_print`. L2 timer purge no-ops while `ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM` (default True). Optional `archive_maintenance_loop` behind `ARCHIVE_MAINTENANCE_ENABLED` (default false).
+- **Why:** Nova OS phases P6 (loss-aware local capture) and P7 (local cold archive) — stop discarding IBKR AllLast and never purge unverified hot data on a timer.
+- **Files touched:** `backend/archive/*`, `backend/constants.py` (`ARCHIVE_*`, `ARCHIVE_SCHEMA_VERSION`), `ibkr/tape_stream.py`, `l2/db.py`, `app_lifespan.py`, `tests/test_archive_*.py`.
+- **How it works now:** Live UI still uses `/api/l2/*`. Durable writes go to `archive.db` under `cache_dir`. Finished days export to `archive_cold/<date>/<schema>/…jsonl` + manifests; `restore_day_to_temp` rebuilds a temp DB and compares row counts/checksums. L2 changed-book hook is a stub (`record_l2_snapshot`) until depth wiring is benchmarked. Does **not** bump `NOVA_OS_POLICY_VERSION`.
+- **Verified by:** `pytest tests/test_archive_capture.py tests/test_archive_compact_restore.py`.
+- **Follow-ups:** P8 R2 upload + verified trim; wire L2 changed-book + focus 1m bar feeder; parent verify + status phase bump + commit.
+- **Related:** [[Nova-OS-Status]] P6/P7 recreate; Local-Market-Data-Recorders.md.
+
 ## 2026-07-15 — Nova OS P5 auto_paper + restart recovery
 
 - **What:** `set_mode("auto_paper")` gated (paper IBKR + orders enabled + risk + not holiday); `on_signal` auto-places via `place_from_ticket`; `executed_paper` receipts include order ids; `recovery.py` reconstructs tracked positions on startup; `auto_live` still blocked. ExecutorPanel can raise Auto Paper on paper Gateway with disclosure; Auto Live disabled.

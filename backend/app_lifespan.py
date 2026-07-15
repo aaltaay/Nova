@@ -36,6 +36,8 @@ from constants import (
     IBKR_DETAIL_STREAM_FRESH_SEC,
     L2_RETENTION_SWEEP_INTERVAL_SEC,
 )
+import archive.db as _archive_db
+from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 from health_status import ping_health, set_health_broker_keys_missing
 from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
@@ -114,6 +116,7 @@ async def lifespan(app: FastAPI):
     _journal_db.init_db()
     _l2_db.init_db()
     _nova_os_events_db.init_db()
+    _archive_db.init_db()
     from nova_os.recovery import run_startup_recovery
 
     try:
@@ -161,6 +164,10 @@ async def lifespan(app: FastAPI):
 
     l2_flush_task = asyncio.create_task(_l2_batch.flush_loop())
     l2_retention_task = asyncio.create_task(_l2_retention_loop())
+    archive_maint_task = None
+    if maintenance_enabled():
+        archive_maint_task = asyncio.create_task(archive_maintenance_loop())
+        logger.info("archive.maintenance: enabled (ARCHIVE_MAINTENANCE_ENABLED)")
 
     await _ibkr_client.startup()
     _ibkr_ticks.configure(broadcast_trade_update, _find_ibkr_cache_row)
@@ -192,6 +199,8 @@ async def lifespan(app: FastAPI):
     executor_fill_task.cancel()
     l2_flush_task.cancel()
     l2_retention_task.cancel()
+    if archive_maint_task is not None:
+        archive_maint_task.cancel()
     for t in (
         detail_reprice_task, table_reprice_task, scan_task, ws_task,
         hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task, hod_seed_task,

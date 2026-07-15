@@ -105,7 +105,38 @@ def init_db() -> None:
 
 
 def purge_older_than(retention_days: float | None = None) -> dict:
-    """Delete ended-session rows older than retention. Returns delete counts."""
+    """Delete ended-session rows older than retention. Returns delete counts.
+
+    When ``ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM`` is True (Nova OS P6 default),
+    this is a no-op — unverified hot data must not be timer-purged until P8
+    cloud verify. Tests may pass ``retention_days`` and monkeypatch the flag.
+    """
+    try:
+        from constants import ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM
+        if ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM:
+            logger.info(
+                "l2.db: retention purge skipped "
+                "(ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM=True; await P8 verify)"
+            )
+            return {
+                "cutoff_ts": None,
+                "snapshots": 0,
+                "tape": 0,
+                "sessions": 0,
+                "skipped": True,
+                "reason": "ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM",
+            }
+    except Exception:
+        logger.exception("l2.db: archive trim-guard check failed; refusing purge")
+        return {
+            "cutoff_ts": None,
+            "snapshots": 0,
+            "tape": 0,
+            "sessions": 0,
+            "skipped": True,
+            "reason": "trim_guard_error",
+        }
+
     days = L2_RETENTION_DAYS if retention_days is None else retention_days
     cutoff = time.time() - (days * 86400.0)
     conn = get_connection()
