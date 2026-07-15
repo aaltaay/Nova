@@ -112,7 +112,7 @@ export function WatchlistTab({
         <button
           className={`sub-tab ${subTab === 'automation' ? 'active' : ''}`}
           onClick={() => setSubTab('automation')}
-          title="Arm/disarm automated paper bracket orders on IBKR, and the kill switch. Disarmed by default and on every backend restart."
+          title="Control mode ladder (signal/confirm/auto_paper/auto_live) for automated paper bracket orders on IBKR, plus the kill switch. Starts at signal by default and on every backend restart."
         >
           Automation
         </button>
