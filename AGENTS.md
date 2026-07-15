@@ -56,7 +56,11 @@ backend/
   news.py            # news-catalyst fetch, dedup, scoring
   fundamentals.py    # yfinance fetch + TTL cache wrapper
   websocket.py       # WS connection manager, subscription state, streaming loop
-  hod_momo.py        # HOD Momo engine
+  hod_momo.py        # HOD Momo engine: state, on_trade_update, config/blocklist CRUD, load_state
+  hod_momo_models.py   # HOD Momo dataclasses + pure serialization + timestamp helpers
+  hod_momo_filters.py  # HOD Momo pure per-strategy gate evaluation (no module state)
+  hod_momo_debug.py    # HOD Momo pure debug-payload builders (no module state)
+  hod_momo_metrics.py   # HOD Momo Warrior 5-min RVOL metrics
   hod_momo_enrichment.py  # HOD Momo enrichment pipeline
   bars.py            # bar data fetching
   routes/

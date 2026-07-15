@@ -19,6 +19,14 @@ main.py calls:
   - mark_needs_fundamentals(sym) called by enrichment when symbol qualifies
   - get_fundamentals_queue()   consumed by hod_momo_enrichment
   - get_debug_counters() / get_debug_symbol(sym) / get_debug_recent(limit) / get_debug_snaps(limit)
+
+Data shapes (dataclasses + serialization) live in hod_momo_models.py, and
+pure per-strategy gate evaluation lives in hod_momo_filters.py — both are
+stateless and imported below. Debug-payload formatting lives in
+hod_momo_debug.py. This file owns every piece of *mutable* engine state
+(price buffers, session highs, cooldowns, configs, alerts, counters) and
+the trade-update ingestion path that reads/writes it, since the test suite
+exercises that state directly (see backend/tests/test_hod_momo_engine.py).
 """
 
 from __future__ import annotations
@@ -30,33 +38,39 @@ import logging.handlers
 import os
 import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 import cache as _cache
+import hod_momo_debug as _debug
 from constants import (
-    HOD_MOMO_ALERTS_PREFIX,
     HOD_MOMO_ALERT_SAVE_INTERVAL_SEC,
-    HOD_MOMO_COOLDOWN_SEC,
-    HOD_MOMO_CONSOLIDATION_SEC,
     HOD_MOMO_CONFIG_SCHEMA_VERSION,
     HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
-    HOD_MOMO_MASTER_HOD_REQUIRED,
-    HOD_MOMO_MASTER_MIN_RVOL,
-    HOD_MOMO_MASTER_PREMARKET_MIN_RVOL,
-    HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL,
     HOD_MOMO_MASTER_SURGE_PCT,
-    HOD_MOMO_MASTER_SURGE_WINDOW_MIN,
     HOD_MOMO_RVOL_USE_PACE,
     HOD_MOMO_RVOL_WARMUP_GRACE_SEC,
     HOD_MOMO_SESSION_RESET_HOUR_ET,
-    HOD_MOMO_STRATEGY_AUDIO_DEFAULT,
-    HOD_MOMO_STRATEGY_COLORS,
-    HOD_MOMO_STRATEGY_DEFAULTS,
     HOD_MOMO_STRATEGY_ID_MAX,
-    HOD_MOMO_STRATEGY_NAMES,
+)
+from hod_momo_filters import evaluate_strategy as _evaluate_strategy
+from hod_momo_filters import fails_hod_gate as _fails_hod_gate
+from hod_momo_filters import passes_master_gate as _passes_master_gate
+from hod_momo_filters import price_surge as _price_surge
+from hod_momo_models import AlertObject, DecisionRecord, MasterGateConfig, StrategyConfig
+from hod_momo_models import TickerSnap as _TickerSnap
+from hod_momo_models import (
+    alert_from_dict as _alert_from_dict,
+    alert_to_dict as _alert_to_dict,
+    build_default_config as _build_default_config,
+    build_default_configs as _build_default_configs,
+    config_from_dict as _config_from_dict,
+    config_to_dict as _config_to_dict,
+    format_alert_timestamp as _format_alert_timestamp,
+    format_trade_log_timestamp as _format_trade_log_timestamp,
+    master_from_dict as _master_from_dict,
+    master_to_dict as _master_to_dict,
 )
 import hod_momo_metrics as _metrics
 from market import pace_relative_volume
@@ -79,92 +93,6 @@ if not _trade_log.handlers:
     _trade_log.addHandler(_trade_handler)
     _trade_log.setLevel(logging.DEBUG)
     _trade_log.propagate = False
-
-
-# ── Dataclasses ────────────────────────────────────────────────────────────────
-
-@dataclass
-class StrategyConfig:
-    strategy_id: int
-    name: str
-    color: str
-    enabled: bool = True
-    audio: bool = True
-    notes: str = ""
-    # Price filter (0 = disabled)
-    min_price: float = 0.0
-    max_price: float = 0.0
-    # Float filter (0 = disabled)
-    min_float: float = 0.0
-    max_float: float = 0.0
-    # Volume / RVOL filters
-    min_volume: float = 0.0
-    min_rvol: float = 0.0
-    max_rvol: float = 0.0
-    # Gap filter (0 = disabled)
-    min_gap_pct: float = 0.0
-    max_gap_pct: float = 0.0
-    # Change filter (0 = disabled)
-    min_change_pct: float = 0.0
-    max_change_pct: float = 0.0
-    # Squeeze / momentum
-    surge_pct: float = 0.0
-    surge_window_min: int = 0
-    surge_method: str = "low_to_current"   # "low_to_current" | "fixed_start"
-    # 52-week high proximity (0 = disabled; e.g. 5 = within 5% of 52wk high)
-    proximity_52wk_pct: float = 0.0
-    # Former Momo ticker list (only used / non-empty for strategy #1)
-    former_momo_list: list[str] = field(default_factory=list)
-    # Warrior Running Up: False → may fire without a new HOD
-    requires_hod: bool = True
-
-
-@dataclass
-class MasterGateConfig:
-    hod_required: bool = HOD_MOMO_MASTER_HOD_REQUIRED
-    surge_pct: float = HOD_MOMO_MASTER_SURGE_PCT
-    surge_window_min: int = HOD_MOMO_MASTER_SURGE_WINDOW_MIN
-    min_rvol: float = HOD_MOMO_MASTER_MIN_RVOL
-    premarket_min_rvol: float = HOD_MOMO_MASTER_PREMARKET_MIN_RVOL
-    afterhours_min_rvol: float = HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL
-    cooldown_sec: float = HOD_MOMO_COOLDOWN_SEC
-    consolidation_sec: float = HOD_MOMO_CONSOLIDATION_SEC
-
-
-@dataclass
-class AlertObject:
-    id: str                      # "<timestamp_ms>-<symbol>-<strategy_id>"
-    timestamp: str               # ISO-8601
-    ticker: str
-    strategy_id: int
-    strategy_name: str
-    price: float
-    change_pct: float
-    rvol: float | None
-    float_shares: float | None
-    gap_pct: float | None
-    volume: int | None
-    momentum_pct: float | None   # surge % that triggered (if applicable)
-    rvol_source: str | None = None  # "alpaca" | "yfinance" | "yfinance_pace" | ...
-    rvol_5min: float | None = None  # Warrior Rel Vol (5 min %)
-    consolidation_count: int = 1
-    consolidated_ids: list[str] = field(default_factory=list)
-    # Actual burst duration in seconds (Warrior "(3 in 5sec)"); None if single fire.
-    consolidation_span_sec: int | None = None
-    # Unix time when the alert was created (for span math / display collapse).
-    created_ts: float = 0.0
-
-
-@dataclass
-class DecisionRecord:
-    """One record per on_trade_update call that makes it past the blocklist."""
-    ts: float
-    symbol: str
-    price: float
-    snap: dict                   # snapshot fields at decision time
-    gate_blocked: str | None     # "blocklist" | "master_hod" | "master_rvol" | "master_surge" | None
-    strategies: list[dict]       # [{id, name, passed, blocked_by}]
-    would_fire: bool
 
 
 # ── Module-level state ─────────────────────────────────────────────────────────
@@ -214,83 +142,6 @@ _fundamentals_queued: set[str] = set()
 
 # Startup timestamp — used for RVOL warmup grace period
 _startup_ts: float = 0.0
-
-
-# ── Default config builder ─────────────────────────────────────────────────────
-
-def _build_default_config(strategy_id: int) -> StrategyConfig:
-    name = HOD_MOMO_STRATEGY_NAMES[strategy_id]
-    color = HOD_MOMO_STRATEGY_COLORS[strategy_id]
-    audio = HOD_MOMO_STRATEGY_AUDIO_DEFAULT[strategy_id]
-    overrides = HOD_MOMO_STRATEGY_DEFAULTS.get(strategy_id, {})
-    cfg = StrategyConfig(strategy_id=strategy_id, name=name, color=color, audio=audio)
-    for k, v in overrides.items():
-        if hasattr(cfg, k):
-            setattr(cfg, k, v)
-    return cfg
-
-
-def _build_default_configs() -> dict[int, StrategyConfig]:
-    return {sid: _build_default_config(sid) for sid in range(1, HOD_MOMO_STRATEGY_ID_MAX + 1)}
-
-
-# ── Serialization helpers ──────────────────────────────────────────────────────
-
-def _config_to_dict(cfg: StrategyConfig) -> dict:
-    return asdict(cfg)
-
-
-def _config_from_dict(d: dict) -> StrategyConfig:
-    cfg = StrategyConfig(
-        strategy_id=d["strategy_id"],
-        name=d.get("name", HOD_MOMO_STRATEGY_NAMES.get(d["strategy_id"], "")),
-        color=d.get("color", HOD_MOMO_STRATEGY_COLORS.get(d["strategy_id"], "#FFFFFF")),
-    )
-    for k, v in d.items():
-        if k in ("strategy_id", "name", "color"):
-            continue
-        if hasattr(cfg, k):
-            setattr(cfg, k, v)
-    return cfg
-
-
-def _master_to_dict(m: MasterGateConfig) -> dict:
-    return asdict(m)
-
-
-def _master_from_dict(d: dict) -> MasterGateConfig:
-    m = MasterGateConfig()
-    for k, v in d.items():
-        if hasattr(m, k):
-            setattr(m, k, v)
-    return m
-
-
-def _alert_to_dict(a: AlertObject) -> dict:
-    return asdict(a)
-
-
-def _alert_from_dict(d: dict) -> AlertObject:
-    return AlertObject(
-        id=d.get("id", ""),
-        timestamp=d.get("timestamp", ""),
-        ticker=d.get("ticker", ""),
-        strategy_id=d.get("strategy_id", 0),
-        strategy_name=d.get("strategy_name", ""),
-        price=d.get("price", 0.0),
-        change_pct=d.get("change_pct", 0.0),
-        rvol=d.get("rvol"),
-        float_shares=d.get("float_shares"),
-        gap_pct=d.get("gap_pct"),
-        volume=d.get("volume"),
-        momentum_pct=d.get("momentum_pct"),
-        rvol_source=d.get("rvol_source"),
-        rvol_5min=d.get("rvol_5min"),
-        consolidation_count=d.get("consolidation_count", 1),
-        consolidated_ids=d.get("consolidated_ids", []),
-        consolidation_span_sec=d.get("consolidation_span_sec"),
-        created_ts=float(d.get("created_ts") or 0.0),
-    )
 
 
 # ── Persistence ────────────────────────────────────────────────────────────────
@@ -444,48 +295,7 @@ def _update_price_buffer(symbol: str, price: float, ts: float) -> None:
         buf.popleft()
 
 
-def _price_surge(symbol: str, window_min: int, method: str) -> float | None:
-    """Compute the surge % over the last `window_min` minutes.
-
-    low_to_current: (current - min_in_window) / min_in_window * 100
-    fixed_start:    (current - price_at_window_start) / price_at_window_start * 100
-
-    Returns None if there is insufficient data.
-    """
-    buf = _price_buffer.get(symbol)
-    if not buf:
-        return None
-    now_ts = buf[-1][0]
-    current_price = buf[-1][1]
-    cutoff = now_ts - window_min * 60
-    window_prices = [p for t, p in buf if t >= cutoff]
-    if len(window_prices) < 2:
-        return None
-    if method == "fixed_start":
-        start_price = window_prices[0]
-    else:
-        start_price = min(window_prices)
-    if start_price <= 0:
-        return None
-    return (current_price - start_price) / start_price * 100.0
-
-
 # ── Snapshot store (lightweight per-symbol data for filter evaluation) ─────────
-
-@dataclass
-class _TickerSnap:
-    price: float = 0.0
-    rvol: float | None = None
-    rvol_5min: float | None = None
-    avg_volume: float | None = None  # for 5-min RVOL typical bar
-    float_shares: float | None = None
-    gap_pct: float | None = None
-    volume: int | None = None
-    change_pct: float | None = None
-    fifty_two_week_high: float | None = None
-    rvol_source: str | None = None   # "alpaca" | "yfinance" | "yfinance_pace" | ...
-    last_enriched: float = 0.0   # monotonic timestamp of last enrichment update
-
 
 _ticker_snaps: dict[str, _TickerSnap] = {}
 
@@ -555,77 +365,6 @@ def pop_fundamentals_request() -> str | None:
         return None
 
 
-# ── Filter evaluation — returns (passed, reason) ──────────────────────────────
-
-def _passes(value: float | None, min_val: float, max_val: float) -> tuple[bool, str]:
-    """Generic min/max check. 0 = disabled.
-    Returns (True, '') on pass, (False, '<field>:<detail>') on fail.
-    """
-    if value is None:
-        if min_val == 0 and max_val == 0:
-            return True, ""
-        return False, f"value_unknown(min={min_val},max={max_val})"
-    if min_val > 0 and value < min_val:
-        return False, f"below_min({value:.4g}<{min_val})"
-    if max_val > 0 and value > max_val:
-        return False, f"above_max({value:.4g}>{max_val})"
-    return True, ""
-
-
-def _evaluate_strategy(
-    cfg: StrategyConfig,
-    snap: _TickerSnap,
-    surge_pct: float | None,
-) -> tuple[bool, str]:
-    """Returns (passed, blocked_by_reason). blocked_by_reason is '' on pass."""
-    if not cfg.enabled:
-        return False, "disabled"
-
-    ok, reason = _passes(snap.price, cfg.min_price, cfg.max_price)
-    if not ok:
-        return False, f"price:{reason}"
-
-    float_val = snap.float_shares
-    if cfg.min_float > 0 or cfg.max_float > 0:
-        if float_val is None:
-            mark_needs_fundamentals(_active_symbol())  # best-effort
-            return False, "float:unknown"
-        if cfg.min_float > 0 and float_val < cfg.min_float:
-            return False, f"float:below_min({float_val:.3g}<{cfg.min_float:.3g})"
-        if cfg.max_float > 0 and float_val > cfg.max_float:
-            return False, f"float:above_max({float_val:.3g}>{cfg.max_float:.3g})"
-
-    if cfg.min_volume > 0 and (snap.volume is None or snap.volume < cfg.min_volume):
-        return False, f"volume:below_min({snap.volume}<{cfg.min_volume})"
-
-    ok, reason = _passes(snap.rvol, cfg.min_rvol, cfg.max_rvol)
-    if not ok:
-        return False, f"rvol:{reason}"
-
-    ok, reason = _passes(snap.gap_pct, cfg.min_gap_pct, cfg.max_gap_pct)
-    if not ok:
-        return False, f"gap_pct:{reason}"
-
-    ok, reason = _passes(snap.change_pct, cfg.min_change_pct, cfg.max_change_pct)
-    if not ok:
-        return False, f"change_pct:{reason}"
-
-    if cfg.surge_pct > 0 and cfg.surge_window_min > 0:
-        if surge_pct is None or surge_pct < cfg.surge_pct:
-            return False, f"surge:{surge_pct} < {cfg.surge_pct}% in {cfg.surge_window_min}min"
-
-    if cfg.proximity_52wk_pct > 0:
-        high52 = snap.fifty_two_week_high
-        if high52 is None or high52 <= 0:
-            mark_needs_fundamentals(_active_symbol())
-            return False, "52wk_high:unknown"
-        proximity = ((high52 - snap.price) / high52) * 100.0
-        if proximity > cfg.proximity_52wk_pct:
-            return False, f"52wk_proximity:{proximity:.2f}%>{cfg.proximity_52wk_pct}%"
-
-    return True, ""
-
-
 # Thread-local-ish helper: set briefly during on_trade_update so that
 # mark_needs_fundamentals called from _evaluate_strategy has the symbol.
 _active_symbol_name: str = ""
@@ -633,42 +372,6 @@ _active_symbol_name: str = ""
 
 def _active_symbol() -> str:
     return _active_symbol_name
-
-
-def _passes_master_gate(symbol: str, snap: _TickerSnap) -> tuple[bool, str]:
-    """Global pre-check before strategy evaluation (RVOL + optional master surge).
-
-    HOD is enforced per-strategy via ``StrategyConfig.requires_hod`` so Warrior
-    Running Up alerts can fire without a new high of day.
-    """
-    eff_min_rvol = _effective_min_rvol()
-    if eff_min_rvol > 0:
-        if snap.rvol is None:
-            if _startup_ts and (time.monotonic() - _startup_ts) < HOD_MOMO_RVOL_WARMUP_GRACE_SEC:
-                pass
-            else:
-                return False, "master_rvol:unknown"
-        elif snap.rvol < eff_min_rvol:
-            return False, f"master_rvol({snap.rvol:.2f}<{eff_min_rvol})"
-
-    if _master.surge_pct > 0 and _master.surge_window_min > 0:
-        surge = _price_surge(symbol, _master.surge_window_min, "low_to_current")
-        if surge is None:
-            return False, f"master_surge:insufficient_data(window={_master.surge_window_min}min)"
-        if surge < _master.surge_pct:
-            return False, f"master_surge({surge:.2f}%<{_master.surge_pct}%)"
-
-    return True, ""
-
-
-def _fails_hod_gate(symbol: str, snap: _TickerSnap, cfg: StrategyConfig) -> str | None:
-    """Return a block reason if this strategy requires HOD and price is below it."""
-    if not (cfg.requires_hod and _master.hod_required):
-        return None
-    session_high = _session_highs.get(symbol, 0.0)
-    if snap.price < session_high:
-        return f"hod(price={snap.price:.4g}<hod={session_high:.4g})"
-    return None
 
 
 # ── Alert emission ─────────────────────────────────────────────────────────────
@@ -737,7 +440,11 @@ def on_trade_update(
         return
 
     # Master gate
-    gate_ok, gate_reason = _passes_master_gate(symbol, snap)
+    eff_min_rvol = _effective_min_rvol()
+    in_warmup_grace = bool(_startup_ts) and (time.monotonic() - _startup_ts) < HOD_MOMO_RVOL_WARMUP_GRACE_SEC
+    gate_ok, gate_reason = _passes_master_gate(
+        snap, _master, eff_min_rvol, in_warmup_grace, _price_buffer.get(symbol)
+    )
     if not gate_ok:
         # Increment the first word of the reason as the counter key
         counter_key = gate_reason.split("(")[0]
@@ -754,7 +461,9 @@ def on_trade_update(
     def _get_surge(window_min: int, method: str) -> float | None:
         key = (window_min, method)
         if key not in _surge_cache:
-            _surge_cache[key] = _price_surge(symbol, window_min, method) if window_min > 0 else None
+            _surge_cache[key] = (
+                _price_surge(_price_buffer.get(symbol), window_min, method) if window_min > 0 else None
+            )
         return _surge_cache[key]
 
     now_ts = time.time()
@@ -793,14 +502,16 @@ def on_trade_update(
             strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": "cooldown"})
             continue
 
-        hod_block = _fails_hod_gate(symbol, snap, cfg)
+        hod_block = _fails_hod_gate(snap.price, _session_highs.get(symbol, 0.0), cfg, _master.hod_required)
         if hod_block:
             strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": False, "blocked_by": hod_block})
             _gate_counters[f"strategy_{strategy_id}_hod"] += 1
             continue
 
         surge = _get_surge(cfg.surge_window_min, cfg.surge_method) if cfg.surge_window_min > 0 else None
-        passed, blocked_by = _evaluate_strategy(cfg, snap, surge)
+        passed, blocked_by = _evaluate_strategy(
+            cfg, snap, surge, lambda: mark_needs_fundamentals(_active_symbol())
+        )
         strategy_decisions.append({"id": strategy_id, "name": cfg.name, "passed": passed, "blocked_by": blocked_by})
 
         if not passed:
@@ -811,7 +522,7 @@ def on_trade_update(
         any_fired = True
 
         # Build alert
-        ts_iso = datetime.utcfromtimestamp(ts).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        ts_iso = _format_alert_timestamp(ts)
         alert_id = f"{int(ts * 1000)}-{symbol}-{strategy_id}"
         alert = AlertObject(
             id=alert_id,
@@ -861,7 +572,7 @@ def on_trade_update(
     )
     _trade_log.debug(
         "%s TRADE %s price=%.4g snap={%s} gate=passed fired=[%s] blocked=[%s]",
-        datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:23],
+        _format_trade_log_timestamp(),
         symbol, price, snap_summary,
         ",".join(fired_ids) if fired_ids else "none",
         blocked_summary or "none",
@@ -1080,20 +791,15 @@ def remove_block(symbol: str) -> list[str]:
 # ── Debug API ──────────────────────────────────────────────────────────────────
 
 def get_debug_counters() -> dict:
-    snaps_populated = sum(
-        1 for s in _ticker_snaps.values()
-        if s.rvol is not None or s.change_pct is not None
+    return _debug.build_debug_counters(
+        _total_trades_seen,
+        _ticker_snaps,
+        _gate_counters,
+        _session_highs,
+        _fundamentals_queue,
+        _pending_consolidation,
+        _today_alerts,
     )
-    return {
-        "total_trades_seen": _total_trades_seen,
-        "universe_size": len(_ticker_snaps),
-        "snaps_populated": snaps_populated,
-        "counters": dict(_gate_counters),
-        "session_highs_tracked": len(_session_highs),
-        "fundamentals_queue_depth": len(_fundamentals_queue),
-        "pending_symbols": len(_pending_consolidation),
-        "alerts_today": len(_today_alerts),
-    }
 
 
 def get_debug_symbol(symbol: str) -> dict:
@@ -1110,81 +816,43 @@ def get_debug_symbol(symbol: str) -> dict:
         }
         for r in list(_per_symbol_decisions.get(sym, []))
     ]
-    return {
-        "symbol": sym,
-        "snap": {
-            "price": snap.price if snap else None,
-            "rvol": snap.rvol if snap else None,
-            "float_shares": snap.float_shares if snap else None,
-            "gap_pct": snap.gap_pct if snap else None,
-            "change_pct": snap.change_pct if snap else None,
-            "volume": snap.volume if snap else None,
-            "fifty_two_week_high": snap.fifty_two_week_high if snap else None,
-            "rvol_source": snap.rvol_source if snap else None,
-            "last_enriched": snap.last_enriched if snap else 0.0,
-        },
-        "session_high": _session_highs.get(sym),
-        "decisions": decisions,
-        "would_fire_now": _would_fire_now(sym) if snap else None,
-    }
+    would_fire = _would_fire_now(sym) if snap else None
+    return _debug.build_debug_symbol(sym, snap, decisions, _session_highs.get(sym), would_fire)
 
 
 def _would_fire_now(symbol: str) -> dict:
     snap = _ticker_snaps.get(symbol)
     if not snap:
         return {"gate": "no_snap", "strategies": []}
-    gate_ok, gate_reason = _passes_master_gate(symbol, snap)
+    eff_min_rvol = _effective_min_rvol()
+    in_warmup_grace = bool(_startup_ts) and (time.monotonic() - _startup_ts) < HOD_MOMO_RVOL_WARMUP_GRACE_SEC
+    gate_ok, gate_reason = _passes_master_gate(
+        snap, _master, eff_min_rvol, in_warmup_grace, _price_buffer.get(symbol)
+    )
     if not gate_ok:
         return {"gate": gate_reason, "strategies": []}
     results = []
     for strategy_id, cfg in _configs.items():
         if not cfg.enabled:
             continue
-        surge = _price_surge(symbol, cfg.surge_window_min, cfg.surge_method) if cfg.surge_window_min > 0 else None
-        passed, reason = _evaluate_strategy(cfg, snap, surge)
+        surge = (
+            _price_surge(_price_buffer.get(symbol), cfg.surge_window_min, cfg.surge_method)
+            if cfg.surge_window_min > 0 else None
+        )
+        passed, reason = _evaluate_strategy(
+            cfg, snap, surge, lambda: mark_needs_fundamentals(_active_symbol())
+        )
         results.append({"id": strategy_id, "name": cfg.name, "passed": passed, "blocked_by": reason})
     return {"gate": "passed", "strategies": results}
 
 
 def get_debug_recent(limit: int = 100) -> list[dict]:
-    records = list(_recent_decisions)[-limit:]
-    return [
-        {
-            "ts": r.ts,
-            "symbol": r.symbol,
-            "price": r.price,
-            "rvol": r.snap.get("rvol"),
-            "gap_pct": r.snap.get("gap_pct"),
-            "change_pct": r.snap.get("change_pct"),
-            "gate_blocked": r.gate_blocked,
-            "strategies_fired": [d["id"] for d in r.strategies if d.get("passed")],
-            "would_fire": r.would_fire,
-        }
-        for r in records
-    ]
+    return _debug.build_debug_recent(_recent_decisions, limit)
 
 
 def get_debug_snaps(limit: int = 50) -> list[dict]:
     """Return top-N snapshots sorted by recency of enrichment."""
-    enriched = [
-        (sym, snap) for sym, snap in _ticker_snaps.items()
-        if snap.rvol is not None or snap.change_pct is not None
-    ]
-    enriched.sort(key=lambda x: x[1].last_enriched, reverse=True)
-    return [
-        {
-            "symbol": sym,
-            "price": snap.price,
-            "rvol": snap.rvol,
-            "float_shares": snap.float_shares,
-            "gap_pct": snap.gap_pct,
-            "change_pct": snap.change_pct,
-            "volume": snap.volume,
-            "rvol_source": snap.rvol_source,
-            "last_enriched": snap.last_enriched,
-        }
-        for sym, snap in enriched[:limit]
-    ]
+    return _debug.build_debug_snaps(_ticker_snaps, limit)
 
 
 def peek_rvol_5min(symbol: str) -> float | None:
