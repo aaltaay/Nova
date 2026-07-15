@@ -6,11 +6,19 @@ import os
 
 logger = logging.getLogger(__name__)
 
+_sentry_enabled: bool = False
+
+
+def sentry_enabled() -> bool:
+    return _sentry_enabled
+
 
 def init_sentry() -> bool:
     """Initialize sentry-sdk when SENTRY_DSN is set. Returns True if enabled."""
+    global _sentry_enabled
     dsn = (os.environ.get("SENTRY_DSN") or "").strip()
     if not dsn:
+        _sentry_enabled = False
         return False
     try:
         import sentry_sdk
@@ -27,8 +35,10 @@ def init_sentry() -> bool:
             traces_sample_rate=max(0.0, min(1.0, traces)),
             send_default_pii=False,
         )
+        _sentry_enabled = True
         logger.info("Sentry enabled (traces_sample_rate=%.3f)", traces)
         return True
     except Exception:
+        _sentry_enabled = False
         logger.exception("Sentry init failed — continuing without telemetry")
         return False

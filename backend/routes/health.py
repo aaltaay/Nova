@@ -66,11 +66,14 @@ def root():
 
 @router.get("/api/health")
 def health_check():
+    from observability import sentry_enabled
+
     m = _m()
     return {
         **m._cached_health,
         "data_feed": _get_feed(),
         "feed_fell_back": _alpaca._feed_fell_back,
+        "sentry_enabled": sentry_enabled(),
     }
 
 

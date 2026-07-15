@@ -49,4 +49,22 @@ async def post_client_error(request: Request, body: ClientErrorBody):
         (body.stack or "")[:400],
         (body.component_stack or "")[:400],
     )
+
+    # Mirror into Sentry when SENTRY_DSN is configured (init in app_lifespan).
+    try:
+        import sentry_sdk
+
+        if sentry_sdk.is_initialized():
+            with sentry_sdk.push_scope() as scope:
+                scope.set_tag("source", body.source or "unknown")
+                scope.set_extra("url", body.url)
+                scope.set_extra("user_agent", body.user_agent)
+                scope.set_extra("component_stack", (body.component_stack or "")[:800])
+                sentry_sdk.capture_message(
+                    (body.message or "client_error")[:CLIENT_ERRORS_MAX_MESSAGE_CHARS],
+                    level="error",
+                )
+    except Exception:
+        logger.debug("Sentry client_error mirror skipped", exc_info=True)
+
     return {"ok": True}
