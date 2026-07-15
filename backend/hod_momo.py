@@ -732,7 +732,7 @@ def update_config(strategy_id: int, patch: dict) -> dict | None:
 
 
 def reset_config(strategy_id: int) -> dict | None:
-    if strategy_id not in range(1, 12):
+    if strategy_id not in range(1, HOD_MOMO_STRATEGY_ID_MAX + 1):
         return None
     _configs[strategy_id] = _build_default_config(strategy_id)
     _save_configs()
@@ -839,8 +839,11 @@ def _would_fire_now(symbol: str) -> dict:
             _price_surge(_price_buffer.get(symbol), cfg.surge_window_min, cfg.surge_method)
             if cfg.surge_window_min > 0 else None
         )
+        # Use the symbol being debugged directly (not the on_trade_update-owned
+        # _active_symbol_name global, which is "" — or a stale ticker — whenever
+        # this runs outside a live trade update). See PROBLEM_LOG.md 2026-07-15.
         passed, reason = _evaluate_strategy(
-            cfg, snap, surge, lambda: mark_needs_fundamentals(_active_symbol())
+            cfg, snap, surge, lambda: mark_needs_fundamentals(symbol)
         )
         results.append({"id": strategy_id, "name": cfg.name, "passed": passed, "blocked_by": reason})
     return {"gate": "passed", "strategies": results}

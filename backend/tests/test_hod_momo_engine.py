@@ -249,6 +249,59 @@ def test_effective_min_rvol_uses_afterhours_setting(monkeypatch):
     assert hm._effective_min_rvol() == 5.0
 
 
+def test_reset_config_resets_strategy_12_running_up(monkeypatch):
+    """Regression: reset_config() used a hardcoded range(1, 12), excluding strategy
+    12 (Running Up) from HOD_MOMO_STRATEGY_ID_MAX=12's inclusive range, so it could
+    never be reset individually via the config API."""
+    _reset_engine(monkeypatch)
+    hm._configs[12].enabled = False
+    hm._configs[12].min_rvol = 99.0
+    hm._configs[12].surge_pct = 0.0
+
+    result = hm.reset_config(12)
+
+    assert result is not None, "reset_config(12) must not be rejected as out-of-range"
+    default = hm._build_default_config(12)
+    assert result == hm._config_to_dict(default)
+    assert hm._configs[12].enabled == default.enabled
+    assert hm._configs[12].min_rvol == default.min_rvol
+    assert hm._configs[12].surge_pct == default.surge_pct
+
+
+def test_reset_config_still_rejects_out_of_range_ids(monkeypatch):
+    _reset_engine(monkeypatch)
+    assert hm.reset_config(0) is None
+    assert hm.reset_config(13) is None
+
+
+def test_would_fire_now_queues_symbol_being_debugged_not_stale_active_symbol(monkeypatch):
+    """Regression: _would_fire_now() (backs GET /api/hod-momo/debug/symbol/{sym})
+    never set _active_symbol_name, so mark_needs_fundamentals() picked up whatever
+    on_trade_update last left there instead of the symbol actually being debugged."""
+    _reset_engine(monkeypatch)
+    for sid, cfg in hm._configs.items():
+        cfg.enabled = sid == 9  # Medium Float strategy requires min_float
+    hm._master.min_rvol = 0.0
+    hm._master.premarket_min_rvol = 0.0
+    hm._master.afterhours_min_rvol = 0.0
+    hm._master.surge_pct = 0.0
+
+    # Simulate a stale "active symbol" left over from a previous live trade —
+    # this is exactly the state on_trade_update leaves between calls.
+    monkeypatch.setattr(hm, "_active_symbol_name", "STALE")
+    from collections import deque as _deque
+    monkeypatch.setattr(hm, "_fundamentals_queue", _deque())
+    monkeypatch.setattr(hm, "_fundamentals_queued", set())
+
+    debug_sym = "DEBUGME"
+    hm.update_ticker_snapshot(debug_sym, price=25.0)  # float_shares left None → "float:unknown"
+
+    hm._would_fire_now(debug_sym)
+
+    assert list(hm._fundamentals_queue) == [debug_sym]
+    assert "STALE" not in hm._fundamentals_queue
+
+
 def test_on_trade_update_recomputes_ibkr_pace_rvol(monkeypatch):
     """IBKR cum volume should refresh pace RVOL (not leave stale yfinance ~1.3x)."""
     _reset_engine(monkeypatch)

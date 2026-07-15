@@ -21,6 +21,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — reset_config(12) rejected; HOD Momo debug path queued stale fundamentals symbol
+
+- **Symptom (bug 1):** `POST` to the HOD Momo config-reset API for strategy 12 ("Running Up Alert") silently returned `None`/404-equivalent — that one strategy could never be reset to defaults individually, even though `reset_all()` and every other strategy ID worked fine.
+- **Cause (bug 1):** `hod_momo.reset_config()` validated the incoming `strategy_id` against a hardcoded `range(1, 12)` (exclusive upper bound → IDs 1–11 only) instead of the `HOD_MOMO_STRATEGY_ID_MAX` constant (=12, inclusive per `HOD_MOMO_STRATEGY_NAMES`/`HOD_MOMO_STRATEGY_DEFAULTS` and per the sibling `_load_configs_from_disk()`, which already used `range(1, HOD_MOMO_STRATEGY_ID_MAX + 1)`). Strategy 12 (Running Up) was added later (schema v3) and this bound was never updated to match.
+- **Fix:** `reset_config()` now checks `strategy_id not in range(1, HOD_MOMO_STRATEGY_ID_MAX + 1)`, matching the existing inclusive-bound pattern already used elsewhere in `hod_momo.py`. Added `test_reset_config_resets_strategy_12_running_up` and `test_reset_config_still_rejects_out_of_range_ids` in `backend/tests/test_hod_momo_engine.py`.
+- **Symptom (bug 2):** The HOD Momo debug-symbol endpoint (`get_debug_symbol` → `_would_fire_now`) could enqueue the wrong ticker (or nothing useful) into the fundamentals-fetch queue instead of the symbol actually being inspected.
+- **Cause (bug 2):** `_would_fire_now(symbol)` called `_evaluate_strategy(..., lambda: mark_needs_fundamentals(_active_symbol()))`, reusing the same callback shape as the live `on_trade_update` path. But only `on_trade_update` sets the module-level `_active_symbol_name` global (to the live symbol on entry, back to `""` on exit) — `_would_fire_now` never set it. Any debug-symbol request that ran between trades (i.e. always, since it's not invoked from inside `on_trade_update`) read a stale leftover symbol (or `""`) via `_active_symbol()`, so `mark_needs_fundamentals()` queued the wrong ticker.
+- **Fix:** `_would_fire_now()` now calls `mark_needs_fundamentals(symbol)` directly using its own `symbol` parameter instead of routing through the `_active_symbol_name` global that only `on_trade_update` owns. The live `on_trade_update` path is unchanged. Added `test_would_fire_now_queues_symbol_being_debugged_not_stale_active_symbol` in `backend/tests/test_hod_momo_engine.py`.
+- **Keywords:** reset_config, HOD_MOMO_STRATEGY_ID_MAX, off-by-one, strategy 12, Running Up Alert, _would_fire_now, get_debug_symbol, mark_needs_fundamentals, _active_symbol_name, stale symbol, fundamentals queue, hod_momo.py
+
 ## 2026-07-15 — Open-ticker detail loop still snapshotting symbols already streaming live
 
 - **Symptom:** Suspected open-ticker (quote panel) lag under load (movers scans + multiple open panels), attributed to the detail refresh being snapshot-based instead of a persistent `reqMktData` stream.
