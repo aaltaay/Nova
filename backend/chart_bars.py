@@ -16,6 +16,7 @@ from constants import (
     IBKR_HISTORICAL_TIMEOUT_SEC,
 )
 from ibkr import client as _ibkr_client
+from ibkr.errors import bars_failure_detail, describe_exc, is_transient_historical_failure
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +53,13 @@ def fetch_chart_bars(
         except HTTPException:
             raise
         except Exception as exc:
-            logger.error("IBKR bars failed for %s: %s", symbol, exc)
-            raise HTTPException(
-                status_code=503,
-                detail=f"IBKR chart bars failed for {symbol}: {exc}",
-            ) from exc
+            detail = bars_failure_detail(symbol, exc)
+            if is_transient_historical_failure(exc):
+                # Expected under Gateway load / overnight cancels — warning, not Sentry ERROR spam.
+                logger.warning("IBKR bars transient failure for %s: %s", symbol, describe_exc(exc))
+            else:
+                logger.error("IBKR bars failed for %s: %s", symbol, describe_exc(exc), exc_info=True)
+            raise HTTPException(status_code=503, detail=detail) from exc
         if not isinstance(result, dict) or "bars" not in result:
             raise HTTPException(
                 status_code=503,

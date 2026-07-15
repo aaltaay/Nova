@@ -68,3 +68,34 @@ def test_fetch_chart_bars_alpaca_mode_uses_alpaca():
     alpaca.assert_called_once()
     assert out["source"] == "alpaca"
     assert out["symbol"] == "AAPL"
+
+
+def test_describe_exc_never_empty_for_timeout():
+    from ibkr.errors import describe_exc, is_transient_historical_failure
+
+    empty = TimeoutError()
+    assert describe_exc(empty) == "TimeoutError"
+    assert is_transient_historical_failure(empty) is True
+    assert is_transient_historical_failure(RuntimeError("Error 162: Historical Market Data Service query cancelled"))
+
+
+def test_fetch_chart_bars_ibkr_timeout_is_503_with_clear_detail():
+    from fastapi import HTTPException
+
+    def _timeout_bridge(coro, timeout):
+        coro.close()
+        raise TimeoutError()
+
+    with patch.object(chart_bars._ibkr_client, "is_connected", return_value=True):
+        with patch.object(chart_bars._ibkr_client, "run_coro", side_effect=_timeout_bridge):
+            with patch.object(chart_bars, "fetch_alpaca_bars") as alpaca:
+                try:
+                    chart_bars.fetch_chart_bars("AAPL", "1Min", 10, discovery_provider="ibkr")
+                    assert False, "expected HTTPException"
+                except HTTPException as exc:
+                    assert exc.status_code == 503
+                    detail = str(exc.detail)
+                    assert "timed out" in detail.lower() or "cancelled" in detail.lower()
+                    assert "TimeoutError" in detail
+                    assert "Alpaca" in detail  # honesty: no silent fallback
+    alpaca.assert_not_called()

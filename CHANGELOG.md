@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — IBKR chart bars: clear errors, less Sentry spam
+
+- **What:** `ibkr/errors.py` formats exceptions that have empty `str(exc)` (TimeoutError/cancels). Transient historical failures log at warning with an explicit 503 detail; unexpected failures still ERROR with traceback. No Alpaca fallback under discovery=ibkr.
+- **Why:** Sentry PYTHON-FASTAPI-6 showed `IBKR bars failed for AAPL:` with nothing after the colon.
+- **Files touched:** `backend/ibkr/errors.py`, `backend/chart_bars.py`, `backend/ibkr/bars.py`, `backend/tests/test_ibkr_bars.py`.
+- **How it works now:** Cancel/timeout → warning + “timed out or was cancelled” 503. Other failures → `logger.error(..., exc_info=True)` with `TypeName: message`.
+- **Verified by:** `pytest tests/test_ibkr_bars.py`.
+- **Follow-ups:** Optional Sentry ignore for `ib_async.wrapper`; IBKR open-ticker streaming for queue contention.
+- **Related:** PROBLEM_LOG 2026-07-15 empty IBKR bars message.
+
 ## 2026-07-15 — Ticker speed, TOD RVOL, Sentry opt-in, IBC docs, _main thin
 
 - **What:** REST ticker composes fast+slow builders, cache-only avg volume, shorter HTTP + IBKR snapshot budgets. 5-min RVOL uses a coarse ET TOD curve. Optional Sentry via `SENTRY_DSN`. IBC setup docs + example launcher. `scan_runners` / `scan_loop` / `routes/health` call leaf modules directly for functions.

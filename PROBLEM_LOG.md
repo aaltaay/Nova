@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Empty "IBKR bars failed for SYMBOL:" in Sentry
+
+- **Symptom:** Sentry/logs showed `IBKR bars failed for AAPL:` / `PYPG:` with nothing after the colon; UI got opaque 503s.
+- **Cause:** `reqHistoricalData` timeouts and Gateway cancel (Error 162) often raise exceptions whose `str(exc)` is empty (`TimeoutError()`). Chart path logged/raised with `{exc}` only. Those expected failures were also logged at ERROR, flooding Sentry.
+- **Fix:** `ibkr/errors.describe_exc` / `is_transient_historical_failure` / `bars_failure_detail`; transient → warning + clear 503; unexpected → error+traceback. Still no Alpaca candle fallback under ibkr.
+- **Keywords:** IBKR bars, chart_bars, TimeoutError, Error 162, Sentry empty message, historical cancelled, PYTHON-FASTAPI-6
+
 ## 2026-07-15 — Alpaca WS still connected under discovery=ibkr
 
 - **Symptom:** Backend opened Alpaca market-data WS even when discovery=ibkr (HOD trades already ignored), burning the single connection slot and risking 406 under reload.

@@ -23,6 +23,7 @@ from constants import (
     IBKR_HISTORICAL_WHAT_TO_SHOW,
 )
 from ibkr import client as _client
+from ibkr.errors import describe_exc, is_transient_historical_failure
 
 logger = logging.getLogger(__name__)
 
@@ -110,8 +111,9 @@ async def fetch_bars_async(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.error("IBKR: qualify failed for bars %s: %s", symbol, exc)
-        raise HTTPException(status_code=502, detail=f"IBKR qualify failed: {exc}") from exc
+        desc = describe_exc(exc)
+        logger.error("IBKR: qualify failed for bars %s: %s", symbol, desc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"IBKR qualify failed: {desc}") from exc
 
     try:
         raw = await ib.reqHistoricalDataAsync(
@@ -125,9 +127,15 @@ async def fetch_bars_async(
             keepUpToDate=False,
             timeout=IBKR_HISTORICAL_TIMEOUT_SEC,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.error("IBKR: historical bars failed for %s %s: %s", symbol, timeframe, exc)
-        raise HTTPException(status_code=502, detail=f"IBKR historical data failed: {exc}") from exc
+        desc = describe_exc(exc)
+        if is_transient_historical_failure(exc):
+            logger.warning("IBKR: historical bars transient for %s %s: %s", symbol, timeframe, desc)
+        else:
+            logger.error("IBKR: historical bars failed for %s %s: %s", symbol, timeframe, desc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"IBKR historical data failed: {desc}") from exc
 
     bars = _normalize_bars(raw or [], limit)
     return {"symbol": symbol.upper(), "timeframe": timeframe, "bars": bars, "source": "ibkr"}
