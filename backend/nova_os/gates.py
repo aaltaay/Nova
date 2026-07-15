@@ -15,6 +15,7 @@ from constants import (
     GAP_AND_GO_WINDOW_START_ET,
     NOVA_OS_CATALYST_MIN_CONFIDENCE,
     NOVA_OS_MIN_FIRST_MINUTE_VOLUME,
+    NOVA_OS_NYSE_HOLIDAYS,
     NOVA_OS_PRIMARY_SETUP,
     NOVA_OS_WATCHLIST_MAX_RANK,
 )
@@ -72,10 +73,18 @@ def first_minute_volume(bars: list[dict]) -> int | None:
     return None
 
 
+def is_nyse_holiday(when: datetime | None = None) -> bool:
+    """True when `when` (ET) falls on a known NYSE full-day holiday."""
+    when = when or now_et()
+    return when.date().isoformat() in NOVA_OS_NYSE_HOLIDAYS
+
+
 def session_allows_trading(when: datetime | None = None) -> bool:
-    """Extended-hours weekday window (04:00–20:00 ET). Weekends closed."""
+    """Extended-hours weekday window (04:00–20:00 ET). Weekends/holidays closed."""
     when = when or now_et()
     if when.weekday() >= 5:
+        return False
+    if is_nyse_holiday(when):
         return False
     minutes = when.hour * 60 + when.minute
     return (4 * 60) <= minutes < (20 * 60)
@@ -99,7 +108,14 @@ def gate_session(risk_state, requested_mode: str) -> tuple[GateResult, str, list
         reasons.append(loss_reason)
         evidence["loss_policy"] = loss_reason
 
-    if not session_allows_trading():
+    when = now_et()
+    evidence["is_holiday"] = is_nyse_holiday(when)
+    if evidence["is_holiday"]:
+        reasons.append("SESSION_HOLIDAY")
+        evidence["session_open"] = False
+        return GateResult(GATE_SESSION, False, True, reasons, evidence), effective_mode, reasons
+
+    if not session_allows_trading(when):
         reasons.append("SESSION_CLOSED")
         evidence["session_open"] = False
         return GateResult(GATE_SESSION, False, True, reasons, evidence), effective_mode, reasons

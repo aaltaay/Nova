@@ -114,6 +114,12 @@ async def lifespan(app: FastAPI):
     _journal_db.init_db()
     _l2_db.init_db()
     _nova_os_events_db.init_db()
+    from nova_os.recovery import run_startup_recovery
+
+    try:
+        run_startup_recovery()
+    except Exception:
+        logger.exception("Nova OS startup recovery failed")
     _hod_momo._on_blocklist_changed = invalidate_universe_cache
 
     loop = asyncio.get_event_loop()

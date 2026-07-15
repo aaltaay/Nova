@@ -40,13 +40,15 @@ class TestControlMode:
         assert control_mode.get_mode() == NOVA_OS_MODE_CONFIRM
 
     def test_set_mode_auto_live_raises(self):
-        with pytest.raises(ValueError, match="auto modes not enabled"):
+        with pytest.raises(ValueError, match="auto_live is not enabled"):
             control_mode.set_mode(NOVA_OS_MODE_AUTO_LIVE)
         assert control_mode.get_mode() == NOVA_OS_MODE_SIGNAL
 
-    def test_set_mode_auto_paper_raises(self):
-        with pytest.raises(ValueError, match="use P5"):
+    def test_set_mode_auto_paper_requires_gates(self, monkeypatch):
+        monkeypatch.setattr("nova_os.control_mode._ibkr_client.is_connected", lambda: False)
+        with pytest.raises(ValueError, match="IBKR connected"):
             control_mode.set_mode(NOVA_OS_MODE_AUTO_PAPER)
+        assert control_mode.get_mode() == NOVA_OS_MODE_SIGNAL
 
     def test_force_signal(self):
         control_mode.set_mode(NOVA_OS_MODE_CONFIRM)

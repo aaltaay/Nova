@@ -6,37 +6,43 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 
 ## Current position
 
-- Phase: P4
+- Phase: P5
 - State: verified
-- Last verified commit: 21183fa11a2eb2af16f84cd3f2a7193c2cfb3fbc
-- Last updated: 2026-07-15 ~15:45 ET
+- Last verified commit: (pending)
+- Last updated: 2026-07-15 ~16:00 ET
 
 ## Completed this phase
 
-- **P4 — Confirm mode + emergency controls** (backend + Automation UI)
-- control_mode / staged_tickets; mode-aware executor; Approve/Reject; safer kill; flatten token; ExecutorPanel ladder
+- **P5 — Automatic paper execution + recovery:**
+  - `auto_paper` mode gated (paper Gateway, orders enabled, risk, holiday calendar)
+  - `auto_live` still rejected
+  - Restart → always `signal`; `recovery.py` reconstructs tracked positions from events/IBKR
+  - ExecutorPanel: Auto Paper + blocked Auto Live
+  - Policy `nova-os-p5-2026-07-15`
 
 ## Prior phases
 
-- P3 Decision UX — fd007a9 · P2 decide — 528cc7f · P1 events — 9fbdaff · P0 — e2d649c
+- P4 confirm — ecc6f88 · P3 UX — fd007a9 · P2 decide — 528cc7f · P1 — 9fbdaff · P0 — e2d649c
 
 ## In progress / uncommitted
 
-- Unrelated WIP (HOD integrity/surge, earnings, scanner density) left unstaged
+- P6/P7 archive sources need recreate (pycache present; sources lost in branch switch) — next
+- Unrelated HOD/earnings WIP in stash
 
 ## Crash or blocker
 
-- none · Next: **P5 auto_paper + recovery**
+- none for P5
+- Safe next: recreate P6/P7 archive package, then P8–P10
 
 ## Verification ledger
 
-- pytest control_mode + staged + executor: 29 passed
+- pytest auto_paper + control + staged + executor: 42 passed
 - npm run build: PASS
 
 ## User action needed
 
-- none (R2 still P8)
+- P8 will need Cloudflare R2 keys (user-r2-setup)
 
 ## Phase-close / Next chat starts here
 
-Continue **P5 — Automatic paper execution and recovery**
+Continue **P6/P7 archive recreate → P8 R2 → P9 replay → P10 GO/NO-GO**

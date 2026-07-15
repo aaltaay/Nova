@@ -1,11 +1,11 @@
 """
-Paper-execution engine — Nova OS control modes (Phase P4).
+Paper-execution engine — Nova OS control modes (Phase P5).
 
 Control modes (in-memory; restart → signal):
   signal     — display only; on_signal returns None
   confirm    — stage expiring tickets; human Approve places
-  auto_paper — auto-place brackets (code path kept for P5; set_mode rejects it in P4)
-  auto_live  — not enabled
+  auto_paper — auto-place paper brackets when set_mode gates pass
+  auto_live  — not enabled (no live money)
 
 Safety model (defense in depth):
   1. Kill switch / force_signal — no new entries; staged rejected.
@@ -31,6 +31,7 @@ from constants import (
     EXECUTOR_ENTRY_SIDE_IBKR,
     EXECUTOR_ENTRY_SIDE_JOURNAL,
     EXECUTOR_FILL_POLL_INTERVAL_SEC,
+    NOVA_OS_ACTION_EXECUTED_PAPER,
     NOVA_OS_FLATTEN_CONFIRM_TOKEN,
     NOVA_OS_MODE_AUTO_PAPER,
     NOVA_OS_MODE_CONFIRM,
@@ -67,15 +68,21 @@ _open_positions: dict[str, OpenPosition] = {}
 
 _MODE_DISCLOSURE = (
     "Control mode starts at signal on every restart and is never persisted. "
-    "P4 allows signal (display only) and confirm (stage ticket → human Approve). "
-    "auto_paper/auto_live are not selectable yet. Kill forces signal, rejects "
-    "staged tickets, and cancels only unfilled entry parents — protective stops "
-    "on filled positions are preserved. Flatten requires typing FLATTEN."
+    "P5 allows signal (display), confirm (stage → Approve), and auto_paper "
+    "(paper Gateway + orders enabled + risk clear + not holiday — places without "
+    "Approve). auto_live stays blocked. Kill forces signal, rejects staged, and "
+    "cancels only unfilled entry parents — protective stops on filled positions "
+    "are preserved. Flatten requires typing FLATTEN."
 )
 
 
 def open_positions() -> dict[str, OpenPosition]:
     return _open_positions
+
+
+def restore_tracked_position(pos: OpenPosition) -> None:
+    """Startup recovery / tests — register a tracked position without placing."""
+    _open_positions[pos.symbol.upper()] = pos
 
 
 def is_armed() -> bool:
@@ -333,6 +340,26 @@ def place_from_ticket(
         opened_ts=time.time(),
     )
     _open_positions[symbol] = pos
+    record_receipt(
+        kind=KIND_ACTION,
+        symbol=symbol,
+        action=NOVA_OS_ACTION_EXECUTED_PAPER,
+        mode=_control_mode.get_mode(),
+        would_execute=True,
+        executed=True,
+        payload={
+            "event": "executed_paper",
+            "setup": setup,
+            "qty": qty,
+            "entry_price": entry,
+            "stop_price": stop,
+            "target_price": target,
+            "parent_order_id": pos.parent_order_id,
+            "target_order_id": pos.target_order_id,
+            "stop_order_id": pos.stop_order_id,
+            "opened_ts": pos.opened_ts,
+        },
+    )
     logger.warning(
         "Executor: placed bracket %s/%s qty=%s entry=%s stop=%s target=%s (parent=%s)",
         symbol, setup, qty, entry, stop, target, pos.parent_order_id,

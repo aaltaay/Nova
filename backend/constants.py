@@ -700,10 +700,12 @@ LINCOLN_AI_CACHE_MAX_ENTRIES = 200
 # read back by the UI. Treat them like an API contract — add new codes, never
 # silently rename or repurpose an existing one, and bump NOVA_OS_POLICY_VERSION
 # when the decision semantics behind them change.
-NOVA_OS_POLICY_VERSION = "nova-os-p4-2026-07-15"  # bump when decision semantics change
+NOVA_OS_POLICY_VERSION = "nova-os-p5-2026-07-15"  # bump when decision semantics change
 
 NOVA_OS_EVENTS_DB_FILENAME = "nova_os_events.db"  # lives under paths.cache_dir(), not git-tracked
 NOVA_OS_EVENTS_DEFAULT_LIMIT = 200                # default rows returned by the read API
+# Restart recovery scans this many newest events for executed_paper / closes.
+NOVA_OS_RECOVERY_EVENTS_LIMIT = 500
 
 # decide() tunables (course rules — Gap and Go first-minute volume + top ranks)
 NOVA_OS_MIN_FIRST_MINUTE_VOLUME = 100_000  # ebook: ≥100k shares in the 9:30 ET minute
@@ -738,10 +740,23 @@ NOVA_OS_MODES = (
 )
 NOVA_OS_DEFAULT_MODE = NOVA_OS_MODE_SIGNAL  # safest default; never persisted as anything else on restart
 
-# P4 — confirm-mode staging + emergency controls (never persist mode across restart)
+# P4/P5 — confirm + auto_paper controls (never persist mode across restart)
 NOVA_OS_CONFIRM_TIMEOUT_SEC = 45           # staged ticket TTL; Gap and Go moves fast
 NOVA_OS_MAX_CONCURRENT_POSITIONS = 2       # open executor positions + staged tickets combined
 NOVA_OS_FLATTEN_CONFIRM_TOKEN = "FLATTEN"  # typed confirm for flatten_positions()
+# NYSE full-day closures (ISO dates). Gate 0 + set_mode(auto_paper) refuse holidays.
+NOVA_OS_NYSE_HOLIDAYS = frozenset({
+    "2026-01-01",  # New Year's Day
+    "2026-01-19",  # Martin Luther King Jr. Day
+    "2026-02-16",  # Presidents' Day
+    "2026-04-03",  # Good Friday
+    "2026-05-25",  # Memorial Day
+    "2026-06-19",  # Juneteenth
+    "2026-07-03",  # Independence Day (observed)
+    "2026-09-07",  # Labor Day
+    "2026-11-26",  # Thanksgiving
+    "2026-12-25",  # Christmas
+})
 
 # Action codes — what Nova OS actually did with a decision. The "no silent
 # action" contract means every one of these is recorded as an event receipt.
@@ -767,6 +782,7 @@ NOVA_OS_ACTIONS = (
 NOVA_OS_REASON_CODES = (
     # Gate 0 — session / regime / risk state
     "SESSION_CLOSED",
+    "SESSION_HOLIDAY",
     "RISK_HALTED",
     "LOSS_POLICY_DOWNGRADE",
     "LOSS_POLICY_HALT",

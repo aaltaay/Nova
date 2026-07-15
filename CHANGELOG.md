@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Nova OS P5 auto_paper + restart recovery
+
+- **What:** `set_mode("auto_paper")` gated (paper IBKR + orders enabled + risk + not holiday); `on_signal` auto-places via `place_from_ticket`; `executed_paper` receipts include order ids; `recovery.py` reconstructs tracked positions on startup; `auto_live` still blocked. ExecutorPanel can raise Auto Paper on paper Gateway with disclosure; Auto Live disabled.
+- **Why:** Phase P5 — automatic paper execution with restart reconciliation; no live money.
+- **Files touched:** `constants.py` (policy `nova-os-p5-2026-07-15`, `NOVA_OS_NYSE_HOLIDAYS`), `nova_os/control_mode.py`, `gates.py`, `recovery.py`, `strategy/executor.py`, `app_lifespan.py`, `ExecutorPanel.tsx`, `tests/test_nova_os_auto_paper.py`.
+- **How it works now:** Restart → always `signal` (never restores auto_paper). Raise Auto Paper only when paper Gateway + spend + risk + not holiday (else 409). BUY in auto_paper places immediately; confirm still stages. Recovery reads recent events + optional IBKR open orders; ambiguous → force_signal + loud system receipt.
+- **Verified by:** pytest `test_nova_os_auto_paper.py` + related control_mode/executor; `npm run build` (parent verifies before marking verified).
+- **Follow-ups:** Parent verify + commit; then next phase per status note.
+- **Related:** [[Nova-OS-Status]] P5 in_progress.
+
 ## 2026-07-15 — Nova OS P4 confirm mode + emergency controls
 
 - **What:** In-memory control modes (`signal`/`confirm`; auto_* rejected until P5), staged-ticket queue with TTL Approve/Reject, safer kill (preserve filled protective stops), cancel-working-entry, typed FLATTEN flatten, Automation panel mode ladder + staged queue UI.

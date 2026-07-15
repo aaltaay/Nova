@@ -54,7 +54,7 @@ def _approve_risk(monkeypatch, qty=100):
 
 
 def _enable_auto_paper():
-    """P4 rejects set_mode(auto_paper); tests poke the in-memory mode for the P5 path."""
+    """Bypass set_mode gates when a test only needs the on_signal auto path."""
     control_mode._mode = NOVA_OS_MODE_AUTO_PAPER
     executor._kill_switch_tripped = False
 

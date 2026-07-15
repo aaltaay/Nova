@@ -1,10 +1,12 @@
 """
-Nova OS control-mode state (Phase P4).
+Nova OS control-mode state (Phase P5).
 
 In-memory only — ALWAYS starts at NOVA_OS_DEFAULT_MODE (`signal`) on process
 start and is never written to disk. Loss policy may lower effective autonomy
-toward `confirm` but never raises it. P4 allows raising only to `signal` and
-`confirm`; `auto_paper` / `auto_live` stay rejected until later phases.
+toward `confirm` but never raises it.
+
+P5 allows `signal` | `confirm` | `auto_paper` (paper Gateway + spend + risk +
+not holiday). `auto_live` stays rejected — no live money.
 """
 from __future__ import annotations
 
@@ -18,8 +20,11 @@ from constants import (
     NOVA_OS_MODE_SIGNAL,
     NOVA_OS_MODES,
 )
+from ibkr import client as _ibkr_client
+from ibkr import safety as _ibkr_safety
 from nova_os import codes
 from nova_os.events import KIND_SYSTEM, record_receipt
+from nova_os.gates import is_nyse_holiday
 from strategy import risk as _risk
 
 logger = logging.getLogger(__name__)
@@ -46,20 +51,48 @@ def get_effective_mode_detail() -> tuple[str, str | None]:
     return codes.loss_policy_mode(_risk.get_state().consecutive_losses, _mode)
 
 
-def set_mode(requested: str) -> str:
-    """Raise/drop to an allowed P4 mode. Returns the new requested mode.
+def _assert_auto_paper_allowed() -> None:
+    """Raise ValueError with a plain reason if auto_paper cannot be enabled."""
+    if not _ibkr_client.is_connected():
+        raise ValueError("auto_paper requires IBKR connected on paper Gateway")
+    account_mode = _ibkr_client.account_mode()
+    if account_mode != "paper":
+        raise ValueError(
+            f"auto_paper requires paper Gateway (current account_mode={account_mode!r})"
+        )
+    if not _ibkr_safety.orders_enabled():
+        raise ValueError("auto_paper requires IBKR_ORDERS_ENABLED=true")
+    ok, reason = _ibkr_safety.assert_orders_allowed(
+        client_enabled=_ibkr_client.is_enabled(),
+        connected=True,
+        account_mode=account_mode,
+    )
+    if not ok:
+        raise ValueError(reason or "auto_paper blocked by IBKR spend gates")
+    can, halt_reason = _risk.can_trade()
+    if not can:
+        raise ValueError(halt_reason or "auto_paper blocked: risk cannot trade")
+    if is_nyse_holiday():
+        raise ValueError("auto_paper blocked: NYSE holiday")
 
-    Raises ValueError (409-style) for unknown modes or auto_* in P4.
+
+def set_mode(requested: str) -> str:
+    """Raise/drop to an allowed mode. Returns the new requested mode.
+
+    Raises ValueError (409-style) for unknown modes, auto_live, or failed
+    auto_paper gates.
     """
     global _mode
     if requested not in NOVA_OS_MODES:
         raise ValueError(f"unknown control mode: {requested!r}")
     if requested == NOVA_OS_MODE_AUTO_LIVE:
-        raise ValueError("P4: auto modes not enabled yet")
+        raise ValueError(
+            "auto_live is not enabled — live money stays blocked (use auto_paper on paper Gateway)"
+        )
     if requested == NOVA_OS_MODE_AUTO_PAPER:
-        raise ValueError("P4: auto_paper not enabled yet — use P5")
-    if requested not in (NOVA_OS_MODE_SIGNAL, NOVA_OS_MODE_CONFIRM):
-        raise ValueError(f"P4: mode {requested!r} not allowed")
+        _assert_auto_paper_allowed()
+    elif requested not in (NOVA_OS_MODE_SIGNAL, NOVA_OS_MODE_CONFIRM):
+        raise ValueError(f"mode {requested!r} not allowed")
 
     previous = _mode
     _mode = requested
@@ -78,7 +111,7 @@ def set_mode(requested: str) -> str:
 
 
 def force_signal(reason: str) -> str:
-    """Unconditionally drop to signal (kill / disarm). Always journals."""
+    """Unconditionally drop to signal (kill / disarm / recovery). Always journals."""
     global _mode
     previous = _mode
     _mode = NOVA_OS_MODE_SIGNAL
