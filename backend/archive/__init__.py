@@ -1,12 +1,10 @@
 """
-Nova OS permanent market-data archive (P6 local capture + P7 cold archive).
+Nova OS archive package — local capture, cold compact, R2, replay (P6–P9).
 
 Hot path: SQLite WAL under ``paths.cache_dir()/archive.db`` via ``capture``.
 Cold path: finished-day JSONL + sha256 manifests under ``archive_cold/``.
-``/api/l2/*`` remains the live recall facade; this package is the durable store.
-
-L2 changed-book capture: see ``capture.record_l2_snapshot`` (stub + TODO until
-wired from ``ibkr/depth`` without fighting continuous sampler volume).
+R2: optional content-addressed upload (``r2``) — credentials in ``.env`` only.
+Replay: ``replay.replay_day`` → ``nova_os.decide(record=False)``.
 """
 from __future__ import annotations
 

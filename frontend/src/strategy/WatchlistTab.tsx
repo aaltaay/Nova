@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
+import { ArchiveRewind } from './ArchiveRewind';
 import { DecisionPanel } from './DecisionPanel';
 import { ExecutorPanel } from './ExecutorPanel';
 import { JournalPanel } from './JournalPanel';
@@ -67,7 +68,7 @@ interface WatchlistTabProps {
   onOpenTrading: (symbol: string) => void;
 }
 
-type WatchlistSubTab = 'watchlist' | 'signals' | 'decision' | 'journal' | 'automation';
+type WatchlistSubTab = 'watchlist' | 'signals' | 'decision' | 'journal' | 'automation' | 'archive';
 
 export function WatchlistTab({
   entries, loading, error, selectedSymbol, onSelectSymbol, onOpenTrading,
@@ -114,6 +115,13 @@ export function WatchlistTab({
           title="Arm/disarm automated paper bracket orders on IBKR, and the kill switch. Disarmed by default and on every backend restart."
         >
           Automation
+        </button>
+        <button
+          className={`sub-tab ${subTab === 'archive' ? 'active' : ''}`}
+          onClick={() => setSubTab('archive')}
+          title="Local cold-archive days and decide(record=False) replay (Nova OS P9). No orders."
+        >
+          Archive
         </button>
       </div>
 
@@ -181,6 +189,8 @@ export function WatchlistTab({
       {subTab === 'journal' && <JournalPanel active={subTab === 'journal'} />}
 
       {subTab === 'automation' && <ExecutorPanel active={subTab === 'automation'} />}
+
+      {subTab === 'archive' && <ArchiveRewind active={subTab === 'archive'} />}
     </div>
   );
 }

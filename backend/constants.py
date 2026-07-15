@@ -627,15 +627,15 @@ TAPE_UI_MAX_ROWS = 200                    # max rows kept in the frontend Time &
 L2_SESSION_REASON_SIGNAL = "signal"        # record_sessions.reason when setup signal fires
 L2_SESSION_REASON_DEPTH = "depth"          # record_sessions.reason when DepthLadder / depth WS is open
 
-# ── Permanent market-data archive (Nova OS P6–P7) ───────────────────────────
-# Hot SQLite capture + local cold compact/restore. Does NOT bump
-# NOVA_OS_POLICY_VERSION — archive schema is versioned separately.
-# R2 upload / verified-trim is P8; until then never timer-purge unverified hot data.
+# ── Permanent market-data archive (Nova OS P6–P10) ──────────────────────────
+# Hot SQLite capture + local cold compact/restore + optional Cloudflare R2.
+# Does NOT bump NOVA_OS_POLICY_VERSION — archive schema is versioned separately.
+# Trim of unverified hot data stays blocked until remote verify (P8).
 ARCHIVE_SCHEMA_VERSION = "archive-v1-2026-07-15"
 ARCHIVE_DB_FILENAME = "archive.db"              # under paths.cache_dir(), not git-tracked
 ARCHIVE_COLD_DIRNAME = "archive_cold"           # finished-day JSONL + manifests
 ARCHIVE_HOT_RETENTION_DAYS = 30                 # hot window before a day is compact-eligible
-ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM = True     # skip L2 timer purge until P8 verify
+ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM = True     # never timer-purge until remote verify
 ARCHIVE_MAINTENANCE_ENABLED = False             # opt-in via env ARCHIVE_MAINTENANCE_ENABLED
 ARCHIVE_MAINTENANCE_INTERVAL_SEC = 3600.0       # hourly stub when maintenance enabled
 ARCHIVE_SOURCE_IBKR = "ibkr"
@@ -658,6 +658,19 @@ ARCHIVE_TABLES_COLD = (
     "capture_gaps",
     "incomplete_windows",
 )
+# Cloudflare R2 (P8) — credentials ONLY in .env (never commit). Env var names:
+#   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
+#   ARCHIVE_R2_ENABLED=true to attempt uploads (still no-ops without keys)
+#   R2_BUCKET (optional override of R2_BUCKET_DEFAULT)
+ARCHIVE_R2_ENABLED = False
+R2_BUCKET_DEFAULT = "nova-archive"
+R2_PREFIX = "nova-os/archive/"                  # content-addressed keys under this prefix
+R2_ENDPOINT_HOST_SUFFIX = "r2.cloudflarestorage.com"
+ARCHIVE_R2_VERIFIED_INDEX = "_r2_verified.json"  # under archive_cold/
+# Replay / evening review (P9)
+ARCHIVE_EVENING_REVIEW_HORIZON_MIN = 5         # minutes after decision for outcome heuristic
+ARCHIVE_EVENING_REVIEW_VERSION = "evening-review-v1-2026-07-15"
+ARCHIVE_REPLAY_MAX_SYMBOLS = 50
 
 # ── News impact decision layer (rules-first; not a black box) ────────────────
 # Explicit thresholds for whether news actually moved a ticker / Level 2.

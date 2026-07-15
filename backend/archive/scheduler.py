@@ -1,9 +1,11 @@
 """
-Optional archive maintenance loop (Nova OS P7).
+Optional archive maintenance loop (Nova OS P7/P8).
 
 Started from lifespan only when ``ARCHIVE_MAINTENANCE_ENABLED`` is true
 (constant default false, overridable via env ``ARCHIVE_MAINTENANCE_ENABLED``).
-Compacts finished calendar days (ET) older than today; does not trim hot data.
+Compacts finished calendar days (ET) older than today; optionally uploads to
+R2 when ``ARCHIVE_R2_ENABLED`` is true. Does not trim hot data
+(``ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM`` stays authoritative).
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ from zoneinfo import ZoneInfo
 
 from archive.capture import session_date_for_ts
 from archive.compact import compact_day, list_finished_dates
+from archive.r2 import r2_enabled, upload_day
 from constants import ARCHIVE_MAINTENANCE_ENABLED, ARCHIVE_MAINTENANCE_INTERVAL_SEC
 
 logger = logging.getLogger(__name__)
@@ -30,7 +33,7 @@ def maintenance_enabled() -> bool:
 
 
 def run_maintenance_once(*, today: str | None = None) -> list[str]:
-    """Compact all hot session dates strictly before today. Returns dates done."""
+    """Compact finished days; upload to R2 when enabled. Returns dates compacted."""
     day = today or session_date_for_ts()
     finished = list_finished_dates(day)
     done: list[str] = []
@@ -38,13 +41,23 @@ def run_maintenance_once(*, today: str | None = None) -> list[str]:
         try:
             compact_day(d)
             done.append(d)
+            if r2_enabled():
+                result = upload_day(d)
+                if not result.get("ok"):
+                    logger.error(
+                        "archive.maintenance: R2 upload failed for %s: %s",
+                        d,
+                        result.get("error") or result.get("uploads"),
+                    )
+                else:
+                    logger.info("archive.maintenance: R2 verified %s", d)
         except Exception:
             logger.exception("archive.maintenance: compact failed for %s", d)
     return done
 
 
 async def archive_maintenance_loop() -> None:
-    """Hourly stub — compact finished days when enabled."""
+    """Hourly stub — compact (+ optional R2) when enabled."""
     interval = float(ARCHIVE_MAINTENANCE_INTERVAL_SEC)
     logger.info(
         "archive.maintenance: loop started (interval=%.0fs ET now=%s)",

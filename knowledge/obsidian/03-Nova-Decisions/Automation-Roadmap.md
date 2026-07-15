@@ -20,20 +20,23 @@ See [[Automation-Strategy-Backbone]] for detail.
 - [x] **E** — Journal + go/no-go bar (`backend/journal/`)
 - [x] **F** — Level 2 learning (record only; `backend/l2/`)
 
-## Nova OS — phased plan (P0–P10, in progress)
+## Nova OS — phased plan (P0–P10)
 
 | Phase | Focus | Status |
 |-------|--------|--------|
 | P0 | Baseline, status note, continuity rule, mission canvas, doc reconcile | **verified** |
-| P1 | Event log, reason codes, loss-policy constants | next |
-| P2 | `decide()` brain, API, stream wiring (signal only) | verified 2026-07-15 |
-| P3 | DecisionPanel, CLI, notifications framework | pending |
-| P4 | Confirm mode + emergency controls | pending |
-| P5 | Auto paper + restart recovery | pending |
-| P6–P9 | Archive capture, compaction, R2, replay, rewind | pending |
-| P10 | Live-readiness review (GO/NO-GO only) | pending |
+| P1 | Event log, reason codes, loss-policy constants | **verified** |
+| P2 | `decide()` brain, API, stream wiring (signal only) | **verified** |
+| P3 | DecisionPanel, CLI, notifications framework | **verified** |
+| P4 | Confirm mode + emergency controls | **verified** |
+| P5 | Auto paper + restart recovery | **verified** |
+| P6 | Loss-aware local capture (`backend/archive/`) | **verified** |
+| P7 | Local cold archive (JSONL + manifests) | **verified** |
+| P8 | Cloud durability (R2 code + docs; keys optional) | **verified** |
+| P9 | Replay, rewind, ask, evening review | **verified** |
+| P10 | Live-readiness review (GO/NO-GO only) | **verified — NO-GO for auto_live** |
 
-Full map: Nova OS plan in `.cursor/plans/` and [[Nova-OS-Decision-Brain]].
+Full map: Nova OS plan in `.cursor/plans/` and [[Nova-OS-Decision-Brain]]. Live unlock requires a **separate approved phase** after [[Nova-OS-Live-Readiness-Review]].
 
 ## Legacy phase labels (superseded by Nova OS map)
 
@@ -51,9 +54,9 @@ The rows below were the original roadmap before backbone A–F shipped. They are
 - [x] Hard risk caps + IBKR safety gates
 - [x] Journal results (trades table + metrics)
 
-### Phase 3 — Tighten (ongoing via Nova OS P2–P10)
+### Phase 3 — Tighten (Nova OS P2–P10)
 
-- [ ] Graduated control modes (not binary arm)
-- [ ] Nova OS decide() with full gate audit
-- [ ] Permanent archive + replay
-- [ ] Live only after explicit P10 GO/NO-GO (requires `IBKR_LIVE_TRADING_CONFIRMED`)
+- [x] Graduated control modes (`signal` / `confirm` / `auto_paper`; `auto_live` blocked)
+- [x] Nova OS decide() with full gate audit
+- [x] Permanent archive + replay (local + R2 stubs)
+- [ ] Live only after explicit GO + separate unlock phase (requires `IBKR_LIVE_TRADING_CONFIRMED`) — **NO-GO as of P10**

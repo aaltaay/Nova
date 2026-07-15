@@ -1,0 +1,148 @@
+"""Tests for Nova OS P8 Cloudflare R2 archive durability (mocked; no network)."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import archive.capture as capture
+import archive.compact as compact
+import archive.db as archive_db
+import archive.health as health
+import archive.r2 as r2
+from constants import ARCHIVE_SOURCE_IBKR
+
+
+@pytest.fixture(autouse=True)
+def isolated_archive(tmp_path, monkeypatch):
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(compact, "cache_dir", lambda: tmp_path)
+    monkeypatch.delenv("R2_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("R2_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("R2_SECRET_ACCESS_KEY", raising=False)
+    monkeypatch.delenv("ARCHIVE_R2_ENABLED", raising=False)
+    archive_db.init_db()
+    capture.clear_l2_stub_for_tests()
+    yield
+
+
+def _seed_and_compact(session_date: str = "2026-07-10") -> Path:
+    capture.record_tape_print(
+        symbol="AAPL",
+        ts=1_720_000_000.0,
+        price=190.0,
+        size=50,
+        source=ARCHIVE_SOURCE_IBKR,
+        session_date=session_date,
+    )
+    capture.record_bar(
+        symbol="AAPL",
+        ts=1_720_000_000.0,
+        open_=189.0,
+        high=191.0,
+        low=188.5,
+        close=190.0,
+        volume=1000,
+        source=ARCHIVE_SOURCE_IBKR,
+        timeframe="1m",
+        session_date=session_date,
+    )
+    compact.compact_day(session_date)
+    return compact.cold_root()
+
+
+class TestR2Status:
+    def test_missing_credentials_loud(self):
+        status = r2.r2_status()
+        assert status["configured"] is False
+        assert "R2_ACCOUNT_ID" in status["missing_env"]
+        assert "not configured" in status["message"].lower() or "set" in status["message"].lower()
+
+    def test_enabled_without_keys_health_fails_loud(self, monkeypatch):
+        monkeypatch.setenv("ARCHIVE_R2_ENABLED", "true")
+        snap = health.archive_health()
+        assert snap["ok"] is False
+        assert snap["problems"]
+        assert snap["r2"]["configured"] is False
+
+
+class TestR2UploadMock:
+    def test_upload_bytes_success_without_network(self, monkeypatch):
+        store: dict[str, bytes] = {}
+
+        class FakeClient:
+            def head_object(self, Bucket, Key):
+                if Key not in store:
+                    err = Exception("404")
+                    err.response = {"Error": {"Code": "404"}, "ResponseMetadata": {"HTTPStatusCode": 404}}
+                    raise err
+                return {"ContentLength": len(store[Key])}
+
+            def put_object(self, Bucket, Key, Body, **kwargs):
+                store[Key] = Body if isinstance(Body, bytes) else bytes(Body)
+
+        monkeypatch.setattr(r2, "r2_status", lambda: {
+            "enabled": True,
+            "configured": True,
+            "boto3_available": True,
+            "bucket": "nova-archive",
+            "prefix": "nova-os/archive/",
+            "missing_env": [],
+            "message": "R2 ready",
+        })
+        monkeypatch.setattr(r2, "boto3_available", lambda: True)
+
+        data = b"hello-archive"
+        result = r2.upload_bytes(data, client=FakeClient(), bucket="nova-archive")
+        assert result["ok"] is True
+        assert result["skipped"] is False
+        assert result["key"] in store
+
+        # Second upload skips (no-overwrite)
+        result2 = r2.upload_bytes(data, client=FakeClient(), bucket="nova-archive")
+        assert result2["ok"] is True
+        assert result2["skipped"] is True
+
+    def test_upload_day_marks_verified(self, monkeypatch, tmp_path):
+        cold = _seed_and_compact()
+        store: dict[str, bytes] = {}
+
+        class FakeClient:
+            def head_object(self, Bucket, Key):
+                if Key not in store:
+                    err = Exception("404")
+                    err.response = {"Error": {"Code": "404"}, "ResponseMetadata": {"HTTPStatusCode": 404}}
+                    raise err
+                return {}
+
+            def put_object(self, Bucket, Key, Body, **kwargs):
+                store[Key] = Body if isinstance(Body, bytes) else bytes(Body)
+
+        monkeypatch.setenv("ARCHIVE_R2_ENABLED", "true")
+        monkeypatch.setenv("R2_ACCOUNT_ID", "acct")
+        monkeypatch.setenv("R2_ACCESS_KEY_ID", "key")
+        monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secret")
+        monkeypatch.setattr(r2, "boto3_available", lambda: True)
+        monkeypatch.setattr(r2, "_client", lambda: (FakeClient(), "nova-archive"))
+
+        result = r2.upload_day("2026-07-10", cold_dir=cold)
+        assert result["ok"] is True
+        assert result["verified_remote"] is True
+        assert r2.is_day_verified_remote("2026-07-10", cold)
+
+    def test_upload_never_pretends_success_when_unconfigured(self):
+        result = r2.upload_bytes(b"x")
+        assert result["ok"] is False
+        assert result.get("configured") is False
+
+
+class TestTrimGate:
+    def test_require_verified_before_trim_still_true(self):
+        from constants import ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM
+        assert ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM is True
+        snap = health.archive_health()
+        assert snap["require_verified_before_trim"] is True
+        assert snap["trim_blocked"] is True

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Nova OS P8–P10 R2, replay, live NO-GO
+
+- **What:** P8 Cloudflare R2 upload module + archive health API (code-complete without keys); P9 replay/ask/evening-review + CLI + ArchiveRewind Watchlist subtab; P10 live-readiness doc with explicit **NO-GO** for `auto_live`.
+- **Why:** Close the Nova OS plan map through durability, learning loop, and an honest live gate.
+- **Files touched:** `backend/archive/r2.py`, `health.py`, `replay.py`, `ask.py`, `evening_review.py`, `routes/archive.py`, `tools/nova_os_replay.py`, `docs/r2-archive-setup.md`, Obsidian restore + live-readiness notes, `ArchiveRewind.tsx`, status/roadmap/canvas, tests.
+- **How it works now:** Cold days optionally upload as content-addressed R2 objects when `ARCHIVE_R2_ENABLED` + `R2_*` are set in `.env` (never pretend success). `GET /api/archive/health|days|replay/{date}` expose status and `decide(record=False)` replay. `ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM` stays True. `auto_live` remains rejected in `control_mode`. Next action: **stop** — separate approved phase required for live.
+- **Verified by:** pytest `test_archive_r2.py` + `test_archive_replay.py` (+ prior archive tests); `npm run build` for ArchiveRewind.
+- **Follow-ups:** Operator creates R2 bucket/token; parent commit+push; no live unlock.
+- **Related:** [[Nova-OS-Live-Readiness-Review]], [[Nova-OS-Archive-Restore-Runbook]], `docs/r2-archive-setup.md`.
+
 ## 2026-07-15 — Nova OS P6/P7 local archive capture + cold compact
 
 - **What:** New `backend/archive/` package: hot SQLite capture (`bars_1m`, `bars_1d`, `tape_ibkr`, gaps, incomplete windows, integrity counters) and stdlib JSONL+sha256 cold compact/restore. IBKR tape prints also call `record_tape_print`. L2 timer purge no-ops while `ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM` (default True). Optional `archive_maintenance_loop` behind `ARCHIVE_MAINTENANCE_ENABLED` (default false).
