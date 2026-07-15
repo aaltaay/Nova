@@ -6,43 +6,31 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 
 ## Current position
 
-- Phase: P5
+- Phase: P7
 - State: verified
-- Last verified commit: 181b16e12029fc74ce57a07a9620f94893a2d819
-- Last updated: 2026-07-15 ~16:00 ET
+- Last verified commit: 46654318e27773112751f8e3fdaa23011497f1f9
+- Last updated: 2026-07-15 ~16:15 ET
 
 ## Completed this phase
 
-- **P5 — Automatic paper execution + recovery:**
-  - `auto_paper` mode gated (paper Gateway, orders enabled, risk, holiday calendar)
-  - `auto_live` still rejected
-  - Restart → always `signal`; `recovery.py` reconstructs tracked positions from events/IBKR
-  - ExecutorPanel: Auto Paper + blocked Auto Live
-  - Policy `nova-os-p5-2026-07-15`
+- P6/P7 local capture + cold archive under `backend/archive/`
 
 ## Prior phases
 
-- P4 confirm — ecc6f88 · P3 UX — fd007a9 · P2 decide — 528cc7f · P1 — 9fbdaff · P0 — e2d649c
-
-## In progress / uncommitted
-
-- P6/P7 archive package recreated on master (sources restored; not committed) — awaiting parent verify + commit
-- Unrelated HOD/earnings WIP in stash
+- P5 auto_paper — 181b16e · P4 confirm — ecc6f88 · P3–P0 as before
 
 ## Crash or blocker
 
-- none for P5
-- Safe next: parent verify P6/P7 → commit+push → then P8–P10
+- none · Next: P8 R2 (needs user keys) → P9 replay → P10 GO/NO-GO
 
 ## Verification ledger
 
-- pytest auto_paper + control + staged + executor: 42 passed
-- npm run build: PASS
+- archive pytest 11 passed
 
 ## User action needed
 
-- P8 will need Cloudflare R2 keys (user-r2-setup)
+- P8: create Cloudflare R2 bucket + token (see docs)
 
 ## Phase-close / Next chat starts here
 
-Continue **P6/P7 archive recreate → P8 R2 → P9 replay → P10 GO/NO-GO**
+Continue **P8 cloud durability** (code + docs; upload waits on R2 keys)
