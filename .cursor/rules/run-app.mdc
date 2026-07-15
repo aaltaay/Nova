@@ -1,15 +1,16 @@
 ---
-description: How to run Stock Alert and what to do when the user says "run the app"
+description: How to run Nova and what to do when the user says "run the app"
 alwaysApply: true
 ---
 
-# Run Stock Alert (local dev)
+# Run Nova (local dev)
 
 ## Default way to open the app (Windows)
 
-From the **repository root** (`stock_alert/`):
+From the **repository root** (`Nova/`):
 
-1. **Double-click** `Run Stock Alert.bat`, **or** in a terminal: run `Run Stock Alert.bat` from that folder.
+1. **Double-click** `Run Nova.bat`, **or** in a terminal: run `Run Nova.bat` from that folder.
+2. For the Electron desktop build (with local API sidecar), use `Run Nova Desktop.bat` instead.
 
 That script:
 
@@ -31,7 +32,7 @@ Close each titled CMD window to stop that server.
 
 When the user asks to **run** or **open** the app (or similar), **do it without debating**:
 
-1. Prefer **starting from repo root** using `Run Stock Alert.bat` on Windows when an interactive dev experience (separate windows + browser) matches what they use day to day.
+1. Prefer **starting from repo root** using `Run Nova.bat` on Windows when an interactive dev experience (separate windows + browser) matches what they use day to day.
 2. If the environment cannot launch `.bat` or needs headless terminals, start **both** servers the same way the batch file does: uvicorn in `backend/` and `npm run dev` in `frontend/` (background as appropriate), then note URLs `http://127.0.0.1:8000` and `http://localhost:5173`.
 
 Do not spend turns listing options unless something fails; execute first, then report URLs and how to stop.

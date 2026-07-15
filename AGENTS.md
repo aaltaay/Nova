@@ -112,8 +112,8 @@ frontend/src/
 
 | File | Current | Target | Status |
 |------|---------|--------|--------|
-| `backend/main.py` | ~199 lines | <200 lines | ✅ Met (2026-07-14) |
-| `frontend/src/App.tsx` | ~68 lines | <150 lines | ✅ Met (2026-07-14) |
+| `backend/main.py` | 194 lines | <200 lines | ✅ Met (2026-07-14; CORS extraction 2026-07-15) |
+| `frontend/src/App.tsx` | 73 lines | <150 lines | ✅ Met (2026-07-14) |
 | `frontend/src/index.css` | ~41,050 bytes | Split if >1000 lines | ⚠️ Monitor |
 | Any new module | — | <400 lines | Enforced |
 
@@ -290,6 +290,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-15 | Audit hygiene pass: `main.py` trimmed to 194 lines (CORS middleware setup extracted to `app_lifespan.configure_cors()`); stale `run-app.mdc` / file-size docs corrected to reflect Nova branding and real line counts; silent-except hygiene fixes in `cache.py`, `logging_setup.py`, `run_api.py`, `routes/news.py`, `news/enrich.py`; new tests for `routes/trading.py`, `ibkr/account.py`, `scan_runners.py`; `requirements.txt` pins recorded for previously-unpinned packages; scratch `_repro_test.py` removed. | Cursor Agent |
 | 2026-07-14 | `frontend/src/App.tsx` reduced to 68 lines (Phase 7). Both main.py and App.tsx file-size targets met. | Cursor Agent |
 | 2026-07-14 | `backend/main.py` reduced to 199 lines (Phases 1–6 product-health extraction). Compliance audit §2.3 / §10 updated: main.py target met. | Cursor Agent |
 | 2026-07-10 | Invariant #7 amended: Alpaca scanning stays read-only; IBKR opt-in module (`backend/ibkr/`) now permitted for paper/live order execution, gated by `IBKR_ENABLED` + `IBKR_LIVE_TRADING_CONFIRMED` flags. Constitution updated first per §1.8. | User Directive + Cursor Agent |

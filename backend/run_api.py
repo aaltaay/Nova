@@ -12,8 +12,11 @@ Env vars:
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
+
+logger = logging.getLogger(__name__)
 
 
 def _force_utf8_io() -> None:
@@ -39,7 +42,7 @@ def _force_utf8_io() -> None:
             try:
                 stream.reconfigure(encoding="utf-8", errors="backslashreplace")
             except Exception:
-                pass
+                logger.debug("run_api: could not reconfigure %s to utf-8", stream_name, exc_info=True)
 
 
 def _prepare_sys_path() -> None:

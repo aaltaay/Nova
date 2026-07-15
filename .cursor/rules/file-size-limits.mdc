@@ -30,5 +30,5 @@ No single source file may grow beyond the limits below. When a file approaches o
 
 ## Known Violations (must be addressed incrementally)
 
-- `backend/main.py` (~199 lines → target 200) — ✅ met (Phases 1–6, 2026-07-14)
-- `frontend/src/App.tsx` (~68 lines → target 150) — ✅ met (Phase 7, 2026-07-14)
+- `backend/main.py` (194 lines → target 200) — ✅ met (Phases 1–6, 2026-07-14; CORS middleware extracted to `app_lifespan.py`, 2026-07-15)
+- `frontend/src/App.tsx` (73 lines → target 150) — ✅ met (Phase 7, 2026-07-14)

@@ -12,7 +12,6 @@ import os
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from paths import env_file_path
 from logging_setup import configure_logging
@@ -104,7 +103,7 @@ from health_status import (  # noqa: E402
     set_health_broker_keys_missing as _set_health_broker_keys_missing,
     ping_health as _ping_health,
 )
-from app_lifespan import lifespan  # noqa: E402
+from app_lifespan import configure_cors, lifespan  # noqa: E402
 
 # ── Tunables (env overrides; defaults from constants.py) ──────────────────────
 _NOVA_REV = "4"
@@ -192,10 +191,4 @@ app.include_router(_hod_momo_router)
 app.include_router(_hod_momo_ws_router)
 app.include_router(_client_errors_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+configure_cors(app)

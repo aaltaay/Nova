@@ -24,6 +24,8 @@ from paths import log_dir as _nova_log_dir
 
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 
+logger = logging.getLogger(__name__)
+
 
 def _force_utf8_console() -> None:
     """Non-ASCII log characters (arrows, emoji) crash on Windows' default
@@ -36,7 +38,7 @@ def _force_utf8_console() -> None:
             try:
                 stream.reconfigure(encoding="utf-8", errors="backslashreplace")
             except Exception:
-                pass
+                logger.debug("logging_setup: could not reconfigure %s to utf-8", stream_name, exc_info=True)
 
 
 def configure_logging() -> None:

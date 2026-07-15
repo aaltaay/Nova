@@ -15,11 +15,14 @@ data is not lost.
 """
 
 import json
+import logging
 import os
 import re
 import tempfile
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
 
 _ET = ZoneInfo("America/New_York")
 # Prefer NOVA_CACHE_DIR (Electron desktop), then Railway volume, then local .cache/.
@@ -90,7 +93,10 @@ def _migrate_legacy_files() -> None:
             else:
                 os.rename(old_path, new_path)
         except Exception:
-            pass  # never crash startup over a migration failure
+            logger.warning(
+                "cache: legacy file migration failed for %s (startup continues)",
+                old_path, exc_info=True,
+            )
 
 
 # ── Retention cleanup ─────────────────────────────────────────────────────────
@@ -180,7 +186,7 @@ def save_gapper_snapshot(gappers: list[dict], ts: float) -> None:
         payload = {"date": _today_et(), "ts": ts, "gappers": gappers}
         _atomic_write(_dated_path("gappers", _today_et()), payload)
     except Exception:
-        pass
+        logger.warning("cache: save_gapper_snapshot failed to persist to disk", exc_info=True)
 
 
 def load_gapper_snapshot() -> tuple[list[dict], float]:
@@ -213,7 +219,7 @@ def save_afterhours_snapshot(rows: list[dict], ts: float) -> None:
         payload = {"date": _today_et(), "ts": ts, "afterhours": rows}
         _atomic_write(_dated_path("afterhours", _today_et()), payload)
     except Exception:
-        pass
+        logger.warning("cache: save_afterhours_snapshot failed to persist to disk", exc_info=True)
 
 
 def load_afterhours_snapshot() -> tuple[list[dict], float]:
@@ -246,7 +252,7 @@ def save_movers_snapshot(gainers: list[dict], losers: list[dict], ts: float) -> 
         payload = {"date": _today_et(), "ts": ts, "gainers": gainers, "losers": losers}
         _atomic_write(_dated_path("movers", _today_et()), payload)
     except Exception:
-        pass
+        logger.warning("cache: save_movers_snapshot failed to persist to disk", exc_info=True)
 
 
 def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
@@ -280,7 +286,7 @@ def save_hod_momo_snapshot(alerts: list[dict], ts: float) -> None:
         payload = {"date": _today_et(), "ts": ts, "alerts": alerts}
         _atomic_write(_dated_path(HOD_MOMO_ALERTS_PREFIX, _today_et()), payload)
     except Exception:
-        pass
+        logger.warning("cache: save_hod_momo_snapshot failed to persist to disk", exc_info=True)
 
 
 def load_hod_momo_snapshot() -> tuple[list[dict], float]:
@@ -321,7 +327,7 @@ def save_hod_momo_configs(payload: dict) -> None:
         os.makedirs(_CACHE_DIR, exist_ok=True)
         _atomic_write(HOD_MOMO_CONFIG_FILE, payload)
     except Exception:
-        pass
+        logger.warning("cache: save_hod_momo_configs failed to persist to disk", exc_info=True)
 
 
 def load_hod_momo_configs() -> dict:
@@ -341,7 +347,7 @@ def save_hod_momo_blocklist(symbols: list[str]) -> None:
         os.makedirs(_CACHE_DIR, exist_ok=True)
         _atomic_write(HOD_MOMO_BLOCKLIST_FILE, {"symbols": symbols})
     except Exception:
-        pass
+        logger.warning("cache: save_hod_momo_blocklist failed to persist to disk", exc_info=True)
 
 
 def load_hod_momo_blocklist() -> list[str]:

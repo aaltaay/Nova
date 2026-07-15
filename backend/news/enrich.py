@@ -5,7 +5,11 @@ size limit and free of IBKR / L2 I/O.
 """
 from __future__ import annotations
 
+import logging
+
 from news.impact import evaluate_news_impact
+
+logger = logging.getLogger(__name__)
 
 
 def enrich_catalyst_row(row: dict) -> dict:
@@ -64,6 +68,7 @@ def build_ticker_news_impact(
         if book:
             l2_features = compute_feature_dict(book)
     except Exception:
+        logger.debug("news.enrich: L2 feature lookup failed for %s, omitting", symbol, exc_info=True)
         l2_features = None
     return evaluate_news_impact(
         symbol,

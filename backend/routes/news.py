@@ -7,9 +7,13 @@ Endpoints:
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter
 
 from news.impact import evaluate_news_impact
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/news", tags=["news"])
 
@@ -64,6 +68,7 @@ def _gather_context(symbol: str) -> dict:
         if book:
             l2_features = compute_feature_dict(book)
     except Exception:
+        logger.debug("routes.news: L2 feature lookup failed for %s, omitting", symbol, exc_info=True)
         l2_features = None
 
     return {
