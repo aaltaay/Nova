@@ -112,7 +112,7 @@ frontend/src/
 
 | File | Current | Target | Status |
 |------|---------|--------|--------|
-| `backend/main.py` | ~1,757 lines | <200 lines | ❌ VIOLATION |
+| `backend/main.py` | ~199 lines | <200 lines | ✅ Met (2026-07-14) |
 | `frontend/src/App.tsx` | ~1,471 lines | <150 lines | ❌ VIOLATION |
 | `frontend/src/index.css` | ~41,050 bytes | Split if >1000 lines | ⚠️ Monitor |
 | Any new module | — | <400 lines | Enforced |
@@ -282,7 +282,6 @@ When ANY error occurs during a task:
 
 | Violation | Severity | Rule Violated | Status |
 |-----------|----------|---------------|--------|
-| `backend/main.py` is 1,757 lines | 🔴 Critical | §2.1, §2.3 | Must fix on next backend task |
 | `frontend/src/App.tsx` is 1,471 lines | 🔴 Critical | §2.2, §2.3 | Must fix on next frontend task |
 | No `architecture/` directory exists | 🟡 Warning | §1.5 | Create when needed |
 | No automated tests exist | 🟡 Warning | §6.4 | Add incrementally |
@@ -293,6 +292,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-14 | `backend/main.py` reduced to 199 lines (Phases 1–6 product-health extraction). Compliance audit §2.3 / §10 updated: main.py target met. | Cursor Agent |
 | 2026-07-10 | Invariant #7 amended: Alpaca scanning stays read-only; IBKR opt-in module (`backend/ibkr/`) now permitted for paper/live order execution, gated by `IBKR_ENABLED` + `IBKR_LIVE_TRADING_CONFIRMED` flags. Constitution updated first per §1.8. | User Directive + Cursor Agent |
 | 2026-04-27 | Complete constitution rewrite — added modularity laws, file limits, compliance audit, self-annealing protocol, coding standards | Antigravity + User Directive |
 | 2026-04-27 | Added mandatory git commit & push rule | User Directive |
@@ -643,7 +643,7 @@ No single source file may grow beyond the limits below. When a file approaches o
 
 ## Known Violations (must be addressed incrementally)
 
-- `backend/main.py` (~1,757 lines → target 200) — extract on every backend task
+- `backend/main.py` (~199 lines → target 200) — ✅ met (Phases 1–6, 2026-07-14)
 - `frontend/src/App.tsx` (~1,471 lines → target 150) — extract on every frontend task
 
 ```

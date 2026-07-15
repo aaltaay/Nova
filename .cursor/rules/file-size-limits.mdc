@@ -30,5 +30,5 @@ No single source file may grow beyond the limits below. When a file approaches o
 
 ## Known Violations (must be addressed incrementally)
 
-- `backend/main.py` (~1,757 lines → target 200) — extract on every backend task
+- `backend/main.py` (~199 lines → target 200) — ✅ met (Phases 1–6, 2026-07-14)
 - `frontend/src/App.tsx` (~1,471 lines → target 150) — extract on every frontend task

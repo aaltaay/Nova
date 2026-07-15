@@ -30,7 +30,17 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Phase 6: main.py hits 200-line target (ibkr_bridge / universe / health / lifespan)
+
+- **What:** Extracted the last business-logic blocks from `main.py` into `ibkr_bridge.py` (IBKR run/enrich/table-reprice), `universe.py` (assets cache, avg volume, gapper enrich, HOD watch refresh), `health_status.py` (Alpaca health ping), and `app_lifespan.py` (startup/shutdown task wiring). `main.py` is now **199 lines**: cache state, tunables, re-exports, and FastAPI router wiring only.
+- **Why:** Completes the product-health monolith-reduction plan (Phases 1–6). Constitution / file-size target for `main.py` was &lt;200 lines.
+- **Files touched:** `backend/main.py`, `backend/ibkr_bridge.py` (new), `backend/universe.py` (new), `backend/health_status.py` (new), `backend/app_lifespan.py` (new).
+- **How it works now:** Mutable scanner caches still live on `main` so attribute rebinding is globally visible. Domain modules mutate them via `import main as _m` / `_m()`. Lifespan and routers import helpers from the new modules (or legacy `_` aliases re-exported by `main` for `hod_momo_enrichment` / `ticker`).
+- **Verified by:** 333 backend pytest tests pass; frontend production build clean.
+- **Follow-ups:** Frontend `App.tsx` still exceeds its 150-line target (separate track). Optional: point callers at `universe` / `ibkr_bridge` directly and drop some `_main` re-exports.
+
 ## 2026-07-14 — Phase 5: extract scan runners, WS stream, and scan_loop from main.py
+
 
 - **What:** Pulled the remaining scan/WS monolith out of `main.py` into three modules: `websocket.py` (Alpaca trade stream + cache overlays + `mark_resub`), `scan_runners.py` (discovery / focus / after-hours / movers), and `scan_loop.py` (news-catalyst scan + mode-aware `scan_loop`). `main.py` shrinks from 1624 → ~648 lines and now keeps caches, IBKR table-reprice helpers, HOD universe refresh, lifespan, and router wiring.
 - **Why:** Continuing the product-health monolith-reduction plan. Scan/WS logic was the largest remaining block and blocked further modular work.
