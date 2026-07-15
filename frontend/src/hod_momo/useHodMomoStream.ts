@@ -24,6 +24,11 @@ export function useHodMomoStream(): HodMomoStreamState {
   const mountedRef = useRef(true);
   const pendingRef = useRef<AlertObject[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ids already applied to state — O(1) membership check so a duplicate
+  // broadcast (stale/overlapping WS instance, backend re-send, etc.) can
+  // never be pushed into `alerts` twice. Rebuilt only on a fresh `initial`
+  // payload, never rescanned from the full day list on every live alert.
+  const seenIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     mountedRef.current = true;
@@ -50,14 +55,22 @@ export function useHodMomoStream(): HodMomoStreamState {
       const ws = new WebSocket(`${WS_BASE_URL}/ws/hod-momo`);
       wsRef.current = ws;
 
+      // Every handler below double-guards on `wsRef.current === ws` (not just
+      // `mountedRef`). React StrictMode's dev-mode mount→cleanup→remount can
+      // flip `mountedRef` back to true before a just-closed socket's in-flight
+      // events finish draining; without the per-instance check, that stale
+      // socket kept delivering live 'alert' messages that a newer socket was
+      // also receiving — every alert landed in state twice with an identical
+      // id, which is what produced the React "duplicate key" storm and the
+      // ever-growing, ever-more-expensive alert list.
       ws.onopen = () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || wsRef.current !== ws) return;
         setConnected(true);
         backoffRef.current = 1000;
       };
 
       ws.onmessage = (e) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || wsRef.current !== ws) return;
         try {
           const msg = JSON.parse(e.data as string);
           if (msg.type === 'initial') {
@@ -67,12 +80,16 @@ export function useHodMomoStream(): HodMomoStreamState {
               flushTimerRef.current = null;
             }
             const list = Array.isArray(msg.alerts) ? (msg.alerts as AlertObject[]) : [];
+            seenIdsRef.current = new Set(list.map(a => a.id));
             setAlerts(list);
             setTotalToday(
               typeof msg.total === 'number' && msg.total >= 0 ? msg.total : list.length,
             );
           } else if (msg.type === 'alert' && msg.alert) {
-            pendingRef.current.push(msg.alert as AlertObject);
+            const alert = msg.alert as AlertObject;
+            if (seenIdsRef.current.has(alert.id)) return;
+            seenIdsRef.current.add(alert.id);
+            pendingRef.current.push(alert);
             scheduleFlush();
           }
         } catch {
@@ -81,11 +98,12 @@ export function useHodMomoStream(): HodMomoStreamState {
       };
 
       ws.onerror = () => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || wsRef.current !== ws) return;
         setConnected(false);
       };
 
       ws.onclose = () => {
+        if (wsRef.current !== ws) return;
         if (!mountedRef.current) return;
         setConnected(false);
         const delay = backoffRef.current;
@@ -99,7 +117,17 @@ export function useHodMomoStream(): HodMomoStreamState {
     return () => {
       mountedRef.current = false;
       if (flushTimerRef.current != null) clearTimeout(flushTimerRef.current);
-      wsRef.current?.close();
+      const ws = wsRef.current;
+      if (ws) {
+        // Detach handlers before closing so a socket that hasn't finished its
+        // close handshake yet cannot fire onmessage/onclose into a component
+        // instance that's already torn down.
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onerror = null;
+        ws.onclose = null;
+        ws.close();
+      }
       wsRef.current = null;
     };
   }, []);

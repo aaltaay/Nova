@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo alert stream no longer double-delivers on WS reconnect/remount
+
+- **What:** `frontend/src/hod_momo/useHodMomoStream.ts` now ignores events from a stale/superseded WebSocket instance (checks `wsRef.current === ws` on every handler, in addition to the existing `mountedRef` flag) and de-duplicates incoming alerts by `id` via an O(1) `Set` lookup instead of trusting every 'alert' message to be new.
+- **Why:** User reported the HOD Momo tab was laggy enough to feel like a browser crash, despite prior fixes (virtualization, batching, save throttling). Root cause: every alert was being delivered into React state **twice**, which not only doubled the effective list size but produced a continuous flood of React "duplicate key" reconciliation errors — see `PROBLEM_LOG.md` (2026-07-15, same title pattern) for the full diagnosis.
+- **Files touched:** `frontend/src/hod_momo/useHodMomoStream.ts`.
+- **How it works now:** A `seenIdsRef: Set<string>` is rebuilt once from the `initial` WS payload and then grown incrementally as live alerts arrive — never rescanned from the full day list. `connect()`'s `onopen`/`onmessage`/`onerror`/`onclose` handlers all bail out early if `wsRef.current !== ws`, so a socket that's mid-close (e.g. from React StrictMode's dev-mode mount→cleanup→remount cycle, or any future reconnect race) can never push a message into state after a newer socket has taken over. Cleanup also nulls all four handlers before calling `close()`.
+- **Verified by:** `agent-browser` against the live dev server — before the fix, opening the tab produced hundreds of "Encountered two children with the same key" console errors within seconds of the live alert count (already at ~4000+ that day); after the fix, watched for 75+ seconds with alerts growing from ~4097 to 4458 with zero console errors. `npm run build` and `npm run test` (73/73) pass.
+- **Related:** `PROBLEM_LOG.md` 2026-07-15 "HOD Momo tab still crash-level laggy after three prior fixes."
+
 ## 2026-07-15 — Nova OS hardening section 6: phase-status correction (re-verified, not re-claimed)
 
 - **What:** Closes section 6 (the final section) of the Nova OS hardening plan. Re-verified each of the five gaps a post-P10 audit had found in P2–P7 (unsafe flatten, non-atomic staged approval, mode-receipt split-brain, ambiguous startup recovery, consecutive- vs daily-loss policy) against the *current* code — not against docstrings or prior changelog claims — and replaced `Nova-OS-Status.md`'s blanket "P0 continuity → ... → P6/P7 local archive — all verified on master" line with a per-phase exit-criteria table naming concrete file:line evidence and the test that covers each claim. Found and fixed one residual stale UI string: `WatchlistTab.tsx`'s Automation-tab tooltip still said "Arm/disarm... Disarmed by default" from before the mode ladder existed.
