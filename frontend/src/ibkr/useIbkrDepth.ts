@@ -44,8 +44,9 @@ export function useIbkrDepth(symbol: string | null): DepthState {
 
   useEffect(() => {
     mountedRef.current = true;
+    const symKey = symbol ? symbol.toUpperCase() : null;
 
-    if (!symbol) {
+    if (!symKey) {
       setState({ book: null, connected: false, l1Fallback: false, error: null });
       return;
     }
@@ -55,7 +56,7 @@ export function useIbkrDepth(symbol: string | null): DepthState {
 
     function connect() {
       if (!mountedRef.current) return;
-      const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/depth/${symbol}`);
+      const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/depth/${symKey}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -68,12 +69,12 @@ export function useIbkrDepth(symbol: string | null): DepthState {
         try {
           const msg = JSON.parse(e.data as string);
           const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
-          if (msgSym != null && msgSym !== symbol) return;
+          if (msgSym != null && msgSym !== symKey) return;
 
           if (msg.type === 'subscribed') {
             setState(s => ({ ...s, connected: true, error: null }));
           } else if (msg.type === 'book') {
-            const book: DepthBook = { ...msg.data, symbol };
+            const book: DepthBook = { ...msg.data, symbol: symKey };
             setState(s => {
               if (shouldKeepPriorBook(book, s.book)) {
                 return { ...s, connected: true, error: null };

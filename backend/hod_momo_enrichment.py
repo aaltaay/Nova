@@ -11,8 +11,8 @@ Two loops are registered as asyncio tasks in main.py lifespan:
     hod_momo.mark_needs_fundamentals(); fetches float_shares + fifty_two_week_high
     via main._fetch_fundamentals(sym) and writes them into _ticker_snaps.
 
-Both loops call back into main.py for HTTP helpers to avoid duplicating that code;
-the import is done lazily inside the loops to prevent circular imports.
+Both loops call into leaf modules for HTTP/IBKR helpers; only
+``main._avg_volume_cache`` is read via ``import main`` (rebinding ownership).
 
 Feed-level RVOL routing (§ yfinance fallback + Warrior pace):
   - SIP feed: pace RVOL = Alpaca volume / (Alpaca avg × elapsed 04:00–16:00 ET frac)
@@ -42,19 +42,23 @@ logger = logging.getLogger(__name__)
 
 
 async def universe_enrichment_loop() -> None:
-    """Batch-fetch Alpaca snapshots for the full HOD universe every ~30 s.
+    """Batch-fetch snapshots for the full HOD universe every ~30 s.
 
     For each symbol, computes: price, prev_close, change_pct, gap_pct, volume,
-    rvol (using main._avg_volume_cache or yfinance fallback), and writes into
+    rvol (using avg-volume cache or yfinance fallback), and writes into
     hod_momo._ticker_snaps.
     """
-    import main as _main  # lazy to avoid circular import
+    import main as _main  # cache rebinding only (_avg_volume_cache lives on main)
+    from ibkr_bridge import run_ibkr
+    from scanner import _fetch_snapshots, _pick_prev_close
+    from universe import ensure_avg_volume, get_hod_momo_universe
+    from fundamentals import _fundamentals_cache
 
     while True:
         try:
             await asyncio.sleep(HOD_MOMO_ENRICH_INTERVAL_SEC)
 
-            universe = _main.get_hod_momo_universe()
+            universe = get_hod_momo_universe()
             if not universe:
                 logger.debug("HOD Momo enrichment: universe empty, skipping")
                 continue
@@ -69,7 +73,7 @@ async def universe_enrichment_loop() -> None:
 
                 quotes: dict = await loop.run_in_executor(
                     None,
-                    lambda: _main._run_ibkr(_ibkr_discovery.snapshot_quotes(symbols)) or {},
+                    lambda: run_ibkr(_ibkr_discovery.snapshot_quotes(symbols)) or {},
                 )
                 if not quotes:
                     logger.warning("HOD Momo enrichment: IBKR quotes empty")
@@ -82,7 +86,7 @@ async def universe_enrichment_loop() -> None:
                         chunk = missing_avg[:200]
                         try:
                             await loop.run_in_executor(
-                                None, lambda: _main._ensure_avg_volume(chunk, headers)
+                                None, lambda: ensure_avg_volume(chunk, headers)
                             )
                         except Exception as avg_exc:
                             logger.debug("HOD Momo enrichment: avg_vol chunk failed: %s", avg_exc)
@@ -107,7 +111,7 @@ async def universe_enrichment_loop() -> None:
 
                         avg_vol = _main._avg_volume_cache.get(sym)
                         if not avg_vol:
-                            fund = _main._fundamentals_cache.get(sym, {})
+                            fund = _fundamentals_cache.get(sym, {})
                             avg_vol = fund.get("average_volume")
                         avg_for_5min = float(avg_vol) if avg_vol else None
                         rvol = None
@@ -155,7 +159,7 @@ async def universe_enrichment_loop() -> None:
             )
 
             snaps: dict = await loop.run_in_executor(
-                None, lambda: _main._fetch_snapshots(symbols, headers)
+                None, lambda: _fetch_snapshots(symbols, headers)
             )
 
             if not snaps:
@@ -170,7 +174,7 @@ async def universe_enrichment_loop() -> None:
                     chunk = missing_avg[:200]
                     try:
                         await loop.run_in_executor(
-                            None, lambda: _main._ensure_avg_volume(chunk, headers)
+                            None, lambda: ensure_avg_volume(chunk, headers)
                         )
                         logger.debug(
                             "HOD Momo enrichment: avg_vol chunk %d/%d done",
@@ -191,8 +195,8 @@ async def universe_enrichment_loop() -> None:
                     if not price:
                         continue
 
-                    # Correct prev-close using the same timestamp-aware helper main.py uses
-                    prev_close = _main._pick_prev_close(snap) or 0.0
+                    # Correct prev-close using the same timestamp-aware helper
+                    prev_close = _pick_prev_close(snap) or 0.0
                     volume = int(daily_bar.get("v") or 0)
 
                     if prev_close and prev_close > 0:
@@ -214,7 +218,7 @@ async def universe_enrichment_loop() -> None:
 
                     avg_for_5min: float | None = None
                     if is_iex:
-                        fund = _main._fundamentals_cache.get(sym, {})
+                        fund = _fundamentals_cache.get(sym, {})
                         yf_avg = fund.get("average_volume")
                         yf_vol = fund.get("current_volume")
                         avg_for_5min = float(yf_avg) if yf_avg else None
@@ -225,7 +229,7 @@ async def universe_enrichment_loop() -> None:
                             else:
                                 rvol = round(yf_vol / yf_avg, 2)
                                 rvol_source = "yfinance"
-                        elif sym not in _main._fundamentals_cache:
+                        elif sym not in _fundamentals_cache:
                             _hod_momo.mark_needs_fundamentals(sym)
                             fundamentals_queued += 1
                     else:
@@ -270,7 +274,7 @@ async def fundamentals_enrichment_loop() -> None:
     Called every HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC.  Processes up to
     HOD_MOMO_FUNDAMENTALS_BATCH_SIZE symbols per tick to warm up faster on IEX.
     """
-    import main as _main
+    from fundamentals import fetch_fundamentals
 
     while True:
         try:
@@ -287,7 +291,7 @@ async def fundamentals_enrichment_loop() -> None:
 
                 loop = asyncio.get_event_loop()
                 fund: dict = await loop.run_in_executor(
-                    None, lambda s=sym: _main._fetch_fundamentals(s)
+                    None, lambda s=sym: fetch_fundamentals(s)
                 )
 
                 float_shares = fund.get("float_shares")

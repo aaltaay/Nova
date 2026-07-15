@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Alpaca WS still fed HOD Momo under discovery=ibkr
+
+- **Symptom:** HOD alerts / snaps could move on Alpaca IEX prints while scanner/quote prices came from IBKR — dual-feed drift after hours or on thin IEX.
+- **Cause:** `handle_trade` already skipped scanner cache overlays under ibkr, but the stream loop still called `_hod_momo.on_trade_update` and `l2.tape.on_alpaca_trade` for every Alpaca trade.
+- **Fix:** Early-continue when `not alpaca_trades_drive_hod()`; IBKR `table_reprice` / detail ticks remain the HOD feed.
+- **Keywords:** dual-feed, HOD Momo, Alpaca WS, on_trade_update, discovery=ibkr, single-market-data-feed, l2.tape
+
 ## 2026-07-14 — Ticker WS used missing main._ibkr_ticks after Phase 4 extract
 
 - **Symptom:** Opening a ticker under discovery=ibkr could fail to subscribe ticks / raise AttributeError if the old route path ran (`m._ibkr_ticks`).

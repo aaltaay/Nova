@@ -40,6 +40,11 @@ _ws_subscribed: set[str] = set()
 _ws_needs_resub: bool = False
 
 
+def alpaca_trades_drive_hod(provider: str | None = None) -> bool:
+    """False when discovery=ibkr — IBKR ticks own HOD / tape ingest (single-feed)."""
+    return (provider or _get_discovery_provider()) != "ibkr"
+
+
 def _m():
     import main as _main
     return _main
@@ -278,6 +283,11 @@ async def stream_loop() -> None:
                         msgs = json.loads(raw)
                         for msg in msgs:
                             if msg.get("T") == "t":
+                                # discovery=ibkr: IBKR table/detail ticks own HOD + quote
+                                # prices. Never feed Alpaca trades into on_trade_update /
+                                # l2.tape (single-feed rule).
+                                if not alpaca_trades_drive_hod():
+                                    continue
                                 updated_vol = handle_trade(msg)
                                 sym = msg.get("S")
                                 price = msg.get("p")
@@ -302,7 +312,6 @@ async def stream_loop() -> None:
                                         logger.exception("l2.tape: ingest failed for %s", sym)
                                 if (
                                     sym and sym in _ticker_ws_clients and _ticker_ws_clients[sym]
-                                    and _get_discovery_provider() != "ibkr"
                                 ):
                                     asyncio.create_task(broadcast_trade_update(
                                         sym,

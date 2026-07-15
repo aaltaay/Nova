@@ -141,7 +141,7 @@ export function TradingTab() {
                 View Book
               </button>
             </div>
-            <DepthLadder symbol={depthSymbol} />
+            <DepthLadder key={depthSymbol ?? 'none'} symbol={depthSymbol} />
           </div>
 
           {/* Center: order ticket */}

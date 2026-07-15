@@ -42,8 +42,9 @@ export function useIbkrTape(symbol: string | null): TapeState {
 
   useEffect(() => {
     mountedRef.current = true;
+    const symKey = symbol ? symbol.toUpperCase() : null;
 
-    if (!symbol) {
+    if (!symKey) {
       setState({ prints: [], connected: false, error: null });
       return;
     }
@@ -53,7 +54,7 @@ export function useIbkrTape(symbol: string | null): TapeState {
 
     function connect() {
       if (!mountedRef.current) return;
-      const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/tape/${symbol}`);
+      const ws = new WebSocket(`${WS_BASE_URL}/ws/ibkr/tape/${symKey}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -66,7 +67,7 @@ export function useIbkrTape(symbol: string | null): TapeState {
         try {
           const msg = JSON.parse(e.data as string);
           const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
-          if (msgSym != null && msgSym !== symbol) return;
+          if (msgSym != null && msgSym !== symKey) return;
 
           if (msg.type === 'subscribed') {
             setState(s => ({ ...s, connected: true, error: null }));

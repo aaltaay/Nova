@@ -42,6 +42,11 @@ When `NOVA_DISCOVERY_PROVIDER` / Settings discovery is **ibkr**, Interactive Bro
    - No Alpaca tape in the live UI. `backend/l2/tape.py` (Alpaca recorder) is for historical recording only.
    - Clear tape immediately on symbol switch (never bleed prior symbol's prints into the new view).
 
+7. **HOD Momo under discovery=ibkr is IBKR-driven.**
+   - Price/volume ticks into `hod_momo.on_trade_update` come from IBKR table/detail reprice (`ibkr_bridge.apply_table_quotes`), not Alpaca WS.
+   - `websocket.alpaca_trades_drive_hod()` is False when discovery=ibkr — skip `on_trade_update` and `l2.tape.on_alpaca_trade` for Alpaca prints.
+   - Depth/tape hooks must compare `msg.symbol` to an **uppercased** current symbol key.
+
 ## Anti-patterns
 
 - ❌ Keeping previous `detail` while loading the next ticker so L2 stays on NXTC under an MVO quote
@@ -52,6 +57,7 @@ When `NOVA_DISCOVERY_PROVIDER` / Settings discovery is **ibkr**, Interactive Bro
 - ❌ Pretending table prices are live when the 1Hz snapshot skipped
 - ❌ Feeding T&S from the Alpaca recorder (`l2.tape`) instead of `tape_stream.py`
 - ❌ Showing prior symbol's prints in T&S after a symbol switch
+- ❌ Calling `_hod_momo.on_trade_update` from the Alpaca WS loop when discovery=ibkr
 
 ## Related
 

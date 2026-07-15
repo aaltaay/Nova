@@ -15,7 +15,7 @@ export function DepthAndTape({ symbol }: Props) {
   return (
     <div className="depth-and-tape">
       <div className="depth-and-tape__col">
-        <DepthLadder symbol={symbol} />
+        <DepthLadder key={symbol ?? 'none'} symbol={symbol} />
       </div>
       <div className="depth-and-tape__col">
         <TimeSalesPanel

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Reliability: Alpaca WS no longer drives HOD under ibkr
+
+- **What:** When `discovery=ibkr`, Alpaca trade messages are skipped before HOD `on_trade_update` / `l2.tape` ingest. L2/T&S hooks normalize symbol case; Trading / DepthAndTape remount depth with `key={symbol}`. HOD enrichment uses direct leaf imports (`universe`, `ibkr_bridge`, `scanner`, `fundamentals`) instead of `_main` function re-exports.
+- **Why:** Remaining dual-feed hole after Phases 1–7 + A/C/D — Alpaca IEX prints still fed HOD while IBKR owned scanner prices.
+- **Files touched:** `backend/websocket.py`, `backend/hod_momo_enrichment.py`, `frontend/src/ibkr/useIbkrDepth.ts`, `useIbkrTape.ts`, `TradingTab.tsx`, `DepthAndTape.tsx`.
+- **How it works now:** IBKR table/detail ticks are the only HOD price path under ibkr (`alpaca_trades_drive_hod()`). Depth/tape compare `msg.symbol` to an uppercased hook key so case mismatch cannot drop or bleed updates.
+- **Verified by:** pytest (incl. `test_websocket_hod_feed`) + vitest + production build; live API health.
+- **Follow-ups:** Manual A→B→A rapid-switch checklist still human/agent-browser; optional stop Alpaca WS subscribe entirely under ibkr; TOD 5-min RVOL profile.
+
 ## 2026-07-14 — Tracks A/C/D: Warrior quote RVOL, cleanup, client-error intake
 
 - **What:** Quote panel now shows live **5-min RVOL** + **volume in 5 min** from the shared HOD cum-vol buffer; HOD tab gets a **Running Up only** chip (strategy #12). Deduped `HealthStatus` to `types/health.ts`. Added `POST /api/client-errors` + `AppErrorBoundary` / window error reporting into `blast.log`. Fixed ticker WS route to import `ibkr.ticks` directly (was broken `_ibkr_ticks` on main).
