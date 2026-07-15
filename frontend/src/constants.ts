@@ -380,6 +380,8 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
 
 /** Visible row window for the HOD table (~14 rows); rest are virtualized. */
 export const HOD_MOMO_VISIBLE_ROWS = 14;
+/** Alerts per page — caps how many rows the table considers at once (DOM + collapse cost). */
+export const HOD_MOMO_PAGE_SIZE = 50;
 /** Estimated row height (px) for virtual scroll — fits symbol + "(N in Xs)" burst. */
 export const HOD_MOMO_ROW_HEIGHT_PX = 44;
 /** Sticky header row height included in the scroll viewport. */

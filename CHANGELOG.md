@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo: paginate alerts 50 at a time
+
+- **What:** HOD Momo table now pages collapsed alerts in chunks of `HOD_MOMO_PAGE_SIZE` (50) with a Prev/Next control (“Showing 1–50 of N”). Row virtualization still applies inside each page; alert rows are `React.memo`'d.
+- **Why:** At ~1000 alerts the browser stayed laggy even with virtual DOM rows — the table was still fed the full filtered/collapsed list every WS batch.
+- **Files touched:** `frontend/src/constants.ts`, `hod_momo/HodMomoTab.tsx`, `HodMomoPager.tsx`, `HodMomoAlertRow.tsx`, `index.css`.
+- **How it works now:** Full-day alerts stay in memory for counts/WS; after strategy filter + consolidation collapse, only the current page (≤50) is passed to `HodMomoAlertTable`. Filter changes reset to page 1.
+- **Verified by:** `npx vitest run src/hod_momo` (6 passed).
+- **Related:** PROBLEM_LOG 2026-07-15 HOD pagination.
+
 ## 2026-07-15 — Quote panel: Watchlist + L2/T&S under the chart
 
 - **What:** In the stacked quote-panel layout (`layout="columns"`), Watchlist strip and Level 2 / Time & Sales now render directly under the price chart, above the news/catalyst row.

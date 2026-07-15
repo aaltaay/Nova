@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo UI lag at ~1000 alerts despite virtualization
+
+- **Symptom:** Browser extremely laggy on HOD Momo tab with ~1000 alerts today; scrolling/UI felt frozen.
+- **Cause:** Virtualization limited DOM rows, but the table still received the full filtered+collapsed alert array every live WS batch (~150ms), so React + collapse work scaled with the full day list.
+- **Fix:** Paginate collapsed alerts (`HOD_MOMO_PAGE_SIZE=50`) before the table; keep virtualization inside the page; memoize alert rows.
+- **Keywords:** HOD Momo lag, pagination, virtualization, 1000 alerts, HodMomoTab, HOD_MOMO_PAGE_SIZE
+
 ## 2026-07-15 — reset_config(12) rejected; HOD Momo debug path queued stale fundamentals symbol
 
 - **Symptom (bug 1):** `POST` to the HOD Momo config-reset API for strategy 12 ("Running Up Alert") silently returned `None`/404-equivalent — that one strategy could never be reset to defaults individually, even though `reset_all()` and every other strategy ID worked fine.

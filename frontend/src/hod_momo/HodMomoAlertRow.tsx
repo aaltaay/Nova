@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import {
   HOD_MOMO_COLUMNS,
@@ -64,7 +65,7 @@ function ConsolidationBadge({ count, seconds }: { count: number; seconds: number
   );
 }
 
-export function HodMomoAlertRow({
+export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   alert,
   strategyColorOverride,
   selected,
@@ -185,4 +186,4 @@ export function HodMomoAlertRow({
       })}
     </tr>
   );
-}
+});
