@@ -30,7 +30,17 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Phase 5: extract scan runners, WS stream, and scan_loop from main.py
+
+- **What:** Pulled the remaining scan/WS monolith out of `main.py` into three modules: `websocket.py` (Alpaca trade stream + cache overlays + `mark_resub`), `scan_runners.py` (discovery / focus / after-hours / movers), and `scan_loop.py` (news-catalyst scan + mode-aware `scan_loop`). `main.py` shrinks from 1624 → ~648 lines and now keeps caches, IBKR table-reprice helpers, HOD universe refresh, lifespan, and router wiring.
+- **Why:** Continuing the product-health monolith-reduction plan. Scan/WS logic was the largest remaining block and blocked further modular work.
+- **Files touched:** `backend/main.py`, `backend/websocket.py` (new), `backend/scan_runners.py` (new), `backend/scan_loop.py` (new).
+- **How it works now:** Lifespan still starts `_scan_loop` / `_ws_stream_loop` via re-exports from the new modules. Runners mutate scanner caches through a lazy `import main` accessor (same pattern as routes). WS subscription state lives in `websocket.py`; callers still use `main._ws_mark_resub`.
+- **Verified by:** 333 backend pytest tests pass; frontend production build clean.
+- **Follow-ups:** Further shrink possible by moving IBKR reprice helpers / health ping / assets cache out of `main.py` (Phase 6).
+
 ## 2026-07-14 — Phase 4: routes/hod_momo.py + routes/scan.py + routes/health.py extraction
+
 
 - **What:** Extracted all REST + WebSocket route handlers that were inline in `main.py` into three new route modules: `routes/hod_momo.py` (HOD Momo + strategy WS), `routes/scan.py` (gappers / movers / afterhours / catalysts / history), and `routes/health.py` (health, config, mode). Added `reset_scan_caches()` helper to `main.py` so `update_config` can invalidate primitive caches from a separate module without the Python rebinding problem. `main.py` shrinks from 1934 → 1624 lines (17% reduction this phase).
 - **Why:** Continuing the product-health monolith-reduction plan (Phases 1–4). Route handlers had zero business logic; extracting them is purely housekeeping.
