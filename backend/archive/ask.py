@@ -94,9 +94,10 @@ def ask(
     symbol: str | None = None,
     session_date: str | None = None,
     include_mock: bool = False,
+    limit: int = JOURNAL_TRADES_DEFAULT_LIMIT,
 ) -> dict[str, Any]:
     """Combined ask: journal trades + archive index for symbol/day."""
-    trades = find_trades(symbol=symbol, session_date=session_date, include_mock=include_mock)
+    trades = find_trades(symbol=symbol, session_date=session_date, limit=limit, include_mock=include_mock)
     index = archive_index(symbol=symbol, session_date=session_date)
     tape_sample: list[dict[str, Any]] = []
     if session_date and symbol:

@@ -4,7 +4,10 @@ Nova OS archive package — local capture, cold compact, R2, replay (P6–P9).
 Hot path: SQLite WAL under ``paths.cache_dir()/archive.db`` via ``capture``.
 Cold path: finished-day JSONL + sha256 manifests under ``archive_cold/``.
 R2: optional content-addressed upload (``r2``) — credentials in ``.env`` only.
-Replay: ``replay.replay_day`` → ``nova_os.decide(record=False)``.
+Replay: ``replay.walk_day``/``replay.replay_at`` → ``nova_os.decide(record=False)``,
+no-hindsight (bars sliced to each as-of moment). ``replay.replay_day`` without
+``as_of_ts`` keeps the old whole-day (hindsight=True) shape for the legacy
+CLI/route default only.
 """
 from __future__ import annotations
 
