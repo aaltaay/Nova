@@ -152,6 +152,18 @@ else:
     _SCAN_REQUIRE_TRADABLE = str(_raw_scan_tradable).strip().lower() in ("1", "true", "yes", "on")
 _NEWS_CATALYST_INTERVAL = NEWS_CATALYST_INTERVAL_SEC
 
+# ── Scanner helpers (stateless) — live in scanner.py, imported here so
+# existing code via _main.* continues to work unchanged.
+from scanner import (
+    _fetch_snapshots,
+    _check_news,
+    _pick_prev_close,
+    _is_common_stock,
+    _gapper_meets_min_gap,
+    _prune_gappers_below_min,
+    _compute_gappers,
+)
+
 # ── Assets cache (1-hour TTL) ─────────────────────────────────────────────────
 _assets_cache: list[str] = []
 _assets_cache_set: set[str] = set()   # O(1) membership check used by all scanners
@@ -330,25 +342,6 @@ def _apply_table_quotes(quotes: dict) -> dict | None:
 
 # ── Tradable assets ───────────────────────────────────────────────────────────
 
-def _is_common_stock(asset: dict) -> bool:
-    """Single source of truth: should this Alpaca asset appear in any scan?
-
-    All symbol-exclusion rules live here. To add a new exclusion, add it here.
-    To remove one, remove it here. No other function should make this decision.
-    """
-    if _SCAN_REQUIRE_TRADABLE and not asset.get("tradable"):
-        return False
-    sym = asset.get("symbol", "")
-    if SYMBOL_EXCLUDE_RE.search(sym):                                    # structural: slashes, test symbols
-        return False
-    name = (asset.get("name") or "").lower()
-    if any(kw.lower() in name for kw in EXCLUDED_NAME_KEYWORDS):        # semantic: Warrant, ETF, etc.
-        return False
-    if _hod_momo.is_blocked(sym):                                        # user blocklist
-        return False
-    return True
-
-
 def invalidate_universe_cache() -> None:
     """Force the next _get_tradable_symbols call to re-fetch (e.g. after blocklist change)."""
     global _assets_cache_ts
@@ -358,13 +351,7 @@ def invalidate_universe_cache() -> None:
 
 
 def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
-    """Fetch common-stock symbols for scanning, cached for one hour.
-
-    Uses exchange-based filtering (NYSE, NASDAQ, AMEX) so that any listed
-    common stock can appear as a gapper (~3,500–4,000 symbols). All exclusion
-    logic (ETFs, warrants, rights, test symbols, etc.) is centralised in
-    _is_common_stock(); do not add filter conditions here.
-    """
+    """Fetch common-stock symbols for scanning, cached for one hour."""
     global _assets_cache, _assets_cache_set, _assets_cache_ts
     now = time.monotonic()
     if _assets_cache and (now - _assets_cache_ts) < _ASSETS_CACHE_TTL:
@@ -373,17 +360,15 @@ def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
         all_assets: list[dict] = []
         for exchange in SCAN_EXCHANGES:
             resp = requests.get(
-                f"{base_url}/v2/assets",
+                f"{_DATA_URL}/v2/assets",
                 headers=headers,
                 params={"status": "active", "asset_class": "us_equity", "exchange": exchange},
                 timeout=20,
             )
             if resp.status_code == 200:
                 all_assets.extend(resp.json())
-
         if not all_assets:
             return _assets_cache
-
         kept = [a for a in all_assets if _is_common_stock(a)]
         symbols = [a["symbol"] for a in kept]
         _exchanges.update_from_assets(kept)
@@ -396,135 +381,15 @@ def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
         return _assets_cache
 
 
-# ── Snapshots ─────────────────────────────────────────────────────────────────
-
-def _fetch_snapshots(symbols: list[str], headers: dict) -> dict:
-    """Fetch snapshots for a list of symbols in parallel batches of 100.
-
-    Uses a thread pool so that large universes (~4,000 symbols = ~40 batches)
-    complete in ~1 second instead of ~8 seconds sequential.
-    """
-    if not symbols:
-        return {}
-    feed = _get_feed()
-    chunks = [symbols[i: i + 100] for i in range(0, len(symbols), 100)]
-
-    def _fetch_chunk(chunk: list[str]) -> dict:
-        try:
-            resp = requests.get(
-                f"{_DATA_URL}/v2/stocks/snapshots",
-                headers=headers,
-                params={"symbols": ",".join(chunk), "feed": feed},
-                timeout=15,
-            )
-            return resp.json() if resp.status_code == 200 else {}
-        except Exception:
-            logger.debug("_fetch_snapshots chunk network error", exc_info=True)
-            return {}
-
-    result: dict = {}
-    with ThreadPoolExecutor(max_workers=SNAPSHOT_WORKERS) as pool:
-        futures = {pool.submit(_fetch_chunk, c): c for c in chunks}
-        for fut in as_completed(futures):
-            try:
-                result.update(fut.result())
-            except Exception:
-                logger.debug("_fetch_snapshots future failed", exc_info=True)
-                continue
-    return result
-
-
-# ── Average daily volume ──────────────────────────────────────────────────────
-
 def _ensure_avg_volume(symbols: list[str], headers: dict) -> None:
-    """Lazily populate avg_volume_cache for any symbols not yet cached today."""
+    """Lazily populate _avg_volume_cache for any symbols not yet cached today."""
     global _avg_volume_cache, _avg_volume_date
+    from scanner import fetch_avg_volume_batch
     today = date.today().isoformat()
     if _avg_volume_date != today:
         _avg_volume_cache = {}
         _avg_volume_date = today
-    missing = [s for s in symbols if s not in _avg_volume_cache]
-    if not missing:
-        return
-    feed = _get_feed()
-    for i in range(0, len(missing), 100):
-        chunk = missing[i: i + 100]
-        try:
-            resp = requests.get(
-                f"{_DATA_URL}/v2/stocks/bars",
-                headers=headers,
-                params={
-                    "symbols": ",".join(chunk),
-                    "timeframe": "1Day",
-                    "limit": RVOL_LOOKBACK_DAYS,
-                    "start": (date.today() - timedelta(days=45)).isoformat(),
-                    "end": date.today().isoformat(),
-                    "feed": feed,
-                },
-                timeout=20,
-            )
-            if resp.status_code == 403 and "sip" in resp.text.lower():
-                    if _try_fallback_to_iex("avg_volume bars 403 SIP rejection"):
-                        feed = _get_feed()
-                        # Retry this chunk with the new feed
-                        resp = requests.get(
-                            f"{_DATA_URL}/v2/stocks/bars",
-                            headers=headers,
-                            params={
-                                "symbols": ",".join(chunk),
-                                "timeframe": "1Day",
-                                "limit": RVOL_LOOKBACK_DAYS,
-                                "start": (date.today() - timedelta(days=45)).isoformat(),
-                                "end": date.today().isoformat(),
-                                "feed": feed,
-                            },
-                            timeout=20,
-                        )
-                        if resp.status_code != 200:
-                            logger.warning("avg_volume bars API returned %s after fallback: %s", resp.status_code, resp.text[:200])
-                            continue
-                    else:
-                        logger.warning("avg_volume bars API returned %s: %s", resp.status_code, resp.text[:200])
-                        continue
-            elif resp.status_code != 200:
-                logger.warning("avg_volume bars API returned %s: %s", resp.status_code, resp.text[:200])
-                continue
-            bars_data = resp.json().get("bars", {})
-            for sym, bars in bars_data.items():
-                vols = [b.get("v", 0) for b in bars if b.get("v", 0) > 0]
-                if vols:
-                    _avg_volume_cache[sym] = sum(vols) / len(vols)
-        except Exception:
-            logger.exception("avg_volume fetch failed for chunk %s", chunk)
-
-
-# ── News ──────────────────────────────────────────────────────────────────────
-
-def _check_news(symbols: list[str], headers: dict) -> dict[str, str]:
-    """Return dict mapping symbol -> newest article created_at (ISO string) for articles today (ET date)."""
-    if not symbols:
-        return {}
-    today = _now_et().date().isoformat()
-    try:
-        resp = requests.get(
-            f"{_DATA_URL}/v1beta1/news",
-            headers=headers,
-            params={"symbols": ",".join(symbols[:50]), "start": today, "limit": 50},
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            return {}
-        out: dict[str, str] = {}
-        for article in resp.json().get("news", []):
-            created_at = article.get("created_at", "")
-            for s in article.get("symbols", []):
-                # Keep the most recent created_at per symbol
-                if s not in out or created_at > out[s]:
-                    out[s] = created_at
-        return out
-    except Exception:
-        logger.warning("_check_news failed for %s", symbols[:10], exc_info=True)
-        return {}
+    fetch_avg_volume_batch(symbols, headers, _avg_volume_cache)
 
 
 # ── Health ping ───────────────────────────────────────────────────────────────
@@ -560,92 +425,6 @@ def _ping_health(base_url: str, headers: dict) -> bool:
     except Exception as e:
         _cached_health = {"status": "disconnected", "latency_ms": 0, "message": str(e)}
         return False
-
-
-# ── Gapper helpers ────────────────────────────────────────────────────────────
-
-def _pick_prev_close(snap: dict) -> float:
-    """Return the correct 'previous regular-session close' from an Alpaca snapshot dict.
-
-    Alpaca's bar semantics differ by session:
-      - Pre-market (before 9:30 ET): dailyBar is the *last completed* regular session
-        (yesterday). prevDailyBar is the session before that (two days ago).
-      - Market/after-hours: dailyBar is today's developing/completed bar.
-        prevDailyBar is yesterday's completed bar.
-
-    We detect which case we're in by comparing dailyBar's timestamp date to today.
-    If dailyBar is from a prior date → it IS yesterday's close → return dailyBar.c.
-    Otherwise → dailyBar is today's bar → yesterday's close is prevDailyBar.c.
-    """
-    daily_bar = snap.get("dailyBar") or {}
-    prev_bar = snap.get("prevDailyBar") or {}
-    daily_ts = daily_bar.get("t")
-    if daily_ts:
-        try:
-            ts = datetime.fromisoformat(daily_ts.replace("Z", "+00:00"))
-            if ts.astimezone(_ET).date() < _now_et().date():
-                return daily_bar.get("c") or 0
-        except (ValueError, AttributeError):
-            pass
-    return prev_bar.get("c") or 0
-
-
-def _gapper_meets_min_gap(gap_frac: float | None) -> bool:
-    """True if gap as a fraction (e.g. 0.1 = 10%) is at or above the configured floor."""
-    if gap_frac is None:
-        return False
-    return gap_frac * 100 >= _MIN_GAP_PCT
-
-
-def _prune_gappers_below_min(gappers: list[dict]) -> list[dict]:
-    return [g for g in gappers if _gapper_meets_min_gap(g.get("gap_percent"))]
-
-
-def _compute_gappers(snaps: dict, ref_bar_key: str = "prevDailyBar") -> list[dict]:
-    """Compute gap entries from snapshot data.
-
-    ref_bar_key controls which bar supplies the reference close price:
-    - "prevDailyBar" (default): gap vs previous session close — used for pre-market.
-      Uses _pick_prev_close() which detects whether dailyBar is yesterday's or today's
-      bar based on its timestamp, resolving the Alpaca pre-market bar ambiguity.
-    - "dailyBar": gap vs today's regular-session close — used for after-hours.
-    """
-    gappers: list[dict] = []
-    for sym, snap in snaps.items():
-        latest_trade = snap.get("latestTrade") or {}
-        daily_bar = snap.get("dailyBar") or {}
-        # Prefer the latest executed trade price; fall back to the current
-        # session's bar close (dailyBar.c) for stocks that have price
-        # movement reflected in bid/ask but no executed trade yet.
-        price = latest_trade.get("p") or daily_bar.get("c", 0)
-        if ref_bar_key == "prevDailyBar":
-            # Use timestamp-aware helper: during pre-market dailyBar IS yesterday's close.
-            prev_close = _pick_prev_close(snap)
-        else:
-            prev_close = (snap.get(ref_bar_key) or {}).get("c", 0)
-        volume = daily_bar.get("v", 0)
-        if not price or not prev_close:
-            continue
-        if price < SCANNER_MIN_PRICE:
-            continue
-        gap_frac = (price - prev_close) / prev_close
-        if not _gapper_meets_min_gap(gap_frac):
-            continue
-        change_abs = price - prev_close
-        change_pct = gap_frac  # same ratio as gap for gappers
-        gappers.append({
-            "symbol": sym,
-            "price": price,
-            "prev_close": prev_close,
-            "change_pct": change_pct,
-            "change_abs": change_abs,
-            "previous_close": prev_close,   # kept for WS handler compat
-            "current_price": price,         # kept for WS handler compat
-            "gap_percent": gap_frac,
-            "volume": volume,
-        })
-    gappers.sort(key=lambda x: x["gap_percent"], reverse=True)
-    return gappers[:_TOP_N]
 
 
 def _enrich_gappers(gappers: list[dict], news: dict[str, str]) -> list[dict]:

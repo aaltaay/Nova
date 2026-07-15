@@ -30,6 +30,25 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Phase 3: scanner.py extraction + _ensure_avg_volume refactor
+
+- **What:** Extracted stateless scanner helpers from `main.py` into `backend/scanner.py` (`_fetch_snapshots`, `_check_news`, `_pick_prev_close`, `_is_common_stock`, `_gapper_meets_min_gap`, `_prune_gappers_below_min`, `_compute_gappers`, `fetch_avg_volume_batch`). `main.py` re-imports them so all existing `_main.*` callers work unchanged. `_ensure_avg_volume` now delegates the network fetch to `scanner.fetch_avg_volume_batch`. `main.py` shrinks from 2148 → 1934 lines.
+- **Why:** Phase 3 of the product-health phased plan: reduce `main.py` monolith by extracting the scanner compute layer into a testable leaf module.
+- **Files touched:** `backend/scanner.py` (new), `backend/main.py`.
+- **How it works now:** `scanner.py` imports from `alpaca.py`, `constants.py`, `market.py` only — no circular deps at load time. Functions that need runtime values (`_MIN_GAP_PCT`, `_TOP_N`, `_SCAN_REQUIRE_TRADABLE`) use lazy `import main as _main`. Cache state (primitives like `_assets_cache_ts`) stays in `main.py` to avoid Python rebinding issues; `fetch_avg_volume_batch` accepts the caller-supplied cache dict.
+- **Verified by:** `pytest backend/tests/ -x -q` → 333 passed; `npm run build` → clean.
+- **Follow-ups:** Phase 4 — extract HOD Momo routes, WS/trade handler, scan-loop into separate modules.
+- **Related:** CHANGELOG 2026-07-14 Phase 2.
+
+## 2026-07-14 — Warrior library merge saved to Obsidian + Pinecone
+
+- **What:** Documented the Warrior Trading downloads de-dupe/merge in Obsidian; upserted **588** new PDF chunks (ebook, ss-07, ss-16…20, Trader Rehab, Jess/Danny/Max grads, TOS layout PDFs) into Pinecone `nova-warrior-courses` / `warrior-slides`.
+- **Why:** Persist what we learned from the member-dashboard sync so recall/ask use one library story (no parallel `docs/warrior-trading/` tree).
+- **Files touched:** `knowledge/obsidian/01-Courses/Course-Index.md`, `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md` (new), `knowledge/obsidian/03-Nova-Decisions/Warrior-Trading-Library-Merge.md` (new), `knowledge/obsidian/00-System/{How-Recall-Works,Memory-Router}.md`, `docs/README.md`, `.gitignore` (`docs/warrior-trading/`).
+- **How it works now:** On-disk canon is `downloads/warrior-trading-{slides,resources,caption-notes,videos}/`. Obsidian holds inventory + merge decision. Pinecone searchable text includes the newly merged PDFs (prefer 1pp slides). Agents check the inventory before re-downloading.
+- **Verified by:** `py recall.py --source obsidian` hits Library Merge + Inventory notes; `py recall.py --source pinecone` returns Trader Rehab PDF, free ebook float section, and new SS Chapter 13 (`ss-16`) chunks.
+- **Related:** Prior merge of unique files into `downloads/` (same day).
+
 ## 2026-07-14 — Phase 2: alpaca.py extraction + blind-except triage
 
 - **What:** Extracted Alpaca client helpers + discovery-provider state from `main.py` into a new leaf module `backend/alpaca.py`; removed duplicate copies in `bars.py`; updated 6 callsites (`ticker.py`, `bars.py`, `routes/strategy.py`, `strategy/setups_stream.py`, `hod_momo_enrichment.py`, `routes/news.py`) to import directly from `alpaca.py`. Fixed 5 blind `except Exception` blocks in `main.py` that swallowed errors without logging. `main.py` shrinks from 2229 → 2148 lines.
