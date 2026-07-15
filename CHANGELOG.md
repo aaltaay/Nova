@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Phase 4: routes/hod_momo.py + routes/scan.py + routes/health.py extraction
+
+- **What:** Extracted all REST + WebSocket route handlers that were inline in `main.py` into three new route modules: `routes/hod_momo.py` (HOD Momo + strategy WS), `routes/scan.py` (gappers / movers / afterhours / catalysts / history), and `routes/health.py` (health, config, mode). Added `reset_scan_caches()` helper to `main.py` so `update_config` can invalidate primitive caches from a separate module without the Python rebinding problem. `main.py` shrinks from 1934 → 1624 lines (17% reduction this phase).
+- **Why:** Continuing the product-health monolith-reduction plan (Phases 1–4). Route handlers had zero business logic; extracting them is purely housekeeping.
+- **Files touched:** `backend/main.py`, `backend/routes/hod_momo.py` (new), `backend/routes/scan.py` (new), `backend/routes/health.py` (new).
+- **How it works now:** `main.py` includes four new routers (`_health_router`, `_scan_router`, `_hod_momo_router`, `_hod_momo_ws_router`) immediately after the existing router block. Route handlers access `main.py` globals via a `_m()` lazy-import accessor, same pattern as `routes/ticker.py`. `_strip_blocked` helper lives in `routes/scan.py` (single caller).
+- **Verified by:** 333 backend pytest tests pass; frontend production build clean.
+
 ## 2026-07-14 — Phase 3: scanner.py extraction + _ensure_avg_volume refactor
 
 - **What:** Extracted stateless scanner helpers from `main.py` into `backend/scanner.py` (`_fetch_snapshots`, `_check_news`, `_pick_prev_close`, `_is_common_stock`, `_gapper_meets_min_gap`, `_prune_gappers_below_min`, `_compute_gappers`, `fetch_avg_volume_batch`). `main.py` re-imports them so all existing `_main.*` callers work unchanged. `_ensure_avg_volume` now delegates the network fetch to `scanner.fetch_avg_volume_batch`. `main.py` shrinks from 2148 → 1934 lines.

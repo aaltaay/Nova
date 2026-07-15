@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import logging
 import os
 from dotenv import load_dotenv, set_key
@@ -348,6 +347,14 @@ def invalidate_universe_cache() -> None:
     _assets_cache_ts = 0.0
     _exchanges.clear()
     _ws_mark_resub()
+
+
+def reset_scan_caches() -> None:
+    """Invalidate all scanner caches — called by routes/health.py update_config."""
+    global _assets_cache_ts, _assets_cache_set, _last_discovery_ts
+    _assets_cache_ts = 0.0
+    _assets_cache_set = set()
+    _last_discovery_ts = 0.0
 
 
 def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
@@ -1598,6 +1605,15 @@ app.include_router(_l2_router)
 app.include_router(_news_router)
 app.include_router(_ticker_router)
 
+from routes.health import router as _health_router
+from routes.scan import router as _scan_router
+from routes.hod_momo import router as _hod_momo_router, ws_router as _hod_momo_ws_router
+
+app.include_router(_health_router)
+app.include_router(_scan_router)
+app.include_router(_hod_momo_router)
+app.include_router(_hod_momo_ws_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -1605,330 +1621,4 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-class ConfigUpdate(BaseModel):
-    api_key: str
-    api_secret: str
-    base_url: str
-    data_feed: str = DATA_FEED_DEFAULT
-    discovery_provider: str = DISCOVERY_PROVIDER_DEFAULT
-
-
-# ── Endpoints ─────────────────────────────────────────────────────────────────
-
-
-@app.get("/")
-def root():
-    """Human-friendly root when someone opens the API host in a browser (not an error)."""
-    return {
-        "service": "Nova API",
-        "ok": True,
-        "health": "/api/health",
-        "docs": "/docs",
-        "openapi": "/openapi.json",
-        "note": "REST routes live under /api/… A 404 here used to confuse operators; use /api/health to verify connectivity.",
-    }
-
-
-@app.get("/api/health")
-def health_check():
-    return {
-        **_cached_health,
-        "data_feed": _get_feed(),
-        "feed_fell_back": _feed_fell_back,
-    }
-
-
-@app.get("/api/config")
-def get_config():
-    return {
-        "api_key": _env("APCA_API_KEY_ID") or "",
-        "api_secret": _env("APCA_API_SECRET_KEY") or "",
-        "base_url": _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets",
-        "data_feed": _get_feed(),
-        "data_feed_options": list(DATA_FEED_OPTIONS),
-        "discovery_provider": _get_discovery_provider(),
-        "discovery_provider_options": list(DISCOVERY_PROVIDER_OPTIONS),
-        "ibkr_connected": _ibkr_client.is_connected(),
-    }
-
-
-@app.post("/api/config")
-def update_config(config: ConfigUpdate):
-    global _assets_cache_ts, _assets_cache_set, _last_discovery_ts
-    env_path = str(env_file_path())
-    os.makedirs(os.path.dirname(env_path) or ".", exist_ok=True)
-    set_key(env_path, "APCA_API_KEY_ID", config.api_key)
-    set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
-    set_key(env_path, "APCA_API_BASE_URL", config.base_url)
-    set_key(env_path, "ALPACA_DATA_FEED", config.data_feed)
-    set_key(env_path, "NOVA_DISCOVERY_PROVIDER", config.discovery_provider)
-    load_dotenv(env_path, override=True)
-    _set_feed(config.data_feed)
-    _set_discovery_provider(config.discovery_provider)
-    _assets_cache_ts = 0.0
-    _assets_cache_set = set()
-    _exchanges.clear()
-    _last_discovery_ts = 0.0
-    _ws_mark_resub()  # WS stream URL changes with feed
-    return {
-        "status": "success",
-        "data_feed": _get_feed(),
-        "discovery_provider": _get_discovery_provider(),
-    }
-
-
-@app.get("/api/mode")
-def get_mode():
-    return {
-        "mode": _current_mode,
-        "health": _cached_health,
-        "last_gapper_scan": _gapper_cache_ts,
-        "last_gainer_scan": _gainer_cache_ts,
-    }
-
-
-def _strip_blocked(rows: list[dict]) -> list[dict]:
-    """Remove blocklisted symbols and ensure each row has listing ``exchange``."""
-    out = [r for r in rows if not _hod_momo.is_blocked(r.get("symbol", ""))]
-    return _exchanges.attach_exchanges(out)
-
-
-@app.get("/api/gappers")
-def get_gappers():
-    """Pre-market gapper list. Returns cached data instantly."""
-    return {
-        "rev": _NOVA_REV,
-        "mode": _current_mode,
-        "health": _cached_health,
-        "data_feed": _get_feed(),
-        "gappers": _strip_blocked(_gapper_cache),
-        "last_scan": _gapper_cache_ts,
-    }
-
-
-@app.get("/api/movers")
-def get_movers():
-    """Top gainers and losers from the Alpaca screener. Returns cached data instantly."""
-    return {
-        "rev": _NOVA_REV,
-        "mode": _current_mode,
-        "health": _cached_health,
-        "gainers": _strip_blocked(_gainer_cache),
-        "losers": _strip_blocked(_loser_cache),
-        "last_scan": _gainer_cache_ts,
-    }
-
-
-@app.get("/api/afterhours")
-def get_afterhours():
-    """After-hours gapper list (4–8 PM ET). Gap computed vs today's regular-session close."""
-    return {
-        "rev": _NOVA_REV,
-        "mode": _current_mode,
-        "health": _cached_health,
-        "afterhours": _strip_blocked(_afterhours_cache),
-        "last_scan": _afterhours_cache_ts,
-    }
-
-
-@app.get("/api/history/dates")
-def get_history_dates(type: str = "gappers"):
-    """Return available past dates for a cache type. ?type=gappers|movers|afterhours"""
-    allowed = {"gappers", "movers", "afterhours"}
-    if type not in allowed:
-        return {"dates": []}
-    return {"dates": list_history_dates(type)}
-
-
-@app.get("/api/history/{cache_type}/{date}")
-def get_history_snapshot(cache_type: str, date: str):
-    """Return a historical snapshot for a specific cache type and date (YYYY-MM-DD)."""
-    allowed = {"gappers", "movers", "afterhours"}
-    if cache_type not in allowed:
-        return {}
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-        return {}
-    return load_snapshot_for_date(cache_type, date)
-
-
-@app.get("/api/news-catalysts")
-def get_news_catalysts():
-    """News-driven catalyst list. Returns all news-mentioned tickers with price data.
-
-    Unlike the gapper scanner (which scans a fixed universe), this endpoint
-    surfaces any ticker that appeared in recent market news regardless of
-    exchange or size — the news event is the selection criterion.
-    """
-    return {
-        "rev": _NOVA_REV,
-        "mode": _current_mode,
-        "health": _cached_health,
-        "catalysts": _strip_blocked(_news_catalyst_cache),
-        "last_scan": _news_catalyst_cache_ts,
-    }
-
-
-# ── HOD Momo endpoints ────────────────────────────────────────────────────────
-
-@app.get("/api/hod-momo/alerts")
-def hod_momo_get_alerts():
-    """Today's HOD Momo alert feed (newest first)."""
-    return {"date": _hod_momo._current_date_et(), "alerts": _hod_momo.get_today_alerts()}
-
-
-@app.get("/api/hod-momo/history/dates")
-def hod_momo_history_dates():
-    """Past dates for which HOD Momo alert snapshots exist."""
-    from cache import list_history_dates as _list_dates
-    return {"dates": _list_dates("hod-momo")}
-
-
-@app.get("/api/hod-momo/history/{date}")
-def hod_momo_history_snapshot(date: str):
-    """HOD Momo alerts for a historical date (YYYY-MM-DD)."""
-    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
-        return {}
-    return _hod_momo.get_history_alerts(date)
-
-
-@app.get("/api/hod-momo/config")
-def hod_momo_get_config():
-    """Return all strategy configs + master gate config."""
-    return _hod_momo.get_configs()
-
-
-class HodMomoConfigPatch(BaseModel):
-    scope: str                   # "master" | "strategy" | "all"
-    strategy_id: int | None = None
-    patch: dict | None = None
-
-
-@app.post("/api/hod-momo/config")
-def hod_momo_update_config(body: HodMomoConfigPatch):
-    """Update a strategy config, the master gate, or reset everything.
-
-    scope="master"   → patch applied to master gate
-    scope="strategy" → patch applied to strategy_id (required)
-    scope="reset_one"→ reset strategy_id to defaults
-    scope="reset_all"→ reset all strategies + master gate to defaults
-    """
-    if body.scope == "reset_all":
-        return _hod_momo.reset_all()
-    if body.scope == "reset_one":
-        if body.strategy_id is None:
-            return {"error": "strategy_id required"}
-        result = _hod_momo.reset_config(body.strategy_id)
-        if result is None:
-            return {"error": "unknown strategy_id"}
-        return result
-    if body.scope == "master":
-        return _hod_momo.update_master(body.patch or {})
-    if body.scope == "strategy":
-        if body.strategy_id is None:
-            return {"error": "strategy_id required"}
-        result = _hod_momo.update_config(body.strategy_id, body.patch or {})
-        if result is None:
-            return {"error": "unknown strategy_id"}
-        return result
-    return {"error": "unknown scope"}
-
-
-@app.get("/api/hod-momo/blocklist")
-def hod_momo_get_blocklist():
-    return {"symbols": _hod_momo.get_blocklist()}
-
-
-class HodMomoBlocklistUpdate(BaseModel):
-    symbol: str
-
-
-@app.post("/api/hod-momo/blocklist")
-def hod_momo_add_block(body: HodMomoBlocklistUpdate):
-    return {"symbols": _hod_momo.add_block(body.symbol)}
-
-
-@app.delete("/api/hod-momo/blocklist/{symbol}")
-def hod_momo_remove_block(symbol: str):
-    return {"symbols": _hod_momo.remove_block(symbol)}
-
-
-# ── HOD Momo debug endpoints ──────────────────────────────────────────────────
-
-@app.get("/api/hod-momo/debug/counters")
-def hod_momo_debug_counters():
-    """Gate counters, universe size, and snaps populated — polled by the Debug panel."""
-    out = _hod_momo.get_debug_counters()
-    out["watch_universe_size"] = len(_hod_momo_universe)
-    out["watch_universe_mode"] = (
-        (HOD_MOMO_UNIVERSE_MODE or HOD_MOMO_UNIVERSE_MODE_FOCUS).strip().lower()
-    )
-    out["watch_seed_size"] = len(_hod_uni.get_seed_symbols())
-    return out
-
-
-@app.get("/api/hod-momo/debug/symbol/{sym}")
-def hod_momo_debug_symbol(sym: str):
-    """Current snapshot + last 20 decisions for a specific symbol."""
-    return _hod_momo.get_debug_symbol(sym.upper())
-
-
-@app.get("/api/hod-momo/debug/recent")
-def hod_momo_debug_recent(limit: int = 100):
-    """Last N decisions across all symbols."""
-    return {"decisions": _hod_momo.get_debug_recent(min(limit, 500))}
-
-
-@app.get("/api/hod-momo/debug/snaps")
-def hod_momo_debug_snaps(limit: int = 50):
-    """Top-N most-recently enriched snapshots (sanity-check for the enrichment loop)."""
-    return {"snaps": _hod_momo.get_debug_snaps(min(limit, 200))}
-
-
-@app.websocket("/ws/hod-momo")
-async def ws_hod_momo(websocket: WebSocket):
-    """WebSocket endpoint: sends today's alerts on connect, then pushes live alerts."""
-    await websocket.accept()
-    _hod_momo.add_ws_client(websocket)
-    try:
-        # Send newest slice only — full day stays on disk / REST (avoids UI freeze).
-        initial = json.dumps(_hod_momo.get_ws_initial_payload())
-        await websocket.send_text(initial)
-        # Keep the connection alive until the client disconnects
-        while True:
-            try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-            except asyncio.TimeoutError:
-                # Send a keepalive ping
-                await websocket.send_text(json.dumps({"type": "ping"}))
-    except (WebSocketDisconnect, Exception):
-        pass
-    finally:
-        _hod_momo.remove_ws_client(websocket)
-
-
-@app.websocket("/ws/strategy")
-async def ws_strategy(websocket: WebSocket):
-    """WebSocket endpoint: sends recent setup signal history on connect, then
-    pushes newly-eligible Gap and Go / Bull Flag / ABCD signals live.
-    Signal only — never places, modifies, or cancels an order."""
-    await websocket.accept()
-    _setups_stream.add_ws_client(websocket)
-    try:
-        initial = json.dumps({
-            "type": "initial",
-            "note": "Signal only. This stream never places, modifies, or cancels orders.",
-            "signals": _setups_stream.get_signal_history(),
-        })
-        await websocket.send_text(initial)
-        while True:
-            try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
-            except asyncio.TimeoutError:
-                await websocket.send_text(json.dumps({"type": "ping"}))
-    except (WebSocketDisconnect, Exception):
-        pass
-    finally:
-        _setups_stream.remove_ws_client(websocket)
 

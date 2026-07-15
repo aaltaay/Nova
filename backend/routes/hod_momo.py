@@ -1,0 +1,189 @@
+"""
+HOD Momo REST + WebSocket routes.
+
+Extracted from ``main.py`` — thin handlers that delegate entirely to
+``hod_momo.py`` and ``strategy/setups_stream.py``.
+
+Endpoints:
+  GET  /api/hod-momo/alerts
+  GET  /api/hod-momo/history/dates
+  GET  /api/hod-momo/history/{date}
+  GET  /api/hod-momo/config
+  POST /api/hod-momo/config
+  GET  /api/hod-momo/blocklist
+  POST /api/hod-momo/blocklist
+  DELETE /api/hod-momo/blocklist/{symbol}
+  GET  /api/hod-momo/debug/counters
+  GET  /api/hod-momo/debug/symbol/{sym}
+  GET  /api/hod-momo/debug/recent
+  GET  /api/hod-momo/debug/snaps
+  WS   /ws/hod-momo
+  WS   /ws/strategy
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import re
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+
+import hod_momo as _hod_momo
+import hod_momo_universe as _hod_uni
+import strategy.setups_stream as _setups_stream
+from cache import list_history_dates as _list_history_dates
+from constants import HOD_MOMO_UNIVERSE_MODE, HOD_MOMO_UNIVERSE_MODE_FOCUS
+
+router = APIRouter(tags=["hod-momo"])
+ws_router = APIRouter(tags=["hod-momo-ws"])
+
+
+# ── REST endpoints ────────────────────────────────────────────────────────────
+
+@router.get("/api/hod-momo/alerts")
+def hod_momo_get_alerts():
+    """Today's HOD Momo alert feed (newest first)."""
+    return {"date": _hod_momo._current_date_et(), "alerts": _hod_momo.get_today_alerts()}
+
+
+@router.get("/api/hod-momo/history/dates")
+def hod_momo_history_dates():
+    """Past dates for which HOD Momo alert snapshots exist."""
+    return {"dates": _list_history_dates("hod-momo")}
+
+
+@router.get("/api/hod-momo/history/{date}")
+def hod_momo_history_snapshot(date: str):
+    """HOD Momo alerts for a historical date (YYYY-MM-DD)."""
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        return {}
+    return _hod_momo.get_history_alerts(date)
+
+
+@router.get("/api/hod-momo/config")
+def hod_momo_get_config():
+    """Return all strategy configs + master gate config."""
+    return _hod_momo.get_configs()
+
+
+class HodMomoConfigPatch(BaseModel):
+    scope: str
+    strategy_id: int | None = None
+    patch: dict | None = None
+
+
+@router.post("/api/hod-momo/config")
+def hod_momo_update_config(body: HodMomoConfigPatch):
+    """Update a strategy config, the master gate, or reset everything."""
+    if body.scope == "reset_all":
+        return _hod_momo.reset_all()
+    if body.scope == "reset_one":
+        if body.strategy_id is None:
+            return {"error": "strategy_id required"}
+        result = _hod_momo.reset_config(body.strategy_id)
+        return result if result is not None else {"error": "unknown strategy_id"}
+    if body.scope == "master":
+        return _hod_momo.update_master(body.patch or {})
+    if body.scope == "strategy":
+        if body.strategy_id is None:
+            return {"error": "strategy_id required"}
+        result = _hod_momo.update_config(body.strategy_id, body.patch or {})
+        return result if result is not None else {"error": "unknown strategy_id"}
+    return {"error": "unknown scope"}
+
+
+@router.get("/api/hod-momo/blocklist")
+def hod_momo_get_blocklist():
+    return {"symbols": _hod_momo.get_blocklist()}
+
+
+class HodMomoBlocklistUpdate(BaseModel):
+    symbol: str
+
+
+@router.post("/api/hod-momo/blocklist")
+def hod_momo_add_block(body: HodMomoBlocklistUpdate):
+    return {"symbols": _hod_momo.add_block(body.symbol)}
+
+
+@router.delete("/api/hod-momo/blocklist/{symbol}")
+def hod_momo_remove_block(symbol: str):
+    return {"symbols": _hod_momo.remove_block(symbol)}
+
+
+# ── Debug endpoints ───────────────────────────────────────────────────────────
+
+@router.get("/api/hod-momo/debug/counters")
+def hod_momo_debug_counters():
+    """Gate counters, universe size, snaps — polled by the Debug panel."""
+    import main as _main
+    out = _hod_momo.get_debug_counters()
+    out["watch_universe_size"] = len(_main._hod_momo_universe)
+    out["watch_universe_mode"] = (
+        (HOD_MOMO_UNIVERSE_MODE or HOD_MOMO_UNIVERSE_MODE_FOCUS).strip().lower()
+    )
+    out["watch_seed_size"] = len(_hod_uni.get_seed_symbols())
+    return out
+
+
+@router.get("/api/hod-momo/debug/symbol/{sym}")
+def hod_momo_debug_symbol(sym: str):
+    """Current snapshot + last 20 decisions for a specific symbol."""
+    return _hod_momo.get_debug_symbol(sym.upper())
+
+
+@router.get("/api/hod-momo/debug/recent")
+def hod_momo_debug_recent(limit: int = 100):
+    """Last N decisions across all symbols."""
+    return {"decisions": _hod_momo.get_debug_recent(min(limit, 500))}
+
+
+@router.get("/api/hod-momo/debug/snaps")
+def hod_momo_debug_snaps(limit: int = 50):
+    """Top-N most-recently enriched snapshots (sanity-check for the enrichment loop)."""
+    return {"snaps": _hod_momo.get_debug_snaps(min(limit, 200))}
+
+
+# ── WebSocket endpoints ───────────────────────────────────────────────────────
+
+@ws_router.websocket("/ws/hod-momo")
+async def ws_hod_momo(websocket: WebSocket):
+    """WebSocket: sends today's alerts on connect, then pushes live alerts."""
+    await websocket.accept()
+    _hod_momo.add_ws_client(websocket)
+    try:
+        initial = json.dumps(_hod_momo.get_ws_initial_payload())
+        await websocket.send_text(initial)
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                await websocket.send_text(json.dumps({"type": "ping"}))
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        _hod_momo.remove_ws_client(websocket)
+
+
+@ws_router.websocket("/ws/strategy")
+async def ws_strategy(websocket: WebSocket):
+    """WebSocket: Gap and Go / Bull Flag / ABCD signals. Signal only — never places orders."""
+    await websocket.accept()
+    _setups_stream.add_ws_client(websocket)
+    try:
+        initial = json.dumps({
+            "type": "initial",
+            "note": "Signal only. This stream never places, modifies, or cancels orders.",
+            "signals": _setups_stream.get_signal_history(),
+        })
+        await websocket.send_text(initial)
+        while True:
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
+            except asyncio.TimeoutError:
+                await websocket.send_text(json.dumps({"type": "ping"}))
+    except (WebSocketDisconnect, Exception):
+        pass
+    finally:
+        _setups_stream.remove_ws_client(websocket)
