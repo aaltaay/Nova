@@ -19,9 +19,12 @@ from typing import Any
 
 from constants import (
     SETUPS_ALERT_COOLDOWN_SEC,
+    SETUPS_IBKR_INTER_SYMBOL_DELAY_SEC,
     SETUPS_MAX_HISTORY,
+    SETUPS_SCAN_INTERVAL_IBKR_SEC,
     SETUPS_SCAN_INTERVAL_SEC,
     SETUPS_SCAN_TOP_N,
+    SETUPS_SCAN_TOP_N_IBKR,
 )
 from journal.store import record_signal
 from l2 import recorder as _l2_recorder
@@ -94,24 +97,36 @@ def _record_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict:
 async def _scan_once() -> None:
     from alpaca import _get_discovery_provider
     from chart_bars import fetch_chart_bars
+    from ibkr.historical_gate import interactive_busy
 
     loop = asyncio.get_event_loop()
     discovery_provider = _get_discovery_provider()
     universe = _watchlist_universe()
     by_symbol = {c["symbol"]: c for c in universe if c.get("symbol")}
-    candidates = build_watchlist(universe, limit=SETUPS_SCAN_TOP_N)
+    top_n = SETUPS_SCAN_TOP_N_IBKR if discovery_provider == "ibkr" else SETUPS_SCAN_TOP_N
+    candidates = build_watchlist(universe, limit=top_n)
     now = time.time()
 
     for entry in candidates:
+        # Never starve the open ticker chart — skip this symbol this cycle.
+        if discovery_provider == "ibkr" and interactive_busy():
+            logger.debug("setups_stream: skip %s — interactive chart has historical slot", entry.symbol)
+            continue
+
         symbol = entry.symbol
         row = by_symbol.get(symbol, {"symbol": symbol})
         try:
             bars_payload = await loop.run_in_executor(
                 None,
-                lambda sym=symbol: fetch_chart_bars(sym, "1Min", 60, discovery_provider=discovery_provider),
+                lambda sym=symbol: fetch_chart_bars(
+                    sym, "1Min", 60, discovery_provider=discovery_provider, interactive=False,
+                ),
             )
         except Exception as exc:
-            logger.warning("setups_stream: bars unavailable for %s (provider=%s): %s", symbol, discovery_provider, exc)
+            logger.warning(
+                "setups_stream: bars unavailable for %s (provider=%s): %s",
+                symbol, discovery_provider, exc,
+            )
             continue
 
         result = evaluate_setups(row, bars_payload.get("bars", []))
@@ -132,6 +147,9 @@ async def _scan_once() -> None:
             except Exception:
                 logger.exception("setups_stream: l2 recorder failed for %s/%s", symbol, setup_name)
 
+        if discovery_provider == "ibkr":
+            await asyncio.sleep(SETUPS_IBKR_INTER_SYMBOL_DELAY_SEC)
+
 
 async def scan_loop() -> None:
     """Background asyncio task — call once from the app lifespan."""
@@ -142,4 +160,10 @@ async def scan_loop() -> None:
             raise
         except Exception:
             logger.exception("setups_stream: scan cycle failed")
-        await asyncio.sleep(SETUPS_SCAN_INTERVAL_SEC)
+        from alpaca import _get_discovery_provider
+        interval = (
+            SETUPS_SCAN_INTERVAL_IBKR_SEC
+            if _get_discovery_provider() == "ibkr"
+            else SETUPS_SCAN_INTERVAL_SEC
+        )
+        await asyncio.sleep(interval)

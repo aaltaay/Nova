@@ -28,6 +28,7 @@ import {
   CHART_HEIGHT_GRID,
   CHART_MOCK_BAR_COUNT,
   CHART_MOCK_BASE_PRICE,
+  CHART_BARS_FETCH_TIMEOUT_MS,
   CHART_DEFAULT_INDICATORS,
   CHART_OSCILLATOR_IDS,
   CHART_REFETCH_SEC,
@@ -320,8 +321,12 @@ function TickerChartInner({
       setLoading(true);
       setError(null);
     }
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), CHART_BARS_FETCH_TIMEOUT_MS);
     try {
-      const res = await fetch(`${API_URL}/ticker/${sym}/bars?timeframe=${tf}`);
+      const res = await fetch(`${API_URL}/ticker/${sym}/bars?timeframe=${tf}`, {
+        signal: controller.signal,
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.detail ?? `HTTP ${res.status}`);
@@ -363,9 +368,14 @@ function TickerChartInner({
       }
     } catch (err) {
       if (requestVersion === barsRequestVersionRef.current && !background) {
-        setError(err instanceof Error ? err.message : 'Failed to load chart');
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          setError('Chart bars timed out — IBKR historical may be busy. Try again.');
+        } else {
+          setError(err instanceof Error ? err.message : 'Failed to load chart');
+        }
       }
     } finally {
+      window.clearTimeout(timeoutId);
       if (requestVersion === barsRequestVersionRef.current && !background) {
         setLoading(false);
       }

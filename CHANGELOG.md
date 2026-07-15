@@ -30,6 +30,22 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Fix chart Loading starvation (IBKR historical priority)
+
+- **What:** Open ticker chart bars now take priority over background setup scans. Setups under discovery=ibkr fetch fewer symbols less often; 1Min lookback shortened to 1 day; UI aborts stuck fetches at 25s with a clear error.
+- **Why:** Chart sat on "Loading…" for half a minute because `setups_stream` was flooding Gateway historical requests.
+- **Files touched:** `backend/ibkr/historical_gate.py`, `backend/ibkr/bars.py`, `backend/chart_bars.py`, `backend/strategy/setups_stream.py`, `backend/constants.py`, `backend/routes/ticker.py`, `frontend/src/TickerChart.tsx`, `frontend/src/constants.ts`.
+- **How it works now:** One historical request at a time. Chart path uses `interactive=True`. Background setups skip while a chart fetch is active. IBKR setup scan: top 3 symbols, 60s interval, 2s gap between symbols.
+- **Verified by:** pytest historical_gate; timed `/api/ticker/NVVE/bars` after reload.
+
+## 2026-07-15 — Fix transparent Filter Exchanges dropdown
+
+- **What:** Defined missing `--card-bg` / `--hover-bg` design tokens and gave the exchange/HOD filter dropdown a solid `--panel-bg` background.
+- **Why:** Dropdown had no background — text overlapped the Settings form underneath.
+- **Files touched:** `frontend/src/index.css`, `PROBLEM_LOG.md`.
+- **How it works now:** `:root` owns `--card-bg` (alias of `--panel-bg`) and `--hover-bg`. Filter panels reuse those tokens instead of undefined variables.
+- **Verified by:** visual check of Exchange Filter dropdown on Dashboard.
+
 ## 2026-07-15 — Dashboard tab + exchange filter
 
 - **What:** Added a Dashboard tab before Gappers with a multi-select exchange dropdown (NASDAQ checked by default). The exchange filter applies across Dashboard, Gappers, Gainers, After Hours — rows from unchecked venues disappear everywhere. Selection persists via `localStorage`.

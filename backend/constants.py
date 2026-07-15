@@ -163,8 +163,10 @@ IBKR_BAR_SIZE: dict[str, str] = {
     "1Month": "1 month",
 }
 IBKR_BAR_DURATION: dict[str, str] = {
-    "1Min": "5 D",
-    "5Min": "10 D",
+    # Keep 1Min short — 5 D of extended-hours 1-min bars is huge and often times out
+    # when Gateway is also serving scanners / setups_stream.
+    "1Min": "1 D",
+    "5Min": "5 D",
     "15Min": "1 M",
     "30Min": "2 M",
     "1Hour": "3 M",
@@ -174,7 +176,8 @@ IBKR_BAR_DURATION: dict[str, str] = {
     "1Month": "20 Y",
 }
 IBKR_HISTORICAL_USE_RTH = False          # include extended hours (match chart live session)
-IBKR_HISTORICAL_TIMEOUT_SEC = 30.0
+IBKR_HISTORICAL_TIMEOUT_SEC = 20.0       # interactive chart budget (fail loud, don't spin forever)
+IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC = 12.0  # setups_stream / non-UI fetches
 IBKR_HISTORICAL_WHAT_TO_SHOW = "TRADES"
 
 
@@ -527,8 +530,11 @@ WATCHLIST_CATALYST_STALE_MINUTES = 24 * 60.0  # headline age at which freshness 
 WATCHLIST_MAX_ROWS = 60                  # cap on rows returned to the UI
 
 # ── Setup signal stream (Phase B, /ws/strategy) ─────────────────────────────
-SETUPS_SCAN_INTERVAL_SEC = 15.0     # how often the background loop re-scans the watchlist
+SETUPS_SCAN_INTERVAL_SEC = 15.0     # how often the background loop re-scans (Alpaca discovery)
+SETUPS_SCAN_INTERVAL_IBKR_SEC = 60.0  # slower under IBKR — historical pacing is shared with charts
 SETUPS_SCAN_TOP_N = 15              # only fetch bars for this many top-ranked watchlist symbols
+SETUPS_SCAN_TOP_N_IBKR = 3          # fewer concurrent historical pulls when discovery=ibkr
+SETUPS_IBKR_INTER_SYMBOL_DELAY_SEC = 2.0  # gap between IBKR historical pulls in one cycle
 SETUPS_ALERT_COOLDOWN_SEC = 120.0   # suppress a repeat alert for the same symbol+setup
 SETUPS_MAX_HISTORY = 200            # cap on in-memory signal history for the initial WS payload
 

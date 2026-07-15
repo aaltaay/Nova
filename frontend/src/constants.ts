@@ -252,6 +252,8 @@ export const SIDE_PANEL_STACK_BREAKPOINT_PX = 1100;
 export const CHART_MOCK_BAR_COUNT = 48;
 export const CHART_MOCK_BASE_PRICE = 10;
 export const CHART_MOCK_DATA_LABEL = 'Demo candles (no live bars for this timeframe)';
+/** Client abort for /bars so "Loading…" cannot spin past the IBKR historical budget. */
+export const CHART_BARS_FETCH_TIMEOUT_MS = 25_000;
 export const CHART_REFETCH_SEC: Record<string, number> = {
   // Live forming candle comes from WS ticks; poll is reconciliation only.
   '1Min': 30,

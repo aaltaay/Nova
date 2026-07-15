@@ -27,12 +27,15 @@ def fetch_chart_bars(
     limit: int = CHART_DEFAULT_BARS,
     *,
     discovery_provider: str,
+    interactive: bool = False,
 ) -> dict:
     """Return ``{symbol, timeframe, bars, source}`` from the active discovery feed.
 
     Single-feed rule: when ``discovery_provider == \"ibkr\"``, IBKR must succeed
     (Gateway connected + historical data). There is no silent Alpaca fallback —
     callers get HTTP 503 so the UI cannot mix IBKR quotes with Alpaca candles.
+
+    ``interactive=True`` for the open ticker chart (priority over setups_stream).
     """
     symbol = symbol.upper()
     if discovery_provider == "ibkr":
@@ -44,11 +47,15 @@ def fetch_chart_bars(
                     "Connect Gateway — Nova will not fall back to Alpaca."
                 ),
             )
+        # Allow a little headroom beyond the IB request timeout for qualify + lock wait.
+        run_timeout = IBKR_HISTORICAL_TIMEOUT_SEC + (5.0 if interactive else 2.0)
         try:
             from ibkr import bars as _ibkr_bars
             result = _ibkr_client.run_coro(
-                _ibkr_bars.fetch_bars_async(symbol, timeframe, limit),
-                timeout=IBKR_HISTORICAL_TIMEOUT_SEC,
+                _ibkr_bars.fetch_bars_async(
+                    symbol, timeframe, limit, interactive=interactive,
+                ),
+                timeout=run_timeout,
             )
         except HTTPException:
             raise

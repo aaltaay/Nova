@@ -43,6 +43,7 @@ def get_ticker_bars(
         timeframe,
         limit,
         discovery_provider=_get_discovery_provider(),
+        interactive=True,
     )
 
 

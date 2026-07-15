@@ -21,6 +21,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Chart Loading stuck: setups_stream starved IBKR historical
+
+- **Symptom:** Open-ticker chart stayed on "Loading…" for 20–30+ seconds (or until timeout) even with Gateway connected.
+- **Cause:** `strategy/setups_stream` pulled IBKR `reqHistoricalData` for up to 15 symbols every 15s on the same socket/event loop as the chart. Requests queued; chart hit the 30s timeout while UI spun.
+- **Fix:** `ibkr/historical_gate` serializes historical pulls and gives interactive chart priority; throttle setups under ibkr (top 3 / 60s / inter-symbol delay); shorten 1Min lookback to `1 D`; client abort at 25s so Loading cannot hang forever.
+- **Keywords:** chart loading, IBKR historical, setups_stream, pacing, reqHistoricalData, TimeoutError, Loading
+
+## 2026-07-15 — Exchange dropdown transparent (missing --card-bg token)
+
+- **Symptom:** Filter Exchanges menu rendered with no background — checkboxes floated over the Settings form behind it.
+- **Cause:** `.hod-filter-dropdown` used `var(--card-bg)` / `var(--hover-bg)`, but those CSS variables were never defined in `:root` (only `--panel-bg` existed), so the background resolved to transparent.
+- **Fix:** Define `--card-bg: var(--panel-bg)` and `--hover-bg` in `:root`; point the filter dropdown at `--panel-bg` explicitly with a stronger shadow.
+- **Keywords:** exchange filter, transparent dropdown, --card-bg, design tokens, Filter Exchanges
+
 ## 2026-07-15 — Chart maximize collided with app header; bars blanked then loaded late
 
 - **Symptom:** Maximize chart → Nova header / Symbol Look Up mixed into chart toolbar; candlesticks missing then appeared much later.
