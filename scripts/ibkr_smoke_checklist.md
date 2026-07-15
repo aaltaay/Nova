@@ -1,65 +1,66 @@
 # Nova — IBKR Live Smoke Checklist
 
-Run this after every deployment or Gateway restart to catch the most common
-failure classes before the market opens.
+Run this after every deployment, Gateway restart, or when scanners look "empty"
+for no reason. Empty gappers with `discovery=ibkr` usually means **Gateway login**,
+not a quiet market.
 
-## Pre-flight (before market or test session)
+## Automated API pass (do this first)
 
-- [ ] IB Gateway window is open and logged in
-- [ ] `GET http://127.0.0.1:8000/api/ibkr/status` → `"connected": true`
-- [ ] No `ConnectionRefusedError` in `backend/logs/api-console.log`
+From the repo root, with the backend on `:8000`:
+
+```powershell
+.\scripts\smoke_check.ps1
+```
+
+Expect: all `PASS`, optional `WARN` for empty lists outside session hours.
+`FAIL` on IBKR connected → stop and log into Gateway before anything else.
+
+Optional: `.\scripts\smoke_check.ps1 -Base http://127.0.0.1:8000 -SampleSymbol SPY`
+
+## Pre-flight
+
+- [ ] IB Gateway window is open and logged in (Live + IB API)
+- [ ] `.\scripts\smoke_check.ps1` → IBKR connected PASS
+- [ ] No `ConnectionRefusedError` to `127.0.0.1:4001` in `backend/logs/`
 
 ## Scanner health
 
-- [ ] `GET /api/gappers` — non-empty during premarket, OR explicit `"connected": true` + `[]` (no gappers yet)
-- [ ] `GET /api/movers` (gainers/losers) — non-empty during market hours
-- [ ] UI header shows "updated Xs ago" ≤ 3s during active session
-- [ ] Header badge shows IBKR (not IEX/SIP) when `NOVA_DISCOVERY_PROVIDER=ibkr`
+- [ ] Gappers non-empty in premarket, OR IBKR connected + empty is honest ("no gaps yet")
+- [ ] Movers (gainers/losers via `/api/movers`) non-empty in regular hours when tape is active
+- [ ] UI header "updated Xs ago" ≤ ~3s during an active IBKR session
+- [ ] Header / Settings show discovery **ibkr** when `NOVA_DISCOVERY_PROVIDER=ibkr`
 
 ## Feed coherence (single-feed rule)
 
-- [ ] `GET /api/ticker/{symbol}` — `snapshot.latest_trade.price` matches scanner row price (same feed)
-- [ ] `GET /api/ticker/{symbol}` with a symbol **not** in any scanner cache — returns empty snapshot, not Alpaca price
-- [ ] Chart bars source label in UI says IBKR, not Alpaca
-- [ ] Strategy endpoints (`/api/strategy/gap-and-go/{sym}`, `/api/strategy/setups/{sym}`) — return 503 if Gateway disconnected, NOT Alpaca bars
+- [ ] Open a scanner row → quote price matches the table row (same feed)
+- [ ] Chart source attribution says IBKR (not Alpaca) under discovery=ibkr
+- [ ] Strategy bar endpoints return **503** if Gateway is down — never silent Alpaca bars
+- [ ] Symbol not in any cache → ticker snapshot empty / error, not a sneaky Alpaca price
 
-## Quote panel (rapid symbol switch test)
+## Quote panel (rapid symbol switch)
 
-1. Click ticker A → verify quote price appears, chart loads, Level 2 shows bids/asks for A
+1. Click ticker A → quote, chart, Level 2, T&S for A
 2. Immediately click ticker B → confirm:
-   - Quote price updates to B (not stale A price)
-   - Level 2 book clears and repopulates for B
-   - Time & Sales clears and shows B prints only
-   - Chart replaces A candles with B candles
-3. Click back to A → same check in reverse
+   - Quote is B (not stale A)
+   - Level 2 clears then fills for B
+   - Time & Sales clears; only B prints
+   - Chart replaces A candles with B
+3. Click back to A → same checks
 
 ## HOD Momo
 
-- [ ] HOD tab loads and shows live alerts (no "no alerts" with active market)
-- [ ] Scroll to 500+ rows without freeze or jank
-- [ ] Header "updated Xs ago" advances (not frozen) while HOD alerts stream
+- [ ] HOD tab loads; alerts stream when the shortlist is active
+- [ ] Scroll hundreds of rows without freeze
+- [ ] Header age advances while alerts arrive (not frozen behind a scan)
 
-## After-hours (if applicable)
+## After-hours (if in the AH window)
 
-- [ ] After-hours tab shows ≥ 1 row (not perpetually empty)
-- [ ] Row prices match IBKR top-% gainers, not Alpaca IEX prices
+- [ ] After-hours tab shows rows when IBKR top-% gainers exist
+- [ ] Prices match IBKR gainers basis, not a silent Alpaca IEX list
 
-## Quick API smoke script
+## If something fails
 
-```powershell
-# Run from repo root with the backend running on :8000
-$base = "http://127.0.0.1:8000"
-
-function Check($label, $url, $expect) {
-    $r = Invoke-RestMethod $url -ErrorAction SilentlyContinue
-    $ok = if ($expect) { ($r | ConvertTo-Json -Compress).Contains($expect) } else { $null -ne $r }
-    Write-Host ($(if ($ok) { "PASS" } else { "FAIL" }), " $label")
-}
-
-Check "IBKR status connected"   "$base/api/ibkr/status"     '"connected":true'
-Check "Health endpoint OK"      "$base/api/health"           '"status"'
-Check "Gappers endpoint exists" "$base/api/gappers"          $null
-Check "Gainers endpoint exists" "$base/api/gainers"          $null
-```
-
-Save as `scripts/smoke_check.ps1` and run with `.\scripts\smoke_check.ps1` after startup.
+1. Search `PROBLEM_LOG.md` for the symptom (stale, L2, empty, fallback, Gateway).
+2. Confirm `/api/ibkr/status` → `connected: true` before debugging scanner logic.
+3. Capture browser console (`npx agent-browser@latest console` or F12) on blank/freeze.
+4. Fix root cause in the owning module — never band-aid in `main.py` / `App.tsx`.

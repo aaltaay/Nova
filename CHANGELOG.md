@@ -30,7 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Live smoke SOP: fix smoke_check.ps1 + expand checklist
+
+- **What:** Rewrote `scripts/smoke_check.ps1` to hit real routes (`/api/movers`, `/api/afterhours`, `/api/news-catalysts`, `/api/hod-momo/alerts`, `/api/config`) instead of dead `/api/gainers`/`/api/losers`. Loud WARN when discovery=ibkr but Gateway disconnected. Expanded `scripts/ibkr_smoke_checklist.md` so the automated script is the first step.
+- **Why:** Track B of the post-Phase-7 plan — live reliability SOP. Old script would false-fail on missing endpoints and miss movers/HOD/AH.
+- **How it works now:** From repo root with API on `:8000`, run `.\scripts\smoke_check.ps1`. Exit 1 only on hard FAILs; empty scanners outside session hours are WARN when IBKR is up.
+- **Verified by:** Live run → **10 passed, 0 failed, 0 warnings** (IBKR connected live, discovery=ibkr, gappers 11, movers 50/50, AH 47, HOD 108, AAPL bars 10).
+- **Follow-ups:** Manual UI rapid-switch L2/T&S still human-only (checklist section). Optional: agent prompt that runs this script after Gateway login.
+
 ## 2026-07-14 — Phase 7: App.tsx hits 150-line target (DashboardPage + scanner hooks)
+
 
 - **What:** Extracted the dashboard monolith out of `App.tsx` into `pages/DashboardPage.tsx`, `components/ScannerTabPanels.tsx`, `hooks/useScannerData.ts`, `hooks/useSettingsForm.ts`, `utils/sortRows.ts`, and `types/health.ts`. Added `API_URL` to `constants.ts`. `App.tsx` is now **68 lines** (Stock View gate + Dashboard shell only).
 - **Why:** Completes the frontend half of the product-health modularity plan after backend Phases 1–6. Constitution / file-size target for `App.tsx` was &lt;150 lines.
