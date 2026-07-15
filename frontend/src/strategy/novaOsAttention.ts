@@ -13,7 +13,13 @@ export type NovaOsAttentionKind =
   | 'decision_wait'
   | 'decision_no_buy'
   | 'mode_reset'
-  | 'risk_halt';
+  | 'risk_halt'
+  | 'staged'
+  | 'expired'
+  | 'fill'
+  | 'stop'
+  | 'kill'
+  | 'archive_fail';
 
 export interface NovaOsAttentionEvent {
   id: string;
@@ -58,7 +64,13 @@ function playCue(kind: NovaOsAttentionKind) {
     osc.connect(gain);
     gain.connect(ctx.destination);
     const freq =
-      kind === 'decision_buy' ? 880 : kind === 'risk_halt' ? 220 : kind === 'decision_wait' ? 520 : 440;
+      kind === 'decision_buy' || kind === 'fill'
+        ? 880
+        : kind === 'risk_halt' || kind === 'kill' || kind === 'archive_fail'
+          ? 220
+          : kind === 'decision_wait' || kind === 'expired'
+            ? 520
+            : 440;
     osc.frequency.value = freq;
     gain.gain.value = 0.04;
     osc.start();

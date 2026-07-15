@@ -10,11 +10,21 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import journal.db as journal_db
+import nova_os.events_db as events_db
 import strategy.risk as risk_mod
 from journal.store import record_trade
 from strategy.risk import RiskState, validate_trade_plan
 
 _ET = ZoneInfo("America/New_York")
+
+
+@pytest.fixture(autouse=True)
+def isolated_events_db(tmp_path, monkeypatch):
+    """RiskState._halt() journals a risk_halt system event — isolate so
+    walk-away-guardrail tests never touch the real nova_os_events.db."""
+    monkeypatch.setattr(events_db, "cache_dir", lambda: tmp_path)
+    events_db.init_db()
+    yield
 
 
 class TestPositionSizing:
@@ -57,6 +67,18 @@ class TestWalkAwayGuardrails:
         can_trade, reason = state.can_trade()
         assert can_trade is False
         assert "max loss" in reason.lower()
+
+    def test_halt_journals_a_risk_halt_system_event(self):
+        """The frontend attention strip has nothing to key off of unless a
+        halt writes an append-only receipt the instant it trips."""
+        from nova_os.events import KIND_SYSTEM, get_events
+
+        state = RiskState()
+        state.record_trade_result(-500.0)
+        rows = get_events(kind=KIND_SYSTEM)
+        halts = [r for r in rows if r["payload"].get("event") == "risk_halt"]
+        assert len(halts) == 1
+        assert "max loss" in halts[0]["payload"]["reason"].lower()
 
     def test_three_losses_in_a_row_halts(self):
         state = RiskState()

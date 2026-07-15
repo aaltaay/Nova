@@ -5,7 +5,6 @@ import {
   attentionKindForDecision,
   pushNovaOsAttention,
 } from './novaOsAttention';
-import { NovaOsAttentionStrip } from './NovaOsAttentionStrip';
 import type { NovaOsDecision, NovaOsGateResult } from './types';
 import { useNovaOsDecide } from './useNovaOsDecide';
 
@@ -171,7 +170,6 @@ export function DecisionPanel({ active, selectedSymbol, onSelectSymbol }: Decisi
 
   return (
     <div className="nova-os-decision-panel">
-      <NovaOsAttentionStrip />
       <div className="watchlist-description">
         Nova OS gate audit for the top watchlist names
         {selectedSymbol ? ` (focus: ${selectedSymbol})` : ''}.

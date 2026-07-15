@@ -98,6 +98,24 @@ class RiskState:
     def _halt(self, reason: str) -> None:
         self.halted = True
         self.halt_reason = reason
+        try:
+            # Lazy import — nova_os.events has no dependency back on
+            # strategy, but importing it at module load time would still
+            # add an avoidable load-order coupling for a rarely-hit path.
+            from nova_os.events import KIND_SYSTEM, record_receipt
+
+            record_receipt(
+                kind=KIND_SYSTEM,
+                payload={
+                    "event": "risk_halt",
+                    "reason": reason,
+                    "daily_realized_pnl": round(self.daily_realized_pnl, 2),
+                    "consecutive_losses": self.consecutive_losses,
+                    "losses_today": self.losses_today,
+                },
+            )
+        except Exception:
+            logger.exception("Risk engine: failed to journal risk_halt event")
 
     def can_trade(self) -> tuple[bool, str]:
         if self.halted:

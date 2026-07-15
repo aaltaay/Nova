@@ -6,6 +6,8 @@ import { useCallback, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { DashboardPage } from './pages/DashboardPage';
 import { StockViewPage } from './pages/StockViewPage';
+import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
+import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
 import {
   leaveStockViewUrl,
   openStockViewWindow,
@@ -18,6 +20,10 @@ function App() {
   const [stockViewSymbol, setStockViewSymbol] = useState<string | null>(() =>
     parseStockViewSymbol(),
   );
+
+  // Global — a kill switch, expired approval, or archive failure must reach
+  // the attention strip regardless of which tab/page is currently mounted.
+  useNovaOsEventAttention(true);
 
   const openStockView = useCallback((symbol: string) => {
     const sym = symbol.trim().toUpperCase();
@@ -32,6 +38,7 @@ function App() {
     const detached = parseStockViewSymbol() != null;
     return (
       <AppErrorBoundary source="stock-view">
+        <NovaOsAttentionStrip global />
         <div className="container container--ticker-detail">
           <div className="main-col main-col--full">
             <main className="ticker-detail-main">
@@ -61,6 +68,7 @@ function App() {
 
   return (
     <AppErrorBoundary source="dashboard">
+      <NovaOsAttentionStrip global />
       <DashboardPage
         selectedSymbol={selectedSymbol}
         setSelectedSymbol={setSelectedSymbol}

@@ -13,6 +13,7 @@ import archive.compact as compact
 import archive.db as archive_db
 import archive.health as health
 import archive.r2 as r2
+import nova_os.events_db as events_db
 from constants import ARCHIVE_SOURCE_IBKR
 
 
@@ -20,11 +21,13 @@ from constants import ARCHIVE_SOURCE_IBKR
 def isolated_archive(tmp_path, monkeypatch):
     monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
     monkeypatch.setattr(compact, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(events_db, "cache_dir", lambda: tmp_path)
     monkeypatch.delenv("R2_ACCOUNT_ID", raising=False)
     monkeypatch.delenv("R2_ACCESS_KEY_ID", raising=False)
     monkeypatch.delenv("R2_SECRET_ACCESS_KEY", raising=False)
     monkeypatch.delenv("ARCHIVE_R2_ENABLED", raising=False)
     archive_db.init_db()
+    events_db.init_db()
     capture.clear_l2_stub_for_tests()
     yield
 
@@ -137,6 +140,38 @@ class TestR2UploadMock:
         result = r2.upload_bytes(b"x")
         assert result["ok"] is False
         assert result.get("configured") is False
+
+    def test_upload_day_failure_journals_archive_upload_failed_event(self, monkeypatch):
+        """A day that fails to fully upload must show up in the audit trail —
+        not just a health-endpoint field nobody is actively polling."""
+        from nova_os.events import KIND_SYSTEM, get_events
+
+        cold = _seed_and_compact()
+
+        class FailingClient:
+            def head_object(self, Bucket, Key):
+                err = Exception("404")
+                err.response = {"Error": {"Code": "404"}, "ResponseMetadata": {"HTTPStatusCode": 404}}
+                raise err
+
+            def put_object(self, Bucket, Key, Body, **kwargs):
+                raise RuntimeError("network unreachable")
+
+        monkeypatch.setenv("ARCHIVE_R2_ENABLED", "true")
+        monkeypatch.setenv("R2_ACCOUNT_ID", "acct")
+        monkeypatch.setenv("R2_ACCESS_KEY_ID", "key")
+        monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secret")
+        monkeypatch.setattr(r2, "boto3_available", lambda: True)
+        monkeypatch.setattr(r2, "_client", lambda: (FailingClient(), "nova-archive"))
+
+        result = r2.upload_day("2026-07-10", cold_dir=cold)
+        assert result["ok"] is False
+
+        rows = get_events(kind=KIND_SYSTEM)
+        failures = [r for r in rows if r["payload"].get("event") == "archive_upload_failed"]
+        assert len(failures) == 1
+        assert failures[0]["payload"]["session_date"] == "2026-07-10"
+        assert failures[0]["payload"]["failed_tables"]
 
 
 class TestTrimGate:

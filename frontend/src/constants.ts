@@ -89,6 +89,11 @@ export const EXECUTOR_POLL_INTERVAL_MS = 5000;
 // ── Nova OS Decision UX (mirrors backend/constants.py NOVA_OS_*) ────────────
 /** Poll interval for DecisionPanel watchlist/symbol decide fetches. */
 export const NOVA_OS_DECIDE_POLL_INTERVAL_MS = 5000;
+/** Poll interval for the global Nova OS event-attention feed (GET /api/nova-os/events). */
+export const NOVA_OS_EVENT_ATTENTION_POLL_INTERVAL_MS = 5000;
+/** How many recent events to fetch per poll — must comfortably exceed the
+ * number of receipts one poll interval could produce so nothing is missed. */
+export const NOVA_OS_EVENT_ATTENTION_POLL_LIMIT = 25;
 /** Default watchlist batch size for GET /api/nova-os/decide (mirrors NOVA_OS_DECIDE_DEFAULT_LIMIT). */
 export const NOVA_OS_DECIDE_DEFAULT_LIMIT = 4;
 /** localStorage key for the muteable attention-sound preference. */
@@ -109,6 +114,11 @@ export const NOVA_OS_ATTENTION_COPY: Record<string, string> = {
   mode_reset: 'Automation reset to Signal — nothing will place until you raise the mode.',
   risk_halt: 'Risk halt — new entries blocked for the session.',
   staged: 'Ticket staged — Approve before the countdown expires to place the paper bracket.',
+  expired: 'Staged ticket expired unapproved — nothing was placed.',
+  fill: 'Paper bracket placed — entry order working on IBKR.',
+  stop: 'Position closed — see Journal for exit price and P&L.',
+  kill: 'Kill switch tripped — automation forced to Signal.',
+  archive_fail: 'Archive upload failed for a prior day — see Archive health.',
 };
 
 /** Mirrors backend NOVA_OS_FLATTEN_CONFIRM_TOKEN — typed confirm for flatten. */

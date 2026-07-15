@@ -1202,21 +1202,48 @@ th {
   font-size: 0.85rem;
 }
 
-.nova-os-attention-decision_buy {
+.nova-os-attention-decision_buy,
+.nova-os-attention-fill {
   border-color: var(--success);
   background: rgba(16, 185, 129, 0.1);
 }
 
 .nova-os-attention-decision_wait,
-.nova-os-attention-mode_reset {
+.nova-os-attention-mode_reset,
+.nova-os-attention-staged,
+.nova-os-attention-expired,
+.nova-os-attention-stop {
   border-color: #d97706;
   background: rgba(217, 119, 6, 0.1);
 }
 
 .nova-os-attention-decision_no_buy,
-.nova-os-attention-risk_halt {
+.nova-os-attention-risk_halt,
+.nova-os-attention-kill,
+.nova-os-attention-archive_fail {
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.08);
+}
+
+/* Mounted once at the App root (App.tsx) — floats above every tab and the
+ * detached Stock View window alike, since those two render trees share no
+ * common header. Only rendered at all when there is an active event.
+ * Declared after the severity rules above so this background-image layer
+ * (their `background:` shorthand resets image to none) still applies. */
+.nova-os-attention-strip--global {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  border-radius: 0;
+  border-width: 0 0 1px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  background-image: linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--bg-color) 85%, transparent),
+    color-mix(in srgb, var(--bg-color) 85%, transparent)
+  );
 }
 
 .nova-os-attention-actions {
@@ -4631,6 +4658,13 @@ body.chart-maximized-open {
 
 .ticker-trade-auto-state.armed {
   color: var(--green, #22c55e);
+}
+
+.ticker-trade-auto-state.auto-paper {
+  /* auto_paper places orders with no Approve step — a distinct, louder
+   * color from plain "confirm" (armed) so the operator can't mistake one
+   * mode's consequences for the other at a glance. */
+  color: var(--amber, #f59e0b);
 }
 
 .ticker-trade-bar-footer {

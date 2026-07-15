@@ -348,11 +348,23 @@ def upload_day(
         "error": None if ok else "one or more uploads failed",
     }
     index["days"] = days
-    if ok:
-        save_verified_index(index, root)
-    else:
-        # Persist failure loudly so health can fail-loud
-        save_verified_index(index, root)
+    # Persist failure loudly so health can fail-loud either way.
+    save_verified_index(index, root)
+    if not ok:
+        failed_tables = [u.get("table") for u in uploads if not u.get("ok")]
+        try:
+            from nova_os.events import KIND_SYSTEM, record_receipt
+
+            record_receipt(
+                kind=KIND_SYSTEM,
+                payload={
+                    "event": "archive_upload_failed",
+                    "session_date": session_date,
+                    "failed_tables": failed_tables,
+                },
+            )
+        except Exception:
+            logger.exception("archive.r2: failed to journal archive_upload_failed event")
 
     return {
         "ok": ok,
