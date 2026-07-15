@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { HOD_MOMO_PAGE_SIZE, HOD_MOMO_RUNNING_UP_STRATEGY_ID, STRATEGY_META } from '../constants';
+import { useMemo, useState } from 'react';
+import { HOD_MOMO_RUNNING_UP_STRATEGY_ID, STRATEGY_META } from '../constants';
 import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
 import { collapseConsecutiveTickerAlerts } from './collapseConsecutiveTickerAlerts';
 import { HodMomoAlertTable } from './HodMomoAlertTable';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';
-import { HodMomoPager } from './HodMomoPager';
 
 type SubPanel = 'main' | 'debug';
 
@@ -114,7 +113,6 @@ export function HodMomoTab({
   const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
     new Set(STRATEGY_META.map(s => s.id)),
   );
-  const [page, setPage] = useState(0);
 
   const consolidationSec = config.state.master.consolidation_sec;
 
@@ -139,21 +137,6 @@ export function HodMomoTab({
     const windowSec = Math.max(5, consolidationSec * 3);
     return collapseConsecutiveTickerAlerts(filtered, windowSec);
   }, [alerts, visibleStrategies, consolidationSec]);
-
-  const pageCount = Math.max(1, Math.ceil(visibleAlerts.length / HOD_MOMO_PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const pageAlerts = useMemo(
-    () => visibleAlerts.slice(safePage * HOD_MOMO_PAGE_SIZE, (safePage + 1) * HOD_MOMO_PAGE_SIZE),
-    [visibleAlerts, safePage],
-  );
-
-  useEffect(() => {
-    setPage(0);
-  }, [visibleStrategies]);
-
-  useEffect(() => {
-    if (page !== safePage) setPage(safePage);
-  }, [page, safePage]);
 
   function toggleStrategy(id: number) {
     setVisibleStrategies(prev => {
@@ -201,25 +184,18 @@ export function HodMomoTab({
       {activeSubPanel === 'debug' ? (
         <HodMomoDebugPanel />
       ) : (
-        <>
-          <HodMomoPager
-            page={safePage}
-            total={visibleAlerts.length}
-            onPageChange={setPage}
-          />
-          <HodMomoAlertTable
-            alerts={pageAlerts}
-            connected={connected}
-            consolidationSec={consolidationSec}
-            configColors={configColors}
-            strategyCounts={strategyCounts}
-            visibleStrategies={visibleStrategies}
-            onToggleStrategy={toggleStrategy}
-            selectedSymbol={selectedSymbol}
-            onSelectSymbol={onSelectSymbol}
-            onOpenTrading={onOpenTrading}
-          />
-        </>
+        <HodMomoAlertTable
+          alerts={visibleAlerts}
+          connected={connected}
+          consolidationSec={consolidationSec}
+          configColors={configColors}
+          strategyCounts={strategyCounts}
+          visibleStrategies={visibleStrategies}
+          onToggleStrategy={toggleStrategy}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelectSymbol}
+          onOpenTrading={onOpenTrading}
+        />
       )}
     </div>
   );

@@ -21,6 +21,7 @@
     "electron:dir": "npm run build:api && npm run build:electron-renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win dir --x64"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.14.6",
     "lightweight-charts": "^5.1.0",
     "lightweight-charts-drawing": "^0.1.1",
     "lightweight-charts-indicators": "^0.4.2",

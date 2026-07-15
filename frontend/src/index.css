@@ -2519,40 +2519,6 @@ th {
   overflow: auto;
 }
 
-.hod-pager {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin: 0.35rem 0 0;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-.hod-pager-btn {
-  background: var(--bg-secondary, var(--panel-bg, #111));
-  border: 1px solid var(--border-color);
-  color: var(--text-primary);
-  border-radius: 4px;
-  padding: 0.2rem 0.55rem;
-  cursor: pointer;
-  font-size: 0.8rem;
-}
-
-.hod-pager-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.hod-pager-btn:not(:disabled):hover {
-  background: var(--hover-bg);
-}
-
-.hod-pager-label {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
 .hod-table-virtual {
   flex: 0 0 auto;
   max-height: none;

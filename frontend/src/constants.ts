@@ -378,16 +378,17 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
   ['strategy',    'Strategy'],
 ];
 
-/** Visible row window for the HOD table (~14 rows); rest are virtualized. */
+/** Visible row window height for the HOD table (~14 rows of scroll viewport). */
 export const HOD_MOMO_VISIBLE_ROWS = 14;
-/** Alerts per page — caps how many rows the table considers at once (DOM + collapse cost). */
-export const HOD_MOMO_PAGE_SIZE = 50;
-/** Estimated row height (px) for virtual scroll — fits symbol + "(N in Xs)" burst. */
+/** Estimated row height (px) for @tanstack/react-virtual. */
 export const HOD_MOMO_ROW_HEIGHT_PX = 44;
 /** Sticky header row height included in the scroll viewport. */
 export const HOD_MOMO_HEADER_HEIGHT_PX = 34;
-/** Extra rows rendered above/below the viewport to reduce scroll flicker. */
-export const HOD_MOMO_VIRTUAL_OVERSCAN = 6;
+/**
+ * Extra rows TanStack Virtual keeps mounted above/below the viewport.
+ * ~40 + 14 visible ≈ 50–100 DOM rows while scrolling the full day list.
+ */
+export const HOD_MOMO_VIRTUAL_OVERSCAN = 40;
 /** Batch live alert prepends so App does not re-render on every single fire. */
 export const HOD_MOMO_ALERT_BATCH_MS = 150;
 

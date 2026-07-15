@@ -24,9 +24,9 @@ Entry template (copy and fill in):
 ## 2026-07-15 — HOD Momo UI lag at ~1000 alerts despite virtualization
 
 - **Symptom:** Browser extremely laggy on HOD Momo tab with ~1000 alerts today; scrolling/UI felt frozen.
-- **Cause:** Virtualization limited DOM rows, but the table still received the full filtered+collapsed alert array every live WS batch (~150ms), so React + collapse work scaled with the full day list.
-- **Fix:** Paginate collapsed alerts (`HOD_MOMO_PAGE_SIZE=50`) before the table; keep virtualization inside the page; memoize alert rows.
-- **Keywords:** HOD Momo lag, pagination, virtualization, 1000 alerts, HodMomoTab, HOD_MOMO_PAGE_SIZE
+- **Cause:** Hand-rolled windowing + later a custom Prev/Next pager still fought the problem awkwardly; user correctly asked for a standard virtual-scroll library instead.
+- **Fix:** Switched the alert table to `@tanstack/react-virtual` (`useVirtualizer`) for continuous scroll with only viewport+overscan rows mounted; removed custom pager/`useWindowedRows`.
+- **Keywords:** HOD Momo lag, @tanstack/react-virtual, virtualization, 1000 alerts, HodMomoAlertTable
 
 ## 2026-07-15 — reset_config(12) rejected; HOD Momo debug path queued stale fundamentals symbol
 

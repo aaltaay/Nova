@@ -30,14 +30,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
-## 2026-07-15 — HOD Momo: paginate alerts 50 at a time
+## 2026-07-15 — HOD Momo: @tanstack/react-virtual for continuous scroll
 
-- **What:** HOD Momo table now pages collapsed alerts in chunks of `HOD_MOMO_PAGE_SIZE` (50) with a Prev/Next control (“Showing 1–50 of N”). Row virtualization still applies inside each page; alert rows are `React.memo`'d.
-- **Why:** At ~1000 alerts the browser stayed laggy even with virtual DOM rows — the table was still fed the full filtered/collapsed list every WS batch.
-- **Files touched:** `frontend/src/constants.ts`, `hod_momo/HodMomoTab.tsx`, `HodMomoPager.tsx`, `HodMomoAlertRow.tsx`, `index.css`.
-- **How it works now:** Full-day alerts stay in memory for counts/WS; after strategy filter + consolidation collapse, only the current page (≤50) is passed to `HodMomoAlertTable`. Filter changes reset to page 1.
-- **Verified by:** `npx vitest run src/hod_momo` (6 passed).
-- **Related:** PROBLEM_LOG 2026-07-15 HOD pagination.
+- **What:** Replaced the custom pager + hand-rolled `useWindowedRows` with `@tanstack/react-virtual`. Scroll the full day list continuously; the library mounts only the viewport + overscan (~50–100 DOM rows). Removed `HodMomoPager` / `HOD_MOMO_PAGE_SIZE`.
+- **Why:** User asked not to reinvent windowing — use a standard library so scrolling loads the next batch of rows the usual way.
+- **Files touched:** `frontend/package.json`, `HodMomoAlertTable.tsx`, `HodMomoTab.tsx`, `constants.ts`, deleted `HodMomoPager.tsx` / `useWindowedRows*`.
+- **How it works now:** `useVirtualizer` owns scroll indexes/measurements; spacer rows keep scrollbar accurate for 1000+ alerts without mounting them all.
+- **Verified by:** `npx vitest run`; `npm run build`.
 
 ## 2026-07-15 — Quote panel: Watchlist + L2/T&S under the chart
 
