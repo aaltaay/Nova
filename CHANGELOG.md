@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Document Cursor Cloud (Linux) dev-environment setup
+
+- **What:** Added a `## Cursor Cloud specific instructions` section to `AGENTS.md` capturing the Linux cloud dev-environment startup contract (deps install via user-site pip + `npm ci --legacy-peer-deps`, `python3 -m` tool invocation, run commands for the uvicorn API and Vite UI, degraded no-Alpaca-keys behavior, CI gates, and two known pre-existing SQLite test failures).
+- **Why:** Cloud agents run on Linux where the Windows `Run Nova*.bat` launchers/`*.ps1` scripts don't apply; future sessions need the non-obvious startup caveats up front.
+- **Files touched:** `AGENTS.md`, `CHANGELOG.md`.
+- **How it works now:** Startup update script installs `backend/requirements-dev.txt` (user site) and frontend deps with `--legacy-peer-deps`; services are started manually (`python3 run_api.py` on :8000, `npm run dev` on :5173). No code/behavior change.
+- **Verified by:** Installed deps, ran `pytest` (559 pass / 2 pre-existing fails), `vitest` (73 pass), `npm run build` (pass), started both dev servers, and exercised the Settings "Update & Connect" flow (IEX→SIP) end-to-end in the browser.
+
 ## 2026-07-15 — HOD Momo alert stream no longer double-delivers on WS reconnect/remount
 
 - **What:** `frontend/src/hod_momo/useHodMomoStream.ts` now ignores events from a stale/superseded WebSocket instance (checks `wsRef.current === ws` on every handler, in addition to the existing `mountedRef` flag) and de-duplicates incoming alerts by `id` via an O(1) `Set` lookup instead of trusting every 'alert' message to be new.
