@@ -35,9 +35,20 @@ export function useSignalsStream(): SignalsStreamState {
           const msg = JSON.parse(e.data as string);
           if (msg.type === 'initial') {
             setSignals(Array.isArray(msg.signals) ? [...msg.signals].reverse() : []);
-          } else if (msg.type === 'signal') {
-            const { type: _type, ...signal } = msg;
-            setSignals(prev => [signal as SetupSignal, ...prev]);
+          } else if (msg.type === 'signal' || msg.type === 'decision') {
+            const { type: _type, decision: _d, reason_codes: _r, mode: _m, would_execute: _w, receipt_id: _rid, ...rest } = msg;
+            const signal = rest as SetupSignal;
+            // P2+ decision frames carry nova_os on the signal dict; top-level fields are also present.
+            if (msg.type === 'decision' && !signal.nova_os && msg.decision) {
+              (signal as SetupSignal & { nova_os?: object }).nova_os = {
+                decision: msg.decision,
+                reason_codes: msg.reason_codes,
+                mode: msg.mode,
+                would_execute: msg.would_execute,
+                receipt_id: msg.receipt_id,
+              };
+            }
+            setSignals(prev => [signal, ...prev]);
           }
           // ignore "ping"
         } catch {

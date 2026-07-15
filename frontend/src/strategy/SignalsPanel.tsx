@@ -1,8 +1,8 @@
 /** Signals panel — live feed of Gap and Go / Bull Flag / ABCD triggers from /ws/strategy. */
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
-import { SETUP_LABELS } from '../constants';
-import type { SetupSignal } from './types';
+import { NOVA_OS_DECISION_LABELS, SETUP_LABELS } from '../constants';
+import type { SetupSignalWithNovaOs } from './types';
 
 function fmtTime(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toLocaleTimeString('en-US', {
@@ -20,11 +20,17 @@ function SignalRow({
   onSelect,
   onOpenTrading,
 }: {
-  signal: SetupSignal;
+  signal: SetupSignalWithNovaOs;
   selected: boolean;
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
 }) {
+  const verdict = signal.nova_os?.decision;
+  const verdictClass =
+    verdict === 'BUY' ? 'nova-os-decision-buy'
+      : verdict === 'WAIT' ? 'nova-os-decision-wait'
+        : verdict === 'NO_BUY' ? 'nova-os-decision-nobuy'
+          : '';
   return (
     <SelectableTableRow
       symbol={signal.symbol}
@@ -44,6 +50,15 @@ function SignalRow({
       <td>
         <span className="pillar-chip pillar-pass">{SETUP_LABELS[signal.setup] ?? signal.setup}</span>
       </td>
+      <td>
+        {verdict ? (
+          <span className={`pillar-chip ${verdictClass}`} title={(signal.nova_os?.reason_codes ?? []).join(', ')}>
+            {NOVA_OS_DECISION_LABELS[verdict] ?? verdict}
+          </span>
+        ) : (
+          <span className="na-muted">—</span>
+        )}
+      </td>
       <td>{fmtPrice(signal.entry_price)}</td>
       <td>{fmtPrice(signal.stop_price)}</td>
       <td>{fmtPrice(signal.target_price)}</td>
@@ -53,7 +68,7 @@ function SignalRow({
 }
 
 interface SignalsPanelProps {
-  signals: SetupSignal[];
+  signals: SetupSignalWithNovaOs[];
   connected: boolean;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
@@ -82,6 +97,7 @@ export function SignalsPanel({
                 <th title="When this setup was detected as eligible.">Time</th>
                 <th title="Click: side panel. Double-click: full trading view.">Symbol</th>
                 <th title="Which pattern triggered: Gap and Go, Bull Flag, or ABCD. See backend/strategy/*.py for the exact rule.">Setup</th>
+                <th title="Nova OS decide() verdict for this signal (BUY / WAIT / NO BUY). Signal only — no orders.">Nova OS</th>
                 <th title="Suggested entry price if this signal were acted on.">Entry</th>
                 <th title="Suggested stop-loss price if this signal were acted on.">Stop</th>
                 <th title="Suggested target price if this signal were acted on.">Target</th>

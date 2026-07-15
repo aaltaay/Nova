@@ -13,6 +13,8 @@
   --success: #10b981;
   --danger: #ef4444;
   --border-color: #262a36;
+  /* Scanner table text size — overridden by useScannerTableDensity (default Large). */
+  --scanner-table-fs: 1rem;
 }
 
 body {
@@ -669,6 +671,88 @@ header > *,
   -webkit-overflow-scrolling: touch;
 }
 
+/* Compact scanner density — scale driven by --scanner-table-fs (Settings → Table text size). */
+.table-wrapper table {
+  font-size: var(--scanner-table-fs, 1rem);
+  line-height: 1.25;
+}
+
+.table-wrapper th,
+.table-wrapper td {
+  padding: calc(var(--scanner-table-fs, 1rem) * 0.35) calc(var(--scanner-table-fs, 1rem) * 0.55);
+  vertical-align: middle;
+  border-bottom: 1px solid rgba(38, 42, 54, 0.65);
+}
+
+.table-wrapper th {
+  font-size: calc(var(--scanner-table-fs, 1rem) * 0.88);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  background: var(--bg-color, #0f1115);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.table-wrapper .symbol-btn {
+  font-size: var(--scanner-table-fs, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.table-wrapper .cell-stack {
+  line-height: 1.2;
+  gap: 0.05rem;
+}
+
+.table-wrapper .cell-stack-primary {
+  font-size: var(--scanner-table-fs, 1rem);
+  font-weight: 600;
+}
+
+.table-wrapper .cell-stack-secondary {
+  font-size: calc(var(--scanner-table-fs, 1rem) * 0.8);
+  line-height: 1.15;
+}
+
+.table-wrapper .news-flame {
+  width: calc(var(--scanner-table-fs, 1rem) * 1.1);
+  height: calc(var(--scanner-table-fs, 1rem) * 1.1);
+  box-shadow: none;
+}
+
+.table-wrapper .scanner-price-cell {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--scanner-table-fs, 1rem);
+}
+
+.table-wrapper tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.table-wrapper tbody tr.row-selected td {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.table-wrapper .sort-arrow {
+  font-size: calc(var(--scanner-table-fs, 1rem) * 0.75);
+}
+
+.table-wrapper .scanner-symbol-cell {
+  white-space: nowrap;
+}
+
+.table-wrapper .scanner-exchange-inline {
+  margin-left: 0.3rem;
+  font-size: calc(var(--scanner-table-fs, 1rem) * 0.8);
+  color: var(--text-secondary);
+  opacity: 0.75;
+  vertical-align: middle;
+}
+
 .tab-bar {
   display: flex;
   align-items: center;
@@ -903,7 +987,7 @@ th {
 .sub-tab-bar {
   display: flex;
   gap: 0.25rem;
-  padding: 0.4rem 0.75rem 0;
+  padding: 0.25rem 0.5rem 0;
   border-bottom: 1px solid var(--border-color);
   background: var(--surface-color);
 }
@@ -912,14 +996,14 @@ th {
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 0.3rem 0.6rem 0.4rem;
-  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem 0.3rem;
+  font-size: 0.72rem;
   color: var(--text-secondary);
   cursor: pointer;
   margin-bottom: -1px;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.25rem;
 }
 
 .sub-tab.active {
@@ -1095,6 +1179,208 @@ th {
 .watchlist-composite-cell {
   font-weight: 700;
   color: var(--accent-color);
+}
+
+/* ── Nova OS Decision panel + attention strip (P3) ───────────────────────── */
+
+.nova-os-decision-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.nova-os-attention-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: rgba(148, 163, 184, 0.08);
+  font-size: 0.85rem;
+}
+
+.nova-os-attention-decision_buy {
+  border-color: var(--success);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.nova-os-attention-decision_wait,
+.nova-os-attention-mode_reset {
+  border-color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+}
+
+.nova-os-attention-decision_no_buy,
+.nova-os-attention-risk_halt {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.nova-os-attention-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.nova-os-mute-btn,
+button.linkish {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+button.linkish {
+  border: none;
+  text-decoration: underline;
+  padding: 0;
+  color: var(--accent-color);
+}
+
+.nova-os-decision-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) 1fr;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.nova-os-decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.nova-os-decision-card {
+  text-align: left;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+  background: var(--bg-elevated, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+
+.nova-os-decision-card.selected {
+  border-color: var(--accent-color);
+}
+
+.nova-os-decision-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.nova-os-decision-card-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.nova-os-verdict {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.nova-os-decision-buy { color: var(--success); }
+.nova-os-decision-wait { color: #d97706; }
+.nova-os-decision-nobuy { color: #ef4444; }
+
+.nova-os-verdict-banner {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.nova-os-disclosure {
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.nova-os-first-fail {
+  border-left: 3px solid #ef4444;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.6rem;
+  background: rgba(239, 68, 68, 0.06);
+  font-size: 0.85rem;
+}
+
+.nova-os-section-title {
+  margin: 0.6rem 0 0.35rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #94a3b8);
+}
+
+.nova-os-gate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.nova-os-gate {
+  display: grid;
+  grid-template-columns: 1.2rem 7rem 2.5rem 1fr;
+  gap: 0.35rem;
+  align-items: center;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.35rem;
+  border-radius: 4px;
+}
+
+.nova-os-gate-pass { background: rgba(16, 185, 129, 0.06); }
+.nova-os-gate-fail { background: rgba(239, 68, 68, 0.06); }
+.nova-os-gate-first-fail {
+  outline: 1px solid #ef4444;
+}
+
+.nova-os-gate-hard {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+}
+
+.nova-os-ticket {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.nova-os-reason-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.nova-os-citations {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.nova-os-receipt {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .nova-os-decision-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Journal panel (go/no-go bar + metrics) ──────────────────────────────── */
@@ -1633,6 +1919,23 @@ th {
 .symbol-btn.active {
   background: none;
   color: #93c5fd;
+}
+
+.symbol-inline-wrap,
+.symbol-primary-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.symbol-earnings-party {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  line-height: 1;
+  cursor: help;
 }
 
 .row-selected {
@@ -2526,7 +2829,7 @@ body.is-resizing-side-panel * {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 0.25rem 0.4rem;
+  padding: 0.3rem 0.25rem 0.25rem;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -2560,19 +2863,19 @@ body.is-resizing-side-panel * {
 
 .hod-header-title {
   font-weight: 600;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: var(--text-primary);
 }
 
 .hod-alert-count {
-  font-size: 0.75rem;
+  font-size: 0.65rem;
   color: var(--text-secondary);
 }
 
 .hod-settings-btn {
-  font-size: 0.78rem;
-  padding: 0.3rem 0.65rem;
-  border-radius: 5px;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
   border: 1px solid var(--border-color);
   background: var(--card-bg);
   color: var(--text-secondary);
@@ -2586,9 +2889,9 @@ body.is-resizing-side-panel * {
 }
 
 .hod-clear-btn {
-  font-size: 0.78rem;
-  padding: 0.3rem 0.65rem;
-  border-radius: 5px;
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
   border: 1px solid var(--border-color);
   background: var(--card-bg);
   color: var(--text-secondary);
@@ -2602,128 +2905,286 @@ body.is-resizing-side-panel * {
   border-color: #ef444466;
 }
 
-/* Strategy chip strip — wrap so all filters stay visible (no horizontal scroll) */
-.hod-subpanel-strip {
+/* Compact single-row toolbar (strategies live in a dropdown) */
+.hod-filter-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.25rem;
-  overflow: visible;
+  gap: 0.35rem;
+  padding: 0.25rem 0.25rem 0.3rem;
   border-bottom: 1px solid var(--border-color);
-  padding: 0.45rem 0.35rem 0.5rem;
 }
 
-.hod-subpanel-btn {
+.hod-toolbar-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.7rem;
+  padding: 0.15rem 0.5rem;
+  min-height: 1.5rem;
   background: var(--hover-bg, rgba(255, 255, 255, 0.04));
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  border-bottom: 2px solid transparent;
+  border-radius: 3px;
   cursor: pointer;
   color: var(--text-secondary);
-  font-size: 0.8rem;
-  line-height: 1.25;
-  white-space: normal;
-  text-align: left;
-  transition: color 0.15s, border-color 0.15s, opacity 0.15s, background 0.15s;
-  flex-shrink: 0;
-  max-width: none;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.hod-subpanel-btn:hover {
+.hod-toolbar-btn:hover {
   color: var(--text-primary);
   background: rgba(255, 255, 255, 0.07);
 }
 
-.hod-subpanel-btn.active {
+.hod-toolbar-btn.active {
   color: var(--text-primary);
-  border-bottom-color: var(--accent-color);
+  border-color: var(--accent-color);
   background: rgba(255, 255, 255, 0.08);
 }
 
-.hod-strategy-chip {
-  border-bottom-width: 2px;
+.hod-toolbar-debug {
+  margin-left: auto;
+  color: #aaa;
 }
 
-.hod-strategy-chip--off {
-  opacity: 0.45;
-  border-bottom-color: transparent !important;
+.hod-toolbar-debug.active,
+.hod-toolbar-debug:hover {
+  color: #00e5ff;
+  border-color: #00e5ff;
 }
 
-.hod-strategy-chip--off:hover {
-  opacity: 0.75;
+.hod-strategy-filter-wrap {
+  position: relative;
+  display: inline-block;
 }
 
-.hod-subpanel-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
+.hod-strategy-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  min-height: 1.5rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
-.hod-subpanel-label {
-  max-width: none;
-  overflow: visible;
-  text-overflow: unset;
-  white-space: normal;
-  font-weight: 500;
+.hod-strategy-filter-btn:hover,
+.hod-strategy-filter-btn.open {
+  border-color: var(--accent-color);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--text-primary);
 }
 
-.hod-subpanel-count {
-  font-size: 0.7rem;
+.hod-strategy-filter-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hod-strategy-filter-summary {
+  color: var(--accent-color);
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hod-strategy-filter-caret {
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+}
+
+.hod-strategy-filter-dropdown {
+  left: 0;
+  right: auto;
+  top: calc(100% + 2px);
+  z-index: 40;
+  max-height: 520px;
+  overflow-y: auto;
+  min-width: 260px;
+  padding: 0.25rem 0;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-header {
+  padding: 0.2rem 0.55rem 0.25rem;
+  font-size: 0.68rem;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-row {
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.65rem;
+  line-height: 1.2;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-count {
+  font-size: 0.58rem;
+  padding: 0 0.25rem;
+  min-width: 16px;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-shortcut {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.55rem;
+}
+
+.hod-filter-shortcut {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hod-filter-shortcut:hover,
+.hod-filter-shortcut.active {
+  color: var(--text-primary);
   background: var(--hover-bg);
-  border-radius: 8px;
-  padding: 0.05rem 0.35rem;
-  flex-shrink: 0;
 }
 
-/* Table — fixed viewport (~14 rows); body scrolls with virtual spacers */
-.hod-table-wrapper {
-  flex: 1;
-  overflow: auto;
+/* Legacy chip strip kept minimal in case any remnant markup remains */
+.hod-subpanel-strip {
+  display: none;
 }
 
-.hod-table-virtual {
+/* Table — dense virtualized grid (TanStack absolute rows).
+   CRITICAL: row height is fixed. Any cell overflow must be clipped or
+   absolute rows paint on top of each other (illegible stacking). */
+.hod-table-shell {
   flex: 0 0 auto;
-  max-height: none;
-  overflow: auto;
+  margin-top: 0.35rem;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  margin-top: 0.35rem;
+  overflow: hidden;
+  background: var(--panel-bg);
 }
 
-.hod-table-virtual thead th {
+.hod-table-body-scroll {
+  overflow: auto;
+  position: relative;
+  contain: paint;
+}
+
+.hod-virtual-canvas {
+  overflow: hidden;
+  position: relative;
+}
+
+.hod-virtual-row {
+  box-sizing: border-box;
+  overflow: hidden;
+  contain: layout style paint;
+  background: var(--panel-bg);
+}
+
+/* Shared column template: Time | Symbol | Price | Chg | RVOL | RVOL5 | Float | Gap | Vol | Strategy */
+.hod-grid-row {
+  display: grid;
+  grid-template-columns:
+    78px
+    minmax(72px, 0.9fr)
+    58px
+    64px
+    70px
+    58px
+    56px
+    56px
+    58px
+    minmax(120px, 1.4fr);
+  align-items: center;
+  column-gap: 0.35rem;
+  padding: 0 0.45rem;
+  font-size: 0.68rem;
+  line-height: 1.15;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.hod-grid-header {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: var(--bg-secondary, var(--panel-bg, #111));
+  height: 28px;
+  max-height: 28px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color, #0f1115);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  overflow: hidden;
 }
 
-.hod-table-virtual .hod-virtual-spacer td {
-  line-height: 0;
+.hod-grid-th {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.hod-grid-cell {
+  min-width: 0;
+  max-height: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hod-grid-cell--strategy {
+  overflow: hidden;
+}
+
+.hod-virtual-row .hod-grid-row {
+  height: 100%;
+  border-bottom: 1px solid rgba(38, 42, 54, 0.65);
+}
+
+.hod-virtual-row .hod-grid-row.row-selected {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.hod-virtual-row .hod-grid-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hod-table-wrapper {
+  flex: 1;
+  overflow: auto;
 }
 
 .hod-empty-cell {
   text-align: center;
   padding: 2rem 1rem;
   color: var(--text-secondary);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
-/* Strategy pill */
+/* Strategy pill — compact, never grows the row */
 .hod-strategy-pill {
   display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.72rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
   font-weight: 600;
   white-space: nowrap;
-  max-width: 200px;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
 /* RVOL cell with source badge */
@@ -2775,30 +3236,47 @@ body.is-resizing-side-panel * {
 /* Time cell */
 .hod-time-cell {
   white-space: nowrap;
-  min-width: 110px;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .hod-symbol-cell {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.1rem;
-  line-height: 1.2;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.2rem;
+  line-height: 1.15;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.hod-symbol-cell--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .hod-symbol-burst {
-  margin-left: 0.1rem;
+  margin-left: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .hod-consolidation-badge {
   display: inline-block;
-  font-size: 0.68rem;
+  font-size: 0.58rem;
   font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.01em;
   background: transparent;
   padding: 0;
   margin: 0;
+  white-space: nowrap;
 }
 
 /* legacy expand helpers (unused for Warrior-style symbol burst) */
@@ -3225,7 +3703,6 @@ body.is-resizing-side-panel * {
 /* ── HOD Momo Debug Panel ────────────────────────────────────────────────────── */
 
 .hod-subpanel-debug {
-  margin-left: auto;
   color: #aaa;
   border-color: transparent !important;
 }
@@ -4641,6 +5118,8 @@ body.chart-maximized-open {
   gap: 0.3rem;
   margin-bottom: 0.4rem;
   justify-content: center;
+  min-height: 1.35rem;
+  align-items: center;
 }
 
 .ibkr-heuristic-badge {
@@ -4649,6 +5128,11 @@ body.chart-maximized-open {
   padding: 0.15rem 0.4rem;
   border: 1px solid transparent;
   white-space: nowrap;
+}
+
+.ibkr-heuristic-placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .ibkr-heuristic-ask {

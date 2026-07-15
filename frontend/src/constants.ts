@@ -86,6 +86,30 @@ export const JOURNAL_CALENDAR_TIMEZONE = 'America/New_York';
  * quickly once a bracket fills, so this polls faster than the Journal panel. */
 export const EXECUTOR_POLL_INTERVAL_MS = 5000;
 
+// ── Nova OS Decision UX (mirrors backend/constants.py NOVA_OS_*) ────────────
+/** Poll interval for DecisionPanel watchlist/symbol decide fetches. */
+export const NOVA_OS_DECIDE_POLL_INTERVAL_MS = 5000;
+/** Default watchlist batch size for GET /api/nova-os/decide (mirrors NOVA_OS_DECIDE_DEFAULT_LIMIT). */
+export const NOVA_OS_DECIDE_DEFAULT_LIMIT = 4;
+/** localStorage key for the muteable attention-sound preference. */
+export const NOVA_OS_ATTENTION_MUTE_STORAGE_KEY = 'nova_os_attention_muted';
+/** When true, attention cues are silent by default until the user unmutes. */
+export const NOVA_OS_ATTENTION_MUTED_DEFAULT = false;
+/** Short labels for BUY | WAIT | NO_BUY verdict chips. */
+export const NOVA_OS_DECISION_LABELS: Record<string, string> = {
+  BUY: 'BUY',
+  WAIT: 'WAIT',
+  NO_BUY: 'NO BUY',
+};
+/** Plain-language subtitles for the attention strip event kinds. */
+export const NOVA_OS_ATTENTION_COPY: Record<string, string> = {
+  decision_buy: 'Nova OS: BUY decision — review the ticket (signal only; nothing placed).',
+  decision_wait: 'Nova OS: WAIT — catalyst or soft gate held the entry.',
+  decision_no_buy: 'Nova OS: NO BUY — see the first failing gate.',
+  mode_reset: 'Automation reset to Signal — nothing will place until you raise the mode.',
+  risk_halt: 'Risk halt — new entries blocked for the session.',
+};
+
 /** Level 2 heuristic badge thresholds (Phase F). Mirrors backend/constants.py
  * L2_ASK_STACKED_RATIO / L2_BID_HEAVY_RATIO / L2_SPREAD_WIDE_DOLLARS — kept in
  * sync manually since these badges are single-snapshot-only display heuristics
@@ -95,6 +119,13 @@ export const EXECUTOR_POLL_INTERVAL_MS = 5000;
 export const L2_ASK_STACKED_RATIO = 1.5;
 export const L2_BID_HEAVY_RATIO = 1.5;
 export const L2_SPREAD_WIDE_DOLLARS = 0.05;
+/** Invisible placeholder text matching badge height so Level 2 does not jump when heuristics are off. */
+export const L2_HEURISTIC_PLACEHOLDER = 'Seller stacked';
+export const L2_HEURISTIC_ASK_LABEL = 'Seller stacked';
+export const L2_HEURISTIC_BID_LABEL = 'Bid heavy';
+export const L2_HEURISTIC_SPREAD_LABEL = 'Wide spread';
+export const L2_HEURISTIC_TITLE =
+  'Rule-of-thumb read of resting size. Display-only — never feeds the executor.';
 
 // ── Relative volume ────────────────────────────────────────────────────────
 export const REL_VOLUME_HIGH = 2;   // highlight threshold (≥ 2×)
@@ -145,6 +176,17 @@ export const DATA_FEED_LABELS: Record<string, string> = {
   iex: 'IEX (Free)',
   sip: 'SIP (Paid)',
 };
+/** Settings form labels — provider-prefixed so multiple API key groups stay clear. */
+export const SETTINGS_ALPACA_API_KEY_LABEL = 'Alpaca API Key ID';
+export const SETTINGS_ALPACA_API_SECRET_LABEL = 'Alpaca API Secret Key';
+export const SETTINGS_ALPACA_BASE_URL_LABEL = 'Alpaca Base URL';
+export const SETTINGS_ALPACA_API_KEY_PLACEHOLDER = 'APCA_API_KEY_ID';
+export const SETTINGS_ALPACA_API_SECRET_PLACEHOLDER = 'APCA_API_SECRET_KEY';
+export const SETTINGS_ALPACA_SECTION_HINT =
+  'Alpaca credentials for news, listing metadata, and optional Alpaca scanner mode.';
+export const SETTINGS_ALPACA_DATA_FEED_LABEL = 'Alpaca Data Feed';
+export const SETTINGS_ALPACA_DATA_FEED_HINT =
+  'IEX is free. SIP requires a paid Alpaca data subscription.';
 
 // ── Dashboard tab ─────────────────────────────────────────────────────────────
 /** Max rows shown per section on the Dashboard snapshot view. */
@@ -157,6 +199,31 @@ export const SCANNER_EXCHANGE_OPTIONS = ['NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS
 export const SCANNER_EXCHANGE_DEFAULTS: string[] = ['NASDAQ'];
 /** localStorage key used by useExchangeFilter. */
 export const SCANNER_EXCHANGE_STORAGE_KEY = 'nova_exchange_filter_v1';
+
+/** Scanner / HOD table text size — user preference (localStorage). */
+export const SCANNER_TABLE_DENSITY_STORAGE_KEY = 'nova_scanner_table_density_v2';
+export type ScannerTableDensity = 'compact' | 'medium' | 'large' | 'xlarge';
+/** Default Large (1rem) for readable scanner tables out of the box. */
+export const SCANNER_TABLE_DENSITY_DEFAULT: ScannerTableDensity = 'large';
+/** CSS root font-size (rem) per density — drives `--scanner-table-fs`. */
+export const SCANNER_TABLE_DENSITY_REM: Record<ScannerTableDensity, string> = {
+  compact: '0.75rem',
+  medium: '0.875rem',
+  large: '1rem',
+  xlarge: '1.125rem',
+};
+export const SCANNER_TABLE_DENSITY_LABELS: Record<ScannerTableDensity, string> = {
+  compact: 'Compact',
+  medium: 'Medium',
+  large: 'Large',
+  xlarge: 'Extra large',
+};
+export const SCANNER_TABLE_DENSITY_OPTIONS: ScannerTableDensity[] = [
+  'compact',
+  'medium',
+  'large',
+  'xlarge',
+];
 
 // ── Discovery provider (mirrors backend DISCOVERY_PROVIDER_DEFAULT / _OPTIONS) ─
 // Which source powers gappers/gainers/losers: Alpaca's free screener, or a live
@@ -368,12 +435,12 @@ export const WS_BASE_URL: string = _rawApiBase
 // Watch is joined client-side from the Watchlist tab's own scoring (see
 // strategy/useWatchlistOverlay.ts) — it does not re-run any scoring logic here.
 export const SCANNER_COLUMNS: [string, string][] = [
+  ['newest_headline_at',  'News'],
   ['symbol',              'Symbol'],
   ['price',               'Price'],
   ['change_pct',          'Change'],
   ['gap_percent',         'Gap %'],
   ['volume',              'Volume'],
-  ['newest_headline_at',  'News'],
   ['watchlist_score',     'Watch'],
   ['float',               'Float'],
   ['short_interest',      'Short Int.'],
@@ -426,17 +493,17 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
   ['strategy',    'Strategy'],
 ];
 
-/** Visible row window height for the HOD table (~14 rows of scroll viewport). */
-export const HOD_MOMO_VISIBLE_ROWS = 14;
-/** Estimated row height (px) for @tanstack/react-virtual. */
-export const HOD_MOMO_ROW_HEIGHT_PX = 44;
+/** Visible row window height for the HOD table (~18 dense rows). */
+export const HOD_MOMO_VISIBLE_ROWS = 18;
+/** Estimated row height (px) for @tanstack/react-virtual — dense scanner density. */
+export const HOD_MOMO_ROW_HEIGHT_PX = 28;
 /** Sticky header row height included in the scroll viewport. */
-export const HOD_MOMO_HEADER_HEIGHT_PX = 34;
+export const HOD_MOMO_HEADER_HEIGHT_PX = 28;
 /**
  * Extra rows TanStack Virtual keeps mounted above/below the viewport.
- * ~40 + 14 visible ≈ 50–100 DOM rows while scrolling the full day list.
+ * Keep this small — large overscan defeats virtualization and makes scroll janky.
  */
-export const HOD_MOMO_VIRTUAL_OVERSCAN = 40;
+export const HOD_MOMO_VIRTUAL_OVERSCAN = 6;
 /** Batch live alert prepends so App does not re-render on every single fire. */
 export const HOD_MOMO_ALERT_BATCH_MS = 150;
 
@@ -594,3 +661,16 @@ export const DEFAULT_STRATEGY_CONFIG = {
   former_momo_list: [] as string[],
   requires_hod: true,
 };
+
+/** Party badge next to ticker when earnings date is today (US/Eastern). */
+export const EARNINGS_TODAY_PARTY = '🥳';
+export const EARNINGS_TODAY_TITLE = 'Earnings today — may be a catalyst';
+/** localStorage key: comma-separated symbols forced to show the party badge (testing). */
+export const EARNINGS_TODAY_FORCE_STORAGE_KEY = 'nova_force_earnings_today';
+/** URL query (?earningsParty=AEHR) also forces badges for testing. */
+export const EARNINGS_TODAY_FORCE_QUERY = 'earningsParty';
+export const EARNINGS_TODAY_BATCH_MS = 400;
+export const EARNINGS_TODAY_BATCH_MAX = 25;
+
+/** HOD Strategies filter dropdown — tall enough to show most strategies without scroll. */
+export const HOD_STRATEGY_FILTER_MAX_HEIGHT_PX = 520;

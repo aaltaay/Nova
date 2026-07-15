@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Nova OS Phase P3: Decision UX + attention
+
+- **What:** Watchlist **Decision** sub-tab with gate-by-gate audit UI; Signals column for Nova OS verdict; muteable attention strip/sounds; read-only `tools/nova_os_cli.py`.
+- **Why:** P3 — operators must see every BUY/WAIT/NO_BUY and the first failing gate without reading logs.
+- **Files touched:** `DecisionPanel.tsx`, `NovaOsAttentionStrip.tsx`, `novaOsAttention.ts`, `useNovaOsDecide.ts`, `WatchlistTab.tsx`, `SignalsPanel.tsx`, `useSignalsStream.ts`, `types.ts`, `constants.ts`, `index.css`, `tools/nova_os_cli.py`.
+- **How it works now:** DecisionPanel polls `/api/nova-os/decide`; highlights first failed gate; BUY/WAIT push attention events (mute silences sound only). CLI is HTTP-only.
+- **Verified by:** vitest attention 2 passed; `npm run build` PASS.
+- **Follow-ups:** P4 confirm queue + mode ladder UI.
+- **Related:** [[Nova-OS-Status]] P3.
+
 ## 2026-07-15 — Nova OS Phase P2: decide() brain (signal only)
 
 - **What:** Implemented `nova_os.decide()` — ordered gates that emit `BUY | WAIT | NO_BUY` with reason codes, ticket, confidence, citations, and an append-only receipt. Wired `GET /api/nova-os/decide` (+ `/{symbol}`) and routed `setups_stream` eligible setups through decide (only BUY reaches the executor). Execution remains impossible: `would_execute=False`.

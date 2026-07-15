@@ -1,8 +1,9 @@
-/** Watchlist tab — Five Pillars ranked table + live setup Signals sub-panel. Signal-only; no orders placed. */
+/** Watchlist tab — Five Pillars ranked table + live setup Signals + Nova OS Decision audit. Signal-only; no orders placed. */
 import { useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
+import { DecisionPanel } from './DecisionPanel';
 import { ExecutorPanel } from './ExecutorPanel';
 import { JournalPanel } from './JournalPanel';
 import { PillarChips } from './PillarChips';
@@ -66,7 +67,7 @@ interface WatchlistTabProps {
   onOpenTrading: (symbol: string) => void;
 }
 
-type WatchlistSubTab = 'watchlist' | 'signals' | 'journal' | 'automation';
+type WatchlistSubTab = 'watchlist' | 'signals' | 'decision' | 'journal' | 'automation';
 
 export function WatchlistTab({
   entries, loading, error, selectedSymbol, onSelectSymbol, onOpenTrading,
@@ -92,6 +93,13 @@ export function WatchlistTab({
         >
           Signals
           {signalsStream.signals.length > 0 && <span className="tab-count">{signalsStream.signals.length}</span>}
+        </button>
+        <button
+          className={`sub-tab ${subTab === 'decision' ? 'active' : ''}`}
+          onClick={() => setSubTab('decision')}
+          title="Nova OS gate-by-gate BUY / WAIT / NO BUY audit for top watchlist names. Signal only — nothing is placed."
+        >
+          Decision
         </button>
         <button
           className={`sub-tab ${subTab === 'journal' ? 'active' : ''}`}
@@ -159,6 +167,14 @@ export function WatchlistTab({
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelectSymbol}
           onOpenTrading={onOpenTrading}
+        />
+      )}
+
+      {subTab === 'decision' && (
+        <DecisionPanel
+          active={subTab === 'decision'}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelectSymbol}
         />
       )}
 
