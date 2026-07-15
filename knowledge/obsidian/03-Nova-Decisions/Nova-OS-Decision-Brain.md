@@ -7,9 +7,15 @@ tags: [nova-os, automation, gap-and-go, ibkr]
 
 # Nova OS — AI decision layer (buy / no-buy)
 
-> Companion to [[Automation-Strategy-Backbone]], [[Five-Pillars-and-Gap-and-Go-Spec]], [[Active-Strategy]].  
+> Companion to [[Automation-Strategy-Backbone]], [[Five-Pillars-and-Gap-and-Go-Spec]], [[Active-Strategy]], [[Nova-OS-Status]].  
 > **Nova OS** = the rule + judgment brain. **IBKR module** = broker hands. **Scanner / L2 / news** = senses.  
-> Not a separate product yet — a name for the decision pipeline we feed and gate.
+> **Status across chats:** [[Nova-OS-Status]] is canonical; mission canvas is the visual board.
+
+## Implementation status (2026-07-15)
+
+- **Backbone A–F shipped:** watchlist, setups, risk, journal/go-no-go, IBKR paper executor (binary arm), L2/tape local recorders.
+- **Nova OS P0 verified:** continuity artifacts, doc reconcile, baseline recorded in [[Nova-OS-Status]].
+- **Not yet built:** `decide()` module, graduated control modes, event log, DecisionPanel, permanent archive (P1–P10).
 
 ## Honest framing
 
@@ -123,7 +129,9 @@ citations: [course chunk ids / pillar scores]
 
 ## Related
 
+- [[Nova-OS-Status]] — canonical phase, verification ledger, next step
 - [[Automation-Strategy-Backbone]]  
 - [[Automation-Roadmap]]  
+- [[Local-Market-Data-Recorders]] — hot SQLite recorders; archive phases P6–P9 extend this
 - [[IBKR-Orders-Locked-On-Live-Gateway]]  
 - [[Scanner-Provider-IBKR-Primary]]

@@ -92,3 +92,5 @@ Status / list (no fancy UI): `GET /api/l2/status`, `GET /api/l2/sessions`.
 - Parquet cold tier
 - Recording all scanner symbols’ tape by default
 - IBKR `reqTickByTickData` as a second tape source
+
+> **Nova OS relation:** hot SQLite recorders (this note) remain the live facade. Permanent archive / Parquet / R2 / day-rewind are Nova OS phases P6–P9 — see [[Nova-OS-Status]]. Do not treat timer-only 14-day purge as “forever” until those phases land.

@@ -1,0 +1,40 @@
+---
+description: Nova OS cross-chat continuity — read status, update on crash, phase-close handoff
+alwaysApply: true
+---
+
+# Nova OS continuity protocol
+
+Every chat that touches Nova OS (decision engine, control modes, archive, executor ladder) must follow this contract.
+
+## Start of chat (before editing)
+
+1. Read `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md` — canonical phase, blockers, verification ledger, next step.
+2. Read the Nova OS plan (`.cursor/plans/nova_os_decision_engine_*.plan.md` or linked plan file).
+3. Skim recent `CHANGELOG.md` and search `PROBLEM_LOG.md` for matching symptoms if debugging.
+4. Run `git status` and state the current phase before making changes.
+5. Optionally open the mission canvas: `canvases/nova-os-mission.canvas.tsx`.
+
+## During a phase
+
+- Update `Nova-OS-Status.md` immediately when a crash/blocker materially changes the next action.
+- Never leave "where it crashed" only in chat — record symptom, root cause, evidence, and safe next action in the status note.
+- Do not mark a phase `verified` until tests/build (and browser when UI changes) pass for that phase's scope.
+
+## End of phase (phase-close handoff)
+
+1. Run phase verification (pytest, `npm run build`, browser when applicable).
+2. Update `Nova-OS-Status.md`: phase, state, verification ledger, exact next phase task.
+3. Refresh `nova-os-mission.canvas.tsx` if phase status changed.
+4. Prepend `CHANGELOG.md` (and `PROBLEM_LOG.md` if a bug was fixed).
+5. **Hard rule — commit and push every phase:** `git add` (intentional phase files only) → `git commit` → `git push`. Phase completion is **incomplete** until push succeeds. Record the resulting commit SHA in `Nova-OS-Status.md` (`Last verified commit`). Never leave a verified phase uncommitted. If git auth/network fails, record the blocker in Crash/blocker and do not claim verified.
+6. Stop — next chat begins the next phase from the status note. A new chat must not start the next phase until this phase's commit+push is done.
+
+## Interrupted phase
+
+- Do **not** mark verified.
+- Record uncommitted files, failing command, root-cause evidence, and safest restart point in `Nova-OS-Status.md`.
+
+## Scope guard
+
+- Implement only the active phase (P0–P10 map in the plan). Do not ship P1+ contracts while still in P0 unless explicitly redirected.

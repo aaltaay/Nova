@@ -8,10 +8,9 @@ a profit cushion, cut size after a meaningful loss) and validates a proposed
 trade plan's stop distance and profit/loss ratio.
 
 This module NEVER places, modifies, or cancels an order — it only answers
-"is it OK to trade right now, and how big." Phase D (paper execution) is
-expected to call `can_trade()` and `position_size_shares()` before sizing an
-order, and `record_trade_result()` after a fill closes, but no such wiring
-exists yet.
+"is it OK to trade right now, and how big." `backend/strategy/executor.py`
+(Phase D paper execution) calls `can_trade()` and `position_size_shares()`
+before sizing a bracket, and `record_trade_result()` after a fill closes.
 """
 
 from __future__ import annotations

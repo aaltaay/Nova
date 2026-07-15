@@ -30,6 +30,17 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Nova OS Phase P0: continuity baseline
+
+- **What:** Canonical `Nova-OS-Status.md`, always-on continuity rule (read status → phase-close commit+push), mission canvas, duplicate L2 recorder constants removed, stale journal/risk/roadmap docs fixed to match A–F backbone + Nova OS P0–P10 plan.
+- **Why:** Cross-chat handoff so agents can answer "what is Nova OS / where are we / what next?" from repo artifacts alone before P1 events.
+- **Files touched:** `Nova-OS-Status.md`, `.cursor/rules/nova-os-continuity.mdc`, `backend/constants.py` (L2 dedupe only), `risk.py`, `JournalPanel.tsx`, Automation/Decision-Brain/Local-Market-Data-Recorders notes, `CHANGELOG.md`.
+- **How it works now:** Status note is source of truth; canvas mirrors it; every phase must commit+push with SHA recorded before the next chat starts. Executor/journal docs no longer claim Phase D is missing.
+- **Verified by:** strategy/L2 pytest 109 passed; `npm run build` PASS.
+- **Follow-ups:** P1 audit/event foundation; unrelated scanner/HOD/earnings WIP left uncommitted.
+- **Related:** plan `nova_os_decision_engine_c4367abc`; mission canvas outside repo under Cursor `canvases/`.
+
+
 ## 2026-07-15 — Draggable scanner / quote panel splitter
 
 - **What:** The vertical divider between the main scanner column and the quote side panel is now draggable. Width persists in `localStorage`.

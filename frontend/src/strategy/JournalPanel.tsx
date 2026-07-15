@@ -45,7 +45,7 @@ function GoNoGoBar({ metrics }: { metrics: JournalMetrics }) {
   return (
     <div
       className={`go-no-go-bar ${gng.overall_go ? 'go-no-go-go' : 'go-no-go-nogo'}`}
-      title="Live-money gate from the automation plan: all three criteria must pass before real money is ever considered. Currently nothing in this app places real or paper orders — this bar exists so the bar is ready and tested before Phase D (paper execution) ships."
+      title="Live-money gate: all three criteria must pass before auto_live or real-money execution is considered. Paper brackets can run when the executor is armed and IBKR spend is unlocked; this bar gates live money only."
     >
       <div className="go-no-go-headline">
         {gng.overall_go ? 'GO — live-money bar cleared' : 'NO-GO — stay in paper'}
@@ -91,7 +91,7 @@ function RiskCard({ risk }: { risk: RiskStatus }) {
   return (
     <div
       className="journal-risk-card"
-      title="Live state from backend/strategy/risk.py — real, not demo data. It only moves once trades actually close, so it reads all-zero until Phase D (paper execution) exists and starts calling record_trade_result()."
+      title="Live state from backend/strategy/risk.py — real, not demo data. Updates when the executor records closed bracket fills via record_trade_result(); reads all-zero until paper trades close."
     >
       <div className="journal-section-heading" title="This is the current real discipline state for today's session — resets automatically at 4 AM ET.">
         Today&apos;s risk state (real, resets daily at 4 AM ET)
@@ -128,7 +128,7 @@ function RiskCard({ risk }: { risk: RiskStatus }) {
 
 function TradesTable({ trades }: { trades: JournalTradeRow[] }) {
   if (trades.length === 0) {
-    return <div className="empty-state">No closed trades yet — this table populates once Phase D (paper execution) closes real trades.</div>;
+    return <div className="empty-state">No closed trades yet — this table populates when the executor closes paper bracket fills and journals them.</div>;
   }
   return (
     <div className="table-wrapper">
@@ -177,9 +177,9 @@ export function JournalPanel({ active }: JournalPanelProps) {
   return (
     <div className="journal-panel">
       <div className="watchlist-description">
-        Every detected setup is logged here automatically. Trade metrics stay empty until paper
-        execution (Phase D) starts closing trades — no order-placing code exists yet, so this is
-        signal-only.
+        Every detected setup is logged here automatically. Trade metrics populate when the IBKR
+        executor closes paper bracket fills; signals are always recorded even when automation is
+        disarmed.
       </div>
 
       <label
@@ -208,7 +208,7 @@ export function JournalPanel({ active }: JournalPanelProps) {
 
       {risk && <RiskCard risk={risk} />}
 
-      <h3 className="journal-section-heading" title="Closed trades — real ones from Phase D once it ships, plus demo rows only when the toggle above is checked.">
+      <h3 className="journal-section-heading" title="Closed trades from executor paper fills, plus demo rows only when the toggle above is checked.">
         Trades
       </h3>
       <TradesTable trades={trades} />
