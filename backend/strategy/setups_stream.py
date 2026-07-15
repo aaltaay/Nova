@@ -26,8 +26,10 @@ from constants import (
     SETUPS_SCAN_TOP_N,
     SETUPS_SCAN_TOP_N_IBKR,
 )
+from constants import NOVA_OS_DECISION_BUY, NOVA_OS_DEFAULT_MODE
 from journal.store import record_signal
 from l2 import recorder as _l2_recorder
+from nova_os.decide import decide as nova_os_decide
 from strategy import executor as _executor
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
@@ -107,7 +109,7 @@ async def _scan_once() -> None:
     candidates = build_watchlist(universe, limit=top_n)
     now = time.time()
 
-    for entry in candidates:
+    for rank_idx, entry in enumerate(candidates):
         # Never starve the open ticker chart — skip this symbol this cycle.
         if discovery_provider == "ibkr" and interactive_busy():
             logger.debug("setups_stream: skip %s — interactive chart has historical slot", entry.symbol)
@@ -129,19 +131,59 @@ async def _scan_once() -> None:
             )
             continue
 
-        result = evaluate_setups(row, bars_payload.get("bars", []))
+        bars = bars_payload.get("bars", [])
+        result = evaluate_setups(row, bars)
+        watchlist_rank = rank_idx + 1
         for setup_name in result["eligible_setups"]:
             key = (symbol, setup_name)
             last = _last_alert_ts.get(key, 0.0)
             if now - last < SETUPS_ALERT_COOLDOWN_SEC:
                 continue
             _last_alert_ts[key] = now
-            record = _record_signal(symbol, setup_name, result[setup_name])
-            await _broadcast({"type": "signal", **record})
-            try:
-                await _executor.on_signal(symbol, setup_name, result[setup_name])
-            except Exception:
-                logger.exception("setups_stream: executor.on_signal failed for %s/%s", symbol, setup_name)
+
+            # Nova OS decide() is the audit brain: journals a receipt for every
+            # eligible setup. Only BUY reaches the executor (still armed-gated;
+            # P2 keeps would_execute False so signal mode never places).
+            decision = nova_os_decide(
+                row,
+                bars,
+                watchlist_rank=watchlist_rank,
+                mode=NOVA_OS_DEFAULT_MODE,
+                preferred_setup=setup_name,
+            )
+            signal_dict = result[setup_name]
+            if decision.ticket:
+                signal_dict = {
+                    **signal_dict,
+                    "entry_price": decision.ticket.get("entry", signal_dict.get("entry_price")),
+                    "stop_price": decision.ticket.get("stop", signal_dict.get("stop_price")),
+                    "target_price": decision.ticket.get("target", signal_dict.get("target_price")),
+                    "shares": decision.ticket.get("shares"),
+                    "nova_os": {
+                        "decision": decision.decision,
+                        "reason_codes": decision.reason_codes,
+                        "mode": decision.mode,
+                        "would_execute": decision.would_execute,
+                        "receipt_id": decision.receipt.get("id"),
+                    },
+                }
+            record = _record_signal(symbol, setup_name, signal_dict)
+            await _broadcast({
+                "type": "decision",
+                "decision": decision.decision,
+                "reason_codes": decision.reason_codes,
+                "mode": decision.mode,
+                "would_execute": decision.would_execute,
+                "receipt_id": decision.receipt.get("id"),
+                **record,
+            })
+            if decision.decision == NOVA_OS_DECISION_BUY:
+                try:
+                    await _executor.on_signal(symbol, setup_name, signal_dict)
+                except Exception:
+                    logger.exception(
+                        "setups_stream: executor.on_signal failed for %s/%s", symbol, setup_name
+                    )
             try:
                 await _l2_recorder.on_signal(symbol, setup_name, record["timestamp"])
             except Exception:

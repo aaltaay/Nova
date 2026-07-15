@@ -26,7 +26,7 @@ See [[Automation-Strategy-Backbone]] for detail.
 |-------|--------|--------|
 | P0 | Baseline, status note, continuity rule, mission canvas, doc reconcile | **verified** |
 | P1 | Event log, reason codes, loss-policy constants | next |
-| P2 | `decide()` brain, API, stream wiring (signal only) | pending |
+| P2 | `decide()` brain, API, stream wiring (signal only) | verified 2026-07-15 |
 | P3 | DecisionPanel, CLI, notifications framework | pending |
 | P4 | Confirm mode + emergency controls | pending |
 | P5 | Auto paper + restart recovery | pending |

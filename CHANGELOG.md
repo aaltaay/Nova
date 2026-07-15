@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Nova OS Phase P2: decide() brain (signal only)
+
+- **What:** Implemented `nova_os.decide()` — ordered gates that emit `BUY | WAIT | NO_BUY` with reason codes, ticket, confidence, citations, and an append-only receipt. Wired `GET /api/nova-os/decide` (+ `/{symbol}`) and routed `setups_stream` eligible setups through decide (only BUY reaches the executor). Execution remains impossible: `would_execute=False`.
+- **Why:** P2 of the Nova OS plan — compose Five Pillars, setups, risk, first-minute volume, watchlist rank, and news-impact into one auditable brain before any confirm/auto modes.
+- **Files touched:** `backend/nova_os/{decide,gates}.py`, `backend/constants.py` (decide tunables + reason codes; policy `nova-os-p2-2026-07-15`), `backend/routes/nova_os.py`, `backend/strategy/setups_stream.py`, `tests/test_nova_os_decide.py`.
+- **How it works now:** Gate 0 session/risk/`loss_policy_mode` → Gate 1 pillars → Gate 2 setup + ≥100k first-minute volume + top-4 watchlist rank → Gate 3 ticket/`validate_trade_plan`/sizing → Gate 4 soft news-impact (`WAIT` if weak) → Gate 5 `MICROSTRUCTURE_NOT_EVALUATED`. Receipts always recorded; no broker actions.
+- **Verified by:** pytest baseline + decide suite = 140 passed; 4 nova-os routes registered; `npm run build` PASS.
+- **Follow-ups:** P3 DecisionPanel + notifications; daily-loss-count (vs consecutive) for loss policy; Gate 5 tuning after archive days.
+- **Related:** plan `nova_os_decision_engine_c4367abc`; [[Nova-OS-Status]] P2.
+
 ## 2026-07-15 — Nova OS Phase P1: audit + event foundation
 
 - **What:** Added Nova OS's append-only decision/event log, a stable code vocabulary (decision verdicts, control modes, action codes, reason codes), policy-version metadata, a temporary graduated loss policy, and a read-only API (`GET /api/nova-os/policy`, `GET /api/nova-os/events`). No decision logic runs yet.
@@ -43,13 +53,127 @@ Entry template (copy and fill in):
 ## 2026-07-15 — Nova OS Phase P0: continuity baseline
 
 - **What:** Canonical `Nova-OS-Status.md`, always-on continuity rule (read status → phase-close commit+push), mission canvas, duplicate L2 recorder constants removed, stale journal/risk/roadmap docs fixed to match A–F backbone + Nova OS P0–P10 plan.
-- **Why:** Cross-chat handoff so agents can answer "what is Nova OS / where are we / what next?" from repo artifacts alone before P1 events.
+- **Why:** Cross-chat handoff so agents can answer “what is Nova OS / where are we / what next?” from repo artifacts alone before P1 events.
 - **Files touched:** `Nova-OS-Status.md`, `.cursor/rules/nova-os-continuity.mdc`, `backend/constants.py` (L2 dedupe only), `risk.py`, `JournalPanel.tsx`, Automation/Decision-Brain/Local-Market-Data-Recorders notes, `CHANGELOG.md`.
 - **How it works now:** Status note is source of truth; canvas mirrors it; every phase must commit+push with SHA recorded before the next chat starts. Executor/journal docs no longer claim Phase D is missing.
 - **Verified by:** strategy/L2 pytest 109 passed; `npm run build` PASS.
 - **Follow-ups:** P1 audit/event foundation; unrelated scanner/HOD/earnings WIP left uncommitted.
 - **Related:** plan `nova_os_decision_engine_c4367abc`; mission canvas outside repo under Cursor `canvases/`.
 
+## 2026-07-15 — Settings labels name the Alpaca API
+
+- **What:** Credential fields are labeled **Alpaca API Key ID / Secret / Base URL / Data Feed** (Dashboard + Settings), with a short hint that these are for news, listing metadata, and optional Alpaca scanner mode.
+- **Why:** User wants provider-prefixed labels so future keys/APIs stay unambiguous.
+- **Files touched:** `constants.ts`, `SettingsPanel.tsx`, `DashboardTab.tsx`.
+- **How it works now:** Labels/placeholders live in constants; same copy in both settings surfaces.
+- **Verified by:** frontend build.
+
+## 2026-07-15 — Scanner table density default Large (reset stale prefs)
+
+- **What:** Confirmed default Table text size = Large; bumped storage key to `nova_scanner_table_density_v2` so older Compact/Medium prefs from early testing are ignored.
+- **Why:** User asked to default to large; some browsers still held a smaller saved value under v1.
+- **Files touched:** `constants.ts`.
+- **How it works now:** Fresh loads without a v2 key start at Large (1rem). Users can still pick Extra large in Dashboard → Display.
+- **Verified by:** constants default already `large`.
+
+## 2026-07-15 — Scanner table text size setting
+
+- **What:** Added **Table text size** (Compact / Medium / Large / Extra large) under Dashboard → Display and header Settings. Default is Large (`1rem`). Preference persists in localStorage.
+- **Why:** After densifying scanners, text was still too small; user asked for a Font size setting.
+- **Files touched:** `useScannerTableDensity.ts`, `ScannerTableDensitySelect.tsx`, `SettingsPanel.tsx`, `DashboardTab.tsx`, `DashboardPage.tsx`, `constants.ts`, `index.css`.
+- **How it works now:** Hook sets `--scanner-table-fs` on `:root`; Gappers/Gainers/AH/Catalysts scale from that CSS variable. Immediate on change; no backend save needed.
+- **Verified by:** frontend build.
+
+## 2026-07-15 — Scanner table density slightly enlarged
+
+- **What:** Gappers/Gainers/After Hours/Catalysts type and row padding bumped (~0.68→0.75rem, padding ~0.28rem) after the first compact pass felt too small.
+- **Why:** User found the HOD-tight density hard to read on scanner tables.
+- **Files touched:** `frontend/src/index.css`.
+- **How it works now:** Still denser than the old 1rem rows; readable middle ground.
+- **Verified by:** frontend build.
+
+## 2026-07-15 — News column before Symbol on scanner tables
+
+- **What:** News (flame) column is now the first column on Gappers, Gainers, After Hours, and Catalysts — before Symbol.
+- **Why:** User wants news visible before the ticker for faster scanning.
+- **Files touched:** `constants.ts` (`SCANNER_COLUMNS`), `CatalystsTable.tsx`.
+- **How it works now:** Column order is News → Symbol → … HOD Momo has no news column (unchanged).
+- **Verified by:** frontend build.
+
+## 2026-07-15 — HOD Momo rows fully clickable
+
+- **What:** Click (or Enter/Space) anywhere on a HOD Momo alert row opens the quote/chart for that ticker; double-click opens Stock View — same behavior as Gappers/Gainers.
+- **Why:** Only the blue symbol was clickable before; user wants full-row selection for speed.
+- **Files touched:** `HodMomoAlertRow.tsx`.
+- **How it works now:** Row uses the same click-vs-double-click helper as `SelectableTableRow`. Symbol button still works (stops propagation).
+- **Verified by:** frontend build.
+
+## 2026-07-15 — Dense scanner tables (Gappers/Gainers match HOD look)
+
+- **What:** Gappers, Gainers, After Hours, Catalysts (and other `.table-wrapper` tables) use HOD-Momo-like density: ~0.68rem type, tight row padding, uppercase headers, single-line symbol + compact exchange.
+- **Why:** Scanner tables felt oversized vs the compact HOD Momo feed; user wanted the same look to save space.
+- **Files touched:** `index.css`, `ScannerTable.tsx`, `CatalystsTable.tsx`.
+- **How it works now:** Density is scoped under `.table-wrapper` so IBKR/order tables keep their own styles. Sub-tabs (Gainers/Losers) are also tighter.
+- **Verified by:** frontend build.
+
+## 2026-07-15 — Level 2 heuristic row no longer jumps
+
+- **What:** The Level 2 badge row (Seller stacked / Bid heavy / Wide spread) always reserves height via an invisible placeholder when no heuristic is active.
+- **Why:** Showing/hiding the badges shifted the book up and down.
+- **Files touched:** `DepthLadder.tsx`, `constants.ts`, `index.css`.
+- **How it works now:** `.ibkr-depth-heuristics` always mounts; empty state uses a hidden "Seller stacked"-sized placeholder.
+- **Verified by:** frontend build.
+
+## 2026-07-15 — HOD Strategies dropdown: denser + taller
+
+- **What:** Filter Strategies menu uses smaller type (~0.65rem) and taller max height (520px) so most strategies fit with little or no scrolling.
+- **Why:** User disliked scrolling the strategy checklist.
+- **Files touched:** `index.css`, `HodMomoStrategyFilterDropdown.tsx`, `constants.ts`.
+- **How it works now:** Scoped under `.hod-strategy-filter-dropdown` (exchange filter unchanged).
+- **Verified by:** frontend build.
+
+## 2026-07-15 — Earnings-today party badge on symbols
+
+- **What:** Any `SymbolSelectButton` (HOD Momo, Gappers/Gainers, Catalysts, Watchlist, Signals) shows 🥳 next to the ticker when Yahoo earnings date is **today** (US/Eastern).
+- **Why:** Spot possible earnings catalysts quickly in scanner tables.
+- **Files touched:** `backend/fundamentals.py`, `routes/fundamentals.py`, `backend/constants.py`, `main.py`, `useEarningsToday.ts`, `SymbolSelectButton.tsx`, `useTickerStream.ts`, `isEarningsDateToday.ts`, `constants.ts`.
+- **How it works now:** Buttons register symbols; a debounced batch hits `GET /api/earnings-today`. Ticker-detail fundamentals also seed the map. **Test without a live earnings name:** `localStorage.setItem('nova_force_earnings_today','VVAI')` or open `?earningsParty=VVAI` then refresh.
+- **Verified by:** vitest date helper; pytest cache flags; browser force override.
+- **Related:** PROBLEM_LOG not required (feature).
+
+## 2026-07-15 — Fix HOD Momo stacked/overlapping row paint
+
+- **What:** Virtualized alert rows no longer paint on top of each other. Cells are clipped to a fixed 28px row; consolidation shows as compact `×N`; strategy pills truncate instead of overflowing.
+- **Why:** Absolute-position virtualization + overflowing cell content (strategy `overflow:visible`, multi-line symbol stack) caused illegible stacked text.
+- **Files touched:** `HodMomoAlertTable.tsx`, `HodMomoAlertRow.tsx`, `SymbolSelectButton.tsx`, `index.css`, `PROBLEM_LOG.md`.
+- **How it works now:** Every `.hod-virtual-row` is fixed height + `overflow:hidden`. Content that does not fit is ellipsized; hover title still has full consolidation detail.
+- **Verified by:** frontend build; stress scroll on HOD tab.
+- **Related:** PROBLEM_LOG 2026-07-15 HOD Momo rows stacked.
+
+## 2026-07-15 — HOD Momo strategy filters → dropdown
+
+- **What:** Replaced the multi-row strategy chip strip with a single-row toolbar and a **Strategies ▾** multi-select dropdown (select all, Running Up only, per-strategy checkboxes + counts).
+- **Why:** Chips ate too much vertical space above the alert table.
+- **Files touched:** `HodMomoStrategyFilterDropdown.tsx`, `HodMomoTab.tsx`, `HodMomoAlertTable.tsx`, `index.css`.
+- **How it works now:** Visibility still filters the feed client-side. Open **Strategies** for checkboxes; summary shows All / N of M / Running Up only. Column-header filter removed (toolbar is the one place).
+- **Verified by:** frontend build; browser open HOD Momo + dropdown.
+
+## 2026-07-15 — HOD Momo strategy chips compacted
+
+- **What:** Strategy filter chips (and header Clear/Configure) are much smaller: ~0.62rem type, tight padding, single-line labels so more chips fit per row and less vertical space is eaten above the table.
+- **Why:** After densifying the alert table, the chip strip still dominated the left panel.
+- **Files touched:** `frontend/src/index.css`, `CHANGELOG.md`.
+- **How it works now:** Same chip behavior; denser chrome only.
+- **Verified by:** frontend build; visual check on HOD Momo tab.
+
+## 2026-07-15 — HOD Momo scroll: dense absolute virtualization
+
+- **What:** Replaced spacer-`<tr>` virtualization with TanStack absolute/`translateY` CSS-grid rows; denser 28px rows and smaller type; overscan cut from 40→6. Dev-only **Stress scroll** cycles live feed → 1000 → 2000 mock rows.
+- **Why:** Scrolling ~480+ alerts felt janky (especially scrolling back up); fonts felt oversized.
+- **Files touched:** `HodMomoAlertTable.tsx`, `HodMomoAlertRow.tsx`, `HodMomoTab.tsx`, `buildHodMomoStressAlerts.ts`, `constants.ts`, `index.css`.
+- **How it works now:** Only ~viewport+overscan rows mount. Fixed row height + single-line consolidation badges keep scroll math stable. Stress button (dev builds) injects mock data without hitting the WS.
+- **Verified by:** vitest stress builder; frontend build; manual scroll with stress 1k/2k.
+- **Related:** PROBLEM_LOG 2026-07-15 HOD Momo scroll jank.
 
 ## 2026-07-15 — Draggable scanner / quote panel splitter
 

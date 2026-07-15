@@ -6,54 +6,55 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 
 ## Current position
 
-- Phase: P1
+- Phase: P2
 - State: verified
-- Last verified commit: 9fbdaff0d7d2abf291d0cd2949f66c831ffb5d43
-- Last updated: 2026-07-15 ~15:00 ET
+- Last verified commit: (pending push — filled after commit)
+- Last updated: 2026-07-15 ~15:15 ET
 
 ## Completed this phase
 
-- **P1 — Audit and event foundation:**
-  - Append-only event log: `backend/nova_os/events_db.py` (schema, `nova_os_events.db` under `paths.cache_dir()`) + `events.py` (`record_receipt()` write path, `get_events()` read).
-  - Stable vocabulary + policy metadata: `backend/nova_os/codes.py` — decision verdicts, control modes, action codes, reason codes, `policy_version()`, and validators (fail-closed on unknown codes). All code strings defined in `backend/constants.py` (Nova OS section).
-  - No-silent-action receipts: every write validates + persists an immutable row and returns it; `would_execute` vs `executed` recorded separately.
-  - Temporary loss policy: `NOVA_OS_LOSS_POLICY_*` constants + `codes.loss_policy_mode()` (first loss → `confirm`, third → halt; only ever lowers autonomy).
-  - Read API: `GET /api/nova-os/policy`, `GET /api/nova-os/events` (`backend/routes/nova_os.py`), router wired in `main.py`, `init_db()` in `app_lifespan.py`.
-  - Tests: `test_nova_os_codes.py`, `test_nova_os_events.py`.
+- **P2 — `decide()` engine (signal only):**
+  - Ordered gates in `backend/nova_os/gates.py` + orchestrator `decide.py`: session/risk/loss-policy → Five Pillars → setup (+ first-minute volume + watchlist rank) → ticket math → news-impact catalyst (soft) → microstructure placeholder.
+  - Every call writes a `record_receipt()`; `would_execute` / `executed` always False in P2.
+  - Tunables + new reason codes in `constants.py`; policy version `nova-os-p2-2026-07-15`.
+  - API: `GET /api/nova-os/decide/{symbol}`, `GET /api/nova-os/decide` (watchlist batch); policy endpoint exposes decide tunables.
+  - `setups_stream` routes eligible setups through `decide()`; only `BUY` reaches `executor.on_signal` (still armed-gated).
+  - Tests: `test_nova_os_decide.py`.
 
-## Prior phase (P0) — completed
+## Prior phases
 
-- Canonical status note + continuity rule with hard commit+push gate; mission canvas; L2 constant dedupe; stale doc reconcile; baseline recorded (commit e2d649c).
+- **P1** — audit foundation (events DB, vocabulary, loss policy, read API) — commit 9fbdaff / status 7e03b1a.
+- **P0** — continuity baseline — commit e2d649c.
 
 ## In progress / uncommitted
 
-- Unrelated WIP preserved (not part of P0): scanner density, HOD Momo UI, earnings-today hooks, dashboard layout — left unstaged; see `git status`
+- Unrelated WIP preserved (not part of P2): scanner density, HOD Momo UI, earnings-today hooks, dashboard layout — left unstaged; see `git status`
 
 ## Crash or blocker
 
 - Symptom: none
 - Root cause: n/a
 - Evidence/log: n/a
-- Safe next action: proceed to P2 after this phase's commit+push
+- Safe next action: proceed to P3 after this phase's commit+push
 
 ## Verification ledger
 
-- Command: `cd backend && py -3 -m pytest tests/test_executor.py tests/test_risk.py tests/test_journal.py tests/test_l2.py tests/test_l2_recorder.py tests/test_watchlist.py tests/test_setups.py tests/test_five_pillars.py tests/test_nova_os_events.py tests/test_nova_os_codes.py -q`
-- Result: **126 passed** in 3.90s (2026-07-15)
-- Command: `py -3 -c "import main"` → app imports clean, 2 `/api/nova-os` routes registered
+- Command: `cd backend && py -3 -m pytest tests/test_executor.py tests/test_risk.py tests/test_journal.py tests/test_l2.py tests/test_l2_recorder.py tests/test_watchlist.py tests/test_setups.py tests/test_five_pillars.py tests/test_nova_os_events.py tests/test_nova_os_codes.py tests/test_nova_os_decide.py -q`
+- Result: **140 passed** in ~4s (2026-07-15)
+- Command: `py -3 -c "import main"` → 4 `/api/nova-os` routes (`policy`, `events`, `decide`, `decide/{symbol}`)
 - Command: `cd frontend && npm run build`
 - Result: **PASS** (tsc + vite build; chunk-size warning only; exit 0)
-- Browser path: not required for P1 (backend audit foundation + read API only; no UI yet)
+- Browser path: not required for P2 (backend decide + stream wiring; DecisionPanel UI is P3)
 
 ## User action needed
 
-- None for P1. R2 bucket setup is deferred to P8 (`user-r2-setup`).
+- None for P2. R2 bucket setup is deferred to P8 (`user-r2-setup`).
 
 ## Phase-close / Next chat starts here
 
-**Every phase ends with commit + push before a new chat starts.** Phase completion is incomplete until `git add` (intentional files) → `git commit` → `git push`, with SHA recorded here. Do not begin P2 until this P1 push is done.
+**Every phase ends with commit + push before a new chat starts.** Phase completion is incomplete until `git add` (intentional files) → `git commit` → `git push`, with SHA recorded here.
 
 1. Read this note, the Nova OS plan (`nova_os_decision_engine_c4367abc.plan.md`), CHANGELOG, and relevant PROBLEM_LOG entry.
-2. Confirm git status and active phase (should be P2 after P1 verified).
+2. Confirm git status and active phase (should be P3 after P2 verified).
 3. Run the recorded baseline/smoke check.
-4. Continue from: **P2 — `decide()` engine** — implement the ordered decision gates (session/risk → Five Pillars → setup → ticket math → catalyst → microstructure) that emit `BUY | WAIT | NO_BUY` + reason codes and write a `record_receipt()` per candidate using the P1 vocabulary. Wire the loss policy (`codes.loss_policy_mode`) into the mode selection. Do not place orders (still signal/confirm surfaces); DecisionPanel UI can follow.
+4. Continue from: **P3 — Decision UX and operator visibility** — DecisionPanel gate-audit UI, Signals/Stock View consume the unified decision shape, thin read-only CLI, attention strip/toast/sound framework (muteable). Do not enable confirm/auto order paths yet.

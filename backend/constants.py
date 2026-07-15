@@ -109,6 +109,8 @@ FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
 # Hard timeout for a single yfinance .info call; prevents Yahoo stalls from blocking Phase 2.
 # On timeout, stale cached data (if any) is returned; otherwise an empty dict is used.
 YFINANCE_TIMEOUT_S = 5.0
+# Cap symbols per /api/earnings-today request (scanner party badges).
+EARNINGS_TODAY_MAX_SYMBOLS = 25
 # Asset metadata (name, exchange, tradability) rarely changes intraday.
 TICKER_ASSET_CACHE_TTL = 900.0      # 15 minutes (extended from 5 min — static intraday)
 # Snapshot (price, quote, bars) is live data; only cache briefly to de-dup rapid clicks.
@@ -672,22 +674,33 @@ LINCOLN_AI_TEMPERATURE = 0.2
 LINCOLN_AI_TIMEOUT_SECONDS = 8.0
 LINCOLN_AI_CACHE_MAX_ENTRIES = 200
 
-# ── Nova OS — decision/audit foundation (Phase P1) ───────────────────────────
-# Nova OS is Nova's auditable decision + operations layer. P1 lays only the
-# audit foundation: an append-only event log, a STABLE vocabulary of decision
-# verdicts / action codes / reason codes, policy-version metadata, and a
-# temporary loss policy. No decision logic runs yet (that is P2's `decide()`).
-# Everything below is the single source of truth for those codes so the event
-# schema, read API, and future decide() all speak the same language.
+# ── Nova OS — decision brain + audit (Phases P1–P2) ──────────────────────────
+# Nova OS is Nova's auditable decision + operations layer. P1 laid the audit
+# foundation (event log + vocabulary). P2 adds `decide()` gate composition.
+# Everything below is the single source of truth for codes and tunables so the
+# event schema, read API, and decide() all speak the same language.
 #
 # Stability contract: these code strings are persisted in the event log and
 # read back by the UI. Treat them like an API contract — add new codes, never
 # silently rename or repurpose an existing one, and bump NOVA_OS_POLICY_VERSION
 # when the decision semantics behind them change.
-NOVA_OS_POLICY_VERSION = "nova-os-p1-2026-07-15"  # bump when decision semantics change
+NOVA_OS_POLICY_VERSION = "nova-os-p2-2026-07-15"  # bump when decision semantics change
 
 NOVA_OS_EVENTS_DB_FILENAME = "nova_os_events.db"  # lives under paths.cache_dir(), not git-tracked
 NOVA_OS_EVENTS_DEFAULT_LIMIT = 200                # default rows returned by the read API
+
+# decide() tunables (course rules — Gap and Go first-minute volume + top ranks)
+NOVA_OS_MIN_FIRST_MINUTE_VOLUME = 100_000  # ebook: ≥100k shares in the 9:30 ET minute
+NOVA_OS_WATCHLIST_MAX_RANK = 4             # trade only the most-obvious top-ranked names
+NOVA_OS_CATALYST_MIN_CONFIDENCE = 0.45     # soft Gate 4 floor for news-impact confidence
+NOVA_OS_PRIMARY_SETUP = "gap_and_go"       # v1 strategy scope
+NOVA_OS_DECIDE_DEFAULT_LIMIT = 4           # GET /api/nova-os/decide watchlist batch size
+NOVA_OS_CITATIONS = (
+    "SS101 Gap and Go — Five Pillars gate",
+    "SS101 Gap and Go — first-minute volume ≥100k",
+    "Basics — trade the most obvious gapper (top watchlist)",
+    "Risk — min 2:1 R:R, max 20¢ stop, walk-away after losses",
+)
 
 # Decision verdicts — the three outcomes decide() may emit.
 NOVA_OS_DECISION_BUY = "BUY"
@@ -729,8 +742,7 @@ NOVA_OS_ACTIONS = (
 )
 
 # Reason codes — stable identifiers for WHY a decision landed where it did.
-# Grouped by the Decision-Brain gate that emits them. decide() (P2) will attach
-# a subset of these to each event; P1 only defines and validates the vocabulary.
+# Grouped by the Decision-Brain gate that emits them.
 NOVA_OS_REASON_CODES = (
     # Gate 0 — session / regime / risk state
     "SESSION_CLOSED",
@@ -745,9 +757,13 @@ NOVA_OS_REASON_CODES = (
     "PILLAR_FLOAT_FAIL",
     "PILLARS_MISSING_DATA",
     "PILLARS_PASS",
-    # Gate 2 — setup recognition
+    # Gate 2 — setup recognition (+ first-minute volume + watchlist rank)
     "NO_SETUP",
     "SETUP_MATCH",
+    "FIRST_MINUTE_VOLUME_LOW",
+    "FIRST_MINUTE_VOLUME_OK",
+    "WATCHLIST_RANK_TOO_LOW",
+    "WATCHLIST_RANK_OK",
     # Gate 3 — ticket math
     "TICKET_INVALID",
     "RR_TOO_LOW",
@@ -759,11 +775,12 @@ NOVA_OS_REASON_CODES = (
     # Gate 5 — microstructure
     "L2_UNFAVORABLE",
     "L2_FAVORABLE",
+    "MICROSTRUCTURE_NOT_EVALUATED",
     # Terminal
     "ALL_GATES_PASS",
 )
 
-# Temporary loss policy (P1 placeholder — decide() will consume this in P2).
+# Temporary loss policy — decide() applies this via codes.loss_policy_mode().
 # Graduated response to consecutive losing trades in a session:
 #   first loss  → downgrade control mode to `confirm` (require human per trade)
 #   third loss  → halt for the day (mirrors RISK_MAX_CONSECUTIVE_LOSSES)

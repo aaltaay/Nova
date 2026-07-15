@@ -14,8 +14,8 @@ tags: [nova-os, automation, gap-and-go, ibkr]
 ## Implementation status (2026-07-15)
 
 - **Backbone A–F shipped:** watchlist, setups, risk, journal/go-no-go, IBKR paper executor (binary arm), L2/tape local recorders.
-- **Nova OS P0 verified:** continuity artifacts, doc reconcile, baseline recorded in [[Nova-OS-Status]].
-- **Not yet built:** `decide()` module, graduated control modes, event log, DecisionPanel, permanent archive (P1–P10).
+- **Nova OS P0–P2 verified:** continuity artifacts; append-only event log + vocabulary; `decide()` gate pipeline (signal only) + decide API + stream wiring. See [[Nova-OS-Status]].
+- **Not yet built:** DecisionPanel / control-mode ladder / confirm queue (P3–P5), permanent archive (P6–P9), live-readiness review (P10).
 
 ## Honest framing
 
