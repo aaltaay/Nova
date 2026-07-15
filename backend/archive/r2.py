@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from archive.compact import cold_root
-from archive.manifest import read_manifest, sha256_file
+from archive.manifest import read_manifest, sha256_file, verify_payload
 from constants import (
     ARCHIVE_R2_ENABLED,
     ARCHIVE_R2_VERIFIED_INDEX,
@@ -298,15 +298,41 @@ def upload_day(
     for table in ARCHIVE_TABLES_COLD:
         man_path = day_dir / f"{table}.manifest.json"
         if not man_path.is_file():
+            # A missing manifest means compact_day either never ran for this
+            # table or crashed before writing it — never a "nothing to do
+            # here" case. Treating it as ok=True (the old behavior: silent
+            # `continue`) let a day with an incomplete compaction still be
+            # marked verified in R2 as long as the OTHER tables' manifests
+            # existed. Fail loud instead.
+            uploads.append({
+                "ok": False,
+                "table": table,
+                "error": f"missing manifest: {table}.manifest.json (compact_day incomplete for this day)",
+            })
             continue
         man = read_manifest(man_path)
         payload = root / man["path"]
         if not payload.is_file():
             uploads.append({"ok": False, "table": table, "error": "payload missing"})
             continue
+        expected_sha256 = man.get("sha256")
+        if not expected_sha256 or not verify_payload(payload, expected_sha256):
+            # The local file no longer matches the manifest written at
+            # compaction time (e.g. a later crashed re-compaction truncated
+            # it, or the file changed on disk after compaction). Uploading
+            # it anyway would let R2 "verify" a day that is actually stale
+            # or corrupt.
+            uploads.append({
+                "ok": False,
+                "table": table,
+                "error": "local payload sha256 mismatch vs manifest — refusing to upload",
+                "manifest_sha256": expected_sha256,
+                "actual_sha256": sha256_file(payload) if payload.is_file() else None,
+            })
+            continue
         result = upload_bytes(
             payload.read_bytes(),
-            sha256=man.get("sha256") or sha256_file(payload),
+            sha256=expected_sha256,
             metadata={
                 "session_date": session_date,
                 "table": table,

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -55,8 +56,21 @@ def build_manifest(
 
 
 def write_manifest(path: Path, manifest: dict[str, Any]) -> None:
+    """Write the manifest atomically so a crash mid-write never leaves a
+    truncated/partial manifest that could be read as valid JSON with
+    misleading (or no) content — write to a sibling temp file, flush+fsync,
+    then rename into place (atomic on POSIX and Windows)."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+    try:
+        with tmp.open("w", encoding="utf-8") as fh:
+            fh.write(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
 
 
 def read_manifest(path: Path) -> dict[str, Any]:

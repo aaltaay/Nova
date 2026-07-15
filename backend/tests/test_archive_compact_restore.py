@@ -123,6 +123,33 @@ class TestCompactRestore:
         assert "tape_ibkr" in result["mismatches"]
         assert result["mismatches"]["tape_ibkr"]["error"] == "sha256_mismatch"
 
+    def test_restore_missing_manifest_is_hard_failure(self, tmp_path):
+        """A day where compact_day crashed before writing one table's
+        manifest must fail the restore drill, not silently report ok=True
+        for the tables that did compact."""
+        cold = tmp_path / "archive_cold"
+        _seed_day("2026-07-12")
+        compact.compact_day("2026-07-12", cold_dir=cold)
+        day_dir = cold / "2026-07-12" / ARCHIVE_SCHEMA_VERSION
+        (day_dir / "bars_1d.manifest.json").unlink()
+
+        result = restore.restore_day_to_temp("2026-07-12", cold_dir=cold)
+        assert result["ok"] is False
+        assert result["mismatches"]["bars_1d"]["error"] == "manifest_missing"
+
+    def test_compact_write_is_atomic_no_tmp_left_behind(self, tmp_path):
+        """write_jsonl_atomic must never leave a stray temp file behind on
+        the happy path, and the final file must be exactly the new content
+        (not appended/partial)."""
+        cold = tmp_path / "archive_cold"
+        _seed_day("2026-07-13")
+        compact.compact_day("2026-07-13", cold_dir=cold)
+        day_dir = cold / "2026-07-13" / ARCHIVE_SCHEMA_VERSION
+        leftover_tmp = list(day_dir.glob("*.tmp*"))
+        assert leftover_tmp == []
+        jsonl = day_dir / "tape_ibkr.jsonl"
+        assert len(jsonl.read_text(encoding="utf-8").strip().splitlines()) == 2
+
     def test_list_finished_dates(self):
         _seed_day("2026-07-08")
         _seed_day("2026-07-09")

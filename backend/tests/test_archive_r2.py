@@ -173,6 +173,84 @@ class TestR2UploadMock:
         assert failures[0]["payload"]["session_date"] == "2026-07-10"
         assert failures[0]["payload"]["failed_tables"]
 
+    def test_upload_day_missing_manifest_is_hard_failure(self, monkeypatch):
+        """A crashed compact_day that never wrote one table's manifest must
+        not let the day be marked verified just because the other tables'
+        manifests happened to exist (the old silent `continue` bug)."""
+        cold = _seed_and_compact()
+        from constants import ARCHIVE_SCHEMA_VERSION
+
+        day_dir = cold / "2026-07-10" / ARCHIVE_SCHEMA_VERSION
+        (day_dir / "bars_1d.manifest.json").unlink()
+
+        store: dict[str, bytes] = {}
+
+        class FakeClient:
+            def head_object(self, Bucket, Key):
+                if Key not in store:
+                    err = Exception("404")
+                    err.response = {"Error": {"Code": "404"}, "ResponseMetadata": {"HTTPStatusCode": 404}}
+                    raise err
+                return {}
+
+            def put_object(self, Bucket, Key, Body, **kwargs):
+                store[Key] = Body if isinstance(Body, bytes) else bytes(Body)
+
+        monkeypatch.setenv("ARCHIVE_R2_ENABLED", "true")
+        monkeypatch.setenv("R2_ACCOUNT_ID", "acct")
+        monkeypatch.setenv("R2_ACCESS_KEY_ID", "key")
+        monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secret")
+        monkeypatch.setattr(r2, "boto3_available", lambda: True)
+        monkeypatch.setattr(r2, "_client", lambda: (FakeClient(), "nova-archive"))
+
+        result = r2.upload_day("2026-07-10", cold_dir=cold)
+        assert result["ok"] is False
+        by_table = {u["table"]: u for u in result["uploads"]}
+        assert by_table["bars_1d"]["ok"] is False
+        assert "missing manifest" in by_table["bars_1d"]["error"]
+        assert not r2.is_day_verified_remote("2026-07-10", cold)
+
+    def test_upload_day_detects_local_payload_tamper_before_upload(self, monkeypatch):
+        """If a local jsonl no longer matches its manifest's sha256 (e.g. a
+        later crashed re-compaction truncated it), upload_day must refuse to
+        upload it rather than let R2 "verify" stale/corrupt content."""
+        from constants import ARCHIVE_SCHEMA_VERSION
+
+        cold = _seed_and_compact()
+        day_dir = cold / "2026-07-10" / ARCHIVE_SCHEMA_VERSION
+        jsonl = day_dir / "tape_ibkr.jsonl"
+        jsonl.write_text(jsonl.read_text(encoding="utf-8") + "{}\n", encoding="utf-8")
+
+        store: dict[str, bytes] = {}
+
+        class FakeClient:
+            def head_object(self, Bucket, Key):
+                if Key not in store:
+                    err = Exception("404")
+                    err.response = {"Error": {"Code": "404"}, "ResponseMetadata": {"HTTPStatusCode": 404}}
+                    raise err
+                return {}
+
+            def put_object(self, Bucket, Key, Body, **kwargs):
+                store[Key] = Body if isinstance(Body, bytes) else bytes(Body)
+
+        monkeypatch.setenv("ARCHIVE_R2_ENABLED", "true")
+        monkeypatch.setenv("R2_ACCOUNT_ID", "acct")
+        monkeypatch.setenv("R2_ACCESS_KEY_ID", "key")
+        monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secret")
+        monkeypatch.setattr(r2, "boto3_available", lambda: True)
+        monkeypatch.setattr(r2, "_client", lambda: (FakeClient(), "nova-archive"))
+
+        result = r2.upload_day("2026-07-10", cold_dir=cold)
+        assert result["ok"] is False
+        by_table = {u["table"]: u for u in result["uploads"]}
+        assert by_table["tape_ibkr"]["ok"] is False
+        assert "sha256 mismatch" in by_table["tape_ibkr"]["error"]
+        # The tampered payload must never have reached the fake bucket — no
+        # "key" means upload_bytes was never called for it.
+        assert "key" not in by_table["tape_ibkr"]
+        assert jsonl.read_bytes() not in store.values()
+
 
 class TestTrimGate:
     def test_require_verified_before_trim_still_true(self):

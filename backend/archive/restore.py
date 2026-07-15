@@ -79,6 +79,12 @@ def restore_day_to_temp(
         for table in ARCHIVE_TABLES_COLD:
             man_path = day_dir / f"{table}.manifest.json"
             if not man_path.is_file():
+                # Same class of bug as the R2 upload path: a missing manifest
+                # means compaction never finished for this table, not that
+                # there was nothing to restore. Silently skipping let a
+                # restore drill report ok=True for a day that is actually
+                # missing a whole table.
+                mismatches[table] = {"error": "manifest_missing"}
                 continue
             man = read_manifest(man_path)
             rel = man["path"]

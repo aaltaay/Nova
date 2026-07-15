@@ -4,9 +4,15 @@ Loss-aware local capture APIs for Nova OS P6.
 Write path into ``archive.db``. Callers should treat failures as non-fatal for
 live UI (log + gap marker) so a disk issue never blanks the quote panel.
 
-``record_l2_snapshot`` is ready for a changed-book hook from ``ibkr/depth``;
-wiring that hook is deferred until write-volume is benchmarked against the
-existing 1 Hz continuous sampler (see package docstring TODO).
+L2 depth is NOT captured through ``record_l2_snapshot`` below — that function
+is an unwired, in-memory-only stub with no production caller (see its
+docstring). The real, durable L2 + tape capture is the pre-existing
+``l2/continuous.py`` sampler (1 Hz while a depth session is open) writing to
+``l2/db.py``'s ``l2_snapshots``/``tape_trades`` tables. ``archive/l2_bridge.py``
+exports that data into the same checksummed cold-archive + R2 pattern used
+here for bars/tape_ibkr (see ``archive.compact``/``archive.r2``). If you are
+looking for "is L2 durably archived", the answer lives in ``l2_bridge``, not
+in this module.
 """
 from __future__ import annotations
 
@@ -256,11 +262,13 @@ def record_l2_snapshot(
     session_date: str | None = None,
 ) -> None:
     """
-    Stub for changed-book L2 capture.
-
-    TODO(P6 follow-up): wire from ``ibkr/depth`` on book change (not only the
-    1 Hz continuous sampler). Until then, rows stay in-memory for tests and
-    bump the integrity counter so the capture surface is callable.
+    Unwired stub for a future changed-book (not just 1 Hz sampled) L2 capture
+    path. No production code calls this — rows never leave process memory
+    and are capped/dropped on restart. Do not treat calls to this function or
+    increments of ``ARCHIVE_COUNTER_L2_SNAPSHOTS`` as evidence that L2 data
+    is durably archived; see the module docstring and ``archive/l2_bridge.py``
+    for the real path (``l2/continuous.py`` -> ``l2/db.py`` -> l2_bridge cold
+    export + R2).
     """
     symbol = symbol.upper()
     day = session_date or session_date_for_ts(ts)

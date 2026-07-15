@@ -15,11 +15,13 @@ from zoneinfo import ZoneInfo
 
 from archive.compact import cold_root
 from archive import db as archive_db
+from archive.l2_bridge import load_l2_verified_index
 from archive.r2 import is_day_verified_remote, load_verified_index, r2_enabled, r2_status
 from constants import (
     ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM,
     ARCHIVE_SCHEMA_VERSION,
     ARCHIVE_TABLES_COLD,
+    ARCHIVE_TABLES_COLD_L2,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,6 +142,16 @@ def archive_health(*, cold_dir: Path | None = None) -> dict[str, Any]:
         if isinstance(meta, dict) and meta.get("ok") is False
     ]
 
+    l2_index = load_l2_verified_index(root)
+    l2_verified_days = sorted(
+        d for d, meta in (l2_index.get("days") or {}).items()
+        if isinstance(meta, dict) and meta.get("ok")
+    )
+    l2_failed_days = [
+        d for d, meta in (l2_index.get("days") or {}).items()
+        if isinstance(meta, dict) and meta.get("ok") is False
+    ]
+
     problems: list[str] = []
     if enabled and not r2["configured"]:
         problems.append(r2["message"])
@@ -170,6 +182,9 @@ def archive_health(*, cold_dir: Path | None = None) -> dict[str, Any]:
         "require_verified_before_trim": ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM,
         "trim_blocked": bool(ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM),
         "tables": list(ARCHIVE_TABLES_COLD),
+        "l2_bridge_tables": list(ARCHIVE_TABLES_COLD_L2),
+        "l2_bridge_verified_days": l2_verified_days,
+        "l2_bridge_failed_days": l2_failed_days,
         "r2": r2,
         "note": (
             "Put R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY in .env only. "

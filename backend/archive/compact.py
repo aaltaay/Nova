@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any, Iterable
@@ -43,13 +44,32 @@ def _rows_as_dicts(conn: sqlite3.Connection, table: str, session_date: str) -> l
     return [dict(zip(cols, row)) for row in cur.fetchall()]
 
 
-def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> int:
+def write_jsonl_atomic(path: Path, rows: Iterable[dict[str, Any]]) -> int:
+    """Write rows as JSONL, crash-safely.
+
+    A crash mid-write must never leave the final ``path`` holding a
+    truncated file whose sha256 no longer matches a manifest written on a
+    *previous* successful compaction (the exact "partial local file rewrite
+    + stale manifest lets the upload proceed as if everything is valid"
+    failure mode flagged by the P7 hardening audit). Writing full content to
+    a temp file first and only ``os.replace``-ing it into the final path once
+    complete means the final path is either the old complete file or the new
+    complete file — never a half-written one.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
     n = 0
-    with path.open("w", encoding="utf-8") as fh:
-        for row in rows:
-            fh.write(json.dumps(row, sort_keys=True, default=str) + "\n")
-            n += 1
+    try:
+        with tmp.open("w", encoding="utf-8") as fh:
+            for row in rows:
+                fh.write(json.dumps(row, sort_keys=True, default=str) + "\n")
+                n += 1
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
     return n
 
 
@@ -91,7 +111,7 @@ def compact_day(
             rows = _rows_as_dicts(conn, table, session_date)
             rel_jsonl = f"{session_date}/{ARCHIVE_SCHEMA_VERSION}/{table}.jsonl"
             jsonl_path = root / rel_jsonl
-            count = _write_jsonl(jsonl_path, rows)
+            count = write_jsonl_atomic(jsonl_path, rows)
             digest = sha256_file(jsonl_path)
             extra: dict[str, Any] = {}
             parquet_name = f"{table}.parquet"

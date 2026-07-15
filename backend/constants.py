@@ -658,6 +658,16 @@ ARCHIVE_TABLES_COLD = (
     "capture_gaps",
     "incomplete_windows",
 )
+# L2 depth snapshots + tape prints already live durably in the pre-existing
+# l2/db.py hot store (l2/continuous.py samples at L2_CONTINUOUS_SNAPSHOT_INTERVAL_SEC
+# whenever a depth session is open). These two tables are bridged into the same
+# checksummed cold-archive + R2 pattern by archive/l2_bridge.py, but kept out of
+# ARCHIVE_TABLES_COLD (a different sqlite file, no session_date column) so the
+# existing bars/tape_ibkr compact+upload+restore contract is untouched.
+ARCHIVE_TABLES_COLD_L2 = (
+    "l2_snapshots",
+    "tape_trades",
+)
 # Cloudflare R2 (P8) — credentials ONLY in .env (never commit). Env var names:
 #   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
 #   ARCHIVE_R2_ENABLED=true to attempt uploads (still no-ops without keys)
@@ -667,6 +677,7 @@ R2_BUCKET_DEFAULT = "nova-archive"
 R2_PREFIX = "nova-os/archive/"                  # content-addressed keys under this prefix
 R2_ENDPOINT_HOST_SUFFIX = "r2.cloudflarestorage.com"
 ARCHIVE_R2_VERIFIED_INDEX = "_r2_verified.json"  # under archive_cold/
+ARCHIVE_R2_VERIFIED_INDEX_L2 = "_r2_verified_l2.json"  # under archive_cold/ (l2_bridge)
 # Replay / evening review (P9)
 ARCHIVE_EVENING_REVIEW_HORIZON_MIN = 5         # minutes after decision for outcome heuristic
 ARCHIVE_EVENING_REVIEW_VERSION = "evening-review-v1-2026-07-15"
