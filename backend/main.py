@@ -121,7 +121,18 @@ from market import (
 load_dotenv(env_file_path())
 
 _NOVA_REV = "4"
-_DATA_URL = "https://data.alpaca.markets"
+# Alpaca helpers and provider state live in alpaca.py (importable without
+# triggering a full main.py load by other modules).
+from alpaca import (
+    ALPACA_DATA_URL as _DATA_URL,
+    _env,
+    _alpaca_headers,
+    _get_feed,
+    _set_feed,
+    _try_fallback_to_iex,
+    _get_discovery_provider,
+    _set_discovery_provider,
+)
 
 # Scan intervals — authoritative values in `constants.py`
 _DISCOVERY_INTERVAL = DISCOVERY_INTERVAL_SEC
@@ -195,97 +206,6 @@ _hod_momo_universe: set[str] = set()
 _hod_momo_universe_ts: float = 0.0
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _env(name: str, default: str | None = None) -> str | None:
-    v = os.getenv(name, default)
-    if v is None:
-        return None
-    return v.strip().strip("'\"")
-
-
-def _alpaca_headers() -> dict[str, str] | None:
-    api_key = _env("APCA_API_KEY_ID")
-    api_secret = _env("APCA_API_SECRET_KEY")
-    if not api_key or not api_secret:
-        return None
-    return {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": api_secret}
-
-
-# ── Active data feed tracking ─────────────────────────────────────────────────
-# Tracks which feed is actually in use (may differ from configured if fallback fires).
-_active_feed: str = ""  # set at first _get_feed() call
-_feed_fell_back: bool = False  # True if SIP→IEX fallback was triggered this session
-
-
-def _get_feed() -> str:
-    """Return the active Alpaca data feed (iex or sip).
-
-    Priority: _active_feed (runtime) > env ALPACA_DATA_FEED > DATA_FEED_DEFAULT.
-    """
-    global _active_feed
-    if _active_feed:
-        return _active_feed
-    raw = (_env("ALPACA_DATA_FEED") or DATA_FEED_DEFAULT).lower()
-    if raw not in DATA_FEED_OPTIONS:
-        raw = DATA_FEED_DEFAULT
-    _active_feed = raw
-    return _active_feed
-
-
-def _set_feed(feed: str) -> None:
-    """Change the active data feed at runtime (e.g. from Settings or auto-fallback)."""
-    global _active_feed, _feed_fell_back
-    feed = feed.lower()
-    if feed not in DATA_FEED_OPTIONS:
-        feed = DATA_FEED_DEFAULT
-    _active_feed = feed
-    _feed_fell_back = False  # reset fallback flag when user explicitly changes
-    logger.info("Data feed set to '%s'", _active_feed)
-
-
-def _try_fallback_to_iex(context: str) -> bool:
-    """If currently on SIP and a subscription error occurs, fall back to IEX.
-
-    Returns True if the fallback was applied (caller should retry), False otherwise.
-    """
-    global _active_feed, _feed_fell_back
-    if _active_feed == "sip" and not _feed_fell_back:
-        logger.warning(
-            "SIP feed rejected (%s) — falling back to IEX. "
-            "Change feed in Settings or set ALPACA_DATA_FEED=sip if your plan supports it.",
-            context,
-        )
-        _active_feed = "iex"
-        _feed_fell_back = True
-        return True
-    return False
-
-
-# ── Discovery provider (Alpaca vs IBKR) ────────────────────────────────────────
-# Soft toggle — Alpaca stays the default and its code paths are untouched.
-# See DISCOVERY_PROVIDER_DEFAULT in constants.py and ibkr/discovery.py.
-_active_discovery_provider: str = ""
-
-
-def _get_discovery_provider() -> str:
-    global _active_discovery_provider
-    if _active_discovery_provider:
-        return _active_discovery_provider
-    raw = (_env("NOVA_DISCOVERY_PROVIDER") or DISCOVERY_PROVIDER_DEFAULT).lower()
-    if raw not in DISCOVERY_PROVIDER_OPTIONS:
-        raw = DISCOVERY_PROVIDER_DEFAULT
-    _active_discovery_provider = raw
-    return _active_discovery_provider
-
-
-def _set_discovery_provider(provider: str) -> None:
-    global _active_discovery_provider
-    provider = provider.lower()
-    if provider not in DISCOVERY_PROVIDER_OPTIONS:
-        provider = DISCOVERY_PROVIDER_DEFAULT
-    _active_discovery_provider = provider
-    logger.info("Discovery provider set to '%s'", _active_discovery_provider)
 
 
 def _run_ibkr(coro):
@@ -472,6 +392,7 @@ def _get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
         _assets_cache_ts = now
         return _assets_cache
     except Exception:
+        logger.warning("_get_tradable_symbols failed — returning stale cache", exc_info=True)
         return _assets_cache
 
 
@@ -498,6 +419,7 @@ def _fetch_snapshots(symbols: list[str], headers: dict) -> dict:
             )
             return resp.json() if resp.status_code == 200 else {}
         except Exception:
+            logger.debug("_fetch_snapshots chunk network error", exc_info=True)
             return {}
 
     result: dict = {}
@@ -507,6 +429,7 @@ def _fetch_snapshots(symbols: list[str], headers: dict) -> dict:
             try:
                 result.update(fut.result())
             except Exception:
+                logger.debug("_fetch_snapshots future failed", exc_info=True)
                 continue
     return result
 
@@ -600,6 +523,7 @@ def _check_news(symbols: list[str], headers: dict) -> dict[str, str]:
                     out[s] = created_at
         return out
     except Exception:
+        logger.warning("_check_news failed for %s", symbols[:10], exc_info=True)
         return {}
 
 
@@ -1360,11 +1284,13 @@ def _run_gainers_update() -> None:
                 timeout=10,
             )
             if resp.status_code != 200:
+                logger.warning("Alpaca movers API returned %s", resp.status_code)
                 return
             movers_json = resp.json()
             gainers_raw = movers_json.get("gainers", [])
             losers_raw = movers_json.get("losers", [])
         except Exception:
+            logger.warning("_run_gainers_update: Alpaca movers API error", exc_info=True)
             return
 
         if not gainers_raw and not losers_raw:
@@ -1683,8 +1609,8 @@ def _run_news_catalyst_scan() -> None:
         _news_catalyst_cache_ts = time.time()
         _last_catalyst_scan_ts = time.monotonic()
 
-    except Exception as exc:
-        print(f"[catalyst] scan exception: {exc}", flush=True)
+    except Exception:
+        logger.exception("[catalyst] news catalyst scan failed")
 
 
 # ── Background scan loop ──────────────────────────────────────────────────────

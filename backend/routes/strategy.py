@@ -18,6 +18,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from alpaca import _get_discovery_provider
 from chart_bars import fetch_chart_bars as _fetch_chart_bars
 from strategy.five_pillars import evaluate_many
 from strategy.gap_and_go import evaluate_gap_and_go
@@ -36,10 +37,6 @@ def _gapper_cache() -> list[dict]:
     import main as _main
     return _main._gapper_cache
 
-
-def _get_discovery_provider() -> str:
-    import main as _main
-    return _main._get_discovery_provider()
 
 
 def _gainer_cache() -> list[dict]:

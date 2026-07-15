@@ -27,6 +27,7 @@ import logging
 import time
 from datetime import date, timedelta
 
+from alpaca import _get_discovery_provider, _alpaca_headers, _get_feed
 import hod_momo as _hod_momo
 from constants import (
     HOD_MOMO_ENRICH_INTERVAL_SEC,
@@ -58,13 +59,94 @@ async def universe_enrichment_loop() -> None:
                 logger.debug("HOD Momo enrichment: universe empty, skipping")
                 continue
 
-            headers = _main._alpaca_headers()
+            symbols = list(universe)
+            loop = asyncio.get_event_loop()
+            provider = _get_discovery_provider()
+
+            # discovery=ibkr: use IBKR cum volume (Alpaca IEX dailyBar is thin after hours).
+            if provider == "ibkr":
+                from ibkr import discovery as _ibkr_discovery
+
+                quotes: dict = await loop.run_in_executor(
+                    None,
+                    lambda: _main._run_ibkr(_ibkr_discovery.snapshot_quotes(symbols)) or {},
+                )
+                if not quotes:
+                    logger.warning("HOD Momo enrichment: IBKR quotes empty")
+                    continue
+
+                headers = _alpaca_headers()
+                if headers:
+                    missing_avg = [s for s in quotes if s not in _main._avg_volume_cache]
+                    if missing_avg:
+                        chunk = missing_avg[:200]
+                        try:
+                            await loop.run_in_executor(
+                                None, lambda: _main._ensure_avg_volume(chunk, headers)
+                            )
+                        except Exception as avg_exc:
+                            logger.debug("HOD Momo enrichment: avg_vol chunk failed: %s", avg_exc)
+
+                enriched = 0
+                for sym, q in quotes.items():
+                    try:
+                        price = q.get("price")
+                        if not price:
+                            continue
+                        price_f = float(price)
+                        vol = int(q["volume"]) if q.get("volume") is not None else 0
+                        prev = q.get("prev_close")
+                        change_pct = None
+                        if prev:
+                            try:
+                                prev_f = float(prev)
+                                if prev_f > 0:
+                                    change_pct = (price_f - prev_f) / prev_f * 100.0
+                            except (TypeError, ValueError):
+                                pass
+
+                        avg_vol = _main._avg_volume_cache.get(sym)
+                        if not avg_vol:
+                            fund = _main._fundamentals_cache.get(sym, {})
+                            avg_vol = fund.get("average_volume")
+                        avg_for_5min = float(avg_vol) if avg_vol else None
+                        rvol = None
+                        rvol_source = None
+                        if avg_for_5min and avg_for_5min > 0 and vol > 0:
+                            if HOD_MOMO_RVOL_USE_PACE:
+                                rvol = pace_relative_volume(vol, avg_for_5min)
+                                rvol_source = "ibkr_pace"
+                            else:
+                                rvol = round(vol / avg_for_5min, 2)
+                                rvol_source = "ibkr"
+
+                        _hod_momo.update_ticker_snapshot(
+                            sym,
+                            price=price_f,
+                            rvol=rvol,
+                            volume=vol if vol else None,
+                            change_pct=change_pct,
+                            rvol_source=rvol_source,
+                            avg_volume=avg_for_5min,
+                        )
+                        if avg_for_5min is None:
+                            _hod_momo.mark_needs_fundamentals(sym)
+                        enriched += 1
+                    except Exception as sym_exc:
+                        logger.debug("HOD Momo enrichment: IBKR error for %s: %s", sym, sym_exc)
+
+                logger.info(
+                    "HOD Momo enrichment: IBKR enriched %d / %d symbols",
+                    enriched, len(quotes),
+                )
+                continue
+
+            headers = _alpaca_headers()
             if not headers:
                 logger.debug("HOD Momo enrichment: no Alpaca headers, skipping")
                 continue
 
-            symbols = list(universe)
-            feed = _main._get_feed()
+            feed = _get_feed()
             is_iex = feed != "sip"
 
             logger.info(
@@ -72,8 +154,6 @@ async def universe_enrichment_loop() -> None:
                 len(symbols), feed,
             )
 
-            # Run blocking HTTP calls in executor to avoid stalling the event loop
-            loop = asyncio.get_event_loop()
             snaps: dict = await loop.run_in_executor(
                 None, lambda: _main._fetch_snapshots(symbols, headers)
             )
@@ -219,13 +299,27 @@ async def fundamentals_enrichment_loop() -> None:
                     _hod_momo.mark_needs_fundamentals(sym)
                     continue
 
-                # On IEX, also compute RVOL from yfinance data now that we have it
+                # On IEX (Alpaca discovery), compute RVOL from yfinance.
+                # When discovery=ibkr, keep IBKR pace RVOL — do not overwrite with thin yf volume.
                 rvol: float | None = None
                 rvol_source: str | None = None
-                feed = _main._get_feed()
-                if feed != "sip":
+                avg_volume: float | None = None
+                provider = _get_discovery_provider()
+                feed = _get_feed()
+                if provider == "ibkr":
+                    yf_avg = fund.get("average_volume")
+                    avg_volume = float(yf_avg) if yf_avg else None
+                    if avg_volume and snap.volume and snap.volume > 0:
+                        if HOD_MOMO_RVOL_USE_PACE:
+                            rvol = pace_relative_volume(snap.volume, avg_volume)
+                            rvol_source = "ibkr_pace"
+                        else:
+                            rvol = round(snap.volume / avg_volume, 2)
+                            rvol_source = "ibkr"
+                elif feed != "sip":
                     yf_avg = fund.get("average_volume")
                     yf_vol = fund.get("current_volume")
+                    avg_volume = float(yf_avg) if yf_avg else None
                     if yf_avg and yf_avg > 0 and yf_vol and yf_vol > 0:
                         if HOD_MOMO_RVOL_USE_PACE:
                             rvol = pace_relative_volume(yf_vol, yf_avg)
@@ -241,6 +335,7 @@ async def fundamentals_enrichment_loop() -> None:
                     fifty_two_week_high=fifty_two_week_high,
                     rvol=rvol,
                     rvol_source=rvol_source,
+                    avg_volume=avg_volume,
                 )
                 processed += 1
                 logger.debug(

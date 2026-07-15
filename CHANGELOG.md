@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Phase 2: alpaca.py extraction + blind-except triage
+
+- **What:** Extracted Alpaca client helpers + discovery-provider state from `main.py` into a new leaf module `backend/alpaca.py`; removed duplicate copies in `bars.py`; updated 6 callsites (`ticker.py`, `bars.py`, `routes/strategy.py`, `strategy/setups_stream.py`, `hod_momo_enrichment.py`, `routes/news.py`) to import directly from `alpaca.py`. Fixed 5 blind `except Exception` blocks in `main.py` that swallowed errors without logging. `main.py` shrinks from 2229 → 2148 lines.
+- **Why:** Phase 2 of the product-health phased plan: centralize Alpaca helpers to eliminate duplicate definitions, break the lazy-main-import pattern for pure helpers, and stop silently swallowing scan errors.
+- **Files touched:** `backend/alpaca.py` (new), `backend/main.py`, `backend/ticker.py`, `backend/bars.py`, `backend/routes/strategy.py`, `backend/strategy/setups_stream.py`, `backend/hod_momo_enrichment.py`, `backend/routes/news.py`.
+- **How it works now:** `_env`, `_alpaca_headers`, `_get_feed/_set_feed`, `_try_fallback_to_iex`, `_get_discovery_provider/_set_discovery_provider` all live in `alpaca.py` and own their own state (`_active_feed`, `_active_discovery_provider`). `main.py` re-exports them via `from alpaca import ...` so existing callers that do `import main as _main; _main._get_feed()` still work. Modules that can import directly (routes, setups_stream, ticker, bars, hod_momo_enrichment) now do so without the lazy-import boilerplate. Blind excepts in `_get_tradable_symbols`, `_fetch_snapshots`, `_check_news`, `_run_gainers_update`, and the catalyst scan now emit `logger.warning/exception` so failures surface in logs.
+- **Verified by:** `pytest backend/tests/ -x -q` → 333 passed; `npm run build` → clean.
+- **Follow-ups:** Phase 3 — extract scanner/news catalyst functions from `main.py`. Phase 4 — Warrior parity. Phase 5 — IBC/telemetry.
+- **Related:** CHANGELOG 2026-07-14 Phase 1.
+
 ## 2026-07-14 — Phase 1 reliability: feed coherence + ticker module extraction
 
 - **What:** Eliminated all remaining silent Alpaca-fallback paths under `discovery=ibkr`; extracted ticker domain (~440 lines) from `main.py` into `backend/ticker.py` + `backend/routes/ticker.py`; added live smoke checklist.

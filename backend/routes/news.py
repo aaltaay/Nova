@@ -24,18 +24,16 @@ _TRANSPARENCY_NOTE = (
 
 
 def _gather_context(symbol: str) -> dict:
-    """Pull articles + market context from main caches / ticker helpers.
-
-    Lazy-imports main to avoid circular import at module load (same pattern as
-    routes/strategy.py).
-    """
+    """Pull articles + market context from main caches / ticker helpers."""
     import main as _main
+    from alpaca import _alpaca_headers
+    from ticker import _fetch_ticker_news
 
     symbol = symbol.upper()
-    headers = _main._alpaca_headers()
+    headers = _alpaca_headers()
     articles: list[dict] = []
     if headers:
-        articles = _main._fetch_ticker_news(symbol, headers)
+        articles = _fetch_ticker_news(symbol, headers)
 
     gap_percent = None
     rel_volume = None

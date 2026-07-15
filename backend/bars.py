@@ -2,44 +2,22 @@
 Fetch OHLCV bars from Alpaca for a single symbol.
 Used by the /api/ticker/{symbol}/bars endpoint to power the frontend chart.
 """
-import os
 import logging
 from datetime import date, timedelta
 
 import requests
 from fastapi import HTTPException
 
+from alpaca import ALPACA_DATA_URL as _DATA_URL, _alpaca_headers, _get_feed
 from constants import (
     CHART_DEFAULT_BARS,
     CHART_DEFAULT_TIMEFRAME,
     CHART_LOOKBACK_DAYS,
     CHART_MAX_BARS,
     CHART_TIMEFRAMES,
-    DATA_FEED_DEFAULT,
 )
 
 logger = logging.getLogger(__name__)
-
-_DATA_URL = "https://data.alpaca.markets"
-
-
-def _env(name: str, default: str | None = None) -> str | None:
-    v = os.getenv(name, default)
-    if v is None:
-        return None
-    return v.strip().strip("'\"")
-
-
-def _alpaca_headers() -> dict[str, str] | None:
-    api_key = _env("APCA_API_KEY_ID")
-    api_secret = _env("APCA_API_SECRET_KEY")
-    if not api_key or not api_secret:
-        return None
-    return {"APCA-API-KEY-ID": api_key, "APCA-API-SECRET-KEY": api_secret}
-
-
-def _get_feed() -> str:
-    return (_env("ALPACA_DATA_FEED") or DATA_FEED_DEFAULT).lower()
 
 
 def fetch_bars(

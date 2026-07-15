@@ -26,11 +26,16 @@ from constants import (
     TICKER_SLOW_CACHE_TTL,
     TICKER_SNAPSHOT_CACHE_TTL,
 )
+from alpaca import (
+    ALPACA_DATA_URL as _DATA_URL,
+    _env,
+    _alpaca_headers,
+    _get_feed,
+    _get_discovery_provider,
+)
 from market import now_et as _now_et
 
 logger = logging.getLogger(__name__)
-
-_DATA_URL = "https://data.alpaca.markets"
 
 # ── Ticker caches (owned by this module) ─────────────────────────────────────
 _ticker_asset_cache: dict[str, dict] = {}
@@ -305,7 +310,7 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
     bug: table showed IBKR last/gap while the quote panel showed Alpaca session.
     """
     import main as _main
-    use_ibkr = _main._get_discovery_provider() == "ibkr"
+    use_ibkr = _get_discovery_provider() == "ibkr"
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
         f_snap = (
@@ -360,14 +365,13 @@ def _build_ticker_slow(symbol: str, headers: dict) -> dict:
 
 def _build_ticker_detail(symbol: str) -> dict:
     """Fetch and assemble full ticker detail for a symbol. Used by the REST endpoint."""
-    import main as _main
-    base_url = _main._env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = _main._alpaca_headers()
+    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+    headers = _alpaca_headers()
     if not headers:
         return {"error": "API keys not configured"}
 
-    feed = _main._get_feed()
-    use_ibkr = _main._get_discovery_provider() == "ibkr"
+    feed = _get_feed()
+    use_ibkr = _get_discovery_provider() == "ibkr"
 
     from fundamentals import fetch_fundamentals as _fetch_fundamentals
     with ThreadPoolExecutor(max_workers=5) as pool:

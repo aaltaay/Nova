@@ -92,11 +92,11 @@ def _record_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict:
 
 
 async def _scan_once() -> None:
-    import main as _main
+    from alpaca import _get_discovery_provider
     from chart_bars import fetch_chart_bars
 
     loop = asyncio.get_event_loop()
-    discovery_provider = _main._get_discovery_provider()
+    discovery_provider = _get_discovery_provider()
     universe = _watchlist_universe()
     by_symbol = {c["symbol"]: c for c in universe if c.get("symbol")}
     candidates = build_watchlist(universe, limit=SETUPS_SCAN_TOP_N)
