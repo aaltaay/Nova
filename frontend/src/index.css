@@ -2435,6 +2435,23 @@ th {
   color: var(--text-primary);
 }
 
+.hod-clear-btn {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hod-clear-btn:hover {
+  background: #7f1d1d55;
+  color: #fca5a5;
+  border-color: #ef444466;
+}
+
 /* Strategy chip strip — wrap so all filters stay visible (no horizontal scroll) */
 .hod-subpanel-strip {
   display: flex;

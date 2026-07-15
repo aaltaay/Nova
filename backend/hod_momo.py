@@ -238,24 +238,52 @@ def _current_date_et() -> str:
 
 
 def _check_and_reset_session() -> bool:
-    """If the ET date has rolled past HOD_MOMO_SESSION_RESET_HOUR_ET, reset session state.
+    """If the ET calendar day advanced past HOD_MOMO_SESSION_RESET_HOUR_ET, reset session state.
 
     Returns True if a reset occurred.
+
+    Cold start: empty ``_session_date`` only *initializes* the session marker —
+    it must not wipe alerts that were just loaded from today's snapshot (that
+    bug erased full-day lists on every API restart after 4 AM ET).
     """
     global _session_date, _today_alerts, _session_highs, _cooldown, _pending_consolidation
     now_et = datetime.now(_ET)
     if now_et.hour < HOD_MOMO_SESSION_RESET_HOUR_ET:
         return False
     current = now_et.strftime("%Y-%m-%d")
+    if not _session_date:
+        # First init after process start — keep loaded alerts for today.
+        _session_date = current
+        return False
     if current == _session_date:
         return False
-    logger.info("HOD Momo: session rollover → %s (was %s)", current, _session_date)
+
+    # True day change: archive the previous session's alerts under the old date
+    # before clearing, so history survives and today's file is not left stale.
+    prev = _session_date
+    if _today_alerts:
+        try:
+            _cache.save_hod_momo_snapshot_for_date(
+                prev,
+                [_alert_to_dict(a) for a in _today_alerts],
+                time.time(),
+            )
+            logger.info(
+                "HOD Momo: archived %d alerts to %s before session rollover",
+                len(_today_alerts),
+                prev,
+            )
+        except Exception:
+            logger.warning("HOD Momo: failed to archive alerts for %s", prev, exc_info=True)
+
+    logger.info("HOD Momo: session rollover → %s (was %s)", current, prev)
     _session_date = current
     _today_alerts = []
     _session_highs = {}
     _cooldown = {}
     _pending_consolidation = {}
     _metrics.clear_volume_buffers()
+    _save_alerts(force=True)
     return True
 
 
@@ -703,6 +731,21 @@ def get_today_alerts() -> list[dict]:
     return [_alert_to_dict(a) for a in _today_alerts]
 
 
+def clear_today_alerts() -> dict:
+    """Explicit user-driven clear of today's in-memory + on-disk alert list.
+
+    Does not touch history files for other dates. Callers should push a fresh
+    WS ``initial`` payload to connected clients after this returns.
+    """
+    global _today_alerts, _pending_consolidation
+    cleared = len(_today_alerts)
+    _today_alerts = []
+    _pending_consolidation = {}
+    _save_alerts(force=True)
+    logger.info("HOD Momo: cleared %d alerts for today (user request)", cleared)
+    return {"cleared": cleared, "date": _current_date_et(), "alerts": [], "total": 0}
+
+
 def get_ws_initial_payload() -> dict:
     """Full day's alerts (newest first). UI virtualizes rows — do not truncate here."""
     all_alerts = get_today_alerts()
@@ -881,9 +924,10 @@ def load_state() -> None:
     alerts_raw, _ = _cache.load_hod_momo_snapshot()
     _today_alerts = [_alert_from_dict(a) for a in alerts_raw]
 
+    # Mark today's session *before* rollover check so a cold start after 4 AM ET
+    # does not treat empty _session_date as "new day" and wipe the just-loaded list.
+    _session_date = _current_date_et()
     _check_and_reset_session()
-    if not _session_date:
-        _session_date = _current_date_et()
 
     logger.info(
         "HOD Momo: loaded %d alerts, %d blocked symbols, %d strategies",

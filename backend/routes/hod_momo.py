@@ -47,6 +47,22 @@ def hod_momo_get_alerts():
     return {"date": _hod_momo._current_date_et(), "alerts": _hod_momo.get_today_alerts()}
 
 
+@router.delete("/api/hod-momo/alerts")
+async def hod_momo_clear_alerts():
+    """Explicitly clear today's alerts (in-memory + today's on-disk snapshot)."""
+    result = _hod_momo.clear_today_alerts()
+    payload = json.dumps(_hod_momo.get_ws_initial_payload())
+    dead = []
+    for ws in list(_hod_momo.get_ws_clients()):
+        try:
+            await ws.send_text(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        _hod_momo.remove_ws_client(ws)
+    return result
+
+
 @router.get("/api/hod-momo/history/dates")
 def hod_momo_history_dates():
     """Past dates for which HOD Momo alert snapshots exist."""

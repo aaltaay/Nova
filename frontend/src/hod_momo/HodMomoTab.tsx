@@ -97,6 +97,7 @@ interface HodMomoTabProps {
   onSelectSymbol: (sym: string) => void;
   onOpenTrading: (sym: string) => void;
   onOpenSettings: () => void;
+  onClearAlerts: () => void;
 }
 
 export function HodMomoTab({
@@ -108,6 +109,7 @@ export function HodMomoTab({
   onSelectSymbol,
   onOpenTrading,
   onOpenSettings,
+  onClearAlerts,
 }: HodMomoTabProps) {
   const [activeSubPanel, setActiveSubPanel] = useState<SubPanel>('main');
   const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
@@ -165,6 +167,13 @@ export function HodMomoTab({
           <span className="hod-alert-count">{totalToday ?? alerts.length} alerts today</span>
         </div>
         <div className="hod-header-right">
+          <button
+            className="hod-clear-btn"
+            onClick={onClearAlerts}
+            title="Clear today's HOD Momo alerts (history for other days is kept)"
+          >
+            Clear today
+          </button>
           <button className="hod-settings-btn" onClick={onOpenSettings} title="Configure strategies">
             ⚙ Configure
           </button>

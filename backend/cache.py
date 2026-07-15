@@ -282,11 +282,20 @@ def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
 
 def save_hod_momo_snapshot(alerts: list[dict], ts: float) -> None:
     """Atomically persist today's HOD Momo alert list."""
+    save_hod_momo_snapshot_for_date(_today_et(), alerts, ts)
+
+
+def save_hod_momo_snapshot_for_date(date_str: str, alerts: list[dict], ts: float) -> None:
+    """Atomically persist HOD Momo alerts under a specific ET calendar date."""
     try:
-        payload = {"date": _today_et(), "ts": ts, "alerts": alerts}
-        _atomic_write(_dated_path(HOD_MOMO_ALERTS_PREFIX, _today_et()), payload)
+        payload = {"date": date_str, "ts": ts, "alerts": alerts}
+        _atomic_write(_dated_path(HOD_MOMO_ALERTS_PREFIX, date_str), payload)
     except Exception:
-        logger.warning("cache: save_hod_momo_snapshot failed to persist to disk", exc_info=True)
+        logger.warning(
+            "cache: save_hod_momo_snapshot_for_date(%s) failed to persist to disk",
+            date_str,
+            exc_info=True,
+        )
 
 
 def load_hod_momo_snapshot() -> tuple[list[dict], float]:

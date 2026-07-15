@@ -20,6 +20,7 @@ import { ReportsTab } from '../reports/ReportsTab';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSettingsForm } from '../hooks/useSettingsForm';
 import { scanAgeForTab } from '../utils/scanAge';
+import { API_BASE_URL } from '../constants';
 
 interface Props {
   selectedSymbol: string | null;
@@ -189,6 +190,16 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
                 onSelectSymbol={setSelectedSymbol}
                 onOpenTrading={onOpenTrading}
                 onOpenSettings={() => setShowHodSettings(s => !s)}
+                onClearAlerts={() => {
+                  if (!window.confirm(
+                    'Clear all of today\'s HOD Momo alerts?\n\n'
+                    + 'Past days in History are kept. New alerts will keep arriving.',
+                  )) {
+                    return;
+                  }
+                  fetch(`${API_BASE_URL}/api/hod-momo/alerts`, { method: 'DELETE' })
+                    .catch(() => {});
+                }}
               />
             </>
           )}

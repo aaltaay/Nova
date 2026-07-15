@@ -30,6 +30,25 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo: stop wiping today's alerts on API restart
+
+- **What:** Fixed a false "session rollover" on every cold start after 4 AM ET that cleared alerts just loaded from disk, then overwrote today's snapshot with the tiny post-restart list. Real day changes now archive the previous day's alerts before clearing. Added explicit **Clear today** (`DELETE /api/hod-momo/alerts`) so only the user wipes the feed.
+- **Why:** User saw ~1000 HOD alerts drop to ~89 after server restarts — not caused by virtual-scroll UI work.
+- **Files touched:** `backend/hod_momo.py`, `backend/cache.py`, `backend/routes/hod_momo.py`, `frontend/.../HodMomoTab.tsx`, `DashboardPage.tsx`, tests.
+- **How it works now:** Empty `_session_date` only initializes (never clears). On true ET day change, alerts are written to `hod-momo-YYYY-MM-DD.json` for the prior day first. Restart keeps today's file. Clear is opt-in via UI confirm.
+- **Verified by:** `pytest` 401 passed (incl. new persist tests); vitest; `tsc -b` clean.
+- **Related:** PROBLEM_LOG 2026-07-15 HOD restart wipe.
+
+## 2026-07-15 — Chart EMAs + VWAP overlays (library-backed)
+
+- **What:** Price chart toolbar now has EMAs / VWAP toggles (default on). Enabling them draws Warrior-colored 9/20/50/200 EMA lines plus an orange dashed VWAP on the main candle pane.
+- **Why:** User asked for Ross-style EMA + VWAP overlays using the already-installed `lightweight-charts-indicators` stack (same as RSI/MACD) — no hand-rolled TA.
+- **Files touched:** `frontend/src/constants.ts`, `chartIndicators.ts` (+ test), `components/TickerChartOverlays.tsx` (new), `TickerChart.tsx`, `TickerChartOscillatorPanes.tsx`.
+- **How it works now:** `EMA.calculate` (×4 lengths) and `VwapMvwapEmaCrossover` plot0 feed `LineSeries` on the existing price chart. Oscillator panes stay RSI/MACD-only. Colors: grey 9 / light-blue 20 / red 50 / purple 200 / orange dashed VWAP.
+- **Verified by:** vitest chartIndicators; frontend build; app run.
+- **Follow-ups:** Session-boundary VWAP reset across multi-day lookbacks if the community cumulative VWAP looks wrong on long histories.
+
+
 ## 2026-07-15 — HOD Momo: @tanstack/react-virtual for continuous scroll
 
 - **What:** Replaced the custom pager + hand-rolled `useWindowedRows` with `@tanstack/react-virtual`. Scroll the full day list continuously; the library mounts only the viewport + overscan (~50–100 DOM rows). Removed `HodMomoPager` / `HOD_MOMO_PAGE_SIZE`.

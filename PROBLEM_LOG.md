@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo alerts wiped on every API restart after 4 AM ET
+
+- **Symptom:** Full-day HOD list (~1000 alerts) shrank to ~90 after restarting the backend; UI scroll ended because the data was gone, not because of virtualization.
+- **Cause:** `load_state()` loaded today's snapshot, then `_check_and_reset_session()` saw empty `_session_date` ≠ today and treated it as a rollover, setting `_today_alerts = []`. The next `_save_alerts` overwrote `hod-momo-YYYY-MM-DD.json` with the small new list.
+- **Fix:** Initialize `_session_date` without clearing on first boot; archive prior-day alerts on real rollover; add explicit `DELETE /api/hod-momo/alerts` + Clear today UI.
+- **Keywords:** HOD Momo, session rollover, restart wipe, persistence, load_state, _session_date, clear alerts
+
 ## 2026-07-15 — HOD Momo UI lag at ~1000 alerts despite virtualization
 
 - **Symptom:** Browser extremely laggy on HOD Momo tab with ~1000 alerts today; scrolling/UI felt frozen.
