@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Alpaca WS idle under discovery=ibkr (no socket)
+
+- **What:** `stream_loop` no longer opens Alpaca's market-data WebSocket when discovery is ibkr — it idles and polls every `ALPACA_WS_IDLE_POLL_SEC`. Closes mid-session if Settings flips to ibkr.
+- **Why:** After gating HOD from Alpaca trades, the socket was still connecting (wasting Alpaca's one-WS slot and risking 406). Follow-up from dual-feed reliability track.
+- **Files touched:** `backend/websocket.py`, `backend/constants.py`, `test_websocket_hod_feed.py`, `single-market-data-feed.mdc`.
+- **How it works now:** ibkr → idle poll; alpaca → connect/subscribe as before. HOD/live prices under ibkr stay on IBKR table/detail ticks only.
+- **Verified by:** pytest (idle loop test) + smoke_check with Gateway up.
+- **Follow-ups:** TOD 5-min RVOL profile; optional Sentry.
+
 ## 2026-07-15 — Reliability: Alpaca WS no longer drives HOD under ibkr
 
 - **What:** When `discovery=ibkr`, Alpaca trade messages are skipped before HOD `on_trade_update` / `l2.tape` ingest. L2/T&S hooks normalize symbol case; Trading / DepthAndTape remount depth with `key={symbol}`. HOD enrichment uses direct leaf imports (`universe`, `ibkr_bridge`, `scanner`, `fundamentals`) instead of `_main` function re-exports.

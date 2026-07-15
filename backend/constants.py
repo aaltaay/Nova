@@ -87,6 +87,8 @@ HISTORY_RETENTION_DAYS = 30   # delete dated cache files older than this many da
 # Max retry backoff in seconds. 15 s keeps reconnect attempts frequent enough
 # to recover quickly when Alpaca frees a stale connection slot (typically 30–60 s).
 ALPACA_WS_BACKOFF_CAP = 60.0
+# When discovery=ibkr, stream_loop idles instead of opening Alpaca's WS (one-slot limit).
+ALPACA_WS_IDLE_POLL_SEC = 15.0
 
 # ── Data feed ─────────────────────────────────────────────────────────────────
 # "iex" is the free-tier Alpaca feed; "sip" requires a paid data subscription.

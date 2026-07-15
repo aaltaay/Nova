@@ -45,6 +45,7 @@ When `NOVA_DISCOVERY_PROVIDER` / Settings discovery is **ibkr**, Interactive Bro
 7. **HOD Momo under discovery=ibkr is IBKR-driven.**
    - Price/volume ticks into `hod_momo.on_trade_update` come from IBKR table/detail reprice (`ibkr_bridge.apply_table_quotes`), not Alpaca WS.
    - `websocket.alpaca_trades_drive_hod()` is False when discovery=ibkr — skip `on_trade_update` and `l2.tape.on_alpaca_trade` for Alpaca prints.
+   - `websocket.stream_loop` **does not open** Alpaca's market-data WebSocket under ibkr (idles and polls). Avoids dual-feed and Alpaca's one-connection limit.
    - Depth/tape hooks must compare `msg.symbol` to an **uppercased** current symbol key.
 
 ## Anti-patterns
@@ -58,6 +59,7 @@ When `NOVA_DISCOVERY_PROVIDER` / Settings discovery is **ibkr**, Interactive Bro
 - ❌ Feeding T&S from the Alpaca recorder (`l2.tape`) instead of `tape_stream.py`
 - ❌ Showing prior symbol's prints in T&S after a symbol switch
 - ❌ Calling `_hod_momo.on_trade_update` from the Alpaca WS loop when discovery=ibkr
+- ❌ Opening Alpaca market-data WebSocket while discovery=ibkr (burns the one WS slot for nothing)
 
 ## Related
 

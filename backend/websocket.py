@@ -27,6 +27,7 @@ from cache import (
 )
 from constants import (
     ALPACA_WS_BACKOFF_CAP,
+    ALPACA_WS_IDLE_POLL_SEC,
     HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK,
     SCANNER_MIN_PRICE,
 )
@@ -218,12 +219,33 @@ async def broadcast_trade_update(
 
 
 async def stream_loop() -> None:
-    """Persistent Alpaca trade WebSocket with exponential backoff reconnect."""
+    """Persistent Alpaca trade WebSocket with exponential backoff reconnect.
+
+    When discovery=ibkr, do not open Alpaca's market-data socket at all — IBKR
+    table/detail ticks own live prices and HOD. Poll until discovery flips back
+    to alpaca (Settings / env) so we reclaim the single Alpaca WS slot.
+    """
     global _ws_subscribed, _ws_needs_resub
     backoff = 1.0
+    idle_logged = False
 
     while True:
         try:
+            if not alpaca_trades_drive_hod():
+                if _ws_subscribed:
+                    _ws_subscribed = set()
+                if not idle_logged:
+                    logger.info(
+                        "Alpaca WS idle — discovery=ibkr (IBKR owns live trades/HOD); "
+                        "polling every %.0fs",
+                        ALPACA_WS_IDLE_POLL_SEC,
+                    )
+                    idle_logged = True
+                await asyncio.sleep(ALPACA_WS_IDLE_POLL_SEC)
+                continue
+
+            idle_logged = False
+
             api_key = _env("APCA_API_KEY_ID")
             api_secret = _env("APCA_API_SECRET_KEY")
             if not api_key or not api_secret:
@@ -256,6 +278,10 @@ async def stream_loop() -> None:
                 _ws_needs_resub = True
 
                 while True:
+                    if not alpaca_trades_drive_hod():
+                        logger.info("Alpaca WS closing — discovery switched to ibkr")
+                        break
+
                     if _ws_needs_resub:
                         _ws_needs_resub = False
                         wanted = current_symbols()
@@ -327,6 +353,9 @@ async def stream_loop() -> None:
             logger.info("Alpaca WS shutting down cleanly")
             raise
         except Exception as exc:
+            if not alpaca_trades_drive_hod():
+                await asyncio.sleep(ALPACA_WS_IDLE_POLL_SEC)
+                continue
             logger.warning("Alpaca WS disconnected: %s, retrying in %.1fs", exc, backoff)
             _ws_subscribed = set()
             await asyncio.sleep(backoff)

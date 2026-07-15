@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Alpaca WS still connected under discovery=ibkr
+
+- **Symptom:** Backend opened Alpaca market-data WS even when discovery=ibkr (HOD trades already ignored), burning the single connection slot and risking 406 under reload.
+- **Cause:** `stream_loop` always connected; prior fix only skipped applying trades, not opening the socket.
+- **Fix:** Idle + poll when `not alpaca_trades_drive_hod()`; break inner loop if discovery flips to ibkr mid-session.
+- **Keywords:** Alpaca WS, idle, discovery=ibkr, 406, connection limit, stream_loop, ALPACA_WS_IDLE_POLL_SEC
+
 ## 2026-07-15 — Alpaca WS still fed HOD Momo under discovery=ibkr
 
 - **Symptom:** HOD alerts / snaps could move on Alpaca IEX prints while scanner/quote prices came from IBKR — dual-feed drift after hours or on thin IEX.
