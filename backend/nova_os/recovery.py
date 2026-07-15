@@ -31,6 +31,7 @@ _CLOSE_EVENTS = frozenset({
     "cancel_working_entry",
     "kill_switch",
     "bracket_closed",
+    "bracket_closed_unverified",
 })
 
 
@@ -163,10 +164,14 @@ def run_startup_recovery() -> dict:
             _executor.restore_tracked_position(pos)
             restored.append(symbol)
         else:
-            # No IBKR proof — restore memory for fill poll later, but mark ambiguous.
-            _executor.restore_tracked_position(pos)
-            restored.append(symbol)
-            ambiguous.append(f"{symbol}: restored without IBKR open-order verify")
+            # No IBKR proof either way — restoring into _open_positions here
+            # would let cancel/flatten act on a position we never verified
+            # exists, and would let the fill-poll loop silently "close" a
+            # ghost and journal a fabricated pnl. Report it and force signal;
+            # the operator must check IBKR/TWS directly before trusting it.
+            ambiguous.append(
+                f"{symbol}: cannot verify without IBKR — NOT restored; check IBKR/TWS manually"
+            )
 
     if ibkr_checked:
         tracked_ids = set()
@@ -175,9 +180,11 @@ def run_startup_recovery() -> dict:
                 {pos.parent_order_id, pos.target_order_id, pos.stop_order_id}
             )
         orphan = open_ids - tracked_ids
-        # Only flag orphans that look like our bracket parents (heuristic: any leftover).
-        # Loud when IBKR has open orders we cannot attribute — operator must review.
-        if orphan and not restored:
+        # Loud whenever IBKR has open orders we cannot attribute to a
+        # restored position — regardless of whether OTHER symbols restored
+        # cleanly. A clean restore for TSLA must never hide an orphan order
+        # in NVDA that recovery couldn't explain.
+        if orphan:
             ambiguous.append(
                 f"IBKR open order ids not matched to journal: {sorted(orphan)[:12]}"
             )

@@ -161,8 +161,41 @@ class TestDecideGates:
         assert "CATALYST_STRONG" in d.reason_codes
         assert d.ticket is not None
         assert d.ticket["shares"] > 0
-        assert d.would_execute is False
+        assert d.would_execute is False  # default requested mode is `signal` — display only
         assert d.receipt["action"] == "displayed"
+
+    def test_would_execute_true_for_buy_at_confirm_mode(self):
+        """would_execute answers "would something happen downstream", not
+        "did decide() execute" (it never does) — a BUY at confirm WOULD stage
+        a ticket if routed through executor.on_signal()."""
+        with (
+            patch("nova_os.gates.session_allows_trading", return_value=True),
+            patch("nova_os.decide.risk_mod.get_state", return_value=RiskState()),
+            patch("nova_os.gates.evaluate_setups", return_value=_eligible_setup_payload()),
+            patch("nova_os.gates.first_minute_volume", return_value=200_000),
+            patch("nova_os.decide.gate_catalyst", return_value=_strong_catalyst_gate()),
+        ):
+            d = decide(
+                _candidate(), bars=[{"t": "x"}], watchlist_rank=1,
+                mode=NOVA_OS_MODE_CONFIRM, record=False,
+            )
+        assert d.decision == NOVA_OS_DECISION_BUY
+        assert d.would_execute is True
+
+    def test_would_execute_true_for_buy_at_auto_paper_mode(self):
+        with (
+            patch("nova_os.gates.session_allows_trading", return_value=True),
+            patch("nova_os.decide.risk_mod.get_state", return_value=RiskState()),
+            patch("nova_os.gates.evaluate_setups", return_value=_eligible_setup_payload()),
+            patch("nova_os.gates.first_minute_volume", return_value=200_000),
+            patch("nova_os.decide.gate_catalyst", return_value=_strong_catalyst_gate()),
+        ):
+            d = decide(
+                _candidate(), bars=[{"t": "x"}], watchlist_rank=1,
+                mode=NOVA_OS_MODE_AUTO_PAPER, record=False,
+            )
+        assert d.decision == NOVA_OS_DECISION_BUY
+        assert d.would_execute is True
 
     def test_wait_when_catalyst_weak(self):
         with (
@@ -180,7 +213,7 @@ class TestDecideGates:
 
     def test_loss_policy_downgrades_mode_on_receipt(self):
         state = RiskState()
-        state.consecutive_losses = 1
+        state.losses_today = 1
         with (
             patch("nova_os.gates.session_allows_trading", return_value=True),
             patch("nova_os.decide.risk_mod.get_state", return_value=state),
@@ -199,7 +232,10 @@ class TestDecideGates:
         assert d.mode == NOVA_OS_MODE_CONFIRM
         assert d.requested_mode == NOVA_OS_MODE_AUTO_PAPER
         assert "LOSS_POLICY_DOWNGRADE" in d.reason_codes
-        assert d.would_execute is False
+        # would_execute answers "would something happen downstream at the
+        # EFFECTIVE mode" — confirm still stages a ticket, so True even
+        # though the loss policy capped auto_paper down to confirm.
+        assert d.would_execute is True
 
     def test_records_receipt_when_record_true(self):
         fake_receipt = {

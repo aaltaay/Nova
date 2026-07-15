@@ -24,6 +24,7 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 ## In progress / uncommitted
 
 - Unrelated HOD/earnings WIP remains in git stash on feature branch
+- **Nova OS hardening pass (2026-07-15):** a post-P10 audit found P2–P7 were partial/prototype (unsafe flatten, non-atomic staged approval, mode-receipt split-brain, ambiguous startup recovery, consecutive- vs daily-loss policy). Sections 1–2 of the hardening plan (contain-execution, truthful-decisions) are done — see `CHANGELOG.md` 2026-07-15 "Nova OS hardening" and `PROBLEM_LOG.md` same date. Sections 3–6 (operator UX, archive durability, no-hindsight replay, phase-status correction) remain in progress; the phase table above still reflects pre-audit claims until `correct-phase-status` finishes.
 
 ## Crash or blocker
 

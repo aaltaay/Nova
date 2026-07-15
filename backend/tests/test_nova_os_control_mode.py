@@ -25,9 +25,11 @@ def isolated(tmp_path, monkeypatch):
     events_db.init_db()
     control_mode.reset_for_tests()
     risk_mod.get_state().consecutive_losses = 0
+    risk_mod.get_state().losses_today = 0
     yield
     control_mode.reset_for_tests()
     risk_mod.get_state().consecutive_losses = 0
+    risk_mod.get_state().losses_today = 0
 
 
 class TestControlMode:
@@ -58,7 +60,7 @@ class TestControlMode:
     def test_loss_policy_caps_effective_mode(self):
         # Simulate requested auto_paper via direct assign (P5 path); loss policy caps.
         control_mode._mode = NOVA_OS_MODE_AUTO_PAPER
-        risk_mod.get_state().consecutive_losses = NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES
+        risk_mod.get_state().losses_today = NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES
         assert control_mode.get_effective_mode() == NOVA_OS_MODE_CONFIRM
         effective, reason = control_mode.get_effective_mode_detail()
         assert effective == NOVA_OS_MODE_CONFIRM

@@ -117,12 +117,6 @@ async def lifespan(app: FastAPI):
     _l2_db.init_db()
     _nova_os_events_db.init_db()
     _archive_db.init_db()
-    from nova_os.recovery import run_startup_recovery
-
-    try:
-        run_startup_recovery()
-    except Exception:
-        logger.exception("Nova OS startup recovery failed")
     _hod_momo._on_blocklist_changed = invalidate_universe_cache
 
     loop = asyncio.get_event_loop()
@@ -136,6 +130,26 @@ async def lifespan(app: FastAPI):
             "Alpaca credentials missing (APCA_API_KEY_ID / APCA_API_SECRET_KEY); "
             "scanner cannot run until they are set in the host environment."
         )
+
+    # Nova OS startup recovery must run AFTER IBKR connects and BEFORE any
+    # background loop that can act on tracked positions (scanner → executor,
+    # fill-poll). Recovery's "is this position real" check is only as good as
+    # is_connected() at the moment it runs — running it before IBKR even
+    # attempts to connect made every restart look "ambiguous" by construction.
+    await _ibkr_client.startup()
+    _ibkr_ticks.configure(broadcast_trade_update, _find_ibkr_cache_row)
+
+    try:
+        _risk.reconstruct_from_journal()
+    except Exception:
+        logger.exception("Risk engine: startup reconstruction from journal failed")
+
+    from nova_os.recovery import run_startup_recovery
+
+    try:
+        run_startup_recovery()
+    except Exception:
+        logger.exception("Nova OS startup recovery failed")
 
     scan_task = asyncio.create_task(scan_loop())
     ws_task = asyncio.create_task(stream_loop())
@@ -169,8 +183,6 @@ async def lifespan(app: FastAPI):
         archive_maint_task = asyncio.create_task(archive_maintenance_loop())
         logger.info("archive.maintenance: enabled (ARCHIVE_MAINTENANCE_ENABLED)")
 
-    await _ibkr_client.startup()
-    _ibkr_ticks.configure(broadcast_trade_update, _find_ibkr_cache_row)
     detail_reprice_task = asyncio.create_task(_ibkr_reprice.detail_reprice_loop(
         get_ibkr_detail_symbols, run_ibkr, broadcast_trade_update, _find_ibkr_cache_row,
         lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),

@@ -34,6 +34,7 @@ from constants import (
     NOVA_OS_WATCHLIST_MAX_RANK,
 )
 from nova_os import codes
+from nova_os import control_mode as _control_mode
 from nova_os.decide import decide
 from nova_os.events import get_events
 from strategy.watchlist import build_watchlist
@@ -99,7 +100,16 @@ def nova_os_events(
 
 @router.get("/decide/{symbol}")
 def nova_os_decide_one(symbol: str) -> dict:
-    """Full gate-by-gate decision for one symbol (signal only)."""
+    """Full gate-by-gate decision for one symbol (signal only).
+
+    This is a DISPLAY endpoint the frontend polls every few seconds
+    (useNovaOsDecide.ts) — it must not write an append-only receipt on every
+    poll tick, or the audit trail fills with near-duplicate rows for a symbol
+    nobody acted on. `record=False`: the authoritative, receipt-writing
+    decide() call for a symbol lives in strategy.setups_stream's scan loop.
+    Uses the REAL current control mode (not a hardcoded default) so the
+    displayed would_execute/mode matches what the scan loop just journaled.
+    """
     candidate = _find_candidate(symbol)
     if candidate is None:
         raise HTTPException(status_code=404, detail=f"{symbol.upper()} not in scanner cache")
@@ -117,7 +127,9 @@ def nova_os_decide_one(symbol: str) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Bars unavailable: {exc}") from exc
 
-    decision = decide(candidate, bars, watchlist_rank=rank, mode=NOVA_OS_DEFAULT_MODE)
+    decision = decide(
+        candidate, bars, watchlist_rank=rank, mode=_control_mode.get_mode(), record=False,
+    )
     return {"note": _NOTE, **decision.to_dict()}
 
 
@@ -125,11 +137,18 @@ def nova_os_decide_one(symbol: str) -> dict:
 def nova_os_decide_watchlist(
     limit: int = Query(NOVA_OS_DECIDE_DEFAULT_LIMIT, ge=1, le=20),
 ) -> dict:
-    """Run decide() against the top-N watchlist candidates (signal only)."""
+    """Run decide() against the top-N watchlist candidates (signal only).
+
+    Same polling-endpoint contract as /decide/{symbol}: record=False (display
+    only, not the audit-trail decision-of-record) and the real current
+    control mode rather than a hardcoded default.
+    """
     universe = _universe()
     ranked = build_watchlist(universe, limit=limit)
     provider = _get_discovery_provider()
+    current_mode = _control_mode.get_mode()
     decisions = []
+    errors = []
     for i, entry in enumerate(ranked):
         row = next((r for r in universe if r.get("symbol") == entry.symbol), {"symbol": entry.symbol})
         try:
@@ -137,9 +156,23 @@ def nova_os_decide_watchlist(
                 entry.symbol, "1Min", 60, discovery_provider=provider, interactive=False,
             )
             bars = bars_payload.get("bars", [])
-        except Exception:
-            bars = []
+        except Exception as exc:
+            # A bars fetch failure is a DATA problem, not a trading verdict —
+            # silently falling back to bars=[] used to feed decide() empty
+            # data and let it emit an ordinary-looking NO_BUY (e.g.
+            # "insufficient volume"), indistinguishable from a symbol that
+            # genuinely has no first-minute volume. Keep `decisions` a
+            # homogeneous NovaOsDecision list (the frontend indexes straight
+            # into decision.gates/.reason_codes) and surface the failure in
+            # a separate `errors` list instead of manufacturing a fake one.
+            errors.append({"symbol": entry.symbol, "error": f"bars_unavailable: {exc}"})
+            continue
         decisions.append(
-            decide(row, bars, watchlist_rank=i + 1, mode=NOVA_OS_DEFAULT_MODE).to_dict()
+            decide(row, bars, watchlist_rank=i + 1, mode=current_mode, record=False).to_dict()
         )
-    return {"note": _NOTE, "count": len(decisions), "decisions": decisions}
+    return {
+        "note": _NOTE,
+        "count": len(decisions),
+        "decisions": decisions,
+        "errors": errors,
+    }

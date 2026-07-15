@@ -59,6 +59,7 @@ class TestStageExpireApprove:
             return {"symbol": symbol, "qty": shares}
 
         monkeypatch.setattr(executor, "place_from_ticket", fake_place)
+        control_mode.set_mode(NOVA_OS_MODE_CONFIRM)
         ticket = staged_tickets.stage_from_signal("AAPL", "gap_and_go", _SIGNAL)
         assert ticket is not None
         result = staged_tickets.approve(ticket.id)
@@ -82,6 +83,64 @@ class TestStageExpireApprove:
         assert control_mode.get_mode() == NOVA_OS_MODE_SIGNAL
         assert staged_tickets.list_staged() == []
         assert executor._kill_switch_tripped is True
+
+    def test_set_mode_signal_rejects_staged(self):
+        """Dropping to signal directly via set_mode (not just kill/disarm)
+        must also void any staged confirm tickets — the "nothing executes
+        without Approve" promise ends the instant automation is signal-only."""
+        control_mode.set_mode(NOVA_OS_MODE_CONFIRM)
+        staged_tickets.stage_from_signal("AAPL", "gap_and_go", _SIGNAL)
+        assert len(staged_tickets.list_staged()) == 1
+        control_mode.set_mode(NOVA_OS_MODE_SIGNAL)
+        assert staged_tickets.list_staged() == []
+
+    def test_approve_blocked_when_kill_tripped(self, monkeypatch):
+        control_mode.set_mode(NOVA_OS_MODE_CONFIRM)
+        ticket = staged_tickets.stage_from_signal("AAPL", "gap_and_go", _SIGNAL)
+        assert ticket is not None
+        # Trip kill without going through executor.kill_switch() (which would
+        # already reject staged) to isolate approve()'s own re-check.
+        executor._kill_switch_tripped = True
+        called = []
+        monkeypatch.setattr(
+            executor, "place_from_ticket", lambda *a, **k: called.append(1) or None
+        )
+        with pytest.raises(ValueError, match="kill switch"):
+            staged_tickets.approve(ticket.id)
+        assert called == []
+        # Ticket was claimed (popped) even though declined — never restaged.
+        assert staged_tickets.list_staged() == []
+
+    def test_approve_blocked_when_mode_dropped_to_signal_after_staging(self, monkeypatch):
+        control_mode.set_mode(NOVA_OS_MODE_CONFIRM)
+        ticket = staged_tickets.stage_from_signal("AAPL", "gap_and_go", _SIGNAL)
+        assert ticket is not None
+        # Re-add it directly to simulate a mode drop that happened AFTER
+        # staging but where the ticket itself survived (e.g. a future code
+        # path that stages without going through kill/disarm). approve()'s
+        # own mode re-check must still catch this.
+        control_mode._mode = NOVA_OS_MODE_SIGNAL
+        staged_tickets._staged[ticket.id] = ticket
+        called = []
+        monkeypatch.setattr(
+            executor, "place_from_ticket", lambda *a, **k: called.append(1) or None
+        )
+        with pytest.raises(ValueError, match="signal"):
+            staged_tickets.approve(ticket.id)
+        assert called == []
+
+    def test_approve_is_atomic_second_call_fails(self, monkeypatch):
+        control_mode.set_mode(NOVA_OS_MODE_CONFIRM)
+        ticket = staged_tickets.stage_from_signal("AAPL", "gap_and_go", _SIGNAL)
+        assert ticket is not None
+        monkeypatch.setattr(
+            executor, "place_from_ticket",
+            lambda *a, **k: {"symbol": "AAPL", "qty": 100},
+        )
+        first = staged_tickets.approve(ticket.id)
+        assert first["ok"] is True
+        with pytest.raises(ValueError, match="not found"):
+            staged_tickets.approve(ticket.id)
 
 
 class TestOnSignalConfirm:

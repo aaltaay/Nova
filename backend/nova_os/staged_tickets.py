@@ -19,6 +19,7 @@ from constants import (
     NOVA_OS_CONFIRM_TIMEOUT_SEC,
     NOVA_OS_MAX_CONCURRENT_POSITIONS,
     NOVA_OS_MODE_CONFIRM,
+    NOVA_OS_MODE_SIGNAL,
 )
 from nova_os.events import KIND_ACTION, record_receipt
 
@@ -173,20 +174,69 @@ def reject_all(reason: str) -> list[dict]:
     return results
 
 
+def _decline_approve(ticket: StagedTicket, ticket_id: str, reason: str) -> None:
+    record_receipt(
+        kind=KIND_ACTION,
+        symbol=ticket.symbol,
+        action=NOVA_OS_ACTION_DECLINED,
+        mode=ticket.mode,
+        would_execute=False,
+        executed=False,
+        payload={"event": "approve_blocked", "ticket_id": ticket_id, "reason": reason},
+    )
+
+
 def approve(ticket_id: str) -> dict:
     """Approve a staged ticket and place via executor.place_from_ticket.
 
-    Raises ValueError if missing/expired. Returns placement result + receipt.
+    Claims the ticket ATOMICALLY (dict.pop) before any gate check runs, so
+    two concurrent Approve calls for the same ticket_id can never both reach
+    placement — the second call always sees it already gone. Re-checks kill
+    switch, control mode, and risk at the moment of approval: minutes can
+    pass between staging and a human clicking Approve, and none of those
+    gates are guaranteed to still hold. A declined approval is NOT restaged
+    — the ticket is gone either way; only the placement outcome differs.
+
+    Raises ValueError if missing/expired/blocked. Returns placement result +
+    receipt on success.
     """
     expire_due()
-    ticket = _staged.get(ticket_id)
+    ticket = _staged.pop(ticket_id, None)
     if ticket is None:
-        raise ValueError(f"staged ticket not found: {ticket_id}")
+        raise ValueError(f"staged ticket not found or already expired/claimed: {ticket_id}")
+
     if time.time() >= ticket.expires_at:
-        expire_due()
+        ticket.status = "expired"
+        record_receipt(
+            kind=KIND_ACTION,
+            symbol=ticket.symbol,
+            action=NOVA_OS_ACTION_DECLINED,
+            mode=ticket.mode,
+            would_execute=False,
+            executed=False,
+            payload={"event": "staged_expired", "ticket_id": ticket_id, "ticket": ticket.to_dict()},
+        )
         raise ValueError(f"staged ticket expired: {ticket_id}")
 
-    del _staged[ticket_id]
+    from strategy import executor as _executor
+    from nova_os import control_mode as _control_mode
+
+    if _executor.is_kill_switch_tripped():
+        _decline_approve(ticket, ticket_id, "kill_switch_tripped")
+        raise ValueError("cannot approve — kill switch is tripped")
+
+    effective_mode = _control_mode.get_effective_mode()
+    if effective_mode == NOVA_OS_MODE_SIGNAL:
+        _decline_approve(ticket, ticket_id, "mode_dropped_to_signal")
+        raise ValueError("cannot approve — control mode has dropped to signal")
+
+    from strategy import risk as _risk
+
+    can_trade, halt_reason = _risk.can_trade()
+    if not can_trade:
+        _decline_approve(ticket, ticket_id, f"risk_halt: {halt_reason}")
+        raise ValueError(f"cannot approve — risk halt: {halt_reason}")
+
     ticket.status = "approved"
     receipt = record_receipt(
         kind=KIND_ACTION,
@@ -197,8 +247,6 @@ def approve(ticket_id: str) -> dict:
         executed=False,
         payload={"event": "staged_approved", "ticket_id": ticket_id, "ticket": ticket.to_dict()},
     )
-
-    from strategy import executor as _executor
 
     placed = _executor.place_from_ticket(
         ticket.symbol,

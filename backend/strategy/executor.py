@@ -17,8 +17,10 @@ Emergency semantics:
   - kill_switch: force signal, reject staged, cancel ONLY unfilled parents
     (+ children). If parent already filled, protective stop/target are preserved.
   - cancel_working_entry: cancel one symbol's unfilled parent (+ children).
-  - flatten_positions: typed FLATTEN token; market-close tracked longs via
-    place_order; fail loud if IBKR unavailable.
+  - flatten_positions (strategy/executor_flatten.py): typed FLATTEN token;
+    reconciles against IBKR's real position qty before selling — a tracked
+    position whose parent never filled has nothing to sell and is dropped
+    without an order; fail loud if IBKR unavailable.
 """
 from __future__ import annotations
 
@@ -31,19 +33,20 @@ from constants import (
     EXECUTOR_ENTRY_SIDE_IBKR,
     EXECUTOR_ENTRY_SIDE_JOURNAL,
     EXECUTOR_FILL_POLL_INTERVAL_SEC,
+    NOVA_OS_ACTION_DECLINED,
     NOVA_OS_ACTION_EXECUTED_PAPER,
-    NOVA_OS_FLATTEN_CONFIRM_TOKEN,
+    NOVA_OS_MAX_CONCURRENT_POSITIONS,
     NOVA_OS_MODE_AUTO_PAPER,
     NOVA_OS_MODE_CONFIRM,
     NOVA_OS_MODE_SIGNAL,
 )
-from ibkr import account as _account
 from ibkr import client as _ibkr_client
 from ibkr import orders as _orders
 from journal.store import record_trade
 from nova_os import control_mode as _control_mode
 from nova_os import staged_tickets as _staged
 from nova_os.events import KIND_ACTION, KIND_SYSTEM, record_receipt
+from strategy import executor_flatten as _executor_flatten
 from strategy import risk as _risk
 
 logger = logging.getLogger(__name__)
@@ -90,6 +93,10 @@ def is_armed() -> bool:
     return (not _kill_switch_tripped) and _control_mode.get_mode() != NOVA_OS_MODE_SIGNAL
 
 
+def is_kill_switch_tripped() -> bool:
+    return _kill_switch_tripped
+
+
 def status() -> dict:
     effective, loss_reason = _control_mode.get_effective_mode_detail()
     _staged.expire_due()
@@ -122,9 +129,12 @@ def status() -> dict:
 
 
 def arm() -> dict:
-    """P4: arm → confirm mode (stage tickets). Clears kill trip."""
-    global _kill_switch_tripped
-    _kill_switch_tripped = False
+    """P4: arm → confirm mode (stage tickets).
+
+    Does NOT clear a kill trip — kill switch is a deliberate stop that must
+    be cleared explicitly via reset_kill_switch() before automation can be
+    raised again. set_mode() raises ValueError if kill is still tripped.
+    """
     _control_mode.set_mode(NOVA_OS_MODE_CONFIRM)
     logger.warning("EXECUTOR ARMED — confirm mode (stage tickets; Approve to place)")
     return status()
@@ -225,72 +235,30 @@ def cancel_working_entry(symbol: str) -> dict:
     }
 
 
-def flatten_preview() -> dict:
-    tracked = [
-        {
-            "symbol": p.symbol,
-            "qty": p.qty,
-            "side": "SELL",
-            "entry_price": p.entry_price,
-            "stop_order_id": p.stop_order_id,
-            "target_order_id": p.target_order_id,
-            "source": "executor_tracked",
-        }
-        for p in _open_positions.values()
-    ]
-    return {
-        "disclosure": (
-            f"Flatten closes tracked executor longs with a market SELL and cancels "
-            f"working bracket legs when the parent is still unfilled. Type "
-            f"{NOVA_OS_FLATTEN_CONFIRM_TOKEN} to confirm. Protective stops are "
-            f"cancelled only as part of this deliberate flatten."
-        ),
-        "confirm_token_required": NOVA_OS_FLATTEN_CONFIRM_TOKEN,
-        "account_mode": _ibkr_client.account_mode(),
-        "ibkr_connected": _ibkr_client.is_connected(),
-        "positions": tracked,
-        "ibkr_positions": _account.get_positions(),
-    }
+flatten_preview = _executor_flatten.flatten_preview
+flatten_positions = _executor_flatten.flatten_positions
 
 
-def flatten_positions(confirm_token: str) -> dict:
-    if confirm_token != NOVA_OS_FLATTEN_CONFIRM_TOKEN:
-        raise ValueError(
-            f"flatten requires confirm_token={NOVA_OS_FLATTEN_CONFIRM_TOKEN!r}"
-        )
-    if not _ibkr_client.is_connected():
-        return {
-            "ok": False,
-            "error": "IBKR not connected — cannot flatten; close manually in TWS/Gateway",
-            "preview": flatten_preview(),
-        }
-
-    results: list[dict] = []
-    for symbol, pos in list(_open_positions.items()):
-        ids, outcome = _cancel_bracket_if_parent_unfilled(pos)
-        close = _orders.place_order(symbol, "SELL", float(pos.qty), order_type="MKT")
-        row = {
-            "symbol": symbol,
-            "qty": pos.qty,
-            "cancel_outcome": outcome,
-            "cancelled_order_ids": ids,
-            "close": close,
-        }
-        results.append(row)
-        if close.get("ok"):
-            del _open_positions[symbol]
-        else:
-            logger.error("flatten: market close failed for %s: %s", symbol, close.get("error"))
-
-    ok = all(r["close"].get("ok") for r in results) if results else True
+def _decline(symbol: str, setup: str, reason_code: str, detail: str) -> None:
+    """Every place_from_ticket rejection is a real decision (a human or the
+    auto_paper loop asked to enter and was refused) — it must leave an audit
+    trail, not just a log line, or the receipt log silently under-reports how
+    often automation actually acts vs. declines."""
+    logger.info("Executor: %s/%s declined — %s: %s", symbol, setup, reason_code, detail)
     record_receipt(
         kind=KIND_ACTION,
+        symbol=symbol,
+        action=NOVA_OS_ACTION_DECLINED,
         mode=_control_mode.get_mode(),
-        would_execute=True,
-        executed=ok and bool(results),
-        payload={"event": "flatten", "results": results},
+        would_execute=False,
+        executed=False,
+        payload={
+            "event": "placement_declined",
+            "setup": setup,
+            "reason_code": reason_code,
+            "detail": detail,
+        },
     )
-    return {"ok": ok, "results": results, **status()}
 
 
 def place_from_ticket(
@@ -301,30 +269,59 @@ def place_from_ticket(
     target: float,
     shares: int | None = None,
 ) -> dict | None:
-    """Place a risk-checked paper bracket. Used by approve + auto_paper path."""
+    """Place a risk-checked paper bracket. Used by approve + auto_paper path.
+
+    Every gate here is re-checked at the moment of placement — not trusted
+    from an earlier set_mode() or stage_from_signal() call — because seconds
+    or minutes can pass between staging/mode-raise and this call, in which
+    the kill switch can trip, the concurrent-position cap can fill, IBKR can
+    disconnect, or risk can halt.
+    """
     symbol = symbol.upper()
-    if symbol in _open_positions:
+
+    if _kill_switch_tripped:
+        _decline(symbol, setup, "KILL_SWITCH_TRIPPED", "kill switch is tripped")
         return None
+
+    if symbol in _open_positions:
+        _decline(symbol, setup, "ALREADY_OPEN", f"{symbol} already has a tracked open position")
+        return None
+
+    concurrent = len(_open_positions) + len(_staged.list_staged())
+    if concurrent >= NOVA_OS_MAX_CONCURRENT_POSITIONS:
+        _decline(
+            symbol, setup, "MAX_CONCURRENT",
+            f"at max concurrent positions ({NOVA_OS_MAX_CONCURRENT_POSITIONS}): "
+            f"open={len(_open_positions)} staged={len(_staged.list_staged())}",
+        )
+        return None
+
+    if _control_mode.get_effective_mode() == NOVA_OS_MODE_AUTO_PAPER:
+        gate_ok, gate_reason = _control_mode.auto_paper_gate_status()
+        if not gate_ok:
+            _decline(symbol, setup, "AUTO_PAPER_GATE_FAILED", gate_reason)
+            return None
 
     can_trade, halt_reason = _risk.can_trade()
     if not can_trade:
-        logger.info("Executor: %s/%s skipped — risk halt: %s", symbol, setup, halt_reason)
+        _decline(symbol, setup, "RISK_HALT", halt_reason)
         return None
 
     plan_ok, issues = _risk.validate_trade_plan(entry, stop, target)
     if not plan_ok:
-        logger.info("Executor: %s/%s failed risk validation: %s", symbol, setup, issues)
+        _decline(symbol, setup, "PLAN_INVALID", "; ".join(issues))
         return None
 
     qty = int(shares) if shares and shares > 0 else _risk.position_size_shares()
     if qty <= 0:
+        _decline(symbol, setup, "ZERO_QTY", f"computed qty <= 0 (shares={shares})")
         return None
 
     result = _orders.place_bracket_order(
         symbol, EXECUTOR_ENTRY_SIDE_IBKR, qty, entry, stop, target
     )
     if not result["ok"]:
-        logger.warning("Executor: bracket rejected for %s: %s", symbol, result["error"])
+        _decline(symbol, setup, "BRACKET_REJECTED", str(result.get("error")))
         return None
 
     pos = OpenPosition(
@@ -427,6 +424,27 @@ async def _check_fills_once() -> None:
         exit_price = _resolve_exit_price(ib, pos)
         del _open_positions[symbol]
         if exit_price is None:
+            # Legs are gone from open_orders but no matching fill was found
+            # (e.g. cancelled before any fill, or fills() aged out of the IB
+            # cache). Recovery must still be able to see this symbol closed —
+            # an unverified close is still a close, not silence.
+            record_receipt(
+                kind=KIND_ACTION,
+                symbol=symbol,
+                mode=_control_mode.get_mode(),
+                would_execute=True,
+                executed=True,
+                payload={
+                    "event": "bracket_closed_unverified",
+                    "parent_order_id": pos.parent_order_id,
+                    "target_order_id": pos.target_order_id,
+                    "stop_order_id": pos.stop_order_id,
+                },
+            )
+            logger.warning(
+                "Executor: %s bracket legs gone but no fill found — dropped without journal entry",
+                symbol,
+            )
             continue
 
         pnl = (exit_price - pos.entry_price) * pos.qty
@@ -446,6 +464,21 @@ async def _check_fills_once() -> None:
             notes=f"Automated paper bracket (parent order {pos.parent_order_id}).",
         )
         _risk.record_trade_result(pnl)
+        record_receipt(
+            kind=KIND_ACTION,
+            symbol=symbol,
+            mode=_control_mode.get_mode(),
+            would_execute=True,
+            executed=True,
+            payload={
+                "event": "bracket_closed",
+                "exit_price": exit_price,
+                "pnl": pnl,
+                "parent_order_id": pos.parent_order_id,
+                "target_order_id": pos.target_order_id,
+                "stop_order_id": pos.stop_order_id,
+            },
+        )
         logger.warning("Executor: %s bracket closed, exit=%.2f pnl=%.2f", symbol, exit_price, pnl)
 
 

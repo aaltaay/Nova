@@ -147,7 +147,10 @@ interface DecisionPanelProps {
 }
 
 export function DecisionPanel({ active, selectedSymbol, onSelectSymbol }: DecisionPanelProps) {
-  const { decisions, selected, loading, error, refresh } = useNovaOsDecide(active, selectedSymbol);
+  const { decisions, selected, loading, error, dataErrors, refresh } = useNovaOsDecide(
+    active,
+    selectedSymbol,
+  );
   const seenReceipts = useRef<Set<number>>(new Set());
 
   useEffect(() => {
@@ -177,6 +180,12 @@ export function DecisionPanel({ active, selectedSymbol, onSelectSymbol }: Decisi
         <button type="button" className="linkish" onClick={refresh}>Refresh</button>
       </div>
       {error && <div className="empty-state">{error}</div>}
+      {!error && dataErrors.length > 0 && (
+        <div className="empty-state nova-os-data-errors" role="alert">
+          Bars unavailable for {dataErrors.map((d) => d.symbol).join(', ')} — decision skipped, not
+          shown as NO_BUY.
+        </div>
+      )}
       {!error && loading && decisions.length === 0 && (
         <div className="empty-state">Loading Nova OS decisions…</div>
       )}

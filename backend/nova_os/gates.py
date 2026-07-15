@@ -98,9 +98,10 @@ def gate_session(risk_state, requested_mode: str) -> tuple[GateResult, str, list
     evidence["can_trade"] = can
     evidence["halt_reason"] = None if can else halt_reason
     evidence["consecutive_losses"] = risk_state.consecutive_losses
+    evidence["losses_today"] = risk_state.losses_today
 
     effective_mode, loss_reason = codes.loss_policy_mode(
-        risk_state.consecutive_losses, requested_mode
+        risk_state.losses_today, requested_mode
     )
     evidence["requested_mode"] = requested_mode
     evidence["effective_mode"] = effective_mode

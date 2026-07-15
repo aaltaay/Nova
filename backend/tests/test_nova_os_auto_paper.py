@@ -22,7 +22,7 @@ from constants import (
 )
 from ibkr import client as ibkr_client
 from ibkr import safety as ibkr_safety
-from nova_os import control_mode
+from nova_os import control_mode, staged_tickets
 from nova_os.events import KIND_ACTION, get_events, record_receipt
 from nova_os.recovery import run_startup_recovery
 
@@ -34,12 +34,16 @@ def isolated(tmp_path, monkeypatch):
     control_mode.reset_for_tests()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
+    staged_tickets.reset_for_tests()
     risk_mod.get_state().consecutive_losses = 0
+    risk_mod.get_state().losses_today = 0
     yield
     control_mode.reset_for_tests()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
+    staged_tickets.reset_for_tests()
     risk_mod.get_state().consecutive_losses = 0
+    risk_mod.get_state().losses_today = 0
 
 
 def _gate_auto_paper_ok(monkeypatch):
@@ -213,5 +217,70 @@ class TestRestartRecovery:
         monkeypatch.setattr(ibkr_client, "is_connected", lambda: False)
         summary = run_startup_recovery()
         assert summary["ambiguous"]
+
+    def test_does_not_restore_ghost_position_when_ibkr_unverifiable(self, monkeypatch):
+        """A fully-formed executed_paper payload with IBKR unreachable must
+        NOT be restored into _open_positions — cancel/flatten could act on a
+        position nobody has proven exists."""
+        record_receipt(
+            kind=KIND_ACTION,
+            symbol="GHOST",
+            action=NOVA_OS_ACTION_EXECUTED_PAPER,
+            mode=NOVA_OS_MODE_AUTO_PAPER,
+            would_execute=True,
+            executed=True,
+            payload={
+                "event": "executed_paper",
+                "setup": "gap_and_go",
+                "qty": 50,
+                "entry_price": 10.0,
+                "stop_price": 9.8,
+                "target_price": 10.5,
+                "parent_order_id": 200,
+                "target_order_id": 201,
+                "stop_order_id": 202,
+                "opened_ts": 1_700_000_000.0,
+            },
+        )
+        monkeypatch.setattr(ibkr_client, "is_connected", lambda: False)
+        summary = run_startup_recovery()
+        assert "GHOST" not in summary["restored_symbols"]
+        assert "GHOST" not in executor._open_positions
+        assert summary["ambiguous"]
+        assert control_mode.get_mode() == NOVA_OS_MODE_SIGNAL
+
+    def test_orphan_flagged_even_when_another_symbol_restores_cleanly(self, monkeypatch):
+        """A clean restore for one symbol must never mask an orphan IBKR
+        order in another the journal can't explain."""
+        record_receipt(
+            kind=KIND_ACTION,
+            symbol="TSLA",
+            action=NOVA_OS_ACTION_EXECUTED_PAPER,
+            mode=NOVA_OS_MODE_AUTO_PAPER,
+            would_execute=True,
+            executed=True,
+            payload={
+                "event": "executed_paper",
+                "setup": "gap_and_go",
+                "qty": 50,
+                "entry_price": 10.0,
+                "stop_price": 9.8,
+                "target_price": 10.5,
+                "parent_order_id": 100,
+                "target_order_id": 101,
+                "stop_order_id": 102,
+                "opened_ts": 1_700_000_000.0,
+            },
+        )
+        monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
+        # IBKR reports an extra open order (999) the journal has no record of.
+        monkeypatch.setattr(
+            "nova_os.recovery._orders.open_orders",
+            lambda: [{"order_id": 100}, {"order_id": 101}, {"order_id": 102}, {"order_id": 999}],
+        )
+        summary = run_startup_recovery()
+        assert "TSLA" in summary["restored_symbols"]
+        assert summary["ambiguous"]
+        assert control_mode.get_mode() == NOVA_OS_MODE_SIGNAL
         assert control_mode.get_mode() == NOVA_OS_MODE_SIGNAL
         assert "BAD" not in executor._open_positions

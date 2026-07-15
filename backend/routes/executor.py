@@ -59,7 +59,10 @@ def executor_set_mode(body: ModeBody) -> dict:
 
 @router.post("/arm")
 def executor_arm() -> dict:
-    return _executor.arm()
+    try:
+        return _executor.arm()
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/disarm")

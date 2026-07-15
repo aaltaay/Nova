@@ -9,11 +9,20 @@ import type { NovaOsDecision } from './types';
 
 const DECIDE_API = `${API_BASE_URL}/api/nova-os/decide`;
 
+export interface NovaOsDecideDataError {
+  symbol: string;
+  error: string;
+}
+
 export interface UseNovaOsDecideReturn {
   decisions: NovaOsDecision[];
   selected: NovaOsDecision | null;
   loading: boolean;
   error: string | null;
+  /** Per-symbol bars-unavailable failures the batch endpoint reports
+   * separately from `decisions` — see backend/routes/nova_os.py. Loud, not
+   * folded into a fake NO_BUY. */
+  dataErrors: NovaOsDecideDataError[];
   refresh: () => void;
 }
 
@@ -25,6 +34,7 @@ export function useNovaOsDecide(
   const [selected, setSelected] = useState<NovaOsDecision | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dataErrors, setDataErrors] = useState<NovaOsDecideDataError[]>([]);
   const [tick, setTick] = useState(0);
   const inFlight = useRef(false);
 
@@ -50,6 +60,7 @@ export function useNovaOsDecide(
         }
         if (!cancelled) {
           setDecisions(batchData.decisions ?? []);
+          setDataErrors(batchData.errors ?? []);
           setSelected(selectedDecision);
           setError(null);
         }
@@ -76,6 +87,7 @@ export function useNovaOsDecide(
     selected,
     loading,
     error,
+    dataErrors,
     refresh: () => setTick((t) => t + 1),
   };
 }

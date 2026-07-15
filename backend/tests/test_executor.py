@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import journal.db as db
 import nova_os.events_db as events_db
 import strategy.executor as executor
+import strategy.executor_flatten as executor_flatten
 import strategy.risk as risk_mod
 from constants import NOVA_OS_MODE_AUTO_PAPER, NOVA_OS_MODE_CONFIRM
 from ibkr import orders as orders_mod
@@ -53,10 +54,19 @@ def _approve_risk(monkeypatch, qty=100):
     monkeypatch.setattr(risk_mod, "position_size_shares", lambda: qty)
 
 
-def _enable_auto_paper():
-    """Bypass set_mode gates when a test only needs the on_signal auto path."""
+def _enable_auto_paper(monkeypatch):
+    """Bypass set_mode gates when a test only needs the on_signal auto path.
+
+    place_from_ticket() re-checks the real auto_paper runtime gate (IBKR
+    connected/paper/orders-enabled/risk/holiday) at every placement, not just
+    at the moment set_mode() was called — so tests that only care about the
+    non-IBKR checks (risk, plan validation, bracket rejection, concurrency)
+    stub that gate open here rather than re-mocking IBKR client state in
+    every test.
+    """
     control_mode._mode = NOVA_OS_MODE_AUTO_PAPER
     executor._kill_switch_tripped = False
+    monkeypatch.setattr(control_mode, "auto_paper_gate_status", lambda: (True, "OK"))
 
 
 class TestArmDisarmKillSwitch:
@@ -115,6 +125,19 @@ class TestArmDisarmKillSwitch:
         assert result["armed"] is False
         assert executor.is_armed() is False
 
+    def test_arm_raises_while_kill_tripped(self):
+        """Kill is a deliberate stop — raising mode again must require an
+        explicit reset_kill_switch(), not be silently cleared by arm()."""
+        executor.arm()
+        executor.kill_switch()
+        assert executor.is_kill_switch_tripped() is True
+        with pytest.raises(ValueError, match="kill switch"):
+            executor.arm()
+        assert executor.is_kill_switch_tripped() is True
+        executor.reset_kill_switch()
+        result = executor.arm()
+        assert result["armed"] is True
+
 
 class TestOnSignal:
     def test_does_nothing_when_disarmed(self, monkeypatch):
@@ -135,7 +158,7 @@ class TestOnSignal:
         assert len(staged_tickets.list_staged()) == 1
 
     def test_skips_when_position_already_open_for_symbol(self, monkeypatch):
-        _enable_auto_paper()
+        _enable_auto_paper(monkeypatch)
         _approve_risk(monkeypatch)
         executor._open_positions["AAPL"] = executor.OpenPosition(
             symbol="AAPL", setup="gap_and_go", qty=100,
@@ -149,7 +172,7 @@ class TestOnSignal:
         assert called == []
 
     def test_skips_when_risk_halted(self, monkeypatch):
-        _enable_auto_paper()
+        _enable_auto_paper(monkeypatch)
         monkeypatch.setattr(risk_mod, "can_trade", lambda: (False, "Daily max loss reached."))
         called = []
         monkeypatch.setattr(orders_mod, "place_bracket_order", lambda *a, **k: called.append(1))
@@ -158,7 +181,7 @@ class TestOnSignal:
         assert called == []
 
     def test_skips_when_plan_fails_validation(self, monkeypatch):
-        _enable_auto_paper()
+        _enable_auto_paper(monkeypatch)
         monkeypatch.setattr(risk_mod, "can_trade", lambda: (True, "OK"))
         monkeypatch.setattr(risk_mod, "validate_trade_plan", lambda e, s, t: (False, ["Stop too wide."]))
         called = []
@@ -168,7 +191,7 @@ class TestOnSignal:
         assert called == []
 
     def test_skips_when_bracket_order_rejected(self, monkeypatch):
-        _enable_auto_paper()
+        _enable_auto_paper(monkeypatch)
         _approve_risk(monkeypatch)
         monkeypatch.setattr(
             orders_mod, "place_bracket_order",
@@ -179,8 +202,52 @@ class TestOnSignal:
         assert result is None
         assert "AAPL" not in executor._open_positions
 
+    def test_place_from_ticket_blocked_when_kill_tripped(self, monkeypatch):
+        _enable_auto_paper(monkeypatch)
+        _approve_risk(monkeypatch)
+        executor._kill_switch_tripped = True
+        called = []
+        monkeypatch.setattr(orders_mod, "place_bracket_order", lambda *a, **k: called.append(1))
+        result = executor.place_from_ticket("AAPL", "gap_and_go", 5.0, 4.9, 5.2)
+        assert result is None
+        assert called == []
+
+    def test_place_from_ticket_blocked_at_max_concurrent(self, monkeypatch):
+        from constants import NOVA_OS_MAX_CONCURRENT_POSITIONS
+
+        _enable_auto_paper(monkeypatch)
+        _approve_risk(monkeypatch)
+        for i in range(NOVA_OS_MAX_CONCURRENT_POSITIONS):
+            executor._open_positions[f"SYM{i}"] = executor.OpenPosition(
+                symbol=f"SYM{i}", setup="gap_and_go", qty=100,
+                entry_price=5.0, stop_price=4.9, target_price=5.2,
+                parent_order_id=i, target_order_id=i + 100, stop_order_id=i + 200,
+                opened_ts=time.time(),
+            )
+        called = []
+        monkeypatch.setattr(orders_mod, "place_bracket_order", lambda *a, **k: called.append(1))
+        result = executor.place_from_ticket("NEWSYM", "gap_and_go", 5.0, 4.9, 5.2)
+        assert result is None
+        assert called == []
+
+    def test_place_from_ticket_declines_leave_receipt(self, monkeypatch):
+        """Every rejection is a decision — it must be auditable, not a bare
+        None with only a log line."""
+        _enable_auto_paper(monkeypatch)
+        monkeypatch.setattr(risk_mod, "can_trade", lambda: (False, "Daily max loss reached."))
+        result = executor.place_from_ticket("AAPL", "gap_and_go", 5.0, 4.9, 5.2)
+        assert result is None
+        from nova_os.events import KIND_ACTION, get_events
+
+        events = get_events(kind=KIND_ACTION, limit=5)
+        assert any(
+            (e.get("payload") or {}).get("event") == "placement_declined"
+            and (e.get("payload") or {}).get("reason_code") == "RISK_HALT"
+            for e in events
+        )
+
     def test_places_bracket_when_auto_paper_and_checks_pass(self, monkeypatch):
-        _enable_auto_paper()
+        _enable_auto_paper(monkeypatch)
         _approve_risk(monkeypatch, qty=100)
         placed_args = []
         monkeypatch.setattr(
@@ -295,4 +362,112 @@ class TestCheckFillsOnce:
         self._seed_open_position()
         monkeypatch.setattr(executor._ibkr_client, "get_ib", lambda: None)
         asyncio.run(executor._check_fills_once())
+        assert "AAPL" in executor._open_positions
+
+    def test_target_fill_emits_bracket_closed_receipt(self, monkeypatch):
+        """Recovery's orphan/closed-symbol detection reads nova_os events, not
+        the journal — a real close must leave a `bracket_closed` receipt."""
+        self._seed_open_position()
+        fake_ib = _FakeIB([_FakeFill("AAPL", 11, 5.20)])
+        monkeypatch.setattr(executor._ibkr_client, "get_ib", lambda: fake_ib)
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [])
+        monkeypatch.setattr(risk_mod, "record_trade_result", lambda pnl: None)
+
+        asyncio.run(executor._check_fills_once())
+
+        from nova_os.events import KIND_ACTION, get_events
+
+        events = get_events(kind=KIND_ACTION, limit=5)
+        assert any(
+            e.get("symbol") == "AAPL" and (e.get("payload") or {}).get("event") == "bracket_closed"
+            for e in events
+        )
+
+    def test_no_fill_found_emits_bracket_closed_unverified_receipt(self, monkeypatch):
+        self._seed_open_position()
+        monkeypatch.setattr(executor._ibkr_client, "get_ib", lambda: _FakeIB([]))
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [])
+
+        asyncio.run(executor._check_fills_once())
+
+        from nova_os.events import KIND_ACTION, get_events
+
+        events = get_events(kind=KIND_ACTION, limit=5)
+        assert any(
+            e.get("symbol") == "AAPL"
+            and (e.get("payload") or {}).get("event") == "bracket_closed_unverified"
+            for e in events
+        )
+
+
+class TestFlattenReconciliation:
+    def _seed_open_position(self, symbol="AAPL"):
+        executor._open_positions[symbol] = executor.OpenPosition(
+            symbol=symbol, setup="gap_and_go", qty=100,
+            entry_price=5.0, stop_price=4.9, target_price=5.2,
+            parent_order_id=10, target_order_id=11, stop_order_id=12,
+            opened_ts=time.time(),
+        )
+
+    def test_skips_sell_when_no_real_ibkr_position(self, monkeypatch):
+        """Parent never filled at IBKR — there is nothing to sell. Placing a
+        market SELL here would open an accidental short."""
+        self._seed_open_position()
+        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+        monkeypatch.setattr(executor_flatten._account, "get_positions", lambda: [])
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [{"order_id": 10}])
+        cancelled = []
+        monkeypatch.setattr(
+            orders_mod, "cancel_order", lambda oid: cancelled.append(oid) or {"ok": True}
+        )
+        sell_calls = []
+        monkeypatch.setattr(
+            orders_mod, "place_order",
+            lambda *a, **k: sell_calls.append(a) or {"ok": True},
+        )
+        result = executor.flatten_positions("FLATTEN")
+        assert sell_calls == []
+        assert cancelled == [10]
+        assert "AAPL" not in executor._open_positions
+        assert result["results"][0]["outcome"] == "no_position_skipped_sell"
+
+    def test_sells_real_position_and_cancels_protective_legs(self, monkeypatch):
+        """Parent filled — a real IBKR position exists. Flatten must sell the
+        REAL qty and cancel the (now stale) protective stop/target legs so
+        they can't fire against a future position in the same symbol."""
+        self._seed_open_position()
+        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+        monkeypatch.setattr(
+            executor_flatten._account, "get_positions",
+            lambda: [{"symbol": "AAPL", "qty": 100.0, "avg_cost": 5.0}],
+        )
+        # Parent filled (not in open_orders); stop/target still working.
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [{"order_id": 11}, {"order_id": 12}])
+        cancelled = []
+        monkeypatch.setattr(
+            orders_mod, "cancel_order", lambda oid: cancelled.append(oid) or {"ok": True}
+        )
+        sell_calls = []
+        monkeypatch.setattr(
+            orders_mod, "place_order",
+            lambda symbol, side, qty, **k: sell_calls.append((symbol, side, qty)) or {"ok": True},
+        )
+        result = executor.flatten_positions("FLATTEN")
+        assert sell_calls == [("AAPL", "SELL", 100.0)]
+        assert sorted(cancelled) == [11, 12]
+        assert "AAPL" not in executor._open_positions
+        assert result["results"][0]["outcome"] == "closed_real_position"
+        assert result["ok"] is True
+
+    def test_flatten_rejects_wrong_confirm_token(self):
+        with pytest.raises(ValueError, match="FLATTEN"):
+            executor.flatten_positions("nope")
+
+    def test_flatten_fails_loud_when_ibkr_disconnected(self, monkeypatch):
+        self._seed_open_position()
+        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: False)
+        result = executor.flatten_positions("FLATTEN")
+        assert result["ok"] is False
+        assert "not connected" in result["error"]
+        # Nothing touched — position still tracked, no orders placed.
         assert "AAPL" in executor._open_positions

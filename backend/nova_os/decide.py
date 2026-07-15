@@ -7,7 +7,16 @@ Composes existing strategy/news/risk modules into one auditable verdict:
 Hard gates fail → NO_BUY. Soft catalyst may downgrade BUY → WAIT. Gate 5
 microstructure is a documented placeholder until archive days exist to tune it.
 
-P2 is signal-only: `would_execute` is always False and no orders are placed.
+decide() itself NEVER places, modifies, or cancels an order — that stays true
+in every mode. `would_execute` instead answers "if this decision were routed
+through strategy.executor.on_signal() at `mode` right now, would something
+happen (stage a ticket or place a paper bracket)?" — True for a BUY decision
+whenever the effective mode is anything other than `signal`; False for
+WAIT/NO_BUY or when the effective mode is `signal` (display only). A caller
+that only ever calls decide() and never wires it to on_signal() will still
+see would_execute=True for an auto_paper BUY — that is the truthful contract:
+it describes what WOULD happen, not what decide() itself does.
+
 Every call (unless `record=False`) writes one append-only receipt.
 """
 from __future__ import annotations
@@ -23,6 +32,7 @@ from constants import (
     NOVA_OS_DECISION_NO_BUY,
     NOVA_OS_DECISION_WAIT,
     NOVA_OS_DEFAULT_MODE,
+    NOVA_OS_MODE_SIGNAL,
     NOVA_OS_PRIMARY_SETUP,
 )
 from nova_os import codes
@@ -187,7 +197,11 @@ def _finalize(
             seen.add(r)
             unique.append(r)
 
-    would_execute = False  # P2 signal-only
+    # Truthful "would something happen downstream" flag — NOT whether decide()
+    # itself executes (it never does). A BUY at any mode other than `signal`
+    # would stage (confirm) or place (auto_paper/auto_live) if routed through
+    # executor.on_signal(); WAIT/NO_BUY never would, regardless of mode.
+    would_execute = decision == NOVA_OS_DECISION_BUY and effective_mode != NOVA_OS_MODE_SIGNAL
     action = _action_for(decision, unique)
     payload = {
         "gates": [g.to_dict() for g in gates],

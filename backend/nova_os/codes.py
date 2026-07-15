@@ -70,25 +70,33 @@ def _cap_at_confirm(requested_mode: str) -> str:
     return requested_mode if req_rank <= confirm_rank else NOVA_OS_MODE_CONFIRM
 
 
-def loss_policy_mode(consecutive_losses: int, requested_mode: str) -> tuple[str, str | None]:
+def loss_policy_mode(losses_today: int, requested_mode: str) -> tuple[str, str | None]:
     """Apply the temporary P1 loss policy to a requested control mode.
 
-    Graduated response to consecutive losing trades this session:
-      >= HALT_AFTER_LOSSES      → cap at `confirm`, flag LOSS_POLICY_HALT
+    Graduated response to losing trades THIS SESSION (calendar-day count,
+    since the last session reset — a win in between two losses does not
+    reset this counter; only `risk.reset_day()` does):
+      >= HALT_AFTER_LOSSES       → cap at `confirm`, flag LOSS_POLICY_HALT
       >= DOWNGRADE_AFTER_LOSSES  → cap at `confirm`, flag LOSS_POLICY_DOWNGRADE
       otherwise                  → requested_mode unchanged, no reason
 
+    `losses_today` is `strategy.risk.RiskState.losses_today` — deliberately
+    NOT `consecutive_losses` (which resets on any win). A trader who loses,
+    wins, loses, wins, loses has had three losing trades today and should
+    still be downgraded/halted by this policy even though no two losses were
+    back-to-back.
+
     Returns (effective_mode, reason_code_or_None). This never *raises* the
     autonomy level — it only lowers it toward human confirmation, so a losing
-    streak can never silently escalate to auto execution (a `signal`-only
+    day can never silently escalate to auto execution (a `signal`-only
     session stays `signal`).
 
     The actual day-halt lives in the risk engine (risk.can_trade()); this
     function reports the *reason code* for the audit trail and the safest mode
     to fall back to, leaving order-blocking to that engine.
     """
-    if consecutive_losses >= NOVA_OS_LOSS_POLICY_HALT_AFTER_LOSSES:
+    if losses_today >= NOVA_OS_LOSS_POLICY_HALT_AFTER_LOSSES:
         return _cap_at_confirm(requested_mode), "LOSS_POLICY_HALT"
-    if consecutive_losses >= NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES:
+    if losses_today >= NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES:
         return _cap_at_confirm(requested_mode), "LOSS_POLICY_DOWNGRADE"
     return requested_mode, None

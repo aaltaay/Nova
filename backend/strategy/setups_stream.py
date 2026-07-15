@@ -1,8 +1,11 @@
 """
 Background scan loop + WS broadcaster for setup signals (Gap and Go, Bull
-Flag, ABCD). Signal-only — this module never places, modifies, or cancels
-orders; it only evaluates setups.py against the current watchlist and pushes
-newly-eligible signals to connected clients.
+Flag, ABCD). This module never places an order ITSELF — it evaluates
+setups.py against the current watchlist, runs every eligible setup through
+nova_os.decide() for an auditable verdict, and pushes signals to connected
+clients. A BUY decision is routed to strategy.executor.on_signal(), which DOES
+place paper orders when the current control mode is auto_paper (or stage a
+ticket in confirm) — this loop is the trigger for that, not a signal-only path.
 
 Mirrors the WS-client pattern used by hod_momo.py, simplified: no per-strategy
 config, just a global cooldown per (symbol, setup) pair to avoid spamming the
@@ -26,9 +29,10 @@ from constants import (
     SETUPS_SCAN_TOP_N,
     SETUPS_SCAN_TOP_N_IBKR,
 )
-from constants import NOVA_OS_DECISION_BUY, NOVA_OS_DEFAULT_MODE
+from constants import NOVA_OS_DECISION_BUY
 from journal.store import record_signal
 from l2 import recorder as _l2_recorder
+from nova_os import control_mode as _control_mode
 from nova_os.decide import decide as nova_os_decide
 from nova_os import staged_tickets as _staged
 from strategy import executor as _executor
@@ -143,13 +147,16 @@ async def _scan_once() -> None:
             _last_alert_ts[key] = now
 
             # Nova OS decide() is the audit brain: journals a receipt for every
-            # eligible setup. Only BUY reaches the executor (still armed-gated;
-            # P2 keeps would_execute False so signal mode never places).
+            # eligible setup. Pass the REAL current control mode — hardcoding
+            # `signal` here made every receipt claim "mode": "signal" and
+            # would_execute=False even while auto_paper/confirm was actually
+            # armed and executor.on_signal() below went on to stage/place.
+            # That split-brain is exactly what the audit trail must never do.
             decision = nova_os_decide(
                 row,
                 bars,
                 watchlist_rank=watchlist_rank,
-                mode=NOVA_OS_DEFAULT_MODE,
+                mode=_control_mode.get_mode(),
                 preferred_setup=setup_name,
             )
             signal_dict = result[setup_name]

@@ -18,7 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from constants import (
@@ -47,6 +47,7 @@ class RiskState:
     peak_daily_pnl: float = 0.0
     consecutive_losses: int = 0
     consecutive_wins: int = 0
+    losses_today: int = 0
     trades_today: int = 0
     halted: bool = False
     halt_reason: str | None = None
@@ -57,6 +58,7 @@ class RiskState:
         self.peak_daily_pnl = 0.0
         self.consecutive_losses = 0
         self.consecutive_wins = 0
+        self.losses_today = 0
         self.trades_today = 0
         self.halted = False
         self.halt_reason = None
@@ -72,6 +74,7 @@ class RiskState:
         if pnl < 0:
             self.consecutive_losses += 1
             self.consecutive_wins = 0
+            self.losses_today += 1
         elif pnl > 0:
             self.consecutive_wins += 1
             self.consecutive_losses = 0
@@ -126,6 +129,7 @@ class RiskState:
             "peak_daily_pnl": round(self.peak_daily_pnl, 2),
             "consecutive_losses": self.consecutive_losses,
             "consecutive_wins": self.consecutive_wins,
+            "losses_today": self.losses_today,
             "trades_today": self.trades_today,
             "can_trade": can_trade,
             "halt_reason": None if can_trade else reason,
@@ -196,6 +200,66 @@ def reset_day() -> None:
 
 def record_trade_result(pnl: float) -> None:
     _state.record_trade_result(pnl)
+
+
+def _session_start_epoch(now_et: datetime | None = None) -> float:
+    """Epoch seconds of the current trading session's start (today's — or
+    yesterday's, before the reset hour — RISK_SESSION_RESET_HOUR_ET in ET)."""
+    now_et = now_et or datetime.now(_ET)
+    start = now_et.replace(hour=RISK_SESSION_RESET_HOUR_ET, minute=0, second=0, microsecond=0)
+    if now_et.hour < RISK_SESSION_RESET_HOUR_ET:
+        start -= timedelta(days=1)
+    return start.timestamp()
+
+
+def reconstruct_from_journal() -> dict:
+    """Rebuild today's daily risk state from the trade journal after a
+    process restart. RiskState is in-memory only and always starts fresh on
+    boot; without this, a mid-session restart silently forgets losses/halts
+    that were about to trip a walk-away guardrail — a trader could resume
+    trading under a false "clean day" state. Replays every closed trade
+    since the current session's reset boundary, in order, through the same
+    record_trade_result() the live fill loop uses, so halts/loss-policy
+    counters land exactly where they would have without the restart."""
+    from journal.store import get_closed_trades
+
+    _state.reset_day()
+    session_start = _session_start_epoch()
+    try:
+        trades = get_closed_trades()
+    except Exception:
+        logger.exception("Risk engine: failed to reconstruct daily state from journal")
+        return _state.to_dict()
+
+    replayed = 0
+    for row in trades:
+        closed_ts = row.get("closed_ts")
+        pnl = row.get("pnl")
+        if closed_ts is None or pnl is None:
+            continue
+        try:
+            if float(closed_ts) < session_start:
+                continue
+        except (TypeError, ValueError):
+            continue
+        _state.record_trade_result(float(pnl))
+        replayed += 1
+
+    if replayed:
+        logger.warning(
+            "Risk engine: reconstructed %s trade(s) for session %s — "
+            "daily_pnl=%.2f consecutive_losses=%s losses_today=%s halted=%s (%s)",
+            replayed,
+            _state.session_date,
+            _state.daily_realized_pnl,
+            _state.consecutive_losses,
+            _state.losses_today,
+            _state.halted,
+            _state.halt_reason,
+        )
+    else:
+        logger.info("Risk engine: no trades to reconstruct for session %s", _state.session_date)
+    return _state.to_dict()
 
 
 def can_trade() -> tuple[bool, str]:

@@ -863,7 +863,8 @@ NOVA_OS_REASON_CODES = (
 )
 
 # Temporary loss policy — decide() applies this via codes.loss_policy_mode().
-# Graduated response to consecutive losing trades in a session:
+# Graduated response to losing trades THIS SESSION (RiskState.losses_today —
+# a daily count, NOT consecutive_losses; an intervening win does not reset it):
 #   first loss  → downgrade control mode to `confirm` (require human per trade)
 #   third loss  → halt for the day (mirrors RISK_MAX_CONSECUTIVE_LOSSES)
 # These are intentionally separate from the risk-engine walk-away guardrails so
