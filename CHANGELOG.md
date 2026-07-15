@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Nova OS Phase P1: audit + event foundation
+
+- **What:** Added Nova OS's append-only decision/event log, a stable code vocabulary (decision verdicts, control modes, action codes, reason codes), policy-version metadata, a temporary graduated loss policy, and a read-only API (`GET /api/nova-os/policy`, `GET /api/nova-os/events`). No decision logic runs yet.
+- **Why:** P1 of the Nova OS plan — lay the audit foundation so future `decide()` (P2) and the UI speak one vocabulary and every action leaves an immutable receipt ("no silent action").
+- **Files touched:** `backend/constants.py` (Nova OS section), `backend/nova_os/{__init__,codes,events_db,events}.py`, `backend/routes/nova_os.py`, `backend/main.py` (router), `backend/app_lifespan.py` (init db), tests `test_nova_os_codes.py` / `test_nova_os_events.py`.
+- **How it works now:** `nova_os.events.record_receipt()` is the one write path; it validates every code against `nova_os.codes` (fail-closed on unknown codes) and appends an immutable row to `nova_os_events.db` (under `paths.cache_dir()`), returning the receipt. `get_events()` reads newest-first with symbol/kind filters. `codes.loss_policy_mode()` only ever lowers autonomy toward `confirm` (first loss → downgrade, third → halt), never raises it. All code strings live in `constants.py`.
+- **Verified by:** `pytest` P0 baseline + new suites = 126 passed; `main` imports with 2 nova-os routes; `npm run build` PASS.
+- **Follow-ups:** P2 — `decide()` engine emitting these receipts; DecisionPanel UI; event retention pruning.
+- **Related:** plan `nova_os_decision_engine_c4367abc`; [[Nova-OS-Status]] P1.
+
 ## 2026-07-15 — Nova OS Phase P0: continuity baseline
 
 - **What:** Canonical `Nova-OS-Status.md`, always-on continuity rule (read status → phase-close commit+push), mission canvas, duplicate L2 recorder constants removed, stale journal/risk/roadmap docs fixed to match A–F backbone + Nova OS P0–P10 plan.

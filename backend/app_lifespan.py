@@ -18,6 +18,7 @@ import hod_momo_enrichment as _hod_momo_enrichment
 import hod_momo_seed as _hod_momo_seed
 import journal.db as _journal_db
 import l2.db as _l2_db
+import nova_os.events_db as _nova_os_events_db
 import strategy.executor as _executor
 import strategy.risk as _risk
 import strategy.setups_stream as _setups_stream
@@ -112,6 +113,7 @@ async def lifespan(app: FastAPI):
     _hod_momo.load_state()
     _journal_db.init_db()
     _l2_db.init_db()
+    _nova_os_events_db.init_db()
     _hod_momo._on_blocklist_changed = invalidate_universe_cache
 
     loop = asyncio.get_event_loop()
