@@ -30,7 +30,17 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-14 — Phase 7: App.tsx hits 150-line target (DashboardPage + scanner hooks)
+
+- **What:** Extracted the dashboard monolith out of `App.tsx` into `pages/DashboardPage.tsx`, `components/ScannerTabPanels.tsx`, `hooks/useScannerData.ts`, `hooks/useSettingsForm.ts`, `utils/sortRows.ts`, and `types/health.ts`. Added `API_URL` to `constants.ts`. `App.tsx` is now **68 lines** (Stock View gate + Dashboard shell only).
+- **Why:** Completes the frontend half of the product-health modularity plan after backend Phases 1–6. Constitution / file-size target for `App.tsx` was &lt;150 lines.
+- **Files touched:** `frontend/src/App.tsx`, `pages/DashboardPage.tsx` (new), `components/ScannerTabPanels.tsx` (new), `hooks/useScannerData.ts` (new), `hooks/useSettingsForm.ts` (new), `utils/sortRows.ts` (new), `types/health.ts` (new), `constants.ts`.
+- **How it works now:** `App` only routes Stock View vs dashboard. `DashboardPage` owns tabs/header/side panel and composes hooks. Scanner table bodies live in `ScannerTabPanels`. Live poll + history + IBKR price stream live in `useScannerData`.
+- **Verified by:** `npm run build` (tsc + vite) clean.
+- **Follow-ups:** Optionally dedupe local `HealthStatus` interfaces in EmptyState/CatalystsTable to use `types/health.ts`.
+
 ## 2026-07-14 — Phase 6: main.py hits 200-line target (ibkr_bridge / universe / health / lifespan)
+
 
 - **What:** Extracted the last business-logic blocks from `main.py` into `ibkr_bridge.py` (IBKR run/enrich/table-reprice), `universe.py` (assets cache, avg volume, gapper enrich, HOD watch refresh), `health_status.py` (Alpaca health ping), and `app_lifespan.py` (startup/shutdown task wiring). `main.py` is now **199 lines**: cache state, tunables, re-exports, and FastAPI router wiring only.
 - **Why:** Completes the product-health monolith-reduction plan (Phases 1–6). Constitution / file-size target for `main.py` was &lt;200 lines.

@@ -301,6 +301,8 @@ function readApiBase(): string {
 const _rawApiBase: string = readApiBase();
 /** REST base, e.g. https://your-service.up.railway.app */
 export const API_BASE_URL: string = _rawApiBase;
+/** REST API prefix, e.g. https://host/api */
+export const API_URL = `${API_BASE_URL}/api`;
 /** WebSocket base derived from API_BASE_URL (https → wss, http → ws). */
 export const WS_BASE_URL: string = _rawApiBase
   .replace(/^https:\/\//, 'wss://')
@@ -371,6 +373,17 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
   ['strategy',    'Strategy'],
 ];
 
+/** Visible row window for the HOD table (~14 rows); rest are virtualized. */
+export const HOD_MOMO_VISIBLE_ROWS = 14;
+/** Estimated row height (px) for virtual scroll — fits symbol + "(N in Xs)" burst. */
+export const HOD_MOMO_ROW_HEIGHT_PX = 44;
+/** Sticky header row height included in the scroll viewport. */
+export const HOD_MOMO_HEADER_HEIGHT_PX = 34;
+/** Extra rows rendered above/below the viewport to reduce scroll flicker. */
+export const HOD_MOMO_VIRTUAL_OVERSCAN = 6;
+/** Batch live alert prepends so App does not re-render on every single fire. */
+export const HOD_MOMO_ALERT_BATCH_MS = 150;
+
 /** Empty-state copy when the HOD Momo WS is connected but no alerts have fired yet. */
 export const HOD_MOMO_EMPTY_WAITING =
   'Waiting for HOD + momentum alerts (gainers + IBKR volume seeds)…';
@@ -398,7 +411,7 @@ export const IBKR_MAX_DEPTH_SYMBOLS = 3;
 /** Scanner table price refresh target (mirrors backend IBKR_TABLE_REPRICE_INTERVAL_SEC). */
 export const IBKR_TABLE_REPRICE_INTERVAL_SEC = 1.0;
 /** Mark table prices stale if no successful tick within this many seconds. */
-export const SCANNER_PRICE_STALE_SEC = 6.0;
+export const SCANNER_PRICE_STALE_SEC = 5.0;
 /** Brief flash duration when a table price ticks up/down. */
 export const SCANNER_PRICE_FLASH_MS = 400;
 
