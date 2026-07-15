@@ -44,3 +44,15 @@ Thumbs.db
 # Local course handouts (large PDFs / videos — keep on disk, do not push)
 downloads/
 docs/warrior-trading/
+
+# Graphify extraction cache / scratch (keep graph.json, report, wiki, html in VCS)
+graphify-out/cache/
+graphify-out/.graphify_chunk_*.json
+graphify-out/.graphify_ast.json
+graphify-out/.graphify_semantic*.json
+graphify-out/.graphify_extract.json
+graphify-out/.graphify_detect.json
+graphify-out/.graphify_analysis.json
+graphify-out/.graphify_cached.json
+graphify-out/.graphify_uncached.txt
+graphify-out/.needs_update

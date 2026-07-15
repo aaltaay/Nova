@@ -12,12 +12,15 @@ You do **not** pick the database yourself. Ask normally. The recall router decid
 
 There is no honest “100% word-perfect” guarantee for any ASR/caption pipeline. Official captions are the best video-aligned source we have for captioned units because they are the player’s own subtitle track.
 
-## Two memories
+## Three memories
 
 | Store | Holds | Use when |
 |---|---|---|
 | **Pinecone** | Course slide PDFs + free ebook + grad/rehab PDFs + official LMS caption transcripts | “What does the course say…?”, rules, definitions, setups |
 | **Obsidian** | Curated decisions/roadmap + library inventory + keyword search over official transcripts on disk | “What should Nova automate?” plus course keyword hits |
+| **Graphify** (`graphify-out/`) | Concept graph over the Obsidian vault (typed edges, communities, wiki) | “What connects decision X to Y?”, cross-note architecture without rereading the vault |
+
+Graphify is a **navigation layer** over Obsidian — not a course transcript store and not a substitute for reading the decision notes when you need exact wording. Setup: [[Graphify-Knowledge-Graph]].
 
 Library paths / de-dupe rule: [[Warrior-Trading/Local-Library-Inventory]], [[Warrior-Trading-Library-Merge]].
 

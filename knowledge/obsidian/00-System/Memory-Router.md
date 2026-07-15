@@ -6,11 +6,14 @@ This note is the human-readable twin of `tools/course_memory/recall.py`.
 
 | Intent examples | Primary | Secondary |
 |---|---|---|
-| “What did *we* decide for Nova?” | Obsidian `03-Nova-Decisions/` | — |
+| “What did *we* decide for Nova?” | Obsidian `03-Nova-Decisions/` | Graphify query for related decisions |
 | “Which strategy should I *build*?” | Obsidian `02-Strategies/` | Pinecone (course evidence) |
+| “What *connects* Gap and Go to IBKR gates / Nova OS?” | Graphify (`graphify query` / `path`) | Obsidian note bodies for exact wording |
 | “What are the *entry rules* for Gap and Go?” | Pinecone | Obsidian if we already chose it |
 | “Summarize Chapter 5 psychology” | Pinecone | — |
-| “How does this map to IBKR / scanner?” | Obsidian + Pinecone | — |
+| “How does this map to IBKR / scanner?” | Obsidian + Pinecone | Graphify for cross-decision links |
+
+Graphify setup and commands: [[Graphify-Knowledge-Graph]].
 
 ## Trust order for automation advice
 
