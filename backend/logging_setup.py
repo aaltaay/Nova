@@ -19,6 +19,7 @@ import logging.handlers
 import os
 import sys
 
+from ibkr.log_filters import install_ibkr_log_filters
 from paths import log_dir as _nova_log_dir
 
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -58,3 +59,8 @@ def configure_logging() -> None:
     root.addHandler(console_handler)
     root.addHandler(file_handler)
     root.setLevel(logging.INFO)
+
+    # Keep ib_async's own noisy internal loggers from spamming Sentry with
+    # known-benign IBKR conditions (see ibkr/log_filters.py) — local logs are
+    # unaffected, they just see the downgraded WARNING level instead of ERROR.
+    install_ibkr_log_filters()
