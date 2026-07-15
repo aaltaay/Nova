@@ -60,6 +60,75 @@ def test_reprice_detail_symbols_skips_symbol_with_no_price_anywhere():
     reprice.reprice_detail_symbols(["ZZZZ"], run_ibkr, lambda *a: None, lambda s: None)
 
 
+def test_reprice_detail_symbols_skips_snapshot_when_stream_is_fresh():
+    """A symbol already served by ibkr/ticks.py's reqMktData stream must not
+    also fire a reqTickersAsync snapshot — that was pure IBKR-request-queue
+    contention with table_reprice_loop now that streaming ticks own the
+    broadcast for that symbol."""
+    calls = []
+    broadcasts = []
+
+    def run_ibkr(coro):
+        calls.append(coro)
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return {}
+
+    def schedule_broadcast(*args):
+        broadcasts.append(args)
+
+    reprice.reprice_detail_symbols(
+        ["FRESH"], run_ibkr, schedule_broadcast, lambda s: None,
+        is_stream_fresh=lambda s: True,
+    )
+
+    assert calls == []
+    assert broadcasts == []
+
+
+def test_reprice_detail_symbols_backstops_only_non_fresh_symbols():
+    """Mixed batch: the fresh-streaming symbol is excluded from the snapshot
+    request entirely; the stale/unsubscribed one still gets the full
+    snapshot-backstop treatment."""
+    snapshotted = []
+
+    def run_ibkr(coro):
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return {"STALE": {"price": 1.23, "prev_close": 1.0, "volume": 500, "open": 1.1}}
+
+    def schedule_broadcast(sym, price, size, ts, volume, prev_close):
+        snapshotted.append(sym)
+
+    def is_fresh(sym):
+        return sym == "FRESH"
+
+    reprice.reprice_detail_symbols(
+        ["FRESH", "STALE"], run_ibkr, schedule_broadcast, lambda s: None,
+        is_stream_fresh=is_fresh,
+    )
+
+    assert snapshotted == ["STALE"]
+
+
+def test_reprice_detail_symbols_defaults_to_full_backstop_without_freshness_fn():
+    """Backward compatible: omitting is_stream_fresh keeps prior behavior of
+    snapshotting every open detail symbol every tick."""
+    broadcasts = []
+
+    def run_ibkr(coro):
+        if asyncio.iscoroutine(coro):
+            coro.close()
+        return {"ABC": {"price": 2.0, "prev_close": 1.0, "volume": 10, "open": 1.5}}
+
+    def schedule_broadcast(sym, *rest):
+        broadcasts.append(sym)
+
+    reprice.reprice_detail_symbols(["ABC"], run_ibkr, schedule_broadcast, lambda s: None)
+
+    assert broadcasts == ["ABC"]
+
+
 def test_reprice_table_caches_returns_none_when_all_caches_empty():
     assert reprice.reprice_table_caches([], [], [], lambda coro: {}) is None
 

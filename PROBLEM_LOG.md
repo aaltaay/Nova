@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Open-ticker detail loop still snapshotting symbols already streaming live
+
+- **Symptom:** Suspected open-ticker (quote panel) lag under load (movers scans + multiple open panels), attributed to the detail refresh being snapshot-based instead of a persistent `reqMktData` stream.
+- **Cause:** The open ticker had *already* moved to streaming (`ibkr/ticks.py`, `reqMktData`, added 2026-07-14) — but `ibkr/reprice.py`'s `detail_reprice_loop` "backstop" kept firing a full `reqTickersAsync` snapshot every `IBKR_REPRICE_INTERVAL_SEC` (3s) for **every** open detail symbol regardless of whether its stream was already delivering. That redundant snapshot request queued on the same Gateway connection as `table_reprice_loop`'s 1Hz chunked snapshots — real request-queue contention, just from a duplicate call nobody removed after streaming landed.
+- **Fix:** `ibkr/ticks.py` now stamps `last_update_ts` on every `updateEvent` and exposes `is_fresh(symbol, max_age_sec)`. `detail_reprice_loop` / `reprice_detail_symbols` take an optional `is_stream_fresh` callback (wired in `app_lifespan.py` to `ticks.is_fresh(..., IBKR_DETAIL_STREAM_FRESH_SEC)`) and skip the snapshot+broadcast entirely for symbols whose stream is fresh, only backstopping symbols with no/stale stream.
+- **Keywords:** open ticker lag, reqMktData already streaming, detail_reprice_loop, reqTickersAsync contention, ibkr/ticks.py, ibkr/reprice.py, IBKR_DETAIL_STREAM_FRESH_SEC, is_fresh, Gateway request queue, table_reprice_loop contention
+
 ## 2026-07-15 — Empty "IBKR bars failed for SYMBOL:" in Sentry
 
 - **Symptom:** Sentry/logs showed `IBKR bars failed for AAPL:` / `PYPG:` with nothing after the colon; UI got opaque 503s.

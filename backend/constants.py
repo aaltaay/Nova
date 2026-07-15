@@ -395,6 +395,19 @@ IBKR_ERROR_DEPTH_NOT_SUPPORTED = 10092
 # Tick-by-tick Time & Sales subscription failures (async via errorEvent).
 # 10089/10189: requires additional market-data subscription; 354: not subscribed.
 IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 354})
+
+# ib_async's OWN internal loggers (ib_async.wrapper / .ib / .client — not our
+# app loggers) log these at ERROR even though they're expected under normal
+# Gateway operation: cancelled/no-data historical or scanner queries, and
+# late-cancel races. See backend/ibkr/log_filters.py, which downgrades
+# matching records to WARNING so Sentry's LoggingIntegration (event_level via
+# observability.py) stops opening issues for them, while local log files are
+# unaffected. Confirmed against live Sentry issues PYTHON-FASTAPI-1/2/3/7/8/9/A.
+IBKR_BENIGN_LOG_ERROR_CODES = frozenset({162, 365})  # e.g. "Error 162, reqId 1633: ..."
+IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
+    "cancelmktdata: no reqid found",
+    "cancelmktdepth: no reqid found",
+)
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
 
@@ -441,6 +454,12 @@ IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ce
 # intentionally disabled while DISCOVERY_PROVIDER=ibkr (see PROBLEM_LOG
 # 2026-07-13), so this replaces it with a fast IBKR-native reprice tick.
 IBKR_REPRICE_INTERVAL_SEC = 3.0
+# Detail-panel backstop: skip the reqTickersAsync snapshot for a symbol whose
+# reqMktData streaming subscription (ibkr/ticks.py) has updated within this
+# window — it's already delivering live ticks, so the snapshot is redundant
+# IBKR-request-queue contention with table_reprice_loop. Only symbols whose
+# stream is missing/stalled longer than this fall back to the snapshot.
+IBKR_DETAIL_STREAM_FRESH_SEC = 8.0
 # Scanner TABLE prices: independent 1Hz reqTickersAsync snapshots (not reqMktData).
 # Must not wait on the full movers scan — that starvation caused "updated 10–12s ago".
 IBKR_TABLE_REPRICE_INTERVAL_SEC = 1.0

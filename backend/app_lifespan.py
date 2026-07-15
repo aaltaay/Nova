@@ -10,6 +10,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 import hod_momo as _hod_momo
 import hod_momo_enrichment as _hod_momo_enrichment
@@ -27,7 +28,11 @@ from cache import (
     load_gapper_snapshot,
     load_movers_snapshot,
 )
-from constants import HISTORY_RETENTION_DAYS, L2_RETENTION_SWEEP_INTERVAL_SEC
+from constants import (
+    HISTORY_RETENTION_DAYS,
+    IBKR_DETAIL_STREAM_FRESH_SEC,
+    L2_RETENTION_SWEEP_INTERVAL_SEC,
+)
 from health_status import ping_health, set_health_broker_keys_missing
 from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
@@ -51,6 +56,18 @@ logger = logging.getLogger(__name__)
 def _m():
     import main as _main
     return _main
+
+
+def configure_cors(app: FastAPI) -> None:
+    """Register the CORS middleware — extracted out of main.py's app factory
+    (see backend-modularity rule) so that file stays under the file-size limit."""
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @asynccontextmanager
@@ -126,6 +143,7 @@ async def lifespan(app: FastAPI):
     _ibkr_ticks.configure(broadcast_trade_update, _find_ibkr_cache_row)
     detail_reprice_task = asyncio.create_task(_ibkr_reprice.detail_reprice_loop(
         get_ibkr_detail_symbols, run_ibkr, broadcast_trade_update, _find_ibkr_cache_row,
+        lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),
     ))
     table_reprice_task = asyncio.create_task(_ibkr_reprice.table_reprice_loop(
         _get_discovery_provider, table_reprice_symbols, apply_table_quotes, _scanner_broadcast,

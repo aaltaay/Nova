@@ -34,6 +34,7 @@ GetProviderFn = Callable[[], str]
 RepriceCachesFn = Callable[[], Optional[dict[str, Any]]]
 PushFn = Callable[[dict[str, Any]], Awaitable[None]]
 GetSymbolsFn = Callable[[], list[str]]
+IsStreamFreshFn = Callable[[str], bool]
 
 _table_reprice_busy = False
 _table_chunk_rotate = 0
@@ -44,17 +45,33 @@ def reprice_detail_symbols(
     run_ibkr: RunIbkrFn,
     schedule_broadcast: ScheduleBroadcastFn,
     find_cache_row: FindCacheRowFn,
+    is_stream_fresh: Optional[IsStreamFreshFn] = None,
 ) -> None:
     """Reprice only the symbols with an open ticker-detail WS (usually 0-2).
 
     ``schedule_broadcast`` must push the coroutine onto the FastAPI/main event
     loop (not through ``run_ibkr``) — broadcasting over the IB bridge contended
     with snapshot_quotes and made trade_update feel 10–14s apart.
+
+    ``is_stream_fresh`` (optional): when a symbol already has a live
+    ``reqMktData`` stream (``ibkr/ticks.py``) that ticked recently, this
+    reqTickersAsync snapshot is redundant and only adds IBKR-request-queue
+    contention with ``table_reprice_loop`` — skip both the snapshot and the
+    broadcast for that symbol entirely (ticks.py already owns its broadcasts).
+    Symbols with no fresh stream keep the exact prior snapshot-backstop
+    behavior, unchanged.
     """
     if not detail_symbols:
         return
-    quotes = run_ibkr(_ibkr_discovery.snapshot_quotes(detail_symbols))
-    for sym in detail_symbols:
+    backstop_symbols = (
+        [s for s in detail_symbols if not is_stream_fresh(s)]
+        if is_stream_fresh is not None
+        else list(detail_symbols)
+    )
+    if not backstop_symbols:
+        return
+    quotes = run_ibkr(_ibkr_discovery.snapshot_quotes(backstop_symbols))
+    for sym in backstop_symbols:
         row = find_cache_row(sym)
         q = quotes.get(sym) if quotes else None
         price = (q or {}).get("price")
@@ -149,8 +166,14 @@ async def detail_reprice_loop(
     run_ibkr: RunIbkrFn,
     broadcast_trade_update: BroadcastFn,
     find_cache_row: FindCacheRowFn,
+    is_stream_fresh: Optional[IsStreamFreshFn] = None,
 ) -> None:
-    """Independent timer for the ticker-detail panel (volume/prev_close backstop)."""
+    """Independent timer for the ticker-detail panel (volume/prev_close backstop).
+
+    ``is_stream_fresh`` lets the caller skip this snapshot entirely for
+    symbols already served by ``ibkr/ticks.py``'s streaming subscription —
+    see ``reprice_detail_symbols`` for why.
+    """
     loop = asyncio.get_running_loop()
 
     def schedule_broadcast(*args) -> None:
@@ -167,6 +190,7 @@ async def detail_reprice_loop(
                 run_ibkr,
                 schedule_broadcast,
                 find_cache_row,
+                is_stream_fresh,
             )
         except asyncio.CancelledError:
             raise

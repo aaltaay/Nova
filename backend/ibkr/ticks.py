@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import time
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
@@ -62,6 +63,13 @@ def _clean(x: float | None) -> float | None:
 
 
 def _on_ticker_update(ticker: Any, symbol: str) -> None:
+    sub = _subs.get(symbol)
+    if sub is not None:
+        # Recorded on every updateEvent (bid/ask/last/volume), not only on a
+        # price change below — this is a liveness signal for is_fresh(), so a
+        # thinly-traded symbol whose price simply hasn't moved still counts as
+        # "streaming fine" and doesn't need the reqTickersAsync backstop.
+        sub["last_update_ts"] = time.time()
     if _broadcast is None:
         return
     last = _clean(getattr(ticker, "last", None))
@@ -69,7 +77,6 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
     price = last or close
     if price is None:
         return
-    sub = _subs.get(symbol)
     if sub is not None and sub.get("last_price") == price:
         return
     if sub is not None:
@@ -133,6 +140,7 @@ async def subscribe(symbol: str) -> bool:
             "handler": handler,
             "refs": 1,
             "last_price": None,
+            "last_update_ts": None,
         }
         logger.info("IBKR ticks: subscribed last-price for %s (conId=%s)", symbol, contract.conId)
         return True
@@ -167,3 +175,17 @@ async def unsubscribe(symbol: str) -> None:
 
 def subscribed_symbols() -> list[str]:
     return list(_subs.keys())
+
+
+def is_fresh(symbol: str, max_age_sec: float) -> bool:
+    """True if ``symbol`` has a live reqMktData stream that ticked within
+    ``max_age_sec``. Used by the detail reprice backstop (ibkr/reprice.py) to
+    skip a redundant reqTickersAsync snapshot when the stream is already
+    delivering — false before the first tick arrives or once ticks stop."""
+    sub = _subs.get(symbol.upper())
+    if sub is None:
+        return False
+    last_ts = sub.get("last_update_ts")
+    if last_ts is None:
+        return False
+    return (time.time() - last_ts) <= max_age_sec
