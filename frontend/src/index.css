@@ -1655,11 +1655,10 @@ th {
 /* ── Persistent Side Panel ───────────────────────────────────────────────── */
 
 .side-panel {
-  /* Mirrors SIDE_PANEL_WIDTH_PX in constants.ts (820) */
+  /* Default width; DashboardPage overrides via inline style when resized */
   width: 820px;
-  max-width: 55vw;
   flex-shrink: 0;
-  border-left: 1px solid var(--border-color);
+  border-left: none;
   background: var(--panel-bg);
   position: sticky;
   top: 0;
@@ -1669,6 +1668,46 @@ th {
   overflow: hidden;
   container-type: inline-size;
   container-name: side-panel;
+}
+
+/* Drag handle between scanner (left) and quote panel (right) */
+.panel-resize-handle {
+  flex-shrink: 0;
+  width: 5px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  cursor: col-resize;
+  background: var(--border-color);
+  position: relative;
+  z-index: 5;
+  align-self: stretch;
+  touch-action: none;
+  user-select: none;
+}
+
+.panel-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle--dragging {
+  background: var(--accent-color);
+}
+
+body.is-resizing-side-panel {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.is-resizing-side-panel * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .side-panel-search {
@@ -2404,9 +2443,13 @@ th {
     flex-direction: column;
   }
 
+  .panel-resize-handle {
+    display: none;
+  }
+
   .side-panel {
-    width: 100%;
-    max-width: none;
+    width: 100% !important;
+    max-width: none !important;
     height: auto;
     max-height: none;
     position: static;

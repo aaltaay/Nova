@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Draggable scanner / quote panel splitter
+
+- **What:** The vertical divider between the main scanner column and the quote side panel is now draggable. Width persists in `localStorage`.
+- **Why:** User wants more room on the left (scanner) or right (quote/chart) depending on the moment.
+- **Files touched:** `frontend/src/hooks/useSidePanelWidth.ts`, `frontend/src/components/PanelResizeHandle.tsx`, `DashboardPage.tsx`, `SidePanel.tsx`, `constants.ts`, `index.css`.
+- **How it works now:** Drag the thin handle left to widen the quote panel, right to give the scanner more space. Clamped so the scanner keeps at least ~400px; hidden when the layout stacks below 1100px.
+- **Verified by:** frontend build.
+
 ## 2026-07-15 — Fix chart Loading starvation (IBKR historical priority)
 
 - **What:** Open ticker chart bars now take priority over background setup scans. Setups under discovery=ibkr fetch fewer symbols less often; 1Min lookback shortened to 1 day; UI aborts stuck fetches at 25s with a clear error.

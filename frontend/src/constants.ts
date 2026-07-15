@@ -241,10 +241,16 @@ export const CHART_GRID_PANELS: { id: string; label: string; note?: string }[] =
     note: 'Temp stand-in — 10s live tape coming later',
   },
 ];
-/** Side panel width (px) on wide viewports — room for quote | chart | fundamentals. */
+/** Side panel default width (px) on wide viewports — room for quote | chart | fundamentals. */
 export const SIDE_PANEL_WIDTH_PX = 820;
-/** Side panel max share of viewport width (CSS max-width: Nvw). */
-export const SIDE_PANEL_MAX_VIEWPORT_PCT = 55;
+/** Minimum width when dragging the splitter (px). */
+export const SIDE_PANEL_MIN_WIDTH_PX = 360;
+/** Absolute max width when dragging (px); also clamped so the scanner keeps ~400px. */
+export const SIDE_PANEL_MAX_WIDTH_PX = 1400;
+/** Side panel max share of viewport width used as an upper clamp while resizing. */
+export const SIDE_PANEL_MAX_VIEWPORT_PCT = 70;
+/** localStorage key for the user-resized side panel width. */
+export const SIDE_PANEL_WIDTH_STORAGE_KEY = 'nova_side_panel_width_v1';
 /** Below this viewport width, side panel stacks under the scanner (full width). */
 export const SIDE_PANEL_STACK_BREAKPOINT_PX = 1100;
 /** When Alpaca returns zero bars (weekend / thin symbols), synthesize this many

@@ -11,6 +11,7 @@ import { TabNav } from '../components/TabNav';
 import type { ActiveTab } from '../components/TabNav';
 import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
 import { SidePanel } from '../components/SidePanel';
+import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { SettingsPanel } from '../components/SettingsPanel';
 import { ScannerTabPanels } from '../components/ScannerTabPanels';
 import { DashboardTab } from './DashboardTab';
@@ -21,6 +22,7 @@ import { ReportsTab } from '../reports/ReportsTab';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSettingsForm } from '../hooks/useSettingsForm';
 import { useExchangeFilter } from '../hooks/useExchangeFilter';
+import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { scanAgeForTab } from '../utils/scanAge';
 import { API_BASE_URL } from '../constants';
 
@@ -34,6 +36,7 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [tabOverridden, setTabOverridden] = useState(false);
   const exchangeFilter = useExchangeFilter();
+  const sidePanel = useSidePanelWidth();
   const [showHodSettings, setShowHodSettings] = useState(false);
   const watchlist = useWatchlist(true);
   const hodMomoStream = useHodMomoStream();
@@ -251,6 +254,10 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
           {activeTab === 'reports' && <ReportsTab />}
         </main>
       </div>
+      <PanelResizeHandle
+        onPointerDown={sidePanel.onHandlePointerDown}
+        dragging={sidePanel.dragging}
+      />
       <SidePanel
         selectedSymbol={selectedSymbol}
         setSelectedSymbol={setSelectedSymbol}
@@ -258,6 +265,7 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
         watchlistEntries={watchlist.entries}
         discoveryProvider={settings.discoveryProvider}
         alpacaFeed={settings.activeFeed}
+        widthPx={sidePanel.widthPx}
       />
     </div>
   );

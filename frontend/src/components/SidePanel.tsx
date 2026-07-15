@@ -20,6 +20,8 @@ interface Props {
   discoveryProvider?: string;
   /** Alpaca IEX/SIP tier for the Data sources panel. */
   alpacaFeed?: string;
+  /** User-resized width from the drag splitter (ignored when stacked on narrow viewports). */
+  widthPx?: number;
 }
 
 export function SidePanel({
@@ -29,6 +31,7 @@ export function SidePanel({
   watchlistEntries = [],
   discoveryProvider,
   alpacaFeed,
+  widthPx,
 }: Props) {
   const [input, setInput] = useState(selectedSymbol ?? '');
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(selectedSymbol);
@@ -56,7 +59,10 @@ export function SidePanel({
   }
 
   return (
-    <aside className="side-panel">
+    <aside
+      className="side-panel"
+      style={widthPx != null ? { width: widthPx, maxWidth: 'none' } : undefined}
+    >
       <div className="side-panel-search">
         <form className="side-search-form" onSubmit={handleSubmit}>
           <input
