@@ -304,15 +304,15 @@ export function TickerDetailContent({
   const brokerGrid = <TickerBrokerGrid asset={asset} />;
 
   if (columns) {
-    // Stacked sidebar: chart → news row → watchlist strip → quote | fundamentals.
+    // Stacked sidebar: chart → watchlist + L2/T&S → news → quote | fundamentals.
     return (
       <div className="cq-root cq-root--stacked">
         <div className="cq-col cq-col--chart">{chartEl}</div>
+        <TickerWatchlistStrip entry={watchlistEntry} />
+        {depthSection}
         <div className="cq-news-row">
           <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
         </div>
-        <TickerWatchlistStrip entry={watchlistEntry} />
-        {depthSection}
         <div className="cq-info-row cq-info-row--two">
           <div className="cq-col cq-col--quote">
             {quoteHeader}

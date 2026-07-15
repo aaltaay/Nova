@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Quote panel: Watchlist + L2/T&S under the chart
+
+- **What:** In the stacked quote-panel layout (`layout="columns"`), Watchlist strip and Level 2 / Time & Sales now render directly under the price chart, above the news/catalyst row.
+- **Why:** User asked to move those two surfaces up under the graph so trading context sits next to the candles.
+- **Files touched:** `frontend/src/components/TickerDetailContent.tsx`
+- **How it works now:** Column order is chart → watchlist → L2/T&S → news → quote | fundamentals. Stack layout (non-columns) unchanged.
+- **Verified by:** Layout reorder only; Vite HMR on running UI.
+
 ## 2026-07-15 — Configurable CORS + frontend vendor chunk-splitting
 
 - **What:** CORS origins are now configurable via `NOVA_CORS_ALLOWED_ORIGINS` (comma-separated), defaulting to `CORS_ALLOWED_ORIGINS_DEFAULT = ["*"]` for local dev; `allow_credentials` dropped to `False` since the frontend never sends cookies/auth (also fixes the spec-invalid `*` + `credentials=True` combo). Vite build now splits `react`/`react-dom` and the `lightweight-charts*` libs into dedicated vendor chunks via `manualChunks` in `vite.config.ts`.
