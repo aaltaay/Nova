@@ -1,6 +1,6 @@
 /**
  * Versioned workspace layout — slot → ordered module ids (+ optional sizes).
- * Persisted in localStorage (Phase 5). Drag-drop writes here in Phase 6.
+ * Persisted in localStorage (Phase 5). Drag-drop writes here via reorderModulesInSlot (Phase 6).
  */
 import { LAYOUT_SCHEMA_VERSION, LAYOUT_STORAGE_KEY } from '../constants';
 
@@ -172,6 +172,30 @@ export function moveModuleInSlot(
   const swap = order[target]!;
   order[target] = order[idx]!;
   order[idx] = swap;
+  return {
+    ...layout,
+    version: LAYOUT_SCHEMA_VERSION,
+    slots: { ...layout.slots, [slot]: order },
+  };
+}
+
+/**
+ * Reorder by dragging `activeId` onto `overId` within a slot (Phase 6 dnd-kit).
+ * Returns the same layout reference when the move is a no-op.
+ */
+export function reorderModulesInSlot(
+  layout: WorkspaceLayout,
+  slot: LayoutSlotId,
+  activeId: string,
+  overId: string,
+): WorkspaceLayout {
+  if (activeId === overId) return layout;
+  const order = [...getSlotOrder(layout, slot)];
+  const oldIndex = order.indexOf(activeId);
+  const newIndex = order.indexOf(overId);
+  if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) return layout;
+  const [item] = order.splice(oldIndex, 1);
+  order.splice(newIndex, 0, item!);
   return {
     ...layout,
     version: LAYOUT_SCHEMA_VERSION,

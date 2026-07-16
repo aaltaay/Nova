@@ -38,7 +38,7 @@ export function TabNav({
   onModulesMenuOpenChange,
 }: Props) {
   const tabs = listTabModules().filter(m => visibility[m.id] !== false);
-  const { getOrder, moveModule, resetToDefault } = useLayoutStore();
+  const { getOrder, moveModule, reorderModules, resetToDefault } = useLayoutStore();
   const [reorderSlot, setReorderSlot] = useState<LayoutSlotId>('side_panel');
 
   return (
@@ -67,6 +67,7 @@ export function TabNav({
           reorderSlot={reorderSlot}
           onReorderSlotChange={setReorderSlot}
           onMove={(id, dir) => moveModule(reorderSlot, id, dir)}
+          onReorder={(activeId, overId) => reorderModules(reorderSlot, activeId, overId)}
           onResetLayout={resetToDefault}
           open={modulesMenuOpen}
           onOpenChange={onModulesMenuOpenChange}

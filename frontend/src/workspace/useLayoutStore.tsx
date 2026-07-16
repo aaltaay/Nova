@@ -1,6 +1,6 @@
 /**
  * Shared layout store — Modules menu reorder + quote hosts read the same JSON.
- * Persisted via layoutStore helpers (Phase 5).
+ * Persisted via layoutStore helpers (Phase 5); drag-drop writes here (Phase 6).
  */
 import {
   createContext,
@@ -14,6 +14,7 @@ import {
   getSlotOrder,
   loadLayout,
   moveModuleInSlot,
+  reorderModulesInSlot,
   resetLayout as resetLayoutPersist,
   saveLayout,
   type LayoutSlotId,
@@ -24,6 +25,7 @@ type LayoutStoreValue = {
   layout: WorkspaceLayout;
   getOrder: (slot: LayoutSlotId) => string[];
   moveModule: (slot: LayoutSlotId, moduleId: string, direction: 'up' | 'down') => void;
+  reorderModules: (slot: LayoutSlotId, activeId: string, overId: string) => void;
   resetToDefault: () => void;
 };
 
@@ -49,14 +51,26 @@ export function LayoutStoreProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const reorderModules = useCallback(
+    (slot: LayoutSlotId, activeId: string, overId: string) => {
+      setLayout(prev => {
+        const next = reorderModulesInSlot(prev, slot, activeId, overId);
+        if (next === prev) return prev;
+        saveLayout(next);
+        return next;
+      });
+    },
+    [],
+  );
+
   const resetToDefault = useCallback(() => {
     const next = resetLayoutPersist();
     setLayout(next);
   }, []);
 
   const value = useMemo(
-    () => ({ layout, getOrder, moveModule, resetToDefault }),
-    [layout, getOrder, moveModule, resetToDefault],
+    () => ({ layout, getOrder, moveModule, reorderModules, resetToDefault }),
+    [layout, getOrder, moveModule, reorderModules, resetToDefault],
   );
 
   return (

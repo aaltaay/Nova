@@ -1,8 +1,9 @@
 /**
- * Modules menu — show/hide + panel order (↑↓); persistence via visibility + layout store.
+ * Modules menu — show/hide + panel order (dnd-kit + ↑↓); persistence via layout store.
  */
-import { getModule, listModules, type NovaModule } from '../workspace/registry';
+import { listModules, type NovaModule } from '../workspace/registry';
 import type { LayoutSlotId } from '../workspace/layoutStore';
+import { LayoutOrderList } from './LayoutOrderList';
 
 interface Props {
   visibility: Record<string, boolean>;
@@ -12,6 +13,7 @@ interface Props {
   reorderSlot: LayoutSlotId;
   onReorderSlotChange: (slot: LayoutSlotId) => void;
   onMove: (moduleId: string, direction: 'up' | 'down') => void;
+  onReorder: (activeId: string, overId: string) => void;
   onResetLayout: () => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -24,6 +26,7 @@ export function ModulesMenu({
   reorderSlot,
   onReorderSlotChange,
   onMove,
+  onReorder,
   onResetLayout,
   open,
   onOpenChange,
@@ -88,38 +91,11 @@ export function ModulesMenu({
                 Stock view
               </button>
             </div>
-            <ul className="modules-menu__order-list" data-testid="layout-order-list">
-              {panelOrder.map((id, index) => {
-                const title = getModule(id)?.title ?? id;
-                return (
-                  <li key={id} className="modules-menu__order-item" data-layout-order-id={id}>
-                    <span className="modules-menu__order-label">{title}</span>
-                    <span className="modules-menu__order-actions">
-                      <button
-                        type="button"
-                        aria-label={`Move ${title} up`}
-                        data-layout-move="up"
-                        data-layout-move-id={id}
-                        disabled={index === 0}
-                        onClick={() => onMove(id, 'up')}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Move ${title} down`}
-                        data-layout-move="down"
-                        data-layout-move-id={id}
-                        disabled={index === panelOrder.length - 1}
-                        onClick={() => onMove(id, 'down')}
-                      >
-                        ↓
-                      </button>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <LayoutOrderList
+              panelOrder={panelOrder}
+              onMove={onMove}
+              onReorder={onReorder}
+            />
             <button
               type="button"
               className="modules-menu__reset"

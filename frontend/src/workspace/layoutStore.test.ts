@@ -10,6 +10,7 @@ import {
   migrateLayout,
   moveModuleInSlot,
   parseLayout,
+  reorderModulesInSlot,
   resetLayout,
   saveLayout,
 } from './layoutStore';
@@ -97,6 +98,17 @@ describe('layoutStore (Phase 5)', () => {
     const moved = moveModuleInSlot(base, 'side_panel', 'news', 'up');
     const idx = moved.slots.side_panel.indexOf('news');
     expect(idx).toBe(order.indexOf('news') - 1);
+    expect(moved.slots.stock_view).toEqual(base.slots.stock_view);
+  });
+
+  it('reorderModulesInSlot moves active onto over and no-ops same id', () => {
+    const base = defaultLayout();
+    expect(reorderModulesInSlot(base, 'side_panel', 'news', 'news')).toBe(base);
+
+    // Default: charts, level2, tape, news, quote — drag news onto charts
+    const moved = reorderModulesInSlot(base, 'side_panel', 'news', 'charts');
+    expect(moved.slots.side_panel[0]).toBe('news');
+    expect(moved.slots.side_panel).toContain('charts');
     expect(moved.slots.stock_view).toEqual(base.slots.stock_view);
   });
 });

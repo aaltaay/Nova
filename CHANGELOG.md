@@ -48,6 +48,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Drag-and-drop panel rearrange via dnd-kit (Phase 6)
+
+- **What:** Added `@dnd-kit/core` + `@dnd-kit/sortable` drag handles on Modules menu panel-order rows; drop reorders within a slot and persists through the Phase 5 `layoutStore`. ↑↓ buttons remain as keyboard/a11y fallback.
+- **Why:** Modular Panel Workspace Phase 6 (FINAL) — drag-drop rearrange completing the workspace phase plan.
+- **Files touched:** `frontend/package.json`, `package-lock.json`, `components/LayoutOrderList.tsx`, `ModulesMenu.tsx`, `TabNav.tsx`, `workspace/layoutStore.ts`, `useLayoutStore.tsx`, `layoutStore.test.ts`, `index.css`, e2e `layout-store.spec.ts`, `CHANGELOG.md`.
+- **How it works now:** `LayoutOrderList` wraps the order `<ul>` in `DndContext`/`SortableContext`; drag end calls `reorderModulesInSlot` → `saveLayout`. Quote hosts still read order via `useLayoutStore().getOrder` — no new persist schema.
+- **Verified by:** `npx vitest run`, `npx playwright test`, `npm run build`.
+- **Follow-ups:** Modular workspace phases 0–6 complete. Optional later: drag between slots / resize handles.
+- **Related:** Phase 5 `3403b3a`.
+
 ## 2026-07-15 — Maintainer sentinel subagent
 
 - **What:** Added a read-only `maintainer` Cursor subagent (sibling to `tester`) that audits maintainability decay and dangers, plus a deterministic scanner script and living memory/baselines.
