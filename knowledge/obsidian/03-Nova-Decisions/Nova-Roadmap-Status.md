@@ -182,8 +182,8 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 | 1 Maintainer gates | `[x]` | `67d369a` | CSS + baseline growth + dep warnings |
 | 2 CSS split | `[x]` | `e15f252` | `index.css` import-only (18 lines) |
 | 3 Constants domains | `[x]` | `b03f34c` | Compatibility barrels |
-| 4 Frontend components | `[~]` | _(this commit)_ | Hotkeys / HOD settings / debug |
-| 5 Chart lifecycle | `[ ]` | — | `chart/` hooks |
+| 4 Frontend components | `[x]` | `71170c3` | Hotkeys / HOD settings / debug |
+| 5 Chart lifecycle | `[~]` | _(this commit)_ | `chart/` hooks |
 | 6 Low-coupling backend | `[ ]` | — | integrity / news / r2 / security_lib |
 | 7 Scanner state | `[ ]` | — | No production `import main` caches |
 | 8 Scanner + ticker | `[ ]` | — | Ports/facades |
@@ -208,7 +208,8 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 4: HotkeyManager + HOD settings/debug component splits | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 5: TickerChart lifecycle hooks under chart/ | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 4: HotkeyManager + HOD settings/debug component splits | `71170c3` |
 | 2026-07-16 | Maintenance Phase 3: domain constants modules + compatibility barrels | `b03f34c` |
 | 2026-07-16 | Maintenance Phase 2: mechanical index.css split into domain stylesheets | `e15f252` |
 | 2026-07-16 | Maintenance Phase 1: CSS hard limit, baseline growth, import_main/cross-feature warnings | `67d369a` |

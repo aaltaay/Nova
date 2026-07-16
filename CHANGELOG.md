@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 5: TickerChart lifecycle hooks
+
+- **What:** Extracted chart instance, bars fetch/versioning, live-trade merge, and drawing-manager lifecycle into `frontend/src/chart/*`. `TickerChart.tsx` is a 187-line composition shell with error boundary + symbol remount preserved.
+- **Why:** Phase 5 of the pattern-driven architecture roadmap (ADR 005).
+- **Files touched:** `frontend/src/TickerChart.tsx`, `frontend/src/chart/useChart*.ts`, related helpers/types.
+- **How it works now:** Hooks own create/dispose/resize, REST versioning/stale rejection, monotonic live candles, and drawings; public `ChartTradeUpdate` export unchanged for ChartGrid.
+- **Verified by:** Vitest 178 · `tsc -b` · tickerChartData tests.
+
 ## 2026-07-16 — Maintenance Phase 4: split HotkeyManager and HOD settings/debug
 
 - **What:** Decomposed `HotkeyManager`, `HodMomoSettings`, and `HodMomoDebugPanel` into focused child components/hooks under file-size limits. Parents are composition shells; DAS import still authoring-only.
