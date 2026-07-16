@@ -60,6 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_trades_closed_ts ON trades(closed_ts);
 # works -- no destructive migration, no data loss.
 _TRADES_MIGRATIONS = [
     ("is_mock", "INTEGER NOT NULL DEFAULT 0"),
+    ("tags", "TEXT NOT NULL DEFAULT '[]'"),
 ]
 
 

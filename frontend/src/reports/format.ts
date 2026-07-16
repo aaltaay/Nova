@@ -21,3 +21,16 @@ export const MONTH_NAMES = [
 ] as const;
 
 export const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+/** Format R-multiple for Reports v2 panels. */
+export function fmtRMultiple(r: number | null | undefined): string {
+  if (r == null || Number.isNaN(r)) return '—';
+  const sign = r > 0 ? '+' : '';
+  return `${sign}${r.toFixed(2)}R`;
+}
+
+/** Format percentage for tag win-rate display. */
+export function fmtPct(v: number | null | undefined): string {
+  if (v == null || Number.isNaN(v)) return '—';
+  return `${v.toFixed(1)}%`;
+}

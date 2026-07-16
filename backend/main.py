@@ -161,38 +161,8 @@ _hod_momo_universe: set[str] = set()
 _hod_momo_universe_ts: float = 0.0
 
 # ── App factory ───────────────────────────────────────────────────────────────
-from routes.trading import router as _trading_router, ws_router as _trading_ws_router  # noqa: E402
-from routes.strategy import router as _strategy_router  # noqa: E402
-from routes.journal import router as _journal_router  # noqa: E402
-from routes.executor import router as _executor_router  # noqa: E402
-from routes.l2 import router as _l2_router  # noqa: E402
-from routes.news import router as _news_router  # noqa: E402
-from routes.ticker import router as _ticker_router  # noqa: E402
-from scanner_push import router as _scanner_ws_router  # noqa: E402
-from routes.health import router as _health_router  # noqa: E402
-from routes.scan import router as _scan_router  # noqa: E402
-from routes.hod_momo import router as _hod_momo_router, ws_router as _hod_momo_ws_router  # noqa: E402
-from routes.client_errors import router as _client_errors_router  # noqa: E402
-from routes.nova_os import router as _nova_os_router  # noqa: E402
-from routes.archive import router as _archive_router  # noqa: E402
+from app_routers import register_routers  # noqa: E402
 
 app = FastAPI(title="Nova API", lifespan=lifespan)
-
-app.include_router(_trading_router)
-app.include_router(_trading_ws_router)
-app.include_router(_scanner_ws_router)
-app.include_router(_strategy_router)
-app.include_router(_journal_router)
-app.include_router(_executor_router)
-app.include_router(_l2_router)
-app.include_router(_news_router)
-app.include_router(_ticker_router)
-app.include_router(_health_router)
-app.include_router(_scan_router)
-app.include_router(_hod_momo_router)
-app.include_router(_hod_momo_ws_router)
-app.include_router(_client_errors_router)
-app.include_router(_nova_os_router)
-app.include_router(_archive_router)
-
+register_routers(app)
 configure_cors(app)

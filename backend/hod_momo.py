@@ -60,6 +60,7 @@ from hod_momo_filters import passes_master_gate as _passes_master_gate
 from hod_momo_filters import price_surge as _price_surge
 from hod_momo_models import AlertObject, DecisionRecord, MasterGateConfig, StrategyConfig
 from hod_momo_models import TickerSnap as _TickerSnap
+from alerts.hooks import notify_hod_alert_async
 from hod_momo_models import (
     alert_from_dict as _alert_from_dict,
     alert_to_dict as _alert_to_dict,
@@ -684,6 +685,7 @@ async def flush_consolidated_loop() -> None:
                         dead.append(ws)
                 for ws in dead:
                     _hod_ws_clients.discard(ws)
+                asyncio.create_task(notify_hod_alert_async(_alert_to_dict(alert)))
                 try:
                     queue.get_nowait()
                 except Exception:

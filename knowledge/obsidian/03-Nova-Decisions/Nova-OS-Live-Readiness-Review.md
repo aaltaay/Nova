@@ -101,6 +101,27 @@ As of P10 close:
 
 ---
 
+## Phase I — Evidence framework (2026-07-15)
+
+Phase I does **not** unlock live. It freezes the GO thresholds operators must meet using Phase B (+ E/F) data.
+
+| Metric | GO threshold | Source |
+|--------|--------------|--------|
+| Closed paper brackets (non-mock) | ≥ **50** | `GET /api/journal/metrics` |
+| Distinct RTH sessions | ≥ **15** | Journal `closed_ts` days + shadow-day log |
+| Setup mix | Gap-and-Go / Bull Flag / ABCD each represented | Journal `setup` + Reports tags |
+| Net expectancy after costs/slippage estimate | **Positive** | Journal R-multiples + operator slippage notes |
+| Ticket adherence | ≥ **90%** adherent entries | `adherence_pct` / Live-Readiness checklist |
+| Loss policy observed | 1st loss → confirm, 3rd → halt | Executor + Nova OS receipts |
+| Archive integrity | ≥1 real cold day compact + restore + `walk_day` | Phase C remainder |
+| Backtest honesty | Archive backtests labeled no-hindsight / no spread | Phase E `/api/backtest/run` |
+
+**Current Phase I state:** evidence **framework ready**; measured verdict still **NO-GO** until Phase B metrics exist (≥5 shadow days + sample size above).
+
+**`auto_live`:** remains **rejected** in `backend/nova_os/control_mode.py`. No code change in Phase I.
+
+---
+
 ## Next action
 
 **Stop.** A separate, explicitly approved phase is required before any live-money automation work. Do not start “P11 live” from habit — wait for operator GO after checklist greens.

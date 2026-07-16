@@ -722,3 +722,63 @@ export const EARNINGS_TODAY_BATCH_MAX = 25;
 
 /** HOD Strategies filter dropdown — tall enough to show most strategies without scroll. */
 export const HOD_STRATEGY_FILTER_MAX_HEIGHT_PX = 520;
+
+// ── Outbound alerts (Phase D — mirrors backend/constants.py ALERTS_*) ────────
+export const ALERTS_CHANNEL_TYPES = ['discord', 'telegram', 'webhook'] as const;
+export type AlertChannelType = (typeof ALERTS_CHANNEL_TYPES)[number];
+export const ALERTS_CHANNEL_TYPE_LABELS: Record<AlertChannelType, string> = {
+  discord: 'Discord webhook',
+  telegram: 'Telegram bot',
+  webhook: 'Generic webhook',
+};
+export const ALERTS_API = `${API_URL}/alerts`;
+
+// ── Executor hotkeys (Phase G) ───────────────────────────────────────────────
+/** Automation panel keyboard shortcuts — display + default bindings only. */
+export const HOTKEY_ACTIONS = [
+  'approve_staged',
+  'reject_staged',
+  'arm_confirm',
+  'disarm_signal',
+  'focus_flatten',
+  'kill_switch',
+] as const;
+
+export type HotkeyAction = (typeof HOTKEY_ACTIONS)[number];
+
+export interface HotkeyBinding {
+  key: string;
+  ctrl?: boolean;
+  shift?: boolean;
+  alt?: boolean;
+  meta?: boolean;
+}
+
+/** Default executor hotkeys (Automation panel active). */
+export const HOTKEY_DEFAULTS: Record<HotkeyAction, HotkeyBinding> = {
+  approve_staged: { key: 'a', shift: true },
+  reject_staged: { key: 'r', shift: true },
+  arm_confirm: { key: 'c', shift: true, ctrl: true },
+  disarm_signal: { key: 's', shift: true, ctrl: true },
+  focus_flatten: { key: 'f', shift: true, ctrl: true },
+  kill_switch: { key: 'k', shift: true, ctrl: true },
+};
+
+export const HOTKEY_ACTION_LABELS: Record<HotkeyAction, string> = {
+  approve_staged: 'Approve first staged bracket',
+  reject_staged: 'Reject first staged ticket',
+  arm_confirm: 'Raise to Confirm',
+  disarm_signal: 'Drop to Signal',
+  focus_flatten: 'Open Flatten dialog (typed confirm still required)',
+  kill_switch: 'Stop Automation',
+};
+
+/** Order-placement hotkeys blocked while control mode is signal. */
+export const HOTKEY_ORDER_ACTIONS: HotkeyAction[] = [
+  'approve_staged',
+  'reject_staged',
+  'arm_confirm',
+];
+
+export const HOTKEY_SIGNAL_BLOCKED_MESSAGE =
+  'Order hotkeys disabled in Signal mode — raise to Confirm first.';

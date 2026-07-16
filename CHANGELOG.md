@@ -30,6 +30,55 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Master Roadmap finish: B/C docs honesty + I framework + J decision
+
+- **What:** Phase B day-log template; Phase C Bucket Lock / token rotation / walk_day runbook in `docs/r2-archive-setup.md`; Phase I evidence thresholds in Live-Readiness review; Phase J `Productization-Decision.md` (local-first); Roadmap-Status + plan/canvas synced. B/C/I remain ops-honest (`[~]`), not fake `[x]`.
+- **Why:** Close all implementable Master Roadmap todos; document blockers that require human market days / Cloudflare console.
+- **Files touched:** `docs/shadow-day-log-template.md`, `docs/r2-archive-setup.md`, `docs/paper-shadow-protocol.md`, `Nova-Roadmap-Status.md`, `Nova-OS-Live-Readiness-Review.md`, `Productization-Decision.md`, plan/canvas.
+- **How it works now:** Agents treat B as protocol-ready awaiting ≥5 shadow days; C as docs-ready awaiting cold day + console; I as framework-ready / NO-GO verdict; J as decided local-first. `auto_live` still rejected.
+- **Verified by:** Docs review; full suite on finish commit.
+- **Related:** Phases D–G code entries below; Phase A `9f4ca3f`.
+
+## 2026-07-15 — Phase E: Nova-native backtest UX on archived 1m bars
+
+- **What:** Added `backend/backtest/` (scorer, engine, jobs), `/api/backtest` routes (`/days`, `/run`, `/health`), and a **Backtest** sub-tab on Watchlist with day/setup picker, metrics table, and honesty banner. No vectorbt at runtime.
+- **Why:** Nova Master Roadmap Phase E — product backtest UX on cold-archive replay helpers without live orders or hindsight.
+- **Files touched:** `backend/backtest/{__init__,scorer,engine,jobs}.py`, `backend/routes/backtest.py`, `backend/app_routers.py`, `backend/constants.py`, `frontend/src/strategy/{BacktestPanel,WatchlistTab}.tsx`, `backend/tests/test_backtest_{scorer,engine}.py`, `CHANGELOG.md`.
+- **How it works now:** POST `/api/backtest/run` loads `bars_by_symbol_for_day`, walks 1m bars with `slice_bars_as_of`, evaluates gap_and_go/bull_flag/abcd, enters long at next bar open, exits at stop/target/EOD. `scorer.score_trades` returns win rate, profit factor, drawdown, equity curve. Response includes `honesty: {bar_resolution: 1m, spread_modeled: false, hindsight: false}`.
+- **Verified by:** `py -3 -m pytest backend/tests/test_backtest_scorer.py backend/tests/test_backtest_engine.py -q`.
+- **Follow-ups:** Async job polling via `jobs.py` if day walks get slow; richer candidate metadata from archived scanner rows when available.
+- **Related:** Phase A skills library; archive replay no-hindsight contract.
+
+## 2026-07-15 — Phase D: outbound alert channels (Discord / Telegram / webhook)
+
+- **What:** Added `backend/alerts/` module with channel persistence, Discord/Telegram/generic webhook senders, dispatch fan-out + status ring buffer, and `/api/alerts` CRUD/test/status routes. HOD Momo flush loop and Nova OS `record_receipt` call thin `hooks.py` helpers. Settings panel gains an "Alert channels" section in the dashboard.
+- **Why:** Nova Master Roadmap Phase D — deliver outbound notifications for HOD alerts and interesting Nova OS receipts without touching execution or live-order paths.
+- **Files touched:** `backend/alerts/*`, `backend/routes/alerts.py`, `backend/app_routers.py`, `backend/hod_momo.py`, `backend/nova_os/events.py`, `backend/constants.py`, `frontend/src/components/AlertChannelsSettings.tsx`, `frontend/src/hooks/useAlertChannels.ts`, `frontend/src/pages/DashboardPage.tsx`, tests `test_alerts_dispatch.py` / `test_routes_alerts.py`.
+- **How it works now:** Channels persist under cache `alerts_channels.json`; secrets are stored but API GET returns masked tails only. `dispatch_alert` fans out to enabled channels and records failures in an in-memory ring surfaced at `GET /api/alerts/status`. HOD alerts fire after WS broadcast via `notify_hod_alert_async`; Nova OS notifies on `KIND_ACTION` / would_execute / executed receipts per constant filter. No auto_live; dispatch errors log warnings and never swallow silently.
+- **Verified by:** `py -3 -m pytest backend/tests/test_alerts_dispatch.py backend/tests/test_routes_alerts.py -q`; frontend `maskSecret` Vitest; `npm run build`.
+- **Follow-ups:** Optional Discord embed color per strategy; retry/backoff policy for transient HTTP failures.
+- **Related:** Master Roadmap Phase D.
+
+## 2026-07-15 — Phase G: executor hotkeys + one-action bracket
+
+- **What:** Added default Automation hotkeys (approve/reject first staged, raise/drop mode, open Flatten dialog, kill switch) via `useHotkeys` + `HotkeySettings`. New **Place bracket…** button approves the first staged ticket through the existing `approveStaged` confirm flow. Order hotkeys no-op in **signal** mode with an inline notice.
+- **Why:** Nova Master Roadmap Phase G — keyboard speed for confirm-mode paper brackets without bypassing executor safety or typed FLATTEN confirm.
+- **Files touched:** `frontend/src/constants.ts` (HOTKEY_DEFAULTS), `frontend/src/hooks/{hotkeyUtils,useHotkeys,useHotkeys.test}.ts`, `frontend/src/strategy/{HotkeySettings,ExecutorPanel}.tsx`, `CHANGELOG.md`.
+- **How it works now:** Hotkeys register only while the Automation panel is active. Approve/reject/arm call the same handlers as the UI buttons (`approveStaged` / `rejectStaged` / arm with window.confirm). Flatten hotkey opens the typed-confirm prompt — it never skips `NOVA_OS_FLATTEN_CONFIRM_TOKEN`. Signal mode blocks approve/reject/arm keys; disarm, flatten-focus, and kill remain available.
+- **Verified by:** `cd frontend && npx vitest run src/hooks/useHotkeys.test.ts`.
+- **Follow-ups:** User-configurable rebinding (localStorage) if desired later.
+- **Related:** Master Roadmap Phase G; no new backend routes (existing staged approve API only).
+
+## 2026-07-15 — Phase F: Reports v2 (tags, R-multiples, drawdown)
+
+- **What:** Extended journal analytics with optional trade `tags`, per-tag performance, R-multiple expectancy (skips trades without stops), equity-curve max drawdown, and new Reports tab panels below the calendar. Added POST `/api/journal/trades/{id}/tags` and POST `/api/journal/import/ibkr` (Gateway fill probe or JSON trade upload).
+- **Why:** Nova Master Roadmap Phase F — richer post-trade analytics without CSV import fiction or live fill invention.
+- **Files touched:** `backend/journal/{db,store,tags,r_multiples,drawdown,ibkr_import}.py`, `backend/routes/journal.py`, `backend/constants.py`, `backend/tests/test_journal_reports_v2.py`, `frontend/src/reports/{TagPerformance,RMultiplesPanel,DrawdownPanel,useReportsV2,format,types,ReportsTab}.tsx`.
+- **How it works now:** Tags live as JSON on `trades.tags`; analytics read closed trades via existing store helpers. R = pnl / (|entry-stop|×qty) only when stop exists. Drawdown sorts by `closed_ts` and tracks cumulative P&L peak-to-trough. IBKR import never fabricates fills — returns 503 with loud message unless caller uploads explicit JSON trades.
+- **Verified by:** `py -3 -m pytest backend/tests/test_journal_reports_v2.py -q`; frontend `format.test.ts`; Reports tab sections wired under calendar.
+- **Follow-ups:** Automated round-trip reconstruction from IBKR `fills()` when Gateway history is available.
+- **Related:** Master Roadmap Phase F.
+
 ## 2026-07-15 — Phase A: vendored agent skills + discoverability indexes
 
 - **What:** Vendored high-fit Cursor skills into `.cursor/skills/` (real files, no symlinks): VectorBT `backtest` / `optimize` / `strategy-compare` / `vectorbt-expert`, `backtesting-frameworks`, `llm-trading-agent-security`. Added Obsidian `Skills-Library.md` + `Reference-Repos.md`, AGENTS.md pointer section, and SOURCE-PINS with commit SHAs.

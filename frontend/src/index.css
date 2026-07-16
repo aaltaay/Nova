@@ -1839,6 +1839,63 @@ button.linkish {
   padding: 0.5rem 0;
 }
 
+.reports-v2-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.reports-v2-section {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.reports-v2-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+
+.reports-v2-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.reports-v2-table th,
+.reports-v2-table td {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.reports-v2-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.reports-v2-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 72px;
+  margin-top: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.reports-v2-curve-bar {
+  flex: 1;
+  min-width: 4px;
+  background: var(--accent, #3b82f6);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+}
+
 .reports-year-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

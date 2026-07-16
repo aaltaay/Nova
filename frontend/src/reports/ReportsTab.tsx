@@ -1,9 +1,13 @@
 /** Reports tab — TraderVue-style P&L calendar from journal trades (no import). */
 import { useState } from 'react';
 import { AnalyticsSummary } from './AnalyticsSummary';
+import { DrawdownPanel } from './DrawdownPanel';
 import { MonthDetail } from './MonthDetail';
+import { RMultiplesPanel } from './RMultiplesPanel';
+import { TagPerformance } from './TagPerformance';
 import { YearCalendar } from './YearCalendar';
 import { useCalendar } from './useCalendar';
+import { useReportsV2 } from './useReportsV2';
 
 export function ReportsTab() {
   const now = new Date();
@@ -17,6 +21,7 @@ export function ReportsTab() {
     openMonth,
     includeMock,
   );
+  const reportsV2 = useReportsV2(true, includeMock);
 
   return (
     <div className="reports-panel journal-panel">
@@ -72,6 +77,15 @@ export function ReportsTab() {
           No closed trades in {year}. Enable demo data, or close trades into the journal to populate the calendar.
         </div>
       )}
+
+      {reportsV2.error && (
+        <div className="reports-status reports-error">{reportsV2.error}</div>
+      )}
+      <div className="reports-v2-stack">
+        <TagPerformance data={reportsV2.tags} loading={reportsV2.loading} />
+        <RMultiplesPanel data={reportsV2.rMultiples} loading={reportsV2.loading} />
+        <DrawdownPanel data={reportsV2.drawdown} loading={reportsV2.loading} />
+      </div>
     </div>
   );
 }

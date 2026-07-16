@@ -88,7 +88,7 @@ def record_receipt(
     finally:
         conn.close()
 
-    return {
+    receipt = {
         "id": event_id,
         "ts": ts,
         "policy_version": policy_version,
@@ -102,6 +102,13 @@ def record_receipt(
         "executed": executed,
         "payload": payload or {},
     }
+    try:
+        from alerts.hooks import notify_nova_os_event
+
+        notify_nova_os_event(receipt)
+    except Exception:
+        pass
+    return receipt
 
 
 def _row_to_dict(row) -> dict:

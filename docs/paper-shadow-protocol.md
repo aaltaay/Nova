@@ -4,6 +4,7 @@ Ops-only window. **No product features. No `auto_live`. No live money.**
 
 Canonical status: `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`  
 Plan: `nova_master_roadmap_a_z.plan.md`  
+Day log template: `docs/shadow-day-log-template.md`  
 UI: Executor control ladder in `frontend/src/strategy/ExecutorPanel.tsx`  
 Mode gate: `backend/nova_os/control_mode.py`
 
@@ -27,7 +28,7 @@ Prove Nova OS paper behavior across real market sessions:
 | **`auto_live`** | Rejected in `control_mode.set_mode` — live money stays blocked |
 | **Live Gateway orders / live unlock flags** | Phase B is paper only (`IBKR` paper account) |
 | **Arming for live or “just testing” live** | Separate approved phase required after evidence |
-| **Feature builds (Phases A, D–G)** | Ops window — file bugs, do not start alert/backtest/hotkey work |
+| **Skipping evening reviews** | Days without review artifacts do not count toward the ≥5 exit |
 | **Silent feed fallbacks** | Discovery=`ibkr` stays IBKR-only (see `.cursor/rules/single-market-data-feed.mdc`) |
 
 If empty scanners look like “no gaps,” check IBKR first — see **IB Gateway login** below.
