@@ -15,7 +15,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Active phase:** Phase B — Paper shadow ops (**NEXT**)
 - **State:** governance opened; Phase B not yet verified
 - **Last verified commit (baseline):** `fb330cf` (continuity refresh)
-- **Governance open commit:** `0b84f98`
+- **Governance open commit:** `9c6433c`
 - **Last updated:** 2026-07-15 (Roadmap governance + Phase B enablement docs)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 
@@ -143,7 +143,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-15 | Opened roadmap governance: `Nova-Roadmap-Status.md`, `nova-roadmap-continuity.mdc`, `docs/paper-shadow-protocol.md`; Phase B marked NEXT; Phase C partial; `auto_live` NO-GO; baseline 562/131/14 @ `fb330cf` | `0b84f98` |
+| 2026-07-15 | Opened roadmap governance: `Nova-Roadmap-Status.md`, `nova-roadmap-continuity.mdc`, `docs/paper-shadow-protocol.md`; Phase B marked NEXT; Phase C partial; `auto_live` NO-GO; baseline 562/131/14 @ `fb330cf` | `9c6433c` |
 | 2026-07-15 | Continuity refresh: Nova-OS-Status + tester ledger; tip `fb330cf` | `fb330cf` |
 | 2026-07-15 | Continuity refresh predecessor | `1cc4de2` |
 | 2026-07-15 | Modular Panel Workspace Phases 0–6 complete (Phase H) | (workspace phase commits; see CHANGELOG) |
