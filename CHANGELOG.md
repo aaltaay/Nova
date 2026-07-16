@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Close remediation Phase 1: truthful maintainer audit
+
+- **What:** Maintainer scanner now detects tuple `except (...): pass` swallows, fingerprints legacy cross-feature imports (new violations fail `--fail-on-findings`), and treats ignored local artifacts as informational. Fixed stale agent-contract discovery for five specialists including `warrior`.
+- **Why:** Post-close review found Phase 11/13 claims overstated (missed WebSocket swallows; architecture baselines were unconditional).
+- **Files touched:** `tools/maintainer_checks.py`, `tools/maintainer_lib/{baselines,artifacts,deps}.py`, `tools/test_maintainer_checks.py`, `tools/test_agent_contract.py`.
+- **How it works now:** Fingerprints live in `tools/maintainer_lib/baselines.json`. Production `import main` / cross-feature / swallow findings are non-baseline unless listed. Artifacts only fail when git-tracked.
+- **Verified by:** `pytest tools` 122 passed; `pytest tools/test_maintainer_checks.py tools/test_agent_contract.py` 25 passed.
+- **Follow-ups:** Phase 2 remediates the newly visible swallowed handlers and dependency CVEs.
+
 ## 2026-07-16 — Maintenance Phase 13: architecture program close
 
 - **What:** Closed Pattern-Driven Architecture Phases 0–13. Recorded final metrics, refreshed maintainer memory, trimmed `sync_agent_surfaces.py` under 400 lines.

@@ -68,7 +68,7 @@ def check_import_main(
                     path=rel,
                     detail="production import of main (use explicit state owner)",
                     line=line,
-                    baseline=True,  # legacy warning until Phase 7
+                    baseline=False,  # fingerprint baselines applied in run_checks
                 )
             )
     return findings
@@ -112,7 +112,7 @@ def check_cross_feature_imports(
                     path=rel,
                     detail=f"{src_feat} imports internals of {target}",
                     line=line,
-                    baseline=True,  # warning-first for legacy
+                    baseline=False,  # fingerprint baselines applied in run_checks
                 )
             )
     return findings

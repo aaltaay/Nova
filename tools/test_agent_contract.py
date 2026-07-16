@@ -32,9 +32,15 @@ def test_current_repo_passes(ac):
     assert errors == [], errors
 
 
-def test_discovery_finds_four_agents(ac):
+def test_discovery_finds_registered_agents(ac):
     names = {p.stem for p in ac.discover_agent_files()}
-    assert names == {"tester", "maintainer", "security-sentinel", "nova-agent"}
+    assert names == {
+        "tester",
+        "maintainer",
+        "security-sentinel",
+        "nova-agent",
+        "warrior",
+    }
 
 
 def test_unregistered_agent_fails(ac, tmp_path, monkeypatch):

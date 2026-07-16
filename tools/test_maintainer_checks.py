@@ -152,7 +152,19 @@ def test_swallowed_except_pass_detected(mc, tmp_path: Path):
     assert any(f.kind == "swallowed_exception" for f in findings)
 
 
-def test_import_main_detected_as_baseline_warning(mc, tmp_path: Path):
+def test_swallowed_tuple_except_pass_detected(mc, tmp_path: Path):
+    p = tmp_path / "ws.py"
+    p.write_text(
+        "try:\n    await ws.receive()\n"
+        "except (WebSocketDisconnect, Exception):\n    pass\n",
+        encoding="utf-8",
+    )
+    findings = mc.check_swallowed_errors([p])
+    assert any(f.kind == "swallowed_exception" for f in findings)
+
+
+def test_import_main_detected_non_baseline_until_fingerprinted(mc, tmp_path: Path):
+    from maintainer_lib.baselines import apply_baseline_fingerprints, fingerprint
     from maintainer_lib.deps import check_import_main
 
     p = tmp_path / "scan_runners.py"
@@ -160,10 +172,16 @@ def test_import_main_detected_as_baseline_warning(mc, tmp_path: Path):
     findings = check_import_main([p], lambda x: "backend/scan_runners.py", mc.Finding)
     assert findings
     assert findings[0].kind == "import_main"
+    assert findings[0].baseline is False
+    fp = fingerprint(
+        findings[0].kind, findings[0].path, findings[0].line, findings[0].detail
+    )
+    apply_baseline_fingerprints(findings, {fp})
     assert findings[0].baseline is True
 
 
-def test_cross_feature_import_detected(mc, tmp_path: Path):
+def test_cross_feature_new_violation_not_baselined(mc, tmp_path: Path):
+    from maintainer_lib.baselines import apply_baseline_fingerprints
     from maintainer_lib.deps import check_cross_feature_imports
 
     feat = tmp_path / "frontend" / "src" / "hotkeys"
@@ -175,6 +193,36 @@ def test_cross_feature_import_detected(mc, tmp_path: Path):
     )
     assert findings
     assert findings[0].kind == "cross_feature_import"
+    apply_baseline_fingerprints(findings, set())
+    assert findings[0].baseline is False
+
+
+def test_artifacts_ignored_are_informational(mc, tmp_path: Path):
+    from maintainer_lib.artifacts import check_artifacts
+
+    fake_root = tmp_path / "repo"
+    fake_root.mkdir()
+    (fake_root / ".env").write_text("X=1\n", encoding="utf-8")
+    findings = check_artifacts(
+        fake_root, mc.Finding, paths=(".env",), tracked_fn=lambda: set()
+    )
+    assert len(findings) == 1
+    assert findings[0].kind == "artifact_present"
+    assert findings[0].baseline is True
+
+
+def test_artifacts_tracked_are_non_baseline(mc, tmp_path: Path):
+    from maintainer_lib.artifacts import check_artifacts
+
+    fake_root = tmp_path / "repo"
+    fake_root.mkdir()
+    (fake_root / ".env").write_text("X=1\n", encoding="utf-8")
+    findings = check_artifacts(
+        fake_root, mc.Finding, paths=(".env",), tracked_fn=lambda: {".env"}
+    )
+    assert len(findings) == 1
+    assert findings[0].kind == "artifact_tracked"
+    assert findings[0].baseline is False
 
 
 def test_run_checks_on_real_repo_reports_index_css(mc):

@@ -21,6 +21,8 @@ _TOOLS_DIR = str(REPO_ROOT / "tools")
 if _TOOLS_DIR not in sys.path:
     sys.path.insert(0, _TOOLS_DIR)
 
+from maintainer_lib.artifacts import ARTIFACT_PATHS, check_artifacts as _check_artifacts  # noqa: E402
+from maintainer_lib.baselines import apply_baseline_fingerprints  # noqa: E402
 from maintainer_lib.deps import check_cross_feature_imports, check_import_main  # noqa: E402
 
 MAIN_PY_LIMIT = 200
@@ -79,19 +81,15 @@ SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ),
 ]
 
+# Single-name, bare, and tuple handlers that only pass / ...
+# e.g. `except Exception: pass`, `except (A, B):\n    pass`
 SWALLOW_PY = re.compile(
-    r"^[ \t]*except\s*(?:\w+(?:\s+as\s+\w+)?)?\s*:\s*(?:pass|\.\.\.)\s*(?:#.*)?$"
-    r"|^[ \t]*except\s*(?:\w+(?:\s+as\s+\w+)?)?\s*:\s*\n[ \t]+(?:pass|\.\.\.)\s*(?:#.*)?$",
+    r"^[ \t]*except\s*(?:\([^)]+\)|\w+(?:\s+as\s+\w+)?)?\s*:\s*(?:pass|\.\.\.)\s*(?:#.*)?$"
+    r"|^[ \t]*except\s*(?:\([^)]+\)|\w+(?:\s+as\s+\w+)?)?\s*:\s*\n[ \t]+(?:pass|\.\.\.)\s*(?:#.*)?$",
     re.MULTILINE,
 )
 BARE_EXCEPT_PY = re.compile(r"^[ \t]*except\s*:\s*", re.MULTILINE)
 EMPTY_CATCH_JS = re.compile(r"catch\s*\([^)]*\)\s*\{\s*\}", re.MULTILINE)
-
-ARTIFACT_PATHS = (
-    "frontend/dist",
-    "backend/.cache",
-    ".env",
-)
 
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".css"}
 
@@ -308,18 +306,7 @@ def check_swallowed_errors(files: list[Path]) -> list[Finding]:
 
 
 def check_artifacts() -> list[Finding]:
-    findings: list[Finding] = []
-    for rel in ARTIFACT_PATHS:
-        path = REPO_ROOT / rel
-        if path.exists():
-            findings.append(
-                Finding(
-                    kind="artifact_present",
-                    path=rel,
-                    detail="local/generated path exists — ensure it is gitignored and not staged",
-                )
-            )
-    return findings
+    return _check_artifacts(REPO_ROOT, Finding)
 
 
 def run_checks() -> dict:
@@ -332,6 +319,7 @@ def run_checks() -> dict:
         + check_import_main(files, _rel, Finding)
         + check_cross_feature_imports(files, _rel, Finding)
     )
+    apply_baseline_fingerprints(findings)
     non_baseline = [f for f in findings if not f.baseline]
     css_report = {
         _rel(p): count_lines(p)
