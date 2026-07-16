@@ -115,7 +115,7 @@ function classifyTokens(tokens: DasCommandToken[]): {
   let hasBackend = false;
   let hasTranslatable = false;
   let hasDasSpecific = false;
-  let hasInvalid = false;
+  const hasInvalid = false;
   const evidenceLevels: HotkeyEvidenceLevel[] = [];
 
   for (const token of tokens) {

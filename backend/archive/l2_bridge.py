@@ -64,7 +64,7 @@ def rows_for_day(table: str, session_date: str) -> list[dict[str, Any]]:
             (start_ts, end_ts),
         )
         cols = [d[0] for d in cur.description]
-        return [dict(zip(cols, row)) for row in cur.fetchall()]
+        return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
     finally:
         conn.close()
 

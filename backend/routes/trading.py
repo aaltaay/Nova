@@ -196,7 +196,7 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
     except WebSocketDisconnect:
         logger.debug("IBKR depth WS disconnected: %s", symbol)
     except Exception as exc:
-        logger.error("IBKR depth WS error for %s: %s", symbol, exc)
+        logger.exception("IBKR depth WS error for %s: %s", symbol, exc)
     finally:
         # Release only once the LAST viewer is gone — and only after a short
         # grace window so React StrictMode / DepthLadder reconnects can
@@ -276,7 +276,7 @@ async def ws_tape(websocket: WebSocket, symbol: str) -> None:
     except WebSocketDisconnect:
         logger.debug("IBKR tape WS disconnected: %s", symbol)
     except Exception as exc:
-        logger.error("IBKR tape WS error for %s: %s", symbol, exc)
+        logger.exception("IBKR tape WS error for %s: %s", symbol, exc)
     finally:
         if viewer_opened and _tape.ws_viewer_closed(symbol):
             _tape.unsubscribe(symbol)

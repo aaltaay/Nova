@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Close remediation Phase 6: lifecycle tests + lint green
+
+- **What:** Chart stale-request helper + error-boundary + HOD debug-poll lifecycle tests; ESLint/Ruff exit zero via targeted fixes plus justified config (compiler-hook noise off; BLE001 deferred to maintainer swallow detector; TRY400 → `logger.exception`).
+- **Why:** Close-remediation Phase 6 — coverage gaps and static-quality gates left open after the architecture program close.
+- **Files touched:** `frontend/src/chart/requestVersion*`, `TickerChartErrorBoundary.test.tsx`, `useHodMomoDebugPoll.test.tsx`, chart/hooks cleanup, `eslint.config.js`, `backend/ruff.toml`, IBKR/enrichment/archive lint fixes.
+- **How it works now:** `npm run lint` and `ruff check .` are green. Chart crashes stay isolated; debug poll stops after unmount; stale bar responses are rejected by version check.
+- **Verified by:** `ruff check .` · `eslint . --max-warnings 0` · Vitest lifecycle suite 4 passed.
+- **Follow-ups:** Phase 7 honest ledgers + full gate rerun.
+
 ## 2026-07-16 — Close remediation Phase 5: feature barrels + CSS layers
 
 - **What:** Public barrels for `workspace`/`modules`/`ibkr`/`chart`/`hod_momo`; migrated baselined deep cross-feature imports; moved `TickerChart` into `chart/` with a root facade; applied `@import … layer()` in `index.css`; split `hodMomo.css` + settings sheet; deleted unused `App.css`; cleared cross-feature baselines.

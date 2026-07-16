@@ -25,7 +25,12 @@ ignore = [
     "E402",   # main.py deliberately imports after configure_logging()/load_dotenv()
               # calls and uses deferred imports to dodge circular deps — established
               # project pattern, not a bug.
+    "BLE001", # `except Exception:` with logging is common in broker/IO paths;
+              # silent `pass` swallows are enforced by tools/maintainer_checks.py
+              # (SWALLOWED_EXCEPTION). TRY400 still requires logger.exception.
 ]
 
 [lint.per-file-ignores]
-"tests/*" = ["F401", "F811"]
+"tests/*" = ["F401", "F811", "B011"]
+# Depth facade imports private helpers for monkeypatch attribute lookup.
+"ibkr/depth/__init__.py" = ["F401"]

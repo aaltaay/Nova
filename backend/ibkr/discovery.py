@@ -82,7 +82,7 @@ async def scan_symbols(scan_code: str, num_rows: int = IBKR_SCAN_MAX_ROWS) -> li
     try:
         rows = await ib.reqScannerDataAsync(sub)
     except Exception as exc:
-        logger.error("IBKR scanner %s failed: %s", scan_code, exc)
+        logger.exception("IBKR scanner %s failed: %s", scan_code, exc)
         return []
 
     symbols: list[str] = []
@@ -127,7 +127,7 @@ async def snapshot_quotes(
         try:
             qualified = await ib.qualifyContractsAsync(*contracts)
         except Exception as exc:
-            logger.error("IBKR: qualify batch failed: %s", exc)
+            logger.exception("IBKR: qualify batch failed: %s", exc)
             qualified = []
         for c in qualified:
             if c is None:
@@ -152,7 +152,7 @@ async def snapshot_quotes(
         )
         return {}
     except Exception as exc:
-        logger.error("IBKR: snapshot batch failed: %s", exc)
+        logger.exception("IBKR: snapshot batch failed: %s", exc)
         return {}
 
     out: dict[str, dict] = {}

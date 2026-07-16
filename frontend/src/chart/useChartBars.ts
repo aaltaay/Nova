@@ -26,6 +26,7 @@ import {
 } from '../tickerChartData';
 import { useWorkspace } from '../workspace';
 import { allowMockBarsFallback, emptyBarsMessage } from './chartBarsPolicy';
+import { isCurrentBarsRequest } from './requestVersion';
 import type { ChartTradeUpdate } from './types';
 
 const API_URL = `${API_BASE_URL}/api`;
@@ -83,7 +84,7 @@ export function useChartBars({
         throw new Error(body?.detail ?? `HTTP ${res.status}`);
       }
       const data = (await res.json()) as { bars: RawBar[] };
-      if (requestVersion !== barsRequestVersionRef.current) return;
+      if (!isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current)) return;
       let bars = data.bars ?? [];
       let mock = false;
       if (bars.length === 0) {
@@ -123,7 +124,7 @@ export function useChartBars({
         if (liveTrade?.price && liveTrade.timestamp) applyLiveTrade(liveTrade, tf);
       }
     } catch (err) {
-      if (requestVersion === barsRequestVersionRef.current && !background) {
+      if (isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current) && !background) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           setError('Chart bars timed out — IBKR historical may be busy. Try again.');
         } else {
@@ -132,7 +133,7 @@ export function useChartBars({
       }
     } finally {
       window.clearTimeout(timeoutId);
-      if (requestVersion === barsRequestVersionRef.current && !background) {
+      if (isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current) && !background) {
         setLoading(false);
       }
     }

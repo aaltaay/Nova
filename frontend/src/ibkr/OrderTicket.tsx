@@ -48,7 +48,7 @@ export function OrderTicket({ defaultSymbol = '', mode, onOrderPlaced }: Props) 
         : `Error: ${data.error}`;
       setLastResult({ ok: data.ok, message: msg });
       onOrderPlaced?.(data);
-    } catch (err) {
+    } catch {
       setLastResult({ ok: false, message: 'Network error' });
     } finally {
       setSubmitting(false);

@@ -6,13 +6,11 @@ import {
 import { buildTickerDataSources } from '../utils/dataSourceMap';
 import type { DataSourceInputs } from '../utils/dataSourceMap';
 
-interface Props extends DataSourceInputs {}
-
 export function TickerDataSources({
   discoveryProvider,
   alpacaFeed,
   ibkrConnected,
-}: Props) {
+}: DataSourceInputs) {
   const rows = buildTickerDataSources({
     discoveryProvider,
     alpacaFeed,

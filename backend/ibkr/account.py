@@ -37,7 +37,7 @@ def get_positions() -> list[dict]:
             for p in ib.positions()
         ]
     except Exception as exc:
-        logger.error("IBKR: get_positions error: %s", exc)
+        logger.exception("IBKR: get_positions error: %s", exc)
         return []
 
 
@@ -71,7 +71,7 @@ def get_account_summary() -> dict:
             summary["pending"] = True
         return summary
     except Exception as exc:
-        logger.error("IBKR: get_account_summary error: %s", exc)
+        logger.exception("IBKR: get_account_summary error: %s", exc)
         return {"connected": False, "mode": _client.account_mode(), "error": str(exc)}
 
 
@@ -86,7 +86,7 @@ async def refresh_account_summary() -> dict:
             return _summary_from_items(list(items))
         return get_account_summary()
     except Exception as exc:
-        logger.error("IBKR: refresh_account_summary error: %s", exc)
+        logger.exception("IBKR: refresh_account_summary error: %s", exc)
         # Fall back to whatever is already cached.
         snap = get_account_summary()
         if "error" not in snap:
@@ -112,5 +112,5 @@ def get_portfolio() -> list[dict]:
             for item in ib.portfolio()
         ]
     except Exception as exc:
-        logger.error("IBKR: get_portfolio error: %s", exc)
+        logger.exception("IBKR: get_portfolio error: %s", exc)
         return []

@@ -201,7 +201,7 @@ async def subscribe_async(symbol: str) -> dict:
     try:
         qualified = await ib.qualifyContractsAsync(contract)
     except Exception as exc:
-        logger.error("IBKR tape: qualify failed for %s: %s", symbol, exc)
+        logger.exception("IBKR tape: qualify failed for %s: %s", symbol, exc)
         return {"ok": False, "error": str(exc)}
 
     if not qualified:
@@ -214,12 +214,14 @@ async def subscribe_async(symbol: str) -> dict:
 
     try:
         ticker = ib.reqTickByTickData(contract, IBKR_TAPE_TICK_TYPE, numberOfTicks=0, ignoreSize=False)
-        handler = lambda t, sym=symbol: _on_tape_update(t, sym)
+        def handler(t, sym=symbol):
+            _on_tape_update(t, sym)
+
         ticker.updateEvent += handler
         _tickers[symbol] = {"ticker": ticker, "handler": handler}
         logger.info("IBKR tape: subscribed %s (AllLast)", symbol)
     except Exception as exc:
-        logger.error("IBKR tape: reqTickByTickData failed for %s: %s", symbol, exc)
+        logger.exception("IBKR tape: reqTickByTickData failed for %s: %s", symbol, exc)
         _contracts.pop(symbol, None)
         _queues.pop(symbol, None)
         return {"ok": False, "error": str(exc)}

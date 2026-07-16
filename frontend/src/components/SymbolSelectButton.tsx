@@ -42,7 +42,8 @@ export function SymbolSelectButton({
   );
 
   useEffect(() => {
-    return () => handlersRef.current.cancel();
+    const handlers = handlersRef.current;
+    return () => handlers.cancel();
   }, []);
 
   return (

@@ -73,7 +73,7 @@ async def subscribe_async(symbol: str) -> dict:
             contract = qualified[0]
         except Exception as exc:
             state.drop_slot(symbol)
-            logger.error("IBKR: qualify failed for %s: %s", symbol, exc)
+            logger.exception("IBKR: qualify failed for %s: %s", symbol, exc)
             return {
                 "ok": False,
                 "error": f"Qualify failed: {exc}",
@@ -111,7 +111,7 @@ async def subscribe_async(symbol: str) -> dict:
                 )
             except Exception as exc2:
                 unsubscribe(symbol)
-                logger.error("IBKR: L1 fallback also failed for %s: %s", symbol, exc2)
+                logger.exception("IBKR: L1 fallback also failed for %s: %s", symbol, exc2)
                 return {"ok": False, "error": str(exc2), "symbols": state.subscribed_symbols()}
 
         return {"ok": True, "error": None, "symbols": state.subscribed_symbols()}

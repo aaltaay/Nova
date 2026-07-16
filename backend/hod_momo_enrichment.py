@@ -21,8 +21,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
-from datetime import date, timedelta
 
 from alpaca import _get_discovery_provider, _alpaca_headers, _get_feed
 import hod_momo as _hod_momo
@@ -31,7 +29,6 @@ from constants import (
     HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC,
     HOD_MOMO_FUNDAMENTALS_BATCH_SIZE,
     HOD_MOMO_RVOL_USE_PACE,
-    RVOL_LOOKBACK_DAYS,
 )
 from market import pace_relative_volume
 from runtime_state import get_runtime_state
@@ -71,7 +68,7 @@ async def universe_enrichment_loop() -> None:
 
                 quotes: dict = await loop.run_in_executor(
                     None,
-                    lambda: run_ibkr(_ibkr_discovery.snapshot_quotes(symbols)) or {},
+                    lambda syms=symbols: run_ibkr(_ibkr_discovery.snapshot_quotes(syms)) or {},
                 )
                 if not quotes:
                     logger.warning("HOD Momo enrichment: IBKR quotes empty")
@@ -84,7 +81,7 @@ async def universe_enrichment_loop() -> None:
                         chunk = missing_avg[:200]
                         try:
                             await loop.run_in_executor(
-                                None, lambda: ensure_avg_volume(chunk, headers)
+                                None, lambda c=chunk, h=headers: ensure_avg_volume(c, h)
                             )
                         except Exception as avg_exc:
                             logger.debug("HOD Momo enrichment: avg_vol chunk failed: %s", avg_exc)
@@ -157,7 +154,7 @@ async def universe_enrichment_loop() -> None:
             )
 
             snaps: dict = await loop.run_in_executor(
-                None, lambda: _fetch_snapshots(symbols, headers)
+                None, lambda syms=symbols, h=headers: _fetch_snapshots(syms, h)
             )
 
             if not snaps:
@@ -172,7 +169,7 @@ async def universe_enrichment_loop() -> None:
                     chunk = missing_avg[:200]
                     try:
                         await loop.run_in_executor(
-                            None, lambda: ensure_avg_volume(chunk, headers)
+                            None, lambda c=chunk, h=headers: ensure_avg_volume(c, h)
                         )
                         logger.debug(
                             "HOD Momo enrichment: avg_vol chunk %d/%d done",
@@ -187,8 +184,6 @@ async def universe_enrichment_loop() -> None:
                 try:
                     latest_trade = snap.get("latestTrade") or {}
                     daily_bar = snap.get("dailyBar") or {}
-                    prev_bar = snap.get("prevDailyBar") or {}
-
                     price = latest_trade.get("p") or daily_bar.get("c") or 0.0
                     if not price:
                         continue

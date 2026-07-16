@@ -120,4 +120,4 @@ def fallback_to_l1(symbol: str, contract: Any) -> None:
         state.push_book(symbol, book)
         logger.info("IBKR: subscribed L1 fallback for %s (conId=%s)", symbol, contract.conId)
     except Exception as exc:
-        logger.error("IBKR: L1 fallback after depth rejection failed for %s: %s", symbol, exc)
+        logger.exception("IBKR: L1 fallback after depth rejection failed for %s: %s", symbol, exc)

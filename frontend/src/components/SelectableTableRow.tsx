@@ -38,7 +38,8 @@ export function SelectableTableRow({
   );
 
   useEffect(() => {
-    return () => handlersRef.current.cancel();
+    const handlers = handlersRef.current;
+    return () => handlers.cancel();
   }, []);
 
   function onKeyDown(e: KeyboardEvent<HTMLTableRowElement>) {

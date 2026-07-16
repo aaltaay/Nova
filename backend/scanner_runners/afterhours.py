@@ -90,7 +90,7 @@ def run_afterhours_discovery_scan() -> None:
 
     from alpaca import _env
     from health_status import ping_health
-    from scanner import _compute_gappers, _fetch_snapshots, _prune_gappers_below_min
+    from scanner import _compute_gappers, _fetch_snapshots
     from universe import enrich_gappers, get_tradable_symbols
 
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"

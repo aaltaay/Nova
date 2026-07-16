@@ -60,7 +60,11 @@ function TickerChartInner({
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
 
-  const [timeframe, setTimeframe] = useState(fixedTimeframe ?? CHART_DEFAULT_TIMEFRAME);
+  const [userTimeframe, setUserTimeframe] = useState(
+    fixedTimeframe ?? CHART_DEFAULT_TIMEFRAME,
+  );
+  // Prefer prop when locked; avoid syncing prop→state in an effect.
+  const timeframe = fixedTimeframe ?? userTimeframe;
   const [maximized, setMaximized] = useState(false);
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicatorId[]>(
     () => [...CHART_DEFAULT_INDICATORS],
@@ -72,10 +76,6 @@ function TickerChartInner({
   const oscillatorEnabled = enabledIndicators.filter((id): id is ChartOscillatorId =>
     (CHART_OSCILLATOR_IDS as readonly ChartOscillatorId[]).includes(id as ChartOscillatorId),
   );
-
-  useEffect(() => {
-    if (fixedTimeframe) setTimeframe(fixedTimeframe);
-  }, [fixedTimeframe]);
 
   const chartApi = useChartInstance({
     containerRef,
@@ -153,7 +153,7 @@ function TickerChartInner({
         onClearAll={handleClearAll}
         onIndicatorToggle={handleIndicatorToggle}
         onMaximize={handleMaximize}
-        onTimeframeChange={setTimeframe}
+        onTimeframeChange={setUserTimeframe}
         onToolClick={handleToolClick}
       />
 

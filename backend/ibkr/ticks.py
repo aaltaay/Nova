@@ -132,7 +132,9 @@ async def subscribe(symbol: str) -> bool:
             logger.warning("IBKR ticks: reqMktData failed for %s: %s", symbol, exc)
             return False
 
-        handler = lambda t, sym=symbol: _on_ticker_update(t, sym)
+        def handler(t, sym=symbol):
+            _on_ticker_update(t, sym)
+
         ticker.updateEvent += handler
         _subs[symbol] = {
             "ticker": ticker,

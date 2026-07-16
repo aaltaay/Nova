@@ -41,7 +41,7 @@ def _pyarrow_available() -> bool:
 def _rows_as_dicts(conn: sqlite3.Connection, table: str, session_date: str) -> list[dict[str, Any]]:
     cur = conn.execute(f"SELECT * FROM {table} WHERE session_date = ?", (session_date,))
     cols = [d[0] for d in cur.description]
-    return [dict(zip(cols, row)) for row in cur.fetchall()]
+    return [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
 
 
 def write_jsonl_atomic(path: Path, rows: Iterable[dict[str, Any]]) -> int:

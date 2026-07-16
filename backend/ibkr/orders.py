@@ -63,7 +63,7 @@ def place_order(
         return {"ok": True, "order_id": oid, "error": None, "mode": _client.account_mode()}
 
     except Exception as exc:
-        logger.error("IBKR: order error for %s: %s", symbol, exc)
+        logger.exception("IBKR: order error for %s: %s", symbol, exc)
         return {"ok": False, "order_id": None, "error": str(exc), "mode": _client.account_mode()}
 
 
@@ -114,7 +114,7 @@ def place_bracket_order(
             "mode": _client.account_mode(),
         }
     except Exception as exc:
-        logger.error("IBKR: bracket order error for %s: %s", symbol, exc)
+        logger.exception("IBKR: bracket order error for %s: %s", symbol, exc)
         return {
             "ok": False, "parent_order_id": None, "target_order_id": None,
             "stop_order_id": None, "error": str(exc), "mode": _client.account_mode(),
@@ -145,7 +145,7 @@ def cancel_order(order_id: int) -> dict:
         logger.info("IBKR: cancel requested for order %s", order_id)
         return {"ok": True, "error": None}
     except Exception as exc:
-        logger.error("IBKR: cancel error for order %s: %s", order_id, exc)
+        logger.exception("IBKR: cancel error for order %s: %s", order_id, exc)
         return {"ok": False, "error": str(exc)}
 
 
@@ -169,5 +169,5 @@ def open_orders() -> list[dict]:
             for t in trades
         ]
     except Exception as exc:
-        logger.error("IBKR: open_orders error: %s", exc)
+        logger.exception("IBKR: open_orders error: %s", exc)
         return []

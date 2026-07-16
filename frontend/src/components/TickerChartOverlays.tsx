@@ -65,16 +65,17 @@ export function TickerChartOverlays({ chart, bars, enabled }: Props) {
       }
     }
 
+    const emaSeries = emaSeriesRef.current;
     return () => {
       for (const length of CHART_EMA_LENGTHS) {
-        const series = emaSeriesRef.current[length];
+        const series = emaSeries[length];
         if (series && chart) {
           try {
             chart.removeSeries(series);
           } catch {
             /* chart already disposed */
           }
-          delete emaSeriesRef.current[length];
+          delete emaSeries[length];
         }
       }
     };

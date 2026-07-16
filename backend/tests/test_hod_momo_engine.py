@@ -320,7 +320,7 @@ def test_on_trade_update_recomputes_ibkr_pace_rvol(monkeypatch):
     """IBKR cum volume should refresh pace RVOL (not leave stale yfinance ~1.3x)."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
-    for sid, cfg in state.configs.items():
+    for _sid, cfg in state.configs.items():
         cfg.enabled = False
     state.master.min_rvol = 2.0
     state.master.surge_pct = 0.0

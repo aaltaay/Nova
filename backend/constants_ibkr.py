@@ -1,5 +1,6 @@
 """IBKR live, discovery, setups, risk, L2. Domain constants (Phase 3)."""
 from constants_scanner import *  # noqa: F403
+from constants_scanner import SCANNER_MIN_PRICE
 
 NOVA_DESKTOP_API_HOST = "127.0.0.1"
 NOVA_DESKTOP_API_PORT = 8000

@@ -56,6 +56,8 @@ export function DashboardPage() {
 
   useEffect(() => {
     settings.fetchConfig();
+    // settings object identity changes every render; fetchConfig is the stable entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
   }, [settings.fetchConfig]);
 
   useEffect(() => {

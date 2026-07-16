@@ -36,8 +36,11 @@ export function useChartInstance({
 
   const fillParentHeightRef = useRef(fillParentHeight);
   const chartHeightRef = useRef(chartHeight);
-  fillParentHeightRef.current = fillParentHeight;
-  chartHeightRef.current = chartHeight;
+
+  useEffect(() => {
+    fillParentHeightRef.current = fillParentHeight;
+    chartHeightRef.current = chartHeight;
+  }, [fillParentHeight, chartHeight]);
 
   useEffect(() => {
     const container = containerRef.current;

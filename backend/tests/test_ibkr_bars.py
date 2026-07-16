@@ -11,11 +11,11 @@ import chart_bars  # noqa: E402
 
 
 class _FakeBar:
-    def __init__(self, d, o, h, l, c, v):
+    def __init__(self, d, o, h, low, c, v):
         self.date = d
         self.open = o
         self.high = h
-        self.low = l
+        self.low = low
         self.close = c
         self.volume = v
 

@@ -35,7 +35,6 @@ from constants import (
     ARCHIVE_STREAM_BARS_1D,
     ARCHIVE_STREAM_BARS_1M,
     ARCHIVE_STREAM_L2,
-    ARCHIVE_STREAM_TAPE,
 )
 
 logger = logging.getLogger(__name__)
