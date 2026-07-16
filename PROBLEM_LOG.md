@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — HOD facade dropped test aliases; depth state leaked across tests
+
+- **Symptom:** Close-gate pytest failed with `hod_momo` missing `_effective_min_rvol` / `_save_alerts` / … and smart-depth test saw `len(depth_calls) == 0`.
+- **Cause:** Phase 10 facade omitted underscore re-exports tests still call; Phase 2 removed import-time `depth.reset_all()`, so prior subscriptions short-circuit `subscribe_async`.
+- **Fix:** Re-export private aliases on `hod_momo.py`; call `reset_all()` in `TestSmartDepthFlag.setup_method`.
+- **Keywords:** hod_momo facade, monkeypatch, reset_all, isSmartDepth, close remediation Phase 7
+
 ## 2026-07-16 — IBKR discovery discarded when Alpaca keys missing
 
 - **Symptom:** With `discovery=ibkr` and no Alpaca headers, gappers/movers stayed empty even when IBKR returned rows; charts could show synthetic mock candles labelled as an IBKR quote after empty historical bars.

@@ -253,6 +253,8 @@ class TestSmartDepthFlag:
     def setup_method(self):
         import ibkr.depth as depth_mod
         importlib.reload(depth_mod)
+        # Import-time reset was removed (Phase 2); clear leftover subscriptions.
+        depth_mod.reset_all()
         self.depth = depth_mod
 
     def test_subscribe_async_requests_smart_depth(self, monkeypatch):

@@ -16,14 +16,14 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 - **Active ops:** Phase B — Paper shadow (**`[~]` protocol ready / awaiting ≥5 live shadow days**)
 - **Feature track:** Phases **A, D, E, F, G, G2, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**)
-- **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) — **CLOSED** · metrics `architecture/program-close-metrics.md`
-- **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker; structural maintenance complete
+- **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) + **close remediation (Phases 1–7)** — **CLOSED** · metrics `architecture/program-close-metrics.md`
+- **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker; structural maintenance + close remediation complete
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
-- **Tip SHA:** `342b6cc` (Maintenance Phase 13 program close)
-- **Prior tip stamps:** `8a6de9b` / `72ec84b` / `50a14fe` / `645761b`
+- **Tip SHA:** `ab44603` (Architecture close remediation Phase 7)
+- **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
-- **Last updated:** 2026-07-16 (Maintenance Phase 13 — program close)
+- **Last updated:** 2026-07-16 (Architecture close remediation Phase 7)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 
 ## Exact next action (human)
@@ -56,16 +56,21 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Verification baseline
 
-Finish pass **2026-07-15** (implementable roadmap close). **Not re-run on 2026-07-16** continuity sync — last known counts:
+Close remediation Phase 7 **2026-07-16** (fresh gates):
 
 | Suite | Count | Result |
 |-------|-------|--------|
-| Backend pytest | **592** | PASS (2026-07-15) |
-| Frontend Vitest | **178** | PASS (2026-07-16, G2) |
-| Playwright | **14** | PASS (2026-07-15) |
-| `npm run build` | — | PASS (2026-07-16, G2) |
+| Backend pytest | **636** | PASS |
+| Tools pytest | **122** | PASS |
+| Frontend Vitest | **187** | PASS |
+| ESLint / Ruff | — | PASS (exit 0) |
+| Maintainer `--fail-on-findings` | 0 non-baseline | PASS |
+| `npm run build` | — | PASS |
+| `npm audit --omit=dev` | 0 | PASS |
+| `pip-audit` | torch residual CVEs | Documented compensating controls |
+| Playwright | **14** | last-known (not re-run this close) |
 
-Prior continuity baseline was 562 / 131 / 14 @ `fb330cf`.
+Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 
 ## Phase ledger
 
@@ -208,7 +213,8 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 13: program close — metrics, maintainer memory, full verify 669/178/14 | `342b6cc` |
+| 2026-07-16 | Architecture close remediation Phases 1–7: truthful audit, deps/handlers, feed honesty, ports, barrels+CSS layers, lint/lifecycle, honest ledgers; verify 636/187 | `ab44603` |
+| 2026-07-16 | Maintenance Phase 13: program close — metrics, maintainer memory (counts later corrected by close remediation) | `342b6cc` |
 | 2026-07-16 | Maintenance Phase 12: defer executor.py split with written rationale (baseline 494) | `8a6de9b` |
 | 2026-07-16 | Maintenance Phase 11: error visibility — no swallowed except:pass in production/tools | `f14bcb8` |
 | 2026-07-16 | Maintenance Phase 10: explicit HOD state owner + persist/session/trade/alert/admin facades | `72ec84b` |

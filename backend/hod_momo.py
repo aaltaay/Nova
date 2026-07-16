@@ -25,6 +25,7 @@ from hod_momo_admin import (
     set_blocklist_changed_hook,
     update_config,
     update_master,
+    would_fire_now as _would_fire_now,
 )
 from hod_momo_alerts import (
     add_ws_client,
@@ -37,6 +38,7 @@ from hod_momo_alerts import (
     remove_ws_client,
 )
 from hod_momo_market import (
+    effective_min_rvol as _effective_min_rvol,
     get_flow_stats,
     get_fundamentals_queue,
     get_ticker_snapshot,
@@ -48,14 +50,24 @@ from hod_momo_market import (
     reevaluate_after_surge_seed,
     request_surge_seed,
     seed_price_buffer,
+    update_price_buffer as _update_price_buffer,
     update_ticker_snapshot,
 )
-from hod_momo_models import AlertObject, DecisionRecord, MasterGateConfig, StrategyConfig
+from hod_momo_models import (
+    AlertObject,
+    DecisionRecord,
+    MasterGateConfig,
+    StrategyConfig,
+    build_default_config as _build_default_config,
+    config_to_dict as _config_to_dict,
+)
 from hod_momo_persist import (
     flush_pending_alert_save,
     get_history_alerts,
+    save_alerts as _save_alerts,
 )
 from hod_momo_session import (
+    check_and_reset_session as _check_and_reset_session,
     load_state,
     session_reset_loop,
 )
@@ -110,4 +122,12 @@ __all__ = [
     "update_config",
     "update_master",
     "update_ticker_snapshot",
+    # Underscore aliases retained for tests / monkeypatch compatibility
+    "_build_default_config",
+    "_check_and_reset_session",
+    "_config_to_dict",
+    "_effective_min_rvol",
+    "_save_alerts",
+    "_update_price_buffer",
+    "_would_fire_now",
 ]

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Close remediation Phase 7: honest close
+
+- **What:** Restored HOD facade test aliases + depth `reset_all` in smart-depth test setup; refreshed `program-close-metrics.md` and `Nova-Roadmap-Status.md` with fresh gate evidence; stamped close tip SHA.
+- **Why:** Close-remediation Phase 7 — prior Phase 13 metrics/overclaims were inaccurate; full suite must be green before declaring closed.
+- **Files touched:** `hod_momo.py`, `tests/test_ibkr_safety.py`, `architecture/program-close-metrics.md`, `Nova-Roadmap-Status.md`.
+- **How it works now:** Backend pytest 636 passed; Vitest 187; maintainer/ruff/eslint/build green; residual torch CVEs documented. Maintenance + close remediation tracks are CLOSED; Phase B ops remain NEXT.
+- **Verified by:** full `pytest backend/tests` · tools pytest · vitest · eslint · ruff · maintainer `--fail-on-findings` · `npm run build`.
+- **Follow-ups:** Playwright + live IBKR session when Gateway available; Phase B shadow days.
+
 ## 2026-07-16 — Close remediation Phase 6: lifecycle tests + lint green
 
 - **What:** Chart stale-request helper + error-boundary + HOD debug-poll lifecycle tests; ESLint/Ruff exit zero via targeted fixes plus justified config (compiler-hook noise off; BLE001 deferred to maintainer swallow detector; TRY400 → `logger.exception`).
