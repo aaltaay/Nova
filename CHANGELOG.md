@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 0: architecture baseline
+
+- **What:** Opened the Pattern-Driven Architecture maintenance track; recorded line counts, maintainer findings, test collect counts, and branch ownership. No product code moved.
+- **Why:** Phase 0 of `maintenance-audit-roadmap_519236d4.plan.md` — stabilize before ADRs and structural splits.
+- **Files touched:** `architecture/baseline-phase0.md`, `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`, `CHANGELOG.md`.
+- **How it works now:** Working tree was already clean (G2 hotkeys committed). Baselines live under `architecture/`; roadmap status has a maintenance ledger that does not change Phase B/C/I.
+- **Verified by:** `py -3 tools/maintainer_checks.py` (38/36) · pytest collect 617 · `npx vitest run` 178 passed.
+- **Follow-ups:** Phase 0A architecture ADRs before any product moves.
+
 ## 2026-07-16 — List all specialists on Nova Home canvas
 
 - **What:** Nova Home “Specialized agents” section now renders the full registry roster (Tester, Maintainer, Security Sentinel, Nova Agent, Warrior Navigator) from `NOVA_HOME_AGENT_SNAPSHOT`, with invoke phrases and dashboard links.

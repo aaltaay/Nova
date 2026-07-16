@@ -16,13 +16,14 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 - **Active ops:** Phase B — Paper shadow (**`[~]` protocol ready / awaiting ≥5 live shadow days**)
 - **Feature track:** Phases **A, D, E, F, G, G2, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**)
-- **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker
+- **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) — plan `maintenance-audit-roadmap_519236d4.plan.md` · baseline `architecture/baseline-phase0.md`
+- **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker; structural maintenance in progress
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
-- **Tip SHA:** `645761b` (Phase G2 DAS hotkey manager)
-- **Prior tip stamps:** `5f7b4d2` / `89712d5` / `7749181`
+- **Tip SHA:** `078f9ad` (Nova Home specialists list; pre-maintenance)
+- **Prior tip stamps:** `645761b` / `5f7b4d2` / `89712d5` / `7749181`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
-- **Last updated:** 2026-07-16 (Phase G2 — DAS-compatible hotkey manager, authoring only)
+- **Last updated:** 2026-07-16 (Maintenance Phase 0 — baseline captured)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 
 ## Exact next action (human)
@@ -169,6 +170,31 @@ Prior continuity baseline was 562 / 131 / 14 @ `fb330cf`.
 
 Conversational scans, Holly-like coach, L2 scrubber, SMS/email, multi-broker, cloud Gateway, community, native mobile, CI expansion, mission canvas, reserved U–Z. **Not scheduled** until explicitly promoted. Plan todo `phases-k-z` = deferred-documented.
 
+## Maintenance track — Pattern-Driven Architecture (Phases 0–13)
+
+Plan: `C:\Users\aalta\.cursor\plans\maintenance-audit-roadmap_519236d4.plan.md`  
+Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
+
+| Phase | Status | SHA | Notes |
+|-------|--------|-----|-------|
+| 0 Baseline | `[~]` | _(this commit)_ | Clean tree; metrics in `architecture/baseline-phase0.md` |
+| 0A Architecture contract | `[ ]` | — | ADRs before product moves |
+| 1 Maintainer gates | `[ ]` | — | CSS + baseline growth + dep warnings |
+| 2 CSS split | `[ ]` | — | `index.css` import-only |
+| 3 Constants domains | `[ ]` | — | Compatibility barrels |
+| 4 Frontend components | `[ ]` | — | Hotkeys / HOD settings / debug |
+| 5 Chart lifecycle | `[ ]` | — | `chart/` hooks |
+| 6 Low-coupling backend | `[ ]` | — | integrity / news / r2 / security_lib |
+| 7 Scanner state | `[ ]` | — | No production `import main` caches |
+| 8 Scanner + ticker | `[ ]` | — | Ports/facades |
+| 9 IBKR depth | `[ ]` | — | state/subscribe/stream |
+| 10 HOD Momo | `[ ]` | — | Shared state then extract |
+| 11 Error visibility | `[ ]` | — | No swallowed `except: pass` |
+| 12 Executor | `[ ]` | — | Conditional; prefer defer if risky |
+| 13 Program close | `[ ]` | — | Full verify + ledger |
+
+**Phase 0 metrics snapshot:** index.css 6168 · hod_momo 1079 · constants.py 951 · constants.ts 821 · maintainer 38 findings (36 non-baseline) · pytest collected 617 · Vitest 178 PASS.
+
 ## Crash or blocker
 
 - **Phase B:** awaiting human ≥5 shadow days (protocol + template ready).
@@ -182,6 +208,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-07-16 | Maintenance Phase 0: working tree clean; line/maintainer/test baselines recorded; maintenance track opened | _(pending)_ |
 | 2026-07-16 | Phase G2: DAS-compatible hotkey manager (Settings Hotkeys; `.htk` I/O; compatibility Help; authoring only — no execution) | `645761b` |
 | 2026-07-16 | Canvas consolidation: single `nova-home.canvas.tsx` homepage; retired five stale boards; continuity rules retargeted | (docs/canvas; commit when user requests) |
 | 2026-07-16 | Continuity sync after feature dump: status/plan/canvas aligned; A/D–G/J SHAs; B/C/I honest blockers; verify counts last-known 592/149/14 @ 2026-07-15; graphify AST update + wiki export | `5f7b4d2` |
