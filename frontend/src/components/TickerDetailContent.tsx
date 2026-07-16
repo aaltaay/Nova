@@ -9,8 +9,6 @@ import { TickerWatchlistStrip } from './TickerWatchlistStrip';
 import { DepthAndTape } from '../ibkr/DepthAndTape';
 import {
   API_BASE_URL,
-  DATA_FEED_DEFAULT,
-  DISCOVERY_PROVIDER_DEFAULT,
   QUOTE_AVG_VOLUME_LABEL,
   QUOTE_CARD_TITLE,
   REL_VOLUME_HIGH,
@@ -29,6 +27,7 @@ import {
   sessionPriceOrNull,
   timeAgo,
 } from '../utils/quoteFormat';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 
 const API_URL = `${API_BASE_URL}/api`;
 
@@ -47,12 +46,6 @@ interface Props {
   layout?: 'stack' | 'columns';
   /** Five Pillars / sub-scores for this symbol when ranked on the watchlist. */
   watchlistEntry?: WatchlistEntry | null;
-  /** IB Gateway connection state — gates the Level 2 depth section below the quote. */
-  ibkrConnected?: boolean;
-  /** Scanner discovery provider ('alpaca' | 'ibkr') — drives Data sources attribution. */
-  discoveryProvider?: string;
-  /** Alpaca market-data tier ('iex' | 'sip') — shown on quote/chart attribution. */
-  alpacaFeed?: string;
 }
 
 export function TickerDetailContent({
@@ -62,10 +55,8 @@ export function TickerDetailContent({
   showChart = false,
   layout = 'stack',
   watchlistEntry = null,
-  ibkrConnected = false,
-  discoveryProvider = DISCOVERY_PROVIDER_DEFAULT,
-  alpacaFeed = DATA_FEED_DEFAULT,
 }: Props) {
+  const { ibkrConnected, discoveryProvider, alpacaFeed } = useWorkspace();
   const depthSymbol = (selectedSymbol ?? detail.symbol).toUpperCase();
   const detailMatchesSelection = detail.symbol.toUpperCase() === depthSymbol;
   const [blocked, setBlocked] = useState(false);

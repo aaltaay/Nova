@@ -17,6 +17,24 @@ Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix).
 Entry template (copy and fill in):
 
 ```markdown
+## 2026-07-15 — Stock View double-click opens a detached window, not a tab
+
+- **What:** Double-click / Stock View now calls `window.open` with `popup=yes` + width/height features and a per-symbol window name, so the browser opens a real OS window instead of a new tab.
+- **Why:** User reported double-click only opened a tab; they want Stock View detached.
+- **Files touched:** `frontend/src/utils/stockViewNav.ts`, `frontend/src/constants.ts`, `stockViewNav.test.ts`.
+- **How it works now:** Bare `_blank` → tab. Features string (`STOCK_VIEW_WINDOW_FEATURES`) → popup window. Same symbol reuses/focuses `nova-stock-SYMBOL`. Electron still prefers IPC `novaDesktop.openStockView`.
+- **Verified by:** Vitest `stockViewNav.test.ts`; frontend build.
+- **Follow-ups:** If the browser blocks popups, allow Nova for the origin (user gesture is already a double-click).
+
+## 2026-07-15 — Stock View: remove chart-row gaps; lock to one viewport
+
+- **What:** Stock View no longer document-scrolls. The 2×2 chart grid fills leftover height so canvases stretch cell-to-cell (no black void between 1-min and full-day rows). Quote panel scrolls internally; trade bar stays compact at the bottom.
+- **Why:** User reported ugly empty space between chart rows and a page scrollbar that hid parts of the view.
+- **Files touched:** `frontend/src/index.css`, `frontend/src/TickerChart.tsx`, `CHANGELOG.md`, `PROBLEM_LOG.md`.
+- **How it works now:** `body:has(.container--ticker-detail)` + `#root` are a `100dvh` flex column (`overflow: hidden`). Portal slot/host and `.chart-card--grid .chart-body` use `flex: 1 1 0` so height propagates. `measureChartFillHeight` sizes lightweight-charts from the card leftover space (not stuck at `CHART_HEIGHT_GRID`).
+- **Verified by:** Browser CDP on `?view=stock&symbol=ATAI` — `scrollHeight === clientHeight` at 1080px and 800px viewports; cell/body heights fill grid rows; pageScrollable false.
+- **Follow-ups:** Chart bar fetch timed out during verify (IBKR historical busy) — unrelated to layout.
+
 ## YYYY-MM-DD — Short descriptive title
 
 - **What:** 1–2 sentences on what changed (user-visible + internal).
@@ -29,6 +47,16 @@ Entry template (copy and fill in):
 ```
 
 <!-- ENTRIES_START -->
+
+## 2026-07-15 — Phase 2: WorkspaceContext ends selection/discovery prop drilling
+
+- **What:** Added `WorkspaceProvider` / `useWorkspace()` for `selectedSymbol`, `discoveryProvider`, `alpacaFeed`, `ibkrConnected`, and `openStockView`. Mounted in `App.tsx`. `StockViewPage` no longer fetches `/api/config`; SidePanel / TickerDetailContent / Dashboard read workspace instead of drilled props.
+- **Why:** Modular Panel Workspace Phase 2 — shared selection/discovery before Phase 3 panel decomposition.
+- **Files touched:** `frontend/src/workspace/*`, `App.tsx`, `DashboardPage.tsx`, `SidePanel.tsx`, `TickerDetailContent.tsx`, `StockViewPage.tsx`, e2e `workspace-context.spec.ts`, Vitest workspace tests; `jsdom` for provider tests.
+- **How it works now:** One provider owns symbol selection + Stock View open path + discovery/feed (config fetch + Settings sync). Quote surfaces call `useWorkspace()`; scanner tabs still receive symbol callbacks from Dashboard (Phase 4 registry later).
+- **Verified by:** `npx vitest run` (96), `npx playwright test` (7), `npm run build`.
+- **Follow-ups:** Phase 3 — decompose `TickerDetailContent` into optional panels.
+- **Related:** Plan `modular_panel_workspace_phases_53ac9db5`; Phase 1 commit `96bdafc`.
 
 ## 2026-07-15 — Phase 1: Level 2 + Time & Sales as independent modules
 

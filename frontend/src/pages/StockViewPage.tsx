@@ -1,5 +1,5 @@
 /**
- * Stock View — detachable single-stock page (double-click / new tab).
+ * Stock View — detachable single-stock page (double-click → new window).
  *
  * Reuses the same Quote Panel body (`TickerDetailContent`) as the scanner
  * sidebar so fundamentals / broker / data sources stay one-to-one. Adds the
@@ -16,9 +16,6 @@ import { useIbkrAccount } from '../ibkr/useIbkrAccount';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { useWatchlist } from '../strategy/useWatchlist';
 import {
-  API_BASE_URL,
-  DATA_FEED_DEFAULT,
-  DISCOVERY_PROVIDER_DEFAULT,
   STOCK_VIEW_CHARTS_COLLAPSED_KEY,
   STOCK_VIEW_CHARTS_HIDE_LABEL,
   STOCK_VIEW_CHARTS_SHOW_LABEL,
@@ -30,8 +27,7 @@ import {
 } from '../constants';
 import { fmtPct } from '../utils/quoteFormat';
 import { replaceStockViewUrl } from '../utils/stockViewNav';
-
-const API_URL = `${API_BASE_URL}/api`;
+import { useWorkspace } from '../workspace/WorkspaceContext';
 
 interface Props {
   symbol: string;
@@ -55,13 +51,12 @@ export function StockViewPage({
   onBack,
   onSelectSymbol,
 }: Props) {
+  const { discoveryProvider } = useWorkspace();
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(symbol);
   const ibkrStatus = useIbkrStatus();
   const { summary, positions, refresh } = useIbkrAccount(ibkrStatus.connected);
   const watchlist = useWatchlist(true);
   const [chartsCollapsed, setChartsCollapsed] = useState(readChartsCollapsed);
-  const [discoveryProvider, setDiscoveryProvider] = useState(DISCOVERY_PROVIDER_DEFAULT);
-  const [alpacaFeed, setAlpacaFeed] = useState(DATA_FEED_DEFAULT);
   const {
     width: sideWidth,
     onDragStart: onSideResizeStart,
@@ -79,21 +74,6 @@ export function StockViewPage({
       document.title = 'Nova — Stock Scanner';
     };
   }, [symbol]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${API_URL}/config`)
-      .then(r => (r.ok ? r.json() : null))
-      .then(data => {
-        if (cancelled || !data) return;
-        if (data.discovery_provider) setDiscoveryProvider(data.discovery_provider);
-        if (data.data_feed) setAlpacaFeed(data.data_feed);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const toggleCharts = useCallback(() => {
     setChartsCollapsed(prev => {
@@ -165,7 +145,7 @@ export function StockViewPage({
           type="button"
           className="ticker-detail-back"
           onClick={onBack}
-          title={detached ? 'Close Stock View tab' : 'Return to the scanner'}
+          title={detached ? 'Close Stock View window' : 'Return to the scanner'}
         >
           {detached ? '✕ Close' : '← Back'}
         </button>
@@ -257,9 +237,6 @@ export function StockViewPage({
                 showChart={false}
                 layout="columns"
                 watchlistEntry={watchlistEntry}
-                ibkrConnected={ibkrStatus.connected}
-                discoveryProvider={discoveryProvider}
-                alpacaFeed={alpacaFeed}
               />
             </div>
           </div>

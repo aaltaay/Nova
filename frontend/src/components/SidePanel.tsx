@@ -6,36 +6,28 @@ import {
   STOCK_VIEW_OPEN_TITLE,
 } from '../constants';
 import { useTickerStream } from '../hooks/useTickerStream';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { WatchlistEntry } from '../strategy/types';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 import { TickerDetailContent } from './TickerDetailContent';
 
 interface Props {
-  selectedSymbol: string | null;
-  setSelectedSymbol: (sym: string | null) => void;
-  onOpenTrading?: (symbol: string) => void;
   /** Live watchlist ranks from App's useWatchlist poll — used for the side-panel strip. */
   watchlistEntries?: WatchlistEntry[];
-  /** Scanner discovery provider for the Data sources panel. */
-  discoveryProvider?: string;
-  /** Alpaca IEX/SIP tier for the Data sources panel. */
-  alpacaFeed?: string;
   /** User-resized width from the drag splitter (ignored when stacked on narrow viewports). */
   widthPx?: number;
 }
 
 export function SidePanel({
-  selectedSymbol,
-  setSelectedSymbol,
-  onOpenTrading,
   watchlistEntries = [],
-  discoveryProvider,
-  alpacaFeed,
   widthPx,
 }: Props) {
+  const {
+    selectedSymbol,
+    setSelectedSymbol,
+    openStockView,
+  } = useWorkspace();
   const [input, setInput] = useState(selectedSymbol ?? '');
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(selectedSymbol);
-  const ibkrStatus = useIbkrStatus();
 
   const watchlistEntry = useMemo(() => {
     if (!selectedSymbol) return null;
@@ -77,11 +69,11 @@ export function SidePanel({
           />
           <button type="submit" className="side-search-btn">Look Up</button>
         </form>
-        {selectedSymbol && onOpenTrading && (
+        {selectedSymbol && (
           <button
             type="button"
             className="side-open-trading-btn"
-            onClick={() => onOpenTrading(selectedSymbol)}
+            onClick={() => openStockView(selectedSymbol)}
             title={STOCK_VIEW_OPEN_TITLE}
           >
             {STOCK_VIEW_OPEN_LABEL}
@@ -112,9 +104,6 @@ export function SidePanel({
               showChart
               layout="columns"
               watchlistEntry={watchlistEntry}
-              ibkrConnected={ibkrStatus.connected}
-              discoveryProvider={discoveryProvider}
-              alpacaFeed={alpacaFeed}
             />
           </div>
         )}

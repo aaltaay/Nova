@@ -25,14 +25,16 @@ import { useExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { scanAgeForTab } from '../utils/scanAge';
 import { API_BASE_URL } from '../constants';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 
-interface Props {
-  selectedSymbol: string | null;
-  setSelectedSymbol: (sym: string | null) => void;
-  onOpenTrading: (sym: string) => void;
-}
-
-export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading }: Props) {
+export function DashboardPage() {
+  const {
+    selectedSymbol,
+    setSelectedSymbol,
+    openStockView,
+    setDiscoveryProvider: setWorkspaceDiscovery,
+    setAlpacaFeed: setWorkspaceAlpacaFeed,
+  } = useWorkspace();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [tabOverridden, setTabOverridden] = useState(false);
   const exchangeFilter = useExchangeFilter();
@@ -55,6 +57,14 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
     settings.fetchConfig();
   }, [settings.fetchConfig]);
 
+  // Keep WorkspaceContext discovery/feed in sync with Settings (single source for SidePanel / Stock View).
+  useEffect(() => {
+    setWorkspaceDiscovery(settings.discoveryProvider);
+  }, [settings.discoveryProvider, setWorkspaceDiscovery]);
+
+  useEffect(() => {
+    setWorkspaceAlpacaFeed(settings.activeFeed);
+  }, [settings.activeFeed, setWorkspaceAlpacaFeed]);
   useEffect(() => {
     if (!tabOverridden) {
       // Keep user on Dashboard; mode-based tab switching only after they navigate away
@@ -204,7 +214,7 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
               watchlistEntries={watchlist.entries}
               selectedSymbol={selectedSymbol}
               onSelect={setSelectedSymbol}
-              onOpenTrading={onOpenTrading}
+              onOpenTrading={openStockView}
               pricesStale={scanner.pricesStale}
               flashSymbols={scanner.flashSymbols}
             />
@@ -225,7 +235,7 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
                 config={hodMomoConfig}
                 selectedSymbol={selectedSymbol}
                 onSelectSymbol={setSelectedSymbol}
-                onOpenTrading={onOpenTrading}
+                onOpenTrading={openStockView}
                 onOpenSettings={() => setShowHodSettings(s => !s)}
                 onClearAlerts={() => {
                   if (!window.confirm(
@@ -244,7 +254,7 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
             <TradingTab
               selectedSymbol={selectedSymbol}
               onSelectSymbol={setSelectedSymbol}
-              onOpenTrading={onOpenTrading}
+              onOpenTrading={openStockView}
             />
           )}
           {activeTab === 'strategy' && (
@@ -254,7 +264,7 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
               error={watchlist.error}
               selectedSymbol={selectedSymbol}
               onSelectSymbol={setSelectedSymbol}
-              onOpenTrading={onOpenTrading}
+              onOpenTrading={openStockView}
             />
           )}
           {activeTab === 'reports' && <ReportsTab />}
@@ -265,12 +275,7 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
         dragging={sidePanel.dragging}
       />
       <SidePanel
-        selectedSymbol={selectedSymbol}
-        setSelectedSymbol={setSelectedSymbol}
-        onOpenTrading={onOpenTrading}
         watchlistEntries={watchlist.entries}
-        discoveryProvider={settings.discoveryProvider}
-        alpacaFeed={settings.activeFeed}
         widthPx={sidePanel.widthPx}
       />
     </div>

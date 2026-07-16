@@ -1,8 +1,7 @@
 /**
- * Nova root layout — Stock View gate + Dashboard shell.
+ * Nova root layout — WorkspaceProvider + Stock View gate + Dashboard shell.
  * Business logic lives in pages/hooks/components (frontend-modularity rule).
  */
-import { useCallback, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { DashboardPage } from './pages/DashboardPage';
 import { StockViewPage } from './pages/StockViewPage';
@@ -10,29 +9,21 @@ import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
 import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
 import {
   leaveStockViewUrl,
-  openStockViewWindow,
   parseStockViewSymbol,
   replaceStockViewUrl,
 } from './utils/stockViewNav';
+import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
 
-function App() {
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [stockViewSymbol, setStockViewSymbol] = useState<string | null>(() =>
-    parseStockViewSymbol(),
-  );
+function AppShell() {
+  const {
+    stockViewSymbol,
+    setStockViewSymbol,
+    setSelectedSymbol,
+  } = useWorkspace();
 
   // Global — a kill switch, expired approval, or archive failure must reach
   // the attention strip regardless of which tab/page is currently mounted.
   useNovaOsEventAttention(true);
-
-  const openStockView = useCallback((symbol: string) => {
-    const sym = symbol.trim().toUpperCase();
-    if (!sym) return;
-    setSelectedSymbol(sym);
-    void openStockViewWindow(sym).then(opened => {
-      if (!opened) setStockViewSymbol(sym);
-    });
-  }, []);
 
   if (stockViewSymbol) {
     const detached = parseStockViewSymbol() != null;
@@ -55,6 +46,7 @@ function App() {
                   }
                 }}
                 onSelectSymbol={sym => {
+                  setSelectedSymbol(sym);
                   setStockViewSymbol(sym);
                   if (detached) replaceStockViewUrl(sym);
                 }}
@@ -69,12 +61,16 @@ function App() {
   return (
     <AppErrorBoundary source="dashboard">
       <NovaOsAttentionStrip global />
-      <DashboardPage
-        selectedSymbol={selectedSymbol}
-        setSelectedSymbol={setSelectedSymbol}
-        onOpenTrading={openStockView}
-      />
+      <DashboardPage />
     </AppErrorBoundary>
+  );
+}
+
+function App() {
+  return (
+    <WorkspaceProvider>
+      <AppShell />
+    </WorkspaceProvider>
   );
 }
 
