@@ -1,39 +1,50 @@
 # Course Memory & Library
 
-> 10 nodes · cohesion 0.24
+> 23 nodes
 
 ## Key Concepts
 
-- **Scanner Provider IBKR Primary** (6 connections) — `knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md`
-- **Alpaca Integration Reference** (5 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
-- **IBKR Scanner Discovery** (5 connections) — `knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md`
-- **News Impact Decision Layer** (3 connections) — `knowledge/obsidian/03-Nova-Decisions/News-Impact-Decision-Layer.md`
-- **BA101 Transcript Index** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md`
-- **BA101 Day Trading The Basics** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md`
-- **SS101 Transcript Index** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md`
-- **SS101 Strategies and Scaling** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md`
-- **Alpaca-Only Features** (2 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
-- **News Impact Classification** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/News-Impact-Decision-Layer.md`
+- **Warrior Trading — Local Library Inventory** (7 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **Course-Index.md** (6 connections) — `knowledge/obsidian/01-Courses/Course-Index.md`
+- **Course Index** (4 connections) — `knowledge/obsidian/01-Courses/Course-Index.md`
+- **What was newly added 2026-07-14** (3 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **BA101-Timestamped-Notes.md** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md`
+- **DE101-Timestamped-Notes.md** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md`
+- **LTA-Timestamped-Notes.md** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md`
+- **Local-Library-Inventory.md** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **SS101-Timestamped-Notes.md** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md`
+- **Timestamped transcripts (match the video)** (1 connections) — `knowledge/obsidian/01-Courses/Course-Index.md`
+- **LMS inventory** (1 connections) — `knowledge/obsidian/01-Courses/Course-Index.md`
+- **Day Trading: The Basics — videos on disk** (1 connections) — `knowledge/obsidian/01-Courses/Course-Index.md`
+- **BA101 Transcript Index** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md`
+- **DE101 Transcript Index** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md`
+- **LTA Transcript Index** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md`
+- **Canonical roots (do not duplicate under `docs/`)** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **What was already present (do not re-download)** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **Free / member resource pages → `warrior-trading-resources/`** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **Gaps filled in `warrior-trading-slides/`** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **LMS courses on the member account** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **Support / access notes** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **Pinecone** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
+- **SS101 Transcript Index** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md`
 
 ## Relationships
 
-- [Nova OS Phases & Readiness](Nova_OS_Phases_%26_Readiness.md) (3 shared connections)
-- [Strategy Automation & Safety](Strategy_Automation_%26_Safety.md) (2 shared connections)
-- [Warrior Trading Courses](Warrior_Trading_Courses.md) (2 shared connections)
-- [Market Data Providers](Market_Data_Providers.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
+- `knowledge/obsidian/01-Courses/Course-Index.md`
 - `knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md`
+- `knowledge/obsidian/01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md`
+- `knowledge/obsidian/01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md`
+- `knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md`
 - `knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md`
-- `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
-- `knowledge/obsidian/03-Nova-Decisions/News-Impact-Decision-Layer.md`
-- `knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md`
 
 ## Audit Trail
 
-- EXTRACTED: 27 (90%)
-- INFERRED: 3 (10%)
+- EXTRACTED: 44 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

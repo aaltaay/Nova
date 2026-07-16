@@ -1,19 +1,20 @@
 # Alpaca Integration Reference
 
-> God node · 5 connections · `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+> God node · 8 connections · `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
 
-**Community:** [Course Memory & Library](Course_Memory_%26_Library.md)
+**Community:** [Market Data Providers](Market_Data_Providers.md)
 
 ## Connections by Relation
 
-### conceptually_related_to
-- IBKR Scanner Discovery `EXTRACTED`
-- Alpaca-Only Features `EXTRACTED`
-
-### references
-- [Scanner Provider IBKR Primary](Scanner_Provider_IBKR_Primary.md) `EXTRACTED`
-- IBKR Orders Locked On Live Gateway `EXTRACTED`
-- News Impact Decision Layer `INFERRED`
+### contains
+- Config surface (entirely Alpaca-shaped today) `EXTRACTED`
+- Feature-by-feature inventory `EXTRACTED`
+- Alpaca-Integration-Reference.md `EXTRACTED`
+- Classification key `EXTRACTED`
+- Frontend references `EXTRACTED`
+- Related `EXTRACTED`
+- What it would take to reach true IBKR-only `EXTRACTED`
+- Why this doc exists `EXTRACTED`
 
 ---
 

@@ -1,35 +1,48 @@
 # Nova OS Phases & Readiness
 
-> 7 nodes · cohesion 0.43
+> 21 nodes
 
 ## Key Concepts
 
-- **Gap and Go Setup** (7 connections) — `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
-- **Active Strategy (Nova)** (6 connections) — `knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md`
-- **Five Pillars Scoring** (5 connections) — `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
-- **Nova OS decide() Gate Pipeline** (4 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md`
-- **Candidate Strategies for Nova** (2 connections) — `knowledge/obsidian/02-Strategies/Candidate-Strategies-for-Nova.md`
-- **Active Strategy Gap and Go** (2 connections) — `knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md`
-- **Warrior Ross Momentum Model** (2 connections) — `knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md`
+- **How Recall Works (Pinecone + Obsidian)** (7 connections) — `knowledge/obsidian/00-System/How-Recall-Works.md`
+- **Graphify Knowledge Graph** (5 connections) — `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`
+- **Graphify-Knowledge-Graph.md** (4 connections) — `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`
+- **Memory-Router.md** (4 connections) — `knowledge/obsidian/00-System/Memory-Router.md`
+- **Memory Router — when to use which store** (4 connections) — `knowledge/obsidian/00-System/Memory-Router.md`
+- **Reference-Repos.md** (4 connections) — `knowledge/obsidian/00-System/Reference-Repos.md`
+- **Skills-Library.md** (3 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **How-Recall-Works.md** (2 connections) — `knowledge/obsidian/00-System/How-Recall-Works.md`
+- **Where it lives** (1 connections) — `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`
+- **How this fits the memory router** (1 connections) — `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`
+- **Commands (from repo root)** (1 connections) — `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`
+- **Install / skill locations** (1 connections) — `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`
+- **Accuracy model (important)** (1 connections) — `knowledge/obsidian/00-System/How-Recall-Works.md`
+- **Three memories** (1 connections) — `knowledge/obsidian/00-System/How-Recall-Works.md`
+- **Router rules (automatic)** (1 connections) — `knowledge/obsidian/00-System/How-Recall-Works.md`
+- **Commands** (1 connections) — `knowledge/obsidian/00-System/How-Recall-Works.md`
+- **Your job vs agent job** (1 connections) — `knowledge/obsidian/00-System/How-Recall-Works.md`
+- **Setup checklist** (1 connections) — `knowledge/obsidian/00-System/How-Recall-Works.md`
+- **Intent → source** (1 connections) — `knowledge/obsidian/00-System/Memory-Router.md`
+- **Trust order for automation advice** (1 connections) — `knowledge/obsidian/00-System/Memory-Router.md`
+- **Library inventory** (1 connections) — `knowledge/obsidian/00-System/Memory-Router.md`
 
 ## Relationships
 
-- [Warrior Trading Courses](Warrior_Trading_Courses.md) (6 shared connections)
-- [Course Memory & Library](Course_Memory_%26_Library.md) (3 shared connections)
-- [Market Data Providers](Market_Data_Providers.md) (1 shared connections)
+- [Catalog](Catalog.md) (1 shared connections)
+- [Community 8](Community_8.md) (1 shared connections)
 
 ## Source Files
 
-- `knowledge/obsidian/02-Strategies/Candidate-Strategies-for-Nova.md`
-- `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
-- `knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md`
-- `knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md`
-- `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md`
+- `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`
+- `knowledge/obsidian/00-System/How-Recall-Works.md`
+- `knowledge/obsidian/00-System/Memory-Router.md`
+- `knowledge/obsidian/00-System/Reference-Repos.md`
+- `knowledge/obsidian/00-System/Skills-Library.md`
 
 ## Audit Trail
 
-- EXTRACTED: 23 (82%)
-- INFERRED: 5 (18%)
+- EXTRACTED: 46 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

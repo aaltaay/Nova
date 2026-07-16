@@ -1,22 +1,33 @@
 # Community 8
 
-> 1 nodes · cohesion 1.00
+> 12 nodes
 
 ## Key Concepts
 
-- **Nova OS Archive Restore Runbook** (0 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Archive-Restore-Runbook.md`
+- **Vendored skills** (7 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **Skills Library (Nova Master Roadmap Phase A)** (6 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **Nova guardrails (applies to every skill below)** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **backtest** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **optimize** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **strategy-compare** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **vectorbt-expert** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **backtesting-frameworks** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **llm-trading-agent-security** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **Intentionally not vendored** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **Related project skills (pre-existing)** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
+- **How agents should load these** (1 connections) — `knowledge/obsidian/00-System/Skills-Library.md`
 
 ## Relationships
 
-- No strong cross-community connections detected
+- [Nova OS Phases & Readiness](Nova_OS_Phases_%26_Readiness.md) (1 shared connections)
 
 ## Source Files
 
-- `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Archive-Restore-Runbook.md`
+- `knowledge/obsidian/00-System/Skills-Library.md`
 
 ## Audit Trail
 
-- EXTRACTED: 0 (0%)
+- EXTRACTED: 23 (100%)
 - INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 

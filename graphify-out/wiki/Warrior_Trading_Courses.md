@@ -1,34 +1,42 @@
 # Warrior Trading Courses
 
-> 6 nodes · cohesion 0.47
+> 20 nodes
 
 ## Key Concepts
 
-- **Automation Strategy Backbone** (9 connections) — `knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md`
-- **Nova OS Decision Brain** (9 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md`
-- **Five Pillars and Gap and Go Spec** (5 connections) — `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
-- **Local Market Data Recorders** (3 connections) — `knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md`
-- **Signal Only Safety Property** (1 connections) — `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
-- **L2 SQLite WAL Recorder** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md`
+- **Phase ledger** (13 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Nova Roadmap Status** (8 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Current position** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Exact next action (human)** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **COMPLETE history (do not reopen)** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Verification baseline** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase B — Paper shadow ops — `[~]` NEXT / BLOCKED on human market days** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase C — Durable archive — `[~]` PARTIAL / BLOCKED on console + cold day** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase A — Skills library — `[x]` COMPLETED** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Governance — `[x]` COMPLETED** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase D — Outbound alerts — `[x]` COMPLETED (code) · SHA `722d614`** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase E — Backtest UX — `[x]` COMPLETED (code) · SHA `722d614`** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase F — Reports v2 — `[x]` COMPLETED (code) · SHA `722d614`** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase G — Hotkeys + brackets — `[x]` COMPLETED (code) · SHA `722d614`** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase H — Panel workspace — `[x]` COMPLETED** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase I — Live-readiness evidence — `[~]` framework ready / verdict NO-GO** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phase J — Productization — `[x]` COMPLETED (decision doc) · SHA `722d614`** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Phases K–Z — `[~]` DEFERRED (parking lot documented)** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **Crash or blocker** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+- **History (append-only)** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
 
 ## Relationships
 
-- [Nova OS Phases & Readiness](Nova_OS_Phases_%26_Readiness.md) (6 shared connections)
-- [Community 6](Community_6.md) (3 shared connections)
-- [Market Data Providers](Market_Data_Providers.md) (3 shared connections)
-- [Course Memory & Library](Course_Memory_%26_Library.md) (2 shared connections)
+- [Strategy Automation & Safety](Strategy_Automation_%26_Safety.md) (1 shared connections)
 
 ## Source Files
 
-- `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
-- `knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md`
-- `knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md`
-- `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md`
+- `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
 
 ## Audit Trail
 
-- EXTRACTED: 26 (93%)
-- INFERRED: 2 (7%)
+- EXTRACTED: 39 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---

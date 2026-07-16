@@ -30,6 +30,25 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Fix overlapping tab bar labels
+
+- **What:** Tab buttons no longer shrink below their label width, so adjacent titles (e.g. HOD Momo / Trading) stop painting over each other.
+- **Why:** User screenshot showed mashed tab text with the cursor on HOD Momo / Trading.
+- **Files touched:** `frontend/src/index.css`, `CHANGELOG.md`, `PROBLEM_LOG.md`.
+- **How it works now:** `.tab` is `flex: 1 0 auto` — shares spare width when the bar is wide, keeps content width when crowded; `.tab-bar-scroll` still scrolls horizontally on narrow viewports.
+- **Verified by:** Frontend build + app launch; CSS review of flex shrink/min-width.
+- **Related:** PROBLEM_LOG 2026-07-16 tab mashup entry.
+
+## 2026-07-16 — Roadmap continuity sync after feature dump
+
+- **What:** Aligned `Nova-Roadmap-Status.md` with post-finish-pass reality (A/D–G/J DONE with SHAs; B/C honest ops blockers; I framework/NO-GO; tip `89712d5`; verify counts last-known 592/149/14 @ 2026-07-15). Plan body + canvas outside-repo companions updated to match.
+- **Why:** Feature dump left plan body still showing A/D–G/J as PENDING while YAML todos and status were DONE — agents would reopen shipped work.
+- **Files touched:** `Nova-Roadmap-Status.md`, `CHANGELOG.md`; plan/canvas under `.cursor/` (may be outside git).
+- **How it works now:** NEXT = human Phase B shadow days; BLOCKED = Phase C console/cold day; do not re-implement A/D–G/J; `auto_live` NO-GO.
+- **Verified by:** Git history (`9f4ca3f`, `722d614`, `89712d5`); docs cross-check; suites not re-run (counts dated 2026-07-15).
+- **Follow-ups:** Graphify: AST `update` + `export wiki` refreshed root `graphify-out/` (249 nodes; wiki rewritten). Full LLM semantic re-extract of Markdown still needs assistant `/graphify --update` if concepts look thin. Re-run full verify when convenient.
+- **Related:** Finish pass `722d614`.
+
 ## 2026-07-15 — Master Roadmap finish: B/C docs honesty + I framework + J decision
 
 - **What:** Phase B day-log template; Phase C Bucket Lock / token rotation / walk_day runbook in `docs/r2-archive-setup.md`; Phase I evidence thresholds in Live-Readiness review; Phase J `Productization-Decision.md` (local-first); Roadmap-Status + plan/canvas synced. B/C/I remain ops-honest (`[~]`), not fake `[x]`.

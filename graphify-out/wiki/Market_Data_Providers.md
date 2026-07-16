@@ -1,32 +1,37 @@
 # Market Data Providers
 
-> 5 nodes · cohesion 0.40
+> 15 nodes
 
 ## Key Concepts
 
-- **IBKR Safety Gates** (4 connections) — `knowledge/obsidian/03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md`
-- **IBKR Orders Locked On Live Gateway** (3 connections) — `knowledge/obsidian/03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md`
-- **Nova OS Live Readiness Review** (3 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md`
-- **Nova OS Control Modes** (2 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md`
-- **NO-GO for auto_live** (2 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md`
+- **Alpaca Integration Reference** (8 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **Feature-by-feature inventory** (4 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **Config surface (entirely Alpaca-shaped today)** (4 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **Alpaca-Integration-Reference.md** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **Why this doc exists** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **Classification key** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **(A) Already IBKR-native — safe today** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **(B) IBKR-partial** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **(C) Alpaca-only — no IBKR alternative exists** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **`.env` keys** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **`backend/constants.py`** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **API endpoints (`main.py` — no separate `routes/settings.py`)** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **Frontend references** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **What it would take to reach true IBKR-only** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
+- **Related** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
 
 ## Relationships
 
-- [Warrior Trading Courses](Warrior_Trading_Courses.md) (3 shared connections)
-- [Course Memory & Library](Course_Memory_%26_Library.md) (1 shared connections)
-- [Nova OS Phases & Readiness](Nova_OS_Phases_%26_Readiness.md) (1 shared connections)
-- [Community 6](Community_6.md) (1 shared connections)
+- No strong cross-community connections detected
 
 ## Source Files
 
-- `knowledge/obsidian/03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md`
-- `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md`
-- `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md`
+- `knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md`
 
 ## Audit Trail
 
-- EXTRACTED: 12 (86%)
-- INFERRED: 2 (14%)
+- EXTRACTED: 28 (100%)
+- INFERRED: 0 (0%)
 - AMBIGUOUS: 0 (0%)
 
 ---
