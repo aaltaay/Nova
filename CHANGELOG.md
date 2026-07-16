@@ -48,6 +48,25 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Maintainer sentinel subagent
+
+- **What:** Added a read-only `maintainer` Cursor subagent (sibling to `tester`) that audits maintainability decay and dangers, plus a deterministic scanner script and living memory/baselines.
+- **Why:** Keep Nova maintainable with a dedicated danger-sniffer: file limits, secrets, swallowed exceptions, ruff/npm/pip audits — report only, never auto-fix.
+- **Files touched:** `.cursor/agents/maintainer.md`, `.cursor/agents/maintainer-memory.md`, `tools/maintainer_checks.py`, `tools/test_maintainer_checks.py`, `backend/requirements-dev.txt` (`pip-audit`), `AGENTS.md`, `CHANGELOG.md`.
+- **How it works now:** Invoke with “Use the maintainer subagent to audit the repo.” It runs `py -3 tools/maintainer_checks.py --json` first, then optional ruff / lint / pip_audit / npm audit, and returns a severity-ranked report. Known over-limit files (`hod_momo.py`, `executor.py`) are accepted baselines, not new CRITICALs. Fixes stay with a separate writer session.
+- **Verified by:** `py -3 -m pytest tools/test_maintainer_checks.py -q`; `py -3 tools/maintainer_checks.py --json` smoke.
+- **Follow-ups:** Optional weekly automation / CI gate (listed in maintainer-memory backlog).
+
+## 2026-07-15 — Layout store with persisted panel order (Phase 5)
+
+- **What:** Added versioned `workspace/layoutStore.ts` (slot → module id list + optional sizes) persisted in localStorage, Modules menu ↑↓ reorder + reset, and quote hosts that render panels in saved order.
+- **Why:** Modular Panel Workspace Phase 5 — prove the layout model before Phase 6 drag-drop.
+- **Files touched:** `frontend/src/workspace/layoutStore.ts`, `useLayoutStore.tsx`, `layoutStore.test.ts`, `components/TickerDetailContent.tsx`, `ModulesMenu.tsx`, `TabNav.tsx`, `SidePanel.tsx`, `StockViewPage.tsx`, `App.tsx`, `constants.ts`, `index.css`, e2e `layout-store.spec.ts`, `CHANGELOG.md`.
+- **How it works now:** `LayoutStoreProvider` loads `nova_workspace_layout_v1` (`version`, `slots.side_panel` / `slots.stock_view`). Side panel and Stock View pass `layoutSlot`; `TickerDetailContent` coalesces level2+tape into one depth block and orders blocks via `data-layout-block`. Modules menu edits order per slot and can reset to defaults. Visibility (Phase 4) still gates show/hide independently.
+- **Verified by:** `npx vitest run` (130), `npx playwright test` (12), `npm run build`.
+- **Follow-ups:** Phase 6 — `@dnd-kit` drag handles writing through this layout store.
+- **Related:** Phase 4 `06cacb5`; plan `modular_panel_workspace_phases_53ac9db5`.
+
 ## 2026-07-15 — Module registry + data-driven tabs (Phase 4)
 
 - **What:** Added `workspace/registry.ts` (`NovaModule` catalog), registry-driven `TabNav`, Gainers/Losers as separate top-level tabs, a Modules show/hide menu persisted in `localStorage`, and `TabModuleHost` for Dashboard tab bodies.

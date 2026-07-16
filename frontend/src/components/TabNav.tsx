@@ -1,13 +1,17 @@
 /**
  * TabNav — data-driven from the module registry (Phase 4).
  * Tab row is tabs-only; scan age / data source live in AppHeader.
+ * Modules menu also hosts Phase 5 panel-order controls.
  */
+import { useState } from 'react';
 import { ModulesMenu } from './ModulesMenu';
 import {
   listTabModules,
   type ActiveTab,
   type ModuleCountKey,
 } from '../workspace/registry';
+import type { LayoutSlotId } from '../workspace/layoutStore';
+import { useLayoutStore } from '../workspace/useLayoutStore';
 
 export type { ActiveTab } from '../workspace/registry';
 
@@ -34,6 +38,8 @@ export function TabNav({
   onModulesMenuOpenChange,
 }: Props) {
   const tabs = listTabModules().filter(m => visibility[m.id] !== false);
+  const { getOrder, moveModule, resetToDefault } = useLayoutStore();
+  const [reorderSlot, setReorderSlot] = useState<LayoutSlotId>('side_panel');
 
   return (
     <div className="tab-bar" data-active-tab={activeTab}>
@@ -57,6 +63,11 @@ export function TabNav({
         <ModulesMenu
           visibility={visibility}
           onToggle={onToggleModule}
+          panelOrder={getOrder(reorderSlot)}
+          reorderSlot={reorderSlot}
+          onReorderSlotChange={setReorderSlot}
+          onMove={(id, dir) => moveModule(reorderSlot, id, dir)}
+          onResetLayout={resetToDefault}
           open={modulesMenuOpen}
           onOpenChange={onModulesMenuOpenChange}
         />

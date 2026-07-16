@@ -1,4 +1,5 @@
 /** Fundamentals + news + broker grid for a ticker; optional panel chart / stacked layout. */
+import type { ReactNode } from 'react';
 import { TickerChart } from '../TickerChart';
 import { DataSourcesPanel } from '../modules/DataSourcesPanel';
 import { DepthTapePanel } from '../modules/DepthTapePanel';
@@ -10,8 +11,11 @@ import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import type { WatchlistEntry } from '../strategy/types';
 import type { TickerDetail } from '../types/ticker';
 import { fmtTimestamp } from '../utils/quoteFormat';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import type { LayoutSlotId } from '../workspace/layoutStore';
+import { coalesceQuoteOrder } from '../workspace/layoutStore';
+import { useLayoutStore } from '../workspace/useLayoutStore';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 
 interface Props {
   detail: TickerDetail;
@@ -26,6 +30,8 @@ interface Props {
   showChart?: boolean;
   /** Side-by-side columns when width allows (quote | fundamentals under chart). */
   layout?: 'stack' | 'columns';
+  /** Which layout-store slot drives panel order (Phase 5). */
+  layoutSlot?: LayoutSlotId;
   /** Five Pillars / sub-scores for this symbol when ranked on the watchlist. */
   watchlistEntry?: WatchlistEntry | null;
 }
@@ -36,16 +42,19 @@ export function TickerDetailContent({
   hideHeader = false,
   showChart = false,
   layout = 'stack',
+  layoutSlot = 'side_panel',
   watchlistEntry = null,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
   const { isVisible } = useModuleVisibility();
+  const { getOrder } = useLayoutStore();
   const depthSymbol = (selectedSymbol ?? detail.symbol).toUpperCase();
   const trade = detail.snapshot?.latest_trade;
   const { lastUpdated } = computeQuoteMetrics(detail, discoveryProvider);
   const showQuote = isVisible('quote');
   const showNews = isVisible('news');
   const showCharts = isVisible('charts');
+  const blockOrder = coalesceQuoteOrder(getOrder(layoutSlot));
 
   const chartEl =
     showChart && showCharts ? (
@@ -66,37 +75,89 @@ export function TickerDetailContent({
     </div>
   ) : null;
 
+  const depthEl = (
+    <DepthTapePanel selectedSymbol={depthSymbol} detailSymbol={detail.symbol} />
+  );
+
+  const newsEl = showNews ? (
+    <NewsPanel detail={detail} wrapped={layout === 'columns'} />
+  ) : null;
+
   if (layout === 'columns') {
-    return (
-      <div className="cq-root cq-root--stacked">
-        <div className="cq-col cq-col--chart">{chartEl}</div>
-        <WatchlistStripPanel entry={watchlistEntry} />
-        <DepthTapePanel selectedSymbol={depthSymbol} detailSymbol={detail.symbol} />
-        {showNews && <NewsPanel detail={detail} wrapped />}
-        <div className="cq-info-row cq-info-row--two">
-          <div className="cq-col cq-col--quote">
-            {showQuote && <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />}
-            <FundamentalsPanel detail={detail} variant="key" />
-          </div>
-          <div className="cq-col cq-col--fund">
-            <FundamentalsPanel detail={detail} variant="fundamentals" showTitle />
-            <DataSourcesPanel />
-            {bottomStamp}
-          </div>
+    const quoteCol = (
+      <div className="cq-info-row cq-info-row--two" key="quote" data-layout-block="quote">
+        <div className="cq-col cq-col--quote">
+          {showQuote && <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />}
+          <FundamentalsPanel detail={detail} variant="key" />
+        </div>
+        <div className="cq-col cq-col--fund">
+          <FundamentalsPanel detail={detail} variant="fundamentals" showTitle />
+          <DataSourcesPanel />
+          {bottomStamp}
         </div>
       </div>
     );
+
+    const nodes: ReactNode[] = [];
+    for (const block of blockOrder) {
+      if (block === 'charts') {
+        nodes.push(
+          <div key="charts" className="cq-col cq-col--chart" data-layout-block="charts">
+            {chartEl}
+          </div>,
+        );
+        nodes.push(<WatchlistStripPanel key="watchlist-strip" entry={watchlistEntry} />);
+      } else if (block === 'depth_tape') {
+        nodes.push(
+          <div key="depth_tape" data-layout-block="depth_tape">
+            {depthEl}
+          </div>,
+        );
+      } else if (block === 'news' && newsEl) {
+        nodes.push(
+          <div key="news" data-layout-block="news">
+            {newsEl}
+          </div>,
+        );
+      } else if (block === 'quote') {
+        nodes.push(quoteCol);
+      }
+    }
+
+    return <div className="cq-root cq-root--stacked">{nodes}</div>;
   }
 
-  return (
-    <div className="cq-root">
-      {showQuote && <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />}
-      <DepthTapePanel selectedSymbol={depthSymbol} detailSymbol={detail.symbol} />
-      {chartEl}
-      {showNews && <NewsPanel detail={detail} />}
-      <FundamentalsPanel detail={detail} variant="full" />
-      <DataSourcesPanel />
-      {bottomStamp}
-    </div>
-  );
+  const nodes: ReactNode[] = [];
+  for (const block of blockOrder) {
+    if (block === 'quote' && showQuote) {
+      nodes.push(
+        <div key="quote" data-layout-block="quote">
+          <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />
+        </div>,
+      );
+    } else if (block === 'depth_tape') {
+      nodes.push(
+        <div key="depth_tape" data-layout-block="depth_tape">
+          {depthEl}
+        </div>,
+      );
+    } else if (block === 'charts' && chartEl) {
+      nodes.push(
+        <div key="charts" data-layout-block="charts">
+          {chartEl}
+        </div>,
+      );
+    } else if (block === 'news' && newsEl) {
+      nodes.push(
+        <div key="news" data-layout-block="news">
+          {newsEl}
+        </div>,
+      );
+    }
+  }
+  nodes.push(<FundamentalsPanel key="fundamentals" detail={detail} variant="full" />);
+  nodes.push(<DataSourcesPanel key="data-sources" />);
+  if (bottomStamp) nodes.push(<div key="stamp">{bottomStamp}</div>);
+
+  return <div className="cq-root">{nodes}</div>;
 }

@@ -103,6 +103,7 @@ export function SidePanel({
               selectedSymbol={selectedSymbol}
               showChart
               layout="columns"
+              layoutSlot="side_panel"
               watchlistEntry={watchlistEntry}
             />
           </div>

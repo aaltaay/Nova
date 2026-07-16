@@ -219,6 +219,11 @@ export const SCANNER_EXCHANGE_STORAGE_KEY = 'nova_exchange_filter_v1';
 /** localStorage key: module id → visible (Phase 4 Modules menu). */
 export const MODULE_VISIBILITY_STORAGE_KEY = 'nova_module_visibility_v1';
 
+/** localStorage key: versioned workspace layout (Phase 5). */
+export const LAYOUT_STORAGE_KEY = 'nova_workspace_layout_v1';
+/** Schema version written into the layout JSON blob. */
+export const LAYOUT_SCHEMA_VERSION = 1;
+
 /** Scanner / HOD table text size — user preference (localStorage). */
 export const SCANNER_TABLE_DENSITY_STORAGE_KEY = 'nova_scanner_table_density_v2';
 export type ScannerTableDensity = 'compact' | 'medium' | 'large' | 'xlarge';

@@ -236,6 +236,7 @@ export function StockViewPage({
                 selectedSymbol={symbol}
                 showChart={false}
                 layout="columns"
+                layoutSlot="stock_view"
                 watchlistEntry={watchlistEntry}
               />
             </div>

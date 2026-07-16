@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TickerDetailContent } from '../components/TickerDetailContent';
 import { WorkspaceProvider } from '../workspace/WorkspaceContext';
 import { ModuleVisibilityProvider } from '../workspace/useModuleVisibility';
+import { LayoutStoreProvider } from '../workspace/useLayoutStore';
 import { makeDetail } from './quoteFixtures';
 
 vi.mock('../ibkr/useIbkrStatus', () => ({
@@ -80,12 +81,14 @@ describe('TickerDetailContent composition (Phase 3)', () => {
       root.render(
         <WorkspaceProvider>
           <ModuleVisibilityProvider>
-            <TickerDetailContent
-              detail={makeDetail()}
-              selectedSymbol="AAPL"
-              layout="columns"
-              showChart
-            />
+            <LayoutStoreProvider>
+              <TickerDetailContent
+                detail={makeDetail()}
+                selectedSymbol="AAPL"
+                layout="columns"
+                showChart
+              />
+            </LayoutStoreProvider>
           </ModuleVisibilityProvider>
         </WorkspaceProvider>,
       );

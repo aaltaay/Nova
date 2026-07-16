@@ -12,6 +12,7 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     const dash = readFileSync(join(src, 'pages/DashboardPage.tsx'), 'utf8');
     expect(app).toMatch(/WorkspaceProvider/);
     expect(app).toMatch(/ModuleVisibilityProvider/);
+    expect(app).toMatch(/LayoutStoreProvider/);
     expect(app).toMatch(/<DashboardPage\s*\/>/);
     expect(dash).toMatch(/useWorkspace\(/);
     expect(dash).not.toMatch(/interface Props/);
