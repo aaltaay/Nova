@@ -108,3 +108,21 @@ class TestFailClosed:
         with pytest.raises(ValueError):
             record_receipt(kind=KIND_DECISION, decision="SELL")
         assert get_events() == []
+
+
+class TestAlertHookVisibility:
+    def test_record_receipt_succeeds_when_alerts_import_missing(self, monkeypatch):
+        from nova_os.events import KIND_SYSTEM, record_receipt
+
+        import builtins
+
+        real_import = builtins.__import__
+
+        def _block_alerts(name, *args, **kwargs):
+            if name == "alerts.hooks" or name.startswith("alerts."):
+                raise ImportError("alerts unavailable in test")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", _block_alerts)
+        receipt = record_receipt(kind=KIND_SYSTEM, symbol="ZZZ")
+        assert receipt["symbol"] == "ZZZ"

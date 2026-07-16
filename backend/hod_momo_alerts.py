@@ -71,7 +71,7 @@ async def flush_consolidated_loop() -> None:
                 try:
                     queue.get_nowait()
                 except asyncio.QueueEmpty:
-                    pass
+                    logger.debug("HOD Momo: broadcast queue already empty")
             _persist.flush_pending_alert_save()
         except asyncio.CancelledError:
             raise

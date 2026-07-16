@@ -72,8 +72,10 @@ def _push_queue(symbol: str, payload: dict) -> None:
         try:
             q.get_nowait()
             q.put_nowait(payload)
-        except Exception:
-            pass
+        except asyncio.QueueEmpty:
+            logger.debug("IBKR tape: queue empty after full for %s", symbol)
+        except asyncio.QueueFull:
+            logger.warning("IBKR tape: queue still full for %s after drop", symbol)
 
 
 def _on_tape_update(ticker: Any, symbol: str) -> None:
@@ -144,8 +146,8 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
     # Clear consumed ticks to avoid re-processing on next updateEvent
     try:
         tbt_list.clear()
-    except Exception:
-        pass
+    except (AttributeError, TypeError) as exc:
+        logger.debug("IBKR tape: could not clear tick list for %s: %s", symbol, exc)
 
 
 def _install_error_hook(ib: Any) -> None:
@@ -238,13 +240,21 @@ def unsubscribe(symbol: str) -> None:
     if ticker and handler:
         try:
             ticker.updateEvent -= handler
-        except Exception:
-            pass
+        except (ValueError, AttributeError, KeyError) as exc:
+            logger.debug(
+                "IBKR tape: handler detach failed for %s: %s",
+                symbol,
+                exc,
+            )
     if ib and contract is not None:
         try:
             ib.cancelTickByTickData(contract, IBKR_TAPE_TICK_TYPE)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(
+                "IBKR tape: cancelTickByTickData failed for %s: %s",
+                symbol,
+                exc,
+            )
     _cancelled_at[symbol] = time.time()
     logger.info("IBKR tape: unsubscribed %s", symbol)
 

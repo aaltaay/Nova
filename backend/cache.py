@@ -58,8 +58,12 @@ def _atomic_write(path: str, payload: dict) -> None:
     except Exception:
         try:
             os.unlink(tmp_path)
-        except OSError:
-            pass
+        except OSError as unlink_exc:
+            logger.debug(
+                "cache: temp file cleanup failed for %s: %s",
+                tmp_path,
+                unlink_exc,
+            )
         raise
 
 
@@ -112,8 +116,12 @@ def cleanup_old_snapshots(retention_days: int) -> None:
         if m and m.group(2) < cutoff:
             try:
                 os.unlink(os.path.join(_CACHE_DIR, fname))
-            except OSError:
-                pass
+            except OSError as exc:
+                logger.warning(
+                    "cache: failed to delete expired snapshot %s: %s",
+                    fname,
+                    exc,
+                )
 
 
 # ── History helpers ───────────────────────────────────────────────────────────

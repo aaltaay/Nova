@@ -72,3 +72,15 @@ def test_on_ib_error_routes_to_matching_contract(monkeypatch):
     err = q.get_nowait()
     assert err["type"] == "error"
     assert "subscription" in err["message"].lower()
+
+
+def test_push_queue_drops_oldest_when_full(monkeypatch):
+    q: asyncio.Queue = asyncio.Queue(maxsize=1)
+    monkeypatch.setitem(tape._queues, "ABC", q)
+    q.put_nowait({"type": "print", "symbol": "ABC", "price": 1.0})
+
+    tape._push_queue("ABC", {"type": "print", "symbol": "ABC", "price": 2.0})
+
+    assert q.qsize() == 1
+    latest = q.get_nowait()
+    assert latest["price"] == 2.0

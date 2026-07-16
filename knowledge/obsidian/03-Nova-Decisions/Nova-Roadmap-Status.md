@@ -186,10 +186,10 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 | 5 Chart lifecycle | `[x]` | `60f4764` | `chart/` hooks |
 | 6 Low-coupling backend | `[x]` | `b4e7033` | integrity / news / r2 / security_lib |
 | 7 Scanner state | `[x]` | `50a14fe` | No production `import main` caches |
-| 8 Scanner + ticker | `[~]` | _(pending push)_ | Ports/facades |
-| 9 IBKR depth | `[~]` | _(pending push)_ | state/subscribe/stream |
-| 10 HOD Momo | `[~]` | _(pending push)_ | Explicit state + focused facades |
-| 11 Error visibility | `[ ]` | — | No swallowed `except: pass` |
+| 8 Scanner + ticker | `[x]` | `10e3996` | Ports/facades |
+| 9 IBKR depth | `[x]` | `fc3535a` | state/subscribe/stream |
+| 10 HOD Momo | `[x]` | `72ec84b` | Explicit state + focused facades |
+| 11 Error visibility | `[~]` | _(this commit)_ | No swallowed `except: pass` |
 | 12 Executor | `[ ]` | — | Conditional; prefer defer if risky |
 | 13 Program close | `[ ]` | — | Full verify + ledger |
 
@@ -208,9 +208,10 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 10: explicit HOD state owner + persist/session/trade/alert/admin facades | _(pending)_ |
-| 2026-07-16 | Maintenance Phase 9: IBKR depth package (state/handlers/subscribe/stream) | _(pending)_ |
-| 2026-07-16 | Maintenance Phase 8: scan_runners + ticker ports/facades | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 11: error visibility — no swallowed except:pass in production/tools | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 10: explicit HOD state owner + persist/session/trade/alert/admin facades | `72ec84b` |
+| 2026-07-16 | Maintenance Phase 9: IBKR depth package (state/handlers/subscribe/stream) | `fc3535a` |
+| 2026-07-16 | Maintenance Phase 8: scan_runners + ticker ports/facades | `10e3996` |
 | 2026-07-16 | Maintenance Phase 7: explicit scanner runtime_state; main.py composition-only | `50a14fe` |
 | 2026-07-16 | Maintenance Phase 6: integrity/news/r2/security_lib strangler splits | `b4e7033` |
 | 2026-07-16 | Maintenance Phase 5: TickerChart lifecycle hooks under chart/ | `60f4764` |

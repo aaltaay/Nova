@@ -162,8 +162,12 @@ async def unsubscribe(symbol: str) -> None:
         if ticker is not None and handler is not None:
             try:
                 ticker.updateEvent -= handler
-            except Exception:
-                pass
+            except (ValueError, AttributeError, KeyError) as exc:
+                logger.debug(
+                    "IBKR ticks: handler detach failed for %s: %s",
+                    symbol,
+                    exc,
+                )
         if ib is not None and contract is not None:
             try:
                 ib.cancelMktData(contract)

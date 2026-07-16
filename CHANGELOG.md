@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 11: error visibility sweep
+
+- **What:** Replaced remaining production/tool `except: pass` swallows (cache, scanner_push, tape_stream, ticks, nova_os events, create_nova_agent, depth/HOD queue paths) with narrow exception types and logging.
+- **Why:** Phase 11 — fail loud / observe failures instead of silent suppression.
+- **Files touched:** `backend/cache.py`, `scanner_push.py`, `ibkr/tape_stream.py`, `ibkr/ticks.py`, `ibkr/depth/state.py`, `nova_os/events.py`, `hod_momo_trade.py`, `hod_momo_alerts.py`, `tools/create_nova_agent.py`, focused tests, PROBLEM_LOG.
+- **How it works now:** Expected disconnects/queue races log at debug; unexpected I/O failures warn; cancellation/system exceptions are not swallowed.
+- **Verified by:** maintainer swallowed_exception 11→0 · focused error-visibility tests 17 passed.
+
 ## 2026-07-16 — Maintenance Phase 10: modular HOD Momo engine
 
 - **What:** Replaced `hod_momo.py`'s mutable-global monolith with one replaceable `HodMomoState` owner and focused persistence, session, market, trade, alert, and admin modules. The original import path is now a 137-line compatibility facade.

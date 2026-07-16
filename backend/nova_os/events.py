@@ -14,9 +14,12 @@ Decision logic does not live here — decide() (P2) will call record_receipt().
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 from constants import NOVA_OS_EVENTS_DEFAULT_LIMIT
+
+logger = logging.getLogger(__name__)
 from nova_os import codes
 from nova_os.events_db import get_connection
 
@@ -104,10 +107,10 @@ def record_receipt(
     }
     try:
         from alerts.hooks import notify_nova_os_event
-
+    except ImportError:
+        logger.debug("Nova OS: alerts hooks unavailable for receipt notify")
+    else:
         notify_nova_os_event(receipt)
-    except Exception:
-        pass
     return receipt
 
 

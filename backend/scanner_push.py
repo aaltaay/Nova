@@ -38,7 +38,7 @@ async def ws_scanner(websocket: WebSocket) -> None:
             # Keep the socket open; client may send pings — ignore payload.
             await websocket.receive_text()
     except WebSocketDisconnect:
-        pass
+        logger.debug("scanner WS client disconnected")
     except Exception as exc:
         logger.debug("scanner WS closed: %s", exc)
     finally:

@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Swallowed exceptions hid IBKR/cache/Nova OS failures
+
+- **Symptom:** `maintainer_checks.py` reported 11 `SWALLOWED_EXCEPTION` sites in production/tool code (`cache`, `scanner_push`, `tape_stream`, `ticks`, `nova_os/events`, `create_nova_agent`); queue-full and cleanup paths failed silently.
+- **Cause:** Defensive `except …: pass` blocks (and a redundant outer swallow around `notify_nova_os_event`, which already logs internally) discarded real OSError/queue-pressure/unsubscribe failures with no log line.
+- **Fix:** Narrow exception types, log at debug/warning, drop-oldest on `QueueFull` with visibility; Nova OS receipt notify uses ImportError-only guard; depth/HOD queue leftovers aligned. Regression tests added for cache cleanup, tape/depth queue drop, and Nova OS receipt path.
+- **Keywords:** swallowed exception, maintainer_checks, error visibility, Phase 11, QueueFull, tape_stream, cache cleanup, nova_os events
+
 ## 2026-07-16 — HOD module extraction exposed stale facade/state aliases
 
 - **Symptom:** HOD tests and consumers patched/read mutable globals on `hod_momo.py`; after extraction, a facade-level monkeypatch did not affect the focused module that held the real callable, and rebinding lists/dicts could leave consumers on stale objects.

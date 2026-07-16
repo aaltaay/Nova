@@ -284,7 +284,7 @@ def on_trade_update(
         try:
             queue.put_nowait(("pending", alert))
         except asyncio.QueueFull:
-            pass
+            logger.debug("HOD Momo: pending alert queue full for %s", symbol)
 
     _record_decision(
         ts,

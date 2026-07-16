@@ -33,11 +33,9 @@ DOMAIN_CSS_LIMIT = 1000
 
 # Limit for "over size" reporting; accepted_lines tracks growth (Phase 0 baseline).
 BASELINE_OVER_LIMIT: dict[str, int] = {
-    "backend/hod_momo.py": 400,
     "backend/strategy/executor.py": 400,
 }
 BASELINE_ACCEPTED_LINES: dict[str, int] = {
-    "backend/hod_momo.py": 1079,
     "backend/strategy/executor.py": 494,
 }
 

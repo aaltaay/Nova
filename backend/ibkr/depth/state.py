@@ -114,7 +114,13 @@ def push_book(symbol: str, book: dict) -> None:
     try:
         q.put_nowait(book)
     except asyncio.QueueFull:
-        pass
+        try:
+            q.get_nowait()
+            q.put_nowait(book)
+        except asyncio.QueueEmpty:
+            logger.debug("IBKR depth: queue empty after full for %s", symbol)
+        except asyncio.QueueFull:
+            logger.warning("IBKR depth: queue still full for %s after drop", symbol)
 
 
 def reserve_slot(symbol: str) -> None:

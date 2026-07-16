@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 import sys
 from datetime import datetime, timezone
@@ -21,6 +22,8 @@ MEMORY_DIR = REPO_ROOT / ".cursor" / "agent-memory"
 REGISTRY_PATH = SYSTEM_DIR / "registry.json"
 AGENT_TEMPLATE = SYSTEM_DIR / "agent-template.md"
 MEMORY_TEMPLATE = SYSTEM_DIR / "memory-template.md"
+
+logger = logging.getLogger(__name__)
 
 ID_RE = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 
@@ -218,8 +221,8 @@ def scaffold(args: argparse.Namespace, *, write: bool) -> dict:
         for p in written:
             try:
                 p.unlink()
-            except OSError:
-                pass
+            except OSError as unlink_exc:
+                logger.warning("rollback: could not remove %s: %s", p, unlink_exc)
         return {"ok": False, "errors": [f"rollback after failure: {exc}"]}
 
     return result
