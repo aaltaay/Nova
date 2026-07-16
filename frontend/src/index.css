@@ -3239,11 +3239,41 @@ body.is-resizing-side-panel * {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.hod-table-container {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
 .hod-table-wrapper {
   flex: 0 0 auto;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+}
+
+/* "▲ N new alerts" pill shown when user is scrolled down and new alerts have arrived */
+.hod-new-pill {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: var(--accent, #3b82f6);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.hod-new-pill:hover {
+  opacity: 0.85;
 }
 
 .hod-empty-cell {

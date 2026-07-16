@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { HOD_MOMO_RUNNING_UP_STRATEGY_ID, STRATEGY_META } from '../constants';
-import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
-import { collapseConsecutiveTickerAlerts } from './collapseConsecutiveTickerAlerts';
+import { collapseConsecutiveTickerAlerts, incrementalCollapse } from './collapseConsecutiveTickerAlerts';
 import { HodMomoAlertTable } from './HodMomoAlertTable';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';
+import { useHodMomoAlerts } from './hodMomoStore';
+import type { AlertObject } from './types';
 
 type SubPanel = 'main' | 'debug';
 
@@ -88,10 +89,6 @@ function StrategyChipStrip({
 }
 
 interface HodMomoTabProps {
-  alerts: AlertObject[];
-  /** Full-day alert count (may exceed alerts.length when UI is capped). */
-  totalToday?: number;
-  connected: boolean;
   config: UseHodMomoConfigReturn;
   selectedSymbol: string | null;
   onSelectSymbol: (sym: string) => void;
@@ -100,10 +97,15 @@ interface HodMomoTabProps {
   onClearAlerts: () => void;
 }
 
+/** Cache for the incremental collapse pass — mutated during useMemo, never leaked outside. */
+interface CollapseCache {
+  prevAlertsLength: number;
+  prevCollapsed: AlertObject[];
+  lastStrategies: Set<number>;
+  lastConsolidationSec: number;
+}
+
 export function HodMomoTab({
-  alerts,
-  totalToday,
-  connected,
   config,
   selectedSymbol,
   onSelectSymbol,
@@ -111,6 +113,7 @@ export function HodMomoTab({
   onOpenSettings,
   onClearAlerts,
 }: HodMomoTabProps) {
+  const { alerts, totalToday, connected, strategyCounts } = useHodMomoAlerts();
   const [activeSubPanel, setActiveSubPanel] = useState<SubPanel>('main');
   const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
     new Set(STRATEGY_META.map(s => s.id)),
@@ -126,18 +129,53 @@ export function HodMomoTab({
     return result;
   }, [config.state.strategies]);
 
-  const strategyCounts = useMemo<Record<number, number>>(() => {
-    const c: Record<number, number> = {};
-    for (const a of alerts) {
-      c[a.strategy_id] = (c[a.strategy_id] ?? 0) + 1;
-    }
-    return c;
-  }, [alerts]);
+  // Incremental collapse cache — keeps object identity stable for memo'd rows.
+  // Only the new head (freshly prepended alerts) is re-collapsed on each flush;
+  // the rest of prevCollapsed is returned by reference so HodMomoAlertRow.memo
+  // short-circuits for unchanged rows.
+  const collapseCache = useRef<CollapseCache>({
+    prevAlertsLength: 0,
+    prevCollapsed: [],
+    lastStrategies: new Set<number>(),
+    lastConsolidationSec: 0,
+  });
 
   const visibleAlerts = useMemo(() => {
-    const filtered = alerts.filter(a => visibleStrategies.has(a.strategy_id));
     const windowSec = Math.max(5, consolidationSec * 3);
-    return collapseConsecutiveTickerAlerts(filtered, windowSec);
+    const cc = collapseCache.current;
+
+    const filtersChanged =
+      cc.lastStrategies !== visibleStrategies ||
+      cc.lastConsolidationSec !== consolidationSec;
+
+    if (filtersChanged) {
+      // Full recompute when filter set or consolidation window changes.
+      const filtered = alerts.filter(a => visibleStrategies.has(a.strategy_id));
+      const collapsed = collapseConsecutiveTickerAlerts(filtered, windowSec);
+      collapseCache.current = {
+        prevAlertsLength: alerts.length,
+        prevCollapsed: collapsed,
+        lastStrategies: visibleStrategies,
+        lastConsolidationSec: consolidationSec,
+      };
+      return collapsed;
+    }
+
+    if (alerts.length === cc.prevAlertsLength) {
+      return cc.prevCollapsed;
+    }
+
+    // Only new head (prepended since last render): O(new alerts), not O(all alerts).
+    const newAlerts = alerts.slice(0, alerts.length - cc.prevAlertsLength);
+    const newHead = newAlerts.filter(a => visibleStrategies.has(a.strategy_id));
+    const collapsed = incrementalCollapse(newHead, cc.prevCollapsed, windowSec);
+    collapseCache.current = {
+      prevAlertsLength: alerts.length,
+      prevCollapsed: collapsed,
+      lastStrategies: visibleStrategies,
+      lastConsolidationSec: consolidationSec,
+    };
+    return collapsed;
   }, [alerts, visibleStrategies, consolidationSec]);
 
   function toggleStrategy(id: number) {

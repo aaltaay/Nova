@@ -30,6 +30,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — HOD Momo external store + scroll-freeze + incremental collapse
+
+- **What:** Eliminated three compounding causes of HOD Momo scroll jank: (1) every alert flush re-rendered the whole DashboardPage; (2) `collapseConsecutiveTickerAlerts` cloned all 4000+ alerts on every flush; (3) new alerts shifted content under the user's finger mid-scroll.
+- **Why:** User reported "major hurdles" during scrolling even after duplicate-key and bounded-rendering fixes. Root-cause plan (`hod_momo_scroll_performance_c892c6b6.plan.md`) diagnosed three compounding issues; this commit implements all four phases of that plan.
+- **Files touched:** `frontend/src/hod_momo/hodMomoStore.ts` (new), `frontend/src/hod_momo/HodMomoTab.tsx`, `frontend/src/hod_momo/HodMomoAlertTable.tsx`, `frontend/src/hod_momo/collapseConsecutiveTickerAlerts.ts`, `frontend/src/pages/DashboardPage.tsx`, `frontend/src/constants.ts`, `frontend/src/index.css`, `frontend/src/hod_momo/collapseConsecutiveTickerAlerts.test.ts` — deleted `useHodMomoStream.ts`.
+- **How it works now:**
+  - **Store isolation (`hodMomoStore.ts`):** WS lifecycle and alert list moved to a module-level singleton. `useHodMomoAlerts()` (full list, subscribed only by HodMomoTab) and `useHodMomoBadge()` (throttled 1-second badge, subscribed by DashboardPage) are `useSyncExternalStore` hooks. Only the subscribing component re-renders on each flush — not the whole dashboard.
+  - **Scroll-freeze:** `HodMomoAlertTable` captures a frozen snapshot of the displayed list the moment `scrollTop > 0`. New arrivals only increment a "▲ N new alerts" pill counter. Clicking the pill or scrolling back to top unfreezes, revealing the latest list from the head.
+  - **Incremental collapse:** `incrementalCollapse()` re-collapses only the newly prepended head (O(new alerts), not O(all)), and returns `prevCollapsed.slice(1)` by reference so `HodMomoAlertRow`'s `memo` short-circuits for unchanged rows.
+  - **Strategy counts:** Moved from O(n) `useMemo` pass to O(1) per-alert increment inside the store.
+  - **Tunables:** `HOD_MOMO_ALERT_BATCH_MS` 150 → 500 ms; `HOD_MOMO_BADGE_THROTTLE_MS` = 1000 ms added.
+- **Verified by:** `npm run test -- --run` (80/80, 5 new `incrementalCollapse` tests); `npm run build` clean; live browser: HOD Momo tab loads with no console errors, `scrollHeight ≈ innerHeight` confirming no endless page scroll, table wrapper is 532px, page does not scroll.
+- **Related:** `PROBLEM_LOG.md` 2026-07-16 "HOD Momo scroll jank — three compounding render-storm causes."
+
 ## 2026-07-15 — Bound HOD Momo to 40-row incremental rendering
 
 - **What:** HOD Momo now mounts 40 rows initially and adds exactly 40 more when the table's own scroller reaches the bottom. The table viewport is fixed and contains its overscroll, so thousands of alerts no longer expand the main document.

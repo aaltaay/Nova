@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { HodMomoTab } from '../hod_momo/HodMomoTab';
 import { HodMomoSettings } from '../hod_momo/HodMomoSettings';
-import { useHodMomoStream } from '../hod_momo/useHodMomoStream';
+import { startHodMomoStore, stopHodMomoStore, useHodMomoBadge } from '../hod_momo/hodMomoStore';
 import { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
 import { TabNav } from '../components/TabNav';
 import type { ActiveTab } from '../components/TabNav';
@@ -39,8 +39,15 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
   const sidePanel = useSidePanelWidth();
   const [showHodSettings, setShowHodSettings] = useState(false);
   const watchlist = useWatchlist(true);
-  const hodMomoStream = useHodMomoStream();
+  const hodBadge = useHodMomoBadge();
   const hodMomoConfig = useHodMomoConfig();
+
+  // Start the HOD Momo WS store once. Stop on unmount so StrictMode double-invoke
+  // and any future remount get a clean reconnect.
+  useEffect(() => {
+    startHodMomoStore();
+    return () => stopHodMomoStore();
+  }, []);
 
   const fetchDataRef = useRef<() => void>(() => {});
   const settings = useSettingsForm(() => fetchDataRef.current());
@@ -151,7 +158,7 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
               movers: filteredGainers.length + filteredLosers.length,
               afterhours: filteredAfterhours.length,
               catalysts: scanner.catalysts.length,
-              hodMomo: hodMomoStream.totalToday || hodMomoStream.alerts.length,
+              hodMomo: hodBadge.totalToday,
               watchlist: watchlist.entries.length,
             }}
           />
@@ -219,9 +226,6 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
                 />
               )}
               <HodMomoTab
-                alerts={hodMomoStream.alerts}
-                totalToday={hodMomoStream.totalToday}
-                connected={hodMomoStream.connected}
                 config={hodMomoConfig}
                 selectedSymbol={selectedSymbol}
                 onSelectSymbol={setSelectedSymbol}

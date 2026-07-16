@@ -520,7 +520,9 @@ export const HOD_MOMO_RENDER_BATCH_SIZE = 40;
 /** Bottom proximity that triggers the next HOD row batch. */
 export const HOD_MOMO_LOAD_MORE_THRESHOLD_PX = 24;
 /** Batch live alert prepends so App does not re-render on every single fire. */
-export const HOD_MOMO_ALERT_BATCH_MS = 150;
+export const HOD_MOMO_ALERT_BATCH_MS = 500;
+/** Badge (totalToday + connected) is throttled to at most this cadence (ms). */
+export const HOD_MOMO_BADGE_THROTTLE_MS = 1000;
 
 /** Empty-state copy when the HOD Momo WS is connected but no alerts have fired yet. */
 export const HOD_MOMO_EMPTY_WAITING =

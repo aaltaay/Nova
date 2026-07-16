@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — HOD Momo scroll jank — three compounding render-storm causes
+
+- **Symptom:** Even after the duplicate-key fix and bounded 40-row rendering, scrolling through the HOD Momo table produced severe jank ("major hurdles"). Profiling revealed every 500-ms alert flush was re-rendering the full DashboardPage (all tabs, header, side panel), `collapseConsecutiveTickerAlerts` was walking the full 4000+ alert list and producing all-new object identities on every flush (defeating row memo), and newly arriving alerts were prepending into the live DOM and visibly shifting content under the user's finger mid-scroll.
+- **Cause:** Three separate issues compounded: (1) `useHodMomoStream` lived in `DashboardPage`, so every alert batch triggered a `DashboardPage` state update → full subtree reconcile. (2) `collapseConsecutiveTickerAlerts` clones every alert with `{ ...raw }` so all mounted row `memo` checks fail on every flush even for rows that haven't changed. (3) No freeze mechanism — live prepend caused scroll-position jumps. `strategyCounts` also did a full O(n) pass each flush.
+- **Fix:** (1) Moved WS lifecycle + alert list into `hodMomoStore.ts` (module-level `useSyncExternalStore`). DashboardPage now subscribes only to throttled badge data (`useHodMomoBadge`); only the active HodMomoTab subscribes to the full list. (2) Added `incrementalCollapse()` that only re-collapses the new head (O(new)) and reuses the previous collapsed tail by reference so row `memo` short-circuits. (3) HodMomoAlertTable freezes the display list on first scroll-away-from-top and shows a "▲ N new" pill; the DOM is static under the user's finger. Strategy counts moved to O(1) per-alert increment in the store.
+- **Keywords:** HOD Momo, jank, scroll, render storm, DashboardPage, useSyncExternalStore, external store, incremental collapse, stable identity, memo, scroll freeze, pill, strategyCounts O(n)
+
 ## 2026-07-15 — HOD Momo virtualization still expanded the document to the full alert history
 
 - **Symptom:** After duplicate WebSocket delivery was fixed, opening HOD Momo remained extremely slow and the main document still had effectively endless vertical scrolling through thousands of alerts.
