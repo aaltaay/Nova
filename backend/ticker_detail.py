@@ -44,7 +44,7 @@ def rvol_5min_fields(
         try:
             _metrics.update_cum_volume(symbol, int(daily_vol), now)
         except (TypeError, ValueError):
-            pass
+            logger.debug("Ignoring non-integer daily_vol for %s", symbol)
     vol_5m = _metrics.volume_in_window(symbol, ts=now)
     rvol5 = _hod_momo.peek_rvol_5min(symbol)
     if rvol5 is None:

@@ -91,6 +91,7 @@ def depth(monkeypatch):
     import ibkr.client as client_mod
 
     importlib.reload(depth_mod)
+    depth_mod.reset_all()
     fake_ib = _FakeIb()
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)

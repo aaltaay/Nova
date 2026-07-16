@@ -7,6 +7,11 @@ Contracts are qualified (conId) before depth/L1 requests — required by ib_asyn
 If depth entitlement is unavailable, falls back to L1 top-of-book.
 
 Implementation split: state / handlers / subscribe / stream.
+
+Facade owner: Phase 9 (Pattern-Driven Architecture).
+Removal criterion: no production imports of ``ibkr.depth`` private attrs
+(``_subscriptions``, ``_queues``, …) and tests call ``reset_all`` via the
+public API only.
 """
 from __future__ import annotations
 
@@ -16,8 +21,6 @@ import types
 from constants import IBKR_DEPTH_RELEASE_GRACE_SEC
 
 from ibkr.depth import state as _state
-
-_state.reset_all()
 
 from ibkr.depth.handlers import (
     attach_update_handler as _attach_update_handler,
@@ -33,6 +36,7 @@ from ibkr.depth.state import (
     has_queue,
     load_ib_types as _load_ib_types_impl,
     release_when_idle,
+    reset_all,
     subscribed_symbols,
     viewer_count,
     ws_viewer_closed,
@@ -92,6 +96,7 @@ __all__ = [
     "current_book",
     "has_queue",
     "release_when_idle",
+    "reset_all",
     "should_send_current_book",
     "stream",
     "subscribe",

@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintainer missed tuple except-pass; close metrics overstated swallows
+
+- **Symptom:** Phase 13 claimed zero swallowed exceptions while `except (WebSocketDisconnect, Exception): pass` remained in `routes/hod_momo.py` and `routes/ticker.py`; architecture dep findings were always `baseline=True`.
+- **Cause:** `SWALLOW_PY` only matched single-name handlers; cross-feature/`import main` checks hard-coded baseline instead of committed fingerprints.
+- **Fix:** Tuple-handler regex + `baselines.json` fingerprints (close remediation Phases 1–2); WS loops now catch disconnect/cancel narrowly and log unexpected failures.
+- **Keywords:** swallowed exception, WebSocketDisconnect, maintainer_checks, baselines.json, Phase 11, close remediation
+
 ## 2026-07-16 — Swallowed exceptions hid IBKR/cache/Nova OS failures
 
 - **Symptom:** `maintainer_checks.py` reported 11 `SWALLOWED_EXCEPTION` sites in production/tool code (`cache`, `scanner_push`, `tape_stream`, `ticks`, `nova_os/events`, `create_nova_agent`); queue-full and cleanup paths failed silently.

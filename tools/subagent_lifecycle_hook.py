@@ -38,7 +38,7 @@ def _lifecycle_regex() -> re.Pattern[str]:
         if pattern:
             return re.compile(pattern, re.IGNORECASE)
     except (OSError, json.JSONDecodeError, re.error):
-        pass
+        return LIFECYCLE_FALLBACK
     return LIFECYCLE_FALLBACK
 
 

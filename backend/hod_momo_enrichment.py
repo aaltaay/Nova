@@ -105,7 +105,7 @@ async def universe_enrichment_loop() -> None:
                                 if prev_f > 0:
                                     change_pct = (price_f - prev_f) / prev_f * 100.0
                             except (TypeError, ValueError):
-                                pass
+                                change_pct = None
 
                         avg_vol = state.avg_volume_cache.get(sym)
                         if not avg_vol:

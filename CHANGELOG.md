@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Close remediation Phase 2: deps + silent handlers
+
+- **What:** Upgraded `python-dotenv`/`transformers`/`torch`; replaced silent WebSocket and coercion `except: pass` handlers with narrow disconnect/cancel handling or explicit defaults; removed IBKR depth `reset_all()` from import time (tests call public `reset_all`).
+- **Why:** Close-remediation Phase 2 — CVE surface + Phase 11 honesty + reload-safe depth state.
+- **Files touched:** `backend/requirements.txt`, `backend/routes/{hod_momo,ticker}.py`, enrichment/scanner/ticker_detail/ticks/news helpers, `ibkr/depth/__init__.py`, `security/dependency-compensating-controls.md`.
+- **How it works now:** Maintainer reports 0 non-baseline findings. Residual torch CVEs without fix are documented with compensating controls. Depth state resets only via explicit API.
+- **Verified by:** maintainer 0 non-baseline · focused depth/news/lifecycle tests 43 passed · `pip_audit` residual torch-only.
+- **Related:** PROBLEM_LOG for prior overstated swallow-zero claim.
+
 ## 2026-07-16 — Close remediation Phase 1: truthful maintainer audit
 
 - **What:** Maintainer scanner now detects tuple `except (...): pass` swallows, fingerprints legacy cross-feature imports (new violations fail `--fail-on-findings`), and treats ignored local artifacts as informational. Fixed stale agent-contract discovery for five specialists including `warrior`.

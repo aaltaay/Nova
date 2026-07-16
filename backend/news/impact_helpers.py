@@ -99,7 +99,7 @@ def l2_reaction(l2_features: dict | None) -> str:
         if imb is not None and abs(float(imb)) >= NEWS_IMPACT_L2_IMBALANCE_MIN:
             return "reacting"
     except (TypeError, ValueError):
-        pass
+        imb = None
     # Explicit quiet only when we actually computed features.
     if "imbalance" in l2_features or "bid_heavy" in l2_features:
         return "quiet"

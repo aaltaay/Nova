@@ -24,10 +24,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 import hod_momo as _hod_momo
 import hod_momo_universe as _hod_uni
@@ -183,8 +186,12 @@ async def ws_hod_momo(websocket: WebSocket):
                 await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
             except asyncio.TimeoutError:
                 await websocket.send_text(json.dumps({"type": "ping"}))
-    except (WebSocketDisconnect, Exception):
-        pass
+    except WebSocketDisconnect:
+        logger.debug("HOD Momo WS client disconnected")
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("HOD Momo WS loop failed")
     finally:
         _hod_momo.remove_ws_client(websocket)
 
@@ -206,7 +213,11 @@ async def ws_strategy(websocket: WebSocket):
                 await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
             except asyncio.TimeoutError:
                 await websocket.send_text(json.dumps({"type": "ping"}))
-    except (WebSocketDisconnect, Exception):
-        pass
+    except WebSocketDisconnect:
+        logger.debug("Strategy WS client disconnected")
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("Strategy WS loop failed")
     finally:
         _setups_stream.remove_ws_client(websocket)

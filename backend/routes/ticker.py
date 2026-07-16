@@ -109,8 +109,12 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
                 await asyncio.wait_for(websocket.receive_text(), timeout=30.0)
             except asyncio.TimeoutError:
                 await websocket.send_text(json.dumps({"type": "ping"}))
-    except (WebSocketDisconnect, Exception):
-        pass
+    except WebSocketDisconnect:
+        logger.debug("Ticker WS client disconnected for %s", symbol)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("Ticker WS loop failed for %s", symbol)
     finally:
         import ticker as _ticker_mod2
         _ticker_mod2._ticker_ws_clients.get(symbol, set()).discard(websocket)

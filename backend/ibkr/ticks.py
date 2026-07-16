@@ -92,7 +92,7 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
             try:
                 vol_i = int(row["volume"])
             except (TypeError, ValueError):
-                pass
+                vol_i = None
 
     ts = datetime.now(timezone.utc).isoformat()
     try:

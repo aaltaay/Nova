@@ -123,7 +123,7 @@ def _pick_prev_close(snap: dict) -> float:
             if ts.astimezone(_ET).date() < _now_et().date():
                 return daily_bar.get("c") or 0
         except (ValueError, AttributeError):
-            pass
+            return prev_bar.get("c") or 0
     return prev_bar.get("c") or 0
 
 
