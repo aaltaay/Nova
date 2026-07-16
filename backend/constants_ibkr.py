@@ -81,32 +81,36 @@ IBKR_SCAN_HOD_SEED_CODES = (
 )
 IBKR_SCAN_MAX_ROWS = 50                        # IB hard cap per scan code
 IBKR_SCAN_ABOVE_PRICE = SCANNER_MIN_PRICE       # mirrors the Alpaca price floor above
-# 1Hz table reprice may include scanner rows (gainers/losers/AH/gappers).
+# Legacy / cold-path snapshot tunables (NOT the active-table freshness SLA).
+# IB completes snapshots on tickSnapshotEnd ~11s later — never use a 4s timeout
+# for live table freshness. Active tab + HOD use reqMktData L1 streams instead.
 IBKR_TABLE_REPRICE_MAX_SYMBOLS = 100
-# Progressive batches so the UI gets a price_patch every ~1–2s instead of
-# waiting on one 100-symbol reqTickersAsync (that ran 7–10s → "stale").
 IBKR_TABLE_REPRICE_CHUNK_SIZE = 20
-IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # per-batch reqTickersAsync timeout (discovery)
-IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC = 4.0      # tighter timeout for table chunks
+IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # cold/discovery reqTickersAsync (≥12s)
+IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC = 12.0     # honest snapshot budget (was 4s — impossible)
 IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ceiling
-# Alpaca's WS trade stream gives sub-second price freshness between the 20-30s
-# scan ticks (see DISCOVERY_INTERVAL_SEC comment above) — that overlay is
-# intentionally disabled while DISCOVERY_PROVIDER=ibkr (see PROBLEM_LOG
-# 2026-07-13), so this replaces it with a fast IBKR-native reprice tick.
-IBKR_REPRICE_INTERVAL_SEC = 3.0
+IBKR_REPRICE_INTERVAL_SEC = 3.0                 # detail-panel cold backstop cadence
 # Detail-panel backstop: skip the reqTickersAsync snapshot for a symbol whose
 # reqMktData streaming subscription (ibkr/ticks.py) has updated within this
-# window — it's already delivering live ticks, so the snapshot is redundant
-# IBKR-request-queue contention with table_reprice_loop. Only symbols whose
-# stream is missing/stalled longer than this fall back to the snapshot.
+# window — it's already delivering live ticks.
 IBKR_DETAIL_STREAM_FRESH_SEC = 8.0
-# Scanner TABLE prices: independent 1Hz reqTickersAsync snapshots (not reqMktData).
-# Must not wait on the full movers scan — that starvation caused "updated 10–12s ago".
+# Kept for UI/docs mirrors; table freshness is now L1-stream driven.
 IBKR_TABLE_REPRICE_INTERVAL_SEC = 1.0
-# UI / heartbeat: if no successful table price tick within this window, mark stale.
-# Chunked 1Hz pushes normally reset age every ~1s; this is the honesty margin
-# when a chunk times out or skip-if-busy stacks.
+# UI / heartbeat: if no successful table price_patch within this window, mark stale.
 SCANNER_PRICE_STALE_SEC = 5.0
+
+# ── Active-tab + reserved HOD Level-1 streaming (reqMktData) ──────────────────
+# Budget ≈ active tab (≤50) + HOD active set (40) + open ticker reserve, with
+# overlap dedupe. Do not stream the whole discovery universe.
+IBKR_L1_STREAM_BUDGET = 100                     # hard cap concurrent L1 lines
+IBKR_L1_STREAM_RESERVE = 5                      # headroom for open ticker / depth peers
+IBKR_L1_ACTIVE_TAB_MAX = 50                     # IBKR scanner row cap per tab
+IBKR_L1_BATCH_FLUSH_SEC = 0.35                  # coalesce ticks → /ws/scanner patches
+IBKR_L1_RECONCILE_SEC = 1.0                     # desired-set reconcile cadence
+IBKR_L1_SUBSCRIBE_PACE_SEC = 0.05               # pace subscribe churn (Gateway)
+IBKR_L1_TAB_SWITCH_GRACE_SEC = 0.75             # keep prior tab streams briefly on switch
+# Per-row honesty: tint when last IB tick older than this (liquid symbols).
+IBKR_L1_ROW_STALE_SEC = 3.0
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
 # Signal-only thresholds (see backend/strategy/five_pillars.py). These never place

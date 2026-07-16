@@ -31,6 +31,8 @@ interface Props {
   onOpenTrading: (sym: string) => void;
   pricesStale: boolean;
   flashSymbols: Record<string, 'up' | 'down'>;
+  rowQuoteTs?: Record<string, number>;
+  nowSec?: number;
 }
 
 export function ScannerTabPanels({
@@ -49,6 +51,8 @@ export function ScannerTabPanels({
   onOpenTrading,
   pricesStale,
   flashSymbols,
+  rowQuoteTs = {},
+  nowSec = 0,
 }: Props) {
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
@@ -132,6 +136,8 @@ export function ScannerTabPanels({
             onOpenTrading={onOpenTrading}
             pricesStale={pricesStale}
             flashSymbols={flashSymbols}
+            rowQuoteTs={rowQuoteTs}
+            nowSec={nowSec}
           />
         ) : (
           <EmptyState
@@ -170,6 +176,8 @@ export function ScannerTabPanels({
         onOpenTrading={onOpenTrading}
         pricesStale={pricesStale}
         flashSymbols={flashSymbols}
+        rowQuoteTs={rowQuoteTs}
+        nowSec={nowSec}
       />
     ) : (
       <EmptyState
@@ -193,6 +201,8 @@ export function ScannerTabPanels({
         onOpenTrading={onOpenTrading}
         pricesStale={pricesStale}
         flashSymbols={flashSymbols}
+        rowQuoteTs={rowQuoteTs}
+        nowSec={nowSec}
       />
     ) : (
       <EmptyState
@@ -218,6 +228,8 @@ export function ScannerTabPanels({
           onOpenTrading={onOpenTrading}
           pricesStale={pricesStale}
           flashSymbols={flashSymbols}
+          rowQuoteTs={rowQuoteTs}
+          nowSec={nowSec}
         />
       ) : (
         <EmptyState

@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Scanner "stale · updated Ns ago" despite Connected (IBKR snapshot SLA impossible)
+
+- **Symptom:** Header showed Connected (~258ms) plus `stale · updated 9s ago` on Gainers; table prices froze; `blast.log` flooded with `snapshot timeout (4.0s) for 20 symbols` and occasional `15.0s for 220 symbols`; HOD integrity reported last tick hours ago.
+- **Cause:** IBKR completes `reqTickersAsync` only on `tickSnapshotEnd` (~11s). Nova's 1Hz table loop timed out at 4s, discarded partial ticks, and immediately started another batch — structurally impossible for a `<3s` freshness SLA. Concurrent movers/HOD full-universe snapshots amplified Gateway queue saturation. Separately, a pure priority-sort HOD active set let 40 gainers starve IBKR volume-seed runners.
+- **Fix:** Bounded persistent `reqMktData` L1 for active scanner tab + reserved HOD pool (`ibkr/scanner_l1.py`, owner-aware `ibkr/ticks.py`); `/ws/scanner` `set_active_tab`; quota-based HOD selection with seed slots; demote `reqTickersAsync` to cold/discovery with ≥12s timeout + snapshot lock; enrichment snapshots only the ≤40 active set; per-row quote age in the UI.
+- **Keywords:** stale updated Ns ago, tickSnapshotEnd, reqTickersAsync, reqMktData, scanner_l1, active tab, HOD volume seeds, SCANNER_PRICE_STALE_SEC, single-market-data-feed
+
 ## 2026-07-16 — HOD facade dropped test aliases; depth state leaked across tests
 
 - **Symptom:** Close-gate pytest failed with `hod_momo` missing `_effective_min_rvol` / `_save_alerts` / … and smart-depth test saw `len(depth_calls) == 0`.

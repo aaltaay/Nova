@@ -62,16 +62,25 @@ async def universe_enrichment_loop() -> None:
             loop = asyncio.get_event_loop()
             provider = _get_discovery_provider()
 
-            # discovery=ibkr: use IBKR cum volume (Alpaca IEX dailyBar is thin after hours).
+            # discovery=ibkr: never snapshot the full 200+ universe (starves L1).
+            # Enrich only the reserved HOD active pool (≤40); live prices come from
+            # scanner_l1 reqMktData. Cold snapshot is a low-priority RVOL backfill.
             if provider == "ibkr":
                 from ibkr import discovery as _ibkr_discovery
+                from ibkr_bridge import refresh_hod_active_set
 
+                symbols = refresh_hod_active_set() or symbols[:40]
                 quotes: dict = await loop.run_in_executor(
                     None,
-                    lambda syms=symbols: run_ibkr(_ibkr_discovery.snapshot_quotes(syms)) or {},
+                    lambda syms=symbols: run_ibkr(
+                        _ibkr_discovery.snapshot_quotes(syms, timeout_sec=15.0)
+                    ) or {},
                 )
                 if not quotes:
-                    logger.warning("HOD Momo enrichment: IBKR quotes empty")
+                    logger.debug(
+                        "HOD Momo enrichment: IBKR active-set quotes empty "
+                        "(L1 streams own live prices)"
+                    )
                     continue
 
                 headers = _alpaca_headers()

@@ -43,14 +43,16 @@ from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 from health_status import ping_health, set_health_broker_keys_missing
 from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
+from ibkr import scanner_l1 as _scanner_l1
 from ibkr import ticks as _ibkr_ticks
 from ibkr_bridge import (
-    active_reprice_batch,
-    apply_table_quotes,
+    apply_l1_quote,
     get_ibkr_detail_symbols,
+    hod_stream_symbols,
     run_ibkr,
-    table_reprice_symbols,
+    symbols_for_tab,
 )
+import scanner_tab_registry as _scanner_tabs
 from scanner_push import broadcast as _scanner_broadcast
 from scan_loop import scan_loop
 from ticker import _find_ibkr_cache_row
@@ -137,6 +139,7 @@ async def lifespan(app: FastAPI):
     # attempts to connect made every restart look "ambiguous" by construction.
     await _ibkr_client.startup()
     _ibkr_ticks.configure(broadcast_trade_update, _find_ibkr_cache_row)
+    _scanner_l1.configure(apply_l1_quote)
 
     try:
         _risk.reconstruct_from_journal()
@@ -190,10 +193,14 @@ async def lifespan(app: FastAPI):
         get_ibkr_detail_symbols, run_ibkr, broadcast_trade_update, _find_ibkr_cache_row,
         lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),
     ))
-    table_reprice_task = asyncio.create_task(_ibkr_reprice.table_reprice_loop(
-        _get_discovery_provider, table_reprice_symbols, apply_table_quotes, _scanner_broadcast,
-        get_active_batch=active_reprice_batch,
+    # Active-tab + reserved HOD L1 streams (replaces infeasible 1Hz reqTickersAsync).
+    scanner_l1_reconcile_task = asyncio.create_task(_scanner_l1.reconcile_loop(
+        _get_discovery_provider,
+        _scanner_tabs.get_dominant_tab,
+        symbols_for_tab,
+        hod_stream_symbols,
     ))
+    scanner_l1_flush_task = asyncio.create_task(_scanner_l1.flush_loop(_scanner_broadcast))
 
     yield
 
@@ -202,7 +209,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("HOD Momo: final alert flush failed")
     detail_reprice_task.cancel()
-    table_reprice_task.cancel()
+    scanner_l1_reconcile_task.cancel()
+    scanner_l1_flush_task.cancel()
+    try:
+        await _scanner_l1.shutdown()
+    except Exception:
+        logger.exception("scanner_l1 shutdown failed")
     scan_task.cancel()
     ws_task.cancel()
     hod_flush_task.cancel()
@@ -220,7 +232,8 @@ async def lifespan(app: FastAPI):
     if archive_maint_task is not None:
         archive_maint_task.cancel()
     for t in (
-        detail_reprice_task, table_reprice_task, scan_task, ws_task,
+        detail_reprice_task, scanner_l1_reconcile_task, scanner_l1_flush_task,
+        scan_task, ws_task,
         hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task, hod_seed_task,
         hod_surge_seed_task, integrity_task,
     ):

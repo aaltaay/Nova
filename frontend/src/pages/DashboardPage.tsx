@@ -49,6 +49,7 @@ export function DashboardPage() {
   const settings = useSettingsForm(() => fetchDataRef.current());
   const scanner = useScannerData({
     discoveryProvider: settings.discoveryProvider,
+    activeTab,
     onActiveFeed: settings.setActiveFeed,
     onFeedFellBack: settings.setFeedFellBack,
   });
@@ -219,6 +220,8 @@ export function DashboardPage() {
             onOpenTrading={openStockView}
             pricesStale={scanner.pricesStale}
             flashSymbols={scanner.flashSymbols}
+            rowQuoteTs={scanner.rowQuoteTs}
+            nowSec={scanner.now}
             hodMomoStream={hodMomoStream}
             hodMomoConfig={hodMomoConfig}
             showHodSettings={showHodSettings}

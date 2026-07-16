@@ -217,10 +217,12 @@ export const IBKR_PAPER_PORT = 4002;
 export const IBKR_LIVE_PORT = 4001;
 /** Max simultaneous Level 2 depth streams (IBKR plan cap). */
 export const IBKR_MAX_DEPTH_SYMBOLS = 3;
-/** Scanner table price refresh target (mirrors backend IBKR_TABLE_REPRICE_INTERVAL_SEC). */
+/** Scanner L1 reconcile / UI age clock (mirrors backend IBKR_L1_RECONCILE_SEC). */
 export const IBKR_TABLE_REPRICE_INTERVAL_SEC = 1.0;
-/** Mark table prices stale if no successful tick within this many seconds. */
+/** Mark header stale if no successful price_patch within this many seconds. */
 export const SCANNER_PRICE_STALE_SEC = 5.0;
+/** Per-row stale tint when last IB L1 quote is older than this (mirrors backend). */
+export const IBKR_L1_ROW_STALE_SEC = 3.0;
 /** Brief flash duration when a table price ticks up/down. */
 export const SCANNER_PRICE_FLASH_MS = 400;
 

@@ -46,6 +46,8 @@ export type TabModuleHostProps = {
   onOpenTrading: (sym: string) => void;
   pricesStale: boolean;
   flashSymbols: Record<string, 'up' | 'down'>;
+  rowQuoteTs?: Record<string, number>;
+  nowSec?: number;
   hodMomoStream: HodStream;
   hodMomoConfig: HodConfig;
   showHodSettings: boolean;
@@ -85,6 +87,8 @@ export function TabModuleHost(props: TabModuleHostProps) {
     onOpenTrading,
     pricesStale,
     flashSymbols,
+    rowQuoteTs = {},
+    nowSec = 0,
     hodMomoStream,
     hodMomoConfig,
     showHodSettings,
@@ -131,6 +135,8 @@ export function TabModuleHost(props: TabModuleHostProps) {
         onOpenTrading={onOpenTrading}
         pricesStale={pricesStale}
         flashSymbols={flashSymbols}
+        rowQuoteTs={rowQuoteTs}
+        nowSec={nowSec}
       />
     );
   }

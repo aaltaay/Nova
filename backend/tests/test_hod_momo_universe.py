@@ -32,7 +32,7 @@ def test_build_focus_universe_merges_volume_seeds():
         is_blocked=lambda _s: False,
     )
     assert result == {"NXTC", "TSSI", "YG", "FRE"}
-    assert get_seed_symbols() == {"TSSI", "YG", "FRE"}
+    assert get_seed_symbols() == ["TSSI", "YG", "FRE"]
     set_seed_symbols([])
 
 

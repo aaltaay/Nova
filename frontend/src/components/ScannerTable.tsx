@@ -3,6 +3,7 @@ import React from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
 import { ScannerPriceCell } from './ScannerPriceCell';
+import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import { NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS } from '../constants';
 import type { ScannerRow, SortConfig } from '../types/scanner';
@@ -50,8 +51,12 @@ interface ScannerTableProps {
   onOpenTrading: (symbol: string) => void;
   /** When true, tint price cells — table refresh is late / skipped. */
   pricesStale?: boolean;
-  /** Per-symbol up/down flash from the latest 1Hz price patch. */
+  /** Per-symbol up/down flash from the latest L1 price patch. */
   flashSymbols?: Record<string, 'up' | 'down'>;
+  /** Per-symbol last IB quote timestamp (unix seconds). */
+  rowQuoteTs?: Record<string, number>;
+  /** Current clock (unix seconds) for per-row stale tint. */
+  nowSec?: number;
 }
 
 function fmtChangeAbs(v: number | null | undefined): string {
@@ -64,6 +69,8 @@ function renderCell(
   row: ScannerRow,
   pricesStale: boolean,
   flashSymbols: Record<string, 'up' | 'down'>,
+  rowQuoteTs: Record<string, number>,
+  nowSec: number,
 ): React.ReactNode {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const anyRow = row as any;
@@ -76,7 +83,7 @@ function renderCell(
           symbol={row.symbol}
           price={row.price ?? anyRow.current_price}
           flash={flashSymbols[row.symbol.toUpperCase()]}
-          stale={pricesStale}
+          stale={isRowQuoteStale(row.symbol, rowQuoteTs, nowSec, pricesStale)}
         />
       );
     case 'prev_close':
@@ -133,6 +140,8 @@ export function ScannerTable({
   columns, data, sortState, onSort, selectedSymbol, onSelect, onOpenTrading,
   pricesStale = false,
   flashSymbols = {},
+  rowQuoteTs = {},
+  nowSec = 0,
 }: ScannerTableProps) {
   return (
     <div className="table-wrapper">
@@ -183,7 +192,9 @@ export function ScannerTable({
                     />
                   </td>
                 ) : (
-                  <td key={key}>{renderCell(key, row, pricesStale, flashSymbols)}</td>
+                  <td key={key}>
+                    {renderCell(key, row, pricesStale, flashSymbols, rowQuoteTs, nowSec)}
+                  </td>
                 )
               )}
             </SelectableTableRow>

@@ -1,9 +1,9 @@
-"""Streaming last-price ticks for open ticker-detail WebSockets.
+"""Shared owner-aware IBKR Level-1 (reqMktData) streams.
 
-Level 2 already streams via reqMktDepth/reqMktData. Quote + chart were stuck on
-3s snapshot_quotes() polls — this module adds reqMktData last-price updates so
-trade_update (and the forming candle) can move on every tick while a detail
-panel is open.
+One underlying subscription per symbol. Owners (detail / scanner / hod) share
+the stream via owner sets — tab switches must never cancel a selected ticker's
+detail owner. Quote listeners receive every price change for scanner/HOD paths;
+detail broadcasts keep the open quote panel on trade_update.
 """
 from __future__ import annotations
 
@@ -18,20 +18,46 @@ from ibkr import client as _client
 
 logger = logging.getLogger(__name__)
 
+OWNER_DETAIL = "detail"
+OWNER_SCANNER = "scanner"
+OWNER_HOD = "hod"
+
 BroadcastFn = Callable[..., Awaitable[None]]
 FindCacheRowFn = Callable[[str], Optional[dict]]
+# symbol, price, volume, prev_close, ts_unix
+QuoteListenerFn = Callable[[str, float, Optional[int], Optional[float], float], None]
 
 _Stock = None
 _subs: dict[str, dict[str, Any]] = {}
 _broadcast: BroadcastFn | None = None
 _find_cache_row: FindCacheRowFn | None = None
+_quote_listeners: list[QuoteListenerFn] = []
 _subscribe_lock: asyncio.Lock | None = None
 
 
-def configure(broadcast: BroadcastFn, find_cache_row: FindCacheRowFn) -> None:
+def configure(
+    broadcast: BroadcastFn,
+    find_cache_row: FindCacheRowFn,
+    *,
+    on_quote: QuoteListenerFn | None = None,
+) -> None:
     global _broadcast, _find_cache_row
     _broadcast = broadcast
     _find_cache_row = find_cache_row
+    if on_quote is not None and on_quote not in _quote_listeners:
+        _quote_listeners.append(on_quote)
+
+
+def add_quote_listener(listener: QuoteListenerFn) -> None:
+    if listener not in _quote_listeners:
+        _quote_listeners.append(listener)
+
+
+def remove_quote_listener(listener: QuoteListenerFn) -> None:
+    try:
+        _quote_listeners.remove(listener)
+    except ValueError:
+        pass
 
 
 def _get_lock() -> asyncio.Lock:
@@ -65,22 +91,13 @@ def _clean(x: float | None) -> float | None:
 def _on_ticker_update(ticker: Any, symbol: str) -> None:
     sub = _subs.get(symbol)
     if sub is not None:
-        # Recorded on every updateEvent (bid/ask/last/volume), not only on a
-        # price change below — this is a liveness signal for is_fresh(), so a
-        # thinly-traded symbol whose price simply hasn't moved still counts as
-        # "streaming fine" and doesn't need the reqTickersAsync backstop.
+        # Liveness for is_fresh() — even when price is unchanged.
         sub["last_update_ts"] = time.time()
-    if _broadcast is None:
-        return
     last = _clean(getattr(ticker, "last", None))
     close = _clean(getattr(ticker, "close", None))
     price = last or close
     if price is None:
         return
-    if sub is not None and sub.get("last_price") == price:
-        return
-    if sub is not None:
-        sub["last_price"] = price
 
     volume = _clean(getattr(ticker, "volume", None))
     vol_i = int(volume) if volume is not None else None
@@ -94,6 +111,23 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
             except (TypeError, ValueError):
                 vol_i = None
 
+    ts_unix = time.time()
+    price_changed = sub is None or sub.get("last_price") != price
+    if sub is not None and price_changed:
+        sub["last_price"] = price
+
+    if price_changed:
+        for listener in list(_quote_listeners):
+            try:
+                listener(symbol, float(price), vol_i, prev_close, ts_unix)
+            except Exception:
+                logger.exception("IBKR ticks: quote listener failed for %s", symbol)
+
+    if not price_changed or _broadcast is None:
+        return
+    # Detail panel only needs trade_update when a detail owner is present.
+    if sub is not None and OWNER_DETAIL not in sub.get("owners", set()):
+        return
     ts = datetime.now(timezone.utc).isoformat()
     try:
         loop = asyncio.get_running_loop()
@@ -102,12 +136,15 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
         logger.debug("IBKR ticks: no running loop to broadcast %s", symbol)
 
 
-async def subscribe(symbol: str) -> bool:
-    """Start (or refcount) a last-price stream for ``symbol``. Returns True if live."""
-    symbol = symbol.upper()
+async def subscribe(symbol: str, owner: str = OWNER_DETAIL) -> bool:
+    """Start or attach ``owner`` to a last-price stream. Returns True if live."""
+    symbol = (symbol or "").strip().upper()
+    owner = (owner or OWNER_DETAIL).strip().lower()
+    if not symbol:
+        return False
     async with _get_lock():
         if symbol in _subs:
-            _subs[symbol]["refs"] += 1
+            _subs[symbol]["owners"].add(owner)
             return True
         if not _load_ib_types():
             return False
@@ -140,22 +177,29 @@ async def subscribe(symbol: str) -> bool:
             "ticker": ticker,
             "contract": contract,
             "handler": handler,
-            "refs": 1,
+            "owners": {owner},
             "last_price": None,
             "last_update_ts": None,
         }
-        logger.info("IBKR ticks: subscribed last-price for %s (conId=%s)", symbol, contract.conId)
+        logger.info(
+            "IBKR ticks: subscribed last-price for %s (conId=%s, owner=%s)",
+            symbol, contract.conId, owner,
+        )
         return True
 
 
-async def unsubscribe(symbol: str) -> None:
-    symbol = symbol.upper()
+async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:
+    symbol = (symbol or "").strip().upper()
+    owner = (owner or OWNER_DETAIL).strip().lower()
+    if not symbol:
+        return
     async with _get_lock():
         sub = _subs.get(symbol)
         if not sub:
             return
-        sub["refs"] -= 1
-        if sub["refs"] > 0:
+        owners = sub.get("owners") or set()
+        owners.discard(owner)
+        if owners:
             return
         ib = _client.get_ib()
         ticker = sub.get("ticker")
@@ -165,29 +209,57 @@ async def unsubscribe(symbol: str) -> None:
             try:
                 ticker.updateEvent -= handler
             except (ValueError, AttributeError, KeyError) as exc:
-                logger.debug(
-                    "IBKR ticks: handler detach failed for %s: %s",
-                    symbol,
-                    exc,
-                )
+                logger.debug("IBKR ticks: handler detach failed for %s: %s", symbol, exc)
         if ib is not None and contract is not None:
             try:
                 ib.cancelMktData(contract)
             except Exception:
                 logger.debug("IBKR ticks: cancelMktData failed for %s", symbol, exc_info=True)
         _subs.pop(symbol, None)
-        logger.info("IBKR ticks: unsubscribed %s", symbol)
+        logger.info("IBKR ticks: unsubscribed %s (last owner=%s)", symbol, owner)
+
+
+async def set_owner_symbols(owner: str, symbols: list[str]) -> dict[str, Any]:
+    """Reconcile subscriptions for ``owner`` to exactly ``symbols``."""
+    owner = (owner or "").strip().lower()
+    desired = {(s or "").strip().upper() for s in symbols if s and str(s).strip()}
+    current = {sym for sym, sub in _subs.items() if owner in (sub.get("owners") or set())}
+    to_add = sorted(desired - current)
+    to_drop = sorted(current - desired)
+    ok = 0
+    failed: list[str] = []
+    for sym in to_add:
+        if await subscribe(sym, owner):
+            ok += 1
+        else:
+            failed.append(sym)
+    for sym in to_drop:
+        await unsubscribe(sym, owner)
+    return {
+        "owner": owner,
+        "desired": len(desired),
+        "subscribed": ok,
+        "dropped": len(to_drop),
+        "failed": failed,
+        "active": sorted(
+            sym for sym, sub in _subs.items() if owner in (sub.get("owners") or set())
+        ),
+    }
 
 
 def subscribed_symbols() -> list[str]:
     return list(_subs.keys())
 
 
+def owners_for(symbol: str) -> set[str]:
+    sub = _subs.get((symbol or "").strip().upper())
+    if not sub:
+        return set()
+    return set(sub.get("owners") or set())
+
+
 def is_fresh(symbol: str, max_age_sec: float) -> bool:
-    """True if ``symbol`` has a live reqMktData stream that ticked within
-    ``max_age_sec``. Used by the detail reprice backstop (ibkr/reprice.py) to
-    skip a redundant reqTickersAsync snapshot when the stream is already
-    delivering — false before the first tick arrives or once ticks stop."""
+    """True if ``symbol`` has a live stream that ticked within ``max_age_sec``."""
     sub = _subs.get(symbol.upper())
     if sub is None:
         return False

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Active-tab IBKR Level-1 streaming (replace impossible snapshot table loop)
+
+- **What:** Scanner table + HOD hot prices now use bounded persistent IBKR `reqMktData` streams for the active tab (≤50) and a reserved HOD pool (40, with volume-seed quota). Batched `/ws/scanner` patches carry `quote_ts`; UI tints per-row staleness. Cold `reqTickersAsync` kept only for discovery/enrichment with honest ≥12s budgets.
+- **Why:** Header showed `stale · updated Ns ago` while Connected — IBKR snapshots complete on `tickSnapshotEnd` ~11s, so the prior 1Hz/4s-timeout `reqTickersAsync` loop could never meet a `<3s` SLA.
+- **Files touched:** `.cursor/rules/single-market-data-feed.mdc`, `backend/ibkr/ticks.py`, `backend/ibkr/scanner_l1.py`, `backend/scanner_push.py`, `backend/scanner_tab_registry.py`, `backend/ibkr_bridge.py`, `backend/hod_momo_active.py`, `backend/hod_momo_universe.py`, `backend/hod_momo_enrichment.py`, `backend/app_lifespan.py`, `frontend/src/hooks/useScannerPriceStream.ts`, `DashboardPage.tsx`, `ScannerTable.tsx`, constants.
+- **How it works now:** Client sends `set_active_tab` on `/ws/scanner`. Reconcile loop opens shared L1 subscriptions (owners: scanner/hod/detail). Ticks coalesce every ~350ms into `price_patch`. HOD discovery still uses HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE seeds with reserved slots so off-table runners stay live. Open ticker still adds quote/depth/tape.
+- **Verified by:** `pytest` L1/HOD/reprice/ticks/integrity suites; Vitest `useScannerPriceStream` + `scanAge`; `tsc --noEmit`.
+- **Follow-ups:** Restart API + live Gateway session to confirm subscription counts and liquid-row `<3s` tick-to-UI; watch market-data line budget on the account.
+- **Related:** PROBLEM_LOG 2026-07-16 scanner stale / tickSnapshotEnd.
+
 ## 2026-07-16 — Close remediation Phase 7: honest close
 
 - **What:** Restored HOD facade test aliases + depth `reset_all` in smart-depth test setup; refreshed `program-close-metrics.md` and `Nova-Roadmap-Status.md` with fresh gate evidence; stamped close tip SHA.

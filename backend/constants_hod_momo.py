@@ -58,8 +58,13 @@ HOD_MOMO_INTEGRITY_ENRICHED_MIN_PCT = 30.0     # snaps with rvol vs tracked snap
 SCANNER_INTEGRITY_CACHE_STALE_SEC = 120.0      # gappers/gainers/losers cache age → warn/fail
 # Active evaluation set (capacity-bounded) — discovery watch set may be larger.
 # Live SLO: quote/eval age p95 ≤2s, max ≤3s for every *active* symbol.
+# Quota selection: reserve slots for volume seeds outside gainer/gapper lists so
+# 40 movers cannot starve HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE runners.
 HOD_MOMO_ACTIVE_SET_CAPACITY = 40
 HOD_MOMO_ACTIVE_HOT_PER_TICK = 10              # priority symbols every 1Hz tick
+HOD_MOMO_ACTIVE_MOVER_SLOTS = 18               # top cross-list movers (gainer/gapper/AH/loser)
+HOD_MOMO_ACTIVE_SEED_SLOTS = 14                # IBKR volume/activity seeds (may be off-table)
+HOD_MOMO_ACTIVE_EXPLORE_SLOTS = 8              # rotating discovery-tail exploration
 HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_P95_SEC = 2.0
 HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC = 3.0
 HOD_MOMO_INTEGRITY_ACTIVE_EVAL_P95_SEC = 2.0

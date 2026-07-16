@@ -20,10 +20,12 @@ type Mode = MarketMode;
 
 export function useScannerData(opts: {
   discoveryProvider: string;
+  /** Active UI tab — drives IBKR L1 subscription budget via /ws/scanner. */
+  activeTab?: string;
   onActiveFeed?: (feed: string) => void;
   onFeedFellBack?: (fellBack: boolean) => void;
 }) {
-  const { discoveryProvider, onActiveFeed, onFeedFellBack } = opts;
+  const { discoveryProvider, activeTab, onActiveFeed, onFeedFellBack } = opts;
 
   const [mode, setMode] = useState<Mode>('loading');
   const [health, setHealth] = useState<HealthStatus>({ status: 'loading', latency_ms: 0 });
@@ -57,10 +59,12 @@ export function useScannerData(opts: {
     [],
   );
 
-  const { pricesStale, flashSymbols, lastPriceTs } = useScannerPriceStream({
-    enabled: discoveryProvider === 'ibkr' && historyDate === null,
-    onPatch: onScannerPricePatch,
-  });
+  const { pricesStale, flashSymbols, lastPriceTs, rowQuoteTs, subscriptionError } =
+    useScannerPriceStream({
+      enabled: discoveryProvider === 'ibkr' && historyDate === null,
+      activeTab,
+      onPatch: onScannerPricePatch,
+    });
 
   const fetchData = useCallback(async () => {
     const signal = AbortSignal.timeout(SCANNER_FETCH_TIMEOUT_MS);
@@ -220,6 +224,8 @@ export function useScannerData(opts: {
     pricesStale,
     flashSymbols,
     lastPriceTs,
+    rowQuoteTs,
+    subscriptionError,
     fetchData,
   };
 }

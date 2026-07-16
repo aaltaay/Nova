@@ -1,6 +1,10 @@
-/** Live IBKR scanner table price patches via /ws/scanner (1Hz snapshots). */
+/** Live IBKR scanner table prices via /ws/scanner (bounded L1 streams). */
 import { useEffect, useRef, useState } from 'react';
-import { SCANNER_PRICE_STALE_SEC, WS_BASE_URL } from '../constants';
+import {
+  IBKR_L1_ROW_STALE_SEC,
+  SCANNER_PRICE_STALE_SEC,
+  WS_BASE_URL,
+} from '../constants';
 
 export type ScannerPricePatchRow = {
   symbol: string;
@@ -9,32 +13,55 @@ export type ScannerPricePatchRow = {
   change_abs?: number | null;
   volume?: number | null;
   gap_percent?: number | null;
+  quote_ts?: number | null;
 };
 
 export type ScannerPriceFreshness = {
   /** Unix seconds of last successful price_patch. */
   lastPriceTs: number;
-  /** True when heartbeat says stale or last patch is too old. */
+  /** True when last patch is too old or subscription is incomplete. */
   pricesStale: boolean;
   /** Symbols whose price changed on the latest patch (for flash). */
   flashSymbols: Record<string, 'up' | 'down'>;
+  /** Per-symbol last IB quote timestamp (unix seconds). */
+  rowQuoteTs: Record<string, number>;
+  /** Subscription / capacity error from backend, if any. */
+  subscriptionError: string | null;
 };
 
 type Props = {
   enabled: boolean;
+  /** Active scanner tab — sent as set_active_tab for L1 budget. */
+  activeTab?: string;
   onPatch: (rows: ScannerPricePatchRow[], ts: number) => void;
 };
 
 const EMPTY_FLASH: Record<string, 'up' | 'down'> = {};
+const SCANNER_TABS = new Set(['gappers', 'gainers', 'losers', 'afterhours']);
 
-export function useScannerPriceStream({ enabled, onPatch }: Props): ScannerPriceFreshness {
+function tabHint(tab: string | undefined): string {
+  const t = (tab || 'none').toLowerCase();
+  if (SCANNER_TABS.has(t)) return t;
+  return 'none';
+}
+
+export function useScannerPriceStream({
+  enabled,
+  activeTab,
+  onPatch,
+}: Props): ScannerPriceFreshness {
   const [lastPriceTs, setLastPriceTs] = useState(0);
   const [heartbeatStale, setHeartbeatStale] = useState(false);
   const [flashSymbols, setFlashSymbols] = useState<Record<string, 'up' | 'down'>>(EMPTY_FLASH);
+  const [rowQuoteTs, setRowQuoteTs] = useState<Record<string, number>>({});
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
   const [nowTick, setNowTick] = useState(() => Date.now() / 1000);
   const onPatchRef = useRef(onPatch);
   onPatchRef.current = onPatch;
   const prevPricesRef = useRef<Record<string, number>>({});
+  const wsRef = useRef<WebSocket | null>(null);
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
 
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now() / 1000), 1000);
@@ -45,6 +72,7 @@ export function useScannerPriceStream({ enabled, onPatch }: Props): ScannerPrice
     if (!enabled) {
       setHeartbeatStale(false);
       setFlashSymbols(EMPTY_FLASH);
+      setSubscriptionError(null);
       return;
     }
 
@@ -53,12 +81,22 @@ export function useScannerPriceStream({ enabled, onPatch }: Props): ScannerPrice
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let backoff = 1000;
 
+    function sendTabHint(socket: WebSocket) {
+      if (socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({
+        type: 'set_active_tab',
+        tab: tabHint(activeTabRef.current),
+      }));
+    }
+
     function connect() {
       if (cancelled) return;
       ws = new WebSocket(`${WS_BASE_URL}/ws/scanner`);
+      wsRef.current = ws;
 
       ws.onopen = () => {
         backoff = 1000;
+        sendTabHint(ws!);
       };
 
       ws.onmessage = (e) => {
@@ -68,6 +106,7 @@ export function useScannerPriceStream({ enabled, onPatch }: Props): ScannerPrice
           if (msg.type === 'price_patch' && Array.isArray(msg.rows)) {
             const ts = typeof msg.ts === 'number' ? msg.ts : Date.now() / 1000;
             const flash: Record<string, 'up' | 'down'> = {};
+            const quoteUpdates: Record<string, number> = {};
             for (const row of msg.rows as ScannerPricePatchRow[]) {
               const sym = row.symbol?.toUpperCase();
               if (!sym || row.price == null) continue;
@@ -76,13 +115,22 @@ export function useScannerPriceStream({ enabled, onPatch }: Props): ScannerPrice
                 flash[sym] = row.price > prev ? 'up' : 'down';
               }
               prevPricesRef.current[sym] = row.price;
+              const qts = typeof row.quote_ts === 'number' ? row.quote_ts : ts;
+              quoteUpdates[sym] = qts;
             }
             setLastPriceTs(ts);
             setHeartbeatStale(false);
             setFlashSymbols(flash);
+            if (Object.keys(quoteUpdates).length) {
+              setRowQuoteTs(prev => ({ ...prev, ...quoteUpdates }));
+            }
+            const subErr = msg.subscription?.error;
+            setSubscriptionError(typeof subErr === 'string' ? subErr : null);
             onPatchRef.current(msg.rows, ts);
           } else if (msg.type === 'price_heartbeat') {
             if (msg.stale) setHeartbeatStale(true);
+          } else if (msg.type === 'subscription_state') {
+            // ack only — state is also on price_patch
           }
         } catch {
           // ignore parse errors
@@ -92,6 +140,7 @@ export function useScannerPriceStream({ enabled, onPatch }: Props): ScannerPrice
       ws.onclose = () => {
         if (cancelled) return;
         setHeartbeatStale(true);
+        wsRef.current = null;
         reconnectTimer = setTimeout(connect, backoff);
         backoff = Math.min(backoff * 2, 15_000);
       };
@@ -103,20 +152,46 @@ export function useScannerPriceStream({ enabled, onPatch }: Props): ScannerPrice
       cancelled = true;
       if (reconnectTimer != null) clearTimeout(reconnectTimer);
       ws?.close();
+      wsRef.current = null;
     };
   }, [enabled]);
 
+  // Resend tab hint when the user switches scanner tabs (same WS).
+  useEffect(() => {
+    if (!enabled) return;
+    const socket = wsRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({
+      type: 'set_active_tab',
+      tab: tabHint(activeTab),
+    }));
+  }, [enabled, activeTab]);
+
   const age = lastPriceTs > 0 ? nowTick - lastPriceTs : Infinity;
-  // Heartbeat stale alone is not enough — mid-batch skip-if-busy fires every
-  // second while a healthy snapshot runs for several seconds. Only paint stale
-  // when we have not had a successful price_patch within SCANNER_PRICE_STALE_SEC
-  // (or never received one and the socket is complaining).
   const pricesStale =
     lastPriceTs > 0
-      ? age > SCANNER_PRICE_STALE_SEC
+      ? age > SCANNER_PRICE_STALE_SEC || Boolean(subscriptionError)
       : heartbeatStale;
 
-  return { lastPriceTs, pricesStale, flashSymbols };
+  return {
+    lastPriceTs,
+    pricesStale,
+    flashSymbols,
+    rowQuoteTs,
+    subscriptionError,
+  };
+}
+
+/** True when this row's last IB quote is older than the L1 row-stale threshold. */
+export function isRowQuoteStale(
+  symbol: string,
+  rowQuoteTs: Record<string, number>,
+  nowSec: number,
+  globalStale: boolean,
+): boolean {
+  const ts = rowQuoteTs[symbol.toUpperCase()];
+  if (ts == null) return globalStale;
+  return nowSec - ts > IBKR_L1_ROW_STALE_SEC;
 }
 
 /** Merge a price patch into an existing scanner row list (by symbol). */

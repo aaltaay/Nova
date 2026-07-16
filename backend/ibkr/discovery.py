@@ -40,8 +40,18 @@ logger = logging.getLogger(__name__)
 
 _Stock = None
 _ScannerSubscription = None
-# Qualified Stock contracts reused by the 1Hz table reprice path.
+# Qualified Stock contracts reused across cold snapshot calls.
 _qualified_contracts: dict[str, object] = {}
+# Serialize cold reqTickersAsync so discovery/enrichment cannot fan out
+# concurrent snapshot batches against the shared Gateway socket.
+_snapshot_lock: asyncio.Lock | None = None
+
+
+def _get_snapshot_lock() -> asyncio.Lock:
+    global _snapshot_lock
+    if _snapshot_lock is None:
+        _snapshot_lock = asyncio.Lock()
+    return _snapshot_lock
 
 
 def _load_ib_types() -> bool:
@@ -141,10 +151,11 @@ async def snapshot_quotes(
         return {}
 
     try:
-        tickers = await asyncio.wait_for(
-            ib.reqTickersAsync(*qualified),
-            timeout=max(0.5, float(timeout_sec)),
-        )
+        async with _get_snapshot_lock():
+            tickers = await asyncio.wait_for(
+                ib.reqTickersAsync(*qualified),
+                timeout=max(0.5, float(timeout_sec)),
+            )
     except asyncio.TimeoutError:
         logger.warning(
             "IBKR: snapshot timeout (%.1fs) for %d symbols",

@@ -74,6 +74,14 @@ Newest first. Keep entries short. Skip boring all-green scoped runs unless a com
 
 <!-- RUN_LOG_START -->
 
+### 2026-07-16 — IBKR active-tab L1 streaming scoped verify
+
+- **Scope:** `scanner_l1` / HOD active quota / ticks / reprice / discovery + frontend `useScannerPriceStream` / `scanAge` + `tsc --noEmit`.
+- **Commands:** backend pytest (8 files) → **49 passed**; vitest → **8 passed** (2 files); `npx tsc --noEmit` → PASS. Live: `/api/health` up; `/api/ibkr/status` `connected:true` (live gateway).
+- **Result:** PASS (unit/typecheck). Live L1 behavior not claimed — needs backend restart evidence + WS `price_patch` observation.
+- **Learning:** Parent-scoped path `cd backend && pytest tests/...` works; keep repo-root form as default in tester.md.
+- **Promoted to tester.md:** no
+
 ### 2026-07-16 — Phase G2 Hotkey Manager UI browser verify
 
 - **Scope:** Settings → Hotkeys DAS manager (import/export/help/safety).

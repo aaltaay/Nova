@@ -52,14 +52,18 @@ def build_scanner_integrity_report() -> dict[str, Any]:
     from alpaca import _get_discovery_provider
     from ibkr import client as ibkr_client
     from ibkr import reprice as ibkr_reprice
+    from ibkr import scanner_l1 as ibkr_scanner_l1
 
     provider = (_get_discovery_provider() or "").strip().lower()
     table_age = None
-    last_ok = getattr(ibkr_reprice, "_table_last_ok_ts", None)
+    last_ok = ibkr_scanner_l1.get_last_ok_ts()
+    if last_ok is None:
+        last_ok = getattr(ibkr_reprice, "_table_last_ok_ts", None)
     if last_ok:
         table_age = _cache_age(last_ok)
 
     state = get_runtime_state()
+    sub = ibkr_scanner_l1.get_subscription_state()
     snap = {
         "discovery_provider": provider,
         "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
@@ -72,6 +76,10 @@ def build_scanner_integrity_report() -> dict[str, Any]:
         "table_reprice_age_sec": table_age,
         "table_busy_skips": getattr(ibkr_reprice, "_table_busy_skips", 0),
         "table_timeouts": getattr(ibkr_reprice, "_table_timeouts", 0),
+        "l1_active_total": sub.get("active_total"),
+        "l1_active_tab": sub.get("active_tab"),
+        "l1_active_hod": sub.get("active_hod"),
+        "l1_error": sub.get("error"),
     }
     report = evaluate_scanner_integrity(snap)
     report["checked_at"] = time.time()

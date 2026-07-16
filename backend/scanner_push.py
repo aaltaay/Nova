@@ -7,6 +7,8 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+import scanner_tab_registry as _tabs
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -26,6 +28,7 @@ async def broadcast(payload: dict[str, Any]) -> None:
             dead.append(ws)
     for ws in dead:
         _clients.discard(ws)
+        _tabs.clear(ws)
 
 
 @router.websocket("/ws/scanner")
@@ -33,13 +36,29 @@ async def ws_scanner(websocket: WebSocket) -> None:
     await websocket.accept()
     _clients.add(websocket)
     try:
-        await websocket.send_text(json.dumps({"type": "subscribed"}))
+        await websocket.send_text(json.dumps({
+            "type": "subscribed",
+            "tab": "none",
+        }))
         while True:
-            # Keep the socket open; client may send pings — ignore payload.
-            await websocket.receive_text()
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw) if raw else {}
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("type") == "set_active_tab":
+                tab = _tabs.set_tab(websocket, str(msg.get("tab") or "none"))
+                await websocket.send_text(json.dumps({
+                    "type": "subscription_state",
+                    "tab": tab,
+                    "dominant_tab": _tabs.get_dominant_tab(),
+                }))
     except WebSocketDisconnect:
         logger.debug("scanner WS client disconnected")
     except Exception as exc:
         logger.debug("scanner WS closed: %s", exc)
     finally:
         _clients.discard(websocket)
+        _tabs.clear(websocket)

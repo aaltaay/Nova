@@ -11,7 +11,10 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from constants import (
+    HOD_MOMO_ACTIVE_EXPLORE_SLOTS,
     HOD_MOMO_ACTIVE_HOT_PER_TICK,
+    HOD_MOMO_ACTIVE_MOVER_SLOTS,
+    HOD_MOMO_ACTIVE_SEED_SLOTS,
     HOD_MOMO_ACTIVE_SET_CAPACITY,
     HOD_MOMO_INTEGRITY_ACTIVE_EVAL_MAX_SEC,
     HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC,
@@ -86,6 +89,19 @@ def _row_score(row: dict) -> float:
     return 0.0
 
 
+def _ordered_unique(symbols: Iterable[str]) -> list[str]:
+    """Preserve first-seen rank order (do not alphabetically sort seeds)."""
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in symbols:
+        sym = (raw or "").strip().upper()
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        out.append(sym)
+    return out
+
+
 def build_active_set(
     *,
     discovery: Iterable[str],
@@ -96,51 +112,116 @@ def build_active_set(
     seed_symbols: Iterable[str] | None = None,
     detail_symbols: Iterable[str] | None = None,
     capacity: int = HOD_MOMO_ACTIVE_SET_CAPACITY,
+    mover_slots: int = HOD_MOMO_ACTIVE_MOVER_SLOTS,
+    seed_slots: int = HOD_MOMO_ACTIVE_SEED_SLOTS,
+    explore_slots: int = HOD_MOMO_ACTIVE_EXPLORE_SLOTS,
 ) -> ActiveSetSnapshot:
-    """Pick a capacity-bounded active evaluation set with explicit uncovered tail."""
-    global _active_symbols, _uncovered_symbols
+    """Capacity-bounded active set with reserved quotas.
 
-    scored: dict[str, ActiveMember] = {}
+    Open tickers always win. Remaining slots are split so IBKR volume seeds
+    (HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE) cannot be starved by a
+    full gainer/gapper table. Uncovered discovery symbols stay explicit.
+    """
+    global _active_symbols, _uncovered_symbols, _tail_rotate
 
-    def _offer(sym: str, priority: int, reason: str) -> None:
+    cap = max(1, int(capacity))
+    active: list[str] = []
+    reasons: dict[str, str] = {}
+    seen: set[str] = set()
+
+    def _take(sym: str, reason: str) -> bool:
         s = (sym or "").strip().upper()
-        if not s:
-            return
-        prev = scored.get(s)
-        if prev is None or priority < prev.priority:
-            scored[s] = ActiveMember(symbol=s, priority=priority, reason=reason)
+        if not s or s in seen or len(active) >= cap:
+            return False
+        seen.add(s)
+        active.append(s)
+        reasons[s] = reason
+        return True
 
     for raw in detail_symbols or []:
-        _offer(raw, 0, "open_ticker")
+        _take(raw, "open_ticker")
 
-    for rows, reason, base in (
-        (gainer_rows, "top_gainer", 10),
-        (gapper_rows, "gapper", 20),
-        (afterhours_rows, "afterhours", 25),
-        (loser_rows, "top_loser", 30),
+    mover_ranked: list[tuple[str, str, float]] = []
+    for rows, reason in (
+        (gainer_rows, "top_gainer"),
+        (gapper_rows, "gapper"),
+        (afterhours_rows, "afterhours"),
+        (loser_rows, "top_loser"),
     ):
-        ranked = sorted(
-            [r for r in (rows or []) if (r.get("symbol") or "").strip()],
-            key=_row_score,
-            reverse=True,
-        )
-        for i, row in enumerate(ranked):
-            _offer(row["symbol"], base + i, reason)
+        for row in rows or []:
+            sym = (row.get("symbol") or "").strip().upper()
+            if sym:
+                mover_ranked.append((sym, reason, _row_score(row)))
+    mover_ranked.sort(key=lambda t: (-t[2], t[0]))
 
-    for i, raw in enumerate(sorted({(s or "").strip().upper() for s in (seed_symbols or []) if s})):
-        _offer(raw, 100 + i, "volume_seed")
+    seeds = _ordered_unique(seed_symbols or [])
+    disco = _ordered_unique(discovery)
 
-    for i, raw in enumerate(sorted({(s or "").strip().upper() for s in discovery if s})):
-        _offer(raw, 500 + i, "discovery")
+    # Quota budget after open tickers.
+    remaining = cap - len(active)
+    m_slots = max(0, min(int(mover_slots), remaining))
+    s_slots = max(0, min(int(seed_slots), remaining - m_slots))
+    e_slots = max(0, min(int(explore_slots), remaining - m_slots - s_slots))
+    # Spill unused quota forward so capacity stays fully used.
+    spill = remaining - m_slots - s_slots - e_slots
 
-    ordered = sorted(scored.values(), key=lambda m: (m.priority, m.symbol))
-    cap = max(1, int(capacity))
-    active_members = ordered[:cap]
-    uncovered_members = ordered[cap:]
+    taken_m = 0
+    for sym, reason, _score in mover_ranked:
+        if taken_m >= m_slots:
+            break
+        if _take(sym, reason):
+            taken_m += 1
+    spill += m_slots - taken_m
 
-    active = [m.symbol for m in active_members]
-    uncovered = [m.symbol for m in uncovered_members]
-    reasons = {m.symbol: m.reason for m in active_members}
+    taken_s = 0
+    seed_budget = s_slots + spill
+    for sym in seeds:
+        if taken_s >= seed_budget:
+            break
+        if _take(sym, "volume_seed"):
+            taken_s += 1
+    spill = seed_budget - taken_s
+
+    # Rotating exploration tail from discovery not already selected.
+    explore_pool = [s for s in disco if s not in seen]
+    taken_e = 0
+    explore_budget = e_slots + spill
+    if explore_pool and explore_budget > 0:
+        start = _tail_rotate % len(explore_pool)
+        rotated = explore_pool[start:] + explore_pool[:start]
+        _tail_rotate += 1
+        for sym in rotated:
+            if taken_e >= explore_budget:
+                break
+            if _take(sym, "discovery"):
+                taken_e += 1
+
+    # Fill any leftover from remaining movers then seeds then discovery.
+    if len(active) < cap:
+        for sym, reason, _score in mover_ranked:
+            if len(active) >= cap:
+                break
+            _take(sym, reason)
+    if len(active) < cap:
+        for sym in seeds:
+            if len(active) >= cap:
+                break
+            _take(sym, "volume_seed")
+    if len(active) < cap:
+        for sym in disco:
+            if len(active) >= cap:
+                break
+            _take(sym, "discovery")
+
+    all_candidates = _ordered_unique(
+        list(active)
+        + [t[0] for t in mover_ranked]
+        + seeds
+        + disco
+        + [(s or "").strip().upper() for s in (detail_symbols or []) if s],
+    )
+    uncovered = [s for s in all_candidates if s not in seen]
+
     _priority_reason.clear()
     _priority_reason.update(reasons)
     note_universe_entries(active + uncovered)

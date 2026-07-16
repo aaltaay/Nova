@@ -29,13 +29,17 @@ def test_is_fresh_false_before_first_tick():
     snapshot backstop must still cover the symbol until streaming proves
     itself live)."""
     _reset()
-    ticks._subs["FRESH"] = {"refs": 1, "last_price": None, "last_update_ts": None}
+    ticks._subs["FRESH"] = {
+        "owners": {ticks.OWNER_DETAIL}, "last_price": None, "last_update_ts": None,
+    }
     assert ticks.is_fresh("FRESH", 8.0) is False
 
 
 def test_is_fresh_true_within_window_false_after():
     _reset()
-    ticks._subs["FRESH"] = {"refs": 1, "last_price": 1.0, "last_update_ts": time.time()}
+    ticks._subs["FRESH"] = {
+        "owners": {ticks.OWNER_DETAIL}, "last_price": 1.0, "last_update_ts": time.time(),
+    }
     assert ticks.is_fresh("FRESH", 8.0) is True
 
     ticks._subs["FRESH"]["last_update_ts"] = time.time() - 100
@@ -44,7 +48,9 @@ def test_is_fresh_true_within_window_false_after():
 
 def test_is_fresh_is_case_insensitive():
     _reset()
-    ticks._subs["ABC"] = {"refs": 1, "last_price": 1.0, "last_update_ts": time.time()}
+    ticks._subs["ABC"] = {
+        "owners": {ticks.OWNER_DETAIL}, "last_price": 1.0, "last_update_ts": time.time(),
+    }
     assert ticks.is_fresh("abc", 8.0) is True
 
 
@@ -60,8 +66,11 @@ def test_on_ticker_update_marks_fresh_even_when_price_unchanged():
     'streaming fine' — only a dead/missing subscription should fall back to
     the snapshot backstop, not merely an unchanged price."""
     _reset()
-    ticks._subs["ABC"] = {"refs": 1, "last_price": 5.0, "last_update_ts": None}
+    ticks._subs["ABC"] = {
+        "owners": {ticks.OWNER_DETAIL}, "last_price": 5.0, "last_update_ts": None,
+    }
     ticks._broadcast = None  # no broadcast wired; only checking freshness bookkeeping
+    ticks._quote_listeners.clear()
 
     ticks._on_ticker_update(_FakeTicker(last=5.0), "ABC")
 
