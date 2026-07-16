@@ -181,8 +181,8 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 | 0A Architecture contract | `[x]` | `9fac089` | ADRs + dependency-rules before product moves |
 | 1 Maintainer gates | `[x]` | `67d369a` | CSS + baseline growth + dep warnings |
 | 2 CSS split | `[x]` | `e15f252` | `index.css` import-only (18 lines) |
-| 3 Constants domains | `[~]` | _(this commit)_ | Compatibility barrels |
-| 4 Frontend components | `[ ]` | — | Hotkeys / HOD settings / debug |
+| 3 Constants domains | `[x]` | `b03f34c` | Compatibility barrels |
+| 4 Frontend components | `[~]` | _(this commit)_ | Hotkeys / HOD settings / debug |
 | 5 Chart lifecycle | `[ ]` | — | `chart/` hooks |
 | 6 Low-coupling backend | `[ ]` | — | integrity / news / r2 / security_lib |
 | 7 Scanner state | `[ ]` | — | No production `import main` caches |
@@ -208,7 +208,9 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 2: mechanical index.css split into domain stylesheets | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 4: HotkeyManager + HOD settings/debug component splits | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 3: domain constants modules + compatibility barrels | `b03f34c` |
+| 2026-07-16 | Maintenance Phase 2: mechanical index.css split into domain stylesheets | `e15f252` |
 | 2026-07-16 | Maintenance Phase 1: CSS hard limit, baseline growth, import_main/cross-feature warnings | `67d369a` |
 | 2026-07-16 | Maintenance Phase 0A: architecture ADRs + dependency rules + phase destination map | `9fac089` |
 | 2026-07-16 | Maintenance Phase 0: working tree clean; line/maintainer/test baselines recorded; maintenance track opened | `00f0d21` |

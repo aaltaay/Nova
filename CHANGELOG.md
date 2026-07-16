@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 4: split HotkeyManager and HOD settings/debug
+
+- **What:** Decomposed `HotkeyManager`, `HodMomoSettings`, and `HodMomoDebugPanel` into focused child components/hooks under file-size limits. Parents are composition shells; DAS import still authoring-only.
+- **Why:** Phase 4 of the pattern-driven architecture roadmap (ADR 005 feature slices).
+- **Files touched:** `frontend/src/hotkeys/*`, `frontend/src/hod_momo/*` (settings/debug children + poll hook).
+- **How it works now:** Hotkeys UI composes toolbar/table/preview children; HOD settings uses Strategy/Master/Blocklist panels; debug polling lives in `useHodMomoDebugPoll` (stops on unmount).
+- **Verified by:** Vitest 178 (hotkeys 19) · Playwright baseline 3 · parent line counts 170/94/66.
+
 ## 2026-07-16 — Maintenance Phase 3: domain constants + compatibility barrels
 
 - **What:** Split backend constants into domain modules (`constants_scanner/hod_momo/ibkr/archive_news/nova_os`) and frontend into `constantGroups/*`. `constants.py` / `constants.ts` are re-export barrels. Amended centralized-constants governance.

@@ -5,19 +5,19 @@
 
 import { useMemo, useRef, useState } from 'react';
 import { HOTKEY_MANAGER_INACTIVE_BANNER } from '../constants';
+import { HotkeyFileToolbar } from './HotkeyFileToolbar';
+import { HotkeyFilterToolbar, type HotkeySortKey } from './HotkeyFilterToolbar';
 import { HotkeyHelpCatalog } from './HotkeyHelpCatalog';
+import { HotkeyImportPreview } from './HotkeyImportPreview';
+import { HotkeyItemActions } from './HotkeyItemActions';
+import { HotkeyRecordsTable } from './HotkeyRecordsTable';
 import { HotkeyRowEditor } from './HotkeyRowEditor';
+import { HotkeySelectedDetail } from './HotkeySelectedDetail';
+import { HotkeySummaryBar } from './HotkeySummaryBar';
 import { NovaActiveShortcuts } from './NovaActiveShortcuts';
 import { formatKeyChord } from './htkFormat';
 import { useHotkeyProfile } from './useHotkeyProfile';
-import {
-  HOTKEY_COMPAT_LABELS,
-  HOTKEY_EVIDENCE_LABELS,
-  type HotkeyCompatStatus,
-  type HotkeyRecord,
-} from './types';
-
-type SortKey = 'name' | 'key' | 'status';
+import type { HotkeyCompatStatus, HotkeyRecord } from './types';
 
 export function HotkeyManager() {
   const {
@@ -39,7 +39,7 @@ export function HotkeyManager() {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortKey, setSortKey] = useState<HotkeySortKey>('name');
   const [editing, setEditing] = useState<HotkeyRecord | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [statusFilter, setStatusFilter] = useState<HotkeyCompatStatus | 'all'>('all');
@@ -104,202 +104,55 @@ export function HotkeyManager() {
         {HOTKEY_MANAGER_INACTIVE_BANNER}
       </div>
 
-      <div className="hotkey-summary">
-        <span>Translatable: {summary.translatable_later}</span>
-        <span>Backend: {summary.backend_required}</span>
-        <span>DAS-specific: {summary.das_ibkr_specific}</span>
-        <span>Invalid: {summary.invalid_unsafe}</span>
-        <span>Conflicts: {summary.conflicts}</span>
-      </div>
+      <HotkeySummaryBar summary={summary} />
 
-      <div className="hotkey-file-row">
-        <label>
-          HotKey File
-          <input type="text" value={profile.fileName} readOnly aria-label="Hotkey file name" />
-        </label>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".htk,text/plain"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void onImportFile(f);
-            e.target.value = '';
-          }}
-        />
-        <button type="button" className="btn-secondary" onClick={() => fileRef.current?.click()}>
-          Import…
-        </button>
-        <button type="button" className="btn-secondary" onClick={onExport}>
-          Export
-        </button>
-        <button type="button" className="btn-secondary" onClick={() => setShowHelp(true)}>
-          Help
-        </button>
-      </div>
+      <HotkeyFileToolbar
+        fileName={profile.fileName}
+        fileRef={fileRef}
+        onImportFile={(f) => void onImportFile(f)}
+        onExport={onExport}
+        onHelp={() => setShowHelp(true)}
+      />
 
-      <div className="hotkey-toolbar">
-        <input
-          type="search"
-          placeholder="Search name, key, command…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search hotkeys"
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as HotkeyCompatStatus | 'all')}
-          aria-label="Filter by compatibility"
-        >
-          <option value="all">All statuses</option>
-          {(Object.keys(HOTKEY_COMPAT_LABELS) as HotkeyCompatStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {HOTKEY_COMPAT_LABELS[s]}
-            </option>
-          ))}
-        </select>
-        <select
-          value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as SortKey)}
-          aria-label="Sort hotkeys"
-        >
-          <option value="name">Sort: Name</option>
-          <option value="key">Sort: Key</option>
-          <option value="status">Sort: Compatibility</option>
-        </select>
-      </div>
+      <HotkeyFilterToolbar
+        query={query}
+        onQuery={setQuery}
+        statusFilter={statusFilter}
+        onStatusFilter={setStatusFilter}
+        sortKey={sortKey}
+        onSortKey={setSortKey}
+      />
 
-      <div className="hotkey-table-wrap">
-        <table className="hotkey-table">
-          <thead>
-            <tr>
-              <th>NAME</th>
-              <th>KEY</th>
-              <th>Command(s)</th>
-              <th>Compatibility</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const a = analysisById.get(r.id);
-              const selectedRow = r.id === selectedId;
-              return (
-                <tr
-                  key={r.id}
-                  className={selectedRow ? 'selected' : undefined}
-                  onClick={() => setSelectedId(r.id)}
-                >
-                  <td>{r.name}</td>
-                  <td>
-                    <kbd>{formatKeyChord(r.key) || '—'}</kbd>
-                  </td>
-                  <td className="hotkey-cmd-cell" title={r.command}>
-                    {r.command || '—'}
-                  </td>
-                  <td>
-                    {a && (
-                      <span className={`hotkey-badge hotkey-badge-${a.status}`}>
-                        {HOTKEY_COMPAT_LABELS[a.status]}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={4} className="na-muted">
-                  No hotkeys yet — Import a .htk file or Add New Item.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <HotkeyRecordsTable
+        rows={rows}
+        selectedId={selectedId}
+        analysisById={analysisById}
+        onSelect={setSelectedId}
+      />
 
-      <div className="hotkey-actions">
-        <button
-          type="button"
-          disabled={!selected}
-          onClick={() => selected && setEditing(selected)}
-        >
-          Edit Item
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const rec = addRecord();
-            setEditing(rec);
-          }}
-        >
-          Add New Item
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={!selected}
-          onClick={() => selected && deleteRecord(selected.id)}
-        >
-          Delete Item
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={!selected}
-          onClick={() => selected && deleteKey(selected.id)}
-        >
-          Delete Key
-        </button>
-      </div>
+      <HotkeyItemActions
+        selected={selected}
+        onEdit={() => selected && setEditing(selected)}
+        onAdd={() => {
+          const rec = addRecord();
+          setEditing(rec);
+        }}
+        onDeleteItem={() => selected && deleteRecord(selected.id)}
+        onDeleteKey={() => selected && deleteKey(selected.id)}
+      />
 
       {selectedAnalysis && selected && (
-        <div className="hotkey-detail">
-          <h4 className="nova-os-section-title">Selected: {selected.name}</h4>
-          <p className="na-muted">
-            Evidence: {HOTKEY_EVIDENCE_LABELS[selectedAnalysis.evidence]}
-          </p>
-          {selectedAnalysis.diagnostics.length > 0 ? (
-            <ul>
-              {selectedAnalysis.diagnostics.map((d) => (
-                <li key={`${d.code}-${d.message}`}>{d.message}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="na-muted">No diagnostics.</p>
-          )}
-        </div>
+        <HotkeySelectedDetail selected={selected} analysis={selectedAnalysis} />
       )}
 
       <NovaActiveShortcuts />
 
       {importPreview && (
-        <div className="hotkey-import-preview" role="dialog" aria-label="Import preview">
-          <h4 className="nova-os-section-title">Import preview — {importPreview.fileName}</h4>
-          <p>
-            {importPreview.records.length} record(s)
-            {importPreview.issues.length > 0
-              && `, ${importPreview.issues.length} parse issue(s)`}
-            . Replace the current profile?
-          </p>
-          {importPreview.issues.length > 0 && (
-            <ul>
-              {importPreview.issues.slice(0, 8).map((iss) => (
-                <li key={`${iss.line}-${iss.message}`}>
-                  Line {iss.line}: {iss.message}
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="form-row">
-            <button type="button" onClick={confirmImportReplace}>
-              Replace profile
-            </button>
-            <button type="button" className="btn-secondary" onClick={cancelImport}>
-              Cancel
-            </button>
-          </div>
-        </div>
+        <HotkeyImportPreview
+          preview={importPreview}
+          onConfirm={confirmImportReplace}
+          onCancel={cancelImport}
+        />
       )}
 
       {editing && (
