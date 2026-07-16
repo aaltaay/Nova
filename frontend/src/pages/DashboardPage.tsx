@@ -3,29 +3,27 @@
  * Extracted from App.tsx (root stays layout + Stock View gate only).
  */
 import { useEffect, useRef, useState } from 'react';
-import { HodMomoTab } from '../hod_momo/HodMomoTab';
-import { HodMomoSettings } from '../hod_momo/HodMomoSettings';
 import { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
 import { TabNav } from '../components/TabNav';
-import type { ActiveTab } from '../components/TabNav';
+import { TabModuleHost } from '../components/TabModuleHost';
 import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { SettingsPanel } from '../components/SettingsPanel';
-import { ScannerTabPanels } from '../components/ScannerTabPanels';
-import { DashboardTab } from './DashboardTab';
-import { TradingTab } from '../ibkr/TradingTab';
-import { WatchlistTab } from '../strategy/WatchlistTab';
 import { useWatchlist } from '../strategy/useWatchlist';
-import { ReportsTab } from '../reports/ReportsTab';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSettingsForm } from '../hooks/useSettingsForm';
 import { useExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { scanAgeForTab } from '../utils/scanAge';
-import { API_BASE_URL } from '../constants';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import {
+  DEFAULT_ACTIVE_TAB,
+  isTabModuleId,
+  type ActiveTab,
+} from '../workspace/registry';
+import { useModuleVisibility } from '../workspace/useModuleVisibility';
 
 export function DashboardPage() {
   const {
@@ -35,11 +33,14 @@ export function DashboardPage() {
     setDiscoveryProvider: setWorkspaceDiscovery,
     setAlpacaFeed: setWorkspaceAlpacaFeed,
   } = useWorkspace();
-  const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
   const [tabOverridden, setTabOverridden] = useState(false);
+  const tabOverriddenRef = useRef(false);
+  const [modulesMenuOpen, setModulesMenuOpen] = useState(false);
+  const [showHodSettings, setShowHodSettings] = useState(false);
+  const { visibility, setModuleVisible } = useModuleVisibility();
   const exchangeFilter = useExchangeFilter();
   const sidePanel = useSidePanelWidth();
-  const [showHodSettings, setShowHodSettings] = useState(false);
   const watchlist = useWatchlist(true);
   const hodMomoStream = useHodMomoStream();
   const hodMomoConfig = useHodMomoConfig();
@@ -57,7 +58,6 @@ export function DashboardPage() {
     settings.fetchConfig();
   }, [settings.fetchConfig]);
 
-  // Keep WorkspaceContext discovery/feed in sync with Settings (single source for SidePanel / Stock View).
   useEffect(() => {
     setWorkspaceDiscovery(settings.discoveryProvider);
   }, [settings.discoveryProvider, setWorkspaceDiscovery]);
@@ -65,19 +65,28 @@ export function DashboardPage() {
   useEffect(() => {
     setWorkspaceAlpacaFeed(settings.activeFeed);
   }, [settings.activeFeed, setWorkspaceAlpacaFeed]);
+
   useEffect(() => {
-    if (!tabOverridden) {
-      // Keep user on Dashboard; mode-based tab switching only after they navigate away
-      setActiveTab(prev => {
-        if (prev !== 'dashboard') {
-          if (scanner.mode === 'market') return 'movers';
-          if (scanner.mode === 'afterhours') return 'afterhours';
-          return 'gappers';
-        }
+    if (tabOverriddenRef.current) return;
+    setActiveTab(prev => {
+      if (prev === 'dashboard') return prev;
+      // Preserve Gainers vs Losers (same movers feed); do not clobber an open scanner tab
+      // when session mode flips (e.g. market → afterhours) until the user opts in.
+      if (prev === 'gainers' || prev === 'losers' || prev === 'gappers' || prev === 'afterhours') {
         return prev;
-      });
-    }
+      }
+      if (scanner.mode === 'market') return 'gainers';
+      if (scanner.mode === 'afterhours') return 'afterhours';
+      return 'gappers';
+    });
   }, [scanner.mode, tabOverridden]);
+
+  // If the active tab was hidden via Modules menu, fall back to Dashboard.
+  useEffect(() => {
+    if (visibility[activeTab] === false) {
+      setActiveTab(DEFAULT_ACTIVE_TAB);
+    }
+  }, [visibility, activeTab]);
 
   const lastScan = scanAgeForTab(activeTab, scanner.scanAges);
   const priceAgeTs = scanner.lastPriceTs > 0 ? scanner.lastPriceTs : lastScan;
@@ -94,17 +103,18 @@ export function DashboardPage() {
     }
   }
 
-  const scannerTab =
-    activeTab === 'gappers' ||
-    activeTab === 'movers' ||
-    activeTab === 'afterhours' ||
-    activeTab === 'catalysts';
-
-  // Exchange-filtered arrays — applied to scanner tabs and Dashboard
   const filteredGappers = exchangeFilter.filterRows(scanner.gappers);
   const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
-  const filteredLosers  = exchangeFilter.filterRows(scanner.losers);
+  const filteredLosers = exchangeFilter.filterRows(scanner.losers);
   const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
+
+  function handleTabClick(tab: ActiveTab) {
+    if (!isTabModuleId(tab)) return;
+    tabOverriddenRef.current = true;
+    setTabOverridden(true);
+    setActiveTab(tab);
+    setModulesMenuOpen(false);
+  }
 
   return (
     <div className="container">
@@ -152,24 +162,27 @@ export function DashboardPage() {
         <main className="panel">
           <TabNav
             activeTab={activeTab}
-            onTabClick={tab => {
-              setActiveTab(tab);
-              setTabOverridden(true);
-            }}
+            onTabClick={handleTabClick}
             counts={{
               gappers: filteredGappers.length,
-              movers: filteredGainers.length + filteredLosers.length,
+              gainers: filteredGainers.length,
+              losers: filteredLosers.length,
               afterhours: filteredAfterhours.length,
               catalysts: scanner.catalysts.length,
               hodMomo: hodMomoStream.totalToday || hodMomoStream.alerts.length,
               watchlist: watchlist.entries.length,
             }}
+            visibility={visibility}
+            onToggleModule={setModuleVisible}
+            modulesMenuOpen={modulesMenuOpen}
+            onModulesMenuOpenChange={setModulesMenuOpen}
           />
 
           {scanner.historyDate && (
             <div className="history-banner">
               <span>Viewing {fmtHistoryDate(scanner.historyDate)}</span>
               <button
+                type="button"
                 className="history-banner-btn"
                 onClick={() => {
                   scanner.setHistoryDate(null);
@@ -181,93 +194,32 @@ export function DashboardPage() {
             </div>
           )}
 
-          {activeTab === 'dashboard' && (
-            <DashboardTab
-              filter={exchangeFilter}
-              apiKey={settings.apiKey}
-              onApiKeyChange={settings.setApiKey}
-              apiSecret={settings.apiSecret}
-              onApiSecretChange={settings.setApiSecret}
-              baseUrl={settings.baseUrl}
-              onBaseUrlChange={settings.setBaseUrl}
-              dataFeed={settings.dataFeed}
-              onDataFeedChange={settings.setDataFeed}
-              dataFeedOptions={settings.dataFeedOptions}
-              discoveryProvider={settings.discoveryProvider}
-              onDiscoveryProviderChange={settings.setDiscoveryProvider}
-              discoveryProviderOptions={settings.discoveryProviderOptions}
-              onSubmit={settings.handleConfigUpdate}
-            />
-          )}
-
-          {scannerTab && (
-            <ScannerTabPanels
-              activeTab={activeTab}
-              mode={scanner.mode}
-              health={scanner.health}
-              discoveryProvider={settings.discoveryProvider}
-              gappers={filteredGappers}
-              gainers={filteredGainers}
-              losers={filteredLosers}
-              afterhours={filteredAfterhours}
-              catalysts={scanner.catalysts}
-              watchlistEntries={watchlist.entries}
-              selectedSymbol={selectedSymbol}
-              onSelect={setSelectedSymbol}
-              onOpenTrading={openStockView}
-              pricesStale={scanner.pricesStale}
-              flashSymbols={scanner.flashSymbols}
-            />
-          )}
-
-          {activeTab === 'hod_momo' && (
-            <>
-              {showHodSettings && (
-                <HodMomoSettings
-                  config={hodMomoConfig}
-                  onClose={() => setShowHodSettings(false)}
-                />
-              )}
-              <HodMomoTab
-                alerts={hodMomoStream.alerts}
-                totalToday={hodMomoStream.totalToday}
-                connected={hodMomoStream.connected}
-                config={hodMomoConfig}
-                selectedSymbol={selectedSymbol}
-                onSelectSymbol={setSelectedSymbol}
-                onOpenTrading={openStockView}
-                onOpenSettings={() => setShowHodSettings(s => !s)}
-                onClearAlerts={() => {
-                  if (!window.confirm(
-                    'Clear all of today\'s HOD Momo alerts?\n\n'
-                    + 'Past days in History are kept. New alerts will keep arriving.',
-                  )) {
-                    return;
-                  }
-                  fetch(`${API_BASE_URL}/api/hod-momo/alerts`, { method: 'DELETE' })
-                    .catch(() => {});
-                }}
-              />
-            </>
-          )}
-          {activeTab === 'trading' && (
-            <TradingTab
-              selectedSymbol={selectedSymbol}
-              onSelectSymbol={setSelectedSymbol}
-              onOpenTrading={openStockView}
-            />
-          )}
-          {activeTab === 'strategy' && (
-            <WatchlistTab
-              entries={watchlist.entries}
-              loading={watchlist.loading}
-              error={watchlist.error}
-              selectedSymbol={selectedSymbol}
-              onSelectSymbol={setSelectedSymbol}
-              onOpenTrading={openStockView}
-            />
-          )}
-          {activeTab === 'reports' && <ReportsTab />}
+          <TabModuleHost
+            activeTab={activeTab}
+            settings={settings}
+            filter={exchangeFilter}
+            mode={scanner.mode}
+            health={scanner.health}
+            discoveryProvider={settings.discoveryProvider}
+            gappers={filteredGappers}
+            gainers={filteredGainers}
+            losers={filteredLosers}
+            afterhours={filteredAfterhours}
+            catalysts={scanner.catalysts}
+            watchlistEntries={watchlist.entries}
+            watchlistLoading={watchlist.loading}
+            watchlistError={watchlist.error}
+            selectedSymbol={selectedSymbol}
+            onSelect={setSelectedSymbol}
+            onOpenTrading={openStockView}
+            pricesStale={scanner.pricesStale}
+            flashSymbols={scanner.flashSymbols}
+            hodMomoStream={hodMomoStream}
+            hodMomoConfig={hodMomoConfig}
+            showHodSettings={showHodSettings}
+            onToggleHodSettings={() => setShowHodSettings(s => !s)}
+            onCloseHodSettings={() => setShowHodSettings(false)}
+          />
         </main>
       </div>
       <PanelResizeHandle

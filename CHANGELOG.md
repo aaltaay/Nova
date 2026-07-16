@@ -48,6 +48,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Module registry + data-driven tabs (Phase 4)
+
+- **What:** Added `workspace/registry.ts` (`NovaModule` catalog), registry-driven `TabNav`, Gainers/Losers as separate top-level tabs, a Modules show/hide menu persisted in `localStorage`, and `TabModuleHost` for Dashboard tab bodies.
+- **Why:** Modular Panel Workspace Phase 4 — data-driven tabs before Phase 5 layout store / Phase 6 drag-drop.
+- **Files touched:** `frontend/src/workspace/registry.ts`, `moduleVisibility.ts`, `useModuleVisibility.tsx`, `components/TabNav.tsx`, `ModulesMenu.tsx`, `TabModuleHost.tsx`, `ScannerTabPanels.tsx`, `pages/DashboardPage.tsx`, `modules/DepthTapePanel.tsx`, `ChartsModule.tsx`, Vitest + e2e `module-registry.spec.ts`, `CHANGELOG.md`.
+- **How it works now:** TabNav maps `listTabModules()` filtered by visibility. Dashboard renders via `getModule` + `TabModuleHost` (no hardcoded movers sub-tabs). Panel modules (level2/tape/news/quote/charts) honor the same visibility map in quote composition. Storage key: `nova_module_visibility_v1`.
+- **Verified by:** `npx vitest run` (122), `npx playwright test` (10), `npm run build`.
+- **Follow-ups:** Phase 5 — `layoutStore.ts` (slot → module id list, sizes, versioned schema, reset-to-default).
+- **Related:** Phase 3 `a045207`; plan `modular_panel_workspace_phases_53ac9db5`.
+
 ## 2026-07-15 — Decompose TickerDetailContent into quote panels (Phase 3)
 
 - **What:** Split `TickerDetailContent` into mountable panels: `QuoteHeaderPanel`, `NewsPanel`, `FundamentalsPanel`, `DataSourcesPanel`, `WatchlistStripPanel`, plus `DepthTapePanel` (wraps Phase-1 L2/T&S). Composition root stays API-compatible for SidePanel + Stock View.

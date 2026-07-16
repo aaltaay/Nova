@@ -7,6 +7,8 @@ describe('scanAgeForTab', () => {
   it('uses the active scanner tab timestamp', () => {
     expect(scanAgeForTab('gappers', ages)).toBe(100);
     expect(scanAgeForTab('movers', ages)).toBe(200);
+    expect(scanAgeForTab('gainers', ages)).toBe(200);
+    expect(scanAgeForTab('losers', ages)).toBe(200);
     expect(scanAgeForTab('afterhours', ages)).toBe(10);
   });
 

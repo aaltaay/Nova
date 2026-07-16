@@ -216,6 +216,9 @@ export const SCANNER_EXCHANGE_DEFAULTS: string[] = ['NASDAQ'];
 /** localStorage key used by useExchangeFilter. */
 export const SCANNER_EXCHANGE_STORAGE_KEY = 'nova_exchange_filter_v1';
 
+/** localStorage key: module id → visible (Phase 4 Modules menu). */
+export const MODULE_VISIBILITY_STORAGE_KEY = 'nova_module_visibility_v1';
+
 /** Scanner / HOD table text size — user preference (localStorage). */
 export const SCANNER_TABLE_DENSITY_STORAGE_KEY = 'nova_scanner_table_density_v2';
 export type ScannerTableDensity = 'compact' | 'medium' | 'large' | 'xlarge';

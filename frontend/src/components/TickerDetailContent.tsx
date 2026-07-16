@@ -11,6 +11,7 @@ import type { WatchlistEntry } from '../strategy/types';
 import type { TickerDetail } from '../types/ticker';
 import { fmtTimestamp } from '../utils/quoteFormat';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useModuleVisibility } from '../workspace/useModuleVisibility';
 
 interface Props {
   detail: TickerDetail;
@@ -38,21 +39,26 @@ export function TickerDetailContent({
   watchlistEntry = null,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
+  const { isVisible } = useModuleVisibility();
   const depthSymbol = (selectedSymbol ?? detail.symbol).toUpperCase();
   const trade = detail.snapshot?.latest_trade;
   const { lastUpdated } = computeQuoteMetrics(detail, discoveryProvider);
+  const showQuote = isVisible('quote');
+  const showNews = isVisible('news');
+  const showCharts = isVisible('charts');
 
-  const chartEl = showChart ? (
-    <TickerChart
-      symbol={detail.symbol}
-      variant="panel"
-      lastTrade={
-        trade?.price != null
-          ? { price: trade.price, timestamp: trade.timestamp ?? null }
-          : undefined
-      }
-    />
-  ) : null;
+  const chartEl =
+    showChart && showCharts ? (
+      <TickerChart
+        symbol={detail.symbol}
+        variant="panel"
+        lastTrade={
+          trade?.price != null
+            ? { price: trade.price, timestamp: trade.timestamp ?? null }
+            : undefined
+        }
+      />
+    ) : null;
 
   const bottomStamp = lastUpdated ? (
     <div className="cq-timestamp cq-timestamp-bottom">
@@ -61,16 +67,15 @@ export function TickerDetailContent({
   ) : null;
 
   if (layout === 'columns') {
-    // Stacked sidebar: chart → watchlist + L2/T&S → news → quote | fundamentals.
     return (
       <div className="cq-root cq-root--stacked">
         <div className="cq-col cq-col--chart">{chartEl}</div>
         <WatchlistStripPanel entry={watchlistEntry} />
         <DepthTapePanel selectedSymbol={depthSymbol} detailSymbol={detail.symbol} />
-        <NewsPanel detail={detail} wrapped />
+        {showNews && <NewsPanel detail={detail} wrapped />}
         <div className="cq-info-row cq-info-row--two">
           <div className="cq-col cq-col--quote">
-            <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />
+            {showQuote && <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />}
             <FundamentalsPanel detail={detail} variant="key" />
           </div>
           <div className="cq-col cq-col--fund">
@@ -85,10 +90,10 @@ export function TickerDetailContent({
 
   return (
     <div className="cq-root">
-      <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />
+      {showQuote && <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />}
       <DepthTapePanel selectedSymbol={depthSymbol} detailSymbol={detail.symbol} />
       {chartEl}
-      <NewsPanel detail={detail} />
+      {showNews && <NewsPanel detail={detail} />}
       <FundamentalsPanel detail={detail} variant="full" />
       <DataSourcesPanel />
       {bottomStamp}

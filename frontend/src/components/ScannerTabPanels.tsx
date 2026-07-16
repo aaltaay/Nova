@@ -1,6 +1,6 @@
 /**
- * Gappers / Movers / After Hours / Catalysts tab bodies.
- * Extracted from App.tsx — keeps DashboardPage under the component size limit.
+ * Gappers / Gainers / Losers / After Hours / Catalysts tab bodies.
+ * Gainers and Losers are separate registry modules sharing ScannerTable (Phase 4).
  */
 import { useMemo, useState } from 'react';
 import { CatalystsTable } from './CatalystsTable';
@@ -16,7 +16,7 @@ import { useWatchlistOverlay } from '../strategy/useWatchlistOverlay';
 import type { WatchlistEntry } from '../strategy/types';
 
 interface Props {
-  activeTab: 'gappers' | 'movers' | 'afterhours' | 'catalysts';
+  activeTab: 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'catalysts';
   mode: MarketMode;
   health: HealthStatus;
   discoveryProvider: string;
@@ -51,9 +51,9 @@ export function ScannerTabPanels({
   flashSymbols,
 }: Props) {
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
-  const [moverSubTab, setMoverSubTab] = useState<'gainers' | 'losers'>('gainers');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
-  const [moverSort, setMoverSort] = useState<SortConfig>({ key: '', dir: null });
+  const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
+  const [loserSort, setLoserSort] = useState<SortConfig>({ key: '', dir: null });
   const [afterhoursSort, setAfterhoursSort] = useState<SortConfig>({ key: '', dir: null });
   const [catalystSort, setCatalystSort] = useState<SortConfig>({ key: '', dir: null });
 
@@ -82,12 +82,12 @@ export function ScannerTabPanels({
     [smallCapGappers, gapperSort],
   );
   const sortedGainers = useMemo(
-    () => sortedArray(gainersWithWatchlist, moverSort),
-    [gainersWithWatchlist, moverSort],
+    () => sortedArray(gainersWithWatchlist, gainerSort),
+    [gainersWithWatchlist, gainerSort],
   );
   const sortedLosers = useMemo(
-    () => sortedArray(losersWithWatchlist, moverSort),
-    [losersWithWatchlist, moverSort],
+    () => sortedArray(losersWithWatchlist, loserSort),
+    [losersWithWatchlist, loserSort],
   );
   const sortedAfterhours = useMemo(
     () => sortedArray(afterhoursWithWatchlist, afterhoursSort),
@@ -103,6 +103,7 @@ export function ScannerTabPanels({
       <>
         <div className="sub-tab-bar">
           <button
+            type="button"
             className={`sub-tab ${gapperSubTab === 'all' ? 'active' : ''}`}
             onClick={() => setGapperSubTab('all')}
           >
@@ -110,6 +111,7 @@ export function ScannerTabPanels({
             {gappers.length > 0 && <span className="tab-count">{gappers.length}</span>}
           </button>
           <button
+            type="button"
             className={`sub-tab ${gapperSubTab === 'small_cap' ? 'active' : ''}`}
             onClick={() => setGapperSubTab('small_cap')}
           >
@@ -156,46 +158,49 @@ export function ScannerTabPanels({
     );
   }
 
-  if (activeTab === 'movers') {
-    return (
-      <>
-        <div className="sub-tab-bar">
-          <button
-            className={`sub-tab ${moverSubTab === 'gainers' ? 'active' : ''}`}
-            onClick={() => setMoverSubTab('gainers')}
-          >
-            Gainers
-            {gainers.length > 0 && <span className="tab-count">{gainers.length}</span>}
-          </button>
-          <button
-            className={`sub-tab ${moverSubTab === 'losers' ? 'active' : ''}`}
-            onClick={() => setMoverSubTab('losers')}
-          >
-            Losers
-            {losers.length > 0 && <span className="tab-count">{losers.length}</span>}
-          </button>
-        </div>
-        {(moverSubTab === 'gainers' ? gainers : losers).length > 0 ? (
-          <ScannerTable
-            columns={SCANNER_COLUMNS}
-            data={moverSubTab === 'gainers' ? sortedGainers : sortedLosers}
-            sortState={moverSort}
-            onSort={key => toggleSort(moverSort, setMoverSort, key)}
-            selectedSymbol={selectedSymbol}
-            onSelect={onSelect}
-            onOpenTrading={onOpenTrading}
-            pricesStale={pricesStale}
-            flashSymbols={flashSymbols}
-          />
-        ) : (
-          <EmptyState
-            health={health}
-            context={mode === 'premarket' ? 'market' : mode}
-            discoveryProvider={discoveryProvider}
-            emptyLabel={moverSubTab}
-          />
-        )}
-      </>
+  if (activeTab === 'gainers') {
+    return gainers.length > 0 ? (
+      <ScannerTable
+        columns={SCANNER_COLUMNS}
+        data={sortedGainers}
+        sortState={gainerSort}
+        onSort={key => toggleSort(gainerSort, setGainerSort, key)}
+        selectedSymbol={selectedSymbol}
+        onSelect={onSelect}
+        onOpenTrading={onOpenTrading}
+        pricesStale={pricesStale}
+        flashSymbols={flashSymbols}
+      />
+    ) : (
+      <EmptyState
+        health={health}
+        context={mode === 'premarket' ? 'market' : mode}
+        discoveryProvider={discoveryProvider}
+        emptyLabel="gainers"
+      />
+    );
+  }
+
+  if (activeTab === 'losers') {
+    return losers.length > 0 ? (
+      <ScannerTable
+        columns={SCANNER_COLUMNS}
+        data={sortedLosers}
+        sortState={loserSort}
+        onSort={key => toggleSort(loserSort, setLoserSort, key)}
+        selectedSymbol={selectedSymbol}
+        onSelect={onSelect}
+        onOpenTrading={onOpenTrading}
+        pricesStale={pricesStale}
+        flashSymbols={flashSymbols}
+      />
+    ) : (
+      <EmptyState
+        health={health}
+        context={mode === 'premarket' ? 'market' : mode}
+        discoveryProvider={discoveryProvider}
+        emptyLabel="losers"
+      />
     );
   }
 

@@ -13,6 +13,7 @@ import {
   replaceStockViewUrl,
 } from './utils/stockViewNav';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
+import { ModuleVisibilityProvider } from './workspace/useModuleVisibility';
 
 function AppShell() {
   const {
@@ -69,7 +70,9 @@ function AppShell() {
 function App() {
   return (
     <WorkspaceProvider>
-      <AppShell />
+      <ModuleVisibilityProvider>
+        <AppShell />
+      </ModuleVisibilityProvider>
     </WorkspaceProvider>
   );
 }

@@ -13,7 +13,8 @@ export type ScannerScanAges = {
  */
 export function scanAgeForTab(tab: string, ages: ScannerScanAges): number {
   if (tab === 'gappers') return ages.gappers;
-  if (tab === 'movers') return ages.movers;
+  // Gainers/Losers share the movers feed timestamp (same /api/movers poll).
+  if (tab === 'movers' || tab === 'gainers' || tab === 'losers') return ages.movers;
   if (tab === 'afterhours') return ages.afterhours;
   return Math.max(ages.gappers, ages.movers, ages.afterhours);
 }

@@ -9,6 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TickerDetailContent } from '../components/TickerDetailContent';
 import { WorkspaceProvider } from '../workspace/WorkspaceContext';
+import { ModuleVisibilityProvider } from '../workspace/useModuleVisibility';
 import { makeDetail } from './quoteFixtures';
 
 vi.mock('../ibkr/useIbkrStatus', () => ({
@@ -78,12 +79,14 @@ describe('TickerDetailContent composition (Phase 3)', () => {
     await act(async () => {
       root.render(
         <WorkspaceProvider>
-          <TickerDetailContent
-            detail={makeDetail()}
-            selectedSymbol="AAPL"
-            layout="columns"
-            showChart
-          />
+          <ModuleVisibilityProvider>
+            <TickerDetailContent
+              detail={makeDetail()}
+              selectedSymbol="AAPL"
+              layout="columns"
+              showChart
+            />
+          </ModuleVisibilityProvider>
         </WorkspaceProvider>,
       );
     });
