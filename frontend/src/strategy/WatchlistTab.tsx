@@ -183,12 +183,27 @@ export function WatchlistTab({
           active={subTab === 'decision'}
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelectSymbol}
+          onOpenTrading={onOpenTrading}
         />
       )}
 
-      {subTab === 'journal' && <JournalPanel active={subTab === 'journal'} />}
+      {subTab === 'journal' && (
+        <JournalPanel
+          active={subTab === 'journal'}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelectSymbol}
+          onOpenTrading={onOpenTrading}
+        />
+      )}
 
-      {subTab === 'automation' && <ExecutorPanel active={subTab === 'automation'} />}
+      {subTab === 'automation' && (
+        <ExecutorPanel
+          active={subTab === 'automation'}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelectSymbol}
+          onOpenTrading={onOpenTrading}
+        />
+      )}
 
       {subTab === 'archive' && <ArchiveRewind active={subTab === 'archive'} />}
     </div>

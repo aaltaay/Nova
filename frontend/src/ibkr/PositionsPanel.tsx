@@ -1,9 +1,13 @@
+import { SelectableTableRow } from '../components/SelectableTableRow';
 import type { IbkrPosition, IbkrOrder, IbkrAccountSummary } from './types';
 
 interface Props {
   summary: IbkrAccountSummary | null;
   positions: IbkrPosition[];
   orders: IbkrOrder[];
+  selectedSymbol: string | null;
+  onSelectSymbol: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
   onCancelOrder?: (id: number) => void;
 }
 
@@ -22,10 +26,17 @@ function PnlCell({ value }: { value: number | null | undefined }) {
   return <td style={{ color }}>{fmtDollar(value)}</td>;
 }
 
-export function PositionsPanel({ summary, positions, orders, onCancelOrder }: Props) {
+export function PositionsPanel({
+  summary,
+  positions,
+  orders,
+  selectedSymbol,
+  onSelectSymbol,
+  onOpenTrading,
+  onCancelOrder,
+}: Props) {
   return (
     <div className="ibkr-positions-panel">
-      {/* Account summary strip */}
       {summary && summary.connected && (
         <div className="ibkr-account-strip">
           <span><label>Net Liq</label>{fmtDollar(summary.NetLiquidation)}</span>
@@ -36,7 +47,6 @@ export function PositionsPanel({ summary, positions, orders, onCancelOrder }: Pr
         </div>
       )}
 
-      {/* Positions table */}
       <h4 className="ibkr-section-title">Positions</h4>
       {positions.length === 0 ? (
         <div className="ibkr-empty">No open positions.</div>
@@ -44,7 +54,7 @@ export function PositionsPanel({ summary, positions, orders, onCancelOrder }: Pr
         <table className="ibkr-table">
           <thead>
             <tr>
-              <th>Symbol</th>
+              <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
               <th>Qty</th>
               <th>Avg Cost</th>
               <th>Mkt Price</th>
@@ -54,20 +64,25 @@ export function PositionsPanel({ summary, positions, orders, onCancelOrder }: Pr
           </thead>
           <tbody>
             {positions.map(p => (
-              <tr key={p.symbol}>
+              <SelectableTableRow
+                key={p.symbol}
+                symbol={p.symbol}
+                selected={selectedSymbol === p.symbol}
+                onSelect={onSelectSymbol}
+                onOpenTrading={onOpenTrading}
+              >
                 <td className="ibkr-symbol">{p.symbol}</td>
                 <td>{fmt(p.qty, 0)}</td>
                 <td>{fmtDollar(p.avg_cost)}</td>
                 <td>{fmtDollar(p.market_price)}</td>
                 <td>{fmtDollar(p.market_value)}</td>
                 <PnlCell value={p.unrealized_pnl} />
-              </tr>
+              </SelectableTableRow>
             ))}
           </tbody>
         </table>
       )}
 
-      {/* Open orders table */}
       <h4 className="ibkr-section-title">Open Orders</h4>
       {orders.length === 0 ? (
         <div className="ibkr-empty">No open orders.</div>
@@ -76,7 +91,7 @@ export function PositionsPanel({ summary, positions, orders, onCancelOrder }: Pr
           <thead>
             <tr>
               <th>ID</th>
-              <th>Symbol</th>
+              <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
               <th>Side</th>
               <th>Qty</th>
               <th>Type</th>
@@ -87,7 +102,13 @@ export function PositionsPanel({ summary, positions, orders, onCancelOrder }: Pr
           </thead>
           <tbody>
             {orders.map(o => (
-              <tr key={o.order_id}>
+              <SelectableTableRow
+                key={o.order_id}
+                symbol={o.symbol}
+                selected={selectedSymbol === o.symbol}
+                onSelect={onSelectSymbol}
+                onOpenTrading={onOpenTrading}
+              >
                 <td>{o.order_id}</td>
                 <td className="ibkr-symbol">{o.symbol}</td>
                 <td style={{ color: o.side === 'BUY' ? 'var(--green)' : 'var(--red)' }}>{o.side}</td>
@@ -98,13 +119,13 @@ export function PositionsPanel({ summary, positions, orders, onCancelOrder }: Pr
                 <td>
                   <button
                     className="ibkr-cancel-btn"
-                    onClick={() => onCancelOrder?.(o.order_id)}
+                    onClick={(e) => { e.stopPropagation(); onCancelOrder?.(o.order_id); }}
                     title="Cancel order"
                   >
                     ✕
                   </button>
                 </td>
-              </tr>
+              </SelectableTableRow>
             ))}
           </tbody>
         </table>

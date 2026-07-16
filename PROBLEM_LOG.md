@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Double-click Stock View only worked on scanners / HOD, not Journal / Trading / Debug
+
+- **Symptom:** Double-clicking a HOD (or scanner) row opened Stock View, but Journal trades, Automation staged/open, Trading positions/orders, Decision cards, and HOD debug tables ignored the second click.
+- **Cause:** Those surfaces still rendered plain `<tr>` / plain buttons and never received `onOpenTrading` / `selectedSymbol` props from their parents.
+- **Fix:** Wrapped symbol rows in `SelectableTableRow` (Decision cards use the same click-vs-double helper), threaded select/open props from `DashboardPage` → Trading / Watchlist / HOD debug, and extracted `ExecutorTables` + `HodMomoDebugTables` so parents stay under file-size limits. Action cells `stopPropagation`.
+- **Keywords:** double-click, Stock View, SelectableTableRow, JournalPanel, ExecutorTables, PositionsPanel, DecisionPanel, HodMomoDebugTables, onOpenTrading
+
 ## 2026-07-15 — HOD Momo “virtualized” table mounted all 6,603 rows in the populated browser
 
 - **Symptom:** With the user's live HOD Momo dataset at 6,630 alerts, opening the tab remained crash-level slow and produced an effectively endless document. Browser measurement showed 6,603 mounted alert `<tr>` nodes, 137,325 total DOM nodes, a 212,564px-tall `.hod-table-wrapper`, and a 212,971px document.

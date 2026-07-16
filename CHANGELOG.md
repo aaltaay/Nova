@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Double-click → Stock View on all symbol tables
+
+- **What:** Row double-click (click-vs-double via `SelectableTableRow` / Decision cards) opens Stock View on every multi-symbol table: scanners, catalysts, HOD feed + debug, watchlist, journal, automation staged/open, trading positions/orders, and Nova OS decision cards.
+- **Why:** User asked for the same double-click Stock View behavior everywhere — not only HOD / scanners.
+- **Files touched:** `JournalPanel.tsx`, `ExecutorPanel.tsx`, `ExecutorTables.tsx`, `PositionsPanel.tsx`, `TradingTab.tsx`, `DecisionPanel.tsx`, `WatchlistTab.tsx`, `DashboardPage.tsx`, `HodMomoDebugPanel.tsx`, `HodMomoDebugTables.tsx`, `HodMomoTab.tsx`.
+- **How it works now:** Any symbol row uses `createClickVsDoubleClick` — single click selects Quote Panel; second click within `SYMBOL_DOUBLE_CLICK_MS` calls `onOpenTrading` → `openStockViewWindow`. Action buttons (`Approve`/`Reject`/`Cancel`) call `stopPropagation` so they do not open Stock View.
+- **Verified by:** `npm run build`; live browser double-click opened `?view=stock&symbol=…` for Gappers, Gainers, After Hours, Catalysts, HOD feed, HOD debug Decisions/Snaps, Watchlist, Journal (demo), Trading positions, and Decision cards. Executor had no staged rows at verify time (wiring present).
+- **Follow-ups:** None for this request.
+
 ## 2026-07-15 — HOD Momo feed: one row per symbol with multiple strategy tags
 
 - **What:** The HOD Momo table now collapses to one row per ticker. Distinct strategies that fired for that symbol render as multiple strategy pills on the same row.

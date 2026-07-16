@@ -1,6 +1,7 @@
 /** DecisionPanel — gate-by-gate Nova OS audit (signal only; never places orders). */
 import { useEffect, useRef } from 'react';
-import { NOVA_OS_DECISION_LABELS, SETUP_LABELS } from '../constants';
+import { NOVA_OS_DECISION_LABELS, SETUP_LABELS, SYMBOL_DOUBLE_CLICK_MS } from '../constants';
+import { createClickVsDoubleClick } from '../utils/clickVsDoubleClick';
 import {
   attentionKindForDecision,
   pushNovaOsAttention,
@@ -40,17 +41,37 @@ function DecisionCard({
   decision,
   selected,
   onSelect,
+  onOpenTrading,
 }: {
   decision: NovaOsDecision;
   selected: boolean;
   onSelect: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }) {
   const failed = firstFailedGate(decision.gates);
+  const symbolRef = useRef(decision.symbol);
+  const onSelectRef = useRef(onSelect);
+  const onOpenRef = useRef(onOpenTrading);
+  symbolRef.current = decision.symbol;
+  onSelectRef.current = onSelect;
+  onOpenRef.current = onOpenTrading;
+
+  const handlersRef = useRef(
+    createClickVsDoubleClick(
+      () => onSelectRef.current(symbolRef.current),
+      () => onOpenRef.current(symbolRef.current),
+      SYMBOL_DOUBLE_CLICK_MS,
+    ),
+  );
+
+  useEffect(() => () => handlersRef.current.cancel(), []);
+
   return (
     <button
       type="button"
       className={`nova-os-decision-card ${selected ? 'selected' : ''} ${decisionClass(decision.decision)}`}
-      onClick={() => onSelect(decision.symbol)}
+      onClick={() => handlersRef.current.handleClick()}
+      title="Click: Quote Panel · Double-click: Stock View (new window)"
     >
       <div className="nova-os-decision-card-head">
         <strong>{decision.symbol}</strong>
@@ -143,9 +164,15 @@ interface DecisionPanelProps {
   active: boolean;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }
 
-export function DecisionPanel({ active, selectedSymbol, onSelectSymbol }: DecisionPanelProps) {
+export function DecisionPanel({
+  active,
+  selectedSymbol,
+  onSelectSymbol,
+  onOpenTrading,
+}: DecisionPanelProps) {
   const { decisions, selected, loading, error, dataErrors, refresh } = useNovaOsDecide(
     active,
     selectedSymbol,
@@ -199,6 +226,7 @@ export function DecisionPanel({ active, selectedSymbol, onSelectSymbol }: Decisi
                 decision={d}
                 selected={focus?.symbol === d.symbol}
                 onSelect={onSelectSymbol}
+                onOpenTrading={onOpenTrading}
               />
             ))}
             {selected && !decisions.some((d) => d.symbol === selected.symbol) && (
@@ -206,6 +234,7 @@ export function DecisionPanel({ active, selectedSymbol, onSelectSymbol }: Decisi
                 decision={selected}
                 selected
                 onSelect={onSelectSymbol}
+                onOpenTrading={onOpenTrading}
               />
             )}
           </div>

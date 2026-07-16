@@ -3,142 +3,23 @@
  * auto_live stays blocked. Restart always returns to signal.
  * Kill does not remove protective stops on filled positions.
  */
-import { useEffect, useState } from 'react';
-import { NOVA_OS_CONFIRM_TIMEOUT_SEC, NOVA_OS_FLATTEN_CONFIRM_TOKEN, SETUP_LABELS } from '../constants';
+import { NOVA_OS_CONFIRM_TIMEOUT_SEC, NOVA_OS_FLATTEN_CONFIRM_TOKEN } from '../constants';
+import { OpenPositionsTable, StagedTable, fmtPrice } from './ExecutorTables';
 import { useExecutor } from './useExecutor';
-import type { ExecutorOpenPosition, ExecutorStagedTicket } from './types';
-
-function fmtPrice(v: number): string {
-  return `$${v.toFixed(2)}`;
-}
-
-function fmtTime(unixSeconds: number): string {
-  return new Date(unixSeconds * 1000).toLocaleTimeString('en-US', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
-  });
-}
-
-function Countdown({ expiresAt }: { expiresAt: number }) {
-  const [now, setNow] = useState(() => Date.now() / 1000);
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now() / 1000), 500);
-    return () => clearInterval(id);
-  }, []);
-  const left = Math.max(0, Math.ceil(expiresAt - now));
-  return <span className={left <= 10 ? 'nova-os-decision-nobuy' : ''}>{left}s</span>;
-}
-
-function StagedTable({
-  tickets,
-  onApprove,
-  onReject,
-}: {
-  tickets: ExecutorStagedTicket[];
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-}) {
-  if (tickets.length === 0) {
-    return <div className="empty-state">No staged tickets. Raise mode to Confirm to stage BUY decisions.</div>;
-  }
-  return (
-    <div className="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Symbol</th>
-            <th>Setup</th>
-            <th>Entry</th>
-            <th>Stop</th>
-            <th>Target</th>
-            <th>Shares</th>
-            <th title={`Expires after ${NOVA_OS_CONFIRM_TIMEOUT_SEC}s`}>TTL</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tickets.map((t) => (
-            <tr key={t.id}>
-              <td>{t.symbol}</td>
-              <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[t.setup] ?? t.setup}</span></td>
-              <td>{fmtPrice(t.entry)}</td>
-              <td>{fmtPrice(t.stop)}</td>
-              <td>{fmtPrice(t.target)}</td>
-              <td>{t.shares}</td>
-              <td><Countdown expiresAt={t.expires_at} /></td>
-              <td className="nova-os-staged-actions">
-                <button type="button" className="executor-arm-btn" onClick={() => onApprove(t.id)}>
-                  Approve
-                </button>
-                <button type="button" className="executor-disarm-btn" onClick={() => onReject(t.id)}>
-                  Reject
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function OpenPositionsTable({
-  positions,
-  onCancel,
-}: {
-  positions: ExecutorOpenPosition[];
-  onCancel: (symbol: string) => void;
-}) {
-  if (positions.length === 0) {
-    return <div className="empty-state">No open automated positions right now.</div>;
-  }
-  return (
-    <div className="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Opened</th>
-            <th>Symbol</th>
-            <th>Setup</th>
-            <th>Qty</th>
-            <th>Entry</th>
-            <th>Stop</th>
-            <th>Target</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {positions.map((p) => (
-            <tr key={p.symbol}>
-              <td className="hod-time-cell">{fmtTime(p.opened_ts)}</td>
-              <td>{p.symbol}</td>
-              <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[p.setup] ?? p.setup}</span></td>
-              <td>{p.qty}</td>
-              <td>{fmtPrice(p.entry_price)}</td>
-              <td>{fmtPrice(p.stop_price)}</td>
-              <td>{fmtPrice(p.target_price)}</td>
-              <td>
-                <button
-                  type="button"
-                  className="executor-disarm-btn"
-                  title="Cancel only if the entry parent is still unfilled. Does not remove a protective stop on a filled position."
-                  onClick={() => onCancel(p.symbol)}
-                >
-                  Cancel entry
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
 
 interface ExecutorPanelProps {
   active: boolean;
+  selectedSymbol: string | null;
+  onSelectSymbol: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }
 
-export function ExecutorPanel({ active }: ExecutorPanelProps) {
+export function ExecutorPanel({
+  active,
+  selectedSymbol,
+  onSelectSymbol,
+  onOpenTrading,
+}: ExecutorPanelProps) {
   const {
     status, loading, error, actionError,
     arm, disarm, setMode, killSwitch, resetKillSwitch,
@@ -270,6 +151,9 @@ export function ExecutorPanel({ active }: ExecutorPanelProps) {
           <h4 className="nova-os-section-title">Staged queue</h4>
           <StagedTable
             tickets={status.staged ?? []}
+            selectedSymbol={selectedSymbol}
+            onSelectSymbol={onSelectSymbol}
+            onOpenTrading={onOpenTrading}
             onApprove={handleApprove}
             onReject={(id) => rejectStaged(id)}
           />
@@ -277,6 +161,9 @@ export function ExecutorPanel({ active }: ExecutorPanelProps) {
           <h4 className="nova-os-section-title">Open positions</h4>
           <OpenPositionsTable
             positions={status.open_positions}
+            selectedSymbol={selectedSymbol}
+            onSelectSymbol={onSelectSymbol}
+            onOpenTrading={onOpenTrading}
             onCancel={(symbol) => cancelWorkingEntry(symbol)}
           />
         </>

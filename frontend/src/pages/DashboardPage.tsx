@@ -240,7 +240,13 @@ export function DashboardPage({ selectedSymbol, setSelectedSymbol, onOpenTrading
               />
             </>
           )}
-          {activeTab === 'trading' && <TradingTab />}
+          {activeTab === 'trading' && (
+            <TradingTab
+              selectedSymbol={selectedSymbol}
+              onSelectSymbol={setSelectedSymbol}
+              onOpenTrading={onOpenTrading}
+            />
+          )}
           {activeTab === 'strategy' && (
             <WatchlistTab
               entries={watchlist.entries}

@@ -190,7 +190,11 @@ export function HodMomoTab({
       />
 
       {activeSubPanel === 'debug' ? (
-        <HodMomoDebugPanel />
+        <HodMomoDebugPanel
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelectSymbol}
+          onOpenTrading={onOpenTrading}
+        />
       ) : (
         <HodMomoAlertTable
           alerts={visibleAlerts}

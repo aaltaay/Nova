@@ -18,7 +18,17 @@ import { PositionsPanel } from './PositionsPanel';
 import { IBKR_PAPER_PORT, IBKR_LIVE_PORT, IBKR_MAX_DEPTH_SYMBOLS } from '../constants';
 import { API_BASE_URL } from '../constants';
 
-export function TradingTab() {
+interface TradingTabProps {
+  selectedSymbol: string | null;
+  onSelectSymbol: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
+}
+
+export function TradingTab({
+  selectedSymbol,
+  onSelectSymbol,
+  onOpenTrading,
+}: TradingTabProps) {
   const status = useIbkrStatus();
   const { summary, positions, orders } = useIbkrAccount(status.connected);
   const [depthSymbol, setDepthSymbol] = useState<string | null>(null);
@@ -158,6 +168,9 @@ export function TradingTab() {
               summary={summary}
               positions={positions}
               orders={orders}
+              selectedSymbol={selectedSymbol}
+              onSelectSymbol={onSelectSymbol}
+              onOpenTrading={onOpenTrading}
               onCancelOrder={handleCancelOrder}
             />
           </div>

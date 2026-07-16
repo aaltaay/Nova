@@ -4,6 +4,7 @@
  * changes what data is displayed, and it is off by default and clearly banner'd
  * when on — nothing here silently substitutes fake data for real. */
 import { useState } from 'react';
+import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SETUP_LABELS } from '../constants';
 import { useJournal } from './useJournal';
 import type { GoNoGoCriterion, JournalMetrics, JournalTradeRow, RiskStatus } from './types';
@@ -126,7 +127,17 @@ function RiskCard({ risk }: { risk: RiskStatus }) {
   );
 }
 
-function TradesTable({ trades }: { trades: JournalTradeRow[] }) {
+function TradesTable({
+  trades,
+  selectedSymbol,
+  onSelectSymbol,
+  onOpenTrading,
+}: {
+  trades: JournalTradeRow[];
+  selectedSymbol: string | null;
+  onSelectSymbol: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
+}) {
   if (trades.length === 0) {
     return <div className="empty-state">No closed trades yet — this table populates when the executor closes paper bracket fills and journals them.</div>;
   }
@@ -136,7 +147,7 @@ function TradesTable({ trades }: { trades: JournalTradeRow[] }) {
         <thead>
           <tr>
             <th title="When the trade closed.">Closed</th>
-            <th title="Ticker symbol.">Symbol</th>
+            <th title="Ticker symbol. Click: Quote Panel · Double-click: Stock View.">Symbol</th>
             <th title="Which setup pattern triggered the entry.">Setup</th>
             <th title="Long (bought first) or short (sold first).">Side</th>
             <th title="Share quantity.">Qty</th>
@@ -148,7 +159,14 @@ function TradesTable({ trades }: { trades: JournalTradeRow[] }) {
         </thead>
         <tbody>
           {trades.map(t => (
-            <tr key={t.id} className={t.is_mock ? 'row-mock' : ''}>
+            <SelectableTableRow
+              key={t.id}
+              symbol={t.symbol}
+              selected={selectedSymbol === t.symbol}
+              onSelect={onSelectSymbol}
+              onOpenTrading={onOpenTrading}
+              className={t.is_mock ? 'row-mock' : ''}
+            >
               <td className="hod-time-cell">{t.closed_ts ? fmtTime(t.closed_ts) : '\u2014'}</td>
               <td>{t.symbol}{t.is_mock ? <span className="mock-tag" title="Synthetic demo row — not a real trade.">DEMO</span> : null}</td>
               <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[t.setup ?? ''] ?? t.setup ?? '\u2014'}</span></td>
@@ -158,7 +176,7 @@ function TradesTable({ trades }: { trades: JournalTradeRow[] }) {
               <td>{fmtPrice(t.exit_price)}</td>
               <td className={t.pnl != null && t.pnl >= 0 ? 'positive' : 'negative'}>{fmtPrice(t.pnl)}</td>
               <td>{t.adherent == null ? '\u2014' : t.adherent ? '\u2713' : '\u2717'}</td>
-            </tr>
+            </SelectableTableRow>
           ))}
         </tbody>
       </table>
@@ -168,9 +186,17 @@ function TradesTable({ trades }: { trades: JournalTradeRow[] }) {
 
 interface JournalPanelProps {
   active: boolean;
+  selectedSymbol: string | null;
+  onSelectSymbol: (symbol: string) => void;
+  onOpenTrading: (symbol: string) => void;
 }
 
-export function JournalPanel({ active }: JournalPanelProps) {
+export function JournalPanel({
+  active,
+  selectedSymbol,
+  onSelectSymbol,
+  onOpenTrading,
+}: JournalPanelProps) {
   const [includeMock, setIncludeMock] = useState(false);
   const { metrics, signals, trades, risk, loading, error } = useJournal(active, includeMock);
 
@@ -211,7 +237,12 @@ export function JournalPanel({ active }: JournalPanelProps) {
       <h3 className="journal-section-heading" title="Closed trades from executor paper fills, plus demo rows only when the toggle above is checked.">
         Trades
       </h3>
-      <TradesTable trades={trades} />
+      <TradesTable
+        trades={trades}
+        selectedSymbol={selectedSymbol}
+        onSelectSymbol={onSelectSymbol}
+        onOpenTrading={onOpenTrading}
+      />
 
       <h3 className="journal-section-heading" title="Every setup the scanner flagged as eligible, in real time — this table is always real data, the demo toggle above does not affect it.">
         Recent detected signals
@@ -224,7 +255,7 @@ export function JournalPanel({ active }: JournalPanelProps) {
             <thead>
               <tr>
                 <th>Time</th>
-                <th>Symbol</th>
+                <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
                 <th>Setup</th>
                 <th>Entry</th>
                 <th>Stop</th>
@@ -233,14 +264,20 @@ export function JournalPanel({ active }: JournalPanelProps) {
             </thead>
             <tbody>
               {signals.map(s => (
-                <tr key={s.id}>
+                <SelectableTableRow
+                  key={s.id}
+                  symbol={s.symbol}
+                  selected={selectedSymbol === s.symbol}
+                  onSelect={onSelectSymbol}
+                  onOpenTrading={onOpenTrading}
+                >
                   <td className="hod-time-cell">{fmtTime(s.ts)}</td>
                   <td>{s.symbol}</td>
                   <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[s.setup] ?? s.setup}</span></td>
                   <td>{fmtPrice(s.entry_price)}</td>
                   <td>{fmtPrice(s.stop_price)}</td>
                   <td>{fmtPrice(s.target_price)}</td>
-                </tr>
+                </SelectableTableRow>
               ))}
             </tbody>
           </table>
