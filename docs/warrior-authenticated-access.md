@@ -76,12 +76,16 @@ Do not commit SSO query tokens, JWT payloads, or cookie dumps.
 | Map Day Trade Dash widgets / columns | Placing trades or posting in chat |
 | Screenshot to `.tmp/` for mapping | Storing secrets under the git tree |
 
-## Durable map
+## Durable map + owning agent
 
 Site hierarchy and widget inventory (for future questions):
 
 - Obsidian: `knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md`
-- Canvas: `warrior-site-map.canvas.tsx` (Cursor canvases folder)
+- Canvas: `agent-warrior.canvas.tsx` (Cursor canvases folder — owned by the `warrior` specialist)
+- Invoke: “Use the warrior subagent to navigate Warrior Trading”
+
+Nova Agent stewards Nova Home and unmanaged canvas cleanup. Do **not** create one-off
+`warrior-*-map.canvas.tsx` boards — update `agent-warrior` instead.
 
 ## Recovery
 

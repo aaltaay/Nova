@@ -15,6 +15,7 @@ When a task clearly belongs to a Nova specialist, prefer that subagent over gene
 | Maintainability / danger audit (file limits, secrets, swallows, deps) | `maintainer` | Read-only; significant diffs |
 | Full-repository security posture + SEC-NNN | `security-sentinel` | Not for PR/diff review |
 | Docs, MDC rules, agent prompts, canvases | `nova-agent` | Dashboard = Nova Home |
+| Warrior Trading authenticated site / Day Trade Dash navigation | `warrior` | Dashboard = `agent-warrior`; not Nova Home |
 | PR / branch / uncommitted diff security | Cursor `security-review` | Built-in; never swap with security-sentinel |
 
 ## Invoke

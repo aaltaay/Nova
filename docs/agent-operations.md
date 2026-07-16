@@ -43,6 +43,7 @@ See `.cursor/rules/specialist-routing.mdc`. Defaults:
 - Maintainability / danger audit → `maintainer`
 - Full-repo security posture → `security-sentinel`
 - Docs / rules / prompts / canvases → `nova-agent`
+- Warrior Trading authenticated site / Day Trade Dash → `warrior`
 - PR / diff security → Cursor built-in `security-review`
 
 ## Report Lifecycle line

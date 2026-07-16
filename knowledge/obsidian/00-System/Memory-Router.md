@@ -28,4 +28,4 @@ If Pinecone is empty (not ingested yet), say so and fall back to Obsidian + ask 
 
 On-disk Warrior materials + merge rule: [[Warrior-Trading/Local-Library-Inventory]], [[Warrior-Trading-Library-Merge]].  
 Course table: [[Course-Index]].  
-Authenticated member website / Day Trade Dash navigation: [[Warrior-Trading/Authenticated-Site-Map]] · access runbook `docs/warrior-authenticated-access.md`.
+Authenticated member website / Day Trade Dash navigation: [[Warrior-Trading/Authenticated-Site-Map]] · access runbook `docs/warrior-authenticated-access.md` · specialist agent `warrior` (`agent-warrior` canvas).

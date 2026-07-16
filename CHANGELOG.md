@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Install warrior specialist agent + agent-warrior canvas
+
+- **What:** Registered a dedicated `warrior` subagent for authenticated Warrior Trading navigation; migrated the unmanaged site-map canvas to `agent-warrior.canvas.tsx` so Nova Home hygiene stays clean.
+- **Why:** Nova Agent owns Nova Home / unmanaged canvases; Warrior browsing needed a named owner with invoke phrases and a durable dashboard.
+- **Files touched:** `.cursor/agents/warrior.md`, `.cursor/agent-memory/warrior-memory.md`, `.cursor/agent-system/registry.json`, `.cursor/rules/specialist-routing.mdc`, `AGENTS.md`, `docs/agent-operations.md`, `docs/warrior-authenticated-access.md`, Obsidian map/router links, `nova-agent.md` handoff.
+- **How it works now:** Say “Use the warrior subagent to navigate Warrior Trading” (or “…map Day Trade Dash”). Profile + runbook unchanged; dashboard is `agent-warrior` only. `nova_docs_inventory` reports zero unmanaged canvases.
+- **Verified by:** `py -3 tools/agent_contract.py` PASS (5 agents); `py -3 tools/sync_agent_surfaces.py --write`; inventory `preferred_agent` for `agent-warrior`.
+- **Related:** map commit `5c8b878`.
+
 ## 2026-07-16 — Phase G2: DAS-compatible hotkey manager (authoring only)
 
 - **What:** Settings gains a Hotkeys section with a DAS-style Name / Key / Command(s) manager: `.htk` import/export, row editor, compatibility report, and Help capability catalog. Imported/edited commands are never registered with `useHotkeys` and never place orders.
@@ -44,8 +53,8 @@ Entry template (copy and fill in):
 
 - **What:** Added a repeatable headed browser launcher and durable maps of the full Warrior member site (dashboard, LMS, Day Trade Dash widgets, support/CRM entry points) for future agent questions. No Nova UI product changes.
 - **Why:** User needs agents to navigate Warrior freely (not just chatroom) when asking for Warrior-parity features later.
-- **Files touched:** `scripts/open_warrior_site.ps1`, `docs/warrior-authenticated-access.md`, `knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md`, `Memory-Router.md`, `Local-Library-Inventory.md`, `.gitignore`, canvas `warrior-site-map.canvas.tsx`.
-- **How it works now:** Run `.\scripts\open_warrior_site.ps1` — profile lives under `%LOCALAPPDATA%\Nova\browser-profiles\warrior-site` (never in git). Site hierarchy + Day Trade Dash column/widget inventory lives in Obsidian; visual summary in the canvas. Secrets/cookies/SSO JWTs stay out of the repo.
+- **Files touched:** `scripts/open_warrior_site.ps1`, `docs/warrior-authenticated-access.md`, `knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md`, `Memory-Router.md`, `Local-Library-Inventory.md`, `.gitignore` (canvas later migrated to `agent-warrior`).
+- **How it works now:** Run `.\scripts\open_warrior_site.ps1` — profile lives under `%LOCALAPPDATA%\Nova\browser-profiles\warrior-site` (never in git). Site hierarchy + Day Trade Dash column/widget inventory lives in Obsidian; visual summary owned by the `warrior` agent canvas. Secrets/cookies/SSO JWTs stay out of the repo.
 - **Verified by:** Live login to Members Dashboard, LMS Learner Home + BA101 chapter index, Day Trade Dash after disclaimer ACCEPT; screenshots under `.tmp/warrior-site-map/` (gitignored).
 - **Follow-ups:** When building a Nova multi-widget dash, use workspace Phase 8 + this map; do not scrape Warrior feeds.
 

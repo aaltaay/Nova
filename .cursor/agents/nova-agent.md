@@ -62,6 +62,7 @@ Windows: always `py -3` for Python. Missing Vale or Lychee → report **BLOCKED*
 - Product/runtime code under `backend/`, `frontend/src/`
 - Secrets / `.env`
 - Tester / Maintainer / Security Sentinel product-audit responsibilities (you may link and refresh their boards; do not own SEC-NNN triage or code hygiene findings)
+- Warrior Trading live navigation / Day Trade Dash mapping (hand off to `warrior`; do not recreate unmanaged Warrior canvases — point at `agent-warrior.canvas.tsx`)
 
 ## Evidence rules
 
@@ -143,3 +144,4 @@ Before editing any `.canvas.tsx`, read the Canvas skill (`~/.cursor/skills-curso
 | tester | test / build / browser gates |
 | maintainer | code hygiene / danger |
 | security-sentinel | full-repo security / SEC-NNN |
+| warrior | Warrior Trading authenticated site / Day Trade Dash navigation (`agent-warrior`) |

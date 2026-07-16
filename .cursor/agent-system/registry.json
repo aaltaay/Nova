@@ -9,7 +9,7 @@
       "memory": ".cursor/agent-memory/tester-memory.md",
       "invoke_phrases": [
         "Use the tester subagent to verify",
-        "Improve the tester agent — work the next backlog item"
+        "Improve the tester agent \u2014 work the next backlog item"
       ],
       "dashboard": {
         "type": "dedicated",
@@ -50,7 +50,7 @@
       "memory": ".cursor/agent-memory/maintainer-memory.md",
       "invoke_phrases": [
         "Use the maintainer subagent to audit the repo",
-        "Improve the maintainer agent — work the next backlog item"
+        "Improve the maintainer agent \u2014 work the next backlog item"
       ],
       "dashboard": {
         "type": "dedicated",
@@ -89,7 +89,7 @@
       "memory": ".cursor/agent-memory/security-sentinel-memory.md",
       "invoke_phrases": [
         "Use the security-sentinel subagent to audit the repo",
-        "Improve the security-sentinel agent — work the next backlog item"
+        "Improve the security-sentinel agent \u2014 work the next backlog item"
       ],
       "dashboard": {
         "type": "dedicated",
@@ -134,7 +134,7 @@
       "invoke_phrases": [
         "Use the Nova Agent to review documentation",
         "Use Nova Agent for canvas hygiene",
-        "Improve the Nova Agent — next backlog item"
+        "Improve the Nova Agent \u2014 next backlog item"
       ],
       "dashboard": {
         "type": "home_section",
@@ -167,9 +167,59 @@
       "sibling_handoffs": {
         "tester": "test / build gates",
         "maintainer": "code hygiene",
-        "security-sentinel": "SEC-NNN posture"
+        "security-sentinel": "SEC-NNN posture",
+        "warrior": "Warrior Trading authenticated site navigation / Day Trade Dash map"
       },
       "domain": "documentation + canvas stewardship"
+    },
+    {
+      "id": "warrior",
+      "name": "warrior",
+      "spec": ".cursor/agents/warrior.md",
+      "memory": ".cursor/agent-memory/warrior-memory.md",
+      "invoke_phrases": [
+        "Use the warrior subagent to navigate Warrior Trading",
+        "Use the warrior subagent to map Day Trade Dash",
+        "Improve the warrior agent — work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-warrior.canvas.tsx"
+      },
+      "continuity_rule": null,
+      "continuity_waiver": "No dedicated continuity MDC; durable map + access runbook are canonical; routing via specialist-routing.mdc + warrior memory.",
+      "canonical_inputs": [
+        "docs/warrior-authenticated-access.md",
+        "knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md",
+        "scripts/open_warrior_site.ps1",
+        ".cursor/agent-memory/warrior-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/warrior.md",
+        ".cursor/agent-memory/warrior-memory.md",
+        "docs/warrior-authenticated-access.md",
+        "knowledge/obsidian/01-Courses/Warrior-Trading/",
+        "scripts/open_warrior_site.ps1"
+      ],
+      "prohibited_actions": [
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask",
+        "store_secrets_in_repo",
+        "scrape_paid_course_bodies",
+        "post_chat_or_trade_on_warrior",
+        "edit_product_runtime_unless_asked"
+      ],
+      "deterministic_checks": [
+        "py -3 -c \"from pathlib import Path; assert Path('scripts/open_warrior_site.ps1').is_file(); assert Path('docs/warrior-authenticated-access.md').is_file(); assert Path('knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md').is_file()\""
+      ],
+      "sibling_handoffs": {
+        "nova-agent": "Nova Home / general docs and unmanaged non-Warrior canvases",
+        "tester": "Nova product test / build gates",
+        "maintainer": "Nova code hygiene",
+        "security-sentinel": "Nova AppSec / SEC-NNN"
+      },
+      "domain": "authenticated Warrior Trading site navigation and mapping"
     }
   ]
 }

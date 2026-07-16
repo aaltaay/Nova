@@ -304,6 +304,7 @@ When ANY error occurs during a task:
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-07-16 | Unified agent lifecycle OS: `.cursor/agent-system/` contract+registry; memories in `.cursor/agent-memory/`; specialist-routing + subagentStop hook; agent_contract / sync_agent_surfaces / create_nova_agent tools + CI job; docs/agent-operations.md. | Cursor Agent |
+| 2026-07-16 | Warrior Trading Navigator (`warrior`): authenticated site navigation specialist; dashboard `agent-warrior`; durable map in Obsidian + `docs/warrior-authenticated-access.md`; retired unmanaged `warrior-site-map` canvas. | Cursor Agent |
 | 2026-07-16 | Nova Agent (`nova-agent`): docs + canvas steward; Diátaxis / markdownlint-cli2 / Vale / Lychee pins; `docs-continuity.mdc`; `tools/nova_docs_inventory.py`; dashboard = Nova Home; merged unmanaged `nova-security-audit` into `agent-security`. | Cursor Agent |
 | 2026-07-16 | Security-sentinel baseline enrichment: compensating controls seeded for SEC-001–SEC-006 in `security/findings-registry.json`; `Security-Status.md` open-findings table + verification ledger populated; `security-sentinel-memory.md` run log updated. Findings open — no product fixes. | Cursor Agent |
 | 2026-07-15 | Maintainer sentinel subagent: `.cursor/agents/maintainer.md` + `maintainer-memory.md` (read-only auditor for file limits, secrets, swallowed errors, deps); deterministic `tools/maintainer_checks.py` + tests; `pip-audit` added to `requirements-dev.txt`. Invoke: “Use the maintainer subagent to audit the repo.” | Cursor Agent |
@@ -341,8 +342,9 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 | **tester** | “Use the tester subagent to verify …” | `agent-tester.canvas.tsx` |
 | **maintainer** | “Use the maintainer subagent to audit the repo” | `agent-maintainer.canvas.tsx` |
 | **security-sentinel** | “Use the security-sentinel subagent to audit the repo” | `agent-security.canvas.tsx` |
+| **warrior** | “Use the warrior subagent to navigate Warrior Trading” | [agent-warrior](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-warrior.canvas.tsx) |
 
-Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Nova Agent. Route via `.cursor/rules/specialist-routing.mdc`.
+Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Nova Agent. Warrior site navigation owns `agent-warrior` (not Nova Home). Route via `.cursor/rules/specialist-routing.mdc`.
 
 ---
 

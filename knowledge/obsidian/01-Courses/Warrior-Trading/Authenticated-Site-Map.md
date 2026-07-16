@@ -7,8 +7,9 @@ tags: [warrior-trading, site-map, day-trade-dash, lms, access]
 
 # Warrior Trading — Authenticated Site Map
 
-Durable navigation map for future agent questions. Access runbook:
-`docs/warrior-authenticated-access.md`.  
+Durable navigation map for future agent questions.  
+**Owning agent:** `warrior` — invoke “Use the warrior subagent to navigate Warrior Trading” · dashboard `agent-warrior.canvas.tsx`.  
+Access runbook: `docs/warrior-authenticated-access.md`.  
 Local downloads inventory: [[Local-Library-Inventory]].
 
 **Mapped live:** 2026-07-16 with a headed persistent browser profile.  
