@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { HOD_MOMO_RUNNING_UP_STRATEGY_ID, STRATEGY_META } from '../constants';
 import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
-import { collapseConsecutiveTickerAlerts } from './collapseConsecutiveTickerAlerts';
+import { collapseAlertsBySymbol } from './collapseAlertsBySymbol';
 import { HodMomoAlertTable } from './HodMomoAlertTable';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';
 
@@ -136,9 +136,8 @@ export function HodMomoTab({
 
   const visibleAlerts = useMemo(() => {
     const filtered = alerts.filter(a => visibleStrategies.has(a.strategy_id));
-    const windowSec = Math.max(5, consolidationSec * 3);
-    return collapseConsecutiveTickerAlerts(filtered, windowSec);
-  }, [alerts, visibleStrategies, consolidationSec]);
+    return collapseAlertsBySymbol(filtered);
+  }, [alerts, visibleStrategies]);
 
   function toggleStrategy(id: number) {
     setVisibleStrategies(prev => {

@@ -3254,14 +3254,32 @@ body.is-resizing-side-panel * {
 }
 
 /* Strategy pill — compact, never grows the row */
+.hod-strategy-cell {
+  max-width: 22rem;
+}
+
+.hod-strategy-pills {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
 .hod-strategy-pill {
   display: inline-block;
+  flex: 0 0 auto;
   padding: 0.05rem 0.35rem;
   border-radius: 3px;
   font-size: 0.62rem;
   font-weight: 600;
   white-space: nowrap;
-  max-width: 100%;
+  max-width: 11rem;
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;

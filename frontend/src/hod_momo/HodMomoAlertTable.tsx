@@ -189,7 +189,7 @@ export function HodMomoAlertTable({
                 <HodMomoAlertRow
                   key={alert.id}
                   alert={alert}
-                  strategyColorOverride={configColors[alert.strategy_id]}
+                  configColors={configColors}
                   selected={selectedSymbol === alert.ticker}
                   onSelect={onSelectSymbol}
                   onOpenTrading={onOpenTrading}

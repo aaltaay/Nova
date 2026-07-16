@@ -68,13 +68,13 @@ function ConsolidationBadge({ count, seconds }: { count: number; seconds: number
 
 export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   alert,
-  strategyColorOverride,
+  configColors = {},
   selected,
   onSelect,
   onOpenTrading,
 }: {
   alert: AlertObject;
-  strategyColorOverride?: string;
+  configColors?: Record<number, string>;
   selected: boolean;
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
@@ -85,6 +85,9 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   const consolidatedTitle = isConsolidated
     ? `${alert.consolidation_count} in ${spanSec}sec`
     : undefined;
+  const strategyTags = alert.strategies?.length
+    ? alert.strategies
+    : [{ id: alert.strategy_id, name: alert.strategy_name }];
 
   return (
     <SelectableTableRow
@@ -180,12 +183,17 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
             return <td key={key}>{fmtVolume(alert.volume)}</td>;
           case 'strategy':
             return (
-              <td key={key}>
-                <StrategyPill
-                  strategyId={alert.strategy_id}
-                  strategyName={alert.strategy_name}
-                  colorOverride={strategyColorOverride}
-                />
+              <td key={key} className="hod-strategy-cell">
+                <div className="hod-strategy-pills" title={strategyTags.map(s => s.name).join(' · ')}>
+                  {strategyTags.map(tag => (
+                    <StrategyPill
+                      key={tag.id}
+                      strategyId={tag.id}
+                      strategyName={tag.name}
+                      colorOverride={configColors[tag.id]}
+                    />
+                  ))}
+                </div>
               </td>
             );
           default:

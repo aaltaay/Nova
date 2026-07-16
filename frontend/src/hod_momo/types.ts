@@ -2,6 +2,12 @@
 
 export type StrategyId = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 
+/** Distinct strategy that fired for a symbol (one-row-per-symbol feed). */
+export interface AlertStrategyTag {
+  id: number;
+  name: string;
+}
+
 export interface AlertObject {
   id: string;
   timestamp: string;          // ISO-8601
@@ -22,6 +28,11 @@ export interface AlertObject {
   /** Actual burst span in seconds for Warrior-style "(3 in 5sec)". */
   consolidation_span_sec?: number | null;
   created_ts?: number;
+  /**
+   * Distinct strategies that fired for this ticker when the feed is collapsed
+   * to one row per symbol. Newest-first. Absent on raw stream alerts.
+   */
+  strategies?: AlertStrategyTag[];
 }
 
 export interface StrategyConfig {

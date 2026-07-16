@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo feed: one row per symbol with multiple strategy tags
+
+- **What:** The HOD Momo table now collapses to one row per ticker. Distinct strategies that fired for that symbol render as multiple strategy pills on the same row.
+- **Why:** User wanted “one row per symbol” instead of a separate row for every strategy fire.
+- **Files touched:** `frontend/src/hod_momo/collapseAlertsBySymbol.ts`, `collapseAlertsBySymbol.test.ts`, `HodMomoTab.tsx`, `HodMomoAlertRow.tsx`, `HodMomoAlertTable.tsx`, `types.ts`, `frontend/src/index.css`.
+- **How it works now:** After strategy filtering, `collapseAlertsBySymbol` keeps newest-first ticker order, uses the newest alert for price/metrics, and collects unique strategy tags (newest-first). Alert-count badges still reflect total fires for that symbol.
+- **Verified by:** Vitest unit tests for multi-strategy collapse; live browser on populated HOD feed confirms unique tickers in the first batch and multi-pill strategy cells; `npm run build`.
+
 ## 2026-07-15 — HOD Momo row double-click opens Stock View
 
 - **What:** HOD Momo alert rows now use the same `SelectableTableRow` click/double-click path as scanners and watchlist: click selects the Quote Panel, double-click opens Stock View in a new window.
