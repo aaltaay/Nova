@@ -19,7 +19,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) + **close remediation (Phases 1–7)** — **CLOSED** · metrics `architecture/program-close-metrics.md`
 - **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker; structural maintenance + close remediation complete
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
-- **Tip SHA:** `ab44603` (Architecture close remediation Phase 7)
+- **Tip SHA:** `aad9bf9` (Architecture close remediation Phase 7)
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
@@ -213,7 +213,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Architecture close remediation Phases 1–7: truthful audit, deps/handlers, feed honesty, ports, barrels+CSS layers, lint/lifecycle, honest ledgers; verify 636/187 | `ab44603` |
+| 2026-07-16 | Architecture close remediation Phases 1–7: truthful audit, deps/handlers, feed honesty, ports, barrels+CSS layers, lint/lifecycle, honest ledgers; verify 636/187 | `aad9bf9` |
 | 2026-07-16 | Maintenance Phase 13: program close — metrics, maintainer memory (counts later corrected by close remediation) | `342b6cc` |
 | 2026-07-16 | Maintenance Phase 12: defer executor.py split with written rationale (baseline 494) | `8a6de9b` |
 | 2026-07-16 | Maintenance Phase 11: error visibility — no swallowed except:pass in production/tools | `f14bcb8` |

@@ -52,7 +52,7 @@ Closed: **2026-07-16** · Tip at close: see Phase 13 / close-remediation SHA in 
 | 4 Ports/adapters | `95884f7` |
 | 5 Barrels + CSS layers | `71ec21e` |
 | 6 Lifecycle + lint green | `bb281f4` |
-| 7 Honest close | `ab44603` |
+| 7 Honest close | `aad9bf9` |
 
 ## Remaining accepted risks
 
