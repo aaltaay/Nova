@@ -177,8 +177,8 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 
 | Phase | Status | SHA | Notes |
 |-------|--------|-----|-------|
-| 0 Baseline | `[~]` | _(this commit)_ | Clean tree; metrics in `architecture/baseline-phase0.md` |
-| 0A Architecture contract | `[ ]` | — | ADRs before product moves |
+| 0 Baseline | `[x]` | `00f0d21` | Clean tree; metrics in `architecture/baseline-phase0.md` |
+| 0A Architecture contract | `[~]` | _(this commit)_ | ADRs + dependency-rules before product moves |
 | 1 Maintainer gates | `[ ]` | — | CSS + baseline growth + dep warnings |
 | 2 CSS split | `[ ]` | — | `index.css` import-only |
 | 3 Constants domains | `[ ]` | — | Compatibility barrels |
@@ -208,7 +208,8 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 0: working tree clean; line/maintainer/test baselines recorded; maintenance track opened | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 0A: architecture ADRs + dependency rules + phase destination map | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 0: working tree clean; line/maintainer/test baselines recorded; maintenance track opened | `00f0d21` |
 | 2026-07-16 | Phase G2: DAS-compatible hotkey manager (Settings Hotkeys; `.htk` I/O; compatibility Help; authoring only — no execution) | `645761b` |
 | 2026-07-16 | Canvas consolidation: single `nova-home.canvas.tsx` homepage; retired five stale boards; continuity rules retargeted | (docs/canvas; commit when user requests) |
 | 2026-07-16 | Continuity sync after feature dump: status/plan/canvas aligned; A/D–G/J SHAs; B/C/I honest blockers; verify counts last-known 592/149/14 @ 2026-07-15; graphify AST update + wiki export | `5f7b4d2` |

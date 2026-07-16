@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 0A: architecture contract ADRs
+
+- **What:** Added `architecture/` ADRs and dependency rules approving modular monolith, selective hexagonal ports, functional core/imperative shell, Strangler Facades, frontend feature slices, and ITCSS/cascade-layer CSS — before any product code moves.
+- **Why:** Phase 0A of the pattern-driven architecture roadmap; “file too large” alone is insufficient justification for new modules.
+- **Files touched:** `architecture/README.md`, `architecture/dependency-rules.md`, `architecture/phase-destination-map.md`, `architecture/decisions/001–006`, `gemini.md` pointer, roadmap status, CHANGELOG.
+- **How it works now:** Agents classify imports via `dependency-rules.md`; each Phase 1–13 destination is mapped; rejected alternatives (microservices, full FSD rename, big-bang Tailwind) are explicit.
+- **Verified by:** Docs-only review against plan Done criteria; no runtime code changed.
+- **Related:** Phase 0 SHA `00f0d21`.
+
 ## 2026-07-16 — Maintenance Phase 0: architecture baseline
 
 - **What:** Opened the Pattern-Driven Architecture maintenance track; recorded line counts, maintainer findings, test collect counts, and branch ownership. No product code moved.
