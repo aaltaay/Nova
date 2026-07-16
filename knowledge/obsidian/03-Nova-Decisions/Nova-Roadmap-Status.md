@@ -18,10 +18,10 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Feature track:** Phases **A, D, E, F, G, G2, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**)
 - **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
-- **Tip SHA:** *(set after G2 push)*
+- **Tip SHA:** `645761b` (Phase G2 DAS hotkey manager)
 - **Prior tip stamps:** `5f7b4d2` / `89712d5` / `7749181`
 - **Phase A skills commit:** `9f4ca3f`
-- **Phase G2 commit:** *(set after push)*
+- **Phase G2 commit:** `645761b`
 - **Last updated:** 2026-07-16 (Phase G2 — DAS-compatible hotkey manager, authoring only)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 
@@ -48,7 +48,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 | **Phase E — Backtest UX** | `[x]` | `backend/backtest/` + BacktestPanel; finish pass `722d614` |
 | **Phase F — Reports v2** | `[x]` | tags / R / drawdown / IBKR import; finish pass `722d614` |
 | **Phase G — Hotkeys + brackets** | `[x]` | `useHotkeys` + approveStaged bracket; finish pass `722d614` |
-| **Phase G2 — DAS hotkey manager** | `[x]` | Settings Hotkeys; `.htk` I/O; authoring only (no execution) · 2026-07-16 |
+| **Phase G2 — DAS hotkey manager** | `[x]` | Settings Hotkeys; `.htk` I/O; authoring only (no execution) · `645761b` |
 | **Phase J — Productization** | `[x]` | [[Productization-Decision]] local-first; finish pass `722d614` |
 | **HOD Momo / Stock View harden** | `[x]` | Shipped; not roadmap debt |
 | **Tester + maintainer agents** | `[x]` | `.cursor/agents/` + `tools/maintainer_checks.py` |
@@ -182,7 +182,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Phase G2: DAS-compatible hotkey manager (Settings Hotkeys; `.htk` I/O; compatibility Help; authoring only — no execution) | *(set after push)* |
+| 2026-07-16 | Phase G2: DAS-compatible hotkey manager (Settings Hotkeys; `.htk` I/O; compatibility Help; authoring only — no execution) | `645761b` |
 | 2026-07-16 | Canvas consolidation: single `nova-home.canvas.tsx` homepage; retired five stale boards; continuity rules retargeted | (docs/canvas; commit when user requests) |
 | 2026-07-16 | Continuity sync after feature dump: status/plan/canvas aligned; A/D–G/J SHAs; B/C/I honest blockers; verify counts last-known 592/149/14 @ 2026-07-15; graphify AST update + wiki export | `5f7b4d2` |
 | 2026-07-15 | Tip SHA stamps after finish pass | `89712d5` / `7749181` |

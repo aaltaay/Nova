@@ -38,7 +38,7 @@ Entry template (copy and fill in):
 - **How it works now:** Profiles persist in `localStorage` (`nova.hotkeys.profile.v1`). Parse splits only the first two `:` delimiters; long scripts use DAS `~ byteLength:` + 51-byte chunks. Compatibility statuses (Nova active / translatable later / backend required / DAS-IBKR-specific / invalid) are separate from evidence (DAS verified / documented / community). Six Phase G automation shortcuts remain the only executable bindings; a persistent banner states imported commands are inactive.
 - **Verified by:** Vitest 178 pass (hotkey + SettingsWorkspace + useHotkeys); `npm run build`; browser Settings → Hotkeys import/Help/F8 safety (no order network) via tester subagent.
 - **Follow-ups:** Future execution phase may map “translatable later” rows to guarded Nova actions; do not enable without explicit roadmap unlock. `auto_live` remains NO-GO.
-- **Related:** Phase G finish `722d614`; plan `hotkey_capability_catalog_ad947399.plan.md` (do not edit).
+- **Related:** commit `645761b`; Phase G finish `722d614`; plan `hotkey_capability_catalog_ad947399.plan.md` (do not edit).
 
 ## 2026-07-16 — Warrior authenticated site map + access runbook
 
