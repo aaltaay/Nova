@@ -3240,8 +3240,10 @@ body.is-resizing-side-panel * {
 }
 
 .hod-table-wrapper {
-  flex: 1;
+  flex: 0 0 auto;
+  min-height: 0;
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .hod-empty-cell {

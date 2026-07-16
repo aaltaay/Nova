@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Enforce 40-row HOD Momo rendering against populated data
+
+- **What:** Replaced the ineffective HOD Momo virtualizer with deterministic incremental mounting: 40 rows initially and 40 more only when the table's own fixed-height scroller reaches bottom.
+- **Why:** Production-scale browser evidence proved the virtualizer mounted all 6,603 available rows at once because its flex viewport expanded to the table's intrinsic height. Prior empty-data testing missed the actual failure.
+- **Files touched:** `frontend/src/hod_momo/HodMomoAlertTable.tsx`, `frontend/src/hod_momo/HodMomoAlertTable.test.ts`, `frontend/src/constants.ts`, `frontend/src/index.css`, `.cursor/rules/browser-testing.mdc`.
+- **How it works now:** The table slices the alert array to a 40-row render limit. A latched bottom handler increases the limit by one 40-row batch per distinct bottom reach. The 532px wrapper owns scrolling and cannot expand with the full dataset.
+- **Verified by:** Same live browser session, 6,630 alerts: before = 6,603 mounted rows / 137,325 DOM nodes / 212,564px wrapper; after = 40 rows / 964 DOM nodes / 532px wrapper. One bottom reach = exactly 80 rows while document height stays unchanged. Clean console, 52.2ms tab-open measurement, `npm run build`, and 75/75 Vitest tests.
+- **Related:** `PROBLEM_LOG.md` 2026-07-15 “HOD Momo ‘virtualized’ table mounted all 6,603 rows.”
+
 ## 2026-07-15 — HOD Momo alert stream no longer double-delivers on WS reconnect/remount
 
 - **What:** `frontend/src/hod_momo/useHodMomoStream.ts` now ignores events from a stale/superseded WebSocket instance (checks `wsRef.current === ws` on every handler, in addition to the existing `mountedRef` flag) and de-duplicates incoming alerts by `id` via an O(1) `Set` lookup instead of trusting every 'alert' message to be new.

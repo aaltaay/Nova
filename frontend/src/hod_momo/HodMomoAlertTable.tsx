@@ -1,12 +1,12 @@
-import { useRef, useState } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useEffect, useRef, useState, type UIEvent } from 'react';
 import {
   HOD_MOMO_COLUMNS,
   HOD_MOMO_EMPTY_CONNECTING,
   HOD_MOMO_EMPTY_WAITING,
   HOD_MOMO_HEADER_HEIGHT_PX,
+  HOD_MOMO_LOAD_MORE_THRESHOLD_PX,
+  HOD_MOMO_RENDER_BATCH_SIZE,
   HOD_MOMO_ROW_HEIGHT_PX,
-  HOD_MOMO_VIRTUAL_OVERSCAN,
   HOD_MOMO_VISIBLE_ROWS,
   STRATEGY_META,
 } from '../constants';
@@ -80,11 +80,11 @@ export interface HodMomoAlertTableProps {
   onOpenTrading: (sym: string) => void;
 }
 
-/**
- * HOD alert table virtualized with @tanstack/react-virtual.
- * Continuous scroll over the full day list; only the viewport + overscan
- * rows are mounted (library handles windowing as the user scrolls).
- */
+export function nextHodMomoRenderedCount(current: number, total: number): number {
+  return Math.min(current + HOD_MOMO_RENDER_BATCH_SIZE, total);
+}
+
+/** Bounded HOD table that mounts rows only in fixed-size bottom-triggered batches. */
 export function HodMomoAlertTable({
   alerts,
   connected,
@@ -98,30 +98,54 @@ export function HodMomoAlertTable({
   onOpenTrading,
 }: HodMomoAlertTableProps) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const [renderedCount, setRenderedCount] = useState(HOD_MOMO_RENDER_BATCH_SIZE);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomTriggeredRef = useRef(false);
   const viewportHeight = HOD_MOMO_VISIBLE_ROWS * HOD_MOMO_ROW_HEIGHT_PX;
-
-  const rowVirtualizer = useVirtualizer({
-    count: alerts.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => HOD_MOMO_ROW_HEIGHT_PX,
-    overscan: HOD_MOMO_VIRTUAL_OVERSCAN,
-  });
-
-  const virtualRows = rowVirtualizer.getVirtualItems();
-  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-  const paddingBottom =
-    virtualRows.length > 0
-      ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
-      : 0;
-
   const empty = alerts.length === 0;
+  const renderedAlerts = alerts.slice(0, renderedCount);
+
+  useEffect(() => {
+    setRenderedCount(HOD_MOMO_RENDER_BATCH_SIZE);
+    bottomTriggeredRef.current = false;
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [visibleStrategies]);
+
+  useEffect(() => {
+    if (empty) {
+      setRenderedCount(HOD_MOMO_RENDER_BATCH_SIZE);
+      bottomTriggeredRef.current = false;
+    }
+  }, [empty]);
+
+  function handleScroll(event: UIEvent<HTMLDivElement>) {
+    const element = event.currentTarget;
+    const distanceFromBottom =
+      element.scrollHeight - element.scrollTop - element.clientHeight;
+
+    if (distanceFromBottom > HOD_MOMO_LOAD_MORE_THRESHOLD_PX) {
+      bottomTriggeredRef.current = false;
+      return;
+    }
+
+    if (!bottomTriggeredRef.current && renderedCount < alerts.length) {
+      bottomTriggeredRef.current = true;
+      setRenderedCount(current =>
+        nextHodMomoRenderedCount(current, alerts.length),
+      );
+    }
+  }
 
   return (
     <div
-      className="table-wrapper hod-table-wrapper hod-table-virtual"
+      className="table-wrapper hod-table-wrapper"
       ref={scrollRef}
-      style={{ height: viewportHeight + HOD_MOMO_HEADER_HEIGHT_PX }}
+      onScroll={handleScroll}
+      data-rendered-count={renderedAlerts.length}
+      style={{
+        height: viewportHeight + HOD_MOMO_HEADER_HEIGHT_PX,
+        maxHeight: viewportHeight + HOD_MOMO_HEADER_HEIGHT_PX,
+      }}
     >
       <table>
         <thead>
@@ -161,36 +185,17 @@ export function HodMomoAlertTable({
             </tr>
           ) : (
             <>
-              {paddingTop > 0 && (
-                <tr aria-hidden="true" className="hod-virtual-spacer">
-                  <td
-                    colSpan={HOD_MOMO_COLUMNS.length}
-                    style={{ height: paddingTop, padding: 0, border: 'none' }}
-                  />
-                </tr>
-              )}
-              {virtualRows.map(virtualRow => {
-                const alert = alerts[virtualRow.index];
-                return (
-                  <HodMomoAlertRow
-                    key={alert.id}
-                    alert={alert}
-                    strategyColorOverride={configColors[alert.strategy_id]}
-                    selected={selectedSymbol === alert.ticker}
-                    onSelect={onSelectSymbol}
-                    onOpenTrading={onOpenTrading}
-                    consolidationSec={consolidationSec}
-                  />
-                );
-              })}
-              {paddingBottom > 0 && (
-                <tr aria-hidden="true" className="hod-virtual-spacer">
-                  <td
-                    colSpan={HOD_MOMO_COLUMNS.length}
-                    style={{ height: paddingBottom, padding: 0, border: 'none' }}
-                  />
-                </tr>
-              )}
+              {renderedAlerts.map(alert => (
+                <HodMomoAlertRow
+                  key={alert.id}
+                  alert={alert}
+                  strategyColorOverride={configColors[alert.strategy_id]}
+                  selected={selectedSymbol === alert.ticker}
+                  onSelect={onSelectSymbol}
+                  onOpenTrading={onOpenTrading}
+                  consolidationSec={consolidationSec}
+                />
+              ))}
             </>
           )}
         </tbody>

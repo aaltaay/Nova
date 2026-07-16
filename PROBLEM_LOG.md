@@ -21,6 +21,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo “virtualized” table mounted all 6,603 rows in the populated browser
+
+- **Symptom:** With the user's live HOD Momo dataset at 6,630 alerts, opening the tab remained crash-level slow and produced an effectively endless document. Browser measurement showed 6,603 mounted alert `<tr>` nodes, 137,325 total DOM nodes, a 212,564px-tall `.hod-table-wrapper`, and a 212,971px document.
+- **Cause:** `@tanstack/react-virtual` observed `.hod-table-wrapper`, but that element was `flex: 1` in a parent without a constraining height and retained its intrinsic table height. The wrapper expanded to the full table, so the virtualizer considered the full dataset visible and returned every row. Previous verification used an empty alert list, so it could not expose this failure.
+- **Fix:** Removed the virtualizer from `HodMomoAlertTable` and made the mounting contract deterministic: render 40 rows initially and exactly 40 more per distinct internal-scroller bottom reach. The wrapper is fixed at 532px with `flex: 0 0 auto`, `min-height: 0`, contained overscroll, and a bottom-event latch.
+- **Verified by:** The same populated browser session now reports 40 mounted rows, 964 total DOM nodes, and a 532px wrapper with 6,630 alerts loaded; one bottom reach produces exactly 80 rows and 1,792 DOM nodes while document height stays unchanged. HOD tab open-to-two-animation-frames measured 52.2ms. Browser console is clean; frontend build and all 75 tests pass.
+- **Keywords:** HOD Momo, virtualization, 6603 rows, 137325 DOM nodes, flex intrinsic height, endless scroll, render 40, incremental rendering, populated browser verification
+
 ## 2026-07-15 — HOD Momo tab still crash-level laggy after three prior "fixes" — every alert was silently duplicated in frontend state
 
 - **Symptom:** User reported the HOD Momo tab was so laggy that opening it felt like it would crash the browser, despite this having been "fixed" repeatedly (virtualization, alert-persistence throttling, batched live prepends — see the three 2026-07-14/15 entries below titled "HOD Momo freezes" / "HOD Momo UI lag"). Browser console (`npx agent-browser console`) showed a continuous flood of React `"Encountered two children with the same key"` errors, one per HOD alert id, for nearly every visible row.
