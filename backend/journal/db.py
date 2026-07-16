@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS trades (
     pnl REAL,
     adherent INTEGER,
     notes TEXT,
-    is_mock INTEGER NOT NULL DEFAULT 0
+    is_mock INTEGER NOT NULL DEFAULT 0,
+    tags TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_closed_ts ON trades(closed_ts);

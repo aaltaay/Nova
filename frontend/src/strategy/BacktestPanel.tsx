@@ -70,14 +70,12 @@ export function BacktestPanel({ active }: { active: boolean }) {
       const data = (await res.json()) as BacktestDaysResponse;
       const list = data.days || [];
       setDays(list);
-      if (list.length && !selectedDay) {
-        setSelectedDay(list[list.length - 1]);
-      }
+      setSelectedDay((prev) => prev || (list.length ? list[list.length - 1] : ''));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, [active, selectedDay]);
+  }, [active]);
 
   useEffect(() => {
     void loadDays();

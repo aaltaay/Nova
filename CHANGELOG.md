@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Harden Phases D–G (alert test format + route tests)
+
+- **What:** Fixed empty Discord/Telegram payloads on alert channel Test fire; redacted webhook/bot secrets from sender exception return paths; hardened HOD formatter against null price/change; added formatter/hooks + journal Reports v2 HTTP tests; BacktestPanel no longer double-fetches days on selection; journal `trades` CREATE includes `tags`.
+- **Why:** Post-ship harden of Master Roadmap D–G — Test fire was a silent UX bug; route coverage for tags/R/drawdown/import was unit-only.
+- **Files touched:** `backend/alerts/{formatters,telegram,discord,generic_webhook,dispatch}.py`, `backend/routes/alerts.py`, `backend/constants.py`, `backend/journal/db.py`, `backend/tests/test_alerts_formatters.py`, `backend/tests/test_journal_reports_v2.py`, `frontend/src/strategy/BacktestPanel.tsx`, `CHANGELOG.md`, `PROBLEM_LOG.md`.
+- **How it works now:** `format_event_payload` copies `text` for test/unknown events so Discord embeds and Telegram messages show the test sentence. Sender failures return generic messages; logs keep redacted URLs/tokens. Journal analytics routes covered via TestClient. Routers were already registered in `app_routers.py` (no missing includes).
+- **Verified by:** `pytest` alerts + journal reports + backtest (40 passed); Vitest hotkeys/maskSecret/format (18); `npm run build`.
+- **Follow-ups:** Live Discord from a real HOD alert still needs a configured channel + market session; Phase B shadow days / Phase C cold `walk_day` remain human ops.
+- **Related:** PROBLEM_LOG 2026-07-16 empty Discord embeds; finish pass `722d614`.
+
 ## 2026-07-16 — Fix overlapping tab bar labels
 
 - **What:** Tab buttons no longer shrink below their label width, so adjacent titles (e.g. HOD Momo / Trading) stop painting over each other.

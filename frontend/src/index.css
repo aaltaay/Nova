@@ -764,8 +764,8 @@ header > *,
   width: 100%;
 }
 
-/* Single horizontal row — denser tabs share full width; no second-row wrap.
-   Tiny viewports may scroll horizontally with scrollbar hidden as fallback. */
+/* Single horizontal row — tabs may grow to fill spare width but never shrink
+   below label width (avoids HOD Momo / Trading mashup). Overflow scrolls. */
 .tab-bar-scroll {
   display: flex;
   align-items: center;
@@ -984,10 +984,10 @@ header > *,
   gap: 0.25rem;
   transition: color 0.15s, border-color 0.15s;
   margin-bottom: -1px;
-  flex: 1 1 0;
+  /* Grow into spare space; never shrink below content (prevents label bleed). */
+  flex: 1 0 auto;
   justify-content: center;
   white-space: nowrap;
-  min-width: 0;
 }
 
 .tab:hover {

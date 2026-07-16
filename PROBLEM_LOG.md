@@ -21,6 +21,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Alert channel Test fire sent empty Discord embeds
+
+- **Symptom:** POST `/api/alerts/test` (and Settings “Test”) delivered Discord embeds with empty `description`; Telegram got a JSON dump instead of the test sentence.
+- **Cause:** `format_event_payload` only handled `hod_momo` / `nova_os`. Test events (`type=test` + `text=…`) fell through without copying `text`, so Discord used `payload.get("text", "")` → `""`.
+- **Fix:** Formatters now prefer `event["text"]` for test/unknown events; Discord titles distinguish Test vs HOD vs Nova OS. Also sanitized Discord/Telegram/webhook exception return strings so webhook URLs / bot tokens never leak into `/api/alerts/status`.
+- **Keywords:** Phase D, alerts, formatters, Discord embed, test channel, empty description, secret redact, telegram
+
+## 2026-07-16 — Tab bar labels mashed (HOD Momo / Trading overlap)
+
+- **Symptom:** Top nav showed overlapping unreadable tab text (e.g. HOD Momo and Trading painted on top of each other) when many modules were visible.
+- **Cause:** `.tab` used `flex: 1 1 0` + `min-width: 0`, so equal-width flex items shrank below label width while `white-space: nowrap` let text bleed into neighbors.
+- **Fix:** `.tab` → `flex: 1 0 auto` (grow into spare space, never shrink below content); drop `min-width: 0`. Narrow viewports still scroll via `.tab-bar-scroll`.
+- **Keywords:** tab-bar, TabNav, overlap, HOD Momo, Trading, flex shrink, min-width, label bleed
+
 ## 2026-07-15 — Uncommitted Stock View CSS lost during phase automation
 
 - **Symptom:** Playwright baseline failed: `documentElement must not page-scroll on Stock View`. Working tree no longer had `body:has(.container--ticker-detail)` / portal flex-fill rules even though `TickerChart.tsx` still had `measureChartFillHeight`.

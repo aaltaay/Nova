@@ -43,6 +43,10 @@ def send_webhook(
         logger.warning("Generic webhook HTTP error (%s): %s", _redact_url(url), msg)
         return False, msg
     except Exception as exc:
-        msg = str(exc)
-        logger.warning("Generic webhook error (%s): %s", _redact_url(url), msg)
+        msg = "Webhook request failed"
+        logger.warning(
+            "Generic webhook error (%s): %s",
+            _redact_url(url),
+            str(exc).replace(url, _redact_url(url)),
+        )
         return False, msg

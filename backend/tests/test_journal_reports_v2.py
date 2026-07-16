@@ -146,3 +146,75 @@ class TestStoreTags:
         assert rows[0]["tags"] == []
         update_trade_tags(rows[0]["id"], ["legacy"])
         assert get_closed_trades()[0]["tags"] == ["legacy"]
+
+
+class TestReportsV2Routes:
+    """HTTP smoke for Phase F journal analytics + IBKR import honesty."""
+
+    def test_tags_r_drawdown_endpoints(self):
+        from fastapi.testclient import TestClient
+        from main import app
+
+        _seed_tagged_trades()
+        client = TestClient(app)
+
+        tags = client.get("/api/journal/tags")
+        assert tags.status_code == 200
+        assert tags.json()["count"] >= 1
+        assert any(row["tag"] == "gap" for row in tags.json()["tags"])
+
+        r_mult = client.get("/api/journal/r-multiples")
+        assert r_mult.status_code == 200
+        body = r_mult.json()
+        assert body["scored_count"] == 2
+        assert body["skipped_no_stop"] == 1
+
+        dd = client.get("/api/journal/drawdown")
+        assert dd.status_code == 200
+        assert dd.json()["max_drawdown"] == 10.0
+
+    def test_update_trade_tags_route(self):
+        from fastapi.testclient import TestClient
+        from journal.store import record_trade
+        from main import app
+
+        trade_id = record_trade(
+            "TAG", "gap_and_go", "long", 10, 1.0, 0.9, 1.2, 1.2, 1.0, True, tags=["old"],
+        )
+        client = TestClient(app)
+        res = client.post(f"/api/journal/trades/{trade_id}/tags", json={"tags": ["new", "a"]})
+        assert res.status_code == 200
+        assert res.json()["trade"]["tags"] == ["new", "a"]
+
+    def test_ibkr_import_empty_is_loud_503(self):
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+        res = client.post("/api/journal/import/ibkr", json={})
+        assert res.status_code == 503
+        detail = res.json()["detail"]
+        assert "Gateway" in detail or "JSON" in detail
+
+    def test_ibkr_import_json_trades(self):
+        from fastapi.testclient import TestClient
+        from main import app
+
+        client = TestClient(app)
+        res = client.post(
+            "/api/journal/import/ibkr",
+            json={
+                "trades": [
+                    {
+                        "symbol": "IMP",
+                        "qty": 10,
+                        "entry_price": 2.0,
+                        "exit_price": 2.5,
+                        "pnl": 5.0,
+                        "tags": ["import"],
+                    }
+                ]
+            },
+        )
+        assert res.status_code == 200
+        assert res.json()["imported"] == 1

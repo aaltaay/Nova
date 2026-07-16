@@ -41,6 +41,11 @@ def send_discord(webhook_url: str, body: dict, *, timeout: float = ALERTS_HTTP_T
         logger.warning("Discord webhook HTTP error (%s): %s", _redact_url(webhook_url), msg)
         return False, msg
     except Exception as exc:
-        msg = str(exc)
-        logger.warning("Discord webhook error (%s): %s", _redact_url(webhook_url), msg)
+        # Never return raw exception text — it can embed the full webhook URL.
+        msg = "Discord request failed"
+        logger.warning(
+            "Discord webhook error (%s): %s",
+            _redact_url(webhook_url),
+            str(exc).replace(webhook_url, _redact_url(webhook_url)),
+        )
         return False, msg

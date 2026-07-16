@@ -15,6 +15,7 @@ from constants import (
     ALERTS_CHANNEL_TYPE_DISCORD,
     ALERTS_CHANNEL_TYPE_TELEGRAM,
     ALERTS_CHANNEL_TYPE_WEBHOOK,
+    ALERTS_EVENT_TYPE_TEST,
     ALERTS_STATUS_RING_SIZE,
 )
 
@@ -110,10 +111,8 @@ def dispatch_test(channel: channels_store.Channel, message: str | None = None) -
     """Test-fire a single channel with a synthetic event."""
     text = message or "Nova alert channel test — if you see this, delivery works."
     event = {
-        "type": "test",
+        "type": ALERTS_EVENT_TYPE_TEST,
         "text": text,
         "alert": {"ticker": "TEST", "strategy_name": "Test", "price": 1.0, "change_pct": 0.0, "rvol": 1.0},
     }
-    if message:
-        event["text"] = message
     return _dispatch_to_channel(channel, event)

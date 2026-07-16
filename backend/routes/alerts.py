@@ -76,8 +76,10 @@ def test_alert(body: TestRequest) -> dict:
             raise HTTPException(status_code=400, detail="channel is disabled")
         result = dispatch.dispatch_test(ch, body.message)
         return {"ok": result.get("ok", False), "results": [result]}
+    from constants import ALERTS_EVENT_TYPE_TEST
+
     results = dispatch.dispatch_alert(
-        {"type": "test", "text": body.message or "Nova test alert"},
+        {"type": ALERTS_EVENT_TYPE_TEST, "text": body.message or "Nova test alert"},
         channel_ids=None,
     )
     ok = all(r.get("ok") for r in results) if results else False

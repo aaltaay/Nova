@@ -913,6 +913,7 @@ ALERTS_CHANNEL_TYPES = (
 )
 ALERTS_EVENT_TYPE_HOD_MOMO = "hod_momo"
 ALERTS_EVENT_TYPE_NOVA_OS = "nova_os"
+ALERTS_EVENT_TYPE_TEST = "test"
 # Nova OS receipts worth outbound notify (kind/action filter in hooks.py).
 ALERTS_NOVA_OS_NOTIFY_KINDS = ("action",)
 ALERTS_NOVA_OS_NOTIFY_ACTIONS = (
