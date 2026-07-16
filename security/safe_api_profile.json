@@ -1,0 +1,12 @@
+{
+  "require_loopback": true,
+  "require_ibkr_disabled": true,
+  "require_orders_disabled": true,
+  "blocked_path_prefixes": [
+    "/api/config",
+    "/api/strategy/executor",
+    "/api/alerts",
+    "/api/trading"
+  ],
+  "notes": "Fail closed. Never fuzz mutating or credential endpoints."
+}

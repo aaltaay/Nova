@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Security audit runner and findings registry
+
+- **What:** Added a modular, side-effect-free security audit tool stack under `tools/security_audit.py` + `tools/security_lib/` (normalize, registry, redact, checks). First scan produced 5 open findings (SEC-001–SEC-005) written to `security/findings-registry.json`. 27 pytest tests pass.
+- **Why:** Phase to establish deterministic security scanning baseline for Nova, with persistent SEC-NNN ID tracking and merge semantics that preserve human triage decisions (accepted/false_positive status survives re-scans).
+- **Files touched:** `security/schema.md`, `security/findings-registry.json`, `security/SOURCE-PINS.md`, `security/safe_api_profile.json`, `tools/security_audit.py`, `tools/security_lib/__init__.py`, `tools/security_lib/normalize.py`, `tools/security_lib/registry.py`, `tools/security_lib/redact.py`, `tools/security_lib/checks.py`, `tools/test_security_audit.py`.
+- **How it works now:** Run `py -3 tools/security_audit.py --json --write-registry` from repo root. Built-in checks (no binary required) always fire: credential exposure in GET /api/config (critical), unauthenticated executor POST routes (critical), CORS wildcard default (high), no API auth middleware (high), CI missing security jobs (medium). External tools (semgrep, gitleaks, osv-scanner, trivy, pip-audit, npm) are detected at runtime; if missing they are reported as BLOCKED (not clean). Fingerprint = SHA-256(source+kind+path+title); re-scans preserve IDs and human-set statuses. `--fail-on-findings` exits 1 on new critical open findings.
+- **Verified by:** `py -3 -m pytest tools/test_security_audit.py -q` → 27 passed; `py -3 tools/security_audit.py --json --write-registry` → 5 findings SEC-001–SEC-005 written.
+- **Follow-ups:** Add gitleaks/osv-scanner/semgrep to CI deploy.yml; add auth middleware to backend; restrict GET /api/config to authenticated callers only.
+
 ## 2026-07-16 — Single Nova homepage canvas (retire stale boards)
 
 - **What:** Consolidated five overlapping Cursor canvases into one project homepage (`nova-home.canvas.tsx`) with live health, roadmap queue, control ladder, shipped inventory, and doc links. Deleted stale boards: master-roadmap, OS mission, product-health, gap-and-opportunity, module-architecture-audit.
@@ -39,8 +48,6 @@ Entry template (copy and fill in):
 - **Verified by:** Canvas TypeScript check clean; live probes `/api/health`, `/api/ibkr/status`, `/api/integrity`, `/api/archive/health` embedded as of tip `29d836f`.
 - **Follow-ups:** Re-probe integrity during RTH; refresh stats after next verify suite.
 - **Related:** Canvas inventory cleanup 2026-07-16
-
-<!-- ENTRIES_START_PLACEHOLDER_REMOVE -->
 
 ## 2026-07-16 — security-sentinel subagent installed
 

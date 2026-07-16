@@ -1,5 +1,138 @@
 {
   "_comment": "Nova security findings registry. Managed by security-sentinel subagent. Do NOT edit manually unless you know what you are doing.",
   "_schema_version": "1.0",
-  "findings": []
+  "findings": [
+    {
+      "id": "SEC-001",
+      "fingerprint": "51b46c9ad310a60420085fd26fdc452ef194d1407898ab2776c93d3092ec65ba",
+      "status": "open",
+      "severity": "critical",
+      "title": "GET /api/config returns raw API credentials",
+      "detail": "The GET /api/config endpoint returns the plaintext APCA_API_KEY_ID and APCA_API_SECRET_KEY values to any caller with network access. This leaks broker credentials to any authenticated or unauthenticated client that can reach the API port.",
+      "location": "backend/routes/health.py:85",
+      "source": "nova-builtin",
+      "first_seen": "2026-07-16",
+      "last_seen": "2026-07-16",
+      "redacted_evidence": "nt as _ibkr_client\n    return {\n        \"api_key\": _env(\"APCA_API_KEY_ID\") or \"\",\n        \"api_secret\": _env(\"APCA_API_SECRET_KEY\") or \"",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+      "cvss_score": 7.5,
+      "cwe": "CWE-200",
+      "asvs": "V2.10.1",
+      "compensating_controls": "",
+      "acceptance_rationale": "",
+      "review_by": "",
+      "evidence_commit": ""
+    },
+    {
+      "id": "SEC-002",
+      "fingerprint": "ce092273bffe5e63cd6fc5a01c5e144b8cc485e3e7890fef3b0fc402d155d3a4",
+      "status": "open",
+      "severity": "critical",
+      "title": "Executor POST routes have no authentication guard",
+      "detail": "backend/routes/executor.py exposes 9 POST routes including arm, kill-switch, disarm, flatten, approve/reject staged tickets \u2014 none of which use a FastAPI Depends() authentication guard. Any network client can trigger executor state changes without credentials.",
+      "location": "backend/routes/executor.py:51",
+      "source": "nova-builtin",
+      "first_seen": "2026-07-16",
+      "last_seen": "2026-07-16",
+      "redacted_evidence": "9 POST route(s); no Depends(...) auth guard found",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+      "cvss_score": 9.8,
+      "cwe": "CWE-306",
+      "asvs": "V4.1.1",
+      "compensating_controls": "",
+      "acceptance_rationale": "",
+      "review_by": "",
+      "evidence_commit": ""
+    },
+    {
+      "id": "SEC-003",
+      "fingerprint": "8f87c08a53f3ca5b3a70b87726b3b6593a06078ce0f7ac131cb06f9fb297514a",
+      "status": "open",
+      "severity": "high",
+      "title": "CORS_ALLOWED_ORIGINS_DEFAULT is set to wildcard [\"*\"]",
+      "detail": "constants.py sets CORS_ALLOWED_ORIGINS_DEFAULT = [\"*\"], which allows any web origin to make cross-origin requests to the API. This is acceptable in pure local-dev, but becomes a high-risk misconfiguration if the API is deployed to Railway without setting NOVA_CORS_ALLOWED_ORIGINS in the env.",
+      "location": "backend/constants.py:34",
+      "source": "nova-builtin",
+      "first_seen": "2026-07-16",
+      "last_seen": "2026-07-16",
+      "redacted_evidence": "CORS_ALLOWED_ORIGINS_DEFAULT = [\"*\"]",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
+      "cvss_score": 5.4,
+      "cwe": "CWE-942",
+      "asvs": "V14.4.2",
+      "compensating_controls": "",
+      "acceptance_rationale": "",
+      "review_by": "",
+      "evidence_commit": ""
+    },
+    {
+      "id": "SEC-004",
+      "fingerprint": "bbd54cbca91e93076e5c21013eb342328361fdcd87f7a922a227cbb969931abf",
+      "status": "open",
+      "severity": "high",
+      "title": "No API authentication middleware found in backend",
+      "detail": "No FastAPI auth patterns (APIKeyHeader, HTTPBearer, OAuth2, or a global Depends with a known auth guard name) were found across the backend Python files. All API routes are effectively unauthenticated, including sensitive /api/config, /api/strategy/executor, and /api/trading endpoints.",
+      "location": "backend/main.py:1",
+      "source": "nova-builtin",
+      "first_seen": "2026-07-16",
+      "last_seen": "2026-07-16",
+      "redacted_evidence": "No APIKeyHeader/HTTPBearer/OAuth2 found in backend/**/*.py",
+      "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:N",
+      "cvss_score": 9.1,
+      "cwe": "CWE-306",
+      "asvs": "V4.1.1",
+      "compensating_controls": "",
+      "acceptance_rationale": "",
+      "review_by": "",
+      "evidence_commit": ""
+    },
+    {
+      "id": "SEC-005",
+      "fingerprint": "2e69207a5bea208e178b8b8f078e5051458b2d3c7ec8f2227fefca3013d62db1",
+      "status": "open",
+      "severity": "medium",
+      "title": "CI deploy.yml missing security scan jobs: gitleaks, osv-scanner, semgrep",
+      "detail": "The GitHub Actions workflow at .github/workflows/deploy.yml does not include jobs for: gitleaks, osv-scanner, semgrep. Secret leaks and known-vulnerable dependencies can reach production undetected. Add gitleaks, osv-scanner, and semgrep steps before the deploy job.",
+      "location": ".github/workflows/deploy.yml:1",
+      "source": "nova-builtin",
+      "first_seen": "2026-07-16",
+      "last_seen": "2026-07-16",
+      "redacted_evidence": "Missing: gitleaks, osv-scanner, semgrep",
+      "asvs": "V14.2.1",
+      "compensating_controls": "",
+      "acceptance_rationale": "",
+      "review_by": "",
+      "evidence_commit": ""
+    }
+  ],
+  "next_id": 6,
+  "updated": "2026-07-16",
+  "scan_runs": [
+    {
+      "run_id": "33d7e9bb-959a-4c50-abc7-4fe74441175d",
+      "date": "2026-07-16",
+      "tools": [
+        "nova-builtin"
+      ],
+      "blocked_tools": [
+        "semgrep",
+        "gitleaks",
+        "osv-scanner",
+        "trivy",
+        "pip_audit",
+        "npm"
+      ],
+      "new_findings": [
+        "SEC-001",
+        "SEC-002",
+        "SEC-003",
+        "SEC-004",
+        "SEC-005"
+      ],
+      "updated_findings": [
+        "SEC-001"
+      ],
+      "summary": "5 new, 1 updated, 6 tool(s) blocked"
+    }
+  ]
 }
