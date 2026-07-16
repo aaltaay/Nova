@@ -48,6 +48,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Decompose TickerDetailContent into quote panels (Phase 3)
+
+- **What:** Split `TickerDetailContent` into mountable panels: `QuoteHeaderPanel`, `NewsPanel`, `FundamentalsPanel`, `DataSourcesPanel`, `WatchlistStripPanel`, plus `DepthTapePanel` (wraps Phase-1 L2/T&S). Composition root stays API-compatible for SidePanel + Stock View.
+- **Why:** Modular Panel Workspace Phase 3 — optional panels before Phase 4 registry.
+- **Files touched:** `frontend/src/modules/*Panel*.tsx`, `quoteMetrics.ts`, `TickerDetailContent.tsx`, Vitest panel/composition tests, e2e `quote-panels.spec.ts`.
+- **How it works now:** `TickerDetailContent` only orders panels (`stack` / `columns`). Each panel owns its markup; DataSources / QuoteHeader / DepthTape / Fundamentals read `useWorkspace()` for discovery/IBKR. CSS class names unchanged (`cq-*`).
+- **Verified by:** `npx vitest run`, `npx playwright test`, `npm run build`.
+- **Follow-ups:** Phase 4 — module registry + data-driven TabNav; Gainers/Losers as separate modules.
+- **Related:** Phase 2 `67a3ee7`, Phase 1 `96bdafc`.
+
 ## 2026-07-15 — Tester subagent self-improvement loop + memory
 
 - **What:** Tester now reads/writes `.cursor/agents/tester-memory.md` (backlog, pending facts, run log) and follows a mandatory self-improvement protocol: promote durable command/trap/routing learnings into `tester.md`, log failures/BLOCKED/infra surprises, and work backlog items when asked to "improve the tester".

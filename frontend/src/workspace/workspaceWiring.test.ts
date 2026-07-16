@@ -33,4 +33,13 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     expect(detail).not.toMatch(/ibkrConnected\?:/);
     expect(detail).not.toMatch(/discoveryProvider\?:/);
   });
+
+  it('Phase 3 quote panels read workspace (DataSources / QuoteHeader / DepthTape)', () => {
+    const data = readFileSync(join(src, 'modules/DataSourcesPanel.tsx'), 'utf8');
+    const quote = readFileSync(join(src, 'modules/QuoteHeaderPanel.tsx'), 'utf8');
+    const depth = readFileSync(join(src, 'modules/DepthTapePanel.tsx'), 'utf8');
+    expect(data).toMatch(/useWorkspace\(/);
+    expect(quote).toMatch(/useWorkspace\(/);
+    expect(depth).toMatch(/useWorkspace\(/);
+  });
 });
