@@ -4,13 +4,9 @@ from __future__ import annotations
 import logging
 import time
 
-import requests
-
-from alpaca import ALPACA_DATA_URL as _DATA_URL, _env
 from constants import SCANNER_MIN_PRICE
 from fundamentals import _fundamentals_cache, fetch_fundamentals_batch as _fetch_fundamentals_batch
 import exchanges as _exchanges
-from health_status import ping_health
 from scanner import _check_news, _fetch_snapshots
 from scanner_runners._facade import facade
 from universe import ensure_avg_volume
@@ -59,8 +55,9 @@ def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
 
 def _run_gainers_update_ibkr(headers: dict | None) -> tuple[list[dict], list[dict]] | None:
     sr = facade()
-    gainers_rows = sr.run_ibkr(sr._ibkr_discovery.get_gainers())
-    losers_rows = sr.run_ibkr(sr._ibkr_discovery.get_losers())
+    port = sr.get_movers_port()
+    gainers_rows = list(port.get_gainers() or [])
+    losers_rows = list(port.get_losers() or [])
     if not gainers_rows and not losers_rows:
         return None
     all_symbols = list({r["symbol"] for r in gainers_rows + losers_rows})
@@ -75,6 +72,40 @@ def _run_gainers_update_ibkr(headers: dict | None) -> tuple[list[dict], list[dic
     return gainers, losers
 
 
+def _run_gainers_update_alpaca(headers: dict) -> tuple[list[dict], list[dict]] | None:
+    sr = facade()
+    state = sr.get_runtime_state()
+    port = sr.get_movers_port()
+    gainers_raw = [r for r in (port.get_gainers() or []) if r.get("price", 0) >= SCANNER_MIN_PRICE]
+    losers_raw = [r for r in (port.get_losers() or []) if r.get("price", 0) >= SCANNER_MIN_PRICE]
+    if not gainers_raw and not losers_raw:
+        return None
+
+    all_symbols = list({r["symbol"] for r in gainers_raw + losers_raw})
+    snaps = _fetch_snapshots(all_symbols, headers)
+    ensure_avg_volume(all_symbols, headers)
+    news = _check_news(all_symbols, headers)
+    _fetch_fundamentals_batch(all_symbols)
+    premarket_gap_map = {g["symbol"]: g.get("gap_percent") for g in state.gapper_cache}
+
+    gainers = []
+    for raw in gainers_raw:
+        entry = _build_mover_entry(raw, snaps, premarket_gap_map)
+        sym = entry["symbol"]
+        entry["has_news"] = sym in news
+        entry["newest_headline_at"] = news.get(sym)
+        gainers.append(entry)
+
+    losers = []
+    for raw in losers_raw:
+        entry = _build_mover_entry(raw, snaps, premarket_gap_map)
+        sym = entry["symbol"]
+        entry["has_news"] = sym in news
+        entry["newest_headline_at"] = news.get(sym)
+        losers.append(entry)
+    return gainers, losers
+
+
 def run_gainers_update() -> None:
     """Fetch top gainers and losers, enrich with snapshots + RVOL + news."""
     sr = facade()
@@ -83,59 +114,13 @@ def run_gainers_update() -> None:
 
     if sr._get_discovery_provider() == "ibkr":
         result = _run_gainers_update_ibkr(headers)
-        if result is None:
-            return
-        gainers, losers = result
     else:
         if not headers:
             return
-        base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-        if not ping_health(base_url, headers):
-            return
-        try:
-            resp = requests.get(
-                f"{_DATA_URL}/v1beta1/screener/stocks/movers",
-                headers=headers,
-                params={"top": min(state.config.top_n, 50)},
-                timeout=10,
-            )
-            if resp.status_code != 200:
-                logger.warning("Alpaca movers API returned %s", resp.status_code)
-                return
-            movers_json = resp.json()
-            gainers_raw = movers_json.get("gainers", [])
-            losers_raw = movers_json.get("losers", [])
-        except Exception:
-            logger.warning("run_gainers_update: Alpaca movers API error", exc_info=True)
-            return
-
-        if not gainers_raw and not losers_raw:
-            return
-
-        gainers_raw = [r for r in gainers_raw if r.get("price", 0) >= SCANNER_MIN_PRICE]
-        losers_raw = [r for r in losers_raw if r.get("price", 0) >= SCANNER_MIN_PRICE]
-        all_symbols = list({r["symbol"] for r in gainers_raw + losers_raw})
-        snaps = _fetch_snapshots(all_symbols, headers)
-        ensure_avg_volume(all_symbols, headers)
-        news = _check_news(all_symbols, headers)
-        _fetch_fundamentals_batch(all_symbols)
-        premarket_gap_map = {g["symbol"]: g.get("gap_percent") for g in state.gapper_cache}
-
-        gainers = []
-        for raw in gainers_raw:
-            entry = _build_mover_entry(raw, snaps, premarket_gap_map)
-            sym = entry["symbol"]
-            entry["has_news"] = sym in news
-            entry["newest_headline_at"] = news.get(sym)
-            gainers.append(entry)
-
-        losers = []
-        for raw in losers_raw:
-            entry = _build_mover_entry(raw, snaps, premarket_gap_map)
-            sym = entry["symbol"]
-            entry["has_news"] = sym in news
-            entry["newest_headline_at"] = news.get(sym)
-            losers.append(entry)
+        result = _run_gainers_update_alpaca(headers)
+    if result is None:
+        return
+    gainers, losers = result
 
     state.gainer_cache = gainers
     state.gainer_cache_ts = time.time()

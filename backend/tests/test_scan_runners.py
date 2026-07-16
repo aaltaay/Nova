@@ -5,6 +5,26 @@ import scan_runners
 from runtime_state import ScannerRuntimeState
 
 
+class _FakeDiscoveryPort:
+    def __init__(self, rows: list[dict]):
+        self._rows = rows
+
+    def get_gappers(self) -> list[dict]:
+        return list(self._rows)
+
+
+class _FakeMoversPort:
+    def __init__(self, gainers: list[dict], losers: list[dict] | None = None):
+        self._gainers = gainers
+        self._losers = losers or []
+
+    def get_gainers(self) -> list[dict]:
+        return list(self._gainers)
+
+    def get_losers(self) -> list[dict]:
+        return list(self._losers)
+
+
 def _fake_state() -> ScannerRuntimeState:
     return ScannerRuntimeState()
 
@@ -19,10 +39,9 @@ def test_run_discovery_scan_ibkr_populates_cache_without_alpaca_headers(monkeypa
     monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
     monkeypatch.setattr(
         scan_runners,
-        "run_ibkr",
-        lambda coro: [{"symbol": "AAPL", "gap_percent": 0.1}],
+        "get_discovery_port",
+        lambda: _FakeDiscoveryPort([{"symbol": "AAPL", "gap_percent": 0.1}]),
     )
-    monkeypatch.setattr(scan_runners._ibkr_discovery, "get_gappers", lambda: object())
     monkeypatch.setattr(
         scan_runners,
         "ensure_avg_volume",
@@ -62,10 +81,10 @@ def test_run_discovery_scan_ibkr_happy_path_populates_cache(monkeypatch):
     monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
     monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: {"api-key": "x"})
     monkeypatch.setattr(
-        scan_runners, "run_ibkr",
-        lambda coro: [{"symbol": "AAPL", "gap_percent": 0.1}],
+        scan_runners,
+        "get_discovery_port",
+        lambda: _FakeDiscoveryPort([{"symbol": "AAPL", "gap_percent": 0.1}]),
     )
-    monkeypatch.setattr(scan_runners._ibkr_discovery, "get_gappers", lambda: object())
     monkeypatch.setattr(scan_runners, "ensure_avg_volume", lambda *a, **k: None)
     monkeypatch.setattr(scan_runners, "_check_news", lambda *a, **k: {"AAPL": "2026-07-15T00:00:00Z"})
     monkeypatch.setattr(
@@ -94,17 +113,16 @@ def test_run_gainers_update_ibkr_without_alpaca_headers(monkeypatch):
     monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
     monkeypatch.setattr(
         scan_runners,
-        "run_ibkr",
-        lambda coro: [{"symbol": "XYZ", "price": 10.0, "change_pct": 0.05}],
+        "get_movers_port",
+        lambda: _FakeMoversPort([{"symbol": "XYZ", "price": 10.0, "change_pct": 0.05}]),
     )
-    monkeypatch.setattr(scan_runners._ibkr_discovery, "get_gainers", lambda: object())
-    monkeypatch.setattr(scan_runners._ibkr_discovery, "get_losers", lambda: object())
     monkeypatch.setattr(
         scan_runners,
         "enrich_ibkr_mover",
         lambda row, news: {**row, "enriched": True, "news": news},
     )
     monkeypatch.setattr(scan_runners, "save_movers_snapshot", lambda *a, **k: None)
+    monkeypatch.setattr(scan_runners, "mark_resub", lambda: None)
 
     scan_runners.run_gainers_update()
 

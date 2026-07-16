@@ -10,6 +10,10 @@ Every threshold comes from constants.py. Every outcome carries human-readable
 (news.ai_reasoning) — all three are informational narrative layered on top;
 the rules remain the visible, authoritative decision layer and are never
 overridden by any of them.
+
+Facade owner: Pattern-Driven Architecture (news slice).
+Removal criterion: no production imports of this facade for helpers that
+live in ``news.impact_*``; migrate callers to the focused modules.
 """
 from __future__ import annotations
 

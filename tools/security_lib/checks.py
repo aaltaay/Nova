@@ -7,6 +7,10 @@ These checks always run without any external binary.  They scan the repo
 source files directly using Python.  No subprocess calls here.
 
 Side-effect-free: reads files, returns RawFinding list.
+
+Facade owner: security-sentinel tooling.
+Removal criterion: no production/tool caller imports this barrel for a
+single check that lives in ``checks_*``; prefer focused modules.
 """
 
 from __future__ import annotations

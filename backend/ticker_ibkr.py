@@ -1,20 +1,18 @@
-"""IBKR ticker snapshot port — scanner cache reuse + live fallback."""
+"""IBKR ticker snapshot helpers — scanner cache reuse + live fallback.
+
+``TickerSnapshotPort`` lives in ``ports.ticker``; the adapter is
+``adapters.ibkr_ticker.IbkrTickerSnapshotAdapter``.
+"""
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Protocol
 
 from constants import TICKER_IBKR_BRIDGE_TIMEOUT_SEC, TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC
+from ports.ticker import TickerSnapshotPort  # noqa: F401 — re-export for callers
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
-
-
-class TickerSnapshotPort(Protocol):
-    """Narrow port: one symbol's price snapshot for the quote panel."""
-
-    def fetch_snapshot(self, symbol: str) -> dict: ...
 
 
 def find_ibkr_cache_row(symbol: str) -> dict | None:
@@ -92,8 +90,10 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
     }
 
 
-class IbkrTickerSnapshotAdapter:
-    """Adapter implementing ``TickerSnapshotPort`` for discovery=ibkr."""
+def __getattr__(name: str):
+    """Lazy re-export to avoid import cycle with ``adapters.ibkr_ticker``."""
+    if name == "IbkrTickerSnapshotAdapter":
+        from adapters.ibkr_ticker import IbkrTickerSnapshotAdapter
 
-    def fetch_snapshot(self, symbol: str) -> dict:
-        return fetch_ticker_snapshot_ibkr(symbol)
+        return IbkrTickerSnapshotAdapter
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

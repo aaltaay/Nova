@@ -11,6 +11,10 @@ Used by:
   - background integrity_loop (loud WARN logs)
 
 Statuses: pass | warn | fail. Overall = worst check.
+
+Facade owner: Phase 10 / Pattern-Driven Architecture.
+Removal criterion: no production caller imports this facade instead of
+``hod_momo_integrity_hod`` / ``hod_momo_integrity_scanner`` directly.
 """
 from __future__ import annotations
 

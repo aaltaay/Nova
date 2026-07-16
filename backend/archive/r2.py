@@ -11,6 +11,10 @@ the put/head path actually succeeded.
 Credentials live in ``.env`` only:
   R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
 Optional: R2_BUCKET (defaults to ``R2_BUCKET_DEFAULT``), ARCHIVE_R2_ENABLED.
+
+Facade owner: Nova OS P8 / Pattern-Driven Architecture.
+Removal criterion: no production imports of ``archive.r2`` private helpers;
+callers use focused ``archive.r2_*`` modules or a public archive API only.
 """
 from __future__ import annotations
 

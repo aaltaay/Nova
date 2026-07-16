@@ -1,13 +1,20 @@
 """
 Scanner runner functions — discovery, focus, after-hours, and movers.
 
-Strangler facade (Phase 8A): orchestration lives in ``scanner_runners.*``;
-this module re-exports the public API and symbols tests monkeypatch.
+Strangler facade (ADR 004 / Phase 8A close remediation).
+Orchestration lives in ``scanner_runners.*``; provider SDKs are reached only
+via ``composition.market_data_providers`` ports.
+
+Facade owner: Phase 8A / close-remediation Phase 4.
+Removal criterion: no production caller imports ``scan_runners`` solely for
+monkeypatch symbols (``_ibkr_discovery``, ``run_ibkr``); callers use
+``get_discovery_port`` / ``get_movers_port`` or focused modules.
 """
 from __future__ import annotations
 
 from alpaca import _alpaca_headers, _get_discovery_provider
 from cache import save_afterhours_snapshot, save_gapper_snapshot, save_movers_snapshot
+from composition.market_data_providers import get_discovery_port, get_movers_port
 from ibkr import discovery as _ibkr_discovery
 from ibkr_bridge import enrich_ibkr_mover, run_ibkr
 from runtime_state import get_runtime_state
@@ -38,4 +45,6 @@ __all__ = [
     "save_afterhours_snapshot",
     "save_movers_snapshot",
     "enrich_ibkr_mover",
+    "get_discovery_port",
+    "get_movers_port",
 ]

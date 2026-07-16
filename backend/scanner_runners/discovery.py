@@ -11,32 +11,12 @@ def run_discovery_scan() -> None:
     sr = facade()
     state = sr.get_runtime_state()
     headers = sr._alpaca_headers()
-    provider = sr._get_discovery_provider()
-
-    if provider == "ibkr":
-        gappers = sr.run_ibkr(sr._ibkr_discovery.get_gappers())
-        # Alpaca headers are optional listing/news metadata only — never block IBKR prices.
-    else:
-        from alpaca import _env, _try_fallback_to_iex
-        from health_status import ping_health
-        from scanner import _compute_gappers, _fetch_snapshots
-        from universe import get_tradable_symbols
-
-        base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-        if not headers:
-            return
-        if not ping_health(base_url, headers):
-            return
-        symbols = get_tradable_symbols(base_url, headers)
-        if not symbols:
-            return
-        snaps = _fetch_snapshots(symbols, headers)
-        if not snaps and _try_fallback_to_iex("snapshot fetch returned empty on discovery scan"):
-            snaps = _fetch_snapshots(symbols, headers)
-        gappers = _compute_gappers(snaps)
+    # Price rows come from the composed DiscoveryPort (IBKR or Alpaca).
+    gappers = list(sr.get_discovery_port().get_gappers() or [])
 
     gapper_syms = [g["symbol"] for g in gappers]
     news: dict = {}
+    # Alpaca headers are optional listing/news metadata — never block IBKR prices.
     if headers:
         sr.ensure_avg_volume(gapper_syms, headers)
         news = sr._check_news(gapper_syms, headers)

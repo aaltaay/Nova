@@ -8,9 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
 from constants import TICKER_AVG_VOLUME_CACHE_ONLY, TICKER_SLOW_CACHE_TTL
 from runtime_state import get_runtime_state
-from ticker_alpaca import fetch_ticker_asset, fetch_ticker_news, fetch_ticker_snapshot
+from ticker_alpaca import fetch_ticker_asset, fetch_ticker_news
 from ticker_cache import _ticker_slow_cache, _ticker_slow_cache_ts
-from ticker_ibkr import IbkrTickerSnapshotAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +51,11 @@ def rvol_5min_fields(
     return {"volume_in_5min": vol_5m, "rvol_5min": rvol5}
 
 
-def _snapshot_for_provider(symbol: str, headers: dict, feed: str, use_ibkr: bool) -> dict:
-    """Explicit provider selection — no silent Alpaca fallback when use_ibkr."""
-    if use_ibkr:
-        return IbkrTickerSnapshotAdapter().fetch_snapshot(symbol)
-    return fetch_ticker_snapshot(symbol, headers, feed)
+def _snapshot_for_provider(symbol: str, headers: dict, feed: str) -> dict:
+    """Composed TickerSnapshotPort — no silent Alpaca fallback when discovery=ibkr."""
+    from composition.market_data_providers import get_ticker_snapshot_port
+
+    return get_ticker_snapshot_port(headers, feed).fetch_snapshot(symbol)
 
 
 def build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> dict:
@@ -67,10 +66,9 @@ def build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> d
     bug: table showed IBKR last/gap while the quote panel showed Alpaca session.
     """
     state = get_runtime_state()
-    use_ibkr = _get_discovery_provider() == "ibkr"
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_asset = pool.submit(fetch_ticker_asset, symbol, base_url, headers)
-        f_snap = pool.submit(_snapshot_for_provider, symbol, headers, feed, use_ibkr)
+        f_snap = pool.submit(_snapshot_for_provider, symbol, headers, feed)
         asset = f_asset.result()
         snapshot = f_snap.result()
 

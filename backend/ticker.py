@@ -2,7 +2,12 @@
 Ticker detail service module — strangler facade (Phase 8B).
 
 Implementation: ``ticker_cache``, ``ticker_alpaca``, ``ticker_ibkr``,
-``ticker_detail``. Routes live in ``backend/routes/ticker.py``.
+``ticker_detail``. Price snapshots go through ``ports.ticker`` /
+``composition.market_data_providers``. Routes live in ``backend/routes/ticker.py``.
+
+Facade owner: Phase 8B / close-remediation Phase 4.
+Removal criterion: no production caller imports private ``_build_*`` /
+``_fetch_*`` aliases from this module; prefer ``ticker_detail`` + ports.
 """
 from __future__ import annotations
 

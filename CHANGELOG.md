@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Close remediation Phase 4: scanner/ticker ports
+
+- **What:** Added `backend/ports/` + `backend/adapters/` + composition wiring for discovery/movers/ticker snapshots; orchestration uses ports instead of constructing IBKR/Alpaca providers; strangler facades document owner phase + removal criterion; shared adapter contract tests.
+- **Why:** Close-remediation Phase 4 — finish ADR 002 boundaries left incomplete after the architecture program close.
+- **Files touched:** `backend/ports/*`, `backend/adapters/*`, `backend/composition/market_data_providers.py`, `scanner_runners/{discovery,movers}.py`, `ticker_detail.py`, `scan_runners.py`, facade docstrings, `tests/test_provider_contracts.py`.
+- **How it works now:** `get_discovery_port` / `get_movers_port` / `get_ticker_snapshot_port` select IBKR or Alpaca adapters from discovery settings. Application modules do not import concrete discovery SDKs for price rows.
+- **Verified by:** `pytest tests/test_scan_runners.py tests/test_provider_contracts.py` (8 passed).
+- **Follow-ups:** Phase 5 frontend barrels + real CSS `@layer` migration.
+
 ## 2026-07-16 — Close remediation Phase 3: feed + symbol correctness
 
 - **What:** IBKR discovery/movers no longer require Alpaca credentials to populate price caches; chart mock-bar fallback is forbidden under `discovery=ibkr`; quote chart binds to `selectedSymbol` and live-trade merges ignore mismatched symbols.
