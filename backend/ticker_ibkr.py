@@ -1,0 +1,99 @@
+"""IBKR ticker snapshot port — scanner cache reuse + live fallback."""
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+from typing import Protocol
+
+from constants import TICKER_IBKR_BRIDGE_TIMEOUT_SEC, TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC
+from runtime_state import get_runtime_state
+
+logger = logging.getLogger(__name__)
+
+
+class TickerSnapshotPort(Protocol):
+    """Narrow port: one symbol's price snapshot for the quote panel."""
+
+    def fetch_snapshot(self, symbol: str) -> dict: ...
+
+
+def find_ibkr_cache_row(symbol: str) -> dict | None:
+    """Look up a symbol's current row in whichever IBKR-sourced cache has it.
+
+    Gainer/loser rows are checked before gapper rows: gappers stop refreshing
+    once the market opens, so a symbol in both caches must resolve to the live
+    gainer/loser row (see PROBLEM_LOG 2026-07-13).
+    """
+    state = get_runtime_state()
+    for cache in (state.gainer_cache, state.loser_cache, state.gapper_cache):
+        for row in cache:
+            if row.get("symbol") == symbol:
+                return row
+    return None
+
+
+def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
+    """IBKR counterpart to Alpaca snapshot fetch.
+
+    Reuses the IBKR scanner cache row for symbols already tracked by discovery
+    (avoids a redundant IB API call and the stale CLOSE tick issue on repeated
+    queries — see PROBLEM_LOG 2026-07-13). Falls back to a live snapshot only
+    for symbols not in any scanner cache. Never falls back to Alpaca.
+    """
+    cached_row = find_ibkr_cache_row(symbol)
+    if cached_row:
+        price = cached_row.get("current_price") or cached_row.get("price")
+        prev_close = cached_row.get("previous_close") or cached_row.get("prev_close")
+        volume = cached_row.get("volume", 0)
+        exchange = cached_row.get("exchange")
+        open_price = None
+    else:
+        from ibkr import client as _ibkr_client
+        from ibkr import discovery as _ibkr_discovery
+        try:
+            quotes = _ibkr_client.run_coro(
+                _ibkr_discovery.snapshot_quotes(
+                    [symbol], timeout_sec=TICKER_IBKR_SNAPSHOT_TIMEOUT_SEC
+                ),
+                timeout=TICKER_IBKR_BRIDGE_TIMEOUT_SEC,
+            ) or {}
+        except Exception as exc:
+            logger.warning("ticker IBKR snapshot failed for %s: %s", symbol, exc)
+            return {}
+        q = quotes.get(symbol)
+        if not q:
+            return {}
+        price, prev_close = q["price"], q.get("prev_close")
+        volume = q.get("volume", 0)
+        exchange = q.get("exchange")
+        open_price = q.get("open")
+
+    if price is None or prev_close is None:
+        return {}
+    now_iso = datetime.now(timezone.utc).isoformat()
+    return {
+        "latest_trade": {"price": price, "size": None, "exchange": exchange, "timestamp": now_iso},
+        "latest_quote": None,
+        "minute_bar": None,
+        "daily_bar": {
+            "open": open_price if open_price and open_price > 0 else None,
+            "high": None,
+            "low": None,
+            "close": price,
+            "volume": volume, "trade_count": None, "vwap": None, "timestamp": now_iso,
+        },
+        "prev_daily_bar": {
+            "open": None, "high": None, "low": None, "close": prev_close,
+            "volume": None, "trade_count": None, "vwap": None, "timestamp": None,
+        },
+        "prev_close": prev_close,
+        "session_close": prev_close,
+        "session_prev_close": None,
+    }
+
+
+class IbkrTickerSnapshotAdapter:
+    """Adapter implementing ``TickerSnapshotPort`` for discovery=ibkr."""
+
+    def fetch_snapshot(self, symbol: str) -> dict:
+        return fetch_ticker_snapshot_ibkr(symbol)
