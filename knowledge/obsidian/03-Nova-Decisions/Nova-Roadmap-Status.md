@@ -19,7 +19,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) — **CLOSED** · metrics `architecture/program-close-metrics.md`
 - **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker; structural maintenance complete
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
-- **Tip SHA:** _(Phase 13 close commit)_
+- **Tip SHA:** `342b6cc` (Maintenance Phase 13 program close)
 - **Prior tip stamps:** `8a6de9b` / `72ec84b` / `50a14fe` / `645761b`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
@@ -191,7 +191,7 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 | 10 HOD Momo | `[x]` | `72ec84b` | Explicit state + focused facades |
 | 11 Error visibility | `[x]` | `f14bcb8` | No swallowed `except: pass` |
 | 12 Executor | `[x]` | `8a6de9b` | Deferred — see `architecture/phase-12-executor-deferral.md` |
-| 13 Program close | `[x]` | _(this commit)_ | Full verify + `architecture/program-close-metrics.md` |
+| 13 Program close | `[x]` | `342b6cc` | Full verify + `architecture/program-close-metrics.md` |
 
 **Phase 0 metrics snapshot:** index.css 6168 · hod_momo 1079 · constants.py 951 · constants.ts 821 · maintainer 38 findings (36 non-baseline) · pytest collected 617 · Vitest 178 PASS.
 
@@ -208,7 +208,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 13: program close — metrics, maintainer memory, full verify 669/178/14 | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 13: program close — metrics, maintainer memory, full verify 669/178/14 | `342b6cc` |
 | 2026-07-16 | Maintenance Phase 12: defer executor.py split with written rationale (baseline 494) | `8a6de9b` |
 | 2026-07-16 | Maintenance Phase 11: error visibility — no swallowed except:pass in production/tools | `f14bcb8` |
 | 2026-07-16 | Maintenance Phase 10: explicit HOD state owner + persist/session/trade/alert/admin facades | `72ec84b` |

@@ -38,7 +38,7 @@ Closed: **2026-07-16** · Tip at close: see Phase 13 commit SHA in `Nova-Roadmap
 | 10 | `72ec84b` |
 | 11 | `f14bcb8` |
 | 12 | `8a6de9b` |
-| 13 | _(this commit)_ |
+| 13 | `342b6cc` |
 
 ## Remaining accepted risks
 
