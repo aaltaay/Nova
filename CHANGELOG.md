@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Ship pending docs, Vale, and security registry leftovers
+
+- **What:** Committed remaining untracked/modified work: Nova docs inventory tool + tests, Vale/markdownlint pins, Security-Status + findings-registry compensating controls, security check updates, Skills-Library / roadmap-status sync, continuity rules pointing at `nova-home` canvas, `cvss` in requirements-dev. Ignored dated `graphify-out/20*/` snapshots (canonical graph stays at `graphify-out/` root).
+- **Why:** Working tree still had leftover files after prior agent/docs/security sessions; user asked for a clean committed+pushed repo.
+- **Files touched:** `tools/nova_docs_inventory.py`, `tools/test_nova_docs_inventory.py`, `.vale*`, `.markdownlint-cli2.jsonc`, `docs/SOURCE-PINS.md`, `security/*`, `knowledge/obsidian/**`, `.cursor/rules/nova-*-continuity.mdc`, `.gitignore`, `backend/requirements-dev.txt`.
+- **How it works now:** `git status` clean on master after this push; graphify dated folders stay local-only.
+- **Verified by:** `git status` clean after commit+push.
+
 ## 2026-07-16 — Backend outage flags (API_DOWN / API_WEDGED)
 
 - **What:** When the API drops, the header shows a stable flag chip (`API_DOWN`, `API_WEDGED`, `API_HTTP`) plus a short message/hint; console logs `[Nova][API_FLAG] …` for fast grep. Scanner fetches abort after 8s so a hung port surfaces in seconds, not minutes.

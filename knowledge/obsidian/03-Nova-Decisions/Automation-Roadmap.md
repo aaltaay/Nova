@@ -1,6 +1,6 @@
 # Automation Roadmap
 
-> **Canonical Nova OS progress:** see [[Nova-OS-Status]] and the mission canvas (`nova-os-mission.canvas.tsx`). This note is the historical A–F backbone; Nova OS phases P0–P10 extend it.
+> **Canonical Nova OS progress:** see [[Nova-OS-Status]] and the project homepage canvas (`nova-home.canvas.tsx`). This note is the historical A–F backbone; Nova OS phases P0–P10 extend it.
 
 ## Phase 0 — Memory (done)
 

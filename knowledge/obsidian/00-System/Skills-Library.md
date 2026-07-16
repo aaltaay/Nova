@@ -116,6 +116,17 @@ If a skill’s copy conflicts with Nova rules, **Nova constitution + `.cursor/ru
 | karpathy-guidelines | `.cursor/skills/karpathy-guidelines/` | Coding discipline |
 | graphify | `.cursor/skills/graphify/` (+ `.claude/skills/graphify/`) | Knowledge-graph rebuild/query |
 
+## Security agents & skills
+
+| Agent / Skill | Trigger | Scope | Notes |
+|---------------|---------|-------|-------|
+| `security-review` (Cursor subagent) | "Review security of these changes" | Diff only — fast triage | Run via Cursor agent panel; scoped to staged/branch changes |
+| `security-sentinel` (Nova subagent) | "Run security sentinel" / "full security posture" | Full repo: deps, secrets, patterns, CVSS | Updates [[Security-Status]]; uses `tools/security_audit.py` |
+| `llm-trading-agent-security` skill | Reviewing alert→IBKR exec paths, hardening tool permissions | Methodology / threat-model reference | Complementary methodology — research only; reinforces `auto_live` NO-GO and no-silent-order-path guarantees |
+
+See [[Security-Status]] for open findings, baseline checklist, and agent ownership table.  
+See `security/tooling.md` for local install commands (Semgrep, Gitleaks, OSV-Scanner, Trivy, ZAP).
+
 ## How agents should load these
 
 1. Read this note + `SOURCE-PINS.txt` when starting Phase E (backtest) or security review of exec paths.

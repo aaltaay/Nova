@@ -2,3 +2,7 @@
 pytest
 ruff
 pip-audit
+# CVSS v4 scoring library — used by tools/security_audit.py to classify pip-audit findings
+cvss>=2.6,<3
+# Optional: schemathesis for OpenAPI fuzz testing (many transitive deps — install separately if needed)
+# schemathesis>=4.30,<5

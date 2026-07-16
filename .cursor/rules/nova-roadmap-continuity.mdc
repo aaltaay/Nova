@@ -15,7 +15,7 @@ Nova OS engine internals (decide/control_mode/archive code bugs) still use `.cur
 2. Read the Master Roadmap plan: `C:\Users\aalta\.cursor\plans\nova_master_roadmap_a_z.plan.md` (or the linked plan in the Cursor plans folder).
 3. Skim recent `CHANGELOG.md` and search `PROBLEM_LOG.md` for matching symptoms if debugging.
 4. Run `git status` and state the current roadmap phase before making changes.
-5. Optionally open the status canvas: `canvases/nova-master-roadmap.canvas.tsx` (absolute under the Cursor projects canvases folder).
+5. Optionally open the project homepage canvas: `canvases/nova-home.canvas.tsx` (absolute under the Cursor projects canvases folder).
 6. For Phase B ops, also read `docs/paper-shadow-protocol.md`.
 
 ## During a phase
@@ -29,7 +29,7 @@ Nova OS engine internals (decide/control_mode/archive code bugs) still use `.cur
 
 1. Run phase verification (pytest, Vitest / `npm run build`, Playwright/browser when UI changes). Ops phases: record review artifacts and day count in the status note.
 2. Update `Nova-Roadmap-Status.md`: phase checkboxes, state, verification ledger, exact next phase task; **append** a History row (do not rewrite prior History).
-3. Refresh `nova-master-roadmap.canvas.tsx` if phase status changed.
+3. Refresh `nova-home.canvas.tsx` if phase status or live health materially changed.
 4. Prepend `CHANGELOG.md` (and `PROBLEM_LOG.md` if a bug was fixed).
 5. **Hard rule — commit and push every phase:** `git add` (intentional phase files only) → `git commit` → `git push`. Phase completion is **incomplete** until push succeeds. Record the resulting commit SHA in `Nova-Roadmap-Status.md` (`Last verified commit`). Never leave a verified phase uncommitted. If git auth/network fails, record the blocker in Crash/blocker and do not claim verified.
 6. Stop — next chat begins the next phase from the status note. A new chat must not start the next phase until this phase's commit+push is done.

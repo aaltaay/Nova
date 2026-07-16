@@ -1,0 +1,23 @@
+{
+  "ignores": [
+    "node_modules/**",
+    "frontend/node_modules/**",
+    ".git/**",
+    "graphify-out/**",
+    "frontend/dist/**",
+    "frontend/release/**",
+    "backend/.cache/**",
+    "backend/logs/**",
+    ".vale/**",
+    ".tmp/**",
+    "downloads/**"
+  ],
+  "config": {
+    "MD013": false,
+    "MD034": false,
+    "MD033": false,
+    "MD060": false,
+    "MD041": false,
+    "MD036": false
+  }
+}

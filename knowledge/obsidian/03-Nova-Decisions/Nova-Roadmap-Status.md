@@ -2,7 +2,7 @@
 
 > **Canonical product roadmap ledger** for the Master Roadmap A–Z.  
 > **Plan (executable contract):** `C:\Users\aalta\.cursor\plans\nova_master_roadmap_a_z.plan.md`  
-> **Canvas (human status board):** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\nova-master-roadmap.canvas.tsx`  
+> **Canvas (project homepage):** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\nova-home.canvas.tsx`  
 > **Ops protocol (Phase B):** `docs/paper-shadow-protocol.md` · day log: `docs/shadow-day-log-template.md`  
 > **Productization (Phase J):** [[Productization-Decision]]  
 > **Live gate (Phase I):** [[Nova-OS-Live-Readiness-Review]]
@@ -21,7 +21,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Tip SHA:** `5f7b4d2` (continuity sync after feature dump)
 - **Prior tip stamps:** `89712d5` / `7749181`
 - **Phase A skills commit:** `9f4ca3f`
-- **Last updated:** 2026-07-16 (continuity sync after feature dump — plan/canvas/status aligned; no new product features)
+- **Last updated:** 2026-07-16 (homepage canvas consolidation — single `nova-home.canvas.tsx`)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 
 ## Exact next action (human)
@@ -168,6 +168,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-07-16 | Canvas consolidation: single `nova-home.canvas.tsx` homepage; retired five stale boards; continuity rules retargeted | (docs/canvas; commit when user requests) |
 | 2026-07-16 | Continuity sync after feature dump: status/plan/canvas aligned; A/D–G/J SHAs; B/C/I honest blockers; verify counts last-known 592/149/14 @ 2026-07-15; graphify AST update + wiki export | `5f7b4d2` |
 | 2026-07-15 | Tip SHA stamps after finish pass | `89712d5` / `7749181` |
 | 2026-07-15 | Finish pass: Phase A skills `9f4ca3f`; D alerts; E backtest; F reports v2; G hotkeys; B shadow-day template; C Bucket Lock/rotation docs; I evidence framework; J Productization-Decision; K–Z deferred parking; verify 592/149/14 | `722d614` |

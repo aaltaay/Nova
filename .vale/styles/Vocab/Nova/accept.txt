@@ -1,0 +1,14 @@
+IBKR
+HOD
+Alpaca
+R2
+Nova
+NOVA
+pytest
+Vitest
+Playwright
+uvicorn
+FastAPI
+WebSocket
+Level2
+gappers

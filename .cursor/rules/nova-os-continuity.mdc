@@ -13,7 +13,7 @@ Every chat that touches Nova OS (decision engine, control modes, archive, execut
 2. Read the Nova OS plan (`.cursor/plans/nova_os_decision_engine_*.plan.md` or linked plan file).
 3. Skim recent `CHANGELOG.md` and search `PROBLEM_LOG.md` for matching symptoms if debugging.
 4. Run `git status` and state the current phase before making changes.
-5. Optionally open the mission canvas: `canvases/nova-os-mission.canvas.tsx`.
+5. Optionally open the project homepage canvas: `canvases/nova-home.canvas.tsx` (Nova OS section + control ladder live there).
 
 ## During a phase
 
@@ -25,7 +25,7 @@ Every chat that touches Nova OS (decision engine, control modes, archive, execut
 
 1. Run phase verification (pytest, `npm run build`, browser when applicable).
 2. Update `Nova-OS-Status.md`: phase, state, verification ledger, exact next phase task.
-3. Refresh `nova-os-mission.canvas.tsx` if phase status changed.
+3. Refresh `nova-home.canvas.tsx` if Nova OS position or control-ladder facts changed.
 4. Prepend `CHANGELOG.md` (and `PROBLEM_LOG.md` if a bug was fixed).
 5. **Hard rule — commit and push every phase:** `git add` (intentional phase files only) → `git commit` → `git push`. Phase completion is **incomplete** until push succeeds. Record the resulting commit SHA in `Nova-OS-Status.md` (`Last verified commit`). Never leave a verified phase uncommitted. If git auth/network fails, record the blocker in Crash/blocker and do not claim verified.
 6. Stop — next chat begins the next phase from the status note. A new chat must not start the next phase until this phase's commit+push is done.

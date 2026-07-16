@@ -268,7 +268,11 @@ _SECURITY_JOB_PATTERNS = [
 
 
 def check_ci_missing_security_jobs() -> list[RawFinding]:
-    """Check that deploy.yml includes at least one security scan job."""
+    """Check that deploy.yml includes dedicated security scanners.
+
+    A warning-only ``security-audit`` job that runs ``tools/security_audit.py``
+    is progress but does not replace gitleaks / osv-scanner / semgrep coverage.
+    """
     path = _CI_FILE
     rel = _rel(path)
     text = _read(path)
@@ -294,26 +298,71 @@ def check_ci_missing_security_jobs() -> list[RawFinding]:
         for name, pat in zip(["gitleaks", "osv-scanner", "semgrep"], _SECURITY_JOB_PATTERNS)
         if not pat.search(text)
     ]
-    if missing:
-        return [
-            RawFinding(
-                source=SOURCE,
-                kind="ci_missing_security_jobs",
-                path=rel,
-                title=f"CI deploy.yml missing security scan jobs: {', '.join(missing)}",
-                detail=(
-                    f"The GitHub Actions workflow at {rel} does not include jobs for: "
-                    f"{', '.join(missing)}. Secret leaks and known-vulnerable dependencies "
-                    "can reach production undetected. Add gitleaks, osv-scanner, and "
-                    "semgrep steps before the deploy job."
-                ),
-                severity="medium",
-                location=_location(rel, 1),
-                redacted_evidence=f"Missing: {', '.join(missing)}",
-                asvs="V14.2.1",
-            )
-        ]
-    return []
+    if not missing:
+        return []
+
+    has_sentinel_job = bool(
+        re.search(r"security-audit|security_audit\.py", text, re.IGNORECASE)
+    )
+    note = (
+        " A warning-only security-audit job already runs tools/security_audit.py;"
+        " add dedicated scanner steps next."
+        if has_sentinel_job
+        else " Add gitleaks, osv-scanner, and semgrep steps before the deploy job."
+    )
+    return [
+        RawFinding(
+            source=SOURCE,
+            kind="ci_missing_security_jobs",
+            path=rel,
+            title=f"CI deploy.yml missing security scan jobs: {', '.join(missing)}",
+            detail=(
+                f"The GitHub Actions workflow at {rel} does not include jobs for: "
+                f"{', '.join(missing)}. Secret leaks and known-vulnerable dependencies "
+                f"can reach production undetected.{note}"
+            ),
+            severity="medium",
+            location=_location(rel, 1),
+            redacted_evidence=f"Missing: {', '.join(missing)}",
+            asvs="V14.2.1",
+        )
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Check F: Dockerfile runs as root (no USER directive)
+# ---------------------------------------------------------------------------
+
+_DOCKERFILE = REPO_ROOT / "Dockerfile"
+
+
+def check_dockerfile_runs_as_root() -> list[RawFinding]:
+    """Flag root Docker images with no USER directive."""
+    path = _DOCKERFILE
+    rel = _rel(path)
+    text = _read(path)
+    if text is None:
+        return []
+    if re.search(r"(?m)^\s*USER\s+\S+", text):
+        return []
+    return [
+        RawFinding(
+            source=SOURCE,
+            kind="dockerfile_runs_as_root",
+            path=rel,
+            title="Dockerfile runs container process as root (no USER directive)",
+            detail=(
+                "Root Dockerfile has no USER directive, so uvicorn runs as UID 0. "
+                "A container escape or path-traversal bug would yield root privileges. "
+                "Add a non-root user before CMD."
+            ),
+            severity="medium",
+            location=_location(rel, 1),
+            redacted_evidence="No USER directive found before CMD",
+            cwe="CWE-250",
+            asvs="V14.1.3",
+        )
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -366,4 +415,5 @@ def run_builtin_checks() -> list[RawFinding]:
     findings.extend(check_cors_wildcard())
     findings.extend(check_no_api_auth_middleware())
     findings.extend(check_ci_missing_security_jobs())
+    findings.extend(check_dockerfile_runs_as_root())
     return findings

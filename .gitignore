@@ -49,9 +49,17 @@ Thumbs.db
 downloads/
 docs/warrior-trading/
 
+# Vale synced style packages (keep Vocab committed)
+.vale/styles/**
+!.vale/styles/Vocab/
+!.vale/styles/Vocab/**
+
 # Graphify extraction cache / scratch (keep graph.json, report, wiki, html in VCS)
 # Never write a second graph under the vault (CLI mis-target); canonical is repo-root graphify-out/
 knowledge/obsidian/graphify-out/
+
+# Dated accidental rebuilds under graphify-out/YYYY-MM-DD/ (canonical is graphify-out/ root)
+graphify-out/20*/
 
 graphify-out/cache/
 graphify-out/.graphify_chunk_*.json

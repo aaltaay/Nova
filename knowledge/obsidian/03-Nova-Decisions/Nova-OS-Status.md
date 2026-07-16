@@ -45,7 +45,7 @@ The 2026-07-15 post-P10 audit found P2–P7 were partial/prototype: **unsafe fla
 ## In progress / uncommitted
 
 - Working tree was clean at continuity refresh (pre-refresh HEAD `61ea86c`). No uncommitted HOD/modular-workspace WIP.
-- Nova OS hardening plan sections 1–6 are **all closed**. Known remaining follow-ups (ops/infra, not code bugs): R2 Bucket Lock (console); rotate test R2 token later; `walk_day` on a real compacted production day when one exists; paper shadow + evening review. Mission canvas file `canvases/nova-os-mission.canvas.tsx` is referenced by continuity rules but is not present in the repo (skipped refresh).
+- Nova OS hardening plan sections 1–6 are **all closed**. Known remaining follow-ups (ops/infra, not code bugs): R2 Bucket Lock (console); rotate test R2 token later; `walk_day` on a real compacted production day when one exists; paper shadow + evening review. Project homepage canvas: `canvases/nova-home.canvas.tsx` (control ladder + live health live there; retired `nova-os-mission.canvas.tsx` 2026-07-16).
 
 ## Crash or blocker
 

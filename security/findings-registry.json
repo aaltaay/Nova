@@ -18,7 +18,7 @@
       "cvss_score": 7.5,
       "cwe": "CWE-200",
       "asvs": "V2.10.1",
-      "compensating_controls": "",
+      "compensating_controls": "Local-first Productization-Decision; alerts module already has mask_secret pattern; no remote auth assumed for single-operator desktop.",
       "acceptance_rationale": "",
       "review_by": "",
       "evidence_commit": ""
@@ -39,7 +39,7 @@
       "cvss_score": 9.8,
       "cwe": "CWE-306",
       "asvs": "V4.1.1",
-      "compensating_controls": "",
+      "compensating_controls": "FLATTEN typed confirm token; IBKR_ENABLED + IBKR_ORDERS_ENABLED + IBKR_LIVE_TRADING_CONFIRMED gates in ibkr/safety.py; auto_live hard-rejected in control_mode.py; local-first.",
       "acceptance_rationale": "",
       "review_by": "",
       "evidence_commit": ""
@@ -60,7 +60,7 @@
       "cvss_score": 5.4,
       "cwe": "CWE-942",
       "asvs": "V14.4.2",
-      "compensating_controls": "",
+      "compensating_controls": "allow_credentials=False; NOVA_CORS_ALLOWED_ORIGINS env override documented; intended for localhost Vite.",
       "acceptance_rationale": "",
       "review_by": "",
       "evidence_commit": ""
@@ -81,7 +81,7 @@
       "cvss_score": 9.1,
       "cwe": "CWE-306",
       "asvs": "V4.1.1",
-      "compensating_controls": "",
+      "compensating_controls": "Same as SEC-002 IBKR spend gates; product is single-operator local API; Electron sidecar binds 127.0.0.1.",
       "acceptance_rationale": "",
       "review_by": "",
       "evidence_commit": ""
@@ -99,13 +99,32 @@
       "last_seen": "2026-07-16",
       "redacted_evidence": "Missing: gitleaks, osv-scanner, semgrep",
       "asvs": "V14.2.1",
-      "compensating_controls": "",
+      "compensating_controls": "security-audit CI job now runs tools/security_audit.py with continue-on-error; .env gitignored; pip-audit available via requirements-dev.",
+      "acceptance_rationale": "",
+      "review_by": "",
+      "evidence_commit": ""
+    },
+    {
+      "id": "SEC-006",
+      "fingerprint": "64d584afd3b192a788ef88180bccce7cd234ea7ab11977f94c58ffa61707880e",
+      "status": "open",
+      "severity": "medium",
+      "title": "Dockerfile runs container process as root (no USER directive)",
+      "detail": "Root Dockerfile has no USER directive, so uvicorn runs as UID 0. A container escape or path-traversal bug would yield root privileges. Add a non-root user before CMD.",
+      "location": "Dockerfile:1",
+      "source": "nova-builtin",
+      "first_seen": "2026-07-16",
+      "last_seen": "2026-07-16",
+      "redacted_evidence": "No USER directive found before CMD",
+      "cwe": "CWE-250",
+      "asvs": "V14.1.3",
+      "compensating_controls": "Railway may remap UIDs; no --privileged; still should add USER.",
       "acceptance_rationale": "",
       "review_by": "",
       "evidence_commit": ""
     }
   ],
-  "next_id": 6,
+  "next_id": 7,
   "updated": "2026-07-16",
   "scan_runs": [
     {
@@ -133,6 +152,33 @@
         "SEC-001"
       ],
       "summary": "5 new, 1 updated, 6 tool(s) blocked"
+    },
+    {
+      "run_id": "8d840170-cb94-407c-9be2-6598fefa9984",
+      "date": "2026-07-16",
+      "tools": [
+        "nova-builtin"
+      ],
+      "blocked_tools": [
+        "semgrep",
+        "gitleaks",
+        "osv-scanner",
+        "trivy",
+        "pip_audit",
+        "npm"
+      ],
+      "new_findings": [
+        "SEC-006"
+      ],
+      "updated_findings": [
+        "SEC-001",
+        "SEC-001",
+        "SEC-002",
+        "SEC-003",
+        "SEC-004",
+        "SEC-005"
+      ],
+      "summary": "1 new, 6 updated, 6 tool(s) blocked"
     }
   ]
 }
