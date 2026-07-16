@@ -19,7 +19,8 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) + **close remediation (Phases 1–7)** — **CLOSED** · metrics `architecture/program-close-metrics.md`
 - **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker; structural maintenance + close remediation complete
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
-- **Tip SHA:** `33768e9` · Phase 7 content `aad9bf9`
+- **Last verified commit:** `aad9bf9` (Architecture close remediation Phase 7)
+- **Tip SHA:** follow `git rev-parse --short HEAD` (stamp commits may trail the verified close)
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
