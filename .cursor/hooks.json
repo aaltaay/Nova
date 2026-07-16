@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "subagentStop": [
+      {
+        "command": "py -3 tools/subagent_lifecycle_hook.py",
+        "loop_limit": 1
+      }
+    ]
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "description": "Mandatory contract for every Nova custom agent (current and future).",
+  "agents_dir": ".cursor/agents",
+  "memory_dir": ".cursor/agent-memory",
+  "registry_path": ".cursor/agent-system/registry.json",
+  "required_prompt_sections": [
+    "Mission",
+    "Hard constraints",
+    "Verified commands",
+    "Workflow",
+    "Self-improvement protocol",
+    "Output format",
+    "Invoke phrases",
+    "Sibling handoffs"
+  ],
+  "required_memory_sections": [
+    "Current snapshot",
+    "Backlog",
+    "Run log"
+  ],
+  "required_prompt_markers": [
+    "Living memory:",
+    "Dashboard",
+    "**Lifecycle:**"
+  ],
+  "lifecycle_footer_regex": "\\*\\*Lifecycle:\\*\\*\\s*memory=(changed|unchanged)\\s*[|·]\\s*promotion=.+\\s*[|·]\\s*dashboard=(clean|refresh-required)\\s*[|·]\\s*handoff=.+",
+  "lifecycle_footer_example": "**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none",
+  "snapshot_required_keys": [
+    "captured_at",
+    "source_revision",
+    "result",
+    "metrics",
+    "blockers",
+    "dashboard_freshness"
+  ],
+  "dashboard_naming": {
+    "dedicated_prefix": "agent-",
+    "home_exception_agents": ["nova-agent"],
+    "home_canvas": "nova-home.canvas.tsx",
+    "forbidden_patterns": ["agent-nova"]
+  },
+  "commit_safety_phrases": [
+    "Do **not** commit or push unless the parent/user explicitly asks",
+    "Do not commit or push unless the parent/user explicitly asks"
+  ],
+  "permissions_required": true,
+  "continuity_rule_or_waiver_required": true,
+  "filesystem_discovery_authoritative": true,
+  "unregistered_agent_is_error": true,
+  "orphan_memory_is_error": true,
+  "non_agent_markdown_in_agents_dir_is_error": true,
+  "ci_skip_external_canvas_existence": true
+}

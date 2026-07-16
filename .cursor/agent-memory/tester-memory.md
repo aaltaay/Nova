@@ -6,6 +6,26 @@ Companion to: `.cursor/agents/tester.md`
 
 ---
 
+## Current snapshot
+
+```yaml
+captured_at: 2026-07-15T23:00:00-04:00
+source_revision: b8626e4
+result: PASS
+metrics:
+  pytest_passed: 562
+  vitest_passed: 131
+  vitest_files: 28
+  playwright_passed: 14
+blockers: []
+dashboard_freshness: stale
+notes: "Counts from 2026-07-15 continuity refresh; tip work may have drifted — backlog #1."
+```
+
+Counts live only here (and in canvas snapshots derived from this block). Do not hardcode volatile totals in `tester.md`.
+
+---
+
 ## How to continue improving (for humans + agents)
 
 Pick the next open item in **Backlog**, or after any test run ask:
@@ -14,7 +34,7 @@ Pick the next open item in **Backlog**, or after any test run ask:
 
 Or specifically:
 
-> Improve the tester agent — work the next backlog item in `.cursor/agents/tester-memory.md`.
+> Improve the tester agent — work the next backlog item in `.cursor/agent-memory/tester-memory.md`.
 
 Durable facts (commands, traps, routing) get **promoted into `tester.md`**. Run history and open ideas stay **here**.
 
@@ -24,7 +44,7 @@ Durable facts (commands, traps, routing) get **promoted into `tester.md`**. Run 
 
 Open improvements. Newest first. Mark `[x]` when done and move a one-line note to **Completed**.
 
-- [ ] **Refresh test counts** — periodically re-run full pytest/Vitest/Playwright collection and update figures in `tester.md` when they drift (last refresh 2026-07-15: 562 / 131 / 14).
+- [ ] **Refresh test counts** — periodically re-run full pytest/Vitest/Playwright collection and update Current snapshot when they drift (last refresh 2026-07-15: 562 / 131 / 14).
 - [ ] **Expand routing table** — add rows for `backend/news*`, `backend/scanner*`, `backend/l2*`, `frontend/src/strategy/*`, `frontend/src/TickerChart*`, `frontend/src/workspace/*` once those areas get touched often.
 - [ ] **Ruff / backend lint gate** — if the repo adopts Ruff (or documents a preferred command), add it beside frontend `npm run lint`.
 - [ ] **CI parity** — read `.github/workflows/*` and note any gates the local tester should mirror (matrix Python version, e2e on PR only, etc.).

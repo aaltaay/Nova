@@ -86,8 +86,63 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
 
+  security-audit:
+    name: Security audit (warning-only)
+    runs-on: ubuntu-latest
+    # Runs on PR and push, same as backend-test.
+    # continue-on-error: true keeps the pipeline green while the baseline is being established.
+    # After baseline acceptance, remove continue-on-error and add --fail-on-findings
+    # to tools/security_audit.py invocation to block on new CRITICAL/HIGH findings.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dev dependencies (includes pip-audit + cvss)
+        run: pip install -r backend/requirements-dev.txt
+
+      - name: Run security audit
+        # Exits 0 always (warning-first). JSON output is captured as an artifact.
+        # To enable blocking on findings: add --fail-on-findings and remove continue-on-error above.
+        run: python tools/security_audit.py --json | tee security-audit-report.json
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-report
+          path: security-audit-report.json
+          retention-days: 30
+
+  agent-contract:
+    name: Agent contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Agent tool tests
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py -q --tb=short
+
+      - name: Structural validation (CI mode)
+        # --ci skips user-local canvas file existence (canvases live outside the repo).
+        run: python tools/agent_contract.py --ci
+
   deploy:
     name: Deploy to Railway
+    # security-audit is intentionally excluded from needs[] so deploy is never blocked by it.
+    # Add security-audit here (with continue-on-error on that job) when baseline is accepted.
     needs: [backend-test, frontend-build]
     runs-on: ubuntu-latest
     # Only deploy on direct pushes to main/master, not on PRs.

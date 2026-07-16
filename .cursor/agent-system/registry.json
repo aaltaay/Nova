@@ -1,0 +1,175 @@
+{
+  "schema_version": "1.0",
+  "updated_at": "2026-07-16",
+  "agents": [
+    {
+      "id": "tester",
+      "name": "tester",
+      "spec": ".cursor/agents/tester.md",
+      "memory": ".cursor/agent-memory/tester-memory.md",
+      "invoke_phrases": [
+        "Use the tester subagent to verify",
+        "Improve the tester agent — work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-tester.canvas.tsx"
+      },
+      "continuity_rule": null,
+      "continuity_waiver": "No dedicated continuity MDC; routing via specialist-routing.mdc + tester memory/snapshot.",
+      "canonical_inputs": [
+        "PROBLEM_LOG.md",
+        ".cursor/agent-memory/tester-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/tester.md",
+        ".cursor/agent-memory/tester-memory.md"
+      ],
+      "prohibited_actions": [
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask",
+        "mix_alpaca_when_ibkr"
+      ],
+      "deterministic_checks": [
+        "py -3 -m pytest backend/tests -q",
+        "npm run test",
+        "npm run build"
+      ],
+      "sibling_handoffs": {
+        "maintainer": "code hygiene / danger findings",
+        "security-sentinel": "full-repo security posture",
+        "nova-agent": "docs / canvas hygiene"
+      },
+      "domain": "test / build / browser verification"
+    },
+    {
+      "id": "maintainer",
+      "name": "maintainer",
+      "spec": ".cursor/agents/maintainer.md",
+      "memory": ".cursor/agent-memory/maintainer-memory.md",
+      "invoke_phrases": [
+        "Use the maintainer subagent to audit the repo",
+        "Improve the maintainer agent — work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-maintainer.canvas.tsx"
+      },
+      "continuity_rule": null,
+      "continuity_waiver": "No dedicated continuity MDC; accepted baselines live in maintainer memory; line counts from maintainer_checks.",
+      "canonical_inputs": [
+        "tools/maintainer_checks.py",
+        ".cursor/agent-memory/maintainer-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/maintainer.md",
+        ".cursor/agent-memory/maintainer-memory.md"
+      ],
+      "prohibited_actions": [
+        "edit_product_code",
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask"
+      ],
+      "deterministic_checks": [
+        "py -3 tools/maintainer_checks.py --json"
+      ],
+      "sibling_handoffs": {
+        "tester": "full pytest / Vitest / browser gates",
+        "security-sentinel": "AppSec / SEC-NNN posture",
+        "nova-agent": "docs / canvas hygiene"
+      },
+      "domain": "maintainability / danger sniffing (read-only)"
+    },
+    {
+      "id": "security-sentinel",
+      "name": "security-sentinel",
+      "spec": ".cursor/agents/security-sentinel.md",
+      "memory": ".cursor/agent-memory/security-sentinel-memory.md",
+      "invoke_phrases": [
+        "Use the security-sentinel subagent to audit the repo",
+        "Improve the security-sentinel agent — work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-security.canvas.tsx"
+      },
+      "continuity_rule": ".cursor/rules/security-continuity.mdc",
+      "continuity_waiver": null,
+      "canonical_inputs": [
+        "security/findings-registry.json",
+        "tools/security_audit.py",
+        ".cursor/agent-memory/security-sentinel-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/security-sentinel.md",
+        ".cursor/agent-memory/security-sentinel-memory.md",
+        "security/findings-registry.json"
+      ],
+      "prohibited_actions": [
+        "edit_product_code",
+        "arm_executor",
+        "place_orders",
+        "weaken_execution_gates",
+        "probe_production_urls",
+        "impersonate_security_review",
+        "commit_without_ask"
+      ],
+      "deterministic_checks": [
+        "py -3 tools/security_audit.py --json"
+      ],
+      "sibling_handoffs": {
+        "security-review": "PR / branch / uncommitted diff review (Cursor built-in)",
+        "maintainer": "hygiene / file limits (not full AppSec)",
+        "nova-agent": "docs / Security-Status prose"
+      },
+      "domain": "full-repo security posture + SEC-NNN registry"
+    },
+    {
+      "id": "nova-agent",
+      "name": "nova-agent",
+      "spec": ".cursor/agents/nova-agent.md",
+      "memory": ".cursor/agent-memory/nova-agent-memory.md",
+      "invoke_phrases": [
+        "Use the Nova Agent to review documentation",
+        "Use Nova Agent for canvas hygiene",
+        "Improve the Nova Agent — next backlog item"
+      ],
+      "dashboard": {
+        "type": "home_section",
+        "canvas": "nova-home.canvas.tsx"
+      },
+      "continuity_rule": ".cursor/rules/docs-continuity.mdc",
+      "continuity_waiver": null,
+      "canonical_inputs": [
+        "tools/nova_docs_inventory.py",
+        "docs/SOURCE-PINS.md",
+        ".cursor/agent-memory/nova-agent-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/nova-agent.md",
+        ".cursor/agent-memory/nova-agent-memory.md",
+        "**/*.md",
+        ".cursor/rules/*.mdc",
+        "docs/",
+        "knowledge/obsidian/"
+      ],
+      "prohibited_actions": [
+        "edit_product_runtime_unless_asked",
+        "create_agent_nova_canvas",
+        "own_sec_nnn_triage",
+        "commit_without_ask"
+      ],
+      "deterministic_checks": [
+        "py -3 tools/nova_docs_inventory.py --json"
+      ],
+      "sibling_handoffs": {
+        "tester": "test / build gates",
+        "maintainer": "code hygiene",
+        "security-sentinel": "SEC-NNN posture"
+      },
+      "domain": "documentation + canvas stewardship"
+    }
+  ]
+}

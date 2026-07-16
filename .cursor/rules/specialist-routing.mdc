@@ -1,0 +1,36 @@
+---
+description: Route work to Nova specialist subagents via the agent registry — do not duplicate full prompts
+alwaysApply: true
+---
+
+# Specialist routing
+
+When a task clearly belongs to a Nova specialist, prefer that subagent over general-purpose. Wiring metadata (invoke phrases, dashboards, handoffs) lives in `.cursor/agent-system/registry.json` — do not duplicate full agent prompts here.
+
+## Defaults
+
+| Need | Agent | Notes |
+|------|-------|-------|
+| Product change verification (pytest / Vitest / Playwright / browser) | `tester` | After code changes; before claiming done |
+| Maintainability / danger audit (file limits, secrets, swallows, deps) | `maintainer` | Read-only; significant diffs |
+| Full-repository security posture + SEC-NNN | `security-sentinel` | Not for PR/diff review |
+| Docs, MDC rules, agent prompts, canvases | `nova-agent` | Dashboard = Nova Home |
+| PR / branch / uncommitted diff security | Cursor `security-review` | Built-in; never swap with security-sentinel |
+
+## Invoke
+
+Use each agent's registered phrases from the registry (also listed in the agent spec under **Invoke phrases**). Example: “Use the tester subagent to verify …”
+
+## Lifecycle
+
+Every Nova specialist report must end with:
+
+```text
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent>
+```
+
+The `subagentStop` hook (`.cursor/hooks.json`) may remind once if the footer is missing. It is fail-open and never edits files.
+
+## Ops
+
+See `docs/agent-operations.md`. Validate with `py -3 tools/agent_contract.py`.

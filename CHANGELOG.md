@@ -30,6 +30,44 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Unified Nova agent lifecycle OS
+
+- **What:** Versioned agent contract + registry under `.cursor/agent-system/`; memories moved to `.cursor/agent-memory/` (no longer discovered as callable agents); four agents normalized to shared lifecycle headings + Lifecycle footer; specialist routing rule; fail-open `subagentStop` hook; `sync_agent_surfaces` / `create_nova_agent` / `agent_contract` tools + tests; CI `agent-contract` job; ops guide `docs/agent-operations.md`.
+- **Why:** Memory Markdown in `.cursor/agents/` was exposed as fake agents; wiring was duplicated across prompts, canvases, and docs with no blocking validation for future agents.
+- **Files touched:** `.cursor/agent-system/*`, `.cursor/agent-memory/*`, `.cursor/agents/*.md`, `.cursor/hooks.json`, `.cursor/rules/specialist-routing.mdc`, `tools/agent_contract.py`, `tools/sync_agent_surfaces.py`, `tools/create_nova_agent.py`, `tools/subagent_lifecycle_hook.py`, matching tests, `.github/workflows/deploy.yml`, `docs/agent-operations.md`, AGENTS/gemini, canvases (generated snapshot blocks).
+- **How it works now:** Only real prompts live in `.cursor/agents/`. Registry owns wiring. Canvases get generated snapshot blocks via `sync_agent_surfaces.py --write`. Every agent report ends with a **Lifecycle** line; the hook may remind once. Future agents use `create_nova_agent.py` then must pass `agent_contract.py`.
+- **Verified by:** `py -3 tools/agent_contract.py` PASS (4 agents); 27 tool tests PASS; sync dry-run/write idempotent (second write=0).
+- **Follow-ups:** Smoke-invoke each specialist in a live chat to confirm memory paths + Lifecycle footer; optionally bind canvas Stat widgets to generated snapshot consts.
+- **Related:** PROBLEM_LOG 2026-07-16 memory-as-agent discovery.
+
+## 2026-07-16 — Nova Agent (docs + canvas steward)
+
+- **What:** Added `nova-agent` subagent + living memory + `docs-continuity.mdc`. Adopted upstream standards (Diátaxis, markdownlint-cli2 0.23.0, Vale 3.15.1 + Google/write-good, Lychee 0.24.2) with pins in `docs/SOURCE-PINS.md`. Added deterministic `tools/nova_docs_inventory.py` (+ tests). Dashboard is Nova Home (no separate agent-nova canvas). Merged unmanaged `nova-security-audit` into `agent-security` and deleted the orphan.
+- **Why:** User asked for a dedicated documentation agent that uses real GitHub standards (not invented house rules) and stewards canvases so random boards do not accumulate.
+- **Files touched:** `.cursor/agents/nova-agent.md`, `nova-agent-memory.md`, `.cursor/rules/docs-continuity.mdc`, `.markdownlint-cli2.jsonc`, `.vale.ini`, `.vale/styles/Vocab/Nova/accept.txt`, `docs/SOURCE-PINS.md`, `tools/nova_docs_inventory.py`, `tools/test_nova_docs_inventory.py`, `.gitignore`, canvases (`nova-home`, `agent-security`), `AGENTS.md`, `gemini.md`, `Security-Status.md`.
+- **How it works now:** Invoke “Use the Nova Agent to review documentation” or “canvas hygiene.” Preferred canvases: `nova-home`, `agent-*`, Cursor `context-usage-*`. Unmanaged canvases require evidence before delete (or ask). Missing Vale/Lychee = BLOCKED gate, not silent skip.
+- **Verified by:** `pytest tools/test_nova_docs_inventory.py`; `nova_docs_inventory.py --json`; canvas TypeScript clean.
+- **Follow-ups:** Install Vale + Lychee locally; warning-first CI for docs linters (Nova Agent backlog).
+
+## 2026-07-16 — Security sentinel + baseline audit registry
+
+- **What:** Enriched `security/findings-registry.json` with `compensating_controls` for all 6 open findings (SEC-001–SEC-006). Updated `Security-Status.md` with real SEC-* rows, verification ledger entry, and current-position reflecting baseline captured. Updated `security-sentinel-memory.md` run log. Added maintenance-log rows to `gemini.md` and `AGENTS.md`.
+- **Why:** Post-install documentation pass after the initial security-sentinel subagent baseline scan produced 6 findings — the registry existed but `compensating_controls` fields were empty and the status ledger still said "not yet run."
+- **Files touched:** `security/findings-registry.json`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`, `.cursor/agents/security-sentinel-memory.md`, `gemini.md`, `AGENTS.md`, `CHANGELOG.md`.
+- **How it works now:** Registry has compensating context for each finding so future agents understand the accepted risk surface without re-triaging from scratch. `security-review` (Cursor) owns diff triage; `security-sentinel` (Nova) owns scheduled full-repo posture — these roles are distinct and documented in `Security-Status.md`. All 6 findings remain **open/unfixed** — the compensating controls are acknowledgement of mitigating architecture, not remediation.
+- **Verified by:** Manual review of registry JSON and status ledger; no product code changed.
+- **Follow-ups:** Add USER directive to Dockerfile (SEC-006); restrict GET /api/config (SEC-001); add API auth middleware (SEC-004); add gitleaks/osv-scanner/semgrep to CI (SEC-005).
+- **Related:** Prior entry 2026-07-16 "Security audit runner and findings registry" (initial scan + tooling); `security/findings-registry.json` (canonical finding IDs).
+
+## 2026-07-16 — Specialized agent canvases (tester / maintainer / security)
+
+- **What:** Added three Cursor dashboards — `agent-tester`, `agent-maintainer`, `agent-security` — and linked them from `nova-home`. Each mirrors that subagent’s gates, backlog, and latest scan/memory. Agent `.md` specs now point at their canvas.
+- **Why:** User asked for dedicated canvases under the three specialized agents.
+- **Files touched:** `canvases/agent-*.canvas.tsx`, `nova-home.canvas.tsx`; `.cursor/agents/{tester,maintainer,security-sentinel}.md`.
+- **How it works now:** Open the agent canvas beside chat when running or reviewing that agent. Refresh after audits / full gate runs. Security canvas is for `security-sentinel` (full-repo), not Cursor `security-review` (diff).
+- **Verified by:** Canvas TypeScript clean; live `maintainer_checks` (34 findings) + `security_audit` (5 open: 2 crit / 2 high / 1 med).
+- **Follow-ups:** Tester memory count refresh; triage SEC-001–005; install blocked security tools.
+
 ## 2026-07-16 — Security audit runner and findings registry
 
 - **What:** Added a modular, side-effect-free security audit tool stack under `tools/security_audit.py` + `tools/security_lib/` (normalize, registry, redact, checks). First scan produced 5 open findings (SEC-001–SEC-005) written to `security/findings-registry.json`. 27 pytest tests pass.

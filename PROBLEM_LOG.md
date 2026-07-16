@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Memory Markdown in `.cursor/agents/` discovered as callable agents
+
+- **Symptom:** `*-memory.md` files under `.cursor/agents/` appeared alongside real agent prompts as if they were invocable Cursor agents, and status facts were duplicated across prompts, memories, and canvases.
+- **Cause:** Cursor discovers every `*.md` in `.cursor/agents/` as an agent prompt; memory documents were co-located with prompts and there was no versioned registry/contract separating prompts, memory, and generated dashboards.
+- **Fix:** Moved memories to `.cursor/agent-memory/`; added `.cursor/agent-system/contract.json` + `registry.json`; normalized the four agents; added `tools/agent_contract.py` (blocking), `create_nova_agent.py`, `sync_agent_surfaces.py`, specialist routing, and a fail-open lifecycle hook.
+- **Keywords:** agent lifecycle, agent-memory, registry, contract, subagentStop, canvas snapshot, create_nova_agent
+
 ## 2026-07-16 — Ghost HOD integrity/surge-seed docs vs missing runtime
 
 - **Symptom:** CHANGELOG/constants/CSS claimed fail-loud integrity + Squeeze bar seeding, but `hod_momo_integrity.py`, `integrity_live.py`, `hod_momo_surge_seed.py`, CLI, routes, and UI banner did not exist at master `d3a8985`. Live HOD still cold-started Squeeze and cycled slowly across a large watch set.

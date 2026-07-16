@@ -6,6 +6,26 @@ Companion to: `.cursor/agents/maintainer.md`
 
 ---
 
+## Current snapshot
+
+```yaml
+captured_at: 2026-07-16T00:00:00-04:00
+source_revision: b8626e4
+result: FINDINGS
+metrics:
+  findings_total: 34
+  findings_non_baseline: 32
+  main_py_lines: 168
+  app_tsx_lines: 83
+blockers: []
+dashboard_freshness: stale
+notes: "Line counts and finding totals come from tools/maintainer_checks.py — re-run for live numbers."
+```
+
+Accepted-baseline *rationale* stays below; current measured line counts come from `maintainer_checks`, not from this prose table alone.
+
+---
+
 ## How to continue improving (for humans + agents)
 
 Pick the next open item in **Backlog**, or after any significant change ask:
@@ -14,7 +34,7 @@ Pick the next open item in **Backlog**, or after any significant change ask:
 
 Or specifically:
 
-> Improve the maintainer agent — work the next backlog item in `.cursor/agents/maintainer-memory.md`.
+> Improve the maintainer agent — work the next backlog item in `.cursor/agent-memory/maintainer-memory.md`.
 
 Durable facts (commands, severity rules, traps) get **promoted into `maintainer.md`**. Baselines, suppressions, run history, and open ideas stay **here**.
 
@@ -22,10 +42,10 @@ Durable facts (commands, severity rules, traps) get **promoted into `maintainer.
 
 ## Accepted baselines
 
-Documented known violations that must **not** be reported as new CRITICAL findings. Update the line-count when a run measures a material change; report WARNING if the file grew past the stored count.
+Documented known violations that must **not** be reported as new CRITICAL findings. Rationale is durable here; obtain current line counts from `py -3 tools/maintainer_checks.py`. Report WARNING if a baselined file grew past the last accepted count.
 
-| Path | Limit | Baseline lines | Why accepted |
-|------|-------|----------------|--------------|
+| Path | Limit | Baseline lines (accepted) | Why accepted |
+|------|-------|---------------------------|--------------|
 | `backend/hod_momo.py` | 400 | 941 | Module-level globals reassigned by `load_state`/`reset_all`; tests monkeypatch those globals — further split needs a shared-state module (see `file-size-limits.mdc`) |
 | `backend/strategy/executor.py` | 400 | 494 | Order-safety gate chain + kill-switch path kept in one audited place; tests monkeypatch `_open_positions` / `_kill_switch_tripped` (see `file-size-limits.mdc`) |
 
