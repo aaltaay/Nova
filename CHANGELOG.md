@@ -48,6 +48,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Tester subagent self-improvement loop + memory
+
+- **What:** Tester now reads/writes `.cursor/agents/tester-memory.md` (backlog, pending facts, run log) and follows a mandatory self-improvement protocol: promote durable command/trap/routing learnings into `tester.md`, log failures/BLOCKED/infra surprises, and work backlog items when asked to "improve the tester".
+- **Why:** User wanted a way to keep improving the subagent over time — a living to-do plus per-run updates instead of a static prompt.
+- **Files touched:** `.cursor/agents/tester.md`, `.cursor/agents/tester-memory.md`, `CHANGELOG.md`.
+- **How it works now:** Start of run → read memory. End of run → update memory and/or promote into `tester.md` when something was learned; report includes **Memory update:**. Humans continue via the backlog in `tester-memory.md` or by asking the tester to work the next backlog item.
+- **Verified by:** Files written; protocol sections present; backlog seeded with concrete next items.
+- **Follow-ups:** Work backlog items (test-count refresh, routing expansion, CI parity, golden browser path) on subsequent tester runs.
+
 ## 2026-07-15 — Nova-specialized `tester` subagent
 
 - **What:** Added a project-level testing subagent at `.cursor/agents/tester.md` (a generic personal fallback also exists at `~/.cursor/agents/tester.md`; the project one wins in Nova).
