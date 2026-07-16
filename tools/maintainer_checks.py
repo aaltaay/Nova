@@ -28,7 +28,7 @@ APP_TSX_LIMIT = 150
 NEW_PY_LIMIT = 400
 NEW_TSX_LIMIT = 300
 NEW_TS_LIMIT = 400
-INDEX_CSS_LIMIT = 1000
+INDEX_CSS_LIMIT = 50  # import-only barrel after Phase 2
 DOMAIN_CSS_LIMIT = 1000
 
 # Limit for "over size" reporting; accepted_lines tracks growth (Phase 0 baseline).

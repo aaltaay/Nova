@@ -182,14 +182,14 @@ def test_run_checks_on_real_repo_reports_index_css(mc):
     assert report["files_scanned"] > 50
     css = report.get("css_line_counts") or {}
     assert "frontend/src/index.css" in css
-    assert css["frontend/src/index.css"] >= 6000
+    assert css["frontend/src/index.css"] <= 50, "index.css must stay import-only"
+    assert "frontend/src/hod_momo/hodMomo.css" in css
     hard_css = [
         f
         for f in report["findings"]
         if f["kind"] == "file_size_hard" and f["path"] == "frontend/src/index.css"
     ]
-    assert hard_css, "index.css must hard-fail until Phase 2 split"
-    assert "6168" in hard_css[0]["detail"] or str(css["frontend/src/index.css"]) in hard_css[0]["detail"]
+    assert hard_css == [], f"index.css should be within import-only limit: {hard_css}"
     baseline_paths = {
         f["path"] for f in report["findings"] if f["kind"] == "file_size_baseline"
     }
@@ -197,8 +197,8 @@ def test_run_checks_on_real_repo_reports_index_css(mc):
     hard_app = [
         f
         for f in report["findings"]
-        if f["kind"] == "file_size_hard" and f["path"] in {"backend/main.py", "frontend/src/App.tsx"}
+        if f["kind"] == "file_size_hard"
+        and f["path"] in {"backend/main.py", "frontend/src/App.tsx"}
     ]
     assert hard_app == [], f"unexpected hard app findings: {hard_app}"
-    # JSON serializable
     json.dumps(report)

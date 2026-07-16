@@ -1,0 +1,944 @@
+/* Extracted from index.css lines 3519-4460 (Phase 2 mechanical split). */
+/* Owner: features/hod_momo. Do not reorder relative to sibling imports. */
+/* ── HOD Momo Scanner ─────────────────────────────────────────────────────── */
+
+.hod-momo-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Header bar */
+.hod-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.25rem 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hod-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hod-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hod-connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.hod-connection-dot.connected {
+  background: #22c55e;
+  box-shadow: 0 0 4px #22c55e88;
+}
+
+.hod-connection-dot.disconnected {
+  background: #ef4444;
+}
+
+.hod-integrity {
+  margin: 0.25rem 0.25rem 0;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary, #1a1a1a);
+}
+
+.hod-integrity-pass {
+  color: #86efac;
+  border-color: #166534;
+  background: #052e16;
+}
+
+.hod-integrity-warn {
+  color: #fde68a;
+  border-color: #a16207;
+  background: #422006;
+}
+
+.hod-integrity-fail,
+.hod-integrity-error {
+  color: #fecaca;
+  border-color: #991b1b;
+  background: #450a0a;
+}
+
+.hod-integrity-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.hod-integrity-id {
+  font-family: ui-monospace, monospace;
+  opacity: 0.9;
+}
+
+.hod-header-title {
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+}
+
+.hod-alert-count {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+}
+
+.hod-settings-btn {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hod-settings-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.hod-clear-btn {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hod-clear-btn:hover {
+  background: #7f1d1d55;
+  color: #fca5a5;
+  border-color: #ef444466;
+}
+
+/* Compact single-row toolbar (strategies live in a dropdown) */
+.hod-filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.25rem 0.3rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hod-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  min-height: 1.5rem;
+  background: var(--hover-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.hod-toolbar-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.hod-toolbar-btn.active {
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hod-toolbar-debug {
+  margin-left: auto;
+  color: #aaa;
+}
+
+.hod-toolbar-debug.active,
+.hod-toolbar-debug:hover {
+  color: #00e5ff;
+  border-color: #00e5ff;
+}
+
+.hod-strategy-filter-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.hod-strategy-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  min-height: 1.5rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.hod-strategy-filter-btn:hover,
+.hod-strategy-filter-btn.open {
+  border-color: var(--accent-color);
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--text-primary);
+}
+
+.hod-strategy-filter-label {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hod-strategy-filter-summary {
+  color: var(--accent-color);
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hod-strategy-filter-caret {
+  font-size: 0.55rem;
+  color: var(--text-secondary);
+}
+
+.hod-strategy-filter-dropdown {
+  left: 0;
+  right: auto;
+  top: calc(100% + 2px);
+  z-index: 40;
+  max-height: 520px;
+  overflow-y: auto;
+  min-width: 260px;
+  padding: 0.25rem 0;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-header {
+  padding: 0.2rem 0.55rem 0.25rem;
+  font-size: 0.68rem;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-row {
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.65rem;
+  line-height: 1.2;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-count {
+  font-size: 0.58rem;
+  padding: 0 0.25rem;
+  min-width: 16px;
+}
+
+.hod-strategy-filter-dropdown .hod-filter-shortcut {
+  font-size: 0.65rem;
+  padding: 0.15rem 0.55rem;
+}
+
+.hod-filter-shortcut {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hod-filter-shortcut:hover,
+.hod-filter-shortcut.active {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+
+/* Legacy chip strip kept minimal in case any remnant markup remains */
+.hod-subpanel-strip {
+  display: none;
+}
+
+/* Table — dense virtualized grid (TanStack absolute rows).
+   CRITICAL: row height is fixed. Any cell overflow must be clipped or
+   absolute rows paint on top of each other (illegible stacking). */
+.hod-table-shell {
+  flex: 0 0 auto;
+  margin-top: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+.hod-table-body-scroll {
+  overflow: auto;
+  position: relative;
+  contain: paint;
+}
+
+.hod-virtual-canvas {
+  overflow: hidden;
+  position: relative;
+}
+
+.hod-virtual-row {
+  box-sizing: border-box;
+  overflow: hidden;
+  contain: layout style paint;
+  background: var(--panel-bg);
+}
+
+/* Shared column template: Time | Symbol | Price | Chg | RVOL | RVOL5 | Float | Gap | Vol | Strategy */
+.hod-grid-row {
+  display: grid;
+  grid-template-columns:
+    78px
+    minmax(72px, 0.9fr)
+    58px
+    64px
+    70px
+    58px
+    56px
+    56px
+    58px
+    minmax(120px, 1.4fr);
+  align-items: center;
+  column-gap: 0.35rem;
+  padding: 0 0.45rem;
+  font-size: 0.68rem;
+  line-height: 1.15;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.hod-grid-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 28px;
+  max-height: 28px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color, #0f1115);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+
+.hod-grid-th {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.hod-grid-cell {
+  min-width: 0;
+  max-height: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hod-grid-cell--strategy {
+  overflow: hidden;
+}
+
+.hod-virtual-row .hod-grid-row {
+  height: 100%;
+  border-bottom: 1px solid rgba(38, 42, 54, 0.65);
+}
+
+.hod-virtual-row .hod-grid-row.row-selected {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.hod-virtual-row .hod-grid-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hod-table-wrapper {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.hod-empty-cell {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+/* Strategy pill — compact, never grows the row */
+.hod-strategy-cell {
+  max-width: 22rem;
+}
+
+.hod-strategy-pills {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+  scrollbar-width: thin;
+}
+
+.hod-strategy-pill {
+  display: inline-block;
+  flex: 0 0 auto;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  box-sizing: border-box;
+}
+
+/* RVOL cell with source badge */
+.hod-rvol-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.hod-rvol-badge {
+  display: inline-block;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  line-height: 1.4;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.hod-rvol-badge.yf {
+  background: rgba(234, 179, 8, 0.18);
+  color: #ca8a04;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+}
+
+/* IEX free tier banner */
+.hod-iex-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 6px;
+  margin: 0.4rem 0.25rem 0;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.hod-iex-banner-icon {
+  font-size: 1rem;
+  color: #3b82f6;
+  flex-shrink: 0;
+}
+
+/* Time cell */
+.hod-time-cell {
+  white-space: nowrap;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.hod-symbol-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.2rem;
+  line-height: 1.15;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.hod-symbol-cell--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.hod-symbol-burst {
+  margin-left: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hod-consolidation-badge {
+  display: inline-block;
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.01em;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* legacy expand helpers (unused for Warrior-style symbol burst) */
+.hod-expand-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.hod-expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* Expanded row */
+.hod-expanded-row td {
+  padding: 0;
+}
+
+.hod-expanded-cell {
+  padding: 0.3rem 1.5rem !important;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hod-expanded-inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.hod-expanded-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hod-consolidated-id {
+  font-size: 0.65rem;
+  font-family: monospace;
+  opacity: 0.6;
+}
+
+/* Strategy column header */
+.hod-strategy-th {
+  position: relative;
+}
+
+.hod-filter-icon {
+  margin-left: 0.2rem;
+  opacity: 0.6;
+}
+
+/* Filter dropdown */
+.hod-filter-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 260px;
+  /* --card-bg was never defined in :root — use the real panel token */
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  padding: 0.5rem 0;
+}
+
+.hod-filter-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.75rem 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  background: var(--panel-bg);
+  z-index: 1;
+}
+
+.hod-filter-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.hod-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  transition: background 0.1s;
+}
+
+.hod-filter-row:hover {
+  background: var(--hover-bg);
+}
+
+.hod-filter-all {
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}
+
+.hod-filter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hod-filter-name {
+  flex: 1;
+}
+
+.hod-filter-count {
+  font-size: 0.7rem;
+  background: var(--hover-bg);
+  border-radius: 8px;
+  padding: 0.05rem 0.35rem;
+  min-width: 20px;
+  text-align: center;
+}
+
+/* Settings drawer */
+.hod-settings-drawer {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.hod-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.03);
+}
+
+.hod-settings-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.hod-settings-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.hod-settings-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hod-settings-tab {
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.hod-settings-tab:hover {
+  color: var(--text-primary);
+}
+
+.hod-settings-tab.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
+
+.hod-settings-body {
+  padding: 1rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Config fields */
+.hod-strategy-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.hod-cfg-section {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin: 0.85rem 0 0.4rem;
+}
+
+.hod-cfg-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.hod-cfg-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.hod-cfg-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.hod-cfg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 120px;
+}
+
+.hod-cfg-field--color {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.hod-cfg-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.hod-cfg-input {
+  padding: 0.3rem 0.5rem;
+  background: var(--input-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  width: 100%;
+}
+
+.hod-cfg-select {
+  padding: 0.3rem 0.5rem;
+  background: var(--input-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  min-width: 150px;
+}
+
+.hod-cfg-color {
+  width: 40px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hod-cfg-color-hex {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.hod-cfg-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  margin: 0.25rem 0;
+}
+
+.hod-cfg-btn {
+  padding: 0.3rem 0.7rem;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.hod-cfg-btn:hover {
+  background: var(--hover-bg);
+}
+
+.hod-cfg-btn--danger {
+  border-color: rgba(239,68,68,0.4);
+  color: #ef4444;
+}
+
+.hod-cfg-btn--danger:hover {
+  background: rgba(239,68,68,0.1);
+}
+
+.hod-cfg-reset-btn {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.hod-cfg-reset-btn:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+
+.hod-cfg-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.5rem;
+  background: var(--input-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  resize: vertical;
+}
+
+.hod-cfg-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* Former momo / blocklist tags */
+.hod-momo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+  min-height: 24px;
+}
+
+.hod-momo-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  background: rgba(255,255,255,0.07);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hod-block-tag {
+  background: rgba(239,68,68,0.12);
+  color: #ef4444;
+}
+
+.hod-momo-tag-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.hod-momo-tag-remove:hover {
+  opacity: 1;
+}
+
+.hod-momo-add-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.hod-momo-input {
+  flex: 1;
+  max-width: 160px;
+}
+
+.hod-strategy-cfg, .hod-master-cfg, .hod-blocklist-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.hod-settings-global-actions {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+}
+

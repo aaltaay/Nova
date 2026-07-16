@@ -1,0 +1,258 @@
+/* Extracted from index.css lines 4672-4927 (Phase 2 mechanical split). */
+/* Owner: features/chart. Do not reorder relative to sibling imports. */
+/* ── Ticker Chart ────────────────────────────────────────────────────────── */
+
+.chart-card {
+  margin: 0.75rem 0;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-bg);
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chart-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.chart-tabs {
+  display: flex;
+  gap: 2px;
+}
+
+.chart-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-family: 'Inter', sans-serif;
+  padding: 0.2rem 0.45rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.chart-tab:hover {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-primary);
+}
+
+.chart-tab--active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: var(--accent-color);
+  font-weight: 600;
+}
+
+.chart-body {
+  position: relative;
+  width: 100%;
+}
+
+.chart-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  background: rgba(22, 25, 33, 0.7);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.chart-overlay--error {
+  color: var(--danger);
+}
+
+/* ── Chart Drawing Toolbar ──────────────────────────────────────────────── */
+
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0.3rem 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.chart-tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 26px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.chart-tool-btn:hover {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-primary);
+}
+
+.chart-tool-btn--active {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.5);
+  color: var(--accent-color);
+}
+
+.chart-tool-btn--danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.chart-tool-icon {
+  font-family: monospace;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.chart-toolbar-spacer {
+  flex: 1;
+}
+
+.chart-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 0.35rem;
+  background: var(--border-color);
+}
+
+.chart-oscillators {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-color);
+}
+
+.chart-oscillator-pane {
+  position: relative;
+  border-top: 1px solid var(--border-color);
+}
+
+.chart-oscillator-pane:first-child {
+  border-top: none;
+}
+
+.chart-oscillator-label {
+  position: absolute;
+  top: 4px;
+  left: 8px;
+  z-index: 2;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.chart-oscillator-body {
+  width: 100%;
+  height: 110px;
+}
+
+/* ── Chart Maximized Overlay ────────────────────────────────────────────── */
+
+.chart-portal-slot {
+  display: block;
+  width: 100%;
+}
+
+/* Grid cells: portal slot/host must stretch so chart-body gets real height
+   (otherwise lightweight-charts stays at CHART_HEIGHT_GRID and leaves a black gap). */
+.chart-grid-cell > .chart-portal-slot {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-portal-slot--maximized {
+  /* Reserve panel height so the side panel does not jump when host moves to body */
+  width: 100%;
+}
+
+.chart-portal-host {
+  display: block;
+  width: 100%;
+}
+
+.chart-grid-cell .chart-portal-host {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-portal-host--maximized {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: var(--panel-bg, #161921);
+}
+
+body.chart-maximized-open {
+  overflow: hidden;
+}
+
+.chart-card--maximized {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel-bg, #161921);
+}
+
+.chart-card--maximized .chart-header,
+.chart-card--maximized .chart-toolbar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.chart-card--maximized .chart-body {
+  flex: 1;
+  height: 0; /* let flex handle sizing */
+  min-height: 0;
+}
+
+.chart-mock-badge {
+  font-size: 0.62rem;
+  color: #ca8a04;
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
+}
+
+/* ── Full ticker detail page (click symbol → dedicated trading view) ───────── */
+

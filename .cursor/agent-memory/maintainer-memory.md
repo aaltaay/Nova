@@ -16,7 +16,7 @@ metrics:
   findings_total: 78
   findings_non_baseline: 37
   files_scanned: 459
-  index_css_lines: 6168
+  index_css_lines: 18
   main_py_lines: 168
   app_tsx_lines: 83
   hod_momo_lines: 1079

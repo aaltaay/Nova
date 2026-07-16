@@ -179,8 +179,8 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 |-------|--------|-----|-------|
 | 0 Baseline | `[x]` | `00f0d21` | Clean tree; metrics in `architecture/baseline-phase0.md` |
 | 0A Architecture contract | `[x]` | `9fac089` | ADRs + dependency-rules before product moves |
-| 1 Maintainer gates | `[~]` | _(this commit)_ | CSS + baseline growth + dep warnings |
-| 2 CSS split | `[ ]` | — | `index.css` import-only |
+| 1 Maintainer gates | `[x]` | `67d369a` | CSS + baseline growth + dep warnings |
+| 2 CSS split | `[~]` | _(this commit)_ | `index.css` import-only (18 lines) |
 | 3 Constants domains | `[ ]` | — | Compatibility barrels |
 | 4 Frontend components | `[ ]` | — | Hotkeys / HOD settings / debug |
 | 5 Chart lifecycle | `[ ]` | — | `chart/` hooks |
@@ -208,7 +208,8 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 1: CSS hard limit, baseline growth, import_main/cross-feature warnings | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 2: mechanical index.css split into domain stylesheets | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 1: CSS hard limit, baseline growth, import_main/cross-feature warnings | `67d369a` |
 | 2026-07-16 | Maintenance Phase 0A: architecture ADRs + dependency rules + phase destination map | `9fac089` |
 | 2026-07-16 | Maintenance Phase 0: working tree clean; line/maintainer/test baselines recorded; maintenance track opened | `00f0d21` |
 | 2026-07-16 | Phase G2: DAS-compatible hotkey manager (Settings Hotkeys; `.htk` I/O; compatibility Help; authoring only — no execution) | `645761b` |

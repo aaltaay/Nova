@@ -1,0 +1,213 @@
+/* Extracted from index.css lines 4461-4671 (Phase 2 mechanical split). */
+/* Owner: features/hod_momo. Do not reorder relative to sibling imports. */
+/* ── HOD Momo Debug Panel ────────────────────────────────────────────────────── */
+
+.hod-subpanel-debug {
+  color: #aaa;
+  border-color: transparent !important;
+}
+
+.hod-subpanel-debug.active,
+.hod-subpanel-debug:hover {
+  color: #00e5ff;
+  border-bottom-color: #00e5ff !important;
+}
+
+.dbg-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 1rem;
+  gap: 0.75rem;
+  overflow: auto;
+  flex: 1;
+}
+
+.dbg-nav {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.dbg-nav-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  transition: all 0.15s;
+}
+
+.dbg-nav-btn:hover { border-color: #555; color: var(--text-primary); }
+.dbg-nav-btn.active { border-color: #00e5ff; color: #00e5ff; background: rgba(0,229,255,0.06); }
+
+.dbg-content { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.dbg-card {
+  background: var(--panel-bg, #1a1a1a);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.dbg-card-wide { width: 100%; }
+.dbg-loading { color: var(--text-secondary); font-size: 0.84rem; text-align: center; padding: 1.5rem; }
+
+.dbg-card-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dbg-age { font-size: 0.72rem; color: var(--text-secondary); font-weight: 400; margin-left: auto; }
+.dbg-count-badge { background: #333; border-radius: 10px; padding: 0.05rem 0.4rem; font-size: 0.72rem; font-weight: 400; color: var(--text-secondary); }
+
+.dbg-stats-row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.dbg-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
+  min-width: 70px;
+}
+
+.dbg-stat-val { font-size: 1rem; font-weight: 700; color: #00e5ff; line-height: 1.2; }
+.dbg-stat-label { font-size: 0.68rem; color: var(--text-secondary); text-align: center; }
+
+.dbg-counter-list { display: flex; flex-direction: column; gap: 0.25rem; }
+
+.dbg-counter-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 60px;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+}
+
+.dbg-counter-key { color: var(--text-secondary); font-family: monospace; }
+.dbg-counter-bar-wrap { background: rgba(255,255,255,0.06); border-radius: 3px; height: 6px; overflow: hidden; }
+.dbg-counter-bar { display: block; height: 100%; background: #00e5ff88; border-radius: 3px; transition: width 0.3s; }
+.dbg-counter-val { color: var(--text-primary); text-align: right; font-family: monospace; }
+
+.dbg-table-wrap { overflow-x: auto; max-height: 500px; overflow-y: auto; }
+
+.dbg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.dbg-table th {
+  background: var(--th-bg, #111);
+  color: var(--text-secondary);
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dbg-table td {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-primary);
+}
+
+.dbg-mono { font-family: monospace; }
+.dbg-sym { font-weight: 600; color: #cce; }
+.dbg-gate { color: #f87171; font-size: 0.74rem; max-width: 200px; }
+
+.dbg-row-blocked td { opacity: 0.55; }
+.dbg-row-fired { background: rgba(0,230,118,0.06); }
+.dbg-row-pass { }
+
+.dbg-empty { text-align: center; color: var(--text-secondary); padding: 1.5rem; font-size: 0.82rem; }
+.dbg-error { color: #f87171; font-size: 0.8rem; margin: 0.4rem 0; }
+
+/* Inspector */
+.dbg-inspector-input {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.dbg-sym-input {
+  flex: 1;
+  max-width: 180px;
+  background: var(--input-bg, #0f0f0f);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.84rem;
+  font-family: monospace;
+}
+
+.dbg-inspect-btn {
+  background: #1a3a4a;
+  border: 1px solid #00e5ff55;
+  color: #00e5ff;
+  border-radius: 4px;
+  padding: 0.35rem 0.8rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.dbg-inspect-btn:hover { background: #1f4558; }
+.dbg-inspect-btn:disabled { opacity: 0.5; cursor: default; }
+
+.dbg-inspector-result { display: flex; flex-direction: column; gap: 0.75rem; }
+
+.dbg-snap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 0.4rem;
+}
+
+.dbg-snap-field {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,0.04);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+}
+
+.dbg-snap-label { font-size: 0.68rem; color: var(--text-secondary); }
+.dbg-snap-val { font-size: 0.84rem; font-family: monospace; color: var(--text-primary); }
+
+.dbg-wf { margin-top: 0.5rem; }
+.dbg-wf-title { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem; }
+.dbg-wf-gate { font-size: 0.82rem; font-family: monospace; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; }
+.dbg-wf-pass { background: rgba(0,230,118,0.1); color: #00e676; }
+.dbg-wf-block { background: rgba(239,68,68,0.1); color: #f87171; }
+
+.dbg-strategy-list { margin-top: 0.4rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.dbg-strategy-row { display: grid; grid-template-columns: 20px 200px 1fr; gap: 0.4rem; font-size: 0.76rem; align-items: center; }
+.dbg-s-num { font-family: monospace; color: var(--text-secondary); text-align: right; }
+.dbg-s-name { color: var(--text-primary); }
+.dbg-s-reason { font-family: monospace; font-size: 0.72rem; }
+.dbg-s-pass .dbg-s-reason { color: #00e676; }
+.dbg-s-block .dbg-s-reason { color: #f87171; }
+
+.dbg-decisions-hist { margin-top: 0.5rem; }
+.dbg-decisions-title { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.25rem; }
+.dbg-dec-row { display: flex; gap: 0.75rem; font-size: 0.76rem; padding: 0.15rem 0; border-bottom: 1px solid rgba(255,255,255,0.04); align-items: center; flex-wrap: wrap; }
+.dbg-strat-summary { font-family: monospace; color: #00e676; font-size: 0.72rem; }
+

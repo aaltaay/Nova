@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 2: split index.css into domain stylesheets
+
+- **What:** Mechanically split `frontend/src/index.css` (6168 lines) into ordered domain stylesheets under `styles/`, `hod_momo/`, `chart/`, `ibkr/`, and `reports/`. `index.css` is now an 18-line import-only entry with reserved `@layer` order (rules stay unlayered for cascade parity).
+- **Why:** Phase 2 of the pattern-driven architecture roadmap (ADR 006).
+- **Files touched:** `frontend/src/index.css`, new CSS under `styles/` + feature folders; maintainer `INDEX_CSS_LIMIT=50`.
+- **How it works now:** `main.tsx` still imports `./index.css`; Vite resolves `@import`s in monolith order. Stock View `100dvh` / overflow-lock CSS lives in `styles/stock-view.css`.
+- **Verified by:** Vitest 178 · `npm run build` · Playwright 14 (incl. Stock View no page scroll) · maintainer CSS table · content reconstruct equal (collapsed blanks).
+
 ## 2026-07-16 — Maintenance Phase 1: maintainer CSS and dependency gates
 
 - **What:** Extended `tools/maintainer_checks.py` with CSS hard limit (`index.css` ≤1000), domain CSS reporting, accepted-baseline growth detection, and warning-first `import_main` / cross-feature import checks (`tools/maintainer_lib/deps.py`).

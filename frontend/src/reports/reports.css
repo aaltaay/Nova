@@ -1,0 +1,599 @@
+/* Extracted from index.css lines 2183-2779 (Phase 2 mechanical split). */
+/* Owner: features/reports. Do not reorder relative to sibling imports. */
+/* ── Reports tab (P&L calendar) ──────────────────────────────────────────── */
+
+.reports-panel {
+  gap: 1rem;
+}
+
+.reports-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.reports-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.reports-toolbar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.reports-year-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.reports-year-nav button {
+  background: var(--bg-secondary, rgba(148, 163, 184, 0.12));
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 4px;
+  width: 1.8rem;
+  height: 1.8rem;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.reports-year-label {
+  font-weight: 700;
+  min-width: 3.2rem;
+  text-align: center;
+}
+
+.reports-analytics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.6rem;
+}
+
+.pnl-pos {
+  color: var(--success);
+}
+
+.pnl-neg {
+  color: var(--danger);
+}
+
+.reports-status {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.reports-error {
+  color: var(--danger);
+}
+
+.reports-empty {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  padding: 0.5rem 0;
+}
+
+.reports-v2-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.reports-v2-section {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.reports-v2-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+}
+
+.reports-v2-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.reports-v2-table th,
+.reports-v2-table td {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.reports-v2-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.reports-v2-curve {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 72px;
+  margin-top: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.reports-v2-curve-bar {
+  flex: 1;
+  min-width: 4px;
+  background: var(--accent, #3b82f6);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+}
+
+.reports-year-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.85rem;
+}
+
+.reports-month-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.65rem 0.7rem 0.75rem;
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.reports-month-open {
+  border-color: var(--accent-color);
+}
+
+.reports-month-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+
+.reports-month-card-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.reports-month-open-btn,
+.reports-month-close-btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.reports-month-open-btn:hover,
+.reports-month-close-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.reports-month-card-pnl {
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  color: var(--text-secondary);
+}
+
+.reports-month-card-trades {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.reports-mini-dow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  font-size: 0.62rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+.reports-mini-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.reports-mini-cell {
+  min-height: 2.1rem;
+  border-radius: 3px;
+  padding: 0.1rem;
+  font-size: 0.58rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.reports-mini-pad {
+  background: transparent;
+}
+
+.reports-mini-daynum {
+  opacity: 0.7;
+}
+
+.reports-mini-pnl {
+  font-weight: 700;
+  font-size: 0.55rem;
+}
+
+.reports-day-win {
+  background: rgba(16, 185, 129, 0.22);
+  color: var(--success);
+}
+
+.reports-day-loss {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+}
+
+.reports-day-active {
+  font-weight: 600;
+}
+
+.reports-month-detail {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.reports-month-detail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.reports-month-detail-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.reports-month-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.85rem;
+}
+
+.reports-month-detail-dow {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.reports-month-detail-row {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.reports-day-cell,
+.reports-week-total {
+  min-height: 4.2rem;
+  border-radius: 4px;
+  padding: 0.3rem;
+  background: rgba(148, 163, 184, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.72rem;
+}
+
+.reports-day-outside {
+  opacity: 0.4;
+}
+
+.reports-day-num {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.reports-day-pnl {
+  font-weight: 700;
+}
+
+.reports-day-trades {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+}
+
+.reports-week-total {
+  background: rgba(148, 163, 184, 0.14);
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+/* ── Automation / executor panel (Phase D) ───────────────────────────────── */
+
+.executor-status-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.executor-armed {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.executor-disarmed {
+  border-color: var(--border-color);
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.executor-status-headline {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.executor-armed .executor-status-headline {
+  color: var(--danger);
+}
+
+.executor-disclosure {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.executor-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.executor-arm-btn,
+.executor-disarm-btn,
+.executor-kill-btn {
+  border-radius: 6px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+}
+
+.executor-arm-btn {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.executor-arm-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.executor-kill-btn {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.executor-kill-btn:hover {
+  opacity: 0.85;
+}
+
+.executor-disarm-btn:hover {
+  background: rgba(148, 163, 184, 0.12);
+}
+
+/* ── Clickable symbol button ─────────────────────────────────────────────── */
+
+.symbol-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent-color);
+  font-weight: 600;
+  font-size: inherit;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: none;
+  transition: color 0.15s, text-decoration 0.15s;
+}
+
+.symbol-btn:hover {
+  background: none;
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+.symbol-btn.active {
+  background: none;
+  color: #93c5fd;
+}
+
+.symbol-inline-wrap,
+.symbol-primary-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.symbol-earnings-party {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  line-height: 1;
+  cursor: help;
+}
+
+.row-selected {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.selectable-row {
+  cursor: pointer;
+}
+
+.selectable-row:hover:not(.row-selected) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.selectable-row:focus-visible {
+  outline: 1px solid var(--accent-color);
+  outline-offset: -1px;
+}
+
+/* ── Persistent Side Panel ───────────────────────────────────────────────── */
+
+.side-panel {
+  /* Default width; DashboardPage overrides via inline style when resized */
+  width: 820px;
+  flex-shrink: 0;
+  border-left: none;
+  background: var(--panel-bg);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: side-panel;
+}
+
+/* Drag handle between scanner (left) and quote panel (right) */
+.panel-resize-handle {
+  flex-shrink: 0;
+  width: 5px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  cursor: col-resize;
+  background: var(--border-color);
+  position: relative;
+  z-index: 5;
+  align-self: stretch;
+  touch-action: none;
+  user-select: none;
+}
+
+.panel-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  right: -3px;
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle--dragging {
+  background: var(--accent-color);
+}
+
+body.is-resizing-side-panel {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.is-resizing-side-panel * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.side-panel-search {
+  flex-shrink: 0;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.side-search-form {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: center;
+  flex: 1;
+  min-width: 200px;
+}
+
+.side-search-input {
+  flex: 1;
+  min-width: 0;
+  text-transform: uppercase;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.side-search-btn {
+  flex-shrink: 0;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.8rem;
+}
+
+.side-open-trading-btn {
+  margin-top: 0;
+  width: auto;
+  flex-shrink: 0;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary, #8b92a5);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.side-open-trading-btn:hover {
+  border-color: var(--accent, #3b82f6);
+  color: var(--text-primary, #e8eaed);
+}
+
+.side-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 0.75rem 1rem;
+}
+

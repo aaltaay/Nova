@@ -1,0 +1,481 @@
+/* Extracted from index.css lines 437-915 (Phase 2 mechanical split). */
+/* Owner: features/settings. Do not reorder relative to sibling imports. */
+/* ── Settings workspace (General / Alerts / Hotkeys) ─────────────────────── */
+
+.settings-workspace {
+  margin-bottom: 1.5rem;
+}
+
+.settings-workspace-nav {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.settings-workspace-tab {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.35rem 0.85rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.settings-workspace-tab:hover {
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.settings-workspace-tab.active {
+  background: var(--border-color);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* ── DAS-compatible hotkey manager ───────────────────────────────────────── */
+
+.hotkey-manager.settings-panel {
+  max-width: min(960px, 100%);
+}
+
+.hotkey-inactive-banner {
+  background: rgba(234, 179, 8, 0.12);
+  border: 1px solid rgba(234, 179, 8, 0.45);
+  color: var(--text-primary);
+  padding: 0.55rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  margin-bottom: 0.75rem;
+}
+
+.hotkey-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
+.hotkey-file-row,
+.hotkey-toolbar,
+.hotkey-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.hotkey-file-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 160px;
+}
+
+.hotkey-file-row input[type='text'],
+.hotkey-toolbar input,
+.hotkey-toolbar select,
+.hotkey-help-filters input,
+.hotkey-help-filters select {
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+}
+
+.hotkey-table-wrap {
+  overflow-x: auto;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+}
+
+.hotkey-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.hotkey-table th,
+.hotkey-table td {
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+}
+
+.hotkey-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-secondary, #1a1a1a);
+  z-index: 1;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hotkey-table tr {
+  cursor: pointer;
+}
+
+.hotkey-table tr.selected {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.hotkey-table tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hotkey-cmd-cell {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.hotkey-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.hotkey-badge-translatable_later {
+  color: #86efac;
+  border-color: rgba(134, 239, 172, 0.4);
+}
+
+.hotkey-badge-backend_required {
+  color: #fde047;
+  border-color: rgba(253, 224, 71, 0.4);
+}
+
+.hotkey-badge-das_ibkr_specific {
+  color: #93c5fd;
+  border-color: rgba(147, 197, 253, 0.4);
+}
+
+.hotkey-badge-invalid_unsafe {
+  color: #fca5a5;
+  border-color: rgba(252, 165, 165, 0.5);
+}
+
+.hotkey-badge-nova_active {
+  color: #c4b5fd;
+  border-color: rgba(196, 181, 253, 0.45);
+}
+
+.hotkey-badge-evidence {
+  color: var(--text-secondary);
+  margin-left: 0.25rem;
+}
+
+.hotkey-detail,
+.hotkey-nova-active,
+.hotkey-import-preview {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.8rem;
+}
+
+.hotkey-import-preview {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 4px;
+  padding: 0.75rem;
+}
+
+.executor-hotkeys-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+}
+
+.executor-hotkeys-list li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.2rem 0;
+  font-size: 0.8rem;
+}
+
+.executor-hotkeys-list kbd,
+.hotkey-table kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.executor-hotkeys-blocked {
+  opacity: 0.55;
+}
+
+.hotkey-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+  padding: 1rem;
+}
+
+.hotkey-editor {
+  background: var(--bg-primary, #111);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  width: min(520px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.hotkey-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.hotkey-editor-field input,
+.hotkey-editor-field textarea {
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.hotkey-editor-field textarea {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
+.hotkey-editor-key-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hotkey-editor-key-row input {
+  flex: 1;
+}
+
+.hotkey-help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hotkey-help-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.hotkey-help-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.hotkey-help-item {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.65rem 0.75rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+}
+
+.hotkey-help-item-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.hotkey-help-example {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.7rem;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.hotkey-help-safety {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: #fde047;
+}
+
+.form-row {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.form-row button {
+  flex: 1;
+}
+
+.settings-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.4rem 0.875rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.settings-btn:hover,
+.settings-btn.active {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+/* ── History / time-travel controls ──────────────────────────────────────── */
+
+.history-select {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.history-select:hover,
+.history-select:focus {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.history-select--active {
+  border-color: var(--positive-color, #22c55e);
+  color: var(--text-primary);
+}
+
+.history-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 1rem;
+  background: color-mix(in srgb, var(--border-color) 60%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.history-banner-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.history-banner-btn:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: var(--border-color);
+  color: var(--text-primary);
+}
+
+.panel {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+.panel-title {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.scan-age {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.scan-age--stale {
+  color: #eab308;
+  opacity: 1;
+  font-weight: 600;
+}
+
+.scanner-price-cell--stale {
+  color: #eab308;
+}
+
+.price-flash-up {
+  color: #10b981;
+  transition: color 0.05s ease;
+}
+
+.price-flash-down {
+  color: #ef4444;
+  transition: color 0.05s ease;
+}
+
