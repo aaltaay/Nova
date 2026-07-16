@@ -30,6 +30,27 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Single Nova homepage canvas (retire stale boards)
+
+- **What:** Consolidated five overlapping Cursor canvases into one project homepage (`nova-home.canvas.tsx`) with live health, roadmap queue, control ladder, shipped inventory, and doc links. Deleted stale boards: master-roadmap, OS mission, product-health, gap-and-opportunity, module-architecture-audit.
+- **Why:** Boards had drifted (gap analysis still called alerts/workspace “missing”; product-health stuck on 396 tests). User asked for one clean homepage dashboard.
+- **Files touched:** `canvases/nova-home.canvas.tsx` (Cursor projects); deleted five `.canvas.tsx`; retargeted `Nova-Roadmap-Status.md`, `Nova-OS-Status.md`, `Automation-Roadmap.md`, continuity `.mdc` rules, `AGENTS.md`, `gemini.md`.
+- **How it works now:** Open `nova-home.canvas.tsx` beside chat for status. Agents refresh that file when phase or live health changes. System `context-usage-*.canvas.tsx` left alone (Cursor-owned).
+- **Verified by:** Canvas TypeScript check clean; live probes `/api/health`, `/api/ibkr/status`, `/api/integrity`, `/api/archive/health` embedded as of tip `29d836f`.
+- **Follow-ups:** Re-probe integrity during RTH; refresh stats after next verify suite.
+- **Related:** Canvas inventory cleanup 2026-07-16
+
+<!-- ENTRIES_START_PLACEHOLDER_REMOVE -->
+
+## 2026-07-16 — security-sentinel subagent installed
+
+- **What:** Added three new files: `.cursor/agents/security-sentinel.md` (agent definition, 156 lines), `.cursor/agents/security-sentinel-memory.md` (living memory with accepted risks table, backlog, run log), `.cursor/rules/security-continuity.mdc` (glob-scoped pre-edit protocol for security-sensitive modules). Also scaffolded `security/findings-registry.json` as the canonical `SEC-NNN` findings store.
+- **Why:** User-requested security posture sentinel distinct from Cursor's built-in `security-review` subagent (which handles PR/diff reviews). `security-sentinel` does full-repo audits, CVSS/OWASP rating, dep CVE scanning, secrets sniffing, and maintains a durable accepted-risks registry.
+- **Files touched:** `.cursor/agents/security-sentinel.md`, `.cursor/agents/security-sentinel-memory.md`, `.cursor/rules/security-continuity.mdc`, `security/findings-registry.json`.
+- **How it works now:** Invoke with "Use the security-sentinel subagent to audit the repo." It reads memory + registry first (honors accepted risks), runs `py -3 tools/security_audit.py --json` + pip_audit + npm audit + ruff + secrets grep, assigns SEC-NNN IDs, and outputs a structured report. `security-continuity.mdc` fires on edits to `backend/ibkr/**`, `backend/strategy/**`, `backend/alerts/**`, execution routes, and `security/**` — prompting agents to check the registry and accepted risks before changing those files.
+- **Verified by:** Files created and line counts confirmed (sentinel 156 lines ≤ 180 target; memory 82 lines; rule 48 lines).
+- **Follow-ups:** `tools/security_audit.py` still needs to be implemented; CI gate (GitHub Actions) is next in the sentinel's backlog.
+
 ## 2026-07-16 — HOD Momo live accuracy: integrity, surge seed, active-set reprice
 
 - **What:** Shipped the previously ghost-documented HOD integrity + Squeeze surge-seed + capacity-bounded active evaluation set. Fail-loud API/CLI/UI banner; IBKR 1Min historical seed on first active entry; fair 1Hz `reqTickersAsync` scheduler (hot + age-rotating tail) without dumping the whole discovery universe into one batch.

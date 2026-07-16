@@ -1,0 +1,5 @@
+{
+  "_comment": "Nova security findings registry. Managed by security-sentinel subagent. Do NOT edit manually unless you know what you are doing.",
+  "_schema_version": "1.0",
+  "findings": []
+}
