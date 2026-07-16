@@ -64,7 +64,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 Facts discovered in a run that are **not yet** in `tester.md`. After promoting into `tester.md`, delete the bullet here (or move to Completed note).
 
-_(empty)_
+- **agent-browser download:** `download @Export` / blob `<a download>` often cancels in headless; prove export via `serializeHtk` unit tests + Export click + non-empty `localStorage['nova.hotkeys.profile.v1']` when file capture fails.
 
 ---
 
@@ -73,6 +73,14 @@ _(empty)_
 Newest first. Keep entries short. Skip boring all-green scoped runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-16 — Phase G2 Hotkey Manager UI browser verify
+
+- **Scope:** Settings → Hotkeys DAS manager (import/export/help/safety).
+- **Commands:** `npm run test -- src/hotkeys src/components/SettingsWorkspace.test.tsx` → 21 passed; `npm run build` → PASS; agent-browser on `http://localhost:5173`.
+- **Result:** PASS (all 8 checklist items)
+- **Learning:** Servers already up; Export file download capture flaky in agent-browser headless — use serialize + localStorage evidence.
+- **Promoted to tester.md:** yes — hotkeys routing row
 
 ### 2026-07-15 — Continuity refresh full gates
 

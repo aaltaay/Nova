@@ -10,8 +10,7 @@ import { TabModuleHost } from '../components/TabModuleHost';
 import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
-import { SettingsPanel } from '../components/SettingsPanel';
-import { AlertChannelsSettings } from '../components/AlertChannelsSettings';
+import { SettingsWorkspace } from '../components/SettingsWorkspace';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSettingsForm } from '../hooks/useSettingsForm';
@@ -145,25 +144,22 @@ export function DashboardPage() {
         />
 
         {settings.showSettings && (
-          <>
-            <SettingsPanel
-              apiKey={settings.apiKey}
-              onApiKeyChange={settings.setApiKey}
-              apiSecret={settings.apiSecret}
-              onApiSecretChange={settings.setApiSecret}
-              baseUrl={settings.baseUrl}
-              onBaseUrlChange={settings.setBaseUrl}
-              dataFeed={settings.dataFeed}
-              onDataFeedChange={settings.setDataFeed}
-              dataFeedOptions={settings.dataFeedOptions}
-              discoveryProvider={settings.discoveryProvider}
-              onDiscoveryProviderChange={settings.setDiscoveryProvider}
-              discoveryProviderOptions={settings.discoveryProviderOptions}
-              onSubmit={settings.handleConfigUpdate}
-              onCancel={() => settings.setShowSettings(false)}
-            />
-            <AlertChannelsSettings />
-          </>
+          <SettingsWorkspace
+            apiKey={settings.apiKey}
+            onApiKeyChange={settings.setApiKey}
+            apiSecret={settings.apiSecret}
+            onApiSecretChange={settings.setApiSecret}
+            baseUrl={settings.baseUrl}
+            onBaseUrlChange={settings.setBaseUrl}
+            dataFeed={settings.dataFeed}
+            onDataFeedChange={settings.setDataFeed}
+            dataFeedOptions={settings.dataFeedOptions}
+            discoveryProvider={settings.discoveryProvider}
+            onDiscoveryProviderChange={settings.setDiscoveryProvider}
+            discoveryProviderOptions={settings.discoveryProviderOptions}
+            onSubmit={settings.handleConfigUpdate}
+            onCancel={() => settings.setShowSettings(false)}
+          />
         )}
 
         <main className="panel">

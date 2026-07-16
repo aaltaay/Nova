@@ -54,6 +54,7 @@ Run the scoped target first; widen to the full suite only if scoped is green and
 | `backend/archive/*` | `test_archive_*.py`, `test_routes_archive.py` |
 | `backend/websocket.py` | `test_websocket_hod_feed.py`, `test_ws_strategy.py` |
 | `frontend/src/**/X.ts(x)` | co-located `X.test.ts(x)` if it exists, else nearest module tests (e.g. `hod_momo/`, `ibkr/`, `workspace/`, `utils/`) |
+| `frontend/src/hotkeys/**` or Settings Hotkeys UI | Vitest `src/hotkeys` (+ `SettingsWorkspace.test.tsx`); browser: Settings → Hotkeys; prove F8/import never hits order APIs |
 | `frontend/src/constants.ts` or shared hooks | full `npm run test` + `npm run build` |
 
 ## Known traps (from PROBLEM_LOG.md — check before deep-diving)

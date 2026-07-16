@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Phase G2: DAS-compatible hotkey manager (authoring only)
+
+- **What:** Settings gains a Hotkeys section with a DAS-style Name / Key / Command(s) manager: `.htk` import/export, row editor, compatibility report, and Help capability catalog. Imported/edited commands are never registered with `useHotkeys` and never place orders.
+- **Why:** User asked for DAS Trader–like hotkey authoring (load public `.htk` scripts, edit Name/Key/Command) before any execution phase. Extends completed Phase G automation bindings without rewriting them.
+- **Files touched:** `frontend/src/hotkeys/*`, `frontend/src/components/SettingsWorkspace.tsx`, `frontend/src/pages/DashboardPage.tsx`, `frontend/src/constants.ts`, `frontend/src/index.css`, `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`, nova-home canvas.
+- **How it works now:** Profiles persist in `localStorage` (`nova.hotkeys.profile.v1`). Parse splits only the first two `:` delimiters; long scripts use DAS `~ byteLength:` + 51-byte chunks. Compatibility statuses (Nova active / translatable later / backend required / DAS-IBKR-specific / invalid) are separate from evidence (DAS verified / documented / community). Six Phase G automation shortcuts remain the only executable bindings; a persistent banner states imported commands are inactive.
+- **Verified by:** Vitest 178 pass (hotkey + SettingsWorkspace + useHotkeys); `npm run build`; browser Settings → Hotkeys import/Help/F8 safety (no order network) via tester subagent.
+- **Follow-ups:** Future execution phase may map “translatable later” rows to guarded Nova actions; do not enable without explicit roadmap unlock. `auto_live` remains NO-GO.
+- **Related:** Phase G finish `722d614`; plan `hotkey_capability_catalog_ad947399.plan.md` (do not edit).
+
 ## 2026-07-16 — Warrior authenticated site map + access runbook
 
 - **What:** Added a repeatable headed browser launcher and durable maps of the full Warrior member site (dashboard, LMS, Day Trade Dash widgets, support/CRM entry points) for future agent questions. No Nova UI product changes.

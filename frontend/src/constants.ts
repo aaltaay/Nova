@@ -809,3 +809,13 @@ export const HOTKEY_ORDER_ACTIONS: HotkeyAction[] = [
 
 export const HOTKEY_SIGNAL_BLOCKED_MESSAGE =
   'Order hotkeys disabled in Signal mode — raise to Confirm first.';
+
+// ── DAS-compatible hotkey manager (Phase G2) ─────────────────────────────────
+/** Shown in Settings → Hotkeys; imported scripts never execute in this phase. */
+export const HOTKEY_MANAGER_INACTIVE_BANNER =
+  'Imported commands are inactive; execution is not implemented in this phase.';
+
+/** DAS short-script byte threshold before ~length chunked encoding. */
+export const HOTKEY_HTK_SHORT_SCRIPT_MAX_BYTES = 51;
+export const HOTKEY_HTK_CHUNK_BYTES = 51;
+export const HOTKEY_HTK_NAME_MAX_CHARS = 99;
