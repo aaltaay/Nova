@@ -239,6 +239,15 @@ def replace_or_insert_block(
     return text + "\n" + block + "\n", True
 
 
+AGENT_TITLES = {
+    "nova-agent": "Nova Agent",
+    "tester": "Tester",
+    "maintainer": "Maintainer",
+    "security-sentinel": "Security Sentinel",
+    "warrior": "Warrior Navigator",
+}
+
+
 def home_agents_block(snapshots: list[dict]) -> str:
     rows = []
     for s in snapshots:
@@ -250,11 +259,17 @@ def home_agents_block(snapshots: list[dict]) -> str:
             summary = f"{mid.get('findings_total', mid.get('findings', '?'))} findings"
         elif s["agent_id"] == "tester":
             summary = f"pytest {mid.get('pytest_passed', '?')}"
+        dash = s.get("dashboard") or {}
+        phrases = s.get("invoke_phrases") or []
         rows.append(
             {
                 "id": s["agent_id"],
+                "title": AGENT_TITLES.get(s["agent_id"], s["agent_id"]),
                 "domain": s["domain"],
                 "summary": str(summary),
+                "invoke": phrases[0] if phrases else "",
+                "canvas": dash.get("canvas") or "",
+                "dashboard_type": dash.get("type") or "",
                 "stale": s["stale"],
                 "revision": s["source_revision"],
                 "captured_at": s["captured_at"],

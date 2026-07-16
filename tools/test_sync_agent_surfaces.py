@@ -119,3 +119,22 @@ def test_load_memory_snapshot(sync):
     data = sync.load_memory_snapshot(".cursor/agent-memory/tester-memory.md")
     assert "result" in data
     assert "metrics" in data
+
+
+def test_home_agents_block_lists_registry_roster(sync):
+    registry = json.loads(
+        (REPO_ROOT / ".cursor" / "agent-system" / "registry.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    snaps = [
+        sync.build_agent_snapshot(a, "2026-07-16T00:00:00Z", "abc")
+        for a in registry["agents"]
+    ]
+    block = sync.home_agents_block(snaps)
+    assert '"kind": "nova-home-agents"' in block
+    assert '"title": "Warrior Navigator"' in block
+    assert '"invoke": "Use the warrior subagent to navigate Warrior Trading"' in block
+    assert '"canvas": "agent-warrior.canvas.tsx"' in block
+    for agent_id in ("tester", "maintainer", "security-sentinel", "nova-agent", "warrior"):
+        assert f'"id": "{agent_id}"' in block

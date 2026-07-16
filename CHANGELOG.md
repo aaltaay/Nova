@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — List all specialists on Nova Home canvas
+
+- **What:** Nova Home “Specialized agents” section now renders the full registry roster (Tester, Maintainer, Security Sentinel, Nova Agent, Warrior Navigator) from `NOVA_HOME_AGENT_SNAPSHOT`, with invoke phrases and dashboard links.
+- **Why:** User asked to list agents on Nova Home; the old hand-coded cards omitted Warrior and ignored the sync snapshot.
+- **Files touched:** `tools/sync_agent_surfaces.py` (`home_agents_block` fields), `nova-home.canvas.tsx`.
+- **How it works now:** `py -3 tools/sync_agent_surfaces.py --write` refreshes the roster from `.cursor/agent-system/registry.json`; the table always shows every registered agent.
+- **Verified by:** sync write · `pytest tools/test_sync_agent_surfaces.py` · canvas TypeScript check.
+
 ## 2026-07-16 — Install warrior specialist agent + agent-warrior canvas
 
 - **What:** Registered a dedicated `warrior` subagent for authenticated Warrior Trading navigation; migrated the unmanaged site-map canvas to `agent-warrior.canvas.tsx` so Nova Home hygiene stays clean.
