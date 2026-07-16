@@ -3,11 +3,13 @@
  * TabNav / Modules menu / future ModuleHost read from here (Phase 4).
  */
 import type { ComponentType } from 'react';
-import { Level2Module } from '../modules/Level2Module';
-import { TimeSalesModule } from '../modules/TimeSalesModule';
-import { NewsPanel } from '../modules/NewsPanel';
-import { QuoteHeaderPanel } from '../modules/QuoteHeaderPanel';
-import { ChartsModule } from '../modules/ChartsModule';
+import {
+  ChartsModule,
+  Level2Module,
+  NewsPanel,
+  QuoteHeaderPanel,
+  TimeSalesModule,
+} from '../modules';
 
 /** Feed dependencies declared for honesty / future ModuleHost gating. */
 export type FeedDep =

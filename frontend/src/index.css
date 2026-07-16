@@ -1,18 +1,16 @@
-/* Reserved cascade-layer order (ADR 006). Rules remain unlayered for
-   byte-compatible cascade with the pre-split monolith; migrate into
-   these layers only with visual verification. */
+/* Cascade-layer order (ADR 006). Sheets share `features` so within-layer
+   import order preserves the pre-layer "later wins" cascade. */
 @layer reset, tokens, base, layout, components, features, utilities, overrides;
 
-/* Phase 2: import-only entry - order matches former monolith. */
-@import "./styles/tokens-shell.css";
-@import "./styles/settings-workspace.css";
-@import "./styles/scanner-l2.css";
-@import "./styles/scanner-misc.css";
-@import "./reports/reports.css";
-@import "./styles/quote-layout.css";
-@import "./hod_momo/hodMomo.css";
-@import "./hod_momo/hodMomoDebug.css";
-@import "./chart/tickerChart.css";
-@import "./styles/stock-view.css";
-@import "./ibkr/tradingTab.css";
-
+@import "./styles/tokens-shell.css" layer(tokens);
+@import "./styles/settings-workspace.css" layer(features);
+@import "./styles/scanner-l2.css" layer(features);
+@import "./styles/scanner-misc.css" layer(features);
+@import "./reports/reports.css" layer(features);
+@import "./styles/quote-layout.css" layer(features);
+@import "./hod_momo/hodMomo.css" layer(features);
+@import "./hod_momo/hodMomoSettings.css" layer(features);
+@import "./hod_momo/hodMomoDebug.css" layer(features);
+@import "./chart/tickerChart.css" layer(features);
+@import "./styles/stock-view.css" layer(features);
+@import "./ibkr/tradingTab.css" layer(features);

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Close remediation Phase 5: feature barrels + CSS layers
+
+- **What:** Public barrels for `workspace`/`modules`/`ibkr`/`chart`/`hod_momo`; migrated baselined deep cross-feature imports; moved `TickerChart` into `chart/` with a root facade; applied `@import … layer()` in `index.css`; split `hodMomo.css` + settings sheet; deleted unused `App.css`; cleared cross-feature baselines.
+- **Why:** Close-remediation Phase 5 — finish ADR 005/006 (barrels + real cascade layers) left incomplete after the architecture program close.
+- **Files touched:** `frontend/src/{workspace,modules,ibkr,chart,hod_momo}/index.ts`, import rewrites, `chart/TickerChart.tsx`, `index.css`, `hodMomoSettings.css`, `tools/maintainer_lib/baselines.json`, `architecture/dependency-rules.md`.
+- **How it works now:** Cross-feature imports go through public barrels (maintainer 0 non-baseline). All stylesheets are layered; HOD stylesheets are under 700 lines.
+- **Verified by:** `maintainer_checks --fail-on-findings` (0 non-baseline) · Vitest workspace/modules/chart 57 passed · `npm run build` ok.
+- **Follow-ups:** Phase 6 lifecycle tests + Ruff/ESLint green.
+
 ## 2026-07-16 — Close remediation Phase 4: scanner/ticker ports
 
 - **What:** Added `backend/ports/` + `backend/adapters/` + composition wiring for discovery/movers/ticker snapshots; orchestration uses ports instead of constructing IBKR/Alpaca providers; strangler facades document owner phase + removal criterion; shared adapter contract tests.

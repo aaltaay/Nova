@@ -9,7 +9,7 @@ import {
   fmtSessionPrice,
   fmtVolume,
 } from '../utils/quoteFormat';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from './quoteMetrics';
 
 interface Props {

@@ -101,5 +101,5 @@ Declared order (specificity from general → specific):
 | CSS line limits + `index.css` hard cap | 1–2 |
 | Accepted-baseline **growth** (hod_momo, executor) | 1 |
 | Production `import main` for state | 1 warn → 7 eliminate |
-| Cross-feature deep imports | 1 warn |
+| Cross-feature deep imports | blocking via public feature barrels (`workspace/`, `modules/`, `ibkr/`, `chart/`) |
 | Layer import direction (representative) | 1 warn |

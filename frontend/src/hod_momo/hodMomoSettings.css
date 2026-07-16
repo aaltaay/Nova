@@ -1,0 +1,286 @@
+/* Settings drawer */
+.hod-settings-drawer {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.hod-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: rgba(255,255,255,0.03);
+}
+
+.hod-settings-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.hod-settings-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.hod-settings-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hod-settings-tab {
+  padding: 0.5rem 1rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.hod-settings-tab:hover {
+  color: var(--text-primary);
+}
+
+.hod-settings-tab.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+}
+
+.hod-settings-body {
+  padding: 1rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Config fields */
+.hod-strategy-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.hod-cfg-section {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin: 0.85rem 0 0.4rem;
+}
+
+.hod-cfg-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.hod-cfg-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.hod-cfg-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.hod-cfg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 120px;
+}
+
+.hod-cfg-field--color {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.hod-cfg-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.hod-cfg-input {
+  padding: 0.3rem 0.5rem;
+  background: var(--input-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  width: 100%;
+}
+
+.hod-cfg-select {
+  padding: 0.3rem 0.5rem;
+  background: var(--input-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  min-width: 150px;
+}
+
+.hod-cfg-color {
+  width: 40px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.hod-cfg-color-hex {
+  font-family: monospace;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.hod-cfg-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  margin: 0.25rem 0;
+}
+
+.hod-cfg-btn {
+  padding: 0.3rem 0.7rem;
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.hod-cfg-btn:hover {
+  background: var(--hover-bg);
+}
+
+.hod-cfg-btn--danger {
+  border-color: rgba(239,68,68,0.4);
+  color: #ef4444;
+}
+
+.hod-cfg-btn--danger:hover {
+  background: rgba(239,68,68,0.1);
+}
+
+.hod-cfg-reset-btn {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.hod-cfg-reset-btn:hover {
+  color: var(--text-primary);
+  background: var(--hover-bg);
+}
+
+.hod-cfg-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.4rem 0.5rem;
+  background: var(--input-bg, rgba(255,255,255,0.05));
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  resize: vertical;
+}
+
+.hod-cfg-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0.5rem;
+}
+
+/* Former momo / blocklist tags */
+.hod-momo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+  min-height: 24px;
+}
+
+.hod-momo-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  background: rgba(255,255,255,0.07);
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hod-block-tag {
+  background: rgba(239,68,68,0.12);
+  color: #ef4444;
+}
+
+.hod-momo-tag-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.hod-momo-tag-remove:hover {
+  opacity: 1;
+}
+
+.hod-momo-add-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.hod-momo-input {
+  flex: 1;
+  max-width: 160px;
+}
+
+.hod-strategy-cfg, .hod-master-cfg, .hod-blocklist-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.hod-settings-global-actions {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+}
+

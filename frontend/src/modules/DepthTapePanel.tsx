@@ -2,8 +2,7 @@
 import { Level2Module } from './Level2Module';
 import { TimeSalesModule } from './TimeSalesModule';
 import { TICKER_L2_SOURCE_LABEL, TICKER_TRADE_DEPTH_LEVELS } from '../constants';
-import { useWorkspace } from '../workspace/WorkspaceContext';
-import { useModuleVisibility } from '../workspace/useModuleVisibility';
+import { useModuleVisibility, useWorkspace } from '../workspace';
 
 interface Props {
   /** Panel selection source of truth (never a stale detail.symbol). */

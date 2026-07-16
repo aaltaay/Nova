@@ -2,7 +2,7 @@
  * Standalone Time & Sales module — mounts with only a symbol.
  * Owns its feed via TimeSalesPanel → useIbkrTape.
  */
-import { TimeSalesPanel } from '../ibkr/TimeSalesPanel';
+import { TimeSalesPanel } from '../ibkr';
 
 interface Props {
   symbol: string | null;

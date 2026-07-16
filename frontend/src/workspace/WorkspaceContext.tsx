@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { API_URL } from '../constants';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { useIbkrStatus } from '../ibkr';
 import {
   openStockViewWindow,
   parseStockViewSymbol,

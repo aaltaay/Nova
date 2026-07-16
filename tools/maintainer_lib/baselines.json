@@ -1,21 +1,5 @@
 {
   "schema_version": 1,
   "description": "Committed fingerprints for legacy architecture findings. New findings of these kinds fail --fail-on-findings unless listed here.",
-  "fingerprints": [
-    "cross_feature_import|frontend/src/ibkr/DepthAndTape.tsx|5|ibkr imports internals of modules",
-    "cross_feature_import|frontend/src/ibkr/DepthAndTape.tsx|6|ibkr imports internals of modules",
-    "cross_feature_import|frontend/src/modules/DataSourcesPanel.tsx|3|modules imports internals of workspace",
-    "cross_feature_import|frontend/src/modules/DepthTapePanel.tsx|5|modules imports internals of workspace",
-    "cross_feature_import|frontend/src/modules/DepthTapePanel.tsx|6|modules imports internals of workspace",
-    "cross_feature_import|frontend/src/modules/FundamentalsPanel.tsx|12|modules imports internals of workspace",
-    "cross_feature_import|frontend/src/modules/Level2Module.tsx|5|modules imports internals of ibkr",
-    "cross_feature_import|frontend/src/modules/QuoteHeaderPanel.tsx|6|modules imports internals of workspace",
-    "cross_feature_import|frontend/src/modules/TimeSalesModule.tsx|5|modules imports internals of ibkr",
-    "cross_feature_import|frontend/src/workspace/registry.ts|6|workspace imports internals of modules",
-    "cross_feature_import|frontend/src/workspace/registry.ts|7|workspace imports internals of modules",
-    "cross_feature_import|frontend/src/workspace/registry.ts|8|workspace imports internals of modules",
-    "cross_feature_import|frontend/src/workspace/registry.ts|9|workspace imports internals of modules",
-    "cross_feature_import|frontend/src/workspace/registry.ts|10|workspace imports internals of modules",
-    "cross_feature_import|frontend/src/workspace/WorkspaceContext.tsx|15|workspace imports internals of ibkr"
-  ]
+  "fingerprints": []
 }

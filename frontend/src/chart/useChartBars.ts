@@ -24,7 +24,7 @@ import {
   isoToEtTime,
   type RawBar,
 } from '../tickerChartData';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { allowMockBarsFallback, emptyBarsMessage } from './chartBarsPolicy';
 import type { ChartTradeUpdate } from './types';
 

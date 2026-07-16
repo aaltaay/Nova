@@ -1,6 +1,6 @@
 /** Data-source attribution panel — reads discovery/feed from workspace. */
 import { TickerDataSources } from '../components/TickerDataSources';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 
 export function DataSourcesPanel() {
   const { discoveryProvider, alpacaFeed, ibkrConnected } = useWorkspace();

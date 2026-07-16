@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL, QUOTE_CARD_TITLE } from '../constants';
 import type { TickerDetail } from '../types/ticker';
 import { fmtPct, fmtTimestamp } from '../utils/quoteFormat';
-import { useWorkspace } from '../workspace/WorkspaceContext';
+import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from './quoteMetrics';
 
 const API_URL = `${API_BASE_URL}/api`;

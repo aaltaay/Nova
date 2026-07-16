@@ -2,7 +2,7 @@
  * Standalone Level 2 module — mounts with only a symbol.
  * Owns its feed via DepthLadder → useIbkrDepth.
  */
-import { DepthLadder } from '../ibkr/DepthLadder';
+import { DepthLadder } from '../ibkr';
 
 interface Props {
   symbol: string | null;

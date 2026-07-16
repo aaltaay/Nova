@@ -2,8 +2,7 @@
  * DepthAndTape — Level 2 and Time & Sales side-by-side in one full-width row.
  * Composition only: each column is an independent module that owns its own feed.
  */
-import { Level2Module } from '../modules/Level2Module';
-import { TimeSalesModule } from '../modules/TimeSalesModule';
+import { Level2Module, TimeSalesModule } from '../modules';
 
 interface Props {
   symbol: string | null;
