@@ -8,7 +8,7 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 
 - Phase: P10 + hardening sections 1–6 (all closed); post-map follow-ups: R2 live + L2 health gate
 - State: verified — see per-phase exit-criteria table below (2026-07-15 re-verification), not a blanket claim
-- Last verified commit: (set at phase-close commit)
+- Last verified commit: cbae894
 - Last updated: 2026-07-15 ~23:15 ET
 
 ## Completed this phase
