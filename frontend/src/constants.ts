@@ -573,12 +573,34 @@ export const SCANNER_PRICE_FLASH_MS = 400;
 export const SYMBOL_DOUBLE_CLICK_MS = 280;
 /** Right-hand scanner sidebar that shows quote + fundamentals for the selected symbol. */
 export const QUOTE_PANEL_TITLE = 'Quote Panel';
-/** Full single-stock page opened by double-click / “Stock View” (detachable tab). */
+/** Full single-stock page opened by double-click / “Stock View” (detached window). */
 export const STOCK_VIEW_TITLE = 'Stock View';
-/** Button / tooltip copy for opening the detachable Stock View tab. */
+/** Button / tooltip copy for opening the detached Stock View window. */
 export const STOCK_VIEW_OPEN_LABEL = 'Stock View';
 export const STOCK_VIEW_OPEN_TITLE =
-  'Open Stock View in a new tab (same quote data as the Quote Panel, plus charts and trading)';
+  'Open Stock View in a new window (same quote data as the Quote Panel, plus charts and trading)';
+/**
+ * window.open feature string — size/popup flags force a real OS window.
+ * Bare `_blank` with no features opens a browser tab (Chrome/Edge).
+ * Do NOT add noopener here: it makes window.open return null.
+ */
+export const STOCK_VIEW_WINDOW_WIDTH = 1440;
+export const STOCK_VIEW_WINDOW_HEIGHT = 900;
+export const STOCK_VIEW_WINDOW_LEFT = 72;
+export const STOCK_VIEW_WINDOW_TOP = 48;
+export const STOCK_VIEW_WINDOW_FEATURES = [
+  'popup=yes',
+  `width=${STOCK_VIEW_WINDOW_WIDTH}`,
+  `height=${STOCK_VIEW_WINDOW_HEIGHT}`,
+  `left=${STOCK_VIEW_WINDOW_LEFT}`,
+  `top=${STOCK_VIEW_WINDOW_TOP}`,
+  'menubar=no',
+  'toolbar=no',
+  'location=yes',
+  'status=no',
+  'resizable=yes',
+  'scrollbars=yes',
+].join(',');
 /** localStorage key: whether the 2×2 chart grid is collapsed on Stock View. */
 export const STOCK_VIEW_CHARTS_COLLAPSED_KEY = 'nova.stockView.chartsCollapsed';
 export const STOCK_VIEW_CHARTS_SHOW_LABEL = 'Show charts';

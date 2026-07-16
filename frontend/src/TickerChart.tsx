@@ -77,6 +77,21 @@ interface TickerChartProps {
   subtitle?: string;
 }
 
+/** Height for fill-parent charts: use card leftover space, not CHART_HEIGHT_GRID. */
+function measureChartFillHeight(container: HTMLElement, fallback: number): number {
+  const card = container.closest('.chart-card') as HTMLElement | null;
+  if (card && card.clientHeight > 0) {
+    let used = 0;
+    for (const child of Array.from(card.children)) {
+      if (child === container) continue;
+      used += (child as HTMLElement).offsetHeight;
+    }
+    const available = Math.floor(card.clientHeight - used);
+    if (available > 0) return available;
+  }
+  return Math.max(container.clientHeight || fallback, fallback);
+}
+
 export function TickerChart(props: TickerChartProps) {
   return (
     <TickerChartErrorBoundary key={props.symbol}>
@@ -168,6 +183,10 @@ function TickerChartInner({
     const container = containerRef.current;
     if (!container) return;
 
+    const initialHeight = fillParentHeight
+      ? measureChartFillHeight(container, chartHeight)
+      : chartHeight;
+
     const chart = createChart(container, {
       layout: { background: { color: '#161921' }, textColor: '#8b92a5' },
       grid: { vertLines: { color: '#262a36' }, horzLines: { color: '#262a36' } },
@@ -178,9 +197,7 @@ function TickerChartInner({
       timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#262a36' },
       rightPriceScale: { borderColor: '#262a36' },
       width: container.clientWidth,
-      height: fillParentHeight
-        ? Math.max(container.clientHeight || chartHeight, chartHeight)
-        : chartHeight,
+      height: initialHeight,
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
@@ -205,18 +222,26 @@ function TickerChartInner({
     managerRef.current = manager;
     setChartApi(chart);
 
-    const ro = new ResizeObserver(() => {
+    const applySize = () => {
       if (!containerRef.current) return;
       const ch = chartHeightRef.current;
       const h = fillParentHeightRef.current
-        ? Math.max(containerRef.current.clientHeight || ch, ch)
+        ? measureChartFillHeight(containerRef.current, ch)
         : ch;
       chart.applyOptions({
         width: containerRef.current.clientWidth,
         height: h,
       });
-    });
+    };
+
+    const ro = new ResizeObserver(applySize);
     ro.observe(container);
+    const card = container.closest('.chart-card');
+    const host = container.closest('.chart-portal-host');
+    if (card) ro.observe(card);
+    if (host && host !== card) ro.observe(host);
+    // Layout often settles one frame after mount (grid 1fr rows).
+    requestAnimationFrame(applySize);
 
     return () => {
       ro.disconnect();
@@ -270,7 +295,7 @@ function TickerChartInner({
     if (!container || !chart) return;
     const ch = chartHeightRef.current;
     const h = fillParentHeightRef.current
-      ? Math.max(container.clientHeight || ch, ch)
+      ? measureChartFillHeight(container, ch)
       : ch;
     chart.applyOptions({ width: container.clientWidth, height: h });
   }, [maximized, fillParentHeight, chartHeight]);

@@ -17,6 +17,28 @@ Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix).
 Entry template (copy and fill in):
 
 ```markdown
+## YYYY-MM-DD — Short descriptive title
+
+- **What:** 1–2 sentences on what changed (user-visible + internal).
+- **Why:** Trigger for the change (user request, bug class, performance, cleanup).
+- **Files touched:** Key files only, e.g. `backend/scanner.py`, `frontend/src/App.tsx`.
+- **How it works now:** The mental model a future agent needs — the "oh, got it" paragraph.
+- **Verified by:** How you confirmed it works (built + ran, test name, manual click path).
+- **Follow-ups:** (optional) anything deferred.
+- **Related:** (optional) commit SHA, PROBLEM_LOG entry date, issue link.
+```
+
+<!-- ENTRIES_START -->
+
+## 2026-07-15 — Restore Stock View viewport-lock CSS + commit dangling detach/chart work
+
+- **What:** Re-applied the lost Stock View `100dvh` viewport-lock CSS in `index.css` (body/`#root` flex chain, portal/grid fill, compact trade bar). Committed the surviving uncommitted TS work: `measureChartFillHeight`, detached-window `popup=yes` nav + constants.
+- **Why:** Phase agents discarded uncommitted `index.css` changes; baseline e2e failed (`documentElement must not page-scroll on Stock View`). Dangling chart/nav fixes risked the same loss.
+- **Files touched:** `frontend/src/index.css`, `TickerChart.tsx`, `constants.ts`, `utils/stockViewNav.ts` + test, `CHANGELOG.md`, `PROBLEM_LOG.md`.
+- **How it works now:** Stock View is a locked `100dvh` flex shell (`overflow: hidden`); quote scrolls internally; chart portal/host + `.chart-body` use `flex: 1 1 0`; charts measure fill height from the card. Double-click opens a popup window via `STOCK_VIEW_WINDOW_FEATURES`.
+- **Verified by:** Playwright 14/14 (incl. no-page-scroll); Vitest 131; `npm run build`; live `?view=stock&symbol=AAPL` → `scrollHeight === clientHeight`.
+- **Related:** PROBLEM_LOG “uncommitted Stock View CSS lost during phase automation”.
+
 ## 2026-07-15 — Stock View double-click opens a detached window, not a tab
 
 - **What:** Double-click / Stock View now calls `window.open` with `popup=yes` + width/height features and a per-symbol window name, so the browser opens a real OS window instead of a new tab.
@@ -32,21 +54,7 @@ Entry template (copy and fill in):
 - **Why:** User reported ugly empty space between chart rows and a page scrollbar that hid parts of the view.
 - **Files touched:** `frontend/src/index.css`, `frontend/src/TickerChart.tsx`, `CHANGELOG.md`, `PROBLEM_LOG.md`.
 - **How it works now:** `body:has(.container--ticker-detail)` + `#root` are a `100dvh` flex column (`overflow: hidden`). Portal slot/host and `.chart-card--grid .chart-body` use `flex: 1 1 0` so height propagates. `measureChartFillHeight` sizes lightweight-charts from the card leftover space (not stuck at `CHART_HEIGHT_GRID`).
-- **Verified by:** Browser CDP on `?view=stock&symbol=ATAI` — `scrollHeight === clientHeight` at 1080px and 800px viewports; cell/body heights fill grid rows; pageScrollable false.
-- **Follow-ups:** Chart bar fetch timed out during verify (IBKR historical busy) — unrelated to layout.
-
-## YYYY-MM-DD — Short descriptive title
-
-- **What:** 1–2 sentences on what changed (user-visible + internal).
-- **Why:** Trigger for the change (user request, bug class, performance, cleanup).
-- **Files touched:** Key files only, e.g. `backend/scanner.py`, `frontend/src/App.tsx`.
-- **How it works now:** The mental model a future agent needs — the "oh, got it" paragraph.
-- **Verified by:** How you confirmed it works (built + ran, test name, manual click path).
-- **Follow-ups:** (optional) anything deferred.
-- **Related:** (optional) commit SHA, PROBLEM_LOG entry date, issue link.
-```
-
-<!-- ENTRIES_START -->
+- **Verified by:** Playwright baseline no-page-scroll; live AAPL Stock View `scrollHeight === clientHeight`.
 
 ## 2026-07-15 — Archive health fails loud on L2 R2 upload failures
 

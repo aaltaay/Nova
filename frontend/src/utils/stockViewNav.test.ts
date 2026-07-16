@@ -46,10 +46,23 @@ describe('stockViewNav', () => {
     expect(openSpy).not.toHaveBeenCalled();
   });
 
-  it('treats a real window.open handle as success (no noopener null trap)', async () => {
-    const fakeWin = { opener: {} as Window | null };
-    window.open = vi.fn(() => fakeWin as unknown as Window) as typeof window.open;
+  it('opens a named popup window with size features (not a bare tab)', async () => {
+    const fakeWin = { opener: {} as Window | null, focus: vi.fn() };
+    const openSpy = vi.fn(
+      (_url?: string | URL, _name?: string, _features?: string) =>
+        fakeWin as unknown as Window,
+    );
+    window.open = openSpy as typeof window.open;
     await expect(openStockViewWindow('SHPH')).resolves.toBe(true);
+    expect(openSpy).toHaveBeenCalledOnce();
+    expect(openSpy).toHaveBeenCalledWith(
+      expect.stringContaining('symbol=SHPH'),
+      'nova-stock-SHPH',
+      expect.stringMatching(/popup=yes.*width=\d+.*height=\d+/),
+    );
+    const features = String(openSpy.mock.calls[0]?.[2] ?? '');
+    expect(features).not.toContain('noopener');
     expect(fakeWin.opener).toBeNull();
+    expect(fakeWin.focus).toHaveBeenCalledOnce();
   });
 });

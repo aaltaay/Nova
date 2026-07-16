@@ -21,6 +21,27 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Uncommitted Stock View CSS lost during phase automation
+
+- **Symptom:** Playwright baseline failed: `documentElement must not page-scroll on Stock View`. Working tree no longer had `body:has(.container--ticker-detail)` / portal flex-fill rules even though `TickerChart.tsx` still had `measureChartFillHeight`.
+- **Cause:** Stock View viewport-lock CSS lived only as uncommitted `index.css` edits. A phase subagent discarded those working-tree changes (checkout/resolve) while committing its own `index.css` additions — TS half survived, CSS half vanished.
+- **Fix:** Re-apply viewport-lock + chart-fill CSS from the prior session; verify Playwright/Vitest/build; commit CSS together with dangling chart/nav work immediately. Lesson: never leave a verified fix uncommitted while parallel agents touch the same files — commit or stash first.
+- **Keywords:** Stock View, index.css, uncommitted, phase agent, discarded, 100dvh, page scroll, Playwright baseline
+
+## 2026-07-15 — Stock View double-click opened a browser tab instead of a window
+
+- **Symptom:** Double-clicking a ticker opened Stock View in a new browser tab, not a detached OS window.
+- **Cause:** `window.open(url, '_blank')` with no feature string is treated as “open tab” by Chrome/Edge. Only size/`popup` features request a real window.
+- **Fix:** Pass `STOCK_VIEW_WINDOW_FEATURES` (`popup=yes`, width/height, …) and a named target `nova-stock-SYMBOL`; still clear `opener` (no `noopener` flag).
+- **Keywords:** Stock View, detach, window.open, popup=yes, new tab, double-click
+
+## 2026-07-15 — Stock View chart gaps + page scroll
+
+- **Symptom:** Large empty black bands between the top chart row (1m/5m) and bottom row (full day/15m); Stock View required vertical page scrolling to reach the trade bar.
+- **Cause:** (1) `.chart-portal-slot` / `.chart-portal-host` were `display:block` without flex fill, so grid cells did not pass height to `.chart-body`. Charts stayed at `CHART_HEIGHT_GRID` (180px) inside taller cells. (2) Shell used `min-height: 100vh` instead of a locked `100dvh` flex column, and `#root` was not part of the height chain, so content grew past the viewport.
+- **Fix:** Viewport-locked Stock View flex shell (`body` / `#root` / `.container--ticker-detail`); portal slot/host + grid card body `flex: 1 1 0`; `measureChartFillHeight` + ResizeObserver on card/host; compact non-sticky trade bar with `max-height: 22vh`.
+- **Keywords:** Stock View, chart-grid, CHART_HEIGHT_GRID, portal-host, fillParentHeight, 100dvh, page scroll, ATAI
+
 ## 2026-07-15 — tsc -b failed on Vitest ownership tests importing node:fs
 
 - **Symptom:** `npm run build` (`tsc -b`) failed with `TS2591: Cannot find name 'node:fs'` on `tapeFeed.test.ts` / `modules.ownership.test.ts`.

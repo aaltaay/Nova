@@ -1,4 +1,8 @@
-/** URL helpers for the detachable Stock View tab (?view=stock&symbol=LVLU). */
+/** URL helpers for the detachable Stock View window (?view=stock&symbol=LVLU). */
+
+import {
+  STOCK_VIEW_WINDOW_FEATURES,
+} from '../constants';
 
 export const STOCK_VIEW_QUERY_VIEW = 'stock';
 export const STOCK_VIEW_QUERY_KEY = 'view';
@@ -18,14 +22,20 @@ export function parseStockViewSymbol(search = window.location.search): string | 
   return symbol || null;
 }
 
+/** Named target so re-opening the same symbol focuses the existing window. */
+export function stockViewWindowName(symbol: string): string {
+  return `nova-stock-${symbol.trim().toUpperCase()}`;
+}
+
 /**
- * Opens Stock View in a new window/tab.
+ * Opens Stock View in a detached OS window (not a browser tab).
  * Returns true when a separate window was opened.
  *
- * Important: do NOT pass `noopener` to window.open — that makes the call
- * return null even when a window opens, which we used to misread as "popup
- * blocked" and then navigated the *current* tab instead (Electron + Chrome).
- * Desktop uses an IPC path so Electron always creates a real BrowserWindow.
+ * Browser: pass width/height/`popup=yes` — bare `_blank` opens a tab.
+ * Do NOT pass `noopener` — that makes window.open return null even when a
+ * window opens, which we used to misread as "popup blocked" and then
+ * navigated the *current* tab instead.
+ * Desktop: prefer IPC so Electron creates a real BrowserWindow.
  */
 export async function openStockViewWindow(symbol: string): Promise<boolean> {
   const sym = symbol.trim().toUpperCase();
@@ -41,12 +51,17 @@ export async function openStockViewWindow(symbol: string): Promise<boolean> {
     }
   }
 
-  const win = window.open(url, '_blank');
+  const win = window.open(url, stockViewWindowName(sym), STOCK_VIEW_WINDOW_FEATURES);
   if (!win) return false;
   try {
     win.opener = null;
   } catch {
     /* ignore cross-origin / locked opener */
+  }
+  try {
+    win.focus();
+  } catch {
+    /* ignore */
   }
   return true;
 }
