@@ -29,14 +29,10 @@ from constants import (
 )
 from websocket import mark_resub
 from paths import env_file_path
+from runtime_state import get_runtime_state
+from universe import reset_scan_caches
 
 router = APIRouter(tags=["health"])
-
-
-def _m():
-    """Lazy accessor for main.py to avoid circular imports at load time."""
-    import main as _main
-    return _main
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -68,9 +64,9 @@ def root():
 def health_check():
     from observability import sentry_enabled
 
-    m = _m()
+    state = get_runtime_state()
     return {
-        **m._cached_health,
+        **state.cached_health,
         "data_feed": _get_feed(),
         "feed_fell_back": _alpaca._feed_fell_back,
         "sentry_enabled": sentry_enabled(),
@@ -79,7 +75,6 @@ def health_check():
 
 @router.get("/api/config")
 def get_config():
-    m = _m()
     from ibkr import client as _ibkr_client
     return {
         "api_key": _env("APCA_API_KEY_ID") or "",
@@ -95,7 +90,6 @@ def get_config():
 
 @router.post("/api/config")
 def update_config(config: ConfigUpdate):
-    m = _m()
     env_path = str(env_file_path())
     os.makedirs(os.path.dirname(env_path) or ".", exist_ok=True)
     set_key(env_path, "APCA_API_KEY_ID", config.api_key)
@@ -106,7 +100,7 @@ def update_config(config: ConfigUpdate):
     load_dotenv(env_path, override=True)
     _set_feed(config.data_feed)
     _set_discovery_provider(config.discovery_provider)
-    m.reset_scan_caches()
+    reset_scan_caches()
     _exchanges.clear()
     mark_resub()
     return {
@@ -118,10 +112,10 @@ def update_config(config: ConfigUpdate):
 
 @router.get("/api/mode")
 def get_mode():
-    m = _m()
+    state = get_runtime_state()
     return {
-        "mode": m._current_mode,
-        "health": m._cached_health,
-        "last_gapper_scan": m._gapper_cache_ts,
-        "last_gainer_scan": m._gainer_cache_ts,
+        "mode": state.current_mode,
+        "health": state.cached_health,
+        "last_gapper_scan": state.gapper_cache_ts,
+        "last_gainer_scan": state.gainer_cache_ts,
     }

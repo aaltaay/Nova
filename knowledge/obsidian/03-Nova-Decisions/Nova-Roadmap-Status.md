@@ -184,8 +184,8 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 | 3 Constants domains | `[x]` | `b03f34c` | Compatibility barrels |
 | 4 Frontend components | `[x]` | `71170c3` | Hotkeys / HOD settings / debug |
 | 5 Chart lifecycle | `[x]` | `60f4764` | `chart/` hooks |
-| 6 Low-coupling backend | `[~]` | _(this commit)_ | integrity / news / r2 / security_lib |
-| 7 Scanner state | `[ ]` | — | No production `import main` caches |
+| 6 Low-coupling backend | `[x]` | `b4e7033` | integrity / news / r2 / security_lib |
+| 7 Scanner state | `[~]` | _(this commit)_ | No production `import main` caches |
 | 8 Scanner + ticker | `[ ]` | — | Ports/facades |
 | 9 IBKR depth | `[ ]` | — | state/subscribe/stream |
 | 10 HOD Momo | `[ ]` | — | Shared state then extract |
@@ -208,7 +208,8 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 6: integrity/news/r2/security_lib strangler splits | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 7: explicit scanner runtime_state; main.py composition-only | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 6: integrity/news/r2/security_lib strangler splits | `b4e7033` |
 | 2026-07-16 | Maintenance Phase 5: TickerChart lifecycle hooks under chart/ | `60f4764` |
 | 2026-07-16 | Maintenance Phase 4: HotkeyManager + HOD settings/debug component splits | `71170c3` |
 | 2026-07-16 | Maintenance Phase 3: domain constants modules + compatibility barrels | `b03f34c` |

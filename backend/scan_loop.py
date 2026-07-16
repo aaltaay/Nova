@@ -19,7 +19,14 @@ from alpaca import (
     _get_discovery_provider,
 )
 from constants import (
+    AFTERHOURS_DISCOVERY_INTERVAL_SEC,
+    AFTERHOURS_FOCUS_INTERVAL_SEC,
+    CLOSED_INTERVAL_SEC,
+    DISCOVERY_INTERVAL_SEC,
+    FOCUS_INTERVAL_SEC,
+    GAINERS_INTERVAL_SEC,
     NEWS_CATALYST_ARTICLE_LIMIT,
+    NEWS_CATALYST_INTERVAL_SEC,
     NEWS_CATALYST_LOOKBACK_HOURS,
     SCANNER_MIN_PRICE,
 )
@@ -40,19 +47,15 @@ from scan_runners import (
     run_focus_scan,
     run_gainers_update,
 )
+from runtime_state import get_runtime_state
 from universe import refresh_hod_momo_universe
 
 logger = logging.getLogger(__name__)
 
 
-def _m():
-    import main as _main
-    return _main
-
-
 def run_news_catalyst_scan() -> None:
     """News-first catalyst scanner — fills ``_news_catalyst_cache``."""
-    m = _m()
+    state = get_runtime_state()
     headers = _alpaca_headers()
     if not headers:
         return
@@ -93,7 +96,7 @@ def run_news_catalyst_scan() -> None:
                         "source": source,
                     }
 
-        universe = m._assets_cache_set
+        universe = state.assets_cache_set
         news_symbols = [
             s for s in symbol_to_article.keys()
             if not universe or s in universe
@@ -162,9 +165,9 @@ def run_news_catalyst_scan() -> None:
         catalysts.sort(key=lambda x: abs(x["gap_percent"]), reverse=True)
         catalysts = [enrich_catalyst_row(c) for c in catalysts]
         logger.info("[catalyst] scan complete — %d catalysts", len(catalysts))
-        m._news_catalyst_cache = catalysts
-        m._news_catalyst_cache_ts = time.time()
-        m._last_catalyst_scan_ts = time.monotonic()
+        state.news_catalyst_cache = catalysts
+        state.news_catalyst_cache_ts = time.time()
+        state.last_catalyst_scan_ts = time.monotonic()
 
     except Exception:
         logger.exception("[catalyst] news catalyst scan failed")
@@ -177,48 +180,52 @@ async def sleep_with_ibkr_reprice(loop: asyncio.AbstractEventLoop, total_seconds
 
 async def scan_loop() -> None:
     """Mode-aware background scanner (premarket / market / afterhours / closed)."""
-    m = _m()
     loop = asyncio.get_event_loop()
     while True:
         try:
+            state = get_runtime_state()
             mono = time.monotonic()
-            catalyst_due = (mono - m._last_catalyst_scan_ts) > m._NEWS_CATALYST_INTERVAL
+            catalyst_due = (mono - state.last_catalyst_scan_ts) > NEWS_CATALYST_INTERVAL_SEC
             await loop.run_in_executor(None, refresh_hod_momo_universe)
 
             if _in_premarket():
-                m._current_mode = "premarket"
-                if not m._gapper_cache or (mono - m._last_discovery_ts) > m._DISCOVERY_INTERVAL:
+                state.current_mode = "premarket"
+                if not state.gapper_cache or (mono - state.last_discovery_ts) > DISCOVERY_INTERVAL_SEC:
                     await loop.run_in_executor(None, run_discovery_scan)
                 else:
                     await loop.run_in_executor(None, run_focus_scan)
-                if not m._gainer_cache:
+                if not state.gainer_cache:
                     await loop.run_in_executor(None, run_gainers_update)
                 if catalyst_due:
                     await loop.run_in_executor(None, run_news_catalyst_scan)
-                await sleep_with_ibkr_reprice(loop, m._FOCUS_INTERVAL)
+                await sleep_with_ibkr_reprice(loop, FOCUS_INTERVAL_SEC)
             elif _in_market_hours():
-                m._current_mode = "market"
+                state.current_mode = "market"
                 await loop.run_in_executor(None, run_gainers_update)
                 if catalyst_due:
                     await loop.run_in_executor(None, run_news_catalyst_scan)
-                await sleep_with_ibkr_reprice(loop, m._GAINERS_INTERVAL)
+                await sleep_with_ibkr_reprice(loop, GAINERS_INTERVAL_SEC)
             elif _in_after_hours():
-                m._current_mode = "afterhours"
+                state.current_mode = "afterhours"
                 await loop.run_in_executor(None, run_gainers_update)
-                if _get_discovery_provider() == "ibkr" and m._gainer_cache:
+                if _get_discovery_provider() == "ibkr" and state.gainer_cache:
                     await loop.run_in_executor(None, run_afterhours_discovery_scan)
-                elif not m._afterhours_cache or (mono - m._last_afterhours_discovery_ts) > m._AH_DISCOVERY_INTERVAL:
+                elif (
+                    not state.afterhours_cache
+                    or (mono - state.last_afterhours_discovery_ts)
+                    > AFTERHOURS_DISCOVERY_INTERVAL_SEC
+                ):
                     await loop.run_in_executor(None, run_afterhours_discovery_scan)
                 else:
                     await loop.run_in_executor(None, run_afterhours_focus_scan)
                 if catalyst_due:
                     await loop.run_in_executor(None, run_news_catalyst_scan)
-                await asyncio.sleep(m._AH_FOCUS_INTERVAL)
+                await asyncio.sleep(AFTERHOURS_FOCUS_INTERVAL_SEC)
             else:
-                m._current_mode = "closed"
+                state.current_mode = "closed"
                 await loop.run_in_executor(None, run_discovery_scan)
                 await loop.run_in_executor(None, run_gainers_update)
-                await asyncio.sleep(m._CLOSED_INTERVAL)
+                await asyncio.sleep(CLOSED_INTERVAL_SEC)
         except asyncio.CancelledError:
             break
         except Exception:

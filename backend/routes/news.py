@@ -12,6 +12,7 @@ import logging
 from fastapi import APIRouter
 
 from news.impact import evaluate_news_impact
+from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,7 @@ _TRANSPARENCY_NOTE = (
 
 
 def _gather_context(symbol: str) -> dict:
-    """Pull articles + market context from main caches / ticker helpers."""
-    import main as _main
+    """Pull articles + market context from scanner state / ticker helpers."""
     from alpaca import _alpaca_headers
     from ticker import _fetch_ticker_news
 
@@ -41,8 +41,13 @@ def _gather_context(symbol: str) -> dict:
 
     gap_percent = None
     rel_volume = None
-    for cache_name in ("_news_catalyst_cache", "_gapper_cache", "_gainer_cache", "_afterhours_cache"):
-        rows = getattr(_main, cache_name, []) or []
+    state = get_runtime_state()
+    for rows in (
+        state.news_catalyst_cache,
+        state.gapper_cache,
+        state.gainer_cache,
+        state.afterhours_cache,
+    ):
         for row in rows:
             if row.get("symbol") == symbol:
                 if gap_percent is None and row.get("gap_percent") is not None:

@@ -33,6 +33,7 @@ import hod_momo as _hod_momo
 import hod_momo_universe as _hod_uni
 import strategy.setups_stream as _setups_stream
 from cache import list_history_dates as _list_history_dates
+from runtime_state import get_runtime_state
 from constants import HOD_MOMO_UNIVERSE_MODE, HOD_MOMO_UNIVERSE_MODE_FOCUS
 
 router = APIRouter(tags=["hod-momo"])
@@ -133,9 +134,8 @@ def hod_momo_remove_block(symbol: str):
 @router.get("/api/hod-momo/debug/counters")
 def hod_momo_debug_counters():
     """Gate counters, universe size, snaps — polled by the Debug panel."""
-    import main as _main
     out = _hod_momo.get_debug_counters()
-    out["watch_universe_size"] = len(_main._hod_momo_universe)
+    out["watch_universe_size"] = len(get_runtime_state().hod_momo_universe)
     out["watch_universe_mode"] = (
         (HOD_MOMO_UNIVERSE_MODE or HOD_MOMO_UNIVERSE_MODE_FOCUS).strip().lower()
     )

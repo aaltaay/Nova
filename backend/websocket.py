@@ -5,8 +5,8 @@ Owns: subscription state (``_ws_subscribed``, ``_ws_needs_resub``), trade
 application to scanner caches, ticker-detail trade broadcast, and the
 persistent reconnecting stream loop.
 
-Extracted from ``main.py``. Cache mutations go through ``import main`` so
-primitive rebinding stays owned by main's globals.
+Extracted from ``main.py``. Cache mutations go through the typed runtime-state
+owner so rebinding remains visible to every consumer.
 """
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ from constants import (
     SCANNER_MIN_PRICE,
 )
 from scanner import _gapper_meets_min_gap
+from runtime_state import get_runtime_state
 from ticker import _ticker_ws_clients
 
 logger = logging.getLogger(__name__)
@@ -46,11 +47,6 @@ def alpaca_trades_drive_hod(provider: str | None = None) -> bool:
     return (provider or _get_discovery_provider()) != "ibkr"
 
 
-def _m():
-    import main as _main
-    return _main
-
-
 def mark_resub() -> None:
     """Signal the WebSocket loop to sync subscriptions on next iteration."""
     global _ws_needs_resub
@@ -59,20 +55,20 @@ def mark_resub() -> None:
 
 def current_symbols() -> set[str]:
     """Union of scanner caches, open ticker WS clients, and HOD Momo universe."""
-    m = _m()
+    state = get_runtime_state()
     syms: set[str] = set()
-    for g in m._gapper_cache:
+    for g in state.gapper_cache:
         syms.add(g["symbol"])
-    for g in m._afterhours_cache:
+    for g in state.afterhours_cache:
         syms.add(g["symbol"])
-    for g in m._gainer_cache:
+    for g in state.gainer_cache:
         syms.add(g["symbol"])
-    for g in m._loser_cache:
+    for g in state.loser_cache:
         syms.add(g["symbol"])
     for sym, clients in _ticker_ws_clients.items():
         if clients:
             syms.add(sym)
-    syms.update(m._hod_momo_universe)
+    syms.update(state.hod_momo_universe)
     syms = {s for s in syms if not _hod_momo.is_blocked(s) or s in _ticker_ws_clients}
     return syms
 
@@ -104,7 +100,7 @@ def apply_trade_to_mover_list(cache: list[dict], sym: str, price: float, size: i
 
 def handle_trade(msg: dict) -> int | None:
     """Apply a real-time trade message to in-memory caches. Returns updated volume or None."""
-    m = _m()
+    state = get_runtime_state()
     sym = msg.get("S")
     price = msg.get("p")
     if not sym or not price:
@@ -117,16 +113,16 @@ def handle_trade(msg: dict) -> int | None:
     if _get_discovery_provider() == "ibkr":
         return None
 
-    if m._current_mode == "premarket":
-        for i, g in enumerate(m._gapper_cache):
+    if state.current_mode == "premarket":
+        for i, g in enumerate(state.gapper_cache):
             if g["symbol"] == sym:
                 prev_close = g["previous_close"]
                 new_gap = (price - prev_close) / prev_close if prev_close else g["gap_percent"]
                 if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
-                    del m._gapper_cache[i]
+                    del state.gapper_cache[i]
                 else:
                     new_vol = g.get("volume", 0) + size
-                    m._gapper_cache[i] = {
+                    state.gapper_cache[i] = {
                         **g,
                         "price": price,
                         "current_price": price,
@@ -136,20 +132,20 @@ def handle_trade(msg: dict) -> int | None:
                         "volume": new_vol,
                     }
                     updated_volume = new_vol
-                m._gapper_cache_ts = now
-                save_gapper_snapshot(m._gapper_cache, m._gapper_cache_ts)
+                state.gapper_cache_ts = now
+                save_gapper_snapshot(state.gapper_cache, state.gapper_cache_ts)
                 break
 
-    if m._current_mode == "afterhours":
-        for i, g in enumerate(m._afterhours_cache):
+    if state.current_mode == "afterhours":
+        for i, g in enumerate(state.afterhours_cache):
             if g["symbol"] == sym:
                 prev_close = g["previous_close"]
                 new_gap = (price - prev_close) / prev_close if prev_close else g["gap_percent"]
                 if price < SCANNER_MIN_PRICE or not _gapper_meets_min_gap(new_gap):
-                    del m._afterhours_cache[i]
+                    del state.afterhours_cache[i]
                 else:
                     new_vol = g.get("volume", 0) + size
-                    m._afterhours_cache[i] = {
+                    state.afterhours_cache[i] = {
                         **g,
                         "price": price,
                         "current_price": price,
@@ -159,28 +155,28 @@ def handle_trade(msg: dict) -> int | None:
                         "volume": new_vol,
                     }
                     updated_volume = new_vol
-                m._afterhours_cache_ts = now
-                save_afterhours_snapshot(m._afterhours_cache, m._afterhours_cache_ts)
+                state.afterhours_cache_ts = now
+                save_afterhours_snapshot(state.afterhours_cache, state.afterhours_cache_ts)
                 break
 
-    gainer_updated = apply_trade_to_mover_list(m._gainer_cache, sym, price, size)
+    gainer_updated = apply_trade_to_mover_list(state.gainer_cache, sym, price, size)
     if gainer_updated:
-        m._gainer_cache_ts = now
+        state.gainer_cache_ts = now
         if updated_volume is None:
-            entry = next((g for g in m._gainer_cache if g["symbol"] == sym), None)
+            entry = next((g for g in state.gainer_cache if g["symbol"] == sym), None)
             if entry:
                 updated_volume = entry.get("volume")
 
-    loser_updated = apply_trade_to_mover_list(m._loser_cache, sym, price, size)
+    loser_updated = apply_trade_to_mover_list(state.loser_cache, sym, price, size)
     if loser_updated:
-        m._loser_cache_ts = now
+        state.loser_cache_ts = now
         if updated_volume is None:
-            entry = next((g for g in m._loser_cache if g["symbol"] == sym), None)
+            entry = next((g for g in state.loser_cache if g["symbol"] == sym), None)
             if entry:
                 updated_volume = entry.get("volume")
 
     if gainer_updated or loser_updated:
-        save_movers_snapshot(m._gainer_cache, m._loser_cache, now)
+        save_movers_snapshot(state.gainer_cache, state.loser_cache, now)
 
     return updated_volume
 

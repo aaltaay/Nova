@@ -3,19 +3,9 @@ Scanner helper functions — stateless.
 
 Extracted from ``main.py`` to comply with the 200-line main.py target.
 
-All functions here are import-safe (no circular imports at module load) and
-depend only on ``alpaca.py``, ``constants.py``, ``market.py``, and the stdlib.
-Functions that need runtime-configurable values from ``main.py``
-(``_MIN_GAP_PCT``, ``_TOP_N``, ``_SCAN_REQUIRE_TRADABLE``) use lazy
-``import main as _main`` inside the function body — the same pattern used by
-``routes/strategy.py`` and ``ticker.py``.
-
-``main.py`` re-imports these names so existing callers via ``_main.*`` work
-unchanged.
-
-All scanner *caches* (``_assets_cache``, ``_avg_volume_cache``, etc.) remain
-in ``main.py`` to avoid the Python rebinding problem (float/str globals cannot
-be exported and reassigned in a way that both modules see the update).
+All functions here are import-safe and depend on explicit modules. Functions
+that need environment-derived scanner configuration retrieve it from the typed
+runtime-state provider.
 """
 from __future__ import annotations
 
@@ -38,6 +28,7 @@ from constants import (
     SYMBOL_EXCLUDE_RE,
 )
 from market import ET as _ET, now_et as _now_et
+from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +136,7 @@ def _is_common_stock(asset: dict) -> bool:
     To remove one, remove it here. No other function should make this decision.
     """
     import hod_momo as _hod_momo
-    import main as _main  # lazy: _SCAN_REQUIRE_TRADABLE is runtime-configurable
-    if _main._SCAN_REQUIRE_TRADABLE and not asset.get("tradable"):
+    if get_runtime_state().config.require_tradable and not asset.get("tradable"):
         return False
     sym = asset.get("symbol", "")
     if SYMBOL_EXCLUDE_RE.search(sym):
@@ -163,10 +153,9 @@ def _is_common_stock(asset: dict) -> bool:
 
 def _gapper_meets_min_gap(gap_frac: float | None) -> bool:
     """True if gap as a fraction (e.g. 0.1 = 10%) meets the configured floor."""
-    import main as _main
     if gap_frac is None:
         return False
-    return gap_frac * 100 >= _main._MIN_GAP_PCT
+    return gap_frac * 100 >= get_runtime_state().config.min_gap_pct
 
 
 def _prune_gappers_below_min(gappers: list[dict]) -> list[dict]:
@@ -182,7 +171,6 @@ def _compute_gappers(snaps: dict, ref_bar_key: str = "prevDailyBar") -> list[dic
       or today's bar, resolving the Alpaca pre-market bar ambiguity.
     - ``"dailyBar"``: gap vs today's regular-session close — after-hours.
     """
-    import main as _main
     gappers: list[dict] = []
     for sym, snap in snaps.items():
         latest_trade = snap.get("latestTrade") or {}
@@ -214,7 +202,7 @@ def _compute_gappers(snaps: dict, ref_bar_key: str = "prevDailyBar") -> list[dic
             "volume": volume,
         })
     gappers.sort(key=lambda x: x["gap_percent"], reverse=True)
-    return gappers[:_main._TOP_N]
+    return gappers[:get_runtime_state().config.top_n]
 
 
 # ── Avg-volume fetcher (stateless: callers pass + own the cache dict) ─────────

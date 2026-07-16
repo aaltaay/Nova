@@ -57,13 +57,9 @@ from ticker import _find_ibkr_cache_row
 from universe import invalidate_universe_cache
 from websocket import broadcast_trade_update, stream_loop
 from observability import init_sentry
+from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
-
-
-def _m():
-    import main as _main
-    return _main
 
 
 def configure_cors(app: FastAPI) -> None:
@@ -94,26 +90,26 @@ def configure_cors(app: FastAPI) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_sentry()
-    m = _m()
+    state = get_runtime_state()
     _migrate_legacy_files()
     cleanup_old_snapshots(HISTORY_RETENTION_DAYS)
 
     restored, restored_ts = load_gapper_snapshot()
     if restored:
-        m._gapper_cache = restored
-        m._gapper_cache_ts = restored_ts
+        state.gapper_cache = restored
+        state.gapper_cache_ts = restored_ts
 
     ah_restored, ah_restored_ts = load_afterhours_snapshot()
     if ah_restored:
-        m._afterhours_cache = ah_restored
-        m._afterhours_cache_ts = ah_restored_ts
+        state.afterhours_cache = ah_restored
+        state.afterhours_cache_ts = ah_restored_ts
 
     mv_gainers, mv_losers, mv_ts = load_movers_snapshot()
     if mv_gainers or mv_losers:
-        m._gainer_cache = mv_gainers
-        m._loser_cache = mv_losers
-        m._gainer_cache_ts = mv_ts
-        m._loser_cache_ts = mv_ts
+        state.gainer_cache = mv_gainers
+        state.loser_cache = mv_losers
+        state.gainer_cache_ts = mv_ts
+        state.loser_cache_ts = mv_ts
 
     _hod_momo.load_state()
     _journal_db.init_db()

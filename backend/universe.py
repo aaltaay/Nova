@@ -1,8 +1,5 @@
 """
 Universe helpers — tradable assets cache, avg-volume, gapper enrich, HOD watch set.
-
-Extracted from ``main.py``. Mutable scanner caches stay on ``main``; this module
-mutates them via attribute assignment on the imported module object.
 """
 from __future__ import annotations
 
@@ -17,6 +14,7 @@ import hod_momo as _hod_momo
 import hod_momo_universe as _hod_uni
 from alpaca import ALPACA_DATA_URL as _DATA_URL, _alpaca_headers, _env
 from constants import (
+    ASSETS_CACHE_TTL_SEC,
     HOD_MOMO_FOCUS_REFRESH_SEC,
     HOD_MOMO_UNIVERSE_INTERVAL_SEC,
     HOD_MOMO_UNIVERSE_MODE,
@@ -29,39 +27,35 @@ from fundamentals import (
     fetch_fundamentals_batch as _fetch_fundamentals_batch,
 )
 from scanner import _is_common_stock, fetch_avg_volume_batch
+from runtime_state import get_runtime_state
 from ticker import _ticker_ws_clients
 from websocket import mark_resub as _ws_mark_resub
 
 logger = logging.getLogger(__name__)
 
 
-def _m():
-    import main as _main
-    return _main
-
-
 def invalidate_universe_cache() -> None:
     """Force the next get_tradable_symbols call to re-fetch (e.g. after blocklist change)."""
-    m = _m()
-    m._assets_cache_ts = 0.0
+    state = get_runtime_state()
+    state.assets_cache_ts = 0.0
     _exchanges.clear()
     _ws_mark_resub()
 
 
 def reset_scan_caches() -> None:
     """Invalidate scanner discovery caches — called by routes/health update_config."""
-    m = _m()
-    m._assets_cache_ts = 0.0
-    m._assets_cache_set = set()
-    m._last_discovery_ts = 0.0
+    state = get_runtime_state()
+    state.assets_cache_ts = 0.0
+    state.assets_cache_set = set()
+    state.last_discovery_ts = 0.0
 
 
 def get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
     """Fetch common-stock symbols for scanning, cached for one hour."""
-    m = _m()
+    state = get_runtime_state()
     now = time.monotonic()
-    if m._assets_cache and (now - m._assets_cache_ts) < m._ASSETS_CACHE_TTL:
-        return m._assets_cache
+    if state.assets_cache and (now - state.assets_cache_ts) < ASSETS_CACHE_TTL_SEC:
+        return state.assets_cache
     try:
         all_assets: list[dict] = []
         for exchange in SCAN_EXCHANGES:
@@ -74,36 +68,36 @@ def get_tradable_symbols(base_url: str, headers: dict) -> list[str]:
             if resp.status_code == 200:
                 all_assets.extend(resp.json())
         if not all_assets:
-            return m._assets_cache
+            return state.assets_cache
         kept = [a for a in all_assets if _is_common_stock(a)]
         symbols = [a["symbol"] for a in kept]
         _exchanges.update_from_assets(kept)
-        m._assets_cache = symbols
-        m._assets_cache_set = set(symbols)
-        m._assets_cache_ts = now
-        return m._assets_cache
+        state.assets_cache = symbols
+        state.assets_cache_set = set(symbols)
+        state.assets_cache_ts = now
+        return state.assets_cache
     except Exception:
         logger.warning("get_tradable_symbols failed — returning stale cache", exc_info=True)
-        return m._assets_cache
+        return state.assets_cache
 
 
 def ensure_avg_volume(symbols: list[str], headers: dict) -> None:
     """Lazily populate ``_avg_volume_cache`` for any symbols not yet cached today."""
-    m = _m()
+    state = get_runtime_state()
     today = date.today().isoformat()
-    if m._avg_volume_date != today:
-        m._avg_volume_cache = {}
-        m._avg_volume_date = today
-    fetch_avg_volume_batch(symbols, headers, m._avg_volume_cache)
+    if state.avg_volume_date != today:
+        state.avg_volume_cache = {}
+        state.avg_volume_date = today
+    fetch_avg_volume_batch(symbols, headers, state.avg_volume_cache)
 
 
 def enrich_gappers(gappers: list[dict], news: dict[str, str]) -> list[dict]:
-    m = _m()
+    state = get_runtime_state()
     symbols = [g["symbol"] for g in gappers]
     _fetch_fundamentals_batch(symbols)
     for g in gappers:
         sym = g["symbol"]
-        avg_vol = m._avg_volume_cache.get(sym)
+        avg_vol = state.avg_volume_cache.get(sym)
         vol = g["volume"]
         g["rel_volume"] = round(vol / avg_vol, 2) if avg_vol and avg_vol > 0 and vol > 0 else None
         g["has_news"] = sym in news
@@ -119,7 +113,7 @@ def enrich_gappers(gappers: list[dict], news: dict[str, str]) -> list[dict]:
 
 def refresh_hod_momo_universe() -> None:
     """Rebuild the HOD Momo trade-watch set and nudge Alpaca WS to resubscribe."""
-    m = _m()
+    state = get_runtime_state()
     now = time.monotonic()
     mode = (HOD_MOMO_UNIVERSE_MODE or HOD_MOMO_UNIVERSE_MODE_FOCUS).strip().lower()
     interval = (
@@ -127,7 +121,7 @@ def refresh_hod_momo_universe() -> None:
         if mode == HOD_MOMO_UNIVERSE_MODE_FOCUS
         else HOD_MOMO_UNIVERSE_INTERVAL_SEC
     )
-    if m._hod_momo_universe and (now - m._hod_momo_universe_ts) < interval:
+    if state.hod_momo_universe and (now - state.hod_momo_universe_ts) < interval:
         return
 
     if mode == HOD_MOMO_UNIVERSE_MODE_BROAD:
@@ -143,26 +137,26 @@ def refresh_hod_momo_universe() -> None:
     else:
         detail = [sym for sym, clients in _ticker_ws_clients.items() if clients]
         symbols = _hod_uni.build_focus_universe(
-            gapper_rows=m._gapper_cache,
-            gainer_rows=m._gainer_cache,
-            loser_rows=m._loser_cache,
-            afterhours_rows=m._afterhours_cache,
+            gapper_rows=state.gapper_cache,
+            gainer_rows=state.gainer_cache,
+            loser_rows=state.loser_cache,
+            afterhours_rows=state.afterhours_cache,
             detail_symbols=detail,
             is_blocked=_hod_momo.is_blocked,
         )
 
-    changed = symbols != m._hod_momo_universe
-    m._hod_momo_universe = symbols
-    m._hod_momo_universe_ts = now
+    changed = symbols != state.hod_momo_universe
+    state.hod_momo_universe = symbols
+    state.hod_momo_universe_ts = now
     if changed:
         _ws_mark_resub()
         logger.info(
             "HOD Momo: universe refreshed mode=%s — %d symbols subscribed",
             mode,
-            len(m._hod_momo_universe),
+            len(state.hod_momo_universe),
         )
 
 
 def get_hod_momo_universe() -> set[str]:
     """Expose the current HOD Momo universe to hod_momo_enrichment.py."""
-    return _m()._hod_momo_universe
+    return get_runtime_state().hod_momo_universe

@@ -25,6 +25,7 @@ from strategy.gap_and_go import evaluate_gap_and_go
 from strategy.risk import get_state as _get_risk_state, validate_trade_plan
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
+from runtime_state import get_runtime_state
 
 router = APIRouter(prefix="/api/strategy", tags=["strategy"])
 
@@ -34,14 +35,12 @@ _TRANSPARENCY_NOTE = (
 
 
 def _gapper_cache() -> list[dict]:
-    import main as _main
-    return _main._gapper_cache
+    return get_runtime_state().gapper_cache
 
 
 
 def _gainer_cache() -> list[dict]:
-    import main as _main
-    return _main._gainer_cache
+    return get_runtime_state().gainer_cache
 
 
 def _find_gapper(symbol: str) -> dict | None:

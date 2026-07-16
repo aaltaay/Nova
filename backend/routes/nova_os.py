@@ -38,6 +38,7 @@ from nova_os import control_mode as _control_mode
 from nova_os.decide import decide
 from nova_os.events import get_events
 from strategy.watchlist import build_watchlist
+from runtime_state import get_runtime_state
 
 router = APIRouter(prefix="/api/nova-os", tags=["nova-os"])
 
@@ -45,9 +46,9 @@ _NOTE = "Signal only. Nova OS decide endpoints never place, modify, or cancel or
 
 
 def _universe() -> list[dict]:
-    import main as _main
-    seen: dict[str, dict] = {g["symbol"]: g for g in _main._gainer_cache if g.get("symbol")}
-    for g in _main._gapper_cache:
+    state = get_runtime_state()
+    seen: dict[str, dict] = {g["symbol"]: g for g in state.gainer_cache if g.get("symbol")}
+    for g in state.gapper_cache:
         if g.get("symbol"):
             seen[g["symbol"]] = g
     return list(seen.values())

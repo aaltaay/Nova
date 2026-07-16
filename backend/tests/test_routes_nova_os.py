@@ -19,22 +19,25 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import nova_os.events_db as events_db
-import main
 from constants import NOVA_OS_MODE_AUTO_PAPER, NOVA_OS_MODE_SIGNAL
 from main import app
 from nova_os import control_mode
+from runtime_state import ScannerRuntimeState, set_runtime_state_for_testing
 
 client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
+    state = ScannerRuntimeState()
+    previous_state = set_runtime_state_for_testing(state)
     monkeypatch.setattr(events_db, "cache_dir", lambda: tmp_path)
     events_db.init_db()
     monkeypatch.setattr(control_mode, "_mode", NOVA_OS_MODE_SIGNAL)
-    monkeypatch.setattr(main, "_gapper_cache", [{"symbol": "MOCK", "price": 5.5}])
-    monkeypatch.setattr(main, "_gainer_cache", [])
+    state.gapper_cache = [{"symbol": "MOCK", "price": 5.5}]
+    state.gainer_cache = []
     yield
+    set_runtime_state_for_testing(previous_state)
     monkeypatch.setattr(control_mode, "_mode", NOVA_OS_MODE_SIGNAL)
 
 

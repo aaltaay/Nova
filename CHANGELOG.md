@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 7: explicit scanner runtime state
+
+- **What:** Moved scanner caches, mode/health status, HOD watch universe, and env-derived scanner config from `main.py` into typed `backend/runtime_state/`. Production modules no longer lazy-import `main` for state.
+- **Why:** Phase 7 — remove FastAPI composition root as a shared-state hub (ADR 001/002).
+- **Files touched:** `backend/runtime_state/*`, `backend/main.py` (18-line composition root), scanner/ticker/route/WS consumers, related tests.
+- **How it works now:** Consumers use `ScannerRuntimeState` / config providers with reset/rebinding APIs. Tests import `main.app` only; cache patches target runtime_state.
+- **Verified by:** `test_runtime_state` + cache-priority · full backend suite 622 passed (agent report) · no production `import main` state access.
+
 ## 2026-07-16 — Maintenance Phase 6: low-coupling backend/tool splits
 
 - **What:** Strangler-facade splits for `hod_momo_integrity`, `news/impact`, `archive/r2`, and `tools/security_lib/checks` into focused modules under 400 lines; original import paths remain barrels.

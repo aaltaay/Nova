@@ -12,6 +12,7 @@ from hod_momo_integrity import (
     evaluate_scanner_integrity,
     merge_integrity,
 )
+from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +27,17 @@ def build_hod_integrity_report() -> dict[str, Any]:
     import hod_momo as hm
     import hod_momo_active as active
     import hod_momo_universe as uni
-    import main as m
     from alpaca import _get_discovery_provider
     from ibkr import client as ibkr_client
 
     flow = hm.get_flow_stats()
     provider = (_get_discovery_provider() or "").strip().lower()
     active_metrics = active.metrics_snapshot()
+    state = get_runtime_state()
     snap = {
         **flow,
         **active_metrics,
-        "universe_size": len(getattr(m, "_hod_momo_universe", set()) or set()),
+        "universe_size": len(state.hod_momo_universe),
         "watch_seed_size": len(uni.get_seed_symbols()),
         "discovery_provider": provider,
         "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
@@ -48,7 +49,6 @@ def build_hod_integrity_report() -> dict[str, Any]:
 
 
 def build_scanner_integrity_report() -> dict[str, Any]:
-    import main as m
     from alpaca import _get_discovery_provider
     from ibkr import client as ibkr_client
     from ibkr import reprice as ibkr_reprice
@@ -59,15 +59,16 @@ def build_scanner_integrity_report() -> dict[str, Any]:
     if last_ok:
         table_age = _cache_age(last_ok)
 
+    state = get_runtime_state()
     snap = {
         "discovery_provider": provider,
         "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
-        "gapper_count": len(getattr(m, "_gapper_cache", None) or []),
-        "gainer_count": len(getattr(m, "_gainer_cache", None) or []),
-        "loser_count": len(getattr(m, "_loser_cache", None) or []),
-        "gapper_age_sec": _cache_age(getattr(m, "_gapper_cache_ts", 0.0) or None),
-        "gainer_age_sec": _cache_age(getattr(m, "_gainer_cache_ts", 0.0) or None),
-        "loser_age_sec": _cache_age(getattr(m, "_loser_cache_ts", 0.0) or None),
+        "gapper_count": len(state.gapper_cache),
+        "gainer_count": len(state.gainer_cache),
+        "loser_count": len(state.loser_cache),
+        "gapper_age_sec": _cache_age(state.gapper_cache_ts or None),
+        "gainer_age_sec": _cache_age(state.gainer_cache_ts or None),
+        "loser_age_sec": _cache_age(state.loser_cache_ts or None),
         "table_reprice_age_sec": table_age,
         "table_busy_skips": getattr(ibkr_reprice, "_table_busy_skips", 0),
         "table_timeouts": getattr(ibkr_reprice, "_table_timeouts", 0),

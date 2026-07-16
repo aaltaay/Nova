@@ -65,11 +65,13 @@ EXCLUDED_NAME_KEYWORDS = (
 SYMBOL_EXCLUDE_RE = re.compile(r"[./:]|^ZVZZT$|^NTEST", re.IGNORECASE)
 
 # ── Scanner sizing ──────────────────────────────────────────────────────────
+NOVA_API_REV = "4"
 # SCAN_CAP_DEFAULT is retained as an emergency env-var override only.
 # Normal operation uses exchange-based filtering (SCAN_EXCHANGES) instead.
 SCAN_CAP_DEFAULT = 800   # legacy; overridden by ALPACA_SCAN_SYMBOL_CAP env var if set
 TOP_N_DEFAULT = 50       # max gappers returned / cap on movers API batching
 SNAPSHOT_WORKERS = 10    # parallel threads for batch snapshot fetching
+ASSETS_CACHE_TTL_SEC = 3600.0
 
 # ── Scan intervals (seconds) ────────────────────────────────────────────────
 # Real-time prices still come from the WebSocket; these control REST discovery cadence.

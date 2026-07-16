@@ -6,12 +6,6 @@ and all fetcher/builder functions for ticker detail data.
 
 Extracted from backend/main.py to comply with the 200-line main.py target.
 Routes live in backend/routes/ticker.py.
-
-Circular-import note: several helpers (_exchanges, scanner caches, _run_ibkr,
-_avg_volume_cache, _current_mode) live in main.py.  To avoid a load-time
-circular import, those are accessed via lazy ``import main as _main`` inside
-the functions that need them — the same pattern used by routes/news.py and
-strategy/setups_stream.py.
 """
 from __future__ import annotations
 
@@ -38,6 +32,7 @@ from alpaca import (
     _get_discovery_provider,
 )
 from market import now_et as _now_et
+from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -207,8 +202,8 @@ def _find_ibkr_cache_row(symbol: str) -> dict | None:
     once the market opens, so a symbol in both caches must resolve to the live
     gainer/loser row (see PROBLEM_LOG 2026-07-13).
     """
-    import main as _main
-    for cache in (_main._gainer_cache, _main._loser_cache, _main._gapper_cache):
+    state = get_runtime_state()
+    for cache in (state.gainer_cache, state.loser_cache, state.gapper_cache):
         for row in cache:
             if row.get("symbol") == symbol:
                 return row
@@ -309,13 +304,13 @@ def _fetch_ticker_avg_volume(symbol: str, headers: dict) -> float | None:
     By default (TICKER_AVG_VOLUME_CACHE_ONLY) never blocks REST/WS on Alpaca
     bars — scanners already warm ``_avg_volume_cache``. Cold miss → None.
     """
-    import main as _main
-    avg_vol = _main._avg_volume_cache.get(symbol)
+    state = get_runtime_state()
+    avg_vol = state.avg_volume_cache.get(symbol)
     if avg_vol is not None or TICKER_AVG_VOLUME_CACHE_ONLY:
         return avg_vol
     from universe import ensure_avg_volume
     ensure_avg_volume([symbol], headers)
-    return _main._avg_volume_cache.get(symbol)
+    return state.avg_volume_cache.get(symbol)
 
 
 def _rvol_5min_fields(
@@ -354,7 +349,7 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
     feed as the gappers/movers table). Using Alpaca here produced the dual-price
     bug: table showed IBKR last/gap while the quote panel showed Alpaca session.
     """
-    import main as _main
+    state = get_runtime_state()
     use_ibkr = _get_discovery_provider() == "ibkr"
     with ThreadPoolExecutor(max_workers=2) as pool:
         f_asset = pool.submit(_fetch_ticker_asset, symbol, base_url, headers)
@@ -365,7 +360,7 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
         asset    = f_asset.result()
         snapshot = f_snap.result()
 
-    avg_vol = _main._avg_volume_cache.get(symbol)
+    avg_vol = state.avg_volume_cache.get(symbol)
     daily_vol = (snapshot.get("daily_bar") or {}).get("volume") or 0
     rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else None
     rvol5 = _rvol_5min_fields(symbol, avg_vol, daily_vol)
@@ -379,7 +374,7 @@ def _build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> 
         **rvol5,
         "news": [],
         "fundamentals": {},
-        "mode": _main._current_mode,
+        "mode": state.current_mode,
     }
 
 

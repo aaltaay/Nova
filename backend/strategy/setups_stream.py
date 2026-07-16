@@ -38,6 +38,7 @@ from nova_os import staged_tickets as _staged
 from strategy import executor as _executor
 from strategy.setups import evaluate_setups
 from strategy.watchlist import build_watchlist
+from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +60,9 @@ def get_signal_history() -> list[dict]:
 
 
 def _watchlist_universe() -> list[dict]:
-    # Lazy import — main.py imports routes that import this module, so
-    # importing main at module load time would be circular.
-    import main as _main
-    seen: dict[str, dict] = {g["symbol"]: g for g in _main._gainer_cache if g.get("symbol")}
-    for g in _main._gapper_cache:
+    state = get_runtime_state()
+    seen: dict[str, dict] = {g["symbol"]: g for g in state.gainer_cache if g.get("symbol")}
+    for g in state.gapper_cache:
         if g.get("symbol"):
             seen[g["symbol"]] = g
     return list(seen.values())

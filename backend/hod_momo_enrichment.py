@@ -9,10 +9,7 @@ Two loops are registered as asyncio tasks in main.py lifespan:
     gap / change into hod_momo._ticker_snaps via hod_momo.update_ticker_snapshot().
   - fundamentals_enrichment_loop() — drains the fundamentals queue produced by
     hod_momo.mark_needs_fundamentals(); fetches float_shares + fifty_two_week_high
-    via main._fetch_fundamentals(sym) and writes them into _ticker_snaps.
-
-Both loops call into leaf modules for HTTP/IBKR helpers; only
-``main._avg_volume_cache`` is read via ``import main`` (rebinding ownership).
+    and writes them into _ticker_snaps.
 
 Feed-level RVOL routing (§ yfinance fallback + Warrior pace):
   - SIP feed: pace RVOL = Alpaca volume / (Alpaca avg × elapsed 04:00–16:00 ET frac)
@@ -37,6 +34,7 @@ from constants import (
     RVOL_LOOKBACK_DAYS,
 )
 from market import pace_relative_volume
+from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +46,6 @@ async def universe_enrichment_loop() -> None:
     rvol (using avg-volume cache or yfinance fallback), and writes into
     hod_momo._ticker_snaps.
     """
-    import main as _main  # cache rebinding only (_avg_volume_cache lives on main)
     from ibkr_bridge import run_ibkr
     from scanner import _fetch_snapshots, _pick_prev_close
     from universe import ensure_avg_volume, get_hod_momo_universe
@@ -57,6 +54,7 @@ async def universe_enrichment_loop() -> None:
     while True:
         try:
             await asyncio.sleep(HOD_MOMO_ENRICH_INTERVAL_SEC)
+            state = get_runtime_state()
 
             universe = get_hod_momo_universe()
             if not universe:
@@ -81,7 +79,7 @@ async def universe_enrichment_loop() -> None:
 
                 headers = _alpaca_headers()
                 if headers:
-                    missing_avg = [s for s in quotes if s not in _main._avg_volume_cache]
+                    missing_avg = [s for s in quotes if s not in state.avg_volume_cache]
                     if missing_avg:
                         chunk = missing_avg[:200]
                         try:
@@ -109,7 +107,7 @@ async def universe_enrichment_loop() -> None:
                             except (TypeError, ValueError):
                                 pass
 
-                        avg_vol = _main._avg_volume_cache.get(sym)
+                        avg_vol = state.avg_volume_cache.get(sym)
                         if not avg_vol:
                             fund = _fundamentals_cache.get(sym, {})
                             avg_vol = fund.get("average_volume")
@@ -169,7 +167,7 @@ async def universe_enrichment_loop() -> None:
             # ── SIP path: fill avg_vol from Alpaca bars (consolidated) ──────────
             if not is_iex:
                 snap_syms = list(snaps.keys())
-                missing_avg = [s for s in snap_syms if s not in _main._avg_volume_cache]
+                missing_avg = [s for s in snap_syms if s not in state.avg_volume_cache]
                 if missing_avg:
                     chunk = missing_avg[:200]
                     try:
@@ -233,7 +231,7 @@ async def universe_enrichment_loop() -> None:
                             _hod_momo.mark_needs_fundamentals(sym)
                             fundamentals_queued += 1
                     else:
-                        avg_vol = _main._avg_volume_cache.get(sym)
+                        avg_vol = state.avg_volume_cache.get(sym)
                         avg_for_5min = float(avg_vol) if avg_vol else None
                         if avg_vol and avg_vol > 0 and volume > 0:
                             if HOD_MOMO_RVOL_USE_PACE:

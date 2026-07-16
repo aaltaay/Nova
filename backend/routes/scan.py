@@ -1,9 +1,6 @@
 """
 Scanner REST routes — gappers, movers, afterhours, catalysts, history.
 
-Extracted from ``main.py`` — all handlers read from main.py's in-memory caches
-via lazy import and return immediately (no blocking I/O).
-
 Endpoints:
   GET /api/gappers
   GET /api/movers
@@ -22,14 +19,10 @@ import exchanges as _exchanges
 import hod_momo as _hod_momo
 from alpaca import _get_feed
 from cache import list_history_dates, load_snapshot_for_date
+from constants import NOVA_API_REV
+from runtime_state import get_runtime_state
 
 router = APIRouter(tags=["scan"])
-
-
-def _m():
-    """Lazy accessor for main.py module to avoid circular imports at load time."""
-    import main as _main
-    return _main
 
 
 def _strip_blocked(rows: list[dict]) -> list[dict]:
@@ -41,54 +34,54 @@ def _strip_blocked(rows: list[dict]) -> list[dict]:
 @router.get("/api/gappers")
 def get_gappers():
     """Pre-market gapper list. Returns cached data instantly."""
-    m = _m()
+    state = get_runtime_state()
     return {
-        "rev": m._NOVA_REV,
-        "mode": m._current_mode,
-        "health": m._cached_health,
+        "rev": NOVA_API_REV,
+        "mode": state.current_mode,
+        "health": state.cached_health,
         "data_feed": _get_feed(),
-        "gappers": _strip_blocked(m._gapper_cache),
-        "last_scan": m._gapper_cache_ts,
+        "gappers": _strip_blocked(state.gapper_cache),
+        "last_scan": state.gapper_cache_ts,
     }
 
 
 @router.get("/api/movers")
 def get_movers():
     """Top gainers and losers. Returns cached data instantly."""
-    m = _m()
+    state = get_runtime_state()
     return {
-        "rev": m._NOVA_REV,
-        "mode": m._current_mode,
-        "health": m._cached_health,
-        "gainers": _strip_blocked(m._gainer_cache),
-        "losers": _strip_blocked(m._loser_cache),
-        "last_scan": m._gainer_cache_ts,
+        "rev": NOVA_API_REV,
+        "mode": state.current_mode,
+        "health": state.cached_health,
+        "gainers": _strip_blocked(state.gainer_cache),
+        "losers": _strip_blocked(state.loser_cache),
+        "last_scan": state.gainer_cache_ts,
     }
 
 
 @router.get("/api/afterhours")
 def get_afterhours():
     """After-hours gapper list (4–8 PM ET)."""
-    m = _m()
+    state = get_runtime_state()
     return {
-        "rev": m._NOVA_REV,
-        "mode": m._current_mode,
-        "health": m._cached_health,
-        "afterhours": _strip_blocked(m._afterhours_cache),
-        "last_scan": m._afterhours_cache_ts,
+        "rev": NOVA_API_REV,
+        "mode": state.current_mode,
+        "health": state.cached_health,
+        "afterhours": _strip_blocked(state.afterhours_cache),
+        "last_scan": state.afterhours_cache_ts,
     }
 
 
 @router.get("/api/news-catalysts")
 def get_news_catalysts():
     """News-driven catalyst list."""
-    m = _m()
+    state = get_runtime_state()
     return {
-        "rev": m._NOVA_REV,
-        "mode": m._current_mode,
-        "health": m._cached_health,
-        "catalysts": _strip_blocked(m._news_catalyst_cache),
-        "last_scan": m._news_catalyst_cache_ts,
+        "rev": NOVA_API_REV,
+        "mode": state.current_mode,
+        "health": state.cached_health,
+        "catalysts": _strip_blocked(state.news_catalyst_cache),
+        "last_scan": state.news_catalyst_cache_ts,
     }
 
 
