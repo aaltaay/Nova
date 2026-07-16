@@ -14,6 +14,8 @@
     "build:electron-renderer": "cross-env NOVA_ELECTRON_BUILD=1 tsc -b && cross-env NOVA_ELECTRON_BUILD=1 vite build",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "preview": "vite preview",
     "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env NOVA_VITE_URL=http://127.0.0.1:5173 electron .\"",
     "build:api": "node scripts/build-api-sidecar.mjs",
@@ -31,6 +33,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.61.1",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

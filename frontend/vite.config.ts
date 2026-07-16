@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 /** Railway / CI inject these at build time; same values as postbuild → dist/config.json */
@@ -53,5 +53,9 @@ export default defineConfig({
         },
       },
     },
+  },
+  // Playwright lives under e2e/; keep Vitest from loading those specs.
+  test: {
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
   },
 })

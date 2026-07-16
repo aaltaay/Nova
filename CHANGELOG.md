@@ -30,6 +30,17 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Phase 0: Karpathy skill + Playwright baseline e2e
+
+- **What:** Installed portable Karpathy skill under `.cursor/skills/`; added Playwright (`@playwright/test`) with `frontend/playwright.config.ts`, baseline suite `frontend/e2e/baseline.spec.ts`, and npm scripts `test:e2e` / `test:e2e:ui`. Vitest now excludes `e2e/`.
+- **Why:** Modular Panel Workspace plan Phase 0 — gate every later phase on unit + e2e + build.
+- **Files touched:** `.cursor/skills/karpathy-guidelines/SKILL.md`, `frontend/playwright.config.ts`, `frontend/e2e/baseline.spec.ts`, `frontend/package.json`, `frontend/vite.config.ts`, `.gitignore`.
+- **How it works now:** `npm run test` = Vitest only; `npm run test:e2e` starts/reuses Vite on `:5173` and runs Chromium specs (app load, tab switch, Stock View via `?view=stock&symbol=…`, no page scroll, no uncaught console errors). Existing `.cursor/rules/karpathy-guidelines.mdc` unchanged — skill is the portable copy.
+- **Verified by:** `npx vitest run` (78 passed), `npx playwright test` (3 passed), `npm run build`.
+- **Follow-ups:** Phase 1 — split DepthAndTape into Level2Module + TimeSalesModule.
+- **Related:** plan `modular_panel_workspace_phases_53ac9db5`; PROBLEM_LOG 2026-07-15 Vitest/Playwright exclude.
+
+
 ## 2026-07-15 — Double-click → Stock View on all symbol tables
 
 - **What:** Row double-click (click-vs-double via `SelectableTableRow` / Decision cards) opens Stock View on every multi-symbol table: scanners, catalysts, HOD feed + debug, watchlist, journal, automation staged/open, trading positions/orders, and Nova OS decision cards.

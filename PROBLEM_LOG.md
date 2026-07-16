@@ -21,6 +21,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Vitest loaded Playwright e2e specs and failed the unit suite
+
+- **Symptom:** `npx vitest run` failed on `e2e/baseline.spec.ts` with `Playwright Test did not expect test.describe() to be called here`.
+- **Cause:** Vitest default include picks up `*.spec.ts`; Playwright specs under `frontend/e2e/` were executed as Vitest files.
+- **Fix:** Exclude `**/e2e/**` in `vite.config.ts` `test.exclude`; import `defineConfig` from `vitest/config` so the `test` key type-checks under `tsc -b`.
+- **Keywords:** vitest, playwright, e2e, baseline.spec.ts, test.exclude, vitest/config
+
+
 ## 2026-07-15 — Double-click Stock View only worked on scanners / HOD, not Journal / Trading / Debug
 
 - **Symptom:** Double-clicking a HOD (or scanner) row opened Stock View, but Journal trades, Automation staged/open, Trading positions/orders, Decision cards, and HOD debug tables ignored the second click.

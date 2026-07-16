@@ -30,6 +30,10 @@ frontend/build/
 frontend/.next/
 frontend/release/
 frontend/dist-electron/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/playwright/.cache/
 
 # PyInstaller / desktop sidecar
 backend/dist/
