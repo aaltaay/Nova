@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Continuity refresh: Nova-OS-Status + tester ledger
+
+- **What:** Reconciled `Nova-OS-Status.md` and tester agent facts to current master after Modular Panel Workspace Phases 0–6 and post-pause product work. Updated verification ledger to 562 pytest / 131 Vitest (28 files) / 14 Playwright / build PASS. Removed stale “uncommitted HOD/modular WIP” language; recorded modular workspace as done (separate from Nova OS plan map). `auto_live` remains NO-GO.
+- **Why:** Status note still pointed at `9773c04` with 561/73 ledger while HEAD was `61ea86c` and gates had grown — cold handoffs were starting from wrong facts.
+- **Files touched:** `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md`, `.cursor/agents/tester.md`, `.cursor/agents/tester-memory.md`, `CHANGELOG.md`, `graphify-out/` (if rebuild succeeded).
+- **How it works now:** Next ops chat starts from paper shadow + evening review, then first real `walk_day`; do not reopen modular workspace 0–6 or implement `auto_live` without a new approved phase.
+- **Verified by:** Full pytest 562; Vitest 131; Playwright 14 (one flake + retry); `npm run build` PASS; app health probe on running local servers.
+- **Follow-ups:** Paper shadow ops (Step 2 of continuation handoff).
+- **Related:** Continuation handoff plan `nova_continuation_handoff_14891adb`.
+
 ## 2026-07-15 — Restore Stock View viewport-lock CSS + commit dangling detach/chart work
 
 - **What:** Re-applied the lost Stock View `100dvh` viewport-lock CSS in `index.css` (body/`#root` flex chain, portal/grid fill, compact trade bar). Committed the surviving uncommitted TS work: `measureChartFillHeight`, detached-window `popup=yes` nav + constants.

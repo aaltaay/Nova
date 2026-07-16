@@ -1,13 +1,13 @@
 {
   "C:\\Users\\aalta\\github\\Nova\\knowledge\\obsidian\\00-System\\How-Recall-Works.md": {
-    "mtime": 1784123671.0121899,
-    "ast_hash": "9183b3c6ee33477d9e27a91874cfe97d",
-    "semantic_hash": "9183b3c6ee33477d9e27a91874cfe97d"
+    "mtime": 1784154047.2831478,
+    "ast_hash": "e38a4c906de03e908e3168c248993ff2",
+    "semantic_hash": "e38a4c906de03e908e3168c248993ff2"
   },
   "C:\\Users\\aalta\\github\\Nova\\knowledge\\obsidian\\00-System\\Memory-Router.md": {
-    "mtime": 1784123671.0071874,
-    "ast_hash": "62c99fe32cb18425f93a1f69303ada09",
-    "semantic_hash": "62c99fe32cb18425f93a1f69303ada09"
+    "mtime": 1784154047.6945097,
+    "ast_hash": "77bf68d9022c0cbd60e2e41d25ec10c7",
+    "semantic_hash": "77bf68d9022c0cbd60e2e41d25ec10c7"
   },
   "C:\\Users\\aalta\\github\\Nova\\knowledge\\obsidian\\01-Courses\\Course-Index.md": {
     "mtime": 1784123671.0131905,
@@ -45,7 +45,7 @@
     "semantic_hash": "5e65a736e6a4c2bc9c291e5a820ac9ca"
   },
   "C:\\Users\\aalta\\github\\Nova\\knowledge\\obsidian\\02-Strategies\\Five-Pillars-and-Gap-and-Go-Spec.md": {
-    "mtime": 1784123671.0131905,
+    "mtime": 1784167401.5402713,
     "ast_hash": "d30110528c829e7944467e494b9d4f6c",
     "semantic_hash": "d30110528c829e7944467e494b9d4f6c"
   },
@@ -100,9 +100,9 @@
     "semantic_hash": "ca5e19b683a427f5aa8891569a020318"
   },
   "C:\\Users\\aalta\\github\\Nova\\knowledge\\obsidian\\03-Nova-Decisions\\Nova-OS-Status.md": {
-    "mtime": 1784152261.0468643,
-    "ast_hash": "45785513448280cea53a05d6b5bf20e8",
-    "semantic_hash": "45785513448280cea53a05d6b5bf20e8"
+    "mtime": 1784172147.103417,
+    "ast_hash": "860b8891f6845af3f4b101c54cf4d7ba",
+    "semantic_hash": "860b8891f6845af3f4b101c54cf4d7ba"
   },
   "C:\\Users\\aalta\\github\\Nova\\knowledge\\obsidian\\03-Nova-Decisions\\Scanner-Provider-IBKR-Primary.md": {
     "mtime": 1783970163.8177521,
@@ -118,5 +118,10 @@
     "mtime": 1784123671.0121899,
     "ast_hash": "a24621b670d472ae44c745a54e6509b1",
     "semantic_hash": "a24621b670d472ae44c745a54e6509b1"
+  },
+  "C:\\Users\\aalta\\github\\Nova\\knowledge\\obsidian\\00-System\\Graphify-Knowledge-Graph.md": {
+    "mtime": 1784154039.8232033,
+    "ast_hash": "de2fcceede68863b52f9f58e5b51da05",
+    "semantic_hash": "de2fcceede68863b52f9f58e5b51da05"
   }
 }

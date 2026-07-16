@@ -24,7 +24,7 @@ Durable facts (commands, traps, routing) get **promoted into `tester.md`**. Run 
 
 Open improvements. Newest first. Mark `[x]` when done and move a one-line note to **Completed**.
 
-- [ ] **Refresh test counts** — periodically re-run full pytest/Vitest collection and update the "561 tests" figure in `tester.md` when it drifts.
+- [ ] **Refresh test counts** — periodically re-run full pytest/Vitest/Playwright collection and update figures in `tester.md` when they drift (last refresh 2026-07-15: 562 / 131 / 14).
 - [ ] **Expand routing table** — add rows for `backend/news*`, `backend/scanner*`, `backend/l2*`, `frontend/src/strategy/*`, `frontend/src/TickerChart*`, `frontend/src/workspace/*` once those areas get touched often.
 - [ ] **Ruff / backend lint gate** — if the repo adopts Ruff (or documents a preferred command), add it beside frontend `npm run lint`.
 - [ ] **CI parity** — read `.github/workflows/*` and note any gates the local tester should mirror (matrix Python version, e2e on PR only, etc.).
@@ -34,6 +34,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 ### Completed
 
+- [x] 2026-07-15 — Continuity refresh: promoted test counts in `tester.md` to **562** backend / **131** Vitest (28 files) / **14** Playwright; backlog item left open for future drift checks.
 - [x] 2026-07-15 — Verified commands, routing, traps, trading safety, flakiness, server lifecycle (initial specialize pass).
 - [x] 2026-07-15 — Self-improvement protocol + this memory file.
 
@@ -52,6 +53,14 @@ _(empty)_
 Newest first. Keep entries short. Skip boring all-green scoped runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-15 — Continuity refresh full gates
+
+- **Scope:** Step 1 continuity refresh — re-verify ledger counts for Nova-OS-Status / tester facts.
+- **Commands:** `py -3 -m pytest backend/tests -q` → 562 passed; `npx vitest run` → 131 passed (28 files); `npm run build` → PASS; `npx playwright test` → 13/14 then retry of `tabs switch` → PASS (14/14).
+- **Result:** PASS (Playwright: one parallel flake, retry clean)
+- **Learning:** Baseline `tabs switch` can flake under 12 workers; single-test retry is enough before declaring FAIL.
+- **Promoted to tester.md:** yes — 562 / 131 / 14 counts
 
 ### 2026-07-15 — Memory + self-improvement protocol added
 

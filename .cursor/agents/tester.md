@@ -26,13 +26,13 @@ All commands confirmed working on this machine. Backend pytest runs from **repo 
 
 | Gate | Command | Working dir |
 |------|---------|-------------|
-| Backend, full (561 tests) | `py -3 -m pytest backend/tests -q` | repo root |
+| Backend, full (562 tests) | `py -3 -m pytest backend/tests -q` | repo root |
 | Backend, scoped | `py -3 -m pytest backend/tests/test_<module>.py -q` | repo root |
-| Frontend unit, full | `npm run test` | `frontend/` |
+| Frontend unit, full (131 tests / 28 files) | `npm run test` or `npx vitest run` | `frontend/` |
 | Frontend unit, scoped | `npm run test -- src/path/file.test.ts` | `frontend/` |
 | Frontend build | `npm run build` | `frontend/` |
 | Frontend lint | `npm run lint` | `frontend/` |
-| E2E (only when e2e/critical flows touched) | `npm run test:e2e` | `frontend/` |
+| E2E (14 Playwright specs; when e2e/critical flows touched) | `npm run test:e2e` or `npx playwright test` | `frontend/` |
 | Live UI | `npx agent-browser@latest …` against `http://localhost:5173` | — |
 
 Windows: always `py -3` for Python. Never run pytest from inside `backend/`.
@@ -131,4 +131,4 @@ Rules:
 - **Memory update:** none | run-log only | promoted to tester.md: <what> | backlog +N
 ```
 
-Keep the report short. Prefer evidence over narrative. Include pass counts (e.g. "561 passed").
+Keep the report short. Prefer evidence over narrative. Include pass counts (e.g. "562 passed"; Vitest 131 / 28 files; Playwright 14 when e2e run).

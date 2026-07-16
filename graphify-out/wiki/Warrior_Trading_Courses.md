@@ -1,39 +1,36 @@
 # Warrior Trading Courses
 
-> 9 nodes · cohesion 0.22
+> 6 nodes · cohesion 0.47
 
 ## Key Concepts
 
-- **Course Index** (8 connections) — `knowledge/obsidian/01-Courses/Course-Index.md`
-- **BA101 Transcript Index** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md`
-- **BA101 Day Trading The Basics** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md`
-- **DE101 Transcript Index** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md`
-- **LTA Transcript Index** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md`
-- **SS101 Transcript Index** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md`
-- **SS101 Strategies and Scaling** (2 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md`
-- **DE101 Platform Demos Warrior Sim** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md`
-- **LTA Live Trading Archives** (1 connections) — `knowledge/obsidian/01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md`
+- **Automation Strategy Backbone** (9 connections) — `knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md`
+- **Nova OS Decision Brain** (9 connections) — `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md`
+- **Five Pillars and Gap and Go Spec** (5 connections) — `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
+- **Local Market Data Recorders** (3 connections) — `knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md`
+- **Signal Only Safety Property** (1 connections) — `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
+- **L2 SQLite WAL Recorder** (1 connections) — `knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md`
 
 ## Relationships
 
-- [[Course Memory & Library]] (3 shared connections)
-- [[Market Data Providers]] (2 shared connections)
-- [[Active Strategy Selection]] (1 shared connections)
+- [Nova OS Phases & Readiness](Nova_OS_Phases_%26_Readiness.md) (6 shared connections)
+- [Community 6](Community_6.md) (3 shared connections)
+- [Market Data Providers](Market_Data_Providers.md) (3 shared connections)
+- [Course Memory & Library](Course_Memory_%26_Library.md) (2 shared connections)
 
 ## Source Files
 
-- `knowledge/obsidian/01-Courses/Course-Index.md`
-- `knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md`
-- `knowledge/obsidian/01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md`
-- `knowledge/obsidian/01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md`
-- `knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md`
+- `knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md`
+- `knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md`
+- `knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md`
+- `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md`
 
 ## Audit Trail
 
-- EXTRACTED: 22 (100%)
-- INFERRED: 0 (0%)
+- EXTRACTED: 26 (93%)
+- INFERRED: 2 (7%)
 - AMBIGUOUS: 0 (0%)
 
 ---
 
-*Part of the graphify knowledge wiki. See [[index]] to navigate.*
+*Part of the graphify knowledge wiki. See [index](index.md) to navigate.*

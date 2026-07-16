@@ -4,17 +4,17 @@
   "graph": {
     "hyperedges": [
       {
-        "id": "memory_router_pinecone_obsidian_flow",
-        "label": "Dual Memory Recall System",
+        "id": "nova_memory_architecture",
+        "label": "Nova Memory Architecture",
         "nodes": [
-          "00_system_how_recall_works_pinecone",
-          "00_system_how_recall_works_obsidian",
-          "00_system_how_recall_works_recall_router"
+          "knowledge_obsidian_00_system_graphify_knowledge_graph_graphify",
+          "knowledge_obsidian_00_system_how_recall_works_recall",
+          "knowledge_obsidian_00_system_memory_router_router"
         ],
-        "relation": "form",
+        "relation": "participate_in",
         "confidence": "EXTRACTED",
         "confidence_score": 1.0,
-        "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md"
+        "source_file": "knowledge/obsidian/00-System/Memory-Router.md"
       },
       {
         "id": "nova_os_senses_brain_hands",
@@ -46,102 +46,6 @@
   },
   "nodes": [
     {
-      "label": "How Recall Works (Pinecone + Obsidian)",
-      "file_type": "document",
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "id": "00_system_how_recall_works",
-      "community": 1,
-      "norm_label": "how recall works (pinecone + obsidian)"
-    },
-    {
-      "label": "Pinecone Course Memory",
-      "file_type": "concept",
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "rationale": "Indexes course slide PDFs, free ebook, grad/rehab PDFs, and official LMS caption transcripts for course rules, definitions, and setups.",
-      "id": "00_system_how_recall_works_pinecone",
-      "community": 1,
-      "norm_label": "pinecone course memory"
-    },
-    {
-      "label": "Obsidian Decision Vault",
-      "file_type": "concept",
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "rationale": "Holds curated Nova decisions, roadmap, library inventory, and keyword search over official transcripts on disk.",
-      "id": "00_system_how_recall_works_obsidian",
-      "community": 1,
-      "norm_label": "obsidian decision vault"
-    },
-    {
-      "label": "Recall Router",
-      "file_type": "rationale",
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "rationale": "Routes Nova/build/automate questions to Obsidian first, course/setup questions to Pinecone first, ambiguous queries to both with labeled grounding.",
-      "id": "00_system_how_recall_works_recall_router",
-      "community": 1,
-      "norm_label": "recall router"
-    },
-    {
-      "label": "Official LMS Captions",
-      "file_type": "concept",
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "rationale": "Default transcript source for Pinecone indexing because it matches the Wistia player subtitle track with video-aligned timestamps.",
-      "id": "00_system_how_recall_works_official_lms_captions",
-      "community": 1,
-      "norm_label": "official lms captions"
-    },
-    {
-      "label": "Memory Router",
-      "file_type": "document",
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "id": "00_system_memory_router",
-      "community": 4,
-      "norm_label": "memory router"
-    },
-    {
-      "label": "Trust Order for Automation Advice",
-      "file_type": "rationale",
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "rationale": "Obsidian Active-Strategy and Roadmap rank highest, then Pinecone course chunks with citations, then model prior knowledge which must never override explicit decisions.",
-      "id": "00_system_memory_router_trust_order",
-      "community": 4,
-      "norm_label": "trust order for automation advice"
-    },
-    {
       "label": "Course Index",
       "file_type": "document",
       "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
@@ -150,9 +54,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "01_courses_course_index",
-      "community": 3,
-      "norm_label": "course index"
+      "community": 0,
+      "norm_label": "course index",
+      "id": "knowledge_obsidian_01_courses_course_index"
     },
     {
       "label": "Pinecone Index nova-warrior-courses",
@@ -163,9 +67,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "01_courses_course_index_nova_warrior_courses",
-      "community": 1,
-      "norm_label": "pinecone index nova-warrior-courses"
+      "community": 0,
+      "norm_label": "pinecone index nova-warrior-courses",
+      "id": "knowledge_obsidian_01_courses_course_index_nova_warrior_courses"
     },
     {
       "label": "BA101 Transcript Index",
@@ -176,9 +80,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_ba101_timestamped_notes",
-      "community": 3,
-      "norm_label": "ba101 transcript index"
+      "community": 1,
+      "norm_label": "ba101 transcript index",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_ba101_timestamped_notes"
     },
     {
       "label": "BA101 Day Trading The Basics",
@@ -189,9 +93,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_ba101_timestamped_notes_ba101",
-      "community": 3,
-      "norm_label": "ba101 day trading the basics"
+      "community": 1,
+      "norm_label": "ba101 day trading the basics",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_ba101_timestamped_notes_ba101"
     },
     {
       "label": "DE101 Transcript Index",
@@ -202,9 +106,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_de101_timestamped_notes",
-      "community": 3,
-      "norm_label": "de101 transcript index"
+      "community": 0,
+      "norm_label": "de101 transcript index",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_de101_timestamped_notes"
     },
     {
       "label": "DE101 Platform Demos Warrior Sim",
@@ -215,9 +119,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_de101_timestamped_notes_de101",
-      "community": 3,
-      "norm_label": "de101 platform demos warrior sim"
+      "community": 0,
+      "norm_label": "de101 platform demos warrior sim",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_de101_timestamped_notes_de101"
     },
     {
       "label": "LTA Transcript Index",
@@ -228,9 +132,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_lta_timestamped_notes",
-      "community": 3,
-      "norm_label": "lta transcript index"
+      "community": 0,
+      "norm_label": "lta transcript index",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_lta_timestamped_notes"
     },
     {
       "label": "LTA Live Trading Archives",
@@ -241,9 +145,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_lta_timestamped_notes_lta",
-      "community": 3,
-      "norm_label": "lta live trading archives"
+      "community": 0,
+      "norm_label": "lta live trading archives",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_lta_timestamped_notes_lta"
     },
     {
       "label": "Warrior Trading Local Library Inventory",
@@ -254,9 +158,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_local_library_inventory",
-      "community": 1,
-      "norm_label": "warrior trading local library inventory"
+      "community": 0,
+      "norm_label": "warrior trading local library inventory",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_local_library_inventory"
     },
     {
       "label": "downloads/warrior-trading-* Canonical Roots",
@@ -268,9 +172,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Single on-disk library under downloads/warrior-trading-slides, resources, caption-notes, and videos avoids duplicate trees and confusion during ingest/recall.",
-      "id": "warrior_trading_local_library_inventory_downloads_tree",
-      "community": 1,
-      "norm_label": "downloads/warrior-trading-* canonical roots"
+      "community": 0,
+      "norm_label": "downloads/warrior-trading-* canonical roots",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_local_library_inventory_downloads_tree"
     },
     {
       "label": "SS101 Transcript Index",
@@ -281,9 +185,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_ss101_timestamped_notes",
-      "community": 3,
-      "norm_label": "ss101 transcript index"
+      "community": 1,
+      "norm_label": "ss101 transcript index",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_ss101_timestamped_notes"
     },
     {
       "label": "SS101 Strategies and Scaling",
@@ -294,9 +198,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "warrior_trading_ss101_timestamped_notes_ss101",
-      "community": 3,
-      "norm_label": "ss101 strategies and scaling"
+      "community": 1,
+      "norm_label": "ss101 strategies and scaling",
+      "id": "knowledge_obsidian_01_courses_warrior_trading_ss101_timestamped_notes_ss101"
     },
     {
       "label": "Candidate Strategies for Nova",
@@ -307,9 +211,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "02_strategies_candidate_strategies_for_nova",
-      "community": 4,
-      "norm_label": "candidate strategies for nova"
+      "community": 2,
+      "norm_label": "candidate strategies for nova",
+      "id": "knowledge_obsidian_02_strategies_candidate_strategies_for_nova"
     },
     {
       "label": "Five Pillars and Gap and Go Spec",
@@ -320,9 +224,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "02_strategies_five_pillars_and_gap_and_go_spec",
-      "community": 0,
-      "norm_label": "five pillars and gap and go spec"
+      "community": 3,
+      "norm_label": "five pillars and gap and go spec",
+      "id": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec"
     },
     {
       "label": "Five Pillars Scoring",
@@ -334,9 +238,9 @@
       "author": null,
       "contributor": null,
       "rationale": "All five pillars must pass: price $2-20, change >=10%, RVOL >=5x, catalyst, float <=20M; missing data fails closed.",
-      "id": "02_strategies_five_pillars_and_gap_and_go_spec_five_pillars",
-      "community": 0,
-      "norm_label": "five pillars scoring"
+      "community": 2,
+      "norm_label": "five pillars scoring",
+      "id": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
     },
     {
       "label": "Gap and Go Setup",
@@ -348,9 +252,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Mechanical morning play: Five Pillars gate, 9:30-10:00 ET window, break of premarket high, entry/stop/target math with would_execute hard-coded False.",
-      "id": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go",
-      "community": 4,
-      "norm_label": "gap and go setup"
+      "community": 2,
+      "norm_label": "gap and go setup",
+      "id": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
     },
     {
       "label": "Signal Only Safety Property",
@@ -362,9 +266,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Strategy endpoints never place orders; would_execute is False on every code path by design so signal modules cannot accidentally grow execution paths.",
-      "id": "02_strategies_five_pillars_and_gap_and_go_spec_signal_only",
-      "community": 0,
-      "norm_label": "signal only safety property"
+      "community": 3,
+      "norm_label": "signal only safety property",
+      "id": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_signal_only"
     },
     {
       "label": "Active Strategy (Nova)",
@@ -375,9 +279,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_active_strategy",
-      "community": 4,
-      "norm_label": "active strategy (nova)"
+      "community": 2,
+      "norm_label": "active strategy (nova)",
+      "id": "knowledge_obsidian_03_nova_decisions_active_strategy"
     },
     {
       "label": "Active Strategy Gap and Go",
@@ -389,9 +293,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Primary setup chosen for Warrior/Ross momentum family because PM high break in 9:30-10 window is most mechanical and matches Nova gappers plus IBKR discovery.",
-      "id": "03_nova_decisions_active_strategy_gap_and_go",
-      "community": 4,
-      "norm_label": "active strategy gap and go"
+      "community": 2,
+      "norm_label": "active strategy gap and go",
+      "id": "knowledge_obsidian_03_nova_decisions_active_strategy_gap_and_go"
     },
     {
       "label": "Alpaca Integration Reference",
@@ -402,9 +306,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_alpaca_integration_reference",
-      "community": 5,
-      "norm_label": "alpaca integration reference"
+      "community": 1,
+      "norm_label": "alpaca integration reference",
+      "id": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference"
     },
     {
       "label": "Alpaca-Only Features",
@@ -416,9 +320,9 @@
       "author": null,
       "contributor": null,
       "rationale": "News, charts/OHLCV bars, RVOL, after-hours scanner, HOD Momo real-time feed, L2 tape recorder, and health badge still depend on Alpaca with no full IBKR replacement yet.",
-      "id": "03_nova_decisions_alpaca_integration_reference_alpaca_only_features",
-      "community": 5,
-      "norm_label": "alpaca-only features"
+      "community": 1,
+      "norm_label": "alpaca-only features",
+      "id": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference_alpaca_only_features"
     },
     {
       "label": "Automation Roadmap",
@@ -429,9 +333,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_automation_roadmap",
-      "community": 2,
-      "norm_label": "automation roadmap"
+      "community": 6,
+      "norm_label": "automation roadmap",
+      "id": "knowledge_obsidian_03_nova_decisions_automation_roadmap"
     },
     {
       "label": "Nova OS Phases P0-P10",
@@ -443,9 +347,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Phased plan from baseline through archive, replay, and P10 live-readiness review; all verified with NO-GO for auto_live.",
-      "id": "03_nova_decisions_automation_roadmap_nova_os_phases",
-      "community": 2,
-      "norm_label": "nova os phases p0-p10"
+      "community": 6,
+      "norm_label": "nova os phases p0-p10",
+      "id": "knowledge_obsidian_03_nova_decisions_automation_roadmap_nova_os_phases"
     },
     {
       "label": "Automation Strategy Backbone",
@@ -456,9 +360,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_automation_strategy_backbone",
-      "community": 0,
-      "norm_label": "automation strategy backbone"
+      "community": 3,
+      "norm_label": "automation strategy backbone",
+      "id": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone"
     },
     {
       "label": "Warrior Ross Momentum Model",
@@ -470,9 +374,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Edge from selection of low-float high-RVOL catalyst names plus risk asymmetry and machine-enforced discipline rather than discretionary tape reading.",
-      "id": "03_nova_decisions_automation_strategy_backbone_warrior_ross_momentum",
-      "community": 0,
-      "norm_label": "warrior ross momentum model"
+      "community": 2,
+      "norm_label": "warrior ross momentum model",
+      "id": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone_warrior_ross_momentum"
     },
     {
       "label": "Automation Phases A-F",
@@ -484,9 +388,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Watchlist, setup triggers, risk engine, paper IBKR executor, journal go/no-go, and L2 learning record-first pipeline all implemented.",
-      "id": "03_nova_decisions_automation_strategy_backbone_phases_a_f",
-      "community": 2,
-      "norm_label": "automation phases a-f"
+      "community": 6,
+      "norm_label": "automation phases a-f",
+      "id": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone_phases_a_f"
     },
     {
       "label": "IBKR Orders Locked On Live Gateway",
@@ -497,9 +401,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_ibkr_orders_locked_on_live_gateway",
-      "community": 0,
-      "norm_label": "ibkr orders locked on live gateway"
+      "community": 5,
+      "norm_label": "ibkr orders locked on live gateway",
+      "id": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway"
     },
     {
       "label": "IBKR Safety Gates",
@@ -511,9 +415,9 @@
       "author": null,
       "contributor": null,
       "rationale": "backend/ibkr/safety.py gates all spends via IBKR_ENABLED, IBKR_ORDERS_ENABLED, and IBKR_LIVE_TRADING_CONFIRMED with safe defaults false.",
-      "id": "03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates",
-      "community": 0,
-      "norm_label": "ibkr safety gates"
+      "community": 5,
+      "norm_label": "ibkr safety gates",
+      "id": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
     },
     {
       "label": "Local Market Data Recorders",
@@ -524,9 +428,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_local_market_data_recorders",
-      "community": 0,
-      "norm_label": "local market data recorders"
+      "community": 3,
+      "norm_label": "local market data recorders",
+      "id": "knowledge_obsidian_03_nova_decisions_local_market_data_recorders"
     },
     {
       "label": "L2 SQLite WAL Recorder",
@@ -538,9 +442,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Extend l2.db with batched WAL inserts for IBKR depth snapshots and Alpaca tape on watched symbols only; Parquet deferred until volume proves SQLite insufficient.",
-      "id": "03_nova_decisions_local_market_data_recorders_l2_sqlite",
-      "community": 0,
-      "norm_label": "l2 sqlite wal recorder"
+      "community": 3,
+      "norm_label": "l2 sqlite wal recorder",
+      "id": "knowledge_obsidian_03_nova_decisions_local_market_data_recorders_l2_sqlite"
     },
     {
       "label": "News Impact Decision Layer",
@@ -551,9 +455,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_news_impact_decision_layer",
-      "community": 5,
-      "norm_label": "news impact decision layer"
+      "community": 1,
+      "norm_label": "news impact decision layer",
+      "id": "knowledge_obsidian_03_nova_decisions_news_impact_decision_layer"
     },
     {
       "label": "News Impact Classification",
@@ -565,9 +469,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Rules-first moved_price, attention_only, no_effect, insufficient_data classes with thresholds in NEWS_IMPACT_* constants; sentiment is informational only.",
-      "id": "03_nova_decisions_news_impact_decision_layer_news_impact",
-      "community": 5,
-      "norm_label": "news impact classification"
+      "community": 1,
+      "norm_label": "news impact classification",
+      "id": "knowledge_obsidian_03_nova_decisions_news_impact_decision_layer_news_impact"
     },
     {
       "label": "Nova OS Archive Restore Runbook",
@@ -578,9 +482,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_nova_os_archive_restore_runbook",
-      "community": 2,
-      "norm_label": "nova os archive restore runbook"
+      "community": 8,
+      "norm_label": "nova os archive restore runbook",
+      "id": "knowledge_obsidian_03_nova_decisions_nova_os_archive_restore_runbook"
     },
     {
       "label": "Nova OS Decision Brain",
@@ -591,9 +495,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_nova_os_decision_brain",
-      "community": 0,
-      "norm_label": "nova os decision brain"
+      "community": 3,
+      "norm_label": "nova os decision brain",
+      "id": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain"
     },
     {
       "label": "Nova OS decide() Gate Pipeline",
@@ -605,9 +509,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Ordered gates from session/regime through Five Pillars, setup recognition, ticket math, catalyst quality, microstructure, and execution policy producing BUY|NO_BUY|WAIT with reason codes.",
-      "id": "03_nova_decisions_nova_os_decision_brain_decide_pipeline",
-      "community": 0,
-      "norm_label": "nova os decide() gate pipeline"
+      "community": 2,
+      "norm_label": "nova os decide() gate pipeline",
+      "id": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain_decide_pipeline"
     },
     {
       "label": "Nova OS Control Modes",
@@ -619,9 +523,9 @@
       "author": null,
       "contributor": null,
       "rationale": "signal shows checklist only; confirm stages approval; auto_paper places IBKR paper brackets; auto_live blocked behind explicit env confirm and metrics bar.",
-      "id": "03_nova_decisions_nova_os_decision_brain_control_modes",
-      "community": 2,
-      "norm_label": "nova os control modes"
+      "community": 5,
+      "norm_label": "nova os control modes",
+      "id": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain_control_modes"
     },
     {
       "label": "Nova OS Live Readiness Review",
@@ -632,9 +536,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_nova_os_live_readiness_review",
-      "community": 2,
-      "norm_label": "nova os live readiness review"
+      "community": 5,
+      "norm_label": "nova os live readiness review",
+      "id": "knowledge_obsidian_03_nova_decisions_nova_os_live_readiness_review"
     },
     {
       "label": "NO-GO for auto_live",
@@ -646,36 +550,9 @@
       "author": null,
       "contributor": null,
       "rationale": "P10 review rejects automatic live order placement due to insufficient paper sample, unproven expectancy/adherence, and auto_live rejected in control_mode code.",
-      "id": "03_nova_decisions_nova_os_live_readiness_review_no_go_auto_live",
-      "community": 2,
-      "norm_label": "no-go for auto_live"
-    },
-    {
-      "label": "Nova OS Status",
-      "file_type": "document",
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "id": "03_nova_decisions_nova_os_status",
-      "community": 2,
-      "norm_label": "nova os status"
-    },
-    {
-      "label": "Nova OS",
-      "file_type": "concept",
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md",
-      "source_location": null,
-      "source_url": null,
-      "captured_at": null,
-      "author": null,
-      "contributor": null,
-      "rationale": "Auditable trading decision and operations layer combining scanner facts, strategy rules, risk, microstructure, and control mode into explicit BUY|WAIT|NO_BUY with evidence and learning loop.",
-      "id": "03_nova_decisions_nova_os_status_nova_os",
-      "community": 2,
-      "norm_label": "nova os"
+      "community": 5,
+      "norm_label": "no-go for auto_live",
+      "id": "knowledge_obsidian_03_nova_decisions_nova_os_live_readiness_review_no_go_auto_live"
     },
     {
       "label": "Scanner Provider IBKR Primary",
@@ -686,9 +563,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_scanner_provider_ibkr_primary",
-      "community": 5,
-      "norm_label": "scanner provider ibkr primary"
+      "community": 1,
+      "norm_label": "scanner provider ibkr primary",
+      "id": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary"
     },
     {
       "label": "IBKR Scanner Discovery",
@@ -700,9 +577,9 @@
       "author": null,
       "contributor": null,
       "rationale": "Primary live discovery via IBKR reqScannerSubscription matching Ross top-gapper workflow; reject Alpaca SIP and free IEX for live scanning.",
-      "id": "03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery",
-      "community": 5,
-      "norm_label": "ibkr scanner discovery"
+      "community": 1,
+      "norm_label": "ibkr scanner discovery",
+      "id": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery"
     },
     {
       "label": "TraderVue Reporting Parity",
@@ -713,9 +590,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_tradervue_reporting_parity",
-      "community": 2,
-      "norm_label": "tradervue reporting parity"
+      "community": 6,
+      "norm_label": "tradervue reporting parity",
+      "id": "knowledge_obsidian_03_nova_decisions_tradervue_reporting_parity"
     },
     {
       "label": "Warrior Trading Library Merge",
@@ -726,9 +603,9 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "id": "03_nova_decisions_warrior_trading_library_merge",
-      "community": 1,
-      "norm_label": "warrior trading library merge"
+      "community": 0,
+      "norm_label": "warrior trading library merge",
+      "id": "knowledge_obsidian_03_nova_decisions_warrior_trading_library_merge"
     },
     {
       "label": "Single downloads/ Library Decision",
@@ -740,9 +617,73 @@
       "author": null,
       "contributor": null,
       "rationale": "Merge unique files into downloads/warrior-trading-* only; Obsidian holds inventory pointers; Pinecone holds searchable text; no parallel docs/warrior-trading tree.",
-      "id": "03_nova_decisions_warrior_trading_library_merge_single_downloads_tree",
-      "community": 1,
-      "norm_label": "single downloads/ library decision"
+      "community": 0,
+      "norm_label": "single downloads/ library decision",
+      "id": "knowledge_obsidian_03_nova_decisions_warrior_trading_library_merge_single_downloads_tree"
+    },
+    {
+      "label": "Graphify Knowledge Graph",
+      "file_type": "document",
+      "source_file": "knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md",
+      "id": "knowledge_obsidian_00_system_graphify_knowledge_graph_graphify",
+      "community": 4,
+      "norm_label": "graphify knowledge graph"
+    },
+    {
+      "label": "How Recall Works",
+      "file_type": "document",
+      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
+      "id": "knowledge_obsidian_00_system_how_recall_works_recall",
+      "community": 4,
+      "norm_label": "how recall works"
+    },
+    {
+      "label": "Memory Router",
+      "file_type": "document",
+      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
+      "id": "knowledge_obsidian_00_system_memory_router_router",
+      "community": 4,
+      "norm_label": "memory router"
+    },
+    {
+      "label": "Nova OS Status",
+      "file_type": "document",
+      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md",
+      "id": "knowledge_obsidian_03_nova_decisions_nova_os_status_nova_os",
+      "community": 7,
+      "norm_label": "nova os status"
+    },
+    {
+      "label": "Pinecone Vector Store",
+      "file_type": "concept",
+      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
+      "id": "pinecone_index",
+      "community": 4,
+      "norm_label": "pinecone vector store"
+    },
+    {
+      "label": "Obsidian Vault",
+      "file_type": "concept",
+      "source_file": "knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md",
+      "id": "obsidian_vault",
+      "community": 4,
+      "norm_label": "obsidian vault"
+    },
+    {
+      "label": "Nova OS Decision Logic",
+      "file_type": "code",
+      "source_file": "backend/nova_os/decide.py",
+      "id": "backend_nova_os_decide",
+      "community": 7,
+      "norm_label": "nova os decision logic"
+    },
+    {
+      "label": "Control Mode Logic",
+      "file_type": "code",
+      "source_file": "backend/nova_os/control_mode.py",
+      "id": "backend_nova_os_control_mode",
+      "community": 7,
+      "norm_label": "control mode logic"
     }
   ],
   "links": [
@@ -750,181 +691,11 @@
       "relation": "conceptually_related_to",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_how_recall_works",
-      "target": "00_system_how_recall_works_obsidian"
-    },
-    {
-      "relation": "conceptually_related_to",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_how_recall_works",
-      "target": "00_system_how_recall_works_pinecone"
-    },
-    {
-      "relation": "conceptually_related_to",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_how_recall_works",
-      "target": "00_system_how_recall_works_recall_router"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_how_recall_works",
-      "target": "03_nova_decisions_warrior_trading_library_merge"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_how_recall_works",
-      "target": "warrior_trading_local_library_inventory"
-    },
-    {
-      "relation": "conceptually_related_to",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_how_recall_works_pinecone",
-      "target": "00_system_how_recall_works_official_lms_captions"
-    },
-    {
-      "relation": "semantically_similar_to",
-      "confidence": "INFERRED",
-      "confidence_score": 0.95,
       "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "01_courses_course_index_nova_warrior_courses",
-      "target": "00_system_how_recall_works_pinecone"
-    },
-    {
-      "relation": "semantically_similar_to",
-      "confidence": "INFERRED",
-      "confidence_score": 0.95,
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_how_recall_works_recall_router",
-      "target": "00_system_memory_router"
-    },
-    {
-      "relation": "conceptually_related_to",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router",
-      "target": "00_system_memory_router_trust_order"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router",
-      "target": "01_courses_course_index"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router",
-      "target": "02_strategies_candidate_strategies_for_nova"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router",
-      "target": "03_nova_decisions_active_strategy"
-    },
-    {
-      "relation": "references",
-      "confidence": "INFERRED",
-      "confidence_score": 0.85,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router",
-      "target": "03_nova_decisions_scanner_provider_ibkr_primary"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router",
-      "target": "03_nova_decisions_warrior_trading_library_merge"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router",
-      "target": "warrior_trading_local_library_inventory"
-    },
-    {
-      "relation": "rationale_for",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "00_system_memory_router_trust_order",
-      "target": "03_nova_decisions_active_strategy"
-    },
-    {
-      "relation": "conceptually_related_to",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "01_courses_course_index",
-      "target": "01_courses_course_index_nova_warrior_courses"
+      "source": "knowledge_obsidian_01_courses_course_index",
+      "target": "knowledge_obsidian_01_courses_course_index_nova_warrior_courses"
     },
     {
       "relation": "references",
@@ -933,8 +704,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "01_courses_course_index",
-      "target": "03_nova_decisions_warrior_trading_library_merge"
+      "source": "knowledge_obsidian_01_courses_course_index",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_ba101_timestamped_notes"
     },
     {
       "relation": "references",
@@ -943,8 +714,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "01_courses_course_index",
-      "target": "warrior_trading_ba101_timestamped_notes"
+      "source": "knowledge_obsidian_01_courses_course_index",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_de101_timestamped_notes"
     },
     {
       "relation": "references",
@@ -953,8 +724,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "01_courses_course_index",
-      "target": "warrior_trading_de101_timestamped_notes"
+      "source": "knowledge_obsidian_01_courses_course_index",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_local_library_inventory"
     },
     {
       "relation": "references",
@@ -963,8 +734,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "01_courses_course_index",
-      "target": "warrior_trading_local_library_inventory"
+      "source": "knowledge_obsidian_01_courses_course_index",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_lta_timestamped_notes"
     },
     {
       "relation": "references",
@@ -973,8 +744,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "01_courses_course_index",
-      "target": "warrior_trading_lta_timestamped_notes"
+      "source": "knowledge_obsidian_01_courses_course_index",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_ss101_timestamped_notes"
     },
     {
       "relation": "references",
@@ -983,8 +754,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Course-Index.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "01_courses_course_index",
-      "target": "warrior_trading_ss101_timestamped_notes"
+      "source": "knowledge_obsidian_01_courses_course_index",
+      "target": "knowledge_obsidian_03_nova_decisions_warrior_trading_library_merge"
     },
     {
       "relation": "references",
@@ -993,8 +764,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "warrior_trading_local_library_inventory",
-      "target": "01_courses_course_index_nova_warrior_courses"
+      "source": "knowledge_obsidian_01_courses_warrior_trading_local_library_inventory",
+      "target": "knowledge_obsidian_01_courses_course_index_nova_warrior_courses"
     },
     {
       "relation": "conceptually_related_to",
@@ -1003,8 +774,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "warrior_trading_ba101_timestamped_notes",
-      "target": "warrior_trading_ba101_timestamped_notes_ba101"
+      "source": "knowledge_obsidian_01_courses_warrior_trading_ba101_timestamped_notes",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_ba101_timestamped_notes_ba101"
     },
     {
       "relation": "cites",
@@ -1013,8 +784,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_scanner_provider_ibkr_primary",
-      "target": "warrior_trading_ba101_timestamped_notes_ba101"
+      "source": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_ba101_timestamped_notes_ba101"
     },
     {
       "relation": "conceptually_related_to",
@@ -1023,8 +794,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "warrior_trading_de101_timestamped_notes",
-      "target": "warrior_trading_de101_timestamped_notes_de101"
+      "source": "knowledge_obsidian_01_courses_warrior_trading_de101_timestamped_notes",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_de101_timestamped_notes_de101"
     },
     {
       "relation": "conceptually_related_to",
@@ -1033,18 +804,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "warrior_trading_lta_timestamped_notes",
-      "target": "warrior_trading_lta_timestamped_notes_lta"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Warrior-Trading-Library-Merge.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "03_nova_decisions_warrior_trading_library_merge",
-      "target": "warrior_trading_local_library_inventory"
+      "source": "knowledge_obsidian_01_courses_warrior_trading_lta_timestamped_notes",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_lta_timestamped_notes_lta"
     },
     {
       "relation": "conceptually_related_to",
@@ -1053,8 +814,18 @@
       "source_file": "knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "warrior_trading_local_library_inventory",
-      "target": "warrior_trading_local_library_inventory_downloads_tree"
+      "source": "knowledge_obsidian_01_courses_warrior_trading_local_library_inventory",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_local_library_inventory_downloads_tree"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "knowledge/obsidian/03-Nova-Decisions/Warrior-Trading-Library-Merge.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "knowledge_obsidian_03_nova_decisions_warrior_trading_library_merge",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_local_library_inventory"
     },
     {
       "relation": "semantically_similar_to",
@@ -1063,8 +834,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Warrior-Trading-Library-Merge.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_warrior_trading_library_merge_single_downloads_tree",
-      "target": "warrior_trading_local_library_inventory_downloads_tree"
+      "source": "knowledge_obsidian_03_nova_decisions_warrior_trading_library_merge_single_downloads_tree",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_local_library_inventory_downloads_tree"
     },
     {
       "relation": "conceptually_related_to",
@@ -1073,8 +844,8 @@
       "source_file": "knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "warrior_trading_ss101_timestamped_notes",
-      "target": "warrior_trading_ss101_timestamped_notes_ss101"
+      "source": "knowledge_obsidian_01_courses_warrior_trading_ss101_timestamped_notes",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_ss101_timestamped_notes_ss101"
     },
     {
       "relation": "cites",
@@ -1083,8 +854,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_scanner_provider_ibkr_primary",
-      "target": "warrior_trading_ss101_timestamped_notes_ss101"
+      "source": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary",
+      "target": "knowledge_obsidian_01_courses_warrior_trading_ss101_timestamped_notes_ss101"
     },
     {
       "relation": "conceptually_related_to",
@@ -1093,8 +864,8 @@
       "source_file": "knowledge/obsidian/02-Strategies/Candidate-Strategies-for-Nova.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "02_strategies_candidate_strategies_for_nova",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
+      "source": "knowledge_obsidian_02_strategies_candidate_strategies_for_nova",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
     },
     {
       "relation": "references",
@@ -1103,8 +874,8 @@
       "source_file": "knowledge/obsidian/02-Strategies/Candidate-Strategies-for-Nova.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "02_strategies_candidate_strategies_for_nova",
-      "target": "03_nova_decisions_active_strategy"
+      "source": "knowledge_obsidian_02_strategies_candidate_strategies_for_nova",
+      "target": "knowledge_obsidian_03_nova_decisions_active_strategy"
     },
     {
       "relation": "conceptually_related_to",
@@ -1113,8 +884,8 @@
       "source_file": "knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "02_strategies_five_pillars_and_gap_and_go_spec",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
+      "source": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
     },
     {
       "relation": "conceptually_related_to",
@@ -1123,8 +894,8 @@
       "source_file": "knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "02_strategies_five_pillars_and_gap_and_go_spec",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
+      "source": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
     },
     {
       "relation": "conceptually_related_to",
@@ -1133,8 +904,8 @@
       "source_file": "knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "02_strategies_five_pillars_and_gap_and_go_spec",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_signal_only"
+      "source": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_signal_only"
     },
     {
       "relation": "references",
@@ -1143,8 +914,8 @@
       "source_file": "knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "02_strategies_five_pillars_and_gap_and_go_spec",
-      "target": "03_nova_decisions_automation_strategy_backbone"
+      "source": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone"
     },
     {
       "relation": "references",
@@ -1153,8 +924,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec"
     },
     {
       "relation": "semantically_similar_to",
@@ -1163,8 +934,8 @@
       "source_file": "knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "02_strategies_five_pillars_and_gap_and_go_spec_five_pillars",
-      "target": "03_nova_decisions_automation_strategy_backbone_warrior_ross_momentum"
+      "source": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_five_pillars",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone_warrior_ross_momentum"
     },
     {
       "relation": "conceptually_related_to",
@@ -1173,8 +944,8 @@
       "source_file": "knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
+      "source": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
     },
     {
       "relation": "conceptually_related_to",
@@ -1183,8 +954,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/News-Impact-Decision-Layer.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_news_impact_decision_layer",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
+      "source": "knowledge_obsidian_03_nova_decisions_news_impact_decision_layer",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
     },
     {
       "relation": "conceptually_related_to",
@@ -1193,8 +964,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain_decide_pipeline",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain_decide_pipeline",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_five_pillars"
     },
     {
       "relation": "references",
@@ -1203,8 +974,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_active_strategy",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
+      "source": "knowledge_obsidian_03_nova_decisions_active_strategy",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
     },
     {
       "relation": "semantically_similar_to",
@@ -1213,8 +984,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_active_strategy_gap_and_go",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
+      "source": "knowledge_obsidian_03_nova_decisions_active_strategy_gap_and_go",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
     },
     {
       "relation": "conceptually_related_to",
@@ -1223,8 +994,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain_decide_pipeline",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain_decide_pipeline",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
     },
     {
       "relation": "conceptually_related_to",
@@ -1233,8 +1004,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery",
-      "target": "02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
+      "source": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery",
+      "target": "knowledge_obsidian_02_strategies_five_pillars_and_gap_and_go_spec_gap_and_go"
     },
     {
       "relation": "conceptually_related_to",
@@ -1243,8 +1014,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_active_strategy",
-      "target": "03_nova_decisions_active_strategy_gap_and_go"
+      "source": "knowledge_obsidian_03_nova_decisions_active_strategy",
+      "target": "knowledge_obsidian_03_nova_decisions_active_strategy_gap_and_go"
     },
     {
       "relation": "references",
@@ -1253,8 +1024,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_active_strategy",
-      "target": "03_nova_decisions_automation_strategy_backbone"
+      "source": "knowledge_obsidian_03_nova_decisions_active_strategy",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone"
     },
     {
       "relation": "references",
@@ -1263,8 +1034,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_active_strategy",
-      "target": "03_nova_decisions_nova_os_decision_brain"
+      "source": "knowledge_obsidian_03_nova_decisions_active_strategy",
+      "target": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain"
     },
     {
       "relation": "conceptually_related_to",
@@ -1273,8 +1044,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_active_strategy",
-      "target": "03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery"
+      "source": "knowledge_obsidian_03_nova_decisions_active_strategy",
+      "target": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery"
     },
     {
       "relation": "conceptually_related_to",
@@ -1283,8 +1054,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_alpaca_integration_reference",
-      "target": "03_nova_decisions_alpaca_integration_reference_alpaca_only_features"
+      "source": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference",
+      "target": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference_alpaca_only_features"
     },
     {
       "relation": "references",
@@ -1293,8 +1064,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_alpaca_integration_reference",
-      "target": "03_nova_decisions_ibkr_orders_locked_on_live_gateway"
+      "source": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference",
+      "target": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway"
     },
     {
       "relation": "references",
@@ -1303,8 +1074,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_alpaca_integration_reference",
-      "target": "03_nova_decisions_news_impact_decision_layer"
+      "source": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference",
+      "target": "knowledge_obsidian_03_nova_decisions_news_impact_decision_layer"
     },
     {
       "relation": "references",
@@ -1313,8 +1084,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_alpaca_integration_reference",
-      "target": "03_nova_decisions_scanner_provider_ibkr_primary"
+      "source": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference",
+      "target": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary"
     },
     {
       "relation": "conceptually_related_to",
@@ -1323,8 +1094,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_alpaca_integration_reference",
-      "target": "03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery"
+      "source": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference",
+      "target": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery"
     },
     {
       "relation": "conceptually_related_to",
@@ -1333,8 +1104,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery",
-      "target": "03_nova_decisions_alpaca_integration_reference_alpaca_only_features"
+      "source": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery",
+      "target": "knowledge_obsidian_03_nova_decisions_alpaca_integration_reference_alpaca_only_features"
     },
     {
       "relation": "conceptually_related_to",
@@ -1343,8 +1114,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Roadmap.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_roadmap",
-      "target": "03_nova_decisions_automation_roadmap_nova_os_phases"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_roadmap",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_roadmap_nova_os_phases"
     },
     {
       "relation": "references",
@@ -1353,8 +1124,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Roadmap.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_roadmap",
-      "target": "03_nova_decisions_automation_strategy_backbone"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_roadmap",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone"
     },
     {
       "relation": "conceptually_related_to",
@@ -1363,8 +1134,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Roadmap.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_roadmap",
-      "target": "03_nova_decisions_automation_strategy_backbone_phases_a_f"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_roadmap",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone_phases_a_f"
     },
     {
       "relation": "references",
@@ -1373,8 +1144,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Roadmap.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_roadmap",
-      "target": "03_nova_decisions_nova_os_decision_brain"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_roadmap",
+      "target": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain"
     },
     {
       "relation": "references",
@@ -1383,28 +1154,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Roadmap.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_roadmap",
-      "target": "03_nova_decisions_nova_os_live_readiness_review"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Roadmap.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "03_nova_decisions_automation_roadmap",
-      "target": "03_nova_decisions_nova_os_status"
-    },
-    {
-      "relation": "conceptually_related_to",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_status",
-      "target": "03_nova_decisions_automation_roadmap_nova_os_phases"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_roadmap",
+      "target": "knowledge_obsidian_03_nova_decisions_nova_os_live_readiness_review"
     },
     {
       "relation": "conceptually_related_to",
@@ -1413,8 +1164,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_strategy_backbone",
-      "target": "03_nova_decisions_automation_strategy_backbone_phases_a_f"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone_phases_a_f"
     },
     {
       "relation": "conceptually_related_to",
@@ -1423,8 +1174,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_strategy_backbone",
-      "target": "03_nova_decisions_automation_strategy_backbone_warrior_ross_momentum"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone_warrior_ross_momentum"
     },
     {
       "relation": "references",
@@ -1433,8 +1184,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_strategy_backbone",
-      "target": "03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone",
+      "target": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
     },
     {
       "relation": "references",
@@ -1443,8 +1194,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_automation_strategy_backbone",
-      "target": "03_nova_decisions_local_market_data_recorders"
+      "source": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone",
+      "target": "knowledge_obsidian_03_nova_decisions_local_market_data_recorders"
     },
     {
       "relation": "references",
@@ -1453,8 +1204,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain",
-      "target": "03_nova_decisions_automation_strategy_backbone"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone"
     },
     {
       "relation": "references",
@@ -1463,8 +1214,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_scanner_provider_ibkr_primary",
-      "target": "03_nova_decisions_automation_strategy_backbone"
+      "source": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone"
     },
     {
       "relation": "conceptually_related_to",
@@ -1473,8 +1224,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/TraderVue-Reporting-Parity.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_tradervue_reporting_parity",
-      "target": "03_nova_decisions_automation_strategy_backbone_phases_a_f"
+      "source": "knowledge_obsidian_03_nova_decisions_tradervue_reporting_parity",
+      "target": "knowledge_obsidian_03_nova_decisions_automation_strategy_backbone_phases_a_f"
     },
     {
       "relation": "conceptually_related_to",
@@ -1483,8 +1234,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_ibkr_orders_locked_on_live_gateway",
-      "target": "03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
+      "source": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway",
+      "target": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
     },
     {
       "relation": "references",
@@ -1493,8 +1244,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain",
-      "target": "03_nova_decisions_ibkr_orders_locked_on_live_gateway"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain",
+      "target": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway"
     },
     {
       "relation": "conceptually_related_to",
@@ -1503,8 +1254,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain_decide_pipeline",
-      "target": "03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain_decide_pipeline",
+      "target": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
     },
     {
       "relation": "rationale_for",
@@ -1513,8 +1264,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_live_readiness_review_no_go_auto_live",
-      "target": "03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_live_readiness_review_no_go_auto_live",
+      "target": "knowledge_obsidian_03_nova_decisions_ibkr_orders_locked_on_live_gateway_ibkr_safety_gates"
     },
     {
       "relation": "conceptually_related_to",
@@ -1523,18 +1274,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_local_market_data_recorders",
-      "target": "03_nova_decisions_local_market_data_recorders_l2_sqlite"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "03_nova_decisions_local_market_data_recorders",
-      "target": "03_nova_decisions_nova_os_status"
+      "source": "knowledge_obsidian_03_nova_decisions_local_market_data_recorders",
+      "target": "knowledge_obsidian_03_nova_decisions_local_market_data_recorders_l2_sqlite"
     },
     {
       "relation": "references",
@@ -1543,8 +1284,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain",
-      "target": "03_nova_decisions_local_market_data_recorders"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain",
+      "target": "knowledge_obsidian_03_nova_decisions_local_market_data_recorders"
     },
     {
       "relation": "conceptually_related_to",
@@ -1553,18 +1294,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/News-Impact-Decision-Layer.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_news_impact_decision_layer",
-      "target": "03_nova_decisions_news_impact_decision_layer_news_impact"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Archive-Restore-Runbook.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_archive_restore_runbook",
-      "target": "03_nova_decisions_nova_os_status"
+      "source": "knowledge_obsidian_03_nova_decisions_news_impact_decision_layer",
+      "target": "knowledge_obsidian_03_nova_decisions_news_impact_decision_layer_news_impact"
     },
     {
       "relation": "conceptually_related_to",
@@ -1573,8 +1304,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain",
-      "target": "03_nova_decisions_nova_os_decision_brain_control_modes"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain",
+      "target": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain_control_modes"
     },
     {
       "relation": "conceptually_related_to",
@@ -1583,8 +1314,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain",
-      "target": "03_nova_decisions_nova_os_decision_brain_decide_pipeline"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain",
+      "target": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain_decide_pipeline"
     },
     {
       "relation": "references",
@@ -1593,18 +1324,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain",
-      "target": "03_nova_decisions_nova_os_status"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_decision_brain",
-      "target": "03_nova_decisions_scanner_provider_ibkr_primary"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain",
+      "target": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary"
     },
     {
       "relation": "conceptually_related_to",
@@ -1613,8 +1334,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_live_readiness_review",
-      "target": "03_nova_decisions_nova_os_decision_brain_control_modes"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_live_readiness_review",
+      "target": "knowledge_obsidian_03_nova_decisions_nova_os_decision_brain_control_modes"
     },
     {
       "relation": "conceptually_related_to",
@@ -1623,28 +1344,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_live_readiness_review",
-      "target": "03_nova_decisions_nova_os_live_readiness_review_no_go_auto_live"
-    },
-    {
-      "relation": "references",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_live_readiness_review",
-      "target": "03_nova_decisions_nova_os_status"
-    },
-    {
-      "relation": "conceptually_related_to",
-      "confidence": "EXTRACTED",
-      "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md",
-      "source_location": null,
-      "weight": 1.0,
-      "source": "03_nova_decisions_nova_os_status",
-      "target": "03_nova_decisions_nova_os_status_nova_os"
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_live_readiness_review",
+      "target": "knowledge_obsidian_03_nova_decisions_nova_os_live_readiness_review_no_go_auto_live"
     },
     {
       "relation": "conceptually_related_to",
@@ -1653,8 +1354,8 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_scanner_provider_ibkr_primary",
-      "target": "03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery"
+      "source": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary",
+      "target": "knowledge_obsidian_03_nova_decisions_scanner_provider_ibkr_primary_ibkr_discovery"
     },
     {
       "relation": "conceptually_related_to",
@@ -1663,23 +1364,79 @@
       "source_file": "knowledge/obsidian/03-Nova-Decisions/Warrior-Trading-Library-Merge.md",
       "source_location": null,
       "weight": 1.0,
-      "source": "03_nova_decisions_warrior_trading_library_merge",
-      "target": "03_nova_decisions_warrior_trading_library_merge_single_downloads_tree"
+      "source": "knowledge_obsidian_03_nova_decisions_warrior_trading_library_merge",
+      "target": "knowledge_obsidian_03_nova_decisions_warrior_trading_library_merge_single_downloads_tree"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md",
+      "source": "knowledge_obsidian_00_system_graphify_knowledge_graph_graphify",
+      "target": "knowledge_obsidian_00_system_how_recall_works_recall"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md",
+      "source": "knowledge_obsidian_00_system_graphify_knowledge_graph_graphify",
+      "target": "knowledge_obsidian_00_system_memory_router_router"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md",
+      "source": "knowledge_obsidian_00_system_graphify_knowledge_graph_graphify",
+      "target": "obsidian_vault"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md",
+      "source": "knowledge_obsidian_00_system_how_recall_works_recall",
+      "target": "pinecone_index"
+    },
+    {
+      "relation": "references",
+      "confidence": "INFERRED",
+      "confidence_score": 0.9,
+      "source_file": "knowledge/obsidian/00-System/Memory-Router.md",
+      "source": "knowledge_obsidian_00_system_memory_router_router",
+      "target": "obsidian_vault"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md",
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_status_nova_os",
+      "target": "backend_nova_os_control_mode"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md",
+      "source": "knowledge_obsidian_03_nova_decisions_nova_os_status_nova_os",
+      "target": "backend_nova_os_decide"
     }
   ],
   "hyperedges": [
     {
-      "id": "memory_router_pinecone_obsidian_flow",
-      "label": "Dual Memory Recall System",
+      "id": "nova_memory_architecture",
+      "label": "Nova Memory Architecture",
       "nodes": [
-        "00_system_how_recall_works_pinecone",
-        "00_system_how_recall_works_obsidian",
-        "00_system_how_recall_works_recall_router"
+        "knowledge_obsidian_00_system_graphify_knowledge_graph_graphify",
+        "knowledge_obsidian_00_system_how_recall_works_recall",
+        "knowledge_obsidian_00_system_memory_router_router"
       ],
-      "relation": "form",
+      "relation": "participate_in",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
-      "source_file": "knowledge/obsidian/00-System/How-Recall-Works.md"
+      "source_file": "knowledge/obsidian/00-System/Memory-Router.md"
     },
     {
       "id": "nova_os_senses_brain_hands",
@@ -1708,5 +1465,5 @@
       "source_file": "knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md"
     }
   ],
-  "built_at_commit": "46403e0b1384ed4a7084e40a2e356b8e32963b4d"
+  "built_at_commit": "61ea86c4205784e5543a035b9d82146d26485418"
 }

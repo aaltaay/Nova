@@ -8,8 +8,8 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 
 - Phase: P10 + hardening sections 1–6 (all closed); post-map follow-ups: R2 live + L2 health gate
 - State: verified — see per-phase exit-criteria table below (2026-07-15 re-verification), not a blanket claim
-- Last verified commit: 9773c04
-- Last updated: 2026-07-15 ~23:15 ET
+- Last verified commit: *(continuity-refresh tip; documenting prior HEAD `61ea86c` + this refresh — SHA filled after push)*
+- Last updated: 2026-07-15 ~23:35 ET (continuity refresh)
 
 ## Completed this phase
 
@@ -18,7 +18,9 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 - **L2 health gate (2026-07-15)** — `l2_bridge_failed_days` now trips top-level `archive_health` `ok`/`problems` when R2 is enabled+configured (was report-only).
 - **P9** — no-hindsight replay/walk/review (`replay.py::slice_bars_as_of`/`replay_at`/`walk_day`) + CLI + real `ArchiveRewind.tsx` rewind slider + archive APIs (hardening section 5, commit `3aa6c3a`)
 - **P10** — Live-readiness review: **NO-GO for auto_live** (explicit; separate phase required)
-- **Hardening section 6 (phase-status correction, this entry)** — re-verified each of the five gaps a post-P10 audit found in P2–P7 against current code (not docstrings/comments), fixed one residual stale UI tooltip, and replaced the blanket "all verified on master" P0–P7 claim below with a per-phase exit-criteria table naming concrete evidence (file:line + test name) for every claim.
+- **Hardening section 6 (phase-status correction)** — re-verified each of the five gaps a post-P10 audit found in P2–P7 against current code; replaced blanket P0–P7 claim with per-phase exit-criteria table.
+- **Modular Panel Workspace Phases 0–6 (2026-07-15, separate from Nova OS plan map)** — **DONE / do not reopen.** Playwright baseline; independent L2 + Time & Sales modules; shared `WorkspaceContext`; quote-panel decomposition; registry-driven tabs/visibility; persisted panel order (`layoutStore`); dnd-kit drag reorder. Optional later polish (cross-slot drag / resize) is not plan debt.
+- **Post-pause product work through `61ea86c`** — HOD Momo WS/dedup/incremental render; Stock View double-click + detached popup + `100dvh` viewport lock; tester + maintainer agents; archive R2/L2 health (see CHANGELOG).
 
 ## Phase exit criteria (re-verified 2026-07-15, evidence-based)
 
@@ -42,20 +44,22 @@ The 2026-07-15 post-P10 audit found P2–P7 were partial/prototype: **unsafe fla
 
 ## In progress / uncommitted
 
-- Unrelated HOD/earnings / modular-workspace WIP may remain on the working tree — not Nova OS plan debt
+- Working tree was clean at continuity refresh (pre-refresh HEAD `61ea86c`). No uncommitted HOD/modular-workspace WIP.
 - Nova OS hardening plan sections 1–6 are **all closed**. Known remaining follow-ups (ops/infra, not code bugs): R2 Bucket Lock (console); rotate test R2 token later; `walk_day` on a real compacted production day when one exists; paper shadow + evening review. Mission canvas file `canvases/nova-os-mission.canvas.tsx` is referenced by continuity rules but is not present in the repo (skipped refresh).
 
 ## Crash or blocker
 
 - None for R2 config (keys live; maintenance enabled). No compacted production day yet → first real `walk_day` still pending market capture.
+- Graphify Obsidian rebuild (this refresh): **succeeded** after installing `graphifyy[gemini]` (`openai` was missing). Incremental Gemini extract of 4 changed notes → merge → `graph.json` / `GRAPH_REPORT.md` / `wiki/` rewritten.
 
 ## Verification ledger
 
-- 2026-07-15 full re-verification: `py -3 -m pytest` — **561/561 backend tests passed**
-- 2026-07-15 L2 health gate: `py -3 -m pytest tests/test_archive_r2.py::TestR2Status` — **3/3 passed**
-- `npm run build` — PASS (tsc + vite build clean) at prior ledger
-- `npx vitest run` — **73/73 frontend tests passed** (16 files) at prior ledger
-- `auto_live` remains rejected in `control_mode` (confirmed by code read + test suite, not just prior claim)
+- 2026-07-15 continuity refresh (this entry): `py -3 -m pytest backend/tests -q` — **562/562 backend tests passed**
+- 2026-07-15 continuity refresh: `npx vitest run` — **131/131 frontend tests passed** (28 files)
+- 2026-07-15 continuity refresh: `npx playwright test` — **14/14** (one baseline `tabs switch` flake on first parallel run; single-test retry PASS)
+- 2026-07-15 continuity refresh: `npm run build` — PASS (tsc + vite)
+- 2026-07-15 L2 health gate (earlier): `py -3 -m pytest tests/test_archive_r2.py::TestR2Status` — **3/3 passed**
+- 2026-07-15 continuity refresh: Graphify Obsidian `--update --wiki` via Gemini — PASS (4 docs re-extracted; graph/wiki refreshed)
 
 ## User action needed
 
@@ -64,7 +68,8 @@ The 2026-07-15 post-P10 audit found P2–P7 were partial/prototype: **unsafe fla
 
 ## Phase-close / Next chat starts here
 
-**Nova OS P0–P10 + hardening + R2 live config are done.** Next work is ops / a separate live phase:
-1. Paper shadow days + evening review annealing
+**Nova OS P0–P10 + hardening + R2 live config are done. Modular Panel Workspace Phases 0–6 are done (do not reopen).** Next work is ops / a separate live phase — not more workspace scaffolding:
+
+1. Paper shadow days (`signal` → `confirm` → `auto_paper`) + evening review annealing
 2. After first finished market day with maintenance on: exercise `walk_day` + replay CLI on real cold archive
-3. Separate explicit phase if/when live readiness flips to GO
+3. Separate explicit phase if/when live readiness flips to GO — **no `auto_live` without that phase**
