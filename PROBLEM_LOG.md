@@ -21,7 +21,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Ghost HOD integrity/surge-seed docs vs missing runtime
+
+- **Symptom:** CHANGELOG/constants/CSS claimed fail-loud integrity + Squeeze bar seeding, but `hod_momo_integrity.py`, `integrity_live.py`, `hod_momo_surge_seed.py`, CLI, routes, and UI banner did not exist at master `d3a8985`. Live HOD still cold-started Squeeze and cycled slowly across a large watch set.
+- **Cause:** Prior HOD work landed documentation/constants without the runtime modules (or was lost during branch/stash churn); agents treated docs as shipped.
+- **Fix:** Implemented integrity evaluators + live builders + CLI/banner; IBKR surge seed loop; capacity-bounded active set with fair reprice batching; uncovered symbols explicit. Corrected changelog with a real ship entry.
+- **Keywords:** HOD Momo, integrity, surge seed, active set, reqTickersAsync, HKIT, ghost docs, Warrior parity
+
 ## 2026-07-16 — Alert channel Test fire sent empty Discord embeds
+
 
 - **Symptom:** POST `/api/alerts/test` (and Settings “Test”) delivered Discord embeds with empty `description`; Telegram got a JSON dump instead of the test sentence.
 - **Cause:** `format_event_payload` only handled `hod_momo` / `nova_os`. Test events (`type=test` + `text=…`) fell through without copying `text`, so Discord used `payload.get("text", "")` → `""`.

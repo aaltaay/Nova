@@ -30,7 +30,18 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — HOD Momo live accuracy: integrity, surge seed, active-set reprice
+
+- **What:** Shipped the previously ghost-documented HOD integrity + Squeeze surge-seed + capacity-bounded active evaluation set. Fail-loud API/CLI/UI banner; IBKR 1Min historical seed on first active entry; fair 1Hz `reqTickersAsync` scheduler (hot + age-rotating tail) without dumping the whole discovery universe into one batch.
+- **Why:** Master tip claimed integrity/surge-seed in CHANGELOG but runtime modules were missing; live HOD evaluated ~9 symbols/sec across ~200 watch symbols (~20s cycle) and Squeeze cold-started at `surge=None`.
+- **Files touched:** `backend/hod_momo_integrity.py`, `integrity_live.py`, `hod_momo_surge_seed.py`, `hod_momo_active.py`, `hod_momo_flow.py`, `hod_momo.py`, `ibkr/reprice.py`, `ibkr_bridge.py`, `app_lifespan.py`, routes, `tools/hod_momo_integrity_check.py`, `tools/hod_momo_latency_probe.py`, `HodMomoIntegrityBanner.tsx`, constants, tests.
+- **How it works now:** Discovery watch set stays broad; only `HOD_MOMO_ACTIVE_SET_CAPACITY` (40) symbols are kept within quote/eval SLOs. Uncovered symbols are explicit in integrity metrics/banner. Surge seed queues once per symbol/session via IBKR bars (no Alpaca fallback under `discovery=ibkr`). `GET /api/integrity` + CLI exit 0/1/2; HOD tab banner uses existing `.hod-integrity-*` CSS.
+- **Verified by:** `pytest` full backend 617 passed; targeted integrity/surge/active/reprice; Vitest banner + collapse; `npm run build`. Live: `/api/integrity` + CLI exit codes work; overnight session showed IBKR `reqTickersAsync` snapshot timeouts so quote-age SLO not claimed until market hours.
+- **Follow-ups:** 15-minute RTH live probe for p95≤2s / max≤3s gates; Warrior CDP parity harness deferred until cookies/CDP available. Avoid multiple uvicorn processes (orphan workers steal port 8000 / IBKR clientId 1).
+- **Related:** Corrects ghost 2026-07-15 integrity/surge-seed CHANGELOG claims; PROBLEM_LOG 2026-07-16 HOD live parity.
+
 ## 2026-07-16 — Harden Phases D–G (alert test format + route tests)
+
 
 - **What:** Fixed empty Discord/Telegram payloads on alert channel Test fire; redacted webhook/bot secrets from sender exception return paths; hardened HOD formatter against null price/change; added formatter/hooks + journal Reports v2 HTTP tests; BacktestPanel no longer double-fetches days on selection; journal `trades` CREATE includes `tags`.
 - **Why:** Post-ship harden of Master Roadmap D–G — Test fire was a silent UX bug; route coverage for tags/R/drawdown/import was unit-only.
@@ -424,6 +435,7 @@ Entry template (copy and fill in):
 - **Verified by:** `pytest tests/test_hod_momo_integrity.py` + surge-seed tests; frontend build.
 - **Follow-ups:** Warrior live parity poller once real auth cookies available; fix `watch_seed_size=0` when integrity warns.
 - **Related:** PROBLEM_LOG HKIT surge:None; surge bar-seed CHANGELOG entry.
+- **Correction (2026-07-16):** This entry was aspirational — runtime modules were missing at master `d3a8985`. Real ship is **2026-07-16 — HOD Momo live accuracy**.
 
 ## 2026-07-15 — HOD Momo Squeeze cold-start: seed surge buffer from 1-min bars
 
@@ -434,6 +446,7 @@ Entry template (copy and fill in):
 - **Verified by:** `pytest tests/test_hod_momo_surge_seed.py` (+ existing HOD engine tests).
 - **Follow-ups:** Warrior ↔ Nova alert parity poller once real auth cookies are available (analytics cookies alone are not enough); investigate `watch_seed_size=0`.
 - **Related:** PROBLEM_LOG 2026-07-15 HKIT surge:None.
+- **Correction (2026-07-16):** Runtime was missing at master tip; re-implemented under **2026-07-16 — HOD Momo live accuracy**.
 
 ## 2026-07-15 — Nova OS Phase P3: Decision UX + attention
 

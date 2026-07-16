@@ -3,9 +3,9 @@
 Extracted out of main.py (see PROBLEM_LOG 2026-07-14). Two independent loops:
 
 - ``detail_reprice_loop``: 0–2 open ticker-detail symbols (panel backstop).
-- ``table_reprice_loop``: 1Hz ``reqTickersAsync`` snapshots for scanner rows —
-  must NOT wait on the full movers scan (that starvation made "updated 10–12s
-  ago"). Uses snapshots only — never ``reqMktData`` for the whole universe.
+- ``table_reprice_loop``: 1Hz ``reqTickersAsync`` snapshots for scanner rows +
+  capacity-bounded HOD active set — must NOT wait on the full movers scan,
+  never ``reqMktData`` for the whole universe.
 """
 from __future__ import annotations
 
@@ -38,6 +38,10 @@ IsStreamFreshFn = Callable[[str], bool]
 
 _table_reprice_busy = False
 _table_chunk_rotate = 0
+_table_last_ok_ts: float | None = None
+_table_busy_skips = 0
+_table_timeouts = 0
+_table_last_request_ms: float | None = None
 
 
 def reprice_detail_symbols(
@@ -198,21 +202,33 @@ async def detail_reprice_loop(
             logger.exception("Detail reprice tick failed")
 
 
+def pick_table_chunk(symbols: list[str], rotate: int, chunk_size: int) -> tuple[list[str], int]:
+    """Rotate scanner UI symbols in progressive chunks (pure helper for tests)."""
+    if not symbols:
+        return [], rotate
+    chunks = _ibkr_discovery.chunk_symbols(symbols, chunk_size)
+    if not chunks:
+        return [], rotate
+    chunk = chunks[rotate % len(chunks)]
+    return list(chunk), rotate + 1
+
+
 async def table_reprice_loop(
     get_provider: GetProviderFn,
     get_symbols: GetSymbolsFn,
     apply_quotes: Callable[[dict[str, dict]], Optional[dict[str, Any]]],
     push: PushFn,
+    get_active_batch: Optional[GetSymbolsFn] = None,
 ) -> None:
-    """Scanner-table snapshots in progressive chunks (IB event loop).
+    """Scanner-table + HOD active-set snapshots in progressive chunks (IB event loop).
 
     One giant ``reqTickersAsync(~100)`` took 7–10s and painted the whole UI
-    "stale". Instead: each 1Hz tick snapshots one chunk of
-    ``IBKR_TABLE_REPRICE_CHUNK_SIZE`` and pushes immediately, rotating so the
-    full scanner universe refreshes over a few seconds while the header age
-    stays ~1s.
+    "stale". Instead: each 1Hz tick snapshots one fair batch of
+    ``IBKR_TABLE_REPRICE_CHUNK_SIZE`` (hot active + age-fair tail, with leftover
+    slots for scanner UI rotation) and pushes immediately.
     """
     global _table_reprice_busy, _table_chunk_rotate
+    global _table_last_ok_ts, _table_busy_skips, _table_timeouts, _table_last_request_ms
 
     while True:
         await asyncio.sleep(IBKR_TABLE_REPRICE_INTERVAL_SEC)
@@ -220,25 +236,45 @@ async def table_reprice_loop(
             if get_provider() != "ibkr":
                 continue
             if _table_reprice_busy:
+                _table_busy_skips += 1
                 await push({"type": "price_heartbeat", "ts": time.time(), "stale": True})
                 continue
-            symbols = get_symbols()
-            if not symbols:
+            scanner_symbols = get_symbols()
+            scanner_chunk, _table_chunk_rotate = pick_table_chunk(
+                scanner_symbols, _table_chunk_rotate, IBKR_TABLE_REPRICE_CHUNK_SIZE,
+            )
+            active_batch: list[str] = []
+            if get_active_batch is not None:
+                try:
+                    active_batch = list(get_active_batch() or [])
+                except Exception:
+                    logger.exception("Active reprice batch failed")
+                    active_batch = []
+            if active_batch:
+                from hod_momo_active import merge_with_scanner_chunk
+                chunk = merge_with_scanner_chunk(
+                    active_batch, scanner_chunk, chunk_size=IBKR_TABLE_REPRICE_CHUNK_SIZE,
+                )
+            else:
+                chunk = scanner_chunk
+            if not chunk:
                 continue
-            chunks = _ibkr_discovery.chunk_symbols(symbols, IBKR_TABLE_REPRICE_CHUNK_SIZE)
-            if not chunks:
-                continue
-            chunk = chunks[_table_chunk_rotate % len(chunks)]
-            _table_chunk_rotate += 1
 
             _table_reprice_busy = True
+            t0 = time.perf_counter()
             try:
                 quotes = await snapshot_table_quotes(chunk)
-                result = apply_quotes(quotes)
-                if result is None:
+                _table_last_request_ms = (time.perf_counter() - t0) * 1000.0
+                if not quotes:
+                    _table_timeouts += 1
                     await push({"type": "price_heartbeat", "ts": time.time(), "stale": True})
                 else:
-                    await push(result)
+                    result = apply_quotes(quotes)
+                    if result is None:
+                        await push({"type": "price_heartbeat", "ts": time.time(), "stale": True})
+                    else:
+                        _table_last_ok_ts = time.time()
+                        await push(result)
             finally:
                 _table_reprice_busy = False
         except asyncio.CancelledError:

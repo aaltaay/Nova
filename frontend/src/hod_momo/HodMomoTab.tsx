@@ -5,6 +5,7 @@ import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
 import { collapseAlertsBySymbol } from './collapseAlertsBySymbol';
 import { HodMomoAlertTable } from './HodMomoAlertTable';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';
+import { HodMomoIntegrityBanner } from './HodMomoIntegrityBanner';
 
 type SubPanel = 'main' | 'debug';
 
@@ -178,6 +179,8 @@ export function HodMomoTab({
           </button>
         </div>
       </div>
+
+      <HodMomoIntegrityBanner />
 
       <StrategyChipStrip
         activeSubPanel={activeSubPanel}

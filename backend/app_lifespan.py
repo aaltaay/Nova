@@ -16,6 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import hod_momo as _hod_momo
 import hod_momo_enrichment as _hod_momo_enrichment
 import hod_momo_seed as _hod_momo_seed
+import hod_momo_surge_seed as _hod_momo_surge_seed
+import integrity_live as _integrity_live
 import journal.db as _journal_db
 import l2.db as _l2_db
 import nova_os.events_db as _nova_os_events_db
@@ -43,6 +45,7 @@ from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
 from ibkr import ticks as _ibkr_ticks
 from ibkr_bridge import (
+    active_reprice_batch,
     apply_table_quotes,
     get_ibkr_detail_symbols,
     run_ibkr,
@@ -160,6 +163,10 @@ async def lifespan(app: FastAPI):
     hod_seed_task = asyncio.create_task(
         _hod_momo_seed.seed_refresh_loop(_get_discovery_provider)
     )
+    hod_surge_seed_task = asyncio.create_task(
+        _hod_momo_surge_seed.surge_seed_loop(_get_discovery_provider)
+    )
+    integrity_task = asyncio.create_task(_integrity_live.integrity_loop())
     setups_scan_task = asyncio.create_task(_setups_stream.scan_loop())
     risk_reset_task = asyncio.create_task(_risk.session_reset_loop())
     executor_fill_task = asyncio.create_task(_executor.fill_poll_loop())
@@ -189,6 +196,7 @@ async def lifespan(app: FastAPI):
     ))
     table_reprice_task = asyncio.create_task(_ibkr_reprice.table_reprice_loop(
         _get_discovery_provider, table_reprice_symbols, apply_table_quotes, _scanner_broadcast,
+        get_active_batch=active_reprice_batch,
     ))
 
     yield
@@ -206,6 +214,8 @@ async def lifespan(app: FastAPI):
     hod_enrich_task.cancel()
     hod_fund_task.cancel()
     hod_seed_task.cancel()
+    hod_surge_seed_task.cancel()
+    integrity_task.cancel()
     setups_scan_task.cancel()
     risk_reset_task.cancel()
     executor_fill_task.cancel()
@@ -216,6 +226,7 @@ async def lifespan(app: FastAPI):
     for t in (
         detail_reprice_task, table_reprice_task, scan_task, ws_task,
         hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task, hod_seed_task,
+        hod_surge_seed_task, integrity_task,
     ):
         try:
             await t

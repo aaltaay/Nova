@@ -48,12 +48,14 @@ from constants import (
     HOD_MOMO_ALERT_SAVE_INTERVAL_SEC,
     HOD_MOMO_CONFIG_SCHEMA_VERSION,
     HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
+    HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC,
     HOD_MOMO_MASTER_SURGE_PCT,
     HOD_MOMO_RVOL_USE_PACE,
     HOD_MOMO_RVOL_WARMUP_GRACE_SEC,
     HOD_MOMO_SESSION_RESET_HOUR_ET,
     HOD_MOMO_STRATEGY_ID_MAX,
 )
+import hod_momo_flow as _flow
 from hod_momo_filters import evaluate_strategy as _evaluate_strategy
 from hod_momo_filters import fails_hod_gate as _fails_hod_gate
 from hod_momo_filters import passes_master_gate as _passes_master_gate
@@ -100,6 +102,11 @@ if not _trade_log.handlers:
 
 # Rolling (unix_ts, price) buffer per symbol — trimmed to max surge window
 _price_buffer: dict[str, deque[tuple[float, float]]] = {}
+
+# Surge historical-seed state (IBKR 1Min bars on first active entry)
+_surge_seeded: set[str] = set()
+_pending_surge_seed: set[str] = set()
+_last_trade_ts: float | None = None
 
 # Session high-of-day per symbol (reset at session rollover)
 _session_highs: dict[str, float] = {}
@@ -248,6 +255,7 @@ def _check_and_reset_session() -> bool:
     bug erased full-day lists on every API restart after 4 AM ET).
     """
     global _session_date, _today_alerts, _session_highs, _cooldown, _pending_consolidation
+    global _price_buffer, _surge_seeded, _pending_surge_seed, _last_trade_ts
     now_et = datetime.now(_ET)
     if now_et.hour < HOD_MOMO_SESSION_RESET_HOUR_ET:
         return False
@@ -283,7 +291,16 @@ def _check_and_reset_session() -> bool:
     _session_highs = {}
     _cooldown = {}
     _pending_consolidation = {}
+    _price_buffer = {}
+    _surge_seeded = set()
+    _pending_surge_seed = set()
+    _last_trade_ts = None
     _metrics.clear_volume_buffers()
+    try:
+        import hod_momo_active as _active
+        _active.clear_session_state()
+    except Exception:
+        logger.warning("HOD Momo: active-set session clear failed", exc_info=True)
     _save_alerts(force=True)
     return True
 
@@ -322,6 +339,103 @@ def _update_price_buffer(symbol: str, price: float, ts: float) -> None:
     cutoff = ts - _MAX_BUFFER_MINUTES * 60
     while buf and buf[0][0] < cutoff:
         buf.popleft()
+
+
+def request_surge_seed(symbol: str) -> None:
+    """Queue a one-shot historical bar seed for Squeeze cold-start (once/session)."""
+    sym = (symbol or "").strip().upper()
+    if not sym or sym in _surge_seeded or sym in _pending_surge_seed:
+        return
+    _pending_surge_seed.add(sym)
+
+
+def pop_pending_surge_seeds(limit: int) -> list[str]:
+    out: list[str] = []
+    for sym in list(_pending_surge_seed):
+        if len(out) >= max(0, int(limit)):
+            break
+        _pending_surge_seed.discard(sym)
+        out.append(sym)
+    return out
+
+
+def mark_surge_seed_attempted(symbol: str) -> None:
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return
+    _pending_surge_seed.discard(sym)
+    _surge_seeded.add(sym)
+
+
+def seed_price_buffer(symbol: str, points: list[tuple[float, float]]) -> int:
+    """Merge historical (ts, price) points into the rolling buffer; mark seeded."""
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return 0
+    buf = _price_buffer.setdefault(sym, deque())
+    existing = {(float(t), float(p)) for t, p in buf}
+    added = 0
+    for ts, price in points or []:
+        try:
+            t = float(ts)
+            p = float(price)
+        except (TypeError, ValueError):
+            continue
+        if p <= 0:
+            continue
+        key = (t, p)
+        if key in existing:
+            continue
+        buf.append((t, p))
+        existing.add(key)
+        added += 1
+    if buf:
+        ordered = sorted(buf, key=lambda x: x[0])
+        buf.clear()
+        buf.extend(ordered)
+        newest = buf[-1][0]
+        cutoff = newest - _MAX_BUFFER_MINUTES * 60
+        while buf and buf[0][0] < cutoff:
+            buf.popleft()
+    mark_surge_seed_attempted(sym)
+    return added
+
+
+def reevaluate_after_surge_seed(symbol: str) -> None:
+    """Re-run gate evaluation once after historical seed lands."""
+    sym = (symbol or "").strip().upper()
+    snap = _ticker_snaps.get(sym)
+    if snap is None or not snap.price:
+        return
+    on_trade_update(sym, float(snap.price), time.time(), volume=snap.volume)
+
+
+def get_flow_stats() -> dict[str, Any]:
+    """Metrics snapshot for integrity evaluators / debug."""
+    ready_n, buf_n = _flow.count_surge_ready(
+        _price_buffer, HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC,
+    )
+    rvol_n = sum(1 for s in _ticker_snaps.values() if s.rvol is not None)
+    uptime = (time.monotonic() - _startup_ts) if _startup_ts else 0.0
+    last_age = (time.time() - _last_trade_ts) if _last_trade_ts else None
+    surge_none = _flow.count_surge_none_after_seed(
+        seeded=_surge_seeded,
+        price_buffer=_price_buffer,
+        ticker_snaps=_ticker_snaps,
+        surge_fn=_price_surge,
+    )
+    return {
+        "total_trades_seen": _total_trades_seen,
+        "last_trade_age_sec": last_age,
+        "process_uptime_sec": uptime,
+        "buffer_symbol_count": buf_n,
+        "surge_ready_count": ready_n,
+        "surge_seeded_count": len(_surge_seeded),
+        "pending_surge_seeds": len(_pending_surge_seed),
+        "surge_none_after_seed_count": surge_none,
+        "snaps_with_rvol": rvol_n,
+        "snaps_tracked": len(_ticker_snaps),
+    }
 
 
 # ── Snapshot store (lightweight per-symbol data for filter evaluation) ─────────
@@ -426,16 +540,23 @@ def on_trade_update(
     Only price/volume come from the WS message. RVOL / float / gap / change /
     52wk-high come from the enrichment loop via update_ticker_snapshot().
     """
-    global _total_trades_seen, _active_symbol_name
+    global _total_trades_seen, _active_symbol_name, _last_trade_ts
 
     if not _configs:
         return
 
     _total_trades_seen += 1
+    _last_trade_ts = float(ts) if ts else time.time()
     _active_symbol_name = symbol
 
-    # Update rolling price buffer
+    # Update rolling price buffer + queue Squeeze historical seed once/session
     _update_price_buffer(symbol, price, ts)
+    request_surge_seed(symbol)
+    try:
+        import hod_momo_active as _active
+        _active.note_quote(symbol, _last_trade_ts)
+    except Exception:
+        pass
 
     # Update session high
     prev_high = _session_highs.get(symbol, 0.0)
@@ -465,6 +586,11 @@ def on_trade_update(
     if symbol.upper() in _blocklist:
         _gate_counters["blocklist"] += 1
         _record_decision(ts, symbol, price, snap, "blocklist", [])
+        try:
+            import hod_momo_active as _active
+            _active.note_evaluation(symbol, time.time())
+        except Exception:
+            pass
         _active_symbol_name = ""
         return
 
@@ -479,6 +605,11 @@ def on_trade_update(
         counter_key = gate_reason.split("(")[0]
         _gate_counters[counter_key] += 1
         _record_decision(ts, symbol, price, snap, gate_reason, [])
+        try:
+            import hod_momo_active as _active
+            _active.note_evaluation(symbol, time.time())
+        except Exception:
+            pass
         _active_symbol_name = ""
         return
 
@@ -607,6 +738,11 @@ def on_trade_update(
         blocked_summary or "none",
     )
 
+    try:
+        import hod_momo_active as _active
+        _active.note_evaluation(symbol, time.time())
+    except Exception:
+        pass
     _active_symbol_name = ""
 
 

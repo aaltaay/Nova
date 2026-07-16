@@ -92,6 +92,20 @@ def get_news_catalysts():
     }
 
 
+@router.get("/api/scan/integrity")
+def get_scan_integrity():
+    """Fail-loud scanner cache / feed integrity."""
+    from integrity_live import build_scanner_integrity_report
+    return build_scanner_integrity_report()
+
+
+@router.get("/api/integrity")
+def get_all_integrity():
+    """Combined HOD + scanner integrity (CLI / banner)."""
+    from integrity_live import build_all_integrity_report
+    return build_all_integrity_report()
+
+
 @router.get("/api/history/dates")
 def get_history_dates(type: str = "gappers"):
     """Return available past dates for a cache type. ?type=gappers|movers|afterhours"""

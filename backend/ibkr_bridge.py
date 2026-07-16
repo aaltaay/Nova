@@ -11,7 +11,15 @@ import time
 import afterhours_discovery as _ah_discovery
 import exchanges as _exchanges
 import hod_momo as _hod_momo
-from constants import IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC, IBKR_TABLE_REPRICE_MAX_SYMBOLS
+import hod_momo_active as _hod_active
+import hod_momo_universe as _hod_uni
+from constants import (
+    HOD_MOMO_ACTIVE_HOT_PER_TICK,
+    HOD_MOMO_ACTIVE_SET_CAPACITY,
+    IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC,
+    IBKR_TABLE_REPRICE_CHUNK_SIZE,
+    IBKR_TABLE_REPRICE_MAX_SYMBOLS,
+)
 from fundamentals import _fundamentals_cache
 from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
@@ -57,7 +65,7 @@ def get_ibkr_detail_symbols() -> list[str]:
 
 
 def table_reprice_symbols() -> list[str]:
-    """Symbols for the 1Hz table snapshot — scanner rows only (fast path)."""
+    """Symbols for the 1Hz table snapshot — scanner rows only (UI path)."""
     m = _m()
     if m._current_mode == "afterhours" and m._afterhours_cache:
         rows = m._afterhours_cache + m._gainer_cache + m._loser_cache
@@ -77,8 +85,40 @@ def table_reprice_symbols() -> list[str]:
     return out
 
 
+def refresh_hod_active_set() -> list[str]:
+    """Rebuild capacity-bounded active evaluation set from discovery + scanners."""
+    m = _m()
+    discovery = set(getattr(m, "_hod_momo_universe", set()) or set())
+    snap = _hod_active.build_active_set(
+        discovery=discovery,
+        gainer_rows=m._gainer_cache,
+        loser_rows=m._loser_cache,
+        gapper_rows=m._gapper_cache,
+        afterhours_rows=m._afterhours_cache if m._current_mode == "afterhours" else None,
+        seed_symbols=_hod_uni.get_seed_symbols(),
+        detail_symbols=get_ibkr_detail_symbols(),
+        capacity=HOD_MOMO_ACTIVE_SET_CAPACITY,
+    )
+    return snap.active
+
+
+def active_reprice_batch() -> list[str]:
+    """Fair hot + age-rotating tail batch for HOD evaluation (≤ chunk size)."""
+    active = refresh_hod_active_set()
+    hot = set(get_ibkr_detail_symbols())
+    # Top of active list is already priority-ordered (open ticker / top gainers).
+    for sym in active[:HOD_MOMO_ACTIVE_HOT_PER_TICK]:
+        hot.add(sym)
+    return _hod_active.select_fair_batch(
+        active,
+        hot=hot,
+        chunk_size=IBKR_TABLE_REPRICE_CHUNK_SIZE,
+        hot_n=HOD_MOMO_ACTIVE_HOT_PER_TICK,
+    )
+
+
 def apply_table_quotes(quotes: dict) -> dict | None:
-    """Apply async snapshot quotes onto scanner caches; return WS price_patch or None."""
+    """Apply async snapshot quotes onto scanner caches; feed HOD for active set."""
     m = _m()
     gapper_in = [] if (m._gainer_cache or m._loser_cache) else m._gapper_cache
     result = _ibkr_reprice.apply_quote_patches(
@@ -113,15 +153,26 @@ def apply_table_quotes(quotes: dict) -> dict | None:
             }
         rows = list(by_sym.values())
 
+    active = set(_hod_active.get_active_symbols())
+    # If active set not yet built this tick, still evaluate quoted symbols
+    # (bootstrap) then refresh for next tick.
+    if not active:
+        active = set(quotes.keys())
+
     trade_ts = time.time()
     for sym, q in quotes.items():
         price = (q or {}).get("price")
         if price is None:
             continue
+        sym_u = (sym or "").strip().upper()
+        if active and sym_u not in active:
+            # Scanner UI patch only — do not pretend uncovered discovery is live HOD.
+            continue
         vol = (q or {}).get("volume")
         try:
+            _hod_active.note_quote(sym_u, trade_ts)
             _hod_momo.on_trade_update(
-                sym,
+                sym_u,
                 float(price),
                 trade_ts,
                 volume=int(vol) if vol is not None else None,

@@ -161,6 +161,13 @@ def hod_momo_debug_snaps(limit: int = 50):
     return {"snaps": _hod_momo.get_debug_snaps(min(limit, 200))}
 
 
+@router.get("/api/hod-momo/debug/integrity")
+def hod_momo_debug_integrity():
+    """Fail-loud HOD data-flow integrity (ticks, surge seed, active-set ages)."""
+    from integrity_live import build_hod_integrity_report
+    return build_hod_integrity_report()
+
+
 # ── WebSocket endpoints ───────────────────────────────────────────────────────
 
 @ws_router.websocket("/ws/hod-momo")
