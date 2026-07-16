@@ -17,7 +17,8 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Active ops:** Phase B — Paper shadow (**`[~]` protocol ready / awaiting ≥5 live shadow days**)
 - **Feature track:** Phases A, D, E, F, G, J implemented in code/docs; I evidence-framework ready (verdict NO-GO)
 - **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker
-- **Last verified commit (baseline):** see History tip after push
+- **Last verified commit:** `722d614` (Master Roadmap finish pass)
+- **Phase A skills commit:** `9f4ca3f`
 - **Last updated:** 2026-07-15 (Master Roadmap finish pass — D–G code + B/C/I/J honesty)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 
@@ -158,7 +159,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-15 | Finish pass: Phase A skills `9f4ca3f`; D alerts; E backtest; F reports v2; G hotkeys; B shadow-day template; C Bucket Lock/rotation docs; I evidence framework; J Productization-Decision; K–Z deferred parking | (finish tip — fill after push) |
+| 2026-07-15 | Finish pass: Phase A skills `9f4ca3f`; D alerts; E backtest; F reports v2; G hotkeys; B shadow-day template; C Bucket Lock/rotation docs; I evidence framework; J Productization-Decision; K–Z deferred parking; verify 592/149/14 | `722d614` |
 | 2026-07-15 | Phase A skills library vendored + indexes | `9f4ca3f` |
 | 2026-07-15 | Opened roadmap governance + Phase B protocol | `9c6433c` |
 | 2026-07-15 | Continuity refresh: Nova-OS-Status + tester ledger; tip `fb330cf` | `fb330cf` |
