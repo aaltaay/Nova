@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 6: low-coupling backend/tool splits
+
+- **What:** Strangler-facade splits for `hod_momo_integrity`, `news/impact`, `archive/r2`, and `tools/security_lib/checks` into focused modules under 400 lines; original import paths remain barrels.
+- **Why:** Phase 6 of the pattern-driven architecture roadmap (ADR 004).
+- **Files touched:** `backend/hod_momo_integrity*.py`, `backend/news/impact*.py`, `backend/archive/r2*.py`, `tools/security_lib/checks*.py`.
+- **How it works now:** Callers keep importing facade paths; implementation lives in family modules (evaluators / helpers / client / day upload / check families).
+- **Verified by:** pytest integrity 7 · news 32 · archive r2 10 · security_audit 27 (69 combined spot check).
+
 ## 2026-07-16 — Maintenance Phase 5: TickerChart lifecycle hooks
 
 - **What:** Extracted chart instance, bars fetch/versioning, live-trade merge, and drawing-manager lifecycle into `frontend/src/chart/*`. `TickerChart.tsx` is a 187-line composition shell with error boundary + symbol remount preserved.
