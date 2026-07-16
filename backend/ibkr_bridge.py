@@ -107,8 +107,23 @@ def symbols_for_tab(tab: str) -> list[str]:
     return out
 
 
-def refresh_hod_active_set() -> list[str]:
+_hod_active_cache: list[str] = []
+_hod_active_cache_ts = 0.0
+# Sticky membership — rebuilding every L1 reconcile from live change_pct
+# reshuffles the top-N and thrash-subscribes/cancels reqMktData every second.
+_HOD_ACTIVE_CACHE_SEC = 30.0
+
+
+def refresh_hod_active_set(*, force: bool = False) -> list[str]:
     """Rebuild capacity-bounded active evaluation set from discovery + scanners."""
+    global _hod_active_cache, _hod_active_cache_ts
+    now = time.time()
+    if (
+        not force
+        and _hod_active_cache
+        and (now - _hod_active_cache_ts) < _HOD_ACTIVE_CACHE_SEC
+    ):
+        return list(_hod_active_cache)
     state = get_runtime_state()
     discovery = set(state.hod_momo_universe)
     seeds = list(_hod_uni.get_seed_symbols())
@@ -122,7 +137,9 @@ def refresh_hod_active_set() -> list[str]:
         detail_symbols=get_ibkr_detail_symbols(),
         capacity=HOD_MOMO_ACTIVE_SET_CAPACITY,
     )
-    return snap.active
+    _hod_active_cache = list(snap.active)
+    _hod_active_cache_ts = now
+    return list(_hod_active_cache)
 
 
 def hod_stream_symbols() -> list[str]:

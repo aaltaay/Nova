@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from constants import (
+    HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC,
     HOD_MOMO_ACTIVE_EXPLORE_SLOTS,
     HOD_MOMO_ACTIVE_HOT_PER_TICK,
     HOD_MOMO_ACTIVE_MOVER_SLOTS,
@@ -29,6 +30,7 @@ _priority_reason: dict[str, str] = {}
 _active_symbols: list[str] = []
 _uncovered_symbols: list[str] = []
 _tail_rotate = 0
+_last_explore_rotate_ts = 0.0
 
 
 @dataclass
@@ -67,7 +69,7 @@ def note_universe_entries(symbols: Iterable[str], ts: float | None = None) -> No
 
 
 def clear_session_state() -> None:
-    global _tail_rotate, _active_symbols, _uncovered_symbols
+    global _tail_rotate, _active_symbols, _uncovered_symbols, _last_explore_rotate_ts
     _last_quote_ts.clear()
     _last_eval_ts.clear()
     _universe_entry_ts.clear()
@@ -75,6 +77,7 @@ def clear_session_state() -> None:
     _active_symbols = []
     _uncovered_symbols = []
     _tail_rotate = 0
+    _last_explore_rotate_ts = 0.0
 
 
 def _row_score(row: dict) -> float:
@@ -122,7 +125,7 @@ def build_active_set(
     (HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE) cannot be starved by a
     full gainer/gapper table. Uncovered discovery symbols stay explicit.
     """
-    global _active_symbols, _uncovered_symbols, _tail_rotate
+    global _active_symbols, _uncovered_symbols, _tail_rotate, _last_explore_rotate_ts
 
     cap = max(1, int(capacity))
     active: list[str] = []
@@ -183,13 +186,18 @@ def build_active_set(
     spill = seed_budget - taken_s
 
     # Rotating exploration tail from discovery not already selected.
+    # Advance rotation at most every HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC so the
+    # 1Hz L1 reconcile loop does not thrash reqMktData subscribe/cancel.
     explore_pool = [s for s in disco if s not in seen]
     taken_e = 0
     explore_budget = e_slots + spill
     if explore_pool and explore_budget > 0:
         start = _tail_rotate % len(explore_pool)
         rotated = explore_pool[start:] + explore_pool[:start]
-        _tail_rotate += 1
+        now_ts = time.time()
+        if now_ts - _last_explore_rotate_ts >= float(HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC):
+            _tail_rotate += 1
+            _last_explore_rotate_ts = now_ts
         for sym in rotated:
             if taken_e >= explore_budget:
                 break

@@ -65,6 +65,8 @@ HOD_MOMO_ACTIVE_HOT_PER_TICK = 10              # priority symbols every 1Hz tick
 HOD_MOMO_ACTIVE_MOVER_SLOTS = 18               # top cross-list movers (gainer/gapper/AH/loser)
 HOD_MOMO_ACTIVE_SEED_SLOTS = 14                # IBKR volume/activity seeds (may be off-table)
 HOD_MOMO_ACTIVE_EXPLORE_SLOTS = 8              # rotating discovery-tail exploration
+# Advance explore rotation at most this often (reconcile is 1Hz — do not churn L1).
+HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC = 30.0
 HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_P95_SEC = 2.0
 HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC = 3.0
 HOD_MOMO_INTEGRITY_ACTIVE_EVAL_P95_SEC = 2.0
