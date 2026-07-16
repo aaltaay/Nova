@@ -1,5 +1,6 @@
 /**
  * Compact Time & Sales tape — newest print on top.
+ * Owns useIbkrTape (same pattern as DepthLadder → useIbkrDepth).
  * Row highlight = aggressor vs BBO at print time:
  *   ask (green) | bid (red) | between/unknown (black/neutral).
  */
@@ -9,12 +10,10 @@ import {
   TAPE_SECTION_TITLE,
   TAPE_SIDE_LABELS,
 } from '../constants';
-import type { TapePrint, TapeSide } from './useIbkrTape';
+import { useIbkrTape, type TapeSide } from './useIbkrTape';
 
 interface Props {
-  prints: TapePrint[];
-  connected: boolean;
-  error: string | null;
+  symbol: string | null;
 }
 
 function fmtTime(iso: string): string {
@@ -54,7 +53,9 @@ function sideLabel(side: TapeSide | undefined): string {
   return TAPE_SIDE_LABELS.unknown;
 }
 
-export function TimeSalesPanel({ prints, connected, error }: Props) {
+export function TimeSalesPanel({ symbol }: Props) {
+  const { prints, connected, error } = useIbkrTape(symbol);
+
   const statusLabel = useMemo(() => {
     if (error) return error;
     if (!connected) return 'Connecting…';

@@ -30,6 +30,17 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Phase 1: Level 2 + Time & Sales as independent modules
+
+- **What:** Moved `useIbkrTape` ownership into `TimeSalesPanel` (mirrors `DepthLadder` → `useIbkrDepth`). Added mountable `Level2Module` / `TimeSalesModule` wrappers; `DepthAndTape` is composition-only. Pure tape helpers live in `tapeFeed.ts` for symbol-gating tests.
+- **Why:** Modular Panel Workspace Phase 1 — each panel owns its feed so later workspace layout can show L2 and T&S alone or together.
+- **Files touched:** `frontend/src/ibkr/TimeSalesPanel.tsx`, `DepthAndTape.tsx`, `useIbkrTape.ts`, `tapeFeed.ts`, `frontend/src/modules/Level2Module.tsx`, `TimeSalesModule.tsx`, `frontend/e2e/level2-tape-modules.spec.ts`, unit tests under `ibkr/` and `modules/`.
+- **How it works now:** Callers still use `<DepthAndTape symbol={…} />`. Internally it renders `Level2Module` + `TimeSalesModule`, each keyed/bound to `symbol` only. Stale WS prints are rejected via `tapeMessageAllowed`; symbol change resets via `emptyTapeState()`.
+- **Verified by:** `npx vitest run`, `npx playwright test`, `npm run build`.
+- **Follow-ups:** Phase 2 — `WorkspaceContext` for symbol/discovery/ibkr; remove prop drilling.
+- **Related:** Plan `modular_panel_workspace_phases_53ac9db5`; Phase 0 commit `fab60f3`.
+
+
 ## 2026-07-15 — Phase 0: Karpathy skill + Playwright baseline e2e
 
 - **What:** Installed portable Karpathy skill under `.cursor/skills/`; added Playwright (`@playwright/test`) with `frontend/playwright.config.ts`, baseline suite `frontend/e2e/baseline.spec.ts`, and npm scripts `test:e2e` / `test:e2e:ui`. Vitest now excludes `e2e/`.

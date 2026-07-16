@@ -1,26 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { WS_BASE_URL, TAPE_UI_MAX_ROWS } from '../constants';
+import { WS_BASE_URL } from '../constants';
+import {
+  appendTapePrint,
+  emptyTapeState,
+  tapeMessageAllowed,
+  tapeSymbolKey,
+  type TapePrint,
+  type TapeState,
+} from './tapeFeed';
 
-export interface TapePrint {
-  symbol: string;
-  time: string;
-  price: number;
-  size: number;
-  exchange: string;
-  conditions?: string;
-  /** Aggressor vs BBO at print time: ask | bid | between | unknown */
-  side?: TapeSide;
-  bid?: number | null;
-  ask?: number | null;
-}
-
-export type TapeSide = 'ask' | 'bid' | 'between' | 'unknown';
-
-export interface TapeState {
-  prints: TapePrint[];
-  connected: boolean;
-  error: string | null;
-}
+export type { TapePrint, TapeState, TapeSide } from './tapeFeed';
 
 /**
  * Opens /ws/ibkr/tape/{symbol}, receives AllLast tick-by-tick prints.
@@ -30,11 +19,7 @@ export interface TapeState {
  * class of guard as useIbkrDepth to prevent cross-symbol bleed.
  */
 export function useIbkrTape(symbol: string | null): TapeState {
-  const [state, setState] = useState<TapeState>({
-    prints: [],
-    connected: false,
-    error: null,
-  });
+  const [state, setState] = useState<TapeState>(emptyTapeState);
   const wsRef = useRef<WebSocket | null>(null);
   const backoffRef = useRef(1000);
   const mountedRef = useRef(true);
@@ -42,15 +27,15 @@ export function useIbkrTape(symbol: string | null): TapeState {
 
   useEffect(() => {
     mountedRef.current = true;
-    const symKey = symbol ? symbol.toUpperCase() : null;
+    const symKey = tapeSymbolKey(symbol);
 
     if (!symKey) {
-      setState({ prints: [], connected: false, error: null });
+      setState(emptyTapeState());
       return;
     }
 
     // Clear tape immediately on symbol change — never show previous symbol's prints.
-    setState({ prints: [], connected: false, error: null });
+    setState(emptyTapeState());
 
     function connect() {
       if (!mountedRef.current) return;
@@ -66,8 +51,7 @@ export function useIbkrTape(symbol: string | null): TapeState {
         if (!mountedRef.current || ws !== wsRef.current) return;
         try {
           const msg = JSON.parse(e.data as string);
-          const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
-          if (msgSym != null && msgSym !== symKey) return;
+          if (!tapeMessageAllowed(msg.symbol, symKey!)) return;
 
           if (msg.type === 'subscribed') {
             setState(s => ({ ...s, connected: true, error: null }));
@@ -83,13 +67,10 @@ export function useIbkrTape(symbol: string | null): TapeState {
               bid: msg.bid ?? null,
               ask: msg.ask ?? null,
             };
-            setState(s => {
-              const next = [print, ...s.prints];
-              return {
-                ...s,
-                prints: next.length > TAPE_UI_MAX_ROWS ? next.slice(0, TAPE_UI_MAX_ROWS) : next,
-              };
-            });
+            setState(s => ({
+              ...s,
+              prints: appendTapePrint(s.prints, print),
+            }));
           } else if (msg.type === 'error') {
             setState(s => ({
               ...s,

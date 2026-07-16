@@ -21,6 +21,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — tsc -b failed on Vitest ownership tests importing node:fs
+
+- **Symptom:** `npm run build` (`tsc -b`) failed with `TS2591: Cannot find name 'node:fs'` on `tapeFeed.test.ts` / `modules.ownership.test.ts`.
+- **Cause:** `tsconfig.app.json` includes all of `src/` with `types: ["vite/client"]` only — Vitest unit tests that import Node builtins are not part of the app compile graph.
+- **Fix:** Exclude `src/**/*.test.ts(x)` from `tsconfig.app.json` so Vitest owns those files; app build stays browser-typed.
+- **Keywords:** tsc, vitest, node:fs, tsconfig.app.json, exclude, ownership test
+
+
 ## 2026-07-15 — Vitest loaded Playwright e2e specs and failed the unit suite
 
 - **Symptom:** `npx vitest run` failed on `e2e/baseline.spec.ts` with `Playwright Test did not expect test.describe() to be called here`.

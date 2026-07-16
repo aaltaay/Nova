@@ -1,28 +1,22 @@
 /**
  * DepthAndTape — Level 2 and Time & Sales side-by-side in one full-width row.
+ * Composition only: each column is an independent module that owns its own feed.
  */
-import { DepthLadder } from './DepthLadder';
-import { TimeSalesPanel } from './TimeSalesPanel';
-import { useIbkrTape } from './useIbkrTape';
+import { Level2Module } from '../modules/Level2Module';
+import { TimeSalesModule } from '../modules/TimeSalesModule';
 
 interface Props {
   symbol: string | null;
 }
 
 export function DepthAndTape({ symbol }: Props) {
-  const tape = useIbkrTape(symbol);
-
   return (
     <div className="depth-and-tape">
       <div className="depth-and-tape__col">
-        <DepthLadder key={symbol ?? 'none'} symbol={symbol} />
+        <Level2Module symbol={symbol} />
       </div>
       <div className="depth-and-tape__col">
-        <TimeSalesPanel
-          prints={tape.prints}
-          connected={tape.connected}
-          error={tape.error}
-        />
+        <TimeSalesModule symbol={symbol} />
       </div>
     </div>
   );
