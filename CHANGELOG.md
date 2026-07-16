@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 12: defer executor split
+
+- **What:** Documented deferral of `executor.py` structural split; kept the accepted 494-line safety baseline. No code movement of the placement gate chain.
+- **Why:** Forced split without a Phase-10-style shared state owner risks stale aliases and fragments the auditable `place_from_ticket` gate chain.
+- **Files touched:** `architecture/phase-12-executor-deferral.md`, roadmap status, CHANGELOG.
+- **How it works now:** Future fill/state extracts require an explicit executor state owner + security review; `auto_live` stays rejected.
+- **Verified by:** Document review against Phase 12 Done (deferral with evidence); executor line count unchanged at 494.
+
 ## 2026-07-16 — Maintenance Phase 11: error visibility sweep
 
 - **What:** Replaced remaining production/tool `except: pass` swallows (cache, scanner_push, tape_stream, ticks, nova_os events, create_nova_agent, depth/HOD queue paths) with narrow exception types and logging.

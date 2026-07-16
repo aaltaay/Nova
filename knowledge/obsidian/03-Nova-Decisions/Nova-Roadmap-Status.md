@@ -189,8 +189,8 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 | 8 Scanner + ticker | `[x]` | `10e3996` | Ports/facades |
 | 9 IBKR depth | `[x]` | `fc3535a` | state/subscribe/stream |
 | 10 HOD Momo | `[x]` | `72ec84b` | Explicit state + focused facades |
-| 11 Error visibility | `[~]` | _(this commit)_ | No swallowed `except: pass` |
-| 12 Executor | `[ ]` | — | Conditional; prefer defer if risky |
+| 11 Error visibility | `[x]` | `f14bcb8` | No swallowed `except: pass` |
+| 12 Executor | `[~]` | _(this commit)_ | Deferred — see `architecture/phase-12-executor-deferral.md` |
 | 13 Program close | `[ ]` | — | Full verify + ledger |
 
 **Phase 0 metrics snapshot:** index.css 6168 · hod_momo 1079 · constants.py 951 · constants.ts 821 · maintainer 38 findings (36 non-baseline) · pytest collected 617 · Vitest 178 PASS.
@@ -208,7 +208,8 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Maintenance Phase 11: error visibility — no swallowed except:pass in production/tools | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 12: defer executor.py split with written rationale (baseline 494) | _(pending)_ |
+| 2026-07-16 | Maintenance Phase 11: error visibility — no swallowed except:pass in production/tools | `f14bcb8` |
 | 2026-07-16 | Maintenance Phase 10: explicit HOD state owner + persist/session/trade/alert/admin facades | `72ec84b` |
 | 2026-07-16 | Maintenance Phase 9: IBKR depth package (state/handlers/subscribe/stream) | `fc3535a` |
 | 2026-07-16 | Maintenance Phase 8: scan_runners + ticker ports/facades | `10e3996` |

@@ -193,7 +193,9 @@ def test_run_checks_on_real_repo_reports_index_css(mc):
     baseline_paths = {
         f["path"] for f in report["findings"] if f["kind"] == "file_size_baseline"
     }
-    assert "backend/hod_momo.py" in baseline_paths
+    assert "backend/strategy/executor.py" in baseline_paths
+    # Phase 10 reduced hod_momo.py to a facade — no longer an accepted oversize baseline.
+    assert "backend/hod_momo.py" not in baseline_paths
     hard_app = [
         f
         for f in report["findings"]
