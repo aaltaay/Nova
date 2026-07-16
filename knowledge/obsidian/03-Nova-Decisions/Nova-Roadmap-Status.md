@@ -17,7 +17,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Active ops:** Phase B — Paper shadow (**`[~]` protocol ready / awaiting ≥5 live shadow days**)
 - **Feature track:** Phases A, D, E, F, G, J implemented in code/docs; I evidence-framework ready (verdict NO-GO)
 - **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker
-- **Last verified commit:** `722d614` (Master Roadmap finish pass)
+- **Last verified commit:** `722d614` (finish pass) · tip `7749181` (SHA stamp)
 - **Phase A skills commit:** `9f4ca3f`
 - **Last updated:** 2026-07-15 (Master Roadmap finish pass — D–G code + B/C/I/J honesty)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
