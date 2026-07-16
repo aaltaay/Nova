@@ -6,10 +6,10 @@ Kept separate from hod_momo.py to keep main.py thin (backend-modularity rule).
 Two loops are registered as asyncio tasks in main.py lifespan:
   - universe_enrichment_loop() — batch-fetches Alpaca snapshots for all HOD
     universe symbols every HOD_MOMO_ENRICH_INTERVAL_SEC, then writes RVOL /
-    gap / change into hod_momo._ticker_snaps via hod_momo.update_ticker_snapshot().
+    gap / change through hod_momo.update_ticker_snapshot().
   - fundamentals_enrichment_loop() — drains the fundamentals queue produced by
     hod_momo.mark_needs_fundamentals(); fetches float_shares + fifty_two_week_high
-    and writes them into _ticker_snaps.
+    and writes them through the HOD snapshot API.
 
 Feed-level RVOL routing (§ yfinance fallback + Warrior pace):
   - SIP feed: pace RVOL = Alpaca volume / (Alpaca avg × elapsed 04:00–16:00 ET frac)
@@ -43,8 +43,8 @@ async def universe_enrichment_loop() -> None:
     """Batch-fetch snapshots for the full HOD universe every ~30 s.
 
     For each symbol, computes: price, prev_close, change_pct, gap_pct, volume,
-    rvol (using avg-volume cache or yfinance fallback), and writes into
-    hod_momo._ticker_snaps.
+    rvol (using avg-volume cache or yfinance fallback), and writes through
+    hod_momo.update_ticker_snapshot().
     """
     from ibkr_bridge import run_ibkr
     from scanner import _fetch_snapshots, _pick_prev_close
@@ -295,7 +295,7 @@ async def fundamentals_enrichment_loop() -> None:
                 float_shares = fund.get("float_shares")
                 fifty_two_week_high = fund.get("fifty_two_week_high")
 
-                snap = _hod_momo._ticker_snaps.get(sym)
+                snap = _hod_momo.get_ticker_snapshot(sym)
                 if snap is None:
                     # Symbol has no price yet — keep it warm for next enrichment cycle
                     _hod_momo.mark_needs_fundamentals(sym)

@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — HOD module extraction exposed stale facade/state aliases
+
+- **Symptom:** HOD tests and consumers patched/read mutable globals on `hod_momo.py`; after extraction, a facade-level monkeypatch did not affect the focused module that held the real callable, and rebinding lists/dicts could leave consumers on stale objects.
+- **Cause:** The monolith reassigned `_configs`, `_master`, `_today_alerts`, queues, and session collections directly. Imports/tests depended on module aliases rather than one explicit owner resolved at use time.
+- **Fix:** Added `HodMomoState` as the sole owner; all focused modules call `get_state()` and tests patch/replace that owner. Added characterization for persistence, session rollover, queues, WebSocket clients, surge state, consolidation, and config/reset paths.
+- **Keywords:** HOD Momo, stale alias, facade monkeypatch, state rebinding, session rollover, persistence, websocket clients, broadcast queue, Phase 10
+
 ## 2026-07-16 — Wedged API on port 8000 shows Backend unreachable
 
 - **Symptom:** UI header: Disconnected — Backend unreachable; HOD banner: Integrity unreachable Failed to fetch; health HTTP timed out even though `netstat` showed `LISTENING` on `127.0.0.1:8000`.

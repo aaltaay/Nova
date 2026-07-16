@@ -36,6 +36,7 @@ HOD_MOMO_UNIVERSE_MODE = HOD_MOMO_UNIVERSE_MODE_FOCUS
 HOD_MOMO_FOCUS_REFRESH_SEC = 5.0     # how often to rebuild focus set from scanner caches
 HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK = 200  # max symbols per Alpaca WS subscribe message
 HOD_MOMO_SESSION_RESET_HOUR_ET = 4   # reset session state at 4:00 AM ET
+HOD_MOMO_SESSION_RESET_POLL_SEC = 30.0  # background rollover check cadence
 HOD_MOMO_SEED_REFRESH_SEC = 30.0     # IBKR volume-scanner seed cadence
 # Squeeze surge cold-start: live ticks alone start empty, so strategy 10/11 get
 # surge:None (or ~0%) when a name first joins the focus universe mid-move.

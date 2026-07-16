@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import hod_momo as hm
 from hod_momo_filters import price_surge
 from hod_momo_surge_seed import bars_to_surge_points, parse_bar_ts
+from hod_momo_state import HodMomoState
 
 
 def test_parse_bar_ts_iso_z():
@@ -28,15 +29,12 @@ def test_bars_to_surge_points_uses_low_then_close():
 
 
 def test_seed_price_buffer_enables_5pct_surge(monkeypatch):
-    monkeypatch.setattr(hm, "_price_buffer", {})
-    monkeypatch.setattr(hm, "_surge_seeded", set())
-    monkeypatch.setattr(hm, "_pending_surge_seed", set())
-    monkeypatch.setattr(hm, "_ticker_snaps", {})
+    state = hm.replace_state(HodMomoState())
 
     sym = "HKIT"
     now = time.time()
     hm._update_price_buffer(sym, 4.09, now)
-    assert price_surge(hm._price_buffer[sym], 5, "low_to_current") is None
+    assert price_surge(state.price_buffer[sym], 5, "low_to_current") is None
 
     bars = []
     for i in range(6):
@@ -48,14 +46,13 @@ def test_seed_price_buffer_enables_5pct_surge(monkeypatch):
     points.append((now, 4.09))
     n = hm.seed_price_buffer(sym, points)
     assert n >= 2
-    surge = price_surge(hm._price_buffer[sym], 5, "low_to_current")
+    surge = price_surge(state.price_buffer[sym], 5, "low_to_current")
     assert surge is not None
     assert surge >= 5.0
 
 
 def test_request_surge_seed_is_once_per_symbol(monkeypatch):
-    monkeypatch.setattr(hm, "_surge_seeded", set())
-    monkeypatch.setattr(hm, "_pending_surge_seed", set())
+    hm.replace_state(HodMomoState())
     hm.request_surge_seed("abc")
     hm.request_surge_seed("ABC")
     assert hm.pop_pending_surge_seeds(10) == ["ABC"]

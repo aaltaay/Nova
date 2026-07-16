@@ -116,7 +116,7 @@ async def lifespan(app: FastAPI):
     _l2_db.init_db()
     _nova_os_events_db.init_db()
     _archive_db.init_db()
-    _hod_momo._on_blocklist_changed = invalidate_universe_cache
+    _hod_momo.set_blocklist_changed_hook(invalidate_universe_cache)
 
     loop = asyncio.get_event_loop()
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"

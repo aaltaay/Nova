@@ -30,6 +30,31 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 10: modular HOD Momo engine
+
+- **What:** Replaced `hod_momo.py`'s mutable-global monolith with one replaceable `HodMomoState` owner and focused persistence, session, market, trade, alert, and admin modules. The original import path is now a 137-line compatibility facade.
+- **Why:** Maintenance Phase 10 (ADR 003/004) required stale-alias-safe state ownership before extracting imperative-shell boundaries.
+- **Files touched:** `backend/hod_momo*.py`, `backend/app_lifespan.py`, `backend/constants_hod_momo.py`, HOD characterization tests.
+- **How it works now:** Every stateful HOD boundary resolves `hod_momo_state.get_state()` at call time. Persistence/session, surge buffers, IBKR-fed trade evaluation, consolidation/WS, configs/blocklist, and debug queries use the current owner.
+- **Verified by:** HOD tests 61 · focused 8–10 suite 35 · facade 137 lines.
+- **Related:** PROBLEM_LOG 2026-07-16 stale HOD state aliases.
+
+## 2026-07-16 — Maintenance Phase 9: IBKR depth package split
+
+- **What:** Converted `backend/ibkr/depth.py` into a package (`state`, `handlers`, `subscribe`, `stream`) with a thin facade. Cleanup paths log narrowly instead of silent `except: pass`.
+- **Why:** Phase 9 — preserve depth lifecycle while meeting file-size limits.
+- **Files touched:** `backend/ibkr/depth/` package (replaces monolith file).
+- **How it works now:** Public API unchanged; refcount/eviction/SMART L1 fallback/symbol gates preserved; no Alpaca depth.
+- **Verified by:** depth stability + related L2/tape importer tests (agent report 32+36).
+
+## 2026-07-16 — Maintenance Phase 8: scan_runners + ticker facades
+
+- **What:** Split `scan_runners.py` into `scanner_runners/{discovery,afterhours,movers}` and `ticker.py` into cache/Alpaca/IBKR/detail modules with thin facades. Uses `runtime_state`; IBKR discovery never falls back to Alpaca prices.
+- **Why:** Phase 8 after scanner state ownership (ADR 002 ports).
+- **Files touched:** `backend/scan_runners.py`, `backend/scanner_runners/*`, `backend/ticker*.py`.
+- **How it works now:** Callers keep importing facades; orchestration lives in submodules with `TickerSnapshotPort` for IBKR quotes.
+- **Verified by:** test_scan_runners + test_ibkr_cache_priority · focused 35 with depth/HOD.
+
 ## 2026-07-16 — Maintenance Phase 7: explicit scanner runtime state
 
 - **What:** Moved scanner caches, mode/health status, HOD watch universe, and env-derived scanner config from `main.py` into typed `backend/runtime_state/`. Production modules no longer lazy-import `main` for state.
