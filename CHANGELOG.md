@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 3: domain constants + compatibility barrels
+
+- **What:** Split backend constants into domain modules (`constants_scanner/hod_momo/ibkr/archive_news/nova_os`) and frontend into `constantGroups/*`. `constants.py` / `constants.ts` are re-export barrels. Amended centralized-constants governance.
+- **Why:** Phase 3 of the pattern-driven architecture roadmap (ADR 004 strangler barrels).
+- **Files touched:** `backend/constants*.py`, `frontend/src/constants.ts`, `frontend/src/constantGroups/*`, `.cursor/rules/centralized-constants.mdc`, `gemini.md` / `AGENTS.md`, `test_constants_domains.py`.
+- **How it works now:** Existing `from constants import X` / `from '../constants'` keep working. New tunables belong in domain modules, not the barrels.
+- **Verified by:** `pytest backend/tests/test_constants_domains.py` · Vitest 178 · `tsc -b`.
+
 ## 2026-07-16 — Maintenance Phase 2: split index.css into domain stylesheets
 
 - **What:** Mechanically split `frontend/src/index.css` (6168 lines) into ordered domain stylesheets under `styles/`, `hod_momo/`, `chart/`, `ibkr/`, and `reports/`. `index.css` is now an 18-line import-only entry with reserved `@layer` order (rules stay unlayered for cascade parity).

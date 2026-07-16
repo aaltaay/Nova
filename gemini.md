@@ -198,11 +198,12 @@ When touching ANY function currently in a monolith file:
 ## 6. 🔧 Coding Standards (Enforced)
 
 ### 6.1 Constants Policy
-- **ALL** configuration values live in `backend/constants.py` or `frontend/src/constants.ts`.
-- No magic numbers. No inline strings. Import from the constants file.
-- Both files stay in sync for shared values.
-- New constants go in the constants file FIRST, before the logic that uses them.
-- Environment variable overrides are permitted, but the default MUST come from the constants file.
+- **Authoritative values** live in backend domain modules (`constants_scanner.py`, `constants_hod_momo.py`, `constants_ibkr.py`, `constants_archive_news.py`, `constants_nova_os.py`) and frontend `constantGroups/` (or feature-local constants).
+- `backend/constants.py` and `frontend/src/constants.ts` are **compatibility barrels** — re-exports only; do not add new definitions there.
+- No magic numbers. No inline strings in `main.py` / `App.tsx`. Import from domain modules or barrels.
+- Keep backend/frontend mirrors in sync for shared values.
+- New constants go in the owning domain/feature module FIRST, then re-export from the barrel if needed.
+- Environment variable overrides are permitted, but the default MUST come from a domain constants module.
 
 ### 6.2 Naming
 - Python: `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_SNAKE` for constants.

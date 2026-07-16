@@ -180,8 +180,8 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 | 0 Baseline | `[x]` | `00f0d21` | Clean tree; metrics in `architecture/baseline-phase0.md` |
 | 0A Architecture contract | `[x]` | `9fac089` | ADRs + dependency-rules before product moves |
 | 1 Maintainer gates | `[x]` | `67d369a` | CSS + baseline growth + dep warnings |
-| 2 CSS split | `[~]` | _(this commit)_ | `index.css` import-only (18 lines) |
-| 3 Constants domains | `[ ]` | — | Compatibility barrels |
+| 2 CSS split | `[x]` | `e15f252` | `index.css` import-only (18 lines) |
+| 3 Constants domains | `[~]` | _(this commit)_ | Compatibility barrels |
 | 4 Frontend components | `[ ]` | — | Hotkeys / HOD settings / debug |
 | 5 Chart lifecycle | `[ ]` | — | `chart/` hooks |
 | 6 Low-coupling backend | `[ ]` | — | integrity / news / r2 / security_lib |

@@ -1,5 +1,5 @@
 ---
-description: Enforce centralized constants policy for B.L.A.S.T.
+description: Enforce centralized constants policy for Nova
 globs:
   - "backend/**/*.py"
   - "frontend/src/**/*.ts"
@@ -9,22 +9,36 @@ alwaysApply: true
 
 # Centralized Constants Policy
 
-All configuration values in this project — thresholds, filters, regex patterns, keyword lists, intervals, counts, and any other named constant — **must** be defined in one of the two authoritative constants files:
+Configuration values — thresholds, filters, regex patterns, keyword lists, intervals, counts, and other named tunables — must live in **authoritative domain modules**, with compatibility barrels for existing imports.
 
-- **Backend:** `backend/constants.py`
-- **Frontend:** `frontend/src/constants.ts`
+## Authoritative locations (Phase 3+)
+
+**Backend (prefer domain modules):**
+
+- `backend/constants_scanner.py` — scanner/market/ticker/chart historical
+- `backend/constants_hod_momo.py` — HOD Momo
+- `backend/constants_ibkr.py` — IBKR live, discovery, setups, risk, L2
+- `backend/constants_archive_news.py` — archive/R2 + news impact
+- `backend/constants_nova_os.py` — Nova OS, alerts, backtest
+- `backend/constants.py` — **compatibility barrel** (`from constants import X` still works)
+
+**Frontend (prefer domain groups / feature slices):**
+
+- `frontend/src/constantGroups/*.ts` — domain groups
+- Feature folders may own feature-only constants (hotkeys, hod_momo, …)
+- `frontend/src/constants.ts` — **compatibility barrel**
 
 ## Rules
 
-1. **No magic numbers or inline strings in `main.py` or `App.tsx`.** If a value has a name or meaning, it belongs in the constants file and must be imported.
+1. **No magic numbers or inline strings in `main.py` or `App.tsx`.** Named values belong in a domain constants module (or feature constants file) and must be imported.
 
-2. **Import, don't re-declare.** Never copy a value from constants and redefine it in another file. Always import it directly.
+2. **Import, don't re-declare.** Never copy a value from constants and redefine it elsewhere.
 
-3. **Both files stay in sync** for values shared between backend and frontend (e.g. `GAPPER_MIN_GAP_PCT`, market-cap tiers). The frontend `constants.ts` comment block must note when a value mirrors a backend constant.
+3. **Keep mirrors in sync** for values shared between backend and frontend (e.g. market-cap tiers, news flame hours). Prefer documenting the mirror in the domain module comment.
 
-4. **New constants go in the constants file first.** When adding a feature, define all its tunable values in `constants.py` / `constants.ts` before writing the logic that uses them.
+4. **New constants go in the owning domain/feature module first**, then re-export from the barrel if callers still use the barrel path. Do not grow the barrel with new definitions.
 
-5. **Environment variable overrides** are permitted in `main.py` for ops-level tuning (e.g. `_MIN_GAP_PCT = float(os.environ.get("BLAST_MIN_GAP_PCT", str(GAPPER_MIN_GAP_PCT)))`), but the **default value** must still come from `constants.py` — never a bare literal.
+5. **Environment variable overrides** may wrap domain defaults, but the **default** must come from a domain constants module — never a bare literal.
 
 ## What belongs in constants
 
@@ -43,5 +57,5 @@ All configuration values in this project — thresholds, filters, regex patterns
 ## What does NOT belong in constants
 
 - Runtime state (caches, timestamps, flags)
-- API URLs derived from environment variables
+- API URLs derived from environment variables (unless a documented UI default)
 - One-off computed values used only within a single function
