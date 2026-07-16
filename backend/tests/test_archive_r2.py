@@ -71,6 +71,27 @@ class TestR2Status:
         assert snap["problems"]
         assert snap["r2"]["configured"] is False
 
+    def test_l2_bridge_failed_days_trip_top_level_health(self, monkeypatch, tmp_path):
+        """L2 R2 failures must fail-loud at archive_health ok/problems (not report-only)."""
+        import archive.l2_bridge as l2_bridge
+
+        monkeypatch.setenv("ARCHIVE_R2_ENABLED", "true")
+        monkeypatch.setenv("R2_ACCOUNT_ID", "acct")
+        monkeypatch.setenv("R2_ACCESS_KEY_ID", "key")
+        monkeypatch.setenv("R2_SECRET_ACCESS_KEY", "secret")
+        monkeypatch.setattr(r2, "boto3_available", lambda: True)
+        monkeypatch.setattr(compact, "cache_dir", lambda: tmp_path)
+        cold = tmp_path / "archive_cold"
+        cold.mkdir(parents=True, exist_ok=True)
+        l2_bridge.save_l2_verified_index(
+            {"days": {"2026-07-10": {"ok": False, "error": "probe-fail"}}},
+            cold_dir=cold,
+        )
+        snap = health.archive_health(cold_dir=cold)
+        assert snap["ok"] is False
+        assert "2026-07-10" in snap["l2_bridge_failed_days"]
+        assert any("L2 bridge R2 upload failed" in p for p in snap["problems"])
+
 
 class TestR2UploadMock:
     def test_upload_bytes_success_without_network(self, monkeypatch):

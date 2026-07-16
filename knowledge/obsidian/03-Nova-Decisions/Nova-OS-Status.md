@@ -6,14 +6,16 @@ Nova OS is Nova's auditable trading decision and operations layer. It combines s
 
 ## Current position
 
-- Phase: P10 + hardening sections 1–6 (all closed)
+- Phase: P10 + hardening sections 1–6 (all closed); post-map follow-ups: R2 live + L2 health gate
 - State: verified — see per-phase exit-criteria table below (2026-07-15 re-verification), not a blanket claim
-- Last verified commit: c87a9c6
-- Last updated: 2026-07-15 ~18:30 ET
+- Last verified commit: (set at phase-close commit)
+- Last updated: 2026-07-15 ~23:15 ET
 
 ## Completed this phase
 
 - **P8** — R2 upload/health code (loud when unconfigured); trim still requires verified remote; `docs/r2-archive-setup.md`
+- **P8 infra (2026-07-15)** — local `.env` now has R2 keys; connectivity verified (`head_bucket` on `nova-archive`, probe upload + delete, `archive_health` r2 configured). `ARCHIVE_MAINTENANCE_ENABLED=true` so compact+upload can run. Token rotation deferred (test credentials for now).
+- **L2 health gate (2026-07-15)** — `l2_bridge_failed_days` now trips top-level `archive_health` `ok`/`problems` when R2 is enabled+configured (was report-only).
 - **P9** — no-hindsight replay/walk/review (`replay.py::slice_bars_as_of`/`replay_at`/`walk_day`) + CLI + real `ArchiveRewind.tsx` rewind slider + archive APIs (hardening section 5, commit `3aa6c3a`)
 - **P10** — Live-readiness review: **NO-GO for auto_live** (explicit; separate phase required)
 - **Hardening section 6 (phase-status correction, this entry)** — re-verified each of the five gaps a post-P10 audit found in P2–P7 against current code (not docstrings/comments), fixed one residual stale UI tooltip, and replaced the blanket "all verified on master" P0–P7 claim below with a per-phase exit-criteria table naming concrete evidence (file:line + test name) for every claim.
@@ -34,34 +36,35 @@ The 2026-07-15 post-P10 audit found P2–P7 were partial/prototype: **unsafe fla
 | P5 | Flatten-all requires an explicit typed confirmation, not a single click (unsafe flatten) | PASS | `backend/strategy/executor_flatten.py:99-110` (`confirm_token != NOVA_OS_FLATTEN_CONFIRM_TOKEN` → raises); `backend/constants.py` `NOVA_OS_FLATTEN_CONFIRM_TOKEN = "FLATTEN"`; UI `ExecutorPanel.tsx:175-179` (`window.prompt` must equal token); test `test_executor.py::test_flatten_rejects_wrong_confirm_token` |
 | P5 | Startup recovery reconciles paper positions and resolves to `signal` on ambiguity (not silently trusting stale state) | PASS | `backend/nova_os/recovery.py:122-234` — rebuilds `_open_positions` from `executed_paper` *only when IBKR confirms* open order ids; forces `signal` + system receipt on ambiguity (`force_signal("startup_recovery_ambiguous")`); wired at `app_lifespan.py:147-150`; tests `test_nova_os_auto_paper.py::TestRestartRecovery` |
 | P6/P7 | Cold-archive manifest + JSONL writes are crash-safe (temp file + `os.replace`) | PASS | `backend/archive/manifest.py:58-70`, `backend/archive/compact.py:47-69`; `upload_day`/`restore_day_to_temp` hard-fail on missing/tampered manifests (section 4, commit `46403e0`) |
-| P8 | R2 upload/health code fails loud (never silently skips) when unconfigured | PASS (code); infra pending | `docs/r2-archive-setup.md`; local `.env` has no R2 keys yet → health reports `configured=false` (expected, not a bug) |
+| P8 | R2 upload/health code fails loud (never silently skips) when unconfigured | PASS (code + infra) | `docs/r2-archive-setup.md`; local `.env` R2 keys set 2026-07-15; live probe: `head_bucket` + upload/delete + `configured=true` |
 | P9 | Replay/review never let `decide()` see bars past the moment being replayed (no-hindsight) | PASS (section 5, commit `3aa6c3a`) | `backend/archive/replay.py::slice_bars_as_of/replay_at/walk_day`; `evening_review()` scores forward from each decision's real `as_of_ts`; tests `test_archive_replay.py::TestNoHindsight` |
 | P10 | `auto_live` is rejected outright (no live-money path exists) | PASS | `backend/nova_os/control_mode.py` rejects `auto_live`; re-confirmed by full backend test suite (see ledger below) |
 
 ## In progress / uncommitted
 
-- Unrelated HOD/earnings WIP remains in git stash on feature branch
-- Nova OS hardening plan sections 1–6 are now **all closed**. No open hardening-plan items remain; any further live-readiness work requires a new, separately-approved phase (see "User action needed" below). Known follow-ups carried forward (infra/scope, not code bugs): R2 Bucket Lock (object immutability) still not configured (infra/console change); `l2_bridge`'s verified status is reported in `archive_health()` but not yet folded into its top-level ok/problems gate; `walk_day` has no real compacted archive day to exercise end-to-end in this environment yet (mechanics proven by fixture-seeded tests instead).
+- Unrelated HOD/earnings / modular-workspace WIP may remain on the working tree — not Nova OS plan debt
+- Nova OS hardening plan sections 1–6 are **all closed**. Known remaining follow-ups (ops/infra, not code bugs): R2 Bucket Lock (console); rotate test R2 token later; `walk_day` on a real compacted production day when one exists; paper shadow + evening review. Mission canvas file `canvases/nova-os-mission.canvas.tsx` is referenced by continuity rules but is not present in the repo (skipped refresh).
 
 ## Crash or blocker
 
-- P8 upload inactive until user adds R2 keys to `.env` (code ready; health shows `configured=false`)
+- None for R2 config (keys live; maintenance enabled). No compacted production day yet → first real `walk_day` still pending market capture.
 
 ## Verification ledger
 
 - 2026-07-15 full re-verification: `py -3 -m pytest` — **561/561 backend tests passed**
-- `npm run build` — PASS (tsc + vite build clean)
-- `npx vitest run` — **73/73 frontend tests passed** (16 files)
+- 2026-07-15 L2 health gate: `py -3 -m pytest tests/test_archive_r2.py::TestR2Status` — **3/3 passed**
+- `npm run build` — PASS (tsc + vite build clean) at prior ledger
+- `npx vitest run` — **73/73 frontend tests passed** (16 files) at prior ledger
 - `auto_live` remains rejected in `control_mode` (confirmed by code read + test suite, not just prior claim)
 
 ## User action needed
 
-- Optional: create Cloudflare R2 bucket + put keys in local `.env` (see `docs/r2-archive-setup.md`)
+- Optional later: rotate R2 test token; enable Bucket Lock on `nova-archive`
 - **Do not enable auto_live** without a new approved implementation phase after paper metrics clear
 
 ## Phase-close / Next chat starts here
 
-**Nova OS P0–P10 plan map is complete, and the post-P10 hardening plan (sections 1–6) is complete.** Next work is *outside* both plans:
+**Nova OS P0–P10 + hardening + R2 live config are done.** Next work is ops / a separate live phase:
 1. Paper shadow days + evening review annealing
-2. User R2 setup when ready
+2. After first finished market day with maintenance on: exercise `walk_day` + replay CLI on real cold archive
 3. Separate explicit phase if/when live readiness flips to GO

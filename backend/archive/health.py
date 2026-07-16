@@ -157,6 +157,10 @@ def archive_health(*, cold_dir: Path | None = None) -> dict[str, Any]:
         problems.append(r2["message"])
     if enabled and r2["configured"] and failed_days:
         problems.append(f"R2 upload failed for days: {', '.join(sorted(failed_days))}")
+    if enabled and r2["configured"] and l2_failed_days:
+        problems.append(
+            f"L2 bridge R2 upload failed for days: {', '.join(sorted(l2_failed_days))}"
+        )
     if enabled and r2["configured"] and local_days and not verified_days:
         problems.append("R2 configured but no day has been verified remote yet")
 

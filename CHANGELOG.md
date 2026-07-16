@@ -48,6 +48,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Archive health fails loud on L2 R2 upload failures
+
+- **What:** `archive_health()` now adds L2-bridge R2 failed days to top-level `problems` / `ok=false` when R2 is enabled and configured (was report-only via `l2_bridge_failed_days`). Status note updated: R2 keys live locally, maintenance enabled, connectivity verified.
+- **Why:** Carry-forward after R2 setup — a failed L2 cold upload must not leave archive health green.
+- **Files touched:** `backend/archive/health.py`, `backend/tests/test_archive_r2.py`, `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md`, `CHANGELOG.md`.
+- **How it works now:** Same loud pattern as primary R2 day failures. Local `.env` (not committed) has `ARCHIVE_R2_ENABLED` + `ARCHIVE_MAINTENANCE_ENABLED` so compact+upload can run after market days.
+- **Verified by:** `pytest tests/test_archive_r2.py::TestR2Status` (3 passed); live R2 probe earlier same day (`head_bucket` + upload/delete).
+- **Follow-ups:** Bucket Lock + token rotation later; `walk_day` on first real compacted day; paper shadow ops.
+
 ## 2026-07-15 — Drag-and-drop panel rearrange via dnd-kit (Phase 6)
 
 - **What:** Added `@dnd-kit/core` + `@dnd-kit/sortable` drag handles on Modules menu panel-order rows; drop reorders within a slot and persists through the Phase 5 `layoutStore`. ↑↓ buttons remain as keyboard/a11y fallback.
