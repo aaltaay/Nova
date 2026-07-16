@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 13: architecture program close
+
+- **What:** Closed Pattern-Driven Architecture Phases 0–13. Recorded final metrics, refreshed maintainer memory, trimmed `sync_agent_surfaces.py` under 400 lines.
+- **Why:** Program definition of done — verify gates, publish ledger, stop.
+- **Files touched:** `architecture/program-close-metrics.md`, maintainer memory, roadmap status, CHANGELOG, `tools/sync_agent_surfaces.py`.
+- **How it works now:** `index.css` import-only; `main.py`/`App.tsx` within hard limits; HOD/scanner/ticker/depth modularized; constants are barrels; swallowed exceptions cleared; executor deferral documented. Compatibility facades remain with owners.
+- **Verified by:** maintainer (0 swallows) · pytest **669** · Vitest **178** · `npm run build` · Playwright **14**.
+- **Related:** `architecture/program-close-metrics.md` before/after table + phase SHAs.
+
 ## 2026-07-16 — Maintenance Phase 12: defer executor split
 
 - **What:** Documented deferral of `executor.py` structural split; kept the accepted 494-line safety baseline. No code movement of the placement gate chain.
