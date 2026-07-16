@@ -48,7 +48,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
-## 2026-07-15 — Phase 2: WorkspaceContext ends selection/discovery prop drilling
+## 2026-07-15 — Nova-specialized `tester` subagent
+
+- **What:** Added a project-level testing subagent at `.cursor/agents/tester.md` (a generic personal fallback also exists at `~/.cursor/agents/tester.md`; the project one wins in Nova).
+- **Why:** User asked for a specialized testing sub-agent so test runs, regression gates, and failure diagnosis can be delegated with Nova-specific knowledge baked in.
+- **Files touched:** `.cursor/agents/tester.md`, `CHANGELOG.md`.
+- **How it works now:** Delegating a test/verify task to `subagent_type: tester` gets an agent that knows the verified commands (pytest from **repo root** via `py -3 -m pytest backend/tests -q`; scoped Vitest via `npm run test -- <file>` in `frontend/`), a changed-files→test-file routing table, known traps from PROBLEM_LOG (pytest exit 5, UTF-16 BOM null bytes, Vitest/Playwright exclusions, IB Gateway login vs "no gaps"), a one-retry flakiness policy, server-reuse rules for browser checks, and a hard ban on arming the executor or placing orders during verification. It returns a fixed Test report (Scope / Commands / PASS-FAIL-BLOCKED / evidence / root cause).
+- **Verified by:** Ran both prescribed commands directly (561 backend tests collected; scoped Vitest file 3/3 pass), then launched the tester subagent on `stockViewNav.test.ts` — it followed the format and reported 4/4 PASS.
+
 
 - **What:** Added `WorkspaceProvider` / `useWorkspace()` for `selectedSymbol`, `discoveryProvider`, `alpacaFeed`, `ibkrConnected`, and `openStockView`. Mounted in `App.tsx`. `StockViewPage` no longer fetches `/api/config`; SidePanel / TickerDetailContent / Dashboard read workspace instead of drilled props.
 - **Why:** Modular Panel Workspace Phase 2 — shared selection/discovery before Phase 3 panel decomposition.
