@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — HOD Momo row double-click opens Stock View
+
+- **What:** HOD Momo alert rows now use the same `SelectableTableRow` click/double-click path as scanners and watchlist: click selects the Quote Panel, double-click opens Stock View in a new window.
+- **Why:** Double-clicking a HOD row (outside the symbol button) previously did nothing; only the symbol button opened Stock View.
+- **Files touched:** `frontend/src/hod_momo/HodMomoAlertRow.tsx`, `frontend/src/components/SelectableTableRow.tsx`.
+- **How it works now:** Each HOD alert row is a `SelectableTableRow` wired to `onSelect` / `onOpenTrading`. The symbol button still stops propagation and keeps its own click vs double-click handlers.
+- **Verified by:** Live browser on populated HOD Momo — two rapid clicks on a non-symbol cell opened `?view=stock&symbol=…` via `window.open`; single click selected the Quote Panel. `npm run build`; Vitest green.
+
 ## 2026-07-15 — Enforce 40-row HOD Momo rendering against populated data
 
 - **What:** Replaced the ineffective HOD Momo virtualizer with deterministic incremental mounting: 40 rows initially and 40 more only when the table's own fixed-height scroller reaches bottom.

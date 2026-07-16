@@ -1,5 +1,5 @@
 /** Table body row: click anywhere → Quote Panel; double-click → Stock View. */
-import { useEffect, useRef, type ReactNode, type KeyboardEvent } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactNode, type KeyboardEvent } from 'react';
 import { SYMBOL_DOUBLE_CLICK_MS } from '../constants';
 import { createClickVsDoubleClick } from '../utils/clickVsDoubleClick';
 
@@ -10,6 +10,7 @@ interface Props {
   onOpenTrading: (symbol: string) => void;
   children: ReactNode;
   className?: string;
+  style?: CSSProperties;
 }
 
 export function SelectableTableRow({
@@ -19,6 +20,7 @@ export function SelectableTableRow({
   onOpenTrading,
   children,
   className = '',
+  style,
 }: Props) {
   const symbolRef = useRef(symbol);
   const onSelectRef = useRef(onSelect);
@@ -49,6 +51,7 @@ export function SelectableTableRow({
   return (
     <tr
       className={`selectable-row${selected ? ' row-selected' : ''}${className ? ` ${className}` : ''}`}
+      style={style}
       onClick={() => handlersRef.current.handleClick()}
       onKeyDown={onKeyDown}
       tabIndex={0}

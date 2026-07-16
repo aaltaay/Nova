@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import {
   HOD_MOMO_COLUMNS,
@@ -86,7 +87,14 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
     : undefined;
 
   return (
-    <tr className={selected ? 'row-selected' : ''} style={{ height: HOD_MOMO_ROW_HEIGHT_PX }}>
+    <SelectableTableRow
+      symbol={alert.ticker}
+      selected={selected}
+      onSelect={onSelect}
+      onOpenTrading={onOpenTrading}
+      className="hod-alert-row"
+      style={{ height: HOD_MOMO_ROW_HEIGHT_PX }}
+    >
       {HOD_MOMO_COLUMNS.map(([key]) => {
         switch (key) {
           case 'time':
@@ -184,6 +192,6 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
             return <td key={key}><span className="na-muted">—</span></td>;
         }
       })}
-    </tr>
+    </SelectableTableRow>
   );
 });
