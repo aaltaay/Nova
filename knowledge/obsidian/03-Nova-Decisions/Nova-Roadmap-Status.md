@@ -18,7 +18,8 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Feature track:** Phases **A, D, E, F, G, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**)
 - **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
-- **Tip SHA:** `89712d5` (Roadmap-Status tip stamps after finish pass)
+- **Tip SHA:** `5f7b4d2` (continuity sync after feature dump)
+- **Prior tip stamps:** `89712d5` / `7749181`
 - **Phase A skills commit:** `9f4ca3f`
 - **Last updated:** 2026-07-16 (continuity sync after feature dump — plan/canvas/status aligned; no new product features)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
@@ -167,7 +168,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-16 | Continuity sync after feature dump: status/plan/canvas aligned; A/D–G/J SHAs; B/C/I honest blockers; verify counts last-known 592/149/14 @ 2026-07-15; graphify AST update + wiki export | (pending push tip) |
+| 2026-07-16 | Continuity sync after feature dump: status/plan/canvas aligned; A/D–G/J SHAs; B/C/I honest blockers; verify counts last-known 592/149/14 @ 2026-07-15; graphify AST update + wiki export | `5f7b4d2` |
 | 2026-07-15 | Tip SHA stamps after finish pass | `89712d5` / `7749181` |
 | 2026-07-15 | Finish pass: Phase A skills `9f4ca3f`; D alerts; E backtest; F reports v2; G hotkeys; B shadow-day template; C Bucket Lock/rotation docs; I evidence framework; J Productization-Decision; K–Z deferred parking; verify 592/149/14 | `722d614` |
 | 2026-07-15 | Phase A skills library vendored + indexes | `9f4ca3f` |
