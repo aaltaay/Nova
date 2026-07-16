@@ -50,6 +50,9 @@ downloads/
 docs/warrior-trading/
 
 # Graphify extraction cache / scratch (keep graph.json, report, wiki, html in VCS)
+# Never write a second graph under the vault (CLI mis-target); canonical is repo-root graphify-out/
+knowledge/obsidian/graphify-out/
+
 graphify-out/cache/
 graphify-out/.graphify_chunk_*.json
 graphify-out/.graphify_ast.json

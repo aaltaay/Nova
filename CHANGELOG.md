@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Master Roadmap governance + Phase B enablement docs
+
+- **What:** Opened the product roadmap ledger and continuity contract: `Nova-Roadmap-Status.md` (phase checkboxes B/C/A/D–J + K–Z deferred, COMPLETE history, verification baseline 562/131/14, `auto_live` NO-GO, Phase B NEXT), `.cursor/rules/nova-roadmap-continuity.mdc`, and `docs/paper-shadow-protocol.md`. Brief pointers in `AGENTS.md` / `gemini.md`; Nova-OS-Status Next points at Roadmap-Status. Plan governance todo + master canvas Gov/Phase B callout synced.
+- **Why:** Master Roadmap A–Z needs the same continuity pattern as Nova OS before human paper-shadow ops and later feature phases.
+- **Files touched:** `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`, `Nova-OS-Status.md`, `.cursor/rules/nova-roadmap-continuity.mdc`, `docs/paper-shadow-protocol.md`, `AGENTS.md`, `gemini.md`, `CHANGELOG.md`, `.gitignore` (ignore nested vault `graphify-out/`); plan/canvas under Cursor plans/canvases (outside repo).
+- **How it works now:** Agents read `Nova-Roadmap-Status.md` first for product phase; humans run Phase B via `docs/paper-shadow-protocol.md` (`signal` → `confirm` → `auto_paper`, evening review routes, hard ban on `auto_live`). Feature phases D–G stay blocked until B exits.
+- **Verified by:** File existence + continuity frontmatter sanity; docs-only (no code path change). Accidental CLI write to `knowledge/obsidian/graphify-out/` discarded — root `graphify-out/` left intact.
+- **Follow-ups:** Human paper shadow days (≥5) per protocol; Phase C remainder after first compacted day; Cursor `/graphify knowledge/obsidian --update --wiki` semantic pass to index `Nova-Roadmap-Status.md` into root `graphify-out/`.
+- **Related:** Plan `nova_master_roadmap_a_z`; baseline tip `fb330cf`.
+
 ## 2026-07-15 — Continuity refresh: Nova-OS-Status + tester ledger
 
 - **What:** Reconciled `Nova-OS-Status.md` and tester agent facts to current master after Modular Panel Workspace Phases 0–6 and post-pause product work. Updated verification ledger to 562 pytest / 131 Vitest (28 files) / 14 Playwright / build PASS. Removed stale “uncommitted HOD/modular WIP” language; recorded modular workspace as done (separate from Nova OS plan map). `auto_live` remains NO-GO.

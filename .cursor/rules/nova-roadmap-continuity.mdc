@@ -1,0 +1,47 @@
+---
+description: Nova Master Roadmap cross-chat continuity — read status, update on crash, phase-close handoff
+alwaysApply: true
+---
+
+# Nova Master Roadmap continuity protocol
+
+Every chat that touches a **Master Roadmap** phase (A–Z product roadmap, paper shadow ops, archive remainder, skills, alerts, backtest, reports, hotkeys, live-readiness, productization) must follow this contract.
+
+Nova OS engine internals (decide/control_mode/archive code bugs) still use `.cursor/rules/nova-os-continuity.mdc` + `Nova-OS-Status.md`. For **which product phase is NEXT**, prefer `Nova-Roadmap-Status.md`.
+
+## Start of chat (before editing)
+
+1. Read `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` — canonical phase, blockers, verification ledger, next step.
+2. Read the Master Roadmap plan: `C:\Users\aalta\.cursor\plans\nova_master_roadmap_a_z.plan.md` (or the linked plan in the Cursor plans folder).
+3. Skim recent `CHANGELOG.md` and search `PROBLEM_LOG.md` for matching symptoms if debugging.
+4. Run `git status` and state the current roadmap phase before making changes.
+5. Optionally open the status canvas: `canvases/nova-master-roadmap.canvas.tsx` (absolute under the Cursor projects canvases folder).
+6. For Phase B ops, also read `docs/paper-shadow-protocol.md`.
+
+## During a phase
+
+- Update `Nova-Roadmap-Status.md` immediately when a crash/blocker materially changes the next action.
+- Never leave "where it crashed" only in chat — record symptom, root cause, evidence, and safe next action in the status note.
+- Do not mark a phase `[x]` / verified until tests/build (and browser when UI changes) pass for that phase's scope — or, for ops-only Phase B, until exit criteria (≥5 shadow days + reviews) are met and logged.
+- **`auto_live` is NO-GO** unless a separate user-approved unlock phase exists. Do not place live orders or weaken the live gate.
+
+## End of phase (phase-close handoff)
+
+1. Run phase verification (pytest, Vitest / `npm run build`, Playwright/browser when UI changes). Ops phases: record review artifacts and day count in the status note.
+2. Update `Nova-Roadmap-Status.md`: phase checkboxes, state, verification ledger, exact next phase task; **append** a History row (do not rewrite prior History).
+3. Refresh `nova-master-roadmap.canvas.tsx` if phase status changed.
+4. Prepend `CHANGELOG.md` (and `PROBLEM_LOG.md` if a bug was fixed).
+5. **Hard rule — commit and push every phase:** `git add` (intentional phase files only) → `git commit` → `git push`. Phase completion is **incomplete** until push succeeds. Record the resulting commit SHA in `Nova-Roadmap-Status.md` (`Last verified commit`). Never leave a verified phase uncommitted. If git auth/network fails, record the blocker in Crash/blocker and do not claim verified.
+6. Stop — next chat begins the next phase from the status note. A new chat must not start the next phase until this phase's commit+push is done.
+
+## Interrupted phase
+
+- Do **not** mark verified.
+- Record uncommitted files, failing command, root-cause evidence, and safest restart point in `Nova-Roadmap-Status.md`.
+
+## Scope guard
+
+- Implement only the **active** roadmap phase from `Nova-Roadmap-Status.md` / the Master Roadmap plan.
+- Do not ship Phase D–G features while Phase B is NEXT unless the user explicitly redirects.
+- Do not reopen shipped work (Nova OS P0–P10, Phase H workspace 0–6, HOD/Stock View harden) without a proven regression.
+- Do not promote Phases K–Z without updating the Master Roadmap plan and getting user direction.

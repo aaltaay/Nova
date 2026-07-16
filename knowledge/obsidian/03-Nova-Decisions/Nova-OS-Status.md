@@ -68,8 +68,12 @@ The 2026-07-15 post-P10 audit found P2–P7 were partial/prototype: **unsafe fla
 
 ## Phase-close / Next chat starts here
 
-**Nova OS P0–P10 + hardening + R2 live config are done. Modular Panel Workspace Phases 0–6 are done (do not reopen).** Next work is ops / a separate live phase — not more workspace scaffolding:
+**Nova OS P0–P10 + hardening + R2 live config are done. Modular Panel Workspace Phases 0–6 are done (do not reopen).**
 
-1. Paper shadow days (`signal` → `confirm` → `auto_paper`) + evening review annealing
-2. After first finished market day with maintenance on: exercise `walk_day` + replay CLI on real cold archive
+**Product roadmap “what’s next”** lives in [[Nova-Roadmap-Status]] (`knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`) + `docs/paper-shadow-protocol.md`. Continuity: `.cursor/rules/nova-roadmap-continuity.mdc`.
+
+Ops next (do not reopen engine/workspace scaffolding):
+
+1. **Phase B** — Paper shadow days (`signal` → `confirm` → `auto_paper`) + evening review annealing
+2. **Phase C remainder** — After first finished market day with maintenance on: `walk_day` + restore on real cold archive; Bucket Lock / token rotation
 3. Separate explicit phase if/when live readiness flips to GO — **no `auto_live` without that phase**

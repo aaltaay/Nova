@@ -15,6 +15,14 @@ This document is the **single source of truth** for how this project is built, m
 
 **If a rule here conflicts with an agent's default behavior, this document wins.**
 
+### Master Roadmap (product phases)
+
+- **Canonical ledger:** `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` — which phase is NEXT, checkboxes, History.
+- **Continuity rule:** `.cursor/rules/nova-roadmap-continuity.mdc` — read status first; phase-close verify + CHANGELOG + commit + push; scope guard.
+- **Phase B ops:** `docs/paper-shadow-protocol.md` — paper shadow (`signal` → `confirm` → `auto_paper`); **`auto_live` NO-GO**.
+- **Plan / canvas:** `nova_master_roadmap_a_z.plan.md` · `nova-master-roadmap.canvas.tsx`
+- **Nova OS engine map (closed):** `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md` — still authoritative for P0–P10 internals; product “what’s next” is Roadmap-Status.
+
 ---
 
 ## 1. ⚖️ Architectural Invariants (Unbreakable Law)
