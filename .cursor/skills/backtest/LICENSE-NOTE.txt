@@ -1,0 +1,1 @@
+Upstream marketcalls/vectorbt-backtesting-skills declares MIT in README.md (no LICENSE file in repo). Pinned SHA 05d9e8b12fa408f1373c6b79620f8a5473fb874c.

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-15 — Phase A: vendored agent skills + discoverability indexes
+
+- **What:** Vendored high-fit Cursor skills into `.cursor/skills/` (real files, no symlinks): VectorBT `backtest` / `optimize` / `strategy-compare` / `vectorbt-expert`, `backtesting-frameworks`, `llm-trading-agent-security`. Added Obsidian `Skills-Library.md` + `Reference-Repos.md`, AGENTS.md pointer section, and SOURCE-PINS with commit SHAs.
+- **Why:** Nova Master Roadmap Phase A — embed research/backtest/security skills and make them discoverable before Phase E backtest product work.
+- **Files touched:** `.cursor/skills/{backtest,optimize,strategy-compare,vectorbt-expert,backtesting-frameworks,llm-trading-agent-security,SOURCE-PINS.txt}`, `knowledge/obsidian/00-System/Skills-Library.md`, `knowledge/obsidian/00-System/Reference-Repos.md`, `AGENTS.md`, `CHANGELOG.md`, plan/canvas Phase A status.
+- **How it works now:** Agents read `Skills-Library.md` for purpose/triggers/safety; pins live in `SOURCE-PINS.txt`. Skills advise offline research/backtest only — they must not bypass IBKR-only execution, single-market-data-feed, or `auto_live` NO-GO. Reference repos (nautilus, vectorbt, TradeNote, deltalytix, awesome-cursor-skills, vercel-labs/skills) are study catalog only.
+- **Verified by:** Each `SKILL.md` frontmatter present; referenced `rules/` / `references/details.md` files exist; zero reparse/symlink points under new skill dirs; licenses reviewed (MIT vendored; deltalytix CC BY-NC and vectorbt Commons Clause cataloged as study-only).
+- **Follow-ups:** Phase E product backtest adapter; do not run upstream `setup` / crypto skill dumps.
+- **Related:** Master roadmap Phase A; pins `05d9e8b` / `b6af371` / `ed38744`.
+
 ## 2026-07-15 — Master Roadmap governance + Phase B enablement docs
 
 - **What:** Opened the product roadmap ledger and continuity contract: `Nova-Roadmap-Status.md` (phase checkboxes B/C/A/D–J + K–Z deferred, COMPLETE history, verification baseline 562/131/14, `auto_live` NO-GO, Phase B NEXT), `.cursor/rules/nova-roadmap-continuity.mdc`, and `docs/paper-shadow-protocol.md`. Brief pointers in `AGENTS.md` / `gemini.md`; Nova-OS-Status Next points at Roadmap-Status. Plan governance todo + master canvas Gov/Phase B callout synced.

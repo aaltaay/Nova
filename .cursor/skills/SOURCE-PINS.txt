@@ -1,0 +1,20 @@
+# Vendored skill source pins (Nova Master Roadmap Phase A)
+# Installed: 2026-07-15 — real file copies into .cursor/skills/ (no symlinks)
+
+marketcalls/vectorbt-backtesting-skills
+  sha: 05d9e8b12fa408f1373c6b79620f8a5473fb874c
+  license: MIT (README)
+  skills: backtest, optimize, strategy-compare, vectorbt-expert
+  skipped: setup, quick-stats (env bootstrap / not required for Nova Phase A)
+
+wshobson/agents
+  sha: b6af3711058190e4b5c5274b9758498fe626ec5a
+  license: MIT
+  skill: backtesting-frameworks
+  path_in_source: plugins/quantitative-trading/skills/backtesting-frameworks
+
+affaan-m/everything-claude-code
+  sha: ed387446052dfbc6b52de149406b70efa65edc59
+  license: MIT
+  skill: llm-trading-agent-security
+  path_in_source: skills/llm-trading-agent-security

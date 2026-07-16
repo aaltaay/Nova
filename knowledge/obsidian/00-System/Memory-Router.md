@@ -13,7 +13,8 @@ This note is the human-readable twin of `tools/course_memory/recall.py`.
 | “Summarize Chapter 5 psychology” | Pinecone | — |
 | “How does this map to IBKR / scanner?” | Obsidian + Pinecone | Graphify for cross-decision links |
 
-Graphify setup and commands: [[Graphify-Knowledge-Graph]].
+Graphify setup and commands: [[Graphify-Knowledge-Graph]].  
+Vendored agent skills + study repos: [[Skills-Library]], [[Reference-Repos]].
 
 ## Trust order for automation advice
 

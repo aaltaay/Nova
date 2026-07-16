@@ -310,7 +310,22 @@ When ANY error occurs during a task:
 | 2026-04-27 | Complete constitution rewrite — added modularity laws, file limits, compliance audit, self-annealing protocol, coding standards | Antigravity + User Directive |
 | 2026-04-27 | Added mandatory git commit & push rule | User Directive |
 | 2026-04-13 | Project Constitution initialized | System Pilot |
+| 2026-07-15 | Phase A skills library: vendored vectorbt/backtesting/security skills into `.cursor/skills/` + Obsidian [[Skills-Library]] / [[Reference-Repos]] indexes. | Cursor Agent |
 
+
+---
+
+## Agent Skills Library (Nova Master Roadmap Phase A)
+
+Discoverability for vendored Cursor skills (research/backtest advice only — **never** bypass IBKR execution, single-market-data-feed, or `auto_live` NO-GO):
+
+| Resource | Path |
+|----------|------|
+| **Skills catalog** | `knowledge/obsidian/00-System/Skills-Library.md` |
+| **Study-only repos** | `knowledge/obsidian/00-System/Reference-Repos.md` |
+| **Local skill files** | `.cursor/skills/` (pins in `SOURCE-PINS.txt`) |
+
+Pre-existing: `karpathy-guidelines`, `graphify`. Phase A adds: `backtest`, `optimize`, `strategy-compare`, `vectorbt-expert`, `backtesting-frameworks`, `llm-trading-agent-security`.
 
 ---
 
