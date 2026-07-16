@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { novaStartApiPlugin } from './scripts/vite-nova-start-api'
 
 /** Railway / CI inject these at build time; same values as postbuild → dist/config.json */
 function buildTimeApiBase(): string {
@@ -20,6 +21,7 @@ export default defineConfig({
   base: isElectronBuild ? './' : '/',
   plugins: [
     react(),
+    novaStartApiPlugin(),
     {
       name: 'inject-nova-api-base-meta',
       transformIndexHtml(html) {

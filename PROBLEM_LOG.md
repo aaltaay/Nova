@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Wedged API on port 8000 shows Backend unreachable
+
+- **Symptom:** UI header: Disconnected — Backend unreachable; HOD banner: Integrity unreachable Failed to fetch; health HTTP timed out even though `netstat` showed `LISTENING` on `127.0.0.1:8000`.
+- **Cause:** Orphan/wedged `python3.13` (PID listening since overnight) accepted TCP but did not serve `/api/health`. New `run_api.py` failed with WinError 10013 (port busy / access denied), so a second API never bound.
+- **Fix:** `Stop-NovaPorts.ps1` for 8000 then restart API. Added header **Start API** button (Vite/Electron). Added outage flags: `API_WEDGED` (health timeout) vs `API_DOWN` (nothing listening); console `[Nova][API_FLAG]`.
+- **Keywords:** Backend unreachable, Integrity unreachable, WinError 10013, port 8000, wedged uvicorn, Start API, API_WEDGED, API_DOWN, API_FLAG
+
 ## 2026-07-16 — Memory Markdown in `.cursor/agents/` discovered as callable agents
 
 - **Symptom:** `*-memory.md` files under `.cursor/agents/` appeared alongside real agent prompts as if they were invocable Cursor agents, and status facts were duplicated across prompts, memories, and canvases.

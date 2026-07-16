@@ -180,6 +180,26 @@ export function stopApiSidecar() {
   }
 }
 
+/** Stop our sidecar (if any), free port 8000, start fresh, wait for /api/health. */
+export async function restartApiSidecar() {
+  stopApiSidecar();
+  apiChild = null;
+  // Also kill a wedged external API (e.g. Run Nova.bat) that we did not spawn.
+  if (process.platform === 'win32') {
+    const stopScript = path.join(repoRootFromElectron(), 'scripts', 'Stop-NovaPorts.ps1');
+    if (fs.existsSync(stopScript)) {
+      spawnSync(
+        'powershell',
+        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', stopScript, '-Ports', String(API_PORT)],
+        { stdio: 'ignore', windowsHide: true },
+      );
+    }
+  }
+  await new Promise((r) => setTimeout(r, 500));
+  await startApiSidecar();
+  await waitForHealth();
+}
+
 export async function openEnvFileIfNeeded() {
   const { envPath } = ensureUserEnv();
   const raw = fs.readFileSync(envPath, 'utf8');

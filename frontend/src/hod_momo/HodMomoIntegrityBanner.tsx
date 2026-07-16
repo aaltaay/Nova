@@ -78,7 +78,12 @@ export function HodMomoIntegrityBanner() {
         {status === 'error' ? 'Integrity unreachable' : `Integrity ${status}`}
       </strong>
       {error ? (
-        <div>{error}</div>
+        <div>
+          {error}
+          <div className="hod-integrity-hint">
+            Check the header flag (API_DOWN / API_WEDGED) and click Start API if shown.
+          </div>
+        </div>
       ) : (
         <>
           {failed.length > 0 && (

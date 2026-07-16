@@ -25,7 +25,11 @@ export function EmptyState({
   if (health.status === 'disconnected' || health.status === 'error') {
     return (
       <div className="empty-state">
+        {health.flag ? `${health.flag}: ` : ''}
         {health.message || 'Check API keys in Settings.'}
+        {health.flag_hint ? (
+          <div className="empty-state-hint">{health.flag_hint}</div>
+        ) : null}
       </div>
     );
   }

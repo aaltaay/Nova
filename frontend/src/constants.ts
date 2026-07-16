@@ -411,6 +411,31 @@ export const CHART_MACD_SIGNAL = 9;
 export const NOVA_DESKTOP_API_HOST = '127.0.0.1';
 export const NOVA_DESKTOP_API_PORT = 8000;
 export const NOVA_DESKTOP_API_BASE = `http://${NOVA_DESKTOP_API_HOST}:${NOVA_DESKTOP_API_PORT}`;
+/** Vite-dev-only path that kills port 8000 and starts `scripts/Start-NovaApi.ps1`. */
+export const NOVA_START_API_DEV_PATH = '/__nova/start-api';
+/** How long the header "Start API" button waits for /api/health after a restart. */
+export const NOVA_START_API_HEALTH_TIMEOUT_MS = 45_000;
+/** Short probe used to classify Backend unreachable (API_DOWN vs API_WEDGED). */
+export const BACKEND_PROBE_TIMEOUT_MS = 2_500;
+/** Scanner poll fetch timeout — fail into diagnose instead of hanging for minutes. */
+export const SCANNER_FETCH_TIMEOUT_MS = 8_000;
+
+/** Stable outage flags shown in the header + `[Nova][API_FLAG]` console lines. */
+export const BACKEND_DIAG_FLAG_DOWN = 'API_DOWN';
+export const BACKEND_DIAG_FLAG_WEDGED = 'API_WEDGED';
+export const BACKEND_DIAG_FLAG_HTTP = 'API_HTTP';
+export const BACKEND_DIAG_FLAG_UNREACHABLE = 'API_UNREACHABLE';
+
+export const BACKEND_DIAG_HINTS: Record<string, string> = {
+  [BACKEND_DIAG_FLAG_DOWN]:
+    'Nothing answered on the API port — click Start API or run Run Nova.bat.',
+  [BACKEND_DIAG_FLAG_WEDGED]:
+    'Port is held by a hung process (health timed out) — click Start API to kill+restart.',
+  [BACKEND_DIAG_FLAG_HTTP]:
+    'API process responded but /api/health was not OK — check backend\\logs\\api-console.log.',
+  [BACKEND_DIAG_FLAG_UNREACHABLE]:
+    'Backend unreachable — click Start API, or double-click Run Nova.bat.',
+};
 
 declare global {
   interface Window {
@@ -421,6 +446,8 @@ declare global {
       getVersion: () => Promise<string>;
       /** Electron IPC: open Stock View in a child BrowserWindow. */
       openStockView?: (url: string) => Promise<boolean>;
+      /** Electron IPC: stop + start the local FastAPI sidecar, then wait for health. */
+      restartApi?: () => Promise<{ ok: boolean; error?: string }>;
     };
   }
 }

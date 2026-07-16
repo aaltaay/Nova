@@ -8,6 +8,7 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import {
   API_BASE,
   openEnvFileIfNeeded,
+  restartApiSidecar,
   startApiSidecar,
   stopApiSidecar,
   waitForHealth,
@@ -66,6 +67,17 @@ function createWindow() {
 
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('nova:apiBase', () => API_BASE);
+
+ipcMain.handle('nova:restartApi', async () => {
+  try {
+    await restartApiSidecar();
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[nova] restartApi failed', message);
+    return { ok: false, error: message };
+  }
+});
 
 ipcMain.handle('nova:openStockView', (_event, url) => {
   if (typeof url !== 'string' || !url.startsWith('http')) {

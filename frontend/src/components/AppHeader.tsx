@@ -3,6 +3,7 @@
  * Extracted from App.tsx so the header stays modular and the tab bar stays tabs-only.
  */
 import type { ChangeEvent } from 'react';
+import { BackendStartButton } from './BackendStartButton';
 import { SymbolSearchBox } from './SymbolSearchBox';
 import {
   DATA_FEED_LABELS,
@@ -80,6 +81,8 @@ interface Props {
   showScannerSource?: boolean;
   /** Which provider sources gappers/gainers/losers ('alpaca' or 'ibkr'). */
   discoveryProvider?: string;
+  /** After Start API succeeds — refresh scanner/health. */
+  onBackendStarted?: () => void;
 }
 
 export function AppHeader({
@@ -98,6 +101,7 @@ export function AppHeader({
   compact = false,
   showScannerSource = true,
   discoveryProvider = DISCOVERY_PROVIDER_DEFAULT,
+  onBackendStarted,
 }: Props) {
   return (
     <header className={compact ? 'app-header app-header--compact' : 'app-header'}>
@@ -159,10 +163,27 @@ export function AppHeader({
               </span>
             </>
           )}
+          {health.flag && health.status !== 'connected' && (
+            <span
+              className={`backend-flag backend-flag--${health.flag.toLowerCase()}`}
+              title={health.flag_hint || health.message || health.flag}
+              data-testid="backend-flag"
+              data-flag={health.flag}
+            >
+              {health.flag}
+            </span>
+          )}
           {health.message && health.status !== 'connected' && (
-            <span className="status-hint" title={health.message}>
+            <span className="status-hint" title={health.flag_hint || health.message}>
               {' '}— {health.message.length > 80 ? `${health.message.slice(0, 80)}…` : health.message}
             </span>
+          )}
+          {!compact && (health.status === 'disconnected' || health.status === 'error') && (
+            <BackendStartButton
+              onStarted={onBackendStarted}
+              flag={health.flag}
+              flagHint={health.flag_hint}
+            />
           )}
         </div>
       </div>

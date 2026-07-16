@@ -273,6 +273,77 @@ header > *,
   max-width: min(42rem, 100%);
 }
 
+.backend-flag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.55);
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  white-space: nowrap;
+}
+
+.backend-flag--api_wedged {
+  color: #fef08a;
+  background: rgba(113, 63, 18, 0.55);
+  border-color: rgba(250, 204, 21, 0.55);
+}
+
+.backend-flag--api_down {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.55);
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+.backend-flag--api_http {
+  color: #fdba74;
+  background: rgba(124, 45, 18, 0.5);
+  border-color: rgba(251, 146, 60, 0.55);
+}
+
+.backend-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.35rem;
+}
+
+.backend-start-btn {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 4px;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  background: rgba(239, 68, 68, 0.18);
+  color: var(--text-primary, #f3f4f6);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.backend-start-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.32);
+}
+
+.backend-start-btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.backend-start-error {
+  font-size: 0.7rem;
+  color: var(--danger, #ef4444);
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dot {
   width: 8px;
   height: 8px;
@@ -1138,6 +1209,18 @@ th {
   padding: 3rem;
   color: var(--text-secondary);
   font-weight: 300;
+}
+
+.empty-state-hint {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.hod-integrity-hint {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  opacity: 0.9;
 }
 
 .news-flame {

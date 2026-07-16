@@ -11,4 +11,6 @@ contextBridge.exposeInMainWorld('novaDesktop', {
   getVersion: () => ipcRenderer.invoke('app:version'),
   /** Open Stock View in a dedicated BrowserWindow (double-click / Stock View btn). */
   openStockView: (url) => ipcRenderer.invoke('nova:openStockView', url),
+  /** Kill + restart the local FastAPI sidecar when the UI shows Backend unreachable. */
+  restartApi: () => ipcRenderer.invoke('nova:restartApi'),
 });

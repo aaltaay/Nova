@@ -3,7 +3,7 @@
  * Extracted from App.tsx.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { API_BASE_URL, API_URL } from '../constants';
+import { API_BASE_URL, API_URL, SCANNER_FETCH_TIMEOUT_MS } from '../constants';
 import { isNovaApiDebug } from '../debug';
 import type { MarketMode } from '../components/AppHeader';
 import type { Afterhours, Gapper, Mover } from '../types/scanner';
@@ -14,6 +14,7 @@ import {
   useScannerPriceStream,
 } from './useScannerPriceStream';
 import type { ScannerScanAges } from '../utils/scanAge';
+import { diagnoseBackend, logBackendDiagnosis } from '../utils/diagnoseBackend';
 
 type Mode = MarketMode;
 
@@ -62,12 +63,13 @@ export function useScannerData(opts: {
   });
 
   const fetchData = useCallback(async () => {
+    const signal = AbortSignal.timeout(SCANNER_FETCH_TIMEOUT_MS);
     try {
       const [gr, moversRes, ahRes, catalystRes] = await Promise.all([
-        fetch(`${API_URL}/gappers`),
-        fetch(`${API_URL}/movers`),
-        fetch(`${API_URL}/afterhours`),
-        fetch(`${API_URL}/news-catalysts`),
+        fetch(`${API_URL}/gappers`, { signal }),
+        fetch(`${API_URL}/movers`, { signal }),
+        fetch(`${API_URL}/afterhours`, { signal }),
+        fetch(`${API_URL}/news-catalysts`, { signal }),
       ]);
 
       let nextAges: Partial<ScannerScanAges> = {};
@@ -121,10 +123,14 @@ export function useScannerData(opts: {
         }
       }
     } catch (e) {
+      const diag = await diagnoseBackend();
+      logBackendDiagnosis(diag);
       console.error('[Nova] Scanner API network error', {
         API_URL,
         API_BASE_URL,
-        hint: 'Backend root / returns 404 by design. Test: ' + `${API_BASE_URL}/api/health`,
+        flag: diag.flag,
+        hint: diag.hint,
+        health_url: `${API_BASE_URL}/api/health`,
         trace: isNovaApiDebug() ? e : '(set localStorage novaApiDebug=1 and reload for details)',
       });
       if (isNovaApiDebug()) {
@@ -132,7 +138,13 @@ export function useScannerData(opts: {
           '[Nova] F12 → Network: find failed request to /api/gappers. Console: localStorage.setItem("novaApiDebug","1") then reload.',
         );
       }
-      setHealth({ status: 'disconnected', latency_ms: 0, message: 'Backend unreachable' });
+      setHealth({
+        status: 'disconnected',
+        latency_ms: 0,
+        message: diag.message,
+        flag: diag.flag,
+        flag_hint: diag.hint,
+      });
     }
   }, [onActiveFeed, onFeedFellBack]);
 

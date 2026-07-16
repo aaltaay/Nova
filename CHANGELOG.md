@@ -30,6 +30,24 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Backend outage flags (API_DOWN / API_WEDGED)
+
+- **What:** When the API drops, the header shows a stable flag chip (`API_DOWN`, `API_WEDGED`, `API_HTTP`) plus a short message/hint; console logs `[Nova][API_FLAG] …` for fast grep. Scanner fetches abort after 8s so a hung port surfaces in seconds, not minutes.
+- **Why:** Last outage was a wedged listener on `:8000`; plain "Backend unreachable" did not say whether the process was missing vs hung.
+- **Files touched:** `frontend/src/utils/diagnoseBackend.ts`, `hooks/useScannerData.ts`, `components/AppHeader.tsx`, `EmptyState.tsx`, `BackendStartButton.tsx`, `types/health.ts`, `constants.ts`, `index.css`.
+- **How it works now:** Network/timeout on scanner poll → probe `/api/health` (2.5s) → classify → show flag + Start API. Hover the flag for the remediation line. F12: search `API_FLAG` or `API_WEDGED`.
+- **Verified by:** Vitest `diagnoseBackend` + `startLocalApi`; `npm run build`.
+- **Related:** PROBLEM_LOG 2026-07-16 — Wedged API on port 8000.
+
+## 2026-07-16 — Start API button for Backend unreachable
+
+- **What:** When the header shows Disconnected / "Backend unreachable", a **Start API** button appears. One click kills a wedged process on port 8000 and restarts the local FastAPI (Vite-dev via `POST /__nova/start-api`, Electron via `nova:restartApi` IPC).
+- **Why:** A hung orphan python on `:8000` made the UI look permanently offline ("Backend unreachable"); users needed a one-click recovery without hunting for `Run Nova.bat`.
+- **Files touched:** `frontend/src/components/BackendStartButton.tsx`, `AppHeader.tsx`, `DashboardPage.tsx`, `utils/startLocalApi.ts`, `scripts/vite-nova-start-api.ts`, `vite.config.ts`, `electron/{main,preload,sidecar}`, `constants.ts`, `index.css`.
+- **How it works now:** Disconnected → click **Start API** → Stop-NovaPorts(8000) + Start-NovaApi.ps1 (browser/Vite) or restart sidecar (desktop) → wait for `/api/health` → scanner refetch. If the button is missing, double-click `Run Nova.bat`.
+- **Verified by:** Killed wedged PID on 8000, restarted API (`/api/health` OK); Vitest `startLocalApi` (2); `npm run build`; Vite restarted with start-api middleware.
+- **Related:** PROBLEM_LOG 2026-07-16 — Wedged API on port 8000.
+
 ## 2026-07-16 — Unified Nova agent lifecycle OS
 
 - **What:** Versioned agent contract + registry under `.cursor/agent-system/`; memories moved to `.cursor/agent-memory/` (no longer discovered as callable agents); four agents normalized to shared lifecycle headings + Lifecycle footer; specialist routing rule; fail-open `subagentStop` hook; `sync_agent_surfaces` / `create_nova_agent` / `agent_contract` tools + tests; CI `agent-contract` job; ops guide `docs/agent-operations.md`.

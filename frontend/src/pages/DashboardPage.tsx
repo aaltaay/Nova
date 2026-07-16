@@ -139,6 +139,9 @@ export function DashboardPage() {
           onToggleSettings={() => settings.setShowSettings(s => !s)}
           showScannerSource={activeTab !== 'trading'}
           discoveryProvider={settings.discoveryProvider}
+          onBackendStarted={() => {
+            void scanner.fetchData();
+          }}
         />
 
         {settings.showSettings && (
