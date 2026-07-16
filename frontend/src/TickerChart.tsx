@@ -103,6 +103,7 @@ function TickerChartInner({
     candleSeriesRef,
     lastTrade,
     timeframe,
+    symbol,
   );
 
   const { loading, error, usingMock, indicatorBars } = useChartBars({

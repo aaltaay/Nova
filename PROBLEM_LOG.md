@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — IBKR discovery discarded when Alpaca keys missing
+
+- **Symptom:** With `discovery=ibkr` and no Alpaca headers, gappers/movers stayed empty even when IBKR returned rows; charts could show synthetic mock candles labelled as an IBKR quote after empty historical bars.
+- **Cause:** Discovery returned early on `not headers` after a successful IBKR fetch; movers gated the whole update on Alpaca headers; `useChartBars` always fell back to `buildMockBars` on empty responses.
+- **Fix:** Enrichment-only gate on Alpaca headers for IBKR paths; forbid mock bars under IBKR discovery; bind chart/live-trade to `selectedSymbol` with symbol gates.
+- **Keywords:** IBKR discovery, Alpaca headers, mock bars, selectedSymbol, single-market-data-feed, close remediation Phase 3
+
 ## 2026-07-16 — Maintainer missed tuple except-pass; close metrics overstated swallows
 
 - **Symptom:** Phase 13 claimed zero swallowed exceptions while `except (WebSocketDisconnect, Exception): pass` remained in `routes/hod_momo.py` and `routes/ticker.py`; architecture dep findings were always `baseline=True`.

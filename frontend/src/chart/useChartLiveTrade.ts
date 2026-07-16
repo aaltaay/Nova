@@ -3,18 +3,21 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { CandlestickData, ISeriesApi, Time } from 'lightweight-charts';
 import { isOutOfOrderTrade, tradeBucket } from '../tickerChartData';
+import { tradeMatchesChartSymbol } from './liveTradeGate';
 import type { ChartTradeUpdate } from './types';
 
 export function useChartLiveTrade(
   candleSeriesRef: React.RefObject<ISeriesApi<'Candlestick'> | null>,
   lastTrade: ChartTradeUpdate | null | undefined,
   timeframe: string,
+  chartSymbol: string,
 ) {
   const lastCandleRef = useRef<CandlestickData<Time> | null>(null);
   const prevTradeTsRef = useRef<string | null>(null);
 
   const applyLiveTrade = useCallback((trade: ChartTradeUpdate, tf: string) => {
     if (!trade.price || !trade.timestamp || !candleSeriesRef.current) return;
+    if (!tradeMatchesChartSymbol(chartSymbol, trade.symbol)) return;
     const daily = tf === '1Day' || tf === '1Week' || tf === '1Month';
     if (daily) return;
 
@@ -41,14 +44,15 @@ export function useChartLiveTrade(
       candleSeriesRef.current.update(newCandle);
       lastCandleRef.current = newCandle;
     }
-  }, [candleSeriesRef]);
+  }, [candleSeriesRef, chartSymbol]);
 
   useEffect(() => {
     if (!lastTrade?.price || !lastTrade.timestamp) return;
+    if (!tradeMatchesChartSymbol(chartSymbol, lastTrade.symbol)) return;
     if (lastTrade.timestamp === prevTradeTsRef.current) return;
     prevTradeTsRef.current = lastTrade.timestamp;
     applyLiveTrade(lastTrade, timeframe);
-  }, [lastTrade, timeframe, applyLiveTrade]);
+  }, [lastTrade, timeframe, applyLiveTrade, chartSymbol]);
 
   const resetTradeState = useCallback(() => {
     prevTradeTsRef.current = null;

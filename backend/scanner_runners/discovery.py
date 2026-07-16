@@ -15,8 +15,7 @@ def run_discovery_scan() -> None:
 
     if provider == "ibkr":
         gappers = sr.run_ibkr(sr._ibkr_discovery.get_gappers())
-        if not headers:
-            return
+        # Alpaca headers are optional listing/news metadata only — never block IBKR prices.
     else:
         from alpaca import _env, _try_fallback_to_iex
         from health_status import ping_health
@@ -37,8 +36,10 @@ def run_discovery_scan() -> None:
         gappers = _compute_gappers(snaps)
 
     gapper_syms = [g["symbol"] for g in gappers]
-    sr.ensure_avg_volume(gapper_syms, headers)
-    news = sr._check_news(gapper_syms, headers)
+    news: dict = {}
+    if headers:
+        sr.ensure_avg_volume(gapper_syms, headers)
+        news = sr._check_news(gapper_syms, headers)
     gappers = sr.enrich_gappers(gappers, news)
 
     state.gapper_cache = gappers

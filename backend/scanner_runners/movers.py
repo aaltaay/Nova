@@ -57,16 +57,19 @@ def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
     return _exchanges.attach_exchange(entry)
 
 
-def _run_gainers_update_ibkr(headers: dict) -> tuple[list[dict], list[dict]] | None:
+def _run_gainers_update_ibkr(headers: dict | None) -> tuple[list[dict], list[dict]] | None:
     sr = facade()
     gainers_rows = sr.run_ibkr(sr._ibkr_discovery.get_gainers())
     losers_rows = sr.run_ibkr(sr._ibkr_discovery.get_losers())
     if not gainers_rows and not losers_rows:
         return None
     all_symbols = list({r["symbol"] for r in gainers_rows + losers_rows})
-    sr.ensure_avg_volume(all_symbols, headers)
-    news = sr._check_news(all_symbols, headers)
-    _fetch_fundamentals_batch(all_symbols)
+    news: dict = {}
+    # Alpaca headers are optional listing/news metadata — never required for IBKR prices.
+    if headers:
+        sr.ensure_avg_volume(all_symbols, headers)
+        news = sr._check_news(all_symbols, headers)
+        _fetch_fundamentals_batch(all_symbols)
     gainers = [sr.enrich_ibkr_mover(r, news) for r in gainers_rows]
     losers = [sr.enrich_ibkr_mover(r, news) for r in losers_rows]
     return gainers, losers
@@ -77,8 +80,6 @@ def run_gainers_update() -> None:
     sr = facade()
     state = sr.get_runtime_state()
     headers = sr._alpaca_headers()
-    if not headers:
-        return
 
     if sr._get_discovery_provider() == "ibkr":
         result = _run_gainers_update_ibkr(headers)
@@ -86,6 +87,8 @@ def run_gainers_update() -> None:
             return
         gainers, losers = result
     else:
+        if not headers:
+            return
         base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
         if not ping_health(base_url, headers):
             return

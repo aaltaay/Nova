@@ -49,21 +49,29 @@ export function TickerDetailContent({
   const { isVisible } = useModuleVisibility();
   const { getOrder } = useLayoutStore();
   const depthSymbol = (selectedSymbol ?? detail.symbol).toUpperCase();
-  const trade = detail.snapshot?.latest_trade;
+  const detailMatchesSelected =
+    !selectedSymbol || detail.symbol.toUpperCase() === selectedSymbol.toUpperCase();
+  const trade = detailMatchesSelected ? detail.snapshot?.latest_trade : undefined;
   const { lastUpdated } = computeQuoteMetrics(detail, discoveryProvider);
   const showQuote = isVisible('quote');
   const showNews = isVisible('news');
   const showCharts = isVisible('charts');
   const blockOrder = coalesceQuoteOrder(getOrder(layoutSlot));
 
+  // Bind chart to selectedSymbol (not a stale detail.symbol) and skip live trades
+  // until detail catches up to the open ticker.
   const chartEl =
     showChart && showCharts ? (
       <TickerChart
-        symbol={detail.symbol}
+        symbol={depthSymbol}
         variant="panel"
         lastTrade={
           trade?.price != null
-            ? { price: trade.price, timestamp: trade.timestamp ?? null }
+            ? {
+                price: trade.price,
+                timestamp: trade.timestamp ?? null,
+                symbol: depthSymbol,
+              }
             : undefined
         }
       />

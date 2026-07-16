@@ -23,8 +23,12 @@ vi.mock('../ibkr/useIbkrStatus', () => ({
   }),
 }));
 
+const chartPropsSpy = vi.fn();
 vi.mock('../TickerChart', () => ({
-  TickerChart: () => <div data-testid="mock-chart" />,
+  TickerChart: (props: { symbol: string; lastTrade?: { symbol?: string } }) => {
+    chartPropsSpy(props);
+    return <div data-testid="mock-chart" />;
+  },
 }));
 
 vi.mock('../ibkr/DepthAndTape', () => ({
@@ -51,6 +55,7 @@ describe('TickerDetailContent composition (Phase 3)', () => {
   let root: Root;
 
   beforeEach(() => {
+    chartPropsSpy.mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -103,5 +108,31 @@ describe('TickerDetailContent composition (Phase 3)', () => {
     expect(modules).toContain('data-sources');
     expect(container.querySelector('.cq-symbol')?.textContent).toBe('AAPL');
     expect(container.querySelector('.cq-price')?.textContent).toBe('190.50');
+  });
+
+  it('binds chart to selectedSymbol and omits lastTrade when detail is stale', async () => {
+    await act(async () => {
+      root.render(
+        <WorkspaceProvider>
+          <ModuleVisibilityProvider>
+            <LayoutStoreProvider>
+              <TickerDetailContent
+                detail={makeDetail({ symbol: 'NXTC' })}
+                selectedSymbol="MVO"
+                layout="stack"
+                showChart
+              />
+            </LayoutStoreProvider>
+          </ModuleVisibilityProvider>
+        </WorkspaceProvider>,
+      );
+    });
+    expect(chartPropsSpy).toHaveBeenCalled();
+    const props = chartPropsSpy.mock.calls.at(-1)?.[0] as {
+      symbol: string;
+      lastTrade?: { symbol?: string };
+    };
+    expect(props.symbol).toBe('MVO');
+    expect(props.lastTrade).toBeUndefined();
   });
 });

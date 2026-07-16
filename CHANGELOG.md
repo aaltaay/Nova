@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Close remediation Phase 3: feed + symbol correctness
+
+- **What:** IBKR discovery/movers no longer require Alpaca credentials to populate price caches; chart mock-bar fallback is forbidden under `discovery=ibkr`; quote chart binds to `selectedSymbol` and live-trade merges ignore mismatched symbols.
+- **Why:** Close-remediation Phase 3 — stop discarding valid IBKR rows when listing metadata is absent, and stop showing synthetic/stale chart data under an IBKR quote.
+- **Files touched:** `backend/scanner_runners/{discovery,movers}.py`, `backend/tests/test_scan_runners.py`, `frontend/src/chart/{useChartBars,useChartLiveTrade,chartBarsPolicy,liveTradeGate}.ts`, `TickerChart.tsx`, `TickerDetailContent.tsx`.
+- **How it works now:** Missing Alpaca headers skip news/avg-volume enrichment only. Empty IBKR bars surface an error (no mock candles). Chart + T&S-style live merges gate on the open symbol.
+- **Verified by:** `pytest tests/test_scan_runners.py` (3 passed) · Vitest chart policy/gate + composition tests (7 passed).
+- **Follow-ups:** Phase 4 ports/adapters boundaries.
+- **Related:** PROBLEM_LOG — IBKR discarded without Alpaca keys.
+
 ## 2026-07-16 — Close remediation Phase 2: deps + silent handlers
 
 - **What:** Upgraded `python-dotenv`/`transformers`/`torch`; replaced silent WebSocket and coercion `except: pass` handlers with narrow disconnect/cancel handling or explicit defaults; removed IBKR depth `reset_all()` from import time (tests call public `reset_all`).

@@ -24,6 +24,8 @@ import {
   isoToEtTime,
   type RawBar,
 } from '../tickerChartData';
+import { useWorkspace } from '../workspace/WorkspaceContext';
+import { allowMockBarsFallback, emptyBarsMessage } from './chartBarsPolicy';
 import type { ChartTradeUpdate } from './types';
 
 const API_URL = `${API_BASE_URL}/api`;
@@ -51,6 +53,7 @@ export function useChartBars({
   applyLiveTrade,
   onSeriesReset,
 }: UseChartBarsOptions) {
+  const { discoveryProvider } = useWorkspace();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usingMock, setUsingMock] = useState(false);
@@ -84,6 +87,15 @@ export function useChartBars({
       let bars = data.bars ?? [];
       let mock = false;
       if (bars.length === 0) {
+        if (!allowMockBarsFallback(discoveryProvider)) {
+          setUsingMock(false);
+          setIndicatorBars([]);
+          candleSeriesRef.current?.setData([]);
+          volSeriesRef.current?.setData([]);
+          lastCandleRef.current = null;
+          setError(emptyBarsMessage(discoveryProvider));
+          return;
+        }
         bars = buildMockBars(CHART_MOCK_BAR_COUNT, CHART_MOCK_BASE_PRICE);
         mock = true;
       }
@@ -124,7 +136,14 @@ export function useChartBars({
         setLoading(false);
       }
     }
-  }, [applyLiveTrade, candleSeriesRef, chartRef, lastCandleRef, volSeriesRef]);
+  }, [
+    applyLiveTrade,
+    candleSeriesRef,
+    chartRef,
+    discoveryProvider,
+    lastCandleRef,
+    volSeriesRef,
+  ]);
 
   useEffect(() => {
     onSeriesReset();
