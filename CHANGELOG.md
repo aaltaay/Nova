@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Maintenance Phase 1: maintainer CSS and dependency gates
+
+- **What:** Extended `tools/maintainer_checks.py` with CSS hard limit (`index.css` ≤1000), domain CSS reporting, accepted-baseline growth detection, and warning-first `import_main` / cross-feature import checks (`tools/maintainer_lib/deps.py`).
+- **Why:** Phase 1 of the pattern-driven architecture roadmap — enforce boundaries before mechanical splits.
+- **Files touched:** `tools/maintainer_checks.py`, `tools/maintainer_lib/*`, `tools/test_maintainer_checks.py`, `.cursor/rules/file-size-limits.mdc`, maintainer memory.
+- **How it works now:** Scan prints CSS line table; `index.css` at 6168 hard-fails until Phase 2; legacy `import main` findings are baseline warnings; growth past `BASELINE_ACCEPTED_LINES` is non-baseline.
+- **Verified by:** `pytest tools/test_maintainer_checks.py` (12 passed) · `py -3 tools/maintainer_checks.py` reports 6168-line stylesheet.
+
 ## 2026-07-16 — Maintenance Phase 0A: architecture contract ADRs
 
 - **What:** Added `architecture/` ADRs and dependency rules approving modular monolith, selective hexagonal ports, functional core/imperative shell, Strangler Facades, frontend feature slices, and ITCSS/cascade-layer CSS — before any product code moves.

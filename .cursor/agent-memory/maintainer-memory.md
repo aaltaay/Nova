@@ -9,20 +9,24 @@ Companion to: `.cursor/agents/maintainer.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-16T00:00:00-04:00
-source_revision: b8626e4
+captured_at: 2026-07-16T12:55:00-04:00
+source_revision: phase-1-gates
 result: FINDINGS
 metrics:
-  findings_total: 34
-  findings_non_baseline: 32
+  findings_total: 78
+  findings_non_baseline: 37
+  files_scanned: 459
+  index_css_lines: 6168
   main_py_lines: 168
   app_tsx_lines: 83
+  hod_momo_lines: 1079
+  executor_lines: 494
 blockers: []
-dashboard_freshness: stale
-notes: "Line counts and finding totals come from tools/maintainer_checks.py — re-run for live numbers."
+dashboard_freshness: refresh-required
+notes: "Phase 1 added CSS hard limit, baseline_growth, import_main + cross_feature warnings (baseline=True until migrated)."
 ```
 
-Accepted-baseline *rationale* stays below; current measured line counts come from `maintainer_checks`, not from this prose table alone.
+Accepted-baseline *rationale* stays below; current measured line counts come from `maintainer_checks`, not from this prose table alone. `BASELINE_ACCEPTED_LINES` in the scanner is the growth ceiling.
 
 ---
 
@@ -46,8 +50,8 @@ Documented known violations that must **not** be reported as new CRITICAL findin
 
 | Path | Limit | Baseline lines (accepted) | Why accepted |
 |------|-------|---------------------------|--------------|
-| `backend/hod_momo.py` | 400 | 941 | Module-level globals reassigned by `load_state`/`reset_all`; tests monkeypatch those globals — further split needs a shared-state module (see `file-size-limits.mdc`) |
-| `backend/strategy/executor.py` | 400 | 494 | Order-safety gate chain + kill-switch path kept in one audited place; tests monkeypatch `_open_positions` / `_kill_switch_tripped` (see `file-size-limits.mdc`) |
+| `backend/hod_momo.py` | 400 | 1079 | Module-level globals reassigned by `load_state`/`reset_all`; tests monkeypatch those globals — further split needs a shared-state module (Phase 10); growth past 1079 is `baseline_growth` |
+| `backend/strategy/executor.py` | 400 | 494 | Order-safety gate chain + kill-switch path kept in one audited place; tests monkeypatch `_open_positions` / `_kill_switch_tripped` (Phase 12 conditional) |
 
 Hard limits that are **not** baselined (any breach is CRITICAL):
 
@@ -96,6 +100,13 @@ _(empty)_
 Newest first. Keep entries short. Skip boring all-clean runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-16 — Phase 1 gates
+
+- **Scope:** CSS hard limit on `index.css`, domain CSS reporting, `BASELINE_ACCEPTED_LINES` growth, `import_main` + cross-feature warnings (`tools/maintainer_lib/deps.py`).
+- **Result:** FINDINGS — index.css 6168 hard; 78 total / 37 non-baseline; unit tests 12 passed.
+- **Learning:** Windows cp1252 cannot print `≤` in console — keep ASCII in human report.
+- **Files updated:** `tools/maintainer_checks.py`, `tools/maintainer_lib/deps.py`, `file-size-limits.mdc`, this memory.
 
 ### 2026-07-15 — Agent install
 

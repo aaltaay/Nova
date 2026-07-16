@@ -17,9 +17,13 @@ No single source file may grow beyond the limits below. When a file approaches o
 |---------------|-----------|--------|
 | `backend/main.py` | 200 | Extract logic to modules |
 | `frontend/src/App.tsx` | 150 | Extract to components/pages |
+| `frontend/src/index.css` | 1000 | Import-only barrel after Phase 2 (prefer ≤50) |
+| Any domain stylesheet (`.css`) | 1000 | Prefer ≤700; split by shared/feature owner |
 | Any new Python module | 400 | Split into sub-modules |
 | Any new React component | 300 | Break into child components |
 | Any new TypeScript file | 400 | Split into focused modules |
+
+Accepted baselines (`hod_momo.py`, `executor.py`) may exceed 400 but **must not grow** past the accepted line count in `tools/maintainer_checks.py` (`BASELINE_ACCEPTED_LINES`). See `architecture/dependency-rules.md`.
 
 ## Enforcement
 

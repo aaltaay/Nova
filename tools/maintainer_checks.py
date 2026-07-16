@@ -3,6 +3,8 @@
 Side-effect-free: reads the repo, prints a human report or JSON, exits 0 always
 (unless --fail-on-findings). The LLM triage layer decides severity policy;
 this script only measures.
+
+Architecture dependency rules: architecture/dependency-rules.md (ADR track).
 """
 
 from __future__ import annotations
@@ -15,23 +17,34 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+_TOOLS_DIR = str(REPO_ROOT / "tools")
+if _TOOLS_DIR not in sys.path:
+    sys.path.insert(0, _TOOLS_DIR)
 
-# Hard limits (mirrors .cursor/rules/file-size-limits.mdc)
+from maintainer_lib.deps import check_cross_feature_imports, check_import_main  # noqa: E402
+
 MAIN_PY_LIMIT = 200
 APP_TSX_LIMIT = 150
 NEW_PY_LIMIT = 400
 NEW_TSX_LIMIT = 300
 NEW_TS_LIMIT = 400
+INDEX_CSS_LIMIT = 1000
+DOMAIN_CSS_LIMIT = 1000
 
-# Documented known over-limit files — still reported with baseline=True
+# Limit for "over size" reporting; accepted_lines tracks growth (Phase 0 baseline).
 BASELINE_OVER_LIMIT: dict[str, int] = {
     "backend/hod_momo.py": 400,
     "backend/strategy/executor.py": 400,
+}
+BASELINE_ACCEPTED_LINES: dict[str, int] = {
+    "backend/hod_momo.py": 1079,
+    "backend/strategy/executor.py": 494,
 }
 
 HARD_LIMIT_FILES: dict[str, int] = {
     "backend/main.py": MAIN_PY_LIMIT,
     "frontend/src/App.tsx": APP_TSX_LIMIT,
+    "frontend/src/index.css": INDEX_CSS_LIMIT,
 }
 
 SKIP_DIR_NAMES = {
@@ -49,7 +62,6 @@ SKIP_DIR_NAMES = {
     "test-results",
 }
 
-# High-signal secret-ish patterns (values are never printed — only the match kind)
 SECRET_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("aws_access_key", re.compile(r"AKIA[0-9A-Z]{16}")),
     (
@@ -82,6 +94,8 @@ ARTIFACT_PATHS = (
     "backend/.cache",
     ".env",
 )
+
+SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".css"}
 
 
 @dataclass
@@ -120,26 +134,34 @@ def iter_source_files() -> list[Path]:
         for path in root.rglob("*"):
             if not path.is_file() or _should_skip(path):
                 continue
-            if path.suffix.lower() in {".py", ".ts", ".tsx", ".js", ".jsx"}:
+            if path.suffix.lower() in SOURCE_SUFFIXES:
                 out.append(path)
     return out
 
 
 def _is_test_path(path: Path) -> bool:
-    """Test suites are exempt from product file-size limits."""
     parts = {p.lower() for p in path.parts}
     name = path.name.lower()
     if "tests" in parts or "e2e" in parts:
         return True
-    if name.startswith("test_") or name.endswith((".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")):
+    if name.startswith("test_") or name.endswith(
+        (".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx")
+    ):
         return True
     return False
+
+
+def _is_generated_path(path: Path) -> bool:
+    parts = {p.lower() for p in path.parts}
+    return bool(parts & {"dist", "coverage", "graphify-out", ".cache"})
 
 
 def check_file_sizes(files: list[Path]) -> list[Finding]:
     findings: list[Finding] = []
     for path in files:
         rel = _rel(path)
+        if _is_generated_path(path):
+            continue
         if _is_test_path(path) and rel not in HARD_LIMIT_FILES and rel not in BASELINE_OVER_LIMIT:
             continue
         lines = count_lines(path)
@@ -159,18 +181,36 @@ def check_file_sizes(files: list[Path]) -> list[Finding]:
 
         if rel in BASELINE_OVER_LIMIT:
             limit = BASELINE_OVER_LIMIT[rel]
-            if lines > limit:
+            accepted = BASELINE_ACCEPTED_LINES.get(rel, limit)
+            if lines > accepted:
+                findings.append(
+                    Finding(
+                        kind="baseline_growth",
+                        path=rel,
+                        detail=f"{lines} lines > accepted baseline {accepted}",
+                        baseline=False,
+                    )
+                )
+            elif lines > limit:
                 findings.append(
                     Finding(
                         kind="file_size_baseline",
                         path=rel,
-                        detail=f"{lines} lines > limit {limit} (accepted baseline)",
+                        detail=f"{lines} lines > limit {limit} (accepted baseline <={accepted})",
                         baseline=True,
                     )
                 )
             continue
 
-        if path.suffix == ".py" and lines > NEW_PY_LIMIT:
+        if path.suffix == ".css" and lines > DOMAIN_CSS_LIMIT:
+            findings.append(
+                Finding(
+                    kind="file_size",
+                    path=rel,
+                    detail=f"{lines} lines > CSS stylesheet limit {DOMAIN_CSS_LIMIT}",
+                )
+            )
+        elif path.suffix == ".py" and lines > NEW_PY_LIMIT:
             findings.append(
                 Finding(
                     kind="file_size",
@@ -200,9 +240,9 @@ def check_file_sizes(files: list[Path]) -> list[Finding]:
 def check_secrets(files: list[Path]) -> list[Finding]:
     findings: list[Finding] = []
     for path in files:
-        rel = _rel(path)
-        if "test" in path.name.lower() or path.suffix in {".md"}:
+        if path.suffix == ".css" or "test" in path.name.lower():
             continue
+        rel = _rel(path)
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -224,6 +264,8 @@ def check_secrets(files: list[Path]) -> list[Finding]:
 def check_swallowed_errors(files: list[Path]) -> list[Finding]:
     findings: list[Finding] = []
     for path in files:
+        if path.suffix == ".css":
+            continue
         rel = _rel(path)
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
@@ -240,7 +282,6 @@ def check_swallowed_errors(files: list[Path]) -> list[Finding]:
                         line=line,
                     )
                 )
-            # Bare except that is not already counted as swallow-with-pass
             for match in BARE_EXCEPT_PY.finditer(text):
                 line = text.count("\n", 0, match.start()) + 1
                 snippet = text[match.start() : match.start() + 40]
@@ -290,23 +331,36 @@ def run_checks() -> dict:
         + check_secrets(files)
         + check_swallowed_errors(files)
         + check_artifacts()
+        + check_import_main(files, _rel, Finding)
+        + check_cross_feature_imports(files, _rel, Finding)
     )
     non_baseline = [f for f in findings if not f.baseline]
+    css_report = {
+        _rel(p): count_lines(p)
+        for p in files
+        if p.suffix == ".css" and not _is_generated_path(p)
+    }
     return {
         "repo_root": str(REPO_ROOT),
         "files_scanned": len(files),
         "finding_count": len(findings),
         "non_baseline_count": len(non_baseline),
+        "css_line_counts": css_report,
         "findings": [asdict(f) for f in findings],
     }
 
 
 def print_human(report: dict) -> None:
-    print(f"Maintainer checks — scanned {report['files_scanned']} files")
+    print(f"Maintainer checks - scanned {report['files_scanned']} files")
     print(
         f"Findings: {report['finding_count']} "
         f"({report['non_baseline_count']} non-baseline)"
     )
+    css = report.get("css_line_counts") or {}
+    if css:
+        print("CSS stylesheets:")
+        for path, lines in sorted(css.items(), key=lambda kv: (-kv[1], kv[0])):
+            print(f"  {lines:5d}  {path}")
     print()
     if not report["findings"]:
         print("No findings.")
@@ -316,7 +370,7 @@ def print_human(report: dict) -> None:
         loc = f"{raw['path']}"
         if raw["line"] is not None:
             loc = f"{loc}:{raw['line']}"
-        print(f"[{tag}] {loc} — {raw['detail']}")
+        print(f"[{tag}] {loc} - {raw['detail']}")
 
 
 def main(argv: list[str] | None = None) -> int:
