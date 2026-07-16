@@ -13,6 +13,9 @@ Canonical local library (gitignored under `downloads/`):
 
 **Do not** re-download into `docs/warrior-trading/` — that duplicate tree was removed after merging unique files into `downloads/` (2026-07-14).
 
+Authenticated member website / Day Trade Dash navigation (live map for agents):
+[warrior-authenticated-access.md](warrior-authenticated-access.md) · Obsidian `01-Courses/Warrior-Trading/Authenticated-Site-Map.md` · launcher `scripts/open_warrior_site.ps1`.
+
 ### Added in the 2026-07-14 merge (were missing before)
 
 - Free ebook → `downloads/warrior-trading-resources/free/`

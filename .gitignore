@@ -17,6 +17,12 @@ env/
 .env
 .env.local
 
+# Ephemeral agent scratch (screenshots, browser dumps — never commit)
+.tmp/
+
+# Local browser auth exports (cookies/localStorage) — never commit
+.local/
+
 # Scanner persistence cache (in-process snapshots, not for VCS)
 backend/.cache/
 

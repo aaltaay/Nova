@@ -9,6 +9,8 @@ tags: [warrior-trading, library, pinecone, downloads]
 
 Updated **2026-07-14** after member-dashboard sync + de-duplication against the existing `downloads/` tree.
 
+**Live member site map (URLs, LMS catalog, Day Trade Dash widgets):** [[Authenticated-Site-Map]] · runbook `docs/warrior-authenticated-access.md`.
+
 ## Canonical roots (do not duplicate under `docs/`)
 
 | Root | Purpose |

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — Warrior authenticated site map + access runbook
+
+- **What:** Added a repeatable headed browser launcher and durable maps of the full Warrior member site (dashboard, LMS, Day Trade Dash widgets, support/CRM entry points) for future agent questions. No Nova UI product changes.
+- **Why:** User needs agents to navigate Warrior freely (not just chatroom) when asking for Warrior-parity features later.
+- **Files touched:** `scripts/open_warrior_site.ps1`, `docs/warrior-authenticated-access.md`, `knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md`, `Memory-Router.md`, `Local-Library-Inventory.md`, `.gitignore`, canvas `warrior-site-map.canvas.tsx`.
+- **How it works now:** Run `.\scripts\open_warrior_site.ps1` — profile lives under `%LOCALAPPDATA%\Nova\browser-profiles\warrior-site` (never in git). Site hierarchy + Day Trade Dash column/widget inventory lives in Obsidian; visual summary in the canvas. Secrets/cookies/SSO JWTs stay out of the repo.
+- **Verified by:** Live login to Members Dashboard, LMS Learner Home + BA101 chapter index, Day Trade Dash after disclaimer ACCEPT; screenshots under `.tmp/warrior-site-map/` (gitignored).
+- **Follow-ups:** When building a Nova multi-widget dash, use workspace Phase 8 + this map; do not scrape Warrior feeds.
+
 ## 2026-07-16 — Ship pending docs, Vale, and security registry leftovers
 
 - **What:** Committed remaining untracked/modified work: Nova docs inventory tool + tests, Vale/markdownlint pins, Security-Status + findings-registry compensating controls, security check updates, Skills-Library / roadmap-status sync, continuity rules pointing at `nova-home` canvas, `cvss` in requirements-dev. Ignored dated `graphify-out/20*/` snapshots (canonical graph stays at `graphify-out/` root).
