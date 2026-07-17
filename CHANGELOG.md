@@ -30,6 +30,176 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-17 — Canvas dashboard refresh + documentation audit
+
+- **What:** Refreshed all 7 preferred canvases (real re-run of `tester`/`security-sentinel`/`maintainer` deterministic checks via their own subagents, plus hand-fixed stale hardcoded prose outside the generated snapshot blocks in `nova-home`/`agent-tester`/`agent-security`). Ran a markdownlint sweep across the repo's highest-value docs.
+- **Why:** User requested a canvas cleanup ("update all canvases and shuffle them around, do not delete") and a documentation audit.
+- **Files touched:** All 7 canvases; `gemini.md`, `AGENTS.md` (re-synced, fully lint-clean); `CHANGELOG.md`, `PROBLEM_LOG.md`, `security/SOURCE-PINS.md`, `security/tooling.md`, `findings.md`, `progress.md`; `.cursor/agents/*.md` (4 files); `.cursor/rules/*.mdc` (backend-modularity, frontend-modularity, karpathy-guidelines); `.markdownlint-cli2.jsonc`; `.cursor/agent-memory/{nova-agent,tester,security-sentinel,maintainer}-memory.md`.
+- **How it works now:** `tools/sync_agent_surfaces.py --write` still only refreshes the generated `AGENT_SNAPSHOT_*` block in each canvas from each agent's memory — the surrounding hand-written prose (pills, stat grids, tables) does **not** auto-refresh and needs a manual pass when it drifts (this is what was stale here). `dashboard_freshness: refresh-required` in a snapshot is the signal to dispatch that agent's subagent rather than hand-editing its domain data. markdownlint config now disables `MD037`/`MD050` repo-wide (see PROBLEM_LOG — `--fix` was corrupting bare Python identifiers) and correctly ignores `**/graphify-out/**` (nested, not just root) and `**/test-results/**`/`**/.tmp/**`.
+- **Verified by:** `tools/sync_agent_surfaces.py --write` final pass shows 0 writes (fully consistent); `markdownlint-cli2` on all touched files shows 0 errors; repo-wide error count 453→176 (remainder is vendored skill mirrors + Obsidian vault, out of scope).
+- **Follow-ups:** `hod_momo_active.py`, `constantGroups/chart_api.ts`, `constantGroups/market_ui.ts`, `ManualOrderTicket.tsx`, `sync_agent_surfaces.py` are newly over their file-size limits (maintainer backlog); `frontend/src/stock_view/` header refactor broke 1 Vitest + 3 Playwright specs (tester backlog, untracked WIP, not fixed here); 176 vendored/vault markdownlint errors remain (nova-agent backlog).
+- **Related:** PROBLEM_LOG 2026-07-16 — `markdownlint-cli2 --fix` corrupted bare Python identifiers.
+
+## 2026-07-16 — Design system audit: Nova tokens + Stock View rail
+
+- **What:** Fixed Time & Sales unreadable text (token collision), scoped leaking form/button selectors, moved L2/T&S skin to `ibkr/marketData.css`, recomposed Stock View rail with matched pane headers (no duplicate combined title), PIN unlock → shadcn `InputOTP`, and added maintainer/e2e guardrails.
+- **Why:** Stock View looked broken after Tailwind/shadcn wiring: `--color-muted` is a faint *background* in Tailwind but domain CSS used it as *text*, computing ~4% opacity labels on purple fallbacks.
+- **Files touched:** `frontend/src/index.css`, `styles/tailwind-theme.css`, `styles/tokens-shell.css`, `styles/scanner-l2.css`, `ibkr/marketData.css`, `ibkr/TimeSalesPanel.tsx`, `TradingPinDialog.tsx`, `stock_view/StockViewDepthTape.tsx`, `architecture/decisions/006-css-itcss-cascade-layers.md`, `tools/maintainer_checks.py`, `e2e/level2-tape-modules.spec.ts`.
+- **How it works now:** Canonical `--nova-*` tokens; Tailwind `@theme` is a one-way adapter. Domain CSS never reads `--color-muted` for text. Market-data chrome lives in the `components` layer; Stock View only densifies layout. Narrow tape panes collapse to Time/Price/Size via `@container`.
+- **Verified by:** `pytest tools/test_maintainer_checks.py` (17), `npm run test` Stock View + full build (`tsc -b && vite build`).
+- **Follow-ups:** Migrate trade ticket segments to shadcn `ToggleGroup`; split `tokens-shell.css` into real base/layout sheets; finish remaining frontend surfaces onto New York recipes.
+- **Related:** PROBLEM_LOG 2026-07-16 Time & Sales `--color-muted` collision.
+
+## 2026-07-16 — Tailwind + shadcn foundation (Trade CTA first)
+
+- **What:** Wired Tailwind v4 (Vite plugin, no preflight) and shadcn `Button` + `AlertDialog`. Trade ticket primary CTA and place-order confirm now use those primitives; theme maps to existing Nova CSS tokens.
+- **Why:** Incremental design-system direction — reusable chrome for trading UI without rewriting charts/L2/tape.
+- **Files touched:** `frontend/vite.config.ts`, `frontend/src/index.css`, `frontend/components.json`, `frontend/src/lib/utils.ts`, `frontend/src/components/ui/{button,alert-dialog}.tsx`, `ManualOrderTicket.tsx`, `PlaceOrderConfirmDialog.tsx`, `tradeTicket.css`.
+- **How it works now:** `@import "tailwindcss/theme.css"` + utilities sit in cascade layers; `@theme inline` binds `--color-primary` etc. to Nova vars. New UI goes through `@/components/ui/*`. Charts/L2 stay custom CSS.
+- **Verified by:** `npm run test` (224) + `npm run build` in `frontend/` (TS `baseUrl` removed for TS 6; operator-mode capsule type fix).
+- **Follow-ups:** Migrate more ticket fields / header chrome; keep domain CSS for market surfaces.
+- **Related:** Prior Trade unlock/confirm UX entry same day.
+
+## 2026-07-16 — Unlock Trading (blue) → Place an order + confirm checkbox
+
+- **What:** Primary Trade button is always accent blue. Locked: **Unlock Trading** → PIN → **Place an order**. Place opens a confirm dialog with checkbox “Don’t show this pop-up again to confirm placing a live order.”
+- **Why:** After PIN unlock the button wrongly stayed Unlock Trading / used Buy-green; user wanted a clear two-step blue CTA plus skippable confirm.
+- **Files touched:** `ManualOrderTicket.tsx`, `PlaceOrderConfirmDialog.tsx`, `placeConfirmPrefs.ts` (+ test), `tradeTicket.css`, `constantGroups/chart_api.ts`.
+- **How it works now:** PIN unlock flips label to Place an order. Confirm skip persists in `nova.tickerTrade.skipPlaceConfirm`. IBKR env spend gates still apply at submit.
+- **Verified by:** Vitest `placeConfirmPrefs.test.ts` + existing unlock/orderEntry suites.
+
+## 2026-07-16 — Trade ticket default order type: Market
+
+- **What:** Default order type is now **Market** (`MKT`); the Default tag moves to Market.
+- **Why:** User correction — Market is the default, not Limit.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts` (`TICKER_TRADE_DEFAULT_ORDER_TYPE`), `ManualOrderFields.tsx`.
+- **How it works now:** New tickets and symbol resets select Market; Limit/Stop remain available.
+- **Verified by:** Constant + label title update.
+
+## 2026-07-16 — Stock View module title: Open → Trade
+
+- **What:** Renamed the order-ticket module header from **Open** to **Trade**.
+- **Why:** User request.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts` (`STOCK_VIEW_MODULE_OPEN_TITLE`), `StockViewRail.tsx`, `TickerTradeActionBar.tsx`.
+- **How it works now:** Module card title and rail group label both read `Trade` via the shared constant.
+- **Verified by:** Constant + call-site update.
+
+## 2026-07-16 — Unlock Trading PIN gate + Limit default mark
+
+- **What:** Restored **Unlock Trading** CTA. Clicking it prompts for PIN `123456`; only then can Buy/Sell place (session-scoped). Limit shows a **Default** tag and remains `TICKER_TRADE_DEFAULT_ORDER_TYPE`. Primer spacing kept.
+- **Why:** User wanted Unlock Trading (not Open Trade), a PIN step before orders, and the default order type marked.
+- **Files touched:** `ManualOrderTicket.tsx`, `ManualOrderFields.tsx`, `ticketUnlock.ts` (+ test), `tradeTicket.css`, `constantGroups/chart_api.ts`, Stock View tests.
+- **How it works now:** Local PIN unlock is UI-only (`sessionStorage`); IBKR spend/env gates still apply after unlock. Qty remains forced to 1.
+- **Verified by:** Vitest `ticketUnlock.test.ts` + Stock View / orderEntry suites.
+
+## 2026-07-16 — Open ticket: Primer spacing + Open Trade CTA
+
+- **What:** Gave the manual order ticket breathing room using GitHub Primer stack/control spacing (16px field gaps, 8px chip gutters, 32px medium controls, padded form).
+- **Why:** User asked for spacing/padding like the reference ticket and a design pattern that works for Electron — Primer (`primer/primitives`) is GitHub’s established 8px-grid system.
+- **Files touched:** `frontend/src/ibkr/tradeTicket.css`, `ManualOrderTicket.tsx`, `frontend/src/stock_view/stockViewTerminal.css`, `constantGroups/chart_api.ts`, tests.
+- **How it works now:** Ticket CSS defines local `--mot-space-*` / `--mot-control-h` aliases mirroring Primer stack tokens (no new npm dep). Rail uses a slightly condensed 12px stack gap. Qty remains forced to 1 via `TICKER_TRADE_FORCE_QTY`.
+- **Verified by:** Vitest Open/rail expectations (CTA later restored to Unlock Trading).
+- **Follow-ups:** Superseded by Unlock Trading PIN gate entry above.
+
+## 2026-07-16 — Manual order qty forced to 1 (temporary SSOT)
+
+- **What:** Locked every manual Open ticket to **1 share**. UI shows 1 and ignores presets / % / $; `buildManualOrder` / `resolveOrderQuantity` also force qty 1 so the payload cannot diverge.
+- **Why:** User asked for a temporary single source of truth to avoid accidental size mistakes.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts` (`TICKER_TRADE_FORCE_QTY = 1`), `orderEntry.ts`, `ManualOrderTicket.tsx`, `ManualOrderFields.tsx`, `orderEntry.test.ts`.
+- **How it works now:** Set `TICKER_TRADE_FORCE_QTY` to `null` to unlock editable sizing. Tests pass `{ forceQty: null }` when exercising free %/$ math.
+- **Verified by:** Vitest `orderEntry.test.ts`.
+
+## 2026-07-16 — Order ticket: Side / Order Type / Quantity subtitles
+
+- **What:** Restored Material-style field subtitles on the Open ticket — Side, Order Type, Quantity (plus Limit/Stop/Hours). Stock View rail no longer hides them.
+- **Why:** User asked for labeled sections; rail CSS had `display: none` on `.manual-order-label`.
+- **Files touched:** `frontend/src/ibkr/ManualOrderFields.tsx`, `tradeTicket.css`, `frontend/src/stock_view/stockViewTerminal.css`, `frontend/src/constantGroups/chart_api.ts`.
+- **How it works now:** Labels are uppercase overlines above each control group; constants live in `TICKER_TRADE_LABEL_*`.
+- **Verified by:** Code review of Open ticket label visibility.
+
+## 2026-07-16 — Order ticket: spaced Qty/%/$ chips (Material gutters)
+
+- **What:** Replaced the fused Qty / % / $ segment control with separate pill chips and 8px gaps; presets use the same gutter.
+- **Why:** Adjacent fused buttons were easy to mis-tap; user asked for Material-style separation while staying compact.
+- **Files touched:** `frontend/src/ibkr/tradeTicket.css`, `frontend/src/stock_view/stockViewTerminal.css`.
+- **How it works now:** Unit toggle and presets are individual outlined chips with `gap: 0.5rem` (dense rail `0.4rem`); active unit gets accent fill + inset ring.
+- **Verified by:** CSS review of Open ticket quantity controls.
+
+## 2026-07-16 — Order ticket: balanced quantity row (value ~1/3, units ~2/3)
+
+- **What:** Rebalanced the manual-order quantity row so the number field is ~32% (min ~4.5rem) and Qty / % / $ share the remaining ~2/3 — not full-width, not a tiny stub.
+- **Why:** First pass (~10%) made the value field unusably small; user asked for common-sense sizing.
+- **Files touched:** `frontend/src/ibkr/tradeTicket.css`, `frontend/src/stock_view/stockViewTerminal.css`.
+- **How it works now:** `.manual-order-quantity-row` is `minmax(4.5rem, 32%) | 1fr`; unit toggle is `repeat(3, 1fr)`.
+- **Verified by:** Layout review against the Open ticket quantity row.
+
+## 2026-07-16 — Stock View header: mode / Paper-Live capsules
+
+- **What:** Replaced the cluttered Stock View header (LIVE badge, Confirm / Auto Paper / Signal / Stop Automation, Close, Hide charts) with a clean strip: symbol/price, Net Liq + BP, Paper/Live capsule, Manual/Normal/Fully Automated capsule (Normal only), and trading lock.
+- **Why:** User requested a minimal trading header matching Webull-style segmented capsules while keeping IBKR safety gates.
+- **Files touched:** `frontend/src/stock_view/StockViewHeader.tsx`, `StockViewTradingChrome.tsx`, `StockViewHeader.test.tsx`, `stockViewTerminal.css`, `pages/StockViewPage.tsx`, `constantGroups/chart_api.ts`, `CHANGELOG.md`.
+- **How it works now:** Operator mode capsule is display-only with Normal selected; Manual and Fully Automated stay disabled (`auto_live` NO-GO). Paper/Live reflects Gateway `mode` and clicking the other segment only shows the existing reconnect/confirmation guidance — it never arms live orders. Lock mirrors `spend_status` and cannot bypass `IBKR_ORDERS_ENABLED` / live confirmation. Confirm/Auto Paper/Signal/Stop Automation remain on the Trading tab Executor panel.
+- **Verified by:** Vitest `StockViewHeader.test.tsx` + `stockViewTerminal.test.tsx` (15 passed).
+- **Follow-ups:** Wire Manual later; keep Fully Automated disabled until a separate unlock phase.
+- **Related:** widgets-agent Stock View header cleanup (finished in parent after stuck handoff).
+
+## 2026-07-16 — Karpathy guidelines: creativity + thinking ahead
+
+- **What:** Extended the Karpathy skill and always-applied rule so agents explore creative problem frames and anticipate the next step, while still forbidding gold-plating and silent scope expansion.
+- **Why:** User asked to encourage creativity in solutions and thinking ahead; the prior "nothing speculative" framing was suppressing useful foresight.
+- **Files touched:** `.cursor/skills/karpathy-guidelines/SKILL.md`, `.cursor/rules/karpathy-guidelines.mdc`, `AGENTS.md`, `gemini.md`, `knowledge/obsidian/00-System/Skills-Library.md`.
+- **How it works now:** Five pillars — Think Before Coding (explore design space), Elegant Simplicity, Surgical Changes, Creative Solutions & Thinking Ahead (seams + named follow-ups), Goal-Driven Execution (incl. negative checks). Foresight = communicate risks and leave clean seams; do not ship unused futures.
+- **Verified by:** Content review of skill/rule/constitution mirrors for consistency.
+- **Follow-ups:** None required; agents pick up the new always-applied rule on next turns.
+
+## 2026-07-16 — Stock View rail: L2+T&S together; drag resizes Order Entry
+
+- **What:** Restored Level 2 and Time & Sales as one side-by-side module. The horizontal drag bar now sits between that combined depth block and the Open / Place Order ticket (not between L2 and T&S). Order entry UI (ManualOrderTicket / Unlock Trading) stays mounted.
+- **Why:** A prior edit wrongly stacked L2 above T&S with a splitter between them; the user wanted L2+T&S kept together and height control against the order ticket so L2 can show full depth.
+- **Files touched:** `frontend/src/stock_view/StockViewDepthTape.tsx`, `StockViewRail.tsx`, `stockViewTerminal.css`, `stockViewTerminal.test.tsx`, `frontend/src/constantGroups/chart_api.ts`, `frontend/src/hooks/useResizableHeight.ts`.
+- **How it works now:** Rail = Quote → trade stack `(L2|T&S card · horizontal ResizeHandle · Open card)`. Split ratio persists in `nova.stockView.depthOrderSplitPct` (default 72% depth). L2 stays slightly wider than T&S; no drag between L2 and T&S.
+- **Verified by:** Focused Vitest `stockViewTerminal.test.tsx`.
+- **Related:** PROBLEM_LOG 2026-07-16 Stock View L2/T&S split regression.
+
+## 2026-07-16 — Stock View header: editable symbol chip (no Look Up)
+
+- **What:** Removed the far-right Symbol / Look Up form from the Stock View command bar. The primary control is now a bordered symbol+price+change chip; double-click (or Enter/F2) opens an inline editor. Enter/blur commits (trim + uppercase, reject empty); Escape cancels.
+- **Why:** Match the reference header (ISRG-style boxed quote) and keep a single-row terminal chrome without a stacked lookup field.
+- **Files touched:** `frontend/src/stock_view/StockViewHeader.tsx`, `StockViewSymbolChip.tsx` (new), `stockViewTerminal.css`, `stockViewTerminal.test.tsx`, `frontend/src/constantGroups/chart_api.ts`.
+- **How it works now:** `StockViewSymbolChip` owns edit state; commit still calls `StockViewPage` `onLookup` → `onSelectSymbol` (+ `replaceStockViewUrl` when detached). Scanner Quote Panel / Trading tab unchanged. Affordances: pointer cursor, hover border/bg lift + symbol underline, chevron hint on hover, tooltip `STOCK_VIEW_SYMBOL_EDIT_TITLE`.
+- **Verified by:** Focused Vitest for double-click / commit / Escape; lint + build when practical.
+- **Follow-ups:** Visual confirm on a live Stock View window.
+- **Related:** Terminal redesign entry below.
+
+## 2026-07-16 — Stock View terminal redesign (reference-first)
+
+- **What:** Redesigned full/detached Stock View into a dark Nova trading terminal: compact command bar, 2×2 charts, and a dense right rail of **module cards** (Stock Quote → Level 2 · Top N → Time & Sales → Open). L2 and T&S are **stacked** (not side-by-side) with a **horizontal drag bar** between them (`useResizableHeight`, persisted via `STOCK_VIEW_L2_TAPE_SPLIT_KEY`). Shared `StockViewModuleCard` chrome (border, radius, italic uppercase title). Rail stays `overflow: hidden` / no column scroll. Scanner Quote Panel side-by-side depth+tape and Trading tab unchanged.
+- **Why:** User-directed terminal layout; L2 major + top-10; user-controlled L2/T&S height; reference-style separate module cards; no rail scroll.
+- **Files touched:** `frontend/src/pages/StockViewPage.tsx`, `frontend/src/stock_view/*` (Header, QuoteCard, Rail, CSS, tests), `frontend/src/ibkr/TickerTradeActionBar.tsx` (`rail` variant), `frontend/src/constantGroups/chart_api.ts`, `frontend/src/styles/stock-view.css` (trimmed), `frontend/src/index.css`, e2e baseline/quote-panels.
+- **How it works now:** `StockViewPage` is a thin data coordinator (`useTickerStream` / IBKR status+account / symbol gate `detail.symbol === selectedSymbol` / resizable rail). Layout chrome lives under `stock_view/`. Order path is still `placeIbkrOrder` + existing confirm/spend/paper-live gates; rail omits duplicate account/automate chrome already shown in the header. Styles scoped under `.stock-view-page` in `stockViewTerminal.css`. Rail vertical priority: L2+T&S (grow) → ticket (fixed) → quote (compact).
+- **Verified by:** `npm run lint`, `npm run test`, `npm run build` (frontend); Vitest Stock View terminal suite; e2e contract updated for terminal composition.
+- **Follow-ups:** Browser visual confirm that ≥10 L2 rows show on a typical 1440×900 Stock View.
+- **Related:** User plan `stock_view_terminal_redesign_854387d2.plan.md`; roadmap History note (Phase B remains NEXT).
+
+## 2026-07-16 — Webull widget parity agent and manual-first trade ticket
+
+- **What:** Added `widgets-agent`, a source-backed 25-capability Webull-to-Nova stock/day-trading map, and the dedicated `agent-widgets` Canvas. Reworked both Nova manual order surfaces into one Webull-inspired ticket with preserved Buy/Sell/Market/Limit controls plus Stop orders, share/%/$ sizing, quick presets, limit/stop prices, and regular/extended-hours selection.
+- **Why:** The user wants an explicit competitive map that can drive future widget requests and a manual-control foundation for eventual automation without removing current trading or automation buttons.
+- **Files touched:** `.cursor/agents/widgets-agent.md`, `.cursor/agent-memory/widgets-agent-memory.md`, `.cursor/rules/widgets-continuity.mdc`, `.cursor/agent-system/registry.json`, `docs/webull-widget-parity.md`, `backend/ibkr/orders.py`, `backend/routes/trading.py`, `frontend/src/ibkr/ManualOrderTicket.tsx`, `ManualOrderFields.tsx`, `orderEntry.ts`, `placeOrder.ts`, `tradeTicket.css`, and focused tests.
+- **How it works now:** The parity ledger uses stable `WID-NNN` IDs, per-row S1–S16 evidence, paired Nova paths, honest status, and implementation-ready prompts; its Canvas is a synchronized snapshot. Manual orders still use the one IBKR endpoint and existing confirmation/safety gates. The backend now validates/constructs `MKT`, `LMT`, and `STP`; `outside_rth` is accepted only for Limit. Stock View keeps account metrics, Flatten/Close, Confirm, Auto Paper, Signal, and Stop Automation beside the richer manual ticket. Locked spend status displays a disabled `Unlock Trading` button that cannot bypass environment gates.
+- **Verified by:** Focused IBKR suites 41 PASS; backend full suite 677 PASS with a documented local TorchVision/Python 3.13 fatal-loader warning; frontend Vitest 202 PASS; build/lint PASS; agent contract PASS for 7 agents and 24 lifecycle tests PASS; widgets-agent smoke PASS after evidence hardening; tester browser verification PASS with all controls exercised and no order request submitted.
+- **Follow-ups:** WID-014 remains partial because trailing stop, stop-limit, and group orders are not implemented. Repair the unrelated local Torch/TorchVision DLL mismatch before treating the broad backend suite as warning-free.
+- **Related:** PROBLEM_LOG 2026-07-16 “Full pytest emits TorchVision DLL fatal exception but exits green” and “Canvas TodoList prop failed type-check”.
+
+## 2026-07-16 — Stock View: bump due to news under quote column
+
+- **What:** Moved the "Bump due to news" (`NewsImpactPanel`) from the full-width Stock View footer into the right quote column, directly under quote/fundamentals. The right column now stretches full height beside the charts; news headlines stay under the chart grid only.
+- **Why:** User-annotated layout — bump belongs with the stock quote sidebar, not as a wide footer spanning under the charts.
+- **Files touched:** `frontend/src/pages/StockViewPage.tsx`, `frontend/src/components/TickerDetailContent.tsx`, `frontend/src/modules/NewsPanel.tsx`, `frontend/src/components/NewsHeadlineSection.tsx`, `frontend/src/styles/stock-view.css`.
+- **How it works now:** Stock View left column = charts + headline strip. Right column = L2 / order ticket / quote / fundamentals / bump (via `afterQuote`). `NewsPanel` accepts `includeImpact={false}` so the footer no longer duplicates the bump. Narrow-column CSS stacks impact factors for the sidebar width.
+- **Verified by:** Vitest `quotePanels` / `tickerDetailComposition` / `stockViewNav` (19 passed); browser Stock View AAPL — impact under quote (`after_quote`), no duplicate bump in headline footer.
+- **Follow-ups:** None.
+
 ## 2026-07-16 — HOD Momo table matches Gappers/Gainers density
 
 - **What:** Restored the HOD Momo alert table to the same dense scanner look as Gappers/Gainers/Losers: full-width parent pane, auto column sizing, nowrap numeric cells, single-line strategy pills, and a fixed **30-row** viewport that no longer shrinks when only one alert exists. Also healed empty `timestamp` values (were rendering as "Invalid Date") from `created_ts` on both API serialize and the Time cell. Column names unchanged.
@@ -465,7 +635,6 @@ Entry template (copy and fill in):
 
 ## 2026-07-16 — Harden Phases D–G (alert test format + route tests)
 
-
 - **What:** Fixed empty Discord/Telegram payloads on alert channel Test fire; redacted webhook/bot secrets from sender exception return paths; hardened HOD formatter against null price/change; added formatter/hooks + journal Reports v2 HTTP tests; BacktestPanel no longer double-fetches days on selection; journal `trades` CREATE includes `tags`.
 - **Why:** Post-ship harden of Master Roadmap D–G — Test fire was a silent UX bug; route coverage for tags/R/drawdown/import was unit-only.
 - **Files touched:** `backend/alerts/{formatters,telegram,discord,generic_webhook,dispatch}.py`, `backend/routes/alerts.py`, `backend/constants.py`, `backend/journal/db.py`, `backend/tests/test_alerts_formatters.py`, `backend/tests/test_journal_reports_v2.py`, `frontend/src/strategy/BacktestPanel.tsx`, `CHANGELOG.md`, `PROBLEM_LOG.md`.
@@ -673,7 +842,6 @@ Entry template (copy and fill in):
 - **How it works now:** Delegating a test/verify task to `subagent_type: tester` gets an agent that knows the verified commands (pytest from **repo root** via `py -3 -m pytest backend/tests -q`; scoped Vitest via `npm run test -- <file>` in `frontend/`), a changed-files→test-file routing table, known traps from PROBLEM_LOG (pytest exit 5, UTF-16 BOM null bytes, Vitest/Playwright exclusions, IB Gateway login vs "no gaps"), a one-retry flakiness policy, server-reuse rules for browser checks, and a hard ban on arming the executor or placing orders during verification. It returns a fixed Test report (Scope / Commands / PASS-FAIL-BLOCKED / evidence / root cause).
 - **Verified by:** Ran both prescribed commands directly (561 backend tests collected; scoped Vitest file 3/3 pass), then launched the tester subagent on `stockViewNav.test.ts` — it followed the format and reported 4/4 PASS.
 
-
 - **What:** Added `WorkspaceProvider` / `useWorkspace()` for `selectedSymbol`, `discoveryProvider`, `alpacaFeed`, `ibkrConnected`, and `openStockView`. Mounted in `App.tsx`. `StockViewPage` no longer fetches `/api/config`; SidePanel / TickerDetailContent / Dashboard read workspace instead of drilled props.
 - **Why:** Modular Panel Workspace Phase 2 — shared selection/discovery before Phase 3 panel decomposition.
 - **Files touched:** `frontend/src/workspace/*`, `App.tsx`, `DashboardPage.tsx`, `SidePanel.tsx`, `TickerDetailContent.tsx`, `StockViewPage.tsx`, e2e `workspace-context.spec.ts`, Vitest workspace tests; `jsdom` for provider tests.
@@ -692,7 +860,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Phase 2 — `WorkspaceContext` for symbol/discovery/ibkr; remove prop drilling.
 - **Related:** Plan `modular_panel_workspace_phases_53ac9db5`; Phase 0 commit `fab60f3`.
 
-
 ## 2026-07-15 — Phase 0: Karpathy skill + Playwright baseline e2e
 
 - **What:** Installed portable Karpathy skill under `.cursor/skills/`; added Playwright (`@playwright/test`) with `frontend/playwright.config.ts`, baseline suite `frontend/e2e/baseline.spec.ts`, and npm scripts `test:e2e` / `test:e2e:ui`. Vitest now excludes `e2e/`.
@@ -702,7 +869,6 @@ Entry template (copy and fill in):
 - **Verified by:** `npx vitest run` (78 passed), `npx playwright test` (3 passed), `npm run build`.
 - **Follow-ups:** Phase 1 — split DepthAndTape into Level2Module + TimeSalesModule.
 - **Related:** plan `modular_panel_workspace_phases_53ac9db5`; PROBLEM_LOG 2026-07-15 Vitest/Playwright exclude.
-
 
 ## 2026-07-15 — Double-click → Stock View on all symbol tables
 
@@ -1085,7 +1251,6 @@ Entry template (copy and fill in):
 - **Verified by:** vitest chartIndicators; frontend build; app run.
 - **Follow-ups:** Session-boundary VWAP reset across multi-day lookbacks if the community cumulative VWAP looks wrong on long histories.
 
-
 ## 2026-07-15 — HOD Momo: @tanstack/react-virtual for continuous scroll
 
 - **What:** Replaced the custom pager + hand-rolled `useWindowedRows` with `@tanstack/react-virtual`. Scroll the full day list continuously; the library mounts only the viewport + overscan (~50–100 DOM rows). Removed `HodMomoPager` / `HOD_MOMO_PAGE_SIZE`.
@@ -1232,7 +1397,6 @@ Entry template (copy and fill in):
 
 ## 2026-07-14 — Phase 7: App.tsx hits 150-line target (DashboardPage + scanner hooks)
 
-
 - **What:** Extracted the dashboard monolith out of `App.tsx` into `pages/DashboardPage.tsx`, `components/ScannerTabPanels.tsx`, `hooks/useScannerData.ts`, `hooks/useSettingsForm.ts`, `utils/sortRows.ts`, and `types/health.ts`. Added `API_URL` to `constants.ts`. `App.tsx` is now **68 lines** (Stock View gate + Dashboard shell only).
 - **Why:** Completes the frontend half of the product-health modularity plan after backend Phases 1–6. Constitution / file-size target for `App.tsx` was &lt;150 lines.
 - **Files touched:** `frontend/src/App.tsx`, `pages/DashboardPage.tsx` (new), `components/ScannerTabPanels.tsx` (new), `hooks/useScannerData.ts` (new), `hooks/useSettingsForm.ts` (new), `utils/sortRows.ts` (new), `types/health.ts` (new), `constants.ts`.
@@ -1241,7 +1405,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Optionally dedupe local `HealthStatus` interfaces in EmptyState/CatalystsTable to use `types/health.ts`.
 
 ## 2026-07-14 — Phase 6: main.py hits 200-line target (ibkr_bridge / universe / health / lifespan)
-
 
 - **What:** Extracted the last business-logic blocks from `main.py` into `ibkr_bridge.py` (IBKR run/enrich/table-reprice), `universe.py` (assets cache, avg volume, gapper enrich, HOD watch refresh), `health_status.py` (Alpaca health ping), and `app_lifespan.py` (startup/shutdown task wiring). `main.py` is now **199 lines**: cache state, tunables, re-exports, and FastAPI router wiring only.
 - **Why:** Completes the product-health monolith-reduction plan (Phases 1–6). Constitution / file-size target for `main.py` was &lt;200 lines.
@@ -1252,7 +1415,6 @@ Entry template (copy and fill in):
 
 ## 2026-07-14 — Phase 5: extract scan runners, WS stream, and scan_loop from main.py
 
-
 - **What:** Pulled the remaining scan/WS monolith out of `main.py` into three modules: `websocket.py` (Alpaca trade stream + cache overlays + `mark_resub`), `scan_runners.py` (discovery / focus / after-hours / movers), and `scan_loop.py` (news-catalyst scan + mode-aware `scan_loop`). `main.py` shrinks from 1624 → ~648 lines and now keeps caches, IBKR table-reprice helpers, HOD universe refresh, lifespan, and router wiring.
 - **Why:** Continuing the product-health monolith-reduction plan. Scan/WS logic was the largest remaining block and blocked further modular work.
 - **Files touched:** `backend/main.py`, `backend/websocket.py` (new), `backend/scan_runners.py` (new), `backend/scan_loop.py` (new).
@@ -1261,7 +1423,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Further shrink possible by moving IBKR reprice helpers / health ping / assets cache out of `main.py` (Phase 6).
 
 ## 2026-07-14 — Phase 4: routes/hod_momo.py + routes/scan.py + routes/health.py extraction
-
 
 - **What:** Extracted all REST + WebSocket route handlers that were inline in `main.py` into three new route modules: `routes/hod_momo.py` (HOD Momo + strategy WS), `routes/scan.py` (gappers / movers / afterhours / catalysts / history), and `routes/health.py` (health, config, mode). Added `reset_scan_caches()` helper to `main.py` so `update_config` can invalidate primitive caches from a separate module without the Python rebinding problem. `main.py` shrinks from 1934 → 1624 lines (17% reduction this phase).
 - **Why:** Continuing the product-health monolith-reduction plan (Phases 1–4). Route handlers had zero business logic; extracting them is purely housekeeping.
@@ -1450,7 +1611,6 @@ Entry template (copy and fill in):
 - **Verified by:** `tsc --noEmit`; Vitest for adapters; browser toggle RSI/MACD on quote-panel chart.
 - **Follow-ups:** Broader indicator picker (446 available); live tick recalculation of oscillators (currently refreshes with bar polls).
 
-
 ## 2026-07-14 — Restore "Gainers" tab name with a Losers sub-tab (was merged into unlabeled "Movers")
 
 - **What:** The tab formerly labeled "Movers" is now labeled "Gainers" and has "Gainers"/"Losers" sub-tabs (mirroring the Gappers tab's "All Gaps"/"Small Cap" sub-tabs), instead of silently concatenating gainers+losers into one unlabeled combined table.
@@ -1491,7 +1651,6 @@ Entry template (copy and fill in):
 
 ## 2026-07-14 — Empty scanner now names IB Gateway disconnect; Gateway launched for login
 
-
 - **What:** When `discovery_provider=ibkr` but IB Gateway is offline/not logged in, Gappers/Movers/After Hours no longer show the misleading "No gappers with a gap of at least 10% yet — scan running…" copy. They show `EMPTY_IBKR_DISCONNECTED` instead. Also launched the installed IB Gateway (`C:\Jts\ibgateway\1045\ibgateway.exe`) and brought its login window forward so the user can complete live login + 2FA; Nova keeps retrying `127.0.0.1:4001` every ~10s.
 - **Why:** Empty gappers were caused by Gateway not being logged in (no API socket), not by a lack of real gaps. The old empty state hid that.
 - **Files touched:** `frontend/src/components/EmptyState.tsx`, `frontend/src/constants.ts`, `frontend/src/App.tsx`, `PROBLEM_LOG.md`.
@@ -1501,7 +1660,6 @@ Entry template (copy and fill in):
 - **Related:** `PROBLEM_LOG.md` 2026-07-14 (empty gappers / Immersed port 40001 red herring).
 
 ## 2026-07-14 — Diagnosed empty gappers (IB Gateway disconnected) and documented every Alpaca dependency before any removal
-
 
 - **What:** Diagnosed why gappers/movers/after-hours showed empty despite real gaps existing: `.env` has `NOVA_DISCOVERY_PROVIDER='ibkr'` (scanner already sourced from IBKR, not Alpaca), but IB Gateway wasn't running on the machine, so `_run_ibkr()`'s try/except in `backend/main.py` silently degraded every scan to an empty list — by design (`_run_ibkr` "so callers degrade like an empty scan"), but with no visible signal that the real cause was connectivity, not a lack of gaps. Also added a full written inventory of everywhere Alpaca is used today, since the user wants to move off Alpaca entirely (too slow on the free IEX feed) but a same-day full removal would break News, Charts, RVOL, After-Hours, HOD Momo's real-time feed, and L2 tape — none of which have an IBKR replacement yet.
 - **Why:** User reported real gappers weren't showing up; root-cause investigation showed a disconnected IB Gateway, not a code bug. Follow-up ask was to fully remove Alpaca from the active codebase and preserve how it worked in an MD file for later reconstruction — but before touching any code, every Alpaca dependency needed to be mapped so removal doesn't silently break features that have no IBKR equivalent.
@@ -1887,7 +2045,6 @@ Entry template (copy and fill in):
 - **Follow-ups:** Wire Lincoln AI into `ai_reasoning`; refine source keyword lists from live Alpaca `source` values; optionally feed impact_class into Five Pillars / watchlist scoring later.
 - **Related:** Builds on existing flame thresholds, catalyst scan, and L2 features — does not invent a parallel news pipeline.
 
-
 ## 2026-07-11 — Arithmetic correctness + automation transparency test suite
 
 - **What:** Added `backend/tests/test_arithmetic_correctness.py` with hard-number expectations for risk stop/R:R math, position-sizing boundaries, setup entry/stop/target 2:1 brackets (Gap and Go / Bull Flag / ABCD), Five Pillars thresholds, L2 imbalance/stacked/spread/drying-up ratios, journal win-rate/avg/ratio/go-no-go arithmetic, and executor disclosure / disarmed-by-default contracts. Fixed two real bugs in `validate_trade_plan` found by those tests.
@@ -2081,7 +2238,6 @@ Entry template (copy and fill in):
 - **Verified by:** `npm run build` (web) OK; Electron launched against Vite and reused healthy API; packaged `nova-api.exe` returned `/api/health` connected; `electron-builder` produced `Nova-Setup-0.1.0.exe` (~156 MB).
 - **Follow-ups:** App icon / code-signing; if `frontend/release` hits Windows EPERM during pack, build with `--config.directories.output` under `%TEMP%`.
 
-
 ## 2026-05-06 — Add nova.altaystudio.com domain to Vercel
 
 - **What:** Assigned the custom domain `nova.altaystudio.com` to the frontend Vercel project (`stock-alert`).
@@ -2097,6 +2253,7 @@ Entry template (copy and fill in):
 - **Files touched:** `frontend/railway.toml`
 - **How it works now:** The frontend service will use this specific configuration file when the "Config as code" path in Railway is pointed to `/frontend/railway.toml`.
 - **Verified by:** Merged PR #1 generated by Railway AI.
+
 ## 2026-05-04 — Fix invalid GitHub Actions workflow and clean up pycache
 
 - **What:** Fixed a parsing error in `.github/workflows/deploy.yml` that prevented CI checks from running. Removed `__pycache__` directories from Git tracking.
@@ -2105,6 +2262,7 @@ Entry template (copy and fill in):
 - **How it works now:** The deployment step now runs and checks if `$RAILWAY_TOKEN` is set using bash. If it is omitted, the step skips gracefully without failing the job, allowing Railway's native deploy to proceed.
 - **Verified by:** Pushed the commit and verified the CI check suite executes.
 - **Related:** PROBLEM_LOG 2026-05-04
+
 ## 2026-04-28 — HOD Momo RVOL fallback to yfinance for IEX feed
 
 - **What:** The HOD Momo scanner now uses `yfinance` to compute RVOL when running on the IEX free tier. A 5-minute warmup grace period has been added to allow strategies to fire without RVOL while fundamentals load in the background. The UI now displays a "YF" badge next to yfinance-sourced RVOLs and a banner explaining the IEX data source.

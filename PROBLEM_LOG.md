@@ -21,6 +21,41 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — `markdownlint-cli2 --fix` corrupted bare Python identifiers in prose
+
+- **Symptom:** After running `npx markdownlint-cli2 --fix` on `AGENTS.md`/`gemini.md`/`CHANGELOG.md`/`PROBLEM_LOG.md` to clear MD022/MD032 blank-line violations, a diff review found silently mangled content: `__init__.py` became `**init**.py`, and spaces before underscore-prefixed identifiers were deleted (e.g. `load_state, _session_date` → `load_state,_session_date`, `(IBKR_* constants)` → `(IBKR_*constants)`).
+- **Cause:** MD037 (`no-space-in-emphasis`) and MD050 (`strong-style`) autofixers pattern-match `_word` / `__word__` as emphasis/strong markers even when the text is a bare code identifier or filename written without backticks (this repo's CHANGELOG/PROBLEM_LOG/rule docs do this constantly — `_session_date`, `__init__.py`, `IBKR_*`). The fixer "normalizes" what it thinks is malformed emphasis, deleting the preceding space or rewriting `__x__` to `**x**`, destroying the literal text.
+- **Fix:** Reverted the specific corrupted spans by hand (verified via `git diff` against HEAD, non-blank-line-only comparison). Disabled `MD037`/`MD050` in `.markdownlint-cli2.jsonc` (same category as the already-disabled MD033/MD034/MD036/MD041/MD060/MD024 — rules structurally incompatible with this project's writing style). Also fixed `**/graphify-out/**` (was only matching root-level, not nested `backend/graphify-out/`) and added `**/.tmp/**` + `**/test-results/**` to ignores.
+- **Keywords:** markdownlint-cli2, --fix, MD037, MD050, no-space-in-emphasis, strong-style, autofix corruption, dunder, `__init__.py`, false positive emphasis
+
+## 2026-07-16 — Time & Sales text nearly invisible (`--color-muted` collision)
+
+- **Symptom:** Stock View Time & Sales title/column headers appeared almost invisible (or “wrong color”); module cards looked thematically broken after Tailwind/shadcn.
+- **Cause:** `@theme` mapped Tailwind `--color-muted` to `rgba(255,255,255,0.04)` (a *background*). Legacy tape CSS used `color: var(--color-muted)` for text, so computed color was ~4% white. Purple `#22223a` fallbacks and bare global `form`/`button`/`header` selectors compounded the leak.
+- **Fix:** Canonical `--nova-text-muted` / `--text-secondary` for domain text; keep `--color-muted` as shadcn muted *surface* only. Move L2/T&S skin to `ibkr/marketData.css`. Scope legacy form selectors. Matched pane headers; remove outer combined title. Maintainer check rejects `color: var(--color-muted)` and bare feature selectors.
+- **Keywords:** Time & Sales, --color-muted, token collision, Tailwind, shadcn, Stock View, scanner-l2.css, marketData.css, ADR 006
+
+## 2026-07-16 — Stock View wrongly split L2 from T&S (and moved the drag bar)
+
+- **Symptom:** User reported Level 2 cramped/scrollable, T&S separated into its own stacked module with a horizontal drag between L2 and T&S, and believed Place Order / Unlock Trading had been deleted.
+- **Cause:** A prior Stock View layout change treated the "give me a horizontal drag bar" request as a splitter *between* L2 and T&S (`StockViewDepthTape` stacked cards + `STOCK_VIEW_L2_TAPE_SPLIT_*`). The intended control was reallocating height between the *combined* L2+T&S block and the Order Entry card below.
+- **Fix:** Restore side-by-side `.depth-and-tape` inside one `StockViewModuleCard`; move `useResizableHeight` + horizontal `ResizeHandle` to `StockViewRail` between depth and Open ticket; keep `TickerTradeActionBar` / `ManualOrderTicket` mounted. Persist `nova.stockView.depthOrderSplitPct` (default 72% depth).
+- **Keywords:** Stock View, Level 2, Time & Sales, depth-and-tape, ResizeHandle, Order Entry, ManualOrderTicket, Unlock Trading, horizontal splitter, rail layout
+
+## 2026-07-16 — Full pytest emits TorchVision DLL fatal exception but exits green
+
+- **Symptom:** `py -3 -m pytest backend/tests -q` printed `Windows fatal exception: code 0xc0000139` while `transformers` imported `torchvision` from `news/sentiment.py`; pytest continued and reported 677 passed with exit code 0.
+- **Cause:** The local Python 3.13 Torch/TorchVision binary stack is DLL-incompatible. Lazy FinBERT pipeline loading imports Transformers image helpers and therefore TorchVision even though Nova only requests text classification. The broad suite can expose the native-loader failure without converting it into a failing pytest exit.
+- **Fix:** No unrelated sentiment runtime change was made in this widget task. The focused IBKR/order suites pass cleanly; the full-suite result is recorded as `677 passed with environment fatal warning`, not an unqualified clean pass. Repair requires aligning the local Torch/TorchVision/Python build or isolating text-only model loading in a dedicated task.
+- **Keywords:** pytest, Python 3.13, torchvision, torch, transformers pipeline, FinBERT, c0000139, DLL incompatibility, false green test suite
+
+## 2026-07-16 — Canvas SDK and inferred-union assumptions failed type-check
+
+- **Symptom:** The new `agent-widgets.canvas.tsx` rejected `<TodoList items={...}>`; after adding Widgets Agent to Nova Home, TypeScript also flagged a redundant `a.canvas === "nova-home.canvas.tsx"` comparison after `dashboard_type` had already narrowed the union.
+- **Cause:** The Canvas SDK component uses the prop name `todos`, not the guessed `items`. Separately, the generated roster's literal union lets TypeScript prove that the canvas comparison has no overlap after the `home_section` branch.
+- **Fix:** Read `canvas/sdk/todo-list.d.ts`, changed the prop to `todos`, and simplified Nova Home dashboard routing to rely on `dashboard_type` alone. Both canvases now pass the authoritative Canvas TypeScript check.
+- **Keywords:** Cursor Canvas, TodoList, TodoListProps, items, todos, TypeScript narrowing, literal union, nova-home, Canvas TypeScript check
+
 ## 2026-07-16 — HOD Momo table shrunk to one ugly row
 
 - **Symptom:** HOD Momo tab looked nothing like Gappers/Gainers — a single tiny/clipped alert row with a huge empty pane below; numeric values and the intended 30-row window were unreadable ("can't even see the thirty"). Time column also showed "Invalid Date".
@@ -132,7 +167,6 @@ Entry template (copy and fill in):
 
 ## 2026-07-16 — Alert channel Test fire sent empty Discord embeds
 
-
 - **Symptom:** POST `/api/alerts/test` (and Settings “Test”) delivered Discord embeds with empty `description`; Telegram got a JSON dump instead of the test sentence.
 - **Cause:** `format_event_payload` only handled `hod_momo` / `nova_os`. Test events (`type=test` + `text=…`) fell through without copying `text`, so Discord used `payload.get("text", "")` → `""`.
 - **Fix:** Formatters now prefer `event["text"]` for test/unknown events; Discord titles distinguish Test vs HOD vs Nova OS. Also sanitized Discord/Telegram/webhook exception return strings so webhook URLs / bot tokens never leak into `/api/alerts/status`.
@@ -173,14 +207,12 @@ Entry template (copy and fill in):
 - **Fix:** Exclude `src/**/*.test.ts(x)` from `tsconfig.app.json` so Vitest owns those files; app build stays browser-typed.
 - **Keywords:** tsc, vitest, node:fs, tsconfig.app.json, exclude, ownership test
 
-
 ## 2026-07-15 — Vitest loaded Playwright e2e specs and failed the unit suite
 
 - **Symptom:** `npx vitest run` failed on `e2e/baseline.spec.ts` with `Playwright Test did not expect test.describe() to be called here`.
 - **Cause:** Vitest default include picks up `*.spec.ts`; Playwright specs under `frontend/e2e/` were executed as Vitest files.
 - **Fix:** Exclude `**/e2e/**` in `vite.config.ts` `test.exclude`; import `defineConfig` from `vitest/config` so the `test` key type-checks under `tsc -b`.
 - **Keywords:** vitest, playwright, e2e, baseline.spec.ts, test.exclude, vitest/config
-
 
 ## 2026-07-15 — Double-click Stock View only worked on scanners / HOD, not Journal / Trading / Debug
 
@@ -411,7 +443,6 @@ Entry template (copy and fill in):
 - **Fix:** `backend/ibkr/discovery.py` `get_gappers()` now falls back to `TOP_PERC_GAIN` when `TOP_OPEN_PERC_GAIN` is empty, then applies the existing `GAPPER_MIN_GAP_PCT` filter. Added scanner result logging.
 - **Keywords:** TOP_OPEN_PERC_GAIN, TOP_PERC_GAIN, premarket gappers, error 162, scanner cancelled, get_gappers, IBKR discovery
 
-
 - **Symptom:** User reported "nothing is being scanned" and knew real gappers existed, but `/api/gappers`, `/api/movers`, `/api/afterhours` all returned empty lists, and the UI showed the generic "No gappers with a gap of at least X% yet — scan running..." message that implied everything was healthy.
 - **Cause:** `.env` has `NOVA_DISCOVERY_PROVIDER='ibkr'`, so scanner discovery is sourced from IBKR (`backend/ibkr/discovery.py`), not Alpaca — but IB Gateway was not logged in. Launching `C:\Jts\ibgateway\1045\ibgateway.exe` alone is not enough: until login (+ weekly 2FA) completes, Gateway opens **no** local API socket, so Nova's reconnect loop gets `ConnectionRefusedError` on `127.0.0.1:4001` forever. `_run_ibkr()` then returns `[]`, which the UI treated as "no gaps yet". Red herring: port `40001` was listening but owned by `Immersed-service` (VR), not IB — TCP connect succeeded then IB API handshake timed out with WinError 64.
 - **Fix:** (1) Launch Gateway and bring its login window to the foreground; Nova already retries every ~10s once the API port opens after login. (2) `EmptyState` now takes `discoveryProvider` and, when `ibkr` + Gateway offline, shows `EMPTY_IBKR_DISCONNECTED` instead of the misleading "no gappers yet" copy (`frontend/src/components/EmptyState.tsx`, `constants.ts`).
@@ -595,6 +626,7 @@ Entry template (copy and fill in):
 - **Cause:** GitHub Actions does not allow accessing `secrets.*` within job-level `if` conditionals. The expression `secrets.RAILWAY_TOKEN != ''` caused a parsing error that failed the entire workflow before any jobs could run.
 - **Fix:** Removed the secret check from the job's `if` condition in `.github/workflows/deploy.yml`. Instead, moved the check into the `Deploy backend service` bash step, where it verifies `[ -z "$RAILWAY_TOKEN" ]` and safely exits if the token is omitted.
 - **Keywords:** GitHub Actions, Invalid workflow file, Unrecognized named-value: 'secrets', job conditional, deploy.yml
+
 ## 2026-04-28 — Empty gapper list after server restart (SIP feed not supported)
 
 - **Symptom:** No gappers appeared after starting the backend despite many market gaps. Logs showed: `Alpaca WS auth failed: code 409, 'insufficient subscription'` (repeating), `avg_volume bars API returned 403: "subscription does not permit querying recent SIP data"`, `HOD Momo enrichment: snapshot fetch returned empty`. `gappers-2026-04-28.json` contained `{"gappers": []}`.

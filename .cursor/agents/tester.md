@@ -47,7 +47,8 @@ Run the scoped target first; widen to the full suite only if scoped is green and
 
 | Changed | Run |
 |---------|-----|
-| `backend/hod_momo*.py` | `test_hod_momo_engine.py`, `test_hod_momo_filters.py`, `test_hod_momo_models.py`, `test_hod_momo_persist.py`, `test_hod_momo_metrics.py`, `test_hod_momo_universe.py` |
+| `backend/hod_momo*.py` / integrity | `test_hod_momo_engine.py`, `test_hod_momo_filters.py`, `test_hod_momo_models.py`, `test_hod_momo_persist.py`, `test_hod_momo_metrics.py`, `test_hod_momo_universe.py`, `test_hod_momo_integrity.py`, `test_hod_momo_active.py`, `test_hod_momo_spam_rate.py`, `test_hod_momo_heartbeat.py`, `test_scanner_integrity_mode.py`, `test_integrity_live_builders.py` |
+| HOD live claim (IBKR up) | `py -3 tools/hod_momo_session_gate.py --profile integrity_only` (exit 0); RTH SLO: `--profile rth_slo` or `latency_probe --seconds 900`. Exit 3 = BLOCKED (Gateway), not FAIL. Never claim overnight quote SLO. |
 | `backend/strategy/executor*.py` | `test_executor.py`, `test_routes_executor.py` |
 | `backend/nova_os/*` or control modes | `test_nova_os_*.py`, `test_routes_nova_os.py` |
 | `backend/ibkr/*` | `test_ibkr_*.py` |

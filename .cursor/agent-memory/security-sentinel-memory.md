@@ -10,7 +10,7 @@ Canonical registry: `security/findings-registry.json` — open/accepted/fixed st
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-16T00:50:00-04:00
+captured_at: 2026-07-16T23:25:00-04:00
 source_revision: b8626e4
 result: FINDINGS
 metrics:
@@ -21,8 +21,8 @@ metrics:
   high_open: 2
   medium_open: 2
 blockers: []
-dashboard_freshness: stale
-notes: "Counts derived from security/findings-registry.json — re-read registry for truth."
+dashboard_freshness: clean
+notes: "Counts derived from security/findings-registry.json — re-read registry for truth. SEC-007 candidate (2026-07-16) was a dedup, not a new finding — see run log; registry now accurately reflects 6 open findings with no duplicates."
 ```
 
 ---
@@ -51,7 +51,7 @@ Do **not** maintain a duplicate severity table here. Read `status: accepted` row
 
 False positives the deterministic scanner or greps keep hitting. Pattern + reason. Newest first.
 
-_(empty)_
+- **Location-drift duplicate after constants-module split** (2026-07-16) — `tools/security_lib/normalize.fingerprint()` hashes `(source, kind, path, title)`. When a constant's authoritative definition moves file (e.g. Phase 3 `backend/constants.py` → domain module split), the same logical finding gets a new fingerprint and looks like a new SEC-NNN even though nothing new was introduced. Before accepting a "new" finding whose `title`/`cvss_score` exactly match an existing open finding, `grep` the old and new location to confirm whether the value is genuinely re-declared (real duplicate — new SEC-NNN) or the old location is now a barrel/no-op (dedup — fold into the existing ID's `location`/`fingerprint`, do not open a new ID). Confirmed case: SEC-003 (`CORS_ALLOWED_ORIGINS_DEFAULT`) — `backend/constants.py` is a 19-line Phase-3 barrel (`from constants_scanner import *`), no line 34 definition remains there; the literal lives only in `backend/constants_scanner.py:34`. Folded the new fingerprint into SEC-003 rather than creating SEC-007.
 
 ---
 
@@ -65,6 +65,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 - [ ] **Schemathesis allowlist expansion** — run `schemathesis run http://127.0.0.1:8000/openapi.json` against the local API; document which endpoints are safe to fuzz vs. skip (order/kill-switch routes must be skipped).
 - [ ] **Dependency pinning sweep** — audit `backend/requirements.txt` for unpinned packages; propose pinned versions.
 - [ ] **`.gitignore` completeness check** — verify `.env*`, `backend/.cache/`, `backend/logs/`, `*.db`, IBKR credential files are all covered.
+- [ ] **Fingerprint dedup across file moves** — `normalize.fingerprint()` includes `path`, so any constants-module split/rename (see Suppressions above, SEC-003) manufactures a spurious "new" SEC-NNN candidate for the exact same logical finding. Consider a secondary dedup pass in `merge_findings()` that flags (not auto-merges) a candidate whose `(source, kind, title, severity)` matches an existing open finding with a different `path`, so the sentinel gets a "possible relocation of SEC-NNN" hint instead of a silent new ID. Out of scope for this subagent to implement directly (tool code, not registry/memory) — hand to parent/maintainer if picked up.
 
 ### Completed
 
@@ -76,7 +77,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 Facts discovered in a run that are **not yet** in `security-sentinel.md`. After promoting, delete the bullet here.
 
-_(empty)_
+**(empty)**
 
 ---
 
@@ -85,6 +86,16 @@ _(empty)_
 Newest first. Keep entries short. Skip boring all-clean runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-16 — SEC-007 candidate triaged as dedup, not a new finding
+
+- **Scope:** Parent flagged a fresh dry-run (`py -3 tools/security_audit.py --json`, registry not written) surfacing SEC-007 — `CORS_ALLOWED_ORIGINS_DEFAULT` wildcard at `backend/constants_scanner.py:34`, same title/CVSS as SEC-003 (`backend/constants.py:34`). Asked to verify genuine duplicate definition vs. tool dedup gap, and to reconcile the registry.
+- **Verification:** `grep -n CORS_ALLOWED_ORIGINS_DEFAULT backend` → only one literal definition, `backend/constants_scanner.py:34`. Read `backend/constants.py` (19 lines) — it is the Phase 3 compatibility barrel, `from constants_scanner import *`; no independent redeclaration. **Not** a centralized-constants violation — the barrel-import pattern is exactly what that policy requires ("import, don't re-declare").
+- **Root cause of the false "new" finding:** `tools/security_lib/normalize.fingerprint()` hashes `(source, kind, path, title)`. The constants Phase-3 split moved the physical definition out of `constants.py` into `constants_scanner.py`, changing `path` → new fingerprint → looked like a second independent finding even though SEC-003's old location no longer contains the code at all.
+- **Resolution:** Did not run `--write-registry` (its `merge_findings()` only dedupes on exact fingerprint match; it would have added SEC-007 as a second open finding). Manually updated SEC-003 in place: `location` → `backend/constants_scanner.py:34`, `fingerprint` → the new value, `detail` clarified re: barrel, `compensating_controls` records the superseded old fingerprint for traceability, `last_seen` bumped. Appended a `scan_runs` entry documenting the manual dedup (0 new, SEC-003 updated). Re-ran the dry-run afterward — confirms `new_finding_ids: []`, `open_finding_count: 6`, SEC-003 now matches on the new fingerprint going forward.
+- **Result:** Open findings still 6 (SEC-001–SEC-006); no SEC-007 created. Highest open CVSS unchanged at 9.8 (SEC-002). No genuine second CORS-wildcard definition exists — flagged to parent as informational only (not a product bug), since the barrel pattern is correct as-is.
+- **Memory update:** Suppression added (location-drift dedup rule); backlog item added (fingerprint dedup gap, hand to maintainer/tool owner — out of sentinel's edit scope); Current snapshot refreshed, `dashboard_freshness: clean`.
+- **Files updated:** `security/findings-registry.json` (SEC-003 merge, scan_runs entry), `security-sentinel-memory.md`.
 
 ### 2026-07-16 — Baseline enrichment (compensating controls + status ledger)
 

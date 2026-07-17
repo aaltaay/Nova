@@ -51,30 +51,36 @@ Optional (when parent asks for deep coverage): full `py -3 -m pytest backend/tes
 Run the deterministic script first. Then layer judgment. Score each dimension 0–20 (100 total) only from evidence — do not invent scores.
 
 ### 1. Constitution / file limits
+
 - `backend/main.py` ≤ 200 lines; `frontend/src/App.tsx` ≤ 150.
 - New Python modules ≤ 400; new React components ≤ 300; other new TS ≤ 400.
 - Compare against **Accepted baselines** in memory — documented over-limit files (`hod_momo.py`, `executor.py`) are baseline, not new CRITICAL findings. Flag **growth** past the last baseline line count as WARNING.
 
 ### 2. Modularity & constants
+
 - Logic creeping into `main.py` / `App.tsx` beyond app factory / layout+router.
 - Magic numbers / tunable strings in changed files that belong in `backend/constants.py` or `frontend/src/constants.ts`.
 
 ### 3. Danger sniffing
+
 - Secrets / tokens / credentials in source (mask in output).
 - Silent swallowing: `except: pass`, bare `except:`, empty `catch {}` (banned by self-annealing).
 - Order placement outside `backend/ibkr/` and `backend/strategy/` (Constitution Invariant #7).
 - Single-feed anti-patterns (IBKR discovery silently falling back to Alpaca prices).
 
 ### 4. Static analysis
+
 - `ruff check backend` (see `backend/ruff.toml` — BLE/TRY rules target silent failures).
 - `npm run lint` in `frontend/`.
 
 ### 5. Dependencies
+
 - `pip_audit` on `backend/requirements.txt`.
 - `npm audit --omit=dev` in `frontend/`.
 - Prefer pinned / lockfile-backed deps; note unpinned packages as SUGGESTION unless CVE → CRITICAL/WARNING.
 
 ### 6. Hygiene drift
+
 - Generated artifacts (`frontend/dist/`, `backend/.cache/`, `.env`) about to be committed.
 - Missing `CHANGELOG.md` / `PROBLEM_LOG.md` for recent non-trivial commits (judgment call — note as SUGGESTION unless clearly a bug fix without PROBLEM_LOG).
 
@@ -108,6 +114,7 @@ Run the deterministic script first. Then layer judgment. Score each dimension 0�
 | Boring all-clean run, nothing new | Skip file edits; set **Memory update:** none |
 
 Rules:
+
 - Surgical edits only. Keep `maintainer.md` under ~160 lines of durable policy; history goes in memory.
 - Cap run log at ~30 entries — if longer, delete the oldest half.
 - Do not commit memory/agent updates unless parent/user asks.

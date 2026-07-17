@@ -1,4 +1,5 @@
 ﻿# 🏛️ GEMINI.MD — Project Constitution (Law)
+>
 > **Status:** ENFORCED — Active governance document
 > **Last Updated:** 2026-04-27
 > **Project:** Nova — Stock Alert Automation System
@@ -9,6 +10,7 @@
 ## 0. PURPOSE
 
 This document is the **single source of truth** for how this project is built, maintained, and extended. It exists because:
+
 1. AI assistants lose context between sessions.
 2. Without rules, assistants dump everything into monoliths.
 3. The user has explicitly mandated modular, disciplined engineering.
@@ -49,13 +51,14 @@ These rules CANNOT be violated under ANY circumstance:
 ### 2.1 Backend Modularity
 
 `backend/main.py` is the **app entry point ONLY**. It must contain:
+
 - FastAPI app creation + middleware
 - `lifespan` / startup hooks that wire together modules
 - Route registrations (via `app.include_router` or thin `@app.get` calls that delegate immediately)
 
 **NOTHING ELSE.** All logic lives in purpose-built modules:
 
-```
+```text
 backend/
   main.py            # app factory + lifespan ONLY (target: <200 lines)
   constants.py       # all tunables (centralized constants rule)
@@ -83,12 +86,13 @@ backend/
 ### 2.2 Frontend Modularity
 
 `frontend/src/App.tsx` is the **root layout + router ONLY**. It must contain:
+
 - Provider wrappers, theme, top-level layout shell
 - Route definitions that delegate to page-level components
 
 **NOTHING ELSE.** All logic lives in purpose-built modules:
 
-```
+```text
 frontend/src/
   App.tsx             # root layout + router ONLY (target: <150 lines)
   main.tsx            # entry point
@@ -136,6 +140,7 @@ frontend/src/
 ### 2.4 Refactoring Protocol
 
 When touching ANY function currently in a monolith file:
+
 1. **Move** it to the correct module (see layout above).
 2. **Import** it back in the original file if still referenced there.
 3. **Do NOT leave the old copy** in the monolith.
@@ -147,6 +152,7 @@ When touching ANY function currently in a monolith file:
 ## 3. 📐 Data Schema (Confirmed)
 
 ### Input Payload (Raw)
+
 ```json
 {
   "symbol": "AAPL",
@@ -159,6 +165,7 @@ When touching ANY function currently in a monolith file:
 ```
 
 ### Output / Delivery Payload
+
 ```json
 {
   "health": {
@@ -202,6 +209,7 @@ When touching ANY function currently in a monolith file:
 ## 6. 🔧 Coding Standards (Enforced)
 
 ### 6.1 Constants Policy
+
 - **Authoritative values** live in backend domain modules (`constants_scanner.py`, `constants_hod_momo.py`, `constants_ibkr.py`, `constants_archive_news.py`, `constants_nova_os.py`) and frontend `constantGroups/` (or feature-local constants).
 - `backend/constants.py` and `frontend/src/constants.ts` are **compatibility barrels** — re-exports only; do not add new definitions there.
 - No magic numbers. No inline strings in `main.py` / `App.tsx`. Import from domain modules or barrels.
@@ -210,25 +218,30 @@ When touching ANY function currently in a monolith file:
 - Environment variable overrides are permitted, but the default MUST come from a domain constants module.
 
 ### 6.2 Naming
+
 - Python: `snake_case` for functions/variables, `PascalCase` for classes, `UPPER_SNAKE` for constants.
 - TypeScript: `camelCase` for functions/variables, `PascalCase` for components/types, `UPPER_SNAKE` for constants.
 - Files: `snake_case.py` for Python, `PascalCase.tsx` for React components, `camelCase.ts` for utilities.
 
 ### 6.3 Error Handling
+
 - Use structured logging (`logging.getLogger(__name__)`) in Python.
 - Never swallow exceptions silently — at minimum log a warning.
 - Frontend: surface errors in UI debug panels, not just console.
 
 ### 6.4 Testing
+
 - Backend: pytest for API behavior and pure Python logic.
 - Frontend: Vitest + React Testing Library.
 - New modules should include at least a minimal test.
 
 ### 6.5 Dependencies
+
 - Python: pinned in `requirements.txt`.
 - Node: `package-lock.json` committed, use `npm ci` in CI.
 
 ### 6.6 Secrets & Security
+
 - Never commit secrets, API keys, or full `.env` files.
 - No secrets in log messages.
 - Use `.env.example` for documented safe examples.
@@ -238,15 +251,18 @@ When touching ANY function currently in a monolith file:
 ## 7. 📝 Documentation Requirements (Enforced)
 
 ### 7.1 CHANGELOG.md
+
 - Prepend entry after any task that changes behavior, endpoints, module boundaries, constants, build config, rules, or UI behavior.
 - Entry ships in the SAME commit as the code it describes.
 - Use the template in `CHANGELOG.md`.
 
 ### 7.2 PROBLEM_LOG.md
+
 - Prepend entry after fixing any build/test/linter failure, runtime error, incorrect behavior, or subtle root cause.
 - Use the template in `PROBLEM_LOG.md` (Symptom, Cause, Fix, Keywords).
 
 ### 7.3 .cursor/rules/
+
 - MDC rules are peers of this constitution. They provide fine-grained, glob-scoped enforcement.
 - When logic changes, update or add the relevant MDC rule BEFORE writing code.
 
@@ -255,7 +271,8 @@ When touching ANY function currently in a monolith file:
 ## 8. 🚀 Run & Deploy
 
 ### Local Dev (Windows)
-```
+
+```text
 # From repo root — browser UI:
 Run Nova.bat
 
@@ -273,6 +290,7 @@ cd frontend && npm run electron:pack
 ```
 
 ### Deploy (Railway / Vercel)
+
 - Backend: auto-deploys from `master` branch (Railway).
 - Frontend (web): Vite build via Vercel Git integration.
 - Desktop: local installer only (not hosted on Vercel/Railway).
@@ -282,6 +300,7 @@ cd frontend && npm run electron:pack
 ## 9. 🔄 Self-Annealing Protocol
 
 When ANY error occurs during a task:
+
 1. **STOP** — Do not apply a band-aid.
 2. **Analyze** — Read `PROBLEM_LOG.md` for prior matching entries.
 3. **Root Cause** — Identify the actual cause, not the symptom.
@@ -305,6 +324,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-16 | Webull Widget Parity Specialist (`widgets-agent`): source-backed stock/day-trading capability map, continuity rule, and dedicated `agent-widgets` dashboard; selected implementations preserve manual controls and IBKR safety. | Cursor Agent |
 | 2026-07-16 | Unified agent lifecycle OS: `.cursor/agent-system/` contract+registry; memories in `.cursor/agent-memory/`; specialist-routing + subagentStop hook; agent_contract / sync_agent_surfaces / create_nova_agent tools + CI job; docs/agent-operations.md. | Cursor Agent |
 | 2026-07-16 | Warrior Trading Navigator (`warrior`): authenticated site navigation specialist; dashboard `agent-warrior`; durable map in Obsidian + `docs/warrior-authenticated-access.md`; retired unmanaged `warrior-site-map` canvas. | Cursor Agent |
 | 2026-07-16 | Nova Agent (`nova-agent`): docs + canvas steward; Diátaxis / markdownlint-cli2 / Vale / Lychee pins; `docs-continuity.mdc`; `tools/nova_docs_inventory.py`; dashboard = Nova Home; merged unmanaged `nova-security-audit` into `agent-security`. | Cursor Agent |
@@ -318,7 +338,6 @@ When ANY error occurs during a task:
 | 2026-04-27 | Added mandatory git commit & push rule | User Directive |
 | 2026-04-13 | Project Constitution initialized | System Pilot |
 | 2026-07-15 | Phase A skills library: vendored vectorbt/backtesting/security skills into `.cursor/skills/` + Obsidian [[Skills-Library]] / [[Reference-Repos]] indexes. | Cursor Agent |
-
 
 ---
 
@@ -345,8 +364,10 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 | **maintainer** | “Use the maintainer subagent to audit the repo” | `agent-maintainer.canvas.tsx` |
 | **security-sentinel** | “Use the security-sentinel subagent to audit the repo” | `agent-security.canvas.tsx` |
 | **warrior** | “Use the warrior subagent to navigate Warrior Trading” | [agent-warrior](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-warrior.canvas.tsx) |
+| **hod-momo** | “Use the hod-momo subagent to continue HOD Momo parity” | [agent-hod-momo](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hod-momo.canvas.tsx) |
+| **widgets-agent** | “Use the widgets-agent subagent to map Webull widgets to Nova” | [agent-widgets](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-widgets.canvas.tsx) |
 
-Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Nova Agent. Warrior site navigation owns `agent-warrior` (not Nova Home). Route via `.cursor/rules/specialist-routing.mdc`.
+Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Nova Agent. Warrior site navigation owns `agent-warrior` (not Nova Home). `hod-momo` owns the ongoing HOD Momo ↔ Warrior parity workstream (`agent-hod-momo`); never feeds Warrior data into Nova's alert engine. `widgets-agent` owns the evidence-based Webull ↔ Nova stock/day-trading capability map and `agent-widgets`; Webull remains research-only. Route via `.cursor/rules/specialist-routing.mdc`.
 
 ---
 
@@ -354,8 +375,8 @@ Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unma
 
 The following rules are imported from .cursor/rules and MUST be followed by all agents:
 
-
 ### Rule: backend-modularity.mdc
+
 ```markdown
 ---
 description: Enforce modular design in the backend — no logic dumped into main.py
@@ -375,6 +396,7 @@ Everything else lives in a purpose-built module. When adding or refactoring code
 ## Module Layout
 
 ```
+
 backend/
   main.py            # app factory + lifespan only
   constants.py       # all tunables (see centralized-constants rule)
@@ -390,7 +412,8 @@ backend/
     scan.py          # /gappers, /gainers, /losers endpoints
     ticker.py        # /ticker/{symbol} + ticker detail WS
     settings.py      # /settings GET/POST
-```
+
+```text
 
 ## Rules
 
@@ -428,12 +451,13 @@ async def get_gappers_route():
 ## Refactoring Existing Code
 
 When touching any function currently in `main.py`:
+
 1. Move it to the correct module (see layout above).
 2. Import it back in `main.py` if still referenced there.
 3. Do not leave the old copy in `main.py`.
 4. Update all callers in the same PR/commit.
 
-```
+```text
 
 ### Rule: centralized-constants.mdc
 ```markdown
@@ -488,6 +512,7 @@ All configuration values in this project — thresholds, filters, regex patterns
 ```
 
 ### Rule: change-log.mdc
+
 ```markdown
 ---
 description: Maintain CHANGELOG.md with a human-readable summary after every task
@@ -532,7 +557,7 @@ Prepend a new entry after completing any task that changes:
    - **Related:** (optional) commit SHA, PROBLEM_LOG date, issue link.
    ```
 
-4. Keep each field to a few lines. The **"How it works now"** field matters most — write it for a cold agent re-entering the repo.
+1. Keep each field to a few lines. The **"How it works now"** field matters most — write it for a cold agent re-entering the repo.
 
 ## Relationship to PROBLEM_LOG.md
 
@@ -551,7 +576,7 @@ Prepend a new entry after completing any task that changes:
 - No verbatim stack traces longer than one line (summarize).
 - If an entry would duplicate an existing recent one, extend the existing entry's fields instead of creating a near-identical new one.
 
-```
+```text
 
 ### Rule: commit-after-tasks.mdc
 ```markdown
@@ -575,6 +600,7 @@ This applies at **task completion** — after the requested work is done and val
 ```
 
 ### Rule: constitution.mdc
+
 ```markdown
 ---
 description: Master governance rule — read gemini.md before any code change
@@ -612,6 +638,7 @@ Before writing ANY code in this project, you MUST:
 ```
 
 ### Rule: engineering-standards.mdc
+
 ```markdown
 ---
 description: Scale-ready engineering — Tailwind direction, tests, CI, deps, observability
@@ -659,6 +686,7 @@ This project is expected to grow. Agents and contributors should align new work 
 ```
 
 ### Rule: file-size-limits.mdc
+
 ```markdown
 ---
 description: Enforce maximum file size limits to prevent monolith files
@@ -698,6 +726,7 @@ No single source file may grow beyond the limits below. When a file approaches o
 ```
 
 ### Rule: frontend-modularity.mdc
+
 ```markdown
 ---
 description: Enforce modular design in the frontend — no logic dumped into App.tsx
@@ -717,6 +746,7 @@ Everything else lives in a purpose-built module. When adding or refactoring code
 ## Module Layout
 
 ```
+
 frontend/src/
   App.tsx             # root layout + router ONLY (target: <150 lines)
   main.tsx            # entry point
@@ -743,7 +773,8 @@ frontend/src/
     scanner.ts
     ticker.ts
   hod_momo/           # HOD Momo feature module (already modular ✅)
-```
+
+```text
 
 ## Rules
 
@@ -789,12 +820,13 @@ function App() {
 ## Refactoring Existing Code
 
 When touching any component or logic currently in `App.tsx`:
+
 1. Extract it to a new component in `components/` or a hook in `hooks/`.
 2. Import it back in `App.tsx` if still referenced there.
 3. Do not leave the old copy in `App.tsx`.
 4. Update all callers in the same commit.
 
-```
+```text
 
 ### Rule: problem-log.mdc
 ```markdown
@@ -829,6 +861,7 @@ This is part of **task completion**: add the log entry in the same session as th
 ```
 
 ### Rule: run-app.mdc
+
 ```markdown
 ---
 description: How to run Stock Alert and what to do when the user says "run the app"
@@ -871,6 +904,7 @@ Do not spend turns listing options unless something fails; execute first, then r
 ```
 
 ### Rule: self-annealing.mdc
+
 ```markdown
 ---
 description: Self-annealing error protocol — never band-aid, always root-cause fix
@@ -903,16 +937,20 @@ When ANY error occurs during a task — build failure, runtime exception, incorr
 
 ```
 
-## ?? Karpathy Behavioral Guidelines
-This project strictly enforces the Andrej Karpathy LLM principles to prevent common AI coding mistakes.
-1. **Think Before Coding**: State assumptions, present tradeoffs, stop if confused.
-2. **Simplicity First**: Write minimum viable code. No speculative abstractions.
+## Karpathy Behavioral Guidelines
+
+This project enforces Karpathy-style discipline *plus* creative foresight (full text: `.cursor/rules/karpathy-guidelines.mdc` / `.cursor/skills/karpathy-guidelines/`).
+
+1. **Think Before Coding**: State assumptions, present tradeoffs, explore better problem frames, stop if confused.
+2. **Elegant Simplicity**: Minimum code that truly solves the problem — insight over bulk; no gold-plating.
 3. **Surgical Changes**: Touch only requested lines. Leave unrelated code untouched.
-4. **Goal-Driven Execution**: Define verifiable success criteria and loop until verified.
+4. **Creative Solutions & Thinking Ahead**: Prefer non-obvious root fixes and clean seams; name follow-ups — don't silently build unused futures.
+5. **Goal-Driven Execution**: Define verifiable success criteria (and key negative checks) and loop until verified.
 
 Before working on this project, ensure you adhere to these rules.
 
 ## Web Verification & Browser Testing
+
 - **Web Verification**: At the end of every task involving web deployments or changes, agents MUST open a headless browser (using `agent-browser` or Playwright) and test the actual live subdomain URL (not localhost) to ensure it loads successfully and functions correctly before declaring the task complete.
 - **Local Browser CDP**: Use `c:\Users\aalta\anaconda3\python.exe "c:\Users\aalta\github\AhmiOS\local-browser-skill\security_prompt.py"` before connecting to Edge (`9223`) or Chrome (`9222`) via CDP.
 - **Agent Browser CLI**: Use `npx agent-browser@latest` for fast, lightweight interaction.

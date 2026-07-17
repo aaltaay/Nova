@@ -53,37 +53,44 @@ Windows: always `py -3` for Python. Run audit tools from **repo root**.
 Run the deterministic script first. Then layer judgment. Cite file + line when possible.
 
 ### 1. API auth / CORS / secrets exposure
+
 - FastAPI CORS `allow_origins` — never `*` with credentials; check `app_lifespan.py`.
 - Unauthenticated endpoints that modify state (executor, kill switch, HOD Momo config).
 - Secrets or tokens hardcoded in `*.py`, `*.ts`, `*.tsx`, or committed `.env*` files.
 - `X-Api-Key` / bearer schemes — presence, bypass paths, header injection.
 
 ### 2. Trading / execution gates
+
 - `IBKR_ENABLED` + `IBKR_LIVE_TRADING_CONFIRMED` guard in `backend/ibkr/` paths.
 - Kill-switch and auto-paper checks in `backend/strategy/executor.py`.
 - Any code path that could reach `placeOrder` / `reqIds` outside the gated module.
 - HOD Momo alert dispatch — signal vs execute separation.
 
 ### 3. Supply chain (dependencies)
+
 - `pip_audit` CVEs in `backend/requirements.txt`; `npm audit` in `frontend/`.
 - Unpinned packages in `requirements.txt` or `package.json` that could shadow-upgrade.
 - Typosquat risk for any recently added package (judgment call from name).
 
 ### 4. Secrets scanning
+
 - Grep for key patterns (see Verified commands table).
 - Check `.gitignore` covers `.env`, `*.env`, `backend/.cache/`, `backend/logs/`.
 - Confirm no `.env` file committed to the repo (`git ls-files | rg ".env"`).
 
 ### 5. SAST (static analysis proxy)
+
 - `ruff check backend` with BLE/TRY/S rules where configured.
 - Manual inspection for SQL/shell injection, path traversal, unsafe `eval`/`exec`, unvalidated redirect.
 - Input validation on FastAPI route parameters (Pydantic or manual).
 
 ### 6. Container / IaC
+
 - `railway.toml` / `Dockerfile` — no `--privileged`, no world-writable mounts, no secrets in ENV directives.
 - `vercel.json` — no exposed server routes that bypass auth.
 
 ### 7. Safe localhost API fuzzing (opt-in only)
+
 - Only when user confirms API is running locally at `127.0.0.1:8000`.
 - HTTP verb confusion, auth bypass on order/kill-switch routes, oversized payload rejection.
 - Never store request bodies with real account data.
@@ -131,6 +138,7 @@ Only when the **parent agent** explicitly asks. Tag those findings `source: curs
 | Boring all-clean run, nothing new | Skip file edits; set **Memory update:** none |
 
 Rules:
+
 - Surgical edits only. Keep this file under ~180 lines of durable policy; history goes in memory.
 - Cap run log at ~30 entries — if longer, delete the oldest half.
 - Do not commit memory/agent/registry updates unless parent/user asks.

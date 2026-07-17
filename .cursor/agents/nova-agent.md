@@ -63,6 +63,7 @@ Windows: always `py -3` for Python. Missing Vale or Lychee → report **BLOCKED*
 - Secrets / `.env`
 - Tester / Maintainer / Security Sentinel product-audit responsibilities (you may link and refresh their boards; do not own SEC-NNN triage or code hygiene findings)
 - Warrior Trading live navigation / Day Trade Dash mapping (hand off to `warrior`; do not recreate unmanaged Warrior canvases — point at `agent-warrior.canvas.tsx`)
+- Webull-to-Nova widget capability accuracy or selected gap implementation (hand off to `widgets-agent`; retain general naming and canvas hygiene)
 
 ## Evidence rules
 
@@ -145,3 +146,4 @@ Before editing any `.canvas.tsx`, read the Canvas skill (`~/.cursor/skills-curso
 | maintainer | code hygiene / danger |
 | security-sentinel | full-repo security / SEC-NNN |
 | warrior | Warrior Trading authenticated site / Day Trade Dash navigation (`agent-warrior`) |
+| widgets-agent | Webull-to-Nova stock/day-trading capability mapping and `agent-widgets` content |

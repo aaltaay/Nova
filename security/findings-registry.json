@@ -46,12 +46,12 @@
     },
     {
       "id": "SEC-003",
-      "fingerprint": "8f87c08a53f3ca5b3a70b87726b3b6593a06078ce0f7ac131cb06f9fb297514a",
+      "fingerprint": "ae89480935d6e0cf652de3c296a6439312a1cc29ee329ea1e3bab33b78cc1e7b",
       "status": "open",
       "severity": "high",
       "title": "CORS_ALLOWED_ORIGINS_DEFAULT is set to wildcard [\"*\"]",
-      "detail": "constants.py sets CORS_ALLOWED_ORIGINS_DEFAULT = [\"*\"], which allows any web origin to make cross-origin requests to the API. This is acceptable in pure local-dev, but becomes a high-risk misconfiguration if the API is deployed to Railway without setting NOVA_CORS_ALLOWED_ORIGINS in the env.",
-      "location": "backend/constants.py:34",
+      "detail": "backend/constants_scanner.py sets CORS_ALLOWED_ORIGINS_DEFAULT = [\"*\"], which allows any web origin to make cross-origin requests to the API. backend/constants.py is a compatibility barrel (`from constants_scanner import *`, Phase 3 constants split) and only re-exports this value \u2014 it is not independently redefined there, so the centralized-constants \"import, don't re-declare\" policy is followed correctly. This is acceptable in pure local-dev, but becomes a high-risk misconfiguration if the API is deployed to Railway without setting NOVA_CORS_ALLOWED_ORIGINS in the env.",
+      "location": "backend/constants_scanner.py:34",
       "source": "nova-builtin",
       "first_seen": "2026-07-16",
       "last_seen": "2026-07-16",
@@ -60,7 +60,7 @@
       "cvss_score": 5.4,
       "cwe": "CWE-942",
       "asvs": "V14.4.2",
-      "compensating_controls": "allow_credentials=False; NOVA_CORS_ALLOWED_ORIGINS env override documented; intended for localhost Vite.",
+      "compensating_controls": "allow_credentials=False; NOVA_CORS_ALLOWED_ORIGINS env override documented; intended for localhost Vite. Superseded fingerprint 8f87c08a53f3ca5b3a70b87726b3b6593a06078ce0f7ac131cb06f9fb297514a (old location backend/constants.py:34, pre-Phase-3-split) folded in here 2026-07-16 \u2014 same single value, not a second instance; see run log for SEC-007 dedup analysis.",
       "acceptance_rationale": "",
       "review_by": "",
       "evidence_commit": ""
@@ -127,6 +127,26 @@
   "next_id": 7,
   "updated": "2026-07-16",
   "scan_runs": [
+    {
+      "run_id": "039ea462-6dae-455f-8783-63318afe7a29",
+      "date": "2026-07-16",
+      "tools": [
+        "nova-builtin"
+      ],
+      "blocked_tools": [
+        "semgrep",
+        "gitleaks",
+        "osv-scanner",
+        "trivy",
+        "pip_audit",
+        "npm"
+      ],
+      "new_findings": [],
+      "updated_findings": [
+        "SEC-003"
+      ],
+      "summary": "Manual dedup: dry-run `py -3 tools/security_audit.py --json` (registry not written) surfaced a candidate SEC-007 for CORS_ALLOWED_ORIGINS_DEFAULT at backend/constants_scanner.py:34, same title/CVSS as SEC-003. Verified with grep/Read: backend/constants.py is a Phase 3 compatibility barrel (`from constants_scanner import *`) and no longer contains the literal at line 34 (file is 19 lines, barrel-only) \u2014 the value is defined exactly once, in constants_scanner.py. No centralized-constants violation. Root cause of the false duplicate: normalize.fingerprint() hashes (source, kind, path, title), so a constants-module split changes the fingerprint even though the finding is the same logical issue. Folded the new fingerprint into SEC-003 (location + fingerprint updated to constants_scanner.py:34) instead of creating SEC-007. Did not use `--write-registry` because its merge_findings() only dedupes by exact fingerprint match and would have added SEC-007 as a second open finding rather than recognizing the relocation."
+    },
     {
       "run_id": "33d7e9bb-959a-4c50-abc7-4fe74441175d",
       "date": "2026-07-16",

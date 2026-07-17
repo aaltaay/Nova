@@ -7,6 +7,7 @@ alwaysApply: true
 # Frontend Modularity Policy
 
 `frontend/src/App.tsx` is the **root layout + router ONLY**. It must contain nothing but:
+
 - Provider wrappers (Theme, Context, etc.)
 - Top-level layout shell (header, sidebar skeleton, tab container)
 - Route/tab definitions that delegate to page-level components
@@ -15,7 +16,7 @@ Everything else lives in a purpose-built module. When adding or refactoring code
 
 ## Module Layout
 
-```
+```text
 frontend/src/
   App.tsx             # root layout + router ONLY (target: <150 lines)
   main.tsx            # entry point
@@ -88,6 +89,7 @@ function App() {
 ## Refactoring Existing Code
 
 When touching any component or logic currently in `App.tsx`:
+
 1. Extract it to a new component in `components/` or a hook in `hooks/`.
 2. Import it back in `App.tsx` if still referenced there.
 3. Do not leave the old copy in `App.tsx`.

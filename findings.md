@@ -1,4 +1,5 @@
 # 🔬 findings.md — Research & Discovery Log
+>
 > **Project:** Stock Alert Automation System
 > **Status:** Blueprint in Progress
 > **Last Updated:** 2026-04-13
@@ -6,6 +7,7 @@
 ---
 
 ## Discovery Answers
+>
 > ✅ RECORDED ON 2026-04-14
 
 | Question | Answer |
@@ -19,9 +21,11 @@
 ---
 
 ## Research Notes
+>
 > Will be populated after Discovery Answers are received.
 
 ### Potential Libraries
+
 - `yfinance` — Yahoo Finance API wrapper (free, no key required)
 - `alpaca-trade-api` — Brokerage + market data API
 - `pandas` — Data manipulation
@@ -31,9 +35,11 @@
 - `twilio` — SMS delivery
 
 ### Rate Limits & Constraints
+>
 > To be discovered in Phase 2 (Link)
 
 ---
 
 ## API Gotchas
+>
 > Will be populated as discovered during development.

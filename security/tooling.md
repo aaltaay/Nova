@@ -45,6 +45,7 @@ scoop install semgrep
 ```
 
 Recommended rulesets for Nova:
+
 - `p/python` — general Python safety
 - `p/secrets` — leaked keys / tokens
 - `p/typescript` — frontend safety
@@ -141,6 +142,7 @@ docker run --rm --network host `
 ```
 
 **Before running ZAP:**
+
 1. Start Nova dev server (`Run Nova.bat`)
 2. Confirm IB Gateway is **disconnected** or use `discovery=alpaca` mode
 3. Run ZAP baseline only — no `-a` (active) flag
@@ -200,7 +202,7 @@ python tools/security_audit.py --fail-on-findings
 
 ## Files to keep out of git
 
-```
+```text
 .tmp/gitleaks-report.json
 .tmp/trivy-report.json
 .tmp/zap-report.html

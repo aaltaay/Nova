@@ -7,6 +7,7 @@ alwaysApply: true
 # Backend Modularity Policy
 
 `backend/main.py` is the **app entry point only**. It must contain nothing but:
+
 - FastAPI app creation + middleware
 - `lifespan` / startup hooks that wire together modules
 - Route registrations (via `app.include_router` or thin `@app.get` calls that delegate immediately)
@@ -15,7 +16,7 @@ Everything else lives in a purpose-built module. When adding or refactoring code
 
 ## Module Layout
 
-```
+```text
 backend/
   main.py            # app factory + lifespan only
   constants.py       # all tunables (see centralized-constants rule)
@@ -69,6 +70,7 @@ async def get_gappers_route():
 ## Refactoring Existing Code
 
 When touching any function currently in `main.py`:
+
 1. Move it to the correct module (see layout above).
 2. Import it back in `main.py` if still referenced there.
 3. Do not leave the old copy in `main.py`.
