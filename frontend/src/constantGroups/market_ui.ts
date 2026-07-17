@@ -135,8 +135,10 @@ export const NOVA_OS_CONFIRM_TIMEOUT_SEC = 45;
 export const L2_ASK_STACKED_RATIO = 1.5;
 export const L2_BID_HEAVY_RATIO = 1.5;
 export const L2_SPREAD_WIDE_DOLLARS = 0.05;
-/** Invisible placeholder text matching badge height so Level 2 does not jump when heuristics are off. */
-export const L2_HEURISTIC_PLACEHOLDER = 'Seller stacked';
+/** Idle label when no stack/spread heuristic fires — keeps the L2 badge row stable. */
+export const L2_HEURISTIC_IDLE_LABEL = 'No stack';
+/** @deprecated Use L2_HEURISTIC_IDLE_LABEL — kept for any leftover imports. */
+export const L2_HEURISTIC_PLACEHOLDER = L2_HEURISTIC_IDLE_LABEL;
 export const L2_HEURISTIC_ASK_LABEL = 'Seller stacked';
 export const L2_HEURISTIC_BID_LABEL = 'Bid heavy';
 export const L2_HEURISTIC_SPREAD_LABEL = 'Wide spread';
@@ -290,6 +292,32 @@ export const SCANNER_MIN_PRICE = 0.50;  // exclude any stock priced below $0.50 
 // ── Gapper filter (mirror backend GAPPER_MIN_GAP_PCT) ───────────────────────
 export const GAPPER_MIN_GAP_PCT = 10;   // minimum gap % vs prior close to show as a gapper
 
+// ── US equity session clock (America/New_York) ───────────────────────────────
+// Mirror of backend/constants_scanner.py SESSION_* — used by chart session
+// highlighting (frontend/src/chart/sessionHighlight.ts). Keep in sync.
+/** Premarket open 04:00 ET — minutes from midnight. */
+export const SESSION_PREMARKET_START_MIN_ET = 4 * 60;
+/** Regular-session open 09:30 ET. */
+export const SESSION_RTH_OPEN_MIN_ET = 9 * 60 + 30;
+/** Regular-session close / after-hours start 16:00 ET. */
+export const SESSION_RTH_CLOSE_MIN_ET = 16 * 60;
+/** After-hours end 20:00 ET. */
+export const SESSION_AFTERHOURS_END_MIN_ET = 20 * 60;
+
+/** Background tint behind candles for each session (intraday charts only). */
+export const CHART_SESSION_COLORS = {
+  premarket: 'rgba(245, 158, 11, 0.10)',
+  rth: 'rgba(16, 185, 129, 0.05)',
+  afterhours: 'rgba(59, 130, 246, 0.10)',
+  closed: 'rgba(0, 0, 0, 0.18)',
+} as const;
+
+export const CHART_SESSION_LEGEND = [
+  { id: 'premarket', label: 'Premarket', color: CHART_SESSION_COLORS.premarket },
+  { id: 'rth', label: 'RTH', color: CHART_SESSION_COLORS.rth },
+  { id: 'afterhours', label: 'After-hours', color: CHART_SESSION_COLORS.afterhours },
+] as const;
+
 // ── Ticker chart ─────────────────────────────────────────────────────────────
 // Mirrors backend CHART_TIMEFRAMES / CHART_DEFAULT_TIMEFRAME in constants.py.
 export interface ChartTimeframe {
@@ -336,7 +364,9 @@ export const CHART_GRID_PANELS: { id: string; label: string; note?: string }[] =
 export const SIDE_PANEL_WIDTH_PX = 820;
 /** Minimum width when dragging the splitter (px). */
 export const SIDE_PANEL_MIN_WIDTH_PX = 360;
-/** Absolute max width when dragging (px); also clamped so the scanner keeps ~400px. */
+/** Minimum dashboard width retained for scanner columns before the side panel stacks. */
+export const SCANNER_MIN_REMAINING_PX = 830;
+/** Absolute max width when dragging (px); also clamped so the scanner stays usable. */
 export const SIDE_PANEL_MAX_WIDTH_PX = 1400;
 /** Side panel max share of viewport width used as an upper clamp while resizing. */
 export const SIDE_PANEL_MAX_VIEWPORT_PCT = 70;

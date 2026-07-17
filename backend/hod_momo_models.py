@@ -181,14 +181,29 @@ def master_from_dict(d: dict) -> MasterGateConfig:
     return m
 
 
+def _timestamp_or_from_created(timestamp: str | None, created_ts: float) -> str:
+    """Prefer ISO timestamp; heal empty values from created_ts (unix seconds)."""
+    if timestamp:
+        return str(timestamp)
+    if created_ts and created_ts > 0:
+        return format_alert_timestamp(float(created_ts))
+    return ""
+
+
 def alert_to_dict(a: AlertObject) -> dict:
-    return asdict(a)
+    payload = asdict(a)
+    payload["timestamp"] = _timestamp_or_from_created(
+        payload.get("timestamp"),
+        float(payload.get("created_ts") or 0.0),
+    )
+    return payload
 
 
 def alert_from_dict(d: dict) -> AlertObject:
+    created_ts = float(d.get("created_ts") or 0.0)
     return AlertObject(
         id=d.get("id", ""),
-        timestamp=d.get("timestamp", ""),
+        timestamp=_timestamp_or_from_created(d.get("timestamp"), created_ts),
         ticker=d.get("ticker", ""),
         strategy_id=d.get("strategy_id", 0),
         strategy_name=d.get("strategy_name", ""),
@@ -204,7 +219,7 @@ def alert_from_dict(d: dict) -> AlertObject:
         consolidation_count=d.get("consolidation_count", 1),
         consolidated_ids=d.get("consolidated_ids", []),
         consolidation_span_sec=d.get("consolidation_span_sec"),
-        created_ts=float(d.get("created_ts") or 0.0),
+        created_ts=created_ts,
     )
 
 

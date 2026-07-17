@@ -7,12 +7,11 @@ import {
   SIDE_PANEL_MAX_VIEWPORT_PCT,
   SIDE_PANEL_MAX_WIDTH_PX,
   SIDE_PANEL_MIN_WIDTH_PX,
+  SCANNER_MIN_REMAINING_PX,
   SIDE_PANEL_STACK_BREAKPOINT_PX,
   SIDE_PANEL_WIDTH_PX,
   SIDE_PANEL_WIDTH_STORAGE_KEY,
 } from '../constants';
-
-const SCANNER_MIN_REMAINING_PX = 400;
 
 function clampWidth(px: number, viewportW: number): number {
   const viewportCap = Math.floor((viewportW * SIDE_PANEL_MAX_VIEWPORT_PCT) / 100);

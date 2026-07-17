@@ -30,6 +30,103 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — HOD Momo table matches Gappers/Gainers density
+
+- **What:** Restored the HOD Momo alert table to the same dense scanner look as Gappers/Gainers/Losers: full-width parent pane, auto column sizing, nowrap numeric cells, single-line strategy pills, and a fixed **30-row** viewport that no longer shrinks when only one alert exists. Also healed empty `timestamp` values (were rendering as "Invalid Date") from `created_ts` on both API serialize and the Time cell. Column names unchanged.
+- **Why:** After a prior "expand Strategy / wrap badges" pass, the table looked broken — one tiny clipped row in a sea of empty space, with values hard to read ("can't even see the thirty").
+- **Files touched:** `frontend/src/hod_momo/hodMomo.css`, `frontend/src/hod_momo/HodMomoAlertTable.tsx`, `frontend/src/hod_momo/HodMomoAlertRow.tsx`, `frontend/src/constantGroups/chart_api.ts`, `backend/hod_momo_models.py`.
+- **How it works now:** Viewport height is always `HOD_MOMO_VISIBLE_ROWS (30) × HOD_MOMO_ROW_HEIGHT_PX (32)` (+ header), matching Large scanner density. Table uses `table-layout: auto` like other scanners (no forced last-column stretch / wrap). Time falls back to `created_ts` when ISO `timestamp` is blank.
+- **Verified by:** Browser on HOD Momo — table height 990px with 1 alert; Change % `+30.00%` legible; Gappers comparison; `npm run build`.
+- **Follow-ups:** Trace why some live alerts were persisted with `timestamp=""` (likely test pollution / empty constructor path).
+- **Related:** PROBLEM_LOG 2026-07-16 "HOD Momo table shrunk to one ugly row".
+
+## 2026-07-16 — Fix HOD Momo RVOL blowup and alert spam (root cause, not the parity-loop band-aids)
+
+- **What:** Fixed three independently-diagnosed root causes behind live-reported HOD Momo garbage: absurd RVOL multiples (700x-11,000x+) and alert-feed spam (~12-24 new rows/30s on a quiet tape). Restored `master.cooldown_sec` to its 60s default (was persisted as `0.0`); added a periodic fundamentals re-fetch so `avg_volume` no longer freezes at whatever yfinance returned the first time a symbol was ever seen; removed a silent Alpaca-IEX-feed fallback that was overriding yfinance's `avg_volume` for `discovery=ibkr`.
+- **Why:** User reported the live table/alert feed still showing the exact symptoms a prior session had claimed to fix via pytest/session_gate. Re-verification against the *running* API (not test mocks) found the prior "fixes" never addressed the actual denominator/rate-limit bugs.
+- **Files touched:** `backend/hod_momo_persist.py` (cooldown floor guard on load), `backend/hod_momo_heartbeat.py` (`_maybe_refresh_fundamentals`), `backend/hod_momo_enrichment.py` (new `ibkr_avg_volume()`, removed `avg_volume_cache` read from the ibkr branch), `backend/hod_momo_debug.py` (`avg_volume` now visible in `/debug/symbol` and `/debug/snaps`), `backend/constants_hod_momo.py` (`HOD_MOMO_FUNDAMENTALS_REFRESH_SEC`), `backend/tests/test_hod_momo_persist.py`, `test_hod_momo_heartbeat.py`, `test_hod_momo_enrichment.py` (new), `test_integrity_live_builders.py` (unrelated pre-existing gap fixed — mock `_State` was missing `afterhours_cache`).
+- **How it works now:** `on_trade_update`'s `(symbol, strategy_id)` cooldown is the only thing standing between one qualifying trade tick and unbounded re-fires — a persisted `cooldown_sec` of 0 (or any value below 1s) is now self-healed back to `HOD_MOMO_COOLDOWN_SEC` on every config load, with a loud warning. For `discovery=ibkr`, `avg_volume` is yfinance-only end-to-end (`ibkr_avg_volume()` in the 30s universe-enrichment loop, matching the fundamentals-queue loop) — Alpaca's IEX-feed daily bars are never consulted, since IEX captures only a sliver of consolidated volume for the thin/low-float names this scanner targets. The active heartbeat now re-queues `mark_needs_fundamentals` for every active symbol every 300s so a multi-day Former Momo runner's `avg_volume` keeps pace with yfinance instead of freezing at whatever was fetched the very first time it was ever flagged (which could be days stale).
+- **Verified by:** Live before/after on a cleanly-restarted backend (no stray IBKR-clientId-conflicted process still serving requests): CJMB rvol 7016.02→46.49, LBGJ 1526.36→10.38, ATPC avg_volume 13,620.44→3,375,816.00 (all now matching a fresh yfinance query). Alert growth 0 new rows/60s once cooldown held. `py -3 -m pytest backend/tests/ -k "hod_momo or integrity or spam or heartbeat or active or former or consolidation or enrichment"` → 97 passed; full suite 665 passed. Parity observe loop (`tools/hod_momo_parity_observe.py --interval 30`) ticked 4x with stable, non-runaway `nova=` counts.
+- **Follow-ups:** yfinance's own `averageVolume` field itself drifts within minutes for extreme-volume days (live-observed on ATPC), so `HOD_MOMO_FUNDAMENTALS_REFRESH_SEC` is a mitigation, not a perfect fix — some transient staleness between refresh cycles is expected and acceptable. The Warrior↔Nova parity gap (JSPR/BIYA Squeeze timing misses) is unrelated pre-existing work tracked separately in `.tmp/hod-momo-parity/classify_latest.md`.
+- **Related:** PROBLEM_LOG 2026-07-16 "RVOL 700x-11000x blowup + alert spam despite 'fixed' prior session".
+
+## 2026-07-16 — Chart session highlighting (pre / RTH / AH)
+
+- **What:** Intraday charts (panel, page, Stock View 2×2) shade bar backgrounds for premarket, regular hours, and after-hours, with a small legend. Daily+ timeframes stay unshaded.
+- **Why:** User asked for consistent session highlighting across all charts from a single source of truth.
+- **Files touched:** `backend/constants_scanner.py`, `backend/market.py`, `backend/hod_momo_market.py`, `frontend/src/constantGroups/market_ui.ts`, `frontend/src/chart/sessionHighlight.ts`, `SessionHighlightingPrimitive.ts`, `useChartSessionHighlight.ts`, `TickerChart.tsx`, `TickerChartControls.tsx`, `tickerChart.css`.
+- **How it works now:** Session bounds live in `SESSION_*_MIN_ET` (backend scanner constants; frontend mirror). `market.py` and HOD helpers use those; every `TickerChart` attaches one LWC bottom-layer primitive that colors each bar from the same ET clock (`isoToEtTime` convention).
+- **Verified by:** Vitest `sessionHighlight.test.ts`; typecheck on touched chart files.
+- **Follow-ups:** Holiday / early-close aware bands if needed later.
+- **Related:** None.
+
+## 2026-07-16 — Stock View: stable L2 badge + trade bar under depth
+
+- **What:** Level 2 always shows a heuristic row (`Seller stacked` / `Bid heavy` / `Wide spread`, or idle `No stack`) so the book no longer jumps. On Stock View, Open/Close/Automate moves under Level 2; “Bump due to news” + News Headline move to the page footer; quote/fundamentals sit under the trade controls.
+- **Why:** Empty heuristic row collapsed L2 layout; user wanted trade actions next to the book and news in the footer.
+- **Files touched:** `frontend/src/ibkr/DepthLadder.tsx`, `TickerTradeActionBar.tsx`, `tradingTab.css`, `constantGroups/market_ui.ts`, `components/TickerDetailContent.tsx`, `pages/StockViewPage.tsx`, `styles/stock-view.css`, `workspace/layoutStore.ts`.
+- **How it works now:** Heuristics row is always mounted. Stock View passes `afterDepth={<TickerTradeActionBar variant="sidebar" />}` and `omitNews`; `NewsPanel` renders in `.stock-view-news-footer`. Scanner side panel layout unchanged.
+- **Verified by:** Typecheck/lint on edited files; reload Stock View for CJMB.
+- **Follow-ups:** None.
+
+## 2026-07-16 — HOD Strategy column wraps instead of scrolling
+
+- **What:** STRATEGY pills wrap to additional lines and grow the row; the HOD table no longer shows a horizontal scrollbar. Table is locked to parent width (`table-layout: fixed`) with compact metric columns so Strategy takes the remaining space. Symbol consolidation badges (e.g. `(77 in 4sec)`) no longer ellipsize to `(77...`.
+- **Why:** Long strategy tags forced the table wider than the main column; fixed Symbol width also clipped consolidation burst text.
+- **Files touched:** `frontend/src/hod_momo/hodMomo.css`, `frontend/src/hod_momo/HodMomoAlertRow.tsx`, `frontend/src/constantGroups/chart_api.ts`.
+- **How it works now:** `.hod-table-wrapper` is `overflow-x: hidden` + `width: 100%`. Symbol column is wider (`9.5rem`) and allows wrap; `.hod-symbol-burst` shows full text. Strategy gets leftover parent width; pills wrap; rows use `minHeight` so multi-tag alerts expand downward.
+- **Verified by:** CSS layout change; reload HOD Momo — check CJMB-style consolidated symbols show full `(N in Nsec)`.
+- **Follow-ups:** None.
+
+## 2026-07-16 — Slim dark-theme scrollbars
+
+- **What:** Replaced chunky system-default scrollbars with thin, low-contrast thumbs that match the dark Nova shell (tables, side panel, main page).
+- **Why:** Default Windows/Chromium scrollbars were light gray and visually loud against the dark UI.
+- **Files touched:** `frontend/src/styles/tokens-shell.css`, `frontend/src/hod_momo/hodMomo.css`.
+- **How it works now:** Global `*` + `body` use Firefox `scrollbar-width`/`scrollbar-color` and WebKit `::-webkit-scrollbar*` with `--scrollbar-*` tokens (8px, transparent track, muted thumb that brightens on hover). Explicitly hidden scrollbars (e.g. `.tab-bar-scroll`) still win via higher specificity.
+- **Verified by:** CSS tokens wired; reload UI to confirm on HOD Momo table + page scroll.
+- **Follow-ups:** None.
+
+## 2026-07-16 — New specialist subagent: `hod-momo` (HOD Momo ↔ Warrior parity)
+
+- **What:** Added a dedicated `hod-momo` specialist to own the ongoing, multi-session HOD Momo scanner data-quality + Warrior parity workstream: run/monitor `tools/hod_momo_parity_observe.py`, classify `warrior_only`/`nova_only` misses into named buckets, propose/apply surgical fixes in `backend/hod_momo*.py`, and track parity metrics + a root-cause ledger (fixed vs still-open) session over session so future runs don't re-diagnose solved bugs.
+- **Why:** The parity effort ("this is not going to be a quick one") needed a persistent owner with living memory instead of being re-litigated from scratch by whichever general-purpose session picks it up next; prior CHANGELOG "fixed" claims for HOD Momo integrity/spam were repeatedly found still-broken live.
+- **Files touched:** `.cursor/agents/hod-momo.md`, `.cursor/agent-memory/hod-momo-memory.md` (seeded with the last 5 fixed root causes + 4 still-open buckets from CHANGELOG/PROBLEM_LOG + `.tmp/hod-momo-parity/diff_latest.json`), `.cursor/agent-system/registry.json`, `.cursor/rules/specialist-routing.mdc`, `docs/agent-operations.md`, `AGENTS.md` (specialist table), `tools/test_agent_contract.py` (discovery set), new dashboard `agent-hod-momo.canvas.tsx`.
+- **How it works now:** Invoke "Use the hod-momo subagent to continue HOD Momo parity" (or the backlog-improvement phrase). The agent reads memory first, gates on `hod_momo_session_gate.py` before trusting any parity count, classifies misses into `universe_gap` / `gate_mismatch` / `l1_capacity` / `rvol_formula` / `timing_definition` / `spam_cooldown` / `capacity_expected`, and hands off to `warrior` for fresh snapshots or `tester` for full verification. Never feeds Warrior rows into Nova's alert engine (single-market-data-feed boundary). Dashboard visualizes recall/precision, a nova_only strategy breakdown, and the fixed/open root-cause ledger from real `.tmp/hod-momo-parity/diff_latest.json` data (captured 2026-07-16T23:31:51Z).
+- **Verified by:** `py -3 tools/agent_contract.py` → PASS (6 agents); `py -3 tools/agent_contract.py --ci` → PASS; `py -3 tools/sync_agent_surfaces.py --write` → wrote snapshot blocks to all 6 dashboards + Nova Home; `py -3 -m pytest tools -q` → 122 passed (after updating the hard-coded discovery set in `test_agent_contract.py`); canvas TypeScript check: no errors.
+- **Follow-ups:** First real hod-momo run should re-verify the integrity/spam claims live (memory flags this explicitly) before trusting any parity recall/precision number reported here.
+- **Related:** PROBLEM_LOG 2026-07-16 HOD Momo integrity/spam/Former-Momo entries; `hod_momo_parity_e02ce8f4.plan.md` (read-only, not edited).
+
+## 2026-07-16 — Active-set session_focus + per-strategy consolidation
+
+- **What:** Reserved `session_focus` L1 slots (Former-list order); quiet-tape heartbeat re-evals those names every 5s; consolidation emits **one alert per strategy_id** (no longer drops Former when Low Float also fires).
+- **Why:** LBGJ Former passed in decisions but never appeared in the feed — same-symbol consolidation kept only the last strategy.
+- **Files touched:** `hod_momo_active.py`, `hod_momo_heartbeat.py`, `hod_momo_alerts.py`, `ibkr_bridge.py`, `hod_momo_former.py`, `constants_hod_momo.py`, tests.
+- **How it works now:** Former-list names keep L1; flat tapes re-check gates; flush consolidates bursts within a strategy, not across strategies.
+- **Verified by:** pytest consolidation/active/former/heartbeat; live LBGJ `session_focus` + Former `passed` in decisions.
+- **Follow-ups:** JSPR universe; RTH squeeze timing; watch IBKR gainers/seed empty during AH glitches.
+- **Related:** PROBLEM_LOG 2026-07-16 consolidation drops Former.
+
+## 2026-07-16 — Former Momo remember + heartbeat SLO + parity observe
+
+- **What:** Auto-remember tickers on non-Former HOD fires into strategy-1 `former_momo_list`; bootstrap from today's alerts; `would_fire_now` matches real Former/HOD gates; heartbeat 0.5s/0.75s stale; HOD seeds include `TOP_PERC_GAIN`; alerts `?limit=` for parity observer; observe prints flush + capped fetch.
+- **Why:** Warrior↔Nova parity stuck on empty Former Momo list / universe gaps; integrity false-failed at ~2.1s p95; observe hung on 9k alert dumps.
+- **Files touched:** `hod_momo_former.py`, `hod_momo_trade.py`, `hod_momo_admin.py`, `hod_momo_persist.py`, `universe.py`, `constants_hod_momo.py`, `constants_ibkr.py`, `routes/hod_momo.py`, `tools/hod_momo_parity_observe.py`, tests.
+- **How it works now:** Any other strategy fire (or session bootstrap from today alerts) seeds Former Momo. Session alert/former symbols stay in focus universe. Seeds include percent gainers. Parity observe refuses on integrity fail; uses limited alerts.
+- **Verified by:** pytest former/engine/integrity; live session_gate integrity_only exit 0 (quote p95~0.55s); observe `--once` prints parity counts.
+- **Follow-ups:** RTH remeasure; JSPR remains universe miss until IBKR %/volume seeds surface it.
+- **Related:** PROBLEM_LOG 2026-07-16 heartbeat SLO / Former Momo empty.
+
+## 2026-07-16 — HOD Momo integrity heartbeat + Warrior parity harness
+
+- **What:** Active-set L1 heartbeat restores quote/eval SLOs on quiet tapes; mode-aware gappers integrity; Warrior-style burst badge (no all-day 1179-in-2157s); session_gate + parity observer tools; spam/mode/heartbeat tests; alerts route date fix.
+- **Why:** Live HOD Integrity fail (p95 ages ~hours, CJMB spam badge, stale gappers) blocked Warrior↔Nova parity.
+- **Files touched:** `hod_momo_heartbeat.py`, `hod_momo_active.py`, `hod_momo_integrity_*.py`, `integrity_live.py`, `ibkr/ticks.py`, `hod_momo_trade.py`, `app_lifespan.py`, `routes/hod_momo.py`, `collapseAlertsBySymbol.ts`, `tools/hod_momo_session_gate.py`, `tools/hod_momo_parity_observe.py`, tests, `tester.md`.
+- **How it works now:** Quiet subscribed/active symbols get 1Hz `note_quote`/`note_evaluation` without re-firing strategies. Gappers stale after open → pass in RTH/AH. UI burst badge only merges within 15s. `session_gate` exit 3=BLOCKED, 2=FAIL; parity observe refuses on fail. Research snapshots under `.tmp/hod-momo-parity/`.
+- **Verified by:** pytest integrity/spam/heartbeat/mode/builders; Vitest collapse; live `/api/integrity` coverage=100 p95~1.5s; latency probe coverage 100; session_gate exit 0; alerts GET fixed.
+- **Follow-ups:** Persistent observe during RTH; Former Momo list import; tighten nova_only spam vs Warrior.
+- **Related:** PROBLEM_LOG 2026-07-16 HOD active ages / burst badge.
+
 ## 2026-07-16 — Active-tab IBKR Level-1 streaming (replace impossible snapshot table loop)
 
 - **What:** Scanner table + HOD hot prices now use bounded persistent IBKR `reqMktData` streams for the active tab (≤50) and a reserved HOD pool (40, with volume-seed quota). Batched `/ws/scanner` patches carry `quote_ts`; UI tints per-row staleness. Cold `reqTickersAsync` kept only for discovery/enrichment with honest ≥12s budgets.

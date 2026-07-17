@@ -384,9 +384,24 @@
 
 .hod-table-wrapper {
   flex: 0 0 auto;
+  width: 100%;
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+}
+
+.hod-table-wrapper table {
+  width: 100%;
+  table-layout: auto;
+}
+
+.hod-table-wrapper th,
+.hod-table-wrapper td {
+  white-space: nowrap;
+}
+
+.hod-table-wrapper th.hod-strategy-th {
+  overflow: visible; /* filter dropdown must not be clipped */
 }
 
 .hod-empty-cell {
@@ -396,9 +411,9 @@
   font-size: 0.8rem;
 }
 
-/* Strategy pill — compact, never grows the row */
 .hod-strategy-cell {
   max-width: 22rem;
+  vertical-align: middle;
 }
 
 .hod-strategy-pills {
@@ -480,6 +495,11 @@
   white-space: nowrap;
   min-width: 0;
   font-variant-numeric: tabular-nums;
+}
+
+.hod-symbol-td {
+  white-space: nowrap;
+  vertical-align: middle;
 }
 
 .hod-symbol-cell {

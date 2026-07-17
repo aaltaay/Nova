@@ -21,6 +21,52 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-16 — HOD Momo table shrunk to one ugly row
+
+- **Symptom:** HOD Momo tab looked nothing like Gappers/Gainers — a single tiny/clipped alert row with a huge empty pane below; numeric values and the intended 30-row window were unreadable ("can't even see the thirty"). Time column also showed "Invalid Date".
+- **Cause:** `HodMomoAlertTable` sized its scroll viewport to `min(alerts.length, 30) × 22px`. With one alert that became ~46px total (header + one row). A follow-on CSS pass also forced `table-layout: fixed` + wrapping Strategy/symbol cells. Separately, some live alerts were persisted with empty `timestamp` while `created_ts` was valid, so `new Date("")` rendered "Invalid Date".
+- **Fix:** Always reserve `HOD_MOMO_VISIBLE_ROWS` (30) for the viewport; bump row/header heights to Large scanner density (32/30); restore nowrap auto-layout table styling matching `.table-wrapper` scanners; heal empty timestamps from `created_ts` in `alert_to_dict`/`alert_from_dict` and `fmtClock`.
+- **Keywords:** HOD Momo, table density, HOD_MOMO_VISIBLE_ROWS, viewportHeight, Gappers, scanner table, ugly layout, Invalid Date, created_ts
+
+## 2026-07-16 — RVOL 700x-11000x blowup + alert spam despite "fixed" prior session
+
+- **Symptom:** Live HOD Momo table showed RVOL (daily) of 743x-11632x for CJMB/TGHL/STAK-class symbols; `/api/hod-momo/alerts` grew ~12-24 rows/30s even on a quiet AH tape, with the same symbol+strategy pair re-firing every 20-36s. Prior session had already claimed pytest/session_gate "fixed" this.
+- **Cause:** Three independent bugs, all invisible to unit tests because they only manifest with real live-process state:
+  1. **Alert spam:** `backend/.cache/hod-momo-config.json` had `master.cooldown_sec` persisted as `0.0` (a debugging-session leftover), so the `(symbol, strategy_id)` cooldown in `on_trade_update` never blocked a re-fire — every qualifying strategy fired on essentially every trade tick / 5s heartbeat re-eval instead of once per 60s.
+  2. **RVOL blowup (multi-day runners):** `evaluate_strategy`'s `request_fundamentals()` callback only fires while `float_shares`/`fifty_two_week_high` are still `None` — once `avg_volume` is populated even once, nothing ever re-requests it. A Former Momo symbol tracked across multiple sessions (CJMB, LBGJ) kept an `avg_volume` frozen at whatever yfinance reported the very first time it was ever fetched (days ago, before its current run), while today's cumulative volume kept growing — pace RVOL = `volume / avg_volume` exploded (CJMB 7016x, LBGJ 1526x) purely from a stale denominator.
+  3. **RVOL blowup (same-day movers):** `hod_momo_enrichment.universe_enrichment_loop`'s `discovery=ibkr` branch read `state.avg_volume_cache` (Alpaca `/v2/stocks/bars` on the IEX feed) *before* falling back to yfinance. IEX captures only a sliver of consolidated volume for thin microcaps, so that cache silently understated avg_volume (live: ATPC cached 13,620 vs. yfinance 3,375,816 — 248x off) and, because it runs every 30s, kept re-clobbering any correct yfinance value fix #2 would have supplied.
+- **Fix:** (1) Restored `cooldown_sec` to the `HOD_MOMO_COOLDOWN_SEC` default (60.0) live and added a load-time floor guard in `hod_momo_persist._load_configs_from_disk` that self-heals any persisted `cooldown_sec < 1.0` back to default. (2) Added `hod_momo_heartbeat._maybe_refresh_fundamentals`, re-queuing `mark_needs_fundamentals` for every active symbol every `HOD_MOMO_FUNDAMENTALS_REFRESH_SEC` (300s) so `avg_volume` tracks yfinance's live figure instead of freezing at the first-ever fetch. (3) Extracted `hod_momo_enrichment.ibkr_avg_volume()` — yfinance-only, never reads `avg_volume_cache` — and used it in the ibkr branch of `universe_enrichment_loop`, matching the existing (correct) `fundamentals_enrichment_loop` ibkr path and the single-market-data-feed rule.
+- **Verified by:** Live before/after via `/api/hod-momo/debug/symbol/{SYM}` on a cleanly-restarted process: CJMB rvol 7016.02→46.49 (avg_volume now 288,855, matching a fresh yfinance query exactly), LBGJ 1526.36→10.38 (avg_volume 308,767), ATPC avg_volume 13,620.44→3,375,816.00. Alert growth measured at 0 new rows/60s once cooldown held and the tape genuinely quieted; `pace_relative_volume`/cooldown/enrichment covered by new tests in `test_hod_momo_persist.py`, `test_hod_momo_heartbeat.py`, `test_hod_momo_enrichment.py`.
+- **Keywords:** HOD Momo, RVOL, relative volume, pace_relative_volume, avg_volume, cooldown_sec, alert spam, CJMB, LBGJ, ATPC, yfinance, averageVolume, Alpaca IEX bars, avg_volume_cache, universe_enrichment_loop, mark_needs_fundamentals, single-market-data-feed
+
+## 2026-07-16 — Consolidation dropped Former Momo when Low Float also fired
+
+- **Symptom:** LBGJ decisions showed Former `passed=True` / `would_fire=True`, but alerts only showed Low Float High Rel Vol.
+- **Cause:** `flush_consolidated_loop` merged all ready alerts for a symbol into one primary (`ready[-1]`), discarding other strategy_ids.
+- **Fix:** Group by `strategy_id` and emit one consolidated alert per strategy; plus session_focus L1 slots + quiet-tape re-eval.
+- **Keywords:** HOD Momo, consolidation, Former Momo, LBGJ, strategy_id, flush_consolidated_loop
+
+## 2026-07-16 — Former Momo would_fire PASS but never alerts (off active set)
+
+- **Symptom:** LBGJ debug `would_fire_now` Former/Low Float PASS; Warrior still warrior_only for Former; no new Former alerts.
+- **Cause:** Active set filled by top gainers/seeds; LBGJ dropped from L1 so `on_trade_update` stopped while snap/would_fire stayed stale-optimistic.
+- **Fix:** Reserved `session_focus` active slots + Former-list-first priority.
+- **Keywords:** HOD Momo, active set, session_focus, Former Momo, LBGJ, would_fire, L1 starve
+
+## 2026-07-16 — Integrity p95 ~2.1s false-fail + Former Momo empty vs Warrior
+
+- **Symptom:** After heartbeat, integrity still failed with quote/eval p95≈2.1s; Warrior Former Momo / Squeeze names (BIYA, LBGJ) absent on Nova; parity observe hung after session_gate PASS.
+- **Cause:** (1) Heartbeat 1s loop + 1.5s stale gate samples ages just over the 2s SLO. (2) Former Momo list empty and never auto-filled from prior momo fires; `would_fire_now` skipped Former/HOD gates. (3) `/api/hod-momo/alerts` returned full-day 9k rows and stalled observe.
+- **Fix:** Heartbeat 0.5s / stale 0.75s; `hod_momo_former` remember+bootstrap; align `would_fire_now`; alerts `limit` query + observe cap; HOD seeds add TOP_PERC_GAIN.
+- **Keywords:** HOD Momo, heartbeat, p95, Former Momo, would_fire_now, parity observe, alerts limit, TOP_PERC_GAIN
+
+## 2026-07-16 — HOD Integrity fail: active quote/eval ages ~hours on quiet L1
+
+- **Symptom:** HOD banner Integrity fail with active coverage ~8–15%, quote/eval p95 ~2000–4000s, CJMB shown as (1179 in 2157sec), scanner_gappers cache hours old after open; ~9k alerts today.
+- **Cause:** (1) IBKR quote listeners only fire on price *change*, so illiquid AH active symbols never `note_quote`. (2) UI `collapseAlertsBySymbol` summed all-day fires into one Warrior-style badge. (3) Scanner integrity mode-blind on frozen gappers. (4) Alerts route called missing `_current_date_et` → 500.
+- **Fix:** `hod_momo_heartbeat` 1Hz refresh from L1 last / cache / subscribed; burst gap 15s in collapse; mode-aware gappers; route uses `current_date_et`; surge_none warn when tape alive; session_gate + parity observe tools.
+- **Keywords:** HOD Momo, integrity, note_quote, heartbeat, coverage, CJMB, consolidation badge, gappers offline, session_gate, parity observe
+
 ## 2026-07-16 — Scanner "stale · updated Ns ago" despite Connected (IBKR snapshot SLA impossible)
 
 - **Symptom:** Header showed Connected (~258ms) plus `stale · updated 9s ago` on Gainers; table prices froze; `blast.log` flooded with `snapshot timeout (4.0s) for 20 symbols` and occasional `15.0s for 220 symbols`; HOD integrity reported last tick hours ago.

@@ -8,15 +8,21 @@ import {
 } from '../constants';
 import type { AlertObject } from './types';
 
-function fmtClock(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleTimeString('en-US', {
-      hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
-    });
-  } catch {
-    return iso;
+function fmtClock(iso: string, createdTs?: number): string {
+  let d: Date | null = null;
+  if (iso) {
+    const parsed = new Date(iso);
+    if (!Number.isNaN(parsed.getTime())) d = parsed;
   }
+  if (!d && typeof createdTs === 'number' && createdTs > 0) {
+    // Backend may send created_ts in unix seconds; accept ms if already large.
+    const ms = createdTs > 1e12 ? createdTs : createdTs * 1000;
+    d = new Date(ms);
+  }
+  if (!d || Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true,
+  });
 }
 
 function fmtPrice(v: number | null | undefined): string {
@@ -96,19 +102,19 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
       className="hod-alert-row"
-      style={{ height: HOD_MOMO_ROW_HEIGHT_PX }}
+      style={{ minHeight: HOD_MOMO_ROW_HEIGHT_PX }}
     >
       {HOD_MOMO_COLUMNS.map(([key]) => {
         switch (key) {
           case 'time':
             return (
               <td key={key} className="hod-time-cell">
-                <span>{fmtClock(alert.timestamp)}</span>
+                <span>{fmtClock(alert.timestamp, alert.created_ts)}</span>
               </td>
             );
           case 'symbol':
             return (
-              <td key={key}>
+              <td key={key} className="hod-symbol-td">
                 <div className="hod-symbol-cell">
                   <SymbolSelectButton
                     symbol={alert.ticker}

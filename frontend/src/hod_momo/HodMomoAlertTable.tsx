@@ -101,8 +101,10 @@ export function HodMomoAlertTable({
   const [renderedCount, setRenderedCount] = useState(HOD_MOMO_RENDER_BATCH_SIZE);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomTriggeredRef = useRef(false);
-  const viewportHeight = HOD_MOMO_VISIBLE_ROWS * HOD_MOMO_ROW_HEIGHT_PX;
   const empty = alerts.length === 0;
+  // Always reserve the full 30-row scanner window (like Gappers/Gainers height),
+  // even when only a few alerts have fired — shrinking to 1 row made the table look broken.
+  const viewportHeight = HOD_MOMO_VISIBLE_ROWS * HOD_MOMO_ROW_HEIGHT_PX;
   const renderedAlerts = alerts.slice(0, renderedCount);
 
   useEffect(() => {

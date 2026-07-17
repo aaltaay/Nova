@@ -177,12 +177,12 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
   ['strategy',    'Strategy'],
 ];
 
-/** Visible row window height for the HOD table (~18 dense rows). */
-export const HOD_MOMO_VISIBLE_ROWS = 18;
-/** Fixed HOD row height used to size the bounded table viewport. */
-export const HOD_MOMO_ROW_HEIGHT_PX = 28;
+/** Visible row window height for the compact HOD scanner. */
+export const HOD_MOMO_VISIBLE_ROWS = 30;
+/** Row height used to size the viewport — matches `.table-wrapper` Large density. */
+export const HOD_MOMO_ROW_HEIGHT_PX = 32;
 /** Sticky header row height included in the scroll viewport. */
-export const HOD_MOMO_HEADER_HEIGHT_PX = 28;
+export const HOD_MOMO_HEADER_HEIGHT_PX = 30;
 /** Rows mounted initially and added on each distinct bottom reach. */
 export const HOD_MOMO_RENDER_BATCH_SIZE = 40;
 /** Distance from the table bottom that triggers the next row batch. */
