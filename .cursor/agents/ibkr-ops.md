@@ -81,4 +81,4 @@ Windows: always `py -3` for Python. Prefer PowerShell `Invoke-RestMethod` if cur
 | hod-momo | HOD-specific feed/parity once Gateway is connected |
 | execution | order-path / ledger / latency audits |
 | tester | test / build / browser gates |
-| nova-agent | general docs hygiene outside IBC/gateway docs |
+| docs | general docs hygiene outside IBC/gateway docs |

@@ -53,8 +53,8 @@ def build_brief() -> str | None:
     if roadmap:
         lines.append(f"Roadmap NEXT: {roadmap}")
     lines.append(
-        "Multi-domain/ambiguous/unowned task? Prefer the nova-router subagent "
-        "(specialist-routing.mdc) over general-purpose DIY."
+        "Multi-domain work? Prefer daddy. Classification/cracks only? Prefer router. "
+        "(specialist-routing.mdc)"
     )
     return "\n".join(lines)
 

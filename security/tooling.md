@@ -2,7 +2,7 @@
 
 > **Scope:** Development / triage tools. Never run active/attack modes against live broker connections.  
 > **ZAP rule:** Baseline scan only — **NEVER** active scan against IB Gateway or any live endpoint.  
-> **Cursor agents:** `security-review` = diff-scoped; `security-sentinel` = full repo posture.
+> **Cursor agents:** `security-review` = diff-scoped; `security` = full repo posture.
 
 ---
 
@@ -172,7 +172,7 @@ print(c.severities())
 | Agent | Trigger | Scope |
 |-------|---------|-------|
 | `security-review` | "Review security of these changes" | Diff only (staged / branch changes) — fast |
-| `security-sentinel` | "Run security sentinel" / full posture | Full repo: deps, secrets, patterns, CVSS classification |
+| `security` | "Run security sentinel" / full posture | Full repo: deps, secrets, patterns, CVSS classification |
 | `llm-trading-agent-security` skill | Hardening exec paths / alert→IBKR paths | Methodology reference — research only |
 
 ### Running the CI audit locally

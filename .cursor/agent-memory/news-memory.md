@@ -1,8 +1,8 @@
-# News Catalyst memory (living)
+# News memory (living)
 
-Living knowledge for the Nova `news-catalyst` subagent. **Read at the start of every run. Update at the end when something new was learned.**
+Living knowledge for the Nova `news` subagent. **Read at the start of every run. Update at the end when something new was learned.**
 
-Companion to: `.cursor/agents/news-catalyst.md`
+Companion to: `.cursor/agents/news.md`
 
 ---
 
@@ -23,13 +23,13 @@ Machine-readable block only. Update after material runs. Do not duplicate mutabl
 
 ## How to continue improving
 
-> Use the news-catalyst subagent to work the news pipeline
+> Use the news subagent to work the news pipeline
 
 Or:
 
-> Improve the news-catalyst agent — work the next backlog item in `.cursor/agent-memory/news-catalyst-memory.md`.
+> Improve the news agent — work the next backlog item in `.cursor/agent-memory/news-memory.md`.
 
-Durable facts get **promoted into `news-catalyst.md`**. Run history and open ideas stay **here**.
+Durable facts get **promoted into `news.md`**. Run history and open ideas stay **here**.
 
 ---
 
@@ -54,9 +54,9 @@ Newest first. Keep entries short.
 
 ### 2026-07-18 — Agent install
 
-- **Scope:** Meta — scaffold news-catalyst via agent contract system.
+- **Scope:** Meta — scaffold news via agent contract system.
 - **Result:** install
 - **Learning:** Follow docs/agent-operations.md remaining human steps.
-- **Files updated:** `news-catalyst.md`, `news-catalyst-memory.md`, registry entry.
+- **Files updated:** `news.md`, `news-memory.md`, registry entry.
 
 <!-- RUN_LOG_END -->

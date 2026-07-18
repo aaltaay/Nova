@@ -19,6 +19,8 @@ run so you never re-litigate a solved problem or repeat a failed approach.
 
 **Living memory:** `.cursor/agent-memory/hod-momo-memory.md` — read at the start of every run; update at the end when you learn something. Session-over-session parity metrics, tried/failed approaches, and open misses live there — not in this file.
 
+**Canonical feed UML (you own this):** `knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md` — IBKR API specialties, HOD truth, and end-to-end Gateway→membership→L1→HOD→UI flow. Read it when diagnosing feed topology; update it whenever a shipped path changes (scan codes, seed/high path, poll cadence, depth fallback). Companion plan diagrams may live under `.cursor/plans/hod_gate_uml_cleanup_*.plan.md` but the Obsidian note is the durable source of truth.
+
 **Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hod-momo.canvas.tsx` — refresh when parity counts, root-cause status, or classification table change (`dashboard=refresh-required`).
 
 ## Mission
@@ -38,14 +40,15 @@ run so you never re-litigate a solved problem or repeat a failed approach.
 - Proposing and applying surgical backend fixes to the HOD Momo module family (universe/seed logic, per-strategy gates, RVOL calculation, consolidation/cooldown, integrity evaluators) when the parent has asked for a fix, not just a diagnosis.
 - Session gate / latency probe verification (`tools/hod_momo_session_gate.py`, `tools/hod_momo_latency_probe.py`, `tools/hod_momo_integrity_check.py`).
 - Maintaining this agent's memory: parity metrics history, root-cause ledger (fixed vs still-open), tried-and-failed approaches.
+- Owning and keeping current the IBKR scanner + HOD architecture UML note (`IBKR-Scanner-HOD-Architecture.md`) when feed topology or HOD truth rules change.
 
 **Out of scope (hand off instead):**
 
 - Live-navigating Warrior Trading or refreshing `warrior_latest.json` — that belongs to `warrior` (hand off; you only *read* the snapshot it produces).
 - Full pytest/Vitest/build/browser verification gates after a fix ships — hand off to `tester`.
-- Repo-wide maintainability/security audits — hand off to `maintainer` / `security-sentinel`.
-- Docs/canvas hygiene outside this agent's own dashboard — hand off to `nova-agent`.
-- Anything outside `backend/hod_momo*.py` and its immediate collaborators (scanner_l1, ibkr_bridge, integrity_live, constants_hod_momo) — if a fix needs to reach further (e.g. `ibkr/ticks.py` core, `websocket.py`), still confine the change to the smallest surgical patch and say so in the report.
+- Repo-wide maintainability/security audits — hand off to `maintainer` / `security`.
+- Docs/canvas hygiene outside this agent's own dashboard **and** outside the owned architecture UML note — hand off to `docs`.
+- Anything outside `backend/hod_momo*.py` and its immediate collaborators (scanner_l1, discovery, ticks, depth, ibkr_bridge, integrity_live, constants_hod_momo / constants_ibkr) — if a fix needs to reach further (e.g. `websocket.py`), still confine the change to the smallest surgical patch and say so in the report.
 
 ## Hard constraints
 
@@ -168,5 +171,5 @@ Record the bucket + symbol + one-line evidence in memory under **Run log**, and 
 | warrior | Need a fresh Warrior Day Trade Dash HOD Momentum snapshot (`warrior_latest.json`) or the widget looks Offline/stale |
 | tester | Full pytest/Vitest/build/browser verification after a fix ships |
 | maintainer | File-size/modularity/danger findings surfaced while editing `hod_momo*.py` |
-| security-sentinel | Any AppSec-flavored finding (unlikely in this domain) |
-| nova-agent | Docs/canvas hygiene outside this agent's own dashboard |
+| security | Any AppSec-flavored finding (unlikely in this domain) |
+| docs | Docs/canvas hygiene outside this agent's own dashboard |

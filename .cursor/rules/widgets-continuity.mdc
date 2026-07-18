@@ -1,0 +1,54 @@
+---
+description: Preserve evidence-based Webull-to-Nova widget capability mapping
+globs:
+  - "docs/webull-widget-parity.md"
+  - ".cursor/agents/widgets.md"
+  - ".cursor/agent-memory/widgets-memory.md"
+alwaysApply: false
+---
+
+# Widgets continuity
+
+Use this protocol for Webull-to-Nova widget research, parity status changes,
+and implementations selected from the capability map.
+
+## Start
+
+1. Read `docs/webull-widget-parity.md`.
+2. Read `.cursor/agent-memory/widgets-memory.md`.
+3. Inspect the current Nova implementation before accepting an old status.
+4. Prefer current public Webull documentation or user-provided screenshots;
+   record capture date and confidence.
+
+## Evidence contract
+
+- Preserve stable `WID-NNN` capability IDs.
+- Split complex widgets into atomic capabilities when one Webull widget maps to
+  multiple Nova surfaces.
+- Require paired evidence before changing status:
+  - dated Webull public source or user-provided visual;
+  - Nova path, test, API contract, or browser observation.
+- Track visual, functional, data-source, and operational parity separately.
+- Mark stale or unsupported claims `unknown`; never infer missing catalog
+  entries from Webull's "45+" marketing count.
+
+## Safety
+
+- Webull evidence is research-only. Never feed Webull data into Nova.
+- Stop at login, CAPTCHA, 2FA, account, billing, or trading prompts.
+- Never store credentials, cookies, tokens, account identifiers, or private
+  portfolio data.
+- Never place, modify, or cancel Webull or IBKR orders during research.
+- Preserve Nova's IBKR-only order path, safety gates, and `auto_live` NO-GO.
+- Preserve current manual and automation controls unless the user explicitly
+  asks to retire one.
+
+## Update order
+
+1. Update `docs/webull-widget-parity.md`.
+2. Refresh the memory snapshot, backlog, and run log.
+3. Refresh `agent-widgets.canvas.tsx` with source date/revision.
+4. Hand product verification to `tester`.
+5. Update `CHANGELOG.md` for shipped behavior or agent-system changes.
+
+The Canvas is a snapshot, never the source of truth.

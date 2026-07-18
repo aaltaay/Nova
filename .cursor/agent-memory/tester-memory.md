@@ -21,7 +21,7 @@ blockers:
   - "vitest: src/stock_view/stockViewTerminal.test.tsx > renders terminal chrome, charts, and rail for matching symbol — missing [data-testid=\"sv-trading-lock\"] (reproduced twice, not flaky)"
   - "playwright: 3 e2e specs (baseline.spec.ts, workspace-context.spec.ts, level2-tape-modules.spec.ts) fail on missing 'Stock View' header text / unreachable 'Look up symbol' input (reproduced twice, not flaky)"
 dashboard_freshness: clean
-notes: "All 3 gates re-run this session (pytest+vitest+playwright, all fresh). vitest/playwright failures trace to the same in-progress, uncommitted frontend/src/stock_view/ header refactor (git status: ?? untracked dir) — StockViewHeader no longer renders the trading-lock testid or literal 'Stock View' label some e2e/unit specs assert on. Not fixed here per task scope (tester does not touch product code); flag to whoever owns that WIP (widgets-agent / Stock View work) before it lands. pytest 677 includes the known-benign torchvision c0000139 native-loader crash log during test_news_impact.py (PROBLEM_LOG 2026-07-16) — exit 0, no test failures."
+notes: "All 3 gates re-run this session (pytest+vitest+playwright, all fresh). vitest/playwright failures trace to the same in-progress, uncommitted frontend/src/stock_view/ header refactor (git status: ?? untracked dir) — StockViewHeader no longer renders the trading-lock testid or literal 'Stock View' label some e2e/unit specs assert on. Not fixed here per task scope (tester does not touch product code); flag to whoever owns that WIP (widgets / Stock View work) before it lands. pytest 677 includes the known-benign torchvision c0000139 native-loader crash log during test_news_impact.py (PROBLEM_LOG 2026-07-16) — exit 0, no test failures."
 ```
 
 Counts live only here (and in canvas snapshots derived from this block). Do not hardcode volatile totals in `tester.md`.
@@ -88,7 +88,7 @@ Newest first. Keep entries short. Skip boring all-green scoped runs unless a com
 
 ### 2026-07-16 — Stock View right-rail L2+T&S combined layout
 
-- **Scope:** widgets-agent rail fix — quote → (L2|T&S one card) → horizontal drag → Open ticket.
+- **Scope:** widgets rail fix — quote → (L2|T&S one card) → horizontal drag → Open ticket.
 - **Commands:** `npm run test -- --run src/stock_view/stockViewTerminal.test.tsx` → **11 passed**; browser `?view=stock&symbol=AAPL`.
 - **Result:** PASS — live geometry: quote top; L2+T&S same row (top=212); 1 rail horizontal handle between depth/open; `--sv-depth-pct: 72%`; Open has Unlock/Buy/Sell/Limit/Market/Stop/qty. Synthetic pointer drag via eval did not move React handler (wiring + title confirm drag/dblclick reset).
 - **Learning:** Console buffer often has stale HMR/`API_URL`/provider errors from earlier sessions — prefer fresh open + layout DOM geometry over raw console dump for Stock View layout claims.

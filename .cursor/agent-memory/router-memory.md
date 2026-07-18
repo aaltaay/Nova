@@ -1,8 +1,8 @@
-# Nova Router memory (living)
+# Router memory (living)
 
-Living knowledge for the Nova `nova-router` subagent. **Read at the start of every run. Update at the end when something new was learned.**
+Living knowledge for the Nova `router` subagent. **Read at the start of every run. Update at the end when something new was learned.**
 
-Companion to: `.cursor/agents/nova-router.md`
+Companion to: `.cursor/agents/router.md`
 
 ---
 
@@ -27,13 +27,13 @@ Machine-readable block only. Update after material runs. Do not duplicate mutabl
 
 ## How to continue improving
 
-> Use the nova-router subagent to triage this
+> Use the router subagent to triage this
 
 Or:
 
-> Improve the nova-router agent — work the next backlog item in `.cursor/agent-memory/nova-router-memory.md`.
+> Improve the router agent — work the next backlog item in `.cursor/agent-memory/router-memory.md`.
 
-Durable facts get **promoted into `nova-router.md`**. Run history and open ideas stay **here**.
+Durable facts get **promoted into `router.md`**. Run history and open ideas stay **here**.
 
 ---
 
@@ -57,9 +57,9 @@ Newest first. Keep entries short.
 
 ### 2026-07-18 — Agent install
 
-- **Scope:** Meta — scaffold nova-router via agent contract system.
+- **Scope:** Meta — scaffold router via agent contract system.
 - **Result:** install
 - **Learning:** Follow docs/agent-operations.md remaining human steps.
-- **Files updated:** `nova-router.md`, `nova-router-memory.md`, registry entry.
+- **Files updated:** `router.md`, `router-memory.md`, registry entry.
 
 <!-- RUN_LOG_END -->

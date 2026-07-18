@@ -72,5 +72,7 @@ Windows: always `py -3` for Python.
 |-------|------------------|
 | tester | test / build / browser gates |
 | maintainer | code hygiene / danger |
-| security-sentinel | full-repo security / SEC-NNN |
-| nova-agent | docs / canvas hygiene |
+| security | full-repo security / SEC-NNN |
+| docs | docs / canvas hygiene |
+| daddy | multi-specialist dispatch |
+| router | classification / crack index only |

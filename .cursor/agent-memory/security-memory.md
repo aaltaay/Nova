@@ -1,8 +1,8 @@
 # Security sentinel memory (living)
 
-Living knowledge for the Nova `security-sentinel` subagent. **Read at the start of every run. Update at the end when something new was learned.**
+Living knowledge for the Nova `security` subagent. **Read at the start of every run. Update at the end when something new was learned.**
 
-Companion to: `.cursor/agents/security-sentinel.md`
+Companion to: `.cursor/agents/security.md`
 Canonical registry: `security/findings-registry.json` — open/accepted/fixed state lives **only** there.
 
 ---
@@ -31,13 +31,13 @@ notes: "Counts derived from security/findings-registry.json — re-read registry
 
 Pick the next open item in **Backlog**, or after any significant change ask:
 
-> Use the security-sentinel subagent to audit the repo.
+> Use the security subagent to audit the repo.
 
 Or specifically:
 
-> Improve the security-sentinel agent — work the next backlog item in `.cursor/agent-memory/security-sentinel-memory.md`.
+> Improve the security agent — work the next backlog item in `.cursor/agent-memory/security-memory.md`.
 
-Durable facts (commands, severity rules, traps) get **promoted into `security-sentinel.md`**. Suppressions, run history, and open ideas stay **here**. Accepted-risk *IDs* are owned by the registry.
+Durable facts (commands, severity rules, traps) get **promoted into `security.md`**. Suppressions, run history, and open ideas stay **here**. Accepted-risk *IDs* are owned by the registry.
 
 ---
 
@@ -69,13 +69,13 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 ### Completed
 
-- [x] 2026-07-16 — Initial security-sentinel agent install (this file + `security-sentinel.md` + `security-continuity.mdc` created).
+- [x] 2026-07-16 — Initial security agent install (this file + `security.md` + `security-continuity.mdc` created).
 
 ---
 
 ## Learned facts (pending promotion)
 
-Facts discovered in a run that are **not yet** in `security-sentinel.md`. After promoting, delete the bullet here.
+Facts discovered in a run that are **not yet** in `security.md`. After promoting, delete the bullet here.
 
 **(empty)**
 
@@ -95,7 +95,7 @@ Newest first. Keep entries short. Skip boring all-clean runs unless a command/pa
 - **Resolution:** Did not run `--write-registry` (its `merge_findings()` only dedupes on exact fingerprint match; it would have added SEC-007 as a second open finding). Manually updated SEC-003 in place: `location` → `backend/constants_scanner.py:34`, `fingerprint` → the new value, `detail` clarified re: barrel, `compensating_controls` records the superseded old fingerprint for traceability, `last_seen` bumped. Appended a `scan_runs` entry documenting the manual dedup (0 new, SEC-003 updated). Re-ran the dry-run afterward — confirms `new_finding_ids: []`, `open_finding_count: 6`, SEC-003 now matches on the new fingerprint going forward.
 - **Result:** Open findings still 6 (SEC-001–SEC-006); no SEC-007 created. Highest open CVSS unchanged at 9.8 (SEC-002). No genuine second CORS-wildcard definition exists — flagged to parent as informational only (not a product bug), since the barrel pattern is correct as-is.
 - **Memory update:** Suppression added (location-drift dedup rule); backlog item added (fingerprint dedup gap, hand to maintainer/tool owner — out of sentinel's edit scope); Current snapshot refreshed, `dashboard_freshness: clean`.
-- **Files updated:** `security/findings-registry.json` (SEC-003 merge, scan_runs entry), `security-sentinel-memory.md`.
+- **Files updated:** `security/findings-registry.json` (SEC-003 merge, scan_runs entry), `security-memory.md`.
 
 ### 2026-07-16 — Baseline enrichment (compensating controls + status ledger)
 
@@ -103,13 +103,13 @@ Newest first. Keep entries short. Skip boring all-clean runs unless a command/pa
 - **Result:** All 6 findings (SEC-001–SEC-006) now have compensating_controls in registry. Open findings table populated in Security-Status.md. Verification ledger row added. Findings remain **open/unfixed**.
 - **Open findings:** SEC-001 (critical, credentials in GET /api/config), SEC-002 (critical, unauth executor POSTs), SEC-003 (high, CORS wildcard), SEC-004 (high, no API auth), SEC-005 (medium, CI missing security scanners), SEC-006 (medium, Dockerfile runs as root).
 - **Memory update:** Compensating controls seeded; run-log updated. Accepted risks table still empty (controls documented but not formally accepted — that step requires explicit user sign-off per review_by date).
-- **Files updated:** `security/findings-registry.json`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`, `security-sentinel-memory.md`, `gemini.md`, `AGENTS.md`, `CHANGELOG.md`.
+- **Files updated:** `security/findings-registry.json`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`, `security-memory.md`, `gemini.md`, `AGENTS.md`, `CHANGELOG.md`.
 
 ### 2026-07-16 — Agent install
 
-- **Scope:** Meta — create security-sentinel agent, memory, rule, and registry scaffold.
+- **Scope:** Meta — create security agent, memory, rule, and registry scaffold.
 - **Result:** n/a (protocol install)
 - **Learning:** Accepted risks table seeded empty; backlog seeded with CI gate, Semgrep, ZAP, Schemathesis, dep pinning, .gitignore sweep.
-- **Files updated:** `security-sentinel.md`, `security-sentinel-memory.md`, `.cursor/rules/security-continuity.mdc`, `security/findings-registry.json` (scaffold).
+- **Files updated:** `security.md`, `security-memory.md`, `.cursor/rules/security-continuity.mdc`, `security/findings-registry.json` (scaffold).
 
 <!-- RUN_LOG_END -->

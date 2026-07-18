@@ -1,4 +1,4 @@
-"""Deterministic documentation / canvas inventory for Nova Agent.
+"""Deterministic documentation / canvas inventory for Docs.
 
 Side-effect-free: classifies Cursor canvases and lists documentation roots.
 Does not implement prose/style/link standards (those belong to markdownlint,

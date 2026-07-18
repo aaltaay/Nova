@@ -144,7 +144,7 @@ def security_counts() -> dict:
 def build_agent_snapshot(entry: dict, captured_at: str, revision: str) -> dict:
     snap = load_memory_snapshot(entry.get("memory", ""))
     metrics = dict(snap.get("metrics") or {})
-    if entry["name"] == "security-sentinel":
+    if entry["name"] == "security":
         metrics.update(security_counts())
     freshness = snap.get("dashboard_freshness") or "unknown"
     result = snap.get("result") or "unknown"
@@ -241,19 +241,19 @@ def replace_or_insert_block(
 
 AGENT_TITLES = {
     "daddy": "Daddy",
-    "nova-agent": "Nova Agent",
+    "docs": "Docs",
     "tester": "Tester",
     "maintainer": "Maintainer",
-    "security-sentinel": "Security Sentinel",
+    "security": "Security",
     "warrior": "Warrior Navigator",
     "hod-momo": "HOD Momo Parity",
-    "widgets-agent": "Widgets Agent",
-    "nova-router": "Nova Router",
+    "widgets": "Widgets",
+    "router": "Router",
     "execution": "Execution Auditor",
     "ibkr-ops": "IBKR Ops",
     "backtester": "Backtester",
     "market-feed": "Market Feed",
-    "news-catalyst": "News Catalyst",
+    "news": "News",
 }
 
 
@@ -262,7 +262,7 @@ def home_agents_block(snapshots: list[dict]) -> str:
     for s in snapshots:
         mid = s["metrics"]
         summary = s["result"]
-        if s["agent_id"] == "security-sentinel":
+        if s["agent_id"] == "security":
             summary = f"{mid.get('open_findings', '?')} open"
         elif s["agent_id"] == "maintainer":
             summary = f"{mid.get('findings_total', mid.get('findings', '?'))} findings"

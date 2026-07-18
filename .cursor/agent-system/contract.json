@@ -24,7 +24,7 @@
     "Dashboard",
     "**Lifecycle:**"
   ],
-  "lifecycle_footer_regex": "\\*\\*Lifecycle:\\*\\*\\s*memory=(changed|unchanged)\\s*[|·]\\s*promotion=.+\\s*[|·]\\s*dashboard=(clean|refresh-required)\\s*[|·]\\s*handoff=.+",
+  "lifecycle_footer_regex": "\\*\\*Lifecycle:\\*\\*\\s*memory=(changed|unchanged)\\s*[|\u00b7]\\s*promotion=.+\\s*[|\u00b7]\\s*dashboard=(clean|refresh-required)\\s*[|\u00b7]\\s*handoff=.+",
   "lifecycle_footer_example": "**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none",
   "snapshot_required_keys": [
     "captured_at",
@@ -36,9 +36,13 @@
   ],
   "dashboard_naming": {
     "dedicated_prefix": "agent-",
-    "home_exception_agents": ["nova-agent"],
+    "home_exception_agents": [
+      "docs"
+    ],
     "home_canvas": "nova-home.canvas.tsx",
-    "forbidden_patterns": ["agent-nova"]
+    "forbidden_patterns": [
+      "agent-nova"
+    ]
   },
   "commit_safety_phrases": [
     "Do **not** commit or push unless the parent/user explicitly asks",

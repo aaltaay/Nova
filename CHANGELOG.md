@@ -30,22 +30,31 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Standardize agent names (plain role ids)
+
+- **What:** Renamed five agents to a consistent plain-role scheme: `nova-router`→`router`, `nova-agent`→`docs`, `security-sentinel`→`security`, `widgets-agent`→`widgets`, `news-catalyst`→`news`. Aligned canvases (`agent-execution`, `agent-news`). Reordered registry (daddy → domain specialists → meta). Added Mode column to `Agent-Fleet-Map.md` (Dispatch / Audit / Implement / Research).
+- **Why:** Mixed naming dialects (`nova-*`, `*-agent`, `*-sentinel`) made the roster harder to scan and invoke.
+- **Files touched:** `.cursor/agents/{router,docs,security,widgets,news}.md` (+ memories), registry, contract `home_exception_agents`, routing/docs/AGENTS/CHANGELOG, fleet map, sync titles, canvases under Cursor projects folder.
+- **How it works now:** Invoke with `Use the <id> subagent to …`. Dashboard rule: dedicated = `agent-<id>.canvas.tsx` (docs keeps `nova-home`). Product API paths like `/api/news-catalysts` are unchanged.
+- **Verified by:** `py -3 tools/agent_contract.py` (14 agents); tools pytest; `agent_fleet.py`.
+- **Follow-ups:** Cursor Task `subagent_type` enum may lag until the IDE reloads custom agents — use the new invoke phrases from the registry.
+
 ## 2026-07-18 — Fleet gap-fill: 5 domain specialists + daddy dispatcher
 
-- **What:** Closed every previously Unowned fleet domain and the orphan VectorBT skill cluster by scaffolding six agents: `execution` (audit-only + new `execution-continuity.mdc`, reusing `agent-execution-validation` canvas), `ibkr-ops`, `backtester` (Phase E product + 5 VectorBT skills), `market-feed` (merged general L1 + quote/L2/T&S coherence), `news-catalyst`, and top-of-fleet `daddy` (dispatch/sequence/aggregate; never implements product code). Flipped `Agent-Fleet-Map.md` ownership; updated routing, AGENTS.md, agent-ops docs, `AGENT_TITLES`, and contract tests to 14 agents.
+- **What:** Closed every previously Unowned fleet domain and the orphan VectorBT skill cluster by scaffolding six agents: `execution` (audit-only + new `execution-continuity.mdc`, reusing `agent-execution-validation` canvas), `ibkr-ops`, `backtester` (Phase E product + 5 VectorBT skills), `market-feed` (merged general L1 + quote/L2/T&S coherence), `news`, and top-of-fleet `daddy` (dispatch/sequence/aggregate; never implements product code). Flipped `Agent-Fleet-Map.md` ownership; updated routing, AGENTS.md, agent-ops docs, `AGENT_TITLES`, and contract tests to 14 agents.
 - **Why:** Unowned domains and orphan skills were intentional cracks after the Agent Fleet Router shipped — the gap-fill was the deferred Phase 3 / follow-up specialists work, plus the user’s request for a literal top-of-fleet owner named `daddy`.
-- **Files touched:** `.cursor/agents/{execution,ibkr-ops,backtester,market-feed,news-catalyst,daddy}.md`, matching memories, `.cursor/rules/execution-continuity.mdc`, `.cursor/rules/specialist-routing.mdc`, `.cursor/agent-system/registry.json`, `knowledge/obsidian/00-System/Agent-Fleet-Map.md`, `tools/sync_agent_surfaces.py`, `tools/agent_fleet.py`, `tools/test_agent_contract.py`, `docs/agent-operations.md`, `AGENTS.md`, canvases `agent-{ibkr-ops,backtester,market-feed,news-catalyst,daddy}.canvas.tsx` + updated `agent-execution-validation.canvas.tsx`.
-- **How it works now:** `daddy` is the action-oriented front door (“dispatch this”); `nova-router` stays the pure classification/crack-index tool. Domain specialists own their slices with explicit handoffs (`market-feed` ↔ `hod-momo`/`widgets-agent`; `execution` does not absorb Nova OS strategy/executor). `agent_fleet.py` should report zero Unowned domains and zero Orphan skills from the map (Continuity-only roadmap phases remain informational cracks).
+- **Files touched:** `.cursor/agents/{execution,ibkr-ops,backtester,market-feed,news,daddy}.md`, matching memories, `.cursor/rules/execution-continuity.mdc`, `.cursor/rules/specialist-routing.mdc`, `.cursor/agent-system/registry.json`, `knowledge/obsidian/00-System/Agent-Fleet-Map.md`, `tools/sync_agent_surfaces.py`, `tools/agent_fleet.py`, `tools/test_agent_contract.py`, `docs/agent-operations.md`, `AGENTS.md`, canvases `agent-{ibkr-ops,backtester,market-feed,news,daddy}.canvas.tsx` + updated `agent-execution.canvas.tsx`.
+- **How it works now:** `daddy` is the action-oriented front door (“dispatch this”); `router` stays the pure classification/crack-index tool. Domain specialists own their slices with explicit handoffs (`market-feed` ↔ `hod-momo`/`widgets`; `execution` does not absorb Nova OS strategy/executor). `agent_fleet.py` should report zero Unowned domains and zero Orphan skills from the map (Continuity-only roadmap phases remain informational cracks).
 - **Verified by:** `py -3 tools/agent_contract.py`; `py -3 tools/sync_agent_surfaces.py --write`; `py -3 tools/agent_fleet.py`; targeted pytest on execution/backtest + tools suite.
 - **Follow-ups:** Confirm whether nested Task works inside `daddy` on first real invoke (record `dispatch_mode` in daddy memory). Heartbeat Cursor Automation still deferred. Continuity-only roadmap domains (alerts/reports/hotkeys/archive/Nova OS) remain without dedicated specialists by design.
 - **Related:** prior entry “Agent Fleet Router” (same day); plan `fleet_gap-fill_5_new_specialists_998441a0.plan.md`.
 
-## 2026-07-18 — Agent Fleet Router: crack index + nova-router triage dispatcher
+## 2026-07-18 — Agent Fleet Router: crack index + router triage dispatcher
 
-- **What:** Added a durable domain/skill ownership matrix (`knowledge/obsidian/00-System/Agent-Fleet-Map.md`); a read-only cross-agent crack index (`tools/agent_fleet.py` + `tools/test_agent_fleet.py`) that unions stale snapshots, open blockers, unowned/continuity-only domains, orphan skills, unmanaged canvases, and missing `AGENT_TITLES`; a "Fleet cracks" rollup on Nova Home; a new report-only `nova-router` specialist (dashboard `agent-router.canvas.tsx`) that emits a Routing card naming the right specialist(s)/skill(s) before implementation starts; and a `sessionStart` hook (`tools/session_brief_hook.py`) that leads every new chat with the top-3 fleet cracks + roadmap NEXT. Fixed a real gap: `hod-momo` was missing from `sync_agent_surfaces.AGENT_TITLES`.
+- **What:** Added a durable domain/skill ownership matrix (`knowledge/obsidian/00-System/Agent-Fleet-Map.md`); a read-only cross-agent crack index (`tools/agent_fleet.py` + `tools/test_agent_fleet.py`) that unions stale snapshots, open blockers, unowned/continuity-only domains, orphan skills, unmanaged canvases, and missing `AGENT_TITLES`; a "Fleet cracks" rollup on Nova Home; a new report-only `router` specialist (dashboard `agent-router.canvas.tsx`) that emits a Routing card naming the right specialist(s)/skill(s) before implementation starts; and a `sessionStart` hook (`tools/session_brief_hook.py`) that leads every new chat with the top-3 fleet cracks + roadmap NEXT. Fixed a real gap: `hod-momo` was missing from `sync_agent_surfaces.AGENT_TITLES`.
 - **Why:** Cracks (unowned domains, stale dashboards, orphan skills) were only discoverable by opening seven separate agent memories one at a time; there was no auto-dispatch when a task didn't obviously map to one specialist.
-- **Files touched:** `tools/agent_fleet.py`, `tools/test_agent_fleet.py`, `tools/session_brief_hook.py`, `tools/test_session_brief_hook.py`, `tools/sync_agent_surfaces.py`, `tools/test_agent_contract.py`, `.cursor/agent-system/registry.json`, `.cursor/agents/nova-router.md`, `.cursor/agent-memory/nova-router-memory.md`, `.cursor/hooks.json`, `.cursor/rules/specialist-routing.mdc`, `knowledge/obsidian/00-System/Agent-Fleet-Map.md`, `docs/agent-operations.md`, `AGENTS.md`, canvases `agent-router.canvas.tsx` (new) + `nova-home.canvas.tsx` (Fleet cracks section).
-- **How it works now:** `py -3 tools/agent_fleet.py --json` is the single command that answers "what's in the cracks?" — it reads the registry, each agent's memory snapshot/backlog, the fleet map, and the canvases directory, but never mutates any of them. `nova-router` is invoked for ambiguous/multi-domain/unowned-domain tasks per `specialist-routing.mdc`; it never edits product code. The `sessionStart` hook calls the same tool and injects `additional_context` with the top-3 cracks — fail-open, so a hook error never blocks a session. Ownership changes get recorded first in `Agent-Fleet-Map.md`, which the tool treats as read-only truth.
+- **Files touched:** `tools/agent_fleet.py`, `tools/test_agent_fleet.py`, `tools/session_brief_hook.py`, `tools/test_session_brief_hook.py`, `tools/sync_agent_surfaces.py`, `tools/test_agent_contract.py`, `.cursor/agent-system/registry.json`, `.cursor/agents/router.md`, `.cursor/agent-memory/router-memory.md`, `.cursor/hooks.json`, `.cursor/rules/specialist-routing.mdc`, `knowledge/obsidian/00-System/Agent-Fleet-Map.md`, `docs/agent-operations.md`, `AGENTS.md`, canvases `agent-router.canvas.tsx` (new) + `nova-home.canvas.tsx` (Fleet cracks section).
+- **How it works now:** `py -3 tools/agent_fleet.py --json` is the single command that answers "what's in the cracks?" — it reads the registry, each agent's memory snapshot/backlog, the fleet map, and the canvases directory, but never mutates any of them. `router` is invoked for ambiguous/multi-domain/unowned-domain tasks per `specialist-routing.mdc`; it never edits product code. The `sessionStart` hook calls the same tool and injects `additional_context` with the top-3 cracks — fail-open, so a hook error never blocks a session. Ownership changes get recorded first in `Agent-Fleet-Map.md`, which the tool treats as read-only truth.
 - **Verified by:** `py -3 tools/agent_fleet.py` (24 real cracks surfaced, incl. 2 unmanaged canvases and 5 unowned domains); `py -3 -m pytest tools/test_agent_fleet.py tools/test_session_brief_hook.py tools/test_agent_contract.py tools/test_sync_agent_surfaces.py tools/test_subagent_lifecycle_hook.py tools/test_create_nova_agent.py -q` → 42 passed, 1 pre-existing unrelated failure (`test_stale_detection`, predates this change per `git stash` check); `py -3 tools/agent_contract.py` → PASS (8 agents); `py -3 tools/sync_agent_surfaces.py --write` → canvases synced.
 - **Follow-ups:** Phase 3 (scaffold `execution` / `ibkr-ops` / `backtest` specialists for the highest-pain unowned domains) deferred to separate chats per plan. Heartbeat automation (scheduled Cursor Automation running the fleet/maintainer/security checks pre-market) not built — no tool access to create a Cursor Automation in this session; `agent_fleet.py`/`agent_contract.py`/`maintainer_checks.py`/`security_audit.py` are all automation-ready (`--json`) whenever that's wired.
 - **Related:** `c:\Users\aalta\.cursor\plans\agent_fleet_router_7a9187aa.plan.md` (Phases 1–2 + docs complete; Phase 3 explicitly deferred).
@@ -55,7 +64,7 @@ Entry template (copy and fill in):
 - **What:** Registered `knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md` as a `hod-momo` canonical input and writable path; documented ownership in the agent spec, memory, specialist-routing table, and the note itself. Synced `agent-hod-momo` canvas snapshot.
 - **Why:** The end-to-end feed UML is critical; ownership must be explicit so future sessions update the right durable note instead of leaving diagrams stale in chat/plans.
 - **Files touched:** `.cursor/agent-system/registry.json`, `.cursor/agents/hod-momo.md`, `.cursor/agent-memory/hod-momo-memory.md`, `.cursor/rules/specialist-routing.mdc`, `IBKR-Scanner-HOD-Architecture.md`.
-- **How it works now:** `hod-momo` reads/updates the Obsidian UML whenever feed topology or HOD truth changes. Plan diagrams under `.cursor/plans/hod_gate_uml_cleanup_*.plan.md` are companions; Obsidian wins on conflict. `nova-agent` still owns unrelated docs/canvas hygiene.
+- **How it works now:** `hod-momo` reads/updates the Obsidian UML whenever feed topology or HOD truth changes. Plan diagrams under `.cursor/plans/hod_gate_uml_cleanup_*.plan.md` are companions; Obsidian wins on conflict. `docs` still owns unrelated docs/canvas hygiene.
 - **Verified by:** `py -3 tools/agent_contract.py` PASS; `sync_agent_surfaces.py --write` refreshed hod-momo canvas `canonical_inputs`.
 - **Follow-ups:** Commit this wiring + the refreshed UML note when the user asks.
 
@@ -208,12 +217,12 @@ Entry template (copy and fill in):
 
 ## 2026-07-17 — Canvas dashboard refresh + documentation audit
 
-- **What:** Refreshed all 7 preferred canvases (real re-run of `tester`/`security-sentinel`/`maintainer` deterministic checks via their own subagents, plus hand-fixed stale hardcoded prose outside the generated snapshot blocks in `nova-home`/`agent-tester`/`agent-security`). Ran a markdownlint sweep across the repo's highest-value docs.
+- **What:** Refreshed all 7 preferred canvases (real re-run of `tester`/`security`/`maintainer` deterministic checks via their own subagents, plus hand-fixed stale hardcoded prose outside the generated snapshot blocks in `nova-home`/`agent-tester`/`agent-security`). Ran a markdownlint sweep across the repo's highest-value docs.
 - **Why:** User requested a canvas cleanup ("update all canvases and shuffle them around, do not delete") and a documentation audit.
-- **Files touched:** All 7 canvases; `gemini.md`, `AGENTS.md` (re-synced, fully lint-clean); `CHANGELOG.md`, `PROBLEM_LOG.md`, `security/SOURCE-PINS.md`, `security/tooling.md`, `findings.md`, `progress.md`; `.cursor/agents/*.md` (4 files); `.cursor/rules/*.mdc` (backend-modularity, frontend-modularity, karpathy-guidelines); `.markdownlint-cli2.jsonc`; `.cursor/agent-memory/{nova-agent,tester,security-sentinel,maintainer}-memory.md`.
+- **Files touched:** All 7 canvases; `gemini.md`, `AGENTS.md` (re-synced, fully lint-clean); `CHANGELOG.md`, `PROBLEM_LOG.md`, `security/SOURCE-PINS.md`, `security/tooling.md`, `findings.md`, `progress.md`; `.cursor/agents/*.md` (4 files); `.cursor/rules/*.mdc` (backend-modularity, frontend-modularity, karpathy-guidelines); `.markdownlint-cli2.jsonc`; `.cursor/agent-memory/{docs,tester,security,maintainer}-memory.md`.
 - **How it works now:** `tools/sync_agent_surfaces.py --write` still only refreshes the generated `AGENT_SNAPSHOT_*` block in each canvas from each agent's memory — the surrounding hand-written prose (pills, stat grids, tables) does **not** auto-refresh and needs a manual pass when it drifts (this is what was stale here). `dashboard_freshness: refresh-required` in a snapshot is the signal to dispatch that agent's subagent rather than hand-editing its domain data. markdownlint config now disables `MD037`/`MD050` repo-wide (see PROBLEM_LOG — `--fix` was corrupting bare Python identifiers) and correctly ignores `**/graphify-out/**` (nested, not just root) and `**/test-results/**`/`**/.tmp/**`.
 - **Verified by:** `tools/sync_agent_surfaces.py --write` final pass shows 0 writes (fully consistent); `markdownlint-cli2` on all touched files shows 0 errors; repo-wide error count 453→176 (remainder is vendored skill mirrors + Obsidian vault, out of scope).
-- **Follow-ups:** `hod_momo_active.py`, `constantGroups/chart_api.ts`, `constantGroups/market_ui.ts`, `ManualOrderTicket.tsx`, `sync_agent_surfaces.py` are newly over their file-size limits (maintainer backlog); `frontend/src/stock_view/` header refactor broke 1 Vitest + 3 Playwright specs (tester backlog, untracked WIP, not fixed here); 176 vendored/vault markdownlint errors remain (nova-agent backlog).
+- **Follow-ups:** `hod_momo_active.py`, `constantGroups/chart_api.ts`, `constantGroups/market_ui.ts`, `ManualOrderTicket.tsx`, `sync_agent_surfaces.py` are newly over their file-size limits (maintainer backlog); `frontend/src/stock_view/` header refactor broke 1 Vitest + 3 Playwright specs (tester backlog, untracked WIP, not fixed here); 176 vendored/vault markdownlint errors remain (docs backlog).
 - **Related:** PROBLEM_LOG 2026-07-16 — `markdownlint-cli2 --fix` corrupted bare Python identifiers.
 
 ## 2026-07-16 — Design system audit: Nova tokens + Stock View rail
@@ -317,7 +326,7 @@ Entry template (copy and fill in):
 - **How it works now:** Operator mode capsule is display-only with Normal selected; Manual and Fully Automated stay disabled (`auto_live` NO-GO). Paper/Live reflects Gateway `mode` and clicking the other segment only shows the existing reconnect/confirmation guidance — it never arms live orders. Lock mirrors `spend_status` and cannot bypass `IBKR_ORDERS_ENABLED` / live confirmation. Confirm/Auto Paper/Signal/Stop Automation remain on the Trading tab Executor panel.
 - **Verified by:** Vitest `StockViewHeader.test.tsx` + `stockViewTerminal.test.tsx` (15 passed).
 - **Follow-ups:** Wire Manual later; keep Fully Automated disabled until a separate unlock phase.
-- **Related:** widgets-agent Stock View header cleanup (finished in parent after stuck handoff).
+- **Related:** widgets Stock View header cleanup (finished in parent after stuck handoff).
 
 ## 2026-07-16 — Karpathy guidelines: creativity + thinking ahead
 
@@ -359,11 +368,11 @@ Entry template (copy and fill in):
 
 ## 2026-07-16 — Webull widget parity agent and manual-first trade ticket
 
-- **What:** Added `widgets-agent`, a source-backed 25-capability Webull-to-Nova stock/day-trading map, and the dedicated `agent-widgets` Canvas. Reworked both Nova manual order surfaces into one Webull-inspired ticket with preserved Buy/Sell/Market/Limit controls plus Stop orders, share/%/$ sizing, quick presets, limit/stop prices, and regular/extended-hours selection.
+- **What:** Added `widgets`, a source-backed 25-capability Webull-to-Nova stock/day-trading map, and the dedicated `agent-widgets` Canvas. Reworked both Nova manual order surfaces into one Webull-inspired ticket with preserved Buy/Sell/Market/Limit controls plus Stop orders, share/%/$ sizing, quick presets, limit/stop prices, and regular/extended-hours selection.
 - **Why:** The user wants an explicit competitive map that can drive future widget requests and a manual-control foundation for eventual automation without removing current trading or automation buttons.
-- **Files touched:** `.cursor/agents/widgets-agent.md`, `.cursor/agent-memory/widgets-agent-memory.md`, `.cursor/rules/widgets-continuity.mdc`, `.cursor/agent-system/registry.json`, `docs/webull-widget-parity.md`, `backend/ibkr/orders.py`, `backend/routes/trading.py`, `frontend/src/ibkr/ManualOrderTicket.tsx`, `ManualOrderFields.tsx`, `orderEntry.ts`, `placeOrder.ts`, `tradeTicket.css`, and focused tests.
+- **Files touched:** `.cursor/agents/widgets.md`, `.cursor/agent-memory/widgets-memory.md`, `.cursor/rules/widgets-continuity.mdc`, `.cursor/agent-system/registry.json`, `docs/webull-widget-parity.md`, `backend/ibkr/orders.py`, `backend/routes/trading.py`, `frontend/src/ibkr/ManualOrderTicket.tsx`, `ManualOrderFields.tsx`, `orderEntry.ts`, `placeOrder.ts`, `tradeTicket.css`, and focused tests.
 - **How it works now:** The parity ledger uses stable `WID-NNN` IDs, per-row S1–S16 evidence, paired Nova paths, honest status, and implementation-ready prompts; its Canvas is a synchronized snapshot. Manual orders still use the one IBKR endpoint and existing confirmation/safety gates. The backend now validates/constructs `MKT`, `LMT`, and `STP`; `outside_rth` is accepted only for Limit. Stock View keeps account metrics, Flatten/Close, Confirm, Auto Paper, Signal, and Stop Automation beside the richer manual ticket. Locked spend status displays a disabled `Unlock Trading` button that cannot bypass environment gates.
-- **Verified by:** Focused IBKR suites 41 PASS; backend full suite 677 PASS with a documented local TorchVision/Python 3.13 fatal-loader warning; frontend Vitest 202 PASS; build/lint PASS; agent contract PASS for 7 agents and 24 lifecycle tests PASS; widgets-agent smoke PASS after evidence hardening; tester browser verification PASS with all controls exercised and no order request submitted.
+- **Verified by:** Focused IBKR suites 41 PASS; backend full suite 677 PASS with a documented local TorchVision/Python 3.13 fatal-loader warning; frontend Vitest 202 PASS; build/lint PASS; agent contract PASS for 7 agents and 24 lifecycle tests PASS; widgets smoke PASS after evidence hardening; tester browser verification PASS with all controls exercised and no order request submitted.
 - **Follow-ups:** WID-014 remains partial because trailing stop, stop-limit, and group orders are not implemented. Repair the unrelated local Torch/TorchVision DLL mismatch before treating the broad backend suite as warning-free.
 - **Related:** PROBLEM_LOG 2026-07-16 “Full pytest emits TorchVision DLL fatal exception but exits green” and “Canvas TodoList prop failed type-check”.
 
@@ -673,7 +682,7 @@ Entry template (copy and fill in):
 
 ## 2026-07-16 — List all specialists on Nova Home canvas
 
-- **What:** Nova Home “Specialized agents” section now renders the full registry roster (Tester, Maintainer, Security Sentinel, Nova Agent, Warrior Navigator) from `NOVA_HOME_AGENT_SNAPSHOT`, with invoke phrases and dashboard links.
+- **What:** Nova Home “Specialized agents” section now renders the full registry roster (Tester, Maintainer, Security, Docs, Warrior Navigator) from `NOVA_HOME_AGENT_SNAPSHOT`, with invoke phrases and dashboard links.
 - **Why:** User asked to list agents on Nova Home; the old hand-coded cards omitted Warrior and ignored the sync snapshot.
 - **Files touched:** `tools/sync_agent_surfaces.py` (`home_agents_block` fields), `nova-home.canvas.tsx`.
 - **How it works now:** `py -3 tools/sync_agent_surfaces.py --write` refreshes the roster from `.cursor/agent-system/registry.json`; the table always shows every registered agent.
@@ -682,8 +691,8 @@ Entry template (copy and fill in):
 ## 2026-07-16 — Install warrior specialist agent + agent-warrior canvas
 
 - **What:** Registered a dedicated `warrior` subagent for authenticated Warrior Trading navigation; migrated the unmanaged site-map canvas to `agent-warrior.canvas.tsx` so Nova Home hygiene stays clean.
-- **Why:** Nova Agent owns Nova Home / unmanaged canvases; Warrior browsing needed a named owner with invoke phrases and a durable dashboard.
-- **Files touched:** `.cursor/agents/warrior.md`, `.cursor/agent-memory/warrior-memory.md`, `.cursor/agent-system/registry.json`, `.cursor/rules/specialist-routing.mdc`, `AGENTS.md`, `docs/agent-operations.md`, `docs/warrior-authenticated-access.md`, Obsidian map/router links, `nova-agent.md` handoff.
+- **Why:** Docs owns Nova Home / unmanaged canvases; Warrior browsing needed a named owner with invoke phrases and a durable dashboard.
+- **Files touched:** `.cursor/agents/warrior.md`, `.cursor/agent-memory/warrior-memory.md`, `.cursor/agent-system/registry.json`, `.cursor/rules/specialist-routing.mdc`, `AGENTS.md`, `docs/agent-operations.md`, `docs/warrior-authenticated-access.md`, Obsidian map/router links, `docs.md` handoff.
 - **How it works now:** Say “Use the warrior subagent to navigate Warrior Trading” (or “…map Day Trade Dash”). Profile + runbook unchanged; dashboard is `agent-warrior` only. `nova_docs_inventory` reports zero unmanaged canvases.
 - **Verified by:** `py -3 tools/agent_contract.py` PASS (5 agents); `py -3 tools/sync_agent_surfaces.py --write`; inventory `preferred_agent` for `agent-warrior`.
 - **Related:** map commit `5c8b878`.
@@ -743,21 +752,21 @@ Entry template (copy and fill in):
 - **Follow-ups:** Smoke-invoke each specialist in a live chat to confirm memory paths + Lifecycle footer; optionally bind canvas Stat widgets to generated snapshot consts.
 - **Related:** PROBLEM_LOG 2026-07-16 memory-as-agent discovery.
 
-## 2026-07-16 — Nova Agent (docs + canvas steward)
+## 2026-07-16 — Docs (docs + canvas steward)
 
-- **What:** Added `nova-agent` subagent + living memory + `docs-continuity.mdc`. Adopted upstream standards (Diátaxis, markdownlint-cli2 0.23.0, Vale 3.15.1 + Google/write-good, Lychee 0.24.2) with pins in `docs/SOURCE-PINS.md`. Added deterministic `tools/nova_docs_inventory.py` (+ tests). Dashboard is Nova Home (no separate agent-nova canvas). Merged unmanaged `nova-security-audit` into `agent-security` and deleted the orphan.
+- **What:** Added `docs` subagent + living memory + `docs-continuity.mdc`. Adopted upstream standards (Diátaxis, markdownlint-cli2 0.23.0, Vale 3.15.1 + Google/write-good, Lychee 0.24.2) with pins in `docs/SOURCE-PINS.md`. Added deterministic `tools/nova_docs_inventory.py` (+ tests). Dashboard is Nova Home (no separate agent-nova canvas). Merged unmanaged `nova-security-audit` into `agent-security` and deleted the orphan.
 - **Why:** User asked for a dedicated documentation agent that uses real GitHub standards (not invented house rules) and stewards canvases so random boards do not accumulate.
-- **Files touched:** `.cursor/agents/nova-agent.md`, `nova-agent-memory.md`, `.cursor/rules/docs-continuity.mdc`, `.markdownlint-cli2.jsonc`, `.vale.ini`, `.vale/styles/Vocab/Nova/accept.txt`, `docs/SOURCE-PINS.md`, `tools/nova_docs_inventory.py`, `tools/test_nova_docs_inventory.py`, `.gitignore`, canvases (`nova-home`, `agent-security`), `AGENTS.md`, `gemini.md`, `Security-Status.md`.
-- **How it works now:** Invoke “Use the Nova Agent to review documentation” or “canvas hygiene.” Preferred canvases: `nova-home`, `agent-*`, Cursor `context-usage-*`. Unmanaged canvases require evidence before delete (or ask). Missing Vale/Lychee = BLOCKED gate, not silent skip.
+- **Files touched:** `.cursor/agents/docs.md`, `docs-memory.md`, `.cursor/rules/docs-continuity.mdc`, `.markdownlint-cli2.jsonc`, `.vale.ini`, `.vale/styles/Vocab/Nova/accept.txt`, `docs/SOURCE-PINS.md`, `tools/nova_docs_inventory.py`, `tools/test_nova_docs_inventory.py`, `.gitignore`, canvases (`nova-home`, `agent-security`), `AGENTS.md`, `gemini.md`, `Security-Status.md`.
+- **How it works now:** Invoke “Use the Docs to review documentation” or “canvas hygiene.” Preferred canvases: `nova-home`, `agent-*`, Cursor `context-usage-*`. Unmanaged canvases require evidence before delete (or ask). Missing Vale/Lychee = BLOCKED gate, not silent skip.
 - **Verified by:** `pytest tools/test_nova_docs_inventory.py`; `nova_docs_inventory.py --json`; canvas TypeScript clean.
-- **Follow-ups:** Install Vale + Lychee locally; warning-first CI for docs linters (Nova Agent backlog).
+- **Follow-ups:** Install Vale + Lychee locally; warning-first CI for docs linters (Docs backlog).
 
 ## 2026-07-16 — Security sentinel + baseline audit registry
 
-- **What:** Enriched `security/findings-registry.json` with `compensating_controls` for all 6 open findings (SEC-001–SEC-006). Updated `Security-Status.md` with real SEC-* rows, verification ledger entry, and current-position reflecting baseline captured. Updated `security-sentinel-memory.md` run log. Added maintenance-log rows to `gemini.md` and `AGENTS.md`.
-- **Why:** Post-install documentation pass after the initial security-sentinel subagent baseline scan produced 6 findings — the registry existed but `compensating_controls` fields were empty and the status ledger still said "not yet run."
-- **Files touched:** `security/findings-registry.json`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`, `.cursor/agents/security-sentinel-memory.md`, `gemini.md`, `AGENTS.md`, `CHANGELOG.md`.
-- **How it works now:** Registry has compensating context for each finding so future agents understand the accepted risk surface without re-triaging from scratch. `security-review` (Cursor) owns diff triage; `security-sentinel` (Nova) owns scheduled full-repo posture — these roles are distinct and documented in `Security-Status.md`. All 6 findings remain **open/unfixed** — the compensating controls are acknowledgement of mitigating architecture, not remediation.
+- **What:** Enriched `security/findings-registry.json` with `compensating_controls` for all 6 open findings (SEC-001–SEC-006). Updated `Security-Status.md` with real SEC-* rows, verification ledger entry, and current-position reflecting baseline captured. Updated `security-memory.md` run log. Added maintenance-log rows to `gemini.md` and `AGENTS.md`.
+- **Why:** Post-install documentation pass after the initial security subagent baseline scan produced 6 findings — the registry existed but `compensating_controls` fields were empty and the status ledger still said "not yet run."
+- **Files touched:** `security/findings-registry.json`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`, `.cursor/agents/security-memory.md`, `gemini.md`, `AGENTS.md`, `CHANGELOG.md`.
+- **How it works now:** Registry has compensating context for each finding so future agents understand the accepted risk surface without re-triaging from scratch. `security-review` (Cursor) owns diff triage; `security` (Nova) owns scheduled full-repo posture — these roles are distinct and documented in `Security-Status.md`. All 6 findings remain **open/unfixed** — the compensating controls are acknowledgement of mitigating architecture, not remediation.
 - **Verified by:** Manual review of registry JSON and status ledger; no product code changed.
 - **Follow-ups:** Add USER directive to Dockerfile (SEC-006); restrict GET /api/config (SEC-001); add API auth middleware (SEC-004); add gitleaks/osv-scanner/semgrep to CI (SEC-005).
 - **Related:** Prior entry 2026-07-16 "Security audit runner and findings registry" (initial scan + tooling); `security/findings-registry.json` (canonical finding IDs).
@@ -766,8 +775,8 @@ Entry template (copy and fill in):
 
 - **What:** Added three Cursor dashboards — `agent-tester`, `agent-maintainer`, `agent-security` — and linked them from `nova-home`. Each mirrors that subagent’s gates, backlog, and latest scan/memory. Agent `.md` specs now point at their canvas.
 - **Why:** User asked for dedicated canvases under the three specialized agents.
-- **Files touched:** `canvases/agent-*.canvas.tsx`, `nova-home.canvas.tsx`; `.cursor/agents/{tester,maintainer,security-sentinel}.md`.
-- **How it works now:** Open the agent canvas beside chat when running or reviewing that agent. Refresh after audits / full gate runs. Security canvas is for `security-sentinel` (full-repo), not Cursor `security-review` (diff).
+- **Files touched:** `canvases/agent-*.canvas.tsx`, `nova-home.canvas.tsx`; `.cursor/agents/{tester,maintainer,security}.md`.
+- **How it works now:** Open the agent canvas beside chat when running or reviewing that agent. Refresh after audits / full gate runs. Security canvas is for `security` (full-repo), not Cursor `security-review` (diff).
 - **Verified by:** Canvas TypeScript clean; live `maintainer_checks` (34 findings) + `security_audit` (5 open: 2 crit / 2 high / 1 med).
 - **Follow-ups:** Tester memory count refresh; triage SEC-001–005; install blocked security tools.
 
@@ -790,12 +799,12 @@ Entry template (copy and fill in):
 - **Follow-ups:** Re-probe integrity during RTH; refresh stats after next verify suite.
 - **Related:** Canvas inventory cleanup 2026-07-16
 
-## 2026-07-16 — security-sentinel subagent installed
+## 2026-07-16 — security subagent installed
 
-- **What:** Added three new files: `.cursor/agents/security-sentinel.md` (agent definition, 156 lines), `.cursor/agents/security-sentinel-memory.md` (living memory with accepted risks table, backlog, run log), `.cursor/rules/security-continuity.mdc` (glob-scoped pre-edit protocol for security-sensitive modules). Also scaffolded `security/findings-registry.json` as the canonical `SEC-NNN` findings store.
-- **Why:** User-requested security posture sentinel distinct from Cursor's built-in `security-review` subagent (which handles PR/diff reviews). `security-sentinel` does full-repo audits, CVSS/OWASP rating, dep CVE scanning, secrets sniffing, and maintains a durable accepted-risks registry.
-- **Files touched:** `.cursor/agents/security-sentinel.md`, `.cursor/agents/security-sentinel-memory.md`, `.cursor/rules/security-continuity.mdc`, `security/findings-registry.json`.
-- **How it works now:** Invoke with "Use the security-sentinel subagent to audit the repo." It reads memory + registry first (honors accepted risks), runs `py -3 tools/security_audit.py --json` + pip_audit + npm audit + ruff + secrets grep, assigns SEC-NNN IDs, and outputs a structured report. `security-continuity.mdc` fires on edits to `backend/ibkr/**`, `backend/strategy/**`, `backend/alerts/**`, execution routes, and `security/**` — prompting agents to check the registry and accepted risks before changing those files.
+- **What:** Added three new files: `.cursor/agents/security.md` (agent definition, 156 lines), `.cursor/agents/security-memory.md` (living memory with accepted risks table, backlog, run log), `.cursor/rules/security-continuity.mdc` (glob-scoped pre-edit protocol for security-sensitive modules). Also scaffolded `security/findings-registry.json` as the canonical `SEC-NNN` findings store.
+- **Why:** User-requested security posture sentinel distinct from Cursor's built-in `security-review` subagent (which handles PR/diff reviews). `security` does full-repo audits, CVSS/OWASP rating, dep CVE scanning, secrets sniffing, and maintains a durable accepted-risks registry.
+- **Files touched:** `.cursor/agents/security.md`, `.cursor/agents/security-memory.md`, `.cursor/rules/security-continuity.mdc`, `security/findings-registry.json`.
+- **How it works now:** Invoke with "Use the security subagent to audit the repo." It reads memory + registry first (honors accepted risks), runs `py -3 tools/security_audit.py --json` + pip_audit + npm audit + ruff + secrets grep, assigns SEC-NNN IDs, and outputs a structured report. `security-continuity.mdc` fires on edits to `backend/ibkr/**`, `backend/strategy/**`, `backend/alerts/**`, execution routes, and `security/**` — prompting agents to check the registry and accepted risks before changing those files.
 - **Verified by:** Files created and line counts confirmed (sentinel 156 lines ≤ 180 target; memory 82 lines; rule 48 lines).
 - **Follow-ups:** `tools/security_audit.py` still needs to be implemented; CI gate (GitHub Actions) is next in the sentinel's backlog.
 
@@ -1565,7 +1574,7 @@ Entry template (copy and fill in):
 
 ## 2026-07-14 — Live smoke SOP: fix smoke_check.ps1 + expand checklist
 
-- **What:** Rewrote `scripts/smoke_check.ps1` to hit real routes (`/api/movers`, `/api/afterhours`, `/api/news-catalysts`, `/api/hod-momo/alerts`, `/api/config`) instead of dead `/api/gainers`/`/api/losers`. Loud WARN when discovery=ibkr but Gateway disconnected. Expanded `scripts/ibkr_smoke_checklist.md` so the automated script is the first step.
+- **What:** Rewrote `scripts/smoke_check.ps1` to hit real routes (`/api/movers`, `/api/afterhours`, `/api/newss`, `/api/hod-momo/alerts`, `/api/config`) instead of dead `/api/gainers`/`/api/losers`. Loud WARN when discovery=ibkr but Gateway disconnected. Expanded `scripts/ibkr_smoke_checklist.md` so the automated script is the first step.
 - **Why:** Track B of the post-Phase-7 plan — live reliability SOP. Old script would false-fail on missing endpoints and miss movers/HOD/AH.
 - **How it works now:** From repo root with API on `:8000`, run `.\scripts\smoke_check.ps1`. Exit 1 only on hard FAILs; empty scanners outside session hours are WARN when IBKR is up.
 - **Verified by:** Live run → **10 passed, 0 failed, 0 warnings** (IBKR connected live, discovery=ibkr, gappers 11, movers 50/50, AH 47, HOD 108, AAPL bars 10).
@@ -1591,7 +1600,7 @@ Entry template (copy and fill in):
 
 ## 2026-07-14 — Phase 5: extract scan runners, WS stream, and scan_loop from main.py
 
-- **What:** Pulled the remaining scan/WS monolith out of `main.py` into three modules: `websocket.py` (Alpaca trade stream + cache overlays + `mark_resub`), `scan_runners.py` (discovery / focus / after-hours / movers), and `scan_loop.py` (news-catalyst scan + mode-aware `scan_loop`). `main.py` shrinks from 1624 → ~648 lines and now keeps caches, IBKR table-reprice helpers, HOD universe refresh, lifespan, and router wiring.
+- **What:** Pulled the remaining scan/WS monolith out of `main.py` into three modules: `websocket.py` (Alpaca trade stream + cache overlays + `mark_resub`), `scan_runners.py` (discovery / focus / after-hours / movers), and `scan_loop.py` (news scan + mode-aware `scan_loop`). `main.py` shrinks from 1624 → ~648 lines and now keeps caches, IBKR table-reprice helpers, HOD universe refresh, lifespan, and router wiring.
 - **Why:** Continuing the product-health monolith-reduction plan. Scan/WS logic was the largest remaining block and blocked further modular work.
 - **Files touched:** `backend/main.py`, `backend/websocket.py` (new), `backend/scan_runners.py` (new), `backend/scan_loop.py` (new).
 - **How it works now:** Lifespan still starts `_scan_loop` / `_ws_stream_loop` via re-exports from the new modules. Runners mutate scanner caches through a lazy `import main` accessor (same pattern as routes). WS subscription state lives in `websocket.py`; callers still use `main._ws_mark_resub`.

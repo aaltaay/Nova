@@ -152,5 +152,5 @@ Keep the report short. Prefer evidence over narrative. If CLEAN, say so — do n
 | Agent | When to hand off |
 |-------|------------------|
 | tester | full pytest / Vitest / browser gates |
-| security-sentinel | AppSec / SEC-NNN posture |
-| nova-agent | docs / canvas hygiene |
+| security | AppSec / SEC-NNN posture |
+| docs | docs / canvas hygiene |

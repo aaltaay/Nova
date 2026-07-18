@@ -59,7 +59,7 @@ def test_parse_fleet_map_table_finds_owned_and_continuity(fleet):
     assert "Owned" in statuses
     assert "Continuity-only" in statuses
     assert any(
-        r["Domain"] == "News / catalyst pipeline" and r["Owner"] == "news-catalyst"
+        r["Domain"] == "News / catalyst pipeline" and r["Owner"] == "news"
         for r in rows
     )
     assert any(r["Domain"] == "Fleet dispatch / orchestration" and r["Owner"] == "daddy" for r in rows)

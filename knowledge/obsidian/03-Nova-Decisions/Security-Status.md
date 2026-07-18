@@ -1,7 +1,7 @@
 # Nova Security Status
 
 > **Canonical security posture ledger** for Nova.  
-> **Agent dashboards:** `nova-home` (Nova Agent docs steward) · `agent-tester` · `agent-maintainer` · `agent-security`  
+> **Agent dashboards:** `nova-home` (Docs docs steward) · `agent-tester` · `agent-maintainer` · `agent-security`  
 > **Tooling guide:** `security/tooling.md`  
 > **CI job:** `.github/workflows/deploy.yml` → `security-audit` (warning-only, `continue-on-error: true`)  
 > **Audit script:** `tools/security_audit.py --json`  
@@ -27,11 +27,11 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 | Agent | Trigger | Scope | Output |
 |-------|---------|-------|--------|
 | `security-review` (Cursor) | "Review security of these changes" | Diff only — staged / branch changes | Inline comment / chat |
-| `security-sentinel` (Nova) | "Run security sentinel" / full posture | Full repo: deps, secrets, patterns, CVSS triage | Report + `Security-Status.md` update |
+| `security` (Nova) | "Run security sentinel" / full posture | Full repo: deps, secrets, patterns, CVSS triage | Report + `Security-Status.md` update |
 | `llm-trading-agent-security` skill | Hardening alert→exec paths | Methodology reference (research only) | Guidance / patterns |
 | CI `security-audit` job | Every PR + push | `pip-audit` + `cvss` scoring via `tools/security_audit.py` | JSON artifact uploaded |
 
-**Rule:** `security-review` is for diff triage; `security-sentinel` is for scheduled / on-demand full-repo posture. Never conflate.
+**Rule:** `security-review` is for diff triage; `security` is for scheduled / on-demand full-repo posture. Never conflate.
 
 ---
 

@@ -4,7 +4,7 @@ Catalog of **vendored** Cursor agent skills under `.cursor/skills/`. Companion s
 
 **Installed:** 2026-07-15  
 **Pin file:** `.cursor/skills/SOURCE-PINS.txt`  
-**Steward:** `backtester` owns the VectorBT cluster (`backtest`, `optimize`, `strategy-compare`, `vectorbt-expert`, `backtesting-frameworks`); `security-sentinel` owns `llm-trading-agent-security`. See [[Agent-Fleet-Map]].
+**Steward:** `backtester` owns the VectorBT cluster (`backtest`, `optimize`, `strategy-compare`, `vectorbt-expert`, `backtesting-frameworks`); `security` owns `llm-trading-agent-security`. See [[Agent-Fleet-Map]].
 
 ## Nova guardrails (applies to every skill below)
 
@@ -122,7 +122,7 @@ If a skill’s copy conflicts with Nova rules, **Nova constitution + `.cursor/ru
 | Agent / Skill | Trigger | Scope | Notes |
 |---------------|---------|-------|-------|
 | `security-review` (Cursor subagent) | "Review security of these changes" | Diff only — fast triage | Run via Cursor agent panel; scoped to staged/branch changes |
-| `security-sentinel` (Nova subagent) | "Run security sentinel" / "full security posture" | Full repo: deps, secrets, patterns, CVSS | Updates [[Security-Status]]; uses `tools/security_audit.py` |
+| `security` (Nova subagent) | "Run security sentinel" / "full security posture" | Full repo: deps, secrets, patterns, CVSS | Updates [[Security-Status]]; uses `tools/security_audit.py` |
 | `llm-trading-agent-security` skill | Reviewing alert→IBKR exec paths, hardening tool permissions | Methodology / threat-model reference | Complementary methodology — research only; reinforces `auto_live` NO-GO and no-silent-order-path guarantees |
 
 See [[Security-Status]] for open findings, baseline checklist, and agent ownership table.  

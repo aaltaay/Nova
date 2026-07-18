@@ -8,7 +8,7 @@ source files directly using Python.  No subprocess calls here.
 
 Side-effect-free: reads files, returns RawFinding list.
 
-Facade owner: security-sentinel tooling.
+Facade owner: security agent tooling.
 Removal criterion: no production/tool caller imports this barrel for a
 single check that lives in ``checks_*``; prefer focused modules.
 """

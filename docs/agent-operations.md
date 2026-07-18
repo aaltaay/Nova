@@ -39,12 +39,12 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 | Lifecycle hook (Cursor) | `.cursor/hooks.json` → `tools/subagent_lifecycle_hook.py` |
 | Session-start fleet brief hook (Cursor) | `.cursor/hooks.json` → `tools/session_brief_hook.py` |
 
-## Fleet triage (daddy + nova-router + agent_fleet)
+## Fleet triage (daddy + router + agent_fleet)
 
 `tools/agent_fleet.py` unions signals that used to live in separate memories into one crack index: stale snapshots (`captured_at` >7 days old or self-reported `dashboard_freshness` not `clean`), open blockers, unowned/continuity-only domains and orphan skills (from `knowledge/obsidian/00-System/Agent-Fleet-Map.md`), unmanaged canvases on disk, and missing `AGENT_TITLES` entries. It is read-only — it never edits the fleet map, registry, or memories.
 
 - **`daddy`** (dashboard `agent-daddy.canvas.tsx`) is the top-of-fleet dispatcher: classify → dispatch/sequence specialists (or emit a Dispatch Plan if nested Task is unavailable) → aggregate reports. Never implements product code. Invoke for “just get this done.”
-- **`nova-router`** (dashboard `agent-router.canvas.tsx`) remains the pure classification / crack-index tool: given a task, it names the specialist(s)/skill(s) via a **Routing card** and hands off — it never implements product code. Invoke for “who owns X / what’s cracked?”
+- **`router`** (dashboard `agent-router.canvas.tsx`) remains the pure classification / crack-index tool: given a task, it names the specialist(s)/skill(s) via a **Routing card** and hands off — it never implements product code. Invoke for “who owns X / what’s cracked?”
 
 When a domain/skill's ownership changes (a specialist is scaffolded, a domain starts/stops being maintained), update its row in `Agent-Fleet-Map.md` in the same commit — `agent_fleet.py` reads that file as the ownership source of truth and never rewrites it.
 
@@ -53,18 +53,18 @@ When a domain/skill's ownership changes (a specialist is scaffolded, a domain st
 See `.cursor/rules/specialist-routing.mdc`. Defaults:
 
 - “Just get this done” / multi-specialist orchestration → `daddy`
-- Classification / crack index only → `nova-router`
+- Classification / crack index only → `router`
 - Product change verification → `tester`
 - Maintainability / danger audit → `maintainer`
-- Full-repo security posture → `security-sentinel`
-- Docs / rules / prompts / canvases → `nova-agent`
+- Full-repo security posture → `security`
+- Docs / rules / prompts / canvases → `docs`
 - Warrior Trading authenticated site / Day Trade Dash → `warrior`
 - HOD Momo scanner data-quality / Warrior parity iteration → `hod-momo`
-- Webull-to-Nova stock/day-trading widget parity → `widgets-agent`
+- Webull-to-Nova stock/day-trading widget parity → `widgets`
 - Trading execution ADR 007 audit → `execution`
 - IB Gateway login / IBC / port health → `ibkr-ops`
 - General scanner L1 + quote/chart/L2/T&S coherence → `market-feed`
-- News / catalyst pipeline → `news-catalyst`
+- News / catalyst pipeline → `news`
 - Backtest product + VectorBT skills → `backtester`
 - PR / diff security → Cursor built-in `security-review`
 

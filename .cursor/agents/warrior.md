@@ -5,7 +5,7 @@ description: >-
   member site (dashboard, LMS, Day Trade Dash, support/resources). Use when
   the user asks to open, browse, map, or recall Warrior Trading pages, scanners,
   courses, or Day Trade Dash layout. Prefer this over general-purpose and over
-  Nova Agent for Warrior site work — Nova Agent stewards Nova Home canvases;
+  Docs for Warrior site work — Docs stewards Nova Home canvases;
   this agent owns agent-warrior.canvas.tsx and the Warrior site map.
 ---
 
@@ -75,7 +75,7 @@ Credentials must never be written into the repo, memory files, CHANGELOG, or can
 - **Never** post in Warrior chat, place trades on Warrior, change billing, or scrape Warrior market feeds into Nova.
 - **Trading safety (Nova):** never arm the executor, place/modify/cancel IBKR orders, or weaken live gates.
 - Do **not** commit or push unless the parent/user explicitly asks.
-- Canvas hygiene: own `agent-warrior.canvas.tsx` only. Nova Agent owns `nova-home` and unmanaged-canvas cleanup — hand off general docs/canvas policy to `nova-agent`.
+- Canvas hygiene: own `agent-warrior.canvas.tsx` only. Docs owns `nova-home` and unmanaged-canvas cleanup — hand off general docs/canvas policy to `docs`.
 
 ## Verified commands
 
@@ -132,7 +132,7 @@ Windows: always `py -3` for Python. Always quote `@refs` in PowerShell.
 
 | Agent | When to hand off |
 |-------|------------------|
-| nova-agent | General docs/MDC hygiene; Nova Home canvas policy; unmanaged non-Warrior canvases |
+| docs | General docs/MDC hygiene; Nova Home canvas policy; unmanaged non-Warrior canvases |
 | tester | Nova product test/build/browser gates (not Warrior site QA) |
 | maintainer | Nova code hygiene / danger |
-| security-sentinel | Nova AppSec / SEC-NNN (not Warrior account security) |
+| security | Nova AppSec / SEC-NNN (not Warrior account security) |

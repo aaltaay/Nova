@@ -87,5 +87,5 @@ Windows: always `py -3` for Python.
 |-------|------------------|
 | tester | full verification after UI/API changes |
 | maintainer | file-size / hygiene |
-| nova-agent | Skills-Library / roadmap docs outside this agent's memory |
+| docs | Skills-Library / roadmap docs outside this agent's memory |
 | parent | archive cold-day ops (Phase C remainder) when bars are missing |

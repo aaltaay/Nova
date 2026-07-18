@@ -24,7 +24,7 @@ backend/
   alpaca.py          # _alpaca_headers, _env, all Alpaca REST + WS client calls
   cache.py           # shared in-memory cache dicts, TTL helpers, invalidation
   scanner.py         # gapper / gainer / loser discovery and scoring logic
-  news.py            # news-catalyst fetch, dedup, scoring
+  news.py            # news fetch, dedup, scoring
   fundamentals.py    # yfinance fetch + TTL cache wrapper
   websocket.py       # WS connection manager, subscription state, streaming loop
   routes/

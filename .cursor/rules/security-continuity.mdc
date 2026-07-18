@@ -20,18 +20,18 @@ When editing any file matched by this rule's glob scope, follow this protocol:
 ## Before making changes
 
 1. **Read `security/findings-registry.json`** — note any open `SEC-NNN` IDs that touch the file you are about to edit. Do not unknowingly close or worsen an open finding.
-2. **Read accepted risks** from `security/findings-registry.json` (`status: accepted`) and notes in `.cursor/agent-memory/security-sentinel-memory.md` — any `SEC-NNN` the team has consciously accepted must remain accepted; do not re-open silently.
+2. **Read accepted risks** from `security/findings-registry.json` (`status: accepted`) and notes in `.cursor/agent-memory/security-memory.md` — any `SEC-NNN` the team has consciously accepted must remain accepted; do not re-open silently.
 3. Do not reopen an accepted `SEC-NNN` ID as a new finding unless its `review_by` date has expired or the underlying evidence has materially changed.
 
 ## Scope boundary
 
 - **Diff / PR / branch reviews → `security-review` subagent** (Cursor built-in).
-- **Full repo posture audits → `security-sentinel` subagent** (`.cursor/agents/security-sentinel.md`).
+- **Full repo posture audits → `security` subagent** (`.cursor/agents/security.md`).
 - Do not conflate the two. Never call them in each other's place.
 
 ## Read-only reporting
 
-The `security-sentinel` subagent only reports findings. It never fixes product code. If a finding needs remediation, a separate parent/writer session makes the fix after human or parent approval.
+The `security` subagent only reports findings. It never fixes product code. If a finding needs remediation, a separate parent/writer session makes the fix after human or parent approval.
 
 ## Registry discipline
 

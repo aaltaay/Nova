@@ -37,17 +37,17 @@ def test_discovery_finds_registered_agents(ac):
     assert names == {
         "tester",
         "maintainer",
-        "security-sentinel",
-        "nova-agent",
+        "security",
+        "docs",
         "warrior",
         "hod-momo",
-        "widgets-agent",
-        "nova-router",
+        "widgets",
+        "router",
         "execution",
         "ibkr-ops",
         "backtester",
         "market-feed",
-        "news-catalyst",
+        "news",
         "daddy",
     }
 
@@ -109,7 +109,7 @@ def test_invalid_dashboard_dedicated_prefix(ac):
     contract = ac.load_json(ac.CONTRACT_PATH)
     naming = contract["dashboard_naming"]
     assert naming["dedicated_prefix"] == "agent-"
-    assert "nova-agent" in naming["home_exception_agents"]
+    assert "docs" in naming["home_exception_agents"]
 
 
 def test_continuity_waiver_accepted_for_tester(ac):

@@ -1,5 +1,5 @@
 ---
-description: Documentation continuity — prefer Nova Agent for docs, MDC, README, and canvas hygiene
+description: Documentation continuity — prefer Docs for docs, MDC, README, and canvas hygiene
 globs:
   - "**/*.md"
   - "**/*.mdc"
@@ -20,10 +20,10 @@ When editing any file matched by this rule's glob scope, follow this protocol:
 
 ## Primary steward
 
-1. Prefer the **`nova-agent`** subagent for documentation maintenance, Markdown/MDC hygiene, README/guides, agent-prompt edits, and Cursor canvas naming/cleanup.
-2. Read `.cursor/agent-memory/nova-agent-memory.md` before a large docs pass.
+1. Prefer the **`docs`** subagent for documentation maintenance, Markdown/MDC hygiene, README/guides, agent-prompt edits, and Cursor canvas naming/cleanup.
+2. Read `.cursor/agent-memory/docs-memory.md` before a large docs pass.
 3. Agent wiring: `.cursor/agent-system/registry.json` · ops: `docs/agent-operations.md`.
-4. Dashboard for Nova Agent is **`nova-home.canvas.tsx`** — do not create `agent-nova-*.canvas.tsx`.
+4. Dashboard for Docs is **`nova-home.canvas.tsx`** — do not create `agent-nova-*.canvas.tsx`.
 
 ## Standards (do not invent)
 
@@ -53,7 +53,7 @@ Other names are **unmanaged**. Merge unique content into home/`agent-*`, retarge
 ## Sibling boundaries
 
 - Diff/PR security → Cursor `security-review`
-- Full-repo security → `security-sentinel`
+- Full-repo security → `security`
 - Code hygiene → `maintainer`
 - Tests/gates → `tester`
-- Written material + canvases → `nova-agent`
+- Written material + canvases → `docs`

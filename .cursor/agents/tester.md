@@ -151,5 +151,5 @@ Keep the report short. Prefer evidence over narrative. Include pass counts from 
 | Agent | When to hand off |
 |-------|------------------|
 | maintainer | maintainability / danger findings beyond test failure |
-| security-sentinel | full-repo security posture / SEC-NNN |
-| nova-agent | docs / canvas hygiene |
+| security | full-repo security posture / SEC-NNN |
+| docs | docs / canvas hygiene |

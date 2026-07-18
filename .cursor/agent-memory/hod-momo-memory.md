@@ -101,7 +101,7 @@ Promoted into `hod-momo.md` as a compact table (2026-07-17). Keep this expanded 
 1. **Scanner = membership; prices = L1.** Never infer price/HOD from scanner rank or arrival order.
 2. **discovery=ibkr → IBKR only** for prices (no silent Alpaca mix) — `single-market-data-feed.mdc`.
 3. **L2 / T&S = open-symbol side branch** — never HOD admission or strategy gates.
-4. Canonical architecture note: `knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md` + plan `hod_gate_uml_cleanup_*.plan.md`.
+4. Canonical architecture note (**this agent owns**): `knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md` — registered in `registry.json` `canonical_inputs` + `writable_paths`. Companion plan diagrams: `hod_gate_uml_cleanup_*.plan.md` (not durable; Obsidian wins on conflict).
 
 ### 2026-07-17 — HOD truth + mute/burst fix shipped
 

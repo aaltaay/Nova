@@ -3,224 +3,262 @@
   "updated_at": "2026-07-18",
   "agents": [
     {
-      "id": "tester",
-      "name": "tester",
-      "spec": ".cursor/agents/tester.md",
-      "memory": ".cursor/agent-memory/tester-memory.md",
+      "id": "daddy",
+      "name": "daddy",
+      "spec": ".cursor/agents/daddy.md",
+      "memory": ".cursor/agent-memory/daddy-memory.md",
       "invoke_phrases": [
-        "Use the tester subagent to verify",
-        "Improve the tester agent \u2014 work the next backlog item"
+        "Use the daddy subagent to dispatch this",
+        "Improve the daddy agent \u2014 work the next backlog item"
       ],
       "dashboard": {
         "type": "dedicated",
-        "canvas": "agent-tester.canvas.tsx"
+        "canvas": "agent-daddy.canvas.tsx"
       },
       "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; routing via specialist-routing.mdc + tester memory/snapshot.",
+      "continuity_waiver": "No dedicated continuity MDC; daddy owns fleet dispatch/orchestration in Agent-Fleet-Map.md; router remains the pure classification/crack-index tool.",
       "canonical_inputs": [
-        "PROBLEM_LOG.md",
-        ".cursor/agent-memory/tester-memory.md"
+        ".cursor/agent-memory/daddy-memory.md",
+        ".cursor/agent-system/registry.json",
+        "knowledge/obsidian/00-System/Agent-Fleet-Map.md",
+        ".cursor/rules/specialist-routing.mdc"
       ],
       "writable_paths": [
-        ".cursor/agents/tester.md",
-        ".cursor/agent-memory/tester-memory.md"
+        ".cursor/agents/daddy.md",
+        ".cursor/agent-memory/daddy-memory.md"
       ],
       "prohibited_actions": [
         "arm_executor",
         "place_orders",
         "commit_without_ask",
-        "mix_alpaca_when_ibkr"
+        "edit_product_code",
+        "edit_fleet_map_without_ask",
+        "edit_registry_without_ask",
+        "unlock_auto_live"
       ],
       "deterministic_checks": [
-        "py -3 -m pytest backend/tests -q",
-        "npm run test",
-        "npm run build"
+        "py -3 tools/agent_fleet.py --json",
+        "py -3 tools/agent_contract.py"
       ],
       "sibling_handoffs": {
-        "maintainer": "code hygiene / danger findings",
-        "security-sentinel": "full-repo security posture",
-        "nova-agent": "docs / canvas hygiene"
+        "router": "pure classification / crack index",
+        "execution": "ADR 007 audit",
+        "ibkr-ops": "Gateway ops",
+        "market-feed": "feed coherence",
+        "hod-momo": "HOD path",
+        "backtester": "backtest product / skills",
+        "news": "news pipeline",
+        "widgets": "widget parity UI",
+        "warrior": "Warrior site",
+        "tester": "verification",
+        "maintainer": "hygiene",
+        "security": "security posture",
+        "docs": "docs / canvases"
       },
-      "domain": "test / build / browser verification"
+      "domain": "fleet dispatch / orchestration"
     },
     {
-      "id": "maintainer",
-      "name": "maintainer",
-      "spec": ".cursor/agents/maintainer.md",
-      "memory": ".cursor/agent-memory/maintainer-memory.md",
+      "id": "router",
+      "name": "router",
+      "spec": ".cursor/agents/router.md",
+      "memory": ".cursor/agent-memory/router-memory.md",
       "invoke_phrases": [
-        "Use the maintainer subagent to audit the repo",
-        "Improve the maintainer agent \u2014 work the next backlog item"
+        "Use the router subagent to triage this",
+        "Improve the router agent \u2014 work the next backlog item"
       ],
       "dashboard": {
         "type": "dedicated",
-        "canvas": "agent-maintainer.canvas.tsx"
+        "canvas": "agent-router.canvas.tsx"
       },
       "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; accepted baselines live in maintainer memory; line counts from maintainer_checks.",
+      "continuity_waiver": "No dedicated continuity MDC; the durable ownership matrix is knowledge/obsidian/00-System/Agent-Fleet-Map.md (this agent's canonical input, jointly maintained with docs) and the routing table lives in specialist-routing.mdc + this spec's Routing matrix section; crack computation is deterministic via tools/agent_fleet.py.",
       "canonical_inputs": [
-        "tools/maintainer_checks.py",
-        ".cursor/agent-memory/maintainer-memory.md"
+        ".cursor/agent-system/registry.json",
+        "knowledge/obsidian/00-System/Agent-Fleet-Map.md",
+        ".cursor/rules/specialist-routing.mdc",
+        ".cursor/agent-memory/router-memory.md"
       ],
       "writable_paths": [
-        ".cursor/agents/maintainer.md",
-        ".cursor/agent-memory/maintainer-memory.md"
+        ".cursor/agents/router.md",
+        ".cursor/agent-memory/router-memory.md",
+        "knowledge/obsidian/00-System/Agent-Fleet-Map.md"
       ],
       "prohibited_actions": [
-        "edit_product_code",
         "arm_executor",
         "place_orders",
-        "commit_without_ask"
-      ],
-      "deterministic_checks": [
-        "py -3 tools/maintainer_checks.py --json"
-      ],
-      "sibling_handoffs": {
-        "tester": "full pytest / Vitest / browser gates",
-        "security-sentinel": "AppSec / SEC-NNN posture",
-        "nova-agent": "docs / canvas hygiene"
-      },
-      "domain": "maintainability / danger sniffing (read-only)"
-    },
-    {
-      "id": "security-sentinel",
-      "name": "security-sentinel",
-      "spec": ".cursor/agents/security-sentinel.md",
-      "memory": ".cursor/agent-memory/security-sentinel-memory.md",
-      "invoke_phrases": [
-        "Use the security-sentinel subagent to audit the repo",
-        "Improve the security-sentinel agent \u2014 work the next backlog item"
-      ],
-      "dashboard": {
-        "type": "dedicated",
-        "canvas": "agent-security.canvas.tsx"
-      },
-      "continuity_rule": ".cursor/rules/security-continuity.mdc",
-      "continuity_waiver": null,
-      "canonical_inputs": [
-        "security/findings-registry.json",
-        "tools/security_audit.py",
-        ".cursor/agent-memory/security-sentinel-memory.md"
-      ],
-      "writable_paths": [
-        ".cursor/agents/security-sentinel.md",
-        ".cursor/agent-memory/security-sentinel-memory.md",
-        "security/findings-registry.json"
-      ],
-      "prohibited_actions": [
+        "commit_without_ask",
         "edit_product_code",
-        "arm_executor",
-        "place_orders",
-        "weaken_execution_gates",
-        "probe_production_urls",
-        "impersonate_security_review",
-        "commit_without_ask"
+        "absorb_sibling_audit_scope",
+        "silently_diy_unowned_domain"
       ],
       "deterministic_checks": [
-        "py -3 tools/security_audit.py --json"
-      ],
-      "sibling_handoffs": {
-        "security-review": "PR / branch / uncommitted diff review (Cursor built-in)",
-        "maintainer": "hygiene / file limits (not full AppSec)",
-        "nova-agent": "docs / Security-Status prose"
-      },
-      "domain": "full-repo security posture + SEC-NNN registry"
-    },
-    {
-      "id": "nova-agent",
-      "name": "nova-agent",
-      "spec": ".cursor/agents/nova-agent.md",
-      "memory": ".cursor/agent-memory/nova-agent-memory.md",
-      "invoke_phrases": [
-        "Use the Nova Agent to review documentation",
-        "Use Nova Agent for canvas hygiene",
-        "Improve the Nova Agent \u2014 next backlog item"
-      ],
-      "dashboard": {
-        "type": "home_section",
-        "canvas": "nova-home.canvas.tsx"
-      },
-      "continuity_rule": ".cursor/rules/docs-continuity.mdc",
-      "continuity_waiver": null,
-      "canonical_inputs": [
-        "tools/nova_docs_inventory.py",
-        "docs/SOURCE-PINS.md",
-        ".cursor/agent-memory/nova-agent-memory.md"
-      ],
-      "writable_paths": [
-        ".cursor/agents/nova-agent.md",
-        ".cursor/agent-memory/nova-agent-memory.md",
-        "**/*.md",
-        ".cursor/rules/*.mdc",
-        "docs/",
-        "knowledge/obsidian/"
-      ],
-      "prohibited_actions": [
-        "edit_product_runtime_unless_asked",
-        "create_agent_nova_canvas",
-        "own_sec_nnn_triage",
-        "commit_without_ask"
-      ],
-      "deterministic_checks": [
-        "py -3 tools/nova_docs_inventory.py --json"
+        "py -3 tools/agent_fleet.py --json",
+        "py -3 tools/agent_contract.py",
+        "py -3 -m pytest tools/test_agent_fleet.py -q"
       ],
       "sibling_handoffs": {
         "tester": "test / build gates",
         "maintainer": "code hygiene",
-        "security-sentinel": "SEC-NNN posture",
-        "warrior": "Warrior Trading authenticated site navigation / Day Trade Dash map",
-        "widgets-agent": "Webull-to-Nova stock/day-trading capability mapping and agent-widgets content"
+        "security": "security posture",
+        "docs": "docs / canvases (outside Agent-Fleet-Map.md)",
+        "hod-momo": "HOD/IBKR feed data-quality",
+        "warrior": "Warrior Trading site navigation",
+        "widgets": "Webull-to-Nova widget mapping"
       },
-      "domain": "documentation + canvas stewardship"
+      "domain": "fleet triage / classification / crack index"
     },
     {
-      "id": "warrior",
-      "name": "warrior",
-      "spec": ".cursor/agents/warrior.md",
-      "memory": ".cursor/agent-memory/warrior-memory.md",
+      "id": "execution",
+      "name": "execution",
+      "spec": ".cursor/agents/execution.md",
+      "memory": ".cursor/agent-memory/execution-memory.md",
       "invoke_phrases": [
-        "Use the warrior subagent to navigate Warrior Trading",
-        "Use the warrior subagent to map Day Trade Dash",
-        "Improve the warrior agent \u2014 work the next backlog item"
+        "Use the execution subagent to audit trading execution",
+        "Improve the execution agent \u2014 work the next backlog item"
       ],
       "dashboard": {
         "type": "dedicated",
-        "canvas": "agent-warrior.canvas.tsx"
+        "canvas": "agent-execution.canvas.tsx"
       },
-      "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; durable map + access runbook are canonical; routing via specialist-routing.mdc + warrior memory.",
+      "continuity_rule": ".cursor/rules/execution-continuity.mdc",
+      "continuity_waiver": null,
       "canonical_inputs": [
-        "docs/warrior-authenticated-access.md",
-        "knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md",
-        "scripts/open_warrior_site.ps1",
-        ".cursor/agent-memory/warrior-memory.md"
+        ".cursor/agent-memory/execution-memory.md",
+        "architecture/decisions/007-centralized-trading-execution.md",
+        "docs/trading-execution-validation.md",
+        "backend/execution/",
+        "backend/ports/execution.py"
       ],
       "writable_paths": [
-        ".cursor/agents/warrior.md",
-        ".cursor/agent-memory/warrior-memory.md",
-        "docs/warrior-authenticated-access.md",
-        "knowledge/obsidian/01-Courses/Warrior-Trading/",
-        "scripts/open_warrior_site.ps1"
+        ".cursor/agents/execution.md",
+        ".cursor/agent-memory/execution-memory.md",
+        ".cursor/rules/execution-continuity.mdc",
+        "docs/trading-execution-validation.md"
       ],
       "prohibited_actions": [
         "arm_executor",
         "place_orders",
         "commit_without_ask",
-        "store_secrets_in_repo",
-        "scrape_paid_course_bodies",
-        "post_chat_or_trade_on_warrior",
-        "edit_product_runtime_unless_asked"
+        "edit_execution_source_without_ask",
+        "unlock_auto_live",
+        "weaken_execution_gates"
       ],
       "deterministic_checks": [
-        "py -3 -c \"from pathlib import Path; assert Path('scripts/open_warrior_site.ps1').is_file(); assert Path('docs/warrior-authenticated-access.md').is_file(); assert Path('knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md').is_file()\""
+        "py -3 -m pytest backend/tests/test_execution_service.py -q",
+        "py -3 tools/agent_contract.py"
       ],
       "sibling_handoffs": {
-        "nova-agent": "Nova Home / general docs and unmanaged non-Warrior canvases",
-        "tester": "Nova product test / build gates",
-        "maintainer": "Nova code hygiene",
-        "security-sentinel": "Nova AppSec / SEC-NNN"
+        "tester": "full verification after any approved fix",
+        "maintainer": "hygiene outside execution pipe",
+        "security": "full-repo security / gate-weakening",
+        "ibkr-ops": "Gateway login / port health",
+        "docs": "docs / canvas hygiene outside this dashboard",
+        "parent": "Nova OS strategy/executor product work"
       },
-      "domain": "authenticated Warrior Trading site navigation and mapping"
+      "domain": "trading execution ADR 007 pipe (audit-only)"
+    },
+    {
+      "id": "ibkr-ops",
+      "name": "ibkr-ops",
+      "spec": ".cursor/agents/ibkr-ops.md",
+      "memory": ".cursor/agent-memory/ibkr-ops-memory.md",
+      "invoke_phrases": [
+        "Use the ibkr-ops subagent to diagnose IB Gateway",
+        "Improve the ibkr-ops agent \u2014 work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-ibkr-ops.canvas.tsx"
+      },
+      "continuity_rule": null,
+      "continuity_waiver": "No dedicated continuity MDC; behavior contract is .cursor/rules/ibkr-gateway-login-warning.mdc (every agent); this agent owns keeping that rule + docs/ibc-gateway-setup.md accurate.",
+      "canonical_inputs": [
+        ".cursor/agent-memory/ibkr-ops-memory.md",
+        ".cursor/rules/ibkr-gateway-login-warning.mdc",
+        "docs/ibc-gateway-setup.md",
+        "backend/ibkr/client.py",
+        "backend/ibkr/safety.py"
+      ],
+      "writable_paths": [
+        ".cursor/agents/ibkr-ops.md",
+        ".cursor/agent-memory/ibkr-ops-memory.md",
+        ".cursor/rules/ibkr-gateway-login-warning.mdc",
+        "docs/ibc-gateway-setup.md",
+        "scripts/start_gateway_ibc.ps1.example",
+        "backend/ibkr/client.py",
+        "backend/ibkr/safety.py"
+      ],
+      "prohibited_actions": [
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask",
+        "store_credentials",
+        "edit_execution_order_paths"
+      ],
+      "deterministic_checks": [
+        "py -3 -m pytest backend/tests/test_ibkr_client_connect.py -q",
+        "py -3 tools/agent_contract.py"
+      ],
+      "sibling_handoffs": {
+        "market-feed": "scanner/quote bugs once Gateway connected",
+        "hod-momo": "HOD feed once Gateway connected",
+        "execution": "order-path / latency audits",
+        "tester": "test / build gates",
+        "docs": "docs hygiene outside IBC/gateway docs"
+      },
+      "domain": "IB Gateway / discovery ops (login, IBC, port health)"
+    },
+    {
+      "id": "market-feed",
+      "name": "market-feed",
+      "spec": ".cursor/agents/market-feed.md",
+      "memory": ".cursor/agent-memory/market-feed-memory.md",
+      "invoke_phrases": [
+        "Use the market-feed subagent to fix feed coherence",
+        "Improve the market-feed agent \u2014 work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-market-feed.canvas.tsx"
+      },
+      "continuity_rule": null,
+      "continuity_waiver": "No dedicated continuity MDC; behavior contract is .cursor/rules/single-market-data-feed.mdc (canonical for this exact domain).",
+      "canonical_inputs": [
+        ".cursor/agent-memory/market-feed-memory.md",
+        ".cursor/rules/single-market-data-feed.mdc",
+        "backend/ibkr/scanner_l1.py",
+        "frontend/src/hooks/useTickerStream.ts"
+      ],
+      "writable_paths": [
+        ".cursor/agents/market-feed.md",
+        ".cursor/agent-memory/market-feed-memory.md",
+        "backend/scanner.py",
+        "backend/ibkr/scanner_l1.py",
+        "backend/ibkr/reprice.py",
+        "backend/ibkr/tape_stream.py",
+        "frontend/src/hooks/useTickerStream.ts",
+        "frontend/src/hooks/useIbkrDepth.ts",
+        "frontend/src/hooks/useIbkrTape.ts",
+        "frontend/src/hooks/useScannerPriceStream.ts"
+      ],
+      "prohibited_actions": [
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask",
+        "silent_alpaca_fallback",
+        "absorb_hod_reserved_pool_without_hod_momo"
+      ],
+      "deterministic_checks": [
+        "py -3 tools/agent_contract.py"
+      ],
+      "sibling_handoffs": {
+        "hod-momo": "HOD-reserved pool / HOD gate / feed UML",
+        "widgets": "Stock View layout / Webull parity UI",
+        "ibkr-ops": "Gateway login blockers",
+        "tester": "browser / Playwright verification",
+        "docs": "docs outside this domain"
+      },
+      "domain": "general scanner L1 + quote/chart/L2/T&S coherence"
     },
     {
       "id": "hod-momo",
@@ -282,223 +320,9 @@
         "warrior": "fresh Warrior Day Trade Dash HOD Momentum snapshot (warrior_latest.json)",
         "tester": "full pytest / Vitest / build / browser verification after a fix ships",
         "maintainer": "file-size / modularity / danger findings in hod_momo*.py",
-        "nova-agent": "docs / canvas hygiene outside this agent's own dashboard"
+        "docs": "docs / canvas hygiene outside this agent's own dashboard"
       },
       "domain": "HOD Momo scanner data-quality + Warrior parity iteration"
-    },
-    {
-      "id": "widgets-agent",
-      "name": "widgets-agent",
-      "spec": ".cursor/agents/widgets-agent.md",
-      "memory": ".cursor/agent-memory/widgets-agent-memory.md",
-      "invoke_phrases": [
-        "Use the widgets-agent subagent to map Webull widgets to Nova",
-        "Use the widgets-agent subagent to audit Webull-to-Nova widget parity",
-        "Use the widgets-agent subagent to implement a widget gap",
-        "Improve the widgets-agent \u2014 work the next backlog item"
-      ],
-      "dashboard": {
-        "type": "dedicated",
-        "canvas": "agent-widgets.canvas.tsx"
-      },
-      "continuity_rule": ".cursor/rules/widgets-continuity.mdc",
-      "continuity_waiver": null,
-      "canonical_inputs": [
-        "docs/webull-widget-parity.md",
-        ".cursor/agent-memory/widgets-agent-memory.md",
-        "frontend/src/workspace/registry.ts",
-        "frontend/src/ibkr/",
-        "backend/routes/trading.py",
-        "backend/ibkr/orders.py"
-      ],
-      "writable_paths": [
-        ".cursor/agents/widgets-agent.md",
-        ".cursor/agent-memory/widgets-agent-memory.md",
-        ".cursor/rules/widgets-continuity.mdc",
-        "docs/webull-widget-parity.md",
-        "frontend/src/",
-        "backend/routes/trading.py",
-        "backend/ibkr/orders.py",
-        "backend/tests/test_routes_trading.py",
-        "backend/tests/test_ibkr_orders.py"
-      ],
-      "prohibited_actions": [
-        "arm_executor",
-        "place_orders",
-        "commit_without_ask",
-        "scrape_authenticated_webull",
-        "store_webull_credentials",
-        "copy_webull_proprietary_assets",
-        "feed_webull_into_nova",
-        "mix_alpaca_when_ibkr",
-        "weaken_execution_gates",
-        "remove_manual_controls_without_ask"
-      ],
-      "deterministic_checks": [
-        "py -3 tools/agent_contract.py",
-        "py -3 tools/sync_agent_surfaces.py --json",
-        "py -3 tools/nova_docs_inventory.py --json --fail-on-unmanaged",
-        "py -3 -m pytest tools/test_agent_contract.py tools/test_sync_agent_surfaces.py tools/test_subagent_lifecycle_hook.py -q"
-      ],
-      "sibling_handoffs": {
-        "tester": "full pytest / Vitest / build / browser verification after product changes",
-        "nova-agent": "general docs / canvas hygiene outside agent-widgets",
-        "maintainer": "file-size / dependency / modularity findings",
-        "security-sentinel": "full-repo security posture",
-        "parent": "cross-domain implementation beyond the selected capability"
-      },
-      "domain": "evidence-based Webull-to-Nova stock/day-trading widget capability mapping and selected gap implementation"
-    },
-    {
-      "id": "nova-router",
-      "name": "nova-router",
-      "spec": ".cursor/agents/nova-router.md",
-      "memory": ".cursor/agent-memory/nova-router-memory.md",
-      "invoke_phrases": [
-        "Use the nova-router subagent to triage this",
-        "Improve the nova-router agent \u2014 work the next backlog item"
-      ],
-      "dashboard": {
-        "type": "dedicated",
-        "canvas": "agent-router.canvas.tsx"
-      },
-      "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; the durable ownership matrix is knowledge/obsidian/00-System/Agent-Fleet-Map.md (this agent's canonical input, jointly maintained with nova-agent) and the routing table lives in specialist-routing.mdc + this spec's Routing matrix section; crack computation is deterministic via tools/agent_fleet.py.",
-      "canonical_inputs": [
-        ".cursor/agent-system/registry.json",
-        "knowledge/obsidian/00-System/Agent-Fleet-Map.md",
-        ".cursor/rules/specialist-routing.mdc",
-        ".cursor/agent-memory/nova-router-memory.md"
-      ],
-      "writable_paths": [
-        ".cursor/agents/nova-router.md",
-        ".cursor/agent-memory/nova-router-memory.md",
-        "knowledge/obsidian/00-System/Agent-Fleet-Map.md"
-      ],
-      "prohibited_actions": [
-        "arm_executor",
-        "place_orders",
-        "commit_without_ask",
-        "edit_product_code",
-        "absorb_sibling_audit_scope",
-        "silently_diy_unowned_domain"
-      ],
-      "deterministic_checks": [
-        "py -3 tools/agent_fleet.py --json",
-        "py -3 tools/agent_contract.py",
-        "py -3 -m pytest tools/test_agent_fleet.py -q"
-      ],
-      "sibling_handoffs": {
-        "tester": "test / build gates",
-        "maintainer": "code hygiene",
-        "security-sentinel": "security posture",
-        "nova-agent": "docs / canvases (outside Agent-Fleet-Map.md)",
-        "hod-momo": "HOD/IBKR feed data-quality",
-        "warrior": "Warrior Trading site navigation",
-        "widgets-agent": "Webull-to-Nova widget mapping"
-      },
-      "domain": "fleet triage / classification / crack index"
-    },
-    {
-      "id": "execution",
-      "name": "execution",
-      "spec": ".cursor/agents/execution.md",
-      "memory": ".cursor/agent-memory/execution-memory.md",
-      "invoke_phrases": [
-        "Use the execution subagent to audit trading execution",
-        "Improve the execution agent \u2014 work the next backlog item"
-      ],
-      "dashboard": {
-        "type": "dedicated",
-        "canvas": "agent-execution-validation.canvas.tsx"
-      },
-      "continuity_rule": ".cursor/rules/execution-continuity.mdc",
-      "continuity_waiver": null,
-      "canonical_inputs": [
-        ".cursor/agent-memory/execution-memory.md",
-        "architecture/decisions/007-centralized-trading-execution.md",
-        "docs/trading-execution-validation.md",
-        "backend/execution/",
-        "backend/ports/execution.py"
-      ],
-      "writable_paths": [
-        ".cursor/agents/execution.md",
-        ".cursor/agent-memory/execution-memory.md",
-        ".cursor/rules/execution-continuity.mdc",
-        "docs/trading-execution-validation.md"
-      ],
-      "prohibited_actions": [
-        "arm_executor",
-        "place_orders",
-        "commit_without_ask",
-        "edit_execution_source_without_ask",
-        "unlock_auto_live",
-        "weaken_execution_gates"
-      ],
-      "deterministic_checks": [
-        "py -3 -m pytest backend/tests/test_execution_service.py -q",
-        "py -3 tools/agent_contract.py"
-      ],
-      "sibling_handoffs": {
-        "tester": "full verification after any approved fix",
-        "maintainer": "hygiene outside execution pipe",
-        "security-sentinel": "full-repo security / gate-weakening",
-        "ibkr-ops": "Gateway login / port health",
-        "nova-agent": "docs / canvas hygiene outside this dashboard",
-        "parent": "Nova OS strategy/executor product work"
-      },
-      "domain": "trading execution ADR 007 pipe (audit-only)"
-    },
-    {
-      "id": "ibkr-ops",
-      "name": "ibkr-ops",
-      "spec": ".cursor/agents/ibkr-ops.md",
-      "memory": ".cursor/agent-memory/ibkr-ops-memory.md",
-      "invoke_phrases": [
-        "Use the ibkr-ops subagent to diagnose IB Gateway",
-        "Improve the ibkr-ops agent \u2014 work the next backlog item"
-      ],
-      "dashboard": {
-        "type": "dedicated",
-        "canvas": "agent-ibkr-ops.canvas.tsx"
-      },
-      "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; behavior contract is .cursor/rules/ibkr-gateway-login-warning.mdc (every agent); this agent owns keeping that rule + docs/ibc-gateway-setup.md accurate.",
-      "canonical_inputs": [
-        ".cursor/agent-memory/ibkr-ops-memory.md",
-        ".cursor/rules/ibkr-gateway-login-warning.mdc",
-        "docs/ibc-gateway-setup.md",
-        "backend/ibkr/client.py",
-        "backend/ibkr/safety.py"
-      ],
-      "writable_paths": [
-        ".cursor/agents/ibkr-ops.md",
-        ".cursor/agent-memory/ibkr-ops-memory.md",
-        ".cursor/rules/ibkr-gateway-login-warning.mdc",
-        "docs/ibc-gateway-setup.md",
-        "scripts/start_gateway_ibc.ps1.example",
-        "backend/ibkr/client.py",
-        "backend/ibkr/safety.py"
-      ],
-      "prohibited_actions": [
-        "arm_executor",
-        "place_orders",
-        "commit_without_ask",
-        "store_credentials",
-        "edit_execution_order_paths"
-      ],
-      "deterministic_checks": [
-        "py -3 -m pytest backend/tests/test_ibkr_client_connect.py -q",
-        "py -3 tools/agent_contract.py"
-      ],
-      "sibling_handoffs": {
-        "market-feed": "scanner/quote bugs once Gateway connected",
-        "hod-momo": "HOD feed once Gateway connected",
-        "execution": "order-path / latency audits",
-        "tester": "test / build gates",
-        "nova-agent": "docs hygiene outside IBC/gateway docs"
-      },
-      "domain": "IB Gateway / discovery ops (login, IBC, port health)"
     },
     {
       "id": "backtester",
@@ -544,86 +368,34 @@
       "sibling_handoffs": {
         "tester": "full verification after UI/API changes",
         "maintainer": "file-size / hygiene",
-        "nova-agent": "roadmap/docs outside Skills-Library ownership",
+        "docs": "roadmap/docs outside Skills-Library ownership",
         "parent": "archive cold-day ops when bars missing"
       },
       "domain": "backtest product Phase E + VectorBT skill cluster"
     },
     {
-      "id": "market-feed",
-      "name": "market-feed",
-      "spec": ".cursor/agents/market-feed.md",
-      "memory": ".cursor/agent-memory/market-feed-memory.md",
+      "id": "news",
+      "name": "news",
+      "spec": ".cursor/agents/news.md",
+      "memory": ".cursor/agent-memory/news-memory.md",
       "invoke_phrases": [
-        "Use the market-feed subagent to fix feed coherence",
-        "Improve the market-feed agent \u2014 work the next backlog item"
+        "Use the news subagent to work the news pipeline",
+        "Improve the news agent \u2014 work the next backlog item"
       ],
       "dashboard": {
         "type": "dedicated",
-        "canvas": "agent-market-feed.canvas.tsx"
+        "canvas": "agent-news.canvas.tsx"
       },
       "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; behavior contract is .cursor/rules/single-market-data-feed.mdc (canonical for this exact domain).",
+      "continuity_waiver": "Waiver pending domain continuity rule for news.",
       "canonical_inputs": [
-        ".cursor/agent-memory/market-feed-memory.md",
-        ".cursor/rules/single-market-data-feed.mdc",
-        "backend/ibkr/scanner_l1.py",
-        "frontend/src/hooks/useTickerStream.ts"
-      ],
-      "writable_paths": [
-        ".cursor/agents/market-feed.md",
-        ".cursor/agent-memory/market-feed-memory.md",
-        "backend/scanner.py",
-        "backend/ibkr/scanner_l1.py",
-        "backend/ibkr/reprice.py",
-        "backend/ibkr/tape_stream.py",
-        "frontend/src/hooks/useTickerStream.ts",
-        "frontend/src/hooks/useIbkrDepth.ts",
-        "frontend/src/hooks/useIbkrTape.ts",
-        "frontend/src/hooks/useScannerPriceStream.ts"
-      ],
-      "prohibited_actions": [
-        "arm_executor",
-        "place_orders",
-        "commit_without_ask",
-        "silent_alpaca_fallback",
-        "absorb_hod_reserved_pool_without_hod_momo"
-      ],
-      "deterministic_checks": [
-        "py -3 tools/agent_contract.py"
-      ],
-      "sibling_handoffs": {
-        "hod-momo": "HOD-reserved pool / HOD gate / feed UML",
-        "widgets-agent": "Stock View layout / Webull parity UI",
-        "ibkr-ops": "Gateway login blockers",
-        "tester": "browser / Playwright verification",
-        "nova-agent": "docs outside this domain"
-      },
-      "domain": "general scanner L1 + quote/chart/L2/T&S coherence"
-    },
-    {
-      "id": "news-catalyst",
-      "name": "news-catalyst",
-      "spec": ".cursor/agents/news-catalyst.md",
-      "memory": ".cursor/agent-memory/news-catalyst-memory.md",
-      "invoke_phrases": [
-        "Use the news-catalyst subagent to work the news pipeline",
-        "Improve the news-catalyst agent \u2014 work the next backlog item"
-      ],
-      "dashboard": {
-        "type": "dedicated",
-        "canvas": "agent-news-catalyst.canvas.tsx"
-      },
-      "continuity_rule": null,
-      "continuity_waiver": "Waiver pending domain continuity rule for news-catalyst.",
-      "canonical_inputs": [
-        ".cursor/agent-memory/news-catalyst-memory.md",
+        ".cursor/agent-memory/news-memory.md",
         "backend/news/",
         "backend/constants_archive_news.py"
       ],
       "writable_paths": [
-        ".cursor/agents/news-catalyst.md",
-        ".cursor/agent-memory/news-catalyst-memory.md",
+        ".cursor/agents/news.md",
+        ".cursor/agent-memory/news-memory.md",
         "backend/news/",
         "backend/constants_archive_news.py",
         "frontend/src/components/NewsHeadlineSection.tsx",
@@ -644,64 +416,292 @@
         "tester": "full verification after API/UI changes",
         "maintainer": "file-size / swallowed-error hygiene",
         "market-feed": "quote panel feed-gating vs news scoring",
-        "nova-agent": "docs / continuity rule drafting"
+        "docs": "docs / continuity rule drafting"
       },
       "domain": "news / catalyst pipeline"
     },
     {
-      "id": "daddy",
-      "name": "daddy",
-      "spec": ".cursor/agents/daddy.md",
-      "memory": ".cursor/agent-memory/daddy-memory.md",
+      "id": "widgets",
+      "name": "widgets",
+      "spec": ".cursor/agents/widgets.md",
+      "memory": ".cursor/agent-memory/widgets-memory.md",
       "invoke_phrases": [
-        "Use the daddy subagent to dispatch this",
-        "Improve the daddy agent \u2014 work the next backlog item"
+        "Use the widgets subagent to map Webull widgets to Nova",
+        "Use the widgets subagent to audit Webull-to-Nova widget parity",
+        "Use the widgets subagent to implement a widget gap",
+        "Improve the widgets \u2014 work the next backlog item"
       ],
       "dashboard": {
         "type": "dedicated",
-        "canvas": "agent-daddy.canvas.tsx"
+        "canvas": "agent-widgets.canvas.tsx"
       },
-      "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; daddy owns fleet dispatch/orchestration in Agent-Fleet-Map.md; nova-router remains the pure classification/crack-index tool.",
+      "continuity_rule": ".cursor/rules/widgets-continuity.mdc",
+      "continuity_waiver": null,
       "canonical_inputs": [
-        ".cursor/agent-memory/daddy-memory.md",
-        ".cursor/agent-system/registry.json",
-        "knowledge/obsidian/00-System/Agent-Fleet-Map.md",
-        ".cursor/rules/specialist-routing.mdc"
+        "docs/webull-widget-parity.md",
+        ".cursor/agent-memory/widgets-memory.md",
+        "frontend/src/workspace/registry.ts",
+        "frontend/src/ibkr/",
+        "backend/routes/trading.py",
+        "backend/ibkr/orders.py"
       ],
       "writable_paths": [
-        ".cursor/agents/daddy.md",
-        ".cursor/agent-memory/daddy-memory.md"
+        ".cursor/agents/widgets.md",
+        ".cursor/agent-memory/widgets-memory.md",
+        ".cursor/rules/widgets-continuity.mdc",
+        "docs/webull-widget-parity.md",
+        "frontend/src/",
+        "backend/routes/trading.py",
+        "backend/ibkr/orders.py",
+        "backend/tests/test_routes_trading.py",
+        "backend/tests/test_ibkr_orders.py"
       ],
       "prohibited_actions": [
         "arm_executor",
         "place_orders",
         "commit_without_ask",
-        "edit_product_code",
-        "edit_fleet_map_without_ask",
-        "edit_registry_without_ask",
-        "unlock_auto_live"
+        "scrape_authenticated_webull",
+        "store_webull_credentials",
+        "copy_webull_proprietary_assets",
+        "feed_webull_into_nova",
+        "mix_alpaca_when_ibkr",
+        "weaken_execution_gates",
+        "remove_manual_controls_without_ask"
       ],
       "deterministic_checks": [
-        "py -3 tools/agent_fleet.py --json",
-        "py -3 tools/agent_contract.py"
+        "py -3 tools/agent_contract.py",
+        "py -3 tools/sync_agent_surfaces.py --json",
+        "py -3 tools/nova_docs_inventory.py --json --fail-on-unmanaged",
+        "py -3 -m pytest tools/test_agent_contract.py tools/test_sync_agent_surfaces.py tools/test_subagent_lifecycle_hook.py -q"
       ],
       "sibling_handoffs": {
-        "nova-router": "pure classification / crack index",
-        "execution": "ADR 007 audit",
-        "ibkr-ops": "Gateway ops",
-        "market-feed": "feed coherence",
-        "hod-momo": "HOD path",
-        "backtester": "backtest product / skills",
-        "news-catalyst": "news pipeline",
-        "widgets-agent": "widget parity UI",
-        "warrior": "Warrior site",
-        "tester": "verification",
-        "maintainer": "hygiene",
-        "security-sentinel": "security posture",
-        "nova-agent": "docs / canvases"
+        "tester": "full pytest / Vitest / build / browser verification after product changes",
+        "docs": "general docs / canvas hygiene outside agent-widgets",
+        "maintainer": "file-size / dependency / modularity findings",
+        "security": "full-repo security posture",
+        "parent": "cross-domain implementation beyond the selected capability"
       },
-      "domain": "fleet dispatch / orchestration"
+      "domain": "evidence-based Webull-to-Nova stock/day-trading widget capability mapping and selected gap implementation"
+    },
+    {
+      "id": "warrior",
+      "name": "warrior",
+      "spec": ".cursor/agents/warrior.md",
+      "memory": ".cursor/agent-memory/warrior-memory.md",
+      "invoke_phrases": [
+        "Use the warrior subagent to navigate Warrior Trading",
+        "Use the warrior subagent to map Day Trade Dash",
+        "Improve the warrior agent \u2014 work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-warrior.canvas.tsx"
+      },
+      "continuity_rule": null,
+      "continuity_waiver": "No dedicated continuity MDC; durable map + access runbook are canonical; routing via specialist-routing.mdc + warrior memory.",
+      "canonical_inputs": [
+        "docs/warrior-authenticated-access.md",
+        "knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md",
+        "scripts/open_warrior_site.ps1",
+        ".cursor/agent-memory/warrior-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/warrior.md",
+        ".cursor/agent-memory/warrior-memory.md",
+        "docs/warrior-authenticated-access.md",
+        "knowledge/obsidian/01-Courses/Warrior-Trading/",
+        "scripts/open_warrior_site.ps1"
+      ],
+      "prohibited_actions": [
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask",
+        "store_secrets_in_repo",
+        "scrape_paid_course_bodies",
+        "post_chat_or_trade_on_warrior",
+        "edit_product_runtime_unless_asked"
+      ],
+      "deterministic_checks": [
+        "py -3 -c \"from pathlib import Path; assert Path('scripts/open_warrior_site.ps1').is_file(); assert Path('docs/warrior-authenticated-access.md').is_file(); assert Path('knowledge/obsidian/01-Courses/Warrior-Trading/Authenticated-Site-Map.md').is_file()\""
+      ],
+      "sibling_handoffs": {
+        "docs": "Nova Home / general docs and unmanaged non-Warrior canvases",
+        "tester": "Nova product test / build gates",
+        "maintainer": "Nova code hygiene",
+        "security": "Nova AppSec / SEC-NNN"
+      },
+      "domain": "authenticated Warrior Trading site navigation and mapping"
+    },
+    {
+      "id": "tester",
+      "name": "tester",
+      "spec": ".cursor/agents/tester.md",
+      "memory": ".cursor/agent-memory/tester-memory.md",
+      "invoke_phrases": [
+        "Use the tester subagent to verify",
+        "Improve the tester agent \u2014 work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-tester.canvas.tsx"
+      },
+      "continuity_rule": null,
+      "continuity_waiver": "No dedicated continuity MDC; routing via specialist-routing.mdc + tester memory/snapshot.",
+      "canonical_inputs": [
+        "PROBLEM_LOG.md",
+        ".cursor/agent-memory/tester-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/tester.md",
+        ".cursor/agent-memory/tester-memory.md"
+      ],
+      "prohibited_actions": [
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask",
+        "mix_alpaca_when_ibkr"
+      ],
+      "deterministic_checks": [
+        "py -3 -m pytest backend/tests -q",
+        "npm run test",
+        "npm run build"
+      ],
+      "sibling_handoffs": {
+        "maintainer": "code hygiene / danger findings",
+        "security": "full-repo security posture",
+        "docs": "docs / canvas hygiene"
+      },
+      "domain": "test / build / browser verification"
+    },
+    {
+      "id": "maintainer",
+      "name": "maintainer",
+      "spec": ".cursor/agents/maintainer.md",
+      "memory": ".cursor/agent-memory/maintainer-memory.md",
+      "invoke_phrases": [
+        "Use the maintainer subagent to audit the repo",
+        "Improve the maintainer agent \u2014 work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-maintainer.canvas.tsx"
+      },
+      "continuity_rule": null,
+      "continuity_waiver": "No dedicated continuity MDC; accepted baselines live in maintainer memory; line counts from maintainer_checks.",
+      "canonical_inputs": [
+        "tools/maintainer_checks.py",
+        ".cursor/agent-memory/maintainer-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/maintainer.md",
+        ".cursor/agent-memory/maintainer-memory.md"
+      ],
+      "prohibited_actions": [
+        "edit_product_code",
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask"
+      ],
+      "deterministic_checks": [
+        "py -3 tools/maintainer_checks.py --json"
+      ],
+      "sibling_handoffs": {
+        "tester": "full pytest / Vitest / browser gates",
+        "security": "AppSec / SEC-NNN posture",
+        "docs": "docs / canvas hygiene"
+      },
+      "domain": "maintainability / danger sniffing (read-only)"
+    },
+    {
+      "id": "security",
+      "name": "security",
+      "spec": ".cursor/agents/security.md",
+      "memory": ".cursor/agent-memory/security-memory.md",
+      "invoke_phrases": [
+        "Use the security subagent to audit the repo",
+        "Improve the security agent \u2014 work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-security.canvas.tsx"
+      },
+      "continuity_rule": ".cursor/rules/security-continuity.mdc",
+      "continuity_waiver": null,
+      "canonical_inputs": [
+        "security/findings-registry.json",
+        "tools/security_audit.py",
+        ".cursor/agent-memory/security-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/security.md",
+        ".cursor/agent-memory/security-memory.md",
+        "security/findings-registry.json"
+      ],
+      "prohibited_actions": [
+        "edit_product_code",
+        "arm_executor",
+        "place_orders",
+        "weaken_execution_gates",
+        "probe_production_urls",
+        "impersonate_security_review",
+        "commit_without_ask"
+      ],
+      "deterministic_checks": [
+        "py -3 tools/security_audit.py --json"
+      ],
+      "sibling_handoffs": {
+        "security-review": "PR / branch / uncommitted diff review (Cursor built-in)",
+        "maintainer": "hygiene / file limits (not full AppSec)",
+        "docs": "docs / Security-Status prose"
+      },
+      "domain": "full-repo security posture + SEC-NNN registry"
+    },
+    {
+      "id": "docs",
+      "name": "docs",
+      "spec": ".cursor/agents/docs.md",
+      "memory": ".cursor/agent-memory/docs-memory.md",
+      "invoke_phrases": [
+        "Use the docs subagent to review documentation",
+        "Use the docs subagent for canvas hygiene",
+        "Improve the docs agent \u2014 work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "home_section",
+        "canvas": "nova-home.canvas.tsx"
+      },
+      "continuity_rule": ".cursor/rules/docs-continuity.mdc",
+      "continuity_waiver": null,
+      "canonical_inputs": [
+        "tools/nova_docs_inventory.py",
+        "docs/SOURCE-PINS.md",
+        ".cursor/agent-memory/docs-memory.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/docs.md",
+        ".cursor/agent-memory/docs-memory.md",
+        "**/*.md",
+        ".cursor/rules/*.mdc",
+        "docs/",
+        "knowledge/obsidian/"
+      ],
+      "prohibited_actions": [
+        "edit_product_runtime_unless_asked",
+        "create_agent_nova_canvas",
+        "own_sec_nnn_triage",
+        "commit_without_ask"
+      ],
+      "deterministic_checks": [
+        "py -3 tools/nova_docs_inventory.py --json"
+      ],
+      "sibling_handoffs": {
+        "tester": "test / build gates",
+        "maintainer": "code hygiene",
+        "security": "SEC-NNN posture",
+        "warrior": "Warrior Trading authenticated site navigation / Day Trade Dash map",
+        "widgets": "Webull-to-Nova stock/day-trading capability mapping and agent-widgets content"
+      },
+      "domain": "documentation + canvas stewardship"
     }
   ]
 }

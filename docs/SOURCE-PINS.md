@@ -1,6 +1,6 @@
 # Documentation tool source pins
 
-Verified upstream tools used by **Nova Agent** (`.cursor/agents/nova-agent.md`).  
+Verified upstream tools used by **Docs** (`.cursor/agents/docs.md`).  
 Do not invent house style guides — use these packages as configured.
 
 Last verified: **2026-07-16**
@@ -29,4 +29,4 @@ py -3 tools/nova_docs_inventory.py --json
 - **Vale:** install from GitHub Releases (`v3.15.1`) or Scoop/Chocolatey; then `vale sync` from repo root to populate `.vale/styles/` (gitignored).
 - **Lychee:** install from GitHub Releases (`lychee-v0.24.2`) or Scoop/Chocolatey.
 
-If Vale or Lychee is missing, Nova Agent reports that gate as **BLOCKED** and continues with inventory + markdownlint + evidence-based review.
+If Vale or Lychee is missing, Docs reports that gate as **BLOCKED** and continues with inventory + markdownlint + evidence-based review.

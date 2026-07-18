@@ -39,11 +39,11 @@ Product fixes inside `backend/execution/` require an explicit ask each time.
 
 - Nova OS control modes / arm / kill / staged tickets → `backend/strategy/executor*.py` + `nova-os-continuity.mdc` / Roadmap-Status (not this agent).
 - IB Gateway login / IBC / port health → `ibkr-ops`.
-- Full-repo security posture / SEC-NNN → `security-sentinel`.
+- Full-repo security posture / SEC-NNN → `security`.
 
 ## End of material change
 
 1. Re-run `test_execution_service.py` (+ latency probe when SLA claims change).
-2. Update `docs/trading-execution-validation.md` and the `agent-execution-validation` canvas snapshot if verdict/metrics moved.
+2. Update `docs/trading-execution-validation.md` and the `agent-execution` canvas snapshot if verdict/metrics moved.
 3. Update execution memory Current snapshot.
 4. Prepend `CHANGELOG.md` (and `PROBLEM_LOG.md` if a bug was fixed).

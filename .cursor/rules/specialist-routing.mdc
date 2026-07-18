@@ -11,7 +11,7 @@ When a task clearly belongs to a Nova specialist, prefer that subagent over gene
 
 1. Classify the task: single clear domain → go straight to Defaults below.
 2. **"Just get this done" / multi-specialist orchestration** → invoke `daddy` ("Use the daddy subagent to dispatch this"). It classifies, dispatches or emits a sequenced Dispatch Plan, and aggregates — it never implements product code itself.
-3. **"Who owns X / what's cracked?"** (classification only, no dispatch) → invoke `nova-router` ("Use the nova-router subagent to triage this") or run `py -3 tools/agent_fleet.py`.
+3. **"Who owns X / what's cracked?"** (classification only, no dispatch) → invoke `router` ("Use the router subagent to triage this") or run `py -3 tools/agent_fleet.py`.
 4. For a quick fleet-health check without a task, run `py -3 tools/agent_fleet.py` directly.
 
 ## Defaults
@@ -19,24 +19,24 @@ When a task clearly belongs to a Nova specialist, prefer that subagent over gene
 | Need | Agent | Notes |
 |------|-------|-------|
 | Top-of-fleet dispatch / multi-specialist orchestration | `daddy` | Dashboard = `agent-daddy`; never implements product code |
-| Fleet triage / classification / crack index only | `nova-router` | Dashboard = `agent-router`; report-only Routing card |
+| Fleet triage / classification / crack index only | `router` | Dashboard = `agent-router`; report-only Routing card |
 | Product change verification (pytest / Vitest / Playwright / browser) | `tester` | After code changes; before claiming done |
 | Maintainability / danger audit | `maintainer` | Read-only; significant diffs |
-| Full-repository security posture / SEC-NNN | `security-sentinel` | Not for PR/diff review |
-| Docs, MDC rules, agent prompts, canvases | `nova-agent` | Dashboard = Nova Home |
+| Full-repository security posture / SEC-NNN | `security` | Not for PR/diff review |
+| Docs, MDC rules, agent prompts, canvases | `docs` | Dashboard = Nova Home |
 | Warrior Trading authenticated site / Day Trade Dash navigation | `warrior` | Dashboard = `agent-warrior`; not Nova Home |
 | HOD Momo scanner data-quality / Warrior parity iteration | `hod-momo` | Dashboard = `agent-hod-momo`; owns `IBKR-Scanner-HOD-Architecture.md` feed UML; never feeds Warrior data into the alert engine |
-| Webull-to-Nova widget mapping or selected parity gap | `widgets-agent` | Dashboard = `agent-widgets`; Webull evidence is research-only |
-| Trading execution ADR 007 / ledger / latency / auto_live NO-GO | `execution` | Audit-only; `execution-continuity.mdc`; dashboard `agent-execution-validation` |
+| Webull-to-Nova widget mapping or selected parity gap | `widgets` | Dashboard = `agent-widgets`; Webull evidence is research-only |
+| Trading execution ADR 007 / ledger / latency / auto_live NO-GO | `execution` | Audit-only; `execution-continuity.mdc`; dashboard `agent-execution` |
 | IB Gateway login / IBC / API port health | `ibkr-ops` | Loud-warn protocol; never stores credentials |
-| General scanner L1 + quote/chart/L2/T&S coherence | `market-feed` | `single-market-data-feed.mdc`; hand off HOD pool to `hod-momo`, UI layout to `widgets-agent` |
-| News / catalyst pipeline | `news-catalyst` | `backend/news/` + News UI |
+| General scanner L1 + quote/chart/L2/T&S coherence | `market-feed` | `single-market-data-feed.mdc`; hand off HOD pool to `hod-momo`, UI layout to `widgets` |
+| News / catalyst pipeline | `news` | `backend/news/` + News UI |
 | Backtest product (Phase E) + VectorBT skill cluster | `backtester` | Metrics-only; skills research/offline |
-| PR / branch / uncommitted diff security | Cursor `security-review` | Built-in; never swap with security-sentinel |
+| PR / branch / uncommitted diff security | Cursor `security-review` | Built-in; never swap with security |
 
 ## Continuity-only / unowned domains
 
-If `Agent-Fleet-Map.md` marks a domain `Continuity-only` or `Unowned`, say so explicitly. Prefer `daddy` or `nova-router` to name the gap — do not silently absorb large product work into a general-purpose session. Scaffold a specialist via `tools/create_nova_agent.py` when a domain keeps burning sessions.
+If `Agent-Fleet-Map.md` marks a domain `Continuity-only` or `Unowned`, say so explicitly. Prefer `daddy` or `router` to name the gap — do not silently absorb large product work into a general-purpose session. Scaffold a specialist via `tools/create_nova_agent.py` when a domain keeps burning sessions.
 
 ## Invoke
 

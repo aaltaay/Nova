@@ -113,8 +113,8 @@ def build_entry(args: argparse.Namespace, now: str, sha: str) -> dict:
         "sibling_handoffs": {
             "tester": "test / build gates",
             "maintainer": "code hygiene",
-            "security-sentinel": "security posture",
-            "nova-agent": "docs / canvases",
+            "security": "security posture",
+            "docs": "docs / canvases",
         },
         "domain": args.domain,
     }
