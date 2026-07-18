@@ -25,6 +25,13 @@ TOOLS_DIR = Path(__file__).resolve().parent
 if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
+# Windows consoles often use cp1252 — keep dream reports printable.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")  # type: ignore[attr-defined]
+    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")  # type: ignore[attr-defined]
+except Exception:
+    pass
+
 from agent_dream_lib.phases import report_text, run_dream  # noqa: E402
 
 REGISTRY_PATH = REPO_ROOT / ".cursor" / "agent-system" / "registry.json"

@@ -69,7 +69,9 @@ def run_llm_rem(
             ],
         )
     except Exception as exc:  # noqa: BLE001 — dream must degrade gracefully
-        return f"(LLM REM failed: {type(exc).__name__}: {exc})", "heuristic"
+        # Fall back to heuristic REM; keep error out of the durable diary body.
+        _ = exc
+        return None, "heuristic"
     text = (resp.choices[0].message.content or "").strip()
     if not text:
         return None, "heuristic"

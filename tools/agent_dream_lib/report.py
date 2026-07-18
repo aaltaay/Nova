@@ -137,7 +137,7 @@ def report_text(report: DreamReport) -> str:
         lines.append("")
         lines.append(f"Deep promotions ({len(report.promotions)}):")
         for p in report.promotions:
-            lines.append(f"  → {p['agent_id']}: {p['text'][:100]}")
+            lines.append(f"  -> {p['agent_id']}: {p['text'][:100]}")
     if report.run_logs_trimmed:
         lines.append("")
         lines.append("Run log trims: " + json.dumps(report.run_logs_trimmed))
