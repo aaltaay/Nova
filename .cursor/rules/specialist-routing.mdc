@@ -7,16 +7,29 @@ alwaysApply: true
 
 When a task clearly belongs to a Nova specialist, prefer that subagent over general-purpose. Wiring metadata (invoke phrases, dashboards, handoffs) lives in `.cursor/agent-system/registry.json` — do not duplicate full agent prompts here.
 
+## Before substantive work
+
+1. Classify the task: single clear domain → go straight to Defaults below.
+2. Multi-domain, ambiguous which specialist owns it, or the domain is `Unowned`/`Continuity-only` in `knowledge/obsidian/00-System/Agent-Fleet-Map.md` → invoke `nova-router` first ("Use the nova-router subagent to triage this"). It returns a Routing card naming the specialist(s)/skill(s) and any fleet cracks — it never implements product code itself.
+3. For a quick "what's broken across the fleet" check without a task, run `py -3 tools/agent_fleet.py` directly (or `nova-router`) instead of opening every agent's memory file.
+
 ## Defaults
 
 | Need | Agent | Notes |
 |------|-------|-------|
+| Fleet triage / ambiguous or multi-domain dispatch / crack index | `nova-router` | Dashboard = `agent-router`; report-only, never a product implementer |
 | Product change verification (pytest / Vitest / Playwright / browser) | `tester` | After code changes; before claiming done |
 | Maintainability / danger audit (file limits, secrets, swallows, deps) | `maintainer` | Read-only; significant diffs |
 | Full-repository security posture + SEC-NNN | `security-sentinel` | Not for PR/diff review |
 | Docs, MDC rules, agent prompts, canvases | `nova-agent` | Dashboard = Nova Home |
 | Warrior Trading authenticated site / Day Trade Dash navigation | `warrior` | Dashboard = `agent-warrior`; not Nova Home |
+| HOD Momo scanner data-quality / Warrior parity iteration | `hod-momo` | Dashboard = `agent-hod-momo`; owns `IBKR-Scanner-HOD-Architecture.md` feed UML; never feeds Warrior data into the alert engine |
+| Webull-to-Nova stock/day-trading widget mapping or selected parity gap | `widgets-agent` | Dashboard = `agent-widgets`; Webull evidence is research-only |
 | PR / branch / uncommitted diff security | Cursor `security-review` | Built-in; never swap with security-sentinel |
+
+## Unowned domains
+
+If `Agent-Fleet-Map.md` marks the domain `Unowned` (e.g. trading execution, IB Gateway ops, general scanner tables, quote/chart/L2 coherence, news/catalyst), say so explicitly and recommend either the parent/user handles it directly or a new specialist gets scaffolded (`tools/create_nova_agent.py`) — do not silently absorb large product work into a general-purpose session.
 
 ## Invoke
 

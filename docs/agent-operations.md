@@ -33,17 +33,32 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 | Sync canvas snapshots (write) | `py -3 tools/sync_agent_surfaces.py --write` |
 | Scaffold a new agent (dry-run) | `py -3 tools/create_nova_agent.py --id <id> --title "…" --domain "…"` |
 | Scaffold a new agent (write) | `py -3 tools/create_nova_agent.py --id <id> --title "…" --domain "…" --write` |
+| Fleet crack index (human text) | `py -3 tools/agent_fleet.py` |
+| Fleet crack index (JSON) | `py -3 tools/agent_fleet.py --json` |
+| Session brief (top-3 cracks, used by hook) | `py -3 tools/agent_fleet.py --session-brief` |
 | Lifecycle hook (Cursor) | `.cursor/hooks.json` → `tools/subagent_lifecycle_hook.py` |
+| Session-start fleet brief hook (Cursor) | `.cursor/hooks.json` → `tools/session_brief_hook.py` |
+
+## Fleet triage (nova-router + agent_fleet)
+
+`tools/agent_fleet.py` unions signals that used to live in seven separate memories into one crack index: stale snapshots (`captured_at` >7 days old or self-reported `dashboard_freshness` not `clean`), open blockers, unowned/continuity-only domains and orphan skills (from `knowledge/obsidian/00-System/Agent-Fleet-Map.md`), unmanaged canvases on disk, and missing `AGENT_TITLES` entries. It is read-only — it never edits the fleet map, registry, or memories.
+
+The `nova-router` subagent (dashboard `agent-router.canvas.tsx`) is a thin, report-only dispatcher: given a task, it names the specialist(s)/skill(s) and leads with relevant cracks via a **Routing card**, then hands off — it never implements product code. Invoke it directly for ambiguous/multi-domain tasks, or let the `sessionStart` hook's fleet brief nudge toward it.
+
+When a domain/skill's ownership changes (a specialist is scaffolded, a domain starts/stops being maintained), update its row in `Agent-Fleet-Map.md` in the same commit — `agent_fleet.py` reads that file as the ownership source of truth and never rewrites it.
 
 ## Routing
 
 See `.cursor/rules/specialist-routing.mdc`. Defaults:
 
+- Ambiguous / multi-domain / unowned-domain triage → `nova-router`
 - Product change verification → `tester`
 - Maintainability / danger audit → `maintainer`
 - Full-repo security posture → `security-sentinel`
 - Docs / rules / prompts / canvases → `nova-agent`
 - Warrior Trading authenticated site / Day Trade Dash → `warrior`
+- HOD Momo scanner data-quality / Warrior parity iteration → `hod-momo`
+- Webull-to-Nova stock/day-trading widget parity → `widgets-agent`
 - PR / diff security → Cursor built-in `security-review`
 
 ## Report Lifecycle line

@@ -40,6 +40,9 @@ def test_discovery_finds_registered_agents(ac):
         "security-sentinel",
         "nova-agent",
         "warrior",
+        "hod-momo",
+        "widgets-agent",
+        "nova-router",
     }
 
 
