@@ -3,6 +3,8 @@
  * Business logic lives in pages/hooks/components (frontend-modularity rule).
  */
 import { AppErrorBoundary } from './components/AppErrorBoundary';
+import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
+import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { DashboardPage } from './pages/DashboardPage';
 import { StockViewPage } from './pages/StockViewPage';
 import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
@@ -32,7 +34,7 @@ function AppShell() {
     return (
       <AppErrorBoundary source="stock-view">
         <NovaOsAttentionStrip global />
-        <div className="container container--ticker-detail">
+        <div className="nova-shell nova-shell--ticker-detail">
           <div className="main-col main-col--full">
             <main className="ticker-detail-main">
               <StockViewPage
@@ -73,7 +75,11 @@ function App() {
     <WorkspaceProvider>
       <ModuleVisibilityProvider>
         <LayoutStoreProvider>
-          <AppShell />
+          <TopOfBookProvider>
+            <HotkeyDispatchProvider>
+              <AppShell />
+            </HotkeyDispatchProvider>
+          </TopOfBookProvider>
         </LayoutStoreProvider>
       </ModuleVisibilityProvider>
     </WorkspaceProvider>

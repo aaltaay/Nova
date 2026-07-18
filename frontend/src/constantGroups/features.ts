@@ -133,12 +133,51 @@ export const HOTKEY_ORDER_ACTIONS: HotkeyAction[] = [
 export const HOTKEY_SIGNAL_BLOCKED_MESSAGE =
   'Order hotkeys disabled in Signal mode — raise to Confirm first.';
 
-// ── DAS-compatible hotkey manager (Phase G2) ─────────────────────────────────
-/** Shown in Settings → Hotkeys; imported scripts never execute in this phase. */
+// ── DAS-compatible hotkey manager (Phase G2 / G3) ────────────────────────────
+/** Shown in Settings → Hotkeys for the DAS import table. */
 export const HOTKEY_MANAGER_INACTIVE_BANNER =
-  'Imported commands are inactive; execution is not implemented in this phase.';
+  'Imported DAS commands stay inactive until you Map to Nova Action. Raw scripts never auto-run.';
 
 /** DAS short-script byte threshold before ~length chunked encoding. */
 export const HOTKEY_HTK_SHORT_SCRIPT_MAX_BYTES = 51;
 export const HOTKEY_HTK_CHUNK_BYTES = 51;
 export const HOTKEY_HTK_NAME_MAX_CHARS = 99;
+
+// ── Nova Actions (Phase G3 — typed, executable) ──────────────────────────────
+export const NOVA_ACTION_KINDS = [
+  'cancel_symbol',
+  'exit_pos',
+  'exit_pos_pct',
+  'buy_limit_ask_offset',
+  'sell_limit_bid_offset',
+] as const;
+
+export type NovaActionKind = (typeof NOVA_ACTION_KINDS)[number];
+
+export const NOVA_ACTION_KIND_LABELS: Record<NovaActionKind, string> = {
+  cancel_symbol: 'Cancel open orders (symbol)',
+  exit_pos: 'Exit full position',
+  exit_pos_pct: 'Exit position %',
+  buy_limit_ask_offset: 'Buy limit at Ask ± offset',
+  sell_limit_bid_offset: 'Sell limit at Bid ± offset',
+};
+
+/** Default Ask/Bid offset in dollars for limit entries. */
+export const NOVA_ACTION_DEFAULT_OFFSET_DOLLARS = 0.05;
+/** Default fixed share size for Ask/Bid limit entries. */
+export const NOVA_ACTION_DEFAULT_SHARES = 100;
+export const NOVA_ACTION_DEFAULT_EXIT_PCTS = [50, 25] as const;
+
+export const NOVA_ACTION_NEEDS_DEPTH: NovaActionKind[] = [
+  'buy_limit_ask_offset',
+  'sell_limit_bid_offset',
+];
+
+export const NOVA_ACTION_DEPTH_DISABLED_REASON =
+  'Needs live L2 bid/ask for the open symbol — open Level 2 depth first.';
+
+export const NOVA_ACTION_NO_SYMBOL_MESSAGE = 'Open a symbol first.';
+export const NOVA_ACTION_PIN_LOCKED_MESSAGE =
+  'Unlock the trading session (PIN) before hotkey orders.';
+export const NOVA_ACTION_SPEND_LOCKED_MESSAGE =
+  'Orders remain locked by Nova environment safety settings.';

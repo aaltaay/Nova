@@ -1,12 +1,18 @@
-import type { CSSProperties } from 'react';
+import { useEffect, type CSSProperties } from 'react';
 import {
   L2_DAS_HEADERS,
   L2_DAS_MM_FALLBACK,
   L2_DAS_SIZE_BAR_ASK,
   L2_DAS_SIZE_BAR_BID,
+  L2_HEURISTIC_ASK_LABEL,
+  L2_HEURISTIC_BID_LABEL,
+  L2_HEURISTIC_IDLE_LABEL,
+  L2_HEURISTIC_SPREAD_LABEL,
+  L2_HEURISTIC_TITLE,
   L2_OVERNIGHT_BOOK_HINT,
   TICKER_TRADE_DEPTH_LEVELS,
 } from '../constants';
+import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import { assignPriceTiers, maxSize, padLevels, tierBackground } from './dasDepthTiers';
 import { isOvernightOnlyBook } from './depthBookGuards';
 import {
@@ -117,6 +123,23 @@ function MontageSide({
 
 export function DepthLadder({ symbol }: Props) {
   const { book, connected, l1Fallback, error } = useIbkrDepth(symbol);
+  const { setTopOfBook } = useTopOfBook();
+
+  useEffect(() => {
+    if (!symbol) {
+      setTopOfBook(null);
+      return;
+    }
+    const bid = book?.bids[0]?.price ?? null;
+    const ask = book?.asks[0]?.price ?? null;
+    setTopOfBook({
+      symbol: symbol.toUpperCase(),
+      bid,
+      ask,
+      depthSubscribed: book != null && connected,
+    });
+    return () => setTopOfBook(null);
+  }, [symbol, book, connected, setTopOfBook]);
 
   if (!symbol) {
     return <div className="ibkr-depth-empty">Enter a symbol to view the order book.</div>;
@@ -153,16 +176,20 @@ export function DepthLadder({ symbol }: Props) {
           {L2_OVERNIGHT_BOOK_HINT}
         </div>
       )}
-      {(askStacked || bidHeavy || wideSpread) && (
-        <div
-          className="ibkr-depth-heuristics"
-          title="Rule-of-thumb read of resting size. Display-only — never feeds the executor."
-        >
-          {askStacked && <span className="ibkr-heuristic-badge ibkr-heuristic-ask">Seller stacked</span>}
-          {bidHeavy && <span className="ibkr-heuristic-badge ibkr-heuristic-bid">Bid heavy</span>}
-          {wideSpread && <span className="ibkr-heuristic-badge ibkr-heuristic-spread">Wide spread</span>}
-        </div>
-      )}
+      <div className="ibkr-depth-heuristics" title={L2_HEURISTIC_TITLE}>
+        {askStacked && (
+          <span className="ibkr-heuristic-badge ibkr-heuristic-ask">{L2_HEURISTIC_ASK_LABEL}</span>
+        )}
+        {bidHeavy && (
+          <span className="ibkr-heuristic-badge ibkr-heuristic-bid">{L2_HEURISTIC_BID_LABEL}</span>
+        )}
+        {wideSpread && (
+          <span className="ibkr-heuristic-badge ibkr-heuristic-spread">{L2_HEURISTIC_SPREAD_LABEL}</span>
+        )}
+        {!askStacked && !bidHeavy && !wideSpread && (
+          <span className="ibkr-heuristic-badge ibkr-heuristic-idle">{L2_HEURISTIC_IDLE_LABEL}</span>
+        )}
+      </div>
       <div className="das-l2-montage">
         <MontageSide side="bid" levels={book.bids} />
         <MontageSide side="ask" levels={book.asks} />

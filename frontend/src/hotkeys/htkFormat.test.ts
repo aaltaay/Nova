@@ -159,6 +159,8 @@ describe('hotkeyStorage migrateProfile', () => {
       updatedAt: '2026-07-16T00:00:00.000Z',
     });
     expect(ok?.records).toHaveLength(1);
+    expect(ok?.novaActions.length).toBeGreaterThan(0);
+    expect(ok?.schemaVersion).toBe(2);
     expect(HOTKEY_STORAGE_KEY).toContain('nova.hotkeys');
   });
 });

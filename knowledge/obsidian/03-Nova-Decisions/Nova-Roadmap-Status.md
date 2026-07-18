@@ -15,26 +15,30 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 ## Current position
 
 - **Active ops:** Phase B — Paper shadow (**`[~]` protocol ready / awaiting ≥5 live shadow days**)
-- **Feature track:** Phases **A, D, E, F, G, G2, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**)
+- **Feature track:** Phases **A, D, E, F, G, G2, J** complete in code/docs; **G3** `[~]` Nova Actions executable core (paper-first); **I** evidence-framework ready (**verdict NO-GO**)
 - **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) + **close remediation (Phases 1–7)** — **CLOSED** · metrics `architecture/program-close-metrics.md`
-- **State:** implementable roadmap work shipped; human market sessions remain the B/C blocker; structural maintenance + close remediation complete
+- **State:** G3 hotkeys specialist + typed Nova Actions in progress; human market sessions remain the B/C blocker; structural maintenance + close remediation complete
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
 - **Last verified commit:** `aad9bf9` (Architecture close remediation Phase 7)
 - **Tip SHA:** follow `git rev-parse --short HEAD` (stamp commits may trail the verified close)
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
-- **Last updated:** 2026-07-16 (Architecture close remediation Phase 7)
+- **Last updated:** 2026-07-18 (Phase G3 opened — hotkeys specialist Owned)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
+- **Execution proof (user-directed, not Phase I unlock):** ADR 007 centralized path + synthetic p95 ack pass — see `docs/trading-execution-validation.md`. Does **not** complete Phase B or Phase I.
+- **IBKR ops (2026-07-17):** Paper Gateway port **4002** connected; API `GET /api/ibkr/status` → `connected=true`, `mode=paper`, `gateway_mode=paper`, `orders_enabled=false`, `spend_status=locked`. Executor raised to **`confirm`** for day-0 practice. Live-readiness scorecard still **NO-GO** (0/5 shadow days, 0 closed non-mock trades).
 
 ## Exact next action (human)
 
-1. Follow `docs/paper-shadow-protocol.md` + fill `docs/shadow-day-log-template.md` rows
-2. Operate `signal` → `confirm` → `auto_paper` on paper Gateway
-3. Evening review per completed day; log bugs in `PROBLEM_LOG.md`
-4. After first bars-rich session: compact → (optional R2) → `walk_day` / restore — clear Phase C remainder
-5. Cloudflare console: Bucket Lock + R2 token rotation per `docs/r2-archive-setup.md`
-6. **Hard ban:** no `auto_live`, no live orders
+1. Keep paper Gateway logged in (API port **4002**; Read-Only API **unchecked**)
+2. During next market session: follow `docs/paper-shadow-protocol.md` — stay on `confirm` first; when ready for paper spends set `IBKR_ORDERS_ENABLED=true` (keep `IBKR_LIVE_TRADING_CONFIRMED=false`) then `auto_paper` only after comfort
+3. Fill one row in `docs/shadow-day-log-template.md` → copy into Phase B Evidence below after the day
+4. Evening review; log bugs in `PROBLEM_LOG.md`
+5. After a bars-rich session: compact → (optional R2) → `walk_day` — Phase C remainder
+6. Cloudflare console: Bucket Lock + R2 token rotation per `docs/r2-archive-setup.md`
+7. **Hard ban:** no `auto_live`, no live orders, no `IBKR_LIVE_TRADING_CONFIRMED`
+8. Optional: `py -3 tools/execution_latency_probe.py --confirm-paper-orders` (paper only)
 
 ## COMPLETE history (do not reopen)
 
@@ -51,6 +55,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 | **Phase F — Reports v2** | `[x]` | tags / R / drawdown / IBKR import; finish pass `722d614` |
 | **Phase G — Hotkeys + brackets** | `[x]` | `useHotkeys` + approveStaged bracket; finish pass `722d614` |
 | **Phase G2 — DAS hotkey manager** | `[x]` | Settings Hotkeys; `.htk` I/O; authoring only (no execution) · `645761b` |
+| **Phase G3 — Nova Actions executable** | `[~]` | Typed cancel/buy/sell/exit via manual path; one dispatcher; paper-first; `hotkeys` specialist |
 | **Phase J — Productization** | `[x]` | [[Productization-Decision]] local-first; finish pass `722d614` |
 | **HOD Momo / Stock View harden** | `[x]` | Shipped; not roadmap debt |
 | **Tester + maintainer agents** | `[x]` | `.cursor/agents/` + `tools/maintainer_checks.py` |
@@ -86,7 +91,14 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 - [x] **Hard rule:** `auto_live` remains blocked
 
 **Blocker:** cannot invent 5 real market sessions overnight — human ops required.  
+**Paper path ready (2026-07-17):** Gateway paper + API connected; orders still locked until you enable paper spends.  
 **Evidence table:** use shadow-day log template (0/5 rows filled).
+
+#### Phase B Evidence
+
+| # | Date | Modes | Paper Gateway | Review | Notes |
+|---|------|-------|---------------|--------|-------|
+| — | — | — | connected (pre-session) | — | Day-0 infra ready; waiting first market session |
 
 ### Phase C — Durable archive — `[~]` PARTIAL / BLOCKED on console + cold day
 
@@ -103,7 +115,7 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 - [ ] Upload/restore on a **real** compacted production day
 - [ ] `walk_day` on that real cold day
 
-**Blocker (2026-07-15, still true 2026-07-16):** `backend/.cache/archive_cold/` empty — no compacted day; hot tape-only day exists without bars for walk. Do not fake `[x]`.
+**Progress (2026-07-17):** hot `bars_1m` backfilled from tape (331 bars; days 2026-07-15/16 cold JSONL recompacted). Still need operator Bucket Lock / token rotation + a **new** production session walk after compact. Do not fake Phase C `[x]`.
 
 ### Phase A — Skills library — `[x]` COMPLETED
 
@@ -156,6 +168,18 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 
 **Hard rule:** execution of imported DAS commands is a future phase — not unlocked here. `auto_live` remains NO-GO.
 
+### Phase G3 — Nova Actions executable core — `[~]` IN PROGRESS · 2026-07-18
+
+- [x] `hotkeys` specialist Owned (`hotkeys-continuity.mdc`, `agent-hotkeys`)
+- [x] Typed Nova Actions (not raw DAS scripts): `cancel_symbol`, `exit_pos` / `exit_pos_pct`, Ask±/Bid± fixed shares
+- [x] One shell-level hotkey dispatcher + `event.repeat` guard
+- [x] Settings → Hotkeys: editable Nova Actions + Trading quick-bar (`Show button`)
+- [x] System 2 gates: PIN unlock, spend lock, place-confirm preference; Bid/Ask from L2 only
+- [x] Vitest + build prove unmapped `.htk` still inactive; cancel-all route tests green
+- [ ] Tester browser pass: Settings → Hotkeys + quick-bar; paper path only when enabled
+
+**Hard rule:** `auto_live` remains NO-GO. Imported DAS Command strings stay inactive until Map to Nova Action.
+
 ### Phase H — Panel workspace — `[x]` COMPLETED
 
 **DONE. Do not reopen.** Optional: cross-slot drag/resize (not debt).
@@ -203,8 +227,8 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 
 ## Crash or blocker
 
-- **Phase B:** awaiting human ≥5 shadow days (protocol + template ready).
-- **Phase C remainder:** awaiting first real compacted day + Cloudflare Bucket Lock / token rotation (docs ready; console not automatable).
+- **Phase B:** paper Gateway + API ready; awaiting human ≥5 shadow days (0/5).
+- **Phase C remainder:** bars backfill done; still need Cloudflare Bucket Lock / token rotation + fresh session compact/walk.
 - **Phase I verdict:** NO-GO until B metrics exist; framework ready.
 - **`auto_live`:** permanent NO-GO in this roadmap window.
 
@@ -214,6 +238,11 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-07-18 | Phase G3 opened: `hotkeys` specialist Owned; typed Nova Actions (cancel/buy/sell/exit) paper-first via manual path; one dispatcher. Phase B remains ops NEXT; `auto_live` NO-GO. | (this commit) |
+| 2026-07-17 | Paper Gateway ops ready: `.env` `IBKR_GATEWAY_MODE=paper`, API `:8000` → `connected`/`mode=paper`, executor `confirm`, orders locked. Scorecard **NO-GO** remains on 0/5 shadow days + 0 closed paper trades (not Gateway). Phase B day-0 NEXT. | (uncommitted until user asks) |
+| 2026-07-17 | Live-readiness automation pass: tape→`bars_1m` feeder + backfill (331 bars), scorecard tool, journal gates→Phase I (50/90%), kill/flatten/auto_live drills. Scorecard still **NO-GO** (0/5 shadow days, 0 closed paper trades). Phase B remains NEXT. | (uncommitted until user asks) |
+| 2026-07-17 | User-directed ADR 007 centralized execution proof: single `execute` path, idempotency, stage telemetry, synthetic p95 ack ~53 ms (Continue). Phase B still NEXT; `auto_live` still NO-GO; no live orders. | (uncommitted until user asks) |
+| 2026-07-16 | User-directed Stock View terminal redesign (2×2 charts + dense right rail + always-visible order ticket; Quote Panel/Trading unchanged). Phase B remains NEXT — not a roadmap phase advance. | (uncommitted until user asks) |
 | 2026-07-16 | Architecture close remediation Phases 1–7: truthful audit, deps/handlers, feed honesty, ports, barrels+CSS layers, lint/lifecycle, honest ledgers; verify 636/187 | `aad9bf9` |
 | 2026-07-16 | Maintenance Phase 13: program close — metrics, maintainer memory (counts later corrected by close remediation) | `342b6cc` |
 | 2026-07-16 | Maintenance Phase 12: defer executor.py split with written rationale (baseline 494) | `8a6de9b` |

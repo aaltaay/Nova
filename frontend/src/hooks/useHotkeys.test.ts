@@ -115,4 +115,16 @@ describe('createHotkeyKeydownHandler', () => {
     expect(approve).not.toHaveBeenCalled();
     expect(onBlocked).toHaveBeenCalledWith('approve_staged', HOTKEY_SIGNAL_BLOCKED_MESSAGE);
   });
+
+  it('ignores key repeat (held key must not resend)', () => {
+    const approve = vi.fn();
+    const handler = createHotkeyKeydownHandler({
+      mode: 'confirm',
+      callbacks: { approve_staged: approve },
+    });
+    const event = keyEvent('A', { shift: true });
+    Object.defineProperty(event, 'repeat', { value: true });
+    handler(event);
+    expect(approve).not.toHaveBeenCalled();
+  });
 });

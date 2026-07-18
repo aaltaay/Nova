@@ -3,6 +3,8 @@
  */
 
 import { useMemo, useState } from 'react';
+import { formatKeyChord } from './htkFormat';
+import { createDefaultNovaActions } from './novaActionDefaults';
 import { HOTKEY_CAPABILITY_CATALOG } from './capabilityCatalog';
 import {
   HOTKEY_CAPABILITY_CATEGORIES,
@@ -46,8 +48,22 @@ export function HotkeyHelpCatalog({ onClose }: Props) {
       </div>
       <p className="na-muted">
         Compatibility (can Nova support this later?) is separate from evidence
-        (is this a verified DAS command vs community recipe).
+        (is this a verified DAS command vs community recipe). Phase G3 ships typed
+        Nova Actions (not raw DAS scripts) — see defaults below.
       </p>
+
+      <div className="nova-defaults-help">
+        <h4 className="nova-os-section-title">Curated Nova defaults (DAS-inspired)</h4>
+        <ul className="executor-hotkeys-list">
+          {createDefaultNovaActions().map((a) => (
+            <li key={a.id}>
+              <kbd>{formatKeyChord(a.key)}</kbd>
+              <span>{a.name}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <div className="hotkey-help-filters">
         <input
           type="search"

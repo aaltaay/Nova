@@ -712,6 +712,56 @@
         "widgets": "Webull-to-Nova stock/day-trading capability mapping and agent-widgets content"
       },
       "domain": "documentation + canvas stewardship"
+    },
+    {
+      "id": "hotkeys",
+      "name": "hotkeys",
+      "spec": ".cursor/agents/hotkeys.md",
+      "memory": ".cursor/agent-memory/hotkeys-memory.md",
+      "invoke_phrases": [
+        "Use the hotkeys subagent to",
+        "Improve the hotkeys agent \u2014 work the next backlog item"
+      ],
+      "dashboard": {
+        "type": "dedicated",
+        "canvas": "agent-hotkeys.canvas.tsx"
+      },
+      "continuity_rule": ".cursor/rules/hotkeys-continuity.mdc",
+      "continuity_waiver": null,
+      "canonical_inputs": [
+        ".cursor/agent-memory/hotkeys-memory.md",
+        "frontend/src/hotkeys/",
+        ".cursor/rules/hotkeys-continuity.mdc",
+        "knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md"
+      ],
+      "writable_paths": [
+        ".cursor/agents/hotkeys.md",
+        ".cursor/agent-memory/hotkeys-memory.md",
+        "frontend/src/hotkeys/",
+        "frontend/src/hooks/hotkeyUtils.ts",
+        "frontend/src/hooks/useHotkeys.ts"
+      ],
+      "prohibited_actions": [
+        "arm_executor",
+        "place_orders",
+        "commit_without_ask",
+        "bypass_execution_service",
+        "unlock_auto_live"
+      ],
+      "deterministic_checks": [
+        "npx vitest run src/hotkeys src/hooks/useHotkeys.test.ts src/components/SettingsWorkspace.test.tsx"
+      ],
+      "sibling_handoffs": {
+        "execution": "ADR 007 ledger / latency audits",
+        "widgets": "Stock View layout / Webull montage chrome",
+        "market-feed": "L2 / quote coherence for bid-ask",
+        "ibkr-ops": "Gateway login / IBC",
+        "tester": "test / build / browser gates",
+        "maintainer": "code hygiene",
+        "security": "security posture",
+        "docs": "docs / canvases"
+      },
+      "domain": "DAS-compatible hotkeys + Nova Actions execution (Phase G3)"
     }
   ]
 }

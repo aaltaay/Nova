@@ -7,6 +7,9 @@ import {
   type HotkeyProfile,
   type HotkeyRecord,
 } from './types';
+import { createDefaultNovaActions } from './novaActionDefaults';
+import type { NovaActionRecord } from './novaActionTypes';
+import { NOVA_ACTION_KINDS, type NovaActionKind } from '../constants';
 
 export const HOTKEY_STORAGE_KEY = 'nova.hotkeys.profile.v1';
 
@@ -15,6 +18,7 @@ export function createEmptyProfile(fileName = 'hotkey.htk'): HotkeyProfile {
     schemaVersion: HOTKEY_PROFILE_SCHEMA_VERSION,
     fileName,
     records: [],
+    novaActions: createDefaultNovaActions(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -22,11 +26,13 @@ export function createEmptyProfile(fileName = 'hotkey.htk'): HotkeyProfile {
 export function profileFromRecords(
   records: HotkeyRecord[],
   fileName: string,
+  novaActions?: NovaActionRecord[],
 ): HotkeyProfile {
   return {
     schemaVersion: HOTKEY_PROFILE_SCHEMA_VERSION,
     fileName,
     records,
+    novaActions: novaActions ?? createDefaultNovaActions(),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -43,15 +49,35 @@ function isRecord(value: unknown): value is HotkeyRecord {
   );
 }
 
+function isNovaAction(value: unknown): value is NovaActionRecord {
+  if (!value || typeof value !== 'object') return false;
+  const a = value as NovaActionRecord;
+  return (
+    typeof a.id === 'string'
+    && typeof a.name === 'string'
+    && NOVA_ACTION_KINDS.includes(a.kind as NovaActionKind)
+    && a.key != null
+    && typeof a.key === 'object'
+    && typeof a.enabled === 'boolean'
+    && typeof a.showButton === 'boolean'
+    && a.params != null
+    && typeof a.params === 'object'
+  );
+}
+
 export function migrateProfile(raw: unknown): HotkeyProfile | null {
   if (!raw || typeof raw !== 'object') return null;
-  const obj = raw as Partial<HotkeyProfile>;
+  const obj = raw as Partial<HotkeyProfile> & { novaActions?: unknown };
   if (!Array.isArray(obj.records)) return null;
   const records = obj.records.filter(isRecord);
+  const novaActions = Array.isArray(obj.novaActions)
+    ? obj.novaActions.filter(isNovaAction)
+    : createDefaultNovaActions();
   return {
     schemaVersion: HOTKEY_PROFILE_SCHEMA_VERSION,
     fileName: typeof obj.fileName === 'string' ? obj.fileName : 'hotkey.htk',
     records,
+    novaActions: novaActions.length > 0 ? novaActions : createDefaultNovaActions(),
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : new Date().toISOString(),
   };
@@ -72,6 +98,7 @@ export function saveProfile(profile: HotkeyProfile): void {
   const next: HotkeyProfile = {
     ...profile,
     schemaVersion: HOTKEY_PROFILE_SCHEMA_VERSION,
+    novaActions: profile.novaActions ?? createDefaultNovaActions(),
     updatedAt: new Date().toISOString(),
   };
   localStorage.setItem(HOTKEY_STORAGE_KEY, JSON.stringify(next));
@@ -79,4 +106,12 @@ export function saveProfile(profile: HotkeyProfile): void {
 
 export function clearProfile(): void {
   localStorage.removeItem(HOTKEY_STORAGE_KEY);
+}
+
+export function restoreDefaultNovaActions(profile: HotkeyProfile): HotkeyProfile {
+  return {
+    ...profile,
+    novaActions: createDefaultNovaActions(),
+    updatedAt: new Date().toISOString(),
+  };
 }

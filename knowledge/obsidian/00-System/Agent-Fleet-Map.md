@@ -67,7 +67,7 @@ Detail + report shape: `.cursor/agents/daddy.md` (Orchestration model).
 | Archive / R2 (Phase C remainder) | — | Continuity-only | — | Roadmap-Status Phase C partial |
 | Alerts (Phase D) | — | Continuity-only | — | shipped in code, no ongoing steward |
 | Reports v2 (Phase F) | — | Continuity-only | — | shipped in code, no ongoing steward |
-| Hotkeys / brackets (Phase G/G2) | — | Continuity-only | — | shipped in code, no ongoing steward |
+| Hotkeys / brackets (Phase G/G2/G3) | hotkeys | Owned | Implement | `hotkeys-continuity.mdc`; dashboard `agent-hotkeys`; G3 Nova Actions paper-first |
 | Nova OS decision engine / control ladder | — | Continuity-only | — | `nova-os-continuity.mdc` + `Nova-OS-Status.md` |
 | Master Roadmap phases A–Z / paper shadow ops | — | Continuity-only | — | `nova-roadmap-continuity.mdc` + `Nova-Roadmap-Status.md` |
 | Frontend workspace (Phase H panel system) | — | Continuity-only | — | Playwright baseline exists; `widgets` touches Stock View only |

@@ -5,6 +5,8 @@ import {
   type HotkeyAction,
   type HotkeyBinding,
 } from '../constants';
+import type { HotkeyKeyChord } from '../hotkeys/types';
+import type { NovaActionRecord } from '../hotkeys/novaActionTypes';
 
 export type HotkeyCallbacks = Partial<Record<HotkeyAction, () => void>>;
 
@@ -35,10 +37,48 @@ export function eventMatchesBinding(event: KeyboardEvent, binding: HotkeyBinding
   );
 }
 
+export function chordToBinding(chord: HotkeyKeyChord): HotkeyBinding | null {
+  if (!chord.key) return null;
+  return {
+    key: chord.key,
+    ctrl: chord.ctrl,
+    shift: chord.shift,
+    alt: chord.alt,
+    meta: chord.meta,
+  };
+}
+
+export function eventMatchesChord(event: KeyboardEvent, chord: HotkeyKeyChord): boolean {
+  const binding = chordToBinding(chord);
+  if (!binding) return false;
+  // Backspace alias: DAS uses "bkspace" / "Backspace"
+  const eventKey = event.key === 'Backspace' ? 'backspace' : event.key.toLowerCase();
+  const bindKey = binding.key.toLowerCase() === 'bkspace' ? 'backspace' : binding.key.toLowerCase();
+  if (eventKey !== bindKey) return false;
+  return (
+    event.ctrlKey === Boolean(binding.ctrl) &&
+    event.shiftKey === Boolean(binding.shift) &&
+    event.altKey === Boolean(binding.alt) &&
+    event.metaKey === Boolean(binding.meta)
+  );
+}
+
 /** Resolve which hotkey action (if any) a keydown event maps to. */
 export function resolveHotkeyAction(event: KeyboardEvent): HotkeyAction | null {
   for (const action of Object.keys(HOTKEY_DEFAULTS) as HotkeyAction[]) {
     if (eventMatchesBinding(event, HOTKEY_DEFAULTS[action])) return action;
+  }
+  return null;
+}
+
+/** First enabled Nova Action whose chord matches the event. */
+export function resolveNovaAction(
+  event: KeyboardEvent,
+  actions: NovaActionRecord[],
+): NovaActionRecord | null {
+  for (const action of actions) {
+    if (!action.enabled) continue;
+    if (eventMatchesChord(event, action.key)) return action;
   }
   return null;
 }
@@ -53,29 +93,53 @@ export function formatHotkeyLabel(binding: HotkeyBinding): string {
   return parts.join('+');
 }
 
+export function chordsConflict(a: HotkeyKeyChord, b: HotkeyKeyChord): boolean {
+  const ba = chordToBinding(a);
+  const bb = chordToBinding(b);
+  if (!ba || !bb) return false;
+  return (
+    ba.key.toLowerCase() === bb.key.toLowerCase()
+    && Boolean(ba.ctrl) === Boolean(bb.ctrl)
+    && Boolean(ba.shift) === Boolean(bb.shift)
+    && Boolean(ba.alt) === Boolean(bb.alt)
+    && Boolean(ba.meta) === Boolean(bb.meta)
+  );
+}
+
 /** Pure keydown handler — used by useHotkeys and unit tests. */
 export function createHotkeyKeydownHandler(options: {
   mode: string;
   callbacks: HotkeyCallbacks;
   onBlocked?: (action: HotkeyAction, message: string) => void;
+  /** Optional Nova Actions resolved after Automation six. */
+  novaActions?: NovaActionRecord[];
+  onNovaAction?: (action: NovaActionRecord) => void;
 }): (event: KeyboardEvent) => void {
-  const { mode, callbacks, onBlocked } = options;
+  const { mode, callbacks, onBlocked, novaActions, onNovaAction } = options;
   return (event: KeyboardEvent) => {
+    if (event.repeat) return;
     if (isEditableTarget(event.target)) return;
 
     const action = resolveHotkeyAction(event);
-    if (!action) return;
-
-    if (!hotkeysAllowed(mode, action)) {
+    if (action) {
+      if (!hotkeysAllowed(mode, action)) {
+        event.preventDefault();
+        onBlocked?.(action, HOTKEY_SIGNAL_BLOCKED_MESSAGE);
+        return;
+      }
+      const handler = callbacks[action];
+      if (!handler) return;
       event.preventDefault();
-      onBlocked?.(action, HOTKEY_SIGNAL_BLOCKED_MESSAGE);
+      handler();
       return;
     }
 
-    const handler = callbacks[action];
-    if (!handler) return;
-
-    event.preventDefault();
-    handler();
+    if (novaActions && onNovaAction) {
+      const nova = resolveNovaAction(event, novaActions);
+      if (nova) {
+        event.preventDefault();
+        onNovaAction(nova);
+      }
+    }
   };
 }

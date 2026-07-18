@@ -1,9 +1,11 @@
 /**
- * DAS-compatible hotkey manager types (Phase G2).
- * Authoring/analysis only — records are never executed in this phase.
+ * DAS-compatible hotkey manager types (Phase G2) + Nova Actions (Phase G3).
+ * Imported DAS records stay inactive until mapped to a typed Nova Action.
  */
 
-export const HOTKEY_PROFILE_SCHEMA_VERSION = 1 as const;
+import type { NovaActionRecord } from './novaActionTypes';
+
+export const HOTKEY_PROFILE_SCHEMA_VERSION = 2 as const;
 
 export const HOTKEY_COMPAT_STATUSES = [
   'nova_active',
@@ -79,6 +81,8 @@ export interface HotkeyProfile {
   /** Display name of the last loaded/saved .htk file. */
   fileName: string;
   records: HotkeyRecord[];
+  /** Typed executable actions (Phase G3). */
+  novaActions: NovaActionRecord[];
   updatedAt: string;
 }
 

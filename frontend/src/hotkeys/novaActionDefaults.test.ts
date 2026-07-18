@@ -1,0 +1,21 @@
+import { describe, expect, it } from 'vitest';
+import { createDefaultNovaActions } from './novaActionDefaults';
+
+describe('createDefaultNovaActions', () => {
+  it('includes cancel, exit, and Ask/Bid entry actions', () => {
+    const actions = createDefaultNovaActions();
+    const kinds = new Set(actions.map((a) => a.kind));
+    expect(kinds.has('cancel_symbol')).toBe(true);
+    expect(kinds.has('exit_pos')).toBe(true);
+    expect(kinds.has('exit_pos_pct')).toBe(true);
+    expect(kinds.has('buy_limit_ask_offset')).toBe(true);
+    expect(kinds.has('sell_limit_bid_offset')).toBe(true);
+  });
+
+  it('marks cancel and primary exits as showButton', () => {
+    const actions = createDefaultNovaActions();
+    const cancel = actions.find((a) => a.kind === 'cancel_symbol');
+    expect(cancel?.showButton).toBe(true);
+    expect(cancel?.enabled).toBe(true);
+  });
+});

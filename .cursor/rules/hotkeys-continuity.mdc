@@ -1,0 +1,54 @@
+---
+description: Preserve Phase G3 hotkeys / Nova Actions invariants
+globs:
+  - "frontend/src/hotkeys/**"
+  - "frontend/src/hooks/hotkeyUtils.ts"
+  - "frontend/src/hooks/useHotkeys.ts"
+  - "frontend/src/hooks/useHotkeys.test.ts"
+  - "frontend/src/strategy/HotkeySettings.tsx"
+  - "frontend/src/constantGroups/features.ts"
+  - ".cursor/agents/hotkeys.md"
+  - ".cursor/agent-memory/hotkeys-memory.md"
+alwaysApply: false
+---
+
+# Hotkeys continuity (Phase G3)
+
+Use this protocol for work on DAS-compatible hotkeys and executable Nova Actions.
+
+## Owner
+
+`hotkeys` subagent (`.cursor/agents/hotkeys.md`).
+
+## Start
+
+1. Read `.cursor/agent-memory/hotkeys-memory.md`.
+2. Skim `frontend/src/hotkeys/capabilityCatalog.ts` and `Nova-Roadmap-Status.md` Phase G / G2 / G3.
+3. Run scoped Vitest before claiming the hotkey surface is healthy:
+   `cd frontend && npx vitest run src/hotkeys src/hooks/useHotkeys.test.ts src/components/SettingsWorkspace.test.tsx`
+
+## Hard invariants
+
+- **Two systems:** Automation six (executor ladder) ≠ Nova Actions (manual discretionary). Do not gate System 2 on `signal`/`confirm`/`auto_paper`.
+- **No raw DAS execution:** imported `.htk` Command strings never register with the dispatcher until mapped to a typed Nova Action.
+- **One dispatcher:** single shell-level keydown listener; never mount a second independent `useHotkeys` that can double-fire.
+- **Key-repeat guard:** `event.repeat` must short-circuit before any callback.
+- **Manual safety gates:** System 2 reuses PIN unlock, spend lock, and place-confirm preference — never bypass.
+- **Bid/Ask honesty:** Ask±/Bid± actions use L2 top-of-book only; never silently substitute last trade.
+- **Cancel-all is orchestration:** symbol cancel loops existing per-order `execution.service.execute(operation="cancel")` — no broker SDK bypass.
+- **`auto_live` NO-GO:** never unlock live auto-trading from this domain.
+
+## Out of scope (hand off)
+
+- ADR 007 ledger / latency audit → `execution`
+- Stock View layout / Webull montage chrome → `widgets`
+- IB Gateway login / IBC → `ibkr-ops`
+- Quote/L2 feed coherence → `market-feed`
+- Verification → `tester`
+
+## End of material change
+
+1. Re-run scoped Vitest (+ `npm run build` when UI changed).
+2. Update hotkeys memory Current snapshot.
+3. Prepend `CHANGELOG.md` (and `PROBLEM_LOG.md` if a bug was fixed).
+4. Refresh `agent-hotkeys` canvas when phase/status metrics move.

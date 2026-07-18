@@ -12,7 +12,8 @@ export function NovaActiveShortcuts() {
     <div className="hotkey-nova-active">
       <h4 className="nova-os-section-title">Active Nova shortcuts</h4>
       <p className="na-muted">
-        These run in the Automation panel only. Imported DAS rows never replace them.
+        Automation ladder shortcuts (System 1). Rebindable Nova Actions above are
+        System 2 (manual path). Imported DAS rows never auto-run.
       </p>
       <ul className="executor-hotkeys-list">
         {HOTKEY_ACTIONS.map((action: HotkeyAction) => (

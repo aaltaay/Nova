@@ -46,6 +46,7 @@ Match any of (case-insensitive):
 | IB Gateway login / IBC / API port health | `ibkr-ops` | Loud-warn protocol; never stores credentials |
 | General scanner L1 + quote/chart/L2/T&S coherence | `market-feed` | `single-market-data-feed.mdc`; hand off HOD pool to `hod-momo`, UI layout to `widgets` |
 | News / catalyst pipeline | `news` | `backend/news/` + News UI |
+| Hotkeys / Nova Actions / DAS `.htk` (Phase G3) | `hotkeys` | Typed actions only; no raw DAS exec; `hotkeys-continuity.mdc` |
 | Backtest product (Phase E) + VectorBT skill cluster | `backtester` | Metrics-only; skills research/offline |
 | PR / branch / uncommitted diff security | Cursor `security-review` | Built-in; never swap with security |
 

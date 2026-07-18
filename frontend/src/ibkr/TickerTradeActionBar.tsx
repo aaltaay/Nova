@@ -1,11 +1,14 @@
-/** Bottom action bar for the full ticker trading page — Open / Close / Automate.
+/** Trading action bar — Open / Close / Automate.
  * Reuses IBKR order API + useExecutor; does not invent a second order path. */
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
-  API_BASE_URL,
-  TICKER_TRADE_DEFAULT_QTY,
+  STOCK_VIEW_MODULE_OPEN_TITLE,
   TICKER_TRADE_ORDER_DISCLOSURE,
 } from '../constants';
+import { NovaActionRuntimeSync } from '../hotkeys/NovaActionRuntimeSync';
+import { TradingQuickBar } from '../hotkeys/TradingQuickBar';
+import { ManualOrderTicket } from './ManualOrderTicket';
+import { placeIbkrOrder } from './placeOrder';
 import { TickerTradeAutomateControls } from './TickerTradeAutomateControls';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 
@@ -13,9 +16,18 @@ interface Props {
   symbol: string;
   mode: IbkrMode;
   connected: boolean;
+  spendStatus?: string;
   position: IbkrPosition | null;
   summary: IbkrAccountSummary | null;
+  referencePrice: number | null;
   onOrderPlaced?: () => void;
+  /**
+   * `footer` — full chrome (account + automate).
+   * `sidebar` — stacked under Level 2 (legacy Stock View).
+   * `rail` — Stock View terminal rail under L2+T&S: ticket + flatten only
+   *   (account/automate in header; height vs depth via rail horizontal splitter).
+   */
+  variant?: 'footer' | 'sidebar' | 'rail';
 }
 
 function fmtDollar(n: number | null | undefined) {
@@ -23,111 +35,36 @@ function fmtDollar(n: number | null | undefined) {
   return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-async function placeIbkrOrder(
-  symbol: string,
-  side: 'BUY' | 'SELL',
-  qty: number,
-  orderType: 'MKT' | 'LMT',
-  limitPrice?: number,
-) {
-  const body: Record<string, unknown> = {
-    symbol: symbol.toUpperCase(),
-    side,
-    qty,
-    order_type: orderType,
-  };
-  if (orderType === 'LMT' && limitPrice != null) body.limit_price = limitPrice;
-
-  const res = await fetch(`${API_BASE_URL}/api/ibkr/order`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return res.json() as Promise<{
-    ok: boolean;
-    order_id: number | null;
-    error: string | null;
-    mode?: string;
-  }>;
-}
-
 export function TickerTradeActionBar({
   symbol,
   mode,
   connected,
+  spendStatus,
   position,
   summary,
+  referencePrice,
   onOrderPlaced,
+  variant = 'footer',
 }: Props) {
-  const [qty, setQty] = useState(String(TICKER_TRADE_DEFAULT_QTY));
-  const [orderType, setOrderType] = useState<'MKT' | 'LMT'>('MKT');
-  const [limitPrice, setLimitPrice] = useState('');
-  const [side, setSide] = useState<'BUY' | 'SELL'>('BUY');
-  const [submitting, setSubmitting] = useState(false);
   const [closing, setClosing] = useState(false);
   const [resultMsg, setResultMsg] = useState<{ ok: boolean; text: string } | null>(null);
-
-  useEffect(() => {
-    setResultMsg(null);
-    setQty(String(TICKER_TRADE_DEFAULT_QTY));
-  }, [symbol]);
 
   const disabledReason = !connected
     ? 'IBKR disconnected — connect Gateway (Trading tab) to place orders'
     : mode === 'disconnected'
       ? 'IBKR mode offline'
-      : null;
+      : spendStatus === 'locked'
+        ? 'Orders locked — enable IBKR orders in Nova settings/environment'
+        : spendStatus === 'locked_live_unconfirmed'
+          ? 'Live orders locked — explicit live confirmation is required'
+          : null;
 
-  const canTrade = connected && mode !== 'disconnected' && !submitting && !closing;
+  const canTrade = connected && mode !== 'disconnected' && disabledReason == null && !closing;
   const modeLabel = mode === 'paper' ? 'PAPER' : mode === 'live' ? '⚠ LIVE' : 'OFFLINE';
   const hasPosition = position != null && position.qty !== 0;
-
-  const handleOpen = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!canTrade) return;
-      const q = parseFloat(qty);
-      if (!q || q <= 0) {
-        setResultMsg({ ok: false, text: 'Enter a valid quantity' });
-        return;
-      }
-      if (orderType === 'LMT' && !limitPrice) {
-        setResultMsg({ ok: false, text: 'Limit price required' });
-        return;
-      }
-
-      const confirmed = window.confirm(
-        `${TICKER_TRADE_ORDER_DISCLOSURE}\n\n` +
-          `Place ${side} ${q} ${symbol} (${orderType}${orderType === 'LMT' ? ` @ $${limitPrice}` : ''}) ` +
-          `on the ${mode.toUpperCase()} account?`,
-      );
-      if (!confirmed) return;
-
-      setSubmitting(true);
-      setResultMsg(null);
-      try {
-        const data = await placeIbkrOrder(
-          symbol,
-          side,
-          q,
-          orderType,
-          orderType === 'LMT' ? parseFloat(limitPrice) : undefined,
-        );
-        setResultMsg({
-          ok: data.ok,
-          text: data.ok
-            ? `Opened #${data.order_id} (${data.mode ?? mode})`
-            : data.error ?? 'Order failed',
-        });
-        if (data.ok) onOrderPlaced?.();
-      } catch {
-        setResultMsg({ ok: false, text: 'Network error' });
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [canTrade, qty, orderType, limitPrice, side, symbol, mode, onOrderPlaced],
-  );
+  const compactChrome = variant === 'rail';
+  const showAccount = !compactChrome;
+  const showAutomate = !compactChrome;
 
   async function handleClose() {
     if (!canTrade || !position || position.qty === 0) return;
@@ -143,7 +80,13 @@ export function TickerTradeActionBar({
     setClosing(true);
     setResultMsg(null);
     try {
-      const data = await placeIbkrOrder(symbol, closeSide, absQty, 'MKT');
+      const data = await placeIbkrOrder({
+        symbol: symbol.toUpperCase(),
+        side: closeSide,
+        qty: absQty,
+        order_type: 'MKT',
+        outside_rth: false,
+      });
       setResultMsg({
         ok: data.ok,
         text: data.ok
@@ -158,102 +101,65 @@ export function TickerTradeActionBar({
     }
   }
 
+  const barClass =
+    variant === 'rail'
+      ? 'ticker-trade-bar ticker-trade-bar--rail'
+      : variant === 'sidebar'
+        ? 'ticker-trade-bar ticker-trade-bar--sidebar'
+        : 'ticker-trade-bar';
+
   return (
-    <div className="ticker-trade-bar" role="region" aria-label="Trading actions">
+    <div className={barClass} role="region" aria-label="Trading actions">
+      <NovaActionRuntimeSync symbol={symbol} position={position} />
+      <TradingQuickBar />
       <div className="ticker-trade-bar-top">
-        <div className="ticker-trade-bar-account">
-          <span className={`ibkr-mode-badge ibkr-mode-${mode}`}>{modeLabel}</span>
-          {summary?.connected && (
-            <>
+        {showAccount && (
+          <div className="ticker-trade-bar-account">
+            <span className={`ibkr-mode-badge ibkr-mode-${mode}`}>{modeLabel}</span>
+            {summary?.connected && (
+              <>
+                <span className="ticker-trade-bar-metric">
+                  <label>Net Liq</label> {fmtDollar(summary.NetLiquidation)}
+                </span>
+                <span className="ticker-trade-bar-metric">
+                  <label>BP</label> {fmtDollar(summary.BuyingPower)}
+                </span>
+              </>
+            )}
+            {hasPosition && (
               <span className="ticker-trade-bar-metric">
-                <label>Net Liq</label> {fmtDollar(summary.NetLiquidation)}
+                <label>Pos</label> {position!.qty} @ {position!.avg_cost?.toFixed(2) ?? '—'}
               </span>
-              <span className="ticker-trade-bar-metric">
-                <label>BP</label> {fmtDollar(summary.BuyingPower)}
-              </span>
-            </>
-          )}
-          {hasPosition && (
+            )}
+          </div>
+        )}
+
+        {compactChrome && hasPosition && (
+          <div className="ticker-trade-bar-account ticker-trade-bar-account--pos-only">
             <span className="ticker-trade-bar-metric">
               <label>Pos</label> {position!.qty} @ {position!.avg_cost?.toFixed(2) ?? '—'}
             </span>
+          </div>
+        )}
+
+        <div className="ticker-trade-bar-open">
+          {!compactChrome && (
+            <span className="ticker-trade-bar-group-label">{STOCK_VIEW_MODULE_OPEN_TITLE}</span>
           )}
+          <ManualOrderTicket
+            symbol={symbol}
+            mode={mode}
+            connected={connected}
+            spendStatus={spendStatus}
+            summary={summary}
+            position={position}
+            referencePrice={referencePrice}
+            onOrderPlaced={() => onOrderPlaced?.()}
+          />
         </div>
 
-        <form className="ticker-trade-bar-open" onSubmit={handleOpen}>
-          <span className="ticker-trade-bar-group-label">Open</span>
-          <div className="ticker-trade-bar-sides">
-            <button
-              type="button"
-              className={`ibkr-side-btn${side === 'BUY' ? ' active-buy' : ''}`}
-              onClick={() => setSide('BUY')}
-              disabled={!canTrade}
-            >
-              BUY
-            </button>
-            <button
-              type="button"
-              className={`ibkr-side-btn${side === 'SELL' ? ' active-sell' : ''}`}
-              onClick={() => setSide('SELL')}
-              disabled={!canTrade}
-            >
-              SELL
-            </button>
-          </div>
-          <input
-            className="ibkr-input ticker-trade-bar-qty"
-            type="number"
-            min="1"
-            step="1"
-            value={qty}
-            onChange={(e) => setQty(e.target.value)}
-            disabled={!canTrade}
-            aria-label="Quantity"
-            placeholder="Qty"
-          />
-          <div className="ticker-trade-bar-sides">
-            <button
-              type="button"
-              className={`ibkr-side-btn${orderType === 'MKT' ? ' active-type' : ''}`}
-              onClick={() => setOrderType('MKT')}
-              disabled={!canTrade}
-            >
-              MKT
-            </button>
-            <button
-              type="button"
-              className={`ibkr-side-btn${orderType === 'LMT' ? ' active-type' : ''}`}
-              onClick={() => setOrderType('LMT')}
-              disabled={!canTrade}
-            >
-              LMT
-            </button>
-          </div>
-          {orderType === 'LMT' && (
-            <input
-              className="ibkr-input ticker-trade-bar-limit"
-              type="number"
-              min="0"
-              step="0.01"
-              value={limitPrice}
-              onChange={(e) => setLimitPrice(e.target.value)}
-              disabled={!canTrade}
-              aria-label="Limit price"
-              placeholder="Limit $"
-            />
-          )}
-          <button
-            type="submit"
-            className={`ibkr-submit-btn ibkr-submit-${side.toLowerCase()} ticker-trade-bar-submit`}
-            disabled={!canTrade}
-            title={disabledReason ?? `Place ${side} order via IBKR`}
-          >
-            {submitting ? 'Placing…' : `Open ${side}`}
-          </button>
-        </form>
-
         <div className="ticker-trade-bar-close">
-          <span className="ticker-trade-bar-group-label">Close</span>
+          {!compactChrome && <span className="ticker-trade-bar-group-label">Close</span>}
           <button
             type="button"
             className="ticker-trade-close-btn"
@@ -273,7 +179,7 @@ export function TickerTradeActionBar({
           </button>
         </div>
 
-        <TickerTradeAutomateControls enabled />
+        {showAutomate && <TickerTradeAutomateControls enabled />}
       </div>
 
       <div className="ticker-trade-bar-footer">

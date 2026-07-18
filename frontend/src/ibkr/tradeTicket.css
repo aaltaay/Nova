@@ -1,0 +1,268 @@
+/* Manual order ticket — Primer stack/control spacing (GitHub design system).
+   Interaction pattern stays Nova/IBKR; tokens map to existing CSS variables.
+   Ref: https://github.com/primer/primitives (stack-gap-normal = 16px, 8px grid). */
+
+.manual-order-ticket {
+  /* Primer stack tokens (local aliases — no @primer dependency) */
+  --mot-space-1: 4px;
+  --mot-space-2: 8px;
+  --mot-space-3: 16px;
+  --mot-space-4: 24px;
+  --mot-control-h: 32px; /* Primer medium control */
+  --mot-radius: 6px;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--mot-space-3); /* stack-gap-normal between field groups */
+  width: 100%;
+  min-width: 0;
+  padding: var(--mot-space-3);
+  box-sizing: border-box;
+  color: var(--text-primary, #e5e7eb);
+}
+
+/* Primer FormControl label / overline */
+.manual-order-label {
+  display: block;
+  margin: 0 0 var(--mot-space-1);
+  color: var(--text-muted, #6b7280);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.manual-order-ticket > .manual-order-label:first-child {
+  margin-top: 0;
+}
+
+.manual-order-segment {
+  display: grid;
+  min-height: var(--mot-control-h);
+  overflow: hidden;
+  border: 1px solid var(--border-color, #343434);
+  border-radius: var(--mot-radius);
+  background: var(--bg-primary, #090909);
+}
+
+.manual-order-side {
+  grid-template-columns: 1fr 1fr;
+}
+
+.manual-order-types {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.manual-order-segment button {
+  border: 0;
+  border-right: 1px solid var(--border-color, #343434);
+  background: transparent;
+  color: var(--text-secondary, #a3a3a3);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0 var(--mot-space-2);
+}
+
+.manual-order-segment button:last-child {
+  border-right: 0;
+}
+
+.manual-order-segment button:hover:not(:disabled) {
+  color: var(--text-primary, #e5e7eb);
+  background: var(--row-bg-alt, rgba(255, 255, 255, 0.04));
+}
+
+.manual-order-side button.is-buy {
+  background: var(--green, #10b981);
+  color: #fff;
+}
+
+.manual-order-side button.is-sell {
+  background: var(--red, #ef4444);
+  color: #fff;
+}
+
+.manual-order-types button {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.manual-order-types button.is-active {
+  color: var(--accent, #38bdf8);
+  background: rgba(14, 165, 233, 0.16);
+  box-shadow: inset 0 0 0 1px var(--accent, #38bdf8);
+}
+
+.manual-order-default-tag {
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7280);
+}
+
+.manual-order-types button.is-active .manual-order-default-tag {
+  color: color-mix(in srgb, var(--accent, #38bdf8) 80%, var(--text-muted, #6b7280));
+}
+
+.manual-order-quantity-row {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 32%) minmax(0, 1fr);
+  gap: var(--mot-space-2); /* controlStack gap condensed */
+  align-items: stretch;
+}
+
+.manual-order-quantity-row > input {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+  padding-inline: var(--mot-space-2);
+}
+
+.manual-order-ticket input,
+.manual-order-ticket select {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--mot-control-h);
+  box-sizing: border-box;
+  border: 1px solid var(--border-color, #343434);
+  border-radius: var(--mot-radius);
+  background: var(--input-bg, #090909);
+  color: var(--text-primary, #e5e7eb);
+  padding: 5px 12px; /* Primer medium control padding */
+  font: inherit;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.manual-order-ticket input:focus,
+.manual-order-ticket select:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent, #38bdf8) 55%, transparent);
+  outline-offset: 1px;
+  border-color: var(--accent, #38bdf8);
+}
+
+/* Separated chips — Primer controlStack gap (8px) */
+.manual-order-unit-toggle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--mot-space-2);
+  min-width: 0;
+  border: none;
+  background: transparent;
+}
+
+.manual-order-unit-toggle button,
+.manual-order-presets button {
+  border: 1px solid var(--border-color, #343434);
+  border-radius: var(--mot-radius);
+  background: var(--row-bg-alt, rgba(255, 255, 255, 0.06));
+  color: var(--text-secondary, #a3a3a3);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.manual-order-unit-toggle button {
+  min-width: 0;
+  min-height: var(--mot-control-h);
+  padding: 0 var(--mot-space-2);
+}
+
+.manual-order-unit-toggle button.is-active {
+  border-color: color-mix(in srgb, var(--accent, #38bdf8) 65%, var(--border-color, #343434));
+  background: rgba(14, 165, 233, 0.22);
+  color: var(--accent, #38bdf8);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #38bdf8) 35%, transparent);
+}
+
+.manual-order-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--mot-space-2);
+  margin-top: calc(-1 * var(--mot-space-1)); /* nest under quantity group */
+}
+
+.manual-order-presets button {
+  min-height: 28px; /* Primer small control */
+  padding: 3px 8px;
+}
+
+.manual-order-presets button:hover:not(:disabled),
+.manual-order-unit-toggle button:hover:not(:disabled) {
+  color: var(--text-primary, #e5e7eb);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: color-mix(in srgb, var(--text-secondary, #a3a3a3) 55%, var(--border-color, #343434));
+}
+
+/* Layout tweak for shadcn Button primary CTA (color comes from Tailwind primary) */
+.manual-order-submit {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.manual-order-segment button:disabled,
+.manual-order-unit-toggle button:disabled,
+.manual-order-presets button:disabled,
+.manual-order-ticket input:disabled,
+.manual-order-ticket select:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.manual-order-ticket input:read-only {
+  opacity: 0.85;
+}
+
+.manual-order-lock-note,
+.manual-order-result {
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.manual-order-result {
+  font-weight: 600;
+}
+
+.manual-order-lock-note {
+  color: var(--text-muted, #737373);
+}
+
+.manual-order-result.ok {
+  color: var(--green, #22c55e);
+}
+
+.manual-order-result.err {
+  color: var(--red, #ef4444);
+}
+
+.ticker-trade-bar--sidebar .ticker-trade-bar-open {
+  display: block;
+}
+
+.ticker-trade-bar--sidebar .ticker-trade-bar-account {
+  padding-bottom: 0.2rem;
+}
+
+.ibkr-order-ticket .manual-order-ticket {
+  padding-top: var(--mot-space-3);
+  border-top: 1px solid var(--border-color, #343434);
+}
+
+@media (max-width: 360px) {
+  .manual-order-quantity-row {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-order-unit-toggle {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Phase G3 Nova Actions + hotkeys specialist
+
+- **What:** Scaffolded `hotkeys` specialist (Owned); Settings → Hotkeys gains editable **Nova Actions**; Trading quick-bar buttons; typed cancel / exit / Ask±/Bid± through the manual order path; `DELETE /api/ibkr/orders?symbol=`; one shell-level hotkey dispatcher with `event.repeat` guard.
+- **Why:** Reach DAS-grade trading hotkeys without executing raw `.htk` scripts; Continuity-only G/G2 had no steward for executable work.
+- **Files touched:** `.cursor/agents/hotkeys.md`, `hotkeys-continuity.mdc`, `frontend/src/hotkeys/*`, `frontend/src/hooks/hotkeyUtils.ts`, `useHotkeys.ts`, `App.tsx`, `backend/routes/trading.py`, `Nova-Roadmap-Status.md`, fleet map / routing / `AGENTS.md`.
+- **How it works now:** System 1 (Automation six) registers with `HotkeyDispatchProvider`; System 2 Nova Actions use PIN/spend-lock/confirm and L2 top-of-book for Ask/Bid. Imported DAS rows stay inactive until mapped. `auto_live` remains NO-GO.
+- **Verified by:** `pytest backend/tests/test_trading_cancel_all.py`; Vitest `src/hotkeys` + `useHotkeys` + `exitPosition`; `npm run build`; `agent_contract.py` PASS (15 agents).
+- **Follow-ups:** Map-to-Nova-Action UX polish; P3 risk-dollar / OTO; tester browser pass on Settings → Hotkeys + quick-bar.
+- **Related:** Phase G2 `645761b`; task log `knowledge/task-log/2026-07-18-phase-g3-nova-actions.md`
+
 ## 2026-07-18 — Nova agent dreaming (full mission)
 
 - **What:** Fleet dream CLI now covers light/REM/deep **plus** LLM REM (key-gated), Obsidian decision hygiene/stamps, Pinecone re-ingest hook, Claude Auto Dream + OpenClaw MEMORY bridges, and `--commit`/`--push`.

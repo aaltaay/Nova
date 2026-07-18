@@ -14,14 +14,17 @@ import {
   createEmptyProfile,
   loadProfile,
   profileFromRecords,
+  restoreDefaultNovaActions,
   saveProfile,
 } from './hotkeyStorage';
+import type { NovaActionRecord } from './novaActionTypes';
 import type {
   HotkeyProfile,
   HotkeyRecord,
   HotkeyRecordAnalysis,
   HtkParseIssue,
 } from './types';
+import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 
 export interface ImportPreview {
   fileName: string;
@@ -38,6 +41,7 @@ export function useHotkeyProfile() {
   const [profile, setProfile] = useState<HotkeyProfile>(() => loadProfile());
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const dispatch = useHotkeyDispatchOptional();
 
   const analyses = useMemo(
     () => analyzeProfile(profile.records),
@@ -63,9 +67,13 @@ export function useHotkeyProfile() {
   const confirmImportReplace = useCallback(() => {
     setImportPreview((prev) => {
       if (!prev) return null;
-      const next = commit(profileFromRecords(prev.records, prev.fileName));
-      setProfile(next);
-      setSelectedId(prev.records[0]?.id ?? null);
+      setProfile((cur) => {
+        const next = commit(
+          profileFromRecords(prev.records, prev.fileName, cur.novaActions),
+        );
+        setSelectedId(prev.records[0]?.id ?? null);
+        return next;
+      });
       return null;
     });
   }, []);
@@ -131,7 +139,28 @@ export function useHotkeyProfile() {
   const resetProfile = useCallback(() => {
     setProfile(commit(createEmptyProfile()));
     setSelectedId(null);
-  }, []);
+    dispatch?.reloadNovaActions();
+  }, [dispatch]);
+
+  const setNovaActions = useCallback((novaActions: NovaActionRecord[]) => {
+    setProfile((prev) => {
+      const next = commit({
+        ...prev,
+        novaActions,
+        updatedAt: new Date().toISOString(),
+      });
+      dispatch?.reloadNovaActions();
+      return next;
+    });
+  }, [dispatch]);
+
+  const restoreNovaDefaults = useCallback(() => {
+    setProfile((prev) => {
+      const next = commit(restoreDefaultNovaActions(prev));
+      dispatch?.reloadNovaActions();
+      return next;
+    });
+  }, [dispatch]);
 
   return {
     profile,
@@ -150,5 +179,7 @@ export function useHotkeyProfile() {
     deleteRecord,
     deleteKey,
     resetProfile,
+    setNovaActions,
+    restoreNovaDefaults,
   };
 }

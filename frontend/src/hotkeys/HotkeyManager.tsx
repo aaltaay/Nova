@@ -14,6 +14,7 @@ import { HotkeyRecordsTable } from './HotkeyRecordsTable';
 import { HotkeyRowEditor } from './HotkeyRowEditor';
 import { HotkeySelectedDetail } from './HotkeySelectedDetail';
 import { HotkeySummaryBar } from './HotkeySummaryBar';
+import { NovaActionsTable } from './NovaActionsTable';
 import { NovaActiveShortcuts } from './NovaActiveShortcuts';
 import { formatKeyChord } from './htkFormat';
 import { useHotkeyProfile } from './useHotkeyProfile';
@@ -35,6 +36,8 @@ export function HotkeyManager() {
     updateRecord,
     deleteRecord,
     deleteKey,
+    setNovaActions,
+    restoreNovaDefaults,
   } = useHotkeyProfile();
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -144,6 +147,12 @@ export function HotkeyManager() {
       {selectedAnalysis && selected && (
         <HotkeySelectedDetail selected={selected} analysis={selectedAnalysis} />
       )}
+
+      <NovaActionsTable
+        actions={profile.novaActions}
+        onChange={setNovaActions}
+        onRestoreDefaults={restoreNovaDefaults}
+      />
 
       <NovaActiveShortcuts />
 

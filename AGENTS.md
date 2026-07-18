@@ -261,6 +261,13 @@ When touching ANY function currently in a monolith file:
 - Prepend entry after fixing any build/test/linter failure, runtime error, incorrect behavior, or subtle root cause.
 - Use the template in `PROBLEM_LOG.md` (Symptom, Cause, Fix, Keywords).
 
+### 7.2b Task log (`knowledge/task-log/`)
+
+- After every completed material task (parent or specialist), append a dated narrative under `knowledge/task-log/` and prepend `INDEX.md`.
+- **Why this approach** is mandatory — capture tradeoffs and rejected alternatives, not only the diff.
+- Rule: `.cursor/rules/task-log.mdc`. Scaffold: `py -3 tools/task_log_new.py --slug <kebab> --title "…"`.
+- Lifecycle footer includes `task_log=<path>|skipped|n/a`.
+
 ### 7.3 .cursor/rules/
 
 - MDC rules are peers of this constitution. They provide fine-grained, glob-scoped enforcement.
@@ -324,6 +331,8 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-18 | Phase G3: `hotkeys` specialist Owned; typed Nova Actions (cancel/exit/Ask±/Bid±); one dispatcher; Trading quick-bar; `auto_live` NO-GO. | Cursor Agent |
+| 2026-07-18 | Task log archive: `knowledge/task-log/` + always-on `task-log.mdc`; Lifecycle `task_log=`; scaffold `tools/task_log_new.py`. Captures why/tradeoffs after every material job. | Cursor Agent |
 | 2026-07-18 | Agent naming standardization: `nova-router`→`router`, `nova-agent`→`docs`, `security-sentinel`→`security`, `widgets-agent`→`widgets`, `news-catalyst`→`news`; canvases aligned to `agent-<id>`; fleet map Mode column; registry reordered. | Cursor Agent |
 | 2026-07-18 | Fleet gap-fill: scaffolded `execution` (audit-only + `execution-continuity.mdc`), `ibkr-ops`, `backtester` (absorbs VectorBT skill cluster), `market-feed`, `news`, and top-of-fleet `daddy` dispatcher; flipped `Agent-Fleet-Map.md` Unowned→Owned / Orphan→Owned; routing + docs + contract updated to 14 agents. | Cursor Agent |
 | 2026-07-18 | Agent Fleet Router: `Agent-Fleet-Map.md` domain/skill ownership matrix; `tools/agent_fleet.py` read-only crack index (+ tests); Nova Home "Fleet cracks" rollup; `router` specialist (report-only triage, `agent-router` dashboard); `sessionStart` hook (`tools/session_brief_hook.py`) leads every chat with top-3 cracks; `specialist-routing.mdc` gains an unowned-domain escalation path; fixed missing `hod-momo` in `AGENT_TITLES`. | Cursor Agent |
@@ -365,6 +374,7 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 | **daddy** | “daddy, …” or “Use the daddy subagent to dispatch this” | [agent-daddy](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-daddy.canvas.tsx) |
 | **router** | “Use the router subagent to triage this” | [agent-router](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-router.canvas.tsx) |
 | **execution** | “Use the execution subagent to audit trading execution” | [agent-execution](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-execution.canvas.tsx) |
+| **hotkeys** | “Use the hotkeys subagent to …” | [agent-hotkeys](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hotkeys.canvas.tsx) |
 | **ibkr-ops** | “Use the ibkr-ops subagent to diagnose IB Gateway” | [agent-ibkr-ops](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-ibkr-ops.canvas.tsx) |
 | **market-feed** | “Use the market-feed subagent to fix feed coherence” | [agent-market-feed](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-market-feed.canvas.tsx) |
 | **hod-momo** | “Use the hod-momo subagent to continue HOD Momo parity” | [agent-hod-momo](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hod-momo.canvas.tsx) |
