@@ -54,6 +54,7 @@ Windows: always `py -3` for Python.
 
 | Need | Agent(s) |
 |------|----------|
+| “Just get this done” / multi-specialist orchestration | `daddy` (hand off — router does not dispatch) |
 | Test / build / browser verification | `tester` |
 | Maintainability / danger audit | `maintainer` |
 | Full-repo security posture / SEC-NNN | `security-sentinel` |
@@ -61,8 +62,13 @@ Windows: always `py -3` for Python.
 | Warrior Trading authenticated site navigation | `warrior` |
 | HOD Momo scanner data-quality / IBKR feed UML | `hod-momo` |
 | Webull-to-Nova widget mapping | `widgets-agent` |
+| Trading execution ADR 007 audit | `execution` |
+| IB Gateway login / IBC / port health | `ibkr-ops` |
+| General scanner L1 + quote/chart/L2/T&S coherence | `market-feed` |
+| News / catalyst pipeline | `news-catalyst` |
+| Backtest product + VectorBT skills | `backtester` |
 | PR / branch / uncommitted diff security | Cursor `security-review` (built-in) |
-| Anything in a domain marked `Unowned` in `Agent-Fleet-Map.md` | Say so; do not silently DIY — offer parent-direct or new-specialist path |
+| Anything in a domain marked `Unowned` / `Continuity-only` in `Agent-Fleet-Map.md` | Say so; do not silently DIY — offer parent-direct, `daddy`, or new-specialist path |
 | "What's broken in the fleet?" / "who owns X?" | Answer directly from `agent_fleet.py` + `Agent-Fleet-Map.md` — no handoff needed |
 
 ## Output format — Routing card (required first output)

@@ -240,6 +240,7 @@ def replace_or_insert_block(
 
 
 AGENT_TITLES = {
+    "daddy": "Daddy",
     "nova-agent": "Nova Agent",
     "tester": "Tester",
     "maintainer": "Maintainer",
@@ -248,6 +249,11 @@ AGENT_TITLES = {
     "hod-momo": "HOD Momo Parity",
     "widgets-agent": "Widgets Agent",
     "nova-router": "Nova Router",
+    "execution": "Execution Auditor",
+    "ibkr-ops": "IBKR Ops",
+    "backtester": "Backtester",
+    "market-feed": "Market Feed",
+    "news-catalyst": "News Catalyst",
 }
 
 

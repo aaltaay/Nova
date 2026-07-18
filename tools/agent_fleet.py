@@ -39,7 +39,10 @@ REGISTRY_PATH = REPO_ROOT / ".cursor" / "agent-system" / "registry.json"
 
 STALE_SNAPSHOT_DAYS = 7
 CANVAS_ALLOWLIST_PREFIXES = ("context-usage-",)
-CANVAS_ALLOWLIST_NAMES = {"nova-home.canvas.tsx"}
+CANVAS_ALLOWLIST_NAMES = {
+    "nova-home.canvas.tsx",
+    "nova-design-audit.canvas.tsx",
+}
 
 BACKLOG_ITEM_RE = re.compile(r"^-\s*\[ \]\s*(.+)$")
 TABLE_ROW_RE = re.compile(r"^\|(.+)\|\s*$")

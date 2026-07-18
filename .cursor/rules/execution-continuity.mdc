@@ -1,0 +1,49 @@
+---
+description: Preserve ADR 007 centralized trading-execution invariants
+globs:
+  - "backend/execution/**"
+  - "backend/ports/execution.py"
+  - "docs/trading-execution-validation.md"
+  - "tools/execution_latency_probe.py"
+  - ".cursor/agents/execution.md"
+  - ".cursor/agent-memory/execution-memory.md"
+alwaysApply: false
+---
+
+# Execution continuity (ADR 007)
+
+Use this protocol for work on the centralized trading-execution pipe.
+
+## Owner
+
+`execution` subagent (`.cursor/agents/execution.md`) — **audit-only by default**.
+Product fixes inside `backend/execution/` require an explicit ask each time.
+
+## Start
+
+1. Read `architecture/decisions/007-centralized-trading-execution.md`.
+2. Read `docs/trading-execution-validation.md`.
+3. Read `.cursor/agent-memory/execution-memory.md`.
+4. Run `py -3 -m pytest backend/tests/test_execution_service.py -q` before claiming the pipe is healthy.
+
+## Hard invariants
+
+- **One mutation entry:** callers use `execution.service.execute` → `ExecutionReceipt`. Strategies/UI/agents must not call the broker SDK directly.
+- **Adapter exclusivity:** `placeOrder` / order send lives only in `backend/ibkr/orders.py` (via `ExecutionPort`).
+- **Ack honesty:** local `PendingSubmit` / assigned `orderId` ≠ broker acknowledgment.
+- **Persist-before-send:** ledger reserve/commit before broker send; idempotency key uniqueness.
+- **`auto_live` NO-GO:** never unlock live auto-trading from this domain. Live probes need a separate user-approved phase.
+- **Paper and live share the same code path** — only Gateway account/credentials and safety gates differ.
+
+## Out of scope (hand off)
+
+- Nova OS control modes / arm / kill / staged tickets → `backend/strategy/executor*.py` + `nova-os-continuity.mdc` / Roadmap-Status (not this agent).
+- IB Gateway login / IBC / port health → `ibkr-ops`.
+- Full-repo security posture / SEC-NNN → `security-sentinel`.
+
+## End of material change
+
+1. Re-run `test_execution_service.py` (+ latency probe when SLA claims change).
+2. Update `docs/trading-execution-validation.md` and the `agent-execution-validation` canvas snapshot if verdict/metrics moved.
+3. Update execution memory Current snapshot.
+4. Prepend `CHANGELOG.md` (and `PROBLEM_LOG.md` if a bug was fixed).

@@ -52,17 +52,25 @@ def test_parse_backlog_stops_at_completed(fleet, tmp_path, monkeypatch):
     assert items == ["first open item", "second open item"]
 
 
-def test_parse_fleet_map_table_finds_unowned_domain(fleet):
+def test_parse_fleet_map_table_finds_owned_and_continuity(fleet):
     rows = fleet.parse_fleet_map_table("Domain ownership")
     assert rows, "expected at least one parsed domain row"
     statuses = {r["Status"] for r in rows}
-    assert "Unowned" in statuses
-    assert any(r["Domain"] == "News / catalyst pipeline" for r in rows)
+    assert "Owned" in statuses
+    assert "Continuity-only" in statuses
+    assert any(
+        r["Domain"] == "News / catalyst pipeline" and r["Owner"] == "news-catalyst"
+        for r in rows
+    )
+    assert any(r["Domain"] == "Fleet dispatch / orchestration" and r["Owner"] == "daddy" for r in rows)
 
 
 def test_parse_fleet_map_table_skills(fleet):
     rows = fleet.parse_fleet_map_table("Skill ownership")
-    assert any(r["Skill"] == "backtest" and r["Status"] == "Orphan" for r in rows)
+    assert any(
+        r["Skill"] == "backtest" and r["Status"] == "Owned" and r["Owner"] == "backtester"
+        for r in rows
+    )
 
 
 def test_find_unmanaged_canvases_flags_stray_file(fleet, tmp_path, monkeypatch):

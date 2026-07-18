@@ -3,7 +3,8 @@
 Catalog of **vendored** Cursor agent skills under `.cursor/skills/`. Companion study catalog (not vendored): [[Reference-Repos]].
 
 **Installed:** 2026-07-15  
-**Pin file:** `.cursor/skills/SOURCE-PINS.txt`
+**Pin file:** `.cursor/skills/SOURCE-PINS.txt`  
+**Steward:** `backtester` owns the VectorBT cluster (`backtest`, `optimize`, `strategy-compare`, `vectorbt-expert`, `backtesting-frameworks`); `security-sentinel` owns `llm-trading-agent-security`. See [[Agent-Fleet-Map]].
 
 ## Nova guardrails (applies to every skill below)
 
@@ -113,7 +114,7 @@ If a skill’s copy conflicts with Nova rules, **Nova constitution + `.cursor/ru
 
 | Skill | Path | Role |
 |-------|------|------|
-| karpathy-guidelines | `.cursor/skills/karpathy-guidelines/` | Coding discipline |
+| karpathy-guidelines | `.cursor/skills/karpathy-guidelines/` | Coding discipline + creative foresight (elegant simplicity, think ahead without gold-plating) |
 | graphify | `.cursor/skills/graphify/` (+ `.claude/skills/graphify/`) | Knowledge-graph rebuild/query |
 
 ## Security agents & skills

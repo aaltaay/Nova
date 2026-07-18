@@ -43,6 +43,12 @@ def test_discovery_finds_registered_agents(ac):
         "hod-momo",
         "widgets-agent",
         "nova-router",
+        "execution",
+        "ibkr-ops",
+        "backtester",
+        "market-feed",
+        "news-catalyst",
+        "daddy",
     }
 
 

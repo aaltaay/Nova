@@ -324,6 +324,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-18 | Fleet gap-fill: scaffolded `execution` (audit-only + `execution-continuity.mdc`), `ibkr-ops`, `backtester` (absorbs VectorBT skill cluster), `market-feed`, `news-catalyst`, and top-of-fleet `daddy` dispatcher; flipped `Agent-Fleet-Map.md` Unowned→Owned / Orphan→Owned; routing + docs + contract updated to 14 agents. | Cursor Agent |
 | 2026-07-18 | Agent Fleet Router: `Agent-Fleet-Map.md` domain/skill ownership matrix; `tools/agent_fleet.py` read-only crack index (+ tests); Nova Home "Fleet cracks" rollup; `nova-router` specialist (report-only triage, `agent-router` dashboard); `sessionStart` hook (`tools/session_brief_hook.py`) leads every chat with top-3 cracks; `specialist-routing.mdc` gains an unowned-domain escalation path; fixed missing `hod-momo` in `AGENT_TITLES`. | Cursor Agent |
 | 2026-07-16 | Webull Widget Parity Specialist (`widgets-agent`): source-backed stock/day-trading capability map, continuity rule, and dedicated `agent-widgets` dashboard; selected implementations preserve manual controls and IBKR safety. | Cursor Agent |
 | 2026-07-16 | Unified agent lifecycle OS: `.cursor/agent-system/` contract+registry; memories in `.cursor/agent-memory/`; specialist-routing + subagentStop hook; agent_contract / sync_agent_surfaces / create_nova_agent tools + CI job; docs/agent-operations.md. | Cursor Agent |
@@ -360,6 +361,7 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 
 | Agent | Invoke | Dashboard |
 |-------|--------|-----------|
+| **daddy** | “Use the daddy subagent to dispatch this” | [agent-daddy](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-daddy.canvas.tsx) |
 | **nova-router** | “Use the nova-router subagent to triage this” | [agent-router](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-router.canvas.tsx) |
 | **nova-agent** | “Use the Nova Agent to review documentation” | [nova-home](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\nova-home.canvas.tsx) |
 | **tester** | “Use the tester subagent to verify …” | `agent-tester.canvas.tsx` |
@@ -368,8 +370,13 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 | **warrior** | “Use the warrior subagent to navigate Warrior Trading” | [agent-warrior](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-warrior.canvas.tsx) |
 | **hod-momo** | “Use the hod-momo subagent to continue HOD Momo parity” | [agent-hod-momo](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hod-momo.canvas.tsx) |
 | **widgets-agent** | “Use the widgets-agent subagent to map Webull widgets to Nova” | [agent-widgets](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-widgets.canvas.tsx) |
+| **execution** | “Use the execution subagent to audit trading execution” | [agent-execution-validation](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-execution-validation.canvas.tsx) |
+| **ibkr-ops** | “Use the ibkr-ops subagent to diagnose IB Gateway” | [agent-ibkr-ops](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-ibkr-ops.canvas.tsx) |
+| **market-feed** | “Use the market-feed subagent to fix feed coherence” | [agent-market-feed](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-market-feed.canvas.tsx) |
+| **backtester** | “Use the backtester subagent to work the backtest product” | [agent-backtester](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-backtester.canvas.tsx) |
+| **news-catalyst** | “Use the news-catalyst subagent to work the news pipeline” | [agent-news-catalyst](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-news-catalyst.canvas.tsx) |
 
-Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Nova Agent. Warrior site navigation owns `agent-warrior` (not Nova Home). `hod-momo` owns the ongoing HOD Momo ↔ Warrior parity workstream (`agent-hod-momo`); never feeds Warrior data into Nova's alert engine. `widgets-agent` owns the evidence-based Webull ↔ Nova stock/day-trading capability map and `agent-widgets`; Webull remains research-only. `nova-router` is a report-only fleet-triage dispatcher (`tools/agent_fleet.py` crack index + `knowledge/obsidian/00-System/Agent-Fleet-Map.md` ownership matrix) — invoke it for ambiguous/multi-domain tasks; it never implements product code. Route via `.cursor/rules/specialist-routing.mdc`.
+Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Nova Agent. **`daddy`** is the top-of-fleet dispatcher (classify → dispatch/sequence → aggregate; never implements product code). **`nova-router`** remains the pure classification / crack-index tool. `hod-momo` owns HOD Momo ↔ Warrior parity (`agent-hod-momo`); never feeds Warrior data into Nova's alert engine. `widgets-agent` owns Webull ↔ Nova widget mapping (`agent-widgets`); Webull remains research-only. `execution` is audit-only for ADR 007. `market-feed` owns general L1 + quote/L2/T&S coherence (HOD pool stays `hod-momo`). `backtester` owns Phase E + the VectorBT skill cluster. Route via `.cursor/rules/specialist-routing.mdc`.
 
 ---
 
