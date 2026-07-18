@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Daddy orchestration contract (parallel vs sequence)
+
+- **What:** Documented that specialists do not peer-chat — daddy is a hub. Added parallel-safe / sequential / write-conflict rules to `daddy.md` and a durable **Orchestration** table in `Agent-Fleet-Map.md`; daddy reports now label `[parallel]` vs `[after: …]`. Canvas `agent-daddy` shows the same matrix.
+- **Why:** Need a clear way to communicate which agents can run together vs which must wait or would conflict on the same files.
+- **Files touched:** `.cursor/agents/daddy.md`, `knowledge/obsidian/00-System/Agent-Fleet-Map.md`, `agent-daddy.canvas.tsx`.
+- **How it works now:** Audit/research agents (`maintainer`, `security`, `execution`, `router`, `warrior`) may run in parallel. Implementers that share paths (`market-feed`/`hod-momo`/`widgets`) must sequence. Gateway work (`ibkr-ops`) usually runs before feed agents. Tester runs after implementers.
+- **Verified by:** Spec + fleet-map review; `py -3 tools/agent_contract.py`.
+
 ## 2026-07-18 — Daddy casual shorthand (`daddy, …`)
 
 - **What:** You can address daddy naturally — `daddy, diagnose and tell me what to do next.` — without the formal “Use the daddy subagent…” phrase. Wired via always-apply `specialist-routing.mdc` (Daddy shorthand = highest priority), expanded `daddy.md` description for Cursor proactive match, and casual invoke phrases in the registry.

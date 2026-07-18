@@ -8,6 +8,40 @@ Companion: `.cursor/agent-system/registry.json` (machine wiring) · `tools/agent
 
 **Mode legend:** `Dispatch` = orchestrates others · `Audit` = report-only · `Implement` = may edit its writable paths · `Research` = read/map only, no product feed into Nova.
 
+**Parallel legend (for daddy):** `yes` = safe to launch with other parallel-safe agents in one turn · `after-deps` = usually waits on a dependency · `solo-writes` = implementer; do not parallel with agents that share its writable paths · `hub` = daddy only.
+
+---
+
+## Orchestration (how daddy runs the fleet)
+
+Specialists do **not** message each other. Daddy is the hub: launch → collect Lifecycle reports → optionally relay report A into prompt B → aggregate for the user.
+
+| Agent | Mode | Parallel? | Notes for daddy |
+|-------|------|-----------|-----------------|
+| daddy | Dispatch | hub | never implements; only orchestrates |
+| router | Audit | yes | classify / fleet gaps only — not a worker |
+| maintainer | Audit | yes | read-only hygiene |
+| security | Audit | yes | read-only posture |
+| execution | Audit | yes | read-only ADR 007 audit |
+| warrior | Research | yes | research-only; never feed into live Nova |
+| tester | Implement | after-deps | run **after** implementers finish |
+| ibkr-ops | Implement | after-deps | often **first** when Gateway/discovery is suspect |
+| market-feed | Implement | solo-writes | do not parallel with `hod-momo` or `widgets` on overlapping surfaces |
+| hod-momo | Implement | solo-writes | coordinate before `scanner_l1` HOD-pool edits |
+| widgets | Implement | solo-writes | UI/layout; after or instead of market-feed data fixes |
+| news | Implement | solo-writes | ok parallel with unrelated domains (e.g. backtester) |
+| backtester | Implement | solo-writes | ok parallel with unrelated domains |
+| docs | Implement | solo-writes | avoid parallel doc edits on the same status note |
+
+**Default recipes**
+
+1. Diagnose unknown outage → `ibkr-ops` then (`market-feed` **or** `hod-momo`) then `tester` if code changed.  
+2. Broad health sweep → parallel `maintainer` + `security` (+ optional `execution`); no implementers.  
+3. UI + feed bug → sequence `market-feed` then `widgets` (or the reverse if purely layout); never both editing at once.  
+4. “Who owns X?” only → `router` alone (or `py -3 tools/agent_fleet.py`) — not daddy’s full dispatch path.
+
+Detail + report shape: `.cursor/agents/daddy.md` (Orchestration model).
+
 ---
 
 ## Domain ownership
