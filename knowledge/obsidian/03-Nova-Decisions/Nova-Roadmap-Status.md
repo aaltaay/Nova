@@ -20,7 +20,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **State:** G3 Nova Actions verified (Map-to-Nova-Action + browser); human market sessions remain the B/C blocker; structural maintenance + close remediation complete
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
 - **Last verified commit:** `aad9bf9` (Architecture close remediation Phase 7)
-- **Phase G3 commit:** *(stamp after push — see History)*
+- **Phase G3 commit:** `c2c8d61` (Map-to-Nova-Action + browser verify) · prior open `ce1da59`
 - **Tip SHA:** follow `git rev-parse --short HEAD` (stamp commits may trail the verified close)
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
@@ -56,7 +56,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 | **Phase F — Reports v2** | `[x]` | tags / R / drawdown / IBKR import; finish pass `722d614` |
 | **Phase G — Hotkeys + brackets** | `[x]` | `useHotkeys` + approveStaged bracket; finish pass `722d614` |
 | **Phase G2 — DAS hotkey manager** | `[x]` | Settings Hotkeys; `.htk` I/O; authoring only (no execution) · `645761b` |
-| **Phase G3 — Nova Actions executable** | `[x]` | Typed cancel/buy/sell/exit + Map-to-Nova-Action; one dispatcher; paper-first; `hotkeys` specialist · see History |
+| **Phase G3 — Nova Actions executable** | `[x]` | Typed cancel/buy/sell/exit + Map-to-Nova-Action; one dispatcher; paper-first; `hotkeys` specialist · `c2c8d61` |
 | **Phase J — Productization** | `[x]` | [[Productization-Decision]] local-first; finish pass `722d614` |
 | **HOD Momo / Stock View harden** | `[x]` | Shipped; not roadmap debt |
 | **Tester + maintainer agents** | `[x]` | `.cursor/agents/` + `tools/maintainer_checks.py` |
