@@ -57,11 +57,22 @@ def test_hod_ticks_fail_when_universe_but_no_trades():
     assert tick["status"] == "fail"
 
 
-def test_hod_surge_buffer_fails_on_cold_start_like_hkit():
+def test_hod_surge_buffer_warns_while_seed_queue_drains():
     report = evaluate_hod_integrity(_base_hod(
         surge_ready_count=2,
         surge_seeded_count=0,
         pending_surge_seeds=5,
+        buffer_symbol_count=20,
+    ))
+    surge = next(c for c in report["checks"] if c["id"] == "hod_surge_buffer")
+    assert surge["status"] == "warn"
+
+
+def test_hod_surge_buffer_fails_when_cold_and_not_seeding():
+    report = evaluate_hod_integrity(_base_hod(
+        surge_ready_count=2,
+        surge_seeded_count=0,
+        pending_surge_seeds=0,
         buffer_symbol_count=20,
     ))
     surge = next(c for c in report["checks"] if c["id"] == "hod_surge_buffer")
@@ -83,10 +94,49 @@ def test_active_quote_age_fails_over_slo():
     assert age["status"] == "fail"
 
 
-def test_surge_none_after_seed_is_hard_fail():
-    report = evaluate_hod_integrity(_base_hod(surge_none_after_seed_count=2))
+def test_surge_none_after_seed_is_hard_fail_when_tape_dead():
+    report = evaluate_hod_integrity(_base_hod(
+        surge_none_after_seed_count=2,
+        total_trades_seen=0,
+        last_trade_age_sec=None,
+    ))
     chk = next(c for c in report["checks"] if c["id"] == "hod_surge_after_seed")
     assert chk["status"] == "fail"
+
+
+def test_surge_none_after_seed_warns_when_tape_alive():
+    report = evaluate_hod_integrity(_base_hod(surge_none_after_seed_count=2))
+    chk = next(c for c in report["checks"] if c["id"] == "hod_surge_after_seed")
+    assert chk["status"] == "warn"
+
+
+def test_active_coverage_98_warns_not_fails():
+    """One unquoted explore admit must not hard-fail the feed (39/40→98%)."""
+    report = evaluate_hod_integrity(_base_hod(active_coverage_pct=97.5))
+    chk = next(c for c in report["checks"] if c["id"] == "hod_active_set")
+    assert chk["status"] == "warn"
+    assert report["status"] in ("pass", "warn")
+
+
+def test_active_coverage_below_floor_still_fails():
+    report = evaluate_hod_integrity(_base_hod(active_coverage_pct=85.0))
+    chk = next(c for c in report["checks"] if c["id"] == "hod_active_set")
+    assert chk["status"] == "fail"
+
+
+def test_active_coverage_98_warns_not_fails():
+    """Single unquoted explore admit must not hard-fail the feed."""
+    report = evaluate_hod_integrity(_base_hod(active_coverage_pct=97.5))
+    chk = next(c for c in report["checks"] if c["id"] == "hod_active_set")
+    assert chk["status"] == "warn"
+    assert report["status"] in ("pass", "warn")
+
+
+def test_active_coverage_below_floor_still_fails():
+    report = evaluate_hod_integrity(_base_hod(active_coverage_pct=85.0))
+    chk = next(c for c in report["checks"] if c["id"] == "hod_active_set")
+    assert chk["status"] == "fail"
+    assert report["status"] == "fail"
 
 
 def test_scanner_fails_when_ibkr_disconnected():

@@ -3,6 +3,7 @@ import {
   HOD_MOMO_COLUMNS,
   HOD_MOMO_EMPTY_CONNECTING,
   HOD_MOMO_EMPTY_WAITING,
+  HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
   HOD_MOMO_HEADER_HEIGHT_PX,
   HOD_MOMO_LOAD_MORE_THRESHOLD_PX,
   HOD_MOMO_RENDER_BATCH_SIZE,
@@ -10,6 +11,10 @@ import {
   HOD_MOMO_VISIBLE_ROWS,
   STRATEGY_META,
 } from '../constants';
+
+const FILTERABLE_STRATEGIES = STRATEGY_META.filter(
+  s => s.id !== HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
+);
 import type { AlertObject } from './types';
 import { HodMomoAlertRow } from './HodMomoAlertRow';
 
@@ -35,18 +40,20 @@ function StrategyFilterDropdown({
       <label className="hod-filter-row hod-filter-all">
         <input
           type="checkbox"
-          checked={enabledStrategies.size === STRATEGY_META.length}
+          checked={
+            FILTERABLE_STRATEGIES.length > 0
+            && FILTERABLE_STRATEGIES.every(s => enabledStrategies.has(s.id))
+          }
           onChange={() => {
-            if (enabledStrategies.size === STRATEGY_META.length) {
-              STRATEGY_META.forEach(s => enabledStrategies.has(s.id) && onToggle(s.id));
-            } else {
-              STRATEGY_META.forEach(s => !enabledStrategies.has(s.id) && onToggle(s.id));
-            }
+            const allOn = FILTERABLE_STRATEGIES.every(s => enabledStrategies.has(s.id));
+            FILTERABLE_STRATEGIES.forEach(s => {
+              if (allOn === enabledStrategies.has(s.id)) onToggle(s.id);
+            });
           }}
         />
         <span>Select / Unselect All</span>
       </label>
-      {STRATEGY_META.map(s => {
+      {FILTERABLE_STRATEGIES.map(s => {
         const color = configColors[s.id] || s.color;
         return (
           <label key={s.id} className="hod-filter-row">

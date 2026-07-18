@@ -7,7 +7,6 @@ IBKR ``TOP_PERC_GAIN`` works after the close the same way as RTH.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
 
 from constants import GAPPER_MIN_GAP_PCT, SCANNER_MIN_PRICE
 from market import pace_relative_volume
@@ -68,16 +67,6 @@ def build_afterhours_rows_from_ibkr_gainers(
         min_change_pct,
     )
     return out
-
-
-def run_ibkr_afterhours_discovery(
-    *,
-    run_ibkr: Callable[[Any], Any],
-    get_gainers: Callable[[], Any],
-) -> list[dict]:
-    """Fetch IBKR top % gainers and shape them as after-hours scanner rows."""
-    raw = run_ibkr(get_gainers()) or []
-    return build_afterhours_rows_from_ibkr_gainers(raw)
 
 
 def reprice_afterhours_rows_ibkr(

@@ -10,12 +10,16 @@ from constants import (
 )
 from hod_momo_integrity_common import check, worst
 
+# Gappers freeze at the open by design — do not fail RTH/AH on a stale gapper cache.
+_GAPPER_OPTIONAL_MODES = frozenset({"market", "regular", "rth", "afterhours", "closed"})
+
 
 def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
     """Evaluate gappers/gainers/losers cache freshness + discovery feed."""
     checks: list[dict[str, str]] = []
     provider = (snap.get("discovery_provider") or "").strip().lower()
     ibkr_ok = snap.get("ibkr_connected")
+    mode = (snap.get("current_mode") or "").strip().lower()
 
     if provider == "ibkr" and ibkr_ok is False:
         checks.append(check(
@@ -27,7 +31,7 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
         checks.append(check(
             "scanner_feed",
             "pass",
-            f"provider={provider or 'unknown'} connected={ibkr_ok}",
+            f"provider={provider or 'unknown'} connected={ibkr_ok} mode={mode or 'unknown'}",
         ))
 
     for name, count_key, age_key in (
@@ -37,6 +41,18 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
     ):
         count = int(snap.get(count_key) or 0)
         age = snap.get(age_key)
+
+        if name == "gappers" and mode in _GAPPER_OPTIONAL_MODES:
+            if age is not None:
+                detail = (
+                    f"gappers: {count} rows age={float(age):.0f}s "
+                    f"— offline by design after open (mode={mode})"
+                )
+            else:
+                detail = f"gappers: offline by design after open (mode={mode})"
+            checks.append(check("scanner_gappers", "pass", detail))
+            continue
+
         if age is None:
             if count <= 0:
                 checks.append(check(
@@ -53,11 +69,20 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             continue
         age_f = float(age)
         if count <= 0 and age_f > SCANNER_INTEGRITY_CACHE_STALE_SEC:
-            checks.append(check(
-                f"scanner_{name}",
-                "fail" if provider == "ibkr" else "warn",
-                f"{name}: 0 rows and cache {age_f:.0f}s old",
-            ))
+            # AH: empty/stale RTH gainers are secondary when afterhours list is live.
+            ah_live = (
+                name == "gainers"
+                and mode == "afterhours"
+                and int(snap.get("afterhours_count") or 0) > 0
+            )
+            status = "warn" if ah_live or provider != "ibkr" else "fail"
+            detail = f"{name}: 0 rows and cache {age_f:.0f}s old"
+            if ah_live:
+                detail += (
+                    f" — AH movers live "
+                    f"(afterhours={int(snap.get('afterhours_count') or 0)})"
+                )
+            checks.append(check(f"scanner_{name}", status, detail))
         elif age_f > SCANNER_INTEGRITY_CACHE_STALE_SEC:
             checks.append(check(
                 f"scanner_{name}",

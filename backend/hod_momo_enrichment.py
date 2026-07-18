@@ -36,6 +36,23 @@ from runtime_state import get_runtime_state
 logger = logging.getLogger(__name__)
 
 
+def ibkr_avg_volume(symbol: str) -> float | None:
+    """avg_volume for discovery=ibkr — yfinance only (single-market-data-feed rule).
+
+    Alpaca IEX-feed daily bars (``state.avg_volume_cache``, populated by
+    ``universe.ensure_avg_volume``) capture only a sliver of consolidated volume
+    for thin microcaps and silently understated avg_volume, blowing up pace RVOL
+    100x-3000x+ (live-observed: CJMB 7016x, LBGJ 1526x, ATPC 3025x) for exactly
+    the low-float/low-volume names this scanner targets. Never read that cache
+    here, even as a fallback — matches fundamentals_enrichment_loop's ibkr path.
+    """
+    from fundamentals import _fundamentals_cache
+
+    fund = _fundamentals_cache.get(symbol, {})
+    avg_vol = fund.get("average_volume")
+    return float(avg_vol) if avg_vol else None
+
+
 async def universe_enrichment_loop() -> None:
     """Batch-fetch snapshots for the full HOD universe every ~30 s.
 
@@ -83,18 +100,6 @@ async def universe_enrichment_loop() -> None:
                     )
                     continue
 
-                headers = _alpaca_headers()
-                if headers:
-                    missing_avg = [s for s in quotes if s not in state.avg_volume_cache]
-                    if missing_avg:
-                        chunk = missing_avg[:200]
-                        try:
-                            await loop.run_in_executor(
-                                None, lambda c=chunk, h=headers: ensure_avg_volume(c, h)
-                            )
-                        except Exception as avg_exc:
-                            logger.debug("HOD Momo enrichment: avg_vol chunk failed: %s", avg_exc)
-
                 enriched = 0
                 for sym, q in quotes.items():
                     try:
@@ -113,11 +118,7 @@ async def universe_enrichment_loop() -> None:
                             except (TypeError, ValueError):
                                 change_pct = None
 
-                        avg_vol = state.avg_volume_cache.get(sym)
-                        if not avg_vol:
-                            fund = _fundamentals_cache.get(sym, {})
-                            avg_vol = fund.get("average_volume")
-                        avg_for_5min = float(avg_vol) if avg_vol else None
+                        avg_for_5min = ibkr_avg_volume(sym)
                         rvol = None
                         rvol_source = None
                         if avg_for_5min and avg_for_5min > 0 and vol > 0:

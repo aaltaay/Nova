@@ -6,7 +6,6 @@ mutable fields, so tests and startup recovery can replace the owner atomically.
 """
 from __future__ import annotations
 
-import asyncio
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -27,6 +26,12 @@ class HodMomoState:
     pending_surge_seed: set[str] = field(default_factory=set)
     last_trade_ts: float | None = None
     session_highs: dict[str, float] = field(default_factory=dict)
+    # True once bar max-high and/or IBKR tick-6 day High has seeded the symbol.
+    session_high_seeded: set[str] = field(default_factory=set)
+    # IBKR L1 tick type 6 (day High) — floor for session_highs.
+    day_highs: dict[str, float] = field(default_factory=dict)
+    # "bars" | "tick6" | "bars+tick6" — debug / decision log.
+    session_high_source: dict[str, str] = field(default_factory=dict)
     cooldown: dict[tuple[str, int], float] = field(default_factory=dict)
     pending_consolidation: dict[str, list[tuple[float, AlertObject]]] = field(
         default_factory=dict
@@ -52,7 +57,6 @@ class HodMomoState:
     last_alert_save_mono: float = 0.0
     ticker_snaps: dict[str, TickerSnap] = field(default_factory=dict)
     active_symbol_name: str = ""
-    alert_broadcast_queue: asyncio.Queue | None = None
     on_blocklist_changed: Callable[[], None] | None = None
 
 

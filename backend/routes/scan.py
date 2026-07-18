@@ -95,7 +95,11 @@ def get_scan_integrity():
 @router.get("/api/integrity")
 def get_all_integrity():
     """Combined HOD + scanner integrity (CLI / banner)."""
-    from integrity_live import build_all_integrity_report
+    from integrity_live import build_all_integrity_report, get_cached_integrity_report
+
+    cached = get_cached_integrity_report()
+    if cached is not None:
+        return cached
     return build_all_integrity_report()
 
 

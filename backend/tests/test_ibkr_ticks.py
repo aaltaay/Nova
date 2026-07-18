@@ -61,6 +61,37 @@ class _FakeTicker:
         self.volume = volume
 
 
+def test_set_owner_symbols_caps_adds_per_reconcile(monkeypatch):
+    """Explore rotation must not qualify dozens of symbols under one lock."""
+    _reset()
+    calls: list[str] = []
+
+    async def fake_subscribe(symbol, owner="detail"):
+        calls.append(symbol)
+        ticks._subs[symbol] = {
+            "owners": {owner}, "last_price": 1.0, "last_update_ts": time.time(),
+            "ticker": None, "contract": None, "handler": None,
+        }
+        return True
+
+    async def fake_unsubscribe(symbol, owner="detail"):
+        sub = ticks._subs.get(symbol)
+        if sub:
+            (sub.get("owners") or set()).discard(owner)
+            if not sub.get("owners"):
+                ticks._subs.pop(symbol, None)
+
+    monkeypatch.setattr(ticks, "subscribe", fake_subscribe)
+    monkeypatch.setattr(ticks, "unsubscribe", fake_unsubscribe)
+    monkeypatch.setattr(ticks, "IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE", 3)
+
+    import asyncio
+    result = asyncio.run(ticks.set_owner_symbols("hod", [f"S{i:02d}" for i in range(10)]))
+    assert result["deferred"] == 7
+    assert len(calls) == 3
+    assert result["subscribed"] == 3
+
+
 def test_on_ticker_update_marks_fresh_even_when_price_unchanged():
     """A thinly-traded symbol whose price hasn't moved must still count as
     'streaming fine' — only a dead/missing subscription should fall back to

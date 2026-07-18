@@ -6,11 +6,19 @@ from typing import Callable
 
 import cache as _cache
 import hod_momo_debug as _debug
+import hod_momo_former as _former
 import hod_momo_market as _market
 import hod_momo_persist as _persist
 import hod_momo_state as _state
-from constants import HOD_MOMO_RVOL_WARMUP_GRACE_SEC, HOD_MOMO_STRATEGY_ID_MAX
+import hod_momo_high as _high
+from constants import (
+    HOD_MOMO_HOD_EPSILON_ABS,
+    HOD_MOMO_HOD_EPSILON_PCT,
+    HOD_MOMO_RVOL_WARMUP_GRACE_SEC,
+    HOD_MOMO_STRATEGY_ID_MAX,
+)
 from hod_momo_filters import evaluate_strategy
+from hod_momo_filters import fails_hod_gate
 from hod_momo_filters import passes_master_gate
 from hod_momo_filters import price_surge
 from hod_momo_models import (
@@ -133,13 +141,15 @@ def get_debug_symbol(symbol: str) -> dict:
         for record in list(state.per_symbol_decisions.get(sym, []))
     ]
     would_fire = would_fire_now(sym) if snap else None
-    return _debug.build_debug_symbol(
+    payload = _debug.build_debug_symbol(
         sym,
         snap,
         decisions,
         state.session_highs.get(sym),
         would_fire,
     )
+    payload.update(_high.high_debug(sym))
+    return payload
 
 
 def would_fire_now(symbol: str) -> dict:
@@ -162,6 +172,36 @@ def would_fire_now(symbol: str) -> dict:
     results = []
     for strategy_id, config in state.configs.items():
         if not config.enabled:
+            continue
+        former_block = _former.former_momo_block_reason(strategy_id, symbol, config)
+        if former_block:
+            results.append(
+                {
+                    "id": strategy_id,
+                    "name": config.name,
+                    "passed": False,
+                    "blocked_by": former_block,
+                }
+            )
+            continue
+        hod_block = fails_hod_gate(
+            float(snap.price or 0.0),
+            state.session_highs.get(symbol, 0.0),
+            config,
+            state.master.hod_required,
+            high_seeded=_high.is_high_seeded(symbol),
+            epsilon_abs=HOD_MOMO_HOD_EPSILON_ABS,
+            epsilon_pct=HOD_MOMO_HOD_EPSILON_PCT,
+        )
+        if hod_block:
+            results.append(
+                {
+                    "id": strategy_id,
+                    "name": config.name,
+                    "passed": False,
+                    "blocked_by": hod_block,
+                }
+            )
             continue
         surge = (
             price_surge(
@@ -186,7 +226,12 @@ def would_fire_now(symbol: str) -> dict:
                 "blocked_by": reason,
             }
         )
-    return {"gate": "passed", "strategies": results}
+    # Soft master_rvol keeps the reason on the gate label so debug shows why
+    # float strategies are blocked while Squeeze/Running-Up still evaluate.
+    return {
+        "gate": "passed" if gate_ok else gate_reason,
+        "strategies": results,
+    }
 
 
 def get_debug_recent(limit: int = 100) -> list[dict]:

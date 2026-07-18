@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from typing import Callable, Iterable
 
+from constants import IBKR_HOD_SEED_BELOW_PRICE
+
 # IBKR volume-scanner seeds refreshed by hod_momo_seed.seed_refresh_loop.
 # List preserves scan rank order (HOT_BY_VOLUME first, then TOP_VOLUME_RATE, …).
 _seed_symbols: list[str] = []
@@ -43,6 +45,98 @@ def _symbols_from_rows(rows: Iterable[dict] | None) -> set[str]:
         sym = (row.get("symbol") or "").strip().upper()
         if sym:
             out.add(sym)
+    return out
+
+
+def _row_change_pct(row: dict) -> float:
+    try:
+        return float(row.get("change_pct") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _row_price(row: dict) -> float | None:
+    for key in ("price", "current_price"):
+        raw = row.get(key)
+        if raw is None:
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def under20_gainer_symbols(
+    gainer_rows: Iterable[dict] | None,
+    *,
+    below_price: float = IBKR_HOD_SEED_BELOW_PRICE,
+) -> list[str]:
+    """IBKR top-gainer rows under ``below_price``, hottest % first."""
+    ranked: list[tuple[float, str]] = []
+    seen: set[str] = set()
+    cap = float(below_price)
+    for row in gainer_rows or []:
+        sym = (row.get("symbol") or "").strip().upper()
+        if not sym or sym in seen:
+            continue
+        px = _row_price(row)
+        if px is None or px <= 0 or px >= cap:
+            continue
+        seen.add(sym)
+        ranked.append((_row_change_pct(row), sym))
+    ranked.sort(key=lambda t: (-t[0], t[1]))
+    return [sym for _pct, sym in ranked]
+
+
+def seed_symbols_for_active(
+    volume_seeds: Iterable[str] | None,
+    gainer_rows: Iterable[dict] | None = None,
+    *,
+    below_price: float = IBKR_HOD_SEED_BELOW_PRICE,
+) -> list[str]:
+    """Seed input for active-set quota: sub-$N table gainers, then volume seeds.
+
+    ``build_active_set`` only takes the *head* of ``seed_symbols`` for reserved
+    L1 slots. Pure HOT_BY_VOLUME ordering buried mid-tier Squeeze names (PN /
+    BTMD) behind ~150 volume leaders even when they sat on the gainer table.
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for sym in under20_gainer_symbols(gainer_rows, below_price=below_price):
+        if sym not in seen:
+            seen.add(sym)
+            out.append(sym)
+    for raw in volume_seeds or []:
+        sym = (raw or "").strip().upper()
+        if sym and sym not in seen:
+            seen.add(sym)
+            out.append(sym)
+    return out
+
+
+def discovery_for_active(
+    universe: Iterable[str] | None,
+    gainer_rows: Iterable[dict] | None = None,
+) -> list[str]:
+    """Discovery order for explore rotation: hottest gainers first, then rest."""
+    out: list[str] = []
+    seen: set[str] = set()
+    ranked: list[tuple[float, str]] = []
+    for row in gainer_rows or []:
+        sym = (row.get("symbol") or "").strip().upper()
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        ranked.append((_row_change_pct(row), sym))
+    ranked.sort(key=lambda t: (-t[0], t[1]))
+    for _pct, sym in ranked:
+        out.append(sym)
+    for raw in universe or []:
+        sym = (raw or "").strip().upper()
+        if sym and sym not in seen:
+            seen.add(sym)
+            out.append(sym)
     return out
 
 

@@ -5,6 +5,7 @@ import time
 from collections import defaultdict
 
 import hod_momo as hm
+import hod_momo_high as high
 import hod_momo_market as market
 from hod_momo_state import HodMomoState
 
@@ -17,12 +18,14 @@ def _reset_engine(monkeypatch) -> None:
     state.pending_consolidation = {}
     state.cooldown = {}
     state.session_highs = {}
+    state.session_high_seeded = set()
+    state.day_highs = {}
+    state.session_high_source = {}
     state.price_buffer = {}
     state.ticker_snaps = {}
     state.gate_counters = defaultdict(int)
     state.total_trades_seen = 0
     state.blocklist = set()
-    # Expire RVOL warmup grace so master RVOL gate is enforced.
     state.startup_ts = time.monotonic() - 10_000
 
 
@@ -37,10 +40,12 @@ def test_on_trade_update_fires_when_master_and_strategy_pass(monkeypatch):
     state.master.hod_required = True
     state.master.surge_pct = 0.0  # strategies own surge (Warrior parity)
     state.master.surge_window_min = 5
-    state.master.min_rvol = 2.0
+    state.master.min_rvol = 0.0
 
     sym = "TEST"
     now = time.time()
+    # Seed session high so first last does not invent HOD from cold start.
+    high.apply_session_high(sym, 10.0, source="bars")
     hm.update_ticker_snapshot(
         sym,
         price=10.6,
@@ -54,8 +59,8 @@ def test_on_trade_update_fires_when_master_and_strategy_pass(monkeypatch):
     )
     # Rising buffer → surge clears; final print is a new HOD.
     for i, px in enumerate([10.0, 10.1, 10.2, 10.4, 10.6]):
-        hm.on_trade_update(sym, px, now - (5 - i) * 30.0, volume=100_000)
-    hm.on_trade_update(sym, 10.65, now, volume=110_000)
+        hm.on_trade_update(sym, px, now - (5 - i) * 30.0, volume=100_000, day_high=10.65)
+    hm.on_trade_update(sym, 10.65, now, volume=110_000, day_high=10.65)
 
     assert state.total_trades_seen >= 6
     pending_alerts = [
@@ -67,19 +72,23 @@ def test_on_trade_update_fires_when_master_and_strategy_pass(monkeypatch):
     assert any(a.ticker == sym and a.strategy_id == 11 for a in pending_alerts)
 
 
-def test_on_trade_update_blocked_by_master_rvol(monkeypatch):
+def test_on_trade_update_blocked_by_strategy_rvol(monkeypatch):
+    """Master RVOL retired — Float strategies still hard-block on min_rvol."""
     _reset_engine(monkeypatch)
     state = hm.get_state()
-    for cfg in state.configs.values():
-        cfg.enabled = True
+    for sid, cfg in state.configs.items():
+        cfg.enabled = sid not in (10, 11)
+        if cfg.enabled:
+            cfg.min_rvol = max(float(cfg.min_rvol or 0.0), 2.0)
 
     sym = "SLOW"
     now = time.time()
+    high.apply_session_high(sym, 5.0, source="bars")
     hm.update_ticker_snapshot(
         sym,
         price=5.0,
         change_pct=15.0,
-        rvol=0.5,  # below master min_rvol=2
+        rvol=0.5,  # below strategy min_rvol
         float_shares=1_000_000,
         gap_pct=10.0,
         volume=50_000,
@@ -87,11 +96,44 @@ def test_on_trade_update_blocked_by_master_rvol(monkeypatch):
         rvol_source="test",
     )
     for i, px in enumerate([4.5, 4.7, 4.9, 5.0]):
-        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=50_000)
+        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=50_000, day_high=5.0)
 
     assert state.total_trades_seen >= 4
     assert not state.pending_consolidation
-    assert any("rvol" in k for k in state.gate_counters)
+
+
+def test_squeeze_fires_with_low_pace_rvol(monkeypatch):
+    """Warrior Squeeze can fire below 2× pace RVOL (TRT live evidence)."""
+    _reset_engine(monkeypatch)
+    state = hm.get_state()
+    for sid, cfg in state.configs.items():
+        cfg.enabled = sid in (10, 11)
+        if sid in (10, 11):
+            cfg.min_rvol = 0.0
+            cfg.requires_hod = False  # isolate surge path
+
+    sym = "TRTX"
+    now = time.time()
+    hm.update_ticker_snapshot(
+        sym,
+        price=11.0,
+        change_pct=5.0,
+        rvol=0.32,
+        float_shares=6_000_000,
+        volume=400_000,
+        rvol_source="ibkr_pace",
+    )
+    # ~10% surge over a few minutes → Squeeze 5% / 10%
+    for i, px in enumerate([10.0, 10.2, 10.5, 10.8, 11.0]):
+        hm.on_trade_update(sym, px, now - (4 - i) * 30.0, volume=400_000)
+
+    pending_alerts = [
+        alert
+        for bucket in state.pending_consolidation.values()
+        for _emit_at, alert in bucket
+    ]
+    assert pending_alerts, "Squeeze should queue with pace RVOL 0.32 (master RVOL retired)"
+    assert any(a.ticker == sym and a.strategy_id in (10, 11) for a in pending_alerts)
 
 
 def test_former_momo_empty_list_never_fires(monkeypatch):
@@ -136,13 +178,14 @@ def test_former_momo_fires_when_on_list(monkeypatch):
 
     sym = "CNEY"
     now = time.time()
+    high.apply_session_high(sym, 0.65, source="bars")
     hm.update_ticker_snapshot(
         sym, price=0.65, change_pct=25.0, rvol=27.0,
         float_shares=5_000_000, gap_pct=29.0, volume=34_000_000,
         fifty_two_week_high=2.0, rvol_source="test",
     )
     for i, px in enumerate([0.60, 0.62, 0.64, 0.65]):
-        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=34_000_000)
+        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=34_000_000, day_high=0.65)
 
     pending = [
         a for bucket in state.pending_consolidation.values() for _, a in bucket
@@ -200,13 +243,14 @@ def test_medium_float_fires_without_master_surge(monkeypatch):
 
     sym = "FRE"
     now = time.time()
+    high.apply_session_high(sym, 22.65, source="bars")
     hm.update_ticker_snapshot(
         sym, price=22.65, change_pct=8.0, rvol=3.2,
         float_shares=25_000_000, gap_pct=2.0, volume=5_000_000,
         fifty_two_week_high=40.0, rvol_source="test",
     )
     for i, px in enumerate([22.50, 22.55, 22.60, 22.65]):
-        hm.on_trade_update(sym, px, now - (4 - i) * 60.0, volume=5_000_000)
+        hm.on_trade_update(sym, px, now - (4 - i) * 60.0, volume=5_000_000, day_high=22.65)
 
     pending = [
         a for bucket in state.pending_consolidation.values() for _, a in bucket
@@ -225,22 +269,24 @@ def test_same_ticker_shares_consolidation_emit_deadline(monkeypatch):
     state.master.surge_pct = 0.0
     state.master.min_rvol = 2.0
     state.master.cooldown_sec = 0.0
-    state.master.consolidation_sec = 5.0
+    state.master.consolidation_sec = 10.0
 
     sym = "TRT"
     now = time.time()
+    high.apply_session_high(sym, 11.0, source="bars")
     hm.update_ticker_snapshot(
         sym, price=12.0, change_pct=20.0, rvol=5.0,
         float_shares=5_000_000, gap_pct=2.0, volume=1_000_000,
         fifty_two_week_high=20.0, rvol_source="test", avg_volume=100_000,
     )
     for i, px in enumerate([11.0, 11.3, 11.6, 12.0]):
-        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=1_000_000)
+        # day_high tracks the print (true new HOD path) — not a future high.
+        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=1_000_000, day_high=px)
     assert sym in state.pending_consolidation
     first_deadline = state.pending_consolidation[sym][0][0]
 
     # Second burst within the open window — must share the same emit_after.
-    hm.on_trade_update(sym, 12.2, now + 1.0, volume=1_100_000)
+    hm.on_trade_update(sym, 12.2, now + 1.0, volume=1_100_000, day_high=12.2)
     bucket = state.pending_consolidation[sym]
     assert len(bucket) >= 2
     assert all(et == first_deadline for et, _ in bucket)
@@ -308,6 +354,7 @@ def test_would_fire_now_queues_symbol_being_debugged_not_stale_active_symbol(mon
     state.fundamentals_queued = set()
 
     debug_sym = "DEBUGME"
+    high.apply_session_high(debug_sym, 25.0, source="bars")
     hm.update_ticker_snapshot(debug_sym, price=25.0)  # float_shares left None → "float:unknown"
 
     hm._would_fire_now(debug_sym)

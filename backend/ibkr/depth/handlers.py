@@ -113,11 +113,22 @@ def fallback_to_l1(symbol: str, contract: Any) -> None:
         return
     _cancel_depth(ib, contract, symbol)
     try:
-        ticker = ib.reqMktData(contract, "", False, False)
+        from ibkr import ticks as _ticks
+
+        shared_ticker = _ticks.get_ticker(symbol)
+        reused = shared_ticker is not None
+        if reused:
+            ticker = shared_ticker
+            state.mark_shared_l1(symbol)
+        else:
+            ticker = ib.reqMktData(contract, "", False, False)
         attach_update_handler(symbol, ticker, lambda t: on_update_ticker(t, symbol))
         book = {"bids": [], "asks": [], "l1_fallback": True}
         state._subscriptions[symbol] = book
         state.push_book(symbol, book)
-        logger.info("IBKR: subscribed L1 fallback for %s (conId=%s)", symbol, contract.conId)
+        logger.info(
+            "IBKR: subscribed L1 fallback for %s (conId=%s, reused_ticks_stream=%s)",
+            symbol, contract.conId, reused,
+        )
     except Exception as exc:
         logger.exception("IBKR: L1 fallback after depth rejection failed for %s: %s", symbol, exc)

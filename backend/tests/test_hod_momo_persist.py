@@ -131,18 +131,15 @@ def test_rebound_state_is_seen_by_persistence_and_alert_queries(monkeypatch):
     assert [alert["id"] for alert in hm.get_today_alerts()] == ["current"]
 
 
-def test_rebound_state_replaces_queue_and_websocket_client_set():
+def test_rebound_state_replaces_websocket_client_set():
     old_state = hm.replace_state(HodMomoState())
-    old_queue = hm.get_broadcast_queue()
     old_client = object()
     hm.add_ws_client(old_client)
 
     current_state = hm.replace_state(HodMomoState())
-    current_queue = hm.get_broadcast_queue()
     current_client = object()
     hm.add_ws_client(current_client)
 
-    assert current_queue is not old_queue
     assert hm.get_ws_clients() == {current_client}
     assert old_state.hod_ws_clients == {old_client}
     assert current_state.hod_ws_clients == {current_client}
@@ -196,6 +193,121 @@ def test_session_rollover_rebinds_every_session_collection(monkeypatch):
     assert state.surge_seeded == set()
     assert state.pending_surge_seed == set()
     assert state.last_trade_ts is None
+
+
+def test_schema_v4_disables_former_momo(monkeypatch):
+    """Persisted Former Momo enabled=True must turn off once on schema v4 load."""
+    state = hm.replace_state(HodMomoState())
+    monkeypatch.setattr(
+        persist._cache,
+        "load_hod_momo_configs",
+        lambda: {
+            "schema_version": 3,
+            "master": {},
+            "strategies": {
+                "1": {
+                    "strategy_id": 1,
+                    "name": "Former Momo Stock",
+                    "color": "#FF9100",
+                    "enabled": True,
+                    "former_momo_list": ["BIYA"],
+                }
+            },
+        },
+    )
+    saved: list[dict] = []
+    monkeypatch.setattr(persist._cache, "save_hod_momo_configs", saved.append)
+    monkeypatch.setattr(persist._cache, "load_hod_momo_blocklist", lambda: [])
+    monkeypatch.setattr(persist._cache, "load_hod_momo_snapshot", lambda: ([], None))
+
+    persist.load_persisted_state()
+
+    assert state.configs[1].enabled is False
+    assert "BIYA" in state.configs[1].former_momo_list
+    assert saved and saved[-1]["schema_version"] == persist.HOD_MOMO_CONFIG_SCHEMA_VERSION
+    assert saved[-1]["strategies"]["1"]["enabled"] is False
+
+
+def test_schema_v5_squeeze_requires_hod_and_reenables(monkeypatch):
+    """CNF-class false positives: Squeeze without HOD + mass-disabled floats."""
+    state = hm.replace_state(HodMomoState())
+    monkeypatch.setattr(
+        persist._cache,
+        "load_hod_momo_configs",
+        lambda: {
+            "schema_version": 4,
+            "master": {},
+            "strategies": {
+                "1": {
+                    "strategy_id": 1,
+                    "name": "Former Momo Stock",
+                    "color": "#FF9100",
+                    "enabled": False,
+                },
+                "7": {
+                    "strategy_id": 7,
+                    "name": "Low Float - High Rel Vol",
+                    "color": "#00E676",
+                    "enabled": False,
+                    "requires_hod": True,
+                },
+                "10": {
+                    "strategy_id": 10,
+                    "name": "Squeeze Alert - Up 10% in 10min",
+                    "color": "#00E5FF",
+                    "enabled": True,
+                    "requires_hod": False,
+                    "surge_pct": 10.0,
+                    "surge_window_min": 10,
+                },
+                "11": {
+                    "strategy_id": 11,
+                    "name": "Squeeze Alert - Up 5% in 5min",
+                    "color": "#40C4FF",
+                    "enabled": True,
+                    "requires_hod": False,
+                    "surge_pct": 5.0,
+                    "surge_window_min": 5,
+                },
+            },
+        },
+    )
+    saved: list[dict] = []
+    monkeypatch.setattr(persist._cache, "save_hod_momo_configs", saved.append)
+    monkeypatch.setattr(persist._cache, "load_hod_momo_blocklist", lambda: [])
+    monkeypatch.setattr(persist._cache, "load_hod_momo_snapshot", lambda: ([], None))
+
+    persist.load_persisted_state()
+
+    assert state.configs[1].enabled is False
+    assert state.configs[7].enabled is True
+    assert state.configs[10].requires_hod is True
+    assert state.configs[11].requires_hod is True
+    assert saved[-1]["schema_version"] == 5
+
+
+def test_load_configs_retires_positive_cooldown_mute(monkeypatch):
+    """Anti-spam mute retired — persisted cooldown_sec>0 resets to 0 (burst only)."""
+    from constants import HOD_MOMO_COOLDOWN_SEC
+
+    state = hm.replace_state(HodMomoState())
+    monkeypatch.setattr(
+        persist._cache,
+        "load_hod_momo_configs",
+        lambda: {
+            "schema_version": persist.HOD_MOMO_CONFIG_SCHEMA_VERSION,
+            "master": {"cooldown_sec": 60.0},
+            "strategies": {},
+        },
+    )
+    saved: list[dict] = []
+    monkeypatch.setattr(persist._cache, "save_hod_momo_configs", saved.append)
+
+    persist.load_persisted_state()
+
+    assert HOD_MOMO_COOLDOWN_SEC == 0.0
+    assert state.master.cooldown_sec == HOD_MOMO_COOLDOWN_SEC
+    assert saved and saved[-1]["master"]["cooldown_sec"] == HOD_MOMO_COOLDOWN_SEC
 
 
 def _alert(alert_id: str) -> hm.AlertObject:

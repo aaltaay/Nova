@@ -36,6 +36,7 @@ import hod_momo as _hod_momo
 import hod_momo_universe as _hod_uni
 import strategy.setups_stream as _setups_stream
 from cache import list_history_dates as _list_history_dates
+from hod_momo_session import current_date_et
 from runtime_state import get_runtime_state
 from constants import HOD_MOMO_UNIVERSE_MODE, HOD_MOMO_UNIVERSE_MODE_FOCUS
 
@@ -46,9 +47,15 @@ ws_router = APIRouter(tags=["hod-momo-ws"])
 # ── REST endpoints ────────────────────────────────────────────────────────────
 
 @router.get("/api/hod-momo/alerts")
-def hod_momo_get_alerts():
-    """Today's HOD Momo alert feed (newest first)."""
-    return {"date": _hod_momo._current_date_et(), "alerts": _hod_momo.get_today_alerts()}
+def hod_momo_get_alerts(limit: int | None = None):
+    """Today's HOD Momo alert feed (newest first).
+
+    Optional ``limit`` caps the payload for observers (still newest-first).
+    """
+    alerts = _hod_momo.get_today_alerts()
+    if limit is not None and limit > 0:
+        alerts = alerts[: int(limit)]
+    return {"date": current_date_et(), "alerts": alerts}
 
 
 @router.delete("/api/hod-momo/alerts")

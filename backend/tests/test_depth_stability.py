@@ -58,6 +58,7 @@ class _FakeIb:
         self.depth_calls: list[dict] = []
         self.cancel_depth_calls: list = []
         self.l1_calls: list = []
+        self.cancel_data_calls: list = []
         self._qualify_delay = qualify_delay
         self._next_con_id = 1000
 
@@ -82,7 +83,7 @@ class _FakeIb:
         return _FakeTicker()
 
     def cancelMktData(self, contract):
-        pass
+        self.cancel_data_calls.append(getattr(contract, "symbol", "?"))
 
 
 @pytest.fixture
@@ -124,6 +125,57 @@ class TestConcurrentSubscribeRace:
         assert fake_ib.depth_calls[0]["isSmartDepth"] is IBKR_DEPTH_SMART
         assert fake_ib.depth_calls[0]["numRows"] == IBKR_DEPTH_NUM_ROWS
         assert depth_mod.subscribed_symbols() == ["SHPH"]
+
+
+class _DepthRejectedIb(_FakeIb):
+    """reqMktDepth always fails (no L2 entitlement) — exercises L1 fallback."""
+
+    def reqMktDepth(self, contract, numRows=5, isSmartDepth=False, mktDepthOptions=None):
+        raise RuntimeError("no market data permissions for depth")
+
+
+class TestDepthL1FallbackReusesTicksStream:
+    """When depth is unavailable, the L1 fallback must not open a SECOND
+    reqMktData line for a symbol ibkr.ticks already streams (open ticker /
+    scanner / HOD) — and unsubscribe must not cancel that shared line out
+    from under ticks' other owners (see gap6 in the end-to-end verification)."""
+
+    def test_reuses_existing_ticks_stream_instead_of_second_reqmktdata(self, depth, monkeypatch):
+        depth_mod, _ = depth
+        fake_ib = _DepthRejectedIb()
+        import ibkr.client as client_mod
+        monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+
+        import ibkr.ticks as ticks_mod
+        shared_ticker = _FakeTicker()
+        monkeypatch.setattr(ticks_mod, "get_ticker", lambda sym: shared_ticker)
+
+        result = asyncio.run(depth_mod.subscribe_async("AAPL"))
+        assert result["ok"] is True
+        assert fake_ib.l1_calls == []  # no second reqMktData opened
+        from ibkr.depth import state as depth_state
+        assert depth_state.is_shared_l1("AAPL") is True
+
+        depth_mod.unsubscribe("AAPL")
+        assert fake_ib.cancel_data_calls == []  # ticks owns cancellation, not depth
+
+    def test_opens_own_l1_when_ticks_has_no_stream(self, depth, monkeypatch):
+        depth_mod, _ = depth
+        fake_ib = _DepthRejectedIb()
+        import ibkr.client as client_mod
+        monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+
+        import ibkr.ticks as ticks_mod
+        monkeypatch.setattr(ticks_mod, "get_ticker", lambda sym: None)
+
+        result = asyncio.run(depth_mod.subscribe_async("AAPL"))
+        assert result["ok"] is True
+        assert fake_ib.l1_calls == ["AAPL"]  # own reqMktData opened, as before
+        from ibkr.depth import state as depth_state
+        assert depth_state.is_shared_l1("AAPL") is False
+
+        depth_mod.unsubscribe("AAPL")
+        assert fake_ib.cancel_data_calls == ["AAPL"]  # depth owns and cancels its own line
 
 
 class TestCapEvictionForActiveViewer:

@@ -1,22 +1,26 @@
 """HOD Momo trade ingestion and decision recording shell (Phase 10)."""
 from __future__ import annotations
 
-import asyncio
 import logging
 import logging.handlers
 import os
 import time
 from collections import deque
 
-import hod_momo_alerts as _alerts
 import hod_momo_market as _market
 import hod_momo_metrics as _metrics
 import hod_momo_state as _state
 from constants import (
     HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
+    HOD_MOMO_HOD_EPSILON_ABS,
+    HOD_MOMO_HOD_EPSILON_PCT,
     HOD_MOMO_RVOL_USE_PACE,
     HOD_MOMO_RVOL_WARMUP_GRACE_SEC,
+    HOD_MOMO_SUPPRESS_ALERTS_ON_INTEGRITY_FAIL,
+    HOD_RAW_MODE,
 )
+import hod_momo_former as _former
+import hod_momo_high as _high
 from hod_momo_filters import evaluate_strategy
 from hod_momo_filters import fails_hod_gate
 from hod_momo_filters import passes_master_gate
@@ -68,6 +72,7 @@ def on_trade_update(
     price: float,
     ts: float,
     volume: int | None = None,
+    day_high: float | None = None,
 ) -> None:
     """Evaluate one provider-selected trade/snapshot update."""
     state = _state.get_state()
@@ -81,9 +86,17 @@ def on_trade_update(
     _market.request_surge_seed(symbol)
     _note_active_quote(symbol, state.last_trade_ts)
 
-    previous_high = state.session_highs.get(symbol, 0.0)
-    if price > previous_high:
-        state.session_highs[symbol] = price
+    # HOD truth: tick-6 / bar seed only — never invent session high from last.
+    if day_high is None:
+        try:
+            from ibkr import ticks as _ticks
+
+            day_high = _ticks.get_day_high(symbol)
+        except Exception:
+            day_high = None
+    if day_high is not None:
+        _high.apply_day_high(symbol, day_high)
+    _high.raise_observed_high(symbol, price)
 
     snap = state.ticker_snaps.setdefault(symbol, TickerSnap())
     snap.price = price
@@ -144,7 +157,6 @@ def on_trade_update(
         return surge_cache[key]
 
     now_ts = time.time()
-    queue = _alerts.get_broadcast_queue()
     strategy_decisions: list[dict] = []
     any_fired = False
     for strategy_id, config in state.configs.items():
@@ -159,58 +171,41 @@ def on_trade_update(
             )
             continue
 
-        if strategy_id == HOD_MOMO_FORMER_MOMO_STRATEGY_ID:
-            if not config.former_momo_list:
-                strategy_decisions.append(
-                    {
-                        "id": strategy_id,
-                        "name": config.name,
-                        "passed": False,
-                        "blocked_by": "former_momo_list_empty",
-                    }
-                )
-                continue
-            allowed = {item.upper() for item in config.former_momo_list}
-            if symbol.upper() not in allowed:
-                strategy_decisions.append(
-                    {
-                        "id": strategy_id,
-                        "name": config.name,
-                        "passed": False,
-                        "blocked_by": "not_in_former_momo_list",
-                    }
-                )
-                continue
-        elif config.former_momo_list and symbol.upper() not in {
-            item.upper() for item in config.former_momo_list
-        }:
+        former_block = _former.former_momo_block_reason(strategy_id, symbol, config)
+        if former_block:
             strategy_decisions.append(
                 {
                     "id": strategy_id,
                     "name": config.name,
                     "passed": False,
-                    "blocked_by": "not_in_former_momo_list",
+                    "blocked_by": former_block,
                 }
             )
             continue
 
-        cooldown_key = (symbol, strategy_id)
-        if now_ts < state.cooldown.get(cooldown_key, 0.0):
-            strategy_decisions.append(
-                {
-                    "id": strategy_id,
-                    "name": config.name,
-                    "passed": False,
-                    "blocked_by": "cooldown",
-                }
-            )
-            continue
+        # Mute removed: consolidation window alone batches Warrior "(N in Xs)".
+        cooldown_sec = float(state.master.cooldown_sec or 0.0)
+        if cooldown_sec > 0:
+            cooldown_key = (symbol, strategy_id)
+            if now_ts < state.cooldown.get(cooldown_key, 0.0):
+                strategy_decisions.append(
+                    {
+                        "id": strategy_id,
+                        "name": config.name,
+                        "passed": False,
+                        "blocked_by": "cooldown",
+                    }
+                )
+                continue
 
         hod_block = fails_hod_gate(
             snap.price,
             state.session_highs.get(symbol, 0.0),
             config,
             state.master.hod_required,
+            high_seeded=_high.is_high_seeded(symbol),
+            epsilon_abs=HOD_MOMO_HOD_EPSILON_ABS,
+            epsilon_pct=HOD_MOMO_HOD_EPSILON_PCT,
         )
         if hod_block:
             strategy_decisions.append(
@@ -229,14 +224,33 @@ def on_trade_update(
             if config.surge_window_min > 0
             else None
         )
-        passed, blocked_by = evaluate_strategy(
-            config,
-            snap,
-            surge,
-            lambda: _market.mark_needs_fundamentals(
-                state.active_symbol_name
-            ),
-        )
+        if HOD_RAW_MODE:
+            passed, blocked_by = True, ""
+        else:
+            passed, blocked_by = evaluate_strategy(
+                config,
+                snap,
+                surge,
+                lambda: _market.mark_needs_fundamentals(
+                    state.active_symbol_name
+                ),
+            )
+        if passed and HOD_MOMO_SUPPRESS_ALERTS_ON_INTEGRITY_FAIL:
+            try:
+                from integrity_live import integrity_is_failing
+
+                if integrity_is_failing():
+                    passed = False
+                    blocked_by = "integrity_fail_suppress"
+                    state.gate_counters["integrity_fail_suppress"] = (
+                        state.gate_counters.get("integrity_fail_suppress", 0) + 1
+                    )
+            except Exception:
+                logger.debug(
+                    "HOD Momo integrity suppress check failed",
+                    exc_info=True,
+                )
+
         strategy_decisions.append(
             {
                 "id": strategy_id,
@@ -251,6 +265,8 @@ def on_trade_update(
 
         state.gate_counters[f"strategy_{strategy_id}_fired"] += 1
         any_fired = True
+        if strategy_id != HOD_MOMO_FORMER_MOMO_STRATEGY_ID:
+            _former.remember_former_momo(symbol)
         alert = AlertObject(
             id=f"{int(ts * 1000)}-{symbol}-{strategy_id}",
             timestamp=format_alert_timestamp(ts),
@@ -268,7 +284,8 @@ def on_trade_update(
             rvol_5min=snap.rvol_5min,
             created_ts=now_ts,
         )
-        state.cooldown[cooldown_key] = now_ts + state.master.cooldown_sec
+        if cooldown_sec > 0:
+            state.cooldown[(symbol, strategy_id)] = now_ts + cooldown_sec
         bucket = state.pending_consolidation.setdefault(symbol, [])
         emit_after = (
             bucket[0][0]
@@ -281,10 +298,6 @@ def on_trade_update(
             symbol,
             strategy_id,
         )
-        try:
-            queue.put_nowait(("pending", alert))
-        except asyncio.QueueFull:
-            logger.debug("HOD Momo: pending alert queue full for %s", symbol)
 
     _record_decision(
         ts,
@@ -343,6 +356,7 @@ def _record_decision(
             "volume": snap.volume,
             "fifty_two_week_high": snap.fifty_two_week_high,
             "last_enriched": snap.last_enriched,
+            **_high.high_debug(symbol),
         },
         gate_blocked=gate_blocked,
         strategies=strategies,

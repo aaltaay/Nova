@@ -71,6 +71,31 @@ describe('collapseAlertsBySymbol', () => {
     expect(out[1].strategies?.map(s => s.id)).toEqual([3]);
   });
 
+  it('does not inflate Warrior burst badge across long gaps', () => {
+    const rows = [
+      alert({
+        id: '1',
+        ticker: 'CJMB',
+        timestamp: '2026-07-14T21:25:55.000Z',
+        created_ts: 3000,
+        consolidation_count: 2,
+      }),
+      alert({
+        id: '2',
+        ticker: 'CJMB',
+        timestamp: '2026-07-14T20:50:00.000Z',
+        created_ts: 1000,
+        consolidation_count: 50,
+        strategy_id: 12,
+        strategy_name: 'Running Up Alert',
+      }),
+    ];
+    const out = collapseAlertsBySymbol(rows, 15);
+    expect(out).toHaveLength(1);
+    expect(out[0].consolidation_count).toBe(2);
+    expect(out[0].strategies?.map(s => s.id).sort((a, b) => a - b)).toEqual([3, 12]);
+  });
+
   it('preserves newest-first ticker order', () => {
     const rows = [
       alert({ id: '1', ticker: 'ZZZ', timestamp: '2026-07-14T21:25:55.000Z', created_ts: 100 }),

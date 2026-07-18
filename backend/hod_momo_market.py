@@ -3,31 +3,27 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from datetime import datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import hod_momo_flow as _flow
 import hod_momo_metrics as _metrics
 import hod_momo_state as _state
+import market as _market
 from constants import HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC
 from hod_momo_filters import price_surge as _price_surge
 from hod_momo_models import TickerSnap
 
-_ET = ZoneInfo("America/New_York")
 _MAX_BUFFER_MINUTES = 60
 
 
 def in_premarket_et() -> bool:
-    now = datetime.now(_ET)
-    hour = now.hour + now.minute / 60.0
-    return 4.0 <= hour < 9.5
+    """Delegate to market.py — same SESSION_* constants as chart shading."""
+    return _market.in_premarket()
 
 
 def in_afterhours_et() -> bool:
-    now = datetime.now(_ET)
-    hour = now.hour + now.minute / 60.0
-    return 16.0 <= hour < 20.0
+    """Delegate to market.py — same SESSION_* constants as chart shading."""
+    return _market.in_after_hours()
 
 
 def effective_min_rvol() -> float:

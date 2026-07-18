@@ -7,7 +7,11 @@ def test_barrel_exports_domain_values():
     import constants as c
 
     assert c.GAPPER_MIN_GAP_PCT == 10.0
-    assert c.HOD_MOMO_COOLDOWN_SEC > 0
+    # Mute (per-strategy cooldown) is intentionally off — burst consolidation
+    # (HOD_MOMO_CONSOLIDATION_SEC) is the only anti-spam window. See
+    # PROBLEM_LOG "HOD Momo mute/burst cleanup".
+    assert c.HOD_MOMO_COOLDOWN_SEC == 0.0
+    assert c.HOD_MOMO_CONSOLIDATION_SEC > 0
     assert c.IBKR_HOST
     assert c.ARCHIVE_SCHEMA_VERSION
     assert c.NOVA_OS_MODE_AUTO_LIVE == "auto_live"

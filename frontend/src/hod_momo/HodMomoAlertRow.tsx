@@ -3,6 +3,7 @@ import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import {
   HOD_MOMO_COLUMNS,
+  HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
   HOD_MOMO_ROW_HEIGHT_PX,
   STRATEGY_META_MAP,
 } from '../constants';
@@ -91,9 +92,11 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   const consolidatedTitle = isConsolidated
     ? `${alert.consolidation_count} in ${spanSec}sec`
     : undefined;
-  const strategyTags = alert.strategies?.length
-    ? alert.strategies
-    : [{ id: alert.strategy_id, name: alert.strategy_name }];
+  const strategyTags = (
+    alert.strategies?.length
+      ? alert.strategies
+      : [{ id: alert.strategy_id, name: alert.strategy_name }]
+  ).filter(tag => tag.id !== HOD_MOMO_FORMER_MOMO_STRATEGY_ID);
 
   return (
     <SelectableTableRow
@@ -102,7 +105,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
       className="hod-alert-row"
-      style={{ minHeight: HOD_MOMO_ROW_HEIGHT_PX }}
+      style={{ minHeight: HOD_MOMO_ROW_HEIGHT_PX, height: 'auto' }}
     >
       {HOD_MOMO_COLUMNS.map(([key]) => {
         switch (key) {
@@ -190,16 +193,23 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
           case 'strategy':
             return (
               <td key={key} className="hod-strategy-cell">
-                <div className="hod-strategy-pills" title={strategyTags.map(s => s.name).join(' · ')}>
-                  {strategyTags.map(tag => (
-                    <StrategyPill
-                      key={tag.id}
-                      strategyId={tag.id}
-                      strategyName={tag.name}
-                      colorOverride={configColors[tag.id]}
-                    />
-                  ))}
-                </div>
+                {strategyTags.length === 0 ? (
+                  <span className="na-muted">—</span>
+                ) : (
+                  <div
+                    className="hod-strategy-pills"
+                    title={strategyTags.map(s => s.name).join(' · ')}
+                  >
+                    {strategyTags.map(tag => (
+                      <StrategyPill
+                        key={tag.id}
+                        strategyId={tag.id}
+                        strategyName={tag.name}
+                        colorOverride={configColors[tag.id]}
+                      />
+                    ))}
+                  </div>
+                )}
               </td>
             );
           default:

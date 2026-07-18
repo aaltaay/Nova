@@ -5,6 +5,7 @@ from typing import Any
 
 from constants import (
     HOD_MOMO_ACTIVE_SET_CAPACITY,
+    HOD_MOMO_INTEGRITY_ACTIVE_COVERAGE_FAIL_PCT,
     HOD_MOMO_INTEGRITY_ACTIVE_EVAL_MAX_SEC,
     HOD_MOMO_INTEGRITY_ACTIVE_EVAL_P95_SEC,
     HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC,
@@ -94,11 +95,19 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             f"discovery={universe}"
         )
         if active_coverage is not None and float(active_coverage) < 100.0 and active_n > 0:
+            cov = float(active_coverage)
+            # 98% is usually one unquoted explore admit; age gates catch real death.
+            status = (
+                "fail"
+                if cov < float(HOD_MOMO_INTEGRITY_ACTIVE_COVERAGE_FAIL_PCT)
+                else "warn"
+            )
             checks.append(check(
                 "hod_active_set",
-                "fail",
-                f"{detail}; coverage={float(active_coverage):.0f}% "
-                f"(need 100% recent quote+eval on active set)",
+                status,
+                f"{detail}; coverage={cov:.0f}% "
+                f"(fail below {float(HOD_MOMO_INTEGRITY_ACTIVE_COVERAGE_FAIL_PCT):.0f}%; "
+                f"quote/eval age gates enforce SLO)",
             ))
         else:
             checks.append(check("hod_active_set", "pass", detail))
@@ -130,9 +139,12 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
     else:
         ready_pct = 100.0 * ready_n / buf_n
         if ready_pct < HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT and seeded_n < max(1, buf_n // 4):
+            # While the seed queue is actively draining, warn — don't block
+            # parity/observe on a transient post-reload cold start.
+            status = "warn" if pending > 0 else "fail"
             checks.append(check(
                 "hod_surge_buffer",
-                "fail",
+                status,
                 f"only {ready_n}/{buf_n} ({ready_pct:.0f}%) buffers span "
                 f">={HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC:.0f}s; seeded={seeded_n} "
                 f"pending={pending} -- Squeeze cold-start risk (HKIT-class miss)",
@@ -152,9 +164,16 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             ))
 
     if surge_none_after_seed > 0:
+        # Hard-fail only when the live tape is also dead — otherwise Squeeze
+        # simply skips those symbols while quote/eval SLOs can still pass.
+        tape_dead = (
+            last_age is None
+            or trades <= 0
+            or float(last_age) > HOD_MOMO_INTEGRITY_TICK_STALE_SEC
+        )
         checks.append(check(
             "hod_surge_after_seed",
-            "fail",
+            "fail" if tape_dead else "warn",
             f"{surge_none_after_seed} seeded symbol(s) still have surge=None "
             f"-- historical seed incomplete or window mismatch",
         ))

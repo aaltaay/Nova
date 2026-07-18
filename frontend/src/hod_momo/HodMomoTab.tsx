@@ -1,5 +1,9 @@
 import { useMemo, useState } from 'react';
-import { HOD_MOMO_RUNNING_UP_STRATEGY_ID, STRATEGY_META } from '../constants';
+import {
+  HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
+  HOD_MOMO_RUNNING_UP_STRATEGY_ID,
+  STRATEGY_META,
+} from '../constants';
 import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
 import { collapseAlertsBySymbol } from './collapseAlertsBySymbol';
@@ -113,8 +117,11 @@ export function HodMomoTab({
   onClearAlerts,
 }: HodMomoTabProps) {
   const [activeSubPanel, setActiveSubPanel] = useState<SubPanel>('main');
+  // Former Momo is disabled product-side — keep it off the default filter too.
   const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
-    new Set(STRATEGY_META.map(s => s.id)),
+    () => new Set(
+      STRATEGY_META.map(s => s.id).filter(id => id !== HOD_MOMO_FORMER_MOMO_STRATEGY_ID),
+    ),
   );
 
   const consolidationSec = config.state.master.consolidation_sec;

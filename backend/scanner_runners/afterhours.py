@@ -20,16 +20,26 @@ def run_afterhours_discovery_scan() -> None:
     headers = sr._alpaca_headers()
 
     if sr._get_discovery_provider() == "ibkr":
-        raw = list(state.gainer_cache) if state.gainer_cache else []
+        # Dedicated AH scan universe is the primary source. The gainer_cache
+        # reshape is a fallback only for when TOP_AFTER_HOURS_PERC_GAIN is
+        # empty (thin AH liquidity / IB scanner gaps) — never the primary
+        # source, since it's really the intraday gainer list, not AH movers.
+        raw = sr.run_ibkr(sr._ibkr_discovery.get_afterhours_gainers()) or []
+        source = "ah_scan"
         if not raw:
-            raw = sr.run_ibkr(sr._ibkr_discovery.get_gainers()) or []
+            raw = list(state.gainer_cache) if state.gainer_cache else []
+            source = "gainer_reshape"
+            if not raw:
+                raw = sr.run_ibkr(sr._ibkr_discovery.get_gainers()) or []
+                source = "gainer_reshape_cold"
         rows = _ah_discovery.build_afterhours_rows_from_ibkr_gainers(raw)
         if not rows:
             logger.warning(
-                "AH discovery (IBKR): empty (gainers=%d) — retrying next cycle; no Alpaca fallback",
-                len(raw),
+                "AH discovery (IBKR): empty (source=%s raw=%d) — retrying next cycle; no Alpaca fallback",
+                source, len(raw),
             )
             return
+        logger.info("AH discovery (IBKR): source=%s raw=%d rows=%d", source, len(raw), len(rows))
         from market import pace_relative_volume as _pace_rvol
 
         syms = [r["symbol"] for r in rows]
@@ -85,7 +95,6 @@ def run_afterhours_discovery_scan() -> None:
         state.hod_momo_universe_ts = 0.0
         from universe import refresh_hod_momo_universe
         refresh_hod_momo_universe()
-        logger.info("AH discovery (IBKR): %d movers", len(rows))
         return
 
     from alpaca import _env

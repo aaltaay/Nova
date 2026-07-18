@@ -15,20 +15,12 @@ from hod_momo_models import AlertObject, alert_to_dict
 logger = logging.getLogger(__name__)
 
 
-def get_broadcast_queue() -> asyncio.Queue:
-    state = _state.get_state()
-    if state.alert_broadcast_queue is None:
-        state.alert_broadcast_queue = asyncio.Queue()
-    return state.alert_broadcast_queue
-
-
 async def flush_consolidated_loop() -> None:
     """Emit expired same-symbol consolidation buckets."""
     while True:
         try:
             await asyncio.sleep(1.0)
             state = _state.get_state()
-            queue = get_broadcast_queue()
             now = time.time()
             to_emit: list[AlertObject] = []
             for symbol in list(state.pending_consolidation.keys()):
@@ -41,17 +33,24 @@ async def flush_consolidated_loop() -> None:
                 ]
                 if not ready:
                     continue
-                if len(ready) == 1:
-                    to_emit.append(ready[0])
-                    continue
-                primary = ready[-1]
-                primary.consolidation_count = len(ready)
-                primary.consolidated_ids = [alert.id for alert in ready[:-1]]
-                first_ts = min((alert.created_ts or 0.0) for alert in ready) or now
-                last_ts = max((alert.created_ts or 0.0) for alert in ready) or now
-                span = int(round(max(0.0, last_ts - first_ts)))
-                primary.consolidation_span_sec = max(1, span) if span > 0 else 1
-                to_emit.append(primary)
+                # Warrior consolidates bursts of the *same* strategy. Collapsing
+                # all strategies into one row drops Former Momo when Low Float
+                # also fires in the same window — emit one primary per strategy_id.
+                by_strategy: dict[int, list[AlertObject]] = {}
+                for alert in ready:
+                    by_strategy.setdefault(int(alert.strategy_id), []).append(alert)
+                for group in by_strategy.values():
+                    if len(group) == 1:
+                        to_emit.append(group[0])
+                        continue
+                    primary = group[-1]
+                    primary.consolidation_count = len(group)
+                    primary.consolidated_ids = [alert.id for alert in group[:-1]]
+                    first_ts = min((alert.created_ts or 0.0) for alert in group) or now
+                    last_ts = max((alert.created_ts or 0.0) for alert in group) or now
+                    span = int(round(max(0.0, last_ts - first_ts)))
+                    primary.consolidation_span_sec = max(1, span) if span > 0 else 1
+                    to_emit.append(primary)
 
             for alert in to_emit:
                 state.today_alerts.insert(0, alert)
@@ -68,10 +67,6 @@ async def flush_consolidated_loop() -> None:
                 for ws in dead:
                     state.hod_ws_clients.discard(ws)
                 asyncio.create_task(notify_hod_alert_async(alert_to_dict(alert)))
-                try:
-                    queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    logger.debug("HOD Momo: broadcast queue already empty")
             _persist.flush_pending_alert_save()
         except asyncio.CancelledError:
             raise

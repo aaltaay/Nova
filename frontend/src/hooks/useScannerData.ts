@@ -3,7 +3,13 @@
  * Extracted from App.tsx.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { API_BASE_URL, API_URL, SCANNER_FETCH_TIMEOUT_MS } from '../constants';
+import {
+  API_BASE_URL,
+  API_URL,
+  SCANNER_FETCH_TIMEOUT_MS,
+  SCANNER_POLL_INTERVAL_IBKR_MS,
+  SCANNER_POLL_INTERVAL_MS,
+} from '../constants';
 import { isNovaApiDebug } from '../debug';
 import type { MarketMode } from '../components/AppHeader';
 import type { Afterhours, Gapper, Mover } from '../types/scanner';
@@ -192,13 +198,17 @@ export function useScannerData(opts: {
   useEffect(() => {
     if (historyDate !== null) return;
     fetchData();
-    const dataInterval = setInterval(fetchData, 1000);
+    // IBKR: /ws/scanner already streams live price patches — this REST poll only
+    // needs to catch structural changes, so it can run much slower than 1Hz.
+    const pollMs =
+      discoveryProvider === 'ibkr' ? SCANNER_POLL_INTERVAL_IBKR_MS : SCANNER_POLL_INTERVAL_MS;
+    const dataInterval = setInterval(fetchData, pollMs);
     const clockInterval = setInterval(() => setNow(Date.now() / 1000), 1000);
     return () => {
       clearInterval(dataInterval);
       clearInterval(clockInterval);
     };
-  }, [fetchData, historyDate]);
+  }, [fetchData, historyDate, discoveryProvider]);
 
   useEffect(() => {
     fetchHistoryDates();

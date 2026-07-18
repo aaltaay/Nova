@@ -136,12 +136,24 @@ def refresh_hod_momo_universe() -> None:
             return
     else:
         detail = [sym for sym, clients in _ticker_ws_clients.items() if clients]
+        try:
+            import hod_momo_session_focus as _focus
+
+            extras = _focus.session_focus_extra_symbols()
+        except Exception:
+            try:
+                import hod_momo_former as _former
+
+                extras = _former.session_focus_extra_symbols()
+            except Exception:
+                extras = []
         symbols = _hod_uni.build_focus_universe(
             gapper_rows=state.gapper_cache,
             gainer_rows=state.gainer_cache,
             loser_rows=state.loser_cache,
             afterhours_rows=state.afterhours_cache,
             detail_symbols=detail,
+            extra_symbols=extras,
             is_blocked=_hod_momo.is_blocked,
         )
 

@@ -29,6 +29,11 @@ _ws_viewers: dict[str, int] = {}
 # Tracks which `ib` connections already have the depth-rejection error hook.
 _error_hooked_ib_ids: set[int] = set()
 
+# Symbols whose L1 fallback reuses ibkr.ticks' shared reqMktData stream
+# instead of opening a second one — see ibkr/depth/subscribe.py. unsubscribe()
+# must NOT cancelMktData for these; ticks.py owns cancellation via refcounting.
+_shared_l1: set[str] = set()
+
 _Stock = None
 
 
@@ -42,8 +47,17 @@ def reset_all() -> None:
     _update_handlers.clear()
     _ws_viewers.clear()
     _error_hooked_ib_ids.clear()
+    _shared_l1.clear()
     _subscribe_lock = None
     _Stock = None
+
+
+def mark_shared_l1(symbol: str) -> None:
+    _shared_l1.add(symbol)
+
+
+def is_shared_l1(symbol: str) -> bool:
+    return symbol in _shared_l1
 
 
 def get_subscribe_lock() -> asyncio.Lock:
@@ -139,4 +153,5 @@ def pop_contract(symbol: str) -> Any | None:
 
 def clear_symbol(symbol: str) -> None:
     _tickers.pop(symbol, None)
+    _shared_l1.discard(symbol)
     drop_slot(symbol)

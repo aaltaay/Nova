@@ -7,7 +7,17 @@ from __future__ import annotations
 import asyncio
 import math
 
+import pytest
+
 import ibkr.discovery as discovery
+
+
+@pytest.fixture(autouse=True)
+def _reset_scan_cache():
+    """scan_symbols() now short-TTL-caches results — isolate tests from it."""
+    discovery.reset_scan_cache()
+    yield
+    discovery.reset_scan_cache()
 
 
 class _FakeContract:
@@ -67,6 +77,68 @@ class TestScanSymbols:
         _patch_client(monkeypatch, fake_ib)
         result = asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN"))
         assert result == ["AAA", "BBB"]
+
+    def test_below_price_sets_scanner_subscription(self, monkeypatch):
+        seen: list[object] = []
+
+        class _CapturingIB(_FakeIB):
+            async def reqScannerDataAsync(self, subscription):
+                seen.append(subscription)
+                return self._scan_rows
+
+        fake_ib = _CapturingIB([_FakeScanRow("BTMD")], [])
+        _patch_client(monkeypatch, fake_ib)
+        monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+        # ScannerSubscription is created inside scan_symbols — stub the ctor.
+        class _Sub:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+                self.belowPrice = None
+
+        monkeypatch.setattr(discovery, "_ScannerSubscription", _Sub)
+        result = asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN", below_price=20.0))
+        assert result == ["BTMD"]
+        assert seen and float(seen[0].belowPrice) == 20.0
+
+    def test_repeat_call_within_ttl_reuses_cached_result(self, monkeypatch):
+        calls: list[int] = []
+
+        class _CountingIB(_FakeIB):
+            async def reqScannerDataAsync(self, subscription):
+                calls.append(1)
+                return self._scan_rows
+
+        fake_ib = _CountingIB([_FakeScanRow("AAA")], [])
+        _patch_client(monkeypatch, fake_ib)
+
+        first = asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN"))
+        second = asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN"))
+        assert first == second == ["AAA"]
+        # Second call within the TTL window is served from cache — coalesces
+        # duplicate reqScannerDataAsync calls from independent loops.
+        assert len(calls) == 1
+
+    def test_different_below_price_bypasses_cache(self, monkeypatch):
+        calls: list[float | None] = []
+
+        class _CountingIB(_FakeIB):
+            async def reqScannerDataAsync(self, subscription):
+                calls.append(getattr(subscription, "belowPrice", None))
+                return self._scan_rows
+
+        fake_ib = _CountingIB([_FakeScanRow("AAA")], [])
+        _patch_client(monkeypatch, fake_ib)
+        monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+
+        class _Sub:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+                self.belowPrice = None
+
+        monkeypatch.setattr(discovery, "_ScannerSubscription", _Sub)
+        asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN"))
+        asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN", below_price=20.0))
+        assert len(calls) == 2
 
 
 class TestSnapshotQuotes:
@@ -151,6 +223,26 @@ class TestGetMovers:
         row = rows[0]
         assert math.isclose(row["change_pct"], 0.2)
         assert math.isclose(row["gap_percent"], 0.1)
+
+
+class TestGetAfterhoursGainers:
+    def test_uses_dedicated_ah_scan_code(self, monkeypatch):
+        """Distinct scan universe from TOP_PERC_GAIN — never the intraday reshape."""
+        seen_codes: list[str] = []
+
+        class _CapturingIB(_FakeIB):
+            async def reqScannerDataAsync(self, subscription):
+                seen_codes.append(subscription.scanCode)
+                return self._scan_rows
+
+        scan_rows = [_FakeScanRow("AH1")]
+        tickers = [_FakeTicker("AH1", last=11.0, close=10.0)]
+        fake_ib = _CapturingIB(scan_rows, tickers)
+        _patch_client(monkeypatch, fake_ib)
+
+        rows = asyncio.run(discovery.get_afterhours_gainers())
+        assert [r["symbol"] for r in rows] == ["AH1"]
+        assert seen_codes == ["TOP_AFTER_HOURS_PERC_GAIN"]
 
 
 class TestRepriceRows:

@@ -6,9 +6,11 @@ from collections import deque
 from hod_momo_filters import (
     evaluate_strategy,
     fails_hod_gate,
+    is_master_rvol_soft_block,
     passes_master_gate,
     passes_range,
     price_surge,
+    strategy_ignores_master_rvol,
 )
 from hod_momo_models import MasterGateConfig, StrategyConfig, TickerSnap
 
@@ -70,17 +72,29 @@ def test_fails_hod_gate_allows_when_requires_hod_false():
     assert reason is None
 
 
-def test_passes_master_gate_blocks_unknown_rvol_outside_warmup():
+def test_passes_master_gate_ignores_rvol_master_retired():
+    """Master RVOL retired — unknown/low RVOL no longer blocks at master."""
     master = MasterGateConfig(min_rvol=2.0)
     snap = TickerSnap(price=1.0, rvol=None)
-    ok, reason = passes_master_gate(snap, master, eff_min_rvol=2.0, in_rvol_warmup_grace=False, surge_buffer=None)
-    assert not ok
-    assert reason == "master_rvol:unknown"
-
-
-def test_passes_master_gate_allows_unknown_rvol_during_warmup():
-    master = MasterGateConfig(min_rvol=2.0)
-    snap = TickerSnap(price=1.0, rvol=None)
-    ok, reason = passes_master_gate(snap, master, eff_min_rvol=2.0, in_rvol_warmup_grace=True, surge_buffer=None)
+    ok, reason = passes_master_gate(
+        snap, master, eff_min_rvol=2.0, in_rvol_warmup_grace=False, surge_buffer=None,
+    )
     assert ok
     assert reason == ""
+
+
+def test_passes_master_gate_blocks_missing_price():
+    master = MasterGateConfig()
+    snap = TickerSnap(price=None)
+    ok, reason = passes_master_gate(
+        snap, master, eff_min_rvol=0.0, in_rvol_warmup_grace=False, surge_buffer=None,
+    )
+    assert not ok
+    assert reason == "master_data:no_price"
+
+
+def test_master_rvol_soft_bypass_retired():
+    assert strategy_ignores_master_rvol(
+        StrategyConfig(strategy_id=11, name="Squeeze", color="#fff", min_rvol=0.0, surge_pct=5.0, surge_window_min=5)
+    ) is False
+    assert is_master_rvol_soft_block(False, "master_rvol(0.32<2.0)") is False

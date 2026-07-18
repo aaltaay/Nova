@@ -100,14 +100,22 @@ async def subscribe_async(symbol: str) -> dict:
                 "IBKR: depth unavailable for %s (%s), falling back to L1", symbol, exc,
             )
             try:
-                ticker = ib.reqMktData(contract, "", False, False)
+                from ibkr import ticks as _ticks
+
+                shared_ticker = _ticks.get_ticker(symbol)
+                reused = shared_ticker is not None
+                if reused:
+                    ticker = shared_ticker
+                    state.mark_shared_l1(symbol)
+                else:
+                    ticker = ib.reqMktData(contract, "", False, False)
                 handlers.attach_update_handler(
                     symbol, ticker, lambda t: handlers.on_update_ticker(t, symbol),
                 )
                 state._subscriptions[symbol]["l1_fallback"] = True
                 logger.info(
-                    "IBKR: subscribed L1 fallback for %s (conId=%s)",
-                    symbol, contract.conId,
+                    "IBKR: subscribed L1 fallback for %s (conId=%s, reused_ticks_stream=%s)",
+                    symbol, contract.conId, reused,
                 )
             except Exception as exc2:
                 unsubscribe(symbol)
@@ -169,6 +177,7 @@ def subscribe(symbol: str) -> dict:
 def unsubscribe(symbol: str) -> None:
     ib = _client.get_ib()
     contract = state.pop_contract(symbol)
+    shared = state.is_shared_l1(symbol)
     handlers.detach_update_handler(symbol)
     state.clear_symbol(symbol)
     if ib and contract is not None:
@@ -179,10 +188,14 @@ def unsubscribe(symbol: str) -> None:
                 "IBKR: cancelMktDepth on unsubscribe for %s ignored: %s",
                 symbol, exc,
             )
-        try:
-            ib.cancelMktData(contract)
-        except Exception as exc:
-            logger.debug(
-                "IBKR: cancelMktData on unsubscribe for %s ignored: %s",
-                symbol, exc,
-            )
+        # Shared fallback ticker is owned by ibkr.ticks (refcounted by owner) —
+        # cancelling it here would kill the stream out from under scanner/HOD/
+        # detail owners who still want it.
+        if not shared:
+            try:
+                ib.cancelMktData(contract)
+            except Exception as exc:
+                logger.debug(
+                    "IBKR: cancelMktData on unsubscribe for %s ignored: %s",
+                    symbol, exc,
+                )

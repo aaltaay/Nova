@@ -425,16 +425,16 @@ class TestJournalMetricsArithmetic:
         from journal.metrics import compute_metrics
         from journal.store import record_trade
 
-        assert JOURNAL_MIN_TRADES_FOR_GO_LIVE == 100
-        # 67 wins of +20 and 33 losses of -10 => ratio 2.0, adherence 100%, n=100
-        for i in range(67):
+        assert JOURNAL_MIN_TRADES_FOR_GO_LIVE == 50
+        # 34 wins of +20 and 16 losses of -10 => ratio 2.0, adherence 100%, n=50
+        for i in range(34):
             record_trade(f"W{i}", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 5.2, 20.0, True)
-        for i in range(33):
+        for i in range(16):
             record_trade(f"L{i}", "gap_and_go", "long", 100, 5.0, 4.9, 5.2, 4.9, -10.0, True)
 
         m = compute_metrics()
-        assert m["total_closed_trades"] == 100
-        assert m["win_rate_pct"] == 67.0
+        assert m["total_closed_trades"] == 50
+        assert m["win_rate_pct"] == 68.0
         assert m["profit_loss_ratio"] == 2.0
         assert m["adherence_pct"] == 100.0
         assert m["go_no_go"]["overall_go"] is True

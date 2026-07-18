@@ -21,8 +21,18 @@ HOD_MOMO_CONFIG_FILE = _os.path.join(_hod_momo_cache_root(), "hod-momo-config.js
 HOD_MOMO_BLOCKLIST_FILE = _os.path.join(_hod_momo_cache_root(), "hod-momo-blocklist.json")
 
 # Engine timing
-HOD_MOMO_COOLDOWN_SEC = 60.0         # suppress re-alert for ticker+strategy after firing
-HOD_MOMO_CONSOLIDATION_SEC = 5.0     # batch same-ticker alerts into one row (Warrior "N in Xs")
+# Anti-spam mute removed (2026-07-17): a 60s mute ≥ burst window starved the
+# Warrior "(N in Xs)" badge. Burst/consolidation alone rate-limits emits.
+HOD_MOMO_COOLDOWN_SEC = 0.0          # 0 = mute off; do not raise without revisiting burst
+HOD_MOMO_CONSOLIDATION_SEC = 10.0    # batch same-ticker alerts (Warrior "N in Xs")
+# HOD truth: last must be within this of session high (abs $ or relative).
+HOD_MOMO_HOD_EPSILON_ABS = 0.01
+HOD_MOMO_HOD_EPSILON_PCT = 0.001     # 0.1%
+# Raw observability — when True, strategy float/RVOL/price gates are skipped
+# (master = data-ready; HOD still requires high_seeded for requires_hod strats).
+HOD_RAW_MODE = _os.environ.get("HOD_RAW_MODE", "").strip().lower() in (
+    "1", "true", "yes", "on",
+)
 # Persist at most this often — writing the full day list on every emit freezes the API.
 HOD_MOMO_ALERT_SAVE_INTERVAL_SEC = 5.0
 HOD_MOMO_UNIVERSE_INTERVAL_SEC = 300.0  # refresh cadence for broad (full-asset) mode
@@ -62,24 +72,74 @@ SCANNER_INTEGRITY_CACHE_STALE_SEC = 120.0      # gappers/gainers/losers cache ag
 # 40 movers cannot starve HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE runners.
 HOD_MOMO_ACTIVE_SET_CAPACITY = 40
 HOD_MOMO_ACTIVE_HOT_PER_TICK = 10              # priority symbols every 1Hz tick
-HOD_MOMO_ACTIVE_MOVER_SLOTS = 18               # top cross-list movers (gainer/gapper/AH/loser)
-HOD_MOMO_ACTIVE_SEED_SLOTS = 14                # IBKR volume/activity seeds (may be off-table)
+# Reserved L1 for today's alerts + session-sticky evaluations (cooled Squeeze
+# names like TRT). Param name in build_active_set remains former_slots.
+# Former list is ranked *last* inside session_focus_active_priority.
+HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS = 8
+HOD_MOMO_ACTIVE_FORMER_SLOTS = HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS  # compat alias
+# Sticky list must not exceed reserved L1 slots — a larger disk/memory list
+# lets hot soft-block names (DRTS…) occupy the 8 slots while cooled TRT sits
+# at position 15 with an empty snap.
+HOD_MOMO_SESSION_FOCUS_MAX = HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS
+HOD_MOMO_ACTIVE_MOVER_SLOTS = 12               # top upside movers (gainer/gapper/AH)
+HOD_MOMO_ACTIVE_SEED_SLOTS = 12                # under-$N gainer head + volume seeds
 HOD_MOMO_ACTIVE_EXPLORE_SLOTS = 8              # rotating discovery-tail exploration
 # Advance explore rotation at most this often (reconcile is 1Hz — do not churn L1).
 HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC = 30.0
+# Quiet L1 symbols (unchanged last) never re-fire quote listeners — heartbeat
+# refreshes note_quote/note_evaluation so active-set SLOs stay honest.
+# Heartbeat must keep p95 quote/eval age ≤2s. A 1s loop + 1.5s stale gate
+# samples at ~2.0–2.2s and false-fails the SLO; refresh sooner.
+HOD_MOMO_ACTIVE_HEARTBEAT_SEC = 0.5
+HOD_MOMO_ACTIVE_HEARTBEAT_STALE_SEC = 0.75
+# Quiet-tape strategy re-eval removed (2026-07-17): re-calling on_trade_update
+# on a flat last amplified cold-start false HOD. Keep constant for tests/docs.
+HOD_MOMO_ACTIVE_REEVAL_SEC = 5.0
+HOD_MOMO_QUIET_REEVAL_ENABLED = False
+# When integrity is failing, suppress new alert emits (banner stays loud).
+HOD_MOMO_SUPPRESS_ALERTS_ON_INTEGRITY_FAIL = True
 HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_P95_SEC = 2.0
 HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC = 3.0
 HOD_MOMO_INTEGRITY_ACTIVE_EVAL_P95_SEC = 2.0
 HOD_MOMO_INTEGRITY_ACTIVE_EVAL_MAX_SEC = 3.0
+# Coverage <100% on a single newly-admitted explore name (39/40→98%) must not
+# hard-fail the whole feed — quote/eval age gates catch real multi-symbol death.
+# Below this floor (e.g. overnight 85%) still fails.
+HOD_MOMO_INTEGRITY_ACTIVE_COVERAGE_FAIL_PCT = 90.0
+# IBKR qualify/reqMktData failures (e.g. FRE as SMART USD) — skip from active
+# set for this cooldown so explore does not permanently poison coverage.
+HOD_MOMO_L1_SUBSCRIBE_FAIL_COOLDOWN_SEC = 300.0
 HOD_MOMO_INTEGRITY_DISCOVERY_TO_EVAL_TARGET_SEC = 5.0
 HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1  # empty former_momo_list → never fire
 HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12  # Warrior Running Up — no HOD required
 HOD_MOMO_STRATEGY_ID_MAX = 12
+# Squeeze family — session-focus sticky L1 when these are evaluated (not every tick).
+HOD_MOMO_SESSION_FOCUS_STRATEGY_IDS = frozenset({2, 10, 11})
 
 # Enrichment loop intervals
 HOD_MOMO_ENRICH_INTERVAL_SEC = 30.0          # batch snapshot enrichment cadence
 HOD_MOMO_FUNDAMENTALS_QUEUE_INTERVAL_SEC = 2.0  # fundamentals per-symbol drain cadence
 HOD_MOMO_FUNDAMENTALS_BATCH_SIZE = 10            # symbols per fundamentals tick (warm up faster)
+# mark_needs_fundamentals() only fires once (when float/52wk-high are unknown), so
+# avg_volume/float/52wk-high are otherwise "fetch once, cache forever" for the life
+# of the process. A multi-session runner (Former Momo list) whose fundamentals were
+# first fetched days ago keeps an ancient avg_volume denominator while today's
+# cumulative volume grows — pace RVOL explodes into the hundreds/thousands for that
+# symbol while a same-day-flagged runner (fresh fetch) looks normal. The active
+# heartbeat re-queues fundamentals for every active symbol on this cadence so
+# avg_volume tracks yfinance's live (rolling) average instead of freezing at the
+# first-ever fetch.
+#
+# Shorter than FUNDAMENTALS_CACHE_TTL (900s) on purpose: yfinance's own
+# ``averageVolume`` visibly drifts within minutes for a symbol having an
+# explosive-volume day (live-observed: a fresh fetch returned 3.3M shares for
+# ATPC ~11 min after the process-start fetch had cached 13.6k — a 248x swing
+# from Yahoo-side data alone, not from a bug in our fetch code). A 900s
+# heartbeat cadence leaves a single bad/early read frozen for a full 15
+# minutes; 300s gives ~3 chances per FUNDAMENTALS_CACHE_TTL window to catch up
+# with a fast-drifting name while staying far under yfinance's practical
+# throughput (40 active symbols / 10-per-tick batches easily drain in <10s).
+HOD_MOMO_FUNDAMENTALS_REFRESH_SEC = 300.0
 
 # Master gate defaults.
 # Warrior HOD Momo = new HOD + *per-strategy* momentum (float/RVOL/surge bands).
@@ -88,9 +148,11 @@ HOD_MOMO_FUNDAMENTALS_BATCH_SIZE = 10            # symbols per fundamentals tick
 HOD_MOMO_MASTER_HOD_REQUIRED = True
 HOD_MOMO_MASTER_SURGE_PCT = 0.0      # 0 = disabled; squeeze strategies keep their own surge
 HOD_MOMO_MASTER_SURGE_WINDOW_MIN = 5  # minutes (used only when surge_pct > 0)
-HOD_MOMO_MASTER_MIN_RVOL = 2.0
-HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 1.0   # relaxed during 4–9:30 AM and 4–8 PM ET
-HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 1.0
+# Master RVOL retired (2026-07-17): master = data-ready (+ optional master surge).
+# Per-strategy ``min_rvol`` is the RVOL gate (Float RelVol etc.). Soft bypass gone.
+HOD_MOMO_MASTER_MIN_RVOL = 0.0
+HOD_MOMO_MASTER_PREMARKET_MIN_RVOL = 0.0   # master RVOL retired — strategy-level only
+HOD_MOMO_MASTER_AFTERHOURS_MIN_RVOL = 0.0
 
 # Pace RVOL (Warrior "Relative Volume (Daily Rate)"): today_vol / (avg * elapsed_frac).
 # Floor = ~14 min of the 04:00–16:00 ET volume day — avoids insane RVOL at 4:01.
@@ -119,7 +181,7 @@ HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC: tuple[tuple[int, float], ...] = (
 # so the scanner can fire while yfinance data loads progressively.
 HOD_MOMO_RVOL_WARMUP_GRACE_SEC = 300            # 5 min: skip RVOL gate while yfinance warms up
 # Bump when master/strategy defaults change so persisted configs migrate once.
-HOD_MOMO_CONFIG_SCHEMA_VERSION = 3
+HOD_MOMO_CONFIG_SCHEMA_VERSION = 5
 
 # Strategy names (canonical order 1–12)
 HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {
@@ -153,16 +215,17 @@ HOD_MOMO_STRATEGY_COLORS: dict[int, str] = {
     12: "#FF6E40",
 }
 
-# Audio ON by default for all except 8 and 9
+# Audio ON by default for all except Former Momo (1) and Medium Float $20+ (8, 9)
 HOD_MOMO_STRATEGY_AUDIO_DEFAULT: dict[int, bool] = {
-    1: True, 2: True, 3: True, 4: True, 5: True,
+    1: False, 2: True, 3: True, 4: True, 5: True,
     6: True, 7: True, 8: False, 9: False, 10: True, 11: True, 12: True,
 }
 
 # Per-strategy default config values.
 # Keys match StrategyConfig field names. Missing keys use the universal 0-disabled default.
 HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
-    1: {  # Former Momo Stock
+    1: {  # Former Momo Stock — off until we have a real Warrior-aligned fill path
+        "enabled": False,
         "min_rvol": 2.0,
     },
     2: {  # Squeeze Alert - 52wk Breakout
@@ -209,13 +272,15 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
         "max_rvol": 4.9,
         "min_price": 20.0,
     },
-    10: {  # Squeeze Alert - Up 10% in 10min
+    10: {  # Squeeze Alert - Up 10% in 10min — Warrior HOD widget requires new HOD
         "surge_pct": 10.0,
         "surge_window_min": 10,
+        "requires_hod": True,
     },
-    11: {  # Squeeze Alert - Up 5% in 5min
+    11: {  # Squeeze Alert - Up 5% in 5min — Warrior HOD widget requires new HOD
         "surge_pct": 5.0,
         "surge_window_min": 5,
+        "requires_hod": True,
     },
     12: {  # Running Up Alert — Warrior separate scanner; momentum without HOD
         "requires_hod": False,

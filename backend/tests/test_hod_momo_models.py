@@ -28,6 +28,13 @@ def test_build_default_configs_covers_all_strategy_ids():
         assert cfg.strategy_id == sid
 
 
+def test_former_momo_default_disabled():
+    """Former Momo stays off until we own a Warrior-aligned list fill path."""
+    cfg = build_default_config(1)
+    assert cfg.enabled is False
+    assert cfg.audio is False
+
+
 def test_config_round_trip_preserves_fields():
     cfg = build_default_config(9)
     cfg.min_rvol = 3.5

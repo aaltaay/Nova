@@ -20,11 +20,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import time
 
 from constants import (
     GAPPER_MIN_GAP_PCT,
     IBKR_QUOTE_BATCH_TIMEOUT_SEC,
+    IBKR_HOD_SEED_BELOW_PRICE,
     IBKR_SCAN_ABOVE_PRICE,
+    IBKR_SCAN_CODE_AH_GAINERS,
     IBKR_SCAN_CODE_GAINERS,
     IBKR_SCAN_CODE_GAPPERS,
     IBKR_SCAN_CODE_LOSERS,
@@ -32,6 +35,7 @@ from constants import (
     IBKR_SCAN_INSTRUMENT,
     IBKR_SCAN_LOCATION,
     IBKR_SCAN_MAX_ROWS,
+    IBKR_SCAN_RESULT_TTL_SEC,
     SCANNER_MIN_PRICE,
 )
 from ibkr import client as _client
@@ -45,6 +49,15 @@ _qualified_contracts: dict[str, object] = {}
 # Serialize cold reqTickersAsync so discovery/enrichment cannot fan out
 # concurrent snapshot batches against the shared Gateway socket.
 _snapshot_lock: asyncio.Lock | None = None
+# Short-TTL result cache keyed by (scan_code, num_rows, below_price) — see
+# IBKR_SCAN_RESULT_TTL_SEC. Coalesces duplicate reqScannerDataAsync calls
+# fired from independent loops (movers refresh, gapper fallback, HOD seed).
+_scan_cache: dict[tuple[str, int, float | None], tuple[float, list[str]]] = {}
+
+
+def reset_scan_cache() -> None:
+    """Clear the short-TTL scan result cache (test isolation / facade reload)."""
+    _scan_cache.clear()
 
 
 def _get_snapshot_lock() -> asyncio.Lock:
@@ -77,8 +90,19 @@ def _clean(x: float | None) -> float | None:
         return None
 
 
-async def scan_symbols(scan_code: str, num_rows: int = IBKR_SCAN_MAX_ROWS) -> list[str]:
+async def scan_symbols(
+    scan_code: str,
+    num_rows: int = IBKR_SCAN_MAX_ROWS,
+    *,
+    below_price: float | None = None,
+) -> list[str]:
     """One-shot market scan. Returns up to num_rows unique ranked symbols."""
+    cache_key = (scan_code, num_rows, float(below_price) if below_price else None)
+    cached = _scan_cache.get(cache_key)
+    now_mono = time.monotonic()
+    if cached is not None and (now_mono - cached[0]) < IBKR_SCAN_RESULT_TTL_SEC:
+        return list(cached[1])
+
     ib = _client.get_ib()
     if ib is None or not _load_ib_types():
         return []
@@ -89,6 +113,8 @@ async def scan_symbols(scan_code: str, num_rows: int = IBKR_SCAN_MAX_ROWS) -> li
         scanCode=scan_code,
         abovePrice=IBKR_SCAN_ABOVE_PRICE,
     )
+    if below_price is not None and float(below_price) > 0:
+        sub.belowPrice = float(below_price)
     try:
         rows = await ib.reqScannerDataAsync(sub)
     except Exception as exc:
@@ -105,13 +131,17 @@ async def scan_symbols(scan_code: str, num_rows: int = IBKR_SCAN_MAX_ROWS) -> li
         if sym and sym not in seen:
             seen.add(sym)
             symbols.append(sym)
+    label = scan_code
+    if below_price is not None and float(below_price) > 0:
+        label = f"{scan_code}(belowPrice={float(below_price):g})"
     if not symbols:
         logger.warning(
             "IBKR scanner %s returned 0 symbols (common for TOP_OPEN_PERC_GAIN before RTH open)",
-            scan_code,
+            label,
         )
     else:
-        logger.info("IBKR scanner %s → %d symbols", scan_code, len(symbols))
+        logger.info("IBKR scanner %s → %d symbols", label, len(symbols))
+    _scan_cache[cache_key] = (now_mono, list(symbols))
     return symbols
 
 
@@ -179,6 +209,7 @@ async def snapshot_quotes(
             "price": price,
             "prev_close": prev_close,
             "open": _clean(t.open),
+            "high": _clean(getattr(t, "high", None)),
             "volume": int(_clean(t.volume) or 0),
             "exchange": getattr(t.contract, "primaryExchange", None) or None,
         }
@@ -240,8 +271,10 @@ async def get_gappers() -> list[dict]:
     return rows
 
 
-async def _get_movers(scan_code: str, reverse: bool) -> list[dict]:
-    symbols = await scan_symbols(scan_code)
+async def _get_movers(
+    scan_code: str, reverse: bool, *, below_price: float | None = None,
+) -> list[dict]:
+    symbols = await scan_symbols(scan_code, below_price=below_price)
     quotes = await snapshot_quotes(symbols)
 
     rows: list[dict] = []
@@ -279,19 +312,43 @@ async def get_losers() -> list[dict]:
     return await _get_movers(IBKR_SCAN_CODE_LOSERS, reverse=False)
 
 
+async def get_afterhours_gainers() -> list[dict]:
+    """Dedicated after-hours movers scan (TOP_AFTER_HOURS_PERC_GAIN).
+
+    Distinct IB scan universe from TOP_PERC_GAIN — the After Hours tab's
+    primary source. Reshaping ``get_gainers()``'s intraday result is a
+    fallback only, used when this scan is empty.
+    """
+    return await _get_movers(IBKR_SCAN_CODE_AH_GAINERS, reverse=True)
+
+
 async def scan_hod_momentum_seeds() -> list[str]:
     """Union of IBKR volume/activity scanners used to seed HOD Momo watch set.
 
     Warrior's HOD scanner watches the whole tape; Nova approximates mid-day
-    volume runners via HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE (50 each).
+    runners via a **sub-$N TOP_PERC_GAIN pass first** (active seed_slots only
+    consume the list head), then HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE
+    / uncapped TOP_PERC_GAIN. Appending the below-price pass after ~150 volume
+    rows left PN/BTMD-class squeezes outside the reserved L1 seed quota.
     """
     seen: set[str] = set()
     ordered: list[str] = []
-    for code in IBKR_SCAN_HOD_SEED_CODES:
-        for sym in await scan_symbols(code):
+
+    def _add(symbols: list[str]) -> None:
+        for sym in symbols:
             if sym not in seen:
                 seen.add(sym)
                 ordered.append(sym)
+
+    # Head of list → HOD active seed_slots. Sub-$N % gainers before volume.
+    _add(
+        await scan_symbols(
+            IBKR_SCAN_CODE_GAINERS,
+            below_price=IBKR_HOD_SEED_BELOW_PRICE,
+        )
+    )
+    for code in IBKR_SCAN_HOD_SEED_CODES:
+        _add(await scan_symbols(code))
     return ordered
 
 

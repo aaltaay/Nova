@@ -30,6 +30,153 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-17 — End-to-end scanner verification: fix all identified gaps
+
+- **What:** Fixed every gap found in the IBKR → scanner → HOD end-to-end trace: (1) After Hours tab now scans dedicated `TOP_AFTER_HOURS_PERC_GAIN` first, falling back to the intraday gainer-list reshape only when that scan is empty; (2) `scan_symbols()` short-TTL-caches (5s) results per `(scan_code, below_price)` so movers refresh, the gapper→gainer fallback, and the HOD seed loop stop re-querying IBKR for identical scans within a burst; (3) `apply_table_quotes` (cold `reqTickersAsync` snapshot path) now threads `day_high` into `on_trade_update` the same way the live L1 path (`apply_l1_quote`) already did, so HOD truth seeds correctly regardless of which quote path fed a symbol; (4) depth's no-entitlement L1 fallback now reuses `ibkr.ticks`' existing shared `reqMktData` stream for a symbol instead of opening a second raw one, and `unsubscribe()` no longer force-cancels that shared line out from under scanner/HOD/detail owners; (5) removed dead machinery: the `alert_broadcast_queue` (put/drain-only, size never read anywhere) and the unreachable `run_ibkr_afterhours_discovery()` helper; (6) the scanner REST poll now runs at 5s under `discovery=ibkr` (where `/ws/scanner` already streams live price patches) instead of 1s, while staying at 1s for Alpaca discovery where the poll IS the price feed.
+- **Why:** A full code-level trace from IB Gateway through every scanner (gappers/gainers/losers/afterhours/HOD) surfaced these as real correctness/efficiency gaps, not just architecture smells — the user asked to fix everything found.
+- **Files touched:** `backend/constants_ibkr.py`, `backend/ibkr/discovery.py`, `backend/scanner_runners/afterhours.py`, `backend/afterhours_discovery.py`, `backend/ibkr_bridge.py`, `backend/ibkr/ticks.py`, `backend/ibkr/depth/{state,subscribe,handlers}.py`, `backend/hod_momo_alerts.py`, `backend/hod_momo_trade.py`, `backend/hod_momo_state.py`, `backend/hod_momo.py`, `frontend/src/hooks/useScannerData.ts`, `frontend/src/constantGroups/chart_api.ts`, tests.
+- **How it works now:** AH discovery source is logged (`source=ah_scan|gainer_reshape|gainer_reshape_cold`). `ibkr.ticks.get_ticker(symbol)` lets depth attach a read-only listener to an existing L1 stream; `ibkr.depth.state.is_shared_l1()` tracks which symbols borrowed it so `unsubscribe()` skips `cancelMktData` for those (ticks.py still owns cancellation via its own owner refcounting).
+- **Verified by:** `pytest` (732 passed, backend), `vitest run` (224 passed, frontend), `npm run build` (clean). New tests: `test_ibkr_discovery.py` (AH scan code, TTL cache hit/miss), `test_ibkr_bridge.py` (day_high threading), `test_depth_stability.py::TestDepthL1FallbackReusesTicksStream`.
+- **Follow-ups:** None outstanding from this verification pass; `run_focus_scan` no-op under `discovery=ibkr` was confirmed as intentional (membership churn is scanner-driven, not focus-scan-driven) and needs no fix.
+- **Related:** `.cursor/plans/hod_gate_uml_cleanup_69da0848.plan.md` verified-gaps ledger.
+
+## 2026-07-17 — HOD truth seed + mute/burst cleanup
+
+- **What:** Stop inventing session high from the first L1 last; seed from IBKR bar highs + tick-6 day High (`hod_momo_high.py`). Require `high_seeded` for HOD strategies. Remove anti-spam mute (cooldown=0), set consolidation/burst to 10s, drop quiet-tape strategy re-eval, retire master RVOL soft bypass. Document APIs in Obsidian + hod-momo agent memory.
+- **Why:** Mid-session admissions and restarts falsely claimed "at HOD"; mute ≥ burst window starved Warrior `(N in Xs)` badges; quiet re-eval amplified fake highs.
+- **Files touched:** `hod_momo_high.py`, `hod_momo_trade.py`, `hod_momo_filters.py`, `hod_momo_surge_seed.py`, `ibkr/ticks.py`, `ibkr_bridge.py`, `hod_momo_heartbeat.py`, `constants_hod_momo.py`, `collapseAlertsBySymbol.ts`, Obsidian `IBKR-Scanner-HOD-Architecture.md`, tests.
+- **How it works now:** Scanner = membership; L1 + bars = HOD truth. Alerts only on real price/day-high updates. Burst window alone rate-limits. `HOD_RAW_MODE=1` skips strategy filters for raw observability.
+- **Verified by:** pytest HOD high/engine/filters/persist/heartbeat/spam suites.
+- **Follow-ups:** Central scanner service (Phase 3), raw-scanner UI table, day-keyed high persist across restart.
+- **Related:** PROBLEM_LOG 2026-07-17 cold-start false HOD.
+
+## 2026-07-17 — TRT sticky L1: cooled-first rank + cap to 8 slots
+
+- **What:** Session-focus sticky now ranks **cooled** (off mover tables) ahead of still-on-table soft-blocks, and caps the sticky list at `HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS` (8) instead of 40.
+- **Why:** Soft-block sticky worked once, then hot names (DRTS/ETS/…) prepended until TRT sat at sticky #15 with only 8 reserved L1 slots — empty snap again after restart.
+- **Files touched:** `backend/hod_momo_session_focus.py`, `constants_hod_momo.py`, `tests/test_hod_momo_session_focus.py`.
+- **How it works now:** `_rank_sticky` uses gainer/gapper/AH/loser caches; cooled stickies fill session_focus first. Do not raise sticky max above slot budget.
+- **Verified by:** pytest 14 passed; live TRT price=$10.66 rvol=0.30 session_high=$10.66; Former still `enabled=False`; session_gate PASS(warn).
+- **Related:** PROBLEM_LOG 2026-07-17 TRT sticky flood / cooled-first.
+
+## 2026-07-17 — TRT sticky L1: session-focus for master_rvol soft-block
+
+- **What:** New `hod_momo_session_focus` sticky list (day-persisted) pins symbols that hit master_rvol soft-block so they keep reserved L1 after leaving the gainer table. Session-focus slots restored to 8; priority is sticky → today_alerts → Former (last).
+- **Why:** TRT dropped to empty `/debug/symbol/TRT` once off movers — Former slots were cut to 2 and only today_alerts got session_focus, so cooled Squeeze names never stayed subscribed.
+- **Files touched:** `backend/hod_momo_session_focus.py`, `hod_momo_trade.py`, `hod_momo_session.py`, `hod_momo_former.py`, `ibkr_bridge.py`, `universe.py`, `constants_hod_momo.py`, tests.
+- **How it works now:** Soft-block evals call `remember_session_focus`; sticky feeds universe extras + active priority. Not Warrior-fed. Do not sticky on every Squeeze hod/surge miss (floods the list).
+- **Verified by:** pytest session_focus/former (8 passed); live TRT `session_focus` price=$10.67 rvol=0.31; session_gate PASS(warn).
+- **Related:** PROBLEM_LOG 2026-07-17 TRT empty snap / session-focus sticky.
+
+## 2026-07-17 — HOD strategy pills stack vertically (no horizontal scroll)
+
+- **What:** Strategy column pills stack top-to-bottom; row height grows. Former Momo tags hidden from default filter/collapse/display.
+- **Why:** Multi-strategy cells showed a horizontal scrollbar; user asked for vertical stack + expandable rows; Former stays off.
+- **Files touched:** `frontend/src/hod_momo/hodMomo.css`, `HodMomoAlertRow.tsx`, `HodMomoTab.tsx`, `HodMomoAlertTable.tsx`, `collapseAlertsBySymbol.ts`, `chart_api.ts`.
+- **How it works now:** `.hod-strategy-pills` is a column flex; strategy cells allow wrap; Former (id 1) omitted from default visible set and pills.
+- **Verified by:** `vitest run src/hod_momo/collapseAlertsBySymbol.test.ts` (4 passed).
+
+## 2026-07-17 — PN Squeeze L1: under-$20 gainer seed head + upside-only movers
+
+- **What:** Mid-tier IBKR table gainers under $20 (PN-class) now win HOD active `seed_slots` ahead of HOT_BY_VOLUME; discovery explore is gainer-ranked; losers no longer consume HOD mover slots; Former sticky slots 8→2. IBKR `scan_hod_momentum_seeds` puts `TOP_PERC_GAIN(belowPrice=20)` first.
+- **Why:** PN was on `/api/movers` gainers (rank ~36, ~$4.40) but empty `/debug/symbol/PN` — volume-seed head + abs-% losers + 8 Former slots starved L1 so Squeeze never evaluated.
+- **Files touched:** `backend/hod_momo_universe.py`, `backend/ibkr_bridge.py`, `backend/ibkr/discovery.py`, `backend/constants_hod_momo.py`, tests.
+- **How it works now:** `seed_symbols_for_active` / `discovery_for_active` feed `build_active_set`. Reserved seed L1 prefers hottest sub-$20 gainer-table names, then volume scans. No Warrior data in the engine.
+- **Verified by:** `pytest backend/tests/test_hod_momo_universe.py backend/tests/test_hod_active_quota.py` (25 passed); live PN `volume_seed` + snap price=$4.44; session_gate PASS(warn); observe --once.
+- **Follow-ups:** TRT Squeeze timing once on L1; SDOT mid-move if Warrior re-fires.
+- **Related:** PROBLEM_LOG 2026-07-17 PN empty snap / seed head burial.
+
+## 2026-07-17 — Squeeze must require HOD; restore mass-disabled strategies (schema v5)
+
+- **What:** Squeeze 5%/10% defaults + schema v5 migrate force `requires_hod=True`; non-Former strategies that were all-disabled get re-enabled. Live config repaired the same way.
+- **Why:** CNF fired Nova Squeeze while never on Warrior Small-Cap HOD — only Squeeze was enabled, with `requires_hod=False` (Running-Up behavior on the HOD widget).
+- **Files touched:** `backend/constants_hod_momo.py`, `backend/hod_momo_persist.py`, tests, live config.
+- **How it works now:** HOD-widget Squeeze needs a new session high. Running Up (12) stays `requires_hod=False`. Former (1) stays off. Disk schema=5.
+- **Verified by:** live config + `test_schema_v5_squeeze_requires_hod_and_reenables` (3 passed with v4 test).
+- **Related:** PROBLEM_LOG 2026-07-17 CNF nova_only without Warrior HOD.
+
+## 2026-07-17 — Squeeze ignores master RVOL soft-block; sub-$20 gainer seed pass
+
+- **What:** Master Daily Rate RVOL no longer hard-stops Squeeze 5%/10% (surge-only, `min_rvol=0`). HOD seeds add a second `TOP_PERC_GAIN` scan capped `belowPrice=20` so mega-gainers cannot crowd out microcap squeezes from IB's 50-row cap.
+- **Why:** Live Warrior TRT Squeeze with Nova pace RVOL 0.32× (formula correct); BTMD/PN-class empty-snap gaps while SDOT-class names fill uncapped gainers.
+- **Files touched:** `hod_momo_filters.py`, `hod_momo_trade.py`, `hod_momo_admin.py`, `ibkr/discovery.py`, `constants_ibkr.py`, tests.
+- **How it works now:** Soft `master_rvol` still blocks float RelVol strategies; Squeeze evaluates on surge. Seeds = volume scanners + uncapped gainers + sub-$20 gainers.
+- **Verified by:** pytest filters/engine/discovery; live TRT `would_fire` lists Squeeze surge blocks (not empty strategies).
+- **Related:** PROBLEM_LOG 2026-07-17 "Squeeze blocked by master RVOL…".
+
+## 2026-07-17 — Former Momo Stock disabled by default (schema v4)
+
+- **What:** Strategy 1 (Former Momo Stock) defaults to `enabled=False` / audio off; config schema bumps to v4 and one-time migrate forces persisted Former Momo off while keeping `former_momo_list` intact.
+- **Why:** No public Warrior formula for Former; user asked to disable it and focus parity on Squeeze / Float / Running Up.
+- **Files touched:** `backend/constants_hod_momo.py`, `backend/hod_momo_persist.py`, `frontend/src/constantGroups/chart_api.ts`, tests.
+- **How it works now:** Fresh installs and schema versions below 4 migrate Former off. List still auto-remembers from other strategy fires for later; re-enable in HOD Strategy UI when ready. Other strategies unchanged.
+- **Verified by:** `pytest backend/tests/test_hod_momo_models.py backend/tests/test_hod_momo_persist.py -q` (schema v4 + default tests).
+- **Follow-ups:** Own a deliberate Former list fill path before re-enabling; continue Squeeze parity (PN seed / TRT RVOL).
+
+## 2026-07-17 — Fix lifespan spawn typo that skipped scanner_l1 (Squeeze L1 dead)
+
+- **What:** Corrected `app_lifespan` wiring from nonexistent `fills_poll_loop` → `fill_poll_loop`, and made background-task spawn per-task resilient so one bad factory cannot skip `scanner_l1`.
+- **Why:** Live Warrior Squeeze parity (SDOT/BTMD/TRT) showed enrichment-only snaps with `surge:None` after restart — HOD/table L1 never subscribed because spawn aborted mid-list.
+- **Files touched:** `backend/app_lifespan.py`, `backend/tests/test_app_lifespan_spawn.py`.
+- **How it works now:** Bootstrap starts `scanner_l1` + HOD heartbeat/surge-seed first; remaining loops start independently; `bootstrap complete` logs with the count of successfully started tasks.
+- **Verified by:** `pytest backend/tests/test_app_lifespan_spawn.py`; live restart → integrity gate + observe (this session).
+- **Related:** PROBLEM_LOG 2026-07-17 "HOD L1 never started — lifespan spawn typo".
+
+## 2026-07-17 — Lifespan yields before IBKR connect (API serves while Gateway slow)
+
+- **What:** FastAPI lifespan now yields HTTP immediately after local restore/DB init; Alpaca ping, IBKR connect, recovery, and background loops run in a deferred bootstrap task. `connectAsync` has a hard `asyncio.wait_for` wall; failed connects recreate `IB()`. Default `IBKR_CLIENT_ID` moved 1→17.
+- **Why:** TCP listen on :8000 with hung `/docs` — Starlette startup shared the event loop with a wedged IBKR handshake (zombie clientId / Error 326 pattern).
+- **Files touched:** `backend/app_lifespan.py`, `backend/ibkr/client.py`, `backend/constants_ibkr.py`, `backend/tests/test_ibkr_client_connect.py`.
+- **How it works now:** uvicorn can answer `/docs` and `/api/ibkr/status` even while reconnect_loop retries; status shows disconnected until handshake succeeds. Override client id with `IBKR_CLIENT_ID` in `.env` if needed.
+- **Verified by:** `pytest backend/tests/test_ibkr_client_connect.py`; parent must restart uvicorn and curl `/docs`.
+- **Related:** PROBLEM_LOG 2026-07-17 "API listens but never serves — lifespan IBKR hang".
+
+## 2026-07-17 — Bound IBKR L1 qualify to stop API CLOSE_WAIT wedge
+
+- **What:** `qualifyContractsAsync` now has a 4s timeout; at most 5 new L1 subscribes per reconcile; blocked L1 fails skipped before re-qualify; `/api/integrity` serves a 2s cache from the background loop.
+- **Why:** Unbounded qualify under the ticks subscribe lock (explore churn) wedged the asyncio loop — HTTP clients timed out → dozens of CLOSE_WAIT on :8000, API hung ~2min after restart.
+- **Files touched:** `backend/ibkr/ticks.py`, `constants_ibkr.py`, `ibkr/scanner_l1.py`, `integrity_live.py`, `routes/scan.py`, tests.
+- **How it works now:** Failed/slow qualifies release the lock quickly; explore adds drain across ticks; integrity polls reuse a fresh cache instead of stacking sync builds.
+- **Verified by:** `test_ibkr_ticks` cap test; live gate/observe after parent uvicorn restart.
+- **Related:** PROBLEM_LOG 2026-07-17 "API hung CLOSE_WAIT — unbounded L1 qualify".
+
+## 2026-07-17 — HOD L1 fail cooldown + coverage 98% warn floor
+
+- **What:** IBKR L1 subscribe failures (e.g. FRE qualify fail) now cool out of the HOD active set for 300s; demoted actives clear stale quote/eval ages; integrity treats coverage 90–99% as warn (still fails below 90%). Session-gate/observe HTTP timeouts raised to 30s.
+- **Why:** Explore admitted unqualifiable symbols → coverage 98% hard-fail + recycled symbols kept hours-old `_last_quote_ts`, flapping integrity FAIL and refusing parity observe while the rest of L1 was healthy.
+- **Files touched:** `backend/hod_momo_active.py`, `hod_momo_integrity_hod.py`, `constants_hod_momo.py`, `ibkr/scanner_l1.py`, `tools/hod_momo_session_gate.py`, `tools/hod_momo_parity_observe.py`, tests.
+- **How it works now:** Failed L1 symbols cannot occupy discovery slots during cooldown; leaving the active set drops age timestamps; coverage flaps no longer suppress alerts when quote/eval ages are green.
+- **Verified by:** `test_hod_momo_active` + `test_hod_momo_integrity` new cases; live `session_gate --profile integrity_only` after reload.
+- **Related:** PROBLEM_LOG 2026-07-17 "HOD integrity FAIL from L1-failed explore symbols".
+
+## 2026-07-17 — Archive 1m bars from tape + live-readiness scorecard
+
+- **What:** Wired `archive.bar_builder` so IBKR tape prints build `bars_1m` (live + backfill). Backfilled 2026-07-15/16 (331 bars) and re-compacted cold JSONL. Added `tools/live_readiness_scorecard.py` and `tools/archive_backfill_bars_from_tape.py`. Aligned journal GO gates to Phase I (≥50 trades, ≥90% adherence) and `SLIPPAGE_MAX_ADVERSE_BPS`. Extracted `executor_place.py` (executor back under baseline).
+- **Why:** Empty `bars_1m` blocked archive replay/walk; live-readiness checklist needed an honest automatable scorecard; threshold docs/API mismatch.
+- **Files touched:** `backend/archive/bar_builder.py`, `ibkr/tape_stream.py`, `strategy/executor_place.py`, `journal/metrics.py`, `constants_ibkr.py`, tools + tests.
+- **How it works now:** Each tape print updates a 1m OHLCV bucket → `record_bar`. Scorecard exits NO-GO until paper Gateway + ≥5 shadow days + ≥50 closed non-mock trades. `auto_live` stays rejected.
+- **Verified by:** bar_builder tests; backfill 59+272 cold bars; kill/flatten/auto_live API drills; pytest focused suites green.
+- **Follow-ups:** Human Phase B shadow days on paper Gateway (API paper-connected 2026-07-17; orders still locked until operator enables paper spends).
+
+## 2026-07-17 — Centralized trading execution path (ADR 007)
+
+- **What:** All broker mutations (place, bracket, cancel, price-only replace, kill, flatten) go through `execution.service.execute` with SQLite idempotency, stage timings, and real IBKR ack/fill callbacks (`PendingSubmit` is not ack). Manual UI and automation share the path; paper/live differ only by Gateway gates.
+- **Why:** Prove a single measured execution path against p95 ≤250 ms receive→ack without unlocking `auto_live` or placing live orders.
+- **Files touched:** `backend/execution/*`, `backend/ports/execution.py`, `backend/routes/trading.py`, `backend/strategy/executor.py`, `backend/strategy/executor_flatten.py`, `backend/ibkr/orders.py`, `tools/execution_latency_probe.py`, `docs/trading-execution-validation.md`, ADR 007, tests.
+- **How it works now:** Callers build an `ExecutionCommand` (stable `idempotency_key`) → validate → reserve ledger row → adapter send → telemetry marks ack/fill on the ledger. Duplicate keys replay the prior receipt. `PATCH /api/ibkr/order/{id}` is price-only replace. Probe: `tools/execution_latency_probe.py --confirm-paper-orders`.
+- **Verified by:** pytest execution/executor/trading/staged/auto_paper (77 related); synthetic probe p95 ack ~53 ms; AST no-bypass test.
+- **Follow-ups:** Paper Gateway probe when logged in; do not treat Continue as live GO.
+- **Related:** `docs/trading-execution-validation.md`, canvas `agent-execution-validation`.
+
+## 2026-07-17 — Stock View full-bleed (kill Tailwind `.container` clamp)
+
+- **What:** Renamed the app shell from `.container` → `.nova-shell` so Stock View stretches edge-to-edge; removed the dead black strip on the right.
+- **Why:** Tailwind v4 treats `class="container"` as its responsive max-width utility (`48rem` / `64rem` / …). That utility lives in the `utilities` cascade layer and overrode Nova’s layout CSS.
+- **Files touched:** `App.tsx`, `DashboardPage.tsx`, `tokens-shell.css`, `stock-view.css`, `quote-layout.css`, `tailwind-overrides.css`.
+- **How it works now:** Shell is `.nova-shell` / `.nova-shell--ticker-detail` with `max-width: none`. Do not reintroduce a layout class named `container`.
+- **Verified by:** Browser computed `maxWidth: none`, `gap: 0` at Stock View.
+- **Related:** PROBLEM_LOG 2026-07-17 Tailwind `.container` max-width.
+
 ## 2026-07-17 — Canvas dashboard refresh + documentation audit
 
 - **What:** Refreshed all 7 preferred canvases (real re-run of `tester`/`security-sentinel`/`maintainer` deterministic checks via their own subagents, plus hand-fixed stale hardcoded prose outside the generated snapshot blocks in `nova-home`/`agent-tester`/`agent-security`). Ran a markdownlint sweep across the repo's highest-value docs.

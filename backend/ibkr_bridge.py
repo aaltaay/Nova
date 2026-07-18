@@ -114,6 +114,12 @@ _hod_active_cache_ts = 0.0
 _HOD_ACTIVE_CACHE_SEC = 30.0
 
 
+def invalidate_hod_active_cache() -> None:
+    """Drop the 30s active-set cache (session-focus sticky just changed)."""
+    global _hod_active_cache_ts
+    _hod_active_cache_ts = 0.0
+
+
 def refresh_hod_active_set(*, force: bool = False) -> list[str]:
     """Rebuild capacity-bounded active evaluation set from discovery + scanners."""
     global _hod_active_cache, _hod_active_cache_ts
@@ -125,16 +131,38 @@ def refresh_hod_active_set(*, force: bool = False) -> list[str]:
     ):
         return list(_hod_active_cache)
     state = get_runtime_state()
-    discovery = set(state.hod_momo_universe)
-    seeds = list(_hod_uni.get_seed_symbols())
+    # Upside-first discovery + seed head so mid-tier sub-$20 table gainers
+    # (PN/BTMD Squeeze) get reserved L1 — not buried by HOT_BY_VOLUME / losers.
+    discovery = _hod_uni.discovery_for_active(
+        state.hod_momo_universe,
+        state.gainer_cache,
+    )
+    seeds = _hod_uni.seed_symbols_for_active(
+        _hod_uni.get_seed_symbols(),
+        state.gainer_cache,
+    )
+    try:
+        import hod_momo_session_focus as _focus
+
+        priority = _focus.session_focus_active_priority()
+    except Exception:
+        try:
+            import hod_momo_former as _former
+
+            priority = _former.session_focus_active_priority()
+        except Exception:
+            priority = []
     snap = _hod_active.build_active_set(
         discovery=discovery,
         gainer_rows=state.gainer_cache,
-        loser_rows=state.loser_cache,
+        # Losers were consuming ~half of mover/fill slots via abs(change_pct)
+        # and crowding out mid-tier Squeeze names still on the gainer table.
+        loser_rows=None,
         gapper_rows=state.gapper_cache,
         afterhours_rows=state.afterhours_cache if state.current_mode == "afterhours" else None,
         seed_symbols=seeds,
         detail_symbols=get_ibkr_detail_symbols(),
+        priority_symbols=priority,
         capacity=HOD_MOMO_ACTIVE_SET_CAPACITY,
     )
     _hod_active_cache = list(snap.active)
@@ -244,12 +272,15 @@ def apply_l1_quote(
         active = set(_hod_active.get_active_symbols()) or {sym}
     if sym in active:
         try:
+            from ibkr import ticks as _ticks
+
             _hod_active.note_quote(sym, now)
             _hod_momo.on_trade_update(
                 sym,
                 float(price),
                 now,
                 volume=int(volume) if volume is not None else None,
+                day_high=_ticks.get_day_high(sym),
             )
         except Exception:
             logger.exception("HOD Momo: IBKR L1 tick failed for %s", sym)
@@ -315,6 +346,7 @@ def apply_table_quotes(quotes: dict) -> dict | None:
                 float(price),
                 trade_ts,
                 volume=int(vol) if vol is not None else None,
+                day_high=(q or {}).get("high"),
             )
         except Exception:
             logger.exception("HOD Momo: IBKR table tick failed for %s", sym)

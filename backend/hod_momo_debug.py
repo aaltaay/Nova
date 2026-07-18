@@ -56,6 +56,7 @@ def build_debug_symbol(
             "gap_pct": snap.gap_pct if snap else None,
             "change_pct": snap.change_pct if snap else None,
             "volume": snap.volume if snap else None,
+            "avg_volume": snap.avg_volume if snap else None,
             "fifty_two_week_high": snap.fifty_two_week_high if snap else None,
             "rvol_source": snap.rvol_source if snap else None,
             "last_enriched": snap.last_enriched if snap else 0.0,
@@ -100,6 +101,7 @@ def build_debug_snaps(ticker_snaps: dict[str, TickerSnap], limit: int = 50) -> l
             "gap_pct": snap.gap_pct,
             "change_pct": snap.change_pct,
             "volume": snap.volume,
+            "avg_volume": snap.avg_volume,
             "rvol_source": snap.rvol_source,
             "last_enriched": snap.last_enriched,
         }

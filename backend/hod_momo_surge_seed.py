@@ -112,6 +112,21 @@ async def surge_seed_loop(get_provider: Callable[[], str]) -> None:
                     bars = await _fetch_seed_bars(sym, provider)
                     points = bars_to_surge_points(bars)
                     n = hm.seed_price_buffer(sym, points)
+                    # Same bars → session-high seed (max h). Avoids inventing HOD
+                    # from the first L1 last print after admission.
+                    try:
+                        import hod_momo_high as _high
+
+                        sh = _high.seed_session_high_from_bars(sym, bars)
+                        if sh is not None:
+                            logger.info(
+                                "HOD Momo high seed: %s session_high=%.4g from %d bars",
+                                sym, sh, len(bars),
+                            )
+                    except Exception as hexc:
+                        logger.warning(
+                            "HOD Momo high seed failed for %s: %s", sym, hexc,
+                        )
                     if points:
                         logger.info(
                             "HOD Momo surge seed: %s +%d buffer pts from %d %s bars (%s)",

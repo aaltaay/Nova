@@ -21,6 +21,111 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-17 — HOD Momo alert queue referenced a dataclass field that never existed
+
+- **Symptom:** `hod_momo_alerts.get_broadcast_queue()` read `state.alert_broadcast_queue`, but `HodMomoState` (`hod_momo_state.py`) never declared that field — the first read on a freshly constructed state would raise `AttributeError`, and the queue's only other use (`hod_momo_trade.py`'s `queue.put_nowait(("pending", alert))` and `flush_consolidated_loop`'s `queue.get_nowait()` drain) never read the queued items or its size anywhere — pure put/drain-only dead machinery.
+- **Cause:** Leftover plumbing from an earlier design where broadcast may have gone through the queue; direct WebSocket send (`ws.send_text`) became the real delivery path and nothing was ever wired to observe the queue's size/contents, while the backing state field was dropped from the dataclass at some point without removing the accessor.
+- **Fix:** Removed `get_broadcast_queue()`, the `put_nowait`/`get_nowait` calls, and all re-exports (`hod_momo.py`). Alerts still deliver via direct `ws.send_text` in `flush_consolidated_loop`, unchanged.
+- **Keywords:** alert_broadcast_queue, get_broadcast_queue, AttributeError, HodMomoState, dead queue, hod_momo_alerts, hod_momo_trade
+
+## 2026-07-17 — End-to-end IBKR scanner trace: AH reshape, cold day_high, dual L1 lines
+
+- **Symptom:** A full code trace of IBKR Gateway → scanner → HOD surfaced several real (not just cosmetic) gaps: After Hours tab sourced from an intraday `TOP_PERC_GAIN`-derived reshape instead of the dedicated AH scan universe; the cold `reqTickersAsync` snapshot path (`apply_table_quotes`) never passed `day_high` into `on_trade_update`, so symbols priced only via cold snapshots (not live L1) stayed HOD-cold-start-blocked longer than necessary; depth's no-L2-entitlement fallback could open a second raw `reqMktData` line for a symbol `ibkr.ticks` already streamed, and `unsubscribe()` unconditionally called `cancelMktData` even when that line might be needed by other owners.
+- **Cause:** Each scanner/consumer path (movers, gapper fallback, HOD seed loop, AH tab, depth fallback) was built independently over time without a shared scan-result cache, without threading the day-high field all the way through both quote paths, and without depth's L1 fallback being aware of `ibkr.ticks`' owner-refcounted stream model.
+- **Fix:** Added `IBKR_SCAN_CODE_AH_GAINERS` (`TOP_AFTER_HOURS_PERC_GAIN`) as the AH tab's primary source (gainer-reshape stays a fallback only); added a 5s TTL cache in `scan_symbols()` keyed by `(scan_code, num_rows, below_price)`; `snapshot_quotes()` now returns `high` and `apply_table_quotes` passes it as `day_high`; depth's L1 fallback calls `ibkr.ticks.get_ticker()` first and marks the symbol `is_shared_l1` so `unsubscribe()` skips `cancelMktData` for it.
+- **Keywords:** TOP_AFTER_HOURS_PERC_GAIN, afterhours reshape, apply_table_quotes, day_high, snapshot_quotes, depth L1 fallback, ibkr.ticks.get_ticker, is_shared_l1, scan_symbols cache, IBKR_SCAN_RESULT_TTL_SEC
+
+## 2026-07-17 — Cold-start false HOD from invented session_highs
+
+- **Symptom:** Symbols appeared "at HOD" / fired HOD strategies when they were not (pullback after earlier day high; mid-session L1 admission; after restart). Quiet-tape re-eval made it worse on flat lasts.
+- **Cause:** `hod_momo_trade.on_trade_update` set `session_highs[sym] = price` whenever last exceeded the dict default `0.0`, so the first observed last became HOD. No use of IBKR tick-6 day High or bar highs.
+- **Fix:** `hod_momo_high.py` seeds from bar `max(h)` (surge-seed hist fetch) + L1 `ticker.high`; block with `hod:high_unseeded` until seeded; only then raise from last. Removed quiet re-eval; mute→0; burst 10s.
+- **Keywords:** HOD, session_highs, cold-start, tick-6, ticker.high, high_seeded, false HOD, mute, consolidation
+
+## 2026-07-17 — TRT sticky flooded: cooled name ranked #15 of 15 (only 8 L1 slots)
+
+- **Symptom:** After sticky L1 shipped, restart left `/debug/symbol/TRT` empty again while DRTS (sticky head) had live L1; sticky file listed 15 soft-block names with TRT last.
+- **Cause:** `HOD_MOMO_SESSION_FOCUS_MAX=40` let hot master_rvol soft-blocks accumulate; reserved session_focus slots are only 8. Newest hot stickies took the slots; cooled TRT never subscribed.
+- **Fix:** Cap sticky to 8 slots; `_rank_sticky` puts off-mover (cooled) symbols before on-table ones before truncate/priority.
+- **Keywords:** TRT, sticky flood, session_focus, cooled-first, HOD_MOMO_SESSION_FOCUS_MAX, empty snap
+
+## 2026-07-17 — TRT empty snap after leaving gainer table (session-focus churn)
+
+- **Symptom:** After PN L1 fix, TRT `/debug/symbol/TRT` empty (no price/rvol/session_high) while Warrior still showed prior Squeeze; TRT not in movers/active/uncovered.
+- **Cause:** Session-focus reserved only 2 slots (Former cut) and only `today_alerts` + Former list. TRT never Nova-alerted (soft-block then churn). Once off TOP_PERC_GAIN it left the focus universe and L1. Early sticky-on-every-tick / every-Squeeze-eval flooded the sticky list and evicted TRT.
+- **Fix:** `hod_momo_session_focus` day-persisted sticky; remember only on master_rvol soft-block; priority sticky→alerts→Former; `HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS=8`.
+- **Keywords:** TRT, empty snap, session_focus, sticky L1, master_rvol soft-block, Squeeze churn
+
+## 2026-07-17 — PN Squeeze empty snap despite being on IBKR gainers table
+
+- **Symptom:** Warrior PN Squeeze 5%/10% (~12:54–12:58 @ $4.25–4.49); Nova `/debug/symbol/PN` empty (never evaluated). PN ranked ~36 on `/api/movers` gainers.
+- **Cause:** Not a missing scan code — PN was in focus/discovery but uncovered. Active seed_slots took the **head** of HOT_BY_VOLUME-ordered seeds (~150 names before belowPrice TOP_PERC_GAIN). Losers filled ~half of mover slots via `abs(change_pct)`. Former `session_focus` reserved 8 L1 slots. Mid-tier low-volume sub-$20 gainers never got sticky L1.
+- **Fix:** `seed_symbols_for_active` / `discovery_for_active` (under-$20 gainer head); `scan_hod_momentum_seeds` belowPrice-first; `ibkr_bridge` omits `loser_rows`; `HOD_MOMO_ACTIVE_FORMER_SLOTS` 8→2.
+- **Keywords:** PN, Squeeze, universe_gap, seed_slots, under20, HOT_BY_VOLUME, top_loser, session_focus, empty snap
+
+## 2026-07-17 — CNF Squeeze on Nova but never on Warrior HOD
+
+- **Symptom:** User saw **CNF** alert on Nova HOD Momo (Squeeze 5%/10%); Warrior Small-Cap HOD Momentum never showed CNF.
+- **Cause:** (1) Live config had **only** strategies 10/11 enabled — Float / Running Up / 52wk all disabled. (2) Those Squeeze configs had `requires_hod=False`, so a surge alone could fire without a new high of day — Warrior’s HOD widget requires HOD.
+- **Fix:** Schema v5 + live repair: Squeeze `requires_hod=True`; re-enable strategies 2–12; Former stays off. Defaults document Squeeze HOD requirement.
+- **Keywords:** CNF, nova_only, Squeeze, requires_hod, Warrior HOD Momentum, mass-disabled strategies, schema v5
+
+## 2026-07-17 — Squeeze blocked by master RVOL; microcap squeezes crowded out of seed top-50
+
+- **Symptom:** Live Warrior Squeeze on **TRT** while Nova `would_fire_now` hard-stopped at `master_rvol(0.32<2.0)` with empty strategies. **BTMD** Squeeze never entered Nova (empty snap) despite seed codes including TOP_PERC_GAIN.
+- **Cause:** (1) Squeeze 5%/10% defaults intentionally set `min_rvol=0` (surge is the gate), but `passes_master_gate` still applied a global Daily Rate floor of 2.0 before any strategy ran — pace RVOL math for TRT was correct (vol/avg×elapsed ≈ 0.32). (2) IBKR TOP_PERC_GAIN hard-caps at 50 rows; mega-gainers fill the uncapped list so sub-$20 squeezes never enter the HOD seed/watch set.
+- **Fix:** Soft-block master RVOL — still evaluate surge-only strategies (`min_rvol<=0` + surge window). Second seed pass: `TOP_PERC_GAIN` with `belowPrice=IBKR_HOD_SEED_BELOW_PRICE` (20). BTMD may still miss when it ranks outside the sub-$20 top-50 (`capacity_expected`).
+- **Keywords:** Squeeze, master_rvol, TRT, BTMD, pace RVOL, Daily Rate, belowPrice, TOP_PERC_GAIN, universe_gap, strategy_ignores_master_rvol
+
+## 2026-07-17 — HOD L1 never started — lifespan spawn typo aborted before scanner_l1
+
+- **Symptom:** After uvicorn restart, integrity FAIL (coverage ~42–62%, quote/eval ages climbing to minutes); parity `nova=0`; Warrior Squeeze names (SDOT/TRT) had enrichment snaps but `surge:None` / empty `session_high` (no `on_trade_update`). Log had scan_loop + surge_seed but **zero** `IBKR ticks: subscribed … owner=hod|scanner` and no `lifespan bootstrap complete`.
+- **Cause:** `app_lifespan._spawn_runtime_tasks` built a single task list and called `_executor.fills_poll_loop` (plural). Real name is `fill_poll_loop`. `AttributeError` aborted the list mid-build after early tasks (scan/enrichment/surge_seed) were already `create_task`'d but **before** `scanner_l1.reconcile_loop` — so table/HOD L1 never subscribed.
+- **Fix:** Wire `fill_poll_loop`; spawn each background task independently (fail one, keep others); start `scanner_l1` + HOD heartbeat/surge-seed first. Regression: `test_app_lifespan_spawn.py`.
+- **Keywords:** fills_poll_loop, fill_poll_loop, scanner_l1, lifespan spawn, surge:None, SDOT, Squeeze, L1 coverage, bootstrap complete
+
+## 2026-07-17 — API listens but never serves — lifespan blocked on IBKR connect
+
+- **Symptom:** Nova API listened on :8000 but even `/docs` timed out after restart (no `--reload`); IB Gateway port 4001 was listening.
+- **Cause:** `app_lifespan` awaited Alpaca health + `ibkr.client.startup()` / connect path on the same asyncio loop before `yield`, so Starlette never finished startup. `ib_async.connectAsync` can hang past its own timeout when Gateway accepts TCP but the API handshake stalls (common with Error 326 — clientId already in use by a zombie worker on clientId=1).
+- **Fix:** Yield HTTP after local restore/DB only; defer ping/IBKR/recovery/background tasks. Hard `asyncio.wait_for` around `connectAsync` (`IBKR_CONNECT_TIMEOUT_SEC`); recreate `IB()` on fail; default `IBKR_CLIENT_ID` 1→17.
+- **Keywords:** lifespan hang, /docs timeout, connectAsync, Error 326, clientId, IBKR_CLIENT_ID, Starlette startup, event loop
+
+## 2026-07-17 — API hung CLOSE_WAIT — unbounded L1 qualify under subscribe lock
+
+- **Symptom:** Nova API on :8000 accepted TCP but `/api/ibkr/status` and `/api/integrity` timed out; dozens of CLOSE_WAIT + 100s of ESTABLISHED; hung again ~2min after uvicorn restart.
+- **Cause:** `ibkr/ticks.subscribe` awaited `qualifyContractsAsync` with no timeout while holding `_subscribe_lock`. Explore rotation queued many qualifies; Gateway stalls blocked the lock/IB work, starving the asyncio loop so HTTP handlers never finished → clients closed → CLOSE_WAIT pile-up.
+- **Fix:** `asyncio.wait_for(..., IBKR_L1_QUALIFY_TIMEOUT_SEC=4)`; cap `IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE=5`; skip L1-fail-cooldown symbols in scanner_l1; 2s integrity HTTP cache.
+- **Keywords:** CLOSE_WAIT, API hung, qualifyContractsAsync, subscribe lock, event loop, L1, uvicorn, integrity timeout
+
+## 2026-07-17 — HOD integrity FAIL from L1-failed explore symbols (coverage 98% / hours-stale ages)
+
+- **Symptom:** Integrity hard-fail with `coverage=85–98%`, sometimes `quote_p95` hours-old / `active_quote_missing` FRE/CRD; `l1_err IBKR L1 subscribe failed for 1 symbol(s)`; session_gate FAIL → parity observe REFUSED while BIYA/LBGJ still on active set and ticks otherwise flowing.
+- **Cause:** (1) Rotating discovery explore admitted symbols IBKR cannot qualify/stream as SMART USD (FRE-class) — they occupied an active slot with no L1, dropping coverage below 100%. (2) Coverage hard-required 100%, so one missing symbol failed the whole feed. (3) Demoted-then-re-admitted symbols kept old `_last_quote_ts`, so max age climbed to hours when re-subscribe failed and heartbeat skipped (not subscribed, no cache).
+- **Fix:** `note_l1_subscribe_failed` cooldown from `scanner_l1` → skip blocked names in `build_active_set` (except open ticker); purge quote/eval ages on demotion; coverage fail floor 90% (98% → warn). Tool HTTP timeouts 8/10s → 30s to stop false BLOCKED on slow integrity.
+- **Keywords:** HOD Momo, integrity, coverage 98%, FRE, L1 subscribe failed, explore, note_quote, session_gate, parity observe, scanner_l1
+
+## 2026-07-17 — Archive cold days had empty `bars_1m` despite tape
+
+- **Symptom:** Cold archive for 2026-07-15/16 had `bars_1m.jsonl` with 0 lines while `tape_ibkr` had tens of thousands of prints; walk/replay could not use bars.
+- **Cause:** `archive.capture.record_bar` had no production caller — only tape was wired from `ibkr/tape_stream.py`.
+- **Fix:** Added `archive.bar_builder` (minute OHLCV from prints), hooked after `record_tape_print`, backfill tool + re-compact for prior days.
+- **Keywords:** bars_1m, archive, tape_ibkr, bar_builder, compact, walk_day, replay
+
+## 2026-07-17 — Execution ledger `update_stages` rejected `symbol=`
+
+- **Symptom:** After routing place/bracket through `execution.service`, happy-path tests and the synthetic latency probe crashed with `TypeError: update_stages() got an unexpected keyword argument 'symbol'`.
+- **Cause:** `_send_broker` persisted `symbol=` on send, but `store.update_stages` had no `symbol` parameter (only set at `reserve` time).
+- **Fix:** Accept optional `symbol` in `update_stages` and write it when provided; extract broker send helpers to stay under the file-size limit.
+- **Keywords:** execution, update_stages, symbol, ADR 007, place_bracket, latency probe
+
+## 2026-07-17 — Stock View right-side gap (Tailwind `.container` max-width)
+
+- **Symptom:** Stock View (header + charts + quote/trade rail) stopped short of the window’s right edge, leaving a large empty black strip. `align-items: stretch` / `width: 100%` / `max-width: none` in feature CSS did not fix it.
+- **Cause:** Nova’s shell used `className="container"`. Tailwind v4 scans that name and emits `@media (width>=48rem){ .container { max-width: 48rem } }` (and larger breakpoints) in the `utilities` cascade layer. Utilities beat `features`, so Stock View never went full-bleed.
+- **Fix:** Renamed shell to `.nova-shell` / `.nova-shell--ticker-detail` (`App.tsx`, `DashboardPage.tsx`, tokens/stock-view/quote-layout CSS). Kept a `!important` safety reset in `tailwind-overrides.css` for any leftover `.container`.
+- **Keywords:** Stock View, gap, max-width, Tailwind container, cascade layers, nova-shell, full bleed
+
 ## 2026-07-16 — `markdownlint-cli2 --fix` corrupted bare Python identifiers in prose
 
 - **Symptom:** After running `npx markdownlint-cli2 --fix` on `AGENTS.md`/`gemini.md`/`CHANGELOG.md`/`PROBLEM_LOG.md` to clear MD022/MD032 blank-line violations, a diff review found silently mangled content: `__init__.py` became `**init**.py`, and spaces before underscore-prefixed identifiers were deleted (e.g. `load_state, _session_date` → `load_state,_session_date`, `(IBKR_* constants)` → `(IBKR_*constants)`).

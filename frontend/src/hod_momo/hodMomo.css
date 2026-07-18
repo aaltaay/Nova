@@ -400,6 +400,13 @@
   white-space: nowrap;
 }
 
+.hod-table-wrapper td.hod-strategy-cell {
+  white-space: normal;
+  vertical-align: top;
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+}
+
 .hod-table-wrapper th.hod-strategy-th {
   overflow: visible; /* filter dropdown must not be clipped */
 }
@@ -412,21 +419,20 @@
 }
 
 .hod-strategy-cell {
-  max-width: 22rem;
-  vertical-align: middle;
+  max-width: 14rem;
+  vertical-align: top;
 }
 
+/* Stack strategy pills vertically — row height grows; no horizontal scrollbar. */
 .hod-strategy-pills {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.25rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
   min-width: 0;
   max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
-  scrollbar-width: thin;
+  overflow: visible;
+  white-space: normal;
 }
 
 .hod-strategy-pill {
@@ -437,11 +443,14 @@
   font-size: 0.62rem;
   font-weight: 600;
   white-space: nowrap;
-  max-width: 11rem;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  vertical-align: middle;
   box-sizing: border-box;
+}
+
+.hod-alert-row {
+  height: auto;
 }
 
 /* RVOL cell with source badge */

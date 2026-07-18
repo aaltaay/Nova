@@ -133,18 +133,17 @@ def passes_master_gate(
     in_rvol_warmup_grace: bool,
     surge_buffer: "deque[tuple[float, float]] | None",
 ) -> tuple[bool, str]:
-    """Global pre-check before strategy evaluation (RVOL + optional master surge).
+    """Global pre-check: data-ready + optional master surge.
 
-    HOD is enforced per-strategy via ``StrategyConfig.requires_hod`` (see
-    ``fails_hod_gate``) so Warrior Running Up alerts can fire without a new
-    high of day.
+    Master RVOL was retired (2026-07-17) — per-strategy ``min_rvol`` is the
+    RVOL gate. ``eff_min_rvol`` / ``in_rvol_warmup_grace`` kept for call-site
+    compatibility; unused.
+
+    HOD is per-strategy via ``fails_hod_gate`` (Running Up can skip HOD).
     """
-    if eff_min_rvol > 0:
-        if snap.rvol is None:
-            if not in_rvol_warmup_grace:
-                return False, "master_rvol:unknown"
-        elif snap.rvol < eff_min_rvol:
-            return False, f"master_rvol({snap.rvol:.2f}<{eff_min_rvol})"
+    del eff_min_rvol, in_rvol_warmup_grace  # master RVOL retired
+    if snap.price is None or float(snap.price or 0) <= 0:
+        return False, "master_data:no_price"
 
     if master.surge_pct > 0 and master.surge_window_min > 0:
         surge = price_surge(surge_buffer, master.surge_window_min, "low_to_current")
@@ -156,15 +155,42 @@ def passes_master_gate(
     return True, ""
 
 
+def is_master_rvol_soft_block(gate_ok: bool, gate_reason: str) -> bool:
+    """Retired — always False. Kept so older callers/tests import cleanly."""
+    del gate_ok, gate_reason
+    return False
+
+
+def strategy_ignores_master_rvol(cfg: StrategyConfig) -> bool:
+    """Retired with master RVOL — always False."""
+    del cfg
+    return False
+
+
 def fails_hod_gate(
     price: float,
     session_high: float,
     cfg: StrategyConfig,
     master_hod_required: bool,
+    *,
+    high_seeded: bool = True,
+    epsilon_abs: float = 0.01,
+    epsilon_pct: float = 0.001,
 ) -> str | None:
-    """Return a block reason if this strategy requires HOD and price is below it."""
+    """Return a block reason if this strategy requires HOD and price is below it.
+
+    Unseeded highs always block (kills cold-start invent-from-first-tick).
+    """
     if not (cfg.requires_hod and master_hod_required):
         return None
-    if price < session_high:
-        return f"hod(price={price:.4g}<hod={session_high:.4g})"
+    if not high_seeded or session_high <= 0:
+        return "hod:high_unseeded"
+    try:
+        px = float(price)
+        hod = float(session_high)
+    except (TypeError, ValueError):
+        return "hod:high_unseeded"
+    eps = max(float(epsilon_abs), float(hod) * float(epsilon_pct))
+    if px + eps < hod:
+        return f"hod(price={px:.4g}<hod={hod:.4g})"
     return None

@@ -52,6 +52,18 @@ export const NOVA_START_API_HEALTH_TIMEOUT_MS = 45_000;
 export const BACKEND_PROBE_TIMEOUT_MS = 2_500;
 /** Scanner poll fetch timeout — fail into diagnose instead of hanging for minutes. */
 export const SCANNER_FETCH_TIMEOUT_MS = 8_000;
+/**
+ * REST scanner poll cadence when there is NO IBKR L1 WebSocket driving live
+ * price patches (Alpaca discovery) — this poll IS the price feed, so it stays 1Hz.
+ */
+export const SCANNER_POLL_INTERVAL_MS = 1_000;
+/**
+ * REST scanner poll cadence when discovery=ibkr — useScannerPriceStream's
+ * /ws/scanner patches already deliver live price/volume; this poll only
+ * needs to catch structural changes (rows added/removed, health, mode).
+ * Mirrors backend GAINERS_INTERVAL_SEC (constants_scanner.py) scan cadence.
+ */
+export const SCANNER_POLL_INTERVAL_IBKR_MS = 5_000;
 
 /** Stable outage flags shown in the header + `[Nova][API_FLAG]` console lines. */
 export const BACKEND_DIAG_FLAG_DOWN = 'API_DOWN';
@@ -142,7 +154,7 @@ export interface StrategyMeta {
 
 /** Canonical strategy metadata — mirrors backend constants.py HOD_MOMO_STRATEGY_* */
 export const STRATEGY_META: StrategyMeta[] = [
-  { id: 1,  name: 'Former Momo Stock',                          color: '#FF9100', audioDefault: true  },
+  { id: 1,  name: 'Former Momo Stock',                          color: '#FF9100', audioDefault: false },
   { id: 2,  name: 'Squeeze Alert - 52wk Breakout',              color: '#FFD600', audioDefault: true  },
   { id: 3,  name: 'Low Float - Med Rel Vol',                    color: '#66BB6A', audioDefault: true  },
   { id: 4,  name: 'Low Float - High Rel Vol - Price $20+',      color: '#00BFA5', audioDefault: true  },
@@ -157,6 +169,7 @@ export const STRATEGY_META: StrategyMeta[] = [
 ];
 
 /** Warrior Running Up — strategy id 12 (requires_hod=false on the backend). */
+export const HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1;
 export const HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12;
 
 export const STRATEGY_META_MAP: Record<number, StrategyMeta> = Object.fromEntries(
@@ -267,19 +280,117 @@ export const STOCK_VIEW_WINDOW_FEATURES = [
 export const STOCK_VIEW_CHARTS_COLLAPSED_KEY = 'nova.stockView.chartsCollapsed';
 export const STOCK_VIEW_CHARTS_SHOW_LABEL = 'Show charts';
 export const STOCK_VIEW_CHARTS_HIDE_LABEL = 'Hide charts';
+/** Tooltip on the Stock View header symbol chip (double-click to rename). */
+export const STOCK_VIEW_SYMBOL_EDIT_TITLE = 'Double-click to change symbol';
+/** Aria label for the inline symbol editor after double-click. */
+export const STOCK_VIEW_SYMBOL_EDIT_ARIA = 'Change symbol';
+/** Max length for ticker typed into the Stock View symbol chip. */
+export const STOCK_VIEW_SYMBOL_MAX_LEN = 12;
+
+/** Stock View header — operator mode capsule (Manual / Normal / Fully Automated). */
+export const STOCK_VIEW_OPERATOR_MODE_MANUAL = 'Manual';
+export const STOCK_VIEW_OPERATOR_MODE_NORMAL = 'Normal';
+export const STOCK_VIEW_OPERATOR_MODE_FULL_AUTO = 'Fully Automated';
+export const STOCK_VIEW_OPERATOR_MODE_MANUAL_TITLE =
+  'Manual mode is not available yet — placeholder only';
+export const STOCK_VIEW_OPERATOR_MODE_NORMAL_TITLE =
+  'Normal operator mode — place orders manually with existing IBKR safety gates';
+export const STOCK_VIEW_OPERATOR_MODE_FULL_AUTO_TITLE =
+  'Fully Automated (auto_live) is NO-GO — not selectable';
+
+/** Stock View header — Paper / Live account-mode capsule labels. */
+export const STOCK_VIEW_ACCOUNT_MODE_PAPER = 'Paper';
+export const STOCK_VIEW_ACCOUNT_MODE_LIVE = 'Live';
+export const STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE =
+  'Paper requires IB Gateway logged into a paper account. This control does not switch Gateway ports or enable orders.';
+export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE =
+  'Live requires IB Gateway logged into a live account and IBKR_LIVE_TRADING_CONFIRMED=true. This control never silently arms live orders.';
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
-/** Quote column width (px) on Stock View when charts are expanded — used until the user drags the resize handle. */
-export const TICKER_TRADE_SIDE_WIDTH_PX = 380;
-/** Drag-to-resize range (px) for the Stock View quote-panel width. */
-export const TICKER_TRADE_SIDE_WIDTH_MIN_PX = 300;
-export const TICKER_TRADE_SIDE_WIDTH_MAX_PX = 640;
+/** Right-rail width (px) on Stock View — charts keep the rest of the viewport. */
+export const TICKER_TRADE_SIDE_WIDTH_PX = 360;
+/** Drag-to-resize clamp (px) for the Stock View right rail (dense; charts dominate). */
+export const TICKER_TRADE_SIDE_WIDTH_MIN_PX = 320;
+export const TICKER_TRADE_SIDE_WIDTH_MAX_PX = 440;
+/** Desktop breakpoint (px): 2×2 charts + right rail; below stacks rail under charts. */
+export const STOCK_VIEW_DESKTOP_MIN_PX = 900;
+/**
+ * Soft floor (px) for Stock View L2+T&S when space allows.
+ * Mirrored as `--sv-depth-min` in stockViewTerminal.css.
+ */
+export const STOCK_VIEW_DEPTH_MIN_PX = 260;
 /** localStorage key: user's saved Stock View quote-panel width (drag-to-resize). */
 export const STOCK_VIEW_SIDE_WIDTH_KEY = 'nova.stockView.sideWidthPx';
+/**
+ * Stock View depth (L2+T&S combined) vs Order Entry vertical split.
+ * Drag the horizontal handle between the combined depth module and Open ticket;
+ * double-click resets. L2 and T&S stay side-by-side — no splitter between them.
+ */
+export const STOCK_VIEW_DEPTH_ORDER_SPLIT_KEY = 'nova.stockView.depthOrderSplitPct';
+/** Default depth (L2+T&S) share of the trade stack below the quote card (%). */
+export const STOCK_VIEW_DEPTH_ORDER_SPLIT_PCT = 72;
+/** Clamp so depth stays dominant but the order ticket remains usable. */
+export const STOCK_VIEW_DEPTH_ORDER_SPLIT_MIN_PCT = 48;
+export const STOCK_VIEW_DEPTH_ORDER_SPLIT_MAX_PCT = 86;
+/** Minimum pane height (px) hints for depth / order panes in the trade stack. */
+export const STOCK_VIEW_DEPTH_PANE_MIN_PX = 120;
+export const STOCK_VIEW_ORDER_PANE_MIN_PX = 140;
+/** Stock View rail module card titles (uppercase in CSS). */
+export const STOCK_VIEW_MODULE_QUOTE_TITLE = 'Stock Quote';
+export const STOCK_VIEW_MODULE_L2_TITLE = 'Level 2';
+export const STOCK_VIEW_MODULE_TAPE_TITLE = 'Time & Sales';
+/** Combined L2 + T&S module title (side-by-side inside one card). */
+export const STOCK_VIEW_MODULE_DEPTH_TITLE = 'Level 2 · Time & Sales';
+export const STOCK_VIEW_MODULE_OPEN_TITLE = 'Trade';
+/** Suffix pattern for L2: " · TOP {n}". */
+export const STOCK_VIEW_MODULE_L2_TOP_PREFIX = 'TOP';
 /** Headlines shown in the trading-page side column before "More". */
 export const TICKER_TRADE_SIDE_NEWS_COUNT = 3;
-/** Default share quantity prefilled in the Open Position ticket. */
+/** Default share quantity prefilled in the Open Position ticket (when unlocked). */
 export const TICKER_TRADE_DEFAULT_QTY = 100;
+/**
+ * Temporary single source of truth for manual order size.
+ * When non-null, every ticket displays and submits this share qty (ignores presets / % / $).
+ * Set to `null` to restore editable sizing.
+ */
+export const TICKER_TRADE_FORCE_QTY: number | null = 1;
+/** Field subtitles on the manual order ticket (Material overline pattern). */
+export const TICKER_TRADE_LABEL_SIDE = 'Side';
+export const TICKER_TRADE_LABEL_ORDER_TYPE = 'Order Type';
+export const TICKER_TRADE_LABEL_QUANTITY = 'Quantity';
+export const TICKER_TRADE_LABEL_LIMIT_PRICE = 'Limit Price';
+export const TICKER_TRADE_LABEL_STOP_PRICE = 'Stop Price';
+export const TICKER_TRADE_LABEL_TRADING_HOURS = 'Trading Hours';
+/** Manual order ticket defaults and mode-specific quick-size presets. */
+export const TICKER_TRADE_DEFAULT_ORDER_TYPE = 'MKT' as const;
+export const TICKER_TRADE_SHARE_PRESETS = [10, 50, 100, 500] as const;
+export const TICKER_TRADE_PERCENT_PRESETS = [10, 25, 50, 100] as const;
+export const TICKER_TRADE_DOLLAR_PRESETS = [100, 500, 1_000, 5_000] as const;
+/** IBKR fractional quantity precision used for dollar/percentage sizing. */
+export const TICKER_TRADE_QTY_DECIMALS = 4;
+/** Primary CTA before local PIN unlock (does not bypass IBKR spend gates). */
+export const TICKER_TRADE_UNLOCK_LABEL = 'Unlock Trading';
+/** Primary CTA after PIN unlock — submits the built order. */
+export const TICKER_TRADE_PLACE_ORDER_LABEL = 'Place an order';
+/**
+ * Local UI unlock PIN for the Trade ticket (not a server secret).
+ * Correct PIN switches the primary button to Place an order for this browser session.
+ */
+export const TICKER_TRADE_UNLOCK_PIN = '123456';
+export const TICKER_TRADE_UNLOCK_PIN_LENGTH = TICKER_TRADE_UNLOCK_PIN.length;
+export const TICKER_TRADE_UNLOCK_SESSION_KEY = 'nova.tickerTrade.sessionUnlocked';
+/** PIN dialog copy (`TradingPinDialog`). */
+export const TICKER_TRADE_UNLOCK_DIALOG_TITLE = 'Trading Verification';
+export const TICKER_TRADE_UNLOCK_DIALOG_SUBTITLE = `Please Enter ${TICKER_TRADE_UNLOCK_PIN_LENGTH} Digit Password`;
+export const TICKER_TRADE_UNLOCK_DIALOG_CANCEL = 'Cancel';
+export const TICKER_TRADE_UNLOCK_FAIL = 'Incorrect unlock code.';
+/** localStorage: skip the place-order confirmation dialog. */
+export const TICKER_TRADE_SKIP_PLACE_CONFIRM_KEY = 'nova.tickerTrade.skipPlaceConfirm';
+export const TICKER_TRADE_PLACE_CONFIRM_TITLE = 'Confirm order';
+export const TICKER_TRADE_PLACE_CONFIRM_SKIP_LABEL =
+  "Don't show this pop-up again to confirm placing a live order.";
+export const TICKER_TRADE_PLACE_CONFIRM_SUBMIT = 'Confirm';
+export const TICKER_TRADE_PLACE_CONFIRM_CANCEL = 'Cancel';
 /** Plain-language disclosure under the trading action bar. */
 export const TICKER_TRADE_ORDER_DISCLOSURE =
   'Orders go through Interactive Brokers only (paper by default). Alpaca scanning stays read-only.';

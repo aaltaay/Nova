@@ -14,7 +14,10 @@ NOVA_DESKTOP_API_PORT = 8000
 IBKR_HOST = "127.0.0.1"
 IBKR_PAPER_PORT = 4002       # IB Gateway paper trading port
 IBKR_LIVE_PORT = 4001        # IB Gateway live trading port
-IBKR_CLIENT_ID = 1
+# Default 17 (not 1): clientId 1 is commonly held by zombie uvicorn/--reload
+# workers → Error 326 "client id already in use" / hung connectAsync that can
+# wedge the FastAPI event loop. Override with IBKR_CLIENT_ID in .env.
+IBKR_CLIENT_ID = 17
 IBKR_MAX_DEPTH_SYMBOLS = 3   # IBKR plan cap: 3 simultaneous Level 2 streams
 IBKR_DEPTH_NUM_ROWS = 10     # Bid/ask rows requested per side of the book
 # SMART-routed depth requires isSmartDepth=True (TWS API ≥974). With False,
@@ -27,6 +30,9 @@ IBKR_DEPTH_SMART = True
 IBKR_DEPTH_RELEASE_GRACE_SEC = 0.75
 IBKR_ACCOUNT_POLL_SEC = 5    # How often to refresh account/positions
 IBKR_RECONNECT_DELAY_SEC = 10  # Delay before reconnect attempt
+# Hard wall for connectAsync — ib_async's own timeout= can fail to cancel when
+# Gateway accepts TCP but never finishes the API handshake (zombie clientId).
+IBKR_CONNECT_TIMEOUT_SEC = 8.0
 # TWS API error code: "Deep market data is not supported for this combination
 # of security type/exchange." Arrives asynchronously via errorEvent AFTER
 # reqMktDepth() already returned successfully, so it can't be caught by a
@@ -69,24 +75,43 @@ IBKR_SCAN_LOCATION = "STK.US.MAJOR"            # all major US exchanges
 IBKR_SCAN_CODE_GAPPERS = "TOP_OPEN_PERC_GAIN"  # today's open vs prior close (premarket gap)
 IBKR_SCAN_CODE_GAINERS = "TOP_PERC_GAIN"       # current price vs prior close, intraday
 IBKR_SCAN_CODE_LOSERS = "TOP_PERC_LOSE"
+# Dedicated after-hours movers — distinct scan universe from TOP_PERC_GAIN
+# (extended-hours session only). Used as the PRIMARY After Hours tab source;
+# reshaping the intraday gainer_cache is a fallback only for when this scan
+# is empty (thin AH liquidity / IB scanner gaps), never the primary source.
+IBKR_SCAN_CODE_AH_GAINERS = "TOP_AFTER_HOURS_PERC_GAIN"
+IBKR_SCAN_CODE_AH_LOSERS = "TOP_AFTER_HOURS_PERC_LOSE"
 # Extra seeds for HOD Momo — Warrior catches mid-day volume runners that are
 # not always in the top-% gainer list (e.g. FRE / TSSI / YG style alerts).
 IBKR_SCAN_CODE_HOT_VOLUME = "HOT_BY_VOLUME"
 IBKR_SCAN_CODE_TOP_VOLUME_RATE = "TOP_VOLUME_RATE"
 IBKR_SCAN_CODE_MOST_ACTIVE = "MOST_ACTIVE"
+# Volume/activity + TOP_PERC_GAIN so % movers Warrior shows (not only volume
+# leaders) still enter the HOD focus universe / seed pool.
 IBKR_SCAN_HOD_SEED_CODES = (
     IBKR_SCAN_CODE_HOT_VOLUME,
     IBKR_SCAN_CODE_TOP_VOLUME_RATE,
     IBKR_SCAN_CODE_MOST_ACTIVE,
+    IBKR_SCAN_CODE_GAINERS,
 )
 IBKR_SCAN_MAX_ROWS = 50                        # IB hard cap per scan code
 IBKR_SCAN_ABOVE_PRICE = SCANNER_MIN_PRICE       # mirrors the Alpaca price floor above
+# Second TOP_PERC_GAIN pass capped below this price so mega-gainers (e.g. +90%
+# names filling the uncapped top-50) cannot crowd out sub-$20 squeezes that
+# Warrior still surfaces (BTMD-class universe_gap).
+IBKR_HOD_SEED_BELOW_PRICE = 20.0
 # Legacy / cold-path snapshot tunables (NOT the active-table freshness SLA).
 # IB completes snapshots on tickSnapshotEnd ~11s later — never use a 4s timeout
 # for live table freshness. Active tab + HOD use reqMktData L1 streams instead.
 IBKR_TABLE_REPRICE_MAX_SYMBOLS = 100
 IBKR_TABLE_REPRICE_CHUNK_SIZE = 20
 IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # cold/discovery reqTickersAsync (≥12s)
+# Coalesce duplicate reqScannerDataAsync calls for the same (scan_code,
+# below_price) within this window. Movers refresh, gapper's TOP_PERC_GAIN
+# fallback, and the HOD seed loop each call scan_symbols() independently —
+# without this, the same scan code can be re-queried against IB several
+# times within one burst for identical results.
+IBKR_SCAN_RESULT_TTL_SEC = 5.0
 IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC = 12.0     # honest snapshot budget (was 4s — impossible)
 IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ceiling
 IBKR_REPRICE_INTERVAL_SEC = 3.0                 # detail-panel cold backstop cadence
@@ -109,6 +134,11 @@ IBKR_L1_BATCH_FLUSH_SEC = 0.35                  # coalesce ticks → /ws/scanner
 IBKR_L1_RECONCILE_SEC = 1.0                     # desired-set reconcile cadence
 IBKR_L1_SUBSCRIBE_PACE_SEC = 0.05               # pace subscribe churn (Gateway)
 IBKR_L1_TAB_SWITCH_GRACE_SEC = 0.75             # keep prior tab streams briefly on switch
+# Qualify/reqMktData without a timeout can hold the ticks subscribe lock for
+# minutes when Gateway stalls — HTTP handlers starve → clients timeout →
+# CLOSE_WAIT pile-up on :8000. Bound each qualify; cap adds per reconcile.
+IBKR_L1_QUALIFY_TIMEOUT_SEC = 4.0
+IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE = 5
 # Per-row honesty: tint when last IB tick older than this (liquid symbols).
 IBKR_L1_ROW_STALE_SEC = 3.0
 
@@ -196,8 +226,12 @@ RISK_SESSION_RESET_HOUR_ET = 4        # daily state resets at 4:00 AM ET, mirror
 JOURNAL_DB_FILENAME = "journal.db"      # lives under paths.cache_dir(), not git-tracked
 JOURNAL_SIGNALS_DEFAULT_LIMIT = 100
 JOURNAL_TRADES_DEFAULT_LIMIT = 200
-JOURNAL_MIN_TRADES_FOR_GO_LIVE = 100     # go/no-go bar: minimum sample size before trusting the stats
+# Aligned with Phase I Live-Readiness (≥50 closed / ≥90% adherence).
+JOURNAL_MIN_TRADES_FOR_GO_LIVE = 50
+JOURNAL_MIN_ADHERENCE_PCT_FOR_GO_LIVE = 90.0
 JOURNAL_MOCK_TRADE_COUNT = 12            # rows generated by journal/mock_data.py for UI/logic testing only
+# Max acceptable adverse fill vs ticket entry (basis points). Measured in paper first.
+SLIPPAGE_MAX_ADVERSE_BPS = 50.0
 # P&L calendar (TraderVue-style Reports tab) — days bucketed in America/New_York
 JOURNAL_CALENDAR_TIMEZONE = "America/New_York"
 JOURNAL_CALENDAR_MIN_YEAR = 2000

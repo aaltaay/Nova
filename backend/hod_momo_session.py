@@ -55,6 +55,9 @@ def check_and_reset_session() -> bool:
     state.session_date = current
     state.today_alerts = []
     state.session_highs = {}
+    state.session_high_seeded = set()
+    state.day_highs = {}
+    state.session_high_source = {}
     state.cooldown = {}
     state.pending_consolidation = {}
     state.price_buffer = {}
@@ -68,6 +71,12 @@ def check_and_reset_session() -> bool:
         _active.clear_session_state()
     except Exception:
         logger.warning("HOD Momo: active-set session clear failed", exc_info=True)
+    try:
+        import hod_momo_session_focus as _focus
+
+        _focus.clear_session_focus(persist=True)
+    except Exception:
+        logger.warning("HOD Momo: session-focus sticky clear failed", exc_info=True)
     _persist.save_alerts(force=True)
     return True
 

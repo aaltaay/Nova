@@ -9,6 +9,8 @@ import hod_momo_state as _state
 from constants import (
     HOD_MOMO_ALERT_SAVE_INTERVAL_SEC,
     HOD_MOMO_CONFIG_SCHEMA_VERSION,
+    HOD_MOMO_COOLDOWN_SEC,
+    HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
     HOD_MOMO_MASTER_SURGE_PCT,
     HOD_MOMO_STRATEGY_ID_MAX,
 )
@@ -24,6 +26,9 @@ from hod_momo_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Mute retired 2026-07-17 — any persisted positive cooldown is forced back to
+# HOD_MOMO_COOLDOWN_SEC (0). Burst/consolidation is the only rate limit.
 
 
 def save_configs() -> None:
@@ -55,6 +60,35 @@ def _migrate_loaded_configs(data: dict) -> bool:
             state.configs[12] = build_default_config(12)
         logger.info("HOD Momo: schema v3 — Running Up Alert + 5-min RVOL fields")
         changed = True
+    if version < 4:
+        # Former Momo has no public Warrior formula — disable until we own a fill path.
+        cfg = state.configs.get(HOD_MOMO_FORMER_MOMO_STRATEGY_ID)
+        if cfg is not None and cfg.enabled:
+            cfg.enabled = False
+            changed = True
+        logger.info(
+            "HOD Momo: schema v4 — Former Momo Stock (strategy %s) disabled by default",
+            HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
+        )
+        changed = True
+    if version < 5:
+        # Live bug: Squeeze 5%/10% had requires_hod=False so names like CNF fired
+        # without a new HOD — Warrior Small-Cap HOD Momentum never would.
+        # Also restore enabled=True for non-Former strategies if a accidental
+        # mass-disable left only Squeeze on.
+        for sid, cfg in list(state.configs.items()):
+            if cfg is None:
+                continue
+            if sid in (10, 11) and not cfg.requires_hod:
+                cfg.requires_hod = True
+                changed = True
+            if sid != HOD_MOMO_FORMER_MOMO_STRATEGY_ID and not cfg.enabled:
+                cfg.enabled = True
+                changed = True
+        logger.info(
+            "HOD Momo: schema v5 — Squeeze requires_hod=True; re-enable non-Former strategies"
+        )
+        changed = True
     return changed
 
 
@@ -64,14 +98,24 @@ def _load_configs_from_disk() -> bool:
         return False
     state = _state.get_state()
     try:
+        cooldown_repaired = False
         if "master" in data:
             state.master = master_from_dict(data["master"])
+            if float(state.master.cooldown_sec or 0.0) != float(HOD_MOMO_COOLDOWN_SEC):
+                logger.warning(
+                    "HOD Momo: anti-spam mute retired — persisted "
+                    "cooldown_sec=%.2f reset to %.1f (burst/consolidation only)",
+                    state.master.cooldown_sec,
+                    HOD_MOMO_COOLDOWN_SEC,
+                )
+                state.master.cooldown_sec = HOD_MOMO_COOLDOWN_SEC
+                cooldown_repaired = True
         if "strategies" in data:
             for sid_str, raw in data["strategies"].items():
                 sid = int(sid_str)
                 if 1 <= sid <= HOD_MOMO_STRATEGY_ID_MAX:
                     state.configs[sid] = config_from_dict(raw)
-        added = False
+        added = cooldown_repaired
         for sid in range(1, HOD_MOMO_STRATEGY_ID_MAX + 1):
             if sid not in state.configs:
                 state.configs[sid] = build_default_config(sid)
@@ -93,6 +137,13 @@ def load_persisted_state() -> None:
     state.blocklist = {s.upper() for s in _cache.load_hod_momo_blocklist()}
     alerts_raw, _ = _cache.load_hod_momo_snapshot()
     state.today_alerts = [alert_from_dict(alert) for alert in alerts_raw]
+    # Warrior Former Momo = names that already hit momo today — heal empty list.
+    try:
+        import hod_momo_former as _former
+
+        _former.bootstrap_former_momo_from_alerts()
+    except Exception:
+        logger.warning("HOD Momo: Former Momo bootstrap from alerts failed", exc_info=True)
 
 
 def save_alerts(*, force: bool = False) -> None:

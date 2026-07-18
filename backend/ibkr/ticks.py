@@ -14,6 +14,10 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
+from constants import (
+    IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE,
+    IBKR_L1_QUALIFY_TIMEOUT_SEC,
+)
 from ibkr import client as _client
 
 logger = logging.getLogger(__name__)
@@ -95,6 +99,14 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
         sub["last_update_ts"] = time.time()
     last = _clean(getattr(ticker, "last", None))
     close = _clean(getattr(ticker, "close", None))
+    # Tick type 6 = day High (ib_async: ticker.high) — HOD truth floor.
+    day_high = _clean(getattr(ticker, "high", None))
+    day_high_changed = False
+    if sub is not None and day_high is not None and day_high > 0:
+        prev_dh = sub.get("day_high")
+        if prev_dh != day_high:
+            day_high_changed = True
+        sub["day_high"] = day_high
     price = last or close
     if price is None:
         return
@@ -116,7 +128,8 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
     if sub is not None and price_changed:
         sub["last_price"] = price
 
-    if price_changed:
+    # Also notify when day High arrives/raises so HOD can seed without a new last.
+    if price_changed or day_high_changed:
         for listener in list(_quote_listeners):
             try:
                 listener(symbol, float(price), vol_i, prev_close, ts_unix)
@@ -154,11 +167,23 @@ async def subscribe(symbol: str, owner: str = OWNER_DETAIL) -> bool:
 
         contract = _Stock(symbol, "SMART", "USD")
         try:
-            qualified = await ib.qualifyContractsAsync(contract)
+            # Unbounded qualify stalls the subscribe lock → whole API wedges
+            # (HTTP timeouts → CLOSE_WAIT on :8000). Always bound it.
+            qualified = await asyncio.wait_for(
+                ib.qualifyContractsAsync(contract),
+                timeout=float(IBKR_L1_QUALIFY_TIMEOUT_SEC),
+            )
             if not qualified:
                 logger.warning("IBKR ticks: qualify failed for %s", symbol)
                 return False
             contract = qualified[0]
+        except asyncio.TimeoutError:
+            logger.warning(
+                "IBKR ticks: qualify timeout (%.1fs) for %s",
+                float(IBKR_L1_QUALIFY_TIMEOUT_SEC),
+                symbol,
+            )
+            return False
         except Exception as exc:
             logger.warning("IBKR ticks: qualify error for %s: %s", symbol, exc)
             return False
@@ -220,15 +245,24 @@ async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:
 
 
 async def set_owner_symbols(owner: str, symbols: list[str]) -> dict[str, Any]:
-    """Reconcile subscriptions for ``owner`` to exactly ``symbols``."""
+    """Reconcile subscriptions for ``owner`` to exactly ``symbols``.
+
+    New subscribes are capped per call so explore rotation cannot queue dozens
+    of qualifyContractsAsync calls under the subscribe lock in one tick.
+    Deferred adds are retried on the next reconcile (~1s).
+    """
     owner = (owner or "").strip().lower()
     desired = {(s or "").strip().upper() for s in symbols if s and str(s).strip()}
     current = {sym for sym, sub in _subs.items() if owner in (sub.get("owners") or set())}
     to_add = sorted(desired - current)
     to_drop = sorted(current - desired)
+    # Only drop symbols that are not still desired — never drop deferred adds.
+    max_add = max(1, int(IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE))
+    add_now = to_add[:max_add]
+    deferred = to_add[max_add:]
     ok = 0
     failed: list[str] = []
-    for sym in to_add:
+    for sym in add_now:
         if await subscribe(sym, owner):
             ok += 1
         else:
@@ -240,6 +274,7 @@ async def set_owner_symbols(owner: str, symbols: list[str]) -> dict[str, Any]:
         "desired": len(desired),
         "subscribed": ok,
         "dropped": len(to_drop),
+        "deferred": len(deferred),
         "failed": failed,
         "active": sorted(
             sym for sym, sub in _subs.items() if owner in (sub.get("owners") or set())
@@ -251,11 +286,68 @@ def subscribed_symbols() -> list[str]:
     return list(_subs.keys())
 
 
+def get_ticker(symbol: str) -> Any | None:
+    """Raw ib_async Ticker for an already-subscribed symbol, or None.
+
+    Lets other L1 consumers (e.g. depth's no-entitlement fallback) attach a
+    read-only listener to the existing stream instead of opening a second
+    ``reqMktData`` line for the same contract.
+    """
+    sub = _subs.get((symbol or "").strip().upper())
+    return sub.get("ticker") if sub else None
+
+
 def owners_for(symbol: str) -> set[str]:
     sub = _subs.get((symbol or "").strip().upper())
     if not sub:
         return set()
     return set(sub.get("owners") or set())
+
+
+def last_quotes(symbols: list[str] | None = None) -> dict[str, dict[str, Any]]:
+    """Return last known L1 price/ts for subscribed symbols (heartbeat use)."""
+    wanted = None
+    if symbols is not None:
+        wanted = {(s or "").strip().upper() for s in symbols if s and str(s).strip()}
+    out: dict[str, dict[str, Any]] = {}
+    for sym, sub in _subs.items():
+        if wanted is not None and sym not in wanted:
+            continue
+        price = sub.get("last_price")
+        if price is None:
+            continue
+        try:
+            px = float(price)
+        except (TypeError, ValueError):
+            continue
+        row = {
+            "price": px,
+            "last_update_ts": sub.get("last_update_ts"),
+            "owners": set(sub.get("owners") or set()),
+        }
+        dh = sub.get("day_high")
+        if dh is not None:
+            try:
+                row["day_high"] = float(dh)
+            except (TypeError, ValueError):
+                pass
+        out[sym] = row
+    return out
+
+
+def get_day_high(symbol: str) -> float | None:
+    """IBKR L1 tick-6 day High for a subscribed symbol, if known."""
+    sub = _subs.get((symbol or "").strip().upper())
+    if not sub:
+        return None
+    dh = sub.get("day_high")
+    if dh is None:
+        return None
+    try:
+        h = float(dh)
+    except (TypeError, ValueError):
+        return None
+    return h if h > 0 else None
 
 
 def is_fresh(symbol: str, max_age_sec: float) -> bool:
