@@ -141,6 +141,13 @@ Rules:
 
 Keep the report short. Prefer evidence over narrative. Include pass counts from this run (and update Current snapshot when full gates are re-verified).
 
+
+## Dream promotions
+
+Durable facts promoted by `tools/agent_dream.py` for `tester`.
+
+- **agent-browser download:** `download @Export` / blob `<a download>` often cancels in headless; prove export via `serializeHtk` unit tests + Export click + non-empty `localStorage['nova.hotkeys.profile.v1']` when file capture fails.
+
 ## Invoke phrases
 
 - "Use the tester subagent to verify \<change\>"

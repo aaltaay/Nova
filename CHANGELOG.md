@@ -30,6 +30,33 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Nova agent dreaming (full mission)
+
+- **What:** Fleet dream CLI now covers light/REM/deep **plus** LLM REM (key-gated), Obsidian decision hygiene/stamps, Pinecone re-ingest hook, Claude Auto Dream + OpenClaw MEMORY bridges, and `--commit`/`--push`.
+- **Why:** Finish the mission — earlier “out of scope” cuts were safety deferrals, not permanent exclusions.
+- **Files touched:** `tools/agent_dream.py`, `tools/agent_dream_lib/*`, tests, `Agent-Dreaming.md`, docs/ops, `.claude/settings.json` (via `--bridges`).
+- **How it works now:** `py -3 tools/agent_dream.py --full-mission` dry-runs all surfaces; `--write --full-mission --commit --push` applies and ships. Strategy Chosen/rules are not rewritten — hygiene + footers only.
+- **Verified by:** `pytest tools/test_agent_dream.py`; `agent_contract.py --ci`; live `--write --full-mission` when shipping.
+
+## 2026-07-18 — Durable task log (`knowledge/task-log/`)
+
+- **What:** Added an append-only task-log folder plus always-on rule so every completed job records what was asked, what changed, and **why that approach** (tradeoffs). Wired into Lifecycle (`task_log=`), daddy/docs, agent-operations, and `tools/task_log_new.py`. Seeded SEC-001–008 remediation narrative.
+- **Why:** User requirement — CHANGELOG/PROBLEM_LOG alone do not preserve fix reasoning across agents/sessions.
+- **Files touched:** `knowledge/task-log/*`, `.cursor/rules/task-log.mdc`, `tools/task_log_new.py`, specialist-routing, daddy/docs prompts, `docs/agent-operations.md`, contract Lifecycle example.
+- **How it works now:** End of material work → scaffold/write `knowledge/task-log/YYYY-MM-DD-*.md` → prepend INDEX → Lifecycle `task_log=<path>`. Skip only for typo/status-only with `skipped`/`n/a`.
+- **Verified by:** `py -3 -m pytest tools/test_task_log_new.py tools/test_subagent_lifecycle_hook.py -q`; `py -3 tools/agent_contract.py --ci`.
+- **Related:** `knowledge/task-log/2026-07-18-task-log-system.md`.
+
+## 2026-07-18 — Remediate SEC-001–SEC-008 security findings
+
+- **What:** Closed all eight open security findings: API-key guard on mutating `/api/*`, masked Alpaca secrets on `GET /api/config`, webhook SSRF validation, optional FinBERT/torch, localhost CORS default, non-root Docker user, and CI gitleaks/osv-scanner/semgrep jobs. Frontend sends `X-Nova-Api-Key` via `novaFetch` when `VITE_NOVA_API_KEY` is set.
+- **Why:** Daddy vuln search found critical unauth executor/API routes, credential leak, and webhook SSRF; user asked to fix them.
+- **Files touched:** `backend/auth.py`, `backend/routes/{health,executor}.py`, `backend/alerts/{webhook_url,channels_store,generic_webhook,discord}.py`, `backend/constants_scanner.py`, `backend/requirements.txt`, `backend/requirements-ml.txt`, `Dockerfile`, `.github/workflows/deploy.yml`, `frontend/src/api/novaFetch.ts`, Settings hooks/panels, `security/findings-registry.json`.
+- **How it works now:** Loopback without `NOVA_API_KEY` stays open for desktop; public bind or a set key requires `X-Nova-Api-Key`. Config GET never returns plaintext Alpaca keys. Webhooks must be https to non-private hosts (optional host allowlist). Torch is opt-in via `requirements-ml.txt`.
+- **Verified by:** `pytest` for auth/config/webhook/alerts + updated `tools/test_security_audit.py` builtin regression (clean).
+- **Follow-ups:** Set `NOVA_API_KEY` + `VITE_NOVA_API_KEY` for any non-loopback deploy; tighten CI `continue-on-error` when scanner noise is low.
+- **Related:** PROBLEM_LOG 2026-07-18 SEC remediation; Security-Status.md; `knowledge/task-log/2026-07-18-sec-001-008-remediation.md`.
+
 ## 2026-07-18 — Daddy orchestration contract (parallel vs sequence)
 
 - **What:** Documented that specialists do not peer-chat — daddy is a hub. Added parallel-safe / sequential / write-conflict rules to `daddy.md` and a durable **Orchestration** table in `Agent-Fleet-Map.md`; daddy reports now label `[parallel]` vs `[after: …]`. Canvas `agent-daddy` shows the same matrix.

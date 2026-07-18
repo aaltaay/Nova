@@ -51,6 +51,7 @@ Detail + report shape: `.cursor/agents/daddy.md` (Orchestration model).
 | Fleet dispatch / orchestration | daddy | Owned | Dispatch | top-of-fleet; may dispatch any specialist; never implements product code |
 | Fleet triage / classification / crack index | router | Owned | Audit | report-only Routing card; `agent_fleet.py` |
 | Docs, MDC rules, agent prompts, canvases | docs | Owned | Implement | `docs-continuity.mdc`; dashboard = Nova Home |
+| Agent memory dreaming (light/REM/deep) | docs | Owned | Implement | `tools/agent_dream.py`; diary `.cursor/agent-system/DREAMS.md`; see [[Agent-Dreaming]] |
 | Test / build / browser verification | tester | Owned | Implement | pytest / Vitest / Playwright |
 | Maintainability / file limits / danger sniff | maintainer | Owned | Audit | read-only, `maintainer_checks.py` |
 | Full-repo security posture + SEC-NNN | security | Owned | Audit | `security-continuity.mdc` |

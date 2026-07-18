@@ -37,3 +37,7 @@ When decided, fill this template. The recall router treats this note as **highes
 - Blind LLM catalyst → full size
 - Full L2-tape automation until IBKR L2 path proven
 - “Ruby” / second broker stack — Python `backend/ibkr/` only
+
+<!-- AGENT_DREAM_FOOTER_START -->
+**Last agent dream pass:** 2026-07-18 · hygiene: [[_Agent-Dream-Hygiene]] · run `py -3 tools/agent_dream.py`
+<!-- AGENT_DREAM_FOOTER_END -->

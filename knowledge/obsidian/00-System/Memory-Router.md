@@ -12,9 +12,11 @@ This note is the human-readable twin of `tools/course_memory/recall.py`.
 | “What are the *entry rules* for Gap and Go?” | Pinecone | Obsidian if we already chose it |
 | “Summarize Chapter 5 psychology” | Pinecone | — |
 | “How does this map to IBKR / scanner?” | Obsidian + Pinecone | Graphify for cross-decision links |
+| “Consolidate / dream agent memory” | `tools/agent_dream.py` on `.cursor/agent-memory/` | Diary `.cursor/agent-system/DREAMS.md` — see [[Agent-Dreaming]] |
 
 Graphify setup and commands: [[Graphify-Knowledge-Graph]].  
-Vendored agent skills + study repos: [[Skills-Library]], [[Reference-Repos]].
+Vendored agent skills + study repos: [[Skills-Library]], [[Reference-Repos]].  
+Agent fleet dreaming (not course RAG): [[Agent-Dreaming]].
 
 ## Trust order for automation advice
 

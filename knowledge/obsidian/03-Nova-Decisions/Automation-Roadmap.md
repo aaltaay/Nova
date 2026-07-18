@@ -60,3 +60,7 @@ The rows below were the original roadmap before backbone A–F shipped. They are
 - [x] Nova OS decide() with full gate audit
 - [x] Permanent archive + replay (local + R2 stubs)
 - [ ] Live only after explicit GO + separate unlock phase (requires `IBKR_LIVE_TRADING_CONFIRMED`) — **NO-GO as of P10**
+
+<!-- AGENT_DREAM_FOOTER_START -->
+**Last agent dream pass:** 2026-07-18 · hygiene: [[_Agent-Dream-Hygiene]] · run `py -3 tools/agent_dream.py`
+<!-- AGENT_DREAM_FOOTER_END -->

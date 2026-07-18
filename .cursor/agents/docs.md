@@ -42,6 +42,9 @@ Full pins and Windows install notes: `docs/SOURCE-PINS.md`.
 |------|---------|-------------|
 | Canvas / doc inventory | `py -3 tools/nova_docs_inventory.py [--json]` | repo root |
 | Inventory tests | `py -3 -m pytest tools/test_nova_docs_inventory.py -q` | repo root |
+| Agent dreaming (dry-run) | `py -3 tools/agent_dream.py` | repo root |
+| Agent dreaming (apply) | `py -3 tools/agent_dream.py --write` | repo root |
+| Dreaming tests | `py -3 -m pytest tools/test_agent_dream.py -q` | repo root |
 | Markdown structure | `npx --yes markdownlint-cli2@0.23.0 "**/*.{md,mdc}" "#node_modules" "#frontend/node_modules" "#.git" "#graphify-out"` | repo root |
 | Prose (if Vale installed) | `vale sync` then `vale .` | repo root |
 | Links (if Lychee installed) | `lychee --root-dir . "./**/*.md"` | repo root |
@@ -54,6 +57,7 @@ Windows: always `py -3` for Python. Missing Vale or Lychee → report **BLOCKED*
 
 - `**/*.md`, `.cursor/rules/*.mdc`, READMEs, `docs/`, `knowledge/obsidian/` (preserve Obsidian `[[wikilinks]]`)
 - `AGENTS.md`, `gemini.md`, `CHANGELOG.md`, `PROBLEM_LOG.md` (respect prepend/append templates)
+- `knowledge/task-log/` (narratives + INDEX; never invent technical reasons — only tidy or scaffold)
 - `.cursor/agents/*.md`, `.cursor/agent-memory/*.md`, `.cursor/agent-system/*`, documentation config (`.vale.ini`, `.markdownlint-cli2.jsonc`, `docs/SOURCE-PINS.md`, `docs/agent-operations.md`)
 - Cursor canvases under the managed canvases directory (after reading the Canvas skill)
 
@@ -100,8 +104,8 @@ Before editing any `.canvas.tsx`, read the Canvas skill (`~/.cursor/skills-curso
 ## Workflow
 
 1. **Read memory** — `.cursor/agent-memory/docs-memory.md` (Current snapshot + backlog + run log).
-2. **Clarify scope** — full docs pass, canvas hygiene only, single file/folder, or “improve Docs” (next backlog item).
-3. **Run deterministic gates** — inventory; markdownlint; Vale/Lychee if available.
+2. **Clarify scope** — full docs pass, canvas hygiene only, agent dreaming, single file/folder, or “improve Docs” (next backlog item).
+3. **Run deterministic gates** — inventory; markdownlint; Vale/Lychee if available; when asked to dream or pending-promotion debt is high, run `py -3 tools/agent_dream.py` (dry-run first, `--write` only with explicit ask).
 4. **Triage with Diátaxis + codebase evidence** — edit only with evidence.
 5. **Refresh Nova Home** Docs section when inventory or standards facts change.
 6. **Report** — per-file change summary + blocked gates + open questions + Lifecycle line.
@@ -115,6 +119,7 @@ Before editing any `.canvas.tsx`, read the Canvas skill (`~/.cursor/skills-curso
 | Recurring false positive | Add suppression in memory (pattern + reason) |
 | New durable trap | Promote into **this** file Known traps |
 | Backlog item completed | Mark `[x]` in memory; one-line note under Completed |
+| Pending-promotion debt across fleet / “run agent dreaming” | `py -3 tools/agent_dream.py` then `--write` only if parent/user asked to apply |
 | Boring clean run, nothing new | Skip file edits; Lifecycle memory=unchanged |
 
 ## Output format
@@ -129,13 +134,16 @@ Before editing any `.canvas.tsx`, read the Canvas skill (`~/.cursor/skills-curso
 - **Blocked gates:** (none | Vale/Lychee/…)
 - **Memory update:** none | run-log only | promoted: <what> | backlog +N
 
-**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none
+**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a
 ```
+
+After material docs/process work, write `knowledge/task-log/` (see `.cursor/rules/task-log.mdc`).
 
 ## Invoke phrases
 
 - "Use the docs subagent to review documentation"
 - "Use the docs subagent for canvas hygiene"
+- "Use the docs subagent to run agent dreaming"
 - "Improve the docs agent — work the next backlog item"
 
 ## Sibling handoffs

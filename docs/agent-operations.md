@@ -38,6 +38,25 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 | Session brief (top-3 cracks, used by hook) | `py -3 tools/agent_fleet.py --session-brief` |
 | Lifecycle hook (Cursor) | `.cursor/hooks.json` → `tools/subagent_lifecycle_hook.py` |
 | Session-start fleet brief hook (Cursor) | `.cursor/hooks.json` → `tools/session_brief_hook.py` |
+| Agent dreaming (dry-run) | `py -3 tools/agent_dream.py` |
+| Agent dreaming (apply) | `py -3 tools/agent_dream.py --write` |
+| Agent dreaming (one agent) | `py -3 tools/agent_dream.py --agent <id> [--write]` |
+
+## Dreaming (fleet memory consolidation)
+
+Nova-native light → REM → deep over agent memory, plus optional Obsidian hygiene, Pinecone ingest, Claude/OpenClaw bridges, and git ship.
+
+| Phase / flag | Writes? | Effect |
+|--------------|---------|--------|
+| Light | No | Stage pending facts, backlog counts, run-log size |
+| REM | Diary | Heuristic themes + LLM diary when `OPENAI_API_KEY` set (`--no-llm-rem` to force heuristic) |
+| Deep | `--write` | Promote pending facts; trim run logs to 30; stamp `last_dream_at` |
+| `--obsidian` | `--write` | `_Agent-Dream-Hygiene.md` + strategy note footers (no Chosen-strategy rewrites) |
+| `--pinecone` | dry-run unless `--write` | `tools/course_memory/ingest.py` (`--pinecone-full` drops `--limit`) |
+| `--bridges` | `--write` | Claude Code `autoDreamEnabled` + `.cursor/agent-system/openclaw-MEMORY.md` export |
+| `--commit` / `--push` | requires `--write` | Ship dream artifacts |
+
+Shorthand: `py -3 tools/agent_dream.py --full-mission` (± `--write --commit --push`). Owner: `docs`. Vault: `knowledge/obsidian/00-System/Agent-Dreaming.md`.
 
 ## Fleet triage (daddy + router + agent_fleet)
 
@@ -73,10 +92,23 @@ See `.cursor/rules/specialist-routing.mdc`. Defaults:
 Every specialist report must end with:
 
 ```text
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent>
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a
 ```
 
 The `subagentStop` hook reminds once (fail-open, `loop_limit: 1`) if a Nova agent omits this line. It never edits files and never blocks completion.
+
+## Task log (reasoning archive)
+
+After every completed material task, append a narrative under `knowledge/task-log/` so future agents keep the **why**, not only the diff.
+
+| Piece | Path |
+|-------|------|
+| Rule (always apply) | `.cursor/rules/task-log.mdc` |
+| Index | `knowledge/task-log/INDEX.md` |
+| Template | `knowledge/task-log/_template.md` |
+| Scaffold | `py -3 tools/task_log_new.py --slug <kebab> --title "…"` |
+
+Daddy writes one aggregate entry for multi-specialist jobs. CHANGELOG / PROBLEM_LOG remain short; the task log holds tradeoffs and rejected alternatives.
 
 ## Adding a future agent
 

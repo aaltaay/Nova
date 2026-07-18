@@ -21,7 +21,7 @@ blockers:
   - "vitest: src/stock_view/stockViewTerminal.test.tsx > renders terminal chrome, charts, and rail for matching symbol — missing [data-testid=\"sv-trading-lock\"] (reproduced twice, not flaky)"
   - "playwright: 3 e2e specs (baseline.spec.ts, workspace-context.spec.ts, level2-tape-modules.spec.ts) fail on missing 'Stock View' header text / unreachable 'Look up symbol' input (reproduced twice, not flaky)"
 dashboard_freshness: clean
-notes: "All 3 gates re-run this session (pytest+vitest+playwright, all fresh). vitest/playwright failures trace to the same in-progress, uncommitted frontend/src/stock_view/ header refactor (git status: ?? untracked dir) — StockViewHeader no longer renders the trading-lock testid or literal 'Stock View' label some e2e/unit specs assert on. Not fixed here per task scope (tester does not touch product code); flag to whoever owns that WIP (widgets / Stock View work) before it lands. pytest 677 includes the known-benign torchvision c0000139 native-loader crash log during test_news_impact.py (PROBLEM_LOG 2026-07-16) — exit 0, no test failures."
+notes: "last_dream_at=2026-07-18T03:09:15-0400; All 3 gates re-run this session (pytest+vitest+playwright, all fresh). vitest/playwright failures trace to the same in-progress, uncommitted frontend/src/stock_view/ header refactor (git status: ?? untracked dir) — StockViewHeader no longer renders the trading-lock testid or literal 'Stock View' label some e2e/unit specs assert on. Not fixed here per task scope (tester does not touch product code); flag to whoever owns that WIP (widgets / Stock View work) before it lands. pytest 677 includes the known-benign torchvision c0000139 native-loader crash log during test_news_impact.py (PROBLEM_LOG 2026-07-16) — exit 0, no test failures."
 ```
 
 Counts live only here (and in canvas snapshots derived from this block). Do not hardcode volatile totals in `tester.md`.
@@ -67,10 +67,10 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 Facts discovered in a run that are **not yet** in `tester.md`. After promoting into `tester.md`, delete the bullet here (or move to Completed note).
 
-- **agent-browser download:** `download @Export` / blob `<a download>` often cancels in headless; prove export via `serializeHtk` unit tests + Export click + non-empty `localStorage['nova.hotkeys.profile.v1']` when file capture fails.
 
 ---
 
+**(empty)**
 ## Run log
 
 Newest first. Keep entries short. Skip boring all-green scoped runs unless a command/path was corrected.

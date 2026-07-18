@@ -289,3 +289,7 @@ Source: SS101 Ch.2, Ch.12; Basics Ch.15
   frontend builds clean (`tsc -b && vite build`) and lints clean. Not yet verified against a live IB
   Gateway paper session with real depth data (none was running this session). **All six plan phases
   (A–F) are now implemented.**
+
+<!-- AGENT_DREAM_FOOTER_START -->
+**Last agent dream pass:** 2026-07-18 · hygiene: [[_Agent-Dream-Hygiene]] · run `py -3 tools/agent_dream.py`
+<!-- AGENT_DREAM_FOOTER_END -->

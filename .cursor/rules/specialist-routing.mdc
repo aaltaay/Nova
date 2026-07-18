@@ -38,7 +38,7 @@ Match any of (case-insensitive):
 | Product change verification (pytest / Vitest / Playwright / browser) | `tester` | After code changes; before claiming done |
 | Maintainability / danger audit | `maintainer` | Read-only; significant diffs |
 | Full-repository security posture / SEC-NNN | `security` | Not for PR/diff review |
-| Docs, MDC rules, agent prompts, canvases | `docs` | Dashboard = Nova Home |
+| Docs, MDC rules, agent prompts, canvases, agent dreaming | `docs` | Dashboard = Nova Home; `tools/agent_dream.py` |
 | Warrior Trading authenticated site / Day Trade Dash navigation | `warrior` | Dashboard = `agent-warrior`; not Nova Home |
 | HOD Momo scanner data-quality / Warrior parity iteration | `hod-momo` | Dashboard = `agent-hod-momo`; owns `IBKR-Scanner-HOD-Architecture.md` feed UML; never feeds Warrior data into the alert engine |
 | Webull-to-Nova widget mapping or selected parity gap | `widgets` | Dashboard = `agent-widgets`; Webull evidence is research-only |
@@ -62,8 +62,10 @@ Use each agent's registered phrases from the registry (also listed in the agent 
 Every Nova specialist report must end with:
 
 ```text
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent>
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a
 ```
+
+`task_log=` is required after material work: write `knowledge/task-log/YYYY-MM-DD-*.md` (see `.cursor/rules/task-log.mdc`), or `skipped` / `n/a` with a brief reason when the skip rules apply. Daddy must ensure one aggregate entry exists for multi-specialist dispatches.
 
 The `subagentStop` hook (`.cursor/hooks.json`) may remind once if the footer is missing. It is fail-open and never edits files.
 

@@ -667,6 +667,7 @@
       "invoke_phrases": [
         "Use the docs subagent to review documentation",
         "Use the docs subagent for canvas hygiene",
+        "Use the docs subagent to run agent dreaming",
         "Improve the docs agent \u2014 work the next backlog item"
       ],
       "dashboard": {
@@ -677,12 +678,17 @@
       "continuity_waiver": null,
       "canonical_inputs": [
         "tools/nova_docs_inventory.py",
+        "tools/agent_dream.py",
         "docs/SOURCE-PINS.md",
-        ".cursor/agent-memory/docs-memory.md"
+        ".cursor/agent-memory/docs-memory.md",
+        ".cursor/agent-system/DREAMS.md"
       ],
       "writable_paths": [
         ".cursor/agents/docs.md",
         ".cursor/agent-memory/docs-memory.md",
+        ".cursor/agents/*.md",
+        ".cursor/agent-memory/*.md",
+        ".cursor/agent-system/DREAMS.md",
         "**/*.md",
         ".cursor/rules/*.mdc",
         "docs/",
@@ -695,7 +701,8 @@
         "commit_without_ask"
       ],
       "deterministic_checks": [
-        "py -3 tools/nova_docs_inventory.py --json"
+        "py -3 tools/nova_docs_inventory.py --json",
+        "py -3 tools/agent_dream.py"
       ],
       "sibling_handoffs": {
         "tester": "test / build gates",
