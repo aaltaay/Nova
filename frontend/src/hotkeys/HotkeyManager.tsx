@@ -14,6 +14,12 @@ import { HotkeyRecordsTable } from './HotkeyRecordsTable';
 import { HotkeyRowEditor } from './HotkeyRowEditor';
 import { HotkeySelectedDetail } from './HotkeySelectedDetail';
 import { HotkeySummaryBar } from './HotkeySummaryBar';
+import { MapDasToNovaDialog } from './MapDasToNovaDialog';
+import {
+  buildMappedNovaAction,
+  suggestNovaActionFromDas,
+  type MapSuggestion,
+} from './mapDasToNovaAction';
 import { NovaActionsTable } from './NovaActionsTable';
 import { NovaActiveShortcuts } from './NovaActiveShortcuts';
 import { formatKeyChord } from './htkFormat';
@@ -46,9 +52,19 @@ export function HotkeyManager() {
   const [editing, setEditing] = useState<HotkeyRecord | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [statusFilter, setStatusFilter] = useState<HotkeyCompatStatus | 'all'>('all');
+  const [mapSuggestion, setMapSuggestion] = useState<Extract<MapSuggestion, { ok: true }> | null>(null);
+  const [mapNotice, setMapNotice] = useState<string | null>(null);
 
   const selected = profile.records.find((r) => r.id === selectedId) ?? null;
   const selectedAnalysis = selected ? analysisById.get(selected.id) : undefined;
+  const selectedMapHint = selected
+    ? suggestNovaActionFromDas(selected.command)
+    : null;
+  const mapDisabledReason = !selected
+    ? 'Select a DAS row first'
+    : selectedMapHint && !selectedMapHint.ok
+      ? selectedMapHint.reason
+      : null;
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -142,7 +158,17 @@ export function HotkeyManager() {
         }}
         onDeleteItem={() => selected && deleteRecord(selected.id)}
         onDeleteKey={() => selected && deleteKey(selected.id)}
+        mapDisabledReason={mapDisabledReason}
+        onMapToNova={() => {
+          if (!selected || !selectedMapHint?.ok) return;
+          setMapNotice(null);
+          setMapSuggestion(selectedMapHint);
+        }}
       />
+
+      {mapNotice && (
+        <p className="na-muted" role="status">{mapNotice}</p>
+      )}
 
       {selectedAnalysis && selected && (
         <HotkeySelectedDetail selected={selected} analysis={selectedAnalysis} />
@@ -172,6 +198,22 @@ export function HotkeyManager() {
             setEditing(null);
           }}
           onCancel={() => setEditing(null)}
+        />
+      )}
+
+      {mapSuggestion && selected && (
+        <MapDasToNovaDialog
+          record={selected}
+          suggestion={mapSuggestion}
+          onCancel={() => setMapSuggestion(null)}
+          onConfirm={() => {
+            const mapped = buildMappedNovaAction(selected, mapSuggestion);
+            setNovaActions([...profile.novaActions, mapped]);
+            setMapSuggestion(null);
+            setMapNotice(
+              `Mapped “${mapped.name}” as a disabled Nova Action — enable it below when ready.`,
+            );
+          }}
         />
       )}
     </div>

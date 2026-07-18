@@ -15,16 +15,17 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 ## Current position
 
 - **Active ops:** Phase B — Paper shadow (**`[~]` protocol ready / awaiting ≥5 live shadow days**)
-- **Feature track:** Phases **A, D, E, F, G, G2, J** complete in code/docs; **G3** `[~]` Nova Actions executable core (paper-first); **I** evidence-framework ready (**verdict NO-GO**)
+- **Feature track:** Phases **A, D, E, F, G, G2, G3, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**)
 - **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) + **close remediation (Phases 1–7)** — **CLOSED** · metrics `architecture/program-close-metrics.md`
-- **State:** G3 hotkeys specialist + typed Nova Actions in progress; human market sessions remain the B/C blocker; structural maintenance + close remediation complete
+- **State:** G3 Nova Actions verified (Map-to-Nova-Action + browser); human market sessions remain the B/C blocker; structural maintenance + close remediation complete
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
 - **Last verified commit:** `aad9bf9` (Architecture close remediation Phase 7)
+- **Phase G3 commit:** *(stamp after push — see History)*
 - **Tip SHA:** follow `git rev-parse --short HEAD` (stamp commits may trail the verified close)
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
-- **Last updated:** 2026-07-18 (Phase G3 opened — hotkeys specialist Owned)
+- **Last updated:** 2026-07-18 (Phase G3 verified — Map-to-Nova-Action + tester browser)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 - **Execution proof (user-directed, not Phase I unlock):** ADR 007 centralized path + synthetic p95 ack pass — see `docs/trading-execution-validation.md`. Does **not** complete Phase B or Phase I.
 - **IBKR ops (2026-07-17):** Paper Gateway port **4002** connected; API `GET /api/ibkr/status` → `connected=true`, `mode=paper`, `gateway_mode=paper`, `orders_enabled=false`, `spend_status=locked`. Executor raised to **`confirm`** for day-0 practice. Live-readiness scorecard still **NO-GO** (0/5 shadow days, 0 closed non-mock trades).
@@ -55,7 +56,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 | **Phase F — Reports v2** | `[x]` | tags / R / drawdown / IBKR import; finish pass `722d614` |
 | **Phase G — Hotkeys + brackets** | `[x]` | `useHotkeys` + approveStaged bracket; finish pass `722d614` |
 | **Phase G2 — DAS hotkey manager** | `[x]` | Settings Hotkeys; `.htk` I/O; authoring only (no execution) · `645761b` |
-| **Phase G3 — Nova Actions executable** | `[~]` | Typed cancel/buy/sell/exit via manual path; one dispatcher; paper-first; `hotkeys` specialist · `ce1da59` |
+| **Phase G3 — Nova Actions executable** | `[x]` | Typed cancel/buy/sell/exit + Map-to-Nova-Action; one dispatcher; paper-first; `hotkeys` specialist · see History |
 | **Phase J — Productization** | `[x]` | [[Productization-Decision]] local-first; finish pass `722d614` |
 | **HOD Momo / Stock View harden** | `[x]` | Shipped; not roadmap debt |
 | **Tester + maintainer agents** | `[x]` | `.cursor/agents/` + `tools/maintainer_checks.py` |
@@ -168,7 +169,7 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 
 **Hard rule:** execution of imported DAS commands is a future phase — not unlocked here. `auto_live` remains NO-GO.
 
-### Phase G3 — Nova Actions executable core — `[~]` IN PROGRESS · 2026-07-18
+### Phase G3 — Nova Actions executable core — `[x]` VERIFIED · 2026-07-18
 
 - [x] `hotkeys` specialist Owned (`hotkeys-continuity.mdc`, `agent-hotkeys`)
 - [x] Typed Nova Actions (not raw DAS scripts): `cancel_symbol`, `exit_pos` / `exit_pos_pct`, Ask±/Bid± fixed shares
@@ -176,7 +177,8 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 - [x] Settings → Hotkeys: editable Nova Actions + Trading quick-bar (`Show button`)
 - [x] System 2 gates: PIN unlock, spend lock, place-confirm preference; Bid/Ask from L2 only
 - [x] Vitest + build prove unmapped `.htk` still inactive; cancel-all route tests green
-- [ ] Tester browser pass: Settings → Hotkeys + quick-bar; paper path only when enabled
+- [x] Map to Nova Action: DAS row → disabled typed action (TriggerOrder rejected; never runs raw script)
+- [x] Tester browser pass: Settings → Hotkeys + Stock View quick-bar; import/Map never hit order APIs (`127.0.0.1:5173`)
 
 **Hard rule:** `auto_live` remains NO-GO. Imported DAS Command strings stay inactive until Map to Nova Action.
 
@@ -238,6 +240,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-07-18 | Phase G3 verified: Map-to-Nova-Action UX + tester browser (Settings Hotkeys + Stock View quick-bar); TriggerOrder rejected; no order APIs on import/map. Phase B remains ops NEXT; `auto_live` NO-GO. | *(stamp)* |
 | 2026-07-18 | Phase G3 opened: `hotkeys` specialist Owned; typed Nova Actions (cancel/buy/sell/exit) paper-first via manual path; one dispatcher. Phase B remains ops NEXT; `auto_live` NO-GO. | `ce1da59` |
 | 2026-07-17 | Paper Gateway ops ready: `.env` `IBKR_GATEWAY_MODE=paper`, API `:8000` → `connected`/`mode=paper`, executor `confirm`, orders locked. Scorecard **NO-GO** remains on 0/5 shadow days + 0 closed paper trades (not Gateway). Phase B day-0 NEXT. | (uncommitted until user asks) |
 | 2026-07-17 | Live-readiness automation pass: tape→`bars_1m` feeder + backfill (331 bars), scorecard tool, journal gates→Phase I (50/90%), kill/flatten/auto_live drills. Scorecard still **NO-GO** (0/5 shadow days, 0 closed paper trades). Phase B remains NEXT. | (uncommitted until user asks) |

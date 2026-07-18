@@ -9,12 +9,13 @@ Companion to: `.cursor/agents/hotkeys.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-18T20:55:00Z
+captured_at: 2026-07-18T21:05:00Z
 source_revision: ""
-result: continue
+result: verified
 metrics:
   nova_actions_default: 6
   cancel_all_route: true
+  map_to_nova_action: true
 blockers: []
 dashboard_freshness: clean
 ```
@@ -37,15 +38,17 @@ Or:
 
 - [ ] P3 risk-dollar sizing / OTO / chart-stop recipes
 - [ ] Server-synced hotkey profiles
-- [ ] Map-to-Nova-Action UX polish for large `.htk` imports
+- [ ] Bulk Map polish for very large `.htk` imports (row-at-a-time works)
 
 ## Completed
 
 - [x] Agent scaffolded + continuity rule + fleet Owned (2026-07-18)
 - [x] Phase G3 core: dispatcher, cancel-all, Nova Actions UI, quick-bar, L2 bid/ask (2026-07-18)
+- [x] Map-to-Nova-Action + tester browser; G3 `[x]` (2026-07-18)
 
 ## Run log
 
 | Date | Note |
 |------|------|
+| 2026-07-18 | G3 verified: Map UX + browser on 127.0.0.1:5173; TriggerOrder reject; vitest 28 |
 | 2026-07-18 | G3 shipped: typed Nova Actions + hotkeys specialist; vitest/build/contract green |

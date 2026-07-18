@@ -541,3 +541,24 @@
   color: #f59e0b;
 }
 
+.map-das-preview {
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+}
+
+.map-das-preview > div {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.map-das-preview dt {
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.map-das-preview dd {
+  margin: 0;
+}
+

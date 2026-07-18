@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Phase G3 verified (Map-to-Nova-Action + browser)
+
+- **What:** Closed G3 leftovers: **Map to Nova Action** (DAS row → disabled typed action; TriggerOrder rejected); HotkeyManager + Vitest coverage; tester browser pass on Settings → Hotkeys and Stock View quick-bar. Roadmap G3 marked `[x]`.
+- **Why:** Banner promised Map UX; phase could not be verified until import/map never hit order APIs and UI was exercised live.
+- **Files touched:** `frontend/src/hotkeys/mapDasToNovaAction.ts`, `MapDasToNovaDialog.tsx`, `HotkeyManager.tsx`, `HotkeyItemActions.tsx`, tests, `settings-workspace.css`, `Nova-Roadmap-Status.md`, `tester.md` routing note.
+- **How it works now:** Select a DAS import row → Map to Nova Action → confirm → appends a **disabled** Nova Action (enable later). Raw `.htk` still never registers with the dispatcher. Use `http://127.0.0.1:5173` for local UI (not `localhost` when another app binds `::1`).
+- **Verified by:** Vitest `src/hotkeys` (28 passed); tester browser checklist PASS (console clean; no orders).
+- **Follow-ups:** P3 risk-dollar / OTO; server-synced profiles.
+- **Related:** task log `knowledge/task-log/2026-07-18-phase-g3-nova-actions.md`; prior open commit `ce1da59`
+
 ## 2026-07-18 — Phase G3 Nova Actions + hotkeys specialist
 
 - **What:** Scaffolded `hotkeys` specialist (Owned); Settings → Hotkeys gains editable **Nova Actions**; Trading quick-bar buttons; typed cancel / exit / Ask±/Bid± through the manual order path; `DELETE /api/ibkr/orders?symbol=`; one shell-level hotkey dispatcher with `event.repeat` guard.
@@ -37,7 +47,7 @@ Entry template (copy and fill in):
 - **Files touched:** `.cursor/agents/hotkeys.md`, `hotkeys-continuity.mdc`, `frontend/src/hotkeys/*`, `frontend/src/hooks/hotkeyUtils.ts`, `useHotkeys.ts`, `App.tsx`, `backend/routes/trading.py`, `Nova-Roadmap-Status.md`, fleet map / routing / `AGENTS.md`.
 - **How it works now:** System 1 (Automation six) registers with `HotkeyDispatchProvider`; System 2 Nova Actions use PIN/spend-lock/confirm and L2 top-of-book for Ask/Bid. Imported DAS rows stay inactive until mapped. `auto_live` remains NO-GO.
 - **Verified by:** `pytest backend/tests/test_trading_cancel_all.py`; Vitest `src/hotkeys` + `useHotkeys` + `exitPosition`; `npm run build`; `agent_contract.py` PASS (15 agents).
-- **Follow-ups:** Map-to-Nova-Action UX polish; P3 risk-dollar / OTO; tester browser pass on Settings → Hotkeys + quick-bar.
+- **Follow-ups:** (closed in G3 verify entry) Map UX + tester browser.
 - **Related:** Phase G2 `645761b`; task log `knowledge/task-log/2026-07-18-phase-g3-nova-actions.md`
 
 ## 2026-07-18 — Nova agent dreaming (full mission)
