@@ -1,36 +1,110 @@
 /* Extracted from index.css lines 1-436 (Phase 2 mechanical split). */
 /* Owner: tokens+shell. Do not reorder relative to sibling imports. */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+/* Appearance: Apple-inspired HIG surfaces via data-theme only (no layout rewrite). */
 
-:root {
-  --bg-color: #0f1115;
-  --panel-bg: #161921;
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-color: #000000;
+  --bg-primary: var(--bg-color);
+  --panel-bg: #1c1c1e;
   /* Alias used by filter dropdowns / cards — was referenced but never defined */
   --card-bg: var(--panel-bg);
-  --hover-bg: rgba(255, 255, 255, 0.04);
-  --text-primary: #f0f0f5;
-  --text-secondary: #8b92a5;
-  --accent-color: #3b82f6;
-  --accent-hover: #2563eb;
-  --success: #10b981;
-  --danger: #ef4444;
-  --border-color: #262a36;
+  --hover-bg: rgba(255, 255, 255, 0.06);
+  --text-primary: #f5f5f7;
+  --text-secondary: #98989d;
+  --text-muted: var(--text-secondary);
+  --accent-color: #0a84ff;
+  --accent-hover: #409cff;
+  --success: #30d158;
+  --danger: #ff453a;
+  --border-color: rgba(255, 255, 255, 0.12);
+  /* Canonical Nova design tokens (ADR 006). Tailwind/shadcn map TO these. */
+  --nova-canvas: var(--bg-color);
+  --nova-panel: var(--panel-bg);
+  --nova-raised: #2c2c2e;
+  --nova-text: var(--text-primary);
+  --nova-text-muted: var(--text-secondary);
+  --nova-border: var(--border-color);
+  --nova-border-strong: rgba(255, 255, 255, 0.22);
+  --nova-accent: var(--accent-color);
+  --nova-success: var(--success);
+  --nova-danger: var(--danger);
+  --nova-bid: #30d158;
+  --nova-ask: #ff453a;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --header-overlay: rgba(0, 0, 0, 0.55);
+  /* Legacy surface aliases — never use Tailwind --color-muted for text */
+  --color-surface: var(--nova-panel);
+  --color-surface-2: var(--nova-raised);
   /* Scanner table text size — overridden by useScannerTableDensity (default Large). */
   --scanner-table-fs: 1rem;
-  /* Slim dark scrollbars (Firefox + WebKit / Electron) */
+  /* Slim scrollbars (Firefox + WebKit / Electron) */
   --scrollbar-size: 8px;
   --scrollbar-track: transparent;
-  --scrollbar-thumb: rgba(139, 146, 165, 0.28);
-  --scrollbar-thumb-hover: rgba(139, 146, 165, 0.48);
+  --scrollbar-thumb: rgba(152, 152, 157, 0.35);
+  --scrollbar-thumb-hover: rgba(152, 152, 157, 0.55);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-color: #f5f5f7;
+  --bg-primary: var(--bg-color);
+  --panel-bg: #ffffff;
+  --card-bg: var(--panel-bg);
+  --hover-bg: rgba(0, 0, 0, 0.04);
+  --text-primary: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-muted: var(--text-secondary);
+  --accent-color: #007aff;
+  --accent-hover: #0071e3;
+  --success: #34c759;
+  --danger: #ff3b30;
+  --border-color: rgba(0, 0, 0, 0.08);
+  --nova-canvas: var(--bg-color);
+  --nova-panel: var(--panel-bg);
+  --nova-raised: #e8e8ed;
+  --nova-text: var(--text-primary);
+  --nova-text-muted: var(--text-secondary);
+  --nova-border: var(--border-color);
+  --nova-border-strong: rgba(0, 0, 0, 0.16);
+  --nova-accent: var(--accent-color);
+  --nova-success: var(--success);
+  --nova-danger: var(--danger);
+  --nova-bid: #34c759;
+  --nova-ask: #ff3b30;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --header-overlay: rgba(245, 245, 247, 0.82);
+  --color-surface: var(--nova-panel);
+  --color-surface-2: var(--nova-raised);
+  --scanner-table-fs: 1rem;
+  --scrollbar-size: 8px;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: rgba(110, 110, 115, 0.28);
+  --scrollbar-thumb-hover: rgba(110, 110, 115, 0.48);
+}
+
+/* Default before FOUC script / JS: dark */
+html:not([data-theme]) {
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Inter', sans-serif;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    'SF Pro Text',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
   background-color: var(--bg-color);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
@@ -64,10 +138,13 @@ body {
   background: transparent;
 }
 
-.container {
+/* App shell — must NOT be named .container (Tailwind v4 emits breakpoint
+   max-widths for that class name and leaves a dead strip on wide screens). */
+.nova-shell {
   display: flex;
   align-items: flex-start;
   width: 100%;
+  max-width: none;
   min-height: 100vh;
 }
 
@@ -80,7 +157,6 @@ body {
   container-name: main-col;
 }
 
-header,
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -89,30 +165,23 @@ header,
   gap: 1rem 1.25rem;
   margin-bottom: 1.5rem;
   padding: 0.85rem 1.25rem;
-  border-radius: 10px;
-  border: 1px solid rgba(134, 59, 255, 0.25);
-  background-image: url('/hero-bg.png');
-  background-size: cover;
-  background-position: center 35%;
+  border-radius: var(--radius-panel, 12px);
+  border: 1px solid var(--border-color);
+  background-color: var(--panel-bg);
+  background-image: none;
   position: relative;
   overflow: hidden;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-header::before,
+[data-theme='light'] .app-header {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
 .app-header::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    rgba(15, 17, 21, 0.82) 0%,
-    rgba(15, 17, 21, 0.60) 50%,
-    rgba(15, 17, 21, 0.78) 100%
-  );
-  pointer-events: none;
+  content: none;
 }
 
-header > *,
 .app-header > * {
   position: relative;
   z-index: 1;
@@ -229,7 +298,8 @@ header > *,
 
 .nova-logo {
   flex-shrink: 0;
-  filter: drop-shadow(0 0 8px rgba(134, 59, 255, 0.7)) drop-shadow(0 0 20px rgba(71, 191, 255, 0.35));
+  filter: none;
+  color: var(--accent-color);
 }
 
 .brand-text {
@@ -240,13 +310,12 @@ header > *,
 }
 
 .brand-wordmark {
-  font-size: 1.6rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: 4px;
-  background: linear-gradient(135deg, #863bff 0%, #a78bfa 45%, #47bfff 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  letter-spacing: 3px;
+  color: var(--text-primary);
+  background: none;
+  -webkit-text-fill-color: unset;
 }
 
 .brand-tagline {
@@ -258,13 +327,30 @@ header > *,
   opacity: 0.85;
 }
 
+.theme-toggle-btn {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: var(--radius-control, 8px);
+  border: 1px solid var(--border-color);
+  background: var(--hover-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.theme-toggle-btn:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
 .mode-badge {
   font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.8px;
   padding: 0.2rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--radius-control, 8px);
   border: 1px solid currentColor;
 }
 

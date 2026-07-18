@@ -1,0 +1,28 @@
+/* Tailwind / shadcn semantic colors → Nova tokens (one-way adapter).
+   Domain CSS must never read --color-* for text/surfaces — use --nova-* /
+   --text-* / --panel-bg instead. --color-muted is a *background*, not text. */
+@theme inline {
+  --color-background: var(--nova-canvas, var(--bg-color, #0f1115));
+  --color-foreground: var(--nova-text, var(--text-primary, #f0f0f5));
+  --color-card: var(--nova-panel, var(--panel-bg, #161921));
+  --color-card-foreground: var(--nova-text, var(--text-primary, #f0f0f5));
+  --color-popover: var(--nova-panel, var(--panel-bg, #161921));
+  --color-popover-foreground: var(--nova-text, var(--text-primary, #f0f0f5));
+  --color-primary: var(--nova-accent, var(--accent-color, #3b82f6));
+  --color-primary-foreground: #ffffff;
+  --color-secondary: var(--hover-bg, rgba(255, 255, 255, 0.04));
+  --color-secondary-foreground: var(--nova-text, var(--text-primary, #f0f0f5));
+  /* muted = faint surface (shadcn). Text uses --color-muted-foreground. */
+  --color-muted: var(--hover-bg, rgba(255, 255, 255, 0.04));
+  --color-muted-foreground: var(--nova-text-muted, var(--text-secondary, #8b92a5));
+  --color-accent: var(--nova-accent, var(--accent-color, #3b82f6));
+  --color-accent-foreground: #ffffff;
+  --color-destructive: var(--nova-danger, var(--danger, #ef4444));
+  --color-border: var(--nova-border, var(--border-color, #262a36));
+  --color-input: var(--nova-border, var(--border-color, #262a36));
+  --color-ring: var(--nova-accent, var(--accent-color, #3b82f6));
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 0.875rem;
+}

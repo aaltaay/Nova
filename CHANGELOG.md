@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Apple-inspired light/dark appearance tokens
+
+- **What:** Theme-only redesign: HIG-like light + dark palettes, system font stack, calmer header (no purple hero), logo uses accent `currentColor`, header **Light/Dark** toggle persisted as `nova.theme`.
+- **Why:** User asked for an Apple-brand vibe without changing infrastructure; keep both appearances.
+- **Files touched:** `frontend/src/styles/tokens-shell.css`, `tailwind-theme.css`, `theme/themePrefs.ts`, `ThemeToggle.tsx`, `AppHeader.tsx`, `index.html` FOUC script, `constantGroups/theme.ts`.
+- **How it works now:** `data-theme="light"|"dark"` on `<html>` drives all `--bg-color` / `--panel-bg` / `--accent-color` tokens. Default dark. Toggle in header; early apply in `index.html` + `main.tsx`. Trading bid/ask greens/reds retained.
+- **Verified by:** Vitest `src/theme/themePrefs.test.ts` (5 passed); Playwright toggle dark→light (`bg` `#f5f5f7`, `nova.theme=light`).
+- **Follow-ups:** Gradually replace remaining hard-coded hex in feature CSS with tokens.
+- **Related:** ADR 006 CSS tokens.
+
 ## 2026-07-18 — Phase G3 verified (Map-to-Nova-Action + browser)
 
 - **What:** Closed G3 leftovers: **Map to Nova Action** (DAS row → disabled typed action; TriggerOrder rejected); HotkeyManager + Vitest coverage; tester browser pass on Settings → Hotkeys and Stock View quick-bar. Roadmap G3 marked `[x]`.

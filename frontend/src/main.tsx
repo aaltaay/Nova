@@ -1,6 +1,9 @@
 import { StrictMode } from 'react';
 import { isNovaApiDebug } from './debug';
+import { initThemeFromStorage } from './theme/themePrefs';
 import './index.css';
+
+initThemeFromStorage();
 
 void bootstrap().catch((err) => {
   console.error(err);
