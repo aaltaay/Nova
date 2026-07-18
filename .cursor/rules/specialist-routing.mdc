@@ -7,12 +7,27 @@ alwaysApply: true
 
 When a task clearly belongs to a Nova specialist, prefer that subagent over general-purpose. Wiring metadata (invoke phrases, dashboards, handoffs) lives in `.cursor/agent-system/registry.json` — do not duplicate full agent prompts here.
 
+## Daddy shorthand (highest priority)
+
+If the user message **addresses daddy**, do **not** answer as the general-purpose parent. Immediately invoke the `daddy` subagent and pass the rest of the message as the task.
+
+Match any of (case-insensitive):
+
+- Message starts with `daddy` then `,` / `:` / `—` / `-` / whitespace  
+  Examples: `daddy, diagnose and tell me what to do next.` · `Daddy: fix the empty gappers` · `hey daddy what's broken`
+- Message is only `daddy` / `Daddy` (then ask what to dispatch, or run a fleet brief)
+
+**How to invoke:** Task tool with `subagent_type="daddy"` (or the registered custom agent id `daddy`). Prompt = the user text with the leading address stripped, plus enough repo context to act.
+
+**Do not** require the formal phrase `Use the daddy subagent to dispatch this` when the shorthand matches.
+
 ## Before substantive work
 
-1. Classify the task: single clear domain → go straight to Defaults below.
-2. **"Just get this done" / multi-specialist orchestration** → invoke `daddy` ("Use the daddy subagent to dispatch this"). It classifies, dispatches or emits a sequenced Dispatch Plan, and aggregates — it never implements product code itself.
-3. **"Who owns X / what's cracked?"** (classification only, no dispatch) → invoke `router` ("Use the router subagent to triage this") or run `py -3 tools/agent_fleet.py`.
-4. For a quick fleet-health check without a task, run `py -3 tools/agent_fleet.py` directly.
+1. If Daddy shorthand matched → stop here; daddy owns the turn.
+2. Classify the task: single clear domain → go straight to Defaults below.
+3. **"Just get this done" / multi-specialist orchestration** (no specialist named) → invoke `daddy`.
+4. **"Who owns X / what's cracked?"** (classification only, no dispatch) → invoke `router` ("Use the router subagent to triage this") or run `py -3 tools/agent_fleet.py`.
+5. For a quick fleet-health check without a task, run `py -3 tools/agent_fleet.py` directly.
 
 ## Defaults
 

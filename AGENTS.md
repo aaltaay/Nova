@@ -362,7 +362,7 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 
 | Agent | Invoke | Dashboard |
 |-------|--------|-----------|
-| **daddy** | “Use the daddy subagent to dispatch this” | [agent-daddy](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-daddy.canvas.tsx) |
+| **daddy** | “daddy, …” or “Use the daddy subagent to dispatch this” | [agent-daddy](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-daddy.canvas.tsx) |
 | **router** | “Use the router subagent to triage this” | [agent-router](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-router.canvas.tsx) |
 | **execution** | “Use the execution subagent to audit trading execution” | [agent-execution](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-execution.canvas.tsx) |
 | **ibkr-ops** | “Use the ibkr-ops subagent to diagnose IB Gateway” | [agent-ibkr-ops](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-ibkr-ops.canvas.tsx) |

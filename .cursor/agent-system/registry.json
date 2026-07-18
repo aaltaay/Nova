@@ -9,6 +9,9 @@
       "memory": ".cursor/agent-memory/daddy-memory.md",
       "invoke_phrases": [
         "Use the daddy subagent to dispatch this",
+        "daddy,",
+        "Daddy:",
+        "hey daddy",
         "Improve the daddy agent \u2014 work the next backlog item"
       ],
       "dashboard": {

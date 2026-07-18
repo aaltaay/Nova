@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Daddy casual shorthand (`daddy, …`)
+
+- **What:** You can address daddy naturally — `daddy, diagnose and tell me what to do next.` — without the formal “Use the daddy subagent…” phrase. Wired via always-apply `specialist-routing.mdc` (Daddy shorthand = highest priority), expanded `daddy.md` description for Cursor proactive match, and casual invoke phrases in the registry.
+- **Why:** Day-to-day use should feel like talking to the dispatcher, not reciting a template.
+- **Files touched:** `.cursor/agents/daddy.md`, `.cursor/rules/specialist-routing.mdc`, `.cursor/agent-system/registry.json`, `AGENTS.md`, `docs/agent-operations.md`.
+- **How it works now:** Parent chat sees a leading `daddy` address → must Task(`daddy`) with the remainder as the prompt. Daddy still classifies and launches/sequences specialists (or emits a Dispatch Plan). Formal invoke phrase remains valid.
+- **Verified by:** `py -3 tools/agent_contract.py`.
+- **Follow-ups:** First real casual invoke should record `dispatch_mode` in daddy memory.
+
 ## 2026-07-18 — Standardize agent names (plain role ids)
 
 - **What:** Renamed five agents to a consistent plain-role scheme: `nova-router`→`router`, `nova-agent`→`docs`, `security-sentinel`→`security`, `widgets-agent`→`widgets`, `news-catalyst`→`news`. Aligned canvases (`agent-execution`, `agent-news`). Reordered registry (daddy → domain specialists → meta). Added Mode column to `Agent-Fleet-Map.md` (Dispatch / Audit / Implement / Research).
