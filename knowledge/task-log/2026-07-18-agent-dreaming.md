@@ -40,9 +40,10 @@ Rejected adopting OpenClaw/Claude Auto Dream (wrong runtime). Deterministic scor
 
 ## Follow-ups
 
-- Apply `--write` when user wants live promotions (e.g. tester agent-browser fact)
-- Optional later: Obsidian decision-vault dream; LLM REM
+- OpenAI quota for LLM REM (429) — heuristic fallback works; top up billing to get real diaries
+- Pinecone ingest returned exit=1 on first write pass — re-run `py -3 tools/agent_dream.py --write --pinecone` after keys/index are healthy
+- OpenClaw remains a bridge export, not a vendored Nova runtime (by design)
 
 ## Keywords
 
-agent dreaming, memory consolidation, light REM deep, agent-memory, DREAMS.md
+agent dreaming, memory consolidation, light REM deep, agent-memory, DREAMS.md, Obsidian hygiene, Pinecone, Claude Auto Dream
