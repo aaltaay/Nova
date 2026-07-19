@@ -48,6 +48,24 @@ NOVA_OS_DEFAULT_MODE = NOVA_OS_MODE_SIGNAL  # safest default; never persisted as
 NOVA_OS_CONFIRM_TIMEOUT_SEC = 45           # staged ticket TTL; Gap and Go moves fast
 NOVA_OS_MAX_CONCURRENT_POSITIONS = 2       # open executor positions + staged tickets combined
 NOVA_OS_FLATTEN_CONFIRM_TOKEN = "FLATTEN"  # typed confirm for flatten_positions()
+
+# ── Centralized execution path (ADR 007) ────────────────────────────────────
+# Single receive→validate→persist→send→ack→fill pipeline. Paper and live share
+# this path; only Gateway credentials/port and safety gates differ.
+EXECUTION_LEDGER_DB_FILENAME = "execution_ledger.db"
+EXECUTION_ACK_SLA_P95_MS = 250.0  # receive → first real broker ack (excludes fill)
+EXECUTION_ACK_WAIT_SEC = 5.0      # max wait for first non-PendingSubmit status
+EXECUTION_FILL_WAIT_SEC = 30.0    # optional wait for complete fill (benchmark only)
+EXECUTION_SOURCES = (
+    "manual",
+    "approve",
+    "auto_paper",
+    "kill",
+    "cancel_working",
+    "flatten",
+    "benchmark",
+)
+EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
 # NYSE full-day closures (ISO dates). Gate 0 + set_mode(auto_paper) refuse holidays.
 NOVA_OS_NYSE_HOLIDAYS = frozenset({
     "2026-01-01",  # New Year's Day
@@ -131,8 +149,18 @@ NOVA_OS_REASON_CODES = (
 NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES = 1  # first loss → force `confirm`
 NOVA_OS_LOSS_POLICY_HALT_AFTER_LOSSES = 3       # third loss → halt (== RISK_MAX_CONSECUTIVE_LOSSES)
 
+# ── Local API auth (SEC-002 / SEC-004) ──────────────────────────────────────────
+# Mutating /api/* routes require this header when NOVA_API_KEY is set, or when
+# the bind host is not loopback (see backend/auth.py).
+NOVA_API_KEY_HEADER = "X-Nova-Api-Key"
+NOVA_API_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+
 # ── Outbound alerts (Phase D) ───────────────────────────────────────────────────
 ALERTS_CHANNELS_FILENAME = "alerts_channels.json"
+# Optional comma-separated host allowlist for outbound webhooks (SEC-008).
+# Empty = any public https host (private/link-local/metadata still blocked).
+ALERTS_WEBHOOK_HOST_ALLOWLIST_DEFAULT: tuple[str, ...] = ()
+ALERTS_WEBHOOK_ALLOWED_SCHEMES = ("https",)
 ALERTS_HTTP_TIMEOUT_SEC = 10.0
 ALERTS_MAX_CHANNELS = 20
 ALERTS_STATUS_RING_SIZE = 50

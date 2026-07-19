@@ -7,11 +7,14 @@ interface Props {
   detail: TickerDetail;
   /** Wrap in cq-news-row (columns layout). */
   wrapped?: boolean;
+  /** When false, headlines only — bump/impact is rendered elsewhere. */
+  includeImpact?: boolean;
 }
 
-export function NewsPanel({ detail, wrapped = false }: Props) {
+export function NewsPanel({ detail, wrapped = false, includeImpact = true }: Props) {
   const news = detail.news ?? [];
-  const hasContent = news.length > 0 || !!detail.news_impact;
+  const impact = includeImpact ? detail.news_impact : null;
+  const hasContent = news.length > 0 || !!impact;
   const body = (
     <div
       className="nova-module nova-module--news"
@@ -19,7 +22,12 @@ export function NewsPanel({ detail, wrapped = false }: Props) {
       data-news-count={String(news.length)}
       data-news-empty={hasContent ? 'false' : 'true'}
     >
-      <NewsHeadlineSection news={news} newsImpact={detail.news_impact} timeAgo={timeAgo} />
+      <NewsHeadlineSection
+        news={news}
+        newsImpact={detail.news_impact}
+        timeAgo={timeAgo}
+        includeImpact={includeImpact}
+      />
     </div>
   );
   if (wrapped) {

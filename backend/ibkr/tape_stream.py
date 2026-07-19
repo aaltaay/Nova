@@ -127,9 +127,10 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
             from archive.capture import parse_iso_to_unix, record_tape_print
             from constants import ARCHIVE_SOURCE_IBKR
 
+            print_ts = parse_iso_to_unix(ts_iso)
             record_tape_print(
                 symbol=symbol,
-                ts=parse_iso_to_unix(ts_iso),
+                ts=print_ts,
                 price=price,
                 size=float(size_i),
                 exchange=exchange,
@@ -138,6 +139,16 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
                 bid=bid,
                 ask=ask,
                 receive_ts=time.time(),
+                source=ARCHIVE_SOURCE_IBKR,
+            )
+            # 1m OHLCV for archive/replay (same IBKR tape source — not Alpaca).
+            from archive.bar_builder import on_tape_print
+
+            on_tape_print(
+                symbol=symbol,
+                ts=print_ts,
+                price=price,
+                size=float(size_i),
                 source=ARCHIVE_SOURCE_IBKR,
             )
         except Exception:

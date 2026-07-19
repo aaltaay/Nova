@@ -6,9 +6,11 @@ alwaysApply: true
 # Browser Testing & Web Verification Guidelines
 
 ## 1. Web Verification Requirement
+
 At the end of every task involving web deployments or changes, you MUST open a headless/headed browser (using `agent-browser` or Playwright) and test the actual live URL or local dev server to ensure it loads successfully and functions correctly before declaring the task complete.
 
 For interactive React changes, a screenshot alone is not verification:
+
 1. Start a fresh browser session so old errors do not contaminate the result.
 2. Exercise the affected interaction, including rapid switching when async data is involved.
 3. Run `npx agent-browser@latest console` and confirm there are no new uncaught errors or React component-crash warnings.
@@ -17,6 +19,7 @@ For interactive React changes, a screenshot alone is not verification:
 6. For virtualized, paged, or incremental lists, verify against a populated production-scale dataset. Record mounted row count, total DOM node count, list viewport height, list scroll height, and document scroll height before and after scrolling. An empty-list screenshot or bounded CSS declaration is not proof that row mounting is bounded.
 
 ## 2. Available Browser Skills
+
 - **Agent Browser CLI (`agent-browser`):** Used for fast, lightweight browser tasks.
   - Commands:
     - `npx agent-browser@latest open <url>`

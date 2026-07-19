@@ -289,6 +289,49 @@
   color: var(--sv-primary);
 }
 
+/* ── Workspace: charts+rail | drag | Open Orders ─────────────────────────── */
+
+.stock-view-page .stock-view-workspace {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.stock-view-page .stock-view-workspace > .resize-handle--horizontal {
+  flex: 0 0 8px;
+  height: 8px;
+  align-self: stretch;
+  z-index: 3;
+}
+
+.stock-view-page .stock-view-workspace > .resize-handle--horizontal::before {
+  height: 3px;
+  border-radius: 2px;
+}
+
+.stock-view-page
+  .stock-view-workspace:not(.stock-view-workspace--orders-collapsed)
+  > .stock-view-body {
+  flex: 0 0 var(--sv-main-pct, 78%);
+  min-height: 140px;
+}
+
+.stock-view-page
+  .stock-view-workspace:not(.stock-view-workspace--orders-collapsed)
+  > .sv-open-orders-dock {
+  flex: 1 1 0;
+  min-height: var(--sv-orders-pane-min, 96px);
+  max-height: none;
+}
+
+.stock-view-page .stock-view-workspace--orders-collapsed > .stock-view-body {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
 /* ── Body: charts dominate + dense rail ──────────────────────────────────── */
 
 .stock-view-page .stock-view-body {
@@ -327,7 +370,44 @@
 .stock-view-page .stock-view-charts .chart-grid {
   flex: 1 1 0;
   min-height: 0;
+}
+
+.stock-view-page .stock-view-charts .chart-grid--row-split {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.stock-view-page .stock-view-charts .chart-grid__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 4px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stock-view-page .stock-view-charts .chart-grid__row--top {
+  flex: 0 0 var(--chart-row-top-pct, 50%);
+}
+
+.stock-view-page .stock-view-charts .chart-grid__row--bottom {
+  flex: 1 1 0;
+}
+
+.stock-view-page .stock-view-charts .chart-grid > .resize-handle--horizontal {
+  flex: 0 0 7px;
+  height: 7px;
+  align-self: stretch;
+  z-index: 2;
+}
+
+.stock-view-page
+  .stock-view-charts
+  .chart-grid
+  > .resize-handle--horizontal::before {
+  height: 3px;
+  border-radius: 2px;
 }
 
 /* ── Open Orders dock (full-width footer under charts + rail) ────────────── */
@@ -342,17 +422,28 @@
   max-height: min(28vh, 220px);
 }
 
+.stock-view-page
+  .stock-view-workspace:not(.stock-view-workspace--orders-collapsed)
+  > .sv-open-orders-dock {
+  border-top: none;
+}
+
 .stock-view-page .sv-open-orders-dock--collapsed {
   max-height: none;
 }
 
 .stock-view-page .sv-open-orders-dock__bar {
   display: flex;
-  align-items: center;
-  gap: 0.65rem;
+  align-items: stretch;
+  gap: 0.5rem;
   flex-shrink: 0;
-  padding: 0.2rem 0.55rem;
+  padding: 0;
   border-bottom: 1px solid transparent;
+  cursor: pointer;
+}
+
+.stock-view-page .sv-open-orders-dock__bar:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.04));
 }
 
 .stock-view-page .sv-open-orders-dock:not(.sv-open-orders-dock--collapsed)
@@ -362,12 +453,14 @@
 
 .stock-view-page .sv-open-orders-dock__toggle {
   display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 0.4rem;
+  min-width: 0;
   margin: 0;
-  padding: 0.15rem 0.35rem;
+  padding: 0.35rem 0.35rem 0.35rem 0.55rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 0;
   background: transparent;
   color: var(--sv-primary);
   font: inherit;
@@ -376,11 +469,47 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
+  text-align: left;
 }
 
 .stock-view-page .sv-open-orders-dock__toggle:hover {
-  background: var(--hover-bg, rgba(255, 255, 255, 0.06));
   color: var(--sv-accent);
+}
+
+.stock-view-page .sv-open-orders-dock__tabs {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.stock-view-page .sv-open-orders-dock__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sv-secondary);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.stock-view-page .sv-open-orders-dock__tab:hover {
+  color: var(--sv-primary);
+}
+
+.stock-view-page .sv-open-orders-dock__tab.is-active {
+  color: var(--sv-accent);
+  border-color: color-mix(in srgb, var(--sv-accent) 40%, var(--sv-border));
+  background: color-mix(in srgb, var(--sv-accent) 12%, transparent);
 }
 
 .stock-view-page .sv-open-orders-dock__chevron {
@@ -401,6 +530,49 @@
 .stock-view-page .sv-open-orders-dock__hint {
   margin-left: auto;
   font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.stock-view-page .sv-open-orders-dock__sample-tag {
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #f59e0b 22%, transparent);
+  color: #fbbf24;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.stock-view-page .sv-open-orders-dock__sample-btn {
+  align-self: center;
+  flex-shrink: 0;
+  margin: 0 0.45rem 0 0;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--sv-border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sv-secondary);
+  font: inherit;
+  font-size: 0.65rem;
+  cursor: pointer;
+}
+
+.stock-view-page .sv-open-orders-dock__sample-btn:hover {
+  border-color: var(--sv-accent);
+  color: var(--sv-accent);
+}
+
+.stock-view-page .sv-open-orders-dock__banner {
+  margin: 0 0 0.35rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--sv-border));
+  background: color-mix(in srgb, #f59e0b 12%, var(--sv-bg));
+  color: #fbbf24;
+  font-size: 0.68rem;
 }
 
 .stock-view-page .sv-open-orders-dock__body {
@@ -864,9 +1036,11 @@
     overflow: hidden;
   }
 
-  .stock-view-page .stock-view-charts .chart-grid {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
+  .stock-view-page .stock-view-charts .chart-grid--row-split {
     height: 100%;
+  }
+
+  .stock-view-page .stock-view-charts .chart-grid__row {
+    grid-template-columns: 1fr 1fr;
   }
 }

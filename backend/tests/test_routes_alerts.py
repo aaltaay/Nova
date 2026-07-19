@@ -22,6 +22,13 @@ def _isolate_store(tmp_path, monkeypatch):
         "_store_path",
         lambda: store_file,
     )
+    # Avoid real DNS in SSRF validator during route tests.
+    monkeypatch.setattr(
+        "alerts.webhook_url.socket.getaddrinfo",
+        lambda *a, **k: [(0, 0, 0, "", ("8.8.8.8", 0))],
+    )
+    monkeypatch.delenv("NOVA_API_KEY", raising=False)
+    monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
     dispatch._status_ring.clear()
     store_file.write_text(json.dumps({"channels": []}), encoding="utf-8")
     yield
@@ -31,6 +38,18 @@ def test_list_channels_empty():
     res = client.get("/api/alerts/channels")
     assert res.status_code == 200
     assert res.json()["channels"] == []
+
+
+def test_create_rejects_ssrf_target():
+    res = client.post(
+        "/api/alerts/channels",
+        json={
+            "type": "webhook",
+            "name": "Bad",
+            "webhook_url": "https://127.0.0.1/hook",
+        },
+    )
+    assert res.status_code == 400
 
 
 def test_create_and_list_masks_secrets():

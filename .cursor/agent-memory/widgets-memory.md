@@ -7,20 +7,20 @@ canonical; this memory tracks summary state, durable lessons, and next work.
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-16T22:26:00-04:00
-source_revision: working-tree-2026-07-16
-result: STOCK_VIEW_HEADER_CLEANUP
+captured_at: 2026-07-18T22:15:00-04:00
+source_revision: working-tree-2026-07-18
+result: CLOSED_ORDERS_WID027
 metrics:
-  capabilities_total: 25
+  capabilities_total: 27
   matched: 7
-  partial: 12
+  partial: 14
   missing: 5
   nova_only: 0
   not_comparable: 1
   unknown: 0
 blockers: []
 dashboard_freshness: clean
-notes: "Stock View header uses Paper/Live + Manual/Normal/Fully Automated capsules and trading lock; Confirm/Auto Paper cluster removed from header only (ExecutorPanel keeps them)."
+notes: "WID-027 Closed Orders feature slice + Positions Flatten via closeFullPosition (ADR 007). WID-020 narrowed to CSV/multi-day export. auto_live still NO-GO."
 ```
 
 
@@ -47,9 +47,19 @@ notes: "Stock View header uses Paper/Live + Manual/Normal/Fully Automated capsul
   The horizontal drag bar reallocates height between that combined depth block
   and **Order Entry** — never between L2 and T&S. Never remove the Open /
   Unlock Trading / ManualOrderTicket surface when adjusting layout.
+- Working Orders (WID-026): primary surface is Trading tab account column;
+  Stock View shows a symbol-scoped card under Trade only when working orders
+  (or a just-placed highlight) exist. Cancel only — no modify, no auto_live.
+- Closed Orders (WID-027): isolated `frontend/src/closed_orders/` slice +
+  workspace registry `closed_orders` for Modules hide/show. Session terminal
+  orders from `GET /api/ibkr/orders/closed`. No Cancel on this panel.
+- Flatten / Close position ≠ Cancel: Flatten uses `closeFullPosition` →
+  `placeIbkrOrder` (ADR 007). Cancel uses DELETE working-order routes.
 
 ## Backlog
 
+- [ ] Implement WID-020 CSV / multi-day History Records export (after Closed
+      Orders usage evidence); still no order-edit until export exists.
 - [ ] Audit exact chart indicator/drawing coverage against WID-005.
 - [ ] Break WID-009 research into fundamentals, statements, analyst estimates,
   ownership, and short-interest capabilities.
@@ -58,9 +68,16 @@ notes: "Stock View header uses Paper/Live + Manual/Normal/Fully Automated capsul
 - [ ] Research whether IBKR can provide an entitlement-honest NOII equivalent.
 - [ ] Prioritize Price Ladder staging versus Chart Trading after the manual
   ticket has real usage evidence.
+- [ ] Optional: Stock View dock for Closed Orders (symbol-scoped) once Trading
+      usage is proven.
 
 ### Completed
 
+- [x] 2026-07-18 — WID-027 Closed Orders feature slice + Positions Flatten
+      (`closeFullPosition`); S15/S17 History/Closed surface documented; WID-020
+      narrowed to export.
+- [x] 2026-07-18 — WID-026 Working Orders panel (Trading + Stock View rail) +
+      open_orders fill columns; research S17; column map in parity doc.
 - [x] 2026-07-16 — Stock View header capsules (Paper/Live, mode, lock); removed Close/Hide charts/automate cluster from header.
 - [x] 2026-07-16 — Established 25-capability public Webull-to-Nova baseline.
 - [x] 2026-07-16 — Defined evidence, status, stable-ID, and safety rules.
@@ -70,6 +87,31 @@ notes: "Stock View header uses Paper/Live + Manual/Normal/Fully Automated capsul
 ## Run log
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-18 — Closed Orders widget + Flatten (WID-027)
+
+- **Scope:** Research Webull History / filled+cancelled (S15, S17) + ship
+  isolated `closed_orders/` slice; Positions Flatten via ADR 007 place path.
+- **Result:** WID-027 added; WID-020 narrowed to CSV/multi-day; registry module
+  for hide/show; `GET /api/ibkr/orders/closed`; Cancel vs Flatten copy clear.
+- **Learning:** Public Webull FAQs never name a literal "Closed Orders" tab —
+  map to History → Orders Records + S15 filled/cancelled lifecycle. Keep the
+  feature out of StockViewPage monolith (ADR 005) so Modules can hide/move it.
+- **Verified:** Vitest closed_orders + closeFullPosition + registry; pytest
+  test_closed_orders (hand tester for full UI gates).
+
+### 2026-07-18 — Working Orders post-place panel (WID-026)
+
+- **Scope:** Research Webull Orders → Working / history (S15, S17) + ship thin
+  Nova WorkingOrdersPanel wired to GET /api/ibkr/orders (no live orders in test).
+- **Result:** Column map documented; `open_orders` adds filled/remaining/avg;
+  Trading highlights just-placed id; Stock View rail card under Trade when
+  symbol has working orders. WID-020 remains history/export gap.
+- **Learning:** Webull public docs name lifecycle statuses and Working tab
+  paths but not an exhaustive column schema — map IBKR openTrades fields to
+  those concepts; keep history/export as a separate capability (WID-020).
+- **Verified:** Vitest WorkingOrdersPanel + stockViewTerminal; pytest
+  test_open_orders_row.
 
 ### 2026-07-16 — Stock View trading header cleanup
 

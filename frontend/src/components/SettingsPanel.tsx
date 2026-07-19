@@ -11,6 +11,8 @@ interface SettingsPanelProps {
   onApiKeyChange: (value: string) => void;
   apiSecret: string;
   onApiSecretChange: (value: string) => void;
+  apiKeySet?: boolean;
+  apiSecretSet?: boolean;
   baseUrl: string;
   onBaseUrlChange: (value: string) => void;
   dataFeed: string;
@@ -28,6 +30,8 @@ export function SettingsPanel({
   onApiKeyChange,
   apiSecret,
   onApiSecretChange,
+  apiKeySet = false,
+  apiSecretSet = false,
   baseUrl,
   onBaseUrlChange,
   dataFeed,
@@ -49,18 +53,20 @@ export function SettingsPanel({
             type="text"
             value={apiKey}
             onChange={e => onApiKeyChange(e.target.value)}
-            placeholder="APCA_API_KEY_ID"
-            required
+            placeholder={apiKeySet ? 'Saved (leave blank to keep)' : 'APCA_API_KEY_ID'}
+            required={!apiKeySet}
+            autoComplete="off"
           />
         </div>
         <div className="form-group">
           <label>API Secret Key</label>
           <input
-            type="text"
+            type="password"
             value={apiSecret}
             onChange={e => onApiSecretChange(e.target.value)}
-            placeholder="••••••••••••••••"
-            required
+            placeholder={apiSecretSet ? 'Saved (leave blank to keep)' : 'APCA_API_SECRET_KEY'}
+            required={!apiSecretSet}
+            autoComplete="off"
           />
         </div>
         <div className="form-group">

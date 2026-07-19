@@ -6,6 +6,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
+  STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY,
 } from '../constants';
 import { StockViewOpenOrdersDock } from './StockViewOpenOrdersDock';
 import type { IbkrOrder } from '../ibkr/types';
@@ -43,28 +44,22 @@ describe('StockViewOpenOrdersDock', () => {
     container.remove();
   });
 
-  it('starts collapsed by default and toggles open', () => {
+  it('auto-shows sample rows when empty and expands', () => {
     act(() => {
       root.render(
         <StockViewOpenOrdersDock symbol="AAPL" orders={[]} />,
       );
     });
-    expect(
-      container.querySelector('[data-testid="stock-view-open-orders-dock"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('[data-testid="working-orders-panel"]'),
-    ).toBeNull();
-
-    const toggle = container.querySelector(
-      '[data-testid="stock-view-open-orders-toggle"]',
-    ) as HTMLButtonElement;
-    act(() => {
-      toggle.click();
-    });
+    const dock = container.querySelector(
+      '[data-testid="stock-view-open-orders-dock"]',
+    );
+    expect(dock).toBeTruthy();
+    expect(dock?.getAttribute('data-sample')).toBe('1');
     expect(
       container.querySelector('[data-testid="working-orders-panel"]'),
     ).toBeTruthy();
+    expect(container.textContent).toMatch(/Sample preview/i);
+    expect(container.textContent).toContain('90001');
     expect(localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY)).toBe('0');
   });
 
@@ -84,5 +79,52 @@ describe('StockViewOpenOrdersDock', () => {
     ).toBeTruthy();
     expect(container.textContent).toMatch(/Open Orders/i);
     expect(container.textContent).toContain('99');
+  });
+
+  it('toggles when clicking the middle of the bar (hint area)', () => {
+    localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY, '1');
+    localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY, '1');
+    act(() => {
+      root.render(
+        <StockViewOpenOrdersDock symbol="AAPL" orders={[]} />,
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="working-orders-panel"]'),
+    ).toBeNull();
+    const hint = container.querySelector('.sv-open-orders-dock__hint');
+    expect(hint).toBeTruthy();
+    act(() => {
+      hint?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(
+      container.querySelector('[data-testid="working-orders-panel"]'),
+    ).toBeTruthy();
+  });
+
+  it('switches to Closed Orders tab and shows the isolated module', () => {
+    act(() => {
+      root.render(
+        <StockViewOpenOrdersDock symbol="AAPL" orders={[]} />,
+      );
+    });
+    const closedTab = container.querySelector(
+      '[data-testid="stock-view-orders-tab-closed"]',
+    ) as HTMLButtonElement;
+    expect(closedTab).toBeTruthy();
+    act(() => {
+      closedTab.click();
+    });
+    expect(
+      container.querySelector('[data-testid="stock-view-closed-orders"]'),
+    ).toBeTruthy();
+    expect(
+      container.querySelector('[data-testid="closed-orders-module"]'),
+    ).toBeTruthy();
+    expect(
+      container
+        .querySelector('[data-testid="stock-view-open-orders-dock"]')
+        ?.getAttribute('data-orders-tab'),
+    ).toBe('closed');
   });
 });

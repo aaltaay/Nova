@@ -3,15 +3,10 @@
  * Extracted from App.tsx so the header stays modular and the tab bar stays tabs-only.
  */
 import type { ChangeEvent } from 'react';
-import { BackendStartButton } from './BackendStartButton';
+import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { SymbolSearchBox } from './SymbolSearchBox';
 import { ThemeToggle } from './ThemeToggle';
-import {
-  DATA_FEED_LABELS,
-  DISCOVERY_PROVIDER_DEFAULT,
-  SCANNER_DATA_SOURCE_LABELS,
-  SCANNER_DATA_SOURCE_TITLES,
-} from '../constants';
+import { DISCOVERY_PROVIDER_DEFAULT } from '../constants';
 import type { HealthStatus } from '../types/health';
 
 export type MarketMode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
@@ -49,12 +44,6 @@ function fmtHistoryDate(dateStr: string): string {
   return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function dotClass(status: string): string {
-  if (status === 'connected') return 'connected';
-  if (status === 'disconnected') return 'disconnected';
-  return 'loading';
-}
-
 interface Props {
   mode: MarketMode;
   health: HealthStatus;
@@ -64,6 +53,8 @@ interface Props {
   secondsAgo: number | null;
   /** True when IBKR table price ticks are late — show warning color, never hide. */
   pricesStale?: boolean;
+  /** IB Gateway API session (separate from Nova API health). */
+  ibkrConnected?: boolean;
   historyDate: string | null;
   historyDates: string[];
   onHistoryChange: (e: ChangeEvent<HTMLSelectElement>) => void;
@@ -87,6 +78,7 @@ export function AppHeader({
   feedFellBack,
   secondsAgo,
   pricesStale = false,
+  ibkrConnected = false,
   historyDate,
   historyDates,
   onHistoryChange,
@@ -109,78 +101,23 @@ export function AppHeader({
           </div>
         </div>
         <span className={`mode-badge mode-${mode}`}>{MODE_LABELS[mode]}</span>
+        <ThemeToggle />
       </div>
 
       <div className="header-status" aria-live="polite">
-        <div className="status-indicator">
-          <span className={`dot ${dotClass(health.status)}`} />
-          <span style={{ textTransform: 'capitalize' }}>{health.status}</span>
-          {health.latency_ms > 0 && <span>({health.latency_ms}ms)</span>}
-          {discoveryProvider !== 'ibkr' && (
-            <span
-              className={`feed-badge feed-${activeFeed}`}
-              title={`Alpaca data feed: ${DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase()}`}
-            >
-              {activeFeed.toUpperCase()}
-            </span>
-          )}
-          {discoveryProvider !== 'ibkr' && feedFellBack && (
-            <span
-              className="feed-fallback-hint"
-              title="SIP feed was rejected; automatically fell back to IEX. Change in Settings if your plan supports SIP."
-            >
-              ⚠ fallback
-            </span>
-          )}
-          {!compact && !historyDate && secondsAgo != null && (
-            <>
-              <span className="header-meta-sep" aria-hidden="true">·</span>
-              <span
-                className={`scan-age${pricesStale ? ' scan-age--stale' : ''}`}
-                title={
-                  pricesStale
-                    ? 'Table price refresh is late or skipped — not live right now'
-                    : 'Age of last successful table price tick'
-                }
-              >
-                {pricesStale ? `stale · updated ${secondsAgo}s ago` : `updated ${secondsAgo}s ago`}
-              </span>
-            </>
-          )}
-          {!compact && showScannerSource && (
-            <>
-              <span className="header-meta-sep" aria-hidden="true">·</span>
-              <span
-                className="header-data-source"
-                title={SCANNER_DATA_SOURCE_TITLES[discoveryProvider] || SCANNER_DATA_SOURCE_TITLES[DISCOVERY_PROVIDER_DEFAULT]}
-              >
-                {SCANNER_DATA_SOURCE_LABELS[discoveryProvider] || SCANNER_DATA_SOURCE_LABELS[DISCOVERY_PROVIDER_DEFAULT]}
-              </span>
-            </>
-          )}
-          {health.flag && health.status !== 'connected' && (
-            <span
-              className={`backend-flag backend-flag--${health.flag.toLowerCase()}`}
-              title={health.flag_hint || health.message || health.flag}
-              data-testid="backend-flag"
-              data-flag={health.flag}
-            >
-              {health.flag}
-            </span>
-          )}
-          {health.message && health.status !== 'connected' && (
-            <span className="status-hint" title={health.flag_hint || health.message}>
-              {' '}— {health.message.length > 80 ? `${health.message.slice(0, 80)}…` : health.message}
-            </span>
-          )}
-          {!compact && (health.status === 'disconnected' || health.status === 'error') && (
-            <BackendStartButton
-              onStarted={onBackendStarted}
-              flag={health.flag}
-              flagHint={health.flag_hint}
-            />
-          )}
-        </div>
+        <HeaderConnectionStatus
+          health={health}
+          discoveryProvider={discoveryProvider}
+          ibkrConnected={ibkrConnected}
+          activeFeed={activeFeed}
+          feedFellBack={feedFellBack}
+          secondsAgo={secondsAgo}
+          pricesStale={pricesStale}
+          historyDate={historyDate}
+          compact={compact}
+          showScannerSource={showScannerSource}
+          onBackendStarted={onBackendStarted}
+        />
       </div>
 
       {!compact && (
@@ -197,7 +134,6 @@ export function AppHeader({
             ))}
           </select>
           <SymbolSearchBox onLookup={onLookup} />
-          <ThemeToggle />
           <button
             className={`settings-btn ${showSettings ? 'active' : ''}`}
             onClick={onToggleSettings}

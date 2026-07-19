@@ -13,6 +13,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import execution.service as exec_svc
+import execution.store as exec_store
+import execution.telemetry as exec_telemetry
+import ibkr.account as account_mod
+import ibkr.client as client_mod
+import ibkr.safety as safety_mod
 import journal.db as db
 import nova_os.events_db as events_db
 import strategy.executor as executor
@@ -27,9 +33,16 @@ from nova_os import control_mode, staged_tickets
 def isolated_journal_db(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "cache_dir", lambda: tmp_path)
     monkeypatch.setattr(events_db, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr("execution.store.cache_dir", lambda: tmp_path)
+    import execution.broker_send as broker_send
+
+    monkeypatch.setattr(broker_send, "EXECUTION_ACK_WAIT_SEC", 0.05)
     db.init_db()
     events_db.init_db()
+    exec_store.init_db()
+    exec_telemetry.reset_for_tests()
     yield
+    exec_telemetry.reset_for_tests()
 
 
 @pytest.fixture(autouse=True)
@@ -54,6 +67,25 @@ def _approve_risk(monkeypatch, qty=100):
     monkeypatch.setattr(risk_mod, "position_size_shares", lambda: qty)
 
 
+def _arm_ibkr_execution(monkeypatch):
+    """Open IBKR safety + account gates so execution.service can reach risk/broker."""
+    monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    monkeypatch.setattr(client_mod, "get_ib", lambda: None)
+    monkeypatch.setattr(executor._ibkr_client, "is_enabled", lambda: True)
+    monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+    monkeypatch.setattr(executor._ibkr_client, "account_mode", lambda: "paper")
+    monkeypatch.setattr(executor._ibkr_client, "get_ib", lambda: None)
+    monkeypatch.setattr(safety_mod, "orders_enabled", lambda: True)
+    monkeypatch.setattr(
+        account_mod,
+        "get_account_summary",
+        lambda: {"connected": True, "BuyingPower": 1_000_000.0, "pending": False},
+    )
+    monkeypatch.setattr(account_mod, "get_positions", lambda: [])
+
+
 def _enable_auto_paper(monkeypatch):
     """Bypass set_mode gates when a test only needs the on_signal auto path.
 
@@ -67,6 +99,7 @@ def _enable_auto_paper(monkeypatch):
     control_mode._mode = NOVA_OS_MODE_AUTO_PAPER
     executor._kill_switch_tripped = False
     monkeypatch.setattr(control_mode, "auto_paper_gate_status", lambda: (True, "OK"))
+    _arm_ibkr_execution(monkeypatch)
 
 
 class TestArmDisarmKillSwitch:
@@ -89,7 +122,7 @@ class TestArmDisarmKillSwitch:
     def test_kill_switch_cancels_only_when_parent_unfilled(self, monkeypatch):
         executor.arm()
         cancelled_ids = []
-        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+        _arm_ibkr_execution(monkeypatch)
         monkeypatch.setattr(orders_mod, "open_orders", lambda: [{"order_id": 1}])
         monkeypatch.setattr(orders_mod, "cancel_order", lambda oid: cancelled_ids.append(oid) or {"ok": True})
         executor._open_positions["AAPL"] = executor.OpenPosition(
@@ -106,7 +139,7 @@ class TestArmDisarmKillSwitch:
     def test_kill_switch_preserves_stops_when_parent_filled(self, monkeypatch):
         executor.arm()
         cancelled_ids = []
-        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+        _arm_ibkr_execution(monkeypatch)
         monkeypatch.setattr(orders_mod, "open_orders", lambda: [{"order_id": 2}, {"order_id": 3}])
         monkeypatch.setattr(orders_mod, "cancel_order", lambda oid: cancelled_ids.append(oid) or {"ok": True})
         executor._open_positions["AAPL"] = executor.OpenPosition(
@@ -173,6 +206,7 @@ class TestOnSignal:
 
     def test_skips_when_risk_halted(self, monkeypatch):
         _enable_auto_paper(monkeypatch)
+        _approve_risk(monkeypatch)
         monkeypatch.setattr(risk_mod, "can_trade", lambda: (False, "Daily max loss reached."))
         called = []
         monkeypatch.setattr(orders_mod, "place_bracket_order", lambda *a, **k: called.append(1))
@@ -183,6 +217,7 @@ class TestOnSignal:
     def test_skips_when_plan_fails_validation(self, monkeypatch):
         _enable_auto_paper(monkeypatch)
         monkeypatch.setattr(risk_mod, "can_trade", lambda: (True, "OK"))
+        monkeypatch.setattr(risk_mod, "position_size_shares", lambda: 100)
         monkeypatch.setattr(risk_mod, "validate_trade_plan", lambda e, s, t: (False, ["Stop too wide."]))
         called = []
         monkeypatch.setattr(orders_mod, "place_bracket_order", lambda *a, **k: called.append(1))
@@ -235,6 +270,8 @@ class TestOnSignal:
         None with only a log line."""
         _enable_auto_paper(monkeypatch)
         monkeypatch.setattr(risk_mod, "can_trade", lambda: (False, "Daily max loss reached."))
+        monkeypatch.setattr(risk_mod, "position_size_shares", lambda: 100)
+        monkeypatch.setattr(risk_mod, "validate_trade_plan", lambda e, s, t: (True, []))
         result = executor.place_from_ticket("AAPL", "gap_and_go", 5.0, 4.9, 5.2)
         assert result is None
         from nova_os.events import KIND_ACTION, get_events
@@ -249,10 +286,10 @@ class TestOnSignal:
     def test_places_bracket_when_auto_paper_and_checks_pass(self, monkeypatch):
         _enable_auto_paper(monkeypatch)
         _approve_risk(monkeypatch, qty=100)
-        placed_args = []
+        placed_kwargs = []
         monkeypatch.setattr(
             orders_mod, "place_bracket_order",
-            lambda *a, **k: (placed_args.append(a) or
+            lambda *a, **k: (placed_kwargs.append(k) or
                               {"ok": True, "parent_order_id": 10, "target_order_id": 11,
                                "stop_order_id": 12, "error": None, "mode": "paper"}),
         )
@@ -265,8 +302,8 @@ class TestOnSignal:
         assert pos.parent_order_id == 10
         assert pos.target_order_id == 11
         assert pos.stop_order_id == 12
-        assert placed_args[0][0] == "AAPL"
-        assert placed_args[0][2] == 100
+        assert placed_kwargs[0]["symbol"] == "AAPL"
+        assert placed_kwargs[0]["qty"] == 100
 
 
 class _FakeExecution:
@@ -413,7 +450,7 @@ class TestFlattenReconciliation:
         """Parent never filled at IBKR — there is nothing to sell. Placing a
         market SELL here would open an accidental short."""
         self._seed_open_position()
-        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+        _arm_ibkr_execution(monkeypatch)
         monkeypatch.setattr(executor_flatten._account, "get_positions", lambda: [])
         monkeypatch.setattr(orders_mod, "open_orders", lambda: [{"order_id": 10}])
         cancelled = []
@@ -423,7 +460,7 @@ class TestFlattenReconciliation:
         sell_calls = []
         monkeypatch.setattr(
             orders_mod, "place_order",
-            lambda *a, **k: sell_calls.append(a) or {"ok": True},
+            lambda *a, **k: sell_calls.append(a) or {"ok": True, "order_id": 99},
         )
         result = executor.flatten_positions("FLATTEN")
         assert sell_calls == []
@@ -436,9 +473,13 @@ class TestFlattenReconciliation:
         REAL qty and cancel the (now stale) protective stop/target legs so
         they can't fire against a future position in the same symbol."""
         self._seed_open_position()
-        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
+        _arm_ibkr_execution(monkeypatch)
         monkeypatch.setattr(
             executor_flatten._account, "get_positions",
+            lambda: [{"symbol": "AAPL", "qty": 100.0, "avg_cost": 5.0}],
+        )
+        monkeypatch.setattr(
+            account_mod, "get_positions",
             lambda: [{"symbol": "AAPL", "qty": 100.0, "avg_cost": 5.0}],
         )
         # Parent filled (not in open_orders); stop/target still working.
@@ -450,7 +491,8 @@ class TestFlattenReconciliation:
         sell_calls = []
         monkeypatch.setattr(
             orders_mod, "place_order",
-            lambda symbol, side, qty, **k: sell_calls.append((symbol, side, qty)) or {"ok": True},
+            lambda symbol, side, qty, **k: sell_calls.append((symbol, side, qty))
+            or {"ok": True, "order_id": 50, "mode": "paper"},
         )
         result = executor.flatten_positions("FLATTEN")
         assert sell_calls == [("AAPL", "SELL", 100.0)]

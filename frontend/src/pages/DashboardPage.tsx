@@ -32,6 +32,7 @@ export function DashboardPage() {
     openStockView,
     setDiscoveryProvider: setWorkspaceDiscovery,
     setAlpacaFeed: setWorkspaceAlpacaFeed,
+    ibkrConnected,
   } = useWorkspace();
   const [activeTab, setActiveTab] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
   const [tabOverridden, setTabOverridden] = useState(false);
@@ -120,7 +121,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="container">
+    <div className="nova-shell">
       <div className="main-col">
         <AppHeader
           mode={scanner.mode}
@@ -133,6 +134,7 @@ export function DashboardPage() {
             settings.discoveryProvider === 'ibkr' &&
             scanner.historyDate === null
           }
+          ibkrConnected={ibkrConnected}
           historyDate={scanner.historyDate}
           historyDates={scanner.historyDates}
           onHistoryChange={handleHistoryChange}
@@ -152,6 +154,8 @@ export function DashboardPage() {
             onApiKeyChange={settings.setApiKey}
             apiSecret={settings.apiSecret}
             onApiSecretChange={settings.setApiSecret}
+            apiKeySet={settings.apiKeySet}
+            apiSecretSet={settings.apiSecretSet}
             baseUrl={settings.baseUrl}
             onBaseUrlChange={settings.setBaseUrl}
             dataFeed={settings.dataFeed}

@@ -162,6 +162,48 @@ describe('NewsPanel', () => {
     );
     expect(container.textContent).toContain('Apple beats estimates');
   });
+
+  it('can omit impact when parent places bump elsewhere', () => {
+    act(() => {
+      root.render(
+        <NewsPanel
+          includeImpact={false}
+          detail={makeDetail({
+            news: [],
+            news_impact: {
+              symbol: 'AAPL',
+              impact_class: 'moved_price',
+              confidence: 0.8,
+              rule_version: 'v1',
+              headline: 'Earnings bump',
+              summary: 'Price moved on news',
+              age_hours: 1,
+              age_bucket: 'fresh',
+              source_name: 'benzinga',
+              source_tier: 'official',
+              confirmed_by_official: true,
+              confirming_source_count: 1,
+              price_reaction: 'strong',
+              attention: 'unknown',
+              l2_reaction: 'insufficient_data',
+              sentiment: 'unavailable',
+              sentiment_score: null,
+              lexicon_sentiment: 'neutral',
+              lexicon_polarity: 0,
+              reasons: ['test'],
+              factors: {},
+              ai_reasoning: null,
+              headline_url: null,
+            },
+          })}
+        />,
+      );
+    });
+    expect(container.querySelector('.news-impact-panel')).toBeNull();
+    expect(container.querySelector('[data-module="news"]')?.getAttribute('data-news-empty')).toBe(
+      'true',
+    );
+  });
 });
 
 describe('FundamentalsPanel', () => {

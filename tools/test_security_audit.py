@@ -211,49 +211,36 @@ class TestRedaction:
 # ---------------------------------------------------------------------------
 
 class TestBuiltinChecks:
-    def test_check_a_finds_config_credentials(self):
-        """GET /api/config should expose credentials — we expect this finding."""
+    """Builtin checks are regression guards — they must stay clean after SEC remediations."""
+
+    def test_check_a_config_credentials_remediated(self):
         findings = check_config_credentials_exposed()
-        assert len(findings) > 0, "Expected finding for GET /api/config credential exposure"
-        assert any(f.kind == "config_credentials_exposed" for f in findings)
-        assert all(f.severity == "critical" for f in findings)
+        assert findings == [], "GET /api/config must not return plaintext Alpaca secrets"
 
-    def test_check_b_finds_executor_unauthenticated(self):
-        """executor.py has POST routes with no auth Depends."""
+    def test_check_b_executor_auth_remediated(self):
         findings = check_executor_unauthenticated()
-        assert len(findings) > 0, "Expected finding for unauthenticated executor routes"
-        f = findings[0]
-        assert f.kind == "executor_unauthenticated"
-        assert f.severity == "critical"
+        assert findings == [], "executor POSTs must use Depends(require_auth)"
 
-    def test_check_c_finds_cors_wildcard(self):
-        """CORS_ALLOWED_ORIGINS_DEFAULT = ['*'] is a known issue."""
+    def test_check_c_cors_wildcard_remediated(self):
         findings = check_cors_wildcard()
-        assert len(findings) > 0, "Expected CORS wildcard finding"
-        assert findings[0].severity == "high"
+        assert findings == [], "CORS default must not be wildcard *"
 
-    def test_check_d_finds_no_auth_middleware(self):
-        """No API auth middleware exists in the backend."""
+    def test_check_d_api_auth_present(self):
         findings = check_no_api_auth_middleware()
-        assert len(findings) > 0, "Expected no-auth-middleware finding"
-        assert findings[0].severity == "high"
+        assert findings == [], "backend must expose APIKeyHeader / require_auth"
 
-    def test_check_e_finds_missing_ci_security_jobs(self):
-        """deploy.yml has no gitleaks/osv/semgrep jobs."""
+    def test_check_e_ci_security_jobs_present(self):
         findings = check_ci_missing_security_jobs()
-        assert len(findings) > 0, "Expected CI missing-security-jobs finding"
-        assert findings[0].severity == "medium"
-        assert "gitleaks" in findings[0].title or "osv-scanner" in findings[0].title
+        assert findings == [], "deploy.yml must reference gitleaks, osv-scanner, and semgrep"
 
-    def test_run_builtin_checks_returns_all_five(self):
-        """All five checks should produce at least one finding in this repo."""
+    def test_check_dockerfile_non_root(self):
+        from tools.security_lib.checks_infra import check_dockerfile_runs_as_root
+
+        assert check_dockerfile_runs_as_root() == []
+
+    def test_run_builtin_checks_clean(self):
         findings = run_builtin_checks()
-        kinds = {f.kind for f in findings}
-        assert "config_credentials_exposed" in kinds
-        assert "executor_unauthenticated" in kinds
-        assert "cors_wildcard" in kinds
-        assert "no_api_auth_middleware" in kinds
-        assert "ci_missing_security_jobs" in kinds
+        assert findings == [], f"unexpected builtin findings: {[f.kind for f in findings]}"
 
 
 # ---------------------------------------------------------------------------

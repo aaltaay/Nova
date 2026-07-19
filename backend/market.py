@@ -13,7 +13,14 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from constants import HOD_MOMO_RVOL_PACE_FLOOR
+from constants import (
+    HOD_MOMO_RVOL_PACE_FLOOR,
+    SESSION_AFTERHOURS_END_MIN_ET,
+    SESSION_PREMARKET_START_MIN_ET,
+    SESSION_RTH_CLOSE_MIN_ET,
+    SESSION_RTH_OPEN_MIN_ET,
+    SESSION_VOLUME_DAY_END_MIN_ET,
+)
 
 ET = ZoneInfo("America/New_York")
 
@@ -22,24 +29,34 @@ def now_et() -> datetime:
     return datetime.now(ET)
 
 
+def _et_at_minutes(now: datetime, minutes: int) -> datetime:
+    """Same calendar day in ET, at the given minutes-from-midnight."""
+    return now.replace(
+        hour=minutes // 60,
+        minute=minutes % 60,
+        second=0,
+        microsecond=0,
+    )
+
+
 def in_premarket() -> bool:
     now = now_et()
-    start = now.replace(hour=4, minute=0, second=0, microsecond=0)
-    open_ = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    start = _et_at_minutes(now, SESSION_PREMARKET_START_MIN_ET)
+    open_ = _et_at_minutes(now, SESSION_RTH_OPEN_MIN_ET)
     return start <= now < open_
 
 
 def in_market_hours() -> bool:
     now = now_et()
-    open_ = now.replace(hour=9, minute=30, second=0, microsecond=0)
-    close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    open_ = _et_at_minutes(now, SESSION_RTH_OPEN_MIN_ET)
+    close = _et_at_minutes(now, SESSION_RTH_CLOSE_MIN_ET)
     return open_ <= now < close
 
 
 def in_after_hours() -> bool:
     now = now_et()
-    start = now.replace(hour=16, minute=0, second=0, microsecond=0)
-    end = now.replace(hour=20, minute=0, second=0, microsecond=0)
+    start = _et_at_minutes(now, SESSION_RTH_CLOSE_MIN_ET)
+    end = _et_at_minutes(now, SESSION_AFTERHOURS_END_MIN_ET)
     return start <= now < end
 
 
@@ -51,8 +68,8 @@ def volume_day_elapsed_fraction(now: datetime | None = None) -> float:
     Floor avoids divide-by-near-zero in the first minutes after 4:00.
     """
     now = now or now_et()
-    start = now.replace(hour=4, minute=0, second=0, microsecond=0)
-    end = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    start = _et_at_minutes(now, SESSION_PREMARKET_START_MIN_ET)
+    end = _et_at_minutes(now, SESSION_VOLUME_DAY_END_MIN_ET)
     if now < start:
         return HOD_MOMO_RVOL_PACE_FLOOR
     if now >= end:

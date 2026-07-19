@@ -1,10 +1,18 @@
-import { CHART_CARD_TITLE, CHART_INDICATORS, CHART_MOCK_DATA_LABEL, CHART_TIMEFRAMES, type ChartIndicatorId } from '../constants';
+import {
+  CHART_CARD_TITLE,
+  CHART_INDICATORS,
+  CHART_MOCK_DATA_LABEL,
+  CHART_SESSION_LEGEND,
+  CHART_TIMEFRAMES,
+  type ChartIndicatorId,
+} from '../constants';
 
 interface Props {
   activeTool: string | null;
   enabledIndicators: ChartIndicatorId[];
   lockTimeframe: boolean;
   maximized: boolean;
+  showSessionLegend?: boolean;
   subtitle?: string;
   timeframe: string;
   title?: string;
@@ -28,6 +36,7 @@ export function TickerChartControls({
   enabledIndicators = [],
   lockTimeframe,
   maximized,
+  showSessionLegend = false,
   subtitle,
   timeframe,
   title,
@@ -45,6 +54,24 @@ export function TickerChartControls({
           <span className="chart-title">{title ?? CHART_CARD_TITLE}</span>
           {subtitle && <span className="chart-subtitle" title={subtitle}>{subtitle}</span>}
         </div>
+        {showSessionLegend && (
+          <div
+            className="chart-session-legend"
+            title="Background: premarket 04:00–09:30 · RTH 09:30–16:00 · after-hours 16:00–20:00 ET"
+            aria-label="Session background legend"
+          >
+            {CHART_SESSION_LEGEND.map(item => (
+              <span key={item.id} className="chart-session-legend-item">
+                <span
+                  className="chart-session-swatch"
+                  style={{ background: item.color }}
+                  aria-hidden="true"
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+        )}
         {usingMock && <span className="chart-mock-badge" title={CHART_MOCK_DATA_LABEL}>{CHART_MOCK_DATA_LABEL}</span>}
         {!lockTimeframe ? (
           <div className="chart-tabs" role="group" aria-label="Timeframe">

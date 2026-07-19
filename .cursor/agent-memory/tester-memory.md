@@ -47,7 +47,7 @@ Durable facts (commands, traps, routing) get **promoted into `tester.md`**. Run 
 Open improvements. Newest first. Mark `[x]` when done and move a one-line note to **Completed**.
 
 - [x] **Refresh test counts** — periodically re-run full pytest/Vitest/Playwright collection and update Current snapshot when they drift (last refresh 2026-07-16: 677 / 223-of-224 / 11-of-14, 2 real regressions found — see Run log).
-- [ ] **Expand routing table** — add rows for `backend/news*`, `backend/scanner*`, `backend/l2*`, `frontend/src/strategy/*`, `frontend/src/TickerChart*`, `frontend/src/workspace/*` once those areas get touched often.
+- [ ] **Expand routing table** — add rows for `backend/news*`, `backend/scanner*`, `backend/l2*`, `frontend/src/strategy/*`, `frontend/src/TickerChart*`, `frontend/src/workspace/*`, `frontend/src/closed_orders/*` (+ `closeFullPosition` / `test_closed_orders.py`) once those areas get touched often.
 - [ ] **Ruff / backend lint gate** — if the repo adopts Ruff (or documents a preferred command), add it beside frontend `npm run lint`.
 - [ ] **CI parity** — read `.github/workflows/*` and note any gates the local tester should mirror (matrix Python version, e2e on PR only, etc.).
 - [ ] **Seed a golden browser path** — one short click-path (e.g. open Gappers → pick a symbol → Stock View) recorded here so UI verifies are consistent.
@@ -67,15 +67,43 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 Facts discovered in a run that are **not yet** in `tester.md`. After promoting into `tester.md`, delete the bullet here (or move to Completed note).
 
+- **localhost:5173 ≠ Nova when Altay Studio is up:** On this machine `::1:5173` can be Altay Studio (jobfinder) while Nova Vite listens on `127.0.0.1:5173`. Prefer `http://127.0.0.1:5173` for browser verify; `localhost` may resolve to IPv6 and show the wrong app.
+- **Stale uvicorn vs new routes:** After shipping a new FastAPI path, live `openapi.json` / curl 404 while `TestClient(main.app)` 200 means the running API process did not reload — not a code regression. Confirm with OpenAPI path list before FAIL-ing the feature.
+- **WID-027 Vitest scope:** `src/closed_orders` + `closeFullPosition.test.ts` + `registry.test.ts` = **17** tests (widgets sometimes claim ~21 — recount with `--reporter=verbose`).
 
 ---
 
-**(empty)**
 ## Run log
 
 Newest first. Keep entries short. Skip boring all-green scoped runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-18 — Closed Orders widget (WID-027) scoped verify
+
+- **Scope:** `closed_orders` slice, `GET /orders/closed`, Flatten via `closeFullPosition` → place/ORDERS_GATE; registry id.
+- **Commands:** `pytest test_closed_orders.py + test_open_orders_row.py` → **5 passed** (3+2); Vitest closed_orders+closeFullPosition+registry → **17 passed**; `npm run build` → PASS. TestClient `/api/ibkr/orders/closed` → 200; live uvicorn OpenAPI missing path → 404 (stale process).
+- **Result:** PASS with notes (unit/build/browser chrome). Safety: status `orders_enabled:false` / `spend_status:locked`; Flatten SPY disabled; `auto_live` still rejected in control_mode (code). No orders placed.
+- **Browser:** Trading tab — CLOSED ORDERS heading, Modules “Closed Orders SIDE_PANEL”, Working Orders separate; console vite/HMR only.
+- **Known cracks:** `sv-trading-lock` / Playwright Stock View header — not re-run; not WID-027 regressions.
+- **Promoted to tester.md:** no (pending facts only)
+
+### 2026-07-18 — Working Orders widget (WID-026) scoped verify
+
+- **Scope:** widgets WorkingOrdersPanel + open-orders row fields + Trading highlight / Stock View rail.
+- **Commands:** `pytest backend/tests/test_open_orders_row.py -q` → **2 passed**; `vitest` WorkingOrdersPanel + stockViewTerminal → **17 passed**; `npm run build` → PASS. Browser: Trading tab on `127.0.0.1:5173` (IBKR `connected:false`).
+- **Result:** PASS (unit/build). Browser: Trading disconnect guide mounts; `working-orders-panel` / `trading-working-orders-host` absent by design until IBKR connected — not a Working Orders regression. Paper place skipped (`orders_enabled:false`, gateway live/disconnected). Fresh console after clear: no WorkingOrders / React crash errors.
+- **Known cracks:** `sv-trading-lock` missing — this scoped `stockViewTerminal` run is green (test now expects lock testid null at L530); Playwright Stock View header crack not re-run (out of scope). Not claiming full-fleet crack clearance.
+- **Learning:** agent-browser first `npx` can EBUSY on Windows binary copy; retry with `npx --yes agent-browser@0.32.2` worked. Working Orders host only renders inside `status.connected` Trading layout.
+- **Promoted to tester.md:** no
+
+### 2026-07-18 — Phase G3 Hotkeys / Nova Actions browser verify
+
+- **Scope:** Settings → Hotkeys G3 UI + Stock View Trading quick-bar; no order clicks; servers already up.
+- **Commands:** agent-browser on `http://127.0.0.1:5173` (not `localhost` — see pending fact). IBKR `/api/ibkr/status` → `connected:false`.
+- **Result:** PASS — inactive DAS banner; Nova Actions table (6 defaults + Show button); Active Nova shortcuts (Automation six); Map dialog from temporary `CXL ALLSYMB` row (cancelled, no Create); Stock View `?view=stock&symbol=AAPL` quick-bar 5 buttons; console clean (vite/devtools only). Trading tab shows IBKR disconnected (no quick-bar there — expected).
+- **Learning:** G3 quick-bar lives on Stock View rail (`TickerTradeActionBar`), not Trading-tab disconnect screen. Hotkeys Settings works without IBKR.
+- **Promoted to tester.md:** no (pending: localhost vs 127.0.0.1 trap)
 
 ### 2026-07-16 — Snapshot refresh: full pytest + Vitest + Playwright
 

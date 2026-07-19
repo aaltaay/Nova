@@ -56,6 +56,27 @@ IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
 )
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
+# When preferred Gateway port refuses/times out, try the other port (paper↔live)
+# and persist IBKR_GATEWAY_MODE. Does not unlock orders. Override with
+# IBKR_GATEWAY_SELF_HEAL=false.
+IBKR_GATEWAY_SELF_HEAL_DEFAULT = True
+# Terminal IBKR orderStatus values for Closed Orders (WID-027). Working /
+# pending / partial-still-open stay on open_orders (WID-026).
+IBKR_CLOSED_ORDER_STATUSES = frozenset({
+    "Filled",
+    "Cancelled",
+    "ApiCancelled",
+    "Inactive",
+})
+# Max rows returned by GET /api/ibkr/orders/closed (session trades only).
+IBKR_CLOSED_ORDERS_LIMIT_DEFAULT = 100
+
+# User-initiated Gateway launch (header double-click → POST /api/ibkr/launch-gateway).
+# Override with IBKR_GATEWAY_EXE; otherwise newest ibgateway.exe under IBKR_GATEWAY_ROOT.
+IBKR_GATEWAY_ROOT = r"C:\Jts\ibgateway"
+IBKR_GATEWAY_EXE_DEFAULT = r"C:\Jts\ibgateway\1045\ibgateway.exe"
+# Optional IBC launcher (credentials stay outside git — see docs/ibc-gateway-setup.md).
+IBKR_IBC_LAUNCHER_REL = r".nova\ibc\start_gateway.ps1"
 
 # ── Market-data discovery provider (gappers / gainers / losers source) ────────
 # "alpaca" (default — no behavior change, free IEX feed, no cost) or

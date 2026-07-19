@@ -9,7 +9,11 @@ Phase D (paper execution) is what populates the trades table this reads from.
 """
 from __future__ import annotations
 
-from constants import JOURNAL_MIN_TRADES_FOR_GO_LIVE, RISK_TARGET_PROFIT_LOSS_RATIO
+from constants import (
+    JOURNAL_MIN_ADHERENCE_PCT_FOR_GO_LIVE,
+    JOURNAL_MIN_TRADES_FOR_GO_LIVE,
+    RISK_TARGET_PROFIT_LOSS_RATIO,
+)
 from journal.store import get_closed_trades
 
 
@@ -46,7 +50,10 @@ def _go_no_go(total: int, profit_loss_ratio: float | None, adherence_pct: float 
     (pending, not failing) until there's enough data to judge it."""
     sample_met = total >= JOURNAL_MIN_TRADES_FOR_GO_LIVE
     ratio_met = None if profit_loss_ratio is None else profit_loss_ratio >= RISK_TARGET_PROFIT_LOSS_RATIO
-    adherence_met = None if adherence_pct is None else adherence_pct >= 100.0
+    adherence_met = (
+        None if adherence_pct is None
+        else adherence_pct >= JOURNAL_MIN_ADHERENCE_PCT_FOR_GO_LIVE
+    )
 
     criteria = {
         "min_sample_size": {
@@ -61,7 +68,10 @@ def _go_no_go(total: int, profit_loss_ratio: float | None, adherence_pct: float 
         },
         "adherence": {
             "met": adherence_met,
-            "label": "100% of trades within risk rules (adherent)",
+            "label": (
+                f">= {JOURNAL_MIN_ADHERENCE_PCT_FOR_GO_LIVE:.0f}% of trades "
+                "within risk rules (adherent)"
+            ),
             "value": adherence_pct,
         },
     }

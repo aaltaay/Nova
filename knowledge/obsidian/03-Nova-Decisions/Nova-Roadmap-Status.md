@@ -240,7 +240,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-18 | Phase G3 verified: Map-to-Nova-Action UX + tester browser (Settings Hotkeys + Stock View quick-bar); TriggerOrder rejected; no order APIs on import/map. Phase B remains ops NEXT; `auto_live` NO-GO. | *(stamp)* |
+| 2026-07-18 | Phase G3 verified: Map-to-Nova-Action UX + tester browser (Settings Hotkeys + Stock View quick-bar); TriggerOrder rejected; no order APIs on import/map. Phase B remains ops NEXT; `auto_live` NO-GO. | `c2c8d61` |
 | 2026-07-18 | Phase G3 opened: `hotkeys` specialist Owned; typed Nova Actions (cancel/buy/sell/exit) paper-first via manual path; one dispatcher. Phase B remains ops NEXT; `auto_live` NO-GO. | `ce1da59` |
 | 2026-07-17 | Paper Gateway ops ready: `.env` `IBKR_GATEWAY_MODE=paper`, API `:8000` → `connected`/`mode=paper`, executor `confirm`, orders locked. Scorecard **NO-GO** remains on 0/5 shadow days + 0 closed paper trades (not Gateway). Phase B day-0 NEXT. | (uncommitted until user asks) |
 | 2026-07-17 | Live-readiness automation pass: tape→`bars_1m` feeder + backfill (331 bars), scorecard tool, journal gates→Phase I (50/90%), kill/flatten/auto_live drills. Scorecard still **NO-GO** (0/5 shadow days, 0 closed paper trades). Phase B remains NEXT. | (uncommitted until user asks) |

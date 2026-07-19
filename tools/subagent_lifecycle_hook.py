@@ -78,7 +78,10 @@ def handle_payload(payload: dict) -> dict:
             f"Nova agent `{subagent_type}` omitted the mandatory Lifecycle footer. "
             "Please append exactly one line of the form: "
             "**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | "
-            "dashboard=clean|refresh-required | handoff=none|<sibling|parent> "
+            "dashboard=clean|refresh-required | handoff=none|<sibling|parent> | "
+            "task_log=<path>|skipped|n/a "
+            "If the run completed material work, also write "
+            "knowledge/task-log/YYYY-MM-DD-*.md (see task-log.mdc). "
             "Then stop. Do not re-run the full audit."
         )
         return out

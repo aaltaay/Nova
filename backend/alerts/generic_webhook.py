@@ -6,6 +6,7 @@ import logging
 import urllib.error
 import urllib.request
 
+from alerts.webhook_url import validate_webhook_url
 from constants import ALERTS_HTTP_TIMEOUT_SEC
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,10 @@ def send_webhook(
     timeout: float = ALERTS_HTTP_TIMEOUT_SEC,
 ) -> tuple[bool, str | None]:
     """POST JSON to a generic webhook. Returns (ok, error_message)."""
+    try:
+        url = validate_webhook_url(url)
+    except ValueError as exc:
+        return False, str(exc)
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url,

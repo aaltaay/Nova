@@ -255,6 +255,8 @@ def approve(ticket_id: str) -> dict:
         ticket.stop,
         ticket.target,
         shares=ticket.shares,
+        source="approve",
+        idempotency_key=f"approve:{ticket_id}",
     )
     return {
         "ticket": ticket.to_dict(),

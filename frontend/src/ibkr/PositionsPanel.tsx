@@ -1,5 +1,7 @@
+import type { IbkrPosition, IbkrOrder, IbkrAccountSummary, IbkrMode } from './types';
 import { SelectableTableRow } from '../components/SelectableTableRow';
-import type { IbkrPosition, IbkrOrder, IbkrAccountSummary } from './types';
+import { ClosePositionButton } from '../closed_orders';
+import { WorkingOrdersPanel } from './WorkingOrdersPanel';
 
 interface Props {
   summary: IbkrAccountSummary | null;
@@ -9,6 +11,12 @@ interface Props {
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
   onCancelOrder?: (id: number) => void;
+  highlightOrderId?: number | null;
+  /** Required for Flatten affordance (ADR 007 place path). */
+  mode?: IbkrMode;
+  connected?: boolean;
+  spendStatus?: string;
+  onPositionClosed?: () => void;
 }
 
 function fmt(n: number | null | undefined, decimals = 2) {
@@ -34,7 +42,14 @@ export function PositionsPanel({
   onSelectSymbol,
   onOpenTrading,
   onCancelOrder,
+  highlightOrderId = null,
+  mode = 'disconnected',
+  connected = false,
+  spendStatus,
+  onPositionClosed,
 }: Props) {
+  const showFlatten = connected && mode !== 'disconnected';
+
   return (
     <div className="ibkr-positions-panel">
       {summary && summary.connected && (
@@ -60,6 +75,7 @@ export function PositionsPanel({
               <th>Mkt Price</th>
               <th>Mkt Value</th>
               <th>Unrealized P&L</th>
+              {showFlatten ? <th title="Full position exit — not cancel order">Close</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -77,59 +93,31 @@ export function PositionsPanel({
                 <td>{fmtDollar(p.market_price)}</td>
                 <td>{fmtDollar(p.market_value)}</td>
                 <PnlCell value={p.unrealized_pnl} />
+                {showFlatten ? (
+                  <td>
+                    <ClosePositionButton
+                      position={p}
+                      mode={mode}
+                      connected={connected}
+                      spendStatus={spendStatus}
+                      onClosed={onPositionClosed}
+                    />
+                  </td>
+                ) : null}
               </SelectableTableRow>
             ))}
           </tbody>
         </table>
       )}
 
-      <h4 className="ibkr-section-title">Open Orders</h4>
-      {orders.length === 0 ? (
-        <div className="ibkr-empty">No open orders.</div>
-      ) : (
-        <table className="ibkr-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
-              <th>Side</th>
-              <th>Qty</th>
-              <th>Type</th>
-              <th>Limit</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map(o => (
-              <SelectableTableRow
-                key={o.order_id}
-                symbol={o.symbol}
-                selected={selectedSymbol === o.symbol}
-                onSelect={onSelectSymbol}
-                onOpenTrading={onOpenTrading}
-              >
-                <td>{o.order_id}</td>
-                <td className="ibkr-symbol">{o.symbol}</td>
-                <td style={{ color: o.side === 'BUY' ? 'var(--green)' : 'var(--red)' }}>{o.side}</td>
-                <td>{fmt(o.qty, 0)}</td>
-                <td>{o.order_type}</td>
-                <td>{fmtDollar(o.limit_price)}</td>
-                <td>{o.status}</td>
-                <td>
-                  <button
-                    className="ibkr-cancel-btn"
-                    onClick={(e) => { e.stopPropagation(); onCancelOrder?.(o.order_id); }}
-                    title="Cancel order"
-                  >
-                    ✕
-                  </button>
-                </td>
-              </SelectableTableRow>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <WorkingOrdersPanel
+        orders={orders}
+        selectedSymbol={selectedSymbol}
+        onSelectSymbol={onSelectSymbol}
+        onOpenTrading={onOpenTrading}
+        onCancelOrder={onCancelOrder}
+        highlightOrderId={highlightOrderId}
+      />
     </div>
   );
 }

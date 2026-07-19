@@ -14,6 +14,8 @@ import { useIbkrTape, type TapeSide } from './useIbkrTape';
 
 interface Props {
   symbol: string | null;
+  /** Parent rail: pane chrome + LIVE; no duplicate outer card title. */
+  embedded?: boolean;
 }
 
 function fmtTime(iso: string): string {
@@ -53,7 +55,7 @@ function sideLabel(side: TapeSide | undefined): string {
   return TAPE_SIDE_LABELS.unknown;
 }
 
-export function TimeSalesPanel({ symbol }: Props) {
+export function TimeSalesPanel({ symbol, embedded = false }: Props) {
   const { prints, connected, error } = useIbkrTape(symbol);
 
   const statusLabel = useMemo(() => {
@@ -63,36 +65,60 @@ export function TimeSalesPanel({ symbol }: Props) {
     return null;
   }, [error, connected, prints.length]);
 
+  const statusClass = `ts-panel__status ${connected ? 'ts-panel__status--live' : 'ts-panel__status--off'}`;
+  const statusText = connected ? 'LIVE' : (error ? 'ERROR' : '…');
+
+  const cols = (
+    <div className="ts-panel__cols" data-testid="ts-panel-cols">
+      <span className="ts-col--time">{TAPE_COL_HEADERS.time}</span>
+      <span className="ts-col--price">{TAPE_COL_HEADERS.price}</span>
+      <span className="ts-col--size">{TAPE_COL_HEADERS.size}</span>
+      <span className="ts-col--side">{TAPE_COL_HEADERS.side}</span>
+      <span className="ts-col--exch">{TAPE_COL_HEADERS.exchange}</span>
+    </div>
+  );
+
+  const rows = (
+    <div className="ts-panel__rows">
+      {statusLabel ? (
+        <div className="ts-panel__empty">{statusLabel}</div>
+      ) : (
+        prints.map((p, i) => (
+          <div key={`${p.time}-${i}`} className={`ts-row ${sideClass(p.side)}`}>
+            <span className="ts-col--time">{fmtTime(p.time)}</span>
+            <span className="ts-col--price">{fmtPrice(p.price)}</span>
+            <span className="ts-col--size">{fmtSize(p.size)}</span>
+            <span className="ts-col--side">{sideLabel(p.side)}</span>
+            <span className="ts-col--exch">{p.exchange || '—'}</span>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="sv-md-pane ts-panel ts-panel--embedded">
+        <div className="sv-md-pane__head">
+          <h3 className="sv-md-pane__title">{TAPE_SECTION_TITLE}</h3>
+          <span className={statusClass}>{statusText}</span>
+        </div>
+        <div className="sv-md-pane__body">
+          {cols}
+          {rows}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="ts-panel">
       <div className="ts-panel__header">
         <span className="ts-panel__title">{TAPE_SECTION_TITLE}</span>
-        <span className={`ts-panel__status ${connected ? 'ts-panel__status--live' : 'ts-panel__status--off'}`}>
-          {connected ? 'LIVE' : (error ? 'ERROR' : '…')}
-        </span>
+        <span className={statusClass}>{statusText}</span>
       </div>
-      <div className="ts-panel__cols">
-        <span className="ts-col--time">{TAPE_COL_HEADERS.time}</span>
-        <span className="ts-col--price">{TAPE_COL_HEADERS.price}</span>
-        <span className="ts-col--size">{TAPE_COL_HEADERS.size}</span>
-        <span className="ts-col--side">{TAPE_COL_HEADERS.side}</span>
-        <span className="ts-col--exch">{TAPE_COL_HEADERS.exchange}</span>
-      </div>
-      <div className="ts-panel__rows">
-        {statusLabel ? (
-          <div className="ts-panel__empty">{statusLabel}</div>
-        ) : (
-          prints.map((p, i) => (
-            <div key={`${p.time}-${i}`} className={`ts-row ${sideClass(p.side)}`}>
-              <span className="ts-col--time">{fmtTime(p.time)}</span>
-              <span className="ts-col--price">{fmtPrice(p.price)}</span>
-              <span className="ts-col--size">{fmtSize(p.size)}</span>
-              <span className="ts-col--side">{sideLabel(p.side)}</span>
-              <span className="ts-col--exch">{p.exchange || '—'}</span>
-            </div>
-          ))
-        )}
-      </div>
+      {cols}
+      {rows}
     </div>
   );
 }

@@ -34,6 +34,12 @@ interface Props {
   layoutSlot?: LayoutSlotId;
   /** Five Pillars / sub-scores for this symbol when ranked on the watchlist. */
   watchlistEntry?: WatchlistEntry | null;
+  /** Inserted immediately under Level 2 / Time & Sales (e.g. Stock View trade bar). */
+  afterDepth?: ReactNode;
+  /** Inserted immediately under the quote / fundamentals block (e.g. news bump). */
+  afterQuote?: ReactNode;
+  /** When true, skip the news block (parent renders it elsewhere, e.g. Stock View footer). */
+  omitNews?: boolean;
 }
 
 export function TickerDetailContent({
@@ -44,6 +50,9 @@ export function TickerDetailContent({
   layout = 'stack',
   layoutSlot = 'side_panel',
   watchlistEntry = null,
+  afterDepth = null,
+  afterQuote = null,
+  omitNews = false,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
   const { isVisible } = useModuleVisibility();
@@ -87,7 +96,7 @@ export function TickerDetailContent({
     <DepthTapePanel selectedSymbol={depthSymbol} detailSymbol={detail.symbol} />
   );
 
-  const newsEl = showNews ? (
+  const newsEl = showNews && !omitNews ? (
     <NewsPanel detail={detail} wrapped={layout === 'columns'} />
   ) : null;
 
@@ -121,6 +130,13 @@ export function TickerDetailContent({
             {depthEl}
           </div>,
         );
+        if (afterDepth) {
+          nodes.push(
+            <div key="after-depth" className="cq-after-depth" data-layout-block="after_depth">
+              {afterDepth}
+            </div>,
+          );
+        }
       } else if (block === 'news' && newsEl) {
         nodes.push(
           <div key="news" data-layout-block="news">
@@ -129,6 +145,13 @@ export function TickerDetailContent({
         );
       } else if (block === 'quote') {
         nodes.push(quoteCol);
+        if (afterQuote) {
+          nodes.push(
+            <div key="after-quote" className="cq-after-quote" data-layout-block="after_quote">
+              {afterQuote}
+            </div>,
+          );
+        }
       }
     }
 
@@ -143,12 +166,26 @@ export function TickerDetailContent({
           <QuoteHeaderPanel detail={detail} hideHeader={hideHeader} />
         </div>,
       );
+      if (afterQuote) {
+        nodes.push(
+          <div key="after-quote" className="cq-after-quote" data-layout-block="after_quote">
+            {afterQuote}
+          </div>,
+        );
+      }
     } else if (block === 'depth_tape') {
       nodes.push(
         <div key="depth_tape" data-layout-block="depth_tape">
           {depthEl}
         </div>,
       );
+      if (afterDepth) {
+        nodes.push(
+          <div key="after-depth" className="cq-after-depth" data-layout-block="after_depth">
+            {afterDepth}
+          </div>,
+        );
+      }
     } else if (block === 'charts' && chartEl) {
       nodes.push(
         <div key="charts" data-layout-block="charts">

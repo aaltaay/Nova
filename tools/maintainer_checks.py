@@ -93,6 +93,19 @@ EMPTY_CATCH_JS = re.compile(r"catch\s*\([^)]*\)\s*\{\s*\}", re.MULTILINE)
 
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".css"}
 
+# Feature/domain CSS must not use bare element selectors (ADR 006).
+BARE_FEATURE_SELECTOR = re.compile(
+    r"^(form|label|input(?!\[)|button|table|thead|tbody|th|td|header)\s*[,{]",
+    re.MULTILINE,
+)
+# Domain CSS must not read Tailwind --color-muted as text (collision with bg token).
+COLOR_MUTED_AS_TEXT = re.compile(r"color\s*:\s*var\(\s*--color-muted\b")
+# Allowed adapter / token sheets for Tailwind semantic vars.
+CSS_TOKEN_ADAPTER_PATHS = {
+    "frontend/src/styles/tailwind-theme.css",
+    "frontend/src/index.css",
+}
+
 
 @dataclass
 class Finding:
@@ -309,6 +322,43 @@ def check_artifacts() -> list[Finding]:
     return _check_artifacts(REPO_ROOT, Finding)
 
 
+def check_css_design_contract(files: list[Path]) -> list[Finding]:
+    """Reject bare feature selectors and --color-muted used as text (ADR 006)."""
+    findings: list[Finding] = []
+    for path in files:
+        if path.suffix != ".css":
+            continue
+        rel = _rel(path)
+        if _is_generated_path(path):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if rel not in CSS_TOKEN_ADAPTER_PATHS:
+            for match in BARE_FEATURE_SELECTOR.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                findings.append(
+                    Finding(
+                        kind="bare_css_selector",
+                        path=rel,
+                        detail=f"bare '{match.group(1)}' selector — scope to a feature class (ADR 006)",
+                        line=line,
+                    )
+                )
+            for match in COLOR_MUTED_AS_TEXT.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                findings.append(
+                    Finding(
+                        kind="css_token_collision",
+                        path=rel,
+                        detail="color: var(--color-muted) — use --nova-text-muted / --text-secondary (ADR 006)",
+                        line=line,
+                    )
+                )
+    return findings
+
+
 def run_checks() -> dict:
     files = iter_source_files()
     findings = (
@@ -318,6 +368,7 @@ def run_checks() -> dict:
         + check_artifacts()
         + check_import_main(files, _rel, Finding)
         + check_cross_feature_imports(files, _rel, Finding)
+        + check_css_design_contract(files)
     )
     apply_baseline_fingerprints(findings)
     non_baseline = [f for f in findings if not f.baseline]

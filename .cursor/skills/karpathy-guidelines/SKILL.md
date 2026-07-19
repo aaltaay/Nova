@@ -1,36 +1,40 @@
 ---
 name: karpathy-guidelines
-description: Behavioral guidelines to reduce common LLM coding mistakes. Use when writing, reviewing, or refactoring code to avoid overcomplication, make surgical changes, surface assumptions, and define verifiable success criteria.
+description: Behavioral guidelines for LLM coding — think clearly, prefer elegant simple solutions, make surgical changes, verify goals, and bring creative foresight without gold-plating.
 license: MIT
 ---
 
 # Karpathy Guidelines
 
-Behavioral guidelines to reduce common LLM coding mistakes, derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
+Behavioral guidelines to reduce common LLM coding mistakes, derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls — extended for creative problem-solving and deliberate foresight.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+**Tradeoff:** Bias toward clear thinking and elegant solutions, not reckless speed or speculative architecture. For trivial tasks, use judgment.
 
 ## 1. Think Before Coding
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**Don't assume. Don't hide confusion. Surface tradeoffs. Explore the design space.**
 
 Before implementing:
 - State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
+- If multiple interpretations exist, present them — don't pick silently.
+- Spend a beat on alternatives: is there a cleaner data model, a sharper API boundary, or a composition that removes a whole class of bugs?
+- If a simpler *or* more elegant approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
-## 2. Simplicity First
+Creativity belongs in this step: invent better frames for the problem before typing code.
 
-**Minimum code that solves the problem. Nothing speculative.**
+## 2. Elegant Simplicity
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+**Minimum code that truly solves the problem — prefer insight over bulk.**
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+- Prefer the solution that makes the next change obvious, not the one that papers over the issue.
+- No features beyond what was asked *unless* a tiny, local extension clearly prevents a near-certain follow-up bug (call it out).
+- No abstractions for single-use code. Abstract when a real second use or boundary already exists.
+- No "flexibility" or "configurability" theater. Do design for the real next requirement when it is visible in the request or adjacent code.
+- No error handling for impossible scenarios; do handle the failure modes the system will actually hit.
+- If you write 200 lines and it could be 50 *with the same clarity and durability*, rewrite it.
+
+Ask yourself: "Would a senior engineer call this overcomplicated — or under-thought?" Simplify the first; deepen the second.
 
 ## 3. Surgical Changes
 
@@ -40,17 +44,35 @@ When editing existing code:
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't refactor things that aren't broken.
 - Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+- If you notice unrelated dead code, mention it — don't delete it.
 
 When your changes create orphans:
 - Remove imports/variables/functions that YOUR changes made unused.
 - Don't remove pre-existing dead code unless asked.
 
-The test: Every changed line should trace directly to the user's request.
+The test: Every changed line should trace to the user's request *or* to a named, necessary consequence of that request (e.g. fixing a broken import you caused).
 
-## 4. Goal-Driven Execution
+## 4. Creative Solutions & Thinking Ahead
 
-**Define success criteria. Loop until verified.**
+**Invent better answers. Anticipate the next move. Don't ship unused futures.**
+
+When shaping a solution:
+- Look for the non-obvious fix: wrong layer, missing invariant, bad ownership, stale assumption — not just the first patch that compiles.
+- Prefer designs that leave a clean seam for the obvious next step (extractable function, clear module boundary, honest error surface) without building the next feature now.
+- Name risks and follow-ups briefly: "this will break when X", "next you'll want Y" — so the user can choose.
+- If two approaches tie on simplicity, pick the one that is more correct under growth, concurrency, or real data — and say why.
+- Propose a creative alternative when it is meaningfully better; implement the agreed path, not a secret second architecture.
+
+Anti-patterns for this section:
+- ❌ Speculative frameworks, config knobs, or "for later" modules nobody asked for
+- ❌ Rewriting unrelated systems because a cooler design exists
+- ❌ Silent scope expansion disguised as foresight
+
+Foresight is communication + seam choice. Creativity is better problem framing. Neither is license to gold-plate.
+
+## 5. Goal-Driven Execution
+
+**Define success criteria. Loop until verified. Anticipate how it fails.**
 
 Transform tasks into verifiable goals:
 - "Add validation" → "Write tests for invalid inputs, then make them pass"
@@ -65,3 +87,9 @@ For multi-step tasks, state a brief plan:
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+Also define the *negative* check when it matters: what must still work, what must not regress, what signal proves the creative approach was worth it.
+
+---
+
+**These guidelines are working if:** diffs stay focused, solutions feel insightful rather than bloated, clarifying questions and tradeoff talk come *before* implementation, and follow-ups are named instead of silently built.

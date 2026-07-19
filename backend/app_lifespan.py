@@ -2,6 +2,11 @@
 FastAPI lifespan — startup restore, background tasks, shutdown cleanup.
 
 Extracted from ``main.py`` so the app factory stays a thin wiring file.
+
+HTTP readiness: yield as soon as local restore/DB init finishes. IBKR connect,
+Alpaca health ping, Nova OS recovery, and background loops run in a deferred
+bootstrap task so a hung Gateway handshake cannot leave :8000 listening but
+never serving (Starlette startup blocked on the same event loop).
 """
 from __future__ import annotations
 
@@ -15,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import hod_momo as _hod_momo
 import hod_momo_enrichment as _hod_momo_enrichment
+import hod_momo_heartbeat as _hod_momo_heartbeat
 import hod_momo_seed as _hod_momo_seed
 import hod_momo_surge_seed as _hod_momo_surge_seed
 import integrity_live as _integrity_live
@@ -36,6 +42,7 @@ from constants import (
     CORS_ALLOWED_ORIGINS_DEFAULT,
     HISTORY_RETENTION_DAYS,
     IBKR_DETAIL_STREAM_FRESH_SEC,
+    IBKR_RECONNECT_DELAY_SEC,
     L2_RETENTION_SWEEP_INTERVAL_SEC,
 )
 import archive.db as _archive_db
@@ -63,16 +70,17 @@ from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
+# Background tasks spawned by deferred bootstrap (cancelled on shutdown).
+_runtime_tasks: list[asyncio.Task] = []
+
 
 def configure_cors(app: FastAPI) -> None:
     """Register the CORS middleware — extracted out of main.py's app factory
     (see backend-modularity rule) so that file stays under the file-size limit.
 
-    Origins default to "*" for local dev (see centralized-constants.mdc);
-    set NOVA_CORS_ALLOWED_ORIGINS (comma-separated) to lock this down for any
-    non-local deploy. Nova's frontend never sends cookies/auth credentials, so
-    allow_credentials stays False — required anyway for a wildcard origin per
-    the CORS spec.
+    Origins default to localhost Vite ports (see CORS_ALLOWED_ORIGINS_DEFAULT);
+    set NOVA_CORS_ALLOWED_ORIGINS (comma-separated) for non-local deploys.
+    allow_credentials stays False (frontend does not send cookies).
     """
     origins_env = os.environ.get("NOVA_CORS_ALLOWED_ORIGINS", "").strip()
     origins = (
@@ -89,9 +97,7 @@ def configure_cors(app: FastAPI) -> None:
     )
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_sentry()
+def _restore_caches() -> None:
     state = get_runtime_state()
     _migrate_legacy_files()
     cleanup_old_snapshots(HISTORY_RETENTION_DAYS)
@@ -113,33 +119,139 @@ async def lifespan(app: FastAPI):
         state.gainer_cache_ts = mv_ts
         state.loser_cache_ts = mv_ts
 
+
+def _init_databases() -> None:
     _hod_momo.load_state()
     _journal_db.init_db()
     _l2_db.init_db()
     _nova_os_events_db.init_db()
     _archive_db.init_db()
+    try:
+        from execution import store as _execution_store
+        _execution_store.init_db()
+    except Exception:
+        logger.exception("execution ledger: init_db failed")
     _hod_momo.set_blocklist_changed_hook(invalidate_universe_cache)
 
-    loop = asyncio.get_event_loop()
+
+async def _ping_alpaca_health() -> None:
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
     headers = _alpaca_headers()
-    if headers:
-        await loop.run_in_executor(None, lambda: ping_health(base_url, headers))
-    else:
+    if not headers:
         set_health_broker_keys_missing()
         logger.warning(
             "Alpaca credentials missing (APCA_API_KEY_ID / APCA_API_SECRET_KEY); "
             "scanner cannot run until they are set in the host environment."
         )
+        return
+    try:
+        await asyncio.wait_for(
+            asyncio.get_running_loop().run_in_executor(
+                None, lambda: ping_health(base_url, headers)
+            ),
+            timeout=8.0,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("Alpaca health ping timed out after 8s — continuing bootstrap")
+    except Exception:
+        logger.exception("Alpaca health ping failed")
 
-    # Nova OS startup recovery must run AFTER IBKR connects and BEFORE any
-    # background loop that can act on tracked positions (scanner → executor,
-    # fill-poll). Recovery's "is this position real" check is only as good as
-    # is_connected() at the moment it runs — running it before IBKR even
-    # attempts to connect made every restart look "ambiguous" by construction.
+
+async def _wait_ibkr_connected(budget_sec: float) -> bool:
+    """Poll is_connected() briefly so recovery sees a real Gateway if fast."""
+    deadline = asyncio.get_running_loop().time() + budget_sec
+    while asyncio.get_running_loop().time() < deadline:
+        if _ibkr_client.is_connected():
+            return True
+        await asyncio.sleep(0.25)
+    return _ibkr_client.is_connected()
+
+
+def _spawn_runtime_tasks() -> list[asyncio.Task]:
+    """Start background loops. Each task is spawned independently so one bad
+    import/name cannot abort the rest (e.g. scanner_l1 must not die because
+    a typo in fill_poll_loop aborted the list mid-build).
+    """
+    from l2 import batch as _l2_batch
+
+    async def _l2_retention_loop() -> None:
+        while True:
+            try:
+                await asyncio.sleep(L2_RETENTION_SWEEP_INTERVAL_SEC)
+                _l2_db.purge_older_than()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("l2 retention sweep failed")
+
+    def _start(name: str, factory) -> asyncio.Task | None:
+        try:
+            task = asyncio.create_task(factory(), name=name)
+            return task
+        except Exception:
+            logger.exception("lifespan: failed to start background task %s", name)
+            return None
+
+    # scanner_l1 first — HOD Squeeze / active-set SLOs depend on it.
+    factories: list[tuple[str, object]] = [
+        ("scanner_l1.reconcile", lambda: _scanner_l1.reconcile_loop(
+            _get_discovery_provider,
+            _scanner_tabs.get_dominant_tab,
+            symbols_for_tab,
+            hod_stream_symbols,
+        )),
+        ("scanner_l1.flush", lambda: _scanner_l1.flush_loop(_scanner_broadcast)),
+        ("hod_momo.heartbeat", lambda: _hod_momo_heartbeat.active_heartbeat_loop()),
+        ("hod_momo.surge_seed", lambda: _hod_momo_surge_seed.surge_seed_loop(
+            _get_discovery_provider,
+        )),
+        ("scan_loop", scan_loop),
+        ("stream_loop", stream_loop),
+        ("hod_momo.flush_consolidated", _hod_momo.flush_consolidated_loop),
+        ("hod_momo.session_reset", _hod_momo.session_reset_loop),
+        ("hod_momo.universe_enrichment", _hod_momo_enrichment.universe_enrichment_loop),
+        ("hod_momo.fundamentals_enrichment", _hod_momo_enrichment.fundamentals_enrichment_loop),
+        ("hod_momo.seed_refresh", lambda: _hod_momo_seed.seed_refresh_loop(
+            _get_discovery_provider,
+        )),
+        ("integrity_live", _integrity_live.integrity_loop),
+        ("setups_stream", _setups_stream.scan_loop),
+        ("risk.session_reset", _risk.session_reset_loop),
+        # Name is fill_poll_loop (singular). The old fills_poll_loop typo raised
+        # AttributeError mid-list and aborted spawn before scanner_l1.
+        ("executor.fill", _executor.fill_poll_loop),
+        ("l2.flush", _l2_batch.flush_loop),
+        ("l2.retention", _l2_retention_loop),
+        ("ibkr.detail_reprice", lambda: _ibkr_reprice.detail_reprice_loop(
+            get_ibkr_detail_symbols, run_ibkr, broadcast_trade_update, _find_ibkr_cache_row,
+            lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),
+        )),
+    ]
+    if maintenance_enabled():
+        factories.append(("archive.maintenance", archive_maintenance_loop))
+        logger.info("archive.maintenance: enabled (ARCHIVE_MAINTENANCE_ENABLED)")
+
+    tasks: list[asyncio.Task] = []
+    for name, factory in factories:
+        task = _start(name, factory)
+        if task is not None:
+            tasks.append(task)
+    return tasks
+
+
+async def _bootstrap_runtime() -> None:
+    """Deferred after HTTP yield: network ping, IBKR, recovery, loops."""
+    global _runtime_tasks
+    await _ping_alpaca_health()
+
     await _ibkr_client.startup()
-    _ibkr_ticks.configure(broadcast_trade_update, _find_ibkr_cache_row)
-    _scanner_l1.configure(apply_l1_quote)
+    # Prefer waiting ~one connect wall; never block HTTP (already yielded).
+    connected = await _wait_ibkr_connected(float(IBKR_RECONNECT_DELAY_SEC) + 2.0)
+    if not connected:
+        logger.warning(
+            "IBKR: not connected after bootstrap wait — recovery runs in "
+            "disconnected mode; reconnect_loop keeps retrying"
+        )
 
     try:
         _risk.reconstruct_from_journal()
@@ -153,95 +265,52 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("Nova OS startup recovery failed")
 
-    scan_task = asyncio.create_task(scan_loop())
-    ws_task = asyncio.create_task(stream_loop())
-    hod_flush_task = asyncio.create_task(_hod_momo.flush_consolidated_loop())
-    hod_reset_task = asyncio.create_task(_hod_momo.session_reset_loop())
-    hod_enrich_task = asyncio.create_task(_hod_momo_enrichment.universe_enrichment_loop())
-    hod_fund_task = asyncio.create_task(_hod_momo_enrichment.fundamentals_enrichment_loop())
-    hod_seed_task = asyncio.create_task(
-        _hod_momo_seed.seed_refresh_loop(_get_discovery_provider)
-    )
-    hod_surge_seed_task = asyncio.create_task(
-        _hod_momo_surge_seed.surge_seed_loop(_get_discovery_provider)
-    )
-    integrity_task = asyncio.create_task(_integrity_live.integrity_loop())
-    setups_scan_task = asyncio.create_task(_setups_stream.scan_loop())
-    risk_reset_task = asyncio.create_task(_risk.session_reset_loop())
-    executor_fill_task = asyncio.create_task(_executor.fill_poll_loop())
+    _runtime_tasks = _spawn_runtime_tasks()
+    logger.info("lifespan bootstrap complete (%d background tasks)", len(_runtime_tasks))
 
-    from l2 import batch as _l2_batch
 
-    async def _l2_retention_loop() -> None:
-        while True:
-            try:
-                await asyncio.sleep(L2_RETENTION_SWEEP_INTERVAL_SEC)
-                _l2_db.purge_older_than()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                logger.exception("l2 retention sweep failed")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _runtime_tasks
+    init_sentry()
+    _restore_caches()
+    _init_databases()
 
-    l2_flush_task = asyncio.create_task(_l2_batch.flush_loop())
-    l2_retention_task = asyncio.create_task(_l2_retention_loop())
-    archive_maint_task = None
-    if maintenance_enabled():
-        archive_maint_task = asyncio.create_task(archive_maintenance_loop())
-        logger.info("archive.maintenance: enabled (ARCHIVE_MAINTENANCE_ENABLED)")
+    # Sync wiring only — no await on IBKR/network before yield.
+    _ibkr_ticks.configure(broadcast_trade_update, _find_ibkr_cache_row)
+    _scanner_l1.configure(apply_l1_quote)
 
-    detail_reprice_task = asyncio.create_task(_ibkr_reprice.detail_reprice_loop(
-        get_ibkr_detail_symbols, run_ibkr, broadcast_trade_update, _find_ibkr_cache_row,
-        lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),
-    ))
-    # Active-tab + reserved HOD L1 streams (replaces infeasible 1Hz reqTickersAsync).
-    scanner_l1_reconcile_task = asyncio.create_task(_scanner_l1.reconcile_loop(
-        _get_discovery_provider,
-        _scanner_tabs.get_dominant_tab,
-        symbols_for_tab,
-        hod_stream_symbols,
-    ))
-    scanner_l1_flush_task = asyncio.create_task(_scanner_l1.flush_loop(_scanner_broadcast))
-
+    bootstrap_task = asyncio.create_task(_bootstrap_runtime())
+    logger.info("lifespan: HTTP ready — IBKR/bootstrap deferred")
     yield
 
     try:
         _hod_momo.flush_pending_alert_save()
     except Exception:
         logger.exception("HOD Momo: final alert flush failed")
-    detail_reprice_task.cancel()
-    scanner_l1_reconcile_task.cancel()
-    scanner_l1_flush_task.cancel()
+
+    bootstrap_task.cancel()
+    try:
+        await bootstrap_task
+    except asyncio.CancelledError:
+        pass
+
     try:
         await _scanner_l1.shutdown()
     except Exception:
         logger.exception("scanner_l1 shutdown failed")
-    scan_task.cancel()
-    ws_task.cancel()
-    hod_flush_task.cancel()
-    hod_reset_task.cancel()
-    hod_enrich_task.cancel()
-    hod_fund_task.cancel()
-    hod_seed_task.cancel()
-    hod_surge_seed_task.cancel()
-    integrity_task.cancel()
-    setups_scan_task.cancel()
-    risk_reset_task.cancel()
-    executor_fill_task.cancel()
-    l2_flush_task.cancel()
-    l2_retention_task.cancel()
-    if archive_maint_task is not None:
-        archive_maint_task.cancel()
-    for t in (
-        detail_reprice_task, scanner_l1_reconcile_task, scanner_l1_flush_task,
-        scan_task, ws_task,
-        hod_flush_task, hod_reset_task, hod_enrich_task, hod_fund_task, hod_seed_task,
-        hod_surge_seed_task, integrity_task,
-    ):
+
+    for t in list(_runtime_tasks):
+        t.cancel()
+    for t in list(_runtime_tasks):
         try:
             await t
         except asyncio.CancelledError:
             pass
+    _runtime_tasks = []
+
     try:
+        from l2 import batch as _l2_batch
         _l2_batch.flush()
     except Exception:
         logger.exception("l2.batch: final flush failed")

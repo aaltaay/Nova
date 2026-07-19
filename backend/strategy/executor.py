@@ -30,13 +30,9 @@ import time
 from dataclasses import dataclass
 
 from constants import (
-    EXECUTOR_ENTRY_SIDE_IBKR,
     EXECUTOR_ENTRY_SIDE_JOURNAL,
     EXECUTOR_FILL_POLL_INTERVAL_SEC,
-    NOVA_OS_ACTION_DECLINED,
-    NOVA_OS_ACTION_EXECUTED_PAPER,
     NOVA_OS_MAX_CONCURRENT_POSITIONS,
-    NOVA_OS_MODE_AUTO_PAPER,
     NOVA_OS_MODE_CONFIRM,
     NOVA_OS_MODE_SIGNAL,
 )
@@ -47,6 +43,7 @@ from nova_os import control_mode as _control_mode
 from nova_os import staged_tickets as _staged
 from nova_os.events import KIND_ACTION, KIND_SYSTEM, record_receipt
 from strategy import executor_flatten as _executor_flatten
+from strategy import executor_place as _executor_place
 from strategy import risk as _risk
 
 logger = logging.getLogger(__name__)
@@ -151,6 +148,7 @@ def _cancel_bracket_if_parent_unfilled(pos: OpenPosition) -> tuple[list[int], st
 
     Returns (cancelled_ids, outcome) where outcome is
     'cancelled_unfilled' | 'preserved_protective' | 'unknown_state'.
+    Cancels go through execution.service (ADR 007).
     """
     if not _ibkr_client.is_connected():
         return [], "unknown_state"
@@ -160,11 +158,40 @@ def _cancel_bracket_if_parent_unfilled(pos: OpenPosition) -> tuple[list[int], st
     cancelled: list[int] = []
     for order_id in (pos.parent_order_id, pos.target_order_id, pos.stop_order_id):
         try:
-            _orders.cancel_order(order_id)
+            _cancel_via_service(order_id, source="kill")
             cancelled.append(order_id)
         except Exception:
             logger.exception("cancel failed for order %s (%s)", order_id, pos.symbol)
     return cancelled, "cancelled_unfilled"
+
+
+def _cancel_via_service(order_id: int, *, source: str) -> dict:
+    """Sync cancel helper for kill/flatten — uses execution.service."""
+    import uuid
+    from execution.models import ExecutionCommand
+    from execution.service import execute
+
+    async def _run():
+        return await execute(
+            ExecutionCommand(
+                operation="cancel",
+                idempotency_key=f"{source}:cancel:{order_id}:{uuid.uuid4()}",
+                source=source,  # type: ignore[arg-type]
+                order_id=order_id,
+                skip_risk=True,
+                skip_concurrency=True,
+            ),
+            wait_ack=False,
+        )
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        receipt = asyncio.run(_run())
+        return receipt.legacy_place_dict()
+    # Nested in async context (e.g. fill poll) — schedule and do not block forever.
+    # Kill/flatten routes are sync FastAPI handlers, so asyncio.run is the common path.
+    raise RuntimeError("cancel from running loop — use async execute directly")
 
 
 def kill_switch() -> dict:
@@ -239,163 +266,10 @@ flatten_preview = _executor_flatten.flatten_preview
 flatten_positions = _executor_flatten.flatten_positions
 
 
-def _decline(symbol: str, setup: str, reason_code: str, detail: str) -> None:
-    """Every place_from_ticket rejection is a real decision (a human or the
-    auto_paper loop asked to enter and was refused) — it must leave an audit
-    trail, not just a log line, or the receipt log silently under-reports how
-    often automation actually acts vs. declines."""
-    logger.info("Executor: %s/%s declined — %s: %s", symbol, setup, reason_code, detail)
-    record_receipt(
-        kind=KIND_ACTION,
-        symbol=symbol,
-        action=NOVA_OS_ACTION_DECLINED,
-        mode=_control_mode.get_mode(),
-        would_execute=False,
-        executed=False,
-        payload={
-            "event": "placement_declined",
-            "setup": setup,
-            "reason_code": reason_code,
-            "detail": detail,
-        },
-    )
-
-
-def place_from_ticket(
-    symbol: str,
-    setup: str,
-    entry: float,
-    stop: float,
-    target: float,
-    shares: int | None = None,
-) -> dict | None:
-    """Place a risk-checked paper bracket. Used by approve + auto_paper path.
-
-    Every gate here is re-checked at the moment of placement — not trusted
-    from an earlier set_mode() or stage_from_signal() call — because seconds
-    or minutes can pass between staging/mode-raise and this call, in which
-    the kill switch can trip, the concurrent-position cap can fill, IBKR can
-    disconnect, or risk can halt.
-    """
-    symbol = symbol.upper()
-
-    if _kill_switch_tripped:
-        _decline(symbol, setup, "KILL_SWITCH_TRIPPED", "kill switch is tripped")
-        return None
-
-    if symbol in _open_positions:
-        _decline(symbol, setup, "ALREADY_OPEN", f"{symbol} already has a tracked open position")
-        return None
-
-    concurrent = len(_open_positions) + len(_staged.list_staged())
-    if concurrent >= NOVA_OS_MAX_CONCURRENT_POSITIONS:
-        _decline(
-            symbol, setup, "MAX_CONCURRENT",
-            f"at max concurrent positions ({NOVA_OS_MAX_CONCURRENT_POSITIONS}): "
-            f"open={len(_open_positions)} staged={len(_staged.list_staged())}",
-        )
-        return None
-
-    if _control_mode.get_effective_mode() == NOVA_OS_MODE_AUTO_PAPER:
-        gate_ok, gate_reason = _control_mode.auto_paper_gate_status()
-        if not gate_ok:
-            _decline(symbol, setup, "AUTO_PAPER_GATE_FAILED", gate_reason)
-            return None
-
-    can_trade, halt_reason = _risk.can_trade()
-    if not can_trade:
-        _decline(symbol, setup, "RISK_HALT", halt_reason)
-        return None
-
-    plan_ok, issues = _risk.validate_trade_plan(entry, stop, target)
-    if not plan_ok:
-        _decline(symbol, setup, "PLAN_INVALID", "; ".join(issues))
-        return None
-
-    qty = int(shares) if shares and shares > 0 else _risk.position_size_shares()
-    if qty <= 0:
-        _decline(symbol, setup, "ZERO_QTY", f"computed qty <= 0 (shares={shares})")
-        return None
-
-    result = _orders.place_bracket_order(
-        symbol, EXECUTOR_ENTRY_SIDE_IBKR, qty, entry, stop, target
-    )
-    if not result["ok"]:
-        _decline(symbol, setup, "BRACKET_REJECTED", str(result.get("error")))
-        return None
-
-    pos = OpenPosition(
-        symbol=symbol,
-        setup=setup,
-        qty=qty,
-        entry_price=entry,
-        stop_price=stop,
-        target_price=target,
-        parent_order_id=result["parent_order_id"],
-        target_order_id=result["target_order_id"],
-        stop_order_id=result["stop_order_id"],
-        opened_ts=time.time(),
-    )
-    _open_positions[symbol] = pos
-    record_receipt(
-        kind=KIND_ACTION,
-        symbol=symbol,
-        action=NOVA_OS_ACTION_EXECUTED_PAPER,
-        mode=_control_mode.get_mode(),
-        would_execute=True,
-        executed=True,
-        payload={
-            "event": "executed_paper",
-            "setup": setup,
-            "qty": qty,
-            "entry_price": entry,
-            "stop_price": stop,
-            "target_price": target,
-            "parent_order_id": pos.parent_order_id,
-            "target_order_id": pos.target_order_id,
-            "stop_order_id": pos.stop_order_id,
-            "opened_ts": pos.opened_ts,
-        },
-    )
-    logger.warning(
-        "Executor: placed bracket %s/%s qty=%s entry=%s stop=%s target=%s (parent=%s)",
-        symbol, setup, qty, entry, stop, target, pos.parent_order_id,
-    )
-    return {
-        "symbol": pos.symbol,
-        "setup": pos.setup,
-        "qty": pos.qty,
-        "entry_price": pos.entry_price,
-        "stop_price": pos.stop_price,
-        "target_price": pos.target_price,
-        "opened_ts": pos.opened_ts,
-    }
-
-
-async def on_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict | None:
-    """Route a BUY signal by effective control mode. Never places in signal/confirm."""
-    _staged.expire_due()
-    if _kill_switch_tripped:
-        return None
-
-    effective = _control_mode.get_effective_mode()
-    if effective == NOVA_OS_MODE_SIGNAL:
-        return None
-
-    if effective == NOVA_OS_MODE_CONFIRM:
-        meta = signal_dict.get("nova_os") if isinstance(signal_dict.get("nova_os"), dict) else {}
-        ticket = _staged.stage_from_signal(symbol, setup_name, signal_dict, decision_meta=meta)
-        return ticket.to_dict() if ticket else None
-
-    if effective == NOVA_OS_MODE_AUTO_PAPER:
-        entry = signal_dict.get("entry_price")
-        stop = signal_dict.get("stop_price")
-        target = signal_dict.get("target_price")
-        if entry is None or stop is None or target is None:
-            return None
-        return place_from_ticket(symbol, setup_name, entry, stop, target)
-
-    return None
+# Placement / on_signal live in executor_place (file-size + ADR 007 boundary).
+place_from_ticket = _executor_place.place_from_ticket
+place_from_ticket_async = _executor_place.place_from_ticket_async
+on_signal = _executor_place.on_signal
 
 
 def _resolve_exit_price(ib, pos: OpenPosition) -> float | None:

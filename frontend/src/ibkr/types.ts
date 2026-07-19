@@ -41,8 +41,16 @@ export interface IbkrOrder {
   symbol: string;
   side: 'BUY' | 'SELL';
   qty: number;
-  order_type: 'MKT' | 'LMT';
+  /** Shares already filled (IBKR orderStatus.filled). */
+  filled_qty?: number | null;
+  /** Shares still working (IBKR orderStatus.remaining). */
+  remaining_qty?: number | null;
+  order_type: 'MKT' | 'LMT' | 'STP';
   limit_price: number | null;
+  stop_price?: number | null;
+  /** Average fill price when any fills exist. */
+  avg_fill_price?: number | null;
+  outside_rth?: boolean;
   status: string;
 }
 

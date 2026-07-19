@@ -1,0 +1,64 @@
+/**
+ * Registry-mountable Closed Orders host (ADR 005 feature slice).
+ * TradingTab also mounts this when the module is visible — ready for hide/move.
+ */
+import { useMemo, useState } from 'react';
+import { CLOSED_ORDERS_MODULE_ID } from '../constants';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { ClosedOrdersPanel } from './ClosedOrdersPanel';
+import { buildMockClosedOrders } from './mockClosedOrders';
+import { useClosedOrders } from './useClosedOrders';
+
+interface Props {
+  selectedSymbol?: string | null;
+  onSelectSymbol?: (symbol: string) => void;
+  onOpenTrading?: (symbol: string) => void;
+  filterSymbol?: string | null;
+}
+
+export function ClosedOrdersModule({
+  selectedSymbol = null,
+  onSelectSymbol,
+  onOpenTrading,
+  filterSymbol = null,
+}: Props) {
+  const status = useIbkrStatus();
+  const { orders } = useClosedOrders(status.connected);
+  /** When Gateway has no terminal orders, show paper-style sample until hidden. */
+  const [preferSample, setPreferSample] = useState(true);
+
+  const usingSample = orders.length === 0 && preferSample;
+  const rows = useMemo(
+    () => (usingSample ? buildMockClosedOrders(filterSymbol ?? selectedSymbol) : orders),
+    [usingSample, orders, filterSymbol, selectedSymbol],
+  );
+
+  return (
+    <section
+      className="closed-orders-module"
+      data-testid="closed-orders-module"
+      data-module-id={CLOSED_ORDERS_MODULE_ID}
+    >
+      {orders.length === 0 && (
+        <div className="ibkr-closed-orders-toolbar">
+          <button
+            type="button"
+            className="ibkr-btn-secondary"
+            data-testid="closed-orders-toggle-sample"
+            onClick={() => setPreferSample((v) => !v)}
+          >
+            {preferSample ? 'Hide sample' : 'Show sample'}
+          </button>
+        </div>
+      )}
+      <ClosedOrdersPanel
+        orders={rows}
+        selectedSymbol={selectedSymbol}
+        onSelectSymbol={onSelectSymbol}
+        onOpenTrading={onOpenTrading}
+        filterSymbol={filterSymbol}
+        sampleMode={usingSample}
+      />
+    </section>
+  );
+}

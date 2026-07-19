@@ -2,7 +2,7 @@
 /* Owner: features/stock-view. Do not reorder relative to sibling imports. */
 /* Stock View must fit one viewport — no document scroll. Attention strip
    (optional sibling above this container) shares the same body flex column. */
-body:has(.container--ticker-detail) {
+body:has(.nova-shell--ticker-detail) {
   display: flex;
   flex-direction: column;
   height: 100dvh;
@@ -10,7 +10,7 @@ body:has(.container--ticker-detail) {
   overflow: hidden;
 }
 
-body:has(.container--ticker-detail) #root {
+body:has(.nova-shell--ticker-detail) #root {
   flex: 1 1 0;
   min-height: 0;
   height: 100%;
@@ -19,7 +19,7 @@ body:has(.container--ticker-detail) #root {
   overflow: hidden;
 }
 
-.container--ticker-detail {
+.nova-shell--ticker-detail {
   max-width: none;
   width: 100%;
   margin: 0;
@@ -30,19 +30,22 @@ body:has(.container--ticker-detail) #root {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
 }
 
-.container--ticker-detail .main-col {
+.nova-shell--ticker-detail .main-col {
   padding: 0.25rem 0.35rem 0;
   display: flex;
   flex-direction: column;
   flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
   min-height: 0;
   height: 100%;
   overflow: hidden;
 }
 
-.container--ticker-detail .app-header {
+.nova-shell--ticker-detail .app-header {
   margin-bottom: 0.25rem;
   padding: 0.35rem 0.65rem;
   flex-shrink: 0;
@@ -56,6 +59,8 @@ body:has(.container--ticker-detail) #root {
 .ticker-detail-main {
   padding: 0;
   flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -72,92 +77,54 @@ body:has(.container--ticker-detail) #root {
   padding: 0.35rem 0.65rem 0.15rem;
 }
 
-/* Stock View — detachable single-stock page */
-.stock-view-page {
-  display: flex;
+/* Stock View terminal layout + rail live in stock_view/stockViewTerminal.css
+   (imported after this sheet). Keep shared chrome below. */
+
+.cq-after-depth {
+  margin-top: 0.35rem;
+}
+
+.cq-after-quote {
+  margin-top: 0.45rem;
+}
+
+/* Legacy sidebar trade-bar stacking (Quote Panel / older callers). */
+.ticker-trade-bar--sidebar {
+  margin: 0;
+  max-height: none;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.ticker-trade-bar--sidebar .ticker-trade-bar-top {
   flex-direction: column;
-  flex: 1 1 0;
-  min-height: 0;
-  height: 100%;
-  gap: 0;
-  overflow: hidden;
-}
-
-.stock-view-toolbar {
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-}
-
-.stock-view-brand {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
-}
-
-.stock-view-brand-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent, #3b82f6);
-}
-
-.stock-view-charts-toggle {
-  margin-left: auto;
-  border: 1px solid var(--border-color);
-  background: transparent;
-  color: var(--text-secondary);
-  border-radius: 4px;
-  padding: 0.3rem 0.65rem;
-  font-size: 0.75rem;
-  cursor: pointer;
-}
-
-.stock-view-charts-toggle:hover {
-  color: var(--text-primary);
-  border-color: var(--text-secondary);
-}
-
-.stock-view-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 10px var(--ticker-trade-side-width, 380px);
-  column-gap: 0.4rem;
-  flex: 1 1 0;
-  min-height: 0;
-  padding: 0.25rem 0.5rem 0;
   align-items: stretch;
-  overflow: hidden;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
 }
 
-.stock-view-page--charts-collapsed .stock-view-body {
-  grid-template-columns: minmax(0, 1fr);
+.ticker-trade-bar--sidebar .ticker-trade-bar-account {
+  gap: 0.35rem 0.55rem;
 }
 
-.stock-view-charts {
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  display: flex;
+.ticker-trade-bar--sidebar .ticker-trade-bar-open,
+.ticker-trade-bar--sidebar .ticker-trade-bar-close,
+.ticker-trade-bar--sidebar .ticker-trade-bar-automate {
+  padding-left: 0;
+  border-left: none;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.35rem;
+  gap: 0.3rem;
+}
+
+.ticker-trade-bar--sidebar .ticker-trade-bar-submit {
+  flex: 1 1 auto;
+}
+
+.ticker-trade-bar--sidebar .ticker-trade-bar-footer {
   flex-direction: column;
-  overflow: hidden;
-}
-
-.stock-view-charts .chart-grid {
-  flex: 1 1 0;
-  min-height: 0;
-}
-
-.stock-view-quote {
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  overflow: auto;
-  padding-right: 0.25rem;
-}
-
-.stock-view-page--charts-collapsed .stock-view-quote {
-  height: 100%;
+  align-items: flex-start;
+  gap: 0.25rem;
 }
 
 /* Generic drag-to-resize divider — pairs with hooks/useResizableWidth.
@@ -518,7 +485,9 @@ body:has(.container--ticker-detail) #root {
   }
 }
 
-/* Full-view 2×2 “cube” — equal cells fill remaining viewport height */
+/* Full-view 2×2 “cube” — equal cells fill remaining viewport height.
+   Stock View uses chart-grid--row-split (flex rows + drag handle); see
+   stockViewTerminal.css for the row-split layout. */
 .chart-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -527,6 +496,31 @@ body:has(.container--ticker-detail) #root {
   width: 100%;
   height: 100%;
   min-height: 0;
+}
+
+.chart-grid--row-split {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+  grid-template-rows: none;
+  gap: 0;
+}
+
+.chart-grid__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.2rem;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chart-grid__row--top {
+  flex: 0 0 var(--chart-row-top-pct, 50%);
+}
+
+.chart-grid__row--bottom {
+  flex: 1 1 0;
 }
 
 .chart-grid-cell {
@@ -612,10 +606,14 @@ body:has(.container--ticker-detail) #root {
 }
 
 @media (max-width: 900px) {
-  .chart-grid {
+  .chart-grid:not(.chart-grid--row-split) {
     grid-template-columns: 1fr;
     grid-template-rows: none;
     height: auto;
+  }
+
+  .chart-grid--row-split .chart-grid__row {
+    grid-template-columns: 1fr;
   }
 
   .chart-card--grid .chart-body {

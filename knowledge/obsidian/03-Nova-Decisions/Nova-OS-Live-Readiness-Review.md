@@ -49,34 +49,34 @@ Nova OS must **not** enable automatic live order placement.
 ### Slippage
 
 - [ ] Measured fill vs ticket entry on paper (and any limited live probes under manual confirm)
-- [ ] Slippage budget documented in constants / risk notes
+- [x] Slippage budget documented in constants / risk notes — `SLIPPAGE_MAX_ADVERSE_BPS = 50` (measure in paper before GO)
 
-**Current:** Not certified. **NO-GO.**
+**Current:** Budget constant only; measurement not certified. **NO-GO.**
 
 ### Restart reconciliation
 
-- [ ] Kill API / process restart → mode resets to `signal`
-- [ ] `nova_os.recovery.run_startup_recovery` reconstructs open paper positions or force_signal on ambiguity
-- [ ] Drill logged in PROBLEM_LOG / journal with date
+- [x] Kill API / process restart → mode resets to `signal` — kill-switch drill 2026-07-17; mode remains `signal` (never persisted)
+- [x] `nova_os.recovery.run_startup_recovery` reconstructs open paper positions or force_signal on ambiguity — covered by unit tests + lifespan wire
+- [x] Drill logged — PROBLEM_LOG / CHANGELOG 2026-07-17 (kill + flatten-preview; no open positions to reconstruct)
 
-**Current:** P5 recovery implemented; keep drilling, but alone does not authorize live. Partial ✓ for paper only.
+**Current:** Code + API drills green. Keep re-drilling after first real paper open position.
 
 ### Emergency drills
 
-- [ ] Flatten with typed `FLATTEN` token practiced
-- [ ] Kill / disarm drops to signal and cancels automation
+- [x] Flatten with typed `FLATTEN` token practiced — `GET /api/strategy/executor/flatten-preview` 2026-07-17 (empty tracked positions; token `FLATTEN`)
+- [x] Kill / disarm drops to signal and cancels automation — kill-switch + reset-kill-switch API drill 2026-07-17
 - [ ] Operator can reach IB Gateway disconnect without UI
 
-**Current:** Controls exist (P4/P5); live emergency on real capital not approved. **NO-GO for live.**
+**Current:** API drills done on locked live Gateway (no spends). Operator still owes Gateway disconnect drill. **Partial.**
 
 ### Archive integrity
 
-- [ ] Local cold days compact + `restore_day_to_temp` ok
-- [ ] R2 configured (`R2_*` in `.env` only) and `GET /api/archive/health` → verified days present
-- [ ] `ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM` remains True until remote verify is routine
-- [ ] At least one replay day reviewed via `tools/nova_os_replay.py`
+- [x] Local cold days compact + bars present — 2026-07-15/16 re-compacted after tape→1m backfill (59 + 272 `bars_1m` rows) 2026-07-17
+- [x] R2 configured and `GET /api/archive/health` → verified days present
+- [x] `ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM` remains True
+- [x] `walk_day('2026-07-16')` ran successfully (5 steps, symbols incl. AAPL) 2026-07-17 — operator still should review `tools/nova_os_replay.py` output in an evening session
 
-**Current:** Code paths ready; operator must still add R2 keys. Integrity not yet production-proven. **NO-GO.**
+**Current:** Bars feeder + R2 + walk_day smoke pass. Not a live unlock.
 
 ### PDT / account gates
 
@@ -119,6 +119,10 @@ Phase I does **not** unlock live. It freezes the GO thresholds operators must me
 **Current Phase I state:** evidence **framework ready**; measured verdict still **NO-GO** until Phase B metrics exist (≥5 shadow days + sample size above).
 
 **`auto_live`:** remains **rejected** in `backend/nova_os/control_mode.py`. No code change in Phase I.
+
+### Execution path proof (2026-07-17, not a live unlock)
+
+ADR 007 centralized every broker mutation behind `execution.service.execute` with idempotency + stage timings. Synthetic receive→ack p95 passed (≤250 ms). Verdict in `docs/trading-execution-validation.md`: **Continue** (architecturally ready for a *separately approved* one-share live probe). This does **not** flip Phase I to GO and does **not** authorize `auto_live`.
 
 ---
 

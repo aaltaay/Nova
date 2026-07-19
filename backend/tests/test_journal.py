@@ -208,7 +208,7 @@ class TestMetrics:
         criteria = result["go_no_go"]["criteria"]
         assert criteria["profit_loss_ratio"]["met"] is True
         assert criteria["adherence"]["met"] is False  # one non-adherent trade
-        assert criteria["min_sample_size"]["met"] is False  # only 2 of 100 required
+        assert criteria["min_sample_size"]["met"] is False  # only 2 of 50 required
         assert result["go_no_go"]["overall_go"] is False
 
     def test_mock_trades_never_leak_into_default_metrics(self):

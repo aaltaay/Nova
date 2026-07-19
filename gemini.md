@@ -284,6 +284,13 @@ Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms
 - Prepend entry after fixing any build/test/linter failure, runtime error, incorrect behavior, or subtle root cause.
 - Use the template in `PROBLEM_LOG.md` (Symptom, Cause, Fix, Keywords).
 
+### 7.2b Task log (`knowledge/task-log/`)
+
+- After every completed material task (parent or specialist), append a dated narrative under `knowledge/task-log/` and prepend `INDEX.md`.
+- **Why this approach** is mandatory — capture tradeoffs and rejected alternatives, not only the diff.
+- Rule: `.cursor/rules/task-log.mdc`. Scaffold: `py -3 tools/task_log_new.py --slug <kebab> --title "…"`.
+- Lifecycle footer includes `task_log=<path>|skipped|n/a`.
+
 ### 7.3 .cursor/rules/
 
 - MDC rules are peers of this constitution. They provide fine-grained, glob-scoped enforcement.
@@ -347,6 +354,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-18 | Task log archive: `knowledge/task-log/` + always-on `task-log.mdc`; Lifecycle `task_log=`; scaffold `tools/task_log_new.py`. Captures why/tradeoffs after every material job. | Cursor Agent |
 | 2026-07-16 | Webull Widget Parity Specialist (`widgets`): source-backed stock/day-trading capability map, continuity rule, and dedicated `agent-widgets` dashboard; selected implementations preserve manual controls and IBKR safety. | Cursor Agent |
 | 2026-07-16 | Unified agent lifecycle OS: `.cursor/agent-system/` contract+registry; memories in `.cursor/agent-memory/`; specialist-routing + subagentStop hook; agent_contract / sync_agent_surfaces / create_nova_agent tools + CI job; docs/agent-operations.md. | Cursor Agent |
 | 2026-07-16 | Warrior Trading Navigator (`warrior`): authenticated site navigation specialist; dashboard `agent-warrior`; durable map in Obsidian + `docs/warrior-authenticated-access.md`; retired unmanaged `warrior-site-map` canvas. | Cursor Agent |
@@ -640,7 +648,7 @@ Before writing ANY code in this project, you MUST:
 3. **Check `.cursor/rules/`** for fine-grained, glob-scoped policies.
 4. **Never violate modularity.** Do not add logic to `main.py` or `App.tsx`. Extract to modules.
 5. **Never violate file size limits.** No file > 400 lines for new code.
-6. **Log your work.** Update `CHANGELOG.md` and `PROBLEM_LOG.md` as required.
+6. **Log your work.** Update `CHANGELOG.md` and `PROBLEM_LOG.md` as required, and append `knowledge/task-log/` for material completed tasks (see `task-log.mdc`).
 7. **Commit and push** at the end of every task. `git add . && git commit -m "<msg>" && git push origin master`.
 
 ## Rule Hierarchy (highest to lowest)

@@ -1,8 +1,15 @@
 /* Cascade-layer order (ADR 006). Sheets share `features` so within-layer
-   import order preserves the pre-layer "later wins" cascade. */
+   import order preserves the pre-layer "later wins" cascade.
+   Tailwind v4: theme + utilities only (no preflight) so existing CSS stays intact.
+   Canonical UI: shadcn New York + Radix + Tailwind mapped to --nova-* tokens. */
 @layer reset, tokens, base, layout, components, features, utilities, overrides;
 
+@import "tailwindcss/theme.css" layer(tokens);
+@import "tailwindcss/utilities.css" layer(utilities);
+
 @import "./styles/tokens-shell.css" layer(tokens);
+@import "./styles/tailwind-theme.css" layer(tokens);
+@import "./ibkr/marketData.css" layer(components);
 @import "./styles/settings-workspace.css" layer(features);
 @import "./styles/scanner-l2.css" layer(features);
 @import "./styles/scanner-misc.css" layer(features);
@@ -13,4 +20,8 @@
 @import "./hod_momo/hodMomoDebug.css" layer(features);
 @import "./chart/tickerChart.css" layer(features);
 @import "./styles/stock-view.css" layer(features);
+@import "./stock_view/stockViewTerminal.css" layer(features);
 @import "./ibkr/tradingTab.css" layer(features);
+@import "./closed_orders/closedOrders.css" layer(features);
+@import "./ibkr/tradeTicket.css" layer(features);
+@import "./styles/tailwind-overrides.css" layer(overrides);

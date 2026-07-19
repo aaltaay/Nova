@@ -136,6 +136,28 @@ def test_test_files_exempt_from_size(mc, tmp_path: Path, monkeypatch):
     assert mc.check_file_sizes([big]) == []
 
 
+def test_bare_css_selector_detected(mc, tmp_path: Path, monkeypatch):
+    fake_root = tmp_path / "repo"
+    styles = fake_root / "frontend" / "src" / "styles"
+    styles.mkdir(parents=True)
+    css = styles / "leaky.css"
+    css.write_text("button {\n  color: red;\n}\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    findings = mc.check_css_design_contract([css])
+    assert any(f.kind == "bare_css_selector" for f in findings)
+
+
+def test_color_muted_as_text_detected(mc, tmp_path: Path, monkeypatch):
+    fake_root = tmp_path / "repo"
+    styles = fake_root / "frontend" / "src" / "styles"
+    styles.mkdir(parents=True)
+    css = styles / "tape.css"
+    css.write_text(".title { color: var(--color-muted); }\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    findings = mc.check_css_design_contract([css])
+    assert any(f.kind == "css_token_collision" for f in findings)
+
+
 def test_secret_pattern_redacts_value(mc, tmp_path: Path):
     p = tmp_path / "leak.py"
     p.write_text('api_key = "abcdefghijklmnopqrstuvwxyz12"\n', encoding="utf-8")

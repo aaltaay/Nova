@@ -46,3 +46,37 @@ See [[Agent-Dreaming]] in the Obsidian vault (`knowledge/obsidian/00-System/Agen
 - **Obsidian:** scanned=18 findings=5
 - **Pinecone:** exit=1 dry_run=False
 
+## REM
+
+### 2026-07-18 — dream (all)
+
+- **Mode:** write
+- **Agents scanned:** 14
+- **REM mode:** heuristic
+- **Pending facts:** 0
+- **Promotions:** 0
+- **REM themes:** docs×8, human×8, follow×7, agent-operations×7, remaining×7, steps×7
+
+#### Dream Diary
+
+Heuristic REM (LLM disabled): docs, human, follow, agent-operations, remaining, steps, stock, must
+
+- **Obsidian:** scanned=18 findings=5
+
+## Deep Sleep
+
+### 2026-07-18 — dream (all)
+
+- **Mode:** write
+- **Agents scanned:** 14
+- **REM mode:** heuristic
+- **Pending facts:** 0
+- **Promotions:** 0
+- **REM themes:** docs×8, human×8, follow×7, agent-operations×7, remaining×7, steps×7
+
+#### Dream Diary
+
+Heuristic REM (LLM disabled): docs, human, follow, agent-operations, remaining, steps, stock, must
+
+- **Obsidian:** scanned=18 findings=5
+

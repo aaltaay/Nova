@@ -7,8 +7,9 @@ import {
 } from '../constants';
 import { NovaActionRuntimeSync } from '../hotkeys/NovaActionRuntimeSync';
 import { TradingQuickBar } from '../hotkeys/TradingQuickBar';
+import { closeFullPosition } from './closeFullPosition';
 import { ManualOrderTicket } from './ManualOrderTicket';
-import { placeIbkrOrder } from './placeOrder';
+import type { PlaceOrderResult } from './placeOrder';
 import { TickerTradeAutomateControls } from './TickerTradeAutomateControls';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 
@@ -20,7 +21,7 @@ interface Props {
   position: IbkrPosition | null;
   summary: IbkrAccountSummary | null;
   referencePrice: number | null;
-  onOrderPlaced?: () => void;
+  onOrderPlaced?: (result?: PlaceOrderResult) => void;
   /**
    * `footer` — full chrome (account + automate).
    * `sidebar` — stacked under Level 2 (legacy Stock View).
@@ -72,28 +73,30 @@ export function TickerTradeActionBar({
     const closeSide: 'BUY' | 'SELL' = position.qty > 0 ? 'SELL' : 'BUY';
     const confirmed = window.confirm(
       `${TICKER_TRADE_ORDER_DISCLOSURE}\n\n` +
-        `Close (flatten) ${absQty} shares of ${symbol} with a ${closeSide} market order ` +
-        `on the ${mode.toUpperCase()} account?`,
+        `Flatten (close full position) ${absQty} shares of ${symbol} with a ${closeSide} market order ` +
+        `on the ${mode.toUpperCase()} account?\n\n` +
+        `This is not Cancel — Cancel only removes a working order.`,
     );
     if (!confirmed) return;
 
     setClosing(true);
     setResultMsg(null);
     try {
-      const data = await placeIbkrOrder({
-        symbol: symbol.toUpperCase(),
-        side: closeSide,
-        qty: absQty,
-        order_type: 'MKT',
-        outside_rth: false,
-      });
+      const data = await closeFullPosition(symbol, position.qty);
       setResultMsg({
         ok: data.ok,
         text: data.ok
-          ? `Close order #${data.order_id} (${data.mode ?? mode})`
-          : data.error ?? 'Close failed',
+          ? `Flatten order #${data.order_id} (${data.mode ?? mode})`
+          : data.error,
       });
-      if (data.ok) onOrderPlaced?.();
+      if (data.ok) {
+        onOrderPlaced?.({
+          ok: true,
+          order_id: data.order_id,
+          error: null,
+          mode: data.mode,
+        });
+      }
     } catch {
       setResultMsg({ ok: false, text: 'Network error' });
     } finally {
@@ -154,7 +157,7 @@ export function TickerTradeActionBar({
             summary={summary}
             position={position}
             referencePrice={referencePrice}
-            onOrderPlaced={() => onOrderPlaced?.()}
+            onOrderPlaced={(result) => onOrderPlaced?.(result)}
           />
         </div>
 

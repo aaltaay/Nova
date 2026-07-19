@@ -17,6 +17,7 @@ from constants import (
     ALERTS_MAX_CHANNELS,
     ALERTS_SECRET_MASK_VISIBLE_CHARS,
 )
+from alerts.webhook_url import validate_webhook_url
 from paths import cache_dir
 
 logger = logging.getLogger(__name__)
@@ -129,12 +130,14 @@ def _validate_secrets(channel_type: str, data: dict, *, existing: Channel | None
     if channel_type == ALERTS_CHANNEL_TYPE_DISCORD:
         if not webhook:
             raise ValueError("discord channel requires webhook_url")
+        validate_webhook_url(webhook)
     elif channel_type == ALERTS_CHANNEL_TYPE_TELEGRAM:
         if not bot_token or not chat_id:
             raise ValueError("telegram channel requires bot_token and chat_id")
     elif channel_type == ALERTS_CHANNEL_TYPE_WEBHOOK:
         if not webhook:
             raise ValueError("webhook channel requires webhook_url")
+        validate_webhook_url(webhook)
 
 
 def create_channel(data: dict) -> dict:
@@ -144,12 +147,15 @@ def create_channel(data: dict) -> dict:
     channel_type = data.get("type", "")
     _validate_type(channel_type)
     _validate_secrets(channel_type, data)
+    webhook = data.get("webhook_url")
+    if webhook:
+        webhook = validate_webhook_url(webhook)
     ch = Channel(
         id=str(uuid.uuid4()),
         type=channel_type,
         enabled=bool(data.get("enabled", True)),
         name=str(data.get("name") or f"{channel_type} channel"),
-        webhook_url=data.get("webhook_url"),
+        webhook_url=webhook,
         bot_token=data.get("bot_token"),
         chat_id=str(data["chat_id"]) if data.get("chat_id") is not None else None,
     )
@@ -166,8 +172,11 @@ def update_channel(channel_id: str, data: dict) -> dict:
     existing = _channel_from_dict(channels[idx])
     channel_type = data.get("type", existing.type)
     _validate_type(channel_type)
+    webhook = data.get("webhook_url", existing.webhook_url)
+    if "webhook_url" in data and data.get("webhook_url"):
+        webhook = validate_webhook_url(data["webhook_url"])
     merged = {
-        "webhook_url": data.get("webhook_url", existing.webhook_url),
+        "webhook_url": webhook,
         "bot_token": data.get("bot_token", existing.bot_token),
         "chat_id": data.get("chat_id", existing.chat_id),
     }

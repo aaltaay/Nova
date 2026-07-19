@@ -2,6 +2,7 @@
  * Alert channel CRUD + test fire against /api/alerts.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import { ALERTS_API } from '../constants';
 
 export interface AlertChannel {
@@ -60,7 +61,7 @@ export function useAlertChannels(enabled = true) {
   }, [fetchChannels]);
 
   const createChannel = useCallback(async (input: AlertChannelInput) => {
-    const res = await fetch(`${ALERTS_API}/channels`, {
+    const res = await novaFetch(`${ALERTS_API}/channels`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
@@ -73,7 +74,7 @@ export function useAlertChannels(enabled = true) {
   }, [fetchChannels]);
 
   const updateChannel = useCallback(async (id: string, patch: Partial<AlertChannelInput>) => {
-    const res = await fetch(`${ALERTS_API}/channels/${id}`, {
+    const res = await novaFetch(`${ALERTS_API}/channels/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -86,13 +87,13 @@ export function useAlertChannels(enabled = true) {
   }, [fetchChannels]);
 
   const deleteChannel = useCallback(async (id: string) => {
-    const res = await fetch(`${ALERTS_API}/channels/${id}`, { method: 'DELETE' });
+    const res = await novaFetch(`${ALERTS_API}/channels/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error(`delete failed HTTP ${res.status}`);
     await fetchChannels();
   }, [fetchChannels]);
 
   const testChannel = useCallback(async (channelId?: string, message?: string) => {
-    const res = await fetch(`${ALERTS_API}/test`, {
+    const res = await novaFetch(`${ALERTS_API}/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ channel_id: channelId ?? null, message: message ?? null }),

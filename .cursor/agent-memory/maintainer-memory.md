@@ -9,22 +9,20 @@ Companion to: `.cursor/agents/maintainer.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-16T23:45:00-04:00
-source_revision: 13e530f
+captured_at: 2026-07-18T02:46:00-04:00
+source_revision: working-tree
 result: FINDINGS
 metrics:
-  findings_total: 10
-  findings_non_baseline: 6
-  files_scanned: 614
-  index_css_lines: 48
-  main_py_lines: 18
-  app_tsx_lines: 83
-  hod_momo_lines: 133
-  executor_lines: 494
-  swallowed_exception: 1
+  findings_total: 13
+  findings_non_baseline: 10
+  files_scanned: 645
+  secret_pattern: 0
+  swallowed_exception: 4
+  ib_placeOrder_sites: 1
+  # file-size / CSS counts deferred this run (danger-sniff scope)
 blockers: []
-dashboard_freshness: clean
-notes: "Reconciliation run: prior snapshot's index_css_lines(18) was a data-entry error (duplicate of main_py_lines, not a fresh measurement); main_py_lines(18) was actually already accurate — main.py is now an 18-line composition root delegating to app_lifespan.py/app_routers.py. tools/maintainer_checks.py itself measures correctly (verified against count_lines()); no tool bug. New non-baseline findings since last capture: hod_momo_active.py 436>400, constantGroups/chart_api.ts 413>400, constantGroups/market_ui.ts 401>400, ManualOrderTicket.tsx 331>300, tools/sync_agent_surfaces.py 401>400, 1 swallowed exception (ibkr/ticks.py:59, benign idempotent list.remove ValueError swallow)."
+dashboard_freshness: refresh-required
+notes: "Danger-sniff only (parallel with security). Tracked-source secret_pattern=0; .env gitignored+untracked (local keys present — do not commit). Swallows: scanner_l1.py:181 Exception:pass (HOD L1 blocklist import — real WARNING), ticks.py:63 ValueError remove (benign), ticks.py:332 float(dh) (benign), test_hod_momo_former.py:26 (test). ib.placeOrder only in ibkr/orders.py (safety-gated). Ruff TRY203 clean; BLE001≈104 (logged Exception catches, not silent pass); S105×3 false positives (env-name / FLATTEN confirm / test). File-size noise present but out of scope."
 ```
 
 Accepted-baseline *rationale* stays below; current measured line counts come from `maintainer_checks`.
@@ -83,6 +81,14 @@ Hard limits:
 ## Run log
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-18 — Danger sniff (secrets / swallow / order path)
+
+- **Scope:** Secrets + danger only (Daddy parallel with security vulnerability audit). Skipped file-size triage, pip_audit, npm audit.
+- **Commands:** `py -3 tools/maintainer_checks.py --json` (exit 0); `check_secrets`/`check_swallowed_errors` direct; `ruff --select BLE,TRY203,S105,S106,S107`; complementary greps for placeOrder / key assigns; `git check-ignore .env`.
+- **Result:** FINDINGS (danger) — 0 `secret_pattern` in scanned source; 4 `swallowed_exception` (1 production-relevant: `scanner_l1.py:181`); order send confined to `ibkr/orders.py` via safety gate; `.env` ignored/untracked.
+- **Learning:** Maintainer secret scanner does not read `.env` (correct — gitignored artifact). Local `.env` still holds live-shaped keys; hygiene note for humans only, never echo values. `scanner_l1` silent `except Exception: pass` around optional `hod_momo_active` import is a new swallow vs 2026-07-16 snapshot (was 1 → now 4).
+- **Files updated:** this memory (Current snapshot + this entry). No product code. Dashboard not refreshed (parent/security parallel).
 
 ### 2026-07-16 — Dashboard reconciliation (post phase-13, HEAD 13e530f)
 

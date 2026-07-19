@@ -36,7 +36,27 @@ test.describe('Phase 1 — Level 2 + Time & Sales modules', () => {
     await expect(tape).toBeVisible();
     await expect(l2).toHaveAttribute('data-symbol', 'AAPL');
     await expect(tape).toHaveAttribute('data-symbol', 'AAPL');
-    await expect(page.locator('.ts-panel__title')).toHaveText('Time & Sales');
+    // Matched pane headers — no stacked "Level 2 · Time & Sales" + "Time & Sales".
+    const stack = page.locator('[data-testid="stock-view-depth-stack"]');
+    await expect(stack.locator('.sv-module-card__title')).toHaveCount(0);
+    await expect(page.locator('.sv-md-pane__title').filter({ hasText: 'Level 2' })).toBeVisible();
+    await expect(page.locator('.sv-md-pane__title').filter({ hasText: 'Time & Sales' })).toBeVisible();
+
+    const titleColor = await page.locator('.sv-md-pane__title').filter({ hasText: 'Time & Sales' }).evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { color: style.color, bgImage: style.backgroundImage };
+    });
+    // Must not be ~4% white (token collision) or hero-bg on module chrome.
+    expect(titleColor.color).not.toMatch(/rgba?\(\s*255,\s*255,\s*255,\s*0\.0[0-4]/);
+    expect(titleColor.bgImage).toBe('none');
+
+    const tapeCol = page.locator('[data-testid="stock-view-tape-col"]');
+    const overflow = await tapeCol.evaluate((el) => {
+      const panel = el.querySelector('.ts-panel, .sv-md-pane') as HTMLElement | null;
+      if (!panel) return { scrollWidth: 0, clientWidth: 0 };
+      return { scrollWidth: panel.scrollWidth, clientWidth: panel.clientWidth };
+    });
+    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 2);
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });

@@ -4,9 +4,10 @@
  * Thin data coordinator: streams, IBKR gates, resizable rail, detached nav.
  * Layout chrome lives under `stock_view/` (header + rail + quote card).
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ChartGrid } from '../components/ChartGrid';
 import { ResizeHandle } from '../components/ResizeHandle';
+import { useResizableHeight } from '../hooks/useResizableHeight';
 import { useResizableWidth } from '../hooks/useResizableWidth';
 import { useTickerStream } from '../hooks/useTickerStream';
 import { useIbkrAccount } from '../ibkr/useIbkrAccount';
@@ -19,6 +20,12 @@ import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
 import { StockViewRail } from '../stock_view/StockViewRail';
 import {
   API_BASE_URL,
+  STOCK_VIEW_MAIN_ORDERS_SPLIT_KEY,
+  STOCK_VIEW_MAIN_ORDERS_SPLIT_MAX_PCT,
+  STOCK_VIEW_MAIN_ORDERS_SPLIT_MIN_PCT,
+  STOCK_VIEW_MAIN_ORDERS_SPLIT_PCT,
+  STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED,
+  STOCK_VIEW_OPEN_ORDERS_PANE_MIN_PX,
   STOCK_VIEW_SIDE_WIDTH_KEY,
   STOCK_VIEW_TITLE,
   TICKER_TRADE_SIDE_WIDTH_MAX_PX,
@@ -47,6 +54,10 @@ export function StockViewPage({
   const ibkrStatus = useIbkrStatus();
   const { summary, positions, orders, refresh } = useIbkrAccount(ibkrStatus.connected);
   const [highlightOrderId, setHighlightOrderId] = useState<number | null>(null);
+  const [ordersCollapsed, setOrdersCollapsed] = useState(
+    STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED,
+  );
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const {
     width: sideWidth,
     onDragStart: onSideResizeStart,
@@ -56,6 +67,17 @@ export function StockViewPage({
     defaultPx: TICKER_TRADE_SIDE_WIDTH_PX,
     minPx: TICKER_TRADE_SIDE_WIDTH_MIN_PX,
     maxPx: TICKER_TRADE_SIDE_WIDTH_MAX_PX,
+  });
+  const {
+    topPct: mainPct,
+    onDragStart: onMainOrdersResizeStart,
+    reset: resetMainOrdersSplit,
+  } = useResizableHeight({
+    storageKey: STOCK_VIEW_MAIN_ORDERS_SPLIT_KEY,
+    defaultPct: STOCK_VIEW_MAIN_ORDERS_SPLIT_PCT,
+    minPct: STOCK_VIEW_MAIN_ORDERS_SPLIT_MIN_PCT,
+    maxPct: STOCK_VIEW_MAIN_ORDERS_SPLIT_MAX_PCT,
+    containerRef: workspaceRef,
   });
 
   useEffect(() => {
@@ -141,7 +163,19 @@ export function StockViewPage({
       )}
 
       {detailReady && detail && (
-        <>
+        <div
+          ref={workspaceRef}
+          className={`stock-view-workspace${
+            ordersCollapsed ? ' stock-view-workspace--orders-collapsed' : ''
+          }`}
+          style={
+            {
+              ['--sv-main-pct']: `${mainPct}%`,
+              ['--sv-orders-pane-min']: `${STOCK_VIEW_OPEN_ORDERS_PANE_MIN_PX}px`,
+            } as CSSProperties
+          }
+          data-testid="stock-view-workspace"
+        >
           <div className="stock-view-body">
             <div className="stock-view-main">
               <div className="stock-view-charts">
@@ -165,13 +199,22 @@ export function StockViewPage({
               onOrderPlaced={onOrderPlaced}
             />
           </div>
+          {!ordersCollapsed && (
+            <ResizeHandle
+              orientation="horizontal"
+              onPointerDown={onMainOrdersResizeStart}
+              onDoubleClick={resetMainOrdersSplit}
+              label="Resize charts and Open Orders"
+            />
+          )}
           <StockViewOpenOrdersDock
             symbol={symbol}
             orders={orders}
             onCancelOrder={onCancelOrder}
             highlightOrderId={highlightOrderId}
+            onCollapsedChange={setOrdersCollapsed}
           />
-        </>
+        </div>
       )}
     </div>
   );

@@ -1,0 +1,80 @@
+/* Closed Orders feature slice (WID-027) — isolated for hide/move/drag-drop hosts. */
+
+.closed-orders-module {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--border, #333) 80%, transparent);
+}
+
+.ibkr-closed-orders-header {
+  margin-bottom: 0.35rem;
+}
+
+.ibkr-closed-orders-hint {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--text-muted, #6b7280);
+}
+
+.ibkr-closed-orders-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.ibkr-closed-orders-filter {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border, #444) 90%, transparent);
+  border-radius: 4px;
+  color: var(--text-secondary, #9ca3af);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+}
+
+.ibkr-closed-orders-filter.active {
+  border-color: color-mix(in srgb, var(--accent, #3b82f6) 55%, transparent);
+  color: var(--text, #e5e7eb);
+}
+
+.ibkr-closed-orders-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.35rem;
+}
+
+.ibkr-sample-banner {
+  margin-bottom: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  color: var(--text-secondary, #9ca3af);
+  font-size: 0.72rem;
+}
+
+.ibkr-flatten-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, #ef4444 40%, transparent);
+  border-radius: 4px;
+  color: #ef4444;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.45rem;
+  white-space: nowrap;
+}
+
+.ibkr-flatten-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+}
+
+.ibkr-flatten-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

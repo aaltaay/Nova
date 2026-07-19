@@ -44,6 +44,7 @@ test.describe('Phase 0 baseline', () => {
     await page.goto('/?view=stock&symbol=AAPL');
 
     await expect(page.locator('.stock-view-page')).toBeVisible();
+    await expect(page.getByTestId('stock-view-header')).toBeVisible();
     await expect(page.getByText('Stock View', { exact: true })).toBeVisible();
     await expect(page).toHaveTitle(/AAPL/);
 
@@ -53,6 +54,12 @@ test.describe('Phase 0 baseline', () => {
     });
     expect(noPageScroll, 'documentElement must not page-scroll on Stock View').toBe(true);
 
+    // Terminal composition: charts + rail (when detail loads)
+    await expect(page.getByTestId('stock-view-rail')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.stock-view-charts .chart-grid')).toBeVisible();
+    await expect(page.locator('.manual-order-ticket')).toBeVisible();
+
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });
+

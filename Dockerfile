@@ -13,5 +13,12 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY backend/ /app/
 
-# Railway sets PORT at runtime
+# Non-root runtime (SEC-006). Cache/logs dirs must be writable by this user.
+RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin nova \
+    && mkdir -p /app/.cache /app/logs \
+    && chown -R nova:nova /app
+
+USER nova
+
+# Railway sets PORT at runtime. Public bind requires NOVA_API_KEY (see auth.py).
 CMD sh -c "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"

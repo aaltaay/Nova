@@ -10,6 +10,11 @@
   --panel-bg: #1c1c1e;
   /* Alias used by filter dropdowns / cards — was referenced but never defined */
   --card-bg: var(--panel-bg);
+  /* Surfaces for menus, inputs, secondary panels (stop hardcoded #1a1a1a fallbacks) */
+  --bg-secondary: #2c2c2e;
+  --bg-elevated: #2c2c2e;
+  --input-bg: #1c1c1e;
+  --menu-bg: #1c1c1e;
   --hover-bg: rgba(255, 255, 255, 0.06);
   --text-primary: #f5f5f7;
   --text-secondary: #98989d;
@@ -53,6 +58,10 @@
   --bg-primary: var(--bg-color);
   --panel-bg: #ffffff;
   --card-bg: var(--panel-bg);
+  --bg-secondary: #e8e8ed;
+  --bg-elevated: #ffffff;
+  --input-bg: #ffffff;
+  --menu-bg: #ffffff;
   --hover-bg: rgba(0, 0, 0, 0.04);
   --text-primary: #1d1d1f;
   --text-secondary: #6e6e73;
@@ -89,6 +98,44 @@
 /* Default before FOUC script / JS: dark */
 html:not([data-theme]) {
   color-scheme: dark;
+}
+
+/*
+ * Native <select> popups on Windows Chromium often paint a light list while
+ * inheriting app text color — white-on-white in dark mode. Force solid
+ * theme surfaces on both the control and every <option>.
+ */
+select {
+  background-color: var(--input-bg, var(--panel-bg));
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control, 8px);
+  color-scheme: inherit;
+}
+
+select option,
+select optgroup {
+  background-color: var(--menu-bg, var(--panel-bg));
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] select,
+[data-theme='dark'] select option,
+[data-theme='dark'] select optgroup,
+html:not([data-theme]) select,
+html:not([data-theme]) select option,
+html:not([data-theme]) select optgroup {
+  color-scheme: dark;
+  background-color: #1c1c1e;
+  color: #f5f5f7;
+}
+
+[data-theme='light'] select,
+[data-theme='light'] select option,
+[data-theme='light'] select optgroup {
+  color-scheme: light;
+  background-color: #ffffff;
+  color: #1d1d1f;
 }
 
 body {
@@ -281,7 +328,8 @@ body {
     margin-left: 0;
   }
 
-  .status-indicator {
+  .status-indicator,
+  .status-cluster {
     flex-wrap: wrap;
     white-space: normal;
     row-gap: 0.25rem;
@@ -328,20 +376,30 @@ body {
 }
 
 .theme-toggle-btn {
-  padding: 0.35rem 0.65rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  font-family: inherit;
-  border-radius: var(--radius-control, 8px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  flex-shrink: 0;
+  border-radius: 999px;
   border: 1px solid var(--border-color);
-  background: var(--hover-bg);
-  color: var(--text-primary);
+  background: transparent;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .theme-toggle-btn:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
+  background: var(--hover-bg);
+}
+
+.theme-toggle-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
 }
 
 .mode-badge {
@@ -389,11 +447,112 @@ body {
   white-space: nowrap;
 }
 
+/* Labeled API / Gateway / Prices cluster (replaces bare "Connected"). */
+.status-cluster {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.18rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-elevated, var(--bg-secondary, transparent)) 80%, transparent);
+  white-space: nowrap;
+  cursor: help;
+  line-height: 1.2;
+}
+
+.status-chip__role {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--text-secondary));
+  opacity: 0.9;
+}
+
+.status-chip__value {
+  color: var(--text-primary, var(--text-secondary));
+  font-weight: 500;
+}
+
+.status-chip--ok {
+  border-color: color-mix(in srgb, var(--success, #10b981) 35%, var(--border-color));
+}
+
+.status-chip--ok .status-chip__value {
+  color: color-mix(in srgb, var(--success, #10b981) 85%, var(--text-primary));
+}
+
+.status-chip--bad {
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--danger, #ef4444) 10%, transparent);
+}
+
+.status-chip--bad .status-chip__value {
+  color: color-mix(in srgb, var(--danger, #ef4444) 90%, var(--text-primary));
+}
+
+.status-chip--warn {
+  border-color: color-mix(in srgb, #eab308 45%, var(--border-color));
+  background: color-mix(in srgb, #eab308 10%, transparent);
+}
+
+.status-chip--warn .status-chip__value {
+  color: #ca8a04;
+}
+
+.status-chip--action {
+  appearance: none;
+  cursor: pointer;
+  user-select: none;
+  font: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  margin: 0;
+}
+
+.status-chip--action:hover {
+  filter: brightness(1.08);
+}
+
+.status-chip--action:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.status-chip--busy {
+  opacity: 0.85;
+  cursor: progress;
+}
+
 .status-hint {
   font-size: 0.75rem;
   color: var(--text-muted, var(--text-secondary));
   opacity: 0.92;
   max-width: min(42rem, 100%);
+}
+
+.status-hint--gateway {
+  max-width: min(28rem, 100%);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+}
+
+.status-hint--error {
+  color: color-mix(in srgb, var(--danger, #ef4444) 90%, var(--text-primary));
+  opacity: 1;
 }
 
 .backend-flag {
@@ -528,7 +687,7 @@ body {
 /* ── Feed select (settings panel) ─────────────────────────────────────────── */
 
 .feed-select {
-  background-color: var(--bg-color);
+  background-color: var(--input-bg, var(--panel-bg));
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   padding: 0.75rem;
@@ -538,6 +697,11 @@ body {
   transition: border-color 0.2s;
   cursor: pointer;
   width: 100%;
+}
+
+.feed-select option {
+  background-color: var(--menu-bg, var(--panel-bg));
+  color: var(--text-primary);
 }
 
 .feed-select:focus {

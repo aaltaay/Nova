@@ -1,0 +1,83 @@
+"""Mode-aware scanner integrity — gappers offline after open is not a fail."""
+from __future__ import annotations
+
+from hod_momo_integrity_scanner import evaluate_scanner_integrity
+
+
+def _base(**overrides):
+    snap = {
+        "discovery_provider": "ibkr",
+        "ibkr_connected": True,
+        "current_mode": "premarket",
+        "gapper_count": 25,
+        "gainer_count": 50,
+        "loser_count": 50,
+        "gapper_age_sec": 10.0,
+        "gainer_age_sec": 10.0,
+        "loser_age_sec": 10.0,
+        "table_reprice_age_sec": 1.0,
+    }
+    snap.update(overrides)
+    return snap
+
+
+def test_stale_gappers_warn_in_premarket():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="premarket",
+        gapper_age_sec=30_000.0,
+    ))
+    gap = next(c for c in report["checks"] if c["id"] == "scanner_gappers")
+    assert gap["status"] == "warn"
+
+
+def test_stale_gappers_pass_in_rth():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="market",
+        gapper_age_sec=30_000.0,
+    ))
+    gap = next(c for c in report["checks"] if c["id"] == "scanner_gappers")
+    assert gap["status"] == "pass"
+    assert "offline by design" in gap["detail"]
+
+
+def test_stale_gappers_pass_in_afterhours():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="afterhours",
+        gapper_age_sec=30_000.0,
+    ))
+    gap = next(c for c in report["checks"] if c["id"] == "scanner_gappers")
+    assert gap["status"] == "pass"
+
+
+def test_stale_gainers_still_warn_in_afterhours():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="afterhours",
+        gainer_age_sec=30_000.0,
+    ))
+    g = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
+    assert g["status"] == "warn"
+
+
+def test_empty_stale_gainers_warn_when_afterhours_live():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="afterhours",
+        gainer_count=0,
+        gainer_age_sec=300.0,
+        afterhours_count=40,
+    ))
+    g = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
+    assert g["status"] == "warn"
+    assert report["status"] != "fail" or all(
+        c["status"] != "fail" for c in report["checks"] if c["id"] == "scanner_gainers"
+    )
+
+
+def test_empty_stale_gainers_fail_in_rth():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="market",
+        gainer_count=0,
+        gainer_age_sec=300.0,
+        afterhours_count=0,
+    ))
+    g = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
+    assert g["status"] == "fail"

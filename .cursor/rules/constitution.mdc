@@ -13,7 +13,7 @@ Before writing ANY code in this project, you MUST:
 3. **Check `.cursor/rules/`** for fine-grained, glob-scoped policies.
 4. **Never violate modularity.** Do not add logic to `main.py` or `App.tsx`. Extract to modules.
 5. **Never violate file size limits.** No file > 400 lines for new code.
-6. **Log your work.** Update `CHANGELOG.md` and `PROBLEM_LOG.md` as required.
+6. **Log your work.** Update `CHANGELOG.md` and `PROBLEM_LOG.md` as required, and append `knowledge/task-log/` for material completed tasks (see `task-log.mdc`).
 7. **Commit and push** at the end of every task. `git add . && git commit -m "<msg>" && git push origin master`.
 
 ## Rule Hierarchy (highest to lowest)

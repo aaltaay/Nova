@@ -15,34 +15,33 @@ function attachErrorCollector(page: Page): { errors: string[] } {
   return { errors };
 }
 
-test.describe('Phase 3 — Quote panels', () => {
-  test('Stock View quote panel shows symbol, price surface, and news module', async ({
+test.describe('Phase 3 — Quote panels / Stock View terminal', () => {
+  test('Stock View terminal shows header, charts, rail ticket — no scanner clutter', async ({
     page,
   }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=stock&symbol=MSFT');
 
     await expect(page.locator('.stock-view-page')).toBeVisible();
-    await expect(page.locator('.stock-view-quote')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('stock-view-header')).toBeVisible();
+    await expect(page.getByTestId('stock-view-rail')).toBeVisible({ timeout: 20_000 });
 
-    // Panel modules mounted (composition)
-    await expect(page.locator('[data-module="quote-header"]')).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('[data-module="news"]')).toBeVisible();
-    await expect(page.locator('[data-module="fundamentals"]').first()).toBeVisible();
-    await expect(page.locator('[data-module="data-sources"]')).toBeVisible();
-    await expect(page.locator('[data-module="watchlist-strip"]')).toBeVisible();
-
-    // Symbol / price (header may live on Stock View chrome + quote panel)
-    await expect(page.locator('.stock-view-quote .cq-symbol')).toContainText(/MSFT/i, {
+    // Compact quote card (not Quote Panel modules)
+    await expect(page.locator('[data-module="stock-view-quote"]')).toBeVisible({
       timeout: 20_000,
     });
-    // Price cell appears once quote stream/detail loads; tolerate loading then settle
-    const price = page.locator('.stock-view-quote .cq-price');
-    await expect(price).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('.manual-order-ticket')).toBeVisible();
+    await expect(page.locator('.ticker-trade-bar--rail')).toBeVisible();
 
-    // News module present (populated headlines or empty attribute)
-    const news = page.locator('[data-module="news"]');
-    await expect(news).toHaveAttribute('data-news-empty', /true|false/);
+    // Symbol / price on command bar
+    await expect(page.locator('.sv-header__symbol')).toContainText(/MSFT/i, {
+      timeout: 20_000,
+    });
+
+    // Scanner Quote Panel clutter must not appear in Stock View rail
+    await expect(page.locator('[data-module="data-sources"]')).toHaveCount(0);
+    await expect(page.locator('[data-module="watchlist-strip"]')).toHaveCount(0);
+    await expect(page.locator('.stock-view-news-footer')).toHaveCount(0);
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });

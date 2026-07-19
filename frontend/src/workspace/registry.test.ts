@@ -40,12 +40,19 @@ describe('module registry (Phase 4)', () => {
   });
 
   it('registers panel modules with real components', () => {
-    for (const id of ['level2', 'tape', 'news', 'quote', 'charts'] as const) {
+    for (const id of ['level2', 'tape', 'news', 'quote', 'charts', 'closed_orders'] as const) {
       const m = getModule(id);
       expect(m, id).toBeDefined();
       expect(m!.component).not.toBe(HostRenderedModule);
       expect(m!.defaultPlacement).not.toBe('tab');
     }
+  });
+
+  it('registers Closed Orders as an isolated hideable module (WID-027)', () => {
+    const m = getModule('closed_orders');
+    expect(m?.title).toBe('Closed Orders');
+    expect(m?.defaultVisible).not.toBe(false);
+    expect(m?.feedDeps).toEqual(['none']);
   });
 
   it('isTabModuleId gates ActiveTab ids', () => {

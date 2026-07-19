@@ -1,0 +1,6 @@
+/* Safety net: if any leftover class="container" remains, kill Tailwind's
+   breakpoint max-width utilities (utilities layer otherwise wins). */
+.container {
+  max-width: none !important;
+  width: 100%;
+}

@@ -12,9 +12,17 @@ Nova's scanner discovery uses IBKR (`NOVA_DISCOVERY_PROVIDER=ibkr`). If IB Gatew
 Any of these means Gateway needs the user:
 
 - `GET /api/ibkr/status` → `"connected": false` while discovery is `ibkr`
-- Logs: `ConnectionRefusedError` to `127.0.0.1:4001` (or configured `IBKR_LIVE_PORT`)
+- Logs: `ConnectionRefusedError` to **both** Gateway API ports (`4001` live / `4002` paper), or Gateway process with **no** LISTEN on either
 - Gateway window title is `IBKR Gateway` / `Authenticating...` / waiting for IBKR Mobile 2FA
 - Gateway process running but **no** local LISTEN on the API port (usually `4001` live / `4002` paper)
+
+## Port mismatch is self-healed (do not treat as login)
+
+If Nova’s preferred `IBKR_GATEWAY_MODE` port refuses/times out but the **other**
+port accepts, `ibkr/gateway_heal.py` flips mode, persists `.env`, and reconnects.
+Look for log `IBKR: self-healed gateway_mode` and status `gateway_self_heal`.
+That is **not** a login blocker — do not ask the user to re-auth for that case.
+Spend gates (`IBKR_ORDERS_ENABLED` / live confirm) are never auto-unlocked.
 
 ## Mandatory agent behavior
 

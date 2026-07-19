@@ -15,6 +15,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [004](./decisions/004-strangler-facades.md) | Strangler facades + compatibility barrels | Accepted |
 | [005](./decisions/005-frontend-feature-slices.md) | Frontend feature slices + workspace shell | Accepted |
 | [006](./decisions/006-css-itcss-cascade-layers.md) | ITCSS-inspired CSS + native cascade layers | Accepted |
+| [007](./decisions/007-centralized-trading-execution.md) | Centralized trading execution path | Accepted |
 
 ## Rules and maps
 
@@ -45,6 +46,6 @@ These are **references**, not templates to copy wholesale. Nova's single-process
 ## Invariants every structural change must preserve
 
 1. `discovery=ibkr` → IBKR-only prices, bars, depth, tape (no silent Alpaca fallback).
-2. `auto_live` rejected; no live orders from maintenance work.
+2. `auto_live` rejected; no live orders from maintenance work. All broker mutations go through `execution.service.execute` (ADR 007).
 3. Quote / Level 2 / Time & Sales clear on symbol change; ignore stale WS instances.
 4. Public HTTP/WS/local-storage contracts stay compatible unless a phase explicitly changes them.

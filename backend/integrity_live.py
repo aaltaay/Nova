@@ -16,6 +16,30 @@ from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
+# Cached for alert suppress / session gate (updated by integrity_loop).
+_last_merged_status: str = "pass"
+_last_report: dict[str, Any] | None = None
+_last_report_ts: float = 0.0
+# Serve cached /api/integrity when fresh — avoids stacking slow sync builds
+# while the event loop is under IBKR L1 pressure (CLOSE_WAIT storm).
+_INTEGRITY_HTTP_CACHE_SEC = 2.0
+
+
+def get_last_integrity_status() -> str:
+    return _last_merged_status
+
+
+def get_cached_integrity_report(*, max_age_sec: float = _INTEGRITY_HTTP_CACHE_SEC) -> dict[str, Any] | None:
+    if _last_report is None:
+        return None
+    if (time.time() - float(_last_report_ts)) > float(max_age_sec):
+        return None
+    return _last_report
+
+
+def integrity_is_failing() -> bool:
+    return _last_merged_status == "fail"
+
 
 def _cache_age(ts: float | None) -> float | None:
     if not ts:
@@ -67,12 +91,17 @@ def build_scanner_integrity_report() -> dict[str, Any]:
     snap = {
         "discovery_provider": provider,
         "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
+        "current_mode": (state.current_mode or "").strip().lower(),
         "gapper_count": len(state.gapper_cache),
         "gainer_count": len(state.gainer_cache),
         "loser_count": len(state.loser_cache),
+        "afterhours_count": len(state.afterhours_cache or []),
         "gapper_age_sec": _cache_age(state.gapper_cache_ts or None),
         "gainer_age_sec": _cache_age(state.gainer_cache_ts or None),
         "loser_age_sec": _cache_age(state.loser_cache_ts or None),
+        "afterhours_age_sec": _cache_age(
+            getattr(state, "afterhours_cache_ts", None) or None
+        ),
         "table_reprice_age_sec": table_age,
         "table_busy_skips": getattr(ibkr_reprice, "_table_busy_skips", 0),
         "table_timeouts": getattr(ibkr_reprice, "_table_timeouts", 0),
@@ -88,12 +117,16 @@ def build_scanner_integrity_report() -> dict[str, Any]:
 
 
 def build_all_integrity_report() -> dict[str, Any]:
+    global _last_merged_status, _last_report, _last_report_ts
     hod = build_hod_integrity_report()
     scan = build_scanner_integrity_report()
     merged = merge_integrity(hod, scan)
     merged["checked_at"] = time.time()
     merged["hod"] = hod
     merged["scanner"] = scan
+    _last_merged_status = (merged.get("status") or "fail").strip().lower()
+    _last_report = merged
+    _last_report_ts = float(merged["checked_at"])
     return merged
 
 

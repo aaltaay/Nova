@@ -30,6 +30,7 @@ from nova_os.recovery import run_startup_recovery
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(events_db, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr("execution.store.cache_dir", lambda: tmp_path)
     events_db.init_db()
     control_mode.reset_for_tests()
     executor._kill_switch_tripped = False
@@ -47,9 +48,12 @@ def isolated(tmp_path, monkeypatch):
 
 
 def _gate_auto_paper_ok(monkeypatch):
+    import ibkr.account as account_mod
+
     monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
     monkeypatch.setattr(ibkr_client, "account_mode", lambda: "paper")
     monkeypatch.setattr(ibkr_client, "is_enabled", lambda: True)
+    monkeypatch.setattr(ibkr_client, "get_ib", lambda: None)
     monkeypatch.setattr(ibkr_safety, "orders_enabled", lambda: True)
     monkeypatch.setattr(
         ibkr_safety,
@@ -58,6 +62,12 @@ def _gate_auto_paper_ok(monkeypatch):
     )
     monkeypatch.setattr(risk_mod, "can_trade", lambda: (True, "OK"))
     monkeypatch.setattr("nova_os.control_mode.is_nyse_holiday", lambda when=None: False)
+    monkeypatch.setattr(
+        account_mod,
+        "get_account_summary",
+        lambda: {"connected": True, "BuyingPower": 1_000_000.0, "pending": False},
+    )
+    monkeypatch.setattr(account_mod, "get_positions", lambda: [])
 
 
 _SIGNAL = {"entry_price": 5.00, "stop_price": 4.90, "target_price": 5.20}

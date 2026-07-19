@@ -4,6 +4,15 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-18 | [Daddy dispatch: Closed Orders WID-027 + Close SSOT](2026-07-18-closed-orders-widget-dispatch.md) | Daddy dispatch: Closed Orders WID-027 + Close SSOT |
+| 2026-07-18 | [WID-027 Closed Orders widget verification](2026-07-18-wid-027-closed-orders-verify.md) | Scoped pytest/Vitest/build PASS; Flatten gated; live API needs reload for /orders/closed |
+| 2026-07-18 | [Closed Orders widget (WID-027) + Flatten SSOT](2026-07-18-closed-orders-wid027.md) | Isolated closed_orders slice + Positions Flatten via place/ADR 007 |
+| 2026-07-18 | [Close vs Cancel SSOT audit (Closed Orders / flatten)](2026-07-18-close-vs-cancel-ssot-audit.md) | Cancel≠Close; exit_pos/place+ORDERS_GATE; flatten=Nova OS only; history tab read-only |
+| 2026-07-18 | [IBKR Gateway paper/live port self-heal](2026-07-18-ibkr-gateway-port-self-heal.md) | Prefer port refuse → try other (4001↔4002), persist mode; orders stay gated |
+| 2026-07-18 | [Cancel open-order gate SSOT dispatch (execution + hotkeys)](2026-07-18-cancel-open-order-ssot-dispatch.md) | Yes: working cancel via execute+CANCEL_GATE; UML gap; panel ≠ hotkeys dispatcher |
+| 2026-07-18 | [Execution cancel paths + open-order CANCEL_GATE SSOT audit](2026-07-18-execution-cancel-open-order-gate-audit.md) | Open/working cancel via execute+CANCEL_GATE; UML gap; sample mock disables cancel |
+| 2026-07-18 | [Hotkeys cancel ownership audit](2026-07-18-hotkeys-cancel-ownership-audit.md) | Cancel SSOT: broker=`execute(cancel)`; hotkeys owns `cancel_symbol` only; panel cancel stays IBKR/widgets |
+| 2026-07-18 | [Working Orders panel (Webull WID-026)](2026-07-18-working-orders-panel.md) | Post-place Working Orders panel + column map (WID-026) |
 | 2026-07-18 | [Silence Vite HMR flood in client-error logs](2026-07-18-vite-hmr-client-error-flood.md) | Filter @vite/client noise out of /api/client-errors |
 | 2026-07-18 | [Rebind shortcuts on the go via TanStack recorder](2026-07-18-rebind-shortcuts-tanstack.md) | Rebind shortcuts on the go via TanStack recorder |
 | 2026-07-18 | [Header connection status cluster (API / Gateway / Prices)](2026-07-18-header-connection-status-cluster.md) | Labeled API / Gateway / Prices chips replace ambiguous “Connected” |

@@ -3,9 +3,11 @@ IBKR trading routes — thin handlers that delegate to ibkr/*.py modules.
 
 Endpoints:
   GET  /api/ibkr/status           -- connection state + mode (paper/live/disconnected)
+  POST /api/ibkr/launch-gateway  -- start/focus IB Gateway (user-initiated, Windows)
   GET  /api/ibkr/account          -- account summary
   GET  /api/ibkr/positions        -- portfolio / positions
-  GET  /api/ibkr/orders           -- open orders
+  GET  /api/ibkr/orders           -- open / working orders
+  GET  /api/ibkr/orders/closed    -- filled / cancelled session orders (WID-027)
   POST /api/ibkr/order            -- place market, limit, or stop order
   DELETE /api/ibkr/order/{id}     -- cancel order
   POST /api/ibkr/depth/subscribe  -- subscribe to L2 depth for a symbol
@@ -39,11 +41,14 @@ ws_router = APIRouter(tags=["ibkr-ws"])
 @router.get("/status")
 async def ibkr_status() -> dict:
     snap = _client_safety_status()
+    from ibkr import gateway_heal as _heal
+
     return {
         "enabled": _client.is_enabled(),
         "connected": _client.is_connected(),
         "mode": _client.account_mode(),
         **snap,
+        **_heal.heal_status(),
     }
 
 
@@ -51,6 +56,14 @@ async def ibkr_status() -> dict:
 async def ibkr_reconnect() -> dict:
     """Reload .env (override) and reconnect to the configured Gateway port."""
     return await _client.force_reconnect()
+
+
+@router.post("/launch-gateway")
+async def ibkr_launch_gateway() -> dict:
+    """Start IB Gateway (or focus it) on this machine — does not place orders."""
+    from ibkr.launch_gateway import launch_or_focus_gateway
+
+    return launch_or_focus_gateway()
 
 
 def _client_safety_status() -> dict:
@@ -74,6 +87,12 @@ async def ibkr_positions() -> list:
 @router.get("/orders")
 async def ibkr_open_orders() -> list:
     return _orders.open_orders()
+
+
+@router.get("/orders/closed")
+async def ibkr_closed_orders(limit: int | None = None) -> list:
+    """Filled / cancelled / failed session orders (Webull History / Closed)."""
+    return _orders.closed_orders(limit=limit)
 
 
 # ── Orders (centralized via execution.service — ADR 007) ──────────────────────

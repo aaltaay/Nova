@@ -21,13 +21,40 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
-## 2026-07-18 — Vite HMR "send was called before connect" flooded client-errors
+## 2026-07-18 — Stock View “Disconnected” while paper Gateway was connected
+
+- **Symptom:** Header showed Disconnected; Gateway Connection Status showed API Server connected; charts/L2 empty. User was on paper trading.
+- **Cause:** Gateway listened on paper port **4002**, but `.env` had `IBKR_GATEWAY_MODE=live` so Nova only tried **4001** (ConnectionRefused). Header Paper/Live capsules do not change the port.
+- **Fix:** Set mode to paper + reconnect for the incident; added `ibkr/gateway_heal.py` so future preferred-port refuse/timeout auto-tries the other port and persists `IBKR_GATEWAY_MODE` (orders still gated).
+- **Keywords:** Disconnected, IBKR_GATEWAY_MODE, 4001, 4002, paper Gateway, self-heal, gateway_self_heal
+
+## 2026-07-18 — Vite HMR “send was called before connect” flooded client-errors
 
 - **Symptom:** Backend log screamed hundreds of `nova.client_errors` WARNINGs (`send was called before connect`, `Cannot read properties of undefined (reading 'send')`) from `/@vite/client` while API routes (gappers, IBKR status) were fine.
-- **Cause:** Vite's HMR/error-overlay WebSocket rejected `send` before connect; Nova's global `unhandledrejection` reporter POSTed every one to `/api/client-errors`. Multiple tabs (`localhost` vs `127.0.0.1`) amplified the storm.
+- **Cause:** Vite’s HMR/error-overlay WebSocket rejected `send` before connect; Nova’s global `unhandledrejection` reporter POSTed every one to `/api/client-errors`. Multiple tabs (`localhost` vs `127.0.0.1`) amplified the storm.
 - **Fix:** Filter Vite tooling noise in `reportClientError` (client) and `routes/client_errors.py` (server). Prefer one origin for the UI in dev.
 - **Keywords:** vite, HMR, send was called before connect, client-errors, unhandledrejection, @vite/client
 
+## 2026-07-18 — Gateway chip double-click did nothing (stale API 404)
+
+- **Symptom:** Double-clicking header Gateway chip appeared to do nothing; IB Gateway did not open.
+- **Cause:** Running uvicorn process predated `POST /api/ibkr/launch-gateway` → HTTP 404. Feedback was only in the `title` tooltip, so the failure was easy to miss.
+- **Fix:** Restart API (route live); show on-chip “opening… / check desktop / launch failed” + visible hint text; Vite-dev fallback `POST /__nova/launch-gateway` when API returns 404.
+- **Keywords:** launch-gateway, 404, double-click, Gateway offline, stale uvicorn, Vite fallback
+
+## 2026-07-18 — Dark mode native select menus white-on-white
+
+- **Symptom:** History “Today (Live)” dropdown (and other `<select>`s) opened as a white list with nearly invisible light text; only the hovered row was readable.
+- **Cause:** Closed control used transparent/light text; Windows Chromium paints a light native option popup while inheriting app text color. Several menus also fell back to undefined `--bg-secondary` → hardcoded dark hex that broke light theme.
+- **Fix:** Theme tokens `--input-bg` / `--menu-bg` / `--bg-secondary`; global `select`/`option` color-scheme + solid backgrounds; history/feed/hotkey/trade selects and Modules/exchange menus updated.
+- **Keywords:** select, option, dropdown, white-on-white, color-scheme, history-select, dark mode, menu-bg
+
+## 2026-07-18 — SEC findings: unauth mutating API, config credential leak, webhook SSRF
+
+- **Symptom:** Security audit reported critical/high findings: no API auth (SEC-002/004), `GET /api/config` returning raw Alpaca secrets (SEC-001), CORS `*`, root Docker, missing CI scanners, torch CVEs, alerts webhook SSRF (SEC-008).
+- **Cause:** Local-first assumptions never added an auth seam; config echoed env secrets for Settings convenience; webhook URLs were not egress-validated; torch was in the default Railway image for optional FinBERT.
+- **Fix:** `backend/auth.py` (`APIKeyHeader` + mutating middleware + `require_auth`); mask config secrets; `alerts/webhook_url.py` SSRF checks; torch → `requirements-ml.txt`; localhost CORS; `USER nova` in Dockerfile; CI scanner jobs.
+- **Keywords:** SEC-001, SEC-002, SEC-004, SEC-008, NOVA_API_KEY, X-Nova-Api-Key, SSRF, mask_secret, CORS, Dockerfile USER, torch
 
 ## 2026-07-17 — HOD Momo alert queue referenced a dataclass field that never existed
 

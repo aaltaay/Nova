@@ -15,6 +15,8 @@ interface SettingsWorkspaceProps {
   onApiKeyChange: (value: string) => void;
   apiSecret: string;
   onApiSecretChange: (value: string) => void;
+  apiKeySet?: boolean;
+  apiSecretSet?: boolean;
   baseUrl: string;
   onBaseUrlChange: (value: string) => void;
   dataFeed: string;
@@ -56,6 +58,8 @@ export function SettingsWorkspace(props: SettingsWorkspaceProps) {
           onApiKeyChange={props.onApiKeyChange}
           apiSecret={props.apiSecret}
           onApiSecretChange={props.onApiSecretChange}
+          apiKeySet={props.apiKeySet}
+          apiSecretSet={props.apiSecretSet}
           baseUrl={props.baseUrl}
           onBaseUrlChange={props.onBaseUrlChange}
           dataFeed={props.dataFeed}

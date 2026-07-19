@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
 
 const API = `${API_BASE_URL}/api`;
@@ -17,7 +18,7 @@ export function BlocklistPanel() {
   const add = useCallback(() => {
     const sym = input.trim().toUpperCase();
     if (!sym || symbols.includes(sym)) return;
-    fetch(`${API}/hod-momo/blocklist`, {
+    novaFetch(`${API}/hod-momo/blocklist`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: sym }),
@@ -28,7 +29,7 @@ export function BlocklistPanel() {
   }, [input, symbols]);
 
   const remove = useCallback((sym: string) => {
-    fetch(`${API}/hod-momo/blocklist/${sym}`, { method: 'DELETE' })
+    novaFetch(`${API}/hod-momo/blocklist/${sym}`, { method: 'DELETE' })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.symbols) setSymbols(data.symbols); });
   }, []);

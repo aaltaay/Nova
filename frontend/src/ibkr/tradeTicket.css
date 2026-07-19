@@ -134,12 +134,17 @@
   box-sizing: border-box;
   border: 1px solid var(--border-color, #343434);
   border-radius: var(--mot-radius);
-  background: var(--input-bg, #090909);
-  color: var(--text-primary, #e5e7eb);
+  background: var(--input-bg, var(--panel-bg));
+  color: var(--text-primary);
   padding: 5px 12px; /* Primer medium control padding */
   font: inherit;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+}
+
+.manual-order-ticket select option {
+  background: var(--menu-bg, var(--panel-bg));
+  color: var(--text-primary);
 }
 
 .manual-order-ticket input:focus,

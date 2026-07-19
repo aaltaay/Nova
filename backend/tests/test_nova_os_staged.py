@@ -52,7 +52,7 @@ class TestStageExpireApprove:
     def test_approve_calls_place_from_ticket(self, monkeypatch):
         called = []
 
-        def fake_place(symbol, setup, entry, stop, target, shares=None):
+        def fake_place(symbol, setup, entry, stop, target, shares=None, **_kw):
             called.append(
                 {"symbol": symbol, "setup": setup, "entry": entry, "shares": shares}
             )

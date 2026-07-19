@@ -1,0 +1,386 @@
+/* IBKR market-data primitives (components layer) — Level 2 + Time & Sales.
+   Owner: ibkr/. Domain CSS uses --nova-* / --text-* only — never --color-muted. */
+
+/* ── Side-by-side depth + tape ───────────────────────────────────────────── */
+.depth-and-tape {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+  width: 100%;
+}
+
+.depth-and-tape__col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.depth-and-tape__col > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 560px) {
+  .depth-and-tape {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cq-depth-stack {
+  width: 100%;
+  margin: 0.35rem 0 0.5rem;
+}
+
+/* Matched pane chrome (Stock View rail) */
+.sv-md-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 4px;
+  background: var(--nova-panel, var(--panel-bg));
+  overflow: hidden;
+  container-type: inline-size;
+  container-name: md-pane;
+}
+
+.sv-md-pane__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+  background: var(--nova-raised, #1a1d27);
+}
+
+.sv-md-pane__title {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.sv-md-pane__body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Time & Sales ────────────────────────────────────────────────────────── */
+.ts-panel {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--nova-panel, var(--panel-bg));
+  border: 1px solid var(--nova-border, var(--border-color));
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: 200px;
+  max-height: 360px;
+  height: 100%;
+}
+
+.ts-panel--embedded {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  min-height: 0;
+  max-height: none;
+}
+
+.ts-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background: var(--nova-raised, #1a1d27);
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+  flex-shrink: 0;
+}
+
+.ts-panel__title {
+  font-weight: 600;
+  font-size: 0.7rem;
+  color: var(--nova-text-muted, var(--text-secondary));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ts-panel__status {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.ts-panel__status--live {
+  color: var(--nova-success, var(--success));
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.ts-panel__status--off {
+  color: var(--nova-text-muted, var(--text-secondary));
+  background: rgba(139, 146, 165, 0.12);
+}
+
+.ts-panel__cols {
+  display: grid;
+  grid-template-columns: 62px 58px 44px 36px 1fr;
+  padding: 3px 8px;
+  background: var(--nova-raised, #1a1d27);
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+  color: var(--nova-text-muted, var(--text-secondary));
+  font-weight: 600;
+  font-size: 0.65rem;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.ts-panel__rows {
+  overflow-y: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.ts-panel__empty {
+  padding: 12px 8px;
+  color: var(--nova-text-muted, var(--text-secondary));
+  text-align: center;
+  font-size: 0.7rem;
+}
+
+.ts-row {
+  display: grid;
+  grid-template-columns: 62px 58px 44px 36px 1fr;
+  padding: 2px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  color: var(--nova-text, var(--text-primary));
+}
+
+.ts-row:hover {
+  filter: brightness(1.06);
+}
+
+/* Aggressor tint — subtle wash; side encoded by tint when compact */
+.ts-row--ask {
+  background: rgba(34, 197, 94, 0.14);
+  color: var(--nova-text, var(--text-primary));
+}
+
+.ts-row--ask .ts-col--price,
+.ts-row--ask .ts-col--side {
+  color: #86efac;
+  font-weight: 700;
+}
+
+.ts-row--bid {
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--nova-text, var(--text-primary));
+}
+
+.ts-row--bid .ts-col--price,
+.ts-row--bid .ts-col--side {
+  color: #fca5a5;
+  font-weight: 700;
+}
+
+.ts-row--mid {
+  background: rgba(0, 0, 0, 0.35);
+  color: #c4c4c4;
+}
+
+.ts-row--mid .ts-col--price {
+  color: var(--nova-text, var(--text-primary));
+  font-weight: 600;
+}
+
+.ts-row--mid .ts-col--side {
+  color: var(--nova-text-muted, var(--text-secondary));
+  font-weight: 600;
+}
+
+.ts-row--unknown {
+  background: transparent;
+  color: var(--nova-text, var(--text-primary));
+}
+
+.ts-col--time {
+  color: inherit;
+  opacity: 0.85;
+}
+
+.ts-col--side {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+.ts-col--exch {
+  color: inherit;
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Narrow pane: Time / Price / Size only — side via row tint */
+@container md-pane (max-width: 200px) {
+  .ts-panel__cols,
+  .ts-row {
+    grid-template-columns: 48px minmax(0, 1fr) 40px;
+  }
+
+  .ts-col--side,
+  .ts-col--exch {
+    display: none;
+  }
+}
+
+/* ── DAS Level 2 montage (shared tokens; Stock View densifies in feature CSS) */
+.das-l2 {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.das-l2-montage {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  background: var(--nova-canvas, #0a0a0a);
+  border: 1px solid var(--nova-border-strong, #222);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.das-l2-side {
+  min-width: 0;
+}
+
+.das-l2-colhead {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  padding: 0.2rem 0.25rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nova-text-muted, var(--text-secondary));
+  background: var(--nova-raised, #141414);
+  border-bottom: 1px solid var(--nova-border-strong, #2a2a2a);
+}
+
+.das-l2-side--bid .das-l2-colhead span:last-child,
+.das-l2-side--ask .das-l2-colhead span:first-child {
+  text-align: right;
+}
+
+.das-l2-side--bid .das-l2-colhead span:nth-child(2),
+.das-l2-side--ask .das-l2-colhead span:nth-child(2) {
+  text-align: right;
+}
+
+.das-l2-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.08rem 0.25rem;
+  font-size: 0.72rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.das-l2-row--empty {
+  opacity: 0.25;
+  min-height: 1.15rem;
+}
+
+.das-l2-mm {
+  color: var(--nova-text, #e5e7eb);
+  font-size: 0.65rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.das-l2-size {
+  color: var(--nova-text, #f3f4f6);
+  text-align: right;
+  font-weight: 600;
+}
+
+.das-l2-price {
+  font-weight: 700;
+  text-align: right;
+}
+
+.das-l2-price--bid {
+  color: #86efac;
+}
+
+.das-l2-price--ask {
+  color: #fca5a5;
+}
+
+.das-l2-side--ask .das-l2-mm {
+  text-align: right;
+}
+
+.das-l2-spread {
+  margin-top: 0.35rem;
+  text-align: center;
+  font-size: 0.68rem;
+  color: var(--nova-text-muted, var(--text-secondary));
+}
+
+.das-l2-bbo {
+  color: var(--nova-text, #d1d5db);
+}
+
+.ibkr-depth-empty {
+  font-size: 0.8rem;
+  color: var(--nova-text-muted, var(--text-secondary));
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
+.ibkr-depth-fallback-badge {
+  font-size: 0.65rem;
+  background: rgba(234, 179, 8, 0.1);
+  color: #ca8a04;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  margin-bottom: 0.4rem;
+  text-align: center;
+}
+
+.ibkr-depth-heuristics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+  justify-content: center;
+  min-height: 1.35rem;
+  align-items: center;
+}
+
+.ibkr-heuristic-badge {
+  font-size: 0.62rem;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}

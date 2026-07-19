@@ -30,6 +30,67 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Closed Orders on Stock View footer + Trading offline preview
+
+- **What:** Stock View orders dock tabs **Open Orders | Closed Orders** (Closed mounts isolated `closed_orders` module). Trading shows Closed Orders sample even when Gateway is disconnected.
+- **Why:** User could not see Closed Orders (was Trading-only while connected) and asked to refresh + push.
+- **Files touched:** `StockViewOpenOrdersDock.tsx`, `TradingTab.tsx`, `ClosedOrdersModule.tsx`, dock CSS/constants/tests.
+- **How it works now:** Stock View → expand bottom bar → **Closed Orders**. Trading account column / offline guide preview. Live rows via `GET /api/ibkr/orders/closed` after API reload.
+- **Verified by:** Vitest dock closed-tab test + closed_orders suite.
+- **Related:** WID-027; prior Closed Orders widget entry.
+
+## 2026-07-18 — Closed Orders widget (WID-027) + Flatten SSOT
+
+- **What:** Isolated `frontend/src/closed_orders/` feature slice (session filled/cancelled orders, Modules hide/show) plus Positions **Flatten** via shared `closeFullPosition` (same ADR 007 place path as hotkeys `exit_pos`). New `GET /api/ibkr/orders/closed`.
+- **Why:** Daddy-authorized Webull Closed/History parity + full-position close, without baking into Stock View monolith or inventing a second broker path.
+- **Files touched:** `closed_orders/*`, `ibkr/closeFullPosition.ts`, `PositionsPanel.tsx`, `TradingTab.tsx`, `TickerTradeActionBar.tsx`, `workspace/registry.ts`, `ibkr/orders.py`, `routes/trading.py`, `docs/webull-widget-parity.md`.
+- **How it works now:** Working Orders (WID-026) = cancel only. Closed Orders (WID-027) = terminal session rows + All/Filled/Cancelled filters. Flatten = market exit of entire position through `POST /api/ibkr/order`. CSV/multi-day export remains WID-020. `auto_live` untouched.
+- **Verified by:** pytest `test_closed_orders.py`; Vitest `closed_orders/*`, `closeFullPosition.test.ts`, registry (tester owns full UI gates).
+- **Follow-ups:** WID-020 CSV export (Stock View Closed tab shipped).
+- **Related:** task-log `knowledge/task-log/2026-07-18-closed-orders-wid027.md`.
+
+## 2026-07-18 — IBKR Gateway paper/live port self-heal
+
+- **What:** If the configured Gateway port refuses or times out but the other API port (paper 4002 ↔ live 4001) accepts, Nova flips `IBKR_GATEWAY_MODE`, persists `.env`, and reconnects. Status exposes `gateway_self_heal*`. Disable with `IBKR_GATEWAY_SELF_HEAL=false`.
+- **Why:** Paper Gateway on 4002 while `.env` said `live` left Stock View “Disconnected” until a manual edit — user asked for self-heal next time.
+- **Files touched:** `ibkr/gateway_heal.py`, `ibkr/client.py`, `routes/trading.py`, `constants_ibkr.py`, `.env.example`, gateway login rule, tests.
+- **How it works now:** Reconnect loop tries preferred port → on refuse/timeout tries alternate → on success records heal + persists mode. Orders stay locked via `safety.py`. Neither port up → still a login/IBC warning.
+- **Verified by:** pytest `test_gateway_heal.py` + connect tuple tests.
+- **Related:** PROBLEM_LOG same date (port mismatch Disconnected).
+
+## 2026-07-18 — Open Orders: Webull-clean labels (no PreSubmitted / LMT)
+
+- **What:** Working / Open Orders table spells out Type (Limit Order, Market Order, Stop Order), Side (Buy/Sell), Session (Regular / Extended hours), and maps IBKR statuses to Webull labels: Working, Pending, Partially filled, Filled, Cancelled, Failed. Cancel button says “Cancel”; raw IBKR status stays in a tooltip only.
+- **Why:** User found PreSubmitted / LMT opaque; asked for Webull-style clean copy with no abbreviations.
+- **Files touched:** `orderDisplay.ts`, `WorkingOrdersPanel.tsx`, `tradingTab.css`, WID-026 note, tests.
+- **How it works now:** Wire data unchanged; `formatOrderStatus` / `formatOrderType` own display. Partial fills on Submitted → Partially filled.
+- **Verified by:** Vitest `orderDisplay` + WorkingOrdersPanel label tests.
+- **Related:** WID-026; widgets research S15/S17.
+
+## 2026-07-18 — Stock View: drag to resize chart rows and Open Orders
+
+- **What:** Horizontal drag handles between the top/bottom chart rows and between the charts+rail workspace and the Open Orders dock. Sizes persist; double-click resets.
+- **Why:** User asked to change heights of those panels (same pattern as L2 vs Trade ticket).
+- **Files touched:** `ChartGrid.tsx`, `StockViewPage.tsx`, `StockViewOpenOrdersDock.tsx`, `useResizableHeight` constants, `stockViewTerminal.css`, tests.
+- **How it works now:** Chart grid is two flex rows + handle. Expanded Open Orders sits under a workspace handle (`--sv-main-pct`); collapsed dock hides that handle and charts reclaim height.
+- **Verified by:** Vitest ChartGrid row-split test + existing Stock View / dock tests.
+
+## 2026-07-18 — Open Orders bar: full-width click to expand
+
+- **What:** Clicking anywhere on the Open Orders header strip (including the middle / “Expand open orders” area) toggles the dock — not only the left title.
+- **Why:** User could not open the dock by pressing in the middle of the bar.
+- **Files touched:** `StockViewOpenOrdersDock.tsx`, `stockViewTerminal.css`, dock test.
+- **How it works now:** Toggle button stretches across the bar; bar click also toggles (sample Hide/Show still isolated).
+- **Verified by:** Vitest click-on-hint toggle test.
+
+## 2026-07-18 — Open Orders sample preview (5 mock rows)
+
+- **What:** When Stock View has no real working orders for the symbol, Open Orders shows 5 paper-style sample rows (limit/stop/market, partial fills) tagged **Sample** — not from IBKR. Hide/Show sample controls + banner.
+- **Why:** User asked to preview the open-orders table without Gateway paper fills.
+- **Files touched:** `mockWorkingOrders.ts`, `StockViewOpenOrdersDock.tsx`, constants, CSS, tests.
+- **How it works now:** Empty → auto sample for current symbol (e.g. SDOT); real IBKR orders replace it; Hide sample persists in localStorage.
+- **Verified by:** Vitest mock builder + dock sample test.
+
 ## 2026-07-18 — Stock View Open Orders dock (collapsible footer)
 
 - **What:** Moved symbol working/open orders from the Stock View rail into a full-width **Open Orders** strip under the chart+rail workspace. User can collapse/expand; preference persists; auto-expands after place / when orders exist.

@@ -21,6 +21,8 @@ interface Props {
   news: NewsArticleRow[];
   newsImpact?: NewsImpactVerdict | null;
   timeAgo: (iso: string) => string;
+  /** When false, skip the bump/impact panel (parent renders it elsewhere). */
+  includeImpact?: boolean;
 }
 
 /**
@@ -28,12 +30,18 @@ interface Props {
  * Headlines render as a horizontally-scrolling row of clickable cards so every
  * title (and its source) stays visible without eating vertical space.
  */
-export function NewsHeadlineSection({ news, newsImpact, timeAgo }: Props) {
-  if (!news.length && !newsImpact) return null;
+export function NewsHeadlineSection({
+  news,
+  newsImpact,
+  timeAgo,
+  includeImpact = true,
+}: Props) {
+  const impact = includeImpact ? newsImpact : null;
+  if (!news.length && !impact) return null;
 
   return (
     <div className="cq-news-section">
-      {newsImpact && <NewsImpactPanel verdict={newsImpact} />}
+      {impact && <NewsImpactPanel verdict={impact} />}
       {news.length > 0 && (
         <>
           <div className="cq-news-header">

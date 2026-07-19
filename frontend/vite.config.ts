@@ -1,6 +1,12 @@
-import { defineConfig } from 'vitest/config'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vitest/config'
+import { novaLaunchGatewayPlugin } from './scripts/vite-nova-launch-gateway'
 import { novaStartApiPlugin } from './scripts/vite-nova-start-api'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 /** Railway / CI inject these at build time; same values as postbuild → dist/config.json */
 function buildTimeApiBase(): string {
@@ -21,7 +27,9 @@ export default defineConfig({
   base: isElectronBuild ? './' : '/',
   plugins: [
     react(),
+    tailwindcss(),
     novaStartApiPlugin(),
+    novaLaunchGatewayPlugin(),
     {
       name: 'inject-nova-api-base-meta',
       transformIndexHtml(html) {
@@ -36,6 +44,11 @@ export default defineConfig({
       },
     },
   ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   server: {
     host: '127.0.0.1',
     port: 5173,

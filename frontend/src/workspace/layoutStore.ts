@@ -31,9 +31,10 @@ export function defaultSidePanelOrder(): string[] {
   return ['charts', 'level2', 'tape', 'news', 'quote'];
 }
 
-/** Stock View quote column default (no embedded panel chart — ChartGrid is separate). */
+/** Stock View quote column default (no embedded panel chart — ChartGrid is separate).
+ * News is rendered in the Stock View page footer; order entry still lists it for Modules. */
 export function defaultStockViewOrder(): string[] {
-  return ['level2', 'tape', 'news', 'quote', 'charts'];
+  return ['level2', 'tape', 'quote', 'news', 'charts'];
 }
 
 export function defaultLayout(): WorkspaceLayout {

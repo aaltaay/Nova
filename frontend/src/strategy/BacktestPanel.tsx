@@ -3,6 +3,7 @@
  * Pick cold day + setup, POST /api/backtest/run, show metrics + honesty banner.
  */
 import { useCallback, useEffect, useState } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
 
 interface BacktestDaysResponse {
@@ -86,7 +87,7 @@ export function BacktestPanel({ active }: { active: boolean }) {
     setLoading(true);
     setResult(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/backtest/run`, {
+      const res = await novaFetch(`${API_BASE_URL}/api/backtest/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_date: selectedDay, setup }),

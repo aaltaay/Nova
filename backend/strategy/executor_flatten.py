@@ -82,18 +82,50 @@ def _cancel_protective_legs(pos: "OpenPosition") -> list[int]:
     it is still working). Used only by a deliberate flatten: once we place a
     market close, the old bracket's protective legs must not survive it —
     a stale SELL stop/target left open after the position is gone can fire
-    against a future position in the same symbol."""
+    against a future position in the same symbol.
+
+    Cancels go through execution.service (ADR 007).
+    """
+    from strategy.executor import _cancel_via_service
+
     cancelled: list[int] = []
     open_ids = {o["order_id"] for o in _orders.open_orders()} if _ibkr_client.is_connected() else set()
     for order_id in (pos.parent_order_id, pos.target_order_id, pos.stop_order_id):
         if order_id not in open_ids:
             continue
         try:
-            _orders.cancel_order(order_id)
+            _cancel_via_service(order_id, source="flatten")
             cancelled.append(order_id)
         except Exception:
             logger.exception("flatten: cancel failed for order %s (%s)", order_id, pos.symbol)
     return cancelled
+
+
+def _flatten_market_sell(symbol: str, qty: float) -> dict:
+    """Market SELL through the centralized execution path (ADR 007)."""
+    import asyncio
+    import uuid
+    from execution.models import ExecutionCommand
+    from execution.service import execute
+
+    async def _run():
+        return await execute(
+            ExecutionCommand(
+                operation="place",
+                idempotency_key=f"flatten:sell:{symbol}:{uuid.uuid4()}",
+                source="flatten",
+                symbol=symbol,
+                side="SELL",
+                qty=qty,
+                order_type="MKT",
+                skip_risk=True,
+                skip_concurrency=True,
+            ),
+            wait_ack=False,
+        )
+
+    receipt = asyncio.run(_run())
+    return receipt.legacy_place_dict()
 
 
 def flatten_positions(confirm_token: str) -> dict:
@@ -147,7 +179,7 @@ def flatten_positions(confirm_token: str) -> dict:
         sell_qty = actual_qty
 
         cancelled = _cancel_protective_legs(pos)
-        close = _orders.place_order(symbol, "SELL", float(sell_qty), order_type="MKT")
+        close = _flatten_market_sell(symbol, float(sell_qty))
         row = {
             "symbol": symbol,
             "qty": sell_qty,

@@ -119,6 +119,43 @@ jobs:
           path: security-audit-report.json
           retention-days: 30
 
+  # SEC-005 — dedicated scanners (gitleaks, osv-scanner, semgrep). Warning-only
+  # until the baseline is clean enough to gate deploy.
+  gitleaks:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  osv-scanner:
+    name: OSV Scanner
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google/osv-scanner-action/osv-scanner-action@v2.0.3
+        with:
+          scan-args: |-
+            -r
+            --skip-git
+            ./
+
+  semgrep:
+    name: Semgrep
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: semgrep/semgrep-action@v1
+        with:
+          config: p/python
+
   agent-contract:
     name: Agent contract
     runs-on: ubuntu-latest

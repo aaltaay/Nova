@@ -43,6 +43,7 @@ Composition (main.py, app_lifespan, explicit state modules) wires adapters → d
 | Scanner caches (gappers/gainers/losers/movers) | `backend/runtime_state/` or `scanner_state` module (Phase 7) |
 | HOD Momo mutable engine state | Explicit HOD state owner (Phase 10) |
 | IBKR depth subscriptions | Depth state module (Phase 9) |
+| Broker order mutations | `execution.service.execute` → `ibkr/orders.py` only (ADR 007) |
 | App wiring / lifespan | `main.py` + `app_lifespan.py` only |
 
 ## Frontend layers

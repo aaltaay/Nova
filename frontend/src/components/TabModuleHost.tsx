@@ -12,6 +12,7 @@ import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
 import { ReportsTab } from '../reports/ReportsTab';
 import { getModule, type ActiveTab } from '../workspace/registry';
+import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
 import type { Afterhours, Gapper, Mover } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
@@ -165,7 +166,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
             ) {
               return;
             }
-            fetch(`${API_BASE_URL}/api/hod-momo/alerts`, { method: 'DELETE' }).catch(() => {});
+            novaFetch(`${API_BASE_URL}/api/hod-momo/alerts`, { method: 'DELETE' }).catch(() => {});
           }}
         />
       </>

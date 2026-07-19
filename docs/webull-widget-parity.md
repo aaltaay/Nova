@@ -50,14 +50,15 @@ operational dimensions. Similar appearance alone is not functional parity.
 | WID-016 | Trading | Depth-based Price Ladder trading | S1, S13 | DepthLadder is display-only | missing | Clicking a depth price does not stage an order | Use the widgets to add paper-first price-ladder staging |
 | WID-017 | Trading | Chart Trading | S1 | None | missing | Orders cannot be staged or adjusted directly on a chart | Use the widgets to design chart-based paper order staging |
 | WID-018 | Trading | Trading hotkeys | S1, S14 | Nova hotkeys plus DAS-compatible profile authoring | partial | Imported DAS commands remain authoring-only and the runtime action set is intentionally narrow | Use the widgets to map the next safely executable hotkey |
-| WID-019 | Account | Positions widget | S7 | PositionsPanel and account polling | matched | No material scoped gap | Use the widgets to audit position actions |
-| WID-020 | Account | Orders widget with history/export | S15, S17 | Working Orders panel + cancel; no CSV history export | partial | Nova has working-order columns + cancel but lacks Today's/history tabs, CSV export, and modify-order | Use the widgets to implement order history/export before order editing |
+| WID-019 | Account | Positions widget | S7 | PositionsPanel + per-row Flatten (ADR 007 place path) | matched | Flatten is full-position market exit; not order cancel | Use the widgets to audit position sizing / partial close later |
+| WID-020 | Account | Orders history CSV export + multi-day records | S15, S17 | Session Closed Orders (WID-027); no email/CSV export | partial | Webull Desktop Orders → Export / App History → Orders Records CSV still missing; modify-order deferred | Use the widgets to implement CSV export before order editing |
 | WID-021 | Reports | Performance widget with P&L, win rate, profit factor, duration | S1 | Reports v2, tags, R multiples, drawdown | partial | Metric names, trade-duration views, and drill-down coverage differ | Use the widgets to map Webull performance metrics to Reports v2 |
 | WID-022 | Simulation | Paper trading | S2, S9 | IBKR paper Gateway with explicit safety gates | matched | Nova requires local Gateway and preserves broker truth | Use the widgets to audit paper onboarding |
 | WID-023 | Workspace | Multi-screen and detachable windows | S3, S10 | Detached Stock View and Electron desktop | partial | Nova does not detach arbitrary modules into independently linked windows | Use the widgets to design detachable module windows |
 | WID-024 | Community | Comments widget | S3 | None | not-comparable | Social posting is not part of Nova's local-first trading workstation direction | Use the widgets to keep community features out of execution scope |
 | WID-025 | Market overview | Heatmap and broad market-flow widgets | S10, S16 | Dashboard and strategy scanners | missing | No broad heatmap or Webull-style market-flow visualization | Use the widgets to prioritize a market-overview widget |
-| WID-026 | Trading | Post-place Working Orders status (Orders → Working / Today's Orders) | S15, S17, S7 | `WorkingOrdersPanel` on Trading tab + collapsible Stock View **Open Orders** footer dock | partial | Bottom dock (collapse/expand); highlight after place + cancel; no modify, no filled-history tab | Use the widgets to add filled/cancelled history tabs next (keep `auto_live` NO-GO) |
+| WID-026 | Trading | Post-place Working Orders status (Orders → Working / Today's Orders) | S15, S17, S7 | `WorkingOrdersPanel` on Trading tab + collapsible Stock View **Open Orders** footer dock | partial | Bottom dock; highlight after place + cancel; no modify | Keep cancel-only; history is WID-027 / export WID-020 |
+| WID-027 | Account | Closed / Filled / Cancelled orders (History → Orders Records lifecycle) | S15, S17 | `closed_orders/` feature slice + `GET /api/ibkr/orders/closed`; Modules hide/show | partial | Session terminal orders + Filled/Cancelled filters; mock preview when empty; no CSV / multi-day History Records | Use the widgets to add CSV export (WID-020) next; keep `auto_live` NO-GO |
 
 ## Evidence
 
@@ -108,20 +109,30 @@ Webull sources were captured on 2026-07-16:
   named in S15 export: filled, partially filled, pending, working, cancelled,
   failed. Public docs do not publish an exhaustive column schema; Nova column
   map below is inferred from those lifecycle names + IBKR open-order fields.
+  Re-confirmed 2026-07-18 via public S17: Desktop **Orders → Working**;
+  Website **Today's Orders → Working Orders**; history via App
+  **History → Orders Records**, Desktop Orders widget **Export Orders**,
+  Website **Order History → Export**. Public FAQs do not name a literal
+  "Closed Orders" tab — Nova's **Closed Orders** maps to the filled/cancelled
+  lifecycle + History Records surface (not Working).
 
 Nova evidence was captured from revision `8c773f0` plus the uncommitted
-2026-07-18 working-orders work. Primary indexes:
+2026-07-18 working-orders and closed-orders work. Primary indexes:
 
 - `frontend/src/workspace/registry.ts`
+- `frontend/src/closed_orders/` (WID-027 feature slice — ADR 005)
 - `frontend/src/ibkr/`
 - `frontend/src/chart/`
 - `frontend/src/hod_momo/`
 - `frontend/src/reports/`
 - `backend/routes/trading.py`
-- `backend/ibkr/orders.py` (`open_orders` + fill progress fields)
+- `backend/ibkr/orders.py` (`open_orders`, `closed_orders`)
 - `frontend/src/ibkr/WorkingOrdersPanel.tsx`
 - `frontend/src/ibkr/PositionsPanel.tsx` / `TradingTab.tsx`
+- `frontend/src/ibkr/closeFullPosition.ts` (Flatten SSOT helper)
 - `frontend/src/stock_view/StockViewRail.tsx`
+- `architecture/decisions/005-frontend-feature-slices.md`
+- `architecture/decisions/007-centralized-trading-execution.md`
 - `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
 
 ### Working Orders column map (WID-026)
@@ -133,12 +144,12 @@ Nova evidence was captured from revision `8c773f0` plus the uncommitted
 | Quantity | `qty` (`totalQuantity`) | yes |
 | Filled / partial fill | `filled_qty` (`orderStatus.filled`) | yes |
 | Remaining / left | `remaining_qty` | yes (full table) |
-| Order type | `order_type` | yes |
-| Limit / price | `limit_price` | yes |
-| Stop | `stop_price` (`auxPrice`) | yes (full table) |
-| Avg fill | `avg_fill_price` | yes |
-| Status (working/pending/…) | `status` (IBKR status string) | yes |
-| Extended hours | `outside_rth` | yes (full table) |
+| Order type | `order_type` | yes — UI spells out Limit Order / Market Order / Stop Order (not LMT/MKT/STP) |
+| Limit / price | `limit_price` | yes — column **Limit price** |
+| Stop | `stop_price` (`auxPrice`) | yes — column **Stop price** |
+| Avg fill | `avg_fill_price` | yes — column **Average fill** |
+| Status (Working / Pending / Partially filled / …) | `status` (IBKR wire) | yes — mapped via `orderDisplay.ts` (never show PreSubmitted/Submitted raw) |
+| Session / extended hours | `outside_rth` | yes — **Regular hours** / **Extended hours** |
 | Order id | `order_id` | yes |
 | Account | Gateway paper/live mode (status bar) | mode badge elsewhere; not a column |
 | Time placed | not on `openTrades` row today | deferred |
@@ -148,6 +159,31 @@ Nova evidence was captured from revision `8c773f0` plus the uncommitted
 **Primary placement:** Trading tab account column (always visible when connected).
 **Secondary:** Stock View rail card under Trade when the open symbol has working
 orders (or a just-placed highlight id). Not a global drawer.
+
+### Closed Orders column map (WID-027)
+
+| Webull concept (S15/S17) | Nova / IBKR field | In Closed Orders v1 |
+|---|---|---|
+| Symbol | `symbol` | yes |
+| Side | `side` | yes |
+| Quantity | `qty` | yes |
+| Filled | `filled_qty` | yes |
+| Order type | `order_type` | yes — Webull-clean labels |
+| Limit / price | `limit_price` | yes |
+| Avg fill | `avg_fill_price` | yes |
+| Status (Filled / Cancelled / Failed) | terminal `status` | yes — All / Filled / Cancelled filters |
+| Cancel working order | — | **no** (lives on WID-026 only) |
+| Flatten / close position | Positions Flatten → `closeFullPosition` | companion control on WID-019 (not an order-row action) |
+| CSV / email export | — | WID-020 |
+| Multi-day History Records | — | WID-020 |
+
+**Primary placement:** Trading tab account column under Working Orders when
+Modules → Closed Orders is visible (`CLOSED_ORDERS_MODULE_ID`).
+**Isolation:** `frontend/src/closed_orders/` feature slice + workspace registry
+entry — hide via Modules menu; ready for future move/drag-drop without
+baking into StockViewPage forever.
+**Close vs Cancel:** Cancel = DELETE working order. Flatten / Close position =
+full exit via `POST /api/ibkr/order` (ADR 007), same as hotkeys `exit_pos`.
 
 ## Update protocol
 

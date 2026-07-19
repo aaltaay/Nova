@@ -10,13 +10,22 @@
  * so the rest of Nova (Alpaca scanner) is completely unaffected.
  */
 import { useCallback, useState } from 'react';
+import { ClosedOrdersModule } from '../closed_orders';
+import { novaFetch } from '../api/novaFetch';
+import {
+  API_BASE_URL,
+  CLOSED_ORDERS_MODULE_ID,
+  IBKR_PAPER_PORT,
+  IBKR_LIVE_PORT,
+  IBKR_MAX_DEPTH_SYMBOLS,
+} from '../constants';
+import { useModuleVisibility } from '../workspace';
 import { useIbkrStatus } from './useIbkrStatus';
 import { useIbkrAccount } from './useIbkrAccount';
 import { DepthLadder } from './DepthLadder';
 import { OrderTicket } from './OrderTicket';
 import { PositionsPanel } from './PositionsPanel';
-import { IBKR_PAPER_PORT, IBKR_LIVE_PORT, IBKR_MAX_DEPTH_SYMBOLS } from '../constants';
-import { API_BASE_URL } from '../constants';
+import type { PlaceOrderResult } from './placeOrder';
 
 interface TradingTabProps {
   selectedSymbol: string | null;
@@ -30,17 +39,30 @@ export function TradingTab({
   onOpenTrading,
 }: TradingTabProps) {
   const status = useIbkrStatus();
-  const { summary, positions, orders } = useIbkrAccount(status.connected);
+  const { summary, positions, orders, refresh } = useIbkrAccount(status.connected);
+  const { isVisible } = useModuleVisibility();
   const [depthSymbol, setDepthSymbol] = useState<string | null>(null);
   const [depthInput, setDepthInput] = useState('');
+  const [highlightOrderId, setHighlightOrderId] = useState<number | null>(null);
 
   const handleCancelOrder = useCallback(async (orderId: number) => {
     try {
-      await fetch(`${API_BASE_URL}/api/ibkr/order/${orderId}`, { method: 'DELETE' });
+      await novaFetch(`${API_BASE_URL}/api/ibkr/order/${orderId}`, { method: 'DELETE' });
+      refresh();
     } catch {
       // error will surface on next poll
     }
-  }, []);
+  }, [refresh]);
+
+  const handleOrderPlaced = useCallback(
+    (result: PlaceOrderResult) => {
+      if (result.ok && result.order_id != null) {
+        setHighlightOrderId(result.order_id);
+      }
+      refresh();
+    },
+    [refresh],
+  );
 
   const modeColor =
     status.mode === 'live' ? 'var(--red)' :
@@ -121,6 +143,18 @@ export function TradingTab({
           <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
             Nova will reconnect automatically once Gateway is running.
           </p>
+          {isVisible(CLOSED_ORDERS_MODULE_ID) && (
+            <div
+              className="ibkr-account-col ibkr-account-col--offline-preview"
+              data-testid="trading-closed-orders-host"
+            >
+              <ClosedOrdersModule
+                selectedSymbol={selectedSymbol}
+                onSelectSymbol={onSelectSymbol}
+                onOpenTrading={onOpenTrading}
+              />
+            </div>
+          )}
         </div>
       )}
 
@@ -159,11 +193,16 @@ export function TradingTab({
             <OrderTicket
               defaultSymbol={depthSymbol ?? ''}
               mode={status.mode}
+              connected={status.connected}
+              spendStatus={status.spend_status}
+              summary={summary}
+              positions={positions}
+              onOrderPlaced={handleOrderPlaced}
             />
           </div>
 
-          {/* Right / bottom: account + positions */}
-          <div className="ibkr-account-col">
+          {/* Right / bottom: positions + working + isolated Closed Orders module */}
+          <div className="ibkr-account-col" data-testid="trading-working-orders-host">
             <PositionsPanel
               summary={summary}
               positions={positions}
@@ -172,7 +211,21 @@ export function TradingTab({
               onSelectSymbol={onSelectSymbol}
               onOpenTrading={onOpenTrading}
               onCancelOrder={handleCancelOrder}
+              highlightOrderId={highlightOrderId}
+              mode={status.mode}
+              connected={status.connected}
+              spendStatus={status.spend_status}
+              onPositionClosed={refresh}
             />
+            {isVisible(CLOSED_ORDERS_MODULE_ID) && (
+              <div data-testid="trading-closed-orders-host">
+                <ClosedOrdersModule
+                  selectedSymbol={selectedSymbol}
+                  onSelectSymbol={onSelectSymbol}
+                  onOpenTrading={onOpenTrading}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}

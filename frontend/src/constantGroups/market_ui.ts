@@ -276,6 +276,10 @@ export const SCANNER_DATA_SOURCE_TITLES: Record<string, string> = {
 export const EMPTY_IBKR_DISCONNECTED =
   'IB Gateway is not connected — gappers and movers cannot scan. Log into IB Gateway (live, API port 4001), then Nova reconnects automatically.';
 
+/** Header Gateway chip tooltip — double-click launches/focuses the desktop app. */
+export const HEADER_GATEWAY_LAUNCH_HINT =
+  'Double-click to open or focus IB Gateway. Complete login + IBKR Mobile 2FA if prompted — Nova reconnects when the API port opens.';
+
 /** Human-readable labels for Alpaca `attributes` tokens (unknown keys shown as-is). */
 export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {
   overnight_halted: 'Overnight session halted',

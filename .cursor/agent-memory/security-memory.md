@@ -10,19 +10,19 @@ Canonical registry: `security/findings-registry.json` — open/accepted/fixed st
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-16T23:25:00-04:00
-source_revision: b8626e4
-result: FINDINGS
+captured_at: 2026-07-18T02:57:00-04:00
+source_revision: 3287641
+result: CLEAN
 metrics:
-  open_findings: 6
+  open_findings: 0
   accepted_risks: 0
-  highest_open_cvss: 9.8
-  critical_open: 2
-  high_open: 2
-  medium_open: 2
+  highest_open_cvss: 0
+  critical_open: 0
+  high_open: 0
+  medium_open: 0
 blockers: []
 dashboard_freshness: clean
-notes: "Counts derived from security/findings-registry.json — re-read registry for truth. SEC-007 candidate (2026-07-16) was a dedup, not a new finding — see run log; registry now accurately reflects 6 open findings with no duplicates."
+notes: "2026-07-18 re-audit after parent remediation: run_builtin_checks()=[]; SEC-001–008 status=fixed; spot-checks pass; IBKR/auto_live gates intact."
 ```
 
 ---
@@ -59,7 +59,8 @@ False positives the deterministic scanner or greps keep hitting. Pattern + reaso
 
 Open improvements. Newest first. Mark `[x]` when done and move a one-line note to **Completed**.
 
-- [~] **CI gate** — `security-audit` job added to `deploy.yml` (warning-only, `continue-on-error: true`); runs `tools/security_audit.py`; gitleaks/osv-scanner/semgrep still missing from CI (tracked as SEC-005).
+- [x] **CI scanners (SEC-005)** — `deploy.yml` now has `gitleaks` / `osv-scanner` / `semgrep` jobs (warning-only, `continue-on-error`). Remaining: promote warn→fail when ready.
+- [ ] **CI fail-on-findings** — remove `continue-on-error: true` / add `--fail-on-findings` once baseline stays clean.
 - [ ] **Semgrep rules** — add a `semgrep.yml` with Nova-specific rules: unauth executor routes, IBKR gate bypass patterns, CORS `allow_origins="*"` with credentials.
 - [ ] **ZAP passive scan** — configure OWASP ZAP in passive (spider-only) mode against `127.0.0.1:8000` for a local session; document safe allowlist in memory.
 - [ ] **Schemathesis allowlist expansion** — run `schemathesis run http://127.0.0.1:8000/openapi.json` against the local API; document which endpoints are safe to fuzz vs. skip (order/kill-switch routes must be skipped).
@@ -69,6 +70,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 ### Completed
 
+- [x] 2026-07-18 — Parent remediated SEC-001–SEC-008; re-audit verified builtin empty + spot-checks.
 - [x] 2026-07-16 — Initial security agent install (this file + `security.md` + `security-continuity.mdc` created).
 
 ---
@@ -86,6 +88,25 @@ Facts discovered in a run that are **not yet** in `security.md`. After promoting
 Newest first. Keep entries short. Skip boring all-clean runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-18 — Re-audit after SEC-001–008 remediation
+
+- **Scope:** Verify-only (no product fixes). Confirm parent closed SEC-001–SEC-008.
+- **Commands:** `py -3 -c "…run_builtin_checks()"` → `[]`; `py -3 tools/security_audit.py --json` → `open_finding_count: 0`, `new_finding_ids: []`.
+- **Registry:** SEC-001–SEC-008 all `status: fixed`.
+- **Spot-checks:** `backend/auth.py` (APIKeyHeader + require_auth + MutatingApiKeyMiddleware); GET `/api/config` returns `api_key_masked` / `api_secret_masked`; `alerts/webhook_url.py` + schemes `("https",)`; Dockerfile `USER nova` UID 10001; `deploy.yml` gitleaks/osv-scanner/semgrep; torch absent from `requirements.txt` (optional `requirements-ml.txt`); CORS localhost:5173 only.
+- **IBKR / auto_live:** `ibkr/safety.py` gates + `control_mode` auto_live reject unchanged — not weakened.
+- **Result:** CLEAN. Security-Status already current; dashboard snapshot refresh via sync + body update.
+- **Memory update:** Snapshot → 0 open / CLEAN; run-log; backlog CI scanners marked done.
+
+### 2026-07-18 — Full posture / vulnerability search (Daddy dispatch)
+
+- **Scope:** Full-repo vulnerability / security posture search — secrets, authz, injection, deserialization, SSRF, dep CVEs, IBKR gate bypass, CORS/local API, path traversal, swallowed security errors.
+- **Commands:** `py -3 tools/security_audit.py --json` (0 new from nova-builtin); `pytest tools/test_security_audit.py` 27 passed; `pip_audit -r backend/requirements.txt` (torch CVEs); `npm audit --omit=dev` (0); `ruff check backend` (3 F401/F841 hygiene only); `git ls-files | rg .env` (examples only).
+- **New findings:** SEC-007 (torch 2.10.0 PYSEC-2026-139 + PYSEC-2025-194, medium); SEC-008 (unauth alerts webhook SSRF, high, CWE-918).
+- **Reconfirmed open:** SEC-001–006; highest CVSS still SEC-002 @ 9.8. IBKR gates in `ibkr/safety.py` + `execution/validate.py` intact; `auto_live` rejected; no eval/exec/pickle.loads; no committed secrets.
+- **Memory update:** Snapshot → 8 open; dashboard refresh-required; registry + scan_runs updated.
+- **Files updated:** `security/findings-registry.json`, `security-memory.md`.
 
 ### 2026-07-16 — SEC-007 candidate triaged as dedup, not a new finding
 

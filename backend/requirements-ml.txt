@@ -1,0 +1,4 @@
+# Optional FinBERT stack (SEC-007). Not installed by default Dockerfile / CI.
+# Usage: pip install -r backend/requirements-ml.txt
+transformers==5.5.0
+torch>=2.13.0,<3

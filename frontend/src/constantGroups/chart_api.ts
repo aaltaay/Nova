@@ -337,6 +337,24 @@ export const STOCK_VIEW_DEPTH_ORDER_SPLIT_MAX_PCT = 86;
 /** Minimum pane height (px) hints for depth / order panes in the trade stack. */
 export const STOCK_VIEW_DEPTH_PANE_MIN_PX = 120;
 export const STOCK_VIEW_ORDER_PANE_MIN_PX = 140;
+/**
+ * Chart grid: top row (1m / 5m) vs bottom row (Full Day / 15m).
+ * Drag the horizontal handle between rows; double-click resets.
+ */
+export const STOCK_VIEW_CHART_ROW_SPLIT_KEY = 'nova.stockView.chartRowSplitPct';
+export const STOCK_VIEW_CHART_ROW_SPLIT_PCT = 50;
+export const STOCK_VIEW_CHART_ROW_SPLIT_MIN_PCT = 28;
+export const STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT = 72;
+/**
+ * Charts+rail vs Open Orders dock vertical split (when dock is expanded).
+ * Drag the handle above Open Orders; double-click resets.
+ */
+export const STOCK_VIEW_MAIN_ORDERS_SPLIT_KEY = 'nova.stockView.mainOrdersSplitPct';
+export const STOCK_VIEW_MAIN_ORDERS_SPLIT_PCT = 78;
+export const STOCK_VIEW_MAIN_ORDERS_SPLIT_MIN_PCT = 52;
+export const STOCK_VIEW_MAIN_ORDERS_SPLIT_MAX_PCT = 92;
+/** Soft floor (px) for the expanded Open Orders pane. */
+export const STOCK_VIEW_OPEN_ORDERS_PANE_MIN_PX = 96;
 /** Stock View rail module card titles (uppercase in CSS). */
 export const STOCK_VIEW_MODULE_QUOTE_TITLE = 'Stock Quote';
 export const STOCK_VIEW_MODULE_L2_TITLE = 'Level 2';
@@ -348,11 +366,37 @@ export const STOCK_VIEW_MODULE_OPEN_TITLE = 'Trade';
 export const WORKING_ORDERS_PANEL_TITLE = 'Working Orders';
 /** Stock View open-orders dock title (bottom strip under charts). */
 export const STOCK_VIEW_MODULE_WORKING_ORDERS_TITLE = 'Open Orders';
+/**
+ * Closed / filled / cancelled session orders (Webull History → Orders Records /
+ * filled+cancelled lifecycle from S15). Workspace module id for hide/move.
+ */
+export const CLOSED_ORDERS_MODULE_ID = 'closed_orders';
+export const CLOSED_ORDERS_PANEL_TITLE = 'Closed Orders';
+export const CLOSED_ORDERS_EMPTY_MESSAGE =
+  'No filled or cancelled orders in this Gateway session.';
+export const CLOSED_ORDERS_SAMPLE_BANNER =
+  'Sample preview — filled/cancelled rows (not from IBKR)';
+/** Positions-row Flatten — full exit via ADR 007 place path (not cancel). */
+export const CLOSE_POSITION_BUTTON_LABEL = 'Flatten';
+export const CLOSE_POSITION_BUTTON_BUSY_LABEL = 'Flattening…';
+export const CLOSE_POSITION_NO_POSITION_TITLE = 'No open position to flatten';
+export const CLOSE_POSITION_VS_CANCEL_HINT =
+  'Flatten closes the entire position with a market order. Cancel only removes a working order.';
 /** localStorage: `1` = Stock View open-orders dock collapsed. */
 export const STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY =
   'nova.stockView.openOrders.collapsed';
 /** Default collapsed until the user expands or an order is placed. */
 export const STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED = true;
+/** localStorage: hide UI-only sample working orders (`1` = hidden). */
+export const STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY =
+  'nova.stockView.openOrders.sampleHidden';
+/** Banner when showing mock rows (never real broker orders). */
+export const STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER =
+  'Sample preview — 5 paper-style rows for this symbol (not from IBKR)';
+/** Stock View footer dock tab: open (working) vs closed (filled/cancelled). */
+export const STOCK_VIEW_ORDERS_TAB_KEY = 'nova.stockView.ordersDock.tab';
+export type StockViewOrdersTab = 'open' | 'closed';
+export const STOCK_VIEW_ORDERS_TAB_DEFAULT: StockViewOrdersTab = 'open';
 /** Suffix pattern for L2: " · TOP {n}". */
 export const STOCK_VIEW_MODULE_L2_TOP_PREFIX = 'TOP';
 /** Headlines shown in the trading-page side column before "More". */

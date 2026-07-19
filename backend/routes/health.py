@@ -20,6 +20,7 @@ from pydantic import BaseModel
 
 import alpaca as _alpaca
 import exchanges as _exchanges
+from alerts.channels_store import mask_secret
 from alpaca import _env, _get_discovery_provider, _get_feed, _set_discovery_provider, _set_feed
 from constants import (
     DATA_FEED_DEFAULT,
@@ -35,11 +36,21 @@ from universe import reset_scan_caches
 router = APIRouter(tags=["health"])
 
 
+def _is_secret_placeholder(value: str | None) -> bool:
+    """True when the client sent an empty or masked value (keep existing secret)."""
+    if value is None:
+        return True
+    stripped = value.strip()
+    if not stripped:
+        return True
+    return set(stripped) <= {"*"}
+
+
 # ── Request models ────────────────────────────────────────────────────────────
 
 class ConfigUpdate(BaseModel):
-    api_key: str
-    api_secret: str
+    api_key: str = ""
+    api_secret: str = ""
     base_url: str
     data_feed: str = DATA_FEED_DEFAULT
     discovery_provider: str = DISCOVERY_PROVIDER_DEFAULT
@@ -76,9 +87,15 @@ def health_check():
 @router.get("/api/config")
 def get_config():
     from ibkr import client as _ibkr_client
+
+    api_key = _env("APCA_API_KEY_ID") or ""
+    api_secret = _env("APCA_API_SECRET_KEY") or ""
     return {
-        "api_key": _env("APCA_API_KEY_ID") or "",
-        "api_secret": _env("APCA_API_SECRET_KEY") or "",
+        # Never return plaintext broker secrets (SEC-001).
+        "api_key_masked": mask_secret(api_key),
+        "api_key_set": bool(api_key),
+        "api_secret_masked": mask_secret(api_secret),
+        "api_secret_set": bool(api_secret),
         "base_url": _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets",
         "data_feed": _get_feed(),
         "data_feed_options": list(DATA_FEED_OPTIONS),
@@ -92,8 +109,10 @@ def get_config():
 def update_config(config: ConfigUpdate):
     env_path = str(env_file_path())
     os.makedirs(os.path.dirname(env_path) or ".", exist_ok=True)
-    set_key(env_path, "APCA_API_KEY_ID", config.api_key)
-    set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
+    if not _is_secret_placeholder(config.api_key):
+        set_key(env_path, "APCA_API_KEY_ID", config.api_key)
+    if not _is_secret_placeholder(config.api_secret):
+        set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
     set_key(env_path, "APCA_API_BASE_URL", config.base_url)
     set_key(env_path, "ALPACA_DATA_FEED", config.data_feed)
     set_key(env_path, "NOVA_DISCOVERY_PROVIDER", config.discovery_provider)

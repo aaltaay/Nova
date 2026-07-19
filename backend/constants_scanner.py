@@ -27,11 +27,13 @@ CLIENT_ERRORS_MAX_BODY_BYTES = 16_384
 CLIENT_ERRORS_MAX_MESSAGE_CHARS = 2_000
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
-# Local dev default: any origin (Vite runs on a fixed localhost port, no
-# cookies/credentials are used). Override for non-local deploys with the
-# NOVA_CORS_ALLOWED_ORIGINS env var (comma-separated exact origins, e.g.
+# Local-dev default: Vite origins only (SEC-003). Override for deploys with
+# NOVA_CORS_ALLOWED_ORIGINS (comma-separated exact origins, e.g.
 # "https://nova.up.railway.app,https://nova.vercel.app").
-CORS_ALLOWED_ORIGINS_DEFAULT = ["*"]
+CORS_ALLOWED_ORIGINS_DEFAULT = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 # ── Minimum price filter ─────────────────────────────────────────────────────
 # exclude any stock priced below $0.50 (applies to gappers and gainers)
@@ -63,6 +65,18 @@ EXCLUDED_NAME_KEYWORDS = (
 # warrants (/W, /WS), units (/U), rights (/R), preferred shares (/P*, .P*),
 # exchange-prefixed foreign tickers (TSX:DOO), and known Alpaca test symbols.
 SYMBOL_EXCLUDE_RE = re.compile(r"[./:]|^ZVZZT$|^NTEST", re.IGNORECASE)
+
+# ── US equity session clock (America/New_York) ──────────────────────────────
+# Single source of truth for premarket / RTH / after-hours boundaries.
+# Used by backend/market.py (scan mode) and mirrored in frontend
+# constantGroups/market_ui.ts for chart session highlighting.
+# Bounds are [start, end) in local ET minutes-from-midnight.
+SESSION_PREMARKET_START_MIN_ET = 4 * 60          # 04:00
+SESSION_RTH_OPEN_MIN_ET = 9 * 60 + 30            # 09:30
+SESSION_RTH_CLOSE_MIN_ET = 16 * 60               # 16:00
+SESSION_AFTERHOURS_END_MIN_ET = 20 * 60          # 20:00
+# Volume-day for pace RVOL: premarket open → RTH close (not after-hours).
+SESSION_VOLUME_DAY_END_MIN_ET = SESSION_RTH_CLOSE_MIN_ET
 
 # ── Scanner sizing ──────────────────────────────────────────────────────────
 NOVA_API_REV = "4"

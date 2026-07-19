@@ -7,7 +7,7 @@ tags: [warrior-trading, library, pinecone, downloads]
 
 # Warrior Trading — Local Library Inventory
 
-Updated **2026-07-14** after member-dashboard sync + de-duplication against the existing `downloads/` tree.
+Updated **2026-07-17** (LMS full video catalog + caption coverage) after earlier 2026-07-14 member-dashboard sync + de-duplication against the existing `downloads/` tree.
 
 **Live member site map (URLs, LMS catalog, Day Trade Dash widgets):** [[Authenticated-Site-Map]] · runbook `docs/warrior-authenticated-access.md`.
 
@@ -17,8 +17,8 @@ Updated **2026-07-14** after member-dashboard sync + de-duplication against the 
 |------|---------|
 | `downloads/warrior-trading-slides/` | LMS slide PDFs + layout packs by course |
 | `downloads/warrior-trading-resources/` | Free ebook, Excel trade sheets, eSignal zips |
-| `downloads/warrior-trading-caption-notes/` | Official captions + Whisper gap transcripts |
-| `downloads/warrior-trading-videos/` | Local MP4s |
+| `downloads/warrior-trading-caption-notes/` | Official captions + Whisper gap transcripts · `TRANSCRIPT_COVERAGE.md` · `_caption_cache/catalog.json` (544 videos / 18 captioned as of 2026-07-17) |
+| `downloads/warrior-trading-videos/` | Local MP4s (for Whisper gap fill) |
 
 `docs/warrior-trading/` was created briefly then **removed** after merging unique files into the roots above (68 exact duplicate slide PDFs discarded).
 

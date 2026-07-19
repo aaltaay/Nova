@@ -1,5 +1,6 @@
 /** Polls executor status and exposes mode / staged / emergency actions (Nova OS P4). */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL, EXECUTOR_POLL_INTERVAL_MS, NOVA_OS_FLATTEN_CONFIRM_TOKEN } from '../constants';
 import type { ExecutorStatus } from './types';
 
@@ -46,7 +47,7 @@ export function useExecutor(enabled: boolean): UseExecutorReturn {
 
   const postJson = useCallback(async (path: string, body?: object) => {
     try {
-      const res = await fetch(`${EXECUTOR_API}/${path}`, {
+      const res = await novaFetch(`${EXECUTOR_API}/${path}`, {
         method: 'POST',
         headers: body ? { 'Content-Type': 'application/json' } : undefined,
         body: body ? JSON.stringify(body) : undefined,

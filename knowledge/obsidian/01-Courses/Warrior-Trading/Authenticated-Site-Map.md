@@ -86,7 +86,7 @@ Popups seen: cookie consent; chatroom **Disclaimer** (ACCEPT / DECLINE) on Day T
 | Mentor Topic Suggestions | `/mentor-suggestion-box/` |
 | Day Trading Terminology | `/day-trading-terminology/` |
 | News Room and Squawk | Support article `19000131769` |
-| Scanner Resources | Support article scanners how-to |
+| Scanner Resources | Support article `19000117763` — *Scanners: How to Load & Use Them in the Chat Room* (`support.warriortrading.com/support/solutions/articles/19000117763-scanners-how-to-load-use-them-in-the-wt-chat-room`) |
 | Day Trade Dash Charting Resources | Support folder `19000171870` |
 | Accessing the Live Stream | Support Day Trade Dash sign-in article |
 | eSignal Resources (Pro) | `/vwap-installation-instructions-for-esignal/` → may land on layout install page |
@@ -162,8 +162,72 @@ Each widget: title bar with Online/Offline (and last-updated for gappers), gear/
 | Short Interest |
 | Strategy Name |
 
-HOD also exposes **Select strategies**.  
+HOD also exposes **Select strategies** (bell / strategy checklist for audio + visibility).  
 Running Up may show burst annotations such as `(3 in 5sec)` and flame/news icons on symbols.
+
+### Small Cap HOD Momentum — population model (official)
+
+Primary KB: support article `19000117763` — *Scanners: How to Load & Use Them in the Chat Room*  
+(`https://support.warriortrading.com/support/solutions/articles/19000117763-scanners-how-to-load-use-them-in-the-wt-chat-room`)
+
+Teaching companion: LMS **BA101 — Day Trading: The Basics → Chapter 12: Scanning 101**  
+(Deeper per-strategy color/usage also pointed by KB to **Day Trading: Strategies & Scaling** / SS101.)
+
+| Fact | Official statement (paraphrase) |
+|------|----------------------------------|
+| Scanner class | **Alert scanner** (≈1s updates; optional chime) — not a 30s Top List |
+| Appearance rule | **New high-of-day** *plus* **above-average momentum** matching a sub-strategy |
+| Not traditional HOD | Does **not** alert on every HOD print (would flood); needs momentum threshold over a time window |
+| Timing nuance | Alert may fire slightly after the HOD print (e.g. within next minute) once momentum confirms |
+| Premarket / AH | Fewer alerts expected when volume is thin |
+| vs Running Up | Running Up = quick % moves **without** requiring a new HOD (can alert earlier) |
+
+**BA101 Scanning 101 teaching model (Ross):** new HOD + five pillars of stock selection + recent % surge (“moved at least x% in the last few minutes”). Scanners cast a slightly wider net than strict five-pillar; trader still checks pillars after the alert.
+
+**Five pillars (BA101 Ch.3 — What Makes a Strong Stock):** volatility (≥~10% up preferred), price (best ~$2–$20), relative volume (~5×), breaking news, supply/float (under ~20M shares). Exact HOD sub-strategy numeric cutoffs are not fully published in the KB list below.
+
+### Small Cap HOD Momentum — Select strategies inventory (KB)
+
+Documented under **Alert Scanners → Small-Cap - High of Day Momentum (HOD Momo)** as sub-scanners:
+
+1. Low Float - Med Rel Vol  
+2. Low Float - High Rel Vol  
+3. Low Float - High Rel Vol - Price $20+  
+4. Low Float Volatility Hunter - HOD breakout  
+5. Former Momo Scanner *(live Strategy Name column often shows **Former Momo Stock**)*  
+6. Medium Float - Med Rel Vol - Price $20+  
+7. Medium Float - High Rel Vol - Price $20+  
+8. Medium Float - High Rel Vol - Price under $20  
+9. Squeeze Alert - Up 10% in 10min  
+10. Squeeze Alert - Up 5% in 5min  
+11. Squeeze Alert - 52wk Breakout  
+
+Related sibling alert scanners (separate widgets, not HOD sub-strategies): Penny HOD Momentum (&lt;$2), Running Up, Running Down, Large Cap HOD, Halt, Ross's 5 Pillar Alert.
+
+**Ross audio preset (KB):** select all HOD strategies **except Medium Float** scanners.
+
+**Live Strategy Name column (research snap 2026-07-16, after-hours):** Former Momo Stock; Squeeze Alert - Up 10% in 10min; Squeeze Alert - Up 5% in 5min; Low Float - High Rel Vol; Medium Float - High Rel Vol - Price under $20.
+
+### Former Momo Stock — published evidence (2026-07-17 deep pass)
+
+**Verdict:** Warrior does **not** publish a numeric filter formula for the HOD sub-strategy. “Former Momo” is a **named HOD alert lane** + a **qualitative stock-type** in SS101. Do not invent float/RVOL/% thresholds for Nova parity from the name alone.
+
+| Source | What it says about Former Momo |
+|--------|--------------------------------|
+| Support `19000117763` Alert Scanners | Lists **Former Momo Scanner** under Small-Cap HOD Momo — **no % / float / RVOL / lookback formula** |
+| Same article — Strategy column | Colors differ by strategy; “for more on these strategies” → **SS101 Strategies & Scaling** |
+| Same article — Ross audio preset | Select **all** HOD strategies **except Medium Float** (implies Former Momo **included** in Ross’s chime set) |
+| Support search `"Former Momo"` | Only substantive hit is article `19000117763` (list membership); no dedicated Former Momo KB article |
+| BA101 Ch.12 Scanning 101 | Color guide: “former Momo scanners” = one **green** horizontal shade; significance ranked below bright Squeeze-10% / Low-Float-High-RVOL colors |
+| BA101 Ch.12 audio prefs (Ross) | Enables **low float** + **squeeze** audio; skips **medium float** and “these others” (Former Momo not named explicitly) |
+| SS101 Ch.4 Daily Chart Patterns (slides) | **Former momo stock / former runner** = recent big-% mover that drew volume & attention; watch if it hits scanners with **fresh news**; daily flags on former runners; **not** a coded HOD filter table |
+| SS101 LMS search `"Former Momo"` | Hits **Chapter 4 Quiz** only (not Ch.12 Stock Scanning text index) |
+| SS101 Ch.12 Stock Scanning (LMS) | Video unit *SS25 - Chapter 12 Stock Scanning…*; no published slide text in search index defining Former Momo filters; local `ss-14` PDF in “Chapter 12” folder is trading-plan content (LMS Ch.14 numbering) |
+| SS101 trading-plan slides (`ss-14`) | Checklist line: **“Former Momo Stock: Am I familiar with the name? How has it traded in the past?”** (gap-scanner analysis questions — not scanner code) |
+| Live Select strategies (2026-07-17) | Checkbox label **Former Momo Stock** (not KB “Scanner”); **no tooltip/help text** with filters |
+| Live row observation (not a rule) | e.g. VELO tagged Former Momo Stock with ~13.86M float & daily RVOL ~0.7 while alerting — inconsistent with Low-Float/High-RVOL lanes; **do not treat as official formula** |
+
+**Label map:** KB `Former Momo Scanner` ↔ UI/column `Former Momo Stock`.
 
 **Top Gappers:**
 
@@ -262,6 +326,26 @@ Chapters (each with Quiz + Quiz Answers where listed):
 16. End of Course  
 
 Local slide/video mirrors: see [[Local-Library-Inventory]] under `downloads/warrior-trading-*`.
+
+### LMS video / caption inventory (2026-07-17)
+
+Full catalog harvest (titles + Wistia media-ids only; transcript bodies stay under gitignored `downloads/warrior-trading-caption-notes/`):
+
+| Metric | Count |
+|--------|------:|
+| Unique video units (12 enrolled courses) | 544 |
+| Official English caption tracks | 18 |
+| Caption gaps (need Whisper / local video) | 526 |
+| Whisper BA101 already on disk | 7 |
+
+Course codes enrolled: BA101, SS101, LTA, RH101, DE101, PSY101, AS101, IRA101, INT101, HVM101, TOS101, SCAL101.
+
+**Priority gaps (no official captions):**
+
+- SS101 · Part 1: Daily Chart Patterns — media `gbw1yl3luq` (~3341s)
+- SS101 · Stock Scanning (Day Trade Dash Scanner) — media `m0ilv07764` (~1369s)
+
+Re-run: `downloads/warrior-trading-caption-notes/_harvest_lms_captions.py` · gap report: `TRANSCRIPT_COVERAGE.md`.
 
 ---
 

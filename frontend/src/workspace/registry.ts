@@ -3,6 +3,7 @@
  * TabNav / Modules menu / future ModuleHost read from here (Phase 4).
  */
 import type { ComponentType } from 'react';
+import { ClosedOrdersModule } from '../closed_orders';
 import {
   ChartsModule,
   Level2Module,
@@ -10,6 +11,7 @@ import {
   QuoteHeaderPanel,
   TimeSalesModule,
 } from '../modules';
+import { CLOSED_ORDERS_MODULE_ID, CLOSED_ORDERS_PANEL_TITLE } from '../constants';
 
 /** Feed dependencies declared for honesty / future ModuleHost gating. */
 export type FeedDep =
@@ -199,6 +201,15 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     component: ChartsModule,
     feedDeps: ['chart'],
     defaultPlacement: 'stock_view',
+  },
+  {
+    id: CLOSED_ORDERS_MODULE_ID,
+    title: CLOSED_ORDERS_PANEL_TITLE,
+    component: ClosedOrdersModule,
+    feedDeps: ['none'],
+    /** Trading account column host today; Modules menu hide/show; future drag-drop slot. */
+    defaultPlacement: 'side_panel',
+    defaultVisible: true,
   },
 ];
 

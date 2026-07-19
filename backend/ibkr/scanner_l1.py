@@ -172,6 +172,14 @@ async def _reconcile_once(
     tab = (get_active_tab() or "none").strip().lower()
     raw_tab = get_tab_symbols(tab) if tab and tab != "none" else []
     raw_hod = list(get_hod_symbols() or [])
+    # Skip symbols already known unqualifiable — don't burn qualify slots.
+    try:
+        import hod_momo_active as _hod_active
+
+        raw_hod = [s for s in raw_hod if not _hod_active.is_l1_subscribe_blocked(s)]
+        raw_tab = [s for s in raw_tab if not _hod_active.is_l1_subscribe_blocked(s)]
+    except Exception:
+        pass
     plan = plan_stream_symbols(raw_tab, raw_hod)
 
     # Brief grace: keep prior tab streams during switch so prices don't blink out.
@@ -205,6 +213,17 @@ async def _reconcile_once(
     error = None
     if failed:
         error = f"IBKR L1 subscribe failed for {len(failed)} symbol(s)"
+        # Keep unqualifiable explore names out of the next HOD active set so
+        # they cannot occupy a dead slot and flap coverage 98%→fail.
+        try:
+            import hod_momo_active as _hod_active
+
+            _hod_active.note_l1_subscribe_failed(failed)
+        except Exception:
+            logger.debug(
+                "scanner_l1: could not record L1 subscribe failures",
+                exc_info=True,
+            )
     if plan["rejected"]:
         error = (error + "; " if error else "") + (
             f"capacity: {len(plan['rejected'])} symbol(s) not streamed"

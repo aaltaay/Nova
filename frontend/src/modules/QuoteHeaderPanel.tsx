@@ -1,5 +1,6 @@
 /** Quote header: symbol, price, blocklist toggle, description, last-updated. */
 import { useEffect, useState } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL, QUOTE_CARD_TITLE } from '../constants';
 import type { TickerDetail } from '../types/ticker';
 import { fmtPct, fmtTimestamp } from '../utils/quoteFormat';
@@ -40,7 +41,7 @@ export function QuoteHeaderPanel({
 
   function onToggleBlock() {
     if (blocked) {
-      fetch(`${API_URL}/hod-momo/blocklist/${detail.symbol}`, { method: 'DELETE' })
+      novaFetch(`${API_URL}/hod-momo/blocklist/${detail.symbol}`, { method: 'DELETE' })
         .then(r => {
           if (r.ok) setBlocked(false);
         })
@@ -55,7 +56,7 @@ export function QuoteHeaderPanel({
     ) {
       return;
     }
-    fetch(`${API_URL}/hod-momo/blocklist`, {
+    novaFetch(`${API_URL}/hod-momo/blocklist`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ symbol: detail.symbol }),

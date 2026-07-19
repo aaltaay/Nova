@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
 import type {
   HodMomoConfigAction,
@@ -87,7 +88,7 @@ export function useHodMomoConfig(): UseHodMomoConfigReturn {
   const debouncedPost = useCallback((key: string, body: object) => {
     if (debounceRef.current[key]) clearTimeout(debounceRef.current[key]);
     debounceRef.current[key] = setTimeout(() => {
-      fetch(`${API}/hod-momo/config`, {
+      novaFetch(`${API}/hod-momo/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -106,7 +107,7 @@ export function useHodMomoConfig(): UseHodMomoConfigReturn {
   }, [debouncedPost]);
 
   const resetStrategy = useCallback(async (strategyId: number) => {
-    const res = await fetch(`${API}/hod-momo/config`, {
+    const res = await novaFetch(`${API}/hod-momo/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scope: 'reset_one', strategy_id: strategyId }),
@@ -118,7 +119,7 @@ export function useHodMomoConfig(): UseHodMomoConfigReturn {
   }, []);
 
   const resetAll = useCallback(async () => {
-    const res = await fetch(`${API}/hod-momo/config`, {
+    const res = await novaFetch(`${API}/hod-momo/config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scope: 'reset_all' }),

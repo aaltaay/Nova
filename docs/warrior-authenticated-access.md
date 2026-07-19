@@ -66,6 +66,16 @@ Do not commit SSO query tokens, JWT payloads, or cookie dumps.
   `screenshot --full "./.tmp/warrior-site-map/page.png"`.
 - Stop and ask the user for: CAPTCHA, 2FA, payment/billing changes,
   enrollment/purchase, posting chat, or any trading action.
+- If `open_warrior_site.ps1` fails with `DevToolsActivePort` / Chrome exited early,
+  an orphan Chrome may still hold the warrior profile. Kill only processes whose
+  command line contains `Nova\browser-profiles\warrior-site`, then relaunch.
+  Do not kill the user's other Chrome windows.
+
+## HOD parity research snapshot
+
+For Nova HOD Momentum parity comparison (not product ingestion): write visible
+HOD widget rows to `.tmp/hod-momo-parity/warrior_latest.json` with shape
+`{ "ts", "online", "rows": [{ "symbol", "strategy", "time", "price" }] }`.
 
 ## Safe boundaries
 
@@ -84,7 +94,7 @@ Site hierarchy and widget inventory (for future questions):
 - Canvas: `agent-warrior.canvas.tsx` (Cursor canvases folder — owned by the `warrior` specialist)
 - Invoke: “Use the warrior subagent to navigate Warrior Trading”
 
-Nova Agent stewards Nova Home and unmanaged canvas cleanup. Do **not** create one-off
+Docs stewards Nova Home and unmanaged canvas cleanup. Do **not** create one-off
 `warrior-*-map.canvas.tsx` boards — update `agent-warrior` instead.
 
 ## Recovery
@@ -92,6 +102,7 @@ Nova Agent stewards Nova Home and unmanaged canvas cleanup. Do **not** create on
 | Symptom | Fix |
 |---------|-----|
 | Access Denied after profile wipe | Re-login once in the headed window |
+| Access Denied on `/dashboard/` / chatroom while LMS still works | Session for `www.warriortrading.com` expired or entitlement gate; Sign in again in headed profile (CAPTCHA/2FA if shown). CRM may still show Active Day Trade Dash Tools — that alone does not unlock SSO. Do not scrape a fake HOD snapshot. |
 | Chatroom disclaimer every visit | Accept once; profile should remember |
 | SSO link expired | Re-enter from `/chat-room-access/` (do not reuse old SSO URLs) |
 | Stale session | Clear only the local profile dir above, then first-login again |

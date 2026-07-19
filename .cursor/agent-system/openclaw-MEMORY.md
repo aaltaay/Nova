@@ -15,7 +15,7 @@ Nova Cursor agents remain authoritative; this is an interoperability snapshot.
 - news: pending=0 promotable=0 backlog=2
 - widgets: pending=0 promotable=0 backlog=5
 - warrior: pending=0 promotable=0 backlog=10
-- tester: pending=1 promotable=1 backlog=6
+- tester: pending=0 promotable=0 backlog=6
 - maintainer: pending=0 promotable=0 backlog=6
 - security: pending=0 promotable=0 backlog=7
 - docs: pending=0 promotable=0 backlog=6

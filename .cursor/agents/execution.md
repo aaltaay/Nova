@@ -35,7 +35,7 @@ You are Nova's **Execution Auditor**. Audit the centralized execution pipe (ledg
 | Gate | Command | Working dir |
 |------|---------|-------------|
 | Execution unit tests | `py -3 -m pytest backend/tests/test_execution_service.py -q` | repo root |
-| Latency probe (synthetic) | `py -3 tools/execution_latency_probe.py --synthetic --samples 20` | repo root |
+| Latency probe (synthetic) | `py -3 tools/execution_latency_probe.py --confirm-paper-orders --synthetic --samples 20` | repo root |
 | Agent contract | `py -3 tools/agent_contract.py` | repo root |
 
 Windows: always `py -3` for Python.

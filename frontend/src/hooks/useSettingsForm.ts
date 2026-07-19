@@ -3,6 +3,7 @@
  * Extracted from App.tsx so the dashboard page stays focused on layout.
  */
 import { useCallback, useRef, useState } from 'react';
+import { novaFetch } from '../api/novaFetch';
 import {
   API_URL,
   DATA_FEED_DEFAULT,
@@ -16,6 +17,8 @@ export function useSettingsForm(onSaved?: () => void) {
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [apiSecret, setApiSecret] = useState('');
+  const [apiKeySet, setApiKeySet] = useState(false);
+  const [apiSecretSet, setApiSecretSet] = useState(false);
   const [baseUrl, setBaseUrl] = useState('https://api.alpaca.markets');
   const [dataFeed, setDataFeed] = useState(DATA_FEED_DEFAULT);
   const [dataFeedOptions, setDataFeedOptions] = useState<string[]>(['iex', 'sip']);
@@ -32,8 +35,11 @@ export function useSettingsForm(onSaved?: () => void) {
       const res = await fetch(`${API_URL}/config`);
       if (!res.ok) return;
       const data = await res.json();
-      setApiKey(data.api_key);
-      setApiSecret(data.api_secret);
+      // SEC-001: GET returns masked secrets only — leave inputs empty for "keep existing".
+      setApiKey('');
+      setApiSecret('');
+      setApiKeySet(Boolean(data.api_key_set));
+      setApiSecretSet(Boolean(data.api_secret_set));
       setBaseUrl(data.base_url);
       if (data.data_feed) {
         setDataFeed(data.data_feed);
@@ -52,10 +58,11 @@ export function useSettingsForm(onSaved?: () => void) {
   const handleConfigUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/config`, {
+      const res = await novaFetch(`${API_URL}/config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // Empty string = keep existing secret on the server.
           api_key: apiKey,
           api_secret: apiSecret,
           base_url: baseUrl,
@@ -83,6 +90,8 @@ export function useSettingsForm(onSaved?: () => void) {
     setApiKey,
     apiSecret,
     setApiSecret,
+    apiKeySet,
+    apiSecretSet,
     baseUrl,
     setBaseUrl,
     dataFeed,

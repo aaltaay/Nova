@@ -665,7 +665,7 @@
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 1100px) {
-  .container {
+  .nova-shell {
     flex-direction: column;
   }
 

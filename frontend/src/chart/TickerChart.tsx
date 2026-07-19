@@ -21,6 +21,7 @@ import { useChartBars } from './useChartBars';
 import { useChartDrawingManager } from './useChartDrawingManager';
 import { useChartInstance } from './useChartInstance';
 import { useChartLiveTrade } from './useChartLiveTrade';
+import { useChartSessionHighlight } from './useChartSessionHighlight';
 import type { ChartTradeUpdate } from './types';
 
 export type { ChartTradeUpdate } from './types';
@@ -118,6 +119,20 @@ function TickerChartInner({
     onSeriesReset: resetTradeState,
   });
 
+  const barsRevision =
+    indicatorBars.length +
+    (typeof indicatorBars[0]?.time === 'number' ? indicatorBars[0].time : 0) +
+    (typeof indicatorBars[indicatorBars.length - 1]?.time === 'number'
+      ? (indicatorBars[indicatorBars.length - 1].time as number)
+      : 0);
+
+  const sessionHighlight = useChartSessionHighlight({
+    chartApi,
+    candleSeriesRef,
+    timeframe,
+    barsRevision,
+  });
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -146,6 +161,7 @@ function TickerChartInner({
         enabledIndicators={enabledIndicators}
         lockTimeframe={lockTimeframe}
         maximized={maximized}
+        showSessionLegend={sessionHighlight}
         subtitle={subtitle}
         timeframe={timeframe}
         title={title}
