@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-18 | [Rebind shortcuts on the go via TanStack recorder](2026-07-18-rebind-shortcuts-tanstack.md) | Rebind shortcuts on the go via TanStack recorder |
+| 2026-07-18 | [Header connection status cluster (API / Gateway / Prices)](2026-07-18-header-connection-status-cluster.md) | Labeled API / Gateway / Prices chips replace ambiguous “Connected” |
 | 2026-07-18 | [Ctrl+M shortcuts cheat-sheet peek/pin](2026-07-18-ctrl-m-shortcuts-menu.md) | Ctrl+M shortcuts cheat-sheet peek/pin |
 | 2026-07-18 | [Apple-inspired light/dark appearance tokens](2026-07-18-apple-theme-light-dark.md) | Apple-inspired light/dark appearance tokens |
 | 2026-07-18 | [Phase G3 Nova Actions + hotkeys specialist](2026-07-18-phase-g3-nova-actions.md) | G3 verified: Map-to-Nova-Action + browser; typed Nova Actions |

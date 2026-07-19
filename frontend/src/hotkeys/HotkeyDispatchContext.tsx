@@ -1,6 +1,6 @@
 /**
  * Single shell-level hotkey dispatcher (Phase G3).
- * Merges Automation six + Nova Actions + Ctrl+M shortcuts menu — one keydown listener.
+ * Automation + Nova Actions + shortcuts menu / rebind — one keydown listener.
  */
 
 import {
@@ -18,10 +18,18 @@ import {
   createHotkeyKeydownHandler,
   type HotkeyCallbacks,
 } from '../hooks/hotkeyUtils';
-import { loadProfile } from './hotkeyStorage';
+import {
+  collectOccupiedSlots,
+  getEffectiveAutomationBindings,
+  getEffectiveMenuBinding,
+} from './effectiveBindings';
+import { loadProfile, saveProfile } from './hotkeyStorage';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from './runNovaAction';
-import { buildShortcutsCatalog } from './shortcutsCatalog';
+import {
+  buildShortcutsCatalog,
+  type ShortcutRebindTarget,
+} from './shortcutsCatalog';
 import {
   initialShortcutsMenuState,
   reduceShortcutsMenuKeyDown,
@@ -30,6 +38,7 @@ import {
 } from './shortcutsMenuState';
 import { ShortcutsMenuOverlay } from './ShortcutsMenuOverlay';
 import { useTopOfBook } from './TopOfBookContext';
+import type { HotkeyKeyChord, HotkeyProfile } from './types';
 
 interface AutomationRegistration {
   enabled: boolean;
@@ -49,6 +58,10 @@ export interface HotkeyDispatchContextValue {
 
 const HotkeyDispatchContext = createContext<HotkeyDispatchContextValue | null>(null);
 
+function readProfile(): HotkeyProfile {
+  return loadProfile();
+}
+
 export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   const [automationEnabled, setAutomationEnabled] = useState(false);
   const [automationMode, setAutomationMode] = useState('signal');
@@ -57,15 +70,19 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     ((action: HotkeyAction, message: string) => void) | undefined
   >(undefined);
 
-  const [novaActions, setNovaActions] = useState<NovaActionRecord[]>(
-    () => loadProfile().novaActions,
-  );
+  const [profile, setProfile] = useState<HotkeyProfile>(() => readProfile());
   const [lastResult, setLastResult] = useState<NovaActionResult | null>(null);
   const [menuState, setMenuState] = useState<ShortcutsMenuState>(
     initialShortcutsMenuState,
   );
   const menuStateRef = useRef(menuState);
   menuStateRef.current = menuState;
+
+  const [rebindTarget, setRebindTarget] = useState<ShortcutRebindTarget | null>(null);
+  const [rebindExcludeId, setRebindExcludeId] = useState<string | null>(null);
+  const [rebindConflict, setRebindConflict] = useState<string | null>(null);
+  const rebindActiveRef = useRef(false);
+  rebindActiveRef.current = rebindTarget != null;
 
   const runtimeRef = useRef<NovaActionRuntime>({
     symbol: null,
@@ -78,6 +95,19 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     runtimeRef.current = { ...runtimeRef.current, topOfBook };
   }, [topOfBook]);
+
+  const automationBindings = useMemo(
+    () => getEffectiveAutomationBindings(profile),
+    [profile],
+  );
+  const menuBinding = useMemo(
+    () => getEffectiveMenuBinding(profile),
+    [profile],
+  );
+  const automationBindingsRef = useRef(automationBindings);
+  automationBindingsRef.current = automationBindings;
+  const menuBindingRef = useRef(menuBinding);
+  menuBindingRef.current = menuBinding;
 
   const registerAutomation = useCallback((reg: AutomationRegistration | null) => {
     if (!reg || !reg.enabled) {
@@ -93,7 +123,7 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const reloadNovaActions = useCallback(() => {
-    setNovaActions(loadProfile().novaActions);
+    setProfile(readProfile());
   }, []);
 
   const setRuntime = useCallback((partial: Partial<NovaActionRuntime>) => {
@@ -107,18 +137,28 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const closePinnedMenu = useCallback(() => {
+    setRebindTarget(null);
+    setRebindExcludeId(null);
+    setRebindConflict(null);
     setMenuState(initialShortcutsMenuState());
   }, []);
 
-  const novaActionsRef = useRef(novaActions);
-  novaActionsRef.current = novaActions;
+  const novaActionsRef = useRef(profile.novaActions);
+  novaActionsRef.current = profile.novaActions;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (rebindActiveRef.current) {
+        // TanStack recorder owns the keyboard while rebinding.
+        return;
+      }
+
       const menuNext = reduceShortcutsMenuKeyDown(
         menuStateRef.current,
         event,
         performance.now(),
+        undefined,
+        menuBindingRef.current,
       );
       if (menuNext.consumed) {
         event.preventDefault();
@@ -132,6 +172,7 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
         callbacks: automationEnabled ? automationCallbacksRef.current : {},
         onBlocked: automationBlockedRef.current,
         novaActions: novaActionsRef.current,
+        automationBindings: automationBindingsRef.current,
         onNovaAction: (action) => {
           void runAction(action);
         },
@@ -139,7 +180,12 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
-      const next = reduceShortcutsMenuKeyUp(menuStateRef.current, event);
+      if (rebindActiveRef.current) return;
+      const next = reduceShortcutsMenuKeyUp(
+        menuStateRef.current,
+        event,
+        menuBindingRef.current,
+      );
       if (next.mode !== menuStateRef.current.mode) {
         menuStateRef.current = next;
         setMenuState(next);
@@ -155,14 +201,61 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   }, [automationEnabled, automationMode, runAction]);
 
   const catalog = useMemo(
-    () => buildShortcutsCatalog(novaActions),
-    [novaActions],
+    () => buildShortcutsCatalog(profile.novaActions, automationBindings, menuBinding),
+    [profile.novaActions, automationBindings, menuBinding],
   );
+
+  const occupied = useMemo(
+    () => collectOccupiedSlots(automationBindings, profile.novaActions, menuBinding),
+    [automationBindings, profile.novaActions, menuBinding],
+  );
+
+  const onStartRebind = useCallback((target: ShortcutRebindTarget, excludeId: string) => {
+    setMenuState((s) => (s.mode === 'closed' ? s : { ...s, mode: 'pinned' }));
+    setRebindConflict(null);
+    setRebindTarget(target);
+    setRebindExcludeId(excludeId);
+  }, []);
+
+  const onCancelRebind = useCallback(() => {
+    setRebindTarget(null);
+    setRebindExcludeId(null);
+    setRebindConflict(null);
+  }, []);
+
+  const onApplyRebind = useCallback((target: ShortcutRebindTarget, chord: HotkeyKeyChord) => {
+    setProfile((prev) => {
+      let next: HotkeyProfile = { ...prev };
+      if (target.type === 'menu') {
+        next = { ...prev, shortcutsMenuKey: chord };
+      } else if (target.type === 'automation') {
+        next = {
+          ...prev,
+          automationBindings: {
+            ...prev.automationBindings,
+            [target.action]: chord,
+          },
+        };
+      } else {
+        next = {
+          ...prev,
+          novaActions: prev.novaActions.map((a) =>
+            a.id === target.id ? { ...a, key: chord } : a,
+          ),
+        };
+      }
+      saveProfile(next);
+      return next;
+    });
+    setRebindTarget(null);
+    setRebindExcludeId(null);
+    setRebindConflict(null);
+  }, []);
 
   const value = useMemo(
     () => ({
       registerAutomation,
-      novaActions,
+      novaActions: profile.novaActions,
       reloadNovaActions,
       lastResult,
       setRuntime,
@@ -170,7 +263,7 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     }),
     [
       registerAutomation,
-      novaActions,
+      profile.novaActions,
       reloadNovaActions,
       lastResult,
       setRuntime,
@@ -184,7 +277,15 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
       <ShortcutsMenuOverlay
         mode={menuState.mode}
         sections={catalog}
+        occupied={occupied}
+        rebindTarget={rebindTarget}
+        rebindExcludeId={rebindExcludeId}
+        rebindConflict={rebindConflict}
         onClosePinned={closePinnedMenu}
+        onStartRebind={onStartRebind}
+        onApplyRebind={onApplyRebind}
+        onRebindConflict={setRebindConflict}
+        onCancelRebind={onCancelRebind}
       />
     </HotkeyDispatchContext.Provider>
   );

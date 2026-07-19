@@ -84,12 +84,18 @@
 .hotkey-toolbar select,
 .hotkey-help-filters input,
 .hotkey-help-filters select {
-  background: var(--bg-secondary, #1a1a1a);
+  background: var(--input-bg, var(--panel-bg));
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   padding: 0.35rem 0.5rem;
   font-size: 0.8rem;
   border-radius: 4px;
+}
+
+.hotkey-toolbar select option,
+.hotkey-help-filters select option {
+  background: var(--menu-bg, var(--panel-bg));
+  color: var(--text-primary);
 }
 
 .hotkey-table-wrap {
@@ -365,8 +371,9 @@
 /* ── History / time-travel controls ──────────────────────────────────────── */
 
 .history-select {
-  background: transparent;
-  color: var(--text-secondary);
+  /* Solid fill — transparent + light text made the native option list unreadable */
+  background-color: var(--input-bg, var(--panel-bg));
+  color: var(--text-primary);
   border: 1px solid var(--border-color);
   padding: 0.4rem 0.75rem;
   font-size: 0.8rem;
@@ -374,7 +381,12 @@
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.history-select option {
+  background-color: var(--menu-bg, var(--panel-bg));
+  color: var(--text-primary);
 }
 
 .history-select:hover,
@@ -655,5 +667,37 @@
 
 .shortcuts-menu-detail {
   font-size: 0.75rem;
+}
+
+.shortcuts-menu-row--rebindable {
+  cursor: pointer;
+}
+
+.shortcuts-menu-row--rebindable:hover {
+  background: var(--hover-bg);
+}
+
+.shortcuts-menu-row--recording {
+  outline: 1px solid var(--accent-color);
+  outline-offset: 1px;
+  border-radius: var(--radius-control, 8px);
+}
+
+.shortcuts-menu-rebind {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-color);
+}
+
+.shortcuts-menu-rebind-preview {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.shortcuts-menu-conflict {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+  color: var(--danger);
 }
 

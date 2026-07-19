@@ -160,7 +160,7 @@ describe('hotkeyStorage migrateProfile', () => {
     });
     expect(ok?.records).toHaveLength(1);
     expect(ok?.novaActions.length).toBeGreaterThan(0);
-    expect(ok?.schemaVersion).toBe(2);
+    expect(ok?.schemaVersion).toBe(3);
     expect(HOTKEY_STORAGE_KEY).toContain('nova.hotkeys');
   });
 });

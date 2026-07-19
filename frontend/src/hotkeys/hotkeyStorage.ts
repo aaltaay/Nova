@@ -4,12 +4,18 @@
 
 import {
   HOTKEY_PROFILE_SCHEMA_VERSION,
+  type HotkeyKeyChord,
   type HotkeyProfile,
   type HotkeyRecord,
 } from './types';
 import { createDefaultNovaActions } from './novaActionDefaults';
 import type { NovaActionRecord } from './novaActionTypes';
-import { NOVA_ACTION_KINDS, type NovaActionKind } from '../constants';
+import {
+  HOTKEY_ACTIONS,
+  NOVA_ACTION_KINDS,
+  type HotkeyAction,
+  type NovaActionKind,
+} from '../constants';
 
 export const HOTKEY_STORAGE_KEY = 'nova.hotkeys.profile.v1';
 
@@ -27,12 +33,15 @@ export function profileFromRecords(
   records: HotkeyRecord[],
   fileName: string,
   novaActions?: NovaActionRecord[],
+  extras?: Pick<HotkeyProfile, 'automationBindings' | 'shortcutsMenuKey'>,
 ): HotkeyProfile {
   return {
     schemaVersion: HOTKEY_PROFILE_SCHEMA_VERSION,
     fileName,
     records,
     novaActions: novaActions ?? createDefaultNovaActions(),
+    automationBindings: extras?.automationBindings,
+    shortcutsMenuKey: extras?.shortcutsMenuKey,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -65,6 +74,24 @@ function isNovaAction(value: unknown): value is NovaActionRecord {
   );
 }
 
+function isKeyChord(value: unknown): value is HotkeyKeyChord {
+  if (!value || typeof value !== 'object') return false;
+  const c = value as HotkeyKeyChord;
+  return typeof c.key === 'string' && typeof c.label === 'string';
+}
+
+function migrateAutomationBindings(
+  raw: unknown,
+): Partial<Record<HotkeyAction, HotkeyKeyChord>> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: Partial<Record<HotkeyAction, HotkeyKeyChord>> = {};
+  for (const action of HOTKEY_ACTIONS) {
+    const chord = (raw as Record<string, unknown>)[action];
+    if (isKeyChord(chord)) out[action] = chord;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export function migrateProfile(raw: unknown): HotkeyProfile | null {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Partial<HotkeyProfile> & { novaActions?: unknown };
@@ -78,6 +105,10 @@ export function migrateProfile(raw: unknown): HotkeyProfile | null {
     fileName: typeof obj.fileName === 'string' ? obj.fileName : 'hotkey.htk',
     records,
     novaActions: novaActions.length > 0 ? novaActions : createDefaultNovaActions(),
+    automationBindings: migrateAutomationBindings(obj.automationBindings),
+    shortcutsMenuKey: isKeyChord(obj.shortcutsMenuKey)
+      ? obj.shortcutsMenuKey
+      : undefined,
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : new Date().toISOString(),
   };

@@ -139,8 +139,11 @@ export const SHORTCUTS_MENU_BINDING: HotkeyBinding = { key: 'm', ctrl: true };
 export const SHORTCUTS_MENU_DOUBLE_TAP_MS = 450;
 export const SHORTCUTS_MENU_TITLE = 'Keyboard shortcuts';
 export const SHORTCUTS_MENU_HINT_PEEK =
-  'Release to close · press Ctrl+M again quickly to pin';
-export const SHORTCUTS_MENU_HINT_PINNED = 'Pinned · Esc or Ctrl+M to close';
+  'Release to close · press again quickly to pin · double-click a row to rebind';
+export const SHORTCUTS_MENU_HINT_PINNED =
+  'Pinned · Esc or menu key to close · double-click a row to rebind';
+export const SHORTCUTS_MENU_REBIND_HINT = 'Press new shortcut… Esc to cancel';
+export const SHORTCUTS_MENU_CONFLICT_PREFIX = 'Already used by';
 
 // ── DAS-compatible hotkey manager (Phase G2 / G3) ────────────────────────────
 /** Shown in Settings → Hotkeys for the DAS import table. */

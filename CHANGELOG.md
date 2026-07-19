@@ -30,6 +30,41 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Rebind shortcuts on the go (TanStack recorder)
+
+- **What:** In the shortcuts menu, **double-click** any row to capture a new chord via `@tanstack/react-hotkeys` `useHotkeyRecorder`. Duplicates blocked with TanStack-normalized conflict checks. Automation six + menu chord persist on the hotkey profile (schema v3).
+- **Why:** User wanted change-on-the-go rebinding without hand-rolling a capture/conflict stack.
+- **Files touched:** `ShortcutRebindSession.tsx`, `tanstackChord.ts`, `shortcutConflicts.ts`, `effectiveBindings.ts`, `HotkeyDispatchContext.tsx`, `hotkeyStorage` schema v3, `package.json` (`@tanstack/react-hotkeys`).
+- **How it works now:** Dispatcher still owns execution; TanStack only records. Conflicts say “Already used by …”. Esc cancels capture. Profile fields: `automationBindings`, `shortcutsMenuKey`.
+- **Verified by:** Vitest `src/hotkeys` + `useHotkeys` (51 passed); `tsc -b` PASS.
+- **Related:** Ctrl+M menu; hotkeys-continuity rebind invariant.
+
+## 2026-07-18 — Theme-aware select / menu surfaces
+
+- **What:** Fixed native `<select>` option lists (and custom dropdown panels) that rendered light text on a white popup in dark mode. Defined `--input-bg`, `--menu-bg`, `--bg-secondary`, `--bg-elevated` for both themes; global `select`/`option` rules force readable contrast.
+- **Why:** History date menu (and other selects) were nearly illegible — OS popup stayed light while app text stayed light.
+- **Files touched:** `tokens-shell.css`, `settings-workspace.css`, `scanner-misc.css`, `scanner-l2.css`, `tradeTicket.css`.
+- **How it works now:** Closed selects and open `<option>` lists use solid theme menu/input surfaces. Exchange filter + Modules menus use `--menu-bg` instead of hardcoded dark hex.
+- **Verified by:** Browser history-select option styles + dark/light theme toggle.
+- **Related:** PROBLEM_LOG §2026-07-18 select white-on-white.
+
+## 2026-07-18 — Theme toggle icon by brand
+
+- **What:** Replaced the header “Light/Dark” text button with a sun/moon icon and moved it next to the brand + market-mode badge (out of Look Up / Settings).
+- **Why:** User disliked the text control location in the actions cluster.
+- **Files touched:** `ThemeToggle.tsx`, `AppHeader.tsx`, `tokens-shell.css`.
+- **How it works now:** Dark mode shows a sun (switch to light); light mode shows a moon (switch to dark). Circular icon button by the logo.
+- **Verified by:** Browser header check.
+
+## 2026-07-18 — Header connection status cluster (API / Gateway / Prices)
+
+- **What:** Replaced the ambiguous green “Connected” header status with three labeled chips: **API** (Nova backend), **Gateway** (IBKR when discovery=ibkr) or **Feed** (Alpaca), and **Prices** (last tick age, humanized e.g. `16h ago`).
+- **Why:** Users saw “Connected” while IB Gateway was offline and prices were ~16h stale — those are different signals that looked like one.
+- **Files touched:** `HeaderConnectionStatus.tsx`, `AppHeader.tsx`, `DashboardPage.tsx`, `formatScanAge.ts`, `tokens-shell.css`, tests.
+- **How it works now:** Hover tooltips explain each chip. API up ≠ Gateway connected. Stale prices use a warn tone; Gateway offline uses a bad tone. No bare “Connected” label on the API chip.
+- **Verified by:** Vitest `formatScanAge` + `HeaderConnectionStatus`; browser check of header cluster when UI is up.
+- **Related:** single-market-data-feed honesty; IB Gateway login warning.
+
 ## 2026-07-18 — Ctrl+M shortcuts cheat-sheet (peek / pin)
 
 - **What:** Global **Ctrl+M** overlay lists Automation six + enabled Nova Actions + the menu itself. Single press peeks (closes on release); double-tap pins until Esc / Ctrl+M / backdrop click.

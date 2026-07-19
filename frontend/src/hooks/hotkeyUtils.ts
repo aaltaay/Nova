@@ -64,9 +64,12 @@ export function eventMatchesChord(event: KeyboardEvent, chord: HotkeyKeyChord): 
 }
 
 /** Resolve which hotkey action (if any) a keydown event maps to. */
-export function resolveHotkeyAction(event: KeyboardEvent): HotkeyAction | null {
-  for (const action of Object.keys(HOTKEY_DEFAULTS) as HotkeyAction[]) {
-    if (eventMatchesBinding(event, HOTKEY_DEFAULTS[action])) return action;
+export function resolveHotkeyAction(
+  event: KeyboardEvent,
+  bindings: Record<HotkeyAction, HotkeyBinding> = HOTKEY_DEFAULTS,
+): HotkeyAction | null {
+  for (const action of Object.keys(bindings) as HotkeyAction[]) {
+    if (eventMatchesBinding(event, bindings[action])) return action;
   }
   return null;
 }
@@ -114,13 +117,22 @@ export function createHotkeyKeydownHandler(options: {
   /** Optional Nova Actions resolved after Automation six. */
   novaActions?: NovaActionRecord[];
   onNovaAction?: (action: NovaActionRecord) => void;
+  /** Live Automation bindings (defaults to HOTKEY_DEFAULTS). */
+  automationBindings?: Record<HotkeyAction, HotkeyBinding>;
 }): (event: KeyboardEvent) => void {
-  const { mode, callbacks, onBlocked, novaActions, onNovaAction } = options;
+  const {
+    mode,
+    callbacks,
+    onBlocked,
+    novaActions,
+    onNovaAction,
+    automationBindings = HOTKEY_DEFAULTS,
+  } = options;
   return (event: KeyboardEvent) => {
     if (event.repeat) return;
     if (isEditableTarget(event.target)) return;
 
-    const action = resolveHotkeyAction(event);
+    const action = resolveHotkeyAction(event, automationBindings);
     if (action) {
       if (!hotkeysAllowed(mode, action)) {
         event.preventDefault();

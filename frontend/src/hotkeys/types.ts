@@ -3,9 +3,10 @@
  * Imported DAS records stay inactive until mapped to a typed Nova Action.
  */
 
+import type { HotkeyAction } from '../constants';
 import type { NovaActionRecord } from './novaActionTypes';
 
-export const HOTKEY_PROFILE_SCHEMA_VERSION = 2 as const;
+export const HOTKEY_PROFILE_SCHEMA_VERSION = 3 as const;
 
 export const HOTKEY_COMPAT_STATUSES = [
   'nova_active',
@@ -83,6 +84,10 @@ export interface HotkeyProfile {
   records: HotkeyRecord[];
   /** Typed executable actions (Phase G3). */
   novaActions: NovaActionRecord[];
+  /** Optional overrides for Automation six (Phase G / rebind-on-the-go). */
+  automationBindings?: Partial<Record<HotkeyAction, HotkeyKeyChord>>;
+  /** Optional override for the shortcuts cheat-sheet chord (default Ctrl+M). */
+  shortcutsMenuKey?: HotkeyKeyChord;
   updatedAt: string;
 }
 

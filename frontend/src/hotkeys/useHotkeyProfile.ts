@@ -69,7 +69,10 @@ export function useHotkeyProfile() {
       if (!prev) return null;
       setProfile((cur) => {
         const next = commit(
-          profileFromRecords(prev.records, prev.fileName, cur.novaActions),
+          profileFromRecords(prev.records, prev.fileName, cur.novaActions, {
+            automationBindings: cur.automationBindings,
+            shortcutsMenuKey: cur.shortcutsMenuKey,
+          }),
         );
         setSelectedId(prev.records[0]?.id ?? null);
         return next;
