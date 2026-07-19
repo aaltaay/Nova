@@ -76,19 +76,24 @@ export function WorkingOrdersPanel({
         <table className="ibkr-table ibkr-table--orders">
           <thead>
             <tr>
-              <th>Order ID</th>
-              <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
-              <th>Side</th>
-              <th>Quantity</th>
-              <th>Filled</th>
-              {!compact && <th>Remaining</th>}
-              <th>Type</th>
-              <th>Limit price</th>
-              {!compact && <th>Stop price</th>}
-              <th>Average fill</th>
-              <th>Status</th>
-              {!compact && <th>Session</th>}
-              {onCancelOrder ? <th></th> : null}
+              <th className="ibkr-col--text">Order ID</th>
+              <th
+                className="ibkr-col--text"
+                title="Click: Quote Panel · Double-click: Stock View"
+              >
+                Symbol
+              </th>
+              <th className="ibkr-col--side">Side</th>
+              <th className="ibkr-col--num">Quantity</th>
+              <th className="ibkr-col--num">Filled</th>
+              {!compact && <th className="ibkr-col--num">Remaining</th>}
+              <th className="ibkr-col--type">Type</th>
+              <th className="ibkr-col--num">Limit price</th>
+              {!compact && <th className="ibkr-col--num">Stop price</th>}
+              <th className="ibkr-col--num">Average fill</th>
+              <th className="ibkr-col--status">Status</th>
+              {!compact && <th className="ibkr-col--type">Session</th>}
+              {onCancelOrder ? <th className="ibkr-col--status"></th> : null}
             </tr>
           </thead>
           <tbody>
@@ -102,19 +107,25 @@ export function WorkingOrdersPanel({
               const tone = orderStatusTone(statusLabel);
               const row = (
                 <>
-                  <td className="ibkr-order-id">{o.order_id}</td>
-                  <td className="ibkr-symbol">{o.symbol}</td>
-                  <td style={{ color: sideColor(o.side) }}>
+                  <td className="ibkr-col--text ibkr-order-id">{o.order_id}</td>
+                  <td className="ibkr-col--text ibkr-symbol">{o.symbol}</td>
+                  <td className="ibkr-col--side" style={{ color: sideColor(o.side) }}>
                     {formatOrderSide(o.side)}
                   </td>
-                  <td>{fmt(o.qty, 0)}</td>
-                  <td>{fmt(o.filled_qty ?? 0, 0)}</td>
-                  {!compact && <td>{fmt(o.remaining_qty ?? null, 0)}</td>}
-                  <td className="ibkr-order-type">{formatOrderType(o.order_type)}</td>
-                  <td>{fmtDollar(o.limit_price)}</td>
-                  {!compact && <td>{fmtDollar(o.stop_price ?? null)}</td>}
-                  <td>{fmtDollar(o.avg_fill_price ?? null)}</td>
-                  <td>
+                  <td className="ibkr-col--num">{fmt(o.qty, 0)}</td>
+                  <td className="ibkr-col--num">{fmt(o.filled_qty ?? 0, 0)}</td>
+                  {!compact && (
+                    <td className="ibkr-col--num">{fmt(o.remaining_qty ?? null, 0)}</td>
+                  )}
+                  <td className="ibkr-col--type ibkr-order-type">
+                    {formatOrderType(o.order_type)}
+                  </td>
+                  <td className="ibkr-col--num">{fmtDollar(o.limit_price)}</td>
+                  {!compact && (
+                    <td className="ibkr-col--num">{fmtDollar(o.stop_price ?? null)}</td>
+                  )}
+                  <td className="ibkr-col--num">{fmtDollar(o.avg_fill_price ?? null)}</td>
+                  <td className="ibkr-col--status">
                     <span
                       className={`ibkr-order-status ibkr-order-status--${tone}`}
                       title={o.status}
@@ -123,12 +134,12 @@ export function WorkingOrdersPanel({
                     </span>
                   </td>
                   {!compact && (
-                    <td className="ibkr-order-session">
+                    <td className="ibkr-col--type ibkr-order-session">
                       {formatExtendedHours(Boolean(o.outside_rth))}
                     </td>
                   )}
                   {onCancelOrder ? (
-                    <td>
+                    <td className="ibkr-col--status">
                       <button
                         type="button"
                         className="ibkr-cancel-btn"

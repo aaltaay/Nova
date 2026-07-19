@@ -14,6 +14,8 @@ interface Props {
   onSelectSymbol?: (symbol: string) => void;
   onOpenTrading?: (symbol: string) => void;
   filterSymbol?: string | null;
+  /** Hide panel title when hosted under Stock View Closed tab. */
+  hideTitle?: boolean;
 }
 
 export function ClosedOrdersModule({
@@ -21,6 +23,7 @@ export function ClosedOrdersModule({
   onSelectSymbol,
   onOpenTrading,
   filterSymbol = null,
+  hideTitle = false,
 }: Props) {
   const status = useIbkrStatus();
   const { orders } = useClosedOrders(status.connected);
@@ -58,6 +61,7 @@ export function ClosedOrdersModule({
         onOpenTrading={onOpenTrading}
         filterSymbol={filterSymbol}
         sampleMode={usingSample}
+        hideTitle={hideTitle}
       />
     </section>
   );

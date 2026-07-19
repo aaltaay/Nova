@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Orders table column alignment (Type under Type)
+
+- **What:** Working/Closed order tables use matching header+cell alignment (`ibkr-col--type` centered, nums right, text left) so “Limit Order” / “Market Order” sit under **Type**, not under Filled.
+- **Why:** User screenshot showed headers stretched right while type values clustered left.
+- **Files touched:** `tradingTab.css`, `ClosedOrdersPanel.tsx`, `WorkingOrdersPanel.tsx`, `closedOrders.css`.
+- **How it works now:** `table-layout: fixed` + role classes; Type/Side/Status centered together.
+- **Verified by:** Visual hard-refresh of Closed Orders tab.
+
 ## 2026-07-18 — Closed Orders on Stock View footer + Trading offline preview
 
 - **What:** Stock View orders dock tabs **Open Orders | Closed Orders** (Closed mounts isolated `closed_orders` module). Trading shows Closed Orders sample even when Gateway is disconnected.

@@ -275,6 +275,7 @@ export function StockViewOpenOrdersDock({
           <ClosedOrdersModule
             filterSymbol={symbol}
             selectedSymbol={symbol}
+            hideTitle
           />
         </div>
       )}

@@ -363,21 +363,50 @@
 .ibkr-working-orders { margin-top: 0.25rem; }
 .ibkr-working-orders--compact .ibkr-table { font-size: 0.75rem; }
 
+.ibkr-table--orders {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.ibkr-table--orders th,
+.ibkr-table--orders td {
+  padding: 0.35rem 0.4rem;
+  vertical-align: middle;
+  text-align: center;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .ibkr-table--orders th {
   font-size: 0.62rem;
   letter-spacing: 0.02em;
   text-transform: none;
-  white-space: nowrap;
 }
 
-.ibkr-table--orders td {
-  padding: 0.35rem 0.45rem;
-  vertical-align: middle;
-}
-
-.ibkr-table--orders .ibkr-order-type,
-.ibkr-table--orders .ibkr-order-session {
+/* Keep header + cell alignment identical (beat .ibkr-table th:first-child). */
+.ibkr-table.ibkr-table--orders th.ibkr-col--text,
+.ibkr-table.ibkr-table--orders td.ibkr-col--text {
   text-align: left;
+}
+
+.ibkr-table.ibkr-table--orders th.ibkr-col--num,
+.ibkr-table.ibkr-table--orders td.ibkr-col--num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ibkr-table.ibkr-table--orders th.ibkr-col--type,
+.ibkr-table.ibkr-table--orders td.ibkr-col--type,
+.ibkr-table.ibkr-table--orders th.ibkr-col--side,
+.ibkr-table.ibkr-table--orders td.ibkr-col--side,
+.ibkr-table.ibkr-table--orders th.ibkr-col--status,
+.ibkr-table.ibkr-table--orders td.ibkr-col--status {
+  text-align: center;
+}
+
+.ibkr-table--orders .ibkr-order-type {
   white-space: nowrap;
 }
 
