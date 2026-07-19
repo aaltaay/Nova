@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-18 | [Silence Vite HMR flood in client-error logs](2026-07-18-vite-hmr-client-error-flood.md) | Filter @vite/client noise out of /api/client-errors |
 | 2026-07-18 | [Rebind shortcuts on the go via TanStack recorder](2026-07-18-rebind-shortcuts-tanstack.md) | Rebind shortcuts on the go via TanStack recorder |
 | 2026-07-18 | [Header connection status cluster (API / Gateway / Prices)](2026-07-18-header-connection-status-cluster.md) | Labeled API / Gateway / Prices chips replace ambiguous “Connected” |
 | 2026-07-18 | [Ctrl+M shortcuts cheat-sheet peek/pin](2026-07-18-ctrl-m-shortcuts-menu.md) | Ctrl+M shortcuts cheat-sheet peek/pin |

@@ -21,6 +21,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Vite HMR "send was called before connect" flooded client-errors
+
+- **Symptom:** Backend log screamed hundreds of `nova.client_errors` WARNINGs (`send was called before connect`, `Cannot read properties of undefined (reading 'send')`) from `/@vite/client` while API routes (gappers, IBKR status) were fine.
+- **Cause:** Vite's HMR/error-overlay WebSocket rejected `send` before connect; Nova's global `unhandledrejection` reporter POSTed every one to `/api/client-errors`. Multiple tabs (`localhost` vs `127.0.0.1`) amplified the storm.
+- **Fix:** Filter Vite tooling noise in `reportClientError` (client) and `routes/client_errors.py` (server). Prefer one origin for the UI in dev.
+- **Keywords:** vite, HMR, send was called before connect, client-errors, unhandledrejection, @vite/client
+
+
 ## 2026-07-17 — HOD Momo alert queue referenced a dataclass field that never existed
 
 - **Symptom:** `hod_momo_alerts.get_broadcast_queue()` read `state.alert_broadcast_queue`, but `HodMomoState` (`hod_momo_state.py`) never declared that field — the first read on a freshly constructed state would raise `AttributeError`, and the queue's only other use (`hod_momo_trade.py`'s `queue.put_nowait(("pending", alert))` and `flush_consolidated_loop`'s `queue.get_nowait()` drain) never read the queued items or its size anywhere — pure put/drain-only dead machinery.

@@ -25,3 +25,22 @@ def test_client_errors_rejects_huge_message_via_validation():
         json={"message": huge, "source": "pytest"},
     )
     assert res.status_code == 422
+
+
+def test_client_errors_ignores_vite_hmr_noise():
+    res = client.post(
+        "/api/client-errors",
+        json={
+            "message": "send was called before connect",
+            "stack": (
+                "Error: send was called before connect\n"
+                "    at Object.send (http://127.0.0.1:5173/@vite/client:384:15)"
+            ),
+            "source": "unhandledrejection",
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body.get("ok") is True
+    assert body.get("ignored") is True
+    assert body.get("reason") == "dev_tooling_noise"

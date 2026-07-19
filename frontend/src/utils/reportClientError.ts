@@ -11,8 +11,20 @@ export type ClientErrorReport = {
   url?: string;
 };
 
+/** Vite HMR / overlay internals — not product bugs; do not POST. */
+export function isDevToolingNoise(message: string, stack?: string | null): boolean {
+  const msg = String(message || '');
+  const stk = String(stack || '');
+  if (stk.includes('@vite/client') || stk.includes('/@vite/client')) return true;
+  // Vite throws this when its error-overlay WS is not open yet.
+  if (msg === 'send was called before connect') return true;
+  if (msg.includes("reading 'send'") && stk.toLowerCase().includes('vite')) return true;
+  return false;
+}
+
 export function reportClientError(report: ClientErrorReport): void {
   if (!CLIENT_ERROR_REPORT_ENABLED) return;
+  if (isDevToolingNoise(report.message, report.stack)) return;
   try {
     const payload = {
       message: String(report.message || '').slice(0, 2000),

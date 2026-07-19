@@ -20,6 +20,19 @@ router = APIRouter(tags=["observability"])
 logger = logging.getLogger("nova.client_errors")
 
 
+def _is_dev_tooling_noise(message: str, stack: str | None) -> bool:
+    """Drop Vite HMR / overlay WS failures — not product bugs."""
+    msg = message or ""
+    stk = stack or ""
+    if "@vite/client" in stk or "/@vite/client" in stk:
+        return True
+    if msg == "send was called before connect":
+        return True
+    if "reading 'send'" in msg and "vite" in stk.lower():
+        return True
+    return False
+
+
 class ClientErrorBody(BaseModel):
     message: str = Field(default="", max_length=CLIENT_ERRORS_MAX_MESSAGE_CHARS)
     stack: str | None = Field(default=None, max_length=CLIENT_ERRORS_MAX_MESSAGE_CHARS)
@@ -39,6 +52,9 @@ async def post_client_error(request: Request, body: ClientErrorBody):
     raw_len = int(request.headers.get("content-length") or 0)
     if raw_len > CLIENT_ERRORS_MAX_BODY_BYTES:
         return {"ok": False, "error": "payload_too_large"}
+
+    if _is_dev_tooling_noise(body.message or "", body.stack):
+        return {"ok": True, "ignored": True, "reason": "dev_tooling_noise"}
 
     logger.warning(
         "client_error source=%s msg=%s url=%s ua=%s stack=%s component=%s",
