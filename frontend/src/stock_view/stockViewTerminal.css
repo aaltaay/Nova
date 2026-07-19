@@ -1,0 +1,872 @@
+/* Stock View terminal layout — scoped under .stock-view-page only.
+   Scanner Quote Panel / Trading tab styles stay in stock-view.css / tradingTab.css. */
+
+.stock-view-page {
+  --sv-gap: 6px;
+  --sv-pad: 8px;
+  --sv-rail-gap: 5px;
+  /* Soft floor for L2 — rail itself never scrolls (mirrors STOCK_VIEW_DEPTH_MIN_PX) */
+  --sv-depth-min: 260px;
+  --sv-quote-max: 18%;
+  --sv-card-radius: 6px;
+  --sv-card-pad: 4px 6px;
+  --sv-border: var(--border-color, #2a2f3a);
+  --sv-bg: var(--bg-primary, #0b0d12);
+  --sv-bg-raised: var(--bg-secondary, #12151c);
+  --sv-accent: var(--accent, #3b82f6);
+  --sv-muted: var(--text-muted, #6b7280);
+  --sv-secondary: var(--text-secondary, #9ca3af);
+  --sv-primary: var(--text-primary, #e5e7eb);
+
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  gap: 0;
+  overflow: hidden;
+  background: var(--sv-bg);
+  color: var(--sv-primary);
+}
+
+/* ── Command bar ─────────────────────────────────────────────────────────── */
+
+.stock-view-page .sv-header {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px 10px;
+  flex-shrink: 0;
+  padding: 4px var(--sv-pad);
+  border-bottom: 1px solid var(--sv-border);
+  background: var(--sv-bg-raised);
+  min-height: 0;
+  overflow-x: auto;
+}
+
+.stock-view-page .sv-header__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.1;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.stock-view-page .sv-header__nova {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--sv-accent);
+}
+
+.stock-view-page .sv-header__title {
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sv-muted);
+}
+
+/* Boxed symbol + price chip (primary symbol control; double-click to rename). */
+.stock-view-page .sv-header__symbol-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px 7px;
+  min-width: 0;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 3px 8px 3px 10px;
+  border: 1px solid var(--sv-border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--sv-bg) 70%, var(--sv-bg-raised));
+  color: inherit;
+  font: inherit;
+  line-height: 1.2;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.stock-view-page .sv-header__symbol-chip:hover,
+.stock-view-page .sv-header__symbol-chip:focus-visible {
+  border-color: color-mix(in srgb, var(--sv-accent) 55%, var(--sv-border));
+  background: color-mix(in srgb, var(--sv-accent) 10%, var(--sv-bg-raised));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sv-accent) 25%, transparent);
+  outline: none;
+}
+
+.stock-view-page .sv-header__symbol-chip:hover .sv-header__symbol,
+.stock-view-page .sv-header__symbol-chip:focus-visible .sv-header__symbol {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sv-accent) 50%, transparent);
+  text-underline-offset: 2px;
+}
+
+.stock-view-page .sv-header__symbol-hint {
+  margin-left: 2px;
+  font-size: 0.58rem;
+  color: var(--sv-muted);
+  opacity: 0;
+  transform: translateY(1px);
+  transition: opacity 0.12s ease;
+}
+
+.stock-view-page .sv-header__symbol-chip:hover .sv-header__symbol-hint,
+.stock-view-page .sv-header__symbol-chip:focus-visible .sv-header__symbol-hint {
+  opacity: 0.85;
+}
+
+.stock-view-page .sv-header__symbol-chip--editing {
+  cursor: text;
+  padding: 2px 6px;
+  border-color: var(--sv-accent);
+  background: var(--sv-bg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sv-accent) 35%, transparent);
+}
+
+.stock-view-page .sv-header__symbol-edit-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.stock-view-page .sv-header__symbol-input {
+  width: 5.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--sv-primary);
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  outline: none;
+}
+
+.stock-view-page .sv-header__symbol {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.stock-view-page .sv-header__trend {
+  font-size: 0.7rem;
+  color: var(--sv-secondary);
+}
+
+.stock-view-page .sv-header__price {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-view-page .sv-header__change {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-view-page .sv-header__change.positive {
+  color: var(--green, #22c55e);
+}
+
+.stock-view-page .sv-header__change.negative {
+  color: var(--red, #ef4444);
+}
+
+.stock-view-page .sv-header__updating {
+  font-size: 0.65rem;
+  color: var(--sv-muted);
+}
+
+.stock-view-page .sv-header__spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.stock-view-page .sv-header__account {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.stock-view-page .sv-header__metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid var(--sv-border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--sv-bg) 55%, transparent);
+  white-space: nowrap;
+}
+
+.stock-view-page .sv-header__metric label {
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  color: var(--sv-muted);
+  margin-right: 0;
+}
+
+.stock-view-page .sv-header__warn {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--amber, #f59e0b);
+  white-space: nowrap;
+}
+
+/* Segmented capsules — Paper/Live + Manual/Normal/Fully Automated */
+.stock-view-page .sv-capsule {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  border: 1px solid var(--sv-border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--sv-bg) 70%, transparent);
+}
+
+.stock-view-page .sv-capsule__seg {
+  margin: 0;
+  padding: 3px 10px;
+  border: none;
+  border-right: 1px solid var(--sv-border);
+  background: transparent;
+  color: var(--sv-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.stock-view-page .sv-capsule__seg:last-child {
+  border-right: none;
+}
+
+.stock-view-page .sv-capsule__seg:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.stock-view-page .sv-capsule__seg.is-selected {
+  background: color-mix(in srgb, var(--sv-accent) 28%, var(--sv-bg-raised));
+  color: var(--sv-primary);
+  opacity: 1;
+}
+
+.stock-view-page .sv-capsule__seg.is-selected.is-paper {
+  background: color-mix(in srgb, var(--green, #22c55e) 22%, var(--sv-bg-raised));
+  color: var(--green, #22c55e);
+}
+
+.stock-view-page .sv-capsule__seg.is-selected.is-live {
+  background: color-mix(in srgb, var(--red, #ef4444) 22%, var(--sv-bg-raised));
+  color: var(--red, #ef4444);
+}
+
+.stock-view-page .sv-capsule__seg:not(:disabled):hover {
+  color: var(--sv-primary);
+}
+
+/* ── Body: charts dominate + dense rail ──────────────────────────────────── */
+
+.stock-view-page .stock-view-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8px var(--ticker-trade-side-width, 360px);
+  column-gap: 0;
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+  min-height: 0;
+  /* Flush rail to the right edge — padding only on the chart side */
+  padding: 4px 0 4px 6px;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.stock-view-page .stock-view-main {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sv-gap);
+  overflow: hidden;
+}
+
+.stock-view-page .stock-view-charts {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.stock-view-page .stock-view-charts .chart-grid {
+  flex: 1 1 0;
+  min-height: 0;
+  gap: 4px;
+}
+
+/* ── Open Orders dock (full-width footer under charts + rail) ────────────── */
+
+.stock-view-page .sv-open-orders-dock {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--sv-border);
+  background: var(--sv-bg-raised);
+  min-height: 0;
+  max-height: min(28vh, 220px);
+}
+
+.stock-view-page .sv-open-orders-dock--collapsed {
+  max-height: none;
+}
+
+.stock-view-page .sv-open-orders-dock__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+  padding: 0.2rem 0.55rem;
+  border-bottom: 1px solid transparent;
+}
+
+.stock-view-page .sv-open-orders-dock:not(.sv-open-orders-dock--collapsed)
+  .sv-open-orders-dock__bar {
+  border-bottom-color: var(--sv-border);
+}
+
+.stock-view-page .sv-open-orders-dock__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.15rem 0.35rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sv-primary);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.stock-view-page .sv-open-orders-dock__toggle:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.06));
+  color: var(--sv-accent);
+}
+
+.stock-view-page .sv-open-orders-dock__chevron {
+  width: 0.85rem;
+  color: var(--sv-muted);
+}
+
+.stock-view-page .sv-open-orders-dock__count {
+  min-width: 1.25rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sv-accent) 18%, transparent);
+  color: var(--sv-accent);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.stock-view-page .sv-open-orders-dock__hint {
+  margin-left: auto;
+  font-size: 0.65rem;
+}
+
+.stock-view-page .sv-open-orders-dock__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.25rem 0.45rem 0.4rem;
+}
+
+.stock-view-page .sv-open-orders-dock__body .ibkr-working-orders {
+  margin: 0;
+}
+
+.stock-view-page .sv-open-orders-dock__body .ibkr-table {
+  font-size: 0.72rem;
+}
+
+/* ── Right rail ────────────────────────────────────────────────────────────
+   quote (auto) | trade-stack 1fr: (L2+T&S side-by-side | drag | Open ticket).
+   Depth is the dominant vertical share; rail may scroll only as a tiny-viewport fallback. */
+
+.stock-view-page .sv-rail,
+.stock-view-page .stock-view-quote.sv-rail {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--sv-rail-gap);
+  align-content: stretch;
+}
+
+.stock-view-page .sv-rail__trade-stack {
+  grid-row: 2;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.stock-view-page .sv-rail__trade-stack > .resize-handle--horizontal {
+  flex: 0 0 7px;
+  height: 7px;
+  align-self: stretch;
+  z-index: 2;
+}
+
+.stock-view-page .sv-rail__trade-stack > .resize-handle--horizontal::before {
+  height: 3px;
+  border-radius: 2px;
+}
+
+/* Shared module card chrome (quote / L2 / T&S / Open) */
+.stock-view-page .sv-module-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--sv-card-pad);
+  border: 1px solid var(--sv-border);
+  border-radius: var(--sv-card-radius);
+  background: var(--sv-bg-raised);
+}
+
+.stock-view-page .sv-module-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-bottom: 3px;
+  min-height: 0;
+}
+
+.stock-view-page .sv-module-card__title {
+  margin: 0;
+  font-size: 0.58rem;
+  font-weight: 600;
+  font-style: italic;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--sv-muted);
+  line-height: 1.2;
+}
+
+.stock-view-page .sv-module-card__badge {
+  font-size: 0.52rem;
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--green, #22c55e);
+}
+
+.stock-view-page .sv-module-card__body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.stock-view-page .sv-quote-card {
+  grid-row: 1;
+  min-height: 0;
+  max-height: var(--sv-quote-max);
+}
+
+.stock-view-page .sv-quote-card__price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 5px;
+  margin-bottom: 2px;
+}
+
+.stock-view-page .sv-quote-card__symbol {
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.stock-view-page .sv-quote-card__last {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-view-page .sv-quote-card__chg.positive {
+  color: var(--green, #22c55e);
+}
+
+.stock-view-page .sv-quote-card__chg.negative {
+  color: var(--red, #ef4444);
+}
+
+.stock-view-page .sv-quote-card__grid.compact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px 8px;
+  font-size: 0.6rem;
+}
+
+.stock-view-page .sv-quote-card__grid .cq-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+}
+
+.stock-view-page .sv-quote-card__grid .cq-label {
+  font-size: 0.52rem;
+  flex-shrink: 0;
+}
+
+.stock-view-page .sv-quote-card__grid .cq-value {
+  font-size: 0.64rem;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Depth slot — top of trade stack (resizable vs Open ticket) */
+.stock-view-page .sv-rail__depth {
+  flex: 0 0 var(--sv-depth-pct, 72%);
+  min-height: var(--sv-depth-pane-min, 120px);
+  max-height: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.stock-view-page .sv-depth-card {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.stock-view-page .sv-depth-stack__hint {
+  margin: 0;
+  padding: 8px 4px;
+  font-size: 0.68rem;
+  color: var(--sv-muted);
+  text-align: center;
+}
+
+/* L2 + T&S stay side-by-side even in a narrow rail (override scanner 560px stack). */
+.stock-view-page .sv-depth-and-tape {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+  gap: 4px;
+  /* L2 slightly wider — depth rows need room */
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+}
+
+.stock-view-page .sv-depth-and-tape .depth-and-tape__col {
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+@media (max-width: 560px) {
+  .stock-view-page .sv-depth-and-tape {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+  }
+}
+
+.stock-view-page .sv-rail .nova-module--level2,
+.stock-view-page .sv-rail .das-l2,
+.stock-view-page .sv-rail .nova-module--time-sales {
+  height: 100%;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Drop heuristic/fallback chrome so montage gets the height */
+.stock-view-page .sv-rail .ibkr-depth-heuristics,
+.stock-view-page .sv-rail .ibkr-depth-fallback-badge {
+  display: none;
+}
+
+.stock-view-page .sv-rail .das-l2-montage {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.stock-view-page .sv-rail .das-l2-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.stock-view-page .sv-rail .das-l2-colhead {
+  flex-shrink: 0;
+  padding: 0.1rem 0.15rem;
+  font-size: 0.52rem;
+}
+
+.stock-view-page .sv-rail .das-l2-row {
+  flex: 1 1 0;
+  min-height: 14px;
+  max-height: 1.25rem;
+  padding: 0 0.15rem;
+  font-size: 0.62rem;
+  border-bottom-color: rgba(255, 255, 255, 0.03);
+}
+
+.stock-view-page .sv-rail .das-l2-row--empty {
+  min-height: 12px;
+  max-height: 1.15rem;
+}
+
+.stock-view-page .sv-rail .das-l2-mm {
+  font-size: 0.58rem;
+}
+
+.stock-view-page .sv-rail .das-l2-spread {
+  flex-shrink: 0;
+  margin-top: 1px;
+  font-size: 0.58rem;
+}
+
+/* T&S: only the print list scrolls (not the rail column) */
+.stock-view-page .sv-rail .ts-panel,
+.stock-view-page .sv-rail .sv-md-pane {
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+  overflow: hidden;
+}
+
+.stock-view-page .sv-rail .ts-panel--embedded {
+  border: 1px solid var(--nova-border, var(--border-color));
+  background: var(--nova-panel, var(--panel-bg));
+}
+
+.stock-view-page .sv-rail .ts-panel__rows {
+  overflow: auto;
+  min-height: 0;
+}
+
+.stock-view-page .sv-rail .sv-md-pane__body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Depth card has no outer title — pane headers own the labels */
+.stock-view-page .sv-depth-card:not(.sv-depth-card--empty) > .sv-module-card__head {
+  display: none;
+}
+
+.stock-view-page .sv-rail .ticker-trade-side-depth {
+  max-height: none;
+}
+
+/* Open / order ticket card — bottom of trade stack (gets remainder after drag) */
+.stock-view-page .sv-open-card {
+  flex: 1 1 0;
+  min-height: var(--sv-order-pane-min, 140px);
+  overflow: auto;
+}
+
+.stock-view-page .ticker-trade-bar--rail {
+  margin: 0;
+  max-height: none;
+  overflow: hidden;
+  box-shadow: none;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.stock-view-page .ticker-trade-bar--rail .ticker-trade-bar-top {
+  flex-direction: column;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+
+.stock-view-page .ticker-trade-bar--rail .ticker-trade-bar-account--pos-only {
+  font-size: 0.62rem;
+  margin: 0;
+}
+
+.stock-view-page .ticker-trade-bar--rail .ticker-trade-bar-open,
+.stock-view-page .ticker-trade-bar--rail .ticker-trade-bar-close {
+  padding-left: 0;
+  border-left: none;
+  border-top: 1px solid var(--sv-border);
+  padding-top: 3px;
+  gap: 2px;
+}
+
+.stock-view-page .ticker-trade-bar--rail .ticker-trade-bar-open {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* Rail keeps Primer rhythm but slightly condensed (stack-gap-condensed-ish) */
+.stock-view-page .ticker-trade-bar--rail .manual-order-ticket {
+  --mot-space-3: 12px;
+  --mot-control-h: 30px;
+  gap: var(--mot-space-3);
+  padding: var(--mot-space-2) var(--mot-space-2) var(--mot-space-3);
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-segment {
+  min-height: var(--mot-control-h);
+  border-radius: var(--mot-radius, 6px);
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-segment button {
+  font-size: 0.72rem;
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-quantity-row {
+  grid-template-columns: minmax(4rem, 32%) minmax(0, 1fr);
+  gap: var(--mot-space-2, 8px);
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-unit-toggle {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--mot-space-2, 8px);
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-unit-toggle button {
+  min-height: var(--mot-control-h);
+  font-size: 0.68rem;
+  padding: 0 8px;
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-presets {
+  gap: var(--mot-space-2, 8px);
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-presets button {
+  min-height: 28px;
+  font-size: 0.65rem;
+  padding: 3px 6px;
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-ticket input,
+.stock-view-page .ticker-trade-bar--rail .manual-order-ticket select {
+  min-height: var(--mot-control-h);
+  font-size: 0.72rem;
+  padding: 4px 10px;
+  border-radius: var(--mot-radius, 6px);
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-submit {
+  min-height: 36px;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  border-radius: var(--mot-radius, 6px);
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-lock-note {
+  display: none; /* unlock button text already signals locked state */
+}
+
+.stock-view-page .ticker-trade-bar--rail .manual-order-result {
+  font-size: 0.8rem;
+  line-height: 1.35;
+  font-weight: 600;
+  white-space: normal;
+  overflow: visible;
+}
+
+.stock-view-page .ticker-trade-bar--rail .ticker-trade-close-btn {
+  width: 100%;
+  padding: 2px 6px;
+  font-size: 0.65rem;
+  border-radius: 3px;
+  min-height: 1.35rem;
+}
+
+.stock-view-page .ticker-trade-bar--rail .ticker-trade-bar-footer {
+  display: none; /* disclosure lives in confirm dialogs; saves rail height */
+}
+
+/* Below desktop: stack rail under charts; still no rail column scroll */
+@media (max-width: 900px) {
+  .stock-view-page .stock-view-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 46vh);
+    row-gap: 3px;
+    overflow: hidden;
+  }
+
+  .stock-view-page .stock-view-body > .resize-handle {
+    display: none;
+  }
+
+  .stock-view-page .sv-rail {
+    max-height: none;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .stock-view-page .stock-view-charts .chart-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    height: 100%;
+  }
+}

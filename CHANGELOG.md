@@ -30,6 +30,34 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Stock View Open Orders dock (collapsible footer)
+
+- **What:** Moved symbol working/open orders from the Stock View rail into a full-width **Open Orders** strip under the chart+rail workspace. User can collapse/expand; preference persists; auto-expands after place / when orders exist.
+- **Why:** User marked the bottom of Stock View for the open-order widget (Webull-style), not the trade rail.
+- **Files touched:** `StockViewOpenOrdersDock.tsx`, `StockViewPage.tsx`, `StockViewRail.tsx`, `stockViewTerminal.css`, `chart_api.ts` constants, tests, WID-026 note.
+- **How it works now:** Footer bar shows count + ▸/▾ toggle. Expanded body reuses `WorkingOrdersPanel` (full columns). Trading tab panel unchanged.
+- **Verified by:** Vitest dock + rail composition tests.
+- **Related:** WID-026; task log working-orders panel.
+
+## 2026-07-18 — Working Orders panel (Webull WID-026)
+
+- **What:** Post-place / working-orders UI: `WorkingOrdersPanel` on Trading
+  (highlight just-placed id) and Stock View rail (symbol-scoped card under
+  Trade). `GET /api/ibkr/orders` rows now include filled/remaining/avg fill.
+- **Why:** User needs Webull-like order status after placement without unlocking
+  `auto_live` or Webull feeds.
+- **Files touched:** `backend/ibkr/orders.py`, `frontend/src/ibkr/WorkingOrdersPanel.tsx`,
+  `PositionsPanel.tsx`, `TradingTab.tsx`, `StockViewRail.tsx`, `StockViewPage.tsx`,
+  `docs/webull-widget-parity.md` (WID-026 + S17 + column map).
+- **How it works now:** Place → refresh open orders → highlight row on Trading;
+  Stock View shows Working Orders when the open symbol has working rows. Cancel
+  only; history/export remains WID-020.
+- **Verified by:** Vitest `WorkingOrdersPanel` + `stockViewTerminal`; pytest
+  `test_open_orders_row`.
+- **Follow-ups:** Filled/cancelled history tabs + CSV export (WID-020); order
+  modify deferred.
+- **Related:** WID-026, `knowledge/task-log/2026-07-18-working-orders-panel.md`
+
 ## 2026-07-18 — Fix shortcuts-menu rebind (StrictMode cancel)
 
 - **What:** Double-click / Edit rebind now stays open. Cleanup uses TanStack `stopRecording` instead of `cancelRecording` (cancel was clearing the session via `onCancel` under React StrictMode). Added per-row **Edit** button and a clearer listening banner.

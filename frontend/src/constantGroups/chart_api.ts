@@ -46,6 +46,8 @@ export const NOVA_DESKTOP_API_PORT = 8000;
 export const NOVA_DESKTOP_API_BASE = `http://${NOVA_DESKTOP_API_HOST}:${NOVA_DESKTOP_API_PORT}`;
 /** Vite-dev-only path that kills port 8000 and starts `scripts/Start-NovaApi.ps1`. */
 export const NOVA_START_API_DEV_PATH = '/__nova/start-api';
+/** Vite-dev fallback when FastAPI is stale / missing launch-gateway. */
+export const NOVA_LAUNCH_GATEWAY_DEV_PATH = '/__nova/launch-gateway';
 /** How long the header "Start API" button waits for /api/health after a restart. */
 export const NOVA_START_API_HEALTH_TIMEOUT_MS = 45_000;
 /** Short probe used to classify Backend unreachable (API_DOWN vs API_WEDGED). */
@@ -342,6 +344,15 @@ export const STOCK_VIEW_MODULE_TAPE_TITLE = 'Time & Sales';
 /** Combined L2 + T&S module title (side-by-side inside one card). */
 export const STOCK_VIEW_MODULE_DEPTH_TITLE = 'Level 2 · Time & Sales';
 export const STOCK_VIEW_MODULE_OPEN_TITLE = 'Trade';
+/** Working / open orders panel (Webull Orders → Working equivalent). */
+export const WORKING_ORDERS_PANEL_TITLE = 'Working Orders';
+/** Stock View open-orders dock title (bottom strip under charts). */
+export const STOCK_VIEW_MODULE_WORKING_ORDERS_TITLE = 'Open Orders';
+/** localStorage: `1` = Stock View open-orders dock collapsed. */
+export const STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY =
+  'nova.stockView.openOrders.collapsed';
+/** Default collapsed until the user expands or an order is placed. */
+export const STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED = true;
 /** Suffix pattern for L2: " · TOP {n}". */
 export const STOCK_VIEW_MODULE_L2_TOP_PREFIX = 'TOP';
 /** Headlines shown in the trading-page side column before "More". */

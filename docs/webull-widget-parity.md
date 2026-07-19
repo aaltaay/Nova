@@ -51,12 +51,13 @@ operational dimensions. Similar appearance alone is not functional parity.
 | WID-017 | Trading | Chart Trading | S1 | None | missing | Orders cannot be staged or adjusted directly on a chart | Use the widgets to design chart-based paper order staging |
 | WID-018 | Trading | Trading hotkeys | S1, S14 | Nova hotkeys plus DAS-compatible profile authoring | partial | Imported DAS commands remain authoring-only and the runtime action set is intentionally narrow | Use the widgets to map the next safely executable hotkey |
 | WID-019 | Account | Positions widget | S7 | PositionsPanel and account polling | matched | No material scoped gap | Use the widgets to audit position actions |
-| WID-020 | Account | Orders widget with history/export | S15 | Open orders and cancellation in PositionsPanel | partial | Nova lacks complete order history/export and modification workflows | Use the widgets to implement order history before order editing |
+| WID-020 | Account | Orders widget with history/export | S15, S17 | Working Orders panel + cancel; no CSV history export | partial | Nova has working-order columns + cancel but lacks Today's/history tabs, CSV export, and modify-order | Use the widgets to implement order history/export before order editing |
 | WID-021 | Reports | Performance widget with P&L, win rate, profit factor, duration | S1 | Reports v2, tags, R multiples, drawdown | partial | Metric names, trade-duration views, and drill-down coverage differ | Use the widgets to map Webull performance metrics to Reports v2 |
 | WID-022 | Simulation | Paper trading | S2, S9 | IBKR paper Gateway with explicit safety gates | matched | Nova requires local Gateway and preserves broker truth | Use the widgets to audit paper onboarding |
 | WID-023 | Workspace | Multi-screen and detachable windows | S3, S10 | Detached Stock View and Electron desktop | partial | Nova does not detach arbitrary modules into independently linked windows | Use the widgets to design detachable module windows |
 | WID-024 | Community | Comments widget | S3 | None | not-comparable | Social posting is not part of Nova's local-first trading workstation direction | Use the widgets to keep community features out of execution scope |
 | WID-025 | Market overview | Heatmap and broad market-flow widgets | S10, S16 | Dashboard and strategy scanners | missing | No broad heatmap or Webull-style market-flow visualization | Use the widgets to prioritize a market-overview widget |
+| WID-026 | Trading | Post-place Working Orders status (Orders → Working / Today's Orders) | S15, S17, S7 | `WorkingOrdersPanel` on Trading tab + collapsible Stock View **Open Orders** footer dock | partial | Bottom dock (collapse/expand); highlight after place + cancel; no modify, no filled-history tab | Use the widgets to add filled/cancelled history tabs next (keep `auto_live` NO-GO) |
 
 ## Evidence
 
@@ -99,9 +100,17 @@ Webull sources were captured on 2026-07-16:
   Orders-widget history export.
 - **S16** — [Market Watch](https://www.webull.com/help/faq/10624-Market-Watch):
   heat-map size and sentiment behavior.
+- **S17** — [Order Instructions and Settings](https://www.webull.com/help/faq/291-Where-do-I-place-an-order)
+  (captured 2026-07-18): Desktop **Orders → Working** for cancel/modify;
+  App **Orders → Open Orders**; Website **Today's Orders → Working Orders**;
+  history via Account → Orders / History → Orders Records; optional order
+  confirmation toggle; export from Orders widget settings. Lifecycle statuses
+  named in S15 export: filled, partially filled, pending, working, cancelled,
+  failed. Public docs do not publish an exhaustive column schema; Nova column
+  map below is inferred from those lifecycle names + IBKR open-order fields.
 
 Nova evidence was captured from revision `8c773f0` plus the uncommitted
-2026-07-16 workspace. Primary indexes:
+2026-07-18 working-orders work. Primary indexes:
 
 - `frontend/src/workspace/registry.ts`
 - `frontend/src/ibkr/`
@@ -109,8 +118,36 @@ Nova evidence was captured from revision `8c773f0` plus the uncommitted
 - `frontend/src/hod_momo/`
 - `frontend/src/reports/`
 - `backend/routes/trading.py`
-- `backend/ibkr/`
+- `backend/ibkr/orders.py` (`open_orders` + fill progress fields)
+- `frontend/src/ibkr/WorkingOrdersPanel.tsx`
+- `frontend/src/ibkr/PositionsPanel.tsx` / `TradingTab.tsx`
+- `frontend/src/stock_view/StockViewRail.tsx`
 - `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+
+### Working Orders column map (WID-026)
+
+| Webull concept (S15/S17) | Nova / IBKR field | In Working Orders v1 |
+|---|---|---|
+| Symbol | `symbol` | yes |
+| Side (Buy/Sell) | `side` | yes |
+| Quantity | `qty` (`totalQuantity`) | yes |
+| Filled / partial fill | `filled_qty` (`orderStatus.filled`) | yes |
+| Remaining / left | `remaining_qty` | yes (full table) |
+| Order type | `order_type` | yes |
+| Limit / price | `limit_price` | yes |
+| Stop | `stop_price` (`auxPrice`) | yes (full table) |
+| Avg fill | `avg_fill_price` | yes |
+| Status (working/pending/…) | `status` (IBKR status string) | yes |
+| Extended hours | `outside_rth` | yes (full table) |
+| Order id | `order_id` | yes |
+| Account | Gateway paper/live mode (status bar) | mode badge elsewhere; not a column |
+| Time placed | not on `openTrades` row today | deferred |
+| Modify order | — | deferred (cancel only) |
+| History / export CSV | — | WID-020 follow-up |
+
+**Primary placement:** Trading tab account column (always visible when connected).
+**Secondary:** Stock View rail card under Trade when the open symbol has working
+orders (or a just-placed highlight id). Not a global drawer.
 
 ## Update protocol
 
