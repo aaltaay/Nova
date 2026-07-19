@@ -1,6 +1,6 @@
 /**
  * Single shell-level hotkey dispatcher (Phase G3).
- * Merges Automation six + Nova Actions — one keydown listener.
+ * Merges Automation six + Nova Actions + Ctrl+M shortcuts menu — one keydown listener.
  */
 
 import {
@@ -21,6 +21,14 @@ import {
 import { loadProfile } from './hotkeyStorage';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from './runNovaAction';
+import { buildShortcutsCatalog } from './shortcutsCatalog';
+import {
+  initialShortcutsMenuState,
+  reduceShortcutsMenuKeyDown,
+  reduceShortcutsMenuKeyUp,
+  type ShortcutsMenuState,
+} from './shortcutsMenuState';
+import { ShortcutsMenuOverlay } from './ShortcutsMenuOverlay';
 import { useTopOfBook } from './TopOfBookContext';
 
 interface AutomationRegistration {
@@ -53,6 +61,12 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     () => loadProfile().novaActions,
   );
   const [lastResult, setLastResult] = useState<NovaActionResult | null>(null);
+  const [menuState, setMenuState] = useState<ShortcutsMenuState>(
+    initialShortcutsMenuState,
+  );
+  const menuStateRef = useRef(menuState);
+  menuStateRef.current = menuState;
+
   const runtimeRef = useRef<NovaActionRuntime>({
     symbol: null,
     connected: false,
@@ -92,11 +106,27 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     return result;
   }, []);
 
+  const closePinnedMenu = useCallback(() => {
+    setMenuState(initialShortcutsMenuState());
+  }, []);
+
   const novaActionsRef = useRef(novaActions);
   novaActionsRef.current = novaActions;
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const menuNext = reduceShortcutsMenuKeyDown(
+        menuStateRef.current,
+        event,
+        performance.now(),
+      );
+      if (menuNext.consumed) {
+        event.preventDefault();
+        menuStateRef.current = menuNext.state;
+        setMenuState(menuNext.state);
+        return;
+      }
+
       createHotkeyKeydownHandler({
         mode: automationEnabled ? automationMode : 'signal',
         callbacks: automationEnabled ? automationCallbacksRef.current : {},
@@ -107,9 +137,27 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
         },
       })(event);
     };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      const next = reduceShortcutsMenuKeyUp(menuStateRef.current, event);
+      if (next.mode !== menuStateRef.current.mode) {
+        menuStateRef.current = next;
+        setMenuState(next);
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
   }, [automationEnabled, automationMode, runAction]);
+
+  const catalog = useMemo(
+    () => buildShortcutsCatalog(novaActions),
+    [novaActions],
+  );
 
   const value = useMemo(
     () => ({
@@ -133,6 +181,11 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   return (
     <HotkeyDispatchContext.Provider value={value}>
       {children}
+      <ShortcutsMenuOverlay
+        mode={menuState.mode}
+        sections={catalog}
+        onClosePinned={closePinnedMenu}
+      />
     </HotkeyDispatchContext.Provider>
   );
 }

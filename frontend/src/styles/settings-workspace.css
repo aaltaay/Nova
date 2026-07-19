@@ -562,3 +562,98 @@
   margin: 0;
 }
 
+/* ── Ctrl+M shortcuts cheat-sheet ─────────────────────────────────────────── */
+
+.shortcuts-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 4rem 1rem 2rem;
+  background: color-mix(in srgb, var(--bg-color) 35%, transparent);
+  pointer-events: none;
+}
+
+.shortcuts-menu-backdrop--pinned {
+  pointer-events: auto;
+  background: color-mix(in srgb, var(--bg-color) 55%, rgba(0, 0, 0, 0.35));
+}
+
+.shortcuts-menu-panel {
+  pointer-events: auto;
+  width: min(36rem, 100%);
+  max-height: min(70vh, 40rem);
+  overflow: auto;
+  border-radius: var(--radius-panel, 12px);
+  border: 1px solid var(--border-color);
+  background: var(--panel-bg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.shortcuts-menu-header {
+  margin-bottom: 0.85rem;
+}
+
+.shortcuts-menu-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.shortcuts-menu-hint {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.shortcuts-menu-section {
+  margin-bottom: 0.85rem;
+}
+
+.shortcuts-menu-section-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.shortcuts-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.shortcuts-menu-row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr;
+  gap: 0.65rem;
+  align-items: baseline;
+  padding: 0.28rem 0;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.82rem;
+}
+
+.shortcuts-menu-row kbd {
+  font-size: 0.72rem;
+  font-family: inherit;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control, 8px);
+  padding: 0.12rem 0.4rem;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.shortcuts-menu-label {
+  color: var(--text-primary);
+}
+
+.shortcuts-menu-detail {
+  font-size: 0.75rem;
+}
+

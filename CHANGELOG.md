@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Ctrl+M shortcuts cheat-sheet (peek / pin)
+
+- **What:** Global **Ctrl+M** overlay lists Automation six + enabled Nova Actions + the menu itself. Single press peeks (closes on release); double-tap pins until Esc / Ctrl+M / backdrop click.
+- **Why:** User asked for a quick way to see all bound Nova shortcuts without opening Settings.
+- **Files touched:** `shortcutsMenuState.ts`, `shortcutsCatalog.ts`, `ShortcutsMenuOverlay.tsx`, `HotkeyDispatchContext.tsx`, `features.ts` constants, `settings-workspace.css`, hotkeys continuity rule.
+- **How it works now:** Same shell dispatcher handles Ctrl+M before Automation/Nova Actions. Catalog is built live from `HOTKEY_DEFAULTS` + enabled profile actions.
+- **Verified by:** Vitest shortcuts menu/catalog (+ hotkeys suite); Playwright peek/pin path when UI up.
+- **Related:** Phase G3 dispatcher; Settings → Hotkeys still owns editing.
+
 ## 2026-07-18 — Apple-inspired light/dark appearance tokens
 
 - **What:** Theme-only redesign: HIG-like light + dark palettes, system font stack, calmer header (no purple hero), logo uses accent `currentColor`, header **Light/Dark** toggle persisted as `nova.theme`.

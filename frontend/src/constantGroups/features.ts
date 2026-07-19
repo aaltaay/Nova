@@ -133,6 +133,15 @@ export const HOTKEY_ORDER_ACTIONS: HotkeyAction[] = [
 export const HOTKEY_SIGNAL_BLOCKED_MESSAGE =
   'Order hotkeys disabled in Signal mode — raise to Confirm first.';
 
+/** Global shortcuts cheat-sheet (peek on hold / pin on double-tap). */
+export const SHORTCUTS_MENU_BINDING: HotkeyBinding = { key: 'm', ctrl: true };
+/** Max gap between Ctrl+M presses to count as pin (double-tap). */
+export const SHORTCUTS_MENU_DOUBLE_TAP_MS = 450;
+export const SHORTCUTS_MENU_TITLE = 'Keyboard shortcuts';
+export const SHORTCUTS_MENU_HINT_PEEK =
+  'Release to close · press Ctrl+M again quickly to pin';
+export const SHORTCUTS_MENU_HINT_PINNED = 'Pinned · Esc or Ctrl+M to close';
+
 // ── DAS-compatible hotkey manager (Phase G2 / G3) ────────────────────────────
 /** Shown in Settings → Hotkeys for the DAS import table. */
 export const HOTKEY_MANAGER_INACTIVE_BANNER =
