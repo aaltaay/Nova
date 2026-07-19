@@ -1,5 +1,5 @@
 /**
- * Global shortcuts cheat-sheet overlay — peek/pin + double-click rebind.
+ * Global shortcuts cheat-sheet overlay — peek/pin + double-click / Edit rebind.
  */
 
 import {
@@ -43,6 +43,10 @@ export function ShortcutsMenuOverlay({
   if (mode === 'closed') return null;
   const pinned = mode === 'pinned';
 
+  const beginRebind = (target: ShortcutRebindTarget, excludeId: string) => {
+    onStartRebind(target, excludeId);
+  };
+
   return (
     <div
       className={`shortcuts-menu-backdrop${pinned ? ' shortcuts-menu-backdrop--pinned' : ''}`}
@@ -85,10 +89,12 @@ export function ShortcutsMenuOverlay({
                     className={`shortcuts-menu-row${row.rebind ? ' shortcuts-menu-row--rebindable' : ''}${
                       rebindExcludeId === row.id ? ' shortcuts-menu-row--recording' : ''
                     }`}
-                    title={row.rebind ? 'Double-click to change shortcut' : undefined}
-                    onDoubleClick={() => {
+                    title={row.rebind ? 'Double-click or press Edit to change shortcut' : undefined}
+                    onDoubleClick={(e) => {
                       if (!row.rebind) return;
-                      onStartRebind(row.rebind, row.id);
+                      e.preventDefault();
+                      e.stopPropagation();
+                      beginRebind(row.rebind, row.id);
                     }}
                   >
                     <kbd>{row.chord}</kbd>
@@ -100,6 +106,19 @@ export function ShortcutsMenuOverlay({
                         </span>
                       )}
                     </span>
+                    {row.rebind && (
+                      <button
+                        type="button"
+                        className="shortcuts-menu-edit-btn"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          beginRebind(row.rebind!, row.id);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

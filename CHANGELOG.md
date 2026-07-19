@@ -30,6 +30,41 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Fix shortcuts-menu rebind (StrictMode cancel)
+
+- **What:** Double-click / Edit rebind now stays open. Cleanup uses TanStack `stopRecording` instead of `cancelRecording` (cancel was clearing the session via `onCancel` under React StrictMode). Added per-row **Edit** button and a clearer listening banner.
+- **Why:** Keyboard shortcuts menu double-click appeared to do nothing — remount cleanup immediately dismissed rebind.
+- **Files touched:** `ShortcutRebindSession.tsx`, `ShortcutsMenuOverlay.tsx`, `settings-workspace.css`, overlay test.
+- **How it works now:** Edit or double-click → “Press the new shortcut now · Listening…” → press chord (Esc / Cancel to abort).
+- **Verified by:** Vitest overlay Edit/dblclick; Playwright Edit → Listening.
+
+## 2026-07-18 — Silence Vite HMR noise in client-error logs
+
+- **What:** `POST /api/client-errors` no longer logs Vite HMR failures (`send was called before connect`, `@vite/client` stacks). Frontend reporter drops the same noise before POSTing.
+- **Why:** Dev HMR WebSocket races flooded the API log with hundreds of WARNING lines that looked like the app was crashing.
+- **Files touched:** `frontend/src/utils/reportClientError.ts`, `backend/routes/client_errors.py`, matching tests.
+- **How it works now:** Real product errors still POST + log; Vite overlay/HMR internals return `{ok:true, ignored:true}` (or never leave the browser).
+- **Verified by:** Vitest `reportClientError.test.ts` + pytest `test_client_errors_ignores_vite_hmr_noise`.
+- **Related:** PROBLEM_LOG §2026-07-18 Vite HMR client-error flood.
+
+## 2026-07-18 — Gateway double-click: visible feedback + Vite fallback
+
+- **What:** Fixed “double-click does nothing”: stale API returned 404 with no visible error. Chip now shows opening/check desktop/launch failed + a hint line; Vite `POST /__nova/launch-gateway` covers 404 in local dev.
+- **Why:** User double-clicked Gateway offline and saw no effect.
+- **Files touched:** `launchIbGateway.ts`, `HeaderConnectionStatus.tsx`, `vite-nova-launch-gateway.ts`, `vite.config.ts`.
+- **How it works now:** Prefer `POST /api/ibkr/launch-gateway`; on 404 try Vite middleware. Restart Vite once so the new plugin loads.
+- **Verified by:** Live POST launch-gateway → 200 after API restart; Vitest launchIbGateway fallback test.
+- **Related:** PROBLEM_LOG §2026-07-18 Gateway chip double-click.
+
+## 2026-07-18 — Double-click Gateway chip opens IB Gateway
+
+- **What:** Double-clicking the header **Gateway** status chip calls `POST /api/ibkr/launch-gateway`, which starts IB Gateway (or the local IBC script) or brings an existing Gateway window to the front.
+- **Why:** User asked to summon Gateway from the offline chip to reduce hunting the desktop app.
+- **Files touched:** `ibkr/launch_gateway.py`, `routes/trading.py`, `HeaderConnectionStatus.tsx`, `launchIbGateway.ts`, constants.
+- **How it works now:** Prefer `%USERPROFILE%\.nova\ibc\start_gateway.ps1` if present; else `IBKR_GATEWAY_EXE` / newest `C:\Jts\ibgateway\*\ibgateway.exe`. Does not store passwords or bypass 2FA — user still logs in.
+- **Verified by:** pytest `test_launch_gateway.py`; Vitest `launchIbGateway.test.ts`; live resolve found `C:\Jts\ibgateway\1045\ibgateway.exe`.
+- **Follow-ups:** Complete Gateway login + 2FA after launch so the chip flips to connected.
+
 ## 2026-07-18 — Rebind shortcuts on the go (TanStack recorder)
 
 - **What:** In the shortcuts menu, **double-click** any row to capture a new chord via `@tanstack/react-hotkeys` `useHotkeyRecorder`. Duplicates blocked with TanStack-normalized conflict checks. Automation six + menu chord persist on the hotkey profile (schema v3).

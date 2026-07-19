@@ -36,11 +36,20 @@ export function ShortcutRebindSession({
   const targetRef = useRef(target);
   targetRef.current = target;
   const startRef = useRef<() => void>(() => {});
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
   const recorder = useHotkeyRecorder({
     ignoreInputs: false,
-    onCancel,
+    // Escape during an active session — not React StrictMode unmount.
+    onCancel: () => {
+      onCancelRef.current();
+    },
     onRecord: (hotkey: Hotkey) => {
+      if (!hotkey) {
+        queueMicrotask(() => startRef.current());
+        return;
+      }
       const chord = tanstackHotkeyToChord(hotkey);
       const hit = findShortcutConflict(chord, occupiedRef.current, excludeId);
       if (hit) {
@@ -59,19 +68,31 @@ export function ShortcutRebindSession({
   useEffect(() => {
     recorder.startRecording();
     return () => {
-      recorder.cancelRecording();
+      // stop() does NOT call onCancel — cancel() would clear the parent
+      // rebindTarget in React StrictMode (mount → cleanup → remount).
+      recorder.stopRecording();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one session per mount
   }, []);
 
   return (
-    <p className="shortcuts-menu-rebind" role="status">
-      {SHORTCUTS_MENU_REBIND_HINT}
+    <div className="shortcuts-menu-rebind" role="status" aria-live="polite">
+      <strong>{SHORTCUTS_MENU_REBIND_HINT}</strong>
+      {recorder.isRecording && (
+        <span className="shortcuts-menu-rebind-live"> Listening…</span>
+      )}
       {recorder.recordedHotkey && (
         <span className="shortcuts-menu-rebind-preview">
           {` (${recorder.recordedHotkey})`}
         </span>
       )}
-    </p>
+      <button
+        type="button"
+        className="btn-secondary shortcuts-menu-rebind-cancel"
+        onClick={onCancel}
+      >
+        Cancel
+      </button>
+    </div>
   );
 }

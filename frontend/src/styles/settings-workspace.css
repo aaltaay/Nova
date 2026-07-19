@@ -642,12 +642,13 @@
 
 .shortcuts-menu-row {
   display: grid;
-  grid-template-columns: 8.5rem 1fr;
+  grid-template-columns: 8.5rem 1fr auto;
   gap: 0.65rem;
-  align-items: baseline;
-  padding: 0.28rem 0;
+  align-items: center;
+  padding: 0.28rem 0.2rem;
   border-top: 1px solid var(--border-color);
   font-size: 0.82rem;
+  user-select: none;
 }
 
 .shortcuts-menu-row kbd {
@@ -684,15 +685,49 @@
 }
 
 .shortcuts-menu-rebind {
-  margin: 0.5rem 0 0;
-  font-size: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.65rem 0 0;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-control, 8px);
+  border: 1px solid var(--accent-color);
+  background: color-mix(in srgb, var(--accent-color) 12%, var(--panel-bg));
+  font-size: 0.82rem;
   font-weight: 600;
+  color: var(--text-primary);
+}
+
+.shortcuts-menu-rebind-live {
   color: var(--accent-color);
 }
 
 .shortcuts-menu-rebind-preview {
   font-weight: 500;
   color: var(--text-secondary);
+}
+
+.shortcuts-menu-rebind-cancel {
+  margin-left: auto;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.55rem;
+}
+
+.shortcuts-menu-edit-btn {
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-control, 8px);
+  border: 1px solid var(--border-color);
+  background: var(--hover-bg);
+  color: var(--accent-color);
+  cursor: pointer;
+}
+
+.shortcuts-menu-edit-btn:hover {
+  border-color: var(--accent-color);
 }
 
 .shortcuts-menu-conflict {
