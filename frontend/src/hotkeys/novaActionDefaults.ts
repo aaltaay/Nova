@@ -26,8 +26,17 @@ export function createDefaultNovaActions(): NovaActionRecord[] {
       showButton: true,
     },
     {
+      id: 'nova-cancel-and-exit',
+      name: 'Cancel + Flatten',
+      kind: 'cancel_and_exit',
+      key: chord('Ctrl+Shift+Backspace'),
+      params: {},
+      enabled: true,
+      showButton: true,
+    },
+    {
       id: 'nova-exit-pos',
-      name: 'Exit full position',
+      name: 'Flatten position',
       kind: 'exit_pos',
       key: chord('Ctrl+PageUp'),
       params: {},

@@ -1,16 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatExtendedHours,
+  formatOrderDateTime,
   formatOrderSide,
   formatOrderStatus,
   formatOrderType,
+  orderSideClass,
+  orderSideRowClass,
   orderStatusTone,
+  positionSideClass,
+  positionSideRowClass,
 } from './orderDisplay';
 
 describe('orderDisplay', () => {
-  it('spells out sides and order types', () => {
+  it('maps sides to labels and color classes (tables use color, not Side column)', () => {
     expect(formatOrderSide('BUY')).toBe('Buy');
     expect(formatOrderSide('SELL')).toBe('Sell');
+    expect(orderSideClass('BUY')).toBe('ibkr-side--buy');
+    expect(orderSideClass('SELL')).toBe('ibkr-side--sell');
+    expect(orderSideRowClass('BUY')).toBe('ibkr-order-row--buy');
+    expect(orderSideRowClass('SELL')).toBe('ibkr-order-row--sell');
+    expect(positionSideClass(100)).toBe('ibkr-side--buy');
+    expect(positionSideClass(-40)).toBe('ibkr-side--sell');
+    expect(positionSideRowClass(100)).toBe('ibkr-order-row--buy');
+    expect(positionSideRowClass(-40)).toBe('ibkr-order-row--sell');
     expect(formatOrderType('LMT')).toBe('Limit Order');
     expect(formatOrderType('MKT')).toBe('Market Order');
     expect(formatOrderType('STP')).toBe('Stop Order');
@@ -22,8 +35,15 @@ describe('orderDisplay', () => {
     expect(formatOrderStatus('PendingSubmit', 0, 25)).toBe('Pending');
     expect(formatOrderStatus('Submitted', 0, 100)).toBe('Working');
     expect(formatOrderStatus('Submitted', 20, 50)).toBe('Partially filled');
+    expect(formatOrderStatus('PreSubmitted', 20, 50)).toBe('Partially filled');
     expect(formatOrderStatus('Filled', 100, 100)).toBe('Filled');
     expect(formatOrderStatus('Cancelled', 0, 100)).toBe('Cancelled');
+    expect(formatOrderStatus('Cancelled', 35, 100)).toBe(
+      'Cancelled (partial fill)',
+    );
+    expect(formatOrderStatus('ApiCancelled', 10, 80)).toBe(
+      'Cancelled (partial fill)',
+    );
     expect(formatOrderStatus('Inactive', 0, 100)).toBe('Failed');
   });
 
@@ -32,5 +52,14 @@ describe('orderDisplay', () => {
     expect(formatExtendedHours(false)).toBe('Regular hours');
     expect(orderStatusTone('Working')).toBe('working');
     expect(orderStatusTone('Partially filled')).toBe('partial');
+    expect(orderStatusTone('Cancelled (partial fill)')).toBe('partial');
+  });
+
+  it('formats exact Eastern times with seconds', () => {
+    const label = formatOrderDateTime('2026-07-18T13:41:23+00:00');
+    expect(label).toMatch(/Jul 18, 2026/);
+    expect(label).toMatch(/09:41:23/);
+    expect(label.endsWith(' ET')).toBe(true);
+    expect(formatOrderDateTime(null)).toBe('—');
   });
 });

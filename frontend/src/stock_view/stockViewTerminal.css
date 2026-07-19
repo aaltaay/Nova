@@ -464,7 +464,7 @@
   background: transparent;
   color: var(--sv-primary);
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -495,7 +495,7 @@
   background: transparent;
   color: var(--sv-secondary);
   font: inherit;
-  font-size: 0.7rem;
+  font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -523,8 +523,23 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--sv-accent) 18%, transparent);
   color: var(--sv-accent);
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   text-align: center;
+}
+
+/* Order dock table: readable body + time (overrides compact shrink). */
+.stock-view-page .sv-open-orders-dock__body .ibkr-table--orders th,
+.stock-view-page .sv-open-orders-dock__body .ibkr-table--orders td {
+  font-size: 0.85rem;
+}
+
+.stock-view-page .sv-open-orders-dock__body .ibkr-table--orders th {
+  font-size: 0.8rem;
+}
+
+.stock-view-page .sv-open-orders-dock__body .ibkr-table--orders td.ibkr-col--time,
+.stock-view-page .sv-open-orders-dock__body .ibkr-table--orders th.ibkr-col--time {
+  font-size: 0.9rem;
 }
 
 .stock-view-page .sv-open-orders-dock__hint {

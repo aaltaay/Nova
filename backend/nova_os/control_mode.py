@@ -62,12 +62,18 @@ def auto_paper_gate_status() -> tuple[bool, str]:
     account_mode = _ibkr_client.account_mode()
     if account_mode != "paper":
         return False, f"auto_paper requires paper Gateway (current account_mode={account_mode!r})"
+    kind = _ibkr_client.broker_account_kind()
+    if kind != "paper":
+        return False, (
+            f"auto_paper requires paper broker accounts (DU/DF); got {kind!r}"
+        )
     if not _ibkr_safety.orders_enabled():
         return False, "auto_paper requires IBKR_ORDERS_ENABLED=true"
     ok, reason = _ibkr_safety.assert_orders_allowed(
         client_enabled=_ibkr_client.is_enabled(),
         connected=True,
         account_mode=account_mode,
+        broker_account_kind=kind,
     )
     if not ok:
         return False, reason or "auto_paper blocked by IBKR spend gates"

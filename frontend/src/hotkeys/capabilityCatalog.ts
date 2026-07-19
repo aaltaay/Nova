@@ -90,7 +90,8 @@ export const HOTKEY_CAPABILITY_CATALOG: HotkeyCapabilityEntry[] = [
     id: 'cancel_scopes',
     category: 'cancel',
     label: 'Cancel scopes',
-    description: 'Cancel all / same-symbol / buy-sell. G3: Nova Action cancel_symbol (open symbol).',
+    description:
+      'Cancel all / same-symbol / buy-sell. G3: cancel_symbol (open symbol); cancel_and_exit cancels then flattens. Per-order Fill now is panel UI (not a hotkey).',
     example: 'CXL ALLSYMB',
     evidence: 'community_version_sensitive',
     status: 'nova_active',

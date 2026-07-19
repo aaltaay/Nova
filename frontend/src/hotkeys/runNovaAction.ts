@@ -10,6 +10,7 @@ import {
   NOVA_ACTION_PIN_LOCKED_MESSAGE,
   NOVA_ACTION_SPEND_LOCKED_MESSAGE,
 } from '../constants';
+import { shouldUseOutsideRth } from '../ibkr/extendedSession';
 import { buildExitFullPosition, buildExitPositionPercent } from '../ibkr/exitPosition';
 import {
   cancelAllOrdersForSymbol,
@@ -60,6 +61,38 @@ async function maybeConfirm(
   return window.confirm(summary);
 }
 
+async function placeMarketExit(
+  runtime: NovaActionRuntime,
+  symbol: string,
+  side: 'BUY' | 'SELL',
+  qty: number,
+  label: string,
+): Promise<NovaActionResult> {
+  const outside_rth = shouldUseOutsideRth(false);
+  const hours = outside_rth ? ' extended hours' : '';
+  const summary = `${side} ${qty} ${symbol} (MKT${hours} ${label}) on the connected account.`;
+  if (!(await maybeConfirm(runtime, summary))) {
+    return { ok: false, text: 'Order cancelled' };
+  }
+  try {
+    const res = await placeIbkrOrder({
+      symbol,
+      side,
+      qty,
+      order_type: 'MKT',
+      outside_rth,
+    });
+    return {
+      ok: res.ok,
+      text: res.ok
+        ? `Exit order #${res.order_id}${outside_rth ? ' (EH)' : ''}`
+        : res.error ?? 'Exit failed',
+    };
+  } catch {
+    return { ok: false, text: 'Network error placing exit' };
+  }
+}
+
 export async function runNovaAction(
   action: NovaActionRecord,
   runtime: NovaActionRuntime,
@@ -87,34 +120,58 @@ export async function runNovaAction(
     }
   }
 
+  if (action.kind === 'cancel_and_exit') {
+    let cancelText = '';
+    try {
+      const res = await cancelAllOrdersForSymbol(symbol);
+      if (!res.ok) {
+        return { ok: false, text: res.error ?? 'Cancel-all failed before flatten' };
+      }
+      const n = res.cancelled.length;
+      cancelText = n === 0 ? 'No open orders' : `Cancelled ${n}`;
+    } catch {
+      return { ok: false, text: 'Network error cancelling orders before flatten' };
+    }
+
+    const built = buildExitFullPosition(runtime.position?.qty);
+    if (!built.ok) {
+      return {
+        ok: true,
+        text: `${cancelText} for ${symbol}. ${built.error}`,
+      };
+    }
+    const exit = await placeMarketExit(
+      runtime,
+      symbol,
+      built.side,
+      built.qty,
+      'cancel+flatten',
+    );
+    if (!exit.ok) {
+      return {
+        ok: false,
+        text: `${cancelText} for ${symbol}. Flatten: ${exit.text}`,
+      };
+    }
+    return {
+      ok: true,
+      text: `${cancelText} for ${symbol}. ${exit.text}`,
+    };
+  }
+
   if (action.kind === 'exit_pos' || action.kind === 'exit_pos_pct') {
     const built = action.kind === 'exit_pos'
       ? buildExitFullPosition(runtime.position?.qty)
       : buildExitPositionPercent(runtime.position?.qty, action.params.percent ?? 50);
     if (!built.ok) return { ok: false, text: built.error };
 
-    const summary =
-      `${built.side} ${built.qty} ${symbol} (MKT exit) on the connected account.`;
-    if (!(await maybeConfirm(runtime, summary))) {
-      return { ok: false, text: 'Order cancelled' };
-    }
-    try {
-      const res = await placeIbkrOrder({
-        symbol,
-        side: built.side,
-        qty: built.qty,
-        order_type: 'MKT',
-        outside_rth: false,
-      });
-      return {
-        ok: res.ok,
-        text: res.ok
-          ? `Exit order #${res.order_id}`
-          : res.error ?? 'Exit failed',
-      };
-    } catch {
-      return { ok: false, text: 'Network error placing exit' };
-    }
+    return placeMarketExit(
+      runtime,
+      symbol,
+      built.side,
+      built.qty,
+      action.kind === 'exit_pos' ? 'flatten' : 'partial exit',
+    );
   }
 
   if (action.kind === 'buy_limit_ask_offset' || action.kind === 'sell_limit_bid_offset') {
@@ -138,8 +195,9 @@ export async function runNovaAction(
       return { ok: false, text: 'Computed limit price is invalid' };
     }
     const side = isBuy ? 'BUY' : 'SELL';
+    const outside_rth = shouldUseOutsideRth(false);
     const summary =
-      `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)})`;
+      `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)}${outside_rth ? ' EH' : ''})`;
     if (!(await maybeConfirm(runtime, summary))) {
       return { ok: false, text: 'Order cancelled' };
     }
@@ -150,7 +208,7 @@ export async function runNovaAction(
         qty: shares,
         order_type: 'LMT',
         limit_price: Number(limit.toFixed(4)),
-        outside_rth: false,
+        outside_rth,
       });
       return {
         ok: res.ok,

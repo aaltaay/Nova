@@ -52,6 +52,7 @@ def _gate_auto_paper_ok(monkeypatch):
 
     monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
     monkeypatch.setattr(ibkr_client, "account_mode", lambda: "paper")
+    monkeypatch.setattr(ibkr_client, "broker_account_kind", lambda: "paper")
     monkeypatch.setattr(ibkr_client, "is_enabled", lambda: True)
     monkeypatch.setattr(ibkr_client, "get_ib", lambda: None)
     monkeypatch.setattr(ibkr_safety, "orders_enabled", lambda: True)
@@ -93,8 +94,16 @@ class TestSetModeAutoPaperGates:
     def test_auto_paper_requires_orders_enabled(self, monkeypatch):
         monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
         monkeypatch.setattr(ibkr_client, "account_mode", lambda: "paper")
+        monkeypatch.setattr(ibkr_client, "broker_account_kind", lambda: "paper")
         monkeypatch.setattr(ibkr_safety, "orders_enabled", lambda: False)
         with pytest.raises(ValueError, match="IBKR_ORDERS_ENABLED"):
+            control_mode.set_mode(NOVA_OS_MODE_AUTO_PAPER)
+
+    def test_auto_paper_rejects_live_broker_accounts(self, monkeypatch):
+        monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
+        monkeypatch.setattr(ibkr_client, "account_mode", lambda: "paper")
+        monkeypatch.setattr(ibkr_client, "broker_account_kind", lambda: "live")
+        with pytest.raises(ValueError, match="paper broker accounts"):
             control_mode.set_mode(NOVA_OS_MODE_AUTO_PAPER)
 
     def test_auto_paper_requires_risk(self, monkeypatch):

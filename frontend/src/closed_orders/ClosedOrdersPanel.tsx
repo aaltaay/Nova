@@ -1,6 +1,6 @@
 /**
  * Closed Orders — Webull History / filled+cancelled lifecycle (WID-027).
- * Isolated feature slice (ADR 005). No cancel controls — cancel lives on Working Orders.
+ * Column order drag-persisted (shared localStorage with Working Orders).
  */
 import { useMemo, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
@@ -10,11 +10,25 @@ import {
   CLOSED_ORDERS_SAMPLE_BANNER,
 } from '../constants';
 import {
+  OrderTableColumnHeader,
+  OrderTableDnd,
+} from '../ibkr/OrderTableColumnHeader';
+import {
   formatOrderSide,
   formatOrderStatus,
-  formatOrderType,
+  orderActivityIso,
+  orderSideClass,
+  orderSideRowClass,
   orderStatusTone,
 } from '../ibkr/orderDisplay';
+import {
+  CLOSED_COLUMN_META,
+  DEFAULT_CLOSED_ORDER_COLUMNS,
+  normalizeColumnOrder,
+  type ClosedOrderColumnId,
+} from '../ibkr/orderTableColumns';
+import { useOrderTableColumnOrder } from '../ibkr/useOrderTableColumnOrder';
+import { renderClosedOrderCell } from './closedOrderCells';
 import { filterClosedOrders } from './filterClosedOrders';
 import type { ClosedOrder, ClosedOrdersFilter } from './types';
 
@@ -25,30 +39,13 @@ interface Props {
   onOpenTrading?: (symbol: string) => void;
   filterSymbol?: string | null;
   hideTitle?: boolean;
-  /** When true, show sample banner (mock rows). */
   sampleMode?: boolean;
-}
-
-function fmt(n: number | null | undefined, decimals = 2) {
-  if (n == null) return '—';
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
-
-function fmtDollar(n: number | null | undefined) {
-  if (n == null) return '—';
-  return `$${fmt(n)}`;
-}
-
-function sideColor(side: string) {
-  return side.trim().toUpperCase() === 'BUY' ? 'var(--green)' : 'var(--red)';
 }
 
 const FILTERS: { id: ClosedOrdersFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'filled', label: 'Filled' },
+  { id: 'partial', label: 'Partial cancel' },
   { id: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -62,6 +59,16 @@ export function ClosedOrdersPanel({
   sampleMode = false,
 }: Props) {
   const [filter, setFilter] = useState<ClosedOrdersFilter>('all');
+  const { order, reorder, reset } = useOrderTableColumnOrder('closed');
+  const columns = useMemo(
+    () =>
+      normalizeColumnOrder(order, DEFAULT_CLOSED_ORDER_COLUMNS) as ClosedOrderColumnId[],
+    [order],
+  );
+  const headerMeta = useMemo(
+    () => columns.map((id) => CLOSED_COLUMN_META[id]),
+    [columns],
+  );
   const rows = useMemo(
     () => filterClosedOrders(orders, filter, filterSymbol),
     [orders, filter, filterSymbol],
@@ -110,24 +117,10 @@ export function ClosedOrdersPanel({
       {rows.length === 0 ? (
         <div className="ibkr-empty">{CLOSED_ORDERS_EMPTY_MESSAGE}</div>
       ) : (
+        <OrderTableDnd onReorder={reorder}>
         <table className="ibkr-table ibkr-table--orders ibkr-table--closed">
           <thead>
-            <tr>
-              <th className="ibkr-col--text">Order ID</th>
-              <th
-                className="ibkr-col--text"
-                title="Click: Quote Panel · Double-click: Stock View"
-              >
-                Symbol
-              </th>
-              <th className="ibkr-col--side">Side</th>
-              <th className="ibkr-col--num">Quantity</th>
-              <th className="ibkr-col--num">Filled</th>
-              <th className="ibkr-col--type">Type</th>
-              <th className="ibkr-col--num">Limit price</th>
-              <th className="ibkr-col--num">Average fill</th>
-              <th className="ibkr-col--status">Status</th>
-            </tr>
+            <OrderTableColumnHeader columns={headerMeta} onReset={reset} />
           </thead>
           <tbody>
             {rows.map((o) => {
@@ -137,29 +130,17 @@ export function ClosedOrdersPanel({
                 o.qty,
               );
               const tone = orderStatusTone(statusLabel);
+              const sideCls = orderSideClass(o.side);
+              const sideRowCls = orderSideRowClass(o.side);
+              const ctx = {
+                statusLabel,
+                tone,
+                activityIso: orderActivityIso(o),
+                sideCls,
+                sideLabel: formatOrderSide(o.side),
+              };
               const cells = (
-                <>
-                  <td className="ibkr-col--text ibkr-order-id">{o.order_id}</td>
-                  <td className="ibkr-col--text ibkr-symbol">{o.symbol}</td>
-                  <td className="ibkr-col--side" style={{ color: sideColor(o.side) }}>
-                    {formatOrderSide(o.side)}
-                  </td>
-                  <td className="ibkr-col--num">{fmt(o.qty, 0)}</td>
-                  <td className="ibkr-col--num">{fmt(o.filled_qty ?? 0, 0)}</td>
-                  <td className="ibkr-col--type ibkr-order-type">
-                    {formatOrderType(o.order_type)}
-                  </td>
-                  <td className="ibkr-col--num">{fmtDollar(o.limit_price)}</td>
-                  <td className="ibkr-col--num">{fmtDollar(o.avg_fill_price ?? null)}</td>
-                  <td className="ibkr-col--status">
-                    <span
-                      className={`ibkr-order-status ibkr-order-status--${tone}`}
-                      title={o.status}
-                    >
-                      {statusLabel}
-                    </span>
-                  </td>
-                </>
+                <>{columns.map((col) => renderClosedOrderCell(col, o, ctx))}</>
               );
               if (onSelectSymbol && onOpenTrading) {
                 return (
@@ -169,15 +150,25 @@ export function ClosedOrdersPanel({
                     selected={selectedSymbol === o.symbol}
                     onSelect={onSelectSymbol}
                     onOpenTrading={onOpenTrading}
+                    className={sideRowCls || undefined}
                   >
                     {cells}
                   </SelectableTableRow>
                 );
               }
-              return <tr key={o.order_id}>{cells}</tr>;
+              return (
+                <tr
+                  key={o.order_id}
+                  className={sideRowCls || undefined}
+                  data-side={o.side}
+                >
+                  {cells}
+                </tr>
+              );
             })}
           </tbody>
         </table>
+        </OrderTableDnd>
       )}
     </div>
   );

@@ -30,6 +30,57 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — IBKR paper hard-pin (no accidental live)
+
+- **What:** Paper mode can no longer self-heal onto the live Gateway; after connect, IB `managedAccounts` must classify as paper (DU/DF) or the session is dropped and place is refused. Status exposes `broker_account_kind`.
+- **Why:** Port/`IBKR_GATEWAY_MODE` alone is not proof of paper — heal paper→live or a live login on the wrong port could spend real money.
+- **Files touched:** `ibkr/account_kind.py`, `ibkr/client.py`, `ibkr/safety.py`, `ibkr/gateway_heal.py`, `ibkr/orders.py`, `execution/validate.py`, `nova_os/control_mode.py`, `routes/trading.py`, tests, `.env.example`.
+- **How it works now:** Self-heal is live→paper only. Spend gate when `IBKR_GATEWAY_MODE=paper` requires connection mode paper **and** `broker_account_kind=paper`. Live still needs `IBKR_LIVE_TRADING_CONFIRMED`.
+- **Verified by:** pytest `test_ibkr_account_kind`, `test_gateway_heal`, `test_ibkr_safety` paper-pin cases; `/api/ibkr/status` after reload.
+- **Related:** PROBLEM_LOG 2026-07-18 paper hard-pin; prior gateway self-heal entry (now narrowed).
+
+## 2026-07-18 — Larger Open/Closed Orders typography (esp. Time)
+
+- **What:** Bumped Open/Closed Orders tab titles, column headers, body cells, and Time column (was ~0.78em of a tiny base).
+- **Why:** Headers and timestamps were hard to read under stress.
+- **Files touched:** `tradingTab.css`, `stockViewTerminal.css`, `closedOrders.css`.
+- **How it works now:** Headers ~0.8rem, body ~0.85rem, Time ~0.9rem; dock tabs ~0.88rem.
+- **Verified by:** CSS-only visual hard-refresh.
+
+## 2026-07-18 — Draggable order/position columns with localStorage memory
+
+- **What:** Open Orders, Closed Orders, and Positions headers are drag-reorderable (dnd-kit). Order persists in `nova.ibkr.orderTable.columns.v1`. Double-click a header row to reset that table. Actions/Close stay pinned.
+- **Why:** User asked to rearrange columns and remember the layout.
+- **Files touched:** `orderTableColumns.ts`, `useOrderTableColumnOrder.ts`, `OrderTableColumnHeader.tsx`, Working/Closed/Positions panels.
+- **How it works now:** Drag finishes → immediate localStorage write; refresh keeps the layout. Compact Open Orders still hides Remaining/Stop/Session.
+- **Verified by:** Vitest `orderTableColumns` + WorkingOrdersPanel.
+
+## 2026-07-18 — Order side as color (no Side column)
+
+- **What:** Open Orders, Closed Orders, and Positions drop the Buy/Sell text column; side is green (buy/long) / red (sell/short) on symbol + qty, with a full-row tint (`ibkr-order-row--buy` / `--sell`).
+- **Why:** Fewer columns; faster scan under stress.
+- **Files touched:** `orderDisplay.ts`, `WorkingOrdersPanel.tsx`, `ClosedOrdersPanel.tsx`, `PositionsPanel.tsx`, `tradingTab.css`.
+- **How it works now:** Entire row is tinted; hover title still says Buy/Sell (or Long/Short); wire `side` unchanged.
+- **Verified by:** Vitest `orderDisplay` + `WorkingOrdersPanel`.
+
+## 2026-07-18 — Fill now + EH market flatten + Cancel+Flatten hotkey
+
+- **What:** Working Orders get **Fill now** (cancel resting + market remaining same side). Flatten / exit hotkeys and Fill now set `outside_rth` in pre/after-market (backend now allows MKT EH; STP still RTH-only). New Nova Action **Cancel + Flatten** (`cancel_and_exit`, Ctrl+Shift+Backspace) plus existing Cancel-symbol (Shift+Backspace).
+- **Why:** Panic path when a working/partial order will not finish; Flatten previously forced RTH-only MKT so EH exits failed.
+- **Files touched:** `fillWorkingOrderImmediately.ts`, `extendedSession.ts`, `WorkingOrdersPanel.tsx`, `closeFullPosition.ts`, `runNovaAction.ts`, `novaActionDefaults.ts`, `backend/ibkr/orders.py`.
+- **How it works now:** Fill now ≠ Flatten (order remainder vs full position). Cancel+Flatten = cancel-all symbol then position MKT. Sample Open Orders still disable mutation buttons.
+- **Verified by:** pytest `test_ibkr_orders`; Vitest fill/close/extendedSession/WorkingOrdersPanel/novaActionDefaults.
+- **Follow-ups:** Per-order Fill now hotkey needs a selected-order concept (not added).
+
+## 2026-07-18 — Exact order times + partial-fill rehearsal mocks
+
+- **What:** Open and Closed Orders show an exact Eastern **Time** column (seconds). Wire adds `submitted_at` / `updated_at` (ISO UTC from IBKR trade log / last fill). Status labels call out **Cancelled (partial fill)**. Sample mocks cover working partials and cancel-after-partial.
+- **Why:** User needs precise timestamps and offline rehearsal of partial-fill edge cases before relying on this in live ops.
+- **Files touched:** `backend/ibkr/order_times.py`, `backend/ibkr/orders.py`, `orderDisplay.ts`, `WorkingOrdersPanel.tsx`, `ClosedOrdersPanel.tsx`, `mockWorkingOrders.ts`, `mockClosedOrders.ts`.
+- **How it works now:** Time = last fill or last status change, tooltip shows submitted vs updated. Closed filter **Partial cancel** isolates cancel-after-partial rows. Partials still on Working show **Partially filled**; after cancel they move to Closed as **Cancelled (partial fill)** with filled qty kept.
+- **Verified by:** `pytest` order_times/open_orders_row/closed_orders; Vitest `orderDisplay` + `filterClosedOrders`.
+- **Follow-ups:** Confirm live Gateway always populates trade.log/fills; multi-day History remains WID-020.
+
 ## 2026-07-18 — Orders table column alignment (Type under Type)
 
 - **What:** Working/Closed order tables use matching header+cell alignment (`ibkr-col--type` centered, nums right, text left) so “Limit Order” / “Market Order” sit under **Type**, not under Filled.

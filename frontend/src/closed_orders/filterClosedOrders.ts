@@ -1,7 +1,7 @@
 import { formatOrderStatus } from '../ibkr/orderDisplay';
 import type { ClosedOrder, ClosedOrdersFilter } from './types';
 
-/** Pure filter for Closed Orders tabs (all / filled / cancelled). */
+/** Pure filter for Closed Orders tabs (all / filled / cancelled / partial). */
 export function filterClosedOrders(
   orders: ClosedOrder[],
   filter: ClosedOrdersFilter,
@@ -12,8 +12,15 @@ export function filterClosedOrders(
     if (key && o.symbol.toUpperCase() !== key) return false;
     if (filter === 'all') return true;
     const label = formatOrderStatus(o.status, o.filled_qty ?? 0, o.qty);
-    if (filter === 'filled') return label === 'Filled' || label === 'Partially filled';
-    if (filter === 'cancelled') return label === 'Cancelled' || label === 'Failed';
+    if (filter === 'filled') return label === 'Filled';
+    if (filter === 'cancelled') {
+      return (
+        label === 'Cancelled' ||
+        label === 'Cancelled (partial fill)' ||
+        label === 'Failed'
+      );
+    }
+    if (filter === 'partial') return label === 'Cancelled (partial fill)';
     return true;
   });
 }

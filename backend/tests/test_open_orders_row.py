@@ -8,6 +8,10 @@ from ibkr.orders import _trade_to_order_row
 
 
 def test_trade_to_order_row_includes_fill_progress():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
     trade = SimpleNamespace(
         order=SimpleNamespace(
             orderId=7,
@@ -25,6 +29,14 @@ def test_trade_to_order_row_includes_fill_progress():
             remaining=60,
             avgFillPrice=10.2,
         ),
+        log=[SimpleNamespace(time=datetime(2026, 7, 18, 9, 30, 0, tzinfo=et))],
+        fills=[
+            SimpleNamespace(
+                execution=SimpleNamespace(
+                    time=datetime(2026, 7, 18, 9, 41, 23, tzinfo=et),
+                ),
+            ),
+        ],
     )
     row = _trade_to_order_row(trade)
     assert row["order_id"] == 7
@@ -37,6 +49,9 @@ def test_trade_to_order_row_includes_fill_progress():
     assert row["limit_price"] == 10.25
     assert row["outside_rth"] is True
     assert row["status"] == "Submitted"
+    assert row["submitted_at"] is not None
+    assert row["updated_at"] is not None
+    assert "09:41:23" in row["updated_at"] or "13:41:23" in row["updated_at"]
 
 
 def test_trade_to_order_row_omits_zero_avg_fill():

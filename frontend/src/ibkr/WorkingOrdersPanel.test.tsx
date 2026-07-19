@@ -67,8 +67,14 @@ describe('WorkingOrdersPanel', () => {
     expect(container.textContent).toContain('Market Order');
     expect(container.textContent).toContain('Partially filled');
     expect(container.textContent).toContain('Pending');
-    expect(container.textContent).toContain('Buy');
-    expect(container.textContent).toContain('Sell');
+    // Side is color-coded on symbol/qty — no Buy/Sell text column.
+    expect(container.textContent).not.toMatch(/\bBuy\b/);
+    expect(container.textContent).not.toMatch(/\bSell\b/);
+    expect(
+      container.querySelector('td.ibkr-symbol[data-side="BUY"]')?.className,
+    ).toMatch(/ibkr-side--buy/);
+    expect(container.querySelector('tr.ibkr-order-row--buy')).toBeTruthy();
+    expect(container.querySelector('tr.ibkr-order-row--sell')).toBeTruthy();
     expect(container.textContent).not.toContain('PreSubmitted');
     expect(container.textContent).not.toMatch(/\bLMT\b/);
     expect(container.textContent).toContain('25');
@@ -117,4 +123,24 @@ describe('WorkingOrdersPanel', () => {
     });
     expect(onCancel).toHaveBeenCalledWith(42);
   });
+
+  it('invokes Fill now with the order row', () => {
+    const onFill = vi.fn();
+    act(() => {
+      root.render(
+        <WorkingOrdersPanel orders={SAMPLE} onFillImmediately={onFill} />,
+      );
+    });
+    const btn = container.querySelector(
+      '[aria-label="Fill now order 42"]',
+    ) as HTMLButtonElement;
+    expect(btn).toBeTruthy();
+    act(() => {
+      btn.click();
+    });
+    expect(onFill).toHaveBeenCalledWith(
+      expect.objectContaining({ order_id: 42, remaining_qty: 75 }),
+    );
+  });
 });
+

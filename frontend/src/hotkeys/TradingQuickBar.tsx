@@ -8,7 +8,9 @@ import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 import { useTopOfBook } from './TopOfBookContext';
 
 function roleClass(kind: string): string {
-  if (kind === 'cancel_symbol') return 'nova-quick-btn nova-quick-btn--cancel';
+  if (kind === 'cancel_symbol' || kind === 'cancel_and_exit') {
+    return 'nova-quick-btn nova-quick-btn--cancel';
+  }
   if (kind.startsWith('buy')) return 'nova-quick-btn nova-quick-btn--entry';
   if (kind.startsWith('sell') || kind.startsWith('exit')) {
     return 'nova-quick-btn nova-quick-btn--exit';

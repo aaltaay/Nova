@@ -13,7 +13,9 @@ import { useTickerStream } from '../hooks/useTickerStream';
 import { useIbkrAccount } from '../ibkr/useIbkrAccount';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { novaFetch } from '../api/novaFetch';
+import { confirmAndFillWorkingOrder } from '../ibkr/fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from '../ibkr/placeOrder';
+import type { IbkrOrder } from '../ibkr/types';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { StockViewHeader } from '../stock_view/StockViewHeader';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
@@ -123,6 +125,20 @@ export function StockViewPage({
     [refresh],
   );
 
+  const onFillImmediately = useCallback(
+    async (order: IbkrOrder) => {
+      const res = await confirmAndFillWorkingOrder(order);
+      if (res.ok && res.place_order_id != null) {
+        setHighlightOrderId(res.place_order_id);
+      }
+      if (!res.ok && res.error !== 'Fill now cancelled') {
+        window.alert(res.error);
+      }
+      refresh();
+    },
+    [refresh],
+  );
+
   const handleLookup = useCallback(
     (next: string) => {
       if (detached) replaceStockViewUrl(next);
@@ -211,6 +227,7 @@ export function StockViewPage({
             symbol={symbol}
             orders={orders}
             onCancelOrder={onCancelOrder}
+            onFillImmediately={onFillImmediately}
             highlightOrderId={highlightOrderId}
             onCollapsedChange={setOrdersCollapsed}
           />

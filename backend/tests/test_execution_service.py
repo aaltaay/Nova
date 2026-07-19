@@ -51,6 +51,7 @@ def _arm_paper(monkeypatch, *, buying_power: float = 100_000.0, positions: list 
     monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "paper")
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
     monkeypatch.setattr(safety_mod, "orders_enabled", lambda: True)
     monkeypatch.setattr(
@@ -122,7 +123,9 @@ class TestIdempotencyAndDuplicates:
 class TestAccountAndRiskGates:
     def test_live_unconfirmed_zero_broker_calls(self, monkeypatch):
         _arm_paper(monkeypatch)
+        monkeypatch.setenv("IBKR_GATEWAY_MODE", "live")
         monkeypatch.setattr(client_mod, "account_mode", lambda: "live")
+        monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "live")
         monkeypatch.setattr(safety_mod, "live_trading_confirmed", lambda: False)
         called = []
         monkeypatch.setattr(
@@ -369,7 +372,9 @@ class TestPaperLiveParity:
     @pytest.mark.parametrize("mode", ["paper", "live"])
     def test_same_execute_path(self, monkeypatch, mode):
         _arm_paper(monkeypatch)
+        monkeypatch.setenv("IBKR_GATEWAY_MODE", mode)
         monkeypatch.setattr(client_mod, "account_mode", lambda: mode)
+        monkeypatch.setattr(client_mod, "broker_account_kind", lambda: mode)
         if mode == "live":
             monkeypatch.setattr(safety_mod, "live_trading_confirmed", lambda: True)
         calls = []

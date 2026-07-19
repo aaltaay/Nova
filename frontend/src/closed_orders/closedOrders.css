@@ -65,8 +65,8 @@
   width: 10%;
 }
 
-.ibkr-closed-orders .ibkr-table--closed .ibkr-col--side {
-  width: 7%;
+.ibkr-closed-orders .ibkr-table--closed .ibkr-col--time {
+  width: 20%;
 }
 
 .stock-view-page .sv-open-orders-dock__body .closed-orders-module {

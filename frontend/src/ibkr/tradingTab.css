@@ -340,7 +340,20 @@
   padding: 0.5rem 0 0.75rem;
 }
 
-.ibkr-cancel-btn {
+.ibkr-order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.ibkr-table.ibkr-table--orders th.ibkr-col--actions,
+.ibkr-table.ibkr-table--orders td.ibkr-col--actions {
+  text-align: right;
+}
+
+.ibkr-cancel-btn,
+.ibkr-fill-now-btn {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -351,6 +364,7 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   padding: 0.15rem 0.4rem;
+  white-space: nowrap;
 }
 
 .ibkr-cancel-btn:hover {
@@ -358,10 +372,31 @@
   color: #ef4444;
 }
 
+.ibkr-fill-now-btn {
+  color: #f59e0b;
+}
+
+.ibkr-fill-now-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, #f59e0b 50%, transparent);
+  color: #fbbf24;
+}
+
+.ibkr-fill-now-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .ibkr-positions-panel { overflow-x: auto; }
 
 .ibkr-working-orders { margin-top: 0.25rem; }
-.ibkr-working-orders--compact .ibkr-table { font-size: 0.75rem; }
+.ibkr-working-orders .ibkr-section-title,
+.ibkr-closed-orders .ibkr-section-title {
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  color: var(--text, #e5e7eb);
+}
+
+.ibkr-working-orders--compact .ibkr-table { font-size: 0.82rem; }
 
 .ibkr-table--orders {
   table-layout: fixed;
@@ -370,19 +405,21 @@
 
 .ibkr-table--orders th,
 .ibkr-table--orders td {
-  padding: 0.35rem 0.4rem;
+  padding: 0.4rem 0.45rem;
   vertical-align: middle;
   text-align: center;
-  font-size: 0.72rem;
+  font-size: 0.85rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .ibkr-table--orders th {
-  font-size: 0.62rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   letter-spacing: 0.02em;
   text-transform: none;
+  color: var(--text-secondary, #c4c9d2);
 }
 
 /* Keep header + cell alignment identical (beat .ibkr-table th:first-child). */
@@ -399,11 +436,68 @@
 
 .ibkr-table.ibkr-table--orders th.ibkr-col--type,
 .ibkr-table.ibkr-table--orders td.ibkr-col--type,
-.ibkr-table.ibkr-table--orders th.ibkr-col--side,
-.ibkr-table.ibkr-table--orders td.ibkr-col--side,
 .ibkr-table.ibkr-table--orders th.ibkr-col--status,
 .ibkr-table.ibkr-table--orders td.ibkr-col--status {
   text-align: center;
+}
+
+/* Buy/Sell encoded as color (no Side column) — shared by Open + Closed + Positions. */
+.ibkr-side--buy {
+  color: var(--green, #22c55e);
+  font-weight: 650;
+}
+
+.ibkr-side--sell {
+  color: var(--red, #ef4444);
+  font-weight: 650;
+}
+
+.ibkr-table--orders tr.ibkr-order-row--buy > td,
+.ibkr-positions-panel tr.ibkr-order-row--buy > td {
+  background: color-mix(in srgb, var(--green, #22c55e) 14%, transparent);
+}
+
+.ibkr-table--orders tr.ibkr-order-row--sell > td,
+.ibkr-positions-panel tr.ibkr-order-row--sell > td {
+  background: color-mix(in srgb, var(--red, #ef4444) 14%, transparent);
+}
+
+.ibkr-table--orders tr.ibkr-order-row--buy > td.ibkr-symbol,
+.ibkr-table--orders tr.ibkr-order-row--sell > td.ibkr-symbol,
+.ibkr-positions-panel tr.ibkr-order-row--buy > td.ibkr-symbol,
+.ibkr-positions-panel tr.ibkr-order-row--sell > td.ibkr-symbol {
+  border-left: 3px solid currentColor;
+  padding-left: 0.4rem;
+}
+
+/* Keep secondary time readable on tinted rows. */
+.ibkr-table--orders tr.ibkr-order-row--buy > td.ibkr-col--time,
+.ibkr-table--orders tr.ibkr-order-row--sell > td.ibkr-col--time {
+  color: var(--text-secondary, #9ca3af);
+}
+
+.ibkr-table.ibkr-table--orders th.ibkr-col--time,
+.ibkr-table.ibkr-table--orders td.ibkr-col--time {
+  text-align: left;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  font-weight: 550;
+  color: var(--text, #d1d5db);
+}
+
+.ibkr-table--orders th.ibkr-col--sortable {
+  user-select: none;
+  touch-action: none;
+}
+
+.ibkr-table--orders th.ibkr-col--sortable:hover {
+  color: var(--text-primary, #f3f4f6);
+}
+
+.ibkr-table--orders th.ibkr-col--dragging {
+  z-index: 2;
+  background: color-mix(in srgb, var(--accent, #3b82f6) 18%, transparent);
 }
 
 .ibkr-table--orders .ibkr-order-type {
@@ -424,7 +518,8 @@
 .ibkr-order-status--cancelled,
 .ibkr-order-status--failed { color: var(--text-muted, #6b7280); }
 
+/* Just-placed pulse sits on top of buy/sell row tint. */
 .ibkr-order-row--highlight td {
-  background: color-mix(in srgb, var(--green) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 55%, transparent);
 }
 

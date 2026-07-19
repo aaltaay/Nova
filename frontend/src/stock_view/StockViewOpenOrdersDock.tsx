@@ -24,6 +24,7 @@ type Props = {
   symbol: string;
   orders: IbkrOrder[];
   onCancelOrder?: (id: number) => void;
+  onFillImmediately?: (order: IbkrOrder) => void;
   highlightOrderId?: number | null;
   /** Lets Stock View show/hide the charts↔orders resize handle. */
   onCollapsedChange?: (collapsed: boolean) => void;
@@ -81,6 +82,7 @@ export function StockViewOpenOrdersDock({
   symbol,
   orders,
   onCancelOrder,
+  onFillImmediately,
   highlightOrderId = null,
   onCollapsedChange,
 }: Props) {
@@ -263,6 +265,7 @@ export function StockViewOpenOrdersDock({
             hideTitle
             compact={false}
             onCancelOrder={usingSample ? undefined : onCancelOrder}
+            onFillImmediately={usingSample ? undefined : onFillImmediately}
             highlightOrderId={usingSample ? 90001 : highlightOrderId}
           />
         </div>

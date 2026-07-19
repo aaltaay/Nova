@@ -47,6 +47,7 @@ async def ibkr_status() -> dict:
         "enabled": _client.is_enabled(),
         "connected": _client.is_connected(),
         "mode": _client.account_mode(),
+        "broker_account_kind": _client.broker_account_kind(),
         **snap,
         **_heal.heal_status(),
     }

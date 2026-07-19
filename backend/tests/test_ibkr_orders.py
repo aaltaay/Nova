@@ -15,15 +15,12 @@ def test_validation_requires_stop_price():
     assert error == "stop_price must be greater than zero for STP"
 
 
-def test_validation_rejects_extended_hours_market_and_stop():
-    market_error = orders._validation_error(
-        "BUY", 10, "MKT", None, None, True
-    )
+def test_validation_rejects_extended_hours_stop_only():
+    assert orders._validation_error("BUY", 10, "MKT", None, None, True) is None
     stop_error = orders._validation_error(
         "SELL", 10, "STP", None, 12.5, True
     )
-    assert market_error == "outside_rth is supported only for LMT orders"
-    assert stop_error == "outside_rth is supported only for LMT orders"
+    assert stop_error == "outside_rth is not supported for STP orders"
 
 
 def test_build_limit_order_sets_outside_rth():
@@ -44,7 +41,10 @@ def test_build_stop_order_sets_trigger_and_regular_hours():
     assert order.outsideRth is False
 
 
-def test_build_market_order_is_regular_hours():
-    order = orders._build_order("BUY", 5, "MKT", None, None, False)
-    assert order.orderType == "MKT"
-    assert order.outsideRth is False
+def test_build_market_order_respects_outside_rth():
+    rth = orders._build_order("BUY", 5, "MKT", None, None, False)
+    assert rth.orderType == "MKT"
+    assert rth.outsideRth is False
+    eh = orders._build_order("SELL", 5, "MKT", None, None, True)
+    assert eh.orderType == "MKT"
+    assert eh.outsideRth is True

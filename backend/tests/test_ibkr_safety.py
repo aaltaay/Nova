@@ -68,11 +68,56 @@ class TestOrderSafetyGate:
         monkeypatch.setattr(client_mod, "is_connected", lambda: True)
         monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
         monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+        monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "paper")
         monkeypatch.setattr(client_mod, "get_ib", lambda: None)
         result = orders_mod.place_order("AAPL", "BUY", 10)
         assert "IBKR_ORDERS_ENABLED" not in (result.get("error") or "")
         assert "IBKR_LIVE_TRADING_CONFIRMED" not in (result.get("error") or "")
+        assert "Paper pin" not in (result.get("error") or "")
         assert result["ok"] is False  # no IB object — gate already passed
+
+    def test_paper_mode_blocks_live_broker_accounts(self, monkeypatch):
+        _safety, client_mod, orders_mod = _reload_safety_stack(monkeypatch, {
+            "IBKR_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "paper",
+            "IBKR_ORDERS_ENABLED": "true",
+        })
+        monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+        monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
+        monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+        monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "live")
+        result = orders_mod.place_order("AAPL", "BUY", 10)
+        assert result["ok"] is False
+        assert "Paper pin" in (result.get("error") or "")
+
+    def test_paper_mode_blocks_unknown_broker_accounts(self, monkeypatch):
+        _safety, client_mod, orders_mod = _reload_safety_stack(monkeypatch, {
+            "IBKR_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "paper",
+            "IBKR_ORDERS_ENABLED": "true",
+        })
+        monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+        monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
+        monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+        monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "unknown")
+        result = orders_mod.place_order("AAPL", "BUY", 10)
+        assert result["ok"] is False
+        assert "Paper pin" in (result.get("error") or "")
+
+    def test_assert_orders_paper_pin_direct(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "paper",
+            "IBKR_ORDERS_ENABLED": "true",
+        })
+        ok, reason = safety_mod.assert_orders_allowed(
+            client_enabled=True,
+            connected=True,
+            account_mode="live",
+            broker_account_kind="paper",
+        )
+        assert ok is False
+        assert "Paper pin" in reason
 
     def test_cancel_allowed_when_orders_locked(self, monkeypatch):
         _safety, client_mod, orders_mod = _reload_safety_stack(monkeypatch, {

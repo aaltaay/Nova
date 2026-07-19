@@ -9,21 +9,23 @@ Companion to: `.cursor/agents/hotkeys.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-19T01:45:00Z
+captured_at: 2026-07-19T03:35:00Z
 source_revision: ""
-result: audit_cancel_ownership
+result: fill_now_and_cancel_and_exit
 metrics:
-  nova_actions_default: 6
-  cancel_nova_kinds: 1  # cancel_symbol only
+  nova_actions_default: 7
+  cancel_nova_kinds: 2  # cancel_symbol, cancel_and_exit
   cancel_all_route: true
   map_to_nova_action: true
   working_orders_panel_in_dispatcher: false
+  fill_now_panel: true  # per-order UI; not a Nova Action (needs order id)
+  flatten_outside_rth: auto  # pre/after-market via extendedSession
 blockers: []
-dashboard_freshness: clean
+dashboard_freshness: refresh-required
 ownership:
   broker_cancel_ssot: execution.service.execute(operation=cancel)
-  hotkeys_owns: cancel_symbol Nova Action + dispatcher/quick-bar
-  not_hotkeys: WorkingOrdersPanel per-order DELETE (widgets/IBKR UI → same backend execute)
+  hotkeys_owns: cancel_symbol + cancel_and_exit + exit_pos dispatcher/quick-bar
+  not_hotkeys: WorkingOrdersPanel Fill now / Cancel (widgets/IBKR UI → same ADR 007 path)
 ```
 
 Machine-readable block only. Update after material runs.

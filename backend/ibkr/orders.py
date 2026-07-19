@@ -23,6 +23,7 @@ def _safety_check() -> tuple[bool, str]:
         client_enabled=_client.is_enabled(),
         connected=_client.is_connected(),
         account_mode=_client.account_mode(),
+        broker_account_kind=_client.broker_account_kind(),
     )
 
 
@@ -44,8 +45,9 @@ def _validation_error(
         return "limit_price must be greater than zero for LMT"
     if order_type == "STP" and (stop_price is None or stop_price <= 0):
         return "stop_price must be greater than zero for STP"
-    if outside_rth and order_type != "LMT":
-        return "outside_rth is supported only for LMT orders"
+    # MKT + LMT may trade extended; STP triggers stay RTH-only in Nova.
+    if outside_rth and order_type == "STP":
+        return "outside_rth is not supported for STP orders"
     return None
 
 
@@ -60,7 +62,7 @@ def _build_order(
     from ib_async import LimitOrder, MarketOrder, StopOrder
 
     if order_type == "MKT":
-        return MarketOrder(side, qty, outsideRth=False)
+        return MarketOrder(side, qty, outsideRth=bool(outside_rth))
     if order_type == "LMT":
         return LimitOrder(side, qty, limit_price, outsideRth=outside_rth)
     return StopOrder(side, qty, stop_price, outsideRth=False)
@@ -277,10 +279,13 @@ def closed_orders(limit: int | None = None) -> list[dict]:
 
 def _trade_to_order_row(trade) -> dict:
     """Map an ib_async Trade to the public open-order JSON shape."""
+    from ibkr.order_times import extract_trade_times
+
     status = trade.orderStatus
     filled = getattr(status, "filled", None)
     remaining = getattr(status, "remaining", None)
     avg_fill = getattr(status, "avgFillPrice", None)
+    submitted_at, updated_at = extract_trade_times(trade)
     return {
         "order_id": trade.order.orderId,
         "symbol": trade.contract.symbol,
@@ -294,4 +299,7 @@ def _trade_to_order_row(trade) -> dict:
         "avg_fill_price": float(avg_fill) if avg_fill not in (None, 0, 0.0) else None,
         "outside_rth": bool(getattr(trade.order, "outsideRth", False)),
         "status": status.status,
+        # ISO-8601 UTC; UI formats to America/New_York with seconds.
+        "submitted_at": submitted_at,
+        "updated_at": updated_at,
     }

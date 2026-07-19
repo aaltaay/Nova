@@ -8,13 +8,14 @@ Users may start/focus Gateway via POST /api/ibkr/launch-gateway (header double-c
 Port selection uses IBKR_GATEWAY_MODE (paper→4002, live→4001), independent
 of IBKR_ORDERS_ENABLED / IBKR_LIVE_TRADING_CONFIRMED (see ibkr.safety).
 
-When the preferred port refuses/times out, gateway_heal may try the other
-port and persist IBKR_GATEWAY_MODE (self-heal). Spend gates are unchanged.
+Self-heal is fail-safe toward paper only (never paper→live). After every
+connect, managedAccounts are classified; paper mode refuses live accounts.
 
 State:
   _ib       -- the ib_async.IB() instance (always exists, may be disconnected)
   _mode     -- "paper" | "live" | "disconnected"
   _enabled  -- False when IBKR_ENABLED env var is absent/false (safe default)
+  _broker_account_kind -- paper | live | mixed | unknown (from managedAccounts)
 """
 from __future__ import annotations
 
@@ -41,6 +42,7 @@ from constants import (
     IBKR_CONNECT_TIMEOUT_SEC,
     IBKR_RECONNECT_DELAY_SEC,
 )
+from ibkr import account_kind as _account_kind
 from ibkr import gateway_heal as _heal
 from ibkr import safety as _safety
 
@@ -48,6 +50,7 @@ from ibkr import safety as _safety
 _ib: "IB | None" = None
 _mode: str = "disconnected"
 _enabled: bool = False
+_broker_account_kind: str = "unknown"
 _reconnect_task: asyncio.Task | None = None
 _loop: asyncio.AbstractEventLoop | None = None  # captured at startup() — where IB lives
 
@@ -77,10 +80,17 @@ def is_connected() -> bool:
 
 
 def account_mode() -> str:
-    """One of: 'paper', 'live', 'disconnected'."""
+    """One of: 'paper', 'live', 'disconnected' (port/env label, not account type)."""
     if not is_connected():
         return "disconnected"
     return _mode
+
+
+def broker_account_kind() -> str:
+    """paper | live | mixed | unknown — from IB managedAccounts after connect."""
+    if not is_connected():
+        return "unknown"
+    return _broker_account_kind
 
 
 def get_ib() -> "IB | None":
@@ -88,6 +98,53 @@ def get_ib() -> "IB | None":
     if is_connected():
         return _ib
     return None
+
+
+def _read_managed_account_ids(ib: "IB") -> list[str]:
+    """Normalize ib_async managedAccounts() to a list of account id strings."""
+    try:
+        raw = ib.managedAccounts()
+    except Exception:
+        logger.warning("IBKR: managedAccounts() failed", exc_info=True)
+        return []
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+    if isinstance(raw, (list, tuple)):
+        return [str(a).strip() for a in raw if str(a).strip()]
+    s = str(raw).strip()
+    return [s] if s else []
+
+
+def _accept_connected_session(ib: "IB", mode_label: str) -> tuple[bool, str]:
+    """
+    Classify managedAccounts; enforce paper pin. Updates ``_broker_account_kind``.
+    Returns (ok, reason). On failure caller must disconnect.
+    """
+    global _broker_account_kind
+    ids = _read_managed_account_ids(ib)
+    kind = _account_kind.classify_managed_accounts(ids)
+    _broker_account_kind = kind
+    # Prefer env gateway_mode — heal may have just flipped it to paper.
+    target = _safety.gateway_mode()
+    if mode_label == "paper" or target == "paper":
+        ok, reason = _account_kind.paper_mode_accounts_ok(kind)
+        if not ok:
+            logger.error(
+                "IBKR PAPER PIN: refusing session — %s (accounts=%s mode=%s)",
+                reason,
+                ids,
+                mode_label,
+            )
+            return False, reason
+    logger.info(
+        "IBKR: session accounts kind=%s ids=%s mode=%s",
+        kind,
+        ids,
+        mode_label,
+    )
+    return True, ""
 
 
 def run_coro(coro, timeout: float) -> Any:
@@ -157,17 +214,27 @@ async def _try_connect_alternate_port(
     client_id: int,
     preferred_reason: str,
 ) -> str | None:
-    """If preferred port failed, try paper↔live alternate. Returns healed mode or None."""
+    """If preferred live port failed, try paper only. Never paper→live."""
     if not _heal.self_heal_enabled():
         return None
     if preferred_reason not in ("refused", "timeout"):
         return None
 
     alt_mode = _heal.alternate_mode(preferred_mode)
+    if not _heal.heal_target_allowed(from_mode=preferred_mode, to_mode=alt_mode):
+        logger.warning(
+            "IBKR: preferred %s port failed (%s); refusing self-heal to %s "
+            "(paper pin — never attach to live automatically)",
+            preferred_mode,
+            preferred_reason,
+            alt_mode,
+        )
+        return None
+
     alt_port = _heal.port_for_mode(alt_mode)
     preferred_port = _heal.port_for_mode(preferred_mode)
     logger.info(
-        "IBKR: preferred %s:%s failed (%s); trying %s:%s (self-heal)",
+        "IBKR: preferred %s:%s failed (%s); trying %s:%s (self-heal→paper only)",
         preferred_mode,
         preferred_port,
         preferred_reason,
@@ -176,6 +243,11 @@ async def _try_connect_alternate_port(
     )
     ok, _alt_reason = await _attempt_connect(ib, host, alt_port, client_id)
     if not ok:
+        return None
+
+    session_ok, session_reason = _accept_connected_session(ib, alt_mode)
+    if not session_ok:
+        _safe_disconnect(ib)
         return None
 
     _heal.apply_runtime_gateway_mode(alt_mode)  # type: ignore[arg-type]
@@ -196,9 +268,9 @@ async def reconnect_loop() -> None:
 
     Re-reads gateway mode/port each attempt so a .env change to paper/live
     takes effect without requiring a full process restart (after reload_env).
-    On preferred-port refuse/timeout, self-heals to the other Gateway port.
+    On preferred live-port refuse/timeout, self-heals to paper only.
     """
-    global _ib, _mode, _enabled
+    global _ib, _mode, _enabled, _broker_account_kind
 
     if not _IB_AVAILABLE:
         logger.warning("IBKR module enabled but ib_async not installed — skipping")
@@ -212,6 +284,7 @@ async def reconnect_loop() -> None:
 
         if not _enabled:
             _mode = "disconnected"
+            _broker_account_kind = "unknown"
             if _ib.isConnected():
                 _ib.disconnect()
             await asyncio.sleep(IBKR_RECONNECT_DELAY_SEC)
@@ -227,11 +300,24 @@ async def reconnect_loop() -> None:
             )
             ok, reason = await _attempt_connect(_ib, host, port, client_id)
             if ok:
-                _mode = mode_label
-                logger.info(
-                    "IBKR: connected in %s mode (orders still gated by safety.py)",
-                    mode_label,
-                )
+                session_ok, session_reason = _accept_connected_session(_ib, mode_label)
+                if session_ok:
+                    _mode = mode_label
+                    logger.info(
+                        "IBKR: connected in %s mode (orders still gated by safety.py)",
+                        mode_label,
+                    )
+                else:
+                    logger.error(
+                        "IBKR: disconnecting after paper-pin reject: %s",
+                        session_reason,
+                    )
+                    _safe_disconnect(_ib)
+                    _ib = IB()
+                    _mode = "disconnected"
+                    _broker_account_kind = "unknown"
+                    await asyncio.sleep(IBKR_RECONNECT_DELAY_SEC)
+                    continue
             else:
                 # Recreate IB() so a half-open protocol state cannot pin the loop.
                 _safe_disconnect(_ib)
@@ -248,6 +334,7 @@ async def reconnect_loop() -> None:
                     )
                     continue
                 _mode = "disconnected"
+                _broker_account_kind = "unknown"
                 _safe_disconnect(_ib)
                 _ib = IB()
                 await asyncio.sleep(IBKR_RECONNECT_DELAY_SEC)
@@ -259,6 +346,7 @@ async def reconnect_loop() -> None:
             )
             _ib.disconnect()
             _mode = "disconnected"
+            _broker_account_kind = "unknown"
             continue
         await asyncio.sleep(5)
 
@@ -281,17 +369,19 @@ def reload_env_from_dotenv() -> dict[str, str]:
 
 async def force_reconnect() -> dict:
     """Disconnect and let reconnect_loop pick up the current .env port/mode."""
-    global _ib, _mode
+    global _ib, _mode, _broker_account_kind
     cfg = reload_env_from_dotenv()
     if _ib is not None and _ib.isConnected():
         _ib.disconnect()
     _mode = "disconnected"
+    _broker_account_kind = "unknown"
     # Brief wait for the background loop to attempt connect.
     await asyncio.sleep(min(IBKR_RECONNECT_DELAY_SEC, 2.0) + 1.0)
     return {
         **cfg,
         "connected": is_connected(),
         "mode": account_mode(),
+        "broker_account_kind": broker_account_kind(),
         "spend_status": _safety.status_snapshot()["spend_status"],
     }
 

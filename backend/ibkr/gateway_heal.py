@@ -1,12 +1,15 @@
 """
-Self-heal IBKR Gateway paper/live port mismatch.
+Self-heal IBKR Gateway port mismatch — **fail-safe toward paper only**.
 
-When IBKR_GATEWAY_MODE points at a closed API port but the other Gateway
-port accepts a connection, flip runtime mode (and persist .env) so Nova
-reconnects without a manual edit.
+When IBKR_GATEWAY_MODE=live points at a closed API port but paper (4002)
+accepts, flip runtime mode to paper (and persist .env).
+
+**Never** self-heals paper → live. A paper-configured Nova must not attach to
+the live Gateway under any automatic path.
 
 Never unlocks orders / live confirmation — safety.py remains SSOT for spend.
-Never auto-logins Gateway — if neither 4001 nor 4002 accepts, user/IBC still required.
+Never auto-logins Gateway — if paper port is down while mode=paper, stay
+disconnected and warn (loud) rather than trying 4001.
 """
 from __future__ import annotations
 
@@ -44,6 +47,11 @@ def self_heal_enabled() -> bool:
 
 def alternate_mode(mode: str) -> GatewayMode:
     return "paper" if mode == "live" else "live"
+
+
+def heal_target_allowed(*, from_mode: str, to_mode: str) -> bool:
+    """Only paper is an allowed automatic heal target (never paper→live)."""
+    return to_mode == "paper" and from_mode != "paper"
 
 
 def port_for_mode(mode: str) -> int:

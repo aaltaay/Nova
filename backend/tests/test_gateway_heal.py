@@ -75,6 +75,7 @@ def test_try_connect_alternate_port_heals_on_refused(tmp_path: Path, monkeypatch
         raise ConnectionRefusedError(10061, "refused")
 
     ib.connectAsync = _connect
+    ib.managedAccounts = lambda: ["DU1234567"]
 
     real_persist = heal.persist_gateway_mode
 
@@ -110,3 +111,29 @@ def test_try_connect_alternate_skips_when_disabled(monkeypatch):
 
     assert asyncio.run(_run()) is None
     ib.connectAsync.assert_not_called()
+
+
+def test_heal_target_allowed_paper_only():
+    assert heal.heal_target_allowed(from_mode="live", to_mode="paper") is True
+    assert heal.heal_target_allowed(from_mode="paper", to_mode="live") is False
+    assert heal.heal_target_allowed(from_mode="paper", to_mode="paper") is False
+    assert heal.heal_target_allowed(from_mode="live", to_mode="live") is False
+
+
+def test_try_connect_alternate_never_heals_paper_to_live(monkeypatch):
+    """Paper pin: preferred paper down must NOT attach to live 4001."""
+    monkeypatch.setenv("IBKR_GATEWAY_SELF_HEAL", "true")
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
+    monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
+    monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
+    ib = MagicMock()
+    ib.connectAsync = AsyncMock()
+
+    async def _run():
+        return await ibkr_client._try_connect_alternate_port(
+            ib, "127.0.0.1", "paper", 17, "refused",
+        )
+
+    assert asyncio.run(_run()) is None
+    ib.connectAsync.assert_not_called()
+    assert heal.heal_status()["gateway_self_heal"] is None

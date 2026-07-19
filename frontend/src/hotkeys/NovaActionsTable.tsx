@@ -42,7 +42,8 @@ function paramsCell(row: NovaActionRecord, liveDisabled: boolean): string {
     const base = `${row.params.shares ?? 100} sh · ±${row.params.offsetDollars ?? 0.05}`;
     return liveDisabled ? `${base} · L2` : base;
   }
-  if (row.kind === 'exit_pos') return 'Pos';
+  if (row.kind === 'exit_pos' || row.kind === 'cancel_and_exit') return 'Pos';
+  if (row.kind === 'cancel_symbol') return 'All';
   return '—';
 }
 

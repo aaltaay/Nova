@@ -39,6 +39,7 @@ def _arm_paper_gates():
         patch.object(client_mod, "is_enabled", return_value=True),
         patch.object(client_mod, "is_connected", return_value=True),
         patch.object(client_mod, "account_mode", return_value="paper"),
+        patch.object(client_mod, "broker_account_kind", return_value="paper"),
         patch.object(client_mod, "get_ib", return_value=None),
         patch.object(safety_mod, "orders_enabled", return_value=True),
         patch.object(
@@ -56,6 +57,7 @@ def test_place_order_route_blocked_when_safety_gate_fails():
     with patch.object(client_mod, "is_enabled", return_value=True), \
          patch.object(client_mod, "is_connected", return_value=True), \
          patch.object(client_mod, "account_mode", return_value="paper"), \
+         patch.object(client_mod, "broker_account_kind", return_value="paper"), \
          patch.object(safety_mod, "orders_enabled", return_value=False):
         res = client.post(
             "/api/ibkr/order",

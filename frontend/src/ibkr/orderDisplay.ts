@@ -12,6 +12,39 @@ export function formatOrderSide(side: string): string {
   return side || '—';
 }
 
+/** Text tone for Buy/Sell — used instead of a Side column on order tables. */
+export function orderSideClass(side: string): 'ibkr-side--buy' | 'ibkr-side--sell' | '' {
+  const s = side.trim().toUpperCase();
+  if (s === 'BUY') return 'ibkr-side--buy';
+  if (s === 'SELL') return 'ibkr-side--sell';
+  return '';
+}
+
+/** Full-row highlight class for Buy/Sell (Open + Closed order tables). */
+export function orderSideRowClass(
+  side: string,
+): 'ibkr-order-row--buy' | 'ibkr-order-row--sell' | '' {
+  const s = side.trim().toUpperCase();
+  if (s === 'BUY') return 'ibkr-order-row--buy';
+  if (s === 'SELL') return 'ibkr-order-row--sell';
+  return '';
+}
+
+/** Long (qty>0) / short (qty<0) tone for Positions — same green/red language. */
+export function positionSideClass(
+  qty: number | null | undefined,
+): 'ibkr-side--buy' | 'ibkr-side--sell' | '' {
+  if (qty == null || !Number.isFinite(qty) || qty === 0) return '';
+  return qty > 0 ? 'ibkr-side--buy' : 'ibkr-side--sell';
+}
+
+export function positionSideRowClass(
+  qty: number | null | undefined,
+): 'ibkr-order-row--buy' | 'ibkr-order-row--sell' | '' {
+  if (qty == null || !Number.isFinite(qty) || qty === 0) return '';
+  return qty > 0 ? 'ibkr-order-row--buy' : 'ibkr-order-row--sell';
+}
+
 export function formatOrderType(orderType: string): string {
   const t = orderType.trim().toUpperCase().replace(/[\s_-]+/g, '');
   switch (t) {
@@ -49,9 +82,13 @@ export function formatOrderStatus(
 
   if (s === 'filled') return 'Filled';
   if (s === 'cancelled' || s === 'canceled' || s === 'apicancelled') {
-    return 'Cancelled';
+    // Critical edge case: cancel after partial fill leaves inventory + a closed row.
+    return hasPartial ? 'Cancelled (partial fill)' : 'Cancelled';
   }
   if (s === 'inactive') return 'Failed';
+
+  // Working partials beat "Pending" — PreSubmitted can still have fills.
+  if (hasPartial) return 'Partially filled';
 
   if (
     s === 'pendingsubmit' ||
@@ -61,13 +98,12 @@ export function formatOrderStatus(
     return 'Pending';
   }
 
-  if (s === 'submitted') {
-    return hasPartial ? 'Partially filled' : 'Working';
-  }
+  if (s === 'submitted') return 'Working';
 
-  if (hasPartial) return 'Partially filled';
   if (s.includes('reject') || s.includes('fail')) return 'Failed';
-  if (s.includes('cancel')) return 'Cancelled';
+  if (s.includes('cancel')) {
+    return hasPartial ? 'Cancelled (partial fill)' : 'Cancelled';
+  }
   if (s.includes('fill')) return 'Filled';
   if (s.includes('pend') || s.includes('presub')) return 'Pending';
 
@@ -81,6 +117,7 @@ export function orderStatusTone(label: string): OrderStatusTone {
     case 'Pending':
       return 'pending';
     case 'Partially filled':
+    case 'Cancelled (partial fill)':
       return 'partial';
     case 'Filled':
       return 'filled';
@@ -95,4 +132,44 @@ export function orderStatusTone(label: string): OrderStatusTone {
 
 export function formatExtendedHours(outsideRth: boolean): string {
   return outsideRth ? 'Extended hours' : 'Regular hours';
+}
+
+/** Exact Eastern time with seconds for open/closed order rows. */
+export function formatOrderDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const formatted = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).format(d);
+  return `${formatted} ET`;
+}
+
+/** Prefer last activity (fill/cancel); fall back to submitted. */
+export function orderActivityIso(order: {
+  updated_at?: string | null;
+  submitted_at?: string | null;
+}): string | null {
+  return order.updated_at || order.submitted_at || null;
+}
+
+export function orderTimeTitle(order: {
+  updated_at?: string | null;
+  submitted_at?: string | null;
+}): string {
+  const submitted = formatOrderDateTime(order.submitted_at);
+  const updated = formatOrderDateTime(order.updated_at);
+  if (submitted === '—' && updated === '—') return 'Time unavailable from broker';
+  if (submitted !== '—' && updated !== '—' && submitted !== updated) {
+    return `Submitted ${submitted} · Updated ${updated}`;
+  }
+  if (updated !== '—') return `Updated ${updated}`;
+  return `Submitted ${submitted}`;
 }

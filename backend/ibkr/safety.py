@@ -9,12 +9,16 @@ Env gates (all must pass for a LIVE buy/sell):
   1. IBKR_ENABLED=true
   2. Connected to Gateway
   3. IBKR_ORDERS_ENABLED=true          ← master kill switch (default OFF)
-  4. If gateway mode is live:
+  4. If gateway mode / connection / broker accounts are live:
        IBKR_LIVE_TRADING_CONFIRMED=true
 
-IBKR_GATEWAY_MODE=paper|live chooses which Gateway port to connect for
-market data. It does NOT authorize spending. You can be on live Gateway
-for L1/L2 while orders stay locked.
+Paper pin (when IBKR_GATEWAY_MODE=paper):
+  - Connection mode must be paper (port 4002 path)
+  - Broker managedAccounts must classify as paper (DU… / DF…)
+  - Self-heal never attaches to live Gateway
+
+IBKR_GATEWAY_MODE=paper|live chooses which Gateway port to connect.
+It does NOT authorize spending by itself.
 """
 from __future__ import annotations
 
@@ -73,9 +77,18 @@ def status_snapshot() -> dict:
     }
 
 
-def assert_orders_allowed(*, client_enabled: bool, connected: bool, account_mode: str) -> tuple[bool, str]:
+def assert_orders_allowed(
+    *,
+    client_enabled: bool,
+    connected: bool,
+    account_mode: str,
+    broker_account_kind: str = "unknown",
+) -> tuple[bool, str]:
     """
     Returns (ok, reason). Sole gate used by place_order / place_bracket_order.
+
+    ``broker_account_kind`` comes from IB managedAccounts classification
+    (``paper`` | ``live`` | ``mixed`` | ``unknown``).
     """
     if not client_enabled:
         return False, "IBKR_ENABLED is not set"
@@ -86,10 +99,30 @@ def assert_orders_allowed(*, client_enabled: bool, connected: bool, account_mode
             "IBKR_ORDERS_ENABLED is false — orders locked "
             "(market data / Level 2 still allowed)"
         )
-    # Prefer detected account mode from the live connection when available.
-    mode = account_mode if account_mode in ("paper", "live") else gateway_mode()
-    if mode == "live" and not live_trading_confirmed():
+
+    env_mode = gateway_mode()
+    conn_mode = account_mode if account_mode in ("paper", "live") else env_mode
+    kind = (broker_account_kind or "unknown").strip().lower()
+
+    # ── Paper pin: env paper ⇒ connection + accounts must be paper ──────────
+    if env_mode == "paper":
+        if conn_mode != "paper":
+            return False, (
+                "Paper pin: IBKR_GATEWAY_MODE=paper but connection mode is "
+                f"{conn_mode!r} — refusing place"
+            )
+        if kind != "paper":
+            return False, (
+                "Paper pin: broker managedAccounts are "
+                f"{kind!r} (need paper DU/DF) — refusing place"
+            )
+        return True, ""
+
+    # ── Live env / live accounts / live connection: second key required ─────
+    if not live_trading_confirmed():
         return False, "Live trading requires IBKR_LIVE_TRADING_CONFIRMED=true"
+    if kind == "mixed":
+        return False, "Refusing place with mixed paper+live managedAccounts"
     return True, ""
 
 

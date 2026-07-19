@@ -72,10 +72,12 @@ def _arm_ibkr_execution(monkeypatch):
     monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "paper")
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
     monkeypatch.setattr(executor._ibkr_client, "is_enabled", lambda: True)
     monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: True)
     monkeypatch.setattr(executor._ibkr_client, "account_mode", lambda: "paper")
+    monkeypatch.setattr(executor._ibkr_client, "broker_account_kind", lambda: "paper")
     monkeypatch.setattr(executor._ibkr_client, "get_ib", lambda: None)
     monkeypatch.setattr(safety_mod, "orders_enabled", lambda: True)
     monkeypatch.setattr(

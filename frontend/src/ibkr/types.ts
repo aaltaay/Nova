@@ -52,6 +52,10 @@ export interface IbkrOrder {
   avg_fill_price?: number | null;
   outside_rth?: boolean;
   status: string;
+  /** ISO-8601 UTC when the order was first seen / submitted (IBKR trade log). */
+  submitted_at?: string | null;
+  /** ISO-8601 UTC of last fill or last status change (prefer fill time). */
+  updated_at?: string | null;
 }
 
 export interface DepthLevel {

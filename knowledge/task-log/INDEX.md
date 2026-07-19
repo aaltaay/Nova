@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-18 | [IBKR paper hard-pin (no accidental live)](2026-07-18-ibkr-paper-hard-pin.md) | Never heal paper→live; managedAccounts DU/DF pin + spend refuse |
+| 2026-07-18 | [Fill now + EH flatten + Cancel+Flatten hotkey](2026-07-18-fill-now-cancel-flatten.md) | Fill now on working orders; MKT EH; cancel_and_exit hotkey |
 | 2026-07-18 | [Daddy dispatch: Closed Orders WID-027 + Close SSOT](2026-07-18-closed-orders-widget-dispatch.md) | Daddy dispatch: Closed Orders WID-027 + Close SSOT |
 | 2026-07-18 | [WID-027 Closed Orders widget verification](2026-07-18-wid-027-closed-orders-verify.md) | Scoped pytest/Vitest/build PASS; Flatten gated; live API needs reload for /orders/closed |
 | 2026-07-18 | [Closed Orders widget (WID-027) + Flatten SSOT](2026-07-18-closed-orders-wid027.md) | Isolated closed_orders slice + Positions Flatten via place/ADR 007 |

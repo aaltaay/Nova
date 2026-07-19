@@ -92,13 +92,30 @@ function migrateAutomationBindings(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** Ensure newly shipped default Nova Actions appear on older local profiles. */
+export function mergeMissingDefaultNovaActions(
+  existing: NovaActionRecord[],
+): NovaActionRecord[] {
+  const defaults = createDefaultNovaActions();
+  const byId = new Map(existing.map((a) => [a.id, a]));
+  const kinds = new Set(existing.map((a) => a.kind));
+  const merged = [...existing];
+  for (const def of defaults) {
+    if (!byId.has(def.id) && !kinds.has(def.kind)) {
+      merged.push(def);
+      kinds.add(def.kind);
+    }
+  }
+  return merged;
+}
+
 export function migrateProfile(raw: unknown): HotkeyProfile | null {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Partial<HotkeyProfile> & { novaActions?: unknown };
   if (!Array.isArray(obj.records)) return null;
   const records = obj.records.filter(isRecord);
   const novaActions = Array.isArray(obj.novaActions)
-    ? obj.novaActions.filter(isNovaAction)
+    ? mergeMissingDefaultNovaActions(obj.novaActions.filter(isNovaAction))
     : createDefaultNovaActions();
   return {
     schemaVersion: HOTKEY_PROFILE_SCHEMA_VERSION,

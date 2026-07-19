@@ -35,6 +35,7 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
             client_enabled=_client.is_enabled(),
             connected=_client.is_connected(),
             account_mode=_client.account_mode(),
+            broker_account_kind=_client.broker_account_kind(),
         )
         if not ok:
             return False, reason, "ORDERS_GATE"
@@ -55,8 +56,8 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
             return False, "limit_price required for LMT", "LIMIT_MISSING"
         if cmd.order_type == "STP" and (cmd.stop_price is None or cmd.stop_price <= 0):
             return False, "stop_price required for STP", "STOP_MISSING"
-        if cmd.outside_rth and cmd.order_type != "LMT":
-            return False, "outside_rth is supported only for LMT", "OUTSIDE_RTH_INVALID"
+        if cmd.outside_rth and cmd.order_type == "STP":
+            return False, "outside_rth is not supported for STP", "OUTSIDE_RTH_INVALID"
     elif cmd.operation == "bracket":
         if cmd.entry_price is None or cmd.stop_price is None or cmd.target_price is None:
             return False, "bracket requires entry/stop/target", "BRACKET_FIELDS"
@@ -70,6 +71,7 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
         client_enabled=_client.is_enabled(),
         connected=_client.is_connected(),
         account_mode=_client.account_mode(),
+        broker_account_kind=_client.broker_account_kind(),
     )
     if not ok:
         return False, reason, "ORDERS_GATE"

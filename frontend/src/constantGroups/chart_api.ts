@@ -381,7 +381,17 @@ export const CLOSE_POSITION_BUTTON_LABEL = 'Flatten';
 export const CLOSE_POSITION_BUTTON_BUSY_LABEL = 'Flattening…';
 export const CLOSE_POSITION_NO_POSITION_TITLE = 'No open position to flatten';
 export const CLOSE_POSITION_VS_CANCEL_HINT =
-  'Flatten closes the entire position with a market order. Cancel only removes a working order.';
+  'Flatten closes the entire position with a market order (extended hours when pre/after-market). Cancel only removes a working order. Fill now cancels the rest of one order and markets that remainder.';
+/** Working-order panic: cancel rest + market the remaining qty (same side). */
+export const FILL_WORKING_ORDER_BUTTON_LABEL = 'Fill now';
+export const FILL_WORKING_ORDER_BUTTON_TITLE =
+  'Cancel this working order and immediately market the remaining shares (same side). Uses extended hours when the resting order was EH or the session is pre/after-market. Not the same as Flatten (position exit).';
+export const FILL_WORKING_ORDER_CONFIRM_PREFIX =
+  'Fill now will cancel the resting order and market the remaining shares';
+/** localStorage JSON: working/closed/positions column order (drag headers). */
+export const ORDER_TABLE_COLUMNS_STORAGE_KEY = 'nova.ibkr.orderTable.columns.v1';
+export const ORDER_TABLE_COLUMN_DRAG_HINT =
+  'Drag to reorder columns · Double-click header to reset';
 /** localStorage: `1` = Stock View open-orders dock collapsed. */
 export const STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY =
   'nova.stockView.openOrders.collapsed';

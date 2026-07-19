@@ -158,6 +158,7 @@ export const HOTKEY_HTK_NAME_MAX_CHARS = 99;
 // ── Nova Actions (Phase G3 — typed, executable) ──────────────────────────────
 export const NOVA_ACTION_KINDS = [
   'cancel_symbol',
+  'cancel_and_exit',
   'exit_pos',
   'exit_pos_pct',
   'buy_limit_ask_offset',
@@ -168,7 +169,8 @@ export type NovaActionKind = (typeof NOVA_ACTION_KINDS)[number];
 
 export const NOVA_ACTION_KIND_LABELS: Record<NovaActionKind, string> = {
   cancel_symbol: 'Cancel open orders (symbol)',
-  exit_pos: 'Exit full position',
+  cancel_and_exit: 'Cancel orders + flatten position',
+  exit_pos: 'Exit full position (Flatten)',
   exit_pos_pct: 'Exit position %',
   buy_limit_ask_offset: 'Buy limit at Ask ± offset',
   sell_limit_bid_offset: 'Sell limit at Bid ± offset',

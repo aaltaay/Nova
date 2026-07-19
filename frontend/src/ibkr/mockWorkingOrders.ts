@@ -1,13 +1,17 @@
 /**
  * UI-only sample working orders for Open Orders preview (not sent to IBKR).
+ * Includes partial-fill rows so we can rehearse the serious edge cases offline.
  */
 
 import type { IbkrOrder } from './types';
 
-/** Five paper-style working rows for the open symbol — preview only. */
+function isoMinutesAgo(minutes: number): string {
+  return new Date(Date.now() - minutes * 60_000).toISOString();
+}
+
+/** Paper-style working rows for the open symbol — preview only. */
 export function buildMockWorkingOrders(symbol: string): IbkrOrder[] {
   const sym = symbol.trim().toUpperCase() || 'DEMO';
-  // Realistic mix of statuses / types around a mid-20s name (e.g. SDOT-style).
   return [
     {
       order_id: 90001,
@@ -22,7 +26,10 @@ export function buildMockWorkingOrders(symbol: string): IbkrOrder[] {
       avg_fill_price: null,
       outside_rth: true,
       status: 'Submitted',
+      submitted_at: isoMinutesAgo(42),
+      updated_at: isoMinutesAgo(42),
     },
+    // Still working, only partially filled (most important open-order case).
     {
       order_id: 90002,
       symbol: sym,
@@ -35,7 +42,9 @@ export function buildMockWorkingOrders(symbol: string): IbkrOrder[] {
       stop_price: null,
       avg_fill_price: 24.24,
       outside_rth: false,
-      status: 'PreSubmitted',
+      status: 'Submitted',
+      submitted_at: isoMinutesAgo(28),
+      updated_at: isoMinutesAgo(3),
     },
     {
       order_id: 90003,
@@ -50,6 +59,8 @@ export function buildMockWorkingOrders(symbol: string): IbkrOrder[] {
       avg_fill_price: null,
       outside_rth: false,
       status: 'Submitted',
+      submitted_at: isoMinutesAgo(18),
+      updated_at: isoMinutesAgo(18),
     },
     {
       order_id: 90004,
@@ -64,7 +75,10 @@ export function buildMockWorkingOrders(symbol: string): IbkrOrder[] {
       avg_fill_price: null,
       outside_rth: false,
       status: 'PendingSubmit',
+      submitted_at: isoMinutesAgo(1),
+      updated_at: isoMinutesAgo(1),
     },
+    // Second partial: sell limit, Extended hours, last fill a few seconds ago.
     {
       order_id: 90005,
       symbol: sym,
@@ -78,6 +92,8 @@ export function buildMockWorkingOrders(symbol: string): IbkrOrder[] {
       avg_fill_price: 24.98,
       outside_rth: true,
       status: 'Submitted',
+      submitted_at: isoMinutesAgo(55),
+      updated_at: isoMinutesAgo(0.2),
     },
   ];
 }

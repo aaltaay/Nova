@@ -56,9 +56,9 @@ IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
 )
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
-# When preferred Gateway port refuses/times out, try the other port (paper↔live)
-# and persist IBKR_GATEWAY_MODE. Does not unlock orders. Override with
-# IBKR_GATEWAY_SELF_HEAL=false.
+# When preferred LIVE Gateway port refuses/times out, try PAPER (4002) and
+# persist IBKR_GATEWAY_MODE=paper. Never auto-heals paper→live (paper pin).
+# Override with IBKR_GATEWAY_SELF_HEAL=false.
 IBKR_GATEWAY_SELF_HEAL_DEFAULT = True
 # Terminal IBKR orderStatus values for Closed Orders (WID-027). Working /
 # pending / partial-still-open stay on open_orders (WID-026).

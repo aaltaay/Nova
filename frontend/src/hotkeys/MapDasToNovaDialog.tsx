@@ -52,7 +52,9 @@ export function MapDasToNovaDialog({
                   {suggestion.params.offsetDollars ?? 0.05}
                 </>
               )}
-              {(suggestion.kind === 'cancel_symbol' || suggestion.kind === 'exit_pos') && '—'}
+              {(suggestion.kind === 'cancel_symbol'
+                || suggestion.kind === 'cancel_and_exit'
+                || suggestion.kind === 'exit_pos') && '—'}
             </dd>
           </div>
         </dl>

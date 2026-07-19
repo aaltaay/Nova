@@ -36,12 +36,28 @@ const ROWS: ClosedOrder[] = [
     limit_price: 1,
     status: 'Inactive',
   },
+  {
+    order_id: 4,
+    symbol: 'AAPL',
+    side: 'BUY',
+    qty: 100,
+    filled_qty: 35,
+    remaining_qty: 0,
+    order_type: 'LMT',
+    limit_price: 12.6,
+    status: 'Cancelled',
+  },
 ];
 
 describe('filterClosedOrders', () => {
-  it('filters by filled / cancelled and symbol', () => {
+  it('filters by filled / cancelled / partial and symbol', () => {
     expect(filterClosedOrders(ROWS, 'filled').map((r) => r.order_id)).toEqual([1]);
-    expect(filterClosedOrders(ROWS, 'cancelled').map((r) => r.order_id)).toEqual([2, 3]);
-    expect(filterClosedOrders(ROWS, 'all', 'aapl').map((r) => r.order_id)).toEqual([1, 3]);
+    expect(filterClosedOrders(ROWS, 'cancelled').map((r) => r.order_id)).toEqual([
+      2, 3, 4,
+    ]);
+    expect(filterClosedOrders(ROWS, 'partial').map((r) => r.order_id)).toEqual([4]);
+    expect(filterClosedOrders(ROWS, 'all', 'aapl').map((r) => r.order_id)).toEqual([
+      1, 3, 4,
+    ]);
   });
 });

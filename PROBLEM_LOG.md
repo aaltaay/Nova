@@ -21,11 +21,25 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-18 — Paper Gateway could still attach to live (self-heal / port-only)
+
+- **Symptom:** With `IBKR_GATEWAY_MODE=paper`, Nova could still self-heal to port 4001 if paper was down, or treat “paper” as a port label only — risk of live account spend while practicing.
+- **Cause:** `gateway_heal` tried either alternate port; `account_mode` reflected env/port, not IB `managedAccounts`; spend gate did not require paper account ids.
+- **Fix:** Heal only live→paper; classify managedAccounts (`DU`/`DF`); disconnect + refuse place on paper/live mismatch; `assert_orders_allowed` paper pin.
+- **Keywords:** paper pin, self-heal, managedAccounts, DU, IBKR_GATEWAY_MODE, live money, broker_account_kind
+
+## 2026-07-18 — Flatten / market exit ignored extended hours
+
+- **Symptom:** Flatten / exit position after RTH (or on EH working orders) failed or sat until regular hours; felt like Flatten “does not work” outside the session.
+- **Cause:** Nova forced `outside_rth=false` on all MKT places and rejected `outside_rth` for non-LMT in both `ibkr.orders` and `execution.validate`.
+- **Fix:** Allow MKT + `outside_rth`; auto-set EH in pre/after-market for Flatten / Fill now / exit hotkeys; STP remains RTH-only.
+- **Keywords:** Flatten, outside_rth, extended hours, MKT, Fill now, exit_pos, OUTSIDE_RTH_INVALID
+
 ## 2026-07-18 — Stock View “Disconnected” while paper Gateway was connected
 
 - **Symptom:** Header showed Disconnected; Gateway Connection Status showed API Server connected; charts/L2 empty. User was on paper trading.
 - **Cause:** Gateway listened on paper port **4002**, but `.env` had `IBKR_GATEWAY_MODE=live` so Nova only tried **4001** (ConnectionRefused). Header Paper/Live capsules do not change the port.
-- **Fix:** Set mode to paper + reconnect for the incident; added `ibkr/gateway_heal.py` so future preferred-port refuse/timeout auto-tries the other port and persists `IBKR_GATEWAY_MODE` (orders still gated).
+- **Fix:** Set mode to paper + reconnect for the incident; added `ibkr/gateway_heal.py` so future preferred **live**-port refuse/timeout can self-heal **to paper** and persist `IBKR_GATEWAY_MODE` (never paper→live; orders still gated). See also paper hard-pin entry above.
 - **Keywords:** Disconnected, IBKR_GATEWAY_MODE, 4001, 4002, paper Gateway, self-heal, gateway_self_heal
 
 ## 2026-07-18 — Vite HMR “send was called before connect” flooded client-errors

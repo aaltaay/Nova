@@ -1,6 +1,16 @@
-import type { IbkrPosition, IbkrOrder, IbkrAccountSummary, IbkrMode } from './types';
+import { useMemo, type ReactNode } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ClosePositionButton } from '../closed_orders';
+import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader';
+import { positionSideClass, positionSideRowClass } from './orderDisplay';
+import {
+  DEFAULT_POSITION_COLUMNS,
+  POSITION_COLUMN_META,
+  normalizeColumnOrder,
+  type PositionColumnId,
+} from './orderTableColumns';
+import type { IbkrPosition, IbkrOrder, IbkrAccountSummary, IbkrMode } from './types';
+import { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
 import { WorkingOrdersPanel } from './WorkingOrdersPanel';
 
 interface Props {
@@ -11,8 +21,8 @@ interface Props {
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
   onCancelOrder?: (id: number) => void;
+  onFillImmediately?: (order: IbkrOrder) => void;
   highlightOrderId?: number | null;
-  /** Required for Flatten affordance (ADR 007 place path). */
   mode?: IbkrMode;
   connected?: boolean;
   spendStatus?: string;
@@ -21,7 +31,10 @@ interface Props {
 
 function fmt(n: number | null | undefined, decimals = 2) {
   if (n == null) return '—';
-  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  return n.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 }
 
 function fmtDollar(n: number | null | undefined) {
@@ -29,9 +42,59 @@ function fmtDollar(n: number | null | undefined) {
   return `$${fmt(n)}`;
 }
 
-function PnlCell({ value }: { value: number | null | undefined }) {
-  const color = value == null ? undefined : value >= 0 ? 'var(--green)' : 'var(--red)';
-  return <td style={{ color }}>{fmtDollar(value)}</td>;
+function renderPositionCell(
+  col: PositionColumnId,
+  p: IbkrPosition,
+  sideCls: string,
+  sideTitle: string | undefined,
+): ReactNode {
+  switch (col) {
+    case 'symbol':
+      return (
+        <td key={col} className={`ibkr-col--text ibkr-symbol ${sideCls}`} title={sideTitle}>
+          {p.symbol}
+        </td>
+      );
+    case 'qty':
+      return (
+        <td key={col} className={`ibkr-col--num ${sideCls}`} title={sideTitle}>
+          {fmt(p.qty, 0)}
+        </td>
+      );
+    case 'avg_cost':
+      return (
+        <td key={col} className="ibkr-col--num">
+          {fmtDollar(p.avg_cost)}
+        </td>
+      );
+    case 'mkt_price':
+      return (
+        <td key={col} className="ibkr-col--num">
+          {fmtDollar(p.market_price)}
+        </td>
+      );
+    case 'mkt_value':
+      return (
+        <td key={col} className="ibkr-col--num">
+          {fmtDollar(p.market_value)}
+        </td>
+      );
+    case 'unrealized': {
+      const color =
+        p.unrealized_pnl == null
+          ? undefined
+          : p.unrealized_pnl >= 0
+            ? 'var(--green)'
+            : 'var(--red)';
+      return (
+        <td key={col} className="ibkr-col--num" style={{ color }}>
+          {fmtDollar(p.unrealized_pnl)}
+        </td>
+      );
+    }
+    default:
+      return null;
+  }
 }
 
 export function PositionsPanel({
@@ -42,6 +105,7 @@ export function PositionsPanel({
   onSelectSymbol,
   onOpenTrading,
   onCancelOrder,
+  onFillImmediately,
   highlightOrderId = null,
   mode = 'disconnected',
   connected = false,
@@ -49,6 +113,16 @@ export function PositionsPanel({
   onPositionClosed,
 }: Props) {
   const showFlatten = connected && mode !== 'disconnected';
+  const { order, reorder, reset } = useOrderTableColumnOrder('positions');
+  const columns = useMemo(
+    () =>
+      normalizeColumnOrder(order, DEFAULT_POSITION_COLUMNS) as PositionColumnId[],
+    [order],
+  );
+  const headerMeta = useMemo(
+    () => columns.map((id) => POSITION_COLUMN_META[id]),
+    [columns],
+  );
 
   return (
     <div className="ibkr-positions-panel">
@@ -57,8 +131,26 @@ export function PositionsPanel({
           <span><label>Net Liq</label>{fmtDollar(summary.NetLiquidation)}</span>
           <span><label>Cash</label>{fmtDollar(summary.TotalCashValue)}</span>
           <span><label>Buying Power</label>{fmtDollar(summary.BuyingPower)}</span>
-          <span><label>Unrealized P&L</label><span style={{ color: (summary.UnrealizedPnL ?? 0) >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtDollar(summary.UnrealizedPnL)}</span></span>
-          <span><label>Realized P&L</label><span style={{ color: (summary.RealizedPnL ?? 0) >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmtDollar(summary.RealizedPnL)}</span></span>
+          <span>
+            <label>Unrealized P&L</label>
+            <span
+              style={{
+                color: (summary.UnrealizedPnL ?? 0) >= 0 ? 'var(--green)' : 'var(--red)',
+              }}
+            >
+              {fmtDollar(summary.UnrealizedPnL)}
+            </span>
+          </span>
+          <span>
+            <label>Realized P&L</label>
+            <span
+              style={{
+                color: (summary.RealizedPnL ?? 0) >= 0 ? 'var(--green)' : 'var(--red)',
+              }}
+            >
+              {fmtDollar(summary.RealizedPnL)}
+            </span>
+          </span>
         </div>
       )}
 
@@ -66,48 +158,57 @@ export function PositionsPanel({
       {positions.length === 0 ? (
         <div className="ibkr-empty">No open positions.</div>
       ) : (
-        <table className="ibkr-table">
+        <OrderTableDnd onReorder={reorder}>
+        <table className="ibkr-table ibkr-table--orders">
           <thead>
-            <tr>
-              <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
-              <th>Qty</th>
-              <th>Avg Cost</th>
-              <th>Mkt Price</th>
-              <th>Mkt Value</th>
-              <th>Unrealized P&L</th>
-              {showFlatten ? <th title="Full position exit — not cancel order">Close</th> : null}
-            </tr>
+            <OrderTableColumnHeader
+              columns={headerMeta}
+              onReset={reset}
+              trailing={
+                showFlatten ? (
+                  <th
+                    className="ibkr-col--actions"
+                    data-column-pinned="close"
+                    title="Full position exit — not cancel order"
+                  >
+                    Close
+                  </th>
+                ) : null
+              }
+            />
           </thead>
           <tbody>
-            {positions.map(p => (
-              <SelectableTableRow
-                key={p.symbol}
-                symbol={p.symbol}
-                selected={selectedSymbol === p.symbol}
-                onSelect={onSelectSymbol}
-                onOpenTrading={onOpenTrading}
-              >
-                <td className="ibkr-symbol">{p.symbol}</td>
-                <td>{fmt(p.qty, 0)}</td>
-                <td>{fmtDollar(p.avg_cost)}</td>
-                <td>{fmtDollar(p.market_price)}</td>
-                <td>{fmtDollar(p.market_value)}</td>
-                <PnlCell value={p.unrealized_pnl} />
-                {showFlatten ? (
-                  <td>
-                    <ClosePositionButton
-                      position={p}
-                      mode={mode}
-                      connected={connected}
-                      spendStatus={spendStatus}
-                      onClosed={onPositionClosed}
-                    />
-                  </td>
-                ) : null}
-              </SelectableTableRow>
-            ))}
+            {positions.map((p) => {
+              const sideCls = positionSideClass(p.qty);
+              const sideRowCls = positionSideRowClass(p.qty);
+              const sideTitle = p.qty > 0 ? 'Long' : p.qty < 0 ? 'Short' : undefined;
+              return (
+                <SelectableTableRow
+                  key={p.symbol}
+                  symbol={p.symbol}
+                  selected={selectedSymbol === p.symbol}
+                  onSelect={onSelectSymbol}
+                  onOpenTrading={onOpenTrading}
+                  className={sideRowCls || undefined}
+                >
+                  {columns.map((col) => renderPositionCell(col, p, sideCls, sideTitle))}
+                  {showFlatten ? (
+                    <td className="ibkr-col--actions">
+                      <ClosePositionButton
+                        position={p}
+                        mode={mode}
+                        connected={connected}
+                        spendStatus={spendStatus}
+                        onClosed={onPositionClosed}
+                      />
+                    </td>
+                  ) : null}
+                </SelectableTableRow>
+              );
+            })}
           </tbody>
         </table>
+        </OrderTableDnd>
       )}
 
       <WorkingOrdersPanel
@@ -116,6 +217,7 @@ export function PositionsPanel({
         onSelectSymbol={onSelectSymbol}
         onOpenTrading={onOpenTrading}
         onCancelOrder={onCancelOrder}
+        onFillImmediately={onFillImmediately}
         highlightOrderId={highlightOrderId}
       />
     </div>

@@ -25,7 +25,9 @@ import { useIbkrAccount } from './useIbkrAccount';
 import { DepthLadder } from './DepthLadder';
 import { OrderTicket } from './OrderTicket';
 import { PositionsPanel } from './PositionsPanel';
+import { confirmAndFillWorkingOrder } from './fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from './placeOrder';
+import type { IbkrOrder } from './types';
 
 interface TradingTabProps {
   selectedSymbol: string | null;
@@ -52,6 +54,17 @@ export function TradingTab({
     } catch {
       // error will surface on next poll
     }
+  }, [refresh]);
+
+  const handleFillImmediately = useCallback(async (order: IbkrOrder) => {
+    const res = await confirmAndFillWorkingOrder(order);
+    if (res.ok && res.place_order_id != null) {
+      setHighlightOrderId(res.place_order_id);
+    }
+    if (!res.ok && res.error !== 'Fill now cancelled') {
+      window.alert(res.error);
+    }
+    refresh();
   }, [refresh]);
 
   const handleOrderPlaced = useCallback(
@@ -211,6 +224,7 @@ export function TradingTab({
               onSelectSymbol={onSelectSymbol}
               onOpenTrading={onOpenTrading}
               onCancelOrder={handleCancelOrder}
+              onFillImmediately={handleFillImmediately}
               highlightOrderId={highlightOrderId}
               mode={status.mode}
               connected={status.connected}
