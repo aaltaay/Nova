@@ -23,6 +23,7 @@ from constants import NOVA_OS_FLATTEN_CONFIRM_TOKEN
 from ibkr import account as _account
 from ibkr import client as _ibkr_client
 from ibkr import orders as _orders
+from ibkr.errors import IbkrAccountError
 from nova_os import control_mode as _control_mode
 from nova_os.events import KIND_ACTION, record_receipt
 
@@ -47,6 +48,12 @@ def flatten_preview() -> dict:
         }
         for p in _executor.open_positions().values()
     ]
+    try:
+        ibkr_positions = _account.get_positions()
+        ibkr_positions_error = None
+    except IbkrAccountError as exc:
+        ibkr_positions = []
+        ibkr_positions_error = str(exc)
     return {
         "disclosure": (
             f"Flatten closes tracked executor longs with a market SELL and cancels "
@@ -58,23 +65,22 @@ def flatten_preview() -> dict:
         "account_mode": _ibkr_client.account_mode(),
         "ibkr_connected": _ibkr_client.is_connected(),
         "positions": tracked,
-        "ibkr_positions": _account.get_positions(),
+        "ibkr_positions": ibkr_positions,
+        "ibkr_positions_error": ibkr_positions_error,
     }
 
 
 def _actual_position_qty(symbol: str) -> float | None:
-    """Real IBKR position qty for `symbol`, or None if IBKR has no position
-    (or doesn't know about one). This is the only source of truth for whether
-    there is anything to sell — the in-memory tracked qty is a claim, not a
-    fact."""
-    for p in _account.get_positions():
-        if str(p.get("symbol") or "").upper() == symbol:
-            try:
-                qty = float(p.get("qty") or 0)
-            except (TypeError, ValueError):
-                return None
-            return qty if qty > 0 else None
-    return None
+    """Real IBKR long qty for `symbol`, or None if verified flat.
+
+    Uses ``account.long_qty`` (``ib.positions()`` SSOT) — same as validate
+    anti-short. Raises ``IbkrAccountError`` when the read fails — callers must
+    not treat that as "no position", or a transient failure could make
+    ``flatten_positions`` skip selling a real position and cancel its
+    protective stop/target instead.
+    """
+    qty = _account.long_qty(symbol)
+    return qty if qty > 0 else None
 
 
 def _cancel_protective_legs(pos: "OpenPosition") -> list[int]:
@@ -89,7 +95,15 @@ def _cancel_protective_legs(pos: "OpenPosition") -> list[int]:
     from strategy.executor import _cancel_via_service
 
     cancelled: list[int] = []
-    open_ids = {o["order_id"] for o in _orders.open_orders()} if _ibkr_client.is_connected() else set()
+    open_ids: set = set()
+    if _ibkr_client.is_connected():
+        try:
+            open_ids = {o["order_id"] for o in _orders.open_orders()}
+        except IbkrAccountError as exc:
+            # Cannot verify which legs are still working — leave them alone
+            # rather than guessing. We're about to sell the real qty below
+            # regardless, so a leg we fail to cancel here is not a new risk.
+            logger.error("flatten: open_orders failed for %s — leaving legs uncancelled: %s", pos.symbol, exc)
     for order_id in (pos.parent_order_id, pos.target_order_id, pos.stop_order_id):
         if order_id not in open_ids:
             continue
@@ -150,7 +164,24 @@ def flatten_positions(confirm_token: str) -> dict:
     open_positions = _executor.open_positions()
     results: list[dict] = []
     for symbol, pos in list(open_positions.items()):
-        actual_qty = _actual_position_qty(symbol)
+        try:
+            actual_qty = _actual_position_qty(symbol)
+        except IbkrAccountError as exc:
+            # Cannot verify real IBKR qty — abort rather than assume flat.
+            # Positions already processed this call are untouched; the rest
+            # (including this symbol) are left tracked for a retry.
+            logger.error(
+                "flatten: aborting — cannot verify %s position at IBKR: %s", symbol, exc,
+            )
+            return {
+                "ok": False,
+                "error": (
+                    f"IBKR position check failed for {symbol} — flatten aborted, "
+                    f"no orders touched for remaining positions: {exc}"
+                ),
+                "results": results,
+                **_executor.status(),
+            }
 
         if actual_qty is None:
             # No real position at IBKR — the parent never filled (or it's

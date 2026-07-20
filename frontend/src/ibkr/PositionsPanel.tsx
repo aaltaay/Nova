@@ -17,6 +17,8 @@ interface Props {
   summary: IbkrAccountSummary | null;
   positions: IbkrPosition[];
   orders: IbkrOrder[];
+  /** Set when the last positions/orders poll failed — disable Flatten. */
+  error?: string | null;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
@@ -101,6 +103,7 @@ export function PositionsPanel({
   summary,
   positions,
   orders,
+  error = null,
   selectedSymbol,
   onSelectSymbol,
   onOpenTrading,
@@ -155,8 +158,13 @@ export function PositionsPanel({
       )}
 
       <h4 className="ibkr-section-title">Positions</h4>
+      {error && (
+        <div className="ibkr-empty ibkr-empty--error" data-testid="positions-error">
+          {error} — Flatten disabled until the poll recovers.
+        </div>
+      )}
       {positions.length === 0 ? (
-        <div className="ibkr-empty">No open positions.</div>
+        !error && <div className="ibkr-empty">No open positions.</div>
       ) : (
         <OrderTableDnd onReorder={reorder}>
         <table className="ibkr-table ibkr-table--orders">
@@ -199,6 +207,7 @@ export function PositionsPanel({
                         mode={mode}
                         connected={connected}
                         spendStatus={spendStatus}
+                        disabled={Boolean(error)}
                         onClosed={onPositionClosed}
                       />
                     </td>

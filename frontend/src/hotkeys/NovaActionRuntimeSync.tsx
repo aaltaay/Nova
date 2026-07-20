@@ -11,9 +11,14 @@ import { useHotkeyDispatchOptional } from './HotkeyDispatchContext';
 interface Props {
   symbol: string | null;
   position?: IbkrPosition | null;
+  accountError?: string | null;
 }
 
-export function NovaActionRuntimeSync({ symbol, position = null }: Props) {
+export function NovaActionRuntimeSync({
+  symbol,
+  position = null,
+  accountError = null,
+}: Props) {
   const dispatch = useHotkeyDispatchOptional();
   const status = useIbkrStatus();
 
@@ -23,12 +28,14 @@ export function NovaActionRuntimeSync({ symbol, position = null }: Props) {
       symbol: symbol ? symbol.toUpperCase() : null,
       connected: Boolean(status.connected),
       spendStatus: status.spend_status,
+      accountError,
       position,
     });
   }, [
     dispatch,
     symbol,
     position,
+    accountError,
     status.connected,
     status.spend_status,
   ]);

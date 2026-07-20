@@ -380,6 +380,8 @@ export const CLOSED_ORDERS_SAMPLE_BANNER =
 export const CLOSE_POSITION_BUTTON_LABEL = 'Flatten';
 export const CLOSE_POSITION_BUTTON_BUSY_LABEL = 'Flattening…';
 export const CLOSE_POSITION_NO_POSITION_TITLE = 'No open position to flatten';
+export const CLOSE_POSITION_ACCOUNT_ERROR_TITLE =
+  'IBKR account/positions read failed — Flatten disabled until the poll recovers';
 export const CLOSE_POSITION_VS_CANCEL_HINT =
   'Flatten closes the entire position with a market order (extended hours when pre/after-market). Cancel only removes a working order. Fill now cancels the rest of one order and markets that remainder.';
 /** Working-order panic: cancel rest + market the remaining qty (same side). */

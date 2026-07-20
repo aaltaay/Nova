@@ -55,3 +55,13 @@ SLA target: p95 ack ≤ 250 ms (excludes fill).
 - Paper acknowledgment latency ≠ live exchange ack or fill quality.
 - Manual place still skips Nova OS risk/concurrency (IBKR safety + account gates only) — intentional for the ticket UI.
 - Fill poll (10s) remains a reconciliation backstop; primary fill mark is `execDetails` / `Filled` → ledger.
+
+## Position qty + BuyingPower (2026-07-20)
+
+| Check | Behavior |
+|-------|----------|
+| Long qty SSOT | `account.long_qty` ← `ib.positions()` only |
+| Manual SELL / UI Flatten | `source=manual` → validate anti-short; unavailable → `POSITION_UNAVAILABLE`; verified flat → `NO_POSITION` |
+| Nova OS flatten | Reconcile via `long_qty`; place `source=flatten` skips validate anti-short; abort on raise (no cancel-without-sell) |
+| `/api/ibkr/positions` qty | From positions SSOT; MTM/PnL join from portfolio; no portfolio-only invent |
+| Priced BUY + summary fail | Refuse `BUYING_POWER_UNKNOWN` (no fail-open) |

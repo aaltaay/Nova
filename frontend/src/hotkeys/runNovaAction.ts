@@ -3,6 +3,7 @@
  */
 
 import {
+  NOVA_ACTION_ACCOUNT_ERROR_MESSAGE,
   NOVA_ACTION_DEPTH_DISABLED_REASON,
   NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
   NOVA_ACTION_DEFAULT_SHARES,
@@ -26,6 +27,8 @@ export interface NovaActionRuntime {
   symbol: string | null;
   connected: boolean;
   spendStatus?: string;
+  /** Set when useIbkrAccount last poll failed — block exit/flatten actions. */
+  accountError?: string | null;
   position: IbkrPosition | null;
   topOfBook: TopOfBook | null;
   /** Called when place-confirm is required; return true to proceed. */
@@ -121,6 +124,9 @@ export async function runNovaAction(
   }
 
   if (action.kind === 'cancel_and_exit') {
+    if (runtime.accountError) {
+      return { ok: false, text: NOVA_ACTION_ACCOUNT_ERROR_MESSAGE };
+    }
     let cancelText = '';
     try {
       const res = await cancelAllOrdersForSymbol(symbol);
@@ -160,6 +166,9 @@ export async function runNovaAction(
   }
 
   if (action.kind === 'exit_pos' || action.kind === 'exit_pos_pct') {
+    if (runtime.accountError) {
+      return { ok: false, text: NOVA_ACTION_ACCOUNT_ERROR_MESSAGE };
+    }
     const built = action.kind === 'exit_pos'
       ? buildExitFullPosition(runtime.position?.qty)
       : buildExitPositionPercent(runtime.position?.qty, action.params.percent ?? 50);

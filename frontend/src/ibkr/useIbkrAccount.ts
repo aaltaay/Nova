@@ -7,6 +7,8 @@ interface AccountState {
   positions: IbkrPosition[];
   orders: IbkrOrder[];
   loading: boolean;
+  /** Set when the last poll failed — rows above may be last-good, not flat. */
+  error: string | null;
   refresh: () => void;
 }
 
@@ -16,6 +18,7 @@ export function useIbkrAccount(connected: boolean): AccountState {
   const [positions, setPositions] = useState<IbkrPosition[]>([]);
   const [orders, setOrders] = useState<IbkrOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!connected) return;
@@ -26,11 +29,27 @@ export function useIbkrAccount(connected: boolean): AccountState {
         fetch(`${API_BASE_URL}/api/ibkr/positions`),
         fetch(`${API_BASE_URL}/api/ibkr/orders`),
       ]);
-      setSummary(sumRes.ok ? await sumRes.json() : null);
-      setPositions(posRes.ok ? await posRes.json() : []);
-      setOrders(ordRes.ok ? await ordRes.json() : []);
+      // Non-OK reads are transport failures — keep last-good rows and surface
+      // error so Flatten/exit can disable (last-good qty ≠ verified live gate).
+      const failures: string[] = [];
+      if (sumRes.ok) {
+        setSummary(await sumRes.json());
+      } else {
+        failures.push(`account (HTTP ${sumRes.status})`);
+      }
+      if (posRes.ok) {
+        setPositions(await posRes.json());
+      } else {
+        failures.push(`positions (HTTP ${posRes.status})`);
+      }
+      if (ordRes.ok) {
+        setOrders(await ordRes.json());
+      } else {
+        failures.push(`orders (HTTP ${ordRes.status})`);
+      }
+      setError(failures.length ? `IBKR read failed — ${failures.join(', ')}` : null);
     } catch {
-      // next poll will retry
+      setError('IBKR account/positions/orders fetch failed — retrying');
     } finally {
       setLoading(false);
     }
@@ -41,6 +60,7 @@ export function useIbkrAccount(connected: boolean): AccountState {
       setSummary(null);
       setPositions([]);
       setOrders([]);
+      setError(null);
       setLoading(false);
       return;
     }
@@ -57,5 +77,5 @@ export function useIbkrAccount(connected: boolean): AccountState {
     };
   }, [connected, refresh]);
 
-  return { summary, positions, orders, loading, refresh };
+  return { summary, positions, orders, loading, error, refresh };
 }

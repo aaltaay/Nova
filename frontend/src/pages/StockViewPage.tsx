@@ -54,7 +54,13 @@ export function StockViewPage({
   const { discoveryProvider } = useWorkspace();
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(symbol);
   const ibkrStatus = useIbkrStatus();
-  const { summary, positions, orders, refresh } = useIbkrAccount(ibkrStatus.connected);
+  const {
+    summary,
+    positions,
+    orders,
+    error: accountError,
+    refresh,
+  } = useIbkrAccount(ibkrStatus.connected);
   const [highlightOrderId, setHighlightOrderId] = useState<number | null>(null);
   const [ordersCollapsed, setOrdersCollapsed] = useState(
     STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED,
@@ -209,6 +215,7 @@ export function StockViewPage({
               mode={ibkrStatus.mode}
               connected={ibkrStatus.connected}
               spendStatus={ibkrStatus.spend_status}
+              accountError={accountError}
               position={symbolPosition}
               summary={summary}
               referencePrice={metrics?.mainPrice ?? null}

@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-20 | [Flatten long_qty SSOT + BuyingPower fail-closed](2026-07-20-flatten-long-qty-ssot.md) | positions() SSOT for qty/gates; POSITION_UNAVAILABLE; accountValues raise; FE error gate |
 | 2026-07-18 | [IBKR paper hard-pin (no accidental live)](2026-07-18-ibkr-paper-hard-pin.md) | Never heal paper→live; managedAccounts DU/DF pin + spend refuse |
 | 2026-07-18 | [Fill now + EH flatten + Cancel+Flatten hotkey](2026-07-18-fill-now-cancel-flatten.md) | Fill now on working orders; MKT EH; cancel_and_exit hotkey |
 | 2026-07-18 | [Daddy dispatch: Closed Orders WID-027 + Close SSOT](2026-07-18-closed-orders-widget-dispatch.md) | Daddy dispatch: Closed Orders WID-027 + Close SSOT |

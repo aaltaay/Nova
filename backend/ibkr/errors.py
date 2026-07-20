@@ -5,6 +5,14 @@ import asyncio
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 
 
+class IbkrDiscoveryError(RuntimeError):
+    """Scanner/snapshot transport failure — not the same as an empty market."""
+
+
+class IbkrAccountError(RuntimeError):
+    """Positions/orders read failure — never disguise as a flat/empty account."""
+
+
 def describe_exc(exc: BaseException) -> str:
     """Human-readable exception text; falls back to type name when ``str(exc)`` is empty."""
     raw = str(exc).strip()

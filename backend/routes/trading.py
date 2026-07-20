@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from ibkr import client as _client
@@ -29,6 +29,7 @@ from ibkr import depth as _depth
 from ibkr import orders as _orders
 from ibkr import account as _account
 from ibkr import tape_stream as _tape
+from ibkr.errors import IbkrAccountError
 
 logger = logging.getLogger(__name__)
 
@@ -77,23 +78,36 @@ def _client_safety_status() -> dict:
 @router.get("/account")
 async def ibkr_account() -> dict:
     # Async refresh avoids "event loop is already running" from sync IB waits.
-    return await _account.refresh_account_summary()
+    try:
+        return await _account.refresh_account_summary()
+    except IbkrAccountError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.get("/positions")
 async def ibkr_positions() -> list:
-    return _account.get_portfolio()
+    # Qty from positions()/long_qty SSOT; MTM/PnL joined from portfolio.
+    try:
+        return _account.positions_for_ui()
+    except IbkrAccountError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.get("/orders")
 async def ibkr_open_orders() -> list:
-    return _orders.open_orders()
+    try:
+        return _orders.open_orders()
+    except IbkrAccountError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.get("/orders/closed")
 async def ibkr_closed_orders(limit: int | None = None) -> list:
     """Filled / cancelled / failed session orders (Webull History / Closed)."""
-    return _orders.closed_orders(limit=limit)
+    try:
+        return _orders.closed_orders(limit=limit)
+    except IbkrAccountError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 # ── Orders (centralized via execution.service — ADR 007) ──────────────────────
@@ -185,7 +199,10 @@ async def cancel_orders_for_symbol(symbol: str) -> dict:
     if not sym:
         return {"ok": False, "error": "symbol is required", "cancelled": [], "failed": []}
 
-    open_list = _orders.open_orders()
+    try:
+        open_list = _orders.open_orders()
+    except IbkrAccountError as exc:
+        return {"ok": False, "error": str(exc), "cancelled": [], "failed": []}
     matches = [
         o for o in open_list
         if str(o.get("symbol", "")).upper() == sym and o.get("order_id") is not None

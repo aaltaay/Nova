@@ -88,4 +88,30 @@ describe('ClosePositionButton', () => {
     ) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
   });
+
+  it('stays disabled when accountError gate sets disabled', () => {
+    act(() => {
+      root.render(
+        <ClosePositionButton
+          position={{
+            symbol: 'AAPL',
+            qty: 10,
+            market_price: 1,
+            market_value: 10,
+            avg_cost: 1,
+            unrealized_pnl: 0,
+            realized_pnl: 0,
+          }}
+          mode="paper"
+          connected
+          spendStatus="paper_armed"
+          disabled
+        />,
+      );
+    });
+    const btn = container.querySelector(
+      '[data-testid="close-position-btn"]',
+    ) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
 });

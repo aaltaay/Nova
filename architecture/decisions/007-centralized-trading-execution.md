@@ -22,8 +22,14 @@ Nova had a single IBKR broker adapter (`ibkr/orders.py`) but fragmented entry po
 - Paper proves structural/API latency; IBKR paper fills are simulated and do not prove live slippage.
 - Live one-share probes require a separate explicit user approval phase.
 
+## Broker long qty SSOT (2026-07-20)
+
+Anti-short / flatten sizing and Positions **qty** share one API: `ibkr.account.long_qty(symbol)` backed only by `ib.positions()` (sum same-symbol longs; raise `IbkrAccountError` on read failure). `GET /api/ibkr/positions` takes qty from that cache and joins mark/PnL from `ib.portfolio()` — never invents a long from portfolio-only rows. Validate maps read failure → `POSITION_UNAVAILABLE` (not `NO_POSITION`). UI Flatten stays `source="manual"` (anti-short on); Nova OS flatten place stays `source="flatten"` (reconcile via `long_qty` is the gate). Account summary reads raise on failure so LMT BUY cannot skip BuyingPower (`BUYING_POWER_UNKNOWN`).
+
 ## Rejected alternatives
 
 - Separate paper vs live code paths
 - Full order FSM / message bus before latency proof
 - Blocking account-summary network refresh on every place (use cached account values; fail closed if incomplete)
+- Validate/flatten qty from `ib.portfolio()` alone (false-allow short if portfolio high/stale)
+- UI Flatten tagged `source="flatten"` to skip anti-short

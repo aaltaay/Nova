@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-20 — Flatten NO_POSITION while Positions showed shares + BuyingPower fail-open
+
+- **Symptom:** UI Flatten / manual SELL refused with `NO_POSITION` while Positions showed SPY qty 1. Separately, a transient `ib.accountValues()` failure could let a priced LMT BUY through without BuyingPower check.
+- **Cause:** Positions UI used `ib.portfolio()`; validate/flatten used `ib.positions()` — successful-but-empty positions vs populated portfolio. `get_account_summary()` swallowed `accountValues()` into `{connected:false}` without `pending`, so validate skipped both BP branches.
+- **Fix:** `account.long_qty` (positions-only SSOT) for validate (`POSITION_UNAVAILABLE` vs `NO_POSITION`), flatten, and `/positions` qty (MTM from portfolio join). Summary reads raise; priced BUY → `BUYING_POWER_UNKNOWN`. FE disables Flatten/exit when account poll `error` is set.
+- **Keywords:** long_qty, NO_POSITION, POSITION_UNAVAILABLE, BUYING_POWER_UNKNOWN, get_positions, get_portfolio, Flatten, dual-source, accountValues
+
 ## 2026-07-18 — Paper Gateway could still attach to live (self-heal / port-only)
 
 - **Symptom:** With `IBKR_GATEWAY_MODE=paper`, Nova could still self-heal to port 4001 if paper was down, or treat “paper” as a port label only — risk of live account spend while practicing.

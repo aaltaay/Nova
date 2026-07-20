@@ -1,10 +1,15 @@
 """Pre-broker validation for the centralized execution path."""
 from __future__ import annotations
 
+import logging
+
 from execution.models import ExecutionCommand
 from ibkr import account as _account
 from ibkr import client as _client
 from ibkr import safety as _safety
+from ibkr.errors import IbkrAccountError
+
+logger = logging.getLogger(__name__)
 
 
 def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
@@ -86,25 +91,57 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
     if not _client.is_connected():
         return False, "account checks require IBKR connection", "ACCOUNT_UNAVAILABLE"
 
-    summary = _account.get_account_summary()
-    # Prefer live summary when present; if the cache is empty/pending, fail closed
-    # only for priced BUY notions (market orders cannot estimate notional).
-    bp = summary.get("BuyingPower") if summary.get("connected") else None
+    summary: dict | None = None
+    summary_error: IbkrAccountError | None = None
+    try:
+        summary = _account.get_account_summary()
+    except IbkrAccountError as exc:
+        summary_error = exc
 
     if cmd.operation in ("place", "bracket") and cmd.source not in ("flatten", "kill"):
         if cmd.operation == "place" and (cmd.side or "").upper() == "BUY":
             est = _estimate_notional(cmd)
-            if bp is None and summary.get("pending") and est is not None:
+            if summary_error is not None and est is not None:
+                logger.error(
+                    "validate: account summary failed — refusing priced BUY: %s",
+                    summary_error,
+                )
+                return (
+                    False,
+                    f"BuyingPower unavailable — refuse spend: {summary_error}",
+                    "BUYING_POWER_UNKNOWN",
+                )
+            # Prefer live summary when present; if the cache is empty/pending,
+            # fail closed only for priced BUY notions (MKT cannot estimate).
+            bp = (
+                summary.get("BuyingPower")
+                if summary is not None and summary.get("connected")
+                else None
+            )
+            if bp is None and summary is not None and summary.get("pending") and est is not None:
                 return False, "BuyingPower not yet available — refuse spend", "BUYING_POWER_UNKNOWN"
             if bp is not None and est is not None and est > float(bp):
                 return False, f"estimated notional {est:.2f} exceeds BuyingPower {bp}", "BUYING_POWER"
 
         if cmd.operation == "place" and (cmd.side or "").upper() == "SELL":
             # Position-reducing sells (flatten/close) are allowed; opening a short is not.
+            # source=flatten skips anti-short here — reconcile uses long_qty separately.
             if cmd.source not in ("flatten",):
-                pos_qty = _position_qty(cmd.normalized_symbol() or "")
+                try:
+                    pos_qty = _position_qty(cmd.normalized_symbol() or "")
+                except IbkrAccountError as exc:
+                    logger.error(
+                        "validate: long_qty failed — refusing SELL for %s: %s",
+                        cmd.normalized_symbol(),
+                        exc,
+                    )
+                    return (
+                        False,
+                        f"SELL refused — position unavailable: {exc}",
+                        "POSITION_UNAVAILABLE",
+                    )
                 sell_qty = float(cmd.qty or 0)
-                if pos_qty is None or pos_qty <= 0:
+                if pos_qty <= 0:
                     return False, "SELL refused — no long position to reduce", "NO_POSITION"
                 if sell_qty > pos_qty + 1e-6:
                     return False, f"SELL qty {sell_qty} exceeds position {pos_qty}", "OVERSELL"
@@ -122,11 +159,10 @@ def _estimate_notional(cmd: ExecutionCommand) -> float | None:
     return qty * float(px)
 
 
-def _position_qty(symbol: str) -> float | None:
-    for p in _account.get_positions():
-        if str(p.get("symbol") or "").upper() == symbol.upper():
-            try:
-                return float(p.get("qty") or 0)
-            except (TypeError, ValueError):
-                return None
-    return None
+def _position_qty(symbol: str) -> float:
+    """Verified long qty for ``symbol`` via ``account.long_qty`` (positions SSOT).
+
+    Returns ``0.0`` when flat. Raises ``IbkrAccountError`` when the broker
+    position cache cannot be read (caller maps that to ``POSITION_UNAVAILABLE``).
+    """
+    return _account.long_qty(symbol)

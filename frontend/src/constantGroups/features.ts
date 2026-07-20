@@ -195,3 +195,5 @@ export const NOVA_ACTION_PIN_LOCKED_MESSAGE =
   'Unlock the trading session (PIN) before hotkey orders.';
 export const NOVA_ACTION_SPEND_LOCKED_MESSAGE =
   'Orders remain locked by Nova environment safety settings.';
+export const NOVA_ACTION_ACCOUNT_ERROR_MESSAGE =
+  'IBKR account/positions read failed — Flatten/exit disabled until the poll recovers';

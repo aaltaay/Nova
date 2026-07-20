@@ -307,6 +307,9 @@ async def reconnect_loop() -> None:
                         "IBKR: connected in %s mode (orders still gated by safety.py)",
                         mode_label,
                     )
+                    from ibkr import account as _account
+
+                    await _account.refresh_positions_cache()
                 else:
                     logger.error(
                         "IBKR: disconnecting after paper-pin reject: %s",
@@ -332,6 +335,9 @@ async def reconnect_loop() -> None:
                         "(orders still gated by safety.py)",
                         healed,
                     )
+                    from ibkr import account as _account
+
+                    await _account.refresh_positions_cache()
                     continue
                 _mode = "disconnected"
                 _broker_account_kind = "unknown"

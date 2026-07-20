@@ -3,6 +3,7 @@
  */
 import { useState, type MouseEvent } from 'react';
 import {
+  CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
   CLOSE_POSITION_BUTTON_BUSY_LABEL,
   CLOSE_POSITION_BUTTON_LABEL,
   CLOSE_POSITION_NO_POSITION_TITLE,
@@ -68,9 +69,11 @@ export function ClosePositionButton({
       title={
         !hasPosition
           ? CLOSE_POSITION_NO_POSITION_TITLE
-          : spendLocked
-            ? 'Orders locked — enable IBKR orders / live confirm'
-            : CLOSE_POSITION_VS_CANCEL_HINT
+          : disabled
+            ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
+            : spendLocked
+              ? 'Orders locked — enable IBKR orders / live confirm'
+              : CLOSE_POSITION_VS_CANCEL_HINT
       }
       aria-label={`Flatten position ${position.symbol}`}
     >

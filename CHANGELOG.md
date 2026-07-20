@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-20 — IBKR long_qty SSOT + BuyingPower fail-closed
+
+- **What:** Unified broker long qty on `account.long_qty()` (`ib.positions()` only) for validate anti-short, Nova OS flatten reconcile, and `GET /api/ibkr/positions` qty (MTM/PnL joined from portfolio; never invent longs from portfolio-only rows). Split `POSITION_UNAVAILABLE` vs `NO_POSITION`. `get_account_summary`/`refresh_account_summary` raise `IbkrAccountError` on failure (`/api/ibkr/account` → 503); priced BUY refused with `BUYING_POWER_UNKNOWN`. FE disables Flatten/exit when `useIbkrAccount.error` is set. Positions cache refreshed after connect.
+- **Why:** UI showed SPY from portfolio while Flatten/`source=manual` SELL used empty `positions()` → false `NO_POSITION`. BuyingPower swallow was fail-open on LMT BUY.
+- **Files touched:** `backend/ibkr/{account,client,errors}.py`, `execution/validate.py`, `strategy/executor_flatten.py`, `routes/trading.py`, FE account Flatten gate, tests, ADR 007 note, task-log.
+- **How it works now:** One SSOT — `long_qty`/`positions()`. UI qty follows that SSOT; portfolio is mark/PnL join only. Read failure ≠ flat. UI Flatten stays `source="manual"`.
+- **Verified by:** focused pytest 89 passed; Vitest ClosePositionButton.
+- **Related:** PROBLEM_LOG 2026-07-20 dual-source + BuyingPower; plan `flatten_sell_refusal_14e16b28`.
+
 ## 2026-07-18 — IBKR paper hard-pin (no accidental live)
 
 - **What:** Paper mode can no longer self-heal onto the live Gateway; after connect, IB `managedAccounts` must classify as paper (DU/DF) or the session is dropped and place is refused. Status exposes `broker_account_kind`.

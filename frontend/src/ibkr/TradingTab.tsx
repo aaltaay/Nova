@@ -41,7 +41,13 @@ export function TradingTab({
   onOpenTrading,
 }: TradingTabProps) {
   const status = useIbkrStatus();
-  const { summary, positions, orders, refresh } = useIbkrAccount(status.connected);
+  const {
+    summary,
+    positions,
+    orders,
+    error: accountError,
+    refresh,
+  } = useIbkrAccount(status.connected);
   const { isVisible } = useModuleVisibility();
   const [depthSymbol, setDepthSymbol] = useState<string | null>(null);
   const [depthInput, setDepthInput] = useState('');
@@ -220,6 +226,7 @@ export function TradingTab({
               summary={summary}
               positions={positions}
               orders={orders}
+              error={accountError}
               selectedSymbol={selectedSymbol}
               onSelectSymbol={onSelectSymbol}
               onOpenTrading={onOpenTrading}

@@ -151,6 +151,29 @@ class TestAccountAndRiskGates:
         assert r.reason_code == "BUYING_POWER"
         assert called == []
 
+    def test_buying_power_unknown_when_account_summary_raises(self, monkeypatch):
+        """accountValues() failure must refuse LMT BUY (not silently allow)."""
+        from ibkr.errors import IbkrAccountError
+
+        _arm_paper(monkeypatch, buying_power=1_000_000.0)
+
+        def boom():
+            raise IbkrAccountError("accountValues boom")
+
+        monkeypatch.setattr(account_mod, "get_account_summary", boom)
+        called = []
+        monkeypatch.setattr(
+            orders_mod, "place_order", lambda **k: called.append(1) or {"ok": True}
+        )
+        r = asyncio.run(
+            exec_svc.execute(
+                _limit_buy("bp-unknown", qty=1, limit_price=50.0), wait_ack=False
+            )
+        )
+        assert r.ok is False
+        assert r.reason_code == "BUYING_POWER_UNKNOWN"
+        assert called == []
+
     def test_sell_without_position_blocked(self, monkeypatch):
         _arm_paper(monkeypatch, positions=[])
         called = []

@@ -152,6 +152,28 @@ class TestArmDisarmKillSwitch:
         executor.kill_switch()
         assert cancelled_ids == []
 
+    def test_kill_switch_preserves_stops_when_open_orders_read_fails(self, monkeypatch):
+        """A transient open_orders() failure must not be treated as 'parent
+        unfilled' — that would cancel a filled position's live protective
+        stop/target based on a guess."""
+        executor.arm()
+        cancelled_ids = []
+        _arm_ibkr_execution(monkeypatch)
+
+        def boom():
+            raise orders_mod.IbkrAccountError("open_orders failed: boom")
+
+        monkeypatch.setattr(orders_mod, "open_orders", boom)
+        monkeypatch.setattr(orders_mod, "cancel_order", lambda oid: cancelled_ids.append(oid) or {"ok": True})
+        executor._open_positions["AAPL"] = executor.OpenPosition(
+            symbol="AAPL", setup="gap_and_go", qty=100,
+            entry_price=5.0, stop_price=4.9, target_price=5.2,
+            parent_order_id=1, target_order_id=2, stop_order_id=3, opened_ts=time.time(),
+        )
+        result = executor.kill_switch()
+        assert cancelled_ids == []
+        assert result["kill_switch_tripped"] is True
+
     def test_reset_kill_switch_clears_flag_without_arming(self):
         executor.arm()
         executor.kill_switch()
@@ -453,7 +475,7 @@ class TestFlattenReconciliation:
         market SELL here would open an accidental short."""
         self._seed_open_position()
         _arm_ibkr_execution(monkeypatch)
-        monkeypatch.setattr(executor_flatten._account, "get_positions", lambda: [])
+        monkeypatch.setattr(executor_flatten._account, "long_qty", lambda _s: 0.0)
         monkeypatch.setattr(orders_mod, "open_orders", lambda: [{"order_id": 10}])
         cancelled = []
         monkeypatch.setattr(
@@ -476,10 +498,8 @@ class TestFlattenReconciliation:
         they can't fire against a future position in the same symbol."""
         self._seed_open_position()
         _arm_ibkr_execution(monkeypatch)
-        monkeypatch.setattr(
-            executor_flatten._account, "get_positions",
-            lambda: [{"symbol": "AAPL", "qty": 100.0, "avg_cost": 5.0}],
-        )
+        monkeypatch.setattr(executor_flatten._account, "long_qty", lambda _s: 100.0)
+        monkeypatch.setattr(account_mod, "long_qty", lambda _s: 100.0)
         monkeypatch.setattr(
             account_mod, "get_positions",
             lambda: [{"symbol": "AAPL", "qty": 100.0, "avg_cost": 5.0}],
@@ -506,6 +526,33 @@ class TestFlattenReconciliation:
     def test_flatten_rejects_wrong_confirm_token(self):
         with pytest.raises(ValueError, match="FLATTEN"):
             executor.flatten_positions("nope")
+
+    def test_flatten_aborts_when_position_read_fails(self, monkeypatch):
+        """A transient long_qty() failure must abort flatten instead of
+        being treated as 'no real position' — that would skip the sell AND
+        cancel the protective stop/target, leaving a real position naked."""
+        self._seed_open_position()
+        _arm_ibkr_execution(monkeypatch)
+
+        def boom(_sym):
+            raise executor_flatten.IbkrAccountError("get_positions failed: boom")
+
+        monkeypatch.setattr(executor_flatten._account, "long_qty", boom)
+        cancelled = []
+        monkeypatch.setattr(
+            orders_mod, "cancel_order", lambda oid: cancelled.append(oid) or {"ok": True}
+        )
+        sell_calls = []
+        monkeypatch.setattr(
+            orders_mod, "place_order",
+            lambda *a, **k: sell_calls.append(a) or {"ok": True, "order_id": 99},
+        )
+        result = executor.flatten_positions("FLATTEN")
+        assert result["ok"] is False
+        assert "boom" in result["error"]
+        assert sell_calls == []
+        assert cancelled == []
+        assert "AAPL" in executor._open_positions
 
     def test_flatten_fails_loud_when_ibkr_disconnected(self, monkeypatch):
         self._seed_open_position()

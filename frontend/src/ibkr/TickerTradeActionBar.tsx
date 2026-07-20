@@ -2,6 +2,7 @@
  * Reuses IBKR order API + useExecutor; does not invent a second order path. */
 import { useState } from 'react';
 import {
+  CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
   STOCK_VIEW_MODULE_OPEN_TITLE,
   TICKER_TRADE_ORDER_DISCLOSURE,
 } from '../constants';
@@ -18,6 +19,8 @@ interface Props {
   mode: IbkrMode;
   connected: boolean;
   spendStatus?: string;
+  /** Set when useIbkrAccount last poll failed — disable Flatten. */
+  accountError?: string | null;
   position: IbkrPosition | null;
   summary: IbkrAccountSummary | null;
   referencePrice: number | null;
@@ -41,6 +44,7 @@ export function TickerTradeActionBar({
   mode,
   connected,
   spendStatus,
+  accountError = null,
   position,
   summary,
   referencePrice,
@@ -61,6 +65,7 @@ export function TickerTradeActionBar({
           : null;
 
   const canTrade = connected && mode !== 'disconnected' && disabledReason == null && !closing;
+  const canFlatten = canTrade && !accountError;
   const modeLabel = mode === 'paper' ? 'PAPER' : mode === 'live' ? '⚠ LIVE' : 'OFFLINE';
   const hasPosition = position != null && position.qty !== 0;
   const compactChrome = variant === 'rail';
@@ -68,7 +73,7 @@ export function TickerTradeActionBar({
   const showAutomate = !compactChrome;
 
   async function handleClose() {
-    if (!canTrade || !position || position.qty === 0) return;
+    if (!canFlatten || !position || position.qty === 0) return;
     const absQty = Math.abs(position.qty);
     const closeSide: 'BUY' | 'SELL' = position.qty > 0 ? 'SELL' : 'BUY';
     const confirmed = window.confirm(
@@ -113,7 +118,11 @@ export function TickerTradeActionBar({
 
   return (
     <div className={barClass} role="region" aria-label="Trading actions">
-      <NovaActionRuntimeSync symbol={symbol} position={position} />
+      <NovaActionRuntimeSync
+        symbol={symbol}
+        position={position}
+        accountError={accountError}
+      />
       <TradingQuickBar />
       <div className="ticker-trade-bar-top">
         {showAccount && (
@@ -166,12 +175,14 @@ export function TickerTradeActionBar({
           <button
             type="button"
             className="ticker-trade-close-btn"
-            disabled={!canTrade || !hasPosition}
+            disabled={!canFlatten || !hasPosition}
             onClick={handleClose}
             title={
               !hasPosition
                 ? 'No open position in this symbol'
-                : disabledReason ?? 'Flatten position with market order'
+                : accountError
+                  ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
+                  : disabledReason ?? 'Flatten position with market order'
             }
           >
             {closing

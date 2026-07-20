@@ -30,6 +30,7 @@ interface Props {
   mode: IbkrMode;
   connected: boolean;
   spendStatus?: string;
+  accountError?: string | null;
   position: IbkrPosition | null;
   summary: IbkrAccountSummary | null;
   referencePrice: number | null;
@@ -42,6 +43,7 @@ export function StockViewRail({
   mode,
   connected,
   spendStatus,
+  accountError = null,
   position,
   summary,
   referencePrice,
@@ -98,6 +100,7 @@ export function StockViewRail({
             mode={mode}
             connected={connected}
             spendStatus={spendStatus}
+            accountError={accountError}
             position={position}
             summary={summary}
             referencePrice={referencePrice}
