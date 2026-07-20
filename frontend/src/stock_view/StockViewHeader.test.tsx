@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  PAPER_TRADING_BANNER_TEXT,
   STOCK_VIEW_ACCOUNT_MODE_LIVE,
   STOCK_VIEW_ACCOUNT_MODE_PAPER,
   STOCK_VIEW_OPERATOR_MODE_FULL_AUTO,
@@ -63,6 +64,10 @@ describe('StockViewHeader trading chrome', () => {
     renderHeader();
     const header = container.querySelector('[data-testid="stock-view-header"]');
     expect(header).toBeTruthy();
+    expect(
+      header!.querySelector('[data-testid="stock-view-market-clock"]'),
+    ).toBeTruthy();
+    expect(header!.textContent).toMatch(/ ET/);
     expect(header!.textContent).toMatch(/Net Liq/);
     expect(header!.textContent).toMatch(/\$584/);
     expect(header!.textContent).toMatch(/BP/);
@@ -106,5 +111,18 @@ describe('StockViewHeader trading chrome', () => {
     expect(confirmSpy).toHaveBeenCalled();
     expect(segs[1].classList.contains('is-selected')).toBe(false);
     confirmSpy.mockRestore();
+  });
+
+  it('shows paper trading banner only when mode is paper', () => {
+    renderHeader({ mode: 'paper' });
+    const banner = container.querySelector('[data-testid="paper-trading-banner"]');
+    expect(banner).toBeTruthy();
+    expect(banner!.textContent).toBe(PAPER_TRADING_BANNER_TEXT);
+
+    renderHeader({ mode: 'live' });
+    expect(container.querySelector('[data-testid="paper-trading-banner"]')).toBeNull();
+
+    renderHeader({ mode: 'disconnected' });
+    expect(container.querySelector('[data-testid="paper-trading-banner"]')).toBeNull();
   });
 });

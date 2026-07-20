@@ -138,7 +138,7 @@ export const SCANNER_COLUMNS: [string, string][] = [
   ['price',               'Price'],
   ['change_pct',          'Change'],
   ['gap_percent',         'Gap %'],
-  ['volume',              'Volume'],
+  ['volume',              'Volume · RVOL Alpaca'], // label mirrored in market_ui.SCANNER_VOLUME_COLUMN_LABEL
   ['watchlist_score',     'Watch'],
   ['float',               'Float'],
   ['short_interest',      'Short Int.'],
@@ -241,21 +241,21 @@ export const IBKR_L1_ROW_STALE_SEC = 3.0;
 /** Brief flash duration when a table price ticks up/down. */
 export const SCANNER_PRICE_FLASH_MS = 400;
 
-// ── Quote Panel (scanner right sidebar) vs Stock View (double-click tab) ─────
+// ── Quote Panel (scanner right sidebar) vs Trader window (double-click) ─────
 /**
  * Delay before a single click selects the Quote Panel. A second click within
- * this window opens Stock View instead (native dblclick is unreliable when the
+ * this window opens Trader instead (native dblclick is unreliable when the
  * first click re-renders / shifts layout).
  */
 export const SYMBOL_DOUBLE_CLICK_MS = 280;
 /** Right-hand scanner sidebar that shows quote + fundamentals for the selected symbol. */
 export const QUOTE_PANEL_TITLE = 'Quote Panel';
-/** Full single-stock page opened by double-click / “Stock View” (detached window). */
-export const STOCK_VIEW_TITLE = 'Stock View';
-/** Button / tooltip copy for opening the detached Stock View window. */
-export const STOCK_VIEW_OPEN_LABEL = 'Stock View';
+/** Full single-stock page opened by double-click / “Trader” (detached window). */
+export const STOCK_VIEW_TITLE = 'Trader';
+/** Button / tooltip copy for opening the detached Trader window. */
+export const STOCK_VIEW_OPEN_LABEL = 'Trader';
 export const STOCK_VIEW_OPEN_TITLE =
-  'Open Stock View in a new window (same quote data as the Quote Panel, plus charts and trading)';
+  'Open Trader in a new window (same quote data as the Quote Panel, plus charts and trading)';
 /**
  * window.open feature string — size/popup flags force a real OS window.
  * Bare `_blank` with no features opens a browser tab (Chrome/Edge).
@@ -356,6 +356,15 @@ export const STOCK_VIEW_MAIN_ORDERS_SPLIT_MAX_PCT = 92;
 /** Soft floor (px) for the expanded Open Orders pane. */
 export const STOCK_VIEW_OPEN_ORDERS_PANE_MIN_PX = 96;
 /** Stock View rail module card titles (uppercase in CSS). */
+/** Stock View header market clock tick (ET wall clock + session). */
+export const STOCK_VIEW_CLOCK_TICK_MS = 1_000;
+export const STOCK_VIEW_CLOCK_TIMEZONE = 'America/New_York';
+export const STOCK_VIEW_CLOCK_SESSION_LABELS = {
+  premarket: 'Premarket',
+  rth: 'RTH',
+  afterhours: 'After-hours',
+  closed: 'Closed',
+} as const;
 export const STOCK_VIEW_MODULE_QUOTE_TITLE = 'Stock Quote';
 export const STOCK_VIEW_MODULE_L2_TITLE = 'Level 2';
 export const STOCK_VIEW_MODULE_TAPE_TITLE = 'Time & Sales';
@@ -376,6 +385,12 @@ export const CLOSED_ORDERS_EMPTY_MESSAGE =
   'No filled or cancelled orders in this Gateway session.';
 export const CLOSED_ORDERS_SAMPLE_BANNER =
   'Sample preview — filled/cancelled rows (not from IBKR)';
+/** Closed rows completed within this window get a “just finished” highlight. */
+export const CLOSED_ORDERS_RECENT_HIGHLIGHT_MS = 60_000;
+/** Re-check recent highlight aging (drop class after the window elapses). */
+export const CLOSED_ORDERS_RECENT_TICK_MS = 5_000;
+export const CLOSED_ORDERS_RECENT_ROW_TITLE =
+  'Completed within the last minute';
 /** Positions-row Flatten — full exit via ADR 007 place path (not cancel). */
 export const CLOSE_POSITION_BUTTON_LABEL = 'Flatten';
 export const CLOSE_POSITION_BUTTON_BUSY_LABEL = 'Flattening…';
@@ -391,9 +406,29 @@ export const FILL_WORKING_ORDER_BUTTON_TITLE =
 export const FILL_WORKING_ORDER_CONFIRM_PREFIX =
   'Fill now will cancel the resting order and market the remaining shares';
 /** localStorage JSON: working/closed/positions column order (drag headers). */
-export const ORDER_TABLE_COLUMNS_STORAGE_KEY = 'nova.ibkr.orderTable.columns.v1';
+/** Bump when default Open/Closed Orders column order changes (invalidates old layouts). */
+export const ORDER_TABLE_COLUMNS_STORAGE_KEY = 'nova.ibkr.orderTable.columns.v4';
 export const ORDER_TABLE_COLUMN_DRAG_HINT =
   'Drag to reorder columns · Double-click header to reset';
+/** Persisted row-sort stack for working/closed order tables. */
+export const ORDER_TABLE_SORT_STORAGE_KEY = 'nova.ibkr.orderTable.sort.v1';
+export const ORDER_TABLE_SORT_HINT =
+  'Click to sort · Shift+click multi-sort · Drag to reorder columns';
+/** Columns that support click-to-sort (row view). */
+export const ORDER_TABLE_DATA_SORT_KEYS = [
+  'type',
+  'session',
+  'time',
+  'qty',
+  'status',
+  'filled',
+  'remaining',
+  'symbol',
+  'limit',
+  'stop',
+  'avg_fill',
+  'order_id',
+] as const;
 /** localStorage: `1` = Stock View open-orders dock collapsed. */
 export const STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY =
   'nova.stockView.openOrders.collapsed';
@@ -404,8 +439,39 @@ export const STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY =
   'nova.stockView.openOrders.sampleHidden';
 /** Banner when showing mock rows (never real broker orders). */
 export const STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER =
-  'Sample preview — 5 paper-style rows for this symbol (not from IBKR)';
-/** Stock View footer dock tab: open (working) vs closed (filled/cancelled). */
+  'Sample preview — paper-style rows for this symbol (not from IBKR)';
+/**
+ * Stock View Orders (Today) — Webull-style session strip (WID-026/027).
+ * Segmented: Working | Filled | Canceled | Partial Filled | All.
+ */
+export const ORDERS_TODAY_TITLE = 'Orders (Today)';
+/** Stock View bottom dock: Positions | Orders (Today) | Nova OS. */
+export type StockViewDockSurface = 'positions' | 'orders' | 'nova_os';
+export const STOCK_VIEW_DOCK_SURFACE_KEY = 'nova.stockView.dock.surface';
+export const STOCK_VIEW_DOCK_SURFACE_DEFAULT: StockViewDockSurface = 'orders';
+export const STOCK_VIEW_MODULE_POSITIONS_TITLE = 'Positions';
+/** Nova OS decide band (gates / news / ticket) — dock tab, not header strip. */
+export const STOCK_VIEW_MODULE_NOVA_OS_TITLE = 'Nova OS';
+export type OrdersTodayFilterId =
+  | 'working'
+  | 'filled'
+  | 'canceled'
+  | 'partial_filled'
+  | 'all';
+export const ORDERS_TODAY_FILTERS: readonly {
+  id: OrdersTodayFilterId;
+  label: string;
+}[] = [
+  { id: 'working', label: 'Working' },
+  { id: 'filled', label: 'Filled' },
+  { id: 'canceled', label: 'Canceled' },
+  { id: 'partial_filled', label: 'Partial Filled' },
+  { id: 'all', label: 'All' },
+] as const;
+export const ORDERS_TODAY_FILTER_STORAGE_KEY =
+  'nova.stockView.ordersToday.filter';
+export const ORDERS_TODAY_FILTER_DEFAULT: OrdersTodayFilterId = 'all';
+/** @deprecated Migrated to ORDERS_TODAY_FILTER_STORAGE_KEY — kept for one-time read. */
 export const STOCK_VIEW_ORDERS_TAB_KEY = 'nova.stockView.ordersDock.tab';
 export type StockViewOrdersTab = 'open' | 'closed';
 export const STOCK_VIEW_ORDERS_TAB_DEFAULT: StockViewOrdersTab = 'open';
@@ -433,12 +499,21 @@ export const TICKER_TRADE_DEFAULT_ORDER_TYPE = 'MKT' as const;
 export const TICKER_TRADE_SHARE_PRESETS = [10, 50, 100, 500] as const;
 export const TICKER_TRADE_PERCENT_PRESETS = [10, 25, 50, 100] as const;
 export const TICKER_TRADE_DOLLAR_PRESETS = [100, 500, 1_000, 5_000] as const;
-/** IBKR fractional quantity precision used for dollar/percentage sizing. */
+/**
+ * IBKR fractional quantity precision for dollar/percentage sizing and for
+ * Positions / Orders / journal qty display (`formatShareQty`).
+ * Aligns with Webull’s fractional floor (>0.00001) at practical table precision.
+ */
 export const TICKER_TRADE_QTY_DECIMALS = 4;
 /** Primary CTA before local PIN unlock (does not bypass IBKR spend gates). */
 export const TICKER_TRADE_UNLOCK_LABEL = 'Unlock Trading';
-/** Primary CTA after PIN unlock — submits the built order. */
+/** Primary CTA after PIN unlock — submits the built order (live / offline). */
 export const TICKER_TRADE_PLACE_ORDER_LABEL = 'Place an order';
+/** Primary CTA after PIN unlock when IBKR Gateway mode is paper. */
+export const TICKER_TRADE_PLACE_PAPER_ORDER_LABEL = 'Place Paper order';
+/** Hot strip above Stock View / Trading when Gateway mode is paper. */
+export const PAPER_TRADING_BANNER_TEXT =
+  'PAPER TRADING — orders go to your IBKR paper account, not live money.';
 /**
  * Local UI unlock PIN for the Trade ticket (not a server secret).
  * Correct PIN switches the primary button to Place an order for this browser session.

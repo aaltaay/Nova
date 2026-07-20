@@ -5,6 +5,7 @@ import {
   TICKER_TRADE_DEFAULT_QTY,
   TICKER_TRADE_FORCE_QTY,
   TICKER_TRADE_PLACE_ORDER_LABEL,
+  TICKER_TRADE_PLACE_PAPER_ORDER_LABEL,
   TICKER_TRADE_UNLOCK_LABEL,
 } from '../constants';
 import {
@@ -237,25 +238,32 @@ export function ManualOrderTicket({
     requestPlaceOrder();
   }
 
+  const isPaper = mode === 'paper';
+  const placeLabel = isPaper
+    ? TICKER_TRADE_PLACE_PAPER_ORDER_LABEL
+    : TICKER_TRADE_PLACE_ORDER_LABEL;
+
   const buttonText = !connected
     ? 'Connect IB Gateway'
     : needsPinUnlock
       ? TICKER_TRADE_UNLOCK_LABEL
       : submitting
         ? 'Placing…'
-        : TICKER_TRADE_PLACE_ORDER_LABEL;
+        : placeLabel;
 
   const buttonDisabled = !connected || submitting;
 
   const buttonTitle = !connected
     ? 'Connect IB Gateway first'
     : needsPinUnlock
-      ? 'Enter unlock code, then Place an order'
+      ? `Enter unlock code, then ${placeLabel}`
       : spendLocked
         ? 'IBKR orders remain gated by environment safety settings'
         : QTY_LOCKED
           ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
-          : 'Review and place this order';
+          : isPaper
+            ? 'Review and place this order on the IBKR paper account'
+            : 'Review and place this order';
 
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
@@ -282,7 +290,11 @@ export function ManualOrderTicket({
         type="submit"
         variant="default"
         size="lg"
-        className="manual-order-submit mt-1 w-full"
+        className={
+          isPaper && !needsPinUnlock && connected
+            ? 'manual-order-submit manual-order-submit--paper mt-1 w-full'
+            : 'manual-order-submit mt-1 w-full'
+        }
         disabled={buttonDisabled}
         title={buttonTitle}
       >
@@ -291,7 +303,7 @@ export function ManualOrderTicket({
 
       {needsPinUnlock && connected && (
         <span className="manual-order-lock-note">
-          Enter the unlock code to enable Place an order.
+          Enter the unlock code to enable {placeLabel}.
         </span>
       )}
       {sessionUnlocked && spendLocked && (

@@ -214,6 +214,18 @@
   font-weight: 600;
 }
 
+/* Paper Gateway — orange CTA so Place is never mistaken for live */
+.manual-order-submit--paper {
+  background: #ea580c !important;
+  color: #fff !important;
+  border-color: #c2410c !important;
+}
+
+.manual-order-submit--paper:hover:not(:disabled) {
+  background: #f97316 !important;
+  color: #fff !important;
+}
+
 .manual-order-segment button:disabled,
 .manual-order-unit-toggle button:disabled,
 .manual-order-presets button:disabled,

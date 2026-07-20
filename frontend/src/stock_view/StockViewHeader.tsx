@@ -1,5 +1,9 @@
-/** Stock View command bar — symbol, account metrics, Paper/Live, mode, lock. */
+/** Trader window command bar — symbol, ET clock, account metrics, Paper/Live, mode. */
 import type { IbkrAccountSummary, IbkrMode } from '../ibkr/types';
+import { PaperTradingBanner } from '../ibkr/PaperTradingBanner';
+import { STOCK_VIEW_TITLE } from '../constants';
+import { formatMoney } from '../utils/formatMoney';
+import { StockViewMarketClock } from './StockViewMarketClock';
 import { StockViewSymbolChip } from './StockViewSymbolChip';
 import {
   StockViewAccountModeCapsule,
@@ -21,11 +25,6 @@ interface Props {
   onLookup: (symbol: string) => void;
 }
 
-function fmtDollar(n: number | null | undefined) {
-  if (n == null) return '—';
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
-
 export function StockViewHeader({
   symbol,
   detailReady,
@@ -41,36 +40,45 @@ export function StockViewHeader({
   onLookup,
 }: Props) {
   return (
-    <header className="sv-header" data-testid="stock-view-header">
-      <StockViewSymbolChip
-        symbol={symbol}
-        displaySymbol={detailReady ? (detailSymbol ?? symbol) : symbol}
-        mainPrice={detailReady ? mainPrice : null}
-        mainChangeAbs={detailReady ? mainChangeAbs : null}
-        mainChangePct={detailReady ? mainChangePct : null}
-        isPositive={isPositive}
-        refreshing={detailReady && refreshing}
-        onCommit={onLookup}
-      />
+    <>
+      <PaperTradingBanner mode={mode} />
+      <header className="sv-header" data-testid="stock-view-header">
+        <div className="sv-header__brand">
+          <span className="sv-header__nova">Nova</span>
+          <span className="sv-header__title">{STOCK_VIEW_TITLE}</span>
+        </div>
+        <StockViewSymbolChip
+          symbol={symbol}
+          displaySymbol={detailReady ? (detailSymbol ?? symbol) : symbol}
+          mainPrice={detailReady ? mainPrice : null}
+          mainChangeAbs={detailReady ? mainChangeAbs : null}
+          mainChangePct={detailReady ? mainChangePct : null}
+          isPositive={isPositive}
+          refreshing={detailReady && refreshing}
+          onCommit={onLookup}
+        />
 
-      <div className="sv-header__spacer" aria-hidden />
+        <StockViewMarketClock />
 
-      <div className="sv-header__account" aria-label="Account">
-        <StockViewAccountModeCapsule mode={mode} />
-        {!connected && <span className="sv-header__warn">Disconnected</span>}
-        {summary?.connected && (
-          <>
-            <span className="sv-header__metric">
-              <label>Net Liq</label> {fmtDollar(summary.NetLiquidation)}
-            </span>
-            <span className="sv-header__metric">
-              <label>BP</label> {fmtDollar(summary.BuyingPower)}
-            </span>
-          </>
-        )}
-      </div>
+        <div className="sv-header__spacer" aria-hidden />
 
-      <StockViewOperatorModeCapsule />
-    </header>
+        <div className="sv-header__account" aria-label="Account">
+          <StockViewAccountModeCapsule mode={mode} />
+          {!connected && <span className="sv-header__warn">Disconnected</span>}
+          {summary?.connected && (
+            <>
+              <span className="sv-header__metric">
+                <label>Net Liq</label> {formatMoney(summary.NetLiquidation, 0)}
+              </span>
+              <span className="sv-header__metric">
+                <label>BP</label> {formatMoney(summary.BuyingPower, 0)}
+              </span>
+            </>
+          )}
+        </div>
+
+        <StockViewOperatorModeCapsule />
+      </header>
+    </>
   );
 }

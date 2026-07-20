@@ -24,6 +24,7 @@ import { useIbkrStatus } from './useIbkrStatus';
 import { useIbkrAccount } from './useIbkrAccount';
 import { DepthLadder } from './DepthLadder';
 import { OrderTicket } from './OrderTicket';
+import { PaperTradingBanner } from './PaperTradingBanner';
 import { PositionsPanel } from './PositionsPanel';
 import { confirmAndFillWorkingOrder } from './fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from './placeOrder';
@@ -90,6 +91,7 @@ export function TradingTab({
 
   return (
     <div className="ibkr-trading-tab">
+      <PaperTradingBanner mode={status.mode} />
       {/* ── Status bar ─────────────────────────────────────────────────── */}
       <div className="ibkr-status-bar">
         <span className="ibkr-source-label">Data: Interactive Brokers</span>

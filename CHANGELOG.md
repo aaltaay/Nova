@@ -30,14 +30,343 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-20 — Paper trading CTA + hot banner
+
+- **What:** When IBKR Gateway mode is `paper`, the manual ticket primary button reads **Place Paper order** (orange) instead of blue **Place an order**. A hot orange banner (`PAPER TRADING — orders go to your IBKR paper account, not live money.`) shows at the top of Stock View and the Trading tab. Live/disconnected keep the prior blue Place an order label and no banner.
+- **Why:** Operators asked for unmistakable paper vs live cues before clicking Place.
+- **Files touched:** `frontend/src/ibkr/ManualOrderTicket.tsx`, `PaperTradingBanner.tsx`, `paperTradingBanner.css`, `tradeTicket.css`, `TradingTab.tsx`, `stock_view/StockViewHeader.tsx`, `constantGroups/chart_api.ts`, tests.
+- **How it works now:** Banner and orange CTA key only off `mode === 'paper'` from IBKR status — not spend_status alone.
+- **Verified by:** Vitest `StockViewHeader` banner + `ManualOrderTicket.paperLabel` tests.
+- **Follow-ups:** None.
+
 ## 2026-07-20 — IBKR long_qty SSOT + BuyingPower fail-closed
 
-- **What:** Unified broker long qty on `account.long_qty()` (`ib.positions()` only) for validate anti-short, Nova OS flatten reconcile, and `GET /api/ibkr/positions` qty (MTM/PnL joined from portfolio; never invent longs from portfolio-only rows). Split `POSITION_UNAVAILABLE` vs `NO_POSITION`. `get_account_summary`/`refresh_account_summary` raise `IbkrAccountError` on failure (`/api/ibkr/account` → 503); priced BUY refused with `BUYING_POWER_UNKNOWN`. FE disables Flatten/exit when `useIbkrAccount.error` is set. Positions cache refreshed after connect.
-- **Why:** UI showed SPY from portfolio while Flatten/`source=manual` SELL used empty `positions()` → false `NO_POSITION`. BuyingPower swallow was fail-open on LMT BUY.
-- **Files touched:** `backend/ibkr/{account,client,errors}.py`, `execution/validate.py`, `strategy/executor_flatten.py`, `routes/trading.py`, FE account Flatten gate, tests, ADR 007 note, task-log.
-- **How it works now:** One SSOT — `long_qty`/`positions()`. UI qty follows that SSOT; portfolio is mark/PnL join only. Read failure ≠ flat. UI Flatten stays `source="manual"`.
-- **Verified by:** focused pytest 89 passed; Vitest ClosePositionButton.
-- **Related:** PROBLEM_LOG 2026-07-20 dual-source + BuyingPower; plan `flatten_sell_refusal_14e16b28`.
+- **What:** Unified broker long qty on `account.long_qty()` (`ib.positions()` only) for validate anti-short, Nova OS flatten reconcile/preview, and `GET /api/ibkr/positions` **qty** (MTM/PnL joined from portfolio; never invent longs from portfolio-only rows). Split reason codes `POSITION_UNAVAILABLE` vs `NO_POSITION`. `get_account_summary` / `refresh_account_summary` now raise `IbkrAccountError` on `accountValues` failure (route `/api/ibkr/account` → 503); priced BUY refused with `BUYING_POWER_UNKNOWN`. FE disables Flatten / exit Nova Actions when `useIbkrAccount.error` is set. Positions cache refreshed via `reqPositionsAsync` after connect.
+- **Why:** UI showed SPY from portfolio while Flatten/`source=manual` SELL used empty `positions()` → false `NO_POSITION`. Swapping validate to portfolio was rejected (false-allow short). Same swallow class left BuyingPower fail-open on LMT BUY.
+- **Files touched:** `backend/ibkr/account.py`, `client.py`, `execution/validate.py`, `strategy/executor_flatten.py`, `routes/trading.py`, FE Positions/TickerTrade/Nova Actions/`useIbkrAccount`, tests, ADR 007 / trading-execution note, task-log.
+- **How it works now:** One SSOT — `long_qty` / `positions()`. UI qty follows that SSOT; portfolio is mark/PnL join only. Read failure ≠ flat (`POSITION_UNAVAILABLE` / flatten abort). Summary read failure ≠ skip BP check. UI Flatten stays `source="manual"`. `source=flatten` still skips validate anti-short (reconcile uses `long_qty`).
+- **Verified by:** `pytest` focused suite 89 passed (`test_ibkr_account`, `test_execution_validate`, `test_execution_service`, `test_executor`, `test_orders_api_contract`, `test_routes_trading`); Vitest ClosePositionButton + closeFullPosition 7 passed.
+- **Follow-ups:** Optional paper buy-1 → Flatten e2e when Gateway up. Kill/recovery claim model still separate.
+- **Related:** PROBLEM_LOG 2026-07-20 "positions vs portfolio dual-source + BuyingPower fail-open"; plan `flatten_sell_refusal_14e16b28`; audit task-log `2026-07-20-flatten-dual-source-daddy-audit.md`.
+
+## 2026-07-20 — Fail-loud remainder: IBKR positions/orders + maintainer swallow policy
+
+- **What:** Closed the two follow-ups from the global fail-loud pass. (A) `ibkr/account.get_positions`/`get_portfolio` and `ibkr/orders.open_orders`/`closed_orders` now raise `IbkrAccountError` on disconnect/API failure instead of returning `[]`; `/api/ibkr/positions`, `/api/ibkr/orders`, `/api/ibkr/orders/closed` return HTTP 503 on that error, `DELETE /api/ibkr/orders` returns a structured `{ok:false,error}`; `execution/validate._position_qty`, the kill-switch's bracket-unfilled check, and `flatten_positions`/`flatten_preview`/protective-leg cancel all fail closed (refuse SELL / abort flatten / leave stops alone) instead of treating a failed read as "flat"/"no working orders". Frontend `useIbkrAccount`/`useClosedOrders` keep last-good rows and surface an error line instead of wiping panels to empty or (closed orders) silently falling back to sample data. (B) `tools/maintainer_checks.py` no longer scores `tools/` scripts or test files against the swallow heuristics, and path-allowlists 5 modules whose empty-on-error behavior is already deliberate (disk/JSON loaders, `managedAccounts()` paper-pin fail-closed, idempotent tick/listener cleanup, already-loud Alpaca degrades).
+- **Why:** The account/orders empty-on-error path was the one real "flat account" lie left: a transient IBKR read failure during a deliberate flatten could skip the market SELL and still cancel the protective stop/target (read failure indistinguishable from "genuinely flat"). The maintainer's swallow heuristic was separately flagging its own `tools/` scripts, tests, and 5 already-safe modules, drowning out real findings.
+- **Files touched:** `backend/ibkr/{errors,account,orders}.py`, `backend/routes/trading.py`, `backend/execution/validate.py`, `backend/strategy/{executor,executor_flatten}.py`, `frontend/src/ibkr/{useIbkrAccount,PositionsPanel,WorkingOrdersPanel,TradingTab}.tsx/.ts`, `frontend/src/closed_orders/{useClosedOrders,ClosedOrdersModule,ClosedOrdersPanel}.ts/.tsx`, `tools/maintainer_checks.py`.
+- **How it works now:** `IbkrAccountError` is the typed signal for "could not verify" on account/order reads. Anything safety-critical (SELL sizing, kill-switch stop preservation, flatten) treats that error as "unknown — do not guess", never as zero/empty. UI hooks track a separate `error` string alongside their last-good state and never overwrite good rows with `[]` on a failed poll. `maintainer_checks.check_swallowed_errors` skips `tools/`+test paths entirely and consults `EXCEPT_RETURN_EMPTY_ALLOWLIST`/`SWALLOWED_EXCEPTION_ALLOWLIST` (documented in `.cursor/agent-memory/maintainer-memory.md` "Swallow heuristic policy") before flagging a Python except/return-empty or swallow.
+- **Verified by:** `pytest backend/tests/test_ibkr_account.py test_ibkr_orders.py test_orders_api_contract.py test_execution_validate.py test_executor.py test_closed_orders.py` + full backend suite (800 passed, 18 pre-existing/unrelated failures confirmed identical on clean `master`); `npx vitest run` for the touched IBKR/closed-orders panels; `py -3 -m pytest tools/test_maintainer_checks.py` (25 passed); `py -3 tools/maintainer_checks.py --json` (0 swallow-heuristic findings, down from 7).
+- **Related:** PROBLEM_LOG 2026-07-20 "IBKR positions/orders empty-on-error lie"; follows up on the 2026-07-20 global fail-loud pass entry below.
+
+## 2026-07-20 — Global fail-loud pass (silent empty markets)
+
+- **What:** Stopped IBKR discovery/bridge/AH/HOD-seed paths from turning transport failures into successful `[]`/`{}` that wipe UI caches. Scanner polls keep last-good rows; maintainer heuristics flag `except: return []` and empty `.catch(() => {})`.
+- **Why:** Empty Gappers with live Gainers proved a class of bugs: exception → blank log/`[]` → overwrite last-good → “app frozen” with no honest error.
+- **Files touched:** `ibkr/discovery.py`, `ibkr/errors.py`, `ibkr_bridge.py`, `adapters/ibkr_scanner.py`, `hod_momo_universe.py`, `hod_momo_seed.py`, `scanner_runners/afterhours.py`, `scanner.py`, `useScannerData.ts`, `tools/maintainer_checks.py`, FE catch sites.
+- **How it works now:** `scan_symbols` / `snapshot_quotes(require_success=True)` raise `IbkrDiscoveryError` on disconnect/timeout/API fail. Scanner adapters use `run_ibkr(..., on_error="raise")`. Bridge default is `on_error="none"` (return `None`, keep last-good). HOD seeds refuse empty wipes. AH discovery/focus keep last-good on bridge fail. FE scanner poll ignores wipe-signature `[]` when prior rows exist. Integrity already fails empty premarket gappers (prior fix).
+- **Verified by:** `pytest` discovery + fail_loud + bridge_loud + integrity + maintainer_checks (all green).
+- **Follow-ups:** Remaining maintainer `except_return_empty` on account/orders (logged but still return `[]`); Alpaca-only scanner paths; benign ticks `list.remove` swallows.
+- **Related:** PROBLEM_LOG 2026-07-20 silent IBKR bridge wipe + this global pass.
+
+## 2026-07-20 — Shared money formatter (formatMoney)
+
+- **What:** Extracted the duplicated dollar-formatting helper (`fmt`/`fmtDollar`, copy-pasted identically in 5 files) into one shared `formatMoney` utility.
+- **Why:** Same single-source-of-truth gap `formatShareQty` closed for qty — a rounding/thousands-separator fix in one copy would silently miss the other four.
+- **Files touched:** `frontend/src/utils/formatMoney.ts` (new), `PositionsPanel.tsx`, `workingOrderCells.tsx`, `closedOrderCells.tsx`, `TickerTradeActionBar.tsx`, `StockViewHeader.tsx`.
+- **How it works now:** `formatMoney(n, decimals = 2)` — `$` + `toLocaleString` with matching min/max fraction digits, `'—'` for null/non-finite. 2-decimal default covers Positions/Orders price columns; `formatMoney(n, 0)` covers account-total badges (Net Liq / BP). `fmtPrice` in `quoteFormat.ts` (no thousands separator, per-share quote price) is a distinct, correctly-scoped helper and was left untouched.
+- **Verified by:** Vitest `formatMoney` + existing working/closed order cell contracts (25 passed); `npm run build` clean (no orphaned imports).
+- **Follow-ups:** Did not merge the three per-table cell renderers or fold Executor/Journal tables into the IBKR order-table system — column sets and data shapes (`IbkrPosition`/`IbkrOrder`/`ClosedOrder`) diverge enough that a shared renderer would add indirection without removing real duplication.
+- **Related:** `knowledge/task-log/2026-07-20-shared-money-formatter.md`
+
+## 2026-07-20 — Fail-loud IBKR scanner bridge (no silent gapper wipe)
+
+- **What:** IBKR discovery bridge timeouts no longer wipe Gappers/Losers to empty with a blank log line. Integrity fails empty premarket gappers; scanner tabs show the integrity banner.
+- **Why:** User saw “frozen” empty Gappers while Gateway was connected and Gainers were live — classic silent `[]` on bridge timeout.
+- **Files touched:** `backend/ibkr_bridge.py`, `adapters/ibkr_scanner.py`, `scanner_runners/discovery.py`, `scanner_runners/movers.py`, `hod_momo_integrity_scanner.py`, `integrity_live.py`, `ScannerTabPanels.tsx`, `EmptyState.tsx`.
+- **How it works now:** Bridge failures log `TimeoutError: …` (etc.), record `ibkr_bridge_last_error`, and keep the last good cache. Premarket 0 gappers with IBKR up is integrity **fail**, visible on Gappers/Gainers/Losers tabs.
+- **Verified by:** pytest `test_ibkr_bridge_loud` + `test_scanner_integrity_mode` (17 passed).
+- **Follow-ups:** Restart API to load; open **Gainers** if Gappers still empty until next successful discovery.
+- **Related:** PROBLEM_LOG 2026-07-20 empty Gappers / bridge wipe
+
+## 2026-07-20 — Fractional share qty in trading tables
+
+- **What:** Positions, Working/Closed Orders, executor/journal Qty (and related Pos/flatten copy) show fractional shares instead of rounding to whole numbers.
+- **Why:** Live IBKR leftover (0.0642 shares) rendered as Qty **0** while POSITIONS (1) still counted the row — Webull-style fractional display.
+- **Files touched:** `frontend/src/utils/formatShareQty.ts`, `PositionsPanel.tsx`, `workingOrderCells.tsx`, `closedOrderCells.tsx`, `ExecutorTables.tsx`, `JournalPanel.tsx`, trade bar / Close Position copy, `docs/webull-widget-parity.md`.
+- **How it works now:** Shared `formatShareQty` uses up to `TICKER_TRADE_QTY_DECIMALS` (4) with no forced trailing zeros — `100` stays `100`, `0.0642` stays `0.0642`.
+- **Verified by:** Vitest `formatShareQty` + working/closed order cell contracts (21 passed).
+- **Related:** PROBLEM_LOG 2026-07-20 · `knowledge/task-log/2026-07-20-fractional-share-qty-display.md`
+
+## 2026-07-20 — Separate Running Up tab from HOD Momo
+
+- **What:** Added a top-level **Running Up** tab. HOD Momo no longer shows strategy #12 or the “Running Up only” chip; each tab gets its own partitioned feed and badge count.
+- **Why:** Warrior treats Running Up as a sibling alert scanner (no new HOD required). Mixing it into HOD Momo caused confusion (e.g. VCIG Squeeze retests looking like HOD).
+- **Files touched:** `frontend/src/hod_momo/RunningUpTab.tsx`, `scannerPartition.ts`, `HodMomoTab.tsx`, `HodMomoAlertTable.tsx`, `workspace/registry.ts`, `TabModuleHost.tsx`, `DashboardPage.tsx`, `SampleDashboardPage.tsx`.
+- **How it works now:** One backend WS (`/ws/hod-momo`) still evaluates all strategies. UI partitions `strategy_id === 12` → Running Up tab; everything else → HOD Momo. Clear-today still hits the shared alert store (honest confirm copy). Warrior Day Trade Dash never feeds Nova’s engine.
+- **Verified by:** Vitest `scannerPartition` + `registry` tests; `npm run build` / targeted vitest.
+- **Follow-ups:** Optional separate clear/history API; audio routing per tab.
+
+## 2026-07-20 — HOD strategies require a fresh new high (not retest)
+
+- **What:** `requires_hod` strategies (Squeeze / Float / etc.) now pass the HOD gate only when the session high was *raised* recently (observed print or post-seed tick-6) within `HOD_MOMO_NEW_HOD_GRACE_SEC` (60s), while price stays near that high. Mere retests of a bars/tick6 floor no longer fire HOD Momentum.
+- **Why:** VCIG hit Nova Squeeze at 08:24:14 ET / $1.34 after Warrior’s true HOD alerts at 08:02:54; Nova had treated “at session high + surge” as HOD, which is Warrior Running Up semantics.
+- **Files touched:** `backend/hod_momo_high.py`, `hod_momo_filters.py`, `hod_momo_trade.py`, `hod_momo_admin.py`, `hod_momo_state.py`, `hod_momo_session.py`, `constants_hod_momo.py`, HOD unit tests.
+- **How it works now:** Initial bars/tick6 seed sets the floor without opening the alert window. A later last (or tick-6 raise above that floor) stamps `session_high_raised_ts`. Running Up (strategy 12, `requires_hod=False`) is unchanged. Restart API to load the gate.
+- **Verified by:** `pytest` `test_hod_momo_high` / `filters` / `engine` / `persist` / `consolidation` — 45 passed; live VCIG evidence in `hod_momo.log` + `hod-momo-2026-07-20.json`.
+- **Follow-ups:** Parent restart uvicorn; Warrior handoff if fresh Running Up snapshot needed; consider separate Running Up UI widget (Warrior has a sibling scanner).
+- **Related:** PROBLEM_LOG 2026-07-20 VCIG late Squeeze; task-log `knowledge/task-log/2026-07-20-vcig-hod-retest-gate.md`.
+
+## 2026-07-20 — Gateway chip shows PAPER vs LIVE
+
+- **What:** Header Gateway status now reads `connected · PAPER` or `connected · LIVE` (LIVE uses a distinct orange chip). Wired session `mode` / `gateway_mode` from `/api/ibkr/status` through Workspace → AppHeader.
+- **Why:** "Gateway connected" alone hid whether Nova was on paper (4002) vs live (4001) — a serious operator safety gap when the desktop Gateway was live but Nova stayed paper-pinned.
+- **Files touched:** `HeaderConnectionStatus.tsx`, `AppHeader.tsx`, `WorkspaceContext.tsx`, `DashboardPage.tsx`, `market_ui.ts`, `tokens-shell.css`, tests.
+- **How it works now:** Chip label follows IBKR session `mode` (fallback: configured `gateway_mode` when offline). Tooltip states paper vs live money path. Orders remain gated by spend flags even on LIVE.
+- **Verified by:** Vitest HeaderConnectionStatus paper/LIVE cases; local reconnect to `mode=live` / `gateway_mode=live`.
+- **Follow-ups:** Clear IB Error 10089 market-data subscriptions so live scanner quotes populate; do not commit local `.env` mode flips.
+- **Related:** `knowledge/task-log/2026-07-20-gateway-paper-live-badge.md`
+
+## 2026-07-19 — Dual listing flags + aux API chips + Alpaca RVOL label
+
+- **What:** Quote panel shows Alpaca vs IBKR listing flags side-by-side (tradable / short type / margin — never one merged Yes/No). Header adds aux chips (Alpaca, OpenAI, yfinance, Archive) under IBKR discovery instead of implying Alpaca IEX is the price feed. Scanner Volume/RVOL cells and quote Rel Vol are labeled as Alpaca-sourced so runs can study accuracy; RVOL source swap deferred.
+- **Why:** Operator asked to compare broker metadata honestly, see every aux API, and watch Alpaca RVOL during sessions without replacing the denominator yet.
+- **Files touched:** `listing_compare.py`, `ibkr/listing_flags.py`, `integrations_health.py`, `routes/health.py`, `routes/scan.py`, `ticker_detail.py`, `TickerBrokerGrid.tsx`, `HeaderConnectionStatus.tsx`, `ScannerTable.tsx`, `market_ui.ts`, quote/fundamentals panels.
+- **How it works now:** Ticker `listing` payload has separate `alpaca` + `ibkr` objects; WS `detail_update` merges IBKR after slow fetch. `/api/health` and scanner `health` include `integrations`. Under `discovery=ibkr`, Gateway remains the price chip; Alpaca chip = news/listing/RVOL aux only.
+- **Verified by:** `pytest` listing/integrations tests; Vitest HeaderConnectionStatus + TickerBrokerGrid.
+- **Follow-ups:** Optional IBKR/yfinance RVOL warmer (user deferred).
+- **Related:** task-log dual-listing-aux-chips.
+
+## 2026-07-19 — Nova OS dock tab readable type
+
+- **What:** Enlarged typography in the Trader **Nova OS** dock panel (verdict, gates, news, ticket, reason codes) so it is readable at normal viewing distance.
+- **Why:** User could barely read the dense ~0.62–0.72rem compact styles after the panel moved into the dock.
+- **Files touched:** `traderNovaOsBrain.css`
+- **How it works now:** Dock Nova OS body uses ~0.88–0.95rem for content (section titles ~0.85rem); no micro-type overrides on gates/news/ticket.
+- **Verified by:** CSS review against prior compact sizes; reload Trader → Nova OS tab.
+- **Related:** prior entry “Nova OS judgment moved to Stock View dock tab”
+
+## 2026-07-19 — Nova OS judgment moved to Stock View dock tab
+
+- **What:** The Trader Nova OS panel (BUY/WAIT/NO_BUY, gates, news impact, ticket) no longer sits under the header. It is a third bottom-dock tab next to Positions and Orders (Today).
+- **Why:** User asked to move the judgment strip into the tab bar so charts reclaim vertical space.
+- **Files touched:** `StockViewPage.tsx`, `StockViewOpenOrdersDock.tsx`, `chart_api.ts` (`StockViewDockSurface` + `STOCK_VIEW_MODULE_NOVA_OS_TITLE`), `traderNovaOsBrain.css`, Vitest.
+- **How it works now:** Dock surfaces are `positions` | `orders` | `nova_os` (persisted). Selecting **Nova OS** mounts `TraderNovaOsBrain` in the dock body; decide polling runs only while that tab is open. Signal-only behavior unchanged.
+- **Verified by:** Vitest `StockViewOpenOrdersDock` (Nova OS tab) + `TraderNovaOsBrain`.
+- **Related:** task-log `2026-07-19-nova-os-dock-tab.md`; prior `2026-07-19-trader-nova-os-brain.md`
+
+## 2026-07-19 — Isolated Sample data route (header switch)
+
+- **What:** Header **Sample data** toggle opens `?view=sample` — a hard-gated shell with populated gappers, gainers, losers, after-hours, catalysts, HOD Momo, watchlist, decide, and sample Trader. Live dashboard never mounts in that route.
+- **Why:** Need a full UI populated for demos/QA without mixing fixtures into live IBKR/scanner feeds.
+- **Files touched:** `App.tsx`, `AppHeader.tsx`, `SampleShell` / `SampleDashboardPage`, `frontend/src/sample_data/*`, hook short-circuits (`useTickerStream`, decide/signals/executor/journal/IBKR), CSS + Vitest.
+- **How it works now:** On → `SampleDataProvider` + fixtures only (banner + Exit). Off → live `DashboardPage`. Sample Trader uses `?view=sample&symbol=`. Hooks under the provider skip network; live shell never wraps the provider.
+- **Verified by:** Vitest `sampleNav`, `sampleFixtures`, `SampleDashboardPage` (no `/gappers` fetch).
+- **Related:** task-log `2026-07-19-sample-data-route.md`
+
+## 2026-07-19 — Trader always-on Nova OS judgment (ratings + news)
+
+- **What:** Opening Trader (`?view=stock`) now shows a persistent Nova OS band under the header: live BUY/WAIT/NO_BUY, gate trail, catalyst `news_impact` (class/confidence/reasons), ticket, and exit note when holding. Watchlist Decision reuses the same detail component.
+- **Why:** User asked to see how the OS rates a name (including news score) before trusting Automation — Trader had no decide wiring.
+- **Files touched:** `TraderNovaOsBrain.tsx`, `useNovaOsDecideSymbol.ts`, `NovaOsVerdictDetail.tsx`, `novaOsNewsImpact.ts`, `DecisionPanel.tsx`, `StockViewPage.tsx`, `market_ui.ts`, CSS + Vitest.
+- **How it works now:** Trader polls `GET /api/nova-os/decide/{symbol}` every `NOVA_OS_TRADER_DECIDE_POLL_MS` (2s), clears on symbol switch, surfaces 404 loudly. Signal-only — nothing places; Automation path unchanged. News comes from soft gate `catalyst` → `evidence.news_impact` (no API change).
+- **Verified by:** Vitest for news_impact render, symbol-switch clear, Trader brain + 404.
+- **Follow-ups:** Optional deep-link CTA into Watchlist Automation tab (no URL param today).
+- **Related:** task-log `2026-07-19-trader-nova-os-brain.md`
+
+## 2026-07-19 — Remove Modules menu from tab bar
+
+- **What:** Removed the **Modules** control from the scanner tab bar. Tabs are fixed registry entries; no in-app show/hide/reorder menu.
+- **Why:** User does not need the power-user Modules UI.
+- **Files touched:** `TabNav.tsx`, `DashboardPage.tsx`, e2e `module-registry` / `layout-store` (localStorage-only checks).
+- **How it works now:** Tab bar = scanner tabs only. Layout/visibility stores remain for defaults and any prior localStorage; `ModulesMenu.tsx` is unused by the shell.
+- **Verified by:** Typecheck path via edited files; e2e expectations updated.
+- **Follow-ups:** Delete `ModulesMenu.tsx` later if nothing imports it.
+- **Related:** None.
+
+## 2026-07-19 — Fix sample Closed Orders Time Placed crawl
+
+- **What:** Sample Closed Orders row 9008 no longer calls `new Date().toISOString()` on every `buildMockClosedOrders` rebuild. Time Placed is a fixed ISO; recent-highlight activity is frozen once per module load.
+- **Why:** User saw milliseconds tick on sample Time Placed — sample rebuilds on poll made stamps look mutable.
+- **Files touched:** `closed_orders/mockClosedOrders.ts`, `mockClosedOrders.test.ts`.
+- **How it works now:** All sample `submitted_at` values come from `MOCK_CLOSED_TIMES`. Real IBKR rows were already immutable; only the sample preview was crawling.
+- **Verified by:** Vitest `mockClosedOrders.test.ts`.
+- **Follow-ups:** None.
+- **Related:** Time Placed audit work earlier today.
+
+## 2026-07-19 — Account header replaces Trading tab
+
+- **What:** Removed Level 2 Order Book + Order Ticket from the old Trading tab. Renamed the surface to **Account**, moved it to the AppHeader next to **Today (Live)**, and nested **Reports** as an Account section (Overview | Reports). Trading/Reports no longer appear in the scanner tab bar.
+- **Why:** User wants Account for balances/habits learning; order entry stays on Trader (double-click), not a duplicate left rail.
+- **Files touched:** `TradingTab.tsx`, `AppHeader.tsx`, `DashboardPage.tsx`, `TabModuleHost.tsx`, `registry.ts`, `features.ts` constants, `tradingTab.css`, `settings-workspace.css`, e2e baseline, registry tests.
+- **How it works now:** Header **Account** → `activeTab=trading` → Overview (positions/working/closed) or Reports (`ReportsTab`). Registry ids stay `trading` / `reports` with `showInTabNav: false`. Place orders from Trader window.
+- **Verified by:** `tsc -b`; Vitest registry; e2e baseline Account click expectation.
+- **Follow-ups:** None.
+- **Related:** task-log `2026-07-19-account-header-replaces-trading.md`.
+
+## 2026-07-19 — Orders Time Placed (audit-grade)
+
+- **What:** Order tables rename **Time → Time Placed**. Column always shows `submitted_at` (place time), never last fill/cancel. Place path stamps Nova wall-clock UTC (µs) at send, prefers IBKR trade.log time when present, and emits `IBKR_ORDER_AUDIT` logs. Display shows milliseconds when the ISO carries a fraction; `<time dateTime>` keeps raw UTC.
+- **Why:** User needs auditable place times with no drift from fill/status updates.
+- **Files touched:** `ibkr/order_times.py`, `ibkr/orders.py`, `orderDisplay.ts`, `orderTableColumns.ts`, Working/Closed cells + panels, sort, tests.
+- **How it works now:** Time Placed = broker log[0] else Nova `remember_nova_placed`. Hover still shows last activity. Recent-row highlight still uses fill/cancel (`updated_at`). Sample preview rows remain non-IBKR fixtures.
+- **Verified by:** pytest `test_order_times` + `test_open_orders_row` (12); Vitest order display/cells/sort/panels (36).
+- **Follow-ups:** Persist Nova place stamps across API restarts if long-lived audit DB is required.
+- **Related:** task-log `2026-07-19-orders-time-placed-audit.md`.
+
+## 2026-07-19 — Rename Stock View window to Trader
+
+- **What:** User-facing label for the detached single-symbol terminal is now **Trader** (was Stock View). Document title, Electron child-window title, Quote Panel open button, and double-click tooltips updated.
+- **Why:** User asked to rename the Stock View window to Trader.
+- **Files touched:** `constantGroups/chart_api.ts` (`STOCK_VIEW_TITLE` / `OPEN_LABEL` / `OPEN_TITLE`), `StockViewHeader.tsx`, `SelectableTableRow.tsx`, SidePanel + table tooltips, `electron/main.mjs`, e2e baseline/workspace specs.
+- **How it works now:** Internal module/ids stay `stock_view` / `StockView*` / `?view=stock`. Visible copy and window chrome say Trader. Header shows Nova / Trader brand.
+- **Verified by:** Vitest + Playwright e2e string updates; browser check of Trader header/button when UI is up.
+- **Follow-ups:** None.
+- **Related:** Prior Stock View dock / terminal work.
+
+## 2026-07-19 — Stock View Positions table in bottom dock
+
+- **What:** Stock View footer dock adds a **Positions** tab (WID-019) beside **Orders (Today)** — qty, avg cost, mkt price/value, unrealized P&L, Flatten when paper/live connected. Dock mounts even while ticker charts/rail are still loading.
+- **Why:** User asked for a Positions table of current holdings in Stock View.
+- **Files touched:** `StockViewOpenOrdersDock.tsx`, `PositionsPanel.tsx` (`compact` / `hideTitle`), `StockViewPage.tsx`, constants, tests, e2e.
+- **How it works now:** Dock surface `positions` | `orders` persists in `nova.stockView.dock.surface`. Positions uses the same IBKR account feed as Trading tab; compact mode omits nested Working Orders + account strip. Charts/rail still wait on `detail.symbol` match.
+- **Verified by:** Vitest dock Positions tab + stock-view terminal gate test; Playwright Positions + Open/Closed orders e2e.
+- **Follow-ups:** None.
+- **Related:** WID-019.
+
+## 2026-07-19 — Stock View Eastern market clock
+
+- **What:** Stock View header shows a live `HH:MM:SS ET` clock with session chip (Premarket / RTH / After-hours / Closed).
+- **Why:** User asked for a clock on the terminal.
+- **Files touched:** `StockViewMarketClock.tsx`, `marketClock.ts`, `StockViewHeader.tsx`, `chart_api.ts`, CSS, tests.
+- **How it works now:** Ticks every 1s; session from the same ET bounds as chart session highlighting.
+- **Verified by:** Vitest `marketClock.test.ts` + header test.
+- **Follow-ups:** None.
+- **Related:** Stock View header.
+
+## 2026-07-19 — Stock View header quote when prev_close missing
+
+- **What:** IBKR ticker snapshots no longer require `prev_close` to show last price in the header chip; live L1 stream used as fallback. `snapshot_quotes` keeps `last` when `close` is NaN.
+- **Why:** User saw only “CJMB” in the header — price/▲▼/change live there but snapshot was `{}`.
+- **Files touched:** `ticker_ibkr.py`, `ibkr/discovery.py`, tests, PROBLEM_LOG.
+- **How it works now:** Header chip still owns last + ▲/▼ + day change (rail quote card keeps `hidePrice`). Lookup order: scanner cache → L1 stream → 1‑min chart close → slow IBKR snapshot; prior close from daily bars when needed. Chip shows `—` placeholders while quote is missing.
+- **Verified by:** `pytest backend/tests/test_ticker_ibkr_snapshot.py` + discovery last-only case.
+- **Follow-ups:** If still `—` under IBKR pacing, wait for bars/L1; check market-data entitlements.
+- **Related:** PROBLEM_LOG 2026-07-19 header symbol-only.
+
+## 2026-07-19 — Order tables: rich click-to-sort headers
+
+- **What:** Working / Closed order column headers sort rows on click (Type, Session, Time, Quantity, Status + filled/remaining/prices/id). Shift+click stacks multi-sort; Time defaults newest-first; status/type/session use semantic ranks. Sort persists per table.
+- **Why:** User asked to switch top↔bottom view by clicking headers for those fields, with rich features.
+- **Files touched:** `orderTableSort.ts`, `useOrderTableSort.ts`, `OrderTableColumnHeader.tsx`, Working/Closed panels, `chart_api.ts`, CSS, tests.
+- **How it works now:** Click cycles asc/desc/off (Time: desc first). Shift+click adds levels (superscript 1/2…). Drag (≥6px) still reorders columns; Alt/⌘+double-click clears sort; double-click alone resets column order.
+- **Verified by:** Vitest `orderTableSort.test.ts`.
+- **Follow-ups:** None.
+- **Related:** Orders (Today).
+
+## 2026-07-19 — Stock View: two columns top-to-bottom
+
+- **What:** Stock View is two full-height columns: left = charts + Orders (Today); right = trading rail. Orders no longer span under the rail as a page-wide footer.
+- **Why:** User asked for a 2-column top-to-bottom layout (orders were a full-width bottom strip).
+- **Files touched:** `StockViewPage.tsx`, `stockViewTerminal.css`, `StockViewRail.tsx` comment.
+- **How it works now:** Body grid remains charts|handle|rail; Orders dock moves inside `stock-view-main` under charts with the existing vertical splitter (`--sv-main-pct`).
+- **Verified by:** Layout structure + existing dock Vitest/e2e still target dock testids.
+- **Follow-ups:** None.
+- **Related:** Orders (Today) segmented dock.
+
+## 2026-07-19 — Orders (Today) Webull-style segmented dock
+
+- **What:** Stock View footer is now **Orders (Today)** with a contiguous segmented control: Working | Filled | Canceled | Partial Filled | All (replacing Open / Closed tabs). New `orders_today/` feature slice hosts the filters + view.
+- **Why:** User pointed at Webull’s Orders (Today) filter bar as the target UX for active session orders.
+- **Files touched:** `orders_today/*`, `StockViewOpenOrdersDock.tsx`, `ClosedOrdersPanel` (`hideFilters` / `statusFilter`), `chart_api.ts`, e2e/dock tests, `webull-widget-parity.md`.
+- **How it works now:** One dock title; segment picks working table and/or closed table (closed Cancelled excludes partial — Partial Filled owns those). Filter persists in `nova.stockView.ordersToday.filter` (legacy open→working, closed→all).
+- **Verified by:** Vitest filter + dock tests; Playwright orders e2e.
+- **Follow-ups:** Optional single merged table for All; WID-020 CSV.
+- **Related:** WID-026 / WID-027.
+
+## 2026-07-19 — Closed Orders: highlight just-completed rows
+
+- **What:** Closed Orders rows whose completion time (`updated_at`) is within the last 60 seconds get an amber pulse highlight (`ibkr-order-row--recent`) and tooltip “Completed within the last minute.” Sample preview includes one just-completed demo row.
+- **Why:** User asked to visually mark extremely recent fills/cancels while actively trading.
+- **Files touched:** `closedOrderRecency.ts`, `ClosedOrdersPanel.tsx`, `closedOrders.css`, `SelectableTableRow.tsx`, `chart_api.ts`, mocks/tests.
+- **How it works now:** Recency uses `orderActivityIso` vs `Date.now()` with a 5s tick so the class drops after the minute window. Buy/sell row tint remains; recent pulse sits on top.
+- **Verified by:** Vitest `closedOrderRecency` + `ClosedOrdersPanel` recent-row test.
+- **Follow-ups:** None.
+- **Related:** WID-027.
+
+## 2026-07-19 — Filled column tooltips (active fill progress)
+
+- **What:** Confirmed Working/Closed **Filled**, **Remaining**, **Average fill**, Partially filled status, and **Fill now** already ship; added header/cell tooltips so fill progress is obvious while an order is working.
+- **Why:** User asked for the “actively trade / filled” field after Open/Closed status-matrix work — verify completeness, do not invent TurboTrader (WID-015).
+- **Files touched:** `orderTableColumns.ts`, `workingOrderCells.tsx`, `closedOrderCells.tsx`, tests, `docs/webull-widget-parity.md`, widgets memory/task-log.
+- **How it works now:** Open Orders shows Filled + Remaining + Average fill (Stock View dock non-compact). Hover Filled → “X of Y shares filled”. Fill now markets remaining after cancel (live rows only; sample preview hides actions). Closed Orders keeps Filled for full and partial-cancel rows.
+- **Verified by:** Vitest order/fill cell + panel tests; pytest `test_open_orders_row` + `test_orders_api_contract`.
+- **Follow-ups:** WID-015 TurboTrader still missing (separate capability); WID-020 CSV export.
+- **Related:** task-log `2026-07-19-filled-active-trade-verify.md`; WID-026 / WID-027.
+
+## 2026-07-19 — Mock full Open/Closed IBKR status matrix
+
+- **What:** Open sample rows now include `PreSubmitted`, `ApiPending`, and partial-`PreSubmitted` (plus existing Submitted/PendingSubmit). Closed samples add `Inactive` (Failed) and zero-fill `ApiCancelled`; fixed closed timestamps. E2E fixtures/assertions expanded. Banner no longer hardcodes “5 rows”.
+- **Why:** Status coverage was incomplete vs `formatOrderStatus` / `IBKR_CLOSED_ORDER_STATUSES`.
+- **Files touched:** `mockWorkingOrders.ts`, `mockClosedOrders.ts`, `orderDisplay.test.ts`, e2e fixtures/spec, `chart_api.ts`.
+- **How it works now:** Sample Open covers Submitted/PendingSubmit/PreSubmitted/ApiPending; Closed covers Filled/Cancelled/ApiCancelled/Inactive. Tests assert every status appears and maps to a known UI label.
+- **Verified by:** Vitest mock + orderDisplay; `npm run test:e2e:orders`.
+
+## 2026-07-19 — Orders testing pyramid (L1–L4)
+
+- **What:** Full orders pyramid: L1 Vitest (`test:orders-pyramid`), L2 `test_orders_api_contract.py`, L3 Playwright `e2e/open-closed-orders.spec.ts` with mocked IBKR APIs (hard-ban place/cancel), L4 human `docs/paper-orders-field-checklist.md`. Tester recipe + routing wired.
+- **Why:** Prevent Open/Closed qty/time regressions without agents placing paper orders.
+- **Files touched:** `orderQtyMath.ts`, API contract test, e2e fixtures/spec, `package.json`, `tester.md`, paper-shadow link.
+- **How it works now:** Run L1→L3 for code changes; humans run L4 on live paper Gateway. Remaining prefers broker remaining when present; Closed accepts remaining=0 after cancel.
+- **Verified by:** `npm run test:orders-pyramid`; pytest contract + open_orders_row; `npm run test:e2e:orders`.
+
+## 2026-07-19 — Remaining column uses same math as Fill now
+
+- **What:** Open Orders Remaining cell now uses `remainingShares()` (qty − filled when broker remaining is null) — same derivation as Fill now / action enable.
+- **Why:** Tester found Remaining could show "—" while Fill still worked.
+- **Files touched:** `workingOrderCells.tsx`, tests; backend null-remaining mapper case.
+- **How it works now:** Display and Fill share `orderQtyMath`; null IB remaining no longer blanks the column.
+- **Verified by:** Vitest Remaining null-derivation; pytest null remaining row.
+
+## 2026-07-19 — Order qty math extracted + invariant tests
+
+- **What:** Shared `orderQtyMath` (`remainingShares` / `remainingSharesWhole` / coherence). Fill now + Working panel use it. Added math + Closed cell contract tests; backend asserts filled+remaining=qty.
+- **Why:** User asked whether all order-column math was tested — display was covered; remaining derivation was not isolated.
+- **Files touched:** `orderQtyMath.ts`, `WorkingOrdersPanel.tsx`, `fillWorkingOrderImmediately.ts`, tests.
+- **How it works now:** Broker supplies filled/remaining/avg/limit/stop; Nova only derives remaining when missing and floors for Fill now. Tests lock invariants.
+- **Verified by:** Vitest `orderQtyMath` / closedOrderCells / fillWorkingOrderImmediately; pytest `test_open_orders_row`.
+
+## 2026-07-19 — Closed Orders default columns mirror Open (Time first)
+
+- **What:** Closed Orders default is Time → Type → Symbol → Qty → Status → Filled → Limit → Avg fill → Order ID (Open Order layout minus session/remaining/stop). Storage key `v4`.
+- **Why:** User asked Closed to copy Open as much as possible, Time first.
+- **Files touched:** `orderTableColumns.ts`, `chart_api.ts`.
+- **How it works now:** Fresh load / hard refresh uses the mirrored default.
+- **Verified by:** Vitest `orderTableColumns`.
+
+## 2026-07-19 — Open Orders Status column after Quantity
+
+- **What:** Default Open Orders order is now Time → Session → Type → Symbol → Quantity → **Status** → Filled → … Storage key `v3`.
+- **Why:** User asked Status after Quantity.
+- **Files touched:** `orderTableColumns.ts`, `chart_api.ts`.
+- **How it works now:** Fresh load uses the new default; hard refresh picks up `v3`.
+- **Verified by:** Vitest `orderTableColumns`.
+
+## 2026-07-19 — Open Orders Time is submitted snapshot + column contract tests
+
+- **What:** Open/Working Orders **Time** now uses `submitted_at` only (never `updated_at`). Sample mocks use fixed ISO times (not `Date.now()`-relative). Added contract tests for filled, remaining, limit, stop, avg fill, order id, and time. Zero IB prices map to null.
+- **Why:** Time was crawling — UI preferred last-activity, and mocks rebuilt “minutes ago” on every poll.
+- **Files touched:** `orderDisplay.ts`, `WorkingOrdersPanel.tsx`, `workingOrderCells.tsx`, `mockWorkingOrders.ts`, `orders.py`, tests.
+- **How it works now:** Open Orders Time = place-time snapshot; Closed Orders still use last fill/cancel via `orderActivityIso`. Hover title says the time is fixed at place.
+- **Verified by:** Vitest workingOrderCells / orderDisplay / mockWorkingOrders / WorkingOrdersPanel; pytest `test_open_orders_row`.
+- **Related:** PROBLEM_LOG 2026-07-19 open-orders time crawl.
+
+## 2026-07-19 — Open Orders default column order (Time first)
+
+- **What:** Default Open/Working Orders columns are now Time → Session → Status → Type → Symbol → Qty → Filled → Remaining → Limit → Stop → Avg fill → Order ID. Storage key bumped to `v2` so prior drag layouts reset.
+- **Why:** User-requested left-to-right scan order for live open orders.
+- **Files touched:** `orderTableColumns.ts`, `chart_api.ts` (`ORDER_TABLE_COLUMNS_STORAGE_KEY`), tests.
+- **How it works now:** Fresh load / new key uses the new default; double-click header still resets; drag+persist still works under `nova.ibkr.orderTable.columns.v2`.
+- **Verified by:** Vitest `orderTableColumns`.
 
 ## 2026-07-18 — IBKR paper hard-pin (no accidental live)
 
