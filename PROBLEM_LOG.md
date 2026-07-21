@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-21 — HOD Momo rows jump position and re-stamp their time on every re-fire
+
+- **Symptom:** User report: "each row is supposed to be a timed record that stay forever… they're moving, they're just getting re-ordered." Rows in the HOD Momo / Running Up tables visibly changed position and their displayed "time" column whenever a previously-caught symbol fired again.
+- **Cause:** `collapseAlertsBySymbol` (`frontend/src/hod_momo/collapseAlertsBySymbol.ts`) walked the newest-first `alerts` feed and used **whichever occurrence of a ticker it encountered first in that walk** to seed the collapsed row's `id`/`timestamp`/`created_ts`/position. Because the array is rebuilt fresh every render and a re-fire is always the newest entry (front of the array), a re-fire made that ticker's "first occurrence" the newest fire again — moving the row and updating its stamp to the re-fire's time instead of its original catch time. The existing test `preserves newest-first ticker order` asserted this exact buggy behavior.
+- **Fix:** Added a second pass that, for each ticker, finds the **oldest** occurrence in the full-session `alerts` array (the true first catch — `today_alerts` has no TTL, so it's always present) and overrides the collapsed row's `id`/`timestamp`/`created_ts` with it; rows are then sorted by that anchor descending. Live snapshot fields (price/rvol/change%) and strategy tag/burst-badge merging are unchanged — only identity/position/stamp are pinned. Also upgraded `HodMomoAlertTable` from an unbounded "load more on scroll" batch table to real fixed-window virtualization, since the reordering symptom made a related, previously-undiscovered risk visible: DOM row count for that table only ever grew and never shrank as the user scrolled.
+- **Keywords:** HOD Momo, collapseAlertsBySymbol, row reorder, timestamp, first catch, newest-first, virtualization, computeVisibleRowRange, DOM growth, infinite scroll
+
 ## 2026-07-20 — `npm run build` failed: TradingTabProps missing `initialSection`
 
 - **Symptom:** `tsc -b` failed with `TS2322: Property 'initialSection' does not exist on type 'IntrinsicAttributes & TradingTabProps'` in `TabModuleHost.tsx`, blocking `npm run build`.

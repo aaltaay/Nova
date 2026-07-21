@@ -428,19 +428,22 @@
 
 .hod-strategy-cell {
   max-width: 14rem;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
-/* Stack strategy pills vertically — row height grows; no horizontal scrollbar. */
+/* Single fixed-height line — extra tags collapse into a "+N" chip so every
+ * row stays exactly HOD_MOMO_ROW_HEIGHT_PX tall (required for the table's
+ * fixed-window virtualization; see HodMomoAlertTable.tsx). */
 .hod-strategy-pills {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 0.15rem;
   min-width: 0;
   max-width: 100%;
-  overflow: visible;
-  white-space: normal;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .hod-strategy-pill {
@@ -457,8 +460,25 @@
   box-sizing: border-box;
 }
 
+.hod-strategy-pill-more {
+  display: inline-block;
+  flex: 0 0 auto;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-sizing: border-box;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: help;
+}
+
+/* Fixed row height is enforced via inline style from HOD_MOMO_ROW_HEIGHT_PX
+ * in HodMomoAlertRow.tsx — this is a CSS fallback only, keep it in sync. */
 .hod-alert-row {
-  height: auto;
+  height: 32px;
 }
 
 /* RVOL cell with source badge */

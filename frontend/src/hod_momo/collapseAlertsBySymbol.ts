@@ -2,6 +2,11 @@
  * Collapse HOD alerts to one row per ticker (newest-first input).
  * Newest alert supplies price/metrics; distinct strategies become tags.
  *
+ * A row is a permanent, timestamp-anchored record: its `id`/`timestamp`/
+ * position are pinned to the ticker's first-ever fire today and never move
+ * or re-stamp on a later re-fire — only its live snapshot fields and
+ * badges/tags update in place. See `collapseAlertsBySymbol` for details.
+ *
  * Warrior-style "(N in Xs)" badges only accumulate fires within a short burst
  * window. Older same-ticker alerts still merge strategy tags but must not
  * inflate the badge into all-day counts like "(1179 in 2157sec)".
@@ -38,7 +43,11 @@ function visibleStrategyTag(a: AlertObject): AlertStrategyTag | null {
 /**
  * @param alerts Newest-first alert list (already strategy-filtered).
  * @param maxBurstGapSec Burst window for Warrior-style consolidation badge.
- * @returns One row per ticker, same newest-first order of first appearance.
+ * @returns One row per ticker. Each row's `id`/`timestamp`/`created_ts` (and
+ *   therefore its position) are pinned to that ticker's FIRST-ever fire in
+ *   `alerts`, so a row never moves or re-stamps on a later re-fire — only its
+ *   live fields (price/metrics from the newest fire) and badges/tags update
+ *   in place. Rows are ordered by first-catch time, newest catch on top.
  */
 export function collapseAlertsBySymbol(
   alerts: AlertObject[],
@@ -96,6 +105,28 @@ export function collapseAlertsBySymbol(
       );
     }
   }
+
+  // `alerts` is newest-first, so a ticker's LAST occurrence in the walk is its
+  // oldest — i.e. the fire that first caught it today. Anchor each row's
+  // identity/position there so re-fires (which only ever add occurrences
+  // earlier in this walk) can never move or re-stamp an existing row.
+  const firstCatchByTicker = new Map<string, AlertObject>();
+  for (let i = alerts.length - 1; i >= 0; i--) {
+    const raw = alerts[i];
+    if (!firstCatchByTicker.has(raw.ticker)) {
+      firstCatchByTicker.set(raw.ticker, raw);
+    }
+  }
+
+  for (const row of rows) {
+    const firstCatch = firstCatchByTicker.get(row.ticker);
+    if (!firstCatch) continue;
+    row.id = firstCatch.id;
+    row.timestamp = firstCatch.timestamp;
+    row.created_ts = firstCatch.created_ts;
+  }
+
+  rows.sort((a, b) => alertUnix(b) - alertUnix(a));
 
   return rows;
 }

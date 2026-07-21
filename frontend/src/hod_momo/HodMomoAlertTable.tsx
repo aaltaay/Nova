@@ -5,8 +5,7 @@ import {
   HOD_MOMO_EMPTY_WAITING,
   HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
   HOD_MOMO_HEADER_HEIGHT_PX,
-  HOD_MOMO_LOAD_MORE_THRESHOLD_PX,
-  HOD_MOMO_RENDER_BATCH_SIZE,
+  HOD_MOMO_OVERSCAN_ROWS,
   HOD_MOMO_ROW_HEIGHT_PX,
   HOD_MOMO_VISIBLE_ROWS,
   STRATEGY_META,
@@ -14,6 +13,44 @@ import {
 } from '../constants';
 import type { AlertObject } from './types';
 import { HodMomoAlertRow } from './HodMomoAlertRow';
+
+export interface VisibleRowRange {
+  startIndex: number;
+  /** Exclusive. */
+  endIndex: number;
+  topSpacerPx: number;
+  bottomSpacerPx: number;
+}
+
+/**
+ * Fixed-height windowing math: given how far the table is scrolled, returns
+ * only the row indices that need to be mounted (visible viewport + overscan
+ * buffer on each side), plus spacer heights that keep the scrollbar/scroll
+ * position honest for the full `total` row count. Mounted row count never
+ * exceeds `ceil(viewportHeight / rowHeight) + 2*overscan`, regardless of how
+ * large `total` grows (thousands of alerts stay bounded DOM).
+ */
+export function computeVisibleRowRange(
+  scrollTop: number,
+  total: number,
+  rowHeight: number,
+  viewportHeight: number,
+  overscan: number,
+): VisibleRowRange {
+  if (total <= 0 || rowHeight <= 0) {
+    return { startIndex: 0, endIndex: 0, topSpacerPx: 0, bottomSpacerPx: 0 };
+  }
+  const firstVisible = Math.floor(Math.max(0, scrollTop) / rowHeight);
+  const visibleRowCount = Math.ceil(viewportHeight / rowHeight);
+  const startIndex = Math.max(0, firstVisible - overscan);
+  const endIndex = Math.min(total, firstVisible + visibleRowCount + overscan);
+  return {
+    startIndex,
+    endIndex,
+    topSpacerPx: startIndex * rowHeight,
+    bottomSpacerPx: (total - endIndex) * rowHeight,
+  };
+}
 
 function StrategyFilterDropdown({
   enabledStrategies,
@@ -91,11 +128,9 @@ export interface HodMomoAlertTableProps {
   emptyConnecting?: string;
 }
 
-export function nextHodMomoRenderedCount(current: number, total: number): number {
-  return Math.min(current + HOD_MOMO_RENDER_BATCH_SIZE, total);
-}
-
-/** Bounded HOD table that mounts rows only in fixed-size bottom-triggered batches. */
+/** Bounded HOD table: fixed-window virtualization mounts only the rows in
+ * view (+ overscan), so DOM size stays flat whether there are 50 or 50,000
+ * alerts. */
 export function HodMomoAlertTable({
   alerts,
   connected,
@@ -115,44 +150,32 @@ export function HodMomoAlertTable({
   emptyConnecting = HOD_MOMO_EMPTY_CONNECTING,
 }: HodMomoAlertTableProps) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const [renderedCount, setRenderedCount] = useState(HOD_MOMO_RENDER_BATCH_SIZE);
+  const [scrollTop, setScrollTop] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const bottomTriggeredRef = useRef(false);
   const empty = alerts.length === 0;
   // Always reserve the full 30-row scanner window (like Gappers/Gainers height),
   // even when only a few alerts have fired — shrinking to 1 row made the table look broken.
   const viewportHeight = HOD_MOMO_VISIBLE_ROWS * HOD_MOMO_ROW_HEIGHT_PX;
-  const renderedAlerts = alerts.slice(0, renderedCount);
+  const { startIndex, endIndex, topSpacerPx, bottomSpacerPx } = computeVisibleRowRange(
+    scrollTop,
+    alerts.length,
+    HOD_MOMO_ROW_HEIGHT_PX,
+    viewportHeight,
+    HOD_MOMO_OVERSCAN_ROWS,
+  );
+  const renderedAlerts = alerts.slice(startIndex, endIndex);
 
   useEffect(() => {
-    setRenderedCount(HOD_MOMO_RENDER_BATCH_SIZE);
-    bottomTriggeredRef.current = false;
+    setScrollTop(0);
     scrollRef.current?.scrollTo({ top: 0 });
   }, [visibleStrategies]);
 
   useEffect(() => {
-    if (empty) {
-      setRenderedCount(HOD_MOMO_RENDER_BATCH_SIZE);
-      bottomTriggeredRef.current = false;
-    }
+    if (empty) setScrollTop(0);
   }, [empty]);
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
-    const element = event.currentTarget;
-    const distanceFromBottom =
-      element.scrollHeight - element.scrollTop - element.clientHeight;
-
-    if (distanceFromBottom > HOD_MOMO_LOAD_MORE_THRESHOLD_PX) {
-      bottomTriggeredRef.current = false;
-      return;
-    }
-
-    if (!bottomTriggeredRef.current && renderedCount < alerts.length) {
-      bottomTriggeredRef.current = true;
-      setRenderedCount(current =>
-        nextHodMomoRenderedCount(current, alerts.length),
-      );
-    }
+    setScrollTop(event.currentTarget.scrollTop);
   }
 
   return (
@@ -161,6 +184,7 @@ export function HodMomoAlertTable({
       ref={scrollRef}
       onScroll={handleScroll}
       data-rendered-count={renderedAlerts.length}
+      data-total-count={alerts.length}
       style={{
         height: viewportHeight + HOD_MOMO_HEADER_HEIGHT_PX,
         maxHeight: viewportHeight + HOD_MOMO_HEADER_HEIGHT_PX,
@@ -213,6 +237,11 @@ export function HodMomoAlertTable({
             </tr>
           ) : (
             <>
+              {topSpacerPx > 0 && (
+                <tr aria-hidden="true" style={{ height: topSpacerPx }}>
+                  <td colSpan={HOD_MOMO_COLUMNS.length} style={{ padding: 0, border: 'none' }} />
+                </tr>
+              )}
               {renderedAlerts.map(alert => (
                 <HodMomoAlertRow
                   key={alert.id}
@@ -224,6 +253,11 @@ export function HodMomoAlertTable({
                   consolidationSec={consolidationSec}
                 />
               ))}
+              {bottomSpacerPx > 0 && (
+                <tr aria-hidden="true" style={{ height: bottomSpacerPx }}>
+                  <td colSpan={HOD_MOMO_COLUMNS.length} style={{ padding: 0, border: 'none' }} />
+                </tr>
+              )}
             </>
           )}
         </tbody>

@@ -194,16 +194,21 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
 
 /** Visible row window height for the compact HOD scanner. */
 export const HOD_MOMO_VISIBLE_ROWS = 30;
-/** Row height used to size the viewport — matches `.table-wrapper` Large density. */
+/** Row height used to size the viewport — matches `.table-wrapper` Large density.
+ * Every row must render at exactly this height (see `.hod-strategy-pills`) so
+ * the fixed-window virtualizer's scrollTop -> row-index math stays correct. */
 export const HOD_MOMO_ROW_HEIGHT_PX = 32;
 /** Sticky header row height included in the scroll viewport. */
 export const HOD_MOMO_HEADER_HEIGHT_PX = 30;
-/** Rows mounted initially and added on each distinct bottom reach. */
-export const HOD_MOMO_RENDER_BATCH_SIZE = 40;
-/** Distance from the table bottom that triggers the next row batch. */
-export const HOD_MOMO_LOAD_MORE_THRESHOLD_PX = 24;
+/** Extra rows mounted above/below the visible viewport so fast scrolling
+ * never shows a blank flash before the next row paints in. Mounted row count
+ * stays at HOD_MOMO_VISIBLE_ROWS + 2*this, regardless of total alert count. */
+export const HOD_MOMO_OVERSCAN_ROWS = 12;
 /** Batch live alert prepends so App does not re-render on every single fire. */
 export const HOD_MOMO_ALERT_BATCH_MS = 150;
+/** Max strategy pills shown inline per row before collapsing into a "+N" chip
+ * (keeps every row a single fixed-height line for virtualization). */
+export const HOD_MOMO_MAX_INLINE_STRATEGY_PILLS = 2;
 
 /** Empty-state copy when the HOD Momo WS is connected but no alerts have fired yet. */
 export const HOD_MOMO_EMPTY_WAITING =

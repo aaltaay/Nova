@@ -23,7 +23,7 @@ function alert(
 }
 
 describe('collapseAlertsBySymbol', () => {
-  it('keeps one row per ticker and collects distinct strategies', () => {
+  it('keeps one row per ticker, collects distinct strategies, and pins the row to its first catch', () => {
     const rows = [
       alert({
         id: '1',
@@ -63,12 +63,21 @@ describe('collapseAlertsBySymbol', () => {
     ];
     const out = collapseAlertsBySymbol(rows);
     expect(out).toHaveLength(2);
-    expect(out[0].ticker).toBe('TRT');
-    expect(out[0].price).toBe(5.5);
-    expect(out[0].strategies?.map(s => s.id)).toEqual([12, 3]);
-    expect(out[0].consolidation_count).toBe(3);
-    expect(out[1].ticker).toBe('AEHR');
-    expect(out[1].strategies?.map(s => s.id)).toEqual([3]);
+    // TRT's first catch (id 4, created_ts 93) is older than AEHR's only fire
+    // (created_ts 99), so AEHR — the more recently first-caught ticker — sits
+    // on top, even though TRT has the most recent (newest-fire) snapshot data.
+    expect(out.map(r => r.ticker)).toEqual(['AEHR', 'TRT']);
+    const trt = out.find(r => r.ticker === 'TRT')!;
+    // Live snapshot fields still come from the newest fire.
+    expect(trt.price).toBe(5.5);
+    expect(trt.strategies?.map(s => s.id)).toEqual([12, 3]);
+    expect(trt.consolidation_count).toBe(3);
+    // But identity/stamp are pinned to the first catch, not the newest fire.
+    expect(trt.id).toBe('4');
+    expect(trt.created_ts).toBe(93);
+    expect(trt.timestamp).toBe('2026-07-14T21:25:48.000Z');
+    const aehr = out.find(r => r.ticker === 'AEHR')!;
+    expect(aehr.strategies?.map(s => s.id)).toEqual([3]);
   });
 
   it('does not inflate Warrior burst badge across long gaps', () => {
@@ -96,13 +105,47 @@ describe('collapseAlertsBySymbol', () => {
     expect(out[0].strategies?.map(s => s.id).sort((a, b) => a - b)).toEqual([3, 12]);
   });
 
-  it('preserves newest-first ticker order', () => {
+  it('orders rows by first-catch time, not by which ticker re-fired most recently', () => {
     const rows = [
       alert({ id: '1', ticker: 'ZZZ', timestamp: '2026-07-14T21:25:55.000Z', created_ts: 100 }),
       alert({ id: '2', ticker: 'AAA', timestamp: '2026-07-14T21:25:54.000Z', created_ts: 99 }),
       alert({ id: '3', ticker: 'ZZZ', timestamp: '2026-07-14T21:25:50.000Z', created_ts: 95 }),
     ];
-    expect(collapseAlertsBySymbol(rows).map(r => r.ticker)).toEqual(['ZZZ', 'AAA']);
+    const out = collapseAlertsBySymbol(rows);
+    // ZZZ's first catch (id 3, created_ts 95) predates AAA's only fire
+    // (created_ts 99) — AAA sits on top despite ZZZ having the newer alert.
+    expect(out.map(r => r.ticker)).toEqual(['AAA', 'ZZZ']);
+    const zzz = out.find(r => r.ticker === 'ZZZ')!;
+    expect(zzz.id).toBe('3');
+    expect(zzz.created_ts).toBe(95);
+    expect(zzz.timestamp).toBe('2026-07-14T21:25:50.000Z');
+  });
+
+  it('keeps an already-caught row stable and stamped across later re-fires (simulated live growth)', () => {
+    const round1 = [
+      alert({ id: 'a1', ticker: 'AAA', timestamp: '2026-07-14T21:00:00.000Z', created_ts: 1000 }),
+    ];
+    // BBB fires next (newer); AAA is still further back in the newest-first list.
+    const round2 = [
+      alert({ id: 'b1', ticker: 'BBB', timestamp: '2026-07-14T21:01:00.000Z', created_ts: 1060 }),
+      ...round1,
+    ];
+    const out2 = collapseAlertsBySymbol(round2);
+    expect(out2.map(r => r.ticker)).toEqual(['BBB', 'AAA']);
+
+    // AAA re-fires; its new alert is prepended to the front of the live feed —
+    // exactly the shape that used to yank AAA's row back to the top.
+    const round3 = [
+      alert({ id: 'a3', ticker: 'AAA', timestamp: '2026-07-14T21:02:00.000Z', created_ts: 1120 }),
+      ...round2,
+    ];
+    const out3 = collapseAlertsBySymbol(round3);
+    expect(out3.map(r => r.ticker)).toEqual(['BBB', 'AAA']);
+    const aaa = out3.find(r => r.ticker === 'AAA')!;
+    // Row identity/stamp stay pinned to the very first fire (a1), never a3.
+    expect(aaa.id).toBe('a1');
+    expect(aaa.created_ts).toBe(1000);
+    expect(aaa.timestamp).toBe('2026-07-14T21:00:00.000Z');
   });
 
   it('returns empty input unchanged', () => {

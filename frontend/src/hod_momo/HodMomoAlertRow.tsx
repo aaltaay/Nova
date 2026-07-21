@@ -4,6 +4,7 @@ import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import {
   HOD_MOMO_COLUMNS,
   HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
+  HOD_MOMO_MAX_INLINE_STRATEGY_PILLS,
   HOD_MOMO_ROW_HEIGHT_PX,
   STRATEGY_META_MAP,
 } from '../constants';
@@ -105,7 +106,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
       className="hod-alert-row"
-      style={{ minHeight: HOD_MOMO_ROW_HEIGHT_PX, height: 'auto' }}
+      style={{ height: HOD_MOMO_ROW_HEIGHT_PX }}
     >
       {HOD_MOMO_COLUMNS.map(([key]) => {
         switch (key) {
@@ -190,7 +191,9 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
             );
           case 'volume':
             return <td key={key}>{fmtVolume(alert.volume)}</td>;
-          case 'strategy':
+          case 'strategy': {
+            const visibleTags = strategyTags.slice(0, HOD_MOMO_MAX_INLINE_STRATEGY_PILLS);
+            const overflowTags = strategyTags.slice(HOD_MOMO_MAX_INLINE_STRATEGY_PILLS);
             return (
               <td key={key} className="hod-strategy-cell">
                 {strategyTags.length === 0 ? (
@@ -200,7 +203,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
                     className="hod-strategy-pills"
                     title={strategyTags.map(s => s.name).join(' · ')}
                   >
-                    {strategyTags.map(tag => (
+                    {visibleTags.map(tag => (
                       <StrategyPill
                         key={tag.id}
                         strategyId={tag.id}
@@ -208,10 +211,19 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
                         colorOverride={configColors[tag.id]}
                       />
                     ))}
+                    {overflowTags.length > 0 && (
+                      <span
+                        className="hod-strategy-pill-more"
+                        title={overflowTags.map(t => t.name).join(' · ')}
+                      >
+                        +{overflowTags.length}
+                      </span>
+                    )}
                   </div>
                 )}
               </td>
             );
+          }
           default:
             return <td key={key}><span className="na-muted">—</span></td>;
         }

@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-21 | [HOD Momo stable rows + virtualized table](2026-07-21-hod-momo-stable-rows-virtualization.md) | Rows pinned to first-catch time/position instead of re-stamping on re-fire; table switched from unbounded batch-append to fixed-window virtualization |
 | 2026-07-21 | [Drop misleading paper-by-default from IBKR order disclosure](2026-07-21-ibkr-order-disclosure-copy.md) | Static IBKR disclosure no longer says paper by default next to LIVE confirms |
 | 2026-07-21 | [Bidirectional IBKR Gateway auto-detect (paper↔live heal)](2026-07-21-bidirectional-ibkr-gateway-auto-detect.md) | Bidirectional IBKR Gateway auto-detect (paper↔live heal) |
 | 2026-07-20 | [Execution/executor/routes-trading tests leaked real env + real bootstrap](2026-07-20-execution-test-env-leak-fix.md) | assert_orders_allowed read real IBKR_GATEWAY_MODE; TestClient lifespan ran real bootstrap into strategy.risk singleton |
