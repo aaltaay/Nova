@@ -1,0 +1,77 @@
+/* Global Nova app dialogs — confirm / alert / prompt host. */
+
+.app-dialog-overlay {
+  background: color-mix(in srgb, #020617 72%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.app-dialog-content {
+  border-color: color-mix(in srgb, var(--border, #334155) 90%, transparent);
+  background: var(--card, #0f172a);
+  color: var(--card-foreground, #f8fafc);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, #fff 6%, transparent),
+    0 24px 64px color-mix(in srgb, #000 55%, transparent);
+}
+
+.app-dialog-content[data-tone='warning'] {
+  border-color: color-mix(in srgb, #f59e0b 45%, transparent);
+}
+
+.app-dialog-content[data-tone='danger'] {
+  border-color: color-mix(in srgb, #ef4444 50%, transparent);
+}
+
+.app-dialog-title {
+  letter-spacing: 0.01em;
+}
+
+.app-dialog-title[data-tone='warning'] {
+  color: #fbbf24;
+}
+
+.app-dialog-title[data-tone='danger'] {
+  color: #f87171;
+}
+
+.app-dialog-message {
+  white-space: pre-wrap;
+  text-align: left;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--muted-foreground, #94a3b8) 92%, #fff);
+}
+
+.app-dialog-input {
+  width: 100%;
+  margin-top: 0.25rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, #64748b 55%, transparent);
+  background: color-mix(in srgb, #020617 70%, #0f172a);
+  color: #f8fafc;
+  font: inherit;
+  outline: none;
+}
+
+.app-dialog-input:focus {
+  border-color: color-mix(in srgb, #38bdf8 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, #38bdf8 25%, transparent);
+}
+
+.app-dialog-action--warning {
+  background: #ea580c !important;
+  color: #fff !important;
+}
+
+.app-dialog-action--warning:hover {
+  background: #f97316 !important;
+}
+
+.app-dialog-action--danger {
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+
+.app-dialog-action--danger:hover {
+  background: #ef4444 !important;
+}

@@ -1,12 +1,15 @@
 /**
- * Nova root layout — WorkspaceProvider + Stock View gate + Dashboard shell.
+ * Nova root layout — WorkspaceProvider + sample/Stock View gates + Dashboard shell.
  * Business logic lives in pages/hooks/components (frontend-modularity rule).
  */
+import { useEffect, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { DashboardPage } from './pages/DashboardPage';
 import { StockViewPage } from './pages/StockViewPage';
+import { SampleShell } from './sample_data/SampleShell';
+import { isSampleView } from './sample_data/sampleNav';
 import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
 import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
 import {
@@ -14,6 +17,7 @@ import {
   parseStockViewSymbol,
   replaceStockViewUrl,
 } from './utils/stockViewNav';
+import { AppDialogHost } from './ux';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
 import { LayoutStoreProvider } from './workspace/useLayoutStore';
 import { ModuleVisibilityProvider } from './workspace/useModuleVisibility';
@@ -24,10 +28,23 @@ function AppShell() {
     setStockViewSymbol,
     setSelectedSymbol,
   } = useWorkspace();
+  const [sampleMode, setSampleMode] = useState(() => isSampleView());
+
+  useEffect(() => {
+    const sync = () => setSampleMode(isSampleView());
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, []);
 
   // Global — a kill switch, expired approval, or archive failure must reach
   // the attention strip regardless of which tab/page is currently mounted.
-  useNovaOsEventAttention(true);
+  // Skip in sample mode so the strip never pulls live events into fixtures.
+  useNovaOsEventAttention(!sampleMode);
+
+  // Hard gate: sample route never mounts live Dashboard or live Stock View.
+  if (sampleMode) {
+    return <SampleShell />;
+  }
 
   if (stockViewSymbol) {
     const detached = parseStockViewSymbol() != null;
@@ -72,17 +89,19 @@ function AppShell() {
 
 function App() {
   return (
-    <WorkspaceProvider>
-      <ModuleVisibilityProvider>
-        <LayoutStoreProvider>
-          <TopOfBookProvider>
-            <HotkeyDispatchProvider>
-              <AppShell />
-            </HotkeyDispatchProvider>
-          </TopOfBookProvider>
-        </LayoutStoreProvider>
-      </ModuleVisibilityProvider>
-    </WorkspaceProvider>
+    <AppDialogHost>
+      <WorkspaceProvider>
+        <ModuleVisibilityProvider>
+          <LayoutStoreProvider>
+            <TopOfBookProvider>
+              <HotkeyDispatchProvider>
+                <AppShell />
+              </HotkeyDispatchProvider>
+            </TopOfBookProvider>
+          </LayoutStoreProvider>
+        </ModuleVisibilityProvider>
+      </WorkspaceProvider>
+    </AppDialogHost>
   );
 }
 
