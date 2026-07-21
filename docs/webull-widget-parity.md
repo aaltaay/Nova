@@ -50,15 +50,15 @@ operational dimensions. Similar appearance alone is not functional parity.
 | WID-016 | Trading | Depth-based Price Ladder trading | S1, S13 | DepthLadder is display-only | missing | Clicking a depth price does not stage an order | Use the widgets to add paper-first price-ladder staging |
 | WID-017 | Trading | Chart Trading | S1 | None | missing | Orders cannot be staged or adjusted directly on a chart | Use the widgets to design chart-based paper order staging |
 | WID-018 | Trading | Trading hotkeys | S1, S14 | Nova hotkeys plus DAS-compatible profile authoring | partial | Imported DAS commands remain authoring-only and the runtime action set is intentionally narrow | Use the widgets to map the next safely executable hotkey |
-| WID-019 | Account | Positions widget | S7 | PositionsPanel + per-row Flatten (ADR 007 place path) | matched | Flatten is full-position market exit; not order cancel | Use the widgets to audit position sizing / partial close later |
+| WID-019 | Account | Positions widget | S7 | PositionsPanel + per-row Flatten; Stock View dock **Positions** tab | matched | Flatten is full-position market exit; not order cancel | Use the widgets to audit position sizing / partial close later |
 | WID-020 | Account | Orders history CSV export + multi-day records | S15, S17 | Session Closed Orders (WID-027); no email/CSV export | partial | Webull Desktop Orders → Export / App History → Orders Records CSV still missing; modify-order deferred | Use the widgets to implement CSV export before order editing |
 | WID-021 | Reports | Performance widget with P&L, win rate, profit factor, duration | S1 | Reports v2, tags, R multiples, drawdown | partial | Metric names, trade-duration views, and drill-down coverage differ | Use the widgets to map Webull performance metrics to Reports v2 |
 | WID-022 | Simulation | Paper trading | S2, S9 | IBKR paper Gateway with explicit safety gates | matched | Nova requires local Gateway and preserves broker truth | Use the widgets to audit paper onboarding |
 | WID-023 | Workspace | Multi-screen and detachable windows | S3, S10 | Detached Stock View and Electron desktop | partial | Nova does not detach arbitrary modules into independently linked windows | Use the widgets to design detachable module windows |
 | WID-024 | Community | Comments widget | S3 | None | not-comparable | Social posting is not part of Nova's local-first trading workstation direction | Use the widgets to keep community features out of execution scope |
 | WID-025 | Market overview | Heatmap and broad market-flow widgets | S10, S16 | Dashboard and strategy scanners | missing | No broad heatmap or Webull-style market-flow visualization | Use the widgets to prioritize a market-overview widget |
-| WID-026 | Trading | Post-place Working Orders status (Orders → Working / Today's Orders) | S15, S17, S7 | `WorkingOrdersPanel` on Trading tab + collapsible Stock View **Open Orders** footer dock | partial | Bottom dock; highlight after place + cancel; no modify | Keep cancel-only; history is WID-027 / export WID-020 |
-| WID-027 | Account | Closed / Filled / Cancelled orders (History → Orders Records lifecycle) | S15, S17 | `closed_orders/` feature slice + `GET /api/ibkr/orders/closed`; Modules hide/show | partial | Session terminal orders + Filled/Cancelled filters; mock preview when empty; no CSV / multi-day History Records | Use the widgets to add CSV export (WID-020) next; keep `auto_live` NO-GO |
+| WID-026 | Trading | Post-place Working Orders status (Orders → Working / Today's Orders) | S15, S17, S7 | `WorkingOrdersPanel` on Trading tab + Stock View **Orders (Today)** dock (`orders_today/`) | partial | Segmented Working/Filled/Canceled/Partial/All; highlight after place + cancel; no modify | Keep cancel-only; history is WID-027 / export WID-020 |
+| WID-027 | Account | Closed / Filled / Cancelled orders (History → Orders Records lifecycle) | S15, S17 | `closed_orders/` + Orders (Today) Filled/Canceled/Partial segments; `GET /api/ibkr/orders/closed` | partial | Session terminal orders in Orders (Today); Trading tab module still has local filters; no CSV / multi-day | Use the widgets to add CSV export (WID-020) next; keep `auto_live` NO-GO |
 
 ## Evidence
 
@@ -141,9 +141,9 @@ Nova evidence was captured from revision `8c773f0` plus the uncommitted
 |---|---|---|
 | Symbol | `symbol` | yes |
 | Side (Buy/Sell) | `side` | yes |
-| Quantity | `qty` (`totalQuantity`) | yes |
-| Filled / partial fill | `filled_qty` (`orderStatus.filled`) | yes |
-| Remaining / left | `remaining_qty` | yes (full table) |
+| Quantity | `qty` (`totalQuantity`) | yes — fractional via `formatShareQty` (S6; up to 4 decimals) |
+| Filled / partial fill | `filled_qty` (`orderStatus.filled`) | yes — column **Filled** (fractional OK; header + cell tooltips) |
+| Remaining / left | `remaining_qty` (+ qty−filled fallback) | yes — **Remaining** (fractional OK; hidden only when `compact`) |
 | Order type | `order_type` | yes — UI spells out Limit Order / Market Order / Stop Order (not LMT/MKT/STP) |
 | Limit / price | `limit_price` | yes — column **Limit price** |
 | Stop | `stop_price` (`auxPrice`) | yes — column **Stop price** |
@@ -152,13 +152,19 @@ Nova evidence was captured from revision `8c773f0` plus the uncommitted
 | Session / extended hours | `outside_rth` | yes — **Regular hours** / **Extended hours** |
 | Order id | `order_id` | yes |
 | Account | Gateway paper/live mode (status bar) | mode badge elsewhere; not a column |
-| Time placed | not on `openTrades` row today | deferred |
-| Modify order | — | deferred (cancel only) |
+| Time placed | `submitted_at` snapshot | yes — **Time** (ET, fixed at place) |
+| Act on remainder | Fill now | yes — cancel rest + market remaining (`fillWorkingOrderImmediately`; not Flatten; hidden in sample preview) |
+| Modify order | — | deferred (cancel / Fill now only) |
 | History / export CSV | — | WID-020 follow-up |
 
+**Active fill progress (verified 2026-07-19):** Filled / Remaining / Average fill +
+**Partially filled** status + **Fill now** are the working-order “actively trade”
+surface — not WID-015 TurboTrader. Backend `trade_to_order_row` exposes
+`filled_qty` / `remaining_qty` / `avg_fill_price` from IBKR `orderStatus`.
+
 **Primary placement:** Trading tab account column (always visible when connected).
-**Secondary:** Stock View rail card under Trade when the open symbol has working
-orders (or a just-placed highlight id). Not a global drawer.
+**Secondary:** Stock View bottom **Open Orders** dock (`compact={false}` so
+Remaining shows; Fill now / Cancel wired when not in sample mode).
 
 ### Closed Orders column map (WID-027)
 
@@ -166,12 +172,12 @@ orders (or a just-placed highlight id). Not a global drawer.
 |---|---|---|
 | Symbol | `symbol` | yes |
 | Side | `side` | yes |
-| Quantity | `qty` | yes |
-| Filled | `filled_qty` | yes |
+| Quantity | `qty` | yes — fractional via `formatShareQty` (S6) |
+| Filled | `filled_qty` | yes — column **Filled** (fractional OK; partial-cancel qty; header/cell tooltips) |
 | Order type | `order_type` | yes — Webull-clean labels |
 | Limit / price | `limit_price` | yes |
-| Avg fill | `avg_fill_price` | yes |
-| Status (Filled / Cancelled / Failed) | terminal `status` | yes — All / Filled / Cancelled filters |
+| Avg fill | `avg_fill_price` | yes — column **Average fill** |
+| Status (Filled / Cancelled / Failed) | terminal `status` | yes — All / Filled / Cancelled / Partial cancel filters |
 | Cancel working order | — | **no** (lives on WID-026 only) |
 | Flatten / close position | Positions Flatten → `closeFullPosition` | companion control on WID-019 (not an order-row action) |
 | CSV / email export | — | WID-020 |

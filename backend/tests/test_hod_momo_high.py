@@ -22,6 +22,7 @@ def _reset() -> None:
     state.session_high_seeded = set()
     state.day_highs = {}
     state.session_high_source = {}
+    state.session_high_raised_ts = {}
     state.price_buffer = {}
     state.ticker_snaps = {}
     state.gate_counters = defaultdict(int)
@@ -74,7 +75,32 @@ def test_cold_start_last_does_not_invent_hod(monkeypatch):
     assert not state.pending_consolidation
 
 
-def test_seeded_high_allows_true_hod_fire(monkeypatch):
+def test_seeded_high_retest_does_not_fire():
+    """VCIG-class: bars/tick6 floor at HOD + print at same price is not a new HOD."""
+    _reset()
+    state = hm.get_state()
+    for sid, cfg in state.configs.items():
+        cfg.enabled = sid == 11
+        if sid == 11:
+            cfg.requires_hod = True
+            cfg.min_rvol = 0.0
+            cfg.surge_pct = 0.0
+    state.master.hod_required = True
+    state.master.surge_pct = 0.0
+
+    sym = "RETEST"
+    high.apply_session_high(sym, 1.34, source="bars")
+    hm.update_ticker_snapshot(
+        sym, price=1.34, change_pct=46.0, rvol=5.0,
+        float_shares=1_000_000, volume=100_000, rvol_source="test",
+    )
+    hm.on_trade_update(sym, 1.34, time.time(), volume=100_000, day_high=1.34)
+
+    assert not state.pending_consolidation
+    assert high.last_new_hod_age_sec(sym) is None
+
+
+def test_observed_raise_above_seed_allows_hod_fire(monkeypatch):
     _reset()
     state = hm.get_state()
     for sid, cfg in state.configs.items():
@@ -89,15 +115,16 @@ def test_seeded_high_allows_true_hod_fire(monkeypatch):
     sym = "HOT"
     high.apply_session_high(sym, 10.0, source="bars")
     hm.update_ticker_snapshot(
-        sym, price=10.0, change_pct=12.0, rvol=5.0,
+        sym, price=10.05, change_pct=12.0, rvol=5.0,
         float_shares=1_000_000, volume=100_000, rvol_source="test",
     )
-    hm.on_trade_update(sym, 10.0, time.time(), volume=100_000, day_high=10.0)
+    hm.on_trade_update(sym, 10.05, time.time(), volume=100_000, day_high=10.0)
 
     pending = [
         a for bucket in state.pending_consolidation.values() for _, a in bucket
     ]
     assert any(a.strategy_id == 11 for a in pending)
+    assert high.last_new_hod_age_sec(sym) is not None
 
 
 def test_last_below_seeded_high_blocks():

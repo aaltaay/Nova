@@ -176,10 +176,16 @@ def fails_hod_gate(
     high_seeded: bool = True,
     epsilon_abs: float = 0.01,
     epsilon_pct: float = 0.001,
+    new_hod_age_sec: float | None = None,
+    new_hod_grace_sec: float = 60.0,
 ) -> str | None:
-    """Return a block reason if this strategy requires HOD and price is below it.
+    """Return a block reason if this strategy requires a fresh new HOD.
 
     Unseeded highs always block (kills cold-start invent-from-first-tick).
+    Being merely *at* a seeded high is not enough — Warrior HOD Momentum needs
+    a new high-of-day (Running Up covers pullback squeezes without new HOD).
+    ``new_hod_age_sec`` is seconds since the session high last rose via an
+    observed print or post-seed tick-6; must be within ``new_hod_grace_sec``.
     """
     if not (cfg.requires_hod and master_hod_required):
         return None
@@ -193,4 +199,10 @@ def fails_hod_gate(
     eps = max(float(epsilon_abs), float(hod) * float(epsilon_pct))
     if px + eps < hod:
         return f"hod(price={px:.4g}<hod={hod:.4g})"
+    grace = float(new_hod_grace_sec or 0.0)
+    if grace > 0:
+        if new_hod_age_sec is None:
+            return "hod:not_new"
+        if float(new_hod_age_sec) > grace:
+            return f"hod:stale_new({float(new_hod_age_sec):.0f}s>{grace:.0f}s)"
     return None

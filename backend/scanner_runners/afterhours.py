@@ -24,13 +24,35 @@ def run_afterhours_discovery_scan() -> None:
         # reshape is a fallback only for when TOP_AFTER_HOURS_PERC_GAIN is
         # empty (thin AH liquidity / IB scanner gaps) — never the primary
         # source, since it's really the intraday gainer list, not AH movers.
-        raw = sr.run_ibkr(sr._ibkr_discovery.get_afterhours_gainers()) or []
+        raw = sr.run_ibkr(
+            sr._ibkr_discovery.get_afterhours_gainers(),
+            on_error="none",
+            label="afterhours",
+        )
         source = "ah_scan"
+        if raw is None:
+            logger.error(
+                "AH discovery (IBKR): bridge failed — keeping last-good afterhours_cache (%d rows)",
+                len(state.afterhours_cache or []),
+            )
+            return
         if not raw:
             raw = list(state.gainer_cache) if state.gainer_cache else []
             source = "gainer_reshape"
             if not raw:
-                raw = sr.run_ibkr(sr._ibkr_discovery.get_gainers()) or []
+                cold = sr.run_ibkr(
+                    sr._ibkr_discovery.get_gainers(),
+                    on_error="none",
+                    label="afterhours_gainer_fallback",
+                )
+                if cold is None:
+                    logger.error(
+                        "AH discovery (IBKR): gainer fallback bridge failed — "
+                        "keeping last-good afterhours_cache (%d rows)",
+                        len(state.afterhours_cache or []),
+                    )
+                    return
+                raw = cold
                 source = "gainer_reshape_cold"
         rows = _ah_discovery.build_afterhours_rows_from_ibkr_gainers(raw)
         if not rows:
@@ -133,7 +155,17 @@ def run_afterhours_focus_scan() -> None:
 
     if sr._get_discovery_provider() == "ibkr":
         symbols = [r["symbol"] for r in state.afterhours_cache]
-        quotes = sr.run_ibkr(sr._ibkr_discovery.snapshot_quotes(symbols)) or {}
+        quotes = sr.run_ibkr(
+            sr._ibkr_discovery.snapshot_quotes(symbols, require_success=True),
+            on_error="none",
+            label="afterhours_focus",
+        )
+        if not isinstance(quotes, dict) or not quotes:
+            logger.error(
+                "AH focus (IBKR): snapshot failed/empty — keeping last-good prices (%d rows)",
+                len(state.afterhours_cache),
+            )
+            return
         state.afterhours_cache = _ah_discovery.reprice_afterhours_rows_ibkr(
             state.afterhours_cache, quotes, state.avg_volume_cache,
         )

@@ -3,6 +3,8 @@ IBKR trading routes — thin handlers that delegate to ibkr/*.py modules.
 
 Endpoints:
   GET  /api/ibkr/status           -- connection state + mode (paper/live/disconnected)
+  POST /api/ibkr/reconnect        -- reload .env + reconnect to configured port
+  POST /api/ibkr/gateway-mode     -- user-initiated Paper<->Live port switch (no spend unlock)
   POST /api/ibkr/launch-gateway  -- start/focus IB Gateway (user-initiated, Windows)
   GET  /api/ibkr/account          -- account summary
   GET  /api/ibkr/positions        -- portfolio / positions
@@ -43,14 +45,17 @@ ws_router = APIRouter(tags=["ibkr-ws"])
 async def ibkr_status() -> dict:
     snap = _client_safety_status()
     from ibkr import gateway_heal as _heal
+    from ibkr import port_diagnostics as _ports
 
+    connected = _client.is_connected()
     return {
         "enabled": _client.is_enabled(),
-        "connected": _client.is_connected(),
+        "connected": connected,
         "mode": _client.account_mode(),
         "broker_account_kind": _client.broker_account_kind(),
         **snap,
         **_heal.heal_status(),
+        **_ports.status_port_fields(connected=connected),
     }
 
 
@@ -58,6 +63,19 @@ async def ibkr_status() -> dict:
 async def ibkr_reconnect() -> dict:
     """Reload .env (override) and reconnect to the configured Gateway port."""
     return await _client.force_reconnect()
+
+
+class GatewayModeRequest(BaseModel):
+    mode: str  # "paper" | "live"
+
+
+@router.post("/gateway-mode")
+async def ibkr_gateway_mode(body: GatewayModeRequest) -> dict:
+    """User-initiated Paper↔Live switch — persists + reconnects; never unlocks spend."""
+    mode = (body.mode or "").strip().lower()
+    if mode not in ("paper", "live"):
+        raise HTTPException(status_code=400, detail=f"invalid mode {body.mode!r} (must be paper or live)")
+    return await _client.request_gateway_mode(mode)
 
 
 @router.post("/launch-gateway")

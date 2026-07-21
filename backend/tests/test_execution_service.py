@@ -37,12 +37,14 @@ def isolated_execution(tmp_path, monkeypatch):
     telemetry.reset_for_tests()
     control_mode.reset_for_tests()
     staged_tickets.reset_for_tests()
+    risk_mod.reset_day()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
     yield
     telemetry.reset_for_tests()
     control_mode.reset_for_tests()
     staged_tickets.reset_for_tests()
+    risk_mod.reset_day()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
 
@@ -54,6 +56,12 @@ def _arm_paper(monkeypatch, *, buying_power: float = 100_000.0, positions: list 
     monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "paper")
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
     monkeypatch.setattr(safety_mod, "orders_enabled", lambda: True)
+    # ibkr.safety.assert_orders_allowed reads the *real* IBKR_GATEWAY_MODE env
+    # var independently of the account_mode/broker_account_kind mocks above —
+    # pin it to paper so these tests don't depend on the developer's real
+    # .env. monkeypatch.setenv (not a gateway_mode function patch) so a test
+    # that needs "live" can still override it afterward (see TestPaperLiveParity).
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
     monkeypatch.setattr(
         account_mod,
         "get_account_summary",
@@ -456,9 +464,8 @@ class TestLatencySummary:
 
         def place(**kw):
             oid = 40
-            w = telemetry.watch_order(oid)
-            # Status will be noted after watch is re-created in service — simulate
-            # by noting after a tiny delay via immediate Submitted on shared watch.
+            # Status is noted via the watch execution.service re-creates below
+            # (run_one), not here.
             return {"ok": True, "order_id": oid, "error": None, "mode": "paper"}
 
         monkeypatch.setattr(orders_mod, "place_order", place)

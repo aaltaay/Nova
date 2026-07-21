@@ -1,9 +1,13 @@
 """Pre-market discovery and focus scan orchestration."""
 from __future__ import annotations
 
+import logging
 import time
 
+from ibkr_bridge import IbkrBridgeError
 from scanner_runners._facade import facade
+
+logger = logging.getLogger(__name__)
 
 
 def run_discovery_scan() -> None:
@@ -12,7 +16,16 @@ def run_discovery_scan() -> None:
     state = sr.get_runtime_state()
     headers = sr._alpaca_headers()
     # Price rows come from the composed DiscoveryPort (IBKR or Alpaca).
-    gappers = list(sr.get_discovery_port().get_gappers() or [])
+    try:
+        gappers = list(sr.get_discovery_port().get_gappers() or [])
+    except IbkrBridgeError as exc:
+        # Never wipe a live table because the thread bridge timed out.
+        logger.error(
+            "Gapper discovery bridge failed — keeping %d cached row(s): %s",
+            len(state.gapper_cache),
+            exc,
+        )
+        return
 
     gapper_syms = [g["symbol"] for g in gappers]
     news: dict = {}
@@ -25,6 +38,8 @@ def run_discovery_scan() -> None:
     state.gapper_cache = gappers
     state.gapper_cache_ts = time.time()
     state.last_discovery_ts = time.monotonic()
+    if gappers:
+        state.ibkr_bridge_last_error = ""
     sr.mark_resub()
     sr.save_gapper_snapshot(state.gapper_cache, state.gapper_cache_ts)
 

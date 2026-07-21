@@ -3,9 +3,15 @@
 Cold-start bug: ``session_highs[sym]`` started at 0 and first last-price became
 "HOD". This module seeds from historical bar highs and L1 day High (tick 6),
 marks ``session_high_seeded``, and only then allows HOD strategies to pass.
+
+Warrior parity (BA101 / KB): requires_hod strategies need a *new* high-of-day,
+not a retest of an already-seeded high (Running Up covers that). Initial bar /
+tick-6 seed sets the floor without opening the alert grace window; only an
+observed last (or a later tick-6 raise above that floor) opens it.
 """
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import hod_momo_state as _state
@@ -38,10 +44,17 @@ def apply_session_high(
     high: float,
     *,
     source: str,
+    open_alert_window: bool | None = None,
+    now_ts: float | None = None,
 ) -> float | None:
     """Raise session high from a trusted source; mark seeded.
 
     Never lowers an existing high. Returns the new session high or None.
+
+    ``open_alert_window``:
+      - None (default): open only when high rises above a prior floor via
+        ``observed`` or ``tick6`` (not the first bars/tick6 seed from 0).
+      - True/False: force.
     """
     sym = (symbol or "").strip().upper()
     if not sym:
@@ -54,8 +67,17 @@ def apply_session_high(
         return None
     state = _state.get_state()
     prev = float(state.session_highs.get(sym, 0.0) or 0.0)
+    raised = False
     if h > prev:
         state.session_highs[sym] = h
+        raised = True
+        if open_alert_window is None:
+            # First seed establishes the floor only — not a live HOD break.
+            open_alert_window = prev > 0 and source in ("observed", "tick6")
+        if open_alert_window:
+            state.session_high_raised_ts[sym] = (
+                float(now_ts) if now_ts is not None else time.time()
+            )
         prev = h
     state.session_high_seeded.add(sym)
     state.session_high_source[sym] = _merge_source(
@@ -93,24 +115,40 @@ def is_high_seeded(symbol: str) -> bool:
     return bool(sym) and sym in _state.get_state().session_high_seeded
 
 
-def raise_observed_high(symbol: str, price: float) -> None:
-    """After seeded, allow last prints to raise the tracked high (true new HOD)."""
+def raise_observed_high(symbol: str, price: float, *, now_ts: float | None = None) -> bool:
+    """After seeded, allow last prints to raise the tracked high (true new HOD).
+
+    Returns True when this print raised the session high (opens alert grace).
+    """
     sym = (symbol or "").strip().upper()
     if not sym or not is_high_seeded(sym):
-        return
+        return False
     try:
         px = float(price)
     except (TypeError, ValueError):
-        return
+        return False
     if px <= 0:
-        return
+        return False
     state = _state.get_state()
     prev = float(state.session_highs.get(sym, 0.0) or 0.0)
-    if px > prev:
-        state.session_highs[sym] = px
-        state.session_high_source[sym] = _merge_source(
-            state.session_high_source.get(sym), "observed",
-        )
+    if px <= prev:
+        return False
+    apply_session_high(
+        sym, px, source="observed", open_alert_window=True, now_ts=now_ts,
+    )
+    return True
+
+
+def last_new_hod_age_sec(symbol: str, *, now_ts: float | None = None) -> float | None:
+    """Seconds since session high last rose via observed/tick6 (None if never)."""
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return None
+    raised = _state.get_state().session_high_raised_ts.get(sym)
+    if raised is None:
+        return None
+    now = float(now_ts) if now_ts is not None else time.time()
+    return max(0.0, now - float(raised))
 
 
 def high_debug(symbol: str) -> dict[str, Any]:
@@ -121,4 +159,6 @@ def high_debug(symbol: str) -> dict[str, Any]:
         "day_high": state.day_highs.get(sym),
         "high_seeded": sym in state.session_high_seeded,
         "session_high_source": state.session_high_source.get(sym),
+        "session_high_raised_ts": state.session_high_raised_ts.get(sym),
+        "new_hod_age_sec": last_new_hod_age_sec(sym),
     }

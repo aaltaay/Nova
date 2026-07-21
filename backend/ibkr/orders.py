@@ -11,6 +11,7 @@ from typing import Literal
 
 from ibkr import client as _client
 from ibkr import safety as _safety
+from ibkr.errors import IbkrAccountError, describe_exc
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,16 @@ def place_order(
 
         trade = ib.placeOrder(contract, order)
         oid = trade.order.orderId
+        from ibkr.order_times import (
+            audit_log_placed,
+            extract_trade_times,
+            remember_nova_placed,
+            resolve_submitted_at,
+        )
+
+        nova_placed = remember_nova_placed(oid)
+        broker_submitted, _ = extract_trade_times(trade)
+        submitted_at = resolve_submitted_at(broker_submitted, oid)
         price = limit_price if order_type == "LMT" else stop_price
         action = "modified" if order_id is not None else "placed"
         logger.info(
@@ -138,7 +149,24 @@ def place_order(
             outside_rth,
             oid,
         )
-        return {"ok": True, "order_id": oid, "error": None, "mode": _client.account_mode()}
+        if order_id is None:
+            audit_log_placed(
+                order_id=oid,
+                symbol=symbol,
+                side=side,
+                qty=qty,
+                order_type=order_type,
+                mode=_client.account_mode(),
+                nova_placed_at=nova_placed,
+                broker_submitted_at=broker_submitted,
+            )
+        return {
+            "ok": True,
+            "order_id": oid,
+            "error": None,
+            "mode": _client.account_mode(),
+            "submitted_at": submitted_at,
+        }
 
     except Exception as exc:
         logger.exception("IBKR: order error for %s: %s", symbol, exc)
@@ -175,13 +203,19 @@ def place_bracket_order(
     try:
         from ib_async import Stock
         contract = Stock(symbol, "SMART", "USD")
+        from ibkr.order_times import remember_nova_placed, wall_utc_now_iso
+
         bracket = ib.bracketOrder(side, qty, entry_price, target_price, stop_price)
+        nova_stamp = wall_utc_now_iso()
         for order in bracket:
             ib.placeOrder(contract, order)
+            remember_nova_placed(order.orderId, nova_stamp)
         logger.info(
-            "IBKR: placed %s bracket %s %s qty=%s entry=%s target=%s stop=%s (parent=%s)",
+            "IBKR: placed %s bracket %s %s qty=%s entry=%s target=%s stop=%s "
+            "(parent=%s nova_placed_at_utc=%s)",
             _client.account_mode(), side, symbol, qty, entry_price, target_price, stop_price,
             bracket.parent.orderId,
+            nova_stamp,
         )
         return {
             "ok": True,
@@ -190,6 +224,7 @@ def place_bracket_order(
             "stop_order_id": bracket.stopLoss.orderId,
             "error": None,
             "mode": _client.account_mode(),
+            "submitted_at": nova_stamp,
         }
     except Exception as exc:
         logger.exception("IBKR: bracket order error for %s: %s", symbol, exc)
@@ -233,16 +268,21 @@ def open_orders() -> list[dict]:
     Includes fill progress fields from IBKR ``orderStatus`` so the Working
     Orders panel can mirror Webull-style qty/filled/avg columns without a
     separate history API.
+
+    Raises ``IbkrAccountError`` on disconnect / API failure — a failed read
+    must never look like "no working orders" (cancel-all and the kill-switch
+    reconciliation both depend on knowing the difference).
     """
     ib = _client.get_ib()
     if ib is None:
-        return []
+        raise IbkrAccountError("IBKR not connected — cannot read open orders")
     try:
         trades = ib.openTrades()
         return [_trade_to_order_row(t) for t in trades]
     except Exception as exc:
-        logger.exception("IBKR: open_orders error: %s", exc)
-        return []
+        detail = describe_exc(exc)
+        logger.exception("IBKR: open_orders error: %s", detail)
+        raise IbkrAccountError(f"open_orders failed: {detail}") from exc
 
 
 def closed_orders(limit: int | None = None) -> list[dict]:
@@ -251,6 +291,9 @@ def closed_orders(limit: int | None = None) -> list[dict]:
     Uses IBKR ``trades()`` filtered to terminal statuses — not a second broker
     path. Does not include still-working open trades. CSV / multi-day History
     export remains WID-020.
+
+    Raises ``IbkrAccountError`` on disconnect / API failure — never disguise
+    as an empty session history.
     """
     from constants_ibkr import (
         IBKR_CLOSED_ORDER_STATUSES,
@@ -260,7 +303,7 @@ def closed_orders(limit: int | None = None) -> list[dict]:
     cap = IBKR_CLOSED_ORDERS_LIMIT_DEFAULT if limit is None else max(1, int(limit))
     ib = _client.get_ib()
     if ib is None:
-        return []
+        raise IbkrAccountError("IBKR not connected — cannot read closed orders")
     try:
         trades = list(ib.trades())
         rows: list[dict] = []
@@ -273,33 +316,51 @@ def closed_orders(limit: int | None = None) -> list[dict]:
         rows.sort(key=lambda r: int(r.get("order_id") or 0), reverse=True)
         return rows[:cap]
     except Exception as exc:
-        logger.exception("IBKR: closed_orders error: %s", exc)
-        return []
+        detail = describe_exc(exc)
+        logger.exception("IBKR: closed_orders error: %s", detail)
+        raise IbkrAccountError(f"closed_orders failed: {detail}") from exc
+
+
+def _nonzero_price(value) -> float | None:
+    """IB often sends 0.0 for unused LMT/STP fields — expose as null."""
+    if value is None:
+        return None
+    try:
+        price = float(value)
+    except (TypeError, ValueError):
+        return None
+    if price == 0.0:
+        return None
+    return price
 
 
 def _trade_to_order_row(trade) -> dict:
     """Map an ib_async Trade to the public open-order JSON shape."""
-    from ibkr.order_times import extract_trade_times
+    from ibkr.order_times import extract_trade_times, resolve_submitted_at
 
     status = trade.orderStatus
     filled = getattr(status, "filled", None)
     remaining = getattr(status, "remaining", None)
     avg_fill = getattr(status, "avgFillPrice", None)
-    submitted_at, updated_at = extract_trade_times(trade)
+    broker_submitted, updated_at = extract_trade_times(trade)
+    oid = trade.order.orderId
+    submitted_at = resolve_submitted_at(broker_submitted, oid)
     return {
-        "order_id": trade.order.orderId,
+        "order_id": oid,
         "symbol": trade.contract.symbol,
         "side": trade.order.action,
         "qty": trade.order.totalQuantity,
         "filled_qty": float(filled) if filled is not None else 0.0,
         "remaining_qty": float(remaining) if remaining is not None else None,
         "order_type": trade.order.orderType,
-        "limit_price": getattr(trade.order, "lmtPrice", None),
-        "stop_price": getattr(trade.order, "auxPrice", None),
+        "limit_price": _nonzero_price(getattr(trade.order, "lmtPrice", None)),
+        "stop_price": _nonzero_price(getattr(trade.order, "auxPrice", None)),
         "avg_fill_price": float(avg_fill) if avg_fill not in (None, 0, 0.0) else None,
         "outside_rth": bool(getattr(trade.order, "outsideRth", False)),
         "status": status.status,
-        # ISO-8601 UTC; UI formats to America/New_York with seconds.
+        # ISO-8601 UTC; UI formats Eastern with sub-seconds when present.
+        # Time Placed = submitted_at (broker log, else Nova wall stamp).
+        # updated_at = last fill/cancel activity (tooltip / recency only).
         "submitted_at": submitted_at,
         "updated_at": updated_at,
     }

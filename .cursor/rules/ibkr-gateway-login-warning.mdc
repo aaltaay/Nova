@@ -16,12 +16,23 @@ Any of these means Gateway needs the user:
 - Gateway window title is `IBKR Gateway` / `Authenticating...` / waiting for IBKR Mobile 2FA
 - Gateway process running but **no** local LISTEN on the API port (usually `4001` live / `4002` paper)
 
-## Port mismatch is self-healed (do not treat as login)
+## Port mismatch self-heal is live→paper only (do not treat as login)
 
-If Nova’s preferred `IBKR_GATEWAY_MODE` port refuses/times out but the **other**
-port accepts, `ibkr/gateway_heal.py` flips mode, persists `.env`, and reconnects.
-Look for log `IBKR: self-healed gateway_mode` and status `gateway_self_heal`.
-That is **not** a login blocker — do not ask the user to re-auth for that case.
+If Nova’s preferred mode is **live** and port **4001 refuses** (hard
+`ConnectionRefused`), but paper **4002** accepts, `ibkr/gateway_heal.py` flips
+mode to paper, persists `.env`, and reconnects. Look for log
+`IBKR: self-healed gateway_mode` and status `gateway_self_heal`.
+
+**Never** the reverse: `gateway_mode=paper` with only live 4001 listening stays
+**disconnected** — Nova will not auto-attach to live. That is **not** a login
+blocker and **not** a broken self-heal; use the Stock View Paper/Live capsule
+(or set `IBKR_GATEWAY_MODE=live`) after Gateway is logged into the matching
+account. Status fields `disconnect_hint` / `preferred_port_reachable` /
+`alternate_port_reachable` describe the mismatch.
+
+Timeouts (including Error 326 / clientId conflicts) are **not** heal-eligible —
+only a hard refuse on the live port can self-heal to paper.
+
 Spend gates (`IBKR_ORDERS_ENABLED` / live confirm) are never auto-unlocked.
 
 ## Mandatory agent behavior

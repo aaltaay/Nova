@@ -1,33 +1,37 @@
-# Example — copy to %USERPROFILE%\.nova\ibc\start_gateway.ps1 and edit paths.
-# Do NOT put passwords in this file; IBC reads them from config.ini beside it.
+# Example — prefer the local launcher created by setup:
+#   %USERPROFILE%\.nova\ibc\start_gateway.ps1
+#   %USERPROFILE%\.nova\ibc\StartGateway.bat  (sets CONFIG + TWS_MAJOR_VRSN=1045)
+#
+# Do NOT put passwords here; IBC reads them from config.ini.
+# Stock C:\IBC\StartGateway.bat defaults to Documents\IBC\config.ini and an old
+# Gateway version — use the .nova\ibc wrapper instead of passing a config path
+# as an argument (StartGateway.bat does not take a config path that way).
 
 param(
-    [string]$IbcHome = "C:\IBC",
-    [string]$ConfigIni = "$env:USERPROFILE\.nova\ibc\config.ini",
-    [string]$GatewayVersion = "1045"
+    [string]$LocalBat = "$env:USERPROFILE\.nova\ibc\StartGateway.bat",
+    [string]$ConfigIni = "$env:USERPROFILE\.nova\ibc\config.ini"
 )
 
 $ErrorActionPreference = "Stop"
 
 if (-not (Test-Path $ConfigIni)) {
     Write-Host "Missing IBC config: $ConfigIni" -ForegroundColor Red
-    Write-Host "Create it from IBC's sample config (never commit passwords)." -ForegroundColor Yellow
+    Write-Host "See docs\ibc-gateway-setup.md (never commit passwords)." -ForegroundColor Yellow
+    exit 1
+}
+if (-not (Test-Path $LocalBat)) {
+    Write-Host "Missing local launcher: $LocalBat" -ForegroundColor Red
+    Write-Host "Copy/create StartGateway.bat under .nova\ibc with CONFIG= that path and TWS_MAJOR_VRSN=1045." -ForegroundColor Yellow
+    exit 1
+}
+if (-not (Test-Path "C:\IBC\scripts\DisplayBannerAndLaunch.bat")) {
+    Write-Host "IBC not found at C:\IBC — install from https://github.com/IbcAlpha/IBC/releases" -ForegroundColor Yellow
     exit 1
 }
 
-$startBat = Join-Path $IbcHome "StartGateway.bat"
-if (-not (Test-Path $startBat)) {
-    Write-Host "IBC StartGateway.bat not found at $startBat" -ForegroundColor Red
-    Write-Host "Install IBC from https://github.com/IbcAlpha/IBC/releases" -ForegroundColor Yellow
-    exit 1
-}
-
-Write-Host "Starting IB Gateway via IBC (version=$GatewayVersion)..." -ForegroundColor Cyan
+Write-Host "Starting IB Gateway via IBC (see $LocalBat)..." -ForegroundColor Cyan
 Write-Host "Complete IBKR Mobile 2FA on your phone if prompted." -ForegroundColor Yellow
-
-# IBC env: see IBC docs for IbDir / TWSVERSION equivalents on Windows.
-$env:TWS_MAJOR_VRSN = $GatewayVersion
-Start-Process -FilePath $startBat -WorkingDirectory $IbcHome -ArgumentList "`"$ConfigIni`""
+Start-Process -FilePath $LocalBat -WorkingDirectory (Split-Path $LocalBat)
 
 Write-Host "After login, verify: GET http://127.0.0.1:8000/api/ibkr/status" -ForegroundColor Green
 Write-Host "Then: .\scripts\smoke_check.ps1" -ForegroundColor Green

@@ -32,6 +32,9 @@ class HodMomoState:
     day_highs: dict[str, float] = field(default_factory=dict)
     # "bars" | "tick6" | "bars+tick6" — debug / decision log.
     session_high_source: dict[str, str] = field(default_factory=dict)
+    # Wall time when session high last *rose* via observed print or post-seed
+    # tick-6 (not the initial bars/tick6 floor seed). Opens HOD alert grace.
+    session_high_raised_ts: dict[str, float] = field(default_factory=dict)
     cooldown: dict[tuple[str, int], float] = field(default_factory=dict)
     pending_consolidation: dict[str, list[tuple[float, AlertObject]]] = field(
         default_factory=dict

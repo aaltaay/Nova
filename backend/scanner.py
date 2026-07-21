@@ -56,18 +56,33 @@ def _fetch_snapshots(symbols: list[str], headers: dict) -> dict:
             )
             return resp.json() if resp.status_code == 200 else {}
         except Exception:
-            logger.debug("_fetch_snapshots chunk network error", exc_info=True)
+            logger.warning("_fetch_snapshots chunk network error (%d syms)", len(chunk), exc_info=True)
             return {}
 
     result: dict = {}
+    failed_futures = 0
     with ThreadPoolExecutor(max_workers=SNAPSHOT_WORKERS) as pool:
         futures = {pool.submit(_fetch_chunk, c): c for c in chunks}
         for fut in as_completed(futures):
             try:
                 result.update(fut.result())
             except Exception:
-                logger.debug("_fetch_snapshots future failed", exc_info=True)
+                failed_futures += 1
+                logger.warning("_fetch_snapshots future failed", exc_info=True)
                 continue
+    if not result and chunks:
+        logger.error(
+            "_fetch_snapshots: all %d chunk(s) empty/failed for %d symbols",
+            len(chunks),
+            len(symbols),
+        )
+    elif failed_futures:
+        logger.warning(
+            "_fetch_snapshots: %d/%d futures failed; partial result size=%d",
+            failed_futures,
+            len(chunks),
+            len(result),
+        )
     return result
 
 

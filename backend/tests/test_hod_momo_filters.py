@@ -62,8 +62,38 @@ def test_evaluate_strategy_passes_when_all_filters_clear():
 
 def test_fails_hod_gate_blocks_below_session_high():
     cfg = StrategyConfig(strategy_id=1, name="test", color="#fff", requires_hod=True)
-    reason = fails_hod_gate(price=9.0, session_high=10.0, cfg=cfg, master_hod_required=True)
+    reason = fails_hod_gate(
+        price=9.0, session_high=10.0, cfg=cfg, master_hod_required=True,
+        new_hod_age_sec=0.0,
+    )
     assert reason is not None and "hod(" in reason
+
+
+def test_fails_hod_gate_blocks_retest_without_new_hod():
+    cfg = StrategyConfig(strategy_id=11, name="Squeeze", color="#fff", requires_hod=True)
+    reason = fails_hod_gate(
+        price=1.34, session_high=1.34, cfg=cfg, master_hod_required=True,
+        high_seeded=True, new_hod_age_sec=None,
+    )
+    assert reason == "hod:not_new"
+
+
+def test_fails_hod_gate_blocks_stale_new_hod():
+    cfg = StrategyConfig(strategy_id=11, name="Squeeze", color="#fff", requires_hod=True)
+    reason = fails_hod_gate(
+        price=1.35, session_high=1.35, cfg=cfg, master_hod_required=True,
+        high_seeded=True, new_hod_age_sec=120.0, new_hod_grace_sec=60.0,
+    )
+    assert reason is not None and "hod:stale_new" in reason
+
+
+def test_fails_hod_gate_allows_fresh_new_hod():
+    cfg = StrategyConfig(strategy_id=11, name="Squeeze", color="#fff", requires_hod=True)
+    reason = fails_hod_gate(
+        price=1.35, session_high=1.35, cfg=cfg, master_hod_required=True,
+        high_seeded=True, new_hod_age_sec=5.0, new_hod_grace_sec=60.0,
+    )
+    assert reason is None
 
 
 def test_fails_hod_gate_allows_when_requires_hod_false():

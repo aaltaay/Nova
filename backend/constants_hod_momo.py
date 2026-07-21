@@ -28,6 +28,11 @@ HOD_MOMO_CONSOLIDATION_SEC = 10.0    # batch same-ticker alerts (Warrior "N in X
 # HOD truth: last must be within this of session high (abs $ or relative).
 HOD_MOMO_HOD_EPSILON_ABS = 0.01
 HOD_MOMO_HOD_EPSILON_PCT = 0.001     # 0.1%
+# Warrior BA101 / KB: HOD Momentum needs a *new* high-of-day (+ momentum), not
+# every retest of an already-set high (that's Running Up). After an observed /
+# tick-6 raise of the session high, allow requires_hod strategies this long
+# while price stays near the high (KB: alert may confirm within ~1 minute).
+HOD_MOMO_NEW_HOD_GRACE_SEC = 60.0
 # Raw observability — when True, strategy float/RVOL/price gates are skipped
 # (master = data-ready; HOD still requires high_seeded for requires_hod strats).
 HOD_RAW_MODE = _os.environ.get("HOD_RAW_MODE", "").strip().lower() in (

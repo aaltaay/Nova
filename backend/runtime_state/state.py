@@ -71,6 +71,9 @@ class ScannerRuntimeState:
     gapper_cache: list[ScannerRow] = field(default_factory=list)
     gapper_cache_ts: float = 0.0
     last_discovery_ts: float = 0.0
+    # Last IBKR thread→asyncio bridge failure (loud; UI/integrity can surface).
+    ibkr_bridge_last_error: str = ""
+    ibkr_bridge_last_error_ts: float = 0.0
 
     afterhours_cache: list[ScannerRow] = field(default_factory=list)
     afterhours_cache_ts: float = 0.0

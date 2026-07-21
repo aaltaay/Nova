@@ -33,17 +33,22 @@ Never commit `config.ini`. Add to your global gitignore if needed:
 
 ## Launch
 
-From PowerShell (after copying the example script):
+Preferred (after local setup under `%USERPROFILE%\.nova\ibc\`):
 
 ```powershell
-# One-time: copy example → local launcher
-Copy-Item scripts\start_gateway_ibc.ps1.example $env:USERPROFILE\.nova\ibc\start_gateway.ps1
+# Edit credentials once:
+notepad $env:USERPROFILE\.nova\ibc\config.ini
 
-# Edit paths inside that local script, then:
+# Then:
 & "$env:USERPROFILE\.nova\ibc\start_gateway.ps1"
 ```
 
-Or run IBC’s own `StartGateway.bat` pointing at your `config.ini`.
+Use the **local** `StartGateway.bat` in `.nova\ibc\` (not stock `C:\IBC\StartGateway.bat`).
+Stock IBC defaults to `Documents\IBC\config.ini` and an outdated `TWS_MAJOR_VRSN`.
+The Nova wrapper sets `CONFIG`, `TWS_MAJOR_VRSN=1045`, `TRADING_MODE=paper` (match `.env`),
+and `TWOFA_TIMEOUT_ACTION=restart`.
+
+Optional template in-repo: `scripts/start_gateway_ibc.ps1.example`.
 
 ## Nova behavior after IBC
 
@@ -55,8 +60,48 @@ Or run IBC’s own `StartGateway.bat` pointing at your `config.ini`.
 not store passwords in the chat or the repo (see
 `.cursor/rules/ibkr-gateway-login-warning.mdc`).
 
+## Switching Paper ↔ Live from Nova's UI
+
+The Stock View header's **Paper / Live** capsule switches which Gateway **port**
+Nova dials (`IBKR_GATEWAY_MODE` → 4002 paper / 4001 live, persisted to `.env`) and
+reconnects. It does **not** log you into Gateway and does **not** arm live spend:
+
+1. **You** must already have IB Gateway running and logged into the account that
+   matches the mode you're switching to, with the API enabled on that port —
+   IBC above, or manual login. Nova never types credentials.
+2. Click Live/Paper in Nova → confirm → Nova persists the mode and reconnects.
+   If the target port refuses or times out, the capsule shows the error inline
+   (e.g. "start IB Gateway logged into the live account…") instead of quietly
+   reappearing as Paper.
+3. If the live port answers but the logged-in account is actually paper
+   (`DU…`/`DF…`), Nova disconnects and refuses rather than pretending Live.
+4. Live spend (`IBKR_LIVE_TRADING_CONFIRMED`) is a **separate** key — the switch
+   never sets it. Orders stay `locked_live_unconfirmed` until you arm it in `.env`.
+
+See `backend/ibkr/client.py::request_gateway_mode` and
+`POST /api/ibkr/gateway-mode`.
+
+## Gateway green ≠ Nova connected
+
+IB Gateway can show farms ON / “API connected” while Nova stays **Disconnected**
+when the wrong local API port is listening:
+
+| Nova `IBKR_GATEWAY_MODE` | Listening port | Result |
+|---|---|---|
+| `live` | 4002 paper only | Self-heal → paper (refuse only; never on timeout) |
+| `paper` | 4001 live only | **Stay disconnected** — never auto paper→live |
+
+`GET /api/ibkr/status` exposes `preferred_port`, `preferred_port_reachable`,
+`alternate_port_reachable`, and `disconnect_hint` (e.g.
+`paper_port_refused_live_listening`) so the UI can say which port failed.
+
+After pulling a build that adds `POST /api/ibkr/gateway-mode`, **restart the
+Nova API** (stale uvicorn returns 404; the capsule then says “Restart Nova API”).
+Smoke: open `http://127.0.0.1:8000/openapi.json` and confirm `/api/ibkr/gateway-mode`.
+
 ## Related
 
 - `scripts/start_gateway_ibc.ps1.example` — template launcher (no secrets)
 - `scripts/smoke_check.ps1` — post-login API smoke
 - `IBKR_GATEWAY_MODE` / `IBKR_LIVE_PORT` / `IBKR_PAPER_PORT` in `.env`
+- `.cursor/rules/ibkr-gateway-login-warning.mdc` — loud-warn vs self-heal asymmetry

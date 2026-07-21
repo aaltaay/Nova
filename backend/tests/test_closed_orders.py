@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 import ibkr.orders as orders_mod
+from ibkr.errors import IbkrAccountError
 
 
 def _trade(order_id: int, symbol: str, status: str, filled: float = 0.0):
@@ -53,6 +56,9 @@ def test_closed_orders_respects_limit(monkeypatch):
     assert rows[0]["order_id"] == 5
 
 
-def test_closed_orders_empty_when_disconnected(monkeypatch):
+def test_closed_orders_raises_when_disconnected(monkeypatch):
+    """A disconnected read must not look like "no closed orders" — see
+    ibkr/errors.IbkrAccountError docstring."""
     monkeypatch.setattr(orders_mod._client, "get_ib", lambda: None)
-    assert orders_mod.closed_orders() == []
+    with pytest.raises(IbkrAccountError, match="not connected"):
+        orders_mod.closed_orders()

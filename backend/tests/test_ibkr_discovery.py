@@ -16,8 +16,10 @@ import ibkr.discovery as discovery
 def _reset_scan_cache():
     """scan_symbols() now short-TTL-caches results — isolate tests from it."""
     discovery.reset_scan_cache()
+    discovery._qualified_contracts.clear()
     yield
     discovery.reset_scan_cache()
+    discovery._qualified_contracts.clear()
 
 
 class _FakeContract:
@@ -63,14 +65,32 @@ class _FakeIB:
 
 
 def _patch_client(monkeypatch, fake_ib):
+    """Wire fake IB + stub ib_async types so fail-loud discovery can construct subs."""
     monkeypatch.setattr(discovery._client, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+
+    class _Sub:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+            if not hasattr(self, "belowPrice"):
+                self.belowPrice = None
+
+    class _Stock:
+        def __init__(self, symbol, exchange, currency):
+            self.symbol = symbol
+            self.exchange = exchange
+            self.currency = currency
+            self.primaryExchange = "NASDAQ"
+
+    monkeypatch.setattr(discovery, "_ScannerSubscription", _Sub)
+    monkeypatch.setattr(discovery, "_Stock", _Stock)
 
 
 class TestScanSymbols:
-    def test_no_ib_returns_empty(self, monkeypatch):
+    def test_no_ib_raises_discovery_error(self, monkeypatch):
         monkeypatch.setattr(discovery._client, "get_ib", lambda: None)
-        result = asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN"))
-        assert result == []
+        with pytest.raises(discovery.IbkrDiscoveryError, match="not connected"):
+            asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN"))
 
     def test_dedupes_and_preserves_order(self, monkeypatch):
         fake_ib = _FakeIB([_FakeScanRow("AAA"), _FakeScanRow("BBB"), _FakeScanRow("AAA")], [])
@@ -162,6 +182,14 @@ class TestSnapshotQuotes:
         _patch_client(monkeypatch, fake_ib)
         quotes = asyncio.run(discovery.snapshot_quotes(["XYZ"]))
         assert quotes["XYZ"]["price"] == 5.0
+
+    def test_keeps_last_when_close_missing(self, monkeypatch):
+        tickers = [_FakeTicker("LASTONLY", last=9.5, close=float("nan"))]
+        fake_ib = _FakeIB([], tickers)
+        _patch_client(monkeypatch, fake_ib)
+        quotes = asyncio.run(discovery.snapshot_quotes(["LASTONLY"]))
+        assert quotes["LASTONLY"]["price"] == 9.5
+        assert quotes["LASTONLY"]["prev_close"] is None
 
 
 class TestGetGappers:

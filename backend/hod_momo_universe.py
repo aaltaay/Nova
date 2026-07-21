@@ -21,8 +21,17 @@ from constants import IBKR_HOD_SEED_BELOW_PRICE
 _seed_symbols: list[str] = []
 
 
-def set_seed_symbols(symbols: Iterable[str]) -> None:
-    """Replace the volume-seed watch set (called from the seed refresh loop)."""
+def set_seed_symbols(
+    symbols: Iterable[str],
+    *,
+    allow_empty: bool = False,
+) -> bool:
+    """Replace the volume-seed watch set (called from the seed refresh loop).
+
+    Returns True when the set was updated. Refuses to wipe a non-empty prior
+    set with ``[]`` unless ``allow_empty`` is True (transport failures must
+    not clear HOD volume seeds).
+    """
     global _seed_symbols
     out: list[str] = []
     seen: set[str] = set()
@@ -32,7 +41,10 @@ def set_seed_symbols(symbols: Iterable[str]) -> None:
             continue
         seen.add(sym)
         out.append(sym)
+    if not out and _seed_symbols and not allow_empty:
+        return False
     _seed_symbols = out
+    return True
 
 
 def get_seed_symbols() -> list[str]:

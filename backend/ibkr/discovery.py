@@ -39,6 +39,7 @@ from constants import (
     SCANNER_MIN_PRICE,
 )
 from ibkr import client as _client
+from ibkr.errors import IbkrDiscoveryError, describe_exc
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,11 @@ async def scan_symbols(
     *,
     below_price: float | None = None,
 ) -> list[str]:
-    """One-shot market scan. Returns up to num_rows unique ranked symbols."""
+    """One-shot market scan. Returns up to num_rows unique ranked symbols.
+
+    Raises ``IbkrDiscoveryError`` on disconnect / API failure.
+    Returns ``[]`` only when IB answered successfully with zero symbols.
+    """
     cache_key = (scan_code, num_rows, float(below_price) if below_price else None)
     cached = _scan_cache.get(cache_key)
     now_mono = time.monotonic()
@@ -105,7 +110,10 @@ async def scan_symbols(
 
     ib = _client.get_ib()
     if ib is None or not _load_ib_types():
-        return []
+        raise IbkrDiscoveryError(
+            f"IBKR not connected for scanner {scan_code} "
+            f"(ib={'none' if ib is None else 'present'})"
+        )
     sub = _ScannerSubscription(
         numberOfRows=num_rows,
         instrument=IBKR_SCAN_INSTRUMENT,
@@ -118,8 +126,9 @@ async def scan_symbols(
     try:
         rows = await ib.reqScannerDataAsync(sub)
     except Exception as exc:
-        logger.exception("IBKR scanner %s failed: %s", scan_code, exc)
-        return []
+        detail = describe_exc(exc)
+        logger.exception("IBKR scanner %s failed: %s", scan_code, detail)
+        raise IbkrDiscoveryError(f"scanner {scan_code} failed: {detail}") from exc
 
     symbols: list[str] = []
     seen: set[str] = set()
@@ -149,15 +158,25 @@ async def snapshot_quotes(
     symbols: list[str],
     *,
     timeout_sec: float = IBKR_QUOTE_BATCH_TIMEOUT_SEC,
+    require_success: bool = False,
 ) -> dict[str, dict]:
     """Qualify + snapshot each symbol. Returns {symbol: {price, prev_close, open, volume}}.
 
     Reuses qualified contracts across ticks so the 1Hz table reprice loop does not
     pay qualifyContractsAsync on every second for the same universe.
     ``timeout_sec`` bounds a hung reqTickersAsync so table chunks stay responsive.
+
+    When ``require_success`` is True (discovery/movers paths), disconnect /
+    timeout / API failure raises ``IbkrDiscoveryError`` instead of returning ``{}``
+    (which callers previously treated as a successful empty market).
     """
+    if not symbols:
+        return {}
+
     ib = _client.get_ib()
-    if ib is None or not symbols or not _load_ib_types():
+    if ib is None or not _load_ib_types():
+        if require_success:
+            raise IbkrDiscoveryError("IBKR not connected for snapshot quotes")
         return {}
 
     symbols = [s.upper() for s in symbols]
@@ -167,7 +186,10 @@ async def snapshot_quotes(
         try:
             qualified = await ib.qualifyContractsAsync(*contracts)
         except Exception as exc:
-            logger.exception("IBKR: qualify batch failed: %s", exc)
+            detail = describe_exc(exc)
+            logger.exception("IBKR: qualify batch failed: %s", detail)
+            if require_success:
+                raise IbkrDiscoveryError(f"qualify failed: {detail}") from exc
             qualified = []
         for c in qualified:
             if c is None:
@@ -178,6 +200,10 @@ async def snapshot_quotes(
 
     qualified = [_qualified_contracts[s] for s in symbols if s in _qualified_contracts]
     if not qualified:
+        if require_success:
+            raise IbkrDiscoveryError(
+                f"no qualified contracts for {len(symbols)} snapshot symbol(s)"
+            )
         return {}
 
     try:
@@ -186,14 +212,21 @@ async def snapshot_quotes(
                 ib.reqTickersAsync(*qualified),
                 timeout=max(0.5, float(timeout_sec)),
             )
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as exc:
         logger.warning(
             "IBKR: snapshot timeout (%.1fs) for %d symbols",
             timeout_sec, len(qualified),
         )
+        if require_success:
+            raise IbkrDiscoveryError(
+                f"snapshot timeout ({timeout_sec:.1f}s) for {len(qualified)} symbols"
+            ) from exc
         return {}
     except Exception as exc:
-        logger.exception("IBKR: snapshot batch failed: %s", exc)
+        detail = describe_exc(exc)
+        logger.exception("IBKR: snapshot batch failed: %s", detail)
+        if require_success:
+            raise IbkrDiscoveryError(f"snapshot failed: {detail}") from exc
         return {}
 
     out: dict[str, dict] = {}
@@ -201,9 +234,12 @@ async def snapshot_quotes(
         sym = getattr(t.contract, "symbol", None)
         if not sym:
             continue
+        # Last preferred; close is a fallback print AND the usual prior close.
+        # Do not require both — missing close used to drop the symbol entirely,
+        # which blanked Stock View header price/change (symbol-only chip).
         price = _clean(t.last) or _clean(t.close)
         prev_close = _clean(t.close)
-        if price is None or prev_close is None:
+        if price is None:
             continue
         out[sym] = {
             "price": price,
@@ -244,7 +280,10 @@ async def get_gappers() -> list[dict]:
             IBKR_SCAN_CODE_GAINERS,
         )
         symbols = await scan_symbols(IBKR_SCAN_CODE_GAINERS)
-    quotes = await snapshot_quotes(symbols)
+    if not symbols:
+        logger.info("IBKR gappers: both scanner codes returned 0 symbols (empty market)")
+        return []
+    quotes = await snapshot_quotes(symbols, require_success=True)
 
     rows: list[dict] = []
     for sym, q in quotes.items():
@@ -275,7 +314,9 @@ async def _get_movers(
     scan_code: str, reverse: bool, *, below_price: float | None = None,
 ) -> list[dict]:
     symbols = await scan_symbols(scan_code, below_price=below_price)
-    quotes = await snapshot_quotes(symbols)
+    if not symbols:
+        return []
+    quotes = await snapshot_quotes(symbols, require_success=True)
 
     rows: list[dict] = []
     for sym, q in quotes.items():
@@ -330,9 +371,13 @@ async def scan_hod_momentum_seeds() -> list[str]:
     consume the list head), then HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE
     / uncapped TOP_PERC_GAIN. Appending the below-price pass after ~150 volume
     rows left PN/BTMD-class squeezes outside the reserved L1 seed quota.
+
+    Transport failures on individual codes are logged and skipped; if **every**
+    code fails, raises ``IbkrDiscoveryError`` so callers keep prior seeds.
     """
     seen: set[str] = set()
     ordered: list[str] = []
+    failures: list[str] = []
 
     def _add(symbols: list[str]) -> None:
         for sym in symbols:
@@ -340,15 +385,24 @@ async def scan_hod_momentum_seeds() -> list[str]:
                 seen.add(sym)
                 ordered.append(sym)
 
+    async def _safe_scan(code: str, **kwargs) -> None:
+        try:
+            _add(await scan_symbols(code, **kwargs))
+        except IbkrDiscoveryError as exc:
+            failures.append(f"{code}: {describe_exc(exc)}")
+            logger.warning("HOD seed scan skipped (%s): %s", code, describe_exc(exc))
+
     # Head of list → HOD active seed_slots. Sub-$N % gainers before volume.
-    _add(
-        await scan_symbols(
-            IBKR_SCAN_CODE_GAINERS,
-            below_price=IBKR_HOD_SEED_BELOW_PRICE,
-        )
+    await _safe_scan(
+        IBKR_SCAN_CODE_GAINERS,
+        below_price=IBKR_HOD_SEED_BELOW_PRICE,
     )
     for code in IBKR_SCAN_HOD_SEED_CODES:
-        _add(await scan_symbols(code))
+        await _safe_scan(code)
+    if not ordered and failures:
+        raise IbkrDiscoveryError(
+            "all HOD seed scanners failed: " + "; ".join(failures[:4])
+        )
     return ordered
 
 

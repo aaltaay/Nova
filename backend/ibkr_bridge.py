@@ -29,12 +29,39 @@ from ticker import _ticker_ws_clients
 logger = logging.getLogger(__name__)
 
 
-def run_ibkr(coro):
-    """Bridge an ibkr coroutine into this thread; [] on any failure."""
+class IbkrBridgeError(RuntimeError):
+    """Thread→asyncio IBKR bridge timed out or raised."""
+
+
+def run_ibkr(coro, *, on_error: str = "none", label: str = "ibkr"):
+    """Bridge an ibkr coroutine into this thread.
+
+    ``on_error`` (default ``none`` — fail loud / keep last-good):
+      - ``none`` — return ``None`` so callers can keep last-good caches
+      - ``empty`` — return ``[]`` (legacy list-shaped callers only)
+      - ``raise`` — raise ``IbkrBridgeError`` (never silent)
+    """
     try:
         return _ibkr_client.run_coro(coro, timeout=IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC)
     except Exception as exc:
-        logger.warning("IBKR discovery bridge failed: %s", exc)
+        # TimeoutError / CancelledError often stringify to "" — always log type+repr.
+        detail = f"{type(exc).__name__}: {exc!r}"
+        logger.error(
+            "IBKR discovery bridge failed (%s): %s",
+            label,
+            detail,
+            exc_info=True,
+        )
+        try:
+            state = get_runtime_state()
+            state.ibkr_bridge_last_error = f"{label}: {detail}"
+            state.ibkr_bridge_last_error_ts = time.time()
+        except Exception:
+            logger.debug("could not record ibkr_bridge_last_error", exc_info=True)
+        if on_error == "raise":
+            raise IbkrBridgeError(detail) from exc
+        if on_error == "none":
+            return None
         return []
 
 

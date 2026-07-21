@@ -120,6 +120,67 @@ def test_heal_target_allowed_paper_only():
     assert heal.heal_target_allowed(from_mode="live", to_mode="live") is False
 
 
+def test_intentional_mode_is_sticky_not_timed():
+    """User intent must not expire after ~18s the way the old suppress timer did."""
+    assert heal.self_heal_suppressed() is False
+    heal.set_intentional_mode("live")
+    assert heal.self_heal_suppressed() is True
+    assert heal.intentional_mode() == "live"
+    # Sticky — still suppressed (no sleep/expiry).
+    assert heal.self_heal_suppressed() is True
+    heal.clear_intentional_mode(reason="test")
+    assert heal.self_heal_suppressed() is False
+
+
+def test_try_connect_alternate_port_skips_when_intentional(monkeypatch):
+    """Intentional live switch in progress: a refused live port must surface
+    honestly, not silently self-heal back to paper mid-switch."""
+    monkeypatch.setenv("IBKR_GATEWAY_SELF_HEAL", "true")
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "live")
+    heal.set_intentional_mode("live")
+    ib = MagicMock()
+    ib.connectAsync = AsyncMock()
+
+    async def _run():
+        return await ibkr_client._try_connect_alternate_port(
+            ib, "127.0.0.1", "live", 17, "refused",
+        )
+
+    assert asyncio.run(_run()) is None
+    ib.connectAsync.assert_not_called()
+    assert heal.heal_status()["gateway_self_heal"] is None
+
+
+def test_try_connect_alternate_skips_timeout_not_refused(monkeypatch):
+    """Timeout / Error 326 must not trigger live→paper heal."""
+    monkeypatch.setenv("IBKR_GATEWAY_SELF_HEAL", "true")
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "live")
+    ib = MagicMock()
+    ib.connectAsync = AsyncMock()
+
+    async def _run():
+        return await ibkr_client._try_connect_alternate_port(
+            ib, "127.0.0.1", "live", 17, "timeout",
+        )
+
+    assert asyncio.run(_run()) is None
+    ib.connectAsync.assert_not_called()
+
+
+def test_clear_last_heal_on_preferred_connect():
+    heal.record_heal(
+        from_mode="live",
+        to_mode="paper",
+        reason="refused",
+        preferred_port=4001,
+        healed_port=4002,
+        persisted=True,
+    )
+    assert heal.heal_status()["gateway_self_heal"] is not None
+    heal.record_connect_outcome("connected", reason="ok", mode="live")
+    assert heal.heal_status()["gateway_self_heal"] is None
+
+
 def test_try_connect_alternate_never_heals_paper_to_live(monkeypatch):
     """Paper pin: preferred paper down must NOT attach to live 4001."""
     monkeypatch.setenv("IBKR_GATEWAY_SELF_HEAL", "true")

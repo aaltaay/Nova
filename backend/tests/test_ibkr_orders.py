@@ -2,7 +2,41 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
+import pytest
+
+import ibkr.client as client_mod
 from ibkr import orders
+from ibkr.errors import IbkrAccountError
+
+
+def test_open_orders_raises_when_disconnected(monkeypatch):
+    monkeypatch.setattr(client_mod, "get_ib", lambda: None)
+    with pytest.raises(IbkrAccountError, match="not connected"):
+        orders.open_orders()
+
+
+def test_open_orders_raises_on_error(monkeypatch):
+    fake_ib = MagicMock()
+    fake_ib.openTrades.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    with pytest.raises(IbkrAccountError, match="boom"):
+        orders.open_orders()
+
+
+def test_closed_orders_raises_when_disconnected(monkeypatch):
+    monkeypatch.setattr(client_mod, "get_ib", lambda: None)
+    with pytest.raises(IbkrAccountError, match="not connected"):
+        orders.closed_orders()
+
+
+def test_closed_orders_raises_on_error(monkeypatch):
+    fake_ib = MagicMock()
+    fake_ib.trades.side_effect = RuntimeError("boom")
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    with pytest.raises(IbkrAccountError, match="boom"):
+        orders.closed_orders()
 
 
 def test_validation_requires_limit_price():

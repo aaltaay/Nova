@@ -109,6 +109,10 @@ def build_scanner_integrity_report() -> dict[str, Any]:
         "l1_active_tab": sub.get("active_tab"),
         "l1_active_hod": sub.get("active_hod"),
         "l1_error": sub.get("error"),
+        "ibkr_bridge_last_error": getattr(state, "ibkr_bridge_last_error", "") or "",
+        "ibkr_bridge_last_error_age_sec": _cache_age(
+            getattr(state, "ibkr_bridge_last_error_ts", None) or None
+        ),
     }
     report = evaluate_scanner_integrity(snap)
     report["checked_at"] = time.time()
@@ -157,4 +161,10 @@ async def integrity_loop() -> None:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning("Integrity loop error: %s", exc)
+            from ibkr.errors import describe_exc
+
+            logger.warning(
+                "Integrity loop error: %s",
+                describe_exc(exc),
+                exc_info=True,
+            )

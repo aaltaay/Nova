@@ -99,11 +99,11 @@ def _cancel_protective_legs(pos: "OpenPosition") -> list[int]:
     if _ibkr_client.is_connected():
         try:
             open_ids = {o["order_id"] for o in _orders.open_orders()}
-        except IbkrAccountError as exc:
+        except IbkrAccountError:
             # Cannot verify which legs are still working — leave them alone
             # rather than guessing. We're about to sell the real qty below
             # regardless, so a leg we fail to cancel here is not a new risk.
-            logger.error("flatten: open_orders failed for %s — leaving legs uncancelled: %s", pos.symbol, exc)
+            logger.exception("flatten: open_orders failed for %s — leaving legs uncancelled", pos.symbol)
     for order_id in (pos.parent_order_id, pos.target_order_id, pos.stop_order_id):
         if order_id not in open_ids:
             continue
@@ -170,9 +170,7 @@ def flatten_positions(confirm_token: str) -> dict:
             # Cannot verify real IBKR qty — abort rather than assume flat.
             # Positions already processed this call are untouched; the rest
             # (including this symbol) are left tracked for a retry.
-            logger.error(
-                "flatten: aborting — cannot verify %s position at IBKR: %s", symbol, exc,
-            )
+            logger.exception("flatten: aborting — cannot verify %s position at IBKR", symbol)
             return {
                 "ok": False,
                 "error": (

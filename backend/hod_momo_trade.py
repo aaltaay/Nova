@@ -14,6 +14,7 @@ from constants import (
     HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
     HOD_MOMO_HOD_EPSILON_ABS,
     HOD_MOMO_HOD_EPSILON_PCT,
+    HOD_MOMO_NEW_HOD_GRACE_SEC,
     HOD_MOMO_RVOL_USE_PACE,
     HOD_MOMO_RVOL_WARMUP_GRACE_SEC,
     HOD_MOMO_SUPPRESS_ALERTS_ON_INTEGRITY_FAIL,
@@ -96,7 +97,7 @@ def on_trade_update(
             day_high = None
     if day_high is not None:
         _high.apply_day_high(symbol, day_high)
-    _high.raise_observed_high(symbol, price)
+    _high.raise_observed_high(symbol, price, now_ts=float(ts) if ts else None)
 
     snap = state.ticker_snaps.setdefault(symbol, TickerSnap())
     snap.price = price
@@ -206,6 +207,10 @@ def on_trade_update(
             high_seeded=_high.is_high_seeded(symbol),
             epsilon_abs=HOD_MOMO_HOD_EPSILON_ABS,
             epsilon_pct=HOD_MOMO_HOD_EPSILON_PCT,
+            new_hod_age_sec=_high.last_new_hod_age_sec(
+                symbol, now_ts=float(ts) if ts else None,
+            ),
+            new_hod_grace_sec=HOD_MOMO_NEW_HOD_GRACE_SEC,
         )
         if hod_block:
             strategy_decisions.append(

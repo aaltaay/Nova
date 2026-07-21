@@ -89,9 +89,13 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
             avg_vol = slow.get("avg_volume")
             daily_vol = (fast.get("snapshot", {}).get("daily_bar") or {}).get("volume") or 0
             rel_vol = round(daily_vol / avg_vol, 2) if avg_vol and avg_vol > 0 and daily_vol > 0 else fast.get("rel_volume")
+            from listing_compare import build_listing_compare
             from news.enrich import build_ticker_news_impact
             news_impact = build_ticker_news_impact(
                 symbol, slow.get("news") or [], fast.get("snapshot"), rel_vol
+            )
+            listing = await loop.run_in_executor(
+                None, lambda: build_listing_compare(symbol, fast.get("asset") or {})
             )
             await websocket.send_text(json.dumps({
                 "type": "detail_update",
@@ -102,6 +106,7 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
                 "rvol_5min": fast.get("rvol_5min"),
                 "volume_in_5min": fast.get("volume_in_5min"),
                 "news_impact": news_impact,
+                "listing": listing,
             }))
 
         while True:

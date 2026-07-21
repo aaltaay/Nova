@@ -178,8 +178,14 @@ async def _reconcile_once(
 
         raw_hod = [s for s in raw_hod if not _hod_active.is_l1_subscribe_blocked(s)]
         raw_tab = [s for s in raw_tab if not _hod_active.is_l1_subscribe_blocked(s)]
-    except Exception:
-        pass
+    except Exception as exc:
+        from ibkr.errors import describe_exc
+
+        logger.warning(
+            "IBKR L1: blocklist filter skipped: %s",
+            describe_exc(exc),
+            exc_info=True,
+        )
     plan = plan_stream_symbols(raw_tab, raw_hod)
 
     # Brief grace: keep prior tab streams during switch so prices don't blink out.

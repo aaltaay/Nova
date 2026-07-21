@@ -26,10 +26,21 @@ async def seed_refresh_loop(get_provider: Callable[[], str]) -> None:
             if (get_provider() or "").strip().lower() != "ibkr":
                 continue
             symbols = await _discovery.scan_hod_momentum_seeds()
-            _uni.set_seed_symbols(symbols)
+            updated = _uni.set_seed_symbols(symbols)
             if symbols:
                 logger.info("HOD Momo seeds: %d symbols from IBKR volume scans", len(symbols))
+            elif not updated:
+                logger.error(
+                    "HOD Momo seed refresh returned 0 symbols — keeping %d prior seed(s)",
+                    len(_uni.get_seed_symbols()),
+                )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            logger.warning("HOD Momo seed refresh failed: %s", exc)
+            from ibkr.errors import describe_exc
+
+            logger.warning(
+                "HOD Momo seed refresh failed: %s",
+                describe_exc(exc),
+                exc_info=True,
+            )

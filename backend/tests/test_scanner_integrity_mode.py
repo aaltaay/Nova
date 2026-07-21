@@ -81,3 +81,17 @@ def test_empty_stale_gainers_fail_in_rth():
     ))
     g = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
     assert g["status"] == "fail"
+
+
+def test_empty_premarket_gappers_fail_when_ibkr_connected():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="premarket",
+        gapper_count=0,
+        gapper_age_sec=40.0,
+        ibkr_bridge_last_error="gappers: TimeoutError: TimeoutError()",
+    ))
+    gap = next(c for c in report["checks"] if c["id"] == "scanner_gappers")
+    assert gap["status"] == "fail"
+    assert "bridge" in gap["detail"].lower() or "0 rows" in gap["detail"]
+    bridge = next(c for c in report["checks"] if c["id"] == "scanner_ibkr_bridge")
+    assert bridge["status"] == "fail"

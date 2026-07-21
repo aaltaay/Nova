@@ -20,6 +20,7 @@ import hod_momo as _hod_momo
 from alpaca import _get_feed
 from cache import list_history_dates, load_snapshot_for_date
 from constants import NOVA_API_REV
+from integrations_health import health_with_integrations
 from runtime_state import get_runtime_state
 
 router = APIRouter(tags=["scan"])
@@ -31,6 +32,10 @@ def _strip_blocked(rows: list[dict]) -> list[dict]:
     return _exchanges.attach_exchanges(out)
 
 
+def _scan_health() -> dict:
+    return health_with_integrations(get_runtime_state().cached_health)
+
+
 @router.get("/api/gappers")
 def get_gappers():
     """Pre-market gapper list. Returns cached data instantly."""
@@ -38,7 +43,7 @@ def get_gappers():
     return {
         "rev": NOVA_API_REV,
         "mode": state.current_mode,
-        "health": state.cached_health,
+        "health": _scan_health(),
         "data_feed": _get_feed(),
         "gappers": _strip_blocked(state.gapper_cache),
         "last_scan": state.gapper_cache_ts,
@@ -52,7 +57,7 @@ def get_movers():
     return {
         "rev": NOVA_API_REV,
         "mode": state.current_mode,
-        "health": state.cached_health,
+        "health": _scan_health(),
         "gainers": _strip_blocked(state.gainer_cache),
         "losers": _strip_blocked(state.loser_cache),
         "last_scan": state.gainer_cache_ts,
@@ -66,7 +71,7 @@ def get_afterhours():
     return {
         "rev": NOVA_API_REV,
         "mode": state.current_mode,
-        "health": state.cached_health,
+        "health": _scan_health(),
         "afterhours": _strip_blocked(state.afterhours_cache),
         "last_scan": state.afterhours_cache_ts,
     }
@@ -79,7 +84,7 @@ def get_news_catalysts():
     return {
         "rev": NOVA_API_REV,
         "mode": state.current_mode,
-        "health": state.cached_health,
+        "health": _scan_health(),
         "catalysts": _strip_blocked(state.news_catalyst_cache),
         "last_scan": state.news_catalyst_cache_ts,
     }

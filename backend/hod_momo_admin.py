@@ -14,6 +14,7 @@ import hod_momo_high as _high
 from constants import (
     HOD_MOMO_HOD_EPSILON_ABS,
     HOD_MOMO_HOD_EPSILON_PCT,
+    HOD_MOMO_NEW_HOD_GRACE_SEC,
     HOD_MOMO_RVOL_WARMUP_GRACE_SEC,
     HOD_MOMO_STRATEGY_ID_MAX,
 )
@@ -192,6 +193,8 @@ def would_fire_now(symbol: str) -> dict:
             high_seeded=_high.is_high_seeded(symbol),
             epsilon_abs=HOD_MOMO_HOD_EPSILON_ABS,
             epsilon_pct=HOD_MOMO_HOD_EPSILON_PCT,
+            new_hod_age_sec=_high.last_new_hod_age_sec(symbol),
+            new_hod_grace_sec=HOD_MOMO_NEW_HOD_GRACE_SEC,
         )
         if hod_block:
             results.append(

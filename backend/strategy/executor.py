@@ -152,7 +152,14 @@ def _cancel_bracket_if_parent_unfilled(pos: OpenPosition) -> tuple[list[int], st
     """
     if not _ibkr_client.is_connected():
         return [], "unknown_state"
-    open_ids = {o["order_id"] for o in _orders.open_orders()}
+    try:
+        open_ids = {o["order_id"] for o in _orders.open_orders()}
+    except _orders.IbkrAccountError as exc:
+        # Cannot verify whether the parent is still working — treat as
+        # unknown rather than guessing "unfilled" and cancelling a filled
+        # position's live protective stop/target.
+        logger.error("kill/cancel: open_orders failed for %s — %s", pos.symbol, exc)
+        return [], "unknown_state"
     if pos.parent_order_id not in open_ids:
         return [], "preserved_protective"
     cancelled: list[int] = []

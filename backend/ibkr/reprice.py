@@ -74,7 +74,11 @@ def reprice_detail_symbols(
     )
     if not backstop_symbols:
         return
+    # Injected run_ibkr must accept a single coro (tests); production bridge
+    # defaults on_error="none" so failures are None, not [].
     quotes = run_ibkr(_ibkr_discovery.snapshot_quotes(backstop_symbols))
+    if not isinstance(quotes, dict):
+        return
     for sym in backstop_symbols:
         row = find_cache_row(sym)
         q = quotes.get(sym) if quotes else None

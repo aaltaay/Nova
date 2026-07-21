@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
 from constants import TICKER_AVG_VOLUME_CACHE_ONLY, TICKER_SLOW_CACHE_TTL
 from runtime_state import get_runtime_state
+from listing_compare import alpaca_listing_from_asset, build_listing_compare
 from ticker_alpaca import fetch_ticker_asset, fetch_ticker_news
 from ticker_cache import _ticker_slow_cache, _ticker_slow_cache_ts
 
@@ -80,9 +81,14 @@ def build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> d
     return {
         "symbol": symbol,
         "asset": asset,
-        "snapshot": snapshot,
+        "listing": {
+            "symbol": symbol,
+            "alpaca": alpaca_listing_from_asset(asset),
+            "ibkr": None,  # filled on detail_update / REST full build
+        },
         "avg_volume": avg_vol,
         "rel_volume": rel_vol,
+        "snapshot": snapshot,
         **rvol5,
         "news": [],
         "fundamentals": {},
@@ -142,9 +148,12 @@ def build_ticker_detail(symbol: str) -> dict:
     rvol5 = rvol_5min_fields(symbol, avg_vol, daily_vol)
 
     from news.enrich import build_ticker_news_impact
+
+    asset = fast.get("asset") or {}
     return {
         "symbol": symbol,
-        "asset": fast.get("asset") or {},
+        "asset": asset,
+        "listing": build_listing_compare(symbol, asset),
         "snapshot": snapshot,
         "avg_volume": avg_vol,
         "rel_volume": rel_vol,

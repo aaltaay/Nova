@@ -73,6 +73,7 @@ def root():
 
 @router.get("/api/health")
 def health_check():
+    from integrations_health import build_integrations_status
     from observability import sentry_enabled
 
     state = get_runtime_state()
@@ -81,6 +82,7 @@ def health_check():
         "data_feed": _get_feed(),
         "feed_fell_back": _alpaca._feed_fell_back,
         "sentry_enabled": sentry_enabled(),
+        "integrations": build_integrations_status(),
     }
 
 

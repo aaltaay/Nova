@@ -58,6 +58,7 @@ def check_and_reset_session() -> bool:
     state.session_high_seeded = set()
     state.day_highs = {}
     state.session_high_source = {}
+    state.session_high_raised_ts = {}
     state.cooldown = {}
     state.pending_consolidation = {}
     state.price_buffer = {}

@@ -41,6 +41,7 @@ If empty scanners look like “no gaps,” check IBKR first — see **IB Gateway
 2. **IB Gateway logged in** on the **paper** port when discovery is `ibkr` (usual paper API port `4002`)
 3. `IBKR_ENABLED` / order flags appropriate for **paper** only — never set live-confirm flags for this protocol
 4. Archive maintenance on if you want cold days for review: `ARCHIVE_MAINTENANCE_ENABLED=true` (local `.env`)
+5. After Open/Closed Orders UI or qty/time changes, run the human field smoke: [`docs/paper-orders-field-checklist.md`](./paper-orders-field-checklist.md) (agents never place orders for it)
 
 ### ACTION REQUIRED — IB Gateway login
 

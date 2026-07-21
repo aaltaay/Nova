@@ -49,11 +49,13 @@ def isolated_journal_db(tmp_path, monkeypatch):
 def reset_executor_state():
     control_mode.reset_for_tests()
     staged_tickets.reset_for_tests()
+    risk_mod.reset_day()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
     yield
     control_mode.reset_for_tests()
     staged_tickets.reset_for_tests()
+    risk_mod.reset_day()
     executor._kill_switch_tripped = False
     executor._open_positions.clear()
 
@@ -80,6 +82,10 @@ def _arm_ibkr_execution(monkeypatch):
     monkeypatch.setattr(executor._ibkr_client, "broker_account_kind", lambda: "paper")
     monkeypatch.setattr(executor._ibkr_client, "get_ib", lambda: None)
     monkeypatch.setattr(safety_mod, "orders_enabled", lambda: True)
+    # ibkr.safety.assert_orders_allowed reads the *real* IBKR_GATEWAY_MODE env
+    # var independently of the account_mode/broker_account_kind mocks above —
+    # pin it to paper so these tests don't depend on the developer's real .env.
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
     monkeypatch.setattr(
         account_mod,
         "get_account_summary",

@@ -34,6 +34,20 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             f"provider={provider or 'unknown'} connected={ibkr_ok} mode={mode or 'unknown'}",
         ))
 
+    bridge_err = (snap.get("ibkr_bridge_last_error") or "").strip()
+    bridge_age = snap.get("ibkr_bridge_last_error_age_sec")
+    if provider == "ibkr" and bridge_err:
+        age_bit = (
+            f" ({float(bridge_age):.0f}s ago)"
+            if bridge_age is not None
+            else ""
+        )
+        checks.append(check(
+            "scanner_ibkr_bridge",
+            "fail",
+            f"IBKR discovery bridge error{age_bit}: {bridge_err}",
+        ))
+
     for name, count_key, age_key in (
         ("gappers", "gapper_count", "gapper_age_sec"),
         ("gainers", "gainer_count", "gainer_age_sec"),
@@ -55,9 +69,15 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
 
         if age is None:
             if count <= 0:
+                # Premarket empty with no timestamp is suspicious when IBKR is up.
+                status = (
+                    "warn"
+                    if name == "gappers" and mode == "premarket" and provider == "ibkr"
+                    else "pass"
+                )
                 checks.append(check(
                     f"scanner_{name}",
-                    "pass",
+                    status,
                     f"{name}: empty (no cache yet) -- OK if another scanner list is live",
                 ))
             else:
@@ -68,6 +88,22 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
                 ))
             continue
         age_f = float(age)
+        # Premarket: 0 gappers while IBKR is connected is a fail-loud signal
+        # (bridge timeouts used to wipe the cache and look like "no gaps").
+        if (
+            name == "gappers"
+            and mode == "premarket"
+            and provider == "ibkr"
+            and count <= 0
+        ):
+            bridge_err = (snap.get("ibkr_bridge_last_error") or "").strip()
+            detail = f"gappers: 0 rows age={age_f:.0f}s while discovery=ibkr connected"
+            if bridge_err:
+                detail += f" — last bridge error: {bridge_err}"
+            else:
+                detail += " — check IBKR scanner / bridge (not a silent 'no gaps' market)"
+            checks.append(check("scanner_gappers", "fail", detail))
+            continue
         if count <= 0 and age_f > SCANNER_INTEGRITY_CACHE_STALE_SEC:
             # AH: empty/stale RTH gainers are secondary when afterhours list is live.
             ah_live = (

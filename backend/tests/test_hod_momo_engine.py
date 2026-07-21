@@ -178,14 +178,15 @@ def test_former_momo_fires_when_on_list(monkeypatch):
 
     sym = "CNEY"
     now = time.time()
-    high.apply_session_high(sym, 0.65, source="bars")
+    # Floor below final print so the last tick is a true new HOD (not a retest).
+    high.apply_session_high(sym, 0.64, source="bars")
     hm.update_ticker_snapshot(
         sym, price=0.65, change_pct=25.0, rvol=27.0,
         float_shares=5_000_000, gap_pct=29.0, volume=34_000_000,
         fifty_two_week_high=2.0, rvol_source="test",
     )
     for i, px in enumerate([0.60, 0.62, 0.64, 0.65]):
-        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=34_000_000, day_high=0.65)
+        hm.on_trade_update(sym, px, now - (4 - i) * 20.0, volume=34_000_000, day_high=0.64)
 
     pending = [
         a for bucket in state.pending_consolidation.values() for _, a in bucket
@@ -243,14 +244,14 @@ def test_medium_float_fires_without_master_surge(monkeypatch):
 
     sym = "FRE"
     now = time.time()
-    high.apply_session_high(sym, 22.65, source="bars")
+    high.apply_session_high(sym, 22.60, source="bars")
     hm.update_ticker_snapshot(
         sym, price=22.65, change_pct=8.0, rvol=3.2,
         float_shares=25_000_000, gap_pct=2.0, volume=5_000_000,
         fifty_two_week_high=40.0, rvol_source="test",
     )
     for i, px in enumerate([22.50, 22.55, 22.60, 22.65]):
-        hm.on_trade_update(sym, px, now - (4 - i) * 60.0, volume=5_000_000, day_high=22.65)
+        hm.on_trade_update(sym, px, now - (4 - i) * 60.0, volume=5_000_000, day_high=22.60)
 
     pending = [
         a for bucket in state.pending_consolidation.values() for _, a in bucket
@@ -354,7 +355,11 @@ def test_would_fire_now_queues_symbol_being_debugged_not_stale_active_symbol(mon
     state.fundamentals_queued = set()
 
     debug_sym = "DEBUGME"
-    high.apply_session_high(debug_sym, 25.0, source="bars")
+    high.apply_session_high(debug_sym, 24.90, source="bars")
+    # Fresh new-HOD window so requires_hod strategies reach the float gate.
+    high.apply_session_high(
+        debug_sym, 25.0, source="observed", open_alert_window=True,
+    )
     hm.update_ticker_snapshot(debug_sym, price=25.0)  # float_shares left None → "float:unknown"
 
     hm._would_fire_now(debug_sym)
