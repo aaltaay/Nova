@@ -185,6 +185,97 @@ def test_swallowed_tuple_except_pass_detected(mc, tmp_path: Path):
     assert any(f.kind == "swallowed_exception" for f in findings)
 
 
+def test_except_return_empty_detected(mc, tmp_path: Path):
+    p = tmp_path / "scan.py"
+    p.write_text(
+        "try:\n    x()\nexcept Exception:\n    return []\n",
+        encoding="utf-8",
+    )
+    findings = mc.check_swallowed_errors([p])
+    assert any(f.kind == "except_return_empty" for f in findings)
+
+
+def test_empty_promise_catch_detected(mc, tmp_path: Path):
+    p = tmp_path / "a.ts"
+    p.write_text("fetch('/x').catch(() => {});\n", encoding="utf-8")
+    findings = mc.check_swallowed_errors([p])
+    assert any(f.kind == "empty_promise_catch" for f in findings)
+
+
+def test_tools_scripts_exempt_from_swallow_checks(mc, tmp_path: Path, monkeypatch):
+    """tools/ one-off scripts are not the product read-paths this heuristic
+    protects — see fail-loud remainder plan bucket B."""
+    fake_root = tmp_path / "repo"
+    tools = fake_root / "tools"
+    tools.mkdir(parents=True)
+    p = tools / "script.py"
+    p.write_text("try:\n    x()\nexcept Exception:\n    return []\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    assert mc.check_swallowed_errors([p]) == []
+
+
+def test_test_files_exempt_from_swallow_checks(mc, tmp_path: Path, monkeypatch):
+    fake_root = tmp_path / "repo"
+    tests = fake_root / "backend" / "tests"
+    tests.mkdir(parents=True)
+    p = tests / "test_x.py"
+    p.write_text("try:\n    x()\nexcept Exception:\n    pass\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    assert mc.check_swallowed_errors([p]) == []
+
+
+def test_except_return_empty_allowlist_path_skipped(mc, tmp_path: Path, monkeypatch):
+    """channels_store.py / journal/tags.py / ibkr/client.py / scanner.py
+    already handle their empty-on-error case deliberately (logged disk load
+    or fail-closed account classification) — not a silent market lie."""
+    fake_root = tmp_path / "repo"
+    alerts = fake_root / "backend" / "alerts"
+    alerts.mkdir(parents=True)
+    p = alerts / "channels_store.py"
+    p.write_text("try:\n    x()\nexcept Exception:\n    return []\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    assert mc.check_swallowed_errors([p]) == []
+
+
+def test_swallowed_exception_allowlist_path_skipped(mc, tmp_path: Path, monkeypatch):
+    """ibkr/ticks.py + ibkr/order_times.py: idempotent cleanup / parse-then-
+    fall-through, already triaged as intentional — not a silent failure."""
+    fake_root = tmp_path / "repo"
+    ibkr = fake_root / "backend" / "ibkr"
+    ibkr.mkdir(parents=True)
+    p = ibkr / "ticks.py"
+    p.write_text("try:\n    x()\nexcept ValueError:\n    pass\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    assert mc.check_swallowed_errors([p]) == []
+
+
+def test_non_allowlisted_backend_module_still_flagged(mc, tmp_path: Path, monkeypatch):
+    """Guard against the allowlist swallowing everything — an unlisted
+    product module must still be flagged."""
+    fake_root = tmp_path / "repo"
+    ibkr = fake_root / "backend" / "ibkr"
+    ibkr.mkdir(parents=True)
+    p = ibkr / "some_new_module.py"
+    p.write_text("try:\n    x()\nexcept Exception:\n    return []\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    findings = mc.check_swallowed_errors([p])
+    assert any(f.kind == "except_return_empty" for f in findings)
+
+
+def test_run_checks_on_real_repo_swallow_noise_excludes_tools_and_tests(mc):
+    """Documents the bucket-B policy on the live repo: tools/ + tests never
+    contribute swallow-heuristic noise."""
+    report = mc.run_checks()
+    noisy_kinds = {"swallowed_exception", "bare_except", "except_return_empty"}
+    for f in report["findings"]:
+        if f["kind"] not in noisy_kinds:
+            continue
+        posix = f["path"].replace("\\", "/")
+        assert not posix.startswith("tools/"), f
+        assert "/tests/" not in posix, f
+        assert not posix.startswith("tests/"), f
+
+
 def test_import_main_detected_non_baseline_until_fingerprinted(mc, tmp_path: Path):
     from maintainer_lib.baselines import apply_baseline_fingerprints, fingerprint
     from maintainer_lib.deps import check_import_main
@@ -263,8 +354,8 @@ def test_run_checks_on_real_repo_reports_index_css(mc):
     baseline_paths = {
         f["path"] for f in report["findings"] if f["kind"] == "file_size_baseline"
     }
-    assert "backend/strategy/executor.py" in baseline_paths
-    # Phase 10 reduced hod_momo.py to a facade — no longer an accepted oversize baseline.
+    # No accepted oversize baselines currently (executor + hod_momo facades under limit).
+    assert "backend/strategy/executor.py" not in baseline_paths
     assert "backend/hod_momo.py" not in baseline_paths
     hard_app = [
         f

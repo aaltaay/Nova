@@ -34,12 +34,10 @@ INDEX_CSS_LIMIT = 50  # import-only barrel after Phase 2
 DOMAIN_CSS_LIMIT = 1000
 
 # Limit for "over size" reporting; accepted_lines tracks growth (Phase 0 baseline).
-BASELINE_OVER_LIMIT: dict[str, int] = {
-    "backend/strategy/executor.py": 400,
-}
-BASELINE_ACCEPTED_LINES: dict[str, int] = {
-    "backend/strategy/executor.py": 494,
-}
+# executor.py is under the hard 400-line limit again — keep dicts empty until a
+# new deliberate oversize baseline is accepted (see file-size-limits.mdc).
+BASELINE_OVER_LIMIT: dict[str, int] = {}
+BASELINE_ACCEPTED_LINES: dict[str, int] = {}
 
 HARD_LIMIT_FILES: dict[str, int] = {
     "backend/main.py": MAIN_PY_LIMIT,
@@ -90,6 +88,40 @@ SWALLOW_PY = re.compile(
 )
 BARE_EXCEPT_PY = re.compile(r"^[ \t]*except\s*:\s*", re.MULTILINE)
 EMPTY_CATCH_JS = re.compile(r"catch\s*\([^)]*\)\s*\{\s*\}", re.MULTILINE)
+# Promise .catch(() => {}) / .catch(() => {/* silent */})
+EMPTY_CATCH_PROMISE_JS = re.compile(
+    r"\.catch\(\s*\([^)]*\)\s*=>\s*\{\s*(?:/\*[^*]*\*/\s*)?\}\s*\)",
+    re.MULTILINE,
+)
+# except …: return [] / {}  (failure disguised as empty market / empty state)
+EXCEPT_RETURN_EMPTY_PY = re.compile(
+    r"^[ \t]*except\b[^\n]*:\s*(?:#.*)?\n"
+    r"(?:[ \t]+(?:logger\.[a-z_]+\([^\n]*\)|#[^\n]*)\n)*"
+    r"[ \t]+return\s+(\[\s*\]|\{\s*\})\s*(?:#.*)?$",
+    re.MULTILINE,
+)
+
+# Policy (bucket B, fail-loud remainder plan): swallow heuristics target
+# unlogged product-code silence — not tools/tests, and not paths where an
+# empty/disk-load failure is already deliberate and logged. See
+# docs/agent-operations.md "Swallow heuristic policy" for the one-paragraph
+# rationale. Do not add entries here for read paths that can silently
+# disguise a real market/account failure as empty success (e.g. scanner
+# discovery, IBKR positions/orders) — those must raise or log loudly instead.
+EXCEPT_RETURN_EMPTY_ALLOWLIST = {
+    "backend/cache.py",  # corrupt disk cache -> empty, already logged
+    "backend/alerts/channels_store.py",  # corrupt channels config -> empty, already logged
+    "backend/journal/tags.py",  # bad tag JSON -> no tags (non-trading, cosmetic)
+    "backend/ibkr/client.py",  # managedAccounts() failure -> [] then paper-pin refuses (fail-closed)
+    "backend/scanner.py",  # Alpaca snapshot/news chunk failures — already loud-logged degrades
+}
+
+# except: pass sites already triaged as intentional (idempotent cleanup /
+# parse-then-try-next-format) rather than a silently swallowed failure.
+SWALLOWED_EXCEPTION_ALLOWLIST = {
+    "backend/ibkr/ticks.py",  # idempotent listener/list.remove + skip a malformed tick field
+    "backend/ibkr/order_times.py",  # ISO parse fails -> fall through to next known format
+}
 
 SOURCE_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".css"}
 
@@ -270,40 +302,64 @@ def check_secrets(files: list[Path]) -> list[Finding]:
     return findings
 
 
+def _is_tools_path(path: Path) -> bool:
+    return "tools" in {p.lower() for p in path.parts}
+
+
 def check_swallowed_errors(files: list[Path]) -> list[Finding]:
     findings: list[Finding] = []
     for path in files:
         if path.suffix == ".css":
             continue
         rel = _rel(path)
+        rel_posix = rel.replace("\\", "/")
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
         if path.suffix == ".py":
-            for match in SWALLOW_PY.finditer(text):
-                line = text.count("\n", 0, match.start()) + 1
-                findings.append(
-                    Finding(
-                        kind="swallowed_exception",
-                        path=rel,
-                        detail="except …: pass/… swallow",
-                        line=line,
+            # tools/ scripts and tests are deterministic/idempotent one-offs,
+            # not the product read-paths this heuristic exists to protect
+            # (see EXCEPT_RETURN_EMPTY_ALLOWLIST docstring policy note).
+            skip_py_swallow_checks = _is_tools_path(path) or _is_test_path(path)
+            if not skip_py_swallow_checks:
+                for match in SWALLOW_PY.finditer(text):
+                    line = text.count("\n", 0, match.start()) + 1
+                    if rel_posix in SWALLOWED_EXCEPTION_ALLOWLIST:
+                        continue
+                    findings.append(
+                        Finding(
+                            kind="swallowed_exception",
+                            path=rel,
+                            detail="except …: pass/… swallow",
+                            line=line,
+                        )
                     )
-                )
-            for match in BARE_EXCEPT_PY.finditer(text):
-                line = text.count("\n", 0, match.start()) + 1
-                snippet = text[match.start() : match.start() + 40]
-                if "pass" in snippet or "..." in snippet:
-                    continue
-                findings.append(
-                    Finding(
-                        kind="bare_except",
-                        path=rel,
-                        detail="bare except:",
-                        line=line,
+                for match in BARE_EXCEPT_PY.finditer(text):
+                    line = text.count("\n", 0, match.start()) + 1
+                    snippet = text[match.start() : match.start() + 40]
+                    if "pass" in snippet or "..." in snippet:
+                        continue
+                    findings.append(
+                        Finding(
+                            kind="bare_except",
+                            path=rel,
+                            detail="bare except:",
+                            line=line,
+                        )
                     )
-                )
+                for match in EXCEPT_RETURN_EMPTY_PY.finditer(text):
+                    line = text.count("\n", 0, match.start()) + 1
+                    if rel_posix in EXCEPT_RETURN_EMPTY_ALLOWLIST:
+                        continue
+                    findings.append(
+                        Finding(
+                            kind="except_return_empty",
+                            path=rel,
+                            detail=f"except …: return {match.group(1)} — failure may look like empty market",
+                            line=line,
+                        )
+                    )
         elif path.suffix in {".ts", ".tsx", ".js", ".jsx"}:
             for match in EMPTY_CATCH_JS.finditer(text):
                 line = text.count("\n", 0, match.start()) + 1
@@ -312,6 +368,16 @@ def check_swallowed_errors(files: list[Path]) -> list[Finding]:
                         kind="empty_catch",
                         path=rel,
                         detail="empty catch { }",
+                        line=line,
+                    )
+                )
+            for match in EMPTY_CATCH_PROMISE_JS.finditer(text):
+                line = text.count("\n", 0, match.start()) + 1
+                findings.append(
+                    Finding(
+                        kind="empty_promise_catch",
+                        path=rel,
+                        detail="empty .catch(() => {})",
                         line=line,
                     )
                 )
