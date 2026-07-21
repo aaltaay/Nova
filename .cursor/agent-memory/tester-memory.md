@@ -47,7 +47,7 @@ Durable facts (commands, traps, routing) get **promoted into `tester.md`**. Run 
 Open improvements. Newest first. Mark `[x]` when done and move a one-line note to **Completed**.
 
 - [x] **Refresh test counts** — periodically re-run full pytest/Vitest/Playwright collection and update Current snapshot when they drift (last refresh 2026-07-16: 677 / 223-of-224 / 11-of-14, 2 real regressions found — see Run log).
-- [ ] **Expand routing table** — add rows for `backend/news*`, `backend/scanner*`, `backend/l2*`, `frontend/src/strategy/*`, `frontend/src/TickerChart*`, `frontend/src/workspace/*`, `frontend/src/closed_orders/*` (+ `closeFullPosition` / `test_closed_orders.py`) once those areas get touched often.
+- [ ] **Expand routing table** — add rows for `backend/news*`, `backend/scanner*`, `backend/l2*`, `frontend/src/strategy/*`, `frontend/src/TickerChart*`, `frontend/src/workspace/*`, `frontend/src/closed_orders/*` (+ `closeFullPosition` / `test_closed_orders.py`), and `frontend/src/ibkr/orderQtyMath*` + `workingOrderCells*` + `backend/tests/test_open_orders_row.py` / `test_order_times.py` once those areas get touched often.
 - [ ] **Ruff / backend lint gate** — if the repo adopts Ruff (or documents a preferred command), add it beside frontend `npm run lint`.
 - [ ] **CI parity** — read `.github/workflows/*` and note any gates the local tester should mirror (matrix Python version, e2e on PR only, etc.).
 - [ ] **Seed a golden browser path** — one short click-path (e.g. open Gappers → pick a symbol → Stock View) recorded here so UI verifies are consistent.
@@ -78,6 +78,23 @@ Facts discovered in a run that are **not yet** in `tester.md`. After promoting i
 Newest first. Keep entries short. Skip boring all-green scoped runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-19 — Filled polish (tooltips) Open/Closed verify
+
+- **Scope:** widgets title/tooltip polish on Filled/Remaining/Avg fill — `orderTableColumns`, `workingOrderCells`, `closedOrderCells` (+ panels/dock).
+- **Commands:** Vitest 6 files → **34 passed**; `orderQtyMath` → **8 passed**; pytest orders L2 (contract + open row + times + closed) → **12 passed**.
+- **Result:** PASS. Cell text + `title=` strings asserted (e.g. `35 of 100 shares filled`, Remaining working). No layout change; browser skipped (UI/API up). No orders placed.
+- **Note:** prior run-log residual (remaining-null → "—") now covered — `workingOrderCells` has derive qty−filled when `remaining_qty` null.
+- **task_log:** `knowledge/task-log/2026-07-19-filled-polish-tester-verify.md`
+- **Promoted to tester.md:** no
+
+### 2026-07-19 — Open/Closed order qty/price/time math verify
+
+- **Scope:** orderQtyMath + working/closed order cells + open-order row mapping + order times (read-only review).
+- **Commands:** Vitest 8 files → **38 passed**; `pytest tests/test_open_orders_row.py test_order_times.py test_closed_orders.py` (from `backend/`) → **9 passed**.
+- **Result:** PASS (suites green). Residual: Remaining **column** still uses raw `remaining_qty` (`workingOrderCells.tsx` L71 → "—" on null) while Fill/actions use `remainingShares()` / `remainingSharesWhole()`. Avg fill is IB-only (`status.avgFillPrice`); Nova does not compute it.
+- **Suggested next tests:** `workingOrderCells` remaining-null derives qty−filled; `test_open_orders_row` remaining=None when status.remaining missing.
+- **Promoted to tester.md:** no (pending routing backlog already lists closed_orders)
 
 ### 2026-07-18 — Closed Orders widget (WID-027) scoped verify
 

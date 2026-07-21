@@ -35,7 +35,21 @@ All commands confirmed working on this machine. Backend pytest runs from **repo 
 | Frontend build | `npm run build` | `frontend/` |
 | Frontend lint | `npm run lint` | `frontend/` |
 | E2E (when e2e/critical flows touched) | `npm run test:e2e` or `npx playwright test` | `frontend/` |
+| Orders pyramid L1 (Vitest) | `npm run test:orders-pyramid` | `frontend/` |
+| Orders pyramid L2 (API contract) | `py -3 -m pytest backend/tests/test_orders_api_contract.py backend/tests/test_open_orders_row.py backend/tests/test_order_times.py backend/tests/test_closed_orders.py -q` | repo root |
+| Orders pyramid L3 (Playwright mocks) | `npm run test:e2e:orders` | `frontend/` |
 | Live UI | `npx agent-browser@latest …` against `http://localhost:5173` | — |
+
+### Orders pyramid verify recipe
+
+When Open/Closed Orders, `orderQtyMath`, `order_times`, or `/api/ibkr/orders*` change:
+
+1. **L1:** `npm run test:orders-pyramid` in `frontend/`
+2. **L2:** pytest contract command above from **repo root**
+3. **L3:** `npm run test:e2e:orders` (mocked APIs only — **never** place/cancel)
+4. **L4:** point the human at `docs/paper-orders-field-checklist.md` — agents do **not** execute those clicks
+
+Hard ban still applies: no `POST/DELETE` order endpoints during verification.
 
 Latest verified pass counts live in `.cursor/agent-memory/tester-memory.md` → **Current snapshot**.
 
@@ -47,6 +61,7 @@ Run the scoped target first; widen to the full suite only if scoped is green and
 
 | Changed | Run |
 |---------|-----|
+| Open/Closed Orders / `orderQtyMath` / `order_times` / orders API | **Orders pyramid** recipe (L1→L3); never live place/cancel |
 | `backend/hod_momo*.py` / integrity | `test_hod_momo_engine.py`, `test_hod_momo_filters.py`, `test_hod_momo_models.py`, `test_hod_momo_persist.py`, `test_hod_momo_metrics.py`, `test_hod_momo_universe.py`, `test_hod_momo_integrity.py`, `test_hod_momo_active.py`, `test_hod_momo_spam_rate.py`, `test_hod_momo_heartbeat.py`, `test_scanner_integrity_mode.py`, `test_integrity_live_builders.py` |
 | HOD live claim (IBKR up) | `py -3 tools/hod_momo_session_gate.py --profile integrity_only` (exit 0); RTH SLO: `--profile rth_slo` or `latency_probe --seconds 900`. Exit 3 = BLOCKED (Gateway), not FAIL. Never claim overnight quote SLO. |
 | `backend/strategy/executor*.py` | `test_executor.py`, `test_routes_executor.py` |
@@ -93,7 +108,7 @@ Run the scoped target first; widen to the full suite only if scoped is green and
 
 ## Hard constraints
 
-- **Trading safety: never arm the executor, place/modify/cancel orders, trip or reset the kill switch, or call order-placing endpoints during verification — paper or live.** Order-path logic is verified only through pytest with mocks (`test_executor.py`, `test_ibkr_safety.py`).
+- **Trading safety: never arm the executor, place/modify/cancel orders, trip or reset the kill switch, or call order-placing endpoints during verification — paper or live.** Order-path logic is verified through pytest mocks (`test_executor.py`, `test_ibkr_safety.py`, `test_orders_api_contract.py`) and Playwright **mocked** `e2e/open-closed-orders.spec.ts`. Human paper field checks: `docs/paper-orders-field-checklist.md`.
 - Never silently mix Alpaca market data when discovery is IBKR.
 - Never swallow test failures, skip tests, or add `try/except: pass` to force green.
 - Do not dump logic into `backend/main.py` or `frontend/src/App.tsx` if you must patch; tunables belong in `backend/constants.py` / `frontend/src/constants.ts`.

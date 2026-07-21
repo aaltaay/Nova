@@ -9,15 +9,16 @@ Companion to: `.cursor/agents/execution.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-19T02:15:00Z
+captured_at: 2026-07-20T19:35:00Z
 source_revision: local-wip
-result: close-vs-cancel-audit-pass
+result: paper-place-order-confidence-pass
 metrics:
-  synthetic_ack_p95_ms: 57.9
-  synthetic_samples: 20
-  unit_tests: 17_passed
+  unit_tests: 49_passed_execution_plus_safety
+  validate_tests: 8_passed
+  agent_contract: pass
+  live_status: paper_armed_connected
 blockers: []
-dashboard_freshness: refresh-required
+dashboard_freshness: clean
 ```
 
 Machine-readable block only. Update after material runs. Do not duplicate mutable truth that lives in canonical domain sources.
@@ -45,6 +46,17 @@ Machine-readable block only. Update after material runs. Do not duplicate mutabl
 - **"No matter what" is forbidden:** Close still needs ORDERS_GATE + UI PIN/spend; only cancel is softer (CANCEL_GATE).
 - **Gap:** manual Close does **not** cancel protective bracket legs; Nova OS flatten does. No close/exit UML yet (pair with cancel UML backlog).
 
+## Durable position-qty SSOT facts (promoted 2026-07-20)
+
+- **Dual IB caches:** UI `GET /api/ibkr/positions` → `get_portfolio()` → `ib.portfolio()`. Safety long-qty → `get_positions()` → `ib.positions()` (`validate._position_qty`, `executor_flatten._actual_position_qty` / preview). Same symbol can be in one cache and not the other.
+- **UI Flatten always `source="manual"`** — never `source="flatten"`. Do **not** “fix” via UI `source=flatten` (skips `NO_POSITION`/`OVERSELL`).
+- **Symptom paths:** Flatten / Close / `exit_pos` / `%` sells size from portfolio FE rows then gate on positions; `cancel_and_exit` can cancel then `NO_POSITION`; Nova OS flatten on empty `positions()` can skip-sell **and** cancel legs (naked) for tracked symbols.
+- **Third source (claim):** `_open_positions` / recovery — flatten iteration + concurrency; kill cancels only, never sells.
+- **Failed vs empty:** `IbkrAccountError` fail-closed; validate still surfaces unknown as `NO_POSITION` (need `POSITION_UNAVAILABLE`). FE `useIbkrAccount` last-good portfolio vs live gate.
+- **Qty helper gaps:** first matching symbol row only (no sum); no conId/secType key.
+- **Rejected:** validate-only→portfolio; UI `source=flatten`; max(caches); FE-only trust.
+- **Accepted (plan):** `account.long_qty` / `net_long_qty` on **`ib.positions()`** (+ subscribe/refresh); `/positions` qty from same helper; portfolio PnL join only; wire validate + flatten + preview together.
+
 ---
 
 ## How to continue improving
@@ -63,10 +75,12 @@ Durable facts get **promoted into `execution.md`**. Run history and open ideas s
 
 Open improvements. Newest first. Mark `[x]` when done and move a one-line note to **Completed**.
 
+- [ ] Product (explicit ask): unify long-qty SSOT — `account.long_qty` + UI `/positions` qty from `get_positions()`; portfolio for PnL only; wire validate + flatten + preview; regression tests for portfolio≠positions.
 - [ ] Docs/UML: add **close/exit** sequence (UI/`exit_pos` → place+ORDERS_GATE; flatten → place source=flatten + leg cancels).
 - [ ] Docs/UML: add cancel sequence (callers → CANCEL_GATE → adapter) to ADR 007 or `docs/trading-execution-validation.md`.
 - [ ] Product (explicit ask): `cancel_working_entry` → `source="cancel_working"` for ledger honesty.
 - [ ] Product (explicit ask): optional cancel-then-exit helper if widgets need bracket-safe Close (manual path today leaves legs).
+- [x] Position qty dual-source / split-brain audit (portfolio UI vs positions gates).
 - [x] Close vs Cancel / flatten SSOT audit for Closed Orders widget dispatch.
 - [x] First real audit run: pytest + synthetic latency probe; cancel-path SSOT answered.
 - [ ] Confirm paper Gateway probe still deferred and documented as such.
@@ -85,6 +99,22 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-20 — Paper "Place an order" confidence audit
+
+- **Scope:** Live `/api/ibkr/status` + ManualOrderTicket → execute → paper pin; Flatten source=manual + long_qty after 40ce60a. Audit-only.
+- **Commands:** GET status (paper_armed, connected); pytest `test_execution_service`+`test_ibkr_safety` 49 pass; `test_execution_validate` 8 pass; `agent_contract` PASS. No orders placed.
+- **Result:** paper-place-order-confidence-pass — yes for paper while status stays as reported; live needs mode+accounts+LIVE_TRADING_CONFIRMED; auto_live NO-GO.
+- **Learning:** spend_status paper_armed is env-derived; hard paper pin still refuses non-DU/DF even if UI looks armed. Self-heal live→paper was active on this host.
+- **Files updated:** this memory only (no product code).
+
+### 2026-07-20 — Position qty dual-source / split-brain audit
+
+- **Scope:** Full inventory of long-qty / oversell / flatten size readers; SSOT for parent plan.
+- **Commands:** pytest `test_execution_service` + `test_execution_validate` → 19 passed; `agent_contract` PASS. No orders; no product code.
+- **Result:** position-qty-dual-source-audit — UI portfolio vs gate/flatten positions(); reject validate-only + UI source=flatten; recommend account.long_qty SSOT + POSITION_UNAVAILABLE.
+- **Learning:** `cancel_and_exit` sharpest UX hazard; Nova OS flatten skip-sell+leg-cancel is sharpest safety hazard under dual cache.
+- **Files updated:** this memory; agent-execution canvas; task-log `2026-07-20-flatten-position-qty-dual-source-audit.md`.
 
 ### 2026-07-18 — Close vs Cancel / flatten SSOT (Closed Orders widget)
 

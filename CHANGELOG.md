@@ -30,6 +30,60 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-20 — Root-cause fix: execution/executor/routes-trading tests leaked real env + real bootstrap
+
+- **What:** Paper-simulating test helpers (`test_execution_service.py`, `test_executor.py`, `test_routes_trading.py`) now pin `IBKR_GATEWAY_MODE=paper` explicitly instead of relying on the developer's real `.env`; `test_routes_trading.py` also isolates `journal.db` / `nova_os.events_db` cache dirs and stubs `app_lifespan._bootstrap_runtime` (real IBKR ping + risk/journal reconstruction) so its module-level `TestClient(app)` can't fire a real background bootstrap against real files; `strategy.risk.reset_day()` added to the shared autouse fixtures.
+- **Why:** 18 backend tests started failing after `.env`'s `IBKR_GATEWAY_MODE` was manually flipped to `live` earlier the same day — `ibkr/safety.py::assert_orders_allowed()` reads that env var directly, a path none of the "paper" test helpers ever mocked. Self-annealing investigation (not a symptom patch) traced it to a real test-isolation gap, not flaky infra.
+- **Files touched:** `backend/tests/test_execution_service.py`, `test_executor.py`, `test_routes_trading.py`.
+- **How it works now:** Any test that arms "paper" gates via `_arm_paper()` / `_arm_ibkr_execution()` / `_arm_paper_gates()` is now fully isolated from the real environment and real on-disk journal/cache — safe regardless of what `IBKR_GATEWAY_MODE` the developer's `.env` currently targets.
+- **Verified by:** `pytest tests/test_execution_service.py tests/test_executor.py tests/test_routes_trading.py` → 59 passed (was 18 failed / 41 passed); full backend `pytest` → 847 passed, 1 pre-existing unrelated failure (`test_hod_momo_universe.py::test_build_focus_universe_empty_inputs`, out of scope).
+- **Related:** PROBLEM_LOG 2026-07-20 "18 execution/executor/routes-trading tests failed after switching Gateway to live".
+
+## 2026-07-20 — TradingTab nests Reports (`initialSection` prop) — fixes broken `npm run build`
+
+- **What:** `TradingTab` now accepts an optional `initialSection: 'overview' | 'reports'` prop and renders a small Overview/Reports toggle at the top of the Account view; selecting Reports renders the existing `ReportsTab` (P&L calendar) in place of the trading layout.
+- **Why:** `frontend/src/workspace/registry.ts` already nests the `reports` module under Account (`showInTabNav: false`, "Nested under Account (header)") and `TabModuleHost.tsx` already passed `initialSection={activeTab === 'reports' ? 'reports' : 'overview'}` into `TradingTab`, but `TradingTabProps` never declared that prop and never rendered anything for it — a `tsc` build error (`TS2322`) blocking `npm run build` and leaving `ReportsTab` orphaned (imported nowhere).
+- **Files touched:** `frontend/src/ibkr/TradingTab.tsx`, `frontend/src/ibkr/tradingTab.css`.
+- **How it works now:** `TradingTab` owns a local `section` state seeded from `initialSection`; a two-button toggle switches between the normal trading layout and `<ReportsTab />` without leaving the Account view.
+- **Verified by:** `npm run build` (was `tsc` error, now clean); `npx vitest run src/ibkr src/stock_view` → 154 passed.
+
+## 2026-07-20 — IBKR disconnect foresight (sticky intent + port diagnostics)
+
+- **What:** Honest disconnect diagnostics on `/api/ibkr/status` (port reachability + `disconnect_hint`); sticky intentional Paper/Live intent (no ~18s suppress timer); live→paper self-heal only on hard refuse (not timeout); reconnect wake on switch; Stock View actionable mismatch copy + 404 restart-API hint; mode-aware empty IBKR copy.
+- **Why:** Paper Nova + live-only Gateway stays disconnected by design (never auto paper→live). Operators saw bare “Disconnected” / silent heal-back after a failed Live switch; same split-brain class as the flatten qty bug — connection intent was scattered globals + a timer.
+- **Files touched:** `backend/ibkr/gateway_heal.py`, `client.py`, `client_connect.py`, `port_diagnostics.py`, `routes/trading.py`; `frontend/src/ibkr/disconnectCopy.ts`, `StockViewHeader.tsx`, `StockViewTradingChrome.tsx`, `EmptyState.tsx`; `ibkr-gateway-login-warning.mdc`, `docs/ibc-gateway-setup.md`.
+- **How it works now:** One sticky `intentional_gateway_mode` blocks silent live→paper heal until the user switches again or Live connects. Status exposes which port is up. UI CTA: “Nova targets Paper (4002)… Live is up — Switch to Live?” Stale API 404 → “Restart Nova API”.
+- **Verified by:** pytest `test_gateway_heal`, `test_gateway_mode_switch`, `test_port_diagnostics`, status route hint; Vitest disconnectCopy + capsule 404/CTA.
+- **Related:** PROBLEM_LOG 2026-07-20 disconnect foresight; task-log `2026-07-20-ibkr-disconnect-foresight.md`.
+
+## 2026-07-20 — Paper/Live capsule stays clickable when disconnected
+
+- **What:** Paper/Live no longer greys out when IBKR is disconnected. Selection falls back to `gateway_mode` (env target) so you can retarget 4001/4002 while offline.
+- **Why:** After a Live login on 4001 with Nova still on paper/4002, self-heal cannot flip paper→live (by design). Operators were stuck: Disconnected + disabled capsule.
+- **Files touched:** `StockViewTradingChrome.tsx`, `StockViewHeader.tsx`, `StockViewPage.tsx`, tests.
+- **How it works now:** Capsule uses connected `mode` when linked, else `gateway_mode`; clicks always allowed except while a switch is in flight.
+- **Verified by:** Vitest capsule “clickable when disconnected” + status now `connected:true mode:live` after pointing Nova at 4001.
+
+## 2026-07-20 — Global pretty app dialogs (replace native popups)
+
+- **What:** Replaced every `window.confirm` / `window.alert` / `window.prompt` / bare `alert()` in the frontend with a single styled dialog system. Live Gateway switch, Flatten, Stop Automation, blocklist, HOD clear, alert-channel delete, settings errors, Nova Actions, Fill now, etc. all use the same Nova-themed modal (title + message + Cancel/Confirm, danger/warning tones).
+- **Why:** Native browser “localhost:5173 says” popups broke the trading UI look and felt like a system error rather than an in-app confirm.
+- **Files touched:** `frontend/src/ux/{appDialogApi,AppDialogHost,appDialog.css,index}.ts(x)`, `App.tsx` (`AppDialogHost` root), `constantGroups/ux.ts`, and every former native-popup call site under `stock_view/`, `ibkr/`, `strategy/`, `hod_momo/`, `closed_orders/`, `hotkeys/`, `components/`, `hooks/`, `modules/`.
+- **How it works now:** Call `confirmApp` / `alertApp` / `promptApp` from anywhere (React or pure helpers). `AppDialogHost` (mounted once in `App`) owns a queue and renders shadcn `AlertDialog` with Nova chrome. `promptApp({ expectedValue })` keeps Confirm disabled until the typed token matches (used for Nova OS flatten). Place-order’s existing `PlaceOrderConfirmDialog` is unchanged (already custom).
+- **Verified by:** Vitest `src/ux/AppDialogHost.test.tsx` + updated capsule/header/flatten tests; full frontend suite 399 passed.
+- **Follow-ups:** None.
+- **Related:** Intentional Paper↔Live Gateway switch (same session).
+
+## 2026-07-20 — Intentional Paper ↔ Live Gateway switch
+
+- **What:** The Stock View header's Paper/Live capsule is now a real switch, not a status mirror. Clicking Live/Paper (after a strong confirm) calls `POST /api/ibkr/gateway-mode`, which persists `IBKR_GATEWAY_MODE` to `.env`, disconnects, and lets the background reconnect loop dial the new Gateway port. Live never sets `IBKR_LIVE_TRADING_CONFIRMED` — spend stays `locked_live_unconfirmed` until armed separately. A refused/timed-out live port surfaces an honest inline error under the capsule instead of self-heal silently flipping back to Paper. If the live port answers with a paper account (`DU…`/`DF…`), Nova disconnects and refuses to pretend Live.
+- **Why:** Live click previously only showed a `window.confirm` explaining the control did nothing — there was no way to actually switch Nova's target Gateway port from the UI.
+- **Files touched:** `backend/ibkr/client.py` (`request_gateway_mode`), `backend/ibkr/gateway_heal.py` (`suppress_self_heal`/`self_heal_suppressed`), `backend/routes/trading.py` (`POST /api/ibkr/gateway-mode`), `frontend/src/stock_view/StockViewTradingChrome.tsx`, `frontend/src/ibkr/useIbkrStatus.ts` (`refreshIbkrStatusNow`), `constantGroups/chart_api.ts`, `docs/ibc-gateway-setup.md`, tests.
+- **How it works now:** `request_gateway_mode(mode)` persists+applies the target env var, suppresses the live→paper self-heal for one connect attempt (so a refused live port doesn't quietly reappear as Paper), disconnects, and polls `is_connected()` for up to `IBKR_CONNECT_TIMEOUT_SEC + 3s` while the reconnect loop (the sole connector — ib_async doesn't support concurrent `connectAsync` on one `IB()`) dials the new port. The route is a thin delegate; the frontend capsule shows `…` while switching, calls `refreshIbkrStatusNow()` (a window-event broadcast so every mounted `useIbkrStatus()` polls immediately) when done, and renders the backend's error text inline on failure.
+- **Verified by:** `pytest backend/tests/test_gateway_mode_switch.py backend/tests/test_gateway_heal.py backend/tests/test_routes_trading.py` (30 passed); `vitest run src/stock_view/StockViewTradingChrome.test.tsx` (4 passed) + full frontend suite (396 passed).
+- **Follow-ups:** None — auto-login/credential storage and `auto_live` unlock remain explicit non-goals.
+- **Related:** `.cursor/plans/live_gateway_switch_731cc270.plan.md`, `.cursor/rules/ibkr-gateway-login-warning.mdc`.
+
 ## 2026-07-20 — Paper trading CTA + hot banner
 
 - **What:** When IBKR Gateway mode is `paper`, the manual ticket primary button reads **Place Paper order** (orange) instead of blue **Place an order**. A hot orange banner (`PAPER TRADING — orders go to your IBKR paper account, not live money.`) shows at the top of Stock View and the Trading tab. Live/disconnected keep the prior blue Place an order label and no banner.

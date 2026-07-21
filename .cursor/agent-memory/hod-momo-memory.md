@@ -9,19 +9,19 @@ Companion to: `.cursor/agents/hod-momo.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-17T17:45:00Z
+captured_at: 2026-07-20T12:40:00Z
 source_revision: local-uncommitted
-result: PASS (warn) — TRT sticky cooled-first live
+result: UI split — Running Up tab separate from HOD Momo
 metrics:
-  warrior_rows: 40
-  nova_rows: 93
-  both: 0
-  warrior_only: 10
-  nova_only: 37
-  strategy_mismatch_symbols: 0
-blockers: []
-dashboard_freshness: clean
-notes: "TRT sticky L1 price=10.66 rvol=0.30 after cooled-first+cap8. Sticky file now <=8. Former off. Squeeze warrior_only = timing/surge cooled."
+  warrior_rows: n/a
+  nova_rows: n/a
+  both: n/a
+  warrior_only: n/a
+  nova_only: n/a
+  strategy_mismatch_symbols: n/a
+blockers: ["Error 10089 delayed MD still relevant for early HOD misses"]
+dashboard_freshness: refresh-required
+notes: "Warrior HOD never feeds Nova engine. UI: running_up tab = strategy 12 only; hod_momo excludes 12. Backend still one /ws/hod-momo + strat 12 requires_hod=false. Fresh-new-HOD gate still applies to HOD strategies."
 ```
 Machine-readable block only. Update after material runs. Do not duplicate mutable truth that lives in canonical domain sources (`.tmp/hod-momo-parity/*`, `PROBLEM_LOG.md`, `CHANGELOG.md`).
 
@@ -150,8 +150,17 @@ Session-over-session tracking so future runs don't re-diagnose a solved bug or r
 | 2026-07-17 | `l1_capacity` (TRT sticky flood) | Sticky file 15 soft-blocks; TRT #15; only 8 L1 slots → empty snap post-restart | Cap sticky=8; cooled-first rank vs mover caches before truncate | Live: TRT $10.66 rvol=0.30; sticky `["ETS","BGDE","TRT",…]` |
 
 | 2026-07-17 | `gate_mismatch` (CNF nova_only / Squeeze without HOD) | User: CNF never on Warrior HOD but Nova Squeeze 5%/10% fired. Live config had **only** strategies 10/11 enabled (Float/Running Up/52wk accidentally mass-disabled) and Squeeze `requires_hod=False`, so surge-alone fired without Warrior Small-Cap HOD Momentum semantics | Schema v5 (`HOD_MOMO_CONFIG_SCHEMA_VERSION=5`): migrate forces Squeeze 10/11 `requires_hod=True`; re-enables non-Former strategies; live API repair + `test_schema_v5_squeeze_requires_hod_and_reenables` | Live config verified 2026-07-17T17:21Z: 10/11 `requires_hod=True`; 2–12 `enabled=True`; Former off. **Do not re-diagnose CNF as rvol_formula / universe_gap.** |
+| 2026-07-20 | `timing_definition` (VCIG HOD retest as Squeeze) | VCIG Nova Squeeze @ 08:24:14 / $1.34; Warrior true HOD @ 08:02:54; many Warrior Running Up after | `fails_hod_gate` required only price≈session_high; seed/retest opened HOD strategies. Now `session_high_raised_ts` + `HOD_MOMO_NEW_HOD_GRACE_SEC=60` | `hod-momo-2026-07-20.json` + `hod_momo.log` first eval 12:22:19Z; pytest 45 pass. **Restart API.** |
 
-### Still open (as of 2026-07-17T17:45Z — Warrior ts=1784308360)
+### Running Up — evidence summary (2026-07-20)
+
+| Source | What it says |
+|--------|----------------|
+| BA101 Ch.12 Scanning 101 | HOD Momentum = new high-of-day + pillars + recent % surge. **Running Up does not require new HOD** — only that the stock is moving; can alert on curls before HOD break. Separate scanner from HOD. |
+| KB / Authenticated-Site-Map | Running Up = sibling **alert scanner** (not an HOD sub-strategy). Same columns as HOD; may show burst annotations. |
+| Nova | Strategy **#12 Running Up Alert** (`requires_hod=False`, surge 5%/5m, min_rvol 2). Lives in the **same** HOD Momo tab (Warrior has a separate widget). VCIG 08:24 fire was Squeeze 10/11, not #12 (`rvol:unknown` blocked Running Up). |
+
+### Still open (as of 2026-07-20 — post VCIG fix; API restart pending)
 
 | Bucket | Evidence | Notes |
 |--------|----------|-------|
@@ -234,6 +243,8 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 - **Stale `warrior_latest.json` invalidates continuous 1:1** — if Warrior ts is from prior session/AH while Nova is RTH, warrior_only and nova_only mix timing artifacts with real gaps. Always check Warrior `ts` before escalating buckets.
 - **yfinance's own `averageVolume` field drifts within minutes on extreme-volume days** — a fresh ATPC fetch returned a value 248x higher than one taken ~11 minutes earlier from the same function. `HOD_MOMO_FUNDAMENTALS_REFRESH_SEC` (300s) bounds staleness, it does not guarantee RVOL is never momentarily off inside a single refresh window on the most explosive names.
 - **Accidental mass-disable + Squeeze `requires_hod=False` looks like a formula bug** — if only strategies 10/11 are enabled (or Squeeze fires without HOD), check persisted `hod-momo-config.json` / schema version before chasing RVOL/universe. Schema v5 self-heals; do not re-litigate CNF.
+- **`price ≈ session_high` is not a Warrior HOD alert** — that's Running Up / retest. After 2026-07-20, requires_hod needs `session_high_raised_ts` within 60s. If Squeeze fires without a true new high, check grace + raised_ts before blaming surge/RVOL.
+- **IBKR Error 10089 (delayed MD)** on a symbol can delay first HOD eval by many minutes vs Warrior — classify as `l1_capacity` / subscription, not gate mismatch, when first TRADE line is far after Warrior's HOD time.
 
 ---
 
@@ -242,6 +253,21 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short. Cap at ~30 entries — delete the oldest half if longer.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-20 — Separate Running Up UI tab from HOD Momo
+
+- **Scope:** User asked complete separation so Running Up is not mixed into HOD scanner.
+- **Change:** `running_up` registry tab + `RunningUpTab`; `partitionScannerAlerts`; HOD chips/filter exclude #12; removed “Running Up only” chip.
+- **Unchanged:** Backend one feed/evaluator; strat 12 `requires_hod=false`; Warrior never drives engine.
+- **Verify:** Vitest partition+registry 14 pass; `tsc --noEmit` clean.
+
+### 2026-07-20 — VCIG late Squeeze = HOD retest (fixed new-high grace)
+
+- **Scope:** User VCIG 08:24 Nova vs Warrior 08:02 HOD + Running Up flood; Running Up definition + gap.
+- **Evidence:** `hod-momo-2026-07-20.json` VCIG Squeeze 10/11 @ 12:24:14Z $1.34; `hod_momo.log` first TRADE 12:22:19Z `high_unseeded` then fire; Running Up #12 blocked `rvol:unknown`; blast.log Error 10089 on VCIG.
+- **Bucket:** `timing_definition` (+ late L1 / 10089). Not "treating Running Up as HOD" literally — Squeeze with at-HOD gate.
+- **Fix:** `session_high_raised_ts` + `HOD_MOMO_NEW_HOD_GRACE_SEC=60`; seed does not open window. Pytest 45. No commit. **Restart API.**
+- **Running Up:** Official = separate scanner, no new HOD required (BA101). Nova has strat #12 in same tab.
 
 ### 2026-07-17 — Fix #2b TRT sticky flood (cooled-first + cap=8)
 

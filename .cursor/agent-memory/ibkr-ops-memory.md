@@ -9,10 +9,13 @@ Companion to: `.cursor/agents/ibkr-ops.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-18T06:20:43Z
-source_revision: cdf87d5
-result: install
-metrics: {}
+captured_at: 2026-07-20T19:32:00Z
+source_revision: local
+result: paper-md-entitlement-brief
+metrics:
+  ibkr_connected: true
+  gateway_mode: paper
+  spend_status: paper_armed
 blockers: []
 dashboard_freshness: clean
 ```
@@ -51,6 +54,13 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-20 — Paper delayed MD question (read-only)
+
+- **Scope:** User asked if paper trading = delayed API feed because IBKR doesn't charge for paper.
+- **Result:** It depends on market-data subscriptions on the Gateway login account, not Nova paper vs live. Nova uses the paper Gateway session (4002) for discovery/quotes when discovery=ibkr; no `reqMarketDataType(DELAYED)` in code. Status: connected paper / paper_armed. Error 10089 = subscription/entitlement gap.
+- **Learning:** Promote fact: delayed vs realtime is IBKR Account Management entitlement on the logged-in user (paper username is separate); paper often free/delayed unless US equity API MD (and depth/OPRA if needed) subscribed or delayed enabled on that paper login.
+- **Files updated:** `ibkr-ops-memory.md` only.
 
 ### 2026-07-18 — Agent install
 

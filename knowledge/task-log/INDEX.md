@@ -4,6 +4,10 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-20 | [Execution/executor/routes-trading tests leaked real env + real bootstrap](2026-07-20-execution-test-env-leak-fix.md) | assert_orders_allowed read real IBKR_GATEWAY_MODE; TestClient lifespan ran real bootstrap into strategy.risk singleton |
+| 2026-07-20 | [IBKR disconnect foresight: sticky intent + port diagnostics](2026-07-20-ibkr-disconnect-foresight.md) | Sticky intentional mode; refuse-only heal; disconnect_hint + UI CTA |
+| 2026-07-20 | [Global pretty app dialogs replace native popups](2026-07-20-global-app-dialogs.md) | confirmApp/alertApp/promptApp + AppDialogHost; no window.confirm left |
+| 2026-07-20 | [Intentional Paper-Live Gateway switch](2026-07-20-intentional-gateway-mode-switch.md) | Intentional Paper-Live Gateway switch |
 | 2026-07-20 | [Paper Place CTA + hot banner](2026-07-20-paper-trading-cta-banner.md) | Orange Place Paper order + top PAPER TRADING banner when mode=paper |
 | 2026-07-20 | [Flatten long_qty SSOT + BuyingPower fail-closed](2026-07-20-flatten-long-qty-ssot.md) | positions() SSOT for qty/gates; POSITION_UNAVAILABLE; accountValues raise; FE error gate |
 | 2026-07-20 | [Flatten dual-source position SSOT daddy audit](2026-07-20-flatten-dual-source-daddy-audit.md) | Parallel execution+maintainer; reject validate→portfolio; long_qty SSOT on positions() |

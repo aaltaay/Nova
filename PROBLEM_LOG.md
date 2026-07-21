@@ -21,12 +21,110 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
-## 2026-07-20 — Flatten NO_POSITION while Positions showed shares + BuyingPower fail-open
+## 2026-07-20 — `npm run build` failed: TradingTabProps missing `initialSection`
 
-- **Symptom:** UI Flatten / manual SELL refused with `NO_POSITION` while Positions showed SPY qty 1. Separately, a transient `ib.accountValues()` failure could let a priced LMT BUY through without BuyingPower check.
-- **Cause:** Positions UI used `ib.portfolio()`; validate/flatten used `ib.positions()` — successful-but-empty positions vs populated portfolio. `get_account_summary()` swallowed `accountValues()` into `{connected:false}` without `pending`, so validate skipped both BP branches.
-- **Fix:** `account.long_qty` (positions-only SSOT) for validate (`POSITION_UNAVAILABLE` vs `NO_POSITION`), flatten, and `/positions` qty (MTM from portfolio join). Summary reads raise; priced BUY → `BUYING_POWER_UNKNOWN`. FE disables Flatten/exit when account poll `error` is set.
-- **Keywords:** long_qty, NO_POSITION, POSITION_UNAVAILABLE, BUYING_POWER_UNKNOWN, get_positions, get_portfolio, Flatten, dual-source, accountValues
+- **Symptom:** `tsc -b` failed with `TS2322: Property 'initialSection' does not exist on type 'IntrinsicAttributes & TradingTabProps'` in `TabModuleHost.tsx`, blocking `npm run build`.
+- **Cause:** An earlier, still-uncommitted change ("Account header replaces Trading tab") nested the `reports` workspace module under Account/Trading (`workspace/registry.ts`: `showInTabNav: false`, "Nested under Account (header)") and updated `TabModuleHost.tsx` to route `activeTab === 'reports'` into `<TradingTab initialSection="reports">` — but `TradingTab.tsx` was never updated to declare or use that prop, leaving `ReportsTab` (the actual Reports panel) orphaned and unreferenced anywhere.
+- **Fix:** Added `initialSection?: 'overview' | 'reports'` to `TradingTabProps`, local `section` state, an Overview/Reports toggle in the Account view, and render `<ReportsTab />` when `section === 'reports'`.
+- **Keywords:** TS2322, TradingTabProps, initialSection, ReportsTab, TabModuleHost, orphaned component, npm run build
+
+## 2026-07-20 — 18 execution/executor/routes-trading tests failed after switching Gateway to live
+
+- **Symptom:** `pytest tests/test_execution_service.py tests/test_executor.py tests/test_routes_trading.py` had 18 failures — `assert False is True` on route/execute happy paths, buying-power / max-concurrent / sell-without-position gates asserting the wrong thing. Each file passed alone in earlier sessions; nothing in the diff touched those gates. Full-suite `pytest` also showed the same 18 (plus one pre-existing unrelated `test_hod_momo_universe.py` failure).
+- **Cause:** `ibkr/safety.py::assert_orders_allowed()` reads `gateway_mode()`, which is `os.environ.get("IBKR_GATEWAY_MODE", ...)` — a **real, unmocked env read**, independent of the `client_mod.account_mode()` / `client_mod.broker_account_kind()` mocks the tests already patched. The paper-simulating test helpers (`_arm_paper()` in `test_execution_service.py`, `_arm_ibkr_execution()` in `test_executor.py`, `_arm_paper_gates()` in `test_routes_trading.py`) only mocked the *connection* mocks, never the *env target*. These tests were only "paper-safe" as long as the developer's real `.env` said `IBKR_GATEWAY_MODE=paper`. Earlier the same day, `.env` was manually flipped to `IBKR_GATEWAY_MODE=live` while debugging a disconnect issue — every test relying on the ambient ("paper") default then hit `assert_orders_allowed`'s live branch and got rejected with `"Live trading requires IBKR_LIVE_TRADING_CONFIRMED=true"` before ever reaching the buying-power/position/idempotency logic under test. Separately, `test_routes_trading.py` also creates a module-level `TestClient(app)`, whose first request lazily fires `main.py`'s real FastAPI lifespan/background bootstrap (`app_lifespan._bootstrap_runtime` → `strategy.risk.reconstruct_from_journal()` + `nova_os.recovery.run_startup_recovery()`) against the real on-disk journal/cache (only `execution.store.cache_dir` was isolated, not `journal.db.cache_dir` / `nova_os.events_db.cache_dir`) — a second, independent way real dev-machine state could leak into and pollute the process-global `strategy.risk._state` singleton (and the real `backend/.cache/execution_ledger.db`, confirmed to hold 353 accumulated rows) for the rest of a pytest session.
+- **Fix:** Test helpers now pin `IBKR_GATEWAY_MODE=paper` via `monkeypatch.setenv` (or `patch.dict(os.environ, ...)` in the non-monkeypatch `_arm_paper_gates()` tuple) alongside the existing connection mocks, so paper-simulating tests never depend on the real `.env`. `test_routes_trading.py`'s fixture also isolates `journal.db.cache_dir` / `nova_os.events_db.cache_dir` to `tmp_path` and stubs `app_lifespan._bootstrap_runtime` to a no-op (these are route-wiring tests that already mock the IBKR/execution boundary — the real bootstrap has nothing to verify there). Added a `strategy.risk.reset_day()` call to the autouse fixtures in `test_execution_service.py` / `test_executor.py` as defense-in-depth against the loss-halt singleton leaking across tests regardless of trigger.
+- **Keywords:** IBKR_GATEWAY_MODE, gateway_mode, assert_orders_allowed, Live trading requires IBKR_LIVE_TRADING_CONFIRMED, test pollution, TestClient lifespan, _bootstrap_runtime, strategy.risk singleton, execution_ledger.db, cross-file test isolation
+
+## 2026-07-20 — Disconnected while Gateway green (paper target + live port only)
+
+- **Symptom:** IB Gateway farms ON / live login, Nova Stock View showed bare “Disconnected”; Paper/Live switch either 404’d (stale API) or later silently reappeared as Paper after a failed Live attempt.
+- **Cause:** (1) Self-heal is intentionally live→paper only — paper Nova never auto-dials 4001. (2) Intentional-switch “suppress heal” was a ~18s timer, so after expiry reconnect_loop could heal live→paper and persist `.env` with no UI context. (3) Timeout was heal-eligible like refuse (Error 326 / wedged live could flip to paper). (4) Connection intent lived as scattered `_mode`/`_broker_account_kind` + `_last_heal`/`_suppress_heal_until` with no durable status-visible record. (5) Empty-state copy always said “live port 4001” even in paper mode.
+- **Fix:** Sticky `intentional_gateway_mode` (not a timer); heal only on `"refused"`; TCP port diagnostics + `disconnect_hint` on `/api/ibkr/status`; clear stale `gateway_self_heal` on preferred connect; wake `reconnect_loop` on switch; actionable Stock View copy + gateway-mode 404 → restart API; mode-aware empty IBKR message. MDC corrected: heal is not bidirectional.
+- **Keywords:** disconnect, port mismatch, 4001, 4002, self-heal, paper pin, intentional_gateway_mode, disconnect_hint, gateway-mode 404, sticky intent
+
+## 2026-07-20 — Native browser confirm/alert popups in trading UI ("localhost:5173 says")
+
+- **Symptom:** Clicking Live (and other destructive actions) opened the OS/browser native dialog titled “localhost:5173 says” with plain OK/Cancel — mismatched Nova’s dark trading chrome and felt broken.
+- **Cause:** Call sites used `window.confirm` / `window.alert` / `window.prompt` / bare `alert()` instead of an in-app modal. There was already a shadcn `AlertDialog` for place-order confirm, but no global imperative API for other surfaces.
+- **Fix:** Added `frontend/src/ux` (`confirmApp` / `alertApp` / `promptApp` + `AppDialogHost`) mounted in `App.tsx`, styled with Nova tones (default/warning/danger), and migrated every product call site away from native popups.
+- **Keywords:** window.confirm, window.alert, window.prompt, AppDialogHost, confirmApp, localhost says, pretty dialog, global UX
+
+## 2026-07-20 — Clicking "Live" in Stock View did nothing (capsule was a status mirror, not a switch)
+
+- **Symptom:** Clicking the Live segment of the Paper/Live capsule in Stock View just popped a `window.confirm` and then reverted to showing Paper — no Gateway port change, no error, no feedback about why.
+- **Cause:** `StockViewAccountModeCapsule` (`frontend/src/stock_view/StockViewTradingChrome.tsx`) only called `window.confirm()` with explanatory copy; there was no backend endpoint or client call to actually change `IBKR_GATEWAY_MODE` or reconnect. Self-heal (`gateway_heal.py`) only ever flips live→paper automatically, so even a real attempt to dial the live port would have silently reverted to Paper on a refused/timed-out connection with no error surfaced.
+- **Fix:** Added `ibkr.client.request_gateway_mode(mode)` — persists + applies `IBKR_GATEWAY_MODE`, suppresses self-heal for one connect attempt (`gateway_heal.suppress_self_heal`/`self_heal_suppressed`), disconnects, and polls the background reconnect loop's result (the sole connector, since `ib_async` doesn't support concurrent `connectAsync`). Refuses to accept a live-port connection whose account classifies as paper. New `POST /api/ibkr/gateway-mode` route; capsule now calls it and shows the real error inline instead of a silent revert. Never touches `IBKR_LIVE_TRADING_CONFIRMED`.
+- **Keywords:** Paper Live switch, StockViewAccountModeCapsule, gateway-mode, IBKR_GATEWAY_MODE, self-heal suppress, request_gateway_mode, window.confirm no-op, status mirror
+
+## 2026-07-20 — Flatten NO_POSITION while Positions showed shares (positions vs portfolio dual-source) + BuyingPower fail-open
+
+- **Symptom:** UI Flatten / manual SELL refused with `NO_POSITION` ("no long position to reduce") while Positions panel showed SPY qty 1. Separately, a transient `ib.accountValues()` failure could let a priced LMT BUY through without a BuyingPower check.
+- **Cause:** (1) Positions UI used `get_portfolio()` / `ib.portfolio()`; validate + flatten used `get_positions()` / `ib.positions()` — successful-but-empty positions cache vs populated portfolio. Failed reads were already raised as `IbkrAccountError`, but the dual-cache split still produced a false "flat" for sells. (2) `get_account_summary()` swallowed `accountValues()` exceptions into `{"connected": False}` without `pending`, so `check_account_and_position` skipped both BP branches and returned OK for LMT BUY.
+- **Fix:** Added `account.long_qty` (positions-only SSOT) wired through validate (`POSITION_UNAVAILABLE` vs `NO_POSITION`), `executor_flatten`, and `positions_for_ui` (qty from positions, MTM from portfolio join). Refresh positions after connect. `get_account_summary`/`refresh_account_summary` raise `IbkrAccountError`; `/api/ibkr/account` → 503; priced BUY → `BUYING_POWER_UNKNOWN`. FE disables Flatten/exit when account poll `error` is set. UI Flatten remains `source="manual"`.
+- **Keywords:** long_qty, NO_POSITION, POSITION_UNAVAILABLE, BUYING_POWER_UNKNOWN, get_positions, get_portfolio, Flatten, dual-source, fail-open BuyingPower, accountValues, positions_for_ui
+
+## 2026-07-20 — IBKR positions/orders empty-on-error lie (flatten could skip the SELL and cancel the stop)
+
+- **Symptom:** A transient IBKR positions/orders read failure (disconnect, API exception) returned `[]` from `get_positions`/`get_portfolio`/`open_orders`/`closed_orders`, which the routes turned into HTTP 200 + `[]`, and the UI rendered as "No open positions." / "No open orders." — indistinguishable from a genuinely flat account. `execution/validate._position_qty` and `strategy/executor_flatten._actual_position_qty` both treated that `[]` the same as "no position exists," so a failed read during a deliberate `flatten_positions()` call could skip the market SELL for a real open position **and still cancel its protective stop/target**, leaving it naked with no safety order.
+- **Cause:** `backend/ibkr/account.py` / `backend/ibkr/orders.py` disguised "cannot read" as "nothing there" by returning `[]` on both `ib is None` (disconnected) and on any `except Exception`. Every downstream consumer (routes, `execution/validate`, `strategy/executor` kill-switch, `strategy/executor_flatten`) had no way to distinguish a failed read from a real empty account/order book.
+- **Fix:** Added `IbkrAccountError` (`backend/ibkr/errors.py`). `get_positions`/`get_portfolio`/`open_orders`/`closed_orders` now raise it instead of returning `[]`. `routes/trading.py` catches it and returns HTTP 503 for the three read routes, and a structured `{ok:false,error}` for `DELETE /api/ibkr/orders` (cancel-all). `execution/validate._position_qty` catches it and returns `None` (SELL refused, fail closed). `strategy/executor._cancel_bracket_if_parent_unfilled` (kill switch) catches it and returns `"unknown_state"` (stop/target left alone rather than cancelled on a guess). `strategy/executor_flatten.flatten_positions`/`flatten_preview`/`_cancel_protective_legs` catch it and **abort the flatten for that symbol** (no SELL, no cancel) rather than treating an unverifiable qty as zero. Frontend `useIbkrAccount`/`useClosedOrders` keep the last-good rows and show an explicit error line instead of wiping to empty or (closed orders) silently substituting sample data.
+- **Keywords:** IbkrAccountError, get_positions, get_portfolio, open_orders, closed_orders, flatten_positions, kill switch, fail closed, empty account lie, oversell, naked position, 503, last-good
+
+## 2026-07-20 — Vitest "act() environment" warning silently hides real async-update bugs (diagnosed, not yet fixed)
+
+- **Symptom:** `frontend/` Vitest runs of manual-mount tests (e.g. `workingOrderCells.test.tsx`, `closedOrderCells.test.tsx`) print `The current testing environment is not configured to support act(...)` to stderr; tests still pass. The warning is invisible with the default Vitest reporter on passing tests — it only surfaces with `--reporter=verbose` or on failure, which is why it looked like isolated/occasional noise.
+- **Cause:** `frontend/vite.config.ts`'s `test` block has no `setupFiles`, and nothing anywhere in the repo sets `globalThis.IS_REACT_ACT_ENVIRONMENT`. React 19's `isConcurrentActEnvironment()` (`react-dom/cjs/react-dom-client.development.js`) treats the flag as unset → prints the "not configured" warning on every `act()`-wrapped `createRoot().render()`/`.unmount()` call. Worse: the *same* unset flag also short-circuits `warnIfUpdatesNotWrappedWithActDEV`, i.e. it disables React's real "update was not wrapped in act(...)" safety warning in **both** directions (wrapped or not) — so this is not purely cosmetic, it silently removes the guardrail that would catch a state update escaping a manual `act()` block (e.g. via `setTimeout`/unresolved promise/effect firing after the synchronous `act()` callback returns). This project has no `@testing-library/react` dependency at all (confirmed absent from `package.json` and `node_modules`) — all 24 `*.test.tsx` files that render JSX use this same hand-rolled `createRoot` + `act` pattern (grep-confirmed), not just the two files reported. Verified via a throwaway probe test + `--reporter=verbose`: flag is `undefined` before/during/after every `act()` call; full-suite run showed 653 instances of the warning across those 24 files (386 tests, 94 files total, all passing).
+- **Fix (recommended, not applied — audit only):** Add a tiny shared Vitest setup file (e.g. `frontend/src/testSetup/reactActEnvironment.ts`) that sets `globalThis.IS_REACT_ACT_ENVIRONMENT = true`, and wire it via `test.setupFiles` in `vite.config.ts`. No RTL needed since none is used; this is a one-line env bootstrap, not a tunable constant.
+- **Keywords:** IS_REACT_ACT_ENVIRONMENT, act() environment, createRoot, react-dom-client, isConcurrentActEnvironment, warnIfUpdatesNotWrappedWithActDEV, verbose reporter hides console, no testing-library/react, workingOrderCells, closedOrderCells
+
+
+
+- **Symptom:** Transport/API failures surfaced as empty scanner/HOD universes with little or no useful log detail; UI looked “frozen” or empty while other tabs still had data.
+- **Cause:** Multiple layers treated failure like success: `scan_symbols`/`snapshot_quotes` returned `[]`/`{}` when disconnected; `run_ibkr` default `on_error="empty"`; HOD `set_seed_symbols([])` wiped seeds; FE polls replaced last-good with `[]`; blank `TimeoutError` stringification; empty `.catch(() => {})`.
+- **Fix:** Raise `IbkrDiscoveryError` on discovery transport failure; bridge default `on_error="none"` + adapters `"raise"`; refuse empty HOD seed wipe; AH keep last-good; FE last-good on empty polls; maintainer heuristics for `except return []` / empty promise catch; loud `describe_exc` logging.
+- **Keywords:** silent error, empty market, IbkrDiscoveryError, run_ibkr, last-good, except return [], fail loud, gappers wipe, HOD seeds
+
+## 2026-07-20 — Empty Gappers looked frozen (silent IBKR bridge wipe)
+
+- **Symptom:** Premarket UI felt frozen; Gappers empty; integrity showed `gappers: 0 rows` as **pass**; logs had `IBKR discovery bridge failed:` with a blank message; Gainers still had ~50 live rows.
+- **Cause:** `run_ibkr()` caught bridge timeouts (`TimeoutError` stringifies to `""`), logged a useless warning, and returned `[]`. Discovery then wrote that empty list over `gapper_cache`. Integrity treated recent empty gappers as healthy. Scanner tabs had no integrity banner (only HOD did).
+- **Fix:** Loud bridge logging (`type` + `repr` + traceback); `on_error="none"` for scanner adapters; keep last-good gapper/gainer/loser caches on bridge failure; integrity **fails** empty premarket gappers + surfaces `scanner_ibkr_bridge`; integrity banner on all scanner tabs; EmptyState hints to check Gainers.
+- **Keywords:** gappers empty, frozen, silent error, IBKR bridge, TimeoutError, run_ibkr, gapper_cache wipe, integrity
+
+## 2026-07-20 — Positions Qty showed 0 for fractional IBKR lot
+
+- **Symptom:** POSITIONS (1) listed IBKR with Qty **0**, Avg Cost ~$93.61, Mkt Price ~$91.60; API had `qty: 0.0642` and ~$5.88 market value.
+- **Cause:** Position/order cells used `fmt(qty, 0)` / `toLocaleString` with `maximumFractionDigits: 0`, which rounds fractional shares to zero.
+- **Fix:** Shared `formatShareQty` (0–4 decimals, trim trailing zeros) wired into Positions, Working/Closed Orders, executor/journal tables, and Pos/flatten UI copy.
+- **Keywords:** fractional shares, Positions Qty 0, formatShareQty, IBKR leftover, Webull S6
+
+## 2026-07-20 — VCIG late Squeeze fired on HOD retest (not new HOD)
+
+- **Symptom:** User: VCIG hit Nova HOD scanner at 08:24:14 ET; Warrior showed true HOD (Former Momo + Low Float High Rel Vol) at 08:02:54 / $1.34, then many Running Up alerts 08:02–08:26 while price was *not* making new HOD.
+- **Cause:** (1) Nova first evaluated VCIG ~08:22 ET (`hod_momo.log`; earlier IBKR Error 10089 delayed MD). (2) HOD gate only checked `price ≈ session_high`, so after seeding the ~$1.34 floor, Squeeze 5%/10% re-fired on retests with 5–10m surge — Warrior Running Up semantics on the HOD widget. (3) Alert cache confirms strategies 10/11 at $1.34, not Running Up (12 blocked by `rvol:unknown`).
+- **Fix:** Track `session_high_raised_ts`; `fails_hod_gate` requires a fresh new-high within `HOD_MOMO_NEW_HOD_GRACE_SEC` (60s). Initial bars/tick6 seed does not open the window.
+- **Keywords:** VCIG, HOD retest, Squeeze, Running Up, session_high_raised_ts, fails_hod_gate, hod:not_new, Error 10089, BA101
+
+## 2026-07-19 — Sample Closed Orders Time Placed milliseconds crawled
+
+- **Symptom:** Sample Closed Orders Time Placed (e.g. `.323`) kept changing on refresh; looked like live stamps were mutable.
+- **Cause:** Demo row `9008` in `buildMockClosedOrders` set `submitted_at`/`updated_at` to `new Date().toISOString()` on every rebuild. Sample list rebuilds when account/UI polls, so milliseconds crawled. Banner already said “not from IBKR.”
+- **Fix:** Fixed `submitted_at` in `MOCK_CLOSED_TIMES[9008]`; freeze recent-highlight `updated_at` once at module load. Never call `toISOString()` inside the builder.
+- **Keywords:** Time Placed, sample preview, mockClosedOrders, 9008, Date.now, milliseconds crawl
+
+## 2026-07-19 — Stock View header showed symbol only (no price / up-down)
+
+- **Symptom:** Header chip for CJMB (and similar) showed only the ticker; price, ▲/▼, and day change missing. Charts still painted.
+- **Cause:** `/api/ticker/{symbol}` returned `snapshot: {}`. IBKR path required **both** `price` and `prev_close`; `snapshot_quotes` skipped symbols when `close` was NaN even if `last` was valid. Quote UI lives in the header chip (rail `hidePrice`), so empty snapshot = symbol-only.
+- **Fix:** Allow price-only snapshots; keep last when close missing; fall back to live L1 `ticks.last_quotes`, then last 1‑min chart bar close (same feed as charts) when cache/snapshot empty.
+- **Keywords:** Stock View header, symbol chip, snapshot empty, prev_close, ticker_ibkr, snapshot_quotes, CJMB, chart bars fallback
+
+## 2026-07-19 — Open Orders Time kept moving / crawling
+
+- **Symptom:** Time column on Open Orders changed as the panel refreshed; felt like a live clock instead of order place time.
+- **Cause:** (1) UI used `orderActivityIso` → preferred `updated_at` (last fill / log tick). (2) Sample mocks used `Date.now() - N minutes`, so every rebuild shifted timestamps.
+- **Fix:** Open Orders display `submitted_at` only (`orderSubmittedIso`); Closed keep activity time. Mocks use fixed absolute ISO. Contract tests lock filled/remaining/prices/id/time.
+- **Keywords:** Open Orders, Time, submitted_at, updated_at, mockWorkingOrders, isoMinutesAgo, crawl
 
 ## 2026-07-18 — Paper Gateway could still attach to live (self-heal / port-only)
 

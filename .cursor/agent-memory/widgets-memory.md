@@ -7,9 +7,9 @@ canonical; this memory tracks summary state, durable lessons, and next work.
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-18T22:15:00-04:00
-source_revision: working-tree-2026-07-18
-result: CLOSED_ORDERS_WID027
+captured_at: 2026-07-19T00:40:00-04:00
+source_revision: working-tree-2026-07-19
+result: FILLED_ACTIVE_PROGRESS_VERIFY
 metrics:
   capabilities_total: 27
   matched: 7
@@ -20,7 +20,7 @@ metrics:
   unknown: 0
 blockers: []
 dashboard_freshness: clean
-notes: "WID-027 Closed Orders feature slice + Positions Flatten via closeFullPosition (ADR 007). WID-020 narrowed to CSV/multi-day export. auto_live still NO-GO."
+notes: "Filled/Remaining/Avg fill + Fill now already complete on WID-026/027 (tooltip polish 2026-07-19). Not WID-015 TurboTrader. auto_live still NO-GO."
 ```
 
 
@@ -73,6 +73,8 @@ notes: "WID-027 Closed Orders feature slice + Positions Flatten via closeFullPos
 
 ### Completed
 
+- [x] 2026-07-19 — Verified Filled / Remaining / Average fill + Fill now as the
+      active-fill surface (WID-026/027); header/cell tooltips only; not WID-015.
 - [x] 2026-07-18 — WID-027 Closed Orders feature slice + Positions Flatten
       (`closeFullPosition`); S15/S17 History/Closed surface documented; WID-020
       narrowed to export.
@@ -87,6 +89,17 @@ notes: "WID-027 Closed Orders feature slice + Positions Flatten via closeFullPos
 ## Run log
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-19 — Filled / active-fill progress verify
+
+- **Scope:** Daddy dispatch — user “actively trade them / like filled?” vs
+  Open/Closed columns; create only if missing.
+- **Result:** Already-had. API + UI columns + Partially filled + Fill now
+  complete; polished header/cell tooltips. Explicitly not WID-015 TurboTrader.
+- **Learning:** “Filled” means fill-progress columns + Fill now, not a new
+  Active Trade grid. Do not invent columns for theater after status-matrix work.
+- **Verified:** Vitest 44 focused tests; pytest open_orders_row + orders API
+  contract (6 passed). No commit (prefer-ask).
 
 ### 2026-07-18 — Closed Orders widget + Flatten (WID-027)
 

@@ -9,24 +9,22 @@ Companion to: `.cursor/agents/daddy.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-19T02:20:00Z
-source_revision: 2048482
-result: closed_orders_wid027_dispatch
+captured_at: 2026-07-20T18:55:00Z
+source_revision: working-tree
+result: flatten_dual_source_position_ssot_audit
 metrics:
-  specialists: [widgets, execution, tester]
-  wid: WID-027
-  isolation: closed_orders_feature_slice
-  close_path: placeIbkrOrder_ORDERS_GATE
-  cancel_path: CANCEL_GATE
-  tester: pass_with_notes
-dispatch_mode: direct
-blockers: [reload_uvicorn_for_live_closed_orders]
+  specialists: [execution, maintainer]
+  dispatch_mode: direct
+  orchestration: parallel
+blockers:
+  - openai_embed_key_401_for_ask_recall_synthesis
+  - include_whisper_allowlist_misses_groq_and_faster_whisper_labels
 dashboard_freshness: clean
 ```
 
 Machine-readable block only. Update after material runs. Do not duplicate mutable truth that lives in canonical domain sources.
 
-**dispatch_mode:** `direct` for nested Task. Order-status UI = widgets then tester; Close/Cancel SSOT = parallel `execution` (audit) with widgets. Use `plan` when security/maintainer must not ship product code.
+**dispatch_mode:** `direct`. Position-qty SSOT audits: parallel `execution`+`maintainer`; reject validate-only→portfolio; prefer `long_qty` on `ib.positions()` + UI qty join.
 
 ---
 
@@ -60,6 +58,48 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-20 — Flatten dual-source position SSOT audit (plan expand)
+
+- **Scope:** Plan-mode; Flatten NO_POSITION vs Positions SPY qty 1; full same-nature inventory; no product code.
+- **Result:** parallel execution+maintainer; SSOT = `account.long_qty` on `ib.positions()` shared by validate + executor_flatten + `/positions` qty; reject draft validate→portfolio and UI `source=flatten`; CRITICAL sibling = OS flatten empty positions → skip sell + cancel legs.
+- **Learning:** Align UI to gate truth (positions), not gate to UI (portfolio) — portfolio-as-primary can false-allow OVERSELL; positions-empty while portfolio-shows is the real class.
+- **Files updated:** daddy-memory.md; aggregate task-log `2026-07-20-flatten-dual-source-daddy-audit.md` (execution also wrote sibling audit log).
+
+### 2026-07-20 — Vitest act() environment warning audit
+
+- **Scope:** Verify (not assume) root cause of `act()` env warning in `workingOrderCells.test.tsx`/`closedOrderCells.test.tsx`; scope + benign-or-not + fix name; audit only.
+- **Result:** direct investigate, no specialist needed — confirmed `globalThis.IS_REACT_ACT_ENVIRONMENT` never set anywhere (no `setupFiles`, no RTL dependency at all); affects **24** manual-mount `*.test.tsx` files, not just 2 (653 warning instances / 386 tests, all passing); default Vitest reporter hides it on passing tests (only `--reporter=verbose`/failure show it) — that's why it looked occasional. Confirmed via React source it is **not purely cosmetic**: the same unset flag also disables React's real "update not wrapped in act" bug-catching warning in both directions. Named fix: `test.setupFiles` + tiny dedicated setup module setting the flag — not applied (audit-only ask).
+- **Learning:** "Pre-existing noise, unrelated" claims are exactly what self-annealing should catch — verifying required reading React's own source (`isConcurrentActEnvironment`), not just grepping. A throwaway probe test + `--reporter=verbose` was the fastest way to get ground truth; default reporter output is not sufficient evidence for "nothing happens" claims on passing tests.
+- **Files updated:** daddy-memory.md; `PROBLEM_LOG.md`; task-log `2026-07-20-vitest-act-environment-audit.md`.
+
+### 2026-07-19 — Harvested materials vs AI decision wiring (current truth)
+
+- **Scope:** Does Whisper harvest affect AI/trading decisions today?
+- **Result:** direct investigate — Pinecone 2094 = slides + official captions; Whisper on disk unused; Obsidian keyword = official-only; decide/HOD/control_mode do not consume transcripts.
+- **Learning:** Most harvest files are `groq-whisper-api` / `faster-whisper-local-cuda`, not `whisper-local-audio` — even `--include-whisper` would miss them until allowlist/retag.
+- **Files updated:** daddy-memory.md; task-log `2026-07-19-harvested-materials-ai-decision-wiring.md`.
+
+### 2026-07-19 — Alpaca usage inventory (ibkr ops)
+
+- **Scope:** User declined frontend discovery default change; ask what Alpaca is still for.
+- **Result:** direct explore inventory — under discovery=ibkr Alpaca still used for news, listing Assets, scanner RVOL daily bars, health/Settings; not for live prices/charts/WS/HOD/T&S/orders. No silent IBKR→Alpaca price fallback. HOD avg_vol = yfinance only.
+- **Learning:** Investigate-only inventories → nested explore + spot-check gates; do not re-propose default flip after user declined.
+- **Files updated:** daddy-memory.md; task-log `2026-07-19-alpaca-usage-inventory.md`.
+
+### 2026-07-19 — Warrior transcripts → KB / AI plan
+
+- **Scope:** How harvested LMS transcripts enter knowledge, automation, AI.
+- **Result:** plan — reuse `tools/course_memory`; official→Pinecone first; Whisper curated; Obsidian/graphify = indexes only; dream `--pinecone-official`.
+- **Learning:** Pipeline already exists (`--official-transcripts` / `--include-whisper`); harvest completion ≠ inventory + ingest, not a new RAG stack. Do not nest implementers for “how do we add this?” until input keys + Whisper scope decided.
+- **Files updated:** daddy-memory.md; task-log `2026-07-19-warrior-transcript-kb-plan.md`.
+
+### 2026-07-19 — Filled / active-trade field (“like filled”)
+
+- **Scope:** User asked for field where you actively trade them (like filled); create if missing.
+- **Result:** sequence widgets → tester; **already had** Filled/Remaining/Avg fill/Partially filled/Fill now; widgets tooltip polish only; tester PASS (42 Vitest + 12 pytest).
+- **Learning:** “like filled” on Open/Closed ≠ WID-015 TurboTrader; verify columns first before inventing UI. Prefer-ask commit noted.
+- **Files updated:** daddy-memory.md; aggregate task-log `2026-07-19-filled-active-trade-daddy-dispatch.md`.
 
 ### 2026-07-18 — Closed Orders WID-027 + Close SSOT
 

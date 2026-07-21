@@ -24,7 +24,7 @@ No single source file may grow beyond the limits below. When a file approaches o
 | Any new React component | 300 | Break into child components |
 | Any new TypeScript file | 400 | Split into focused modules |
 
-Accepted baselines (`hod_momo.py`, `executor.py`) may exceed 400 but **must not grow** past the accepted line count in `tools/maintainer_checks.py` (`BASELINE_ACCEPTED_LINES`). See `architecture/dependency-rules.md`.
+Accepted baselines in `tools/maintainer_checks.py` (`BASELINE_OVER_LIMIT` / `BASELINE_ACCEPTED_LINES`) may exceed 400 but **must not grow** past the accepted line count. As of 2026-07-20 both `hod_momo.py` and `executor.py` are under the hard limit (dicts empty). See `architecture/dependency-rules.md`.
 
 ## Enforcement
 
