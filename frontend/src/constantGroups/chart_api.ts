@@ -300,13 +300,16 @@ export const STOCK_VIEW_OPERATOR_MODE_NORMAL_TITLE =
 export const STOCK_VIEW_OPERATOR_MODE_FULL_AUTO_TITLE =
   'Fully Automated (auto_live) is NO-GO — not selectable';
 
-/** Stock View header — Paper / Live account-mode capsule labels. */
+/** Stock View header — Paper / Live account-mode capsule labels.
+ * Clicking these switches which IBKR Gateway port Nova targets and
+ * reconnects (persisted to IBKR_GATEWAY_MODE) — see POST /api/ibkr/gateway-mode.
+ * Orders stay locked until IBKR_LIVE_TRADING_CONFIRMED is armed separately. */
 export const STOCK_VIEW_ACCOUNT_MODE_PAPER = 'Paper';
 export const STOCK_VIEW_ACCOUNT_MODE_LIVE = 'Live';
 export const STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE =
-  'Paper requires IB Gateway logged into a paper account. This control does not switch Gateway ports or enable orders.';
+  'Switch Nova to the paper Gateway port (4002) and reconnect. Requires IB Gateway already logged into a paper account.';
 export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE =
-  'Live requires IB Gateway logged into a live account and IBKR_LIVE_TRADING_CONFIRMED=true. This control never silently arms live orders.';
+  'Switch Nova to the live Gateway port (4001) and reconnect. Requires IB Gateway already logged into a live account. Live spend still stays locked until IBKR_LIVE_TRADING_CONFIRMED is set separately.';
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
 /** Right-rail width (px) on Stock View — charts keep the rest of the viewport. */

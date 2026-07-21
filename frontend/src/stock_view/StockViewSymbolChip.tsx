@@ -151,15 +151,23 @@ export function StockViewSymbolChip({
           {isPositive ? '▲' : '▼'}
         </span>
       )}
-      {mainPrice != null && (
+      {mainPrice != null ? (
         <span className="sv-header__price">${mainPrice.toFixed(2)}</span>
+      ) : (
+        <span className="sv-header__price sv-header__price--missing" title="Waiting for IBKR quote">
+          —
+        </span>
       )}
-      {mainChangeAbs != null && (
+      {mainChangeAbs != null ? (
         <span
           className={`sv-header__change ${(mainChangePct ?? 0) >= 0 ? 'positive' : 'negative'}`}
         >
           {mainChangeAbs >= 0 ? '+' : ''}
           {mainChangeAbs.toFixed(2)} ({fmtPct(mainChangePct)})
+        </span>
+      ) : (
+        <span className="sv-header__change sv-header__change--missing" title="Day change needs prior close">
+          —
         </span>
       )}
       {refreshing && <span className="sv-header__updating">Updating…</span>}

@@ -401,6 +401,30 @@
   color: var(--text-primary);
 }
 
+.account-nav-btn {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 0.4rem 0.875rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.account-nav-btn:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.account-nav-btn.active {
+  border-color: var(--accent, #3b82f6);
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 14%, transparent);
+}
+
 .history-banner {
   display: flex;
   align-items: center;

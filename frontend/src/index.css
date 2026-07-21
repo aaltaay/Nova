@@ -23,5 +23,6 @@
 @import "./stock_view/stockViewTerminal.css" layer(features);
 @import "./ibkr/tradingTab.css" layer(features);
 @import "./closed_orders/closedOrders.css" layer(features);
+@import "./orders_today/ordersToday.css" layer(features);
 @import "./ibkr/tradeTicket.css" layer(features);
 @import "./styles/tailwind-overrides.css" layer(overrides);

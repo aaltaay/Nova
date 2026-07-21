@@ -3,8 +3,9 @@
  * dialogs exactly — this bar must never show a binary "armed" state that
  * hides whether BUY decisions would stage for Approve (confirm) or place
  * without one (auto_paper). Reuses useExecutor for the same status/actions. */
-import { NOVA_OS_CONFIRM_TIMEOUT_SEC } from '../constants';
+import { APP_DIALOG_KILL_LABEL, NOVA_OS_CONFIRM_TIMEOUT_SEC } from '../constants';
 import { useExecutor } from '../strategy/useExecutor';
+import { confirmApp } from '../ux';
 
 interface Props {
   enabled: boolean;
@@ -19,26 +20,41 @@ export function TickerTradeAutomateControls({ enabled }: Props) {
 
   function handleConfirmMode() {
     if (!status) return;
-    const confirmed = window.confirm(
-      `${status.disclosure}\n\nRaise to Confirm? BUY decisions will stage paper tickets for your Approve (TTL ${NOVA_OS_CONFIRM_TIMEOUT_SEC}s). Nothing places until you approve.`,
-    );
-    if (confirmed) void setMode('confirm');
+    void confirmApp({
+      title: 'Raise to Confirm?',
+      message:
+        `${status.disclosure}\n\nBUY decisions will stage paper tickets for your Approve (TTL ${NOVA_OS_CONFIRM_TIMEOUT_SEC}s). Nothing places until you approve.`,
+      confirmLabel: 'Raise to Confirm',
+      tone: 'warning',
+    }).then(ok => {
+      if (ok) void setMode('confirm');
+    });
   }
 
   function handleAutoPaper() {
     if (!status || !paperGateway) return;
-    const confirmed = window.confirm(
-      `${status.disclosure}\n\nRaise to Auto Paper?\n\nBUY decisions will PLACE paper brackets automatically — no Approve step. Only available on paper Gateway with orders enabled.`,
-    );
-    if (confirmed) void setMode('auto_paper');
+    void confirmApp({
+      title: 'Raise to Auto Paper?',
+      message:
+        `${status.disclosure}\n\nBUY decisions will PLACE paper brackets automatically — no Approve step. Only available on paper Gateway with orders enabled.`,
+      confirmLabel: 'Raise to Auto Paper',
+      tone: 'warning',
+    }).then(ok => {
+      if (ok) void setMode('auto_paper');
+    });
   }
 
   function handleKill() {
-    const confirmed = window.confirm(
-      'Stop Automation: force Signal, reject staged tickets, cancel only unfilled entry parents. ' +
-        'Protective stops on filled positions are kept — use Close for that. Continue?',
-    );
-    if (confirmed) killSwitch();
+    void confirmApp({
+      title: 'Stop Automation?',
+      message:
+        'Force Signal, reject staged tickets, cancel only unfilled entry parents. '
+        + 'Protective stops on filled positions are kept — use Close for that. Continue?',
+      confirmLabel: APP_DIALOG_KILL_LABEL,
+      tone: 'danger',
+    }).then(ok => {
+      if (ok) killSwitch();
+    });
   }
 
   return (

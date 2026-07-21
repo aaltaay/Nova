@@ -26,11 +26,13 @@ export function ClosedOrdersModule({
   hideTitle = false,
 }: Props) {
   const status = useIbkrStatus();
-  const { orders } = useClosedOrders(status.connected);
+  const { orders, error } = useClosedOrders(status.connected);
   /** When Gateway has no terminal orders, show paper-style sample until hidden. */
   const [preferSample, setPreferSample] = useState(true);
 
-  const usingSample = orders.length === 0 && preferSample;
+  // Never substitute sample data for a genuine read failure — that would
+  // hide the failure behind fake "success" rows.
+  const usingSample = orders.length === 0 && !error && preferSample;
   const rows = useMemo(
     () => (usingSample ? buildMockClosedOrders(filterSymbol ?? selectedSymbol) : orders),
     [usingSample, orders, filterSymbol, selectedSymbol],
@@ -42,7 +44,7 @@ export function ClosedOrdersModule({
       data-testid="closed-orders-module"
       data-module-id={CLOSED_ORDERS_MODULE_ID}
     >
-      {orders.length === 0 && (
+      {orders.length === 0 && !error && (
         <div className="ibkr-closed-orders-toolbar">
           <button
             type="button"
@@ -62,6 +64,7 @@ export function ClosedOrdersModule({
         filterSymbol={filterSymbol}
         sampleMode={usingSample}
         hideTitle={hideTitle}
+        error={error}
       />
     </section>
   );

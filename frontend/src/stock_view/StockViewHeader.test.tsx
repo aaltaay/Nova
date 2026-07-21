@@ -14,11 +14,18 @@ import {
 } from '../constants';
 import { StockViewHeader } from './StockViewHeader';
 
+const confirmAppMock = vi.fn();
+vi.mock('../ux', () => ({
+  confirmApp: (...args: unknown[]) => confirmAppMock(...args),
+}));
+
 describe('StockViewHeader trading chrome', () => {
   let container: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
+    confirmAppMock.mockReset();
+    confirmAppMock.mockResolvedValue(false);
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -97,20 +104,20 @@ describe('StockViewHeader trading chrome', () => {
     expect(segs[2]).toHaveProperty('disabled', true);
   });
 
-  it('marks Paper selected for paper Gateway and does not arm Live on click', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('marks Paper selected for paper Gateway and does not arm Live on click', async () => {
+    confirmAppMock.mockResolvedValue(false);
     renderHeader({ mode: 'paper' });
     const account = container.querySelector('[data-testid="sv-account-mode-capsule"]');
     const segs = account!.querySelectorAll('.sv-capsule__seg');
     expect(segs[0].classList.contains('is-selected')).toBe(true);
     expect(segs[0].classList.contains('is-paper')).toBe(true);
     expect(segs[1].classList.contains('is-selected')).toBe(false);
-    act(() => {
+    await act(async () => {
       (segs[1] as HTMLButtonElement).click();
+      await Promise.resolve();
     });
-    expect(confirmSpy).toHaveBeenCalled();
+    expect(confirmAppMock).toHaveBeenCalled();
     expect(segs[1].classList.contains('is-selected')).toBe(false);
-    confirmSpy.mockRestore();
   });
 
   it('shows paper trading banner only when mode is paper', () => {

@@ -4,6 +4,7 @@ import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL, QUOTE_CARD_TITLE } from '../constants';
 import type { TickerDetail } from '../types/ticker';
 import { fmtPct, fmtTimestamp } from '../utils/quoteFormat';
+import { confirmApp } from '../ux';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from './quoteMetrics';
 
@@ -33,7 +34,9 @@ export function QuoteHeaderPanel({
       .then(data => {
         if (!cancelled) setBlocked(!!data?.symbols?.includes(detail.symbol));
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('[Nova] HOD blocklist fetch failed', err);
+      });
     return () => {
       cancelled = true;
     };
@@ -45,26 +48,32 @@ export function QuoteHeaderPanel({
         .then(r => {
           if (r.ok) setBlocked(false);
         })
-        .catch(() => {});
+        .catch((err) => {
+          console.error('[Nova] HOD blocklist unblock failed', err);
+        });
       return;
     }
-    if (
-      !window.confirm(
-        `Block ${detail.symbol}?\n\nThis removes it from every scanner (Gappers, Movers, ` +
-          'After-Hours, News Catalysts) and HOD Momo alerts until you unblock it.',
-      )
-    ) {
-      return;
-    }
-    novaFetch(`${API_URL}/hod-momo/blocklist`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol: detail.symbol }),
-    })
-      .then(r => {
-        if (r.ok) setBlocked(true);
+    void confirmApp({
+      title: `Block ${detail.symbol}?`,
+      message:
+        'This removes it from every scanner (Gappers, Movers, After-Hours, News Catalysts) ' +
+        'and HOD Momo alerts until you unblock it.',
+      confirmLabel: 'Block',
+      tone: 'danger',
+    }).then(ok => {
+      if (!ok) return;
+      novaFetch(`${API_URL}/hod-momo/blocklist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: detail.symbol }),
       })
-      .catch(() => {});
+        .then(r => {
+          if (r.ok) setBlocked(true);
+        })
+        .catch(err => {
+          console.error('[Nova] HOD blocklist block failed', err);
+        });
+    });
   }
 
   return (

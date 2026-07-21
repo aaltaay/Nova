@@ -33,6 +33,7 @@ export type ModuleCountKey =
   | 'afterhours'
   | 'catalysts'
   | 'hodMomo'
+  | 'runningUp'
   | 'watchlist';
 
 /** Tab ids — also the ActiveTab union used by Dashboard / TabNav. */
@@ -44,6 +45,7 @@ export const TAB_MODULE_IDS = [
   'afterhours',
   'catalysts',
   'hod_momo',
+  'running_up',
   'trading',
   'watchlist',
   'reports',
@@ -142,13 +144,22 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     countKey: 'hodMomo',
   },
   {
+    id: 'running_up',
+    title: 'Running Up',
+    component: host,
+    feedDeps: ['hod_momo'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    countKey: 'runningUp',
+  },
+  {
     id: 'trading',
-    title: 'Trading',
+    title: 'Account',
     component: host,
     feedDeps: ['none'],
     defaultPlacement: 'tab',
-    showInTabNav: true,
-    badge: 'IBKR',
+    // Header control next to Today (Live) — not a scanner tab-bar entry.
+    showInTabNav: false,
   },
   {
     id: 'watchlist',
@@ -165,7 +176,8 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     component: host,
     feedDeps: ['none'],
     defaultPlacement: 'tab',
-    showInTabNav: true,
+    // Nested under Account (header) — not a top-level tab.
+    showInTabNav: false,
   },
   {
     id: 'level2',
@@ -207,7 +219,7 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     title: CLOSED_ORDERS_PANEL_TITLE,
     component: ClosedOrdersModule,
     feedDeps: ['none'],
-    /** Trading account column host today; Modules menu hide/show; future drag-drop slot. */
+    /** Account overview host; Modules menu hide/show; future drag-drop slot. */
     defaultPlacement: 'side_panel',
     defaultVisible: true,
   },

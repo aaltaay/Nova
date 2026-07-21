@@ -5,8 +5,15 @@
  * Phase G: keyboard shortcuts via useHotkeys (order keys blocked in signal).
  */
 import { useCallback, useState } from 'react';
-import { NOVA_OS_CONFIRM_TIMEOUT_SEC, NOVA_OS_FLATTEN_CONFIRM_TOKEN } from '../constants';
+import {
+  APP_DIALOG_FLATTEN_LABEL,
+  APP_DIALOG_KILL_LABEL,
+  APP_DIALOG_PLACE_LABEL,
+  NOVA_OS_CONFIRM_TIMEOUT_SEC,
+  NOVA_OS_FLATTEN_CONFIRM_TOKEN,
+} from '../constants';
 import { useHotkeys } from '../hooks/useHotkeys';
+import { confirmApp, promptApp } from '../ux';
 import { OpenPositionsTable, StagedTable, fmtPrice } from './ExecutorTables';
 import { HotkeySettings } from './HotkeySettings';
 import { useExecutor } from './useExecutor';
@@ -39,41 +46,68 @@ export function ExecutorPanel({
 
   const handleConfirmMode = useCallback(() => {
     if (!status) return;
-    const ok = window.confirm(
-      `${status.disclosure}\n\nRaise to Confirm? BUY decisions will stage paper tickets for your Approve (TTL ${NOVA_OS_CONFIRM_TIMEOUT_SEC}s). Nothing places until you approve.`,
-    );
-    if (ok) arm();
+    void confirmApp({
+      title: 'Raise to Confirm?',
+      message:
+        `${status.disclosure}\n\nBUY decisions will stage paper tickets for your Approve (TTL ${NOVA_OS_CONFIRM_TIMEOUT_SEC}s). Nothing places until you approve.`,
+      confirmLabel: 'Raise to Confirm',
+      tone: 'warning',
+    }).then(ok => {
+      if (ok) arm();
+    });
   }, [status, arm]);
 
   const handleAutoPaper = () => {
     if (!status || !paperGateway) return;
-    const ok = window.confirm(
-      `${status.disclosure}\n\nRaise to Auto Paper?\n\nBUY decisions will PLACE paper brackets automatically — no Approve step. Only available on paper Gateway with orders enabled.`,
-    );
-    if (ok) void setMode('auto_paper');
+    void confirmApp({
+      title: 'Raise to Auto Paper?',
+      message:
+        `${status.disclosure}\n\nBUY decisions will PLACE paper brackets automatically — no Approve step. Only available on paper Gateway with orders enabled.`,
+      confirmLabel: 'Raise to Auto Paper',
+      tone: 'warning',
+    }).then(ok => {
+      if (ok) void setMode('auto_paper');
+    });
   };
 
   const handleKill = useCallback(() => {
-    const ok = window.confirm(
-      'Stop Automation: force Signal, reject staged tickets, cancel only unfilled entry parents. Protective stops on filled positions are kept. Continue?',
-    );
-    if (ok) killSwitch();
+    void confirmApp({
+      title: 'Stop Automation?',
+      message:
+        'Force Signal, reject staged tickets, cancel only unfilled entry parents. Protective stops on filled positions are kept. Continue?',
+      confirmLabel: APP_DIALOG_KILL_LABEL,
+      tone: 'danger',
+    }).then(ok => {
+      if (ok) killSwitch();
+    });
   }, [killSwitch]);
 
   const handleFlatten = useCallback(() => {
-    const typed = window.prompt(
-      `Flatten automated positions requires typing ${NOVA_OS_FLATTEN_CONFIRM_TOKEN}. This submits closing sells — verify fills in IBKR.`,
-    );
-    if (typed === NOVA_OS_FLATTEN_CONFIRM_TOKEN) flatten();
+    void promptApp({
+      title: 'Flatten automated positions',
+      message:
+        `Type ${NOVA_OS_FLATTEN_CONFIRM_TOKEN} to confirm. This submits closing sells — verify fills in IBKR.`,
+      confirmLabel: APP_DIALOG_FLATTEN_LABEL,
+      expectedValue: NOVA_OS_FLATTEN_CONFIRM_TOKEN,
+      placeholder: NOVA_OS_FLATTEN_CONFIRM_TOKEN,
+      tone: 'danger',
+    }).then(typed => {
+      if (typed === NOVA_OS_FLATTEN_CONFIRM_TOKEN) flatten();
+    });
   }, [flatten]);
 
   const handleApprove = useCallback((id: string) => {
     const ticket = status?.staged?.find((t) => t.id === id);
     if (!ticket) return;
-    const ok = window.confirm(
-      `Place this paper bracket now: buy ${ticket.shares} ${ticket.symbol} @ ${fmtPrice(ticket.entry)}, stop ${fmtPrice(ticket.stop)}, target ${fmtPrice(ticket.target)}?`,
-    );
-    if (ok) approveStaged(id);
+    void confirmApp({
+      title: `Place ${ticket.symbol} paper bracket?`,
+      message:
+        `Buy ${ticket.shares} ${ticket.symbol} @ ${fmtPrice(ticket.entry)}, stop ${fmtPrice(ticket.stop)}, target ${fmtPrice(ticket.target)}?`,
+      confirmLabel: APP_DIALOG_PLACE_LABEL,
+      tone: 'warning',
+    }).then(ok => {
+      if (ok) approveStaged(id);
+    });
   }, [status?.staged, approveStaged]);
 
   const handleApproveFirst = useCallback(() => {

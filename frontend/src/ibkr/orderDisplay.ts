@@ -134,11 +134,16 @@ export function formatExtendedHours(outsideRth: boolean): string {
   return outsideRth ? 'Extended hours' : 'Regular hours';
 }
 
-/** Exact Eastern time with seconds for open/closed order rows. */
+/**
+ * Exact Eastern Time Placed label for order rows.
+ * Shows milliseconds whenever the ISO carries a fractional second (audit).
+ * Machine truth stays on `<time dateTime={iso}>` (UTC ISO unchanged).
+ */
 export function formatOrderDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '—';
+  const hasFraction = /[T ]\d{2}:\d{2}:\d{2}\.\d/.test(iso);
   const formatted = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
@@ -147,12 +152,24 @@ export function formatOrderDateTime(iso: string | null | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
+    ...(hasFraction ? { fractionalSecondDigits: 3 as const } : {}),
     hour12: false,
   }).format(d);
   return `${formatted} ET`;
 }
 
-/** Prefer last activity (fill/cancel); fall back to submitted. */
+/**
+ * Time Placed — broker/Nova place-time snapshot only.
+ * Must NOT use updated_at (fills / status ticks would make the clock crawl).
+ */
+export function orderSubmittedIso(order: {
+  submitted_at?: string | null;
+  updated_at?: string | null;
+}): string | null {
+  return order.submitted_at || null;
+}
+
+/** Last fill / cancel activity (recency highlight + tooltip); not Time Placed. */
 export function orderActivityIso(order: {
   updated_at?: string | null;
   submitted_at?: string | null;
@@ -160,16 +177,25 @@ export function orderActivityIso(order: {
   return order.updated_at || order.submitted_at || null;
 }
 
+export function orderSubmittedTimeTitle(order: {
+  submitted_at?: string | null;
+  updated_at?: string | null;
+}): string {
+  const submitted = formatOrderDateTime(order.submitted_at);
+  if (submitted === '—') {
+    return 'Time Placed unavailable (no broker log or Nova place stamp)';
+  }
+  const updated = formatOrderDateTime(order.updated_at);
+  if (updated !== '—' && updated !== submitted) {
+    return `Time Placed ${submitted} · Last activity ${updated}`;
+  }
+  return `Time Placed ${submitted} (fixed at place — does not update on fills)`;
+}
+
+/** @deprecated Prefer orderSubmittedTimeTitle — kept for older call sites. */
 export function orderTimeTitle(order: {
   updated_at?: string | null;
   submitted_at?: string | null;
 }): string {
-  const submitted = formatOrderDateTime(order.submitted_at);
-  const updated = formatOrderDateTime(order.updated_at);
-  if (submitted === '—' && updated === '—') return 'Time unavailable from broker';
-  if (submitted !== '—' && updated !== '—' && submitted !== updated) {
-    return `Submitted ${submitted} · Updated ${updated}`;
-  }
-  if (updated !== '—') return `Updated ${updated}`;
-  return `Submitted ${submitted}`;
+  return orderSubmittedTimeTitle(order);
 }

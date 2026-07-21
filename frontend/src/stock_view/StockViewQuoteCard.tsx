@@ -1,6 +1,11 @@
 /** Dense quote stats for Stock View rail — wrapped in shared module card. */
 import { CompactGridCell } from '../components/CompactGridCell';
-import { REL_VOLUME_HIGH, STOCK_VIEW_MODULE_QUOTE_TITLE } from '../constants';
+import {
+  QUOTE_RVOL_DAILY_LABEL,
+  QUOTE_RVOL_DAILY_TITLE,
+  REL_VOLUME_HIGH,
+  STOCK_VIEW_MODULE_QUOTE_TITLE,
+} from '../constants';
 import type { TickerDetail } from '../types/ticker';
 import {
   fmtPct,
@@ -50,13 +55,14 @@ export function StockViewQuoteCard({ detail, hidePrice = true }: Props) {
           <CompactGridCell label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
           <CompactGridCell label="Vol" value={fmtVolume(daily?.volume)} />
           <CompactGridCell
-            label="RVol"
+            label={QUOTE_RVOL_DAILY_LABEL}
             value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
             valueClass={
               detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH
                 ? 'positive'
                 : undefined
             }
+            title={QUOTE_RVOL_DAILY_TITLE}
           />
           <CompactGridCell
             label="Gap%"

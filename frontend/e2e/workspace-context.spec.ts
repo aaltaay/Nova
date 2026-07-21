@@ -16,17 +16,17 @@ function attachErrorCollector(page: Page): { errors: string[] } {
 }
 
 test.describe('Phase 2 — WorkspaceContext', () => {
-  test('Stock View URL still opens under WorkspaceProvider', async ({ page }) => {
+  test('Trader URL still opens under WorkspaceProvider', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=stock&symbol=MSFT');
 
     await expect(page.locator('.stock-view-page')).toBeVisible();
-    await expect(page).toHaveTitle(/MSFT/);
-    await expect(page.getByText('Stock View', { exact: true })).toBeVisible();
+    await expect(page).toHaveTitle(/MSFT.*Trader/);
+    await expect(page.getByText('Trader', { exact: true })).toBeVisible();
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
-  test('quote panel Stock View button opens detached window via openStockView', async ({
+  test('quote panel Trader button opens detached window via openStockView', async ({
     page,
     context,
   }) => {
@@ -37,7 +37,7 @@ test.describe('Phase 2 — WorkspaceContext', () => {
     await sideInput.fill('AAPL');
     await page.locator('.side-panel').getByRole('button', { name: 'Look Up' }).click();
 
-    const openBtn = page.locator('.side-panel').getByRole('button', { name: /Stock View/i });
+    const openBtn = page.locator('.side-panel').getByRole('button', { name: /Trader/i });
     await expect(openBtn).toBeVisible({ timeout: 15_000 });
 
     const popupPromise = context.waitForEvent('page', { timeout: 10_000 });

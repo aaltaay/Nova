@@ -13,14 +13,17 @@ import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader'
 import {
   formatOrderSide,
   formatOrderStatus,
-  orderActivityIso,
   orderSideClass,
   orderSideRowClass,
   orderStatusTone,
+  orderSubmittedIso,
 } from './orderDisplay';
 import { WORKING_COLUMN_META, visibleWorkingColumns } from './orderTableColumns';
+import { sortOrders } from './orderTableSort';
+import { remainingShares } from './orderQtyMath';
 import type { IbkrOrder } from './types';
 import { useOrderTableColumnOrder } from './useOrderTableColumnOrder';
+import { useOrderTableSort } from './useOrderTableSort';
 import { renderWorkingOrderCell } from './workingOrderCells';
 
 interface Props {
@@ -34,13 +37,9 @@ interface Props {
   filterSymbol?: string | null;
   hideTitle?: boolean;
   compact?: boolean;
-}
-
-function remainingQty(o: IbkrOrder): number {
-  if (o.remaining_qty != null && Number.isFinite(o.remaining_qty)) {
-    return Math.max(0, o.remaining_qty);
-  }
-  return Math.max(0, o.qty - (o.filled_qty ?? 0));
+  /** Set when the last orders poll failed — rows above are last-good, not
+   * an honest "no working orders" read. */
+  error?: string | null;
 }
 
 export function WorkingOrdersPanel({
@@ -54,8 +53,10 @@ export function WorkingOrdersPanel({
   filterSymbol = null,
   hideTitle = false,
   compact = false,
+  error = null,
 }: Props) {
   const { order, reorder, reset } = useOrderTableColumnOrder('working');
+  const { sortState, onSortColumn, clearSort } = useOrderTableSort('working');
   const columns = useMemo(
     () => visibleWorkingColumns(order, compact),
     [order, compact],
@@ -66,9 +67,12 @@ export function WorkingOrdersPanel({
   );
 
   const filterKey = filterSymbol?.toUpperCase() ?? null;
-  const rows = filterKey
-    ? orders.filter((o) => o.symbol.toUpperCase() === filterKey)
-    : orders;
+  const rows = useMemo(() => {
+    const filtered = filterKey
+      ? orders.filter((o) => o.symbol.toUpperCase() === filterKey)
+      : orders;
+    return sortOrders(filtered, sortState, 'working');
+  }, [orders, filterKey, sortState]);
   const showActions = Boolean(onCancelOrder || onFillImmediately);
 
   return (
@@ -80,8 +84,13 @@ export function WorkingOrdersPanel({
       {!hideTitle && (
         <h4 className="ibkr-section-title">{WORKING_ORDERS_PANEL_TITLE}</h4>
       )}
+      {error && (
+        <div className="ibkr-empty ibkr-empty--error" data-testid="working-orders-error">
+          {error} — showing last-known data.
+        </div>
+      )}
       {rows.length === 0 ? (
-        <div className="ibkr-empty">No open orders.</div>
+        !error && <div className="ibkr-empty">No open orders.</div>
       ) : (
         <OrderTableDnd onReorder={reorder}>
         <table className="ibkr-table ibkr-table--orders">
@@ -89,6 +98,9 @@ export function WorkingOrdersPanel({
             <OrderTableColumnHeader
               columns={headerMeta}
               onReset={reset}
+              sortState={sortState}
+              onSortColumn={onSortColumn}
+              onClearSort={clearSort}
               trailing={
                 showActions ? (
                   <th className="ibkr-col--actions" data-column-pinned="actions">
@@ -107,7 +119,7 @@ export function WorkingOrdersPanel({
                 o.qty,
               );
               const tone = orderStatusTone(statusLabel);
-              const rem = remainingQty(o);
+              const rem = remainingShares(o);
               const sideCls = orderSideClass(o.side);
               const sideRowCls = orderSideRowClass(o.side);
               const rowClass = [sideRowCls, highlighted ? 'ibkr-order-row--highlight' : '']
@@ -116,7 +128,7 @@ export function WorkingOrdersPanel({
               const ctx = {
                 statusLabel,
                 tone,
-                activityIso: orderActivityIso(o),
+                placedIso: orderSubmittedIso(o),
                 sideCls,
                 sideLabel: formatOrderSide(o.side),
               };

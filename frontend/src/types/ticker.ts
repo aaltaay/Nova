@@ -54,6 +54,47 @@ export interface AssetInfo {
   attributes?: string[];
 }
 
+/** Side-by-side broker listing — never merge Alpaca + IBKR into one Yes/No. */
+export interface AlpacaListingFlags {
+  source: 'alpaca_assets' | string;
+  status?: string | null;
+  tradable?: boolean | null;
+  shortable?: boolean | null;
+  easy_to_borrow?: boolean | null;
+  short_type?: string | null;
+  short_type_detail?: string | null;
+  marginable?: boolean | null;
+  fractionable?: boolean | null;
+  maintenance_margin_requirement?: number | null;
+  margin_requirement_long?: string | null;
+  margin_requirement_short?: string | null;
+  asset_class?: string | null;
+  exchange?: string | null;
+  attributes?: string[];
+  error?: string | null;
+}
+
+export interface IbkrListingFlags {
+  source: 'ibkr' | string;
+  connected?: boolean;
+  qualified?: boolean;
+  con_id?: number | null;
+  long_name?: string | null;
+  stock_type?: string | null;
+  exchange?: string | null;
+  shortable_shares?: number | null;
+  short_type?: string | null;
+  short_type_detail?: string | null;
+  tradable_hint?: string | null;
+  error?: string | null;
+}
+
+export interface ListingCompare {
+  symbol: string;
+  alpaca: AlpacaListingFlags;
+  ibkr: IbkrListingFlags | null;
+}
+
 export interface NewsArticle {
   headline: string;
   summary: string;
@@ -100,6 +141,8 @@ export interface TickerTradeUpdate {
 export interface TickerDetail {
   symbol: string;
   asset: AssetInfo;
+  /** Dual-broker listing flags (Alpaca Assets + IBKR short/qualify). */
+  listing?: ListingCompare | null;
   snapshot: SnapshotData;
   avg_volume: number | null;
   rel_volume: number | null;

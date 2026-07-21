@@ -1,7 +1,12 @@
 /** Key stats + fundamentals grid + broker listing attributes. */
 import { CompactGridCell } from '../components/CompactGridCell';
 import { TickerBrokerGrid } from '../components/TickerBrokerGrid';
-import { QUOTE_AVG_VOLUME_LABEL, REL_VOLUME_HIGH } from '../constants';
+import {
+  QUOTE_AVG_VOLUME_LABEL,
+  QUOTE_RVOL_DAILY_LABEL,
+  QUOTE_RVOL_DAILY_TITLE,
+  REL_VOLUME_HIGH,
+} from '../constants';
 import type { TickerDetail } from '../types/ticker';
 import {
   fmtMarketCap,
@@ -42,11 +47,12 @@ export function FundamentalsPanel({
       <CompactGridCell label="Volume" value={fmtVolume(daily?.volume)} />
       <CompactGridCell label={QUOTE_AVG_VOLUME_LABEL} value={fmtVolume(detail.avg_volume ?? null)} />
       <CompactGridCell
-        label="Relative Volume (Daily)"
+        label={QUOTE_RVOL_DAILY_LABEL}
         value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
         valueClass={
           detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined
         }
+        title={QUOTE_RVOL_DAILY_TITLE}
       />
       {variant === 'full' && (
         <>
@@ -121,7 +127,7 @@ export function FundamentalsPanel({
           {includeFund && fundCells}
         </div>
       )}
-      {includeBroker && <TickerBrokerGrid asset={asset} />}
+      {includeBroker && <TickerBrokerGrid asset={asset} listing={detail.listing} />}
     </div>
   );
 }

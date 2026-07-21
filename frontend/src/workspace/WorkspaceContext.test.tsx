@@ -18,6 +18,7 @@ vi.mock('../ibkr/useIbkrStatus', () => ({
     enabled: true,
     connected: true,
     mode: 'paper',
+    gateway_mode: 'paper',
     orders_enabled: false,
     spend_status: 'locked',
   }),
@@ -28,6 +29,8 @@ type Snapshot = {
   discoveryProvider: string;
   alpacaFeed: string;
   ibkrConnected: boolean;
+  ibkrMode: string;
+  ibkrGatewayMode: 'paper' | 'live' | null;
   setSelectedSymbol: (sym: string | null) => void;
 };
 
@@ -40,6 +43,8 @@ function Probe() {
     discoveryProvider: ws.discoveryProvider,
     alpacaFeed: ws.alpacaFeed,
     ibkrConnected: ws.ibkrConnected,
+    ibkrMode: ws.ibkrMode,
+    ibkrGatewayMode: ws.ibkrGatewayMode,
     setSelectedSymbol: ws.setSelectedSymbol,
   };
   return null;

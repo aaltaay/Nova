@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { STRATEGY_META } from '../constants';
+import { APP_DIALOG_RESET_LABEL, STRATEGY_META } from '../constants';
+import { confirmApp } from '../ux';
 import { BlocklistPanel } from './BlocklistPanel';
 import { MasterGatePanel } from './MasterGatePanel';
 import { StrategyConfigurator } from './StrategyConfigurator';
@@ -72,7 +73,16 @@ export function HodMomoSettings({ config, onClose }: HodMomoSettingsProps) {
             <div className="hod-settings-global-actions">
               <button
                 className="hod-cfg-btn hod-cfg-btn--danger"
-                onClick={() => { if (window.confirm('Reset ALL strategies and master gate to defaults?')) resetAll(); }}
+                onClick={() => {
+                  void confirmApp({
+                    title: 'Reset all strategies?',
+                    message: 'Reset ALL strategies and master gate to defaults?',
+                    confirmLabel: APP_DIALOG_RESET_LABEL,
+                    tone: 'danger',
+                  }).then(ok => {
+                    if (ok) resetAll();
+                  });
+                }}
               >
                 Reset All Strategies
               </button>

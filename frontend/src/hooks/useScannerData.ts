@@ -92,7 +92,12 @@ export function useScannerData(opts: {
         }
         if (data.mode) setMode(data.mode as Mode);
         if (data.data_feed) onActiveFeed?.(data.data_feed);
-        if (Array.isArray(data.gappers)) setGappers(data.gappers);
+        // Keep last-good rows when API returns [] (bridge/scan wipe signature).
+        if (Array.isArray(data.gappers)) {
+          setGappers(prev =>
+            data.gappers.length === 0 && prev.length > 0 ? prev : data.gappers,
+          );
+        }
         if (data.last_scan) nextAges = { ...nextAges, gappers: data.last_scan };
       }
 
@@ -100,15 +105,27 @@ export function useScannerData(opts: {
         const data = await moversRes.json();
         if (data.mode) setMode(data.mode as Mode);
         if (data.last_scan) nextAges = { ...nextAges, movers: data.last_scan };
-        if (Array.isArray(data.gainers)) setGainers(data.gainers);
-        if (Array.isArray(data.losers)) setLosers(data.losers);
+        if (Array.isArray(data.gainers)) {
+          setGainers(prev =>
+            data.gainers.length === 0 && prev.length > 0 ? prev : data.gainers,
+          );
+        }
+        if (Array.isArray(data.losers)) {
+          setLosers(prev =>
+            data.losers.length === 0 && prev.length > 0 ? prev : data.losers,
+          );
+        }
       }
 
       if (ahRes.ok) {
         const data = await ahRes.json();
         if (data.mode) setMode(data.mode as Mode);
         if (data.last_scan) nextAges = { ...nextAges, afterhours: data.last_scan };
-        if (Array.isArray(data.afterhours)) setAfterhours(data.afterhours);
+        if (Array.isArray(data.afterhours)) {
+          setAfterhours(prev =>
+            data.afterhours.length === 0 && prev.length > 0 ? prev : data.afterhours,
+          );
+        }
       }
 
       if (Object.keys(nextAges).length > 0) {

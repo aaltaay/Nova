@@ -35,6 +35,7 @@ import {
   TICKER_TRADE_SIDE_WIDTH_PX,
 } from '../constants';
 import { replaceStockViewUrl } from '../utils/stockViewNav';
+import { alertApp } from '../ux';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
 interface Props {
@@ -65,7 +66,8 @@ export function StockViewPage({
   const [ordersCollapsed, setOrdersCollapsed] = useState(
     STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED,
   );
-  const workspaceRef = useRef<HTMLDivElement>(null);
+  /** Left column (charts + Orders) — height split is relative to this pane. */
+  const mainColRef = useRef<HTMLDivElement>(null);
   const {
     width: sideWidth,
     onDragStart: onSideResizeStart,
@@ -85,7 +87,7 @@ export function StockViewPage({
     defaultPct: STOCK_VIEW_MAIN_ORDERS_SPLIT_PCT,
     minPct: STOCK_VIEW_MAIN_ORDERS_SPLIT_MIN_PCT,
     maxPct: STOCK_VIEW_MAIN_ORDERS_SPLIT_MAX_PCT,
-    containerRef: workspaceRef,
+    containerRef: mainColRef,
   });
 
   useEffect(() => {
@@ -138,7 +140,7 @@ export function StockViewPage({
         setHighlightOrderId(res.place_order_id);
       }
       if (!res.ok && res.error !== 'Fill now cancelled') {
-        window.alert(res.error);
+        void alertApp({ title: 'Fill now failed', message: res.error, tone: 'danger' });
       }
       refresh();
     },
@@ -168,47 +170,79 @@ export function StockViewPage({
         isPositive={metrics?.isPositive ?? true}
         refreshing={refreshing}
         mode={ibkrStatus.mode}
+        gatewayMode={ibkrStatus.gateway_mode}
         connected={ibkrStatus.connected}
+        ibkrStatus={ibkrStatus}
         summary={summary}
         onLookup={handleLookup}
       />
 
-      {showSpinner && (
-        <div className="detail-loading">
-          <div className="detail-loading-spinner" />
-          <span>Loading {symbol}…</span>
-        </div>
-      )}
-
-      {fetchFailed && !detailReady && (
-        <div className="empty-state">No data found for {symbol}.</div>
-      )}
-
-      {detailReady && detail && (
-        <div
-          ref={workspaceRef}
-          className={`stock-view-workspace${
-            ordersCollapsed ? ' stock-view-workspace--orders-collapsed' : ''
-          }`}
-          style={
-            {
-              ['--sv-main-pct']: `${mainPct}%`,
-              ['--sv-orders-pane-min']: `${STOCK_VIEW_OPEN_ORDERS_PANE_MIN_PX}px`,
-            } as CSSProperties
-          }
-          data-testid="stock-view-workspace"
-        >
-          <div className="stock-view-body">
-            <div className="stock-view-main">
-              <div className="stock-view-charts">
+      {/*
+        Positions / Orders / Nova OS dock must not wait on ticker WS — account
+        tables stay usable while charts/rail load (also keeps e2e stable).
+      */}
+      <div
+        className="stock-view-workspace"
+        data-testid="stock-view-workspace"
+      >
+        <div className="stock-view-body">
+          <div
+            ref={mainColRef}
+            className={`stock-view-main${
+              ordersCollapsed ? ' stock-view-main--orders-collapsed' : ''
+            }`}
+            style={
+              {
+                ['--sv-main-pct']: `${mainPct}%`,
+                ['--sv-orders-pane-min']: `${STOCK_VIEW_OPEN_ORDERS_PANE_MIN_PX}px`,
+              } as CSSProperties
+            }
+            data-testid="stock-view-main"
+          >
+            <div className="stock-view-charts">
+              {detailReady && detail ? (
                 <ChartGrid symbol={symbol} lastTrade={lastTrade} />
-              </div>
+              ) : showSpinner ? (
+                <div className="detail-loading">
+                  <div className="detail-loading-spinner" />
+                  <span>Loading {symbol}…</span>
+                </div>
+              ) : fetchFailed ? (
+                <div className="empty-state">No data found for {symbol}.</div>
+              ) : null}
             </div>
-            <ResizeHandle
-              onPointerDown={onSideResizeStart}
-              onDoubleClick={resetSideWidth}
-              label="Resize trading rail"
+            {!ordersCollapsed && (
+              <ResizeHandle
+                orientation="horizontal"
+                onPointerDown={onMainOrdersResizeStart}
+                onDoubleClick={resetMainOrdersSplit}
+                label="Resize charts and Orders"
+              />
+            )}
+            <StockViewOpenOrdersDock
+              symbol={symbol}
+              orders={orders}
+              positions={positions}
+              symbolPosition={symbolPosition}
+              summary={summary}
+              accountError={accountError}
+              mode={ibkrStatus.mode}
+              connected={ibkrStatus.connected}
+              spendStatus={ibkrStatus.spend_status}
+              onSelectSymbol={onSelectSymbol}
+              onCancelOrder={onCancelOrder}
+              onFillImmediately={onFillImmediately}
+              onPositionClosed={refresh}
+              highlightOrderId={highlightOrderId}
+              onCollapsedChange={setOrdersCollapsed}
             />
+          </div>
+          <ResizeHandle
+            onPointerDown={onSideResizeStart}
+            onDoubleClick={resetSideWidth}
+            label="Resize trading rail"
+          />
+          {detailReady && detail ? (
             <StockViewRail
               symbol={symbol}
               detail={detail}
@@ -221,25 +255,15 @@ export function StockViewPage({
               referencePrice={metrics?.mainPrice ?? null}
               onOrderPlaced={onOrderPlaced}
             />
-          </div>
-          {!ordersCollapsed && (
-            <ResizeHandle
-              orientation="horizontal"
-              onPointerDown={onMainOrdersResizeStart}
-              onDoubleClick={resetMainOrdersSplit}
-              label="Resize charts and Open Orders"
+          ) : (
+            <aside
+              className="stock-view-rail stock-view-rail--pending"
+              aria-busy={!fetchFailed}
+              data-testid="stock-view-rail-pending"
             />
           )}
-          <StockViewOpenOrdersDock
-            symbol={symbol}
-            orders={orders}
-            onCancelOrder={onCancelOrder}
-            onFillImmediately={onFillImmediately}
-            highlightOrderId={highlightOrderId}
-            onCollapsedChange={setOrdersCollapsed}
-          />
         </div>
-      )}
+      </div>
     </div>
   );
 }

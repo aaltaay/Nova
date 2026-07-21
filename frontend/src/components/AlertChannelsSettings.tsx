@@ -5,9 +5,11 @@ import { useState } from 'react';
 import {
   ALERTS_CHANNEL_TYPE_LABELS,
   ALERTS_CHANNEL_TYPES,
+  APP_DIALOG_DELETE_LABEL,
   type AlertChannelType,
 } from '../constants';
 import { useAlertChannels } from '../hooks/useAlertChannels';
+import { confirmApp } from '../ux';
 
 const EMPTY_FORM = {
   type: 'discord' as AlertChannelType,
@@ -81,7 +83,13 @@ export function AlertChannelsSettings() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Delete this alert channel?')) return;
+    const ok = await confirmApp({
+      title: 'Delete alert channel?',
+      message: 'This removes the channel permanently. You can add it again later.',
+      confirmLabel: APP_DIALOG_DELETE_LABEL,
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await deleteChannel(id);

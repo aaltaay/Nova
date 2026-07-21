@@ -1,0 +1,51 @@
+import { describe, expect, it } from 'vitest';
+import type { IbkrOrder } from '../ibkr/types';
+import {
+  closedFilterFromToday,
+  filterWorkingForToday,
+  showWorkingForToday,
+} from './filterOrdersToday';
+
+const WORKING: IbkrOrder = {
+  order_id: 1,
+  symbol: 'AAPL',
+  side: 'BUY',
+  qty: 100,
+  filled_qty: 0,
+  remaining_qty: 100,
+  order_type: 'LMT',
+  limit_price: 10,
+  status: 'Submitted',
+};
+
+const PARTIAL: IbkrOrder = {
+  ...WORKING,
+  order_id: 2,
+  filled_qty: 40,
+  remaining_qty: 60,
+  avg_fill_price: 10.1,
+};
+
+describe('filterOrdersToday', () => {
+  it('maps closed filters and working visibility', () => {
+    expect(closedFilterFromToday('working')).toBeNull();
+    expect(closedFilterFromToday('filled')).toBe('filled');
+    expect(closedFilterFromToday('canceled')).toBe('cancelled');
+    expect(closedFilterFromToday('partial_filled')).toBe('partial');
+    expect(closedFilterFromToday('all')).toBe('all');
+    expect(showWorkingForToday('working')).toBe(true);
+    expect(showWorkingForToday('filled')).toBe(false);
+  });
+
+  it('filters working vs partial segments', () => {
+    const rows = [WORKING, PARTIAL];
+    expect(filterWorkingForToday(rows, 'working').map((o) => o.order_id)).toEqual([
+      1, 2,
+    ]);
+    expect(
+      filterWorkingForToday(rows, 'partial_filled').map((o) => o.order_id),
+    ).toEqual([2]);
+    expect(filterWorkingForToday(rows, 'filled')).toEqual([]);
+    expect(filterWorkingForToday(rows, 'all', 'msft')).toEqual([]);
+  });
+});

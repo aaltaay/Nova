@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
+import { partitionScannerAlerts } from '../hod_momo/scannerPartition';
 import { TabNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
@@ -24,6 +25,7 @@ import {
   type ActiveTab,
 } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
+import { enterSampleView } from '../sample_data/sampleNav';
 
 export function DashboardPage() {
   const {
@@ -33,13 +35,14 @@ export function DashboardPage() {
     setDiscoveryProvider: setWorkspaceDiscovery,
     setAlpacaFeed: setWorkspaceAlpacaFeed,
     ibkrConnected,
+    ibkrMode,
+    ibkrGatewayMode,
   } = useWorkspace();
   const [activeTab, setActiveTab] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
   const [tabOverridden, setTabOverridden] = useState(false);
   const tabOverriddenRef = useRef(false);
-  const [modulesMenuOpen, setModulesMenuOpen] = useState(false);
   const [showHodSettings, setShowHodSettings] = useState(false);
-  const { visibility, setModuleVisible } = useModuleVisibility();
+  const { visibility } = useModuleVisibility();
   const exchangeFilter = useExchangeFilter();
   const sidePanel = useSidePanelWidth();
   const watchlist = useWatchlist(true);
@@ -111,13 +114,13 @@ export function DashboardPage() {
   const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
   const filteredLosers = exchangeFilter.filterRows(scanner.losers);
   const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
+  const { hodMomentum, runningUp } = partitionScannerAlerts(hodMomoStream.alerts);
 
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;
     tabOverriddenRef.current = true;
     setTabOverridden(true);
     setActiveTab(tab);
-    setModulesMenuOpen(false);
   }
 
   return (
@@ -135,16 +138,28 @@ export function DashboardPage() {
             scanner.historyDate === null
           }
           ibkrConnected={ibkrConnected}
+          ibkrMode={ibkrMode}
+          ibkrGatewayMode={ibkrGatewayMode}
           historyDate={scanner.historyDate}
           historyDates={scanner.historyDates}
           onHistoryChange={handleHistoryChange}
           onLookup={setSelectedSymbol}
           showSettings={settings.showSettings}
           onToggleSettings={() => settings.setShowSettings(s => !s)}
-          showScannerSource={activeTab !== 'trading'}
+          showScannerSource={activeTab !== 'trading' && activeTab !== 'reports'}
           discoveryProvider={settings.discoveryProvider}
           onBackendStarted={() => {
             void scanner.fetchData();
+          }}
+          accountActive={activeTab === 'trading' || activeTab === 'reports'}
+          onAccountClick={
+            visibility.trading === false
+              ? undefined
+              : () => handleTabClick('trading')
+          }
+          sampleDataActive={false}
+          onSampleDataToggle={(on) => {
+            if (on) enterSampleView();
           }}
         />
 
@@ -179,13 +194,11 @@ export function DashboardPage() {
               losers: filteredLosers.length,
               afterhours: filteredAfterhours.length,
               catalysts: scanner.catalysts.length,
-              hodMomo: hodMomoStream.totalToday || hodMomoStream.alerts.length,
+              hodMomo: hodMomentum.length,
+              runningUp: runningUp.length,
               watchlist: watchlist.entries.length,
             }}
             visibility={visibility}
-            onToggleModule={setModuleVisible}
-            modulesMenuOpen={modulesMenuOpen}
-            onModulesMenuOpenChange={setModulesMenuOpen}
           />
 
           {scanner.historyDate && (

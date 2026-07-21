@@ -5,6 +5,7 @@ import {
   NOVA_OS_DECIDE_DEFAULT_LIMIT,
   NOVA_OS_DECIDE_POLL_INTERVAL_MS,
 } from '../constants';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { NovaOsDecision } from './types';
 
 const DECIDE_API = `${API_BASE_URL}/api/nova-os/decide`;
@@ -30,6 +31,7 @@ export function useNovaOsDecide(
   enabled: boolean,
   selectedSymbol: string | null,
 ): UseNovaOsDecideReturn {
+  const sample = useSampleDataOptional();
   const [decisions, setDecisions] = useState<NovaOsDecision[]>([]);
   const [selected, setSelected] = useState<NovaOsDecision | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,7 +41,7 @@ export function useNovaOsDecide(
   const inFlight = useRef(false);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (sample || !enabled) return;
     let cancelled = false;
 
     async function poll() {
@@ -80,7 +82,21 @@ export function useNovaOsDecide(
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled, selectedSymbol, tick]);
+  }, [sample, enabled, selectedSymbol, tick]);
+
+  if (sample) {
+    const sel = selectedSymbol
+      ? sample.decisionForSymbol(selectedSymbol)
+      : null;
+    return {
+      decisions: sample.decisions,
+      selected: sel,
+      loading: false,
+      error: null,
+      dataErrors: [],
+      refresh: () => {},
+    };
+  }
 
   return {
     decisions,

@@ -1,7 +1,7 @@
 /**
  * Fixed right rail: quote → (L2+T&S combined | drag | Trade ticket).
  * Horizontal splitter reallocates height between depth and Order Entry only.
- * Open/working orders live in StockViewOpenOrdersDock (page footer), not here.
+ * Session Orders (Today) live under charts in the left column, not in this rail.
  */
 import { useRef, type CSSProperties } from 'react';
 import { ResizeHandle } from '../components/ResizeHandle';

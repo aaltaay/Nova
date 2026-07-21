@@ -5,6 +5,7 @@
  * "Show demo data" toggle in JournalPanel), never an implicit default. */
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, JOURNAL_POLL_INTERVAL_MS, JOURNAL_RECENT_SIGNALS_LIMIT } from '../constants';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { JournalMetrics, JournalSignalRow, JournalTradeRow, RiskStatus } from './types';
 
 const JOURNAL_API = `${API_BASE_URL}/api/journal`;
@@ -20,6 +21,7 @@ export interface UseJournalReturn {
 }
 
 export function useJournal(enabled: boolean, includeMock: boolean): UseJournalReturn {
+  const sample = useSampleDataOptional();
   const [metrics, setMetrics] = useState<JournalMetrics | null>(null);
   const [signals, setSignals] = useState<JournalSignalRow[]>([]);
   const [trades, setTrades] = useState<JournalTradeRow[]>([]);
@@ -29,7 +31,7 @@ export function useJournal(enabled: boolean, includeMock: boolean): UseJournalRe
   const inFlight = useRef(false);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (sample || !enabled) return;
     let cancelled = false;
 
     async function poll() {
@@ -70,7 +72,18 @@ export function useJournal(enabled: boolean, includeMock: boolean): UseJournalRe
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled, includeMock]);
+  }, [sample, enabled, includeMock]);
+
+  if (sample) {
+    return {
+      metrics: null,
+      signals: [],
+      trades: [],
+      risk: null,
+      loading: false,
+      error: null,
+    };
+  }
 
   return { metrics, signals, trades, risk, loading, error };
 }

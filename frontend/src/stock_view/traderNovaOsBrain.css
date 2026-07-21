@@ -1,0 +1,173 @@
+/* Nova OS judgment panel — dock tab; sized for readable trading chrome. */
+
+.stock-view-page .sv-open-orders-dock__body .trader-nova-os-brain {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: none;
+  background: transparent;
+  max-height: none;
+  overflow: visible;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.stock-view-page .trader-nova-os-brain__bar {
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stock-view-page .trader-nova-os-brain__verdict-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.stock-view-page .trader-nova-os-brain__chip {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 9px;
+  border: 1px solid var(--sv-border, var(--border-color));
+  border-radius: 3px;
+  line-height: 1.35;
+}
+
+.stock-view-page .trader-nova-os-brain__chip--idle {
+  color: var(--sv-muted, #6b7280);
+}
+
+.stock-view-page .trader-nova-os-brain__meta {
+  font-size: 0.88rem;
+  color: var(--sv-secondary, #9ca3af);
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-view-page .trader-nova-os-brain__refresh {
+  margin-left: auto;
+  font-size: 0.82rem;
+}
+
+.stock-view-page .trader-nova-os-brain__edu,
+.stock-view-page .trader-nova-os-brain__exit {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--sv-muted, #6b7280);
+}
+
+.stock-view-page .trader-nova-os-brain__exit {
+  color: #d97706;
+}
+
+.stock-view-page .trader-nova-os-brain__error {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #ef4444;
+  padding: 4px 8px;
+  border-left: 3px solid #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.stock-view-page .trader-nova-os-brain__detail {
+  padding: 4px 8px 10px;
+  border-top: 1px solid color-mix(in srgb, var(--sv-border, #2a2f3a) 70%, transparent);
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-decision-detail,
+.stock-view-page .trader-nova-os-brain .nova-os-decision-detail--compact {
+  font-size: 0.92rem;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-verdict-banner {
+  padding: 0.45rem 0.65rem;
+  margin-bottom: 0.45rem;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-disclosure {
+  display: none; /* edu copy already in bar */
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-first-fail {
+  font-size: 0.92rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-section-title {
+  margin: 0.55rem 0 0.35rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-gate {
+  grid-template-columns: 1.25rem 6.5rem 3rem 1fr;
+  font-size: 0.9rem;
+  padding: 0.28rem 0.4rem;
+  gap: 0.35rem;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-gate-hard {
+  font-size: 0.78rem;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-ticket {
+  gap: 0.75rem;
+  font-size: 0.92rem;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-reason-row .pillar-chip {
+  font-size: 0.85rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-news-impact {
+  margin: 0.35rem 0;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--sv-border, var(--border-color));
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-news-impact__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--sv-secondary, #9ca3af);
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-news-impact__class {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--sv-primary, #e5e7eb);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-news-impact__headline {
+  margin-top: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-news-impact__reasons {
+  margin: 0.3rem 0 0;
+  padding-left: 1.15rem;
+  font-size: 0.88rem;
+  color: var(--sv-muted, #6b7280);
+}
+
+.stock-view-page .trader-nova-os-brain .nova-os-news-impact__ai {
+  margin-top: 0.35rem;
+  font-size: 0.88rem;
+  color: var(--sv-secondary, #9ca3af);
+  border-top: 1px dashed var(--sv-border, #2a2f3a);
+  padding-top: 0.3rem;
+}

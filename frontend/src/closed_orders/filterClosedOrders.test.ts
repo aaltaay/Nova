@@ -53,7 +53,7 @@ describe('filterClosedOrders', () => {
   it('filters by filled / cancelled / partial and symbol', () => {
     expect(filterClosedOrders(ROWS, 'filled').map((r) => r.order_id)).toEqual([1]);
     expect(filterClosedOrders(ROWS, 'cancelled').map((r) => r.order_id)).toEqual([
-      2, 3, 4,
+      2, 3,
     ]);
     expect(filterClosedOrders(ROWS, 'partial').map((r) => r.order_id)).toEqual([4]);
     expect(filterClosedOrders(ROWS, 'all', 'aapl').map((r) => r.order_id)).toEqual([

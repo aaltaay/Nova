@@ -81,7 +81,9 @@ export function useHodMomoConfig(): UseHodMomoConfigReturn {
           });
         }
       })
-      .catch(() => {/* silent — local defaults remain */});
+      .catch((err) => {
+        console.error('[Nova] HOD Momo config load failed', err);
+      });
   }, []);
 
   // Debounced POST helper (300ms) to avoid hammering the backend on every keystroke
@@ -92,7 +94,9 @@ export function useHodMomoConfig(): UseHodMomoConfigReturn {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }).catch(() => {/* silent */});
+      }).catch((err) => {
+        console.error('[Nova] HOD Momo config save failed', err);
+      });
     }, 300);
   }, []);
 

@@ -42,10 +42,11 @@ export function reportClientError(report: ClientErrorReport): void {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       keepalive: true,
-    }).catch(() => {
-      /* never throw from reporter */
+    }).catch((err) => {
+      /* never throw from reporter — console only */
+      console.debug('[Nova] client-error report POST failed', err);
     });
-  } catch {
-    /* never throw from reporter */
+  } catch (err) {
+    console.debug('[Nova] reportClientError swallowed', err);
   }
 }

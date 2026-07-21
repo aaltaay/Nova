@@ -1,6 +1,10 @@
-/** Table body row: click anywhere → Quote Panel; double-click → Stock View. */
+/** Table body row: click anywhere → Quote Panel; double-click → Trader. */
 import { useEffect, useRef, type CSSProperties, type ReactNode, type KeyboardEvent } from 'react';
-import { SYMBOL_DOUBLE_CLICK_MS } from '../constants';
+import {
+  QUOTE_PANEL_TITLE,
+  STOCK_VIEW_TITLE,
+  SYMBOL_DOUBLE_CLICK_MS,
+} from '../constants';
 import { createClickVsDoubleClick } from '../utils/clickVsDoubleClick';
 
 interface Props {
@@ -11,7 +15,14 @@ interface Props {
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
+  /** Optional row tip prepended before the click/double-click hint. */
+  hintPrefix?: string;
+  /** Marks extremely recent closed fills/cancels for tests + CSS. */
+  dataRecent?: boolean;
 }
+
+const ROW_NAV_TITLE =
+  `Click: ${QUOTE_PANEL_TITLE} · Double-click: ${STOCK_VIEW_TITLE} (new window)`;
 
 export function SelectableTableRow({
   symbol,
@@ -21,6 +32,8 @@ export function SelectableTableRow({
   children,
   className = '',
   style,
+  hintPrefix,
+  dataRecent = false,
 }: Props) {
   const symbolRef = useRef(symbol);
   const onSelectRef = useRef(onSelect);
@@ -49,6 +62,8 @@ export function SelectableTableRow({
     }
   }
 
+  const title = hintPrefix ? `${hintPrefix} · ${ROW_NAV_TITLE}` : ROW_NAV_TITLE;
+
   return (
     <tr
       className={`selectable-row${selected ? ' row-selected' : ''}${className ? ` ${className}` : ''}`}
@@ -57,7 +72,8 @@ export function SelectableTableRow({
       onKeyDown={onKeyDown}
       tabIndex={0}
       aria-selected={selected}
-      title="Click: Quote Panel · Double-click: Stock View (new window)"
+      title={title}
+      data-recent={dataRecent ? '1' : undefined}
     >
       {children}
     </tr>

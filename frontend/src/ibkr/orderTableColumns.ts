@@ -38,31 +38,36 @@ export type PositionColumnId =
   | 'mkt_value'
   | 'unrealized';
 
+/** Left→right default for Open / Working Orders (Actions stay pinned right). */
 export const DEFAULT_WORKING_ORDER_COLUMNS: WorkingOrderColumnId[] = [
-  'order_id',
+  'time',
+  'session',
+  'type',
   'symbol',
   'qty',
+  'status',
   'filled',
   'remaining',
-  'type',
   'limit',
   'stop',
   'avg_fill',
-  'status',
-  'time',
-  'session',
+  'order_id',
 ];
 
+/**
+ * Mirror Open Orders left→right as closely as Closed columns allow
+ * (no session / remaining / stop on Closed).
+ */
 export const DEFAULT_CLOSED_ORDER_COLUMNS: ClosedOrderColumnId[] = [
-  'order_id',
+  'time',
+  'type',
   'symbol',
   'qty',
+  'status',
   'filled',
-  'type',
   'limit',
   'avg_fill',
-  'status',
-  'time',
+  'order_id',
 ];
 
 export const DEFAULT_POSITION_COLUMNS: PositionColumnId[] = [
@@ -93,26 +98,44 @@ export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
     id: 'symbol',
     label: 'Symbol',
     className: 'ibkr-col--text',
-    title: 'Click: Quote Panel · Double-click: Stock View',
+    title: 'Click: Quote Panel · Double-click: Trader',
   },
   qty: {
     id: 'qty',
     label: 'Quantity',
     className: 'ibkr-col--num',
-    title: 'Quantity — green = Buy, red = Sell',
+    title: 'Quantity (fractional shares shown) — green = Buy, red = Sell',
   },
-  filled: { id: 'filled', label: 'Filled', className: 'ibkr-col--num' },
-  remaining: { id: 'remaining', label: 'Remaining', className: 'ibkr-col--num' },
+  filled: {
+    id: 'filled',
+    label: 'Filled',
+    className: 'ibkr-col--num',
+    title:
+      'Shares filled so far (IBKR orderStatus.filled; fractional OK) — watch with Remaining while the order is working',
+  },
+  remaining: {
+    id: 'remaining',
+    label: 'Remaining',
+    className: 'ibkr-col--num',
+    title:
+      'Shares still working — Fill now markets this remainder after cancelling the rest',
+  },
   type: { id: 'type', label: 'Type', className: 'ibkr-col--type' },
   limit: { id: 'limit', label: 'Limit price', className: 'ibkr-col--num' },
   stop: { id: 'stop', label: 'Stop price', className: 'ibkr-col--num' },
-  avg_fill: { id: 'avg_fill', label: 'Average fill', className: 'ibkr-col--num' },
+  avg_fill: {
+    id: 'avg_fill',
+    label: 'Average fill',
+    className: 'ibkr-col--num',
+    title: 'Average fill price of shares filled so far (blank until first fill)',
+  },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
   time: {
     id: 'time',
-    label: 'Time',
+    label: 'Time Placed',
     className: 'ibkr-col--time',
-    title: 'Last fill or status change (Eastern, seconds) · Drag headers to reorder',
+    title:
+      'Time Placed — broker place time (Eastern, sub-seconds when provided); fixed at send, not last fill · Drag headers to reorder',
   },
   session: { id: 'session', label: 'Session', className: 'ibkr-col--type' },
 };
@@ -123,24 +146,36 @@ export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
     id: 'symbol',
     label: 'Symbol',
     className: 'ibkr-col--text',
-    title: 'Click: Quote Panel · Double-click: Stock View',
+    title: 'Click: Quote Panel · Double-click: Trader',
   },
   qty: {
     id: 'qty',
     label: 'Quantity',
     className: 'ibkr-col--num',
-    title: 'Quantity — green = Buy, red = Sell',
+    title: 'Quantity (fractional shares shown) — green = Buy, red = Sell',
   },
-  filled: { id: 'filled', label: 'Filled', className: 'ibkr-col--num' },
+  filled: {
+    id: 'filled',
+    label: 'Filled',
+    className: 'ibkr-col--num',
+    title:
+      'Shares filled before the order closed (fractional OK) — may be less than Quantity after a partial cancel',
+  },
   type: { id: 'type', label: 'Type', className: 'ibkr-col--type' },
   limit: { id: 'limit', label: 'Limit price', className: 'ibkr-col--num' },
-  avg_fill: { id: 'avg_fill', label: 'Average fill', className: 'ibkr-col--num' },
+  avg_fill: {
+    id: 'avg_fill',
+    label: 'Average fill',
+    className: 'ibkr-col--num',
+    title: 'Average fill price of shares that filled (blank if none filled)',
+  },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
   time: {
     id: 'time',
-    label: 'Time',
+    label: 'Time Placed',
     className: 'ibkr-col--time',
-    title: 'Fill or cancel time (Eastern, seconds) · Drag headers to reorder',
+    title:
+      'Time Placed — broker place time (Eastern, sub-seconds when provided); hover for last fill/cancel · Drag headers to reorder',
   },
 };
 
@@ -149,13 +184,13 @@ export const POSITION_COLUMN_META: Record<PositionColumnId, ColumnMeta> = {
     id: 'symbol',
     label: 'Symbol',
     className: 'ibkr-col--text',
-    title: 'Click: Quote Panel · Double-click: Stock View',
+    title: 'Click: Quote Panel · Double-click: Trader',
   },
   qty: {
     id: 'qty',
     label: 'Qty',
     className: 'ibkr-col--num',
-    title: 'Qty — green = long, red = short',
+    title: 'Qty (fractional shares shown) — green = long, red = short',
   },
   avg_cost: { id: 'avg_cost', label: 'Avg Cost', className: 'ibkr-col--num' },
   mkt_price: { id: 'mkt_price', label: 'Mkt Price', className: 'ibkr-col--num' },

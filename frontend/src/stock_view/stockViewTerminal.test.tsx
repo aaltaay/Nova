@@ -105,6 +105,17 @@ vi.mock('../strategy/useExecutor', () => ({
   }),
 }));
 
+vi.mock('../strategy/useNovaOsDecideSymbol', () => ({
+  useNovaOsDecideSymbol: () => ({
+    decision: null,
+    loading: false,
+    error: null,
+    errorStatus: null,
+    updatedAt: null,
+    refresh: vi.fn(),
+  }),
+}));
+
 vi.mock('../workspace', async () => {
   const actual = await vi.importActual<typeof import('../workspace')>('../workspace');
   return {
@@ -544,6 +555,10 @@ describe('StockViewPage symbol gate', () => {
     expect(container.querySelector('[data-testid="stock-view-rail"]')).toBeNull();
     expect(container.querySelector('[data-testid="chart-grid"]')).toBeNull();
     expect(container.querySelector('.manual-order-ticket')).toBeNull();
+    // Dock stays mounted — Positions/Orders do not depend on ticker detail.
+    expect(
+      container.querySelector('[data-testid="stock-view-open-orders-dock"]'),
+    ).toBeTruthy();
     expect(container.textContent).toMatch(/Loading MVO/i);
   });
 });

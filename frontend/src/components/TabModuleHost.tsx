@@ -3,17 +3,20 @@
  * Keeps DashboardPage under the component size limit.
  */
 import { HodMomoTab } from '../hod_momo/HodMomoTab';
+import { RunningUpTab } from '../hod_momo/RunningUpTab';
 import { HodMomoSettings } from '../hod_momo/HodMomoSettings';
+import { partitionScannerAlerts } from '../hod_momo/scannerPartition';
 import type { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
 import type { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { ScannerTabPanels } from './ScannerTabPanels';
 import { DashboardTab } from '../pages/DashboardTab';
 import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
-import { ReportsTab } from '../reports/ReportsTab';
 import { getModule, type ActiveTab } from '../workspace/registry';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { alertApp, confirmApp } from '../ux';
 import type { Afterhours, Gapper, Mover } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
@@ -65,6 +68,7 @@ const SCANNER_TABS = new Set([
 ]);
 
 export function TabModuleHost(props: TabModuleHostProps) {
+  const sample = useSampleDataOptional();
   const mod = getModule(props.activeTab);
   if (!mod) return null;
 
@@ -142,43 +146,72 @@ export function TabModuleHost(props: TabModuleHostProps) {
     );
   }
 
-  if (activeTab === 'hod_momo') {
+  if (activeTab === 'hod_momo' || activeTab === 'running_up') {
+    const { hodMomentum, runningUp } = partitionScannerAlerts(hodMomoStream.alerts);
+    const clearSharedAlerts = (scannerLabel: string) => {
+      if (sample) {
+        void alertApp({
+          title: 'Sample data',
+          message: `${scannerLabel} alerts are fixtures; nothing is cleared on the server.`,
+        });
+        return;
+      }
+      void confirmApp({
+        title: `Clear today's ${scannerLabel} alerts?`,
+        message:
+          'This clears the shared HOD Momentum + Running Up alert store for today. '
+          + 'Past days in History are kept. New alerts will keep arriving.',
+        confirmLabel: 'Clear',
+        tone: 'warning',
+      }).then(ok => {
+        if (!ok) return;
+        novaFetch(`${API_BASE_URL}/api/hod-momo/alerts`, { method: 'DELETE' }).catch(err => {
+          console.error('Clear HOD/Running Up alerts failed', err);
+        });
+      });
+    };
+
     return (
       <>
         {showHodSettings && (
           <HodMomoSettings config={hodMomoConfig} onClose={onCloseHodSettings} />
         )}
-        <HodMomoTab
-          alerts={hodMomoStream.alerts}
-          totalToday={hodMomoStream.totalToday}
-          connected={hodMomoStream.connected}
-          config={hodMomoConfig}
-          selectedSymbol={selectedSymbol}
-          onSelectSymbol={onSelect}
-          onOpenTrading={onOpenTrading}
-          onOpenSettings={onToggleHodSettings}
-          onClearAlerts={() => {
-            if (
-              !window.confirm(
-                "Clear all of today's HOD Momo alerts?\n\n"
-                  + 'Past days in History are kept. New alerts will keep arriving.',
-              )
-            ) {
-              return;
-            }
-            novaFetch(`${API_BASE_URL}/api/hod-momo/alerts`, { method: 'DELETE' }).catch(() => {});
-          }}
-        />
+        {activeTab === 'hod_momo' ? (
+          <HodMomoTab
+            alerts={hodMomentum}
+            totalToday={hodMomentum.length}
+            connected={hodMomoStream.connected}
+            config={hodMomoConfig}
+            selectedSymbol={selectedSymbol}
+            onSelectSymbol={onSelect}
+            onOpenTrading={onOpenTrading}
+            onOpenSettings={onToggleHodSettings}
+            onClearAlerts={() => clearSharedAlerts('HOD Momentum')}
+          />
+        ) : (
+          <RunningUpTab
+            alerts={runningUp}
+            totalToday={runningUp.length}
+            connected={hodMomoStream.connected}
+            config={hodMomoConfig}
+            selectedSymbol={selectedSymbol}
+            onSelectSymbol={onSelect}
+            onOpenTrading={onOpenTrading}
+            onOpenSettings={onToggleHodSettings}
+            onClearAlerts={() => clearSharedAlerts('Running Up')}
+          />
+        )}
       </>
     );
   }
 
-  if (activeTab === 'trading') {
+  if (activeTab === 'trading' || activeTab === 'reports') {
     return (
       <TradingTab
         selectedSymbol={selectedSymbol}
         onSelectSymbol={onSelect}
         onOpenTrading={onOpenTrading}
+        initialSection={activeTab === 'reports' ? 'reports' : 'overview'}
       />
     );
   }
@@ -194,10 +227,6 @@ export function TabModuleHost(props: TabModuleHostProps) {
         onOpenTrading={onOpenTrading}
       />
     );
-  }
-
-  if (activeTab === 'reports') {
-    return <ReportsTab />;
   }
 
   return null;

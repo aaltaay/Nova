@@ -3,6 +3,7 @@
  */
 import { useState, type MouseEvent } from 'react';
 import {
+  APP_DIALOG_FLATTEN_LABEL,
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
   CLOSE_POSITION_BUTTON_BUSY_LABEL,
   CLOSE_POSITION_BUTTON_LABEL,
@@ -12,6 +13,8 @@ import {
 } from '../constants';
 import { closeFullPosition } from '../ibkr/closeFullPosition';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
+import { alertApp, confirmApp } from '../ux';
+import { formatShareQty } from '../utils/formatShareQty';
 
 interface Props {
   position: IbkrPosition;
@@ -40,20 +43,24 @@ export function ClosePositionButton({
   async function handleClick(e: MouseEvent) {
     e.stopPropagation();
     if (!canClose) return;
-    const absQty = Math.abs(position.qty);
+    const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide = position.qty > 0 ? 'SELL' : 'BUY';
-    const confirmed = window.confirm(
-      `${TICKER_TRADE_ORDER_DISCLOSURE}\n\n` +
+    const confirmed = await confirmApp({
+      title: `Flatten ${position.symbol}?`,
+      message:
+        `${TICKER_TRADE_ORDER_DISCLOSURE}\n\n` +
         `${CLOSE_POSITION_VS_CANCEL_HINT}\n\n` +
         `Flatten ${absQty} shares of ${position.symbol} with a ${closeSide} market order ` +
         `on the ${mode.toUpperCase()} account?`,
-    );
+      confirmLabel: APP_DIALOG_FLATTEN_LABEL,
+      tone: 'danger',
+    });
     if (!confirmed) return;
     setBusy(true);
     try {
       const res = await closeFullPosition(position.symbol, position.qty);
       if (res.ok) onClosed?.();
-      else window.alert(res.error);
+      else await alertApp({ title: 'Flatten failed', message: res.error, tone: 'danger' });
     } finally {
       setBusy(false);
     }

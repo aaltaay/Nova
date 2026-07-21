@@ -6,9 +6,12 @@
 import { novaFetch } from '../api/novaFetch';
 import {
   API_BASE_URL,
+  APP_DIALOG_FILL_LABEL,
   FILL_WORKING_ORDER_CONFIRM_PREFIX,
 } from '../constants';
+import { confirmApp } from '../ux';
 import { shouldUseOutsideRth } from './extendedSession';
+import { remainingSharesWhole } from './orderQtyMath';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import type { IbkrOrder } from './types';
 
@@ -24,28 +27,23 @@ export type FillWorkingOrderResult =
     }
   | { ok: false; error: string; place?: PlaceOrderResult };
 
-function remainingShares(order: IbkrOrder): number {
-  if (order.remaining_qty != null && Number.isFinite(order.remaining_qty)) {
-    return Math.max(0, Math.floor(order.remaining_qty));
-  }
-  const filled = order.filled_qty ?? 0;
-  return Math.max(0, Math.floor(order.qty - filled));
-}
-
 /** Confirm dialog then fill — for panel buttons. */
 export async function confirmAndFillWorkingOrder(
   order: IbkrOrder,
 ): Promise<FillWorkingOrderResult> {
-  const qty = remainingShares(order);
+  const qty = remainingSharesWhole(order);
   if (qty <= 0) {
     return { ok: false, error: 'Nothing left to fill on this order' };
   }
   const side = order.side === 'SELL' ? 'SELL' : 'BUY';
   const outside_rth = shouldUseOutsideRth(order.outside_rth);
   const hours = outside_rth ? ' (extended hours)' : '';
-  const ok = window.confirm(
-    `${FILL_WORKING_ORDER_CONFIRM_PREFIX}: ${side} ${qty} ${order.symbol.toUpperCase()}${hours}?`,
-  );
+  const ok = await confirmApp({
+    title: 'Fill working order now?',
+    message: `${FILL_WORKING_ORDER_CONFIRM_PREFIX}: ${side} ${qty} ${order.symbol.toUpperCase()}${hours}?`,
+    confirmLabel: APP_DIALOG_FILL_LABEL,
+    tone: 'warning',
+  });
   if (!ok) {
     return { ok: false, error: 'Fill now cancelled' };
   }
@@ -55,7 +53,7 @@ export async function confirmAndFillWorkingOrder(
 export async function fillWorkingOrderImmediately(
   order: IbkrOrder,
 ): Promise<FillWorkingOrderResult> {
-  const qty = remainingShares(order);
+  const qty = remainingSharesWhole(order);
   if (qty <= 0) {
     return { ok: false, error: 'Nothing left to fill on this order' };
   }

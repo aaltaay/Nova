@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react';
-import {
-  HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
-  HOD_MOMO_RUNNING_UP_STRATEGY_ID,
-  STRATEGY_META,
-} from '../constants';
 import type { AlertObject } from './types';
 import type { UseHodMomoConfigReturn } from './useHodMomoConfig';
 import { collapseAlertsBySymbol } from './collapseAlertsBySymbol';
 import { HodMomoAlertTable } from './HodMomoAlertTable';
 import { HodMomoDebugPanel } from './HodMomoDebugPanel';
 import { HodMomoIntegrityBanner } from './HodMomoIntegrityBanner';
+import {
+  defaultHodMomentumVisibleStrategies,
+  HOD_MOMENTUM_STRATEGY_META,
+} from './scannerPartition';
 
 type SubPanel = 'main' | 'debug';
 
@@ -18,7 +17,6 @@ function StrategyChipStrip({
   onSelectPanel,
   visibleStrategies,
   onToggleStrategy,
-  onRunningUpOnly,
   counts,
   configColors,
 }: {
@@ -26,14 +24,11 @@ function StrategyChipStrip({
   onSelectPanel: (panel: SubPanel) => void;
   visibleStrategies: Set<number>;
   onToggleStrategy: (id: number) => void;
-  onRunningUpOnly: () => void;
   counts: Record<number, number>;
   configColors: Record<number, string>;
 }) {
-  const runningUpOnly =
-    visibleStrategies.size === 1 && visibleStrategies.has(HOD_MOMO_RUNNING_UP_STRATEGY_ID);
   return (
-    <div className="hod-subpanel-strip" role="toolbar" aria-label="HOD strategy filters">
+    <div className="hod-subpanel-strip" role="toolbar" aria-label="HOD Momentum strategy filters">
       <button
         type="button"
         className={`hod-subpanel-btn${activeSubPanel === 'main' ? ' active' : ''}`}
@@ -41,23 +36,7 @@ function StrategyChipStrip({
       >
         Main feed
       </button>
-      <button
-        type="button"
-        className={`hod-subpanel-btn hod-strategy-chip${runningUpOnly ? ' active' : ''}`}
-        onClick={() => {
-          onSelectPanel('main');
-          onRunningUpOnly();
-        }}
-        title={
-          runningUpOnly
-            ? 'Show all strategies'
-            : 'Show Running Up only (Warrior parity — no new HOD required)'
-        }
-        aria-pressed={runningUpOnly}
-      >
-        Running Up only
-      </button>
-      {STRATEGY_META.map(s => {
+      {HOD_MOMENTUM_STRATEGY_META.map(s => {
         const color = configColors[s.id] || s.color;
         const count = counts[s.id] ?? 0;
         const enabled = visibleStrategies.has(s.id);
@@ -74,7 +53,13 @@ function StrategyChipStrip({
             title={enabled ? `Hide ${s.name}` : `Show ${s.name}`}
             aria-pressed={enabled}
           >
-            <span className="hod-subpanel-dot" style={{ background: enabled ? color : 'transparent', outline: `1px solid ${color}` }} />
+            <span
+              className="hod-subpanel-dot"
+              style={{
+                background: enabled ? color : 'transparent',
+                outline: `1px solid ${color}`,
+              }}
+            />
             <span className="hod-subpanel-label">{s.name}</span>
             {count > 0 && <span className="hod-subpanel-count">{count}</span>}
           </button>
@@ -93,8 +78,8 @@ function StrategyChipStrip({
 }
 
 interface HodMomoTabProps {
+  /** HOD Momentum alerts only (Running Up already partitioned out). */
   alerts: AlertObject[];
-  /** Full-day alert count (may exceed alerts.length when UI is capped). */
   totalToday?: number;
   connected: boolean;
   config: UseHodMomoConfigReturn;
@@ -117,11 +102,8 @@ export function HodMomoTab({
   onClearAlerts,
 }: HodMomoTabProps) {
   const [activeSubPanel, setActiveSubPanel] = useState<SubPanel>('main');
-  // Former Momo is disabled product-side — keep it off the default filter too.
   const [visibleStrategies, setVisibleStrategies] = useState<Set<number>>(
-    () => new Set(
-      STRATEGY_META.map(s => s.id).filter(id => id !== HOD_MOMO_FORMER_MOMO_STRATEGY_ID),
-    ),
+    defaultHodMomentumVisibleStrategies,
   );
 
   const consolidationSec = config.state.master.consolidation_sec;
@@ -156,15 +138,6 @@ export function HodMomoTab({
     });
   }
 
-  function toggleRunningUpOnly() {
-    setVisibleStrategies(prev => {
-      const only =
-        prev.size === 1 && prev.has(HOD_MOMO_RUNNING_UP_STRATEGY_ID);
-      if (only) return new Set(STRATEGY_META.map(s => s.id));
-      return new Set([HOD_MOMO_RUNNING_UP_STRATEGY_ID]);
-    });
-  }
-
   return (
     <div className="hod-momo-tab">
       <div className="hod-header-bar">
@@ -175,17 +148,27 @@ export function HodMomoTab({
         </div>
         <div className="hod-header-right">
           <button
+            type="button"
             className="hod-clear-btn"
             onClick={onClearAlerts}
-            title="Clear today's HOD Momo alerts (history for other days is kept)"
+            title="Clear today's HOD Momentum alerts (shared store with Running Up)"
           >
             Clear today
           </button>
-          <button className="hod-settings-btn" onClick={onOpenSettings} title="Configure strategies">
+          <button
+            type="button"
+            className="hod-settings-btn"
+            onClick={onOpenSettings}
+            title="Configure HOD Momentum strategies"
+          >
             ⚙ Configure
           </button>
         </div>
       </div>
+
+      <p className="hod-scanner-blurb">
+        New high of day + momentum sub-strategies. Running Up is a separate tab.
+      </p>
 
       <HodMomoIntegrityBanner />
 
@@ -194,7 +177,6 @@ export function HodMomoTab({
         onSelectPanel={setActiveSubPanel}
         visibleStrategies={visibleStrategies}
         onToggleStrategy={toggleStrategy}
-        onRunningUpOnly={toggleRunningUpOnly}
         counts={strategyCounts}
         configColors={configColors}
       />
@@ -217,6 +199,7 @@ export function HodMomoTab({
           selectedSymbol={selectedSymbol}
           onSelectSymbol={onSelectSymbol}
           onOpenTrading={onOpenTrading}
+          filterableStrategies={HOD_MOMENTUM_STRATEGY_META}
         />
       )}
     </div>

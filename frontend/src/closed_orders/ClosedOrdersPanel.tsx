@@ -2,11 +2,14 @@
  * Closed Orders — Webull History / filled+cancelled lifecycle (WID-027).
  * Column order drag-persisted (shared localStorage with Working Orders).
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import {
   CLOSED_ORDERS_EMPTY_MESSAGE,
   CLOSED_ORDERS_PANEL_TITLE,
+  CLOSED_ORDERS_RECENT_HIGHLIGHT_MS,
+  CLOSED_ORDERS_RECENT_ROW_TITLE,
+  CLOSED_ORDERS_RECENT_TICK_MS,
   CLOSED_ORDERS_SAMPLE_BANNER,
 } from '../constants';
 import {
@@ -20,6 +23,7 @@ import {
   orderSideClass,
   orderSideRowClass,
   orderStatusTone,
+  orderSubmittedIso,
 } from '../ibkr/orderDisplay';
 import {
   CLOSED_COLUMN_META,
@@ -27,7 +31,10 @@ import {
   normalizeColumnOrder,
   type ClosedOrderColumnId,
 } from '../ibkr/orderTableColumns';
+import { sortOrders } from '../ibkr/orderTableSort';
 import { useOrderTableColumnOrder } from '../ibkr/useOrderTableColumnOrder';
+import { useOrderTableSort } from '../ibkr/useOrderTableSort';
+import { isClosedOrderRecent } from './closedOrderRecency';
 import { renderClosedOrderCell } from './closedOrderCells';
 import { filterClosedOrders } from './filterClosedOrders';
 import type { ClosedOrder, ClosedOrdersFilter } from './types';
@@ -40,6 +47,13 @@ interface Props {
   filterSymbol?: string | null;
   hideTitle?: boolean;
   sampleMode?: boolean;
+  /** Hide local All/Filled/… tabs when parent owns Orders (Today) segments. */
+  hideFilters?: boolean;
+  /** Controlled status filter (defaults to internal All). */
+  statusFilter?: ClosedOrdersFilter;
+  /** Set when the last closed-orders poll failed — rows above are
+   * last-good, not an honest "no closed orders" read. */
+  error?: string | null;
 }
 
 const FILTERS: { id: ClosedOrdersFilter; label: string }[] = [
@@ -57,9 +71,15 @@ export function ClosedOrdersPanel({
   filterSymbol = null,
   hideTitle = false,
   sampleMode = false,
+  hideFilters = false,
+  statusFilter,
+  error = null,
 }: Props) {
-  const [filter, setFilter] = useState<ClosedOrdersFilter>('all');
+  const [internalFilter, setInternalFilter] = useState<ClosedOrdersFilter>('all');
+  const filter = statusFilter ?? internalFilter;
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const { order, reorder, reset } = useOrderTableColumnOrder('closed');
+  const { sortState, onSortColumn, clearSort } = useOrderTableSort('closed');
   const columns = useMemo(
     () =>
       normalizeColumnOrder(order, DEFAULT_CLOSED_ORDER_COLUMNS) as ClosedOrderColumnId[],
@@ -69,10 +89,18 @@ export function ClosedOrdersPanel({
     () => columns.map((id) => CLOSED_COLUMN_META[id]),
     [columns],
   );
-  const rows = useMemo(
-    () => filterClosedOrders(orders, filter, filterSymbol),
-    [orders, filter, filterSymbol],
-  );
+  const rows = useMemo(() => {
+    const filtered = filterClosedOrders(orders, filter, filterSymbol);
+    return sortOrders(filtered, sortState, 'closed');
+  }, [orders, filter, filterSymbol, sortState]);
+
+  useEffect(() => {
+    const id = window.setInterval(
+      () => setNowMs(Date.now()),
+      CLOSED_ORDERS_RECENT_TICK_MS,
+    );
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
     <div
@@ -95,32 +123,49 @@ export function ClosedOrdersPanel({
           {CLOSED_ORDERS_SAMPLE_BANNER}
         </div>
       )}
-      <div className="ibkr-closed-orders-filters" role="tablist" aria-label="Closed order filter">
-        {FILTERS.map((f) => (
-          <button
-            key={f.id}
-            type="button"
-            role="tab"
-            aria-selected={filter === f.id}
-            className={
-              filter === f.id
-                ? 'ibkr-closed-orders-filter active'
-                : 'ibkr-closed-orders-filter'
-            }
-            data-filter={f.id}
-            onClick={() => setFilter(f.id)}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      {!hideFilters && (
+        <div
+          className="ibkr-closed-orders-filters"
+          role="tablist"
+          aria-label="Closed order filter"
+        >
+          {FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              role="tab"
+              aria-selected={filter === f.id}
+              className={
+                filter === f.id
+                  ? 'ibkr-closed-orders-filter active'
+                  : 'ibkr-closed-orders-filter'
+              }
+              data-filter={f.id}
+              onClick={() => setInternalFilter(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className="ibkr-empty ibkr-empty--error" data-testid="closed-orders-error">
+          {error} — showing last-known data.
+        </div>
+      )}
       {rows.length === 0 ? (
-        <div className="ibkr-empty">{CLOSED_ORDERS_EMPTY_MESSAGE}</div>
+        !error && <div className="ibkr-empty">{CLOSED_ORDERS_EMPTY_MESSAGE}</div>
       ) : (
         <OrderTableDnd onReorder={reorder}>
         <table className="ibkr-table ibkr-table--orders ibkr-table--closed">
           <thead>
-            <OrderTableColumnHeader columns={headerMeta} onReset={reset} />
+            <OrderTableColumnHeader
+              columns={headerMeta}
+              onReset={reset}
+              sortState={sortState}
+              onSortColumn={onSortColumn}
+              onClearSort={clearSort}
+            />
           </thead>
           <tbody>
             {rows.map((o) => {
@@ -132,10 +177,20 @@ export function ClosedOrdersPanel({
               const tone = orderStatusTone(statusLabel);
               const sideCls = orderSideClass(o.side);
               const sideRowCls = orderSideRowClass(o.side);
+              const activityIso = orderActivityIso(o);
+              const placedIso = orderSubmittedIso(o);
+              const recent = isClosedOrderRecent(
+                activityIso,
+                nowMs,
+                CLOSED_ORDERS_RECENT_HIGHLIGHT_MS,
+              );
+              const rowClass = [sideRowCls, recent ? 'ibkr-order-row--recent' : '']
+                .filter(Boolean)
+                .join(' ');
               const ctx = {
                 statusLabel,
                 tone,
-                activityIso: orderActivityIso(o),
+                placedIso,
                 sideCls,
                 sideLabel: formatOrderSide(o.side),
               };
@@ -150,7 +205,9 @@ export function ClosedOrdersPanel({
                     selected={selectedSymbol === o.symbol}
                     onSelect={onSelectSymbol}
                     onOpenTrading={onOpenTrading}
-                    className={sideRowCls || undefined}
+                    className={rowClass || undefined}
+                    hintPrefix={recent ? CLOSED_ORDERS_RECENT_ROW_TITLE : undefined}
+                    dataRecent={recent}
                   >
                     {cells}
                   </SelectableTableRow>
@@ -159,8 +216,10 @@ export function ClosedOrdersPanel({
               return (
                 <tr
                   key={o.order_id}
-                  className={sideRowCls || undefined}
+                  className={rowClass || undefined}
                   data-side={o.side}
+                  data-recent={recent ? '1' : undefined}
+                  title={recent ? CLOSED_ORDERS_RECENT_ROW_TITLE : undefined}
                 >
                   {cells}
                 </tr>

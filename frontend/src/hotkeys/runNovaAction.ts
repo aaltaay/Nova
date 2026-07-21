@@ -20,6 +20,7 @@ import {
 import { readSkipPlaceConfirm } from '../ibkr/placeConfirmPrefs';
 import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import type { IbkrPosition } from '../ibkr/types';
+import { confirmApp } from '../ux';
 import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 
@@ -61,7 +62,12 @@ async function maybeConfirm(
 ): Promise<boolean> {
   if (readSkipPlaceConfirm()) return true;
   if (runtime.requestConfirm) return runtime.requestConfirm(summary);
-  return window.confirm(summary);
+  return confirmApp({
+    title: 'Confirm Nova Action',
+    message: summary,
+    confirmLabel: 'Place',
+    tone: 'warning',
+  });
 }
 
 async function placeMarketExit(

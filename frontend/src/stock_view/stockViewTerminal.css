@@ -176,6 +176,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.stock-view-page .sv-header__price--missing,
+.stock-view-page .sv-header__change--missing {
+  color: var(--sv-muted);
+  font-weight: 600;
+}
+
 .stock-view-page .sv-header__change {
   font-size: 0.78rem;
   font-variant-numeric: tabular-nums;
@@ -191,6 +197,52 @@
 
 .stock-view-page .sv-header__updating {
   font-size: 0.65rem;
+  color: var(--sv-muted);
+}
+
+.stock-view-page .sv-header__clock {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--sv-border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--sv-bg) 55%, var(--sv-bg-raised));
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-view-page .sv-header__clock-time {
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--sv-primary);
+}
+
+.stock-view-page .sv-header__clock-session {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sv-muted);
+}
+
+.stock-view-page .sv-header__clock--premarket .sv-header__clock-session {
+  color: #f59e0b;
+}
+
+.stock-view-page .sv-header__clock--rth .sv-header__clock-session {
+  color: var(--green, #22c55e);
+}
+
+.stock-view-page .sv-header__clock--afterhours .sv-header__clock-session {
+  color: var(--sv-accent, #3b82f6);
+}
+
+.stock-view-page .sv-header__clock--closed .sv-header__clock-session {
   color: var(--sv-muted);
 }
 
@@ -231,7 +283,35 @@
   font-size: 0.65rem;
   font-weight: 700;
   color: var(--amber, #f59e0b);
+  max-width: 22rem;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.stock-view-page .sv-capsule__hint-cta {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  padding: 3px 8px;
+  font-size: 0.65rem;
+  font-weight: 700;
   white-space: nowrap;
+  color: #1a1208;
+  background: color-mix(in srgb, #f59e0b 90%, #ea580c);
+  border: 1px solid color-mix(in srgb, #ea580c 55%, transparent);
+  border-radius: 4px;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.stock-view-page .sv-capsule__hint-cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stock-view-page .sv-capsule__hint-cta:not(:disabled):hover {
+  background: #f97316;
 }
 
 /* Segmented capsules — Paper/Live + Manual/Normal/Fully Automated */
@@ -289,7 +369,28 @@
   color: var(--sv-primary);
 }
 
-/* ── Workspace: charts+rail | drag | Open Orders ─────────────────────────── */
+.stock-view-page .sv-capsule-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.stock-view-page .sv-capsule__error {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  padding: 3px 8px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: #fff;
+  background: var(--red, #ef4444);
+  border-radius: 4px;
+  z-index: 5;
+}
+
+/* ── Workspace: 2 columns top→bottom (charts+Orders | rail) ──────────────── */
 
 .stock-view-page .stock-view-workspace {
   flex: 1 1 0;
@@ -300,39 +401,7 @@
   overflow: hidden;
 }
 
-.stock-view-page .stock-view-workspace > .resize-handle--horizontal {
-  flex: 0 0 8px;
-  height: 8px;
-  align-self: stretch;
-  z-index: 3;
-}
-
-.stock-view-page .stock-view-workspace > .resize-handle--horizontal::before {
-  height: 3px;
-  border-radius: 2px;
-}
-
-.stock-view-page
-  .stock-view-workspace:not(.stock-view-workspace--orders-collapsed)
-  > .stock-view-body {
-  flex: 0 0 var(--sv-main-pct, 78%);
-  min-height: 140px;
-}
-
-.stock-view-page
-  .stock-view-workspace:not(.stock-view-workspace--orders-collapsed)
-  > .sv-open-orders-dock {
-  flex: 1 1 0;
-  min-height: var(--sv-orders-pane-min, 96px);
-  max-height: none;
-}
-
-.stock-view-page .stock-view-workspace--orders-collapsed > .stock-view-body {
-  flex: 1 1 0;
-  min-height: 0;
-}
-
-/* ── Body: charts dominate + dense rail ──────────────────────────────────── */
+/* ── Body: left main column + dense rail (both full height) ──────────────── */
 
 .stock-view-page .stock-view-body {
   display: grid;
@@ -354,8 +423,40 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--sv-gap);
+  gap: 0;
   overflow: hidden;
+}
+
+.stock-view-page .stock-view-main > .resize-handle--horizontal {
+  flex: 0 0 8px;
+  height: 8px;
+  align-self: stretch;
+  z-index: 3;
+}
+
+.stock-view-page .stock-view-main > .resize-handle--horizontal::before {
+  height: 3px;
+  border-radius: 2px;
+}
+
+.stock-view-page
+  .stock-view-main:not(.stock-view-main--orders-collapsed)
+  > .stock-view-charts {
+  flex: 0 0 var(--sv-main-pct, 78%);
+  min-height: 120px;
+}
+
+.stock-view-page
+  .stock-view-main:not(.stock-view-main--orders-collapsed)
+  > .sv-open-orders-dock {
+  flex: 1 1 0;
+  min-height: var(--sv-orders-pane-min, 96px);
+  max-height: none;
+}
+
+.stock-view-page .stock-view-main--orders-collapsed > .stock-view-charts {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .stock-view-page .stock-view-charts {
@@ -410,7 +511,7 @@
   border-radius: 2px;
 }
 
-/* ── Open Orders dock (full-width footer under charts + rail) ────────────── */
+/* ── Orders (Today) — bottom of left column (not under the rail) ─────────── */
 
 .stock-view-page .sv-open-orders-dock {
   flex-shrink: 0;
@@ -419,13 +520,12 @@
   border-top: 1px solid var(--sv-border);
   background: var(--sv-bg-raised);
   min-height: 0;
-  max-height: min(28vh, 220px);
+  max-height: none;
 }
 
-.stock-view-page
-  .stock-view-workspace:not(.stock-view-workspace--orders-collapsed)
-  > .sv-open-orders-dock {
-  border-top: none;
+.stock-view-page .stock-view-main--orders-collapsed > .sv-open-orders-dock {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--sv-border);
 }
 
 .stock-view-page .sv-open-orders-dock--collapsed {

@@ -81,10 +81,10 @@ ipcMain.handle('nova:restartApi', async () => {
 
 ipcMain.handle('nova:openStockView', (_event, url) => {
   if (typeof url !== 'string' || !url.startsWith('http')) {
-    throw new Error('Invalid Stock View URL');
+    throw new Error('Invalid Trader URL');
   }
   const child = new BrowserWindow(windowOptions());
-  child.setTitle('Nova — Stock View');
+  child.setTitle('Nova — Trader');
   attachStockViewWindowOpen(child);
   void child.loadURL(url).then(() => {
     if (!child.isDestroyed()) {

@@ -2,10 +2,11 @@
  * Gappers / Gainers / Losers / After Hours / Catalysts tab bodies.
  * Gainers and Losers are separate registry modules sharing ScannerTable (Phase 4).
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { CatalystsTable } from './CatalystsTable';
 import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
+import { HodMomoIntegrityBanner } from '../hod_momo/HodMomoIntegrityBanner';
 import { SMALL_CAP_MAX, SMALL_CAP_MIN, SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, SortConfig } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
@@ -102,8 +103,10 @@ export function ScannerTabPanels({
     [catalysts, catalystSort],
   );
 
+  let panel: ReactNode = null;
+
   if (activeTab === 'gappers') {
-    return (
+    panel = (
       <>
         <div className="sub-tab-bar">
           <button
@@ -148,10 +151,8 @@ export function ScannerTabPanels({
         )}
       </>
     );
-  }
-
-  if (activeTab === 'catalysts') {
-    return (
+  } else if (activeTab === 'catalysts') {
+    panel = (
       <CatalystsTable
         catalysts={sortedCatalysts}
         sortState={catalystSort}
@@ -162,10 +163,8 @@ export function ScannerTabPanels({
         health={health}
       />
     );
-  }
-
-  if (activeTab === 'gainers') {
-    return gainers.length > 0 ? (
+  } else if (activeTab === 'gainers') {
+    panel = gainers.length > 0 ? (
       <ScannerTable
         columns={SCANNER_COLUMNS}
         data={sortedGainers}
@@ -187,10 +186,8 @@ export function ScannerTabPanels({
         emptyLabel="gainers"
       />
     );
-  }
-
-  if (activeTab === 'losers') {
-    return losers.length > 0 ? (
+  } else if (activeTab === 'losers') {
+    panel = losers.length > 0 ? (
       <ScannerTable
         columns={SCANNER_COLUMNS}
         data={sortedLosers}
@@ -212,32 +209,39 @@ export function ScannerTabPanels({
         emptyLabel="losers"
       />
     );
+  } else {
+    // afterhours
+    panel = (
+      <>
+        {sortedAfterhours.length > 0 ? (
+          <ScannerTable
+            columns={SCANNER_COLUMNS}
+            data={sortedAfterhours}
+            sortState={afterhoursSort}
+            onSort={key => toggleSort(afterhoursSort, setAfterhoursSort, key)}
+            selectedSymbol={selectedSymbol}
+            onSelect={onSelect}
+            onOpenTrading={onOpenTrading}
+            pricesStale={pricesStale}
+            flashSymbols={flashSymbols}
+            rowQuoteTs={rowQuoteTs}
+            nowSec={nowSec}
+          />
+        ) : (
+          <EmptyState
+            health={health}
+            context={mode === 'market' ? 'afterhours' : mode}
+            discoveryProvider={discoveryProvider}
+          />
+        )}
+      </>
+    );
   }
 
-  // afterhours
   return (
     <>
-      {sortedAfterhours.length > 0 ? (
-        <ScannerTable
-          columns={SCANNER_COLUMNS}
-          data={sortedAfterhours}
-          sortState={afterhoursSort}
-          onSort={key => toggleSort(afterhoursSort, setAfterhoursSort, key)}
-          selectedSymbol={selectedSymbol}
-          onSelect={onSelect}
-          onOpenTrading={onOpenTrading}
-          pricesStale={pricesStale}
-          flashSymbols={flashSymbols}
-          rowQuoteTs={rowQuoteTs}
-          nowSec={nowSec}
-        />
-      ) : (
-        <EmptyState
-          health={health}
-          context={mode === 'market' ? 'afterhours' : mode}
-          discoveryProvider={discoveryProvider}
-        />
-      )}
+      <HodMomoIntegrityBanner />
+      {panel}
     </>
   );
 }

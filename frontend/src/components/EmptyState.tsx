@@ -1,5 +1,6 @@
 /** Scanner empty / loading / disconnected messages for the main feed area. */
-import { EMPTY_IBKR_DISCONNECTED, GAPPER_MIN_GAP_PCT } from '../constants';
+import { GAPPER_MIN_GAP_PCT } from '../constants';
+import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { MarketMode } from './AppHeader';
 import type { HealthStatus } from '../types/health';
@@ -34,7 +35,11 @@ export function EmptyState({
     );
   }
   if (discoveryProvider === 'ibkr' && !ibkr.connected) {
-    return <div className="empty-state empty-state--ibkr-down">{EMPTY_IBKR_DISCONNECTED}</div>;
+    return (
+      <div className="empty-state empty-state--ibkr-down">
+        {emptyIbkrDisconnectedMessage(ibkr.gateway_mode)}
+      </div>
+    );
   }
   if (context === 'closed') {
     return (
@@ -46,7 +51,12 @@ export function EmptyState({
   if (context === 'premarket') {
     return (
       <div className="empty-state">
-        No gappers with a gap of at least {GAPPER_MIN_GAP_PCT}% yet — scan running…
+        No gappers with a gap of at least {GAPPER_MIN_GAP_PCT}% in the cache.
+        <div className="empty-state-hint">
+          If this stays empty while IBKR is connected, check the integrity banner above
+          (bridge timeouts used to wipe the table silently). Open the <strong>Gainers</strong> tab
+          — that feed may still be live.
+        </div>
       </div>
     );
   }

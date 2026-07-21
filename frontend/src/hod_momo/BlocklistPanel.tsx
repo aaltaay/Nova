@@ -12,7 +12,9 @@ export function BlocklistPanel() {
     fetch(`${API}/hod-momo/blocklist`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.symbols) setSymbols(data.symbols); })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('HOD blocklist fetch failed', err);
+      });
   }, []);
 
   const add = useCallback(() => {

@@ -26,21 +26,29 @@ import { DepthLadder } from './DepthLadder';
 import { OrderTicket } from './OrderTicket';
 import { PaperTradingBanner } from './PaperTradingBanner';
 import { PositionsPanel } from './PositionsPanel';
+import { ReportsTab } from '../reports/ReportsTab';
+import { alertApp } from '../ux';
 import { confirmAndFillWorkingOrder } from './fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from './placeOrder';
 import type { IbkrOrder } from './types';
+
+type TradingTabSection = 'overview' | 'reports';
 
 interface TradingTabProps {
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
+  /** Reports is nested under the Account header, not a top-level tab (see workspace/registry.ts). */
+  initialSection?: TradingTabSection;
 }
 
 export function TradingTab({
   selectedSymbol,
   onSelectSymbol,
   onOpenTrading,
+  initialSection = 'overview',
 }: TradingTabProps) {
+  const [section, setSection] = useState<TradingTabSection>(initialSection);
   const status = useIbkrStatus();
   const {
     summary,
@@ -69,7 +77,7 @@ export function TradingTab({
       setHighlightOrderId(res.place_order_id);
     }
     if (!res.ok && res.error !== 'Fill now cancelled') {
-      window.alert(res.error);
+      void alertApp({ title: 'Fill now failed', message: res.error, tone: 'danger' });
     }
     refresh();
   }, [refresh]);
@@ -92,6 +100,31 @@ export function TradingTab({
   return (
     <div className="ibkr-trading-tab">
       <PaperTradingBanner mode={status.mode} />
+      {/* ── Section toggle: Reports is nested here, not a top-level tab ── */}
+      <div className="ibkr-section-toggle" role="tablist" aria-label="Account section">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === 'overview'}
+          className={section === 'overview' ? 'ibkr-section-toggle-btn active' : 'ibkr-section-toggle-btn'}
+          onClick={() => setSection('overview')}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === 'reports'}
+          className={section === 'reports' ? 'ibkr-section-toggle-btn active' : 'ibkr-section-toggle-btn'}
+          onClick={() => setSection('reports')}
+        >
+          Reports
+        </button>
+      </div>
+      {section === 'reports' ? (
+        <ReportsTab />
+      ) : (
+      <>
       {/* ── Status bar ─────────────────────────────────────────────────── */}
       <div className="ibkr-status-bar">
         <span className="ibkr-source-label">Data: Interactive Brokers</span>
@@ -251,6 +284,8 @@ export function TradingTab({
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

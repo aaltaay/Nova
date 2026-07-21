@@ -33,26 +33,28 @@ test.describe('Phase 0 baseline', () => {
     await expect(gappers).toHaveClass(/active/);
     await expect(page.locator('.tab.active')).toContainText('Gappers');
 
-    const trading = page.getByRole('button', { name: /^Trading/ });
-    await trading.click();
-    await expect(trading).toHaveClass(/active/);
+    const account = page.getByTestId('header-account-btn');
+    await account.click();
+    await expect(account).toHaveClass(/active/);
+    await expect(page.getByTestId('account-view')).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Reports' })).toBeVisible();
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
-  test('Stock View opens via URL and has no page scroll', async ({ page }) => {
+  test('Trader window opens via URL and has no page scroll', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=stock&symbol=AAPL');
 
     await expect(page.locator('.stock-view-page')).toBeVisible();
     await expect(page.getByTestId('stock-view-header')).toBeVisible();
-    await expect(page.getByText('Stock View', { exact: true })).toBeVisible();
-    await expect(page).toHaveTitle(/AAPL/);
+    await expect(page.getByText('Trader', { exact: true })).toBeVisible();
+    await expect(page).toHaveTitle(/AAPL.*Trader/);
 
     const noPageScroll = await page.evaluate(() => {
       const el = document.documentElement;
       return el.scrollHeight === el.clientHeight;
     });
-    expect(noPageScroll, 'documentElement must not page-scroll on Stock View').toBe(true);
+    expect(noPageScroll, 'documentElement must not page-scroll on Trader').toBe(true);
 
     // Terminal composition: charts + rail (when detail loads)
     await expect(page.getByTestId('stock-view-rail')).toBeVisible({ timeout: 20_000 });

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL, EXECUTOR_POLL_INTERVAL_MS, NOVA_OS_FLATTEN_CONFIRM_TOKEN } from '../constants';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { ExecutorStatus } from './types';
 
 const EXECUTOR_API = `${API_BASE_URL}/api/strategy/executor`;
@@ -22,7 +23,10 @@ export interface UseExecutorReturn {
   flatten: () => Promise<void>;
 }
 
+const SAMPLE_NOOP = async () => {};
+
 export function useExecutor(enabled: boolean): UseExecutorReturn {
+  const sample = useSampleDataOptional();
   const [status, setStatus] = useState<ExecutorStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +34,7 @@ export function useExecutor(enabled: boolean): UseExecutorReturn {
   const inFlight = useRef(false);
 
   const refresh = useCallback(async () => {
-    if (inFlight.current) return;
+    if (sample || inFlight.current) return;
     inFlight.current = true;
     try {
       const res = await fetch(`${EXECUTOR_API}/status`);
@@ -43,9 +47,10 @@ export function useExecutor(enabled: boolean): UseExecutorReturn {
       inFlight.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [sample]);
 
   const postJson = useCallback(async (path: string, body?: object) => {
+    if (sample) return;
     try {
       const res = await novaFetch(`${EXECUTOR_API}/${path}`, {
         method: 'POST',
@@ -62,10 +67,10 @@ export function useExecutor(enabled: boolean): UseExecutorReturn {
     } catch (err) {
       setActionError(err instanceof Error ? err.message : `Failed to ${path}`);
     }
-  }, []);
+  }, [sample]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (sample || !enabled) return;
     let cancelled = false;
     const tick = () => {
       if (!cancelled) refresh();
@@ -76,7 +81,35 @@ export function useExecutor(enabled: boolean): UseExecutorReturn {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [enabled, refresh]);
+  }, [sample, enabled, refresh]);
+
+  if (sample) {
+    return {
+      status: {
+        disclosure: 'Sample data — automation fixtures only; nothing places.',
+        armed: false,
+        control_mode: 'signal',
+        effective_mode: 'signal',
+        kill_switch_tripped: false,
+        ibkr_connected: true,
+        ibkr_mode: 'paper',
+        staged: [],
+        open_positions: [],
+      },
+      loading: false,
+      error: null,
+      actionError: null,
+      arm: SAMPLE_NOOP,
+      disarm: SAMPLE_NOOP,
+      setMode: async (_mode: string) => {},
+      killSwitch: SAMPLE_NOOP,
+      resetKillSwitch: SAMPLE_NOOP,
+      approveStaged: SAMPLE_NOOP,
+      rejectStaged: SAMPLE_NOOP,
+      cancelWorkingEntry: SAMPLE_NOOP,
+      flatten: SAMPLE_NOOP,
+    };
+  }
 
   return {
     status,

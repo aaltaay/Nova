@@ -1,6 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ClosePositionButton } from '../closed_orders';
+import { formatMoney } from '../utils/formatMoney';
+import { formatShareQty } from '../utils/formatShareQty';
 import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader';
 import { positionSideClass, positionSideRowClass } from './orderDisplay';
 import {
@@ -17,7 +19,8 @@ interface Props {
   summary: IbkrAccountSummary | null;
   positions: IbkrPosition[];
   orders: IbkrOrder[];
-  /** Set when the last positions/orders poll failed — disable Flatten. */
+  /** Set when the last positions/orders poll failed — rows above are
+   * last-good, not an honest "flat" read. */
   error?: string | null;
   selectedSymbol: string | null;
   onSelectSymbol: (symbol: string) => void;
@@ -29,19 +32,9 @@ interface Props {
   connected?: boolean;
   spendStatus?: string;
   onPositionClosed?: () => void;
-}
-
-function fmt(n: number | null | undefined, decimals = 2) {
-  if (n == null) return '—';
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
-
-function fmtDollar(n: number | null | undefined) {
-  if (n == null) return '—';
-  return `$${fmt(n)}`;
+  /** Stock View dock: table only (no account strip / nested Working Orders). */
+  compact?: boolean;
+  hideTitle?: boolean;
 }
 
 function renderPositionCell(
@@ -60,25 +53,25 @@ function renderPositionCell(
     case 'qty':
       return (
         <td key={col} className={`ibkr-col--num ${sideCls}`} title={sideTitle}>
-          {fmt(p.qty, 0)}
+          {formatShareQty(p.qty)}
         </td>
       );
     case 'avg_cost':
       return (
         <td key={col} className="ibkr-col--num">
-          {fmtDollar(p.avg_cost)}
+          {formatMoney(p.avg_cost)}
         </td>
       );
     case 'mkt_price':
       return (
         <td key={col} className="ibkr-col--num">
-          {fmtDollar(p.market_price)}
+          {formatMoney(p.market_price)}
         </td>
       );
     case 'mkt_value':
       return (
         <td key={col} className="ibkr-col--num">
-          {fmtDollar(p.market_value)}
+          {formatMoney(p.market_value)}
         </td>
       );
     case 'unrealized': {
@@ -90,7 +83,7 @@ function renderPositionCell(
             : 'var(--red)';
       return (
         <td key={col} className="ibkr-col--num" style={{ color }}>
-          {fmtDollar(p.unrealized_pnl)}
+          {formatMoney(p.unrealized_pnl)}
         </td>
       );
     }
@@ -114,6 +107,8 @@ export function PositionsPanel({
   connected = false,
   spendStatus,
   onPositionClosed,
+  compact = false,
+  hideTitle = false,
 }: Props) {
   const showFlatten = connected && mode !== 'disconnected';
   const { order, reorder, reset } = useOrderTableColumnOrder('positions');
@@ -128,12 +123,15 @@ export function PositionsPanel({
   );
 
   return (
-    <div className="ibkr-positions-panel">
-      {summary && summary.connected && (
+    <div
+      className={`ibkr-positions-panel${compact ? ' ibkr-positions-panel--compact' : ''}`}
+      data-testid="positions-panel"
+    >
+      {!compact && summary && summary.connected && (
         <div className="ibkr-account-strip">
-          <span><label>Net Liq</label>{fmtDollar(summary.NetLiquidation)}</span>
-          <span><label>Cash</label>{fmtDollar(summary.TotalCashValue)}</span>
-          <span><label>Buying Power</label>{fmtDollar(summary.BuyingPower)}</span>
+          <span><label>Net Liq</label>{formatMoney(summary.NetLiquidation)}</span>
+          <span><label>Cash</label>{formatMoney(summary.TotalCashValue)}</span>
+          <span><label>Buying Power</label>{formatMoney(summary.BuyingPower)}</span>
           <span>
             <label>Unrealized P&L</label>
             <span
@@ -141,7 +139,7 @@ export function PositionsPanel({
                 color: (summary.UnrealizedPnL ?? 0) >= 0 ? 'var(--green)' : 'var(--red)',
               }}
             >
-              {fmtDollar(summary.UnrealizedPnL)}
+              {formatMoney(summary.UnrealizedPnL)}
             </span>
           </span>
           <span>
@@ -151,23 +149,27 @@ export function PositionsPanel({
                 color: (summary.RealizedPnL ?? 0) >= 0 ? 'var(--green)' : 'var(--red)',
               }}
             >
-              {fmtDollar(summary.RealizedPnL)}
+              {formatMoney(summary.RealizedPnL)}
             </span>
           </span>
         </div>
       )}
 
-      <h4 className="ibkr-section-title">Positions</h4>
+      {!hideTitle && <h4 className="ibkr-section-title">Positions</h4>}
       {error && (
         <div className="ibkr-empty ibkr-empty--error" data-testid="positions-error">
-          {error} — Flatten disabled until the poll recovers.
+          {error} — showing last-known data.
         </div>
       )}
       {positions.length === 0 ? (
-        !error && <div className="ibkr-empty">No open positions.</div>
+        !error && (
+          <div className="ibkr-empty" data-testid="positions-empty">
+            No open positions.
+          </div>
+        )
       ) : (
         <OrderTableDnd onReorder={reorder}>
-        <table className="ibkr-table ibkr-table--orders">
+        <table className="ibkr-table ibkr-table--orders" data-testid="positions-table">
           <thead>
             <OrderTableColumnHeader
               columns={headerMeta}
@@ -190,15 +192,8 @@ export function PositionsPanel({
               const sideCls = positionSideClass(p.qty);
               const sideRowCls = positionSideRowClass(p.qty);
               const sideTitle = p.qty > 0 ? 'Long' : p.qty < 0 ? 'Short' : undefined;
-              return (
-                <SelectableTableRow
-                  key={p.symbol}
-                  symbol={p.symbol}
-                  selected={selectedSymbol === p.symbol}
-                  onSelect={onSelectSymbol}
-                  onOpenTrading={onOpenTrading}
-                  className={sideRowCls || undefined}
-                >
+              const cells = (
+                <>
                   {columns.map((col) => renderPositionCell(col, p, sideCls, sideTitle))}
                   {showFlatten ? (
                     <td className="ibkr-col--actions">
@@ -212,7 +207,30 @@ export function PositionsPanel({
                       />
                     </td>
                   ) : null}
-                </SelectableTableRow>
+                </>
+              );
+              if (onSelectSymbol && onOpenTrading) {
+                return (
+                  <SelectableTableRow
+                    key={p.symbol}
+                    symbol={p.symbol}
+                    selected={selectedSymbol === p.symbol}
+                    onSelect={onSelectSymbol}
+                    onOpenTrading={onOpenTrading}
+                    className={sideRowCls || undefined}
+                  >
+                    {cells}
+                  </SelectableTableRow>
+                );
+              }
+              return (
+                <tr
+                  key={p.symbol}
+                  className={sideRowCls || undefined}
+                  data-symbol={p.symbol}
+                >
+                  {cells}
+                </tr>
               );
             })}
           </tbody>
@@ -220,15 +238,18 @@ export function PositionsPanel({
         </OrderTableDnd>
       )}
 
-      <WorkingOrdersPanel
-        orders={orders}
-        selectedSymbol={selectedSymbol}
-        onSelectSymbol={onSelectSymbol}
-        onOpenTrading={onOpenTrading}
-        onCancelOrder={onCancelOrder}
-        onFillImmediately={onFillImmediately}
-        highlightOrderId={highlightOrderId}
-      />
+      {!compact && (
+        <WorkingOrdersPanel
+          orders={orders}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelectSymbol}
+          onOpenTrading={onOpenTrading}
+          onCancelOrder={onCancelOrder}
+          onFillImmediately={onFillImmediately}
+          highlightOrderId={highlightOrderId}
+          error={error}
+        />
+      )}
     </div>
   );
 }

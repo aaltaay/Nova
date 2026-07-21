@@ -7,20 +7,49 @@ import { BackendStartButton } from './BackendStartButton';
 import {
   DATA_FEED_LABELS,
   DISCOVERY_PROVIDER_DEFAULT,
-  EMPTY_IBKR_DISCONNECTED,
   HEADER_GATEWAY_LAUNCH_HINT,
+  HEADER_GATEWAY_MODE_LIVE,
+  HEADER_GATEWAY_MODE_PAPER,
+  HEADER_GATEWAY_TITLE_LIVE,
+  HEADER_GATEWAY_TITLE_PAPER,
+  HEADER_GATEWAY_TITLE_UNKNOWN,
+  HEADER_INTEGRATION_CHIP_LABELS,
+  HEADER_INTEGRATION_CHIP_ORDER,
   SCANNER_DATA_SOURCE_TITLES,
 } from '../constants';
-import type { HealthStatus } from '../types/health';
+import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
+import type { IbkrMode } from '../ibkr/types';
+import type { HealthStatus, IntegrationChipStatus } from '../types/health';
 import { formatScanAge } from '../utils/formatScanAge';
 import { launchIbGateway } from '../utils/launchIbGateway';
 
-type ChipTone = 'ok' | 'bad' | 'warn';
+type ChipTone = 'ok' | 'bad' | 'warn' | 'live';
+
+function resolveGatewayModeTag(
+  ibkrMode: IbkrMode,
+  ibkrGatewayMode: 'paper' | 'live' | null,
+): 'paper' | 'live' | null {
+  if (ibkrMode === 'paper' || ibkrMode === 'live') return ibkrMode;
+  if (ibkrGatewayMode === 'paper' || ibkrGatewayMode === 'live') return ibkrGatewayMode;
+  return null;
+}
+
+function gatewayModeLabel(tag: 'paper' | 'live' | null): string | null {
+  if (tag === 'live') return HEADER_GATEWAY_MODE_LIVE;
+  if (tag === 'paper') return HEADER_GATEWAY_MODE_PAPER;
+  return null;
+}
 
 function apiTone(status: string): ChipTone {
   if (status === 'connected') return 'ok';
   if (status === 'disconnected' || status === 'error') return 'bad';
   return 'warn';
+}
+
+function integrationTone(status: string): ChipTone {
+  if (status === 'ok') return 'ok';
+  if (status === 'error') return 'bad';
+  return 'warn'; // off | unknown
 }
 
 function apiLabel(status: string): string {
@@ -41,6 +70,10 @@ interface Props {
   health: HealthStatus;
   discoveryProvider?: string;
   ibkrConnected?: boolean;
+  /** Live session mode from /api/ibkr/status (paper | live | disconnected). */
+  ibkrMode?: IbkrMode;
+  /** Configured Gateway port target when session mode is not yet known. */
+  ibkrGatewayMode?: 'paper' | 'live' | null;
   activeFeed: string;
   feedFellBack: boolean;
   secondsAgo: number | null;
@@ -55,6 +88,8 @@ export function HeaderConnectionStatus({
   health,
   discoveryProvider = DISCOVERY_PROVIDER_DEFAULT,
   ibkrConnected = false,
+  ibkrMode = 'disconnected',
+  ibkrGatewayMode = null,
   activeFeed,
   feedFellBack,
   secondsAgo,
@@ -94,13 +129,44 @@ export function HeaderConnectionStatus({
       : formatScanAge(secondsAgo)
     : null;
 
+  const modeTag = resolveGatewayModeTag(ibkrMode, ibkrGatewayMode);
+  const modeLabel = gatewayModeLabel(modeTag);
+  const modeTitle =
+    modeTag === 'live'
+      ? HEADER_GATEWAY_TITLE_LIVE
+      : modeTag === 'paper'
+        ? HEADER_GATEWAY_TITLE_PAPER
+        : HEADER_GATEWAY_TITLE_UNKNOWN;
   const gatewayTitle = [
-    ibkrConnected ? SCANNER_DATA_SOURCE_TITLES.ibkr : EMPTY_IBKR_DISCONNECTED,
+    modeTitle,
+    ibkrConnected
+      ? SCANNER_DATA_SOURCE_TITLES.ibkr
+      : emptyIbkrDisconnectedMessage(ibkrGatewayMode),
     HEADER_GATEWAY_LAUNCH_HINT,
     gatewayLaunchHint,
   ]
     .filter(Boolean)
     .join('\n\n');
+
+  const gatewayChipTone: ChipTone = gatewayLaunchOk === false
+    ? 'bad'
+    : gatewayLaunchOk === true
+      ? 'ok'
+      : !ibkrConnected
+        ? 'bad'
+        : modeTag === 'live'
+          ? 'live'
+          : 'ok';
+
+  let gatewayValue = 'offline';
+  if (gatewayLaunchBusy) gatewayValue = 'opening…';
+  else if (gatewayLaunchOk === true) gatewayValue = 'check desktop';
+  else if (gatewayLaunchOk === false) gatewayValue = 'launch failed';
+  else if (ibkrConnected) {
+    gatewayValue = modeLabel ? `connected · ${modeLabel}` : 'connected';
+  } else if (modeLabel) {
+    gatewayValue = `offline · ${modeLabel}`;
+  }
 
   return (
     <div
@@ -131,15 +197,9 @@ export function HeaderConnectionStatus({
         <>
           <button
             type="button"
-            className={`status-chip status-chip--action status-chip--${
-              gatewayLaunchOk === false
-                ? 'bad'
-                : gatewayLaunchOk === true
-                  ? 'ok'
-                  : ibkrConnected
-                    ? 'ok'
-                    : 'bad'
-            }${gatewayLaunchBusy ? ' status-chip--busy' : ''}`}
+            className={`status-chip status-chip--action status-chip--${gatewayChipTone}${
+              gatewayLaunchBusy ? ' status-chip--busy' : ''
+            }`}
             title={gatewayTitle}
             data-testid="status-chip-gateway"
             onDoubleClick={(e) => {
@@ -147,7 +207,7 @@ export function HeaderConnectionStatus({
               e.stopPropagation();
               void onGatewayDoubleClick();
             }}
-            aria-label="IB Gateway status. Double-click to open or focus Gateway."
+            aria-label={`IB Gateway ${gatewayValue}. Double-click to open or focus Gateway.`}
           >
             <span
               className={`dot ${
@@ -159,17 +219,7 @@ export function HeaderConnectionStatus({
               }`}
             />
             <span className="status-chip__role">Gateway</span>
-            <span className="status-chip__value">
-              {gatewayLaunchBusy
-                ? 'opening…'
-                : gatewayLaunchOk === true
-                  ? 'check desktop'
-                  : gatewayLaunchOk === false
-                    ? 'launch failed'
-                    : ibkrConnected
-                      ? 'connected'
-                      : 'offline'}
-            </span>
+            <span className="status-chip__value">{gatewayValue}</span>
           </button>
           {gatewayLaunchHint && (
             <span
@@ -206,6 +256,32 @@ export function HeaderConnectionStatus({
           </span>
         </span>
       )}
+
+      {HEADER_INTEGRATION_CHIP_ORDER.map((key) => {
+        const chip: IntegrationChipStatus | undefined = health.integrations?.[key];
+        if (!chip) return null;
+        // Under discovery=ibkr, Gateway already shows IBKR connectivity — Alpaca chip
+        // here means news/listing/RVOL aux, not the live price feed.
+        const tone = integrationTone(chip.status);
+        const role = HEADER_INTEGRATION_CHIP_LABELS[key] || key;
+        return (
+          <span
+            key={key}
+            className={`status-chip status-chip--${tone}`}
+            title={
+              chip.detail ||
+              (key === 'alpaca'
+                ? 'Alpaca aux (news / listing flags / scanner RVOL avg) — not live prices when Gateway is the feed.'
+                : `${role} integration status`)
+            }
+            data-testid={`status-chip-integration-${key}`}
+          >
+            <span className={`dot ${toneDot(tone)}`} />
+            <span className="status-chip__role">{role}</span>
+            <span className="status-chip__value">{chip.status}</span>
+          </span>
+        );
+      })}
 
       {priceText != null && (
         <span

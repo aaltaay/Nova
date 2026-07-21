@@ -89,6 +89,14 @@
   color: var(--text-primary);
 }
 
+.hod-scanner-blurb {
+  margin: 0 0 0.35rem;
+  padding: 0 0.5rem;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
 .hod-alert-count {
   font-size: 0.65rem;
   color: var(--text-secondary);

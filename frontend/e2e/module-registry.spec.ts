@@ -36,7 +36,8 @@ test.describe('Phase 4 — Module registry tabs', () => {
     await expect(page.locator('[data-tab="gainers"]')).toBeVisible();
     await expect(page.locator('[data-tab="losers"]')).toBeVisible();
     await expect(page.locator('[data-tab="watchlist"]')).toBeVisible();
-    await expect(page.getByTestId('modules-menu')).toBeVisible();
+    // Modules menu removed from the tab bar (power-user UI retired).
+    await expect(page.getByTestId('modules-menu')).toHaveCount(0);
 
     await page.locator('[data-tab="gainers"]').click();
     await expect(page.locator('.tab-bar')).toHaveAttribute('data-active-tab', 'gainers');
@@ -48,44 +49,16 @@ test.describe('Phase 4 — Module registry tabs', () => {
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
-  test('Modules menu hide/show persists across reload', async ({ page }) => {
+  test('module visibility from localStorage still hides tabs', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await clearModuleVisibility(page);
-
-    await page.getByTestId('modules-menu').getByRole('button', { name: /^Modules$/ }).click();
-    await expect(page.getByTestId('modules-menu-panel')).toBeVisible();
-
-    const gappersToggle = page.locator('[data-module-toggle="gappers"]');
-    await expect(gappersToggle).toBeChecked();
-    await gappersToggle.uncheck();
-
-    // Tab disappears immediately
-    await expect(page.locator('[data-tab="gappers"]')).toHaveCount(0);
-
-    const storedBefore = await page.evaluate(
-      (key) => localStorage.getItem(key),
-      MODULE_VISIBILITY_STORAGE_KEY,
-    );
-    expect(storedBefore).toBeTruthy();
-    expect(JSON.parse(storedBefore!).gappers).toBe(false);
-
-    // Reload without clearing — persistence check
+    await page.goto('/');
+    await page.evaluate((key) => {
+      localStorage.setItem(key, JSON.stringify({ gappers: false }));
+    }, MODULE_VISIBILITY_STORAGE_KEY);
     await page.reload();
     await expect(page.locator('.tab-bar')).toBeVisible();
     await expect(page.locator('[data-tab="gappers"]')).toHaveCount(0);
-
-    const stored = await page.evaluate(
-      (key) => localStorage.getItem(key),
-      MODULE_VISIBILITY_STORAGE_KEY,
-    );
-    expect(stored).toBeTruthy();
-    expect(JSON.parse(stored!).gappers).toBe(false);
-
-    // Restore for cleanliness
-    await page.getByTestId('modules-menu').getByRole('button', { name: /^Modules$/ }).click();
-    await page.locator('[data-module-toggle="gappers"]').check();
-    await expect(page.locator('[data-tab="gappers"]')).toBeVisible();
-
+    await expect(page.locator('[data-tab="gainers"]')).toBeVisible();
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });

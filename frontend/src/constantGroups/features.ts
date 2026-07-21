@@ -1,6 +1,17 @@
 /** Phase 3 domain group (features.ts). */
 import { API_URL } from './chart_api';
 
+// ── Account (header) — former Trading tab + Reports ──────────────────────────
+/** Header control next to Today (Live); opens account / habits view. */
+export const ACCOUNT_NAV_LABEL = 'Account';
+export const ACCOUNT_NAV_TITLE =
+  'Account overview — positions, orders, and trading habit reports';
+/** Account page sections (Overview = IBKR positions/orders; Reports = P&L habits). */
+export const ACCOUNT_SECTION_OVERVIEW = 'Overview';
+export const ACCOUNT_SECTION_REPORTS = 'Reports';
+export type AccountSectionId = 'overview' | 'reports';
+export const ACCOUNT_SECTION_DEFAULT: AccountSectionId = 'overview';
+
 export const L2_DAS_MM_FALLBACK = '—';
 /** IBKR overnight / extended session market-maker id on thin closed-market books. */
 export const L2_MM_OVERNIGHT = 'OVERNIGHT';
@@ -196,4 +207,4 @@ export const NOVA_ACTION_PIN_LOCKED_MESSAGE =
 export const NOVA_ACTION_SPEND_LOCKED_MESSAGE =
   'Orders remain locked by Nova environment safety settings.';
 export const NOVA_ACTION_ACCOUNT_ERROR_MESSAGE =
-  'IBKR account/positions read failed — Flatten/exit disabled until the poll recovers';
+  'IBKR account/positions read failed — Flatten/exit disabled until the poll recovers.';

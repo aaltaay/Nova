@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { API_URL } from '../constants';
 import { useIbkrStatus } from '../ibkr';
+import type { IbkrMode } from '../ibkr/types';
 import {
   openStockViewWindow,
   parseStockViewSymbol,
@@ -30,6 +31,10 @@ export type WorkspaceValue = {
   alpacaFeed: string;
   setAlpacaFeed: (feed: string) => void;
   ibkrConnected: boolean;
+  /** Session mode from /api/ibkr/status — paper | live | disconnected. */
+  ibkrMode: IbkrMode;
+  /** Configured Gateway port mode (may differ briefly while reconnecting). */
+  ibkrGatewayMode: 'paper' | 'live' | null;
   openStockView: (symbol: string) => void;
   /** When set, App renders Stock View instead of the dashboard. */
   stockViewSymbol: string | null;
@@ -59,8 +64,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setDiscoveryProvider(slice.discoveryProvider);
         setAlpacaFeed(slice.alpacaFeed);
       })
-      .catch(() => {
-        /* keep defaults — settings form / retry will refresh */
+      .catch((err) => {
+        console.warn('[Nova] /api/config fetch failed — keeping workspace defaults', err);
       });
     return () => {
       cancelled = true;
@@ -85,6 +90,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       alpacaFeed,
       setAlpacaFeed,
       ibkrConnected: ibkrStatus.connected,
+      ibkrMode: ibkrStatus.mode,
+      ibkrGatewayMode: ibkrStatus.gateway_mode ?? null,
       openStockView,
       stockViewSymbol,
       setStockViewSymbol,
@@ -94,6 +101,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       discoveryProvider,
       alpacaFeed,
       ibkrStatus.connected,
+      ibkrStatus.mode,
+      ibkrStatus.gateway_mode,
       openStockView,
       stockViewSymbol,
     ],

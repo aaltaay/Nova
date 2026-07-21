@@ -2,12 +2,16 @@
  * Reuses IBKR order API + useExecutor; does not invent a second order path. */
 import { useState } from 'react';
 import {
+  APP_DIALOG_FLATTEN_LABEL,
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
   STOCK_VIEW_MODULE_OPEN_TITLE,
   TICKER_TRADE_ORDER_DISCLOSURE,
 } from '../constants';
 import { NovaActionRuntimeSync } from '../hotkeys/NovaActionRuntimeSync';
 import { TradingQuickBar } from '../hotkeys/TradingQuickBar';
+import { confirmApp } from '../ux';
+import { formatMoney } from '../utils/formatMoney';
+import { formatShareQty } from '../utils/formatShareQty';
 import { closeFullPosition } from './closeFullPosition';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import type { PlaceOrderResult } from './placeOrder';
@@ -19,7 +23,7 @@ interface Props {
   mode: IbkrMode;
   connected: boolean;
   spendStatus?: string;
-  /** Set when useIbkrAccount last poll failed — disable Flatten. */
+  /** Set when useIbkrAccount last poll failed — disable Flatten (last-good qty). */
   accountError?: string | null;
   position: IbkrPosition | null;
   summary: IbkrAccountSummary | null;
@@ -32,11 +36,6 @@ interface Props {
    *   (account/automate in header; height vs depth via rail horizontal splitter).
    */
   variant?: 'footer' | 'sidebar' | 'rail';
-}
-
-function fmtDollar(n: number | null | undefined) {
-  if (n == null) return '—';
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export function TickerTradeActionBar({
@@ -74,14 +73,18 @@ export function TickerTradeActionBar({
 
   async function handleClose() {
     if (!canFlatten || !position || position.qty === 0) return;
-    const absQty = Math.abs(position.qty);
+    const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide: 'BUY' | 'SELL' = position.qty > 0 ? 'SELL' : 'BUY';
-    const confirmed = window.confirm(
-      `${TICKER_TRADE_ORDER_DISCLOSURE}\n\n` +
+    const confirmed = await confirmApp({
+      title: `Flatten ${symbol}?`,
+      message:
+        `${TICKER_TRADE_ORDER_DISCLOSURE}\n\n` +
         `Flatten (close full position) ${absQty} shares of ${symbol} with a ${closeSide} market order ` +
         `on the ${mode.toUpperCase()} account?\n\n` +
         `This is not Cancel — Cancel only removes a working order.`,
-    );
+      confirmLabel: APP_DIALOG_FLATTEN_LABEL,
+      tone: 'danger',
+    });
     if (!confirmed) return;
 
     setClosing(true);
@@ -131,16 +134,17 @@ export function TickerTradeActionBar({
             {summary?.connected && (
               <>
                 <span className="ticker-trade-bar-metric">
-                  <label>Net Liq</label> {fmtDollar(summary.NetLiquidation)}
+                  <label>Net Liq</label> {formatMoney(summary.NetLiquidation, 0)}
                 </span>
                 <span className="ticker-trade-bar-metric">
-                  <label>BP</label> {fmtDollar(summary.BuyingPower)}
+                  <label>BP</label> {formatMoney(summary.BuyingPower, 0)}
                 </span>
               </>
             )}
             {hasPosition && (
               <span className="ticker-trade-bar-metric">
-                <label>Pos</label> {position!.qty} @ {position!.avg_cost?.toFixed(2) ?? '—'}
+                <label>Pos</label> {formatShareQty(position!.qty)} @{' '}
+                {position!.avg_cost?.toFixed(2) ?? '—'}
               </span>
             )}
           </div>
@@ -149,7 +153,8 @@ export function TickerTradeActionBar({
         {compactChrome && hasPosition && (
           <div className="ticker-trade-bar-account ticker-trade-bar-account--pos-only">
             <span className="ticker-trade-bar-metric">
-              <label>Pos</label> {position!.qty} @ {position!.avg_cost?.toFixed(2) ?? '—'}
+              <label>Pos</label> {formatShareQty(position!.qty)} @{' '}
+              {position!.avg_cost?.toFixed(2) ?? '—'}
             </span>
           </div>
         )}

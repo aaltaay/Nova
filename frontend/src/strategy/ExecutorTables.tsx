@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { NOVA_OS_CONFIRM_TIMEOUT_SEC, SETUP_LABELS } from '../constants';
+import { formatShareQty } from '../utils/formatShareQty';
 import type { ExecutorOpenPosition, ExecutorStagedTicket } from './types';
 
 function fmtPrice(v: number): string {
@@ -47,7 +48,7 @@ export function StagedTable({
       <table>
         <thead>
           <tr>
-            <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
+            <th title="Click: Quote Panel · Double-click: Trader">Symbol</th>
             <th>Setup</th>
             <th>Entry</th>
             <th>Stop</th>
@@ -71,7 +72,7 @@ export function StagedTable({
               <td>{fmtPrice(t.entry)}</td>
               <td>{fmtPrice(t.stop)}</td>
               <td>{fmtPrice(t.target)}</td>
-              <td>{t.shares}</td>
+              <td>{formatShareQty(t.shares)}</td>
               <td><Countdown expiresAt={t.expires_at} /></td>
               <td className="nova-os-staged-actions">
                 <button
@@ -119,7 +120,7 @@ export function OpenPositionsTable({
         <thead>
           <tr>
             <th>Opened</th>
-            <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
+            <th title="Click: Quote Panel · Double-click: Trader">Symbol</th>
             <th>Setup</th>
             <th>Qty</th>
             <th>Entry</th>
@@ -140,7 +141,7 @@ export function OpenPositionsTable({
               <td className="hod-time-cell">{fmtTime(p.opened_ts)}</td>
               <td>{p.symbol}</td>
               <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[p.setup] ?? p.setup}</span></td>
-              <td>{p.qty}</td>
+              <td>{formatShareQty(p.qty)}</td>
               <td>{fmtPrice(p.entry_price)}</td>
               <td>{fmtPrice(p.stop_price)}</td>
               <td>{fmtPrice(p.target_price)}</td>

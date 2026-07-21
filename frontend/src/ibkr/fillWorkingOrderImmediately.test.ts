@@ -76,4 +76,21 @@ describe('fillWorkingOrderImmediately', () => {
     expect(res.ok).toBe(false);
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it('derives remaining from qty − filled when remaining_qty is null', async () => {
+    const spy = vi.spyOn(placeOrder, 'placeIbkrOrder').mockResolvedValue({
+      ok: true,
+      order_id: 11,
+      error: null,
+      mode: 'paper',
+    });
+    const res = await fillWorkingOrderImmediately({
+      ...ORDER,
+      remaining_qty: null,
+      filled_qty: 40,
+      qty: 100,
+    });
+    expect(res.ok).toBe(true);
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ qty: 60 }));
+  });
 });

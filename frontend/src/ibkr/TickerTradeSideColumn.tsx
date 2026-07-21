@@ -1,7 +1,14 @@
 /** Compact side column for the full ticker trading page — quote/stats/news/depth,
  * not a second full clone of the sidebar stack. */
-import { REL_VOLUME_HIGH, TICKER_TRADE_DEPTH_LEVELS, TICKER_TRADE_SIDE_NEWS_COUNT } from '../constants';
+import {
+  QUOTE_RVOL_DAILY_LABEL,
+  QUOTE_RVOL_DAILY_TITLE,
+  REL_VOLUME_HIGH,
+  TICKER_TRADE_DEPTH_LEVELS,
+  TICKER_TRADE_SIDE_NEWS_COUNT,
+} from '../constants';
 import type { TickerDetail } from '../types/ticker';
+import { formatShareQty } from '../utils/formatShareQty';
 import {
   fmtMarketCap,
   fmtPct,
@@ -21,9 +28,19 @@ interface Props {
   mode: IbkrMode;
 }
 
-function Stat({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+function Stat({
+  label,
+  value,
+  valueClass,
+  title,
+}: {
+  label: string;
+  value: string;
+  valueClass?: string;
+  title?: string;
+}) {
   return (
-    <div className="trade-side-stat">
+    <div className="trade-side-stat" title={title}>
       <span className="trade-side-stat-label">{label}</span>
       <span className={`trade-side-stat-value${valueClass ? ` ${valueClass}` : ''}`}>{value}</span>
     </div>
@@ -67,11 +84,12 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
         <Stat label="Float" value={fmtVolume(detail.fundamentals?.float_shares)} />
         <Stat label="Volume" value={fmtVolume(daily?.volume)} />
         <Stat
-          label="RVol"
+          label={QUOTE_RVOL_DAILY_LABEL}
           value={detail.rel_volume != null ? detail.rel_volume.toFixed(2) : '—'}
           valueClass={
             detail.rel_volume != null && detail.rel_volume >= REL_VOLUME_HIGH ? 'positive' : undefined
           }
+          title={QUOTE_RVOL_DAILY_TITLE}
         />
         <Stat
           label="Gap %"
@@ -90,7 +108,7 @@ export function TickerTradeSideColumn({ detail, position, ibkrConnected, mode }:
         <>
           <div className="ticker-trade-side-section-title">Open position</div>
           <div className="ticker-trade-side-position">
-            <Stat label="Qty" value={String(position.qty)} />
+            <Stat label="Qty" value={formatShareQty(position.qty)} />
             <Stat label="Avg cost" value={fmtPrice(position.avg_cost)} />
             <Stat label="Mkt" value={fmtPrice(position.market_price)} />
             <Stat

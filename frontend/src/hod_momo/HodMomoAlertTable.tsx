@@ -10,11 +10,8 @@ import {
   HOD_MOMO_ROW_HEIGHT_PX,
   HOD_MOMO_VISIBLE_ROWS,
   STRATEGY_META,
+  type StrategyMeta,
 } from '../constants';
-
-const FILTERABLE_STRATEGIES = STRATEGY_META.filter(
-  s => s.id !== HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
-);
 import type { AlertObject } from './types';
 import { HodMomoAlertRow } from './HodMomoAlertRow';
 
@@ -24,12 +21,14 @@ function StrategyFilterDropdown({
   onToggle,
   onClose,
   configColors,
+  filterableStrategies,
 }: {
   enabledStrategies: Set<number>;
   counts: Record<number, number>;
   onToggle: (id: number) => void;
   onClose: () => void;
   configColors: Record<number, string>;
+  filterableStrategies: StrategyMeta[];
 }) {
   return (
     <div className="hod-filter-dropdown">
@@ -41,19 +40,19 @@ function StrategyFilterDropdown({
         <input
           type="checkbox"
           checked={
-            FILTERABLE_STRATEGIES.length > 0
-            && FILTERABLE_STRATEGIES.every(s => enabledStrategies.has(s.id))
+            filterableStrategies.length > 0
+            && filterableStrategies.every(s => enabledStrategies.has(s.id))
           }
           onChange={() => {
-            const allOn = FILTERABLE_STRATEGIES.every(s => enabledStrategies.has(s.id));
-            FILTERABLE_STRATEGIES.forEach(s => {
+            const allOn = filterableStrategies.every(s => enabledStrategies.has(s.id));
+            filterableStrategies.forEach(s => {
               if (allOn === enabledStrategies.has(s.id)) onToggle(s.id);
             });
           }}
         />
         <span>Select / Unselect All</span>
       </label>
-      {FILTERABLE_STRATEGIES.map(s => {
+      {filterableStrategies.map(s => {
         const color = configColors[s.id] || s.color;
         return (
           <label key={s.id} className="hod-filter-row">
@@ -85,6 +84,11 @@ export interface HodMomoAlertTableProps {
   selectedSymbol: string | null;
   onSelectSymbol: (sym: string) => void;
   onOpenTrading: (sym: string) => void;
+  /** Strategies shown in the column filter (defaults: all except Former). */
+  filterableStrategies?: StrategyMeta[];
+  showStrategyFilter?: boolean;
+  emptyWaiting?: string;
+  emptyConnecting?: string;
 }
 
 export function nextHodMomoRenderedCount(current: number, total: number): number {
@@ -103,6 +107,12 @@ export function HodMomoAlertTable({
   selectedSymbol,
   onSelectSymbol,
   onOpenTrading,
+  filterableStrategies = STRATEGY_META.filter(
+    s => s.id !== HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
+  ),
+  showStrategyFilter = true,
+  emptyWaiting = HOD_MOMO_EMPTY_WAITING,
+  emptyConnecting = HOD_MOMO_EMPTY_CONNECTING,
 }: HodMomoAlertTableProps) {
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [renderedCount, setRenderedCount] = useState(HOD_MOMO_RENDER_BATCH_SIZE);
@@ -163,22 +173,31 @@ export function HodMomoAlertTable({
               <th
                 key={key}
                 className={`sortable-th${key === 'strategy' ? ' hod-strategy-th' : ''}`}
-                onClick={key === 'strategy' ? () => setShowFilterDropdown(x => !x) : undefined}
-                style={key === 'strategy' ? { cursor: 'pointer', userSelect: 'none' } : undefined}
+                onClick={
+                  key === 'strategy' && showStrategyFilter
+                    ? () => setShowFilterDropdown(x => !x)
+                    : undefined
+                }
+                style={
+                  key === 'strategy' && showStrategyFilter
+                    ? { cursor: 'pointer', userSelect: 'none' }
+                    : undefined
+                }
               >
                 <span className="th-inner">
                   {label}
-                  {key === 'strategy' && (
+                  {key === 'strategy' && showStrategyFilter && (
                     <span className="hod-filter-icon">▾</span>
                   )}
                 </span>
-                {key === 'strategy' && showFilterDropdown && (
+                {key === 'strategy' && showStrategyFilter && showFilterDropdown && (
                   <StrategyFilterDropdown
                     enabledStrategies={visibleStrategies}
                     counts={strategyCounts}
                     onToggle={onToggleStrategy}
                     onClose={() => setShowFilterDropdown(false)}
                     configColors={configColors}
+                    filterableStrategies={filterableStrategies}
                   />
                 )}
               </th>
@@ -189,7 +208,7 @@ export function HodMomoAlertTable({
           {empty ? (
             <tr>
               <td colSpan={HOD_MOMO_COLUMNS.length} className="hod-empty-cell">
-                {connected ? HOD_MOMO_EMPTY_WAITING : HOD_MOMO_EMPTY_CONNECTING}
+                {connected ? emptyWaiting : emptyConnecting}
               </td>
             </tr>
           ) : (

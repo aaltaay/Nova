@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLOSED_COLUMN_META,
+  DEFAULT_CLOSED_ORDER_COLUMNS,
   DEFAULT_WORKING_ORDER_COLUMNS,
+  WORKING_COLUMN_META,
   moveColumnOrder,
   normalizeColumnOrder,
   parseColumnStore,
@@ -8,6 +11,37 @@ import {
 } from './orderTableColumns';
 
 describe('orderTableColumns', () => {
+  it('defaults working columns time → … → order_id', () => {
+    expect(DEFAULT_WORKING_ORDER_COLUMNS).toEqual([
+      'time',
+      'session',
+      'type',
+      'symbol',
+      'qty',
+      'status',
+      'filled',
+      'remaining',
+      'limit',
+      'stop',
+      'avg_fill',
+      'order_id',
+    ]);
+  });
+
+  it('defaults closed columns to mirror open (time first, status after qty)', () => {
+    expect(DEFAULT_CLOSED_ORDER_COLUMNS).toEqual([
+      'time',
+      'type',
+      'symbol',
+      'qty',
+      'status',
+      'filled',
+      'limit',
+      'avg_fill',
+      'order_id',
+    ]);
+  });
+
   it('normalizes saved order and appends new defaults', () => {
     const saved = ['symbol', 'qty', 'bogus', 'symbol', 'status'];
     const next = normalizeColumnOrder(saved, DEFAULT_WORKING_ORDER_COLUMNS);
@@ -32,6 +66,15 @@ describe('orderTableColumns', () => {
     expect(vis).not.toContain('stop');
     expect(vis).not.toContain('session');
     expect(vis).toContain('symbol');
+    expect(vis).toContain('filled');
+  });
+
+  it('documents Filled / Remaining / Average fill for active fill progress', () => {
+    expect(WORKING_COLUMN_META.filled.label).toBe('Filled');
+    expect(WORKING_COLUMN_META.filled.title).toMatch(/filled so far/i);
+    expect(WORKING_COLUMN_META.remaining.title).toMatch(/Fill now/i);
+    expect(WORKING_COLUMN_META.avg_fill.title).toMatch(/Average fill/i);
+    expect(CLOSED_COLUMN_META.filled.title).toMatch(/partial cancel/i);
   });
 
   it('parses persisted store JSON', () => {

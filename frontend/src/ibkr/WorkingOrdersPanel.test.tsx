@@ -22,6 +22,8 @@ const SAMPLE: IbkrOrder[] = [
     avg_fill_price: 190.4,
     outside_rth: false,
     status: 'Submitted',
+    submitted_at: '2026-07-18T13:41:23.000Z',
+    updated_at: '2026-07-18T18:00:00.000Z',
   },
   {
     order_id: 43,
@@ -30,12 +32,14 @@ const SAMPLE: IbkrOrder[] = [
     qty: 50,
     filled_qty: 0,
     remaining_qty: 50,
-    order_type: 'MKT',
+    order_type: 'STP',
     limit_price: null,
-    stop_price: null,
+    stop_price: 180.25,
     avg_fill_price: null,
     outside_rth: true,
     status: 'PreSubmitted',
+    submitted_at: '2026-07-18T14:00:00.000Z',
+    updated_at: '2026-07-18T14:00:00.000Z',
   },
 ];
 
@@ -64,7 +68,7 @@ describe('WorkingOrdersPanel', () => {
     expect(container.textContent).toContain(WORKING_ORDERS_PANEL_TITLE);
     expect(container.textContent).toContain('AAPL');
     expect(container.textContent).toContain('Limit Order');
-    expect(container.textContent).toContain('Market Order');
+    expect(container.textContent).toContain('Stop Order');
     expect(container.textContent).toContain('Partially filled');
     expect(container.textContent).toContain('Pending');
     // Side is color-coded on symbol/qty — no Buy/Sell text column.
@@ -79,6 +83,27 @@ describe('WorkingOrdersPanel', () => {
     expect(container.textContent).not.toMatch(/\bLMT\b/);
     expect(container.textContent).toContain('25');
     expect(container.textContent).toContain('$190.40');
+  });
+
+  it('shows filled, remaining, limit, stop, avg fill, order id, fixed submitted time', () => {
+    act(() => {
+      root.render(<WorkingOrdersPanel orders={SAMPLE} />);
+    });
+    const text = container.textContent ?? '';
+    // Partial row
+    expect(text).toContain('25'); // filled
+    expect(text).toContain('75'); // remaining
+    expect(text).toContain('$190.50'); // limit
+    expect(text).toContain('$190.40'); // avg fill
+    expect(text).toContain('42'); // order id
+    // Stop row
+    expect(text).toContain('$180.25');
+    expect(text).toContain('43');
+    // Time = submitted snapshot (09:41:23 ET), not updated_at (14:00 ET)
+    expect(text).toMatch(/09:41:23/);
+    expect(text).not.toMatch(/14:00:00/);
+    const timeEl = container.querySelector('time');
+    expect(timeEl?.getAttribute('dateTime')).toBe('2026-07-18T13:41:23.000Z');
   });
 
   it('filters by symbol and hides title when compact', () => {
@@ -141,6 +166,22 @@ describe('WorkingOrdersPanel', () => {
     expect(onFill).toHaveBeenCalledWith(
       expect.objectContaining({ order_id: 42, remaining_qty: 75 }),
     );
+  });
+
+  it('shows an error line instead of "No open orders" when the poll failed', () => {
+    act(() => {
+      root.render(<WorkingOrdersPanel orders={[]} error="IBKR read failed — orders (HTTP 503)" />);
+    });
+    expect(container.textContent).toContain('IBKR read failed');
+    expect(container.textContent).not.toContain('No open orders.');
+  });
+
+  it('keeps showing last-good rows alongside the error banner', () => {
+    act(() => {
+      root.render(<WorkingOrdersPanel orders={SAMPLE} error="IBKR read failed — orders (HTTP 503)" />);
+    });
+    expect(container.textContent).toContain('IBKR read failed');
+    expect(container.textContent).toContain('AAPL');
   });
 });
 

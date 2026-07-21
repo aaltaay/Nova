@@ -1,0 +1,104 @@
+/* Orders (Today) — Webull-style segmented session strip */
+
+.orders-today-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 0;
+}
+
+.orders-today-view__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.35rem;
+}
+
+.orders-today-filters {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: stretch;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border, #444) 90%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--bg-elevated, #111) 80%, transparent);
+}
+
+.orders-today-filters__btn {
+  margin: 0;
+  padding: 0.28rem 0.7rem;
+  border: none;
+  border-right: 1px solid color-mix(in srgb, var(--border, #444) 90%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary, #9ca3af);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.orders-today-filters__btn:last-child {
+  border-right: none;
+}
+
+.orders-today-filters__btn:hover {
+  color: var(--text, #e5e7eb);
+}
+
+.orders-today-filters__btn.is-active {
+  color: var(--accent, #3b82f6);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 75%, transparent);
+  background: color-mix(in srgb, var(--accent, #3b82f6) 10%, transparent);
+}
+
+.orders-today-view__sample-btn {
+  margin: 0;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--border, #444) 90%, transparent);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, #9ca3af);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.orders-today-view__sample-btn:hover {
+  color: var(--text, #e5e7eb);
+}
+
+.stock-view-page .orders-today-filters {
+  border-color: var(--sv-border);
+  background: color-mix(in srgb, var(--sv-surface, #0a0a0a) 70%, transparent);
+}
+
+.stock-view-page .orders-today-filters__btn {
+  color: var(--sv-secondary);
+}
+
+.stock-view-page .orders-today-filters__btn:hover {
+  color: var(--sv-primary);
+}
+
+.stock-view-page .orders-today-filters__btn.is-active {
+  color: var(--sv-accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sv-accent) 70%, transparent);
+  background: color-mix(in srgb, var(--sv-accent) 12%, transparent);
+}
+
+.stock-view-page .sv-open-orders-dock__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  color: var(--sv-primary);
+}

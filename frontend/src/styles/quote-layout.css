@@ -554,6 +554,57 @@
   margin-bottom: 0.25rem;
 }
 
+.cq-listing-compare-hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--text-secondary);
+}
+
+.cq-listing-compare {
+  margin-bottom: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: auto;
+}
+
+.cq-listing-compare table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+}
+
+.cq-listing-compare th,
+.cq-listing-compare td {
+  padding: 0.28rem 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+}
+
+.cq-listing-compare thead th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--border-color) 35%, transparent);
+}
+
+.cq-listing-compare tbody th {
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  width: 28%;
+}
+
+.cq-listing-compare tbody td {
+  width: 36%;
+  font-weight: 600;
+}
+
+.cq-listing-compare tbody tr:last-child th,
+.cq-listing-compare tbody tr:last-child td {
+  border-bottom: none;
+}
+
 .cq-data-sources {
   margin-top: 0.15rem;
 }

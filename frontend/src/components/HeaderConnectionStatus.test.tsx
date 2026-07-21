@@ -13,6 +13,12 @@ vi.mock('./BackendStartButton', () => ({
 const healthy = {
   status: 'connected',
   latency_ms: 610,
+  integrations: {
+    alpaca: { status: 'ok', detail: 'news/listing/RVOL aux, not live prices' },
+    openai: { status: 'off', detail: 'Lincoln off' },
+    yfinance: { status: 'ok', detail: 'importable' },
+    archive: { status: 'off', detail: 'R2 disabled' },
+  },
 };
 
 describe('HeaderConnectionStatus', () => {
@@ -63,6 +69,55 @@ describe('HeaderConnectionStatus', () => {
     expect(prices?.textContent).toMatch(/Prices/);
     expect(prices?.textContent).toMatch(/16h ago/);
     expect(prices?.textContent).toMatch(/stale/);
+
+    const alpacaAux = container.querySelector('[data-testid="status-chip-integration-alpaca"]');
+    const openai = container.querySelector('[data-testid="status-chip-integration-openai"]');
+    expect(alpacaAux?.textContent).toMatch(/Alpaca/);
+    expect(alpacaAux?.textContent).toMatch(/ok/);
+    expect(openai?.textContent).toMatch(/OpenAI/);
+    expect(openai?.textContent).toMatch(/off/);
+    // Under IBKR discovery, price feed chip must stay Gateway — not "Alpaca IEX"
+    expect(container.querySelector('[data-testid="status-chip-feed"]')).toBeNull();
+  });
+
+  it('labels Gateway paper vs LIVE so session money path is never ambiguous', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          ibkrMode="paper"
+          ibkrGatewayMode="paper"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="status-chip-gateway"]')?.textContent,
+    ).toMatch(/connected\s*·\s*PAPER/i);
+
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          ibkrMode="live"
+          ibkrGatewayMode="live"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+    const liveGateway = container.querySelector('[data-testid="status-chip-gateway"]');
+    expect(liveGateway?.textContent).toMatch(/connected\s*·\s*LIVE/i);
+    expect(liveGateway?.className).toMatch(/status-chip--live/);
   });
 
   it('shows Alpaca feed chip instead of Gateway when discovery is alpaca', () => {

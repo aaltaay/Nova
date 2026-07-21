@@ -1,6 +1,7 @@
 /** WebSocket ticker detail stream — Phase 1 fast snapshot, Phase 2 slow enrich, live trades. */
 import { useEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { BarData, TickerDetail, TickerTradeUpdate } from '../types/ticker';
 
 const WS_URL = `${WS_BASE_URL}/ws`;
@@ -11,6 +12,7 @@ export function useTickerStream(symbol: string | null): {
   refreshing: boolean;
   fetchFailed: boolean;
 } {
+  const sample = useSampleDataOptional();
   const [detail, setDetail] = useState<TickerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -19,6 +21,7 @@ export function useTickerStream(symbol: string | null): {
   const hasDetailRef = useRef(false);
 
   useEffect(() => {
+    if (sample) return;
     if (!symbol) {
       hasDetailRef.current = false;
       setDetail(null);
@@ -73,6 +76,7 @@ export function useTickerStream(symbol: string | null): {
               rvol_5min: msg.rvol_5min ?? prev.rvol_5min,
               volume_in_5min: msg.volume_in_5min ?? prev.volume_in_5min,
               news_impact: msg.news_impact ?? prev.news_impact,
+              listing: msg.listing ?? prev.listing,
             };
           });
         } else if (msg.type === 'trade_update') {
@@ -147,7 +151,16 @@ export function useTickerStream(symbol: string | null): {
       if (wsRef.current === ws) wsRef.current = null;
       ws.close();
     };
-  }, [symbol]);
+  }, [sample, symbol]);
+
+  if (sample && symbol) {
+    return {
+      detail: sample.tickerDetail(symbol),
+      loading: false,
+      refreshing: false,
+      fetchFailed: false,
+    };
+  }
 
   return { detail, loading, refreshing, fetchFailed };
 }

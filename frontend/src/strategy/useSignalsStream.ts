@@ -1,6 +1,7 @@
 /** Opens /ws/strategy, receives recent signal history, then appends live setup signals. */
 import { useEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { SetupSignal } from './types';
 
 interface SignalsStreamState {
@@ -9,6 +10,7 @@ interface SignalsStreamState {
 }
 
 export function useSignalsStream(): SignalsStreamState {
+  const sample = useSampleDataOptional();
   const [signals, setSignals] = useState<SetupSignal[]>([]);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -16,6 +18,7 @@ export function useSignalsStream(): SignalsStreamState {
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    if (sample) return;
     mountedRef.current = true;
 
     function connect() {
@@ -77,7 +80,11 @@ export function useSignalsStream(): SignalsStreamState {
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, []);
+  }, [sample]);
+
+  if (sample) {
+    return { signals: sample.signals, connected: true };
+  }
 
   return { signals, connected };
 }

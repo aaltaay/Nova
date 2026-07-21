@@ -89,6 +89,19 @@ export const EXECUTOR_POLL_INTERVAL_MS = 5000;
 // ── Nova OS Decision UX (mirrors backend/constants.py NOVA_OS_*) ────────────
 /** Poll interval for DecisionPanel watchlist/symbol decide fetches. */
 export const NOVA_OS_DECIDE_POLL_INTERVAL_MS = 5000;
+/** Faster poll for Trader Nova OS dock tab (single symbol, while mounted). */
+export const NOVA_OS_TRADER_DECIDE_POLL_MS = 2000;
+
+/** Header toggle + banner for isolated sample-data route (?view=sample). */
+export const SAMPLE_DATA_SWITCH_LABEL = 'Sample data';
+export const SAMPLE_DATA_BANNER =
+  'Sample data route — fixtures only. Live scanner, HOD, watchlist, and IBKR feeds are not connected.';
+/** Education strip under Trader Nova OS brain (rules brain, not chat AI). */
+export const NOVA_OS_TRADER_BRAIN_DISCLOSURE =
+  'Nova OS rules brain (not chat AI). You are watching live ratings. Signal-only — nothing places from Trader. Like the calls? Watchlist → Automation → Confirm / Auto Paper.';
+/** Exit context when Trader shows an open position for the symbol. */
+export const NOVA_OS_TRADER_EXIT_NOTE =
+  'exits use stop/Flatten/hotkeys, not a sell decide().';
 /** Poll interval for the global Nova OS event-attention feed (GET /api/nova-os/events). */
 export const NOVA_OS_EVENT_ATTENTION_POLL_INTERVAL_MS = 5000;
 /** How many recent events to fetch per poll — must comfortably exceed the
@@ -156,8 +169,12 @@ export const QUOTE_CARD_TITLE = 'Stock quote';
 /** Side panel quote card — row label for average volume used in RVOL. */
 export const QUOTE_AVG_VOLUME_LABEL = `Avg volume (${RVOL_LOOKBACK_DAYS}d)`;
 
-/** Section title for Alpaca asset / trading flags on the quote card. */
-export const QUOTE_BROKER_SECTION_TITLE = 'Listing flags (Alpaca metadata)';
+/** Section title for dual-broker listing flags on the quote card. */
+export const QUOTE_BROKER_SECTION_TITLE = 'Listing flags (compare brokers)';
+export const QUOTE_LISTING_ALPACA_TITLE = 'Alpaca';
+export const QUOTE_LISTING_IBKR_TITLE = 'IBKR';
+export const QUOTE_LISTING_COMPARE_HINT =
+  'Side-by-side metadata only — never merged. Alpaca shortable/ETB ≠ IBKR locate.';
 
 /** Quote card row labels (Alpaca asset fields). */
 export const QUOTE_ASSET_LABELS = {
@@ -165,6 +182,7 @@ export const QUOTE_ASSET_LABELS = {
   status: 'Asset status',
   tradable: 'Tradable',
   shortable: 'Shortable',
+  shortType: 'Short type',
   marginable: 'Marginable',
   fractionable: 'Fractionable',
   easyToBorrow: 'Easy to borrow',
@@ -174,10 +192,37 @@ export const QUOTE_ASSET_LABELS = {
   attributes: 'Flags',
   /** Shown beside Flags so the broker grid stays an even cell count (2-column layout). */
   listingFeed: 'Listing feed',
+  qualified: 'Qualified',
+  shortableShares: 'Shortable shares',
+  stockType: 'Stock type',
+  longName: 'Name',
 } as const;
 
 /** Display value for listing feed row (Alpaca asset metadata only — not prices/L2). */
 export const QUOTE_LISTING_FEED_VALUE = 'Alpaca Assets API (flags only)';
+
+/** Scanner Volume column: RVOL denominator is still Alpaca daily bars — watch accuracy. */
+export const SCANNER_VOLUME_COLUMN_LABEL = 'Volume · RVOL Alpaca';
+export const SCANNER_RVOL_ALPACA_BADGE = 'Alpaca';
+export const SCANNER_RVOL_ALPACA_TITLE =
+  'Relative volume uses Alpaca daily-bar average (IEX/SIP feed) — not IBKR consolidated volume. Thin names can look wrong; study vs tape before trusting.';
+export const QUOTE_RVOL_DAILY_LABEL = 'Rel vol (Alpaca avg)';
+export const QUOTE_RVOL_DAILY_TITLE = SCANNER_RVOL_ALPACA_TITLE;
+
+/** Header aux API chips (not the live price feed — Gateway/Feed stay separate). */
+export const HEADER_INTEGRATION_CHIP_ORDER = [
+  'alpaca',
+  'openai',
+  'yfinance',
+  'archive',
+] as const;
+export const HEADER_INTEGRATION_CHIP_LABELS: Record<string, string> = {
+  alpaca: 'Alpaca',
+  openai: 'OpenAI',
+  yfinance: 'yfinance',
+  archive: 'Archive',
+  ibkr: 'IBKR',
+};
 
 /** Side-panel section that lists which provider powers each ticker surface. */
 export const TICKER_DATA_SOURCES_SECTION_TITLE = 'Data sources';
@@ -274,11 +319,44 @@ export const SCANNER_DATA_SOURCE_TITLES: Record<string, string> = {
 
 /** Shown when discovery_provider=ibkr but Gateway is offline (not "no gaps yet"). */
 export const EMPTY_IBKR_DISCONNECTED =
+  'IB Gateway is not connected — gappers and movers cannot scan. Log into IB Gateway with the API enabled on the port Nova targets, then Nova reconnects automatically.';
+
+/** Mode-aware empty copy — prefer over EMPTY_IBKR_DISCONNECTED when gateway_mode is known. */
+export const EMPTY_IBKR_DISCONNECTED_PAPER =
+  'IB Gateway is not connected — gappers and movers cannot scan. Log into IB Gateway (paper, API port 4002), then Nova reconnects automatically.';
+export const EMPTY_IBKR_DISCONNECTED_LIVE =
   'IB Gateway is not connected — gappers and movers cannot scan. Log into IB Gateway (live, API port 4001), then Nova reconnects automatically.';
+
+/** Stock View header — disconnected without a port-mismatch hint. */
+export const STOCK_VIEW_DISCONNECTED_LABEL = 'Disconnected';
+
+/** Port-mismatch CTA when preferred port is down but the other is listening. */
+export const STOCK_VIEW_DISCONNECT_HINT_PAPER_LIVE_UP =
+  'Nova targets Paper (4002) — not listening. Live (4001) is up — switch to Live?';
+export const STOCK_VIEW_DISCONNECT_HINT_LIVE_PAPER_UP =
+  'Nova targets Live (4001) — not listening. Paper (4002) is up — switch to Paper?';
+export const STOCK_VIEW_DISCONNECT_HINT_BOTH_DOWN =
+  'Gateway ports 4001/4002 not listening — start IB Gateway and log in.';
+export const STOCK_VIEW_DISCONNECT_HINT_PORT_OPEN =
+  'Gateway port is open but Nova is not connected — check clientId / TrustedIPs / login.';
+
+/** Capsule error when POST /api/ibkr/gateway-mode is missing (stale API process). */
+export const GATEWAY_MODE_API_RESTART_HINT =
+  'Restart Nova API (route missing), then try switching again.';
 
 /** Header Gateway chip tooltip — double-click launches/focuses the desktop app. */
 export const HEADER_GATEWAY_LAUNCH_HINT =
   'Double-click to open or focus IB Gateway. Complete login + IBKR Mobile 2FA if prompted — Nova reconnects when the API port opens.';
+
+/** Header Gateway chip — paper vs live session (must stay visible; never omit). */
+export const HEADER_GATEWAY_MODE_PAPER = 'PAPER';
+export const HEADER_GATEWAY_MODE_LIVE = 'LIVE';
+export const HEADER_GATEWAY_TITLE_PAPER =
+  'IBKR session: PAPER — paper account / paper Gateway port. Not live money.';
+export const HEADER_GATEWAY_TITLE_LIVE =
+  'IBKR session: LIVE — real account Gateway. Market data and orders use the live port; spend still gated by IBKR_ORDERS_ENABLED + live confirm.';
+export const HEADER_GATEWAY_TITLE_UNKNOWN =
+  'IBKR session mode unknown — check Trading /api/ibkr/status (mode / gateway_mode).';
 
 /** Human-readable labels for Alpaca `attributes` tokens (unknown keys shown as-is). */
 export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {

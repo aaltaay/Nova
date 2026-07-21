@@ -9,6 +9,7 @@ import {
   DATA_FEED_DEFAULT,
   DISCOVERY_PROVIDER_DEFAULT,
 } from '../constants';
+import { alertApp } from '../ux';
 
 export function useSettingsForm(onSaved?: () => void) {
   const onSavedRef = useRef(onSaved);
@@ -79,7 +80,11 @@ export function useSettingsForm(onSaved?: () => void) {
         onSavedRef.current?.();
       }
     } catch {
-      alert('Error updating configuration');
+      void alertApp({
+        title: 'Settings not saved',
+        message: 'Error updating configuration. Check the API is running and try again.',
+        tone: 'danger',
+      });
     }
   };
 

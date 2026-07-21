@@ -1,31 +1,22 @@
 /** Cell renderers for Working Orders columns (keeps panel under size limit). */
 import type { ReactNode } from 'react';
+import { formatMoney } from '../utils/formatMoney';
+import { formatShareQty } from '../utils/formatShareQty';
 import {
   formatExtendedHours,
   formatOrderDateTime,
   formatOrderType,
-  orderTimeTitle,
+  orderSubmittedTimeTitle,
 } from './orderDisplay';
+import { remainingShares } from './orderQtyMath';
 import type { WorkingOrderColumnId } from './orderTableColumns';
 import type { IbkrOrder } from './types';
-
-function fmt(n: number | null | undefined, decimals = 2) {
-  if (n == null) return '—';
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
-
-function fmtDollar(n: number | null | undefined) {
-  if (n == null) return '—';
-  return `$${fmt(n)}`;
-}
 
 export type WorkingCellCtx = {
   statusLabel: string;
   tone: string;
-  activityIso: string | null;
+  /** Time Placed ISO (submitted_at) — never updated_at. */
+  placedIso: string | null;
   sideCls: string;
   sideLabel: string;
 };
@@ -56,21 +47,33 @@ export function renderWorkingOrderCell(
     case 'qty':
       return (
         <td key={col} className={`ibkr-col--num ${ctx.sideCls}`} title={ctx.sideLabel}>
-          {fmt(o.qty, 0)}
+          {formatShareQty(o.qty)}
         </td>
       );
-    case 'filled':
+    case 'filled': {
+      const filled = o.filled_qty ?? 0;
       return (
-        <td key={col} className="ibkr-col--num">
-          {fmt(o.filled_qty ?? 0, 0)}
+        <td
+          key={col}
+          className="ibkr-col--num"
+          title={`${formatShareQty(filled)} of ${formatShareQty(o.qty)} shares filled`}
+        >
+          {formatShareQty(filled)}
         </td>
       );
-    case 'remaining':
+    }
+    case 'remaining': {
+      const rem = remainingShares(o);
       return (
-        <td key={col} className="ibkr-col--num">
-          {fmt(o.remaining_qty ?? null, 0)}
+        <td
+          key={col}
+          className="ibkr-col--num"
+          title={`${formatShareQty(rem)} shares still working`}
+        >
+          {formatShareQty(rem)}
         </td>
       );
+    }
     case 'type':
       return (
         <td key={col} className="ibkr-col--type ibkr-order-type">
@@ -80,19 +83,19 @@ export function renderWorkingOrderCell(
     case 'limit':
       return (
         <td key={col} className="ibkr-col--num">
-          {fmtDollar(o.limit_price)}
+          {formatMoney(o.limit_price)}
         </td>
       );
     case 'stop':
       return (
         <td key={col} className="ibkr-col--num">
-          {fmtDollar(o.stop_price ?? null)}
+          {formatMoney(o.stop_price ?? null)}
         </td>
       );
     case 'avg_fill':
       return (
         <td key={col} className="ibkr-col--num">
-          {fmtDollar(o.avg_fill_price ?? null)}
+          {formatMoney(o.avg_fill_price ?? null)}
         </td>
       );
     case 'status':
@@ -108,9 +111,9 @@ export function renderWorkingOrderCell(
       );
     case 'time':
       return (
-        <td key={col} className="ibkr-col--time" title={orderTimeTitle(o)}>
-          <time dateTime={ctx.activityIso ?? undefined}>
-            {formatOrderDateTime(ctx.activityIso)}
+        <td key={col} className="ibkr-col--time" title={orderSubmittedTimeTitle(o)}>
+          <time dateTime={ctx.placedIso ?? undefined}>
+            {formatOrderDateTime(ctx.placedIso)}
           </time>
         </td>
       );

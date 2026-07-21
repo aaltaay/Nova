@@ -14,11 +14,8 @@ export function filterClosedOrders(
     const label = formatOrderStatus(o.status, o.filled_qty ?? 0, o.qty);
     if (filter === 'filled') return label === 'Filled';
     if (filter === 'cancelled') {
-      return (
-        label === 'Cancelled' ||
-        label === 'Cancelled (partial fill)' ||
-        label === 'Failed'
-      );
+      // Zero-fill cancel / failed — partial cancels use the Partial tab.
+      return label === 'Cancelled' || label === 'Failed';
     }
     if (filter === 'partial') return label === 'Cancelled (partial fill)';
     return true;

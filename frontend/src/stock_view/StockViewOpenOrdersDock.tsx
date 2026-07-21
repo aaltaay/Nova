@@ -1,32 +1,49 @@
-/**
- * Collapsible Stock View orders strip (WID-026 / WID-027).
- * Tabs: Open Orders (working) | Closed Orders (filled/cancelled) — Closed uses
- * the isolated closed_orders feature slice (hide/move/drag-drop ready).
- */
+/** Collapsible Stock View Positions / Orders / Nova OS strip (WID-019 / 026 / 027). */
 import { useEffect, useMemo, useState } from 'react';
-import { ClosedOrdersModule } from '../closed_orders';
+import { PositionsPanel } from '../ibkr/PositionsPanel';
 import { buildMockWorkingOrders } from '../ibkr/mockWorkingOrders';
-import { WorkingOrdersPanel } from '../ibkr/WorkingOrdersPanel';
-import type { IbkrOrder } from '../ibkr/types';
+import type {
+  IbkrAccountSummary,
+  IbkrMode,
+  IbkrOrder,
+  IbkrPosition,
+} from '../ibkr/types';
+import { OrdersTodayView } from '../orders_today';
+import type { OrdersTodayFilter } from '../orders_today';
 import {
-  CLOSED_ORDERS_PANEL_TITLE,
-  STOCK_VIEW_MODULE_WORKING_ORDERS_TITLE,
+  ORDERS_TODAY_FILTER_DEFAULT,
+  ORDERS_TODAY_FILTER_STORAGE_KEY,
+  ORDERS_TODAY_TITLE,
+  STOCK_VIEW_DOCK_SURFACE_DEFAULT,
+  STOCK_VIEW_DOCK_SURFACE_KEY,
+  STOCK_VIEW_MODULE_NOVA_OS_TITLE,
+  STOCK_VIEW_MODULE_POSITIONS_TITLE,
   STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
   STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED,
   STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER,
   STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY,
-  STOCK_VIEW_ORDERS_TAB_DEFAULT,
   STOCK_VIEW_ORDERS_TAB_KEY,
-  type StockViewOrdersTab,
+  type OrdersTodayFilterId,
+  type StockViewDockSurface,
 } from '../constants';
+import { TraderNovaOsBrain } from './TraderNovaOsBrain';
 
 type Props = {
   symbol: string;
   orders: IbkrOrder[];
+  positions: IbkrPosition[];
+  symbolPosition?: IbkrPosition | null;
+  summary: IbkrAccountSummary | null;
+  /** useIbkrAccount poll failure — disables Flatten on last-good rows. */
+  accountError?: string | null;
+  mode: IbkrMode;
+  connected: boolean;
+  spendStatus?: string;
+  onSelectSymbol: (symbol: string) => void;
   onCancelOrder?: (id: number) => void;
   onFillImmediately?: (order: IbkrOrder) => void;
+  onPositionClosed?: () => void;
   highlightOrderId?: number | null;
-  /** Lets Stock View show/hide the charts↔orders resize handle. */
   onCollapsedChange?: (collapsed: boolean) => void;
 };
 
@@ -60,19 +77,53 @@ function readSampleHidden(): boolean {
   }
 }
 
-function readTab(): StockViewOrdersTab {
+function migrateLegacyTab(raw: string | null): OrdersTodayFilterId | null {
+  if (raw === 'open') return 'working';
+  if (raw === 'closed') return 'all';
+  return null;
+}
+
+function readFilter(): OrdersTodayFilterId {
   try {
-    const raw = localStorage.getItem(STOCK_VIEW_ORDERS_TAB_KEY);
-    if (raw === 'closed' || raw === 'open') return raw;
+    const raw = localStorage.getItem(ORDERS_TODAY_FILTER_STORAGE_KEY);
+    if (
+      raw === 'working' ||
+      raw === 'filled' ||
+      raw === 'canceled' ||
+      raw === 'partial_filled' ||
+      raw === 'all'
+    ) {
+      return raw;
+    }
+    const legacy = migrateLegacyTab(localStorage.getItem(STOCK_VIEW_ORDERS_TAB_KEY));
+    if (legacy) return legacy;
   } catch {
     /* ignore */
   }
-  return STOCK_VIEW_ORDERS_TAB_DEFAULT;
+  return ORDERS_TODAY_FILTER_DEFAULT;
 }
 
-function writeTab(tab: StockViewOrdersTab): void {
+function writeFilter(filter: OrdersTodayFilterId): void {
   try {
-    localStorage.setItem(STOCK_VIEW_ORDERS_TAB_KEY, tab);
+    localStorage.setItem(ORDERS_TODAY_FILTER_STORAGE_KEY, filter);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readSurface(): StockViewDockSurface {
+  try {
+    const raw = localStorage.getItem(STOCK_VIEW_DOCK_SURFACE_KEY);
+    if (raw === 'positions' || raw === 'orders' || raw === 'nova_os') return raw;
+  } catch {
+    /* ignore */
+  }
+  return STOCK_VIEW_DOCK_SURFACE_DEFAULT;
+}
+
+function writeSurface(surface: StockViewDockSurface): void {
+  try {
+    localStorage.setItem(STOCK_VIEW_DOCK_SURFACE_KEY, surface);
   } catch {
     /* ignore */
   }
@@ -81,14 +132,24 @@ function writeTab(tab: StockViewOrdersTab): void {
 export function StockViewOpenOrdersDock({
   symbol,
   orders,
+  positions,
+  symbolPosition = null,
+  summary,
+  accountError = null,
+  mode,
+  connected,
+  spendStatus,
+  onSelectSymbol,
   onCancelOrder,
   onFillImmediately,
+  onPositionClosed,
   highlightOrderId = null,
   onCollapsedChange,
 }: Props) {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [sampleHidden, setSampleHidden] = useState(readSampleHidden);
-  const [tab, setTab] = useState<StockViewOrdersTab>(readTab);
+  const [filter, setFilter] = useState<OrdersTodayFilter>(readFilter);
+  const [surface, setSurface] = useState<StockViewDockSurface>(readSurface);
 
   useEffect(() => {
     onCollapsedChange?.(collapsed);
@@ -99,19 +160,29 @@ export function StockViewOpenOrdersDock({
     () => orders.filter((o) => o.symbol.toUpperCase() === symbolKey),
     [orders, symbolKey],
   );
-  const usingSample = tab === 'open' && symbolOrders.length === 0 && !sampleHidden;
+  const wantsWorkingSample =
+    surface === 'orders' &&
+    (filter === 'working' || filter === 'all' || filter === 'partial_filled');
+  const usingSample =
+    wantsWorkingSample && symbolOrders.length === 0 && !sampleHidden;
   const displayOrders = useMemo(
     () => (usingSample ? buildMockWorkingOrders(symbolKey) : orders),
     [usingSample, symbolKey, orders],
   );
   const openCount = usingSample ? displayOrders.length : symbolOrders.length;
+  const positionCount = positions.length;
 
   useEffect(() => {
-    if (highlightOrderId != null || symbolOrders.length > 0 || usingSample) {
+    if (
+      highlightOrderId != null ||
+      symbolOrders.length > 0 ||
+      usingSample ||
+      positions.length > 0
+    ) {
       setCollapsed(false);
       writeCollapsed(false);
     }
-  }, [highlightOrderId, symbolOrders.length, usingSample]);
+  }, [highlightOrderId, symbolOrders.length, usingSample, positions.length]);
 
   const toggle = () => {
     setCollapsed((prev) => {
@@ -121,9 +192,16 @@ export function StockViewOpenOrdersDock({
     });
   };
 
-  const selectTab = (next: StockViewOrdersTab) => {
-    setTab(next);
-    writeTab(next);
+  const selectFilter = (next: OrdersTodayFilter) => {
+    setFilter(next);
+    writeFilter(next);
+    setCollapsed(false);
+    writeCollapsed(false);
+  };
+
+  const selectSurface = (next: StockViewDockSurface) => {
+    setSurface(next);
+    writeSurface(next);
     setCollapsed(false);
     writeCollapsed(false);
   };
@@ -154,12 +232,15 @@ export function StockViewOpenOrdersDock({
         usingSample ? ' sv-open-orders-dock--sample' : ''
       }`}
       data-testid="stock-view-open-orders-dock"
-      data-orders-tab={tab}
+      data-dock-surface={surface}
+      data-orders-filter={filter}
       data-sample={usingSample ? '1' : undefined}
       aria-label={
-        tab === 'closed'
-          ? CLOSED_ORDERS_PANEL_TITLE
-          : STOCK_VIEW_MODULE_WORKING_ORDERS_TITLE
+        surface === 'positions'
+          ? STOCK_VIEW_MODULE_POSITIONS_TITLE
+          : surface === 'nova_os'
+            ? STOCK_VIEW_MODULE_NOVA_OS_TITLE
+            : ORDERS_TODAY_TITLE
       }
     >
       <header
@@ -168,6 +249,7 @@ export function StockViewOpenOrdersDock({
           const el = e.target as HTMLElement;
           if (el.closest('.sv-open-orders-dock__sample-btn')) return;
           if (el.closest('.sv-open-orders-dock__tabs')) return;
+          if (el.closest('.orders-today-filters')) return;
           toggle();
         }}
       >
@@ -188,22 +270,37 @@ export function StockViewOpenOrdersDock({
         <div
           className="sv-open-orders-dock__tabs"
           role="tablist"
-          aria-label="Orders dock"
+          aria-label="Positions, orders, and Nova OS"
           onClick={(e) => e.stopPropagation()}
         >
           <button
             type="button"
             role="tab"
-            aria-selected={tab === 'open'}
+            aria-selected={surface === 'positions'}
             className={
-              tab === 'open'
+              surface === 'positions'
                 ? 'sv-open-orders-dock__tab is-active'
                 : 'sv-open-orders-dock__tab'
             }
-            data-testid="stock-view-orders-tab-open"
-            onClick={() => selectTab('open')}
+            data-testid="stock-view-dock-tab-positions"
+            onClick={() => selectSurface('positions')}
           >
-            {STOCK_VIEW_MODULE_WORKING_ORDERS_TITLE}
+            {STOCK_VIEW_MODULE_POSITIONS_TITLE}
+            <span className="sv-open-orders-dock__count">{positionCount}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={surface === 'orders'}
+            className={
+              surface === 'orders'
+                ? 'sv-open-orders-dock__tab is-active'
+                : 'sv-open-orders-dock__tab'
+            }
+            data-testid="stock-view-dock-tab-orders"
+            onClick={() => selectSurface('orders')}
+          >
+            {ORDERS_TODAY_TITLE}
             <span className="sv-open-orders-dock__count">{openCount}</span>
             {usingSample && (
               <span className="sv-open-orders-dock__sample-tag">Sample</span>
@@ -212,19 +309,19 @@ export function StockViewOpenOrdersDock({
           <button
             type="button"
             role="tab"
-            aria-selected={tab === 'closed'}
+            aria-selected={surface === 'nova_os'}
             className={
-              tab === 'closed'
+              surface === 'nova_os'
                 ? 'sv-open-orders-dock__tab is-active'
                 : 'sv-open-orders-dock__tab'
             }
-            data-testid="stock-view-orders-tab-closed"
-            onClick={() => selectTab('closed')}
+            data-testid="stock-view-dock-tab-nova-os"
+            onClick={() => selectSurface('nova_os')}
           >
-            {CLOSED_ORDERS_PANEL_TITLE}
+            {STOCK_VIEW_MODULE_NOVA_OS_TITLE}
           </button>
         </div>
-        {tab === 'open' && usingSample ? (
+        {surface === 'orders' && usingSample ? (
           <button
             type="button"
             className="sv-open-orders-dock__sample-btn"
@@ -235,7 +332,9 @@ export function StockViewOpenOrdersDock({
           >
             Hide sample
           </button>
-        ) : tab === 'open' && symbolOrders.length === 0 ? (
+        ) : surface === 'orders' &&
+          wantsWorkingSample &&
+          symbolOrders.length === 0 ? (
           <button
             type="button"
             className="sv-open-orders-dock__sample-btn"
@@ -252,34 +351,49 @@ export function StockViewOpenOrdersDock({
           {collapsed ? 'Expand' : 'Collapse'}
         </span>
       </header>
-      {!collapsed && tab === 'open' && (
-        <div className="sv-open-orders-dock__body" data-testid="stock-view-working-orders">
-          {usingSample && (
-            <p className="sv-open-orders-dock__banner" role="status">
-              {STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER}
-            </p>
+      {!collapsed && (
+        <div className="sv-open-orders-dock__body">
+          {surface === 'positions' ? (
+            <div data-testid="stock-view-positions">
+              <PositionsPanel
+                summary={summary}
+                positions={positions}
+                orders={[]}
+                error={accountError}
+                selectedSymbol={symbolKey}
+                onSelectSymbol={onSelectSymbol}
+                onOpenTrading={onSelectSymbol}
+                mode={mode}
+                connected={connected}
+                spendStatus={spendStatus}
+                onPositionClosed={onPositionClosed}
+                compact
+                hideTitle
+              />
+            </div>
+          ) : surface === 'nova_os' ? (
+            <div data-testid="stock-view-nova-os">
+              <TraderNovaOsBrain symbol={symbolKey} position={symbolPosition} />
+            </div>
+          ) : (
+            <>
+              {usingSample && (
+                <p className="sv-open-orders-dock__banner" role="status">
+                  {STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER}
+                </p>
+              )}
+              <OrdersTodayView
+                symbol={symbolKey}
+                workingOrders={displayOrders}
+                usingWorkingSample={usingSample}
+                onCancelOrder={onCancelOrder}
+                onFillImmediately={onFillImmediately}
+                highlightOrderId={highlightOrderId}
+                filter={filter}
+                onFilterChange={selectFilter}
+              />
+            </>
           )}
-          <WorkingOrdersPanel
-            orders={displayOrders}
-            filterSymbol={symbol}
-            hideTitle
-            compact={false}
-            onCancelOrder={usingSample ? undefined : onCancelOrder}
-            onFillImmediately={usingSample ? undefined : onFillImmediately}
-            highlightOrderId={usingSample ? 90001 : highlightOrderId}
-          />
-        </div>
-      )}
-      {!collapsed && tab === 'closed' && (
-        <div
-          className="sv-open-orders-dock__body"
-          data-testid="stock-view-closed-orders"
-        >
-          <ClosedOrdersModule
-            filterSymbol={symbol}
-            selectedSymbol={symbol}
-            hideTitle
-          />
         </div>
       )}
     </section>

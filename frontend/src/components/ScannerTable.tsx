@@ -5,7 +5,14 @@ import { SelectableTableRow } from './SelectableTableRow';
 import { ScannerPriceCell } from './ScannerPriceCell';
 import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
-import { NEWS_FLAME_HOT_HOURS, NEWS_FLAME_WARM_HOURS, NEWS_FLAME_MAX_HOURS } from '../constants';
+import {
+  NEWS_FLAME_HOT_HOURS,
+  NEWS_FLAME_WARM_HOURS,
+  NEWS_FLAME_MAX_HOURS,
+  SCANNER_RVOL_ALPACA_BADGE,
+  SCANNER_RVOL_ALPACA_TITLE,
+  SCANNER_VOLUME_COLUMN_LABEL,
+} from '../constants';
 import type { ScannerRow, SortConfig } from '../types/scanner';
 import type { WatchlistEntry } from '../strategy/types';
 
@@ -105,10 +112,19 @@ function renderCell(
       );
     case 'volume':
       return (
-        <span className="cell-stack">
+        <span className="cell-stack" title={SCANNER_RVOL_ALPACA_TITLE}>
           <span className="cell-stack-primary">{fmtVolume(row.volume)}</span>
           <span className="cell-stack-secondary">
-            {row.rel_volume != null ? `${row.rel_volume}x rel` : <span className="na-muted">N/A</span>}
+            {row.rel_volume != null ? (
+              <>
+                {row.rel_volume}x rel{' '}
+                <span className="rvol-source-badge" title={SCANNER_RVOL_ALPACA_TITLE}>
+                  {SCANNER_RVOL_ALPACA_BADGE}
+                </span>
+              </>
+            ) : (
+              <span className="na-muted">N/A</span>
+            )}
           </span>
         </span>
       );
@@ -153,6 +169,7 @@ export function ScannerTable({
                 key={key}
                 className="sortable-th"
                 onClick={() => onSort(key)}
+                title={key === 'volume' ? SCANNER_RVOL_ALPACA_TITLE : undefined}
                 aria-sort={
                   sortState.key === key
                     ? sortState.dir === 'asc' ? 'ascending' : 'descending'
@@ -160,7 +177,7 @@ export function ScannerTable({
                 }
               >
                 <span className="th-inner">
-                  {label}
+                  {key === 'volume' ? SCANNER_VOLUME_COLUMN_LABEL : label}
                   <span className={`sort-arrow${sortState.key === key ? ' active' : ''}`}>
                     {sortState.key === key
                       ? sortState.dir === 'asc' ? '↑' : '↓'

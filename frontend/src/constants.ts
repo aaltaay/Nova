@@ -11,3 +11,4 @@ export * from './constantGroups/chart_api';
 export * from './constantGroups/features';
 export * from './constantGroups/api_auth';
 export * from './constantGroups/theme';
+export * from './constantGroups/ux';

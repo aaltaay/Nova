@@ -6,7 +6,13 @@ import type { ChangeEvent } from 'react';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { SymbolSearchBox } from './SymbolSearchBox';
 import { ThemeToggle } from './ThemeToggle';
-import { DISCOVERY_PROVIDER_DEFAULT } from '../constants';
+import {
+  ACCOUNT_NAV_LABEL,
+  ACCOUNT_NAV_TITLE,
+  DISCOVERY_PROVIDER_DEFAULT,
+  SAMPLE_DATA_SWITCH_LABEL,
+} from '../constants';
+import type { IbkrMode } from '../ibkr/types';
 import type { HealthStatus } from '../types/health';
 
 export type MarketMode = 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
@@ -55,6 +61,9 @@ interface Props {
   pricesStale?: boolean;
   /** IB Gateway API session (separate from Nova API health). */
   ibkrConnected?: boolean;
+  /** paper | live | disconnected — must appear on the Gateway chip. */
+  ibkrMode?: IbkrMode;
+  ibkrGatewayMode?: 'paper' | 'live' | null;
   historyDate: string | null;
   historyDates: string[];
   onHistoryChange: (e: ChangeEvent<HTMLSelectElement>) => void;
@@ -63,12 +72,18 @@ interface Props {
   onToggleSettings: () => void;
   /** Compact header for ticker-detail full page (no lookup / history / settings). */
   compact?: boolean;
-  /** Show scanner source badge (hide on Trading tab). */
+  /** Show scanner source badge (hide on Account view). */
   showScannerSource?: boolean;
   /** Which provider sources gappers/gainers/losers ('alpaca' or 'ibkr'). */
   discoveryProvider?: string;
   /** After Start API succeeds — refresh scanner/health. */
   onBackendStarted?: () => void;
+  /** Account control next to Today (Live). */
+  accountActive?: boolean;
+  onAccountClick?: () => void;
+  /** Isolated sample-data route toggle (?view=sample) — never mixes with live. */
+  sampleDataActive?: boolean;
+  onSampleDataToggle?: (active: boolean) => void;
 }
 
 export function AppHeader({
@@ -79,6 +94,8 @@ export function AppHeader({
   secondsAgo,
   pricesStale = false,
   ibkrConnected = false,
+  ibkrMode = 'disconnected',
+  ibkrGatewayMode = null,
   historyDate,
   historyDates,
   onHistoryChange,
@@ -89,6 +106,10 @@ export function AppHeader({
   showScannerSource = true,
   discoveryProvider = DISCOVERY_PROVIDER_DEFAULT,
   onBackendStarted,
+  accountActive = false,
+  onAccountClick,
+  sampleDataActive = false,
+  onSampleDataToggle,
 }: Props) {
   return (
     <header className={compact ? 'app-header app-header--compact' : 'app-header'}>
@@ -97,10 +118,14 @@ export function AppHeader({
           <NovaLogo />
           <div className="brand-text">
             <span className="brand-wordmark">NOVA</span>
-            <span className="brand-tagline">Stock Scanner</span>
+            <span className="brand-tagline">
+              {sampleDataActive ? 'Sample Scanner' : 'Stock Scanner'}
+            </span>
           </div>
         </div>
-        <span className={`mode-badge mode-${mode}`}>{MODE_LABELS[mode]}</span>
+        <span className={`mode-badge mode-${mode}`}>
+          {sampleDataActive ? 'Sample data' : MODE_LABELS[mode]}
+        </span>
         <ThemeToggle />
       </div>
 
@@ -109,6 +134,8 @@ export function AppHeader({
           health={health}
           discoveryProvider={discoveryProvider}
           ibkrConnected={ibkrConnected}
+          ibkrMode={ibkrMode}
+          ibkrGatewayMode={ibkrGatewayMode}
           activeFeed={activeFeed}
           feedFellBack={feedFellBack}
           secondsAgo={secondsAgo}
@@ -122,17 +149,45 @@ export function AppHeader({
 
       {!compact && (
         <div className="header-actions">
+          {onSampleDataToggle && (
+            <label
+              className={`sample-data-switch${sampleDataActive ? ' sample-data-switch--on' : ''}`}
+              title="Open isolated sample fixtures — never mixed with live market data"
+              data-testid="sample-data-switch"
+            >
+              <input
+                type="checkbox"
+                checked={sampleDataActive}
+                onChange={(e) => onSampleDataToggle(e.target.checked)}
+              />
+              <span>{SAMPLE_DATA_SWITCH_LABEL}</span>
+            </label>
+          )}
           <select
             className={`history-select${historyDate ? ' history-select--active' : ''}`}
             value={historyDate ?? ''}
             onChange={onHistoryChange}
             title="Browse historical snapshots"
+            disabled={sampleDataActive}
           >
-            <option value="">Today (Live)</option>
-            {historyDates.map(d => (
-              <option key={d} value={d}>{fmtHistoryDate(d)}</option>
-            ))}
+            <option value="">{sampleDataActive ? 'Sample (fixtures)' : 'Today (Live)'}</option>
+            {!sampleDataActive &&
+              historyDates.map(d => (
+                <option key={d} value={d}>{fmtHistoryDate(d)}</option>
+              ))}
           </select>
+          {onAccountClick && (
+            <button
+              type="button"
+              className={`account-nav-btn${accountActive ? ' active' : ''}`}
+              title={ACCOUNT_NAV_TITLE}
+              aria-pressed={accountActive}
+              data-testid="header-account-btn"
+              onClick={onAccountClick}
+            >
+              {ACCOUNT_NAV_LABEL}
+            </button>
+          )}
           <SymbolSearchBox onLookup={onLookup} />
           <button
             className={`settings-btn ${showSettings ? 'active' : ''}`}

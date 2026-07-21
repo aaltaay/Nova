@@ -115,6 +115,22 @@
   opacity: 0.75;
 }
 
+/* Attribution: scanner RVOL still uses Alpaca daily-bar avg (study accuracy). */
+.rvol-source-badge {
+  display: inline-block;
+  margin-left: 0.2rem;
+  padding: 0 0.28rem;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--border-color) 55%, transparent);
+  opacity: 1;
+  vertical-align: middle;
+}
+
 /* ── Watchlist tab (Five Pillars) ─────────────────────────────────────────── */
 
 .watchlist-description {
@@ -374,6 +390,49 @@ button.linkish {
 .nova-os-receipt {
   margin-top: 0.75rem;
   font-size: 0.75rem;
+}
+
+.nova-os-news-impact {
+  margin: 0.4rem 0 0.55rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.05);
+}
+
+.nova-os-news-impact__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.nova-os-news-impact__class {
+  font-weight: 700;
+  color: var(--text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.nova-os-news-impact__headline {
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+}
+
+.nova-os-news-impact__reasons {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.nova-os-news-impact__ai {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  border-top: 1px dashed var(--border-color);
+  padding-top: 0.35rem;
 }
 
 .nova-os-mode-bar {

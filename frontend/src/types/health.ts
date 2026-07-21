@@ -1,3 +1,9 @@
+/** One auxiliary integration chip from `/api/health` → integrations. */
+export interface IntegrationChipStatus {
+  status: 'ok' | 'off' | 'error' | 'unknown' | string;
+  detail?: string;
+}
+
 /** Shared health payload shape from `/api/health` and scanner endpoints. */
 export interface HealthStatus {
   status: string;
@@ -11,4 +17,6 @@ export interface HealthStatus {
   flag?: string;
   /** Remediation one-liner for the active flag (tooltip). */
   flag_hint?: string;
+  /** Aux APIs (Alpaca news/meta, OpenAI/Lincoln, yfinance, archive) — not price feed. */
+  integrations?: Record<string, IntegrationChipStatus>;
 }

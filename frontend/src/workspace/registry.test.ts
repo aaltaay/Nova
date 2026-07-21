@@ -5,7 +5,6 @@ import {
   listModules,
   listTabModules,
   NOVA_MODULES,
-  TAB_MODULE_IDS,
   isTabModuleId,
 } from './registry';
 
@@ -33,10 +32,15 @@ describe('module registry (Phase 4)', () => {
     expect(losers?.component).toBe(HostRenderedModule);
   });
 
-  it('lists tab modules in registry order matching TAB_MODULE_IDS', () => {
+  it('lists TabNav modules (Account + Reports live in the header, not the tab bar)', () => {
     const tabs = listTabModules();
-    expect(tabs.map(t => t.id)).toEqual([...TAB_MODULE_IDS]);
     expect(tabs.every(t => t.defaultPlacement === 'tab')).toBe(true);
+    expect(tabs.every(t => t.showInTabNav !== false)).toBe(true);
+    expect(tabs.map(t => t.id)).not.toContain('trading');
+    expect(tabs.map(t => t.id)).not.toContain('reports');
+    expect(getModule('trading')?.title).toBe('Account');
+    expect(getModule('trading')?.showInTabNav).toBe(false);
+    expect(getModule('reports')?.showInTabNav).toBe(false);
   });
 
   it('registers panel modules with real components', () => {
@@ -58,9 +62,20 @@ describe('module registry (Phase 4)', () => {
   it('isTabModuleId gates ActiveTab ids', () => {
     expect(isTabModuleId('dashboard')).toBe(true);
     expect(isTabModuleId('watchlist')).toBe(true);
+    expect(isTabModuleId('running_up')).toBe(true);
     expect(isTabModuleId('level2')).toBe(false);
     expect(isTabModuleId('strategy')).toBe(false);
     expect(isTabModuleId('movers')).toBe(false);
+  });
+
+  it('registers Running Up as a sibling tab of HOD Momo', () => {
+    const hod = getModule('hod_momo');
+    const ru = getModule('running_up');
+    expect(hod?.title).toBe('HOD Momo');
+    expect(ru?.title).toBe('Running Up');
+    expect(ru?.feedDeps).toEqual(['hod_momo']);
+    expect(ru?.countKey).toBe('runningUp');
+    expect(listTabModules().map(t => t.id)).toContain('running_up');
   });
 
   it('listModules includes every catalog entry', () => {

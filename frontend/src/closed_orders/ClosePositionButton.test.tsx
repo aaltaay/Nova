@@ -7,6 +7,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import * as closeMod from '../ibkr/closeFullPosition';
 import { ClosePositionButton } from './ClosePositionButton';
 
+const confirmAppMock = vi.fn();
+const alertAppMock = vi.fn();
+
+vi.mock('../ux', () => ({
+  confirmApp: (...args: unknown[]) => confirmAppMock(...args),
+  alertApp: (...args: unknown[]) => alertAppMock(...args),
+}));
+
 describe('ClosePositionButton', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -15,7 +23,10 @@ describe('ClosePositionButton', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    confirmAppMock.mockReset();
+    alertAppMock.mockReset();
+    confirmAppMock.mockResolvedValue(true);
+    alertAppMock.mockResolvedValue(undefined);
   });
 
   afterEach(() => {

@@ -67,7 +67,7 @@ export function RecentDecisionsTable({
           <thead>
             <tr>
               <th>Time</th>
-              <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
+              <th title="Click: Quote Panel · Double-click: Trader">Symbol</th>
               <th>Price</th>
               <th>RVOL</th>
               <th>Gap%</th>
@@ -123,7 +123,7 @@ export function SnapsTable({
         <table className="dbg-table">
           <thead>
             <tr>
-              <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
+              <th title="Click: Quote Panel · Double-click: Trader">Symbol</th>
               <th>Price</th>
               <th>RVOL</th>
               <th>Float</th>

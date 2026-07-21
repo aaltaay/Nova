@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SETUP_LABELS } from '../constants';
+import { formatShareQty } from '../utils/formatShareQty';
 import { useJournal } from './useJournal';
 import type { GoNoGoCriterion, JournalMetrics, JournalTradeRow, RiskStatus } from './types';
 
@@ -147,7 +148,7 @@ function TradesTable({
         <thead>
           <tr>
             <th title="When the trade closed.">Closed</th>
-            <th title="Ticker symbol. Click: Quote Panel · Double-click: Stock View.">Symbol</th>
+            <th title="Ticker symbol. Click: Quote Panel · Double-click: Trader.">Symbol</th>
             <th title="Which setup pattern triggered the entry.">Setup</th>
             <th title="Long (bought first) or short (sold first).">Side</th>
             <th title="Share quantity.">Qty</th>
@@ -171,7 +172,7 @@ function TradesTable({
               <td>{t.symbol}{t.is_mock ? <span className="mock-tag" title="Synthetic demo row — not a real trade.">DEMO</span> : null}</td>
               <td><span className="pillar-chip pillar-pass">{SETUP_LABELS[t.setup ?? ''] ?? t.setup ?? '\u2014'}</span></td>
               <td>{t.side}</td>
-              <td>{t.qty}</td>
+              <td>{formatShareQty(t.qty)}</td>
               <td>{fmtPrice(t.entry_price)}</td>
               <td>{fmtPrice(t.exit_price)}</td>
               <td className={t.pnl != null && t.pnl >= 0 ? 'positive' : 'negative'}>{fmtPrice(t.pnl)}</td>
@@ -255,7 +256,7 @@ export function JournalPanel({
             <thead>
               <tr>
                 <th>Time</th>
-                <th title="Click: Quote Panel · Double-click: Stock View">Symbol</th>
+                <th title="Click: Quote Panel · Double-click: Trader">Symbol</th>
                 <th>Setup</th>
                 <th>Entry</th>
                 <th>Stop</th>

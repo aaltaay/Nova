@@ -3,28 +3,18 @@ import type { ReactNode } from 'react';
 import {
   formatOrderDateTime,
   formatOrderType,
-  orderTimeTitle,
+  orderSubmittedTimeTitle,
 } from '../ibkr/orderDisplay';
 import type { ClosedOrderColumnId } from '../ibkr/orderTableColumns';
+import { formatMoney } from '../utils/formatMoney';
+import { formatShareQty } from '../utils/formatShareQty';
 import type { ClosedOrder } from './types';
-
-function fmt(n: number | null | undefined, decimals = 2) {
-  if (n == null) return '—';
-  return n.toLocaleString('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-}
-
-function fmtDollar(n: number | null | undefined) {
-  if (n == null) return '—';
-  return `$${fmt(n)}`;
-}
 
 export type ClosedCellCtx = {
   statusLabel: string;
   tone: string;
-  activityIso: string | null;
+  /** Time Placed ISO (submitted_at) — never last fill/cancel. */
+  placedIso: string | null;
   sideCls: string;
   sideLabel: string;
 };
@@ -55,15 +45,21 @@ export function renderClosedOrderCell(
     case 'qty':
       return (
         <td key={col} className={`ibkr-col--num ${ctx.sideCls}`} title={ctx.sideLabel}>
-          {fmt(o.qty, 0)}
+          {formatShareQty(o.qty)}
         </td>
       );
-    case 'filled':
+    case 'filled': {
+      const filled = o.filled_qty ?? 0;
       return (
-        <td key={col} className="ibkr-col--num">
-          {fmt(o.filled_qty ?? 0, 0)}
+        <td
+          key={col}
+          className="ibkr-col--num"
+          title={`${formatShareQty(filled)} of ${formatShareQty(o.qty)} shares filled`}
+        >
+          {formatShareQty(filled)}
         </td>
       );
+    }
     case 'type':
       return (
         <td key={col} className="ibkr-col--type ibkr-order-type">
@@ -73,13 +69,13 @@ export function renderClosedOrderCell(
     case 'limit':
       return (
         <td key={col} className="ibkr-col--num">
-          {fmtDollar(o.limit_price)}
+          {formatMoney(o.limit_price)}
         </td>
       );
     case 'avg_fill':
       return (
         <td key={col} className="ibkr-col--num">
-          {fmtDollar(o.avg_fill_price ?? null)}
+          {formatMoney(o.avg_fill_price ?? null)}
         </td>
       );
     case 'status':
@@ -95,9 +91,9 @@ export function renderClosedOrderCell(
       );
     case 'time':
       return (
-        <td key={col} className="ibkr-col--time" title={orderTimeTitle(o)}>
-          <time dateTime={ctx.activityIso ?? undefined}>
-            {formatOrderDateTime(ctx.activityIso)}
+        <td key={col} className="ibkr-col--time" title={orderSubmittedTimeTitle(o)}>
+          <time dateTime={ctx.placedIso ?? undefined}>
+            {formatOrderDateTime(ctx.placedIso)}
           </time>
         </td>
       );

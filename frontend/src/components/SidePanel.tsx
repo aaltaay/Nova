@@ -81,7 +81,7 @@ export function SidePanel({
         )}
       </div>
       <div className="side-panel-body">
-        <div className="quote-panel-title" title="Scanner sidebar quote — same data as Stock View">
+        <div className="quote-panel-title" title="Scanner sidebar quote — same data as Trader">
           {QUOTE_PANEL_TITLE}
         </div>
         {showFullSpinner && (
