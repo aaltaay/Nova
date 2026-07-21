@@ -1,21 +1,20 @@
 """
-Self-heal IBKR Gateway port mismatch — **fail-safe toward paper only**.
+Self-heal IBKR Gateway port mismatch — **bidirectional auto-detect**.
 
-When IBKR_GATEWAY_MODE=live points at a closed API port but paper (4002)
-accepts, flip runtime mode to paper (and persist .env).
-
-**Never** self-heals paper → live. A paper-configured Nova must not attach to
-the live Gateway under any automatic path.
+When the preferred Gateway port (from IBKR_GATEWAY_MODE) is hard-refused but
+the alternate port accepts, flip runtime mode to the reachable port, persist
+``.env``, and reconnect. Account kind must match the mode being established
+(``account_kind.accounts_match_mode``).
 
 Heal fires only on hard **refused** (not ambiguous timeout / Error 326).
 
 Intentional user switches (Stock View Paper/Live capsule) set a **sticky**
-requested mode that blocks silent live→paper heal until the user switches
-again or the requested mode actually connects — never a fixed timer.
+requested mode that blocks silent heal until the user switches again or the
+requested mode actually connects — never a fixed timer.
 
 Never unlocks orders / live confirmation — safety.py remains SSOT for spend.
-Never auto-logins Gateway — if paper port is down while mode=paper, stay
-disconnected and warn (loud) rather than trying 4001.
+Never auto-logins Gateway — if **neither** port is reachable, stay disconnected
+and warn (loud).
 """
 from __future__ import annotations
 
@@ -67,8 +66,10 @@ def alternate_mode(mode: str) -> GatewayMode:
 
 
 def heal_target_allowed(*, from_mode: str, to_mode: str) -> bool:
-    """Only paper is an allowed automatic heal target (never paper→live)."""
-    return to_mode == "paper" and from_mode != "paper"
+    """True when from/to are opposite paper/live modes (bidirectional heal)."""
+    if from_mode == to_mode:
+        return False
+    return {from_mode, to_mode} == {"paper", "live"}
 
 
 def set_intentional_mode(mode: GatewayMode) -> None:
@@ -199,7 +200,8 @@ def record_heal(
     clear_intentional_mode(reason=f"self-healed to {to_mode}")
     logger.warning(
         "IBKR: self-healed gateway_mode %s→%s (preferred port %s failed: %s; "
-        "connected on %s). Orders still gated by safety.py. persisted=%s",
+        "connected on %s). Account display follows the logged-in Gateway; "
+        "orders still gated by safety.py. persisted=%s",
         from_mode,
         to_mode,
         preferred_port,

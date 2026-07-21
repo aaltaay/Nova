@@ -89,11 +89,15 @@ when the wrong local API port is listening:
 | Nova `IBKR_GATEWAY_MODE` | Listening port | Result |
 |---|---|---|
 | `live` | 4002 paper only | Self-heal → paper (refuse only; never on timeout) |
-| `paper` | 4001 live only | **Stay disconnected** — never auto paper→live |
+| `paper` | 4001 live only | Self-heal → live (refuse only; never on timeout) |
+| either | both down | Stay disconnected — loud-warn login blocker |
+
+Account kind must match the mode being established after heal. Spend gates
+(`IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED`) are never auto-unlocked.
 
 `GET /api/ibkr/status` exposes `preferred_port`, `preferred_port_reachable`,
 `alternate_port_reachable`, and `disconnect_hint` (e.g.
-`paper_port_refused_live_listening`) so the UI can say which port failed.
+`paper_port_refused_live_listening`) while reconnect / heal is in flight.
 
 After pulling a build that adds `POST /api/ibkr/gateway-mode`, **restart the
 Nova API** (stale uvicorn returns 404; the capsule then says “Restart Nova API”).
@@ -104,4 +108,4 @@ Smoke: open `http://127.0.0.1:8000/openapi.json` and confirm `/api/ibkr/gateway-
 - `scripts/start_gateway_ibc.ps1.example` — template launcher (no secrets)
 - `scripts/smoke_check.ps1` — post-login API smoke
 - `IBKR_GATEWAY_MODE` / `IBKR_LIVE_PORT` / `IBKR_PAPER_PORT` in `.env`
-- `.cursor/rules/ibkr-gateway-login-warning.mdc` — loud-warn vs self-heal asymmetry
+- `.cursor/rules/ibkr-gateway-login-warning.mdc` — loud-warn vs bidirectional self-heal

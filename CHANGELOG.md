@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-21 — Bidirectional IBKR Gateway auto-detect (paper↔live heal)
+
+- **What:** When the preferred Gateway port is hard-refused but the alternate port answers, Nova now self-heals in **either** direction (live→paper or paper→live), persists `IBKR_GATEWAY_MODE`, and shows online with the logged-in account kind. Session acceptance requires `accounts_match_mode` for both paper and live. Spend gates unchanged.
+- **Why:** Operator expectation — Gateway chip should reflect whether IBKR is logged in (and paper vs live), not stay “offline · PAPER” while a live Gateway is already up. The old one-directional paper pin was a display/context guard for Phase B, not order safety.
+- **Files touched:** `backend/ibkr/account_kind.py`, `client.py`, `gateway_heal.py`, `client_connect.py`, related tests; `.cursor/rules/ibkr-gateway-login-warning.mdc`, `docs/ibc-gateway-setup.md`, `Nova-Roadmap-Status.md`.
+- **How it works now:** Preferred port refused → try alternate → classify managedAccounts → accept only if kind matches the mode being established → persist mode. Intentional capsule switches still suppress heal mid-switch. Timeouts / Error 326 still not heal-eligible. Orders still require `IBKR_ORDERS_ENABLED` + live confirm for live spends.
+- **Verified by:** `pytest tests/test_gateway_heal.py tests/test_ibkr_account_kind.py tests/test_gateway_mode_switch.py tests/test_port_diagnostics.py` (28 passed); manual `/api/ibkr/status` with live-only Gateway; header badge check.
+- **Follow-ups:** Phase B shadow days remain operator discipline (prefer paper Gateway logged in); not a hard software block anymore.
+
 ## 2026-07-20 — Root-cause fix: execution/executor/routes-trading tests leaked real env + real bootstrap
 
 - **What:** Paper-simulating test helpers (`test_execution_service.py`, `test_executor.py`, `test_routes_trading.py`) now pin `IBKR_GATEWAY_MODE=paper` explicitly instead of relying on the developer's real `.env`; `test_routes_trading.py` also isolates `journal.db` / `nova_os.events_db` cache dirs and stubs `app_lifespan._bootstrap_runtime` (real IBKR ping + risk/journal reconstruction) so its module-level `TestClient(app)` can't fire a real background bootstrap against real files; `strategy.risk.reset_day()` added to the shared autouse fixtures.

@@ -25,16 +25,16 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
-- **Last updated:** 2026-07-20 (Roadmap gap closure — backlog shipped, execution-ledger test fix, paper target restored)
+- **Last updated:** 2026-07-20 (Paper Gateway connected on 4002 — Phase B shadow days remain)
 - **Last verified commit (gap closure):** `378be02` (execution-ledger test isolation fix + full backend/frontend/docs backlog from 2026-07-19/20)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 - **Execution proof (user-directed, not Phase I unlock):** ADR 007 centralized path + synthetic p95 ack pass — see `docs/trading-execution-validation.md`. Does **not** complete Phase B or Phase I.
-- **IBKR ops (2026-07-20):** Nova had drifted to `IBKR_GATEWAY_MODE=live` mid-session (from earlier flatten-bug debugging) with a stale API process still serving the old env; both are fixed — `.env` restored to `paper`, stale process restarted on the current code. API `GET /api/ibkr/status` now → `gateway_mode=paper`, `connected=false` (paper Gateway not logged in; live Gateway is logged in on port 4001 but the paper-pin correctly refuses to auto-attach — `disconnect_hint=paper_port_refused_live_listening`), `orders_enabled=true`, `live_trading_confirmed=false`, `spend_status=paper_armed`. Next human step: log into **paper** Gateway (port 4002) to actually connect. Live-readiness scorecard still **NO-GO** (0/5 shadow days, 0 closed non-mock trades).
+- **IBKR ops (2026-07-20 evening):** Paper Gateway logged in on port **4002**. `GET /api/ibkr/status` → `connected=true`, `mode=paper`, `broker_account_kind=paper`, `gateway_mode=paper`, `preferred_port_reachable=true`, `orders_enabled=true`, `live_trading_confirmed=false`, `spend_status=paper_armed`. Account summary reads (`BuyingPower` present). Live-readiness scorecard still **NO-GO** (0/5 shadow days, 0 closed non-mock trades).
 
 ## Exact next action (human)
 
-1. Keep paper Gateway logged in (API port **4002**; Read-Only API **unchecked**)
-2. During next market session: follow `docs/paper-shadow-protocol.md` — stay on `confirm` first; when ready for paper spends set `IBKR_ORDERS_ENABLED=true` (keep `IBKR_LIVE_TRADING_CONFIRMED=false`) then `auto_paper` only after comfort
+1. Keep paper Gateway logged in (API port **4002**; Read-Only API **unchecked**) — **done for this evening**
+2. During next market session: follow `docs/paper-shadow-protocol.md` — stay on `confirm` first; when ready for paper spends keep `IBKR_LIVE_TRADING_CONFIRMED=false` then `auto_paper` only after comfort
 3. Fill one row in `docs/shadow-day-log-template.md` → copy into Phase B Evidence below after the day
 4. Evening review; log bugs in `PROBLEM_LOG.md`
 5. After a bars-rich session: compact → (optional R2) → `walk_day` — Phase C remainder
@@ -94,6 +94,7 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 
 **Blocker:** cannot invent 5 real market sessions overnight — human ops required.  
 **Paper path ready (2026-07-17):** Gateway paper + API connected; orders still locked until you enable paper spends.  
+**Connection auto-detect (2026-07-21):** Nova self-heals to whichever Gateway account is actually logged in (paper↔live) when the preferred port is refused. For clean Phase B shadow days, keep Gateway logged into **paper** as operator discipline — that is no longer a hard software refuse of live. Order execution remains gated by `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` (unchanged).  
 **Evidence table:** use shadow-day log template (0/5 rows filled).
 
 #### Phase B Evidence
@@ -241,6 +242,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-07-21 | Bidirectional IBKR Gateway auto-detect: preferred port refused → heal to alternate (paper↔live); account kind must match mode; spend gates unchanged. Header shows online · LIVE when live Gateway is logged in. Phase B paper sessions remain operator discipline. | (this commit) |
 | 2026-07-20 | Roadmap gap closure: root-caused + fixed a real execution-ledger test/prod path collision (tests were writing into the dev API's live ledger file, causing 18 order-dependent pytest failures and a latent idempotency/max-concurrent risk); shipped the entire 2026-07-19/20 backlog (IBKR gateway-mode switch + sticky self-heal + port diagnostics, global app dialogs, Trader/Stock View docks, 26 task-log entries) in 5 scoped commits; found and fixed a stale API process still serving the old `.env` (drifted to `live` during earlier flatten-bug debugging) — restarted on current code with `IBKR_GATEWAY_MODE=paper` restored, `IBKR_LIVE_TRADING_CONFIRMED` confirmed still `false`. Remaining Phase B/C/I gaps are human-only (market days, Cloudflare console). | `378be02` |
 | 2026-07-18 | Phase G3 verified: Map-to-Nova-Action UX + tester browser (Settings Hotkeys + Stock View quick-bar); TriggerOrder rejected; no order APIs on import/map. Phase B remains ops NEXT; `auto_live` NO-GO. | `c2c8d61` |
 | 2026-07-18 | Phase G3 opened: `hotkeys` specialist Owned; typed Nova Actions (cancel/buy/sell/exit) paper-first via manual path; one dispatcher. Phase B remains ops NEXT; `auto_live` NO-GO. | `ce1da59` |

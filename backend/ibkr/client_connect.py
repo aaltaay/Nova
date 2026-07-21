@@ -1,8 +1,8 @@
 """
-IBKR connect attempts + alternate-port self-heal (live→paper refused-only).
+IBKR connect attempts + alternate-port self-heal (bidirectional, refused-only).
 
 Extracted from client.py so the connection manager stays under the module
-size limit. Session acceptance (paper pin) stays in client.py.
+size limit. Session acceptance (account-kind match) stays in client.py.
 """
 from __future__ import annotations
 
@@ -78,17 +78,18 @@ async def try_connect_alternate_port(
     *,
     accept_session: AcceptSession,
 ) -> str | None:
-    """If preferred live port was refused, try paper only. Never paper→live.
+    """If preferred port was refused, try the alternate paper/live port.
 
-    Timeout / Error 326 is NOT heal-eligible — the live Gateway may still be
-    up (wedged handshake or clientId conflict).
+    Timeout / Error 326 is NOT heal-eligible — the preferred Gateway may still
+    be up (wedged handshake or clientId conflict). Account-kind match is
+    enforced by ``accept_session`` after a successful alternate connect.
     """
     if not _heal.self_heal_enabled():
         return None
     if _heal.self_heal_suppressed():
         logger.info(
             "IBKR: self-heal suppressed (intentional gateway-mode switch in "
-            "progress) — surfacing %s failure honestly instead of auto-paper",
+            "progress) — surfacing %s failure honestly instead of auto-heal",
             preferred_mode,
         )
         return None
@@ -97,19 +98,12 @@ async def try_connect_alternate_port(
 
     alt_mode = _heal.alternate_mode(preferred_mode)
     if not _heal.heal_target_allowed(from_mode=preferred_mode, to_mode=alt_mode):
-        logger.warning(
-            "IBKR: preferred %s port failed (%s); refusing self-heal to %s "
-            "(paper pin — never attach to live automatically)",
-            preferred_mode,
-            preferred_reason,
-            alt_mode,
-        )
         return None
 
     alt_port = _heal.port_for_mode(alt_mode)
     preferred_port = _heal.port_for_mode(preferred_mode)
     logger.info(
-        "IBKR: preferred %s:%s failed (%s); trying %s:%s (self-heal→paper only)",
+        "IBKR: preferred %s:%s failed (%s); trying %s:%s (bidirectional self-heal)",
         preferred_mode,
         preferred_port,
         preferred_reason,

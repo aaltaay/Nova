@@ -8,12 +8,13 @@ Users may start/focus Gateway via POST /api/ibkr/launch-gateway (header double-c
 Port selection uses IBKR_GATEWAY_MODE (paper→4002, live→4001), independent
 of IBKR_ORDERS_ENABLED / IBKR_LIVE_TRADING_CONFIRMED (see ibkr.safety).
 
-Self-heal is fail-safe toward paper only (never paper→live) and only on a
-hard ConnectionRefused (never on timeout / Error 326). After every connect,
-managedAccounts are classified; paper mode refuses live accounts.
+Self-heal is bidirectional when the preferred port is hard-refused and the
+alternate port answers (never on timeout / Error 326). After every connect,
+managedAccounts are classified and must match the mode being established.
 
 Intentional Paper↔Live switches set sticky intent in gateway_heal (not a
-timer) so a failed Live attempt cannot silently heal back to paper.
+timer) so a failed switch cannot silently heal to the other mode mid-switch.
+Spend gates stay in ibkr.safety — heal never unlocks orders.
 
 State:
   _ib / _mode / _broker_account_kind — updated atomically via _set_session
@@ -155,25 +156,23 @@ def _read_managed_account_ids(ib: "IB") -> list[str]:
 
 def _accept_connected_session(ib: "IB", mode_label: str) -> tuple[bool, str]:
     """
-    Classify managedAccounts; enforce paper pin. Updates ``_broker_account_kind``.
-    Returns (ok, reason). On failure caller must disconnect.
+    Classify managedAccounts; require kind to match ``mode_label``.
+    Updates ``_broker_account_kind``. Returns (ok, reason). On failure
+    caller must disconnect.
     """
     global _broker_account_kind
     ids = _read_managed_account_ids(ib)
     kind = _account_kind.classify_managed_accounts(ids)
     _broker_account_kind = kind
-    # Prefer env gateway_mode — heal may have just flipped it to paper.
-    target = _safety.gateway_mode()
-    if mode_label == "paper" or target == "paper":
-        ok, reason = _account_kind.paper_mode_accounts_ok(kind)
-        if not ok:
-            logger.error(
-                "IBKR PAPER PIN: refusing session — %s (accounts=%s mode=%s)",
-                reason,
-                ids,
-                mode_label,
-            )
-            return False, reason
+    ok, reason = _account_kind.accounts_match_mode(kind, mode_label)
+    if not ok:
+        logger.error(
+            "IBKR: refusing session — %s (accounts=%s mode=%s)",
+            reason,
+            ids,
+            mode_label,
+        )
+        return False, reason
     logger.info(
         "IBKR: session accounts kind=%s ids=%s mode=%s",
         kind,
@@ -230,7 +229,7 @@ async def reconnect_loop() -> None:
 
     Re-reads gateway mode/port each attempt so a .env change to paper/live
     takes effect without requiring a full process restart (after reload_env).
-    On preferred live-port refuse only, self-heals to paper.
+    On preferred-port refuse only, self-heals to the alternate reachable port.
     """
     global _ib, _enabled
 
@@ -284,7 +283,7 @@ async def reconnect_loop() -> None:
                     _ib = IB()
                     _set_session(mode="disconnected", broker_account_kind="unknown")
                     _heal.record_connect_outcome(
-                        "failed", reason=session_reason or "paper_pin",
+                        "failed", reason=session_reason or "account_kind_mismatch",
                     )
                     await _sleep_reconnect(IBKR_RECONNECT_DELAY_SEC)
                     continue

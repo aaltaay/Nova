@@ -2,8 +2,10 @@
 Classify IBKR managed account ids as paper vs live.
 
 IBKR paper/demo accounts are conventionally ``DU…`` / ``DF…``. Live individual
-accounts are typically ``U…`` (not prefixed with D). Used as a hard pin so a
-paper-configured Nova process never spends on a live Gateway session.
+accounts are typically ``U…`` (not prefixed with D). Used so a connected
+session's account kind must match the mode being established (paper or live).
+
+Spend authority stays in ``ibkr.safety`` — this module only classifies ids.
 """
 
 from __future__ import annotations
@@ -45,21 +47,27 @@ def classify_managed_accounts(account_ids: list[str] | tuple[str, ...] | None) -
     return "unknown"
 
 
-def paper_mode_accounts_ok(kind: BrokerAccountKind) -> tuple[bool, str]:
-    """When Nova targets paper Gateway, only pure paper accounts are allowed."""
-    if kind == "paper":
+def accounts_match_mode(kind: BrokerAccountKind, mode_label: str) -> tuple[bool, str]:
+    """True only when the classified account kind matches the mode being established."""
+    mode = "live" if str(mode_label).strip().lower() == "live" else "paper"
+    if kind == mode:
         return True, ""
-    if kind == "live":
-        return False, (
-            "Connected Gateway reports LIVE account id(s) while "
-            "IBKR_GATEWAY_MODE=paper — refusing session (paper pin)"
-        )
     if kind == "mixed":
         return False, (
-            "Connected Gateway reports mixed paper+live accounts while "
-            "IBKR_GATEWAY_MODE=paper — refusing session (paper pin)"
+            f"Connected Gateway reports mixed paper+live accounts while "
+            f"establishing {mode} mode — refusing session"
+        )
+    if kind == "unknown":
+        return False, (
+            f"Could not classify IBKR managedAccounts while "
+            f"establishing {mode} mode — refusing session"
         )
     return False, (
-        "Could not classify IBKR managedAccounts as paper while "
-        "IBKR_GATEWAY_MODE=paper — refusing session (paper pin)"
+        f"Connected Gateway reports {kind.upper()} account id(s) while "
+        f"establishing {mode} mode — refusing session"
     )
+
+
+def paper_mode_accounts_ok(kind: BrokerAccountKind) -> tuple[bool, str]:
+    """Backward-compat wrapper — prefer ``accounts_match_mode``."""
+    return accounts_match_mode(kind, "paper")

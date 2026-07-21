@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-21 | [Bidirectional IBKR Gateway auto-detect (paper↔live heal)](2026-07-21-bidirectional-ibkr-gateway-auto-detect.md) | Bidirectional IBKR Gateway auto-detect (paper↔live heal) |
 | 2026-07-20 | [Execution/executor/routes-trading tests leaked real env + real bootstrap](2026-07-20-execution-test-env-leak-fix.md) | assert_orders_allowed read real IBKR_GATEWAY_MODE; TestClient lifespan ran real bootstrap into strategy.risk singleton |
 | 2026-07-20 | [IBKR disconnect foresight: sticky intent + port diagnostics](2026-07-20-ibkr-disconnect-foresight.md) | Sticky intentional mode; refuse-only heal; disconnect_hint + UI CTA |
 | 2026-07-20 | [Global pretty app dialogs replace native popups](2026-07-20-global-app-dialogs.md) | confirmApp/alertApp/promptApp + AppDialogHost; no window.confirm left |

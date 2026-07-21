@@ -113,9 +113,9 @@ def test_try_connect_alternate_skips_when_disabled(monkeypatch):
     ib.connectAsync.assert_not_called()
 
 
-def test_heal_target_allowed_paper_only():
+def test_heal_target_allowed_bidirectional():
     assert heal.heal_target_allowed(from_mode="live", to_mode="paper") is True
-    assert heal.heal_target_allowed(from_mode="paper", to_mode="live") is False
+    assert heal.heal_target_allowed(from_mode="paper", to_mode="live") is True
     assert heal.heal_target_allowed(from_mode="paper", to_mode="paper") is False
     assert heal.heal_target_allowed(from_mode="live", to_mode="live") is False
 
@@ -181,20 +181,83 @@ def test_clear_last_heal_on_preferred_connect():
     assert heal.heal_status()["gateway_self_heal"] is None
 
 
-def test_try_connect_alternate_never_heals_paper_to_live(monkeypatch):
-    """Paper pin: preferred paper down must NOT attach to live 4001."""
+def test_try_connect_alternate_heals_paper_to_live(tmp_path: Path, monkeypatch):
+    """Preferred paper refused + live port up → self-heal to live when account is live."""
     monkeypatch.setenv("IBKR_GATEWAY_SELF_HEAL", "true")
     monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
     monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
     monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
+    env = tmp_path / ".env"
+    env.write_text("IBKR_GATEWAY_MODE=paper\n", encoding="utf-8")
+
     ib = MagicMock()
-    ib.connectAsync = AsyncMock()
+    calls: list[int] = []
+
+    async def _connect(_host, port, clientId=0, timeout=1):  # noqa: N803
+        calls.append(port)
+        if port == 4001:
+            return None
+        raise ConnectionRefusedError(10061, "refused")
+
+    ib.connectAsync = _connect
+    ib.managedAccounts = lambda: ["U5876610"]
+
+    real_persist = heal.persist_gateway_mode
+
+    def _persist(mode, env_path=None):
+        return real_persist(mode, env_path=env)
 
     async def _run():
-        return await ibkr_client._try_connect_alternate_port(
-            ib, "127.0.0.1", "paper", 17, "refused",
-        )
+        with (
+            patch.object(ibkr_client, "IBKR_CONNECT_TIMEOUT_SEC", 2.0),
+            patch.object(heal, "persist_gateway_mode", side_effect=_persist),
+        ):
+            return await ibkr_client._try_connect_alternate_port(
+                ib, "127.0.0.1", "paper", 17, "refused",
+            )
+
+    healed = asyncio.run(_run())
+    assert healed == "live"
+    assert calls == [4001]
+    assert heal.heal_status()["gateway_self_heal"]["to_mode"] == "live"
+    assert "IBKR_GATEWAY_MODE=live" in env.read_text(encoding="utf-8")
+    assert os.environ.get("IBKR_GATEWAY_MODE") == "live"
+
+
+def test_try_connect_alternate_refuses_kind_mismatch(tmp_path: Path, monkeypatch):
+    """Alternate port up but account kind does not match → no heal."""
+    monkeypatch.setenv("IBKR_GATEWAY_SELF_HEAL", "true")
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "paper")
+    monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
+    monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
+    env = tmp_path / ".env"
+    env.write_text("IBKR_GATEWAY_MODE=paper\n", encoding="utf-8")
+
+    ib = MagicMock()
+
+    async def _connect(_host, port, clientId=0, timeout=1):  # noqa: N803
+        if port == 4001:
+            return None
+        raise ConnectionRefusedError(10061, "refused")
+
+    ib.connectAsync = _connect
+    # Live port answers but reports mixed accounts — must refuse.
+    ib.managedAccounts = lambda: ["DU111", "U111"]
+
+    real_persist = heal.persist_gateway_mode
+
+    def _persist(mode, env_path=None):
+        return real_persist(mode, env_path=env)
+
+    async def _run():
+        with (
+            patch.object(ibkr_client, "IBKR_CONNECT_TIMEOUT_SEC", 2.0),
+            patch.object(heal, "persist_gateway_mode", side_effect=_persist),
+        ):
+            return await ibkr_client._try_connect_alternate_port(
+                ib, "127.0.0.1", "paper", 17, "refused",
+            )
 
     assert asyncio.run(_run()) is None
-    ib.connectAsync.assert_not_called()
     assert heal.heal_status()["gateway_self_heal"] is None
+    assert "IBKR_GATEWAY_MODE=paper" in env.read_text(encoding="utf-8")

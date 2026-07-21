@@ -1,5 +1,6 @@
-"""Classify IBKR managed account ids (paper pin)."""
+"""Classify IBKR managed account ids (mode match)."""
 from ibkr.account_kind import (
+    accounts_match_mode,
     classify_managed_accounts,
     is_live_account_id,
     is_paper_account_id,
@@ -26,6 +27,21 @@ def test_classify():
     assert classify_managed_accounts(["DU111", "U111"]) == "mixed"
     assert classify_managed_accounts([]) == "unknown"
     assert classify_managed_accounts(["XYZ"]) == "unknown"
+
+
+def test_accounts_match_mode():
+    assert accounts_match_mode("paper", "paper") == (True, "")
+    assert accounts_match_mode("live", "live") == (True, "")
+    ok, reason = accounts_match_mode("live", "paper")
+    assert ok is False
+    assert "LIVE" in reason
+    ok2, reason2 = accounts_match_mode("paper", "live")
+    assert ok2 is False
+    assert "PAPER" in reason2
+    ok3, _ = accounts_match_mode("mixed", "live")
+    assert ok3 is False
+    ok4, _ = accounts_match_mode("unknown", "paper")
+    assert ok4 is False
 
 
 def test_paper_mode_accounts_ok():
