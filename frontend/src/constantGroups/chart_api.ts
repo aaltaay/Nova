@@ -538,7 +538,7 @@ export const TICKER_TRADE_PLACE_CONFIRM_SUBMIT = 'Confirm';
 export const TICKER_TRADE_PLACE_CONFIRM_CANCEL = 'Cancel';
 /** Plain-language disclosure under the trading action bar. */
 export const TICKER_TRADE_ORDER_DISCLOSURE =
-  'Orders go through Interactive Brokers only (paper by default). Alpaca scanning stays read-only.';
+  'Orders go through Interactive Brokers only. Alpaca scanning stays read-only.';
 /** Depth ladder levels shown in the compact side column (bids + asks each). */
 export const TICKER_TRADE_DEPTH_LEVELS = 10;
 

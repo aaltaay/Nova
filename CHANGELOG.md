@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-21 — Drop misleading "paper by default" from IBKR order disclosure
+
+- **What:** Flatten / place-order dialogs and the trading action bar no longer say orders are "(paper by default)". Copy is now: "Orders go through Interactive Brokers only. Alpaca scanning stays read-only."
+- **Why:** On a live session the static disclaimer sat above a correct "on the LIVE account?" line and looked like a silent downgrade to paper. It was never mode-aware — only an architecture reminder.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts` (`TICKER_TRADE_ORDER_DISCLOSURE`).
+- **How it works now:** Disclosure always states IBKR-only + Alpaca read-only. Per-order account mode still comes from the dynamic `${mode.toUpperCase()} account` line (and header Live/Paper badge). Spend gates unchanged.
+- **Verified by:** String grep confirms no remaining "paper by default"; constant readback; callers still import the same constant.
+
 ## 2026-07-21 — Bidirectional IBKR Gateway auto-detect (paper↔live heal)
 
 - **What:** When the preferred Gateway port is hard-refused but the alternate port answers, Nova now self-heals in **either** direction (live→paper or paper→live), persists `IBKR_GATEWAY_MODE`, and shows online with the logged-in account kind. Session acceptance requires `accounts_match_mode` for both paper and live. Spend gates unchanged.
