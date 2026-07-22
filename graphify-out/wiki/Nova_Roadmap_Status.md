@@ -1,20 +1,16 @@
 # Nova Roadmap Status
 
-> God node · 8 connections · `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
+> God node · 4 connections · `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`
 
-**Community:** [Warrior Trading Courses](Warrior_Trading_Courses.md)
+**Community:** [Roadmap & Status](Roadmap_%26_Status.md)
 
 ## Connections by Relation
 
-### contains
-- [Phase ledger](Phase_ledger.md) `EXTRACTED`
-- Nova-Roadmap-Status.md `EXTRACTED`
-- COMPLETE history (do not reopen) `EXTRACTED`
-- Crash or blocker `EXTRACTED`
-- Current position `EXTRACTED`
-- Exact next action (human) `EXTRACTED`
-- History (append-only) `EXTRACTED`
-- Verification baseline `EXTRACTED`
+### references
+- [Nova OS Status](Nova_OS_Status.md) `EXTRACTED`
+- Nova OS Live Readiness Review `EXTRACTED`
+- Productization Decision `EXTRACTED`
+- Security Status `EXTRACTED`
 
 ---
 

@@ -1,147 +1,157 @@
 {
-  "knowledge/obsidian/00-System/How-Recall-Works.md": {
-    "mtime": 1784154047.2831478,
-    "ast_hash": "e38a4c906de03e908e3168c248993ff2",
-    "semantic_hash": "e38a4c906de03e908e3168c248993ff2"
-  },
-  "knowledge/obsidian/00-System/Memory-Router.md": {
-    "mtime": 1784173252.6669626,
-    "ast_hash": "0c08583d6a3d83468bd0f184bc38c347",
-    "semantic_hash": ""
-  },
-  "knowledge/obsidian/01-Courses/Course-Index.md": {
-    "mtime": 1784123671.0131905,
-    "ast_hash": "4b7a7f27c8d5bb4d3d7eed55741a1052",
-    "semantic_hash": "4b7a7f27c8d5bb4d3d7eed55741a1052"
-  },
-  "knowledge/obsidian/01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md": {
-    "mtime": 1783742671.5774422,
-    "ast_hash": "8ea26eb44b39a8faf4c0620d08509435",
-    "semantic_hash": "8ea26eb44b39a8faf4c0620d08509435"
-  },
-  "knowledge/obsidian/01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md": {
-    "mtime": 1783742674.8588808,
-    "ast_hash": "7161323618fabac005dba10d016c65e8",
-    "semantic_hash": "7161323618fabac005dba10d016c65e8"
-  },
-  "knowledge/obsidian/01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md": {
-    "mtime": 1783742672.7605996,
-    "ast_hash": "ac908d644d3af87accc847fcd09a57d1",
-    "semantic_hash": "ac908d644d3af87accc847fcd09a57d1"
-  },
-  "knowledge/obsidian/01-Courses/Warrior-Trading/Local-Library-Inventory.md": {
-    "mtime": 1784123671.0021932,
-    "ast_hash": "5b132a10bdc3f386259398f33e597ecd",
-    "semantic_hash": "5b132a10bdc3f386259398f33e597ecd"
-  },
-  "knowledge/obsidian/01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md": {
-    "mtime": 1783742672.1767008,
-    "ast_hash": "902fb8d211b1536085a58a5ed5447680",
-    "semantic_hash": "902fb8d211b1536085a58a5ed5447680"
-  },
-  "knowledge/obsidian/02-Strategies/Candidate-Strategies-for-Nova.md": {
-    "mtime": 1783734858.382833,
-    "ast_hash": "5e65a736e6a4c2bc9c291e5a820ac9ca",
-    "semantic_hash": "5e65a736e6a4c2bc9c291e5a820ac9ca"
-  },
-  "knowledge/obsidian/02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md": {
-    "mtime": 1784167401.5402713,
-    "ast_hash": "d30110528c829e7944467e494b9d4f6c",
-    "semantic_hash": "d30110528c829e7944467e494b9d4f6c"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Active-Strategy.md": {
-    "mtime": 1784123671.0131905,
-    "ast_hash": "6d43c6d385d7786992501d229eb8e95c",
-    "semantic_hash": "6d43c6d385d7786992501d229eb8e95c"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Alpaca-Integration-Reference.md": {
-    "mtime": 1784032039.8381245,
-    "ast_hash": "180961cf02aa375fe338b51f79fcaf42",
-    "semantic_hash": "180961cf02aa375fe338b51f79fcaf42"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Automation-Roadmap.md": {
-    "mtime": 1784145019.668565,
-    "ast_hash": "c8f6e87aa2c01f124291987ef736234a",
-    "semantic_hash": "c8f6e87aa2c01f124291987ef736234a"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Automation-Strategy-Backbone.md": {
-    "mtime": 1783751970.5934832,
-    "ast_hash": "a681eba5d6543190a1be140f1f882c5d",
-    "semantic_hash": "a681eba5d6543190a1be140f1f882c5d"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md": {
-    "mtime": 1783967962.9278872,
-    "ast_hash": "9110d3b74dfd80c3b0567befdad3d088",
-    "semantic_hash": "9110d3b74dfd80c3b0567befdad3d088"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Local-Market-Data-Recorders.md": {
-    "mtime": 1784140546.4766538,
-    "ast_hash": "1e0798b969188177de5fcb483ff8b505",
-    "semantic_hash": "1e0798b969188177de5fcb483ff8b505"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/News-Impact-Decision-Layer.md": {
-    "mtime": 1784004510.8938522,
-    "ast_hash": "d7ba4b8ede9f9d508a157c14199c70e8",
-    "semantic_hash": "d7ba4b8ede9f9d508a157c14199c70e8"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Archive-Restore-Runbook.md": {
-    "mtime": 1784144944.6656668,
-    "ast_hash": "95802a06d61da8ad3eae3987e59251dc",
-    "semantic_hash": "95802a06d61da8ad3eae3987e59251dc"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Decision-Brain.md": {
-    "mtime": 1784142624.2449462,
-    "ast_hash": "55d8167794ffc36e2efa2aa1884eed01",
-    "semantic_hash": "55d8167794ffc36e2efa2aa1884eed01"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md": {
-    "mtime": 1784173766.1268308,
-    "ast_hash": "26bb77c00d8426f04a5b71fa4714f0bf",
-    "semantic_hash": ""
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md": {
-    "mtime": 1784173107.1966333,
-    "ast_hash": "dbe633da2db8314dfb46e1a8ee6480de",
-    "semantic_hash": ""
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md": {
-    "mtime": 1783970163.8177521,
-    "ast_hash": "a473ac2d9106a4adc30332197c1335f5",
-    "semantic_hash": "a473ac2d9106a4adc30332197c1335f5"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/TraderVue-Reporting-Parity.md": {
-    "mtime": 1783754130.2716997,
-    "ast_hash": "4517777efd40816039805652b6b9df28",
-    "semantic_hash": "4517777efd40816039805652b6b9df28"
-  },
-  "knowledge/obsidian/03-Nova-Decisions/Warrior-Trading-Library-Merge.md": {
-    "mtime": 1784123671.0121899,
-    "ast_hash": "a24621b670d472ae44c745a54e6509b1",
-    "semantic_hash": "a24621b670d472ae44c745a54e6509b1"
-  },
-  "knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md": {
+  "00-System/Graphify-Knowledge-Graph.md": {
     "mtime": 1784154039.8232033,
     "ast_hash": "de2fcceede68863b52f9f58e5b51da05",
     "semantic_hash": "de2fcceede68863b52f9f58e5b51da05"
   },
-  "knowledge/obsidian/00-System/Reference-Repos.md": {
-    "mtime": 1784173243.2939568,
-    "ast_hash": "fb9e8debdd11717051803bf0034d3864",
-    "semantic_hash": ""
+  "00-System/How-Recall-Works.md": {
+    "mtime": 1784154047.2831478,
+    "ast_hash": "e38a4c906de03e908e3168c248993ff2",
+    "semantic_hash": "e38a4c906de03e908e3168c248993ff2"
   },
-  "knowledge/obsidian/00-System/Skills-Library.md": {
-    "mtime": 1784173236.6459186,
-    "ast_hash": "731d6155206156446b866503c655a1d0",
-    "semantic_hash": ""
+  "00-System/Memory-Router.md": {
+    "mtime": 1784218931.9325912,
+    "ast_hash": "79560e159434112d4e6bae4ba85075fa",
+    "semantic_hash": "79560e159434112d4e6bae4ba85075fa"
   },
-  "knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md": {
-    "mtime": 1784174533.139657,
-    "ast_hash": "3620fa20161f1f8d8d3e32a261b0288e",
-    "semantic_hash": ""
+  "00-System/Reference-Repos.md": {
+    "mtime": 1784210780.7026794,
+    "ast_hash": "f5634c1bd6bab84b793c2a6046d321bb",
+    "semantic_hash": "f5634c1bd6bab84b793c2a6046d321bb"
   },
-  "knowledge/obsidian/03-Nova-Decisions/Productization-Decision.md": {
-    "mtime": 1784173759.3019984,
-    "ast_hash": "73f462bcc14782eb2fbc447f998b8c6e",
-    "semantic_hash": ""
+  "00-System/Skills-Library.md": {
+    "mtime": 1784210780.7026794,
+    "ast_hash": "ae461e22c435031da776930513bf1c44",
+    "semantic_hash": "ae461e22c435031da776930513bf1c44"
+  },
+  "01-Courses/Course-Index.md": {
+    "mtime": 1784123671.0131905,
+    "ast_hash": "4b7a7f27c8d5bb4d3d7eed55741a1052",
+    "semantic_hash": "4b7a7f27c8d5bb4d3d7eed55741a1052"
+  },
+  "01-Courses/Warrior-Trading/Authenticated-Site-Map.md": {
+    "mtime": 1784248427.6642709,
+    "ast_hash": "dcc7cb59184d13125fa71c4048474325",
+    "semantic_hash": "dcc7cb59184d13125fa71c4048474325"
+  },
+  "01-Courses/Warrior-Trading/BA101-Timestamped-Notes.md": {
+    "mtime": 1783742671.5774422,
+    "ast_hash": "8ea26eb44b39a8faf4c0620d08509435",
+    "semantic_hash": "8ea26eb44b39a8faf4c0620d08509435"
+  },
+  "01-Courses/Warrior-Trading/DE101-Timestamped-Notes.md": {
+    "mtime": 1783742674.8588808,
+    "ast_hash": "7161323618fabac005dba10d016c65e8",
+    "semantic_hash": "7161323618fabac005dba10d016c65e8"
+  },
+  "01-Courses/Warrior-Trading/LTA-Timestamped-Notes.md": {
+    "mtime": 1783742672.7605996,
+    "ast_hash": "ac908d644d3af87accc847fcd09a57d1",
+    "semantic_hash": "ac908d644d3af87accc847fcd09a57d1"
+  },
+  "01-Courses/Warrior-Trading/Local-Library-Inventory.md": {
+    "mtime": 1784212924.4887228,
+    "ast_hash": "6e2ed4ba1739392f3fd90d4e7e9f8f40",
+    "semantic_hash": "6e2ed4ba1739392f3fd90d4e7e9f8f40"
+  },
+  "01-Courses/Warrior-Trading/SS101-Timestamped-Notes.md": {
+    "mtime": 1783742672.1767008,
+    "ast_hash": "902fb8d211b1536085a58a5ed5447680",
+    "semantic_hash": "902fb8d211b1536085a58a5ed5447680"
+  },
+  "02-Strategies/Candidate-Strategies-for-Nova.md": {
+    "mtime": 1783734858.382833,
+    "ast_hash": "5e65a736e6a4c2bc9c291e5a820ac9ca",
+    "semantic_hash": "5e65a736e6a4c2bc9c291e5a820ac9ca"
+  },
+  "02-Strategies/Five-Pillars-and-Gap-and-Go-Spec.md": {
+    "mtime": 1784248427.6287067,
+    "ast_hash": "d30110528c829e7944467e494b9d4f6c",
+    "semantic_hash": "d30110528c829e7944467e494b9d4f6c"
+  },
+  "03-Nova-Decisions/Active-Strategy.md": {
+    "mtime": 1784123671.0131905,
+    "ast_hash": "6d43c6d385d7786992501d229eb8e95c",
+    "semantic_hash": "6d43c6d385d7786992501d229eb8e95c"
+  },
+  "03-Nova-Decisions/Alpaca-Integration-Reference.md": {
+    "mtime": 1784032039.8381245,
+    "ast_hash": "180961cf02aa375fe338b51f79fcaf42",
+    "semantic_hash": "180961cf02aa375fe338b51f79fcaf42"
+  },
+  "03-Nova-Decisions/Automation-Roadmap.md": {
+    "mtime": 1784210780.7036777,
+    "ast_hash": "4b38d1879e8d0b35d44491f02a451eca",
+    "semantic_hash": "4b38d1879e8d0b35d44491f02a451eca"
+  },
+  "03-Nova-Decisions/Automation-Strategy-Backbone.md": {
+    "mtime": 1783751970.5934832,
+    "ast_hash": "a681eba5d6543190a1be140f1f882c5d",
+    "semantic_hash": "a681eba5d6543190a1be140f1f882c5d"
+  },
+  "03-Nova-Decisions/IBKR-Orders-Locked-On-Live-Gateway.md": {
+    "mtime": 1783967962.9278872,
+    "ast_hash": "9110d3b74dfd80c3b0567befdad3d088",
+    "semantic_hash": "9110d3b74dfd80c3b0567befdad3d088"
+  },
+  "03-Nova-Decisions/Local-Market-Data-Recorders.md": {
+    "mtime": 1784140546.4766538,
+    "ast_hash": "1e0798b969188177de5fcb483ff8b505",
+    "semantic_hash": "1e0798b969188177de5fcb483ff8b505"
+  },
+  "03-Nova-Decisions/News-Impact-Decision-Layer.md": {
+    "mtime": 1784004510.8938522,
+    "ast_hash": "d7ba4b8ede9f9d508a157c14199c70e8",
+    "semantic_hash": "d7ba4b8ede9f9d508a157c14199c70e8"
+  },
+  "03-Nova-Decisions/Nova-OS-Archive-Restore-Runbook.md": {
+    "mtime": 1784144944.6656668,
+    "ast_hash": "95802a06d61da8ad3eae3987e59251dc",
+    "semantic_hash": "95802a06d61da8ad3eae3987e59251dc"
+  },
+  "03-Nova-Decisions/Nova-OS-Decision-Brain.md": {
+    "mtime": 1784142624.2449462,
+    "ast_hash": "55d8167794ffc36e2efa2aa1884eed01",
+    "semantic_hash": "55d8167794ffc36e2efa2aa1884eed01"
+  },
+  "03-Nova-Decisions/Nova-OS-Live-Readiness-Review.md": {
+    "mtime": 1784210780.7046785,
+    "ast_hash": "acbae4e26c46b5487900a7105df3b057",
+    "semantic_hash": "acbae4e26c46b5487900a7105df3b057"
+  },
+  "03-Nova-Decisions/Nova-OS-Status.md": {
+    "mtime": 1784248427.6267033,
+    "ast_hash": "32b0731457116eb0bfce7b2c81fe920d",
+    "semantic_hash": "32b0731457116eb0bfce7b2c81fe920d"
+  },
+  "03-Nova-Decisions/Nova-Roadmap-Status.md": {
+    "mtime": 1784231084.9787037,
+    "ast_hash": "7fc6897fca089239602cf31c7413671f",
+    "semantic_hash": "7fc6897fca089239602cf31c7413671f"
+  },
+  "03-Nova-Decisions/Productization-Decision.md": {
+    "mtime": 1784210780.7066803,
+    "ast_hash": "7e0cb83a05caaa7b0963fc2049399093",
+    "semantic_hash": "7e0cb83a05caaa7b0963fc2049399093"
+  },
+  "03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md": {
+    "mtime": 1783970163.8177521,
+    "ast_hash": "a473ac2d9106a4adc30332197c1335f5",
+    "semantic_hash": "a473ac2d9106a4adc30332197c1335f5"
+  },
+  "03-Nova-Decisions/Security-Status.md": {
+    "mtime": 1784210780.7066803,
+    "ast_hash": "d73062478b38418f900f4549df4a03c2",
+    "semantic_hash": "d73062478b38418f900f4549df4a03c2"
+  },
+  "03-Nova-Decisions/TraderVue-Reporting-Parity.md": {
+    "mtime": 1783754130.2716997,
+    "ast_hash": "4517777efd40816039805652b6b9df28",
+    "semantic_hash": "4517777efd40816039805652b6b9df28"
+  },
+  "03-Nova-Decisions/Warrior-Trading-Library-Merge.md": {
+    "mtime": 1784123671.0121899,
+    "ast_hash": "a24621b670d472ae44c745a54e6509b1",
+    "semantic_hash": "a24621b670d472ae44c745a54e6509b1"
   }
 }

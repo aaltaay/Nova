@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-22 | [Quiet Sentry IBKR/chart dispose noise](2026-07-22-sentry-ibkr-noise-filters.md) | Quiet Sentry IBKR/chart dispose noise |
 | 2026-07-22 | [Vitest act() environment fix](2026-07-22-vitest-act-environment-fix.md) | Set IS_REACT_ACT_ENVIRONMENT via Vitest setupFiles; restores React 19 act safety net |
 | 2026-07-22 | [Warm completed orders + Orders Today badge/empty honesty](2026-07-22-orders-today-completed-orders.md) | Warm completed orders + Orders Today badge/empty honesty |
 | 2026-07-22 | [Closed Orders Time Filled column](2026-07-22-closed-orders-time-filled-column.md) | Closed Orders Time Filled column |

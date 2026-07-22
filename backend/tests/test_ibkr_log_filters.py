@@ -55,6 +55,38 @@ def test_is_benign_matches_cancel_mkt_depth_no_reqid():
     assert is_benign_ibkr_log_message(msg) is True
 
 
+def test_is_benign_matches_error_300_stale_eid():
+    msg = "Error 300, reqId 5948: Can't find EId with tickerId:5948"
+    assert is_benign_ibkr_log_message(msg) is True
+
+
+def test_is_benign_matches_error_10089_market_data_subscription():
+    msg = (
+        "Error 10089, reqId 36437: Requested market data requires additional "
+        "subscription for API. Delayed market data is available.CJMB"
+    )
+    assert is_benign_ibkr_log_message(msg) is True
+
+
+def test_is_benign_matches_completed_orders_timeout():
+    msg = "completed orders request timed out"
+    assert is_benign_ibkr_log_message(msg) is True
+
+
+def test_is_benign_matches_gateway_port_hint():
+    msg = "Make sure API port on TWS/IBG is open"
+    assert is_benign_ibkr_log_message(msg) is True
+
+
+def test_is_benign_false_for_error_101_max_tickers():
+    """Capacity oversubscription stays ERROR — real product signal."""
+    msg = (
+        "Error 101, reqId 7344: Max number of tickers has been reached, "
+        "contract: Stock(symbol='MI')"
+    )
+    assert is_benign_ibkr_log_message(msg) is False
+
+
 def test_is_benign_false_for_unrelated_error_code():
     msg = "Error 504, reqId 9: Not connected"
     assert is_benign_ibkr_log_message(msg) is False

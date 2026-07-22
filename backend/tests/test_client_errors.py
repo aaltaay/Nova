@@ -44,3 +44,19 @@ def test_client_errors_ignores_vite_hmr_noise():
     assert body.get("ok") is True
     assert body.get("ignored") is True
     assert body.get("reason") == "dev_tooling_noise"
+
+
+def test_client_errors_ignores_tradingview_object_disposed():
+    res = client.post(
+        "/api/client-errors",
+        json={
+            "message": "Uncaught Error: Object is disposed",
+            "source": "window.onerror",
+            "url": "http://127.0.0.1:5173/",
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body.get("ok") is True
+    assert body.get("ignored") is True
+    assert body.get("reason") == "dev_tooling_noise"

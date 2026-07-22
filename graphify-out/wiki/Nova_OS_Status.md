@@ -1,22 +1,17 @@
 # Nova OS Status
 
-> God node · 10 connections · `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md`
+> God node · 5 connections · `knowledge/obsidian/03-Nova-Decisions/Nova-OS-Status.md`
 
-**Community:** [Strategy Automation & Safety](Strategy_Automation_%26_Safety.md)
+**Community:** [Roadmap & Status](Roadmap_%26_Status.md)
 
 ## Connections by Relation
 
-### contains
-- Nova-OS-Status.md `EXTRACTED`
-- Completed this phase `EXTRACTED`
-- Crash or blocker `EXTRACTED`
-- Current position `EXTRACTED`
-- Definition `EXTRACTED`
-- In progress / uncommitted `EXTRACTED`
-- Phase-close / Next chat starts here `EXTRACTED`
-- Phase exit criteria (re-verified 2026-07-15, evidence-based) `EXTRACTED`
-- User action needed `EXTRACTED`
-- Verification ledger `EXTRACTED`
+### references
+- [Nova Roadmap Status](Nova_Roadmap_Status.md) `EXTRACTED`
+- [Nova OS Decision Brain](Nova_OS_Decision_Brain.md) `EXTRACTED`
+- Automation Roadmap `EXTRACTED`
+- Nova OS Live Readiness Review `EXTRACTED`
+- Nova OS Decision Engine `EXTRACTED`
 
 ---
 

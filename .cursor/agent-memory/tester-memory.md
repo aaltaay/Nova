@@ -9,19 +9,18 @@ Companion to: `.cursor/agents/tester.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-16T23:32:00-04:00
-source_revision: 13e530f
-result: FAIL
+captured_at: 2026-07-22T19:08:00-04:00
+source_revision: f09985a
+result: PASS
 metrics:
-  pytest_passed: 677
-  vitest_passed: 223
-  vitest_files: 49
-  playwright_passed: 11
+  pytest_passed: 677  # stale — not re-run 2026-07-22
+  vitest_passed: 422
+  vitest_files: 99
+  playwright_passed: 11  # stale — not re-run 2026-07-22
 blockers:
-  - "vitest: src/stock_view/stockViewTerminal.test.tsx > renders terminal chrome, charts, and rail for matching symbol — missing [data-testid=\"sv-trading-lock\"] (reproduced twice, not flaky)"
-  - "playwright: 3 e2e specs (baseline.spec.ts, workspace-context.spec.ts, level2-tape-modules.spec.ts) fail on missing 'Stock View' header text / unreachable 'Look up symbol' input (reproduced twice, not flaky)"
-dashboard_freshness: clean
-notes: "last_dream_at=2026-07-18T03:09:15-0400; All 3 gates re-run this session (pytest+vitest+playwright, all fresh). vitest/playwright failures trace to the same in-progress, uncommitted frontend/src/stock_view/ header refactor (git status: ?? untracked dir) — StockViewHeader no longer renders the trading-lock testid or literal 'Stock View' label some e2e/unit specs assert on. Not fixed here per task scope (tester does not touch product code); flag to whoever owns that WIP (widgets / Stock View work) before it lands. pytest 677 includes the known-benign torchvision c0000139 native-loader crash log during test_news_impact.py (PROBLEM_LOG 2026-07-16) — exit 0, no test failures."
+  - "playwright: 3 e2e specs (baseline.spec.ts, workspace-context.spec.ts, level2-tape-modules.spec.ts) historically failed on Stock View header — not re-verified this run"
+dashboard_freshness: refresh-required
+notes: "last_dream_at=2026-07-18T03:09:15-0400; 2026-07-22 Vitest act() env verify (ea85715+f09985a): full verbose suite 99 files / 422 passed; zero act-environment and zero 'not wrapped in act' warnings. Prior vitest sv-trading-lock blocker cleared (suite green). pytest/playwright counts stale from 2026-07-16."
 ```
 
 Counts live only here (and in canvas snapshots derived from this block). Do not hardcode volatile totals in `tester.md`.
@@ -51,11 +50,12 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 - [ ] **Ruff / backend lint gate** — if the repo adopts Ruff (or documents a preferred command), add it beside frontend `npm run lint`.
 - [ ] **CI parity** — read `.github/workflows/*` and note any gates the local tester should mirror (matrix Python version, e2e on PR only, etc.).
 - [ ] **Seed a golden browser path** — one short click-path (e.g. open Gappers → pick a symbol → Stock View) recorded here so UI verifies are consistent.
-- [ ] **Timeout defaults** — record typical full-suite wall times so the agent sets sensible `block_until_ms` instead of guessing.
+- [x] **Timeout defaults** — Vitest full suite ~11–16s wall (99/422, verbose) on this machine → `block_until_ms` ≥ 60000 is safe; pytest/playwright still TBD.
 - [ ] **Promote top PROBLEM_LOG traps** — when a new test-infra trap appears 2+ times, add it to `tester.md` Known traps and check it off here.
 
 ### Completed
 
+- [x] 2026-07-22 — Timeout defaults: Vitest full suite ~11–16s (99 files / 422 tests, verbose) recorded under pending facts + backlog checked off.
 - [x] 2026-07-16 — Full gate refresh: 677 pytest / 223-of-224 Vitest (49 files) / 11-of-14 Playwright. Found 2 real (non-flaky) regressions in uncommitted `frontend/src/stock_view/` WIP — flagged in snapshot `blockers`, not fixed (out of tester scope).
 - [x] 2026-07-15 — Continuity refresh: promoted test counts in `tester.md` to **562** backend / **131** Vitest (28 files) / **14** Playwright; backlog item left open for future drift checks.
 - [x] 2026-07-15 — Verified commands, routing, traps, trading safety, flakiness, server lifecycle (initial specialize pass).
@@ -70,6 +70,8 @@ Facts discovered in a run that are **not yet** in `tester.md`. After promoting i
 - **localhost:5173 ≠ Nova when Altay Studio is up:** On this machine `::1:5173` can be Altay Studio (jobfinder) while Nova Vite listens on `127.0.0.1:5173`. Prefer `http://127.0.0.1:5173` for browser verify; `localhost` may resolve to IPv6 and show the wrong app.
 - **Stale uvicorn vs new routes:** After shipping a new FastAPI path, live `openapi.json` / curl 404 while `TestClient(main.app)` 200 means the running API process did not reload — not a code regression. Confirm with OpenAPI path list before FAIL-ing the feature.
 - **WID-027 Vitest scope:** `src/closed_orders` + `closeFullPosition.test.ts` + `registry.test.ts` = **17** tests (widgets sometimes claim ~21 — recount with `--reporter=verbose`).
+- **Vitest act() gate:** After `IS_REACT_ACT_ENVIRONMENT` setup (`frontend/src/testSetup/reactActEnvironment.ts` + `test.setupFiles`), prove with `npx vitest run --reporter=verbose` and grep for `not configured to support act` / `was not wrapped in act` / `An update to .* inside a test was not wrapped in act` — default reporter hides these on green runs (PROBLEM_LOG 2026-07-20 / 2026-07-22).
+- **Full Vitest wall time (this machine):** ~11–16s for 99 files / 422 tests (`--reporter=verbose`).
 
 ---
 
@@ -78,6 +80,15 @@ Facts discovered in a run that are **not yet** in `tester.md`. After promoting i
 Newest first. Keep entries short. Skip boring all-green scoped runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-22 — Vitest act() environment warning fix verify
+
+- **Scope:** Commits `ea85715` (IS_REACT_ACT_ENVIRONMENT setupFiles) + `f09985a` (WorkspaceContext deferred config under `act`).
+- **Commands:** Spot-check 5 files → **31 passed**; full `npx vitest run --reporter=verbose` → **99 files / 422 passed** (exit 0).
+- **Act warning counts:** `not configured to support act` = **0**; `was not wrapped in act` = **0**; `An update to … not wrapped in act` = **0**. No remaining act-related lines in verbose output.
+- **Result:** PASS. Browser skipped (unit-infra only). No product edits, no orders, no commit.
+- **task_log:** skipped (verify-only)
+- **Promoted to tester.md:** no (pending fact + snapshot refresh)
 
 ### 2026-07-19 — Filled polish (tooltips) Open/Closed verify
 

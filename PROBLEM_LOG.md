@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-22 — Sentry flooded by expected IBKR / chart-dispose noise
+
+- **Symptom:** Sentry `altay-studio` / `python-fastapi` showed thousands of unresolved ERROR events: Error 300 Can't find EId, Error 10089 market-data subscription, open/completed orders timeouts, Gateway ConnectionRefused / “API port … open”, and client `Object is disposed` (TradingView).
+- **Cause:** Only Error 162/365 were in `IBKR_BENIGN_LOG_ERROR_CODES`; reconnect and late-cancel races still hit ERROR → Sentry. Client intake filtered Vite HMR but not chart dispose races. PYTHON-FASTAPI-126 (`closedFilterFromToday is not defined`) was a one-shot HMR crash mid-refactor (already fixed).
+- **Fix:** Expand benign IBKR codes/needles (300, 354, 10089, 10189 + timeout/port/peer-closed substrings); ignore `Object is disposed` in `/api/client-errors`. Keep Error 101 (max tickers) as ERROR. Resolve/ignore matching Sentry issues after deploy/restart.
+- **Keywords:** Sentry, IBKR_BENIGN_LOG_ERROR_CODES, Error 300, Error 10089, Object is disposed, client_errors, PYTHON-FASTAPI
+
 ## 2026-07-22 — FIXED: Vitest act() environment (IS_REACT_ACT_ENVIRONMENT)
 
 - **Symptom:** Vitest stderr: `The current testing environment is not configured to support act(...)` on manual `createRoot` + `act()` mounts; real “update was not wrapped in act” warnings were also suppressed. Diagnosed 2026-07-20 (audit only). After enabling the flag: `WorkspaceContext.test.tsx` still printed 2× “An update to WorkspaceProvider … was not wrapped in act(...)”.

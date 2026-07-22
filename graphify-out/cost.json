@@ -5,8 +5,21 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "files": 24
+    },
+    {
+      "date": "2026-07-16T19:49:28.110661+00:00",
+      "input_tokens": 49371,
+      "output_tokens": 5347,
+      "files": 31,
+      "mode": "full-rebuild"
+    },
+    {
+      "date": "2026-07-17T00:50:12.944679+00:00",
+      "input_tokens": 47628,
+      "output_tokens": 2958,
+      "files": 31
     }
   ],
-  "total_input_tokens": 0,
-  "total_output_tokens": 0
+  "total_input_tokens": 96999,
+  "total_output_tokens": 8305
 }

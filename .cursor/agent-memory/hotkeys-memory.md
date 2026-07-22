@@ -59,6 +59,7 @@ Or:
 
 | Date | Note |
 |------|------|
+| 2026-07-20 | User Q: live trades via shortcuts tomorrow? Answer: NO on current config. Shortcuts = Nova Actions → `runNovaAction` → `placeIbkrOrder` → `POST /api/ibkr/order` `source=manual` → `assert_orders_allowed`. Live money blocked by `IBKR_LIVE_TRADING_CONFIRMED` (false) + paper pin (`IBKR_GATEWAY_MODE=paper` / port 4002). Paper shortcut orders OK while `spend_status=paper_armed` + PIN unlock. `auto_live` irrelevant to System 2 / stays NO-GO. |
 | 2026-07-18 | Daddy audit: cancel ownership — hotkeys=`cancel_symbol` only; panel ✕ ≠ dispatcher; broker SSOT=`execute(cancel)`; gate gap (PIN/spend) → execution handoff. task_log=knowledge/task-log/2026-07-18-hotkeys-cancel-ownership-audit.md |
 | 2026-07-18 | G3 verified: Map UX + browser on 127.0.0.1:5173; TriggerOrder reject; vitest 28 |
 | 2026-07-18 | G3 shipped: typed Nova Actions + hotkeys specialist; vitest/build/contract green |

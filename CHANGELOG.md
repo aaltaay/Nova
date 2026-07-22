@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-22 — Quiet Sentry noise (IBKR benign logs + Object is disposed)
+
+- **What:** Extended `IBKR_BENIGN_LOG_ERROR_CODES` / message needles so ib_async ERROR spam (300, 10089/10189/354, open/completed-orders timeouts, Gateway port/ConnectionRefused reconnect chatter) downgrades to WARNING before Sentry. Client intake ignores TradingView `Object is disposed`. Left Error 101 (max tickers) as ERROR — real capacity signal.
+- **Why:** Sentry `python-fastapi` was yelling with tens of thousands of expected Gateway/reconnect/chart-dispose events, drowning real issues.
+- **Files touched:** `backend/constants_ibkr.py`, `backend/routes/client_errors.py`, `backend/tests/test_ibkr_log_filters.py`, `backend/tests/test_client_errors.py`.
+- **How it works now:** Same `BenignIbkrErrorFilter` path as 162/365; new codes/needles match live issues PYTHON-FASTAPI-C/-F/-PN/-SW/-SN/-2S. `Object is disposed` never mirrors to Sentry. Restart API to load filters.
+- **Verified by:** pytest log-filter + client-errors tests; Sentry triage of last-24h unresolved.
+- **Follow-ups:** Error 101 max-tickers still needs HOD/scanner subscription budgeting (not silenced).
+- **Related:** PYTHON-FASTAPI-126 (`closedFilterFromToday`) was a one-shot HMR crash during Orders Today refactor — already fixed in `7c95889`.
+
 ## 2026-07-22 — Vitest: enable React 19 act() environment
 
 - **What:** Vitest now loads a tiny setup file that sets `globalThis.IS_REACT_ACT_ENVIRONMENT = true` so React 19 treats tests as an act-capable environment. Follow-up: `WorkspaceContext.test.tsx` defers the mocked `/api/config` fetch so defaults can be asserted while pending, then releases under `await act` (and flushes config before symbol updates).

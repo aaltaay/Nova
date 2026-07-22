@@ -9,22 +9,23 @@ Companion to: `.cursor/agents/daddy.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-20T18:55:00Z
-source_revision: working-tree
-result: flatten_dual_source_position_ssot_audit
+captured_at: 2026-07-22T23:10:00Z
+source_revision: f09985a
+result: vitest_act_environment_fix
 metrics:
-  specialists: [execution, maintainer]
+  specialists: [generalPurpose, tester]
   dispatch_mode: direct
-  orchestration: parallel
+  orchestration: sequence
+  vitest: 99_files_422_tests_pass_zero_act_warnings
 blockers:
   - openai_embed_key_401_for_ask_recall_synthesis
-  - include_whisper_allowlist_misses_groq_and_faster_whisper_labels
+  - include_whisper_allowlist_misses_grok_and_faster_whisper_labels
 dashboard_freshness: clean
 ```
 
 Machine-readable block only. Update after material runs. Do not duplicate mutable truth that lives in canonical domain sources.
 
-**dispatch_mode:** `direct`. Position-qty SSOT audits: parallel `execution`+`maintainer`; reject validate-only→portfolio; prefer `long_qty` on `ib.positions()` + UI qty join.
+**dispatch_mode:** `direct`. Vitest act-env: sequence implementer → tester; named fix from 2026-07-20 audit (`setupFiles` + `IS_REACT_ACT_ENVIRONMENT`); after flag, fix any real unwrapped-act tests uncovered (WorkspaceContext).
 
 ---
 
@@ -58,6 +59,13 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-22 — Vitest act() warnings — fix all (not ignore)
+
+- **Scope:** User “fix all Vitest act(...) warnings”; apply 2026-07-20 audit fix + clear any uncovered real act bugs.
+- **Result:** sequence generalPurpose → tester; setupFiles + `IS_REACT_ACT_ENVIRONMENT`; WorkspaceContext deferred config under `act`; tester PASS 99/422, zero act-env and zero unwrapped-act warnings. Pushed `ea85715` + `f09985a`.
+- **Learning:** Audit-named one-liner first; expect real “not wrapped” warnings to appear once flag is on — treat those as follow-up test fixes in same dispatch, not as “still noisy.” No fleet specialist owns Vitest harness → nest `generalPurpose` then `tester`.
+- **Files updated:** daddy-memory.md; task-log `2026-07-22-vitest-act-environment-fix.md` (Agents line).
 
 ### 2026-07-20 — Flatten dual-source position SSOT audit (plan expand)
 

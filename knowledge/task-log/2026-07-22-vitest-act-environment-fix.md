@@ -1,7 +1,7 @@
 # 2026-07-22 — Vitest act() environment fix
 
 - **Status:** completed
-- **Agents:** parent (implementer under daddy dispatch)
+- **Agents:** daddy (dispatch) → generalPurpose (implement) → tester (verify PASS)
 - **Domain:** frontend test harness / React 19
 - **Related:** `CHANGELOG.md` §2026-07-22 Vitest act environment · `PROBLEM_LOG.md` §2026-07-22 FIXED + diagnosed 2026-07-20 · audit task-log `2026-07-20-vitest-act-environment-audit.md`
 

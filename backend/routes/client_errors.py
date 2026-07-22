@@ -21,14 +21,22 @@ logger = logging.getLogger("nova.client_errors")
 
 
 def _is_dev_tooling_noise(message: str, stack: str | None) -> bool:
-    """Drop Vite HMR / overlay WS failures — not product bugs."""
-    msg = message or ""
+    """Drop known browser/dev noise — not product bugs (keeps Sentry quiet).
+
+    Includes Vite HMR WS races and TradingView ``Object is disposed`` on
+    chart unmount/HMR (PYTHON-FASTAPI-2B).
+    """
+    msg = (message or "").strip()
+    msg_l = msg.lower()
     stk = stack or ""
     if "@vite/client" in stk or "/@vite/client" in stk:
         return True
     if msg == "send was called before connect":
         return True
     if "reading 'send'" in msg and "vite" in stk.lower():
+        return True
+    # LightweightCharts / TradingView dispose races during unmount or HMR.
+    if "object is disposed" in msg_l:
         return True
     return False
 

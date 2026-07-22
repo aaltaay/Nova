@@ -44,15 +44,27 @@ IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 354})
 
 # ib_async's OWN internal loggers (ib_async.wrapper / .ib / .client — not our
 # app loggers) log these at ERROR even though they're expected under normal
-# Gateway operation: cancelled/no-data historical or scanner queries, and
-# late-cancel races. See backend/ibkr/log_filters.py, which downgrades
-# matching records to WARNING so Sentry's LoggingIntegration (event_level via
-# observability.py) stops opening issues for them, while local log files are
-# unaffected. Confirmed against live Sentry issues PYTHON-FASTAPI-1/2/3/7/8/9/A.
-IBKR_BENIGN_LOG_ERROR_CODES = frozenset({162, 365})  # e.g. "Error 162, reqId 1633: ..."
+# Gateway operation. See backend/ibkr/log_filters.py (downgrade → WARNING so
+# Sentry LoggingIntegration stops opening issues; local logs still see them).
+# Keep Error 101 (max tickers) OUT — that is real capacity oversubscription.
+# Live Sentry cross-check 2026-07-22: PYTHON-FASTAPI-C (300), -2S/-2Q (10089),
+# -F/-PN (gateway port / ConnectionRefused), -SW/-SN (open/completed timeout).
+IBKR_BENIGN_LOG_ERROR_CODES = frozenset({
+    162,   # historical/scanner query cancelled
+    365,   # no scanner subscription for ticker id
+    300,   # Can't find EId — late cancel vs already-cleared reqId
+    354,   # requested market data not subscribed
+    10089,  # tick-by-tick / depth needs additional market-data subscription
+    10189,  # same family as 10089
+})
 IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
     "cancelmktdata: no reqid found",
     "cancelmktdepth: no reqid found",
+    "open orders request timed out",
+    "completed orders request timed out",
+    "make sure api port on tws/ibg is open",
+    "api connection failed: connectionrefusederror",
+    "peer closed connection",
 )
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
