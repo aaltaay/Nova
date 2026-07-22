@@ -21,11 +21,12 @@ The unset flag was not purely cosmetic. React 19’s concurrent act check both (
 
 - Added `frontend/src/testSetup/reactActEnvironment.ts` — sets `globalThis.IS_REACT_ACT_ENVIRONMENT = true` (global typing only; not a product constant).
 - Wired `test.setupFiles: ['./src/testSetup/reactActEnvironment.ts']` in `frontend/vite.config.ts`.
+- Follow-up: `WorkspaceContext.test.tsx` — deferred mocked `/api/config` so defaults assert while pending; release + symbol-path flushes under `act`.
 - Documented in CHANGELOG + PROBLEM_LOG (fixed entry referencing the 2026-07-20 diagnosis).
 
 ## How it works now
 
-Vitest loads the setup file before each test file. React 19 sees `IS_REACT_ACT_ENVIRONMENT === true`, so `act()`-wrapped mounts are quiet and unwrapped async updates can warn again. Product code, `constants.ts`, and `App.tsx` are unchanged. Tests still use manual `createRoot` + `act`.
+Vitest loads the setup file before each test file. React 19 sees `IS_REACT_ACT_ENVIRONMENT === true`, so `act()`-wrapped mounts are quiet and unwrapped async updates can warn again. WorkspaceProvider tests hold `/api/config` until after the defaults assertion, then drain under `act`. Product code, `constants.ts`, and `App.tsx` are unchanged. Tests still use manual `createRoot` + `act`.
 
 ## Why this approach
 
@@ -44,18 +45,12 @@ cd frontend
 npx vitest run --reporter=verbose
 # → Test Files 99 passed | Tests 422 passed
 # → zero "not configured to support act(...)"
-# → remaining real warning: WorkspaceContext.test.tsx (WorkspaceProvider)
-
-npx vitest run src/ibkr/workingOrderCells.test.tsx \
-  src/closed_orders/closedOrderCells.test.tsx \
-  src/stock_view/StockViewOpenOrdersDock.test.tsx \
-  src/orders_today/OrdersTodayView.test.tsx --reporter=verbose
-# → 4 files / 28 tests passed, no act-environment noise
+# → zero "was not wrapped in act(...)"
 ```
 
 ## Follow-ups
 
-- `src/workspace/WorkspaceContext.test.tsx` — “exposes defaults before config resolves” still fires two “An update to WorkspaceProvider … was not wrapped in act(...)” warnings because the stubbed `/api/config` fetch resolves after the synchronous `act(render)`. Sibling tests already flush with `await act(async () => { await Promise.resolve(); ... })`. Fix that test’s async flush without losing the defaults-before-resolve assertion. Out of scope for this env-only commit.
+- None for act warnings. `WorkspaceContext.test.tsx` now defers the mocked `/api/config` fetch until after the defaults assertion, then releases under `await act`; symbol-update test flushes config first.
 
 ## Keywords
 

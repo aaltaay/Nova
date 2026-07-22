@@ -23,9 +23,9 @@ Entry template (copy and fill in):
 
 ## 2026-07-22 — FIXED: Vitest act() environment (IS_REACT_ACT_ENVIRONMENT)
 
-- **Symptom:** Vitest stderr: `The current testing environment is not configured to support act(...)` on manual `createRoot` + `act()` mounts; real “update was not wrapped in act” warnings were also suppressed. Diagnosed 2026-07-20 (audit only).
-- **Cause:** React 19 `isConcurrentActEnvironment()` reads `globalThis.IS_REACT_ACT_ENVIRONMENT`; nothing in the repo set it, and `vite.config.ts` had no `test.setupFiles`.
-- **Fix:** Added `frontend/src/testSetup/reactActEnvironment.ts` (`globalThis.IS_REACT_ACT_ENVIRONMENT = true`) and wired `test.setupFiles: ['./src/testSetup/reactActEnvironment.ts']` in `frontend/vite.config.ts`. Full suite: 99 files / 422 passed; zero “not configured” warnings. Remaining real warning (uncovered, not introduced): `src/workspace/WorkspaceContext.test.tsx` — “An update to WorkspaceProvider inside a test was not wrapped in act(...)”.
+- **Symptom:** Vitest stderr: `The current testing environment is not configured to support act(...)` on manual `createRoot` + `act()` mounts; real “update was not wrapped in act” warnings were also suppressed. Diagnosed 2026-07-20 (audit only). After enabling the flag: `WorkspaceContext.test.tsx` still printed 2× “An update to WorkspaceProvider … was not wrapped in act(...)”.
+- **Cause:** React 19 `isConcurrentActEnvironment()` reads `globalThis.IS_REACT_ACT_ENVIRONMENT`; nothing in the repo set it, and `vite.config.ts` had no `test.setupFiles`. WorkspaceProvider’s `/api/config` fetch then resolved after sync `act(render)`, so `setDiscoveryProvider` / `setAlpacaFeed` escaped act.
+- **Fix:** (1) Added `frontend/src/testSetup/reactActEnvironment.ts` + `test.setupFiles` in `vite.config.ts`. (2) Deferred the mocked config fetch in `WorkspaceContext.test.tsx` until after the defaults assertion, then released under `await act`; flush config before symbol-update interactions. Full suite: 99 files / 422 passed; zero “not configured” and zero “was not wrapped in act” warnings.
 - **Keywords:** IS_REACT_ACT_ENVIRONMENT, act() environment, Vitest setupFiles, reactActEnvironment, WorkspaceContext, warnIfUpdatesNotWrappedWithActDEV
 
 ## 2026-07-22 — Completed-orders warm hung reconnect + GET /orders/closed

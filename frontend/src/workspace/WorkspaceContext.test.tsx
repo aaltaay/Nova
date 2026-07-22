@@ -80,7 +80,20 @@ describe('WorkspaceProvider', () => {
     vi.restoreAllMocks();
   });
 
-  it('exposes defaults before config resolves', () => {
+  it('exposes defaults before config resolves', async () => {
+    type ConfigResponse = {
+      ok: boolean;
+      json: () => Promise<{ discovery_provider: string; data_feed: string }>;
+    };
+    let release!: (value: ConfigResponse) => void;
+    const pending = new Promise<ConfigResponse>((resolve) => {
+      release = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => pending),
+    );
+
     act(() => {
       root.render(
         <WorkspaceProvider>
@@ -92,6 +105,18 @@ describe('WorkspaceProvider', () => {
     expect(latest?.discoveryProvider).toBe(DISCOVERY_PROVIDER_DEFAULT);
     expect(latest?.alpacaFeed).toBe(DATA_FEED_DEFAULT);
     expect(latest?.ibkrConnected).toBe(true);
+
+    // Drain the deferred /api/config update under act so setState is wrapped.
+    await act(async () => {
+      release({
+        ok: true,
+        json: async () => ({
+          discovery_provider: 'ibkr',
+          data_feed: 'sip',
+        }),
+      });
+      await pending;
+    });
   });
 
   it('loads discovery/feed from /api/config', async () => {
@@ -118,6 +143,11 @@ describe('WorkspaceProvider', () => {
           <Probe />
         </WorkspaceProvider>,
       );
+    });
+    // Flush in-flight /api/config setState before further interactions.
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
     });
     await act(async () => {
       latest?.setSelectedSymbol('aapl');
