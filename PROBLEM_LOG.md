@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-22 — FIXED: Vitest act() environment (IS_REACT_ACT_ENVIRONMENT)
+
+- **Symptom:** Vitest stderr: `The current testing environment is not configured to support act(...)` on manual `createRoot` + `act()` mounts; real “update was not wrapped in act” warnings were also suppressed. Diagnosed 2026-07-20 (audit only).
+- **Cause:** React 19 `isConcurrentActEnvironment()` reads `globalThis.IS_REACT_ACT_ENVIRONMENT`; nothing in the repo set it, and `vite.config.ts` had no `test.setupFiles`.
+- **Fix:** Added `frontend/src/testSetup/reactActEnvironment.ts` (`globalThis.IS_REACT_ACT_ENVIRONMENT = true`) and wired `test.setupFiles: ['./src/testSetup/reactActEnvironment.ts']` in `frontend/vite.config.ts`. Full suite: 99 files / 422 passed; zero “not configured” warnings. Remaining real warning (uncovered, not introduced): `src/workspace/WorkspaceContext.test.tsx` — “An update to WorkspaceProvider inside a test was not wrapped in act(...)”.
+- **Keywords:** IS_REACT_ACT_ENVIRONMENT, act() environment, Vitest setupFiles, reactActEnvironment, WorkspaceContext, warnIfUpdatesNotWrappedWithActDEV
+
 ## 2026-07-22 — Completed-orders warm hung reconnect + GET /orders/closed
 
 - **Symptom:** After adding `reqCompletedOrdersAsync` post-connect warm-up, IBKR reconnect stalled and `GET /api/ibkr/orders/closed` timed out (~15s+) when Gateway was in **Read-Only** API mode. Logs showed `Error 321 … API interface is currently in Read-Only mode` and `completed orders request timed out`; positions still refreshed.

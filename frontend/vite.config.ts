@@ -72,5 +72,7 @@ export default defineConfig({
   // Playwright lives under e2e/; keep Vitest from loading those specs.
   test: {
     exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
+    setupFiles: ['./src/testSetup/reactActEnvironment.ts'],
   },
 })
+

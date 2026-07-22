@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-22 — Vitest: enable React 19 act() environment
+
+- **What:** Vitest now loads a tiny setup file that sets `globalThis.IS_REACT_ACT_ENVIRONMENT = true` so React 19 treats tests as an act-capable environment.
+- **Why:** Without the flag, every hand-rolled `createRoot` + `act()` test printed `The current testing environment is not configured to support act(...)`, and React also disabled the real “update was not wrapped in act(...)” safety net (audit 2026-07-20).
+- **Files touched:** `frontend/src/testSetup/reactActEnvironment.ts` (new), `frontend/vite.config.ts` (`test.setupFiles`).
+- **How it works now:** `vite.config.ts` registers `./src/testSetup/reactActEnvironment.ts` as the only Vitest setup file. That module sets the React 19 global before any test runs. Product code / `constants.ts` / `App.tsx` are untouched. Manual-mount tests keep using `createRoot` + `act` (no RTL).
+- **Verified by:** `npx vitest run --reporter=verbose` → 99 files / 422 tests passed; zero “not configured to support act” warnings. Spot-check of previously noisy files also clean. Uncovered (pre-existing) real warning: `WorkspaceContext.test.tsx` → “An update to WorkspaceProvider … was not wrapped in act(...)”.
+- **Follow-ups:** Fix `src/workspace/WorkspaceContext.test.tsx` (“exposes defaults before config resolves”) to await the config fetch’s state update under `act` (or flush microtasks) without changing the defaults-before-resolve assertion intent.
+- **Related:** PROBLEM_LOG 2026-07-22 fixed entry; diagnosed 2026-07-20; task-log `knowledge/task-log/2026-07-22-vitest-act-environment-fix.md`.
+
 ## 2026-07-22 — Orders (Today): warm completed orders + honest badge/empty
 
 - **What:** Closed Orders now warms from IBKR `reqCompletedOrdersAsync` after every Gateway connect (same lifecycle as positions). Orders (Today) badge counts symbol-scoped **working + real closed** for the active filter; empty copy distinguishes “no completed orders from Gateway yet” vs “no orders for this symbol in this filter.”
