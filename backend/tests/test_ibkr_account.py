@@ -197,3 +197,82 @@ def test_get_portfolio_raises_on_error(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
     with pytest.raises(IbkrAccountError, match="boom"):
         account_mod.get_portfolio()
+
+
+def test_refresh_completed_orders_cache_noop_when_disconnected(monkeypatch):
+    monkeypatch.setattr(client_mod, "get_ib", lambda: None)
+    # Must not raise — best-effort warm-up, same shape as refresh_positions_cache.
+    asyncio.run(account_mod.refresh_completed_orders_cache())
+
+
+def test_refresh_completed_orders_cache_calls_api_only_false(monkeypatch):
+    account_mod._completed_orders_lock = None
+    calls: list[bool] = []
+
+    async def fake_req(api_only):
+        calls.append(api_only)
+
+    fake_ib = MagicMock()
+    fake_ib.reqCompletedOrdersAsync = fake_req
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    asyncio.run(account_mod.refresh_completed_orders_cache())
+    assert calls == [False]
+
+
+def test_refresh_completed_orders_cache_times_out_without_raising(monkeypatch):
+    """Read-Only / wedged Gateway must not hang reconnect or GET /orders/closed."""
+    import time
+
+    import constants_ibkr as cibkr
+
+    account_mod._completed_orders_lock = None
+
+    async def hang(_api_only):
+        await asyncio.sleep(30)
+
+    fake_ib = MagicMock()
+    fake_ib.reqCompletedOrdersAsync = hang
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(cibkr, "IBKR_COMPLETED_ORDERS_TIMEOUT_SEC", 0.05)
+    started = time.monotonic()
+    asyncio.run(account_mod.refresh_completed_orders_cache())
+    assert time.monotonic() - started < 2.0
+
+
+def test_refresh_completed_orders_cache_logs_and_swallows_failure(monkeypatch):
+    account_mod._completed_orders_lock = None
+
+    async def fake_req(_api_only):
+        raise RuntimeError("reqCompletedOrders timeout")
+
+    fake_ib = MagicMock()
+    fake_ib.reqCompletedOrdersAsync = fake_req
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    # Must not propagate — Closed Orders still fails closed on its own read.
+    asyncio.run(account_mod.refresh_completed_orders_cache())
+
+
+def test_refresh_completed_orders_cache_serializes_concurrent_calls(monkeypatch):
+    """ib_async can hang if reqCompletedOrdersAsync overlaps — the guard must
+    never let two calls run inside the request at the same time."""
+    account_mod._completed_orders_lock = None
+    state = {"concurrent": 0, "max_concurrent": 0}
+
+    async def fake_req(_api_only):
+        state["concurrent"] += 1
+        state["max_concurrent"] = max(state["max_concurrent"], state["concurrent"])
+        await asyncio.sleep(0.02)
+        state["concurrent"] -= 1
+
+    fake_ib = MagicMock()
+    fake_ib.reqCompletedOrdersAsync = fake_req
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+
+    async def _run_both():
+        await asyncio.gather(
+            account_mod.refresh_completed_orders_cache(),
+            account_mod.refresh_completed_orders_cache(),
+        )
+
+    asyncio.run(_run_both())
+    assert state["max_concurrent"] == 1

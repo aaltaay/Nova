@@ -5,12 +5,16 @@
 import { useMemo, useState } from 'react';
 import { ClosedOrdersPanel } from '../closed_orders/ClosedOrdersPanel';
 import { buildMockClosedOrders } from '../closed_orders/mockClosedOrders';
-import { useClosedOrders } from '../closed_orders/useClosedOrders';
+import type { ClosedOrder } from '../closed_orders/types';
+import {
+  ORDERS_TODAY_EMPTY_MESSAGE,
+  ordersTodayEmptySymbolMessage,
+} from '../constants';
 import { WorkingOrdersPanel } from '../ibkr/WorkingOrdersPanel';
 import type { IbkrOrder } from '../ibkr/types';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import {
   closedFilterFromToday,
+  closedRowsForToday,
   filterWorkingForToday,
   showWorkingForToday,
 } from './filterOrdersToday';
@@ -21,6 +25,9 @@ interface Props {
   symbol: string;
   workingOrders: IbkrOrder[];
   usingWorkingSample: boolean;
+  /** Live (real, never sample) closed orders — pre-fetched by the parent
+   * dock so the badge count and this panel poll the same list once. */
+  closedOrders: ClosedOrder[];
   onCancelOrder?: (id: number) => void;
   onFillImmediately?: (order: IbkrOrder) => void;
   highlightOrderId?: number | null;
@@ -32,25 +39,28 @@ export function OrdersTodayView({
   symbol,
   workingOrders,
   usingWorkingSample,
+  closedOrders,
   onCancelOrder,
   onFillImmediately,
   highlightOrderId = null,
   filter,
   onFilterChange,
 }: Props) {
-  const status = useIbkrStatus();
-  const { orders: closedLive } = useClosedOrders(status.connected);
   const [preferClosedSample, setPreferClosedSample] = useState(true);
 
-  const usingClosedSample = closedLive.length === 0 && preferClosedSample;
+  const usingClosedSample = closedOrders.length === 0 && preferClosedSample;
   const closedSource = useMemo(
-    () => (usingClosedSample ? buildMockClosedOrders(symbol) : closedLive),
-    [usingClosedSample, closedLive, symbol],
+    () => (usingClosedSample ? buildMockClosedOrders(symbol) : closedOrders),
+    [usingClosedSample, closedOrders, symbol],
   );
 
   const workingRows = useMemo(
     () => filterWorkingForToday(workingOrders, filter, symbol),
     [workingOrders, filter, symbol],
+  );
+  const closedRows = useMemo(
+    () => closedRowsForToday(closedSource, filter, symbol),
+    [closedSource, filter, symbol],
   );
   const closedStatusFilter = closedFilterFromToday(filter);
   const showWorking = showWorkingForToday(filter);
@@ -58,13 +68,20 @@ export function OrdersTodayView({
 
   const empty =
     (!showWorking || workingRows.length === 0) &&
-    (!showClosed || closedSource.length === 0);
+    (!showClosed || closedRows.length === 0);
+  // Gateway truly has nothing yet (no real working/closed orders anywhere)
+  // vs. this symbol/filter just has no matches while other real orders
+  // exist — two different facts, two different messages.
+  const hasAnyRealData = workingOrders.length > 0 || closedOrders.length > 0;
+  const emptyMessage = hasAnyRealData
+    ? ordersTodayEmptySymbolMessage(symbol)
+    : ORDERS_TODAY_EMPTY_MESSAGE;
 
   return (
     <div className="orders-today-view" data-testid="orders-today-view">
       <div className="orders-today-view__toolbar">
         <OrdersTodayFilters value={filter} onChange={onFilterChange} />
-        {showClosed && closedLive.length === 0 && (
+        {showClosed && closedOrders.length === 0 && (
           <button
             type="button"
             className="orders-today-view__sample-btn"
@@ -78,7 +95,7 @@ export function OrdersTodayView({
 
       {empty ? (
         <div className="ibkr-empty" data-testid="orders-today-empty">
-          No orders in this filter for today.
+          {emptyMessage}
         </div>
       ) : (
         <>

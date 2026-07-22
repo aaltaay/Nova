@@ -21,6 +21,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-22 — Completed-orders warm hung reconnect + GET /orders/closed
+
+- **Symptom:** After adding `reqCompletedOrdersAsync` post-connect warm-up, IBKR reconnect stalled and `GET /api/ibkr/orders/closed` timed out (~15s+) when Gateway was in **Read-Only** API mode. Logs showed `Error 321 … API interface is currently in Read-Only mode` and `completed orders request timed out`; positions still refreshed.
+- **Cause:** `await ib.reqCompletedOrdersAsync(False)` had no application-level timeout. Under Read-Only / wedged Gateway the coroutine never completed, blocking `reconnect_loop` after positions warm and blocking `closed_orders_async`’s empty-list warm path.
+- **Fix:** `IBKR_COMPLETED_ORDERS_TIMEOUT_SEC` (10s) + `asyncio.wait_for` inside the single-flight lock in `refresh_completed_orders_cache`; failures log and return (best-effort). Empty closed list remains a real empty, never a hung request.
+- **Keywords:** reqCompletedOrdersAsync, Read-Only, Error 321, closed_orders_async, IBKR_COMPLETED_ORDERS_TIMEOUT_SEC, hang, reconnect_loop
+
 ## 2026-07-21 — HOD Momo rows jump position and re-stamp their time on every re-fire
 
 - **Symptom:** User report: "each row is supposed to be a timed record that stay forever… they're moving, they're just getting re-ordered." Rows in the HOD Momo / Running Up tables visibly changed position and their displayed "time" column whenever a previously-caught symbol fired again.

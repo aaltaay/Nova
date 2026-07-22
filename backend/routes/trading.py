@@ -123,7 +123,7 @@ async def ibkr_open_orders() -> list:
 async def ibkr_closed_orders(limit: int | None = None) -> list:
     """Filled / cancelled / failed session orders (Webull History / Closed)."""
     try:
-        return _orders.closed_orders(limit=limit)
+        return await _orders.closed_orders_async(limit=limit)
     except IbkrAccountError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

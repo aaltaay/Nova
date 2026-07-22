@@ -274,6 +274,7 @@ async def reconnect_loop() -> None:
                     from ibkr import account as _account
 
                     await _account.refresh_positions_cache()
+                    await _account.refresh_completed_orders_cache()
                 else:
                     logger.error(
                         "IBKR: disconnecting after paper-pin reject: %s",
@@ -304,6 +305,7 @@ async def reconnect_loop() -> None:
                     from ibkr import account as _account
 
                     await _account.refresh_positions_cache()
+                    await _account.refresh_completed_orders_cache()
                     continue
                 _set_session(mode="disconnected", broker_account_kind="unknown")
                 _heal.record_connect_outcome("failed", reason=reason)

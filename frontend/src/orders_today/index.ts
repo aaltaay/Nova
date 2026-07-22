@@ -5,7 +5,9 @@ export { OrdersTodayFilters } from './OrdersTodayFilters';
 export { OrdersTodayView } from './OrdersTodayView';
 export {
   closedFilterFromToday,
+  closedRowsForToday,
   filterWorkingForToday,
+  ordersTodayBadgeCount,
   showWorkingForToday,
 } from './filterOrdersToday';
 export type { OrdersTodayFilter } from './types';

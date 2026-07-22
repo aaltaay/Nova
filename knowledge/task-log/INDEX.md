@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-22 | [Warm completed orders + Orders Today badge/empty honesty](2026-07-22-orders-today-completed-orders.md) | Warm completed orders + Orders Today badge/empty honesty |
 | 2026-07-22 | [Closed Orders Time Filled column](2026-07-22-closed-orders-time-filled-column.md) | Closed Orders Time Filled column |
 | 2026-07-21 | [HOD Momo stable rows + virtualized table](2026-07-21-hod-momo-stable-rows-virtualization.md) | Rows pinned to first-catch time/position instead of re-stamping on re-fire; table switched from unbounded batch-append to fixed-window virtualization |
 | 2026-07-21 | [Drop misleading paper-by-default from IBKR order disclosure](2026-07-21-ibkr-order-disclosure-copy.md) | Static IBKR disclosure no longer says paper by default next to LIVE confirms |

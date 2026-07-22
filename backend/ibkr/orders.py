@@ -292,6 +292,10 @@ def closed_orders(limit: int | None = None) -> list[dict]:
     path. Does not include still-working open trades. CSV / multi-day History
     export remains WID-020.
 
+    ``ib.trades()`` includes both live-session orders and anything folded in
+    by ``account.refresh_completed_orders_cache`` — ib_async merges those
+    callbacks into the same trades map, so no separate dedupe is needed here.
+
     Raises ``IbkrAccountError`` on disconnect / API failure — never disguise
     as an empty session history.
     """
@@ -321,6 +325,23 @@ def closed_orders(limit: int | None = None) -> list[dict]:
         raise IbkrAccountError(f"closed_orders failed: {detail}") from exc
 
 
+async def closed_orders_async(limit: int | None = None) -> list[dict]:
+    """``closed_orders`` with a one-shot completed-orders warm-up on empty.
+
+    Covers a UI reading ``GET /api/ibkr/orders/closed`` before (or racing)
+    the post-connect ``refresh_completed_orders_cache`` warm finishes. Only
+    warms when the first read is empty *and* still connected; still raises
+    ``IbkrAccountError`` like ``closed_orders`` when disconnected.
+    """
+    rows = closed_orders(limit=limit)
+    if rows or _client.get_ib() is None:
+        return rows
+    from ibkr import account as _account
+
+    await _account.refresh_completed_orders_cache()
+    return closed_orders(limit=limit)
+
+
 def _nonzero_price(value) -> float | None:
     """IB often sends 0.0 for unused LMT/STP fields — expose as null."""
     if value is None:
@@ -339,9 +360,19 @@ def _trade_to_order_row(trade) -> dict:
     from ibkr.order_times import extract_trade_times, resolve_submitted_at
 
     status = trade.orderStatus
+    qty = trade.order.totalQuantity
     filled = getattr(status, "filled", None)
     remaining = getattr(status, "remaining", None)
     avg_fill = getattr(status, "avgFillPrice", None)
+    filled_qty = float(filled) if filled is not None else 0.0
+    remaining_qty = float(remaining) if remaining is not None else None
+    # Trades created from reqCompletedOrdersAsync for an order this API
+    # session never saw live carry status="Filled" but IBKR does not
+    # backfill orderStatus.filled/remaining for them — infer the honest
+    # fill qty from the order total rather than show "Filled" + "0 filled".
+    if status.status == "Filled" and filled_qty == 0.0 and qty:
+        filled_qty = float(qty)
+        remaining_qty = 0.0
     broker_submitted, updated_at, filled_at = extract_trade_times(trade)
     oid = trade.order.orderId
     submitted_at = resolve_submitted_at(broker_submitted, oid)
@@ -349,9 +380,9 @@ def _trade_to_order_row(trade) -> dict:
         "order_id": oid,
         "symbol": trade.contract.symbol,
         "side": trade.order.action,
-        "qty": trade.order.totalQuantity,
-        "filled_qty": float(filled) if filled is not None else 0.0,
-        "remaining_qty": float(remaining) if remaining is not None else None,
+        "qty": qty,
+        "filled_qty": filled_qty,
+        "remaining_qty": remaining_qty,
         "order_type": trade.order.orderType,
         "limit_price": _nonzero_price(getattr(trade.order, "lmtPrice", None)),
         "stop_price": _nonzero_price(getattr(trade.order, "auxPrice", None)),

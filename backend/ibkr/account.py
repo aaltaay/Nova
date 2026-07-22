@@ -9,12 +9,25 @@ backed only by ``ib.positions()`` (never portfolio alone).
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from ibkr import client as _client
 from ibkr.errors import IbkrAccountError, describe_exc
 
 logger = logging.getLogger(__name__)
+
+# Guards reqCompletedOrdersAsync from concurrent overlap (see
+# refresh_completed_orders_cache) — ib_async can hang if the same request
+# type is in flight twice at once.
+_completed_orders_lock: asyncio.Lock | None = None
+
+
+def _completed_orders_guard() -> asyncio.Lock:
+    global _completed_orders_lock
+    if _completed_orders_lock is None:
+        _completed_orders_lock = asyncio.Lock()
+    return _completed_orders_lock
 
 _SUMMARY_TAGS = (
     "NetLiquidation",
@@ -226,6 +239,42 @@ async def refresh_positions_cache() -> None:
             "IBKR: positions cache refresh failed (long_qty may see empty): %s",
             describe_exc(exc),
         )
+
+
+async def refresh_completed_orders_cache() -> None:
+    """Best-effort ``reqCompletedOrdersAsync(apiOnly=False)`` after connect so
+    ``ib.trades()`` (and therefore Closed Orders) includes terminal orders
+    from *before* this API session connected — e.g. a position opened via
+    TWS/manual order, or a fill that happened across a Gateway/API restart.
+    ``apiOnly=False`` matches Positions, which also surfaces manual fills.
+
+    Single-flighted: overlapping callers serialize on the same lock rather
+    than firing a second concurrent ``reqCompletedOrdersAsync`` — ib_async
+    can hang if that request type is in flight twice at once. Logged on
+    failure only; callers still fail closed via ``closed_orders()``'s own
+    disconnect check, never silently substituting an empty result here.
+    """
+    ib = _client.get_ib()
+    if ib is None:
+        return
+    req = getattr(ib, "reqCompletedOrdersAsync", None)
+    if req is None:
+        return
+    from constants_ibkr import IBKR_COMPLETED_ORDERS_TIMEOUT_SEC
+
+    async with _completed_orders_guard():
+        try:
+            await asyncio.wait_for(
+                req(False),
+                timeout=float(IBKR_COMPLETED_ORDERS_TIMEOUT_SEC),
+            )
+            logger.info("IBKR: completed-orders cache refreshed after connect")
+        except Exception as exc:
+            logger.warning(
+                "IBKR: completed-orders cache refresh failed (Closed Orders "
+                "may miss pre-session fills): %s",
+                describe_exc(exc),
+            )
 
 
 def get_portfolio() -> list[dict]:

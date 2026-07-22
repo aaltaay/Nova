@@ -70,6 +70,10 @@ IBKR_CLOSED_ORDER_STATUSES = frozenset({
 })
 # Max rows returned by GET /api/ibkr/orders/closed (session trades only).
 IBKR_CLOSED_ORDERS_LIMIT_DEFAULT = 100
+# Hard ceiling for reqCompletedOrdersAsync — Read-Only Gateway / wedged API
+# can hang forever without this; reconnect loop and GET /orders/closed both
+# await the warm-up and must not block the event loop indefinitely.
+IBKR_COMPLETED_ORDERS_TIMEOUT_SEC = 10.0
 
 # User-initiated Gateway launch (header double-click → POST /api/ibkr/launch-gateway).
 # Override with IBKR_GATEWAY_EXE; otherwise newest ibgateway.exe under IBKR_GATEWAY_ROOT.

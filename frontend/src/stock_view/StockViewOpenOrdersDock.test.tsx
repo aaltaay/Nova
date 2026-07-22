@@ -11,6 +11,7 @@ import {
   STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
   STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY,
 } from '../constants';
+import type { ClosedOrder } from '../closed_orders/types';
 import type { IbkrOrder, IbkrPosition } from '../ibkr/types';
 import { StockViewOpenOrdersDock } from './StockViewOpenOrdersDock';
 
@@ -18,8 +19,19 @@ vi.mock('../ibkr/useIbkrStatus', () => ({
   useIbkrStatus: () => ({ connected: false, mode: 'paper' }),
 }));
 
+// `vi.hoisted` state so individual tests can set real closed orders — see
+// `mockClosedOrdersState` usage below (`vi.mock` factories are hoisted above
+// module-scope `let`/`const`, so a plain outer variable would be undefined).
+const { mockClosedOrdersState } = vi.hoisted(() => ({
+  mockClosedOrdersState: { orders: [] as ClosedOrder[] },
+}));
+
 vi.mock('../closed_orders/useClosedOrders', () => ({
-  useClosedOrders: () => ({ orders: [], loading: false, refresh: () => {} }),
+  useClosedOrders: () => ({
+    orders: mockClosedOrdersState.orders,
+    loading: false,
+    refresh: () => {},
+  }),
 }));
 
 vi.mock('./TraderNovaOsBrain', () => ({
@@ -41,6 +53,24 @@ const ORDER: IbkrOrder = {
   avg_fill_price: null,
   outside_rth: false,
   status: 'Submitted',
+};
+
+const CLOSED_AAPL: ClosedOrder = {
+  order_id: 501,
+  symbol: 'AAPL',
+  side: 'BUY',
+  qty: 50,
+  filled_qty: 50,
+  remaining_qty: 0,
+  order_type: 'MKT',
+  limit_price: null,
+  stop_price: null,
+  avg_fill_price: 190.2,
+  outside_rth: false,
+  status: 'Filled',
+  submitted_at: '2026-07-21T13:00:00.000Z',
+  updated_at: '2026-07-21T13:00:05.000Z',
+  filled_at: '2026-07-21T13:00:05.000Z',
 };
 
 const POSITION: IbkrPosition = {
@@ -69,6 +99,7 @@ describe('StockViewOpenOrdersDock', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    mockClosedOrdersState.orders = [];
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -96,6 +127,20 @@ describe('StockViewOpenOrdersDock', () => {
     ).toBeTruthy();
     expect(container.textContent).toContain('90001');
     expect(localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY)).toBe('0');
+  });
+
+  it('Orders badge counts real closed orders for a pre-existing position with no working order', () => {
+    localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY, '1');
+    mockClosedOrdersState.orders = [CLOSED_AAPL];
+    act(() => {
+      root.render(<StockViewOpenOrdersDock {...baseProps} />);
+    });
+    const ordersTab = container.querySelector(
+      '[data-testid="stock-view-dock-tab-orders"]',
+    );
+    expect(ordersTab?.querySelector('.sv-open-orders-dock__count')?.textContent).toBe(
+      '1',
+    );
   });
 
   it('auto-expands when highlightOrderId is set after place', () => {

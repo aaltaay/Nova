@@ -454,6 +454,17 @@ export const STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER =
  * Segmented: Working | Filled | Canceled | Partial Filled | All.
  */
 export const ORDERS_TODAY_TITLE = 'Orders (Today)';
+/**
+ * Empty-state copy split by *why* the tab is empty, so a real position with
+ * no matching orders (symbol/filter mismatch) never looks identical to a
+ * Gateway with genuinely zero completed orders for the day — see
+ * `backend/ibkr/account.py:refresh_completed_orders_cache`.
+ */
+export const ORDERS_TODAY_EMPTY_MESSAGE =
+  'No completed orders from Gateway yet today.';
+export function ordersTodayEmptySymbolMessage(symbol: string): string {
+  return `No orders for ${symbol} in this filter today.`;
+}
 /** Stock View bottom dock: Positions | Orders (Today) | Nova OS. */
 export type StockViewDockSurface = 'positions' | 'orders' | 'nova_os';
 export const STOCK_VIEW_DOCK_SURFACE_KEY = 'nova.stockView.dock.surface';

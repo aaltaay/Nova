@@ -1,5 +1,14 @@
 /** Collapsible Stock View Positions / Orders / Nova OS strip (WID-019 / 026 / 027). */
 import { useEffect, useMemo, useState } from 'react';
+import { useClosedOrders } from '../closed_orders/useClosedOrders';
+import {
+  ORDERS_TODAY_TITLE,
+  STOCK_VIEW_MODULE_NOVA_OS_TITLE,
+  STOCK_VIEW_MODULE_POSITIONS_TITLE,
+  STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER,
+  STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY,
+  type StockViewDockSurface,
+} from '../constants';
 import { PositionsPanel } from '../ibkr/PositionsPanel';
 import { buildMockWorkingOrders } from '../ibkr/mockWorkingOrders';
 import type {
@@ -8,24 +17,17 @@ import type {
   IbkrOrder,
   IbkrPosition,
 } from '../ibkr/types';
-import { OrdersTodayView } from '../orders_today';
+import { OrdersTodayView, ordersTodayBadgeCount } from '../orders_today';
 import type { OrdersTodayFilter } from '../orders_today';
 import {
-  ORDERS_TODAY_FILTER_DEFAULT,
-  ORDERS_TODAY_FILTER_STORAGE_KEY,
-  ORDERS_TODAY_TITLE,
-  STOCK_VIEW_DOCK_SURFACE_DEFAULT,
-  STOCK_VIEW_DOCK_SURFACE_KEY,
-  STOCK_VIEW_MODULE_NOVA_OS_TITLE,
-  STOCK_VIEW_MODULE_POSITIONS_TITLE,
-  STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
-  STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED,
-  STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER,
-  STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY,
-  STOCK_VIEW_ORDERS_TAB_KEY,
-  type OrdersTodayFilterId,
-  type StockViewDockSurface,
-} from '../constants';
+  readCollapsed,
+  readFilter,
+  readSampleHidden,
+  readSurface,
+  writeCollapsed,
+  writeFilter,
+  writeSurface,
+} from './stockViewDockPersist';
 import { TraderNovaOsBrain } from './TraderNovaOsBrain';
 
 type Props = {
@@ -46,88 +48,6 @@ type Props = {
   highlightOrderId?: number | null;
   onCollapsedChange?: (collapsed: boolean) => void;
 };
-
-function readCollapsed(): boolean {
-  try {
-    const raw = localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY);
-    if (raw === '1') return true;
-    if (raw === '0') return false;
-  } catch {
-    /* private mode */
-  }
-  return STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED;
-}
-
-function writeCollapsed(collapsed: boolean): void {
-  try {
-    localStorage.setItem(
-      STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
-      collapsed ? '1' : '0',
-    );
-  } catch {
-    /* ignore */
-  }
-}
-
-function readSampleHidden(): boolean {
-  try {
-    return localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function migrateLegacyTab(raw: string | null): OrdersTodayFilterId | null {
-  if (raw === 'open') return 'working';
-  if (raw === 'closed') return 'all';
-  return null;
-}
-
-function readFilter(): OrdersTodayFilterId {
-  try {
-    const raw = localStorage.getItem(ORDERS_TODAY_FILTER_STORAGE_KEY);
-    if (
-      raw === 'working' ||
-      raw === 'filled' ||
-      raw === 'canceled' ||
-      raw === 'partial_filled' ||
-      raw === 'all'
-    ) {
-      return raw;
-    }
-    const legacy = migrateLegacyTab(localStorage.getItem(STOCK_VIEW_ORDERS_TAB_KEY));
-    if (legacy) return legacy;
-  } catch {
-    /* ignore */
-  }
-  return ORDERS_TODAY_FILTER_DEFAULT;
-}
-
-function writeFilter(filter: OrdersTodayFilterId): void {
-  try {
-    localStorage.setItem(ORDERS_TODAY_FILTER_STORAGE_KEY, filter);
-  } catch {
-    /* ignore */
-  }
-}
-
-function readSurface(): StockViewDockSurface {
-  try {
-    const raw = localStorage.getItem(STOCK_VIEW_DOCK_SURFACE_KEY);
-    if (raw === 'positions' || raw === 'orders' || raw === 'nova_os') return raw;
-  } catch {
-    /* ignore */
-  }
-  return STOCK_VIEW_DOCK_SURFACE_DEFAULT;
-}
-
-function writeSurface(surface: StockViewDockSurface): void {
-  try {
-    localStorage.setItem(STOCK_VIEW_DOCK_SURFACE_KEY, surface);
-  } catch {
-    /* ignore */
-  }
-}
 
 export function StockViewOpenOrdersDock({
   symbol,
@@ -155,6 +75,8 @@ export function StockViewOpenOrdersDock({
     onCollapsedChange?.(collapsed);
   }, [collapsed, onCollapsedChange]);
 
+  const { orders: closedOrders } = useClosedOrders(connected);
+
   const symbolKey = symbol.toUpperCase();
   const symbolOrders = useMemo(
     () => orders.filter((o) => o.symbol.toUpperCase() === symbolKey),
@@ -169,7 +91,13 @@ export function StockViewOpenOrdersDock({
     () => (usingSample ? buildMockWorkingOrders(symbolKey) : orders),
     [usingSample, symbolKey, orders],
   );
-  const openCount = usingSample ? displayOrders.length : symbolOrders.length;
+  // Real closed only (never sample) — see ordersTodayBadgeCount.
+  const openCount = ordersTodayBadgeCount(
+    displayOrders,
+    closedOrders,
+    filter,
+    symbolKey,
+  );
   const positionCount = positions.length;
 
   useEffect(() => {
@@ -386,6 +314,7 @@ export function StockViewOpenOrdersDock({
                 symbol={symbolKey}
                 workingOrders={displayOrders}
                 usingWorkingSample={usingSample}
+                closedOrders={closedOrders}
                 onCancelOrder={onCancelOrder}
                 onFillImmediately={onFillImmediately}
                 highlightOrderId={highlightOrderId}

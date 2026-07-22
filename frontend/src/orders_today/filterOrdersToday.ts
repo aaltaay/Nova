@@ -1,7 +1,8 @@
 /**
  * Orders (Today) bucket filters — Working / Filled / Canceled / Partial / All.
  */
-import type { ClosedOrdersFilter } from '../closed_orders/types';
+import { filterClosedOrders } from '../closed_orders/filterClosedOrders';
+import type { ClosedOrder, ClosedOrdersFilter } from '../closed_orders/types';
 import { formatOrderStatus } from '../ibkr/orderDisplay';
 import type { IbkrOrder } from '../ibkr/types';
 import type { OrdersTodayFilter } from './types';
@@ -60,4 +61,35 @@ export function showWorkingForToday(filter: OrdersTodayFilter): boolean {
   return (
     filter === 'working' || filter === 'all' || filter === 'partial_filled'
   );
+}
+
+/**
+ * Closed-side rows for the selected Orders (Today) segment — the single
+ * source of truth for both the empty-state gate and the rendered
+ * `ClosedOrdersPanel`, so they can never disagree (double empty-state).
+ */
+export function closedRowsForToday(
+  orders: ClosedOrder[],
+  filter: OrdersTodayFilter,
+  symbol?: string | null,
+): ClosedOrder[] {
+  const closedStatusFilter = closedFilterFromToday(filter);
+  if (!closedStatusFilter) return [];
+  return filterClosedOrders(orders, closedStatusFilter, symbol);
+}
+
+/**
+ * Orders tab badge = symbol-scoped working + *real* closed for the active
+ * filter. Never counts closed sample rows (caller must pass live closed only).
+ */
+export function ordersTodayBadgeCount(
+  workingOrders: IbkrOrder[],
+  closedOrders: ClosedOrder[],
+  filter: OrdersTodayFilter,
+  symbol?: string | null,
+): number {
+  const working = showWorkingForToday(filter)
+    ? filterWorkingForToday(workingOrders, filter, symbol).length
+    : 0;
+  return working + closedRowsForToday(closedOrders, filter, symbol).length;
 }

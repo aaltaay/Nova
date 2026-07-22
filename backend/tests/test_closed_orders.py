@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -62,3 +63,67 @@ def test_closed_orders_raises_when_disconnected(monkeypatch):
     monkeypatch.setattr(orders_mod._client, "get_ib", lambda: None)
     with pytest.raises(IbkrAccountError, match="not connected"):
         orders_mod.closed_orders()
+
+
+def test_closed_orders_infers_filled_qty_for_warm_completed_order():
+    """A Trade sourced from reqCompletedOrdersAsync (order never seen live by
+    this API session) carries status="Filled" but IBKR does not backfill
+    orderStatus.filled/remaining for it — must not show "Filled" + "0 filled"."""
+    trade = _trade(1, "AAA", "Filled", filled=0)
+    row = orders_mod._trade_to_order_row(trade)
+    assert row["status"] == "Filled"
+    assert row["filled_qty"] == 100.0
+    assert row["remaining_qty"] == 0.0
+
+
+def test_closed_orders_keeps_real_partial_fill_qty():
+    """A genuinely tracked partial fill must not be overwritten by the
+    Filled-with-zero inference (status is not "Filled" here)."""
+    trade = _trade(1, "AAA", "ApiCancelled", filled=25)
+    row = orders_mod._trade_to_order_row(trade)
+    assert row["filled_qty"] == 25.0
+    assert row["remaining_qty"] == 75.0
+
+
+def test_closed_orders_async_returns_directly_when_non_empty(monkeypatch):
+    trades = [_trade(1, "AAA", "Filled", filled=100)]
+    monkeypatch.setattr(orders_mod._client, "get_ib", lambda: SimpleNamespace(trades=lambda: trades))
+    calls = {"refresh": 0}
+
+    async def fake_refresh():
+        calls["refresh"] += 1
+
+    import ibkr.account as account_mod
+    monkeypatch.setattr(account_mod, "refresh_completed_orders_cache", fake_refresh)
+
+    rows = asyncio.run(orders_mod.closed_orders_async())
+    assert len(rows) == 1
+    assert calls["refresh"] == 0
+
+
+def test_closed_orders_async_warms_once_when_empty_then_populated(monkeypatch):
+    """Empty on first read (e.g. UI mounted just before the connect-time warm
+    finished) → one single-flighted refresh, then a real re-read."""
+    state = {"trades": []}
+    monkeypatch.setattr(
+        orders_mod._client, "get_ib", lambda: SimpleNamespace(trades=lambda: state["trades"]),
+    )
+    calls = {"refresh": 0}
+
+    async def fake_refresh():
+        calls["refresh"] += 1
+        state["trades"] = [_trade(1, "AAA", "Filled", filled=100)]
+
+    import ibkr.account as account_mod
+    monkeypatch.setattr(account_mod, "refresh_completed_orders_cache", fake_refresh)
+
+    rows = asyncio.run(orders_mod.closed_orders_async())
+    assert calls["refresh"] == 1
+    assert len(rows) == 1
+    assert rows[0]["symbol"] == "AAA"
+
+
+def test_closed_orders_async_raises_when_disconnected_without_warming(monkeypatch):
+    monkeypatch.setattr(orders_mod._client, "get_ib", lambda: None)
+    with pytest.raises(IbkrAccountError, match="not connected"):
+        asyncio.run(orders_mod.closed_orders_async())

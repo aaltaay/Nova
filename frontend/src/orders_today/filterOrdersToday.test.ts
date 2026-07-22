@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import type { ClosedOrder } from '../closed_orders/types';
 import type { IbkrOrder } from '../ibkr/types';
 import {
   closedFilterFromToday,
+  closedRowsForToday,
   filterWorkingForToday,
+  ordersTodayBadgeCount,
   showWorkingForToday,
 } from './filterOrdersToday';
 
@@ -47,5 +50,30 @@ describe('filterOrdersToday', () => {
     ).toEqual([2]);
     expect(filterWorkingForToday(rows, 'filled')).toEqual([]);
     expect(filterWorkingForToday(rows, 'all', 'msft')).toEqual([]);
+  });
+
+  it('closedRowsForToday returns [] when the segment hides closed rows', () => {
+    const closed: ClosedOrder[] = [{ ...WORKING, order_id: 3, status: 'Filled', filled_qty: 100 }];
+    expect(closedRowsForToday(closed, 'working')).toEqual([]);
+  });
+
+  it('closedRowsForToday applies the same status + symbol filter as the panel', () => {
+    const closed: ClosedOrder[] = [
+      { ...WORKING, order_id: 3, status: 'Filled', filled_qty: 100 },
+      { ...WORKING, order_id: 4, symbol: 'MSFT', status: 'Cancelled', filled_qty: 0 },
+    ];
+    expect(closedRowsForToday(closed, 'all', 'AAPL').map((o) => o.order_id)).toEqual([3]);
+    expect(closedRowsForToday(closed, 'filled', 'AAPL').map((o) => o.order_id)).toEqual([3]);
+    expect(closedRowsForToday(closed, 'canceled', 'AAPL')).toEqual([]);
+  });
+
+  it('ordersTodayBadgeCount sums working + closed for the active filter', () => {
+    const closed: ClosedOrder[] = [
+      { ...WORKING, order_id: 3, status: 'Filled', filled_qty: 100, remaining_qty: 0 },
+    ];
+    expect(ordersTodayBadgeCount([WORKING], closed, 'all', 'AAPL')).toBe(2);
+    expect(ordersTodayBadgeCount([], closed, 'all', 'AAPL')).toBe(1);
+    expect(ordersTodayBadgeCount([WORKING], closed, 'working', 'AAPL')).toBe(1);
+    expect(ordersTodayBadgeCount([WORKING], closed, 'filled', 'AAPL')).toBe(1);
   });
 });

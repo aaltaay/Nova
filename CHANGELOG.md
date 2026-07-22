@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-22 — Orders (Today): warm completed orders + honest badge/empty
+
+- **What:** Closed Orders now warms from IBKR `reqCompletedOrdersAsync` after every Gateway connect (same lifecycle as positions). Orders (Today) badge counts symbol-scoped **working + real closed** for the active filter; empty copy distinguishes “no completed orders from Gateway yet” vs “no orders for this symbol in this filter.”
+- **Why:** Positions could show an open long while Orders (Today) stayed empty — Closed Orders only saw fills witnessed on the current API socket, never Gateway’s completed-order stream. Badge was working-only; empty gate ignored symbol filter.
+- **Files touched:** `backend/ibkr/account.py` (`refresh_completed_orders_cache`, single-flight + timeout), `backend/ibkr/client.py`, `backend/ibkr/orders.py` (`closed_orders_async`, Filled-qty inference), `backend/routes/trading.py`, `backend/constants_ibkr.py` (`IBKR_COMPLETED_ORDERS_TIMEOUT_SEC`); `frontend/src/orders_today/*`, `frontend/src/stock_view/StockViewOpenOrdersDock.tsx`, `stockViewDockPersist.ts`, `constantGroups/chart_api.ts`.
+- **How it works now:** Connect → `reqPositionsAsync` + `reqCompletedOrdersAsync(False)` under a lock and 10s ceiling. ib_async merges completed trades into `ib.trades()`; `closed_orders()` filters terminal statuses as before. First empty `GET /api/ibkr/orders/closed` retries one warm. Trades that arrive as `Filled` with zero fill counters get `filled_qty = qty`. UI badge uses `ordersTodayBadgeCount` (never closed sample rows).
+- **Verified by:** pytest `test_closed_orders` / `test_ibkr_account` (timeout + single-flight); Vitest orders_today + dock badge; live log `completed-orders cache refreshed after connect`; `GET /orders/closed` returns promptly. **No live trades placed.** Remaining fractional IBKR position with empty closed list is consistent with IBKR having no *session* completed orders for today.
+- **Follow-ups:** If a same-day fill is still missing after Read-Write API is confirmed, check Gateway completed-order retention for that fill — not a silent empty disguise.
+- **Related:** PROBLEM_LOG 2026-07-22 completed-orders hang; task-log `knowledge/task-log/2026-07-22-orders-today-completed-orders.md`.
+
 ## 2026-07-22 — Closed Orders "Time Filled" column (real broker fill clock)
 
 - **What:** Closed Orders now has a dedicated first column, **Time Filled**, showing IBKR's real fill clock (max `Trade.fills[].execution.time`) separate from the existing audit-grade **Time Placed** (`submitted_at`, unchanged). Shows `—` for orders that never filled (straight cancel/reject); shows the real fill time for filled and partial-then-cancelled rows.
