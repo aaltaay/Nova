@@ -28,8 +28,9 @@ describe('orderTableColumns', () => {
     ]);
   });
 
-  it('defaults closed columns to mirror open (time first, status after qty)', () => {
+  it('defaults closed columns to Time Filled first, then mirror open (time, status after qty)', () => {
     expect(DEFAULT_CLOSED_ORDER_COLUMNS).toEqual([
+      'filled_at',
       'time',
       'type',
       'symbol',
@@ -75,6 +76,8 @@ describe('orderTableColumns', () => {
     expect(WORKING_COLUMN_META.remaining.title).toMatch(/Fill now/i);
     expect(WORKING_COLUMN_META.avg_fill.title).toMatch(/Average fill/i);
     expect(CLOSED_COLUMN_META.filled.title).toMatch(/partial cancel/i);
+    expect(CLOSED_COLUMN_META.filled_at.label).toBe('Time Filled');
+    expect(CLOSED_COLUMN_META.filled_at.title).toMatch(/fill time/i);
   });
 
   it('parses persisted store JSON', () => {

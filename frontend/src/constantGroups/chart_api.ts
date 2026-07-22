@@ -415,7 +415,7 @@ export const FILL_WORKING_ORDER_CONFIRM_PREFIX =
   'Fill now will cancel the resting order and market the remaining shares';
 /** localStorage JSON: working/closed/positions column order (drag headers). */
 /** Bump when default Open/Closed Orders column order changes (invalidates old layouts). */
-export const ORDER_TABLE_COLUMNS_STORAGE_KEY = 'nova.ibkr.orderTable.columns.v4';
+export const ORDER_TABLE_COLUMNS_STORAGE_KEY = 'nova.ibkr.orderTable.columns.v5';
 export const ORDER_TABLE_COLUMN_DRAG_HINT =
   'Drag to reorder columns · Double-click header to reset';
 /** Persisted row-sort stack for working/closed order tables. */
@@ -436,6 +436,7 @@ export const ORDER_TABLE_DATA_SORT_KEYS = [
   'stop',
   'avg_fill',
   'order_id',
+  'filled_at',
 ] as const;
 /** localStorage: `1` = Stock View open-orders dock collapsed. */
 export const STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY =

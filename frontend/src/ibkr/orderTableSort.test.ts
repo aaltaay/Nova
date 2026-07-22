@@ -34,6 +34,9 @@ describe('orderTableSort', () => {
     expect(cycleOrderSort([], 'time', false)).toEqual([
       { key: 'time', dir: 'desc' },
     ]);
+    expect(cycleOrderSort([], 'filled_at', false)).toEqual([
+      { key: 'filled_at', dir: 'desc' },
+    ]);
   });
 
   it('supports Shift+click multi-sort stack', () => {
@@ -121,5 +124,34 @@ describe('orderTableSort', () => {
       'closed',
     );
     expect(sorted.map((o) => o.order_id)).toEqual([2, 1]);
+  });
+
+  it('sorts closed Time Filled by filled_at, missing (never filled) last', () => {
+    const orders = [
+      row({
+        order_id: 1,
+        status: 'Filled',
+        submitted_at: '2026-07-19T15:00:00.000Z',
+        filled_at: '2026-07-19T15:05:00.000Z',
+      }),
+      row({
+        order_id: 2,
+        status: 'Cancelled',
+        submitted_at: '2026-07-19T14:00:00.000Z',
+        filled_at: null,
+      }),
+      row({
+        order_id: 3,
+        status: 'Filled',
+        submitted_at: '2026-07-19T13:00:00.000Z',
+        filled_at: '2026-07-19T13:02:00.000Z',
+      }),
+    ];
+    const sorted = sortOrders(
+      orders,
+      [{ key: 'filled_at', dir: 'asc' }],
+      'closed',
+    );
+    expect(sorted.map((o) => o.order_id)).toEqual([3, 1, 2]);
   });
 });

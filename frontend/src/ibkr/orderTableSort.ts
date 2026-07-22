@@ -4,7 +4,7 @@
  * status / type / session (not raw IBKR wire strings).
  */
 import { ORDER_TABLE_DATA_SORT_KEYS } from '../constants';
-import { formatOrderStatus, orderSubmittedIso } from './orderDisplay';
+import { formatOrderStatus, orderFilledIso, orderSubmittedIso } from './orderDisplay';
 import type { IbkrOrder } from './types';
 
 export type OrderSortDir = 'asc' | 'desc';
@@ -65,6 +65,13 @@ function timeMs(o: IbkrOrder, _mode: OrderSortMode): number {
   return Number.isFinite(ms) ? ms : Number.NaN;
 }
 
+function filledAtMs(o: IbkrOrder): number {
+  const iso = orderFilledIso(o);
+  if (!iso) return Number.NaN;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : Number.NaN;
+}
+
 function num(v: number | null | undefined): number {
   return v != null && Number.isFinite(v) ? v : Number.NaN;
 }
@@ -90,6 +97,10 @@ export function compareOrderField(
     case 'time':
       av = timeMs(a, mode);
       bv = timeMs(b, mode);
+      break;
+    case 'filled_at':
+      av = filledAtMs(a);
+      bv = filledAtMs(b);
       break;
     case 'qty':
       av = num(a.qty);
@@ -152,7 +163,7 @@ export function cycleOrderSort(
   key: OrderSortKey,
   additive: boolean,
 ): OrderSortState {
-  const firstDir: OrderSortDir = key === 'time' ? 'desc' : 'asc';
+  const firstDir: OrderSortDir = key === 'time' || key === 'filled_at' ? 'desc' : 'asc';
 
   if (additive) {
     const idx = state.findIndex((s) => s.key === key);

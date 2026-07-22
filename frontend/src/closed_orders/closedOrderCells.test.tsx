@@ -123,4 +123,18 @@ describe('closedOrderCells — column contract', () => {
     expect(text).not.toMatch(/09:41:23/);
     expect(html).toContain(`datetime="${FILLED.submitted_at}"`);
   });
+
+  it('Time Filled uses filled_at when the order filled', () => {
+    const filledRow = { ...FILLED, filled_at: '2026-07-18T13:41:23.000Z' };
+    const { text, html } = renderCell('filled_at', filledRow);
+    expect(text).toBe(formatOrderDateTime(filledRow.filled_at));
+    expect(text).toMatch(/09:41:23/);
+    expect(html).toContain(`datetime="${filledRow.filled_at}"`);
+  });
+
+  it('Time Filled shows — when the order never filled', () => {
+    const { text, html } = renderCell('filled_at', { ...PARTIAL_CANCEL, filled_at: null });
+    expect(text).toBe('—');
+    expect(html).not.toContain('datetime=');
+  });
 });

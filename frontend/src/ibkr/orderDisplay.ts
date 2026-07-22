@@ -177,6 +177,19 @@ export function orderActivityIso(order: {
   return order.updated_at || order.submitted_at || null;
 }
 
+/** Time Filled — real broker fill clock; null when the order never filled. */
+export function orderFilledIso(order: { filled_at?: string | null }): string | null {
+  return order.filled_at || null;
+}
+
+export function orderFilledTimeTitle(order: { filled_at?: string | null }): string {
+  const filled = formatOrderDateTime(order.filled_at);
+  if (filled === '—') {
+    return 'Time Filled — order never filled';
+  }
+  return `Time Filled ${filled} (broker fill clock)`;
+}
+
 export function orderSubmittedTimeTitle(order: {
   submitted_at?: string | null;
   updated_at?: string | null;

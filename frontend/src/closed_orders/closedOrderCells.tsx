@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import {
   formatOrderDateTime,
   formatOrderType,
+  orderFilledTimeTitle,
   orderSubmittedTimeTitle,
 } from '../ibkr/orderDisplay';
 import type { ClosedOrderColumnId } from '../ibkr/orderTableColumns';
@@ -94,6 +95,14 @@ export function renderClosedOrderCell(
         <td key={col} className="ibkr-col--time" title={orderSubmittedTimeTitle(o)}>
           <time dateTime={ctx.placedIso ?? undefined}>
             {formatOrderDateTime(ctx.placedIso)}
+          </time>
+        </td>
+      );
+    case 'filled_at':
+      return (
+        <td key={col} className="ibkr-col--time" title={orderFilledTimeTitle(o)}>
+          <time dateTime={o.filled_at ?? undefined}>
+            {formatOrderDateTime(o.filled_at)}
           </time>
         </td>
       );

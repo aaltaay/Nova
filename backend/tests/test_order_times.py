@@ -70,9 +70,26 @@ def test_extract_trade_times_prefers_last_fill():
             ),
         ],
     )
-    submitted, updated = extract_trade_times(trade)
+    submitted, updated, filled_at = extract_trade_times(trade)
     assert submitted is not None and submitted.startswith("2026-07-18T13:30:00")
     assert updated is not None and updated.startswith("2026-07-18T13:41:23")
+    assert filled_at is not None and filled_at.startswith("2026-07-18T13:41:23")
+
+
+def test_extract_trade_times_filled_at_none_when_no_fills():
+    et = ZoneInfo("America/New_York")
+    trade = SimpleNamespace(
+        log=[
+            SimpleNamespace(time=datetime(2026, 7, 18, 9, 30, 0, tzinfo=et)),
+            SimpleNamespace(time=datetime(2026, 7, 18, 9, 32, 0, tzinfo=et)),
+        ],
+        fills=[],
+    )
+    submitted, updated, filled_at = extract_trade_times(trade)
+    assert submitted is not None and submitted.startswith("2026-07-18T13:30:00")
+    # updated_at still falls back to last log time (cancel) when there are no fills.
+    assert updated is not None and updated.startswith("2026-07-18T13:32:00")
+    assert filled_at is None
 
 
 def test_wall_utc_now_iso_is_zulu():

@@ -105,8 +105,13 @@ def _to_iso(value: Any) -> str | None:
     return None
 
 
-def extract_trade_times(trade: Any) -> tuple[str | None, str | None]:
-    """Return (submitted_at, updated_at) ISO strings; either may be None."""
+def extract_trade_times(trade: Any) -> tuple[str | None, str | None, str | None]:
+    """Return (submitted_at, updated_at, filled_at) ISO strings; any may be None.
+
+    `filled_at` is the real broker fill clock (max of `Trade.fills[].execution.time`)
+    and is `None` whenever the order never filled (straight cancel/reject) — callers
+    must not fall back to log/cancel time here; `updated_at` already covers that.
+    """
     log_times: list[Any] = []
     for entry in getattr(trade, "log", None) or []:
         t = getattr(entry, "time", None)
@@ -121,16 +126,16 @@ def extract_trade_times(trade: Any) -> tuple[str | None, str | None]:
 
     submitted = _to_iso(log_times[0]) if log_times else None
 
-    last_raw: Any = None
+    last_fill_raw: Any = None
     if fill_times:
         try:
-            last_raw = max(fill_times)
+            last_fill_raw = max(fill_times)
         except TypeError:
-            last_raw = fill_times[-1]
-    elif log_times:
-        last_raw = log_times[-1]
+            last_fill_raw = fill_times[-1]
 
-    return submitted, _to_iso(last_raw)
+    last_raw = last_fill_raw if last_fill_raw is not None else (log_times[-1] if log_times else None)
+
+    return submitted, _to_iso(last_raw), _to_iso(last_fill_raw)
 
 
 def audit_log_placed(

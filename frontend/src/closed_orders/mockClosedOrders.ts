@@ -21,33 +21,42 @@ export const MOCK_CLOSED_IBKR_STATUSES = [
 ] as const;
 
 export const MOCK_CLOSED_TIMES = {
+  // Filled → filled_at set (equals fill activity). Cancel/Inactive with zero
+  // fills → filled_at null. Partial-then-cancel still filled_at set (real fill).
   9001: {
     submitted_at: '2026-07-18T12:00:00.000Z',
     updated_at: '2026-07-18T12:05:00.000Z',
+    filled_at: '2026-07-18T12:05:00.000Z',
   },
   9002: {
     submitted_at: '2026-07-18T12:10:00.000Z',
     updated_at: '2026-07-18T12:11:00.000Z',
+    filled_at: '2026-07-18T12:11:00.000Z',
   },
   9003: {
     submitted_at: '2026-07-18T12:20:00.000Z',
     updated_at: '2026-07-18T12:25:00.000Z',
+    filled_at: null,
   },
   9004: {
     submitted_at: '2026-07-18T12:30:00.000Z',
     updated_at: '2026-07-18T12:40:00.000Z',
+    filled_at: '2026-07-18T12:40:00.000Z',
   },
   9005: {
     submitted_at: '2026-07-18T12:45:00.000Z',
     updated_at: '2026-07-18T12:50:00.000Z',
+    filled_at: '2026-07-18T12:50:00.000Z',
   },
   9006: {
     submitted_at: '2026-07-18T13:00:00.000Z',
     updated_at: '2026-07-18T13:01:00.000Z',
+    filled_at: null,
   },
   9007: {
     submitted_at: '2026-07-18T13:10:00.000Z',
     updated_at: '2026-07-18T13:12:00.000Z',
+    filled_at: null,
   },
   /** Fixed Time Placed for the recent-highlight demo row. */
   9008: {
@@ -191,6 +200,7 @@ export function buildMockClosedOrders(symbol?: string | null): ClosedOrder[] {
       status: 'Filled',
       submitted_at: MOCK_CLOSED_TIMES[9008].submitted_at,
       updated_at: MOCK_RECENT_ACTIVITY_AT,
+      filled_at: MOCK_RECENT_ACTIVITY_AT,
     },
   ];
 }

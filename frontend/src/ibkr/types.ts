@@ -73,6 +73,8 @@ export interface IbkrOrder {
   submitted_at?: string | null;
   /** ISO-8601 UTC of last fill or last status change (prefer fill time). */
   updated_at?: string | null;
+  /** ISO-8601 UTC of the last real broker fill; null when the order never filled. */
+  filled_at?: string | null;
 }
 
 export interface DepthLevel {

@@ -134,7 +134,7 @@ def place_order(
         )
 
         nova_placed = remember_nova_placed(oid)
-        broker_submitted, _ = extract_trade_times(trade)
+        broker_submitted, _, _ = extract_trade_times(trade)
         submitted_at = resolve_submitted_at(broker_submitted, oid)
         price = limit_price if order_type == "LMT" else stop_price
         action = "modified" if order_id is not None else "placed"
@@ -342,7 +342,7 @@ def _trade_to_order_row(trade) -> dict:
     filled = getattr(status, "filled", None)
     remaining = getattr(status, "remaining", None)
     avg_fill = getattr(status, "avgFillPrice", None)
-    broker_submitted, updated_at = extract_trade_times(trade)
+    broker_submitted, updated_at, filled_at = extract_trade_times(trade)
     oid = trade.order.orderId
     submitted_at = resolve_submitted_at(broker_submitted, oid)
     return {
@@ -361,6 +361,8 @@ def _trade_to_order_row(trade) -> dict:
         # ISO-8601 UTC; UI formats Eastern with sub-seconds when present.
         # Time Placed = submitted_at (broker log, else Nova wall stamp).
         # updated_at = last fill/cancel activity (tooltip / recency only).
+        # filled_at = real broker fill clock only; None when never filled.
         "submitted_at": submitted_at,
         "updated_at": updated_at,
+        "filled_at": filled_at,
     }

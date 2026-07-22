@@ -28,7 +28,8 @@ export type ClosedOrderColumnId =
   | 'limit'
   | 'avg_fill'
   | 'status'
-  | 'time';
+  | 'time'
+  | 'filled_at';
 
 export type PositionColumnId =
   | 'symbol'
@@ -59,6 +60,7 @@ export const DEFAULT_WORKING_ORDER_COLUMNS: WorkingOrderColumnId[] = [
  * (no session / remaining / stop on Closed).
  */
 export const DEFAULT_CLOSED_ORDER_COLUMNS: ClosedOrderColumnId[] = [
+  'filled_at',
   'time',
   'type',
   'symbol',
@@ -176,6 +178,13 @@ export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
     className: 'ibkr-col--time',
     title:
       'Time Placed — broker place time (Eastern, sub-seconds when provided); hover for last fill/cancel · Drag headers to reorder',
+  },
+  filled_at: {
+    id: 'filled_at',
+    label: 'Time Filled',
+    className: 'ibkr-col--time',
+    title:
+      'Time Filled — broker fill time (Eastern, sub-seconds when provided); — when the order never filled · Drag headers to reorder',
   },
 };
 
