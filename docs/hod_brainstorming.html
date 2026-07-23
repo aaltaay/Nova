@@ -801,6 +801,14 @@ Legend:
         <code>test_hod_momo_engine.py::test_integrity_fail_suppress_blocks_on_hod_scope_fail</code> /
         <code>::test_integrity_fail_suppress_ignores_scanner_only_fail</code>.
       </p>
+      <p style="margin:0.45rem 0 0;">
+        <strong>Follow-up shipped 2026-07-23 (sticky banner):</strong> REQ-HOD-004 stopped alert mute
+        but left the banner on merged status. A one-shot <code>TOP_PERC_GAIN</code> timeout stuck in
+        <code>ibkr_bridge_last_error</code> because only gappers success cleared it (offline in RTH).
+        Now: successful <code>run_gainers_update()</code> clears the sticky error; integrity demotes
+        leftover bridge errors to <code>warn</code> when gainer cache is fresh; empty/stale losers
+        alone no longer hard-fail when gainers are live.
+      </p>
     </div>
     <div class="uml">┌────────────────────┐   ┌────────────────────┐
 │  scanner integrity │   │   hod integrity    │
@@ -810,8 +818,8 @@ Legend:
           │                        │
           ▼                        ▼
    ┌──────────────────────────────────┐
-   │  merged status (worst-of both)   │  ← /api/integrity banner (unchanged)
-   └──────────────────────────────────┘
+   │  merged status (worst-of both)   │  ← /api/integrity banner
+   └──────────────────────────────────┘    (sticky bridge/losers false-fail fixed)
 
    ┌──────────────────────────────────┐
    │  hod-scope status (hod ONLY)     │  ← REQ-HOD-004: alert suppression

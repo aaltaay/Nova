@@ -129,3 +129,32 @@ def test_run_gainers_update_ibkr_without_alpaca_headers(monkeypatch):
     assert len(state.gainer_cache) == 1
     assert state.gainer_cache[0]["symbol"] == "XYZ"
     assert state.gainer_cache[0]["enriched"] is True
+
+
+def test_run_gainers_update_clears_sticky_bridge_error(monkeypatch):
+    """Successful movers refresh must clear sticky ibkr_bridge_last_error (RTH)."""
+    state = _fake_state()
+    state.ibkr_bridge_last_error = (
+        "gainers: IbkrDiscoveryError: scanner TOP_PERC_GAIN timed out after 20s"
+    )
+    state.ibkr_bridge_last_error_ts = 1_700_000_000.0
+    monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
+    monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
+    monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
+    monkeypatch.setattr(
+        scan_runners,
+        "get_movers_port",
+        lambda: _FakeMoversPort([{"symbol": "XYZ", "price": 10.0, "change_pct": 0.05}]),
+    )
+    monkeypatch.setattr(
+        scan_runners,
+        "enrich_ibkr_mover",
+        lambda row, news: {**row, "enriched": True},
+    )
+    monkeypatch.setattr(scan_runners, "save_movers_snapshot", lambda *a, **k: None)
+    monkeypatch.setattr(scan_runners, "mark_resub", lambda: None)
+
+    scan_runners.run_gainers_update()
+
+    assert state.gainer_cache
+    assert state.ibkr_bridge_last_error == ""

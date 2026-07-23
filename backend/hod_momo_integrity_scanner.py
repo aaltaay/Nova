@@ -36,17 +36,26 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
 
     bridge_err = (snap.get("ibkr_bridge_last_error") or "").strip()
     bridge_age = snap.get("ibkr_bridge_last_error_age_sec")
+    gainer_count = int(snap.get("gainer_count") or 0)
+    gainer_age = snap.get("gainer_age_sec")
+    gainer_cache_fresh = (
+        gainer_count > 0
+        and gainer_age is not None
+        and float(gainer_age) <= SCANNER_INTEGRITY_CACHE_STALE_SEC
+    )
     if provider == "ibkr" and bridge_err:
         age_bit = (
             f" ({float(bridge_age):.0f}s ago)"
             if bridge_age is not None
             else ""
         )
-        checks.append(check(
-            "scanner_ibkr_bridge",
-            "fail",
-            f"IBKR discovery bridge error{age_bit}: {bridge_err}",
-        ))
+        # Sticky leftover after a recovered movers refresh must not hard-fail
+        # the whole banner when Top Gainers is still live.
+        status = "warn" if gainer_cache_fresh else "fail"
+        detail = f"IBKR discovery bridge error{age_bit}: {bridge_err}"
+        if status == "warn":
+            detail += " — gainer cache still fresh (recovered)"
+        checks.append(check("scanner_ibkr_bridge", status, detail))
 
     for name, count_key, age_key in (
         ("gappers", "gapper_count", "gapper_age_sec"),
@@ -65,6 +74,18 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             else:
                 detail = f"gappers: offline by design after open (mode={mode})"
             checks.append(check("scanner_gappers", "pass", detail))
+            continue
+
+        # Losers are a secondary UI table — empty/stale losers must not paint
+        # Integrity fail when Top Gainers (the HOD eligibility source) is live.
+        if name == "losers" and gainer_cache_fresh:
+            age_bit = f" age={float(age):.0f}s" if age is not None else ""
+            checks.append(check(
+                "scanner_losers",
+                "pass",
+                f"losers: {count} rows{age_bit} — secondary list "
+                f"(gainers live; not required for HOD)",
+            ))
             continue
 
         if age is None:
@@ -96,10 +117,10 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             and provider == "ibkr"
             and count <= 0
         ):
-            bridge_err = (snap.get("ibkr_bridge_last_error") or "").strip()
+            sticky = (snap.get("ibkr_bridge_last_error") or "").strip()
             detail = f"gappers: 0 rows age={age_f:.0f}s while discovery=ibkr connected"
-            if bridge_err:
-                detail += f" — last bridge error: {bridge_err}"
+            if sticky:
+                detail += f" — last bridge error: {sticky}"
             else:
                 detail += " — check IBKR scanner / bridge (not a silent 'no gaps' market)"
             checks.append(check("scanner_gappers", "fail", detail))

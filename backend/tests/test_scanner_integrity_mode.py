@@ -94,4 +94,61 @@ def test_empty_premarket_gappers_fail_when_ibkr_connected():
     assert gap["status"] == "fail"
     assert "bridge" in gap["detail"].lower() or "0 rows" in gap["detail"]
     bridge = next(c for c in report["checks"] if c["id"] == "scanner_ibkr_bridge")
+    # Gainers still fresh in base snap → bridge demotes to warn (sticky leftover).
+    assert bridge["status"] == "warn"
+
+
+def test_bridge_error_fails_when_gainer_cache_stale():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="market",
+        gainer_count=0,
+        gainer_age_sec=300.0,
+        ibkr_bridge_last_error=(
+            "gainers: IbkrDiscoveryError: scanner TOP_PERC_GAIN timed out after 20s"
+        ),
+        ibkr_bridge_last_error_age_sec=173.0,
+    ))
+    bridge = next(c for c in report["checks"] if c["id"] == "scanner_ibkr_bridge")
     assert bridge["status"] == "fail"
+
+
+def test_bridge_error_warns_when_gainer_cache_fresh():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="market",
+        gainer_count=40,
+        gainer_age_sec=25.0,
+        ibkr_bridge_last_error=(
+            "gainers: IbkrDiscoveryError: scanner TOP_PERC_GAIN timed out after 20s"
+        ),
+        ibkr_bridge_last_error_age_sec=173.0,
+    ))
+    bridge = next(c for c in report["checks"] if c["id"] == "scanner_ibkr_bridge")
+    assert bridge["status"] == "warn"
+    assert "recovered" in bridge["detail"]
+    assert report["status"] != "fail"
+
+
+def test_empty_stale_losers_pass_when_gainers_live():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="market",
+        loser_count=0,
+        loser_age_sec=167.0,
+        gainer_count=40,
+        gainer_age_sec=20.0,
+    ))
+    losers = next(c for c in report["checks"] if c["id"] == "scanner_losers")
+    assert losers["status"] == "pass"
+    assert "secondary" in losers["detail"]
+    assert report["status"] != "fail"
+
+
+def test_empty_stale_losers_fail_when_gainers_also_dead():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="market",
+        loser_count=0,
+        loser_age_sec=300.0,
+        gainer_count=0,
+        gainer_age_sec=300.0,
+    ))
+    losers = next(c for c in report["checks"] if c["id"] == "scanner_losers")
+    assert losers["status"] == "fail"

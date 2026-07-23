@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Stop sticky TOP_PERC_GAIN timeout from painting Integrity fail all day
+
+- **What:** A recovered Top Gainers feed no longer leaves a permanent red Integrity fail banner. Successful movers refresh clears sticky `ibkr_bridge_last_error`; scanner integrity demotes leftover bridge errors to warn when gainer cache is fresh; empty/stale losers alone cannot fail the merge when gainers are live.
+- **Why:** User screenshot still showed `scanner_ibkr_bridge ... TOP_PERC_GAIN timed out` ~173s later (plus `scanner_losers` empty) after REQ-HOD-004 fixed alert mute but left the banner on the flat merged status.
+- **Files touched:** `backend/scanner_runners/movers.py`, `backend/hod_momo_integrity_scanner.py`, `backend/tests/test_scanner_integrity_mode.py`, `backend/tests/test_scan_runners.py`, `docs/hod_brainstorming.html`.
+- **How it works now:** RTH gainers success clears the sticky bridge error the same way premarket gappers success already did. Integrity only hard-fails `scanner_ibkr_bridge` when the error is still set *and* gainer cache is empty/stale. Losers are treated as a secondary UI list when Top Gainers is healthy.
+- **Verified by:** `py -3 -m pytest tests/test_scanner_integrity_mode.py tests/test_scan_runners.py` (15 passed).
+- **Related:** PROBLEM_LOG 2026-07-23 "Sticky scanner_ibkr_bridge Integrity fail banner after TOP_PERC_GAIN timeout"; REQ-HOD-004 (alert mute already shipped).
+
 ## 2026-07-23 — HOD requirements ledger (REQ-HOD-004/005/006): scope integrity suppress to HOD, Former Momo manual-only
 
 - **What:** Three related HOD Momo fixes captured as requirements in `docs/hod_brainstorming.html` (Requirements ledger + REQ-HOD-004/005/006) and shipped end-to-end: (1) `integrity_fail_suppress` is now scoped to HOD-only integrity status, so an unrelated scanner-tab bridge failure can no longer mute HOD alerts; (2) Former Momo's `former_momo_list` is now strictly manual (no more auto-add-on-any-alert-fire or bootstrap-from-alert-history on every restart); (3) Former Momo members get guaranteed HOD active-set admission (live L1 + tracking) via the same `build_active_set()` pipeline every Top Gainer already flows through, seeded with a one-time default of `["SPRC"]`.

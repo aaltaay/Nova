@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Sticky scanner_ibkr_bridge Integrity fail banner after TOP_PERC_GAIN timeout
+
+- **Symptom:** HOD Momo page shows red "Integrity fail" with `scanner_ibkr_bridge: IBKR discovery bridge error (Ns ago): gainers: IbkrDiscoveryError(... TOP_PERC_GAIN timed out after 20s)` long after the feed recovered (and often with live alerts still firing). Sibling noise: `scanner_losers: 0 rows and cache Ns old` also hard-failed the merge even when Top Gainers was healthy.
+- **Cause:** (1) `ibkr_bridge.run_ibkr` writes `state.ibkr_bridge_last_error` on any timeout, but only `run_discovery_scan()` (gappers) cleared it — and gappers are offline by design during RTH, so a one-shot gainers timeout stuck forever. (2) `evaluate_scanner_integrity` treated any non-empty sticky bridge string as hard `fail`, and empty/stale losers as hard `fail`, so either alone painted the flat merged banner red even when gainers were live.
+- **Fix:** Clear `ibkr_bridge_last_error` on successful `run_gainers_update()` when gainers rows land. Demote `scanner_ibkr_bridge` to `warn` when gainer cache is still fresh. Treat empty/stale losers as `pass` (secondary list) whenever gainers are live. Alert suppression remains HOD-scoped (REQ-HOD-004).
+- **Keywords:** scanner_ibkr_bridge, ibkr_bridge_last_error, TOP_PERC_GAIN, TimeoutError, Integrity fail banner, sticky error, scanner_losers, run_gainers_update
+
 ## 2026-07-23 — Former Momo silently auto-grew forever + re-seeded from alert history on every restart
 
 - **Symptom:** Not a crash — a design flaw found during HOD brainstorming (`docs/hod_brainstorming.html` REQ-HOD-005/006). `hod_momo_trade.on_trade_update` called `_former.remember_former_momo(symbol)` every time **any other** strategy fired, permanently appending that ticker to strategy 1's `former_momo_list` (persisted to disk, never pruned). `hod_momo_persist.load_persisted_state()` additionally called `bootstrap_former_momo_from_alerts()` on every process start, re-seeding the list from that day's alert history. Net effect: the "manual" Former Momo watchlist was neither manual nor bounded — it silently accreted every ticker that ever alerted, session after session.

@@ -152,5 +152,10 @@ def run_gainers_update() -> None:
     state.gainer_cache_ts = time.time()
     state.loser_cache = losers
     state.loser_cache_ts = time.time()
+    # Clear sticky bridge error on a successful movers refresh — RTH never
+    # re-runs gappers discovery, so leaving this set after a one-shot
+    # TOP_PERC_GAIN timeout kept painting Integrity fail all day.
+    if gainers:
+        state.ibkr_bridge_last_error = ""
     sr.save_movers_snapshot(state.gainer_cache, state.loser_cache, state.gainer_cache_ts)
     sr.mark_resub()
