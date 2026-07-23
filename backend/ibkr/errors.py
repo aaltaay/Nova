@@ -13,6 +13,12 @@ class IbkrAccountError(RuntimeError):
     """Positions/orders read failure — never disguise as a flat/empty account."""
 
 
+class StaleIbkrSessionError(RuntimeError):
+    """run_coro() result arrived from a connection generation that already
+    disconnected/reconnected — the caller's IBKR session moved on mid-call,
+    so the result must not be applied (see ibkr/session_state.py)."""
+
+
 def describe_exc(exc: BaseException) -> str:
     """Human-readable exception text; falls back to type name when ``str(exc)`` is empty."""
     raw = str(exc).strip()

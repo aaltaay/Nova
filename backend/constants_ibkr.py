@@ -95,15 +95,12 @@ IBKR_GATEWAY_EXE_DEFAULT = r"C:\Jts\ibgateway\1045\ibgateway.exe"
 IBKR_IBC_LAUNCHER_REL = r".nova\ibc\start_gateway.ps1"
 
 # ── Market-data discovery provider (gappers / gainers / losers source) ────────
-# "alpaca" (default — no behavior change, free IEX feed, no cost) or
-# "ibkr" (live scan through IB Gateway using the account's paid data lines).
-# Alpaca code paths are never removed, so this is reversible at any time —
-# switch back via Settings or NOVA_DISCOVERY_PROVIDER without redeploying.
-# News (Alpaca free) and fundamentals (yfinance) stay the same either way —
-# only the raw symbol/price/volume discovery source changes.
-# See knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md
-DISCOVERY_PROVIDER_DEFAULT = "alpaca"
-DISCOVERY_PROVIDER_OPTIONS = ("alpaca", "ibkr")
+# Product lock: IBKR is the only scanner discovery source. Alpaca scanner
+# adapters remain in-repo for emergency/unit use but are not selectable via
+# Settings or /api/config. Alpaca still serves news headlines + Assets listing
+# flags (not prices). See Scanner-Provider-IBKR-Primary.md.
+DISCOVERY_PROVIDER_DEFAULT = "ibkr"
+DISCOVERY_PROVIDER_OPTIONS = ("ibkr",)
 
 # IB market scanner — https://interactivebrokers.github.io/tws-api/market_scanners.html
 # Limits enforced by IB itself: max 50 rows per scan code, max 10 active scans.
@@ -151,6 +148,15 @@ IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # cold/discovery reqTickersAsync
 IBKR_SCAN_RESULT_TTL_SEC = 5.0
 IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC = 12.0     # honest snapshot budget (was 4s — impossible)
 IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ceiling
+# Local wall on reqScannerDataAsync itself, inside the bridge ceiling above —
+# an unbounded scanner call previously could not be distinguished from any
+# other cause of a bridge timeout. Set below the bridge ceiling so a hung
+# scanner call is attributable (and cancellable) before the outer wall fires.
+IBKR_SCAN_REQUEST_TIMEOUT_SEC = 20.0
+# Batch qualifyContractsAsync inside snapshot_quotes() — same hang risk as
+# scan/snapshot above (see IBKR_L1_QUALIFY_TIMEOUT_SEC's single-symbol note),
+# sized higher since discovery batches up to a full scanner page at once.
+IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC = 10.0
 IBKR_REPRICE_INTERVAL_SEC = 3.0                 # detail-panel cold backstop cadence
 # Detail-panel backstop: skip the reqTickersAsync snapshot for a symbol whose
 # reqMktData streaming subscription (ibkr/ticks.py) has updated within this

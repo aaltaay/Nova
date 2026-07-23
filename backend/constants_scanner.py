@@ -85,7 +85,15 @@ NOVA_API_REV = "4"
 SCAN_CAP_DEFAULT = 800   # legacy; overridden by ALPACA_SCAN_SYMBOL_CAP env var if set
 TOP_N_DEFAULT = 50       # max gappers returned / cap on movers API batching
 SNAPSHOT_WORKERS = 10    # parallel threads for batch snapshot fetching
+# Dedicated pool for scan_loop IBKR/Alpaca work, kept separate from asyncio's
+# default ThreadPoolExecutor as a clean ownership boundary. NOTE: /api/health
+# is async (Starlette/AnyIO's own worker pool), so it never actually shared
+# this pool — see PROBLEM_LOG 2026-07-23 correction re-diagnosing API_WEDGED.
+SCAN_EXECUTOR_WORKERS = 2
 ASSETS_CACHE_TTL_SEC = 3600.0
+# Event-loop lag sampler cadence (backend/loop_lag.py) — how often the
+# background task measures actual vs expected wakeup time for /api/health.
+LOOP_LAG_SAMPLE_INTERVAL_SEC = 2.0
 
 # ── Scan intervals (seconds) ────────────────────────────────────────────────
 # Real-time prices still come from the WebSocket; these control REST discovery cadence.

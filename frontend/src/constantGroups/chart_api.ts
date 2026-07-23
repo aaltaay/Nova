@@ -66,6 +66,15 @@ export const SCANNER_POLL_INTERVAL_MS = 1_000;
  * Mirrors backend GAINERS_INTERVAL_SEC (constants_scanner.py) scan cadence.
  */
 export const SCANNER_POLL_INTERVAL_IBKR_MS = 5_000;
+/**
+ * Consecutive scanner-poll failures required before flipping health to
+ * disconnected/WEDGED and arming auto-heal. `uvicorn --reload` briefly drops
+ * connections while WatchFiles restarts the worker (typically <3s) — without
+ * this grace period a single missed poll during a normal dev hot reload
+ * looked identical to a real hang and could trigger a competing API restart
+ * mid-reload (see PROBLEM_LOG 2026-07-23).
+ */
+export const SCANNER_HEALTH_FAIL_GRACE_COUNT = 2;
 
 /** Stable outage flags shown in the header + `[Nova][API_FLAG]` console lines. */
 export const BACKEND_DIAG_FLAG_DOWN = 'API_DOWN';
@@ -75,9 +84,9 @@ export const BACKEND_DIAG_FLAG_UNREACHABLE = 'API_UNREACHABLE';
 
 export const BACKEND_DIAG_HINTS: Record<string, string> = {
   [BACKEND_DIAG_FLAG_DOWN]:
-    'Nothing answered on the API port — click Start API or run Run Nova.bat.',
+    'Nothing answered on the API port — Nova auto-restarts once in dev, or click Start API / Run Nova.bat.',
   [BACKEND_DIAG_FLAG_WEDGED]:
-    'Port is held by a hung process (health timed out) — click Start API to kill+restart.',
+    'Port held by a hung process (health timed out) — Nova auto-restarts once in dev, or click Start API.',
   [BACKEND_DIAG_FLAG_HTTP]:
     'API process responded but /api/health was not OK — check backend\\logs\\api-console.log.',
   [BACKEND_DIAG_FLAG_UNREACHABLE]:
@@ -138,7 +147,7 @@ export const SCANNER_COLUMNS: [string, string][] = [
   ['price',               'Price'],
   ['change_pct',          'Change'],
   ['gap_percent',         'Gap %'],
-  ['volume',              'Volume · RVOL Alpaca'], // label mirrored in market_ui.SCANNER_VOLUME_COLUMN_LABEL
+  ['volume',              'Volume · RVOL'], // label mirrored in market_ui.SCANNER_VOLUME_COLUMN_LABEL
   ['watchlist_score',     'Watch'],
   ['float',               'Float'],
   ['short_interest',      'Short Int.'],

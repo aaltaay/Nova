@@ -252,6 +252,43 @@ def test_refresh_completed_orders_cache_logs_and_swallows_failure(monkeypatch):
     asyncio.run(account_mod.refresh_completed_orders_cache())
 
 
+def test_refresh_positions_cache_uses_explicit_ib_without_get_ib(monkeypatch):
+    """Connect-time warm-up passes ib directly — it must not depend on
+    get_ib(), which is gated on the READY state this call itself earns."""
+    calls: list[None] = []
+
+    async def fake_req():
+        calls.append(None)
+
+    fake_ib = MagicMock()
+    fake_ib.reqPositionsAsync = fake_req
+
+    def _boom():
+        raise AssertionError("must not call get_ib() when ib is passed explicitly")
+
+    monkeypatch.setattr(client_mod, "get_ib", _boom)
+    asyncio.run(account_mod.refresh_positions_cache(fake_ib))
+    assert calls == [None]
+
+
+def test_refresh_completed_orders_cache_uses_explicit_ib_without_get_ib(monkeypatch):
+    account_mod._completed_orders_lock = None
+    calls: list[bool] = []
+
+    async def fake_req(api_only):
+        calls.append(api_only)
+
+    fake_ib = MagicMock()
+    fake_ib.reqCompletedOrdersAsync = fake_req
+
+    def _boom():
+        raise AssertionError("must not call get_ib() when ib is passed explicitly")
+
+    monkeypatch.setattr(client_mod, "get_ib", _boom)
+    asyncio.run(account_mod.refresh_completed_orders_cache(fake_ib))
+    assert calls == [False]
+
+
 def test_refresh_completed_orders_cache_serializes_concurrent_calls(monkeypatch):
     """ib_async can hang if reqCompletedOrdersAsync overlaps — the guard must
     never let two calls run inside the request at the same time."""

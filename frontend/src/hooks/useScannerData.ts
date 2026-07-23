@@ -2,11 +2,12 @@
  * Live + history scanner data (gappers / movers / AH / catalysts) and IBKR price stream.
  * Extracted from App.tsx.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   API_BASE_URL,
   API_URL,
   SCANNER_FETCH_TIMEOUT_MS,
+  SCANNER_HEALTH_FAIL_GRACE_COUNT,
   SCANNER_POLL_INTERVAL_IBKR_MS,
   SCANNER_POLL_INTERVAL_MS,
 } from '../constants';
@@ -48,6 +49,8 @@ export function useScannerData(opts: {
   const [now, setNow] = useState(() => Date.now() / 1000);
   const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [historyDates, setHistoryDates] = useState<string[]>([]);
+  // Consecutive fetch failures — see SCANNER_HEALTH_FAIL_GRACE_COUNT.
+  const consecutiveFailuresRef = useRef(0);
 
   const onScannerPricePatch = useCallback(
     (rows: Parameters<typeof applyScannerPricePatch>[1], ts: number) => {
@@ -81,6 +84,7 @@ export function useScannerData(opts: {
         fetch(`${API_URL}/afterhours`, { signal }),
         fetch(`${API_URL}/news-catalysts`, { signal }),
       ]);
+      consecutiveFailuresRef.current = 0;
 
       let nextAges: Partial<ScannerScanAges> = {};
 
@@ -150,6 +154,13 @@ export function useScannerData(opts: {
         }
       }
     } catch (e) {
+      consecutiveFailuresRef.current += 1;
+      if (consecutiveFailuresRef.current < SCANNER_HEALTH_FAIL_GRACE_COUNT) {
+        // A single missed poll is indistinguishable from a normal dev
+        // `uvicorn --reload` blip — wait for a second consecutive failure
+        // before diagnosing/flagging so auto-heal can't race a hot reload.
+        return;
+      }
       const diag = await diagnoseBackend();
       logBackendDiagnosis(diag);
       console.error('[Nova] Scanner API network error', {

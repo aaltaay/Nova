@@ -219,13 +219,20 @@ async def refresh_account_summary() -> dict:
         raise IbkrAccountError(f"refresh_account_summary failed: {detail}") from exc
 
 
-async def refresh_positions_cache() -> None:
+async def refresh_positions_cache(ib: object | None = None) -> None:
     """Best-effort ``reqPositionsAsync`` after connect so ``positions()`` is warm.
 
     Logged on failure; subsequent ``long_qty`` / ``get_positions`` still fail
     closed if the cache remains empty or unreadable.
+
+    ``ib`` lets the connect/warm-up path in ``ibkr.client`` pass the just-
+    connected instance directly — ``client.get_ib()`` is gated on session
+    READY, and this warm-up call is exactly what earns READY, so it must not
+    go through that gate itself. External callers omit ``ib`` and get the
+    normal gated lookup.
     """
-    ib = _client.get_ib()
+    if ib is None:
+        ib = _client.get_ib()
     if ib is None:
         return
     req = getattr(ib, "reqPositionsAsync", None)
@@ -241,7 +248,7 @@ async def refresh_positions_cache() -> None:
         )
 
 
-async def refresh_completed_orders_cache() -> None:
+async def refresh_completed_orders_cache(ib: object | None = None) -> None:
     """Best-effort ``reqCompletedOrdersAsync(apiOnly=False)`` after connect so
     ``ib.trades()`` (and therefore Closed Orders) includes terminal orders
     from *before* this API session connected — e.g. a position opened via
@@ -253,8 +260,12 @@ async def refresh_completed_orders_cache() -> None:
     can hang if that request type is in flight twice at once. Logged on
     failure only; callers still fail closed via ``closed_orders()``'s own
     disconnect check, never silently substituting an empty result here.
+
+    ``ib`` — see ``refresh_positions_cache`` docstring; lets the connect
+    warm-up path bypass the READY gate it is itself trying to satisfy.
     """
-    ib = _client.get_ib()
+    if ib is None:
+        ib = _client.get_ib()
     if ib is None:
         return
     req = getattr(ib, "reqCompletedOrdersAsync", None)

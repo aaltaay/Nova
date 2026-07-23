@@ -19,4 +19,12 @@ export interface HealthStatus {
   flag_hint?: string;
   /** Aux APIs (Alpaca news/meta, OpenAI/Lincoln, yfinance, archive) — not price feed. */
   integrations?: Record<string, IntegrationChipStatus>;
+  /** Process identity — lets restart tooling prove a NEW process answered. */
+  instance_id?: string;
+  pid?: number;
+  parent_pid?: number;
+  started_at?: number;
+  reload?: boolean;
+  /** Event-loop lag sample (backend/loop_lag.py). */
+  loop_lag_ms?: { last_ms: number; max_ms: number; samples: number };
 }

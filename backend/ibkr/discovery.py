@@ -24,6 +24,7 @@ import time
 
 from constants import (
     GAPPER_MIN_GAP_PCT,
+    IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC,
     IBKR_QUOTE_BATCH_TIMEOUT_SEC,
     IBKR_HOD_SEED_BELOW_PRICE,
     IBKR_SCAN_ABOVE_PRICE,
@@ -35,6 +36,7 @@ from constants import (
     IBKR_SCAN_INSTRUMENT,
     IBKR_SCAN_LOCATION,
     IBKR_SCAN_MAX_ROWS,
+    IBKR_SCAN_REQUEST_TIMEOUT_SEC,
     IBKR_SCAN_RESULT_TTL_SEC,
     SCANNER_MIN_PRICE,
 )
@@ -124,7 +126,17 @@ async def scan_symbols(
     if below_price is not None and float(below_price) > 0:
         sub.belowPrice = float(below_price)
     try:
-        rows = await ib.reqScannerDataAsync(sub)
+        rows = await asyncio.wait_for(
+            ib.reqScannerDataAsync(sub), timeout=IBKR_SCAN_REQUEST_TIMEOUT_SEC,
+        )
+    except asyncio.TimeoutError as exc:
+        logger.warning(
+            "IBKR scanner %s request timed out after %.0fs",
+            scan_code, IBKR_SCAN_REQUEST_TIMEOUT_SEC,
+        )
+        raise IbkrDiscoveryError(
+            f"scanner {scan_code} timed out after {IBKR_SCAN_REQUEST_TIMEOUT_SEC:.0f}s"
+        ) from exc
     except Exception as exc:
         detail = describe_exc(exc)
         logger.exception("IBKR scanner %s failed: %s", scan_code, detail)
@@ -184,7 +196,16 @@ async def snapshot_quotes(
     if missing:
         contracts = [_Stock(sym, "SMART", "USD") for sym in missing]
         try:
-            qualified = await ib.qualifyContractsAsync(*contracts)
+            qualified = await asyncio.wait_for(
+                ib.qualifyContractsAsync(*contracts),
+                timeout=IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC,
+            )
+        except asyncio.TimeoutError as exc:
+            detail = f"qualify batch timed out after {IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC:.0f}s"
+            logger.warning("IBKR: %s (%d symbols)", detail, len(contracts))
+            if require_success:
+                raise IbkrDiscoveryError(detail) from exc
+            qualified = []
         except Exception as exc:
             detail = describe_exc(exc)
             logger.exception("IBKR: qualify batch failed: %s", detail)

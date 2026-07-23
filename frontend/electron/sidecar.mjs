@@ -101,12 +101,28 @@ export function waitForHealth(timeoutMs = 90_000) {
   return new Promise((resolve, reject) => {
     const tick = () => {
       const req = http.get(`${API_BASE}/api/health`, (res) => {
-        res.resume();
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 500) {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          // Require an actual 200 with the expected JSON shape — a 3xx/4xx
+          // (e.g. a stale/unrelated process on :8000) used to pass this
+          // check as long as it was below 500 (see PROBLEM_LOG 2026-07-23).
+          if (res.statusCode !== 200) {
+            retry();
+            return;
+          }
+          try {
+            const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+            if (typeof body.status !== 'string') {
+              retry();
+              return;
+            }
+          } catch {
+            retry();
+            return;
+          }
           resolve();
-          return;
-        }
-        retry();
+        });
       });
       req.on('error', retry);
       req.setTimeout(2000, () => {

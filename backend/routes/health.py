@@ -13,13 +13,17 @@ Endpoints:
 from __future__ import annotations
 
 import os
+import time
 
 from dotenv import load_dotenv, set_key
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 import alpaca as _alpaca
 import exchanges as _exchanges
+import instance_identity
+import loop_lag as _loop_lag
 from alerts.channels_store import mask_secret
 from alpaca import _env, _get_discovery_provider, _get_feed, _set_discovery_provider, _set_feed
 from constants import (
@@ -72,7 +76,14 @@ def root():
 
 
 @router.get("/api/health")
-def health_check():
+async def health_check():
+    """Full status — must never wait on IBKR bridges or the default thread pool.
+
+    Kept ``async`` so Starlette parks this on AnyIO's own worker pool, never
+    the default ``ThreadPoolExecutor`` scan_loop's ``run_coro`` waits use
+    (see PROBLEM_LOG 2026-07-23 — those two pools were never actually shared,
+    but this stays async so that remains true going forward).
+    """
     from integrations_health import build_integrations_status
     from observability import sentry_enabled
 
@@ -83,7 +94,42 @@ def health_check():
         "feed_fell_back": _alpaca._feed_fell_back,
         "sentry_enabled": sentry_enabled(),
         "integrations": build_integrations_status(),
+        "loop_lag_ms": _loop_lag.snapshot(),
+        **instance_identity.snapshot(),
     }
+
+
+@router.get("/livez")
+def liveness_check():
+    """Minimal loop-liveness probe — no IBKR/cache/network dependency so a
+    degraded broker session can never make this hang or error."""
+    return {
+        "status": "alive",
+        "uptime_sec": round(time.time() - instance_identity.STARTED_AT, 1),
+        **instance_identity.snapshot(),
+    }
+
+
+@router.get("/readyz")
+def readiness_check():
+    """Application readiness — bootstrap-complete + IBKR session state.
+
+    Observability only: restart tooling gates on ``/api/health`` (see
+    frontend/scripts/vite-nova-start-api.ts), not this endpoint, so a broker
+    that is intentionally disabled or still reconnecting never blocks a
+    healthy Alpaca-only restart.
+    """
+    from app_lifespan import is_bootstrap_complete
+    from ibkr import client as _ibkr_client
+
+    bootstrap_complete = is_bootstrap_complete()
+    payload = {
+        "ready": bootstrap_complete,
+        "bootstrap_complete": bootstrap_complete,
+        "ibkr": _ibkr_client.session_snapshot(),
+        **instance_identity.snapshot(),
+    }
+    return JSONResponse(payload, status_code=200 if bootstrap_complete else 503)
 
 
 @router.get("/api/config")
@@ -117,10 +163,12 @@ def update_config(config: ConfigUpdate):
         set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
     set_key(env_path, "APCA_API_BASE_URL", config.base_url)
     set_key(env_path, "ALPACA_DATA_FEED", config.data_feed)
-    set_key(env_path, "NOVA_DISCOVERY_PROVIDER", config.discovery_provider)
+    # Product lock: always persist IBKR — ignore client attempts to set alpaca.
+    locked_discovery = DISCOVERY_PROVIDER_DEFAULT
+    set_key(env_path, "NOVA_DISCOVERY_PROVIDER", locked_discovery)
     load_dotenv(env_path, override=True)
     _set_feed(config.data_feed)
-    _set_discovery_provider(config.discovery_provider)
+    _set_discovery_provider(locked_discovery)
     reset_scan_caches()
     _exchanges.clear()
     mark_resub()

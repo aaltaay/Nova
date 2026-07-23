@@ -67,11 +67,21 @@ from universe import invalidate_universe_cache
 from websocket import broadcast_trade_update, stream_loop
 from observability import init_sentry
 from runtime_state import get_runtime_state
+import instance_identity
+import loop_lag as _loop_lag
 
 logger = logging.getLogger(__name__)
 
 # Background tasks spawned by deferred bootstrap (cancelled on shutdown).
 _runtime_tasks: list[asyncio.Task] = []
+# True once _bootstrap_runtime() has spawned all background loops — /readyz
+# reports this so restart tooling can tell "serving HTTP" apart from
+# "actually finished startup" (see PROBLEM_LOG 2026-07-23).
+_bootstrap_complete: bool = False
+
+
+def is_bootstrap_complete() -> bool:
+    return _bootstrap_complete
 
 
 def configure_cors(app: FastAPI) -> None:
@@ -158,13 +168,16 @@ async def _ping_alpaca_health() -> None:
 
 
 async def _wait_ibkr_connected(budget_sec: float) -> bool:
-    """Poll is_connected() briefly so recovery sees a real Gateway if fast."""
+    """Poll is_ready() briefly so recovery sees a fully-synchronized Gateway
+    session if fast — not just a raw socket connect (see PROBLEM_LOG
+    2026-07-23: background tasks used to spawn while account-kind validation
+    and cache warm-up were still running)."""
     deadline = asyncio.get_running_loop().time() + budget_sec
     while asyncio.get_running_loop().time() < deadline:
-        if _ibkr_client.is_connected():
+        if _ibkr_client.is_ready():
             return True
         await asyncio.sleep(0.25)
-    return _ibkr_client.is_connected()
+    return _ibkr_client.is_ready()
 
 
 def _spawn_runtime_tasks() -> list[asyncio.Task]:
@@ -226,6 +239,7 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
             get_ibkr_detail_symbols, run_ibkr, broadcast_trade_update, _find_ibkr_cache_row,
             lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),
         )),
+        ("observability.loop_lag", _loop_lag.sample_loop_lag_loop),
     ]
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))
@@ -266,12 +280,21 @@ async def _bootstrap_runtime() -> None:
         logger.exception("Nova OS startup recovery failed")
 
     _runtime_tasks = _spawn_runtime_tasks()
+    global _bootstrap_complete
+    _bootstrap_complete = True
     logger.info("lifespan bootstrap complete (%d background tasks)", len(_runtime_tasks))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _runtime_tasks
+    logger.info(
+        "Nova API instance %s starting (pid=%s ppid=%s reload=%s)",
+        instance_identity.INSTANCE_ID,
+        instance_identity.PID,
+        instance_identity.PARENT_PID,
+        instance_identity.RELOAD_ENABLED,
+    )
     init_sentry()
     _restore_caches()
     _init_databases()
@@ -294,6 +317,8 @@ async def lifespan(app: FastAPI):
         await bootstrap_task
     except asyncio.CancelledError:
         pass
+    global _bootstrap_complete
+    _bootstrap_complete = False
 
     try:
         await _scanner_l1.shutdown()
@@ -314,4 +339,9 @@ async def lifespan(app: FastAPI):
         _l2_batch.flush()
     except Exception:
         logger.exception("l2.batch: final flush failed")
+    try:
+        from scan_executor import shutdown_scan_executor
+        shutdown_scan_executor()
+    except Exception:
+        logger.exception("scan_executor shutdown failed")
     await _ibkr_client.shutdown()

@@ -42,7 +42,7 @@ def run_ibkr(coro, *, on_error: str = "none", label: str = "ibkr"):
       - ``raise`` — raise ``IbkrBridgeError`` (never silent)
     """
     try:
-        return _ibkr_client.run_coro(coro, timeout=IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC)
+        return _ibkr_client.run_coro(coro, timeout=IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC, label=label)
     except Exception as exc:
         # TimeoutError / CancelledError often stringify to "" — always log type+repr.
         detail = f"{type(exc).__name__}: {exc!r}"
