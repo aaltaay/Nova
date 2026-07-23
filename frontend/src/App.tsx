@@ -95,7 +95,11 @@ function App() {
           <LayoutStoreProvider>
             <TopOfBookProvider>
               <HotkeyDispatchProvider>
-                <AppShell />
+                {/* Outer shell boundary: catches AppShell hook/provider failures
+                    that page-level boundaries never see. Auto-reloads once. */}
+                <AppErrorBoundary source="app-shell">
+                  <AppShell />
+                </AppErrorBoundary>
               </HotkeyDispatchProvider>
             </TopOfBookProvider>
           </LayoutStoreProvider>

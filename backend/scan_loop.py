@@ -48,6 +48,7 @@ from scan_runners import (
     run_gainers_update,
 )
 from runtime_state import get_runtime_state
+from scan_executor import get_scan_executor
 from universe import refresh_hod_momo_universe
 
 logger = logging.getLogger(__name__)
@@ -181,50 +182,51 @@ async def sleep_with_ibkr_reprice(loop: asyncio.AbstractEventLoop, total_seconds
 async def scan_loop() -> None:
     """Mode-aware background scanner (premarket / market / afterhours / closed)."""
     loop = asyncio.get_event_loop()
+    scan_pool = get_scan_executor()
     while True:
         try:
             state = get_runtime_state()
             mono = time.monotonic()
             catalyst_due = (mono - state.last_catalyst_scan_ts) > NEWS_CATALYST_INTERVAL_SEC
-            await loop.run_in_executor(None, refresh_hod_momo_universe)
+            await loop.run_in_executor(scan_pool, refresh_hod_momo_universe)
 
             if _in_premarket():
                 state.current_mode = "premarket"
                 if not state.gapper_cache or (mono - state.last_discovery_ts) > DISCOVERY_INTERVAL_SEC:
-                    await loop.run_in_executor(None, run_discovery_scan)
+                    await loop.run_in_executor(scan_pool, run_discovery_scan)
                 else:
-                    await loop.run_in_executor(None, run_focus_scan)
+                    await loop.run_in_executor(scan_pool, run_focus_scan)
                 if not state.gainer_cache:
-                    await loop.run_in_executor(None, run_gainers_update)
+                    await loop.run_in_executor(scan_pool, run_gainers_update)
                 if catalyst_due:
-                    await loop.run_in_executor(None, run_news_catalyst_scan)
+                    await loop.run_in_executor(scan_pool, run_news_catalyst_scan)
                 await sleep_with_ibkr_reprice(loop, FOCUS_INTERVAL_SEC)
             elif _in_market_hours():
                 state.current_mode = "market"
-                await loop.run_in_executor(None, run_gainers_update)
+                await loop.run_in_executor(scan_pool, run_gainers_update)
                 if catalyst_due:
-                    await loop.run_in_executor(None, run_news_catalyst_scan)
+                    await loop.run_in_executor(scan_pool, run_news_catalyst_scan)
                 await sleep_with_ibkr_reprice(loop, GAINERS_INTERVAL_SEC)
             elif _in_after_hours():
                 state.current_mode = "afterhours"
-                await loop.run_in_executor(None, run_gainers_update)
+                await loop.run_in_executor(scan_pool, run_gainers_update)
                 if _get_discovery_provider() == "ibkr" and state.gainer_cache:
-                    await loop.run_in_executor(None, run_afterhours_discovery_scan)
+                    await loop.run_in_executor(scan_pool, run_afterhours_discovery_scan)
                 elif (
                     not state.afterhours_cache
                     or (mono - state.last_afterhours_discovery_ts)
                     > AFTERHOURS_DISCOVERY_INTERVAL_SEC
                 ):
-                    await loop.run_in_executor(None, run_afterhours_discovery_scan)
+                    await loop.run_in_executor(scan_pool, run_afterhours_discovery_scan)
                 else:
-                    await loop.run_in_executor(None, run_afterhours_focus_scan)
+                    await loop.run_in_executor(scan_pool, run_afterhours_focus_scan)
                 if catalyst_due:
-                    await loop.run_in_executor(None, run_news_catalyst_scan)
+                    await loop.run_in_executor(scan_pool, run_news_catalyst_scan)
                 await asyncio.sleep(AFTERHOURS_FOCUS_INTERVAL_SEC)
             else:
                 state.current_mode = "closed"
-                await loop.run_in_executor(None, run_discovery_scan)
-                await loop.run_in_executor(None, run_gainers_update)
+                await loop.run_in_executor(scan_pool, run_discovery_scan)
+                await loop.run_in_executor(scan_pool, run_gainers_update)
                 await asyncio.sleep(CLOSED_INTERVAL_SEC)
         except asyncio.CancelledError:
             break

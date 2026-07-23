@@ -4,6 +4,12 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-23 | [API_WEDGED dedicated scan pool + auto-heal + app-shell auto-recover](2026-07-23-api-wedged-autoheal-and-app-shell-recovery.md) | Dedicated scan_executor keeps health responsive; session-once auto-restart on WEDGED/DOWN; app-shell boundary auto-reloads once on fatal provider/hook crashes |
+| 2026-07-23 | [API/IBKR lifecycle hardening: readiness, cancellation, single supervisor](2026-07-23-api-ibkr-lifecycle-hardening.md) | Explicit IBKR READY state + generation-checked cancellable bridge calls; locked owner-aware dev restart supervisor replaces arbitrary port-killing |
+| 2026-07-23 | [HOD scanner external survey + health diagnosis](2026-07-23-hod-scanner-external-survey.md) | Live integrity mute root cause; OSS HOD scanners study-only — surgical fix Nova, no rewrite |
+| 2026-07-23 | [Mandatory PROBLEM_LOG for every agent](2026-07-23-mandatory-problem-log.md) | Mandatory PROBLEM_LOG for every agent |
+| 2026-07-23 | [IBKR-only scanner discovery lock](2026-07-23-ibkr-only-scanner-discovery.md) | IBKR-only scanner discovery lock |
+| 2026-07-23 | [Daily auto-start for Gateway + Nova API/UI](2026-07-23-nova-daily-autostart.md) | Daily auto-start for Gateway + Nova API/UI |
 | 2026-07-22 | [Quiet Sentry IBKR/chart dispose noise](2026-07-22-sentry-ibkr-noise-filters.md) | Quiet Sentry IBKR/chart dispose noise |
 | 2026-07-22 | [Vitest act() environment fix](2026-07-22-vitest-act-environment-fix.md) | Set IS_REACT_ACT_ENVIRONMENT via Vitest setupFiles; restores React 19 act safety net |
 | 2026-07-22 | [Warm completed orders + Orders Today badge/empty honesty](2026-07-22-orders-today-completed-orders.md) | Warm completed orders + Orders Today badge/empty honesty |
