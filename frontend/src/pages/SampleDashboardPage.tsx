@@ -66,7 +66,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
         dataFeedOptions: ['iex', 'sip'],
         discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
         setDiscoveryProvider: () => {},
-        discoveryProviderOptions: ['alpaca', 'ibkr'],
+        discoveryProviderOptions: [DISCOVERY_PROVIDER_DEFAULT],
         activeFeed: DATA_FEED_DEFAULT,
         setActiveFeed: () => {},
         feedFellBack: false,

@@ -74,7 +74,7 @@ interface Props {
   compact?: boolean;
   /** Show scanner source badge (hide on Account view). */
   showScannerSource?: boolean;
-  /** Which provider sources gappers/gainers/losers ('alpaca' or 'ibkr'). */
+  /** Scanner discovery provider — product path is always 'ibkr'. */
   discoveryProvider?: string;
   /** After Start API succeeds — refresh scanner/health. */
   onBackendStarted?: () => void;

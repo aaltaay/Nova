@@ -20,10 +20,8 @@ export function parseWorkspaceConfig(data: unknown): WorkspaceConfigSlice {
     return { ...WORKSPACE_CONFIG_DEFAULTS };
   }
   const row = data as Record<string, unknown>;
-  const discoveryProvider =
-    typeof row.discovery_provider === 'string' && row.discovery_provider
-      ? row.discovery_provider
-      : DISCOVERY_PROVIDER_DEFAULT;
+  // Product lock: scanner discovery is always IBKR (ignore stale alpaca payloads).
+  const discoveryProvider = DISCOVERY_PROVIDER_DEFAULT;
   const alpacaFeed =
     typeof row.data_feed === 'string' && row.data_feed
       ? row.data_feed

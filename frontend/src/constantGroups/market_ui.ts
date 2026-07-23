@@ -201,11 +201,11 @@ export const QUOTE_ASSET_LABELS = {
 /** Display value for listing feed row (Alpaca asset metadata only — not prices/L2). */
 export const QUOTE_LISTING_FEED_VALUE = 'Alpaca Assets API (flags only)';
 
-/** Scanner Volume column: RVOL denominator is still Alpaca daily bars — watch accuracy. */
-export const SCANNER_VOLUME_COLUMN_LABEL = 'Volume · RVOL Alpaca';
-export const SCANNER_RVOL_ALPACA_BADGE = 'Alpaca';
+/** Scanner Volume column: live volume is IBKR; RVOL denom badge is Alpaca avg. */
+export const SCANNER_VOLUME_COLUMN_LABEL = 'Volume · RVOL';
+export const SCANNER_RVOL_ALPACA_BADGE = 'Alpaca avg';
 export const SCANNER_RVOL_ALPACA_TITLE =
-  'Relative volume uses Alpaca daily-bar average (IEX/SIP feed) — not IBKR consolidated volume. Thin names can look wrong; study vs tape before trusting.';
+  'Live volume is IBKR L1. Relative volume uses Alpaca daily-bar average (aux) — not IBKR consolidated volume. Thin names can look wrong; study vs tape before trusting.';
 export const QUOTE_RVOL_DAILY_LABEL = 'Rel vol (Alpaca avg)';
 export const QUOTE_RVOL_DAILY_TITLE = SCANNER_RVOL_ALPACA_TITLE;
 
@@ -217,7 +217,8 @@ export const HEADER_INTEGRATION_CHIP_ORDER = [
   'archive',
 ] as const;
 export const HEADER_INTEGRATION_CHIP_LABELS: Record<string, string> = {
-  alpaca: 'Alpaca',
+  // Under IBKR discovery this is news/listing aux — not the live scanner feed.
+  alpaca: 'News',
   openai: 'OpenAI',
   yfinance: 'yfinance',
   archive: 'Archive',
@@ -227,7 +228,7 @@ export const HEADER_INTEGRATION_CHIP_LABELS: Record<string, string> = {
 /** Side-panel section that lists which provider powers each ticker surface. */
 export const TICKER_DATA_SOURCES_SECTION_TITLE = 'Data sources';
 export const TICKER_DATA_SOURCES_SECTION_HINT =
-  'Each row shows which API feeds that part of the panel. Switch scanner discovery or Alpaca IEX/SIP in Settings.';
+  'Scanner, quote, chart, L2, and Time & Sales are IBKR. Alpaca appears only for listing flags / RVOL avg (aux).';
 
 /** Suffix on the Level 2 section title so depth is never confused with Alpaca listing flags. */
 export const TICKER_L2_SOURCE_LABEL = 'IBKR';
@@ -246,10 +247,10 @@ export const SETTINGS_ALPACA_BASE_URL_LABEL = 'Alpaca Base URL';
 export const SETTINGS_ALPACA_API_KEY_PLACEHOLDER = 'APCA_API_KEY_ID';
 export const SETTINGS_ALPACA_API_SECRET_PLACEHOLDER = 'APCA_API_SECRET_KEY';
 export const SETTINGS_ALPACA_SECTION_HINT =
-  'Alpaca credentials for news, listing metadata, and optional Alpaca scanner mode.';
-export const SETTINGS_ALPACA_DATA_FEED_LABEL = 'Alpaca Data Feed';
+  'Alpaca credentials for news and listing metadata only — not the live scanner.';
+export const SETTINGS_ALPACA_DATA_FEED_LABEL = 'Alpaca Data Feed (aux)';
 export const SETTINGS_ALPACA_DATA_FEED_HINT =
-  'IEX is free. SIP requires a paid Alpaca data subscription.';
+  'News/listing aux only — not live scanner prices. IEX is free; SIP needs a paid Alpaca plan.';
 
 // ── Dashboard tab ─────────────────────────────────────────────────────────────
 /** Max rows shown per section on the Dashboard snapshot view. */
@@ -297,23 +298,19 @@ export const SCANNER_TABLE_DENSITY_OPTIONS: ScannerTableDensity[] = [
 ];
 
 // ── Discovery provider (mirrors backend DISCOVERY_PROVIDER_DEFAULT / _OPTIONS) ─
-// Which source powers gappers/gainers/losers: Alpaca's free screener, or a live
-// scan through the user's own IBKR Gateway connection. Reversible any time via
-// Settings — see backend/ibkr/discovery.py.
-export const DISCOVERY_PROVIDER_DEFAULT = 'alpaca';
-/** Human-readable labels for the discovery provider toggle. */
+// Product lock: IBKR is the only scanner discovery source. Alpaca remains for
+// news / listing metadata only — see backend/ibkr/discovery.py.
+export const DISCOVERY_PROVIDER_DEFAULT = 'ibkr';
+/** Human-readable labels (ibkr is the only product option). */
 export const DISCOVERY_PROVIDER_LABELS: Record<string, string> = {
-  alpaca: 'Alpaca (Free)',
-  ibkr: 'Interactive Brokers (Live)',
+  ibkr: 'Interactive Brokers (Gateway)',
 };
 
 /** Header badge: which provider currently sources scanner rows. */
 export const SCANNER_DATA_SOURCE_LABELS: Record<string, string> = {
-  alpaca: 'Data: Alpaca',
   ibkr: 'Data: IBKR',
 };
 export const SCANNER_DATA_SOURCE_TITLES: Record<string, string> = {
-  alpaca: 'Scanner data provided by Alpaca Markets (free IEX or SIP feed)',
   ibkr: 'Scanner data provided by your live Interactive Brokers Gateway connection',
 };
 

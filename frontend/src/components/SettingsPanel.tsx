@@ -1,7 +1,6 @@
 /**
- * SettingsPanel — Alpaca credentials, data feed tier, and scanner provider toggle.
- * Extracted from App.tsx so the settings form stays modular (App.tsx owns state
- * and fetch/save logic; this component is purely presentational).
+ * SettingsPanel — Alpaca news/listing credentials + feed tier.
+ * Scanner discovery is IBKR-only (not selectable). Presentational only.
  */
 import type { FormEvent } from 'react';
 import { DATA_FEED_LABELS, DISCOVERY_PROVIDER_LABELS } from '../constants';
@@ -18,9 +17,8 @@ interface SettingsPanelProps {
   dataFeed: string;
   onDataFeedChange: (value: string) => void;
   dataFeedOptions: string[];
+  /** Locked to ibkr — shown read-only. */
   discoveryProvider: string;
-  onDiscoveryProviderChange: (value: string) => void;
-  discoveryProviderOptions: string[];
   onSubmit: (e: FormEvent) => void;
   onCancel: () => void;
 }
@@ -38,17 +36,25 @@ export function SettingsPanel({
   onDataFeedChange,
   dataFeedOptions,
   discoveryProvider,
-  onDiscoveryProviderChange,
-  discoveryProviderOptions,
   onSubmit,
   onCancel,
 }: SettingsPanelProps) {
+  const scannerLabel =
+    DISCOVERY_PROVIDER_LABELS[discoveryProvider] || 'Interactive Brokers (Gateway)';
+
   return (
     <div className="panel settings-panel">
       <h2 className="panel-title">Settings</h2>
       <form onSubmit={onSubmit}>
         <div className="form-group">
-          <label>API Key ID</label>
+          <label>Scanner</label>
+          <input type="text" value={scannerLabel} readOnly className="feed-select" />
+          <span className="form-hint">
+            Gappers/gainers/losers come from your IB Gateway connection only.
+          </span>
+        </div>
+        <div className="form-group">
+          <label>Alpaca API Key ID (news / listing)</label>
           <input
             type="text"
             value={apiKey}
@@ -59,7 +65,7 @@ export function SettingsPanel({
           />
         </div>
         <div className="form-group">
-          <label>API Secret Key</label>
+          <label>Alpaca API Secret (news / listing)</label>
           <input
             type="password"
             value={apiSecret}
@@ -70,7 +76,7 @@ export function SettingsPanel({
           />
         </div>
         <div className="form-group">
-          <label>Base URL</label>
+          <label>Alpaca Base URL</label>
           <input
             type="url"
             value={baseUrl}
@@ -79,7 +85,7 @@ export function SettingsPanel({
           />
         </div>
         <div className="form-group">
-          <label>Data Feed</label>
+          <label>Alpaca Data Feed (aux)</label>
           <select
             value={dataFeed}
             onChange={e => onDataFeedChange(e.target.value)}
@@ -90,23 +96,8 @@ export function SettingsPanel({
             ))}
           </select>
           <span className="form-hint">
-            IEX is free. SIP requires a paid Alpaca data subscription.
-          </span>
-        </div>
-        <div className="form-group">
-          <label>Scanner Source</label>
-          <select
-            value={discoveryProvider}
-            onChange={e => onDiscoveryProviderChange(e.target.value)}
-            className="feed-select"
-          >
-            {discoveryProviderOptions.map(p => (
-              <option key={p} value={p}>{DISCOVERY_PROVIDER_LABELS[p] || p.toUpperCase()}</option>
-            ))}
-          </select>
-          <span className="form-hint">
-            Gappers/gainers/losers source. IBKR uses your live Gateway connection;
-            Alpaca uses the free screener. News and fundamentals stay the same either way.
+            Used for news/listing aux only — not live scanner prices. IEX is free;
+            SIP needs a paid Alpaca plan.
           </span>
         </div>
         <div className="form-row">

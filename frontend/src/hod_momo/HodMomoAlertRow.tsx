@@ -156,7 +156,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
                     {(alert.rvol_source === 'yfinance' || alert.rvol_source === 'yfinance_pace') && (
                       <span
                         className="hod-rvol-badge yf"
-                        title="Pace RVOL from yfinance (IEX free tier)"
+                        title="Pace RVOL from yfinance average volume"
                       >
                         YF
                       </span>

@@ -19,13 +19,22 @@ describe('parseWorkspaceConfig', () => {
     });
   });
 
-  it('loads discovery_provider and data_feed from /api/config shape', () => {
+  it('loads data_feed and locks discovery to ibkr', () => {
     expect(
       parseWorkspaceConfig({
         discovery_provider: 'ibkr',
         data_feed: 'sip',
       }),
     ).toEqual({ discoveryProvider: 'ibkr', alpacaFeed: 'sip' });
+  });
+
+  it('coerces stale alpaca discovery payloads to ibkr', () => {
+    expect(
+      parseWorkspaceConfig({
+        discovery_provider: 'alpaca',
+        data_feed: 'iex',
+      }),
+    ).toEqual({ discoveryProvider: DISCOVERY_PROVIDER_DEFAULT, alpacaFeed: 'iex' });
   });
 
   it('falls back per-field when values are missing', () => {

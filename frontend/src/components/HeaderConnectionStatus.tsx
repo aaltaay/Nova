@@ -243,8 +243,7 @@ export function HeaderConnectionStatus({
           title={
             feedFellBack
               ? 'SIP feed was rejected; automatically fell back to IEX. Change in Settings if your plan supports SIP.'
-              : SCANNER_DATA_SOURCE_TITLES.alpaca ||
-                `Alpaca data feed: ${DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase()}`
+              : `Legacy Alpaca data feed: ${DATA_FEED_LABELS[activeFeed] || activeFeed.toUpperCase()} (not a product scanner source)`
           }
           data-testid="status-chip-feed"
         >
@@ -271,7 +270,7 @@ export function HeaderConnectionStatus({
             title={
               chip.detail ||
               (key === 'alpaca'
-                ? 'Alpaca aux (news / listing flags / scanner RVOL avg) — not live prices when Gateway is the feed.'
+                ? 'News / listing aux (Alpaca) — not the live scanner or price feed. Gateway chip is scanner health.'
                 : `${role} integration status`)
             }
             data-testid={`status-chip-integration-${key}`}

@@ -6,8 +6,8 @@
  *   Center column: OrderTicket + positions/orders
  *   Top bar      : connection status + data source label
  *
- * When IBKR is not connected the tab renders a friendly setup guide
- * so the rest of Nova (Alpaca scanner) is completely unaffected.
+ * When IBKR is not connected the tab renders a friendly setup guide.
+ * Scanner tabs still need Gateway for live IBKR discovery.
  */
 import { useCallback, useState } from 'react';
 import { ClosedOrdersModule } from '../closed_orders';
@@ -165,7 +165,7 @@ export function TradingTab({
         <div className="ibkr-disconnected-guide">
           <h3>Interactive Brokers not connected</h3>
           <p>
-            The Alpaca scanner tabs above continue working normally.
+            Scanner tabs (gappers/movers) also need IB Gateway logged in.
             To use trading features, follow these steps:
           </p>
           <ol>

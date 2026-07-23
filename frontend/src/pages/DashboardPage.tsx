@@ -177,8 +177,6 @@ export function DashboardPage() {
             onDataFeedChange={settings.setDataFeed}
             dataFeedOptions={settings.dataFeedOptions}
             discoveryProvider={settings.discoveryProvider}
-            onDiscoveryProviderChange={settings.setDiscoveryProvider}
-            discoveryProviderOptions={settings.discoveryProviderOptions}
             onSubmit={settings.handleConfigUpdate}
             onCancel={() => settings.setShowSettings(false)}
           />

@@ -8,14 +8,14 @@ alwaysApply: true
 
 # Single market-data feed & quote-panel coherence
 
-When `NOVA_DISCOVERY_PROVIDER` / Settings discovery is **ibkr**, Interactive Brokers is the **only** price/volume/depth/chart feed. Do not silently mix Alpaca market data into quote, chart, scanner, or Level 2.
+Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive Brokers is the **only** price/volume/depth/chart/scanner feed. Alpaca is news + listing metadata only — never a selectable scanner source. Do not silently mix Alpaca market data into quote, chart, scanner, or Level 2.
 
 ## Hard rules
 
 1. **One discovery feed for prices.**
-   - `discovery=ibkr` → scanner rows, quote ticks, chart bars, Level 2 from IBKR.
-   - `discovery=alpaca` → Alpaca for those surfaces.
-   - Never fall back from IBKR → Alpaca (or the reverse) without an **explicit** user-visible error / Settings change. Silent fallback is forbidden.
+   - Scanner rows, quote ticks, chart bars, Level 2, and Time & Sales come from IBKR.
+   - Settings must not offer Alpaca as a scanner source; `/api/config` coerces any stale `alpaca` value to `ibkr`.
+   - Never fall back from IBKR → Alpaca without an **explicit** user-visible error. Silent fallback is forbidden.
 
 2. **Alpaca listing metadata is not a price feed.**
    Asset flags (tradable / shortable / margin) may still come from Alpaca Assets API. Label them as listing/metadata — never as the quote source. Do not imply Alpaca is pricing the panel.

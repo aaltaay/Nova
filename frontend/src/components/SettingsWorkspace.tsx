@@ -23,8 +23,6 @@ interface SettingsWorkspaceProps {
   onDataFeedChange: (value: string) => void;
   dataFeedOptions: string[];
   discoveryProvider: string;
-  onDiscoveryProviderChange: (value: string) => void;
-  discoveryProviderOptions: string[];
   onSubmit: (e: FormEvent) => void;
   onCancel: () => void;
 }
@@ -66,8 +64,6 @@ export function SettingsWorkspace(props: SettingsWorkspaceProps) {
           onDataFeedChange={props.onDataFeedChange}
           dataFeedOptions={props.dataFeedOptions}
           discoveryProvider={props.discoveryProvider}
-          onDiscoveryProviderChange={props.onDiscoveryProviderChange}
-          discoveryProviderOptions={props.discoveryProviderOptions}
           onSubmit={props.onSubmit}
           onCancel={props.onCancel}
         />

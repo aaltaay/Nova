@@ -1,6 +1,6 @@
 /**
  * Settings form state + GET/POST /api/config.
- * Extracted from App.tsx so the dashboard page stays focused on layout.
+ * Scanner discovery is locked to IBKR — never posted as alpaca.
  */
 import { useCallback, useRef, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
@@ -25,8 +25,7 @@ export function useSettingsForm(onSaved?: () => void) {
   const [dataFeedOptions, setDataFeedOptions] = useState<string[]>(['iex', 'sip']);
   const [discoveryProvider, setDiscoveryProvider] = useState(DISCOVERY_PROVIDER_DEFAULT);
   const [discoveryProviderOptions, setDiscoveryProviderOptions] = useState<string[]>([
-    'alpaca',
-    'ibkr',
+    DISCOVERY_PROVIDER_DEFAULT,
   ]);
   const [activeFeed, setActiveFeed] = useState(DATA_FEED_DEFAULT);
   const [feedFellBack, setFeedFellBack] = useState(false);
@@ -47,9 +46,13 @@ export function useSettingsForm(onSaved?: () => void) {
         setActiveFeed(data.data_feed);
       }
       if (Array.isArray(data.data_feed_options)) setDataFeedOptions(data.data_feed_options);
-      if (data.discovery_provider) setDiscoveryProvider(data.discovery_provider);
+      // Product lock: always treat discovery as IBKR even if a stale payload arrives.
+      setDiscoveryProvider(DISCOVERY_PROVIDER_DEFAULT);
       if (Array.isArray(data.discovery_provider_options)) {
-        setDiscoveryProviderOptions(data.discovery_provider_options);
+        const opts = data.discovery_provider_options.filter(
+          (p: string) => p === DISCOVERY_PROVIDER_DEFAULT,
+        );
+        setDiscoveryProviderOptions(opts.length ? opts : [DISCOVERY_PROVIDER_DEFAULT]);
       }
     } catch {
       // silent
@@ -68,13 +71,14 @@ export function useSettingsForm(onSaved?: () => void) {
           api_secret: apiSecret,
           base_url: baseUrl,
           data_feed: dataFeed,
-          discovery_provider: discoveryProvider,
+          // Never send alpaca — server also coerces to ibkr.
+          discovery_provider: DISCOVERY_PROVIDER_DEFAULT,
         }),
       });
       if (res.ok) {
         const result = await res.json();
         if (result.data_feed) setActiveFeed(result.data_feed);
-        if (result.discovery_provider) setDiscoveryProvider(result.discovery_provider);
+        setDiscoveryProvider(DISCOVERY_PROVIDER_DEFAULT);
         setFeedFellBack(false);
         setShowSettings(false);
         onSavedRef.current?.();

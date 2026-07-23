@@ -1,8 +1,6 @@
 /**
  * Dashboard tab — configuration hub.
- * Houses the exchange filter (applied to all scanner tabs) + the Settings form
- * so users can tune API credentials and discovery provider without opening the
- * header Settings popover.
+ * Exchange filter + Settings (Alpaca news/listing aux). Scanner is IBKR-only.
  */
 import { useState } from 'react';
 import { ExchangeFilterDropdown } from '../components/ExchangeFilterDropdown';
@@ -21,8 +19,6 @@ interface SettingsProps {
   onDataFeedChange: (v: string) => void;
   dataFeedOptions: string[];
   discoveryProvider: string;
-  onDiscoveryProviderChange: (v: string) => void;
-  discoveryProviderOptions: string[];
   onSubmit: (e: FormEvent) => void;
 }
 
@@ -42,15 +38,14 @@ export function DashboardTab({
   onDataFeedChange,
   dataFeedOptions,
   discoveryProvider,
-  onDiscoveryProviderChange,
-  discoveryProviderOptions,
   onSubmit,
 }: Props) {
   const [filterOpen, setFilterOpen] = useState(false);
+  const scannerLabel =
+    DISCOVERY_PROVIDER_LABELS[discoveryProvider] || 'Interactive Brokers (Gateway)';
 
   return (
     <div className="dashboard-tab dashboard-config">
-      {/* ── Exchange filter ───────────────────────────────────────────────── */}
       <section className="dashboard-section">
         <h3 className="dashboard-section-title">Exchange Filter</h3>
         <p className="dashboard-section-hint">
@@ -65,12 +60,18 @@ export function DashboardTab({
         />
       </section>
 
-      {/* ── Settings ─────────────────────────────────────────────────────── */}
       <section className="dashboard-section">
         <h3 className="dashboard-section-title">Settings</h3>
         <form className="dashboard-settings-form" onSubmit={onSubmit}>
           <div className="form-group">
-            <label>API Key ID</label>
+            <label>Scanner</label>
+            <input type="text" value={scannerLabel} readOnly className="feed-select" />
+            <span className="form-hint">
+              Gappers/gainers/losers come from your IB Gateway connection only.
+            </span>
+          </div>
+          <div className="form-group">
+            <label>Alpaca API Key ID (news / listing)</label>
             <input
               type="text"
               value={apiKey}
@@ -79,7 +80,7 @@ export function DashboardTab({
             />
           </div>
           <div className="form-group">
-            <label>API Secret Key</label>
+            <label>Alpaca API Secret (news / listing)</label>
             <input
               type="text"
               value={apiSecret}
@@ -88,7 +89,7 @@ export function DashboardTab({
             />
           </div>
           <div className="form-group">
-            <label>Base URL</label>
+            <label>Alpaca Base URL</label>
             <input
               type="url"
               value={baseUrl}
@@ -96,7 +97,7 @@ export function DashboardTab({
             />
           </div>
           <div className="form-group">
-            <label>Data Feed</label>
+            <label>Alpaca Data Feed (aux)</label>
             <select
               value={dataFeed}
               onChange={e => onDataFeedChange(e.target.value)}
@@ -107,22 +108,7 @@ export function DashboardTab({
               ))}
             </select>
             <span className="form-hint">
-              IEX is free. SIP requires a paid Alpaca data subscription.
-            </span>
-          </div>
-          <div className="form-group">
-            <label>Scanner Source</label>
-            <select
-              value={discoveryProvider}
-              onChange={e => onDiscoveryProviderChange(e.target.value)}
-              className="feed-select"
-            >
-              {discoveryProviderOptions.map(p => (
-                <option key={p} value={p}>{DISCOVERY_PROVIDER_LABELS[p] || p.toUpperCase()}</option>
-              ))}
-            </select>
-            <span className="form-hint">
-              IBKR uses your live Gateway connection; Alpaca uses the free screener.
+              News/listing aux only — not live scanner prices.
             </span>
           </div>
           <div className="form-row">

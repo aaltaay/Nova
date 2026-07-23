@@ -15,35 +15,21 @@ describe('buildTickerDataSources', () => {
 
   it('labels Level 2 as IBKR when Gateway is connected', () => {
     const rows = buildTickerDataSources({
-      discoveryProvider: 'alpaca',
+      discoveryProvider: 'ibkr',
       alpacaFeed: 'sip',
       ibkrConnected: true,
     });
     expect(rows.find(r => r.role === 'Level 2')?.source).toBe('Interactive Brokers');
   });
 
-  it('switches scanner attribution when discovery_provider changes', () => {
-    const alpaca = buildTickerDataSources({
-      discoveryProvider: 'alpaca',
-      alpacaFeed: 'iex',
-      ibkrConnected: false,
-    });
-    const ibkr = buildTickerDataSources({
+  it('always attributes scanner rows to IBKR (product lock)', () => {
+    const rows = buildTickerDataSources({
       discoveryProvider: 'ibkr',
       alpacaFeed: 'iex',
       ibkrConnected: true,
     });
-    expect(alpaca.find(r => r.role === 'Scanner rows')?.source).toBe('Alpaca');
-    expect(ibkr.find(r => r.role === 'Scanner rows')?.source).toBe('Interactive Brokers');
-  });
-
-  it('mentions the Alpaca IEX/SIP tier on Alpaca-sourced quote rows', () => {
-    const rows = buildTickerDataSources({
-      discoveryProvider: 'alpaca',
-      alpacaFeed: 'sip',
-      ibkrConnected: false,
-    });
-    expect(rows.find(r => r.role === 'Quote & chart')?.source).toContain('SIP');
+    expect(rows.find(r => r.role === 'Scanner rows')?.source).toBe('Interactive Brokers');
+    expect(rows.find(r => r.role === 'Scanner rows')?.detail?.toLowerCase()).toContain('ibkr');
   });
 
   it('IBKR quote/chart copy does not advertise Alpaca fallback', () => {

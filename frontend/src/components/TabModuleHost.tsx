@@ -115,8 +115,6 @@ export function TabModuleHost(props: TabModuleHostProps) {
         onDataFeedChange={settings.setDataFeed}
         dataFeedOptions={settings.dataFeedOptions}
         discoveryProvider={settings.discoveryProvider}
-        onDiscoveryProviderChange={settings.setDiscoveryProvider}
-        discoveryProviderOptions={settings.discoveryProviderOptions}
         onSubmit={settings.handleConfigUpdate}
       />
     );

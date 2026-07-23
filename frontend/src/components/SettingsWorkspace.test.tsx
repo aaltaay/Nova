@@ -25,8 +25,6 @@ const baseProps = {
   onDataFeedChange: vi.fn(),
   dataFeedOptions: ['iex'],
   discoveryProvider: 'ibkr',
-  onDiscoveryProviderChange: vi.fn(),
-  discoveryProviderOptions: ['ibkr', 'alpaca'],
   onSubmit: vi.fn((e: { preventDefault: () => void }) => e.preventDefault()),
   onCancel: vi.fn(),
 };

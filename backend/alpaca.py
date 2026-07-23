@@ -92,27 +92,35 @@ def _try_fallback_to_iex(context: str) -> bool:
     return False
 
 
-# ── Discovery provider (Alpaca vs IBKR) ────────────────────────────────────────
-# Soft toggle — Alpaca stays the default and its code paths are untouched.
-# See DISCOVERY_PROVIDER_DEFAULT in constants.py and ibkr/discovery.py.
+# ── Discovery provider (IBKR-only product lock) ───────────────────────────────
+# Product surface is IBKR-only. Stale env/Settings values of "alpaca" coerce to
+# ibkr. Alpaca scanner adapters remain importable for tests/emergency only.
 _active_discovery_provider: str = ""
+
+
+def _normalize_discovery_provider(provider: str | None) -> str:
+    raw = (provider or DISCOVERY_PROVIDER_DEFAULT).strip().lower()
+    if raw not in DISCOVERY_PROVIDER_OPTIONS:
+        if raw and raw != DISCOVERY_PROVIDER_DEFAULT:
+            logger.warning(
+                "Discovery provider '%s' is not allowed — coercing to '%s'",
+                raw,
+                DISCOVERY_PROVIDER_DEFAULT,
+            )
+        return DISCOVERY_PROVIDER_DEFAULT
+    return raw
 
 
 def _get_discovery_provider() -> str:
     global _active_discovery_provider
     if _active_discovery_provider:
         return _active_discovery_provider
-    raw = (_env("NOVA_DISCOVERY_PROVIDER") or DISCOVERY_PROVIDER_DEFAULT).lower()
-    if raw not in DISCOVERY_PROVIDER_OPTIONS:
-        raw = DISCOVERY_PROVIDER_DEFAULT
+    raw = _normalize_discovery_provider(_env("NOVA_DISCOVERY_PROVIDER"))
     _active_discovery_provider = raw
     return _active_discovery_provider
 
 
 def _set_discovery_provider(provider: str) -> None:
     global _active_discovery_provider
-    provider = provider.lower()
-    if provider not in DISCOVERY_PROVIDER_OPTIONS:
-        provider = DISCOVERY_PROVIDER_DEFAULT
-    _active_discovery_provider = provider
+    _active_discovery_provider = _normalize_discovery_provider(provider)
     logger.info("Discovery provider set to '%s'", _active_discovery_provider)

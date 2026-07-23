@@ -72,7 +72,7 @@ describe('HeaderConnectionStatus', () => {
 
     const alpacaAux = container.querySelector('[data-testid="status-chip-integration-alpaca"]');
     const openai = container.querySelector('[data-testid="status-chip-integration-openai"]');
-    expect(alpacaAux?.textContent).toMatch(/Alpaca/);
+    expect(alpacaAux?.textContent).toMatch(/News/);
     expect(alpacaAux?.textContent).toMatch(/ok/);
     expect(openai?.textContent).toMatch(/OpenAI/);
     expect(openai?.textContent).toMatch(/off/);
@@ -120,7 +120,8 @@ describe('HeaderConnectionStatus', () => {
     expect(liveGateway?.className).toMatch(/status-chip--live/);
   });
 
-  it('shows Alpaca feed chip instead of Gateway when discovery is alpaca', () => {
+  it('legacy alpaca discovery prop still shows Feed chip (dead product path)', () => {
+    // Product lock prevents Settings from selecting alpaca; keep branch coverage.
     act(() => {
       root.render(
         <HeaderConnectionStatus

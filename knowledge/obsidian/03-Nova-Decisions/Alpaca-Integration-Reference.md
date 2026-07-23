@@ -107,7 +107,7 @@ removal, so each call site is in one place.
 | File | What it shows |
 |---|---|
 | `frontend/src/components/SettingsPanel.tsx` | Alpaca API key fields, IEX/SIP feed selector, discovery-provider dropdown |
-| `frontend/src/components/AppHeader.tsx` | Health dot, `SCANNER_DATA_SOURCE_LABELS`/`_TITLES` badge (`Data: Alpaca` / `Data: IBKR`) |
+| `frontend/src/components/AppHeader.tsx` | Health + Gateway chip (IBKR scanner); aux `News` chip is Alpaca news/listing — not scanner feed |
 | `frontend/src/utils/dataSourceMap.ts` | Per-surface attribution ("Scanner rows", "Quote & chart", "Level 2", "Broker listing", "Fundamentals") shown in the ticker side panel's Data Sources block — explicitly documents *"Price prefers IBKR cache; bars/chart still Alpaca"* |
 | `frontend/src/utils/quoteFormat.ts`, `frontend/src/constants.ts` | `ALPACA_ASSET_ATTRIBUTE_LABELS`, `QUOTE_BROKER_SECTION_TITLE` ("Broker listing (Alpaca)"), `QUOTE_LISTING_FEED_VALUE`, `DATA_FEED_*`, `DISCOVERY_PROVIDER_*`, `SCANNER_DATA_SOURCE_*`, chart timeframe/lookback comments |
 | `frontend/src/TickerChart.tsx` | Fetches the Alpaca-backed `/api/ticker/{symbol}/bars` |

@@ -2,16 +2,26 @@
 title: Scanner Data Provider Decision (IBKR primary vs Alpaca SIP)
 date: 2026-07-13
 status: implemented
+updated: 2026-07-23
 ---
 
 # Scanner Data Provider — IBKR primary (no Alpaca SIP)
+
+## Status (2026-07-23)
+
+**Soft-toggle retired for the product UI.** Scanner discovery is **IBKR-only**:
+`DISCOVERY_PROVIDER_DEFAULT=ibkr`, `DISCOVERY_PROVIDER_OPTIONS=("ibkr",)`,
+Settings no longer offers Alpaca as a scanner source, and `/api/config` coerces
+any stale `alpaca` value to `ibkr`. Alpaca remains for **news headlines + Assets
+listing flags** only. Alpaca scanner adapters stay in-repo for tests/emergency
+but are not selectable. Undo = code change, not Settings.
 
 ## Decision
 
 **Do not buy Alpaca Algo Trader Plus ($99 SIP).**  
 **Primary live discovery → Interactive Brokers market scanners + L1 subscriptions.**  
-**Keep existing Alpaca codepaths intact behind a provider flag for undo / hybrid.**  
-**Keep free Alpaca (or equivalent) only for non-SIP needs: news headlines, optional fallback.**
+**Alpaca scanner codepaths kept in-repo but not exposed as a product option.**  
+**Keep free Alpaca only for non-scanner needs: news headlines, listing metadata.**
 
 ## Why (strategy-grounded)
 
