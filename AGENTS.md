@@ -40,7 +40,7 @@ These rules CANNOT be violated under ANY circumstance:
 | 3 | **Secrets in `.env` only** | No API keys, tokens, or credentials EVER appear in source code, logs, or commits. |
 | 4 | **`.tmp/` is ephemeral** | Never treat `.tmp/` files as a source of truth. |
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
-| 6 | **Self-Annealing** | Any error → Analyze → Patch → Test → Update SOP/rules → Log in `PROBLEM_LOG.md`. |
+| 6 | **Self-Annealing** | Any error → Analyze → Patch → Test → Update SOP/rules → **MUST** log in `PROBLEM_LOG.md` (every agent; see `problem-log.mdc`). |
 | 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module, defaults to a **paper** account, and requires both `IBKR_ENABLED=true` AND (for live money) `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. |
 | 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a maintenance log entry, THEN write the code. |
 
@@ -258,15 +258,17 @@ When touching ANY function currently in a monolith file:
 
 ### 7.2 PROBLEM_LOG.md
 
-- Prepend entry after fixing any build/test/linter failure, runtime error, incorrect behavior, or subtle root cause.
+- **Mandatory for every agent** (parent + all specialists). Rule: `.cursor/rules/problem-log.mdc`.
+- Prepend entry after fixing any build/test/linter failure, runtime error, incorrect behavior, or subtle root cause — same session as the fix. Skipping after a real fix is a constitution violation.
 - Use the template in `PROBLEM_LOG.md` (Symptom, Cause, Fix, Keywords).
+- Lifecycle footer **MUST** include `problem_log=<YYYY-MM-DD title>|skipped|n/a`.
 
 ### 7.2b Task log (`knowledge/task-log/`)
 
 - After every completed material task (parent or specialist), append a dated narrative under `knowledge/task-log/` and prepend `INDEX.md`.
 - **Why this approach** is mandatory — capture tradeoffs and rejected alternatives, not only the diff.
 - Rule: `.cursor/rules/task-log.mdc`. Scaffold: `py -3 tools/task_log_new.py --slug <kebab> --title "…"`.
-- Lifecycle footer includes `task_log=<path>|skipped|n/a`.
+- Lifecycle footer includes `task_log=<path>|skipped|n/a` and `problem_log=<entry>|skipped|n/a`.
 
 ### 7.3 .cursor/rules/
 
@@ -331,6 +333,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-23 | PROBLEM_LOG mandatory for every agent: strengthened `problem-log.mdc`; Lifecycle requires `problem_log=`; contract regex + subagentStop reminder; agent prompts + ops docs updated. | Cursor Agent |
 | 2026-07-18 | Phase G3: `hotkeys` specialist Owned; typed Nova Actions (cancel/exit/Ask±/Bid±); one dispatcher; Trading quick-bar; `auto_live` NO-GO. | Cursor Agent |
 | 2026-07-18 | Task log archive: `knowledge/task-log/` + always-on `task-log.mdc`; Lifecycle `task_log=`; scaffold `tools/task_log_new.py`. Captures why/tradeoffs after every material job. | Cursor Agent |
 | 2026-07-18 | Agent naming standardization: `nova-router`→`router`, `nova-agent`→`docs`, `security-sentinel`→`security`, `widgets-agent`→`widgets`, `news-catalyst`→`news`; canvases aligned to `agent-<id>`; fleet map Mode column; registry reordered. | Cursor Agent |

@@ -58,7 +58,7 @@ Windows: always `py -3` for Python.
 - **Evidence:** …
 - **Memory update:** none | run-log only | promoted: <what> | backlog +N
 
-**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none
+**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
 ```
 
 ## Invoke phrases

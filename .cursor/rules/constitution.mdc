@@ -13,7 +13,7 @@ Before writing ANY code in this project, you MUST:
 3. **Check `.cursor/rules/`** for fine-grained, glob-scoped policies.
 4. **Never violate modularity.** Do not add logic to `main.py` or `App.tsx`. Extract to modules.
 5. **Never violate file size limits.** No file > 400 lines for new code.
-6. **Log your work.** Update `CHANGELOG.md` and `PROBLEM_LOG.md` as required, and append `knowledge/task-log/` for material completed tasks (see `task-log.mdc`).
+6. **Log your work.** Update `CHANGELOG.md` for every behavior change; **MUST** prepend `PROBLEM_LOG.md` after any bug fix / diagnosis (mandatory for every agent — see `problem-log.mdc`); append `knowledge/task-log/` for material completed tasks (see `task-log.mdc`).
 7. **Commit and push** at the end of every task. `git add . && git commit -m "<msg>" && git push origin master`.
 
 ## Rule Hierarchy (highest to lowest)
@@ -29,4 +29,5 @@ Before writing ANY code in this project, you MUST:
 - ❌ Hardcoding a number or string → put it in `constants.py` / `constants.ts`
 - ❌ Forgetting to commit and push → always run git add/commit/push
 - ❌ Forgetting CHANGELOG.md → entry required for every behavior change
+- ❌ Fixing a bug without a `PROBLEM_LOG.md` entry → mandatory for every agent
 - ❌ Swallowing an error silently → log it, fix root cause, update PROBLEM_LOG.md

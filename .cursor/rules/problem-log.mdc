@@ -1,27 +1,73 @@
 ---
-description: Maintain PROBLEM_LOG.md when fixing errors or diagnosing issues
+description: MANDATORY PROBLEM_LOG.md for every agent after bug fixes / diagnoses
 alwaysApply: true
 ---
 
-# Problem log — append resolved issues
+# Problem log — mandatory for every agent
 
 The repo root file `PROBLEM_LOG.md` is a **problem database** for future agent and human sessions.
 
-## Before deep debugging
+**This rule applies to every agent that works in this repo** — parent Auto sessions, Cursor built-ins used on Nova work, and every Nova specialist (`daddy`, `tester`, `hod-momo`, `market-feed`, …). There is no exception by agent type or “quick fix” framing.
 
-When the task involves an error, failing check, or wrong behavior, **search `PROBLEM_LOG.md`** (and the codebase) for matching keywords or symptoms. If a prior entry fits, reuse that fix pattern when appropriate.
+## Hard requirement
 
-## After fixing or fully diagnosing
-
-When this session **resolves** any of the following, **prepend a new entry** to `PROBLEM_LOG.md` (newest first, directly under the `<!-- ENTRIES_START -->` line):
+When a session **fixes or fully diagnoses** any of the following, the agent **MUST** prepend a new entry to `PROBLEM_LOG.md` in the **same session** as the fix (before or with the CHANGELOG / task-log / commit):
 
 - Build, test, or linter failure
 - Runtime or API error
 - Incorrect behavior that required code or config changes
 - A subtle root cause that would not be obvious on the next occurrence
 
-**Skip** logging only for purely cosmetic edits with no failure involved, or a one-line typo with no diagnostic story.
+**Skipping PROBLEM_LOG after a real fix is a constitution violation** — same severity as skipping CHANGELOG for a behavior change.
 
-Each entry must use the template in `PROBLEM_LOG.md` (Symptom, Cause, Fix, Keywords). Do not log secrets, tokens, or personal data.
+## Before deep debugging
 
-This is part of **task completion**: add the log entry in the same session as the fix when practical, before or alongside commit.
+**Search `PROBLEM_LOG.md` first** (repo search or open the file) for matching keywords or symptoms. If a prior entry fits, reuse that fix pattern when appropriate.
+
+## Where and how
+
+1. Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest first).
+2. Use the template in `PROBLEM_LOG.md`: Symptom, Cause, Fix, Keywords.
+3. Do not log secrets, tokens, or personal data.
+4. Cross-link from `CHANGELOG.md` / task-log `Related:` when those also get an entry.
+
+## When skip is allowed
+
+Only for:
+
+- Purely cosmetic edits with **no** failure involved
+- A one-line typo with **no** diagnostic story
+- Status-only polls / read-only triage with **no** remediation
+
+When skipping, Lifecycle (specialists) or the closing report (parent) **MUST** say `problem_log=skipped` or `problem_log=n/a` with a one-word reason when useful — never silently omit the declaration.
+
+## Lifecycle declaration (specialists + parent reports that use Lifecycle)
+
+Every Lifecycle footer **MUST** include:
+
+```text
+problem_log=<YYYY-MM-DD title or entry anchor>|skipped|n/a
+```
+
+Example after logging a fix:
+
+```text
+**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-07-23-example.md | problem_log=2026-07-23 — API_WEDGED
+```
+
+## Relationship to other logs
+
+| Log | Answers |
+|-----|---------|
+| `PROBLEM_LOG.md` | What went wrong and how it was fixed (bugs / failures only) |
+| `CHANGELOG.md` | What the codebase does now (every behavior change) |
+| `knowledge/task-log/` | Full job narrative + why this approach |
+
+A bug fix that changes behavior needs **PROBLEM_LOG + CHANGELOG** (and task-log when material). Do not treat CHANGELOG alone as satisfying this rule.
+
+## Related
+
+- `.cursor/rules/self-annealing.mdc`
+- `.cursor/rules/change-log.mdc`
+- `.cursor/rules/task-log.mdc`
+- `docs/agent-operations.md`

@@ -162,7 +162,7 @@ Rules:
 - **Suggested next fixes:** (ordered by severity; one PR each; parent decides)
 - **Memory update:** none | run-log only | accepted risk added: SEC-NNN | backlog +N | registry updated
 
-**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none
+**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
 ```
 
 Keep the report tight. Prefer evidence over narrative. If CLEAN, say so — do not invent findings to look busy.

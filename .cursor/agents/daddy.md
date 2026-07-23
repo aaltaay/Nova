@@ -131,7 +131,7 @@ Windows: always `py -3` for Python.
 - **Memory update:** none | run-log only | promoted: <what> | backlog +N
 - **Task log:** <path> | skipped | n/a
 
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<agent(s)> | task_log=<path>|skipped|n/a
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<agent(s)> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
 ```
 
 ### Dispatch Plan fallback shape (when mode=plan)

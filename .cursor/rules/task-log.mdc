@@ -42,7 +42,7 @@ If skipping, Lifecycle must say `task_log=skipped` or `task_log=n/a` with a one-
 Example Lifecycle:
 
 ```text
-**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-07-18-sec-001-008-remediation.md
+**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-07-18-sec-001-008-remediation.md | problem_log=2026-07-18 — SEC-001–008
 ```
 
 ## Ownership

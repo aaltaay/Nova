@@ -119,7 +119,7 @@ Windows: always `py -3` for Python. Always quote `@refs` in PowerShell.
 - **Map updates:** none | paths touched
 - **Memory update:** none | run-log only | promoted: <what> | backlog +N
 
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent>
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
 ```
 
 ## Invoke phrases
