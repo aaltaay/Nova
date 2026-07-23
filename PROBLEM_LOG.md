@@ -1,10 +1,12 @@
-# Problem log (agent-maintained)
+# Problem log (agent-maintained — MANDATORY)
 
 This file is a **shared memory** of errors fixed and problems identified in this repo. Agents should **search here first** (repo search or open this file) when symptoms look familiar.
 
+**Mandatory for every agent** in this project (parent sessions and all Nova specialists). Rule: `.cursor/rules/problem-log.mdc`. Fixing a bug without a new entry here is a constitution violation. Lifecycle footers must declare `problem_log=<entry>|skipped|n/a`.
+
 ## How agents update this file
 
-1. **When:** After you fix a failing build, test, linter error, runtime error, or incorrect behavior; or after you identify a non-obvious root cause worth remembering.
+1. **When:** After you fix a failing build, test, linter error, runtime error, or incorrect behavior; or after you identify a non-obvious root cause worth remembering. **Required** — not optional for “obvious” or “quick” fixes.
 2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top).
 3. **Keep it short:** A few lines per field is enough.
 
@@ -20,6 +22,41 @@ Entry template (copy and fill in):
 ```
 
 <!-- ENTRIES_START -->
+
+## 2026-07-23 — API restart cascade: hot-reload race + two confirmed IBKR lifecycle defects (correction + fix)
+
+- **Symptom:** Repeated API restarts around 10:18–10:19 while editing backend files; browser showed a ~2.5s health delay during one of those restarts. The 2026-07-23 "API_WEDGED" entry below attributed delayed health to health and `scan_loop` sharing asyncio's default thread pool.
+- **Cause (corrected):** That shared-pool diagnosis was wrong — Starlette/FastAPI `async def` routes run on AnyIO's worker pool, not asyncio's default `ThreadPoolExecutor` used by `scan_loop`'s `run_coro` bridge; they were never contending for the same pool. The real 10:18–10:19 sequence was a **development hot-reload cascade**: sequential backend file writes triggered `uvicorn --reload`'s WatchFiles workers while a second API-start attempt (frontend auto-heal or a manual restart) raced for port 8000, occasionally producing `WinError 10048` (address already in use). Two separate, real lifecycle defects were also confirmed during the investigation, independent of the reload race: (1) `ibkr/client.py` exposed the raw socket the instant `connectAsync()` returned, before account-kind validation or positions/completed-orders cache warm-up finished, so background scanner/L1/chart/account tasks could hit a half-ready IBKR session; (2) `ibkr/client.run_coro()` timed out without cancelling its submitted `run_coroutine_threadsafe` future, so a stale coroutine kept running against the old session after a reconnect. The original 2.5s health-delay's root cause is still not proven beyond "hot reload was in flight" — no direct loop-lag/instance-id evidence existed at the time.
+- **Fix:** Added an honest 5-state IBKR session machine (`ibkr/session_state.py`: DISCONNECTED/CONNECTING/SYNCHRONIZING/READY/DEGRADED) with a monotonic generation counter; `get_ib()` now returns the client only when `is_ready()` (session READY, not just socket-connected). `run_coro()` cancels its future on timeout and raises `StaleIbkrSessionError` if the generation changed mid-call. Added per-process `instance_identity.py`, `loop_lag.py` sampling, and `/livez` + `/readyz` endpoints so the next delay is measured, not inferred. Replaced arbitrary port-killing in `frontend/scripts/vite-nova-start-api.ts` with a file-based cross-process lock, stricter (HTTP 200 + schema + new-instance-id) restart verification, and an ownership check in `scripts/Stop-NovaPorts.ps1` so only Nova-owned processes on :8000 get force-stopped. Corrected the comment in `constants_scanner.py` that previously stated the disproven shared-pool theory.
+- **Keywords:** API_WEDGED, hot reload, WatchFiles, WinError 10048, port 8000, ibkr session readiness, run_coro cancellation, stale generation, instance_id, loop_lag, livez, readyz, single supervisor lock
+
+## 2026-07-23 — HOD alerts muted by scanner-bridge TimeoutError (integrity_fail_suppress)
+
+- **Symptom:** Live HOD L1 looks healthy (ticks flowing, active quote/eval p95 ~0.75s, RVOL known ~95%) but session gate FAILS and strategy evals are mostly blocked. Debug counters: `integrity_fail_suppress` ≫ `strategy_*_fired` (e.g. 6418 suppress vs 5 Squeeze fires in one RTH window). User perception: “HOD scanners not working well.”
+- **Cause:** `hod_momo_trade.on_trade_update` calls `integrity_is_failing()`, which reads the **merged** integrity status (`integrity_live._last_merged_status`). A transient `scanner_ibkr_bridge` fail (`gainers: TimeoutError`) flips the whole merge to `fail` even when `parts.hod_momo` is only `warn`/`pass`. HOD strategy passes are then forced `blocked_by=integrity_fail_suppress`.
+- **Fix:** Not shipped this session (investigation only). Intended surgical fix: suppress HOD fires only when **hod_momo** integrity is `fail` (or when IBKR disconnected / L1 dead), not when scanner-tab bridge timeouts flap; optionally demote bridge TimeoutError to warn when gainers cache age is still fresh. Hand off to parent/`hod-momo` fix run.
+- **Keywords:** HOD Momo, integrity_fail_suppress, scanner_ibkr_bridge, TimeoutError, merge_integrity, session_gate FAIL, false mute
+
+## 2026-07-23 — API_WEDGED: health timeout, Start API was click-only
+
+- **Symptom:** Header `API_WEDGED` / “Backend hung (no health response)” while Gateway chip still looked connected; Start API required a click.
+- **Cause:** uvicorn still LISTEN on :8000 but sync `/api/health` shared asyncio’s default thread pool with `scan_loop`’s IBKR `run_coro` waits (25s). Pool saturated → health probe timed out (WEDGED). IBKR TimeoutErrors were the load; the pool conflict made liveness fail.
+- **Fix:** (1) async `/api/health` (no default-pool parking). (2) dedicated `scan_executor` for scan_loop. (3) auto-heal once per session on WEDGED/DOWN via `maybeAutoHealBackend`.
+- **Keywords:** API_WEDGED, health timeout, Start API, auto-heal, scan_executor, ThreadPoolExecutor, IBKR bridge TimeoutError
+
+## 2026-07-23 — useWorkspace outside WorkspaceProvider (HMR / no auto-recover)
+
+- **Symptom:** Full-view error: `useWorkspace must be used within WorkspaceProvider`; Retry did nothing useful.
+- **Cause:** Usually Vite HMR duplicated the context module (Provider from one copy, consumer from another → null). Soft Retry only remounted children under the same broken identity. Also AppShell’s page boundaries sat below AppShell’s own `useWorkspace` call for some paths.
+- **Fix:** `AppErrorBoundary` auto hard-reloads once on fatal provider/hook errors (`appErrorRecovery.ts`); Retry becomes “Reload Nova” for those; outer `app-shell` boundary wraps `AppShell`.
+- **Keywords:** useWorkspace, WorkspaceProvider, AppErrorBoundary, HMR, auto-reload, context skew
+
+## 2026-07-23 — Alpaca still offered/defaulted as scanner source
+
+- **Symptom:** Settings showed “Scanner Source → Alpaca (Free)”; header could show green `FEED: Alpaca IEX` / `ALPACA ok` while IB Gateway was still logging in, implying the live scanner was fine.
+- **Cause:** Soft-toggle from 2026-07-13 left `DISCOVERY_PROVIDER_DEFAULT=alpaca` and `OPTIONS=("alpaca","ibkr")`. Frontend hydrated from that default before `/api/config`, hiding the Gateway chip. Settings POST could write `NOVA_DISCOVERY_PROVIDER=alpaca` over `.env`. Integration chip labeled `Alpaca` meant news/listing aux, not scanner health.
+- **Fix:** Lock product to IBKR-only (`DEFAULT=ibkr`, `OPTIONS=("ibkr",)`); coerce/persist ibkr in `_get/_set_discovery_provider` and `POST /api/config`; remove Scanner Source dropdowns; rename aux chip to `News`; update attribution, decision note, and `single-market-data-feed.mdc`.
+- **Keywords:** discovery_provider, Alpaca scanner, Scanner Source, FEED Alpaca IEX, IBKR-only, soft-toggle, hydrate race
 
 ## 2026-07-22 — Sentry flooded by expected IBKR / chart-dispose noise
 

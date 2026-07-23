@@ -30,6 +30,69 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — API/IBKR lifecycle hardening: honest readiness, cancellable bridge calls, single restart supervisor
+
+- **What:** Corrected the earlier "shared thread pool" diagnosis for the 10:18–10:19 restart cascade (it was a dev hot-reload race, not a health/scan pool conflict — see PROBLEM_LOG below). Added an explicit IBKR session-readiness state machine, made the sync→async IBKR bridge cancel on timeout and reject stale-generation results, added instance/liveness/loop-lag telemetry, and replaced arbitrary port-killing in the dev API launcher with an owned, locked restart flow.
+- **Why:** Two real defects let background IBKR work run against a half-initialized or already-replaced broker session, and the dev restart path could kill an unrelated process or race a second API start on :8000. Full plan: `api_ibkr_lifecycle_hardening_24083047.plan.md`.
+- **Files touched:** `backend/ibkr/session_state.py` (new), `backend/ibkr/client.py`, `backend/ibkr/account.py`, `backend/ibkr/discovery.py`, `backend/ibkr/errors.py`, `backend/ibkr_bridge.py`, `backend/instance_identity.py` (new), `backend/loop_lag.py` (new), `backend/app_lifespan.py`, `backend/routes/health.py`, `backend/constants_ibkr.py`, `backend/constants_scanner.py`, `frontend/src/types/health.ts`, `frontend/scripts/vite-nova-start-api.ts`, `frontend/electron/sidecar.mjs`, `scripts/Stop-NovaPorts.ps1`, plus new/updated backend and frontend tests.
+- **How it works now:** `ibkr.client.get_ib()` returns the live `IB` instance only once Nova's own session state reaches `READY` (transport connected *and* account-kind validated *and* positions/completed-orders caches warmed) — not merely "socket connected." Every transition into `READY` bumps a monotonic generation counter; `run_coro()` captures the generation before bridging a coroutine onto the IBKR loop and raises `StaleIbkrSessionError` if a reconnect happened mid-call, and it now cancels the underlying future on timeout instead of abandoning it. `reqScannerDataAsync` and the batch `qualifyContractsAsync` inside `snapshot_quotes()` each carry their own bounded timeout inside the outer bridge ceiling, so a hung scanner/qualify call is attributable and cancellable rather than indistinguishable from any other bridge timeout. `/api/health` now reports per-process `instance_id`/pid/reload state and event-loop lag; `/livez` is a minimal loop-liveness probe and `/readyz` reports bootstrap + IBKR session readiness (503 until ready). The Vite dev plugin acquires a file-based lock before starting/killing the API, requires HTTP 200 + a valid JSON body + a *new* `instance_id` before declaring a restart successful, and `Stop-NovaPorts.ps1` only force-stops processes it can identify as Nova-owned (`run_api.py`/`uvicorn`/`vite`), warning instead of killing anything else.
+- **Verified by:** `py -3 -m pytest backend/tests/test_ibkr_session_state.py backend/tests/test_ibkr_client_readiness.py backend/tests/test_instance_identity.py backend/tests/test_routes_health_live_ready.py backend/tests/test_ibkr_account.py backend/tests/test_ibkr_discovery_fail_loud.py backend/tests/test_ibkr_discovery.py` (all pass) and a full `py -3 -m pytest` run (892 passed, 1 pre-existing unrelated failure in `test_hod_momo_universe.py` from local cache-file pollution, untouched by this change).
+- **Follow-ups:** The plan's scope boundary explicitly defers a full `IbkrRuntime` actor rewrite unless the new loop-lag/readiness telemetry later shows continued contention. `frontend/scripts/vite-nova-start-api.test.ts` covers the lock-staleness helper only; full restart-coalescing/reload-detection behavior still needs a manual Windows soak per the plan's step 5 (concurrent restarts, WatchFiles rapid-write, IBKR reconnect mid-call).
+- **Related:** PROBLEM_LOG 2026-07-23 "API restart cascade" correction entry; `api_ibkr_lifecycle_hardening_24083047.plan.md`.
+
+## 2026-07-23 — PROBLEM_LOG mandatory for every agent
+
+- **What:** Bug-fix logging is now an explicit constitution-level requirement for every agent (parent + specialists). Lifecycle footers must declare `problem_log=`; the subagentStop hook reminder and contract regex enforce the footer shape.
+- **Why:** User asked to make PROBLEM_LOG mandatory project-wide; it was rule-guided before but easy to skip without a Lifecycle field.
+- **Files touched:** `.cursor/rules/problem-log.mdc`, `constitution.mdc`, `self-annealing.mdc`, `specialist-routing.mdc`, `task-log.mdc`, `contract.json`, agent prompts, `docs/agent-operations.md`, `gemini.md` / `AGENTS.md`, `PROBLEM_LOG.md` header, hook + tests.
+- **How it works now:** Fix a bug → prepend `PROBLEM_LOG.md` same session → Lifecycle `problem_log=<YYYY-MM-DD title>` (or `skipped`/`n/a` only when no bug). Missing full Lifecycle (including `problem_log=`) triggers one fail-open reminder for Nova specialists.
+- **Verified by:** `py -3 -m pytest tools/test_subagent_lifecycle_hook.py -q`; `py -3 tools/agent_contract.py --ci`.
+- **Related:** task-log `knowledge/task-log/2026-07-23-mandatory-problem-log.md`.
+
+## 2026-07-23 — Prevent API_WEDGED (async health + dedicated scan pool)
+
+- **What:** `/api/health` is async (never parks on the default thread pool). `scan_loop` IBKR/Alpaca work runs on a dedicated `scan_executor` (2 workers) so 25s bridge waits cannot starve health.
+- **Why:** WEDGED was not “API dead” — default executor was saturated by scan `run_coro` waits, so health probes timed out.
+- **Files touched:** `routes/health.py`, `scan_executor.py`, `scan_loop.py`, `constants_scanner.py`, `app_lifespan.py`, tests.
+- **How it works now:** Liveness stays responsive while scanners may still time out / keep last-good. Auto-heal remains a backstop.
+- **Verified by:** pytest `test_scan_executor.py`.
+
+## 2026-07-23 — Auto-heal API_WEDGED / API_DOWN (Start API once)
+
+- **What:** When the header diagnoses `API_WEDGED` or `API_DOWN`, `BackendStartButton` auto-calls `startLocalApi` once per browser session (dev / Electron). Manual Start API still works.
+- **Why:** Hung uvicorn (IBKR bridge timeouts starving the event loop) left users on a click-only "Start API" screen even though Vite can kill+restart port 8000.
+- **Files touched:** `backendAutoHeal.ts`, `BackendStartButton.tsx`, `chart_api.ts` hints, tests.
+- **How it works now:** First WEDGED/DOWN → auto-restart via `/__nova/start-api` or Electron sidecar; sessionStorage prevents loops. Prod web (no spawn) stays manual.
+- **Verified by:** Vitest `backendAutoHeal.test.ts`.
+
+## 2026-07-23 — App shell auto-recover on provider/context crashes
+
+- **What:** `AppErrorBoundary` detects fatal shell errors (`useWorkspace must be used within…`, invalid hook call) and hard-reloads once (sessionStorage guard). Soft Retry remounts with a key for other errors; fatal Retry = full reload. Outer `app-shell` boundary wraps `AppShell`.
+- **Why:** Vite HMR context skew left users on a dead Retry screen with no recovery.
+- **Files touched:** `AppErrorBoundary.tsx`, `appErrorRecovery.ts`, `App.tsx`, tests.
+- **How it works now:** Fatal → “Recovering — reloading Nova…” once; second failure shows “Reload Nova” (no loop). Non-fatal → soft remount.
+- **Verified by:** Vitest `appErrorRecovery.test.ts`, `AppErrorBoundary.test.tsx`.
+
+## 2026-07-23 — IBKR-only scanner discovery (retire Alpaca soft-toggle)
+
+- **What:** Locked scanner discovery to IBKR. Defaults/options are `ibkr` only; Settings no longer offers Alpaca as Scanner Source (read-only Gateway line); `/api/config` coerces/persists `ibkr` even if a client sends `alpaca`. Header aux chip renamed `News` so green OK cannot be read as scanner feed. Attribution + rules updated.
+- **Why:** Product invariant — Alpaca must never be a scanner source. Soft-toggle left defaults at `alpaca`, a boot race that showed `FEED: Alpaca IEX`, and a Settings save path that could overwrite `.env`.
+- **Files touched:** `constants_ibkr.py`, `alpaca.py`, `routes/health.py`, `SettingsPanel.tsx`, `DashboardTab.tsx`, `useSettingsForm.ts`, `workspaceConfig.ts`, `dataSourceMap.ts`, `market_ui.ts`, `HeaderConnectionStatus.tsx`, `single-market-data-feed.mdc`, decision note, tests.
+- **How it works now:** Scanner/quote/chart/L2/T&S = IBKR. Alpaca = news + listing metadata only. Stale `NOVA_DISCOVERY_PROVIDER=alpaca` coerces to `ibkr` at runtime and on Settings save.
+- **Verified by:** pytest `test_discovery_provider_lock.py`; Vitest header/workspace/dataSourceMap/SettingsWorkspace.
+- **Follow-ups:** Residual honesty copy cleaned (Volume/RVOL label, TradingTab, HOD YF title, `.env.example`, data-sources hint) after explore inventory.
+- **Related:** `knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md`.
+
+## 2026-07-23 — Daily auto-start (Gateway + Nova API/UI)
+
+- **What:** Added `scripts/Start-NovaDaily.ps1` (idempotent morning bootstrap: IBC Gateway → API → UI → browser) plus `scripts/Install-NovaDailyTask.ps1` to register a Windows Scheduled Task (default: daily 6:00 AM + AtLogon). Convenience launcher `Start Nova Daily.bat`.
+- **Why:** User does not want to manually start Nova/Gateway every trading day.
+- **Files touched:** `scripts/Start-NovaDaily.ps1`, `scripts/Install-NovaDailyTask.ps1`, `Start Nova Daily.bat`, `docs/ibc-gateway-setup.md`.
+- **How it works now:** Run `.\scripts\Install-NovaDailyTask.ps1` once. Task runs `Start-NovaDaily.ps1`, which skips already-healthy ports/processes. IBC credentials stay under `%USERPROFILE%\.nova\ibc\`. Log: `backend/logs/daily-start.log`. 2FA on phone may still be required.
+- **Verified by:** Script syntax load; task register path documented; IBC launcher paths already present on this machine.
+- **Follow-ups:** User must run Install once (or ask agent to). Wake timers needed if PC sleeps through 6am.
+- **Related:** `docs/ibc-gateway-setup.md` § Daily auto-start.
+
 ## 2026-07-22 — Quiet Sentry noise (IBKR benign logs + Object is disposed)
 
 - **What:** Extended `IBKR_BENIGN_LOG_ERROR_CODES` / message needles so ib_async ERROR spam (300, 10089/10189/354, open/completed-orders timeouts, Gateway port/ConnectionRefused reconnect chatter) downgrades to WARNING before Sentry. Client intake ignores TradingView `Object is disposed`. Left Error 101 (max tickers) as ERROR — real capacity signal.
