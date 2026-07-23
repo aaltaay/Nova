@@ -9,9 +9,9 @@ Companion to: `.cursor/agents/hod-momo.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-20T12:40:00Z
+captured_at: 2026-07-23T15:05:00Z
 source_revision: local-uncommitted
-result: UI split — Running Up tab separate from HOD Momo
+result: investigation — HOD L1 healthy; session_gate FAIL from scanner_ibkr_bridge TimeoutError muting via integrity_fail_suppress
 metrics:
   warrior_rows: n/a
   nova_rows: n/a
@@ -19,9 +19,14 @@ metrics:
   warrior_only: n/a
   nova_only: n/a
   strategy_mismatch_symbols: n/a
-blockers: ["Error 10089 delayed MD still relevant for early HOD misses"]
+  integrity_fail_suppress: ~6418
+  strategy_11_fired: 5
+  strategy_12_fired: 23
+  alerts_today: 78
+  active_quote_p95_sec: 0.75
+blockers: ["integrity merge FAIL from gainers TimeoutError suppresses HOD fires", "Error 10089 delayed MD still relevant for early HOD misses"]
 dashboard_freshness: refresh-required
-notes: "Warrior HOD never feeds Nova engine. UI: running_up tab = strategy 12 only; hod_momo excludes 12. Backend still one /ws/hod-momo + strat 12 requires_hod=false. Fresh-new-HOD gate still applies to HOD strategies."
+notes: "External OSS HOD scanners = study-only (Yahoo/Polygon/scrape). No drop-in rewrite. Next fix: scope integrity_fail_suppress to hod_momo fail, not scanner bridge flaps. Warrior never feeds engine."
 ```
 Machine-readable block only. Update after material runs. Do not duplicate mutable truth that lives in canonical domain sources (`.tmp/hod-momo-parity/*`, `PROBLEM_LOG.md`, `CHANGELOG.md`).
 
@@ -160,18 +165,17 @@ Session-over-session tracking so future runs don't re-diagnose a solved bug or r
 | KB / Authenticated-Site-Map | Running Up = sibling **alert scanner** (not an HOD sub-strategy). Same columns as HOD; may show burst annotations. |
 | Nova | Strategy **#12 Running Up Alert** (`requires_hod=False`, surge 5%/5m, min_rvol 2). Lives in the **same** HOD Momo tab (Warrior has a separate widget). VCIG 08:24 fire was Squeeze 10/11, not #12 (`rvol:unknown` blocked Running Up). |
 
-### Still open (as of 2026-07-20 — post VCIG fix; API restart pending)
+### Still open (as of 2026-07-23 — post external survey)
 
 | Bucket | Evidence | Notes |
 |--------|----------|-------|
+| infra / false mute (**P0**) | Merged integrity FAIL from `scanner_ibkr_bridge` TimeoutError → `integrity_fail_suppress` ≫ fires while HOD L1 green | PROBLEM_LOG 2026-07-23; fix not shipped |
 | `timing_definition` (SDOT Squeeze) | Cool surge/hod; Warrior peak ~$31 vs Nova session_high ~$27.6 | Document only unless Warrior re-fires. |
 | `timing_definition` (PN/TRT Squeeze) | PN + TRT on L1; Squeeze blocked by cooled surge / soft path open | Wait for live surge — not universe/L1. |
 | `capacity_expected` (BTMD) | Off Warrior widget; empty Nova snap; never in IBKR top-50 at +3.8% | Do not chase until it reappears/re-ranks. |
 | Former | Disabled by default (schema v4); session_focus slots=8 for sticky/alerts (Former ranked last) | No fix budget. |
-| integrity: `hod_surge_buffer` / `hod_surge_after_seed` | Soft WARN | Non-blocking cold-start risk. |
-| `nova_only` CNF (stale window) | Still in parity window post-v5 | Expect age-out; do not re-litigate. |
-
-| `nova_only` (sample) | CNF (pre-v5 stale) + off-widget Float names; SDOT Float vs Squeeze mismatch | Do not auto-label spam; CNF root cause closed. |
+| integrity: `hod_surge_after_seed` | Soft WARN (10 seeded surge=None) | Non-blocking cold-start risk. |
+| `nova_only` CNF (stale window) | Pre-v5 / off-widget Float names; SDOT Float vs Squeeze mismatch | Expect age-out; do not re-litigate / auto-label spam. |
 
 ### Former Momo — evidence summary (for parent → user; do NOT invent Warrior formula)
 
@@ -213,6 +217,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 - [x] **CNF nova_only false positive** — schema v5 Squeeze `requires_hod=True` + re-enable 2–12 (parent shipped; memory 2026-07-17T17:21Z).
 - [x] **TRT sticky L1** — session_focus soft-block sticky; live $10.67 (2026-07-17T17:30Z).
 - [x] **TRT sticky flood** — cooled-first + cap=8; live $10.66 (2026-07-17T17:45Z).
+- [ ] **P0 mute:** Scope `integrity_fail_suppress` to hod_momo integrity `fail` (or IBKR disconnect / L1 dead), not merged scanner-bridge TimeoutError flaps — PROBLEM_LOG 2026-07-23.
 - [ ] SDOT Squeeze: mid-move admission + surge trough — only if Warrior re-fires.
 - [ ] If BTMD-class miss while ranked outside IBKR top-50, consider HOT_BY_PRICE (capacity_expected until then).
 - [x] L1-fail explore poison + coverage 98% hard-fail — fixed 2026-07-17 (cooldown + age purge + 90% floor).
@@ -253,6 +258,16 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short. Cap at ~30 entries — delete the oldest half if longer.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-23 — Investigation: external HOD survey + live mute root cause
+
+- **Scope:** Diagnosis only — “is there ready OSS HOD to repurpose?” No product code.
+- **Gate:** FAIL exit 2 — `scanner_ibkr_bridge` `gainers: TimeoutError` (gainers cache still fresh 50 rows).
+- **HOD L1:** healthy — p95 quote/eval ~0.75s; ticks flowing; watch 575 / active 40.
+- **Mute evidence:** `integrity_fail_suppress`~6418 vs Squeeze fired 5 / Running Up 23; alerts_today 78 (ticker field, e.g. VIVK).
+- **OSS verdict:** no drop-in reuse; Warrior-inspired Yahoo scrapers / Polygon-primary MMR / MIT RVOL docs = study-only. Prefer surgical Nova fix over rewrite.
+- **Artifacts:** `knowledge/task-log/2026-07-23-hod-scanner-external-survey.md`; PROBLEM_LOG integrity mute entry.
+- **Next:** authorize fix to decouple HOD suppress from scanner-bridge flaps; then re-arm parity observe.
 
 ### 2026-07-20 — Separate Running Up UI tab from HOD Momo
 
