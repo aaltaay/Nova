@@ -7,6 +7,7 @@ import os as _os
 
 # Cache file keys / prefixes (kept in constants so cache.py and hod_momo.py share one source)
 HOD_MOMO_ALERTS_PREFIX = "hod-momo"
+HOD_MOMO_HIGHS_PREFIX = "hod-momo-highs"
 
 
 def _hod_momo_cache_root() -> str:

@@ -154,6 +154,46 @@ def test_scanner_fails_when_ibkr_disconnected():
     assert report["status"] == "fail"
 
 
+def test_frozen_gainer_table_passes_despite_old_age():
+    """ADR 008: a session-frozen table is immutable by design — its age only
+    grows because it must never be rewritten again, not because the feed is
+    broken. Without the frozen bypass this would fail/warn on cache age."""
+    report = evaluate_scanner_integrity({
+        "discovery_provider": "ibkr",
+        "ibkr_connected": True,
+        "current_mode": "closed",
+        "gapper_count": 0,
+        "gainer_count": 12,
+        "loser_count": 0,
+        "gapper_age_sec": None,
+        "gainer_age_sec": 30_000.0,  # far past SCANNER_INTEGRITY_CACHE_STALE_SEC
+        "loser_age_sec": None,
+        "gainer_frozen": True,
+        "table_reprice_age_sec": None,
+    })
+    chk = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
+    assert chk["status"] == "pass"
+    assert "frozen" in chk["detail"]
+
+
+def test_unfrozen_stale_gainer_table_still_warns():
+    report = evaluate_scanner_integrity({
+        "discovery_provider": "ibkr",
+        "ibkr_connected": True,
+        "current_mode": "market",
+        "gapper_count": 0,
+        "gainer_count": 12,
+        "loser_count": 0,
+        "gapper_age_sec": None,
+        "gainer_age_sec": 30_000.0,
+        "loser_age_sec": None,
+        "gainer_frozen": False,
+        "table_reprice_age_sec": None,
+    })
+    chk = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
+    assert chk["status"] == "warn"
+
+
 def test_merge_takes_worst_status():
     hod = {"scope": "hod_momo", "status": "warn", "checks": [
         {"id": "a", "status": "warn", "detail": "x"},

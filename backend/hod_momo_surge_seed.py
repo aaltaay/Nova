@@ -170,8 +170,9 @@ async def surge_seed_loop(get_provider: Callable[[], str]) -> None:
                         )
                         hm.reevaluate_after_surge_seed(sym)
                     else:
-                        logger.debug(
-                            "HOD Momo surge seed: %s no usable bars (provider=%s)",
+                        logger.warning(
+                            "HOD Momo surge seed: %s no usable bars (provider=%s) "
+                            "-- giving up for this session (one-shot per symbol)",
                             sym, provider,
                         )
                         hm.mark_surge_seed_attempted(sym)

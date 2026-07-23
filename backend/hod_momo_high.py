@@ -11,10 +11,13 @@ observed last (or a later tick-6 raise above that floor) opens it.
 """
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
 import hod_momo_state as _state
+
+logger = logging.getLogger(__name__)
 
 
 def bars_session_high(bars: list[dict] | None) -> float | None:
@@ -83,7 +86,19 @@ def apply_session_high(
     state.session_high_source[sym] = _merge_source(
         state.session_high_source.get(sym), source,
     )
+    _persist_highs()
     return prev
+
+
+def _persist_highs() -> None:
+    """Throttled disk persist so a restart doesn't re-blind an already-seeded
+    symbol (see PROBLEM_LOG 2026-07-23 — session highs were in-memory only)."""
+    try:
+        import hod_momo_persist as _persist
+
+        _persist.save_highs()
+    except Exception:
+        logger.debug("HOD Momo: session-high persist skipped", exc_info=True)
 
 
 def apply_day_high(symbol: str, day_high: float | None) -> float | None:

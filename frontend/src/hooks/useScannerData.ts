@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   API_BASE_URL,
   API_URL,
+  SCANNER_CATALYST_POLL_MS,
   SCANNER_FETCH_TIMEOUT_MS,
   SCANNER_HEALTH_FAIL_GRACE_COUNT,
   SCANNER_POLL_INTERVAL_IBKR_MS,
@@ -19,20 +20,37 @@ import type { HealthStatus } from '../types/health';
 import {
   applyScannerPricePatch,
   useScannerPriceStream,
+  type ScannerTableMeta,
 } from './useScannerPriceStream';
 import type { ScannerScanAges } from '../utils/scanAge';
 import { diagnoseBackend, logBackendDiagnosis } from '../utils/diagnoseBackend';
 
 type Mode = MarketMode;
 
+function setTableRows<T>(
+  setter: (fn: (prev: T[]) => T[]) => void,
+  rows: unknown,
+): void {
+  if (!Array.isArray(rows)) return;
+  setter(prev => (rows.length === 0 && prev.length > 0 ? prev : (rows as T[])));
+}
+
 export function useScannerData(opts: {
   discoveryProvider: string;
   /** Active UI tab — drives IBKR L1 subscription budget via /ws/scanner. */
   activeTab?: string;
+  /** When true, skip recurring IBKR membership REST polls (ADR 008 cutover). */
+  scannerPersistentAuthoritative?: boolean;
   onActiveFeed?: (feed: string) => void;
   onFeedFellBack?: (fellBack: boolean) => void;
 }) {
-  const { discoveryProvider, activeTab, onActiveFeed, onFeedFellBack } = opts;
+  const {
+    discoveryProvider,
+    activeTab,
+    scannerPersistentAuthoritative = false,
+    onActiveFeed,
+    onFeedFellBack,
+  } = opts;
 
   const [mode, setMode] = useState<Mode>('loading');
   const [health, setHealth] = useState<HealthStatus>({ status: 'loading', latency_ms: 0 });
@@ -41,6 +59,7 @@ export function useScannerData(opts: {
   const [losers, setLosers] = useState<Mover[]>([]);
   const [afterhours, setAfterhours] = useState<Afterhours[]>([]);
   const [catalysts, setCatalysts] = useState<Catalyst[]>([]);
+  const [tableMeta, setTableMeta] = useState<Record<string, ScannerTableMeta>>({});
   const [scanAges, setScanAges] = useState<ScannerScanAges>({
     gappers: 0,
     movers: 0,
@@ -49,30 +68,62 @@ export function useScannerData(opts: {
   const [now, setNow] = useState(() => Date.now() / 1000);
   const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [historyDates, setHistoryDates] = useState<string[]>([]);
-  // Consecutive fetch failures — see SCANNER_HEALTH_FAIL_GRACE_COUNT.
   const consecutiveFailuresRef = useRef(0);
 
   const onScannerPricePatch = useCallback(
-    (rows: Parameters<typeof applyScannerPricePatch>[1], ts: number) => {
-      setGappers(prev => applyScannerPricePatch(prev, rows));
-      setGainers(prev => applyScannerPricePatch(prev, rows));
-      setLosers(prev => applyScannerPricePatch(prev, rows));
-      setAfterhours(prev => applyScannerPricePatch(prev, rows));
-      setScanAges(prev => ({
-        ...prev,
-        gappers: Math.max(prev.gappers, ts),
-        movers: Math.max(prev.movers, ts),
-        afterhours: Math.max(prev.afterhours, ts),
-      }));
+    (rows: Parameters<typeof applyScannerPricePatch>[1], ts: number, table?: string | null) => {
+      const apply = (setter: typeof setGappers, ageKey: keyof ScannerScanAges) => {
+        setter(prev => applyScannerPricePatch(prev, rows) as typeof prev);
+        setScanAges(prev => ({ ...prev, [ageKey]: Math.max(prev[ageKey], ts) }));
+      };
+      // Table-scoped: never let a live Gainers tick mutate a frozen Gappers row.
+      if (table === 'gappers') apply(setGappers, 'gappers');
+      else if (table === 'gainers') apply(setGainers, 'movers');
+      else if (table === 'losers') apply(setLosers, 'movers');
+      else if (table === 'afterhours') apply(setAfterhours, 'afterhours');
+      else {
+        // Legacy patches without table — apply to all (shadow / older backends).
+        setGappers(prev => applyScannerPricePatch(prev, rows));
+        setGainers(prev => applyScannerPricePatch(prev, rows));
+        setLosers(prev => applyScannerPricePatch(prev, rows));
+        setAfterhours(prev => applyScannerPricePatch(prev, rows));
+        setScanAges(prev => ({
+          ...prev,
+          gappers: Math.max(prev.gappers, ts),
+          movers: Math.max(prev.movers, ts),
+          afterhours: Math.max(prev.afterhours, ts),
+        }));
+      }
     },
     [],
   );
+
+  const onRosterReplace = useCallback((table: string, rows: unknown[], meta: ScannerTableMeta) => {
+    setTableMeta(prev => ({ ...prev, [table]: meta }));
+    if (table === 'gappers') setTableRows(setGappers, rows);
+    else if (table === 'gainers') setTableRows(setGainers, rows);
+    else if (table === 'losers') setTableRows(setLosers, rows);
+    else if (table === 'afterhours') setTableRows(setAfterhours, rows);
+    const ts = meta.roster_ts || Date.now() / 1000;
+    if (table === 'gappers') setScanAges(prev => ({ ...prev, gappers: ts }));
+    else if (table === 'gainers' || table === 'losers') {
+      setScanAges(prev => ({ ...prev, movers: ts }));
+    } else if (table === 'afterhours') {
+      setScanAges(prev => ({ ...prev, afterhours: ts }));
+    }
+  }, []);
+
+  const onTableState = useCallback((table: string, meta: ScannerTableMeta) => {
+    setTableMeta(prev => ({ ...prev, [table]: meta }));
+  }, []);
 
   const { pricesStale, flashSymbols, lastPriceTs, rowQuoteTs, subscriptionError } =
     useScannerPriceStream({
       enabled: discoveryProvider === 'ibkr' && historyDate === null,
       activeTab,
       onPatch: onScannerPricePatch,
+      onRosterReplace,
+      onTableState,
     });
 
   const fetchData = useCallback(async () => {
@@ -96,7 +147,6 @@ export function useScannerData(opts: {
         }
         if (data.mode) setMode(data.mode as Mode);
         if (data.data_feed) onActiveFeed?.(data.data_feed);
-        // Keep last-good rows when API returns [] (bridge/scan wipe signature).
         if (Array.isArray(data.gappers)) {
           setGappers(prev =>
             data.gappers.length === 0 && prev.length > 0 ? prev : data.gappers,
@@ -156,9 +206,6 @@ export function useScannerData(opts: {
     } catch (e) {
       consecutiveFailuresRef.current += 1;
       if (consecutiveFailuresRef.current < SCANNER_HEALTH_FAIL_GRACE_COUNT) {
-        // A single missed poll is indistinguishable from a normal dev
-        // `uvicorn --reload` blip — wait for a second consecutive failure
-        // before diagnosing/flagging so auto-heal can't race a hot reload.
         return;
       }
       const diag = await diagnoseBackend();
@@ -171,11 +218,6 @@ export function useScannerData(opts: {
         health_url: `${API_BASE_URL}/api/health`,
         trace: isNovaApiDebug() ? e : '(set localStorage novaApiDebug=1 and reload for details)',
       });
-      if (isNovaApiDebug()) {
-        console.info(
-          '[Nova] F12 → Network: find failed request to /api/gappers. Console: localStorage.setItem("novaApiDebug","1") then reload.',
-        );
-      }
       setHealth({
         status: 'disconnected',
         latency_ms: 0,
@@ -185,6 +227,20 @@ export function useScannerData(opts: {
       });
     }
   }, [onActiveFeed, onFeedFellBack]);
+
+  const fetchCatalystsOnly = useCallback(async () => {
+    try {
+      const catalystRes = await fetch(`${API_URL}/news-catalysts`, {
+        signal: AbortSignal.timeout(SCANNER_FETCH_TIMEOUT_MS),
+      });
+      if (catalystRes.ok) {
+        const data = await catalystRes.json();
+        if (Array.isArray(data.catalysts)) setCatalysts(data.catalysts);
+      }
+    } catch {
+      // soft — membership comes from WS when authoritative
+    }
+  }, []);
 
   const fetchHistoryDates = useCallback(async () => {
     try {
@@ -226,17 +282,33 @@ export function useScannerData(opts: {
   useEffect(() => {
     if (historyDate !== null) return;
     fetchData();
-    // IBKR: /ws/scanner already streams live price patches — this REST poll only
-    // needs to catch structural changes, so it can run much slower than 1Hz.
-    const pollMs =
-      discoveryProvider === 'ibkr' ? SCANNER_POLL_INTERVAL_IBKR_MS : SCANNER_POLL_INTERVAL_MS;
-    const dataInterval = setInterval(fetchData, pollMs);
+    const ibkr = discoveryProvider === 'ibkr';
+    // ADR 008 cutover: when persistent scanner is authoritative, drop recurring
+    // structural REST polls — roster_replace / table_state own membership.
+    const pollMs = !ibkr
+      ? SCANNER_POLL_INTERVAL_MS
+      : scannerPersistentAuthoritative
+        ? null
+        : SCANNER_POLL_INTERVAL_IBKR_MS;
+    const dataInterval =
+      pollMs != null ? setInterval(fetchData, pollMs) : null;
+    const catalystInterval =
+      ibkr && scannerPersistentAuthoritative
+        ? setInterval(fetchCatalystsOnly, SCANNER_CATALYST_POLL_MS)
+        : null;
     const clockInterval = setInterval(() => setNow(Date.now() / 1000), 1000);
     return () => {
-      clearInterval(dataInterval);
+      if (dataInterval) clearInterval(dataInterval);
+      if (catalystInterval) clearInterval(catalystInterval);
       clearInterval(clockInterval);
     };
-  }, [fetchData, historyDate, discoveryProvider]);
+  }, [
+    fetchData,
+    fetchCatalystsOnly,
+    historyDate,
+    discoveryProvider,
+    scannerPersistentAuthoritative,
+  ]);
 
   useEffect(() => {
     fetchHistoryDates();
@@ -254,6 +326,7 @@ export function useScannerData(opts: {
     losers,
     afterhours,
     catalysts,
+    tableMeta,
     scanAges,
     now,
     historyDate,

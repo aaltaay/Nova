@@ -1,6 +1,9 @@
 """Tests for active-tab + reserved HOD L1 planner."""
 from __future__ import annotations
 
+import asyncio
+
+import ibkr.scanner_l1 as scanner_l1
 from ibkr.scanner_l1 import plan_stream_symbols
 
 
@@ -40,3 +43,39 @@ def test_empty_tab_gives_full_budget_to_hod():
     assert plan["tab"] == []
     assert len(plan["hod"]) == 40
     assert plan["rejected"] == []
+
+
+def test_flush_loop_drops_hod_only_ticks_for_a_frozen_table(monkeypatch):
+    """ADR 008: a HOD-reserved-pool tick for a symbol retained from a frozen
+    table (e.g. Gappers after 09:30) must never reach the WS as a table-
+    tagged price_patch — that would silently mutate the "frozen" row on the
+    frontend. Only symbols actually subscribed under OWNER_SCANNER (the
+    active tab) are forwarded."""
+    scanner_l1._pending.clear()
+    scanner_l1._active_tab_symbols.clear()
+    scanner_l1._active_tab_symbols.update({"GAINSYM"})
+    scanner_l1._subscription_state["tab"] = "gainers"
+    scanner_l1._pending["GAINSYM"] = {"symbol": "GAINSYM", "price": 1.0}
+    # HOD-only tick for a symbol retained from a frozen Gappers table.
+    scanner_l1._pending["FROZENSYM"] = {"symbol": "FROZENSYM", "price": 2.0}
+
+    pushed: list[dict] = []
+
+    async def fake_push(payload):
+        pushed.append(payload)
+
+    async def run_one_flush():
+        task = asyncio.ensure_future(scanner_l1.flush_loop(fake_push))
+        await asyncio.sleep(scanner_l1.IBKR_L1_BATCH_FLUSH_SEC + 0.05)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run_one_flush())
+
+    assert len(pushed) == 1
+    symbols = {r["symbol"] for r in pushed[0]["rows"]}
+    assert symbols == {"GAINSYM"}
+    assert pushed[0]["table"] == "gainers"

@@ -11,6 +11,7 @@ import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
 import { getModule, type ActiveTab } from '../workspace/registry';
 import type { Afterhours, Gapper, Mover } from '../types/scanner';
+import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
 import type { MarketMode } from './AppHeader';
@@ -45,6 +46,8 @@ export type TabModuleHostProps = {
   flashSymbols: Record<string, 'up' | 'down'>;
   rowQuoteTs?: Record<string, number>;
   nowSec?: number;
+  /** ADR 008 — per-table freeze/session metadata, keyed by table name. */
+  tableMeta?: Record<string, ScannerTableMeta>;
   hodMomoStream: HodStream;
   hodMomoConfig: HodConfig;
   showHodSettings: boolean;
@@ -86,6 +89,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
     flashSymbols,
     rowQuoteTs = {},
     nowSec = 0,
+    tableMeta = {},
     hodMomoStream,
     hodMomoConfig,
     showHodSettings,
@@ -132,6 +136,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
         flashSymbols={flashSymbols}
         rowQuoteTs={rowQuoteTs}
         nowSec={nowSec}
+        tableMeta={tableMeta}
       />
     );
   }

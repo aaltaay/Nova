@@ -7,11 +7,14 @@ import { DATA_FEED_DEFAULT, DISCOVERY_PROVIDER_DEFAULT } from '../constants';
 export type WorkspaceConfigSlice = {
   discoveryProvider: string;
   alpacaFeed: string;
+  /** ADR 008 — when true, UI drops IBKR structural REST polls. */
+  scannerPersistentAuthoritative: boolean;
 };
 
 export const WORKSPACE_CONFIG_DEFAULTS: WorkspaceConfigSlice = {
   discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
   alpacaFeed: DATA_FEED_DEFAULT,
+  scannerPersistentAuthoritative: false,
 };
 
 /** Map a GET /api/config JSON body into the workspace discovery/feed slice. */
@@ -26,5 +29,6 @@ export function parseWorkspaceConfig(data: unknown): WorkspaceConfigSlice {
     typeof row.data_feed === 'string' && row.data_feed
       ? row.data_feed
       : DATA_FEED_DEFAULT;
-  return { discoveryProvider, alpacaFeed };
+  const scannerPersistentAuthoritative = row.scanner_persistent_authoritative === true;
+  return { discoveryProvider, alpacaFeed, scannerPersistentAuthoritative };
 }

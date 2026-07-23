@@ -1,4 +1,4 @@
-/** Live IBKR scanner table prices via /ws/scanner (bounded L1 streams). */
+/** Live IBKR scanner table prices / roster via /ws/scanner (ADR 008). */
 import { useEffect, useRef, useState } from 'react';
 import {
   IBKR_L1_ROW_STALE_SEC,
@@ -16,6 +16,16 @@ export type ScannerPricePatchRow = {
   quote_ts?: number | null;
 };
 
+export type ScannerTableMeta = {
+  state: string;
+  session_key: string;
+  revision: number;
+  roster_ts: number;
+  quote_ts: number;
+  frozen_at: number;
+  source: string;
+};
+
 export type ScannerPriceFreshness = {
   /** Unix seconds of last successful price_patch. */
   lastPriceTs: number;
@@ -29,12 +39,17 @@ export type ScannerPriceFreshness = {
   subscriptionError: string | null;
 };
 
+export type ScannerRosterHandlers = {
+  onPatch: (rows: ScannerPricePatchRow[], ts: number, table?: string | null) => void;
+  onRosterReplace?: (table: string, rows: unknown[], meta: ScannerTableMeta) => void;
+  onTableState?: (table: string, meta: ScannerTableMeta) => void;
+};
+
 type Props = {
   enabled: boolean;
   /** Active scanner tab — sent as set_active_tab for L1 budget. */
   activeTab?: string;
-  onPatch: (rows: ScannerPricePatchRow[], ts: number) => void;
-};
+} & ScannerRosterHandlers;
 
 const EMPTY_FLASH: Record<string, 'up' | 'down'> = {};
 const SCANNER_TABS = new Set(['gappers', 'gainers', 'losers', 'afterhours']);
@@ -49,6 +64,8 @@ export function useScannerPriceStream({
   enabled,
   activeTab,
   onPatch,
+  onRosterReplace,
+  onTableState,
 }: Props): ScannerPriceFreshness {
   const [lastPriceTs, setLastPriceTs] = useState(0);
   const [heartbeatStale, setHeartbeatStale] = useState(false);
@@ -58,10 +75,15 @@ export function useScannerPriceStream({
   const [nowTick, setNowTick] = useState(() => Date.now() / 1000);
   const onPatchRef = useRef(onPatch);
   onPatchRef.current = onPatch;
+  const onRosterRef = useRef(onRosterReplace);
+  onRosterRef.current = onRosterReplace;
+  const onStateRef = useRef(onTableState);
+  onStateRef.current = onTableState;
   const prevPricesRef = useRef<Record<string, number>>({});
   const wsRef = useRef<WebSocket | null>(null);
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
+  const tableRevRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
     const id = setInterval(() => setNowTick(Date.now() / 1000), 1000);
@@ -89,6 +111,13 @@ export function useScannerPriceStream({
       }));
     }
 
+    function applyMeta(table: string, meta: ScannerTableMeta): boolean {
+      const prev = tableRevRef.current[table] ?? -1;
+      if (typeof meta.revision === 'number' && meta.revision < prev) return false;
+      tableRevRef.current[table] = meta.revision ?? prev;
+      return true;
+    }
+
     function connect() {
       if (cancelled) return;
       ws = new WebSocket(`${WS_BASE_URL}/ws/scanner`);
@@ -103,7 +132,23 @@ export function useScannerPriceStream({
         if (cancelled) return;
         try {
           const msg = JSON.parse(e.data as string);
-          if (msg.type === 'price_patch' && Array.isArray(msg.rows)) {
+          if (msg.type === 'subscribed' && msg.tables && typeof msg.tables === 'object') {
+            for (const [table, payload] of Object.entries(
+              msg.tables as Record<string, { rows?: unknown[]; meta?: ScannerTableMeta }>,
+            )) {
+              const meta = payload.meta;
+              if (!meta || !applyMeta(table, meta)) continue;
+              onRosterRef.current?.(table, payload.rows ?? [], meta);
+            }
+          } else if (msg.type === 'roster_replace' && typeof msg.table === 'string') {
+            const meta = msg.meta as ScannerTableMeta;
+            if (!meta || !applyMeta(msg.table, meta)) return;
+            onRosterRef.current?.(msg.table, msg.rows ?? [], meta);
+          } else if (msg.type === 'table_state' && typeof msg.table === 'string') {
+            const meta = msg.meta as ScannerTableMeta;
+            if (!meta || !applyMeta(msg.table, meta)) return;
+            onStateRef.current?.(msg.table, meta);
+          } else if (msg.type === 'price_patch' && Array.isArray(msg.rows)) {
             const ts = typeof msg.ts === 'number' ? msg.ts : Date.now() / 1000;
             const flash: Record<string, 'up' | 'down'> = {};
             const quoteUpdates: Record<string, number> = {};
@@ -126,11 +171,10 @@ export function useScannerPriceStream({
             }
             const subErr = msg.subscription?.error;
             setSubscriptionError(typeof subErr === 'string' ? subErr : null);
-            onPatchRef.current(msg.rows, ts);
+            const table = typeof msg.table === 'string' ? msg.table : null;
+            onPatchRef.current(msg.rows, ts, table);
           } else if (msg.type === 'price_heartbeat') {
             if (msg.stale) setHeartbeatStale(true);
-          } else if (msg.type === 'subscription_state') {
-            // ack only — state is also on price_patch
           }
         } catch {
           // ignore parse errors
@@ -156,7 +200,6 @@ export function useScannerPriceStream({
     };
   }, [enabled]);
 
-  // Resend tab hint when the user switches scanner tabs (same WS).
   useEffect(() => {
     if (!enabled) return;
     const socket = wsRef.current;
@@ -216,4 +259,17 @@ export function applyScannerPricePatch<T extends { symbol: string }>(
     };
   });
   return changed ? next : rows;
+}
+
+/** Human label for a frozen scanner table. */
+export function frozenTableLabel(meta: ScannerTableMeta | null | undefined): string | null {
+  if (!meta || meta.state !== 'frozen' || !meta.frozen_at) return null;
+  const d = new Date(meta.frozen_at * 1000);
+  const hh = d.toLocaleTimeString('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return `Frozen at ${hh} ET`;
 }

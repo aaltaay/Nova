@@ -9,7 +9,7 @@ Companion to: `.cursor/agents/warrior.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-17T17:50:00Z
+captured_at: 2026-07-23T20:28:00Z
 source_revision: 5c8b878
 result: PASS
 metrics:
@@ -28,7 +28,7 @@ metrics:
   warrior_latest_ts: 1784308360
 blockers: []
 dashboard_freshness: refresh-required
-notes: "Full LMS caption harvest: 544 videos / 18 official EN captions. SS101 Ch.4+Ch.12 are caption GAPS (need Whisper). Catalog in gitignored downloads/warrior-trading-caption-notes/."
+notes: "HOD Momo desired-outcomes index promoted to Authenticated-Site-Map (2026-07-23). Primary = new-HOD+momentum discovery for human due diligence; SS101 Ch.12 Whisper covers anti-automation. Prior: LMS caption harvest 544/18."
 ```
 
 ---
@@ -110,6 +110,14 @@ Durable navigation facts → `warrior.md` and/or Obsidian `Authenticated-Site-Ma
 Newest first. Keep entries short. No secrets.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-23 — HOD Momo desired outcomes (Warrior teaching index)
+
+- **Scope:** Answer “what outcomes do we want for Small Cap HOD Momentum?” from Warrior teachings only (not Nova inventiveness).
+- **Result:** PASS (research synthesis; no live browse required).
+- **Evidence:** BA101 Ch.12 Scanning 101 captions; SS101 Ch.12 Stock Scanning (Whisper) + HOD Breakout / Intro to Momo; KB `19000117763` paraphrases already in Authenticated-Site-Map; warrior-memory Former Momo / population notes.
+- **Learning:** Primary outcome = discover new-HOD + confirming momentum for human due diligence; care-abouts include wider-net→pillar check, audio/color lanes, Running Up complement, post-alert workflow, anti-automation / anti-overfit. Not outcomes: every-HOD flood, auto-trade, Former Momo numeric formula.
+- **Files updated:** `Authenticated-Site-Map.md` (Desired outcomes section), `warrior-memory.md`.
 
 ### 2026-07-17 — Full LMS caption / transcript catalog harvest
 

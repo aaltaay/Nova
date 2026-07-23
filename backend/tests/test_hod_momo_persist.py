@@ -195,6 +195,58 @@ def test_session_rollover_rebinds_every_session_collection(monkeypatch):
     assert state.last_trade_ts is None
 
 
+def test_save_highs_rate_limited_and_flushed(monkeypatch):
+    """Mirrors test_save_alerts_rate_limited — same throttle pattern for highs."""
+    saved: list[dict] = []
+    state = hm.replace_state(HodMomoState())
+
+    monkeypatch.setattr(persist._cache, "save_hod_momo_highs", saved.append)
+    state.session_highs = {"AAA": 5.0}
+    state.highs_dirty = False
+    state.last_highs_save_mono = 0.0
+
+    persist.save_highs()
+    assert len(saved) == 1
+    persist.save_highs()  # within interval → deferred
+    assert len(saved) == 1
+    assert state.highs_dirty is True
+
+    state.last_highs_save_mono = time.monotonic() - 100
+    persist.flush_pending_highs_save()
+    assert len(saved) == 2
+    assert state.highs_dirty is False
+
+
+def test_session_highs_survive_a_restart(monkeypatch):
+    """Regression for PROBLEM_LOG 2026-07-23: session_highs/day_highs/source/
+    seeded used to be in-memory only, so a restart wiped already-caught highs.
+    Persisting + reloading must restore them onto a brand-new state owner."""
+    state = hm.replace_state(HodMomoState())
+    state.session_highs = {"WLDS": 3.21}
+    state.day_highs = {"WLDS": 3.25}
+    state.session_high_source = {"WLDS": "tick6"}
+    state.session_high_seeded = {"WLDS"}
+
+    stored: dict = {}
+    monkeypatch.setattr(
+        persist._cache, "save_hod_momo_highs", lambda data: stored.update(data),
+    )
+    persist.save_highs(force=True)
+
+    # Simulate a restart: a brand-new state owner with nothing in memory.
+    hm.replace_state(HodMomoState())
+    monkeypatch.setattr(persist._cache, "load_hod_momo_highs", lambda: dict(stored))
+    monkeypatch.setattr(persist._cache, "load_hod_momo_blocklist", lambda: [])
+    monkeypatch.setattr(persist._cache, "load_hod_momo_snapshot", lambda: ([], None))
+
+    persist.load_persisted_state()
+    new_state = hm.get_state()
+    assert new_state.session_highs == {"WLDS": 3.21}
+    assert new_state.day_highs == {"WLDS": 3.25}
+    assert new_state.session_high_source == {"WLDS": "tick6"}
+    assert new_state.session_high_seeded == {"WLDS"}
+
+
 def test_schema_v4_disables_former_momo(monkeypatch):
     """Persisted Former Momo enabled=True must turn off once on schema v4 load."""
     state = hm.replace_state(HodMomoState())

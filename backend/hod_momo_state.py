@@ -58,6 +58,8 @@ class HodMomoState:
     startup_ts: float = 0.0
     alerts_dirty: bool = False
     last_alert_save_mono: float = 0.0
+    highs_dirty: bool = False
+    last_highs_save_mono: float = 0.0
     ticker_snaps: dict[str, TickerSnap] = field(default_factory=dict)
     active_symbol_name: str = ""
     on_blocklist_changed: Callable[[], None] | None = None

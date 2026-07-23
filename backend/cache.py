@@ -39,7 +39,9 @@ _LEGACY_FILES = {
 
 
 def _today_et() -> str:
-    return datetime.now(_ET).strftime("%Y-%m-%d")
+    """04:00 ET-anchored session date for snapshot filenames (ADR 008)."""
+    from market import session_key_et
+    return session_key_et()
 
 
 def _dated_path(prefix: str, date: str) -> str:
@@ -71,6 +73,7 @@ def _atomic_write(path: str, payload: dict) -> None:
 
 from constants import (
     HOD_MOMO_ALERTS_PREFIX,
+    HOD_MOMO_HIGHS_PREFIX,
     HOD_MOMO_CONFIG_FILE,
     HOD_MOMO_BLOCKLIST_FILE,
 )
@@ -399,6 +402,35 @@ def load_hod_momo_snapshot_for_date(date_str: str) -> dict:
         path = _dated_path(HOD_MOMO_ALERTS_PREFIX, date_str)
         with open(path, encoding="utf-8") as f:
             return json.load(f)
+    except Exception:
+        return {}
+
+
+# ── HOD Momo — session-high truth ─────────────────────────────────────────────
+# Session highs/day-highs are in-memory only otherwise, so a process restart
+# (including a dev --reload) would throw away every high-of-day already
+# observed today even though it was correct a moment before the restart.
+
+def save_hod_momo_highs(data: dict) -> None:
+    """Atomically persist today's HOD-high truth fields (date stamp added here)."""
+    try:
+        payload = {"date": _today_et(), **data}
+        _atomic_write(_dated_path(HOD_MOMO_HIGHS_PREFIX, _today_et()), payload)
+    except Exception:
+        logger.warning(
+            "cache: save_hod_momo_highs failed to persist to disk", exc_info=True,
+        )
+
+
+def load_hod_momo_highs() -> dict:
+    """Load today's HOD-high truth fields from disk. Returns {} if stale/missing."""
+    try:
+        path = _dated_path(HOD_MOMO_HIGHS_PREFIX, _today_et())
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("date") != _today_et():
+            return {}
+        return data
     except Exception:
         return {}
 

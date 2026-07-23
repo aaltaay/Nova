@@ -16,6 +16,10 @@ import {
   computeRsiPane,
   type IndicatorBar,
 } from '../chartIndicators';
+import {
+  formatChartCrosshairTime,
+  formatChartTickMark,
+} from '../chart/chartTimeFormat';
 
 interface Props {
   parentChart: IChartApi | null;
@@ -79,7 +83,17 @@ function OscillatorPane({
         vertLine: { color: '#3b82f6', labelBackgroundColor: '#3b82f6' },
         horzLine: { color: '#3b82f6', labelBackgroundColor: '#3b82f6' },
       },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#262a36', visible: false },
+      localization: {
+        locale: 'en-US',
+        timeFormatter: formatChartCrosshairTime,
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        borderColor: '#262a36',
+        visible: false,
+        tickMarkFormatter: formatChartTickMark,
+      },
       rightPriceScale: { borderColor: '#262a36' },
       width: container.clientWidth,
       height: CHART_INDICATOR_PANE_HEIGHT,

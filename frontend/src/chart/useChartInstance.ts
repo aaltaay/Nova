@@ -8,6 +8,7 @@ import {
   type IChartApi,
   type ISeriesApi,
 } from 'lightweight-charts';
+import { formatChartCrosshairTime, formatChartTickMark } from './chartTimeFormat';
 import { measureChartFillHeight } from './measureChartFillHeight';
 
 export interface ChartSeriesRefs {
@@ -57,7 +58,16 @@ export function useChartInstance({
         vertLine: { color: '#3b82f6', labelBackgroundColor: '#3b82f6' },
         horzLine: { color: '#3b82f6', labelBackgroundColor: '#3b82f6' },
       },
-      timeScale: { timeVisible: true, secondsVisible: false, borderColor: '#262a36' },
+      localization: {
+        locale: 'en-US',
+        timeFormatter: formatChartCrosshairTime,
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+        borderColor: '#262a36',
+        tickMarkFormatter: formatChartTickMark,
+      },
       rightPriceScale: { borderColor: '#262a36' },
       width: container.clientWidth,
       height: initialHeight,

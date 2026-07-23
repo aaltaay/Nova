@@ -135,6 +135,7 @@ def readiness_check():
 @router.get("/api/config")
 def get_config():
     from ibkr import client as _ibkr_client
+    from ibkr import scanner_session as _scanner_session
 
     api_key = _env("APCA_API_KEY_ID") or ""
     api_secret = _env("APCA_API_SECRET_KEY") or ""
@@ -150,6 +151,8 @@ def get_config():
         "discovery_provider": _get_discovery_provider(),
         "discovery_provider_options": list(DISCOVERY_PROVIDER_OPTIONS),
         "ibkr_connected": _ibkr_client.is_connected(),
+        "scanner_persistent_enabled": _scanner_session.is_persistent_enabled(),
+        "scanner_persistent_authoritative": _scanner_session.is_persistent_authoritative(),
     }
 
 

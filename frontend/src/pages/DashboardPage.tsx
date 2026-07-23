@@ -34,6 +34,7 @@ export function DashboardPage() {
     openStockView,
     setDiscoveryProvider: setWorkspaceDiscovery,
     setAlpacaFeed: setWorkspaceAlpacaFeed,
+    scannerPersistentAuthoritative,
     ibkrConnected,
     ibkrMode,
     ibkrGatewayMode,
@@ -54,6 +55,7 @@ export function DashboardPage() {
   const scanner = useScannerData({
     discoveryProvider: settings.discoveryProvider,
     activeTab,
+    scannerPersistentAuthoritative,
     onActiveFeed: settings.setActiveFeed,
     onFeedFellBack: settings.setFeedFellBack,
   });
@@ -243,6 +245,7 @@ export function DashboardPage() {
             flashSymbols={scanner.flashSymbols}
             rowQuoteTs={scanner.rowQuoteTs}
             nowSec={scanner.now}
+            tableMeta={scanner.tableMeta}
             hodMomoStream={hodMomoStream}
             hodMomoConfig={hodMomoConfig}
             showHodSettings={showHodSettings}

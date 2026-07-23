@@ -1,8 +1,10 @@
 """
 Background scan orchestration + news-catalyst scanner.
 
-Owns: ``scan_loop`` (mode-aware cadence) and ``run_news_catalyst_scan``.
-Discovery / focus / movers runners live in ``scan_runners.py``.
+Owns: ``scan_loop`` (mode-aware cadence / session reconciliation) and
+``run_news_catalyst_scan``. Discovery / focus / movers runners live in
+``scan_runners.py``. ADR 008: when persistent scanner is authoritative,
+IBKR membership polls are skipped — ``scanner_stream`` owns rosters.
 """
 from __future__ import annotations
 
@@ -48,7 +50,9 @@ from scan_runners import (
     run_gainers_update,
 )
 from runtime_state import get_runtime_state
+from runtime_state.state import TABLE_STATE_FROZEN
 from scan_executor import get_scan_executor
+from ibkr import scanner_session as _scanner_session
 from universe import refresh_hod_momo_universe
 
 logger = logging.getLogger(__name__)
@@ -179,8 +183,19 @@ async def sleep_with_ibkr_reprice(loop: asyncio.AbstractEventLoop, total_seconds
     await asyncio.sleep(total_seconds)
 
 
+def _table_frozen(state, table: str) -> bool:
+    return _scanner_session.table_attr(state, table).state == TABLE_STATE_FROZEN
+
+
+def _ibkr_membership_from_stream() -> bool:
+    return (
+        _get_discovery_provider() == "ibkr"
+        and _scanner_session.is_persistent_authoritative()
+    )
+
+
 async def scan_loop() -> None:
-    """Mode-aware background scanner (premarket / market / afterhours / closed)."""
+    """Mode-aware background scanner + ADR 008 session reconciliation."""
     loop = asyncio.get_event_loop()
     scan_pool = get_scan_executor()
     while True:
@@ -188,45 +203,61 @@ async def scan_loop() -> None:
             state = get_runtime_state()
             mono = time.monotonic()
             catalyst_due = (mono - state.last_catalyst_scan_ts) > NEWS_CATALYST_INTERVAL_SEC
+            # Freeze / 04:00 rollover before any membership write.
+            _scanner_session.reconcile_session_tables(state)
             await loop.run_in_executor(scan_pool, refresh_hod_momo_universe)
+
+            stream_owns = _ibkr_membership_from_stream()
 
             if _in_premarket():
                 state.current_mode = "premarket"
-                if not state.gapper_cache or (mono - state.last_discovery_ts) > DISCOVERY_INTERVAL_SEC:
-                    await loop.run_in_executor(scan_pool, run_discovery_scan)
-                else:
-                    await loop.run_in_executor(scan_pool, run_focus_scan)
-                if not state.gainer_cache:
-                    await loop.run_in_executor(scan_pool, run_gainers_update)
+                if not stream_owns and not _table_frozen(state, "gappers"):
+                    if (
+                        not state.gapper_cache
+                        or (mono - state.last_discovery_ts) > DISCOVERY_INTERVAL_SEC
+                    ):
+                        await loop.run_in_executor(scan_pool, run_discovery_scan)
+                    else:
+                        await loop.run_in_executor(scan_pool, run_focus_scan)
+                if not stream_owns and not _table_frozen(state, "gainers"):
+                    if not state.gainer_cache:
+                        await loop.run_in_executor(scan_pool, run_gainers_update)
                 if catalyst_due:
                     await loop.run_in_executor(scan_pool, run_news_catalyst_scan)
                 await sleep_with_ibkr_reprice(loop, FOCUS_INTERVAL_SEC)
             elif _in_market_hours():
                 state.current_mode = "market"
-                await loop.run_in_executor(scan_pool, run_gainers_update)
+                if not stream_owns and not (
+                    _table_frozen(state, "gainers") and _table_frozen(state, "losers")
+                ):
+                    await loop.run_in_executor(scan_pool, run_gainers_update)
                 if catalyst_due:
                     await loop.run_in_executor(scan_pool, run_news_catalyst_scan)
                 await sleep_with_ibkr_reprice(loop, GAINERS_INTERVAL_SEC)
             elif _in_after_hours():
                 state.current_mode = "afterhours"
-                await loop.run_in_executor(scan_pool, run_gainers_update)
-                if _get_discovery_provider() == "ibkr" and state.gainer_cache:
-                    await loop.run_in_executor(scan_pool, run_afterhours_discovery_scan)
-                elif (
-                    not state.afterhours_cache
-                    or (mono - state.last_afterhours_discovery_ts)
-                    > AFTERHOURS_DISCOVERY_INTERVAL_SEC
-                ):
-                    await loop.run_in_executor(scan_pool, run_afterhours_discovery_scan)
-                else:
-                    await loop.run_in_executor(scan_pool, run_afterhours_focus_scan)
+                if not stream_owns and not _table_frozen(state, "afterhours"):
+                    if _get_discovery_provider() == "ibkr" and state.gainer_cache:
+                        await loop.run_in_executor(scan_pool, run_afterhours_discovery_scan)
+                    elif (
+                        not state.afterhours_cache
+                        or (mono - state.last_afterhours_discovery_ts)
+                        > AFTERHOURS_DISCOVERY_INTERVAL_SEC
+                    ):
+                        await loop.run_in_executor(scan_pool, run_afterhours_discovery_scan)
+                    else:
+                        await loop.run_in_executor(scan_pool, run_afterhours_focus_scan)
                 if catalyst_due:
                     await loop.run_in_executor(scan_pool, run_news_catalyst_scan)
                 await asyncio.sleep(AFTERHOURS_FOCUS_INTERVAL_SEC)
             else:
                 state.current_mode = "closed"
-                await loop.run_in_executor(scan_pool, run_discovery_scan)
-                await loop.run_in_executor(scan_pool, run_gainers_update)
+                if not stream_owns:
+                    # Closed: do not thaw frozen tables with a fresh poll.
+                    if not _table_frozen(state, "gappers"):
+                        await loop.run_in_executor(scan_pool, run_discovery_scan)
+                    if not (_table_frozen(state, "gainers") and _table_frozen(state, "losers")):
+                        await loop.run_in_executor(scan_pool, run_gainers_update)
                 await asyncio.sleep(CLOSED_INTERVAL_SEC)
         except asyncio.CancelledError:
             break

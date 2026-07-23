@@ -19,6 +19,8 @@ HOD Momo eligibility was also entangled with discovery: `hod_momo_seed.py` ran a
 5. **HOD eligibility narrows to session data actually shown.** HOD Momo's active set is the union of the current-session Gappers, Gainers, Afterhours, and manually curated Former Momo — nothing else. Volume seeds (`hod_momo_seed.py`), the `belowPrice=20` pass, open-ticker priority, Losers, and rotating discovery "explore" are removed from the active-set builder. Sub-$20 stocks are ordinary Gainers rows; they receive no separate scan or reserved slot.
 6. **Migration safety gate.** The persistent manager runs in shadow mode first — it builds its own rosters but a feature flag keeps the existing one-shot `scan_loop` path authoritative for HOD/UI. Only after shadow evidence (batch cadence, membership parity, slot occupancy, reconnect/cancellation behavior) is recorded does promotion flip the flag. This preserves a working system for the entirety of the rollout instead of a single all-or-nothing cutover of a live trading data feed.
 
+**Implementation status (2026-07-23):** Code paths for (1)–(5) are in-tree. Shadow manager is enabled by default (`IBKR_SCANNER_PERSISTENT_ENABLED=true`); **authoritative cutover remains off** (`IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=false`). Flip the env flag only after live Gateway shadow-parity logs look clean.
+
 ## Consequences
 
 - Gappers/Gainers/Afterhours become genuinely frozen artifacts after their window — the frontend can trust "Frozen at 09:30 ET" instead of re-deriving staleness from a poll timestamp.

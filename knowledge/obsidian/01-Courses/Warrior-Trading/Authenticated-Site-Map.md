@@ -186,6 +186,26 @@ Teaching companion: LMS **BA101 — Day Trading: The Basics → Chapter 12: Scan
 
 **Five pillars (BA101 Ch.3 — What Makes a Strong Stock):** volatility (≥~10% up preferred), price (best ~$2–$20), relative volume (~5×), breaking news, supply/float (under ~20M shares). Exact HOD sub-strategy numeric cutoffs are not fully published in the KB list below.
 
+### Small Cap HOD Momentum — desired outcomes (Warrior teaching)
+
+**Primary outcome (one sentence):** Surface small-cap names that are printing a **new high of day with confirming momentum** (not every HOD tick), so the trader can **hunt real-time volatility** with scanners doing discovery and the human still doing pillar/chart/L2 risk checks before any entry.
+
+Published care-abouts (paraphrase; research index only — do not invent filter formulas):
+
+1. **Discovery of stocks that are already moving** — prefer “first to see a squeeze” over “first to every headline” (BA101 Ch.12).
+2. **Lighten workload** — scanners search the market; trader manages risk (BA101 Ch.12).
+3. **New HOD + momentum window** — alert class, not flood-every-HOD; may fire slightly after the print once momentum confirms (KB `19000117763`).
+4. **Recent % surge** — teaching model includes “moved at least x% in the last few minutes” alongside new HOD (BA101 Ch.12; exact universal `x` not a published single formula for all sub-strategies).
+5. **Slightly wider net than strict five pillars** — then **human pillar check after the alert** (BA101 Ch.12; reinforced SS101 Ch.12 “cast a wider net”).
+6. **Sub-strategy lanes + significance** — color/audio distinguish Squeeze / Low-Float-High-RVOL (brighter) vs less-significant lanes; Ross audio = all except Medium Float (KB `19000117763`, BA101 Ch.12).
+7. **Pair with Running Up** — HOD requires new HOD; Running Up can warn earlier on curls before HOD (BA101 Ch.12; SS101 Ch.12 names both as primary alert scans).
+8. **Post-alert workflow** — click → news → intraday near highs → daily resistance → L2/T&S → borrow/SSR/spreads → familiar pattern (often first pullback) (BA101 Ch.12).
+9. **Timing context** — top/bottom of hour for news-driven surges; thinner PM/AH → fewer alerts expected (BA101 Ch.12; KB).
+10. **Enable momo setups, not replace them** — HOD breakout / micro-pullback / first-pullback still require human justification; HOD entry is high-risk (SS101 HOD Breakout / Intro to Momo).
+11. **Former-runner familiarity** — qualitative “do I know this name / how has it traded?” when Former Momo appears — not a coded %/float formula (SS101 Ch.4 / trading-plan checklist; KB list membership only).
+
+**Explicit non-outcomes (Warrior teaches against or does not claim):** auto-order on alert; overfitting / reverse-engineering “holy grail” filters from backtests; alerting every HOD print; social media as primary discovery system; published numeric Former Momo formula; Medium Float as Ross’s preferred chime set.
+
 ### Small Cap HOD Momentum — Select strategies inventory (KB)
 
 Documented under **Alert Scanners → Small-Cap - High of Day Momentum (HOD Momo)** as sub-scanners:

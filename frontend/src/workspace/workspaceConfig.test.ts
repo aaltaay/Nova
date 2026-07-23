@@ -16,6 +16,7 @@ describe('parseWorkspaceConfig', () => {
     expect(WORKSPACE_CONFIG_DEFAULTS).toEqual({
       discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
       alpacaFeed: DATA_FEED_DEFAULT,
+      scannerPersistentAuthoritative: false,
     });
   });
 
@@ -25,7 +26,11 @@ describe('parseWorkspaceConfig', () => {
         discovery_provider: 'ibkr',
         data_feed: 'sip',
       }),
-    ).toEqual({ discoveryProvider: 'ibkr', alpacaFeed: 'sip' });
+    ).toEqual({
+      discoveryProvider: 'ibkr',
+      alpacaFeed: 'sip',
+      scannerPersistentAuthoritative: false,
+    });
   });
 
   it('coerces stale alpaca discovery payloads to ibkr', () => {
@@ -34,17 +39,33 @@ describe('parseWorkspaceConfig', () => {
         discovery_provider: 'alpaca',
         data_feed: 'iex',
       }),
-    ).toEqual({ discoveryProvider: DISCOVERY_PROVIDER_DEFAULT, alpacaFeed: 'iex' });
+    ).toEqual({
+      discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
+      alpacaFeed: 'iex',
+      scannerPersistentAuthoritative: false,
+    });
   });
 
   it('falls back per-field when values are missing', () => {
     expect(parseWorkspaceConfig({ discovery_provider: 'ibkr' })).toEqual({
       discoveryProvider: 'ibkr',
       alpacaFeed: DATA_FEED_DEFAULT,
+      scannerPersistentAuthoritative: false,
     });
     expect(parseWorkspaceConfig({ data_feed: 'sip' })).toEqual({
       discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
       alpacaFeed: 'sip',
+      scannerPersistentAuthoritative: false,
+    });
+  });
+
+  it('reads scanner_persistent_authoritative cutover flag', () => {
+    expect(
+      parseWorkspaceConfig({ scanner_persistent_authoritative: true }),
+    ).toEqual({
+      discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
+      alpacaFeed: DATA_FEED_DEFAULT,
+      scannerPersistentAuthoritative: true,
     });
   });
 });

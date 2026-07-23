@@ -12,8 +12,14 @@ logger = logging.getLogger(__name__)
 
 def run_discovery_scan() -> None:
     """Full universe scan: filter gappers, enrich (Alpaca or IBKR)."""
+    from ibkr import scanner_session as _ss
+    from runtime_state.state import TABLE_STATE_FROZEN
+
     sr = facade()
     state = sr.get_runtime_state()
+    if state.gapper_table.state == TABLE_STATE_FROZEN:
+        logger.info("Gapper discovery skipped — table frozen (ADR 008)")
+        return
     headers = sr._alpaca_headers()
     # Price rows come from the composed DiscoveryPort (IBKR or Alpaca).
     try:
@@ -38,6 +44,7 @@ def run_discovery_scan() -> None:
     state.gapper_cache = gappers
     state.gapper_cache_ts = time.time()
     state.last_discovery_ts = time.monotonic()
+    _ss.ensure_session_key(state, _ss.TABLE_GAPPERS, source="discovery")
     if gappers:
         state.ibkr_bridge_last_error = ""
     sr.mark_resub()

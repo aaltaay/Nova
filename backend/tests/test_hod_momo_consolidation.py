@@ -6,6 +6,7 @@ import time
 
 import hod_momo as hm
 import hod_momo_alerts as alerts
+import hod_momo_persist as persist
 from hod_momo_models import AlertObject
 from hod_momo_state import HodMomoState
 
@@ -29,8 +30,15 @@ def _alert(sid: int, name: str, now: float) -> AlertObject:
 
 
 def test_flush_emits_one_alert_per_strategy(monkeypatch):
+    """Fixture prices are fake — never persist to the live `.cache` alerts file."""
     hm.replace_state(HodMomoState())
     state = hm.get_state()
+    monkeypatch.setattr(persist, "save_alerts", lambda **_kw: None)
+    monkeypatch.setattr(persist, "flush_pending_alert_save", lambda: None)
+    monkeypatch.setattr(
+        "alerts.hooks.notify_hod_alert_async",
+        lambda *_a, **_k: None,
+    )
     now = time.time()
     state.pending_consolidation["LBGJ"] = [
         (now - 1.0, _alert(1, "Former Momo Stock", now - 0.5)),

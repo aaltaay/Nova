@@ -134,6 +134,9 @@ def _run_gainers_update_alpaca(headers: dict) -> tuple[list[dict], list[dict]] |
 
 def run_gainers_update() -> None:
     """Fetch top gainers and losers, enrich with snapshots + RVOL + news."""
+    from ibkr import scanner_session as _ss
+    from runtime_state.state import TABLE_STATE_FROZEN
+
     sr = facade()
     state = sr.get_runtime_state()
     headers = sr._alpaca_headers()
@@ -148,19 +151,23 @@ def run_gainers_update() -> None:
         return
     gainers, losers = result
 
-    state.gainer_cache = gainers
-    state.gainer_cache_ts = time.time()
-    state.loser_cache = losers
-    state.loser_cache_ts = time.time()
+    gainer_frozen = state.gainer_table.state == TABLE_STATE_FROZEN
+    loser_frozen = state.loser_table.state == TABLE_STATE_FROZEN
+    if not gainer_frozen:
+        state.gainer_cache = gainers
+        state.gainer_cache_ts = time.time()
+        _ss.ensure_session_key(state, _ss.TABLE_GAINERS, source="movers")
+        sr.save_gainer_snapshot(state.gainer_cache, state.gainer_cache_ts)
+    if not loser_frozen:
+        state.loser_cache = losers
+        state.loser_cache_ts = time.time()
+        _ss.ensure_session_key(state, _ss.TABLE_LOSERS, source="movers")
+        sr.save_loser_snapshot(state.loser_cache, state.loser_cache_ts)
     # Clear sticky bridge error on a successful movers refresh — RTH never
     # re-runs gappers discovery, so leaving this set after a one-shot
     # TOP_PERC_GAIN timeout (or a disconnect-window failure) kept painting
     # Integrity fail all day. Either side landing rows proves the bridge is
     # live again — don't require both gainers and losers to be non-empty.
-    if gainers or losers:
+    if (not gainer_frozen and gainers) or (not loser_frozen and losers):
         state.ibkr_bridge_last_error = ""
-    # Independent revisions (ADR 008) — Gainers and Losers persist/freeze on
-    # their own schedules; never advance one's snapshot via the other's write.
-    sr.save_gainer_snapshot(state.gainer_cache, state.gainer_cache_ts)
-    sr.save_loser_snapshot(state.loser_cache, state.loser_cache_ts)
     sr.mark_resub()

@@ -57,13 +57,25 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             detail += " — gainer cache still fresh (recovered)"
         checks.append(check("scanner_ibkr_bridge", status, detail))
 
-    for name, count_key, age_key in (
-        ("gappers", "gapper_count", "gapper_age_sec"),
-        ("gainers", "gainer_count", "gainer_age_sec"),
-        ("losers", "loser_count", "loser_age_sec"),
+    for name, count_key, age_key, frozen_key in (
+        ("gappers", "gapper_count", "gapper_age_sec", "gapper_frozen"),
+        ("gainers", "gainer_count", "gainer_age_sec", "gainer_frozen"),
+        ("losers", "loser_count", "loser_age_sec", "loser_frozen"),
     ):
         count = int(snap.get(count_key) or 0)
         age = snap.get(age_key)
+
+        # ADR 008: a session-frozen table is immutable by design — its age
+        # only grows because it must never be rewritten, not because the
+        # feed is broken. Matching-session freeze metadata always passes.
+        if snap.get(frozen_key):
+            age_bit = f" age={float(age):.0f}s" if age is not None else ""
+            checks.append(check(
+                f"scanner_{name}",
+                "pass",
+                f"{name}: {count} rows{age_bit} — frozen for the session (ADR 008)",
+            ))
+            continue
 
         if name == "gappers" and mode in _GAPPER_OPTIONAL_MODES:
             if age is not None:

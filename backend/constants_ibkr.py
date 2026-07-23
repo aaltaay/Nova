@@ -142,6 +142,15 @@ IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ce
 # other cause of a bridge timeout. Set below the bridge ceiling so a hung
 # scanner call is attributable (and cancellable) before the outer wall fires.
 IBKR_SCAN_REQUEST_TIMEOUT_SEC = 20.0
+# ADR 008 — persistent scanner manager (ibkr/scanner_stream.py). Shadow by
+# default: builds rosters + lease registry without replacing one-shot scan_loop
+# until IBKR_SCANNER_PERSISTENT_AUTHORITATIVE is flipped (env override).
+IBKR_SCANNER_PERSISTENT_ENABLED = True
+IBKR_SCANNER_PERSISTENT_AUTHORITATIVE = False
+IBKR_SCANNER_RECONCILE_SEC = 1.0
+# Watchdog: warn/resubscribe once when batch age exceeds max(min, mult × cadence).
+IBKR_SCANNER_WATCHDOG_MIN_SEC = 90.0
+IBKR_SCANNER_WATCHDOG_CADENCE_MULT = 3.0
 # Batch qualifyContractsAsync inside snapshot_quotes() — same hang risk as
 # scan/snapshot above (see IBKR_L1_QUALIFY_TIMEOUT_SEC's single-symbol note),
 # sized higher since discovery batches up to a full scanner page at once.

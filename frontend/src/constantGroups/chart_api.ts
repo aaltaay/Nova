@@ -60,12 +60,15 @@ export const SCANNER_FETCH_TIMEOUT_MS = 8_000;
  */
 export const SCANNER_POLL_INTERVAL_MS = 1_000;
 /**
- * REST scanner poll cadence when discovery=ibkr — useScannerPriceStream's
- * /ws/scanner patches already deliver live price/volume; this poll only
- * needs to catch structural changes (rows added/removed, health, mode).
- * Mirrors backend GAINERS_INTERVAL_SEC (constants_scanner.py) scan cadence.
+ * IBKR membership REST fallback while persistent scanner is still in shadow
+ * mode (``IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=false``). When authoritative,
+ * ``useScannerData`` stops this interval and relies on ``roster_replace`` /
+ * ``table_state`` WebSocket events (ADR 008). Catalysts stay on their own poll.
+ * @deprecated Prefer WS roster events once authoritative is flipped.
  */
 export const SCANNER_POLL_INTERVAL_IBKR_MS = 5_000;
+/** Catalysts / health soft refresh when IBKR structural polls are disabled. */
+export const SCANNER_CATALYST_POLL_MS = 60_000;
 /**
  * Consecutive scanner-poll failures required before flipping health to
  * disconnected/WEDGED and arming auto-heal. `uvicorn --reload` briefly drops

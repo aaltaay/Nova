@@ -50,6 +50,8 @@ from health_status import ping_health, set_health_broker_keys_missing
 from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
 from ibkr import scanner_l1 as _scanner_l1
+from ibkr import scanner_session as _scanner_session
+from ibkr import scanner_stream as _scanner_stream
 from ibkr import ticks as _ibkr_ticks
 from ibkr_bridge import (
     apply_l1_quote,
@@ -127,6 +129,9 @@ def _restore_caches() -> None:
         state.loser_cache = mv_losers
         state.gainer_cache_ts = mv_ts
         state.loser_cache_ts = mv_ts
+
+    # ADR 008: attach session_key / freeze metadata for restored rows.
+    _scanner_session.reconcile_session_tables(state)
 
 
 def _init_databases() -> None:
@@ -241,6 +246,16 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
         factories.append(("archive.maintenance", archive_maintenance_loop))
         logger.info("archive.maintenance: enabled (ARCHIVE_MAINTENANCE_ENABLED)")
 
+    if (
+        _scanner_session.is_persistent_enabled()
+        and _get_discovery_provider() == "ibkr"
+    ):
+        factories.append(("scanner_stream", _scanner_stream.manager_loop))
+        logger.info(
+            "scanner_stream: enabled (authoritative=%s)",
+            _scanner_session.is_persistent_authoritative(),
+        )
+
     tasks: list[asyncio.Task] = []
     for name, factory in factories:
         task = _start(name, factory)
@@ -305,6 +320,7 @@ async def lifespan(app: FastAPI):
 
     try:
         _hod_momo.flush_pending_alert_save()
+        _hod_momo.flush_pending_highs_save()
     except Exception:
         logger.exception("HOD Momo: final alert flush failed")
 

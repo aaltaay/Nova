@@ -22,6 +22,7 @@ from ibkr import discovery as _ibkr_discovery
 from fundamentals import _fundamentals_cache
 from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
+from ibkr import scanner_session as _ss
 from runtime_state import get_runtime_state
 from ticker import _ticker_ws_clients
 
@@ -108,9 +109,21 @@ def table_reprice_symbols() -> list[str]:
 
 
 def symbols_for_tab(tab: str) -> list[str]:
-    """Canonical active-tab symbol list from runtime caches (never trust clients)."""
+    """Canonical active-tab symbol list from runtime caches (never trust clients).
+
+    ADR 008: a frozen table must not consume scanner-owner L1 — return [].
+    HOD-owner L1 remains independent via ``hod_stream_symbols``.
+    """
+    from ibkr import scanner_session as _ss
+    from runtime_state.state import TABLE_STATE_FROZEN
+
     state = get_runtime_state()
     t = (tab or "none").strip().lower()
+    if t in (
+        _ss.TABLE_GAPPERS, _ss.TABLE_GAINERS, _ss.TABLE_LOSERS, _ss.TABLE_AFTERHOURS,
+    ):
+        if _ss.table_attr(state, t).state == TABLE_STATE_FROZEN:
+            return []
     if t == "gappers":
         rows = state.gapper_cache
     elif t == "gainers":
@@ -133,24 +146,20 @@ def symbols_for_tab(tab: str) -> list[str]:
     return out
 
 
-_hod_active_cache: list[str] = []
-# Version fingerprint, not a TTL (ADR 008) — HOD L1 reconciliation must react
-# immediately to a real roster/former-list/session change, not wait out a
-# fixed window. Scanner caches are reassigned (never mutated in place) on
-# every scan update, so ``id()`` + length cheaply detects "the roster
-# actually changed" without hashing row contents on every reconcile tick.
-_hod_active_cache_sig: tuple | None = None
+def refresh_hod_active_set() -> list[str]:
+    """Rebuild the deterministic HOD active set (Gappers/Gainers/Afterhours/Former).
 
-
-def invalidate_hod_active_cache() -> None:
-    """Force the next refresh_hod_active_set() call to rebuild."""
-    global _hod_active_cache_sig
-    _hod_active_cache_sig = None
-
-
-def refresh_hod_active_set(*, force: bool = False) -> list[str]:
-    """Rebuild the deterministic HOD active set (Gappers/Gainers/Afterhours/Former)."""
-    global _hod_active_cache, _hod_active_cache_sig
+    Always recomputes from the live table caches — no memoization. A prior
+    version cached this on an ``id()`` + ``len()`` signature of the three
+    table caches, which permanently stopped updating once Gappers/Gainers/
+    Afterhours all freeze for the day (09:30/16:00/20:00 ET, ADR 008): frozen
+    caches are never reassigned again, so the signature never changed again,
+    silently locking HOD's tracked pool to whatever it last computed and
+    starving `hod_momo.on_trade_update` for any symbol admitted after that
+    (see PROBLEM_LOG 2026-07-23). `build_active_set` is a pure in-memory
+    merge/rank/dedupe over at most ~40-70 small dict rows — cheap enough on
+    every tick that memoizing it isn't worth the staleness risk.
+    """
     state = get_runtime_state()
     try:
         import hod_momo_former as _former
@@ -158,14 +167,6 @@ def refresh_hod_active_set(*, force: bool = False) -> list[str]:
         priority = _former.former_momo_priority_symbols()
     except Exception:
         priority = []
-    sig = (
-        id(state.gapper_cache), len(state.gapper_cache),
-        id(state.gainer_cache), len(state.gainer_cache),
-        id(state.afterhours_cache), len(state.afterhours_cache),
-        tuple(priority),
-    )
-    if not force and _hod_active_cache and sig == _hod_active_cache_sig:
-        return list(_hod_active_cache)
     snap = _hod_active.build_active_set(
         gapper_rows=state.gapper_cache,
         gainer_rows=state.gainer_cache,
@@ -175,9 +176,7 @@ def refresh_hod_active_set(*, force: bool = False) -> list[str]:
         priority_symbols=priority,
         capacity=HOD_MOMO_ACTIVE_SET_CAPACITY,
     )
-    _hod_active_cache = list(snap.active)
-    _hod_active_cache_sig = sig
-    return list(_hod_active_cache)
+    return list(snap.active)
 
 
 def hod_stream_symbols() -> list[str]:
@@ -206,7 +205,13 @@ def apply_l1_quote(
     prev_close: float | None,
     ts_unix: float,
 ) -> dict | None:
-    """Apply one L1 tick onto scanner caches + HOD; return patch row fields."""
+    """Apply one L1 tick onto scanner caches + HOD; return patch row fields.
+
+    ADR 008: HOD's reserved L1 pool keeps ticking retained symbols after
+    their table freezes (09:30/16:00/20:00). Each cache write below is
+    gated on that table's ``TableState`` so a HOD-only tick can never mutate
+    a table the user is told is immutable for the rest of the session.
+    """
     sym = (symbol or "").strip().upper()
     if not sym or price is None:
         return None
@@ -227,7 +232,7 @@ def apply_l1_quote(
     def _touch_row(row: dict, reprice_fn) -> dict:
         return reprice_fn(row, q) if row.get("symbol", "").upper() == sym else row
 
-    if state.gainer_cache:
+    if state.gainer_cache and not _ss.is_table_frozen(state, _ss.TABLE_GAINERS):
         state.gainer_cache = [
             _touch_row(r, _ibkr_discovery.reprice_mover_row) for r in state.gainer_cache
         ]
@@ -241,12 +246,16 @@ def apply_l1_quote(
                     "volume": r.get("volume", volume),
                 })
                 break
-    if state.loser_cache:
+    if state.loser_cache and not _ss.is_table_frozen(state, _ss.TABLE_LOSERS):
         state.loser_cache = [
             _touch_row(r, _ibkr_discovery.reprice_mover_row) for r in state.loser_cache
         ]
         state.loser_cache_ts = now
-    if state.gapper_cache and not (state.gainer_cache or state.loser_cache):
+    if (
+        state.gapper_cache
+        and not (state.gainer_cache or state.loser_cache)
+        and not _ss.is_table_frozen(state, _ss.TABLE_GAPPERS)
+    ):
         state.gapper_cache = [
             _touch_row(r, _ibkr_discovery.reprice_gapper_row) for r in state.gapper_cache
         ]
@@ -260,7 +269,11 @@ def apply_l1_quote(
                     "volume": r.get("volume", volume),
                 })
                 break
-    if state.afterhours_cache and state.current_mode == "afterhours":
+    if (
+        state.afterhours_cache
+        and state.current_mode == "afterhours"
+        and not _ss.is_table_frozen(state, _ss.TABLE_AFTERHOURS)
+    ):
         state.afterhours_cache = _ah_discovery.reprice_afterhours_rows_ibkr(
             state.afterhours_cache, {sym: q}, state.avg_volume_cache,
         )
@@ -300,23 +313,30 @@ def apply_l1_quote(
 def apply_table_quotes(quotes: dict) -> dict | None:
     """Apply async snapshot quotes onto scanner caches; feed HOD for active set."""
     state = get_runtime_state()
-    gapper_in = [] if (state.gainer_cache or state.loser_cache) else state.gapper_cache
+    gapper_frozen = _ss.is_table_frozen(state, _ss.TABLE_GAPPERS)
+    gapper_in = (
+        [] if (state.gainer_cache or state.loser_cache or gapper_frozen) else state.gapper_cache
+    )
     result = _ibkr_reprice.apply_quote_patches(
         gapper_in, state.gainer_cache, state.loser_cache, quotes,
     )
     if result is None:
         return None
     gapper_cache, gainer_cache, loser_cache, now, rows = result
-    if gapper_in and state.gapper_cache:
+    if gapper_in and state.gapper_cache and not gapper_frozen:
         state.gapper_cache = gapper_cache
         state.gapper_cache_ts = now
-    if state.gainer_cache:
+    if state.gainer_cache and not _ss.is_table_frozen(state, _ss.TABLE_GAINERS):
         state.gainer_cache = gainer_cache
         state.gainer_cache_ts = now
-    if state.loser_cache:
+    if state.loser_cache and not _ss.is_table_frozen(state, _ss.TABLE_LOSERS):
         state.loser_cache = loser_cache
         state.loser_cache_ts = now
-    if state.afterhours_cache and state.current_mode == "afterhours":
+    if (
+        state.afterhours_cache
+        and state.current_mode == "afterhours"
+        and not _ss.is_table_frozen(state, _ss.TABLE_AFTERHOURS)
+    ):
         state.afterhours_cache = _ah_discovery.reprice_afterhours_rows_ibkr(
             state.afterhours_cache, quotes, state.avg_volume_cache,
         )

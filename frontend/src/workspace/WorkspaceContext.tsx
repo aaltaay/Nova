@@ -30,6 +30,7 @@ export type WorkspaceValue = {
   setDiscoveryProvider: (provider: string) => void;
   alpacaFeed: string;
   setAlpacaFeed: (feed: string) => void;
+  scannerPersistentAuthoritative: boolean;
   ibkrConnected: boolean;
   /** Session mode from /api/ibkr/status — paper | live | disconnected. */
   ibkrMode: IbkrMode;
@@ -52,6 +53,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     WORKSPACE_CONFIG_DEFAULTS.discoveryProvider,
   );
   const [alpacaFeed, setAlpacaFeed] = useState(WORKSPACE_CONFIG_DEFAULTS.alpacaFeed);
+  const [scannerPersistentAuthoritative, setScannerPersistentAuthoritative] = useState(
+    WORKSPACE_CONFIG_DEFAULTS.scannerPersistentAuthoritative,
+  );
   const ibkrStatus = useIbkrStatus();
 
   useEffect(() => {
@@ -63,6 +67,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const slice = parseWorkspaceConfig(data);
         setDiscoveryProvider(slice.discoveryProvider);
         setAlpacaFeed(slice.alpacaFeed);
+        setScannerPersistentAuthoritative(slice.scannerPersistentAuthoritative);
       })
       .catch((err) => {
         console.warn('[Nova] /api/config fetch failed — keeping workspace defaults', err);
@@ -89,6 +94,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setDiscoveryProvider,
       alpacaFeed,
       setAlpacaFeed,
+      scannerPersistentAuthoritative,
       ibkrConnected: ibkrStatus.connected,
       ibkrMode: ibkrStatus.mode,
       ibkrGatewayMode: ibkrStatus.gateway_mode ?? null,
@@ -100,6 +106,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       selectedSymbol,
       discoveryProvider,
       alpacaFeed,
+      scannerPersistentAuthoritative,
       ibkrStatus.connected,
       ibkrStatus.mode,
       ibkrStatus.gateway_mode,

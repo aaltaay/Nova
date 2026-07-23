@@ -21,7 +21,6 @@ def _reset(monkeypatch, tmp_path):
     state.startup_ts = time.monotonic() - 10_000
     focus.clear_session_focus(persist=False)
     monkeypatch.setattr(focus, "_path", lambda: tmp_path / "sticky.json")
-    monkeypatch.setattr(focus, "_invalidate_active_cache", lambda: None)
     monkeypatch.setattr("hod_momo_persist.save_configs", lambda: None)
     active.clear_session_state()
 

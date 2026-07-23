@@ -110,7 +110,6 @@ def remember_session_focus(symbol: str, *, persist: bool = True) -> bool:
     _sticky = _rank_sticky(merged)[: _sticky_cap()]
     if persist:
         _save()
-    _invalidate_active_cache()
     return not already
 
 
@@ -208,12 +207,3 @@ def _save() -> None:
         logger.warning("HOD Momo: session-focus sticky save failed: %s", exc)
 
 
-def _invalidate_active_cache() -> None:
-    try:
-        import ibkr_bridge as _bridge
-
-        invalidate = getattr(_bridge, "invalidate_hod_active_cache", None)
-        if callable(invalidate):
-            invalidate()
-    except Exception:
-        logger.debug("HOD Momo: active-cache invalidate skipped", exc_info=True)

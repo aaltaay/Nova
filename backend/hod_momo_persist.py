@@ -175,6 +175,60 @@ def load_persisted_state() -> None:
     state.blocklist = {s.upper() for s in _cache.load_hod_momo_blocklist()}
     alerts_raw, _ = _cache.load_hod_momo_snapshot()
     state.today_alerts = [alert_from_dict(alert) for alert in alerts_raw]
+    _load_highs_from_disk()
+
+
+def _load_highs_from_disk() -> None:
+    """Restore today's HOD-high truth so a restart doesn't re-blind an already
+    correctly-seeded symbol (session_date mismatch is handled by the dated
+    cache file itself — a stale prior-day file is simply not returned)."""
+    state = _state.get_state()
+    data = _cache.load_hod_momo_highs()
+    if not data:
+        return
+    try:
+        state.session_highs = {
+            str(k): float(v) for k, v in (data.get("session_highs") or {}).items()
+        }
+        state.day_highs = {
+            str(k): float(v) for k, v in (data.get("day_highs") or {}).items()
+        }
+        state.session_high_source = {
+            str(k): str(v) for k, v in (data.get("session_high_source") or {}).items()
+        }
+        state.session_high_seeded = {
+            str(s) for s in (data.get("session_high_seeded") or [])
+        }
+        logger.info(
+            "HOD Momo: restored %d session high(s) from disk", len(state.session_highs),
+        )
+    except Exception:
+        logger.warning("HOD Momo: failed to restore session highs from disk", exc_info=True)
+
+
+def save_highs(*, force: bool = False) -> None:
+    """Persist current HOD-high truth fields with the established hot-session rate limit."""
+    state = _state.get_state()
+    now = time.monotonic()
+    if (
+        not force
+        and (now - state.last_highs_save_mono) < HOD_MOMO_ALERT_SAVE_INTERVAL_SEC
+    ):
+        state.highs_dirty = True
+        return
+    _cache.save_hod_momo_highs({
+        "session_highs": dict(state.session_highs),
+        "day_highs": dict(state.day_highs),
+        "session_high_source": dict(state.session_high_source),
+        "session_high_seeded": sorted(state.session_high_seeded),
+    })
+    state.last_highs_save_mono = now
+    state.highs_dirty = False
+
+
+def flush_pending_highs_save() -> None:
+    if _state.get_state().highs_dirty:
+        save_highs(force=True)
 
 
 def save_alerts(*, force: bool = False) -> None:

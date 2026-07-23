@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-23 | [Fix HOD active-set stale cache (WLDS lockout)](2026-07-23-fix-hod-active-set-stale-cache.md) | Fix HOD active-set stale cache (WLDS lockout) |
+| 2026-07-23 | [ADR 008 persistent scanner stream (shadow) + freeze + table-scoped WS](2026-07-23-adr-008-persistent-scanner-shadow.md) | Persistent IBKR scanner leases in shadow; freeze/rollover; table-scoped WS; cutover flag still off |
 | 2026-07-23 | [API_WEDGED dedicated scan pool + auto-heal + app-shell auto-recover](2026-07-23-api-wedged-autoheal-and-app-shell-recovery.md) | Dedicated scan_executor keeps health responsive; session-once auto-restart on WEDGED/DOWN; app-shell boundary auto-reloads once on fatal provider/hook crashes |
 | 2026-07-23 | [API/IBKR lifecycle hardening: readiness, cancellation, single supervisor](2026-07-23-api-ibkr-lifecycle-hardening.md) | Explicit IBKR READY state + generation-checked cancellable bridge calls; locked owner-aware dev restart supervisor replaces arbitrary port-killing |
 | 2026-07-23 | [HOD scanner external survey + health diagnosis](2026-07-23-hod-scanner-external-survey.md) | Live integrity mute root cause; OSS HOD scanners study-only — surgical fix Nova, no rewrite |

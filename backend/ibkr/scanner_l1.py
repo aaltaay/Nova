@@ -33,6 +33,12 @@ GetHodSymbolsFn = Callable[[], list[str]]
 GetActiveTabFn = Callable[[], str]
 
 _pending: dict[str, dict[str, Any]] = {}
+# Symbols currently subscribed under OWNER_SCANNER (the live active tab) —
+# used to decide which pending ticks are safe to forward as a table-scoped
+# price_patch. HOD-only reserved-pool ticks (which keep flowing for retained
+# symbols after their table freezes, ADR 008) are never in this set, so they
+# are dropped from the WS payload instead of leaking into a frozen table.
+_active_tab_symbols: set[str] = set()
 _last_ok_ts: float | None = None
 _subscription_state: dict[str, Any] = {
     "tab": "none",
@@ -156,6 +162,7 @@ async def _reconcile_once(
     if (get_provider() or "").strip().lower() != "ibkr":
         await _ticks.set_owner_symbols(_ticks.OWNER_SCANNER, [])
         await _ticks.set_owner_symbols(_ticks.OWNER_HOD, [])
+        _active_tab_symbols.clear()
         _subscription_state = {
             **_subscription_state,
             "tab": "none",
@@ -210,6 +217,11 @@ async def _reconcile_once(
 
     # Scanner owner = active tab rows; HOD owner = reserved HOD pool
     # (overlap keeps both owners so leaving the tab does not drop HOD eval).
+    # ADR 008: this set gates flush_loop's price_patch forwarding — a symbol
+    # only reaches the WS as this table's row when it is actually subscribed
+    # here, not merely because it is the dominant client tab hint.
+    _active_tab_symbols.clear()
+    _active_tab_symbols.update(plan["tab"])
     tab_result = await _ticks.set_owner_symbols(_ticks.OWNER_SCANNER, plan["tab"])
     if IBKR_L1_SUBSCRIBE_PACE_SEC > 0:
         await asyncio.sleep(float(IBKR_L1_SUBSCRIBE_PACE_SEC))
@@ -274,14 +286,22 @@ async def flush_loop(push: PushFn) -> None:
         try:
             await asyncio.sleep(float(IBKR_L1_BATCH_FLUSH_SEC))
             if not _pending:
-                # Heartbeat when subscribed but quiet (illiquid) — not "stale"
-                # unless last_ok is old; UI uses patch age.
                 continue
-            rows = list(_pending.values())
+            pending = _pending
             _pending = {}
+            # Table-scoped: only forward ticks for symbols actually subscribed
+            # under the active scanner tab (ADR 008). HOD-only reserved-pool
+            # ticks for retained/frozen-table symbols are dropped here rather
+            # than tagged with the dominant tab — that tag previously leaked
+            # HOD-pool price updates into a frozen table's displayed row.
+            rows = [row for sym, row in pending.items() if sym in _active_tab_symbols]
+            if not rows:
+                continue
             ts = time.time()
+            table = _subscription_state.get("tab") or "none"
             await push({
                 "type": "price_patch",
+                "table": table if table != "none" else None,
                 "ts": ts,
                 "stale": False,
                 "subscription": get_subscription_state(),
@@ -297,3 +317,4 @@ async def shutdown() -> None:
     await _ticks.set_owner_symbols(_ticks.OWNER_SCANNER, [])
     await _ticks.set_owner_symbols(_ticks.OWNER_HOD, [])
     _pending.clear()
+    _active_tab_symbols.clear()

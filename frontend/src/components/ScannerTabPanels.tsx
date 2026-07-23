@@ -7,6 +7,7 @@ import { CatalystsTable } from './CatalystsTable';
 import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
 import { HodMomoIntegrityBanner } from '../hod_momo/HodMomoIntegrityBanner';
+import { frozenTableLabel, type ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import { SMALL_CAP_MAX, SMALL_CAP_MIN, SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, SortConfig } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
@@ -34,6 +35,8 @@ interface Props {
   flashSymbols: Record<string, 'up' | 'down'>;
   rowQuoteTs?: Record<string, number>;
   nowSec?: number;
+  /** ADR 008 — per-table freeze/session metadata, keyed by table name. */
+  tableMeta?: Record<string, ScannerTableMeta>;
 }
 
 export function ScannerTabPanels({
@@ -54,7 +57,10 @@ export function ScannerTabPanels({
   flashSymbols,
   rowQuoteTs = {},
   nowSec = 0,
+  tableMeta = {},
 }: Props) {
+  const frozenLabel =
+    activeTab !== 'catalysts' ? frozenTableLabel(tableMeta[activeTab]) : null;
   const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
@@ -241,6 +247,15 @@ export function ScannerTabPanels({
   return (
     <>
       <HodMomoIntegrityBanner />
+      {frozenLabel && (
+        <div
+          className="scanner-frozen-badge"
+          role="status"
+          title="This table is immutable for the rest of the session (ADR 008)"
+        >
+          {frozenLabel}
+        </div>
+      )}
       {panel}
     </>
   );

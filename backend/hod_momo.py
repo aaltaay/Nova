@@ -62,6 +62,7 @@ from hod_momo_models import (
 )
 from hod_momo_persist import (
     flush_pending_alert_save,
+    flush_pending_highs_save,
     get_history_alerts,
     save_alerts as _save_alerts,
 )
@@ -84,6 +85,7 @@ __all__ = [
     "clear_today_alerts",
     "flush_consolidated_loop",
     "flush_pending_alert_save",
+    "flush_pending_highs_save",
     "get_blocklist",
     "get_configs",
     "get_debug_counters",

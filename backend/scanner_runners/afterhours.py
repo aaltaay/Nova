@@ -15,8 +15,13 @@ logger = logging.getLogger(__name__)
 
 def run_afterhours_discovery_scan() -> None:
     """After-hours movers: IBKR top % gainers when discovery=ibkr, else Alpaca."""
+    from runtime_state.state import TABLE_STATE_FROZEN
+
     sr = facade()
     state = sr.get_runtime_state()
+    if state.afterhours_table.state == TABLE_STATE_FROZEN:
+        logger.info("AH discovery skipped — table frozen (ADR 008)")
+        return
     headers = sr._alpaca_headers()
 
     if sr._get_discovery_provider() == "ibkr":

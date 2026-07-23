@@ -215,9 +215,22 @@ def recover_scanner_slots(ib) -> int:
         return 0
     wrapper = getattr(ib, "wrapper", None)
     registry = getattr(wrapper, "reqId2Subscriber", None) if wrapper is not None else None
-    candidates: dict[int, object] = {req_id: None for req_id in list(_inflight_scan_reqids)}
+    # ADR 008: never cancel currently-desired persistent leases.
+    try:
+        from ibkr.scanner_stream import persistent_reqids as _persistent_reqids
+        protected = _persistent_reqids()
+    except Exception:
+        protected = set()
+
+    candidates: dict[int, object] = {
+        req_id: None
+        for req_id in list(_inflight_scan_reqids)
+        if req_id not in protected
+    }
     if isinstance(registry, dict):
         for req_id, subscriber in list(registry.items()):
+            if req_id in protected:
+                continue
             if isinstance(subscriber, _ScanDataList):
                 candidates[req_id] = subscriber
 

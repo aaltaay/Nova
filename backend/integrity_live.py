@@ -100,8 +100,19 @@ def build_scanner_integrity_report() -> dict[str, Any]:
     if last_ok:
         table_age = _cache_age(last_ok)
 
+    from ibkr import scanner_session as _scanner_session
+
     state = get_runtime_state()
     sub = ibkr_scanner_l1.get_subscription_state()
+
+    def _frozen(table: str) -> bool:
+        # Defensive: some tests/doubles pass a minimal state object without
+        # TableState fields — treat that as "not frozen" rather than crash.
+        try:
+            return _scanner_session.is_table_frozen(state, table)
+        except AttributeError:
+            return False
+
     snap = {
         "discovery_provider": provider,
         "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
@@ -116,6 +127,12 @@ def build_scanner_integrity_report() -> dict[str, Any]:
         "afterhours_age_sec": _cache_age(
             getattr(state, "afterhours_cache_ts", None) or None
         ),
+        # ADR 008 — frozen tables are immutable by design; a frozen table
+        # never fails/warns on cache age. See evaluate_scanner_integrity.
+        "gapper_frozen": _frozen(_scanner_session.TABLE_GAPPERS),
+        "gainer_frozen": _frozen(_scanner_session.TABLE_GAINERS),
+        "loser_frozen": _frozen(_scanner_session.TABLE_LOSERS),
+        "afterhours_frozen": _frozen(_scanner_session.TABLE_AFTERHOURS),
         "table_reprice_age_sec": table_age,
         "table_busy_skips": getattr(ibkr_reprice, "_table_busy_skips", 0),
         "table_timeouts": getattr(ibkr_reprice, "_table_timeouts", 0),
