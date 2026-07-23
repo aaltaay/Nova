@@ -103,9 +103,36 @@ After pulling a build that adds `POST /api/ibkr/gateway-mode`, **restart the
 Nova API** (stale uvicorn returns 404; the capsule then says “Restart Nova API”).
 Smoke: open `http://127.0.0.1:8000/openapi.json` and confirm `/api/ibkr/gateway-mode`.
 
+## Daily auto-start (boot / 6am)
+
+To start Gateway (via IBC) + Nova API + UI automatically:
+
+```powershell
+# Register: daily 6:00 AM local + every Windows logon (default)
+.\scripts\Install-NovaDailyTask.ps1
+
+# Or only 6am / only logon:
+.\scripts\Install-NovaDailyTask.ps1 -Trigger Daily -AtTime 06:00
+.\scripts\Install-NovaDailyTask.ps1 -Trigger AtLogon
+
+# Run once now (no scheduler):
+.\scripts\Start-NovaDaily.ps1
+# or double-click: Start Nova Daily.bat
+
+# Remove:
+.\scripts\Install-NovaDailyTask.ps1 -Unregister
+```
+
+`Start-NovaDaily.ps1` is idempotent (skips healthy API/UI/Gateway). Log:
+`backend/logs/daily-start.log`. IBKR Mobile 2FA may still require your phone.
+
+If the PC is asleep at 6am, either enable wake timers in Windows power
+settings or rely on the AtLogon trigger when you unlock.
+
 ## Related
 
 - `scripts/start_gateway_ibc.ps1.example` — template launcher (no secrets)
+- `scripts/Start-NovaDaily.ps1` / `Install-NovaDailyTask.ps1` — morning auto-start
 - `scripts/smoke_check.ps1` — post-login API smoke
 - `IBKR_GATEWAY_MODE` / `IBKR_LIVE_PORT` / `IBKR_PAPER_PORT` in `.env`
 - `.cursor/rules/ibkr-gateway-login-warning.mdc` — loud-warn vs bidirectional self-heal
