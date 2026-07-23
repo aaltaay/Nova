@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HOD Brainstorming — Spec Capture</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a222d;
+      --text: #e8eef6;
+      --muted: #9aa8b8;
+      --line: #334155;
+      --accent: #38bdf8;
+      --ok: #34d399;
+      --ask: #fbbf24;
+      --info: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.55 "Segoe UI", system-ui, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+    header {
+      padding: 1.75rem 1.5rem 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+    header h1 { margin: 0 0 0.35rem; font-size: 1.5rem; }
+    header p { margin: 0; color: var(--muted); max-width: 70ch; }
+    main { max-width: 960px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
+    h2 {
+      margin: 1.75rem 0 0.65rem;
+      font-size: 1.2rem;
+      border-left: 3px solid var(--accent);
+      padding-left: 0.55rem;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.9rem 1rem;
+      margin: 0.65rem 0;
+    }
+    .ask {
+      border-left: 3px solid var(--ask);
+      background: #3b2f1455;
+      padding: 0.8rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: 0.85rem 0;
+    }
+    .ok {
+      border-left: 3px solid var(--ok);
+      background: #0f2f2455;
+      padding: 0.8rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: 0.85rem 0;
+    }
+    .info {
+      border-left: 3px solid var(--info);
+      background: #1e293b66;
+      padding: 0.8rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: 0.85rem 0;
+    }
+    .info .label {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #0f1419;
+      background: #94a3b8;
+      padding: 0.12rem 0.45rem;
+      border-radius: 4px;
+      margin-right: 0.4rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      margin: 0.6rem 0;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 0.5rem 0.6rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #232d3b; color: #cbd5e1; }
+    code { font-family: ui-monospace, Consolas, monospace; color: #7dd3fc; font-size: 0.88em; }
+    .uml {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      white-space: pre;
+      overflow-x: auto;
+      background: #0b1018;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 1rem;
+      color: #d1e0f0;
+    }
+    .muted { color: var(--muted); }
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+      padding: 1.5rem 0;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      text-align: center;
+    }
+    .bench {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      margin: 0.6rem 0;
+    }
+    .bench th, .bench td {
+      border: 1px solid var(--line);
+      padding: 0.4rem 0.6rem;
+      text-align: right;
+    }
+    .bench th:first-child, .bench td:first-child { text-align: left; }
+    .bench th { background: #232d3b; }
+    .bench tr.total td { font-weight: 700; color: #f1f5f9; background: #1e293b; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HOD Brainstorming — Spec Capture</h1>
+    <p>
+      Empty working page. Your statements are captured below as software-engineering
+      specification rows + UML. No product brainstorm filler.
+    </p>
+  </header>
+
+  <main>
+    <h2>Requirements ledger (all REQ-HOD, SHALL form)</h2>
+    <p class="muted" style="margin:0 0 0.65rem;">
+      Consolidated list — each row is the authoritative SHALL statement; full context/UML for each is in the
+      matching section below. For the pre-existing gate-by-gate SSRD (session-high tracking, strategy gates,
+      persistence), see <code>docs/HOD-requirements.html</code> — this ledger only covers decisions captured
+      2026-07-23 onward that change or narrow that baseline.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>SHALL statement</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REQ-HOD-001</code></td>
+          <td>The HOD evaluation eligibility set <strong>SHALL</strong> be Nova's Top Gainers table
+          (<code>gainer_cache</code>, from IBKR <code>TOP_PERC_GAIN</code> scan) only. Top Losers
+          <strong>SHALL NOT</strong> be included.</td>
+          <td>Resolved</td>
+        </tr>
+        <tr>
+          <td><code>REQ-HOD-002</code></td>
+          <td>The HOD eligibility set <strong>SHALL NOT</strong> union <code>gapper_cache</code>
+          (<code>TOP_OPEN_PERC_GAIN</code>). <code>gainer_cache</code> alone <strong>SHALL</strong> cover
+          premarket gap-style discovery.</td>
+          <td>Captured</td>
+        </tr>
+        <tr>
+          <td><code>REQ-HOD-003</code></td>
+          <td>The HOD watch-universe union <strong>SHALL NOT</strong> include
+          <code>scan_hod_momentum_seeds()</code> output (<code>HOT_BY_VOLUME</code>, <code>TOP_VOLUME_RATE</code>,
+          <code>MOST_ACTIVE</code>). Eligibility <strong>SHALL</strong> be <code>gainer_cache</code> only.</td>
+          <td>Captured — sub-$20 pass keep/drop open</td>
+        </tr>
+        <tr>
+          <td><code>REQ-HOD-004</code></td>
+          <td>HOD alert suppression <strong>SHALL</strong> be gated on <code>hod</code>-scope integrity status
+          only. It <strong>SHALL NOT</strong> be gated on the flat merged (worst-of scanner+hod) status.</td>
+          <td>Shipped 2026-07-23</td>
+        </tr>
+        <tr>
+          <td><code>REQ-HOD-005</code></td>
+          <td>The HOD active-set builder <strong>SHALL NOT</strong> retain a symbol via alert-history or
+          sticky memory once it is absent from current eligibility inputs. A strategy firing on a symbol
+          <strong>SHALL NOT</strong> auto-add that symbol to the Former Momo list.</td>
+          <td>Shipped 2026-07-23</td>
+        </tr>
+        <tr>
+          <td><code>REQ-HOD-006</code></td>
+          <td>The Former Momo manual list (<code>config.former_momo_list</code>) <strong>SHALL</strong> be
+          user-edited only (default seed <code>["SPRC"]</code>) and <strong>SHALL NOT</strong> be re-seeded
+          from alert history. Members <strong>SHALL</strong> receive guaranteed HOD active-set admission
+          (live L1 + tracking) regardless of Top Gainers rank.</td>
+          <td>Shipped 2026-07-23</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Informational (not a requirement)</h2>
+    <div class="info" id="info-ibkr-api-split">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Informational</span>
+        <code>INFO-IBKR-001</code> — IBKR API roles (roster vs prices)
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>API</th>
+            <th>Role</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Scanner API</strong><br /><code>reqScannerData</code> / <code>TOP_PERC_GAIN</code>, etc.</td>
+            <td>Periodic snapshot</td>
+            <td>“Give me the current ranked list.” It is <strong>not</strong> a price stream.</td>
+          </tr>
+          <tr>
+            <td><strong>Market data API</strong><br /><code>reqMktData</code>, depth, tick-by-tick</td>
+            <td>Continuous subscription</td>
+            <td>“Send me updates for these symbols.” This is the live price path.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin:0.5rem 0 0;">
+        Mental model: scanner = roster (who is on Top Gainers); market data = scoreboard (live prices).
+        Nova’s <code>gainer_cache</code> holds the last scanner snapshot; L1 streaming updates prices for subscribed symbols.
+      </p>
+    </div>
+
+    <div class="info" id="info-ibkr-scan-codes">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Informational</span>
+        <code>INFO-IBKR-002</code> — Scanner scan codes Nova uses today
+      </p>
+      <p class="muted" style="margin:0 0 0.65rem;">
+        Mostly one-shot <code>reqScannerDataAsync</code> pulls (not 10 long-lived
+        <code>reqScannerSubscription</code> slots held open). Each scan code returns ≤50 symbols.
+        IBKR allows up to 10 <em>concurrent open</em> scanner subscriptions.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Scan code</th>
+            <th>Purpose</th>
+            <th>Where it feeds</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>TOP_PERC_GAIN</code></td>
+            <td>Top Gainers</td>
+            <td><code>gainer_cache</code> (+ HOD seeds)</td>
+          </tr>
+          <tr>
+            <td><code>TOP_PERC_LOSE</code></td>
+            <td>Top Losers</td>
+            <td><code>loser_cache</code></td>
+          </tr>
+          <tr>
+            <td><code>TOP_OPEN_PERC_GAIN</code></td>
+            <td>Gappers (open vs prior close)</td>
+            <td><code>gapper_cache</code></td>
+          </tr>
+          <tr>
+            <td><code>TOP_AFTER_HOURS_PERC_GAIN</code></td>
+            <td>AH gainers</td>
+            <td>After Hours tab</td>
+          </tr>
+          <tr>
+            <td><code>TOP_AFTER_HOURS_PERC_LOSE</code></td>
+            <td>AH losers</td>
+            <td>After Hours tab</td>
+          </tr>
+          <tr>
+            <td><code>HOT_BY_VOLUME</code></td>
+            <td>Volume heat</td>
+            <td>HOD seed / watch pool</td>
+          </tr>
+          <tr>
+            <td><code>TOP_VOLUME_RATE</code></td>
+            <td>Volume rate</td>
+            <td>HOD seed / watch pool</td>
+          </tr>
+          <tr>
+            <td><code>MOST_ACTIVE</code></td>
+            <td>Most active</td>
+            <td>HOD seed / watch pool</td>
+          </tr>
+          <tr>
+            <td><code>TOP_PERC_GAIN</code> + <code>belowPrice=20</code></td>
+            <td>Sub-$20 gainers</td>
+            <td>HOD seed head (so mega-gainers don’t crowd out cheap runners)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin:0.5rem 0 0;">
+        Resolved 2026-07-23: HOD eligibility = <code>TOP_PERC_GAIN</code> → <code>gainer_cache</code> only
+        (<code>REQ-HOD-001</code>). The volume/activity scan codes above (<code>HOT_BY_VOLUME</code>,
+        <code>TOP_VOLUME_RATE</code>, <code>MOST_ACTIVE</code>) are excluded per <code>REQ-HOD-003</code>;
+        <code>TOP_OPEN_PERC_GAIN</code> (Gappers) is excluded per <code>REQ-HOD-002</code>.
+      </p>
+    </div>
+
+    <div class="info" id="info-ibkr-api-catalog">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Informational</span>
+        <code>INFO-IBKR-003</code> — Which IBKR API to use, and when (with examples)
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>API</th>
+            <th>What it does</th>
+            <th>Concrete example</th>
+            <th>When to use</th>
+            <th>When not to use</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>reqScannerSubscription</code></td>
+            <td>Long-lived scanner subscription. Slot stays open; IB can push an updated ranked list until you cancel. Counts as 1 of 10 concurrent scanner slots. Returns contracts/ranks only — no live prices.</td>
+            <td>
+              At 12:00 you subscribe to <code>TOP_PERC_GAIN</code> and leave it open.
+              At 12:00 IB sends ranks 1–50. At 12:03 RBNE jumps onto the list — IB can push a new ranked list while the subscription is still alive.
+              You do <em>not</em> call again to learn the roster changed. Cancel when you no longer want that live roster.
+            </td>
+            <td>Always-on Top Gainers (or other scan) when you want roster push updates</td>
+            <td>Not for streaming prices; don’t hold more than 10 open</td>
+          </tr>
+          <tr>
+            <td><code>reqScannerData</code> / <code>reqScannerDataAsync</code></td>
+            <td>One-shot scanner. Ask once → get current ranked list → that request is finished. No ongoing push for that call. Returns contracts/ranks only (≤50) — no live prices.</td>
+            <td>
+              At 12:00:00 Nova asks “<code>TOP_PERC_GAIN</code>, max 50”.
+              IB returns e.g. XYZ #1, ABC #2, … once. Nova writes <code>gainer_cache</code>; that call is <em>done</em>.
+              At 12:00:10 RBNE enters the top 50 — Nova does <em>not</em> hear about it until the next one-shot (e.g. ~20s later).
+              Prices for names already on the list still update via <code>reqMktData</code>, not via this scanner call.
+            </td>
+            <td>Periodic roster refresh (Nova’s usual gainers/losers/seeds pattern)</td>
+            <td>Not for real-time quotes; don’t spam (pacing / load)</td>
+          </tr>
+          <tr>
+            <td><code>cancelScannerSubscription</code></td>
+            <td>Ends a long-lived scanner subscription and frees its slot among the max 10.</td>
+            <td>
+              You had an open <code>TOP_PERC_GAIN</code> subscription using scanner slot #3.
+              You call cancel for that reqId → IB stops pushing gainer-list updates; slot #3 is free for e.g. <code>HOT_BY_VOLUME</code>.
+            </td>
+            <td>When you no longer need that live roster</td>
+            <td>Nothing to cancel if you only used one-shot <code>reqScannerDataAsync</code></td>
+          </tr>
+          <tr>
+            <td><code>reqScannerParameters</code></td>
+            <td>Asks IB for the catalog of available scanner codes and filters (XML). Meta/discovery, not market data.</td>
+            <td>
+              On a tooling day you call this once and get XML listing codes like <code>TOP_PERC_GAIN</code>, <code>HOT_BY_VOLUME</code>, and filter tags (price/volume/etc.).
+              You use that to know what you <em>can</em> subscribe to — you do not get today’s gainer symbols from this call.
+            </td>
+            <td>Discovery / docs / tooling; rare at runtime</td>
+            <td>Not part of the trading-day HOD hot path</td>
+          </tr>
+          <tr>
+            <td><code>reqMktData</code></td>
+            <td>Level-1 stream for one symbol. Continuous ticks (last, bid/ask, volume, day high tick-6, etc.) until cancelled. Uses a market-data line, not a scanner slot.</td>
+            <td>
+              XYZ is on <code>gainer_cache</code>. Nova calls <code>reqMktData(XYZ)</code>.
+              At 12:01:05 last=$5.80; at 12:01:06 last=$5.91 — UI/HOD see those ticks as they arrive.
+              The Gainers <em>roster</em> still only changes on the next scanner shot/subscription update; this call is the live price path.
+            </td>
+            <td>Live prices for Gainers rows / HOD active set / open ticker</td>
+            <td>Don’t stream thousands of symbols; limited by market-data lines</td>
+          </tr>
+          <tr>
+            <td><code>cancelMktData</code></td>
+            <td>Stops the L1 stream for a symbol and frees that market-data line.</td>
+            <td>
+              RBNE was in the HOD active set with a live L1 stream.
+              It drops out of the active 40 → Nova cancels mkt data for RBNE → ticks stop; line free for the next admitted symbol.
+            </td>
+            <td>Leave active set / close ticker / rotate explore slots</td>
+            <td>Don’t cancel while you still need live prices for that symbol</td>
+          </tr>
+          <tr>
+            <td><code>reqTickersAsync</code> (ib_async)</td>
+            <td>One-shot snapshot quotes for a batch of contracts. Waits until IB finishes the snapshot (often ~11s), then returns fields once — not a stream.</td>
+            <td>
+              Cold path: you have 20 new symbols from a scanner and don’t want 20 full L1 streams yet.
+              You call <code>reqTickersAsync</code> on those 20; ~11s later you get one price/prevClose/volume bundle each to paint the table.
+              Seconds 12–30: no more updates from that call unless you ask again (or switch those names to <code>reqMktData</code>).
+            </td>
+            <td>Cold / discovery backfill when a full stream isn’t worth it</td>
+            <td>Not the live table freshness SLA (too slow / not continuous)</td>
+          </tr>
+          <tr>
+            <td><code>reqMktDepth</code> / depth stream</td>
+            <td>Level-2 order book for one symbol. Streaming bid/ask levels until cancelled.</td>
+            <td>
+              You open ticker RBNE in Stock View. Nova requests depth for RBNE only.
+              Book shows bid 5.90×800 / ask 5.91×1200 and updates as the book changes.
+              The other 49 gainers do <em>not</em> get depth — only the focused symbol.
+            </td>
+            <td>Open ticker depth panel</td>
+            <td>Not for the whole Gainers list</td>
+          </tr>
+          <tr>
+            <td><code>reqTickByTickData</code> (AllLast)</td>
+            <td>Time &amp; sales: every print (last trade) for one symbol until cancelled.</td>
+            <td>
+              RBNE is open. Nova subscribes AllLast for RBNE.
+              Tape shows 12:01:05 100@5.90, 12:01:06 500@5.91, …
+              Closing the ticker (or switching symbol) cancels that tape; you don’t run AllLast on all 50 gainers.
+            </td>
+            <td>Open ticker Time &amp; Sales</td>
+            <td>Not for 50 gainers at once</td>
+          </tr>
+          <tr>
+            <td><code>reqHistoricalData</code></td>
+            <td>Pulls historical bars (e.g. 1-min OHLCV) for a window. One response set per request; subject to historical pacing.</td>
+            <td>
+              RBNE just joined the HOD watch set mid-move. Live ticks alone have an empty 5-min surge buffer.
+              Nova asks for the last ~15 one-minute bars, seeds the price buffer, then Squeeze can compute “up 5% in 5 min.”
+              Charts use the same family of calls for candle history.
+            </td>
+            <td>Surge seed / charts / session-high from bars</td>
+            <td>Heavy pacing — small batches only (Nova caps seeds/tick)</td>
+          </tr>
+          <tr>
+            <td><code>qualifyContractsAsync</code></td>
+            <td>Resolves a symbol string into a full IB contract (conId, exchange, etc.) before other requests.</td>
+            <td>
+              Scanner returned symbol <code>RBNE</code>. Before <code>reqMktData</code>, Nova qualifies
+              Stock(“RBNE”,“SMART”,“USD”) → gets conId / details.
+              Later ticks reuse that qualified contract; you don’t re-qualify RBNE on every price tick.
+            </td>
+            <td>Before streaming, snapshots, or historical for a new symbol</td>
+            <td>Don’t re-qualify the same symbols every tick</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin:0.5rem 0 0;">
+        Rule of thumb: (1) who’s on the list → scanner · (2) live price → <code>reqMktData</code> ·
+        (3) book / tape / bars → only for focused symbols.
+      </p>
+    </div>
+
+    <h2>Captured requirements</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Statement (source)</th>
+          <th>Specification form</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REQ-HOD-001</code></td>
+          <td>
+            Focus HOD evaluation on the Top Gainers table provided by the IBKR API.
+          </td>
+          <td>
+            <strong>The HOD evaluation eligibility set SHALL be the Nova Top Gainers
+            table populated from Interactive Brokers scanner discovery
+            (<code>get_gainers</code> / IBKR top-%-gain scan), not the full discovery
+            universe and not an Alpaca movers list.</strong>
+          </td>
+          <td>Resolved — Gainers only, Losers excluded (2026-07-23)</td>
+        </tr>
+        <tr>
+          <td><code>REQ-HOD-002</code></td>
+          <td>
+            "I don't need to see the gappers because the gainers are already working... it's almost the
+            same thing, just pre-market."
+          </td>
+          <td>
+            <strong>The HOD eligibility set SHALL NOT union <code>gapper_cache</code>
+            (<code>TOP_OPEN_PERC_GAIN</code>). <code>gainer_cache</code> (<code>TOP_PERC_GAIN</code>) alone
+            SHALL cover both regular-hours and premarket gap-style discovery, since <code>run_gainers_update()</code>
+            already runs unconditionally in premarket mode (<code>backend/scan_loop.py</code> lines 193-200)
+            using the same scan code the current Gappers-fallback path uses before 9:30 ET.</strong>
+          </td>
+          <td>Captured</td>
+        </tr>
+        <tr>
+          <td><code>REQ-HOD-003</code></td>
+          <td>
+            "As far as volume seeds, honestly, I really don't think I need that."
+          </td>
+          <td>
+            <strong>The HOD watch-universe union SHALL NOT include <code>scan_hod_momentum_seeds()</code>
+            output (<code>HOT_BY_VOLUME</code>, <code>TOP_VOLUME_RATE</code>, <code>MOST_ACTIVE</code>,
+            sub-$20 <code>TOP_PERC_GAIN</code> pass). Eligibility SHALL be <code>gainer_cache</code> only.</strong>
+          </td>
+          <td>Captured — see regression-risk ask below</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="ask">
+      <strong>Open decision inside REQ-HOD-003 — sub-$20 pass:</strong>
+      <code>PROBLEM_LOG.md</code> 2026-07-17 "Squeeze blocked by master RVOL; microcap squeezes crowded out of
+      seed top-50" — <code>TOP_PERC_GAIN</code> hard-caps at 50 rows; mega-gainers fill the uncapped list so
+      sub-$20 squeezes (BTMD-class) never rank inside it. The fix at the time was a <strong>second seed pass</strong>:
+      <code>TOP_PERC_GAIN</code> with <code>belowPrice=20</code>. That second pass is technically still Top
+      Gainers data (same scan code, just price-filtered) even though it currently lives inside
+      <code>scan_hod_momentum_seeds()</code> alongside the true volume codes.
+      <strong>Decide:</strong> drop the sub-$20 pass too (accept BTMD-class regression), or keep it as
+      in-scope "Top Gainers" data since it's the same scan code just filtered? Not decided yet.
+    </div>
+
+    <h2>Clarification — Gainers vs Losers</h2>
+    <div class="ok">
+      <strong>Resolved: Top Gainers only — not Top Losers.</strong>
+      <p style="margin:0.45rem 0 0;">
+        In Nova/IBKR they are <em>separate</em> feeds and caches:
+      </p>
+      <ul>
+        <li><strong>Top Gainers</strong> → <code>get_gainers()</code> → <code>gainer_cache</code> (IBKR top % gain)</li>
+        <li><strong>Top Losers</strong> → <code>get_losers()</code> → <code>loser_cache</code> (IBKR top % lose) —
+        <strong>excluded from HOD</strong></li>
+      </ul>
+      <p style="margin:0.45rem 0 0;" class="muted">
+        <code>REQ-HOD-001</code>'s wording ("Top Gainers table") means eligibility = gainers only. Confirmed
+        2026-07-23 — no losers scope.
+      </p>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Feed</th>
+          <th>IBKR / Nova path</th>
+          <th>In REQ-HOD-001?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Top Gainers</td>
+          <td><code>ibkr.discovery.get_gainers()</code> → <code>state.gainer_cache</code> → Gainers UI tab</td>
+          <td><strong>Yes</strong> (as stated)</td>
+        </tr>
+        <tr>
+          <td>Top Losers</td>
+          <td><code>ibkr.discovery.get_losers()</code> → <code>state.loser_cache</code> → Losers UI tab</td>
+          <td><strong>No — excluded (2026-07-23, <code>REQ-HOD-001</code>)</strong></td>
+        </tr>
+        <tr>
+          <td>Gappers</td>
+          <td><code>ibkr.discovery.get_gappers()</code> → <code>state.gapper_cache</code> → Gappers UI tab</td>
+          <td><strong>No — excluded (2026-07-23, <code>REQ-HOD-002</code>)</strong></td>
+        </tr>
+        <tr>
+          <td>Volume seeds</td>
+          <td><code>scan_hod_momentum_seeds()</code> (<code>HOT_BY_VOLUME</code> / <code>TOP_VOLUME_RATE</code> /
+          <code>MOST_ACTIVE</code>) → HOD seed/watch pool</td>
+          <td><strong>No — excluded (2026-07-23, <code>REQ-HOD-003</code>)</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>UML — REQ-HOD-001 + 002 + 003 (current, narrowed)</h2>
+    <div class="uml">┌─────────────────────┐
+│   IBKR Gateway API  │
+└──────────┬──────────┘
+           │ scanner discovery
+           ▼
+┌─────────────────────┐
+│  Top Gainers scan   │
+│  get_gainers()      │
+│  TOP_PERC_GAIN       │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│   gainer_cache      │
+│   (Gainers table)   │
+└──────────┬──────────┘
+           │
+           │  eligibility set = gainer_cache ONLY
+           ▼
+┌─────────────────────┐        ┌──────────────────────────┐
+│  HOD active set     │◄───────┤ Former Momo manual list  │
+│  build_active_set() │  guaranteed admission (REQ-HOD-006)│
+│  (live L1 + gates)  │        └──────────────────────────┘
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  HOD Momo alerts    │
+└─────────────────────┘
+
+  ─ ─ ─ excluded from the union (dashed = out of scope) ─ ─ ─
+
+┌─────────────────────┐  ┌─────────────────────┐  ┌──────────────────────┐
+│  Top Losers scan    │  │  Gappers scan       │  │  Volume seed scans   │
+│  get_losers()       │  │  get_gappers()      │  │  HOT_BY_VOLUME /      │
+│  (loser_cache)      │  │  (gapper_cache)     │  │  TOP_VOLUME_RATE /    │
+│  REQ-HOD-001        │  │  REQ-HOD-002        │  │  MOST_ACTIVE          │
+│  excluded           │  │  excluded           │  │  REQ-HOD-003 excluded │
+└─────────────────────┘  └─────────────────────┘  └──────────────────────┘
+
+Legend:
+  solid path  = in scope (gainer_cache -> active set -> alerts)
+  dashed boxes = explicitly excluded per REQ-HOD-001/002/003
+  Former Momo  = manual-only union, does not compete for gainer_cache rank (REQ-HOD-005/006)</div>
+
+    <div class="info" id="info-ibkr-scan-vs-subscription">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Informational</span>
+        <code>INFO-IBKR-004</code> — ScannerSubscription is a filter object, not a list
+      </p>
+      <p style="margin:0 0 0.65rem;">
+        <code>ScannerSubscription</code> (instrument, locationCode, scanCode, abovePrice, …) is a
+        <strong>request/criteria object</strong> you build once. It is not itself a list, and there is
+        no separate "list" that <code>reqScannerDataAsync</code> iterates over. You hand that same
+        criteria object to <em>one</em> of two delivery modes:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Delivery mode</th>
+            <th>What happens</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>reqScannerData</code> / <code>reqScannerDataAsync</code></td>
+            <td>Send the criteria once → get one ranked list back → request finished.</td>
+          </tr>
+          <tr>
+            <td><code>reqScannerSubscription</code></td>
+            <td>Send the criteria once → subscription stays open → IB pushes updated ranked lists until cancelled.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin:0.5rem 0 0;">
+        <code>reqScannerDataAsync</code> is just the coroutine wrapper for <code>reqScannerData</code> —
+        same one-shot API, not a third option.
+      </p>
+    </div>
+
+    <div class="info" id="info-ibkr-nova-scanner-choice">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Informational</span>
+        <code>INFO-IBKR-005</code> — Nova only uses the one-shot scanner; L1 is a separate API
+      </p>
+      <p style="margin:0 0 0.65rem;">
+        Confirmed by repo search: <code>backend/ibkr/discovery.py</code> calls
+        <code>ib.reqScannerDataAsync(sub)</code> only. <code>reqScannerSubscription</code> has
+        <strong>zero</strong> uses anywhere in Nova today.
+      </p>
+      <p style="margin:0 0 0.65rem;">
+        Scanning (either delivery mode) and Level-1 streaming are <strong>unrelated APIs</strong>:
+        the scanner returns symbol names/ranks only, never prices. Nova's L1 (live prices for the
+        HOD active set / open ticker) runs through <code>reqMktData</code> in
+        <code>backend/ibkr/scanner_l1.py</code> — completely separate from the scanner call.
+      </p>
+      <p class="muted" style="margin:0.5rem 0 0;">
+        Pipeline: one-shot scanner → roster (<code>gainer_cache</code> / <code>loser_cache</code>) →
+        <code>reqMktData</code> → live prices for admitted symbols only.
+      </p>
+    </div>
+
+    <div class="info" id="info-ibkr-scan-code-meaning">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Informational</span>
+        <code>INFO-IBKR-006</code> — What a scan code like <code>TOP_PERC_GAIN</code> actually is
+      </p>
+      <p style="margin:0 0 0.65rem;">
+        Not a number and not a data container. <code>scanCode</code> is a <strong>string identifier</strong>
+        that selects a pre-built ranking formula running server-side inside Gateway/TWS. Passing it in
+        does not store or hold anything — IBKR returns a ranked list of contracts shaped by that formula
+        (no price fields; those come from a separate quote/L1 call).
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Scan code</th>
+            <th>Ranking formula (server-side)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>TOP_PERC_GAIN</code></td><td>Biggest intraday % gain: (price − prior close) / prior close, descending</td></tr>
+          <tr><td><code>TOP_PERC_LOSE</code></td><td>Biggest intraday % loss</td></tr>
+          <tr><td><code>TOP_OPEN_PERC_GAIN</code></td><td>Biggest gap: today's open vs prior close</td></tr>
+          <tr><td><code>HOT_BY_VOLUME</code></td><td>Highest volume activity</td></tr>
+          <tr><td><code>MOST_ACTIVE</code></td><td>Most active by trade count/volume</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info" id="info-ibkr-bench-2026-07-23">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Informational</span>
+        <code>INFO-IBKR-007</code> — Measured timing: one-shot scanner vs snapshot quotes (2026-07-23)
+      </p>
+      <p style="margin:0 0 0.65rem;">
+        Live Gateway harness (<code>tools/_bench_ibkr_gainers_scan.py</code>, separate clientId,
+        production code untouched), 3 rounds:
+      </p>
+      <table class="bench">
+        <thead>
+          <tr>
+            <th>Step</th>
+            <th>API</th>
+            <th>Avg</th>
+            <th>Max</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><code>TOP_PERC_GAIN</code> scanner only</td><td><code>reqScannerDataAsync</code></td><td>0.57s</td><td>0.81s</td></tr>
+          <tr><td><code>TOP_PERC_LOSE</code> scanner only</td><td><code>reqScannerDataAsync</code></td><td>0.30s</td><td>0.30s</td></tr>
+          <tr><td>Gainers snapshots (50 symbols)</td><td><code>qualifyContractsAsync</code> + <code>reqTickersAsync</code></td><td>4.47s</td><td>4.59s</td></tr>
+          <tr><td>Losers snapshots (50 symbols)</td><td><code>qualifyContractsAsync</code> + <code>reqTickersAsync</code></td><td>3.89s</td><td>4.08s</td></tr>
+          <tr><td><code>get_gainers</code> equivalent (scan+snap)</td><td>sum of above</td><td>5.05s</td><td>5.40s</td></tr>
+          <tr><td><code>get_losers</code> equivalent (scan+snap)</td><td>sum of above</td><td>4.19s</td><td>4.38s</td></tr>
+          <tr class="total"><td>Full movers update (gainers+losers)</td><td>sum of above</td><td>9.24s</td><td>9.62s</td></tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin:0.5rem 0 0;">
+        Takeaway: the scanner call itself is cheap (&lt;1s). Almost all the cycle time is
+        <strong>quoting the 50 returned symbols</strong>, not asking for the ranked list.
+        Full cycle avg ~9.2s, max ~9.6s → a 10s refresh interval has very little headroom;
+        12–15s is safer. Production also runs news/fundamentals enrichment on top of this,
+        so real loop time can run higher than this isolated measurement.
+      </p>
+    </div>
+
+    <h2>Clarification — the scan-code union is shared, not per-strategy</h2>
+    <div class="ok">
+      <strong>The eligibility union feeds ONE active set, evaluated identically by every strategy.</strong>
+      <p style="margin:0.45rem 0 0;">
+        <code>build_active_set()</code> (<code>backend/hod_momo_active.py</code>) builds a single symbol list
+        from the union above. Every strategy (Squeeze #10/#11, Running Up #12, Former Momo #1, …) then
+        evaluates against that <em>same</em> symbol set inside <code>on_trade_update()</code>'s
+        <code>for strategy_id, config in state.configs.items()</code> loop
+        (<code>backend/hod_momo_trade.py</code>). Strategies differ only in gate thresholds
+        (<code>requires_hod</code>, gap%, RVOL, etc.) — never in which symbols they can see.
+      </p>
+    </div>
+    <div class="uml">┌───────────────────────────────┐
+│   WatchUniverse (one set)     │
+│   gainer_cache ∪ former_momo  │
+└───────────────┬────────────────┘
+                │  same symbols, every strategy
+     ┌──────────┼──────────┬─────────────┐
+     ▼          ▼          ▼             ▼
+┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────┐
+│Squeeze  │ │Running  │ │Former    │ │  … other     │
+│#10/#11  │ │Up #12   │ │Momo #1   │ │  strategies   │
+│gates    │ │gates    │ │gates     │ │  gates        │
+└─────────┘ └─────────┘ └──────────┘ └──────────────┘</div>
+
+    <h2>REQ-HOD-004 — Fix <code>integrity_fail_suppress</code> false-mute</h2>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Statement (source)</th><th>Specification form</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REQ-HOD-004</code></td>
+          <td>
+            Investigation into why RBNE-style alerts were muted — traced to <code>PROBLEM_LOG.md</code>
+            2026-07-23 "HOD alerts muted by scanner-bridge TimeoutError (integrity_fail_suppress)".
+          </td>
+          <td>
+            <strong>HOD alert suppression SHALL be gated on the <code>hod</code>-scope integrity status only.
+            It SHALL NOT be gated on the flat merged (worst-of <code>scanner</code>+<code>hod</code>) status,
+            so an unrelated scanner-tab bridge failure cannot veto every HOD strategy fire.</strong>
+          </td>
+          <td>Shipped 2026-07-23</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="ok">
+      <strong>Root cause (confirmed):</strong> <code>hod_momo_trade.py</code>'s suppress check reads the flat
+      merged status, so a sticky <code>scanner_ibkr_bridge</code> <code>TimeoutError</code> (which only clears
+      on a successful gappers fetch — a call that doesn't run during market hours) mutes all HOD strategies
+      all day after one bad tick, not just for one bad second.
+      <p style="margin:0.45rem 0 0;">
+        Fix is safe: <code>evaluate_hod_integrity()</code> (<code>backend/hod_momo_integrity_hod.py</code>)
+        already has its own <code>hod_ticks_flowing</code> check that fails on stale/dead ticks — scoping
+        suppress to <code>hod</code>-only does not lose genuine "IBKR disconnected / L1 dead" signal.
+      </p>
+      <p style="margin:0.45rem 0 0;">
+        Implementation: add <code>hod_integrity_is_failing()</code> in <code>backend/integrity_live.py</code>
+        (reads only the cached <code>hod</code> report); swap the suppress check in
+        <code>backend/hod_momo_trade.py</code> to use it. The flat merged status /
+        <code>integrity_is_failing()</code> stays unchanged for the <code>/api/integrity</code> banner —
+        this only changes what gates alert suppression.
+      </p>
+      <p style="margin:0.45rem 0 0;">
+        <strong>Shipped:</strong> exactly as designed above. Tests:
+        <code>test_integrity_live_builders.py::test_hod_integrity_is_failing_scoped_to_hod_partition</code>,
+        <code>test_hod_momo_engine.py::test_integrity_fail_suppress_blocks_on_hod_scope_fail</code> /
+        <code>::test_integrity_fail_suppress_ignores_scanner_only_fail</code>.
+      </p>
+    </div>
+    <div class="uml">┌────────────────────┐   ┌────────────────────┐
+│  scanner integrity │   │   hod integrity    │
+│  (scanner_ibkr_    │   │  (hod_ticks_flowing│
+│   bridge, etc.)    │   │   etc.)            │
+└─────────┬──────────┘   └─────────┬──────────┘
+          │                        │
+          ▼                        ▼
+   ┌──────────────────────────────────┐
+   │  merged status (worst-of both)   │  ← /api/integrity banner (unchanged)
+   └──────────────────────────────────┘
+
+   ┌──────────────────────────────────┐
+   │  hod-scope status (hod ONLY)     │  ← REQ-HOD-004: alert suppression
+   └──────────────────────────────────┘  reads THIS, not the merged status</div>
+
+    <h2>REQ-HOD-005 — Drop session_focus auto-remember</h2>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Statement (source)</th><th>Specification form</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REQ-HOD-005</code></td>
+          <td>
+            "we are going to change the former momo to be a list of stock that we add manually only" —
+            implies the active set should not keep watching a symbol via alert-history memory once it's
+            no longer eligible.
+          </td>
+          <td>
+            <strong>The HOD active-set builder SHALL NOT retain a symbol via alert-history or sticky-memory
+            once it is absent from current eligibility inputs. A strategy firing on a symbol SHALL NOT
+            auto-add that symbol to the Former Momo list, and the Former Momo list SHALL NOT be re-seeded
+            from today's alert history on load.</strong>
+          </td>
+          <td>Shipped 2026-07-23</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="ok">
+      <strong>Consequence, accepted:</strong> a stock that alerts once, then drops off Top Gainers rank,
+      loses live L1 and cannot re-trigger a later HOD that day unless it's on the manual Former Momo list
+      (<code>REQ-HOD-006</code>) or climbs back into Top Gainers on its own.
+      <p style="margin:0.45rem 0 0;">
+        Removes: <code>_former.remember_former_momo(symbol)</code> auto-add-on-any-alert call
+        (<code>backend/hod_momo_trade.py</code>) and <code>bootstrap_former_momo_from_alerts()</code>
+        re-seed-on-load call (<code>backend/hod_momo_persist.py</code>).
+      </p>
+      <p style="margin:0.45rem 0 0;">
+        <strong>Shipped:</strong> both call sites removed; the two functions themselves deleted from
+        <code>hod_momo_former.py</code> (fully dead once their only callers were gone).
+        <code>hod_momo_session_focus.py</code>'s alert-history/sticky-memory <code>session_focus_active_priority()</code>
+        / <code>session_focus_extra_symbols()</code> are also no longer called from the active-set build path
+        (see REQ-HOD-006) — the module itself is left intact, still covered by its own unit tests.
+      </p>
+    </div>
+
+    <h2>REQ-HOD-006 — Former Momo becomes a manual-only watchlist</h2>
+    <table>
+      <thead>
+        <tr><th>ID</th><th>Statement (source)</th><th>Specification form</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>REQ-HOD-006</code></td>
+          <td>
+            "use 'SPRC' as the only one in the former momo stock for now, the user can add later... but i
+            also want it to pass through <code>top_gainers()</code>."
+          </td>
+          <td>
+            <strong>The Former Momo manual list (<code>config.former_momo_list</code>) SHALL be user-edited
+            only (default seed <code>["SPRC"]</code>) and SHALL NOT be auto-mutated by alert firings. Members
+            SHALL receive guaranteed HOD active-set admission (same live L1 subscription, same
+            <code>on_trade_update()</code> call, same session-high tracking as Top Gainers rows) regardless
+            of current Top Gainers rank, by reusing the existing pipeline rather than a separate subscription
+            mechanism.</strong>
+          </td>
+          <td>Shipped 2026-07-23</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="ok">
+      <strong>Implementation (simplified — reuses the Top-Gainers pipeline, no new IBKR owner tag):</strong>
+      <code>build_active_set()</code> (<code>backend/hod_momo_active.py</code>) already accepts a
+      <code>priority_symbols</code> parameter whose job is "always admit these symbols first, before movers
+      compete for a slot." Feed <code>config.former_momo_list</code> into that parameter directly
+      (replacing the removed <code>session_focus_active_priority()</code> input). This means Former Momo
+      symbols get the exact same <code>owner="hod"</code> <code>reqMktData</code> line, the same
+      <code>on_trade_update()</code> call, and the same <code>hod_momo_high.py</code> session-high tracking
+      that any Top Gainer already gets — not a parallel, bespoke path.
+      <p style="margin:0.45rem 0 0;">
+        The strategy-eval gate (<code>former_momo_block_reason()</code> in
+        <code>backend/hod_momo_former.py</code>) is unchanged — it already restricts strategy #1's firing to
+        manual-list members only. Only the <em>admission</em> path changes.
+      </p>
+      <p style="margin:0.45rem 0 0;">
+        <strong>Shipped:</strong> new <code>hod_momo_former.former_momo_priority_symbols()</code> (manual list,
+        order-preserving, dedup'd) feeds both <code>ibkr_bridge.refresh_hod_active_set()</code>'s
+        <code>priority_symbols</code> and <code>universe.refresh_hod_momo_universe()</code>'s
+        <code>extra_symbols</code>. Default seed <code>["SPRC"]</code> ships via a one-time config schema v6
+        migration (<code>HOD_MOMO_FORMER_MOMO_DEFAULT_LIST</code> in <code>constants_hod_momo.py</code>) — only
+        applied if the persisted list is still empty, so an install with a customized list is never clobbered.
+      </p>
+    </div>
+    <div class="uml">┌─────────────────────┐
+│   gainer_cache       │
+│  (Top Gainers rows)  │
+└──────────┬───────────┘
+           │
+           │  movers                    ┌───────────────────────────┐
+           ▼                            │ config.former_momo_list    │
+┌─────────────────────────┐   priority  │ (manual, default [SPRC])   │
+│   build_active_set()    │◄────────────┤ REQ-HOD-006                │
+│   priority_symbols =    │             └───────────────────────────┘
+│   former_momo_list       │
+└──────────┬───────────────┘
+           │  same active set, either admission path
+           ▼
+┌─────────────────────┐
+│ owner="hod" reqMktData│  ← identical pipeline regardless of
+│ on_trade_update()     │     how the symbol got admitted
+│ hod_momo_high.py      │
+└──────────┬───────────┘
+           │
+           ▼
+┌─────────────────────┐
+│  Strategy gates       │
+│  Former Momo (#1)     │  ← still fires ONLY for manual-list
+│  gate: manual-list      │    members (former_momo_block_reason)
+│  Squeeze/Running Up etc.│  ← fire for ANY admitted symbol
+└─────────────────────┘</div>
+
+    <h2>Informational — the 40-symbol HOD active-set cap (not a display limit)</h2>
+    <div class="info" id="info-active-set-cap">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Informational</span>
+        <code>INFO-IBKR-008</code> — what <code>HOD_MOMO_ACTIVE_SET_CAPACITY = 40</code> actually caps
+      </p>
+      <p style="margin:0 0 0.65rem;">
+        This is <strong>not</strong> a display limit — it has nothing to do with how many rows/alerts show in
+        the HOD Momo UI (<code>today_alerts</code> is unbounded and separately virtualized). It caps how many
+        symbols get a <strong>live IBKR <code>reqMktData</code> feed</strong> at once for HOD evaluation,
+        because IBKR limits total concurrent market-data lines per API connection.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Budget line</th><th>Slots</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Active scanner tab</td><td>≤50</td><td>Whatever mover table is currently open in the UI</td></tr>
+          <tr><td>HOD active set</td><td>40</td><td>HOD evaluation pool (<code>HOD_MOMO_ACTIVE_SET_CAPACITY</code>)</td></tr>
+          <tr><td>Reserve</td><td>5</td><td>Open ticker / depth panel headroom</td></tr>
+          <tr class="total"><td><code>IBKR_L1_STREAM_BUDGET</code></td><td>100</td><td>Total concurrent market-data lines Nova budgets</td></tr>
+        </tbody>
+      </table>
+      <p class="muted" style="margin:0.5rem 0 0;">
+        The 40 (and its <code>mover_slots</code>/<code>seed_slots</code>/<code>explore_slots</code>
+        quota-arbitration logic) exists because 5 competing sources (gainers/gappers/losers/AH/seeds) needed a
+        fair-share mechanism. Once eligibility is Gainers-only (<code>REQ-HOD-001</code>/002/003) — itself
+        IBKR-capped at 50 rows — that arbitration problem mostly disappears. Flagged for simplification when
+        <code>REQ-HOD-001</code> is implemented; not decided/changed here.
+      </p>
+    </div>
+
+    <h2>Parked for later (not decided/actioned in this pass)</h2>
+    <div class="info" id="info-parked-problems">
+      <p style="margin:0 0 0.65rem;">
+        <span class="label">Parked</span> Reference only — surfaced while researching this scope, revisit in
+        a dedicated session so this pass doesn't mix concerns.
+      </p>
+      <ul>
+        <li>2026-07-17 "PN Squeeze empty snap despite being on IBKR gainers table" (PN/Losers/seed-order starvation)</li>
+        <li>2026-07-16 "Former Momo would_fire PASS but never alerts (off active set)" (LBGJ)</li>
+        <li>2026-07-17 "TRT empty snap after leaving gainer table (session-focus churn)"</li>
+        <li>2026-07-17 "HOD integrity FAIL from L1-failed explore symbols (coverage 98%/hours-stale ages)"</li>
+        <li>2026-07-16 "Scanner 'stale · updated Ns ago' despite Connected (IBKR snapshot SLA impossible)" — historical context for why seed_slots/quotas exist</li>
+        <li>2026-07-17 "Squeeze blocked by master RVOL; microcap squeezes crowded out of seed top-50" (BTMD) — cross-reference only; its keep/drop decision lives inside <code>REQ-HOD-003</code>'s open ask above, not duplicated here</li>
+      </ul>
+    </div>
+
+    <h2>Space for next statements</h2>
+    <div class="empty">Empty — paste the next requirement when ready.</div>
+  </main>
+</body>
+</html>

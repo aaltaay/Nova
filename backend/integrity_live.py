@@ -41,6 +41,22 @@ def integrity_is_failing() -> bool:
     return _last_merged_status == "fail"
 
 
+def hod_integrity_is_failing() -> bool:
+    """HOD-scope-only failure (REQ-HOD-004).
+
+    Unlike ``integrity_is_failing()`` (flat merge of ``hod`` worst-of'd with
+    ``scanner``), this reads only the cached ``hod`` partition — an unrelated
+    scanner-tab bridge failure (e.g. sticky ``scanner_ibkr_bridge`` timeout)
+    must not suppress HOD alerts. Genuine HOD degradation (dead/stale ticks,
+    empty active set) is still caught natively by ``evaluate_hod_integrity()``'s
+    own ``hod_ticks_flowing`` / ``hod_active_set`` checks.
+    """
+    if _last_report is None:
+        return False
+    hod = _last_report.get("hod") or {}
+    return (hod.get("status") or "pass").strip().lower() == "fail"
+
+
 def _cache_age(ts: float | None) -> float | None:
     if not ts:
         return None

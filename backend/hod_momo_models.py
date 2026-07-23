@@ -141,7 +141,9 @@ def build_default_config(strategy_id: int) -> StrategyConfig:
     cfg = StrategyConfig(strategy_id=strategy_id, name=name, color=color, audio=audio)
     for k, v in overrides.items():
         if hasattr(cfg, k):
-            setattr(cfg, k, v)
+            # Copy mutable defaults (e.g. former_momo_list) so every config
+            # instance owns its own list instead of sharing the module-level one.
+            setattr(cfg, k, list(v) if isinstance(v, list) else v)
     return cfg
 
 

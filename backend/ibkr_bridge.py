@@ -169,16 +169,11 @@ def refresh_hod_active_set(*, force: bool = False) -> list[str]:
         state.gainer_cache,
     )
     try:
-        import hod_momo_session_focus as _focus
+        import hod_momo_former as _former
 
-        priority = _focus.session_focus_active_priority()
+        priority = _former.former_momo_priority_symbols()
     except Exception:
-        try:
-            import hod_momo_former as _former
-
-            priority = _former.session_focus_active_priority()
-        except Exception:
-            priority = []
+        priority = []
     snap = _hod_active.build_active_set(
         discovery=discovery,
         gainer_rows=state.gainer_cache,

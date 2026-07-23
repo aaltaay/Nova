@@ -43,3 +43,26 @@ def test_build_scanner_report_includes_current_mode(monkeypatch):
     assert report["metrics"]["current_mode"] == "afterhours"
     gap = next(c for c in report["checks"] if c["id"] == "scanner_gappers")
     assert gap["status"] == "pass"
+
+
+def test_hod_integrity_is_failing_scoped_to_hod_partition(monkeypatch):
+    """REQ-HOD-004: scanner-only fail must not trip the hod-scoped accessor,
+    but a genuine hod-scope fail must."""
+    monkeypatch.setattr(live, "_last_report", None, raising=False)
+    assert live.hod_integrity_is_failing() is False
+
+    monkeypatch.setattr(
+        live,
+        "_last_report",
+        {"status": "fail", "hod": {"status": "pass"}, "scanner": {"status": "fail"}},
+        raising=False,
+    )
+    assert live.hod_integrity_is_failing() is False
+
+    monkeypatch.setattr(
+        live,
+        "_last_report",
+        {"status": "fail", "hod": {"status": "fail"}, "scanner": {"status": "pass"}},
+        raising=False,
+    )
+    assert live.hod_integrity_is_failing() is True

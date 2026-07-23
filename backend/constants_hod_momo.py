@@ -77,14 +77,14 @@ SCANNER_INTEGRITY_CACHE_STALE_SEC = 120.0      # gappers/gainers/losers cache ag
 # 40 movers cannot starve HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE runners.
 HOD_MOMO_ACTIVE_SET_CAPACITY = 40
 HOD_MOMO_ACTIVE_HOT_PER_TICK = 10              # priority symbols every 1Hz tick
-# Reserved L1 for today's alerts + session-sticky evaluations (cooled Squeeze
-# names like TRT). Param name in build_active_set remains former_slots.
-# Former list is ranked *last* inside session_focus_active_priority.
+# Reserved L1 for the manual Former Momo watchlist (REQ-HOD-005/006) — a
+# small, deliberately curated list; no longer fed by alert-history/sticky
+# auto-remember. Param name in build_active_set remains former_slots.
 HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS = 8
 HOD_MOMO_ACTIVE_FORMER_SLOTS = HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS  # compat alias
-# Sticky list must not exceed reserved L1 slots — a larger disk/memory list
-# lets hot soft-block names (DRTS…) occupy the 8 slots while cooled TRT sits
-# at position 15 with an empty snap.
+# hod_momo_session_focus.py's sticky/alert-history priority is retired from
+# the active-set build path (REQ-HOD-005) but the module + constant below
+# are left intact — still covered by their own unit tests.
 HOD_MOMO_SESSION_FOCUS_MAX = HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS
 HOD_MOMO_ACTIVE_MOVER_SLOTS = 12               # top upside movers (gainer/gapper/AH)
 HOD_MOMO_ACTIVE_SEED_SLOTS = 12                # under-$N gainer head + volume seeds
@@ -116,6 +116,8 @@ HOD_MOMO_INTEGRITY_ACTIVE_COVERAGE_FAIL_PCT = 90.0
 HOD_MOMO_L1_SUBSCRIBE_FAIL_COOLDOWN_SEC = 300.0
 HOD_MOMO_INTEGRITY_DISCOVERY_TO_EVAL_TARGET_SEC = 5.0
 HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1  # empty former_momo_list → never fire
+# Manual-only watchlist default seed (REQ-HOD-006) — user edits from here.
+HOD_MOMO_FORMER_MOMO_DEFAULT_LIST = ["SPRC"]
 HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12  # Warrior Running Up — no HOD required
 HOD_MOMO_STRATEGY_ID_MAX = 12
 # Squeeze family — session-focus sticky L1 when these are evaluated (not every tick).
@@ -232,6 +234,7 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
     1: {  # Former Momo Stock — off until we have a real Warrior-aligned fill path
         "enabled": False,
         "min_rvol": 2.0,
+        "former_momo_list": HOD_MOMO_FORMER_MOMO_DEFAULT_LIST,
     },
     2: {  # Squeeze Alert - 52wk Breakout
         "proximity_52wk_pct": 1.0,

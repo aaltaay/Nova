@@ -9,9 +9,9 @@ Companion to: `.cursor/agents/hod-momo.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-23T15:05:00Z
+captured_at: 2026-07-23T16:00:00Z
 source_revision: local-uncommitted
-result: investigation — HOD L1 healthy; session_gate FAIL from scanner_ibkr_bridge TimeoutError muting via integrity_fail_suppress
+result: RBNE warrior Squeeze miss = integrity_fail_suppress (not filter miss); HOD L1 still healthy
 metrics:
   warrior_rows: n/a
   nova_rows: n/a
@@ -19,14 +19,14 @@ metrics:
   warrior_only: n/a
   nova_only: n/a
   strategy_mismatch_symbols: n/a
-  integrity_fail_suppress: ~6418
-  strategy_11_fired: 5
-  strategy_12_fired: 23
-  alerts_today: 78
-  active_quote_p95_sec: 0.75
-blockers: ["integrity merge FAIL from gainers TimeoutError suppresses HOD fires", "Error 10089 delayed MD still relevant for early HOD misses"]
+  integrity_fail_suppress: ~5430
+  strategy_11_fired: 6
+  strategy_12_fired: n/a
+  alerts_today: 6
+  active_quote_p95_sec: 0.57
+blockers: ["integrity merge FAIL from sticky scanner_ibkr_bridge TimeoutError suppresses HOD fires", "RBNE case confirms false mute at Warrior time"]
 dashboard_freshness: refresh-required
-notes: "External OSS HOD scanners = study-only (Yahoo/Polygon/scrape). No drop-in rewrite. Next fix: scope integrity_fail_suppress to hod_momo fail, not scanner bridge flaps. Warrior never feeds engine."
+notes: "RBNE 11:58:26 ET Warrior Squeeze @$5.90 = Nova TRADE 15:58:27Z blocked 11+12 integrity_fail_suppress after HOD+strategy passed. Ship P0 mute scope fix."
 ```
 Machine-readable block only. Update after material runs. Do not duplicate mutable truth that lives in canonical domain sources (`.tmp/hod-momo-parity/*`, `PROBLEM_LOG.md`, `CHANGELOG.md`).
 
@@ -258,6 +258,17 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short. Cap at ~30 entries — delete the oldest half if longer.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-23 — RBNE Warrior Squeeze miss (integrity mute, not filter)
+
+- **Scope:** Diagnosis — why RBNE absent on Nova when Warrior Squeeze 5%/5min @ 11:58:26 ET / $5.90.
+- **Watched:** Yes — active set `priority_reasons.RBNE=top_gainer`; L1 quote/eval p95~0.57s; float=430406; rvol≈3.39 ibkr_pace; high_seeded; session_high raised to 5.90 at same tick.
+- **Exact Warrior-time TRADE:** `2026-07-23T15:58:27.523 TRADE RBNE price=5.9 … gate=passed fired=[none] blocked=[11:integrity_fail_suppress; 12:integrity_fail_suppress]`.
+- **Code path proof:** `hod_momo_trade` only writes `integrity_fail_suppress` *after* HOD gate + `evaluate_strategy` both pass — so Squeeze #11 **would have fired**.
+- **Bucket:** infra / false mute (known P0). Not `gate_mismatch` / surge / universe / L1.
+- **Also muted earlier new-HOD:** 15:55:05Z price=5.75 both 11+12 `integrity_fail_suppress`.
+- **Gate now:** session_gate FAIL exit 2 — sticky `scanner_ibkr_bridge` TimeoutError (~31m); `parts.hod_momo=warn`. Zero RBNE alerts today.
+- **Next:** ship P0 — scope suppress to hod_momo fail only (PROBLEM_LOG 2026-07-23). No new PROBLEM_LOG (same root).
 
 ### 2026-07-23 — Investigation: external HOD survey + live mute root cause
 

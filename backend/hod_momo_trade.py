@@ -11,7 +11,6 @@ import hod_momo_market as _market
 import hod_momo_metrics as _metrics
 import hod_momo_state as _state
 from constants import (
-    HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
     HOD_MOMO_HOD_EPSILON_ABS,
     HOD_MOMO_HOD_EPSILON_PCT,
     HOD_MOMO_NEW_HOD_GRACE_SEC,
@@ -242,9 +241,9 @@ def on_trade_update(
             )
         if passed and HOD_MOMO_SUPPRESS_ALERTS_ON_INTEGRITY_FAIL:
             try:
-                from integrity_live import integrity_is_failing
+                from integrity_live import hod_integrity_is_failing
 
-                if integrity_is_failing():
+                if hod_integrity_is_failing():
                     passed = False
                     blocked_by = "integrity_fail_suppress"
                     state.gate_counters["integrity_fail_suppress"] = (
@@ -270,8 +269,6 @@ def on_trade_update(
 
         state.gate_counters[f"strategy_{strategy_id}_fired"] += 1
         any_fired = True
-        if strategy_id != HOD_MOMO_FORMER_MOMO_STRATEGY_ID:
-            _former.remember_former_momo(symbol)
         alert = AlertObject(
             id=f"{int(ts * 1000)}-{symbol}-{strategy_id}",
             timestamp=format_alert_timestamp(ts),

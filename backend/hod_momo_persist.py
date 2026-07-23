@@ -10,6 +10,7 @@ from constants import (
     HOD_MOMO_ALERT_SAVE_INTERVAL_SEC,
     HOD_MOMO_CONFIG_SCHEMA_VERSION,
     HOD_MOMO_COOLDOWN_SEC,
+    HOD_MOMO_FORMER_MOMO_DEFAULT_LIST,
     HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
     HOD_MOMO_MASTER_SURGE_PCT,
     HOD_MOMO_STRATEGY_ID_MAX,
@@ -89,6 +90,19 @@ def _migrate_loaded_configs(data: dict) -> bool:
             "HOD Momo: schema v5 — Squeeze requires_hod=True; re-enable non-Former strategies"
         )
         changed = True
+    if version < 6:
+        # REQ-HOD-005/006: Former Momo is manual-only now (no more alert-history
+        # bootstrap). Seed the default watchlist once — only if still empty, so
+        # an install that already manually curated a list is never clobbered.
+        cfg = state.configs.get(HOD_MOMO_FORMER_MOMO_STRATEGY_ID)
+        if cfg is not None and not cfg.former_momo_list:
+            cfg.former_momo_list = list(HOD_MOMO_FORMER_MOMO_DEFAULT_LIST)
+            logger.info(
+                "HOD Momo: schema v6 — seeded default Former Momo list %s",
+                cfg.former_momo_list,
+            )
+            changed = True
+        changed = True
     return changed
 
 
@@ -137,13 +151,6 @@ def load_persisted_state() -> None:
     state.blocklist = {s.upper() for s in _cache.load_hod_momo_blocklist()}
     alerts_raw, _ = _cache.load_hod_momo_snapshot()
     state.today_alerts = [alert_from_dict(alert) for alert in alerts_raw]
-    # Warrior Former Momo = names that already hit momo today — heal empty list.
-    try:
-        import hod_momo_former as _former
-
-        _former.bootstrap_former_momo_from_alerts()
-    except Exception:
-        logger.warning("HOD Momo: Former Momo bootstrap from alerts failed", exc_info=True)
 
 
 def save_alerts(*, force: bool = False) -> None:

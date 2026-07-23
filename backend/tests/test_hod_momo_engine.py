@@ -391,3 +391,62 @@ def test_on_trade_update_recomputes_ibkr_pace_rvol(monkeypatch):
     snap = state.ticker_snaps[sym]
     assert snap.rvol == 41.7
     assert snap.rvol_source == "ibkr_pace"
+
+
+def _fire_squeeze_setup(monkeypatch) -> tuple[object, str, float]:
+    """Shared master+strategy setup that would fire strategy #11 on a new HOD."""
+    _reset_engine(monkeypatch)
+    state = hm.get_state()
+    for sid, cfg in state.configs.items():
+        cfg.enabled = sid == 11
+    state.master.hod_required = True
+    state.master.surge_pct = 0.0
+    state.master.surge_window_min = 5
+    state.master.min_rvol = 0.0
+
+    sym = "INTG"
+    now = time.time()
+    high.apply_session_high(sym, 10.0, source="bars")
+    hm.update_ticker_snapshot(
+        sym,
+        price=10.6,
+        change_pct=12.0,
+        rvol=3.5,
+        float_shares=5_000_000,
+        gap_pct=8.0,
+        volume=100_000,
+        fifty_two_week_high=20.0,
+        rvol_source="test",
+    )
+    for i, px in enumerate([10.0, 10.1, 10.2, 10.4, 10.6]):
+        hm.on_trade_update(sym, px, now - (5 - i) * 30.0, volume=100_000, day_high=10.65)
+    return state, sym, now
+
+
+def test_integrity_fail_suppress_blocks_on_hod_scope_fail(monkeypatch):
+    """REQ-HOD-004: a genuine hod-scope integrity fail still suppresses fires."""
+    state, sym, now = _fire_squeeze_setup(monkeypatch)
+    monkeypatch.setattr("integrity_live.hod_integrity_is_failing", lambda: True)
+
+    hm.on_trade_update(sym, 10.65, now, volume=110_000, day_high=10.65)
+
+    assert not state.pending_consolidation.get(sym)
+    assert state.gate_counters["integrity_fail_suppress"] >= 1
+
+
+def test_integrity_fail_suppress_ignores_scanner_only_fail(monkeypatch):
+    """REQ-HOD-004: an unrelated scanner-tab failure must NOT suppress HOD fires
+    once suppression is scoped to hod_integrity_is_failing() only."""
+    state, sym, now = _fire_squeeze_setup(monkeypatch)
+    # Simulate: scanner scope failing, hod scope healthy — scoped check returns False.
+    monkeypatch.setattr("integrity_live.hod_integrity_is_failing", lambda: False)
+
+    hm.on_trade_update(sym, 10.65, now, volume=110_000, day_high=10.65)
+
+    pending_alerts = [
+        alert
+        for bucket in state.pending_consolidation.values()
+        for _emit_at, alert in bucket
+    ]
+    assert any(a.ticker == sym and a.strategy_id == 11 for a in pending_alerts)
+    assert state.gate_counters["integrity_fail_suppress"] == 0
