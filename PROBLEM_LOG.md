@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — IBKR Error 322: scanner subscription leak on wait_for timeout
+
+- **Symptom:** Integrity fail banner stuck with `scanner_ibkr_bridge ... TOP_PERC_GAIN timed out`, `scanner_losers: 0 rows`, `hod_volume_seeds: watch_seed_size=0`, while L1 still showed live gainer prices and alerts could fire. Logs flooded with `Error 322: Only 10 simultaneous API scanner subscriptions are allowed` and `Error 365: No scanner subscription found`.
+- **Cause:** `scan_symbols()` wrapped `ib.reqScannerDataAsync(sub)` in `asyncio.wait_for(..., 20s)`. `reqScannerDataAsync` only calls `cancelScannerSubscription` *after* its future completes. On timeout, wait_for abandons the await **without** cancelling — each hung scan leaks one of IBKR's hard max of 10 API scanner slots. After ~10 leaks, every later scan is rejected (Error 322) and returns 0 symbols (Error 365), so losers/seeds go empty. Gainer `age=0s` was dishonest: L1 reprice bumps `gainer_cache_ts` on the last-good membership without a successful movers refresh. Page refresh alone could not fix this (backend process held the leaked Gateway slots).
+- **Fix:** Replace the black-box wait_for wrapper with `_one_shot_scanner()` that opens via `reqScannerSubscription`, awaits with timeout, and **always** `cancelScannerSubscription` in `finally`. Serialize one-shot scans with a lock so this process never needs more than one of the 10 slots. Already-leaked Gateway slots require an IB reconnect / API restart once to clear.
+- **Keywords:** Error 322, Error 365, cancelScannerSubscription, reqScannerDataAsync, scanner subscription leak, TOP_PERC_GAIN timeout, watch_seed_size=0, Integrity fail
+
 ## 2026-07-23 — Sticky scanner_ibkr_bridge Integrity fail banner after TOP_PERC_GAIN timeout
 
 - **Symptom:** HOD Momo page shows red "Integrity fail" with `scanner_ibkr_bridge: IBKR discovery bridge error (Ns ago): gainers: IbkrDiscoveryError(... TOP_PERC_GAIN timed out after 20s)` long after the feed recovered (and often with live alerts still firing). Sibling noise: `scanner_losers: 0 rows and cache Ns old` also hard-failed the merge even when Top Gainers was healthy.

@@ -19,13 +19,37 @@ async def test_scan_symbols_raises_when_disconnected(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_scan_symbols_raises_on_scanner_request_timeout(monkeypatch):
-    """reqScannerDataAsync must be locally bounded — an unbounded hang used
-    to be indistinguishable from any other cause of the outer bridge
-    timeout (see PROBLEM_LOG 2026-07-23)."""
+    """One-shot scanner must time out without leaking the IBKR subscription.
+
+    Wrapping ``reqScannerDataAsync`` in ``asyncio.wait_for`` used to abandon
+    the await on timeout *before* ib_async's cancel ran — leaking toward
+    Error 322 (max 10 simultaneous API scanner subscriptions).
+    """
+    cancelled: list[object] = []
+
+    class _DataList:
+        def __init__(self):
+            self.reqId = 42
+
+    class _Wrapper:
+        def startReq(self, req_id, container=None):
+            fut: asyncio.Future = asyncio.get_running_loop().create_future()
+            # Never complete — forces the local wait_for timeout path.
+            return fut
 
     class _HangingIB:
-        async def reqScannerDataAsync(self, _subscription):
-            await asyncio.sleep(60)
+        def __init__(self):
+            self.wrapper = _Wrapper()
+            self.client = self
+
+        def reqScannerSubscription(self, _subscription, *_a, **_k):
+            return _DataList()
+
+        def cancelScannerSubscription(self, data_list):
+            cancelled.append(data_list.reqId)
+
+        def cancelScannerSubscription_client(self, req_id):
+            cancelled.append(req_id)
 
     monkeypatch.setattr(discovery._client, "get_ib", lambda: _HangingIB())
     monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
@@ -38,9 +62,58 @@ async def test_scan_symbols_raises_on_scanner_request_timeout(monkeypatch):
 
     monkeypatch.setattr(discovery, "_ScannerSubscription", _Sub)
     discovery.reset_scan_cache()
+    discovery._scan_lock = None
 
     with pytest.raises(IbkrDiscoveryError, match="timed out"):
         await discovery.scan_symbols("TOP_PERC_GAIN")
+
+    assert cancelled == [42], "timeout must cancel the scanner subscription"
+
+
+@pytest.mark.asyncio
+async def test_scan_symbols_cancels_subscription_on_success(monkeypatch):
+    cancelled: list[int] = []
+
+    class _Row:
+        class contractDetails:
+            class contract:
+                symbol = "AAA"
+
+    class _DataList:
+        def __init__(self):
+            self.reqId = 7
+
+    class _Wrapper:
+        def startReq(self, req_id, container=None):
+            fut: asyncio.Future = asyncio.get_running_loop().create_future()
+            fut.set_result([_Row()])
+            return fut
+
+    class _IB:
+        def __init__(self):
+            self.wrapper = _Wrapper()
+
+        def reqScannerSubscription(self, _subscription, *_a, **_k):
+            return _DataList()
+
+        def cancelScannerSubscription(self, data_list):
+            cancelled.append(data_list.reqId)
+
+    monkeypatch.setattr(discovery._client, "get_ib", lambda: _IB())
+    monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+
+    class _Sub:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+            self.belowPrice = None
+
+    monkeypatch.setattr(discovery, "_ScannerSubscription", _Sub)
+    discovery.reset_scan_cache()
+    discovery._scan_lock = None
+
+    symbols = await discovery.scan_symbols("TOP_PERC_GAIN")
+    assert symbols == ["AAA"]
+    assert cancelled == [7]
 
 
 @pytest.mark.asyncio

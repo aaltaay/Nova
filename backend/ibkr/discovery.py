@@ -6,9 +6,11 @@ this module only runs when DISCOVERY_PROVIDER=ibkr (see constants.py and
 knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md).
 
 Two-step pipeline, per IB's own scanner API:
-  1. reqScannerDataAsync — up to 50 ranked candidate symbols per scan code
+  1. One-shot scanner (reqScannerSubscription → wait → cancel) — up to 50
+     ranked candidate symbols per scan code. Always cancels so we do not leak
+     toward IBKR's 10 simultaneous API scanner subscription limit (Error 322).
      (https://interactivebrokers.github.io/tws-api/market_scanners.html)
-  2. reqTickersAsync     — one live snapshot quote per candidate, batched
+  2. reqTickersAsync — one live snapshot quote per candidate, batched
 
 Output rows use the exact same dict keys Alpaca's path already produces
 (see main.py's _compute_gappers / _build_mover_entry), so the existing
@@ -53,14 +55,24 @@ _qualified_contracts: dict[str, object] = {}
 # concurrent snapshot batches against the shared Gateway socket.
 _snapshot_lock: asyncio.Lock | None = None
 # Short-TTL result cache keyed by (scan_code, num_rows, below_price) — see
-# IBKR_SCAN_RESULT_TTL_SEC. Coalesces duplicate reqScannerDataAsync calls
+# IBKR_SCAN_RESULT_TTL_SEC. Coalesces duplicate one-shot scanner calls
 # fired from independent loops (movers refresh, gapper fallback, HOD seed).
 _scan_cache: dict[tuple[str, int, float | None], tuple[float, list[str]]] = {}
+# Serialize one-shot scanners so we never hold more than one of IBKR's
+# 10 simultaneous API scanner slots from this process (Error 322).
+_scan_lock: asyncio.Lock | None = None
 
 
 def reset_scan_cache() -> None:
     """Clear the short-TTL scan result cache (test isolation / facade reload)."""
     _scan_cache.clear()
+
+
+def _get_scan_lock() -> asyncio.Lock:
+    global _scan_lock
+    if _scan_lock is None:
+        _scan_lock = asyncio.Lock()
+    return _scan_lock
 
 
 def _get_snapshot_lock() -> asyncio.Lock:
@@ -91,6 +103,42 @@ def _clean(x: float | None) -> float | None:
         return None if math.isnan(x) else float(x)
     except TypeError:
         return None
+
+
+async def _one_shot_scanner(ib, sub) -> list:
+    """Open one IBKR scanner subscription, wait for results, always cancel.
+
+    ``ib_async.IB.reqScannerDataAsync`` only cancels *after* the future
+    completes. Wrapping it in ``asyncio.wait_for`` abandons the await on
+    timeout **without** calling ``cancelScannerSubscription``, which leaks
+    toward IBKR Error 322 (max 10 simultaneous API scanner subscriptions).
+    Once those slots are full, every later scan returns 0 symbols / Error 365
+    and HOD seeds + losers look permanently empty.
+    """
+    data_list = ib.reqScannerSubscription(sub)
+    future = ib.wrapper.startReq(data_list.reqId, container=data_list)
+    try:
+        await asyncio.wait_for(future, timeout=IBKR_SCAN_REQUEST_TIMEOUT_SEC)
+        return list(future.result() or [])
+    except asyncio.TimeoutError:
+        logger.warning(
+            "IBKR scanner request timed out after %.0fs (cancelling subscription reqId=%s)",
+            IBKR_SCAN_REQUEST_TIMEOUT_SEC,
+            getattr(data_list, "reqId", "?"),
+        )
+        raise
+    finally:
+        try:
+            ib.cancelScannerSubscription(data_list)
+        except Exception:
+            try:
+                ib.client.cancelScannerSubscription(data_list.reqId)
+            except Exception:
+                logger.debug(
+                    "IBKR scanner cancel failed for reqId=%s",
+                    getattr(data_list, "reqId", None),
+                    exc_info=True,
+                )
 
 
 async def scan_symbols(
@@ -125,22 +173,18 @@ async def scan_symbols(
     )
     if below_price is not None and float(below_price) > 0:
         sub.belowPrice = float(below_price)
-    try:
-        rows = await asyncio.wait_for(
-            ib.reqScannerDataAsync(sub), timeout=IBKR_SCAN_REQUEST_TIMEOUT_SEC,
-        )
-    except asyncio.TimeoutError as exc:
-        logger.warning(
-            "IBKR scanner %s request timed out after %.0fs",
-            scan_code, IBKR_SCAN_REQUEST_TIMEOUT_SEC,
-        )
-        raise IbkrDiscoveryError(
-            f"scanner {scan_code} timed out after {IBKR_SCAN_REQUEST_TIMEOUT_SEC:.0f}s"
-        ) from exc
-    except Exception as exc:
-        detail = describe_exc(exc)
-        logger.exception("IBKR scanner %s failed: %s", scan_code, detail)
-        raise IbkrDiscoveryError(f"scanner {scan_code} failed: {detail}") from exc
+
+    async with _get_scan_lock():
+        try:
+            rows = await _one_shot_scanner(ib, sub)
+        except asyncio.TimeoutError as exc:
+            raise IbkrDiscoveryError(
+                f"scanner {scan_code} timed out after {IBKR_SCAN_REQUEST_TIMEOUT_SEC:.0f}s"
+            ) from exc
+        except Exception as exc:
+            detail = describe_exc(exc)
+            logger.exception("IBKR scanner %s failed: %s", scan_code, detail)
+            raise IbkrDiscoveryError(f"scanner {scan_code} failed: {detail}") from exc
 
     symbols: list[str] = []
     seen: set[str] = set()

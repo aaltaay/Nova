@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Fix IBKR scanner subscription leak (Error 322 root cause)
+
+- **What:** One-shot IBKR market scans now always cancel their scanner subscription, including on timeout. Concurrent one-shots are serialized so Nova does not occupy more than one of IBKR's 10 API scanner slots.
+- **Why:** Live logs showed continuous `Error 322: Only 10 simultaneous API scanner subscriptions are allowed` — the Integrity fail / empty losers / empty volume seeds were symptoms of leaked subscriptions after `asyncio.wait_for` abandoned `reqScannerDataAsync` before its cancel ran.
+- **Files touched:** `backend/ibkr/discovery.py`, `backend/tests/test_ibkr_discovery.py`, `backend/tests/test_ibkr_discovery_fail_loud.py`.
+- **How it works now:** `_one_shot_scanner()` opens with `reqScannerSubscription`, waits with a local timeout, and cancels in `finally`. A process-wide scan lock serializes callers (movers, gapper fallback, HOD seeds). After deploy, restart the API (or reconnect Gateway) once to clear any slots already leaked by the old process.
+- **Verified by:** `py -3 -m pytest tests/test_ibkr_discovery.py tests/test_ibkr_discovery_fail_loud.py` (22 passed), including timeout-must-cancel regression.
+- **Related:** PROBLEM_LOG 2026-07-23 "IBKR Error 322: scanner subscription leak on wait_for timeout".
+
 ## 2026-07-23 — Stop sticky TOP_PERC_GAIN timeout from painting Integrity fail all day
 
 - **What:** A recovered Top Gainers feed no longer leaves a permanent red Integrity fail banner. Successful movers refresh clears sticky `ibkr_bridge_last_error`; scanner integrity demotes leftover bridge errors to warn when gainer cache is fresh; empty/stale losers alone cannot fail the merge when gainers are live.

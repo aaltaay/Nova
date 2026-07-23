@@ -17,7 +17,11 @@ def _reset_scan_cache():
     """scan_symbols() now short-TTL-caches results — isolate tests from it."""
     discovery.reset_scan_cache()
     discovery._qualified_contracts.clear()
+    discovery._scan_lock = None
     yield
+    discovery.reset_scan_cache()
+    discovery._qualified_contracts.clear()
+    discovery._scan_lock = None
     discovery.reset_scan_cache()
     discovery._qualified_contracts.clear()
 
@@ -50,12 +54,28 @@ class _FakeTicker:
 class _FakeIB:
     """Stands in for ib_async.IB — only the methods discovery.py calls."""
 
+    _next_req_id = 1000
+
     def __init__(self, scan_rows: list[_FakeScanRow], tickers: list[_FakeTicker]):
         self._scan_rows = scan_rows
         self._tickers = tickers
+        self.wrapper = self
+        self.cancelled_req_ids: list[int] = []
 
-    async def reqScannerDataAsync(self, subscription):
-        return self._scan_rows
+    def reqScannerSubscription(self, subscription, *_a, **_k):
+        self._last_subscription = subscription
+        data = type("ScanDataList", (), {})()
+        _FakeIB._next_req_id += 1
+        data.reqId = _FakeIB._next_req_id
+        return data
+
+    def startReq(self, req_id, container=None):
+        fut: asyncio.Future = asyncio.get_event_loop().create_future()
+        fut.set_result(list(self._scan_rows))
+        return fut
+
+    def cancelScannerSubscription(self, data_list):
+        self.cancelled_req_ids.append(getattr(data_list, "reqId", None))
 
     async def qualifyContractsAsync(self, *contracts):
         return list(contracts)
@@ -68,6 +88,7 @@ def _patch_client(monkeypatch, fake_ib):
     """Wire fake IB + stub ib_async types so fail-loud discovery can construct subs."""
     monkeypatch.setattr(discovery._client, "get_ib", lambda: fake_ib)
     monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+    discovery._scan_lock = None
 
     class _Sub:
         def __init__(self, **kwargs):
@@ -102,20 +123,12 @@ class TestScanSymbols:
         seen: list[object] = []
 
         class _CapturingIB(_FakeIB):
-            async def reqScannerDataAsync(self, subscription):
+            def reqScannerSubscription(self, subscription, *_a, **_k):
                 seen.append(subscription)
-                return self._scan_rows
+                return super().reqScannerSubscription(subscription, *_a, **_k)
 
         fake_ib = _CapturingIB([_FakeScanRow("BTMD")], [])
         _patch_client(monkeypatch, fake_ib)
-        monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
-        # ScannerSubscription is created inside scan_symbols — stub the ctor.
-        class _Sub:
-            def __init__(self, **kwargs):
-                self.__dict__.update(kwargs)
-                self.belowPrice = None
-
-        monkeypatch.setattr(discovery, "_ScannerSubscription", _Sub)
         result = asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN", below_price=20.0))
         assert result == ["BTMD"]
         assert seen and float(seen[0].belowPrice) == 20.0
@@ -124,9 +137,9 @@ class TestScanSymbols:
         calls: list[int] = []
 
         class _CountingIB(_FakeIB):
-            async def reqScannerDataAsync(self, subscription):
+            def reqScannerSubscription(self, subscription, *_a, **_k):
                 calls.append(1)
-                return self._scan_rows
+                return super().reqScannerSubscription(subscription, *_a, **_k)
 
         fake_ib = _CountingIB([_FakeScanRow("AAA")], [])
         _patch_client(monkeypatch, fake_ib)
@@ -135,27 +148,19 @@ class TestScanSymbols:
         second = asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN"))
         assert first == second == ["AAA"]
         # Second call within the TTL window is served from cache — coalesces
-        # duplicate reqScannerDataAsync calls from independent loops.
+        # duplicate one-shot scanner calls from independent loops.
         assert len(calls) == 1
 
     def test_different_below_price_bypasses_cache(self, monkeypatch):
         calls: list[float | None] = []
 
         class _CountingIB(_FakeIB):
-            async def reqScannerDataAsync(self, subscription):
+            def reqScannerSubscription(self, subscription, *_a, **_k):
                 calls.append(getattr(subscription, "belowPrice", None))
-                return self._scan_rows
+                return super().reqScannerSubscription(subscription, *_a, **_k)
 
         fake_ib = _CountingIB([_FakeScanRow("AAA")], [])
         _patch_client(monkeypatch, fake_ib)
-        monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
-
-        class _Sub:
-            def __init__(self, **kwargs):
-                self.__dict__.update(kwargs)
-                self.belowPrice = None
-
-        monkeypatch.setattr(discovery, "_ScannerSubscription", _Sub)
         asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN"))
         asyncio.run(discovery.scan_symbols("TOP_PERC_GAIN", below_price=20.0))
         assert len(calls) == 2
@@ -259,9 +264,9 @@ class TestGetAfterhoursGainers:
         seen_codes: list[str] = []
 
         class _CapturingIB(_FakeIB):
-            async def reqScannerDataAsync(self, subscription):
+            def reqScannerSubscription(self, subscription, *_a, **_k):
                 seen_codes.append(subscription.scanCode)
-                return self._scan_rows
+                return super().reqScannerSubscription(subscription, *_a, **_k)
 
         scan_rows = [_FakeScanRow("AH1")]
         tickers = [_FakeTicker("AH1", last=11.0, close=10.0)]
