@@ -66,7 +66,6 @@ def _cache_age(ts: float | None) -> float | None:
 def build_hod_integrity_report() -> dict[str, Any]:
     import hod_momo as hm
     import hod_momo_active as active
-    import hod_momo_universe as uni
     from alpaca import _get_discovery_provider
     from ibkr import client as ibkr_client
 
@@ -78,7 +77,6 @@ def build_hod_integrity_report() -> dict[str, Any]:
         **flow,
         **active_metrics,
         "universe_size": len(state.hod_momo_universe),
-        "watch_seed_size": len(uni.get_seed_symbols()),
         "discovery_provider": provider,
         "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
     }

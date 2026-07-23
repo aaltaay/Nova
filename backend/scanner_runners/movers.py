@@ -154,8 +154,13 @@ def run_gainers_update() -> None:
     state.loser_cache_ts = time.time()
     # Clear sticky bridge error on a successful movers refresh — RTH never
     # re-runs gappers discovery, so leaving this set after a one-shot
-    # TOP_PERC_GAIN timeout kept painting Integrity fail all day.
-    if gainers:
+    # TOP_PERC_GAIN timeout (or a disconnect-window failure) kept painting
+    # Integrity fail all day. Either side landing rows proves the bridge is
+    # live again — don't require both gainers and losers to be non-empty.
+    if gainers or losers:
         state.ibkr_bridge_last_error = ""
-    sr.save_movers_snapshot(state.gainer_cache, state.loser_cache, state.gainer_cache_ts)
+    # Independent revisions (ADR 008) — Gainers and Losers persist/freeze on
+    # their own schedules; never advance one's snapshot via the other's write.
+    sr.save_gainer_snapshot(state.gainer_cache, state.gainer_cache_ts)
+    sr.save_loser_snapshot(state.loser_cache, state.loser_cache_ts)
     sr.mark_resub()

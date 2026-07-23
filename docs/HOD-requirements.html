@@ -214,15 +214,18 @@
       <div class="flow">
         <div class="flow-step"><div class="n">0</div><div>
           <strong>Discovery universe (watch set)</strong><br />
-          Focus mode unions Top Gainers / Gappers / AH movers with IBKR volume scanners
-          (<code>HOT_BY_VOLUME</code>, <code>TOP_VOLUME_RATE</code>, <code>MOST_ACTIVE</code>).
-          Typical size: hundreds, not thousands of live streams. Refresh ~5s (focus) / seeds ~30s.
+          <s>Focus mode unions Top Gainers / Gappers / AH movers with IBKR volume scanners
+          (<code>HOT_BY_VOLUME</code>, <code>TOP_VOLUME_RATE</code>, <code>MOST_ACTIVE</code>)</s> — retired.
+          As of ADR 008 (2026-07-23) the HOD watch set is exactly the current-session retained
+          Gappers ∪ Gainers ∪ Afterhours ∪ manually curated Former Momo — no separate seed scans.
         </div></div>
         <div class="flow-step"><div class="n">1</div><div>
           <strong>Active set (capacity 40)</strong><br />
           Only 40 symbols get persistent IBKR <code>reqMktData</code> L1 for HOD evaluation.
-          Quota: session-focus 8 · movers 12 · volume seeds 12 · explore 8.
-          Everyone else is <em>uncovered</em> (watched, not live).
+          Admission order: manual Former Momo first (every registered symbol guaranteed a slot — an
+          oversized list is rejected outright rather than silently truncated), then deterministic
+          round-robin across ranked Gappers / Gainers / Afterhours queues. No volume-seed, explore, open-
+          ticker, or Losers quota. Everyone else is <em>uncovered</em> (watched, not live).
         </div></div>
         <div class="flow-step"><div class="n">2</div><div>
           <strong>Raw trade / quote input</strong><br />
@@ -263,9 +266,9 @@
         <tbody>
           <tr>
             <td>Discovery / watch universe</td>
-            <td>~100–800+</td>
-            <td>Candidates from scanners + volume seeds</td>
-            <td>Refresh seconds–minutes; not every name is priced live</td>
+            <td>~50–200</td>
+            <td>Current-session Gappers ∪ Gainers ∪ Afterhours ∪ Former Momo (ADR 008; no volume seeds)</td>
+            <td>Pushed by persistent scanner subscriptions; frozen tables stop contributing new members</td>
           </tr>
           <tr>
             <td><strong>Active evaluation set</strong></td>

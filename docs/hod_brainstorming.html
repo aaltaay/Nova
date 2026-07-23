@@ -155,24 +155,26 @@
       <tbody>
         <tr>
           <td><code>REQ-HOD-001</code></td>
-          <td>The HOD evaluation eligibility set <strong>SHALL</strong> be Nova's Top Gainers table
-          (<code>gainer_cache</code>, from IBKR <code>TOP_PERC_GAIN</code> scan) only. Top Losers
-          <strong>SHALL NOT</strong> be included.</td>
-          <td>Resolved</td>
+          <td>The HOD evaluation eligibility set <strong>SHALL</strong> be the retained union of
+          <code>gapper_cache</code>, <code>gainer_cache</code>, <code>afterhours_cache</code>, and the
+          user-managed Former Momo list. Top Losers, open-ticker selection, volume seeds, and discovery
+          explore symbols <strong>SHALL NOT</strong> be included.</td>
+          <td>Revised 2026-07-23</td>
         </tr>
         <tr>
           <td><code>REQ-HOD-002</code></td>
-          <td>The HOD eligibility set <strong>SHALL NOT</strong> union <code>gapper_cache</code>
-          (<code>TOP_OPEN_PERC_GAIN</code>). <code>gainer_cache</code> alone <strong>SHALL</strong> cover
-          premarket gap-style discovery.</td>
-          <td>Captured</td>
+          <td><code>gapper_cache</code> <strong>SHALL</strong> update only from 04:00–09:30 ET. At
+          09:30 it <strong>SHALL</strong> freeze as the retained morning Gappers table and remain an
+          eligible HOD roster source for the rest of the trading day.</td>
+          <td>Revised 2026-07-23</td>
         </tr>
         <tr>
           <td><code>REQ-HOD-003</code></td>
           <td>The HOD watch-universe union <strong>SHALL NOT</strong> include
           <code>scan_hod_momentum_seeds()</code> output (<code>HOT_BY_VOLUME</code>, <code>TOP_VOLUME_RATE</code>,
-          <code>MOST_ACTIVE</code>). Eligibility <strong>SHALL</strong> be <code>gainer_cache</code> only.</td>
-          <td>Captured — sub-$20 pass keep/drop open</td>
+          <code>MOST_ACTIVE</code>). Eligibility <strong>SHALL</strong> come only from the four sources in
+          <code>REQ-HOD-001</code>.</td>
+          <td>Revised 2026-07-23</td>
         </tr>
         <tr>
           <td><code>REQ-HOD-004</code></td>
@@ -195,8 +197,58 @@
           (live L1 + tracking) regardless of Top Gainers rank.</td>
           <td>Shipped 2026-07-23</td>
         </tr>
+        <tr>
+          <td><code>REQ-HOD-007</code></td>
+          <td>Scanner-table update windows <strong>SHALL</strong> be: Gappers 04:00–09:30 ET,
+          Gainers 04:00–16:00 ET, and Afterhours 16:00–20:00 ET. At each end boundary the
+          corresponding table snapshot (membership, rank, displayed values, and cache timestamp)
+          <strong>SHALL</strong> freeze. HOD-owned L1 may continue evaluating retained symbols without
+          mutating a frozen table.</td>
+          <td>Captured 2026-07-23</td>
+        </tr>
       </tbody>
     </table>
+
+    <h2>When each scanner table is fed (authoritative target)</h2>
+    <div class="ok">
+      <strong>The three tables have different ownership windows; they are not the same feed.</strong>
+      <table style="margin-top:0.65rem;">
+        <thead>
+          <tr>
+            <th>Session (ET)</th>
+            <th>Table receiving roster/value updates</th>
+            <th>Frozen snapshots retained</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>04:00–09:30 · Premarket</td>
+            <td>Gappers (<code>TOP_OPEN_PERC_GAIN</code>) + Gainers (<code>TOP_PERC_GAIN</code>)</td>
+            <td>Afterhours from the prior completed session (display/history only)</td>
+          </tr>
+          <tr>
+            <td>09:30–16:00 · RTH</td>
+            <td>Gainers only (<code>TOP_PERC_GAIN</code>)</td>
+            <td>Gappers frozen at the 09:30 morning snapshot</td>
+          </tr>
+          <tr>
+            <td>16:00–20:00 · Afterhours</td>
+            <td>Afterhours only (<code>TOP_AFTER_HOURS_PERC_GAIN</code>)</td>
+            <td>Gappers frozen at 09:30 + Gainers frozen at 16:00</td>
+          </tr>
+          <tr>
+            <td>20:00–04:00 · Closed</td>
+            <td>None</td>
+            <td>All three completed snapshots frozen; no scanner churn</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin:0.65rem 0 0;">
+        <strong>Freeze means the table itself stops changing:</strong> no membership/rank replacement and
+        no displayed price/change/volume patch after its boundary. The retained symbol list may still feed
+        the bounded HOD active pool, where separate owner-aware L1 remains live for alert evaluation.
+      </p>
+    </div>
 
     <h2>Informational (not a requirement)</h2>
     <div class="info" id="info-ibkr-api-split">
@@ -215,8 +267,10 @@
         <tbody>
           <tr>
             <td><strong>Scanner API</strong><br /><code>reqScannerData</code> / <code>TOP_PERC_GAIN</code>, etc.</td>
-            <td>Periodic snapshot</td>
-            <td>“Give me the current ranked list.” It is <strong>not</strong> a price stream.</td>
+            <td>Ranked-roster delivery</td>
+            <td>“Keep this table's membership current during its update window.” Delivery is a
+            persistent <code>reqScannerSubscription</code> owned by <code>ibkr/scanner_stream.py</code>
+            (ADR 008) — not repeated one-shot polling, and it is <strong>not</strong> a price stream.</td>
           </tr>
           <tr>
             <td><strong>Market data API</strong><br /><code>reqMktData</code>, depth, tick-by-tick</td>
@@ -226,8 +280,9 @@
         </tbody>
       </table>
       <p class="muted" style="margin:0.5rem 0 0;">
-        Mental model: scanner = roster (who is on Top Gainers); market data = scoreboard (live prices).
-        Nova’s <code>gainer_cache</code> holds the last scanner snapshot; L1 streaming updates prices for subscribed symbols.
+        Mental model: scanner = roster; market data = scoreboard. During a table's update window, scanner
+        batches replace its roster and L1 updates displayed values. At the table boundary, its snapshot
+        freezes; HOD-owned L1 remains a separate concern.
       </p>
     </div>
 
@@ -237,9 +292,10 @@
         <code>INFO-IBKR-002</code> — Scanner scan codes Nova uses today
       </p>
       <p class="muted" style="margin:0 0 0.65rem;">
-        Mostly one-shot <code>reqScannerDataAsync</code> pulls (not 10 long-lived
-        <code>reqScannerSubscription</code> slots held open). Each scan code returns ≤50 symbols.
-        IBKR allows up to 10 <em>concurrent open</em> scanner subscriptions.
+        As of ADR 008, Gappers/Gainers/Losers/Afterhours use persistent <code>reqScannerSubscription</code>
+        handles owned by <code>ibkr/scanner_stream.py</code> (at most 2 open at once — Premarket:
+        Gainers+Gappers; RTH: Gainers+Losers; Afterhours: AH Gainers; Closed: none). Each scan code returns
+        ≤50 symbols. IBKR allows up to 10 <em>concurrent open</em> scanner subscriptions.
       </p>
       <table>
         <thead>
@@ -278,30 +334,33 @@
           <tr>
             <td><code>HOT_BY_VOLUME</code></td>
             <td>Volume heat</td>
-            <td>HOD seed / watch pool</td>
+            <td><s>HOD seed / watch pool</s> — retired (ADR 008)</td>
           </tr>
           <tr>
             <td><code>TOP_VOLUME_RATE</code></td>
             <td>Volume rate</td>
-            <td>HOD seed / watch pool</td>
+            <td><s>HOD seed / watch pool</s> — retired (ADR 008)</td>
           </tr>
           <tr>
             <td><code>MOST_ACTIVE</code></td>
             <td>Most active</td>
-            <td>HOD seed / watch pool</td>
+            <td><s>HOD seed / watch pool</s> — retired (ADR 008)</td>
           </tr>
           <tr>
             <td><code>TOP_PERC_GAIN</code> + <code>belowPrice=20</code></td>
             <td>Sub-$20 gainers</td>
-            <td>HOD seed head (so mega-gainers don’t crowd out cheap runners)</td>
+            <td><s>HOD seed head</s> — removed entirely (ADR 008). Sub-$20 stocks are ordinary
+            <code>gainer_cache</code> rows; no separate scan, quota, or reserved slot.</td>
           </tr>
         </tbody>
       </table>
       <p class="muted" style="margin:0.5rem 0 0;">
-        Resolved 2026-07-23: HOD eligibility = <code>TOP_PERC_GAIN</code> → <code>gainer_cache</code> only
-        (<code>REQ-HOD-001</code>). The volume/activity scan codes above (<code>HOT_BY_VOLUME</code>,
-        <code>TOP_VOLUME_RATE</code>, <code>MOST_ACTIVE</code>) are excluded per <code>REQ-HOD-003</code>;
-        <code>TOP_OPEN_PERC_GAIN</code> (Gappers) is excluded per <code>REQ-HOD-002</code>.
+        Revised 2026-07-23 (ADR 008): HOD eligibility is the current-session retained union of Gappers,
+        the single unfiltered Gainers roster, Afterhours, and manually curated Former Momo
+        (<code>REQ-HOD-001</code>). <code>hod_momo_seed.py</code> (the volume-seed refresh loop) and the
+        sub-$20 <code>belowPrice</code> pass are removed — not merely excluded from admission — so no scan
+        code above ever runs for a HOD-only purpose. Losers, the open ticker, and rotating discovery
+        "explore" are likewise excluded from HOD admission per <code>REQ-HOD-003</code>.
       </p>
     </div>
 
@@ -462,30 +521,27 @@
         <tr>
           <td><code>REQ-HOD-001</code></td>
           <td>
-            Focus HOD evaluation on the Top Gainers table provided by the IBKR API.
+            Allow HOD evaluation only from Gappers, Gainers, Afterhours, and registered Former Momo.
           </td>
           <td>
-            <strong>The HOD evaluation eligibility set SHALL be the Nova Top Gainers
-            table populated from Interactive Brokers scanner discovery
-            (<code>get_gainers</code> / IBKR top-%-gain scan), not the full discovery
-            universe and not an Alpaca movers list.</strong>
+            <strong>The HOD evaluation eligibility set SHALL be the retained union of
+            <code>gapper_cache</code>, <code>gainer_cache</code>, <code>afterhours_cache</code>, and the
+            user-managed Former Momo list. It SHALL NOT include Top Losers, open-ticker selection,
+            volume seeds, discovery explore symbols, or Alpaca market data.</strong>
           </td>
-          <td>Resolved — Gainers only, Losers excluded (2026-07-23)</td>
+          <td>Revised — four allowed sources (2026-07-23)</td>
         </tr>
         <tr>
           <td><code>REQ-HOD-002</code></td>
           <td>
-            "I don't need to see the gappers because the gainers are already working... it's almost the
-            same thing, just pre-market."
+            Retain the morning Gappers table after premarket instead of turning it into the RTH Gainers feed.
           </td>
           <td>
-            <strong>The HOD eligibility set SHALL NOT union <code>gapper_cache</code>
-            (<code>TOP_OPEN_PERC_GAIN</code>). <code>gainer_cache</code> (<code>TOP_PERC_GAIN</code>) alone
-            SHALL cover both regular-hours and premarket gap-style discovery, since <code>run_gainers_update()</code>
-            already runs unconditionally in premarket mode (<code>backend/scan_loop.py</code> lines 193-200)
-            using the same scan code the current Gappers-fallback path uses before 9:30 ET.</strong>
+            <strong><code>gapper_cache</code> SHALL update from 04:00–09:30 ET and then freeze as the
+            retained morning snapshot. <code>gainer_cache</code> SHALL update independently from
+            04:00–16:00 ET. Overlap between their symbols does not merge the tables.</strong>
           </td>
-          <td>Captured</td>
+          <td>Revised 2026-07-23</td>
         </tr>
         <tr>
           <td><code>REQ-HOD-003</code></td>
@@ -494,10 +550,10 @@
           </td>
           <td>
             <strong>The HOD watch-universe union SHALL NOT include <code>scan_hod_momentum_seeds()</code>
-            output (<code>HOT_BY_VOLUME</code>, <code>TOP_VOLUME_RATE</code>, <code>MOST_ACTIVE</code>,
-            sub-$20 <code>TOP_PERC_GAIN</code> pass). Eligibility SHALL be <code>gainer_cache</code> only.</strong>
+            output (<code>HOT_BY_VOLUME</code>, <code>TOP_VOLUME_RATE</code>, <code>MOST_ACTIVE</code>).
+            Eligibility SHALL come only from the four sources in <code>REQ-HOD-001</code>.</strong>
           </td>
-          <td>Captured — see regression-risk ask below</td>
+          <td>Revised 2026-07-23</td>
         </tr>
       </tbody>
     </table>
@@ -514,20 +570,23 @@
       in-scope "Top Gainers" data since it's the same scan code just filtered? Not decided yet.
     </div>
 
-    <h2>Clarification — Gainers vs Losers</h2>
+    <h2>Clarification — allowed HOD sources vs excluded sources</h2>
     <div class="ok">
-      <strong>Resolved: Top Gainers only — not Top Losers.</strong>
+      <strong>Resolved: retained Gappers + Gainers + Afterhours + Former Momo; never Top Losers.</strong>
       <p style="margin:0.45rem 0 0;">
         In Nova/IBKR they are <em>separate</em> feeds and caches:
       </p>
       <ul>
-        <li><strong>Top Gainers</strong> → <code>get_gainers()</code> → <code>gainer_cache</code> (IBKR top % gain)</li>
+        <li><strong>Gappers</strong> → <code>gapper_cache</code> — updates 04:00–09:30, then freezes</li>
+        <li><strong>Top Gainers</strong> → <code>get_gainers()</code> → <code>gainer_cache</code> — updates 04:00–16:00, then freezes</li>
+        <li><strong>Afterhours</strong> → <code>afterhours_cache</code> — updates 16:00–20:00, then freezes</li>
+        <li><strong>Former Momo</strong> → user-managed list with guaranteed admission</li>
         <li><strong>Top Losers</strong> → <code>get_losers()</code> → <code>loser_cache</code> (IBKR top % lose) —
         <strong>excluded from HOD</strong></li>
       </ul>
       <p style="margin:0.45rem 0 0;" class="muted">
-        <code>REQ-HOD-001</code>'s wording ("Top Gainers table") means eligibility = gainers only. Confirmed
-        2026-07-23 — no losers scope.
+        Table freeze and HOD tracking are separate: retained symbols may still receive HOD-owned live L1,
+        but their completed scanner table must not keep changing after its boundary.
       </p>
     </div>
 
@@ -543,7 +602,7 @@
         <tr>
           <td>Top Gainers</td>
           <td><code>ibkr.discovery.get_gainers()</code> → <code>state.gainer_cache</code> → Gainers UI tab</td>
-          <td><strong>Yes</strong> (as stated)</td>
+          <td><strong>Yes — live 04:00–16:00, then retained frozen</strong></td>
         </tr>
         <tr>
           <td>Top Losers</td>
@@ -553,7 +612,17 @@
         <tr>
           <td>Gappers</td>
           <td><code>ibkr.discovery.get_gappers()</code> → <code>state.gapper_cache</code> → Gappers UI tab</td>
-          <td><strong>No — excluded (2026-07-23, <code>REQ-HOD-002</code>)</strong></td>
+          <td><strong>Yes — live 04:00–09:30, then retained frozen</strong></td>
+        </tr>
+        <tr>
+          <td>Afterhours</td>
+          <td><code>ibkr.discovery.get_afterhours_gainers()</code> → <code>state.afterhours_cache</code> → Afterhours UI tab</td>
+          <td><strong>Yes — live 16:00–20:00, then retained frozen</strong></td>
+        </tr>
+        <tr>
+          <td>Former Momo</td>
+          <td>User-managed <code>config.former_momo_list</code> → guaranteed HOD admission</td>
+          <td><strong>Yes — when registered manually</strong></td>
         </tr>
         <tr>
           <td>Volume seeds</td>
@@ -564,51 +633,39 @@
       </tbody>
     </table>
 
-    <h2>UML — REQ-HOD-001 + 002 + 003 (current, narrowed)</h2>
+    <h2>UML — REQ-HOD-001 + 002 + 003 + 007 (target)</h2>
     <div class="uml">┌─────────────────────┐
 │   IBKR Gateway API  │
 └──────────┬──────────┘
-           │ scanner discovery
-           ▼
-┌─────────────────────┐
-│  Top Gainers scan   │
-│  get_gainers()      │
-│  TOP_PERC_GAIN       │
-└──────────┬──────────┘
            │
-           ▼
-┌─────────────────────┐
-│   gainer_cache      │
-│   (Gainers table)   │
-└──────────┬──────────┘
-           │
-           │  eligibility set = gainer_cache ONLY
-           ▼
-┌─────────────────────┐        ┌──────────────────────────┐
-│  HOD active set     │◄───────┤ Former Momo manual list  │
-│  build_active_set() │  guaranteed admission (REQ-HOD-006)│
-│  (live L1 + gates)  │        └──────────────────────────┘
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│  HOD Momo alerts    │
-└─────────────────────┘
+           ├──────────────┬────────────────┬──────────────────┐
+           ▼              ▼                ▼                  │
+┌────────────────┐ ┌────────────────┐ ┌────────────────┐      │
+│ Gappers scan   │ │ Gainers scan   │ │ Afterhours scan│      │
+│ 04:00–09:30    │ │ 04:00–16:00    │ │ 16:00–20:00    │      │
+└───────┬────────┘ └───────┬────────┘ └───────┬────────┘      │
+        ▼                  ▼                  ▼               │
+┌────────────────┐ ┌────────────────┐ ┌────────────────┐      │
+│ gapper_cache   │ │ gainer_cache   │ │afterhours_cache│      │
+│ freeze 09:30   │ │ freeze 16:00   │ │ freeze 20:00   │      │
+└───────┬────────┘ └───────┬────────┘ └───────┬────────┘      │
+        └──────────────────┼──────────────────┘               │
+                           ▼                                  ▼
+                 ┌─────────────────────┐        ┌──────────────────────────┐
+                 │  HOD active set     │◄───────┤ Former Momo manual list  │
+                 │  bounded live L1    │        │ guaranteed admission     │
+                 └──────────┬──────────┘        └──────────────────────────┘
+                            ▼
+                 ┌─────────────────────┐
+                 │  HOD Momo alerts    │
+                 └─────────────────────┘
 
-  ─ ─ ─ excluded from the union (dashed = out of scope) ─ ─ ─
-
-┌─────────────────────┐  ┌─────────────────────┐  ┌──────────────────────┐
-│  Top Losers scan    │  │  Gappers scan       │  │  Volume seed scans   │
-│  get_losers()       │  │  get_gappers()      │  │  HOT_BY_VOLUME /      │
-│  (loser_cache)      │  │  (gapper_cache)     │  │  TOP_VOLUME_RATE /    │
-│  REQ-HOD-001        │  │  REQ-HOD-002        │  │  MOST_ACTIVE          │
-│  excluded           │  │  excluded           │  │  REQ-HOD-003 excluded │
-└─────────────────────┘  └─────────────────────┘  └──────────────────────┘
+Excluded from HOD: Top Losers · open ticker · volume seeds · discovery explore.
 
 Legend:
-  solid path  = in scope (gainer_cache -> active set -> alerts)
-  dashed boxes = explicitly excluded per REQ-HOD-001/002/003
-  Former Momo  = manual-only union, does not compete for gainer_cache rank (REQ-HOD-005/006)</div>
+  table window = when that table may change
+  frozen cache = retained eligibility roster and historical table values
+  HOD live L1  = may keep evaluating retained symbols without mutating frozen tables</div>
 
     <div class="info" id="info-ibkr-scan-vs-subscription">
       <p style="margin:0 0 0.65rem;">
@@ -648,12 +705,14 @@ Legend:
     <div class="info" id="info-ibkr-nova-scanner-choice">
       <p style="margin:0 0 0.65rem;">
         <span class="label">Informational</span>
-        <code>INFO-IBKR-005</code> — Nova only uses the one-shot scanner; L1 is a separate API
+        <code>INFO-IBKR-005</code> — Current one-shot lifecycle vs target table-window subscription
       </p>
       <p style="margin:0 0 0.65rem;">
-        Confirmed by repo search: <code>backend/ibkr/discovery.py</code> calls
-        <code>ib.reqScannerDataAsync(sub)</code> only. <code>reqScannerSubscription</code> has
-        <strong>zero</strong> uses anywhere in Nova today.
+        Current <code>backend/ibkr/discovery.py::_one_shot_scanner()</code> opens
+        <code>reqScannerSubscription</code>, waits for the first completed batch, then always cancels it.
+        That safe cancellation fixed scanner-slot leaks, but the overall behavior is still one-shot.
+        The target keeps only the session-owned scanner subscription open for its table update window and
+        cancels it exactly at the freeze boundary.
       </p>
       <p style="margin:0 0 0.65rem;">
         Scanning (either delivery mode) and Level-1 streaming are <strong>unrelated APIs</strong>:
@@ -662,8 +721,9 @@ Legend:
         <code>backend/ibkr/scanner_l1.py</code> — completely separate from the scanner call.
       </p>
       <p class="muted" style="margin:0.5rem 0 0;">
-        Pipeline: one-shot scanner → roster (<code>gainer_cache</code> / <code>loser_cache</code>) →
-        <code>reqMktData</code> → live prices for admitted symbols only.
+        Target pipeline: session-owned scanner subscription → roster snapshot → table-window L1 patches;
+        after freeze, separate HOD-owned <code>reqMktData</code> may continue for admitted symbols without
+        mutating the completed table.
       </p>
     </div>
 
@@ -746,7 +806,7 @@ Legend:
     </div>
     <div class="uml">┌───────────────────────────────┐
 │   WatchUniverse (one set)     │
-│   gainer_cache ∪ former_momo  │
+│ gapper ∪ gainer ∪ AH ∪ former │
 └───────────────┬────────────────┘
                 │  same symbols, every strategy
      ┌──────────┼──────────┬─────────────┐
@@ -849,9 +909,10 @@ Legend:
       </tbody>
     </table>
     <div class="ok">
-      <strong>Consequence, accepted:</strong> a stock that alerts once, then drops off Top Gainers rank,
-      loses live L1 and cannot re-trigger a later HOD that day unless it's on the manual Former Momo list
-      (<code>REQ-HOD-006</code>) or climbs back into Top Gainers on its own.
+      <strong>Consequence, accepted:</strong> a stock loses HOD eligibility only when it is absent from all
+      three retained scanner rosters and the manual Former Momo list. A frozen Gappers or Gainers snapshot
+      intentionally preserves that symbol's eligibility for the rest of the trading day; alert history alone
+      never preserves it.
       <p style="margin:0.45rem 0 0;">
         Removes: <code>_former.remember_former_momo(symbol)</code> auto-add-on-any-alert call
         (<code>backend/hod_momo_trade.py</code>) and <code>bootstrap_former_momo_from_alerts()</code>
@@ -882,7 +943,7 @@ Legend:
             <strong>The Former Momo manual list (<code>config.former_momo_list</code>) SHALL be user-edited
             only (default seed <code>["SPRC"]</code>) and SHALL NOT be auto-mutated by alert firings. Members
             SHALL receive guaranteed HOD active-set admission (same live L1 subscription, same
-            <code>on_trade_update()</code> call, same session-high tracking as Top Gainers rows) regardless
+            <code>on_trade_update()</code> call, same session-high tracking as allowed scanner rows) regardless
             of current Top Gainers rank, by reusing the existing pipeline rather than a separate subscription
             mechanism.</strong>
           </td>
@@ -891,14 +952,14 @@ Legend:
       </tbody>
     </table>
     <div class="ok">
-      <strong>Implementation (simplified — reuses the Top-Gainers pipeline, no new IBKR owner tag):</strong>
+      <strong>Implementation (simplified — reuses the shared HOD pipeline, no new IBKR owner tag):</strong>
       <code>build_active_set()</code> (<code>backend/hod_momo_active.py</code>) already accepts a
       <code>priority_symbols</code> parameter whose job is "always admit these symbols first, before movers
       compete for a slot." Feed <code>config.former_momo_list</code> into that parameter directly
       (replacing the removed <code>session_focus_active_priority()</code> input). This means Former Momo
       symbols get the exact same <code>owner="hod"</code> <code>reqMktData</code> line, the same
       <code>on_trade_update()</code> call, and the same <code>hod_momo_high.py</code> session-high tracking
-      that any Top Gainer already gets — not a parallel, bespoke path.
+      that any admitted scanner-row symbol already gets — not a parallel, bespoke path.
       <p style="margin:0.45rem 0 0;">
         The strategy-eval gate (<code>former_momo_block_reason()</code> in
         <code>backend/hod_momo_former.py</code>) is unchanged — it already restricts strategy #1's firing to
@@ -913,10 +974,10 @@ Legend:
         applied if the persisted list is still empty, so an install with a customized list is never clobbered.
       </p>
     </div>
-    <div class="uml">┌─────────────────────┐
-│   gainer_cache       │
-│  (Top Gainers rows)  │
-└──────────┬───────────┘
+    <div class="uml">┌────────────────────────────┐
+│ retained scanner rosters   │
+│ gapper ∪ gainer ∪ AH       │
+└─────────────┬──────────────┘
            │
            │  movers                    ┌───────────────────────────┐
            ▼                            │ config.former_momo_list    │
@@ -965,11 +1026,10 @@ Legend:
         </tbody>
       </table>
       <p class="muted" style="margin:0.5rem 0 0;">
-        The 40 (and its <code>mover_slots</code>/<code>seed_slots</code>/<code>explore_slots</code>
-        quota-arbitration logic) exists because 5 competing sources (gainers/gappers/losers/AH/seeds) needed a
-        fair-share mechanism. Once eligibility is Gainers-only (<code>REQ-HOD-001</code>/002/003) — itself
-        IBKR-capped at 50 rows — that arbitration problem mostly disappears. Flagged for simplification when
-        <code>REQ-HOD-001</code> is implemented; not decided/changed here.
+        The bounded pool remains necessary because the retained Gappers, Gainers, and Afterhours rosters can
+        union to more symbols than Nova can safely stream alongside the active table and open ticker.
+        The old Losers/seed/explore quotas are removed; Former Momo receives guaranteed admission, then the
+        three allowed scanner sources use source-aware fairness so one retained roster cannot starve the others.
       </p>
     </div>
 

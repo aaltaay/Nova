@@ -81,17 +81,12 @@ def test_cooled_sticky_outranks_hot_soft_block_flood(monkeypatch, tmp_path):
     assert "TRT" in ranked
     assert len(ranked) <= 8
     snap = active.build_active_set(
-        discovery=[g["symbol"] for g in gainers] + ["TRT"],
         gainer_rows=gainers,
         priority_symbols=focus.session_focus_active_priority(),
         capacity=40,
-        former_slots=8,
-        mover_slots=12,
-        seed_slots=12,
-        explore_slots=8,
     )
     assert "TRT" in snap.active
-    assert snap.reasons.get("TRT") == "session_focus"
+    assert snap.reasons.get("TRT") == "former_momo"
 
 
 def test_sticky_symbol_gets_session_focus_active_slot(monkeypatch, tmp_path):
@@ -100,14 +95,9 @@ def test_sticky_symbol_gets_session_focus_active_slot(monkeypatch, tmp_path):
     focus.remember_session_focus("TRT")
     gainers = [{"symbol": f"G{i:02d}", "price": 5.0, "change_pct": 0.5 - i * 0.01} for i in range(30)]
     snap = active.build_active_set(
-        discovery=[g["symbol"] for g in gainers] + ["TRT"],
         gainer_rows=gainers,
         priority_symbols=focus.session_focus_active_priority(),
         capacity=40,
-        former_slots=8,
-        mover_slots=12,
-        seed_slots=12,
-        explore_slots=8,
     )
     assert "TRT" in snap.active
-    assert snap.reasons.get("TRT") == "session_focus"
+    assert snap.reasons.get("TRT") == "former_momo"

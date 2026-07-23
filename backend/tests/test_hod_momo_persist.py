@@ -283,7 +283,87 @@ def test_schema_v5_squeeze_requires_hod_and_reenables(monkeypatch):
     assert state.configs[7].enabled is True
     assert state.configs[10].requires_hod is True
     assert state.configs[11].requires_hod is True
-    assert saved[-1]["schema_version"] == 5
+    assert saved[-1]["schema_version"] == persist.HOD_MOMO_CONFIG_SCHEMA_VERSION
+
+
+def test_schema_v7_restores_zeroed_squeeze_surge(monkeypatch):
+    """Historical bug: Squeeze #10/#11 persisted with surge_pct=0 while
+    surge_window_min still matched the strategy's own default window — a
+    silent no-op filter instead of Warrior's 10%/10m and 5%/5m gate."""
+    state = hm.replace_state(HodMomoState())
+    monkeypatch.setattr(
+        persist._cache,
+        "load_hod_momo_configs",
+        lambda: {
+            "schema_version": 5,
+            "master": {},
+            "strategies": {
+                "10": {
+                    "strategy_id": 10,
+                    "name": "Squeeze Alert - Up 10% in 10min",
+                    "color": "#00E5FF",
+                    "enabled": True,
+                    "requires_hod": True,
+                    "surge_pct": 0.0,
+                    "surge_window_min": 10,
+                },
+                "11": {
+                    "strategy_id": 11,
+                    "name": "Squeeze Alert - Up 5% in 5min",
+                    "color": "#40C4FF",
+                    "enabled": True,
+                    "requires_hod": True,
+                    "surge_pct": 0.0,
+                    "surge_window_min": 5,
+                },
+            },
+        },
+    )
+    saved: list[dict] = []
+    monkeypatch.setattr(persist._cache, "save_hod_momo_configs", saved.append)
+    monkeypatch.setattr(persist._cache, "load_hod_momo_blocklist", lambda: [])
+    monkeypatch.setattr(persist._cache, "load_hod_momo_snapshot", lambda: ([], None))
+
+    persist.load_persisted_state()
+
+    assert state.configs[10].surge_pct == 10.0
+    assert state.configs[10].surge_window_min == 10
+    assert state.configs[11].surge_pct == 5.0
+    assert state.configs[11].surge_window_min == 5
+    assert saved[-1]["schema_version"] == persist.HOD_MOMO_CONFIG_SCHEMA_VERSION
+
+
+def test_schema_v7_leaves_deliberately_changed_window_alone(monkeypatch):
+    """A user who changed surge_window_min away from the default (and thus
+    has surge_pct=0 for an unrelated reason) must not be silently repaired."""
+    state = hm.replace_state(HodMomoState())
+    monkeypatch.setattr(
+        persist._cache,
+        "load_hod_momo_configs",
+        lambda: {
+            "schema_version": 5,
+            "master": {},
+            "strategies": {
+                "11": {
+                    "strategy_id": 11,
+                    "name": "Squeeze Alert - Up 5% in 5min",
+                    "color": "#40C4FF",
+                    "enabled": True,
+                    "requires_hod": True,
+                    "surge_pct": 0.0,
+                    "surge_window_min": 7,
+                },
+            },
+        },
+    )
+    monkeypatch.setattr(persist._cache, "save_hod_momo_configs", lambda payload: None)
+    monkeypatch.setattr(persist._cache, "load_hod_momo_blocklist", lambda: [])
+    monkeypatch.setattr(persist._cache, "load_hod_momo_snapshot", lambda: ([], None))
+
+    persist.load_persisted_state()
+
+    assert state.configs[11].surge_pct == 0.0
+    assert state.configs[11].surge_window_min == 7
 
 
 def test_load_configs_retires_positive_cooldown_mute(monkeypatch):

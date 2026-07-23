@@ -10,7 +10,6 @@ import afterhours_discovery as _ah_discovery
 import exchanges as _exchanges
 import hod_momo as _hod_momo
 import hod_momo_active as _hod_active
-import hod_momo_universe as _hod_uni
 from constants import (
     HOD_MOMO_ACTIVE_HOT_PER_TICK,
     HOD_MOMO_ACTIVE_SET_CAPACITY,
@@ -135,60 +134,49 @@ def symbols_for_tab(tab: str) -> list[str]:
 
 
 _hod_active_cache: list[str] = []
-_hod_active_cache_ts = 0.0
-# Sticky membership — rebuilding every L1 reconcile from live change_pct
-# reshuffles the top-N and thrash-subscribes/cancels reqMktData every second.
-_HOD_ACTIVE_CACHE_SEC = 30.0
+# Version fingerprint, not a TTL (ADR 008) — HOD L1 reconciliation must react
+# immediately to a real roster/former-list/session change, not wait out a
+# fixed window. Scanner caches are reassigned (never mutated in place) on
+# every scan update, so ``id()`` + length cheaply detects "the roster
+# actually changed" without hashing row contents on every reconcile tick.
+_hod_active_cache_sig: tuple | None = None
 
 
 def invalidate_hod_active_cache() -> None:
-    """Drop the 30s active-set cache (session-focus sticky just changed)."""
-    global _hod_active_cache_ts
-    _hod_active_cache_ts = 0.0
+    """Force the next refresh_hod_active_set() call to rebuild."""
+    global _hod_active_cache_sig
+    _hod_active_cache_sig = None
 
 
 def refresh_hod_active_set(*, force: bool = False) -> list[str]:
-    """Rebuild capacity-bounded active evaluation set from discovery + scanners."""
-    global _hod_active_cache, _hod_active_cache_ts
-    now = time.time()
-    if (
-        not force
-        and _hod_active_cache
-        and (now - _hod_active_cache_ts) < _HOD_ACTIVE_CACHE_SEC
-    ):
-        return list(_hod_active_cache)
+    """Rebuild the deterministic HOD active set (Gappers/Gainers/Afterhours/Former)."""
+    global _hod_active_cache, _hod_active_cache_sig
     state = get_runtime_state()
-    # Upside-first discovery + seed head so mid-tier sub-$20 table gainers
-    # (PN/BTMD Squeeze) get reserved L1 — not buried by HOT_BY_VOLUME / losers.
-    discovery = _hod_uni.discovery_for_active(
-        state.hod_momo_universe,
-        state.gainer_cache,
-    )
-    seeds = _hod_uni.seed_symbols_for_active(
-        _hod_uni.get_seed_symbols(),
-        state.gainer_cache,
-    )
     try:
         import hod_momo_former as _former
 
         priority = _former.former_momo_priority_symbols()
     except Exception:
         priority = []
+    sig = (
+        id(state.gapper_cache), len(state.gapper_cache),
+        id(state.gainer_cache), len(state.gainer_cache),
+        id(state.afterhours_cache), len(state.afterhours_cache),
+        tuple(priority),
+    )
+    if not force and _hod_active_cache and sig == _hod_active_cache_sig:
+        return list(_hod_active_cache)
     snap = _hod_active.build_active_set(
-        discovery=discovery,
-        gainer_rows=state.gainer_cache,
-        # Losers were consuming ~half of mover/fill slots via abs(change_pct)
-        # and crowding out mid-tier Squeeze names still on the gainer table.
-        loser_rows=None,
         gapper_rows=state.gapper_cache,
-        afterhours_rows=state.afterhours_cache if state.current_mode == "afterhours" else None,
-        seed_symbols=seeds,
-        detail_symbols=get_ibkr_detail_symbols(),
+        gainer_rows=state.gainer_cache,
+        # Current-session retained AH union — not gated on current_mode, so
+        # AH runners stay HOD-eligible after the session flips to "closed".
+        afterhours_rows=state.afterhours_cache,
         priority_symbols=priority,
         capacity=HOD_MOMO_ACTIVE_SET_CAPACITY,
     )
     _hod_active_cache = list(snap.active)
-    _hod_active_cache_ts = now
+    _hod_active_cache_sig = sig
     return list(_hod_active_cache)
 
 

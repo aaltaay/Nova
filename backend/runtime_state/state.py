@@ -20,6 +20,31 @@ from constants import (
 ScannerRow = dict[str, Any]
 HealthPayload = dict[str, Any]
 
+# Table state values (ADR 008 — session-owned persistent scanner rosters).
+TABLE_STATE_LIVE = "live"
+TABLE_STATE_FROZEN = "frozen"
+TABLE_STATE_UNAVAILABLE = "unavailable"
+
+
+@dataclass(slots=True)
+class TableState:
+    """Session-scoped metadata for one scanner table (gappers/gainers/losers/afterhours).
+
+    ``state`` transitions ``unavailable`` -> ``live`` -> ``frozen`` at most once per
+    session; a ``frozen`` table's roster/values must never change again until the
+    next session's rollover picks a new ``session_key``. ``revision`` is bumped on
+    every committed roster or freeze so consumers (WS clients, integrity checks)
+    can detect stale/out-of-order writes without relying on wall-clock timestamps.
+    """
+
+    state: str = TABLE_STATE_UNAVAILABLE
+    session_key: str = ""
+    source: str = ""
+    revision: int = 0
+    roster_ts: float = 0.0
+    quote_ts: float = 0.0
+    frozen_at: float = 0.0
+
 
 def _env_bool(primary: str, legacy: str, default: bool) -> bool:
     raw = os.environ.get(primary) or os.environ.get(legacy)
@@ -70,6 +95,7 @@ class ScannerRuntimeState:
 
     gapper_cache: list[ScannerRow] = field(default_factory=list)
     gapper_cache_ts: float = 0.0
+    gapper_table: TableState = field(default_factory=TableState)
     last_discovery_ts: float = 0.0
     # Last IBKR thread→asyncio bridge failure (loud; UI/integrity can surface).
     ibkr_bridge_last_error: str = ""
@@ -77,12 +103,15 @@ class ScannerRuntimeState:
 
     afterhours_cache: list[ScannerRow] = field(default_factory=list)
     afterhours_cache_ts: float = 0.0
+    afterhours_table: TableState = field(default_factory=TableState)
     last_afterhours_discovery_ts: float = 0.0
 
     gainer_cache: list[ScannerRow] = field(default_factory=list)
     gainer_cache_ts: float = 0.0
+    gainer_table: TableState = field(default_factory=TableState)
     loser_cache: list[ScannerRow] = field(default_factory=list)
     loser_cache_ts: float = 0.0
+    loser_table: TableState = field(default_factory=TableState)
 
     news_catalyst_cache: list[ScannerRow] = field(default_factory=list)
     news_catalyst_cache_ts: float = 0.0

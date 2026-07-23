@@ -11,7 +11,6 @@ from constants import (
     HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC,
     HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_P95_SEC,
     HOD_MOMO_INTEGRITY_ENRICHED_MIN_PCT,
-    HOD_MOMO_INTEGRITY_SEED_WARN_AFTER_SEC,
     HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC,
     HOD_MOMO_INTEGRITY_SURGE_PENDING_WARN,
     HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT,
@@ -35,11 +34,8 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
     ready_n = int(snap.get("surge_ready_count") or 0)
     seeded_n = int(snap.get("surge_seeded_count") or 0)
     pending = int(snap.get("pending_surge_seeds") or 0)
-    seed_size = int(snap.get("watch_seed_size") or 0)
-    provider = (snap.get("discovery_provider") or "").strip().lower()
     rvol_n = int(snap.get("snaps_with_rvol") or 0)
     tracked = int(snap.get("snaps_tracked") or 0)
-    ibkr_ok = snap.get("ibkr_connected")
     surge_none_after_seed = int(snap.get("surge_none_after_seed_count") or 0)
     active_coverage = snap.get("active_coverage_pct")
 
@@ -47,7 +43,7 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
         checks.append(check(
             "hod_ticks_flowing",
             "warn",
-            "watch universe empty -- no symbols to price (scanner/seeds may be down)",
+            "watch universe empty -- no symbols to price (Gappers/Gainers/Afterhours may be down)",
         ))
     elif uptime < HOD_MOMO_INTEGRITY_WARMUP_SEC:
         checks.append(check(
@@ -195,40 +191,6 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             "hod_surge_seed_backlog",
             "pass",
             f"pending_surge_seeds={pending}",
-        ))
-
-    if provider == "ibkr":
-        if ibkr_ok is False:
-            checks.append(check(
-                "hod_volume_seeds",
-                "fail",
-                "discovery=ibkr but Gateway not connected -- seeds and ticks will starve",
-            ))
-        elif seed_size <= 0 and uptime >= HOD_MOMO_INTEGRITY_SEED_WARN_AFTER_SEC:
-            checks.append(check(
-                "hod_volume_seeds",
-                "warn",
-                f"watch_seed_size=0 after {uptime:.0f}s -- HOT_BY_VOLUME seeds empty; "
-                f"late runners may arrive only via Top Gainers",
-            ))
-        elif seed_size <= 0:
-            checks.append(check(
-                "hod_volume_seeds",
-                "pass",
-                f"volume seeds still warming "
-                f"({uptime:.0f}s < {HOD_MOMO_INTEGRITY_SEED_WARN_AFTER_SEC:.0f}s)",
-            ))
-        else:
-            checks.append(check(
-                "hod_volume_seeds",
-                "pass",
-                f"watch_seed_size={seed_size}",
-            ))
-    else:
-        checks.append(check(
-            "hod_volume_seeds",
-            "pass",
-            f"provider={provider or 'unknown'} -- IBKR seed check skipped",
         ))
 
     if tracked <= 0:

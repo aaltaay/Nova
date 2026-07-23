@@ -57,7 +57,14 @@ HOD_MOMO_SEED_REFRESH_SEC = 30.0     # IBKR volume-scanner seed cadence
 # surge:None (or ~0%) when a name first joins the focus universe mid-move.
 # Seed the rolling price buffer from recent 1-min bars once per symbol/session.
 HOD_MOMO_SURGE_SEED_TIMEFRAME = "1Min"
-HOD_MOMO_SURGE_SEED_BARS = 15          # last ~15 minutes of 1-min OHLCV
+HOD_MOMO_SURGE_SEED_BARS = 15          # last ~15 minutes of 1-min OHLCV (surge buffer only)
+# HOD truth (session_high) is a *separate* concern from the 15-bar surge
+# buffer above: it must see the symbol's whole current session (04:00 ET
+# premarket open through now), not just the last 15 minutes, or a runner
+# that made its actual high 30+ minutes before joining the active set would
+# get a falsely-low seeded floor and fire a false "new HOD" on a mere retest.
+# ~960 one-minute bars covers the full 04:00-20:00 ET extended session.
+HOD_MOMO_FULL_SESSION_BAR_LIMIT = 1000
 HOD_MOMO_SURGE_SEED_POLL_SEC = 1.0     # drain pending seed queue
 HOD_MOMO_SURGE_SEED_MAX_PER_TICK = 2   # IBKR historical pacing — keep low
 # Integrity / fail-loud data-flow checks (invisible-bug detectors).
@@ -67,30 +74,20 @@ HOD_MOMO_INTEGRITY_WARMUP_SEC = 45.0           # grace after process start befor
 HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC = 240.0  # buffer span for "ready" (4 of 5 min window)
 HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT = 40.0  # % of buffered symbols that must be ready
 HOD_MOMO_INTEGRITY_SURGE_PENDING_WARN = 10     # pending historical seeds → warn
-HOD_MOMO_INTEGRITY_SEED_WARN_AFTER_SEC = 90.0  # ibkr + empty volume seeds after this → warn
 HOD_MOMO_INTEGRITY_POLL_SEC = 20.0             # background integrity logger cadence
 HOD_MOMO_INTEGRITY_ENRICHED_MIN_PCT = 30.0     # snaps with rvol vs tracked snaps
 SCANNER_INTEGRITY_CACHE_STALE_SEC = 120.0      # gappers/gainers/losers cache age → warn/fail
-# Active evaluation set (capacity-bounded) — discovery watch set may be larger.
-# Live SLO: quote/eval age p95 ≤2s, max ≤3s for every *active* symbol.
-# Quota selection: reserve slots for volume seeds outside gainer/gapper lists so
-# 40 movers cannot starve HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE runners.
+# Active evaluation set (capacity-bounded) — ADR 008: deterministic admission,
+# no quotas. Former Momo first (guaranteed), then round-robin across ranked
+# Gappers/Gainers/Afterhours (see hod_momo_active.build_active_set). Live SLO:
+# quote/eval age p95 ≤2s, max ≤3s for every *active* symbol.
 HOD_MOMO_ACTIVE_SET_CAPACITY = 40
 HOD_MOMO_ACTIVE_HOT_PER_TICK = 10              # priority symbols every 1Hz tick
-# Reserved L1 for the manual Former Momo watchlist (REQ-HOD-005/006) — a
-# small, deliberately curated list; no longer fed by alert-history/sticky
-# auto-remember. Param name in build_active_set remains former_slots.
-HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS = 8
-HOD_MOMO_ACTIVE_FORMER_SLOTS = HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS  # compat alias
 # hod_momo_session_focus.py's sticky/alert-history priority is retired from
 # the active-set build path (REQ-HOD-005) but the module + constant below
 # are left intact — still covered by their own unit tests.
+HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS = 8
 HOD_MOMO_SESSION_FOCUS_MAX = HOD_MOMO_ACTIVE_SESSION_FOCUS_SLOTS
-HOD_MOMO_ACTIVE_MOVER_SLOTS = 12               # top upside movers (gainer/gapper/AH)
-HOD_MOMO_ACTIVE_SEED_SLOTS = 12                # under-$N gainer head + volume seeds
-HOD_MOMO_ACTIVE_EXPLORE_SLOTS = 8              # rotating discovery-tail exploration
-# Advance explore rotation at most this often (reconcile is 1Hz — do not churn L1).
-HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC = 30.0
 # Quiet L1 symbols (unchanged last) never re-fire quote listeners — heartbeat
 # refreshes note_quote/note_evaluation so active-set SLOs stay honest.
 # Heartbeat must keep p95 quote/eval age ≤2s. A 1s loop + 1.5s stale gate
@@ -188,7 +185,7 @@ HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC: tuple[tuple[int, float], ...] = (
 # so the scanner can fire while yfinance data loads progressively.
 HOD_MOMO_RVOL_WARMUP_GRACE_SEC = 300            # 5 min: skip RVOL gate while yfinance warms up
 # Bump when master/strategy defaults change so persisted configs migrate once.
-HOD_MOMO_CONFIG_SCHEMA_VERSION = 5
+HOD_MOMO_CONFIG_SCHEMA_VERSION = 7
 
 # Strategy names (canonical order 1–12)
 HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {

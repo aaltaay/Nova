@@ -121,3 +121,43 @@ def test_run_coro_returns_result_when_generation_unchanged(monkeypatch):
         assert result == "ok"
 
     asyncio.run(_main())
+
+
+class _FakeRuntimeState:
+    def __init__(self, *, error: str = "", ts: float = 0.0):
+        self.ibkr_bridge_last_error = error
+        self.ibkr_bridge_last_error_ts = ts
+
+
+def test_clear_sticky_bridge_error_on_ready_drops_stale_disconnect_error(monkeypatch):
+    """Session reaching READY must drop a bridge error left over from the
+    disconnect window (see PROBLEM_LOG 2026-07-23 sticky-banner-after-
+    reconnect) — otherwise Integrity fail stays red even though movers/L1
+    are already live again."""
+    state = _FakeRuntimeState(error="gainers: IbkrDiscoveryError: ib=none", ts=123.0)
+    monkeypatch.setattr(ibkr_client, "_get_runtime_state", lambda: state)
+
+    ibkr_client._clear_sticky_bridge_error_on_ready()
+
+    assert state.ibkr_bridge_last_error == ""
+    assert state.ibkr_bridge_last_error_ts == 0.0
+
+
+def test_clear_sticky_bridge_error_on_ready_noop_when_already_clear(monkeypatch):
+    state = _FakeRuntimeState(error="", ts=0.0)
+    monkeypatch.setattr(ibkr_client, "_get_runtime_state", lambda: state)
+
+    ibkr_client._clear_sticky_bridge_error_on_ready()  # must not raise
+
+    assert state.ibkr_bridge_last_error == ""
+
+
+def test_clear_sticky_bridge_error_on_ready_tolerates_missing_runtime_state(monkeypatch):
+    """Must never let a runtime_state lookup failure break the reconnect path."""
+
+    def _raise():
+        raise RuntimeError("no runtime state yet")
+
+    monkeypatch.setattr(ibkr_client, "_get_runtime_state", _raise)
+
+    ibkr_client._clear_sticky_bridge_error_on_ready()  # must not raise

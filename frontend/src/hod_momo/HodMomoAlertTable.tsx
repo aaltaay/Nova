@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type UIEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react';
 import {
   HOD_MOMO_COLUMNS,
   HOD_MOMO_EMPTY_CONNECTING,
@@ -152,6 +152,8 @@ export function HodMomoAlertTable({
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const [scrollTop, setScrollTop] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rafIdRef = useRef<number | null>(null);
+  const pendingScrollTopRef = useRef(0);
   const empty = alerts.length === 0;
   // Always reserve the full 30-row scanner window (like Gappers/Gainers height),
   // even when only a few alerts have fired — shrinking to 1 row made the table look broken.
@@ -174,9 +176,23 @@ export function HodMomoAlertTable({
     if (empty) setScrollTop(0);
   }, [empty]);
 
-  function handleScroll(event: UIEvent<HTMLDivElement>) {
-    setScrollTop(event.currentTarget.scrollTop);
-  }
+  // Coalesce native scroll events (which can fire far faster than 60fps) to
+  // at most one windowing recompute per animation frame — avoids a state
+  // update (and full row-range recalculation) on every single scroll tick.
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
+
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    pendingScrollTopRef.current = event.currentTarget.scrollTop;
+    if (rafIdRef.current !== null) return;
+    rafIdRef.current = requestAnimationFrame(() => {
+      rafIdRef.current = null;
+      setScrollTop(pendingScrollTopRef.current);
+    });
+  }, []);
 
   return (
     <div

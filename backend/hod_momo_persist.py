@@ -103,6 +103,30 @@ def _migrate_loaded_configs(data: dict) -> bool:
             )
             changed = True
         changed = True
+    if version < 7:
+        # Historical config bug: some installs persisted Squeeze #10/#11 with
+        # surge_pct zeroed out while surge_window_min still matched the
+        # strategy's own default window — a silent no-op filter (surge_pct=0
+        # always passes) instead of Warrior's actual 10%/10m and 5%/5m gate.
+        # Only repair the exact zeroed-surge/matching-window shape so a user
+        # who deliberately changed the window (and thus surge_pct) is left
+        # alone; never touch enabled/audio/other fields.
+        squeeze_repairs = {10: (10.0, 10), 11: (5.0, 5)}
+        for sid, (default_surge, default_window) in squeeze_repairs.items():
+            cfg = state.configs.get(sid)
+            if cfg is None:
+                continue
+            if (
+                float(cfg.surge_pct or 0.0) == 0.0
+                and int(cfg.surge_window_min or 0) == default_window
+            ):
+                cfg.surge_pct = default_surge
+                logger.info(
+                    "HOD Momo: schema v7 — restored strategy %d surge_pct to %.1f%% "
+                    "(surge_window_min=%d was unchanged; surge_pct had been zeroed)",
+                    sid, default_surge, default_window,
+                )
+                changed = True
     return changed
 
 

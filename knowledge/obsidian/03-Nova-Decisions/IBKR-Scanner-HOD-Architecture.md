@@ -4,7 +4,7 @@ Canonical durable home for IBKR API specialties, HOD truth, and feed UML.
 **Owner:** `hod-momo` subagent (`.cursor/agent-system/registry.json` → `canonical_inputs` + `writable_paths`).
 Companion: `.cursor/agent-memory/hod-momo-memory.md` · dashboard `agent-hod-momo.canvas.tsx`.
 Plan (gap ledger + fuller diagrams): `hod_gate_uml_cleanup_69da0848.plan.md`.
-**Last verified against code:** 2026-07-18 · commit `d1b1ccc`.
+**Last verified against code:** 2026-07-23 · ADR 008 (session-owned persistent scanner rosters) supersedes the polling membership section below — see `architecture/decisions/008-persistent-ibkr-scanner-rosters.md`.
 
 ## IBKR API specialties (memorize)
 
@@ -18,6 +18,41 @@ Plan (gap ledger + fuller diagrams): `hod_gate_uml_cleanup_69da0848.plan.md`.
 | Every print? | `reqTickByTickData(AllLast)` | Time & Sales; open symbol only |
 
 **Invariant:** scanner = membership; prices/HOD = L1 (+ bar seed). Never invent session high from first observed last.
+
+## Session-owned persistent scanner rosters (ADR 008, 2026-07-23)
+
+`reqScannerDataAsync` polling (5s TTL cache, 20s/30s/120s scan_loop cadence) is
+replaced by `backend/ibkr/scanner_stream.py` owning **persistent**
+`reqScannerSubscription` handles for the life of the process — IB pushes
+`updateEvent` batches; Nova never re-polls a code that is already
+subscribed.
+
+- **Desired subscriptions by session period** (≤2 slots at once):
+  Premarket = Gainers + Gappers; RTH = Gainers + Losers (UI-only);
+  Afterhours = AH Gainers; Closed = none.
+- **Table state model** (`backend/runtime_state/state.py`): each table
+  (`gappers`/`gainers`/`losers`/`afterhours`) carries `session_key`
+  (04:00 ET-anchored), `state` (`live`/`frozen`/`unavailable`), `revision`,
+  `roster_ts`, `quote_ts`, `frozen_at`.
+- **Freeze boundaries:** Gappers freezes at 09:30 ET, Gainers at 16:00 ET,
+  Afterhours at 20:00 ET. A frozen table's membership/rank/values/timestamp
+  are immutable; HOD-owned L1 may keep evaluating retained symbols without
+  mutating the frozen row.
+- **Fencing:** every scanner/hydration callback is checked against IB READY
+  generation, a local subscription epoch, the target table, and the session
+  key before it can write state — late results from a superseded
+  generation/epoch/session are discarded.
+- **HOD eligibility narrowed:** the active set is exactly current-session
+  Gappers ∪ Gainers ∪ Afterhours ∪ manually curated Former Momo. Volume
+  seeds (`HOT_BY_VOLUME`/`TOP_VOLUME_RATE`/`MOST_ACTIVE`), the `belowPrice=20`
+  Gainers pass, open-ticker priority, Losers, and rotating "explore" are
+  removed from HOD admission — sub-$20 stocks are ordinary Gainers rows.
+
+The "VERIFIED live flow" mermaid diagram below still describes the
+membership layer as one-shot `reqScannerDataAsync` polling; treat that
+diagram as historical until the `hod-momo` specialist refreshes it to show
+the persistent-subscription membership layer (follow-up, not blocking this
+ADR).
 
 ## HOD truth (2026-07-17)
 
@@ -123,6 +158,8 @@ flowchart TB
 
 ## Related code
 
+- `architecture/decisions/008-persistent-ibkr-scanner-rosters.md` — session-owned roster ADR
+- `backend/ibkr/scanner_stream.py` — persistent scanner subscriptions, freeze/rollover
 - `backend/hod_momo_high.py` — seed / tick-6 floor
 - `backend/hod_momo_trade.py` — evaluate on L1
 - `backend/ibkr/ticks.py` — stores `day_high`

@@ -41,6 +41,12 @@ IBKR_ERROR_DEPTH_NOT_SUPPORTED = 10092
 # Tick-by-tick Time & Sales subscription failures (async via errorEvent).
 # 10089/10189: requires additional market-data subscription; 354: not subscribed.
 IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 354})
+# "Only 10 simultaneous API scanner subscriptions are allowed." Arrives
+# asynchronously via errorEvent; with RaiseRequestErrors=False (ib_async
+# default) the request's own future still resolves to [] with no exception,
+# so this must be caught via errorEvent, not try/except around the call —
+# see ibkr/discovery.py._one_shot_scanner + recover_scanner_slots.
+IBKR_ERROR_SCANNER_SLOT_EXHAUSTED = 322
 
 # ib_async's OWN internal loggers (ib_async.wrapper / .ib / .client — not our
 # app loggers) log these at ERROR even though they're expected under normal
@@ -115,25 +121,8 @@ IBKR_SCAN_CODE_LOSERS = "TOP_PERC_LOSE"
 # is empty (thin AH liquidity / IB scanner gaps), never the primary source.
 IBKR_SCAN_CODE_AH_GAINERS = "TOP_AFTER_HOURS_PERC_GAIN"
 IBKR_SCAN_CODE_AH_LOSERS = "TOP_AFTER_HOURS_PERC_LOSE"
-# Extra seeds for HOD Momo — Warrior catches mid-day volume runners that are
-# not always in the top-% gainer list (e.g. FRE / TSSI / YG style alerts).
-IBKR_SCAN_CODE_HOT_VOLUME = "HOT_BY_VOLUME"
-IBKR_SCAN_CODE_TOP_VOLUME_RATE = "TOP_VOLUME_RATE"
-IBKR_SCAN_CODE_MOST_ACTIVE = "MOST_ACTIVE"
-# Volume/activity + TOP_PERC_GAIN so % movers Warrior shows (not only volume
-# leaders) still enter the HOD focus universe / seed pool.
-IBKR_SCAN_HOD_SEED_CODES = (
-    IBKR_SCAN_CODE_HOT_VOLUME,
-    IBKR_SCAN_CODE_TOP_VOLUME_RATE,
-    IBKR_SCAN_CODE_MOST_ACTIVE,
-    IBKR_SCAN_CODE_GAINERS,
-)
 IBKR_SCAN_MAX_ROWS = 50                        # IB hard cap per scan code
 IBKR_SCAN_ABOVE_PRICE = SCANNER_MIN_PRICE       # mirrors the Alpaca price floor above
-# Second TOP_PERC_GAIN pass capped below this price so mega-gainers (e.g. +90%
-# names filling the uncapped top-50) cannot crowd out sub-$20 squeezes that
-# Warrior still surfaces (BTMD-class universe_gap).
-IBKR_HOD_SEED_BELOW_PRICE = 20.0
 # Legacy / cold-path snapshot tunables (NOT the active-table freshness SLA).
 # IB completes snapshots on tickSnapshotEnd ~11s later — never use a 4s timeout
 # for live table freshness. Active tab + HOD use reqMktData L1 streams instead.

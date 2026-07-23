@@ -12,6 +12,8 @@ import hod_momo_persist as _persist
 import hod_momo_state as _state
 import hod_momo_high as _high
 from constants import (
+    HOD_MOMO_ACTIVE_SET_CAPACITY,
+    HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
     HOD_MOMO_HOD_EPSILON_ABS,
     HOD_MOMO_HOD_EPSILON_PCT,
     HOD_MOMO_NEW_HOD_GRACE_SEC,
@@ -46,6 +48,20 @@ def update_config(strategy_id: int, patch: dict) -> dict | None:
     config = _state.get_state().configs.get(strategy_id)
     if config is None:
         return None
+    if strategy_id == HOD_MOMO_FORMER_MOMO_STRATEGY_ID and "former_momo_list" in patch:
+        raw_list = patch.get("former_momo_list") or []
+        if len(raw_list) > HOD_MOMO_ACTIVE_SET_CAPACITY:
+            # Every registered Former Momo symbol is guaranteed a HOD active
+            # slot (ADR 008) — reject outright rather than silently truncate
+            # or let later admissions get starved.
+            return {
+                "error": (
+                    f"former_momo_list has {len(raw_list)} symbols, exceeding the "
+                    f"HOD active-set capacity ({HOD_MOMO_ACTIVE_SET_CAPACITY}). "
+                    "Remove some symbols before saving — every entry is guaranteed "
+                    "a live slot, so the list cannot exceed capacity."
+                ),
+            }
     for key, value in patch.items():
         if hasattr(config, key) and key != "strategy_id":
             setattr(config, key, value)

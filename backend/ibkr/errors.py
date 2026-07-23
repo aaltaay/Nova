@@ -9,6 +9,18 @@ class IbkrDiscoveryError(RuntimeError):
     """Scanner/snapshot transport failure — not the same as an empty market."""
 
 
+class IbkrScannerSlotExhaustedError(IbkrDiscoveryError):
+    """IBKR Error 322 — no free scanner subscription slot for this request.
+
+    Raised instead of silently returning an empty result: with
+    ``RaiseRequestErrors=False`` (ib_async default) the request future
+    resolves to ``[]`` on this error with no exception, which used to look
+    identical to "market genuinely has 0 rows" (see PROBLEM_LOG 2026-07-23
+    IBKR scanner subscription leak). Callers should recover leaked slots and
+    retry once — see ``ibkr.discovery.recover_scanner_slots``.
+    """
+
+
 class IbkrAccountError(RuntimeError):
     """Positions/orders read failure — never disguise as a flat/empty account."""
 

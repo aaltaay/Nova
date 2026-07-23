@@ -31,22 +31,30 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
    If IBKR bars/ticks/depth/tape are unavailable while discovery is ibkr, return/show a clear error (e.g. HTTP 503). Do not serve Alpaca candles under an IBKR quote.
 
 5. **Scanner tables vs open ticker (two tiers).**
-   - **Table / HOD hot path:** bounded persistent IBKR `reqMktData` Level-1 streams for (a) every row in the **active scanner tab** and (b) a **reserved HOD active pool** (capacity-bounded, includes IBKR volume seeds that may be absent from gainers/gappers). Never stream the whole discovery universe. Coalesce ticks into batched `/ws/scanner` `price_patch` messages.
+   - **Table / HOD hot path:** bounded persistent IBKR `reqMktData` Level-1 streams for (a) every row in the **active scanner tab** and (b) a **reserved HOD active pool** (capacity-bounded — see rule 8 for exactly what is in that pool). Never stream the whole discovery universe. Coalesce ticks into batched `/ws/scanner` `price_patch` messages.
    - **Do not** use `reqTickersAsync` for the active-table freshness SLA — IB completes snapshots on `tickSnapshotEnd` ~11s later, so a 1Hz/4s-timeout loop is structurally impossible.
    - **Cold / discovery only:** infrequent `reqTickersAsync` (timeout ≥12s) for new/cold symbols outside the streamed set; serialized so it cannot starve L1.
    - **Open ticker:** dedicated `reqMktData` (shared owner with table/HOD when overlap) + Level 2 + tape + chart — as fast as IBKR delivers.
    - **Honesty:** per-row source age + header stale when the active-tab subscription is incomplete or patches are late. Never hide lag behind a frozen green "updated" badge.
 
-6. **Time & Sales = IBKR only (open symbol).**
+6. **Session-owned persistent scanner rosters (ADR 008).** `backend/ibkr/scanner_stream.py` owns persistent `reqScannerSubscription` handles for the life of the process — it does not poll. Desired subscriptions by session period: Premarket = Gainers + Gappers; RTH = Gainers + Losers (UI-only); Afterhours = AH Gainers; Closed = none (at most two persistent slots). Each table (`gappers`/`gainers`/`losers`/`afterhours`) carries its own `session_key` (04:00 ET-anchored), `state` (`live`/`frozen`/`unavailable`), `revision`, `roster_ts`, and `frozen_at` in `runtime_state`:
+   - Gappers is `live` 04:00–09:30 ET, then `frozen` (immutable) for the rest of the session.
+   - Gainers is `live` 04:00–16:00 ET, then `frozen`.
+   - Afterhours is `live` 16:00–20:00 ET, then `frozen`.
+   - A `frozen` table's membership, rank, values, metadata, and timestamp cannot change — HOD-owned L1 may keep evaluating retained symbols without mutating the frozen row. Do not resubscribe L1 for a frozen tab's own display; only a `live` tab consumes active-tab L1.
+   - Every scanner/hydration callback must be fenced by IB READY generation + subscription epoch + table + session key before it can write state; a result from a superseded generation/epoch/session is discarded, not applied.
+
+7. **Time & Sales = IBKR only (open symbol).**
    - Feed: `reqTickByTickData(AllLast)` via `backend/ibkr/tape_stream.py`.
    - Scope: selected/open symbol only — same lifecycle as Level 2 (refcounted, 15s resubscribe guard).
    - Transport: `/ws/ibkr/tape/{symbol}` with `msg.symbol` gates on every message.
    - No Alpaca tape in the live UI. `backend/l2/tape.py` (Alpaca recorder) is for historical recording only.
    - Clear tape immediately on symbol switch (never bleed prior symbol's prints into the new view).
 
-7. **HOD Momo under discovery=ibkr is IBKR-driven.**
+8. **HOD eligibility is the current-session displayed union — no side-channel scans.**
    - Price/volume ticks into `hod_momo.on_trade_update` come from IBKR L1 streams (`ibkr/scanner_l1.py` / shared `ibkr/ticks.py`), not Alpaca WS.
-   - HOD discovery remains independent of the active table: `hod_momo_seed` polls IBKR `HOT_BY_VOLUME` / `TOP_VOLUME_RATE` / `MOST_ACTIVE`; the reserved HOD pool must reserve slots for volume seeds so 40 gainers cannot starve externally discovered runners.
+   - HOD Momo's active set is exactly: current-session Gappers ∪ Gainers ∪ Afterhours ∪ manually curated Former Momo. Nothing else — Losers, the open ticker, IBKR volume seeds (`HOT_BY_VOLUME`/`TOP_VOLUME_RATE`/`MOST_ACTIVE`), a second `belowPrice`-filtered Gainers pass, and rotating discovery "explore" are excluded from HOD admission (ADR 008).
+   - Sub-$20 stocks are ordinary Gainers rows — no special scanner, quota, or reserved slot.
    - `websocket.alpaca_trades_drive_hod()` is False when discovery=ibkr — skip `on_trade_update` and `l2.tape.on_alpaca_trade` for Alpaca prints.
    - `websocket.stream_loop` **does not open** Alpaca's market-data WebSocket under ibkr (idles and polls). Avoids dual-feed and Alpaca's one-connection limit.
    - Depth/tape hooks must compare `msg.symbol` to an **uppercased** current symbol key.
@@ -60,7 +68,9 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Nesting table reprice inside `_scan_loop` sleep (starves prices for 10–90s during movers scans)
 - ❌ Using `reqTickersAsync` / 4s timeouts for active-table freshness (IB `tickSnapshotEnd` ≈ 11s)
 - ❌ Streaming the whole discovery universe via `reqMktData`
-- ❌ Letting gainer/gapper rows fill the entire HOD active set so volume-seed runners never get L1
+- ❌ Mutating a `frozen` table's membership/rank/values/timestamp after its session boundary
+- ❌ Applying a scanner/hydration callback from a superseded IB generation, subscription epoch, or session key
+- ❌ Reviving HOD volume seeds, a `belowPrice` Gainers pass, open-ticker priority, or Losers as HOD inputs
 - ❌ Pretending table prices are live when the active-tab L1 subscription is incomplete
 - ❌ Feeding T&S from the Alpaca recorder (`l2.tape`) instead of `tape_stream.py`
 - ❌ Showing prior symbol's prints in T&S after a symbol switch
@@ -69,6 +79,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 
 ## Related
 
+- `architecture/decisions/008-persistent-ibkr-scanner-rosters.md` — session-owned roster ADR
+- `backend/ibkr/scanner_stream.py` — persistent scanner subscriptions, freeze/rollover
 - `backend/chart_bars.py` — IBKR-only when discovery=ibkr
 - `backend/ibkr/scanner_l1.py` — active-tab + reserved HOD L1 streams → `/ws/scanner`
 - `backend/ibkr/ticks.py` — shared owner-aware `reqMktData` (detail / scanner / HOD)

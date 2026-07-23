@@ -53,6 +53,7 @@ from ibkr import gateway_heal as _heal
 from ibkr import safety as _safety
 from ibkr import session_state as _session
 from ibkr.errors import StaleIbkrSessionError
+from runtime_state import get_runtime_state as _get_runtime_state
 
 # ── Module-level state ─────────────────────────────────────────────────────────
 _ib: "IB | None" = None
@@ -69,6 +70,25 @@ def _set_session(*, mode: str, broker_account_kind: str) -> None:
     global _mode, _broker_account_kind
     _mode = mode
     _broker_account_kind = broker_account_kind
+
+
+def _clear_sticky_bridge_error_on_ready() -> None:
+    """Drop any ``ibkr_bridge_last_error`` recorded while the session was
+    down/degraded (see PROBLEM_LOG 2026-07-23 sticky-banner-after-reconnect).
+
+    A disconnect-window failure (``ib=none``) must not outlive reconnect —
+    once the session reaches READY, movers/L1 are live again, so an old
+    error string left over from the outage would otherwise paint Integrity
+    fail red indefinitely until the next successful movers refresh (or a
+    full API restart). This makes reconnect self-heal immediately.
+    """
+    try:
+        state = _get_runtime_state()
+    except Exception:
+        return
+    if getattr(state, "ibkr_bridge_last_error", ""):
+        state.ibkr_bridge_last_error = ""
+        state.ibkr_bridge_last_error_ts = 0.0
 
 
 def _ensure_wake_event() -> asyncio.Event:
@@ -355,6 +375,7 @@ async def reconnect_loop() -> None:
                     await _account.refresh_positions_cache(_ib)
                     await _account.refresh_completed_orders_cache(_ib)
                     gen = _session.set_ready()
+                    _clear_sticky_bridge_error_on_ready()
                     logger.info("IBKR: session READY (generation %d)", gen)
                 else:
                     logger.error(
@@ -391,6 +412,7 @@ async def reconnect_loop() -> None:
                     await _account.refresh_positions_cache(_ib)
                     await _account.refresh_completed_orders_cache(_ib)
                     gen = _session.set_ready()
+                    _clear_sticky_bridge_error_on_ready()
                     logger.info("IBKR: session READY after self-heal (generation %d)", gen)
                     continue
                 _set_session(mode="disconnected", broker_account_kind="unknown")

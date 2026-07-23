@@ -22,8 +22,9 @@ import hod_momo_universe as _hod_uni
 from alpaca import _env, _get_discovery_provider, _get_feed, _try_fallback_to_iex
 from cache import (
     save_afterhours_snapshot,
+    save_gainer_snapshot,
     save_gapper_snapshot,
-    save_movers_snapshot,
+    save_loser_snapshot,
 )
 from constants import (
     ALPACA_WS_BACKOFF_CAP,
@@ -175,8 +176,12 @@ def handle_trade(msg: dict) -> int | None:
             if entry:
                 updated_volume = entry.get("volume")
 
-    if gainer_updated or loser_updated:
-        save_movers_snapshot(state.gainer_cache, state.loser_cache, now)
+    # Independent revisions (ADR 008) — a Losers-only trade must never touch
+    # Gainers' snapshot timestamp, and vice versa.
+    if gainer_updated:
+        save_gainer_snapshot(state.gainer_cache, now)
+    if loser_updated:
+        save_loser_snapshot(state.loser_cache, now)
 
     return updated_volume
 

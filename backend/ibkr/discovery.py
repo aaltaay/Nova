@@ -27,14 +27,13 @@ import time
 from constants import (
     GAPPER_MIN_GAP_PCT,
     IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC,
+    IBKR_ERROR_SCANNER_SLOT_EXHAUSTED,
     IBKR_QUOTE_BATCH_TIMEOUT_SEC,
-    IBKR_HOD_SEED_BELOW_PRICE,
     IBKR_SCAN_ABOVE_PRICE,
     IBKR_SCAN_CODE_AH_GAINERS,
     IBKR_SCAN_CODE_GAINERS,
     IBKR_SCAN_CODE_GAPPERS,
     IBKR_SCAN_CODE_LOSERS,
-    IBKR_SCAN_HOD_SEED_CODES,
     IBKR_SCAN_INSTRUMENT,
     IBKR_SCAN_LOCATION,
     IBKR_SCAN_MAX_ROWS,
@@ -43,12 +42,13 @@ from constants import (
     SCANNER_MIN_PRICE,
 )
 from ibkr import client as _client
-from ibkr.errors import IbkrDiscoveryError, describe_exc
+from ibkr.errors import IbkrDiscoveryError, IbkrScannerSlotExhaustedError, describe_exc
 
 logger = logging.getLogger(__name__)
 
 _Stock = None
 _ScannerSubscription = None
+_ScanDataList = None
 # Qualified Stock contracts reused across cold snapshot calls.
 _qualified_contracts: dict[str, object] = {}
 # Serialize cold reqTickersAsync so discovery/enrichment cannot fan out
@@ -61,6 +61,12 @@ _scan_cache: dict[tuple[str, int, float | None], tuple[float, list[str]]] = {}
 # Serialize one-shot scanners so we never hold more than one of IBKR's
 # 10 simultaneous API scanner slots from this process (Error 322).
 _scan_lock: asyncio.Lock | None = None
+# reqIds for scanner subscriptions currently open from this process. Added
+# right after reqScannerSubscription, discarded once _one_shot_scanner's
+# finally has attempted cancellation — belt-and-suspenders for
+# recover_scanner_slots() if that cancel itself raised (see PROBLEM_LOG
+# 2026-07-23 IBKR Error 322 scanner subscription leak).
+_inflight_scan_reqids: set[int] = set()
 
 
 def reset_scan_cache() -> None:
@@ -83,13 +89,14 @@ def _get_snapshot_lock() -> asyncio.Lock:
 
 
 def _load_ib_types() -> bool:
-    global _Stock, _ScannerSubscription
+    global _Stock, _ScannerSubscription, _ScanDataList
     if _Stock is not None:
         return True
     try:
-        from ib_async import ScannerSubscription, Stock
+        from ib_async import ScanDataList, ScannerSubscription, Stock
         _Stock = Stock
         _ScannerSubscription = ScannerSubscription
+        _ScanDataList = ScanDataList
         return True
     except ImportError:
         return False
@@ -114,11 +121,38 @@ async def _one_shot_scanner(ib, sub) -> list:
     toward IBKR Error 322 (max 10 simultaneous API scanner subscriptions).
     Once those slots are full, every later scan returns 0 symbols / Error 365
     and HOD seeds + losers look permanently empty.
+
+    Raises ``IbkrScannerSlotExhaustedError`` when IBKR itself rejects the
+    request with Error 322. With ``RaiseRequestErrors=False`` (ib_async's
+    default) that error resolves the request's future to ``[]`` with no
+    exception — indistinguishable from a genuinely empty market — so this
+    listens on ``errorEvent`` directly rather than trusting the future.
     """
     data_list = ib.reqScannerSubscription(sub)
+    req_id = getattr(data_list, "reqId", None)
+    if req_id is not None:
+        _inflight_scan_reqids.add(req_id)
+
+    slot_exhausted = False
+
+    def _on_scan_error(err_req_id: int, error_code: int, *_rest: object) -> None:
+        nonlocal slot_exhausted
+        if error_code == IBKR_ERROR_SCANNER_SLOT_EXHAUSTED and err_req_id == req_id:
+            slot_exhausted = True
+
+    # hasattr-guarded: real ib_async.IB always has errorEvent; minimal test
+    # doubles that only stub reqScannerSubscription/wrapper.startReq do not.
+    has_error_hook = hasattr(ib, "errorEvent")
+    if has_error_hook:
+        ib.errorEvent += _on_scan_error
     future = ib.wrapper.startReq(data_list.reqId, container=data_list)
     try:
         await asyncio.wait_for(future, timeout=IBKR_SCAN_REQUEST_TIMEOUT_SEC)
+        if slot_exhausted:
+            raise IbkrScannerSlotExhaustedError(
+                f"IBKR Error {IBKR_ERROR_SCANNER_SLOT_EXHAUSTED}: no free scanner "
+                f"subscription slot (reqId={req_id})"
+            )
         return list(future.result() or [])
     except asyncio.TimeoutError:
         logger.warning(
@@ -128,6 +162,8 @@ async def _one_shot_scanner(ib, sub) -> list:
         )
         raise
     finally:
+        if has_error_hook:
+            ib.errorEvent -= _on_scan_error
         try:
             ib.cancelScannerSubscription(data_list)
         except Exception:
@@ -139,6 +175,75 @@ async def _one_shot_scanner(ib, sub) -> list:
                     getattr(data_list, "reqId", None),
                     exc_info=True,
                 )
+        if req_id is not None:
+            _inflight_scan_reqids.discard(req_id)
+
+
+async def _scan_once_with_recovery(ib, sub, scan_code: str) -> list:
+    """Run one scan attempt; on Error 322 (slot exhaustion) recover leaked
+    scanner slots and retry exactly once under the same ``_scan_lock`` hold.
+
+    A second consecutive ``IbkrScannerSlotExhaustedError`` is not retried
+    again here — it propagates to ``scan_symbols``'s generic exception
+    handler and surfaces as a normal ``IbkrDiscoveryError`` failure.
+    """
+    try:
+        return await _one_shot_scanner(ib, sub)
+    except IbkrScannerSlotExhaustedError:
+        recovered = recover_scanner_slots(ib)
+        logger.warning(
+            "IBKR scanner %s: slot exhausted (Error %d) — recovered %d slot(s), retrying once",
+            scan_code, IBKR_ERROR_SCANNER_SLOT_EXHAUSTED, recovered,
+        )
+        return await _one_shot_scanner(ib, sub)
+
+
+def recover_scanner_slots(ib) -> int:
+    """Surgically reclaim leaked IBKR scanner-subscription slots.
+
+    Cancels only (a) reqIds this process still has recorded as in-flight —
+    belt-and-suspenders for a ``_one_shot_scanner`` finally-block cancel that
+    itself raised — and (b) any entry in ib_async's own
+    ``wrapper.reqId2Subscriber`` registry whose container is a
+    ``ScanDataList`` (a real open scanner subscription IBKR is still holding
+    for this clientId, regardless of which call created it). Never touches
+    mktData/tick/order/bar subscribers, and never disconnects — this is the
+    Error 322 recovery path, not a Gateway restart (see PROBLEM_LOG
+    2026-07-23 IBKR scanner subscription leak).
+    """
+    if ib is None or not _load_ib_types():
+        return 0
+    wrapper = getattr(ib, "wrapper", None)
+    registry = getattr(wrapper, "reqId2Subscriber", None) if wrapper is not None else None
+    candidates: dict[int, object] = {req_id: None for req_id in list(_inflight_scan_reqids)}
+    if isinstance(registry, dict):
+        for req_id, subscriber in list(registry.items()):
+            if isinstance(subscriber, _ScanDataList):
+                candidates[req_id] = subscriber
+
+    recovered = 0
+    for req_id, subscriber in candidates.items():
+        try:
+            if subscriber is not None:
+                ib.cancelScannerSubscription(subscriber)
+            else:
+                ib.client.cancelScannerSubscription(req_id)
+                if isinstance(registry, dict):
+                    registry.pop(req_id, None)
+            recovered += 1
+        except Exception:
+            logger.debug(
+                "recover_scanner_slots: cancel failed for reqId=%s", req_id, exc_info=True,
+            )
+        finally:
+            _inflight_scan_reqids.discard(req_id)
+
+    if recovered:
+        logger.warning(
+            "IBKR: recover_scanner_slots reclaimed %d leaked scanner subscription slot(s)",
+            recovered,
+        )
+    return recovered
 
 
 async def scan_symbols(
@@ -176,7 +281,7 @@ async def scan_symbols(
 
     async with _get_scan_lock():
         try:
-            rows = await _one_shot_scanner(ib, sub)
+            rows = await _scan_once_with_recovery(ib, sub, scan_code)
         except asyncio.TimeoutError as exc:
             raise IbkrDiscoveryError(
                 f"scanner {scan_code} timed out after {IBKR_SCAN_REQUEST_TIMEOUT_SEC:.0f}s"
@@ -426,49 +531,6 @@ async def get_afterhours_gainers() -> list[dict]:
     fallback only, used when this scan is empty.
     """
     return await _get_movers(IBKR_SCAN_CODE_AH_GAINERS, reverse=True)
-
-
-async def scan_hod_momentum_seeds() -> list[str]:
-    """Union of IBKR volume/activity scanners used to seed HOD Momo watch set.
-
-    Warrior's HOD scanner watches the whole tape; Nova approximates mid-day
-    runners via a **sub-$N TOP_PERC_GAIN pass first** (active seed_slots only
-    consume the list head), then HOT_BY_VOLUME / TOP_VOLUME_RATE / MOST_ACTIVE
-    / uncapped TOP_PERC_GAIN. Appending the below-price pass after ~150 volume
-    rows left PN/BTMD-class squeezes outside the reserved L1 seed quota.
-
-    Transport failures on individual codes are logged and skipped; if **every**
-    code fails, raises ``IbkrDiscoveryError`` so callers keep prior seeds.
-    """
-    seen: set[str] = set()
-    ordered: list[str] = []
-    failures: list[str] = []
-
-    def _add(symbols: list[str]) -> None:
-        for sym in symbols:
-            if sym not in seen:
-                seen.add(sym)
-                ordered.append(sym)
-
-    async def _safe_scan(code: str, **kwargs) -> None:
-        try:
-            _add(await scan_symbols(code, **kwargs))
-        except IbkrDiscoveryError as exc:
-            failures.append(f"{code}: {describe_exc(exc)}")
-            logger.warning("HOD seed scan skipped (%s): %s", code, describe_exc(exc))
-
-    # Head of list → HOD active seed_slots. Sub-$N % gainers before volume.
-    await _safe_scan(
-        IBKR_SCAN_CODE_GAINERS,
-        below_price=IBKR_HOD_SEED_BELOW_PRICE,
-    )
-    for code in IBKR_SCAN_HOD_SEED_CODES:
-        await _safe_scan(code)
-    if not ordered and failures:
-        raise IbkrDiscoveryError(
-            "all HOD seed scanners failed: " + "; ".join(failures[:4])
-        )
-    return ordered
 
 
 def reprice_gapper_row(g: dict, q: dict) -> dict:

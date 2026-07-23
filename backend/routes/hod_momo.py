@@ -33,7 +33,6 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 
 import hod_momo as _hod_momo
-import hod_momo_universe as _hod_uni
 import strategy.setups_stream as _setups_stream
 from cache import list_history_dates as _list_history_dates
 from hod_momo_session import current_date_et
@@ -149,7 +148,6 @@ def hod_momo_debug_counters():
     out["watch_universe_mode"] = (
         (HOD_MOMO_UNIVERSE_MODE or HOD_MOMO_UNIVERSE_MODE_FOCUS).strip().lower()
     )
-    out["watch_seed_size"] = len(_hod_uni.get_seed_symbols())
     return out
 
 

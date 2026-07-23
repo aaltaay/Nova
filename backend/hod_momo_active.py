@@ -1,8 +1,12 @@
-"""Capacity-bounded HOD active evaluation set + fair reqTickersAsync scheduler.
+"""Capacity-bounded HOD active evaluation set (ADR 008).
 
-Discovery watch set (scanners + seeds) may be large; only the active set is kept
-within quote/evaluation SLOs. Uncovered discovery symbols are explicit.
-Never opens reqMktData for the whole universe.
+HOD eligibility is exactly the current-session displayed union: Gappers,
+Gainers, Afterhours, and the manually curated Former Momo list — nothing
+else. No volume seeds, no open-ticker priority, no Losers, no rotating
+"explore" tail. Admission order: Former Momo first (every registered symbol
+guaranteed a slot — see ``hod_momo_admin.update_config``'s capacity check),
+then a deterministic round-robin across ranked Gappers / Gainers /
+Afterhours queues so no single category can monopolize the active set.
 """
 from __future__ import annotations
 
@@ -11,12 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from constants import (
-    HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC,
-    HOD_MOMO_ACTIVE_EXPLORE_SLOTS,
-    HOD_MOMO_ACTIVE_FORMER_SLOTS,
     HOD_MOMO_ACTIVE_HOT_PER_TICK,
-    HOD_MOMO_ACTIVE_MOVER_SLOTS,
-    HOD_MOMO_ACTIVE_SEED_SLOTS,
     HOD_MOMO_ACTIVE_SET_CAPACITY,
     HOD_MOMO_INTEGRITY_ACTIVE_EVAL_MAX_SEC,
     HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC,
@@ -34,7 +33,6 @@ _uncovered_symbols: list[str] = []
 # symbol → unix deadline; set when IBKR L1 subscribe/qualify fails
 _l1_fail_until: dict[str, float] = {}
 _tail_rotate = 0
-_last_explore_rotate_ts = 0.0
 
 
 @dataclass
@@ -123,7 +121,7 @@ def is_l1_subscribe_blocked(symbol: str, now: float | None = None) -> bool:
 
 
 def clear_session_state() -> None:
-    global _tail_rotate, _active_symbols, _uncovered_symbols, _last_explore_rotate_ts
+    global _tail_rotate, _active_symbols, _uncovered_symbols
     _last_quote_ts.clear()
     _last_eval_ts.clear()
     _universe_entry_ts.clear()
@@ -132,7 +130,6 @@ def clear_session_state() -> None:
     _active_symbols = []
     _uncovered_symbols = []
     _tail_rotate = 0
-    _last_explore_rotate_ts = 0.0
 
 
 def _row_score(row: dict) -> float:
@@ -148,7 +145,7 @@ def _row_score(row: dict) -> float:
 
 
 def _ordered_unique(symbols: Iterable[str]) -> list[str]:
-    """Preserve first-seen rank order (do not alphabetically sort seeds)."""
+    """Preserve first-seen rank order (do not alphabetically sort)."""
     out: list[str] = []
     seen: set[str] = set()
     for raw in symbols:
@@ -160,30 +157,39 @@ def _ordered_unique(symbols: Iterable[str]) -> list[str]:
     return out
 
 
+def _ranked_symbols(rows: Iterable[dict] | None) -> list[str]:
+    """Rows ranked by magnitude of move, hottest first (ties by symbol)."""
+    ranked: list[tuple[float, str]] = []
+    seen: set[str] = set()
+    for row in rows or []:
+        sym = (row.get("symbol") or "").strip().upper()
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        ranked.append((_row_score(row), sym))
+    ranked.sort(key=lambda t: (-t[0], t[1]))
+    return [sym for _score, sym in ranked]
+
+
 def build_active_set(
     *,
-    discovery: Iterable[str],
-    gainer_rows: Iterable[dict] | None = None,
-    loser_rows: Iterable[dict] | None = None,
     gapper_rows: Iterable[dict] | None = None,
+    gainer_rows: Iterable[dict] | None = None,
     afterhours_rows: Iterable[dict] | None = None,
-    seed_symbols: Iterable[str] | None = None,
-    detail_symbols: Iterable[str] | None = None,
     priority_symbols: Iterable[str] | None = None,
     capacity: int = HOD_MOMO_ACTIVE_SET_CAPACITY,
-    former_slots: int = HOD_MOMO_ACTIVE_FORMER_SLOTS,
-    mover_slots: int = HOD_MOMO_ACTIVE_MOVER_SLOTS,
-    seed_slots: int = HOD_MOMO_ACTIVE_SEED_SLOTS,
-    explore_slots: int = HOD_MOMO_ACTIVE_EXPLORE_SLOTS,
 ) -> ActiveSetSnapshot:
-    """Capacity-bounded active set with reserved quotas.
+    """Deterministic bounded admission — the ADR 008 HOD union.
 
-    Open tickers always win. Former-momo / session-alert names get a reserved
-    pool so they keep L1 after falling off the top-gainer table. Remaining
-    slots split movers vs IBKR volume seeds vs explore. Uncovered discovery
-    symbols stay explicit.
+    1. Manual Former Momo (``priority_symbols``) admitted first, in list
+       order. ``hod_momo_admin.update_config`` rejects a list longer than
+       ``capacity`` outright, so every registered symbol is guaranteed a
+       slot here — this function never has to silently drop one for space.
+    2. Remaining capacity fills via deterministic round-robin across ranked
+       Gappers / Gainers / Afterhours queues (hottest-in-category first),
+       so no single table can monopolize every slot.
     """
-    global _active_symbols, _uncovered_symbols, _tail_rotate, _last_explore_rotate_ts
+    global _active_symbols, _uncovered_symbols
 
     cap = max(1, int(capacity))
     active: list[str] = []
@@ -194,112 +200,43 @@ def build_active_set(
         s = (sym or "").strip().upper()
         if not s or s in seen or len(active) >= cap:
             return False
-        # Open ticker always wins; everything else skips IBKR L1 rejects so
-        # unqualifiable explore names (FRE-class) cannot occupy a dead slot.
-        if reason != "open_ticker" and is_l1_subscribe_blocked(s):
+        if is_l1_subscribe_blocked(s):
             return False
         seen.add(s)
         active.append(s)
         reasons[s] = reason
         return True
 
-    for raw in detail_symbols or []:
-        _take(raw, "open_ticker")
-
-    # Session focus (Former Momo list + today alert tickers) — before movers.
-    remaining = cap - len(active)
-    f_slots = max(0, min(int(former_slots), remaining))
-    taken_f = 0
     for sym in _ordered_unique(priority_symbols or []):
-        if taken_f >= f_slots:
+        _take(sym, "former_momo")
+
+    queues: dict[str, list[str]] = {
+        "gapper": _ranked_symbols(gapper_rows),
+        "top_gainer": _ranked_symbols(gainer_rows),
+        "afterhours": _ranked_symbols(afterhours_rows),
+    }
+    order = list(queues.keys())
+    idx = 0
+    guard = 0
+    max_guard = 3 * sum(len(q) for q in queues.values()) + len(order) + 1
+    while len(active) < cap and guard <= max_guard:
+        guard += 1
+        name = order[idx % len(order)]
+        idx += 1
+        q = queues[name]
+        while q and q[0] in seen:
+            q.pop(0)
+        if q:
+            _take(q.pop(0), name)
+        if not any(queues.values()):
             break
-        if _take(sym, "session_focus"):
-            taken_f += 1
-
-    mover_ranked: list[tuple[str, str, float]] = []
-    for rows, reason in (
-        (gainer_rows, "top_gainer"),
-        (gapper_rows, "gapper"),
-        (afterhours_rows, "afterhours"),
-        (loser_rows, "top_loser"),
-    ):
-        for row in rows or []:
-            sym = (row.get("symbol") or "").strip().upper()
-            if sym:
-                mover_ranked.append((sym, reason, _row_score(row)))
-    mover_ranked.sort(key=lambda t: (-t[2], t[0]))
-
-    seeds = _ordered_unique(seed_symbols or [])
-    disco = _ordered_unique(discovery)
-
-    # Quota budget after open tickers + session focus.
-    remaining = cap - len(active)
-    m_slots = max(0, min(int(mover_slots), remaining))
-    s_slots = max(0, min(int(seed_slots), remaining - m_slots))
-    e_slots = max(0, min(int(explore_slots), remaining - m_slots - s_slots))
-    # Spill unused quota forward so capacity stays fully used.
-    spill = remaining - m_slots - s_slots - e_slots
-    spill += f_slots - taken_f
-
-    taken_m = 0
-    for sym, reason, _score in mover_ranked:
-        if taken_m >= m_slots:
-            break
-        if _take(sym, reason):
-            taken_m += 1
-    spill += m_slots - taken_m
-
-    taken_s = 0
-    seed_budget = s_slots + spill
-    for sym in seeds:
-        if taken_s >= seed_budget:
-            break
-        if _take(sym, "volume_seed"):
-            taken_s += 1
-    spill = seed_budget - taken_s
-
-    # Rotating exploration tail from discovery not already selected.
-    # Advance rotation at most every HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC so the
-    # 1Hz L1 reconcile loop does not thrash reqMktData subscribe/cancel.
-    explore_pool = [s for s in disco if s not in seen]
-    taken_e = 0
-    explore_budget = e_slots + spill
-    if explore_pool and explore_budget > 0:
-        start = _tail_rotate % len(explore_pool)
-        rotated = explore_pool[start:] + explore_pool[:start]
-        now_ts = time.time()
-        if now_ts - _last_explore_rotate_ts >= float(HOD_MOMO_ACTIVE_EXPLORE_ROTATE_SEC):
-            _tail_rotate += 1
-            _last_explore_rotate_ts = now_ts
-        for sym in rotated:
-            if taken_e >= explore_budget:
-                break
-            if _take(sym, "discovery"):
-                taken_e += 1
-
-    # Fill any leftover from remaining movers then seeds then discovery.
-    if len(active) < cap:
-        for sym, reason, _score in mover_ranked:
-            if len(active) >= cap:
-                break
-            _take(sym, reason)
-    if len(active) < cap:
-        for sym in seeds:
-            if len(active) >= cap:
-                break
-            _take(sym, "volume_seed")
-    if len(active) < cap:
-        for sym in disco:
-            if len(active) >= cap:
-                break
-            _take(sym, "discovery")
 
     all_candidates = _ordered_unique(
         list(active)
-        + [t[0] for t in mover_ranked]
-        + seeds
-        + disco
-        + [(s or "").strip().upper() for s in (detail_symbols or []) if s],
+        + list(priority_symbols or [])
+        + _ranked_symbols(gapper_rows)
+        + _ranked_symbols(gainer_rows)
+        + _ranked_symbols(afterhours_rows)
     )
     uncovered = [s for s in all_candidates if s not in seen]
 
@@ -307,8 +244,9 @@ def build_active_set(
     _priority_reason.update(reasons)
     note_universe_entries(active + uncovered)
 
-    # Drop quote/eval ages for demoted symbols. Keeping them makes recycled
-    # explore names report hours-old max ages after a later failed re-subscribe.
+    # Drop quote/eval ages for demoted symbols. Keeping them makes a symbol
+    # that later re-enters report a stale, hours-old age from before it was
+    # dropped.
     prev_active = set(_active_symbols)
     next_active = set(active)
     for sym in prev_active - next_active:

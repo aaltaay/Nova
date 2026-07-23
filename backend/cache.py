@@ -110,7 +110,9 @@ def cleanup_old_snapshots(retention_days: int) -> None:
     if not os.path.isdir(_CACHE_DIR):
         return
     cutoff = (datetime.now(_ET) - timedelta(days=retention_days)).strftime("%Y-%m-%d")
-    pattern = re.compile(r"^(gappers|movers|afterhours|hod-momo)-(\d{4}-\d{2}-\d{2})\.json$")
+    pattern = re.compile(
+        r"^(gappers|gainers|losers|movers|afterhours|hod-momo)-(\d{4}-\d{2}-\d{2})\.json$"
+    )
     for fname in os.listdir(_CACHE_DIR):
         m = pattern.match(fname)
         if m and m.group(2) < cutoff:
@@ -253,9 +255,68 @@ def load_afterhours_snapshot() -> tuple[list[dict], float]:
 
 
 # ── Movers (gainers + losers) ─────────────────────────────────────────────────
+# ADR 008: Gainers and Losers freeze/update independently (Gainers 04:00–16:00,
+# Losers RTH-only, UI-only, never HOD) — each owns its own dated file/revision so
+# a Gainers freeze can never advance Losers' timestamp, and vice versa. The
+# combined ``movers-*.json`` file remains a read-only compatibility fallback for
+# snapshots written before this split (see load_movers_snapshot).
+
+def save_gainer_snapshot(gainers: list[dict], ts: float) -> None:
+    """Atomically persist the gainer cache to today's dated file."""
+    try:
+        payload = {"date": _today_et(), "ts": ts, "gainers": gainers}
+        _atomic_write(_dated_path("gainers", _today_et()), payload)
+    except Exception:
+        logger.warning("cache: save_gainer_snapshot failed to persist to disk", exc_info=True)
+
+
+def load_gainer_snapshot() -> tuple[list[dict], float]:
+    """Load today's gainer snapshot. Returns ([], 0.0) if missing/stale."""
+    try:
+        path = _dated_path("gainers", _today_et())
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("date") != _today_et():
+            return [], 0.0
+        raw = data.get("gainers", [])
+        ts = float(data.get("ts", 0.0))
+        if not isinstance(raw, list):
+            return [], 0.0
+        return raw, ts
+    except Exception:
+        return [], 0.0
+
+
+def save_loser_snapshot(losers: list[dict], ts: float) -> None:
+    """Atomically persist the loser cache to today's dated file."""
+    try:
+        payload = {"date": _today_et(), "ts": ts, "losers": losers}
+        _atomic_write(_dated_path("losers", _today_et()), payload)
+    except Exception:
+        logger.warning("cache: save_loser_snapshot failed to persist to disk", exc_info=True)
+
+
+def load_loser_snapshot() -> tuple[list[dict], float]:
+    """Load today's loser snapshot. Returns ([], 0.0) if missing/stale."""
+    try:
+        path = _dated_path("losers", _today_et())
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        if data.get("date") != _today_et():
+            return [], 0.0
+        raw = data.get("losers", [])
+        ts = float(data.get("ts", 0.0))
+        if not isinstance(raw, list):
+            return [], 0.0
+        return raw, ts
+    except Exception:
+        return [], 0.0
+
 
 def save_movers_snapshot(gainers: list[dict], losers: list[dict], ts: float) -> None:
-    """Atomically persist the movers (gainers + losers) cache to today's dated file."""
+    """Deprecated combined writer — kept only so old on-disk snapshots stay
+    readable by ``load_movers_snapshot``'s fallback. New writes go through
+    ``save_gainer_snapshot`` / ``save_loser_snapshot`` (independent revisions)."""
     try:
         payload = {"date": _today_et(), "ts": ts, "gainers": gainers, "losers": losers}
         _atomic_write(_dated_path("movers", _today_et()), payload)
@@ -265,25 +326,31 @@ def save_movers_snapshot(gainers: list[dict], losers: list[dict], ts: float) -> 
 
 def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
     """
-    Load today's movers snapshot from disk.
+    Load today's gainers + losers snapshot from disk.
 
-    Returns (gainers, losers, ts) if the file exists and was written today (ET),
-    otherwise returns ([], [], 0.0) so the scan loop starts fresh.
+    Prefers the independent ``gainers-*.json`` / ``losers-*.json`` files; falls
+    back to the legacy combined ``movers-*.json`` only for whichever side has
+    no independent file yet (one-time migration read, not a write path).
     """
+    gainers, gainers_ts = load_gainer_snapshot()
+    losers, losers_ts = load_loser_snapshot()
+    if gainers and losers:
+        return gainers, losers, max(gainers_ts, losers_ts)
     try:
         path = _dated_path("movers", _today_et())
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        if data.get("date") != _today_et():
-            return [], [], 0.0
-        gainers = data.get("gainers", [])
-        losers = data.get("losers", [])
-        ts = float(data.get("ts", 0.0))
-        if not isinstance(gainers, list) or not isinstance(losers, list):
-            return [], [], 0.0
-        return gainers, losers, ts
+        if data.get("date") == _today_et():
+            legacy_gainers = data.get("gainers", [])
+            legacy_losers = data.get("losers", [])
+            legacy_ts = float(data.get("ts", 0.0))
+            if not gainers and isinstance(legacy_gainers, list):
+                gainers, gainers_ts = legacy_gainers, legacy_ts
+            if not losers and isinstance(legacy_losers, list):
+                losers, losers_ts = legacy_losers, legacy_ts
     except Exception:
-        return [], [], 0.0
+        pass
+    return gainers, losers, max(gainers_ts, losers_ts)
 
 
 # ── HOD Momo — alert snapshots ────────────────────────────────────────────────

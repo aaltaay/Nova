@@ -96,10 +96,13 @@ describe('HodMomoAlertTable virtualization', () => {
     expect(container.textContent).not.toContain('SYM3000');
 
     // Scroll deep into a 5,000-row list — this used to be exactly the case
-    // that made the old batch-append table mount thousands of rows.
+    // that made the old batch-append table mount thousands of rows. The
+    // handler coalesces scroll events to one windowing update per animation
+    // frame, so the test must let that frame run before asserting.
     await act(async () => {
       wrapper.scrollTop = 3_000 * HOD_MOMO_ROW_HEIGHT_PX;
       wrapper.dispatchEvent(new Event('scroll', { bubbles: true }));
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
     });
 
     const mountedAfterScroll = container.querySelectorAll('tr.hod-alert-row').length;

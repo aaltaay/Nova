@@ -13,6 +13,8 @@ from __future__ import annotations
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from datetime import timedelta
+
 from constants import (
     HOD_MOMO_RVOL_PACE_FLOOR,
     SESSION_AFTERHOURS_END_MIN_ET,
@@ -27,6 +29,17 @@ ET = ZoneInfo("America/New_York")
 
 def now_et() -> datetime:
     return datetime.now(ET)
+
+
+def session_key_et(now: datetime | None = None) -> str:
+    """04:00 ET-anchored trading-session key (ISO date, ``YYYY-MM-DD``).
+
+    Midnight–03:59 ET belongs to the *prior* completed session — a restart
+    in that window must not fabricate a new morning scan or resurrect a
+    stale prior-session snapshot as today's live table (ADR 008).
+    """
+    now = (now or now_et()).astimezone(ET)
+    return (now - timedelta(hours=SESSION_PREMARKET_START_MIN_ET // 60)).date().isoformat()
 
 
 def _et_at_minutes(now: datetime, minutes: int) -> datetime:

@@ -2,7 +2,7 @@
  * Main dashboard shell — header, settings, tabs, side panel.
  * Extracted from App.tsx (root stays layout + Stock View gate only).
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
 import { partitionScannerAlerts } from '../hod_momo/scannerPartition';
@@ -114,7 +114,13 @@ export function DashboardPage() {
   const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
   const filteredLosers = exchangeFilter.filterRows(scanner.losers);
   const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
-  const { hodMomentum, runningUp } = partitionScannerAlerts(hodMomoStream.alerts);
+  // Stable references so the 1Hz `scanner.now` clock tick (used only for
+  // scanner-table staleness elsewhere on this page) does not force a fresh
+  // partition + re-render of the HOD Momo tree on every render of this page.
+  const { hodMomentum, runningUp } = useMemo(
+    () => partitionScannerAlerts(hodMomoStream.alerts),
+    [hodMomoStream.alerts],
+  );
 
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;

@@ -28,7 +28,6 @@ from fundamentals import (
 )
 from scanner import _is_common_stock, fetch_avg_volume_batch
 from runtime_state import get_runtime_state
-from ticker import _ticker_ws_clients
 from websocket import mark_resub as _ws_mark_resub
 
 logger = logging.getLogger(__name__)
@@ -135,19 +134,19 @@ def refresh_hod_momo_universe() -> None:
             logger.warning("HOD Momo broad universe refresh failed: %s", exc)
             return
     else:
-        detail = [sym for sym, clients in _ticker_ws_clients.items() if clients]
         try:
             import hod_momo_former as _former
 
             extras = _former.former_momo_priority_symbols()
         except Exception:
             extras = []
+        # ADR 008: watch universe mirrors HOD eligibility exactly — Gappers ∪
+        # Gainers ∪ Afterhours ∪ Former Momo. No Losers, no open-ticker
+        # priority (open ticker L1 already has its own dedicated owner).
         symbols = _hod_uni.build_focus_universe(
             gapper_rows=state.gapper_cache,
             gainer_rows=state.gainer_cache,
-            loser_rows=state.loser_cache,
             afterhours_rows=state.afterhours_cache,
-            detail_symbols=detail,
             extra_symbols=extras,
             is_blocked=_hod_momo.is_blocked,
         )

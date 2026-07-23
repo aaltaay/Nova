@@ -13,7 +13,13 @@ monkeypatch symbols (``_ibkr_discovery``, ``run_ibkr``); callers use
 from __future__ import annotations
 
 from alpaca import _alpaca_headers, _get_discovery_provider
-from cache import save_afterhours_snapshot, save_gapper_snapshot, save_movers_snapshot
+from cache import (
+    save_afterhours_snapshot,
+    save_gainer_snapshot,
+    save_gapper_snapshot,
+    save_loser_snapshot,
+    save_movers_snapshot,
+)
 from composition.market_data_providers import get_discovery_port, get_movers_port
 from ibkr import discovery as _ibkr_discovery
 from ibkr_bridge import enrich_ibkr_mover, run_ibkr
@@ -44,6 +50,8 @@ __all__ = [
     "save_gapper_snapshot",
     "save_afterhours_snapshot",
     "save_movers_snapshot",
+    "save_gainer_snapshot",
+    "save_loser_snapshot",
     "enrich_ibkr_mover",
     "get_discovery_port",
     "get_movers_port",

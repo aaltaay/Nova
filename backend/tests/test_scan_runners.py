@@ -158,3 +158,32 @@ def test_run_gainers_update_clears_sticky_bridge_error(monkeypatch):
 
     assert state.gainer_cache
     assert state.ibkr_bridge_last_error == ""
+
+
+def test_run_gainers_update_clears_sticky_bridge_error_on_losers_only(monkeypatch):
+    """Clearing must not require gainers specifically — losers landing rows
+    proves the bridge is live again just as well (see PROBLEM_LOG 2026-07-23
+    sticky-banner-after-reconnect)."""
+    state = _fake_state()
+    state.ibkr_bridge_last_error = "losers: IbkrDiscoveryError: ib=none"
+    state.ibkr_bridge_last_error_ts = 1_700_000_000.0
+    monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
+    monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
+    monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
+    monkeypatch.setattr(
+        scan_runners,
+        "get_movers_port",
+        lambda: _FakeMoversPort([], [{"symbol": "ZZZ", "price": 5.0, "change_pct": -0.05}]),
+    )
+    monkeypatch.setattr(
+        scan_runners,
+        "enrich_ibkr_mover",
+        lambda row, news: {**row, "enriched": True},
+    )
+    monkeypatch.setattr(scan_runners, "save_movers_snapshot", lambda *a, **k: None)
+    monkeypatch.setattr(scan_runners, "mark_resub", lambda: None)
+
+    scan_runners.run_gainers_update()
+
+    assert state.loser_cache
+    assert state.ibkr_bridge_last_error == ""

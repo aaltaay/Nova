@@ -21,7 +21,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import hod_momo as _hod_momo
 import hod_momo_enrichment as _hod_momo_enrichment
 import hod_momo_heartbeat as _hod_momo_heartbeat
-import hod_momo_seed as _hod_momo_seed
 import hod_momo_surge_seed as _hod_momo_surge_seed
 import integrity_live as _integrity_live
 import journal.db as _journal_db
@@ -224,9 +223,6 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
         ("hod_momo.session_reset", _hod_momo.session_reset_loop),
         ("hod_momo.universe_enrichment", _hod_momo_enrichment.universe_enrichment_loop),
         ("hod_momo.fundamentals_enrichment", _hod_momo_enrichment.fundamentals_enrichment_loop),
-        ("hod_momo.seed_refresh", lambda: _hod_momo_seed.seed_refresh_loop(
-            _get_discovery_provider,
-        )),
         ("integrity_live", _integrity_live.integrity_loop),
         ("setups_stream", _setups_stream.scan_loop),
         ("risk.session_reset", _risk.session_reset_loop),

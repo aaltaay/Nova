@@ -17,11 +17,13 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from constants import (
+    HOD_MOMO_FULL_SESSION_BAR_LIMIT,
     HOD_MOMO_SURGE_SEED_BARS,
     HOD_MOMO_SURGE_SEED_MAX_PER_TICK,
     HOD_MOMO_SURGE_SEED_POLL_SEC,
     HOD_MOMO_SURGE_SEED_TIMEFRAME,
 )
+from market import ET, session_key_et
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +71,27 @@ def bars_to_surge_points(bars: list[dict]) -> list[tuple[float, float]]:
     return points
 
 
-async def _fetch_seed_bars(symbol: str, provider: str) -> list[dict]:
+def filter_bars_to_session(bars: list[dict], session_key: str) -> list[dict]:
+    """Keep only bars whose 04:00 ET-anchored session matches ``session_key``.
+
+    A ``1 D`` IBKR duration pull can include a sliver of the prior calendar
+    day before 04:00 ET; without this filter that stale bar could pollute
+    today's session-high seed.
+    """
+    out: list[dict] = []
+    for bar in bars or []:
+        ts = parse_bar_ts(bar.get("t"))
+        if ts is None:
+            continue
+        bar_et = datetime.fromtimestamp(ts, tz=ET)
+        if session_key_et(bar_et) == session_key:
+            out.append(bar)
+    return out
+
+
+async def _fetch_seed_bars(
+    symbol: str, provider: str, *, limit: int = HOD_MOMO_SURGE_SEED_BARS,
+) -> list[dict]:
     """Fetch recent 1-min bars from the active discovery feed (no silent fallback)."""
     sym = (symbol or "").strip().upper()
     if not sym:
@@ -81,7 +103,7 @@ async def _fetch_seed_bars(symbol: str, provider: str) -> list[dict]:
         result = await _ibkr_bars.fetch_bars_async(
             sym,
             HOD_MOMO_SURGE_SEED_TIMEFRAME,
-            HOD_MOMO_SURGE_SEED_BARS,
+            limit,
             interactive=False,
         )
         return list(result.get("bars") or [])
@@ -91,7 +113,7 @@ async def _fetch_seed_bars(symbol: str, provider: str) -> list[dict]:
     loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
         None,
-        lambda: fetch_bars(sym, HOD_MOMO_SURGE_SEED_TIMEFRAME, HOD_MOMO_SURGE_SEED_BARS),
+        lambda: fetch_bars(sym, HOD_MOMO_SURGE_SEED_TIMEFRAME, limit),
     )
     return list((result or {}).get("bars") or [])
 
@@ -109,19 +131,33 @@ async def surge_seed_loop(get_provider: Callable[[], str]) -> None:
             provider = (get_provider() or "").strip().lower() or "alpaca"
             for sym in pending:
                 try:
-                    bars = await _fetch_seed_bars(sym, provider)
+                    # One fetch, full current session (04:00 ET forward) —
+                    # HOD truth needs the whole session's highs; the 5m/10m
+                    # surge buffer only needs the tail. Fetching once and
+                    # slicing keeps this on the same historical gate/pacing
+                    # queue as before (no extra IBKR request per symbol).
+                    full_session_bars = await _fetch_seed_bars(
+                        sym, provider, limit=HOD_MOMO_FULL_SESSION_BAR_LIMIT,
+                    )
+                    full_session_bars = filter_bars_to_session(
+                        full_session_bars, session_key_et(),
+                    )
+                    bars = full_session_bars[-HOD_MOMO_SURGE_SEED_BARS:]
                     points = bars_to_surge_points(bars)
                     n = hm.seed_price_buffer(sym, points)
-                    # Same bars → session-high seed (max h). Avoids inventing HOD
-                    # from the first L1 last print after admission.
+                    # Full-session bars → session-high seed (max h), not just
+                    # the surge tail. Avoids inventing HOD from the first L1
+                    # last print after admission, and avoids a falsely-low
+                    # floor for a runner whose actual high happened earlier
+                    # in the session than the last 15 minutes.
                     try:
                         import hod_momo_high as _high
 
-                        sh = _high.seed_session_high_from_bars(sym, bars)
+                        sh = _high.seed_session_high_from_bars(sym, full_session_bars)
                         if sh is not None:
                             logger.info(
-                                "HOD Momo high seed: %s session_high=%.4g from %d bars",
-                                sym, sh, len(bars),
+                                "HOD Momo high seed: %s session_high=%.4g from %d full-session bars",
+                                sym, sh, len(full_session_bars),
                             )
                     except Exception as hexc:
                         logger.warning(
