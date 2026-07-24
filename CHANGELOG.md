@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Fix AH scanner sticky bridge-error banner never clearing
+
+- **What:** `run_afterhours_discovery_scan()` and `run_afterhours_focus_scan()` (`backend/scanner_runners/afterhours.py`) now clear `state.ibkr_bridge_last_error` on every successful IBKR-sourced scan, matching the pattern already used by `movers.py`/`discovery.py`.
+- **Why:** The Integrity banner kept showing `scanner_ibkr_bridge: IBKR discovery bridge error (Ns ago): afterhours: TimeoutError` with the age climbing indefinitely, even while AH discovery scans kept succeeding every cycle — the `afterhours` label was never included in the existing clear-on-success fix for `movers`/`gappers`.
+- **Files touched:** `backend/scanner_runners/afterhours.py`, `backend/tests/test_scanner_runners_afterhours.py` (new).
+- **How it works now:** Any successful AH discovery or focus/reprice scan resets the sticky error immediately, so the banner reflects current bridge health instead of the oldest unresolved timeout of the session.
+- **Verified by:** New regression tests (`test_run_afterhours_discovery_scan_clears_sticky_bridge_error`, `test_run_afterhours_focus_scan_clears_sticky_bridge_error`); full backend suite (931 tests) green.
+- **Related:** PROBLEM_LOG 2026-07-23 — "AH scanner sticky ibkr_bridge_last_error never cleared".
+
 ## 2026-07-23 — Fix HOD active-set stale cache (WLDS-style lockout) + persist session highs across restarts
 
 - **What:** `refresh_hod_active_set()` (`backend/ibkr_bridge.py`) no longer memoizes HOD's tracked symbol pool — it always recomputes from the live Gappers/Gainers/Afterhours caches + pinned Former Momo symbols on every tick. HOD session-high truth (`session_highs`/`day_highs`/`session_high_source`/`session_high_seeded`) is now persisted to a dated JSON cache file and restored on startup for the current ET trading session, so a backend restart no longer wipes highs already caught today. A silent one-shot historical-seed failure now logs at `WARNING` instead of a suppressed `DEBUG`.

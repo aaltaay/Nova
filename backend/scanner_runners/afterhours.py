@@ -102,6 +102,12 @@ def run_afterhours_discovery_scan() -> None:
         state.last_afterhours_discovery_ts = time.monotonic()
         sr.mark_resub()
         sr.save_afterhours_snapshot(state.afterhours_cache, state.afterhours_cache_ts)
+        # Clear sticky bridge error on a successful AH refresh (mirrors
+        # movers.py) — this scan re-runs every AH cycle, but nothing ever
+        # cleared the flag for the "afterhours" label, so one bridge timeout
+        # painted Integrity fail for the rest of the session even while AH
+        # rows kept landing every cycle (see PROBLEM_LOG 2026-07-23).
+        state.ibkr_bridge_last_error = ""
         for r in rows:
             sym = r["symbol"]
             avg = state.avg_volume_cache.get(sym)
@@ -176,6 +182,7 @@ def run_afterhours_focus_scan() -> None:
         )
         state.afterhours_cache_ts = time.time()
         sr.save_afterhours_snapshot(state.afterhours_cache, state.afterhours_cache_ts)
+        state.ibkr_bridge_last_error = ""
         return
 
     headers = sr._alpaca_headers()
