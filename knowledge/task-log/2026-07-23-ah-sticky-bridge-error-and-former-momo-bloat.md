@@ -1,6 +1,6 @@
 # 2026-07-23 — AH sticky bridge-error fix + Former Momo watchlist bloat diagnosis
 
-- **Status:** completed (bridge-error fix); diagnosed, awaiting user decision (Former Momo list size)
+- **Status:** completed — bridge-error fix verified live after backend restart; Former Momo list reset to default per user decision, verified live
 - **Agents:** parent
 - **Domain:** market-feed / hod-momo
 - **Related:** `CHANGELOG.md` § 2026-07-23 "Fix AH scanner sticky bridge-error banner never clearing" · `PROBLEM_LOG.md` §§ 2026-07-23 (two entries, same day as the WLDS active-set fix)
@@ -45,10 +45,18 @@ The `hod_surge_after_seed` warning (9-13 symbols with empty 5-minute surge windo
 - Live: confirmed `former_momo_list` has 433 entries via `GET /api/hod-momo/config`, cross-checked against `priority_reasons` in `GET /api/hod-momo/debug/integrity` (39/40 active slots = `former_momo`).
 - **Not yet verified live-in-process:** the running dev API (pid 51892, started 18:07 ET, `NOVA_API_RELOAD=1`) did not pick up the `afterhours.py` edit via hot-reload after ~80s of waiting — no second `Started server process` line appeared in `api-console.log`. The Afterhours table also froze for the session at 20:00:00 ET (ADR 008) moments after the edit, so no further AH discovery/focus scans will run today regardless. The fix is correct and tested in isolation; it needs either a backend restart or tomorrow's AH session to be observed clearing the live banner.
 
+## Resolution (same day, follow-up)
+
+User chose "reset to default" for the Former Momo list. Manually restarted the dev backend (`py -3 run_api.py`, pid replaced) since `--reload` still wasn't picking up the `afterhours.py` edit — this also let both fixes be verified live in the same pass:
+
+- `GET /api/scan/integrity` right after restart: `scanner_ibkr_bridge` check no longer appears at all (clean) — confirms the clear-on-success fix; `state.ibkr_bridge_last_error` starts empty on a fresh process and nothing has failed since.
+- `POST /api/hod-momo/config` (`scope=strategy`, `strategy_id=1`, `patch.former_momo_list=["SPRC"]`) — accepted (1 entry is well under the 40-symbol capacity guard in `update_config()`), persisted to `backend/.cache/hod-momo-config.json`.
+- `GET /api/hod-momo/debug/integrity` `hod_active_set` check: `uncovered` dropped from 417 → 23 within ~5s of the config change, with **no backend restart needed for this part** — direct live proof the `refresh_hod_active_set()` id()+len() cache removal (earlier same-day fix) is working: a config-only change with no scanner-table mutation now reaches the active set immediately, which the old memoized cache would have silently ignored.
+- `GET /api/hod-momo/debug/symbol/WLDS`: now shows a populated `session_high: 3.5099` and a live decision snapshot — WLDS is actively tracked, closing the loop on the original user report.
+
 ## Follow-ups
 
-- **User decision needed:** what to do with the 433-entry `former_momo_list` (reset to default `["SPRC"]`, hand-pick a short list, or request a capacity-floor design so live movers always get a minimum number of active-set slots regardless of Former Momo size).
-- Investigate separately (not blocking) why this dev backend's `--reload` did not restart on a source-file save; confirm `watchfiles` file-system events are actually reaching uvicorn's watcher in this environment. Not chased further this session since it did not block shipping the fix.
+- Investigate separately (not blocking) why this dev backend's `--reload` did not restart on a source-file save across two separate edits today; confirm `watchfiles` file-system events are actually reaching uvicorn's watcher in this environment. Worked around both times via a manual process restart.
 
 ## Keywords
 

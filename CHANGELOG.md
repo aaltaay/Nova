@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Reset Former Momo watchlist (strategy 1) to default, freeing HOD active-set slots
+
+- **What:** Reset strategy 1's `former_momo_list` from 433 symbols back to the intended default `["SPRC"]` via `POST /api/hod-momo/config`.
+- **Why:** Former Momo entries get priority admission into the 40-slot HOD active set in file order; 433 entries meant only the first ~39 (by list order) ever won a slot, permanently crowding out live movers from Gainers/Gappers/Afterhours (`uncovered` was 417/457 discovery symbols). User chose "reset to default" after being shown the mechanism and options.
+- **Files touched:** `backend/.cache/hod-momo-config.json` (runtime data, not git-tracked).
+- **How it works now:** With the list at 1 entry, `hod_active.build_active_set()` immediately has 39 free slots for table-ranked live movers. Verified live: `hod_active_set` check's `uncovered` metric dropped from 417 → 23 within ~5s of the config POST, with no backend restart required — confirms the same-day active-set cache removal fix is working (a config-only change with no scanner-table mutation reached the active set instantly).
+- **Verified by:** `GET /api/hod-momo/debug/integrity` before/after; `GET /api/hod-momo/debug/symbol/WLDS` now shows a populated `session_high` and live decision snapshot.
+- **Follow-ups:** None — `update_config()`'s existing 40-symbol capacity guard prevents this from silently recurring through the UI.
+- **Related:** `knowledge/task-log/2026-07-23-ah-sticky-bridge-error-and-former-momo-bloat.md` (Resolution section).
+
 ## 2026-07-23 — Fix AH scanner sticky bridge-error banner never clearing
 
 - **What:** `run_afterhours_discovery_scan()` and `run_afterhours_focus_scan()` (`backend/scanner_runners/afterhours.py`) now clear `state.ibkr_bridge_last_error` on every successful IBKR-sourced scan, matching the pattern already used by `movers.py`/`discovery.py`.
