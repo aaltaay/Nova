@@ -63,6 +63,11 @@ describe('fillWorkingOrderImmediately', () => {
         order_type: 'MKT',
         outside_rth: true,
       }),
+      undefined,
+      expect.objectContaining({
+        timing: expect.any(Object),
+        referencePrice: 10,
+      }),
     );
   });
 
@@ -91,6 +96,10 @@ describe('fillWorkingOrderImmediately', () => {
       qty: 100,
     });
     expect(res.ok).toBe(true);
-    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ qty: 60 }));
+    expect(spy).toHaveBeenCalledWith(
+      expect.objectContaining({ qty: 60 }),
+      undefined,
+      expect.objectContaining({ timing: expect.any(Object) }),
+    );
   });
 });

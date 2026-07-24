@@ -9,18 +9,18 @@ Companion to: `.cursor/agents/tester.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-22T19:08:00-04:00
-source_revision: f09985a
+captured_at: 2026-07-24T01:45:00-04:00
+source_revision: d06d2d0+local-wip
 result: PASS
 metrics:
-  pytest_passed: 677  # stale — not re-run 2026-07-22
-  vitest_passed: 422
-  vitest_files: 99
-  playwright_passed: 11  # stale — not re-run 2026-07-22
+  pytest_passed: 974
+  vitest_passed: 454
+  vitest_files: 108
+  playwright_passed: 11
 blockers:
   - "playwright: 3 e2e specs (baseline.spec.ts, workspace-context.spec.ts, level2-tape-modules.spec.ts) historically failed on Stock View header — not re-verified this run"
-dashboard_freshness: refresh-required
-notes: "last_dream_at=2026-07-18T03:09:15-0400; 2026-07-22 Vitest act() env verify (ea85715+f09985a): full verbose suite 99 files / 422 passed; zero act-environment and zero 'not wrapped in act' warnings. Prior vitest sv-trading-lock blocker cleared (suite green). pytest/playwright counts stale from 2026-07-16."
+dashboard_freshness: clean
+notes: "2026-07-24 final execution measurement WIP: focused pytest 60 and Vitest 23 pass; full pytest 974 pass with known TorchVision DLL diagnostic; full Vitest 108 files / 454 pass. Account → Latency browser fixture proves mixed-SLA suppression, population SLA rows, child-leg exclusion/slippage, clean console, and zero mutation requests. Tester fixed a concrete 407-line telemetry maintainer regression by extracting cached reconciliation mapping; execution-scope maintainer warning cleared. Full Playwright remains stale."
 ```
 
 Counts live only here (and in canvas snapshots derived from this block). Do not hardcode volatile totals in `tester.md`.
@@ -72,6 +72,8 @@ Facts discovered in a run that are **not yet** in `tester.md`. After promoting i
 - **WID-027 Vitest scope:** `src/closed_orders` + `closeFullPosition.test.ts` + `registry.test.ts` = **17** tests (widgets sometimes claim ~21 — recount with `--reporter=verbose`).
 - **Vitest act() gate:** After `IS_REACT_ACT_ENVIRONMENT` setup (`frontend/src/testSetup/reactActEnvironment.ts` + `test.setupFiles`), prove with `npx vitest run --reporter=verbose` and grep for `not configured to support act` / `was not wrapped in act` / `An update to .* inside a test was not wrapped in act` — default reporter hides these on green runs (PROBLEM_LOG 2026-07-20 / 2026-07-22).
 - **Full Vitest wall time (this machine):** ~11–16s for 99 files / 422 tests (`--reporter=verbose`).
+- **Vite browser-module fixture identity:** dynamically importing a source path without its dev-server `?t=` suffix can create a second module instance. For a read-only browser timing fixture, import the exact loaded URL from `performance.getEntriesByType('resource')`.
+- **Intentional browser 503 checks:** route-fulfilled 503s appear as console resource errors even when React handles them correctly. Record them as expected error-state evidence, then use a fresh fixture-only context to prove zero uncaught/page/React errors.
 
 ---
 
@@ -80,6 +82,27 @@ Facts discovered in a run that are **not yet** in `tester.md`. After promoting i
 Newest first. Keep entries short. Skip boring all-green scoped runs unless a command/path was corrected.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-24 — Final maintainer-fix verification
+
+- **Scope:** Mixed benchmark SLA suppression, bracket leg attribution, cancel feedback/poll recovery, public execution-latency imports, dashboard semantics, and current API/browser schemas.
+- **Commands:** focused pytest **60 passed**; full pytest **974 passed** (known TorchVision DLL diagnostic, exit 0); focused Vitest **23 passed**; full Vitest **108 files / 454 passed**; ESLint/build/Ruff/agent contract/diff check passed.
+- **Concrete fix:** Maintainer found `execution/telemetry.py` at 407 lines. Extracted cached reconciliation evidence mapping to `execution/reconciliation.py`; focused 29 + final 60 + full 974 passed. Maintainer returned to the prior repository-wide 31/28 findings with no execution-scope file-size warning.
+- **Browser/API:** Restarted tester-owned API only; Vite stayed running. Current GET schema includes `aggregate_scope`, `sla_status`, and `segments.fill_leg`. Fresh populated browser fixture showed suppressed aggregate SLA, population Pass/Insufficient rows, target child exclusion/slippage, 0 console/page errors, and 0 mutation requests.
+- **Result:** PASS with known repository/environment warnings. No order/probe/env/gateway/gate/cadence change, commit, or push.
+- **task_log:** existing aggregate `knowledge/task-log/2026-07-24-end-to-end-execution-measurement.md`
+- **problem_log:** `2026-07-24 — Fill-leg telemetry pushed the execution callback owner over its file limit`
+- **Promoted to tester.md:** no
+
+### 2026-07-24 — End-to-end execution measurement + Account Latency
+
+- **Scope:** Complete uncommitted ADR 007 execution measurement and Account → Latency dashboard; read-only APIs/browser only, no broker probe or mutation action.
+- **Commands:** focused pytest **58 passed**; full pytest **972 passed** (known TorchVision DLL diagnostic, exit 0); focused Vitest **21 passed**; full Vitest **108 files / 452 passed**; ESLint/build/Ruff lint/agent contract passed. Maintainer strict scan remained findings (31/28, repository debt); optional Ruff format check reported 20 changed files would reformat.
+- **Browser:** Fresh Playwright context with only two metric GETs intercepted; populated operations/hops/populations/provenance/exclusions + browser-local timing, loading/error/stale/reset warnings, rapid Account section switching. Final clean context: 0 console errors, 0 page errors, 0 mutation requests.
+- **API restart:** Old :8000 process served the pre-segmentation schema; restarted only `run_api.py`, left Vite untouched, then both authorized GETs returned the current bounded schema (limit 500, no raw rows/account field).
+- **Result:** PASS with known non-blocking repository/environment warnings. No product/test fix, order, env/gateway/gate/cadence change, commit, or push.
+- **task_log:** existing aggregate `knowledge/task-log/2026-07-24-end-to-end-execution-measurement.md`
+- **Promoted to tester.md:** no (two pending browser-harness facts)
 
 ### 2026-07-22 — Vitest act() environment warning fix verify
 

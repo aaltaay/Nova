@@ -23,6 +23,59 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-24 — HTTP 200 execution rejections were timed as browser successes
+
+- **Severity:** Medium — execution-observability correctness; broker behavior and safety gates were unaffected.
+- **Symptom:** Manual place, per-order cancel, and cancel-all called `timing.complete(response.ok)` before parsing JSON. Nova normally represents handled execution rejection as HTTP 200 with `{ok:false}`, so browser timing samples labeled rejected operations `outcome=ok`.
+- **Cause:** The frontend treated HTTP transport success as the execution result even though ADR 007's API contract separates transport status from the body-level `ok` verdict. Flatten, Fill now, and Nova Actions inherit these clients, so the wrong label propagated across every instrumented higher-level action.
+- **Fix:** Added the shared `parseTimedExecutionResponse` public helper. It parses the body first and completes timing only when both `response.ok` and `body.ok !== false`; JSON/network failures complete false and preserve throwing behavior. Place, per-order cancel, and cancel-all use it; higher-level Flatten, Fill now, and Nova Actions now inherit the corrected outcome. Regression tests cover HTTP 200 rejection, non-2xx despite `{ok:true}`, network failure, alerts, and polling recovery.
+- **Keywords:** timing.complete response.ok, HTTP 200 rejection, body ok false, browser timing outcome, place order, cancel order, cancel all, Flatten, Fill now, Nova Action
+- **Related:** `CHANGELOG.md` § 2026-07-24 — Add clock-safe end-to-end execution measurement and dashboard · `knowledge/task-log/2026-07-24-end-to-end-execution-measurement.md`
+
+## 2026-07-24 — Fill-leg telemetry pushed the execution callback owner over its file limit
+
+- **Severity:** Low — maintainability gate; execution behavior and broker safety were unaffected.
+- **Symptom:** Final `maintainer_checks.py --fail-on-findings` added a change-scoped `FILE_SIZE` finding because `backend/execution/telemetry.py` reached 407 lines after bracket-leg attribution.
+- **Cause:** Cached reconciliation evidence mapping remained inline with callback/watch ownership even though it is a separate transformation concern. The new leg role, side, reference, and aggregate-eligibility fields pushed the existing module seven lines over the 400-line limit.
+- **Fix:** Extracted cached-fill deduplication and evidence mapping to `backend/execution/reconciliation.py`; `telemetry.note_reconciliation_fill` remains the compatibility entry and delegates without issuing requests. Focused telemetry tests and Ruff pass, and the maintainer scan no longer reports an execution-scope file-size finding.
+- **Keywords:** execution telemetry, file size, 407 lines, maintainer_checks, reconciliation fill, bracket leg attribution
+- **Related:** `CHANGELOG.md` § 2026-07-24 — Add clock-safe end-to-end execution measurement and dashboard · `knowledge/task-log/2026-07-24-end-to-end-execution-measurement.md`
+
+## 2026-07-24 — Cancel failures were hidden and latency imports bypassed the feature API
+
+- **Severity:** Medium — user-visible trading feedback and frontend dependency integrity; broker gates were unaffected.
+- **Symptom:** Cancel buttons in Account and Stock View caught network failures without showing the operator an error, while non-2xx/body-level cancel rejection could also return without visible feedback. The new timing integration additionally imported `execution_latency` internals directly from sibling features, triggering cross-feature dependency warnings.
+- **Cause:** The handlers assumed the next account poll was sufficient recovery and discarded the exception. Timing helpers were added before the feature had a public ADR-005 barrel, so consumers coupled to internal module paths.
+- **Fix:** Added `cancelIbkrOrderWithFeedback`: HTTP/body/network failures open Nova's existing danger alert and account polling refreshes in `finally`. Both cancel handlers delegate to it. Added `execution_latency/index.ts` and migrated every external timing/dashboard import to the public surface; Stock View also consumes the existing IBKR barrel for the new cancel helper. Regression tests cover backend rejection, network failure, alert copy, and polling recovery.
+- **Keywords:** cancel error hidden, TradingTab, StockViewPage, alertApp, polling refresh, cross-feature deep import, execution_latency index, ADR 005
+- **Related:** `CHANGELOG.md` § 2026-07-24 — Add clock-safe end-to-end execution measurement and dashboard · `knowledge/task-log/2026-07-24-end-to-end-execution-measurement.md`
+
+## 2026-07-24 — Mixed benchmark SLA and bracket-child fills corrupted parent metrics
+
+- **Severity:** High — audit/evidence correctness; broker mutation and safety gates were unaffected.
+- **Symptom:** A bounded window containing both synthetic and paper benchmark rows could report `mixed_population=false` and an aggregate SLA pass because both shared `mode=paper`/`source=benchmark`. Separately, target/stop callbacks were attached to the parent bracket execution without leg identity, so SELL exit fills could use the parent BUY side/entry reference and enter parent first/complete-fill and slippage aggregates.
+- **Cause:** The mixed flag recomputed population from coarse mode/source fields instead of the normalized per-row `_population`. Bracket child watches carried only `order_id`/`execution_id`; evidence therefore fell back to parent payload side/reference, and child callbacks were allowed to persist parent ack/fill stages.
+- **Fix:** Normalized population is now the mixing authority. Mixed aggregate distributions are labeled diagnostic-only and aggregate `sla_pass` is null; only normalized population segments carry SLA verdicts, with insufficient samples explicit. Bracket parent/target/stop watches now persist leg role, actual side, known leg reference/source, and aggregate eligibility. Child evidence remains visible but cannot update parent stages or enter parent-entry fill/slippage/provenance aggregates; migrated unattributed evidence is excluded. Query caps now use `EXECUTION_METRICS_QUERY_LIMIT`.
+- **Keywords:** mixed benchmark population, synthetic paper SLA, bracket target fill, bracket stop fill, inverted slippage, child leg attribution, aggregate_eligible, benchmark_synthetic, benchmark_paper
+- **Related:** `CHANGELOG.md` § 2026-07-24 — Add clock-safe end-to-end execution measurement and dashboard · `knowledge/task-log/2026-07-24-end-to-end-execution-measurement.md`
+
+## 2026-07-24 — Frontend latency tests initially missed browser/test runtime boundaries
+
+- **Severity:** Low — test/integration setup; no order or production runtime failure.
+- **Symptom:** The first focused frontend run failed because React Testing Library lacked its DOM peer, the new dashboard test ran without jsdom, and timing completion referenced `window.setTimeout` in Node-only trading-client tests. Existing mocks also asserted the old one-argument place/flatten signatures.
+- **Cause:** The new feature crossed three explicit boundaries—RTL package peers, Vitest environment selection, and browser animation-frame fallback—but the first pass assumed each was implicit. Timing options also intentionally extended established client calls, so their contract assertions needed to include the new metadata argument.
+- **Fix:** Added `@testing-library/dom`, marked the dashboard render test `@vitest-environment jsdom`, made the non-RAF fallback use `globalThis.setTimeout`, and updated affected tests to assert timing/reference metadata. Focused 21/21 and full frontend 452/452 now pass; lint/build pass.
+- **Keywords:** latency dashboard, React Testing Library, @testing-library/dom, jsdom, window is not defined, requestAnimationFrame fallback, placeIbkrOrder timing options
+- **Related:** `CHANGELOG.md` § 2026-07-24 — Add clock-safe end-to-end execution measurement and dashboard · `knowledge/task-log/2026-07-24-end-to-end-execution-measurement.md`
+
+## 2026-07-24 — Cancel/replace reused stale order acknowledgment and produced negative latency
+
+- **Symptom:** Historical cancel/replace execution rows could have `broker_ack_ns < broker_sent_ns`; latency rollups silently dropped those negative values without explaining why.
+- **Cause:** IBKR cancel and price-replace reuse the original `orderId`. `telemetry.watch_order(order_id)` also reused the original `OrderWatch`, including its already-set ack stamp, and `store.mark_ack_by_order_id` updated every same-boot row sharing that order id rather than the one mutation being observed. A later cancel/replace could therefore inherit an ack that happened before its own send.
+- **Fix:** Every cancel/replace now creates a fresh watch bound to its `execution_id`; callback persistence targets that execution, and order-id fallback selects only the newest same-boot row. Rollups retain old rows but report negative/cross-boot/legacy exclusions by reason. Regression coverage proves original and cancel acks remain distinct.
+- **Keywords:** negative ack delta, cancel latency, replace latency, reused orderId, stale OrderWatch, broker_ack_ns, broker_sent_ns, execution_id correlation
+- **Related:** `CHANGELOG.md` § 2026-07-24 — Add clock-safe end-to-end execution measurement · `knowledge/task-log/2026-07-24-end-to-end-execution-measurement.md`
+
 ## 2026-07-23 — Per-operation latency review found reconnect, lock-scope, cross-boot, attribution, and probe-isolation defects
 
 - **Symptom:** Operation-level latency was not observable, and the first implementation review found several ways its evidence or adjacent execution behavior could be wrong: replacement IB clients could stop producing ack/fill telemetry; one slow ack could block urgent sends for up to five seconds; persisted monotonic timestamps could produce invalid cross-restart deltas; the header could imply Alpaca account HTTP RTT was generic API/IBKR latency; benchmark percentiles could include prior runs; and integrity still exposed counters from a retired table-reprice loop.

@@ -1,5 +1,11 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import {
+  beginBrowserExecutionTiming,
+  clientTimingHeaders,
+  parseTimedExecutionResponse,
+  type BrowserExecutionTiming,
+} from '../execution_latency';
 import type { ManualOrderPayload } from './orderEntry';
 
 export interface PlaceOrderResult {
@@ -23,16 +29,33 @@ function newIdempotencyKey(): string {
 export async function placeIbkrOrder(
   payload: ManualOrderPayload,
   idempotencyKey?: string,
+  options?: {
+    timing?: BrowserExecutionTiming;
+    referencePrice?: number | null;
+  },
 ): Promise<PlaceOrderResult> {
-  const response = await novaFetch(`${API_BASE_URL}/api/ibkr/order`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...payload,
-      idempotency_key: idempotencyKey || newIdempotencyKey(),
-    }),
-  });
-  return response.json() as Promise<PlaceOrderResult>;
+  const timing = options?.timing ?? beginBrowserExecutionTiming('place_order');
+  const clientTiming = timing.clientTimingAtRequest();
+  try {
+    const response = await novaFetch(`${API_BASE_URL}/api/ibkr/order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        idempotency_key: idempotencyKey || newIdempotencyKey(),
+        reference_price:
+          options?.referencePrice != null
+          && Number.isFinite(options.referencePrice)
+            ? options.referencePrice
+            : undefined,
+        client_timing: clientTiming,
+      }),
+    });
+    return await parseTimedExecutionResponse<PlaceOrderResult>(response, timing);
+  } catch (error) {
+    timing.complete(false);
+    throw error;
+  }
 }
 
 export interface CancelAllResult {
@@ -44,10 +67,21 @@ export interface CancelAllResult {
 }
 
 /** Cancel all open orders for a symbol (backend orchestrates per-order cancels). */
-export async function cancelAllOrdersForSymbol(symbol: string): Promise<CancelAllResult> {
-  const response = await novaFetch(
-    `${API_BASE_URL}/api/ibkr/orders?symbol=${encodeURIComponent(symbol.toUpperCase())}`,
-    { method: 'DELETE' },
-  );
-  return response.json() as Promise<CancelAllResult>;
+export async function cancelAllOrdersForSymbol(
+  symbol: string,
+  timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_symbol'),
+): Promise<CancelAllResult> {
+  try {
+    const response = await novaFetch(
+      `${API_BASE_URL}/api/ibkr/orders?symbol=${encodeURIComponent(symbol.toUpperCase())}`,
+      {
+        method: 'DELETE',
+        headers: clientTimingHeaders(timing),
+      },
+    );
+    return await parseTimedExecutionResponse<CancelAllResult>(response, timing);
+  } catch (error) {
+    timing.complete(false);
+    throw error;
+  }
 }

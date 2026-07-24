@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-24 | [End-to-end execution measurement](2026-07-24-end-to-end-execution-measurement.md) | Clock-safe browser/backend stages, bounded fill/slippage evidence, segmented rollups, stale cancel/replace ack fix |
 | 2026-07-23 | [Per-operation latency measurement](2026-07-23-per-operation-latency-measurement.md) | Bounded operation metrics; reconnect/lock/boot/attribution fixes; no new broker requests or orders |
 | 2026-07-23 | [Block fractional Flatten + hard-fail Error 10243 cancel](2026-07-23-fractional-flatten-error-10243.md) | Block fractional Flatten + hard-fail Error 10243 cancel |
 | 2026-07-23 | [AH sticky bridge-error fix + Former Momo watchlist bloat diagnosis](2026-07-23-ah-sticky-bridge-error-and-former-momo-bloat.md) | AH sticky bridge-error fix + Former Momo watchlist bloat diagnosis |

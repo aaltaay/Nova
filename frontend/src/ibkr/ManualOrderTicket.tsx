@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
+import {
+  beginBrowserExecutionTiming,
+  captureBrowserAction,
+} from '../execution_latency';
 import {
   TICKER_TRADE_DEFAULT_ORDER_TYPE,
   TICKER_TRADE_DEFAULT_QTY,
-  TICKER_TRADE_FORCE_QTY,
-  TICKER_TRADE_PLACE_ORDER_LABEL,
-  TICKER_TRADE_PLACE_PAPER_ORDER_LABEL,
-  TICKER_TRADE_UNLOCK_LABEL,
 } from '../constants';
 import {
   buildManualOrder,
@@ -17,13 +16,9 @@ import {
   type QuantityMode,
 } from './orderEntry';
 import { ManualOrderFields } from './ManualOrderFields';
-import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
-import { TradingPinDialog } from './TradingPinDialog';
+import { ManualOrderFooter } from './ManualOrderFooter';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
-import {
-  readSkipPlaceConfirm,
-  writeSkipPlaceConfirm,
-} from './placeConfirmPrefs';
+import { readSkipPlaceConfirm } from './placeConfirmPrefs';
 import {
   readTicketSessionUnlocked,
   tryUnlockTicketSession,
@@ -135,6 +130,10 @@ export function ManualOrderTicket({
       });
       return;
     }
+    const timing = beginBrowserExecutionTiming(
+      'manual_place',
+      captureBrowserAction('user_action'),
+    );
 
     const built = buildManualOrder(
       {
@@ -161,7 +160,11 @@ export function ManualOrderTicket({
     setSubmitting(true);
     setResult(null);
     try {
-      const response = await placeIbkrOrder(built.payload);
+      const response = await placeIbkrOrder(
+        built.payload,
+        undefined,
+        { timing, referencePrice },
+      );
       setResult({
         ok: response.ok,
         text: response.ok
@@ -238,33 +241,6 @@ export function ManualOrderTicket({
     requestPlaceOrder();
   }
 
-  const isPaper = mode === 'paper';
-  const placeLabel = isPaper
-    ? TICKER_TRADE_PLACE_PAPER_ORDER_LABEL
-    : TICKER_TRADE_PLACE_ORDER_LABEL;
-
-  const buttonText = !connected
-    ? 'Connect IB Gateway'
-    : needsPinUnlock
-      ? TICKER_TRADE_UNLOCK_LABEL
-      : submitting
-        ? 'Placing…'
-        : placeLabel;
-
-  const buttonDisabled = !connected || submitting;
-
-  const buttonTitle = !connected
-    ? 'Connect IB Gateway first'
-    : needsPinUnlock
-      ? `Enter unlock code, then ${placeLabel}`
-      : spendLocked
-        ? 'IBKR orders remain gated by environment safety settings'
-        : QTY_LOCKED
-          ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
-          : isPaper
-            ? 'Review and place this order on the IBKR paper account'
-            : 'Review and place this order';
-
   return (
     <form className="manual-order-ticket" onSubmit={submit}>
       <ManualOrderFields
@@ -286,57 +262,22 @@ export function ManualOrderTicket({
         onOutsideRthChange={setOutsideRth}
       />
 
-      <Button
-        type="submit"
-        variant="default"
-        size="lg"
-        className={
-          isPaper && !needsPinUnlock && connected
-            ? 'manual-order-submit manual-order-submit--paper mt-1 w-full'
-            : 'manual-order-submit mt-1 w-full'
-        }
-        disabled={buttonDisabled}
-        title={buttonTitle}
-      >
-        {buttonText}
-      </Button>
-
-      {needsPinUnlock && connected && (
-        <span className="manual-order-lock-note">
-          Enter the unlock code to enable {placeLabel}.
-        </span>
-      )}
-      {sessionUnlocked && spendLocked && (
-        <span className="manual-order-lock-note">
-          Session unlocked. IBKR env gates may still reject the order until orders are enabled.
-        </span>
-      )}
-      {QTY_LOCKED && sessionUnlocked && (
-        <span className="manual-order-lock-note">
-          Quantity locked to {FORCED_QTY} share for safety — presets ignored.
-        </span>
-      )}
-      {result && (
-        <span className={`manual-order-result ${result.ok ? 'ok' : 'err'}`}>
-          {result.text}
-        </span>
-      )}
-
-      <PlaceOrderConfirmDialog
-        open={confirmSummary != null}
-        summary={confirmSummary ?? ''}
-        onCancel={() => setConfirmSummary(null)}
-        onConfirm={skipNextTime => {
-          if (skipNextTime) writeSkipPlaceConfirm(true);
-          setConfirmSummary(null);
-          void executeOrder();
-        }}
-      />
-
-      <TradingPinDialog
-        open={pinDialogOpen}
-        onSubmit={submitPin}
-        onCancel={() => setPinDialogOpen(false)}
+      <ManualOrderFooter
+        isPaper={mode === 'paper'}
+        needsPinUnlock={needsPinUnlock}
+        connected={connected}
+        submitting={submitting}
+        spendLocked={spendLocked}
+        quantityLocked={QTY_LOCKED}
+        forcedQty={FORCED_QTY}
+        sessionUnlocked={sessionUnlocked}
+        result={result}
+        confirmSummary={confirmSummary}
+        pinDialogOpen={pinDialogOpen}
+        onConfirmClose={() => setConfirmSummary(null)}
+        onConfirmPlace={() => void executeOrder()}
+        onPinSubmit={submitPin}
+        onPinClose={() => setPinDialogOpen(false)}
       />
     </form>
   );

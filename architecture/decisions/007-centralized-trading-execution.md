@@ -15,6 +15,11 @@ Nova had a single IBKR broker adapter (`ibkr/orders.py`) but fragmented entry po
 5. **Idempotency + lock:** SQLite unique `idempotency_key` plus an asyncio lock prevent duplicate broker sends and same-symbol conflicts. The lock covers reservation, validation, and the synchronous broker send only; broker acknowledgment waiting happens after release so a slow order cannot block urgent cancel/flatten sends.
 6. **Replace is price-only:** side/symbol/qty immutable; implemented as IBKR modify via `placeOrder` on an existing order id.
 7. **Monotonic clock scope is explicit:** each execution row stores the process boot/session identifier that produced its `perf_counter_ns` stamps. Ack/fill callbacks and latency rollups only combine stamps from the same identifier; migrated legacy rows without one are retained but excluded from monotonic deltas.
+8. **End-to-end clocks stay in their domains:** optional browser evidence carries paired wall-clock and `performance.now()` stamps for the user action and request dispatch. Backend ingress carries paired UTC wall-clock and `perf_counter_ns` stamps. Nova may compute browser action→dispatch only from the two browser monotonic stamps, and backend ingress→validation/persist/send/ack/fill/response only from same-boot backend monotonic stamps. Browser and backend monotonic values are never subtracted. A browser-dispatch→backend-ingress wall delta is exposed only as clock-offset-plus-transport uncertainty, never as latency.
+9. **Fill evidence is provenance-preserving:** bounded per-execution observations distinguish `execDetails`, `orderStatus`, and existing reconciliation-poll evidence. Each observation records callback receipt time, broker execution time when supplied, partial/complete state, price/size, and side-aware slippage when a reference price exists. Callback and poll evidence are not interchangeable, legacy values are not invented, and negative/cross-boot deltas are excluded with reasons.
+10. **Metrics populations are explicit:** paper, live, benchmark/synthetic, operation, source, and fill provenance remain separately labeled in rollups. Percentiles always include sample counts and insufficiency state. Read APIs return bounded rows/segments and no account identifiers, secrets, or unbounded broker identifiers.
+11. **Mixed populations cannot produce an aggregate SLA verdict:** normalized population (`live`, `paper`, `benchmark_paper`, `benchmark_synthetic`, or `unknown`) is the mixing authority. When more than one population is present, aggregate distributions remain available only as explicitly mixed diagnostics and aggregate `sla_pass` is null; dashboards must use the population segments for verdicts.
+12. **Bracket legs retain identity:** parent, target, and stop watches carry their actual side, leg role, and known leg reference. Child-leg evidence remains auditable but is not eligible to update the parent execution's ack/fill stages or enter parent-entry fill/slippage aggregates. Unknown leg attribution is excluded rather than inferred.
 
 ## Consequences
 
@@ -22,6 +27,8 @@ Nova had a single IBKR broker adapter (`ibkr/orders.py`) but fragmented entry po
 - Local `PendingSubmit` / assigned order id is **not** acknowledgment; first non-PendingSubmit `orderStatus` (or `execDetails` when status is skipped) is.
 - Paper proves structural/API latency; IBKR paper fills are simulated and do not prove live slippage.
 - Live one-share probes require a separate explicit user approval phase.
+- The browser/UI owner may add the optional client timing payload and render-complete stamp later. The backend contract deliberately stops at response-ready or an existing server event-emission hook; it does not pretend to measure frontend render or subtract clocks across hosts.
+- Execution telemetry reuses existing IBKR callbacks and reconciliation loops. It does not add broker requests or increase polling cadence.
 
 ## Broker long qty SSOT (2026-07-20)
 

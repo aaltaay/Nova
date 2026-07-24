@@ -11,6 +11,7 @@ import {
   CLOSE_POSITION_VS_CANCEL_HINT,
   TICKER_TRADE_ORDER_DISCLOSURE,
 } from '../constants';
+import { captureBrowserAction } from '../execution_latency';
 import { closeFullPosition } from '../ibkr/closeFullPosition';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
 import { alertApp, confirmApp } from '../ux';
@@ -43,6 +44,7 @@ export function ClosePositionButton({
   async function handleClick(e: MouseEvent) {
     e.stopPropagation();
     if (!canClose) return;
+    const actionTiming = captureBrowserAction('user_action');
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide = position.qty > 0 ? 'SELL' : 'BUY';
     const confirmed = await confirmApp({
@@ -58,7 +60,10 @@ export function ClosePositionButton({
     if (!confirmed) return;
     setBusy(true);
     try {
-      const res = await closeFullPosition(position.symbol, position.qty);
+      const res = await closeFullPosition(position.symbol, position.qty, {
+        timingAction: actionTiming,
+        referencePrice: position.market_price,
+      });
       if (res.ok) onClosed?.();
       else await alertApp({ title: 'Flatten failed', message: res.error, tone: 'danger' });
     } finally {

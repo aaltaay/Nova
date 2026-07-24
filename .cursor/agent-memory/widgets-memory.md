@@ -7,9 +7,9 @@ canonical; this memory tracks summary state, durable lessons, and next work.
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-19T00:40:00-04:00
-source_revision: working-tree-2026-07-19
-result: FILLED_ACTIVE_PROGRESS_VERIFY
+captured_at: 2026-07-24T01:35:00-04:00
+source_revision: working-tree-2026-07-24
+result: EXECUTION_LATENCY_DASHBOARD_HARDENED
 metrics:
   capabilities_total: 27
   matched: 7
@@ -20,7 +20,7 @@ metrics:
   unknown: 0
 blockers: []
 dashboard_freshness: clean
-notes: "Filled/Remaining/Avg fill + Fill now already complete on WID-026/027 (tooltip polish 2026-07-19). Not WID-015 TurboTrader. auto_live still NO-GO."
+notes: "Account → Latency consumes corrected mixed/SLA/fill-leg fields; cancel failures are visible; cross-feature imports use public barrels. No Webull parity row changed. Tester browser pass pending; auto_live still NO-GO."
 ```
 
 
@@ -55,6 +55,13 @@ notes: "Filled/Remaining/Avg fill + Fill now already complete on WID-026/027 (to
   orders from `GET /api/ibkr/orders/closed`. No Cancel on this panel.
 - Flatten / Close position ≠ Cancel: Flatten uses `closeFullPosition` →
   `placeIbkrOrder` (ADR 007). Cancel uses DELETE working-order routes.
+- Execution latency must stay split by clock domain. Browser action/request/
+  response/visible deltas use one document's `performance.now()`; backend
+  stages use same-boot `perf_counter_ns`; paired wall clocks are uncertainty,
+  never a manufactured browser→backend monotonic duration.
+- Execution observability is a feature contract: sibling features import only
+  `execution_latency/index.ts`. Cancel recovery must be both visible (Nova
+  danger alert) and self-healing (refresh account polling in `finally`).
 
 ## Backlog
 
@@ -73,6 +80,9 @@ notes: "Filled/Remaining/Avg fill + Fill now already complete on WID-026/027 (to
 
 ### Completed
 
+- [x] 2026-07-24 — Modular Account → Latency dashboard + paired manual/cancel/
+      flatten/Fill now/Nova Action browser timing; corrected mixed SLA/fill-leg
+      display and visible cancel failures; no broker probe or order.
 - [x] 2026-07-19 — Verified Filled / Remaining / Average fill + Fill now as the
       active-fill surface (WID-026/027); header/cell tooltips only; not WID-015.
 - [x] 2026-07-18 — WID-027 Closed Orders feature slice + Positions Flatten
@@ -89,6 +99,25 @@ notes: "Filled/Remaining/Avg fill + Fill now already complete on WID-026/027 (to
 ## Run log
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-24 — Clock-safe execution latency dashboard
+
+- **Scope:** Daddy dispatch — implement the frontend owner of ADR 007 end-to-end
+  measurement on top of the execution specialist's uncommitted backend work.
+- **Result:** Added isolated `execution_latency/` slice, Account → Latency
+  navigation, bounded parsers/tables/fixtures, and browser timing on established
+  place/cancel/flatten/Fill now/Nova Action clients. Follow-up consumes corrected
+  mixed-population SLA/fill-leg fields, labels child slippage exclusions,
+  surfaces cancel failures, and routes sibling imports through public barrels.
+  No map status changed because this is Nova operational observability, not
+  Webull performance parity.
+- **Learning:** “Response visible” must name a browser-local paint boundary.
+  The second animation frame after response is observable; backend response-ready
+  and browser paint cannot be subtracted across monotonic clocks. Mixed
+  populations cannot own one SLA verdict; child legs can be displayed without
+  entering parent aggregates.
+- **Verified:** Focused Vitest 35 passed; full frontend 454 passed; lint/build
+  passed. No browser pass in this run (tester handoff); no order/probe.
 
 ### 2026-07-19 — Filled / active-fill progress verify
 

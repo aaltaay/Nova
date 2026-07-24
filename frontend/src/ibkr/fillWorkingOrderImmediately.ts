@@ -3,13 +3,17 @@
  * Distinct from Flatten (position exit) and from Cancel alone (leaves fills as-is).
  * Uses ADR 007 place + cancel paths only. auto_live remains NO-GO.
  */
-import { novaFetch } from '../api/novaFetch';
 import {
-  API_BASE_URL,
   APP_DIALOG_FILL_LABEL,
   FILL_WORKING_ORDER_CONFIRM_PREFIX,
 } from '../constants';
+import {
+  beginBrowserExecutionTiming,
+  captureBrowserAction,
+  type BrowserActionStamp,
+} from '../execution_latency';
 import { confirmApp } from '../ux';
+import { cancelIbkrOrder } from './cancelOrder';
 import { shouldUseOutsideRth } from './extendedSession';
 import { remainingSharesWhole } from './orderQtyMath';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
@@ -31,6 +35,7 @@ export type FillWorkingOrderResult =
 export async function confirmAndFillWorkingOrder(
   order: IbkrOrder,
 ): Promise<FillWorkingOrderResult> {
+  const actionTiming = captureBrowserAction('user_action');
   const qty = remainingSharesWhole(order);
   if (qty <= 0) {
     return { ok: false, error: 'Nothing left to fill on this order' };
@@ -47,11 +52,12 @@ export async function confirmAndFillWorkingOrder(
   if (!ok) {
     return { ok: false, error: 'Fill now cancelled' };
   }
-  return fillWorkingOrderImmediately(order);
+  return fillWorkingOrderImmediately(order, actionTiming);
 }
 
 export async function fillWorkingOrderImmediately(
   order: IbkrOrder,
+  actionTiming: BrowserActionStamp = captureBrowserAction('client_call'),
 ): Promise<FillWorkingOrderResult> {
   const qty = remainingSharesWhole(order);
   if (qty <= 0) {
@@ -61,18 +67,14 @@ export async function fillWorkingOrderImmediately(
   const outside_rth = shouldUseOutsideRth(order.outside_rth);
 
   try {
-    const cancelRes = await novaFetch(
-      `${API_BASE_URL}/api/ibkr/order/${order.order_id}`,
-      { method: 'DELETE' },
+    const cancel = await cancelIbkrOrder(
+      order.order_id,
+      beginBrowserExecutionTiming('fill_now_cancel', actionTiming),
     );
-    const cancelBody = (await cancelRes.json()) as {
-      ok?: boolean;
-      error?: string | null;
-    };
-    if (!cancelRes.ok || cancelBody.ok === false) {
+    if (!cancel.ok) {
       return {
         ok: false,
-        error: cancelBody.error ?? `Cancel failed (HTTP ${cancelRes.status})`,
+        error: cancel.error ?? `Cancel failed (HTTP ${cancel.httpStatus})`,
       };
     }
   } catch {
@@ -80,13 +82,20 @@ export async function fillWorkingOrderImmediately(
   }
 
   try {
-    const place = await placeIbkrOrder({
-      symbol: order.symbol.trim().toUpperCase(),
-      side,
-      qty,
-      order_type: 'MKT',
-      outside_rth,
-    });
+    const place = await placeIbkrOrder(
+      {
+        symbol: order.symbol.trim().toUpperCase(),
+        side,
+        qty,
+        order_type: 'MKT',
+        outside_rth,
+      },
+      undefined,
+      {
+        timing: beginBrowserExecutionTiming('fill_now_place', actionTiming),
+        referencePrice: order.avg_fill_price ?? order.limit_price,
+      },
+    );
     if (!place.ok) {
       return {
         ok: false,

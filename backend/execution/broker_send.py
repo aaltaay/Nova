@@ -30,7 +30,9 @@ async def wait_broker_ack(
     if not receipt.ok or receipt.order_id is None or receipt.timings is None:
         return receipt
 
-    watch = telemetry.watch_order(int(receipt.order_id))
+    watch = telemetry.watch_order(
+        int(receipt.order_id), receipt.execution_id,
+    )
     await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
     receipt.timings.broker_ack_ns = watch.ack_ns
     if watch.filled_ns:
@@ -95,7 +97,9 @@ async def send_broker(
             order_id=cmd.order_id, mode=mode,
         )
         assert cmd.order_id is not None
-        watch = telemetry.watch_order(cmd.order_id)
+        watch = telemetry.watch_order(
+            cmd.order_id, execution_id, fresh=True, leg_role="cancel",
+        )
         raw = _orders.cancel_order(cmd.order_id)
         if not raw.get("ok"):
             store.update_stages(
@@ -133,7 +137,17 @@ async def send_broker(
             )
         timings.broker_sent_ns = time.perf_counter_ns()
         assert cmd.order_id is not None
-        watch = telemetry.watch_order(cmd.order_id)
+        watch = telemetry.watch_order(
+            cmd.order_id, execution_id, fresh=True, leg_role="replace",
+            side=str(existing["side"]).upper(),
+            reference_price=(
+                cmd.reference_price
+                if cmd.reference_price is not None
+                else cmd.limit_price if cmd.limit_price is not None
+                else cmd.stop_price
+            ),
+            reference_source="replace_request",
+        )
         store.update_stages(
             execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns,
             order_id=cmd.order_id, mode=mode,
@@ -173,7 +187,27 @@ async def send_broker(
             target_price=float(cmd.target_price or 0),
         )
         parent = raw.get("parent_order_id")
-        watch = telemetry.watch_order(int(parent)) if parent else None
+        entry_side = EXECUTOR_ENTRY_SIDE_IBKR.upper()
+        exit_side = "SELL" if entry_side == "BUY" else "BUY"
+        watch = (
+            telemetry.watch_order(
+                int(parent), execution_id, fresh=True, leg_role="parent",
+                side=entry_side, reference_price=cmd.entry_price,
+                reference_source="bracket_entry", aggregate_eligible=True,
+            )
+            if parent else None
+        )
+        for role, child_id, reference in (
+            ("target", raw.get("target_order_id"), cmd.target_price),
+            ("stop", raw.get("stop_order_id"), cmd.stop_price),
+        ):
+            if child_id:
+                telemetry.watch_order(
+                    int(child_id), execution_id, fresh=True, leg_role=role,
+                    side=exit_side, reference_price=reference,
+                    reference_source=f"bracket_{role}",
+                    aggregate_eligible=False,
+                )
         if not raw.get("ok"):
             store.update_stages(
                 execution_id, status="failed", error=str(raw.get("error")),
@@ -224,7 +258,20 @@ async def send_broker(
         outside_rth=cmd.outside_rth,
     )
     oid = raw.get("order_id")
-    watch = telemetry.watch_order(int(oid)) if oid else None
+    watch = (
+        telemetry.watch_order(
+            int(oid), execution_id, fresh=True,
+            side=(cmd.side or "BUY").upper(),
+            reference_price=(
+                cmd.reference_price
+                if cmd.reference_price is not None
+                else cmd.limit_price if cmd.limit_price is not None
+                else cmd.stop_price
+            ),
+            reference_source="execution_command",
+        )
+        if oid else None
+    )
     return await finish_place(
         execution_id, cmd, timings, raw, watch, mode, wait_ack=wait_ack,
     )

@@ -71,7 +71,14 @@ describe('ClosePositionButton', () => {
     await act(async () => {
       btn.click();
     });
-    expect(spy).toHaveBeenCalledWith('AAPL', 50);
+    expect(spy).toHaveBeenCalledWith(
+      'AAPL',
+      50,
+      expect.objectContaining({
+        referencePrice: 10,
+        timingAction: expect.objectContaining({ source: 'user_action' }),
+      }),
+    );
     expect(onClosed).toHaveBeenCalled();
   });
 

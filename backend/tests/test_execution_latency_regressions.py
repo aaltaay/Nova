@@ -152,12 +152,18 @@ def test_fill_rollup_has_send_and_ack_deltas():
     )
 
     summary = latency_summary(idempotency_prefix="fill-run:")
-    assert summary["fill_ms"]["send_to_fill"] == {
-        "count": 1, "p50": 8.0, "p95": 8.0, "max": 8.0,
-    }
-    assert summary["fill_ms"]["ack_to_fill"] == {
-        "count": 1, "p50": 6.0, "p95": 6.0, "max": 6.0,
-    }
+    send_fill = summary["fill_ms"]["send_to_fill"]
+    ack_fill = summary["fill_ms"]["ack_to_fill"]
+    assert {
+        key: send_fill[key] for key in ("count", "p50", "p95", "p99", "max")
+    } == {"count": 1, "p50": 8.0, "p95": 8.0, "p99": 8.0, "max": 8.0}
+    assert {
+        key: ack_fill[key] for key in ("count", "p50", "p95", "p99", "max")
+    } == {"count": 1, "p50": 6.0, "p95": 6.0, "p99": 6.0, "max": 6.0}
+    assert send_fill["sufficient"] is False
+    assert summary["segments"]["fill_provenance"]["legacy_stage"][
+        "callback_from_send_ms"
+    ]["count"] == 1
 
 
 def test_cross_boot_callbacks_and_rollups_ignore_old_rows(monkeypatch):
@@ -182,6 +188,8 @@ def test_cross_boot_callbacks_and_rollups_ignore_old_rows(monkeypatch):
     row = store.get_by_id(execution_id)
     assert row["broker_ack_ns"] is None
     assert row["filled_ns"] is None
+    summary = latency_summary()
+    assert summary["excluded_reasons"]["cross_boot"] == 1
 
 
 def test_init_db_migrates_legacy_schema(tmp_path, monkeypatch):

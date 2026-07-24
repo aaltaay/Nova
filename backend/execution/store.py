@@ -7,7 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
-from constants import EXECUTION_LEDGER_DB_FILENAME
+from constants import EXECUTION_LEDGER_DB_FILENAME, EXECUTION_METRICS_QUERY_LIMIT
 from paths import cache_dir
 
 _BOOT_ID = uuid.uuid4().hex
@@ -76,6 +76,8 @@ def init_db() -> None:
                 }
                 if "boot_id" not in refreshed:
                     raise
+        from execution import evidence_store
+        evidence_store.init_db(conn)
         conn.commit()
     finally:
         conn.close()
@@ -236,7 +238,7 @@ def list_recent(limit: int = 100) -> list[dict]:
 
 
 def latency_rows(
-    limit: int = 500,
+    limit: int = EXECUTION_METRICS_QUERY_LIMIT,
     *,
     idempotency_prefix: str | None = None,
 ) -> list[dict]:
@@ -266,6 +268,7 @@ def latency_rows(
 
 def mark_ack_by_order_id(
     order_id: int, ack_ns: int, broker_status: str | None = None,
+    *, execution_id: str | None = None,
 ) -> bool:
     """Persist first real broker ack after send (including wait_ack=False paths)."""
     init_db()
@@ -280,14 +283,22 @@ def mark_ack_by_order_id(
         if broker_status is not None:
             fields.append("broker_status = ?")
             values.append(broker_status)
-        values.append(order_id)
+        values.extend((execution_id, order_id))
         cur = conn.execute(
             f"""
             UPDATE executions
             SET {', '.join(fields)}
-            WHERE order_id = ? AND boot_id = ? AND broker_ack_ns IS NULL
+            WHERE id = COALESCE(
+                ?,
+                (
+                    SELECT id FROM executions
+                    WHERE order_id = ? AND boot_id = ?
+                    ORDER BY created_ts DESC LIMIT 1
+                )
+            )
+              AND boot_id = ? AND broker_ack_ns IS NULL
             """,
-            [*values, _BOOT_ID],
+            [*values, _BOOT_ID, _BOOT_ID],
         )
         conn.commit()
         return cur.rowcount > 0
@@ -295,7 +306,9 @@ def mark_ack_by_order_id(
         conn.close()
 
 
-def mark_filled_by_order_id(order_id: int, filled_ns: int) -> bool:
+def mark_filled_by_order_id(
+    order_id: int, filled_ns: int, *, execution_id: str | None = None,
+) -> bool:
     """Persist fill timing for a prior send (late IBKR callbacks)."""
     init_db()
     conn = get_connection()
@@ -304,10 +317,21 @@ def mark_filled_by_order_id(order_id: int, filled_ns: int) -> bool:
             """
             UPDATE executions
             SET filled_ns = ?, status = 'filled', updated_ts = ?
-            WHERE order_id = ? AND boot_id = ?
+            WHERE id = COALESCE(
+                ?,
+                (
+                    SELECT id FROM executions
+                    WHERE order_id = ? AND boot_id = ?
+                    ORDER BY created_ts DESC LIMIT 1
+                )
+            )
+              AND boot_id = ?
               AND (filled_ns IS NULL OR filled_ns = 0)
             """,
-            (filled_ns, time.time(), order_id, _BOOT_ID),
+            (
+                filled_ns, time.time(), execution_id, order_id,
+                _BOOT_ID, _BOOT_ID,
+            ),
         )
         conn.commit()
         return cur.rowcount > 0

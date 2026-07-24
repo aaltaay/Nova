@@ -12,6 +12,7 @@ from typing import Literal
 from ibkr import client as _client
 from ibkr import safety as _safety
 from ibkr.errors import IbkrAccountError, describe_exc
+from ibkr.order_rows import trade_to_order_row as _trade_to_order_row
 
 logger = logging.getLogger(__name__)
 
@@ -340,60 +341,3 @@ async def closed_orders_async(limit: int | None = None) -> list[dict]:
 
     await _account.refresh_completed_orders_cache()
     return closed_orders(limit=limit)
-
-
-def _nonzero_price(value) -> float | None:
-    """IB often sends 0.0 for unused LMT/STP fields — expose as null."""
-    if value is None:
-        return None
-    try:
-        price = float(value)
-    except (TypeError, ValueError):
-        return None
-    if price == 0.0:
-        return None
-    return price
-
-
-def _trade_to_order_row(trade) -> dict:
-    """Map an ib_async Trade to the public open-order JSON shape."""
-    from ibkr.order_times import extract_trade_times, resolve_submitted_at
-
-    status = trade.orderStatus
-    qty = trade.order.totalQuantity
-    filled = getattr(status, "filled", None)
-    remaining = getattr(status, "remaining", None)
-    avg_fill = getattr(status, "avgFillPrice", None)
-    filled_qty = float(filled) if filled is not None else 0.0
-    remaining_qty = float(remaining) if remaining is not None else None
-    # Trades created from reqCompletedOrdersAsync for an order this API
-    # session never saw live carry status="Filled" but IBKR does not
-    # backfill orderStatus.filled/remaining for them — infer the honest
-    # fill qty from the order total rather than show "Filled" + "0 filled".
-    if status.status == "Filled" and filled_qty == 0.0 and qty:
-        filled_qty = float(qty)
-        remaining_qty = 0.0
-    broker_submitted, updated_at, filled_at = extract_trade_times(trade)
-    oid = trade.order.orderId
-    submitted_at = resolve_submitted_at(broker_submitted, oid)
-    return {
-        "order_id": oid,
-        "symbol": trade.contract.symbol,
-        "side": trade.order.action,
-        "qty": qty,
-        "filled_qty": filled_qty,
-        "remaining_qty": remaining_qty,
-        "order_type": trade.order.orderType,
-        "limit_price": _nonzero_price(getattr(trade.order, "lmtPrice", None)),
-        "stop_price": _nonzero_price(getattr(trade.order, "auxPrice", None)),
-        "avg_fill_price": float(avg_fill) if avg_fill not in (None, 0, 0.0) else None,
-        "outside_rth": bool(getattr(trade.order, "outsideRth", False)),
-        "status": status.status,
-        # ISO-8601 UTC; UI formats Eastern with sub-seconds when present.
-        # Time Placed = submitted_at (broker log, else Nova wall stamp).
-        # updated_at = last fill/cancel activity (tooltip / recency only).
-        # filled_at = real broker fill clock only; None when never filled.
-        "submitted_at": submitted_at,
-        "updated_at": updated_at,
-        "filled_at": filled_at,
-    }

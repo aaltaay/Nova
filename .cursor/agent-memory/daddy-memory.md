@@ -9,18 +9,16 @@ Companion to: `.cursor/agents/daddy.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-23T23:00:00Z
+captured_at: 2026-07-24T02:30:00Z
 source_revision: pre-commit
-result: per_operation_latency_metrics
+result: e2e_measurement_dashboard_complete
 metrics:
-  specialists: [execution, market-feed, widgets, tester, docs]
+  specialists: [execution, widgets, tester, maintainer]
   dispatch_mode: direct
   orchestration: mixed
-  backend_pytest: 961_pass
-  frontend_vitest: 441_pass
-blockers:
-  - openai_embed_key_401_for_ask_recall_synthesis
-  - include_whisper_allowlist_misses_grok_and_faster_whisper_labels
+  backend_pytest: 974_pass
+  frontend_vitest: 454_pass
+blockers: []
 dashboard_freshness: clean
 ```
 
@@ -60,6 +58,13 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-24 — End-to-end execution measurement + latency dashboard
+
+- **Scope:** Browser action through backend/broker/fill/render measurement plus Account → Latency UI, with no order placement.
+- **Result:** sequence execution → widgets → tester+maintainer; 974 backend and 458 frontend tests passed, browser populated-data verification was clean, and all audit warnings plus a file-size regression were fixed. The final body-level outcome fix landed despite result-delivery rate limits and was verified directly before commit.
+- **Learning:** Run maintainer after the final tester mutation, not concurrently, because a tester self-anneal can invalidate the audit snapshot. If a final correctness fix is blocked by specialist capacity, keep the task open and hand off the exact file/contract rather than publishing a known telemetry lie.
+- **Files updated:** daddy-memory.md; aggregate task log `2026-07-24-end-to-end-execution-measurement.md`.
 
 ### 2026-07-23 — Per-operation latency metrics and lifecycle fixes
 

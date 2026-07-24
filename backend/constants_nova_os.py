@@ -56,6 +56,9 @@ EXECUTION_LEDGER_DB_FILENAME = "execution_ledger.db"
 EXECUTION_ACK_SLA_P95_MS = 250.0  # receive → first real broker ack (excludes fill)
 EXECUTION_ACK_WAIT_SEC = 5.0      # max wait for first non-PendingSubmit status
 EXECUTION_FILL_WAIT_SEC = 30.0    # optional wait for complete fill (benchmark only)
+EXECUTION_FILL_EVIDENCE_LIMIT = 64  # bounded callback/poll observations per execution
+EXECUTION_METRICS_QUERY_LIMIT = 500
+EXECUTION_METRICS_MIN_PERCENTILE_SAMPLES = 20
 EXECUTION_SOURCES = (
     "manual",
     "approve",

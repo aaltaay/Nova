@@ -189,12 +189,56 @@ def test_limit_order_route_delegates_extended_hours():
     assert kwargs["outside_rth"] is True
 
 
+def test_order_route_persists_clock_safe_client_measurement():
+    fake_result = {"ok": True, "order_id": 45, "error": None, "mode": "paper"}
+    patches = _arm_paper_gates()
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
+         patches[7], patch.object(orders_mod, "place_order", return_value=fake_result):
+        res = client.post(
+            "/api/ibkr/order",
+            json={
+                "symbol": "AAPL",
+                "side": "BUY",
+                "qty": 1,
+                "order_type": "LMT",
+                "limit_price": 10.0,
+                "reference_price": 10.05,
+                "idempotency_key": "route-clock-contract",
+                "client_timing": {
+                    "action_wall_ms": 1_000.0,
+                    "action_performance_ms": 10.0,
+                    "request_wall_ms": 1_015.0,
+                    "request_performance_ms": 25.0,
+                },
+            },
+        )
+    assert res.status_code == 200
+    body = res.json()
+    measurement = body["measurement"]
+    assert measurement["browser"]["action_to_request_ms"] == 15.0
+    assert measurement["cross_clock_arithmetic"] == "forbidden"
+    assert measurement["browser_to_backend_wall_observation"]["latency_usable"] is False
+    assert measurement["backend"]["ingress_to_response_ready_ms"] >= 0
+
+
 def test_order_route_rejects_non_positive_quantity():
     res = client.post(
         "/api/ibkr/order",
         json={"symbol": "AAPL", "side": "BUY", "qty": 0},
     )
     assert res.status_code == 422
+
+
+def test_execution_latency_route_is_bounded_and_population_labeled():
+    res = client.get("/api/ibkr/execution-latency")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["bounded_limit"] == 500
+    assert body["clock_contract"]["cross_clock_arithmetic"] == "forbidden"
+    assert set(body["segments"]) == {
+        "population", "mode", "operation", "source", "fill_provenance",
+        "fill_leg",
+    }
 
 
 def test_duplicate_idempotency_key_does_not_resend(monkeypatch):

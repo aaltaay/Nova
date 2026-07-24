@@ -93,3 +93,6 @@ def test_metrics_route_returns_snapshot():
 
     assert response.status_code == 200
     assert response.json()["operations"]["unit.route"]["p50_ms"] == 1.5
+    assert response.json()["execution"]["clock_contract"][
+        "cross_clock_arithmetic"
+    ] == "forbidden"

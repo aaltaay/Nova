@@ -10,4 +10,9 @@ router = APIRouter(prefix="/api/metrics", tags=["metrics"])
 
 @router.get("/ops")
 async def operation_metrics() -> dict:
-    return snapshot()
+    from execution.latency import latency_summary
+
+    return {
+        **snapshot(),
+        "execution": latency_summary(),
+    }

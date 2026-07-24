@@ -11,6 +11,11 @@ import {
   NOVA_ACTION_PIN_LOCKED_MESSAGE,
   NOVA_ACTION_SPEND_LOCKED_MESSAGE,
 } from '../constants';
+import {
+  beginBrowserExecutionTiming,
+  captureBrowserAction,
+  type BrowserActionStamp,
+} from '../execution_latency';
 import { shouldUseOutsideRth } from '../ibkr/extendedSession';
 import { buildExitFullPosition, buildExitPositionPercent } from '../ibkr/exitPosition';
 import {
@@ -76,6 +81,7 @@ async function placeMarketExit(
   side: 'BUY' | 'SELL',
   qty: number,
   label: string,
+  actionTiming: BrowserActionStamp,
 ): Promise<NovaActionResult> {
   const outside_rth = shouldUseOutsideRth(false);
   const hours = outside_rth ? ' extended hours' : '';
@@ -84,13 +90,19 @@ async function placeMarketExit(
     return { ok: false, text: 'Order cancelled' };
   }
   try {
-    const res = await placeIbkrOrder({
-      symbol,
-      side,
-      qty,
-      order_type: 'MKT',
-      outside_rth,
-    });
+    const res = await placeIbkrOrder(
+      {
+        symbol,
+        side,
+        qty,
+        order_type: 'MKT',
+        outside_rth,
+      },
+      undefined,
+      {
+        timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
+      },
+    );
     return {
       ok: res.ok,
       text: res.ok
@@ -106,6 +118,7 @@ export async function runNovaAction(
   action: NovaActionRecord,
   runtime: NovaActionRuntime,
 ): Promise<NovaActionResult> {
+  const actionTiming = captureBrowserAction('user_action');
   const gated = gateManual(runtime);
   if (gated) return gated;
 
@@ -113,7 +126,10 @@ export async function runNovaAction(
 
   if (action.kind === 'cancel_symbol') {
     try {
-      const res = await cancelAllOrdersForSymbol(symbol);
+      const res = await cancelAllOrdersForSymbol(
+        symbol,
+        beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+      );
       if (res.ok) {
         const n = res.cancelled.length;
         return {
@@ -135,7 +151,10 @@ export async function runNovaAction(
     }
     let cancelText = '';
     try {
-      const res = await cancelAllOrdersForSymbol(symbol);
+      const res = await cancelAllOrdersForSymbol(
+        symbol,
+        beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+      );
       if (!res.ok) {
         return { ok: false, text: res.error ?? 'Cancel-all failed before flatten' };
       }
@@ -158,6 +177,7 @@ export async function runNovaAction(
       built.side,
       built.qty,
       'cancel+flatten',
+      actionTiming,
     );
     if (!exit.ok) {
       return {
@@ -186,6 +206,7 @@ export async function runNovaAction(
       built.side,
       built.qty,
       action.kind === 'exit_pos' ? 'flatten' : 'partial exit',
+      actionTiming,
     );
   }
 
@@ -217,14 +238,21 @@ export async function runNovaAction(
       return { ok: false, text: 'Order cancelled' };
     }
     try {
-      const res = await placeIbkrOrder({
-        symbol,
-        side,
-        qty: shares,
-        order_type: 'LMT',
-        limit_price: Number(limit.toFixed(4)),
-        outside_rth,
-      });
+      const res = await placeIbkrOrder(
+        {
+          symbol,
+          side,
+          qty: shares,
+          order_type: 'LMT',
+          limit_price: Number(limit.toFixed(4)),
+          outside_rth,
+        },
+        undefined,
+        {
+          timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
+          referencePrice: base,
+        },
+      );
       return {
         ok: res.ok,
         text: res.ok

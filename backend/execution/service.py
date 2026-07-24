@@ -9,6 +9,8 @@ from constants import NOVA_OS_MAX_CONCURRENT_POSITIONS
 from execution import store
 from execution import telemetry
 from execution import validate as _validate
+from execution import evidence_store
+from execution import timing as _timing
 from execution.broker_send import send_broker, wait_broker_ack
 from execution.latency import latency_summary
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
@@ -18,18 +20,28 @@ logger = logging.getLogger(__name__)
 
 _lock = asyncio.Lock()
 
-__all__ = ["execute", "get_execution", "latency_summary", "reset_for_tests"]
+__all__ = [
+    "execute", "finalize_http_response", "get_execution",
+    "latency_summary", "reset_for_tests",
+]
 
 
 def _receipt_from_row(row: dict, *, duplicate: bool = False) -> ExecutionReceipt:
-    timings = StageTimings(
-        received_ns=int(row["received_ns"]),
-        validation_completed_ns=row.get("validation_completed_ns"),
-        persisted_ns=row.get("persisted_ns"),
-        broker_sent_ns=row.get("broker_sent_ns"),
-        broker_ack_ns=row.get("broker_ack_ns"),
-        filled_ns=row.get("filled_ns"),
+    same_boot = row.get("boot_id") == store.current_boot_id()
+    timings = (
+        StageTimings(
+            received_ns=int(row["received_ns"]),
+            validation_completed_ns=row.get("validation_completed_ns"),
+            persisted_ns=row.get("persisted_ns"),
+            broker_sent_ns=row.get("broker_sent_ns"),
+            broker_ack_ns=row.get("broker_ack_ns"),
+            filled_ns=row.get("filled_ns"),
+        )
+        if same_boot else None
     )
+    payload = dict(row.get("payload") or {})
+    if not same_boot:
+        payload["timing_excluded_reason"] = "cross_boot"
     ok = row.get("status") in ("acked", "filled", "sent", "duplicate_replay")
     if row.get("status") in ("rejected", "failed"):
         ok = False
@@ -52,7 +64,7 @@ def _receipt_from_row(row: dict, *, duplicate: bool = False) -> ExecutionReceipt
         broker_status=row.get("broker_status"),
         duplicate=duplicate,
         timings=timings,
-        payload=row.get("payload") or {},
+        payload=payload,
     )
 
 
@@ -100,6 +112,16 @@ async def execute(
     received = received_ns if received_ns is not None else time.perf_counter_ns()
     timings = StageTimings(received_ns=received)
     symbol = cmd.normalized_symbol()
+    requested_price = (
+        cmd.limit_price if cmd.limit_price is not None
+        else cmd.stop_price if cmd.stop_price is not None
+        else cmd.entry_price
+    )
+    measurement = _timing.initial_measurement(
+        browser_timing=cmd.client_timing,
+        backend_ingress_perf_ns=received,
+        backend_ingress_wall_ns=cmd.backend_ingress_wall_ns or time.time_ns(),
+    )
 
     async with _lock:
         execution_id, is_new = store.reserve(
@@ -108,7 +130,19 @@ async def execute(
             source=cmd.source,
             symbol=symbol,
             received_ns=received,
-            payload={"setup": cmd.setup, "order_type": cmd.order_type},
+            payload={
+                "setup": cmd.setup,
+                "order_type": cmd.order_type,
+                "side": (cmd.side or "").upper() or None,
+                "qty": cmd.qty if cmd.qty is not None else cmd.shares,
+                "requested_price": requested_price,
+                "reference_price": (
+                    cmd.reference_price
+                    if cmd.reference_price is not None
+                    else requested_price
+                ),
+                "measurement": measurement,
+            },
         )
         timings.persisted_ns = time.perf_counter_ns()
         store.update_stages(execution_id, persisted_ns=timings.persisted_ns)
@@ -126,8 +160,8 @@ async def execute(
             return _receipt_from_row(row, duplicate=True)
 
         ok, detail, reason = _validate.validate_command(cmd)
-        timings.validation_completed_ns = time.perf_counter_ns()
         if not ok:
+            timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "VALIDATION")
 
         if not cmd.skip_risk and cmd.operation in ("place", "bracket"):
@@ -138,6 +172,7 @@ async def execute(
             if _executor.is_kill_switch_tripped() and cmd.source not in (
                 "kill", "flatten", "cancel_working",
             ):
+                timings.validation_completed_ns = time.perf_counter_ns()
                 return _reject(execution_id, cmd, timings, "kill switch tripped", "KILL_SWITCH")
 
             if cmd.operation == "bracket" and not cmd.skip_concurrency:
@@ -145,11 +180,13 @@ async def execute(
                     __import__("nova_os.staged_tickets", fromlist=["list_staged"]).list_staged()
                 )
                 if symbol and symbol in _executor.open_positions():
+                    timings.validation_completed_ns = time.perf_counter_ns()
                     return _reject(
                         execution_id, cmd, timings,
                         f"{symbol} already has a tracked open position", "ALREADY_OPEN",
                     )
                 if concurrent >= NOVA_OS_MAX_CONCURRENT_POSITIONS:
+                    timings.validation_completed_ns = time.perf_counter_ns()
                     return _reject(
                         execution_id, cmd, timings,
                         f"at max concurrent ({NOVA_OS_MAX_CONCURRENT_POSITIONS})",
@@ -158,6 +195,7 @@ async def execute(
 
             can_trade, halt = _risk.can_trade()
             if not can_trade and cmd.source not in ("flatten", "kill"):
+                timings.validation_completed_ns = time.perf_counter_ns()
                 return _reject(execution_id, cmd, timings, halt, "RISK_HALT")
 
             if cmd.operation == "bracket" and cmd.entry_price and cmd.stop_price and cmd.target_price:
@@ -165,19 +203,23 @@ async def execute(
                     cmd.entry_price, cmd.stop_price, cmd.target_price,
                 )
                 if not plan_ok:
+                    timings.validation_completed_ns = time.perf_counter_ns()
                     return _reject(execution_id, cmd, timings, "; ".join(issues), "PLAN_INVALID")
 
             if cmd.source == "auto_paper":
                 gate_ok, gate_reason = _control_mode.auto_paper_gate_status()
                 if not gate_ok:
+                    timings.validation_completed_ns = time.perf_counter_ns()
                     return _reject(
                         execution_id, cmd, timings, gate_reason, "AUTO_PAPER_GATE",
                     )
 
         ok, detail, reason = _validate.check_account_and_position(cmd)
         if not ok:
+            timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "ACCOUNT")
 
+        timings.validation_completed_ns = time.perf_counter_ns()
         store.update_stages(
             execution_id,
             status="validated",
@@ -197,7 +239,55 @@ async def execute(
 
 
 def get_execution(execution_id: str) -> dict | None:
-    return store.get_by_id(execution_id)
+    row = store.get_by_id(execution_id)
+    if row is None:
+        return None
+    fills = evidence_store.list_for_execution(execution_id)
+    row["fill_evidence"] = fills
+    aggregate_fills = [
+        item for item in fills if bool(item.get("aggregate_eligible", 1))
+    ]
+    row["first_fill"] = aggregate_fills[0] if aggregate_fills else None
+    row["complete_fill"] = next(
+        (
+            item for item in aggregate_fills
+            if item["fill_state"] == "complete"
+        ),
+        None,
+    )
+    return row
+
+
+def finalize_http_response(execution_id: str, *, duplicate: bool = False) -> dict:
+    """Persist and return the handler response-ready mark (not frontend render)."""
+    row = store.get_by_id(execution_id) or {}
+    if duplicate:
+        original = dict((row.get("payload") or {}).get("measurement") or {})
+        original["replay_note"] = (
+            "idempotency replay; timings belong to the original execution"
+        )
+        return original
+    if row.get("boot_id") != store.current_boot_id():
+        return {
+            "schema_version": 1,
+            "backend": {
+                "clock_domain": "backend.perf_counter_ns",
+                "ingress_to_response_ready_ms": None,
+                "response_mark": "handler_response_ready_not_socket_or_frontend_render",
+            },
+            "cross_clock_arithmetic": "forbidden",
+            "timing_excluded_reason": "cross_boot_idempotency_replay",
+            "frontend_render": {
+                "status": "not_measured_by_backend",
+                "owner": "widgets",
+            },
+        }
+    payload = row.get("payload") or {}
+    measurement = _timing.response_ready_measurement(payload.get("measurement") or {})
+    evidence_store.merge_execution_payload(
+        execution_id, {"measurement": measurement},
+    )
+    return measurement
 
 
 def reset_for_tests() -> None:

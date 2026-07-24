@@ -37,6 +37,9 @@ class ExecutionCommand:
     shares: int | None = None
     skip_risk: bool = False
     skip_concurrency: bool = False
+    reference_price: float | None = None
+    client_timing: dict[str, Any] | None = None
+    backend_ingress_wall_ns: int | None = None
 
     def normalized_symbol(self) -> str | None:
         return self.symbol.upper() if self.symbol else None
@@ -54,7 +57,7 @@ class StageTimings:
     filled_ns: int | None = None
 
     def ms_from_received(self, mark_ns: int | None) -> float | None:
-        if mark_ns is None:
+        if mark_ns is None or mark_ns < self.received_ns:
             return None
         return (mark_ns - self.received_ns) / 1_000_000.0
 
@@ -116,4 +119,5 @@ class ExecutionReceipt:
             "parent_order_id": self.parent_order_id,
             "target_order_id": self.target_order_id,
             "stop_order_id": self.stop_order_id,
+            "measurement": self.payload.get("measurement"),
         }

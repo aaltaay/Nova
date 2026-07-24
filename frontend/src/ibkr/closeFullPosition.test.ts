@@ -38,6 +38,10 @@ describe('closeFullPosition', () => {
         order_type: 'MKT',
         outside_rth: false,
       }),
+      undefined,
+      expect.objectContaining({
+        timing: expect.any(Object),
+      }),
     );
   });
 
@@ -52,6 +56,10 @@ describe('closeFullPosition', () => {
     expect(res.ok).toBe(true);
     expect(spy).toHaveBeenCalledWith(
       expect.objectContaining({ order_type: 'MKT', outside_rth: true }),
+      undefined,
+      expect.objectContaining({
+        timing: expect.any(Object),
+      }),
     );
   });
 

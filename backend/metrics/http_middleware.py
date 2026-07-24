@@ -27,6 +27,9 @@ class HttpOperationMetricsMiddleware:
             return
 
         started_ns = time.perf_counter_ns()
+        state = scope.setdefault("state", {})
+        state["backend_ingress_perf_ns"] = started_ns
+        state["backend_ingress_wall_ns"] = time.time_ns()
         status_code = 500
         response_started = False
 

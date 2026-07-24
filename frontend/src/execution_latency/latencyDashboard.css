@@ -1,0 +1,213 @@
+.latency-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.9rem;
+  color: var(--text-primary);
+}
+
+.latency-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.8rem;
+}
+
+.latency-header h2,
+.latency-card h3,
+.latency-honesty h3 {
+  margin: 0;
+}
+
+.latency-header p {
+  margin: 0.3rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  max-width: 58rem;
+}
+
+.latency-kicker {
+  color: var(--accent) !important;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.latency-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+
+.latency-summary-card,
+.latency-card,
+.latency-honesty {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.latency-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+}
+
+.latency-summary-card span,
+.latency-summary-card small {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.latency-summary-card strong {
+  font-size: 1.35rem;
+}
+
+.latency-summary-card.is-warning {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--border-color));
+}
+
+.latency-summary-card.is-danger {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-color));
+}
+
+.latency-card,
+.latency-honesty {
+  padding: 0.75rem 0.85rem;
+}
+
+.latency-card h3,
+.latency-honesty h3 {
+  font-size: 0.9rem;
+}
+
+.latency-help,
+.latency-empty {
+  margin: 0.35rem 0 0.6rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.latency-honesty ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 0.35rem 1rem;
+  margin: 0.55rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.latency-state {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.55rem 0.7rem;
+  color: var(--text-secondary);
+  background: rgba(148, 163, 184, 0.06);
+  font-size: 0.8rem;
+}
+
+.latency-state--warn {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--border-color));
+  color: var(--warning);
+}
+
+.latency-state--error {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-color));
+  color: var(--danger);
+}
+
+.latency-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+  gap: 0.85rem;
+}
+
+.latency-table-scroll {
+  overflow-x: auto;
+}
+
+.latency-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.74rem;
+}
+
+.latency-table th,
+.latency-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.latency-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.latency-table code,
+.latency-exclusions code {
+  color: var(--text-primary);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.7rem;
+}
+
+.latency-warn {
+  color: var(--warning);
+}
+
+.latency-ok {
+  color: var(--success);
+}
+
+.latency-error {
+  color: var(--danger);
+}
+
+.latency-population {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 0.12rem 0.42rem;
+  text-transform: capitalize;
+}
+
+.latency-population--paper,
+.latency-population--benchmark_paper {
+  border-color: color-mix(in srgb, var(--success) 45%, var(--border-color));
+  color: var(--success);
+}
+
+.latency-population--live {
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--border-color));
+  color: var(--danger);
+}
+
+.latency-population--benchmark_synthetic {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border-color));
+  color: var(--accent);
+}
+
+.latency-exclusions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.25rem;
+  margin: 0.4rem 0 0;
+  padding-left: 1rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+@media (max-width: 720px) {
+  .latency-header {
+    flex-direction: column;
+  }
+
+  .latency-grid {
+    grid-template-columns: 1fr;
+  }
+}

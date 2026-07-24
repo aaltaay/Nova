@@ -12,7 +12,7 @@ import { useResizableWidth } from '../hooks/useResizableWidth';
 import { useTickerStream } from '../hooks/useTickerStream';
 import { useIbkrAccount } from '../ibkr/useIbkrAccount';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { novaFetch } from '../api/novaFetch';
+import { cancelIbkrOrderWithFeedback } from '../ibkr';
 import { confirmAndFillWorkingOrder } from '../ibkr/fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from '../ibkr/placeOrder';
 import type { IbkrOrder } from '../ibkr/types';
@@ -21,7 +21,6 @@ import { StockViewHeader } from '../stock_view/StockViewHeader';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
 import { StockViewRail } from '../stock_view/StockViewRail';
 import {
-  API_BASE_URL,
   STOCK_VIEW_MAIN_ORDERS_SPLIT_KEY,
   STOCK_VIEW_MAIN_ORDERS_SPLIT_MAX_PCT,
   STOCK_VIEW_MAIN_ORDERS_SPLIT_MIN_PCT,
@@ -123,12 +122,7 @@ export function StockViewPage({
 
   const onCancelOrder = useCallback(
     async (orderId: number) => {
-      try {
-        await novaFetch(`${API_BASE_URL}/api/ibkr/order/${orderId}`, { method: 'DELETE' });
-        refresh();
-      } catch {
-        // next poll retries
-      }
+      await cancelIbkrOrderWithFeedback(orderId, refresh);
     },
     [refresh],
   );

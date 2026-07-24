@@ -24,7 +24,7 @@ import json
 import logging
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from ibkr import client as _client
 from ibkr import depth as _depth
@@ -32,10 +32,12 @@ from ibkr import orders as _orders
 from ibkr import account as _account
 from ibkr import tape_stream as _tape
 from ibkr.errors import IbkrAccountError
+from routes.trading_execution import router as execution_router
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/ibkr", tags=["ibkr"])
+router.include_router(execution_router)
 ws_router = APIRouter(tags=["ibkr-ws"])
 
 
@@ -126,174 +128,6 @@ async def ibkr_closed_orders(limit: int | None = None) -> list:
         return await _orders.closed_orders_async(limit=limit)
     except IbkrAccountError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-
-# ── Orders (centralized via execution.service — ADR 007) ──────────────────────
-
-class OrderRequest(BaseModel):
-    symbol: str
-    side: str           # "BUY" | "SELL"
-    qty: float = Field(gt=0)
-    order_type: str = "MKT"   # "MKT" | "LMT" | "STP"
-    limit_price: float | None = None
-    stop_price: float | None = None
-    outside_rth: bool = False
-    idempotency_key: str | None = None
-
-
-class ReplaceRequest(BaseModel):
-    """Price-only replace. Side/symbol/qty are immutable."""
-    limit_price: float | None = None
-    stop_price: float | None = None
-    idempotency_key: str | None = None
-
-
-@router.post("/order")
-async def place_order(req: OrderRequest) -> dict:
-    import time
-    import uuid
-    from execution.models import ExecutionCommand
-    from execution.service import execute
-
-    key = (req.idempotency_key or "").strip() or str(uuid.uuid4())
-    receipt = await execute(
-        ExecutionCommand(
-            operation="place",
-            idempotency_key=key,
-            source="manual",
-            symbol=req.symbol.upper(),
-            side=req.side.upper(),
-            qty=req.qty,
-            order_type=req.order_type.upper(),
-            limit_price=req.limit_price,
-            stop_price=req.stop_price,
-            outside_rth=req.outside_rth,
-            skip_risk=True,  # manual ticket: IBKR safety + account gates only
-            skip_concurrency=True,
-        ),
-        received_ns=time.perf_counter_ns(),
-    )
-    return receipt.legacy_place_dict()
-
-
-@router.delete("/order/{order_id}")
-async def cancel_order(order_id: int, idempotency_key: str | None = None) -> dict:
-    import time
-    import uuid
-    from execution.models import ExecutionCommand
-    from execution.service import execute
-
-    key = (idempotency_key or "").strip() or f"cancel:{order_id}:{uuid.uuid4()}"
-    receipt = await execute(
-        ExecutionCommand(
-            operation="cancel",
-            idempotency_key=key,
-            source="manual",
-            order_id=order_id,
-            skip_risk=True,
-            skip_concurrency=True,
-        ),
-        received_ns=time.perf_counter_ns(),
-    )
-    return {
-        "ok": receipt.ok,
-        "error": receipt.error,
-        "execution_id": receipt.execution_id,
-        "timings": receipt.timings.to_dict() if receipt.timings else None,
-        "broker_status": receipt.broker_status,
-        "duplicate": receipt.duplicate,
-    }
-
-
-@router.delete("/orders")
-async def cancel_orders_for_symbol(symbol: str) -> dict:
-    """Cancel all open orders for a symbol (orchestration over per-order execute)."""
-    import time
-    import uuid
-    from execution.models import ExecutionCommand
-    from execution.service import execute
-
-    sym = (symbol or "").strip().upper()
-    if not sym:
-        return {"ok": False, "error": "symbol is required", "cancelled": [], "failed": []}
-
-    try:
-        open_list = _orders.open_orders()
-    except IbkrAccountError as exc:
-        return {"ok": False, "error": str(exc), "cancelled": [], "failed": []}
-    matches = [
-        o for o in open_list
-        if str(o.get("symbol", "")).upper() == sym and o.get("order_id") is not None
-    ]
-    cancelled: list[int] = []
-    failed: list[dict] = []
-    for row in matches:
-        oid = int(row["order_id"])
-        key = f"cancel-all:{sym}:{oid}:{uuid.uuid4()}"
-        receipt = await execute(
-            ExecutionCommand(
-                operation="cancel",
-                idempotency_key=key,
-                source="manual",
-                order_id=oid,
-                skip_risk=True,
-                skip_concurrency=True,
-            ),
-            received_ns=time.perf_counter_ns(),
-        )
-        if receipt.ok:
-            cancelled.append(oid)
-        else:
-            failed.append({"order_id": oid, "error": receipt.error})
-
-    return {
-        "ok": len(failed) == 0,
-        "symbol": sym,
-        "cancelled": cancelled,
-        "failed": failed,
-        "error": None if not failed else f"{len(failed)} cancel(s) failed",
-    }
-
-
-@router.patch("/order/{order_id}")
-async def replace_order(order_id: int, req: ReplaceRequest) -> dict:
-    import time
-    import uuid
-    from execution.models import ExecutionCommand
-    from execution.service import execute
-
-    key = (req.idempotency_key or "").strip() or f"replace:{order_id}:{uuid.uuid4()}"
-    receipt = await execute(
-        ExecutionCommand(
-            operation="replace",
-            idempotency_key=key,
-            source="manual",
-            order_id=order_id,
-            limit_price=req.limit_price,
-            stop_price=req.stop_price,
-            skip_risk=True,
-            skip_concurrency=True,
-        ),
-        received_ns=time.perf_counter_ns(),
-    )
-    return receipt.legacy_place_dict()
-
-
-@router.get("/execution/{execution_id}")
-async def get_execution(execution_id: str) -> dict:
-    from execution.service import get_execution as _get
-
-    row = _get(execution_id)
-    if row is None:
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="execution not found")
-    return row
-
-
-@router.get("/execution-latency")
-async def execution_latency() -> dict:
-    from execution.service import latency_summary
-    return latency_summary()
 
 
 # ── Depth ─────────────────────────────────────────────────────────────────────

@@ -2,4 +2,5 @@
 
 export { DepthLadder } from './DepthLadder';
 export { TimeSalesPanel } from './TimeSalesPanel';
+export { cancelIbkrOrderWithFeedback } from './cancelOrder';
 export { useIbkrStatus } from './useIbkrStatus';

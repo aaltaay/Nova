@@ -89,6 +89,14 @@ async def _synthetic(samples: int, *, run_id: str | None = None) -> dict:
         if r.order_id:
             watch = telemetry.watch_order(int(r.order_id))
             watch.note_status("Submitted")
+            watch.note_execution(
+                avg_price=0.01,
+                price=0.01,
+                shares=1.0,
+                cumulative_shares=1.0,
+                remaining=0.0,
+                complete=True,
+            )
             watch.note_filled()
             await exec_svc.execute(
                 ExecutionCommand(

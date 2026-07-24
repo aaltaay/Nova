@@ -9,15 +9,16 @@ Companion to: `.cursor/agents/execution.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-23T23:12:00-04:00
+captured_at: 2026-07-24T01:08:00-04:00
 source_revision: local-wip
-result: per-operation-latency-execution-slice-pass
+result: end-to-end-measurement-maintainer-fixes-pass
 metrics:
-  focused_tests: 42_passed
-  backend_tests: 947_passed_with_known_torchvision_warning
+  focused_tests: 102_passed
+  backend_tests: 974_passed_with_known_torchvision_warning
   synthetic_ack_p95_ms: 56.0433
   synthetic_send_fill_p95_ms: 35.3563
   synthetic_ack_fill_p95_ms: 13.3109
+  synthetic_metrics_note: prior_baseline_not_rerun_gateway_live
   agent_contract: pass
 blockers: []
 dashboard_freshness: clean
@@ -66,6 +67,16 @@ Machine-readable block only. Update after material runs. Do not duplicate mutabl
 - **Monotonic ledger boundary:** each row stores a process `boot_id`; callbacks and rollups require the current id. Migrated legacy rows keep `boot_id=NULL` and are excluded from `perf_counter_ns` deltas.
 - **Probe isolation + fill:** every benchmark run uses a unique idempotency prefix. Rollups expose send→fill and ack→fill p50/p95/max/count; synthetic fill remains simulator evidence, never live quality evidence.
 
+## Durable end-to-end measurement facts (promoted 2026-07-24)
+
+- **Clock boundary:** browser `performance.now()` is only compared with browser `performance.now()`; backend `perf_counter_ns` is only compared within the same boot. Browser→backend wall subtraction is labeled offset+transport uncertainty and `latency_usable=false`.
+- **Fill evidence:** per-execution rows are capped at 64 and distinguish `execDetails`, `orderStatus`, `reconciliation_poll`, partial/complete state, exchange/callback stamps, average/reference price, and BUY/SELL side-aware slippage.
+- **Read APIs:** `/api/ibkr/execution-latency` and `/api/metrics/ops.execution` cap at 500 rows and segment population/mode/operation/source/provenance with p50/p95/p99/max/count/error/exclusion/sufficiency.
+- **Negative cancel/replace root cause:** reused IBKR order ids reused an old `OrderWatch`, and order-id persistence updated multiple matching executions. Fresh execution-bound watches + latest-row fallback prevent ack timestamps leaking across mutations; old negatives remain excluded with reasons.
+- **Frontend seam:** Widgets owns sending optional action/request stamps and measuring render complete in the browser clock. Backend response-ready is not socket flush or paint; no execution WS emission hook exists.
+- **Population verdict:** normalized population—not mode/source—controls `mixed_population`. Mixed aggregate percentiles are diagnostics only and aggregate `sla_pass` is null; population segments own SLA status and insufficiency.
+- **Bracket leg boundary:** parent/target/stop watches carry role, actual side, and known leg reference. Child evidence is visible but `aggregate_eligible=0`, so it cannot set parent ack/fill stages or enter parent-entry fill/slippage/provenance aggregates.
+
 ---
 
 ## How to continue improving
@@ -84,6 +95,8 @@ Durable facts get **promoted into `execution.md`**. Run history and open ideas s
 
 Open improvements. Newest first. Mark `[x]` when done and move a one-line note to **Completed**.
 
+- [ ] Widgets handoff: send optional body/header browser stamps + reference price; record render-complete in the same browser performance clock.
+- [ ] Ops evidence: after a separately safe paper session, populate segmented paper callback/fill distributions; never use live Gateway for an agent probe.
 - [ ] Product (explicit ask): unify long-qty SSOT — `account.long_qty` + UI `/positions` qty from `get_positions()`; portfolio for PnL only; wire validate + flatten + preview; regression tests for portfolio≠positions.
 - [ ] Docs/UML: add **close/exit** sequence (UI/`exit_pos` → place+ORDERS_GATE; flatten → place source=flatten + leg cancels).
 - [ ] Docs/UML: add cancel sequence (callers → CANCEL_GATE → adapter) to ADR 007 or `docs/trading-execution-validation.md`.
@@ -108,6 +121,14 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-24 — End-to-end execution measurement
+
+- **Scope:** Optional browser ingress contract; backend response-ready; bounded callback/poll fill evidence; slippage; segmented APIs; stale cancel/replace ack fix. No orders, probes, env, arm/kill, or cadence changes.
+- **Commands:** focused pytest 102 pass; full backend pytest 974 pass with known TorchVision DLL diagnostic; changed-file Ruff PASS; agent contract PASS; diff check PASS.
+- **Result:** end-to-end-measurement-maintainer-fixes-pass — same-clock arithmetic, normalized-population SLA suppression, leg-safe provenance/slippage, explicit exclusions, and bounded dashboard APIs; auto_live NO-GO.
+- **Learning:** negative historical cancel/replace acks were real correlation bugs; additionally, mode/source cannot identify benchmark populations, and shared execution_id does not imply bracket legs share side/reference or aggregate meaning.
+- **Files updated:** execution/IBKR telemetry + focused route/module splits/tests; ADR/validation; CHANGELOG/PROBLEM_LOG/task-log; memory/dashboard.
 
 ### 2026-07-23 — Per-operation latency execution slice
 

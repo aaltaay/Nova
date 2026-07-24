@@ -11,9 +11,8 @@
  */
 import { useCallback, useState } from 'react';
 import { ClosedOrdersModule } from '../closed_orders';
-import { novaFetch } from '../api/novaFetch';
+import { LatencyDashboard } from '../execution_latency';
 import {
-  API_BASE_URL,
   CLOSED_ORDERS_MODULE_ID,
   IBKR_PAPER_PORT,
   IBKR_LIVE_PORT,
@@ -28,11 +27,14 @@ import { PaperTradingBanner } from './PaperTradingBanner';
 import { PositionsPanel } from './PositionsPanel';
 import { ReportsTab } from '../reports/ReportsTab';
 import { alertApp } from '../ux';
+import { cancelIbkrOrderWithFeedback } from './cancelOrder';
 import { confirmAndFillWorkingOrder } from './fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from './placeOrder';
+import {
+  TradingSectionNav,
+  type TradingTabSection,
+} from './TradingSectionNav';
 import type { IbkrOrder } from './types';
-
-type TradingTabSection = 'overview' | 'reports';
 
 interface TradingTabProps {
   selectedSymbol: string | null;
@@ -63,12 +65,7 @@ export function TradingTab({
   const [highlightOrderId, setHighlightOrderId] = useState<number | null>(null);
 
   const handleCancelOrder = useCallback(async (orderId: number) => {
-    try {
-      await novaFetch(`${API_BASE_URL}/api/ibkr/order/${orderId}`, { method: 'DELETE' });
-      refresh();
-    } catch {
-      // error will surface on next poll
-    }
+    await cancelIbkrOrderWithFeedback(orderId, refresh);
   }, [refresh]);
 
   const handleFillImmediately = useCallback(async (order: IbkrOrder) => {
@@ -101,28 +98,11 @@ export function TradingTab({
     <div className="ibkr-trading-tab">
       <PaperTradingBanner mode={status.mode} />
       {/* ── Section toggle: Reports is nested here, not a top-level tab ── */}
-      <div className="ibkr-section-toggle" role="tablist" aria-label="Account section">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={section === 'overview'}
-          className={section === 'overview' ? 'ibkr-section-toggle-btn active' : 'ibkr-section-toggle-btn'}
-          onClick={() => setSection('overview')}
-        >
-          Overview
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={section === 'reports'}
-          className={section === 'reports' ? 'ibkr-section-toggle-btn active' : 'ibkr-section-toggle-btn'}
-          onClick={() => setSection('reports')}
-        >
-          Reports
-        </button>
-      </div>
+      <TradingSectionNav section={section} onChange={setSection} />
       {section === 'reports' ? (
         <ReportsTab />
+      ) : section === 'latency' ? (
+        <LatencyDashboard />
       ) : (
       <>
       {/* ── Status bar ─────────────────────────────────────────────────── */}
