@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import logging
+import math
 
+from constants import IBKR_FRACTIONAL_ORDER_API_MSG
 from execution.models import ExecutionCommand
 from ibkr import account as _account
 from ibkr import client as _client
@@ -10,6 +12,20 @@ from ibkr import safety as _safety
 from ibkr.errors import IbkrAccountError
 
 logger = logging.getLogger(__name__)
+
+# Float dust below this is treated as a whole share (1.0000000001 → whole).
+_WHOLE_SHARE_EPS = 1e-9
+
+
+def is_whole_share_qty(qty: float) -> bool:
+    """True when qty is a positive whole-share lot IBKR's API will accept."""
+    try:
+        q = float(qty)
+    except (TypeError, ValueError):
+        return False
+    if not math.isfinite(q) or q <= 0:
+        return False
+    return abs(q - round(q)) < _WHOLE_SHARE_EPS
 
 
 def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
@@ -55,6 +71,10 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
         qty = float(cmd.qty or 0)
         if qty <= 0:
             return False, "qty must be greater than zero", "QTY_INVALID"
+        # IBKR Error 10243: fractional lots cannot be placed via the API at all.
+        # Fail closed here so Flatten/manual place never look like a silent cancel.
+        if not is_whole_share_qty(qty):
+            return False, IBKR_FRACTIONAL_ORDER_API_MSG, "QTY_FRACTIONAL_API"
         if cmd.order_type not in ("MKT", "LMT", "STP"):
             return False, "order_type must be MKT, LMT, or STP", "ORDER_TYPE_INVALID"
         if cmd.order_type == "LMT" and (cmd.limit_price is None or cmd.limit_price <= 0):

@@ -4,7 +4,12 @@ from __future__ import annotations
 import time
 from typing import Callable
 
-from constants import EXECUTOR_ENTRY_SIDE_IBKR, EXECUTION_ACK_WAIT_SEC
+from constants import (
+    EXECUTOR_ENTRY_SIDE_IBKR,
+    EXECUTION_ACK_WAIT_SEC,
+    IBKR_ERROR_FRACTIONAL_API,
+    IBKR_FRACTIONAL_ORDER_API_MSG,
+)
 from execution import store
 from execution import telemetry
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
@@ -197,18 +202,55 @@ async def finish_place(
         timings.broker_ack_ns = watch.ack_ns
         if watch.filled_ns:
             timings.filled_ns = watch.filled_ns
+
+    broker_status = watch.ack_status if watch else None
+    # Cancelled/ApiCancelled/Inactive without a fill is a broker reject
+    # (classic: Error 10243 fractional). Do not report ok=true to Flatten UI.
+    if (
+        watch is not None
+        and wait_ack
+        and (broker_status or "") in telemetry.TERMINAL_REJECT_STATUSES
+        and not watch.has_fill()
+    ):
+        if watch.error_code == IBKR_ERROR_FRACTIONAL_API:
+            err = IBKR_FRACTIONAL_ORDER_API_MSG
+            reason = "QTY_FRACTIONAL_API"
+        else:
+            err = (
+                watch.error_message
+                or f"Broker rejected/cancelled order ({broker_status})"
+            )
+            reason = "BROKER_REJECT"
+        store.update_stages(
+            execution_id,
+            status="failed",
+            error=err,
+            reason_code=reason,
+            order_id=oid,
+            broker_ack_ns=timings.broker_ack_ns,
+            broker_status=broker_status,
+            mode=mode,
+        )
+        return ExecutionReceipt(
+            ok=False, execution_id=execution_id, operation=cmd.operation,
+            source=cmd.source, idempotency_key=cmd.idempotency_key,
+            error=err, reason_code=reason,
+            mode=mode, symbol=cmd.normalized_symbol(), order_id=oid,
+            broker_status=broker_status, timings=timings,
+        )
+
     store.update_stages(
         execution_id,
         status="acked" if timings.broker_ack_ns else "sent",
         order_id=oid,
         broker_ack_ns=timings.broker_ack_ns,
         filled_ns=timings.filled_ns,
-        broker_status=watch.ack_status if watch else None,
+        broker_status=broker_status,
         mode=mode,
     )
     return ExecutionReceipt(
         ok=True, execution_id=execution_id, operation=cmd.operation,
         source=cmd.source, idempotency_key=cmd.idempotency_key,
         mode=mode, symbol=cmd.normalized_symbol(), order_id=oid,
-        broker_status=watch.ack_status if watch else None, timings=timings,
+        broker_status=broker_status, timings=timings,
     )

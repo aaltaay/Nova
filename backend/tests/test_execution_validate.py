@@ -140,3 +140,30 @@ def test_priced_buy_refused_when_account_values_raises(monkeypatch):
     assert ok is False
     assert reason == "BUYING_POWER_UNKNOWN"
     assert "BuyingPower" in detail
+
+
+def test_is_whole_share_qty():
+    assert validate.is_whole_share_qty(1) is True
+    assert validate.is_whole_share_qty(10.0) is True
+    assert validate.is_whole_share_qty(0.0642) is False
+    assert validate.is_whole_share_qty(0) is False
+    assert validate.is_whole_share_qty(-1) is False
+
+
+def test_place_rejects_fractional_qty_preflight(monkeypatch):
+    """IBKR Error 10243 — never submit fractional lots via the API."""
+    import ibkr.safety as safety_mod
+
+    monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "paper")
+    monkeypatch.setattr(
+        safety_mod,
+        "assert_orders_allowed",
+        lambda **_k: (True, "OK"),
+    )
+    ok, detail, reason = validate.validate_command(_sell_cmd(qty=0.0642))
+    assert ok is False
+    assert reason == "QTY_FRACTIONAL_API"
+    assert "10243" in detail

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Block fractional Flatten + treat Error 10243 / Cancelled as hard fail
+
+- **What:** Manual Flatten / place now refuses non-whole share qty before IBKR submit (`QTY_FRACTIONAL_API`). If a place still gets broker-cancelled with no fill (classic Error 10243), the execution receipt is `ok: false` with a clear desktop-close message instead of a silent success.
+- **Why:** Live Flatten of `0.0642 IBKR` was submitted then cancelled by IBKR API; the UI could treat that Cancelled ack as success.
+- **Files touched:** `backend/constants_ibkr.py`, `backend/execution/validate.py`, `backend/execution/telemetry.py`, `backend/execution/broker_send.py`, `frontend/src/ibkr/exitPosition.ts`, tests.
+- **How it works now:** Whole-share preflight on place validation + FE exit builder. Order watches record `errorEvent`; `finish_place` fails terminal reject statuses without a fill. Closing true fractionals still requires TWS / Gateway desktop (IBKR API limit).
+- **Verified by:** `pytest tests/test_execution_validate.py tests/test_execution_finish_place_reject.py`; Vitest `exitPosition` / `closeFullPosition`.
+- **Related:** PROBLEM_LOG 2026-07-23 Error 10243 · task-log fractional-flatten-error-10243
+
 ## 2026-07-23 — Reset Former Momo watchlist (strategy 1) to default, freeing HOD active-set slots
 
 - **What:** Reset strategy 1's `former_momo_list` from 433 symbols back to the intended default `["SPRC"]` via `POST /api/hod-momo/config`.

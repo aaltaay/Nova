@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Live Flatten of fractional IBKR lot rejected (Error 10243); UI treated Cancelled as success
+
+- **Symptom:** Flatten on live leftover `0.0642` shares of IBKR submitted `SELL 0.0642 MKT`, then IBKR cancelled ~86ms later with **Error 10243**: "Fractional-sized order cannot be placed via API. Please use desktop version to place this order." Position stayed open. Execution receipt could still look `ok: true` with `broker_status: Cancelled`, so the Flatten UI did not show a clear failure.
+- **Cause:** (1) IBKR's TWS API hard-refuses fractional `totalQuantity` — not a Nova sizing bug. (2) Nova never preflight-blocked non-whole share qty on the place path. (3) `Cancelled` / `ApiCancelled` / `Inactive` were treated as successful acks in `execution.telemetry` / `finish_place` whenever `placeOrder` returned locally.
+- **Fix:** Preflight reject fractional qty in `execution.validate` (`QTY_FRACTIONAL_API`) and in FE `buildExitFullPosition` before place. Wire `errorEvent` on order watches; `finish_place` returns `ok=false` when ack is a terminal reject status with no fill (maps 10243 → clear desktop-close message). Constants: `IBKR_ERROR_FRACTIONAL_API` / `IBKR_FRACTIONAL_ORDER_API_MSG`.
+- **Keywords:** Error 10243, fractional shares, Flatten, QTY_FRACTIONAL_API, finish_place, Cancelled, IBKR leftover, 0.0642
+
 ## 2026-07-23 — Former Momo watchlist bloated to 433 symbols, crowding out every live mover from the 40-slot HOD active set (root cause of the earlier "39 priority symbols" follow-up)
 
 - **Symptom:** Integrity banner showed `Uncovered (watched, not live): SLAI, SKHZ, STFS, CVM, NVVE, COLAR, MAAS, JLHL...` (417 uncovered) even after the stale-cache fix above. `/api/hod-momo/debug/integrity` showed `active=40/40` with `priority_reasons` = `former_momo` for 39 of the 40 slots, leaving exactly one slot for the combined live Gappers+Gainers+Afterhours union.

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildExitFullPosition, buildExitPositionPercent } from './exitPosition';
+import {
+  buildExitFullPosition,
+  buildExitPositionPercent,
+  FRACTIONAL_ORDER_API_MSG,
+  isWholeShareQty,
+} from './exitPosition';
 
 describe('buildExitFullPosition', () => {
   it('sells a long position', () => {
@@ -13,6 +18,14 @@ describe('buildExitFullPosition', () => {
   it('errors when flat', () => {
     expect(buildExitFullPosition(0).ok).toBe(false);
     expect(buildExitFullPosition(null).ok).toBe(false);
+  });
+
+  it('blocks fractional leftovers (IBKR Error 10243)', () => {
+    const res = buildExitFullPosition(0.0642);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error).toBe(FRACTIONAL_ORDER_API_MSG);
+    expect(isWholeShareQty(0.0642)).toBe(false);
+    expect(isWholeShareQty(1)).toBe(true);
   });
 });
 

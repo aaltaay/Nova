@@ -21,6 +21,14 @@ _ACK_STATUSES = frozenset({
     "Inactive",
 })
 
+# Broker terminal statuses that unblock wait_ack but must not count as place
+# success when there is no fill (Error 10243 fractional cancel).
+TERMINAL_REJECT_STATUSES = frozenset({
+    "Cancelled",
+    "ApiCancelled",
+    "Inactive",
+})
+
 
 class OrderWatch:
     """Per-order waiters for first real ack and complete fill."""
@@ -30,7 +38,9 @@ class OrderWatch:
         self.ack_ns: int | None = None
         self.ack_status: str | None = None
         self.filled_ns: int | None = None
-        self.fill: list[dict[str, Any]] = []
+        self.fills: list[dict[str, Any]] = []
+        self.error_code: int | None = None
+        self.error_message: str | None = None
         self._ack_event = asyncio.Event()
         self._fill_event = asyncio.Event()
 
@@ -95,6 +105,18 @@ class OrderWatch:
                 self.order_id,
             )
 
+    def note_error(self, error_code: int, error_message: str) -> None:
+        """Record the first IBKR errorEvent for this order (e.g. Error 10243)."""
+        if self.error_code is None:
+            try:
+                self.error_code = int(error_code)
+            except (TypeError, ValueError):
+                self.error_code = None
+            self.error_message = str(error_message or "").strip() or None
+
+    def has_fill(self) -> bool:
+        return self.filled_ns is not None or bool(self.fills)
+
     async def wait_ack(self, timeout_sec: float) -> bool:
         if self.ack_ns is not None:
             return True
@@ -138,10 +160,26 @@ def ensure_handlers(ib) -> None:
     try:
         ib.orderStatusEvent += _on_order_status
         ib.execDetailsEvent += _on_exec_details
+        if hasattr(ib, "errorEvent"):
+            ib.errorEvent += _on_ib_error
         _handlers_wired = True
         logger.info("execution.telemetry: IBKR order status/exec handlers wired")
     except Exception:
         logger.exception("execution.telemetry: failed to wire IB handlers")
+
+
+def _on_ib_error(reqId: int, errorCode: int, errorString: str, _contract: Any = None) -> None:
+    try:
+        oid = int(reqId)
+    except (TypeError, ValueError):
+        return
+    w = _watches.get(oid)
+    if w is None:
+        return
+    try:
+        w.note_error(int(errorCode), str(errorString or ""))
+    except Exception:
+        logger.exception("execution.telemetry: errorEvent handler error")
 
 
 def _on_order_status(trade) -> None:

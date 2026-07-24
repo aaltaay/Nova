@@ -47,6 +47,14 @@ IBKR_ERROR_TICK_BY_TICK_CODES = frozenset({10089, 10189, 354})
 # so this must be caught via errorEvent, not try/except around the call —
 # see ibkr/discovery.py._one_shot_scanner + recover_scanner_slots.
 IBKR_ERROR_SCANNER_SLOT_EXHAUSTED = 322
+# "Fractional-sized order cannot be placed via API. Please use desktop version…"
+# Live Flatten of leftover lots (e.g. 0.0642) is accepted locally then cancelled
+# with this code ~80ms later — see PROBLEM_LOG 2026-07-23 Error 10243.
+IBKR_ERROR_FRACTIONAL_API = 10243
+IBKR_FRACTIONAL_ORDER_API_MSG = (
+    "IBKR API cannot place fractional-share orders (Error 10243). "
+    "Close leftovers in TWS / IB Gateway desktop."
+)
 
 # ib_async's OWN internal loggers (ib_async.wrapper / .ib / .client — not our
 # app loggers) log these at ERROR even though they're expected under normal
