@@ -11,9 +11,10 @@ Nova had a single IBKR broker adapter (`ibkr/orders.py`) but fragmented entry po
 1. **One service:** `backend/execution/service.py` exposes `execute(command) -> ExecutionReceipt`. Strategies, agents, scripts, and UI routes never call the broker SDK directly.
 2. **One adapter:** Only `ibkr/orders.py` (implementing `ports.execution.ExecutionPort`) may call `ib.placeOrder` / `ib.cancelOrder`.
 3. **Same path for paper and live:** Only Gateway account/port/credentials and safety gates differ. `auto_live` remains rejected.
-4. **Stages are timed:** request received → validation → ledger persist → broker send → first real broker ack → fill (fill reported separately from the ack SLA).
-5. **Idempotency + lock:** SQLite unique `idempotency_key` plus an asyncio lock prevent duplicate broker sends and same-symbol conflicts.
+4. **Stages are timed:** request received → validation → ledger persist → broker send → first real broker ack → fill. Fill is reported separately as send→fill and ack→fill, outside the ack SLA.
+5. **Idempotency + lock:** SQLite unique `idempotency_key` plus an asyncio lock prevent duplicate broker sends and same-symbol conflicts. The lock covers reservation, validation, and the synchronous broker send only; broker acknowledgment waiting happens after release so a slow order cannot block urgent cancel/flatten sends.
 6. **Replace is price-only:** side/symbol/qty immutable; implemented as IBKR modify via `placeOrder` on an existing order id.
+7. **Monotonic clock scope is explicit:** each execution row stores the process boot/session identifier that produced its `perf_counter_ns` stamps. Ack/fill callbacks and latency rollups only combine stamps from the same identifier; migrated legacy rows without one are retained but excluded from monotonic deltas.
 
 ## Consequences
 

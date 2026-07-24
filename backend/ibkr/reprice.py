@@ -1,11 +1,10 @@
 """IBKR-sourced price repricing between full discovery/movers scans.
 
-Extracted out of main.py (see PROBLEM_LOG 2026-07-14). Two independent loops:
+Extracted out of main.py (see PROBLEM_LOG 2026-07-14).
 
 - ``detail_reprice_loop``: 0–2 open ticker-detail symbols (panel backstop).
-- ``table_reprice_loop``: 1Hz ``reqTickersAsync`` snapshots for scanner rows +
-  capacity-bounded HOD active set — must NOT wait on the full movers scan,
-  never ``reqMktData`` for the whole universe.
+- ``table_reprice_loop``: retired compatibility/test helper. App lifespan does
+  not start it; active-table freshness is owned by scanner_l1 ``reqMktData``.
 """
 from __future__ import annotations
 

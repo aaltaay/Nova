@@ -46,7 +46,12 @@ def test_reset_runtime_state_clears_all_mutable_scanner_values():
         assert reset.assets_cache == []
         assert reset.gapper_cache == []
         assert reset.avg_volume_cache == {}
-        assert reset.cached_health == {"status": "loading", "latency_ms": 0}
+        assert reset.cached_health == {
+            "status": "loading",
+            "latency_ms": 0,
+            "health_source": "alpaca_account_api",
+            "latency_source": "alpaca_account_http",
+        }
         assert reset.current_mode == "closed"
         assert reset.hod_momo_universe == set()
     finally:

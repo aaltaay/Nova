@@ -9,10 +9,12 @@ Companion to: `.cursor/agents/market-feed.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-18T06:20:43Z
-source_revision: cdf87d5
-result: install
-metrics: {}
+captured_at: 2026-07-24T03:35:00Z
+source_revision: aca5878
+result: latency-instrumentation-uncommitted
+metrics:
+  focused_tests: 104
+  broad_backend_tests: 961
 blockers: []
 dashboard_freshness: clean
 ```
@@ -51,6 +53,13 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-23 — Market-data per-operation latency
+
+- **Scope:** Instrument existing IBKR market-data/account requests, HTTP routes, persistent scanner pipeline, and scanner WS coalescing without adding requests.
+- **Result:** 104 focused + 961 broad backend tests passed; broad run retained the known TorchVision DLL warning.
+- **Learning:** `table_reprice_loop` is intentionally retired/test-only; live integrity must use `scanner_l1_age_sec`. Top-level health RTT is Alpaca account HTTP, distinct from IBKR market data.
+- **Files updated:** IBKR owning modules, operation middleware/core, integrity/health attribution, focused backend tests.
 
 ### 2026-07-18 — Agent install
 

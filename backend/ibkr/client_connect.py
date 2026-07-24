@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from constants import IBKR_CONNECT_TIMEOUT_SEC
 from ibkr import gateway_heal as _heal
+from metrics.op_metrics import timed
 
 if TYPE_CHECKING:
     from ib_async import IB
@@ -40,10 +41,11 @@ async def attempt_connect(
     wall = float(IBKR_CONNECT_TIMEOUT_SEC)
     inner = max(1.0, wall - 0.5)
     try:
-        await asyncio.wait_for(
-            ib.connectAsync(host, port, clientId=client_id, timeout=inner),
-            timeout=wall,
-        )
+        async with timed("ibkr.connect"):
+            await asyncio.wait_for(
+                ib.connectAsync(host, port, clientId=client_id, timeout=inner),
+                timeout=wall,
+            )
         return True, "ok"
     except asyncio.TimeoutError:
         logger.warning(

@@ -13,6 +13,9 @@ vi.mock('./BackendStartButton', () => ({
 const healthy = {
   status: 'connected',
   latency_ms: 610,
+  health_source: 'alpaca_account_api',
+  latency_source: 'alpaca_account_http',
+  market_data_source: 'ibkr',
   integrations: {
     alpaca: { status: 'ok', detail: 'news/listing/RVOL aux, not live prices' },
     openai: { status: 'off', detail: 'Lincoln off' },
@@ -38,7 +41,7 @@ describe('HeaderConnectionStatus', () => {
     container.remove();
   });
 
-  it('labels API separately from Gateway and Prices when discovery is ibkr', () => {
+  it('attributes Alpaca account RTT separately from Gateway and Prices', () => {
     act(() => {
       root.render(
         <HeaderConnectionStatus
@@ -60,11 +63,13 @@ describe('HeaderConnectionStatus', () => {
 
     expect(api?.textContent).toMatch(/API/);
     expect(api?.textContent).toMatch(/up/);
-    expect(api?.textContent).toMatch(/610ms/);
+    expect(api?.textContent).toMatch(/Alpaca account RTT 610ms/);
+    expect(api?.textContent).not.toMatch(/up\s*·\s*610ms/);
     expect(api?.textContent).not.toMatch(/Connected/i);
 
     expect(gateway?.textContent).toMatch(/Gateway/);
     expect(gateway?.textContent).toMatch(/offline/);
+    expect(gateway?.textContent).not.toMatch(/610ms/);
 
     expect(prices?.textContent).toMatch(/Prices/);
     expect(prices?.textContent).toMatch(/16h ago/);
@@ -78,6 +83,28 @@ describe('HeaderConnectionStatus', () => {
     expect(openai?.textContent).toMatch(/off/);
     // Under IBKR discovery, price feed chip must stay Gateway — not "Alpaca IEX"
     expect(container.querySelector('[data-testid="status-chip-feed"]')).toBeNull();
+  });
+
+  it('omits legacy latency when its source is unavailable', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={{ ...healthy, latency_source: undefined }}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+
+    const api = container.querySelector('[data-testid="status-chip-api"]');
+    expect(api?.textContent).toMatch(/API/);
+    expect(api?.textContent).toMatch(/up/);
+    expect(api?.textContent).not.toMatch(/610ms/);
+    expect(api?.getAttribute('title')).toMatch(/No source-attributed RTT/);
   });
 
   it('labels Gateway paper vs LIVE so session money path is never ambiguous', () => {

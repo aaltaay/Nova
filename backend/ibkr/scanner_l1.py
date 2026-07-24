@@ -22,6 +22,7 @@ from constants import (
     IBKR_L1_TAB_SWITCH_GRACE_SEC,
 )
 from ibkr import ticks as _ticks
+from metrics.op_metrics import record_since
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ GetHodSymbolsFn = Callable[[], list[str]]
 GetActiveTabFn = Callable[[], str]
 
 _pending: dict[str, dict[str, Any]] = {}
+_pending_started_ns: int | None = None
 # Symbols currently subscribed under OWNER_SCANNER (the live active tab) —
 # used to decide which pending ticks are safe to forward as a table-scoped
 # price_patch. HOD-only reserved-pool ticks (which keep flowing for retained
@@ -75,7 +77,7 @@ def on_l1_quote(
     sym = (symbol or "").strip().upper()
     if not sym:
         return
-    global _last_ok_ts
+    global _last_ok_ts, _pending_started_ns
     row: dict[str, Any] = {
         "symbol": sym,
         "price": price,
@@ -89,6 +91,8 @@ def on_l1_quote(
                 row.update(patched)
         except Exception:
             logger.exception("scanner_l1: apply_quote failed for %s", sym)
+    if not _pending:
+        _pending_started_ns = time.perf_counter_ns()
     _pending[sym] = row
     _last_ok_ts = ts_unix
 
@@ -281,7 +285,7 @@ async def reconcile_loop(
 
 
 async def flush_loop(push: PushFn) -> None:
-    global _pending
+    global _pending, _pending_started_ns
     while True:
         try:
             await asyncio.sleep(float(IBKR_L1_BATCH_FLUSH_SEC))
@@ -289,6 +293,8 @@ async def flush_loop(push: PushFn) -> None:
                 continue
             pending = _pending
             _pending = {}
+            started_ns = _pending_started_ns
+            _pending_started_ns = None
             # Table-scoped: only forward ticks for symbols actually subscribed
             # under the active scanner tab (ADR 008). HOD-only reserved-pool
             # ticks for retained/frozen-table symbols are dropped here rather
@@ -299,14 +305,22 @@ async def flush_loop(push: PushFn) -> None:
                 continue
             ts = time.time()
             table = _subscription_state.get("tab") or "none"
-            await push({
-                "type": "price_patch",
-                "table": table if table != "none" else None,
-                "ts": ts,
-                "stale": False,
-                "subscription": get_subscription_state(),
-                "rows": rows,
-            })
+            try:
+                await push({
+                    "type": "price_patch",
+                    "table": table if table != "none" else None,
+                    "ts": ts,
+                    "stale": False,
+                    "subscription": get_subscription_state(),
+                    "rows": rows,
+                })
+            except BaseException:
+                if started_ns is not None:
+                    record_since("ws.scanner.price_patch_buffer_to_broadcast", started_ns, ok=False)
+                raise
+            else:
+                if started_ns is not None:
+                    record_since("ws.scanner.price_patch_buffer_to_broadcast", started_ns)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -314,7 +328,9 @@ async def flush_loop(push: PushFn) -> None:
 
 
 async def shutdown() -> None:
+    global _pending_started_ns
     await _ticks.set_owner_symbols(_ticks.OWNER_SCANNER, [])
     await _ticks.set_owner_symbols(_ticks.OWNER_HOD, [])
     _pending.clear()
+    _pending_started_ns = None
     _active_tab_symbols.clear()

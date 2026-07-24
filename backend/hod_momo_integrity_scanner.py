@@ -166,32 +166,32 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
                 f"{name}: {count} rows age={age_f:.0f}s",
             ))
 
-    reprice_age = snap.get("table_reprice_age_sec")
+    l1_age = snap.get("scanner_l1_age_sec")
     if provider == "ibkr":
-        if reprice_age is None:
+        if l1_age is None:
             checks.append(check(
-                "scanner_table_reprice",
+                "scanner_l1_stream",
                 "warn",
-                "no table-reprice heartbeat yet",
+                "no active-table L1 tick yet",
             ))
-        elif float(reprice_age) > HOD_MOMO_INTEGRITY_TICK_STALE_SEC:
+        elif float(l1_age) > HOD_MOMO_INTEGRITY_TICK_STALE_SEC:
             checks.append(check(
-                "scanner_table_reprice",
+                "scanner_l1_stream",
                 "fail",
-                f"table reprice {float(reprice_age):.1f}s ago -- UI prices not second-by-second",
+                f"active-table L1 tick {float(l1_age):.1f}s ago -- UI prices stale",
             ))
-        elif float(reprice_age) > HOD_MOMO_INTEGRITY_TICK_WARN_SEC:
+        elif float(l1_age) > HOD_MOMO_INTEGRITY_TICK_WARN_SEC:
             checks.append(check(
-                "scanner_table_reprice",
+                "scanner_l1_stream",
                 "warn",
-                f"table reprice {float(reprice_age):.1f}s ago "
+                f"active-table L1 tick {float(l1_age):.1f}s ago "
                 f"(want <={HOD_MOMO_INTEGRITY_TICK_WARN_SEC:.0f}s)",
             ))
         else:
             checks.append(check(
-                "scanner_table_reprice",
+                "scanner_l1_stream",
                 "pass",
-                f"table reprice {float(reprice_age):.1f}s ago",
+                f"active-table L1 tick {float(l1_age):.1f}s ago",
             ))
 
     status = worst([c["status"] for c in checks])

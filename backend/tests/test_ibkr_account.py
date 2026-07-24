@@ -13,6 +13,14 @@ import pytest
 import ibkr.account as account_mod
 import ibkr.client as client_mod
 from ibkr.errors import IbkrAccountError
+from metrics import op_metrics
+
+
+@pytest.fixture(autouse=True)
+def reset_op_metrics():
+    op_metrics.reset_for_tests()
+    yield
+    op_metrics.reset_for_tests()
 
 
 class _FakePosition:
@@ -52,6 +60,7 @@ def test_get_positions_parses_ib_positions(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
     out = account_mod.get_positions()
     assert out == [{"symbol": "AAPL", "qty": 10, "avg_cost": 150.0, "market_value": None}]
+    assert op_metrics.snapshot()["operations"]["ibkr.account.positions_read"]["count"] == 1
 
 
 def test_get_positions_raises_on_error(monkeypatch):
@@ -60,6 +69,7 @@ def test_get_positions_raises_on_error(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
     with pytest.raises(IbkrAccountError, match="boom"):
         account_mod.get_positions()
+    assert op_metrics.snapshot()["operations"]["ibkr.account.positions_read"]["error_count"] == 1
 
 
 def test_get_account_summary_disconnected(monkeypatch):
@@ -102,6 +112,7 @@ def test_refresh_account_summary_uses_async_items(monkeypatch):
     out = asyncio.run(account_mod.refresh_account_summary())
     assert out["NetLiquidation"] == 1000.0
     assert out["connected"] is True
+    assert op_metrics.snapshot()["operations"]["ibkr.account.summary_refresh"]["count"] == 1
 
 
 def test_refresh_account_summary_raises_on_async_error(monkeypatch):
@@ -115,6 +126,7 @@ def test_refresh_account_summary_raises_on_async_error(monkeypatch):
     monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
     with pytest.raises(IbkrAccountError, match="timeout"):
         asyncio.run(account_mod.refresh_account_summary())
+    assert op_metrics.snapshot()["operations"]["ibkr.account.summary_refresh"]["error_count"] == 1
 
 
 def test_long_qty_sums_longs_ignores_flat_and_short(monkeypatch):
@@ -189,6 +201,7 @@ def test_get_portfolio_parses_items(monkeypatch):
         "unrealized_pnl": 50.0,
         "realized_pnl": 0.0,
     }]
+    assert op_metrics.snapshot()["operations"]["ibkr.account.portfolio_read"]["count"] == 1
 
 
 def test_get_portfolio_raises_on_error(monkeypatch):
@@ -269,6 +282,7 @@ def test_refresh_positions_cache_uses_explicit_ib_without_get_ib(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", _boom)
     asyncio.run(account_mod.refresh_positions_cache(fake_ib))
     assert calls == [None]
+    assert op_metrics.snapshot()["operations"]["ibkr.account.positions_refresh"]["count"] == 1
 
 
 def test_refresh_completed_orders_cache_uses_explicit_ib_without_get_ib(monkeypatch):

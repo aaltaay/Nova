@@ -15,7 +15,7 @@ def _base(**overrides):
         "gapper_age_sec": 10.0,
         "gainer_age_sec": 10.0,
         "loser_age_sec": 10.0,
-        "table_reprice_age_sec": 1.0,
+        "scanner_l1_age_sec": 1.0,
     }
     snap.update(overrides)
     return snap

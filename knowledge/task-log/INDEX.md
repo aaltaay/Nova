@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-23 | [Per-operation latency measurement](2026-07-23-per-operation-latency-measurement.md) | Bounded operation metrics; reconnect/lock/boot/attribution fixes; no new broker requests or orders |
 | 2026-07-23 | [Block fractional Flatten + hard-fail Error 10243 cancel](2026-07-23-fractional-flatten-error-10243.md) | Block fractional Flatten + hard-fail Error 10243 cancel |
 | 2026-07-23 | [AH sticky bridge-error fix + Former Momo watchlist bloat diagnosis](2026-07-23-ah-sticky-bridge-error-and-former-momo-bloat.md) | AH sticky bridge-error fix + Former Momo watchlist bloat diagnosis |
 | 2026-07-23 | [Fix HOD active-set stale cache (WLDS lockout)](2026-07-23-fix-hod-active-set-stale-cache.md) | Fix HOD active-set stale cache (WLDS lockout) |

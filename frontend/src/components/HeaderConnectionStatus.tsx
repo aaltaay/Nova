@@ -8,8 +8,6 @@ import {
   DATA_FEED_LABELS,
   DISCOVERY_PROVIDER_DEFAULT,
   HEADER_GATEWAY_LAUNCH_HINT,
-  HEADER_GATEWAY_MODE_LIVE,
-  HEADER_GATEWAY_MODE_PAPER,
   HEADER_GATEWAY_TITLE_LIVE,
   HEADER_GATEWAY_TITLE_PAPER,
   HEADER_GATEWAY_TITLE_UNKNOWN,
@@ -22,49 +20,16 @@ import type { IbkrMode } from '../ibkr/types';
 import type { HealthStatus, IntegrationChipStatus } from '../types/health';
 import { formatScanAge } from '../utils/formatScanAge';
 import { launchIbGateway } from '../utils/launchIbGateway';
-
-type ChipTone = 'ok' | 'bad' | 'warn' | 'live';
-
-function resolveGatewayModeTag(
-  ibkrMode: IbkrMode,
-  ibkrGatewayMode: 'paper' | 'live' | null,
-): 'paper' | 'live' | null {
-  if (ibkrMode === 'paper' || ibkrMode === 'live') return ibkrMode;
-  if (ibkrGatewayMode === 'paper' || ibkrGatewayMode === 'live') return ibkrGatewayMode;
-  return null;
-}
-
-function gatewayModeLabel(tag: 'paper' | 'live' | null): string | null {
-  if (tag === 'live') return HEADER_GATEWAY_MODE_LIVE;
-  if (tag === 'paper') return HEADER_GATEWAY_MODE_PAPER;
-  return null;
-}
-
-function apiTone(status: string): ChipTone {
-  if (status === 'connected') return 'ok';
-  if (status === 'disconnected' || status === 'error') return 'bad';
-  return 'warn';
-}
-
-function integrationTone(status: string): ChipTone {
-  if (status === 'ok') return 'ok';
-  if (status === 'error') return 'bad';
-  return 'warn'; // off | unknown
-}
-
-function apiLabel(status: string): string {
-  if (status === 'connected') return 'up';
-  if (status === 'disconnected') return 'down';
-  if (status === 'error') return 'error';
-  if (status === 'loading') return 'checking…';
-  return status;
-}
-
-function toneDot(tone: ChipTone): string {
-  if (tone === 'ok') return 'connected';
-  if (tone === 'bad') return 'disconnected';
-  return 'loading';
-}
+import {
+  apiLabel,
+  apiTone,
+  gatewayModeLabel,
+  healthLatencyLabel,
+  integrationTone,
+  resolveGatewayModeTag,
+  toneDot,
+  type HeaderChipTone,
+} from './headerConnectionStatusModel';
 
 interface Props {
   health: HealthStatus;
@@ -120,9 +85,10 @@ export function HeaderConnectionStatus({
 
   const apiOk = health.status === 'connected';
   const apiChipTone = apiTone(health.status);
+  const latencyLabel = healthLatencyLabel(health);
   const isIbkr = discoveryProvider === 'ibkr';
   const showPrices = !compact && !historyDate && secondsAgo != null;
-  const priceTone: ChipTone = pricesStale ? 'warn' : 'ok';
+  const priceTone: HeaderChipTone = pricesStale ? 'warn' : 'ok';
   const priceText = showPrices
     ? pricesStale
       ? `stale · ${formatScanAge(secondsAgo)}`
@@ -148,7 +114,7 @@ export function HeaderConnectionStatus({
     .filter(Boolean)
     .join('\n\n');
 
-  const gatewayChipTone: ChipTone = gatewayLaunchOk === false
+  const gatewayChipTone: HeaderChipTone = gatewayLaunchOk === false
     ? 'bad'
     : gatewayLaunchOk === true
       ? 'ok'
@@ -178,7 +144,9 @@ export function HeaderConnectionStatus({
         className={`status-chip status-chip--${apiChipTone}`}
         title={
           apiOk
-            ? 'Nova API process is reachable (local backend health check). This is not IB Gateway.'
+            ? latencyLabel
+              ? `Nova API process is reachable. ${latencyLabel} measures Alpaca account HTTP, not IB Gateway.`
+              : 'Nova API process is reachable. No source-attributed RTT is available; this is not IB Gateway.'
             : health.flag_hint ||
               health.message ||
               'Nova API is unreachable — start the backend to restore scanner and quotes.'
@@ -189,7 +157,7 @@ export function HeaderConnectionStatus({
         <span className="status-chip__role">API</span>
         <span className="status-chip__value">
           {apiLabel(health.status)}
-          {health.latency_ms > 0 ? ` · ${health.latency_ms}ms` : ''}
+          {latencyLabel ? ` · ${latencyLabel}` : ''}
         </span>
       </span>
 

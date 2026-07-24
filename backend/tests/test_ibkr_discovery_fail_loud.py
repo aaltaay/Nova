@@ -8,6 +8,14 @@ import pytest
 
 from ibkr import discovery as discovery
 from ibkr.errors import IbkrDiscoveryError
+from metrics import op_metrics
+
+
+@pytest.fixture(autouse=True)
+def reset_op_metrics():
+    op_metrics.reset_for_tests()
+    yield
+    op_metrics.reset_for_tests()
 
 
 @pytest.mark.asyncio
@@ -68,6 +76,9 @@ async def test_scan_symbols_raises_on_scanner_request_timeout(monkeypatch):
         await discovery.scan_symbols("TOP_PERC_GAIN")
 
     assert cancelled == [42], "timeout must cancel the scanner subscription"
+    stats = op_metrics.snapshot()["operations"]["ibkr.scanner.oneshot"]
+    assert stats["count"] == 1
+    assert stats["error_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -114,6 +125,9 @@ async def test_scan_symbols_cancels_subscription_on_success(monkeypatch):
     symbols = await discovery.scan_symbols("TOP_PERC_GAIN")
     assert symbols == ["AAA"]
     assert cancelled == [7]
+    stats = op_metrics.snapshot()["operations"]["ibkr.scanner.oneshot"]
+    assert stats["count"] == 1
+    assert stats["error_count"] == 0
 
 
 @pytest.mark.asyncio

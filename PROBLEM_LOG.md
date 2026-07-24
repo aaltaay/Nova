@@ -23,6 +23,27 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Per-operation latency review found reconnect, lock-scope, cross-boot, attribution, and probe-isolation defects
+
+- **Symptom:** Operation-level latency was not observable, and the first implementation review found several ways its evidence or adjacent execution behavior could be wrong: replacement IB clients could stop producing ack/fill telemetry; one slow ack could block urgent sends for up to five seconds; persisted monotonic timestamps could produce invalid cross-restart deltas; the header could imply Alpaca account HTTP RTT was generic API/IBKR latency; benchmark percentiles could include prior runs; and integrity still exposed counters from a retired table-reprice loop.
+- **Cause:**
+  - **HIGH — reconnect wiring:** one process-global “handlers wired” flag treated every future IB instance as the original object, so reconnect replacement skipped event registration.
+  - **HIGH — lock scope:** `execution.service.execute()` awaited broker ack while still inside the global reserve/validate/send lock.
+  - **MEDIUM — clock scope:** SQLite persisted `perf_counter_ns` stamps without recording the process boot that owned the monotonic clock.
+  - **MEDIUM — attribution:** top-level health `latency_ms` came from Alpaca `/v2/account`, but the payload/header did not name that source.
+  - **LOW — probe isolation:** latency summaries selected recent ledger rows globally rather than rows belonging to the current benchmark run.
+  - **LOW — stale integrity:** `table_reprice` health fields survived after the loop was retired and no longer represented the active scanner price path.
+- **Fix:**
+  - Wire order telemetry once per IB object via weak instance identity; replacement clients now receive their own status/execution/error handlers.
+  - Keep reservation, validation, persistence, and synchronous broker send under the global lock, then release it before the ack wait.
+  - Add a `boot_id` ledger column/migration and require same-boot rows for callbacks and latency rollups; legacy rows remain stored but cannot enter monotonic deltas.
+  - Expose explicit health, latency, and market-data sources. The frontend allowlists `alpaca_account_http` as “Alpaca account RTT” and suppresses unknown/legacy sources.
+  - Give each synthetic/paper probe a unique idempotency prefix and filter its summary to that prefix; add send→fill and ack→fill rollups.
+  - Replace retired table-reprice counters with `scanner_l1` age without restarting the old loop or adding requests.
+  - Verification also removed a dead `WORKING_AAPL` test fixture and an obsolete ESLint suppression. The act setup itself was already correct; see the existing 2026-07-22 “FIXED: Vitest act() environment” entry rather than duplicating that diagnosis.
+- **Keywords:** per-operation latency, reconnect telemetry, WeakSet, execution lock, ack wait, perf_counter_ns, boot_id, cross-restart delta, Alpaca account RTT, benchmark prefix, table_reprice, scanner_l1 age
+- **Related:** `CHANGELOG.md` § 2026-07-23 — Add bounded per-operation latency measurement and harden timing correctness · `knowledge/task-log/2026-07-23-per-operation-latency-measurement.md`
+
 ## 2026-07-23 — Live Flatten of fractional IBKR lot rejected (Error 10243); UI treated Cancelled as success
 
 - **Symptom:** Flatten on live leftover `0.0642` shares of IBKR submitted `SELL 0.0642 MKT`, then IBKR cancelled ~86ms later with **Error 10243**: "Fractional-sized order cannot be placed via API. Please use desktop version to place this order." Position stayed open. Execution receipt could still look `ok: true` with `broker_status: Cancelled`, so the Flatten UI did not show a clear failure.

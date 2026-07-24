@@ -9,7 +9,7 @@ from constants import NOVA_OS_MAX_CONCURRENT_POSITIONS
 from execution import store
 from execution import telemetry
 from execution import validate as _validate
-from execution.broker_send import send_broker
+from execution.broker_send import send_broker, wait_broker_ack
 from execution.latency import latency_summary
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from ibkr import client as _client
@@ -187,9 +187,13 @@ async def execute(
 
         ib = _client.get_ib()
         telemetry.ensure_handlers(ib)
-        return await send_broker(
-            cmd, execution_id, timings, wait_ack=wait_ack, reject=_reject,
+        receipt = await send_broker(
+            cmd, execution_id, timings, wait_ack=False, reject=_reject,
         )
+
+    if wait_ack:
+        return await wait_broker_ack(cmd, receipt)
+    return receipt
 
 
 def get_execution(execution_id: str) -> dict | None:

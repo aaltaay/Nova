@@ -5,12 +5,26 @@ import asyncio
 from types import SimpleNamespace
 
 import ibkr.tape_stream as tape
+from metrics import op_metrics
+
+
+class _Event:
+    def __init__(self):
+        self.handlers = []
+
+    def __iadd__(self, handler):
+        self.handlers.append(handler)
+        return self
+
+    def __isub__(self, handler):
+        self.handlers.remove(handler)
+        return self
 
 
 class _FakeTicker:
     def __init__(self, ticks):
         self.tickByTicks = list(ticks)
-        self.updateEvent = SimpleNamespace()
+        self.updateEvent = _Event()
 
 
 def test_on_tape_update_pushes_print_and_skips_nonpositive(monkeypatch):
@@ -84,3 +98,76 @@ def test_push_queue_drops_oldest_when_full(monkeypatch):
     assert q.qsize() == 1
     latest = q.get_nowait()
     assert latest["price"] == 2.0
+
+
+def test_subscribe_is_idempotent_and_measured_once(monkeypatch):
+    class _IB:
+        def __init__(self):
+            self.errorEvent = _Event()
+            self.requests = 0
+
+        async def qualifyContractsAsync(self, contract):
+            contract.conId = 42
+            return [contract]
+
+        def reqTickByTickData(self, *_args, **_kwargs):
+            self.requests += 1
+            return _FakeTicker([])
+
+    class _Stock:
+        def __init__(self, symbol, *_args):
+            self.symbol = symbol
+            self.conId = 0
+
+    ib = _IB()
+    tape._contracts.clear()
+    tape._tickers.clear()
+    tape._queues.clear()
+    tape._error_hooked_ib_ids.clear()
+    tape._cancelled_at.clear()
+    op_metrics.reset_for_tests()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: ib)
+    monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(tape, "_Stock", _Stock)
+
+    first = asyncio.run(tape.subscribe_async("AAPL"))
+    second = asyncio.run(tape.subscribe_async("AAPL"))
+
+    assert first["ok"] is True and second["ok"] is True
+    assert ib.requests == 1
+    stats = op_metrics.snapshot()["operations"]["ibkr.tape.subscribe"]
+    assert stats["count"] == 1
+    assert stats["error_count"] == 0
+
+
+def test_subscribe_request_failure_is_measured(monkeypatch):
+    class _IB:
+        def __init__(self):
+            self.errorEvent = _Event()
+
+        async def qualifyContractsAsync(self, contract):
+            contract.conId = 42
+            return [contract]
+
+        def reqTickByTickData(self, *_args, **_kwargs):
+            raise RuntimeError("subscription rejected")
+
+    class _Stock:
+        def __init__(self, symbol, *_args):
+            self.symbol = symbol
+            self.conId = 0
+
+    tape._contracts.clear()
+    tape._tickers.clear()
+    tape._queues.clear()
+    tape._error_hooked_ib_ids.clear()
+    tape._cancelled_at.clear()
+    op_metrics.reset_for_tests()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: _IB())
+    monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(tape, "_Stock", _Stock)
+
+    result = asyncio.run(tape.subscribe_async("AAPL"))
+
+    assert result["ok"] is False
+    assert op_metrics.snapshot()["operations"]["ibkr.tape.subscribe"]["error_count"] == 1

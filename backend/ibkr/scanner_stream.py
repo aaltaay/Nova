@@ -28,6 +28,7 @@ from constants import (
 from ibkr import client as _client
 from ibkr import scanner_hydrate as _hydrate
 from ibkr import scanner_session as _session
+from metrics.op_metrics import record_since, timed_sync
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ _persistent_reqids: dict[int, str] = {}
 _leases: dict[str, "_Lease"] = {}
 _epoch = 0
 _shadow: dict[str, list[dict]] = {}
-_pending_hydrate: dict[str, list[str]] = {}
+_pending_hydrate: dict[str, tuple[list[str], int]] = {}
 _hydrate_task: asyncio.Task | None = None
 
 
@@ -112,7 +113,8 @@ def _on_batch(lease: _Lease, rows: list) -> None:
     if lease.first_batch_event is not None and not lease.first_batch_event.is_set():
         lease.first_batch_event.set()
     if lease.table == _session.TABLE_GAPPERS and not symbols:
-        symbols = list(_pending_hydrate.get(_session.TABLE_GAINERS) or []) or [
+        pending_gainers = _pending_hydrate.get(_session.TABLE_GAINERS)
+        symbols = list(pending_gainers[0] if pending_gainers else []) or [
             r["symbol"] for r in (_shadow.get(_session.TABLE_GAINERS) or [])
         ]
         if symbols:
@@ -120,7 +122,7 @@ def _on_batch(lease: _Lease, rows: list) -> None:
                 "scanner_stream: %s empty — derive from gainers (%d)",
                 IBKR_SCAN_CODE_GAPPERS, len(symbols),
             )
-    _pending_hydrate[lease.table] = symbols
+    _pending_hydrate[lease.table] = (symbols, time.perf_counter_ns())
     _schedule_hydrate()
 
 
@@ -139,12 +141,12 @@ async def _hydrate_pending() -> None:
     await asyncio.sleep(0)
     pending = dict(_pending_hydrate)
     _pending_hydrate.clear()
-    for table, symbols in pending.items():
+    for table, (symbols, started_ns) in pending.items():
         lease = _leases.get(table)
         if lease is None:
             continue
         try:
-            await _hydrate.commit_table(
+            committed = await _hydrate.commit_table(
                 table=table,
                 symbols=symbols,
                 lease_generation=lease.generation,
@@ -154,7 +156,11 @@ async def _hydrate_pending() -> None:
                 shadow=_shadow,
             )
         except Exception:
+            record_since("ibkr.scanner.pipeline", started_ns, ok=False)
             logger.exception("scanner_stream: hydrate failed for %s", table)
+        else:
+            if committed is not None:
+                record_since("ibkr.scanner.pipeline", started_ns, ok=committed)
 
 
 async def _open_lease(table: str, scan_code: str) -> _Lease | None:
@@ -168,7 +174,8 @@ async def _open_lease(table: str, scan_code: str) -> _Lease | None:
         scanCode=scan_code,
         abovePrice=IBKR_SCAN_ABOVE_PRICE,
     )
-    data_list = ib.reqScannerSubscription(sub)
+    with timed_sync("ibkr.scanner.persistent_subscribe"):
+        data_list = ib.reqScannerSubscription(sub)
     req_id = getattr(data_list, "reqId", None)
     lease = _Lease(
         table=table,

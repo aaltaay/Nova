@@ -90,6 +90,7 @@ async def health_check():
     state = get_runtime_state()
     return {
         **state.cached_health,
+        "market_data_source": _get_discovery_provider(),
         "data_feed": _get_feed(),
         "feed_fell_back": _alpaca._feed_fell_back,
         "sentry_enabled": sentry_enabled(),

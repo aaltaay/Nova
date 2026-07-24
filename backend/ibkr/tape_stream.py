@@ -24,6 +24,7 @@ from constants import (
 from ibkr import client as _client
 from ibkr import depth as _depth
 from ibkr.tape_side import best_bid_ask, classify_print_side
+from metrics.op_metrics import timed_sync
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +225,10 @@ async def subscribe_async(symbol: str) -> dict:
     _install_error_hook(ib)
 
     try:
-        ticker = ib.reqTickByTickData(contract, IBKR_TAPE_TICK_TYPE, numberOfTicks=0, ignoreSize=False)
+        with timed_sync("ibkr.tape.subscribe"):
+            ticker = ib.reqTickByTickData(
+                contract, IBKR_TAPE_TICK_TYPE, numberOfTicks=0, ignoreSize=False,
+            )
         def handler(t, sym=symbol):
             _on_tape_update(t, sym)
 

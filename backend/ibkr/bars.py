@@ -26,6 +26,7 @@ from constants import (
 from ibkr import client as _client
 from ibkr.errors import describe_exc, is_transient_historical_failure
 from ibkr.historical_gate import HistoricalBusy, historical_slot
+from metrics.op_metrics import timed
 
 logger = logging.getLogger(__name__)
 
@@ -128,17 +129,18 @@ async def fetch_bars_async(
                 raise HTTPException(status_code=502, detail=f"IBKR qualify failed: {desc}") from exc
 
             try:
-                raw = await ib.reqHistoricalDataAsync(
-                    contract,
-                    endDateTime="",
-                    durationStr=duration,
-                    barSizeSetting=bar_size,
-                    whatToShow=IBKR_HISTORICAL_WHAT_TO_SHOW,
-                    useRTH=IBKR_HISTORICAL_USE_RTH,
-                    formatDate=1,
-                    keepUpToDate=False,
-                    timeout=timeout,
-                )
+                async with timed("ibkr.historical_bars"):
+                    raw = await ib.reqHistoricalDataAsync(
+                        contract,
+                        endDateTime="",
+                        durationStr=duration,
+                        barSizeSetting=bar_size,
+                        whatToShow=IBKR_HISTORICAL_WHAT_TO_SHOW,
+                        useRTH=IBKR_HISTORICAL_USE_RTH,
+                        formatDate=1,
+                        keepUpToDate=False,
+                        timeout=timeout,
+                    )
             except HTTPException:
                 raise
             except Exception as exc:

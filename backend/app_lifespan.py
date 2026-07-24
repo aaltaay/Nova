@@ -70,6 +70,7 @@ from observability import init_sentry
 from runtime_state import get_runtime_state
 import instance_identity
 import loop_lag as _loop_lag
+from metrics.http_middleware import HttpOperationMetricsMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,7 @@ def configure_cors(app: FastAPI) -> None:
         if origins_env
         else CORS_ALLOWED_ORIGINS_DEFAULT
     )
+    app.add_middleware(HttpOperationMetricsMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,

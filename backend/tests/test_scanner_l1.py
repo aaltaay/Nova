@@ -5,6 +5,7 @@ import asyncio
 
 import ibkr.scanner_l1 as scanner_l1
 from ibkr.scanner_l1 import plan_stream_symbols
+from metrics import op_metrics
 
 
 def test_plan_reserves_tab_then_hod_with_dedupe():
@@ -79,3 +80,65 @@ def test_flush_loop_drops_hod_only_ticks_for_a_frozen_table(monkeypatch):
     symbols = {r["symbol"] for r in pushed[0]["rows"]}
     assert symbols == {"GAINSYM"}
     assert pushed[0]["table"] == "gainers"
+
+
+def test_flush_measures_first_buffered_tick_through_broadcast(monkeypatch):
+    scanner_l1._pending.clear()
+    scanner_l1._pending_started_ns = None
+    scanner_l1._active_tab_symbols.clear()
+    scanner_l1._active_tab_symbols.add("AAPL")
+    scanner_l1._subscription_state["tab"] = "gainers"
+    monkeypatch.setattr(scanner_l1, "_apply_quote", None)
+    monkeypatch.setattr(scanner_l1, "IBKR_L1_BATCH_FLUSH_SEC", 0.01)
+    op_metrics.reset_for_tests()
+    pushed: list[dict] = []
+
+    async def push(payload):
+        pushed.append(payload)
+
+    async def run():
+        scanner_l1.on_l1_quote("AAPL", 10.0, 100, 9.0, 1.0)
+        task = asyncio.create_task(scanner_l1.flush_loop(push))
+        await asyncio.sleep(0.03)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+
+    assert len(pushed) == 1
+    stats = op_metrics.snapshot()["operations"]["ws.scanner.price_patch_buffer_to_broadcast"]
+    assert stats["count"] == 1
+    assert stats["error_count"] == 0
+
+
+def test_flush_broadcast_failure_is_recorded(monkeypatch):
+    scanner_l1._pending.clear()
+    scanner_l1._pending_started_ns = None
+    scanner_l1._active_tab_symbols.clear()
+    scanner_l1._active_tab_symbols.add("AAPL")
+    scanner_l1._subscription_state["tab"] = "gainers"
+    monkeypatch.setattr(scanner_l1, "_apply_quote", None)
+    monkeypatch.setattr(scanner_l1, "IBKR_L1_BATCH_FLUSH_SEC", 0.01)
+    op_metrics.reset_for_tests()
+
+    async def fail_push(_payload):
+        raise RuntimeError("broadcast failed")
+
+    async def run():
+        scanner_l1.on_l1_quote("AAPL", 10.0, 100, 9.0, 1.0)
+        task = asyncio.create_task(scanner_l1.flush_loop(fail_push))
+        await asyncio.sleep(0.03)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+
+    stats = op_metrics.snapshot()["operations"]["ws.scanner.price_patch_buffer_to_broadcast"]
+    assert stats["count"] == 1
+    assert stats["error_count"] == 1

@@ -10,6 +10,8 @@ from pathlib import Path
 from constants import EXECUTION_LEDGER_DB_FILENAME
 from paths import cache_dir
 
+_BOOT_ID = uuid.uuid4().hex
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS executions (
     id TEXT PRIMARY KEY,
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS executions (
     target_order_id INTEGER,
     stop_order_id INTEGER,
     broker_status TEXT,
+    boot_id TEXT NOT NULL,
     received_ns INTEGER NOT NULL,
     validation_completed_ns INTEGER,
     persisted_ns INTEGER,
@@ -56,9 +59,30 @@ def init_db() -> None:
     conn = get_connection()
     try:
         conn.executescript(_SCHEMA)
+        columns = {
+            str(row["name"])
+            for row in conn.execute("PRAGMA table_info(executions)").fetchall()
+        }
+        if "boot_id" not in columns:
+            # Legacy monotonic stamps cannot safely mix with this process.
+            try:
+                conn.execute("ALTER TABLE executions ADD COLUMN boot_id TEXT")
+            except sqlite3.OperationalError:
+                # A concurrent startup may have completed the same migration
+                # after our PRAGMA read. Re-check; propagate every other error.
+                refreshed = {
+                    str(row["name"])
+                    for row in conn.execute("PRAGMA table_info(executions)").fetchall()
+                }
+                if "boot_id" not in refreshed:
+                    raise
         conn.commit()
     finally:
         conn.close()
+
+
+def current_boot_id() -> str:
+    return _BOOT_ID
 
 
 def reserve(
@@ -85,8 +109,8 @@ def reserve(
                 """
                 INSERT INTO executions (
                     id, idempotency_key, operation, source, symbol, status,
-                    received_ns, created_ts, updated_ts, payload_json
-                ) VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?, ?, ?)
+                    boot_id, received_ns, created_ts, updated_ts, payload_json
+                ) VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?, ?, ?, ?)
                 """,
                 (
                     execution_id,
@@ -94,6 +118,7 @@ def reserve(
                     operation,
                     source,
                     symbol,
+                    _BOOT_ID,
                     received_ns,
                     now,
                     now,
@@ -210,19 +235,29 @@ def list_recent(limit: int = 100) -> list[dict]:
         conn.close()
 
 
-def latency_rows(limit: int = 500) -> list[dict]:
-    """Rows that reached broker_sent — used for p50/p95 summaries."""
+def latency_rows(
+    limit: int = 500,
+    *,
+    idempotency_prefix: str | None = None,
+) -> list[dict]:
+    """Same-boot rows that reached broker_sent, optionally scoped to one run."""
     init_db()
     conn = get_connection()
     try:
+        where = ["broker_sent_ns IS NOT NULL", "boot_id = ?"]
+        values: list = [_BOOT_ID]
+        if idempotency_prefix is not None:
+            where.append("substr(idempotency_key, 1, length(?)) = ?")
+            values.extend((idempotency_prefix, idempotency_prefix))
+        values.append(limit)
         rows = conn.execute(
-            """
+            f"""
             SELECT * FROM executions
-            WHERE broker_sent_ns IS NOT NULL
+            WHERE {' AND '.join(where)}
             ORDER BY created_ts DESC
             LIMIT ?
             """,
-            (limit,),
+            values,
         ).fetchall()
         return [_row_to_dict(r) for r in rows]
     finally:
@@ -250,9 +285,9 @@ def mark_ack_by_order_id(
             f"""
             UPDATE executions
             SET {', '.join(fields)}
-            WHERE order_id = ? AND broker_ack_ns IS NULL
+            WHERE order_id = ? AND boot_id = ? AND broker_ack_ns IS NULL
             """,
-            values,
+            [*values, _BOOT_ID],
         )
         conn.commit()
         return cur.rowcount > 0
@@ -269,9 +304,10 @@ def mark_filled_by_order_id(order_id: int, filled_ns: int) -> bool:
             """
             UPDATE executions
             SET filled_ns = ?, status = 'filled', updated_ts = ?
-            WHERE order_id = ? AND (filled_ns IS NULL OR filled_ns = 0)
+            WHERE order_id = ? AND boot_id = ?
+              AND (filled_ns IS NULL OR filled_ns = 0)
             """,
-            (filled_ns, time.time(), order_id),
+            (filled_ns, time.time(), order_id, _BOOT_ID),
         )
         conn.commit()
         return cur.rowcount > 0

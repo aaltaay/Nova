@@ -14,6 +14,7 @@ import logging
 
 from ibkr import client as _client
 from ibkr.errors import IbkrAccountError, describe_exc
+from metrics.op_metrics import timed, timed_sync
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,8 @@ def get_positions() -> list[dict]:
     if ib is None:
         raise IbkrAccountError("IBKR not connected — cannot read positions")
     try:
+        with timed_sync("ibkr.account.positions_read"):
+            positions = ib.positions()
         return [
             {
                 "symbol": p.contract.symbol,
@@ -58,7 +61,7 @@ def get_positions() -> list[dict]:
                 "avg_cost": p.avgCost,
                 "market_value": None,
             }
-            for p in ib.positions()
+            for p in positions
         ]
     except Exception as exc:
         detail = describe_exc(exc)
@@ -186,7 +189,8 @@ def get_account_summary() -> dict:
         return {"connected": False, "mode": "disconnected"}
 
     try:
-        values = list(ib.accountValues())
+        with timed_sync("ibkr.account.summary_read"):
+            values = list(ib.accountValues())
         summary = _summary_from_items(values)
         if "NetLiquidation" not in summary:
             summary["pending"] = True
@@ -207,7 +211,8 @@ async def refresh_account_summary() -> dict:
     if ib is None:
         return {"connected": False, "mode": "disconnected"}
     try:
-        items = await ib.accountSummaryAsync()
+        async with timed("ibkr.account.summary_refresh"):
+            items = await ib.accountSummaryAsync()
         if items:
             return _summary_from_items(list(items))
         return get_account_summary()
@@ -239,7 +244,8 @@ async def refresh_positions_cache(ib: object | None = None) -> None:
     if req is None:
         return
     try:
-        await req()
+        async with timed("ibkr.account.positions_refresh"):
+            await req()
         logger.info("IBKR: positions cache refreshed after connect")
     except Exception as exc:
         logger.warning(
@@ -295,6 +301,8 @@ def get_portfolio() -> list[dict]:
     if ib is None:
         raise IbkrAccountError("IBKR not connected — cannot read portfolio")
     try:
+        with timed_sync("ibkr.account.portfolio_read"):
+            portfolio = ib.portfolio()
         return [
             {
                 "symbol": item.contract.symbol,
@@ -305,7 +313,7 @@ def get_portfolio() -> list[dict]:
                 "unrealized_pnl": item.unrealizedPNL,
                 "realized_pnl": item.realizedPNL,
             }
-            for item in ib.portfolio()
+            for item in portfolio
         ]
     except Exception as exc:
         detail = describe_exc(exc)

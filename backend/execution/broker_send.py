@@ -22,6 +22,61 @@ RejectFn = Callable[
 ]
 
 
+async def wait_broker_ack(
+    cmd: ExecutionCommand,
+    receipt: ExecutionReceipt,
+) -> ExecutionReceipt:
+    """Wait after the service send lock is released, then persist the outcome."""
+    if not receipt.ok or receipt.order_id is None or receipt.timings is None:
+        return receipt
+
+    watch = telemetry.watch_order(int(receipt.order_id))
+    await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
+    receipt.timings.broker_ack_ns = watch.ack_ns
+    if watch.filled_ns:
+        receipt.timings.filled_ns = watch.filled_ns
+    receipt.broker_status = watch.ack_status
+
+    if (
+        cmd.operation != "cancel"
+        and (receipt.broker_status or "") in telemetry.TERMINAL_REJECT_STATUSES
+        and not watch.has_fill()
+    ):
+        if watch.error_code == IBKR_ERROR_FRACTIONAL_API:
+            receipt.error = IBKR_FRACTIONAL_ORDER_API_MSG
+            receipt.reason_code = "QTY_FRACTIONAL_API"
+        else:
+            receipt.error = (
+                watch.error_message
+                or f"Broker rejected/cancelled order ({receipt.broker_status})"
+            )
+            receipt.reason_code = "BROKER_REJECT"
+        receipt.ok = False
+        store.update_stages(
+            receipt.execution_id,
+            status="failed",
+            error=receipt.error,
+            reason_code=receipt.reason_code,
+            broker_ack_ns=receipt.timings.broker_ack_ns,
+            broker_status=receipt.broker_status,
+        )
+        return receipt
+
+    status = (
+        "filled"
+        if receipt.timings.filled_ns
+        else "acked" if receipt.timings.broker_ack_ns else "sent"
+    )
+    store.update_stages(
+        receipt.execution_id,
+        status=status,
+        broker_ack_ns=receipt.timings.broker_ack_ns,
+        filled_ns=receipt.timings.filled_ns,
+        broker_status=receipt.broker_status,
+    )
+    return receipt
+
+
 async def send_broker(
     cmd: ExecutionCommand,
     execution_id: str,

@@ -9,14 +9,16 @@ Companion to: `.cursor/agents/execution.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-20T19:35:00Z
+captured_at: 2026-07-23T23:12:00-04:00
 source_revision: local-wip
-result: paper-place-order-confidence-pass
+result: per-operation-latency-execution-slice-pass
 metrics:
-  unit_tests: 49_passed_execution_plus_safety
-  validate_tests: 8_passed
+  focused_tests: 42_passed
+  backend_tests: 947_passed_with_known_torchvision_warning
+  synthetic_ack_p95_ms: 56.0433
+  synthetic_send_fill_p95_ms: 35.3563
+  synthetic_ack_fill_p95_ms: 13.3109
   agent_contract: pass
-  live_status: paper_armed_connected
 blockers: []
 dashboard_freshness: clean
 ```
@@ -56,6 +58,13 @@ Machine-readable block only. Update after material runs. Do not duplicate mutabl
 - **Qty helper gaps:** first matching symbol row only (no sum); no conId/secType key.
 - **Rejected:** validate-only→portfolio; UI `source=flatten`; max(caches); FE-only trust.
 - **Accepted (plan):** `account.long_qty` / `net_long_qty` on **`ib.positions()`** (+ subscribe/refresh); `/positions` qty from same helper; portfolio PnL join only; wire validate + flatten + preview together.
+
+## Durable latency lifecycle facts (promoted 2026-07-23)
+
+- **Ack lock scope:** the global execution lock covers reserve → validate → synchronous broker send, then releases before `wait_broker_ack`; urgent cancel/flatten sends are not queued behind a slow five-second ack.
+- **Reconnect wiring:** telemetry tracks wired IB objects by weak instance identity; repeated calls on one object are idempotent and a replacement IB object is wired independently.
+- **Monotonic ledger boundary:** each row stores a process `boot_id`; callbacks and rollups require the current id. Migrated legacy rows keep `boot_id=NULL` and are excluded from `perf_counter_ns` deltas.
+- **Probe isolation + fill:** every benchmark run uses a unique idempotency prefix. Rollups expose send→fill and ack→fill p50/p95/max/count; synthetic fill remains simulator evidence, never live quality evidence.
 
 ---
 
@@ -99,6 +108,14 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-23 — Per-operation latency execution slice
+
+- **Scope:** Metrics core + read-only route; fill rollups/probe isolation; reconnect wiring, ack-lock, and cross-boot ledger fixes. No market-feed/inbound instrumentation; no orders.
+- **Commands:** focused pytest 42 pass; full backend pytest 947 pass with known TorchVision DLL warning; synthetic probe 20 place + 20 cancel rows, ack p95 56.0ms; agent contract PASS.
+- **Result:** per-operation-latency-execution-slice-pass — current-run rollups, same-boot deltas, once-per-instance telemetry, ack wait outside lock; auto_live NO-GO.
+- **Learning:** top-level health RTT remains Alpaca-owned despite honest integrations detail; retired table-reprice integrity counters are a market-feed handoff.
+- **Files updated:** execution/metrics implementation + tests; ADR/validation; this memory; agent-execution canvas. Aggregate CHANGELOG/PROBLEM_LOG/task-log intentionally deferred to parent.
 
 ### 2026-07-20 — Paper "Place an order" confidence audit
 

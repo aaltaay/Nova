@@ -149,7 +149,7 @@ def test_scanner_fails_when_ibkr_disconnected():
         "gapper_age_sec": 10.0,
         "gainer_age_sec": 10.0,
         "loser_age_sec": 10.0,
-        "table_reprice_age_sec": 1.0,
+        "scanner_l1_age_sec": 1.0,
     })
     assert report["status"] == "fail"
 
@@ -169,7 +169,7 @@ def test_frozen_gainer_table_passes_despite_old_age():
         "gainer_age_sec": 30_000.0,  # far past SCANNER_INTEGRITY_CACHE_STALE_SEC
         "loser_age_sec": None,
         "gainer_frozen": True,
-        "table_reprice_age_sec": None,
+        "scanner_l1_age_sec": None,
     })
     chk = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
     assert chk["status"] == "pass"
@@ -188,7 +188,7 @@ def test_unfrozen_stale_gainer_table_still_warns():
         "gainer_age_sec": 30_000.0,
         "loser_age_sec": None,
         "gainer_frozen": False,
-        "table_reprice_age_sec": None,
+        "scanner_l1_age_sec": None,
     })
     chk = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
     assert chk["status"] == "warn"

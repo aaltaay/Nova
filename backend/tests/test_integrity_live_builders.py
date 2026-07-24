@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import integrity_live as live
 import ibkr.client as ibkr_client
-import ibkr.reprice as ibkr_reprice
 import ibkr.scanner_l1 as ibkr_scanner_l1
 
 
@@ -36,11 +35,12 @@ def test_build_scanner_report_includes_current_mode(monkeypatch):
             "error": None,
         },
     )
-    monkeypatch.setattr(ibkr_reprice, "_table_busy_skips", 0, raising=False)
-    monkeypatch.setattr(ibkr_reprice, "_table_timeouts", 0, raising=False)
-
     report = live.build_scanner_integrity_report()
     assert report["metrics"]["current_mode"] == "afterhours"
+    assert "scanner_l1_age_sec" in report["metrics"]
+    assert not any(key.startswith("table_reprice") for key in report["metrics"])
+    assert any(c["id"] == "scanner_l1_stream" for c in report["checks"])
+    assert not any(c["id"] == "scanner_table_reprice" for c in report["checks"])
     gap = next(c for c in report["checks"] if c["id"] == "scanner_gappers")
     assert gap["status"] == "pass"
 

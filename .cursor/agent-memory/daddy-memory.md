@@ -9,14 +9,15 @@ Companion to: `.cursor/agents/daddy.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-22T23:10:00Z
-source_revision: f09985a
-result: vitest_act_environment_fix
+captured_at: 2026-07-23T23:00:00Z
+source_revision: pre-commit
+result: per_operation_latency_metrics
 metrics:
-  specialists: [generalPurpose, tester]
+  specialists: [execution, market-feed, widgets, tester, docs]
   dispatch_mode: direct
-  orchestration: sequence
-  vitest: 99_files_422_tests_pass_zero_act_warnings
+  orchestration: mixed
+  backend_pytest: 961_pass
+  frontend_vitest: 441_pass
 blockers:
   - openai_embed_key_401_for_ask_recall_synthesis
   - include_whisper_allowlist_misses_grok_and_faster_whisper_labels
@@ -59,6 +60,13 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-07-23 — Per-operation latency metrics and lifecycle fixes
+
+- **Scope:** End-to-end bounded latency metrics across execution, IBKR market data, HTTP/WS ingress, health attribution, and regression coverage.
+- **Result:** sequence execution → market-feed → widgets → tester; parallelized two disjoint lint-only repairs and final read-only gates. Backend 961, frontend 441, lint/build/probe/endpoint verification passed; commit/push handled by parent.
+- **Learning:** Cross-domain telemetry works best as owner-first sequence over one shared tree, with tester after all writers. `git add -A -- . ":(exclude)..."` can return nonzero on ignored Windows paths after staging the intended files; inspect the index, then use tracked-plus-explicit-untracked staging instead of retrying the same command.
+- **Files updated:** daddy-memory.md; aggregate task log `2026-07-23-per-operation-latency-measurement.md`.
 
 ### 2026-07-22 — Vitest act() warnings — fix all (not ignore)
 

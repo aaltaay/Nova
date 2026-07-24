@@ -22,6 +22,7 @@ from routes.nova_os import router as nova_os_router
 from routes.archive import router as archive_router
 from routes.backtest import router as backtest_router
 from routes.alerts import router as alerts_router
+from routes.metrics import router as metrics_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -43,3 +44,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(archive_router)
     app.include_router(backtest_router)
     app.include_router(alerts_router)
+    app.include_router(metrics_router)

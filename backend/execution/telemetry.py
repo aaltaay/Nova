@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+import weakref
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -137,7 +138,7 @@ class OrderWatch:
 
 
 _watches: dict[int, OrderWatch] = {}
-_handlers_wired: bool = False
+_wired_instances: weakref.WeakSet = weakref.WeakSet()
 
 
 def watch_order(order_id: int) -> OrderWatch:
@@ -153,16 +154,15 @@ def drop_watch(order_id: int) -> None:
 
 
 def ensure_handlers(ib) -> None:
-    """Wire IB events once per process. Safe to call repeatedly."""
-    global _handlers_wired
-    if ib is None or _handlers_wired:
+    """Wire IB events once per IB instance. Safe across reconnect replacement."""
+    if ib is None or ib in _wired_instances:
         return
     try:
         ib.orderStatusEvent += _on_order_status
         ib.execDetailsEvent += _on_exec_details
         if hasattr(ib, "errorEvent"):
             ib.errorEvent += _on_ib_error
-        _handlers_wired = True
+        _wired_instances.add(ib)
         logger.info("execution.telemetry: IBKR order status/exec handlers wired")
     except Exception:
         logger.exception("execution.telemetry: failed to wire IB handlers")
@@ -221,6 +221,5 @@ def _on_exec_details(trade, fill) -> None:
 
 
 def reset_for_tests() -> None:
-    global _handlers_wired
     _watches.clear()
-    _handlers_wired = False
+    _wired_instances.clear()

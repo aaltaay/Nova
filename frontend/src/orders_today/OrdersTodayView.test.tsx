@@ -9,21 +9,6 @@ import { ORDERS_TODAY_EMPTY_MESSAGE } from '../constants';
 import type { IbkrOrder } from '../ibkr/types';
 import { OrdersTodayView } from './OrdersTodayView';
 
-const WORKING_AAPL: IbkrOrder = {
-  order_id: 1,
-  symbol: 'AAPL',
-  side: 'BUY',
-  qty: 100,
-  filled_qty: 0,
-  remaining_qty: 100,
-  order_type: 'LMT',
-  limit_price: 190,
-  stop_price: null,
-  avg_fill_price: null,
-  outside_rth: false,
-  status: 'Submitted',
-};
-
 const CLOSED_MSFT: ClosedOrder = {
   order_id: 2,
   symbol: 'MSFT',

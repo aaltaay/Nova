@@ -7,6 +7,7 @@ import logging
 from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_SMART, IBKR_MAX_DEPTH_SYMBOLS
 from ibkr import client as _client
 from ibkr.depth import handlers, state
+from metrics.op_metrics import timed_sync
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +84,12 @@ async def subscribe_async(symbol: str) -> dict:
         state._contracts[symbol] = contract
 
         try:
-            ticker = ib.reqMktDepth(
-                contract,
-                numRows=IBKR_DEPTH_NUM_ROWS,
-                isSmartDepth=IBKR_DEPTH_SMART,
-            )
+            with timed_sync("ibkr.depth.subscribe"):
+                ticker = ib.reqMktDepth(
+                    contract,
+                    numRows=IBKR_DEPTH_NUM_ROWS,
+                    isSmartDepth=IBKR_DEPTH_SMART,
+                )
             handlers.attach_update_handler(
                 symbol, ticker, lambda t: handlers.on_update_book(t, symbol),
             )

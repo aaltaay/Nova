@@ -1,9 +1,6 @@
 """
-IBKR market-data discovery — a clean, self-contained counterpart to
-Alpaca's gapper/gainer/loser pipeline in main.py (_run_discovery_scan /
-_run_gainers_update). Alpaca stays the default and is never removed —
-this module only runs when DISCOVERY_PROVIDER=ibkr (see constants.py and
-knowledge/obsidian/03-Nova-Decisions/Scanner-Provider-IBKR-Primary.md).
+IBKR-only market-data discovery for scanner candidate rosters and cold
+snapshot hydration.
 
 Two-step pipeline, per IB's own scanner API:
   1. One-shot scanner (reqScannerSubscription → wait → cancel) — up to 50
@@ -12,10 +9,7 @@ Two-step pipeline, per IB's own scanner API:
      (https://interactivebrokers.github.io/tws-api/market_scanners.html)
   2. reqTickersAsync — one live snapshot quote per candidate, batched
 
-Output rows use the exact same dict keys Alpaca's path already produces
-(see main.py's _compute_gappers / _build_mover_entry), so the existing
-news / fundamentals / RVOL / exchange enrichment step in main.py works
-unchanged regardless of which provider found the symbols.
+Output rows preserve the scanner-row contract consumed by shared enrichment.
 """
 from __future__ import annotations
 
@@ -43,6 +37,7 @@ from constants import (
 )
 from ibkr import client as _client
 from ibkr.errors import IbkrDiscoveryError, IbkrScannerSlotExhaustedError, describe_exc
+from metrics.op_metrics import timed, timed_async
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +107,7 @@ def _clean(x: float | None) -> float | None:
         return None
 
 
+@timed_async("ibkr.scanner.oneshot")
 async def _one_shot_scanner(ib, sub) -> list:
     """Open one IBKR scanner subscription, wait for results, always cancel.
 
@@ -391,10 +387,11 @@ async def snapshot_quotes(
 
     try:
         async with _get_snapshot_lock():
-            tickers = await asyncio.wait_for(
-                ib.reqTickersAsync(*qualified),
-                timeout=max(0.5, float(timeout_sec)),
-            )
+            async with timed("ibkr.snapshot_quotes"):
+                tickers = await asyncio.wait_for(
+                    ib.reqTickersAsync(*qualified),
+                    timeout=max(0.5, float(timeout_sec)),
+                )
     except asyncio.TimeoutError as exc:
         logger.warning(
             "IBKR: snapshot timeout (%.1fs) for %d symbols",

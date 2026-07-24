@@ -89,16 +89,13 @@ def build_hod_integrity_report() -> dict[str, Any]:
 def build_scanner_integrity_report() -> dict[str, Any]:
     from alpaca import _get_discovery_provider
     from ibkr import client as ibkr_client
-    from ibkr import reprice as ibkr_reprice
     from ibkr import scanner_l1 as ibkr_scanner_l1
 
     provider = (_get_discovery_provider() or "").strip().lower()
-    table_age = None
+    l1_age = None
     last_ok = ibkr_scanner_l1.get_last_ok_ts()
-    if last_ok is None:
-        last_ok = getattr(ibkr_reprice, "_table_last_ok_ts", None)
     if last_ok:
-        table_age = _cache_age(last_ok)
+        l1_age = _cache_age(last_ok)
 
     from ibkr import scanner_session as _scanner_session
 
@@ -133,9 +130,7 @@ def build_scanner_integrity_report() -> dict[str, Any]:
         "gainer_frozen": _frozen(_scanner_session.TABLE_GAINERS),
         "loser_frozen": _frozen(_scanner_session.TABLE_LOSERS),
         "afterhours_frozen": _frozen(_scanner_session.TABLE_AFTERHOURS),
-        "table_reprice_age_sec": table_age,
-        "table_busy_skips": getattr(ibkr_reprice, "_table_busy_skips", 0),
-        "table_timeouts": getattr(ibkr_reprice, "_table_timeouts", 0),
+        "scanner_l1_age_sec": l1_age,
         "l1_active_total": sub.get("active_total"),
         "l1_active_tab": sub.get("active_tab"),
         "l1_active_hod": sub.get("active_hod"),

@@ -19,6 +19,14 @@ from types import SimpleNamespace
 import pytest
 
 from constants import IBKR_DEPTH_NUM_ROWS, IBKR_DEPTH_SMART, IBKR_MAX_DEPTH_SYMBOLS
+from metrics import op_metrics
+
+
+@pytest.fixture(autouse=True)
+def reset_op_metrics():
+    op_metrics.reset_for_tests()
+    yield
+    op_metrics.reset_for_tests()
 
 
 class _FakeEvent:
@@ -125,6 +133,9 @@ class TestConcurrentSubscribeRace:
         assert fake_ib.depth_calls[0]["isSmartDepth"] is IBKR_DEPTH_SMART
         assert fake_ib.depth_calls[0]["numRows"] == IBKR_DEPTH_NUM_ROWS
         assert depth_mod.subscribed_symbols() == ["SHPH"]
+        stats = op_metrics.snapshot()["operations"]["ibkr.depth.subscribe"]
+        assert stats["count"] == 1
+        assert stats["error_count"] == 0
 
 
 class _DepthRejectedIb(_FakeIb):
@@ -153,6 +164,9 @@ class TestDepthL1FallbackReusesTicksStream:
         result = asyncio.run(depth_mod.subscribe_async("AAPL"))
         assert result["ok"] is True
         assert fake_ib.l1_calls == []  # no second reqMktData opened
+        stats = op_metrics.snapshot()["operations"]["ibkr.depth.subscribe"]
+        assert stats["count"] == 1
+        assert stats["error_count"] == 1
         from ibkr.depth import state as depth_state
         assert depth_state.is_shared_l1("AAPL") is True
 

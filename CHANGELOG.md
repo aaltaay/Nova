@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-23 — Add bounded per-operation latency measurement and harden timing correctness
+
+- **What:** Added bounded process-local per-operation metrics (512-sample rings using `perf_counter_ns`) with p50/p95/p99/max/count/error-count/age rollups and thin `GET /api/metrics/ops`. Existing IBKR, HTTP route-template, scanner pipeline/WebSocket, and execution fill paths are measured without new requests or per-tick samples; the header now labels only source-attributed “Alpaca account RTT.”
+- **Why:** Operators needed operation-level latency evidence, and review found reconnect telemetry, execution lock scope, cross-restart monotonic timestamps, RTT attribution, and benchmark-window defects that could make results incomplete, blocking, corrupt, or misleading.
+- **Files touched:** `backend/metrics/`, `backend/constants_metrics.py`, `backend/routes/metrics.py`, existing `backend/ibkr/` and `backend/execution/` owners, health/integrity wiring, `frontend/src/components/HeaderConnectionStatus.tsx`, `frontend/src/components/headerConnectionStatusModel.ts`, focused tests, ADR/validation docs, and `tools/execution_latency_probe.py`.
+- **How it works now:** Named operations record durations in bounded in-memory rings; HTTP uses route templates and scanner WS measures first buffer→broadcast. Execution callbacks wire once per IB instance, the global lock protects reserve/validate/persist/send but not the up-to-5-second ack wait, ledger `boot_id` prevents cross-process `perf_counter_ns` deltas, and probe summaries filter by a unique run prefix. Fill timing is reported separately as send→fill and ack→fill. Retired `table_reprice` counters were replaced by honest `scanner_l1` age without reviving the loop.
+- **Verified by:** Focused backend 118 passed plus fresh-process market-feed probe 13 passed; full backend 961 passed; full frontend 441 passed; header 4 passed; lint 0 errors/0 warnings; build/typecheck passed; two isolated 8-sample fake-broker runs each produced 16 rows, 8 acks, and 8 samples for both fill rollups; fresh `TestClient` `/api/health` and `/api/metrics/ops` returned 200 with `http.GET./api/health`, `clock=perf_counter_ns`, and ring 512; browser header/console, `agent_contract`, and diff checks passed.
+- **Follow-ups:** Restart the stale local API process after deployment so it loads the new route. Live outbound IBKR metrics were intentionally not exercised because the existing process was connected live but stale (metrics 404), and a second Gateway session/new requests would have been unsafe. Known non-failing TorchVision DLL and Vite chunk diagnostics remain. `auto_live` stays NO-GO; no orders were placed.
+- **Related:** `PROBLEM_LOG.md` § 2026-07-23 — Per-operation latency review found reconnect, lock-scope, cross-boot, attribution, and probe-isolation defects · `knowledge/task-log/2026-07-23-per-operation-latency-measurement.md`
+
 ## 2026-07-23 — Block fractional Flatten + treat Error 10243 / Cancelled as hard fail
 
 - **What:** Manual Flatten / place now refuses non-whole share qty before IBKR submit (`QTY_FRACTIONAL_API`). If a place still gets broker-cancelled with no fill (classic Error 10243), the execution receipt is `ok: false` with a clear desktop-close message instead of a silent success.

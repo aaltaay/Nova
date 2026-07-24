@@ -16,6 +16,10 @@ from constants import (
     SCAN_REQUIRE_TRADABLE,
     TOP_N_DEFAULT,
 )
+from constants_metrics import (
+    HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
+    HEALTH_SOURCE_ALPACA_ACCOUNT,
+)
 
 ScannerRow = dict[str, Any]
 HealthPayload = dict[str, Any]
@@ -121,7 +125,12 @@ class ScannerRuntimeState:
     avg_volume_date: str = ""
 
     cached_health: HealthPayload = field(
-        default_factory=lambda: {"status": "loading", "latency_ms": 0}
+        default_factory=lambda: {
+            "status": "loading",
+            "latency_ms": 0,
+            "health_source": HEALTH_SOURCE_ALPACA_ACCOUNT,
+            "latency_source": HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
+        }
     )
     current_mode: str = "closed"
 

@@ -9,6 +9,7 @@ from constants import GAPPER_MIN_GAP_PCT, IBKR_QUOTE_BATCH_TIMEOUT_SEC, SCANNER_
 from ibkr import client as _client
 from ibkr import discovery as _discovery
 from ibkr import scanner_session as _session
+from metrics.op_metrics import timed
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,7 @@ async def commit_table(
     lease_session_key: str,
     epoch: int,
     shadow: dict[str, list[dict]],
-) -> None:
+) -> bool | None:
     state = get_runtime_state()
     gen = _client.current_generation()
     if not _session.can_commit_roster(
@@ -126,29 +127,30 @@ async def commit_table(
         session_key=lease_session_key,
     ):
         logger.debug("scanner_stream: discard stale commit for %s", table)
-        return
+        return None
     as_gapper = table == _session.TABLE_GAPPERS
-    rows = await hydrate_rows(
-        symbols,
-        table=table,
-        session_key=lease_session_key,
-        as_gapper=as_gapper,
-        reverse=table != _session.TABLE_LOSERS,
-    )
+    async with timed("ibkr.scanner.hydrate"):
+        rows = await hydrate_rows(
+            symbols,
+            table=table,
+            session_key=lease_session_key,
+            as_gapper=as_gapper,
+            reverse=table != _session.TABLE_LOSERS,
+        )
     shadow[table] = rows
     if not _session.is_persistent_authoritative():
         logger.debug(
             "scanner_stream shadow %s: %d rows (epoch=%d gen=%d)",
             table, len(rows), lease_epoch, lease_generation,
         )
-        return
+        return True
     if not _session.can_commit_roster(
         state, table,
         generation=_client.current_generation(), epoch=epoch,
         fence_generation=lease_generation, fence_epoch=lease_epoch,
         session_key=lease_session_key,
     ):
-        return
+        return None
     rows_attr, ts_attr = _session.cache_attr_names(table)
     wall = time.time()
     setattr(state, rows_attr, rows)
@@ -162,6 +164,8 @@ async def commit_table(
         await broadcast_roster_replace(table, rows, ts)
     except Exception:
         logger.debug("scanner_stream: roster push failed", exc_info=True)
+        return False
+    return True
 
 
 def log_shadow_parity(

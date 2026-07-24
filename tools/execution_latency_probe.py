@@ -29,7 +29,7 @@ def _abort(msg: str) -> int:
     return 2
 
 
-async def _synthetic(samples: int) -> dict:
+async def _synthetic(samples: int, *, run_id: str | None = None) -> dict:
     """In-process fake broker — isolates validation + SQLite overhead."""
     import execution.service as exec_svc
     import execution.store as store
@@ -45,8 +45,11 @@ async def _synthetic(samples: int) -> dict:
     client_mod.is_enabled = lambda: True  # type: ignore[method-assign]
     client_mod.is_connected = lambda: True  # type: ignore[method-assign]
     client_mod.account_mode = lambda: "paper"  # type: ignore[method-assign]
+    client_mod.broker_account_kind = lambda: "paper"  # type: ignore[method-assign]
     client_mod.get_ib = lambda: None  # type: ignore[method-assign]
     safety_mod.orders_enabled = lambda: True  # type: ignore[method-assign]
+    safety_mod.gateway_mode = lambda: "paper"  # type: ignore[method-assign]
+    safety_mod.live_trading_confirmed = lambda: False  # type: ignore[method-assign]
     account_mod.get_account_summary = lambda: {  # type: ignore[method-assign]
         "connected": True, "BuyingPower": 1_000_000.0, "pending": False,
     }
@@ -64,8 +67,10 @@ async def _synthetic(samples: int) -> dict:
     orders_mod.place_order = place  # type: ignore[method-assign]
     orders_mod.cancel_order = lambda oid: {"ok": True}  # type: ignore[method-assign]
 
+    marker = run_id or uuid.uuid4().hex
+    prefix = f"bench:synth:{marker}:"
     for i in range(samples):
-        key = f"bench:synth:{uuid.uuid4()}"
+        key = f"{prefix}place:{i}:{uuid.uuid4()}"
         r = await exec_svc.execute(
             ExecutionCommand(
                 operation="place",
@@ -82,11 +87,13 @@ async def _synthetic(samples: int) -> dict:
             wait_ack=False,
         )
         if r.order_id:
-            telemetry.watch_order(int(r.order_id)).note_status("Submitted")
+            watch = telemetry.watch_order(int(r.order_id))
+            watch.note_status("Submitted")
+            watch.note_filled()
             await exec_svc.execute(
                 ExecutionCommand(
                     operation="cancel",
-                    idempotency_key=f"bench:cancel:{r.order_id}:{uuid.uuid4()}",
+                    idempotency_key=f"{prefix}cancel:{r.order_id}:{uuid.uuid4()}",
                     source="benchmark",
                     order_id=int(r.order_id),
                     skip_risk=True,
@@ -95,12 +102,21 @@ async def _synthetic(samples: int) -> dict:
                 wait_ack=False,
             )
 
-    summary = exec_svc.latency_summary(limit=samples * 2)
+    summary = exec_svc.latency_summary(
+        limit=samples * 2,
+        idempotency_prefix=prefix,
+    )
     summary["mode"] = "synthetic"
+    summary["run_id"] = marker
     return summary
 
 
-async def _paper_gateway(samples: int, symbol: str) -> dict:
+async def _paper_gateway(
+    samples: int,
+    symbol: str,
+    *,
+    run_id: str | None = None,
+) -> dict:
     from ibkr import client as client_mod
     from ibkr import safety as safety_mod
     import execution.service as exec_svc
@@ -119,8 +135,10 @@ async def _paper_gateway(samples: int, symbol: str) -> dict:
         raise RuntimeError("IBKR not connected")
 
     placed: list[int] = []
-    for _ in range(samples):
-        key = f"bench:paper:{uuid.uuid4()}"
+    marker = run_id or uuid.uuid4().hex
+    prefix = f"bench:paper:{marker}:"
+    for index in range(samples):
+        key = f"{prefix}place:{index}:{uuid.uuid4()}"
         r = await exec_svc.execute(
             ExecutionCommand(
                 operation="place",
@@ -141,7 +159,7 @@ async def _paper_gateway(samples: int, symbol: str) -> dict:
             await exec_svc.execute(
                 ExecutionCommand(
                     operation="cancel",
-                    idempotency_key=f"bench:cancel:{r.order_id}:{uuid.uuid4()}",
+                    idempotency_key=f"{prefix}cancel:{r.order_id}:{uuid.uuid4()}",
                     source="benchmark",
                     order_id=int(r.order_id),
                     skip_risk=True,
@@ -151,8 +169,12 @@ async def _paper_gateway(samples: int, symbol: str) -> dict:
             )
         await asyncio.sleep(0.05)
 
-    summary = exec_svc.latency_summary(limit=samples * 2)
+    summary = exec_svc.latency_summary(
+        limit=samples * 2,
+        idempotency_prefix=prefix,
+    )
     summary["mode"] = "paper_gateway"
+    summary["run_id"] = marker
     summary["placed_order_ids"] = placed
     return summary
 

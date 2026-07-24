@@ -6,6 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from constants import IBKR_CLIENT_ID
 from ibkr import client as ibkr_client
+from metrics import op_metrics
+
+
+def setup_function() -> None:
+    op_metrics.reset_for_tests()
 
 
 def test_default_client_id_avoids_one():
@@ -31,6 +36,9 @@ def test_attempt_connect_hard_timeout_disconnects():
     assert ok is False
     assert reason == "timeout"
     ib.disconnect.assert_called()
+    stats = op_metrics.snapshot()["operations"]["ibkr.connect"]
+    assert stats["count"] == 1
+    assert stats["error_count"] == 1
 
 
 def test_attempt_connect_success():
@@ -45,6 +53,10 @@ def test_attempt_connect_success():
     assert ok is True
     assert reason == "ok"
     ib.disconnect.assert_not_called()
+    stats = op_metrics.snapshot()["operations"]["ibkr.connect"]
+    assert stats["count"] == 1
+    assert stats["error_count"] == 0
+    ib.connectAsync.assert_awaited_once()
 
 
 def test_resolve_config_honors_env_client_id():

@@ -8,6 +8,12 @@ export interface IntegrationChipStatus {
 export interface HealthStatus {
   status: string;
   latency_ms: number;
+  /** Probe that owns the top-level health status (currently Alpaca account API). */
+  health_source?: string;
+  /** Source of latency_ms; omit the RTT in UI when absent or unrecognized. */
+  latency_source?: string;
+  /** Explicit market-data owner; independent from health/latency probes. */
+  market_data_source?: string;
   message?: string;
   feed_fell_back?: boolean;
   /**
