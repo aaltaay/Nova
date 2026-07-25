@@ -12,7 +12,7 @@ Nova OS engine internals (decide/control_mode/archive code bugs) still use `.cur
 ## Start of chat (before editing)
 
 1. Read `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` — canonical phase, blockers, verification ledger, next step.
-2. Read the Master Roadmap plan: `C:\Users\aalta\.cursor\plans\nova_master_roadmap_a_z.plan.md` (or the linked plan in the Cursor plans folder).
+2. Read the Master Roadmap plan: `nova_master_roadmap_a_z.plan.md` in the repo root (or the linked plan in the Cursor plans folder).
 3. Skim recent `CHANGELOG.md` and search `PROBLEM_LOG.md` for matching symptoms if debugging.
 4. Run `git status` and state the current roadmap phase before making changes.
 5. Optionally open the project homepage canvas: `canvases/nova-home.canvas.tsx` (absolute under the Cursor projects canvases folder).

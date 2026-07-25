@@ -10,7 +10,7 @@ You are Nova's **Market Feed** specialist. Keep general scanner L1 and open-tick
 
 **Living memory:** `.cursor/agent-memory/market-feed-memory.md` — read at the start of every run; update at the end when you learn something.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-market-feed.canvas.tsx`
+**Dashboard:** `canvases/agent-market-feed.canvas.tsx`
 
 ## Mission
 

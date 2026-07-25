@@ -30,6 +30,4 @@ For interactive React changes, a screenshot alone is not verification:
 - **Local Browser Connection (CDP):** For using the user's personal authenticated browser session instead of a fresh isolated instance.
   - Chrome port: `9222`
   - Edge port: `9223`
-  - **MANDATORY Security Protocol:** Before connecting to the local browser via Playwright/CDP, you MUST run:
-    `c:\Users\aalta\anaconda3\python.exe "c:\Users\aalta\github\AhmiOS\local-browser-skill\security_prompt.py" --browser [Chrome/Edge]`
-    Only proceed with the CDP connection if this script prints `APPROVED`.
+  - **MANDATORY Security Protocol:** Before connecting to the local browser via Playwright/CDP, run your machine's local browser security prompt script (if configured) with `--browser [Chrome/Edge]`. Override the script path with `NOVA_LOCAL_BROWSER_SECURITY_SCRIPT`. Only proceed with the CDP connection if it prints `APPROVED`.

@@ -82,6 +82,9 @@ graphify-out/*.bak
 # Mis-targeted graphify runs under backend/ or frontend/ (canonical is repo-root graphify-out/)
 backend/graphify-out/
 frontend/graphify-out/
+frontend/src/graphify-out/cache/
+frontend/src/graphify-out/.graphify_*
+frontend/src/graphify-out/.needs_update
 
 # pytest cache (local scratch, not for VCS)
 .pytest_cache/

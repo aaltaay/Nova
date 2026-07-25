@@ -21,16 +21,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from constants import NOVA_OS_DECISION_NO_BUY, NOVA_OS_MODE_AUTO_PAPER, NOVA_OS_MODE_SIGNAL
 from nova_os import control_mode
+import nova_os.events_db as events_db
 import strategy.setups_stream as setups_stream
 
 
 @pytest.fixture(autouse=True)
-def isolated(monkeypatch):
-    monkeypatch.setattr(control_mode, "_mode", NOVA_OS_MODE_SIGNAL)
+def isolated(monkeypatch, tmp_path):
+    monkeypatch.setattr(events_db, "cache_dir", lambda: tmp_path)
+    events_db.init_db()
+    control_mode.reset_for_tests()
     setups_stream._last_alert_ts.clear()
     setups_stream._signal_history.clear()
     yield
-    monkeypatch.setattr(control_mode, "_mode", NOVA_OS_MODE_SIGNAL)
+    control_mode.reset_for_tests()
 
 
 def _fake_decision(mode: str) -> SimpleNamespace:

@@ -21,7 +21,7 @@ run so you never re-litigate a solved problem or repeat a failed approach.
 
 **Canonical feed UML (you own this):** `knowledge/obsidian/03-Nova-Decisions/IBKR-Scanner-HOD-Architecture.md` — IBKR API specialties, HOD truth, and end-to-end Gateway→membership→L1→HOD→UI flow. Read it when diagnosing feed topology; update it whenever a shipped path changes (scan codes, seed/high path, poll cadence, depth fallback). Companion plan diagrams may live under `.cursor/plans/hod_gate_uml_cleanup_*.plan.md` but the Obsidian note is the durable source of truth.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hod-momo.canvas.tsx` — refresh when parity counts, root-cause status, or classification table change (`dashboard=refresh-required`).
+**Dashboard:** `canvases/agent-hod-momo.canvas.tsx` — refresh when parity counts, root-cause status, or classification table change (`dashboard=refresh-required`).
 
 ## Mission
 

@@ -10,7 +10,7 @@ You are Nova's **Backtester**. Own Phase E backtest product and the VectorBT res
 
 **Living memory:** `.cursor/agent-memory/backtester-memory.md` — read at the start of every run; update at the end when you learn something.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-backtester.canvas.tsx`
+**Dashboard:** `canvases/agent-backtester.canvas.tsx`
 
 ## Mission
 

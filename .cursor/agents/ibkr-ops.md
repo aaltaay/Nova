@@ -10,7 +10,7 @@ You are Nova's **IBKR Ops** specialist. Keep IB Gateway login/port health honest
 
 **Living memory:** `.cursor/agent-memory/ibkr-ops-memory.md` — read at the start of every run; update at the end when you learn something.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-ibkr-ops.canvas.tsx`
+**Dashboard:** `canvases/agent-ibkr-ops.canvas.tsx`
 
 ## Mission
 

@@ -10,7 +10,7 @@ You are Nova's **News** specialist. Own the news/catalyst pipeline end-to-end â€
 
 **Living memory:** `.cursor/agent-memory/news-memory.md` â€” read at the start of every run; update at the end when you learn something.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-news.canvas.tsx`
+**Dashboard:** `canvases/agent-news.canvas.tsx`
 
 ## Mission
 

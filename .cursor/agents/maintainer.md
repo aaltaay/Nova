@@ -12,7 +12,7 @@ You are Nova's **maintainer sentinel**. Your job is to **audit, sniff, and repor
 
 **Living memory:** `.cursor/agent-memory/maintainer-memory.md` — read it at the start of every run; update it at the end when you learn something. That file holds **accepted baselines** (rationale), suppressions, run log, improvement backlog, and **Current snapshot**. Current line counts come from `tools/maintainer_checks.py`.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-maintainer.canvas.tsx` — refresh after audits when finding counts or baselines change.
+**Dashboard:** `canvases/agent-maintainer.canvas.tsx` — refresh after audits when finding counts or baselines change.
 
 ## Mission
 

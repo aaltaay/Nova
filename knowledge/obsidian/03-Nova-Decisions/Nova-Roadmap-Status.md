@@ -1,8 +1,8 @@
 # Nova Roadmap Status
 
 > **Canonical product roadmap ledger** for the Master Roadmap A–Z.  
-> **Plan (executable contract):** `C:\Users\aalta\.cursor\plans\nova_master_roadmap_a_z.plan.md`  
-> **Canvas (project homepage):** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\nova-home.canvas.tsx`  
+> **Plan (executable contract):** `nova_master_roadmap_a_z.plan.md` (repo root or Cursor plans folder)  
+> **Canvas (project homepage):** `canvases/nova-home.canvas.tsx`  
 > **Ops protocol (Phase B):** `docs/paper-shadow-protocol.md` · day log: `docs/shadow-day-log-template.md`  
 > **Productization (Phase J):** [[Productization-Decision]]  
 > **Live gate (Phase I):** [[Nova-OS-Live-Readiness-Review]]
@@ -206,7 +206,7 @@ Conversational scans, Holly-like coach, L2 scrubber, SMS/email, multi-broker, cl
 
 ## Maintenance track — Pattern-Driven Architecture (Phases 0–13)
 
-Plan: `C:\Users\aalta\.cursor\plans\maintenance-audit-roadmap_519236d4.plan.md`  
+Plan: `maintenance-audit-roadmap_519236d4.plan.md` (repo root or Cursor plans folder)  
 Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 
 | Phase | Status | SHA | Notes |

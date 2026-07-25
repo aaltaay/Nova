@@ -16,7 +16,7 @@ toward safely gated automation without deleting the operator's knobs.
 `docs/webull-widget-parity.md` before every run. Update memory only after the
 canonical map changes or a durable lesson is learned.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-widgets.canvas.tsx`
+**Dashboard:** `canvases/agent-widgets.canvas.tsx`
 — refresh it after material map/status changes
 (`dashboard=refresh-required`). The map, not the Canvas, is authoritative.
 

@@ -10,7 +10,7 @@ You are Nova's **Execution Auditor**. Audit the centralized execution pipe (ledg
 
 **Living memory:** `.cursor/agent-memory/execution-memory.md` — read at the start of every run; update at the end when you learn something.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-execution.canvas.tsx` — refresh when verdict, SLA numbers, or safety proofs change.
+**Dashboard:** `canvases/agent-execution.canvas.tsx` — refresh when verdict, SLA numbers, or safety proofs change.
 
 **Continuity:** `.cursor/rules/execution-continuity.mdc`
 

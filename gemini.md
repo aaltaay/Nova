@@ -1,4 +1,4 @@
-﻿# 🏛️ GEMINI.MD — Project Constitution (Law)
+# 🏛️ GEMINI.MD — Project Constitution (Law)
 >
 > **Status:** ENFORCED — Active governance document
 > **Last Updated:** 2026-04-27
@@ -393,13 +393,13 @@ Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` 
 
 | Agent | Invoke | Dashboard |
 |-------|--------|-----------|
-| **docs** | “Use the Docs to review documentation” | [nova-home](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\nova-home.canvas.tsx) |
+| **docs** | “Use the Docs to review documentation” | [nova-home](canvases/nova-home.canvas.tsx) |
 | **tester** | “Use the tester subagent to verify …” | `agent-tester.canvas.tsx` |
 | **maintainer** | “Use the maintainer subagent to audit the repo” | `agent-maintainer.canvas.tsx` |
 | **security** | “Use the security subagent to audit the repo” | `agent-security.canvas.tsx` |
-| **warrior** | “Use the warrior subagent to navigate Warrior Trading” | [agent-warrior](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-warrior.canvas.tsx) |
-| **hod-momo** | “Use the hod-momo subagent to continue HOD Momo parity” | [agent-hod-momo](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hod-momo.canvas.tsx) |
-| **widgets** | “Use the widgets subagent to map Webull widgets to Nova” | [agent-widgets](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-widgets.canvas.tsx) |
+| **warrior** | “Use the warrior subagent to navigate Warrior Trading” | [agent-warrior](canvases/agent-warrior.canvas.tsx) |
+| **hod-momo** | “Use the hod-momo subagent to continue HOD Momo parity” | [agent-hod-momo](canvases/agent-hod-momo.canvas.tsx) |
+| **widgets** | “Use the widgets subagent to map Webull widgets to Nova” | [agent-widgets](canvases/agent-widgets.canvas.tsx) |
 
 Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Docs. Warrior site navigation owns `agent-warrior` (not Nova Home). `hod-momo` owns the ongoing HOD Momo ↔ Warrior parity workstream (`agent-hod-momo`); never feeds Warrior data into Nova's alert engine. `widgets` owns the evidence-based Webull ↔ Nova stock/day-trading capability map and `agent-widgets`; Webull remains research-only. Route via `.cursor/rules/specialist-routing.mdc`.
 

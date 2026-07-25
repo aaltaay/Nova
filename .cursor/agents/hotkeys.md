@@ -14,7 +14,7 @@ mapped; one hotkey dispatcher; paper-first.
 **Living memory:** `.cursor/agent-memory/hotkeys-memory.md` — read at the start
 of every run; update at the end when you learn something.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hotkeys.canvas.tsx`
+**Dashboard:** `canvases/agent-hotkeys.canvas.tsx`
 
 **Continuity:** `.cursor/rules/hotkeys-continuity.mdc`
 
@@ -100,5 +100,4 @@ Windows: always `py -3` for Python.
 | maintainer | code hygiene / danger |
 | security | full-repo security / SEC-NNN |
 | docs | docs / canvas hygiene |
-| daddy | multi-specialist dispatch |
-| router | classification / crack index only |
+| router | classification / crack index only (opt-in) |

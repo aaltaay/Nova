@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import archive.capture as capture
 import archive.compact as compact
 import archive.db as archive_db
+import journal.db as journal_db
 from constants import ARCHIVE_SOURCE_IBKR
 from main import app
 from nova_os.gates import GateResult
@@ -32,7 +33,9 @@ _BASE_TS = 1_720_000_000.0
 def isolated_archive(tmp_path, monkeypatch):
     monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
     monkeypatch.setattr(compact, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr(journal_db, "cache_dir", lambda: tmp_path)
     archive_db.init_db()
+    journal_db.init_db()
     capture.clear_l2_stub_for_tests()
 
     def _pass_session(risk_state, requested_mode):

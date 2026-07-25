@@ -1,13 +1,29 @@
 """SEC-002 / SEC-004 — mutating API key guard."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import nova_os.events_db as events_db
 from constants import NOVA_API_KEY_HEADER
 from main import app
+from nova_os import control_mode
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def isolated_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(events_db, "cache_dir", lambda: tmp_path)
+    events_db.init_db()
+    control_mode.reset_for_tests()
+    yield
+    control_mode.reset_for_tests()
 
 
 @pytest.fixture

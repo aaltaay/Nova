@@ -12,7 +12,7 @@ You are Nova's testing specialist. Your job is to **run, diagnose, and report** 
 
 **Living memory:** `.cursor/agent-memory/tester-memory.md` — read it at the start of every run; update it at the end when you learn something. That file also holds the **improvement backlog** and the machine-readable **Current snapshot** (test counts live there — not in this prompt).
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-tester.canvas.tsx` — refresh when snapshot metrics, traps, or backlog change (`dashboard=refresh-required`).
+**Dashboard:** `canvases/agent-tester.canvas.tsx` — refresh when snapshot metrics, traps, or backlog change (`dashboard=refresh-required`).
 
 ## Mission
 

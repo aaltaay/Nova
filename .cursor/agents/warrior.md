@@ -15,7 +15,7 @@ site map current for future questions.
 
 **Living memory:** `.cursor/agent-memory/warrior-memory.md` — read at the start of every run; update at the end when you learn something.
 
-**Dashboard:** `C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-warrior.canvas.tsx` — refresh when the site map, access path, or last navigation result changes (`dashboard=refresh-required`). Do **not** create unmanaged canvases like `warrior-site-map.canvas.tsx`; fold updates into this board.
+**Dashboard:** `canvases/agent-warrior.canvas.tsx` — refresh when the site map, access path, or last navigation result changes (`dashboard=refresh-required`). Do **not** create unmanaged canvases like `warrior-site-map.canvas.tsx`; fold updates into this board.
 
 ## Mission
 

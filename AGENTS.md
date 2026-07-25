@@ -1,4 +1,4 @@
-﻿# 🏛️ GEMINI.MD — Project Constitution (Law)
+# 🏛️ GEMINI.MD — Project Constitution (Law)
 >
 > **Status:** ENFORCED — Active governance document
 > **Last Updated:** 2026-04-27
@@ -372,25 +372,26 @@ Pre-existing: `karpathy-guidelines`, `graphify`. Phase A adds: `backtest`, `opti
 
 Wiring: `.cursor/agent-system/registry.json` · memory: `.cursor/agent-memory/` · ops: `docs/agent-operations.md` · validate: `py -3 tools/agent_contract.py`.
 
+**Zero-hop default:** every subagent below is **opt-in only** — invoke by name when you explicitly want it. The parent Auto session classifies and does multi-domain work in-session by default (no automatic dispatch); see `.cursor/rules/specialist-routing.mdc`.
+
 | Agent | Invoke | Dashboard |
 |-------|--------|-----------|
-| **daddy** | “daddy, …” or “Use the daddy subagent to dispatch this” | [agent-daddy](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-daddy.canvas.tsx) |
-| **router** | “Use the router subagent to triage this” | [agent-router](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-router.canvas.tsx) |
-| **execution** | “Use the execution subagent to audit trading execution” | [agent-execution](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-execution.canvas.tsx) |
-| **hotkeys** | “Use the hotkeys subagent to …” | [agent-hotkeys](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hotkeys.canvas.tsx) |
-| **ibkr-ops** | “Use the ibkr-ops subagent to diagnose IB Gateway” | [agent-ibkr-ops](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-ibkr-ops.canvas.tsx) |
-| **market-feed** | “Use the market-feed subagent to fix feed coherence” | [agent-market-feed](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-market-feed.canvas.tsx) |
-| **hod-momo** | “Use the hod-momo subagent to continue HOD Momo parity” | [agent-hod-momo](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-hod-momo.canvas.tsx) |
-| **backtester** | “Use the backtester subagent to work the backtest product” | [agent-backtester](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-backtester.canvas.tsx) |
-| **news** | “Use the news subagent to work the news pipeline” | [agent-news](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-news.canvas.tsx) |
-| **widgets** | “Use the widgets subagent to map Webull widgets to Nova” | [agent-widgets](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-widgets.canvas.tsx) |
-| **warrior** | “Use the warrior subagent to navigate Warrior Trading” | [agent-warrior](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\agent-warrior.canvas.tsx) |
+| **router** | “Use the router subagent to triage this” | [agent-router](canvases/agent-router.canvas.tsx) |
+| **execution** | “Use the execution subagent to audit trading execution” | [agent-execution](canvases/agent-execution.canvas.tsx) |
+| **hotkeys** | “Use the hotkeys subagent to …” | [agent-hotkeys](canvases/agent-hotkeys.canvas.tsx) |
+| **ibkr-ops** | “Use the ibkr-ops subagent to diagnose IB Gateway” | [agent-ibkr-ops](canvases/agent-ibkr-ops.canvas.tsx) |
+| **market-feed** | “Use the market-feed subagent to fix feed coherence” | [agent-market-feed](canvases/agent-market-feed.canvas.tsx) |
+| **hod-momo** | “Use the hod-momo subagent to continue HOD Momo parity” | [agent-hod-momo](canvases/agent-hod-momo.canvas.tsx) |
+| **backtester** | “Use the backtester subagent to work the backtest product” | [agent-backtester](canvases/agent-backtester.canvas.tsx) |
+| **news** | “Use the news subagent to work the news pipeline” | [agent-news](canvases/agent-news.canvas.tsx) |
+| **widgets** | “Use the widgets subagent to map Webull widgets to Nova” | [agent-widgets](canvases/agent-widgets.canvas.tsx) |
+| **warrior** | “Use the warrior subagent to navigate Warrior Trading” | [agent-warrior](canvases/agent-warrior.canvas.tsx) |
 | **tester** | “Use the tester subagent to verify …” | `agent-tester.canvas.tsx` |
 | **maintainer** | “Use the maintainer subagent to audit the repo” | `agent-maintainer.canvas.tsx` |
 | **security** | “Use the security subagent to audit the repo” | `agent-security.canvas.tsx` |
-| **docs** | “Use the docs subagent to review documentation” | [nova-home](C:\Users\aalta\.cursor\projects\c-Users-aalta-github-Nova\canvases\nova-home.canvas.tsx) |
+| **docs** | “Use the docs subagent to review documentation” | [nova-home](canvases/nova-home.canvas.tsx) |
 
-Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Docs. **`daddy`** is the top-of-fleet dispatcher (classify → dispatch/sequence → aggregate; never implements product code). **`router`** remains the pure classification / crack-index tool. `hod-momo` owns HOD Momo ↔ Warrior parity (`agent-hod-momo`); never feeds Warrior data into Nova's alert engine. `widgets` owns Webull ↔ Nova widget mapping (`agent-widgets`); Webull remains research-only. `execution` is audit-only for ADR 007. `market-feed` owns general L1 + quote/L2/T&S coherence (HOD pool stays `hod-momo`). `backtester` owns Phase E + the VectorBT skill cluster. Route via `.cursor/rules/specialist-routing.mdc`.
+Canvas naming: prefer `nova-home` + `agent-*` (+ Cursor `context-usage-*`). Unmanaged boards are reviewed by Docs. **`router`** remains the pure classification / crack-index tool, invoked only on explicit ask (default is `py -3 tools/agent_fleet.py`, no LLM hop). `hod-momo` owns HOD Momo ↔ Warrior parity (`agent-hod-momo`); never feeds Warrior data into Nova's alert engine. `widgets` owns Webull ↔ Nova widget mapping (`agent-widgets`); Webull remains research-only. `execution` is audit-only for ADR 007. `market-feed` owns general L1 + quote/L2/T&S coherence (HOD pool stays `hod-momo`). `backtester` owns Phase E + the VectorBT skill cluster. Route via `.cursor/rules/specialist-routing.mdc` (zero-hop default; specialists are opt-in).
 
 ---
 
