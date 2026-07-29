@@ -40,9 +40,9 @@ Entry template (copy and fill in):
 ## 2026-07-28 -- Archive records tape but not the L1 stream that drives HOD evaluation
 
 - **Symptom:** Replaying 2026-07-17 (89,084 archived prints) through the real HOD engine reproduces momentum alerts for densely-taped symbols (SDOT/BIYA/CJMB) but cannot reproduce production alerts for CNF, WZRD, SLND, KLRS -- those fired live on L1 ticks that were never archived (4 / 1 / 2,728 / 833 prints on record).
-- **Cause:** `tape_ibkr` only captures symbols with an active `reqTickByTickData` subscription (open ticker). The L1 `reqMktData` tick stream that `ibkr_bridge.apply_l1_quote` feeds into `hod_momo.on_trade_update` is not recorded anywhere, so post-hoc capture verification has a hard ceiling.
-- **Fix:** Diagnosed (no product fix this pass) -- recommended P0: archive L1 ticks (or >=1/min snapshots) for every active-set symbol. Measured via the new replay harness; parity matrix in `docs/audits/2026-07-28-hod-scanner-capture-audit.md` (G5).
-- **Keywords:** archive coverage, tape_ibkr, L1 tick stream, replay parity, capture verification, hod momo
+- **Cause:** `tape_ibkr` only captures symbols with an active `reqTickByTickData` subscription (open ticker). The L1 `reqMktData` tick stream that `ibkr_bridge.apply_l1_quote` feeds into `hod_momo.on_trade_update` was not recorded anywhere, so post-hoc capture verification had a hard ceiling.
+- **Fix:** Added `archive.db` table `l1_ticks` + `capture.record_l1_tick`. `ibkr_bridge.apply_l1_quote` and `apply_table_quotes` call `_archive_l1_tick` (non-fatal) immediately after a successful `on_trade_update` for active-set symbols. Historical 2026-07-17 fixture is unchanged -- only new sessions get L1 decision-stream coverage.
+- **Keywords:** archive coverage, tape_ibkr, l1_ticks, L1 tick stream, replay parity, capture verification, hod momo
 
 ## 2026-07-24 — HOD Momo session bleed (yesterday PM alerts in Today)
 

@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-28 | [G5: archive HOD L1 decision stream](2026-07-28-g5-archive-l1-decision-stream.md) | Active-set L1 ticks written to archive.l1_ticks after on_trade_update |
 | 2026-07-28 | [Fix G1 zombie L1 subs + G4 session errorEvent](2026-07-28-g1-g4-zombie-l1-session-errors.md) | Fix G1 zombie L1 subs + G4 session errorEvent |
 | 2026-07-28 | [HOD scanner capture audit + mock replay harness](2026-07-28-hod-scanner-capture-audit.md) | HOD scanner capture audit + mock replay harness |
 | 2026-07-24 | [Remove daddy dispatcher; zero-hop specialist routing](2026-07-24-remove-daddy-zero-hop-routing.md) | Deleted daddy; parent now works in-session by default, specialists opt-in-only; reviewed refactoring.guru/loop-library principles |

@@ -4,8 +4,8 @@ SQLite connection + schema for Nova OS archive hot store (P6).
 Lives under ``paths.cache_dir()`` as ``ARCHIVE_DB_FILENAME`` (not git-tracked).
 WAL mode + NORMAL sync — same conventions as ``l2/db.py`` / ``journal/db.py``.
 
-Tables: bars_1m, bars_1d, tape_ibkr, capture_gaps, incomplete_windows,
-integrity_counters.
+Tables: bars_1m, bars_1d, tape_ibkr, l1_ticks, capture_gaps,
+incomplete_windows, integrity_counters.
 """
 from __future__ import annotations
 
@@ -70,6 +70,18 @@ CREATE TABLE IF NOT EXISTS tape_ibkr (
 CREATE INDEX IF NOT EXISTS idx_tape_ibkr_date ON tape_ibkr(session_date);
 CREATE INDEX IF NOT EXISTS idx_tape_ibkr_symbol_ts ON tape_ibkr(symbol, ts);
 
+CREATE TABLE IF NOT EXISTS l1_ticks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    ts REAL NOT NULL,
+    price REAL NOT NULL,
+    volume REAL,
+    day_high REAL,
+    session_date TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_l1_ticks_date ON l1_ticks(session_date);
+CREATE INDEX IF NOT EXISTS idx_l1_ticks_symbol_ts ON l1_ticks(symbol, ts);
+
 CREATE TABLE IF NOT EXISTS capture_gaps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     stream TEXT NOT NULL,
@@ -130,8 +142,8 @@ def init_db() -> None:
 def table_row_count(conn: sqlite3.Connection, table: str, session_date: str | None = None) -> int:
     """Count rows in a known archive table, optionally filtered by session_date."""
     allowed = {
-        "bars_1m", "bars_1d", "tape_ibkr", "capture_gaps", "incomplete_windows",
-        "integrity_counters",
+        "bars_1m", "bars_1d", "tape_ibkr", "l1_ticks", "capture_gaps",
+        "incomplete_windows", "integrity_counters",
     }
     if table not in allowed:
         raise ValueError(f"unknown archive table: {table}")

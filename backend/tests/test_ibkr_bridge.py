@@ -87,6 +87,66 @@ def test_apply_l1_quote_reprices_a_live_table(monkeypatch):
     assert state.gainer_cache_ts == 222.0
 
 
+def test_apply_l1_quote_archives_active_set_tick(monkeypatch):
+    """G5: every HOD-decision L1 tick must land in archive.l1_ticks."""
+    state = _fake_state()
+    monkeypatch.setattr(ibkr_bridge, "get_runtime_state", lambda: state)
+    monkeypatch.setattr(_hod_active, "get_active_symbols", lambda: ["AAA"])
+    monkeypatch.setattr(ibkr_bridge._hod_momo, "on_trade_update", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "ibkr.ticks.get_day_high",
+        lambda _sym: 10.25,
+    )
+
+    archived: list[dict] = []
+
+    def fake_archive(symbol, price, ts, *, volume=None, day_high=None):
+        archived.append(
+            {
+                "symbol": symbol,
+                "price": price,
+                "ts": ts,
+                "volume": volume,
+                "day_high": day_high,
+            }
+        )
+
+    monkeypatch.setattr(ibkr_bridge, "_archive_l1_tick", fake_archive)
+
+    ibkr_bridge.apply_l1_quote("AAA", 9.5, 1_000, 8.0, 333.0)
+
+    assert len(archived) == 1
+    assert archived[0]["symbol"] == "AAA"
+    assert archived[0]["price"] == 9.5
+    assert archived[0]["volume"] == 1000.0
+    assert archived[0]["day_high"] == 10.25
+    assert archived[0]["ts"] == 333.0
+
+
+def test_apply_table_quotes_archives_active_set_tick(monkeypatch):
+    state = _fake_state()
+    monkeypatch.setattr(ibkr_bridge, "get_runtime_state", lambda: state)
+    monkeypatch.setattr(_hod_active, "get_active_symbols", lambda: ["AAA"])
+    monkeypatch.setattr(ibkr_bridge._hod_momo, "on_trade_update", lambda *a, **k: None)
+
+    archived: list[dict] = []
+    monkeypatch.setattr(
+        ibkr_bridge,
+        "_archive_l1_tick",
+        lambda symbol, price, ts, *, volume=None, day_high=None: archived.append(
+            {"symbol": symbol, "price": price, "volume": volume, "day_high": day_high}
+        ),
+    )
+
+    quotes = {"AAA": {"price": 10.0, "prev_close": 9.0, "volume": 100, "high": 10.5}}
+    ibkr_bridge.apply_table_quotes(quotes)
+
+    assert len(archived) == 1
+    assert archived[0]["symbol"] == "AAA"
+    assert archived[0]["day_high"] == 10.5
+    assert archived[0]["volume"] == 100.0
+
+
 def test_refresh_hod_active_set_always_recomputes(monkeypatch):
     """Regression for the WLDS lockout (PROBLEM_LOG 2026-07-23): once all three
     scanner tables freeze for the day, their cache list objects are never

@@ -13,6 +13,7 @@ ARCHIVE_STREAM_TAPE = "tape"
 ARCHIVE_STREAM_L2 = "l2"
 ARCHIVE_STREAM_BARS_1M = "bars_1m"
 ARCHIVE_STREAM_BARS_1D = "bars_1d"
+ARCHIVE_STREAM_L1_TICKS = "l1_ticks"
 ARCHIVE_COUNTER_TAPE_RECEIVED = "tape_received"
 ARCHIVE_COUNTER_TAPE_DROPPED = "tape_dropped"
 ARCHIVE_COUNTER_L2_SNAPSHOTS = "l2_snapshots"
@@ -20,10 +21,12 @@ ARCHIVE_COUNTER_BARS_1M = "bars_1m"
 ARCHIVE_COUNTER_BARS_1D = "bars_1d"
 ARCHIVE_COUNTER_GAPS = "capture_gaps"
 ARCHIVE_COUNTER_INCOMPLETE_WINDOWS = "incomplete_windows"
+ARCHIVE_COUNTER_L1_TICKS = "l1_ticks"
 ARCHIVE_TABLES_COLD = (
     "bars_1m",
     "bars_1d",
     "tape_ibkr",
+    "l1_ticks",
     "capture_gaps",
     "incomplete_windows",
 )

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Archive HOD L1 decision stream (G5)
+
+- **What:** Every active-set L1 tick that reaches `hod_momo.on_trade_update` is now also written to `archive.db` table `l1_ticks` (symbol, ts, price, volume, day_high, session_date).
+- **Why:** Capture audit finding G5 -- tape archive only covers the open ticker; the L1 stream that drives HOD was invisible post-hoc.
+- **Files touched:** `backend/archive/db.py`, `backend/archive/capture.py` (`record_l1_tick`), `backend/ibkr_bridge.py` (`_archive_l1_tick`), `backend/constants_archive_news.py`, tests.
+- **How it works now:** `apply_l1_quote` / `apply_table_quotes` archive after a successful HOD feed for active-set symbols. Failures are non-fatal (log + continue), same pattern as tape archive. Cold compact includes `l1_ticks`. Pre-fix sessions (including the 2026-07-17 replay fixture) remain tape-only.
+- **Verified by:** `pytest tests/test_archive_capture.py tests/test_ibkr_bridge.py` -- 14 passed.
+- **Related:** PROBLEM_LOG 2026-07-28 Archive records tape but not L1; audit G5.
+
 ## 2026-07-28 -- Fix G1 zombie L1 subs + G4 session errorEvent handler
 
 - **What:** On every READY transition, Nova clears all L1 ownership maps and installs a session-level IB `errorEvent` handler for connectivity (1100/1101/1102), data-farm (2104/2106/2108), max-tickers (101), and delayed-data (10167) codes.

@@ -29,6 +29,7 @@ from constants import (
     ARCHIVE_COUNTER_BARS_1M,
     ARCHIVE_COUNTER_GAPS,
     ARCHIVE_COUNTER_INCOMPLETE_WINDOWS,
+    ARCHIVE_COUNTER_L1_TICKS,
     ARCHIVE_COUNTER_L2_SNAPSHOTS,
     ARCHIVE_COUNTER_TAPE_RECEIVED,
     ARCHIVE_SOURCE_IBKR,
@@ -177,6 +178,41 @@ def record_tape_print(
     finally:
         conn.close()
     bump_counter(ARCHIVE_COUNTER_TAPE_RECEIVED)
+
+
+def record_l1_tick(
+    *,
+    symbol: str,
+    ts: float,
+    price: float,
+    volume: float | None = None,
+    day_high: float | None = None,
+    session_date: str | None = None,
+) -> None:
+    """Persist one HOD-decision L1 tick (what ``on_trade_update`` received)."""
+    symbol = symbol.upper()
+    day = session_date or session_date_for_ts(ts)
+    conn = archive_db.get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO l1_ticks
+                (symbol, ts, price, volume, day_high, session_date)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                symbol,
+                float(ts),
+                float(price),
+                float(volume) if volume is not None else None,
+                float(day_high) if day_high is not None else None,
+                day,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    bump_counter(ARCHIVE_COUNTER_L1_TICKS)
 
 
 def record_gap(

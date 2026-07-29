@@ -15,6 +15,7 @@ from constants import (
     ARCHIVE_COUNTER_BARS_1M,
     ARCHIVE_COUNTER_GAPS,
     ARCHIVE_COUNTER_INCOMPLETE_WINDOWS,
+    ARCHIVE_COUNTER_L1_TICKS,
     ARCHIVE_COUNTER_L2_SNAPSHOTS,
     ARCHIVE_COUNTER_TAPE_RECEIVED,
     ARCHIVE_SOURCE_IBKR,
@@ -116,6 +117,30 @@ class TestArchiveCapture:
             conn.close()
         assert g["reason"] == "queue_drop"
         assert "mid-stream" in w["note"]
+
+    def test_record_l1_tick_and_counter(self):
+        capture.record_l1_tick(
+            symbol="sdot",
+            ts=1_700_000_000.0,
+            price=12.5,
+            volume=1_250_000,
+            day_high=12.75,
+            session_date="2026-07-14",
+        )
+        conn = archive_db.get_connection()
+        try:
+            n = conn.execute("SELECT COUNT(*) FROM l1_ticks").fetchone()[0]
+            row = conn.execute(
+                "SELECT symbol, price, volume, day_high FROM l1_ticks"
+            ).fetchone()
+        finally:
+            conn.close()
+        assert n == 1
+        assert row["symbol"] == "SDOT"
+        assert row["price"] == 12.5
+        assert row["volume"] == 1_250_000
+        assert row["day_high"] == 12.75
+        assert capture.get_counter(ARCHIVE_COUNTER_L1_TICKS) == 1
 
     def test_record_l2_snapshot_stub(self):
         capture.record_l2_snapshot(

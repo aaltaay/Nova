@@ -29,6 +29,29 @@ from ticker import _ticker_ws_clients
 logger = logging.getLogger(__name__)
 
 
+def _archive_l1_tick(
+    symbol: str,
+    price: float,
+    ts: float,
+    *,
+    volume: float | None = None,
+    day_high: float | None = None,
+) -> None:
+    """Non-fatal archive of one HOD-decision L1 tick (finding G5)."""
+    try:
+        from archive.capture import record_l1_tick
+
+        record_l1_tick(
+            symbol=symbol,
+            ts=ts,
+            price=price,
+            volume=volume,
+            day_high=day_high,
+        )
+    except Exception:
+        logger.exception("archive.record_l1_tick failed for %s", symbol)
+
+
 class IbkrBridgeError(RuntimeError):
     """Thread→asyncio IBKR bridge timed out or raised."""
 
@@ -297,13 +320,21 @@ def apply_l1_quote(
         try:
             from ibkr import ticks as _ticks
 
+            day_high = _ticks.get_day_high(sym)
             _hod_active.note_quote(sym, now)
             _hod_momo.on_trade_update(
                 sym,
                 float(price),
                 now,
                 volume=int(volume) if volume is not None else None,
-                day_high=_ticks.get_day_high(sym),
+                day_high=day_high,
+            )
+            _archive_l1_tick(
+                sym,
+                float(price),
+                now,
+                volume=float(volume) if volume is not None else None,
+                day_high=day_high,
             )
         except Exception:
             logger.exception("HOD Momo: IBKR L1 tick failed for %s", sym)
@@ -369,6 +400,7 @@ def apply_table_quotes(quotes: dict) -> dict | None:
             # Scanner UI patch only — do not pretend uncovered discovery is live HOD.
             continue
         vol = (q or {}).get("volume")
+        day_high = (q or {}).get("high")
         try:
             _hod_active.note_quote(sym_u, trade_ts)
             _hod_momo.on_trade_update(
@@ -376,7 +408,14 @@ def apply_table_quotes(quotes: dict) -> dict | None:
                 float(price),
                 trade_ts,
                 volume=int(vol) if vol is not None else None,
-                day_high=(q or {}).get("high"),
+                day_high=day_high,
+            )
+            _archive_l1_tick(
+                sym_u,
+                float(price),
+                trade_ts,
+                volume=float(vol) if vol is not None else None,
+                day_high=float(day_high) if day_high is not None else None,
             )
         except Exception:
             logger.exception("HOD Momo: IBKR table tick failed for %s", sym)
