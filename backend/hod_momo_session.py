@@ -110,6 +110,7 @@ def check_and_reset_session() -> bool:
     state.day_highs = {}
     state.session_high_source = {}
     state.session_high_raised_ts = {}
+    state.approach_armed = {}
     state.cooldown = {}
     state.pending_consolidation = {}
     state.price_buffer = {}

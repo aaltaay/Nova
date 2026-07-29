@@ -22,7 +22,7 @@ from hod_momo_models import (
 
 def test_build_default_configs_covers_all_strategy_ids():
     configs = build_default_configs()
-    assert set(configs.keys()) == set(range(1, 13))
+    assert set(configs.keys()) == set(range(1, 14))  # ID_MAX=13 Approaching HOD
     for sid, cfg in configs.items():
         assert isinstance(cfg, StrategyConfig)
         assert cfg.strategy_id == sid

@@ -34,6 +34,10 @@ HOD_MOMO_HOD_EPSILON_PCT = 0.001     # 0.1%
 # tick-6 raise of the session high, allow requires_hod strategies this long
 # while price stays near the high (KB: alert may confirm within ~1 minute).
 HOD_MOMO_NEW_HOD_GRACE_SEC = 60.0
+# Approaching HOD (strategy 13): fire once when price re-touches a *stale*
+# session high after a genuine pullback. Re-arm only after price dips this
+# fraction below the session high (scales across $0.50 and $6 names).
+HOD_MOMO_REAPPROACH_RESET_PCT = 0.005  # 0.5%
 # Raw observability — when True, strategy float/RVOL/price gates are skipped
 # (master = data-ready; HOD still requires high_seeded for requires_hod strats).
 HOD_RAW_MODE = _os.environ.get("HOD_RAW_MODE", "").strip().lower() in (
@@ -119,7 +123,8 @@ HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1  # empty former_momo_list → never fire
 # Manual-only watchlist default seed (REQ-HOD-006) — user edits from here.
 HOD_MOMO_FORMER_MOMO_DEFAULT_LIST = ["SPRC"]
 HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12  # Warrior Running Up — no HOD required
-HOD_MOMO_STRATEGY_ID_MAX = 12
+HOD_MOMO_APPROACH_STRATEGY_ID = 13  # Re-touch of stale session high after pullback
+HOD_MOMO_STRATEGY_ID_MAX = 13
 # Squeeze family — session-focus sticky L1 when these are evaluated (not every tick).
 HOD_MOMO_SESSION_FOCUS_STRATEGY_IDS = frozenset({2, 10, 11})
 
@@ -188,9 +193,9 @@ HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC: tuple[tuple[int, float], ...] = (
 # so the scanner can fire while yfinance data loads progressively.
 HOD_MOMO_RVOL_WARMUP_GRACE_SEC = 300            # 5 min: skip RVOL gate while yfinance warms up
 # Bump when master/strategy defaults change so persisted configs migrate once.
-HOD_MOMO_CONFIG_SCHEMA_VERSION = 7
+HOD_MOMO_CONFIG_SCHEMA_VERSION = 8
 
-# Strategy names (canonical order 1–12)
+# Strategy names (canonical order 1–13)
 HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {
     1:  "Former Momo Stock",
     2:  "Squeeze Alert - 52wk Breakout",
@@ -204,6 +209,7 @@ HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {
     10: "Squeeze Alert - Up 10% in 10min",
     11: "Squeeze Alert - Up 5% in 5min",
     12: "Running Up Alert",
+    13: "Approaching HOD",
 }
 
 # Strategy default colors (hex)
@@ -220,12 +226,14 @@ HOD_MOMO_STRATEGY_COLORS: dict[int, str] = {
     10: "#00E5FF",
     11: "#40C4FF",
     12: "#FF6E40",
+    13: "#FFC107",
 }
 
 # Audio ON by default for all except Former Momo (1) and Medium Float $20+ (8, 9)
 HOD_MOMO_STRATEGY_AUDIO_DEFAULT: dict[int, bool] = {
     1: False, 2: True, 3: True, 4: True, 5: True,
     6: True, 7: True, 8: False, 9: False, 10: True, 11: True, 12: True,
+    13: True,
 }
 
 # Per-strategy default config values.
@@ -295,6 +303,10 @@ HOD_MOMO_STRATEGY_DEFAULTS: dict[int, dict] = {
         "surge_pct": 5.0,
         "surge_window_min": 5,
         "min_rvol": 2.0,
+    },
+    13: {  # Approaching HOD — re-touch of stale session high after pullback
+        "requires_hod": False,  # custom latch path in hod_momo_approach / trade
+        "enabled": True,
     },
 }
 

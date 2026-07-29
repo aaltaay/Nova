@@ -422,8 +422,8 @@ export const CHART_TIMEFRAMES: ChartTimeframe[] = [
 ];
 export const CHART_DEFAULT_TIMEFRAME = '1Min';
 export const CHART_CARD_TITLE = 'Price Chart';
-/** Chart body height (px) in the widened side panel. */
-export const CHART_HEIGHT_PANEL = 320;
+/** Chart body height (px) in the widened side panel — capped so quote+L2 fit one viewport. */
+export const CHART_HEIGHT_PANEL = 200;
 /** Chart body height (px) on the full ticker detail page (single chart / legacy). */
 export const CHART_HEIGHT_PAGE = 440;
 /** Minimum chart body height (px) per 2×2 grid cell — cells stretch to fill ~80% of the trading viewport. */

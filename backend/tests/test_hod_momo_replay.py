@@ -133,13 +133,21 @@ def test_full_day_dense_movers_captured(full_day_result):
 
 
 def test_full_day_no_phantom_strategies(day_fixture, full_day_result):
-    """Replayed strategies must be a subset of production's per symbol."""
+    """Replayed strategies must be a subset of production's per symbol.
+
+    Strategy 13 (Approaching HOD) is Nova-only — not in Warrior production
+    IDs — so it is excluded from the phantom check.
+    """
+    from constants import HOD_MOMO_APPROACH_STRATEGY_ID
+
     production = {
         sym: set(meta.get("production_strategy_ids") or [])
         for sym, meta in (day_fixture.meta.get("symbols") or {}).items()
     }
     for sym, strategies in full_day_result.alerts_by_symbol_strategy().items():
-        extras = set(strategies) - production.get(sym, set())
+        extras = (
+            set(strategies) - {HOD_MOMO_APPROACH_STRATEGY_ID} - production.get(sym, set())
+        )
         assert not extras, f"{sym}: replay fired phantom strategies {sorted(extras)}"
 
 
@@ -157,9 +165,12 @@ def test_full_day_thin_tape_symbols_are_coverage_gaps(day_fixture, full_day_resu
     stays within production's strategy set (no phantoms) and that the meta
     documents production fires with thin tape -- the gap is the finding.
     """
+    from constants import HOD_MOMO_APPROACH_STRATEGY_ID
+
     fired = full_day_result.alerts_by_symbol_strategy()
     for sym in THIN_TAPE | {"CNF"}:
-        replayed = set(fired.get(sym, []))
+        # Nova-only Approaching HOD (13) is outside Warrior production IDs.
+        replayed = set(fired.get(sym, [])) - {HOD_MOMO_APPROACH_STRATEGY_ID}
         production = set(
             (day_fixture.meta["symbols"].get(sym) or {}).get("production_strategy_ids") or []
         )

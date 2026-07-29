@@ -11,6 +11,7 @@ import hod_momo_market as _market
 import hod_momo_metrics as _metrics
 import hod_momo_state as _state
 from constants import (
+    HOD_MOMO_APPROACH_STRATEGY_ID,
     HOD_MOMO_HOD_EPSILON_ABS,
     HOD_MOMO_HOD_EPSILON_PCT,
     HOD_MOMO_NEW_HOD_GRACE_SEC,
@@ -19,6 +20,7 @@ from constants import (
     HOD_MOMO_SUPPRESS_ALERTS_ON_INTEGRITY_FAIL,
     HOD_RAW_MODE,
 )
+import hod_momo_approach as _approach
 import hod_momo_former as _former
 import hod_momo_high as _high
 from hod_momo_filters import evaluate_strategy
@@ -97,6 +99,13 @@ def on_trade_update(
     if day_high is not None:
         _high.apply_day_high(symbol, day_high)
     _high.raise_observed_high(symbol, price, now_ts=float(ts) if ts else None)
+    # Approach latch: arm after a genuine 0.5% dip below the seeded session high.
+    _approach.update_latch(
+        symbol,
+        price,
+        state.session_highs.get(symbol, 0.0),
+        high_seeded=_high.is_high_seeded(symbol),
+    )
 
     snap = state.ticker_snaps.setdefault(symbol, TickerSnap())
     snap.price = price
@@ -198,47 +207,74 @@ def on_trade_update(
                 )
                 continue
 
-        hod_block = fails_hod_gate(
-            snap.price,
-            state.session_highs.get(symbol, 0.0),
-            config,
-            state.master.hod_required,
-            high_seeded=_high.is_high_seeded(symbol),
-            epsilon_abs=HOD_MOMO_HOD_EPSILON_ABS,
-            epsilon_pct=HOD_MOMO_HOD_EPSILON_PCT,
-            new_hod_age_sec=_high.last_new_hod_age_sec(
-                symbol, now_ts=float(ts) if ts else None,
-            ),
-            new_hod_grace_sec=HOD_MOMO_NEW_HOD_GRACE_SEC,
-        )
-        if hod_block:
-            strategy_decisions.append(
-                {
-                    "id": strategy_id,
-                    "name": config.name,
-                    "passed": False,
-                    "blocked_by": hod_block,
-                }
-            )
-            state.gate_counters[f"strategy_{strategy_id}_hod"] += 1
-            continue
-
-        surge = (
-            get_surge(config.surge_window_min, config.surge_method)
-            if config.surge_window_min > 0
-            else None
-        )
-        if HOD_RAW_MODE:
-            passed, blocked_by = True, ""
-        else:
-            passed, blocked_by = evaluate_strategy(
-                config,
-                snap,
-                surge,
-                lambda: _market.mark_needs_fundamentals(
-                    state.active_symbol_name
+        if strategy_id == HOD_MOMO_APPROACH_STRATEGY_ID:
+            # Approaching HOD: custom latch path (not the strict new-HOD gate).
+            approach_block = _approach.approach_block_reason(
+                snap.price,
+                state.session_highs.get(symbol, 0.0),
+                high_seeded=_high.is_high_seeded(symbol),
+                armed=_approach.is_armed(symbol),
+                new_hod_age_sec=_high.last_new_hod_age_sec(
+                    symbol, now_ts=float(ts) if ts else None,
                 ),
+                epsilon_abs=HOD_MOMO_HOD_EPSILON_ABS,
+                epsilon_pct=HOD_MOMO_HOD_EPSILON_PCT,
+                new_hod_grace_sec=HOD_MOMO_NEW_HOD_GRACE_SEC,
             )
+            if approach_block:
+                strategy_decisions.append(
+                    {
+                        "id": strategy_id,
+                        "name": config.name,
+                        "passed": False,
+                        "blocked_by": approach_block,
+                    }
+                )
+                state.gate_counters[f"strategy_{strategy_id}_approach"] += 1
+                continue
+            passed, blocked_by, surge = True, "", None
+        else:
+            hod_block = fails_hod_gate(
+                snap.price,
+                state.session_highs.get(symbol, 0.0),
+                config,
+                state.master.hod_required,
+                high_seeded=_high.is_high_seeded(symbol),
+                epsilon_abs=HOD_MOMO_HOD_EPSILON_ABS,
+                epsilon_pct=HOD_MOMO_HOD_EPSILON_PCT,
+                new_hod_age_sec=_high.last_new_hod_age_sec(
+                    symbol, now_ts=float(ts) if ts else None,
+                ),
+                new_hod_grace_sec=HOD_MOMO_NEW_HOD_GRACE_SEC,
+            )
+            if hod_block:
+                strategy_decisions.append(
+                    {
+                        "id": strategy_id,
+                        "name": config.name,
+                        "passed": False,
+                        "blocked_by": hod_block,
+                    }
+                )
+                state.gate_counters[f"strategy_{strategy_id}_hod"] += 1
+                continue
+
+            surge = (
+                get_surge(config.surge_window_min, config.surge_method)
+                if config.surge_window_min > 0
+                else None
+            )
+            if HOD_RAW_MODE:
+                passed, blocked_by = True, ""
+            else:
+                passed, blocked_by = evaluate_strategy(
+                    config,
+                    snap,
+                    surge,
+                    lambda: _market.mark_needs_fundamentals(
+                        state.active_symbol_name
+                    ),
+                )
         if passed and HOD_MOMO_SUPPRESS_ALERTS_ON_INTEGRITY_FAIL:
             try:
                 from integrity_live import hod_integrity_is_failing
@@ -269,6 +305,8 @@ def on_trade_update(
 
         state.gate_counters[f"strategy_{strategy_id}_fired"] += 1
         any_fired = True
+        if strategy_id == HOD_MOMO_APPROACH_STRATEGY_ID:
+            _approach.mark_fired(symbol)
         alert = AlertObject(
             id=f"{int(ts * 1000)}-{symbol}-{strategy_id}",
             timestamp=format_alert_timestamp(ts),

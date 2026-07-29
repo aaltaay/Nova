@@ -61,7 +61,8 @@ def test_on_trade_update_blocked_by_strategy_rvol(monkeypatch):
     _reset_engine(monkeypatch)
     state = hm.get_state()
     for sid, cfg in state.configs.items():
-        cfg.enabled = sid not in (10, 11)
+        # Exclude squeeze (10/11) and Approaching HOD (13) — 13 has no RVOL gate.
+        cfg.enabled = sid not in (10, 11, 13)
         if cfg.enabled:
             cfg.min_rvol = max(float(cfg.min_rvol or 0.0), 2.0)
 
@@ -315,7 +316,7 @@ def test_reset_config_resets_strategy_12_running_up(monkeypatch):
 def test_reset_config_still_rejects_out_of_range_ids(monkeypatch):
     _reset_engine(monkeypatch)
     assert hm.reset_config(0) is None
-    assert hm.reset_config(13) is None
+    assert hm.reset_config(14) is None  # ID_MAX is 13 (Approaching HOD)
 
 
 def test_would_fire_now_queues_symbol_being_debugged_not_stale_active_symbol(monkeypatch):

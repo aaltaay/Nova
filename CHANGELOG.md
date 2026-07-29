@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Approaching HOD alert + side quote panel viewport fit
+
+- **What:** New strategy 13 "Approaching HOD" fires once when price re-touches a stale session high after a 0.5% pullback (dip-reset re-arm). Side quote panel now fits the viewport without vertical stretch-scroll.
+- **Why:** User wanted earlier heads-up when a name comes back to the day's high (not only on a fresh breakout), and the side quote panel looked stretched with a tall chart + empty bottom gap.
+- **Files touched:** `backend/hod_momo_approach.py`, `backend/hod_momo_trade.py`, `backend/hod_momo_state.py`, `backend/constants_hod_momo.py`, `backend/hod_momo_persist.py`, `backend/tests/test_hod_momo_approach.py`, `frontend/src/constantGroups/chart_api.ts`, `frontend/src/constantGroups/market_ui.ts`, `frontend/src/styles/quote-layout.css`, `frontend/src/reports/reports.css`, `frontend/src/ibkr/marketData.css`.
+- **How it works now:** Strategy 13 uses an in-memory `approach_armed` latch: arms after price dips `HOD_MOMO_REAPPROACH_RESET_PCT` (0.5%) below the seeded session high; fires once when price returns within the HOD epsilon of a *stale* high (outside the 60s new-HOD grace, so it does not steal breakouts from strategy 10/11); clears on fire. Consolidation `(N in Xs)` still applies. Side panel: chart capped (~200px / 28vh), stats grids 2-col, Level 2 fills remaining height, `overflow: hidden` so the panel fits one viewport.
+- **Verified by:** `pytest` approach + engine + models + persist + replay phantom tests; Vitest hod_momo + tickerDetailComposition (25 passed).
+- **Related:** task-log 2026-07-29-approaching-hod-and-quote-panel-fit.
+
 ## 2026-07-29 -- Fix cold-Gateway event-loop wedge (zombie snapshot cancel + single discovery owner)
 
 - **What:** The morning-after-Gateway-login API hang is fixed. Health endpoints stay responsive while IBKR snapshots time out on a cold Gateway.

@@ -35,6 +35,9 @@ class HodMomoState:
     # Wall time when session high last *rose* via observed print or post-seed
     # tick-6 (not the initial bars/tick6 floor seed). Opens HOD alert grace.
     session_high_raised_ts: dict[str, float] = field(default_factory=dict)
+    # Approaching HOD (strategy 13): True after a 0.5% dip below session high;
+    # cleared on fire. In-memory only — restart resets to not-armed.
+    approach_armed: dict[str, bool] = field(default_factory=dict)
     cooldown: dict[tuple[str, int], float] = field(default_factory=dict)
     pending_consolidation: dict[str, list[tuple[float, AlertObject]]] = field(
         default_factory=dict

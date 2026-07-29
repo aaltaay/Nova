@@ -187,11 +187,14 @@ export const STRATEGY_META: StrategyMeta[] = [
   { id: 10, name: 'Squeeze Alert - Up 10% in 10min',            color: '#00E5FF', audioDefault: true  },
   { id: 11, name: 'Squeeze Alert - Up 5% in 5min',              color: '#40C4FF', audioDefault: true  },
   { id: 12, name: 'Running Up Alert',                           color: '#FF6E40', audioDefault: true  },
+  { id: 13, name: 'Approaching HOD',                            color: '#FFC107', audioDefault: true  },
 ];
 
 /** Warrior Running Up — strategy id 12 (requires_hod=false on the backend). */
 export const HOD_MOMO_FORMER_MOMO_STRATEGY_ID = 1;
 export const HOD_MOMO_RUNNING_UP_STRATEGY_ID = 12;
+/** Re-touch of stale session high after a 0.5% pullback — mirrors backend. */
+export const HOD_MOMO_APPROACH_STRATEGY_ID = 13;
 
 export const STRATEGY_META_MAP: Record<number, StrategyMeta> = Object.fromEntries(
   STRATEGY_META.map(s => [s.id, s]),

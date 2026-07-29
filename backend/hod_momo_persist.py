@@ -127,6 +127,18 @@ def _migrate_loaded_configs(data: dict) -> bool:
                     sid, default_surge, default_window,
                 )
                 changed = True
+    if version < 8:
+        # Approaching HOD (strategy 13) — ensure default config exists; the
+        # generic missing-sid loop also adds it, this just logs once.
+        from constants import HOD_MOMO_APPROACH_STRATEGY_ID
+
+        if HOD_MOMO_APPROACH_STRATEGY_ID not in state.configs:
+            state.configs[HOD_MOMO_APPROACH_STRATEGY_ID] = build_default_config(
+                HOD_MOMO_APPROACH_STRATEGY_ID
+            )
+            logger.info("HOD Momo: schema v8 — added Approaching HOD (strategy 13)")
+            changed = True
+        changed = True
     return changed
 
 
