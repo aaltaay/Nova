@@ -226,6 +226,7 @@ def test_session_highs_survive_a_restart(monkeypatch):
     state.day_highs = {"WLDS": 3.25}
     state.session_high_source = {"WLDS": "tick6"}
     state.session_high_seeded = {"WLDS"}
+    state.session_high_raised_ts = {"WLDS": 1_700_000_456.0}
 
     stored: dict = {}
     monkeypatch.setattr(
@@ -245,6 +246,26 @@ def test_session_highs_survive_a_restart(monkeypatch):
     assert new_state.day_highs == {"WLDS": 3.25}
     assert new_state.session_high_source == {"WLDS": "tick6"}
     assert new_state.session_high_seeded == {"WLDS"}
+    assert new_state.session_high_raised_ts == {"WLDS": 1_700_000_456.0}
+
+
+def test_session_high_raised_ts_round_trips(monkeypatch):
+    """G9: new-HOD grace clock must survive restart or alerts mute as hod:not_new."""
+    state = hm.replace_state(HodMomoState())
+    state.session_high_raised_ts = {"AAA": 123.5, "BBB": 456.25}
+    stored: dict = {}
+    monkeypatch.setattr(
+        persist._cache, "save_hod_momo_highs", lambda data: stored.update(data),
+    )
+    persist.save_highs(force=True)
+    assert stored["session_high_raised_ts"] == {"AAA": 123.5, "BBB": 456.25}
+
+    hm.replace_state(HodMomoState())
+    monkeypatch.setattr(persist._cache, "load_hod_momo_highs", lambda: dict(stored))
+    monkeypatch.setattr(persist._cache, "load_hod_momo_blocklist", lambda: [])
+    monkeypatch.setattr(persist._cache, "load_hod_momo_snapshot", lambda: ([], None))
+    persist.load_persisted_state()
+    assert hm.get_state().session_high_raised_ts == {"AAA": 123.5, "BBB": 456.25}
 
 
 def test_schema_v4_disables_former_momo(monkeypatch):

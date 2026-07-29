@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- session_high_raised_ts lost on restart mutes HOD as hod:not_new
+
+- **Symptom:** After an API restart mid-session, symbols that already raised HOD go quiet -- strategies fail `hod:not_new` until the next fresh high raise, even though highs themselves were restored.
+- **Cause:** `save_highs` / `_load_highs_from_disk` persisted session_highs/day_highs/source/seeded but omitted `session_high_raised_ts` (the new-HOD grace clock).
+- **Fix:** Include `session_high_raised_ts` in the highs payload on save and restore with float coercion on load (audit G9).
+- **Keywords:** session_high_raised_ts, hod:not_new, save_highs, restart, G9, new-HOD grace
+
 ## 2026-07-28 -- Zombie L1 subscriptions after IBKR reconnect silently starve HOD
 
 - **Symptom:** After an IB Gateway drop + reconnect, HOD Momo can stop evaluating symbols while everything still looks subscribed: `ticks._subs` keeps entries from the dead connection, reconcile counts them as active, and no new ticks ever arrive.

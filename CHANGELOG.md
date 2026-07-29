@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Persist session_high_raised_ts across restart (G9)
+
+- **What:** HOD highs cache now saves and restores `session_high_raised_ts` alongside session/day highs.
+- **Why:** Capture audit G9 -- restart dropped the new-HOD grace clock so alerts muted as `hod:not_new` until the next raise.
+- **Files touched:** `backend/hod_momo_persist.py`, `backend/tests/test_hod_momo_persist.py`.
+- **How it works now:** `save_highs` writes the raised-ts map; `_load_highs_from_disk` restores it with float coercion. Restart keeps grace windows for already-elevated symbols.
+- **Verified by:** `pytest tests/test_hod_momo_persist.py tests/test_hod_momo_high.py` -- 21 passed.
+- **Related:** PROBLEM_LOG 2026-07-28 session_high_raised_ts; audit G9.
+
 ## 2026-07-28 -- Market-data type honesty + close-fallback quality (G2/G3)
 
 - **What:** On READY, Nova calls `reqMarketDataType(1)`. `/api/ibkr/status` exposes `market_data_type` and `market_data_delayed` (Error 10167). L1 ticks prefer exchange timestamps and flag `quote_quality=close_fallback` when serving `close` as price. Gateway chip shows amber `delayed` when delayed.

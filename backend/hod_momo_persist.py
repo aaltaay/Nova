@@ -199,6 +199,10 @@ def _load_highs_from_disk() -> None:
         state.session_high_seeded = {
             str(s) for s in (data.get("session_high_seeded") or [])
         }
+        state.session_high_raised_ts = {
+            str(k): float(v)
+            for k, v in (data.get("session_high_raised_ts") or {}).items()
+        }
         logger.info(
             "HOD Momo: restored %d session high(s) from disk", len(state.session_highs),
         )
@@ -221,6 +225,7 @@ def save_highs(*, force: bool = False) -> None:
         "day_highs": dict(state.day_highs),
         "session_high_source": dict(state.session_high_source),
         "session_high_seeded": sorted(state.session_high_seeded),
+        "session_high_raised_ts": dict(state.session_high_raised_ts),
     })
     state.last_highs_save_mono = now
     state.highs_dirty = False
