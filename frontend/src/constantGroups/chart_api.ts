@@ -282,7 +282,7 @@ export const STOCK_VIEW_TITLE = 'Trader';
 /** Button / tooltip copy for opening the detached Trader window. */
 export const STOCK_VIEW_OPEN_LABEL = 'Trader';
 export const STOCK_VIEW_OPEN_TITLE =
-  'Open Trader in a new window (same quote data as the Quote Panel, plus charts and trading)';
+  'Open Trader in a new window (charts, Level 2, Time & Sales, and order entry -- up to 3 tabs)';
 /**
  * window.open feature string — size/popup flags force a real OS window.
  * Bare `_blank` with no features opens a browser tab (Chrome/Edge).

@@ -6,5 +6,5 @@ export { NewsPanel } from './NewsPanel';
 export { QuoteHeaderPanel } from './QuoteHeaderPanel';
 export { ChartsModule } from './ChartsModule';
 export { DataSourcesPanel } from './DataSourcesPanel';
-export { DepthTapePanel } from './DepthTapePanel';
 export { FundamentalsPanel } from './FundamentalsPanel';
+

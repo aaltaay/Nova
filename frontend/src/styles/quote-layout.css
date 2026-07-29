@@ -21,7 +21,7 @@
   width: 100%;
   min-width: 0;
   flex: 0 0 auto;
-  max-height: min(220px, 28vh);
+  max-height: min(320px, 40vh);
   overflow: hidden;
 }
 
@@ -32,15 +32,7 @@
   max-height: 100%;
 }
 
-/* Side-panel viewport fit: Level 2 / T&S fills remaining height; quote/stats stay compact. */
-.side-panel .cq-root--stacked > [data-layout-block="depth_tape"] {
-  flex: 1 1 0;
-  min-height: 140px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
+/* Side-panel: L1 quote surfaces only (L2/T&S live in Trader tabs). */
 .side-panel .cq-root--stacked > [data-layout-block="quote"],
 .side-panel .cq-root--stacked > .cq-info-row {
   flex: 0 0 auto;
@@ -48,7 +40,7 @@
 
 .side-panel .cq-root--stacked > [data-layout-block="charts"] {
   flex: 0 0 auto;
-  max-height: min(220px, 28vh);
+  max-height: min(320px, 40vh);
   overflow: hidden;
 }
 
@@ -327,7 +319,7 @@
   padding-top: 0.5rem;
 }
 
-/* News section */
+/* News section — one collapsible container (impact + headlines) */
 .cq-news-section {
   border: 1px solid var(--border-color);
   border-radius: 4px;
@@ -339,12 +331,46 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.4rem 0.75rem;
   background: rgba(255,255,255,0.03);
   border-bottom: 1px solid var(--border-color);
 }
 
+.cq-news-section--collapsed .cq-news-header {
+  border-bottom: none;
+}
+
+.cq-news-toggle {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.cq-news-toggle:hover {
+  background: rgba(255,255,255,0.06);
+}
+
+.cq-news-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.cq-news-chevron {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
 .cq-news-title {
+  flex-shrink: 0;
   font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -352,9 +378,36 @@
   color: var(--text-secondary);
 }
 
+.cq-news-preview {
+  min-width: 0;
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .cq-news-count {
+  flex-shrink: 0;
   font-size: 0.68rem;
   color: var(--text-secondary);
+}
+
+.cq-news-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.cq-news-section .news-impact-panel {
+  margin: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-top: none;
 }
 
 /* Horizontally-scrolling strip of headline cards — click any card to open the article. */

@@ -23,9 +23,11 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 3. **Quote panel symbol gate (mandatory).**
    When opening or switching the quote / side panel / Stock View:
    - Clear prior ticker state immediately on symbol change (`detail`, Level 2 book, tape prints, chart series).
-   - Render quote body / Level 2 / T&S / live chart only when `detail.symbol === selectedSymbol` (or show loading / empty — never the previous symbol's surfaces).
+   - Render quote body / live chart only when `detail.symbol === selectedSymbol` (or show loading / empty — never the previous symbol's surfaces).
    - Depth and tape hooks must ignore WS messages whose `symbol` ≠ the hook's current symbol, and ignore events from a non-current WebSocket instance.
    - Prefer binding Level 2 and T&S to `selectedSymbol` (with `key={symbol}`), not a stale `detail.symbol`.
+   - **Quote Panel (scanner sidebar) is L1-only** — quote header, chart, fundamentals, news. Do **not** mount Level 2 or Time & Sales there (avoids burning `IBKR_MAX_DEPTH_SYMBOLS` on casual clicks).
+   - **Trader View (double-click / Stock View)** owns L2 + T&S. Up to `TRADER_MAX_TABS` (= depth plan cap, currently 3) editable tabs; each open tab may hold live L1 + depth + tape. A 4th open is blocked with a user-visible notice (close or edit a tab).
 
 4. **Fail loud, not quiet.**
    If IBKR bars/ticks/depth/tape are unavailable while discovery is ibkr, return/show a clear error (e.g. HTTP 503). Do not serve Alpaca candles under an IBKR quote.
@@ -34,7 +36,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
    - **Table / HOD hot path:** bounded persistent IBKR `reqMktData` Level-1 streams for (a) every row in the **active scanner tab** and (b) a **reserved HOD active pool** (capacity-bounded — see rule 8 for exactly what is in that pool). Never stream the whole discovery universe. Coalesce ticks into batched `/ws/scanner` `price_patch` messages.
    - **Do not** use `reqTickersAsync` for the active-table freshness SLA — IB completes snapshots on `tickSnapshotEnd` ~11s later, so a 1Hz/4s-timeout loop is structurally impossible.
    - **Cold / discovery only:** infrequent `reqTickersAsync` (timeout ≥12s) for new/cold symbols outside the streamed set; serialized so it cannot starve L1.
-   - **Open ticker:** dedicated `reqMktData` (shared owner with table/HOD when overlap) + Level 2 + tape + chart — as fast as IBKR delivers.
+   - **Quote Panel open ticker:** dedicated `reqMktData` (shared owner with table/HOD when overlap) + chart — L1 only; no depth/tape.
+   - **Trader View open tabs:** L1 + Level 2 + tape + charts for each tabbed symbol (cap = `IBKR_MAX_DEPTH_SYMBOLS` / `TRADER_MAX_TABS`).
    - **Honesty:** per-row source age + header stale when the active-tab subscription is incomplete or patches are late. Never hide lag behind a frozen green "updated" badge.
 
 6. **Session-owned persistent scanner rosters (ADR 008).** `backend/ibkr/scanner_stream.py` owns persistent `reqScannerSubscription` handles for the life of the process — it does not poll. Desired subscriptions by session period: Premarket = Gainers + Gappers; RTH = Gainers + Losers (UI-only); Afterhours = AH Gainers; Closed = none (at most two persistent slots). Each table (`gappers`/`gainers`/`losers`/`afterhours`) carries its own `session_key` (04:00 ET-anchored), `state` (`live`/`frozen`/`unavailable`), `revision`, `roster_ts`, and `frozen_at` in `runtime_state`:
@@ -44,9 +47,9 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
    - A `frozen` table's membership, rank, values, metadata, and timestamp cannot change — HOD-owned L1 may keep evaluating retained symbols without mutating the frozen row. Do not resubscribe L1 for a frozen tab's own display; only a `live` tab consumes active-tab L1.
    - Every scanner/hydration callback must be fenced by IB READY generation + subscription epoch + table + session key before it can write state; a result from a superseded generation/epoch/session is discarded, not applied.
 
-7. **Time & Sales = IBKR only (open symbol).**
+7. **Time & Sales = IBKR only (Trader tabs).**
    - Feed: `reqTickByTickData(AllLast)` via `backend/ibkr/tape_stream.py`.
-   - Scope: selected/open symbol only — same lifecycle as Level 2 (refcounted, 15s resubscribe guard).
+   - Scope: symbols open in Trader View tabs — same lifecycle as Level 2 (refcounted, 15s resubscribe guard). Not mounted in the scanner Quote Panel.
    - Transport: `/ws/ibkr/tape/{symbol}` with `msg.symbol` gates on every message.
    - No Alpaca tape in the live UI. `backend/l2/tape.py` (Alpaca recorder) is for historical recording only.
    - Clear tape immediately on symbol switch (never bleed prior symbol's prints into the new view).
@@ -74,6 +77,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Pretending table prices are live when the active-tab L1 subscription is incomplete
 - ❌ Feeding T&S from the Alpaca recorder (`l2.tape`) instead of `tape_stream.py`
 - ❌ Showing prior symbol's prints in T&S after a symbol switch
+- ❌ Mounting Level 2 or Time & Sales in the scanner Quote Panel (Trader tabs only)
+- ❌ Opening a 4th live Trader tab without a block notice (depth plan cap)
 - ❌ Calling `_hod_momo.on_trade_update` from the Alpaca WS loop when discovery=ibkr
 - ❌ Opening Alpaca market-data WebSocket while discovery=ibkr (burns the one WS slot for nothing)
 

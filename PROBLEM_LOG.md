@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Quote Panel could not scroll (overflow clipped chart / T&S)
+
+- **Symptom:** User could not scroll the scanner Quote Panel to see the full chart and Time & Sales; content was clipped at the viewport.
+- **Cause:** `.side-panel` / `.side-panel-body` / `.detail-body` used nested `height: 100vh` + `overflow: hidden` flex columns designed to "fit viewport," while quote + chart + L2 + T&S + fundamentals exceeded that height -- overflow was clipped, not scrolled. Casual L2 mounts also burned `IBKR_MAX_DEPTH_SYMBOLS` (3) slots.
+- **Fix:** Quote Panel is L1-only (removed `DepthTapePanel`); `.side-panel-body` uses `overflow-y: auto`; chart max-height raised. L2/T&S move to tabbed Trader View (max 3 tabs).
+- **Keywords:** Quote Panel, scroll, overflow hidden, side-panel-body, Level 2, Time & Sales, Trader tabs, IBKR_MAX_DEPTH_SYMBOLS
+
 ## 2026-07-29 -- API_WEDGED after cold IBKR READY (event loop starved by zombie snapshot reqMktData + dual discovery)
 
 - **Symptom:** `/api/health` + `/livez` timed out for minutes right after an IBKR reconnect while the process stayed alive; `loop_lag` climbed 3s -> 21s -> 32s -> 65s. Repeated `IBKR: snapshot timeout (15s) for N symbols` + `run_coro timed out (cancel accepted)`. App unusable each morning after Gateway login.

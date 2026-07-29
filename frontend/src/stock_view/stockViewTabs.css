@@ -1,0 +1,181 @@
+/* Trader View multi-tab chrome */
+
+.sv-tabs-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sv-tab-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: var(--text-primary, #e8eaed);
+  background: rgba(245, 158, 11, 0.14);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.sv-tab-banner__dismiss {
+  flex-shrink: 0;
+  border: 1px solid var(--border-color, #333);
+  background: transparent;
+  color: var(--text-secondary, #8b92a5);
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.sv-tab-banner__dismiss:hover {
+  color: var(--text-primary, #e8eaed);
+  border-color: var(--accent-color, #3b82f6);
+}
+
+.sv-tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  padding: 0.35rem 0.5rem 0;
+  border-bottom: 1px solid var(--border-color, #333);
+  background: var(--panel-bg, #12141a);
+  overflow-x: auto;
+}
+
+.sv-tab {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  max-width: 140px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary, #8b92a5);
+}
+
+.sv-tab--active {
+  background: var(--bg-primary, #0d0f14);
+  color: var(--text-primary, #e8eaed);
+  border-color: var(--border-color, #333);
+}
+
+.sv-tab__label {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.35rem 0.45rem 0.4rem 0.65rem;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sv-tab__input {
+  width: 72px;
+  margin: 0.2rem 0 0.25rem 0.4rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--accent-color, #3b82f6);
+  border-radius: 3px;
+  background: var(--bg-primary, #0d0f14);
+  color: var(--text-primary, #e8eaed);
+}
+
+.sv-tab__close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.65;
+  cursor: pointer;
+  padding: 0.25rem 0.45rem 0.3rem 0.15rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.sv-tab__close:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.sv-tab-add {
+  flex-shrink: 0;
+  align-self: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0 0.25rem;
+  border: 1px dashed var(--border-color, #333);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary, #8b92a5);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.sv-tab-add:hover:not(:disabled) {
+  border-color: var(--accent-color, #3b82f6);
+  color: var(--text-primary, #e8eaed);
+}
+
+.sv-tab-add:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.sv-tabs-panes {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.sv-tabs-pane {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.sv-tabs-pane[hidden] {
+  display: block !important;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sv-tabs-pane:not([hidden]) {
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.sv-tabs-pane .stock-view-page {
+  height: 100%;
+}
+
+.sv-tabs-pane--draft {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.sv-tabs-draft-hint {
+  color: var(--text-secondary, #8b92a5);
+  font-size: 0.9rem;
+}

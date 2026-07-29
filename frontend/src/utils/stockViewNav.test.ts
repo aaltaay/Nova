@@ -57,7 +57,7 @@ describe('stockViewNav', () => {
     expect(openSpy).toHaveBeenCalledOnce();
     expect(openSpy).toHaveBeenCalledWith(
       expect.stringContaining('symbol=SHPH'),
-      'nova-stock-SHPH',
+      'nova-trader',
       expect.stringMatching(/popup=yes.*width=\d+.*height=\d+/),
     );
     const features = String(openSpy.mock.calls[0]?.[2] ?? '');

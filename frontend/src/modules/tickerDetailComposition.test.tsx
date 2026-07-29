@@ -31,10 +31,6 @@ vi.mock('../TickerChart', () => ({
   },
 }));
 
-vi.mock('../ibkr/DepthAndTape', () => ({
-  DepthAndTape: () => <div data-testid="mock-depth" />,
-}));
-
 const here = dirname(fileURLToPath(import.meta.url));
 
 describe('TickerDetailContent composition (Phase 3)', () => {
@@ -45,7 +41,7 @@ describe('TickerDetailContent composition (Phase 3)', () => {
     expect(src).toMatch(/FundamentalsPanel/);
     expect(src).toMatch(/DataSourcesPanel/);
     expect(src).toMatch(/WatchlistStripPanel/);
-    expect(src).toMatch(/DepthTapePanel/);
+    expect(src).not.toMatch(/DepthTapePanel/);
     expect(src).not.toMatch(/cq-grid-key/);
     expect(src).not.toMatch(/onToggleBlock/);
     expect(src).not.toMatch(/NewsHeadlineSection/);

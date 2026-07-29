@@ -33,7 +33,6 @@ import {
   TICKER_TRADE_SIDE_WIDTH_MIN_PX,
   TICKER_TRADE_SIDE_WIDTH_PX,
 } from '../constants';
-import { replaceStockViewUrl } from '../utils/stockViewNav';
 import { alertApp } from '../ux';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
@@ -43,12 +42,12 @@ interface Props {
   detached?: boolean;
   /** Kept for App router compatibility; header no longer exposes Close/Back. */
   onBack: () => void;
+  /** Rename / switch the active Trader tab symbol (owned by StockViewTabs). */
   onSelectSymbol: (symbol: string) => void;
 }
 
 export function StockViewPage({
   symbol,
-  detached = false,
   onSelectSymbol,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
@@ -143,10 +142,9 @@ export function StockViewPage({
 
   const handleLookup = useCallback(
     (next: string) => {
-      if (detached) replaceStockViewUrl(next);
       onSelectSymbol(next);
     },
-    [detached, onSelectSymbol],
+    [onSelectSymbol],
   );
 
   return (

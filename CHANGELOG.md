@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Trader tabs (max 3) + L1-only Quote Panel
+
+- **What:** Scanner Quote Panel no longer mounts Level 2 or Time & Sales (scrollable L1 quote + chart + fundamentals + news). Double-click Trader View is a tabbed terminal (max 3 editable tabs = IBKR depth plan cap); a 4th open shows a block banner.
+- **Why:** Quote Panel could not scroll (overflow clipped) and casual clicks burned scarce depth slots; L2/T&S belong in the trading surface.
+- **Files touched:** `TickerDetailContent.tsx`, `StockViewTabs.tsx`, `StockViewTabStrip.tsx`, `traderTabsState.ts`, `WorkspaceContext.tsx`, `App.tsx`, `stockViewNav.ts`, `reports.css`, `quote-layout.css`, `single-market-data-feed.mdc`, deleted `DepthTapePanel.tsx`.
+- **How it works now:** Click = Quote Panel (L1 only, body scrolls). Double-click = shared `nova-trader` window (or in-app fallback) with up to 3 tabs; inactive panes stay mounted so L1/L2/tape stay hot. Tabs are editable (double-click chip or header lookup); `sessionStorage` persists tab set per window. Cap blocks with: close a tab or edit one.
+- **Verified by:** Vitest 498 passed; `npm run build` green; unit tests for `traderTabsState` + tab strip.
+- **Follow-ups:** Browser pass on live Quote Panel scroll + 3-tab depth; optional raise of `TRADER_MAX_TABS` if IBKR depth entitlement grows.
+- **Related:** PROBLEM_LOG 2026-07-29 -- Quote Panel overflow clipped; task-log `2026-07-29-trader-tabs-slim-quote-panel.md`.
+
 ## 2026-07-29 -- Cursor rules token economy (re-scope + AGENTS dedupe)
 
 - **What:** Cut per-request always-on context from ~119 KB (~30k tokens) to ~74 KB (~19k tokens). Removed stale full-rule embeds from `AGENTS.md` §12; re-scoped 8 rules from `alwaysApply: true` to glob or agent-requested; added context-economy bullets to `constitution.mdc`. Explicitly rejected creating `.cursorrules`.

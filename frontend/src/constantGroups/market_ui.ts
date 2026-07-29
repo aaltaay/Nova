@@ -15,6 +15,11 @@ export const NEWS_FLAME_HOT_HOURS  =  2;   // red badge    (0 –  2 h)
 export const NEWS_FLAME_WARM_HOURS = 12;   // orange badge (2 – 12 h)
 export const NEWS_FLAME_MAX_HOURS  = 24;   // yellow badge (12 – 24 h); hide above this
 
+/** Quote-panel news strip: single collapsible container title. */
+export const NEWS_SECTION_TITLE = 'News';
+/** Quote-panel news strip starts collapsed (headline preview only). */
+export const NEWS_SECTION_DEFAULT_EXPANDED = false;
+
 // ── News impact decision layer (mirrors backend/constants.py NEWS_IMPACT_*) ─
 /** Display labels for impact_class — keep in sync with backend IMPACT_CLASSES. */
 export const NEWS_IMPACT_CLASS_LABELS: Record<string, string> = {
@@ -423,7 +428,7 @@ export const CHART_TIMEFRAMES: ChartTimeframe[] = [
 export const CHART_DEFAULT_TIMEFRAME = '1Min';
 export const CHART_CARD_TITLE = 'Price Chart';
 /** Chart body height (px) in the widened side panel — capped so quote+L2 fit one viewport. */
-export const CHART_HEIGHT_PANEL = 200;
+export const CHART_HEIGHT_PANEL = 280;
 /** Chart body height (px) on the full ticker detail page (single chart / legacy). */
 export const CHART_HEIGHT_PAGE = 440;
 /** Minimum chart body height (px) per 2×2 grid cell — cells stretch to fill ~80% of the trading viewport. */

@@ -2,7 +2,6 @@
 import type { ReactNode } from 'react';
 import { TickerChart } from '../TickerChart';
 import { DataSourcesPanel } from '../modules/DataSourcesPanel';
-import { DepthTapePanel } from '../modules/DepthTapePanel';
 import { FundamentalsPanel } from '../modules/FundamentalsPanel';
 import { NewsPanel } from '../modules/NewsPanel';
 import { QuoteHeaderPanel } from '../modules/QuoteHeaderPanel';
@@ -20,7 +19,7 @@ import { useWorkspace } from '../workspace/WorkspaceContext';
 interface Props {
   detail: TickerDetail;
   /**
-   * Panel selection source of truth. Level 2 / live surfaces must bind to this,
+   * Panel selection source of truth. Live surfaces must bind to this,
    * never a stale detail.symbol from a previous ticker.
    */
   selectedSymbol?: string;
@@ -34,8 +33,6 @@ interface Props {
   layoutSlot?: LayoutSlotId;
   /** Five Pillars / sub-scores for this symbol when ranked on the watchlist. */
   watchlistEntry?: WatchlistEntry | null;
-  /** Inserted immediately under Level 2 / Time & Sales (e.g. Stock View trade bar). */
-  afterDepth?: ReactNode;
   /** Inserted immediately under the quote / fundamentals block (e.g. news bump). */
   afterQuote?: ReactNode;
   /** When true, skip the news block (parent renders it elsewhere, e.g. Stock View footer). */
@@ -50,14 +47,13 @@ export function TickerDetailContent({
   layout = 'stack',
   layoutSlot = 'side_panel',
   watchlistEntry = null,
-  afterDepth = null,
   afterQuote = null,
   omitNews = false,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
   const { isVisible } = useModuleVisibility();
   const { getOrder } = useLayoutStore();
-  const depthSymbol = (selectedSymbol ?? detail.symbol).toUpperCase();
+  const chartSymbol = (selectedSymbol ?? detail.symbol).toUpperCase();
   const detailMatchesSelected =
     !selectedSymbol || detail.symbol.toUpperCase() === selectedSymbol.toUpperCase();
   const trade = detailMatchesSelected ? detail.snapshot?.latest_trade : undefined;
@@ -72,14 +68,14 @@ export function TickerDetailContent({
   const chartEl =
     showChart && showCharts ? (
       <TickerChart
-        symbol={depthSymbol}
+        symbol={chartSymbol}
         variant="panel"
         lastTrade={
           trade?.price != null
             ? {
                 price: trade.price,
                 timestamp: trade.timestamp ?? null,
-                symbol: depthSymbol,
+                symbol: chartSymbol,
               }
             : undefined
         }
@@ -91,10 +87,6 @@ export function TickerDetailContent({
       Last updated on {fmtTimestamp(lastUpdated)}
     </div>
   ) : null;
-
-  const depthEl = (
-    <DepthTapePanel selectedSymbol={depthSymbol} detailSymbol={detail.symbol} />
-  );
 
   const newsEl = showNews && !omitNews ? (
     <NewsPanel detail={detail} wrapped={layout === 'columns'} />
@@ -125,18 +117,8 @@ export function TickerDetailContent({
         );
         nodes.push(<WatchlistStripPanel key="watchlist-strip" entry={watchlistEntry} />);
       } else if (block === 'depth_tape') {
-        nodes.push(
-          <div key="depth_tape" data-layout-block="depth_tape">
-            {depthEl}
-          </div>,
-        );
-        if (afterDepth) {
-          nodes.push(
-            <div key="after-depth" className="cq-after-depth" data-layout-block="after_depth">
-              {afterDepth}
-            </div>,
-          );
-        }
+        // Level 2 / T&S live in Trader View tabs only (IBKR depth plan cap).
+        continue;
       } else if (block === 'news' && newsEl) {
         nodes.push(
           <div key="news" data-layout-block="news">
@@ -174,18 +156,7 @@ export function TickerDetailContent({
         );
       }
     } else if (block === 'depth_tape') {
-      nodes.push(
-        <div key="depth_tape" data-layout-block="depth_tape">
-          {depthEl}
-        </div>,
-      );
-      if (afterDepth) {
-        nodes.push(
-          <div key="after-depth" className="cq-after-depth" data-layout-block="after_depth">
-            {afterDepth}
-          </div>,
-        );
-      }
+      continue;
     } else if (block === 'charts' && chartEl) {
       nodes.push(
         <div key="charts" data-layout-block="charts">

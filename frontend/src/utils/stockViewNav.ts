@@ -2,6 +2,7 @@
 
 import {
   STOCK_VIEW_WINDOW_FEATURES,
+  TRADER_WINDOW_NAME,
 } from '../constants';
 
 export const STOCK_VIEW_QUERY_VIEW = 'stock';
@@ -22,9 +23,9 @@ export function parseStockViewSymbol(search = window.location.search): string | 
   return symbol || null;
 }
 
-/** Named target so re-opening the same symbol focuses the existing window. */
-export function stockViewWindowName(symbol: string): string {
-  return `nova-stock-${symbol.trim().toUpperCase()}`;
+/** One shared Trader OS window for all tabbed symbols. */
+export function stockViewWindowName(_symbol?: string): string {
+  return TRADER_WINDOW_NAME;
 }
 
 /**

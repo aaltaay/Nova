@@ -587,24 +587,24 @@ body.is-resizing-side-panel * {
 .side-panel-body {
   flex: 1;
   min-height: 0;
-  overflow: hidden; /* fit viewport — no stretch-scroll empty gap */
+  overflow-y: auto; /* quote + chart + fundamentals must scroll when tall */
   display: flex;
   flex-direction: column;
 }
 
 .detail-body {
-  flex: 1 1 0;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   padding: 0 0.75rem 0.5rem;
 }
 
 .detail-body > .cq-root--stacked {
-  flex: 1 1 0;
+  flex: 0 0 auto;
   min-height: 0;
-  height: 100%;
-  overflow: hidden;
+  height: auto;
+  overflow: visible;
 }
 

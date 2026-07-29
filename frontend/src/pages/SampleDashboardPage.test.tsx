@@ -21,10 +21,18 @@ vi.mock('../workspace/WorkspaceContext', () => ({
     ibkrMode: 'paper',
     ibkrGatewayMode: 'paper',
     openStockView: vi.fn(),
-    stockViewSymbol: null,
-    setStockViewSymbol: vi.fn(),
+    traderTabs: [],
+    activeTraderSymbol: null,
+    traderBlockNotice: null,
+    dismissTraderBlockNotice: vi.fn(),
+    activateTraderTab: vi.fn(),
+    closeTraderTab: vi.fn(),
+    renameTraderTab: vi.fn(),
+    addTraderDraftTab: vi.fn(),
+    closeTraderView: vi.fn(),
   }),
 }));
+
 
 describe('SampleDashboardPage', () => {
   let container: HTMLDivElement;

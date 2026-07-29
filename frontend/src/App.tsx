@@ -7,27 +7,19 @@ import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { DashboardPage } from './pages/DashboardPage';
-import { StockViewPage } from './pages/StockViewPage';
 import { SampleShell } from './sample_data/SampleShell';
 import { isSampleView } from './sample_data/sampleNav';
 import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
 import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
-import {
-  leaveStockViewUrl,
-  parseStockViewSymbol,
-  replaceStockViewUrl,
-} from './utils/stockViewNav';
+import { StockViewTabs } from './stock_view/StockViewTabs';
+import { parseStockViewSymbol } from './utils/stockViewNav';
 import { AppDialogHost } from './ux';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
 import { LayoutStoreProvider } from './workspace/useLayoutStore';
 import { ModuleVisibilityProvider } from './workspace/useModuleVisibility';
 
 function AppShell() {
-  const {
-    stockViewSymbol,
-    setStockViewSymbol,
-    setSelectedSymbol,
-  } = useWorkspace();
+  const { traderTabs } = useWorkspace();
   const [sampleMode, setSampleMode] = useState(() => isSampleView());
 
   useEffect(() => {
@@ -46,7 +38,7 @@ function AppShell() {
     return <SampleShell />;
   }
 
-  if (stockViewSymbol) {
+  if (traderTabs.length > 0) {
     const detached = parseStockViewSymbol() != null;
     return (
       <AppErrorBoundary source="stock-view">
@@ -54,24 +46,7 @@ function AppShell() {
         <div className="nova-shell nova-shell--ticker-detail">
           <div className="main-col main-col--full">
             <main className="ticker-detail-main">
-              <StockViewPage
-                symbol={stockViewSymbol}
-                detached={detached}
-                onBack={() => {
-                  if (detached) {
-                    leaveStockViewUrl();
-                    if (window.opener) window.close();
-                    else setStockViewSymbol(null);
-                  } else {
-                    setStockViewSymbol(null);
-                  }
-                }}
-                onSelectSymbol={sym => {
-                  setSelectedSymbol(sym);
-                  setStockViewSymbol(sym);
-                  if (detached) replaceStockViewUrl(sym);
-                }}
-              />
+              <StockViewTabs detached={detached} />
             </main>
           </div>
         </div>
