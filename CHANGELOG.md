@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Follow-up ask footer added to coaching rule
+
+- **What:** AGENTS.md §5 Co-Pilot Coaching Footer now requires a second end-of-reply paragraph, **Follow-up ask:**, alongside **Better ask:**.
+- **Why:** User directive -- teach how to ask the next question about the current problem/answer, not only how the last request could have been sharper.
+- **Files touched:** `AGENTS.md` (§5 rule + §11 maintenance log), `CHANGELOG.md`, `knowledge/task-log/`.
+- **How it works now:** Substantive replies end with two paragraphs, in order: **Better ask:** (how the request could improve + one thing worth knowing), then **Follow-up ask:** (one concrete next question about this problem/answer + why it is the highest-value follow-up). Trivial exchanges may still skip both.
+- **Verified by:** Constitution/rules edit only -- no code to run. Format demonstrated in the same reply that shipped it.
+- **Related:** Extends the 2026-07-28 Better ask footer entry; task log `2026-07-28-follow-up-ask-footer.md`.
+
 ## 2026-07-28 -- G1-G9 HOD capture remediation closeout
 
 - **What:** Audit doc §5b maps G1-G9 to fix commits. Full backend suite + 2026-07-17 replay re-verified after the phased remediation.

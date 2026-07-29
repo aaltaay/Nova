@@ -229,7 +229,11 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
 - **Git Commit & Push After Every Task**: After completing any task, the assistant MUST run `git add .`, `git commit -m "<descriptive message>"`, and `git push origin master`. No exceptions — the user should never have to remind this.
-- **Co-Pilot Coaching Footer**: At the very end of every substantive reply, the assistant MUST append a short paragraph labeled **Better ask:** (max ~5 sentences, plain language) giving honest feedback on how the user's request could have been asked better or clearer, and teaching one thing the user likely did not know. The goal is direct judgment that makes the user a better co-pilot, not flattery. Skip only for trivial exchanges (one-word pings, tiny confirmations, pure status checks) at the assistant's judgement -- never pad a small answer with forced criticism.
+- **Co-Pilot Coaching Footer**: At the very end of every substantive reply, the assistant MUST append two short paragraphs, in this order (each max ~5 sentences, plain language):
+  1. **Better ask:** -- honest feedback on how the user's request could have been asked better or clearer, plus one thing the user likely did not know. The goal is direct judgment that makes the user a better co-pilot, not flattery.
+  2. **Follow-up ask:** -- one concrete, well-phrased follow-up question the user could ask next about this problem or answer (the natural next step), plus one sentence on why that follow-up is the highest-value one. Teach the shape of a good follow-up by example: reference the specific answer or artifact, narrow the scope, and state the decision it informs.
+
+  Skip both only for trivial exchanges (one-word pings, tiny confirmations, pure status checks) at the assistant's judgement -- never pad a small answer with forced content.
 
 ---
 
@@ -360,6 +364,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-28 | Co-Pilot Coaching Footer extended: §5 now requires two end-of-reply paragraphs -- **Better ask:** (request feedback + one new thing) and **Follow-up ask:** (a concrete next question about this problem/answer + why it is the highest-value follow-up). | User Directive + Cursor Agent |
 | 2026-07-28 | Constitution single-sourced: `AGENTS.md` is now the sole constitution text (the two mirrors had drifted -- ADR 007 execution-command schema and stale agent table existed only in `gemini.md`; ADR 007 block ported here). `gemini.md` reduced to a legacy alias that `@`-imports this file; `constitution.mdc` / `self-annealing.mdc` pointers updated. | User Directive + Cursor Agent |
 | 2026-07-28 | Co-Pilot Coaching Footer: §5 now requires a short end-of-reply **Better ask:** coaching note (how the request could have been asked better + one new thing learned); skip trivial exchanges at agent judgement. | User Directive + Cursor Agent |
 | 2026-07-23 | PROBLEM_LOG mandatory for every agent: strengthened `problem-log.mdc`; Lifecycle requires `problem_log=`; contract regex + subagentStop reminder; agent prompts + ops docs updated. | Cursor Agent |

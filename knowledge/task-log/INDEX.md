@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-28 | [Follow-up ask coaching footer (constitution §5)](2026-07-28-follow-up-ask-footer.md) | §5 footer now requires Better ask + Follow-up ask paragraphs |
 | 2026-07-28 | [G8: refresh HOD active set on roster commit](2026-07-28-g8-roster-commit-hod-refresh.md) | G8: refresh HOD active set on roster commit |
 | 2026-07-28 | [G9: persist session_high_raised_ts grace clock](2026-07-28-g9-persist-session-high-raised-ts.md) | G9: persist session_high_raised_ts grace clock |
 | 2026-07-28 | [G1-G9 HOD capture remediation closeout](2026-07-28-g1-g9-remediation-closeout.md) | All G1-G9 shipped; audit §5b; 1010 pytest + replay parity |
