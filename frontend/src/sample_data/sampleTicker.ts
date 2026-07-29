@@ -82,9 +82,17 @@ export function sampleTickerDetail(symbol: string): TickerDetail {
         exchange: 'NASDAQ',
         shortable_shares: 250_000,
         short_type: 'available',
-        short_type_detail: 'Sample IBKR shortableShares',
+        short_type_detail:
+          'Sample IBKR tick 236 estimate -- confirm fee in TWS before shorting.',
         tradable_hint: 'qualified',
         error: null,
+        // Phase K shortability chip + Short ticket gate (ADR 009)
+        state: 'shortable_est',
+        fetched_at: Date.now() / 1000,
+        age_sec: 0,
+        stale: false,
+        ttl_sec: 60,
+        orderable: true,
       },
     },
     snapshot: {

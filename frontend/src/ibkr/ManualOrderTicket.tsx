@@ -25,6 +25,7 @@ import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import { readSkipPlaceConfirm } from './placeConfirmPrefs';
+import { resolveShortabilityState } from './ShortabilityChip';
 import {
   readTicketSessionUnlocked,
   tryUnlockTicketSession,
@@ -51,7 +52,9 @@ function shortDisabledReason(
   if (!shortEnabled) return SHORTABILITY_SHORT_DISABLED;
   if (!listing) return SHORTABILITY_NOT_SHORTABLE;
   if (listing.stale) return SHORTABILITY_STALE;
-  if (listing.state !== 'shortable_est' || listing.orderable === false) {
+  const state = resolveShortabilityState(listing);
+  // Explicit false only — missing orderable (legacy payloads) still OK when state is est.
+  if (state !== 'shortable_est' || listing.orderable === false) {
     return SHORTABILITY_NOT_SHORTABLE;
   }
   return null;

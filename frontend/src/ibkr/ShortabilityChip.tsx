@@ -10,6 +10,18 @@ interface Props {
   ibkr: IbkrListingFlags | null | undefined;
 }
 
+/** Prefer Phase K `state`; fall back to legacy listing_flags `short_type`. */
+export function resolveShortabilityState(
+  ibkr: IbkrListingFlags | null | undefined,
+): string {
+  if (ibkr?.state) return String(ibkr.state);
+  const legacy = (ibkr?.short_type || '').toLowerCase();
+  if (legacy === 'available') return 'shortable_est';
+  if (legacy === 'limited') return 'thin';
+  if (legacy === 'hard_to_borrow') return 'htb_likely';
+  return 'unknown';
+}
+
 function stateClass(state: string | undefined, stale: boolean | undefined): string {
   if (stale || !state || state === 'unknown') return 'sv-shortability-chip--unknown';
   if (state === 'shortable_est') return 'sv-shortability-chip--ok';
@@ -19,7 +31,7 @@ function stateClass(state: string | undefined, stale: boolean | undefined): stri
 }
 
 export function ShortabilityChip({ ibkr }: Props) {
-  const state = ibkr?.state ?? 'unknown';
+  const state = resolveShortabilityState(ibkr);
   const stale = Boolean(ibkr?.stale);
   const shares = ibkr?.shortable_shares;
   const label = stale

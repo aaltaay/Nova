@@ -18,9 +18,9 @@ const SAMPLE_STATUS: IbkrStatus = {
   enabled: true,
   connected: true,
   mode: 'paper',
-  orders_enabled: false,
-  short_enabled: false,
-  spend_status: 'locked',
+  orders_enabled: true,
+  short_enabled: true,
+  spend_status: 'paper_armed',
   market_data_type: 1,
   market_data_delayed: false,
 };

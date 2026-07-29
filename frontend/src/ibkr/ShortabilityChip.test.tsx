@@ -41,4 +41,19 @@ describe('ShortabilityChip', () => {
       'stale',
     );
   });
+
+  it('maps legacy short_type=hard_to_borrow to HTB', () => {
+    render(
+      <ShortabilityChip
+        ibkr={{
+          source: 'ibkr',
+          short_type: 'hard_to_borrow',
+          shortable_shares: 0,
+        }}
+      />,
+    );
+    const chip = screen.getByTestId('shortability-chip');
+    expect(chip.getAttribute('data-state')).toBe('htb_likely');
+    expect(chip.textContent).toMatch(/HTB/);
+  });
 });
