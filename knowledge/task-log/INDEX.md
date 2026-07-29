@@ -4,6 +4,9 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-28 | [HOD scanner capture audit + mock replay harness](2026-07-28-hod-scanner-capture-audit.md) | HOD scanner capture audit + mock replay harness |
+| 2026-07-24 | [Remove daddy dispatcher; zero-hop specialist routing](2026-07-24-remove-daddy-zero-hop-routing.md) | Deleted daddy; parent now works in-session by default, specialists opt-in-only; reviewed refactoring.guru/loop-library principles |
+| 2026-07-24 | [Loud IB Gateway disconnected banner + reconnect warm-up empty state](2026-07-24-ibkr-gateway-login-ux.md) | Loud IB Gateway disconnected banner + reconnect warm-up empty state |
 | 2026-07-24 | [End-to-end execution measurement](2026-07-24-end-to-end-execution-measurement.md) | Clock-safe browser/backend stages, bounded fill/slippage evidence, segmented rollups, stale cancel/replace ack fix |
 | 2026-07-23 | [Per-operation latency measurement](2026-07-23-per-operation-latency-measurement.md) | Bounded operation metrics; reconnect/lock/boot/attribution fixes; no new broker requests or orders |
 | 2026-07-23 | [Block fractional Flatten + hard-fail Error 10243 cancel](2026-07-23-fractional-flatten-error-10243.md) | Block fractional Flatten + hard-fail Error 10243 cancel |

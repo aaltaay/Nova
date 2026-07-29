@@ -30,6 +30,61 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- HOD scanner capture audit + mock replay harness
+
+- **What:** New offline verification stack for the HOD Momo scanner: a committed fixture day (real 2026-07-17 tape/bars/alert log), a deterministic replay driver that feeds archived prints through the production engine with an injected clock, golden + parity tests, and a fake IBKR feed that drives the real `ticks.py` -> `scanner_l1` -> `ibkr_bridge` -> engine path. Plus a written capture audit at `docs/audits/2026-07-28-hod-scanner-capture-audit.md`. No product-code behavior changes.
+- **Why:** User asked for an audit of whether the scanner captures what happens in the market, with mock tests on sample data, focused on IBKR API-layer accuracy.
+- **Files touched:** `tools/export_hod_replay_fixture.py`, `backend/hod_momo_replay.py`, `backend/tests/conftest.py` (new), `backend/tests/fixtures/hod_replay/*` (new), `backend/tests/test_hod_momo_replay.py`, `backend/tests/fakes/fake_ibkr_feed.py`, `backend/tests/test_hod_pipeline_fake_feed.py`, `backend/tests/test_hod_momo_engine.py` (reset delegates to conftest), `docs/audits/2026-07-28-hod-scanner-capture-audit.md`.
+- **How it works now:** `py -3 tools/export_hod_replay_fixture.py --date <d>` exports a committed fixture from the local archive; `py -3 backend/hod_momo_replay.py --date <d>` replays it through the real engine (pins `time.time` + `market.now_et` to replay time, reconstructs cumulative volume + day-high series, mirrors the consolidation flush without disk/WS). Replay-vs-production parity for 2026-07-17: dense-tape movers (SDOT/BIYA/CJMB) reproduce strategies 11/12; quiet symbols stay silent; thin-tape production alerts (CNF/WZRD/SLND/KLRS) are unreproducible because the L1 tick stream is never archived -- the audit's headline data finding.
+- **Verified by:** `pytest tests/test_hod_momo_replay.py` (8 passed), `tests/test_hod_pipeline_fake_feed.py` (4 passed + 1 strict xfail proving the zombie-L1 reconnect gap), full HOD + L1 suite 109 passed/1 xfailed.
+- **Follow-ups:** Ranked fix list in the audit doc (P0: archive L1 ticks for active-set symbols; P0: clear/re-establish L1 subs on reconnect; P1: reqMarketDataType + delayed-data labeling; P1: persist session_high_raised_ts).
+- **Related:** PROBLEM_LOG 2026-07-28 (zombie L1, delayed-data blindness, L1 archive gap).
+
+## 2026-07-24 — Dashboard “Reload backend” control
+
+- **What:** Added a **Reload backend** button in the header status cluster (next to API/Gateway chips) when the local API is up. Confirms, then kill-restarts uvicorn via the same path as **Start API** (Vite dev middleware or Electron sidecar).
+- **Why:** After backend-only fixes (e.g. HOD session reconcile), users needed a one-click way to restart the API without closing Run Nova.bat windows manually.
+- **Files touched:** `frontend/src/components/BackendReloadButton.tsx`, `HeaderConnectionStatus.tsx`, `utils/startLocalApi.ts`, `constantGroups/chart_api.ts`, `styles/tokens-shell.css`.
+- **How it works now:** Visible only when `canReloadLocalBackend()` (dev or desktop). Hidden on production web deploys where the UI cannot spawn processes. On success, triggers the existing `onBackendStarted` refresh (scanner refetch).
+- **Verified by:** Vitest (`BackendReloadButton.test.tsx`, `HeaderConnectionStatus.test.tsx`, `startLocalApi.test.ts`); `npm run build`.
+
+## 2026-07-24 — HOD Momo session boundary + honest tab counts
+
+- **What:** HOD Momo "today" now uses the same 04:00 ET-anchored session key as scanner/cache files. Stale prior-session alerts are archived on load instead of appearing under Today (Live). Tab badge and header show collapsed symbol count (with raw fire count when higher).
+- **Why:** Yesterday evening alerts (e.g. 6:43 PM Thu) were counted in today's badge (96) while the table showed ~20 collapsed rows; a midnight–4 AM restart could skip rollover and leave prior-session alerts in the live feed.
+- **Files touched:** `backend/hod_momo_session.py`, `backend/hod_momo_persist.py`, `frontend/src/pages/DashboardPage.tsx`, `frontend/src/hod_momo/HodMomoSection.tsx`, `frontend/src/hod_momo/HodMomoTab.tsx`, `frontend/src/hod_momo/RunningUpTab.tsx`.
+- **How it works now:** `current_date_et()` delegates to `session_key_et()`. On startup, `reconcile_loaded_alerts_to_session()` archives alerts whose timestamps belong to a prior session. Tab `(N)` matches visible symbol rows; header adds "· M alerts" when raw fires exceed symbols.
+- **Verified by:** `py -3 -m pytest backend/tests/test_hod_momo_persist.py -q` (17 passed).
+- **Related:** PROBLEM_LOG 2026-07-24 — HOD Momo session bleed.
+
+## 2026-07-24 — Header Prices chip scoped to scanner tabs only
+
+- **What:** The header **Prices** freshness chip (last `/ws/scanner` `price_patch` age) now appears only on tabs whose module `feedDeps` include `scanner` (Gappers, Gainers, Losers, After Hours, Catalysts). It is hidden on HOD Momo, Running Up, Dashboard, Watchlist, and Account tabs.
+- **Why:** On HOD Momo the UI sends `set_active_tab: none`, so the backend stops forwarding scanner `price_patch` messages while IBKR L1 for the HOD pool keeps flowing — the chip falsely read **stale** even though alerts and ticks were live.
+- **Files touched:** `frontend/src/workspace/registry.ts` (`tabUsesScannerPricePatch`), `frontend/src/pages/DashboardPage.tsx`, registry + header tests.
+- **How it works now:** `DashboardPage` gates `secondsAgo` / `pricesStale` through `tabUsesScannerPricePatch(activeTab)`; `HeaderConnectionStatus` omits the chip when `secondsAgo` is null. HOD integrity freshness stays on the HOD Integrity banner (`hod_active_quote_age`, etc.), not the scanner-table chip.
+- **Verified by:** `npm run test -- --run src/workspace/registry.test.ts src/components/HeaderConnectionStatus.test.tsx` (15 passed).
+- **Follow-ups:** Optional future HOD-scoped header chip tied to `/ws/hod-momo` or integrity metrics if product wants tab-local freshness there too.
+
+## 2026-07-24 — Remove daddy dispatcher; zero-hop specialist routing
+
+- **What:** Deleted the `daddy` top-of-fleet dispatcher agent (spec, memory, dashboard canvas, registry entry) and flipped Nova's agent routing default from "auto-dispatch a specialist" to **zero-hop**: the parent Auto session classifies and does multi-domain work in-session by default. All other specialists (router, ibkr-ops, market-feed, hod-momo, tester, maintainer, security, docs, warrior, widgets, execution, news, backtester, hotkeys) remain registered but are now **opt-in only** — invoked when the user explicitly names one. Also added a "Pragmatic patterns & loops" section to `engineering-standards.mdc` reviewing refactoring.guru's GoF catalog and the loop-library loop collection against this repo, adopting only a small named-pattern vocabulary for shapes already present in the code plus a future pre-commit test guard, and rejecting the rest as unneeded ceremony for a solo-maintained, functional (non-OOP) codebase.
+- **Why:** Every `Task(subagent)` call is a full extra agent turn (new context, tools, Lifecycle report). `daddy` nested an extra nested-Task hop on top of that for the highest-frequency routing paths ("just get this done", casual `daddy, …` address), making normal requests structurally slower and more expensive with no product benefit — investigation found no backend/frontend code depends on it.
+- **Files touched:** Deleted `.cursor/agents/daddy.md`, `.cursor/agent-memory/daddy-memory.md`, `agent-daddy.canvas.tsx`. Edited `.cursor/agent-system/registry.json`, `.cursor/rules/specialist-routing.mdc`, `.cursor/rules/task-log.mdc`, `.cursor/rules/problem-log.mdc`, `.cursor/rules/engineering-standards.mdc`, `knowledge/obsidian/00-System/Agent-Fleet-Map.md`, `AGENTS.md`, `docs/agent-operations.md`, `.cursor/agents/router.md`, `.cursor/agents/hotkeys.md`, `.cursor/agent-system/agent-template.md`, `tools/sync_agent_surfaces.py`, `tools/session_brief_hook.py`, `tools/test_agent_contract.py`, `tools/test_agent_fleet.py`, `tools/agent_dream_lib/bridges.py`, `knowledge/task-log/_template.md`, `knowledge/task-log/README.md`, `nova-home.canvas.tsx`, `agent-router.canvas.tsx`.
+- **How it works now:** Default path for any request (including multi-domain work) is the parent working in the current session — no automatic `Task(...)` calls. A hop only happens when the user explicitly names a specialist (e.g. "Use the ibkr-ops subagent…"). Fleet crack index prefers the deterministic `py -3 tools/agent_fleet.py` (no LLM cost) over invoking `router`. `Agent-Fleet-Map.md`'s "Fleet dispatch / orchestration" domain is now owned by `parent` instead of `daddy`. Specialist specs/memories/continuity rules remain as ownership/knowledge references the parent should still follow even when not invoking the agent.
+- **Verified by:** `py -3 tools/agent_contract.py` (PASS, 14 agents); `py -3 -m pytest tools/test_agent_contract.py tools/test_agent_fleet.py -q` (19 passed); `py -3 tools/agent_fleet.py --session-brief` shows no daddy reference; regenerated canvas snapshots via `py -3 tools/sync_agent_surfaces.py --write`.
+- **Follow-ups:** None planned — specialist fleet stays available opt-in; no loop-runner framework or pre-commit hook was added in this pass (reviewed and deferred, see `engineering-standards.mdc`).
+- **Related:** `PROBLEM_LOG.md` § 2026-07-24 — `hotkeys` agent missing from contract test's expected set · `knowledge/task-log/2026-07-24-remove-daddy-zero-hop-routing.md`
+
+## 2026-07-24 — Loud IB Gateway login banner + reconnect warm-up empty state
+
+- **What:** Added a non-dismissible red **ACTION REQUIRED — IB Gateway login** banner above scanner tabs when discovery is IBKR and Gateway is disconnected, with an **Open IB Gateway** CTA. After reconnect, empty Gainers/Losers show a bounded warm-up message instead of “no rows in the feed.”
+- **Why:** Offline Gateway looked like empty markets; the only UX was a tiny header chip plus plain empty-state text buried under Integrity fail.
+- **Files touched:** `frontend/src/ibkr/GatewayDisconnectedBanner.tsx`, `frontend/src/ibkr/useIbkrReconnectWarmup.ts`, `frontend/src/ibkr/gatewayUxConstants.ts`, `frontend/src/components/EmptyState.tsx`, `frontend/src/pages/DashboardPage.tsx`, `frontend/src/styles/scanner-l2.css`, tests.
+- **How it works now:** Banner uses existing `useWorkspace()` connection fields and `launchIbGateway()`. Warm-up is a client-side 45s window after a false→true connect transition (`useIbkrReconnectWarmup`), only for Gainers/Losers market empty state. Tunables live in `ibkr/gatewayUxConstants.ts` so `market_ui.ts` does not grow further.
+- **Verified by:** Focused Vitest 7 passed; full frontend suite 465 passed earlier in session; ESLint clean; production build passed; ReadLints clean; maintainer shows no new module over-limits from this work; browser confirmed banner absent while Gateway connected LIVE.
+- **Related:** `PROBLEM_LOG.md` § 2026-07-24 — Gateway offline looked like empty scanners · `knowledge/task-log/2026-07-24-ibkr-gateway-login-ux.md`
+
 ## 2026-07-24 — Add clock-safe end-to-end execution measurement and dashboard
 
 - **What:** Added optional paired browser action/request stamps, backend ingress/response-ready stamps, bounded per-fill evidence, first/complete-fill timing, exchange/callback observations, side-aware slippage, and population/provenance-segregated execution rollups. Added Account → Latency as a modular frontend dashboard with operation, hop, fill-stage, provenance, population, and browser-visible timing; cancel failures now surface visibly while account polling refreshes. Split execution HTTP routes/order-row mapping into focused modules and added a public frontend feature barrel while preserving ADR 007's sole mutation path.

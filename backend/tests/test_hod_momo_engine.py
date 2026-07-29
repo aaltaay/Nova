@@ -2,31 +2,15 @@
 from __future__ import annotations
 
 import time
-from collections import defaultdict
 
 import hod_momo as hm
 import hod_momo_high as high
 import hod_momo_market as market
-from hod_momo_state import HodMomoState
+from tests.conftest import reset_hod_engine_state
 
 
 def _reset_engine(monkeypatch) -> None:
-    hm.replace_state(HodMomoState())
-    hm.load_state()
-    state = hm.get_state()
-    state.today_alerts = []
-    state.pending_consolidation = {}
-    state.cooldown = {}
-    state.session_highs = {}
-    state.session_high_seeded = set()
-    state.day_highs = {}
-    state.session_high_source = {}
-    state.price_buffer = {}
-    state.ticker_snaps = {}
-    state.gate_counters = defaultdict(int)
-    state.total_trades_seen = 0
-    state.blocklist = set()
-    state.startup_ts = time.monotonic() - 10_000
+    reset_hod_engine_state()
 
 
 def test_on_trade_update_fires_when_master_and_strategy_pass(monkeypatch):

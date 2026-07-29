@@ -23,6 +23,50 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Zombie L1 subscriptions after IBKR reconnect silently starve HOD
+
+- **Symptom:** After an IB Gateway drop + reconnect, HOD Momo can stop evaluating symbols while everything still looks subscribed: `ticks._subs` keeps entries from the dead connection, reconcile counts them as active, and no new ticks ever arrive.
+- **Cause:** `backend/ibkr/ticks.py` never clears `_subs` on disconnect or READY generation bump, and `subscribe()` short-circuits when the symbol is already present (`ticks.py:159-161`). `set_owner_symbols` therefore computes desired == current and never issues `reqMktData` on the new connection.
+- **Fix:** Diagnosed (no product fix this pass) -- proven by strict xfail `tests/test_hod_pipeline_fake_feed.py::test_reconnect_recreates_streams_on_new_connection`; recommended fix is clearing/re-establishing `_subs` on generation bump + handling 1100/1101/1102. Full context: `docs/audits/2026-07-28-hod-scanner-capture-audit.md` (G1).
+- **Keywords:** zombie L1, reconnect, reqMktData, ticks _subs, HOD silent, generation fencing, 1100 1101 1102
+
+## 2026-07-28 -- Delayed IBKR market data is indistinguishable from real-time
+
+- **Symptom:** A paper (or non-entitled) Gateway login can feed 15-minute-delayed prices into scanner tables and HOD alerts with no indication anywhere -- not in `/api/ibkr/status`, not in the UI, not in logs.
+- **Cause:** No `reqMarketDataType` call exists anywhere in the repo, Error 10167 (delayed-data notice) is unhandled, and `ticks.py` stamps `quote_ts = time.time()` (receive clock) so delayed ticks still look fresh. Companion: `price = last or close` (`ticks.py:110`) can present yesterday's close as the current price with a fresh timestamp.
+- **Fix:** Diagnosed (no product fix this pass) -- recommended: call `reqMarketDataType`, handle 10167, label data type in status API + UI badge, add a quote-quality flag when serving `close` as price. Context: audit doc (G2/G3).
+- **Keywords:** reqMarketDataType, delayed data, Error 10167, last or close, receive clock, paper account, quote_ts
+
+## 2026-07-28 -- Archive records tape but not the L1 stream that drives HOD evaluation
+
+- **Symptom:** Replaying 2026-07-17 (89,084 archived prints) through the real HOD engine reproduces momentum alerts for densely-taped symbols (SDOT/BIYA/CJMB) but cannot reproduce production alerts for CNF, WZRD, SLND, KLRS -- those fired live on L1 ticks that were never archived (4 / 1 / 2,728 / 833 prints on record).
+- **Cause:** `tape_ibkr` only captures symbols with an active `reqTickByTickData` subscription (open ticker). The L1 `reqMktData` tick stream that `ibkr_bridge.apply_l1_quote` feeds into `hod_momo.on_trade_update` is not recorded anywhere, so post-hoc capture verification has a hard ceiling.
+- **Fix:** Diagnosed (no product fix this pass) -- recommended P0: archive L1 ticks (or >=1/min snapshots) for every active-set symbol. Measured via the new replay harness; parity matrix in `docs/audits/2026-07-28-hod-scanner-capture-audit.md` (G5).
+- **Keywords:** archive coverage, tape_ibkr, L1 tick stream, replay parity, capture verification, hod momo
+
+## 2026-07-24 — HOD Momo session bleed (yesterday PM alerts in Today)
+
+- **Symptom:** HOD Momo tab showed `(96)` under Today (Live) but the table had ~20 rows; oldest entry was 6:43 PM the previous calendar day instead of archiving under Thu Jul 23 history.
+- **Cause:** Session rollover used calendar midnight + 4 AM hour gate while cache filenames use 04:00 ET `session_key_et()`. `load_state()` also overwrote `session_date` with calendar today before rollover, so a restart between midnight–4 AM permanently skipped archive. Badge counted raw alert fires; table collapses to one row per symbol.
+- **Fix:** Align `current_date_et()` with `session_key_et()`, reconcile stale alerts on load into dated archives, stop pre-setting `session_date` in `load_state()`, and show collapsed symbol count in tab/header (raw fire count when higher).
+- **Keywords:** hod momo, session_key, 04:00 ET, today live, alert count, collapse, archive, rollover
+
+## 2026-07-24 — `hotkeys` agent missing from contract test's expected set
+
+- **Symptom:** `py -3 -m pytest tools/test_agent_contract.py -q` failed `test_discovery_finds_registered_agents` with an unexpected extra item `'hotkeys'` in the discovered agent set.
+- **Cause:** When the `hotkeys` specialist was scaffolded (Phase G3), its id was never added to this test's hard-coded expected set, even though it was correctly registered in `registry.json` and had a spec file on disk. Found incidentally while removing the `daddy` agent from the same test file.
+- **Fix:** Added `"hotkeys"` to the expected set in `tools/test_agent_contract.py`.
+- **Keywords:** test_discovery_finds_registered_agents, hotkeys agent, agent_contract, registry.json, missing test fixture
+- **Related:** `CHANGELOG.md` § 2026-07-24 — Remove daddy dispatcher; zero-hop specialist routing
+
+## 2026-07-24 — Gateway offline looked like empty scanners
+
+- **Symptom:** With IB Gateway logged out, Gainers/Losers showed Integrity fail + “No gainers in the feed right now” with no loud login CTA. After Gateway came back, empty tables still looked like “no data” while the scanner was resubscribing.
+- **Cause:** Disconnected copy only lived in a small header chip and plain `EmptyState` text; `HodMomoIntegrityBanner` reports HOD/L1 age, not Gateway login. After reconnect, `EmptyState` fell through to the generic empty message because `ibkr.connected` was already true while ADR 008 roster/L1 was still warming.
+- **Fix:** Mounted non-dismissible `GatewayDisconnectedBanner` above `TabNav` with mode-aware copy + `launchIbGateway` CTA. Added `useIbkrReconnectWarmup` (45s) so Gainers/Losers empty state shows reconnect copy during resubscribe. Feature constants in `ibkr/gatewayUxConstants.ts`.
+- **Keywords:** IB Gateway, disconnected banner, empty gainers, reconnect warm-up, launchIbGateway, ACTION REQUIRED, EmptyState, ADR 008
+- **Related:** `CHANGELOG.md` § 2026-07-24 — Loud IB Gateway login banner + reconnect warm-up empty state · `knowledge/task-log/2026-07-24-ibkr-gateway-login-ux.md`
+
 ## 2026-07-24 — HTTP 200 execution rejections were timed as browser successes
 
 - **Severity:** Medium — execution-observability correctness; broker behavior and safety gates were unaffected.
