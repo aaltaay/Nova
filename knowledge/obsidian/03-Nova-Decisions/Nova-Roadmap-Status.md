@@ -305,7 +305,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
-| 2026-07-28 | Phase B WAIVED + Phase K E2E ship: ADR 009, shortability module, `IBKR_SHORT_ENABLED` + `short_entry` gates, flatten cover, Shortability chip + Long/Short ticket. K3 human paper short days still open. `auto_live` NO-GO. | (this ship) |
+| 2026-07-28 | Phase B WAIVED + Phase K E2E ship: ADR 009, shortability module, `IBKR_SHORT_ENABLED` + `short_entry` gates, flatten cover, Shortability chip + Long/Short ticket. K3 human paper short days still open. `auto_live` NO-GO. | `125f3ce` |
 | 2026-07-28 | Phase K short entry DEFINED (not started): K0 constitution+ADR 009, K1 shortability truth (tick 236, fail-closed), K2 execution gate (`IBKR_SHORT_ENABLED`, explicit opt-in, inverse brackets, buy-to-cover), K3 paper proof → live unlock, K4 shortability chip next to L2 + Long/Short ticket toggle; gated on Phase B; `auto_live` NO-GO. Ledger entry is the SSOT (master plan file absent). | (this commit) |
 | 2026-07-21 | Operator unlocked live spend: `IBKR_LIVE_TRADING_CONFIRMED=true` so Flatten/place work on live Gateway (`spend_status=live_armed`). Explicit request — not Phase I GO. `auto_live` still NO-GO. Phase B shadow days should still prefer paper Gateway when practicing. | `.env` only (not committed) |
 | 2026-07-21 | Bidirectional IBKR Gateway auto-detect: preferred port refused → heal to alternate (paper↔live); account kind must match mode; spend gates unchanged. Header shows online · LIVE when live Gateway is logged in. Phase B paper sessions remain operator discipline. | `5a48205` |
