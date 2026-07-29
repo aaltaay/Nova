@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- G1-G9 HOD capture remediation closeout
+
+- **What:** Audit doc §5b maps G1-G9 to fix commits. Full backend suite + 2026-07-17 replay re-verified after the phased remediation.
+- **Why:** Close the approved capture-audit remediation plan with a single durable status ledger.
+- **Files touched:** `docs/audits/2026-07-28-hod-scanner-capture-audit.md`, task-log closeout.
+- **How it works now:** Findings G1-G9 are fixed in master (see audit §5b table). Replay fixtures for 2026-07-17 remain tape-only by design; new sessions get L1 + enrichment archives.
+- **Verified by:** `pytest tests/` -- 1010 passed; `hod_momo_replay.py --date 2026-07-17` -- 88 alerts (SDOT/BIYA/CJMB 11+12).
+- **Follow-ups:** Optional P3 share consolidation-flush helper (harness only).
+- **Related:** per-phase commits `79f749e`..`bcd6283`; task-log closeout.
+
 ## 2026-07-28 -- Former Momo sub-cap at 20 slots (G7)
 
 - **What:** `HOD_MOMO_FORMER_MOMO_MAX_SLOTS = 20`. `build_active_set` admits at most 20 Former Momo symbols; excess are uncovered with `former_momo_over_cap`. Admin rejects lists longer than 20.

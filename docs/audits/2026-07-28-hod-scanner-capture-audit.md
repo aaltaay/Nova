@@ -149,18 +149,38 @@ no Alpaca fallback under discovery=ibkr.
   record the exact tick stream decisions consume so backtest/replay parity is
   provable -- Nova archives tape but not the L1 decision stream (G5).
 
-## 5. Recommended fixes (not implemented in this pass)
+## 5. Recommended fixes (original pass -- now remediated)
 
 | Pri | Fix | Addresses |
 |-----|-----|-----------|
-| P0 | Archive L1 ticks (or >=1/min L1 snapshots) for every active-set symbol into `archive.db` | G5 -- makes capture provable for the whole pool |
-| P0 | Clear/re-establish `ticks._subs` on READY generation bump; add error-event handling for 1100/1101/1102 + 2104/2106/2108 | G1, G4 -- zombie streams, silent farm breaks |
-| P1 | Call `reqMarketDataType`, handle Error 10167, label delayed vs real-time in `/api/ibkr/status` + UI badge | G2, G3 (partially) |
+| P0 | Archive L1 ticks for every active-set symbol into `archive.db` | G5 |
+| P0 | Clear/re-establish `ticks._subs` on READY; session errorEvent for 1100/1101/1102 + 2104/2106/2108 + 101 + 10167 | G1, G4 |
+| P1 | `reqMarketDataType(1)`, delayed status + UI badge; close-fallback quote quality + exchange-time stamps | G2, G3 |
 | P1 | Persist `session_high_raised_ts` in the highs payload | G9 |
-| P2 | Rebuild the HOD active set on roster commit (not only on L1 reconcile); show `uncovered` symbols in the UI | G7, G8 |
-| P2 | Archive per-session enrichment snapshots (avg_volume, float, 52wk high) for replay parity | G6 |
-| P3 | Handle Error 101 (max tickers) on the L1 error path; add quote-quality flag when serving `close` as price | G3, G4 |
-| P3 | Extract the consolidation-flush grouping into a pure function shared by `hod_momo_alerts` and the replay mirror (currently mirrored) | harness drift risk |
+| P2 | Rebuild HOD active set on roster commit + wake L1 reconcile | G8 |
+| P2 | Archive enrichment snapshots (avg_volume, float, 52wk high) | G6 |
+| P2 | Former Momo sub-cap (20) so live movers keep half the pool | G7 |
+| P3 | Extract consolidation-flush grouping into a pure shared function | harness drift risk (still open) |
+
+## 5b. Remediation status (2026-07-28)
+
+All G1-G9 product findings from this audit were fixed the same day. Historical
+2026-07-17 fixtures remain tape-only (G5/G6 improve *new* sessions only).
+
+| Finding | Status | Commit |
+|---------|--------|--------|
+| G1 zombie L1 `_subs` after reconnect | fixed | `79f749e` |
+| G4 unhandled session error codes | fixed | `79f749e` (with G1) |
+| G5 archive L1 decision stream | fixed | `f17b3fd` |
+| G2 `reqMarketDataType` + delayed honesty | fixed | `23bae29` |
+| G3 close-fallback + exchange-time stamps | fixed | `23bae29` (with G2) |
+| G9 persist `session_high_raised_ts` | fixed | `c4e03ad` |
+| G8 roster-commit active-set refresh | fixed | `dceb6f3` |
+| G6 enrichment snapshots | fixed | `c51e27f` |
+| G7 Former Momo sub-cap (20) | fixed | `bcd6283` |
+
+Still open (P3 harness hygiene, not a capture miss): share consolidation-flush
+grouping between `hod_momo_alerts` and the replay mirror.
 
 ## 6. The harness (how to re-run this audit)
 
