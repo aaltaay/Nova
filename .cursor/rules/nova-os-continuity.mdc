@@ -1,6 +1,6 @@
 ---
 description: Nova OS cross-chat continuity — read status, update on crash, phase-close handoff
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Nova OS continuity protocol

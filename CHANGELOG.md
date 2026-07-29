@@ -30,6 +30,25 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Cursor rules token economy (re-scope + AGENTS dedupe)
+
+- **What:** Cut per-request always-on context from ~119 KB (~30k tokens) to ~74 KB (~19k tokens). Removed stale full-rule embeds from `AGENTS.md` §12; re-scoped 8 rules from `alwaysApply: true` to glob or agent-requested; added context-economy bullets to `constitution.mdc`. Explicitly rejected creating `.cursorrules`.
+- **Why:** Always-on rules + duplicated AGENTS embeds were burning ~30k tokens on every request and every subagent hop.
+- **Files touched:** `AGENTS.md`, `.cursor/rules/{backend,frontend}-modularity.mdc`, `file-size-limits.mdc`, `centralized-constants.mdc`, `browser-testing.mdc`, `run-app.mdc`, `nova-os-continuity.mdc`, `graphify.mdc`, `constitution.mdc`.
+- **How it works now:** Always-on = 12 discipline/safety rules. Glob rules (`backend/frontend-modularity`, `file-size-limits`, `centralized-constants`) attach only when editing matching code. Agent-requested (`browser-testing`, `run-app`, `nova-os-continuity`, `graphify`) keep name+description in context; bodies fetch on demand. Live rule text lives only under `.cursor/rules/*.mdc` -- never re-paste into AGENTS.md.
+- **Verified by:** Size re-measure (74.1 KB always-on); `py -3 tools/agent_contract.py` PASS (14 agents); frontmatter audit (12 always-on / 13 alwaysApply false).
+- **Follow-ups:** Optional prose merge of closeout rules (`change-log`/`problem-log`/`task-log`/`commit-push-deploy`/`self-annealing`); disable unused MCP/skills outside the repo.
+- **Related:** task-log 2026-07-29-cursor-rules-token-economy.
+
+## 2026-07-29 -- Quote panel News collapses to one header
+
+- **What:** Bump/impact panel and headline chips now live under a single collapsible **News** container. Default is collapsed; the header shows the lead headline (and article count). Expand reveals impact factors + chips.
+- **Why:** User asked to reclaim vertical space in the side quote panel while keeping the headline visible at a glance.
+- **Files touched:** `frontend/src/components/NewsHeadlineSection.tsx`, `frontend/src/modules/NewsPanel.tsx`, `frontend/src/styles/quote-layout.css`, `frontend/src/constantGroups/market_ui.ts`, `frontend/src/modules/quotePanels.test.tsx`.
+- **How it works now:** `NewsHeadlineSection` owns expand state (`NEWS_SECTION_DEFAULT_EXPANDED = false`). Collapsed header: chevron + "News" + truncated preview from `news_impact.headline` or first article. Expanded body: `NewsImpactPanel` + horizontal chips. Remounts on symbol change via `key={detail.symbol}`.
+- **Verified by:** Vitest `quotePanels` NewsPanel cases.
+- **Related:** task-log 2026-07-29-quote-news-collapse.
+
 ## 2026-07-29 -- Approaching HOD alert + side quote panel viewport fit
 
 - **What:** New strategy 13 "Approaching HOD" fires once when price re-touches a stale session high after a 0.5% pullback (dip-reset re-arm). Side quote panel now fits the viewport without vertical stretch-scroll.

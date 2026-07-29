@@ -1,6 +1,6 @@
 ---
-description: graphify knowledge graph context
-alwaysApply: true
+description: Query the graphify knowledge graph for Nova decisions, strategy links, or vault-relationship questions instead of reading Obsidian notes
+alwaysApply: false
 ---
 
 This project has a graphify knowledge graph at `graphify-out/` built from `knowledge/obsidian/` (Nova decisions, strategies, courses index, memory router).

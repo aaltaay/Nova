@@ -1,7 +1,7 @@
 ---
 description: Enforce modular design in the backend — no logic dumped into main.py
 globs: backend/**/*.py
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Backend Modularity Policy

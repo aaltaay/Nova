@@ -1,6 +1,6 @@
 ---
 description: How to run Nova and what to do when the user says "run the app"
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Run Nova (local dev)

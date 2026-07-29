@@ -1,7 +1,7 @@
 ---
 description: Enforce modular design in the frontend — no logic dumped into App.tsx
 globs: frontend/src/**/*.{ts,tsx}
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Frontend Modularity Policy

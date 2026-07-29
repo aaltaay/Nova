@@ -1,6 +1,6 @@
 ---
 description: Rules for web verification and browser testing using local browser connection or agent-browser. Use when finishing tasks involving web deployments, frontend changes, or UI updates.
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Browser Testing & Web Verification Guidelines
