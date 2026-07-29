@@ -16,7 +16,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 ## Current position
 
 - **Active ops:** Phase B — Paper shadow (**`[~]` protocol ready / awaiting ≥5 live shadow days**)
-- **Feature track:** Phases **A, D, E, F, G, G2, G3, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**)
+- **Feature track:** Phases **A, D, E, F, G, G2, G3, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**); **K** short entry **defined, not started** (2026-07-28 user direction)
 - **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) + **close remediation (Phases 1–7)** — **CLOSED** · metrics `architecture/program-close-metrics.md`
 - **State:** G3 Nova Actions verified (Map-to-Nova-Action + browser); human market sessions remain the B/C blocker; structural maintenance + close remediation complete
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
@@ -26,7 +26,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
-- **Last updated:** 2026-07-20 (Paper Gateway connected on 4002 — Phase B shadow days remain)
+- **Last updated:** 2026-07-28 (Phase K short entry DEFINED in ledger; not started -- Phase B shadow days remain NEXT)
 - **Last verified commit (gap closure):** `378be02` (execution-ledger test isolation fix + full backend/frontend/docs backlog from 2026-07-19/20)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 - **Execution proof (user-directed, not Phase I unlock):** ADR 007 centralized path + synthetic p95 ack pass — see `docs/trading-execution-validation.md`. Does **not** complete Phase B or Phase I.
@@ -201,9 +201,63 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 
 - [x] [[Productization-Decision]] — **local-first single-operator**; SaaS/cloud Gateway deferred
 
-### Phases K–Z — `[~]` DEFERRED (parking lot documented)
+### Phase K — Short entry (short selling) — `[ ]` DEFINED / NOT STARTED (gated on Phase B)
 
-Conversational scans, Holly-like coach, L2 scrubber, SMS/email, multi-broker, cloud Gateway, community, native mobile, CI expansion, mission canvas, reserved U–Z. **Not scheduled** until explicitly promoted. Plan todo `phases-k-z` = deferred-documented.
+**User direction (2026-07-28):** add short selling to the roadmap -- shortable / hard-to-borrow visibility next to Level 2, safe short entry on paper first, live later.
+**Single source of truth:** this ledger entry is the SSOT for Phase K scope. (`nova_master_roadmap_a_z.plan.md` is absent from repo root and the Cursor plans folder; phase detail lives here until K0 writes ADR 009. Do not duplicate scope elsewhere.)
+
+**Sequencing:** defined now; **do not start** until Phase B has recorded shadow days (long-side operator comfort first). Live short stacks on the Phase I scorecard + K3 drills. `auto_live` remains NO-GO.
+
+#### K0 — Design + constitution (SOP before code) `[ ]`
+
+- [ ] ADR `architecture/decisions/009-short-entry.md`: gate shape, journal `side="short"` convention, borrow-data flow, new reason codes
+- [ ] Constitution/rule touch-up: anti-short invariant reworded -- SELL is risk-reducing *unless* an explicit short-entry gate approved it
+- [ ] Reason codes: `SHORT_DISABLED`, `SHORT_NOT_SHORTABLE`, `SHORT_STALE_BORROW` (every refusal must explain itself in the receipt)
+
+#### K1 — Shortability truth (validity) `[ ]`
+
+- [ ] Promote `ibkr/listing_flags.py` tick-236 into a first-class shortability module with states: `shortable_est` / `thin` / `htb_likely` / `unknown`
+- [ ] Fail-closed semantics: `unknown` is not shortable; stale reads refuse
+- [ ] Freshness TTL near order time (borrow availability moves intraday)
+- [ ] Honest labels: IBKR tick 236 is an estimate; exact fee / HTB status is confirmed in TWS; Alpaca `shortable`/`easy_to_borrow` is never presented as an IBKR locate (single-market-data-feed)
+
+#### K2 — Execution gate (safety, paper first) `[ ]`
+
+- [ ] `ExecutionCommand` explicit short opt-in (flag/field -- never inferred from side + position)
+- [ ] `execution/validate.py`: short SELL allowed only when flag set + shortability fresh-and-shortable + whole shares + spend gates + `IBKR_SHORT_ENABLED=true` (new env, default false)
+- [ ] Default path unchanged: no flag → `NO_POSITION` / `OVERSELL` exactly as today; `source=flatten` semantics unchanged
+- [ ] Short brackets: un-hardcode `EXECUTOR_ENTRY_SIDE_IBKR`; SELL entry with inverse stop/target; journal `side="short"`; Reports v2 R-multiples handle shorts
+- [ ] Buy-to-cover: position-aware validation accepts covering (BUY reducing a negative `pos_qty`); flatten covers shorts
+
+#### K3 — Paper proof, then live unlock `[ ]`
+
+- [ ] ≥3 clean paper short days (`confirm` then `auto_paper`): receipts capture borrow state at order time
+- [ ] Drills: kill-switch with an open short; flatten-from-short; reconnect staleness invalidation
+- [ ] Live criteria written + operator sign-off; live additionally requires `IBKR_LIVE_TRADING_CONFIRMED=true` on top of K2 gates
+- [ ] Phase I scorecard re-run including short metrics
+
+#### K4 — UI (shortability next to Level 2) `[ ]`
+
+- [ ] Stock View / quote right rail: Shortability chip beside L2 -- state + est. shares + staleness + tooltip ("IBKR estimate -- confirm fee in TWS"); green / amber / red / grey states
+- [ ] Order ticket: Long/Short direction toggle; Short disabled with a reason tooltip mirroring receipt reason codes
+- [ ] Deferred: scanner-level shortable filter
+
+**Testability (every sub-phase ships tests):**
+
+- pytest: short-gate matrix (flag off/on × shortability states × stale × fractional × cover-vs-oversell), inverse bracket legs, flatten-from-short, journal `side="short"`, shortability state mapping
+- Vitest: chip states, ticket toggle disabled-reasons
+- Playwright: chip visible next to L2; short toggle blocked with reason when `SHORT_DISABLED`
+
+**Safety invariants (must never regress):**
+
+- Short entry is explicit per-order opt-in + env gate; default OFF
+- Anti-short default path unchanged; fail closed on unknown / stale borrow
+- `auto_live` NO-GO; live short needs both second keys + K3 sign-off
+- Every refusal leaves a receipt with a reason code
+
+### Phases L–Z — `[~]` DEFERRED (parking lot documented)
+
+Conversational scans, Holly-like coach, L2 scrubber, SMS/email, multi-broker, cloud Gateway, community, native mobile, CI expansion, mission canvas, reserved U–Z. **Not scheduled** until explicitly promoted. (K promoted to a defined phase on 2026-07-28 -- see above.) Plan todo `phases-k-z` = deferred-documented.
 
 ## Maintenance track — Pattern-Driven Architecture (Phases 0–13)
 
@@ -243,6 +297,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-07-28 | Phase K short entry DEFINED (not started): K0 constitution+ADR 009, K1 shortability truth (tick 236, fail-closed), K2 execution gate (`IBKR_SHORT_ENABLED`, explicit opt-in, inverse brackets, buy-to-cover), K3 paper proof → live unlock, K4 shortability chip next to L2 + Long/Short ticket toggle; gated on Phase B; `auto_live` NO-GO. Ledger entry is the SSOT (master plan file absent). | (this commit) |
 | 2026-07-21 | Operator unlocked live spend: `IBKR_LIVE_TRADING_CONFIRMED=true` so Flatten/place work on live Gateway (`spend_status=live_armed`). Explicit request — not Phase I GO. `auto_live` still NO-GO. Phase B shadow days should still prefer paper Gateway when practicing. | `.env` only (not committed) |
 | 2026-07-21 | Bidirectional IBKR Gateway auto-detect: preferred port refused → heal to alternate (paper↔live); account kind must match mode; spend gates unchanged. Header shows online · LIVE when live Gateway is logged in. Phase B paper sessions remain operator discipline. | `5a48205` |
 | 2026-07-20 | Roadmap gap closure: root-caused + fixed a real execution-ledger test/prod path collision (tests were writing into the dev API's live ledger file, causing 18 order-dependent pytest failures and a latent idempotency/max-concurrent risk); shipped the entire 2026-07-19/20 backlog (IBKR gateway-mode switch + sticky self-heal + port diagnostics, global app dialogs, Trader/Stock View docks, 26 task-log entries) in 5 scoped commits; found and fixed a stale API process still serving the old `.env` (drifted to `live` during earlier flatten-bug debugging) — restarted on current code with `IBKR_GATEWAY_MODE=paper` restored, `IBKR_LIVE_TRADING_CONFIRMED` confirmed still `false`. Remaining Phase B/C/I gaps are human-only (market days, Cloudflare console). | `378be02` |

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Phase K short entry defined in roadmap (not started)
+
+- **What:** `Nova-Roadmap-Status.md` gains a fully specified Phase K -- short selling: K0 constitution + ADR 009, K1 shortability truth module (tick 236, fail-closed states), K2 execution gate (`IBKR_SHORT_ENABLED` env, explicit per-order opt-in, inverse short brackets, buy-to-cover/flatten-from-short), K3 paper proof → live unlock criteria, K4 Shortability chip next to Level 2 + Long/Short order-ticket toggle. Testability matrix and safety invariants included.
+- **Why:** User directive -- plan short entry with testability, validity, and safety for paper and live, plus UI shortable/HTB visibility beside L2.
+- **Files touched:** `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` only (definition; zero product code).
+- **How it works now:** The ledger entry is the single source of truth for Phase K scope (`nova_master_roadmap_a_z.plan.md` is absent; noted honestly in the entry). Phase K is `[ ]` DEFINED / NOT STARTED, gated on Phase B shadow days. Anti-short default in `execution/validate.py` is unchanged; `auto_live` stays NO-GO; live short will need `IBKR_SHORT_ENABLED` + `IBKR_LIVE_TRADING_CONFIRMED` + K3 sign-off.
+- **Verified by:** Roadmap/docs edit only -- no code to run. Phase definition cross-checked against real code anchors (`validate.py` anti-short, `EXECUTOR_ENTRY_SIDE_IBKR`, `listing_flags.py` tick 236).
+- **Follow-ups:** Start K0 only after Phase B records shadow days; recreate or retire the missing master plan file reference.
+- **Related:** Task log `2026-07-28-phase-k-short-entry-defined.md`; extends 2026-07-28 footer constitution commit.
+
 ## 2026-07-28 -- Follow-up ask footer added to coaching rule
 
 - **What:** AGENTS.md §5 Co-Pilot Coaching Footer now requires a second end-of-reply paragraph, **Follow-up ask:**, alongside **Better ask:**.
