@@ -75,3 +75,18 @@ def test_former_momo_priority_symbols_empty_when_no_config():
     hm.load_state()
     hm.get_state().configs.pop(HOD_MOMO_FORMER_MOMO_STRATEGY_ID, None)
     assert former.former_momo_priority_symbols() == []
+
+
+def test_admin_rejects_former_momo_list_over_sub_cap(monkeypatch):
+    import hod_momo_admin as admin
+    from constants import HOD_MOMO_FORMER_MOMO_MAX_SLOTS
+
+    _reset(monkeypatch)
+    too_many = [f"S{i:02d}" for i in range(HOD_MOMO_FORMER_MOMO_MAX_SLOTS + 1)]
+    result = admin.update_config(
+        HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
+        {"former_momo_list": too_many},
+    )
+    assert isinstance(result, dict)
+    assert "error" in result
+    assert str(HOD_MOMO_FORMER_MOMO_MAX_SLOTS) in result["error"]

@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Former Momo crowd-out starved live HOD admits
+
+- **Symptom:** On busy days a huge Former Momo list could occupy nearly all 40 HOD L1 slots, leaving live Gappers/Gainers with 0-1 admits (audit G7).
+- **Cause:** Priority admission had no sub-cap; admin allowed lists up to the full active-set capacity.
+- **Fix:** `HOD_MOMO_FORMER_MOMO_MAX_SLOTS = 20`; excess former uncovered as `former_momo_over_cap`; admin rejects >20.
+- **Keywords:** G7, Former Momo, crowd-out, former_momo_over_cap, active set capacity
+
 ## 2026-07-28 -- Enrichment inputs not archived (replay RVOL/float ceiling)
 
 - **Symptom:** Replay could not faithfully re-evaluate RVOL/float/52wk gates; those fields were computed live and discarded (audit G6).

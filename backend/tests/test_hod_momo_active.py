@@ -1,6 +1,6 @@
 """Tests for the ADR 008 deterministic HOD active-set admission.
 
-HOD eligibility is exactly: manual Former Momo first (guaranteed), then a
+HOD eligibility is exactly: manual Former Momo first (sub-capped), then a
 round-robin across ranked Gappers/Gainers/Afterhours. No seeds, no open-
 ticker priority, no Losers, no rotating "explore" tail.
 """
@@ -9,6 +9,7 @@ from __future__ import annotations
 import inspect
 
 import hod_momo_active as active
+from constants import HOD_MOMO_FORMER_MOMO_MAX_SLOTS
 
 
 def test_former_momo_always_admitted_first():
@@ -24,6 +25,26 @@ def test_former_momo_always_admitted_first():
     assert snap.reasons.get("LBGJ") == "former_momo"
     assert snap.active[0] == "LBGJ"
     assert snap.active[1] == "BIYA"
+
+
+def test_former_momo_sub_cap_leaves_room_for_live_movers():
+    """G7: 25 former + 30 live -> 20 former + 20 live; 5 former over-cap."""
+    active.clear_session_state()
+    former = [f"F{i:02d}" for i in range(25)]
+    gainers = [{"symbol": f"L{i:02d}", "change_pct": 80 - i} for i in range(30)]
+    snap = active.build_active_set(
+        gainer_rows=gainers,
+        priority_symbols=former,
+        capacity=40,
+    )
+    former_active = [s for s in snap.active if s.startswith("F")]
+    live_active = [s for s in snap.active if s.startswith("L")]
+    assert len(former_active) == HOD_MOMO_FORMER_MOMO_MAX_SLOTS
+    assert len(live_active) == 20
+    over = [s for s in former if s not in snap.active]
+    assert len(over) == 5
+    assert all(snap.reasons.get(s) == "former_momo_over_cap" for s in over)
+    assert set(over).issubset(set(snap.uncovered))
 
 
 def test_round_robin_across_gapper_gainer_afterhours():

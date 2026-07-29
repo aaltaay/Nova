@@ -6,6 +6,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 |------|-------|------------------|
 | 2026-07-28 | [G8: refresh HOD active set on roster commit](2026-07-28-g8-roster-commit-hod-refresh.md) | G8: refresh HOD active set on roster commit |
 | 2026-07-28 | [G9: persist session_high_raised_ts grace clock](2026-07-28-g9-persist-session-high-raised-ts.md) | G9: persist session_high_raised_ts grace clock |
+| 2026-07-28 | [G7: Former Momo sub-cap (20 slots)](2026-07-28-g7-former-momo-sub-cap.md) | Cap Former Momo at 20 so live movers keep half the HOD pool |
 | 2026-07-28 | [G6: archive enrichment snapshots for replay](2026-07-28-g6-enrichment-snapshots.md) | UPSERT enrichment_snapshots on snap change; replay prefers archive |
 | 2026-07-28 | [G8: refresh HOD active set on roster commit](2026-07-28-g8-roster-commit-hod-refresh.md) | Roster commit refreshes HOD pool and wakes L1 reconcile |
 | 2026-07-28 | [G9: persist session_high_raised_ts grace clock](2026-07-28-g9-persist-session-high-raised-ts.md) | Highs cache round-trips new-HOD grace clock across restart |

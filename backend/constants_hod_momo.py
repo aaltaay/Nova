@@ -83,6 +83,8 @@ SCANNER_INTEGRITY_CACHE_STALE_SEC = 120.0      # gappers/gainers/losers cache ag
 # Gappers/Gainers/Afterhours (see hod_momo_active.build_active_set). Live SLO:
 # quote/eval age p95 ≤2s, max ≤3s for every *active* symbol.
 HOD_MOMO_ACTIVE_SET_CAPACITY = 40
+# Former Momo is guaranteed at most half the pool; live movers get the rest.
+HOD_MOMO_FORMER_MOMO_MAX_SLOTS = 20
 HOD_MOMO_ACTIVE_HOT_PER_TICK = 10              # priority symbols every 1Hz tick
 # hod_momo_session_focus.py's sticky/alert-history priority is retired from
 # the active-set build path (REQ-HOD-005) but the module + constant below

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Former Momo sub-cap at 20 slots (G7)
+
+- **What:** `HOD_MOMO_FORMER_MOMO_MAX_SLOTS = 20`. `build_active_set` admits at most 20 Former Momo symbols; excess are uncovered with `former_momo_over_cap`. Admin rejects lists longer than 20.
+- **Why:** Capture audit G7 -- a bloated Former Momo list could fill all 40 HOD slots and starve live movers.
+- **Files touched:** `backend/constants_hod_momo.py`, `hod_momo_active.py`, `hod_momo_admin.py`, tests.
+- **How it works now:** Former Momo still first, but capped at half the pool; live round-robin fills the rest.
+- **Verified by:** `pytest tests/test_hod_momo_active.py tests/test_hod_momo_former.py` -- 16 passed.
+- **Related:** PROBLEM_LOG 2026-07-28 G7; audit G7.
+
 ## 2026-07-28 -- Archive enrichment snapshots for replay (G6)
 
 - **What:** New `enrichment_snapshots` table (UPSERT per symbol/session). `update_ticker_snapshot` writes when avg_volume/float/52wk change. Replay `prime_symbol` prefers archived enrichment over production-alert stand-ins.

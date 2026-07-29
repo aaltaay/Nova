@@ -3,9 +3,9 @@
 HOD eligibility is exactly the current-session displayed union: Gappers,
 Gainers, Afterhours, and the manually curated Former Momo list — nothing
 else. No volume seeds, no open-ticker priority, no Losers, no rotating
-"explore" tail. Admission order: Former Momo first (every registered symbol
-guaranteed a slot — see ``hod_momo_admin.update_config``'s capacity check),
-then a deterministic round-robin across ranked Gappers / Gainers /
+"explore" tail. Admission order: Former Momo first (capped at
+``HOD_MOMO_FORMER_MOMO_MAX_SLOTS`` so a bloated list cannot starve live
+movers), then a deterministic round-robin across ranked Gappers / Gainers /
 Afterhours queues so no single category can monopolize the active set.
 """
 from __future__ import annotations
@@ -17,6 +17,7 @@ from typing import Any, Iterable
 from constants import (
     HOD_MOMO_ACTIVE_HOT_PER_TICK,
     HOD_MOMO_ACTIVE_SET_CAPACITY,
+    HOD_MOMO_FORMER_MOMO_MAX_SLOTS,
     HOD_MOMO_INTEGRITY_ACTIVE_EVAL_MAX_SEC,
     HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC,
     HOD_MOMO_L1_SUBSCRIBE_FAIL_COOLDOWN_SEC,
@@ -182,9 +183,8 @@ def build_active_set(
     """Deterministic bounded admission — the ADR 008 HOD union.
 
     1. Manual Former Momo (``priority_symbols``) admitted first, in list
-       order. ``hod_momo_admin.update_config`` rejects a list longer than
-       ``capacity`` outright, so every registered symbol is guaranteed a
-       slot here — this function never has to silently drop one for space.
+       order, up to ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS``. Excess former symbols
+       are uncovered with reason ``former_momo_over_cap``.
     2. Remaining capacity fills via deterministic round-robin across ranked
        Gappers / Gainers / Afterhours queues (hottest-in-category first),
        so no single table can monopolize every slot.
@@ -192,9 +192,11 @@ def build_active_set(
     global _active_symbols, _uncovered_symbols
 
     cap = max(1, int(capacity))
+    former_cap = max(0, min(int(HOD_MOMO_FORMER_MOMO_MAX_SLOTS), cap))
     active: list[str] = []
     reasons: dict[str, str] = {}
     seen: set[str] = set()
+    former_taken = 0
 
     def _take(sym: str, reason: str) -> bool:
         s = (sym or "").strip().upper()
@@ -208,7 +210,14 @@ def build_active_set(
         return True
 
     for sym in _ordered_unique(priority_symbols or []):
-        _take(sym, "former_momo")
+        s = (sym or "").strip().upper()
+        if not s or s in seen:
+            continue
+        if former_taken >= former_cap:
+            reasons[s] = "former_momo_over_cap"
+            continue
+        if _take(s, "former_momo"):
+            former_taken += 1
 
     queues: dict[str, list[str]] = {
         "gapper": _ranked_symbols(gapper_rows),
