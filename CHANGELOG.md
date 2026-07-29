@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Constitution: Co-Pilot Coaching Footer (§5)
+
+- **What:** New behavioral rule in `gemini.md` + `AGENTS.md` §5: every substantive assistant reply must end with a short **Better ask:** coaching paragraph -- honest feedback on how the user's request could have been clearer/better, plus one thing worth teaching. Trivial exchanges are skipped at the agent's judgement.
+- **Why:** User directive -- they want direct judgment on their prompting so they become a better co-pilot, not flattery.
+- **Files touched:** `gemini.md`, `AGENTS.md` (§5 rule + §11 maintenance log rows).
+- **How it works now:** Substantive replies end with a `**Better ask:**` paragraph (max ~5 sentences, plain language). One-word pings, tiny confirmations, and pure status checks may skip it.
+- **Verified by:** Rule text present in both constitution mirrors; maintenance log rows added; no code changes.
+- **Related:** User request 2026-07-28; `CHANGELOG.md` § 2026-07-28 HOD scanner capture audit (preceding task in same session).
+
 ## 2026-07-28 -- HOD scanner capture audit + mock replay harness
 
 - **What:** New offline verification stack for the HOD Momo scanner: a committed fixture day (real 2026-07-17 tape/bars/alert log), a deterministic replay driver that feeds archived prints through the production engine with an injected clock, golden + parity tests, and a fake IBKR feed that drives the real `ticks.py` -> `scanner_l1` -> `ibkr_bridge` -> engine path. Plus a written capture audit at `docs/audits/2026-07-28-hod-scanner-capture-audit.md`. No product-code behavior changes.

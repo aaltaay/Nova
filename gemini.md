@@ -226,6 +226,7 @@ Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
 - **Git Commit & Push After Every Task**: After completing any task, the assistant MUST run `git add .`, `git commit -m "<descriptive message>"`, and `git push origin master`. No exceptions — the user should never have to remind this.
+- **Co-Pilot Coaching Footer**: At the very end of every substantive reply, the assistant MUST append a short paragraph labeled **Better ask:** (max ~5 sentences, plain language) giving honest feedback on how the user's request could have been asked better or clearer, and teaching one thing the user likely did not know. The goal is direct judgment that makes the user a better co-pilot, not flattery. Skip only for trivial exchanges (one-word pings, tiny confirmations, pure status checks) at the assistant's judgement -- never pad a small answer with forced criticism.
 
 ---
 
@@ -356,6 +357,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-28 | Co-Pilot Coaching Footer: §5 now requires a short end-of-reply **Better ask:** coaching note (how the request could have been asked better + one new thing learned); skip trivial exchanges at agent judgement. | User Directive + Cursor Agent |
 | 2026-07-23 | PROBLEM_LOG mandatory for every agent: strengthened `problem-log.mdc`; Lifecycle requires `problem_log=`; contract regex + subagentStop reminder; agent prompts + ops docs updated. | Cursor Agent |
 | 2026-07-18 | Task log archive: `knowledge/task-log/` + always-on `task-log.mdc`; Lifecycle `task_log=`; scaffold `tools/task_log_new.py`. Captures why/tradeoffs after every material job. | Cursor Agent |
 | 2026-07-16 | Webull Widget Parity Specialist (`widgets`): source-backed stock/day-trading capability map, continuity rule, and dedicated `agent-widgets` dashboard; selected implementations preserve manual controls and IBKR safety. | Cursor Agent |
