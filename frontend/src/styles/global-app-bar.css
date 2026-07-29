@@ -98,35 +98,49 @@
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  appearance: none;
-  border: 0;
-  background: transparent;
+  padding: 0.1rem 0;
   color: inherit;
   font: inherit;
-  padding: 0.2rem 0.25rem;
-  border-radius: var(--radius-control, 8px);
-  cursor: pointer;
-}
-
-.global-app-bar__cluster:hover,
-.global-app-bar__cluster[aria-expanded='true'] {
-  background: var(--hover-bg);
 }
 
 .global-app-bar__cluster--offline {
   cursor: default;
 }
 
-.global-app-bar__metric {
+.global-app-bar__metric,
+.global-app-bar__metric-btn {
   display: inline-flex;
   align-items: baseline;
   gap: 0.3rem;
 }
 
-.global-app-bar__metric label {
+.global-app-bar__metric-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0.2rem 0.3rem;
+  border-radius: var(--radius-control, 8px);
+  cursor: pointer;
+}
+
+.global-app-bar__metric-btn:hover,
+.global-app-bar__metric-btn[aria-expanded='true'] {
+  background: var(--hover-bg);
+}
+
+.global-app-bar__metric label,
+.global-app-bar__metric-btn label {
   color: var(--nova-text-muted);
   font-weight: 500;
   cursor: inherit;
+}
+
+.global-app-bar__caret {
+  margin-left: 0.1rem;
+  color: var(--nova-text-muted);
+  font-size: 0.65rem;
 }
 
 .global-app-bar__metric--netliq span:last-child {
@@ -234,6 +248,44 @@
 .global-app-bar__card-row span:last-child {
   color: var(--nova-text);
   font-variant-numeric: tabular-nums;
+}
+
+.global-app-bar__tone--filled {
+  color: #32d4a4;
+  font-weight: 650;
+}
+
+.global-app-bar__menu-divider {
+  height: 1px;
+  margin: 0.25rem 0;
+  background: var(--nova-border);
+}
+
+.global-app-bar__menu-action {
+  display: block;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text);
+  font: inherit;
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+
+.global-app-bar__menu-action:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.global-app-bar__menu-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.global-app-bar__working-menu {
+  right: 0;
+  min-width: 13.5rem;
 }
 
 @media (max-width: 1100px) {

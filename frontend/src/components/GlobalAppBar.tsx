@@ -19,13 +19,18 @@ import {
   GLOBAL_BAR_OFFLINE_CHIP,
   GLOBAL_BAR_OFFLINE_PLACEHOLDER,
   GLOBAL_BAR_WORKING_LABEL,
+  GLOBAL_BAR_WORKING_MENU_TITLE,
 } from '../constants';
+import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { formatMoney } from '../utils/formatMoney';
 import { GlobalAccountCard } from './GlobalAccountCard';
+import { GlobalWorkingMenu } from './GlobalWorkingMenu';
 import { dayPnlFromSummary, formatSignedMoney, pnlToneClass } from './globalBarMoney';
 import { NovaLogo } from './NovaLogo';
+
+type OpenMenu = 'account' | 'working' | null;
 
 export function GlobalAppBar() {
   const {
@@ -36,10 +41,12 @@ export function GlobalAppBar() {
     ibkrConnected,
     ibkrMode,
   } = useWorkspace();
-  const { summary, orders } = useIbkrAccountContext();
-  const [cardOpen, setCardOpen] = useState(false);
+  const { summary, orders, refresh } = useIbkrAccountContext();
+  const { orders: closedOrders } = useClosedOrders(ibkrConnected);
+  const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const clusterRef = useRef<HTMLDivElement>(null);
-  const cardId = useId();
+  const accountCardId = useId();
+  const workingMenuId = useId();
 
   const traderActive = traderTabs.length > 0;
   const canOpenTrader = traderActive || Boolean(selectedSymbol?.trim());
@@ -54,12 +61,12 @@ export function GlobalAppBar() {
         : GLOBAL_BAR_MODE_DISCONNECTED;
 
   useEffect(() => {
-    if (!cardOpen) return;
+    if (!openMenu) return;
     const onDoc = (e: MouseEvent) => {
-      if (!clusterRef.current?.contains(e.target as Node)) setCardOpen(false);
+      if (!clusterRef.current?.contains(e.target as Node)) setOpenMenu(null);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setCardOpen(false);
+      if (e.key === 'Escape') setOpenMenu(null);
     };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -67,7 +74,7 @@ export function GlobalAppBar() {
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [cardOpen]);
+  }, [openMenu]);
 
   return (
     <header className="global-app-bar" data-testid="global-app-bar">
@@ -120,35 +127,67 @@ export function GlobalAppBar() {
           data-testid="global-bar-account"
         >
           {live ? (
-            <button
-              type="button"
-              className="global-app-bar__cluster"
-              aria-expanded={cardOpen}
-              aria-controls={cardId}
-              data-testid="global-bar-cluster"
-              onClick={() => setCardOpen(v => !v)}
-              onMouseEnter={() => setCardOpen(true)}
-            >
-              <span className="global-app-bar__metric global-app-bar__metric--day">
+            <div className="global-app-bar__cluster" data-testid="global-bar-cluster">
+              <button
+                type="button"
+                className="global-app-bar__metric-btn global-app-bar__metric--day"
+                aria-expanded={openMenu === 'account'}
+                aria-controls={accountCardId}
+                data-testid="global-bar-account-trigger"
+                onClick={() =>
+                  setOpenMenu(m => (m === 'account' ? null : 'account'))
+                }
+                onMouseEnter={() => setOpenMenu('account')}
+              >
                 <label>{GLOBAL_BAR_DAY_PNL_LABEL}</label>
                 <span className={pnlToneClass(dayPnl)}>{formatSignedMoney(dayPnl)}</span>
-              </span>
+              </button>
               <span className="global-app-bar__sep" aria-hidden />
-              <span className="global-app-bar__metric global-app-bar__metric--netliq">
+              <button
+                type="button"
+                className="global-app-bar__metric-btn global-app-bar__metric--netliq"
+                aria-expanded={openMenu === 'account'}
+                onClick={() =>
+                  setOpenMenu(m => (m === 'account' ? null : 'account'))
+                }
+                onMouseEnter={() => setOpenMenu('account')}
+              >
                 <label>{GLOBAL_BAR_NET_LIQ_LABEL}</label>
                 <span>{formatMoney(summary?.NetLiquidation)}</span>
-              </span>
+              </button>
               <span className="global-app-bar__sep global-app-bar__sep--bp" aria-hidden />
-              <span className="global-app-bar__metric global-app-bar__metric--bp">
+              <button
+                type="button"
+                className="global-app-bar__metric-btn global-app-bar__metric--bp"
+                aria-expanded={openMenu === 'account'}
+                onClick={() =>
+                  setOpenMenu(m => (m === 'account' ? null : 'account'))
+                }
+                onMouseEnter={() => setOpenMenu('account')}
+              >
                 <label>{GLOBAL_BAR_BP_LABEL}</label>
                 <span>{formatMoney(summary?.BuyingPower)}</span>
-              </span>
+              </button>
               <span className="global-app-bar__sep" aria-hidden />
-              <span className="global-app-bar__metric">
+              <button
+                type="button"
+                className="global-app-bar__metric-btn global-app-bar__metric--working"
+                aria-expanded={openMenu === 'working'}
+                aria-controls={workingMenuId}
+                aria-label={GLOBAL_BAR_WORKING_MENU_TITLE}
+                data-testid="global-bar-working-trigger"
+                onClick={() =>
+                  setOpenMenu(m => (m === 'working' ? null : 'working'))
+                }
+                onMouseEnter={() => setOpenMenu('working')}
+              >
                 <label>{GLOBAL_BAR_WORKING_LABEL}</label>
                 <span className="global-app-bar__working-count">{workingCount}</span>
-              </span>
-            </button>
+                <span className="global-app-bar__caret" aria-hidden>
+                  {openMenu === 'working' ? '▴' : '▾'}
+                </span>
+              </button>
+            </div>
           ) : (
             <div
               className="global-app-bar__cluster global-app-bar__cluster--offline"
@@ -162,9 +201,21 @@ export function GlobalAppBar() {
               </span>
             </div>
           )}
-          {cardOpen && live && (
-            <div id={cardId}>
-              <GlobalAccountCard summary={summary} workingCount={workingCount} />
+          {openMenu === 'account' && live && (
+            <div id={accountCardId}>
+              <GlobalAccountCard summary={summary} />
+            </div>
+          )}
+          {openMenu === 'working' && live && (
+            <div id={workingMenuId}>
+              <GlobalWorkingMenu
+                workingOrders={orders}
+                closedOrders={closedOrders}
+                traderActive={traderActive}
+                closeTraderView={closeTraderView}
+                onRefresh={refresh}
+                onClose={() => setOpenMenu(null)}
+              />
             </div>
           )}
         </div>

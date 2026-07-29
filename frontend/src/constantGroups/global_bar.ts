@@ -29,7 +29,24 @@ export const GLOBAL_BAR_CARD_OPEN_PNL = 'Open P&L';
 export const GLOBAL_BAR_CARD_REALIZED_PNL = "Day's Realized P&L";
 export const GLOBAL_BAR_CARD_CASH = 'Total Cash';
 export const GLOBAL_BAR_CARD_GPV = 'Gross Position Value';
-export const GLOBAL_BAR_CARD_WORKING = 'Working Orders';
+
+export const GLOBAL_BAR_WORKING_MENU_TITLE = 'Working orders';
+export const GLOBAL_BAR_WORKING_ORDERS_LABEL = 'Working Orders';
+export const GLOBAL_BAR_FILLED_TODAY_LABEL = 'Filled Today';
+export const GLOBAL_BAR_CANCELED_FAILED_LABEL = 'Canceled & Failed';
+export const GLOBAL_BAR_CANCEL_ALL_STOCKS = 'Cancel All (Stocks)';
+export const GLOBAL_BAR_CANCEL_ALL_OPTIONS = 'Cancel All Single Options';
+export const GLOBAL_BAR_CANCEL_ALL_OPTIONS_TITLE =
+  'Options trading is not available in Nova yet';
+export const GLOBAL_BAR_VIEW_ALL_ORDERS = 'View All Orders';
+export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_TITLE = 'Cancel all working stock orders?';
+export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_BODY =
+  'This cancels every open stock order across all symbols. This cannot be undone.';
+export const GLOBAL_BAR_CANCEL_ALL_CONFIRM_LABEL = 'Cancel all';
+export const GLOBAL_BAR_CANCEL_ALL_EMPTY_TITLE = 'No working stock orders to cancel';
+
+/** CustomEvent name — DashboardPage opens the Account/Trading tab. */
+export const GLOBAL_BAR_OPEN_TRADING_TAB_EVENT = 'nova:open-trading-tab';
 
 export const GLOBAL_BAR_MODE_PAPER = 'Paper';
 export const GLOBAL_BAR_MODE_LIVE = 'Live';

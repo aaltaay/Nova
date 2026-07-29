@@ -44,6 +44,10 @@ Live `AppShell` always renders the global bar above `NovaOsAttentionStrip`, then
 - Optional masked account-id in the bar once backend exposes managed account ids.
 - Later: move search/settings/theme into the global row only if secondary headers are retired.
 
+## Follow-up (same day) -- Working special menu
+
+Shipped the Webull Working dropdown on the Working chip: counts (Working / Filled Today / Canceled & Failed), Cancel All (Stocks) with confirm + per-symbol cancel loop, Options row disabled (stocks-only), View All Orders → Account/Trading via pending latch (`openTradingTabNav`).
+
 ## Keywords
 
 global app bar, Webull header, NetLiquidation, BuyingPower, Day P&L, IbkrAccountProvider, AppShell, Scanner Trader nav

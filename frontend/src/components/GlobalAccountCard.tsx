@@ -1,10 +1,9 @@
-/** Hover/click detail card under the GlobalAppBar account cluster. */
+/** Hover/click detail card under the GlobalAppBar Net Liq / Day P&L cluster. */
 import {
   GLOBAL_BAR_CARD_CASH,
   GLOBAL_BAR_CARD_GPV,
   GLOBAL_BAR_CARD_OPEN_PNL,
   GLOBAL_BAR_CARD_REALIZED_PNL,
-  GLOBAL_BAR_CARD_WORKING,
   GLOBAL_BAR_OFFLINE_PLACEHOLDER,
 } from '../constants';
 import type { IbkrAccountSummary } from '../ibkr/types';
@@ -13,10 +12,9 @@ import { formatSignedMoney, pnlToneClass } from './globalBarMoney';
 
 interface Props {
   summary: IbkrAccountSummary | null;
-  workingCount: number;
 }
 
-export function GlobalAccountCard({ summary, workingCount }: Props) {
+export function GlobalAccountCard({ summary }: Props) {
   const openPnl = summary?.UnrealizedPnL ?? null;
   const realized = summary?.RealizedPnL ?? null;
 
@@ -45,10 +43,6 @@ export function GlobalAccountCard({ summary, workingCount }: Props) {
             ? formatMoney(summary.GrossPositionValue)
             : GLOBAL_BAR_OFFLINE_PLACEHOLDER}
         </span>
-      </div>
-      <div className="global-app-bar__card-row">
-        <span>{GLOBAL_BAR_CARD_WORKING}</span>
-        <span className="global-app-bar__working-count">{workingCount}</span>
       </div>
     </div>
   );

@@ -14,6 +14,8 @@ import { GatewayDisconnectedBanner } from '../ibkr/GatewayDisconnectedBanner';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { SettingsWorkspace } from '../components/SettingsWorkspace';
+import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
+import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSettingsForm } from '../hooks/useSettingsForm';
@@ -146,6 +148,25 @@ export function DashboardPage() {
     setTabOverridden(true);
     setActiveTab(tab);
   }
+
+  // Global Working menu "View All Orders" → Account / Trading tab.
+  useEffect(() => {
+    const openTrading = () => {
+      if (visibility.trading === false) return;
+      handleTabClick('trading');
+    };
+    // Latch survives Trader → Scanner remount (event may have fired while unmounted).
+    if (consumeOpenTradingTabRequest()) openTrading();
+    const onOpenTrading = () => {
+      consumeOpenTradingTabRequest();
+      openTrading();
+    };
+    window.addEventListener(GLOBAL_BAR_OPEN_TRADING_TAB_EVENT, onOpenTrading);
+    return () => {
+      window.removeEventListener(GLOBAL_BAR_OPEN_TRADING_TAB_EVENT, onOpenTrading);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
+  }, [visibility.trading]);
 
   return (
     <div className="nova-shell">

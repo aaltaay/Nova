@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Working menu on global app bar
+
+- **What:** Clicking **Working** in the global bar opens a Webull-style menu: Working / Filled Today / Canceled & Failed counts, Cancel All (Stocks), disabled Cancel All Options, View All Orders.
+- **Why:** User expected the Working chip to open the special orders menu, not the account P&L card.
+- **Files touched:** `GlobalWorkingMenu.tsx`, `GlobalAppBar.tsx`, `globalWorkingCounts.ts`, `openTradingTabNav.ts`, `DashboardPage.tsx`, `global_bar.ts`, `global-app-bar.css`.
+- **How it works now:** Working is its own trigger (caret). Cancel All loops per-symbol cancel after confirm. View All Orders latches `nova:open-trading-tab` so Account/Trading opens even when leaving Trader View. Options row stays disabled (stocks-only).
+- **Verified by:** Vitest + browser check (menu shows counts + actions).
+- **Related:** `knowledge/task-log/2026-07-29-global-app-bar.md`
+
 ## 2026-07-29 -- Global single-row app header (Webull-style)
 
 - **What:** Added a slim shared top bar (brand, Scanner/Trader nav, Day P&L / Net Liq / BP / Working, Paper|Live chip) mounted once for every live page. Existing `AppHeader` and `StockViewHeader` stay as secondary rows.
@@ -39,6 +48,15 @@ Entry template (copy and fill in):
 - **Verified by:** Vitest (`globalBarMoney`, `GlobalAppBar`, `IbkrAccountContext`) + `npm run build` + browser check on localhost:5173 (bar shows live Net Liq / Day P&L).
 - **Follow-ups:** Optional slim of duplicated Net Liq/BP in `StockViewHeader`; optional masked account-id label if backend ships managed account ids on `/api/ibkr/account`.
 - **Related:** `knowledge/task-log/2026-07-29-global-app-bar.md`
+
+## 2026-07-29 -- Shortcuts menu opens on hold Ctrl+Alt
+
+- **What:** Cheat-sheet default is **Ctrl+Alt** (hold = peek, release = close). Rebind "Listening…" accepts modifier-only chords including Ctrl+Alt (TanStack alone cannot). Works over focused inputs; storage epoch clears stale menu overrides.
+- **Why:** Bare Alt conflicted with daily Ctrl use and browser chrome; Listening rejected Ctrl+Alt because both recorders required a non-modifier key.
+- **Files touched:** `constantGroups/features.ts`, `hooks/hotkeyUtils.ts`, `bareModifierRecord.ts`, `shortcutsMenuState.ts`, `hotkeyStorage.ts`, `tanstackChord.ts`, e2e.
+- **How it works now:** Menu opens when the Ctrl+Alt chord completes (either order). `bareModifierRecord` tracks a modifier set and emits on final keyup (Alt, Ctrl+Alt, …). `eventMatchesModifierChord` matches multi-modifier bindings.
+- **Verified by:** Vitest + Playwright e2e for Ctrl+Alt.
+- **Related:** PROBLEM_LOG 2026-07-29 -- Listening rejected Ctrl+Alt modifier chord.
 
 ## 2026-07-29 -- Trader tabs (max 3) + L1-only Quote Panel
 

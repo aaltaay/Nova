@@ -22,6 +22,15 @@ vi.mock('../ibkr/IbkrAccountContext', () => ({
   useIbkrAccountContext: () => account,
 }));
 
+vi.mock('../closed_orders/useClosedOrders', () => ({
+  useClosedOrders: () => ({
+    orders: [],
+    loading: false,
+    error: null,
+    refresh: () => {},
+  }),
+}));
+
 function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue {
   return {
     selectedSymbol: 'AAPL',
@@ -121,6 +130,21 @@ describe('GlobalAppBar', () => {
     expect(bar!.textContent).toMatch(/Working/);
     expect(bar!.textContent).toMatch(/1/);
     expect(container.querySelector('[data-testid="global-bar-offline"]')).toBeNull();
+  });
+
+  it('opens the Working special menu from the Working trigger', () => {
+    renderBar();
+    const trigger = container.querySelector(
+      '[data-testid="global-bar-working-trigger"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      trigger.click();
+    });
+    const menu = container.querySelector('[data-testid="global-working-menu"]');
+    expect(menu).toBeTruthy();
+    expect(menu!.textContent).toMatch(/Cancel All \(Stocks\)/);
+    expect(menu!.textContent).toMatch(/View All Orders/);
+    expect(container.querySelector('[data-testid="global-bar-account-trigger"]')).toBeTruthy();
   });
 
   it('shows offline chip and placeholders when disconnected', () => {
