@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Constitution single-sourced to AGENTS.md (gemini.md becomes alias)
+
+- **What:** `AGENTS.md` is now the sole constitution text. `gemini.md` is a thin legacy alias whose only content is `@AGENTS.md`. The ADR 007 execution-command schema (which existed only in `gemini.md`) was ported into `AGENTS.md` §3 first; stale agent-table/canvas prose unique to `gemini.md` was superseded by the newer `AGENTS.md` versions and not ported. Pointer wording updated in `.cursor/rules/constitution.mdc` and `.cursor/rules/self-annealing.mdc`.
+- **Why:** User question -- why mirror two constitution files at all? The mirror had already failed in practice: the files drifted by ~48 lines (ADR 007 block + 2026-07-18 fleet rows missing from one side). Two copies guarantee drift; one source + an alias does not.
+- **Files touched:** `AGENTS.md` (title, ADR 007 port, embedded constitution copy, §9 pointer, §11 row), `gemini.md` (now an alias), `.cursor/rules/constitution.mdc`, `.cursor/rules/self-annealing.mdc`.
+- **How it works now:** Read/edit the constitution ONLY in `AGENTS.md`. Tools that open `gemini.md` (Gemini CLI, the constitution.mdc pointer) resolve the `@AGENTS.md` import to the same text -- the same mechanism `CLAUDE.md` already used. Any future "update the constitution" edit happens in one place.
+- **Verified by:** `git diff --no-index gemini.md AGENTS.md` showed the drift (19+/29-); post-change, `gemini.md` contains only the alias + import; no other repo references to `gemini.md` as the edit target remain except historical CHANGELOG/memory entries.
+- **Related:** `CHANGELOG.md` § 2026-07-28 Constitution: Co-Pilot Coaching Footer (same session).
+
 ## 2026-07-28 -- Constitution: Co-Pilot Coaching Footer (§5)
 
 - **What:** New behavioral rule in `gemini.md` + `AGENTS.md` §5: every substantive assistant reply must end with a short **Better ask:** coaching paragraph -- honest feedback on how the user's request could have been clearer/better, plus one thing worth teaching. Trivial exchanges are skipped at the agent's judgement.

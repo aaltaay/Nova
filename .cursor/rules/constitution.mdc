@@ -1,5 +1,5 @@
 ---
-description: Master governance rule — read gemini.md before any code change
+description: Master governance rule — read AGENTS.md before any code change
 globs: "**/*"
 alwaysApply: true
 ---
@@ -8,7 +8,7 @@ alwaysApply: true
 
 Before writing ANY code in this project, you MUST:
 
-1. **Read `gemini.md`** in the repo root. It is the project constitution.
+1. **Read `AGENTS.md`** in the repo root. It is the project constitution (single source of truth; `gemini.md` is a legacy alias that `@`-imports it).
 2. **Follow ALL rules** defined there. They override your default behavior.
 3. **Check `.cursor/rules/`** for fine-grained, glob-scoped policies.
 4. **Never violate modularity.** Do not add logic to `main.py` or `App.tsx`. Extract to modules.
@@ -18,7 +18,7 @@ Before writing ANY code in this project, you MUST:
 
 ## Rule Hierarchy (highest to lowest)
 
-1. `gemini.md` — Project Constitution (supreme law)
+1. `AGENTS.md` — Project Constitution (supreme law; `gemini.md` aliases it)
 2. `.cursor/rules/*.mdc` — Fine-grained enforcement policies
 3. Agent system prompts — Default AI behavior (overridden by above)
 

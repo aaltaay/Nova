@@ -1,4 +1,6 @@
-# 🏛️ GEMINI.MD — Project Constitution (Law)
+# 🏛️ AGENTS.md — Project Constitution (Law)
+
+> **Single source of truth.** `gemini.md` is a legacy alias that `@`-imports this file (consolidated 2026-07-28 after the two mirrors drifted).
 >
 > **Status:** ENFORCED — Active governance document
 > **Last Updated:** 2026-04-27
@@ -184,6 +186,30 @@ When touching ANY function currently in a monolith file:
 }
 ```
 
+### Execution command (ADR 007 — sole broker mutation entry)
+
+All buy/sell/cancel/replace requests enter `execution.service.execute` with:
+
+```json
+{
+  "operation": "place | bracket | cancel | replace",
+  "idempotency_key": "stable-client-or-ticket-key",
+  "source": "manual | approve | auto_paper | kill | cancel_working | flatten | benchmark",
+  "symbol": "AAPL",
+  "side": "BUY",
+  "qty": 1,
+  "order_type": "MKT",
+  "limit_price": null,
+  "stop_price": null,
+  "target_price": null,
+  "entry_price": null,
+  "order_id": null
+}
+```
+
+Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms`, `broker_ack_ms`, `filled_ms`).
+Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected.
+
 ---
 
 ## 4. 🔗 Integrations & Services
@@ -334,6 +360,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-28 | Constitution single-sourced: `AGENTS.md` is now the sole constitution text (the two mirrors had drifted -- ADR 007 execution-command schema and stale agent table existed only in `gemini.md`; ADR 007 block ported here). `gemini.md` reduced to a legacy alias that `@`-imports this file; `constitution.mdc` / `self-annealing.mdc` pointers updated. | User Directive + Cursor Agent |
 | 2026-07-28 | Co-Pilot Coaching Footer: §5 now requires a short end-of-reply **Better ask:** coaching note (how the request could have been asked better + one new thing learned); skip trivial exchanges at agent judgement. | User Directive + Cursor Agent |
 | 2026-07-23 | PROBLEM_LOG mandatory for every agent: strengthened `problem-log.mdc`; Lifecycle requires `problem_log=`; contract regex + subagentStop reminder; agent prompts + ops docs updated. | Cursor Agent |
 | 2026-07-18 | Phase G3: `hotkeys` specialist Owned; typed Nova Actions (cancel/exit/Ask±/Bid±); one dispatcher; Trading quick-bar; `auto_live` NO-GO. | Cursor Agent |
@@ -629,7 +656,7 @@ This applies at **task completion** — after the requested work is done and val
 
 ```markdown
 ---
-description: Master governance rule — read gemini.md before any code change
+description: Master governance rule — read AGENTS.md before any code change
 globs: "**/*"
 alwaysApply: true
 ---
@@ -638,7 +665,7 @@ alwaysApply: true
 
 Before writing ANY code in this project, you MUST:
 
-1. **Read `gemini.md`** in the repo root. It is the project constitution.
+1. **Read `AGENTS.md`** in the repo root. It is the project constitution (single source of truth; `gemini.md` is a legacy alias that `@`-imports it).
 2. **Follow ALL rules** defined there. They override your default behavior.
 3. **Check `.cursor/rules/`** for fine-grained, glob-scoped policies.
 4. **Never violate modularity.** Do not add logic to `main.py` or `App.tsx`. Extract to modules.
@@ -648,7 +675,7 @@ Before writing ANY code in this project, you MUST:
 
 ## Rule Hierarchy (highest to lowest)
 
-1. `gemini.md` — Project Constitution (supreme law)
+1. `AGENTS.md` — Project Constitution (supreme law; `gemini.md` aliases it)
 2. `.cursor/rules/*.mdc` — Fine-grained enforcement policies
 3. Agent system prompts — Default AI behavior (overridden by above)
 
@@ -949,7 +976,7 @@ When ANY error occurs during a task — build failure, runtime exception, incorr
 4. **Patch** — Fix the root cause in the CORRECT MODULE (not in `main.py` or `App.tsx`).
 5. **Test** — Verify the fix works (build, run, test, or manual verification).
 6. **Document** — Add entry to `PROBLEM_LOG.md` using the template (Symptom, Cause, Fix, Keywords).
-7. **Update SOP** — If the error reveals a gap in rules, update the relevant `.cursor/rules/*.mdc` file or `gemini.md`.
+7. **Update SOP** — If the error reveals a gap in rules, update the relevant `.cursor/rules/*.mdc` file or `AGENTS.md`.
 8. **Commit** — Ship the fix, the log entry, and any rule updates in the same commit.
 
 ## Anti-Patterns (NEVER do these)
