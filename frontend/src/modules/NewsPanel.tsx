@@ -23,6 +23,7 @@ export function NewsPanel({ detail, wrapped = false, includeImpact = true }: Pro
       data-news-empty={hasContent ? 'false' : 'true'}
     >
       <NewsHeadlineSection
+        key={detail.symbol}
         news={news}
         newsImpact={detail.news_impact}
         timeAgo={timeAgo}

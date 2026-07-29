@@ -68,7 +68,17 @@ export function HodMomoSettings({ config, onClose }: HodMomoSettingsProps) {
                 onReset={() => resetStrategy(selectedStrategy)}
               />
             ) : (
-              <div className="hod-cfg-hint">Loading strategy config…</div>
+              <div className="hod-cfg-hint">
+                No saved config for this strategy (API may be behind).
+                <button
+                  type="button"
+                  className="hod-cfg-btn"
+                  style={{ marginLeft: 8 }}
+                  onClick={() => { void resetStrategy(selectedStrategy); }}
+                >
+                  Load Defaults
+                </button>
+              </div>
             )}
             <div className="hod-settings-global-actions">
               <button

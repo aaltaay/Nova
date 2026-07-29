@@ -427,23 +427,22 @@
 }
 
 .hod-strategy-cell {
-  max-width: 14rem;
+  max-width: 16rem;
+  min-width: 10rem;
   vertical-align: middle;
 }
 
-/* Single fixed-height line — extra tags collapse into a "+N" chip so every
- * row stays exactly HOD_MOMO_ROW_HEIGHT_PX tall (required for the table's
- * fixed-window virtualization; see HodMomoAlertTable.tsx). */
+/* Stack strategy pills vertically when a ticker fired more than one.
+ * Row height grows with tag count (hodMomoRowLayout / variable virtualizer). */
 .hod-strategy-pills {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   flex-wrap: nowrap;
-  align-items: center;
-  gap: 0.15rem;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.12rem;
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  white-space: nowrap;
 }
 
 .hod-strategy-pill {
@@ -475,8 +474,7 @@
   cursor: help;
 }
 
-/* Fixed row height is enforced via inline style from HOD_MOMO_ROW_HEIGHT_PX
- * in HodMomoAlertRow.tsx — this is a CSS fallback only, keep it in sync. */
+/* Base single-strategy height; multi-strategy rows set inline height. */
 .hod-alert-row {
   height: 32px;
 }

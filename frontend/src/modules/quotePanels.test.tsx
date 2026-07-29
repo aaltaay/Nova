@@ -163,6 +163,68 @@ describe('NewsPanel', () => {
     expect(container.textContent).toContain('Apple beats estimates');
   });
 
+  it('starts collapsed under one News header with headline preview only', () => {
+    act(() => {
+      root.render(
+        <NewsPanel
+          detail={makeDetail({
+            news: [
+              {
+                headline: 'Apple beats estimates',
+                summary: '',
+                author: '',
+                source: 'Reuters',
+                url: 'https://example.com/n',
+                created_at: new Date().toISOString(),
+                symbols: ['AAPL'],
+                images: [],
+              },
+            ],
+            news_impact: {
+              symbol: 'AAPL',
+              impact_class: 'moved_price',
+              confidence: 0.9,
+              rule_version: 'rules-v1',
+              headline: 'Apple beats estimates',
+              summary: 'Bump appears due to news',
+              age_hours: 0.5,
+              age_bucket: 'fresh',
+              source_name: 'benzinga',
+              source_tier: 'major',
+              confirmed_by_official: false,
+              confirming_source_count: 1,
+              price_reaction: 'strong',
+              attention: 'elevated',
+              l2_reaction: 'insufficient_data',
+              sentiment: 'unavailable',
+              sentiment_score: null,
+              lexicon_sentiment: 'positive',
+              lexicon_polarity: 1,
+              reasons: ['fresh headline'],
+              factors: {},
+              ai_reasoning: null,
+              headline_url: null,
+            },
+          })}
+        />,
+      );
+    });
+    const section = container.querySelector('.cq-news-section');
+    expect(section?.getAttribute('data-news-expanded')).toBe('false');
+    expect(container.textContent).toContain('News');
+    expect(container.textContent).toContain('Apple beats estimates');
+    expect(container.querySelector('.news-impact-panel')).toBeNull();
+    expect(container.querySelector('.cq-news-list')).toBeNull();
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('.cq-news-toggle')?.click();
+    });
+    expect(section?.getAttribute('data-news-expanded')).toBe('true');
+    expect(container.querySelector('.news-impact-panel')).toBeTruthy();
+    expect(container.querySelector('.cq-news-list')).toBeTruthy();
+    expect(container.textContent).toContain('Bump appears due to news');
+  });
+
   it('can omit impact when parent places bump elsewhere', () => {
     act(() => {
       root.render(

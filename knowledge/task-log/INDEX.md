@@ -5,6 +5,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 | Date | Entry | One-line summary |
 |------|-------|------------------|
 | 2026-07-29 | [Trader tabs + slim Quote Panel](2026-07-29-trader-tabs-slim-quote-panel.md) | L1-only scrollable Quote Panel; Trader max 3 editable L2/T&S tabs |
+| 2026-07-29 | [HOD multi-strategy pills stack vertically](2026-07-29-hod-strategy-pills-stack.md) | Stack STRATEGY pills; variable-height virtualizer offsets |
+| 2026-07-29 | [HOD strategy config schema v9 repair](2026-07-29-hod-strategy-config-schema-v9.md) | Re-enable 2–9; add Approaching HOD #13; clarify price 0 = disabled |
 | 2026-07-29 | [Cursor rules token economy](2026-07-29-cursor-rules-token-economy.md) | Re-scope 8 rules + dedupe AGENTS §12; ~30k→~19k always-on tokens |
 | 2026-07-29 | [Quote panel News collapses to one header](2026-07-29-quote-news-collapse.md) | One News container; collapsed shows lead headline only |
 | 2026-07-29 | [Approaching HOD alert + side quote panel viewport fit](2026-07-29-approaching-hod-and-quote-panel-fit.md) | Approaching HOD alert + side quote panel viewport fit |

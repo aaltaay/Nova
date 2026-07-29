@@ -44,7 +44,8 @@ $logFile = Join-Path $logDir "daily-start.log"
 
 function Write-DailyLog {
     param([string]$Message, [string]$Level = "INFO")
-    $line = "{0:yyyy-MM-dd HH:mm:ss} [{1}] {2}" -f (Get-Date), $Level, $Message
+    # String concat (not -f): messages must not be format-strings; -f corrupted daily-start.log.
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') [$Level] $Message"
     Add-Content -Path $logFile -Value $line -Encoding UTF8
     $color = switch ($Level) {
         "WARN" { "Yellow" }

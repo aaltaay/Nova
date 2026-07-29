@@ -439,6 +439,93 @@ def test_schema_v7_leaves_deliberately_changed_window_alone(monkeypatch):
     assert state.configs[11].surge_window_min == 7
 
 
+def test_schema_v9_reenables_mass_disabled_and_adds_approach(monkeypatch):
+    """Post-v5 mass-disable + missing Approaching HOD + zeroed price band."""
+    state = hm.replace_state(HodMomoState())
+    monkeypatch.setattr(
+        persist._cache,
+        "load_hod_momo_configs",
+        lambda: {
+            "schema_version": 7,
+            "master": {},
+            "strategies": {
+                "1": {
+                    "strategy_id": 1,
+                    "name": "Former Momo Stock",
+                    "color": "#FF9100",
+                    "enabled": False,
+                },
+                "3": {
+                    "strategy_id": 3,
+                    "name": "Low Float - Med Rel Vol",
+                    "color": "#66BB6A",
+                    "enabled": False,
+                    "max_float": 10_000_000,
+                    "min_rvol": 2.0,
+                    "max_rvol": 4.9,
+                },
+                "6": {
+                    "strategy_id": 6,
+                    "name": "Medium Float - High Rel Vol - Price under $20",
+                    "color": "#B388FF",
+                    "enabled": False,
+                    "max_price": 0.0,
+                    "min_float": 10_000_000,
+                    "max_float": 50_000_000,
+                    "min_rvol": 5.0,
+                },
+                "9": {
+                    "strategy_id": 9,
+                    "name": "Medium Float - Med Rel Vol - Price $20+",
+                    "color": "#78909C",
+                    "enabled": False,
+                    "min_price": 0.0,
+                    "min_float": 10_000_000,
+                    "max_float": 50_000_000,
+                    "min_rvol": 2.0,
+                    "max_rvol": 4.9,
+                },
+                "10": {
+                    "strategy_id": 10,
+                    "name": "Squeeze Alert - Up 10% in 10min",
+                    "color": "#00E5FF",
+                    "enabled": True,
+                    "surge_pct": 10.0,
+                    "surge_window_min": 10,
+                    "requires_hod": True,
+                },
+                "11": {
+                    "strategy_id": 11,
+                    "name": "Squeeze Alert - Up 5% in 5min",
+                    "color": "#40C4FF",
+                    "enabled": True,
+                    "surge_pct": 5.0,
+                    "surge_window_min": 5,
+                    "requires_hod": True,
+                },
+            },
+        },
+    )
+    saved: list[dict] = []
+    monkeypatch.setattr(persist._cache, "save_hod_momo_configs", saved.append)
+    monkeypatch.setattr(persist._cache, "load_hod_momo_blocklist", lambda: [])
+    monkeypatch.setattr(persist._cache, "load_hod_momo_snapshot", lambda: ([], None))
+
+    persist.load_persisted_state()
+
+    assert state.configs[1].enabled is False
+    assert state.configs[3].enabled is True
+    assert state.configs[6].enabled is True
+    assert state.configs[6].max_price == 19.99
+    assert state.configs[9].enabled is True
+    assert state.configs[9].min_price == 20.0
+    assert 13 in state.configs
+    assert state.configs[13].enabled is True
+    assert state.configs[13].name == "Approaching HOD"
+    assert saved[-1]["schema_version"] == persist.HOD_MOMO_CONFIG_SCHEMA_VERSION
+    assert "13" in saved[-1]["strategies"]
+
+
 def test_load_configs_retires_positive_cooldown_mute(monkeypatch):
     """Anti-spam mute retired — persisted cooldown_sec>0 resets to 0 (burst only)."""
     from constants import HOD_MOMO_COOLDOWN_SEC

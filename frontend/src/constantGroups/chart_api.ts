@@ -216,10 +216,12 @@ export const HOD_MOMO_COLUMNS: [string, string][] = [
 
 /** Visible row window height for the compact HOD scanner. */
 export const HOD_MOMO_VISIBLE_ROWS = 30;
-/** Row height used to size the viewport — matches `.table-wrapper` Large density.
- * Every row must render at exactly this height (see `.hod-strategy-pills`) so
- * the fixed-window virtualizer's scrollTop -> row-index math stays correct. */
+/** Base row height for a single-strategy alert (matches Large table density).
+ * Multi-strategy rows grow by HOD_MOMO_STRATEGY_PILL_LINE_PX per extra stacked pill;
+ * the virtualizer uses per-row prefix offsets (see hodMomoRowLayout.ts). */
 export const HOD_MOMO_ROW_HEIGHT_PX = 32;
+/** Extra vertical space per additional stacked strategy pill (gap + pill line). */
+export const HOD_MOMO_STRATEGY_PILL_LINE_PX = 18;
 /** Sticky header row height included in the scroll viewport. */
 export const HOD_MOMO_HEADER_HEIGHT_PX = 30;
 /** Extra rows mounted above/below the visible viewport so fast scrolling
@@ -228,9 +230,8 @@ export const HOD_MOMO_HEADER_HEIGHT_PX = 30;
 export const HOD_MOMO_OVERSCAN_ROWS = 12;
 /** Batch live alert prepends so App does not re-render on every single fire. */
 export const HOD_MOMO_ALERT_BATCH_MS = 150;
-/** Max strategy pills shown inline per row before collapsing into a "+N" chip
- * (keeps every row a single fixed-height line for virtualization). */
-export const HOD_MOMO_MAX_INLINE_STRATEGY_PILLS = 2;
+/** Max stacked strategy pills per row before collapsing the rest into a "+N" chip. */
+export const HOD_MOMO_MAX_INLINE_STRATEGY_PILLS = 4;
 
 /** Empty-state copy when the HOD Momo WS is connected but no alerts have fired yet. */
 export const HOD_MOMO_EMPTY_WAITING =

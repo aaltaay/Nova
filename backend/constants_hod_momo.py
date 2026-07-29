@@ -193,7 +193,7 @@ HOD_MOMO_RVOL_5MIN_TOD_CUM_FRAC: tuple[tuple[int, float], ...] = (
 # so the scanner can fire while yfinance data loads progressively.
 HOD_MOMO_RVOL_WARMUP_GRACE_SEC = 300            # 5 min: skip RVOL gate while yfinance warms up
 # Bump when master/strategy defaults change so persisted configs migrate once.
-HOD_MOMO_CONFIG_SCHEMA_VERSION = 8
+HOD_MOMO_CONFIG_SCHEMA_VERSION = 9
 
 # Strategy names (canonical order 1–13)
 HOD_MOMO_STRATEGY_NAMES: dict[int, str] = {

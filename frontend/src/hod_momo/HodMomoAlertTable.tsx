@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react';
 import {
   HOD_MOMO_COLUMNS,
   HOD_MOMO_EMPTY_CONNECTING,
@@ -13,6 +13,10 @@ import {
 } from '../constants';
 import type { AlertObject } from './types';
 import { HodMomoAlertRow } from './HodMomoAlertRow';
+import {
+  buildHodMomoRowOffsets,
+  findRowAtOffset,
+} from './hodMomoRowLayout';
 
 export interface VisibleRowRange {
   startIndex: number;
@@ -23,12 +27,8 @@ export interface VisibleRowRange {
 }
 
 /**
- * Fixed-height windowing math: given how far the table is scrolled, returns
- * only the row indices that need to be mounted (visible viewport + overscan
- * buffer on each side), plus spacer heights that keep the scrollbar/scroll
- * position honest for the full `total` row count. Mounted row count never
- * exceeds `ceil(viewportHeight / rowHeight) + 2*overscan`, regardless of how
- * large `total` grows (thousands of alerts stay bounded DOM).
+ * Fixed-height windowing math (tests + uniform lists). Multi-strategy HOD
+ * rows use {@link computeVisibleRowRangeFromOffsets} instead.
  */
 export function computeVisibleRowRange(
   scrollTop: number,
@@ -49,6 +49,33 @@ export function computeVisibleRowRange(
     endIndex,
     topSpacerPx: startIndex * rowHeight,
     bottomSpacerPx: (total - endIndex) * rowHeight,
+  };
+}
+
+/**
+ * Variable-height windowing: `offsets` is a prefix-sum array of length
+ * `total + 1` (see buildHodMomoRowOffsets). Spacers use real pixel offsets so
+ * stacked strategy pills do not break scroll position.
+ */
+export function computeVisibleRowRangeFromOffsets(
+  scrollTop: number,
+  offsets: number[],
+  viewportHeight: number,
+  overscan: number,
+): VisibleRowRange {
+  const total = Math.max(0, offsets.length - 1);
+  if (total <= 0) {
+    return { startIndex: 0, endIndex: 0, topSpacerPx: 0, bottomSpacerPx: 0 };
+  }
+  const firstVisible = findRowAtOffset(offsets, scrollTop);
+  const lastVisible = findRowAtOffset(offsets, scrollTop + Math.max(0, viewportHeight) - 1);
+  const startIndex = Math.max(0, firstVisible - overscan);
+  const endIndex = Math.min(total, lastVisible + 1 + overscan);
+  return {
+    startIndex,
+    endIndex,
+    topSpacerPx: offsets[startIndex] ?? 0,
+    bottomSpacerPx: (offsets[total] ?? 0) - (offsets[endIndex] ?? 0),
   };
 }
 
@@ -158,10 +185,10 @@ export function HodMomoAlertTable({
   // Always reserve the full 30-row scanner window (like Gappers/Gainers height),
   // even when only a few alerts have fired — shrinking to 1 row made the table look broken.
   const viewportHeight = HOD_MOMO_VISIBLE_ROWS * HOD_MOMO_ROW_HEIGHT_PX;
-  const { startIndex, endIndex, topSpacerPx, bottomSpacerPx } = computeVisibleRowRange(
+  const rowOffsets = useMemo(() => buildHodMomoRowOffsets(alerts), [alerts]);
+  const { startIndex, endIndex, topSpacerPx, bottomSpacerPx } = computeVisibleRowRangeFromOffsets(
     scrollTop,
-    alerts.length,
-    HOD_MOMO_ROW_HEIGHT_PX,
+    rowOffsets,
     viewportHeight,
     HOD_MOMO_OVERSCAN_ROWS,
   );

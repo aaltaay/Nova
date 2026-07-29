@@ -9,7 +9,7 @@
 .PARAMETER Trigger
   Daily     - once per day at -AtTime (default 06:00)
   AtLogon   - when you sign into Windows
-  Both      - Daily + AtLogon (default; Start-NovaDaily is idempotent)
+  Both      - Daily + AtLogon + session unlock (default; wake from sleep)
 
 .PARAMETER AtTime
   Local clock time for the Daily trigger (default 06:00).
@@ -93,6 +93,23 @@ if ($Trigger -eq "Daily" -or $Trigger -eq "Both") {
 if ($Trigger -eq "AtLogon" -or $Trigger -eq "Both") {
     $triggers += New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 }
+# Session unlock = wake from sleep / lock screen (AtLogon alone misses this).
+# TASK_SESSION_UNLOCK = 8. Idempotent Start-NovaDaily skips healthy API/UI.
+if ($Trigger -eq "Both") {
+    $unlockUser = if ($env:USERDOMAIN) { "$env:USERDOMAIN\$env:USERNAME" } else { $env:USERNAME }
+    try {
+        $unlockClass = Get-CimClass -ClassName MSFT_TaskSessionStateChangeTrigger `
+            -Namespace Root/Microsoft/Windows/TaskScheduler
+        $triggers += New-CimInstance -CimClass $unlockClass -ClientOnly -Property @{
+            Enabled     = $true
+            StateChange = [uint32]8
+            UserId      = $unlockUser
+        }
+    } catch {
+        Write-Host "Could not add session-unlock trigger (wake-from-sleep): $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "Daily + AtLogon still registered." -ForegroundColor Yellow
+    }
+}
 
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
@@ -144,4 +161,4 @@ Write-Host "Remove later:" -ForegroundColor Cyan
 Write-Host "  .\scripts\Install-NovaDailyTask.ps1 -Unregister"
 Write-Host ""
 Write-Host "Note: if the PC is asleep at $AtTime, enable wake timers in Windows" -ForegroundColor Yellow
-Write-Host "power settings, or rely on the AtLogon trigger after you unlock." -ForegroundColor Yellow
+Write-Host "power settings. Default Both also runs on session unlock (wake/lock)." -ForegroundColor Yellow

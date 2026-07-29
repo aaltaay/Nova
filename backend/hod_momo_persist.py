@@ -139,6 +139,50 @@ def _migrate_loaded_configs(data: dict) -> bool:
             logger.info("HOD Momo: schema v8 — added Approaching HOD (strategy 13)")
             changed = True
         changed = True
+    if version < 9:
+        # Live 2026-07-29: schema was already ≥7 but strategies 2–9 were
+        # mass-disabled again after v5 ran, and Approaching HOD (#13) never
+        # persisted because a long-lived process stayed on pre-v8 code. Also
+        # restore price-band defaults when a $20+/under-$20 strategy has a
+        # zeroed price gate (0 = disabled would silently drop the band).
+        from constants import HOD_MOMO_APPROACH_STRATEGY_ID
+
+        if HOD_MOMO_APPROACH_STRATEGY_ID not in state.configs:
+            state.configs[HOD_MOMO_APPROACH_STRATEGY_ID] = build_default_config(
+                HOD_MOMO_APPROACH_STRATEGY_ID
+            )
+            logger.info("HOD Momo: schema v9 — added Approaching HOD (strategy 13)")
+            changed = True
+        for sid, cfg in list(state.configs.items()):
+            if cfg is None:
+                continue
+            if sid != HOD_MOMO_FORMER_MOMO_STRATEGY_ID and not cfg.enabled:
+                cfg.enabled = True
+                changed = True
+        price_band_repairs = {
+            4: ("min_price", 20.0),
+            6: ("max_price", 19.99),
+            8: ("min_price", 20.0),
+            9: ("min_price", 20.0),
+        }
+        for sid, (field, default_val) in price_band_repairs.items():
+            cfg = state.configs.get(sid)
+            if cfg is None:
+                continue
+            if float(getattr(cfg, field, 0.0) or 0.0) == 0.0:
+                setattr(cfg, field, default_val)
+                logger.info(
+                    "HOD Momo: schema v9 — restored strategy %d %s=%.2f",
+                    sid,
+                    field,
+                    default_val,
+                )
+                changed = True
+        logger.info(
+            "HOD Momo: schema v9 — re-enable non-Former strategies; "
+            "ensure Approaching HOD; repair price bands"
+        )
+        changed = True
     return changed
 
 

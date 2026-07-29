@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { computeVisibleRowRange } from './HodMomoAlertTable';
+import {
+  computeVisibleRowRange,
+  computeVisibleRowRangeFromOffsets,
+} from './HodMomoAlertTable';
 
 describe('computeVisibleRowRange', () => {
   it('mounts only the top viewport + overscan when scrolled to the top', () => {
@@ -49,5 +52,26 @@ describe('computeVisibleRowRange', () => {
     const small = computeVisibleRowRange(0, 100, 32, 960, 12);
     const huge = computeVisibleRowRange(0, 100_000, 32, 960, 12);
     expect(huge.endIndex - huge.startIndex).toBe(small.endIndex - small.startIndex);
+  });
+});
+
+describe('computeVisibleRowRangeFromOffsets', () => {
+  it('uses prefix offsets so taller multi-strategy rows shift later indices', () => {
+    // rows: 32, 50, 32  → offsets [0, 32, 82, 114]
+    const offsets = [0, 32, 82, 114];
+    const range = computeVisibleRowRangeFromOffsets(32, offsets, 64, 0);
+    expect(range.startIndex).toBe(1);
+    expect(range.endIndex).toBe(3);
+    expect(range.topSpacerPx).toBe(32);
+    expect(range.bottomSpacerPx).toBe(0);
+  });
+
+  it('returns an empty range for offsets of length 1 (no rows)', () => {
+    expect(computeVisibleRowRangeFromOffsets(0, [0], 960, 12)).toEqual({
+      startIndex: 0,
+      endIndex: 0,
+      topSpacerPx: 0,
+      bottomSpacerPx: 0,
+    });
   });
 });

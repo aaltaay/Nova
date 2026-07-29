@@ -8,7 +8,7 @@ import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
 import { HodMomoIntegrityBanner } from '../hod_momo/HodMomoIntegrityBanner';
 import { frozenTableLabel, type ScannerTableMeta } from '../hooks/useScannerPriceStream';
-import { SMALL_CAP_MAX, SMALL_CAP_MIN, SCANNER_COLUMNS } from '../constants';
+import { SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, SortConfig } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
@@ -61,7 +61,6 @@ export function ScannerTabPanels({
 }: Props) {
   const frozenLabel =
     activeTab !== 'catalysts' ? frozenTableLabel(tableMeta[activeTab]) : null;
-  const [gapperSubTab, setGapperSubTab] = useState<'all' | 'small_cap'>('all');
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [loserSort, setLoserSort] = useState<SortConfig>({ key: '', dir: null });
@@ -73,24 +72,9 @@ export function ScannerTabPanels({
   const losersWithWatchlist = useWatchlistOverlay(losers, watchlistEntries);
   const afterhoursWithWatchlist = useWatchlistOverlay(afterhours, watchlistEntries);
 
-  const smallCapGappers = useMemo(
-    () =>
-      gappersWithWatchlist.filter(
-        g =>
-          g.market_cap != null &&
-          g.market_cap >= SMALL_CAP_MIN &&
-          g.market_cap < SMALL_CAP_MAX,
-      ),
-    [gappersWithWatchlist],
-  );
-
   const sortedGappers = useMemo(
     () => sortedArray(gappersWithWatchlist, gapperSort),
     [gappersWithWatchlist, gapperSort],
-  );
-  const sortedSmallCapGappers = useMemo(
-    () => sortedArray(smallCapGappers, gapperSort),
-    [smallCapGappers, gapperSort],
   );
   const sortedGainers = useMemo(
     () => sortedArray(gainersWithWatchlist, gainerSort),
@@ -112,50 +96,26 @@ export function ScannerTabPanels({
   let panel: ReactNode = null;
 
   if (activeTab === 'gappers') {
-    panel = (
-      <>
-        <div className="sub-tab-bar">
-          <button
-            type="button"
-            className={`sub-tab ${gapperSubTab === 'all' ? 'active' : ''}`}
-            onClick={() => setGapperSubTab('all')}
-          >
-            All Gaps
-            {gappers.length > 0 && <span className="tab-count">{gappers.length}</span>}
-          </button>
-          <button
-            type="button"
-            className={`sub-tab ${gapperSubTab === 'small_cap' ? 'active' : ''}`}
-            onClick={() => setGapperSubTab('small_cap')}
-          >
-            Small Cap
-            {smallCapGappers.length > 0 && (
-              <span className="tab-count">{smallCapGappers.length}</span>
-            )}
-          </button>
-        </div>
-        {(gapperSubTab === 'all' ? gappers : smallCapGappers).length > 0 ? (
-          <ScannerTable
-            columns={SCANNER_COLUMNS}
-            data={gapperSubTab === 'all' ? sortedGappers : sortedSmallCapGappers}
-            sortState={gapperSort}
-            onSort={key => toggleSort(gapperSort, setGapperSort, key)}
-            selectedSymbol={selectedSymbol}
-            onSelect={onSelect}
-            onOpenTrading={onOpenTrading}
-            pricesStale={pricesStale}
-            flashSymbols={flashSymbols}
-            rowQuoteTs={rowQuoteTs}
-            nowSec={nowSec}
-          />
-        ) : (
-          <EmptyState
-            health={health}
-            context={mode === 'market' ? 'premarket' : mode}
-            discoveryProvider={discoveryProvider}
-          />
-        )}
-      </>
+    panel = gappers.length > 0 ? (
+      <ScannerTable
+        columns={SCANNER_COLUMNS}
+        data={sortedGappers}
+        sortState={gapperSort}
+        onSort={key => toggleSort(gapperSort, setGapperSort, key)}
+        selectedSymbol={selectedSymbol}
+        onSelect={onSelect}
+        onOpenTrading={onOpenTrading}
+        pricesStale={pricesStale}
+        flashSymbols={flashSymbols}
+        rowQuoteTs={rowQuoteTs}
+        nowSec={nowSec}
+      />
+    ) : (
+      <EmptyState
+        health={health}
+        context={mode === 'market' ? 'premarket' : mode}
+        discoveryProvider={discoveryProvider}
+      />
     );
   } else if (activeTab === 'catalysts') {
     panel = (

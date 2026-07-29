@@ -30,6 +30,20 @@ Entry template (copy and fill in):
 - **Fix:** Quote Panel is L1-only (removed `DepthTapePanel`); `.side-panel-body` uses `overflow-y: auto`; chart max-height raised. L2/T&S move to tabbed Trader View (max 3 tabs).
 - **Keywords:** Quote Panel, scroll, overflow hidden, side-panel-body, Level 2, Time & Sales, Trader tabs, IBKR_MAX_DEPTH_SYMBOLS
 
+## 2026-07-29 -- HOD multi-strategy pills clipped horizontally in STRATEGY column
+
+- **Symptom:** Tickers that fired more than one strategy showed two pills on one line; the second label was cut off mid-text at the column edge (e.g. "Squeeze Alert - Up…").
+- **Cause:** `.hod-strategy-pills` used `flex-direction: row` with `overflow: hidden` and a fixed 32px row height for virtualization -- two long strategy names cannot fit side-by-side in the STRATEGY column.
+- **Fix:** Stack pills vertically (`flex-direction: column`); grow row height per extra pill; switch the HOD table virtualizer to prefix-offset windowing (`hodMomoRowLayout.ts`).
+- **Keywords:** HOD Momo, strategy pills, clip, overflow, flex-direction column, virtualization, multi-strategy
+
+## 2026-07-29 -- HOD strategies 2–9 mass-disabled + Approaching HOD (#13) missing from live config
+
+- **Symptom:** HOD Settings showed price filters as `0` for several strategies; float strategies (3/6/9) appeared inert; selecting Approaching HOD (#13) never loaded a config (API returned only strategies 1–12). Live `hod-momo-config.json` had `schema_version: 7`, strategies 2–9 `enabled: false`, and no strategy 13 -- while Squeeze #10/#11 still fired.
+- **Cause:** (1) Price `0` is by design for strategies without a price band (Squeeze, Low Float Med Rel Vol, Approaching HOD) -- not a load bug; #6/#9 already had `max_price=19.99` / `min_price=20`. (2) After schema v5 re-enabled non-Former strategies once, a later mass-disable left only Squeeze (+ Running Up) on; v5 cannot re-run once schema ≥5. (3) Approaching HOD (schema v8 / `ID_MAX=13`) never landed because a long-lived API process stayed on pre-v8 code and kept rewriting disk without #13.
+- **Fix:** Bumped `HOD_MOMO_CONFIG_SCHEMA_VERSION` to 9. Migration re-enables non-Former strategies, ensures #13 exists, restores zeroed price bands on strategies 4/6/8/9. `get_configs()` fills any missing id from defaults and persists. Settings UI offers Load Defaults instead of infinite "Loading…". Restarted API so migration applied (disk schema 9).
+- **Keywords:** HOD Momo, schema v9, mass-disable, Approaching HOD, strategy 13, min_price, max_price, enabled false, hod-momo-config.json
+
 ## 2026-07-29 -- API_WEDGED after cold IBKR READY (event loop starved by zombie snapshot reqMktData + dual discovery)
 
 - **Symptom:** `/api/health` + `/livez` timed out for minutes right after an IBKR reconnect while the process stayed alive; `loop_lag` climbed 3s -> 21s -> 32s -> 65s. Repeated `IBKR: snapshot timeout (15s) for N symbols` + `run_coro timed out (cancel accepted)`. App unusable each morning after Gateway login.

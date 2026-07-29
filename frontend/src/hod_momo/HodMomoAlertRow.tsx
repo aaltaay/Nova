@@ -3,12 +3,11 @@ import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import {
   HOD_MOMO_COLUMNS,
-  HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
   HOD_MOMO_MAX_INLINE_STRATEGY_PILLS,
-  HOD_MOMO_ROW_HEIGHT_PX,
   STRATEGY_META_MAP,
 } from '../constants';
 import type { AlertObject } from './types';
+import { hodMomoAlertRowHeightPx, visibleStrategyTags } from './hodMomoRowLayout';
 
 function fmtClock(iso: string, createdTs?: number): string {
   let d: Date | null = null;
@@ -93,11 +92,8 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   const consolidatedTitle = isConsolidated
     ? `${alert.consolidation_count} in ${spanSec}sec`
     : undefined;
-  const strategyTags = (
-    alert.strategies?.length
-      ? alert.strategies
-      : [{ id: alert.strategy_id, name: alert.strategy_name }]
-  ).filter(tag => tag.id !== HOD_MOMO_FORMER_MOMO_STRATEGY_ID);
+  const strategyTags = visibleStrategyTags(alert);
+  const rowHeightPx = hodMomoAlertRowHeightPx(alert);
 
   return (
     <SelectableTableRow
@@ -106,7 +102,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
       className="hod-alert-row"
-      style={{ height: HOD_MOMO_ROW_HEIGHT_PX }}
+      style={{ height: rowHeightPx }}
     >
       {HOD_MOMO_COLUMNS.map(([key]) => {
         switch (key) {

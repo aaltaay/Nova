@@ -34,13 +34,22 @@ from hod_momo_models import (
 
 
 def get_configs() -> dict:
+    """Return master + every strategy id 1..MAX (fill missing from defaults)."""
     state = _state.get_state()
+    filled = False
+    strategies: dict[str, dict] = {}
+    for sid in range(1, HOD_MOMO_STRATEGY_ID_MAX + 1):
+        config = state.configs.get(sid)
+        if config is None:
+            config = build_default_config(sid)
+            state.configs[sid] = config
+            filled = True
+        strategies[str(sid)] = config_to_dict(config)
+    if filled:
+        _persist.save_configs()
     return {
         "master": master_to_dict(state.master),
-        "strategies": {
-            str(sid): config_to_dict(config)
-            for sid, config in state.configs.items()
-        },
+        "strategies": strategies,
     }
 
 

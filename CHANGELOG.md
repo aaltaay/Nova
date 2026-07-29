@@ -40,6 +40,25 @@ Entry template (copy and fill in):
 - **Follow-ups:** Browser pass on live Quote Panel scroll + 3-tab depth; optional raise of `TRADER_MAX_TABS` if IBKR depth entitlement grows.
 - **Related:** PROBLEM_LOG 2026-07-29 -- Quote Panel overflow clipped; task-log `2026-07-29-trader-tabs-slim-quote-panel.md`.
 
+## 2026-07-29 -- HOD strategy pills stack vertically on multi-strategy rows
+
+- **What:** Collapsed HOD alert rows with multiple strategies now stack strategy pills under each other (taller row) instead of a horizontal row that clips mid-label. Virtualizer uses per-row prefix offsets.
+- **Why:** Two Squeeze tags side-by-side were cut off at the strategy column edge.
+- **Files touched:** `frontend/src/hod_momo/hodMomo.css`, `HodMomoAlertRow.tsx`, `HodMomoAlertTable.tsx`, `hodMomoRowLayout.ts`, `constantGroups/chart_api.ts`.
+- **How it works now:** `.hod-strategy-pills` is `flex-direction: column`. Row height = base 32px + 18px per extra stacked pill (up to 4, then "+N"). Scroll windowing uses `buildHodMomoRowOffsets` / `computeVisibleRowRangeFromOffsets`.
+- **Verified by:** Vitest `hodMomoRowLayout.test.ts`, `HodMomoAlertTable.test.ts`, `HodMomoAlertTable.render.test.tsx`.
+- **Related:** PROBLEM_LOG 2026-07-29 -- HOD multi-strategy pills clipped horizontally.
+
+## 2026-07-29 -- HOD Momo schema v9: re-enable strategies + Approaching HOD
+
+- **What:** Schema v9 migrates persisted HOD config: re-enables non-Former strategies after a post-v5 mass-disable, adds missing Approaching HOD (#13), restores zeroed price bands on $20+/under-$20 strategies. `get_configs()` always returns ids 1..13 (fills defaults). Settings UI offers Load Defaults when a strategy is missing from the API.
+- **Why:** Live config had only Squeeze/Running Up enabled; #13 was absent from the long-lived API process; zeros on Squeeze looked like a bug but were intentional (0 = disabled).
+- **Files touched:** `backend/constants_hod_momo.py`, `backend/hod_momo_persist.py`, `backend/hod_momo_admin.py`, `frontend/src/hod_momo/HodMomoSettings.tsx`, `backend/tests/test_hod_momo_persist.py`.
+- **How it works now:** On load, schema below 9 repairs enable flags + price bands + strategy 13. Price `0` still means gate off -- Squeeze #10/#11 and Low Float Med Rel Vol #3 correctly show Min/Max Price 0; #6 uses Max 19.99; #4/#8/#9 use Min 20.
+- **Verified by:** `test_schema_v9_reenables_mass_disabled_and_adds_approach`; live `GET /api/hod-momo/config` after API restart (disk schema 9, strategies 2–13 enabled, #13 present).
+- **Follow-ups:** Refresh the HOD Settings drawer (or reload the UI) to pick up the repaired config.
+- **Related:** PROBLEM_LOG 2026-07-29 -- HOD strategy mass-disable + missing Approaching HOD.
+
 ## 2026-07-29 -- Cursor rules token economy (re-scope + AGENTS dedupe)
 
 - **What:** Cut per-request always-on context from ~119 KB (~30k tokens) to ~74 KB (~19k tokens). Removed stale full-rule embeds from `AGENTS.md` §12; re-scoped 8 rules from `alwaysApply: true` to glob or agent-requested; added context-economy bullets to `constitution.mdc`. Explicitly rejected creating `.cursorrules`.
