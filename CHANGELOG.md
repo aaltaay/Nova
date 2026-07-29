@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Archive enrichment snapshots for replay (G6)
+
+- **What:** New `enrichment_snapshots` table (UPSERT per symbol/session). `update_ticker_snapshot` writes when avg_volume/float/52wk change. Replay `prime_symbol` prefers archived enrichment over production-alert stand-ins.
+- **Why:** Capture audit G6 -- enrichment inputs were live-only, capping replay fidelity for RVOL/float gates.
+- **Files touched:** `backend/archive/db.py`, `capture.py`, `constants_archive_news.py`, `hod_momo_market.py`, `hod_momo_replay.py`, tests.
+- **How it works now:** Change-only non-fatal UPSERT into archive.db; load helper for replay priming.
+- **Verified by:** `pytest tests/test_archive_capture.py tests/test_hod_momo_enrichment.py` -- 12 passed.
+- **Related:** PROBLEM_LOG 2026-07-28 G6; audit G6.
+
 ## 2026-07-28 -- Refresh HOD active set on roster commit (G8)
 
 - **What:** After a gappers/gainers/afterhours roster write, Nova rebuilds the HOD active set and wakes `scanner_l1.reconcile_loop` via `request_reconcile()` instead of waiting for the next sleep.

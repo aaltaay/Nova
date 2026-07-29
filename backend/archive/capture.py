@@ -29,6 +29,7 @@ from constants import (
     ARCHIVE_COUNTER_BARS_1M,
     ARCHIVE_COUNTER_GAPS,
     ARCHIVE_COUNTER_INCOMPLETE_WINDOWS,
+    ARCHIVE_COUNTER_ENRICHMENT_SNAPSHOTS,
     ARCHIVE_COUNTER_L1_TICKS,
     ARCHIVE_COUNTER_L2_SNAPSHOTS,
     ARCHIVE_COUNTER_TAPE_RECEIVED,
@@ -213,6 +214,76 @@ def record_l1_tick(
     finally:
         conn.close()
     bump_counter(ARCHIVE_COUNTER_L1_TICKS)
+
+
+def record_enrichment_snapshot(
+    *,
+    symbol: str,
+    ts: float,
+    avg_volume: float | None = None,
+    float_shares: float | None = None,
+    fifty_two_week_high: float | None = None,
+    rvol_source: str | None = None,
+    session_date: str | None = None,
+) -> None:
+    """UPSERT one per-symbol enrichment snapshot for the session (G6)."""
+    symbol = symbol.upper()
+    day = session_date or session_date_for_ts(ts)
+    conn = archive_db.get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO enrichment_snapshots
+                (symbol, session_date, ts, avg_volume, float_shares,
+                 fifty_two_week_high, rvol_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(symbol, session_date) DO UPDATE SET
+                ts = excluded.ts,
+                avg_volume = excluded.avg_volume,
+                float_shares = excluded.float_shares,
+                fifty_two_week_high = excluded.fifty_two_week_high,
+                rvol_source = excluded.rvol_source
+            """,
+            (
+                symbol,
+                day,
+                float(ts),
+                float(avg_volume) if avg_volume is not None else None,
+                float(float_shares) if float_shares is not None else None,
+                float(fifty_two_week_high) if fifty_two_week_high is not None else None,
+                rvol_source,
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    bump_counter(ARCHIVE_COUNTER_ENRICHMENT_SNAPSHOTS)
+
+
+def load_enrichment_snapshot(
+    symbol: str,
+    *,
+    session_date: str | None = None,
+) -> dict[str, Any] | None:
+    """Return the latest enrichment snapshot row for symbol/session, if any."""
+    symbol = symbol.upper()
+    day = session_date or session_date_for_ts()
+    conn = archive_db.get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT symbol, session_date, ts, avg_volume, float_shares,
+                   fifty_two_week_high, rvol_source
+            FROM enrichment_snapshots
+            WHERE symbol = ? AND session_date = ?
+            """,
+            (symbol, day),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    return dict(row)
 
 
 def record_gap(

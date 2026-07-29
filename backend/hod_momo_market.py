@@ -1,6 +1,7 @@
 """HOD Momo market snapshots, surge buffers, and fundamentals queue."""
 from __future__ import annotations
 
+import logging
 import time
 from collections import deque
 from typing import Any
@@ -164,6 +165,9 @@ def update_ticker_snapshot(
     rvol_5min: float | None = None,
 ) -> None:
     snap = _state.get_state().ticker_snaps.setdefault(symbol, TickerSnap())
+    prev_avg = snap.avg_volume
+    prev_float = snap.float_shares
+    prev_52 = snap.fifty_two_week_high
     snap.price = price
     if rvol is not None:
         snap.rvol = rvol
@@ -190,6 +194,33 @@ def update_ticker_snapshot(
             snap.avg_volume,
         )
     snap.last_enriched = time.monotonic()
+    enrichment_changed = (
+        snap.avg_volume != prev_avg
+        or snap.float_shares != prev_float
+        or snap.fifty_two_week_high != prev_52
+    )
+    if enrichment_changed and (
+        snap.avg_volume is not None
+        or snap.float_shares is not None
+        or snap.fifty_two_week_high is not None
+    ):
+        try:
+            from archive.capture import record_enrichment_snapshot
+
+            record_enrichment_snapshot(
+                symbol=symbol,
+                ts=time.time(),
+                avg_volume=snap.avg_volume,
+                float_shares=snap.float_shares,
+                fifty_two_week_high=snap.fifty_two_week_high,
+                rvol_source=snap.rvol_source,
+            )
+        except Exception:
+            logging.getLogger(__name__).debug(
+                "archive.record_enrichment_snapshot failed for %s",
+                symbol,
+                exc_info=True,
+            )
 
 
 def get_ticker_snapshot(symbol: str) -> TickerSnap | None:

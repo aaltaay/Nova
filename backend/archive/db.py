@@ -82,6 +82,20 @@ CREATE TABLE IF NOT EXISTS l1_ticks (
 CREATE INDEX IF NOT EXISTS idx_l1_ticks_date ON l1_ticks(session_date);
 CREATE INDEX IF NOT EXISTS idx_l1_ticks_symbol_ts ON l1_ticks(symbol, ts);
 
+CREATE TABLE IF NOT EXISTS enrichment_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    session_date TEXT NOT NULL,
+    ts REAL NOT NULL,
+    avg_volume REAL,
+    float_shares REAL,
+    fifty_two_week_high REAL,
+    rvol_source TEXT,
+    UNIQUE(symbol, session_date)
+);
+CREATE INDEX IF NOT EXISTS idx_enrichment_snapshots_date
+    ON enrichment_snapshots(session_date);
+
 CREATE TABLE IF NOT EXISTS capture_gaps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     stream TEXT NOT NULL,
@@ -142,8 +156,8 @@ def init_db() -> None:
 def table_row_count(conn: sqlite3.Connection, table: str, session_date: str | None = None) -> int:
     """Count rows in a known archive table, optionally filtered by session_date."""
     allowed = {
-        "bars_1m", "bars_1d", "tape_ibkr", "l1_ticks", "capture_gaps",
-        "incomplete_windows", "integrity_counters",
+        "bars_1m", "bars_1d", "tape_ibkr", "l1_ticks", "enrichment_snapshots",
+        "capture_gaps", "incomplete_windows", "integrity_counters",
     }
     if table not in allowed:
         raise ValueError(f"unknown archive table: {table}")

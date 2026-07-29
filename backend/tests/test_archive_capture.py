@@ -13,6 +13,7 @@ import archive.capture as capture
 import archive.db as archive_db
 from constants import (
     ARCHIVE_COUNTER_BARS_1M,
+    ARCHIVE_COUNTER_ENRICHMENT_SNAPSHOTS,
     ARCHIVE_COUNTER_GAPS,
     ARCHIVE_COUNTER_INCOMPLETE_WINDOWS,
     ARCHIVE_COUNTER_L1_TICKS,
@@ -142,6 +143,40 @@ class TestArchiveCapture:
         assert row["day_high"] == 12.75
         assert capture.get_counter(ARCHIVE_COUNTER_L1_TICKS) == 1
 
+    def test_record_enrichment_snapshot_upserts(self):
+        capture.record_enrichment_snapshot(
+            symbol="aaa",
+            ts=1.0,
+            avg_volume=1_000_000,
+            float_shares=5_000_000,
+            fifty_two_week_high=12.0,
+            rvol_source="ibkr",
+            session_date="2026-07-14",
+        )
+        capture.record_enrichment_snapshot(
+            symbol="aaa",
+            ts=2.0,
+            avg_volume=1_100_000,
+            float_shares=5_000_000,
+            fifty_two_week_high=12.5,
+            rvol_source="ibkr",
+            session_date="2026-07-14",
+        )
+        conn = archive_db.get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT avg_volume, fifty_two_week_high FROM enrichment_snapshots"
+            ).fetchall()
+        finally:
+            conn.close()
+        assert len(rows) == 1
+        assert rows[0]["avg_volume"] == 1_100_000
+        assert rows[0]["fifty_two_week_high"] == 12.5
+        assert capture.get_counter(ARCHIVE_COUNTER_ENRICHMENT_SNAPSHOTS) == 2
+        loaded = capture.load_enrichment_snapshot("aaa", session_date="2026-07-14")
+        assert loaded is not None
+        assert loaded["avg_volume"] == 1_100_000
+
     def test_record_l2_snapshot_stub(self):
         capture.record_l2_snapshot(
             symbol="TSLA",
@@ -157,6 +192,34 @@ class TestArchiveCapture:
         capture.bump_counter("custom_test", 3)
         capture.bump_counter("custom_test", 2)
         assert capture.get_counter("custom_test") == 5
+
+
+class TestEnrichmentSnapshotHook:
+    def test_update_ticker_snapshot_writes_on_change_only(self, monkeypatch):
+        import hod_momo as hm
+        import hod_momo_market as market
+        from hod_momo_state import HodMomoState
+
+        hm.replace_state(HodMomoState())
+        writes: list[dict] = []
+        monkeypatch.setattr(
+            capture,
+            "record_enrichment_snapshot",
+            lambda **kwargs: writes.append(kwargs),
+        )
+        import archive.capture as cap_mod
+        monkeypatch.setattr(
+            cap_mod,
+            "record_enrichment_snapshot",
+            lambda **kwargs: writes.append(kwargs),
+        )
+
+        market.update_ticker_snapshot("AAA", price=1.0, avg_volume=1000.0)
+        market.update_ticker_snapshot("AAA", price=1.1, avg_volume=1000.0)
+        market.update_ticker_snapshot("AAA", price=1.2, avg_volume=2000.0)
+        assert len(writes) == 2
+        assert writes[0]["avg_volume"] == 1000.0
+        assert writes[1]["avg_volume"] == 2000.0
 
 
 class TestTapeStreamArchiveHook:

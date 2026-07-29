@@ -22,11 +22,13 @@ ARCHIVE_COUNTER_BARS_1D = "bars_1d"
 ARCHIVE_COUNTER_GAPS = "capture_gaps"
 ARCHIVE_COUNTER_INCOMPLETE_WINDOWS = "incomplete_windows"
 ARCHIVE_COUNTER_L1_TICKS = "l1_ticks"
+ARCHIVE_COUNTER_ENRICHMENT_SNAPSHOTS = "enrichment_snapshots"
 ARCHIVE_TABLES_COLD = (
     "bars_1m",
     "bars_1d",
     "tape_ibkr",
     "l1_ticks",
+    "enrichment_snapshots",
     "capture_gaps",
     "incomplete_windows",
 )

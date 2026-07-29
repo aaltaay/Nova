@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Enrichment inputs not archived (replay RVOL/float ceiling)
+
+- **Symptom:** Replay could not faithfully re-evaluate RVOL/float/52wk gates; those fields were computed live and discarded (audit G6).
+- **Cause:** No durable store for avg_volume / float_shares / fifty_two_week_high; replay primed from production-alert stand-ins only.
+- **Fix:** `enrichment_snapshots` UPSERT from `update_ticker_snapshot` on change; `hod_momo_replay.prime_symbol` prefers archived rows.
+- **Keywords:** G6, enrichment_snapshots, avg_volume, float, fifty_two_week_high, replay
+
 ## 2026-07-28 -- HOD active-set refresh lagged roster commit (missed first leg)
 
 - **Symptom:** A symbol newly admitted to Gappers/Gainers/Afterhours could miss its first HOD-evaluable ticks until the next L1 reconcile cycle (~1s+).

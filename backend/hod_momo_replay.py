@@ -168,6 +168,15 @@ def prime_symbol(fixture: ReplayFixture, symbol: str, first_ts: float) -> None:
     """Seed one symbol the way production would before live evaluation."""
     meta = (fixture.meta.get("symbols") or {}).get(symbol) or {}
     prod = _production_enrichment(fixture).get(symbol) or {}
+    archived: dict[str, Any] = {}
+    try:
+        from archive.capture import load_enrichment_snapshot, session_date_for_ts
+
+        archived = load_enrichment_snapshot(
+            symbol, session_date=session_date_for_ts(first_ts),
+        ) or {}
+    except Exception:
+        archived = {}
     bars_before = [b for b in fixture.bars_by_symbol.get(symbol, []) if b["ts"] <= first_ts]
 
     prev_close = meta.get("prev_close") or None
@@ -182,7 +191,18 @@ def prime_symbol(fixture: ReplayFixture, symbol: str, first_ts: float) -> None:
             symbol, [(float(b["ts"]), float(b["close"])) for b in bars_before]
         )
 
-    float_shares = meta.get("float_shares") or prod.get("float_shares")
+    float_shares = (
+        archived.get("float_shares")
+        or meta.get("float_shares")
+        or prod.get("float_shares")
+    )
+    avg_volume = archived.get("avg_volume")
+    fifty_two = archived.get("fifty_two_week_high")
+    if fifty_two is None and seed_high:
+        fifty_two = float(seed_high) * _FIFTY_TWO_WEEK_SENTINEL_MULT
+    rvol_source = archived.get("rvol_source") or (
+        "replay_meta" if prod.get("rvol") is not None else None
+    )
     hm.update_ticker_snapshot(
         symbol,
         price=float(prev_close) if prev_close else float(seed_high or 0.0),
@@ -190,10 +210,9 @@ def prime_symbol(fixture: ReplayFixture, symbol: str, first_ts: float) -> None:
         rvol=prod.get("rvol"),
         float_shares=float_shares,
         gap_pct=prod.get("gap_pct"),
-        fifty_two_week_high=(
-            float(seed_high) * _FIFTY_TWO_WEEK_SENTINEL_MULT if seed_high else None
-        ),
-        rvol_source="replay_meta" if prod.get("rvol") is not None else None,
+        fifty_two_week_high=fifty_two,
+        rvol_source=rvol_source,
+        avg_volume=float(avg_volume) if avg_volume is not None else None,
     )
 
 
