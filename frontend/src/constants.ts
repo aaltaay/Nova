@@ -13,3 +13,4 @@ export * from './constantGroups/features';
 export * from './constantGroups/api_auth';
 export * from './constantGroups/theme';
 export * from './constantGroups/ux';
+export * from './constantGroups/global_bar';

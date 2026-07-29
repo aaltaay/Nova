@@ -4,8 +4,10 @@
  */
 import { useEffect, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
+import { GlobalAppBar } from './components/GlobalAppBar';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
+import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
 import { DashboardPage } from './pages/DashboardPage';
 import { SampleShell } from './sample_data/SampleShell';
 import { isSampleView } from './sample_data/sampleNav';
@@ -38,27 +40,29 @@ function AppShell() {
     return <SampleShell />;
   }
 
-  if (traderTabs.length > 0) {
-    const detached = parseStockViewSymbol() != null;
-    return (
-      <AppErrorBoundary source="stock-view">
-        <NovaOsAttentionStrip global />
-        <div className="nova-shell nova-shell--ticker-detail">
-          <div className="main-col main-col--full">
-            <main className="ticker-detail-main">
-              <StockViewTabs detached={detached} />
-            </main>
-          </div>
-        </div>
-      </AppErrorBoundary>
-    );
-  }
+  const traderActive = traderTabs.length > 0;
+  const detached = traderActive && parseStockViewSymbol() != null;
 
   return (
-    <AppErrorBoundary source="dashboard">
+    <IbkrAccountProvider>
+      <GlobalAppBar />
       <NovaOsAttentionStrip global />
-      <DashboardPage />
-    </AppErrorBoundary>
+      {traderActive ? (
+        <AppErrorBoundary source="stock-view">
+          <div className="nova-shell nova-shell--ticker-detail">
+            <div className="main-col main-col--full">
+              <main className="ticker-detail-main">
+                <StockViewTabs detached={detached} />
+              </main>
+            </div>
+          </div>
+        </AppErrorBoundary>
+      ) : (
+        <AppErrorBoundary source="dashboard">
+          <DashboardPage />
+        </AppErrorBoundary>
+      )}
+    </IbkrAccountProvider>
   );
 }
 

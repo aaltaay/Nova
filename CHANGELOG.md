@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Global single-row app header (Webull-style)
+
+- **What:** Added a slim shared top bar (brand, Scanner/Trader nav, Day P&L / Net Liq / BP / Working, Paper|Live chip) mounted once for every live page. Existing `AppHeader` and `StockViewHeader` stay as secondary rows.
+- **Why:** Homepage and Trader View had forked chrome; account metrics only appeared in Trader. User wanted one minimalist Webull-style row everywhere new pages inherit automatically.
+- **Files touched:** `App.tsx`, `components/GlobalAppBar.tsx`, `GlobalAccountCard.tsx`, `NovaLogo.tsx`, `ibkr/IbkrAccountContext.tsx`, `useIbkrAccount.ts`, `constantGroups/global_bar.ts`, `styles/global-app-bar.css`.
+- **How it works now:** `AppShell` wraps live branches in `IbkrAccountProvider` + `GlobalAppBar` (sample route stays isolated). One 5s poll feeds the bar, Trader View, and Account tab via `useIbkrAccount`. Hover/click the account cluster for Open/Realized P&L, cash, GPV, working count.
+- **Verified by:** Vitest (`globalBarMoney`, `GlobalAppBar`, `IbkrAccountContext`) + `npm run build` + browser check on localhost:5173 (bar shows live Net Liq / Day P&L).
+- **Follow-ups:** Optional slim of duplicated Net Liq/BP in `StockViewHeader`; optional masked account-id label if backend ships managed account ids on `/api/ibkr/account`.
+- **Related:** `knowledge/task-log/2026-07-29-global-app-bar.md`
+
 ## 2026-07-29 -- Trader tabs (max 3) + L1-only Quote Panel
 
 - **What:** Scanner Quote Panel no longer mounts Level 2 or Time & Sales (scrollable L1 quote + chart + fundamentals + news). Double-click Trader View is a tabbed terminal (max 3 editable tabs = IBKR depth plan cap); a 4th open shows a block banner.
