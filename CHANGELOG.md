@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Market-data type honesty + close-fallback quality (G2/G3)
+
+- **What:** On READY, Nova calls `reqMarketDataType(1)`. `/api/ibkr/status` exposes `market_data_type` and `market_data_delayed` (Error 10167). L1 ticks prefer exchange timestamps and flag `quote_quality=close_fallback` when serving `close` as price. Gateway chip shows amber `delayed` when delayed.
+- **Why:** Capture audit G2/G3 -- delayed/paper feeds and close-as-last were indistinguishable from live last prints.
+- **Files touched:** `backend/ibkr/client.py`, `backend/ibkr/ticks.py`, `backend/ibkr/scanner_l1.py`, `backend/ibkr_bridge.py`, `backend/routes/trading.py`, `backend/constants_ibkr.py`, `frontend/src/ibkr/types.ts`, `useIbkrStatus.ts`, `HeaderConnectionStatus.tsx`, constants.
+- **How it works now:** READY requests live type; 10167 sets delayed. Status + UI surface it. `price_patch` rows may include `quote_quality`; HOD `on_trade_update` signature unchanged. Legacy 5-arg quote listeners still work via TypeError fallback.
+- **Verified by:** backend pytest 38 passed; Vitest HeaderConnectionStatus delayed badge.
+- **Related:** PROBLEM_LOG 2026-07-28 Delayed IBKR market data; audit G2/G3.
+
 ## 2026-07-28 -- Archive HOD L1 decision stream (G5)
 
 - **What:** Every active-set L1 tick that reaches `hod_momo.on_trade_update` is now also written to `archive.db` table `l1_ticks` (symbol, ts, price, volume, day_high, session_date).

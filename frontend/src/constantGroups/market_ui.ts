@@ -354,6 +354,10 @@ export const HEADER_GATEWAY_TITLE_LIVE =
   'IBKR session: LIVE — real account Gateway. Market data and orders use the live port; spend still gated by IBKR_ORDERS_ENABLED + live confirm.';
 export const HEADER_GATEWAY_TITLE_UNKNOWN =
   'IBKR session mode unknown — check Trading /api/ibkr/status (mode / gateway_mode).';
+/** Header Gateway chip suffix when /api/ibkr/status reports delayed market data. */
+export const HEADER_GATEWAY_DELAYED_LABEL = 'delayed';
+export const HEADER_GATEWAY_TITLE_DELAYED =
+  'IBKR market data is DELAYED (Error 10167 / non-entitled feed). Prices and HOD alerts are not real-time.';
 
 /** Human-readable labels for Alpaca `attributes` tokens (unknown keys shown as-is). */
 export const ALPACA_ASSET_ATTRIBUTE_LABELS: Record<string, string> = {

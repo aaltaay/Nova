@@ -10,6 +10,10 @@ export interface IbkrStatus {
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
   broker_account_kind?: 'paper' | 'live' | 'unknown';
+  /** Last requested IB market-data type (1=live); null before first READY. */
+  market_data_type?: number | null;
+  /** True after IB Error 10167 (delayed / non-entitled feed). */
+  market_data_delayed?: boolean;
   orders_enabled?: boolean;
   live_trading_confirmed?: boolean;
   /** locked | locked_live_unconfirmed | paper_armed | live_armed */

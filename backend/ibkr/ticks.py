@@ -17,6 +17,7 @@ from typing import Any, Awaitable, Callable, Optional
 from constants import (
     IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE,
     IBKR_L1_QUALIFY_TIMEOUT_SEC,
+    IBKR_QUOTE_QUALITY_CLOSE_FALLBACK,
 )
 from ibkr import client as _client
 
@@ -28,8 +29,8 @@ OWNER_HOD = "hod"
 
 BroadcastFn = Callable[..., Awaitable[None]]
 FindCacheRowFn = Callable[[str], Optional[dict]]
-# symbol, price, volume, prev_close, ts_unix
-QuoteListenerFn = Callable[[str, float, Optional[int], Optional[float], float], None]
+# symbol, price, volume, prev_close, ts_unix; optional keyword-only quote_quality
+QuoteListenerFn = Callable[..., None]
 
 _Stock = None
 _subs: dict[str, dict[str, Any]] = {}
@@ -92,6 +93,54 @@ def _clean(x: float | None) -> float | None:
         return None
 
 
+def _exchange_ts_unix(ticker: Any) -> float:
+    """Prefer exchange/trade time over the local receive clock (G3)."""
+    for attr in ("lastTimestamp", "rtTime", "time"):
+        raw = getattr(ticker, attr, None)
+        if raw is None:
+            continue
+        if isinstance(raw, (int, float)):
+            val = float(raw)
+            if val > 1e12:  # milliseconds
+                val /= 1000.0
+            if val > 1e9:
+                return val
+            continue
+        try:
+            if hasattr(raw, "timestamp"):
+                return float(raw.timestamp())
+        except (TypeError, ValueError, OSError, OverflowError):
+            continue
+    return time.time()
+
+
+def _notify_quote_listeners(
+    symbol: str,
+    price: float,
+    vol_i: int | None,
+    prev_close: float | None,
+    ts_unix: float,
+    *,
+    quote_quality: str | None,
+) -> None:
+    for listener in list(_quote_listeners):
+        try:
+            try:
+                listener(
+                    symbol,
+                    float(price),
+                    vol_i,
+                    prev_close,
+                    ts_unix,
+                    quote_quality=quote_quality,
+                )
+            except TypeError:
+                # Legacy 5-arg listeners (no quote_quality kwarg).
+                listener(symbol, float(price), vol_i, prev_close, ts_unix)
+        except Exception:
+            logger.exception("IBKR ticks: quote listener failed for %s", symbol)
+
+
 def _on_ticker_update(ticker: Any, symbol: str) -> None:
     sub = _subs.get(symbol)
     if sub is not None:
@@ -107,6 +156,7 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
         if prev_dh != day_high:
             day_high_changed = True
         sub["day_high"] = day_high
+    close_fallback = last is None and close is not None
     price = last or close
     if price is None:
         return
@@ -123,18 +173,24 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
             except (TypeError, ValueError):
                 vol_i = None
 
-    ts_unix = time.time()
+    ts_unix = _exchange_ts_unix(ticker)
+    quote_quality = (
+        IBKR_QUOTE_QUALITY_CLOSE_FALLBACK if close_fallback else None
+    )
     price_changed = sub is None or sub.get("last_price") != price
     if sub is not None and price_changed:
         sub["last_price"] = price
 
     # Also notify when day High arrives/raises so HOD can seed without a new last.
     if price_changed or day_high_changed:
-        for listener in list(_quote_listeners):
-            try:
-                listener(symbol, float(price), vol_i, prev_close, ts_unix)
-            except Exception:
-                logger.exception("IBKR ticks: quote listener failed for %s", symbol)
+        _notify_quote_listeners(
+            symbol,
+            float(price),
+            vol_i,
+            prev_close,
+            ts_unix,
+            quote_quality=quote_quality,
+        )
 
     if not price_changed or _broadcast is None:
         return

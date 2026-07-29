@@ -49,12 +49,16 @@ async def ibkr_status() -> dict:
     from ibkr import gateway_heal as _heal
     from ibkr import port_diagnostics as _ports
 
+    from ibkr import session_errors as _session_errors
+
     connected = _client.is_connected()
     return {
         "enabled": _client.is_enabled(),
         "connected": connected,
         "mode": _client.account_mode(),
         "broker_account_kind": _client.broker_account_kind(),
+        "market_data_type": _client.get_market_data_type(),
+        "market_data_delayed": bool(_session_errors.is_delayed_data()),
         **snap,
         **_heal.heal_status(),
         **_ports.status_port_fields(connected=connected),

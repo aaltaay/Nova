@@ -64,6 +64,10 @@ IBKR_ERROR_DATA_FARM_CODES = frozenset({2104, 2106, 2108})
 IBKR_ERROR_MAX_TICKERS = 101
 # "Requested market data is not subscribed. Displaying delayed market data."
 IBKR_ERROR_DELAYED_DATA_NOTICE = 10167
+# reqMarketDataType(1) = live; see ibkr.client.get_market_data_type().
+IBKR_MARKET_DATA_TYPE_LIVE = 1
+# Quote quality flag when ticks.py serves ticker.close because last is missing.
+IBKR_QUOTE_QUALITY_CLOSE_FALLBACK = "close_fallback"
 
 # ib_async's OWN internal loggers (ib_async.wrapper / .ib / .client — not our
 # app loggers) log these at ERROR even though they're expected under normal

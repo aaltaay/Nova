@@ -33,9 +33,9 @@ Entry template (copy and fill in):
 ## 2026-07-28 -- Delayed IBKR market data is indistinguishable from real-time
 
 - **Symptom:** A paper (or non-entitled) Gateway login can feed 15-minute-delayed prices into scanner tables and HOD alerts with no indication anywhere -- not in `/api/ibkr/status`, not in the UI, not in logs.
-- **Cause:** No `reqMarketDataType` call exists anywhere in the repo, Error 10167 (delayed-data notice) is unhandled, and `ticks.py` stamps `quote_ts = time.time()` (receive clock) so delayed ticks still look fresh. Companion: `price = last or close` (`ticks.py:110`) can present yesterday's close as the current price with a fresh timestamp.
-- **Fix:** Diagnosed (no product fix this pass) -- recommended: call `reqMarketDataType`, handle 10167, label data type in status API + UI badge, add a quote-quality flag when serving `close` as price. Context: audit doc (G2/G3).
-- **Keywords:** reqMarketDataType, delayed data, Error 10167, last or close, receive clock, paper account, quote_ts
+- **Cause:** No `reqMarketDataType` call existed, Error 10167 was only flagged in `session_errors` without status/UI, and `ticks.py` stamped `quote_ts = time.time()` while `price = last or close` could present close as last.
+- **Fix:** READY calls `reqMarketDataType(1)`. Status returns `market_data_type` + `market_data_delayed`. Ticks prefer exchange time and pass `quote_quality=close_fallback` through scanner_l1 / apply_l1_quote into `price_patch`. Header Gateway chip shows amber `delayed`.
+- **Keywords:** reqMarketDataType, delayed data, Error 10167, last or close, receive clock, paper account, quote_ts, close_fallback
 
 ## 2026-07-28 -- Archive records tape but not the L1 stream that drives HOD evaluation
 

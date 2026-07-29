@@ -314,6 +314,8 @@ def test_status_route_reports_safety_snapshot():
          patch.object(client_mod, "is_enabled", return_value=False), \
          patch.object(client_mod, "is_connected", return_value=False), \
          patch.object(client_mod, "account_mode", return_value="disconnected"), \
+         patch.object(client_mod, "get_market_data_type", return_value=1), \
+         patch("ibkr.session_errors.is_delayed_data", return_value=True), \
          patch("ibkr.port_diagnostics.status_port_fields", return_value=fake_ports):
         res = client.get("/api/ibkr/status")
     assert res.status_code == 200
@@ -323,3 +325,5 @@ def test_status_route_reports_safety_snapshot():
     assert body["spend_status"] == "locked"
     assert body["disconnect_hint"] == "paper_port_refused_live_listening"
     assert body["preferred_port"] == 4002
+    assert body["market_data_type"] == 1
+    assert body["market_data_delayed"] is True

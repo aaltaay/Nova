@@ -227,6 +227,8 @@ def apply_l1_quote(
     volume: int | None,
     prev_close: float | None,
     ts_unix: float,
+    *,
+    quote_quality: str | None = None,
 ) -> dict | None:
     """Apply one L1 tick onto scanner caches + HOD; return patch row fields.
 
@@ -251,6 +253,8 @@ def apply_l1_quote(
         "volume": volume,
         "quote_ts": now,
     }
+    if quote_quality:
+        patch["quote_quality"] = quote_quality
 
     def _touch_row(row: dict, reprice_fn) -> dict:
         return reprice_fn(row, q) if row.get("symbol", "").upper() == sym else row

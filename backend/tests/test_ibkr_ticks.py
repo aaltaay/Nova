@@ -55,10 +55,23 @@ def test_is_fresh_is_case_insensitive():
 
 
 class _FakeTicker:
-    def __init__(self, last=None, close=None, volume=None):
+    def __init__(
+        self,
+        last=None,
+        close=None,
+        volume=None,
+        high=None,
+        lastTimestamp=None,
+        rtTime=None,
+        time=None,
+    ):
         self.last = last
         self.close = close
         self.volume = volume
+        self.high = high
+        self.lastTimestamp = lastTimestamp
+        self.rtTime = rtTime
+        self.time = time
 
 
 def test_set_owner_symbols_caps_adds_per_reconcile(monkeypatch):
@@ -106,3 +119,50 @@ def test_on_ticker_update_marks_fresh_even_when_price_unchanged():
     ticks._on_ticker_update(_FakeTicker(last=5.0), "ABC")
 
     assert ticks.is_fresh("ABC", 8.0) is True
+
+
+def test_on_ticker_update_flags_close_fallback_and_prefers_exchange_time():
+    _reset()
+    ticks._subs["ABC"] = {
+        "owners": {ticks.OWNER_SCANNER},
+        "last_price": None,
+        "last_update_ts": None,
+    }
+    ticks._broadcast = None
+    ticks._quote_listeners.clear()
+    captured: dict = {}
+
+    def listener(symbol, price, volume, prev_close, ts_unix, *, quote_quality=None):
+        captured["price"] = price
+        captured["ts"] = ts_unix
+        captured["quote_quality"] = quote_quality
+
+    ticks._quote_listeners.append(listener)
+    ticks._on_ticker_update(
+        _FakeTicker(last=None, close=9.5, lastTimestamp=1_700_000_123),
+        "ABC",
+    )
+    assert captured["price"] == 9.5
+    assert captured["quote_quality"] == "close_fallback"
+    assert captured["ts"] == 1_700_000_123.0
+
+
+def test_on_ticker_update_still_notifies_legacy_five_arg_listener():
+    _reset()
+    ticks._subs["ABC"] = {
+        "owners": {ticks.OWNER_SCANNER},
+        "last_price": None,
+        "last_update_ts": None,
+    }
+    ticks._broadcast = None
+    ticks._quote_listeners.clear()
+    seen: list[tuple] = []
+
+    def legacy(symbol, price, volume, prev_close, ts_unix):
+        seen.append((symbol, price, volume, prev_close, ts_unix))
+
+    ticks._quote_listeners.append(legacy)
+    ticks._on_ticker_update(_FakeTicker(last=2.0, close=1.9), "ABC")
+    assert len(seen) == 1
+    assert seen[0][0] == "ABC"
+    assert seen[0][1] == 2.0

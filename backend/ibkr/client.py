@@ -45,6 +45,7 @@ from constants import (
     IBKR_LIVE_PORT,
     IBKR_CLIENT_ID,
     IBKR_CONNECT_TIMEOUT_SEC,
+    IBKR_MARKET_DATA_TYPE_LIVE,
     IBKR_RECONNECT_DELAY_SEC,
 )
 from ibkr import account_kind as _account_kind
@@ -63,6 +64,13 @@ _broker_account_kind: str = "unknown"
 _reconnect_task: asyncio.Task | None = None
 _loop: asyncio.AbstractEventLoop | None = None  # captured at startup() — where IB lives
 _wake_reconnect: asyncio.Event | None = None
+# Set after READY requests live market data (None until first successful READY).
+_market_data_type: int | None = None
+
+
+def get_market_data_type() -> int | None:
+    """Last requested IB market-data type, or None before first READY."""
+    return _market_data_type
 
 
 def _set_session(*, mode: str, broker_account_kind: str) -> None:
@@ -92,11 +100,12 @@ def _clear_sticky_bridge_error_on_ready() -> None:
 
 
 async def _on_session_ready(ib: Any, *, reason: str) -> None:
-    """Side effects that must run at every READY transition (G1/G4).
+    """Side effects that must run at every READY transition (G1/G2/G4).
 
-    Clears zombie L1 ownership maps left over from the prior connection and
-    installs the session-level errorEvent hook on the new ``IB()`` instance.
+    Clears zombie L1 ownership maps left over from the prior connection,
+    installs the session-level errorEvent hook, and requests live market data.
     """
+    global _market_data_type
     try:
         from ibkr import ticks as _ticks
 
@@ -109,6 +118,16 @@ async def _on_session_ready(ib: Any, *, reason: str) -> None:
         _session_errors.install_error_hook(ib)
     except Exception:
         logger.exception("IBKR: session_errors hook install failed on READY (%s)", reason)
+    try:
+        ib.reqMarketDataType(int(IBKR_MARKET_DATA_TYPE_LIVE))
+        _market_data_type = int(IBKR_MARKET_DATA_TYPE_LIVE)
+        logger.info(
+            "IBKR: requested market data type %s (%s)",
+            _market_data_type,
+            reason,
+        )
+    except Exception:
+        logger.exception("IBKR: reqMarketDataType failed on READY (%s)", reason)
 
 
 def _ensure_wake_event() -> asyncio.Event:

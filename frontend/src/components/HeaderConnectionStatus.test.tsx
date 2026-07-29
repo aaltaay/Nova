@@ -10,6 +10,21 @@ vi.mock('./BackendStartButton', () => ({
   BackendStartButton: () => <button type="button">Start API</button>,
 }));
 
+const ibkrStatusMock = vi.hoisted(() => ({
+  market_data_delayed: false as boolean,
+  market_data_type: 1 as number | null,
+}));
+
+vi.mock('../ibkr/useIbkrStatus', () => ({
+  useIbkrStatus: () => ({
+    enabled: true,
+    connected: true,
+    mode: 'paper',
+    market_data_type: ibkrStatusMock.market_data_type,
+    market_data_delayed: ibkrStatusMock.market_data_delayed,
+  }),
+}));
+
 const healthy = {
   status: 'connected',
   latency_ms: 610,
@@ -29,6 +44,8 @@ describe('HeaderConnectionStatus', () => {
   let root: Root;
 
   beforeEach(() => {
+    ibkrStatusMock.market_data_delayed = false;
+    ibkrStatusMock.market_data_type = 1;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -166,5 +183,27 @@ describe('HeaderConnectionStatus', () => {
     const feed = container.querySelector('[data-testid="status-chip-feed"]');
     expect(feed?.textContent).toMatch(/Alpaca IEX/);
     expect(container.querySelector('[data-testid="status-chip-gateway"]')).toBeNull();
+  });
+
+  it('shows amber delayed on Gateway chip when market_data_delayed', () => {
+    ibkrStatusMock.market_data_delayed = true;
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          ibkrMode="paper"
+          ibkrGatewayMode="paper"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+    const gateway = container.querySelector('[data-testid="status-chip-gateway"]');
+    expect(gateway?.textContent).toMatch(/delayed/i);
+    expect(gateway?.className).toMatch(/status-chip--warn/);
   });
 });

@@ -83,6 +83,8 @@ def on_l1_quote(
     volume: int | None,
     prev_close: float | None,
     ts_unix: float,
+    *,
+    quote_quality: str | None = None,
 ) -> None:
     """ticks.py quote listener — buffer for the next batch flush."""
     sym = (symbol or "").strip().upper()
@@ -95,9 +97,21 @@ def on_l1_quote(
         "volume": volume,
         "quote_ts": ts_unix,
     }
+    if quote_quality:
+        row["quote_quality"] = quote_quality
     if _apply_quote is not None:
         try:
-            patched = _apply_quote(sym, price, volume, prev_close, ts_unix)
+            try:
+                patched = _apply_quote(
+                    sym,
+                    price,
+                    volume,
+                    prev_close,
+                    ts_unix,
+                    quote_quality=quote_quality,
+                )
+            except TypeError:
+                patched = _apply_quote(sym, price, volume, prev_close, ts_unix)
             if patched:
                 row.update(patched)
         except Exception:

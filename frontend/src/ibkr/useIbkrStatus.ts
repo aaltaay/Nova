@@ -9,6 +9,8 @@ const DEFAULT: IbkrStatus = {
   mode: 'disconnected',
   orders_enabled: false,
   spend_status: 'locked',
+  market_data_type: null,
+  market_data_delayed: false,
 };
 
 const SAMPLE_STATUS: IbkrStatus = {
@@ -17,6 +19,8 @@ const SAMPLE_STATUS: IbkrStatus = {
   mode: 'paper',
   orders_enabled: false,
   spend_status: 'locked',
+  market_data_type: 1,
+  market_data_delayed: false,
 };
 
 /** Broadcast to make every mounted useIbkrStatus() poll immediately (e.g. right

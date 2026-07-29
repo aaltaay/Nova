@@ -7,7 +7,9 @@ import { BackendStartButton } from './BackendStartButton';
 import {
   DATA_FEED_LABELS,
   DISCOVERY_PROVIDER_DEFAULT,
+  HEADER_GATEWAY_DELAYED_LABEL,
   HEADER_GATEWAY_LAUNCH_HINT,
+  HEADER_GATEWAY_TITLE_DELAYED,
   HEADER_GATEWAY_TITLE_LIVE,
   HEADER_GATEWAY_TITLE_PAPER,
   HEADER_GATEWAY_TITLE_UNKNOWN,
@@ -16,6 +18,7 @@ import {
   SCANNER_DATA_SOURCE_TITLES,
 } from '../constants';
 import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
+import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { IbkrMode } from '../ibkr/types';
 import type { HealthStatus, IntegrationChipStatus } from '../types/health';
 import { formatScanAge } from '../utils/formatScanAge';
@@ -64,6 +67,8 @@ export function HeaderConnectionStatus({
   showScannerSource = true,
   onBackendStarted,
 }: Props) {
+  const ibkrStatusLive = useIbkrStatus();
+  const marketDataDelayed = Boolean(ibkrStatusLive.market_data_delayed);
   const [gatewayLaunchHint, setGatewayLaunchHint] = useState<string | null>(null);
   const [gatewayLaunchBusy, setGatewayLaunchBusy] = useState(false);
   const [gatewayLaunchOk, setGatewayLaunchOk] = useState<boolean | null>(null);
@@ -108,6 +113,7 @@ export function HeaderConnectionStatus({
     ibkrConnected
       ? SCANNER_DATA_SOURCE_TITLES.ibkr
       : emptyIbkrDisconnectedMessage(ibkrGatewayMode),
+    marketDataDelayed ? HEADER_GATEWAY_TITLE_DELAYED : null,
     HEADER_GATEWAY_LAUNCH_HINT,
     gatewayLaunchHint,
   ]
@@ -120,9 +126,11 @@ export function HeaderConnectionStatus({
       ? 'ok'
       : !ibkrConnected
         ? 'bad'
-        : modeTag === 'live'
-          ? 'live'
-          : 'ok';
+        : marketDataDelayed
+          ? 'warn'
+          : modeTag === 'live'
+            ? 'live'
+            : 'ok';
 
   let gatewayValue = 'offline';
   if (gatewayLaunchBusy) gatewayValue = 'opening…';
@@ -130,6 +138,9 @@ export function HeaderConnectionStatus({
   else if (gatewayLaunchOk === false) gatewayValue = 'launch failed';
   else if (ibkrConnected) {
     gatewayValue = modeLabel ? `connected · ${modeLabel}` : 'connected';
+    if (marketDataDelayed) {
+      gatewayValue = `${gatewayValue} · ${HEADER_GATEWAY_DELAYED_LABEL}`;
+    }
   } else if (modeLabel) {
     gatewayValue = `offline · ${modeLabel}`;
   }
