@@ -160,14 +160,6 @@ def test_coalescing_drops_display_prints_but_not_hod_evaluations(pipeline_env):
     assert get_state().total_trades_seen == 3
 
 
-@pytest.mark.xfail(
-    reason=(
-        "zombie L1: ticks._subs is never cleared on reconnect, so reconcile "
-        "treats dead streams as live (audit finding G1 -- see "
-        "docs/audits/2026-07-28-hod-scanner-capture-audit.md)"
-    ),
-    strict=True,
-)
 def test_reconnect_recreates_streams_on_new_connection(pipeline_env):
     async def _sub():
         assert await ticks.subscribe(SYM, ticks.OWNER_HOD) is True
@@ -176,15 +168,14 @@ def test_reconnect_recreates_streams_on_new_connection(pipeline_env):
     assert pipeline_env["feed"].req_made == [SYM]
 
     # Gateway drops and reconnects: a brand-new connection object with no
-    # server-side streams, while ticks._subs still points at the dead
-    # connection's ticker.
+    # server-side streams. client._on_session_ready clears zombie _subs
+    # before reconcile re-issues reqMktData (G1 fix).
     pipeline_env["feed"] = FakeIbkrFeed()
 
-    async def _reconcile():
+    async def _ready_then_reconcile():
+        cleared = await ticks.clear_all_subscriptions(reason="test ready bump")
+        assert cleared == 1
         await ticks.set_owner_symbols(ticks.OWNER_HOD, [SYM])
 
-    asyncio.run(_reconcile())
-    # Expected: reconcile notices the stream is gone and re-creates it on the
-    # new connection. Actual (today): the zombie _subs entry is treated as
-    # live, so no reqMktData is ever issued on the new connection.
+    asyncio.run(_ready_then_reconcile())
     assert pipeline_env["feed"].req_made == [SYM]

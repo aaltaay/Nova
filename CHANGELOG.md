@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Fix G1 zombie L1 subs + G4 session errorEvent handler
+
+- **What:** On every READY transition, Nova clears all L1 ownership maps and installs a session-level IB `errorEvent` handler for connectivity (1100/1101/1102), data-farm (2104/2106/2108), max-tickers (101), and delayed-data (10167) codes.
+- **Why:** Capture audit findings G1/G4 -- zombie `_subs` after reconnect silently starved HOD; classic IB connectivity/farm codes were unhandled.
+- **Files touched:** `backend/ibkr/ticks.py` (`clear_all_subscriptions`), `backend/ibkr/client.py` (`_on_session_ready`), `backend/ibkr/session_errors.py` (new), `backend/ibkr/scanner_l1.py` (`note_capacity_error`), `backend/constants_ibkr.py`, tests.
+- **How it works now:** READY -> clear zombie L1 maps -> install error hook. Reconnect then re-issues `reqMktData` on the next reconcile. Error 1100 marks session DEGRADED; 101 surfaces on L1 subscription error; 10167 sets `is_delayed_data()` for Phase 3 UI.
+- **Verified by:** `pytest tests/test_hod_pipeline_fake_feed.py tests/test_ibkr_session_errors.py tests/test_scanner_l1.py` -- 17 passed (former G1 xfail now passes).
+- **Related:** PROBLEM_LOG 2026-07-28 zombie L1; audit doc G1/G4.
+
 ## 2026-07-28 -- Constitution single-sourced to AGENTS.md (gemini.md becomes alias)
 
 - **What:** `AGENTS.md` is now the sole constitution text. `gemini.md` is a thin legacy alias whose only content is `@AGENTS.md`. The ADR 007 execution-command schema (which existed only in `gemini.md`) was ported into `AGENTS.md` §3 first; stale agent-table/canvas prose unique to `gemini.md` was superseded by the newer `AGENTS.md` versions and not ported. Pointer wording updated in `.cursor/rules/constitution.mdc` and `.cursor/rules/self-annealing.mdc`.

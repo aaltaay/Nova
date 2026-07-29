@@ -91,6 +91,26 @@ def _clear_sticky_bridge_error_on_ready() -> None:
         state.ibkr_bridge_last_error_ts = 0.0
 
 
+async def _on_session_ready(ib: Any, *, reason: str) -> None:
+    """Side effects that must run at every READY transition (G1/G4).
+
+    Clears zombie L1 ownership maps left over from the prior connection and
+    installs the session-level errorEvent hook on the new ``IB()`` instance.
+    """
+    try:
+        from ibkr import ticks as _ticks
+
+        await _ticks.clear_all_subscriptions(reason=reason)
+    except Exception:
+        logger.exception("IBKR: clear_all_subscriptions failed on READY (%s)", reason)
+    try:
+        from ibkr import session_errors as _session_errors
+
+        _session_errors.install_error_hook(ib)
+    except Exception:
+        logger.exception("IBKR: session_errors hook install failed on READY (%s)", reason)
+
+
 def _ensure_wake_event() -> asyncio.Event:
     global _wake_reconnect
     if _wake_reconnect is None:
@@ -376,6 +396,7 @@ async def reconnect_loop() -> None:
                     await _account.refresh_completed_orders_cache(_ib)
                     gen = _session.set_ready()
                     _clear_sticky_bridge_error_on_ready()
+                    await _on_session_ready(_ib, reason=f"ready generation {gen}")
                     logger.info("IBKR: session READY (generation %d)", gen)
                 else:
                     logger.error(
@@ -413,6 +434,9 @@ async def reconnect_loop() -> None:
                     await _account.refresh_completed_orders_cache(_ib)
                     gen = _session.set_ready()
                     _clear_sticky_bridge_error_on_ready()
+                    await _on_session_ready(
+                        _ib, reason=f"ready after self-heal generation {gen}",
+                    )
                     logger.info("IBKR: session READY after self-heal (generation %d)", gen)
                     continue
                 _set_session(mode="disconnected", broker_account_kind="unknown")

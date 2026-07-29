@@ -27,8 +27,8 @@ Entry template (copy and fill in):
 
 - **Symptom:** After an IB Gateway drop + reconnect, HOD Momo can stop evaluating symbols while everything still looks subscribed: `ticks._subs` keeps entries from the dead connection, reconcile counts them as active, and no new ticks ever arrive.
 - **Cause:** `backend/ibkr/ticks.py` never clears `_subs` on disconnect or READY generation bump, and `subscribe()` short-circuits when the symbol is already present (`ticks.py:159-161`). `set_owner_symbols` therefore computes desired == current and never issues `reqMktData` on the new connection.
-- **Fix:** Diagnosed (no product fix this pass) -- proven by strict xfail `tests/test_hod_pipeline_fake_feed.py::test_reconnect_recreates_streams_on_new_connection`; recommended fix is clearing/re-establishing `_subs` on generation bump + handling 1100/1101/1102. Full context: `docs/audits/2026-07-28-hod-scanner-capture-audit.md` (G1).
-- **Keywords:** zombie L1, reconnect, reqMktData, ticks _subs, HOD silent, generation fencing, 1100 1101 1102
+- **Fix:** Added `ticks.clear_all_subscriptions` (detach handlers, drop `_subs` without cancelMktData on a dead socket). `client._on_session_ready` runs it after both READY sites. Session-level `session_errors.py` handles 1100 (set_degraded), 1101/1102, farm 2104/2106/2108, max-tickers 101, delayed 10167. Former xfail now passes.
+- **Keywords:** zombie L1, reconnect, reqMktData, ticks _subs, HOD silent, generation fencing, 1100 1101 1102, session_errors
 
 ## 2026-07-28 -- Delayed IBKR market data is indistinguishable from real-time
 

@@ -55,6 +55,15 @@ IBKR_FRACTIONAL_ORDER_API_MSG = (
     "IBKR API cannot place fractional-share orders (Error 10243). "
     "Close leftovers in TWS / IB Gateway desktop."
 )
+# Connectivity lost / restored (async via errorEvent). 1100 = lost; 1101/1102 = restored.
+IBKR_ERROR_CONNECTIVITY_CODES = frozenset({1100, 1101, 1102})
+IBKR_ERROR_CONNECTIVITY_LOST = 1100
+# Data-farm OK / broken notices (async). Not fatal alone but worth surfacing.
+IBKR_ERROR_DATA_FARM_CODES = frozenset({2104, 2106, 2108})
+# "Max number of tickers has been reached" -- keep OUT of IBKR_BENIGN_LOG_ERROR_CODES.
+IBKR_ERROR_MAX_TICKERS = 101
+# "Requested market data is not subscribed. Displaying delayed market data."
+IBKR_ERROR_DELAYED_DATA_NOTICE = 10167
 
 # ib_async's OWN internal loggers (ib_async.wrapper / .ib / .client — not our
 # app loggers) log these at ERROR even though they're expected under normal

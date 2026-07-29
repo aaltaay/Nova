@@ -62,6 +62,17 @@ def get_subscription_state() -> dict[str, Any]:
     return dict(_subscription_state)
 
 
+def note_capacity_error(message: str) -> None:
+    """Surface Error 101 (max tickers) into the subscription error field."""
+    global _subscription_state
+    text = (message or "").strip() or "IBKR L1 capacity error"
+    prev = _subscription_state.get("error")
+    _subscription_state = {
+        **_subscription_state,
+        "error": text if not prev else f"{prev}; {text}",
+    }
+
+
 def get_last_ok_ts() -> float | None:
     return _last_ok_ts
 

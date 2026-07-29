@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-28 | [Fix G1 zombie L1 subs + G4 session errorEvent](2026-07-28-g1-g4-zombie-l1-session-errors.md) | Fix G1 zombie L1 subs + G4 session errorEvent |
 | 2026-07-28 | [HOD scanner capture audit + mock replay harness](2026-07-28-hod-scanner-capture-audit.md) | HOD scanner capture audit + mock replay harness |
 | 2026-07-24 | [Remove daddy dispatcher; zero-hop specialist routing](2026-07-24-remove-daddy-zero-hop-routing.md) | Deleted daddy; parent now works in-session by default, specialists opt-in-only; reviewed refactoring.guru/loop-library principles |
 | 2026-07-24 | [Loud IB Gateway disconnected banner + reconnect warm-up empty state](2026-07-24-ibkr-gateway-login-ux.md) | Loud IB Gateway disconnected banner + reconnect warm-up empty state |
