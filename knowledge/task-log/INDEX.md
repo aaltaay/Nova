@@ -4,7 +4,9 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-28 | [G8: refresh HOD active set on roster commit](2026-07-28-g8-roster-commit-hod-refresh.md) | G8: refresh HOD active set on roster commit |
 | 2026-07-28 | [G9: persist session_high_raised_ts grace clock](2026-07-28-g9-persist-session-high-raised-ts.md) | G9: persist session_high_raised_ts grace clock |
+| 2026-07-28 | [G8: refresh HOD active set on roster commit](2026-07-28-g8-roster-commit-hod-refresh.md) | Roster commit refreshes HOD pool and wakes L1 reconcile |
 | 2026-07-28 | [G9: persist session_high_raised_ts grace clock](2026-07-28-g9-persist-session-high-raised-ts.md) | Highs cache round-trips new-HOD grace clock across restart |
 | 2026-07-28 | [G2/G3: market-data type honesty + close-fallback quote quality](2026-07-28-g2-g3-market-data-honesty.md) | reqMarketDataType(1), delayed status/badge, close_fallback + exchange-time stamps |
 | 2026-07-28 | [G5: archive HOD L1 decision stream](2026-07-28-g5-archive-l1-decision-stream.md) | Active-set L1 ticks written to archive.l1_ticks after on_trade_update |

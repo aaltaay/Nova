@@ -165,6 +165,12 @@ async def commit_table(
     except Exception:
         logger.debug("scanner_stream: roster push failed", exc_info=True)
         return False
+    try:
+        from hod_roster_hooks import on_hod_roster_commit
+
+        on_hod_roster_commit(table)
+    except Exception:
+        logger.debug("scanner_stream: HOD roster commit hook failed", exc_info=True)
     return True
 
 

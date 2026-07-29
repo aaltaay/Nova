@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- HOD active-set refresh lagged roster commit (missed first leg)
+
+- **Symptom:** A symbol newly admitted to Gappers/Gainers/Afterhours could miss its first HOD-evaluable ticks until the next L1 reconcile cycle (~1s+).
+- **Cause:** Active set rebuild was tied to empty-set bootstrap / reconcile cadence, not to roster commit (audit G8).
+- **Fix:** `hod_roster_hooks.on_hod_roster_commit` refreshes the active set and `scanner_l1.request_reconcile()` wakes the reconcile wait after hydrate + legacy roster writers (not losers).
+- **Keywords:** G8, active set, roster commit, request_reconcile, first leg miss
+
 ## 2026-07-28 -- session_high_raised_ts lost on restart mutes HOD as hod:not_new
 
 - **Symptom:** After an API restart mid-session, symbols that already raised HOD go quiet -- strategies fail `hod:not_new` until the next fresh high raise, even though highs themselves were restored.

@@ -56,6 +56,22 @@ _subscription_state: dict[str, Any] = {
 _tab_grace_until = 0.0
 _prev_tab_symbols: list[str] = []
 _apply_quote: ApplyQuoteFn | None = None
+_reconcile_event: asyncio.Event | None = None
+
+
+def _ensure_reconcile_event() -> asyncio.Event:
+    global _reconcile_event
+    if _reconcile_event is None:
+        _reconcile_event = asyncio.Event()
+    return _reconcile_event
+
+
+def request_reconcile() -> None:
+    """Wake reconcile_loop early after a roster commit (G8)."""
+    try:
+        _ensure_reconcile_event().set()
+    except Exception:
+        logger.debug("scanner_l1: request_reconcile failed", exc_info=True)
 
 
 def get_subscription_state() -> dict[str, Any]:
@@ -306,7 +322,13 @@ async def reconcile_loop(
         except Exception:
             logger.exception("scanner_l1: reconcile failed")
             _subscription_state["error"] = "reconcile failed"
-        await asyncio.sleep(float(IBKR_L1_RECONCILE_SEC))
+        ev = _ensure_reconcile_event()
+        try:
+            await asyncio.wait_for(ev.wait(), timeout=float(IBKR_L1_RECONCILE_SEC))
+        except asyncio.TimeoutError:
+            pass
+        else:
+            ev.clear()
 
 
 async def flush_loop(push: PushFn) -> None:

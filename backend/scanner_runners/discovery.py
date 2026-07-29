@@ -49,6 +49,12 @@ def run_discovery_scan() -> None:
         state.ibkr_bridge_last_error = ""
     sr.mark_resub()
     sr.save_gapper_snapshot(state.gapper_cache, state.gapper_cache_ts)
+    try:
+        from hod_roster_hooks import on_hod_roster_commit
+
+        on_hod_roster_commit(_ss.TABLE_GAPPERS)
+    except Exception:
+        logger.debug("discovery: HOD roster commit hook failed", exc_info=True)
 
 
 def run_focus_scan() -> None:

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Refresh HOD active set on roster commit (G8)
+
+- **What:** After a gappers/gainers/afterhours roster write, Nova rebuilds the HOD active set and wakes `scanner_l1.reconcile_loop` via `request_reconcile()` instead of waiting for the next sleep.
+- **Why:** Capture audit G8 -- new admits waited for L1 reconcile cadence before evaluation.
+- **Files touched:** `backend/hod_roster_hooks.py` (new), `backend/ibkr/scanner_l1.py`, `backend/ibkr/scanner_hydrate.py`, `backend/scanner_runners/{discovery,movers,afterhours}.py`, tests.
+- **How it works now:** Live hydrate `commit_table` and legacy runners call `on_hod_roster_commit` (losers ignored). Reconcile loop waits on an Event with the normal timeout.
+- **Verified by:** pytest hydrate/roster + scanner_l1 + adr008 + active + bridge -- 37 passed.
+- **Related:** PROBLEM_LOG 2026-07-28 G8; audit G8.
+
 ## 2026-07-28 -- Persist session_high_raised_ts across restart (G9)
 
 - **What:** HOD highs cache now saves and restores `session_high_raised_ts` alongside session/day highs.

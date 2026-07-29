@@ -158,6 +158,12 @@ def run_gainers_update() -> None:
         state.gainer_cache_ts = time.time()
         _ss.ensure_session_key(state, _ss.TABLE_GAINERS, source="movers")
         sr.save_gainer_snapshot(state.gainer_cache, state.gainer_cache_ts)
+        try:
+            from hod_roster_hooks import on_hod_roster_commit
+
+            on_hod_roster_commit(_ss.TABLE_GAINERS)
+        except Exception:
+            logger.debug("movers: HOD roster commit hook failed", exc_info=True)
     if not loser_frozen:
         state.loser_cache = losers
         state.loser_cache_ts = time.time()

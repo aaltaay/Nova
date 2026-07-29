@@ -102,6 +102,13 @@ def run_afterhours_discovery_scan() -> None:
         state.last_afterhours_discovery_ts = time.monotonic()
         sr.mark_resub()
         sr.save_afterhours_snapshot(state.afterhours_cache, state.afterhours_cache_ts)
+        try:
+            from ibkr import scanner_session as _ss
+            from hod_roster_hooks import on_hod_roster_commit
+
+            on_hod_roster_commit(_ss.TABLE_AFTERHOURS)
+        except Exception:
+            logger.debug("AH discovery: HOD roster commit hook failed", exc_info=True)
         # Clear sticky bridge error on a successful AH refresh (mirrors
         # movers.py) — this scan re-runs every AH cycle, but nothing ever
         # cleared the flag for the "afterhours" label, so one bridge timeout
@@ -154,6 +161,13 @@ def run_afterhours_discovery_scan() -> None:
     state.last_afterhours_discovery_ts = time.monotonic()
     sr.mark_resub()
     sr.save_afterhours_snapshot(state.afterhours_cache, state.afterhours_cache_ts)
+    try:
+        from ibkr import scanner_session as _ss
+        from hod_roster_hooks import on_hod_roster_commit
+
+        on_hod_roster_commit(_ss.TABLE_AFTERHOURS)
+    except Exception:
+        logger.debug("AH discovery (alpaca): HOD roster commit hook failed", exc_info=True)
 
 
 def run_afterhours_focus_scan() -> None:
@@ -182,6 +196,13 @@ def run_afterhours_focus_scan() -> None:
         )
         state.afterhours_cache_ts = time.time()
         sr.save_afterhours_snapshot(state.afterhours_cache, state.afterhours_cache_ts)
+        try:
+            from ibkr import scanner_session as _ss
+            from hod_roster_hooks import on_hod_roster_commit
+
+            on_hod_roster_commit(_ss.TABLE_AFTERHOURS)
+        except Exception:
+            logger.debug("AH focus (IBKR): HOD roster commit hook failed", exc_info=True)
         state.ibkr_bridge_last_error = ""
         return
 
@@ -234,3 +255,10 @@ def run_afterhours_focus_scan() -> None:
     state.afterhours_cache = updated
     state.afterhours_cache_ts = time.time()
     sr.save_afterhours_snapshot(state.afterhours_cache, state.afterhours_cache_ts)
+    try:
+        from ibkr import scanner_session as _ss
+        from hod_roster_hooks import on_hod_roster_commit
+
+        on_hod_roster_commit(_ss.TABLE_AFTERHOURS)
+    except Exception:
+        logger.debug("AH focus: HOD roster commit hook failed", exc_info=True)
