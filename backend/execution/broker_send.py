@@ -6,6 +6,7 @@ from typing import Callable
 
 from constants import (
     EXECUTOR_ENTRY_SIDE_IBKR,
+    EXECUTOR_ENTRY_SIDE_IBKR_SHORT,
     EXECUTION_ACK_WAIT_SEC,
     IBKR_ERROR_FRACTIONAL_API,
     IBKR_FRACTIONAL_ORDER_API_MSG,
@@ -178,16 +179,20 @@ async def send_broker(
             execution_id, status="sent", broker_sent_ns=timings.broker_sent_ns,
             mode=mode, symbol=symbol,
         )
+        entry_side = (
+            EXECUTOR_ENTRY_SIDE_IBKR_SHORT
+            if getattr(cmd, "short_entry", False)
+            else EXECUTOR_ENTRY_SIDE_IBKR
+        ).upper()
         raw = _orders.place_bracket_order(
             symbol=symbol or "",
-            side=EXECUTOR_ENTRY_SIDE_IBKR,
+            side=entry_side,
             qty=qty,
             entry_price=float(cmd.entry_price or 0),
             stop_price=float(cmd.stop_price or 0),
             target_price=float(cmd.target_price or 0),
         )
         parent = raw.get("parent_order_id")
-        entry_side = EXECUTOR_ENTRY_SIDE_IBKR.upper()
         exit_side = "SELL" if entry_side == "BUY" else "BUY"
         watch = (
             telemetry.watch_order(

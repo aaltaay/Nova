@@ -3,21 +3,28 @@
  * Matched pane headers (no duplicate outer "Level 2 · Time & Sales" title).
  * Height vs Order Entry is controlled by StockViewRail's horizontal splitter.
  */
+import { ShortabilityChip } from '../ibkr/ShortabilityChip';
 import { Level2Module } from '../modules/Level2Module';
 import { TimeSalesModule } from '../modules/TimeSalesModule';
 import {
   STOCK_VIEW_MODULE_DEPTH_TITLE,
   STOCK_VIEW_MODULE_L2_TITLE,
 } from '../constants';
+import type { IbkrListingFlags } from '../types/ticker';
 import { useModuleVisibility, useWorkspace } from '../workspace';
 import { StockViewModuleCard } from './StockViewModuleCard';
 
 interface Props {
   selectedSymbol: string;
   detailSymbol: string;
+  listingIbkr?: IbkrListingFlags | null;
 }
 
-export function StockViewDepthTape({ selectedSymbol, detailSymbol }: Props) {
+export function StockViewDepthTape({
+  selectedSymbol,
+  detailSymbol,
+  listingIbkr = null,
+}: Props) {
   const { ibkrConnected } = useWorkspace();
   const { isVisible } = useModuleVisibility();
   const depthSymbol = selectedSymbol.toUpperCase();
@@ -56,6 +63,7 @@ export function StockViewDepthTape({ selectedSymbol, detailSymbol }: Props) {
             <div className="sv-md-pane">
               <div className="sv-md-pane__head">
                 <h3 className="sv-md-pane__title">{STOCK_VIEW_MODULE_L2_TITLE}</h3>
+                <ShortabilityChip ibkr={listingIbkr} />
               </div>
               <div className="sv-md-pane__body">
                 <Level2Module symbol={depthSymbol} />

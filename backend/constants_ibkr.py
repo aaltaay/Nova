@@ -11,7 +11,13 @@ NOVA_DESKTOP_API_PORT = 8000
 # IBKR_ORDERS_ENABLED=false     → master kill switch; default OFF so live Gateway
 #                                 cannot place buys/sells until you opt in.
 # IBKR_LIVE_TRADING_CONFIRMED   → second key required when gateway/account is live.
+# IBKR_SHORT_ENABLED=false      → third key for opening shorts (Phase K / ADR 009).
 IBKR_HOST = "127.0.0.1"
+IBKR_SHORT_ENABLED_DEFAULT = False
+# Tick-236 shortability freshness for order gates (seconds).
+IBKR_SHORTABILITY_TTL_SEC = 60.0
+# Shares thresholds for shortability states (IBKR tick 236 estimate).
+IBKR_SHORTABLE_EST_MIN_SHARES = 10_000.0
 IBKR_PAPER_PORT = 4002       # IB Gateway paper trading port
 IBKR_LIVE_PORT = 4001        # IB Gateway live trading port
 # Default 17 (not 1): clientId 1 is commonly held by zombie uvicorn/--reload
@@ -307,9 +313,12 @@ JOURNAL_IBKR_IMPORT_MAX_ROWS = 500
 # backend/strategy/executor.py places IBKR bracket orders ONLY when armed
 # (always resets to disarmed on backend restart) AND risk.can_trade() AND
 # risk.validate_trade_plan() both approve the signal. Every current setup
-# (Gap and Go, Bull Flag, ABCD) is long-only, so the entry side is fixed.
-EXECUTOR_ENTRY_SIDE_IBKR = "BUY"        # ibkr.orders.OrderSide used for every bracket entry
-EXECUTOR_ENTRY_SIDE_JOURNAL = "long"    # journal.store side convention ("long"/"short")
+# Default bracket entry is long; short_entry commands use SELL / journal "short"
+# (Phase K / ADR 009). Automation setups remain long-only until a short setup ships.
+EXECUTOR_ENTRY_SIDE_IBKR = "BUY"        # default ibkr.orders.OrderSide for bracket entry
+EXECUTOR_ENTRY_SIDE_JOURNAL = "long"    # default journal.store side ("long"/"short")
+EXECUTOR_ENTRY_SIDE_IBKR_SHORT = "SELL"
+EXECUTOR_ENTRY_SIDE_JOURNAL_SHORT = "short"
 EXECUTOR_FILL_POLL_INTERVAL_SEC = 10.0  # how often the background loop checks for bracket fills
 
 # ── Level 2 recorder / tape features (Phase F) ──────────────────────────────

@@ -40,6 +40,8 @@ class ExecutionCommand:
     reference_price: float | None = None
     client_timing: dict[str, Any] | None = None
     backend_ingress_wall_ns: int | None = None
+    # Phase K / ADR 009: explicit short-opening opt-in (never inferred).
+    short_entry: bool = False
 
     def normalized_symbol(self) -> str | None:
         return self.symbol.upper() if self.symbol else None

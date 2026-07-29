@@ -16,6 +16,8 @@ export interface IbkrStatus {
   market_data_delayed?: boolean;
   orders_enabled?: boolean;
   live_trading_confirmed?: boolean;
+  /** Phase K / ADR 009 — third key for opening shorts. */
+  short_enabled?: boolean;
   /** locked | locked_live_unconfirmed | paper_armed | live_armed */
   spend_status?: string;
   preferred_port?: number;

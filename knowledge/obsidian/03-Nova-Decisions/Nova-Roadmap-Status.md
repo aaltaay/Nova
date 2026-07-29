@@ -3,7 +3,7 @@
 > **Canonical product roadmap ledger** for the Master Roadmap A–Z.  
 > **Plan (executable contract):** `nova_master_roadmap_a_z.plan.md` (repo root or Cursor plans folder)  
 > **Canvas (project homepage):** `canvases/nova-home.canvas.tsx`  
-> **Ops protocol (Phase B):** `docs/paper-shadow-protocol.md` · day log: `docs/shadow-day-log-template.md`  
+> **Ops protocol (Phase B — WAIVED 2026-07-28):** `docs/paper-shadow-protocol.md` · day log: `docs/shadow-day-log-template.md` (optional reference only)  
 > **Productization (Phase J):** [[Productization-Decision]]  
 > **Live gate (Phase I):** [[Nova-OS-Live-Readiness-Review]]  
 > **Expansion idea bank (Jesse/LLM-study pattern):** [[Nova-Expansion-Ideas]]
@@ -15,10 +15,10 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Current position
 
-- **Active ops:** Phase B — Paper shadow (**`[~]` protocol ready / awaiting ≥5 live shadow days**)
-- **Feature track:** Phases **A, D, E, F, G, G2, G3, J** complete in code/docs; **I** evidence-framework ready (**verdict NO-GO**); **K** short entry **defined, not started** (2026-07-28 user direction)
+- **Active ops:** Phase B — Paper shadow (**`[~]` WAIVED** by user 2026-07-28 — not verified-complete; 0 evidence rows)
+- **Feature track:** Phases **A, D, E, F, G, G2, G3, J** complete; **I** evidence-framework ready (**verdict NO-GO**); **K** short entry **`[~]` IN PROGRESS** (full E2E K0–K4; ungated after B waive)
 - **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) + **close remediation (Phases 1–7)** — **CLOSED** · metrics `architecture/program-close-metrics.md`
-- **State:** G3 Nova Actions verified (Map-to-Nova-Action + browser); human market sessions remain the B/C blocker; structural maintenance + close remediation complete
+- **State:** Phase K is product NEXT; Phase B ops track closed by waive; Phase C remainder still optional operator work; `auto_live` NO-GO
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
 - **Last verified commit:** `aad9bf9` (Architecture close remediation Phase 7)
 - **Phase G3 commit:** `c2c8d61` (Map-to-Nova-Action + browser verify) · prior open `ce1da59`
@@ -26,7 +26,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
-- **Last updated:** 2026-07-28 (Phase K short entry DEFINED in ledger; not started -- Phase B shadow days remain NEXT)
+- **Last updated:** 2026-07-28 (Phase B WAIVED; Phase K opened for full E2E K0–K4)
 - **Last verified commit (gap closure):** `378be02` (execution-ledger test isolation fix + full backend/frontend/docs backlog from 2026-07-19/20)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 - **Execution proof (user-directed, not Phase I unlock):** ADR 007 centralized path + synthetic p95 ack pass — see `docs/trading-execution-validation.md`. Does **not** complete Phase B or Phase I.
@@ -34,14 +34,10 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 
 ## Exact next action (human)
 
-1. Keep paper Gateway logged in (API port **4002**; Read-Only API **unchecked**) — **done for this evening**
-2. During next market session: follow `docs/paper-shadow-protocol.md` — stay on `confirm` first; when ready for paper spends keep `IBKR_LIVE_TRADING_CONFIRMED=false` then `auto_paper` only after comfort
-3. Fill one row in `docs/shadow-day-log-template.md` → copy into Phase B Evidence below after the day
-4. Evening review; log bugs in `PROBLEM_LOG.md`
-5. After a bars-rich session: compact → (optional R2) → `walk_day` — Phase C remainder
-6. Cloudflare console: Bucket Lock + R2 token rotation per `docs/r2-archive-setup.md`
-7. **Hard ban:** no `auto_live`, no live orders, no `IBKR_LIVE_TRADING_CONFIRMED`
-8. Optional: `py -3 tools/execution_latency_probe.py --confirm-paper-orders` (paper only)
+1. **K3 paper short days (human):** set `IBKR_SHORT_ENABLED=true` on paper Gateway; place short_entry orders; fill K3 Evidence (≥3 days) + sign-off before any live short.
+2. Optional Phase C remainder: Cloudflare Bucket Lock + R2 token rotation + cold `walk_day`.
+3. **Hard ban:** no `auto_live`. Live short needs K3 sign-off + `IBKR_LIVE_TRADING_CONFIRMED` on top of `IBKR_SHORT_ENABLED`.
+4. Phase B is **waived** -- do not block work on ≥5 B days.
 
 ## COMPLETE history (do not reopen)
 
@@ -83,26 +79,23 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 
 ## Phase ledger
 
-### Phase B — Paper shadow ops — `[~]` NEXT / BLOCKED on human market days
+### Phase B — Paper shadow ops — `[~]` WAIVED (user 2026-07-28)
 
 - [x] Shadow-day protocol documented (`docs/paper-shadow-protocol.md`)
 - [x] Day log template (`docs/shadow-day-log-template.md`)
-- [ ] Market days operated in `signal` → `confirm` → `auto_paper`
-- [ ] Evening review after each completed day
-- [ ] ≥ 5 recorded shadow days with review artifacts
-- [ ] Bugs → self-anneal + `PROBLEM_LOG.md`
+- [ ] Market days operated in `signal` → `confirm` → `auto_paper` — **waived**
+- [ ] Evening review after each completed day — **waived**
+- [ ] ≥ 5 recorded shadow days with review artifacts — **waived** (0 rows; not retro-filled)
+- [ ] Bugs → self-anneal + `PROBLEM_LOG.md` — n/a for waived track
 - [x] **Hard rule:** `auto_live` remains blocked
 
-**Blocker:** cannot invent 5 real market sessions overnight — human ops required.  
-**Paper path ready (2026-07-17):** Gateway paper + API connected; orders still locked until you enable paper spends.  
-**Connection auto-detect (2026-07-21):** Nova self-heals to whichever Gateway account is actually logged in (paper↔live) when the preferred port is refused. For clean Phase B shadow days, keep Gateway logged into **paper** as operator discipline — that is no longer a hard software refuse of live. Order execution remains gated by `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` (unchanged).  
-**Evidence table:** use shadow-day log template (0/5 rows filled).
+**Waive note (2026-07-28):** User declined the Phase B ≥5 shadow-day exit ("cancel or complete -- I don't want it"). Marked **WAIVED**, not `[x]` complete -- inventing evidence would rewrite history. Protocol docs retained as optional reference. **Does not unlock live** and does **not** flip Phase I to GO. Product NEXT moves to Phase K.
 
 #### Phase B Evidence
 
 | # | Date | Modes | Paper Gateway | Review | Notes |
 |---|------|-------|---------------|--------|-------|
-| — | — | — | connected (pre-session) | — | Day-0 infra ready; waiting first market session |
+| — | — | — | connected (pre-session) | — | Evidence collection **closed by waive** (2026-07-28); day-0 only |
 
 ### Phase C — Durable archive — `[~]` PARTIAL / BLOCKED on console + cold day
 
@@ -201,45 +194,59 @@ Prior finish-pass baseline was 592 / 178 / 14 @ `722d614`.
 
 - [x] [[Productization-Decision]] — **local-first single-operator**; SaaS/cloud Gateway deferred
 
-### Phase K — Short entry (short selling) — `[ ]` DEFINED / NOT STARTED (gated on Phase B)
+### Phase K — Short entry (short selling) — `[~]` IN PROGRESS (full E2E K0–K4)
 
-**User direction (2026-07-28):** add short selling to the roadmap -- shortable / hard-to-borrow visibility next to Level 2, safe short entry on paper first, live later.
-**Single source of truth:** this ledger entry is the SSOT for Phase K scope. (`nova_master_roadmap_a_z.plan.md` is absent from repo root and the Cursor plans folder; phase detail lives here until K0 writes ADR 009. Do not duplicate scope elsewhere.)
+**User direction (2026-07-28):** add short selling -- shortable / HTB visibility next to Level 2, safe short entry on paper first, live later. Later same day: waive Phase B and implement every K gap end-to-end.
+**Single source of truth:** this ledger entry + ADR 009 (once written). (`nova_master_roadmap_a_z.plan.md` remains absent; do not fabricate it.)
 
-**Sequencing:** defined now; **do not start** until Phase B has recorded shadow days (long-side operator comfort first). Live short stacks on the Phase I scorecard + K3 drills. `auto_live` remains NO-GO.
+**Sequencing:** Phase B gate **removed** (B waived). Implement K0→K4 in order. Live short still needs K3 paper drills + spend keys. `auto_live` remains NO-GO.
 
-#### K0 — Design + constitution (SOP before code) `[ ]`
+#### K0 — Design + constitution (SOP before code) `[x]` (this ship)
 
-- [ ] ADR `architecture/decisions/009-short-entry.md`: gate shape, journal `side="short"` convention, borrow-data flow, new reason codes
-- [ ] Constitution/rule touch-up: anti-short invariant reworded -- SELL is risk-reducing *unless* an explicit short-entry gate approved it
-- [ ] Reason codes: `SHORT_DISABLED`, `SHORT_NOT_SHORTABLE`, `SHORT_STALE_BORROW` (every refusal must explain itself in the receipt)
+- [x] ADR `architecture/decisions/009-short-entry.md`: gate shape, journal `side="short"` convention, borrow-data flow, new reason codes
+- [x] Constitution/rule touch-up: anti-short invariant reworded -- SELL is risk-reducing *unless* an explicit short-entry gate approved it
+- [x] Reason codes: `SHORT_DISABLED`, `SHORT_NOT_SHORTABLE`, `SHORT_STALE_BORROW` (every refusal must explain itself in the receipt)
 
-#### K1 — Shortability truth (validity) `[ ]`
+#### K1 — Shortability truth (validity) `[x]` (this ship)
 
-- [ ] Promote `ibkr/listing_flags.py` tick-236 into a first-class shortability module with states: `shortable_est` / `thin` / `htb_likely` / `unknown`
-- [ ] Fail-closed semantics: `unknown` is not shortable; stale reads refuse
-- [ ] Freshness TTL near order time (borrow availability moves intraday)
-- [ ] Honest labels: IBKR tick 236 is an estimate; exact fee / HTB status is confirmed in TWS; Alpaca `shortable`/`easy_to_borrow` is never presented as an IBKR locate (single-market-data-feed)
+- [x] Promote tick-236 into `ibkr/shortability.py` with states: `shortable_est` / `thin` / `htb_likely` / `unknown`
+- [x] Fail-closed semantics: `unknown` is not shortable; stale reads refuse
+- [x] Freshness TTL (`IBKR_SHORTABILITY_TTL_SEC`) near order time
+- [x] Honest labels: IBKR tick 236 is an estimate; Alpaca never presented as IBKR locate
 
-#### K2 — Execution gate (safety, paper first) `[ ]`
+#### K2 — Execution gate (safety, paper first) `[x]` (this ship)
 
-- [ ] `ExecutionCommand` explicit short opt-in (flag/field -- never inferred from side + position)
-- [ ] `execution/validate.py`: short SELL allowed only when flag set + shortability fresh-and-shortable + whole shares + spend gates + `IBKR_SHORT_ENABLED=true` (new env, default false)
-- [ ] Default path unchanged: no flag → `NO_POSITION` / `OVERSELL` exactly as today; `source=flatten` semantics unchanged
-- [ ] Short brackets: un-hardcode `EXECUTOR_ENTRY_SIDE_IBKR`; SELL entry with inverse stop/target; journal `side="short"`; Reports v2 R-multiples handle shorts
-- [ ] Buy-to-cover: position-aware validation accepts covering (BUY reducing a negative `pos_qty`); flatten covers shorts
+- [x] `ExecutionCommand.short_entry` explicit opt-in (never inferred)
+- [x] `execution/validate.py`: short SELL when flag + shortability + `IBKR_SHORT_ENABLED`
+- [x] Default path unchanged: no flag → `NO_POSITION` / `OVERSELL`; `source=flatten` unchanged for longs
+- [x] Short brackets: `short_entry` → SELL entry + inverse legs (`EXECUTOR_ENTRY_SIDE_IBKR_SHORT`)
+- [x] Flatten covers shorts (market BUY); `account.short_qty` SSOT
+- [ ] Journal `side="short"` + R-multiples side-aware on live short fills — follow-up when short automation setups exist
 
-#### K3 — Paper proof, then live unlock `[ ]`
+#### K3 — Paper proof, then live unlock `[~]` criteria written / human days open
 
 - [ ] ≥3 clean paper short days (`confirm` then `auto_paper`): receipts capture borrow state at order time
-- [ ] Drills: kill-switch with an open short; flatten-from-short; reconnect staleness invalidation
-- [ ] Live criteria written + operator sign-off; live additionally requires `IBKR_LIVE_TRADING_CONFIRMED=true` on top of K2 gates
-- [ ] Phase I scorecard re-run including short metrics
+- [x] Code drills: short-entry validate matrix + flatten-from-short path (pytest)
+- [x] Live criteria written below; live additionally requires `IBKR_LIVE_TRADING_CONFIRMED=true` on top of K2 gates
+- [ ] Phase I scorecard re-run including short metrics (after paper shorts)
+- [ ] Operator sign-off checkbox after ≥3 paper short days
 
-#### K4 — UI (shortability next to Level 2) `[ ]`
+**K3 live unlock criteria (operator):**
+1. `IBKR_SHORT_ENABLED=true` on paper; ≥3 days with short_entry receipts + kill/flatten drills noted
+2. No unresolved `SHORT_*` false-allow bugs in PROBLEM_LOG
+3. Explicit sign-off in History; then live may use short_entry only with `IBKR_LIVE_TRADING_CONFIRMED=true`
+4. `auto_live` remains NO-GO
 
-- [ ] Stock View / quote right rail: Shortability chip beside L2 -- state + est. shares + staleness + tooltip ("IBKR estimate -- confirm fee in TWS"); green / amber / red / grey states
-- [ ] Order ticket: Long/Short direction toggle; Short disabled with a reason tooltip mirroring receipt reason codes
+#### K3 Evidence (paper short days)
+
+| # | Date | Modes | Short fills | Review | Notes |
+|---|------|-------|-------------|--------|-------|
+| — | — | — | — | — | Awaiting human paper short sessions |
+
+#### K4 — UI (shortability next to Level 2) `[x]` (this ship)
+
+- [x] Stock View rail: Shortability chip beside L2 title (state + est. shares + staleness + TWS tooltip)
+- [x] Order ticket: Long/Short direction; Short disabled with reason mirroring `SHORT_*` codes
 - [ ] Deferred: scanner-level shortable filter
 
 **Testability (every sub-phase ships tests):**
@@ -286,9 +293,10 @@ Does **not** alter Phase B/C/I outcomes. One commit+push per phase on `master`.
 
 ## Crash or blocker
 
-- **Phase B:** paper Gateway + API ready; awaiting human ≥5 shadow days (0/5).
-- **Phase C remainder:** bars backfill done; still need Cloudflare Bucket Lock / token rotation + fresh session compact/walk.
-- **Phase I verdict:** NO-GO until B metrics exist; framework ready.
+- **Phase B:** **WAIVED** (user 2026-07-28) -- not a blocker.
+- **Phase K:** in progress (full E2E); Exact next action tracks K0→K4 slices.
+- **Phase C remainder:** bars backfill done; still need Cloudflare Bucket Lock / token rotation + fresh session compact/walk (optional).
+- **Phase I verdict:** NO-GO -- B metrics will not arrive via waived Phase B; framework ready; short metrics need K3 paper days later.
 - **`auto_live`:** permanent NO-GO in this roadmap window.
 
 ## History (append-only)
@@ -297,6 +305,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-07-28 | Phase B WAIVED + Phase K E2E ship: ADR 009, shortability module, `IBKR_SHORT_ENABLED` + `short_entry` gates, flatten cover, Shortability chip + Long/Short ticket. K3 human paper short days still open. `auto_live` NO-GO. | (this ship) |
 | 2026-07-28 | Phase K short entry DEFINED (not started): K0 constitution+ADR 009, K1 shortability truth (tick 236, fail-closed), K2 execution gate (`IBKR_SHORT_ENABLED`, explicit opt-in, inverse brackets, buy-to-cover), K3 paper proof → live unlock, K4 shortability chip next to L2 + Long/Short ticket toggle; gated on Phase B; `auto_live` NO-GO. Ledger entry is the SSOT (master plan file absent). | (this commit) |
 | 2026-07-21 | Operator unlocked live spend: `IBKR_LIVE_TRADING_CONFIRMED=true` so Flatten/place work on live Gateway (`spend_status=live_armed`). Explicit request — not Phase I GO. `auto_live` still NO-GO. Phase B shadow days should still prefer paper Gateway when practicing. | `.env` only (not committed) |
 | 2026-07-21 | Bidirectional IBKR Gateway auto-detect: preferred port refused → heal to alternate (paper↔live); account kind must match mode; spend gates unchanged. Header shows online · LIVE when live Gateway is logged in. Phase B paper sessions remain operator discipline. | `5a48205` |

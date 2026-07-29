@@ -5,7 +5,7 @@
 > **Tooling guide:** `security/tooling.md`  
 > **CI job:** `.github/workflows/deploy.yml` → `security-audit` (warning-only, `continue-on-error: true`)  
 > **Audit script:** `tools/security_audit.py --json`  
-> **Roadmap-Status:** [[Nova-Roadmap-Status]] — Phase B remains product NEXT; `auto_live` NO-GO unchanged.
+> **Roadmap-Status:** [[Nova-Roadmap-Status]] — Phase B WAIVED (2026-07-28); Phase K short entry is product NEXT; `auto_live` NO-GO unchanged.
 
 Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 
@@ -95,7 +95,7 @@ See `security/tooling.md` for commands and Windows setup.
 - No scanner credentials / API keys committed to git
 - Scanner JSON output goes to `.tmp/` (gitignored) — never committed
 - `auto_live` remains NO-GO regardless of security posture
-- Phase B (paper shadow) remains the product NEXT per [[Nova-Roadmap-Status]]
+- Phase B paper shadow was WAIVED (2026-07-28); Phase K is product NEXT per [[Nova-Roadmap-Status]]
 
 ---
 

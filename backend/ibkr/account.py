@@ -93,6 +93,29 @@ def long_qty(symbol: str) -> float:
     return total
 
 
+def short_qty(symbol: str) -> float:
+    """Verified short quantity (positive magnitude) for ``symbol``.
+
+    Sums absolute value of same-symbol rows with qty < 0. Returns ``0.0`` when
+    verified flat/long-only. Raises ``IbkrAccountError`` when positions cannot
+    be read (same fail-closed contract as ``long_qty``).
+    """
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return 0.0
+    total = 0.0
+    for p in get_positions():
+        if str(p.get("symbol") or "").upper() != sym:
+            continue
+        try:
+            qty = float(p.get("qty") or 0)
+        except (TypeError, ValueError):
+            continue
+        if qty < 0:
+            total += abs(qty)
+    return total
+
+
 def positions_for_ui() -> list[dict]:
     """Positions rows for ``GET /api/ibkr/positions``.
 

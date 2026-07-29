@@ -16,6 +16,7 @@ import { closeFullPosition } from './closeFullPosition';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import type { PlaceOrderResult } from './placeOrder';
 import { TickerTradeAutomateControls } from './TickerTradeAutomateControls';
+import type { IbkrListingFlags } from '../types/ticker';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 
 interface Props {
@@ -28,6 +29,7 @@ interface Props {
   position: IbkrPosition | null;
   summary: IbkrAccountSummary | null;
   referencePrice: number | null;
+  listingIbkr?: IbkrListingFlags | null;
   onOrderPlaced?: (result?: PlaceOrderResult) => void;
   /**
    * `footer` — full chrome (account + automate).
@@ -47,6 +49,7 @@ export function TickerTradeActionBar({
   position,
   summary,
   referencePrice,
+  listingIbkr = null,
   onOrderPlaced,
   variant = 'footer',
 }: Props) {
@@ -171,6 +174,7 @@ export function TickerTradeActionBar({
             summary={summary}
             position={position}
             referencePrice={referencePrice}
+            listingIbkr={listingIbkr}
             onOrderPlaced={(result) => onOrderPlaced?.(result)}
           />
         </div>

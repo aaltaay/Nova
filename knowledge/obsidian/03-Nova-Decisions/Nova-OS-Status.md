@@ -74,6 +74,6 @@ The 2026-07-15 post-P10 audit found P2–P7 were partial/prototype: **unsafe fla
 
 Ops next (do not reopen engine/workspace scaffolding):
 
-1. **Phase B** — Paper shadow days (`signal` → `confirm` → `auto_paper`) + evening review annealing
+1. **Phase B** — Paper shadow **WAIVED** (2026-07-28); product NEXT is **Phase K** short entry (see [[Nova-Roadmap-Status]])
 2. **Phase C remainder** — After first finished market day with maintenance on: `walk_day` + restore on real cold archive; Bucket Lock / token rotation
 3. Separate explicit phase if/when live readiness flips to GO — **no `auto_live` without that phase**

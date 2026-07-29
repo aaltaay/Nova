@@ -116,7 +116,7 @@ Phase I does **not** unlock live. It freezes the GO thresholds operators must me
 | Archive integrity | ≥1 real cold day compact + restore + `walk_day` | Phase C remainder |
 | Backtest honesty | Archive backtests labeled no-hindsight / no spread | Phase E `/api/backtest/run` |
 
-**Current Phase I state:** evidence **framework ready**; measured verdict still **NO-GO** until Phase B metrics exist (≥5 shadow days + sample size above).
+**Current Phase I state:** evidence **framework ready**; measured verdict still **NO-GO**. Phase B was **WAIVED** (2026-07-28) so ≥5 shadow-day metrics will not arrive via that track; sample-size thresholds above remain unmet until a future evidence pass (e.g. Phase K3 paper short days + journal metrics) replaces them.
 
 **`auto_live`:** remains **rejected** in `backend/nova_os/control_mode.py`. No code change in Phase I.
 

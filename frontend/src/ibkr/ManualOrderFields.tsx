@@ -10,6 +10,11 @@ import {
   TICKER_TRADE_LABEL_TRADING_HOURS,
 } from '../constants';
 import {
+  TICKER_TRADE_LABEL_DIRECTION,
+  TICKER_TRADE_LABEL_LONG,
+  TICKER_TRADE_LABEL_SHORT,
+} from '../constantGroups/shortability';
+import {
   presetsForQuantityMode,
   type ManualOrderSide,
   type ManualOrderType,
@@ -27,6 +32,10 @@ interface Props {
   disabled: boolean;
   /** When true, quantity input / units / presets are inert (forced share qty). */
   quantityLocked?: boolean;
+  /** Phase K: Long vs Short opening direction. */
+  shortEntry?: boolean;
+  shortDisabledReason?: string | null;
+  onDirectionChange?: (shortEntry: boolean) => void;
   onSideChange: (side: ManualOrderSide) => void;
   onOrderTypeChange: (orderType: ManualOrderType) => void;
   onQuantityModeChange: (mode: QuantityMode) => void;
@@ -71,6 +80,9 @@ export function ManualOrderFields({
   outsideRth,
   disabled,
   quantityLocked = false,
+  shortEntry = false,
+  shortDisabledReason = null,
+  onDirectionChange,
   onSideChange,
   onOrderTypeChange,
   onQuantityModeChange,
@@ -88,9 +100,49 @@ export function ManualOrderFields({
     quantityLocked && TICKER_TRADE_FORCE_QTY != null
       ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
       : undefined;
+  const shortBlocked = Boolean(shortDisabledReason);
 
   return (
     <>
+      {onDirectionChange && (
+        <>
+          <label className="manual-order-label">{TICKER_TRADE_LABEL_DIRECTION}</label>
+          <div
+            className="manual-order-segment manual-order-direction"
+            role="group"
+            aria-label={TICKER_TRADE_LABEL_DIRECTION}
+          >
+            <button
+              type="button"
+              className={!shortEntry ? 'is-buy' : ''}
+              aria-pressed={!shortEntry}
+              onClick={() => onDirectionChange(false)}
+              disabled={disabled}
+            >
+              {TICKER_TRADE_LABEL_LONG}
+            </button>
+            <button
+              type="button"
+              className={shortEntry ? 'is-sell' : ''}
+              aria-pressed={shortEntry}
+              title={shortBlocked ? shortDisabledReason ?? undefined : undefined}
+              onClick={() => {
+                if (!shortBlocked) onDirectionChange(true);
+              }}
+              disabled={disabled || shortBlocked}
+              data-testid="manual-order-short-direction"
+            >
+              {TICKER_TRADE_LABEL_SHORT}
+            </button>
+          </div>
+          {shortBlocked && (
+            <p className="manual-order-hint" data-testid="manual-order-short-reason">
+              {shortDisabledReason}
+            </p>
+          )}
+        </>
+      )}
+
       <label className="manual-order-label">{TICKER_TRADE_LABEL_SIDE}</label>
       <div
         className="manual-order-segment manual-order-side"
@@ -102,7 +154,7 @@ export function ManualOrderFields({
           className={side === 'BUY' ? 'is-buy' : ''}
           aria-pressed={side === 'BUY'}
           onClick={() => onSideChange('BUY')}
-          disabled={disabled}
+          disabled={disabled || shortEntry}
         >
           Buy
         </button>

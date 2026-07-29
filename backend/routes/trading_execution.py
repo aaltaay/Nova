@@ -33,6 +33,7 @@ class OrderRequest(BaseModel):
     stop_price: float | None = None
     reference_price: float | None = Field(default=None, gt=0)
     outside_rth: bool = False
+    short_entry: bool = False
     idempotency_key: str | None = None
     client_timing: BrowserTimingRequest | None = None
 
@@ -88,6 +89,7 @@ async def place_order(req: OrderRequest, request: Request) -> dict:
             stop_price=req.stop_price,
             reference_price=req.reference_price,
             outside_rth=req.outside_rth,
+            short_entry=bool(req.short_entry),
             skip_risk=True,
             skip_concurrency=True,
             client_timing=_browser_timing(request, req.client_timing),

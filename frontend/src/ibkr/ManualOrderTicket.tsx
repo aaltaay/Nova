@@ -15,6 +15,12 @@ import {
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
+import {
+  SHORTABILITY_NOT_SHORTABLE,
+  SHORTABILITY_SHORT_DISABLED,
+  SHORTABILITY_STALE,
+} from '../constantGroups/shortability';
+import type { IbkrListingFlags } from '../types/ticker';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
@@ -24,6 +30,7 @@ import {
   tryUnlockTicketSession,
 } from './ticketUnlock';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
+import { useIbkrStatus } from './useIbkrStatus';
 
 interface Props {
   symbol: string;
@@ -33,7 +40,21 @@ interface Props {
   summary: IbkrAccountSummary | null;
   position: IbkrPosition | null;
   referencePrice: number | null;
+  listingIbkr?: IbkrListingFlags | null;
   onOrderPlaced?: (result: PlaceOrderResult) => void;
+}
+
+function shortDisabledReason(
+  shortEnabled: boolean | undefined,
+  listing: IbkrListingFlags | null | undefined,
+): string | null {
+  if (!shortEnabled) return SHORTABILITY_SHORT_DISABLED;
+  if (!listing) return SHORTABILITY_NOT_SHORTABLE;
+  if (listing.stale) return SHORTABILITY_STALE;
+  if (listing.state !== 'shortable_est' || listing.orderable === false) {
+    return SHORTABILITY_NOT_SHORTABLE;
+  }
+  return null;
 }
 
 const FORCED_QTY = forcedManualOrderQty();
@@ -47,11 +68,18 @@ export function ManualOrderTicket({
   summary,
   position,
   referencePrice,
+  listingIbkr = null,
   onOrderPlaced,
 }: Props) {
+  const ibkrStatus = useIbkrStatus();
   const [side, setSide] = useState<ManualOrderSide>('BUY');
+  const [shortEntry, setShortEntry] = useState(false);
   const [orderType, setOrderType] = useState<ManualOrderType>(
     TICKER_TRADE_DEFAULT_ORDER_TYPE,
+  );
+  const shortBlockReason = shortDisabledReason(
+    ibkrStatus.short_enabled,
+    listingIbkr,
   );
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('shares');
   const [quantityValue, setQuantityValue] = useState(
@@ -73,6 +101,7 @@ export function ManualOrderTicket({
 
   useEffect(() => {
     setSide('BUY');
+    setShortEntry(false);
     setOrderType(TICKER_TRADE_DEFAULT_ORDER_TYPE);
     setQuantityMode('shares');
     setQuantityValue(String(FORCED_QTY ?? TICKER_TRADE_DEFAULT_QTY));
@@ -82,6 +111,13 @@ export function ManualOrderTicket({
     setResult(null);
     setConfirmSummary(null);
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function selectDirection(nextShort: boolean) {
+    if (nextShort && shortBlockReason) return;
+    setShortEntry(nextShort);
+    setSide(nextShort ? 'SELL' : 'BUY');
+    setResult(null);
+  }
 
   useEffect(() => {
     if (referencePrice != null && !limitPrice) {
@@ -145,6 +181,7 @@ export function ManualOrderTicket({
         limitPrice,
         stopPrice,
         outsideRth,
+        shortEntry,
       },
       {
         marketReferencePrice: referencePrice,
@@ -189,6 +226,11 @@ export function ManualOrderTicket({
       return;
     }
 
+    if (shortEntry && shortBlockReason) {
+      setResult({ ok: false, text: shortBlockReason });
+      return;
+    }
+
     const built = buildManualOrder(
       {
         symbol,
@@ -199,6 +241,7 @@ export function ManualOrderTicket({
         limitPrice,
         stopPrice,
         outsideRth,
+        shortEntry,
       },
       {
         marketReferencePrice: referencePrice,
@@ -218,8 +261,9 @@ export function ManualOrderTicket({
           ? ` stop $${stopPrice}`
           : '';
     const hoursText = outsideRth ? ' including extended hours' : ' during regular hours';
+    const dirText = shortEntry ? 'SHORT' : side;
     const summaryText =
-      `${side} ${built.quantity} ${symbol.toUpperCase()} (${orderType}${priceText})` +
+      `${dirText} ${built.quantity} ${symbol.toUpperCase()} (${orderType}${priceText})` +
       `${hoursText} on the ${mode.toUpperCase()} account.`;
 
     if (readSkipPlaceConfirm()) {
@@ -253,6 +297,9 @@ export function ManualOrderTicket({
         outsideRth={outsideRth}
         disabled={!connected || submitting}
         quantityLocked={QTY_LOCKED}
+        shortEntry={shortEntry}
+        shortDisabledReason={shortBlockReason}
+        onDirectionChange={selectDirection}
         onSideChange={setSide}
         onOrderTypeChange={selectOrderType}
         onQuantityModeChange={selectQuantityMode}

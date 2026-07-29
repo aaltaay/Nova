@@ -79,7 +79,11 @@ export function StockViewRail({
         }
       >
         <div className="sv-rail__depth" data-testid="stock-view-depth-slot">
-          <StockViewDepthTape selectedSymbol={symbol} detailSymbol={detail.symbol} />
+          <StockViewDepthTape
+            selectedSymbol={symbol}
+            detailSymbol={detail.symbol}
+            listingIbkr={detail.listing?.ibkr ?? null}
+          />
         </div>
 
         <ResizeHandle
@@ -104,6 +108,7 @@ export function StockViewRail({
             position={position}
             summary={summary}
             referencePrice={referencePrice}
+            listingIbkr={detail.listing?.ibkr ?? null}
             onOrderPlaced={onOrderPlaced}
             variant="rail"
           />

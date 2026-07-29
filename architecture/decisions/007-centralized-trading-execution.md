@@ -34,6 +34,8 @@ Nova had a single IBKR broker adapter (`ibkr/orders.py`) but fragmented entry po
 
 Anti-short / flatten sizing and Positions **qty** share one API: `ibkr.account.long_qty(symbol)` backed only by `ib.positions()` (sum same-symbol longs; raise `IbkrAccountError` on read failure). `GET /api/ibkr/positions` takes qty from that cache and joins mark/PnL from `ib.portfolio()` — never invents a long from portfolio-only rows. Validate maps read failure → `POSITION_UNAVAILABLE` (not `NO_POSITION`). UI Flatten stays `source="manual"` (anti-short on); Nova OS flatten place stays `source="flatten"` (reconcile via `long_qty` is the gate). Account summary reads raise on failure so LMT BUY cannot skip BuyingPower (`BUYING_POWER_UNKNOWN`).
 
+**Short entry (Phase K / ADR 009):** SELL remains risk-reducing unless `ExecutionCommand.short_entry=true` and `IBKR_SHORT_ENABLED` plus fresh IBKR tick-236 `shortable_est`. See `architecture/decisions/009-short-entry.md`.
+
 ## Rejected alternatives
 
 - Separate paper vs live code paths

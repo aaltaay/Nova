@@ -66,6 +66,46 @@
   color: var(--nova-text-muted, var(--text-secondary));
 }
 
+/* Phase K4 — shortability chip beside Level 2 title */
+.sv-shortability-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  border: 1px solid var(--nova-border, var(--border-color));
+  color: var(--nova-text-muted, var(--text-secondary));
+  white-space: nowrap;
+}
+
+.sv-shortability-chip__label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+}
+
+.sv-shortability-chip--ok {
+  color: var(--bid-color, #3dba7a);
+  border-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+
+.sv-shortability-chip--thin {
+  color: #c9a227;
+}
+
+.sv-shortability-chip--htb,
+.sv-shortability-chip--unknown {
+  color: var(--ask-color, #e35d6a);
+}
+
+.manual-order-hint {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  color: var(--ask-color, #e35d6a);
+}
+
 .sv-md-pane__body {
   flex: 1 1 0;
   min-height: 0;

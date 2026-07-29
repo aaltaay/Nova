@@ -1,6 +1,8 @@
 # Phase B — Paper shadow protocol
 
-Ops-only window. **No product features. No `auto_live`. No live money.**
+> **Status (2026-07-28):** Phase B **WAIVED** by user direction in `Nova-Roadmap-Status.md`. This doc is retained as an **optional** reference -- it is not required for roadmap exit and must not block Phase K or other work. Still: **No `auto_live`. No invented evidence rows.**
+
+Ops-only window (historical). **No product features. No `auto_live`. No live money.**
 
 Canonical status: `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`  
 Plan: `nova_master_roadmap_a_z.plan.md`  

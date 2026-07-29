@@ -119,6 +119,9 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
         summary_error = exc
 
     if cmd.operation in ("place", "bracket") and cmd.source not in ("flatten", "kill"):
+        if cmd.operation == "bracket" and getattr(cmd, "short_entry", False):
+            return _check_short_entry_sell(cmd)
+
         if cmd.operation == "place" and (cmd.side or "").upper() == "BUY":
             est = _estimate_notional(cmd)
             if summary_error is not None and est is not None:
@@ -144,9 +147,13 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
                 return False, f"estimated notional {est:.2f} exceeds BuyingPower {bp}", "BUYING_POWER"
 
         if cmd.operation == "place" and (cmd.side or "").upper() == "SELL":
-            # Position-reducing sells (flatten/close) are allowed; opening a short is not.
-            # source=flatten skips anti-short here — reconcile uses long_qty separately.
+            # Position-reducing sells (flatten/close) are allowed; opening a short
+            # requires explicit short_entry + IBKR_SHORT_ENABLED + fresh shortable_est
+            # (Phase K / ADR 009). source=flatten skips anti-short — reconcile uses
+            # long_qty / short cover separately.
             if cmd.source not in ("flatten",):
+                if getattr(cmd, "short_entry", False):
+                    return _check_short_entry_sell(cmd)
                 try:
                     pos_qty = _position_qty(cmd.normalized_symbol() or "")
                 except IbkrAccountError as exc:
@@ -166,6 +173,22 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
                 if sell_qty > pos_qty + 1e-6:
                     return False, f"SELL qty {sell_qty} exceeds position {pos_qty}", "OVERSELL"
 
+    return True, "OK", None
+
+
+def _check_short_entry_sell(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
+    """Short-opening SELL / short bracket path (explicit opt-in only)."""
+    from ibkr import safety as _safety
+    from ibkr import shortability as _shortability
+
+    if not _safety.short_enabled():
+        return False, "IBKR_SHORT_ENABLED is false — short entry locked", "SHORT_DISABLED"
+    if cmd.operation == "place" and (cmd.side or "").upper() != "SELL":
+        return False, "short_entry requires side=SELL", "SIDE_INVALID"
+    snap = _shortability.fetch_shortability(cmd.normalized_symbol() or "")
+    ok, detail, code = _shortability.assert_shortable_for_order(snap)
+    if not ok:
+        return False, detail, code
     return True, "OK", None
 
 

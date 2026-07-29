@@ -40,7 +40,7 @@
 
 Re-open this note only if **all** are true:
 
-1. Phase B ≥5 shadow days + Phase I evidence still NO-GO or GO with user approval for next steps
+1. Phase B WAIVED (2026-07-28); Phase I evidence still NO-GO unless a future evidence pass meets thresholds; live steps still need explicit user approval
 2. Operator explicitly wants multi-user or remote access
 3. A written plan for Gateway hosting + secret isolation exists (not “just put it on a VPS”)
 

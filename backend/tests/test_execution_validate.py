@@ -167,3 +167,81 @@ def test_place_rejects_fractional_qty_preflight(monkeypatch):
     assert ok is False
     assert reason == "QTY_FRACTIONAL_API"
     assert "10243" in detail
+
+
+def _short_sell_cmd(qty: float = 10.0) -> ExecutionCommand:
+    return ExecutionCommand(
+        operation="place",
+        idempotency_key="short-1",
+        source="manual",
+        symbol="AAPL",
+        side="SELL",
+        qty=qty,
+        order_type="MKT",
+        short_entry=True,
+    )
+
+
+def test_short_entry_disabled_without_env(monkeypatch):
+    import ibkr.safety as safety_mod
+    import ibkr.shortability as short_mod
+
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(safety_mod, "short_enabled", lambda: False)
+    monkeypatch.setattr(
+        account_mod,
+        "get_account_summary",
+        lambda: {"connected": True, "BuyingPower": 100_000.0},
+    )
+    monkeypatch.setattr(
+        short_mod,
+        "fetch_shortability",
+        lambda _s: {"state": "shortable_est", "stale": False, "orderable": True},
+    )
+    ok, _detail, reason = validate.check_account_and_position(_short_sell_cmd())
+    assert ok is False
+    assert reason == "SHORT_DISABLED"
+
+
+def test_short_entry_allowed_when_enabled_and_shortable(monkeypatch):
+    import ibkr.safety as safety_mod
+    import ibkr.shortability as short_mod
+    import time
+
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(safety_mod, "short_enabled", lambda: True)
+    monkeypatch.setattr(
+        account_mod,
+        "get_account_summary",
+        lambda: {"connected": True, "BuyingPower": 100_000.0},
+    )
+    monkeypatch.setattr(
+        short_mod,
+        "fetch_shortability",
+        lambda _s: short_mod.enrich_ibkr_listing(
+            {
+                "connected": True,
+                "qualified": True,
+                "shortable_shares": 50_000,
+                "error": None,
+            },
+            fetched_at=time.time(),
+        ),
+    )
+    ok, _detail, reason = validate.check_account_and_position(_short_sell_cmd())
+    assert ok is True
+    assert reason is None
+
+
+def test_no_flag_still_anti_short(monkeypatch):
+    """Regression: without short_entry, flat SELL stays NO_POSITION."""
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(account_mod, "long_qty", lambda _sym: 0.0)
+    monkeypatch.setattr(
+        account_mod,
+        "get_account_summary",
+        lambda: {"connected": True, "BuyingPower": 100_000.0},
+    )
+    ok, _detail, reason = validate.check_account_and_position(_sell_cmd())
+    assert ok is False
+    assert reason == "NO_POSITION"

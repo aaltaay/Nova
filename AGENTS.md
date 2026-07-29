@@ -43,7 +43,7 @@ These rules CANNOT be violated under ANY circumstance:
 | 4 | **`.tmp/` is ephemeral** | Never treat `.tmp/` files as a source of truth. |
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
 | 6 | **Self-Annealing** | Any error → Analyze → Patch → Test → Update SOP/rules → **MUST** log in `PROBLEM_LOG.md` (every agent; see `problem-log.mdc`). |
-| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module, defaults to a **paper** account, and requires both `IBKR_ENABLED=true` AND (for live money) `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. |
+| 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module, defaults to a **paper** account, and requires both `IBKR_ENABLED=true` AND (for live money) `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. **Short entry (Phase K / ADR 009):** every SELL is risk-reducing unless an explicit `short_entry` opt-in on the execution command is approved by the short gate (`IBKR_SHORT_ENABLED=true` + fresh IBKR tick-236 `shortable_est`). Never infer shorts from side + flat position. `auto_live` remains NO-GO. |
 | 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a maintenance log entry, THEN write the code. |
 
 ---
@@ -203,12 +203,13 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
   "stop_price": null,
   "target_price": null,
   "entry_price": null,
-  "order_id": null
+  "order_id": null,
+  "short_entry": false
 }
 ```
 
 Receipt includes stage timings (`validation_ms`, `persisted_ms`, `broker_sent_ms`, `broker_ack_ms`, `filled_ms`).
-Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected.
+Paper and live share this path; only Gateway credentials/port and safety gates differ. `auto_live` remains rejected. Short opening requires `short_entry: true` plus `IBKR_SHORT_ENABLED` and fresh IBKR shortability (ADR 009).
 
 ---
 
@@ -364,6 +365,7 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-07-28 | Short-entry invariant (Phase K / ADR 009): Invariant #7 amended -- SELL is risk-reducing unless explicit `short_entry` + `IBKR_SHORT_ENABLED` + fresh IBKR shortability; `auto_live` still NO-GO. | User Directive + Cursor Agent |
 | 2026-07-28 | Co-Pilot Coaching Footer extended: §5 now requires two end-of-reply paragraphs -- **Better ask:** (request feedback + one new thing) and **Follow-up ask:** (a concrete next question about this problem/answer + why it is the highest-value follow-up). | User Directive + Cursor Agent |
 | 2026-07-28 | Constitution single-sourced: `AGENTS.md` is now the sole constitution text (the two mirrors had drifted -- ADR 007 execution-command schema and stale agent table existed only in `gemini.md`; ADR 007 block ported here). `gemini.md` reduced to a legacy alias that `@`-imports this file; `constitution.mdc` / `self-annealing.mdc` pointers updated. | User Directive + Cursor Agent |
 | 2026-07-28 | Co-Pilot Coaching Footer: §5 now requires a short end-of-reply **Better ask:** coaching note (how the request could have been asked better + one new thing learned); skip trivial exchanges at agent judgement. | User Directive + Cursor Agent |

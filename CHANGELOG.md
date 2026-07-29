@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Phase B waived; Phase K short entry E2E (K0-K4 code)
+
+- **What:** Phase B paper-shadow ops marked **WAIVED** (not fake-complete). Phase K implemented end-to-end: ADR 009 + constitution short-entry invariant; `ibkr/shortability.py` (states + TTL + fail-closed); `IBKR_SHORT_ENABLED` + `ExecutionCommand.short_entry` + validate gates (`SHORT_*` reason codes); short brackets + flatten-from-short cover; Shortability chip beside Stock View L2; Long/Short ticket direction with disabled reasons.
+- **Why:** User declined Phase B shadow-day track and asked for full Phase K gap closure (testability, validity, safety, UI).
+- **Files touched:** `Nova-Roadmap-Status.md`, protocol stamps, ADR 009, `AGENTS.md`, `execution/*`, `ibkr/shortability.py`, `ibkr/safety.py`, `ibkr/account.py`, flatten, Stock View / ManualOrder*, tests.
+- **How it works now:** Default SELL path still anti-short. Opening a short requires `short_entry=true` + `IBKR_SHORT_ENABLED=true` + fresh tick-236 `shortable_est`. UI shows borrow estimate next to L2; Short toggle mirrors receipt reason codes. K3 human paper short days remain open (evidence table empty). `auto_live` NO-GO.
+- **Verified by:** `pytest tests/test_shortability.py tests/test_execution_validate.py tests/test_listing_compare.py` (19 passed); Vitest `ShortabilityChip.test.tsx` (2 passed).
+- **Follow-ups:** K3 ≥3 paper short days + operator sign-off before live short; journal `side="short"` on automation fills; scanner shortable filter deferred.
+- **Related:** ADR 009; task log `2026-07-28-phase-k-short-entry-e2e.md`.
+
 ## 2026-07-28 -- Phase K short entry defined in roadmap (not started)
 
 - **What:** `Nova-Roadmap-Status.md` gains a fully specified Phase K -- short selling: K0 constitution + ADR 009, K1 shortability truth module (tick 236, fail-closed states), K2 execution gate (`IBKR_SHORT_ENABLED` env, explicit per-order opt-in, inverse short brackets, buy-to-cover/flatten-from-short), K3 paper proof → live unlock criteria, K4 Shortability chip next to Level 2 + Long/Short order-ticket toggle. Testability matrix and safety invariants included.

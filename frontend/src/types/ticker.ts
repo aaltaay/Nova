@@ -87,6 +87,13 @@ export interface IbkrListingFlags {
   short_type_detail?: string | null;
   tradable_hint?: string | null;
   error?: string | null;
+  /** Phase K shortability state (ADR 009). */
+  state?: 'shortable_est' | 'thin' | 'htb_likely' | 'unknown' | string | null;
+  fetched_at?: number | null;
+  age_sec?: number | null;
+  stale?: boolean | null;
+  ttl_sec?: number | null;
+  orderable?: boolean | null;
 }
 
 export interface ListingCompare {

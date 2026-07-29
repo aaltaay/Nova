@@ -26,7 +26,11 @@ import logging
 import os
 from typing import Literal
 
-from constants import IBKR_GATEWAY_MODE_DEFAULT, IBKR_ORDERS_ENABLED_DEFAULT
+from constants import (
+    IBKR_GATEWAY_MODE_DEFAULT,
+    IBKR_ORDERS_ENABLED_DEFAULT,
+    IBKR_SHORT_ENABLED_DEFAULT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +60,17 @@ def live_trading_confirmed() -> bool:
     return _env_bool("IBKR_LIVE_TRADING_CONFIRMED", False)
 
 
+def short_enabled() -> bool:
+    """Third key for opening shorts (Phase K / ADR 009). Default OFF."""
+    return _env_bool("IBKR_SHORT_ENABLED", IBKR_SHORT_ENABLED_DEFAULT)
+
+
 def status_snapshot() -> dict:
     """Fields for /api/ibkr/status — UI + operators."""
     mode = gateway_mode()
     orders_on = orders_enabled()
     live_ok = live_trading_confirmed()
+    short_on = short_enabled()
     if not orders_on:
         spend = "locked"
     elif mode == "live" and not live_ok:
@@ -73,6 +83,7 @@ def status_snapshot() -> dict:
         "gateway_mode": mode,
         "orders_enabled": orders_on,
         "live_trading_confirmed": live_ok,
+        "short_enabled": short_on,
         "spend_status": spend,
     }
 

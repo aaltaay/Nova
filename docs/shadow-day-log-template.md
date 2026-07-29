@@ -1,5 +1,7 @@
 # Phase B — Shadow day log template
 
+> **Status (2026-07-28):** Phase B **WAIVED** -- evidence collection closed. Template retained if you voluntarily run paper shadow days later. Do **not** mark Phase B `[x]` without real logged rows.
+
 Copy one row into `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` → Phase B Evidence after each market day. Do **not** mark Phase B `[x]` until ≥5 days are logged with reviews.
 
 ## Per-day checklist

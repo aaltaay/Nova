@@ -19,6 +19,8 @@ export interface ManualOrderValues {
   limitPrice: string;
   stopPrice: string;
   outsideRth: boolean;
+  /** Phase K: opening a short (SELL + short_entry), not reducing a long. */
+  shortEntry?: boolean;
 }
 
 export interface QuantityContext {
@@ -35,6 +37,7 @@ export interface ManualOrderPayload {
   limit_price?: number;
   stop_price?: number;
   outside_rth: boolean;
+  short_entry?: boolean;
 }
 
 export type BuildOrderResult =
@@ -122,6 +125,18 @@ export function resolveOrderQuantity(
       : { error: 'Percentage amount is too small for the reference price' };
   }
 
+  if (values.shortEntry) {
+    if (context.buyingPower == null || context.buyingPower <= 0) {
+      return { error: 'Buying Power is required for percentage short entries' };
+    }
+    const quantity = floorQuantity(
+      ((context.buyingPower * amount) / 100) / referencePrice,
+    );
+    return quantity > 0
+      ? { quantity, referencePrice }
+      : { error: 'Percentage amount is too small for the reference price' };
+  }
+
   if (context.positionQty == null || context.positionQty <= 0) {
     return { error: 'A long position is required for percentage sells' };
   }
@@ -153,6 +168,7 @@ export function buildManualOrder(
     qty: quantityResult.quantity,
     order_type: values.orderType,
     outside_rth: values.outsideRth,
+    ...(values.shortEntry ? { short_entry: true } : {}),
   };
 
   if (values.orderType === 'LMT') {

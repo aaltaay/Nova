@@ -52,10 +52,10 @@ def alpaca_listing_from_asset(asset: dict | None) -> dict[str, Any]:
 
 def build_listing_compare(symbol: str, asset: dict | None) -> dict[str, Any]:
     """Alpaca from asset cache + IBKR short/qualify snapshot (best-effort)."""
-    from ibkr.listing_flags import fetch_listing_flags_sync
+    from ibkr.shortability import fetch_shortability
 
     return {
         "symbol": (symbol or "").strip().upper(),
         "alpaca": alpaca_listing_from_asset(asset),
-        "ibkr": fetch_listing_flags_sync(symbol),
+        "ibkr": fetch_shortability(symbol),
     }

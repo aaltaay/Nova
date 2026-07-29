@@ -56,8 +56,9 @@ def flatten_preview() -> dict:
         ibkr_positions_error = str(exc)
     return {
         "disclosure": (
-            f"Flatten closes tracked executor longs with a market SELL and cancels "
-            f"working bracket legs when the parent is still unfilled. Type "
+            f"Flatten closes tracked executor positions (long → market SELL, "
+            f"short → market BUY cover) and cancels working bracket legs when "
+            f"the parent is still unfilled. Type "
             f"{NOVA_OS_FLATTEN_CONFIRM_TOKEN} to confirm. Protective stops are "
             f"cancelled only as part of this deliberate flatten."
         ),
@@ -71,7 +72,7 @@ def flatten_preview() -> dict:
 
 
 def _actual_position_qty(symbol: str) -> float | None:
-    """Real IBKR long qty for `symbol`, or None if verified flat.
+    """Real IBKR long qty for `symbol`, or None if verified flat/long-absent.
 
     Uses ``account.long_qty`` (``ib.positions()`` SSOT) — same as validate
     anti-short. Raises ``IbkrAccountError`` when the read fails — callers must
@@ -80,6 +81,12 @@ def _actual_position_qty(symbol: str) -> float | None:
     protective stop/target instead.
     """
     qty = _account.long_qty(symbol)
+    return qty if qty > 0 else None
+
+
+def _actual_short_qty(symbol: str) -> float | None:
+    """Real IBKR short qty (positive magnitude), or None if no short."""
+    qty = _account.short_qty(symbol)
     return qty if qty > 0 else None
 
 
@@ -115,21 +122,25 @@ def _cancel_protective_legs(pos: "OpenPosition") -> list[int]:
     return cancelled
 
 
-def _flatten_market_sell(symbol: str, qty: float) -> dict:
-    """Market SELL through the centralized execution path (ADR 007)."""
+def _flatten_market_close(symbol: str, qty: float, *, side: str) -> dict:
+    """Market close through the centralized execution path (ADR 007).
+
+    ``side`` is SELL for longs or BUY for short cover.
+    """
     import asyncio
     import uuid
     from execution.models import ExecutionCommand
     from execution.service import execute
 
+    side_u = side.upper()
     async def _run():
         return await execute(
             ExecutionCommand(
                 operation="place",
-                idempotency_key=f"flatten:sell:{symbol}:{uuid.uuid4()}",
+                idempotency_key=f"flatten:{side_u.lower()}:{symbol}:{uuid.uuid4()}",
                 source="flatten",
                 symbol=symbol,
-                side="SELL",
+                side=side_u,
                 qty=qty,
                 order_type="MKT",
                 skip_risk=True,
@@ -140,6 +151,11 @@ def _flatten_market_sell(symbol: str, qty: float) -> dict:
 
     receipt = asyncio.run(_run())
     return receipt.legacy_place_dict()
+
+
+def _flatten_market_sell(symbol: str, qty: float) -> dict:
+    """Market SELL (long exit) -- thin wrapper for callers/tests."""
+    return _flatten_market_close(symbol, qty, side="SELL")
 
 
 def flatten_positions(confirm_token: str) -> dict:
@@ -182,22 +198,51 @@ def flatten_positions(confirm_token: str) -> dict:
             }
 
         if actual_qty is None:
-            # No real position at IBKR — the parent never filled (or it's
-            # already flat). Cancel any working legs; do NOT sell.
+            # No long — check for a short to cover before skipping.
+            try:
+                short_qty = _actual_short_qty(symbol)
+            except IbkrAccountError as exc:
+                logger.exception("flatten: aborting — cannot verify %s short qty", symbol)
+                return {
+                    "ok": False,
+                    "error": (
+                        f"IBKR short position check failed for {symbol} — flatten aborted: {exc}"
+                    ),
+                    "results": results,
+                    **_executor.status(),
+                }
+            if short_qty is None:
+                cancelled = _cancel_protective_legs(pos)
+                row = {
+                    "symbol": symbol,
+                    "qty": pos.qty,
+                    "outcome": "no_position_skipped_sell",
+                    "cancelled_order_ids": cancelled,
+                    "close": None,
+                }
+                results.append(row)
+                del open_positions[symbol]
+                logger.warning(
+                    "flatten: %s has no real IBKR position — skipped sell, cancelled legs %s",
+                    symbol, cancelled,
+                )
+                continue
             cancelled = _cancel_protective_legs(pos)
+            close = _flatten_market_close(symbol, float(short_qty), side="BUY")
             row = {
                 "symbol": symbol,
-                "qty": pos.qty,
-                "outcome": "no_position_skipped_sell",
+                "qty": short_qty,
+                "outcome": "covered_real_short",
                 "cancelled_order_ids": cancelled,
-                "close": None,
+                "close": close,
             }
             results.append(row)
-            del open_positions[symbol]
-            logger.warning(
-                "flatten: %s has no real IBKR position — skipped sell, cancelled legs %s",
-                symbol, cancelled,
-            )
+            if close.get("ok"):
+                del open_positions[symbol]
+            else:
+                logger.error(
+                    "flatten: market cover failed for %s: %s", symbol, close.get("error"),
+                )
             continue
 
         if abs(actual_qty - pos.qty) > 1e-6:
