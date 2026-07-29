@@ -39,6 +39,19 @@ describe('AppErrorBoundary', () => {
     vi.restoreAllMocks();
   });
 
+  it('wraps healthy children in app-shell-host for flex height chain', async () => {
+    await act(async () => {
+      root.render(
+        <AppErrorBoundary source="dashboard">
+          <span data-testid="ok">ok</span>
+        </AppErrorBoundary>,
+      );
+    });
+    const host = container.querySelector('.app-shell-host');
+    expect(host).not.toBeNull();
+    expect(host?.textContent).toBe('ok');
+  });
+
   it('soft-retries non-fatal errors without reloading', async () => {
     const reload = vi.fn();
     Object.defineProperty(window, 'location', {

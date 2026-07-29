@@ -23,6 +23,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Short chip showed Unknown while listing.ibkr still null
+
+- **Symptom:** Stock View chip read "Short: Unknown" during ticker load even when Gateway/tick 236 were fine seconds later.
+- **Cause:** `ShortabilityChip` treated null/undefined `listing.ibkr` the same as a real fail-closed `unknown` state.
+- **Fix:** Null/undefined → `Loading...` (`data-state=loading`); Unknown only after an IBKR listing payload exists.
+- **Keywords:** ShortabilityChip, Unknown, Loading, listing.ibkr, tick 236, false broken feeder
+
+## 2026-07-28 -- Trader View unclickable (Stock View height collapsed to 0)
+
+- **Symptom:** Stock View / sample Trader looked painted but clicks did nothing -- `elementFromPoint` over Short / L2 / ticket hit `#root`; `.stock-view-page` and rail height were 0.
+- **Cause:** `AppErrorBoundary` wraps healthy children in anonymous `<div>` remount hosts. Stock View needs a body / `#root` / `.nova-shell--ticker-detail` flex column; those plain wrappers stayed `display:block` with ~4px height, so the shell collapsed while overflow content still painted. Hit-testing ignored the painted controls.
+- **Fix:** Boundary host class `app-shell-host` + `stock-view.css` flex-fill rules under `body:has(.nova-shell--ticker-detail)`.
+- **Keywords:** Trader View, Stock View, unclickable, elementFromPoint, #root, AppErrorBoundary, app-shell-host, flex height collapse
+
 ## 2026-07-28 -- Former Momo crowd-out starved live HOD admits
 
 - **Symptom:** On busy days a huge Former Momo list could occupy nearly all 40 HOD L1 slots, leaving live Gappers/Gainers with 0-1 admits (audit G7).

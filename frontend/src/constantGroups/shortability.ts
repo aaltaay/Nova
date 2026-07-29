@@ -5,6 +5,12 @@ export const SHORTABILITY_LABEL = 'Short';
 export const SHORTABILITY_CHIP_TOOLTIP =
   'IBKR tick 236 estimate -- confirm fee / locate in TWS before shorting. Not Alpaca ETB.';
 
+/** Chip only -- listing.ibkr not on the ticker payload yet (not a real Unknown). */
+export const SHORTABILITY_LOADING_LABEL = 'Loading...';
+
+export const SHORTABILITY_LOADING_TOOLTIP =
+  'Waiting for IBKR shortability (tick 236) on this symbol.';
+
 export const SHORTABILITY_STATE_LABELS: Record<string, string> = {
   shortable_est: 'Available',
   thin: 'Thin',

@@ -30,6 +30,23 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-28 -- Short chip shows Loading until listing.ibkr arrives
+
+- **What:** Stock View Shortability chip shows `Loading...` when `listing.ibkr` is null/undefined instead of `Unknown`.
+- **Why:** Null listing looked like a broken feeder; real Unknown is only after IBKR returns no usable tick-236 state.
+- **Files touched:** `ShortabilityChip.tsx`, `shortability.ts`, `marketData.css`, `ShortabilityChip.test.tsx`.
+- **How it works now:** `ibkr == null` → `data-state=loading`. Once the payload exists, Available / Thin / HTB / Unknown / Stale behave as before. Order ticket still treats missing listing as not orderable via `resolveShortabilityState`.
+- **Verified by:** Vitest ShortabilityChip (loading + prior cases).
+
+## 2026-07-28 -- Fix Trader View click-through (flex host chain)
+
+- **What:** Stock View / sample Trader controls are clickable again. `AppErrorBoundary` remount wrappers are `.app-shell-host` and participate in the ticker-detail flex height chain.
+- **Why:** Nested plain boundary `<div>`s collapsed the shell to ~4px; painted L2/ticket/Short sat outside hit targets so clicks hit `#root`.
+- **Files touched:** `frontend/src/components/AppErrorBoundary.tsx`, `AppErrorBoundary.test.tsx`, `frontend/src/styles/stock-view.css`.
+- **How it works now:** Under `body:has(.nova-shell--ticker-detail)`, every `.app-shell-host` is a flex column with `flex: 1 1 0` and `min-height: 0`, so height flows `#root` -> hosts -> `.nova-shell` -> page/rail.
+- **Verified by:** Playwright sample Short click (normal click, `aria-pressed=true`); live `?view=stock&symbol=AAPL` pageH~896 + hit BUTTON; Vitest AppErrorBoundary (3); `e2e/sample-shortability.spec.ts` passed.
+- **Related:** PROBLEM_LOG 2026-07-28 -- Trader View unclickable.
+
 ## 2026-07-28 -- Phase B waived; Phase K short entry E2E (K0-K4 code)
 
 - **What:** Phase B paper-shadow ops marked **WAIVED** (not fake-complete). Phase K implemented end-to-end: ADR 009 + constitution short-entry invariant; `ibkr/shortability.py` (states + TTL + fail-closed); `IBKR_SHORT_ENABLED` + `ExecutionCommand.short_entry` + validate gates (`SHORT_*` reason codes); short brackets + flatten-from-short cover; Shortability chip beside Stock View L2; Long/Short ticket direction with disabled reasons.

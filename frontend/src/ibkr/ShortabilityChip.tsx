@@ -3,6 +3,8 @@ import type { IbkrListingFlags } from '../types/ticker';
 import {
   SHORTABILITY_CHIP_TOOLTIP,
   SHORTABILITY_LABEL,
+  SHORTABILITY_LOADING_LABEL,
+  SHORTABILITY_LOADING_TOOLTIP,
   SHORTABILITY_STATE_LABELS,
 } from '../constantGroups/shortability';
 
@@ -23,6 +25,7 @@ export function resolveShortabilityState(
 }
 
 function stateClass(state: string | undefined, stale: boolean | undefined): string {
+  if (state === 'loading') return 'sv-shortability-chip--loading';
   if (stale || !state || state === 'unknown') return 'sv-shortability-chip--unknown';
   if (state === 'shortable_est') return 'sv-shortability-chip--ok';
   if (state === 'thin') return 'sv-shortability-chip--thin';
@@ -31,9 +34,24 @@ function stateClass(state: string | undefined, stale: boolean | undefined): stri
 }
 
 export function ShortabilityChip({ ibkr }: Props) {
+  // Null/undefined = ticker listing not on the wire yet -- not a fail-closed Unknown.
+  if (ibkr == null) {
+    return (
+      <span
+        className="sv-shortability-chip sv-shortability-chip--loading"
+        title={SHORTABILITY_LOADING_TOOLTIP}
+        data-testid="shortability-chip"
+        data-state="loading"
+      >
+        <span className="sv-shortability-chip__label">{SHORTABILITY_LABEL}</span>
+        <span className="sv-shortability-chip__value">{SHORTABILITY_LOADING_LABEL}</span>
+      </span>
+    );
+  }
+
   const state = resolveShortabilityState(ibkr);
-  const stale = Boolean(ibkr?.stale);
-  const shares = ibkr?.shortable_shares;
+  const stale = Boolean(ibkr.stale);
+  const shares = ibkr.shortable_shares;
   const label = stale
     ? 'Stale'
     : (SHORTABILITY_STATE_LABELS[state] ?? SHORTABILITY_STATE_LABELS.unknown);
@@ -41,9 +59,7 @@ export function ShortabilityChip({ ibkr }: Props) {
     shares != null && Number.isFinite(shares)
       ? ` · ~${Math.round(shares).toLocaleString('en-US')}`
       : '';
-  const title =
-    ibkr?.short_type_detail?.trim() ||
-    SHORTABILITY_CHIP_TOOLTIP;
+  const title = ibkr.short_type_detail?.trim() || SHORTABILITY_CHIP_TOOLTIP;
 
   return (
     <span

@@ -8,6 +8,14 @@ import { ShortabilityChip } from './ShortabilityChip';
 afterEach(() => cleanup());
 
 describe('ShortabilityChip', () => {
+  it('shows Loading when listing.ibkr is null (not Unknown)', () => {
+    render(<ShortabilityChip ibkr={null} />);
+    const chip = screen.getByTestId('shortability-chip');
+    expect(chip.getAttribute('data-state')).toBe('loading');
+    expect(chip.textContent).toMatch(/Loading/);
+    expect(chip.textContent).not.toMatch(/Unknown/);
+  });
+
   it('shows available state and shares', () => {
     render(
       <ShortabilityChip

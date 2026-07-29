@@ -90,6 +90,12 @@ export class AppErrorBoundary extends Component<Props, State> {
         </div>
       );
     }
-    return <div key={remountKey}>{this.props.children}</div>;
+    // Named host so Stock View's body/#root flex column can stretch through
+    // nested boundaries (plain divs collapse to content height and steal clicks).
+    return (
+      <div key={remountKey} className="app-shell-host">
+        {this.props.children}
+      </div>
+    );
   }
 }

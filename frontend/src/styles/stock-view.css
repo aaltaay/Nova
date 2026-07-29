@@ -19,6 +19,19 @@ body:has(.nova-shell--ticker-detail) #root {
   overflow: hidden;
 }
 
+/* AppErrorBoundary remount wrappers sit between #root and .nova-shell.
+   Without flex fill they collapse (~4px) while children paint overflow —
+   elementFromPoint then hits #root and Trader controls become unclickable. */
+body:has(.nova-shell--ticker-detail) #root .app-shell-host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
 .nova-shell--ticker-detail {
   max-width: none;
   width: 100%;
