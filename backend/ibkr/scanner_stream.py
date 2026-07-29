@@ -22,6 +22,7 @@ from constants import (
     IBKR_SCAN_MAX_ROWS,
     IBKR_SCAN_REQUEST_TIMEOUT_SEC,
     IBKR_SCANNER_RECONCILE_SEC,
+    IBKR_SCANNER_WARMUP_QUIET_SEC,
     IBKR_SCANNER_WATCHDOG_CADENCE_MULT,
     IBKR_SCANNER_WATCHDOG_MIN_SEC,
 )
@@ -37,6 +38,9 @@ _ScannerSubscription = None
 _persistent_reqids: dict[int, str] = {}
 _leases: dict[str, "_Lease"] = {}
 _epoch = 0
+# Monotonic deadline after the last READY transition during which scan_loop
+# one-shot discovery backs off (see in_ready_quiet_window).
+_ready_quiet_until_mono: float = 0.0
 _shadow: dict[str, list[dict]] = {}
 _pending_hydrate: dict[str, tuple[list[str], int]] = {}
 _hydrate_task: asyncio.Task | None = None
@@ -64,6 +68,30 @@ def persistent_reqids() -> set[int]:
 
 def shadow_roster(table: str) -> list[dict]:
     return list(_shadow.get(table) or [])
+
+
+def in_ready_quiet_window() -> bool:
+    """True while the persistent stream is the single discovery owner.
+
+    Stays true for at least IBKR_SCANNER_WARMUP_QUIET_SEC after READY, and
+    until every live table has delivered at least one shadow roster batch.
+    One-shot scan_loop discovery defers during this window so a cold Gateway
+    is not stamped by two discovery pipelines (2026-07-29 API_WEDGED).
+    """
+    if time.monotonic() < _ready_quiet_until_mono:
+        return True
+    try:
+        desired = [
+            table
+            for table, _code in _session.desired_leases()
+            if _session.table_is_live(table)
+        ]
+    except Exception:
+        return True
+    if not desired:
+        return False
+    # Still quiet until each desired table has hydrated at least one roster.
+    return any(not (_shadow.get(table)) for table in desired)
 
 
 def bump_epoch() -> int:
@@ -302,6 +330,11 @@ async def manager_loop() -> None:
     """Background reconcile + watchdog. Started from app lifespan when enabled."""
     last_gen = _client.current_generation()
     last_shadow_log = 0.0
+    # Post-READY quiet window: one-shot scan_loop discovery backs off while the
+    # persistent stream warms, so a cold Gateway does not get stamped by two
+    # discovery pipelines at once (2026-07-29 API_WEDGED).
+    global _ready_quiet_until_mono
+    _ready_quiet_until_mono = time.monotonic()
     while True:
         try:
             gen = _client.current_generation()
@@ -309,6 +342,9 @@ async def manager_loop() -> None:
                 bump_epoch()
                 for table in list(_leases):
                     _cancel_lease(table, freeze_first=False)
+                _ready_quiet_until_mono = time.monotonic() + float(
+                    IBKR_SCANNER_WARMUP_QUIET_SEC
+                )
                 last_gen = gen
             _session.reconcile_session_tables(get_runtime_state())
             await reconcile_leases()

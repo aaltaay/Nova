@@ -30,6 +30,33 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Fix cold-Gateway event-loop wedge (zombie snapshot cancel + single discovery owner)
+
+- **What:** The morning-after-Gateway-login API hang is fixed. Health endpoints stay responsive while IBKR snapshots time out on a cold Gateway.
+- **Why:** Root-cause request from the user — repeated `API_WEDGED` every cold start; not acceptable to just throttle.
+- **Files touched:** `backend/ibkr/discovery.py`, `backend/ibkr/scanner_stream.py`, `backend/scan_loop.py`, `backend/constants_ibkr.py`, `backend/tests/test_ibkr_discovery_fail_loud.py`.
+- **How it works now:** (1) `snapshot_quotes` finally block cancels every snapshot `reqMktData` line it opened — `_cancel_snapshot_tickers` pops the reqId from `wrapper.ticker2ReqId["snapshot"]` (snapshot tickers live under `"snapshot"`, not `"mktData"`, which is why plain `ib.cancelMktData` was a no-op) and sends `client.cancelMktData(reqId)`. No more zombie reqIds streaming onto the loop after a timeout. (2) The persistent `scanner_stream` is the single discovery owner while it warms after READY — `in_ready_quiet_window()` is true for `IBKR_SCANNER_WARMUP_QUIET_SEC` (120s) and until each desired table has a roster batch; `scan_loop._ibkr_one_shot_paused()` defers one-shot discovery in that window. No more dual one-shot + persistent stampede on a cold Gateway.
+- **Verified by:** `pytest backend/tests/` 1018 passed; truly cold API restart — peak `loop_lag` 28.8ms, 0 `/api/health` timeouts over 150s (was 60s+ wedge); `/api/gappers` 46 + `/api/movers` 50 rows, IBKR connected.
+- **Related:** PROBLEM_LOG 2026-07-29 API_WEDGED cold IBKR READY.
+
+## 2026-07-29 -- Remove Gappers Small Cap sub-tab
+
+- **What:** Gappers no longer shows All Gaps / Small Cap sub-tabs; the tab renders the full gappers list directly (same shape as Gainers/Losers).
+- **Why:** User does not need the $300M to $2B market-cap filter tab.
+- **Files touched:** `frontend/src/components/ScannerTabPanels.tsx`.
+- **How it works now:** Opening Gappers always shows every gapper row. `SMALL_CAP_MIN` / `SMALL_CAP_MAX` remain in constants but are unused by this UI path.
+- **Verified by:** Code path review; Gappers panel matches Gainers (no sub-tab bar).
+- **Follow-ups:** Optional cleanup of unused `SMALL_CAP_*` constants if nothing else adopts them.
+
+## 2026-07-29 -- Nova daily start also runs on session unlock
+
+- **What:** `NovaDailyStart` scheduled task now includes a session-unlock trigger (wake from sleep / lock screen), not only 6:00 AM + AtLogon. Fixed `Write-DailyLog` so messages no longer go through `-f` (was corrupting `daily-start.log`).
+- **Why:** Operator still had to hand-start API/UI after waking the PC; AtLogon alone misses unlock-from-sleep.
+- **Files touched:** `scripts/Install-NovaDailyTask.ps1`, `scripts/Start-NovaDaily.ps1`.
+- **How it works now:** Default `Both` = Daily 06:00 + AtLogon + TASK_SESSION_UNLOCK. `Start-NovaDaily.ps1` stays idempotent (skips healthy `:8000`/`:5173`). Re-run `.\scripts\Install-NovaDailyTask.ps1` to refresh the task.
+- **Verified by:** Task re-registered; triggers show Daily + Logon + SessionStateChange(8); API `/api/health` 200 and UI `:5173` 200 in this session.
+- **Follow-ups:** IB Gateway still needs login/2FA separately when both API ports are down.
+
 ## 2026-07-28 -- Short chip shows Loading until listing.ibkr arrives
 
 - **What:** Stock View Shortability chip shows `Loading...` when `listing.ibkr` is null/undefined instead of `Unknown`.

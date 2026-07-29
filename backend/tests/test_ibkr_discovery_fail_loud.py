@@ -174,6 +174,71 @@ async def test_snapshot_require_success_raises_on_timeout(monkeypatch):
         await discovery.snapshot_quotes(["AAA"], require_success=True)
 
 
+@pytest.mark.asyncio
+async def test_snapshot_timeout_cancels_snapshot_reqids(monkeypatch):
+    """A snapshot timeout must cancel the IB-side reqMktData lines, not just
+    the local await. Snapshot tickers are registered under tickType
+    ``"snapshot"``, so ``ib.cancelMktData`` (mktData tickType) finds no reqId;
+    the fix pops the reqId from the ``"snapshot"`` map and sends
+    ``client.cancelMktData(reqId)``. Zombie snapshot reqIds kept streaming
+    onto the shared uvicorn loop and wedged /api/health after cold-Gateway
+    READY (2026-07-29).
+    """
+    cancelled: list[int] = []
+
+    class _Contract:
+        def __init__(self, sym):
+            self.symbol = sym
+
+    aaa_contract = _Contract("AAA")
+
+    class _Ticker:
+        def __init__(self, contract):
+            self.contract = contract
+
+    ticker = _Ticker(aaa_contract)
+
+    class _Wrapper:
+        def __init__(self):
+            self.tickers = {hash(aaa_contract): ticker}
+            self.ticker2ReqId = {"snapshot": {ticker: 4242}, "mktData": {}}
+            self._reqId2Contract = {4242: aaa_contract}
+
+    class _Client:
+        def cancelMktData(self, req_id):
+            cancelled.append(req_id)
+
+    class _IB:
+        def __init__(self):
+            self.wrapper = _Wrapper()
+            self.client = _Client()
+
+        async def reqTickersAsync(self, *_a, **_k):
+            raise asyncio.TimeoutError()
+
+    monkeypatch.setattr(discovery._client, "get_ib", lambda: _IB())
+    monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+    discovery._qualified_contracts.clear()
+    discovery._qualified_contracts["AAA"] = aaa_contract
+
+    class _Lock:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_a):
+            return False
+
+    monkeypatch.setattr(discovery, "_get_snapshot_lock", lambda: _Lock())
+
+    with pytest.raises(IbkrDiscoveryError, match="snapshot timeout"):
+        await discovery.snapshot_quotes(["AAA"], require_success=True)
+
+    assert cancelled == [4242], (
+        "timeout must cancel the snapshot reqId so reqMktData lines do not "
+        "leak onto the event loop"
+    )
+
+
 class _FakeErrorEvent:
     """Stands in for ib_async's eventkit Event — synchronous +=/-=/emit only."""
 

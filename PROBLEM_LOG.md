@@ -23,6 +23,19 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- API_WEDGED after cold IBKR READY (event loop starved by zombie snapshot reqMktData + dual discovery)
+
+- **Symptom:** `/api/health` + `/livez` timed out for minutes right after an IBKR reconnect while the process stayed alive; `loop_lag` climbed 3s -> 21s -> 32s -> 65s. Repeated `IBKR: snapshot timeout (15s) for N symbols` + `run_coro timed out (cancel accepted)`. App unusable each morning after Gateway login.
+- **Cause:** Two compounding defects on a cold Gateway:
+  1. `snapshot_quotes`/`reqTickersAsync` opened one snapshot `reqMktData` per contract. `asyncio.wait_for` cancelled only the local *await* on timeout — the IB-side lines were never cancelled, so each timed-out batch left "zombie" snapshot reqIds streaming ticks onto the shared uvicorn event loop. My first cancel attempt used `ib.cancelMktData(contract)`, which looks up `endTicker(ticker, "mktData")`; snapshot tickers are registered under tickType `"snapshot"`, so it found reqId 0 and no-op'd.
+  2. Dual discovery owners raced after READY: one-shot `scan_loop` (`run_coro [gappers]` bridge) *and* the ADR 008 persistent `scanner_stream` both opened timed requests; the stream is slow to hydrate on a cold Gateway, so one-shot kept winning and re-stamping the loop.
+- **Fix:**
+  - `ibkr/discovery.py`: in `snapshot_quotes` finally block, cancel every qualified contract's snapshot line via `_cancel_snapshot_tickers` — pop reqId from `wrapper.ticker2ReqId["snapshot"]` and send `client.cancelMktData(reqId)`. Snapshot zombies no longer stream after a timeout.
+  - `ibkr/scanner_stream.py`: `in_ready_quiet_window()` now true for `IBKR_SCANNER_WARMUP_QUIET_SEC` (raised to 120s) *and* until every desired table has a shadow roster batch — the persistent stream is the single discovery owner while it warms.
+  - `scan_loop.py`: `_ibkr_one_shot_paused()` defers one-shot discovery to the stream during that window.
+  - Verified: truly cold restart — peak `loop_lag` 28.8ms, zero `/api/health` timeouts over 150s (was 60s+ wedge); gappers=46 gainers=50.
+- **Keywords:** API_WEDGED, loop_lag, cold start, IBKR READY, reqTickersAsync, cancelMktData, snapshot, zombie reqId, scanner_stream, one-shot discovery, run_coro timed out, event loop
+
 ## 2026-07-28 -- Short chip showed Unknown while listing.ibkr still null
 
 - **Symptom:** Stock View chip read "Short: Unknown" during ticker load even when Gateway/tick 236 were fine seconds later.

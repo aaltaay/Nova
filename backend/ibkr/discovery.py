@@ -83,6 +83,41 @@ def _get_snapshot_lock() -> asyncio.Lock:
     return _snapshot_lock
 
 
+def _cancel_snapshot_tickers(ib, contracts: list) -> None:
+    """Cancel any still-open snapshot reqMktData lines after a snapshot batch.
+
+    reqTickersAsync registers each ticker under tickType ``"snapshot"``
+    (``startTicker(reqId, contract, "snapshot")``), so ``ib.cancelMktData``
+    — which looks up ``endTicker(ticker, "mktData")`` — finds reqId 0 and
+    reports "No reqId found". The correct cancel is to pop the reqId from the
+    ``"snapshot"`` map and send ``client.cancelMktData(reqId)`` ourselves.
+
+    Never raises; a contract with no live snapshot line is a no-op.
+    """
+    wrapper = getattr(ib, "wrapper", None)
+    client = getattr(ib, "client", None)
+    if wrapper is None or client is None:
+        return
+    tickers_by_hash = getattr(wrapper, "tickers", None) or {}
+    t2r = getattr(wrapper, "ticker2ReqId", None) or {}
+    snap_map = t2r.get("snapshot") or {}
+    for contract in contracts:
+        try:
+            ticker = tickers_by_hash.get(hash(contract))
+            if ticker is None:
+                continue
+            req_id = snap_map.pop(ticker, 0) or 0
+            if req_id:
+                getattr(wrapper, "_reqId2Contract", {}).pop(req_id, None)
+                client.cancelMktData(req_id)
+        except Exception:
+            logger.debug(
+                "IBKR: snapshot cancel failed for %s",
+                getattr(contract, "symbol", "?"),
+                exc_info=True,
+            )
+
+
 def _load_ib_types() -> bool:
     global _Stock, _ScannerSubscription, _ScanDataList
     if _Stock is not None:
@@ -388,10 +423,21 @@ async def snapshot_quotes(
     try:
         async with _get_snapshot_lock():
             async with timed("ibkr.snapshot_quotes"):
-                tickers = await asyncio.wait_for(
-                    ib.reqTickersAsync(*qualified),
-                    timeout=max(0.5, float(timeout_sec)),
-                )
+                try:
+                    tickers = await asyncio.wait_for(
+                        ib.reqTickersAsync(*qualified),
+                        timeout=max(0.5, float(timeout_sec)),
+                    )
+                finally:
+                    # wait_for cancels the await, but not the IB-side snapshot
+                    # reqMktData lines reqTickersAsync opened. Without this,
+                    # each timed-out batch leaves zombie snapshot reqIds that
+                    # keep streaming onto the shared uvicorn loop and wedge it
+                    # (2026-07-29 cold-Gateway API_WEDGED). cancelMktData
+                    # resolves the live snapshot ticker via ticker(contract)
+                    # and calls client.cancelMktData(reqId). On a dead socket
+                    # this may return False / log "No reqId" — harmless.
+                    _cancel_snapshot_tickers(ib, qualified)
     except asyncio.TimeoutError as exc:
         logger.warning(
             "IBKR: snapshot timeout (%.1fs) for %d symbols",
@@ -402,6 +448,8 @@ async def snapshot_quotes(
                 f"snapshot timeout ({timeout_sec:.1f}s) for {len(qualified)} symbols"
             ) from exc
         return {}
+    except asyncio.CancelledError:
+        raise
     except Exception as exc:
         detail = describe_exc(exc)
         logger.exception("IBKR: snapshot batch failed: %s", detail)

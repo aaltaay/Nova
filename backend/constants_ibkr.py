@@ -174,6 +174,11 @@ IBKR_SCAN_REQUEST_TIMEOUT_SEC = 20.0
 # until IBKR_SCANNER_PERSISTENT_AUTHORITATIVE is flipped (env override).
 IBKR_SCANNER_PERSISTENT_ENABLED = True
 IBKR_SCANNER_PERSISTENT_AUTHORITATIVE = False
+# One-shot scan_loop discovery defers to the persistent stream while it is
+# warming after READY (this is the *minimum* quiet window; see
+# scanner_stream.in_ready_quiet_window). Cold-Gateway hydrate takes 60s+ —
+# a 20s window let one-shot win the race and re-stamp the loop on 2026-07-29.
+IBKR_SCANNER_WARMUP_QUIET_SEC = 120.0
 IBKR_SCANNER_RECONCILE_SEC = 1.0
 # Watchdog: warn/resubscribe once when batch age exceeds max(min, mult × cadence).
 IBKR_SCANNER_WATCHDOG_MIN_SEC = 90.0

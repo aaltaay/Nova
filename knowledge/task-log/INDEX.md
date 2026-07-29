@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-29 | [Fix cold-Gateway event-loop wedge](2026-07-29-ibkr-cold-start-event-loop-wedge.md) | Fix cold-Gateway event-loop wedge |
+| 2026-07-29 | [Remove Gappers Small Cap sub-tab](2026-07-29-remove-gappers-small-cap-tab.md) | Drop All Gaps / Small Cap bar; Gappers shows full list |
 | 2026-07-28 | [Trader View unclickable (flex host chain)](2026-07-28-trader-view-unclickable-flex-host.md) | AppErrorBoundary hosts broke Stock View height; clicks hit #root |
 | 2026-07-28 | [Phase B waived; Phase K short entry E2E (K0-K4)](2026-07-28-phase-k-short-entry-e2e.md) | B waived; K0-K4 code+UI shipped; K3 human paper days open |
 | 2026-07-28 | [Phase K short entry defined in roadmap (not started)](2026-07-28-phase-k-short-entry-defined.md) | K0–K4 scoped: shortability truth, execution gate, paper→live, L2 chip; gated on Phase B |

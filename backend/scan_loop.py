@@ -194,6 +194,26 @@ def _ibkr_membership_from_stream() -> bool:
     )
 
 
+def _ibkr_one_shot_paused() -> bool:
+    """Skip one-shot discovery while persistent stream warms after READY.
+
+    Persistent is shadow (not authoritative), but right after a reconnect the
+    one-shot bridge + hydrate both open timed requests against a cold Gateway
+    and wedge the event loop. During the stream's quiet window we let the
+    persistent stream be the single discovery owner; one-shot resumes after it.
+    """
+    try:
+        from ibkr import scanner_stream as _stream
+
+        return (
+            _get_discovery_provider() == "ibkr"
+            and _scanner_session.is_persistent_enabled()
+            and _stream.in_ready_quiet_window()
+        )
+    except Exception:
+        return False
+
+
 async def scan_loop() -> None:
     """Mode-aware background scanner + ADR 008 session reconciliation."""
     loop = asyncio.get_event_loop()
@@ -207,7 +227,7 @@ async def scan_loop() -> None:
             _scanner_session.reconcile_session_tables(state)
             await loop.run_in_executor(scan_pool, refresh_hod_momo_universe)
 
-            stream_owns = _ibkr_membership_from_stream()
+            stream_owns = _ibkr_membership_from_stream() or _ibkr_one_shot_paused()
 
             if _in_premarket():
                 state.current_mode = "premarket"
