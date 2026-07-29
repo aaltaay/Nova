@@ -5,7 +5,8 @@
 > **Canvas (project homepage):** `canvases/nova-home.canvas.tsx`  
 > **Ops protocol (Phase B):** `docs/paper-shadow-protocol.md` · day log: `docs/shadow-day-log-template.md`  
 > **Productization (Phase J):** [[Productization-Decision]]  
-> **Live gate (Phase I):** [[Nova-OS-Live-Readiness-Review]]
+> **Live gate (Phase I):** [[Nova-OS-Live-Readiness-Review]]  
+> **Expansion idea bank (Jesse/LLM-study pattern):** [[Nova-Expansion-Ideas]]
 
 > **Nova OS engine status (closed map):** [[Nova-OS-Status]]  
 > **Continuity rule:** `.cursor/rules/nova-roadmap-continuity.mdc`
