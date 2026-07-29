@@ -74,5 +74,4 @@ Windows: always `py -3` for Python.
 | maintainer | code hygiene / danger |
 | security | full-repo security / SEC-NNN |
 | docs | docs / canvas hygiene |
-| daddy | multi-specialist dispatch |
-| router | classification / crack index only |
+| router | classification / crack index only (opt-in) |

@@ -7,7 +7,7 @@ alwaysApply: true
 
 The repo root file `PROBLEM_LOG.md` is a **problem database** for future agent and human sessions.
 
-**This rule applies to every agent that works in this repo** — parent Auto sessions, Cursor built-ins used on Nova work, and every Nova specialist (`daddy`, `tester`, `hod-momo`, `market-feed`, …). There is no exception by agent type or “quick fix” framing.
+**This rule applies to every agent that works in this repo** — parent Auto sessions, Cursor built-ins used on Nova work, and every Nova specialist (`tester`, `hod-momo`, `market-feed`, …). There is no exception by agent type or “quick fix” framing.
 
 ## Hard requirement
 

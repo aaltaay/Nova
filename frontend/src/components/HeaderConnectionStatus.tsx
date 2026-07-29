@@ -4,6 +4,7 @@
  */
 import { useCallback, useState } from 'react';
 import { BackendStartButton } from './BackendStartButton';
+import { BackendReloadButton } from './BackendReloadButton';
 import {
   DATA_FEED_LABELS,
   DISCOVERY_PROVIDER_DEFAULT,
@@ -21,7 +22,10 @@ import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { IbkrMode } from '../ibkr/types';
 import type { HealthStatus, IntegrationChipStatus } from '../types/health';
-import { formatScanAge } from '../utils/formatScanAge';
+import {
+  formatScanAge,
+} from '../utils/formatScanAge';
+import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { launchIbGateway } from '../utils/launchIbGateway';
 import {
   apiLabel,
@@ -291,6 +295,9 @@ export function HeaderConnectionStatus({
         <span className="status-hint" title={health.flag_hint || health.message}>
           {health.message.length > 80 ? `${health.message.slice(0, 80)}…` : health.message}
         </span>
+      )}
+      {!compact && apiOk && canReloadLocalBackend() && (
+        <BackendReloadButton onReloaded={onBackendStarted} />
       )}
       {!compact && (health.status === 'disconnected' || health.status === 'error') && (
         <BackendStartButton

@@ -9,6 +9,7 @@ import { HodMomoTab } from './HodMomoTab';
 import { RunningUpTab } from './RunningUpTab';
 import { HodMomoSettings } from './HodMomoSettings';
 import { partitionScannerAlerts } from './scannerPartition';
+import { collapseAlertsBySymbol } from './collapseAlertsBySymbol';
 import type { useHodMomoConfig } from './useHodMomoConfig';
 import type { useHodMomoStream } from './useHodMomoStream';
 import { novaFetch } from '../api/novaFetch';
@@ -47,6 +48,14 @@ function HodMomoSectionImpl({
     () => partitionScannerAlerts(hodMomoStream.alerts),
     [hodMomoStream.alerts],
   );
+  const collapsedHodMomentum = useMemo(
+    () => collapseAlertsBySymbol(hodMomentum),
+    [hodMomentum],
+  );
+  const collapsedRunningUp = useMemo(
+    () => collapseAlertsBySymbol(runningUp),
+    [runningUp],
+  );
 
   const clearSharedAlerts = useCallback((scannerLabel: string) => {
     if (sample) {
@@ -82,7 +91,8 @@ function HodMomoSectionImpl({
       {activeTab === 'hod_momo' ? (
         <HodMomoTab
           alerts={hodMomentum}
-          totalToday={hodMomentum.length}
+          totalToday={collapsedHodMomentum.length}
+          rawAlertCount={hodMomentum.length}
           connected={hodMomoStream.connected}
           config={hodMomoConfig}
           selectedSymbol={selectedSymbol}
@@ -94,7 +104,8 @@ function HodMomoSectionImpl({
       ) : (
         <RunningUpTab
           alerts={runningUp}
-          totalToday={runningUp.length}
+          totalToday={collapsedRunningUp.length}
+          rawAlertCount={runningUp.length}
           connected={hodMomoStream.connected}
           config={hodMomoConfig}
           selectedSymbol={selectedSymbol}

@@ -1,7 +1,7 @@
 """External dream bridges: Claude Code Auto Dream + OpenClaw MEMORY export.
 
 Nova remains the Cursor agent OS. These bridges let sibling tools share memory
-hygiene — they do **not** replace daddy/docs/tester specialists.
+hygiene — they do **not** replace the docs/tester specialists.
 """
 
 from __future__ import annotations

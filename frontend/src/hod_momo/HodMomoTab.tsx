@@ -80,7 +80,10 @@ function StrategyChipStrip({
 interface HodMomoTabProps {
   /** HOD Momentum alerts only (Running Up already partitioned out). */
   alerts: AlertObject[];
+  /** Collapsed symbol-row count (matches the table). */
   totalToday?: number;
+  /** Raw alert fires before per-ticker collapse. */
+  rawAlertCount?: number;
   connected: boolean;
   config: UseHodMomoConfigReturn;
   selectedSymbol: string | null;
@@ -93,6 +96,7 @@ interface HodMomoTabProps {
 export function HodMomoTab({
   alerts,
   totalToday,
+  rawAlertCount,
   connected,
   config,
   selectedSymbol,
@@ -129,6 +133,12 @@ export function HodMomoTab({
     return collapseAlertsBySymbol(filtered);
   }, [alerts, visibleStrategies]);
 
+  const symbolCount = totalToday ?? visibleAlerts.length;
+  const fireCount = rawAlertCount ?? alerts.length;
+  const alertCountLabel = fireCount > symbolCount
+    ? `${symbolCount} symbols · ${fireCount} alerts today`
+    : `${symbolCount} alerts today`;
+
   function toggleStrategy(id: number) {
     setVisibleStrategies(prev => {
       const next = new Set(prev);
@@ -144,7 +154,7 @@ export function HodMomoTab({
         <div className="hod-header-left">
           <span className={`hod-connection-dot ${connected ? 'connected' : 'disconnected'}`} />
           <span className="hod-header-title">HOD Momo Scanner</span>
-          <span className="hod-alert-count">{totalToday ?? alerts.length} alerts today</span>
+          <span className="hod-alert-count">{alertCountLabel}</span>
         </div>
         <div className="hod-header-right">
           <button

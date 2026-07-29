@@ -1,6 +1,8 @@
 /** Scanner empty / loading / disconnected messages for the main feed area. */
 import { GAPPER_MIN_GAP_PCT } from '../constants';
 import { emptyIbkrDisconnectedMessage } from '../ibkr/disconnectCopy';
+import { EMPTY_IBKR_RECONNECT_WARMUP } from '../ibkr/gatewayUxConstants';
+import { useIbkrReconnectWarmup } from '../ibkr/useIbkrReconnectWarmup';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import type { MarketMode } from './AppHeader';
 import type { HealthStatus } from '../types/health';
@@ -19,6 +21,8 @@ export function EmptyState({
   emptyLabel?: 'gainers' | 'losers';
 }) {
   const ibkr = useIbkrStatus();
+  const isIbkr = discoveryProvider === 'ibkr';
+  const warmingUp = useIbkrReconnectWarmup(isIbkr && ibkr.connected);
 
   if (context === 'loading') {
     return <div className="empty-state">Loading market data…</div>;
@@ -34,7 +38,7 @@ export function EmptyState({
       </div>
     );
   }
-  if (discoveryProvider === 'ibkr' && !ibkr.connected) {
+  if (isIbkr && !ibkr.connected) {
     return (
       <div className="empty-state empty-state--ibkr-down">
         {emptyIbkrDisconnectedMessage(ibkr.gateway_mode)}
@@ -64,6 +68,17 @@ export function EmptyState({
     return (
       <div className="empty-state">
         No after-hours movers with a gap of at least {GAPPER_MIN_GAP_PCT}% yet — scan running…
+      </div>
+    );
+  }
+  // Only Gainers/Losers panels reach here with context 'market' (Gappers maps
+  // 'market' -> 'premarket' copy above; Afterhours maps it -> 'afterhours' copy
+  // above) — so this is exactly the fallthrough that used to read "no data"
+  // right after a reconnect, before the roster/L1 stream finishes resubscribing.
+  if (context === 'market' && isIbkr && ibkr.connected && warmingUp) {
+    return (
+      <div className="empty-state empty-state--ibkr-warmup">
+        {EMPTY_IBKR_RECONNECT_WARMUP}
       </div>
     );
   }

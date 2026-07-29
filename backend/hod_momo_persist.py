@@ -264,11 +264,27 @@ def archive_session_alerts(date_str: str) -> None:
     state = _state.get_state()
     if not state.today_alerts:
         return
-    _cache.save_hod_momo_snapshot_for_date(
-        date_str,
-        [alert_to_dict(alert) for alert in state.today_alerts],
-        time.time(),
+    merge_archive_session_alerts(date_str, list(state.today_alerts))
+
+
+def merge_archive_session_alerts(date_str: str, alerts: list) -> None:
+    """Merge alerts into a dated history snapshot (dedupe by id, newest-first)."""
+    if not alerts:
+        return
+    existing = _cache.load_hod_momo_snapshot_for_date(date_str)
+    by_id: dict[str, dict] = {}
+    for raw in existing.get("alerts", []):
+        if isinstance(raw, dict) and raw.get("id"):
+            by_id[str(raw["id"])] = raw
+    for alert in alerts:
+        payload = alert_to_dict(alert)
+        by_id[str(payload["id"])] = payload
+    merged = sorted(
+        by_id.values(),
+        key=lambda row: float(row.get("created_ts") or 0.0),
+        reverse=True,
     )
+    _cache.save_hod_momo_snapshot_for_date(date_str, merged, time.time())
 
 
 def get_history_alerts(date_str: str) -> list[dict]:

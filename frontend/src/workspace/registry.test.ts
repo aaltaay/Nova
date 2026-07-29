@@ -6,6 +6,7 @@ import {
   listTabModules,
   NOVA_MODULES,
   isTabModuleId,
+  tabUsesScannerPricePatch,
 } from './registry';
 
 describe('module registry (Phase 4)', () => {
@@ -80,5 +81,14 @@ describe('module registry (Phase 4)', () => {
 
   it('listModules includes every catalog entry', () => {
     expect(listModules().length).toBe(NOVA_MODULES.length);
+  });
+
+  it('tabUsesScannerPricePatch matches scanner feedDeps only', () => {
+    for (const id of ['gappers', 'gainers', 'losers', 'afterhours', 'catalysts'] as const) {
+      expect(tabUsesScannerPricePatch(id)).toBe(true);
+    }
+    for (const id of ['dashboard', 'hod_momo', 'running_up', 'watchlist', 'trading'] as const) {
+      expect(tabUsesScannerPricePatch(id)).toBe(false);
+    }
   });
 });

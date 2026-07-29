@@ -246,3 +246,9 @@ export function listTabModules(): NovaModule[] {
 export function isTabModuleId(id: string): id is ActiveTab {
   return (TAB_MODULE_IDS as readonly string[]).includes(id);
 }
+
+/** Header "Prices" chip reflects /ws/scanner price_patch freshness — scanner tabs only. */
+export function tabUsesScannerPricePatch(id: string): boolean {
+  const mod = getModule(id);
+  return mod?.feedDeps.includes('scanner') ?? false;
+}

@@ -53,8 +53,8 @@ def build_brief() -> str | None:
     if roadmap:
         lines.append(f"Roadmap NEXT: {roadmap}")
     lines.append(
-        "Multi-domain work? Prefer daddy. Classification/cracks only? Prefer router. "
-        "(specialist-routing.mdc)"
+        "Zero-hop default: work in-session; invoke a specialist only if explicitly named. "
+        "Cracks? Prefer `py -3 tools/agent_fleet.py` (no hop). (specialist-routing.mdc)"
     )
     return "\n".join(lines)
 

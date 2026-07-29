@@ -240,7 +240,6 @@ def replace_or_insert_block(
 
 
 AGENT_TITLES = {
-    "daddy": "Daddy",
     "docs": "Docs",
     "tester": "Tester",
     "maintainer": "Maintainer",

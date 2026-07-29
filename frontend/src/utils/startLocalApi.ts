@@ -16,6 +16,14 @@ export type StartLocalApiResult =
   | { ok: true; mode: 'electron' | 'vite-dev' | 'health-only' }
   | { ok: false; mode: 'electron' | 'vite-dev' | 'health-only'; error: string };
 
+/** True when the UI can spawn or restart loopback uvicorn (Vite dev or Electron). */
+export function canReloadLocalBackend(): boolean {
+  if (typeof window === 'undefined') return false;
+  const desktop = window.novaDesktop;
+  if (desktop?.isDesktop && typeof desktop.restartApi === 'function') return true;
+  return import.meta.env.DEV;
+}
+
 async function waitForHealth(timeoutMs: number): Promise<boolean> {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {

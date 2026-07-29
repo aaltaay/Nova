@@ -53,7 +53,7 @@ def test_session_init_does_not_wipe_loaded_alerts(monkeypatch):
         def now(cls, tz=None):
             return datetime(2026, 7, 15, 10, 0, 0, tzinfo=tz or ZoneInfo("America/New_York"))
 
-    monkeypatch.setattr(session, "datetime", _FakeNow)
+    monkeypatch.setattr(session, "session_key_et", lambda now=None: "2026-07-15")
     state = hm.replace_state(HodMomoState())
     state.session_date = ""
     kept = [hm.AlertObject(
@@ -174,7 +174,7 @@ def test_session_rollover_rebinds_every_session_collection(monkeypatch):
     state.last_trade_ts = 1.0
     archived: list[str] = []
 
-    monkeypatch.setattr(session, "datetime", _FakeNow)
+    monkeypatch.setattr(session, "session_key_et", lambda now=None: "2026-07-16")
     monkeypatch.setattr(
         persist,
         "archive_session_alerts",
@@ -463,10 +463,10 @@ def test_load_configs_retires_positive_cooldown_mute(monkeypatch):
     assert saved and saved[-1]["master"]["cooldown_sec"] == HOD_MOMO_COOLDOWN_SEC
 
 
-def _alert(alert_id: str) -> hm.AlertObject:
+def _alert(alert_id: str, *, created_ts: float = 0.0, timestamp: str = "2026-07-15T14:00:00Z") -> hm.AlertObject:
     return hm.AlertObject(
         id=alert_id,
-        timestamp="2026-07-15T14:00:00Z",
+        timestamp=timestamp,
         ticker="SOBR",
         strategy_id=12,
         strategy_name="Running Up",
@@ -477,4 +477,65 @@ def _alert(alert_id: str) -> hm.AlertObject:
         gap_pct=None,
         volume=1,
         momentum_pct=None,
+        created_ts=created_ts,
     )
+
+
+def test_current_date_et_uses_session_key_before_4am(monkeypatch):
+    monkeypatch.setattr(session, "session_key_et", lambda now=None: "2026-07-23")
+    assert session.current_date_et() == "2026-07-23"
+
+
+def test_reconcile_loaded_alerts_archives_prior_session(monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    archived: dict[str, list[str]] = {}
+
+    def fake_merge(date_str, alerts):
+        archived[date_str] = [alert.id for alert in alerts]
+
+    monkeypatch.setattr(session, "current_date_et", lambda: "2026-07-24")
+    monkeypatch.setattr(persist, "merge_archive_session_alerts", fake_merge)
+    monkeypatch.setattr(persist, "save_alerts", lambda *, force=False: None)
+
+    state = hm.replace_state(HodMomoState())
+    state.today_alerts = [
+        _alert(
+            "jul23",
+            created_ts=datetime(2026, 7, 23, 18, 43, 43, tzinfo=ZoneInfo("America/New_York")).timestamp(),
+            timestamp="2026-07-23T22:43:43.000Z",
+        ),
+        _alert(
+            "jul24",
+            created_ts=datetime(2026, 7, 24, 9, 0, 0, tzinfo=ZoneInfo("America/New_York")).timestamp(),
+            timestamp="2026-07-24T13:00:00.000Z",
+        ),
+    ]
+
+    assert session.reconcile_loaded_alerts_to_session() is True
+    assert [alert.id for alert in state.today_alerts] == ["jul24"]
+    assert archived == {"2026-07-23": ["jul23"]}
+
+
+def test_load_state_does_not_skip_rollover_after_midnight_restart(monkeypatch):
+    """Restart between midnight and 4 AM ET must not pin session_date to calendar today."""
+    archived: list[str] = []
+    monkeypatch.setattr(session, "session_key_et", lambda now=None: "2026-07-23")
+    monkeypatch.setattr(persist, "load_persisted_state", lambda: None)
+    monkeypatch.setattr(
+        persist,
+        "merge_archive_session_alerts",
+        lambda date_str, alerts: archived.append(date_str),
+    )
+    monkeypatch.setattr(persist, "save_alerts", lambda *, force=False: None)
+
+    state = hm.replace_state(HodMomoState())
+    state.session_date = "2026-07-23"
+    state.today_alerts = [_alert("keep-me")]
+
+    session.load_state()
+
+    assert state.session_date == "2026-07-23"
+    assert len(state.today_alerts) == 1
+    assert archived == []

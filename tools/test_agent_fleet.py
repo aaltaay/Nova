@@ -62,7 +62,7 @@ def test_parse_fleet_map_table_finds_owned_and_continuity(fleet):
         r["Domain"] == "News / catalyst pipeline" and r["Owner"] == "news"
         for r in rows
     )
-    assert any(r["Domain"] == "Fleet dispatch / orchestration" and r["Owner"] == "daddy" for r in rows)
+    assert any(r["Domain"] == "Fleet dispatch / orchestration" and r["Owner"] == "parent" for r in rows)
 
 
 def test_parse_fleet_map_table_skills(fleet):

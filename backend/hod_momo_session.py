@@ -3,32 +3,83 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections import defaultdict
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import hod_momo_metrics as _metrics
 import hod_momo_persist as _persist
 import hod_momo_state as _state
-from constants import (
-    HOD_MOMO_SESSION_RESET_HOUR_ET,
-    HOD_MOMO_SESSION_RESET_POLL_SEC,
-)
+from constants import HOD_MOMO_SESSION_RESET_POLL_SEC
+from hod_momo_models import AlertObject
+from market import ET, session_key_et
 
 logger = logging.getLogger(__name__)
-_ET = ZoneInfo("America/New_York")
 
 
 def current_date_et() -> str:
-    return datetime.now(_ET).strftime("%Y-%m-%d")
+    """04:00 ET-anchored session key — matches cache filenames (ADR 008)."""
+    return session_key_et()
+
+
+def alert_session_key(alert: AlertObject) -> str:
+    """Session that owns an alert, from created_ts or ISO timestamp."""
+    created_ts = float(getattr(alert, "created_ts", 0) or 0)
+    if created_ts > 0:
+        return session_key_et(datetime.fromtimestamp(created_ts, tz=ET))
+    ts = getattr(alert, "timestamp", "") or ""
+    if ts:
+        try:
+            dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00")).astimezone(ET)
+            return session_key_et(dt)
+        except ValueError:
+            pass
+    return current_date_et()
+
+
+def reconcile_loaded_alerts_to_session() -> bool:
+    """Archive alerts from prior sessions that leaked into today's live store."""
+    state = _state.get_state()
+    current = current_date_et()
+    if not state.today_alerts:
+        return False
+
+    keep: list[AlertObject] = []
+    stale_by_date: dict[str, list[AlertObject]] = defaultdict(list)
+    for alert in state.today_alerts:
+        if alert_session_key(alert) == current:
+            keep.append(alert)
+        else:
+            stale_by_date[alert_session_key(alert)].append(alert)
+
+    if not stale_by_date:
+        return False
+
+    moved = sum(len(group) for group in stale_by_date.values())
+    for date_str, alerts in stale_by_date.items():
+        try:
+            _persist.merge_archive_session_alerts(date_str, alerts)
+        except Exception:
+            logger.warning(
+                "HOD Momo: failed to archive stale alerts to %s",
+                date_str,
+                exc_info=True,
+            )
+
+    state.today_alerts = keep
+    logger.info(
+        "HOD Momo: reconciled %d stale alert(s) out of live session %s",
+        moved,
+        current,
+    )
+    _persist.save_alerts(force=True)
+    return True
 
 
 def check_and_reset_session() -> bool:
-    """Reset per-session state after the ET date rolls past the reset hour."""
+    """Reset per-session state when the 04:00 ET-anchored session key rolls."""
     state = _state.get_state()
-    now_et = datetime.now(_ET)
-    if now_et.hour < HOD_MOMO_SESSION_RESET_HOUR_ET:
-        return False
-    current = now_et.strftime("%Y-%m-%d")
+    current = current_date_et()
     if not state.session_date:
         state.session_date = current
         return False
@@ -86,7 +137,7 @@ def load_state() -> None:
     """Load persisted state without treating a cold start as a new session."""
     _persist.load_persisted_state()
     state = _state.get_state()
-    state.session_date = current_date_et()
+    reconcile_loaded_alerts_to_session()
     check_and_reset_session()
     logger.info(
         "HOD Momo: loaded %d alerts, %d blocked symbols, %d strategies",

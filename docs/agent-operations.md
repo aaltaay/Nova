@@ -58,22 +58,24 @@ Nova-native light → REM → deep over agent memory, plus optional Obsidian hyg
 
 Shorthand: `py -3 tools/agent_dream.py --full-mission` (± `--write --commit --push`). Owner: `docs`. Vault: `knowledge/obsidian/00-System/Agent-Dreaming.md`.
 
-## Fleet triage (daddy + router + agent_fleet)
+## Fleet triage (zero-hop default + router + agent_fleet)
 
 `tools/agent_fleet.py` unions signals that used to live in separate memories into one crack index: stale snapshots (`captured_at` >7 days old or self-reported `dashboard_freshness` not `clean`), open blockers, unowned/continuity-only domains and orphan skills (from `knowledge/obsidian/00-System/Agent-Fleet-Map.md`), unmanaged canvases on disk, and missing `AGENT_TITLES` entries. It is read-only — it never edits the fleet map, registry, or memories.
 
-- **`daddy`** (dashboard `agent-daddy.canvas.tsx`) is the top-of-fleet dispatcher: classify → dispatch/sequence specialists (or emit a Dispatch Plan if nested Task is unavailable) → aggregate reports. Never implements product code. **Casual address works:** start a message with `daddy, …` (or `Daddy:`, `hey daddy`) — `specialist-routing.mdc` requires the parent to hand off to daddy immediately. Formal phrase still works: “Use the daddy subagent to dispatch this.”
-- **`router`** (dashboard `agent-router.canvas.tsx`) remains the pure classification / crack-index tool: given a task, it names the specialist(s)/skill(s) via a **Routing card** and hands off — it never implements product code. Invoke for “who owns X / what’s cracked?”
+**Default is zero-hop:** the parent Auto session does classification and orchestration itself — no automatic `Task(...)` dispatch, including for "just get this done" or multi-domain work. Every subagent call is a full extra agent turn (new context, tools, Lifecycle report); routing to one automatically was found to be the most expensive, highest-frequency cost in the fleet. Prefer `py -3 tools/agent_fleet.py` for "who owns X / what's cracked?" — it's deterministic and has no LLM cost.
+
+- **`router`** (dashboard `agent-router.canvas.tsx`) remains the pure classification / crack-index tool: given a task, it names the specialist(s)/skill(s) via a **Routing card** and hands off — it never implements product code. Invoke only when the user explicitly asks for a routing card; otherwise run `agent_fleet.py` directly.
+- Every other specialist (ibkr-ops, market-feed, hod-momo, tester, maintainer, security, docs, warrior, widgets, execution, news, backtester, hotkeys) remains registered and invocable, but **opt-in only** — invoke by name when the user explicitly asks, never automatically.
 
 When a domain/skill's ownership changes (a specialist is scaffolded, a domain starts/stops being maintained), update its row in `Agent-Fleet-Map.md` in the same commit — `agent_fleet.py` reads that file as the ownership source of truth and never rewrites it.
 
 ## Routing
 
-See `.cursor/rules/specialist-routing.mdc`. Defaults:
+See `.cursor/rules/specialist-routing.mdc`. Defaults (all opt-in unless noted):
 
-- “Just get this done” / multi-specialist orchestration → `daddy`
-- Classification / crack index only → `router`
-- Product change verification → `tester`
+- "Just get this done" / multi-domain work → the parent, in-session (no automatic dispatch)
+- Classification / crack index only → `py -3 tools/agent_fleet.py` (default); `router` only on explicit ask
+- Product change verification → `tester` (explicit ask) or run pytest/Vitest/build yourself
 - Maintainability / danger audit → `maintainer`
 - Full-repo security posture → `security`
 - Docs / rules / prompts / canvases → `docs`
@@ -110,7 +112,7 @@ After every completed material task, append a narrative under `knowledge/task-lo
 | Template | `knowledge/task-log/_template.md` |
 | Scaffold | `py -3 tools/task_log_new.py --slug <kebab> --title "…"` |
 
-Daddy writes one aggregate entry for multi-specialist jobs. CHANGELOG / PROBLEM_LOG remain short; the task log holds tradeoffs and rejected alternatives.
+The parent writes one aggregate entry for multi-domain jobs done in-session. CHANGELOG / PROBLEM_LOG remain short; the task log holds tradeoffs and rejected alternatives.
 
 ## Adding a future agent
 

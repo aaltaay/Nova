@@ -19,7 +19,7 @@ At the **end of every completed task** — parent session or specialist — that
 - Closed or materially advanced a roadmap/security finding
 - Produced an audit/ops conclusion future agents must not re-derive from scratch
 
-Also required when **daddy** closes a multi-specialist dispatch (one aggregate entry is enough).
+Also required when the **parent** closes a multi-domain task done in-session (one aggregate entry is enough — see `specialist-routing.mdc` zero-hop default).
 
 ## When to skip
 
@@ -49,9 +49,8 @@ Example Lifecycle:
 
 | Role | Duty |
 |------|------|
-| Parent / implementer | Write the entry for work they shipped |
-| Daddy | Ensure one aggregate entry exists for the dispatch |
-| Specialists | Write when their run is the source of truth (audit conclusion, ops diagnosis); otherwise hand facts to parent/daddy |
+| Parent / implementer | Write the entry for work they shipped, including one aggregate entry for multi-domain work done in-session |
+| Specialists (opt-in) | Write when their run is the source of truth (audit conclusion, ops diagnosis); otherwise hand facts to the parent |
 | Docs | May tidy prose; must not invent technical reasons |
 
 ## Anti-patterns

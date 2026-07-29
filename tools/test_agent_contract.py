@@ -48,7 +48,7 @@ def test_discovery_finds_registered_agents(ac):
         "backtester",
         "market-feed",
         "news",
-        "daddy",
+        "hotkeys",
     }
 
 

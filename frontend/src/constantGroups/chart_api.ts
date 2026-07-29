@@ -50,6 +50,13 @@ export const NOVA_START_API_DEV_PATH = '/__nova/start-api';
 export const NOVA_LAUNCH_GATEWAY_DEV_PATH = '/__nova/launch-gateway';
 /** How long the header "Start API" button waits for /api/health after a restart. */
 export const NOVA_START_API_HEALTH_TIMEOUT_MS = 45_000;
+/** Header control — restart local API while it is already reachable (dev / desktop). */
+export const BACKEND_RELOAD_BUTTON_LABEL = 'Reload backend';
+export const BACKEND_RELOAD_BUTTON_TITLE =
+  'Kill and restart the local Nova API on port 8000. Reloads persisted state (HOD alerts, scanner cache) from disk.';
+export const BACKEND_RELOAD_CONFIRM_TITLE = 'Reload backend?';
+export const BACKEND_RELOAD_CONFIRM_MESSAGE =
+  'Restarts the local Nova API process. WebSocket feeds will reconnect; in-memory state resets from disk.';
 /** Short probe used to classify Backend unreachable (API_DOWN vs API_WEDGED). */
 export const BACKEND_PROBE_TIMEOUT_MS = 2_500;
 /** Scanner poll fetch timeout — fail into diagnose instead of hanging for minutes. */

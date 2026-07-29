@@ -35,7 +35,6 @@ py -3 tools/task_log_new.py --slug short-name --title "Human title"
 
 ## Ownership
 
-- **Parent / implementer** writes the entry for product work they ship.
-- **Daddy** writes one aggregate entry when a dispatch closes a multi-specialist job (or ensures the implementer did).
+- **Parent / implementer** writes the entry for product work they ship, including one aggregate entry when in-session work spans multiple domains (zero-hop default — see `specialist-routing.mdc`).
 - **Docs** may tidy formatting; must not invent technical reasons.
 - Rule: `.cursor/rules/task-log.mdc` (always apply).

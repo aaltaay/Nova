@@ -3,64 +3,6 @@
   "updated_at": "2026-07-18",
   "agents": [
     {
-      "id": "daddy",
-      "name": "daddy",
-      "spec": ".cursor/agents/daddy.md",
-      "memory": ".cursor/agent-memory/daddy-memory.md",
-      "invoke_phrases": [
-        "Use the daddy subagent to dispatch this",
-        "daddy,",
-        "Daddy:",
-        "hey daddy",
-        "Improve the daddy agent \u2014 work the next backlog item"
-      ],
-      "dashboard": {
-        "type": "dedicated",
-        "canvas": "agent-daddy.canvas.tsx"
-      },
-      "continuity_rule": null,
-      "continuity_waiver": "No dedicated continuity MDC; daddy owns fleet dispatch/orchestration in Agent-Fleet-Map.md; router remains the pure classification/crack-index tool.",
-      "canonical_inputs": [
-        ".cursor/agent-memory/daddy-memory.md",
-        ".cursor/agent-system/registry.json",
-        "knowledge/obsidian/00-System/Agent-Fleet-Map.md",
-        ".cursor/rules/specialist-routing.mdc"
-      ],
-      "writable_paths": [
-        ".cursor/agents/daddy.md",
-        ".cursor/agent-memory/daddy-memory.md"
-      ],
-      "prohibited_actions": [
-        "arm_executor",
-        "place_orders",
-        "commit_without_ask",
-        "edit_product_code",
-        "edit_fleet_map_without_ask",
-        "edit_registry_without_ask",
-        "unlock_auto_live"
-      ],
-      "deterministic_checks": [
-        "py -3 tools/agent_fleet.py --json",
-        "py -3 tools/agent_contract.py"
-      ],
-      "sibling_handoffs": {
-        "router": "pure classification / crack index",
-        "execution": "ADR 007 audit",
-        "ibkr-ops": "Gateway ops",
-        "market-feed": "feed coherence",
-        "hod-momo": "HOD path",
-        "backtester": "backtest product / skills",
-        "news": "news pipeline",
-        "widgets": "widget parity UI",
-        "warrior": "Warrior site",
-        "tester": "verification",
-        "maintainer": "hygiene",
-        "security": "security posture",
-        "docs": "docs / canvases"
-      },
-      "domain": "fleet dispatch / orchestration"
-    },
-    {
       "id": "router",
       "name": "router",
       "spec": ".cursor/agents/router.md",

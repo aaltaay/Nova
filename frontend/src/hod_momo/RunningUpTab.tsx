@@ -11,6 +11,7 @@ import { HodMomoAlertTable } from './HodMomoAlertTable';
 interface RunningUpTabProps {
   alerts: AlertObject[];
   totalToday?: number;
+  rawAlertCount?: number;
   connected: boolean;
   config: UseHodMomoConfigReturn;
   selectedSymbol: string | null;
@@ -24,6 +25,7 @@ interface RunningUpTabProps {
 export function RunningUpTab({
   alerts,
   totalToday,
+  rawAlertCount,
   connected,
   config,
   selectedSymbol,
@@ -56,13 +58,19 @@ export function RunningUpTab({
     [alerts],
   );
 
+  const symbolCount = totalToday ?? visibleAlerts.length;
+  const fireCount = rawAlertCount ?? alerts.length;
+  const alertCountLabel = fireCount > symbolCount
+    ? `${symbolCount} symbols · ${fireCount} alerts today`
+    : `${symbolCount} alerts today`;
+
   return (
     <div className="hod-momo-tab running-up-tab">
       <div className="hod-header-bar">
         <div className="hod-header-left">
           <span className={`hod-connection-dot ${connected ? 'connected' : 'disconnected'}`} />
           <span className="hod-header-title">Running Up Scanner</span>
-          <span className="hod-alert-count">{totalToday ?? alerts.length} alerts today</span>
+          <span className="hod-alert-count">{alertCountLabel}</span>
         </div>
         <div className="hod-header-right">
           <button

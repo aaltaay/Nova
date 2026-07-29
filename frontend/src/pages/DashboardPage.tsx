@@ -6,9 +6,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
 import { partitionScannerAlerts } from '../hod_momo/scannerPartition';
+import { collapseAlertsBySymbol } from '../hod_momo/collapseAlertsBySymbol';
 import { TabNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
+import { GatewayDisconnectedBanner } from '../ibkr/GatewayDisconnectedBanner';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { SettingsWorkspace } from '../components/SettingsWorkspace';
@@ -22,6 +24,7 @@ import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   DEFAULT_ACTIVE_TAB,
   isTabModuleId,
+  tabUsesScannerPricePatch,
   type ActiveTab,
 } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
@@ -97,10 +100,15 @@ export function DashboardPage() {
     }
   }, [visibility, activeTab]);
 
+  const showScannerPriceFreshness =
+    tabUsesScannerPricePatch(activeTab) &&
+    settings.discoveryProvider === 'ibkr' &&
+    scanner.historyDate === null;
   const lastScan = scanAgeForTab(activeTab, scanner.scanAges);
   const priceAgeTs = scanner.lastPriceTs > 0 ? scanner.lastPriceTs : lastScan;
-  const secondsAgo =
-    priceAgeTs > 0 ? Math.max(0, Math.floor(scanner.now - priceAgeTs)) : null;
+  const secondsAgo = showScannerPriceFreshness && priceAgeTs > 0
+    ? Math.max(0, Math.floor(scanner.now - priceAgeTs))
+    : null;
 
   function handleHistoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const val = e.target.value;
@@ -123,6 +131,14 @@ export function DashboardPage() {
     () => partitionScannerAlerts(hodMomoStream.alerts),
     [hodMomoStream.alerts],
   );
+  const collapsedHodMomentum = useMemo(
+    () => collapseAlertsBySymbol(hodMomentum),
+    [hodMomentum],
+  );
+  const collapsedRunningUp = useMemo(
+    () => collapseAlertsBySymbol(runningUp),
+    [runningUp],
+  );
 
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;
@@ -140,11 +156,7 @@ export function DashboardPage() {
           activeFeed={settings.activeFeed}
           feedFellBack={settings.feedFellBack}
           secondsAgo={secondsAgo}
-          pricesStale={
-            scanner.pricesStale &&
-            settings.discoveryProvider === 'ibkr' &&
-            scanner.historyDate === null
-          }
+          pricesStale={showScannerPriceFreshness && scanner.pricesStale}
           ibkrConnected={ibkrConnected}
           ibkrMode={ibkrMode}
           ibkrGatewayMode={ibkrGatewayMode}
@@ -190,6 +202,12 @@ export function DashboardPage() {
           />
         )}
 
+        <GatewayDisconnectedBanner
+          discoveryProvider={settings.discoveryProvider}
+          ibkrConnected={ibkrConnected}
+          ibkrGatewayMode={ibkrGatewayMode}
+        />
+
         <main className="panel">
           <TabNav
             activeTab={activeTab}
@@ -200,8 +218,8 @@ export function DashboardPage() {
               losers: filteredLosers.length,
               afterhours: filteredAfterhours.length,
               catalysts: scanner.catalysts.length,
-              hodMomo: hodMomentum.length,
-              runningUp: runningUp.length,
+              hodMomo: collapsedHodMomentum.length,
+              runningUp: collapsedRunningUp.length,
               watchlist: watchlist.entries.length,
             }}
             visibility={visibility}

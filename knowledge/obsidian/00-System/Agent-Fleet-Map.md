@@ -2,24 +2,23 @@
 
 Durable domain/skill ownership matrix for Nova's agent OS. This is the source table `tools/agent_fleet.py` parses to compute cracks (unowned domains, orphan skills) — keep the `Status` column values exact: `Owned` | `Continuity-only` | `Unowned` for domains, `Owned` | `Ambient` | `Orphan` for skills.
 
-**Owner:** `daddy` (fleet dispatch) jointly with `router` (classification/crack index) and `docs` (general docs hygiene). Update when a domain/skill gains, loses, or changes owner.
+**Owner:** `parent` (zero-hop fleet dispatch, in-session) jointly with `router` (classification/crack index, opt-in) and `docs` (general docs hygiene). Update when a domain/skill gains, loses, or changes owner.
 
 Companion: `.cursor/agent-system/registry.json` (machine wiring) · `tools/agent_fleet.py` (crack index) · `.cursor/rules/specialist-routing.mdc` (routing table).
 
 **Mode legend:** `Dispatch` = orchestrates others · `Audit` = report-only · `Implement` = may edit its writable paths · `Research` = read/map only, no product feed into Nova.
 
-**Parallel legend (for daddy):** `yes` = safe to launch with other parallel-safe agents in one turn · `after-deps` = usually waits on a dependency · `solo-writes` = implementer; do not parallel with agents that share its writable paths · `hub` = daddy only.
+**Parallel legend (for the parent):** `yes` = safe to launch with other parallel-safe agents in one turn · `after-deps` = usually waits on a dependency · `solo-writes` = implementer; do not parallel with agents that share its writable paths · `hub` = parent only.
 
 ---
 
-## Orchestration (how daddy runs the fleet)
+## Orchestration (zero-hop default)
 
-Specialists do **not** message each other. Daddy is the hub: launch → collect Lifecycle reports → optionally relay report A into prompt B → aggregate for the user.
+**The parent Auto session is the hub, and by default it does the work itself — no automatic subagent dispatch.** Every `Task(subagent)` call is a full extra agent turn (new context, tools, Lifecycle report); the daddy dispatcher that used to sit here was removed because it made every "just get this done" request pay for a forced extra hop. Specialists remain registered and useful for **explicit, user-named** invocation only. When the parent does dispatch an opt-in specialist, specialists still do not message each other — the parent launches → collects Lifecycle reports → optionally relays report A into prompt B → aggregates for the user.
 
-| Agent | Mode | Parallel? | Notes for daddy |
+| Agent | Mode | Parallel? | Notes for the parent |
 |-------|------|-----------|-----------------|
-| daddy | Dispatch | hub | never implements; only orchestrates |
-| router | Audit | yes | classify / fleet gaps only — not a worker |
+| router | Audit | yes | opt-in only; classify / fleet gaps — prefer `py -3 tools/agent_fleet.py` (no hop) |
 | maintainer | Audit | yes | read-only hygiene |
 | security | Audit | yes | read-only posture |
 | execution | Audit | yes | read-only ADR 007 audit |
@@ -33,14 +32,14 @@ Specialists do **not** message each other. Daddy is the hub: launch → collect 
 | backtester | Implement | solo-writes | ok parallel with unrelated domains |
 | docs | Implement | solo-writes | avoid parallel doc edits on the same status note |
 
-**Default recipes**
+**Default recipes (parent does these in-session unless a specialist is explicitly requested)**
 
 1. Diagnose unknown outage → `ibkr-ops` then (`market-feed` **or** `hod-momo`) then `tester` if code changed.  
 2. Broad health sweep → parallel `maintainer` + `security` (+ optional `execution`); no implementers.  
 3. UI + feed bug → sequence `market-feed` then `widgets` (or the reverse if purely layout); never both editing at once.  
-4. “Who owns X?” only → `router` alone (or `py -3 tools/agent_fleet.py`) — not daddy’s full dispatch path.
+4. "Who owns X?" only → `py -3 tools/agent_fleet.py` (default); `router` only on explicit ask.
 
-Detail + report shape: `.cursor/agents/daddy.md` (Orchestration model).
+Detail + report shape: `.cursor/rules/specialist-routing.mdc` (zero-hop default + opt-in invoke).
 
 ---
 
@@ -48,8 +47,8 @@ Detail + report shape: `.cursor/agents/daddy.md` (Orchestration model).
 
 | Domain | Owner | Status | Mode | Notes |
 |--------|-------|--------|------|-------|
-| Fleet dispatch / orchestration | daddy | Owned | Dispatch | top-of-fleet; may dispatch any specialist; never implements product code |
-| Fleet triage / classification / crack index | router | Owned | Audit | report-only Routing card; `agent_fleet.py` |
+| Fleet dispatch / orchestration | parent | Owned | Dispatch | zero-hop default: parent classifies + sequences in-session; specialists invoked only on explicit ask |
+| Fleet triage / classification / crack index | router | Owned | Audit | report-only Routing card; opt-in; default is `agent_fleet.py` |
 | Docs, MDC rules, agent prompts, canvases | docs | Owned | Implement | `docs-continuity.mdc`; dashboard = Nova Home |
 | Agent memory dreaming (light/REM/deep) | docs | Owned | Implement | `tools/agent_dream.py`; diary `.cursor/agent-system/DREAMS.md`; see [[Agent-Dreaming]] |
 | Test / build / browser verification | tester | Owned | Implement | pytest / Vitest / Playwright |
@@ -100,4 +99,4 @@ Everything else under the canvases directory not in `registry.json`'s `dashboard
 
 1. When a specialist is scaffolded (`tools/create_nova_agent.py --write`), flip its domain row(s) here to `Owned` in the same commit.
 2. When a domain keeps burning sessions without an owner, promote it here first (mark `Unowned`/`Continuity-only` with a note), then decide whether to scaffold a specialist.
-3. `tools/agent_fleet.py` reads this file read-only — it never rewrites it. Edit by hand or via `daddy`/`router`/`docs` with an explicit ask.
+3. `tools/agent_fleet.py` reads this file read-only — it never rewrites it. Edit by hand or via the parent/`router`/`docs` with an explicit ask.

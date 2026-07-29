@@ -668,6 +668,15 @@ body {
   cursor: wait;
 }
 
+.backend-start-btn--reload {
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(59, 130, 246, 0.14);
+}
+
+.backend-start-btn--reload:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.28);
+}
+
 .backend-start-error {
   font-size: 0.7rem;
   color: var(--danger, #ef4444);

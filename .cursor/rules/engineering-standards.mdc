@@ -35,8 +35,25 @@ This project is expected to grow. Agents and contributors should align new work 
 - Backend changes should use **clear, structured logging** suitable for production debugging (no secrets or tokens in log messages).
 - Never commit secrets, API keys, or full `.env` files; use environment variables and documented safe examples only.
 
+## Pragmatic patterns & loops (reviewed, deliberately narrow)
+
+Nova's backend is flat Python modules with dataclasses/functions; the frontend is functional React + hooks — not class-hierarchy-heavy OOP. Full GoF design-pattern vocabulary (Factory/Builder/Bridge/Composite/Decorator/Flyweight/Proxy/Visitor/etc.) is **not** adopted here — it adds indirection this codebase doesn't need and fights `karpathy-guidelines.mdc` ("no abstractions for single-use code"). Only name a pattern where the shape already exists:
+
+| Pattern | Where it already lives | Why naming it (only) helps |
+|---|---|---|
+| Strategy | `hod_momo_filters.py` per-strategy gates; `executor.py` gate chain | Recognize the shape when extending — don't reinvent |
+| Chain of Responsibility | `executor.py` order gate chain (kill switch → concurrency → auto_paper → risk → plan) | Keep gates thin and ordered; don't collapse into one `if` |
+| Facade | `routes/*.py` thin handlers delegating to service modules | Already mandated by `backend-modularity.mdc` |
+| Observer | `/ws/scanner`, `/ws/ibkr/tape/{symbol}` broadcast | Plain callbacks/asyncio queues are enough — no new class hierarchy |
+| Adapter | IBKR-vs-Alpaca seam (`single-market-data-feed.mdc`) | Keep the seam at the provider boundary only |
+
+Do not pre-build Singleton, Builder, Abstract Factory, Bridge, Composite, Decorator, Flyweight, Proxy, Command, Iterator, Mediator, Memento, State, Template Method, or Visitor without a concrete second use case — Python's module system already gives you Singleton for free. When refactoring for `file-size-limits.mdc`, prefer naming the **refactoring**, not a design pattern: Extract Function, Extract Class, Move Function, Split Phase (against Long Function / Large Class / Duplicated Code / Shotgun Surgery smells) — that vocabulary maps directly onto what `tools/maintainer_checks.py` already enforces.
+
+On agent "loops" (repeatable automated workflows): most loop-library-style loops (marketing, SEO, mobile builds, ML retraining, red-teaming) don't apply to this solo-maintained trading repo — do not adopt a loop-runner framework or a nightly agent. The one exception worth adding when convenient: a deterministic **pre-commit test guard** (a shell hook that runs the test suite and blocks the commit when tests are red) — zero LLM cost, and `commit-push-deploy.mdc` currently only asks agents to remember to run tests rather than mechanically enforcing it.
+
 ## Cross-references
 
 - **Constants:** `centralized-constants.mdc`
 - **Backend layout:** `backend-modularity.mdc`
 - **Incidents:** prepend to `PROBLEM_LOG.md` when resolving non-trivial bugs (see `problem-log.mdc`)
+- **Agent routing (zero-hop default):** `specialist-routing.mdc`

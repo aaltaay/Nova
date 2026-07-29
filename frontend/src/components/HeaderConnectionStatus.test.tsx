@@ -10,6 +10,15 @@ vi.mock('./BackendStartButton', () => ({
   BackendStartButton: () => <button type="button">Start API</button>,
 }));
 
+vi.mock('./BackendReloadButton', () => ({
+  BackendReloadButton: () => <button type="button">Reload backend</button>,
+}));
+
+vi.mock('../utils/startLocalApi', () => ({
+  canReloadLocalBackend: () => true,
+  startLocalApi: vi.fn(),
+}));
+
 const ibkrStatusMock = vi.hoisted(() => ({
   market_data_delayed: false as boolean,
   market_data_type: 1 as number | null,
@@ -164,6 +173,25 @@ describe('HeaderConnectionStatus', () => {
     expect(liveGateway?.className).toMatch(/status-chip--live/);
   });
 
+  it('hides Prices chip when secondsAgo is null (non-scanner tab)', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={null}
+          pricesStale
+          historyDate={null}
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="status-chip-prices"]')).toBeNull();
+  });
+
   it('legacy alpaca discovery prop still shows Feed chip (dead product path)', () => {
     // Product lock prevents Settings from selecting alpaca; keep branch coverage.
     act(() => {
@@ -205,5 +233,23 @@ describe('HeaderConnectionStatus', () => {
     const gateway = container.querySelector('[data-testid="status-chip-gateway"]');
     expect(gateway?.textContent).toMatch(/delayed/i);
     expect(gateway?.className).toMatch(/status-chip--warn/);
+  });
+
+  it('shows Reload backend when API is up and local restart is available', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+
+    expect(container.textContent).toMatch(/Reload backend/);
   });
 });
