@@ -1,6 +1,9 @@
 /**
  * Nova root layout — WorkspaceProvider + sample/Stock View gates + Dashboard shell.
  * Business logic lives in pages/hooks/components (frontend-modularity rule).
+ *
+ * HOD stream owner lives here; the dock UI mounts in the Scanner middle column
+ * (and Trader main) so left rail + quote panel stay full-height side kings.
  */
 import { useEffect, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
@@ -56,12 +59,12 @@ function AppShell() {
             <div id={SCANNER_STATUS_SLOT_ID} className="scanner-status-slot" />
             <GlobalAppBar />
             <NovaOsAttentionStrip global />
-            <HodMomoDock />
             <div className="nova-app-branch">
               {traderActive ? (
                 <AppErrorBoundary source="stock-view">
                   <div className="nova-shell nova-shell--ticker-detail">
-                    <div className="main-col main-col--full">
+                    <div className="main-col main-col--full main-col--trader-stack">
+                      <HodMomoDock />
                       <main className="ticker-detail-main">
                         <StockViewTabs detached={detached} />
                       </main>

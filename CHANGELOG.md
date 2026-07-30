@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- HOD dock middle-column only (3-column scanner)
+
+- **What:** HOD Momo dock no longer spans under the GlobalAppBar. It sits only in the Scanner middle column above a titled selected-scanner widget. Left rail + quote panel stay full-height side columns. Trader keeps the dock in its main column.
+- **Why:** User clarified the kings are the sidebars; HOD belongs only in the middle stack with the selected scanner.
+- **Files touched:** `App.tsx`, `DashboardPage.tsx`, `SampleDashboardPage.tsx`, `SampleShell.tsx`, `SelectedScannerWidget.tsx`, `scanner-side-nav.css`, dock persist keys `v2`.
+- **How it works now:** Three columns -- rail | (HOD dock + titled scanner) | quote. Persist keys bumped to `nova.hodMomo.dock.v2.*` with default expanded so a hard refresh shows the dock.
+- **Verified by:** `tsc --noEmit`; dock persist + dock Vitest.
+- **Related:** prior dock entry below; task-log update.
+
 ## 2026-07-29 -- HOD Momo global AppShell dock
 
 - **What:** HOD Momo / Running Up live in a collapsible, resizable top dock on every live page (Scanner + Trader). Left-rail HOD items focus the dock; main column keeps the last scanner table. Integrity banner is dock-owned (removed from scanner tab panels).

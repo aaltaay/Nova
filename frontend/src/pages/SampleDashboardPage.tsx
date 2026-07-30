@@ -1,10 +1,11 @@
 /**
  * Sample-data dashboard — fixtures only. Never mounts useScannerData / HOD WS / watchlist API.
- * HOD dock is owned by SampleShell (HodMomoFixtureProvider + HodMomoDock).
+ * HOD dock mounts in the middle column; left rail + quote panel stay full height.
  */
 import { useState } from 'react';
 import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
+import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
 import { AppHeader } from '../components/AppHeader';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
@@ -18,7 +19,8 @@ import {
   SAMPLE_DATA_SWITCH_LABEL,
 } from '../constants';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
-import { isTabModuleId, type ActiveTab } from '../workspace/registry';
+import { HodMomoDock } from '../hod_momo/HodMomoDock';
+import { getModule, isTabModuleId, type ActiveTab } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
@@ -108,7 +110,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
         visibility={visibility}
       />
 
-      <div className="main-col">
+      <div className="main-col main-col--scanner-stack">
         <div className="sample-data-banner" role="status" data-testid="sample-data-banner">
           <span>{SAMPLE_DATA_BANNER}</span>
           <button type="button" className="history-banner-btn" onClick={onLeaveSample}>
@@ -116,29 +118,33 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
           </button>
         </div>
 
-        <main className="panel">
-          <TabModuleHost
-            activeTab={mainTab}
-            mode="market"
-            health={sample.health}
-            discoveryProvider={DISCOVERY_PROVIDER_DEFAULT}
-            gappers={filteredGappers}
-            gainers={filteredGainers}
-            losers={filteredLosers}
-            afterhours={filteredAfterhours}
-            catalysts={sample.catalysts}
-            watchlistEntries={sample.watchlist}
-            watchlistLoading={false}
-            watchlistError={null}
-            selectedSymbol={selectedSymbol}
-            onSelect={setSelectedSymbol}
-            onOpenTrading={onOpenTrader}
-            pricesStale={false}
-            flashSymbols={{}}
-            rowQuoteTs={{}}
-            nowSec={Date.now() / 1000}
-          />
-        </main>
+        <HodMomoDock onOpenTrading={onOpenTrader} />
+
+        <SelectedScannerWidget title={getModule(mainTab)?.title ?? 'Scanner'}>
+          <main className="panel">
+            <TabModuleHost
+              activeTab={mainTab}
+              mode="market"
+              health={sample.health}
+              discoveryProvider={DISCOVERY_PROVIDER_DEFAULT}
+              gappers={filteredGappers}
+              gainers={filteredGainers}
+              losers={filteredLosers}
+              afterhours={filteredAfterhours}
+              catalysts={sample.catalysts}
+              watchlistEntries={sample.watchlist}
+              watchlistLoading={false}
+              watchlistError={null}
+              selectedSymbol={selectedSymbol}
+              onSelect={setSelectedSymbol}
+              onOpenTrading={onOpenTrader}
+              pricesStale={false}
+              flashSymbols={{}}
+              rowQuoteTs={{}}
+              nowSec={Date.now() / 1000}
+            />
+          </main>
+        </SelectedScannerWidget>
       </div>
       <PanelResizeHandle
         onPointerDown={sidePanel.onHandlePointerDown}

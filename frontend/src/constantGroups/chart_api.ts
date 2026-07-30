@@ -242,11 +242,11 @@ export const HOD_MOMO_ALERT_BATCH_MS = 150;
 /** Max stacked strategy pills per row before collapsing the rest into a "+N" chip. */
 export const HOD_MOMO_MAX_INLINE_STRATEGY_PILLS = 4;
 
-/** AppShell HOD Momo / Running Up top dock (global chrome). */
-export const HOD_MOMO_DOCK_COLLAPSED_KEY = 'nova.hodMomo.dock.collapsed';
-export const HOD_MOMO_DOCK_HEIGHT_KEY = 'nova.hodMomo.dock.heightPx';
-/** First visit: collapsed so Trader is not crushed. */
-export const HOD_MOMO_DOCK_DEFAULT_COLLAPSED = true;
+/** Middle-column HOD Momo / Running Up dock (Scanner main-col / Trader main). */
+export const HOD_MOMO_DOCK_COLLAPSED_KEY = 'nova.hodMomo.dock.v2.collapsed';
+export const HOD_MOMO_DOCK_HEIGHT_KEY = 'nova.hodMomo.dock.v2.heightPx';
+/** First visit: expanded in the middle column (side rails stay full height). */
+export const HOD_MOMO_DOCK_DEFAULT_COLLAPSED = false;
 /** Default expanded body height (~8 rows + table header chrome). */
 export const HOD_MOMO_DOCK_DEFAULT_ROWS = 8;
 export const HOD_MOMO_DOCK_DEFAULT_HEIGHT_PX =

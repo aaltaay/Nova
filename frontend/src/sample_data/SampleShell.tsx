@@ -53,11 +53,11 @@ function SampleShellInner() {
     return (
       <HodMomoFixtureProvider>
         <div className="nova-app-stack">
-          <HodMomoDock onOpenTrading={openTrader} />
           <div className="nova-app-branch">
             <AppErrorBoundary source="sample-trader">
               <div className="nova-shell nova-shell--ticker-detail">
-                <div className="main-col main-col--full">
+                <div className="main-col main-col--full main-col--trader-stack">
+                  <HodMomoDock onOpenTrading={openTrader} />
                   <main className="ticker-detail-main">
                     <StockViewPage
                       symbol={traderSymbol}
@@ -78,7 +78,6 @@ function SampleShellInner() {
   return (
     <HodMomoFixtureProvider>
       <div className="nova-app-stack">
-        <HodMomoDock onOpenTrading={openTrader} />
         <div className="nova-app-branch">
           <AppErrorBoundary source="sample-dashboard">
             <SampleDashboardPage onOpenTrader={openTrader} onLeaveSample={leaveSampleView} />

@@ -146,7 +146,25 @@
   flex-shrink: 0;
 }
 
-/* Live AppShell stack: status / bar / attention / dock / branch */
+/* Trader: dock stacks above Stock View in the main column only. */
+.main-col--trader-stack {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main-col--trader-stack > .hod-momo-dock {
+  flex-shrink: 0;
+}
+
+.main-col--trader-stack > .ticker-detail-main {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Live AppShell stack: status / bar / attention / branch */
 .nova-app-stack {
   display: flex;
   flex-direction: column;

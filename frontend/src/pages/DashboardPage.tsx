@@ -1,11 +1,12 @@
 /**
  * Main dashboard shell — header, tabs, side panel.
  * Settings overlay is owned by SettingsProvider at AppShell.
- * HOD Momo stream/config/dock live in HodMomoProvider (AppShell).
+ * HOD stream/config live in HodMomoProvider (AppShell); dock UI is middle-column only.
  */
 import { useEffect, useRef, useState } from 'react';
 import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
+import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
 import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
 import { GatewayDisconnectedBanner } from '../ibkr/GatewayDisconnectedBanner';
 import { SidePanel } from '../components/SidePanel';
@@ -14,6 +15,7 @@ import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
 import { setAccountNavActive } from '../components/accountNavActive';
 import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
+import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
@@ -22,6 +24,7 @@ import { scanAgeForTab } from '../utils/scanAge';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   DEFAULT_ACTIVE_TAB,
+  getModule,
   isTabModuleId,
   tabUsesScannerPricePatch,
   type ActiveTab,
@@ -237,53 +240,57 @@ export function DashboardPage() {
         visibility={visibility}
       />
 
-      <div className="main-col">
+      <div className="main-col main-col--scanner-stack">
         <GatewayDisconnectedBanner
           discoveryProvider={settings.discoveryProvider}
           ibkrConnected={ibkrConnected}
           ibkrGatewayMode={ibkrGatewayMode}
         />
 
-        <main className="panel">
-          {scanner.historyDate && (
-            <div className="history-banner">
-              <span>Viewing {fmtHistoryDate(scanner.historyDate)}</span>
-              <button
-                type="button"
-                className="history-banner-btn"
-                onClick={() => {
-                  scanner.setHistoryDate(null);
-                  scanner.fetchData();
-                }}
-              >
-                Back to Live
-              </button>
-            </div>
-          )}
+        <HodMomoDock />
 
-          <TabModuleHost
-            activeTab={mainTab}
-            mode={scanner.mode}
-            health={scanner.health}
-            discoveryProvider={settings.discoveryProvider}
-            gappers={filteredGappers}
-            gainers={filteredGainers}
-            losers={filteredLosers}
-            afterhours={filteredAfterhours}
-            catalysts={scanner.catalysts}
-            watchlistEntries={watchlist.entries}
-            watchlistLoading={watchlist.loading}
-            watchlistError={watchlist.error}
-            selectedSymbol={selectedSymbol}
-            onSelect={setSelectedSymbol}
-            onOpenTrading={openStockView}
-            pricesStale={scanner.pricesStale}
-            flashSymbols={scanner.flashSymbols}
-            rowQuoteTs={scanner.rowQuoteTs}
-            nowSec={scanner.now}
-            tableMeta={scanner.tableMeta}
-          />
-        </main>
+        <SelectedScannerWidget title={getModule(mainTab)?.title ?? 'Scanner'}>
+          <main className="panel">
+            {scanner.historyDate && (
+              <div className="history-banner">
+                <span>Viewing {fmtHistoryDate(scanner.historyDate)}</span>
+                <button
+                  type="button"
+                  className="history-banner-btn"
+                  onClick={() => {
+                    scanner.setHistoryDate(null);
+                    scanner.fetchData();
+                  }}
+                >
+                  Back to Live
+                </button>
+              </div>
+            )}
+
+            <TabModuleHost
+              activeTab={mainTab}
+              mode={scanner.mode}
+              health={scanner.health}
+              discoveryProvider={settings.discoveryProvider}
+              gappers={filteredGappers}
+              gainers={filteredGainers}
+              losers={filteredLosers}
+              afterhours={filteredAfterhours}
+              catalysts={scanner.catalysts}
+              watchlistEntries={watchlist.entries}
+              watchlistLoading={watchlist.loading}
+              watchlistError={watchlist.error}
+              selectedSymbol={selectedSymbol}
+              onSelect={setSelectedSymbol}
+              onOpenTrading={openStockView}
+              pricesStale={scanner.pricesStale}
+              flashSymbols={scanner.flashSymbols}
+              rowQuoteTs={scanner.rowQuoteTs}
+              nowSec={scanner.now}
+              tableMeta={scanner.tableMeta}
+            />
+          </main>
+        </SelectedScannerWidget>
       </div>
       <PanelResizeHandle
         onPointerDown={sidePanel.onHandlePointerDown}
