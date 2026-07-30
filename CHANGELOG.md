@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- GlobalAppBar: never say IBKR offline while Gateway is up
+
+- **What:** Account cluster no longer shows red "IBKR offline" when GATEWAY is connected. Loading → "Account…"; poll failure → "Account unavailable"; true session down → "IBKR offline".
+- **Why:** Two chips contradicted each other (GATEWAY connected · LIVE vs IBKR offline) because account chrome reused the offline label for "summary not ready yet."
+- **Files touched:** `frontend/src/components/globalBarAccountChrome.ts`, `GlobalBarAccountCluster.tsx`, `GlobalAppBar.tsx`, `globalAppBarScanner.ts`, `constantGroups/global_bar.ts`, tests.
+- **How it works now:** GATEWAY chip = market-data session. Account cluster = `/api/ibkr/account` readiness. Labels stay distinct so a slow account poll cannot scare the bar red while streaming is healthy.
+- **Verified by:** Vitest GlobalAppBar + resolveAccountChromeState (13 tests).
+- **Related:** PROBLEM_LOG 2026-07-30 GATEWAY vs IBKR offline contradiction.
+
 ## 2026-07-30 -- Integrity banner: fix false warn/fail root causes
 
 - **What:** Integrity checks no longer cry wolf on healthy afterhours / flat-quote / chart-open sessions. `scanner_l1_stream` measures socket liveness (not price-change recency); HOD tick thresholds are session-aware; IBKR delayed-data / max-tickers signals downgrade tick alarms to informational; surge seeds retry transient failures and classify permanent no-history symbols. IBC local `AutoRestartTime=23:45` + Windows `NovaDailyStart` task cover the daily Gateway re-auth.

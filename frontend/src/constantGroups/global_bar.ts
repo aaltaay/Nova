@@ -22,7 +22,12 @@ export const GLOBAL_BAR_NET_LIQ_LABEL = 'Net Liq';
 export const GLOBAL_BAR_BP_LABEL = 'BP';
 export const GLOBAL_BAR_WORKING_LABEL = 'Working';
 
+/** Only when Gateway / market-data session is down. */
 export const GLOBAL_BAR_OFFLINE_CHIP = 'IBKR offline';
+/** Gateway up; /api/ibkr/account not ready yet — never use OFFLINE_CHIP here. */
+export const GLOBAL_BAR_ACCOUNT_LOADING_CHIP = 'Account…';
+/** Gateway up; account poll failed — distinct from session offline. */
+export const GLOBAL_BAR_ACCOUNT_UNAVAILABLE_CHIP = 'Account unavailable';
 export const GLOBAL_BAR_OFFLINE_PLACEHOLDER = '--';
 
 export const GLOBAL_BAR_CARD_OPEN_PNL = 'Open P&L';

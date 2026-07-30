@@ -172,6 +172,32 @@ describe('GlobalAppBar', () => {
     expect(container.querySelector('[data-testid="global-bar-cluster"]')).toBeNull();
   });
 
+  it('does not say IBKR offline when Gateway is up but account is still loading', () => {
+    workspace = baseWorkspace({ ibkrConnected: true, ibkrMode: 'live' });
+    account = baseAccount({ summary: null, orders: [], loading: true, error: null });
+    renderBar();
+    const chip = container.querySelector('[data-testid="global-bar-offline"]');
+    expect(chip).toBeTruthy();
+    expect(chip?.getAttribute('data-chrome')).toBe('loading');
+    expect(container.textContent).toMatch(/Account…/);
+    expect(container.textContent).not.toMatch(/IBKR offline/);
+  });
+
+  it('says Account unavailable (not offline) when Gateway is up but account poll failed', () => {
+    workspace = baseWorkspace({ ibkrConnected: true, ibkrMode: 'live' });
+    account = baseAccount({
+      summary: null,
+      orders: [],
+      loading: false,
+      error: 'account (HTTP 503)',
+    });
+    renderBar();
+    const chip = container.querySelector('[data-testid="global-bar-offline"]');
+    expect(chip?.getAttribute('data-chrome')).toBe('unavailable');
+    expect(container.textContent).toMatch(/Account unavailable/);
+    expect(container.textContent).not.toMatch(/IBKR offline/);
+  });
+
   it('marks Scanner active and opens Trader from selected symbol', () => {
     renderBar();
     const scanner = container.querySelector(
