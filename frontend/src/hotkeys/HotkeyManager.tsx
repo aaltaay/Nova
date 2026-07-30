@@ -1,30 +1,31 @@
 /**
- * DAS-style Name / Key / Command manager.
- * Import/export .htk, edit, analyze — never execute imported commands.
+ * Settings → Hot Keys landing (Webull-style shell).
+ * Opens Hotkeys Settings manager; DAS import stays under Advanced.
  */
 
-import { useMemo, useRef, useState } from 'react';
-import { HOTKEY_MANAGER_INACTIVE_BANNER } from '../constants';
-import { HotkeyFileToolbar } from './HotkeyFileToolbar';
-import { HotkeyFilterToolbar, type HotkeySortKey } from './HotkeyFilterToolbar';
-import { HotkeyHelpCatalog } from './HotkeyHelpCatalog';
-import { HotkeyImportPreview } from './HotkeyImportPreview';
-import { HotkeyItemActions } from './HotkeyItemActions';
-import { HotkeyRecordsTable } from './HotkeyRecordsTable';
-import { HotkeyRowEditor } from './HotkeyRowEditor';
-import { HotkeySelectedDetail } from './HotkeySelectedDetail';
-import { HotkeySummaryBar } from './HotkeySummaryBar';
-import { MapDasToNovaDialog } from './MapDasToNovaDialog';
+import { useMemo, useState } from 'react';
 import {
-  buildMappedNovaAction,
-  suggestNovaActionFromDas,
-  type MapSuggestion,
-} from './mapDasToNovaAction';
-import { NovaActionsTable } from './NovaActionsTable';
-import { NovaActiveShortcuts } from './NovaActiveShortcuts';
+  HOTKEYS_LANDING_SUBTITLE,
+  HOTKEYS_LANDING_TITLE,
+  HOTKEYS_SETTINGS_CTA,
+  HOTKEYS_SETTINGS_RESET,
+  HOTKEYS_TAB_CHART,
+  HOTKEYS_TAB_GENERAL,
+  HOTKEYS_TAB_PAPER,
+  HOTKEYS_TAB_SOON,
+  HOTKEYS_TAB_TRADE,
+} from '../constants';
+import { HotkeyHelpCatalog } from './HotkeyHelpCatalog';
+import { HotkeysDasAdvanced } from './HotkeysDasAdvanced';
+import { HotkeysLandingList } from './HotkeysLandingList';
+import { HotkeysSettingsDialog } from './HotkeysSettingsDialog';
 import { formatKeyChord } from './htkFormat';
+import { NovaActiveShortcuts } from './NovaActiveShortcuts';
+import type { HotkeySortKey } from './HotkeyFilterToolbar';
 import { useHotkeyProfile } from './useHotkeyProfile';
-import type { HotkeyCompatStatus, HotkeyRecord } from './types';
+import type { HotkeyCompatStatus } from './types';
+
+type LandingTab = 'trade' | 'general' | 'paper' | 'chart';
 
 export function HotkeyManager() {
   const {
@@ -46,25 +47,17 @@ export function HotkeyManager() {
     restoreNovaDefaults,
   } = useHotkeyProfile();
 
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [tab, setTab] = useState<LandingTab>('trade');
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsFocusId, setSettingsFocusId] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<HotkeySortKey>('name');
-  const [editing, setEditing] = useState<HotkeyRecord | null>(null);
-  const [showHelp, setShowHelp] = useState(false);
   const [statusFilter, setStatusFilter] = useState<HotkeyCompatStatus | 'all'>('all');
-  const [mapSuggestion, setMapSuggestion] = useState<Extract<MapSuggestion, { ok: true }> | null>(null);
-  const [mapNotice, setMapNotice] = useState<string | null>(null);
 
   const selected = profile.records.find((r) => r.id === selectedId) ?? null;
   const selectedAnalysis = selected ? analysisById.get(selected.id) : undefined;
-  const selectedMapHint = selected
-    ? suggestNovaActionFromDas(selected.command)
-    : null;
-  const mapDisabledReason = !selected
-    ? 'Select a DAS row first'
-    : selectedMapHint && !selectedMapHint.ok
-      ? selectedMapHint.reason
-      : null;
+  const mapDisabledReason = !selected ? 'Select a DAS row first' : null;
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -111,109 +104,109 @@ export function HotkeyManager() {
     URL.revokeObjectURL(url);
   };
 
+  function openSettings(focusId?: string | null) {
+    setSettingsFocusId(focusId ?? null);
+    setSettingsOpen(true);
+  }
+
   if (showHelp) {
     return <HotkeyHelpCatalog onClose={() => setShowHelp(false)} />;
   }
 
   return (
-    <div className="hotkey-manager panel settings-panel">
-      <h2 className="panel-title">Hotkeys</h2>
+    <div className="hotkey-manager panel settings-panel hk-landing" data-testid="hotkeys-landing">
+      <h2 className="panel-title">{HOTKEYS_LANDING_TITLE}</h2>
+      <p className="hk-landing-subtitle">{HOTKEYS_LANDING_SUBTITLE}</p>
 
-      <div className="hotkey-inactive-banner" role="status">
-        {HOTKEY_MANAGER_INACTIVE_BANNER}
+      <div className="hk-landing-tabs" role="tablist" aria-label="Hot key categories">
+        {(
+          [
+            ['trade', HOTKEYS_TAB_TRADE],
+            ['general', HOTKEYS_TAB_GENERAL],
+            ['paper', HOTKEYS_TAB_PAPER],
+            ['chart', HOTKEYS_TAB_CHART],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={`hk-landing-tab${tab === id ? ' is-active' : ''}`}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      <HotkeySummaryBar summary={summary} />
+      {tab === 'trade' ? (
+        <>
+          <div className="hk-landing-cta-row">
+            <button
+              type="button"
+              className="btn-primary"
+              data-testid="hotkeys-settings-cta"
+              onClick={() => openSettings(null)}
+            >
+              {HOTKEYS_SETTINGS_CTA}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={restoreNovaDefaults}
+            >
+              {HOTKEYS_SETTINGS_RESET}
+            </button>
+          </div>
 
-      <HotkeyFileToolbar
-        fileName={profile.fileName}
-        fileRef={fileRef}
-        onImportFile={(f) => void onImportFile(f)}
-        onExport={onExport}
-        onHelp={() => setShowHelp(true)}
-      />
+          <HotkeysLandingList
+            actions={profile.novaActions}
+            onOpenAction={(id) => openSettings(id)}
+          />
 
-      <HotkeyFilterToolbar
-        query={query}
-        onQuery={setQuery}
-        statusFilter={statusFilter}
-        onStatusFilter={setStatusFilter}
-        sortKey={sortKey}
-        onSortKey={setSortKey}
-      />
+          <NovaActiveShortcuts />
 
-      <HotkeyRecordsTable
-        rows={rows}
-        selectedId={selectedId}
-        analysisById={analysisById}
-        onSelect={setSelectedId}
-      />
-
-      <HotkeyItemActions
-        selected={selected}
-        onEdit={() => selected && setEditing(selected)}
-        onAdd={() => {
-          const rec = addRecord();
-          setEditing(rec);
-        }}
-        onDeleteItem={() => selected && deleteRecord(selected.id)}
-        onDeleteKey={() => selected && deleteKey(selected.id)}
-        mapDisabledReason={mapDisabledReason}
-        onMapToNova={() => {
-          if (!selected || !selectedMapHint?.ok) return;
-          setMapNotice(null);
-          setMapSuggestion(selectedMapHint);
-        }}
-      />
-
-      {mapNotice && (
-        <p className="na-muted" role="status">{mapNotice}</p>
+          <HotkeysDasAdvanced
+            profile={profile}
+            summary={summary}
+            rows={rows}
+            selectedId={selectedId}
+            setSelectedId={setSelectedId}
+            analysisById={analysisById}
+            selected={selected}
+            selectedAnalysis={selectedAnalysis}
+            mapDisabledReason={mapDisabledReason}
+            importPreview={importPreview}
+            onImportFile={(f) => void onImportFile(f)}
+            onExport={onExport}
+            onHelp={() => setShowHelp(true)}
+            query={query}
+            setQuery={setQuery}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            sortKey={sortKey}
+            setSortKey={setSortKey}
+            addRecord={addRecord}
+            updateRecord={updateRecord}
+            deleteRecord={deleteRecord}
+            deleteKey={deleteKey}
+            setNovaActions={setNovaActions}
+            confirmImportReplace={confirmImportReplace}
+            cancelImport={cancelImport}
+          />
+        </>
+      ) : (
+        <p className="na-muted" data-testid="hotkeys-tab-soon">{HOTKEYS_TAB_SOON}</p>
       )}
 
-      {selectedAnalysis && selected && (
-        <HotkeySelectedDetail selected={selected} analysis={selectedAnalysis} />
-      )}
-
-      <NovaActionsTable
-        actions={profile.novaActions}
-        onChange={setNovaActions}
-        onRestoreDefaults={restoreNovaDefaults}
-      />
-
-      <NovaActiveShortcuts />
-
-      {importPreview && (
-        <HotkeyImportPreview
-          preview={importPreview}
-          onConfirm={confirmImportReplace}
-          onCancel={cancelImport}
-        />
-      )}
-
-      {editing && (
-        <HotkeyRowEditor
-          record={editing}
-          onSave={(patch) => {
-            updateRecord(editing.id, patch);
-            setEditing(null);
-          }}
-          onCancel={() => setEditing(null)}
-        />
-      )}
-
-      {mapSuggestion && selected && (
-        <MapDasToNovaDialog
-          record={selected}
-          suggestion={mapSuggestion}
-          onCancel={() => setMapSuggestion(null)}
-          onConfirm={() => {
-            const mapped = buildMappedNovaAction(selected, mapSuggestion);
-            setNovaActions([...profile.novaActions, mapped]);
-            setMapSuggestion(null);
-            setMapNotice(
-              `Mapped “${mapped.name}” as a disabled Nova Action — enable it below when ready.`,
-            );
-          }}
+      {settingsOpen && (
+        <HotkeysSettingsDialog
+          actions={profile.novaActions}
+          initialSelectedId={settingsFocusId}
+          onChange={setNovaActions}
+          onRestoreDefaults={restoreNovaDefaults}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
     </div>

@@ -216,4 +216,34 @@ export const NOVA_ACTION_PIN_LOCKED_MESSAGE =
 export const NOVA_ACTION_SPEND_LOCKED_MESSAGE =
   'Orders remain locked by Nova environment safety settings.';
 export const NOVA_ACTION_ACCOUNT_ERROR_MESSAGE =
-  'IBKR account/positions read failed — Flatten/exit disabled until the poll recovers.';
+  'IBKR account/positions read failed -- Flatten/exit disabled until the poll recovers.';
+
+// ── Webull-style Hotkeys Settings shell (UI pass 1) ───────────────────────────
+export const HOTKEYS_LANDING_TITLE = 'Hot Keys';
+export const HOTKEYS_LANDING_SUBTITLE =
+  'Hotkey settings for single and group orders.';
+export const HOTKEYS_SETTINGS_CTA = 'Hotkeys Settings';
+export const HOTKEYS_SETTINGS_DIALOG_TITLE = 'Hotkeys Settings';
+export const HOTKEYS_SETTINGS_LIST_TITLE = 'Trading Hotkeys';
+export const HOTKEYS_SETTINGS_DONE = 'Done';
+export const HOTKEYS_SETTINGS_RESET = 'Reset to Default';
+export const HOTKEYS_CREATE_DIALOG_TITLE = 'Create a Customized Button';
+export const HOTKEYS_CREATE_NAME_LABEL = 'Button Name';
+export const HOTKEYS_CREATE_APPLY_LABEL = 'Button Apply To';
+export const HOTKEYS_CREATE_APPLY_STOCK = 'Stock';
+export const HOTKEYS_CREATE_SIDE_LABEL = 'Side';
+export const HOTKEYS_CREATE_SIDE_BUY = 'Buy';
+export const HOTKEYS_CREATE_SIDE_SELL = 'Sell';
+export const HOTKEYS_CREATE_CANCEL = 'Cancel';
+export const HOTKEYS_CREATE_SUBMIT = 'Create';
+export const HOTKEYS_ADVANCED_DAS_TITLE = 'Advanced: DAS import';
+export const HOTKEYS_ADVANCED_DAS_HINT =
+  'Import .htk files and Map rows to typed Nova Actions. Raw DAS scripts never auto-run.';
+export const HOTKEYS_TAB_TRADE = 'Trade';
+export const HOTKEYS_TAB_GENERAL = 'General';
+export const HOTKEYS_TAB_PAPER = 'Paper Trading';
+export const HOTKEYS_TAB_CHART = 'Chart';
+export const HOTKEYS_TAB_SOON = 'Coming soon';
+export const HOTKEYS_EMPTY_LIST = 'No Nova Actions yet -- open Hotkeys Settings to add one.';
+export const HOTKEYS_DEFAULT_CUSTOM_NAME = 'Custom1';
+

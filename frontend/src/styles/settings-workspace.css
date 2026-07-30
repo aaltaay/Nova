@@ -988,3 +988,354 @@
   color: var(--danger);
 }
 
+/* ── Webull-style Hot Keys landing + settings shell ───────────────────────── */
+
+.hk-landing-subtitle {
+  margin: -0.35rem 0 0.85rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.hk-landing-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.5rem;
+}
+
+.hk-landing-tab {
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 4px 4px 0 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.hk-landing-tab.is-active {
+  color: var(--text-primary);
+  border-color: var(--border-color);
+  border-bottom-color: var(--bg-primary, #111);
+  background: var(--bg-secondary, #1a1a1a);
+  font-weight: 600;
+}
+
+.hk-landing-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.hk-landing-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.hk-landing-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hk-landing-list li:last-child .hk-landing-row {
+  border-bottom: 0;
+}
+
+.hk-landing-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hk-landing-chord {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  min-width: 3.5rem;
+  text-align: center;
+}
+
+.hk-advanced-das {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.75rem;
+}
+
+.hk-advanced-das-summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.hk-settings-backdrop {
+  z-index: 90;
+}
+
+.hk-create-backdrop {
+  z-index: 100;
+}
+
+.hk-settings-dialog,
+.hk-create-dialog {
+  background: var(--bg-primary, #111);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  width: min(860px, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hk-create-dialog {
+  width: min(420px, 100%);
+  padding: 0 0 0.75rem;
+}
+
+.hk-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hk-dialog-header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.hk-dialog-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+}
+
+.hk-settings-body {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) 1fr;
+  gap: 0;
+  min-height: 360px;
+  max-height: calc(90vh - 8rem);
+  overflow: hidden;
+}
+
+.hk-settings-list-pane {
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+
+.hk-settings-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.25rem 0.75rem 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.hk-settings-add {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary, #1a1a1a);
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hk-settings-group-label {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.hk-settings-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.hk-settings-list-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hk-settings-list-item.is-selected,
+.hk-settings-list-item:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.hk-settings-list-item kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+}
+
+.hk-settings-detail-pane {
+  padding: 0.85rem 1rem;
+  overflow-y: auto;
+}
+
+.hk-settings-detail-title {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.hk-settings-detail-desc {
+  margin: 0 0 0.85rem;
+  font-size: 0.78rem;
+}
+
+.hk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.hk-field input,
+.hk-field select {
+  background: var(--bg-secondary, #1a1a1a);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 0.4rem 0.5rem;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.hk-field-grow {
+  flex: 1;
+}
+
+.hk-qty-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.hk-qty-unit {
+  font-size: 1.1rem;
+  padding-bottom: 0.45rem;
+  opacity: 0.55;
+}
+
+.hk-qty-unit.is-active {
+  opacity: 1;
+  color: var(--accent-color);
+}
+
+.hk-check-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+}
+
+.hk-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.hk-create-dialog .hk-field,
+.hk-create-dialog .hk-side-toggle {
+  margin-left: 1rem;
+  margin-right: 1rem;
+}
+
+.hk-side-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.hk-side-toggle button {
+  border: 0;
+  padding: 0.4rem 1rem;
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: var(--bg-secondary, #1a1a1a);
+  color: var(--text-secondary);
+}
+
+.hk-side-buy.is-active {
+  background: rgba(34, 197, 94, 0.25);
+  color: #86efac;
+  font-weight: 600;
+}
+
+.hk-side-sell.is-active {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+@media (max-width: 700px) {
+  .hk-settings-body {
+    grid-template-columns: 1fr;
+  }
+
+  .hk-settings-list-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-color);
+    max-height: 180px;
+  }
+}
+

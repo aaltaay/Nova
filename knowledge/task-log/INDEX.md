@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-30 | [Hot Keys Webull-style Settings shell (landing + manager + create)](2026-07-30-hotkeys-webull-settings-shell.md) | Hot Keys Webull-style Settings shell (landing + manager + create) |
 | 2026-07-30 | [Integrity banner false warn root causes](2026-07-30-integrity-false-warn-root-causes.md) | Fix false Integrity warns; IBC daily restart; seed retry |
 | 2026-07-30 | [HOD News flame column + calculation tooltips](2026-07-30-hod-news-flame-column-tooltips.md) | HOD News flame + header formula tooltips; source-tagged join |
 | 2026-07-29 | [Single header row (scanner chrome into GlobalAppBar)](2026-07-29-single-header-row.md) | Single header row (scanner chrome into GlobalAppBar) |

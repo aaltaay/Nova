@@ -3,10 +3,29 @@
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HOTKEY_MANAGER_INACTIVE_BANNER } from '../constants';
+import {
+  HOTKEY_MANAGER_INACTIVE_BANNER,
+  HOTKEYS_CREATE_DIALOG_TITLE,
+  HOTKEYS_SETTINGS_CTA,
+  HOTKEYS_SETTINGS_DIALOG_TITLE,
+  HOTKEYS_TAB_SOON,
+} from '../constants';
 import { HotkeyManager } from './HotkeyManager';
 import { serializeHtk } from './htkFormat';
+
+
+function openAdvancedDas(container: HTMLElement) {
+  const details = container.querySelector(
+    '[data-testid="hotkeys-advanced-das"]',
+  ) as HTMLDetailsElement | null;
+  expect(details).toBeTruthy();
+  act(() => {
+    details!.open = true;
+    details!.dispatchEvent(new Event('toggle', { bubbles: true }));
+  });
+}
 
 describe('HotkeyManager', () => {
   let container: HTMLDivElement;
@@ -27,20 +46,88 @@ describe('HotkeyManager', () => {
     vi.restoreAllMocks();
   });
 
-  it('shows inactive banner and active Nova shortcuts', () => {
+  it('shows landing CTA, summary list, and active Nova shortcuts', () => {
     act(() => {
       root.render(<HotkeyManager />);
     });
-    expect(container.textContent).toContain(HOTKEY_MANAGER_INACTIVE_BANNER);
+    expect(container.textContent).toContain(HOTKEYS_SETTINGS_CTA);
+    expect(container.querySelector('[data-testid="hotkeys-landing-list"]')).toBeTruthy();
     expect(container.textContent).toContain('Active Nova shortcuts');
     expect(container.textContent).toContain('Approve first staged bracket');
+    const advanced = container.querySelector(
+      '[data-testid="hotkeys-advanced-das"]',
+    ) as HTMLDetailsElement;
+    expect(advanced.open).toBe(false);
   });
 
-  it('imports .htk via preview then replace without fetch', async () => {
+
+  it('opens Hotkeys Settings from CTA and closes on Escape', async () => {
+    act(() => {
+      root.render(<HotkeyManager />);
+    });
+    const cta = container.querySelector(
+      '[data-testid="hotkeys-settings-cta"]',
+    ) as HTMLButtonElement;
+    await act(async () => {
+      cta.click();
+    });
+    expect(container.textContent).toContain(HOTKEYS_SETTINGS_DIALOG_TITLE);
+    expect(container.querySelector('[data-testid="hotkeys-settings-dialog"]')).toBeTruthy();
+
+    await act(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="hotkeys-settings-dialog"]')).toBeNull();
+  });
+
+  it('creates a customized button from + and appends to list', async () => {
+    act(() => {
+      root.render(<HotkeyManager />);
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="hotkeys-settings-cta"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="hotkeys-settings-add"]') as HTMLButtonElement).click();
+    });
+    expect(container.textContent).toContain(HOTKEYS_CREATE_DIALOG_TITLE);
+
+    const nameInput = container.querySelector(
+      '[data-testid="hotkeys-create-name"]',
+    ) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(nameInput, { target: { value: 'My Ask Entry' } });
+    });
+
+    await act(async () => {
+      (container.querySelector('[data-testid="hotkeys-create-submit"]') as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="hotkeys-create-dialog"]')).toBeNull();
+    expect(container.textContent).toContain('My Ask Entry');
+  });
+
+
+  it('shows Coming soon for non-Trade tabs', async () => {
+    act(() => {
+      root.render(<HotkeyManager />);
+    });
+    const chartTab = Array.from(container.querySelectorAll('[role="tab"]')).find(
+      (b) => b.textContent === 'Chart',
+    );
+    await act(async () => {
+      (chartTab as HTMLButtonElement).click();
+    });
+    expect(container.textContent).toContain(HOTKEYS_TAB_SOON);
+  });
+
+  it('imports .htk via Advanced DAS preview then replace without fetch', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     act(() => {
       root.render(<HotkeyManager />);
     });
+    openAdvancedDas(container);
+    expect(container.textContent).toContain(HOTKEY_MANAGER_INACTIVE_BANNER);
+
     const body = serializeHtk([
       {
         id: 'x',
@@ -75,10 +162,11 @@ describe('HotkeyManager', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('opens Help catalog', async () => {
+  it('opens Help catalog from Advanced DAS', async () => {
     act(() => {
       root.render(<HotkeyManager />);
     });
+    openAdvancedDas(container);
     const helpBtn = Array.from(container.querySelectorAll('button')).find(
       (b) => b.textContent === 'Help',
     );
@@ -92,7 +180,7 @@ describe('HotkeyManager', () => {
     await act(async () => {
       closeBtn?.click();
     });
-    expect(container.textContent).toContain(HOTKEY_MANAGER_INACTIVE_BANNER);
+    expect(container.querySelector('[data-testid="hotkeys-landing"]')).toBeTruthy();
   });
 
   it('maps a selected DAS cancel row to a disabled Nova Action without fetch', async () => {
@@ -100,6 +188,7 @@ describe('HotkeyManager', () => {
     act(() => {
       root.render(<HotkeyManager />);
     });
+    openAdvancedDas(container);
     const body = serializeHtk([
       {
         id: 'cxl',

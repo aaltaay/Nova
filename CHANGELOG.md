@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Hot Keys Webull-style Settings shell
+
+- **What:** Settings → Hot Keys is now a landing page (Trade tab + summary list + Hotkeys Settings CTA). Hotkeys Settings opens a master-detail manager; `+` opens Create a Customized Button for typed Nova Actions. DAS `.htk` lives under Advanced.
+- **Why:** Match Webull-style three-window UX without inventing Market/Stop kinds Nova cannot execute yet.
+- **Files touched:** `frontend/src/hotkeys/HotkeyManager.tsx`, `HotkeysSettingsDialog.tsx`, `HotkeysSettingsDetail.tsx`, `CreateCustomButtonDialog.tsx`, `HotkeysDasAdvanced.tsx`, helpers, `constantGroups/features.ts`, `styles/settings-workspace.css`, Vitest.
+- **How it works now:** Landing lists enabled Nova Actions; manager edits name/key/kind/qty; Create appends a blank typed action; Escape closes the manager (not the parent Settings shell). Raw DAS still never auto-runs.
+- **Verified by:** `npx vitest run src/hotkeys` (49 tests).
+- **Follow-ups:** Pass 2 order kinds (Buy/Sell Market etc.), Paper/Chart tab content.
+- **Related:** `knowledge/task-log/2026-07-30-hotkeys-webull-settings-shell.md`
+
 ## 2026-07-30 -- GlobalAppBar: never say IBKR offline while Gateway is up
 
 - **What:** Account cluster no longer shows red "IBKR offline" when GATEWAY is connected. Loading → "Account…"; poll failure → "Account unavailable"; true session down → "IBKR offline".
