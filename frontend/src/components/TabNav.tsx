@@ -1,6 +1,7 @@
 /**
  * Scanner left rail (Webull-style) -- data-driven from the module registry.
  * Horizontal tab bar retired; Account/Settings stay on GlobalAppBar.
+ * HOD Momo / Running Up focus the AppShell dock (not a full-page tab body).
  */
 import { scannerNavIcon, formatScannerNavCount } from '../scanner/scannerNavIcons';
 import {
@@ -14,7 +15,13 @@ export type { ActiveTab } from '../workspace/registry';
 export type TabCounts = Partial<Record<ModuleCountKey, number>>;
 
 interface Props {
+  /** Main-column tab (never hod_momo / running_up after dock migration). */
   activeTab: ActiveTab;
+  /**
+   * Which rail item shows as active. When focusing the HOD dock, this is
+   * `hod_momo` / `running_up` while `activeTab` stays on the last scanner table.
+   */
+  railHighlight?: ActiveTab;
   onTabClick: (tab: ActiveTab) => void;
   counts: TabCounts;
   /** Module visibility map (tabs filtered). */
@@ -28,24 +35,27 @@ export function TabNav(props: Props) {
 
 export function ScannerSideNav({
   activeTab,
+  railHighlight,
   onTabClick,
   counts,
   visibility,
 }: Props) {
   const tabs = listTabModules().filter((m) => visibility[m.id] !== false);
+  const highlight = railHighlight ?? activeTab;
 
   return (
     <nav
       className="scanner-side-nav"
       aria-label="Scanner views"
       data-active-tab={activeTab}
+      data-rail-highlight={highlight}
       data-testid="scanner-side-nav"
     >
       <div className="scanner-side-nav__list">
         {tabs.map((m) => {
           const count = m.countKey ? (counts[m.countKey] ?? 0) : 0;
           const countLabel = formatScannerNavCount(count);
-          const active = activeTab === m.id;
+          const active = highlight === m.id;
           return (
             <button
               key={m.id}

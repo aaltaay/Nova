@@ -8,6 +8,8 @@ import { GlobalAppBar } from './components/GlobalAppBar';
 import { SCANNER_STATUS_SLOT_ID } from './components/scannerStatusSlot';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
+import { HodMomoDock } from './hod_momo/HodMomoDock';
+import { HodMomoProvider } from './hod_momo/HodMomoProvider';
 import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
 import { DashboardPage } from './pages/DashboardPage';
 import { SampleShell } from './sample_data/SampleShell';
@@ -48,25 +50,32 @@ function AppShell() {
   return (
     <IbkrAccountProvider>
       <SettingsProvider>
-        {/* Scanner AppHeader portals status chrome here (above GlobalAppBar). */}
-        <div id={SCANNER_STATUS_SLOT_ID} className="scanner-status-slot" />
-        <GlobalAppBar />
-        <NovaOsAttentionStrip global />
-        {traderActive ? (
-          <AppErrorBoundary source="stock-view">
-            <div className="nova-shell nova-shell--ticker-detail">
-              <div className="main-col main-col--full">
-                <main className="ticker-detail-main">
-                  <StockViewTabs detached={detached} />
-                </main>
-              </div>
+        <HodMomoProvider>
+          <div className="nova-app-stack">
+            {/* Scanner AppHeader portals status chrome here (above GlobalAppBar). */}
+            <div id={SCANNER_STATUS_SLOT_ID} className="scanner-status-slot" />
+            <GlobalAppBar />
+            <NovaOsAttentionStrip global />
+            <HodMomoDock />
+            <div className="nova-app-branch">
+              {traderActive ? (
+                <AppErrorBoundary source="stock-view">
+                  <div className="nova-shell nova-shell--ticker-detail">
+                    <div className="main-col main-col--full">
+                      <main className="ticker-detail-main">
+                        <StockViewTabs detached={detached} />
+                      </main>
+                    </div>
+                  </div>
+                </AppErrorBoundary>
+              ) : (
+                <AppErrorBoundary source="dashboard">
+                  <DashboardPage />
+                </AppErrorBoundary>
+              )}
             </div>
-          </AppErrorBoundary>
-        ) : (
-          <AppErrorBoundary source="dashboard">
-            <DashboardPage />
-          </AppErrorBoundary>
-        )}
+          </div>
+        </HodMomoProvider>
       </SettingsProvider>
     </IbkrAccountProvider>
   );

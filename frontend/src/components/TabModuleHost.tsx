@@ -1,10 +1,8 @@
 /**
  * Renders the active tab body via registry id lookup (Phase 4).
  * Keeps DashboardPage under the component size limit.
+ * HOD Momo / Running Up live in the AppShell dock — not hosted here.
  */
-import { HodMomoSection } from '../hod_momo/HodMomoSection';
-import type { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
-import type { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { ScannerTabPanels } from './ScannerTabPanels';
 import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
@@ -15,8 +13,6 @@ import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
 import type { MarketMode } from './AppHeader';
 import type { WatchlistEntry } from '../strategy/types';
-type HodStream = ReturnType<typeof useHodMomoStream>;
-type HodConfig = ReturnType<typeof useHodMomoConfig>;
 
 export type TabModuleHostProps = {
   activeTab: ActiveTab;
@@ -40,11 +36,6 @@ export type TabModuleHostProps = {
   nowSec?: number;
   /** ADR 008 — per-table freeze/session metadata, keyed by table name. */
   tableMeta?: Record<string, ScannerTableMeta>;
-  hodMomoStream: HodStream;
-  hodMomoConfig: HodConfig;
-  showHodSettings: boolean;
-  onToggleHodSettings: () => void;
-  onCloseHodSettings: () => void;
 };
 
 const SCANNER_TABS = new Set([
@@ -80,12 +71,12 @@ export function TabModuleHost(props: TabModuleHostProps) {
     rowQuoteTs = {},
     nowSec = 0,
     tableMeta = {},
-    hodMomoStream,
-    hodMomoConfig,
-    showHodSettings,
-    onToggleHodSettings,
-    onCloseHodSettings,
   } = props;
+
+  // Defensive: HOD / Running Up are dock-only; never blank the main column.
+  if (activeTab === 'hod_momo' || activeTab === 'running_up') {
+    return null;
+  }
 
   if (SCANNER_TABS.has(activeTab)) {
     return (
@@ -108,24 +99,6 @@ export function TabModuleHost(props: TabModuleHostProps) {
         rowQuoteTs={rowQuoteTs}
         nowSec={nowSec}
         tableMeta={tableMeta}
-      />
-    );
-  }
-
-  if (activeTab === 'hod_momo' || activeTab === 'running_up') {
-    // Extracted + memoized so the 1Hz `nowSec` clock this component receives
-    // (for the scanner tabs above) cannot force this subtree to re-render.
-    return (
-      <HodMomoSection
-        activeTab={activeTab}
-        hodMomoStream={hodMomoStream}
-        hodMomoConfig={hodMomoConfig}
-        selectedSymbol={selectedSymbol}
-        onSelect={onSelect}
-        onOpenTrading={onOpenTrading}
-        showHodSettings={showHodSettings}
-        onToggleHodSettings={onToggleHodSettings}
-        onCloseHodSettings={onCloseHodSettings}
       />
     );
   }

@@ -1,7 +1,8 @@
 /**
  * Sample-data dashboard — fixtures only. Never mounts useScannerData / HOD WS / watchlist API.
+ * HOD dock is owned by SampleShell (HodMomoFixtureProvider + HodMomoDock).
  */
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { AppHeader } from '../components/AppHeader';
@@ -16,24 +17,26 @@ import {
   SAMPLE_DATA_BANNER,
   SAMPLE_DATA_SWITCH_LABEL,
 } from '../constants';
+import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { isTabModuleId, type ActiveTab } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
-import type { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
-import type { useHodMomoStream } from '../hod_momo/useHodMomoStream';
-import { partitionScannerAlerts } from '../hod_momo/scannerPartition';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 
 type Props = {
   onOpenTrader: (symbol: string) => void;
   onLeaveSample: () => void;
 };
 
+function isDockTab(tab: ActiveTab): tab is 'hod_momo' | 'running_up' {
+  return tab === 'hod_momo' || tab === 'running_up';
+}
+
 export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
   const sample = useSampleData();
+  const { selectedSymbol, setSelectedSymbol } = useWorkspace();
+  const { hodCount, runningUpCount, focusDock } = useHodMomo();
   const [activeTab, setActiveTab] = useState<ActiveTab>('gappers');
-  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(
-    sample.watchlist[0]?.symbol ?? sample.gappers[0]?.symbol ?? null,
-  );
-  const [showHodSettings, setShowHodSettings] = useState(false);
+  const [railHighlight, setRailHighlight] = useState<ActiveTab>('gappers');
   const { visibility } = useModuleVisibility();
   const exchangeFilter = useExchangeFilter();
   const sidePanel = useSidePanelWidth();
@@ -42,37 +45,19 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
   const filteredGainers = exchangeFilter.filterRows(sample.gainers);
   const filteredLosers = exchangeFilter.filterRows(sample.losers);
   const filteredAfterhours = exchangeFilter.filterRows(sample.afterhours);
-  const sampleScannerParts = useMemo(
-    () => partitionScannerAlerts(sample.hodAlerts),
-    [sample.hodAlerts],
-  );
-
-  const hodMomoStream = useMemo(
-    () =>
-      ({
-        alerts: sample.hodAlerts,
-        totalToday: sample.hodAlerts.length,
-        connected: true,
-      }) as ReturnType<typeof useHodMomoStream>,
-    [sample.hodAlerts],
-  );
-
-  const hodMomoConfig = useMemo(
-    () =>
-      ({
-        state: sample.hodConfig,
-        updateStrategy: () => {},
-        updateMaster: () => {},
-        resetStrategy: async () => {},
-        resetAll: async () => {},
-      }) as ReturnType<typeof useHodMomoConfig>,
-    [sample.hodConfig],
-  );
 
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;
+    if (isDockTab(tab)) {
+      focusDock(tab);
+      setRailHighlight(tab);
+      return;
+    }
     setActiveTab(tab);
+    setRailHighlight(tab);
   }
+
+  const mainTab = isDockTab(activeTab) ? 'gappers' : activeTab;
 
   const navCounts = {
     gappers: filteredGappers.length,
@@ -80,8 +65,8 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
     losers: filteredLosers.length,
     afterhours: filteredAfterhours.length,
     catalysts: sample.catalysts.length,
-    hodMomo: sampleScannerParts.hodMomentum.length,
-    runningUp: sampleScannerParts.runningUp.length,
+    hodMomo: hodCount,
+    runningUp: runningUpCount,
     watchlist: sample.watchlist.length,
   };
 
@@ -107,7 +92,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
         onSampleDataToggle={(on) => {
           if (!on) onLeaveSample();
         }}
-        accountActive={activeTab === 'trading' || activeTab === 'reports'}
+        accountActive={mainTab === 'trading' || mainTab === 'reports'}
         onAccountClick={
           visibility.trading === false
             ? undefined
@@ -116,7 +101,8 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
       />
 
       <ScannerSideNav
-        activeTab={activeTab}
+        activeTab={mainTab}
+        railHighlight={railHighlight}
         onTabClick={handleTabClick}
         counts={navCounts}
         visibility={visibility}
@@ -132,7 +118,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
 
         <main className="panel">
           <TabModuleHost
-            activeTab={activeTab}
+            activeTab={mainTab}
             mode="market"
             health={sample.health}
             discoveryProvider={DISCOVERY_PROVIDER_DEFAULT}
@@ -151,11 +137,6 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
             flashSymbols={{}}
             rowQuoteTs={{}}
             nowSec={Date.now() / 1000}
-            hodMomoStream={hodMomoStream}
-            hodMomoConfig={hodMomoConfig}
-            showHodSettings={showHodSettings}
-            onToggleHodSettings={() => setShowHodSettings((s) => !s)}
-            onCloseHodSettings={() => setShowHodSettings(false)}
           />
         </main>
       </div>

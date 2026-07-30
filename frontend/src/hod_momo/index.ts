@@ -3,6 +3,12 @@
 export { HodMomoTab } from './HodMomoTab';
 export { RunningUpTab } from './RunningUpTab';
 export { HodMomoSettings } from './HodMomoSettings';
+export { HodMomoSection } from './HodMomoSection';
+export { HodMomoDock } from './HodMomoDock';
+export { HodMomoProvider } from './HodMomoProvider';
+export { HodMomoFixtureProvider } from './HodMomoFixtureProvider';
+export { useHodMomo, useHodMomoOptional } from './HodMomoContext';
+export type { HodDockMode, HodMomoContextValue } from './HodMomoContext';
 export {
   isRunningUpStrategy,
   partitionScannerAlerts,

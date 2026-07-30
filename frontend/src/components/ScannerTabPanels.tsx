@@ -6,7 +6,6 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { CatalystsTable } from './CatalystsTable';
 import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
-import { HodMomoIntegrityBanner } from '../hod_momo/HodMomoIntegrityBanner';
 import { frozenTableLabel, type ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import { SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, SortConfig } from '../types/scanner';
@@ -206,7 +205,6 @@ export function ScannerTabPanels({
 
   return (
     <>
-      <HodMomoIntegrityBanner />
       {frozenLabel && (
         <div
           className="scanner-frozen-badge"

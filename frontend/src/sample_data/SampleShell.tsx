@@ -4,6 +4,8 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
+import { HodMomoDock } from '../hod_momo/HodMomoDock';
+import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
 import { StockViewPage } from '../pages/StockViewPage';
 import { SampleDashboardPage } from '../pages/SampleDashboardPage';
 import {
@@ -12,9 +14,12 @@ import {
   parseSampleSymbol,
   replaceSampleTraderUrl,
 } from './sampleNav';
-import { SampleDataProvider } from './SampleDataContext';
+import { SampleDataProvider, useSampleData } from './SampleDataContext';
+import { useWorkspace } from '../workspace/WorkspaceContext';
 
 function SampleShellInner() {
+  const sample = useSampleData();
+  const { selectedSymbol, setSelectedSymbol } = useWorkspace();
   const [traderSymbol, setTraderSymbol] = useState<string | null>(() => parseSampleSymbol());
 
   useEffect(() => {
@@ -22,6 +27,15 @@ function SampleShellInner() {
     window.addEventListener('popstate', sync);
     return () => window.removeEventListener('popstate', sync);
   }, []);
+
+  useEffect(() => {
+    if (selectedSymbol) return;
+    const seed =
+      sample.watchlist[0]?.symbol
+      ?? sample.gappers[0]?.symbol
+      ?? null;
+    if (seed) setSelectedSymbol(seed);
+  }, [selectedSymbol, sample.watchlist, sample.gappers, setSelectedSymbol]);
 
   const openTrader = useCallback((symbol: string) => {
     const sym = symbol.trim().toUpperCase();
@@ -37,27 +51,41 @@ function SampleShellInner() {
 
   if (traderSymbol) {
     return (
-      <AppErrorBoundary source="sample-trader">
-        <div className="nova-shell nova-shell--ticker-detail">
-          <div className="main-col main-col--full">
-            <main className="ticker-detail-main">
-              <StockViewPage
-                symbol={traderSymbol}
-                detached
-                onBack={backToSampleDash}
-                onSelectSymbol={openTrader}
-              />
-            </main>
+      <HodMomoFixtureProvider>
+        <div className="nova-app-stack">
+          <HodMomoDock onOpenTrading={openTrader} />
+          <div className="nova-app-branch">
+            <AppErrorBoundary source="sample-trader">
+              <div className="nova-shell nova-shell--ticker-detail">
+                <div className="main-col main-col--full">
+                  <main className="ticker-detail-main">
+                    <StockViewPage
+                      symbol={traderSymbol}
+                      detached
+                      onBack={backToSampleDash}
+                      onSelectSymbol={openTrader}
+                    />
+                  </main>
+                </div>
+              </div>
+            </AppErrorBoundary>
           </div>
         </div>
-      </AppErrorBoundary>
+      </HodMomoFixtureProvider>
     );
   }
 
   return (
-    <AppErrorBoundary source="sample-dashboard">
-      <SampleDashboardPage onOpenTrader={openTrader} onLeaveSample={leaveSampleView} />
-    </AppErrorBoundary>
+    <HodMomoFixtureProvider>
+      <div className="nova-app-stack">
+        <HodMomoDock onOpenTrading={openTrader} />
+        <div className="nova-app-branch">
+          <AppErrorBoundary source="sample-dashboard">
+            <SampleDashboardPage onOpenTrader={openTrader} onLeaveSample={leaveSampleView} />
+          </AppErrorBoundary>
+        </div>
+      </div>
+    </HodMomoFixtureProvider>
   );
 }
 

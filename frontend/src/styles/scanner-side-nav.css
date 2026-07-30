@@ -89,7 +89,14 @@
 
 .nova-shell:has(.scanner-side-nav) {
   align-items: stretch;
-  min-height: calc(100vh - 76px);
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.nova-app-branch .nova-shell:has(.scanner-side-nav) {
+  flex: 1 1 0;
 }
 
 .nova-shell:has(.scanner-side-nav) .main-col {

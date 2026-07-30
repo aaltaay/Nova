@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- HOD Momo global AppShell dock
+
+- **What:** HOD Momo / Running Up live in a collapsible, resizable top dock on every live page (Scanner + Trader). Left-rail HOD items focus the dock; main column keeps the last scanner table. Integrity banner is dock-owned (removed from scanner tab panels).
+- **Why:** User asked for HOD on top of every page with collapse/expand and a resize bar, without tearing down the WS when opening Trader.
+- **Files touched:** `HodMomoProvider.tsx`, `HodMomoFixtureProvider.tsx`, `HodMomoDock.tsx`, `hodMomoDockPersist.ts`, `App.tsx`, `DashboardPage.tsx`, `TabModuleHost.tsx`, `TabNav.tsx`, `SampleShell.tsx`, `hodMomoDock.css`.
+- **How it works now:** `HodMomoProvider` mounts above the Scanner/Trader fork and owns stream + config + dock prefs (`nova.hodMomo.dock.*`). Default collapsed. Rail `focusDock(mode)` expands and highlights via `railHighlight` while `activeTab` stays on Gappers (etc.). Sample uses `HodMomoFixtureProvider` (no live WS).
+- **Verified by:** Vitest persist + dock + TabNav; `tsc --noEmit`.
+- **Follow-ups:** Optional dock-aware table viewport height (avoid inner 30-row scroll inside short dock).
+- **Related:** task-log `knowledge/task-log/2026-07-29-hod-momo-global-dock.md`
+
 ## 2026-07-29 -- Webull-style left scanner rail
 
 - **What:** Moved Gappers…Watchlist from a horizontal tab bar into a left icon+label rail (Webull-style). Account/Settings stay on GlobalAppBar.

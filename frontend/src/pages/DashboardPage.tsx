@@ -1,12 +1,9 @@
 /**
  * Main dashboard shell — header, tabs, side panel.
  * Settings overlay is owned by SettingsProvider at AppShell.
+ * HOD Momo stream/config/dock live in HodMomoProvider (AppShell).
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useHodMomoStream } from '../hod_momo/useHodMomoStream';
-import { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
-import { partitionScannerAlerts } from '../hod_momo/scannerPartition';
-import { collapseAlertsBySymbol } from '../hod_momo/collapseAlertsBySymbol';
+import { useEffect, useRef, useState } from 'react';
 import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
@@ -16,6 +13,7 @@ import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
 import { setAccountNavActive } from '../components/accountNavActive';
 import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
+import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
@@ -31,6 +29,23 @@ import {
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { enterSampleView } from '../sample_data/sampleNav';
 
+function isDockTab(tab: ActiveTab): tab is 'hod_momo' | 'running_up' {
+  return tab === 'hod_momo' || tab === 'running_up';
+}
+
+function isMainScannerTab(tab: ActiveTab): boolean {
+  return (
+    tab === 'gappers'
+    || tab === 'gainers'
+    || tab === 'losers'
+    || tab === 'afterhours'
+    || tab === 'catalysts'
+    || tab === 'watchlist'
+    || tab === 'trading'
+    || tab === 'reports'
+  );
+}
+
 export function DashboardPage() {
   const {
     selectedSymbol,
@@ -43,21 +58,20 @@ export function DashboardPage() {
     ibkrMode,
     ibkrGatewayMode,
   } = useWorkspace();
+  const { hodCount, runningUpCount, focusDock } = useHodMomo();
   const [activeTab, setActiveTab] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
+  const [railHighlight, setRailHighlight] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
   const [tabOverridden, setTabOverridden] = useState(false);
   const tabOverriddenRef = useRef(false);
-  const [showHodSettings, setShowHodSettings] = useState(false);
   const { visibility } = useModuleVisibility();
   const { settings, exchangeFilter, registerOnConfigSaved } = useSettings();
   const sidePanel = useSidePanelWidth();
   const watchlist = useWatchlist(true);
-  const hodMomoStream = useHodMomoStream();
-  const hodMomoConfig = useHodMomoConfig();
 
   const fetchDataRef = useRef<() => void>(() => {});
   const scanner = useScannerData({
     discoveryProvider: settings.discoveryProvider,
-    activeTab,
+    activeTab: isDockTab(activeTab) ? DEFAULT_ACTIVE_TAB : activeTab,
     scannerPersistentAuthoritative,
     onActiveFeed: settings.setActiveFeed,
     onFeedFellBack: settings.setFeedFellBack,
@@ -100,8 +114,17 @@ export function DashboardPage() {
   useEffect(() => {
     if (visibility[activeTab] === false) {
       setActiveTab(DEFAULT_ACTIVE_TAB);
+      setRailHighlight(DEFAULT_ACTIVE_TAB);
     }
   }, [visibility, activeTab]);
+
+  // Coerce any leftover HOD activeTab (pre-dock) into dock focus + Gappers main.
+  useEffect(() => {
+    if (!isDockTab(activeTab)) return;
+    focusDock(activeTab);
+    setRailHighlight(activeTab);
+    setActiveTab(DEFAULT_ACTIVE_TAB);
+  }, [activeTab, focusDock]);
 
   const showScannerPriceFreshness =
     tabUsesScannerPricePatch(activeTab) &&
@@ -127,27 +150,18 @@ export function DashboardPage() {
   const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
   const filteredLosers = exchangeFilter.filterRows(scanner.losers);
   const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
-  // Stable references so the 1Hz `scanner.now` clock tick (used only for
-  // scanner-table staleness elsewhere on this page) does not force a fresh
-  // partition + re-render of the HOD Momo tree on every render of this page.
-  const { hodMomentum, runningUp } = useMemo(
-    () => partitionScannerAlerts(hodMomoStream.alerts),
-    [hodMomoStream.alerts],
-  );
-  const collapsedHodMomentum = useMemo(
-    () => collapseAlertsBySymbol(hodMomentum),
-    [hodMomentum],
-  );
-  const collapsedRunningUp = useMemo(
-    () => collapseAlertsBySymbol(runningUp),
-    [runningUp],
-  );
 
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;
+    if (isDockTab(tab)) {
+      focusDock(tab);
+      setRailHighlight(tab);
+      return;
+    }
     tabOverriddenRef.current = true;
     setTabOverridden(true);
     setActiveTab(tab);
+    setRailHighlight(tab);
   }
 
   // Global Working menu / GlobalAppBar Account → Account / Trading tab.
@@ -174,14 +188,16 @@ export function DashboardPage() {
     return () => setAccountNavActive(false);
   }, [activeTab]);
 
+  const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
+
   const navCounts = {
     gappers: filteredGappers.length,
     gainers: filteredGainers.length,
     losers: filteredLosers.length,
     afterhours: filteredAfterhours.length,
     catalysts: scanner.catalysts.length,
-    hodMomo: collapsedHodMomentum.length,
-    runningUp: collapsedRunningUp.length,
+    hodMomo: hodCount,
+    runningUp: runningUpCount,
     watchlist: watchlist.entries.length,
   };
 
@@ -202,7 +218,7 @@ export function DashboardPage() {
         historyDates={scanner.historyDates}
         onHistoryChange={handleHistoryChange}
         onLookup={setSelectedSymbol}
-        showScannerSource={activeTab !== 'trading' && activeTab !== 'reports'}
+        showScannerSource={mainTab !== 'trading' && mainTab !== 'reports'}
         discoveryProvider={settings.discoveryProvider}
         onBackendStarted={() => {
           void scanner.fetchData();
@@ -214,7 +230,8 @@ export function DashboardPage() {
       />
 
       <ScannerSideNav
-        activeTab={activeTab}
+        activeTab={mainTab}
+        railHighlight={railHighlight}
         onTabClick={handleTabClick}
         counts={navCounts}
         visibility={visibility}
@@ -245,7 +262,7 @@ export function DashboardPage() {
           )}
 
           <TabModuleHost
-            activeTab={activeTab}
+            activeTab={mainTab}
             mode={scanner.mode}
             health={scanner.health}
             discoveryProvider={settings.discoveryProvider}
@@ -265,11 +282,6 @@ export function DashboardPage() {
             rowQuoteTs={scanner.rowQuoteTs}
             nowSec={scanner.now}
             tableMeta={scanner.tableMeta}
-            hodMomoStream={hodMomoStream}
-            hodMomoConfig={hodMomoConfig}
-            showHodSettings={showHodSettings}
-            onToggleHodSettings={() => setShowHodSettings(s => !s)}
-            onCloseHodSettings={() => setShowHodSettings(false)}
           />
         </main>
       </div>

@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-29 | [HOD Momo global AppShell dock](2026-07-29-hod-momo-global-dock.md) | HOD Momo global AppShell dock |
 | 2026-07-29 | [Webull-style left scanner rail](2026-07-29-webull-left-scanner-rail.md) | Webull-style left scanner rail |
 | 2026-07-29 | [Scanner status chrome above GlobalAppBar](2026-07-29-status-chrome-above-global-bar.md) | Scanner status chrome above GlobalAppBar |
 | 2026-07-29 | [Account control next to Settings on GlobalAppBar](2026-07-29-account-next-to-settings.md) | Account control next to Settings on GlobalAppBar |
