@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Morning wedge recurrence fixes (daily bootstrap + loop relief)
+
+- **What:** Fixed the recurring "empty scanners / API_WEDGED after login" path. Daily start script now recycles a wedged API for real; completed-orders warm-up is cooldown-gated; logging no longer blocks the asyncio loop; API launches without an interactive console that QuickEdit can freeze.
+- **Why:** User woke up to empty Gappers/Gainers/Losers two mornings in a row. Root chain: overnight Gateway down + broken 6 AM recycle (UTF-8 punctuation in .ps1 under powershell 5.1) + empty Closed Orders polls flooding `reqCompletedOrdersAsync` every 5s until `/api/health` timed out.
+- **Files touched:** `scripts/Start-NovaDaily.ps1`, `Start-NovaApi.ps1`, `Stop-NovaPorts.ps1`, `backend/ibkr/account.py`, `backend/ibkr/client.py`, `backend/constants_ibkr.py`, `backend/logging_setup.py`, `backend/app_lifespan.py`, `backend/requirements-dev.txt`, `backend/tests/test_scripts_ascii.py`, `backend/tests/test_ibkr_account.py`.
+- **How it works now:** NovaDailyStart runs ASCII-only PowerShell that kills a non-healthy :8000 holder, starts the API hidden with file logs, waits for health, and writes a STATUS line before opening the browser. Completed-orders IBKR round-trips skip for 300s after success unless connect passes `force=True`. Root logging fans out through a QueueListener thread. `py-spy` is available for the next zero-CPU stall dump.
+- **Verified by:** `pytest backend/tests/test_ibkr_account.py backend/tests/test_scripts_ascii.py backend/tests/test_closed_orders.py` (36 passed); ps1 ASCII byte check; PowerShell 5.1 parse of Start-NovaDaily.ps1.
+- **Follow-ups:** OPEN issue -- stack must be healthy before 04:00 ET so gappers hydrate (no manual morning start long-term); see PROBLEM_LOG "OPEN / DEFERRED -- Premarket bootstrap". Deep IBC overnight hardening deferred with that talk.
+- **Related:** PROBLEM_LOG 2026-07-30 morning empty scanners; OPEN deferred premarket bootstrap.
+
 ## 2026-07-30 -- Hot Keys Webull-style Settings shell
 
 - **What:** Settings → Hot Keys is now a landing page (Trade tab + summary list + Hotkeys Settings CTA). Hotkeys Settings opens a master-detail manager; `+` opens Create a Customized Button for typed Nova Actions. DAS `.htk` lives under Advanced.

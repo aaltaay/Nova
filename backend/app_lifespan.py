@@ -359,3 +359,8 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("scan_executor shutdown failed")
     await _ibkr_client.shutdown()
+    try:
+        from logging_setup import shutdown_logging
+        shutdown_logging()
+    except Exception:
+        logger.exception("logging_setup shutdown failed")

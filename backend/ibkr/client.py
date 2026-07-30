@@ -412,7 +412,7 @@ async def reconnect_loop() -> None:
                     # Pass the just-connected ib directly (not get_ib(), which
                     # gates on READY) — these warm-ups are what earn READY.
                     await _account.refresh_positions_cache(_ib)
-                    await _account.refresh_completed_orders_cache(_ib)
+                    await _account.refresh_completed_orders_cache(_ib, force=True)
                     gen = _session.set_ready()
                     _clear_sticky_bridge_error_on_ready()
                     await _on_session_ready(_ib, reason=f"ready generation {gen}")
@@ -450,7 +450,7 @@ async def reconnect_loop() -> None:
                     from ibkr import account as _account
 
                     await _account.refresh_positions_cache(_ib)
-                    await _account.refresh_completed_orders_cache(_ib)
+                    await _account.refresh_completed_orders_cache(_ib, force=True)
                     gen = _session.set_ready()
                     _clear_sticky_bridge_error_on_ready()
                     await _on_session_ready(

@@ -219,7 +219,7 @@ def test_refresh_completed_orders_cache_noop_when_disconnected(monkeypatch):
 
 
 def test_refresh_completed_orders_cache_calls_api_only_false(monkeypatch):
-    account_mod._completed_orders_lock = None
+    account_mod.reset_completed_orders_cooldown_for_testing()
     calls: list[bool] = []
 
     async def fake_req(api_only):
@@ -238,7 +238,7 @@ def test_refresh_completed_orders_cache_times_out_without_raising(monkeypatch):
 
     import constants_ibkr as cibkr
 
-    account_mod._completed_orders_lock = None
+    account_mod.reset_completed_orders_cooldown_for_testing()
 
     async def hang(_api_only):
         await asyncio.sleep(30)
@@ -253,7 +253,7 @@ def test_refresh_completed_orders_cache_times_out_without_raising(monkeypatch):
 
 
 def test_refresh_completed_orders_cache_logs_and_swallows_failure(monkeypatch):
-    account_mod._completed_orders_lock = None
+    account_mod.reset_completed_orders_cooldown_for_testing()
 
     async def fake_req(_api_only):
         raise RuntimeError("reqCompletedOrders timeout")
@@ -286,7 +286,7 @@ def test_refresh_positions_cache_uses_explicit_ib_without_get_ib(monkeypatch):
 
 
 def test_refresh_completed_orders_cache_uses_explicit_ib_without_get_ib(monkeypatch):
-    account_mod._completed_orders_lock = None
+    account_mod.reset_completed_orders_cooldown_for_testing()
     calls: list[bool] = []
 
     async def fake_req(api_only):
@@ -306,10 +306,11 @@ def test_refresh_completed_orders_cache_uses_explicit_ib_without_get_ib(monkeypa
 def test_refresh_completed_orders_cache_serializes_concurrent_calls(monkeypatch):
     """ib_async can hang if reqCompletedOrdersAsync overlaps — the guard must
     never let two calls run inside the request at the same time."""
-    account_mod._completed_orders_lock = None
-    state = {"concurrent": 0, "max_concurrent": 0}
+    account_mod.reset_completed_orders_cooldown_for_testing()
+    state = {"concurrent": 0, "max_concurrent": 0, "calls": 0}
 
     async def fake_req(_api_only):
+        state["calls"] += 1
         state["concurrent"] += 1
         state["max_concurrent"] = max(state["max_concurrent"], state["concurrent"])
         await asyncio.sleep(0.02)
@@ -327,3 +328,29 @@ def test_refresh_completed_orders_cache_serializes_concurrent_calls(monkeypatch)
 
     asyncio.run(_run_both())
     assert state["max_concurrent"] == 1
+    # Second waiter hits cooldown after the first success -- only one IBKR call.
+    assert state["calls"] == 1
+
+
+def test_refresh_completed_orders_cache_cooldown_skips_repeat(monkeypatch):
+    """Empty Closed Orders polls must not re-warm IBKR every 5s."""
+    import constants_ibkr as cibkr
+
+    account_mod.reset_completed_orders_cooldown_for_testing()
+    monkeypatch.setattr(cibkr, "IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC", 60.0)
+    calls: list[bool] = []
+
+    async def fake_req(api_only):
+        calls.append(api_only)
+
+    fake_ib = MagicMock()
+    fake_ib.reqCompletedOrdersAsync = fake_req
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+
+    asyncio.run(account_mod.refresh_completed_orders_cache())
+    asyncio.run(account_mod.refresh_completed_orders_cache())
+    assert calls == [False]
+
+    # Connect warm-up bypasses cooldown.
+    asyncio.run(account_mod.refresh_completed_orders_cache(force=True))
+    assert calls == [False, False]

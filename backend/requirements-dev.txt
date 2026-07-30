@@ -6,3 +6,8 @@ pip-audit
 cvss>=2.6,<3
 # Optional: schemathesis for OpenAPI fuzz testing (many transitive deps — install separately if needed)
 # schemathesis>=4.30,<5
+# Stall diagnosis: when /api/health times out with 0 CPU, dump the wedged process:
+#   py -3 -m pip install py-spy
+#   py -3 -m py_spy dump --pid <nova-api-pid>
+# (admin shell may be required on Windows)
+py-spy>=0.4.0,<1

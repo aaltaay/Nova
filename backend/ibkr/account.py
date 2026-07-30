@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 from ibkr import client as _client
 from ibkr.errors import IbkrAccountError, describe_exc
@@ -22,6 +23,8 @@ logger = logging.getLogger(__name__)
 # refresh_completed_orders_cache) — ib_async can hang if the same request
 # type is in flight twice at once.
 _completed_orders_lock: asyncio.Lock | None = None
+# Monotonic timestamp of last successful completed-orders warm-up (0 = never).
+_last_completed_orders_ok_at: float = 0.0
 
 
 def _completed_orders_guard() -> asyncio.Lock:
@@ -29,6 +32,13 @@ def _completed_orders_guard() -> asyncio.Lock:
     if _completed_orders_lock is None:
         _completed_orders_lock = asyncio.Lock()
     return _completed_orders_lock
+
+
+def reset_completed_orders_cooldown_for_testing() -> None:
+    """Test helper — clear the completed-orders cooldown clock."""
+    global _last_completed_orders_ok_at, _completed_orders_lock
+    _last_completed_orders_ok_at = 0.0
+    _completed_orders_lock = None
 
 _SUMMARY_TAGS = (
     "NetLiquidation",
@@ -277,7 +287,11 @@ async def refresh_positions_cache(ib: object | None = None) -> None:
         )
 
 
-async def refresh_completed_orders_cache(ib: object | None = None) -> None:
+async def refresh_completed_orders_cache(
+    ib: object | None = None,
+    *,
+    force: bool = False,
+) -> None:
     """Best-effort ``reqCompletedOrdersAsync(apiOnly=False)`` after connect so
     ``ib.trades()`` (and therefore Closed Orders) includes terminal orders
     from *before* this API session connected — e.g. a position opened via
@@ -290,9 +304,14 @@ async def refresh_completed_orders_cache(ib: object | None = None) -> None:
     failure only; callers still fail closed via ``closed_orders()``'s own
     disconnect check, never silently substituting an empty result here.
 
+    Cooldown: successful refreshes skip further IBKR round-trips for
+    ``IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC`` unless ``force=True`` (connect
+    warm-up). Empty Closed Orders polls must not re-warm every 5s.
+
     ``ib`` — see ``refresh_positions_cache`` docstring; lets the connect
     warm-up path bypass the READY gate it is itself trying to satisfy.
     """
+    global _last_completed_orders_ok_at
     if ib is None:
         ib = _client.get_ib()
     if ib is None:
@@ -300,14 +319,27 @@ async def refresh_completed_orders_cache(ib: object | None = None) -> None:
     req = getattr(ib, "reqCompletedOrdersAsync", None)
     if req is None:
         return
-    from constants_ibkr import IBKR_COMPLETED_ORDERS_TIMEOUT_SEC
+    from constants_ibkr import (
+        IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC,
+        IBKR_COMPLETED_ORDERS_TIMEOUT_SEC,
+    )
 
     async with _completed_orders_guard():
+        # Re-check inside the lock so concurrent waiters do not each fire IBKR.
+        now = time.monotonic()
+        if (
+            not force
+            and _last_completed_orders_ok_at > 0.0
+            and (now - _last_completed_orders_ok_at)
+            < float(IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC)
+        ):
+            return
         try:
             await asyncio.wait_for(
                 req(False),
                 timeout=float(IBKR_COMPLETED_ORDERS_TIMEOUT_SEC),
             )
+            _last_completed_orders_ok_at = time.monotonic()
             logger.info("IBKR: completed-orders cache refreshed after connect")
         except Exception as exc:
             logger.warning(

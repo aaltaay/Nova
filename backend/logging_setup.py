@@ -6,17 +6,24 @@ doesn't keep growing an already-over-limit file.
 
 Without a console handler, every logger.info/warning/error call in modules
 like ibkr/depth.py is only ever visible by opening logs/blast.log after the
-fact — during live debugging that turns a 30-second "read the terminal"
+fact -- during live debugging that turns a 30-second "read the terminal"
 check into a "grep a multi-MB log file" detour. See PROBLEM_LOG.md
-2026-07-13, "Level 2 depth ladder flickered..." — the fix was found quickly
+2026-07-13, "Level 2 depth ladder flickered..." -- the fix was found quickly
 once blast.log was read, but reaching for the log file at all instead of
 just watching the running terminal cost real time.
+
+Hot-path note (2026-07-30): handlers run on a QueueListener background
+thread so HOD per-tick / scanner logging never blocks the asyncio event
+loop with synchronous file + console I/O (a contributor to API_WEDGED
+health timeouts under heavy TRADE log volume).
 """
 from __future__ import annotations
 
+import atexit
 import logging
 import logging.handlers
 import os
+import queue
 import sys
 
 from ibkr.log_filters import install_ibkr_log_filters
@@ -25,6 +32,10 @@ from paths import log_dir as _nova_log_dir
 _LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
 
 logger = logging.getLogger(__name__)
+
+_log_queue: queue.SimpleQueue | None = None
+_log_listener: logging.handlers.QueueListener | None = None
+_configured: bool = False
 
 
 def _force_utf8_console() -> None:
@@ -38,10 +49,32 @@ def _force_utf8_console() -> None:
             try:
                 stream.reconfigure(encoding="utf-8", errors="backslashreplace")
             except Exception:
-                logger.debug("logging_setup: could not reconfigure %s to utf-8", stream_name, exc_info=True)
+                logger.debug(
+                    "logging_setup: could not reconfigure %s to utf-8",
+                    stream_name,
+                    exc_info=True,
+                )
+
+
+def shutdown_logging() -> None:
+    """Stop the QueueListener and flush pending records (idempotent)."""
+    global _log_listener, _log_queue, _configured
+    listener = _log_listener
+    _log_listener = None
+    if listener is not None:
+        try:
+            listener.stop()
+        except Exception:
+            pass
+    _log_queue = None
+    _configured = False
 
 
 def configure_logging() -> None:
+    global _log_queue, _log_listener, _configured
+    if _configured:
+        return
+
     _force_utf8_console()
     formatter = logging.Formatter(_LOG_FORMAT)
 
@@ -58,11 +91,31 @@ def configure_logging() -> None:
     file_handler.setFormatter(formatter)
 
     root = logging.getLogger()
-    root.addHandler(console_handler)
-    root.addHandler(file_handler)
+    # Drop any leftover direct handlers from a previous configure (tests /
+    # reload) before attaching the queue fan-out.
+    for existing in list(root.handlers):
+        root.removeHandler(existing)
+        try:
+            existing.close()
+        except Exception:
+            pass
+
+    _log_queue = queue.SimpleQueue()
+    queue_handler = logging.handlers.QueueHandler(_log_queue)
+    root.addHandler(queue_handler)
     root.setLevel(logging.INFO)
 
+    _log_listener = logging.handlers.QueueListener(
+        _log_queue,
+        console_handler,
+        file_handler,
+        respect_handler_level=True,
+    )
+    _log_listener.start()
+    atexit.register(shutdown_logging)
+    _configured = True
+
     # Keep ib_async's own noisy internal loggers from spamming Sentry with
-    # known-benign IBKR conditions (see ibkr/log_filters.py) — local logs are
+    # known-benign IBKR conditions (see ibkr/log_filters.py) -- local logs are
     # unaffected, they just see the downgraded WARNING level instead of ERROR.
     install_ibkr_log_filters()

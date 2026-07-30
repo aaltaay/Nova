@@ -8,10 +8,10 @@
   possibly crashed, session) and to provide an explicit "safe close" path.
 
   Verifies ownership via the process command line before killing (best
-  effort — Win32_Process.CommandLine can be unavailable without elevation,
+  effort -- Win32_Process.CommandLine can be unavailable without elevation,
   in which case it proceeds since 8000/5173 are Nova's own dedicated dev
   ports). A process whose command line is readable and clearly is NOT Nova
-  is left alone with a loud warning instead of being killed — see
+  is left alone with a loud warning instead of being killed -- see
   PROBLEM_LOG 2026-07-23 (arbitrary port-kill was part of the restart-race
   root cause).
 
@@ -42,7 +42,10 @@ function Test-NovaOwnedProcess {
 
 foreach ($port in $portList) {
     $conns = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
-    if (-not $conns) { continue }
+    if (-not $conns) {
+        Write-Host "Nova: port $port -- nothing listening"
+        continue
+    }
 
     $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
     foreach ($procId in $pids) {
@@ -52,18 +55,25 @@ foreach ($port in $portList) {
         $owned = Test-NovaOwnedProcess -ProcId $procId
 
         if ($owned -eq $false) {
-            Write-Host "Nova: port $port is held by PID $procId ($name), which does not look like a Nova process — leaving it alone. Free this port manually if it is blocking Nova."
+            Write-Host "Nova: port $port is held by PID $procId ($name), which does not look like a Nova process -- leaving it alone. Free this port manually if it is blocking Nova."
             continue
         }
         if ($null -eq $owned) {
-            Write-Host "Nova: stopping process on port $port (PID $procId, $name) — ownership could not be verified, proceeding (dedicated Nova dev port)"
+            Write-Host "Nova: stopping process on port $port (PID $procId, $name) -- ownership could not be verified, proceeding (dedicated Nova dev port)"
         } else {
             Write-Host "Nova: stopping existing Nova process on port $port (PID $procId, $name)"
         }
         try {
             # /T kills the whole process tree (uvicorn --reload spawns a child worker).
-            Start-Process -FilePath "taskkill.exe" -ArgumentList @("/PID", "$procId", "/T", "/F") `
-                -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue | Out-Null
+            $p = Start-Process -FilePath "taskkill.exe" `
+                -ArgumentList @("/PID", "$procId", "/T", "/F") `
+                -WindowStyle Hidden -Wait -PassThru -ErrorAction SilentlyContinue
+            $code = if ($null -ne $p) { $p.ExitCode } else { -1 }
+            if ($code -eq 0) {
+                Write-Host "Nova: taskkill PID $procId succeeded (exit 0)"
+            } else {
+                Write-Host "Nova: taskkill PID $procId finished with exit code $code"
+            }
         } catch {
             Write-Host "Nova: could not stop PID $procId ($_)"
         }

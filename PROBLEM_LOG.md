@@ -23,6 +23,27 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- OPEN/DEFERRED: Premarket stack must be up before 04:00 ET (no manual morning start)
+
+- **Symptom:** If Nova API / IB Gateway come up after the 04:00-09:30 ET gappers window, Gappers stays empty for the rest of the session (by design once mode=market). User should not have to manually start the stack every morning.
+- **Cause:** Session-owned gappers roster (ADR 008) only hydrates while live in premarket. Late start after open cannot backfill that day's gappers table. Overnight Gateway/API reliability is a separate ops problem from the API_WEDGED fix shipped the same day.
+- **Fix:** **Not fixed this session.** Tracked for a later chat: harden overnight Gateway (IBC AutoRestart + 2FA-at-6am path) so `NovaDailyStart` brings API+Gateway up before 04:00 ET without a human. Do not reopen the empty-gappers-after-open product rule unless product wants a frozen prior-session snapshot.
+- **Keywords:** OPEN, DEFERRED, premarket, 04:00 ET, gappers empty, NovaDailyStart, IBC, overnight Gateway, manual morning start
+
+## 2026-07-30 -- Morning empty scanners / API_WEDGED (daily-start encoding + completed-orders flood)
+
+- **Symptom:** User wakes up, logs in, sees empty Gappers/Gainers/Losers, header `API_WEDGED` / `CONNECTING…`, "Loading market data…". Same shape yesterday. Backend sometimes still served `/api/movers` with 50/50 rows while the UI could not.
+- **Cause:** Three layers. (1) IB Gateway was down overnight until ~10:34 (no scanner data in premarket). (2) `Start-NovaDaily.ps1` used UTF-8 punctuation without BOM; Task Scheduler's powershell 5.1 mangled the recycle branch so a wedged overnight API survived 6 AM. (3) Empty Closed Orders UI polls every 5s each called `reqCompletedOrdersAsync` (no cooldown), plus sync log I/O on the event loop -- `/api/health` missed the 2.5s frontend probe and the UI stuck on Loading.
+- **Fix:** ASCII-only daily bootstrap with real recycle + health wait; API launcher hidden/file-redirect (QuickEdit-safe); completed-orders 300s cooldown (`force=True` on connect); QueueHandler logging off the loop thread; ps1 ASCII guard test; py-spy note in requirements-dev.
+- **Keywords:** API_WEDGED, empty scanners, morning, NovaDailyStart, daily-start.log, encoding, em dash, completed-orders, reqCompletedOrdersAsync, loop_lag, QuickEdit, QueueHandler
+
+## 2026-07-30 -- GATEWAY connected vs IBKR offline contradiction
+
+- **Symptom:** Header showed green "GATEWAY connected · LIVE" and red "IBKR offline" at the same time; Net Liq `--`.
+- **Cause:** Account cluster used `live = ibkrConnected && summary?.connected`. While Gateway was up but `/api/ibkr/account` had not returned yet (or failed), the UI fell into the offline branch and reused the "IBKR offline" label -- a different signal than the GATEWAY market-data chip.
+- **Fix:** `resolveAccountChromeState`: offline only when Gateway is down; loading → "Account…"; poll error → "Account unavailable"; ready → Day P&L / Net Liq metrics.
+- **Keywords:** IBKR offline, GATEWAY connected, GlobalAppBar, Net Liq, account summary, contradiction
+
 ## 2026-07-30 -- Integrity warn false positives (tick age / surge seed / delayed data)
 
 - **Symptom:** Recurring Integrity warn banner: `hod_ticks_flowing` / `scanner_l1_stream` at ~3.9s (want <=3s), `hod_surge_after_seed` with many surge=None, Uncovered list -- especially afterhours and with a chart open.
