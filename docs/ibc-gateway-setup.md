@@ -23,7 +23,10 @@ Use IBC’s sample config as a base. Set at least:
 - `IbLoginId` / `IbPassword` — your IBKR credentials (local file only)
 - `TradingMode=live` or `paper` — must match `IBKR_GATEWAY_MODE` in Nova `.env`
 - `IbDir` — path to the Gateway install folder
-- `AcceptIncomingConnectionAction=accept` (or prompt — your choice)
+- `AcceptIncomingConnectionAction=accept` (or prompt -- your choice)
+- `AutoRestartTime=23:45` -- IBC shuts down and relaunches Gateway around the
+  daily re-auth window so Nova is not stuck disconnected until morning
+  (phone 2FA may still be required)
 
 Never commit `config.ini`. Add to your global gitignore if needed:
 

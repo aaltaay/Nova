@@ -204,3 +204,95 @@ def test_merge_takes_worst_status():
     merged = merge_integrity(hod, scan)
     assert merged["status"] == "fail"
     assert merged["ok"] is False
+
+
+# --- Root-cause fixes: session-aware ticks + delayed-data downgrade ---------
+
+def test_hod_tick_afterhours_gap_is_pass_not_warn():
+    """A 3.9s gap is healthy on a thin afterhours tape -- session-aware warn."""
+    report = evaluate_hod_integrity(_base_hod(
+        last_trade_age_sec=3.9,
+        current_mode="afterhours",
+    ))
+    tick = next(c for c in report["checks"] if c["id"] == "hod_ticks_flowing")
+    assert tick["status"] == "pass"
+
+
+def test_hod_tick_rth_gap_still_warns():
+    """The same 3.9s gap during RTH is genuinely slow -- keep the RTH gate."""
+    report = evaluate_hod_integrity(_base_hod(
+        last_trade_age_sec=3.9,
+        current_mode="market",
+    ))
+    tick = next(c for c in report["checks"] if c["id"] == "hod_ticks_flowing")
+    assert tick["status"] == "warn"
+
+
+def test_hod_tick_closed_mode_is_pass():
+    report = evaluate_hod_integrity(_base_hod(
+        last_trade_age_sec=999.0,
+        current_mode="closed",
+    ))
+    tick = next(c for c in report["checks"] if c["id"] == "hod_ticks_flowing")
+    assert tick["status"] == "pass"
+
+
+def test_hod_tick_stale_downgrades_when_delayed_data():
+    """IBKR-reported delayed data makes a stale tick informational, not fail."""
+    report = evaluate_hod_integrity(_base_hod(
+        last_trade_age_sec=20.0,
+        current_mode="market",
+        delayed_data=True,
+    ))
+    tick = next(c for c in report["checks"] if c["id"] == "hod_ticks_flowing")
+    assert tick["status"] == "pass"
+    assert "delayed" in tick["detail"].lower()
+
+
+def test_hod_tick_stale_downgrades_when_max_tickers():
+    report = evaluate_hod_integrity(_base_hod(
+        last_trade_age_sec=20.0,
+        current_mode="market",
+        max_tickers_hit=True,
+    ))
+    tick = next(c for c in report["checks"] if c["id"] == "hod_ticks_flowing")
+    assert tick["status"] == "pass"
+
+
+def test_scanner_l1_stream_uses_event_liveness_over_price_change():
+    """Feed liveness (socket alive) wins over price-change recency: a flat
+    quote on a healthy socket must not read as a stale stream."""
+    report = evaluate_scanner_integrity({
+        "discovery_provider": "ibkr",
+        "ibkr_connected": True,
+        "current_mode": "afterhours",
+        "gapper_count": 0,
+        "gainer_count": 12,
+        "loser_count": 0,
+        "gapper_age_sec": None,
+        "gainer_age_sec": 5.0,
+        "loser_age_sec": None,
+        "scanner_l1_age_sec": 30.0,      # price unchanged 30s (ignored)
+        "scanner_l1_event_age_sec": 1.0,  # socket ticked 1s ago (used)
+    })
+    chk = next(c for c in report["checks"] if c["id"] == "scanner_l1_stream")
+    assert chk["status"] == "pass"
+    assert "1.0s" in chk["detail"]
+
+
+def test_scanner_l1_stream_falls_back_to_price_change_when_no_event():
+    report = evaluate_scanner_integrity({
+        "discovery_provider": "ibkr",
+        "ibkr_connected": True,
+        "current_mode": "market",
+        "gapper_count": 0,
+        "gainer_count": 12,
+        "loser_count": 0,
+        "gapper_age_sec": None,
+        "gainer_age_sec": 5.0,
+        "loser_age_sec": None,
+        "scanner_l1_age_sec": 1.0,
+        "scanner_l1_event_age_sec": None,
+    })
+    chk = next(c for c in report["checks"] if c["id"] == "scanner_l1_stream")
+    assert chk["status"] == "pass"

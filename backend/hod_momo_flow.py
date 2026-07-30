@@ -29,12 +29,20 @@ def count_surge_none_after_seed(
     price_buffer: dict[str, deque[tuple[float, float]]],
     ticker_snaps: dict[str, Any],
     surge_fn,
+    no_history: set[str] | None = None,
     window_min: int = 5,
     method: str = "low_to_current",
 ) -> int:
-    """Count seeded symbols whose 5m surge is still None (hard integrity fail)."""
+    """Count seeded symbols whose 5m surge is still None (hard integrity fail).
+
+    Symbols IBKR permanently has no history for (``no_history``) are a property
+    of the symbol, not a Nova defect, and are excluded.
+    """
+    excluded = no_history or set()
     bad = 0
     for sym in seeded:
+        if sym in excluded:
+            continue
         buf = price_buffer.get(sym)
         if not buf:
             bad += 1

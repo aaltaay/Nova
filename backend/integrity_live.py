@@ -72,6 +72,8 @@ def build_hod_integrity_report() -> dict[str, Any]:
     flow = hm.get_flow_stats()
     provider = (_get_discovery_provider() or "").strip().lower()
     active_metrics = active.metrics_snapshot()
+    from ibkr import session_errors as _session_errors
+
     state = get_runtime_state()
     snap = {
         **flow,
@@ -79,6 +81,9 @@ def build_hod_integrity_report() -> dict[str, Any]:
         "universe_size": len(state.hod_momo_universe),
         "discovery_provider": provider,
         "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
+        "current_mode": (state.current_mode or "").strip().lower(),
+        "delayed_data": _session_errors.is_delayed_data(),
+        "max_tickers_hit": _session_errors.max_tickers_hit(),
     }
     report = evaluate_hod_integrity(snap)
     report["checked_at"] = time.time()
@@ -97,7 +102,17 @@ def build_scanner_integrity_report() -> dict[str, Any]:
     if last_ok:
         l1_age = _cache_age(last_ok)
 
+    # Feed liveness (socket alive) — distinct from price-change recency above.
+    # A flat quote on a healthy socket must not read as a stale stream.
+    from ibkr import ticks as ibkr_ticks
+
+    l1_event_age = None
+    last_event = ibkr_ticks.get_last_event_ts()
+    if last_event:
+        l1_event_age = _cache_age(last_event)
+
     from ibkr import scanner_session as _scanner_session
+    from ibkr import session_errors as _session_errors
 
     state = get_runtime_state()
     sub = ibkr_scanner_l1.get_subscription_state()
@@ -131,6 +146,7 @@ def build_scanner_integrity_report() -> dict[str, Any]:
         "loser_frozen": _frozen(_scanner_session.TABLE_LOSERS),
         "afterhours_frozen": _frozen(_scanner_session.TABLE_AFTERHOURS),
         "scanner_l1_age_sec": l1_age,
+        "scanner_l1_event_age_sec": l1_event_age,
         "l1_active_total": sub.get("active_total"),
         "l1_active_tab": sub.get("active_tab"),
         "l1_active_hod": sub.get("active_hod"),
@@ -139,6 +155,8 @@ def build_scanner_integrity_report() -> dict[str, Any]:
         "ibkr_bridge_last_error_age_sec": _cache_age(
             getattr(state, "ibkr_bridge_last_error_ts", None) or None
         ),
+        "delayed_data": _session_errors.is_delayed_data(),
+        "max_tickers_hit": _session_errors.max_tickers_hit(),
     }
     report = evaluate_scanner_integrity(snap)
     report["checked_at"] = time.time()

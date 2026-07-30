@@ -20,6 +20,7 @@ from constants import (
     HOD_MOMO_FULL_SESSION_BAR_LIMIT,
     HOD_MOMO_SURGE_SEED_BARS,
     HOD_MOMO_SURGE_SEED_MAX_PER_TICK,
+    HOD_MOMO_SURGE_SEED_MAX_RETRIES,
     HOD_MOMO_SURGE_SEED_POLL_SEC,
     HOD_MOMO_SURGE_SEED_TIMEFRAME,
 )
@@ -170,17 +171,32 @@ async def surge_seed_loop(get_provider: Callable[[], str]) -> None:
                         )
                         hm.reevaluate_after_surge_seed(sym)
                     else:
+                        # Empty result with no exception: IBKR has no usable
+                        # history for this symbol (illiquid). Classify it so it
+                        # is not retried nor counted as a Nova failure.
                         logger.warning(
                             "HOD Momo surge seed: %s no usable bars (provider=%s) "
-                            "-- giving up for this session (one-shot per symbol)",
+                            "-- classified no_history (not retried, not an integrity fail)",
                             sym, provider,
                         )
-                        hm.mark_surge_seed_attempted(sym)
+                        hm.mark_surge_seed_no_history(sym)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    hm.mark_surge_seed_attempted(sym)
-                    logger.warning("HOD Momo surge seed failed for %s: %s", sym, exc)
+                    # Transient failures (503 interactive-chart contention,
+                    # timeout, pacing) requeue with a bounded retry budget so a
+                    # single hiccup / open chart does not scar the session.
+                    if hm.requeue_surge_seed(sym, max_retries=HOD_MOMO_SURGE_SEED_MAX_RETRIES):
+                        logger.info(
+                            "HOD Momo surge seed: %s transient failure, requeued: %s",
+                            sym, exc,
+                        )
+                    else:
+                        hm.mark_surge_seed_attempted(sym)
+                        logger.warning(
+                            "HOD Momo surge seed failed for %s after retries: %s",
+                            sym, exc,
+                        )
         except asyncio.CancelledError:
             raise
         except Exception as exc:

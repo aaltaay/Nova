@@ -24,6 +24,13 @@ class HodMomoState:
     price_buffer: dict[str, deque[tuple[float, float]]] = field(default_factory=dict)
     surge_seeded: set[str] = field(default_factory=set)
     pending_surge_seed: set[str] = field(default_factory=set)
+    # Symbols whose seed permanently failed because IBKR has no history for
+    # them (illiquid) -- a property of the symbol, NOT a Nova defect. Excluded
+    # from the surge_none_after_seed integrity count.
+    surge_seed_no_history: set[str] = field(default_factory=set)
+    # Remaining retry budget per symbol for transient seed failures (timeout,
+    # 503 chart-contention). Symbols requeue until this hits 0.
+    surge_seed_retries: dict[str, int] = field(default_factory=dict)
     last_trade_ts: float | None = None
     session_highs: dict[str, float] = field(default_factory=dict)
     # True once bar max-high and/or IBKR tick-6 day High has seeded the symbol.

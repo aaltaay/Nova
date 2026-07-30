@@ -79,3 +79,49 @@ def test_request_surge_seed_is_once_per_symbol(monkeypatch):
     hm.mark_surge_seed_attempted("ABC")
     hm.request_surge_seed("ABC")
     assert hm.pop_pending_surge_seeds(10) == []
+
+
+def test_requeue_surge_seed_retries_then_exhausts():
+    """Transient seed failures requeue with a bounded budget; opening a chart
+    (503 HistoricalBusy) must not scar the symbol for the whole session."""
+    state = hm.replace_state(HodMomoState())
+    assert hm.requeue_surge_seed("FOO", max_retries=2) is True
+    assert "FOO" in state.pending_surge_seed
+    assert state.surge_seed_retries["FOO"] == 1
+    # Drain so the next requeue adds it again.
+    assert hm.pop_pending_surge_seeds(10) == ["FOO"]
+    assert hm.requeue_surge_seed("FOO", max_retries=2) is True
+    assert state.surge_seed_retries["FOO"] == 0
+    assert hm.pop_pending_surge_seeds(10) == ["FOO"]
+    # Budget exhausted -- caller must mark attempted instead.
+    assert hm.requeue_surge_seed("FOO", max_retries=2) is False
+    assert "FOO" not in state.pending_surge_seed
+
+
+def test_no_history_excluded_from_surge_none_count():
+    """Illiquid symbols with no IBKR history are a property of the symbol,
+    not a Nova defect -- they must not paint Integrity warn."""
+    from hod_momo_flow import count_surge_none_after_seed
+
+    state = hm.replace_state(HodMomoState())
+    state.surge_seeded = {"LIQUID", "ILLIQUID"}
+    state.surge_seed_no_history = {"ILLIQUID"}
+    state.price_buffer = {}  # both have empty buffers → would both count
+
+    bad = count_surge_none_after_seed(
+        seeded=state.surge_seeded,
+        price_buffer=state.price_buffer,
+        ticker_snaps={},
+        surge_fn=lambda *_a, **_k: None,
+        no_history=state.surge_seed_no_history,
+    )
+    assert bad == 1  # only LIQUID counts
+
+
+def test_mark_surge_seed_no_history_removes_from_queue():
+    state = hm.replace_state(HodMomoState())
+    hm.request_surge_seed("DEAD")
+    hm.mark_surge_seed_no_history("DEAD")
+    assert "DEAD" in state.surge_seed_no_history
+    assert "DEAD" not in state.pending_surge_seed
+    assert "DEAD" not in state.surge_seeded

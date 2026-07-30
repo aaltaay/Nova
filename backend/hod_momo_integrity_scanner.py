@@ -166,32 +166,36 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
                 f"{name}: {count} rows age={age_f:.0f}s",
             ))
 
+    # Feed liveness (socket alive) is the honest signal; fall back to
+    # price-change recency only when no event timestamp exists yet.
+    l1_event_age = snap.get("scanner_l1_event_age_sec")
     l1_age = snap.get("scanner_l1_age_sec")
+    stream_age = l1_event_age if l1_event_age is not None else l1_age
     if provider == "ibkr":
-        if l1_age is None:
+        if stream_age is None:
             checks.append(check(
                 "scanner_l1_stream",
                 "warn",
-                "no active-table L1 tick yet",
+                "no active-table L1 event yet",
             ))
-        elif float(l1_age) > HOD_MOMO_INTEGRITY_TICK_STALE_SEC:
+        elif float(stream_age) > HOD_MOMO_INTEGRITY_TICK_STALE_SEC:
             checks.append(check(
                 "scanner_l1_stream",
                 "fail",
-                f"active-table L1 tick {float(l1_age):.1f}s ago -- UI prices stale",
+                f"active-table L1 feed {float(stream_age):.1f}s ago -- socket stale",
             ))
-        elif float(l1_age) > HOD_MOMO_INTEGRITY_TICK_WARN_SEC:
+        elif float(stream_age) > HOD_MOMO_INTEGRITY_TICK_WARN_SEC:
             checks.append(check(
                 "scanner_l1_stream",
                 "warn",
-                f"active-table L1 tick {float(l1_age):.1f}s ago "
+                f"active-table L1 feed {float(stream_age):.1f}s ago "
                 f"(want <={HOD_MOMO_INTEGRITY_TICK_WARN_SEC:.0f}s)",
             ))
         else:
             checks.append(check(
                 "scanner_l1_stream",
                 "pass",
-                f"active-table L1 tick {float(l1_age):.1f}s ago",
+                f"active-table L1 feed {float(stream_age):.1f}s ago",
             ))
 
     status = worst([c["status"] for c in checks])

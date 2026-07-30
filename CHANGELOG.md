@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Integrity banner: fix false warn/fail root causes
+
+- **What:** Integrity checks no longer cry wolf on healthy afterhours / flat-quote / chart-open sessions. `scanner_l1_stream` measures socket liveness (not price-change recency); HOD tick thresholds are session-aware; IBKR delayed-data / max-tickers signals downgrade tick alarms to informational; surge seeds retry transient failures and classify permanent no-history symbols. IBC local `AutoRestartTime=23:45` + Windows `NovaDailyStart` task cover the daily Gateway re-auth.
+- **Why:** Recurring Integrity warn (3.9s tick age, surge=None after seed, uncovered list) scared operators while the feed was often healthy -- wrong liveness variable, RTH thresholds 24/7, one-shot seed on 503 chart contention, unused delayed-data detector.
+- **Files touched:** `backend/ibkr/ticks.py`, `backend/ibkr/ticks_handler.py`, `backend/integrity_live.py`, `backend/hod_momo_integrity_hod.py`, `backend/hod_momo_integrity_scanner.py`, `backend/hod_momo_surge_seed.py`, `backend/hod_momo_market.py`, `backend/hod_momo_flow.py`, `backend/hod_momo_state.py`, `backend/constants_hod_momo.py`, integrity/seed tests.
+- **How it works now:** A warn/fail means Gateway needs login, the feed is genuinely dead, or a rare Nova canary. Afterhours 3.9s gaps pass; flat quotes on a live socket pass; opening a chart requeues seeds instead of scarring them; illiquid no-data symbols are excluded from `hod_surge_after_seed`.
+- **Verified by:** `pytest` 65 related tests green (integrity + surge seed + engine + session_errors + scan_runners).
+- **Follow-ups:** Align IBC `TradingMode` with Nova `IBKR_GATEWAY_MODE` if you run Live (local config was paper). Optional: unify GATEWAY chip vs account "IBKR offline" chrome (separate signals).
+- **Related:** PROBLEM_LOG 2026-07-30 Integrity false warn root causes.
+
 ## 2026-07-30 -- HOD table News flame + column calculation tooltips
 
 - **What:** HOD Momo / Running Up table gained a leading News flame column (same glyph as Gappers/Movers) and header hover tooltips that explain how each column is calculated. Columns + tooltips live in feature-local `hod_momo/hodMomoColumns.ts`.

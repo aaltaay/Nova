@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Integrity warn false positives (tick age / surge seed / delayed data)
+
+- **Symptom:** Recurring Integrity warn banner: `hod_ticks_flowing` / `scanner_l1_stream` at ~3.9s (want <=3s), `hod_surge_after_seed` with many surge=None, Uncovered list -- especially afterhours and with a chart open.
+- **Cause:** (1) `scanner_l1_stream` used price-change recency (`get_last_ok_ts`) instead of socket event liveness. (2) Tick warn threshold 3s applied 24/7 with no session awareness. (3) Nova detected IBKR delayed-data / max-tickers (Error 10167 / 101) but never fed that into evaluators. (4) Surge seed was one-shot: empty history and `HistoricalBusy` (open chart) both marked the symbol seeded forever. (5) Daily Gateway re-auth left IBC `AutoRestartTime` empty.
+- **Fix:** Event-liveness timestamp in `ticks_handler`; session-scaled warn gates; delayed/max-tickers downgrade tick alarms to informational; seed requeue + `no_history` classification; local IBC `AutoRestartTime=23:45` + `NovaDailyStart` task.
+- **Keywords:** Integrity warn, hod_ticks_flowing, scanner_l1_stream, surge=None, HistoricalBusy, delayed market data, AutoRestartTime, afterhours
+
 ## 2026-07-29 -- Failed to start the app (ScannerBarBridge case collision)
 
 - **Symptom:** Black screen: `Failed to start the app. Check the console.` Console: `The requested module '/src/components/ScannerBarBridge.ts' does not provide an export named 'ScannerBarBridge'`.

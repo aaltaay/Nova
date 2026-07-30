@@ -74,7 +74,44 @@ def mark_surge_seed_attempted(symbol: str) -> None:
     if not sym:
         return
     state.pending_surge_seed.discard(sym)
+    state.surge_seed_retries.pop(sym, None)
     state.surge_seeded.add(sym)
+
+
+def mark_surge_seed_no_history(symbol: str) -> None:
+    """Classify a symbol whose seed permanently failed for lack of IBKR data.
+
+    This is a property of the symbol (illiquid / no history), not a Nova
+    defect. It is removed from the retry queue and excluded from the
+    surge_none_after_seed integrity count.
+    """
+    state = _state.get_state()
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return
+    state.pending_surge_seed.discard(sym)
+    state.surge_seed_retries.pop(sym, None)
+    state.surge_seed_no_history.add(sym)
+
+
+def requeue_surge_seed(symbol: str, *, max_retries: int) -> bool:
+    """Requeue a symbol after a transient seed failure, bounded by retries.
+
+    Returns True if the symbol was requeued (retry budget remained), False if
+    the budget is exhausted and the caller should mark it attempted instead.
+    """
+    state = _state.get_state()
+    sym = (symbol or "").strip().upper()
+    if not sym or sym in state.surge_seeded:
+        return False
+    remaining = state.surge_seed_retries.get(sym)
+    if remaining is None:
+        remaining = max(0, int(max_retries))
+    if remaining <= 0:
+        return False
+    state.surge_seed_retries[sym] = remaining - 1
+    state.pending_surge_seed.add(sym)
+    return True
 
 
 def seed_price_buffer(symbol: str, points: list[tuple[float, float]]) -> int:
@@ -136,6 +173,7 @@ def get_flow_stats() -> dict[str, Any]:
         price_buffer=state.price_buffer,
         ticker_snaps=state.ticker_snaps,
         surge_fn=_price_surge,
+        no_history=state.surge_seed_no_history,
     )
     return {
         "total_trades_seen": state.total_trades_seen,
@@ -146,6 +184,7 @@ def get_flow_stats() -> dict[str, Any]:
         "surge_seeded_count": len(state.surge_seeded),
         "pending_surge_seeds": len(state.pending_surge_seed),
         "surge_none_after_seed_count": surge_none,
+        "surge_seed_no_history_count": len(state.surge_seed_no_history),
         "snaps_with_rvol": rvol_n,
         "snaps_tracked": len(state.ticker_snaps),
     }

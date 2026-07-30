@@ -72,10 +72,21 @@ HOD_MOMO_SURGE_SEED_BARS = 15          # last ~15 minutes of 1-min OHLCV (surge 
 HOD_MOMO_FULL_SESSION_BAR_LIMIT = 1000
 HOD_MOMO_SURGE_SEED_POLL_SEC = 1.0     # drain pending seed queue
 HOD_MOMO_SURGE_SEED_MAX_PER_TICK = 2   # IBKR historical pacing — keep low
+# Transient seed failures (timeout, 503 interactive-chart contention) requeue
+# instead of consuming the symbol's one shot. A permanent "IBKR has no data"
+# is classified separately and never retried nor counted as a Nova failure.
+HOD_MOMO_SURGE_SEED_MAX_RETRIES = 3
 # Integrity / fail-loud data-flow checks (invisible-bug detectors).
-HOD_MOMO_INTEGRITY_TICK_STALE_SEC = 15.0       # no HOD ticks while universe non-empty → fail
-HOD_MOMO_INTEGRITY_TICK_WARN_SEC = 3.0         # soft warn before hard stale fail
-HOD_MOMO_INTEGRITY_WARMUP_SEC = 45.0           # grace after process start before tick check fails
+HOD_MOMO_INTEGRITY_TICK_STALE_SEC = 15.0       # no HOD ticks while universe non-empty → fail (RTH)
+HOD_MOMO_INTEGRITY_TICK_WARN_SEC = 3.0         # soft warn before hard stale fail (RTH)
+# Tick thresholds are tuned for liquid regular-hours tape. Premarket /
+# afterhours prints arrive in bursts with multi-second gaps even on a fully
+# healthy live feed, so the warn gate scales per session. The hard stale
+# (fail) gate stays tight -- a genuinely dead feed is still caught fast.
+HOD_MOMO_INTEGRITY_TICK_WARN_EXTENDED_SEC = 12.0  # warn for premarket/afterhours
+HOD_MOMO_INTEGRITY_TICK_WARN_MODES = frozenset({"premarket", "afterhours"})
+HOD_MOMO_INTEGRITY_TICK_IDLE_MODES = frozenset({"closed"})  # no live tape expected
+HOD_MOMO_INTEGRITY_WARMUP_SEC = 90.0           # grace after process start before tick check fails
 HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC = 240.0  # buffer span for "ready" (4 of 5 min window)
 HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT = 40.0  # % of buffered symbols that must be ready
 HOD_MOMO_INTEGRITY_SURGE_PENDING_WARN = 10     # pending historical seeds → warn

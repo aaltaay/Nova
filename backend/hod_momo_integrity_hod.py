@@ -14,7 +14,10 @@ from constants import (
     HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC,
     HOD_MOMO_INTEGRITY_SURGE_PENDING_WARN,
     HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT,
+    HOD_MOMO_INTEGRITY_TICK_IDLE_MODES,
     HOD_MOMO_INTEGRITY_TICK_STALE_SEC,
+    HOD_MOMO_INTEGRITY_TICK_WARN_EXTENDED_SEC,
+    HOD_MOMO_INTEGRITY_TICK_WARN_MODES,
     HOD_MOMO_INTEGRITY_TICK_WARN_SEC,
     HOD_MOMO_INTEGRITY_WARMUP_SEC,
 )
@@ -57,26 +60,65 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             "fail",
             f"universe={universe} but total_trades_seen={trades} -- table reprice not feeding HOD",
         ))
-    elif float(last_age) > HOD_MOMO_INTEGRITY_TICK_STALE_SEC:
-        checks.append(check(
-            "hod_ticks_flowing",
-            "fail",
-            f"last HOD tick {float(last_age):.1f}s ago "
-            f"(>{HOD_MOMO_INTEGRITY_TICK_STALE_SEC:.0f}s) -- not second-by-second",
-        ))
-    elif float(last_age) > HOD_MOMO_INTEGRITY_TICK_WARN_SEC:
-        checks.append(check(
-            "hod_ticks_flowing",
-            "warn",
-            f"last HOD tick {float(last_age):.1f}s ago "
-            f"(want <={HOD_MOMO_INTEGRITY_TICK_WARN_SEC:.0f}s)",
-        ))
     else:
-        checks.append(check(
-            "hod_ticks_flowing",
-            "pass",
-            f"trades={trades} last_tick={float(last_age):.1f}s ago universe={universe}",
-        ))
+        # Session-aware warn gate: premarket/afterhours tapes print in bursts,
+        # so multi-second gaps are healthy there; RTH stays second-by-second.
+        # The hard stale (fail) gate is session-independent -- a dead feed is
+        # always a dead feed.
+        mode = (snap.get("current_mode") or "").strip().lower()
+        if mode in HOD_MOMO_INTEGRITY_TICK_IDLE_MODES:
+            checks.append(check(
+                "hod_ticks_flowing",
+                "pass",
+                f"market closed (mode={mode}) -- no live tape expected",
+            ))
+        else:
+            warn_sec = (
+                HOD_MOMO_INTEGRITY_TICK_WARN_EXTENDED_SEC
+                if mode in HOD_MOMO_INTEGRITY_TICK_WARN_MODES
+                else HOD_MOMO_INTEGRITY_TICK_WARN_SEC
+            )
+            age_f = float(last_age)
+            # When IBKR itself reports delayed data or a line-limit overflow,
+            # sparse ticks are expected -- informational, not a Nova alarm.
+            degraded = bool(snap.get("delayed_data") or snap.get("max_tickers_hit"))
+            if age_f > HOD_MOMO_INTEGRITY_TICK_STALE_SEC:
+                if degraded:
+                    checks.append(check(
+                        "hod_ticks_flowing",
+                        "pass",
+                        f"last HOD tick {age_f:.1f}s ago -- IBKR delayed / "
+                        f"line-limit (informational, not a feed failure)",
+                    ))
+                else:
+                    checks.append(check(
+                        "hod_ticks_flowing",
+                        "fail",
+                        f"last HOD tick {age_f:.1f}s ago "
+                        f"(>{HOD_MOMO_INTEGRITY_TICK_STALE_SEC:.0f}s) -- not live",
+                    ))
+            elif age_f > warn_sec:
+                if degraded:
+                    checks.append(check(
+                        "hod_ticks_flowing",
+                        "pass",
+                        f"last HOD tick {age_f:.1f}s ago -- IBKR delayed / "
+                        f"line-limit (informational)",
+                    ))
+                else:
+                    checks.append(check(
+                        "hod_ticks_flowing",
+                        "warn",
+                        f"last HOD tick {age_f:.1f}s ago "
+                        f"(want <={warn_sec:.0f}s for mode={mode or 'rth'})",
+                    ))
+            else:
+                checks.append(check(
+                    "hod_ticks_flowing",
+                    "pass",
+                    f"trades={trades} last_tick={age_f:.1f}s ago "
+                    f"universe={universe} mode={mode or 'rth'}",
+                ))
 
     capacity = int(snap.get("active_set_capacity") or HOD_MOMO_ACTIVE_SET_CAPACITY)
     if active_n <= 0 and universe > 0 and uptime >= HOD_MOMO_INTEGRITY_WARMUP_SEC:
