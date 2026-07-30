@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Failed to start the app (ScannerBarBridge case collision)
+
+- **Symptom:** Black screen: `Failed to start the app. Check the console.` Console: `The requested module '/src/components/ScannerBarBridge.ts' does not provide an export named 'ScannerBarBridge'`.
+- **Cause:** On Windows (case-insensitive FS), Vite resolved `import … from './ScannerBarBridge'` to `scannerBarBridge.ts` (the store) instead of `ScannerBarBridge.tsx` (the component). The `.ts` store has no `ScannerBarBridge` export, so bootstrap threw before React mounted.
+- **Fix:** Renamed the store to `scannerBarStore.ts`, deleted `scannerBarBridge.ts`, cleared Vite cache, restarted the frontend.
+- **Keywords:** Failed to start the app, ScannerBarBridge, case-insensitive, Windows, Vite module resolve
+
 ## 2026-07-29 -- Chart panes stuck on timeout after IBKR wedge (Full Day / 10Sec)
 
 - **Symptom:** After IBKR reconnect, all Trader chart panes showed "Chart bars timed out -- IBKR historical may be busy." Later 1Min/5Min recovered; Full Day and 10-Second stayed red until a hard reload. Logs: `event loop lag 49184ms`, `run_coro timed out after 25.0s` (NUWE), while DFNS `/bars` eventually returned 200.

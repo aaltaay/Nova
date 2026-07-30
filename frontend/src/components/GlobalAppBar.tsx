@@ -43,7 +43,7 @@ import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { SymbolSearchBox } from './SymbolSearchBox';
 import { ThemeToggle } from './ThemeToggle';
 import { requestOpenTradingTab } from './openTradingTabNav';
-import { useScannerBarProps } from './scannerBarBridge';
+import { useScannerBarProps } from './scannerBarStore';
 
 type OpenMenu = 'account' | 'working' | null;
 

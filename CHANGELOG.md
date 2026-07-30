@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Fix app boot: ScannerBarBridge Windows case collision
+
+- **What:** Renamed scanner status store `scannerBarBridge.ts` → `scannerBarStore.ts` so it no longer collides with `ScannerBarBridge.tsx` on Windows.
+- **Why:** Vite resolved the component import to the store module; bootstrap failed with "Failed to start the app."
+- **Files touched:** `scannerBarStore.ts`, `ScannerBarBridge.tsx`, `GlobalAppBar.tsx` (deleted `scannerBarBridge.ts`).
+- **How it works now:** Component and store have distinct basenames; GlobalAppBar still reads via `useScannerBarProps`.
+- **Verified by:** Browser reload — GlobalAppBar + market chips render.
+- **Related:** PROBLEM_LOG 2026-07-29 — Failed to start the app
+
 ## 2026-07-29 -- Single header row (scanner chrome into GlobalAppBar)
 
 - **What:** Market mode, API/Gateway/Prices chips, Sample, history select, symbol lookup, and Theme moved from the portal `AppHeader` row into `GlobalAppBar`. One 40px header on Scanner and Trader.
