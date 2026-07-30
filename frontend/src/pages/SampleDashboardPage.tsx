@@ -21,7 +21,6 @@ import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import type { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
 import type { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { partitionScannerAlerts } from '../hod_momo/scannerPartition';
-import type { useSettingsForm } from '../hooks/useSettingsForm';
 
 type Props = {
   onOpenTrader: (symbol: string) => void;
@@ -46,37 +45,6 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
   const sampleScannerParts = useMemo(
     () => partitionScannerAlerts(sample.hodAlerts),
     [sample.hodAlerts],
-  );
-
-  const settings = useMemo(
-    () =>
-      ({
-        showSettings: false,
-        setShowSettings: () => {},
-        apiKey: '',
-        setApiKey: () => {},
-        apiSecret: '',
-        setApiSecret: () => {},
-        apiKeySet: false,
-        apiSecretSet: false,
-        baseUrl: 'https://api.alpaca.markets',
-        setBaseUrl: () => {},
-        dataFeed: DATA_FEED_DEFAULT,
-        setDataFeed: () => {},
-        dataFeedOptions: ['iex', 'sip'],
-        discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
-        setDiscoveryProvider: () => {},
-        discoveryProviderOptions: [DISCOVERY_PROVIDER_DEFAULT],
-        activeFeed: DATA_FEED_DEFAULT,
-        setActiveFeed: () => {},
-        feedFellBack: false,
-        setFeedFellBack: () => {},
-        fetchConfig: async () => {},
-        handleConfigUpdate: async (e: React.FormEvent) => {
-          e.preventDefault();
-        },
-      }) as ReturnType<typeof useSettingsForm>,
-    [],
   );
 
   const hodMomoStream = useMemo(
@@ -123,8 +91,6 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
           historyDates={[]}
           onHistoryChange={() => {}}
           onLookup={setSelectedSymbol}
-          showSettings={false}
-          onToggleSettings={() => {}}
           showScannerSource
           discoveryProvider={DISCOVERY_PROVIDER_DEFAULT}
           sampleDataActive
@@ -165,8 +131,6 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
 
           <TabModuleHost
             activeTab={activeTab}
-            settings={settings}
-            filter={exchangeFilter}
             mode="market"
             health={sample.health}
             discoveryProvider={DISCOVERY_PROVIDER_DEFAULT}

@@ -1,6 +1,6 @@
 /**
- * Main dashboard shell — header, settings, tabs, side panel.
- * Extracted from App.tsx (root stays layout + Stock View gate only).
+ * Main dashboard shell — header, tabs, side panel.
+ * Settings overlay is owned by SettingsProvider at AppShell.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useHodMomoStream } from '../hod_momo/useHodMomoStream';
@@ -13,14 +13,12 @@ import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
 import { GatewayDisconnectedBanner } from '../ibkr/GatewayDisconnectedBanner';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
-import { SettingsWorkspace } from '../components/SettingsWorkspace';
 import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
 import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
-import { useSettingsForm } from '../hooks/useSettingsForm';
-import { useExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
+import { useSettings } from '../settings/SettingsContext';
 import { scanAgeForTab } from '../utils/scanAge';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
@@ -49,14 +47,13 @@ export function DashboardPage() {
   const tabOverriddenRef = useRef(false);
   const [showHodSettings, setShowHodSettings] = useState(false);
   const { visibility } = useModuleVisibility();
-  const exchangeFilter = useExchangeFilter();
+  const { settings, exchangeFilter, registerOnConfigSaved } = useSettings();
   const sidePanel = useSidePanelWidth();
   const watchlist = useWatchlist(true);
   const hodMomoStream = useHodMomoStream();
   const hodMomoConfig = useHodMomoConfig();
 
   const fetchDataRef = useRef<() => void>(() => {});
-  const settings = useSettingsForm(() => fetchDataRef.current());
   const scanner = useScannerData({
     discoveryProvider: settings.discoveryProvider,
     activeTab,
@@ -65,6 +62,10 @@ export function DashboardPage() {
     onFeedFellBack: settings.setFeedFellBack,
   });
   fetchDataRef.current = scanner.fetchData;
+
+  useEffect(() => {
+    registerOnConfigSaved(() => fetchDataRef.current());
+  }, [registerOnConfigSaved]);
 
   useEffect(() => {
     settings.fetchConfig();
@@ -185,8 +186,6 @@ export function DashboardPage() {
           historyDates={scanner.historyDates}
           onHistoryChange={handleHistoryChange}
           onLookup={setSelectedSymbol}
-          showSettings={settings.showSettings}
-          onToggleSettings={() => settings.setShowSettings(s => !s)}
           showScannerSource={activeTab !== 'trading' && activeTab !== 'reports'}
           discoveryProvider={settings.discoveryProvider}
           onBackendStarted={() => {
@@ -203,25 +202,6 @@ export function DashboardPage() {
             if (on) enterSampleView();
           }}
         />
-
-        {settings.showSettings && (
-          <SettingsWorkspace
-            apiKey={settings.apiKey}
-            onApiKeyChange={settings.setApiKey}
-            apiSecret={settings.apiSecret}
-            onApiSecretChange={settings.setApiSecret}
-            apiKeySet={settings.apiKeySet}
-            apiSecretSet={settings.apiSecretSet}
-            baseUrl={settings.baseUrl}
-            onBaseUrlChange={settings.setBaseUrl}
-            dataFeed={settings.dataFeed}
-            onDataFeedChange={settings.setDataFeed}
-            dataFeedOptions={settings.dataFeedOptions}
-            discoveryProvider={settings.discoveryProvider}
-            onSubmit={settings.handleConfigUpdate}
-            onCancel={() => settings.setShowSettings(false)}
-          />
-        )}
 
         <GatewayDisconnectedBanner
           discoveryProvider={settings.discoveryProvider}
@@ -264,8 +244,6 @@ export function DashboardPage() {
 
           <TabModuleHost
             activeTab={activeTab}
-            settings={settings}
-            filter={exchangeFilter}
             mode={scanner.mode}
             health={scanner.health}
             discoveryProvider={settings.discoveryProvider}

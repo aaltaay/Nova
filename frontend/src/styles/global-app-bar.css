@@ -219,6 +219,29 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--nova-success) 25%, transparent);
 }
 
+.global-app-bar__settings {
+  margin-left: 0.35rem;
+  background: transparent;
+  color: var(--nova-text-muted);
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.global-app-bar__settings:hover {
+  color: var(--nova-text);
+  border-color: color-mix(in srgb, var(--nova-text-muted) 50%, var(--nova-border));
+}
+
+.global-app-bar__settings.is-active {
+  color: var(--nova-text);
+  background: color-mix(in srgb, var(--nova-accent, #3b82f6) 18%, transparent);
+  border-color: color-mix(in srgb, var(--nova-accent, #3b82f6) 45%, var(--nova-border));
+}
+
 .global-app-bar__card {
   position: absolute;
   top: calc(100% + 0.35rem);

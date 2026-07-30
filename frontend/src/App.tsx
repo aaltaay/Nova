@@ -11,6 +11,7 @@ import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
 import { DashboardPage } from './pages/DashboardPage';
 import { SampleShell } from './sample_data/SampleShell';
 import { isSampleView } from './sample_data/sampleNav';
+import { SettingsProvider } from './settings/SettingsContext';
 import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
 import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
 import { StockViewTabs } from './stock_view/StockViewTabs';
@@ -45,23 +46,25 @@ function AppShell() {
 
   return (
     <IbkrAccountProvider>
-      <GlobalAppBar />
-      <NovaOsAttentionStrip global />
-      {traderActive ? (
-        <AppErrorBoundary source="stock-view">
-          <div className="nova-shell nova-shell--ticker-detail">
-            <div className="main-col main-col--full">
-              <main className="ticker-detail-main">
-                <StockViewTabs detached={detached} />
-              </main>
+      <SettingsProvider>
+        <GlobalAppBar />
+        <NovaOsAttentionStrip global />
+        {traderActive ? (
+          <AppErrorBoundary source="stock-view">
+            <div className="nova-shell nova-shell--ticker-detail">
+              <div className="main-col main-col--full">
+                <main className="ticker-detail-main">
+                  <StockViewTabs detached={detached} />
+                </main>
+              </div>
             </div>
-          </div>
-        </AppErrorBoundary>
-      ) : (
-        <AppErrorBoundary source="dashboard">
-          <DashboardPage />
-        </AppErrorBoundary>
-      )}
+          </AppErrorBoundary>
+        ) : (
+          <AppErrorBoundary source="dashboard">
+            <DashboardPage />
+          </AppErrorBoundary>
+        )}
+      </SettingsProvider>
     </IbkrAccountProvider>
   );
 }

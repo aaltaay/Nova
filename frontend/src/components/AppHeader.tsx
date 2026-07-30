@@ -1,6 +1,6 @@
 /**
- * AppHeader — brand, market mode, connection/feed/scan-age meta, lookup, settings.
- * Extracted from App.tsx so the header stays modular and the tab bar stays tabs-only.
+ * AppHeader — brand, market mode, connection/feed/scan-age meta, lookup.
+ * Settings lives on GlobalAppBar (AppShell overlay).
  */
 import type { ChangeEvent } from 'react';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
@@ -50,9 +50,7 @@ interface Props {
   historyDates: string[];
   onHistoryChange: (e: ChangeEvent<HTMLSelectElement>) => void;
   onLookup: (symbol: string) => void;
-  showSettings: boolean;
-  onToggleSettings: () => void;
-  /** Compact header for ticker-detail full page (no lookup / history / settings). */
+  /** Compact header for ticker-detail full page (no lookup / history). */
   compact?: boolean;
   /** Show scanner source badge (hide on Account view). */
   showScannerSource?: boolean;
@@ -82,8 +80,6 @@ export function AppHeader({
   historyDates,
   onHistoryChange,
   onLookup,
-  showSettings,
-  onToggleSettings,
   compact = false,
   showScannerSource = true,
   discoveryProvider = DISCOVERY_PROVIDER_DEFAULT,
@@ -171,13 +167,6 @@ export function AppHeader({
             </button>
           )}
           <SymbolSearchBox onLookup={onLookup} />
-          <button
-            className={`settings-btn ${showSettings ? 'active' : ''}`}
-            onClick={onToggleSettings}
-            type="button"
-          >
-            Settings
-          </button>
         </div>
       )}
     </header>

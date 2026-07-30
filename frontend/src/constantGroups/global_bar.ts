@@ -51,3 +51,7 @@ export const GLOBAL_BAR_OPEN_TRADING_TAB_EVENT = 'nova:open-trading-tab';
 export const GLOBAL_BAR_MODE_PAPER = 'Paper';
 export const GLOBAL_BAR_MODE_LIVE = 'Live';
 export const GLOBAL_BAR_MODE_DISCONNECTED = 'Disconnected';
+
+/** Settings gear on the shared GlobalAppBar (Scanner + Trader). */
+export const GLOBAL_BAR_SETTINGS_LABEL = 'Settings';
+export const GLOBAL_BAR_SETTINGS_TITLE = 'Open Settings';

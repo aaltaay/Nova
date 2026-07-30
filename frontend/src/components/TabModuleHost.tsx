@@ -16,18 +16,11 @@ import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
 import type { MarketMode } from './AppHeader';
 import type { WatchlistEntry } from '../strategy/types';
-import type { useExchangeFilter } from '../hooks/useExchangeFilter';
-import type { useSettingsForm } from '../hooks/useSettingsForm';
-
 type HodStream = ReturnType<typeof useHodMomoStream>;
 type HodConfig = ReturnType<typeof useHodMomoConfig>;
-type Settings = ReturnType<typeof useSettingsForm>;
-type ExchangeFilter = ReturnType<typeof useExchangeFilter>;
 
 export type TabModuleHostProps = {
   activeTab: ActiveTab;
-  settings: Settings;
-  filter: ExchangeFilter;
   mode: MarketMode;
   health: HealthStatus;
   discoveryProvider: string;
@@ -69,8 +62,6 @@ export function TabModuleHost(props: TabModuleHostProps) {
 
   const {
     activeTab,
-    settings,
-    filter,
     mode,
     health,
     discoveryProvider,
@@ -98,22 +89,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
   } = props;
 
   if (activeTab === 'dashboard') {
-    return (
-      <DashboardTab
-        filter={filter}
-        apiKey={settings.apiKey}
-        onApiKeyChange={settings.setApiKey}
-        apiSecret={settings.apiSecret}
-        onApiSecretChange={settings.setApiSecret}
-        baseUrl={settings.baseUrl}
-        onBaseUrlChange={settings.setBaseUrl}
-        dataFeed={settings.dataFeed}
-        onDataFeedChange={settings.setDataFeed}
-        dataFeedOptions={settings.dataFeedOptions}
-        discoveryProvider={settings.discoveryProvider}
-        onSubmit={settings.handleConfigUpdate}
-      />
-    );
+    return <DashboardTab />;
   }
 
   if (SCANNER_TABS.has(activeTab)) {

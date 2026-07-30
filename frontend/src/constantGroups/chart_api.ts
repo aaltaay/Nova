@@ -540,7 +540,7 @@ export const TICKER_TRADE_DEFAULT_QTY = 100;
  * When non-null, every ticket displays and submits this share qty (ignores presets / % / $).
  * Set to `null` to restore editable sizing.
  */
-export const TICKER_TRADE_FORCE_QTY: number | null = 1;
+export const TICKER_TRADE_FORCE_QTY: number | null = null;
 /** Field subtitles on the manual order ticket (Material overline pattern). */
 export const TICKER_TRADE_LABEL_SIDE = 'Side';
 export const TICKER_TRADE_LABEL_ORDER_TYPE = 'Order Type';

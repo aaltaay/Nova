@@ -80,7 +80,7 @@ export function useSettingsForm(onSaved?: () => void) {
         if (result.data_feed) setActiveFeed(result.data_feed);
         setDiscoveryProvider(DISCOVERY_PROVIDER_DEFAULT);
         setFeedFellBack(false);
-        setShowSettings(false);
+        // Stay open so multi-field Settings edits are not dismissed on save.
         onSavedRef.current?.();
       }
     } catch {

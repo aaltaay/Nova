@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Webull-style Settings overlay + Trade defaults
+
+- **What:** Settings is a full-viewport left-rail overlay (General / Hot Keys / Trade / Alerts / Account) opened from the GlobalAppBar gear on Scanner and Trader. Exchange filter + Alpaca panel moved into General; Trade > Stocks holds editable order defaults; Order Preferences hosts skip-confirm. Cleared `TICKER_TRADE_FORCE_QTY` so qty prefs apply.
+- **Why:** Match Webull Settings shell; stop duplicating config on Dashboard; make TRADE ticket defaults user-editable.
+- **Files touched:** `SettingsContext.tsx`, `SettingsWorkspace.tsx`, `settings/*`, `GlobalAppBar.tsx`, `App.tsx`, `DashboardPage.tsx`, `DashboardTab.tsx`, `ManualOrderTicket.tsx`, `applyTicketDefaults.ts`, `tradeDefaultSeed.ts`, `trade_defaults.ts`, `settings-workspace.css`.
+- **How it works now:** `SettingsProvider` at AppShell owns `useSettingsForm` + `useExchangeFilter` + overlay. Trade defaults live in `nova.trade.defaults.v1`; ticket seeds on mount/symbol from prefs + TopOfBook (Ask/Bid/Last/Mid). TIF is DAY UI-only. EH still requires LMT at place time.
+- **Verified by:** Vitest SettingsWorkspace / tradeDefaultsPrefs / tradeDefaultSeed / orderEntry / GlobalAppBar; `tsc --noEmit`.
+- **Follow-ups:** Backend TIF/GTC; bracket TP/SL defaults; optional widgets-parity note.
+- **Related:** task-log `2026-07-29-webull-style-settings-shell.md`
+
 ## 2026-07-29 -- Trader grid layout: 5m|10s over Full Day|1m
 
 - **What:** Chart grid order is now top **5-Minute | 10-Second**, bottom **Full Day | 1-Minute**. Hiding 10s puts 1m top-right; Full Day stays bottom.

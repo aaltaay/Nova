@@ -18,11 +18,14 @@ import {
   GLOBAL_BAR_NET_LIQ_LABEL,
   GLOBAL_BAR_OFFLINE_CHIP,
   GLOBAL_BAR_OFFLINE_PLACEHOLDER,
+  GLOBAL_BAR_SETTINGS_LABEL,
+  GLOBAL_BAR_SETTINGS_TITLE,
   GLOBAL_BAR_WORKING_LABEL,
   GLOBAL_BAR_WORKING_MENU_TITLE,
 } from '../constants';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import { useSettingsOptional } from '../settings/SettingsContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { formatMoney } from '../utils/formatMoney';
 import { GlobalAccountCard } from './GlobalAccountCard';
@@ -43,12 +46,14 @@ export function GlobalAppBar() {
   } = useWorkspace();
   const { summary, orders, refresh } = useIbkrAccountContext();
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
+  const settingsApi = useSettingsOptional();
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const clusterRef = useRef<HTMLDivElement>(null);
   const accountCardId = useId();
   const workingMenuId = useId();
 
   const traderActive = traderTabs.length > 0;
+  const settingsOpen = settingsApi?.settings.showSettings ?? false;
   const canOpenTrader = traderActive || Boolean(selectedSymbol?.trim());
   const live = Boolean(ibkrConnected && summary?.connected);
   const dayPnl = dayPnlFromSummary(summary?.RealizedPnL, summary?.UnrealizedPnL);
@@ -231,6 +236,19 @@ export function GlobalAppBar() {
           />
           {modeLabel}
         </span>
+
+        {settingsApi && (
+          <button
+            type="button"
+            className={`global-app-bar__settings${settingsOpen ? ' is-active' : ''}`}
+            title={GLOBAL_BAR_SETTINGS_TITLE}
+            aria-pressed={settingsOpen}
+            data-testid="global-bar-settings"
+            onClick={() => settingsApi.toggleSettings()}
+          >
+            {GLOBAL_BAR_SETTINGS_LABEL}
+          </button>
+        )}
       </div>
     </header>
   );

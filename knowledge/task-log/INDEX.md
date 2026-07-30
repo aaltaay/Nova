@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-29 | [Webull-style Settings shell + Trade defaults](2026-07-29-webull-style-settings-shell.md) | Left-rail Settings overlay; Trade > Stocks prefs; FORCE_QTY cleared |
 | 2026-07-29 | [Chart pane wedge + live tip repair](2026-07-29-chart-pane-wedge-live-tip.md) | Retry timed-out panes; 1Day/10Sec live tip; slot_wait log |
 | 2026-07-29 | [Trader 10-Second chart (4h history + live)](2026-07-29-trader-10sec-chart.md) | 4th pane 10Sec: 14400 S IBKR hist + WS live tip |
 | 2026-07-29 | [Chart pipeline Phases 2-4: store, lifecycle, grid](2026-07-29-chart-pipeline-phases-2-4.md) | barsStore, stable LWC, 3-pane grid, hidden-tab pause |

@@ -28,18 +28,17 @@ const context = {
 const unlocked = { forceQty: null as number | null };
 
 describe('manual order sizing', () => {
-  it('forces share qty from TICKER_TRADE_FORCE_QTY by default (SSOT)', () => {
-    const forced = forcedManualOrderQty();
-    expect(forced).toBe(1);
+  it('does not force qty when TICKER_TRADE_FORCE_QTY is null', () => {
+    expect(forcedManualOrderQty()).toBeNull();
     expect(resolveOrderQuantity(base, context)).toEqual({
-      quantity: 1,
+      quantity: 100,
       referencePrice: 25,
     });
+  });
+
+  it('honors an explicit forceQty override', () => {
     expect(
-      resolveOrderQuantity(
-        { ...base, quantityMode: 'dollars', quantityValue: '9999' },
-        context,
-      ),
+      resolveOrderQuantity(base, context, { forceQty: 1 }),
     ).toEqual({ quantity: 1, referencePrice: 25 });
   });
 
@@ -102,7 +101,7 @@ describe('manual order sizing', () => {
 });
 
 describe('manual order payloads', () => {
-  it('builds an extended-hours limit order with forced qty 1', () => {
+  it('builds an extended-hours limit order from ticket qty', () => {
     const result = buildManualOrder(
       {
         ...base,
@@ -117,17 +116,17 @@ describe('manual order payloads', () => {
       payload: {
         symbol: 'AAPL',
         side: 'BUY',
-        qty: 1,
+        qty: 100,
         order_type: 'LMT',
         limit_price: 24.75,
         outside_rth: true,
       },
-      quantity: 1,
+      quantity: 100,
       referencePrice: 24.75,
     });
   });
 
-  it('builds a stop order with its trigger price (forced qty 1)', () => {
+  it('builds a stop order with its trigger price', () => {
     const result = buildManualOrder(
       {
         ...base,
@@ -142,7 +141,7 @@ describe('manual order payloads', () => {
       payload: {
         symbol: 'AAPL',
         side: 'SELL',
-        qty: 1,
+        qty: 100,
         order_type: 'STP',
         stop_price: 23.5,
         outside_rth: false,

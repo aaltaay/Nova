@@ -4,10 +4,6 @@ import {
   captureBrowserAction,
 } from '../execution_latency';
 import {
-  TICKER_TRADE_DEFAULT_ORDER_TYPE,
-  TICKER_TRADE_DEFAULT_QTY,
-} from '../constants';
-import {
   buildManualOrder,
   forcedManualOrderQty,
   presetsForQuantityMode,
@@ -20,7 +16,9 @@ import {
   SHORTABILITY_SHORT_DISABLED,
   SHORTABILITY_STALE,
 } from '../constantGroups/shortability';
+import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import type { IbkrListingFlags } from '../types/ticker';
+import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
@@ -75,22 +73,20 @@ export function ManualOrderTicket({
   onOrderPlaced,
 }: Props) {
   const ibkrStatus = useIbkrStatus();
-  const [side, setSide] = useState<ManualOrderSide>('BUY');
+  const { topOfBook } = useTopOfBook();
+  const initial = applyTicketDefaults(symbol, referencePrice, topOfBook);
+  const [side, setSide] = useState<ManualOrderSide>(initial.side);
   const [shortEntry, setShortEntry] = useState(false);
-  const [orderType, setOrderType] = useState<ManualOrderType>(
-    TICKER_TRADE_DEFAULT_ORDER_TYPE,
-  );
+  const [orderType, setOrderType] = useState<ManualOrderType>(initial.orderType);
   const shortBlockReason = shortDisabledReason(
     ibkrStatus.short_enabled,
     listingIbkr,
   );
   const [quantityMode, setQuantityMode] = useState<QuantityMode>('shares');
-  const [quantityValue, setQuantityValue] = useState(
-    String(FORCED_QTY ?? TICKER_TRADE_DEFAULT_QTY),
-  );
-  const [limitPrice, setLimitPrice] = useState('');
-  const [stopPrice, setStopPrice] = useState('');
-  const [outsideRth, setOutsideRth] = useState(false);
+  const [quantityValue, setQuantityValue] = useState(initial.quantityValue);
+  const [limitPrice, setLimitPrice] = useState(initial.limitPrice);
+  const [stopPrice, setStopPrice] = useState(initial.stopPrice);
+  const [outsideRth, setOutsideRth] = useState(initial.outsideRth);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [sessionUnlocked, setSessionUnlocked] = useState(readTicketSessionUnlocked);
@@ -103,14 +99,15 @@ export function ManualOrderTicket({
     : quantityValue;
 
   useEffect(() => {
-    setSide('BUY');
+    const next = applyTicketDefaults(symbol, referencePrice, topOfBook);
+    setSide(next.side);
     setShortEntry(false);
-    setOrderType(TICKER_TRADE_DEFAULT_ORDER_TYPE);
+    setOrderType(next.orderType);
     setQuantityMode('shares');
-    setQuantityValue(String(FORCED_QTY ?? TICKER_TRADE_DEFAULT_QTY));
-    setLimitPrice(referencePrice != null ? referencePrice.toFixed(2) : '');
-    setStopPrice('');
-    setOutsideRth(false);
+    setQuantityValue(next.quantityValue);
+    setLimitPrice(next.limitPrice);
+    setStopPrice(next.stopPrice);
+    setOutsideRth(next.outsideRth);
     setResult(null);
     setConfirmSummary(null);
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -118,15 +115,32 @@ export function ManualOrderTicket({
   function selectDirection(nextShort: boolean) {
     if (nextShort && shortBlockReason) return;
     setShortEntry(nextShort);
-    setSide(nextShort ? 'SELL' : 'BUY');
+    const nextSide: ManualOrderSide = nextShort ? 'SELL' : 'BUY';
+    setSide(nextSide);
+    const seeded = seedPricesForSide(
+      nextSide,
+      orderType,
+      symbol,
+      referencePrice,
+      topOfBook,
+    );
+    if (orderType === 'LMT') setLimitPrice(seeded.limitPrice);
+    if (orderType === 'STP') setStopPrice(seeded.stopPrice);
     setResult(null);
   }
 
   useEffect(() => {
-    if (referencePrice != null && !limitPrice) {
-      setLimitPrice(referencePrice.toFixed(2));
+    if (referencePrice != null && !limitPrice && orderType === 'LMT') {
+      const seeded = seedPricesForSide(
+        side,
+        'LMT',
+        symbol,
+        referencePrice,
+        topOfBook,
+      );
+      setLimitPrice(seeded.limitPrice);
     }
-  }, [referencePrice, limitPrice]);
+  }, [referencePrice, limitPrice, orderType, side, symbol, topOfBook]);
 
   const spendLocked =
     spendStatus === 'locked' || spendStatus === 'locked_live_unconfirmed';
