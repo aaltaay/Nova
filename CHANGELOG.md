@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- HOD table News flame + column calculation tooltips
+
+- **What:** HOD Momo / Running Up table gained a leading News flame column (same glyph as Gappers/Movers) and header hover tooltips that explain how each column is calculated. Columns + tooltips live in feature-local `hod_momo/hodMomoColumns.ts`.
+- **Why:** Match Warrior-style scanner readability; keep a single maintainable column list; explain first-catch Time vs live-updating metrics without changing row semantics.
+- **Files touched:** `hodMomoColumns.ts`, `NewsCell.tsx`, `scannerNewsStore.ts`, `newsBySymbol.ts`, `usePublishScannerNews.ts`, `HodMomoAlertTable.tsx`, `HodMomoAlertRow.tsx`, `DashboardPage.tsx`, `SampleDashboardPage.tsx`, `chart_api.ts` (removed `HOD_MOMO_COLUMNS`).
+- **How it works now:** Dashboard pages publish a source-tagged `symbol -> newest_headline_at` map from unfiltered scanner/catalyst rows (empty while viewing history). The HOD table subscribes with a live/sample gate so sample fixtures cannot leak into live. Time stays first-catch; tooltips state that price/RVOL/etc. refresh on later fires. No backend/`AlertObject` change.
+- **Verified by:** `npx tsc --noEmit`; Vitest `newsBySymbol`, `scannerNewsStore`, `HodMomoAlertTable.render`.
+- **Follow-ups:** Deep-link into sample Trader before visiting sample dashboard shows News dashes until sample dashboard publishes once.
+- **Related:** task-log `knowledge/task-log/2026-07-30-hod-news-flame-column-tooltips.md`
+
 ## 2026-07-29 -- Fix app boot: ScannerBarBridge Windows case collision
 
 - **What:** Renamed scanner status store `scannerBarBridge.ts` → `scannerBarStore.ts` so it no longer collides with `ScannerBarBridge.tsx` on Windows.

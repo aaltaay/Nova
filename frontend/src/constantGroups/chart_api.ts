@@ -209,19 +209,7 @@ export const STRATEGY_META_MAP: Record<number, StrategyMeta> = Object.fromEntrie
   STRATEGY_META.map(s => [s.id, s]),
 );
 
-/** HOD Momo feed columns — mirrors Warrior Daily Rate + 5-min Rel Vol */
-export const HOD_MOMO_COLUMNS: [string, string][] = [
-  ['time',        'Time'],
-  ['symbol',      'Symbol'],
-  ['price',       'Price'],
-  ['change_pct',  'Change %'],
-  ['rvol',        'RVOL (Daily)'],
-  ['rvol_5min',   'RVOL (5m)'],
-  ['float',       'Float'],
-  ['gap_pct',     'Gap %'],
-  ['volume',      'Volume'],
-  ['strategy',    'Strategy'],
-];
+/** HOD column defs live in hod_momo/hodMomoColumns.ts (feature-local). */
 
 /** Visible row window height for the compact HOD scanner. */
 export const HOD_MOMO_VISIBLE_ROWS = 30;

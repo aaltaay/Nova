@@ -4,7 +4,7 @@
 import { Fragment, useState } from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
-import { NewsCell } from './ScannerTable';
+import { NewsCell } from './NewsCell';
 import { NewsImpactPanel } from './NewsImpactPanel';
 import { fmtPct, fmtVolume } from '../utils/quoteFormat';
 import { NEWS_IMPACT_CLASS_LABELS, NEWS_IMPACT_CLASS_TOOLTIPS } from '../constants';

@@ -15,6 +15,7 @@ import { DISCOVERY_PROVIDER_DEFAULT, SAMPLE_DATA_BANNER, SAMPLE_DATA_SWITCH_LABE
 import { setAccountNavActive } from '../components/accountNavActive';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
+import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { getModule, isTabModuleId, type ActiveTab } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
@@ -42,6 +43,15 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
   const filteredGainers = exchangeFilter.filterRows(sample.gainers);
   const filteredLosers = exchangeFilter.filterRows(sample.losers);
   const filteredAfterhours = exchangeFilter.filterRows(sample.afterhours);
+
+  usePublishScannerNews({
+    source: 'sample',
+    gappers: sample.gappers,
+    gainers: sample.gainers,
+    losers: sample.losers,
+    afterhours: sample.afterhours,
+    catalysts: sample.catalysts,
+  });
 
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;

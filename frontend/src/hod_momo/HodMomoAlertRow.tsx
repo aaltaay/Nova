@@ -1,11 +1,12 @@
 import { memo } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
+import { NewsCell } from '../components/NewsCell';
 import {
-  HOD_MOMO_COLUMNS,
   HOD_MOMO_MAX_INLINE_STRATEGY_PILLS,
   STRATEGY_META_MAP,
 } from '../constants';
+import { HOD_MOMO_COLUMNS } from './hodMomoColumns';
 import type { AlertObject } from './types';
 import { hodMomoAlertRowHeightPx, visibleStrategyTags } from './hodMomoRowLayout';
 
@@ -79,6 +80,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   selected,
   onSelect,
   onOpenTrading,
+  newsHeadlineAt = null,
 }: {
   alert: AlertObject;
   configColors?: Record<number, string>;
@@ -86,6 +88,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
   consolidationSec?: number;
+  newsHeadlineAt?: string | null;
 }) {
   const isConsolidated = alert.consolidation_count > 1;
   const spanSec = Math.max(1, alert.consolidation_span_sec ?? 1);
@@ -106,6 +109,12 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
     >
       {HOD_MOMO_COLUMNS.map(([key]) => {
         switch (key) {
+          case 'news':
+            return (
+              <td key={key} className="hod-news-cell">
+                <NewsCell newest_headline_at={newsHeadlineAt} />
+              </td>
+            );
           case 'time':
             return (
               <td key={key} className="hod-time-cell">

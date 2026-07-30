@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react';
 import {
-  HOD_MOMO_COLUMNS,
   HOD_MOMO_EMPTY_CONNECTING,
   HOD_MOMO_EMPTY_WAITING,
   HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
@@ -11,8 +10,12 @@ import {
   STRATEGY_META,
   type StrategyMeta,
 } from '../constants';
+import { useScannerNews } from '../components/scannerNewsStore';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { HOD_MOMO_COLUMNS, HOD_MOMO_COLUMN_TOOLTIPS } from './hodMomoColumns';
 import type { AlertObject } from './types';
 import { HodMomoAlertRow } from './HodMomoAlertRow';
+import { StrategyFilterDropdown } from './HodMomoStrategyFilter';
 import {
   buildHodMomoRowOffsets,
   findRowAtOffset,
@@ -79,64 +82,6 @@ export function computeVisibleRowRangeFromOffsets(
   };
 }
 
-function StrategyFilterDropdown({
-  enabledStrategies,
-  counts,
-  onToggle,
-  onClose,
-  configColors,
-  filterableStrategies,
-}: {
-  enabledStrategies: Set<number>;
-  counts: Record<number, number>;
-  onToggle: (id: number) => void;
-  onClose: () => void;
-  configColors: Record<number, string>;
-  filterableStrategies: StrategyMeta[];
-}) {
-  return (
-    <div className="hod-filter-dropdown">
-      <div className="hod-filter-header">
-        <span>Filter Strategies</span>
-        <button className="hod-filter-close" onClick={onClose}>✕</button>
-      </div>
-      <label className="hod-filter-row hod-filter-all">
-        <input
-          type="checkbox"
-          checked={
-            filterableStrategies.length > 0
-            && filterableStrategies.every(s => enabledStrategies.has(s.id))
-          }
-          onChange={() => {
-            const allOn = filterableStrategies.every(s => enabledStrategies.has(s.id));
-            filterableStrategies.forEach(s => {
-              if (allOn === enabledStrategies.has(s.id)) onToggle(s.id);
-            });
-          }}
-        />
-        <span>Select / Unselect All</span>
-      </label>
-      {filterableStrategies.map(s => {
-        const color = configColors[s.id] || s.color;
-        return (
-          <label key={s.id} className="hod-filter-row">
-            <input
-              type="checkbox"
-              checked={enabledStrategies.has(s.id)}
-              onChange={() => onToggle(s.id)}
-            />
-            <span className="hod-filter-dot" style={{ background: color }} />
-            <span className="hod-filter-name">{s.name}</span>
-            {(counts[s.id] ?? 0) > 0 && (
-              <span className="hod-filter-count">{counts[s.id]}</span>
-            )}
-          </label>
-        );
-      })}
-    </div>
-  );
-}
-
 export interface HodMomoAlertTableProps {
   alerts: AlertObject[];
   connected: boolean;
@@ -181,6 +126,7 @@ export function HodMomoAlertTable({
   const scrollRef = useRef<HTMLDivElement>(null);
   const rafIdRef = useRef<number | null>(null);
   const pendingScrollTopRef = useRef(0);
+  const newsBySymbol = useScannerNews(useSampleDataOptional() ? 'sample' : 'live');
   const empty = alerts.length === 0;
   // Always reserve the full 30-row scanner window (like Gappers/Gainers height),
   // even when only a few alerts have fired — shrinking to 1 row made the table look broken.
@@ -251,7 +197,7 @@ export function HodMomoAlertTable({
                     : undefined
                 }
               >
-                <span className="th-inner">
+                <span className="th-inner" title={HOD_MOMO_COLUMN_TOOLTIPS[key]}>
                   {label}
                   {key === 'strategy' && showStrategyFilter && (
                     <span className="hod-filter-icon">▾</span>
@@ -294,6 +240,9 @@ export function HodMomoAlertTable({
                   onSelect={onSelectSymbol}
                   onOpenTrading={onOpenTrading}
                   consolidationSec={consolidationSec}
+                  newsHeadlineAt={
+                    newsBySymbol.get(alert.ticker.toUpperCase()) ?? null
+                  }
                 />
               ))}
               {bottomSpacerPx > 0 && (

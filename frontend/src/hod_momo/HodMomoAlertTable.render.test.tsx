@@ -13,6 +13,11 @@ import {
   HOD_MOMO_ROW_HEIGHT_PX,
   HOD_MOMO_VISIBLE_ROWS,
 } from '../constants';
+import {
+  resetScannerNewsForTests,
+  setScannerNews,
+} from '../components/scannerNewsStore';
+import { HOD_MOMO_COLUMN_TOOLTIPS } from './hodMomoColumns';
 import { HodMomoAlertTable } from './HodMomoAlertTable';
 import type { AlertObject } from './types';
 
@@ -111,5 +116,58 @@ describe('HodMomoAlertTable virtualization', () => {
     // A different slice of data is now on screen — not stuck rendering the top.
     expect(container.textContent).toContain('SYM3000');
     expect(container.textContent).not.toContain('SYM0');
+  });
+});
+
+describe('HodMomoAlertTable news column', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    resetScannerNewsForTests();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    if (!Element.prototype.scrollTo) {
+      Element.prototype.scrollTo = () => {};
+    }
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    resetScannerNewsForTests();
+  });
+
+  it('renders News header tooltip and flame when live news map matches', async () => {
+    setScannerNews(
+      'live',
+      new Map([['SYM0', new Date().toISOString()]]),
+    );
+    await act(async () => {
+      root.render(
+        <HodMomoAlertTable
+          alerts={makeAlerts(3)}
+          connected
+          consolidationSec={10}
+          configColors={{}}
+          strategyCounts={{}}
+          visibleStrategies={new Set([3])}
+          onToggleStrategy={noop}
+          selectedSymbol={null}
+          onSelectSymbol={noop}
+          onOpenTrading={noop}
+        />,
+      );
+    });
+
+    const newsTh = Array.from(container.querySelectorAll('th .th-inner')).find(
+      (el) => el.textContent?.includes('News'),
+    );
+    expect(newsTh).toBeTruthy();
+    expect(newsTh?.getAttribute('title')).toBe(HOD_MOMO_COLUMN_TOOLTIPS.news);
+    expect(container.querySelector('.news-flame')).not.toBeNull();
   });
 });

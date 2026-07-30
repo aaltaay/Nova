@@ -15,6 +15,7 @@ import { setAccountNavActive } from '../components/accountNavActive';
 import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
+import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
@@ -148,6 +149,17 @@ export function DashboardPage() {
       scanner.setHistoryDate(val);
     }
   }
+
+  // Unfiltered rows: exchange filter must not hide HOD news flames.
+  usePublishScannerNews({
+    source: 'live',
+    gappers: scanner.gappers,
+    gainers: scanner.gainers,
+    losers: scanner.losers,
+    afterhours: scanner.afterhours,
+    catalysts: scanner.catalysts,
+    clear: scanner.historyDate !== null,
+  });
 
   const filteredGappers = exchangeFilter.filterRows(scanner.gappers);
   const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
