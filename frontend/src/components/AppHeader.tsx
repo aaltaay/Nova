@@ -1,10 +1,11 @@
 /**
- * AppHeader — brand, market mode, connection/feed/scan-age meta, lookup.
- * Settings lives on GlobalAppBar (AppShell overlay).
+ * Scanner status chrome — market mode, connection pills, history, symbol lookup.
+ * Live Scanner portals this above GlobalAppBar (no homepage brand block).
  */
-import type { ChangeEvent } from 'react';
+import { useLayoutEffect, useState, type ChangeEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
-import { NovaLogo } from './NovaLogo';
+import { SCANNER_STATUS_SLOT_ID } from './scannerStatusSlot';
 import { SymbolSearchBox } from './SymbolSearchBox';
 import { ThemeToggle } from './ThemeToggle';
 import {
@@ -64,6 +65,29 @@ interface Props {
   /** Isolated sample-data route toggle (?view=sample) — never mixes with live. */
   sampleDataActive?: boolean;
   onSampleDataToggle?: (active: boolean) => void;
+  /**
+   * When true, render into `#nova-scanner-status-slot` above GlobalAppBar.
+   * Sample shell keeps inline (no slot).
+   */
+  portalToTop?: boolean;
+}
+
+function useStatusSlot(enabled: boolean): HTMLElement | null {
+  const [slot, setSlot] = useState<HTMLElement | null>(() =>
+    enabled && typeof document !== 'undefined'
+      ? document.getElementById(SCANNER_STATUS_SLOT_ID)
+      : null,
+  );
+
+  useLayoutEffect(() => {
+    if (!enabled) {
+      setSlot(null);
+      return;
+    }
+    setSlot(document.getElementById(SCANNER_STATUS_SLOT_ID));
+  }, [enabled]);
+
+  return slot;
 }
 
 export function AppHeader({
@@ -88,19 +112,23 @@ export function AppHeader({
   onAccountClick,
   sampleDataActive = false,
   onSampleDataToggle,
+  portalToTop = false,
 }: Props) {
-  return (
-    <header className={compact ? 'app-header app-header--compact' : 'app-header'}>
-      <div className="header-brand">
-        <div className="brand">
-          <NovaLogo />
-          <div className="brand-text">
-            <span className="brand-wordmark">NOVA</span>
-            <span className="brand-tagline">
-              {sampleDataActive ? 'Sample Scanner' : 'Stock Scanner'}
-            </span>
-          </div>
-        </div>
+  const slot = useStatusSlot(portalToTop);
+
+  const body: ReactNode = (
+    <header
+      className={[
+        'app-header',
+        'app-header--status-chrome',
+        compact ? 'app-header--compact' : '',
+        portalToTop ? 'app-header--top-chrome' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      data-testid="scanner-status-chrome"
+    >
+      <div className="header-leading">
         <span className={`mode-badge mode-${mode}`}>
           {sampleDataActive ? 'Sample data' : MODE_LABELS[mode]}
         </span>
@@ -150,8 +178,10 @@ export function AppHeader({
           >
             <option value="">{sampleDataActive ? 'Sample (fixtures)' : 'Today (Live)'}</option>
             {!sampleDataActive &&
-              historyDates.map(d => (
-                <option key={d} value={d}>{fmtHistoryDate(d)}</option>
+              historyDates.map((d) => (
+                <option key={d} value={d}>
+                  {fmtHistoryDate(d)}
+                </option>
               ))}
           </select>
           {onAccountClick && (
@@ -171,6 +201,11 @@ export function AppHeader({
       )}
     </header>
   );
+
+  if (portalToTop && slot) {
+    return createPortal(body, slot);
+  }
+  return body;
 }
 
 /** Re-export for history banner formatting in App. */

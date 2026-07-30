@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Scanner status chrome above GlobalAppBar
+
+- **What:** Moved market/status/lookup chrome above the GlobalAppBar; removed the NOVA STOCK SCANNER homepage brand header.
+- **Why:** User wanted that status strip as the top chrome and no duplicate homepage header.
+- **Files touched:** `AppHeader.tsx`, `App.tsx`, `scannerStatusSlot.ts`, `tokens-shell.css`, `DashboardPage.tsx`.
+- **How it works now:** Live Scanner portals `AppHeader` into `#nova-scanner-status-slot` above GlobalAppBar. Brand/logo block is gone; mode badge + ThemeToggle lead the strip. Sample shell keeps inline header (no portal).
+- **Verified by:** `tsc --noEmit`; Vitest GlobalAppBar still green.
+
 ## 2026-07-29 -- Account control next to Settings on GlobalAppBar
 
 - **What:** Moved Account from the scanner AppHeader (beside Today/SYMBOL) to the GlobalAppBar, immediately left of Settings.

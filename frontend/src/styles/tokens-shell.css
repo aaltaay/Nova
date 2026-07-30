@@ -204,6 +204,17 @@ body {
   container-name: main-col;
 }
 
+/* Empty mount above GlobalAppBar — AppHeader portals into this. */
+.scanner-status-slot:empty {
+  display: none;
+}
+
+.scanner-status-slot:not(:empty) {
+  display: block;
+  flex-shrink: 0;
+  z-index: 41;
+}
+
 .app-header {
   display: flex;
   justify-content: space-between;
@@ -221,6 +232,26 @@ body {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
+/* Live Scanner: full-width strip above GlobalAppBar (no homepage brand). */
+.app-header--top-chrome {
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0;
+  border: 0;
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+  background: var(--nova-panel, var(--panel-bg));
+  box-shadow: none;
+  min-height: 36px;
+  gap: 0.65rem;
+}
+
+.app-header--status-chrome .header-leading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
 [data-theme='light'] .app-header {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
@@ -235,7 +266,8 @@ body {
 }
 
 .header-left,
-.header-brand {
+.header-brand,
+.header-leading {
   display: flex;
   align-items: center;
   gap: 0.85rem;
@@ -354,7 +386,8 @@ body {
     row-gap: 0.45rem;
   }
 
-  .header-brand {
+  .header-brand,
+  .header-leading {
     flex: 1 1 auto;
   }
 

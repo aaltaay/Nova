@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-29 | [Scanner status chrome above GlobalAppBar](2026-07-29-status-chrome-above-global-bar.md) | Scanner status chrome above GlobalAppBar |
 | 2026-07-29 | [Account control next to Settings on GlobalAppBar](2026-07-29-account-next-to-settings.md) | Account control next to Settings on GlobalAppBar |
 | 2026-07-29 | [Remove Dashboard tab; Gappers homepage](2026-07-29-remove-dashboard-tab.md) | Remove Dashboard tab; Gappers homepage |
 | 2026-07-29 | [Webull-style Settings shell + Trade defaults](2026-07-29-webull-style-settings-shell.md) | Left-rail Settings overlay; Trade > Stocks prefs; FORCE_QTY cleared |

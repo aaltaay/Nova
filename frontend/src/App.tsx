@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { GlobalAppBar } from './components/GlobalAppBar';
+import { SCANNER_STATUS_SLOT_ID } from './components/scannerStatusSlot';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
@@ -47,6 +48,8 @@ function AppShell() {
   return (
     <IbkrAccountProvider>
       <SettingsProvider>
+        {/* Scanner AppHeader portals status chrome here (above GlobalAppBar). */}
+        <div id={SCANNER_STATUS_SLOT_ID} className="scanner-status-slot" />
         <GlobalAppBar />
         <NovaOsAttentionStrip global />
         {traderActive ? (

@@ -1,6 +1,6 @@
 /**
  * TabNav — data-driven from the module registry (Phase 4).
- * Tab row is scanner tabs only; scan age / data source live in AppHeader.
+ * Tab row is scanner tabs only; scan age / data source live in status chrome.
  */
 import {
   listTabModules,

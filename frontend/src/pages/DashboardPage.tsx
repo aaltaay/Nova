@@ -178,6 +178,7 @@ export function DashboardPage() {
     <div className="nova-shell">
       <div className="main-col">
         <AppHeader
+          portalToTop
           mode={scanner.mode}
           health={scanner.health}
           activeFeed={settings.activeFeed}
