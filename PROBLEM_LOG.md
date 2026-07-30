@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Chart historical stampede (no cache)
+
+- **Symptom:** Opening a ticker or switching Trader tabs made charts load slowly; Full Day / other panes often showed "Chart bars timed out -- IBKR historical may be busy."
+- **Cause:** Each `TickerChart` independently called `/api/ticker/{sym}/bars`. Stock View mounts 4 panes (plus Quote Panel). All hit `reqHistoricalDataAsync` through a single `historical_gate` lock with no TTL cache and no in-flight coalescing, so identical requests serialized and piled up with 30s background refetches.
+- **Fix:** Phase 1 -- `ibkr/bars_cache.py` TTL cache (20s intraday / 15min daily) + async single-flight; `GET .../bars/batch`; warm grid timeframes on ticker WS connect. Expired cache never served; 503 stays loud (no stale last-good).
+- **Keywords:** chart bars, IBKR historical, timeout, historical_gate, bars_cache, single-flight, ChartGrid, stampede
+
 ## 2026-07-29 -- Stock Quote looked outside Level 2
 
 - **Symptom:** In Trader View, "STOCK QUOTE" sat in its own bar above Level 2 / Time & Sales, so the hierarchy read as Quote outside the depth widgets instead of one Stock Quote containing both.

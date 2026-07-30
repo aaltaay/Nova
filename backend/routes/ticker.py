@@ -1,10 +1,11 @@
 """
-Ticker detail routes — thin FastAPI router delegating to backend/ticker.py.
+Ticker detail routes -- thin FastAPI router delegating to backend/ticker.py.
 
 Endpoints:
-  GET  /api/ticker/{symbol}        -- full ticker detail (asset + snapshot + news + funds)
-  GET  /api/ticker/{symbol}/bars   -- OHLCV chart bars (IBKR or Alpaca per discovery)
-  WS   /ws/ticker/{symbol}         -- two-phase streaming detail + live trade updates
+  GET  /api/ticker/{symbol}              -- full ticker detail (asset + snapshot + news + funds)
+  GET  /api/ticker/{symbol}/bars         -- OHLCV chart bars (IBKR or Alpaca per discovery)
+  GET  /api/ticker/{symbol}/bars/batch   -- multi-timeframe bars (cache + single-flight)
+  WS   /ws/ticker/{symbol}               -- two-phase streaming detail + live trade updates
 """
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
 from constants import CHART_DEFAULT_BARS, CHART_DEFAULT_TIMEFRAME
@@ -47,13 +48,35 @@ def get_ticker_bars(
     )
 
 
+@router.get("/api/ticker/{symbol}/bars/batch")
+def get_ticker_bars_batch(
+    symbol: str,
+    timeframes: str | None = Query(
+        default=None,
+        description="Comma-separated timeframes (default: Stock View warm set)",
+    ),
+    limit: int = CHART_DEFAULT_BARS,
+):
+    """Fetch several timeframes in one response (server cache + single-flight)."""
+    from chart_bars import fetch_chart_bars_batch, parse_batch_timeframes
+
+    tfs = parse_batch_timeframes(timeframes)
+    return fetch_chart_bars_batch(
+        symbol.upper(),
+        tfs,
+        limit,
+        discovery_provider=_get_discovery_provider(),
+        interactive=True,
+    )
+
+
 @router.websocket("/ws/ticker/{symbol}")
 async def ws_ticker_detail(websocket: WebSocket, symbol: str):
     """WebSocket endpoint: sends full detail on connect, then streams real-time trade updates.
 
     Two-phase send for perceived speed:
-      1. 'initial' — fast data (asset + snapshot + cached avg volume) sent first (~300 ms).
-      2. 'detail_update' — slow data (news + fresh avg volume + fundamentals) sent when ready.
+      1. 'initial' -- fast data (asset + snapshot + cached avg volume) sent first (~300 ms).
+      2. 'detail_update' -- slow data (news + fresh avg volume + fundamentals) sent when ready.
     """
     import ticker as _ticker_mod
 
@@ -64,6 +87,9 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
     mark_resub()
     if _get_discovery_provider() == "ibkr":
         asyncio.create_task(_ibkr_ticks.subscribe(symbol))
+        # Prefetch grid timeframes so REST /bars hits the TTL cache.
+        from ibkr import bars as _ibkr_bars
+        asyncio.create_task(_ibkr_bars.warm_symbol_bars(symbol))
 
     loop = asyncio.get_event_loop()
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Chart bars Phase 1: IBKR TTL cache + batch + warm
+
+- **What:** IBKR historical bars now go through a freshness-bounded TTL cache with single-flight coalescing. New `GET /api/ticker/{symbol}/bars/batch` returns multiple timeframes; opening a ticker WS warms the Stock View grid set (`1Min/5Min/15Min/1Day`).
+- **Why:** Trader 2x2 grid fired 4 independent IBKR historicals into one serial Gateway lock with no cache, so charts felt overwhelmed and often timed out.
+- **Files touched:** `ibkr/bars_cache.py`, `ibkr/bars.py`, `chart_bars.py`, `routes/ticker.py`, `constants_scanner.py`, `tests/test_ibkr_bars_cache.py`.
+- **How it works now:** Cache key `(symbol, timeframe)`, intraday TTL 20s / daily 15min. Expired entries are never served; cache-miss failures stay loud 503 (no stale last-good). Concurrent identical fetches share one in-flight result. Warm prefetch runs after ticker WS connect under ibkr.
+- **Verified by:** `pytest tests/test_ibkr_bars_cache.py tests/test_ibkr_bars.py` (18 passed).
+- **Follow-ups:** Phase 2/3 frontend bars store, incremental updates, stable chart instances, hidden-tab pause (see chart pipeline plan).
+- **Related:** PROBLEM_LOG 2026-07-29 -- Chart historical stampede (no cache).
+
 ## 2026-07-29 -- Stock Quote is one widget (stats + L2 + T&S)
 
 - **What:** Trader right rail no longer shows a floating "Stock Quote" card above Level 2. One Stock Quote module card owns quote stats, Level 2, and Time & Sales; TRADE stays below the splitter with a taller floor (split key v3, default depth 45%).

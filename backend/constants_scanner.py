@@ -206,4 +206,12 @@ IBKR_HISTORICAL_TIMEOUT_SEC = 20.0       # interactive chart budget (fail loud, 
 IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC = 12.0  # setups_stream / non-UI fetches
 IBKR_HISTORICAL_WHAT_TO_SHOW = "TRADES"
 
+# IBKR bars TTL cache (Phase 1 chart pipeline). Never serves expired entries;
+# cache-miss + IBKR failure stays a loud 503 (no stale last-good).
+IBKR_BARS_CACHE_TTL_INTRADAY_SEC = 20.0
+IBKR_BARS_CACHE_TTL_DAILY_SEC = 900.0  # 15 min for 1Day / 1Week / 1Month
+IBKR_BARS_CACHE_MAX_KEYS = 256
+# Timeframes warmed when a ticker WS opens (matches Stock View grid + panel).
+IBKR_BARS_WARM_TIMEFRAMES: tuple[str, ...] = ("1Min", "5Min", "15Min", "1Day")
+
 

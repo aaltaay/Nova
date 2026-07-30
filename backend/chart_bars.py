@@ -1,6 +1,6 @@
 """Provider-aware chart bars facade.
 
-When discovery is IBKR, chart bars come from IBKR only — never silently from
+When discovery is IBKR, chart bars come from IBKR only -- never silently from
 Alpaca. Alpaca is used only when discovery_provider is explicitly alpaca.
 """
 from __future__ import annotations
@@ -13,6 +13,8 @@ from bars import fetch_bars as fetch_alpaca_bars
 from constants import (
     CHART_DEFAULT_BARS,
     CHART_DEFAULT_TIMEFRAME,
+    CHART_TIMEFRAMES,
+    IBKR_BARS_WARM_TIMEFRAMES,
     IBKR_HISTORICAL_TIMEOUT_SEC,
 )
 from ibkr import client as _ibkr_client
@@ -32,7 +34,7 @@ def fetch_chart_bars(
     """Return ``{symbol, timeframe, bars, source}`` from the active discovery feed.
 
     Single-feed rule: when ``discovery_provider == \"ibkr\"``, IBKR must succeed
-    (Gateway connected + historical data). There is no silent Alpaca fallback —
+    (Gateway connected + historical data). There is no silent Alpaca fallback --
     callers get HTTP 503 so the UI cannot mix IBKR quotes with Alpaca candles.
 
     ``interactive=True`` for the open ticker chart (priority over setups_stream).
@@ -44,7 +46,7 @@ def fetch_chart_bars(
                 status_code=503,
                 detail=(
                     "Chart bars require IB Gateway (discovery=ibkr). "
-                    "Connect Gateway — Nova will not fall back to Alpaca."
+                    "Connect Gateway -- Nova will not fall back to Alpaca."
                 ),
             )
         # Allow a little headroom beyond the IB request timeout for qualify + lock wait.
@@ -62,7 +64,7 @@ def fetch_chart_bars(
         except Exception as exc:
             detail = bars_failure_detail(symbol, exc)
             if is_transient_historical_failure(exc):
-                # Expected under Gateway load / overnight cancels — warning, not Sentry ERROR spam.
+                # Expected under Gateway load / overnight cancels -- warning, not Sentry ERROR spam.
                 logger.warning("IBKR bars transient failure for %s: %s", symbol, describe_exc(exc))
             else:
                 logger.error("IBKR bars failed for %s: %s", symbol, describe_exc(exc), exc_info=True)
@@ -78,3 +80,56 @@ def fetch_chart_bars(
     payload = fetch_alpaca_bars(symbol, timeframe, limit)
     payload.setdefault("source", "alpaca")
     return payload
+
+
+def parse_batch_timeframes(raw: str | None) -> list[str]:
+    """Split ``1Min,5Min,1Day`` into validated timeframe ids (order preserved)."""
+    if not raw or not str(raw).strip():
+        return list(IBKR_BARS_WARM_TIMEFRAMES)
+    seen: set[str] = set()
+    out: list[str] = []
+    for part in str(raw).split(","):
+        tf = part.strip()
+        if not tf or tf in seen:
+            continue
+        if tf not in CHART_TIMEFRAMES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid timeframe '{tf}'. Valid values: {list(CHART_TIMEFRAMES)}",
+            )
+        seen.add(tf)
+        out.append(tf)
+    if not out:
+        raise HTTPException(status_code=400, detail="No valid timeframes in batch request")
+    return out
+
+
+def fetch_chart_bars_batch(
+    symbol: str,
+    timeframes: list[str],
+    limit: int = CHART_DEFAULT_BARS,
+    *,
+    discovery_provider: str,
+    interactive: bool = True,
+) -> dict:
+    """Fetch multiple timeframes; per-tf errors stay in ``errors`` (no stale fill)."""
+    symbol = symbol.upper()
+    results: dict[str, dict] = {}
+    errors: dict[str, dict] = {}
+    for tf in timeframes:
+        try:
+            results[tf] = fetch_chart_bars(
+                symbol,
+                tf,
+                limit,
+                discovery_provider=discovery_provider,
+                interactive=interactive,
+            )
+        except HTTPException as exc:
+            errors[tf] = {"status_code": exc.status_code, "detail": str(exc.detail)}
+    return {
+        "symbol": symbol,
+        "timeframes": list(timeframes),
+        "results": results,
+        "errors": errors,
+    }

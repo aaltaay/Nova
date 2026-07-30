@@ -90,9 +90,31 @@ async def fetch_bars_async(
 ) -> dict:
     """Fetch OHLCV bars via ``reqHistoricalDataAsync``. Same shape as Alpaca bars.
 
-    ``interactive=True`` for the open ticker chart — takes priority over
+    ``interactive=True`` for the open ticker chart -- takes priority over
     background setups_stream fetches (see ``historical_gate``).
+
+    Fresh TTL cache + single-flight live in ``bars_cache`` (never serves expired).
     """
+    from ibkr import bars_cache
+
+    limit = max(1, min(limit, CHART_MAX_BARS))
+    return await bars_cache.get_or_fetch(
+        symbol,
+        timeframe,
+        limit,
+        interactive=interactive,
+        fetch_fn=_fetch_bars_uncached,
+    )
+
+
+async def _fetch_bars_uncached(
+    symbol: str,
+    timeframe: str,
+    limit: int,
+    *,
+    interactive: bool = False,
+) -> dict:
+    """IB Gateway historical fetch (no cache). Called only on cache miss."""
     if timeframe not in CHART_TIMEFRAMES:
         raise HTTPException(
             status_code=400,
@@ -110,7 +132,6 @@ async def fetch_bars_async(
     if ib is None:
         raise HTTPException(status_code=503, detail="IBKR not connected")
 
-    limit = max(1, min(limit, CHART_MAX_BARS))
     timeout = IBKR_HISTORICAL_TIMEOUT_SEC if interactive else IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC
     contract = _Stock(symbol.upper(), "SMART", "USD")
 
@@ -162,3 +183,21 @@ async def fetch_bars_async(
 
     bars = _normalize_bars(raw or [], limit)
     return {"symbol": symbol.upper(), "timeframe": timeframe, "bars": bars, "source": "ibkr"}
+
+
+async def warm_symbol_bars(
+    symbol: str,
+    timeframes: tuple[str, ...] | list[str] | None = None,
+) -> None:
+    """Prefetch grid timeframes into the TTL cache (open-ticker WS warm path)."""
+    from constants import IBKR_BARS_WARM_TIMEFRAMES
+
+    symbol = symbol.upper()
+    tfs = tuple(timeframes) if timeframes else IBKR_BARS_WARM_TIMEFRAMES
+    for tf in tfs:
+        try:
+            await fetch_bars_async(
+                symbol, tf, CHART_DEFAULT_BARS, interactive=True,
+            )
+        except Exception as exc:
+            logger.debug("IBKR bars warm skipped for %s %s: %s", symbol, tf, exc)
