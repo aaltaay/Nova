@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Stock Quote is one widget (stats + L2 + T&S)
+
+- **What:** Trader right rail no longer shows a floating "Stock Quote" card above Level 2. One Stock Quote module card owns quote stats, Level 2, and Time & Sales; TRADE stays below the splitter with a taller floor (split key v3, default depth 45%).
+- **Why:** User screenshot: STOCK QUOTE title looked outside / detached from Level 2 and Time & Sales, which read as separate peer widgets.
+- **Files touched:** `StockViewDepthTape.tsx`, `StockViewQuoteStats.tsx`, `StockViewRail.tsx`, `StockViewQuoteCard.tsx`, `stockViewTerminal.css`, `constantGroups/chart_api.ts`.
+- **How it works now:** Rail = unified Stock Quote card | drag | TRADE. L2 and T&S are inner panes (section headers) inside that card, not sibling module cards. Quote stats strip sits at the top of the same card body.
+- **Verified by:** `npx vitest run src/stock_view/stockViewTerminal.test.tsx` (12 passed).
+- **Related:** PROBLEM_LOG 2026-07-29 -- Stock Quote looked outside Level 2.
+
 ## 2026-07-29 -- Trader TRADE pane no longer clipped
 
 - **What:** Trade ticket in the Trader rail keeps a 320px floor, depth shrinks first, and the ticket body scrolls so Trading Hours / submit stay reachable. Default depth/trade split reset to 52/48 (storage key v2).

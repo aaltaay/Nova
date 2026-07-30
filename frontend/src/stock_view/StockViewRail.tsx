@@ -1,8 +1,7 @@
 /**
- * Fixed right rail: quote → (L2+T&S combined | drag | Trade ticket).
- * Horizontal splitter reallocates height between depth and Order Entry.
+ * Fixed right rail: Stock Quote (stats + L2 + T&S) | drag | Trade ticket.
+ * Horizontal splitter reallocates height between quote/depth and Order Entry.
  * TRADE keeps a min-height floor (depth shrinks first) so Trading Hours stays reachable.
- * Session Orders (Today) live under charts in the left column, not in this rail.
  */
 import { useRef, type CSSProperties } from 'react';
 import { ResizeHandle } from '../components/ResizeHandle';
@@ -23,7 +22,6 @@ import {
 } from '../constants';
 import { StockViewDepthTape } from './StockViewDepthTape';
 import { StockViewModuleCard } from './StockViewModuleCard';
-import { StockViewQuoteCard } from './StockViewQuoteCard';
 
 interface Props {
   symbol: string;
@@ -65,8 +63,6 @@ export function StockViewRail({
       aria-label={STOCK_VIEW_TITLE}
       data-testid="stock-view-rail"
     >
-      <StockViewQuoteCard detail={detail} hidePrice />
-
       <div
         ref={tradeStackRef}
         className="sv-rail__trade-stack"
@@ -82,7 +78,7 @@ export function StockViewRail({
         <div className="sv-rail__depth" data-testid="stock-view-depth-slot">
           <StockViewDepthTape
             selectedSymbol={symbol}
-            detailSymbol={detail.symbol}
+            detail={detail}
             listingIbkr={detail.listing?.ibkr ?? null}
           />
         </div>
@@ -91,7 +87,7 @@ export function StockViewRail({
           orientation="horizontal"
           onPointerDown={onDragStart}
           onDoubleClick={reset}
-          label="Resize Level 2 area and Order Entry"
+          label="Resize Stock Quote and Order Entry"
         />
 
         <StockViewModuleCard

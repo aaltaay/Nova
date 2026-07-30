@@ -359,17 +359,17 @@ export const STOCK_VIEW_SIDE_WIDTH_KEY = 'nova.stockView.sideWidthPx';
  * Drag the horizontal handle between the combined depth module and Open ticket;
  * double-click resets. L2 and T&S stay side-by-side — no splitter between them.
  */
-/** v2 — trade ticket must keep a usable floor; old 72% depth crushed TRADE. */
-export const STOCK_VIEW_DEPTH_ORDER_SPLIT_KEY = 'nova.stockView.depthOrderSplitPct.v2';
-/** Default depth (L2+T&S) share of the trade stack below the quote card (%). */
-export const STOCK_VIEW_DEPTH_ORDER_SPLIT_PCT = 52;
-/** Clamp so depth stays useful but the order ticket is never clipped away. */
-export const STOCK_VIEW_DEPTH_ORDER_SPLIT_MIN_PCT = 35;
-export const STOCK_VIEW_DEPTH_ORDER_SPLIT_MAX_PCT = 68;
-/** Minimum pane height (px) hints for depth / order panes in the trade stack. */
-export const STOCK_VIEW_DEPTH_PANE_MIN_PX = 100;
+/** v3 — unified Stock Quote card + TRADE floor (v2 still crushed ticket on short rails). */
+export const STOCK_VIEW_DEPTH_ORDER_SPLIT_KEY = 'nova.stockView.depthOrderSplitPct.v3';
+/** Default Stock Quote (stats+L2+T&S) share of the rail stack (%). */
+export const STOCK_VIEW_DEPTH_ORDER_SPLIT_PCT = 45;
+/** Clamp so quote/depth stays useful but TRADE is never a header-only sliver. */
+export const STOCK_VIEW_DEPTH_ORDER_SPLIT_MIN_PCT = 30;
+export const STOCK_VIEW_DEPTH_ORDER_SPLIT_MAX_PCT = 58;
+/** Minimum pane height (px) hints for quote/depth / order panes in the trade stack. */
+export const STOCK_VIEW_DEPTH_PANE_MIN_PX = 140;
 /** Tall enough for direction/side/qty/hours without clipping Trading Hours. */
-export const STOCK_VIEW_ORDER_PANE_MIN_PX = 320;
+export const STOCK_VIEW_ORDER_PANE_MIN_PX = 360;
 /**
  * Chart grid: top row (1m / 5m) vs bottom row (Full Day / 15m).
  * Drag the horizontal handle between rows; double-click resets.

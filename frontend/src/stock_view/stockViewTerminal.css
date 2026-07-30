@@ -706,9 +706,8 @@
 }
 
 /* ── Right rail ────────────────────────────────────────────────────────────
-   quote (auto) | trade-stack 1fr: (L2+T&S side-by-side | drag | Open ticket).
-   TRADE pane has a hard min-height; depth flex-shrinks first. Rail scrolls only
-   as a tiny-viewport fallback. */
+   One stack: Stock Quote (stats + L2 + T&S) | drag | TRADE.
+   TRADE pane has a hard min-height; quote/depth flex-shrinks first. */
 
 .stock-view-page .sv-rail,
 .stock-view-page .stock-view-quote.sv-rail {
@@ -718,20 +717,20 @@
   overflow-x: hidden;
   overflow-y: auto;
   padding: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: var(--sv-rail-gap);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
   align-content: stretch;
 }
 
 .stock-view-page .sv-rail__trade-stack {
-  grid-row: 2;
+  flex: 1 1 0;
   min-height: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
   gap: 0;
-  /* Clip the stack; TRADE scrolls inside .sv-open-card so hours/submit stay reachable. */
+  /* Prefer clipping; TRADE body scrolls. Tiny viewports can scroll the rail. */
   overflow: hidden;
 }
 
@@ -798,9 +797,7 @@
 }
 
 .stock-view-page .sv-quote-card {
-  grid-row: 1;
   min-height: 0;
-  max-height: var(--sv-quote-max);
 }
 
 .stock-view-page .sv-quote-card__price {
@@ -861,12 +858,39 @@
 /* Depth slot — top of trade stack (resizable vs Open ticket).
    flex-shrink:1 so the TRADE pane's min-height wins instead of clipping. */
 .stock-view-page .sv-rail__depth {
-  flex: 1 1 var(--sv-depth-pct, 52%);
+  flex: 1 1 var(--sv-depth-pct, 45%);
   min-height: var(--sv-depth-pane-min, 100px);
   max-height: none;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* One Stock Quote card: stats strip + L2 | T&S inside the same border. */
+.stock-view-page .sv-quote-depth-card {
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.stock-view-page .sv-quote-depth-card > .sv-module-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stock-view-page .sv-quote-depth-card .sv-quote-stats {
+  flex: 0 0 auto;
+  margin: 0 0 2px;
+  padding: 0 2px 4px;
+  border-bottom: 1px solid var(--sv-border);
+}
+
+.stock-view-page .sv-quote-depth-card .sv-depth-and-tape {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .stock-view-page .sv-depth-card {
@@ -1008,19 +1032,14 @@
   overflow: hidden;
 }
 
-/* Depth card has no outer title — pane headers own the labels */
-.stock-view-page .sv-depth-card:not(.sv-depth-card--empty) > .sv-module-card__head {
-  display: none;
-}
-
 .stock-view-page .sv-rail .ticker-trade-side-depth {
   max-height: none;
 }
 
 /* Open / order ticket — never shrink below min; scroll body if ticket is taller. */
 .stock-view-page .sv-open-card {
-  flex: 1 0 var(--sv-order-pane-min, 320px);
-  min-height: var(--sv-order-pane-min, 320px);
+  flex: 1 0 var(--sv-order-pane-min, 360px);
+  min-height: var(--sv-order-pane-min, 360px);
   overflow: hidden;
 }
 

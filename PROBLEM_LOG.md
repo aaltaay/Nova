@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Stock Quote looked outside Level 2
+
+- **Symptom:** In Trader View, "STOCK QUOTE" sat in its own bar above Level 2 / Time & Sales, so the hierarchy read as Quote outside the depth widgets instead of one Stock Quote containing both.
+- **Cause:** `StockViewRail` mounted a separate `StockViewQuoteCard` above the trade stack, while L2/T&S lived in a second module card (`StockViewDepthTape`). Two borders + two titles looked like peer widgets.
+- **Fix:** Drop the standalone quote card from the rail. `StockViewDepthTape` is one Stock Quote card: stats strip + L2 | T&S inner panes. Split storage key `.v3` with lower default depth share so TRADE keeps space.
+- **Keywords:** Stock Quote, Level 2, Time & Sales, StockViewRail, StockViewDepthTape, widget hierarchy, sv-quote-depth-card
+
 ## 2026-07-29 -- Trader TRADE widget clipped (Trading Hours cut off)
 
 - **Symptom:** In Trader View the right-rail TRADE ticket was cut off at the bottom; Trading Hours (and sometimes submit) were unreachable. Blue arrows in user screenshot pointed at TRADE title and the clipped bottom edge.

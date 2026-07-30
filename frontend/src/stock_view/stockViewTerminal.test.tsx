@@ -14,7 +14,6 @@ import { StockViewPage } from '../pages/StockViewPage';
 import { TickerTradeActionBar } from '../ibkr/TickerTradeActionBar';
 import type { IbkrAccountSummary } from '../ibkr/types';
 import {
-  STOCK_VIEW_MODULE_DEPTH_TITLE,
   STOCK_VIEW_MODULE_L2_TITLE,
   STOCK_VIEW_MODULE_OPEN_TITLE,
   STOCK_VIEW_MODULE_QUOTE_TITLE,
@@ -208,24 +207,26 @@ describe('StockViewDepthTape', () => {
     container.remove();
   });
 
-  it('keeps L2 and T&S side-by-side in one module with no splitter between them', async () => {
+  it('wraps quote stats + L2 + T&S in one Stock Quote card', async () => {
     await act(async () => {
       root.render(
-        wrap(<StockViewDepthTape selectedSymbol="AAPL" detailSymbol="AAPL" />),
+        wrap(
+          <StockViewDepthTape selectedSymbol="AAPL" detail={makeDetail()} />,
+        ),
       );
     });
     const stack = container.querySelector('[data-testid="stock-view-depth-stack"]');
     expect(stack).toBeTruthy();
+    expect(stack!.querySelector('.sv-module-card__title')?.textContent).toMatch(
+      new RegExp(STOCK_VIEW_MODULE_QUOTE_TITLE, 'i'),
+    );
+    expect(container.querySelector('[data-testid="stock-view-quote-stats"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="stock-view-depth-side-by-side"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="stock-view-l2-col"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="stock-view-tape-col"]')).toBeTruthy();
-    expect(container.querySelector('.depth-and-tape')).toBeTruthy();
     expect(container.querySelector('.resize-handle--horizontal')).toBeNull();
-    // Outer combined title is gone — matched pane headers label each side.
-    expect(stack!.querySelector('.sv-module-card__title')).toBeNull();
     expect(container.textContent).toMatch(new RegExp(STOCK_VIEW_MODULE_L2_TITLE, 'i'));
     expect(container.textContent).toMatch(new RegExp(STOCK_VIEW_MODULE_TAPE_TITLE, 'i'));
-    expect(stack!.getAttribute('aria-label')).toMatch(new RegExp(STOCK_VIEW_MODULE_DEPTH_TITLE, 'i'));
   });
 });
 
@@ -256,7 +257,7 @@ describe('StockViewRail order', () => {
     vi.unstubAllGlobals();
   });
 
-  it('composes quote → L2|T&S combined → horizontal drag → open ticket', async () => {
+  it('composes Stock Quote (stats+L2|T&S) → drag → TRADE ticket', async () => {
     await act(async () => {
       root.render(
         wrap(
@@ -276,16 +277,16 @@ describe('StockViewRail order', () => {
     });
     const rail = container.querySelector('[data-testid="stock-view-rail"]');
     expect(rail).toBeTruthy();
-    expect(rail!.querySelector('[data-module="stock-view-quote"]')).toBeTruthy();
+    expect(rail!.querySelector('[data-testid="stock-view-quote-stats"]')).toBeTruthy();
     expect(rail!.querySelector('[data-testid="stock-view-trade-stack"]')).toBeTruthy();
     expect(rail!.querySelector('[data-testid="stock-view-depth-slot"]')).toBeTruthy();
     expect(rail!.querySelector('[data-testid="stock-view-depth-side-by-side"]')).toBeTruthy();
     expect(rail!.querySelector('[data-testid="stock-view-open-card"]')).toBeTruthy();
-    expect(rail!.querySelector('[data-testid="stock-view-working-orders"]')).toBeNull();
+    expect(rail!.querySelector('[data-testid="stock-view-quote-card"]')).toBeNull();
     expect(rail!.querySelector('.manual-order-ticket')).toBeTruthy();
     expect(rail!.textContent).toMatch(/Unlock Trading/i);
+    expect(rail!.textContent).toMatch(new RegExp(STOCK_VIEW_MODULE_QUOTE_TITLE, 'i'));
     expect(rail!.textContent).toMatch(new RegExp(STOCK_VIEW_MODULE_OPEN_TITLE, 'i'));
-    // Exactly one horizontal splitter — between depth and order, not between L2 and T&S
     const handles = rail!.querySelectorAll('.resize-handle--horizontal');
     expect(handles.length).toBe(1);
     const tradeHtml = rail!.querySelector('[data-testid="stock-view-trade-stack"]')!.innerHTML;
@@ -295,8 +296,8 @@ describe('StockViewRail order', () => {
     expect(tradeHtml.indexOf('resize-handle--horizontal')).toBeLessThan(
       tradeHtml.indexOf('stock-view-open-card'),
     );
-    // Three major modules: quote, combined depth, open (orders dock is page-level)
-    expect(rail!.querySelectorAll('.sv-module-card').length).toBe(3);
+    // Two major modules: unified Stock Quote + TRADE
+    expect(rail!.querySelectorAll('.sv-module-card').length).toBe(2);
   });
 });
 
