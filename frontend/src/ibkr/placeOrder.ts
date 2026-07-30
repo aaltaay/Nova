@@ -85,3 +85,35 @@ export async function cancelAllOrdersForSymbol(
     throw error;
   }
 }
+
+/** Cancel every working order on the connected account (ADR 007 per-order cancels). */
+export async function cancelAllWorkingOrders(
+  timing: BrowserExecutionTiming = beginBrowserExecutionTiming('cancel_all'),
+): Promise<CancelAllResult> {
+  try {
+    const response = await novaFetch(
+      `${API_BASE_URL}/api/ibkr/orders?all_symbols=true`,
+      {
+        method: 'DELETE',
+        headers: clientTimingHeaders(timing),
+      },
+    );
+    return await parseTimedExecutionResponse<CancelAllResult>(response, timing);
+  } catch (error) {
+    timing.complete(false);
+    throw error;
+  }
+}
+
+/** Count open working orders (for Cancel All confirm copy). */
+export async function countOpenWorkingOrders(): Promise<number | null> {
+  try {
+    const response = await novaFetch(`${API_BASE_URL}/api/ibkr/orders`);
+    if (!response.ok) return null;
+    const data = (await response.json()) as unknown;
+    if (Array.isArray(data)) return data.length;
+    return null;
+  } catch {
+    return null;
+  }
+}

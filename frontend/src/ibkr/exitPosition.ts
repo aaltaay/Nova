@@ -39,10 +39,49 @@ export function buildExitPositionPercent(
   if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
     return { ok: false, error: 'Exit percent must be between 0 and 100' };
   }
-  const qty = Math.floor((Math.abs(positionQty) * percent) / 100);
+  const absQty = Math.abs(positionQty);
+  if (!isWholeShareQty(absQty)) {
+    return { ok: false, error: FRACTIONAL_ORDER_API_MSG };
+  }
+  const qty = Math.floor((absQty * percent) / 100);
   if (qty <= 0) {
     return { ok: false, error: 'Exit size rounds to zero shares' };
   }
   const side: 'BUY' | 'SELL' = positionQty > 0 ? 'SELL' : 'BUY';
   return { ok: true, side, qty };
+}
+
+/**
+ * Long-only percent exit (Webull-style Sell %). Never covers shorts; never opens shorts.
+ * Always returns side=SELL when ok.
+ */
+export function buildLongExitPercent(
+  positionQty: number | null | undefined,
+  percent: number,
+): ExitPositionResult {
+  if (positionQty == null || positionQty <= 0) {
+    return { ok: false, error: 'No long position to sell' };
+  }
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+    return { ok: false, error: 'Exit percent must be between 0 and 100' };
+  }
+  if (!isWholeShareQty(positionQty)) {
+    return { ok: false, error: FRACTIONAL_ORDER_API_MSG };
+  }
+  const qty = Math.floor((positionQty * percent) / 100);
+  if (qty <= 0) {
+    return { ok: false, error: 'Exit size rounds to zero shares' };
+  }
+  return { ok: true, side: 'SELL', qty };
+}
+
+/** Whole-share check for fixed buy sizes (buy_market). */
+export function buildBuyMarketShares(shares: number): ExitPositionResult {
+  if (!Number.isFinite(shares) || shares <= 0) {
+    return { ok: false, error: 'Buy size must be a positive share count' };
+  }
+  if (!isWholeShareQty(shares)) {
+    return { ok: false, error: FRACTIONAL_ORDER_API_MSG };
+  }
+  return { ok: true, side: 'BUY', qty: Math.round(shares) };
 }

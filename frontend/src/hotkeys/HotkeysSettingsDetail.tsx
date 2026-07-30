@@ -70,13 +70,15 @@ export function HotkeysSettingsDetail({
         </select>
       </label>
 
-      {(action.kind === 'buy_limit_ask_offset' || action.kind === 'sell_limit_bid_offset') && (
+      {(action.kind === 'buy_market'
+        || action.kind === 'buy_limit_ask_offset'
+        || action.kind === 'sell_limit_bid_offset') && (
         <div className="hk-qty-row">
           <label className="hk-field hk-field-grow">
             <span>Quantity</span>
             <input
               type="number"
-              value={action.params.shares ?? 100}
+              value={action.params.shares ?? (action.kind === 'buy_market' ? 1 : 100)}
               onChange={(e) => onChange({
                 ...action,
                 params: { ...action.params, shares: Number(e.target.value) },
@@ -84,33 +86,53 @@ export function HotkeysSettingsDetail({
             />
           </label>
           <span className="hk-qty-unit is-active" title="Shares">≡</span>
-          <label className="hk-field hk-field-grow">
-            <span>Offset ($)</span>
-            <input
-              type="number"
-              step="0.01"
-              value={action.params.offsetDollars ?? 0.05}
-              onChange={(e) => onChange({
-                ...action,
-                params: { ...action.params, offsetDollars: Number(e.target.value) },
-              })}
-            />
-          </label>
+          {action.kind !== 'buy_market' && (
+            <label className="hk-field hk-field-grow">
+              <span>Offset ($)</span>
+              <input
+                type="number"
+                step="0.01"
+                value={action.params.offsetDollars ?? 0.05}
+                onChange={(e) => onChange({
+                  ...action,
+                  params: { ...action.params, offsetDollars: Number(e.target.value) },
+                })}
+              />
+            </label>
+          )}
         </div>
       )}
 
-      {action.kind === 'exit_pos_pct' && (
-        <label className="hk-field">
-          <span>Quantity (%)</span>
-          <input
-            type="number"
-            value={action.params.percent ?? 50}
-            onChange={(e) => onChange({
-              ...action,
-              params: { ...action.params, percent: Number(e.target.value) },
-            })}
-          />
-        </label>
+      {(action.kind === 'exit_pos_pct'
+        || action.kind === 'sell_pos_pct_ask'
+        || action.kind === 'sell_pos_pct_bid_offset') && (
+        <div className="hk-qty-row">
+          <label className="hk-field hk-field-grow">
+            <span>Quantity (%)</span>
+            <input
+              type="number"
+              value={action.params.percent ?? 50}
+              onChange={(e) => onChange({
+                ...action,
+                params: { ...action.params, percent: Number(e.target.value) },
+              })}
+            />
+          </label>
+          {(action.kind === 'sell_pos_pct_ask' || action.kind === 'sell_pos_pct_bid_offset') && (
+            <label className="hk-field hk-field-grow">
+              <span>Offset ($)</span>
+              <input
+                type="number"
+                step="0.01"
+                value={action.params.offsetDollars ?? 0}
+                onChange={(e) => onChange({
+                  ...action,
+                  params: { ...action.params, offsetDollars: Number(e.target.value) },
+                })}
+              />
+            </label>
+          )}
+        </div>
       )}
 
       <label className="hk-check-row">

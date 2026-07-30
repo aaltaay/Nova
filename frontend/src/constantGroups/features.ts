@@ -179,10 +179,14 @@ export const HOTKEY_HTK_NAME_MAX_CHARS = 99;
 export const NOVA_ACTION_KINDS = [
   'cancel_symbol',
   'cancel_and_exit',
+  'cancel_all_orders',
   'exit_pos',
   'exit_pos_pct',
+  'buy_market',
   'buy_limit_ask_offset',
   'sell_limit_bid_offset',
+  'sell_pos_pct_ask',
+  'sell_pos_pct_bid_offset',
 ] as const;
 
 export type NovaActionKind = (typeof NOVA_ACTION_KINDS)[number];
@@ -190,21 +194,31 @@ export type NovaActionKind = (typeof NOVA_ACTION_KINDS)[number];
 export const NOVA_ACTION_KIND_LABELS: Record<NovaActionKind, string> = {
   cancel_symbol: 'Cancel open orders (symbol)',
   cancel_and_exit: 'Cancel orders + flatten position',
+  cancel_all_orders: 'Cancel all working orders (account)',
   exit_pos: 'Exit full position (Flatten)',
-  exit_pos_pct: 'Exit position %',
+  exit_pos_pct: 'Exit position % (market)',
+  buy_market: 'Buy market (fixed shares)',
   buy_limit_ask_offset: 'Buy limit at Ask ± offset',
   sell_limit_bid_offset: 'Sell limit at Bid ± offset',
+  sell_pos_pct_ask: 'Sell long % at Ask (limit)',
+  sell_pos_pct_bid_offset: 'Sell long % at Bid − offset (limit)',
 };
 
 /** Default Ask/Bid offset in dollars for limit entries. */
 export const NOVA_ACTION_DEFAULT_OFFSET_DOLLARS = 0.05;
+/** Webull-style Bid− exit offset ($0.03). */
+export const NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS = 0.03;
 /** Default fixed share size for Ask/Bid limit entries. */
 export const NOVA_ACTION_DEFAULT_SHARES = 100;
+/** Default shares for buy_market (quick paper/live smoke). */
+export const NOVA_ACTION_DEFAULT_BUY_MARKET_SHARES = 1;
 export const NOVA_ACTION_DEFAULT_EXIT_PCTS = [50, 25] as const;
 
 export const NOVA_ACTION_NEEDS_DEPTH: NovaActionKind[] = [
   'buy_limit_ask_offset',
   'sell_limit_bid_offset',
+  'sell_pos_pct_ask',
+  'sell_pos_pct_bid_offset',
 ];
 
 export const NOVA_ACTION_DEPTH_DISABLED_REASON =

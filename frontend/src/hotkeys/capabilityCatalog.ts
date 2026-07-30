@@ -64,9 +64,10 @@ export const HOTKEY_CAPABILITY_CATALOG: HotkeyCapabilityEntry[] = [
     id: 'order_mkt_lmt',
     category: 'order_type',
     label: 'Market and limit orders',
-    description: 'ROUTE=MARKET / LIMIT (or broker smart routes).',
+    description:
+      'ROUTE=MARKET / LIMIT. Nova: buy_market (fixed shares MKT); Ask/Bid ± and long-% Ask/Bid exits as LMT.',
     evidence: 'das_verified',
-    status: 'translatable_later',
+    status: 'nova_active',
   },
   {
     id: 'order_stops',
@@ -91,7 +92,7 @@ export const HOTKEY_CAPABILITY_CATALOG: HotkeyCapabilityEntry[] = [
     category: 'cancel',
     label: 'Cancel scopes',
     description:
-      'Cancel all / same-symbol / buy-sell. G3: cancel_symbol (open symbol); cancel_and_exit cancels then flattens. Per-order Fill now is panel UI (not a hotkey).',
+      'Cancel all / same-symbol / buy-sell. G3: cancel_symbol (open symbol); cancel_all_orders (account-wide, confirms); cancel_and_exit cancels then flattens.',
     example: 'CXL ALLSYMB',
     evidence: 'community_version_sensitive',
     status: 'nova_active',

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Webull-style Nova Actions (Buy 1 / Cancel All / long-% exits)
+
+- **What:** Added typed hotkeys: Buy 1 @MKT (Ctrl+1), Cancel All stocks (Ctrl+Z), Sell 100/50/25% @ASK (Ctrl+4/5/6), Sell 50/25% @BID-$0.03 (Ctrl+2/3). Same System 2 path for paper and live.
+- **Why:** User wanted Webull-like quick test buys (1 share) and fast long-reducing sells without silent ops or accidental shorts.
+- **Files touched:** `features.ts`, `runNovaAction*.ts`, `exitPosition.ts`, `novaActionDefaults.ts`, `hotkeyStorage.ts`, `trading_execution.py`, Settings/QuickBar labels, tests.
+- **How it works now:** New kinds go through PIN/spend/confirm (dialog shows PAPER|LIVE). Long-% sells size with `buildLongExitPercent` (floor whole shares; refuse short/flat/zero). Cancel All uses `DELETE /api/ibkr/orders?all_symbols=true` via per-order ADR 007 cancels. Profile merge appends missing defaults by id so all three Ask % rows appear.
+- **Verified by:** `npx vitest run src/hotkeys …` (70 passed); `pytest tests/test_trading_cancel_all.py` (5 passed).
+- **Follow-ups:** Paper script on Gateway before relying on these on LIVE; do not skip confirm to mimic Webull.
+- **Related:** task-log 2026-07-30-webull-style-nova-actions.
+
 ## 2026-07-30 -- Shared GlobalAppBar status strip on Scanner and Trader
 
 - **What:** MARKET HOURS / API / GATEWAY / Sample / history / lookup stay on the header in Trader View, same as Scanner.

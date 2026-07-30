@@ -28,6 +28,7 @@ export function NovaActionRuntimeSync({
       symbol: symbol ? symbol.toUpperCase() : null,
       connected: Boolean(status.connected),
       spendStatus: status.spend_status,
+      accountMode: status.mode,
       accountError,
       position,
     });
@@ -38,6 +39,7 @@ export function NovaActionRuntimeSync({
     accountError,
     status.connected,
     status.spend_status,
+    status.mode,
   ]);
 
   return null;

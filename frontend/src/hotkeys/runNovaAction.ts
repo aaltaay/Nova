@@ -1,10 +1,13 @@
 /**
  * Execute a typed Nova Action via the manual order path (System 2).
+ * Paper and live share this path; spend/Gateway gates differ by environment.
  */
 
 import {
   NOVA_ACTION_ACCOUNT_ERROR_MESSAGE,
   NOVA_ACTION_DEPTH_DISABLED_REASON,
+  NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS,
+  NOVA_ACTION_DEFAULT_BUY_MARKET_SHARES,
   NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
   NOVA_ACTION_DEFAULT_SHARES,
   NOVA_ACTION_NO_SYMBOL_MESSAGE,
@@ -14,41 +17,39 @@ import {
 import {
   beginBrowserExecutionTiming,
   captureBrowserAction,
-  type BrowserActionStamp,
 } from '../execution_latency';
 import { shouldUseOutsideRth } from '../ibkr/extendedSession';
-import { buildExitFullPosition, buildExitPositionPercent } from '../ibkr/exitPosition';
+import {
+  buildBuyMarketShares,
+  buildExitFullPosition,
+  buildExitPositionPercent,
+} from '../ibkr/exitPosition';
 import {
   cancelAllOrdersForSymbol,
+  cancelAllWorkingOrders,
+  countOpenWorkingOrders,
   placeIbkrOrder,
 } from '../ibkr/placeOrder';
 import { readSkipPlaceConfirm } from '../ibkr/placeConfirmPrefs';
 import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
-import type { IbkrPosition } from '../ibkr/types';
 import { confirmApp } from '../ux';
 import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
+import {
+  accountModeLabel,
+  placeLongPctLimit,
+  placeMarketExit,
+  requireDepth,
+} from './runNovaActionPlace';
+import type { NovaActionRuntime } from './runNovaActionRuntime';
 
-export interface NovaActionRuntime {
-  symbol: string | null;
-  connected: boolean;
-  spendStatus?: string;
-  /** Set when useIbkrAccount last poll failed — block exit/flatten actions. */
-  accountError?: string | null;
-  position: IbkrPosition | null;
-  topOfBook: TopOfBook | null;
-  /** Called when place-confirm is required; return true to proceed. */
-  requestConfirm?: (summary: string) => Promise<boolean>;
-}
+export type { NovaActionRuntime } from './runNovaActionRuntime';
 
 function spendLocked(status?: string): boolean {
   return status === 'locked' || status === 'locked_live_unconfirmed';
 }
 
-function gateManual(runtime: NovaActionRuntime): NovaActionResult | null {
-  if (!runtime.symbol) {
-    return { ok: false, text: NOVA_ACTION_NO_SYMBOL_MESSAGE };
-  }
+function gateConnected(runtime: NovaActionRuntime): NovaActionResult | null {
   if (!runtime.connected) {
     return { ok: false, text: 'IBKR disconnected — connect Gateway first' };
   }
@@ -59,6 +60,13 @@ function gateManual(runtime: NovaActionRuntime): NovaActionResult | null {
     return { ok: false, text: NOVA_ACTION_SPEND_LOCKED_MESSAGE };
   }
   return null;
+}
+
+function gateManual(runtime: NovaActionRuntime): NovaActionResult | null {
+  if (!runtime.symbol) {
+    return { ok: false, text: NOVA_ACTION_NO_SYMBOL_MESSAGE };
+  }
+  return gateConnected(runtime);
 }
 
 async function maybeConfirm(
@@ -75,50 +83,54 @@ async function maybeConfirm(
   });
 }
 
-async function placeMarketExit(
-  runtime: NovaActionRuntime,
-  symbol: string,
-  side: 'BUY' | 'SELL',
-  qty: number,
-  label: string,
-  actionTiming: BrowserActionStamp,
-): Promise<NovaActionResult> {
-  const outside_rth = shouldUseOutsideRth(false);
-  const hours = outside_rth ? ' extended hours' : '';
-  const summary = `${side} ${qty} ${symbol} (MKT${hours} ${label}) on the connected account.`;
-  if (!(await maybeConfirm(runtime, summary))) {
-    return { ok: false, text: 'Order cancelled' };
-  }
-  try {
-    const res = await placeIbkrOrder(
-      {
-        symbol,
-        side,
-        qty,
-        order_type: 'MKT',
-        outside_rth,
-      },
-      undefined,
-      {
-        timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
-      },
-    );
-    return {
-      ok: res.ok,
-      text: res.ok
-        ? `Exit order #${res.order_id}${outside_rth ? ' (EH)' : ''}`
-        : res.error ?? 'Exit failed',
-    };
-  } catch {
-    return { ok: false, text: 'Network error placing exit' };
-  }
-}
-
 export async function runNovaAction(
   action: NovaActionRecord,
   runtime: NovaActionRuntime,
 ): Promise<NovaActionResult> {
   const actionTiming = captureBrowserAction('user_action');
+
+  if (action.kind === 'cancel_all_orders') {
+    const gated = gateConnected(runtime);
+    if (gated) return gated;
+    const mode = accountModeLabel(runtime.accountMode);
+    const openCount = await countOpenWorkingOrders();
+    const countPart =
+      openCount == null
+        ? 'all working orders'
+        : `${openCount} working order(s)`;
+    const summary =
+      `Cancel ${countPart} on the connected ${mode} account (all symbols).`;
+    if (!(await maybeConfirm(runtime, summary))) {
+      return { ok: false, text: 'Cancel cancelled' };
+    }
+    try {
+      const res = await cancelAllWorkingOrders(
+        beginBrowserExecutionTiming('nova_action_cancel', actionTiming),
+      );
+      if (!res.ok && res.cancelled.length === 0) {
+        return { ok: false, text: res.error ?? 'Cancel-all failed' };
+      }
+      const n = res.cancelled.length;
+      const failN = res.failed.length;
+      if (failN > 0) {
+        return {
+          ok: false,
+          text:
+            `Cancelled ${n}; ${failN} failed`
+            + (res.error ? ` (${res.error})` : ''),
+        };
+      }
+      return {
+        ok: true,
+        text: n === 0
+          ? 'No open orders to cancel'
+          : `Cancelled ${n} order(s) (all symbols)`,
+      };
+    } catch {
+      return { ok: false, text: 'Network error cancelling orders' };
+    }
+  }
+
   const gated = gateManual(runtime);
   if (gated) return gated;
 
@@ -178,6 +190,7 @@ export async function runNovaAction(
       built.qty,
       'cancel+flatten',
       actionTiming,
+      maybeConfirm,
     );
     if (!exit.ok) {
       return {
@@ -207,18 +220,74 @@ export async function runNovaAction(
       built.qty,
       action.kind === 'exit_pos' ? 'flatten' : 'partial exit',
       actionTiming,
+      maybeConfirm,
+    );
+  }
+
+  if (action.kind === 'buy_market') {
+    const shares = action.params.shares ?? NOVA_ACTION_DEFAULT_BUY_MARKET_SHARES;
+    const built = buildBuyMarketShares(shares);
+    if (!built.ok) return { ok: false, text: built.error };
+    const outside_rth = shouldUseOutsideRth(false);
+    const mode = accountModeLabel(runtime.accountMode);
+    const summary =
+      `BUY ${built.qty} ${symbol} (MKT${outside_rth ? ' EH' : ''}) on ${mode} account.`;
+    if (!(await maybeConfirm(runtime, summary))) {
+      return { ok: false, text: 'Order cancelled' };
+    }
+    try {
+      const res = await placeIbkrOrder(
+        {
+          symbol,
+          side: 'BUY',
+          qty: built.qty,
+          order_type: 'MKT',
+          outside_rth,
+        },
+        undefined,
+        {
+          timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
+        },
+      );
+      return {
+        ok: res.ok,
+        text: res.ok
+          ? `Order #${res.order_id} placed`
+          : res.error ?? 'Order failed',
+      };
+    } catch {
+      return { ok: false, text: 'Network error placing order' };
+    }
+  }
+
+  if (action.kind === 'sell_pos_pct_ask') {
+    return placeLongPctLimit(
+      runtime,
+      symbol,
+      action.params.percent ?? 50,
+      'ask',
+      action.params.offsetDollars ?? 0,
+      actionTiming,
+      maybeConfirm,
+    );
+  }
+
+  if (action.kind === 'sell_pos_pct_bid_offset') {
+    return placeLongPctLimit(
+      runtime,
+      symbol,
+      action.params.percent ?? 50,
+      'bid',
+      action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS,
+      actionTiming,
+      maybeConfirm,
     );
   }
 
   if (action.kind === 'buy_limit_ask_offset' || action.kind === 'sell_limit_bid_offset') {
-    const tob = runtime.topOfBook;
-    if (
-      !tob
-      || tob.symbol.toUpperCase() !== symbol
-      || !tob.depthSubscribed
-    ) {
-      return { ok: false, text: NOVA_ACTION_DEPTH_DISABLED_REASON };
-    }
+    const tobOrErr = requireDepth(runtime, symbol);
+    if ('ok' in tobOrErr && tobOrErr.ok === false) return tobOrErr;
+    const tob = tobOrErr as TopOfBook;
     const offset = action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_OFFSET_DOLLARS;
     const shares = action.params.shares ?? NOVA_ACTION_DEFAULT_SHARES;
     const isBuy = action.kind === 'buy_limit_ask_offset';
@@ -232,8 +301,10 @@ export async function runNovaAction(
     }
     const side = isBuy ? 'BUY' : 'SELL';
     const outside_rth = shouldUseOutsideRth(false);
+    const mode = accountModeLabel(runtime.accountMode);
     const summary =
-      `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)}${outside_rth ? ' EH' : ''})`;
+      `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)}${outside_rth ? ' EH' : ''}) `
+      + `on ${mode} account.`;
     if (!(await maybeConfirm(runtime, summary))) {
       return { ok: false, text: 'Order cancelled' };
     }

@@ -132,12 +132,20 @@ async def cancel_order(
 
 
 @router.delete("/orders")
-async def cancel_orders_for_symbol(symbol: str, request: Request) -> dict:
-    """Cancel all symbol orders through individual idempotent executions."""
+async def cancel_orders_for_symbol(
+    request: Request,
+    symbol: str | None = None,
+    all_symbols: bool = False,
+) -> dict:
+    """Cancel working orders via per-order ADR 007 cancels (no SDK bypass).
+
+    - ``symbol=XYZ``: cancel that symbol only (legacy).
+    - ``all_symbols=true``: cancel every open order on the connected account.
+    """
     sym = (symbol or "").strip().upper()
-    if not sym:
+    if not all_symbols and not sym:
         return {
-            "ok": False, "error": "symbol is required",
+            "ok": False, "error": "symbol is required (or pass all_symbols=true)",
             "cancelled": [], "failed": [],
         }
     try:
@@ -150,17 +158,18 @@ async def cancel_orders_for_symbol(symbol: str, request: Request) -> dict:
     browser = _browser_timing(request)
     cancelled: list[int] = []
     failed: list[dict] = []
+    scope_key = "ALL" if all_symbols else sym
     for row in open_list:
-        if (
-            str(row.get("symbol", "")).upper() != sym
-            or row.get("order_id") is None
-        ):
+        row_sym = str(row.get("symbol", "")).upper()
+        if row.get("order_id") is None:
+            continue
+        if not all_symbols and row_sym != sym:
             continue
         oid = int(row["order_id"])
         receipt = await _execution_service.execute(
             ExecutionCommand(
                 operation="cancel",
-                idempotency_key=f"cancel-all:{sym}:{oid}:{uuid.uuid4()}",
+                idempotency_key=f"cancel-all:{scope_key}:{oid}:{uuid.uuid4()}",
                 source="manual",
                 order_id=oid,
                 skip_risk=True,
@@ -177,13 +186,17 @@ async def cancel_orders_for_symbol(symbol: str, request: Request) -> dict:
             cancelled.append(oid)
         else:
             failed.append({"order_id": oid, "error": receipt.error})
-    return {
+    out: dict = {
         "ok": not failed,
-        "symbol": sym,
         "cancelled": cancelled,
         "failed": failed,
         "error": None if not failed else f"{len(failed)} cancel(s) failed",
     }
+    if not all_symbols:
+        out["symbol"] = sym
+    else:
+        out["all_symbols"] = True
+    return out
 
 
 @router.patch("/order/{order_id}")

@@ -57,3 +57,54 @@ def test_cancel_orders_for_symbol_empty_when_no_match():
     assert body["ok"] is True
     assert body["cancelled"] == []
     exec_mock.assert_not_awaited()
+
+
+def test_cancel_orders_all_symbols_loops_every_open_order():
+    open_rows = [
+        {"order_id": 11, "symbol": "AAPL", "side": "BUY"},
+        {"order_id": 12, "symbol": "MSFT", "side": "SELL"},
+    ]
+    receipt_ok = type("R", (), {
+        "ok": True,
+        "error": None,
+        "execution_id": "e1",
+        "timings": None,
+        "broker_status": None,
+        "duplicate": False,
+    })()
+
+    with patch.object(orders_mod, "open_orders", return_value=open_rows), \
+         patch("execution.service.execute", new_callable=AsyncMock, return_value=receipt_ok) as exec_mock:
+        res = client.delete("/api/ibkr/orders?all_symbols=true")
+
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ok"] is True
+    assert body.get("all_symbols") is True
+    assert body["cancelled"] == [11, 12]
+    assert body["failed"] == []
+    assert exec_mock.await_count == 2
+
+
+def test_cancel_orders_all_symbols_reports_partial_failure():
+    open_rows = [
+        {"order_id": 1, "symbol": "AAPL"},
+        {"order_id": 2, "symbol": "MSFT"},
+    ]
+    ok = type("R", (), {
+        "ok": True, "error": None, "execution_id": "e1",
+        "timings": None, "broker_status": None, "duplicate": False,
+    })()
+    bad = type("R", (), {
+        "ok": False, "error": "boom", "execution_id": "e2",
+        "timings": None, "broker_status": None, "duplicate": False,
+    })()
+
+    with patch.object(orders_mod, "open_orders", return_value=open_rows), \
+         patch("execution.service.execute", new_callable=AsyncMock, side_effect=[ok, bad]):
+        res = client.delete("/api/ibkr/orders?all_symbols=true")
+
+    body = res.json()
+    assert body["ok"] is False
+    assert body["cancelled"] == [1]
+    assert body["failed"] == [{"order_id": 2, "error": "boom"}]

@@ -38,12 +38,18 @@ function automationChords(): HotkeyKeyChord[] {
 
 function paramsCell(row: NovaActionRecord, liveDisabled: boolean): string {
   if (row.kind === 'exit_pos_pct') return `${row.params.percent ?? 50}%`;
+  if (row.kind === 'sell_pos_pct_ask' || row.kind === 'sell_pos_pct_bid_offset') {
+    const base = `${row.params.percent ?? 50}% · $${row.params.offsetDollars ?? 0}`;
+    return liveDisabled ? `${base} · L2` : base;
+  }
+  if (row.kind === 'buy_market') return `${row.params.shares ?? 1} sh MKT`;
   if (row.kind === 'buy_limit_ask_offset' || row.kind === 'sell_limit_bid_offset') {
     const base = `${row.params.shares ?? 100} sh · ±${row.params.offsetDollars ?? 0.05}`;
     return liveDisabled ? `${base} · L2` : base;
   }
   if (row.kind === 'exit_pos' || row.kind === 'cancel_and_exit') return 'Pos';
-  if (row.kind === 'cancel_symbol') return 'All';
+  if (row.kind === 'cancel_symbol') return 'Symbol';
+  if (row.kind === 'cancel_all_orders') return 'All stocks';
   return '—';
 }
 

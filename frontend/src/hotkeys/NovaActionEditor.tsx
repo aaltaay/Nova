@@ -100,45 +100,67 @@ export function NovaActionEditor({
             </button>
           </div>
         </label>
-        {(draft.kind === 'buy_limit_ask_offset' || draft.kind === 'sell_limit_bid_offset') && (
+        {(draft.kind === 'buy_market'
+          || draft.kind === 'buy_limit_ask_offset'
+          || draft.kind === 'sell_limit_bid_offset') && (
           <>
             <label className="hotkey-editor-field">
               <span>Shares</span>
               <input
                 type="number"
-                value={draft.params.shares ?? 100}
+                value={draft.params.shares ?? (draft.kind === 'buy_market' ? 1 : 100)}
                 onChange={(e) => onChange({
                   ...draft,
                   params: { ...draft.params, shares: Number(e.target.value) },
                 })}
               />
             </label>
+            {draft.kind !== 'buy_market' && (
+              <label className="hotkey-editor-field">
+                <span>Offset ($)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={draft.params.offsetDollars ?? 0.05}
+                  onChange={(e) => onChange({
+                    ...draft,
+                    params: { ...draft.params, offsetDollars: Number(e.target.value) },
+                  })}
+                />
+              </label>
+            )}
+          </>
+        )}
+        {(draft.kind === 'exit_pos_pct'
+          || draft.kind === 'sell_pos_pct_ask'
+          || draft.kind === 'sell_pos_pct_bid_offset') && (
+          <>
             <label className="hotkey-editor-field">
-              <span>Offset ($)</span>
+              <span>Percent</span>
               <input
                 type="number"
-                step="0.01"
-                value={draft.params.offsetDollars ?? 0.05}
+                value={draft.params.percent ?? 50}
                 onChange={(e) => onChange({
                   ...draft,
-                  params: { ...draft.params, offsetDollars: Number(e.target.value) },
+                  params: { ...draft.params, percent: Number(e.target.value) },
                 })}
               />
             </label>
+            {(draft.kind === 'sell_pos_pct_ask' || draft.kind === 'sell_pos_pct_bid_offset') && (
+              <label className="hotkey-editor-field">
+                <span>Offset ($)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={draft.params.offsetDollars ?? 0}
+                  onChange={(e) => onChange({
+                    ...draft,
+                    params: { ...draft.params, offsetDollars: Number(e.target.value) },
+                  })}
+                />
+              </label>
+            )}
           </>
-        )}
-        {draft.kind === 'exit_pos_pct' && (
-          <label className="hotkey-editor-field">
-            <span>Percent</span>
-            <input
-              type="number"
-              value={draft.params.percent ?? 50}
-              onChange={(e) => onChange({
-                ...draft,
-                params: { ...draft.params, percent: Number(e.target.value) },
-              })}
-            />
-          </label>
         )}
         {(error || conflictMsg) && (
           <p className="empty-state">{error || conflictMsg}</p>

@@ -94,18 +94,21 @@ function migrateAutomationBindings(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
-/** Ensure newly shipped default Nova Actions appear on older local profiles. */
+/**
+ * Ensure newly shipped default Nova Actions appear on older local profiles.
+ * Merge by id only so multiple defaults of the same kind (e.g. 100/50/25% Ask)
+ * all land; never overwrite a user-edited row with the same id.
+ */
 export function mergeMissingDefaultNovaActions(
   existing: NovaActionRecord[],
 ): NovaActionRecord[] {
   const defaults = createDefaultNovaActions();
-  const byId = new Map(existing.map((a) => [a.id, a]));
-  const kinds = new Set(existing.map((a) => a.kind));
+  const byId = new Set(existing.map((a) => a.id));
   const merged = [...existing];
   for (const def of defaults) {
-    if (!byId.has(def.id) && !kinds.has(def.kind)) {
+    if (!byId.has(def.id)) {
       merged.push(def);
-      kinds.add(def.kind);
+      byId.add(def.id);
     }
   }
   return merged;

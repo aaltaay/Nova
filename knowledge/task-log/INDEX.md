@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-30 | [Webull-style Nova Actions (Buy 1 / Cancel All / long-only percent exits)](2026-07-30-webull-style-nova-actions.md) | Webull-style Nova Actions (Buy 1 / Cancel All / long-only percent exits) |
 | 2026-07-30 | [Shared GlobalAppBar status strip on Scanner and Trader](2026-07-30-shared-global-app-bar-status.md) | Shared GlobalAppBar status strip on Scanner and Trader |
 | 2026-07-30 | [Morning wedge recurrence fixes](2026-07-30-morning-wedge-recurrence-fixes.md) | Daily bootstrap recycle + completed-orders cooldown + queue logging; OPEN premarket-before-04:00 |
 | 2026-07-30 | [Hot Keys Webull-style Settings shell (landing + manager + create)](2026-07-30-hotkeys-webull-settings-shell.md) | Hot Keys Webull-style Settings shell (landing + manager + create) |
