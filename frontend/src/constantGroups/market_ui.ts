@@ -427,8 +427,18 @@ export const CHART_TIMEFRAMES: ChartTimeframe[] = [
 ];
 export const CHART_DEFAULT_TIMEFRAME = '1Min';
 export const CHART_CARD_TITLE = 'Price Chart';
-/** Chart body height (px) in the widened side panel — capped so quote+L2 fit one viewport. */
+/**
+ * Chart body (LWC canvas) height (px) in the Quote Panel.
+ * Must leave room for the time axis inside the canvas. The CSS slot max-height
+ * (``.cq-col--chart`` / ``[data-layout-block="charts"]``) must be at least
+ * ``CHART_HEIGHT_PANEL + CHART_PANEL_CHROME_PX`` or overflow:hidden clips the
+ * bottom axis labels -- see PROBLEM_LOG Quote Panel chart time axis clipped.
+ */
 export const CHART_HEIGHT_PANEL = 280;
+/** Header + toolbar + borders above the LWC body in the Quote Panel chart card. */
+export const CHART_PANEL_CHROME_PX = 120;
+/** CSS ``max-height`` for the Quote Panel chart slot (body + chrome). */
+export const CHART_PANEL_SLOT_MAX_PX = CHART_HEIGHT_PANEL + CHART_PANEL_CHROME_PX;
 /** Chart body height (px) on the full ticker detail page (single chart / legacy). */
 export const CHART_HEIGHT_PAGE = 440;
 /** Minimum chart body height (px) per 2×2 grid cell — cells stretch to fill ~80% of the trading viewport. */

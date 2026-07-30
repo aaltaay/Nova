@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Quote Panel chart shows time axis again
+
+- **What:** Quote Panel Price Chart no longer clips away the bottom time labels under volume.
+- **Why:** User could not read chart times; slot max-height (320px) was shorter than header + toolbar + 280px LWC body.
+- **Files touched:** `frontend/src/styles/quote-layout.css`, `frontend/src/chart/TickerChart.tsx`, `frontend/src/constantGroups/market_ui.ts`, `frontend/src/chart/measureChartFillHeight.test.ts`.
+- **How it works now:** Quote Panel chart slot is `min(400px, 55vh)`. Panel charts fill the leftover card height (`fillParentHeight`), so the time axis stays inside the visible canvas.
+- **Verified by:** `npx vitest run src/chart/measureChartFillHeight.test.ts` (3 passed). Hard-refresh the Quote Panel after pull to pick up CSS.
+- **Related:** PROBLEM_LOG 2026-07-30 Quote Panel chart time axis clipped.
+
 ## 2026-07-30 -- Morning wedge recurrence fixes (daily bootstrap + loop relief)
 
 - **What:** Fixed the recurring "empty scanners / API_WEDGED after login" path. Daily start script now recycles a wedged API for real; completed-orders warm-up is cooldown-gated; logging no longer blocks the asyncio loop; API launches without an interactive console that QuickEdit can freeze.

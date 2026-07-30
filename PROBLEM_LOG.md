@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Quote Panel chart time axis clipped / unreadable
+
+- **Symptom:** Quote Panel Price Chart showed candles + volume but no readable time labels under the plot (empty dark band where the x-axis should be).
+- **Cause:** Chart body was fixed at `CHART_HEIGHT_PANEL=280` while the slot used `max-height: min(320px, 40vh)` + `overflow: hidden`. Header + toolbar (~100px) + 280px body exceeded the slot, so lightweight-charts painted the time axis below the clip edge.
+- **Fix:** Raise slot to `min(400px, 55vh)` (`CHART_PANEL_SLOT_MAX_PX`); panel variant uses `fillParentHeight` so LWC sizes to leftover space inside the card (same pattern as Trader grid).
+- **Keywords:** Quote Panel, Price Chart, time axis, clipped, overflow hidden, CHART_HEIGHT_PANEL, lightweight-charts, fillParentHeight
+
 ## 2026-07-30 -- OPEN/DEFERRED: Premarket stack must be up before 04:00 ET (no manual morning start)
 
 - **Symptom:** If Nova API / IB Gateway come up after the 04:00-09:30 ET gappers window, Gappers stays empty for the rest of the session (by design once mode=market). User should not have to manually start the stack every morning.

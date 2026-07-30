@@ -77,7 +77,9 @@ function TickerChartInner({
     () => [...(initialIndicators ?? CHART_DEFAULT_INDICATORS)],
   );
 
-  const fillParentHeight = variant === 'grid' || maximized;
+  // Panel: fill the Quote Panel slot so LWC (incl. time axis) fits under
+  // header/toolbar instead of painting 280px and getting clipped by max-height.
+  const fillParentHeight = variant === 'grid' || variant === 'panel' || maximized;
   const { slotRef, host } = useMaximizedChartPortal(maximized);
   const lockTimeframe = !!fixedTimeframe;
   const oscillatorEnabled = enabledIndicators.filter((id): id is ChartOscillatorId =>
