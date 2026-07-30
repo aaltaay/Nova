@@ -1,6 +1,6 @@
 /**
  * Module registry — catalog of Nova UI modules (tabs + panels).
- * TabNav / Modules menu / future ModuleHost read from here (Phase 4).
+ * Scanner side nav / Modules menu / future ModuleHost read from here (Phase 4).
  */
 import type { ComponentType } from 'react';
 import { ClosedOrdersModule } from '../closed_orders';
@@ -70,7 +70,7 @@ export type NovaModule = {
   component: ComponentType<any>;
   feedDeps: readonly FeedDep[];
   defaultPlacement: DefaultPlacement;
-  /** Shown in the top TabNav when placement is `tab`. */
+  /** Shown in the scanner left rail when placement is `tab`. */
   showInTabNav?: boolean;
   countKey?: ModuleCountKey;
   badge?: string;
@@ -227,7 +227,7 @@ export function listModules(): readonly NovaModule[] {
   return NOVA_MODULES;
 }
 
-/** TabNav entries in registry order. */
+/** Scanner side-nav entries in registry order. */
 export function listTabModules(): NovaModule[] {
   return NOVA_MODULES.filter(
     m => m.defaultPlacement === 'tab' && m.showInTabNav !== false,

@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Webull-style left scanner rail
+
+- **What:** Moved Gappers…Watchlist from a horizontal tab bar into a left icon+label rail (Webull-style). Account/Settings stay on GlobalAppBar.
+- **Why:** User asked to move the scanner header tabs to the side like Webull.
+- **Files touched:** `TabNav.tsx` (`ScannerSideNav`), `scannerNavIcons.tsx`, `scanner-side-nav.css`, `DashboardPage.tsx`, `SampleDashboardPage.tsx`, e2e baseline.
+- **How it works now:** `.nova-shell` = rail | main-col | quote panel. Rail is registry-driven; counts show as badges (cap 99+). No fake Webull destinations.
+- **Verified by:** Vitest ScannerSideNav + count helper; e2e testids `scanner-nav-*`.
+
 ## 2026-07-29 -- Scanner status chrome above GlobalAppBar
 
 - **What:** Moved market/status/lookup chrome above the GlobalAppBar; removed the NOVA STOCK SCANNER homepage brand header.

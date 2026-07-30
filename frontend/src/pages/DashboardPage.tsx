@@ -7,7 +7,7 @@ import { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
 import { partitionScannerAlerts } from '../hod_momo/scannerPartition';
 import { collapseAlertsBySymbol } from '../hod_momo/collapseAlertsBySymbol';
-import { TabNav } from '../components/TabNav';
+import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
 import { GatewayDisconnectedBanner } from '../ibkr/GatewayDisconnectedBanner';
@@ -174,35 +174,53 @@ export function DashboardPage() {
     return () => setAccountNavActive(false);
   }, [activeTab]);
 
+  const navCounts = {
+    gappers: filteredGappers.length,
+    gainers: filteredGainers.length,
+    losers: filteredLosers.length,
+    afterhours: filteredAfterhours.length,
+    catalysts: scanner.catalysts.length,
+    hodMomo: collapsedHodMomentum.length,
+    runningUp: collapsedRunningUp.length,
+    watchlist: watchlist.entries.length,
+  };
+
   return (
     <div className="nova-shell">
-      <div className="main-col">
-        <AppHeader
-          portalToTop
-          mode={scanner.mode}
-          health={scanner.health}
-          activeFeed={settings.activeFeed}
-          feedFellBack={settings.feedFellBack}
-          secondsAgo={secondsAgo}
-          pricesStale={showScannerPriceFreshness && scanner.pricesStale}
-          ibkrConnected={ibkrConnected}
-          ibkrMode={ibkrMode}
-          ibkrGatewayMode={ibkrGatewayMode}
-          historyDate={scanner.historyDate}
-          historyDates={scanner.historyDates}
-          onHistoryChange={handleHistoryChange}
-          onLookup={setSelectedSymbol}
-          showScannerSource={activeTab !== 'trading' && activeTab !== 'reports'}
-          discoveryProvider={settings.discoveryProvider}
-          onBackendStarted={() => {
-            void scanner.fetchData();
-          }}
-          sampleDataActive={false}
-          onSampleDataToggle={(on) => {
-            if (on) enterSampleView();
-          }}
-        />
+      <AppHeader
+        portalToTop
+        mode={scanner.mode}
+        health={scanner.health}
+        activeFeed={settings.activeFeed}
+        feedFellBack={settings.feedFellBack}
+        secondsAgo={secondsAgo}
+        pricesStale={showScannerPriceFreshness && scanner.pricesStale}
+        ibkrConnected={ibkrConnected}
+        ibkrMode={ibkrMode}
+        ibkrGatewayMode={ibkrGatewayMode}
+        historyDate={scanner.historyDate}
+        historyDates={scanner.historyDates}
+        onHistoryChange={handleHistoryChange}
+        onLookup={setSelectedSymbol}
+        showScannerSource={activeTab !== 'trading' && activeTab !== 'reports'}
+        discoveryProvider={settings.discoveryProvider}
+        onBackendStarted={() => {
+          void scanner.fetchData();
+        }}
+        sampleDataActive={false}
+        onSampleDataToggle={(on) => {
+          if (on) enterSampleView();
+        }}
+      />
 
+      <ScannerSideNav
+        activeTab={activeTab}
+        onTabClick={handleTabClick}
+        counts={navCounts}
+        visibility={visibility}
+      />
+
+      <div className="main-col">
         <GatewayDisconnectedBanner
           discoveryProvider={settings.discoveryProvider}
           ibkrConnected={ibkrConnected}
@@ -210,22 +228,6 @@ export function DashboardPage() {
         />
 
         <main className="panel">
-          <TabNav
-            activeTab={activeTab}
-            onTabClick={handleTabClick}
-            counts={{
-              gappers: filteredGappers.length,
-              gainers: filteredGainers.length,
-              losers: filteredLosers.length,
-              afterhours: filteredAfterhours.length,
-              catalysts: scanner.catalysts.length,
-              hodMomo: collapsedHodMomentum.length,
-              runningUp: collapsedRunningUp.length,
-              watchlist: watchlist.entries.length,
-            }}
-            visibility={visibility}
-          />
-
           {scanner.historyDate && (
             <div className="history-banner">
               <span>Viewing {fmtHistoryDate(scanner.historyDate)}</span>

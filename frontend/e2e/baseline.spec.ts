@@ -20,19 +20,18 @@ test.describe('Phase 0 baseline', () => {
   test('app loads', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
-    await expect(page.locator('.tab-bar')).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Gappers/ })).toBeVisible();
-    await expect(page.locator('.tab.active')).toContainText('Gappers');
+    await expect(page.getByTestId('scanner-side-nav')).toBeVisible();
+    await expect(page.getByTestId('scanner-nav-gappers')).toBeVisible();
+    await expect(page.getByTestId('scanner-nav-gappers')).toHaveClass(/is-active/);
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
   test('tabs switch', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
-    const gainers = page.getByRole('button', { name: /^Gainers/ });
+    const gainers = page.getByTestId('scanner-nav-gainers');
     await gainers.click();
-    await expect(gainers).toHaveClass(/active/);
-    await expect(page.locator('.tab.active')).toContainText('Gainers');
+    await expect(gainers).toHaveClass(/is-active/);
 
     const account = page.getByTestId('global-bar-account-nav');
     await account.click();

@@ -2,7 +2,7 @@
  * Sample-data dashboard — fixtures only. Never mounts useScannerData / HOD WS / watchlist API.
  */
 import { useMemo, useState } from 'react';
-import { TabNav } from '../components/TabNav';
+import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { AppHeader } from '../components/AppHeader';
 import { SidePanel } from '../components/SidePanel';
@@ -74,37 +74,55 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
     setActiveTab(tab);
   }
 
+  const navCounts = {
+    gappers: filteredGappers.length,
+    gainers: filteredGainers.length,
+    losers: filteredLosers.length,
+    afterhours: filteredAfterhours.length,
+    catalysts: sample.catalysts.length,
+    hodMomo: sampleScannerParts.hodMomentum.length,
+    runningUp: sampleScannerParts.runningUp.length,
+    watchlist: sample.watchlist.length,
+  };
+
   return (
     <div className="nova-shell" data-testid="sample-dashboard">
-      <div className="main-col">
-        <AppHeader
-          mode="market"
-          health={sample.health}
-          activeFeed={DATA_FEED_DEFAULT}
-          feedFellBack={false}
-          secondsAgo={1}
-          pricesStale={false}
-          ibkrConnected
-          ibkrMode="paper"
-          ibkrGatewayMode="paper"
-          historyDate={null}
-          historyDates={[]}
-          onHistoryChange={() => {}}
-          onLookup={setSelectedSymbol}
-          showScannerSource
-          discoveryProvider={DISCOVERY_PROVIDER_DEFAULT}
-          sampleDataActive
-          onSampleDataToggle={(on) => {
-            if (!on) onLeaveSample();
-          }}
-          accountActive={activeTab === 'trading' || activeTab === 'reports'}
-          onAccountClick={
-            visibility.trading === false
-              ? undefined
-              : () => handleTabClick('trading')
-          }
-        />
+      <AppHeader
+        mode="market"
+        health={sample.health}
+        activeFeed={DATA_FEED_DEFAULT}
+        feedFellBack={false}
+        secondsAgo={1}
+        pricesStale={false}
+        ibkrConnected
+        ibkrMode="paper"
+        ibkrGatewayMode="paper"
+        historyDate={null}
+        historyDates={[]}
+        onHistoryChange={() => {}}
+        onLookup={setSelectedSymbol}
+        showScannerSource
+        discoveryProvider={DISCOVERY_PROVIDER_DEFAULT}
+        sampleDataActive
+        onSampleDataToggle={(on) => {
+          if (!on) onLeaveSample();
+        }}
+        accountActive={activeTab === 'trading' || activeTab === 'reports'}
+        onAccountClick={
+          visibility.trading === false
+            ? undefined
+            : () => handleTabClick('trading')
+        }
+      />
 
+      <ScannerSideNav
+        activeTab={activeTab}
+        onTabClick={handleTabClick}
+        counts={navCounts}
+        visibility={visibility}
+      />
+
+      <div className="main-col">
         <div className="sample-data-banner" role="status" data-testid="sample-data-banner">
           <span>{SAMPLE_DATA_BANNER}</span>
           <button type="button" className="history-banner-btn" onClick={onLeaveSample}>
@@ -113,22 +131,6 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
         </div>
 
         <main className="panel">
-          <TabNav
-            activeTab={activeTab}
-            onTabClick={handleTabClick}
-            counts={{
-              gappers: filteredGappers.length,
-              gainers: filteredGainers.length,
-              losers: filteredLosers.length,
-              afterhours: filteredAfterhours.length,
-              catalysts: sample.catalysts.length,
-              hodMomo: sampleScannerParts.hodMomentum.length,
-              runningUp: sampleScannerParts.runningUp.length,
-              watchlist: sample.watchlist.length,
-            }}
-            visibility={visibility}
-          />
-
           <TabModuleHost
             activeTab={activeTab}
             mode="market"
