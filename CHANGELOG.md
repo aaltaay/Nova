@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Larger Level 2 and Time & Sales fonts
+
+- **What:** Bumped L2 montage and Time & Sales type sizes (~15-20%) in base market-data CSS and the Trader View rail densify overrides.
+- **Why:** User asked for slightly larger L2 / T&S text while trading.
+- **Files touched:** `ibkr/marketData.css`, `stock_view/stockViewTerminal.css`.
+- **How it works now:** Row / column / MM fonts are larger in both shared primitives and the Stock View rail; row min-heights increased so text is not clipped.
+- **Verified by:** CSS review of `.das-l2-row` / `.ts-panel` base + `.sv-rail` overrides.
+
 ## 2026-07-29 -- Working menu on global app bar
 
 - **What:** Clicking **Working** in the global bar opens a Webull-style menu: Working / Filled Today / Canceled & Failed counts, Cancel All (Stocks), disabled Cancel All Options, View All Orders.

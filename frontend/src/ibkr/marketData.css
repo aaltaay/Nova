@@ -74,7 +74,7 @@
 
 .sv-md-pane__title {
   margin: 0;
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -138,7 +138,7 @@
 .ts-panel {
   display: flex;
   flex-direction: column;
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   font-variant-numeric: tabular-nums;
   background: var(--nova-panel, var(--panel-bg));
   border: 1px solid var(--nova-border, var(--border-color));
@@ -169,14 +169,14 @@
 
 .ts-panel__title {
   font-weight: 600;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   color: var(--nova-text-muted, var(--text-secondary));
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .ts-panel__status {
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   padding: 1px 5px;
@@ -201,7 +201,7 @@
   border-bottom: 1px solid var(--nova-border, var(--border-color));
   color: var(--nova-text-muted, var(--text-secondary));
   font-weight: 600;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
@@ -216,13 +216,13 @@
   padding: 12px 8px;
   color: var(--nova-text-muted, var(--text-secondary));
   text-align: center;
-  font-size: 0.7rem;
+  font-size: 0.8rem;
 }
 
 .ts-row {
   display: grid;
   grid-template-columns: 62px 58px 44px 36px 1fr;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   color: var(--nova-text, var(--text-primary));
 }
@@ -280,7 +280,7 @@
 }
 
 .ts-col--side {
-  font-size: 0.62rem;
+  font-size: 0.72rem;
   letter-spacing: 0.04em;
   font-weight: 700;
 }
@@ -331,7 +331,7 @@
   grid-template-columns: 1fr 1fr 1fr;
   gap: 0;
   padding: 0.2rem 0.25rem;
-  font-size: 0.58rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -354,9 +354,9 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   align-items: center;
-  min-height: 1.35rem;
-  padding: 0.08rem 0.25rem;
-  font-size: 0.72rem;
+  min-height: 1.5rem;
+  padding: 0.1rem 0.25rem;
+  font-size: 0.88rem;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
@@ -368,7 +368,7 @@
 
 .das-l2-mm {
   color: var(--nova-text, #e5e7eb);
-  font-size: 0.65rem;
+  font-size: 0.78rem;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -401,7 +401,7 @@
 .das-l2-spread {
   margin-top: 0.35rem;
   text-align: center;
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   color: var(--nova-text-muted, var(--text-secondary));
 }
 

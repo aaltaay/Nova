@@ -936,32 +936,49 @@
 
 .stock-view-page .sv-rail .das-l2-colhead {
   flex-shrink: 0;
-  padding: 0.1rem 0.15rem;
-  font-size: 0.52rem;
+  padding: 0.12rem 0.2rem;
+  font-size: 0.68rem;
 }
 
 .stock-view-page .sv-rail .das-l2-row {
   flex: 1 1 0;
-  min-height: 14px;
-  max-height: 1.25rem;
-  padding: 0 0.15rem;
-  font-size: 0.62rem;
+  min-height: 18px;
+  max-height: 1.45rem;
+  padding: 0 0.2rem;
+  font-size: 0.82rem;
   border-bottom-color: rgba(255, 255, 255, 0.03);
 }
 
 .stock-view-page .sv-rail .das-l2-row--empty {
-  min-height: 12px;
-  max-height: 1.15rem;
+  min-height: 14px;
+  max-height: 1.25rem;
 }
 
 .stock-view-page .sv-rail .das-l2-mm {
-  font-size: 0.58rem;
+  font-size: 0.72rem;
 }
 
 .stock-view-page .sv-rail .das-l2-spread {
   flex-shrink: 0;
   margin-top: 1px;
-  font-size: 0.58rem;
+  font-size: 0.72rem;
+}
+
+.stock-view-page .sv-rail .ts-panel {
+  font-size: 0.85rem;
+}
+
+.stock-view-page .sv-rail .ts-panel__cols {
+  font-size: 0.72rem;
+}
+
+.stock-view-page .sv-rail .ts-col--side {
+  font-size: 0.7rem;
+}
+
+.stock-view-page .sv-rail .sv-md-pane__title,
+.stock-view-page .sv-rail .ts-panel__title {
+  font-size: 0.78rem;
 }
 
 /* T&S: only the print list scrolls (not the rail column) */
