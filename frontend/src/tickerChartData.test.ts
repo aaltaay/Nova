@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CandlestickData, Time } from 'lightweight-charts';
-import { isOutOfOrderTrade, tradeBucket } from './tickerChartData';
+import {
+  canIncrementalBarsUpdate,
+  clearEtOffsetCacheForTests,
+  isOutOfOrderTrade,
+  rawBarsToSeries,
+  tradeBucket,
+  type RawBar,
+} from './tickerChartData';
 
 const candle = (time: number): CandlestickData<Time> => ({
   time: time as Time,
@@ -22,5 +29,31 @@ describe('ticker chart trade ordering', () => {
 
   it('rejects an invalid trade timestamp before it reaches the chart library', () => {
     expect(tradeBucket('not-a-date', '1Min')).toBeNull();
+  });
+});
+
+describe('ticker chart bar conversion', () => {
+  it('builds candles and volumes in one pass', () => {
+    clearEtOffsetCacheForTests();
+    const bars: RawBar[] = [
+      { t: '2026-07-29T14:00:00Z', o: 1, h: 2, l: 0.5, c: 1.5, v: 10 },
+      { t: '2026-07-29T14:01:00Z', o: 1.5, h: 2, l: 1, c: 1.2, v: 20 },
+    ];
+    const { candles, volumes } = rawBarsToSeries(bars, '1Min');
+    expect(candles).toHaveLength(2);
+    expect(volumes).toHaveLength(2);
+    expect(candles[0].time).toBe(volumes[0].time);
+  });
+
+  it('allows incremental update when only the tail changes', () => {
+    const prev: RawBar[] = [
+      { t: 'a', o: 1, h: 1, l: 1, c: 1, v: 1 },
+      { t: 'b', o: 1, h: 1, l: 1, c: 1, v: 1 },
+      { t: 'c', o: 1, h: 1, l: 1, c: 1, v: 1 },
+      { t: 'd', o: 1, h: 1, l: 1, c: 1, v: 1 },
+    ];
+    const next = [...prev.slice(0, 3), { t: 'd', o: 1, h: 2, l: 1, c: 1.5, v: 9 }];
+    expect(canIncrementalBarsUpdate(prev, next)).toBe(true);
+    expect(canIncrementalBarsUpdate(prev, [{ t: 'z', o: 1, h: 1, l: 1, c: 1, v: 1 }])).toBe(false);
   });
 });

@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Chart UI remount / inactive-tab poll storm
+
+- **Symptom:** Even after backend caching, charts felt sluggish on tab switch / maximize; inactive Trader tabs kept hammering `/bars`; Full Day waited behind ticker detail.
+- **Cause:** (1) `useChartInstance` destroyed LWC when height/fill flipped; (2) `TickerChartErrorBoundary key={symbol}` remounted on every symbol; (3) hidden tabs kept `CHART_REFETCH_SEC` intervals; (4) `ChartGrid` gated on `detailReady`; (5) every poll did full `setData` + indicator recompute; (6) `isoToEtTime` ran expensive `toLocaleString` per bar x3.
+- **Fix:** Phases 2-4 -- `barsStore` + batch warm, incremental tail updates, day-cached ET offset, stable chart instance, `chartActive` pause, mount charts immediately, 3-pane default (15m toggle), overlay paint keyed on barsRevision.
+- **Keywords:** ChartGrid, useChartInstance, barsStore, chartActive, detailReady, setData, isoToEtTime, Trader tabs, incremental bars
+
 ## 2026-07-29 -- Chart historical stampede (no cache)
 
 - **Symptom:** Opening a ticker or switching Trader tabs made charts load slowly; Full Day / other panes often showed "Chart bars timed out -- IBKR historical may be busy."

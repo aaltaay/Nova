@@ -27,14 +27,17 @@ import {
 interface Props {
   chart: IChartApi | null;
   bars: IndicatorBar[];
+  /** Stable revision from parent -- skip recompute when only identity changes. */
+  barsRevision?: number;
   enabled: ChartIndicatorId[];
 }
 
 type EmaSeriesMap = Partial<Record<ChartEmaLength, ISeriesApi<'Line'>>>;
 
-export function TickerChartOverlays({ chart, bars, enabled }: Props) {
+export function TickerChartOverlays({ chart, bars, barsRevision = 0, enabled }: Props) {
   const emaSeriesRef = useRef<EmaSeriesMap>({});
   const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const lastPaintKeyRef = useRef<string>('');
 
   const showEmas = enabled.includes('emas');
   const showVwap = enabled.includes('vwap');
@@ -114,9 +117,12 @@ export function TickerChartOverlays({ chart, bars, enabled }: Props) {
     };
   }, [chart, showVwap]);
 
-  // Push computed data into series
+  // Push computed data into series (skip when revision + toggles unchanged).
   useEffect(() => {
     if (!chart || bars.length === 0) return;
+    const paintKey = `${barsRevision}:${showEmas}:${showVwap}:${bars.length}`;
+    if (lastPaintKeyRef.current === paintKey) return;
+    lastPaintKeyRef.current = paintKey;
 
     if (showEmas) {
       const emas = computeEmaOverlays(bars);
@@ -129,7 +135,7 @@ export function TickerChartOverlays({ chart, bars, enabled }: Props) {
     if (showVwap && vwapSeriesRef.current) {
       vwapSeriesRef.current.setData(computeVwapLine(bars) as LineData<Time>[]);
     }
-  }, [chart, bars, showEmas, showVwap]);
+  }, [chart, bars, barsRevision, showEmas, showVwap]);
 
   return null;
 }

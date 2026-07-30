@@ -1,4 +1,4 @@
-/** ADR 005 — lightweight-charts instance lifecycle, series refs, and resize. */
+/** ADR 005 -- lightweight-charts instance lifecycle, series refs, and resize. */
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import {
@@ -22,6 +22,8 @@ interface UseChartInstanceOptions extends ChartSeriesRefs {
   chartHeight: number;
   fillParentHeight: boolean;
   maximized: boolean;
+  /** When false, skip ResizeObserver apply (hidden Trader tab). */
+  chartActive?: boolean;
 }
 
 export function useChartInstance({
@@ -32,24 +34,28 @@ export function useChartInstance({
   chartHeight,
   fillParentHeight,
   maximized,
+  chartActive = true,
 }: UseChartInstanceOptions): IChartApi | null {
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
 
   const fillParentHeightRef = useRef(fillParentHeight);
   const chartHeightRef = useRef(chartHeight);
+  const chartActiveRef = useRef(chartActive);
 
   useEffect(() => {
     fillParentHeightRef.current = fillParentHeight;
     chartHeightRef.current = chartHeight;
-  }, [fillParentHeight, chartHeight]);
+    chartActiveRef.current = chartActive;
+  }, [fillParentHeight, chartHeight, chartActive]);
 
+  // Create/destroy once per container mount -- height/fill changes only applyOptions.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const initialHeight = fillParentHeight
-      ? measureChartFillHeight(container, chartHeight)
-      : chartHeight;
+    const initialHeight = fillParentHeightRef.current
+      ? measureChartFillHeight(container, chartHeightRef.current)
+      : chartHeightRef.current;
 
     const chart = createChart(container, {
       layout: { background: { color: '#161921' }, textColor: '#8b92a5' },
@@ -91,7 +97,7 @@ export function useChartInstance({
     setChartApi(chart);
 
     const applySize = () => {
-      if (!containerRef.current) return;
+      if (!containerRef.current || !chartActiveRef.current) return;
       const ch = chartHeightRef.current;
       const h = fillParentHeightRef.current
         ? measureChartFillHeight(containerRef.current, ch)
@@ -118,25 +124,18 @@ export function useChartInstance({
       candleSeriesRef.current = null;
       volSeriesRef.current = null;
     };
-  }, [
-    containerRef,
-    chartRef,
-    candleSeriesRef,
-    volSeriesRef,
-    chartHeight,
-    fillParentHeight,
-  ]);
+  }, [containerRef, chartRef, candleSeriesRef, volSeriesRef]);
 
   useEffect(() => {
     const container = containerRef.current;
     const chart = chartRef.current;
-    if (!container || !chart) return;
+    if (!container || !chart || !chartActive) return;
     const ch = chartHeightRef.current;
     const h = fillParentHeightRef.current
       ? measureChartFillHeight(container, ch)
       : ch;
     chart.applyOptions({ width: container.clientWidth, height: h });
-  }, [containerRef, chartRef, maximized, fillParentHeight, chartHeight]);
+  }, [containerRef, chartRef, maximized, fillParentHeight, chartHeight, chartActive]);
 
   return chartApi;
 }

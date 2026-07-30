@@ -44,11 +44,14 @@ interface Props {
   onBack: () => void;
   /** Rename / switch the active Trader tab symbol (owned by StockViewTabs). */
   onSelectSymbol: (symbol: string) => void;
+  /** When false, pause chart polling/resize (inactive Trader tab). */
+  chartActive?: boolean;
 }
 
 export function StockViewPage({
   symbol,
   onSelectSymbol,
+  chartActive = true,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(symbol);
@@ -192,15 +195,19 @@ export function StockViewPage({
             data-testid="stock-view-main"
           >
             <div className="stock-view-charts">
-              {detailReady && detail ? (
-                <ChartGrid symbol={symbol} lastTrade={lastTrade} />
-              ) : showSpinner ? (
-                <div className="detail-loading">
-                  <div className="detail-loading-spinner" />
-                  <span>Loading {symbol}…</span>
+              {/* Charts mount immediately so IBKR historical overlaps ticker detail. */}
+              <ChartGrid
+                symbol={symbol}
+                lastTrade={detailReady ? lastTrade : null}
+                chartActive={chartActive}
+              />
+              {showSpinner && !detailReady ? (
+                <div className="detail-loading detail-loading--charts-overlay" aria-live="polite">
+                  <span>Loading quote for {symbol}…</span>
                 </div>
-              ) : fetchFailed ? (
-                <div className="empty-state">No data found for {symbol}.</div>
+              ) : null}
+              {fetchFailed && !detailReady ? (
+                <div className="empty-state">No quote data for {symbol}.</div>
               ) : null}
             </div>
             {!ordersCollapsed && (

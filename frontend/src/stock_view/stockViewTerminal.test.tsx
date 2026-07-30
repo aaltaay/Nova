@@ -539,7 +539,7 @@ describe('StockViewPage symbol gate', () => {
     expect((segs[2] as HTMLButtonElement).textContent).toMatch(/Fully Automated/);
   });
 
-  it('hides live rail/charts when detail.symbol mismatches selected symbol', async () => {
+  it('hides live rail when detail.symbol mismatches; charts still mount for selected symbol', async () => {
     tickerStreamState.selectedPassthrough = false;
     tickerStreamState.detailSymbol = 'NXTC';
     await act(async () => {
@@ -554,12 +554,13 @@ describe('StockViewPage symbol gate', () => {
       );
     });
     expect(container.querySelector('[data-testid="stock-view-rail"]')).toBeNull();
-    expect(container.querySelector('[data-testid="chart-grid"]')).toBeNull();
+    // Charts overlap ticker-detail fetch (no longer gated on detailReady).
+    expect(container.querySelector('[data-testid="chart-grid"]')).toBeTruthy();
     expect(container.querySelector('.manual-order-ticket')).toBeNull();
-    // Dock stays mounted — Positions/Orders do not depend on ticker detail.
+    // Dock stays mounted -- Positions/Orders do not depend on ticker detail.
     expect(
       container.querySelector('[data-testid="stock-view-open-orders-dock"]'),
     ).toBeTruthy();
-    expect(container.textContent).toMatch(/Loading MVO/i);
+    expect(container.textContent).toMatch(/Loading quote for MVO/i);
   });
 });

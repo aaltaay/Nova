@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Chart pipeline Phases 2-4 (frontend store + lifecycle)
+
+- **What:** Shared frontend `barsStore` with batch warm, incremental candle updates, cheap ET day-cached time conversion, stable chart instances (no destroy on height/fill), charts mount without waiting on ticker detail, hidden Trader tabs pause refetch/resize, default grid is 3 panes (15m opt-in).
+- **Why:** Phase 1 cut Gateway stampede; UI still remounted charts, polled inactive tabs, and stacked historical behind detailReady.
+- **Files touched:** `chart/barsStore.ts`, `useChartBars.ts`, `useChartInstance.ts`, `TickerChart.tsx`, `ChartGrid.tsx`, `tickerChartData.ts`, `StockViewPage.tsx`, `StockViewTabs.tsx`, overlays/oscillators, `market_ui.ts`, tests.
+- **How it works now:** ChartGrid calls `/bars/batch` into the store; panes paint from store and only `series.update` the tail when prefix matches. `chartActive={false}` stops intervals. Maximize/resize only `applyOptions`.
+- **Verified by:** Vitest chart + ChartGrid + stockViewTerminal (31) green; `tsc --noEmit` clean; Phase 1 pytest still 18 green.
+- **Related:** PROBLEM_LOG 2026-07-29 -- Chart UI remount/poll storm; Phase 1 CHANGELOG same day.
+
 ## 2026-07-29 -- Chart bars Phase 1: IBKR TTL cache + batch + warm
 
 - **What:** IBKR historical bars now go through a freshness-bounded TTL cache with single-flight coalescing. New `GET /api/ticker/{symbol}/bars/batch` returns multiple timeframes; opening a ticker WS warms the Stock View grid set (`1Min/5Min/15Min/1Day`).

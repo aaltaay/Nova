@@ -1,25 +1,35 @@
-/** 2×2 multi-timeframe chart grid for the full trading/detail page. */
-import { useRef } from 'react';
+/** Multi-timeframe chart grid for Trader / Stock View (batch-warmed bars). */
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { TickerChart, type ChartTradeUpdate } from '../TickerChart';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import {
+  CHART_GRID_OPTIONAL_PANEL,
+  CHART_GRID_OPTIONAL_STORAGE_KEY,
   CHART_GRID_PANELS,
   STOCK_VIEW_CHART_ROW_SPLIT_KEY,
   STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_MIN_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_PCT,
 } from '../constants';
+import { ensureBarsBatch } from '../chart/barsStore';
 
 interface Props {
   symbol: string;
   lastTrade?: ChartTradeUpdate | null;
+  /** When false, panes pause refetch/resize (hidden Trader tab). */
+  chartActive?: boolean;
 }
 
-const TOP_PANELS = CHART_GRID_PANELS.slice(0, 2);
-const BOTTOM_PANELS = CHART_GRID_PANELS.slice(2, 4);
+function readOptionalEnabled(): boolean {
+  try {
+    return localStorage.getItem(CHART_GRID_OPTIONAL_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
-export function ChartGrid({ symbol, lastTrade }: Props) {
+export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
   const gridRef = useRef<HTMLDivElement>(null);
   const { topPct, onDragStart, reset } = useResizableHeight({
     storageKey: STOCK_VIEW_CHART_ROW_SPLIT_KEY,
@@ -28,6 +38,37 @@ export function ChartGrid({ symbol, lastTrade }: Props) {
     maxPct: STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
     containerRef: gridRef,
   });
+  const [showOptional, setShowOptional] = useState(readOptionalEnabled);
+
+  const panels = useMemo(() => {
+    if (!showOptional) return CHART_GRID_PANELS;
+    return [...CHART_GRID_PANELS, CHART_GRID_OPTIONAL_PANEL];
+  }, [showOptional]);
+
+  const topPanels = panels.slice(0, 2);
+  const bottomPanels = panels.slice(2);
+
+  useEffect(() => {
+    if (!chartActive || !symbol) return;
+    const tfs = panels.map((p) => p.id);
+    const controller = new AbortController();
+    void ensureBarsBatch(symbol, tfs, controller.signal).catch(() => {
+      /* panes fetch individually on miss */
+    });
+    return () => controller.abort();
+  }, [symbol, panels, chartActive]);
+
+  const toggleOptional = () => {
+    setShowOptional((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(CHART_GRID_OPTIONAL_STORAGE_KEY, next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   return (
     <div
@@ -38,8 +79,19 @@ export function ChartGrid({ symbol, lastTrade }: Props) {
       style={{ ['--chart-row-top-pct' as string]: `${topPct}%` }}
       data-testid="chart-grid"
     >
+      <div className="chart-grid__toolbar">
+        <button
+          type="button"
+          className="chart-grid__optional-toggle"
+          onClick={toggleOptional}
+          aria-pressed={showOptional}
+          data-testid="chart-grid-optional-toggle"
+        >
+          {showOptional ? 'Hide 15-Minute' : 'Show 15-Minute'}
+        </button>
+      </div>
       <div className="chart-grid__row chart-grid__row--top">
-        {TOP_PANELS.map((panel) => (
+        {topPanels.map((panel) => (
           <div key={panel.id} className="chart-grid-cell">
             <TickerChart
               symbol={symbol}
@@ -48,6 +100,7 @@ export function ChartGrid({ symbol, lastTrade }: Props) {
               fixedTimeframe={panel.id}
               title={panel.label}
               subtitle={panel.note}
+              chartActive={chartActive}
             />
           </div>
         ))}
@@ -58,8 +111,12 @@ export function ChartGrid({ symbol, lastTrade }: Props) {
         onDoubleClick={reset}
         label="Resize chart rows"
       />
-      <div className="chart-grid__row chart-grid__row--bottom">
-        {BOTTOM_PANELS.map((panel) => (
+      <div
+        className={`chart-grid__row chart-grid__row--bottom${
+          bottomPanels.length === 1 ? ' chart-grid__row--single' : ''
+        }`}
+      >
+        {bottomPanels.map((panel) => (
           <div key={panel.id} className="chart-grid-cell">
             <TickerChart
               symbol={symbol}
@@ -68,6 +125,7 @@ export function ChartGrid({ symbol, lastTrade }: Props) {
               fixedTimeframe={panel.id}
               title={panel.label}
               subtitle={panel.note}
+              chartActive={chartActive}
             />
           </div>
         ))}

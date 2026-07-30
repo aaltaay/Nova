@@ -1,5 +1,6 @@
 import type {
   CandlestickData,
+  HistogramData,
   Time,
   UTCTimestamp,
 } from 'lightweight-charts';
@@ -13,10 +14,22 @@ export interface RawBar {
   v: number;
 }
 
+/** UTC calendar-day cache for America/New_York offset (DST changes are rare). */
+const _etOffsetByUtcDay = new Map<string, number>();
+
+export function clearEtOffsetCacheForTests(): void {
+  _etOffsetByUtcDay.clear();
+}
+
 function etOffsetMs(d: Date): number {
+  const day = d.toISOString().slice(0, 10);
+  const cached = _etOffsetByUtcDay.get(day);
+  if (cached !== undefined) return cached;
   const utcStr = d.toLocaleString('en-US', { timeZone: 'UTC' });
   const etStr = d.toLocaleString('en-US', { timeZone: 'America/New_York' });
-  return new Date(etStr).getTime() - new Date(utcStr).getTime();
+  const offset = new Date(etStr).getTime() - new Date(utcStr).getTime();
+  _etOffsetByUtcDay.set(day, offset);
+  return offset;
 }
 
 export function isoToEtTime(iso: string, isDailyOrAbove: boolean): Time {
@@ -47,6 +60,46 @@ export function isOutOfOrderTrade(
     && typeof previous.time === 'number'
     && typeof nextTime === 'number'
     && nextTime < previous.time;
+}
+
+export function isDailyTimeframe(timeframe: string): boolean {
+  return timeframe === '1Day' || timeframe === '1Week' || timeframe === '1Month';
+}
+
+/** One-pass candles + volumes from REST bars (shared ET conversion). */
+export function rawBarsToSeries(
+  bars: RawBar[],
+  timeframe: string,
+): {
+  candles: CandlestickData<Time>[];
+  volumes: HistogramData<Time>[];
+} {
+  const daily = isDailyTimeframe(timeframe);
+  const candles: CandlestickData<Time>[] = [];
+  const volumes: HistogramData<Time>[] = [];
+  for (const b of bars) {
+    const time = isoToEtTime(b.t, daily);
+    candles.push({ time, open: b.o, high: b.h, low: b.l, close: b.c });
+    volumes.push({
+      time,
+      value: b.v,
+      color: b.c >= b.o ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)',
+    });
+  }
+  return { candles, volumes };
+}
+
+/**
+ * Whether ``next`` can update the series with only the last 1–2 candles.
+ * Requires a shared prefix (first + near-end timestamps) and similar length.
+ */
+export function canIncrementalBarsUpdate(prev: RawBar[], next: RawBar[]): boolean {
+  if (prev.length === 0 || next.length === 0) return false;
+  if (Math.abs(next.length - prev.length) > 2) return false;
+  if (prev[0].t !== next[0].t) return false;
+  const pivot = Math.min(prev.length, next.length) - 3;
+  if (pivot >= 0 && prev[pivot]?.t !== next[pivot]?.t) return false;
+  return true;
 }
 
 export function buildMockBars(count: number, basePrice: number): RawBar[] {

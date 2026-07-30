@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-29 | [Chart pipeline Phases 2-4: store, lifecycle, grid](2026-07-29-chart-pipeline-phases-2-4.md) | barsStore, stable LWC, 3-pane grid, hidden-tab pause |
 | 2026-07-29 | [Chart bars Phase 1: IBKR TTL cache + batch + warm](2026-07-29-chart-bars-phase1-cache.md) | TTL cache + single-flight + /bars/batch + WS warm |
 | 2026-07-29 | [Stock Quote unified widget (stats + L2 + T&S)](2026-07-29-stock-quote-unified-widget.md) | One Stock Quote card owns stats + L2 + T&S in Trader rail |
 | 2026-07-29 | [Trader TRADE pane no longer clipped](2026-07-29-trader-trade-pane-clip.md) | Trader TRADE pane no longer clipped |

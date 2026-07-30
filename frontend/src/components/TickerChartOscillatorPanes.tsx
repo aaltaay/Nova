@@ -24,6 +24,7 @@ import {
 interface Props {
   parentChart: IChartApi | null;
   bars: IndicatorBar[];
+  barsRevision?: number;
   enabled: ChartOscillatorId[];
 }
 
@@ -31,7 +32,12 @@ interface Props {
  * Separate oscillator panes (RSI / MACD) synced to the main price chart.
  * Math comes from lightweight-charts-indicators — this only hosts + syncs panes.
  */
-export function TickerChartOscillatorPanes({ parentChart, bars, enabled }: Props) {
+export function TickerChartOscillatorPanes({
+  parentChart,
+  bars,
+  barsRevision = 0,
+  enabled,
+}: Props) {
   return (
     <div className="chart-oscillators">
       {enabled.includes('rsi') && (
@@ -39,6 +45,7 @@ export function TickerChartOscillatorPanes({ parentChart, bars, enabled }: Props
           label="RSI"
           parentChart={parentChart}
           bars={bars}
+          barsRevision={barsRevision}
           kind="rsi"
         />
       )}
@@ -47,6 +54,7 @@ export function TickerChartOscillatorPanes({ parentChart, bars, enabled }: Props
           label="MACD"
           parentChart={parentChart}
           bars={bars}
+          barsRevision={barsRevision}
           kind="macd"
         />
       )}
@@ -58,11 +66,13 @@ function OscillatorPane({
   label,
   parentChart,
   bars,
+  barsRevision,
   kind,
 }: {
   label: string;
   parentChart: IChartApi | null;
   bars: IndicatorBar[];
+  barsRevision: number;
   kind: 'rsi' | 'macd';
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +81,7 @@ function OscillatorPane({
   const lineBRef = useRef<ISeriesApi<'Line'> | null>(null);
   const histRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const syncingRef = useRef(false);
+  const lastPaintKeyRef = useRef('');
 
   useEffect(() => {
     const container = containerRef.current;
@@ -148,6 +159,9 @@ function OscillatorPane({
   }, [kind]);
 
   useEffect(() => {
+    const paintKey = `${barsRevision}:${kind}:${bars.length}`;
+    if (lastPaintKeyRef.current === paintKey) return;
+    lastPaintKeyRef.current = paintKey;
     if (kind === 'rsi') {
       const data = computeRsiPane(bars);
       lineARef.current?.setData(data.rsi);
@@ -157,7 +171,7 @@ function OscillatorPane({
       lineARef.current?.setData(data.macd);
       lineBRef.current?.setData(data.signal);
     }
-  }, [bars, kind]);
+  }, [bars, barsRevision, kind]);
 
   useEffect(() => {
     const child = chartRef.current;

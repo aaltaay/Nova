@@ -12,6 +12,10 @@ vi.mock('../TickerChart', () => ({
   ),
 }));
 
+vi.mock('../chart/barsStore', () => ({
+  ensureBarsBatch: vi.fn().mockResolvedValue({ results: {}, errors: {} }),
+}));
+
 describe('ChartGrid', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -30,7 +34,7 @@ describe('ChartGrid', () => {
     container.remove();
   });
 
-  it('renders two rows with a horizontal resize handle between them', () => {
+  it('renders two rows with a horizontal resize handle between them (3 panes default)', () => {
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);
     });
@@ -40,6 +44,20 @@ describe('ChartGrid', () => {
     expect(
       container.querySelector('.resize-handle--horizontal[aria-label="Resize chart rows"]'),
     ).toBeTruthy();
+    expect(container.querySelectorAll('[data-testid="ticker-chart"]')).toHaveLength(3);
+  });
+
+  it('can opt in to the 15-Minute fourth pane', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="SDOT" />);
+    });
+    const toggle = container.querySelector(
+      '[data-testid="chart-grid-optional-toggle"]',
+    ) as HTMLButtonElement;
+    expect(toggle).toBeTruthy();
+    act(() => {
+      toggle.click();
+    });
     expect(container.querySelectorAll('[data-testid="ticker-chart"]')).toHaveLength(4);
   });
 });

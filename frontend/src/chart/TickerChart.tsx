@@ -33,11 +33,14 @@ interface TickerChartProps {
   fixedTimeframe?: string;
   title?: string;
   subtitle?: string;
+  /** When false, pause bar polling and resize work (hidden Trader tab). */
+  chartActive?: boolean;
 }
 
 export function TickerChart(props: TickerChartProps) {
+  // Soft-reset on symbol change inside Inner -- avoid remounting the whole LWC tree.
   return (
-    <TickerChartErrorBoundary key={props.symbol}>
+    <TickerChartErrorBoundary>
       <TickerChartInner {...props} />
     </TickerChartErrorBoundary>
   );
@@ -50,6 +53,7 @@ function TickerChartInner({
   fixedTimeframe,
   title,
   subtitle,
+  chartActive = true,
 }: TickerChartProps) {
   const chartHeight =
     variant === 'grid' ? CHART_HEIGHT_GRID
@@ -64,7 +68,6 @@ function TickerChartInner({
   const [userTimeframe, setUserTimeframe] = useState(
     fixedTimeframe ?? CHART_DEFAULT_TIMEFRAME,
   );
-  // Prefer prop when locked; avoid syncing prop→state in an effect.
   const timeframe = fixedTimeframe ?? userTimeframe;
   const [maximized, setMaximized] = useState(false);
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicatorId[]>(
@@ -86,6 +89,7 @@ function TickerChartInner({
     chartHeight,
     fillParentHeight,
     maximized,
+    chartActive,
   });
 
   const {
@@ -117,6 +121,7 @@ function TickerChartInner({
     lastTrade,
     applyLiveTrade,
     onSeriesReset: resetTradeState,
+    chartActive,
   });
 
   const barsRevision =
@@ -180,12 +185,14 @@ function TickerChartInner({
       <TickerChartOverlays
         chart={chartApi}
         bars={indicatorBars}
+        barsRevision={barsRevision}
         enabled={enabledIndicators}
       />
       {oscillatorEnabled.length > 0 && (
         <TickerChartOscillatorPanes
           parentChart={chartApi}
           bars={indicatorBars}
+          barsRevision={barsRevision}
           enabled={oscillatorEnabled}
         />
       )}

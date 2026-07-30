@@ -433,21 +433,21 @@ export const CHART_HEIGHT_PANEL = 280;
 export const CHART_HEIGHT_PAGE = 440;
 /** Minimum chart body height (px) per 2×2 grid cell — cells stretch to fill ~80% of the trading viewport. */
 export const CHART_HEIGHT_GRID = 180;
-/**
- * Full trading page (double-click) 2×2 panels.
- * Fourth panel is 15Min temporarily — Alpaca has no historical sub-minute;
- * a live 10-second tape panel will replace/add later.
- */
+/** Default Stock View grid (3 panes). 15m is opt-in via CHART_GRID_OPTIONAL_PANEL. */
 export const CHART_GRID_PANELS: { id: string; label: string; note?: string }[] = [
   { id: '1Min', label: '1-Minute' },
   { id: '5Min', label: '5-Minute' },
   { id: '1Day', label: 'Full Day' },
-  {
-    id: '15Min',
-    label: '15-Minute',
-    note: 'Temp stand-in — 10s live tape coming later',
-  },
 ];
+/** Optional fourth pane (stand-in until 10s live tape). Off by default to cut IBKR load. */
+export const CHART_GRID_OPTIONAL_PANEL: { id: string; label: string; note?: string } = {
+  id: '15Min',
+  label: '15-Minute',
+  note: 'Temp stand-in -- 10s live tape coming later',
+};
+export const CHART_GRID_OPTIONAL_STORAGE_KEY = 'nova.chartGrid.show15Min';
+/** Client store freshness -- slightly under backend intraday TTL (20s). */
+export const CHART_BARS_CLIENT_STALE_MS = 15_000;
 /** Side panel default width (px) on wide viewports — room for quote | chart | fundamentals. */
 export const SIDE_PANEL_WIDTH_PX = 820;
 /** Minimum width when dragging the splitter (px). */

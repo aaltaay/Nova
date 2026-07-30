@@ -113,6 +113,7 @@ export function StockViewTabs({ detached }: Props) {
                 detached={detached}
                 onBack={onBack}
                 onSelectSymbol={next => onRename(symbol, next)}
+                chartActive={show}
               />
             </div>
           );
