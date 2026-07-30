@@ -4,12 +4,11 @@ import { TickerChart, type ChartTradeUpdate } from '../TickerChart';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import {
+  buildChartGridPanels,
   CHART_DEFAULT_INDICATORS,
   CHART_GRID_OPTIONAL_DEFAULT_ON,
-  CHART_GRID_OPTIONAL_PANEL,
   CHART_GRID_OPTIONAL_STORAGE_KEY,
   CHART_GRID_PANE_INDICATORS,
-  CHART_GRID_PANELS,
   CHART_TIMEFRAME_BAR_LIMITS,
   STOCK_VIEW_CHART_ROW_SPLIT_KEY,
   STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
@@ -46,10 +45,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
   });
   const [showOptional, setShowOptional] = useState(readOptionalEnabled);
 
-  const panels = useMemo(() => {
-    if (!showOptional) return CHART_GRID_PANELS;
-    return [...CHART_GRID_PANELS, CHART_GRID_OPTIONAL_PANEL];
-  }, [showOptional]);
+  const panels = useMemo(() => buildChartGridPanels(showOptional), [showOptional]);
 
   const topPanels = panels.slice(0, 2);
   const bottomPanels = panels.slice(2);

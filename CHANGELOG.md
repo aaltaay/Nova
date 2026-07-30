@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Trader grid layout: 5m|10s over Full Day|1m
+
+- **What:** Chart grid order is now top **5-Minute | 10-Second**, bottom **Full Day | 1-Minute**. Hiding 10s puts 1m top-right; Full Day stays bottom.
+- **Why:** User asked to move 10s to top-right and 1m to bottom-right while keeping Full Day in place.
+- **Files touched:** `market_ui.ts` (`buildChartGridPanels`), `ChartGrid.tsx`, ChartGrid test.
+- **How it works now:** `buildChartGridPanels(show10Sec)` owns layout order instead of append-optional.
+- **Verified by:** Vitest ChartGrid title order.
+
 ## 2026-07-29 -- MACD on by default for Trader 1m and 5m panes
 
 - **What:** 1-Minute and 5-Minute grid charts start with MACD enabled; grid oscillator body height raised to 88px and LWC height syncs to the CSS box so the pane is readable.
