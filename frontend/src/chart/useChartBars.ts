@@ -48,6 +48,19 @@ interface UseChartBarsOptions {
   chartActive?: boolean;
 }
 
+function paintFull(
+  candles: CandlestickData<Time>[],
+  volumes: ReturnType<typeof rawBarsToSeries>['volumes'],
+  candleSeriesRef: UseChartBarsOptions['candleSeriesRef'],
+  volSeriesRef: UseChartBarsOptions['volSeriesRef'],
+  chartRef: UseChartBarsOptions['chartRef'],
+  fitContent: boolean,
+): void {
+  candleSeriesRef.current?.setData(candles);
+  volSeriesRef.current?.setData(volumes);
+  if (fitContent && candles.length > 0) chartRef.current?.timeScale().fitContent();
+}
+
 function paintBars(
   bars: RawBar[],
   tf: string,
@@ -59,22 +72,26 @@ function paintBars(
   fitContent: boolean,
 ): IndicatorBar[] {
   const { candles, volumes } = rawBarsToSeries(bars, tf);
-  const incremental =
+  const canIncremental =
     prevBars != null
     && canIncrementalBarsUpdate(prevBars, bars)
     && candleSeriesRef.current
-    && volSeriesRef.current;
+    && volSeriesRef.current
+    && candles.length > 0;
 
-  if (incremental) {
-    const start = Math.max(0, candles.length - 2);
-    for (let i = start; i < candles.length; i++) {
-      candleSeriesRef.current!.update(candles[i]);
-      volSeriesRef.current!.update(volumes[i]);
+  if (canIncremental) {
+    // LWC update() only accepts the tip (same time replace) or a newer time.
+    // Never update penultimate -- that throws "Cannot update oldest data".
+    const tip = candles[candles.length - 1];
+    const tipVol = volumes[volumes.length - 1];
+    try {
+      candleSeriesRef.current!.update(tip);
+      volSeriesRef.current!.update(tipVol);
+    } catch {
+      paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, fitContent);
     }
   } else {
-    candleSeriesRef.current?.setData(candles);
-    volSeriesRef.current?.setData(volumes);
-    if (fitContent && candles.length > 0) chartRef.current?.timeScale().fitContent();
+    paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, fitContent);
   }
   lastCandleRef.current = candles.length > 0 ? candles[candles.length - 1] : null;
   return rawBarsToIndicatorBars(bars, tf);

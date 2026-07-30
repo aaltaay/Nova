@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Fix chart incremental update oldest-data crash
+
+- **What:** Incremental bar paint now updates only the series tip (or falls back to full `setData`). Stops the red `Cannot update oldest data` overlay on Trader panes.
+- **Why:** Phase 2-4 `paintBars` called `update()` on the last two candles; LWC forbids rewriting older than the tip.
+- **Files touched:** `useChartBars.ts`, `tickerChartData.ts`, tests.
+- **How it works now:** Tip-only incremental update; prefix/append gates in `canIncrementalBarsUpdate`; try/catch → full setData.
+- **Verified by:** Vitest tickerChartData + barsStore; hard-reload Nova Chrome tab.
+- **Related:** PROBLEM_LOG 2026-07-29 -- Chart "Cannot update oldest data".
+
 ## 2026-07-29 -- Chart pipeline Phases 2-4 (frontend store + lifecycle)
 
 - **What:** Shared frontend `barsStore` with batch warm, incremental candle updates, cheap ET day-cached time conversion, stable chart instances (no destroy on height/fill), charts mount without waiting on ticker detail, hidden Trader tabs pause refetch/resize, default grid is 3 panes (15m opt-in).

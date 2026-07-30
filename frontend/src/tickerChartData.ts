@@ -90,16 +90,33 @@ export function rawBarsToSeries(
 }
 
 /**
- * Whether ``next`` can update the series with only the last 1–2 candles.
- * Requires a shared prefix (first + near-end timestamps) and similar length.
+ * Whether lightweight-charts can apply ``next`` with a single ``series.update``
+ * on the newest bar only. Never rewrite older bars -- LWC throws
+ * "Cannot update oldest data" if update time is before the series tip.
  */
 export function canIncrementalBarsUpdate(prev: RawBar[], next: RawBar[]): boolean {
   if (prev.length === 0 || next.length === 0) return false;
-  if (Math.abs(next.length - prev.length) > 2) return false;
-  if (prev[0].t !== next[0].t) return false;
-  const pivot = Math.min(prev.length, next.length) - 3;
-  if (pivot >= 0 && prev[pivot]?.t !== next[pivot]?.t) return false;
-  return true;
+  if (next.length < prev.length) return false;
+  if (next.length - prev.length > 1) return false;
+  // All bars except the newest must be identical -- any older rewrite needs setData.
+  const shared = Math.min(prev.length, next.length) - 1;
+  for (let i = 0; i < shared; i++) {
+    const a = prev[i];
+    const b = next[i];
+    if (
+      a.t !== b.t
+      || a.o !== b.o
+      || a.h !== b.h
+      || a.l !== b.l
+      || a.c !== b.c
+      || a.v !== b.v
+    ) {
+      return false;
+    }
+  }
+  if (next.length === prev.length) return true;
+  // Appended one bar: previous tip must be the new second-to-last (closed bar).
+  return prev[prev.length - 1].t === next[next.length - 2].t;
 }
 
 export function buildMockBars(count: number, basePrice: number): RawBar[] {

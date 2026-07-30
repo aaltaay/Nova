@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Chart "Cannot update oldest data" on all panes
+
+- **Symptom:** Trader charts (1m / 5m / Full Day) showed red overlay `Cannot update oldest data, last time=[object Object], new time=[object Object]` after the Phase 2-4 barsStore incremental paint.
+- **Cause:** `paintBars` called `series.update()` on the last *two* candles. lightweight-charts only allows updating the series tip (same time) or appending a newer time; updating the penultimate bar after the tip exists throws. Daily times stringify as `[object Object]` (BusinessDay).
+- **Fix:** Incremental path updates only the newest candle; on throw, fall back to full `setData`. `canIncrementalBarsUpdate` requires a shared prefix and tip-only change or single append.
+- **Keywords:** Cannot update oldest data, lightweight-charts, series.update, incremental bars, paintBars, BusinessDay, [object Object]
+
 ## 2026-07-29 -- Chart UI remount / inactive-tab poll storm
 
 - **Symptom:** Even after backend caching, charts felt sluggish on tab switch / maximize; inactive Trader tabs kept hammering `/bars`; Full Day waited behind ticker detail.

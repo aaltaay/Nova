@@ -45,15 +45,24 @@ describe('ticker chart bar conversion', () => {
     expect(candles[0].time).toBe(volumes[0].time);
   });
 
-  it('allows incremental update when only the tail changes', () => {
+  it('allows incremental update only when the tip bar changes or appends', () => {
     const prev: RawBar[] = [
       { t: 'a', o: 1, h: 1, l: 1, c: 1, v: 1 },
       { t: 'b', o: 1, h: 1, l: 1, c: 1, v: 1 },
       { t: 'c', o: 1, h: 1, l: 1, c: 1, v: 1 },
       { t: 'd', o: 1, h: 1, l: 1, c: 1, v: 1 },
     ];
-    const next = [...prev.slice(0, 3), { t: 'd', o: 1, h: 2, l: 1, c: 1.5, v: 9 }];
-    expect(canIncrementalBarsUpdate(prev, next)).toBe(true);
+    const tipChanged = [...prev.slice(0, 3), { t: 'd', o: 1, h: 2, l: 1, c: 1.5, v: 9 }];
+    const appended = [...prev, { t: 'e', o: 1, h: 1, l: 1, c: 1, v: 1 }];
+    expect(canIncrementalBarsUpdate(prev, tipChanged)).toBe(true);
+    expect(canIncrementalBarsUpdate(prev, appended)).toBe(true);
     expect(canIncrementalBarsUpdate(prev, [{ t: 'z', o: 1, h: 1, l: 1, c: 1, v: 1 }])).toBe(false);
+    // Rewriting an older bar must force a full setData.
+    const olderRewritten = [
+      ...prev.slice(0, 2),
+      { t: 'c', o: 9, h: 9, l: 9, c: 9, v: 9 },
+      prev[3],
+    ];
+    expect(canIncrementalBarsUpdate(prev, olderRewritten)).toBe(false);
   });
 });
