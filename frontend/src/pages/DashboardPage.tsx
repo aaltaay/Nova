@@ -17,21 +17,19 @@ import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { ScannerBarBridge } from '../components/ScannerBarBridge';
+import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { useSettings } from '../settings/SettingsContext';
-import { scanAgeForTab } from '../utils/scanAge';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   DEFAULT_ACTIVE_TAB,
   getModule,
   isTabModuleId,
-  tabUsesScannerPricePatch,
   type ActiveTab,
 } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
-import { enterSampleView } from '../sample_data/sampleNav';
 
 function isDockTab(tab: ActiveTab): tab is 'hod_momo' | 'running_up' {
   return tab === 'hod_momo' || tab === 'running_up';
@@ -59,7 +57,6 @@ export function DashboardPage() {
     setAlpacaFeed: setWorkspaceAlpacaFeed,
     scannerPersistentAuthoritative,
     ibkrConnected,
-    ibkrMode,
     ibkrGatewayMode,
   } = useWorkspace();
   const { hodCount, runningUpCount, focusDock } = useHodMomo();
@@ -130,26 +127,6 @@ export function DashboardPage() {
     setActiveTab(DEFAULT_ACTIVE_TAB);
   }, [activeTab, focusDock]);
 
-  const showScannerPriceFreshness =
-    tabUsesScannerPricePatch(activeTab) &&
-    settings.discoveryProvider === 'ibkr' &&
-    scanner.historyDate === null;
-  const lastScan = scanAgeForTab(activeTab, scanner.scanAges);
-  const priceAgeTs = scanner.lastPriceTs > 0 ? scanner.lastPriceTs : lastScan;
-  const secondsAgo = showScannerPriceFreshness && priceAgeTs > 0
-    ? Math.max(0, Math.floor(scanner.now - priceAgeTs))
-    : null;
-
-  function handleHistoryChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const val = e.target.value;
-    if (val === '') {
-      scanner.setHistoryDate(null);
-      scanner.fetchData();
-    } else {
-      scanner.setHistoryDate(val);
-    }
-  }
-
   // Unfiltered rows: exchange filter must not hide HOD news flames.
   usePublishScannerNews({
     source: 'live',
@@ -218,11 +195,7 @@ export function DashboardPage() {
 
   return (
     <div className="nova-shell">
-      <ScannerBarBridge
-        activeTab={mainTab}
-        scanner={scanner}
-        onHistoryChange={handleHistoryChange}
-      />
+      <ScannerBarBridge activeTab={mainTab} scanner={scanner} />
       <ScannerSideNav
         activeTab={mainTab}
         railHighlight={railHighlight}
@@ -249,6 +222,7 @@ export function DashboardPage() {
                   type="button"
                   className="history-banner-btn"
                   onClick={() => {
+                    setGlobalBarHistoryDate(null);
                     scanner.setHistoryDate(null);
                     scanner.fetchData();
                   }}

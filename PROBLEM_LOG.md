@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Shared header status strip missing on Trader
+
+- **Symptom:** Scanner header showed MARKET HOURS / API / GATEWAY / Sample / history / lookup; Trader header did not -- looked like two different bars.
+- **Cause:** `GlobalAppBar` was shared, but the middle status strip came from `ScannerBarBridge` inside `DashboardPage`. Unmount on Trader called `setScannerBarProps(null)`, so the strip vanished.
+- **Fix:** AppShell `GlobalBarStatusBridge` always publishes status; store merges patches and never nulls the whole bar on route change; Dashboard only patches freshness.
+- **Keywords:** GlobalAppBar, ScannerBarBridge, scannerBarStore, Trader, shared header, status strip, setScannerBarProps null
+
 ## 2026-07-30 -- Quote Panel chart time axis clipped / unreadable
 
 - **Symptom:** Quote Panel Price Chart showed candles + volume but no readable time labels under the plot (empty dark band where the x-axis should be).

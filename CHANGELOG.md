@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Shared GlobalAppBar status strip on Scanner and Trader
+
+- **What:** MARKET HOURS / API / GATEWAY / Sample / history / lookup stay on the header in Trader View, same as Scanner.
+- **Why:** Status strip was published from Dashboard and cleared to null on leave, so Trader looked like a different, thinner header.
+- **Files touched:** `frontend/src/App.tsx`, `GlobalBarStatusBridge.tsx`, `scannerBarStore.ts`, `ScannerBarBridge.tsx`, `DashboardPage.tsx`.
+- **How it works now:** `GlobalBarStatusBridge` in AppShell always publishes the strip. Dashboard only patches price freshness. Leaving Scanner never clears the bar.
+- **Verified by:** `npx vitest run src/components/scannerBarStore.test.ts src/components/GlobalAppBar.test.tsx`.
+- **Related:** PROBLEM_LOG 2026-07-30 Shared header cleared on Trader.
+
 ## 2026-07-30 -- Quote Panel chart shows time axis again
 
 - **What:** Quote Panel Price Chart no longer clips away the bottom time labels under volume.

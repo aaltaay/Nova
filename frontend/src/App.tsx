@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { GlobalAppBar } from './components/GlobalAppBar';
+import { GlobalBarStatusBridge } from './components/GlobalBarStatusBridge';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { HodMomoDock } from './hod_momo/HodMomoDock';
@@ -54,7 +55,8 @@ function AppShell() {
       <SettingsProvider>
         <HodMomoProvider>
           <div className="nova-app-stack">
-            {/* Scanner status chrome is merged into GlobalAppBar (one header row). */}
+            {/* One shared header for Scanner + Trader; status strip never clears on route. */}
+            <GlobalBarStatusBridge />
             <GlobalAppBar />
             <NovaOsAttentionStrip global />
             <div className="nova-app-branch">

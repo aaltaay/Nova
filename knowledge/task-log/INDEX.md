@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-30 | [Shared GlobalAppBar status strip on Scanner and Trader](2026-07-30-shared-global-app-bar-status.md) | Shared GlobalAppBar status strip on Scanner and Trader |
 | 2026-07-30 | [Morning wedge recurrence fixes](2026-07-30-morning-wedge-recurrence-fixes.md) | Daily bootstrap recycle + completed-orders cooldown + queue logging; OPEN premarket-before-04:00 |
 | 2026-07-30 | [Hot Keys Webull-style Settings shell (landing + manager + create)](2026-07-30-hotkeys-webull-settings-shell.md) | Hot Keys Webull-style Settings shell (landing + manager + create) |
 | 2026-07-30 | [Integrity banner false warn root causes](2026-07-30-integrity-false-warn-root-causes.md) | Fix false Integrity warns; IBC daily restart; seed retry |

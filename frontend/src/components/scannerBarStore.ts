@@ -1,17 +1,72 @@
 /**
- * Live scanner status store for GlobalAppBar (one header row).
- * DashboardPage publishes; GlobalAppBar subscribes.
- * Named distinctly from ScannerBarBridge.tsx -- Windows FS is case-insensitive.
+ * Shared GlobalAppBar status strip store (Scanner + Trader).
+ * AppShell's GlobalBarStatusBridge publishes the always-on chrome.
+ * Dashboard may patch price-freshness only -- never clears the whole bar.
  */
 import { useSyncExternalStore } from 'react';
-import type { GlobalAppBarScanner } from './GlobalAppBar';
+import type { GlobalAppBarScanner } from './globalAppBarScanner';
 
 let current: GlobalAppBarScanner | null = null;
+let historyDate: string | null = null;
+let historyDates: string[] = [];
 const listeners = new Set<() => void>();
 
-export function setScannerBarProps(next: GlobalAppBarScanner | null): void {
-  current = next;
+function emit(): void {
   listeners.forEach((l) => l());
+}
+
+export function getScannerBarSnapshot(): GlobalAppBarScanner | null {
+  return current;
+}
+
+export function setGlobalBarHistoryDate(date: string | null): void {
+  historyDate = date;
+  if (current) {
+    current = { ...current, historyDate };
+    emit();
+  }
+}
+
+export function setGlobalBarHistoryDates(dates: string[]): void {
+  historyDates = dates;
+  if (current) {
+    current = { ...current, historyDates };
+    emit();
+  }
+}
+
+/**
+ * Publish bridge-owned fields while preserving Dashboard freshness patches
+ * and shared history selection.
+ */
+export function publishGlobalBarCore(
+  core: Omit<
+    GlobalAppBarScanner,
+    'secondsAgo' | 'pricesStale' | 'historyDate' | 'historyDates'
+  >,
+): void {
+  current = {
+    ...core,
+    historyDate,
+    historyDates,
+    secondsAgo: current?.secondsAgo ?? null,
+    pricesStale: current?.pricesStale ?? false,
+    onBackendStarted: current?.onBackendStarted ?? core.onBackendStarted,
+  };
+  emit();
+}
+
+/** Merge fields without wiping the strip (Dashboard freshness). */
+export function patchScannerBarProps(partial: Partial<GlobalAppBarScanner>): void {
+  if (!current) return;
+  if ('historyDate' in partial && partial.historyDate !== undefined) {
+    historyDate = partial.historyDate;
+  }
+  if ('historyDates' in partial && partial.historyDates !== undefined) {
+    historyDates = partial.historyDates;
+  }
+  current = { ...current, ...partial };
+  emit();
 }
 
 function subscribe(listener: () => void): () => void {
@@ -21,11 +76,15 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-function getSnapshot(): GlobalAppBarScanner | null {
-  return current;
+/** GlobalAppBar subscribes here -- non-null once AppShell bridge has published. */
+export function useScannerBarProps(): GlobalAppBarScanner | null {
+  return useSyncExternalStore(subscribe, getScannerBarSnapshot, getScannerBarSnapshot);
 }
 
-/** GlobalAppBar subscribes here; null while Scanner is not mounted (e.g. Trader). */
-export function useScannerBarProps(): GlobalAppBarScanner | null {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+/** Test helper. */
+export function resetScannerBarStoreForTests(): void {
+  current = null;
+  historyDate = null;
+  historyDates = [];
+  emit();
 }

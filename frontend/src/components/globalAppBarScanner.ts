@@ -2,7 +2,7 @@ import type { ChangeEvent } from 'react';
 import type { HealthStatus } from '../types/health';
 import type { IbkrMode } from '../ibkr/types';
 
-/** Scanner-only status block (market mode, chips, history, lookup) merged into GlobalAppBar. */
+/** Shared status block (market mode, chips, history, lookup) for GlobalAppBar on Scanner + Trader. */
 export type GlobalAppBarScanner = {
   mode: 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
   health: HealthStatus;
