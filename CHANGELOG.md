@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Chart panes self-heal after IBKR wedge; daily/10s live tip
+
+- **What:** Timed-out chart panes retry once in the background (~5s) so Full Day / 10-Second clear without a manual reload. Live WS trades now update the 1Day tip and can open a forward 10Sec tip after a stale historical paint. Backend logs `slot_wait` vs `fetch` timing for historical bars.
+- **Why:** After an IBKR reconnect wedge (`loop_lag` ~49s), all panes showed "Chart bars timed out"; 1Min/5Min healed via poll, but Full Day / 10Sec have no poll and stayed red. Daily tip was gated off; 10Sec tip needed a forward-jump path + re-apply after paint.
+- **Files touched:** `useChartBars.ts`, `barsErrorRetry.ts`, `liveTradeApply.ts`, `useChartLiveTrade.ts`, `tickerChartData.ts`, `market_ui.ts`, `ibkr/bars.py`, tests.
+- **How it works now:** Foreground `/bars` failure with empty store schedules one background retry. Successful paint always re-applies `lastTrade`. Daily buckets use ET `YYYY-MM-DD` matching LWC business-day times; intraday allows forward tip jumps.
+- **Verified by:** Vitest liveTradeApply / barsErrorRetry / tickerChartData; pytest ibkr bars; `npm run build`.
+- **Related:** PROBLEM_LOG 2026-07-29 -- Chart panes stuck on timeout after IBKR wedge; task-log `2026-07-29-chart-pane-wedge-live-tip.md`.
+
 ## 2026-07-29 -- Trader 4th pane: 10-Second chart (4h IBKR history + live)
 
 - **What:** Trader ChartGrid defaults to a 4th **10-Second** pane. One IBKR `10 secs` / `14400 S` historical fetch (~4h) on open, then live tip append from ticker WS trades. No poll, no recorder, no `keepUpToDate`.

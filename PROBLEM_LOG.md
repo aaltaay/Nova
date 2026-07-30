@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Chart panes stuck on timeout after IBKR wedge (Full Day / 10Sec)
+
+- **Symptom:** After IBKR reconnect, all Trader chart panes showed "Chart bars timed out -- IBKR historical may be busy." Later 1Min/5Min recovered; Full Day and 10-Second stayed red until a hard reload. Logs: `event loop lag 49184ms`, `run_coro timed out after 25.0s` (NUWE), while DFNS `/bars` eventually returned 200.
+- **Cause:** (1) Client abort at 25s during the wedge left a permanent error overlay -- Full Day / 10Sec have no `CHART_REFETCH_SEC` poll. (2) Daily live tip was hard-gated off in `useChartLiveTrade`. (3) Successful foreground paint did not re-apply an already-seen `lastTrade`, so tips stayed at the REST tip until a new print (market CLOSED = none).
+- **Fix:** One background error retry (~5s) in `useChartBars`; ET calendar-day `tradeBucket` for 1Day + live tip merge; always re-apply `lastTrade` after paint; forward-jump candle for intraday; `IBKR bars timing … slot_wait=… fetch=…` log for next wedge.
+- **Keywords:** Chart bars timed out, Full Day, 10Sec, loop_lag, run_coro, AbortError, CHART_REFETCH_SEC, live tip, tradeBucket, historical_slot_wait
+
 ## 2026-07-29 -- Chart "Cannot update oldest data" on all panes
 
 - **Symptom:** Trader charts (1m / 5m / Full Day) showed red overlay `Cannot update oldest data, last time=[object Object], new time=[object Object]` after the Phase 2-4 barsStore incremental paint.

@@ -3,6 +3,7 @@ import type { CandlestickData, Time } from 'lightweight-charts';
 import {
   canIncrementalBarsUpdate,
   clearEtOffsetCacheForTests,
+  etCalendarDateString,
   isOutOfOrderTrade,
   isSubMinuteTimeframe,
   rawBarsToSeries,
@@ -53,6 +54,13 @@ describe('ticker chart trade ordering', () => {
     if (typeof a === 'number' && typeof c === 'number') {
       expect(c - a).toBe(10);
     }
+  });
+
+  it('buckets 1Day trades as ET calendar YYYY-MM-DD (matches daily series times)', () => {
+    clearEtOffsetCacheForTests();
+    const bucket = tradeBucket('2026-07-29T21:30:00Z', '1Day');
+    expect(bucket).toBe(etCalendarDateString(new Date('2026-07-29T21:30:00Z')));
+    expect(typeof bucket).toBe('string');
   });
 });
 

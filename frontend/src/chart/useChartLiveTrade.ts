@@ -1,8 +1,8 @@
-/** ADR 005 — monotonic live-trade candle merging into the open bar. */
+/** ADR 005 -- monotonic live-trade candle merging into the open bar. */
 
 import { useCallback, useEffect, useRef } from 'react';
 import type { CandlestickData, ISeriesApi, Time } from 'lightweight-charts';
-import { isOutOfOrderTrade, tradeBucket } from '../tickerChartData';
+import { mergeLiveTradeCandle } from './liveTradeApply';
 import { tradeMatchesChartSymbol } from './liveTradeGate';
 import type { ChartTradeUpdate } from './types';
 
@@ -18,31 +18,18 @@ export function useChartLiveTrade(
   const applyLiveTrade = useCallback((trade: ChartTradeUpdate, tf: string) => {
     if (!trade.price || !trade.timestamp || !candleSeriesRef.current) return;
     if (!tradeMatchesChartSymbol(chartSymbol, trade.symbol)) return;
-    const daily = tf === '1Day' || tf === '1Week' || tf === '1Month';
-    if (daily) return;
 
-    const bucket = tradeBucket(trade.timestamp, tf);
-    if (bucket === null) return;
-    const prev = lastCandleRef.current;
-    if (isOutOfOrderTrade(prev, bucket)) return;
-    const price = trade.price;
+    const next = mergeLiveTradeCandle(lastCandleRef.current, {
+      price: trade.price,
+      timestamp: trade.timestamp,
+    }, tf);
+    if (!next) return;
 
-    if (prev && prev.time === bucket) {
-      const updated: CandlestickData<Time> = {
-        time: bucket,
-        open: prev.open,
-        high: Math.max(prev.high, price),
-        low: Math.min(prev.low, price),
-        close: price,
-      };
-      candleSeriesRef.current.update(updated);
-      lastCandleRef.current = updated;
-    } else {
-      const newCandle: CandlestickData<Time> = {
-        time: bucket, open: price, high: price, low: price, close: price,
-      };
-      candleSeriesRef.current.update(newCandle);
-      lastCandleRef.current = newCandle;
+    try {
+      candleSeriesRef.current.update(next);
+      lastCandleRef.current = next;
+    } catch {
+      /* series not ready / LWC rejected -- next paint will reset tip */
     }
   }, [candleSeriesRef, chartSymbol]);
 

@@ -478,6 +478,12 @@ export const CHART_MOCK_BASE_PRICE = 10;
 export const CHART_MOCK_DATA_LABEL = 'Demo candles (no live bars for this timeframe)';
 /** Client abort for /bars so "Loading…" cannot spin past the IBKR historical budget. */
 export const CHART_BARS_FETCH_TIMEOUT_MS = 25_000;
+/**
+ * After a foreground /bars failure with an empty store, wait this long then
+ * retry once in the background so a transient IBKR wedge does not leave a
+ * permanent red overlay (Full Day / 10Sec have no CHART_REFETCH_SEC poll).
+ */
+export const CHART_BARS_ERROR_RETRY_MS = 5_000;
 export const CHART_REFETCH_SEC: Record<string, number> = {
   // Live forming candle comes from WS ticks; poll is reconciliation only.
   // 10Sec deliberately omitted -- historical once + live append (small-bar pacing).

@@ -38,6 +38,21 @@ export function isoToEtTime(iso: string, isDailyOrAbove: boolean): Time {
   return Math.floor((d.getTime() + etOffsetMs(d)) / 1000) as UTCTimestamp;
 }
 
+/** ET calendar date ``YYYY-MM-DD`` for an instant (matches daily LWC business-day times). */
+export function etCalendarDateString(d: Date): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  if (!y || !m || !day) return d.toISOString().slice(0, 10);
+  return `${y}-${m}-${day}`;
+}
+
 export function timeframeSeconds(timeframe: string): number {
   const match = timeframe.match(/^(\d+)(Sec|Min|Hour)$/);
   if (!match) return 60;
@@ -52,9 +67,17 @@ export function isSubMinuteTimeframe(timeframe: string): boolean {
   return /^\d+Sec$/.test(timeframe);
 }
 
+export function isDailyTimeframe(timeframe: string): boolean {
+  return timeframe === '1Day' || timeframe === '1Week' || timeframe === '1Month';
+}
+
 export function tradeBucket(timestamp: string, timeframe: string): Time | null {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return null;
+  // Daily+ series use business-day strings (see isoToEtTime) -- match that encoding.
+  if (isDailyTimeframe(timeframe)) {
+    return etCalendarDateString(date) as Time;
+  }
   const seconds = Math.floor((date.getTime() + etOffsetMs(date)) / 1000);
   const bucketSize = timeframeSeconds(timeframe);
   return (Math.floor(seconds / bucketSize) * bucketSize) as UTCTimestamp;
@@ -64,14 +87,16 @@ export function isOutOfOrderTrade(
   previous: CandlestickData<Time> | null,
   nextTime: Time,
 ): boolean {
-  return previous !== null
-    && typeof previous.time === 'number'
-    && typeof nextTime === 'number'
-    && nextTime < previous.time;
-}
-
-export function isDailyTimeframe(timeframe: string): boolean {
-  return timeframe === '1Day' || timeframe === '1Week' || timeframe === '1Month';
+  if (previous === null) return false;
+  const prevTime = previous.time;
+  if (typeof prevTime === 'number' && typeof nextTime === 'number') {
+    return nextTime < prevTime;
+  }
+  // ISO date strings compare lexicographically in calendar order.
+  if (typeof prevTime === 'string' && typeof nextTime === 'string') {
+    return nextTime < prevTime;
+  }
+  return false;
 }
 
 /** One-pass candles + volumes from REST bars (shared ET conversion). */

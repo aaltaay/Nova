@@ -7,6 +7,7 @@ candles match IBKR live quotes instead of sparse Alpaca IEX bars.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import date, datetime, timezone
 
 from fastapi import HTTPException
@@ -27,7 +28,7 @@ from constants import (
 from ibkr import client as _client
 from ibkr.errors import describe_exc, is_transient_historical_failure
 from ibkr.historical_gate import HistoricalBusy, historical_slot
-from metrics.op_metrics import timed
+from metrics.op_metrics import record, timed
 
 logger = logging.getLogger(__name__)
 
@@ -142,9 +143,18 @@ async def _fetch_bars_uncached(
 
     timeout = IBKR_HISTORICAL_TIMEOUT_SEC if interactive else IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC
     contract = _Stock(symbol.upper(), "SMART", "USD")
+    raw = None
+    slot_wait_s = 0.0
+    fetch_s = 0.0
 
     try:
+        wait_started = time.perf_counter_ns()
         async with historical_slot(interactive=interactive):
+            # First line after acquire -- wait time is lock queue only.
+            slot_wait_ns = time.perf_counter_ns() - wait_started
+            record("ibkr.historical_slot_wait", slot_wait_ns)
+            slot_wait_s = slot_wait_ns / 1_000_000_000
+            fetch_started = time.perf_counter()
             try:
                 qualified = await ib.qualifyContractsAsync(contract)
                 if not qualified:
@@ -186,10 +196,16 @@ async def _fetch_bars_uncached(
                 raise HTTPException(
                     status_code=502, detail=f"IBKR historical data failed: {desc}",
                 ) from exc
+            finally:
+                fetch_s = time.perf_counter() - fetch_started
     except HistoricalBusy as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     bars = _normalize_bars(raw or [], limit)
+    logger.info(
+        "IBKR bars timing %s %s slot_wait=%.1fs fetch=%.1fs bars=%d",
+        symbol.upper(), timeframe, slot_wait_s, fetch_s, len(bars),
+    )
     return {"symbol": symbol.upper(), "timeframe": timeframe, "bars": bars, "source": "ibkr"}
 
 

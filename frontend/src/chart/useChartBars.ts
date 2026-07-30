@@ -9,6 +9,7 @@ import type {
 } from 'lightweight-charts';
 import {
   CHART_BARS_CLIENT_STALE_MS,
+  CHART_BARS_ERROR_RETRY_MS,
   CHART_MOCK_BAR_COUNT,
   CHART_MOCK_BASE_PRICE,
   CHART_REFETCH_SEC,
@@ -32,6 +33,7 @@ import {
   isBarsEntryFresh,
   subscribeBars,
 } from './barsStore';
+import { shouldScheduleBarsErrorRetry } from './barsErrorRetry';
 import { isCurrentBarsRequest } from './requestVersion';
 import type { ChartTradeUpdate } from './types';
 
@@ -120,6 +122,8 @@ export function useChartBars({
   const lastTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);
   const paintedBarsRef = useRef<RawBar[] | null>(null);
   const chartActiveRef = useRef(chartActive);
+  const errorRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const errorRetryUsedRef = useRef(false);
 
   useEffect(() => {
     lastTradeRef.current = lastTrade;
@@ -128,6 +132,13 @@ export function useChartBars({
   useEffect(() => {
     chartActiveRef.current = chartActive;
   }, [chartActive]);
+
+  const clearErrorRetry = useCallback(() => {
+    if (errorRetryTimerRef.current != null) {
+      clearTimeout(errorRetryTimerRef.current);
+      errorRetryTimerRef.current = null;
+    }
+  }, []);
 
   const applyStoreBars = useCallback((
     bars: RawBar[],
@@ -162,15 +173,17 @@ export function useChartBars({
     );
     paintedBarsRef.current = next;
     setIndicatorBars(indicators);
-    if (opts.background) {
-      setError(null);
-      const liveTrade = lastTradeRef.current;
-      if (liveTrade?.price && liveTrade.timestamp) applyLiveTrade(liveTrade, timeframe);
-    }
+    clearErrorRetry();
+    setError(null);
+    // Re-apply latest trade after any successful paint (foreground or background)
+    // so a tip that arrived before the series was ready still merges.
+    const liveTrade = lastTradeRef.current;
+    if (liveTrade?.price && liveTrade.timestamp) applyLiveTrade(liveTrade, timeframe);
   }, [
     applyLiveTrade,
     candleSeriesRef,
     chartRef,
+    clearErrorRetry,
     discoveryProvider,
     lastCandleRef,
     timeframe,
@@ -196,31 +209,54 @@ export function useChartBars({
         } else {
           setError(err instanceof Error ? err.message : 'Failed to load chart');
         }
+        // One background retry after a transient wedge (no poll for 10Sec / 1Day).
+        if (shouldScheduleBarsErrorRetry({
+          background: false,
+          storeHasBars: Boolean(getBarsEntry(sym, tf)?.bars.length),
+          retryAlreadyUsed: errorRetryUsedRef.current,
+          chartActive: chartActiveRef.current,
+        })) {
+          errorRetryUsedRef.current = true;
+          clearErrorRetry();
+          const jitter = Math.floor(Math.random() * 1000);
+          errorRetryTimerRef.current = setTimeout(() => {
+            errorRetryTimerRef.current = null;
+            if (!chartActiveRef.current) return;
+            if (getBarsEntry(sym, tf)?.bars.length) return;
+            void fetchBars(sym, tf, true);
+          }, CHART_BARS_ERROR_RETRY_MS + jitter);
+        }
       }
     } finally {
       if (isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current) && !background) {
         setLoading(false);
       }
     }
-  }, [applyStoreBars]);
+  }, [applyStoreBars, clearErrorRetry]);
 
   // Instant paint from shared store; subscribe for batch/warm updates.
   useEffect(() => {
     onSeriesReset();
     paintedBarsRef.current = null;
+    errorRetryUsedRef.current = false;
+    clearErrorRetry();
     const existing = getBarsEntry(symbol, timeframe);
     if (existing && existing.bars.length > 0) {
       applyStoreBars(existing.bars, { background: false, fitContent: true });
       setLoading(false);
       setError(null);
     }
-    return subscribeBars(symbol, timeframe, () => {
+    const unsub = subscribeBars(symbol, timeframe, () => {
       if (!chartActiveRef.current) return;
       const entry = getBarsEntry(symbol, timeframe);
       if (!entry) return;
       applyStoreBars(entry.bars, { background: true, fitContent: false });
     });
-  }, [symbol, timeframe, onSeriesReset, applyStoreBars]);
+    return () => {
+      clearErrorRetry();
+      unsub();
+    };
+  }, [symbol, timeframe, onSeriesReset, applyStoreBars, clearErrorRetry]);
 
   // Network load when active and store is missing/stale.
   useEffect(() => {
@@ -234,8 +270,9 @@ export function useChartBars({
     void fetchBars(symbol, timeframe, background);
     return () => {
       barsRequestVersionRef.current += 1;
+      clearErrorRetry();
     };
-  }, [symbol, timeframe, fetchBars, chartActive]);
+  }, [symbol, timeframe, fetchBars, chartActive, clearErrorRetry]);
 
   // Reconciliation poll -- paused while tab hidden.
   useEffect(() => {
