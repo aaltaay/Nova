@@ -10,18 +10,35 @@ import {
   type Hotkey,
 } from '@tanstack/react-hotkeys';
 import type { HotkeyBinding } from '../constants';
-import { formatHotkeyLabel } from '../hooks/hotkeyUtils';
+import {
+  formatHotkeyLabel,
+  isModifierOnlyBinding,
+  modifiersFromBinding,
+  canonicalModifierKey,
+} from '../hooks/hotkeyUtils';
 import type { HotkeyKeyChord } from './types';
 
 /** Nova chord → canonical TanStack hotkey string (for conflict compare). */
 export function chordToTanstackHotkey(chord: HotkeyKeyChord): string {
+  const key = chord.key?.trim();
+  if (!key) return '';
+  const asBinding: HotkeyBinding = {
+    key,
+    ctrl: chord.ctrl,
+    shift: chord.shift,
+    alt: chord.alt,
+    meta: chord.meta,
+  };
+  // Modifier-only chords (Alt, Ctrl+Alt, …) — join canonical modifier names once.
+  if (isModifierOnlyBinding(asBinding)) {
+    const parts = modifiersFromBinding(asBinding).map(canonicalModifierKey);
+    return parts.length ? normalizeHotkey(parts.join('+')) : '';
+  }
   const parts: string[] = [];
   if (chord.ctrl) parts.push('Control');
   if (chord.alt) parts.push('Alt');
   if (chord.shift) parts.push('Shift');
   if (chord.meta) parts.push('Meta');
-  const key = chord.key?.trim();
-  if (!key) return '';
   parts.push(key.length === 1 ? key.toUpperCase() : key);
   return normalizeHotkey(parts.join('+'));
 }

@@ -13,8 +13,9 @@ export function NovaActiveShortcuts() {
       <h4 className="nova-os-section-title">Active Nova shortcuts</h4>
       <p className="na-muted">
         Automation ladder shortcuts (System 1). Rebindable Nova Actions above are
-        System 2 (manual path). Press <kbd>Ctrl+M</kbd> anytime for the full
-        shortcuts menu (twice quickly to pin). Imported DAS rows never auto-run.
+        System 2 (manual path). Hold <kbd>Ctrl+Alt</kbd> anytime for the full
+        shortcuts menu (release to close · twice quickly to pin). Imported DAS
+        rows never auto-run.
       </p>
       <ul className="executor-hotkeys-list">
         {HOTKEY_ACTIONS.map((action: HotkeyAction) => (

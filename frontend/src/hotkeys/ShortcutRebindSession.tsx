@@ -1,5 +1,7 @@
 /**
  * TanStack HotkeyRecorder session — capture a new chord while the menu is open.
+ * Bare modifiers (Alt/Ctrl/…) are accepted via a parallel keyup path because
+ * TanStack ignores modifier-only keydowns.
  */
 
 import { useEffect, useRef } from 'react';
@@ -8,6 +10,11 @@ import {
   SHORTCUTS_MENU_CONFLICT_PREFIX,
   SHORTCUTS_MENU_REBIND_HINT,
 } from '../constants';
+import {
+  initialBareModifierRecordState,
+  reduceBareModifierRecordKeyDown,
+  reduceBareModifierRecordKeyUp,
+} from './bareModifierRecord';
 import { findShortcutConflict } from './shortcutConflicts';
 import type { ShortcutOccupiedSlot } from './shortcutConflicts';
 import type { ShortcutRebindTarget } from './shortcutsCatalog';
@@ -38,6 +45,31 @@ export function ShortcutRebindSession({
   const startRef = useRef<() => void>(() => {});
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
+  const onAppliedRef = useRef(onApplied);
+  onAppliedRef.current = onApplied;
+  const onConflictRef = useRef(onConflict);
+  onConflictRef.current = onConflict;
+  const excludeIdRef = useRef(excludeId);
+  excludeIdRef.current = excludeId;
+  const doneRef = useRef(false);
+
+  const applyChord = (chord: HotkeyKeyChord) => {
+    if (doneRef.current) return;
+    const hit = findShortcutConflict(
+      chord,
+      occupiedRef.current,
+      excludeIdRef.current,
+    );
+    if (hit) {
+      onConflictRef.current(
+        `${SHORTCUTS_MENU_CONFLICT_PREFIX} “${hit.label}” (${hit.chord})`,
+      );
+      queueMicrotask(() => startRef.current());
+      return;
+    }
+    doneRef.current = true;
+    onAppliedRef.current(targetRef.current, chord);
+  };
 
   const recorder = useHotkeyRecorder({
     ignoreInputs: false,
@@ -50,27 +82,42 @@ export function ShortcutRebindSession({
         queueMicrotask(() => startRef.current());
         return;
       }
-      const chord = tanstackHotkeyToChord(hotkey);
-      const hit = findShortcutConflict(chord, occupiedRef.current, excludeId);
-      if (hit) {
-        onConflict(
-          `${SHORTCUTS_MENU_CONFLICT_PREFIX} “${hit.label}” (${hit.chord})`,
-        );
-        queueMicrotask(() => startRef.current());
-        return;
-      }
-      onApplied(targetRef.current, chord);
+      applyChord(tanstackHotkeyToChord(hotkey));
     },
   });
 
   startRef.current = recorder.startRecording;
 
   useEffect(() => {
+    doneRef.current = false;
     recorder.startRecording();
     return () => {
       // stop() does NOT call onCancel — cancel() would clear the parent
       // rebindTarget in React StrictMode (mount → cleanup → remount).
       recorder.stopRecording();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one session per mount
+  }, []);
+
+  // TanStack returns null for modifier-only keydowns — accept bare Alt/Ctrl/… on keyup.
+  useEffect(() => {
+    let state = initialBareModifierRecordState();
+    const onKeyDown = (event: KeyboardEvent) => {
+      state = reduceBareModifierRecordKeyDown(state, event);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      const next = reduceBareModifierRecordKeyUp(state, event);
+      state = next.state;
+      if (!next.chord) return;
+      event.preventDefault();
+      event.stopPropagation();
+      applyChord(next.chord);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one session per mount
   }, []);

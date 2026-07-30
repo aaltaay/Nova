@@ -13,6 +13,8 @@ import type { NovaActionRecord } from './novaActionTypes';
 import {
   HOTKEY_ACTIONS,
   NOVA_ACTION_KINDS,
+  SHORTCUTS_MENU_DEFAULT_EPOCH,
+  SHORTCUTS_MENU_EPOCH_STORAGE_KEY,
   type HotkeyAction,
   type NovaActionKind,
 } from '../constants';
@@ -131,12 +133,50 @@ export function migrateProfile(raw: unknown): HotkeyProfile | null {
   };
 }
 
+/** One-time drop of stored menu chord when the product default changes. */
+function applyMenuDefaultEpoch(profile: HotkeyProfile): HotkeyProfile {
+  try {
+    if (
+      localStorage.getItem(SHORTCUTS_MENU_EPOCH_STORAGE_KEY)
+      === SHORTCUTS_MENU_DEFAULT_EPOCH
+    ) {
+      return profile;
+    }
+    localStorage.setItem(
+      SHORTCUTS_MENU_EPOCH_STORAGE_KEY,
+      SHORTCUTS_MENU_DEFAULT_EPOCH,
+    );
+    if (!profile.shortcutsMenuKey) return profile;
+    const next: HotkeyProfile = {
+      ...profile,
+      shortcutsMenuKey: undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    // Persist without re-entering loadProfile.
+    localStorage.setItem(HOTKEY_STORAGE_KEY, JSON.stringify(next));
+    return next;
+  } catch {
+    return profile;
+  }
+}
+
 export function loadProfile(): HotkeyProfile {
   try {
     const raw = localStorage.getItem(HOTKEY_STORAGE_KEY);
-    if (!raw) return createEmptyProfile();
+    if (!raw) {
+      try {
+        localStorage.setItem(
+          SHORTCUTS_MENU_EPOCH_STORAGE_KEY,
+          SHORTCUTS_MENU_DEFAULT_EPOCH,
+        );
+      } catch {
+        /* ignore */
+      }
+      return createEmptyProfile();
+    }
     const parsed = JSON.parse(raw) as unknown;
-    return migrateProfile(parsed) ?? createEmptyProfile();
+    const profile = migrateProfile(parsed) ?? createEmptyProfile();
+    return applyMenuDefaultEpoch(profile);
   } catch {
     return createEmptyProfile();
   }

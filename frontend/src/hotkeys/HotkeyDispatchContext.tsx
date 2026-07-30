@@ -181,22 +181,28 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
 
     const onKeyUp = (event: KeyboardEvent) => {
       if (rebindActiveRef.current) return;
+      const prev = menuStateRef.current;
       const next = reduceShortcutsMenuKeyUp(
-        menuStateRef.current,
+        prev,
         event,
         menuBindingRef.current,
       );
-      if (next.mode !== menuStateRef.current.mode) {
+      if (next.mode !== prev.mode) {
+        // Stop browser menu-bar focus when releasing bare Alt after a peek.
+        if (prev.mode === 'peek' && next.mode === 'closed') {
+          event.preventDefault();
+        }
         menuStateRef.current = next;
         setMenuState(next);
       }
     };
 
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    // Capture phase so Alt reaches us before browser chrome steals it.
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
     };
   }, [automationEnabled, automationMode, runAction]);
 

@@ -42,11 +42,29 @@ export function getEffectiveAutomationBindings(
   return out;
 }
 
+/**
+ * Former defaults (Ctrl+M, bare Ctrl, bare Alt) — treat as unset so
+ * hold-Ctrl+Alt ships for existing profiles that never intentionally rebound.
+ */
+function isLegacyMenuDefault(chord: HotkeyKeyChord): boolean {
+  const key = chord.key.toLowerCase();
+  const bare =
+    !chord.shift && !chord.meta && !Boolean(chord.ctrl) && !Boolean(chord.alt);
+  if ((key === 'control' || key === 'alt') && bare) return true;
+  return (
+    key === 'm'
+    && Boolean(chord.ctrl)
+    && !chord.shift
+    && !chord.alt
+    && !chord.meta
+  );
+}
+
 export function getEffectiveMenuBinding(
   profile: Pick<HotkeyProfile, 'shortcutsMenuKey'> | null | undefined,
 ): HotkeyBinding {
   const chord = profile?.shortcutsMenuKey;
-  if (!chord) return SHORTCUTS_MENU_BINDING;
+  if (!chord || isLegacyMenuDefault(chord)) return SHORTCUTS_MENU_BINDING;
   return chordToBinding(chord) ?? SHORTCUTS_MENU_BINDING;
 }
 

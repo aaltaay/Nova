@@ -1,5 +1,5 @@
 /**
- * Build the live list of bound Nova shortcuts for the Ctrl+M menu.
+ * Build the live list of bound Nova shortcuts for the hold-Ctrl+Alt menu.
  */
 
 import {
@@ -7,6 +7,7 @@ import {
   HOTKEY_ACTIONS,
   HOTKEY_DEFAULTS,
   NOVA_ACTION_KIND_LABELS,
+  SHORTCUTS_MENU_BINDING,
   SHORTCUTS_MENU_TITLE,
   type HotkeyAction,
   type HotkeyBinding,
@@ -38,7 +39,7 @@ export type ShortcutCatalogSection = {
 export function buildShortcutsCatalog(
   novaActions: NovaActionRecord[],
   automationBindings: Record<HotkeyAction, HotkeyBinding> = HOTKEY_DEFAULTS,
-  menuBinding: HotkeyBinding = { key: 'm', ctrl: true },
+  menuBinding: HotkeyBinding = SHORTCUTS_MENU_BINDING,
 ): ShortcutCatalogSection[] {
   const menu: ShortcutCatalogSection = {
     id: 'menu',
@@ -48,7 +49,7 @@ export function buildShortcutsCatalog(
         id: 'menu:shortcuts_menu',
         chord: formatHotkeyLabel(menuBinding),
         label: 'Show this menu',
-        detail: 'Double-click to rebind · hold to peek · twice to pin',
+        detail: 'Hold to peek · release to close · twice to pin · double-click to rebind',
         rebind: { type: 'menu' },
       },
     ],

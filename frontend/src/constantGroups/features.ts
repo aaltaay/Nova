@@ -144,15 +144,24 @@ export const HOTKEY_ORDER_ACTIONS: HotkeyAction[] = [
 export const HOTKEY_SIGNAL_BLOCKED_MESSAGE =
   'Order hotkeys disabled in Signal mode — raise to Confirm first.';
 
-/** Global shortcuts cheat-sheet (peek on hold / pin on double-tap). */
-export const SHORTCUTS_MENU_BINDING: HotkeyBinding = { key: 'm', ctrl: true };
-/** Max gap between Ctrl+M presses to count as pin (double-tap). */
+/**
+ * Global shortcuts cheat-sheet.
+ * Default is Ctrl+Alt (hold = peek, release = close; double-tap to pin).
+ */
+export const SHORTCUTS_MENU_BINDING: HotkeyBinding = { key: 'Alt', ctrl: true };
+/**
+ * Bump when the product default menu chord changes — loadProfile clears any
+ * stored shortcutsMenuKey once so Listening experiments cannot leave the menu dead.
+ */
+export const SHORTCUTS_MENU_DEFAULT_EPOCH = 'ctrl-alt-2026-07-29';
+export const SHORTCUTS_MENU_EPOCH_STORAGE_KEY = 'nova.hotkeys.menu-default-epoch';
+/** Max gap between menu-key presses to count as pin (double-tap). */
 export const SHORTCUTS_MENU_DOUBLE_TAP_MS = 450;
 export const SHORTCUTS_MENU_TITLE = 'Keyboard shortcuts';
 export const SHORTCUTS_MENU_HINT_PEEK =
-  'Release to close · press again quickly to pin · Edit or double-click a row to rebind';
+  'Hold Ctrl+Alt · release to close · tap twice quickly to pin · Edit or double-click a row to rebind';
 export const SHORTCUTS_MENU_HINT_PINNED =
-  'Pinned · Esc or menu key to close · Edit or double-click a row to rebind';
+  'Pinned · Esc or Ctrl+Alt to close · Edit or double-click a row to rebind';
 export const SHORTCUTS_MENU_REBIND_HINT = 'Press the new shortcut now';
 export const SHORTCUTS_MENU_CONFLICT_PREFIX = 'Already used by';
 

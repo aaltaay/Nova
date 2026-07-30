@@ -14,7 +14,7 @@ const sections: ShortcutCatalogSection[] = [
     rows: [
       {
         id: 'menu:shortcuts_menu',
-        chord: 'Ctrl+M',
+        chord: 'Ctrl+Alt',
         label: 'Show this menu',
         rebind: { type: 'menu' },
       },

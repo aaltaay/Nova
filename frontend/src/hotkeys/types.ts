@@ -86,7 +86,7 @@ export interface HotkeyProfile {
   novaActions: NovaActionRecord[];
   /** Optional overrides for Automation six (Phase G / rebind-on-the-go). */
   automationBindings?: Partial<Record<HotkeyAction, HotkeyKeyChord>>;
-  /** Optional override for the shortcuts cheat-sheet chord (default Ctrl+M). */
+  /** Optional override for the shortcuts cheat-sheet chord (default Ctrl+Alt). */
   shortcutsMenuKey?: HotkeyKeyChord;
   updatedAt: string;
 }
