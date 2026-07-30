@@ -6,7 +6,7 @@ import {
   REL_VOLUME_HIGH,
 } from '../constants';
 import type { TickerDetail } from '../types/ticker';
-import { fmtPct, fmtSessionPrice, fmtVolume } from '../utils/quoteFormat';
+import { fmtSessionPrice, fmtVolume } from '../utils/quoteFormat';
 import { useWorkspace } from '../workspace';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
 

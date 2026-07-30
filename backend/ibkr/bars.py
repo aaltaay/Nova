@@ -16,6 +16,7 @@ from constants import (
     CHART_DEFAULT_TIMEFRAME,
     CHART_MAX_BARS,
     CHART_TIMEFRAMES,
+    IBKR_10SEC_FETCH_BARS,
     IBKR_BAR_DURATION,
     IBKR_BAR_SIZE,
     IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC,
@@ -97,6 +98,9 @@ async def fetch_bars_async(
     """
     from ibkr import bars_cache
 
+    # 10Sec: always store/return the full 4h window (default 500 would trim ~83 min).
+    if timeframe == "10Sec":
+        limit = max(limit, IBKR_10SEC_FETCH_BARS)
     limit = max(1, min(limit, CHART_MAX_BARS))
     return await bars_cache.get_or_fetch(
         symbol,
@@ -131,6 +135,10 @@ async def _fetch_bars_uncached(
     ib = _client.get_ib()
     if ib is None:
         raise HTTPException(status_code=503, detail="IBKR not connected")
+
+    # Defense: cache path already clamps in fetch_bars_async; keep uncached path honest.
+    if timeframe == "10Sec":
+        limit = max(limit, IBKR_10SEC_FETCH_BARS)
 
     timeout = IBKR_HISTORICAL_TIMEOUT_SEC if interactive else IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC
     contract = _Stock(symbol.upper(), "SMART", "USD")

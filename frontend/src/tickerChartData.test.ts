@@ -4,7 +4,9 @@ import {
   canIncrementalBarsUpdate,
   clearEtOffsetCacheForTests,
   isOutOfOrderTrade,
+  isSubMinuteTimeframe,
   rawBarsToSeries,
+  timeframeSeconds,
   tradeBucket,
   type RawBar,
 } from './tickerChartData';
@@ -29,6 +31,28 @@ describe('ticker chart trade ordering', () => {
 
   it('rejects an invalid trade timestamp before it reaches the chart library', () => {
     expect(tradeBucket('not-a-date', '1Min')).toBeNull();
+  });
+
+  it('parses Sec / Min / Hour bucket sizes', () => {
+    expect(timeframeSeconds('10Sec')).toBe(10);
+    expect(timeframeSeconds('1Min')).toBe(60);
+    expect(timeframeSeconds('1Hour')).toBe(3600);
+    expect(isSubMinuteTimeframe('10Sec')).toBe(true);
+    expect(isSubMinuteTimeframe('1Min')).toBe(false);
+  });
+
+  it('buckets 10Sec trades on 10-second boundaries (not 60s)', () => {
+    clearEtOffsetCacheForTests();
+    // 14:00:05Z and 14:00:09Z share a 10s bucket; 14:00:10Z rolls over.
+    const a = tradeBucket('2026-07-29T14:00:05Z', '10Sec');
+    const b = tradeBucket('2026-07-29T14:00:09Z', '10Sec');
+    const c = tradeBucket('2026-07-29T14:00:10Z', '10Sec');
+    expect(a).not.toBeNull();
+    expect(a).toBe(b);
+    expect(c).not.toBe(a);
+    if (typeof a === 'number' && typeof c === 'number') {
+      expect(c - a).toBe(10);
+    }
   });
 });
 

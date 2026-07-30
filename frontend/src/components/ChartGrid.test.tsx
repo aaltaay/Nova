@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChartGrid } from './ChartGrid';
+import { ensureBarsBatch } from '../chart/barsStore';
 
 vi.mock('../TickerChart', () => ({
   TickerChart: ({ title }: { title?: string }) => (
@@ -22,6 +23,7 @@ describe('ChartGrid', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    vi.mocked(ensureBarsBatch).mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -34,7 +36,7 @@ describe('ChartGrid', () => {
     container.remove();
   });
 
-  it('renders two rows with a horizontal resize handle between them (3 panes default)', () => {
+  it('defaults to 4 panes including 10-Second', () => {
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);
     });
@@ -44,20 +46,36 @@ describe('ChartGrid', () => {
     expect(
       container.querySelector('.resize-handle--horizontal[aria-label="Resize chart rows"]'),
     ).toBeTruthy();
-    expect(container.querySelectorAll('[data-testid="ticker-chart"]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-testid="ticker-chart"]')).toHaveLength(4);
+    expect(container.textContent).toContain('10-Second');
+    const toggle = container.querySelector(
+      '[data-testid="chart-grid-optional-toggle"]',
+    ) as HTMLButtonElement;
+    expect(toggle.textContent).toBe('Hide 10-Second');
   });
 
-  it('can opt in to the 15-Minute fourth pane', () => {
+  it('can hide the 10-Second fourth pane and persist', () => {
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);
     });
     const toggle = container.querySelector(
       '[data-testid="chart-grid-optional-toggle"]',
     ) as HTMLButtonElement;
-    expect(toggle).toBeTruthy();
     act(() => {
       toggle.click();
     });
-    expect(container.querySelectorAll('[data-testid="ticker-chart"]')).toHaveLength(4);
+    expect(container.querySelectorAll('[data-testid="ticker-chart"]')).toHaveLength(3);
+    expect(localStorage.getItem('nova.chartGrid.show10Sec')).toBe('0');
+    expect(toggle.textContent).toBe('Show 10-Second');
+  });
+
+  it('batch-warms default panes but excludes 10Sec', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="SDOT" />);
+    });
+    expect(ensureBarsBatch).toHaveBeenCalled();
+    const tfs = vi.mocked(ensureBarsBatch).mock.calls[0][1] as string[];
+    expect(tfs).toEqual(['1Min', '5Min', '1Day']);
+    expect(tfs).not.toContain('10Sec');
   });
 });

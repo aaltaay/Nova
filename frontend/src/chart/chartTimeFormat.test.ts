@@ -27,4 +27,12 @@ describe('chartTimeFormat AM/PM', () => {
     expect(formatChartTickMark(noon as Time, TickMarkType.Time, 'en-US')).toBe('12:00 PM');
     expect(formatChartTickMark(midnight as Time, TickMarkType.Time, 'en-US')).toBe('12:00 AM');
   });
+
+  it('includes seconds on crosshair and Time ticks when showSeconds is true', () => {
+    const withSecs = Date.UTC(2026, 6, 23, 17, 2, 40) / 1000;
+    expect(formatChartCrosshairTime(withSecs as Time, true)).toBe("23 Jul '26 5:02:40 PM");
+    expect(formatChartTickMark(withSecs as Time, TickMarkType.Time, 'en-US', true)).toBe(
+      '5:02:40 PM',
+    );
+  });
 });

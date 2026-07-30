@@ -144,9 +144,10 @@ def test_get_or_fetch_failure_not_cached_and_reraises():
 
 def test_parse_batch_timeframes_default_and_invalid():
     assert chart_bars.parse_batch_timeframes(None) == [
-        "1Min", "5Min", "15Min", "1Day",
+        "1Min", "5Min", "1Day",
     ]
     assert chart_bars.parse_batch_timeframes("1Min,5Min,1Min") == ["1Min", "5Min"]
+    assert chart_bars.parse_batch_timeframes("10Sec,1Min") == ["10Sec", "1Min"]
     with pytest.raises(HTTPException) as ei:
         chart_bars.parse_batch_timeframes("1Min,nope")
     assert ei.value.status_code == 400

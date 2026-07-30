@@ -84,4 +84,15 @@ describe('barsStore', () => {
     expect(out.results['1Min']).toHaveLength(1);
     expect(getBarsEntry('NUWE', '5Min')?.bars[0].v).toBe(101);
   });
+
+  it('ensureBars appends limit query param when provided', async () => {
+    (fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: async () => ({ bars: [bar(0)] }),
+    });
+    await ensureBars('AAPL', '10Sec', undefined, 1500);
+    const url = String((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+    expect(url).toContain('timeframe=10Sec');
+    expect(url).toContain('limit=1500');
+  });
 });

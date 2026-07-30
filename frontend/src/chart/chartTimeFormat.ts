@@ -50,23 +50,27 @@ function formatBusinessDay(
   return `${parts.day} ${MONTHS[parts.month - 1]} '${yy}`;
 }
 
-/** Crosshair label — e.g. `23 Jul '26 5:02 PM` (ET). */
-export function formatChartCrosshairTime(time: Time): string {
+/** Crosshair label -- e.g. `23 Jul '26 5:02 PM` (ET); with seconds for sub-minute TFs. */
+export function formatChartCrosshairTime(time: Time, showSeconds = false): string {
   if (typeof time !== 'number') return formatBusinessDay(time);
   const d = asDate(time);
   const yy = String(d.getUTCFullYear()).slice(-2);
-  const clock = formatAmPmClock(d.getUTCHours(), d.getUTCMinutes());
+  const clock = showSeconds
+    ? formatAmPmClock(d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds())
+    : formatAmPmClock(d.getUTCHours(), d.getUTCMinutes());
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} '${yy} ${clock}`;
 }
 
 /**
  * Axis tick labels. Keep short (library recommends ≤8 chars for Time ticks).
  * Returns null for non-numeric times so the library default applies.
+ * When ``showSeconds`` is true, Time ticks include seconds (10s charts).
  */
 export function formatChartTickMark(
   time: Time,
   tickMarkType: TickMarkType,
   _locale: string,
+  showSeconds = false,
 ): string | null {
   if (typeof time !== 'number') return null;
   const d = asDate(time);
@@ -78,7 +82,9 @@ export function formatChartTickMark(
     case TickMarkType.DayOfMonth:
       return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
     case TickMarkType.Time:
-      return formatAmPmClock(d.getUTCHours(), d.getUTCMinutes());
+      return showSeconds
+        ? formatAmPmClock(d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds())
+        : formatAmPmClock(d.getUTCHours(), d.getUTCMinutes());
     case TickMarkType.TimeWithSeconds:
       return formatAmPmClock(d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds());
     default:

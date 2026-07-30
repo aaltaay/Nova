@@ -153,7 +153,9 @@ TICKER_IBKR_BRIDGE_TIMEOUT_SEC = 6.0
 
 # ── Ticker chart (Alpaca bars) ────────────────────────────────────────────────
 # Valid Alpaca timeframe strings accepted by GET /v2/stocks/{symbol}/bars.
+# ``10Sec`` is IBKR-primary (Trader 4th pane); Alpaca accepts {1-59}Sec too.
 CHART_TIMEFRAMES: tuple[str, ...] = (
+    "10Sec",
     "1Min", "5Min", "15Min", "30Min", "1Hour", "4Hour", "1Day", "1Week", "1Month",
 )
 CHART_DEFAULT_TIMEFRAME = "1Min"
@@ -162,6 +164,7 @@ CHART_DEFAULT_TIMEFRAME = "1Min"
 # SIP bars include extended hours (pre-market + after-hours), so actual bar
 # counts per day are higher than regular-session-only estimates.
 CHART_LOOKBACK_DAYS: dict[str, int] = {
+    "10Sec": 1,  # Alpaca-mode safety only; IBKR uses durationStr below
     "1Min":  5,
     "5Min":  10,
     "15Min": 30,
@@ -174,10 +177,13 @@ CHART_LOOKBACK_DAYS: dict[str, int] = {
 }
 CHART_DEFAULT_BARS = 500   # bars returned when caller doesn't specify limit
 CHART_MAX_BARS     = 5000  # hard ceiling — prevents runaway requests
+# 4h of 10s bars = 1440; headroom so tip updates do not displace history.
+IBKR_10SEC_FETCH_BARS = 1500
 
 # IBKR historical bars (reqHistoricalData) — used when discovery_provider=ibkr
 # so the chart matches IBKR live quotes instead of Alpaca IEX.
 IBKR_BAR_SIZE: dict[str, str] = {
+    "10Sec": "10 secs",
     "1Min": "1 min",
     "5Min": "5 mins",
     "15Min": "15 mins",
@@ -189,6 +195,8 @@ IBKR_BAR_SIZE: dict[str, str] = {
     "1Month": "1 month",
 }
 IBKR_BAR_DURATION: dict[str, str] = {
+    # IBKR step-size table: 14400 S (4h) allows bar size 10 secs.
+    "10Sec": "14400 S",
     # Keep 1Min short — 5 D of extended-hours 1-min bars is huge and often times out
     # when Gateway is also serving scanners / setups_stream.
     "1Min": "1 D",
@@ -211,7 +219,7 @@ IBKR_HISTORICAL_WHAT_TO_SHOW = "TRADES"
 IBKR_BARS_CACHE_TTL_INTRADAY_SEC = 20.0
 IBKR_BARS_CACHE_TTL_DAILY_SEC = 900.0  # 15 min for 1Day / 1Week / 1Month
 IBKR_BARS_CACHE_MAX_KEYS = 256
-# Timeframes warmed when a ticker WS opens (matches Stock View grid + panel).
-IBKR_BARS_WARM_TIMEFRAMES: tuple[str, ...] = ("1Min", "5Min", "15Min", "1Day")
+# Timeframes warmed when a ticker WS opens (grid defaults; 10Sec is fetch-on-pane).
+IBKR_BARS_WARM_TIMEFRAMES: tuple[str, ...] = ("1Min", "5Min", "1Day")
 
 

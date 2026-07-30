@@ -17,6 +17,7 @@ function etTime(hour: number, minute: number): Time {
 
 describe('sessionHighlight', () => {
   it('enables only intraday timeframes', () => {
+    expect(supportsSessionHighlight('10Sec')).toBe(true);
     expect(supportsSessionHighlight('1Min')).toBe(true);
     expect(supportsSessionHighlight('5Min')).toBe(true);
     expect(supportsSessionHighlight('15Min')).toBe(true);

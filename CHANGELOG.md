@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Trader 4th pane: 10-Second chart (4h IBKR history + live)
+
+- **What:** Trader ChartGrid defaults to a 4th **10-Second** pane. One IBKR `10 secs` / `14400 S` historical fetch (~4h) on open, then live tip append from ticker WS trades. No poll, no recorder, no `keepUpToDate`.
+- **Why:** User asked for the missing 4th chart as 10s with as much history as a single safe request can deliver.
+- **Files touched:** `constants_scanner.py`, `ibkr/bars.py`, `market_ui.ts`, `ChartGrid.tsx`, `tickerChartData.ts`, `chartTimeFormat.ts`, `sessionHighlight.ts`, `barsStore.ts`, `useChartBars.ts`, `useChartInstance.ts`, tests.
+- **How it works now:** Backend allowlists `10Sec` and clamps fetch to 1500 bars so the TTL cache stores the full 4h window. Frontend `timeframeSeconds` parses `Sec` (live buckets are 10s, not 60s). Crosshair/ticks show seconds; session bands apply. Grid batch warm excludes `10Sec` so the pane cold-fetches at `limit=1500`. Toggle persists under `nova.chartGrid.show10Sec` (default ON).
+- **Verified by:** pytest ibkr bars/cache; Vitest tickerChartData / chartTimeFormat / sessionHighlight / barsStore / ChartGrid / stockViewTerminal; `npm run build`.
+- **Follow-ups:** Manual 3-tab check under live Gateway for pacing; drop duration to `7200 S` if 4h is slow on this Gateway.
+- **Related:** task-log `2026-07-29-trader-10sec-chart.md`.
+
 ## 2026-07-29 -- Fix chart incremental update oldest-data crash
 
 - **What:** Incremental bar paint now updates only the series tip (or falls back to full `setData`). Stops the red `Cannot update oldest data` overlay on Trader panes.

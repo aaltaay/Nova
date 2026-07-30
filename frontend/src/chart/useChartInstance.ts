@@ -7,9 +7,12 @@ import {
   HistogramSeries,
   type IChartApi,
   type ISeriesApi,
+  type TickMarkType,
+  type Time,
 } from 'lightweight-charts';
 import { formatChartCrosshairTime, formatChartTickMark } from './chartTimeFormat';
 import { measureChartFillHeight } from './measureChartFillHeight';
+import { isSubMinuteTimeframe } from '../tickerChartData';
 
 export interface ChartSeriesRefs {
   chartRef: RefObject<IChartApi | null>;
@@ -22,6 +25,8 @@ interface UseChartInstanceOptions extends ChartSeriesRefs {
   chartHeight: number;
   fillParentHeight: boolean;
   maximized: boolean;
+  /** Drives secondsVisible + second-aware axis labels for 10Sec panes. */
+  timeframe?: string;
   /** When false, skip ResizeObserver apply (hidden Trader tab). */
   chartActive?: boolean;
 }
@@ -34,6 +39,7 @@ export function useChartInstance({
   chartHeight,
   fillParentHeight,
   maximized,
+  timeframe = '1Min',
   chartActive = true,
 }: UseChartInstanceOptions): IChartApi | null {
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
@@ -41,12 +47,20 @@ export function useChartInstance({
   const fillParentHeightRef = useRef(fillParentHeight);
   const chartHeightRef = useRef(chartHeight);
   const chartActiveRef = useRef(chartActive);
+  const showSecondsRef = useRef(isSubMinuteTimeframe(timeframe));
 
   useEffect(() => {
     fillParentHeightRef.current = fillParentHeight;
     chartHeightRef.current = chartHeight;
     chartActiveRef.current = chartActive;
   }, [fillParentHeight, chartHeight, chartActive]);
+
+  useEffect(() => {
+    showSecondsRef.current = isSubMinuteTimeframe(timeframe);
+    chartRef.current?.applyOptions({
+      timeScale: { secondsVisible: showSecondsRef.current },
+    });
+  }, [timeframe, chartRef]);
 
   // Create/destroy once per container mount -- height/fill changes only applyOptions.
   useEffect(() => {
@@ -66,13 +80,14 @@ export function useChartInstance({
       },
       localization: {
         locale: 'en-US',
-        timeFormatter: formatChartCrosshairTime,
+        timeFormatter: (t: Time) => formatChartCrosshairTime(t, showSecondsRef.current),
       },
       timeScale: {
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: showSecondsRef.current,
         borderColor: '#262a36',
-        tickMarkFormatter: formatChartTickMark,
+        tickMarkFormatter: (t: Time, tickMarkType: TickMarkType, locale: string) =>
+          formatChartTickMark(t, tickMarkType, locale, showSecondsRef.current),
       },
       rightPriceScale: { borderColor: '#262a36' },
       width: container.clientWidth,

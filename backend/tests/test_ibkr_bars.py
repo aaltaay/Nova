@@ -46,6 +46,52 @@ def test_normalize_bars_trims_to_limit_keeping_newest():
     assert bars[1]["v"] == 104
 
 
+def test_10sec_timeframe_maps_and_warm_set():
+    from constants_scanner import (
+        CHART_TIMEFRAMES,
+        IBKR_10SEC_FETCH_BARS,
+        IBKR_BAR_DURATION,
+        IBKR_BAR_SIZE,
+        IBKR_BARS_WARM_TIMEFRAMES,
+    )
+
+    assert "10Sec" in CHART_TIMEFRAMES
+    assert IBKR_BAR_SIZE["10Sec"] == "10 secs"
+    assert IBKR_BAR_DURATION["10Sec"] == "14400 S"
+    assert IBKR_10SEC_FETCH_BARS == 1500
+    assert "10Sec" not in IBKR_BARS_WARM_TIMEFRAMES
+    assert "15Min" not in IBKR_BARS_WARM_TIMEFRAMES
+    assert IBKR_BARS_WARM_TIMEFRAMES == ("1Min", "5Min", "1Day")
+
+
+def test_fetch_bars_async_clamps_10sec_limit():
+    """Default limit=500 must still store/return the full 10Sec window."""
+    import asyncio
+    from unittest.mock import AsyncMock, patch
+
+    from ibkr import bars as ibkr_bars
+
+    captured: dict = {}
+
+    async def fake_get_or_fetch(symbol, timeframe, limit, *, interactive, fetch_fn):
+        captured["limit"] = limit
+        captured["timeframe"] = timeframe
+        return {
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "bars": [],
+            "source": "ibkr",
+        }
+
+    async def _run():
+        with patch("ibkr.bars_cache.get_or_fetch", new=AsyncMock(side_effect=fake_get_or_fetch)):
+            await ibkr_bars.fetch_bars_async("AAPL", "10Sec", 500, interactive=True)
+
+    asyncio.run(_run())
+    assert captured["timeframe"] == "10Sec"
+    assert captured["limit"] == 1500
+
+
 def test_fetch_chart_bars_ibkr_mode_errors_when_disconnected():
     from fastapi import HTTPException
 

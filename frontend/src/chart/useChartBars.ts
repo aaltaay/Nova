@@ -12,6 +12,7 @@ import {
   CHART_MOCK_BAR_COUNT,
   CHART_MOCK_BASE_PRICE,
   CHART_REFETCH_SEC,
+  CHART_TIMEFRAME_BAR_LIMITS,
 } from '../constants';
 import {
   rawBarsToIndicatorBars,
@@ -184,7 +185,8 @@ export function useChartBars({
     }
     const controller = new AbortController();
     try {
-      const bars = await ensureBars(sym, tf, controller.signal);
+      const limit = CHART_TIMEFRAME_BAR_LIMITS[tf];
+      const bars = await ensureBars(sym, tf, controller.signal, limit);
       if (!isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current)) return;
       applyStoreBars(bars, { background, fitContent: !background });
     } catch (err) {

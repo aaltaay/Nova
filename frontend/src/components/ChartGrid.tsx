@@ -4,9 +4,11 @@ import { TickerChart, type ChartTradeUpdate } from '../TickerChart';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import {
+  CHART_GRID_OPTIONAL_DEFAULT_ON,
   CHART_GRID_OPTIONAL_PANEL,
   CHART_GRID_OPTIONAL_STORAGE_KEY,
   CHART_GRID_PANELS,
+  CHART_TIMEFRAME_BAR_LIMITS,
   STOCK_VIEW_CHART_ROW_SPLIT_KEY,
   STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_MIN_PCT,
@@ -23,9 +25,11 @@ interface Props {
 
 function readOptionalEnabled(): boolean {
   try {
-    return localStorage.getItem(CHART_GRID_OPTIONAL_STORAGE_KEY) === '1';
+    const raw = localStorage.getItem(CHART_GRID_OPTIONAL_STORAGE_KEY);
+    if (raw === null) return CHART_GRID_OPTIONAL_DEFAULT_ON;
+    return raw !== '0';
   } catch {
-    return false;
+    return CHART_GRID_OPTIONAL_DEFAULT_ON;
   }
 }
 
@@ -50,7 +54,12 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
 
   useEffect(() => {
     if (!chartActive || !symbol) return;
-    const tfs = panels.map((p) => p.id);
+    // Exclude TFs with a custom bar limit (10Sec) so the pane cold-fetches
+    // the full window instead of trusting a batch-trimmed 500-bar entry.
+    const tfs = panels
+      .map((p) => p.id)
+      .filter((id) => !(id in CHART_TIMEFRAME_BAR_LIMITS));
+    if (tfs.length === 0) return;
     const controller = new AbortController();
     void ensureBarsBatch(symbol, tfs, controller.signal).catch(() => {
       /* panes fetch individually on miss */
@@ -87,7 +96,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
           aria-pressed={showOptional}
           data-testid="chart-grid-optional-toggle"
         >
-          {showOptional ? 'Hide 15-Minute' : 'Show 15-Minute'}
+          {showOptional ? 'Hide 10-Second' : 'Show 10-Second'}
         </button>
       </div>
       <div className="chart-grid__row chart-grid__row--top">

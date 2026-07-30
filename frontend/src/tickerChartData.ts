@@ -38,10 +38,18 @@ export function isoToEtTime(iso: string, isDailyOrAbove: boolean): Time {
   return Math.floor((d.getTime() + etOffsetMs(d)) / 1000) as UTCTimestamp;
 }
 
-function timeframeSeconds(timeframe: string): number {
-  const match = timeframe.match(/^(\d+)(Min|Hour)$/);
+export function timeframeSeconds(timeframe: string): number {
+  const match = timeframe.match(/^(\d+)(Sec|Min|Hour)$/);
   if (!match) return 60;
-  return match[2] === 'Hour' ? Number(match[1]) * 3600 : Number(match[1]) * 60;
+  const n = Number(match[1]);
+  if (match[2] === 'Sec') return n;
+  if (match[2] === 'Hour') return n * 3600;
+  return n * 60;
+}
+
+/** Sub-minute timeframes need seconds on axis/crosshair labels. */
+export function isSubMinuteTimeframe(timeframe: string): boolean {
+  return /^\d+Sec$/.test(timeframe);
 }
 
 export function tradeBucket(timestamp: string, timeframe: string): Time | null {

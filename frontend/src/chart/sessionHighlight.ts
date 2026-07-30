@@ -18,7 +18,7 @@ export type MarketSessionKind = 'premarket' | 'rth' | 'afterhours' | 'closed';
 
 /** Intraday timeframes get session bands; daily+ do not. */
 export function supportsSessionHighlight(timeframe: string): boolean {
-  return /^(?:\d+)(Min|Hour)$/.test(timeframe);
+  return /^(?:\d+)(Sec|Min|Hour)$/.test(timeframe);
 }
 
 export function etMinutesFromChartTime(time: Time): number | null {

@@ -433,19 +433,28 @@ export const CHART_HEIGHT_PANEL = 280;
 export const CHART_HEIGHT_PAGE = 440;
 /** Minimum chart body height (px) per 2×2 grid cell — cells stretch to fill ~80% of the trading viewport. */
 export const CHART_HEIGHT_GRID = 180;
-/** Default Stock View grid (3 panes). 15m is opt-in via CHART_GRID_OPTIONAL_PANEL. */
+/** Default Stock View grid (3 panes). 10s is opt-in via CHART_GRID_OPTIONAL_PANEL. */
 export const CHART_GRID_PANELS: { id: string; label: string; note?: string }[] = [
   { id: '1Min', label: '1-Minute' },
   { id: '5Min', label: '5-Minute' },
   { id: '1Day', label: 'Full Day' },
 ];
-/** Optional fourth pane (stand-in until 10s live tape). Off by default to cut IBKR load. */
+/** Optional fourth pane -- IBKR 10s, 4h history on open, live tape after. */
 export const CHART_GRID_OPTIONAL_PANEL: { id: string; label: string; note?: string } = {
-  id: '15Min',
-  label: '15-Minute',
-  note: 'Temp stand-in -- 10s live tape coming later',
+  id: '10Sec',
+  label: '10-Second',
+  note: 'IBKR 10s -- 4h history on open, live tape after',
 };
-export const CHART_GRID_OPTIONAL_STORAGE_KEY = 'nova.chartGrid.show15Min';
+export const CHART_GRID_OPTIONAL_STORAGE_KEY = 'nova.chartGrid.show10Sec';
+/** Fourth pane defaults ON (absent localStorage key means show). */
+export const CHART_GRID_OPTIONAL_DEFAULT_ON = true;
+/**
+ * Per-timeframe REST bar limits (overrides CHART_DEFAULT_BARS on the wire).
+ * 10Sec: 4h @ 10s = 1440 bars; ask for 1500 so the full window is not trimmed.
+ */
+export const CHART_TIMEFRAME_BAR_LIMITS: Record<string, number> = {
+  '10Sec': 1500,
+};
 /** Client store freshness -- slightly under backend intraday TTL (20s). */
 export const CHART_BARS_CLIENT_STALE_MS = 15_000;
 /** Side panel default width (px) on wide viewports — room for quote | chart | fundamentals. */
@@ -471,6 +480,7 @@ export const CHART_MOCK_DATA_LABEL = 'Demo candles (no live bars for this timefr
 export const CHART_BARS_FETCH_TIMEOUT_MS = 25_000;
 export const CHART_REFETCH_SEC: Record<string, number> = {
   // Live forming candle comes from WS ticks; poll is reconciliation only.
+  // 10Sec deliberately omitted -- historical once + live append (small-bar pacing).
   '1Min': 30,
   '5Min': 30,
   '15Min': 45,

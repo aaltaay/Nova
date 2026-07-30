@@ -81,9 +81,12 @@ async function fetchSingleBars(
   symbol: string,
   timeframe: string,
   signal?: AbortSignal,
+  limit?: number,
 ): Promise<RawBar[]> {
+  const params = new URLSearchParams({ timeframe });
+  if (limit != null && limit > 0) params.set('limit', String(limit));
   const res = await fetch(
-    `${API_URL}/ticker/${encodeURIComponent(symbol)}/bars?timeframe=${encodeURIComponent(timeframe)}`,
+    `${API_URL}/ticker/${encodeURIComponent(symbol)}/bars?${params.toString()}`,
     { signal },
   );
   if (!res.ok) {
@@ -101,6 +104,7 @@ export function ensureBars(
   symbol: string,
   timeframe: string,
   signal?: AbortSignal,
+  limit?: number,
 ): Promise<RawBar[]> {
   const sym = symbol.trim().toUpperCase();
   const key = barsStoreKey(sym, timeframe);
@@ -118,9 +122,10 @@ export function ensureBars(
     CHART_BARS_FETCH_TIMEOUT_MS,
   );
 
-  const promise = (async () => {
+  let promise!: Promise<RawBar[]>;
+  promise = (async () => {
     try {
-      const bars = await fetchSingleBars(sym, timeframe, controller.signal);
+      const bars = await fetchSingleBars(sym, timeframe, controller.signal, limit);
       setBars(sym, timeframe, bars);
       return bars;
     } finally {

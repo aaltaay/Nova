@@ -89,6 +89,7 @@ function TickerChartInner({
     chartHeight,
     fillParentHeight,
     maximized,
+    timeframe,
     chartActive,
   });
 
