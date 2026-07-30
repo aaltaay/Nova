@@ -8,8 +8,19 @@ import { ChartGrid } from './ChartGrid';
 import { ensureBarsBatch } from '../chart/barsStore';
 
 vi.mock('../TickerChart', () => ({
-  TickerChart: ({ title }: { title?: string }) => (
-    <div data-testid="ticker-chart">{title}</div>
+  TickerChart: ({
+    title,
+    initialIndicators,
+  }: {
+    title?: string;
+    initialIndicators?: string[];
+  }) => (
+    <div
+      data-testid="ticker-chart"
+      data-indicators={(initialIndicators ?? []).join(',')}
+    >
+      {title}
+    </div>
   ),
 }));
 
@@ -36,7 +47,7 @@ describe('ChartGrid', () => {
     container.remove();
   });
 
-  it('defaults to 4 panes including 10-Second', () => {
+  it('defaults to 4 panes including 10-Second, with MACD on 1m and 5m', () => {
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);
     });
@@ -46,8 +57,14 @@ describe('ChartGrid', () => {
     expect(
       container.querySelector('.resize-handle--horizontal[aria-label="Resize chart rows"]'),
     ).toBeTruthy();
-    expect(container.querySelectorAll('[data-testid="ticker-chart"]')).toHaveLength(4);
+    const charts = container.querySelectorAll('[data-testid="ticker-chart"]');
+    expect(charts).toHaveLength(4);
     expect(container.textContent).toContain('10-Second');
+    const byTitle = (label: string) =>
+      [...charts].find((el) => el.textContent === label) as HTMLElement;
+    expect(byTitle('1-Minute')?.dataset.indicators).toContain('macd');
+    expect(byTitle('5-Minute')?.dataset.indicators).toContain('macd');
+    expect(byTitle('Full Day')?.dataset.indicators ?? '').not.toContain('macd');
     const toggle = container.querySelector(
       '[data-testid="chart-grid-optional-toggle"]',
     ) as HTMLButtonElement;

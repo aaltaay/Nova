@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- MACD on by default for Trader 1m and 5m panes
+
+- **What:** 1-Minute and 5-Minute grid charts start with MACD enabled; grid oscillator body height raised to 88px and LWC height syncs to the CSS box so the pane is readable.
+- **Why:** User needs MACD visible on both intraday panes without clicking each toggle; prior 64px clip vs 110px createChart height hid/crushed the oscillator.
+- **Files touched:** `chart_api.ts`, `ChartGrid.tsx`, `TickerChart.tsx`, `TickerChartOscillatorPanes.tsx`, `stock-view.css`, ChartGrid test.
+- **How it works now:** `CHART_GRID_PANE_INDICATORS` seeds 1Min/5Min with `emas+vwap+macd`; Full Day / 10Sec stay overlay defaults. Toggle still works per pane.
+- **Verified by:** Vitest ChartGrid; hard-reload Trader tab.
+
 ## 2026-07-29 -- Chart panes self-heal after IBKR wedge; daily/10s live tip
 
 - **What:** Timed-out chart panes retry once in the background (~5s) so Full Day / 10-Second clear without a manual reload. Live WS trades now update the 1Day tip and can open a forward 10Sec tip after a stale historical paint. Backend logs `slot_wait` vs `fetch` timing for historical bars.

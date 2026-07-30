@@ -12,6 +12,15 @@ export const CHART_INDICATORS: { id: ChartIndicatorId; label: string }[] = [
 /** Warrior-style overlays default on (Ross always shows these on the chart). */
 export const CHART_DEFAULT_INDICATORS: ChartIndicatorId[] = ['emas', 'vwap'];
 
+/**
+ * Trader grid defaults per timeframe. 1m / 5m include MACD so both panes show
+ * the oscillator without a per-pane toggle; Full Day / 10Sec stay overlay-only.
+ */
+export const CHART_GRID_PANE_INDICATORS: Record<string, ChartIndicatorId[]> = {
+  '1Min': ['emas', 'vwap', 'macd'],
+  '5Min': ['emas', 'vwap', 'macd'],
+};
+
 export const CHART_OVERLAY_IDS: ChartOverlayId[] = ['emas', 'vwap'];
 export const CHART_OSCILLATOR_IDS: ChartOscillatorId[] = ['rsi', 'macd'];
 

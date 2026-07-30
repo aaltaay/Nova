@@ -608,12 +608,13 @@ body:has(.nova-shell--ticker-detail) #root .app-shell-host {
 
 .chart-card--grid .chart-oscillators {
   flex-shrink: 0;
-  max-height: 30%;
+  max-height: 36%;
   overflow: hidden;
 }
 
+/* Tall enough for MACD hist + lines; ResizeObserver syncs LWC height to this. */
 .chart-card--grid .chart-oscillator-body {
-  height: 64px;
+  height: 88px;
 }
 
 .chart-title-block {

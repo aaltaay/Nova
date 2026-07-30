@@ -4,9 +4,11 @@ import { TickerChart, type ChartTradeUpdate } from '../TickerChart';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import {
+  CHART_DEFAULT_INDICATORS,
   CHART_GRID_OPTIONAL_DEFAULT_ON,
   CHART_GRID_OPTIONAL_PANEL,
   CHART_GRID_OPTIONAL_STORAGE_KEY,
+  CHART_GRID_PANE_INDICATORS,
   CHART_GRID_PANELS,
   CHART_TIMEFRAME_BAR_LIMITS,
   STOCK_VIEW_CHART_ROW_SPLIT_KEY,
@@ -109,6 +111,9 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
               fixedTimeframe={panel.id}
               title={panel.label}
               subtitle={panel.note}
+              initialIndicators={
+                CHART_GRID_PANE_INDICATORS[panel.id] ?? CHART_DEFAULT_INDICATORS
+              }
               chartActive={chartActive}
             />
           </div>
@@ -134,6 +139,9 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
               fixedTimeframe={panel.id}
               title={panel.label}
               subtitle={panel.note}
+              initialIndicators={
+                CHART_GRID_PANE_INDICATORS[panel.id] ?? CHART_DEFAULT_INDICATORS
+              }
               chartActive={chartActive}
             />
           </div>

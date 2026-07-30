@@ -87,6 +87,7 @@ function OscillatorPane({
     const container = containerRef.current;
     if (!container) return;
 
+    const initialH = container.clientHeight || CHART_INDICATOR_PANE_HEIGHT;
     const chart = createChart(container, {
       layout: { background: { color: '#161921' }, textColor: '#8b92a5' },
       grid: { vertLines: { color: '#262a36' }, horzLines: { color: '#262a36' } },
@@ -107,7 +108,7 @@ function OscillatorPane({
       },
       rightPriceScale: { borderColor: '#262a36' },
       width: container.clientWidth,
-      height: CHART_INDICATOR_PANE_HEIGHT,
+      height: initialH || CHART_INDICATOR_PANE_HEIGHT,
     });
 
     if (kind === 'rsi') {
@@ -144,9 +145,20 @@ function OscillatorPane({
 
     const ro = new ResizeObserver(() => {
       if (!containerRef.current) return;
-      chart.applyOptions({ width: containerRef.current.clientWidth });
+      const el = containerRef.current;
+      const h = el.clientHeight || CHART_INDICATOR_PANE_HEIGHT;
+      chart.applyOptions({ width: el.clientWidth, height: h });
     });
     ro.observe(container);
+    // Apply once after layout so grid CSS height (not createChart default) wins.
+    requestAnimationFrame(() => {
+      if (!containerRef.current || !chartRef.current) return;
+      const el = containerRef.current;
+      chart.applyOptions({
+        width: el.clientWidth,
+        height: el.clientHeight || CHART_INDICATOR_PANE_HEIGHT,
+      });
+    });
 
     return () => {
       ro.disconnect();

@@ -33,6 +33,8 @@ interface TickerChartProps {
   fixedTimeframe?: string;
   title?: string;
   subtitle?: string;
+  /** Override default indicator toggles (e.g. grid 1m/5m start with MACD on). */
+  initialIndicators?: ChartIndicatorId[];
   /** When false, pause bar polling and resize work (hidden Trader tab). */
   chartActive?: boolean;
 }
@@ -53,6 +55,7 @@ function TickerChartInner({
   fixedTimeframe,
   title,
   subtitle,
+  initialIndicators,
   chartActive = true,
 }: TickerChartProps) {
   const chartHeight =
@@ -71,7 +74,7 @@ function TickerChartInner({
   const timeframe = fixedTimeframe ?? userTimeframe;
   const [maximized, setMaximized] = useState(false);
   const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicatorId[]>(
-    () => [...CHART_DEFAULT_INDICATORS],
+    () => [...(initialIndicators ?? CHART_DEFAULT_INDICATORS)],
   );
 
   const fillParentHeight = variant === 'grid' || maximized;
