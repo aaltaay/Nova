@@ -58,7 +58,7 @@ interface Props {
   discoveryProvider?: string;
   /** After Start API succeeds — refresh scanner/health. */
   onBackendStarted?: () => void;
-  /** Account control next to Today (Live). */
+  /** Sample shell only — live Account lives on GlobalAppBar. */
   accountActive?: boolean;
   onAccountClick?: () => void;
   /** Isolated sample-data route toggle (?view=sample) — never mixes with live. */

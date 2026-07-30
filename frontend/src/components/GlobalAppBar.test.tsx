@@ -31,6 +31,20 @@ vi.mock('../closed_orders/useClosedOrders', () => ({
   }),
 }));
 
+vi.mock('../workspace/useModuleVisibility', () => ({
+  useModuleVisibility: () => ({
+    visibility: { trading: true },
+    setVisible: () => {},
+  }),
+}));
+
+const { requestOpenTradingTab } = vi.hoisted(() => ({
+  requestOpenTradingTab: vi.fn(),
+}));
+vi.mock('./openTradingTabNav', () => ({
+  requestOpenTradingTab,
+}));
+
 function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue {
   return {
     selectedSymbol: 'AAPL',
@@ -85,6 +99,7 @@ describe('GlobalAppBar', () => {
   beforeEach(() => {
     closeTraderView.mockReset();
     openStockView.mockReset();
+    requestOpenTradingTab.mockReset();
     workspace = baseWorkspace();
     account = baseAccount();
     container = document.createElement('div');
@@ -196,5 +211,18 @@ describe('GlobalAppBar', () => {
       '[data-testid="global-bar-nav-trader"]',
     ) as HTMLButtonElement;
     expect(trader.disabled).toBe(true);
+  });
+
+  it('places Account next to Settings and opens the trading tab', () => {
+    renderBar();
+    const accountBtn = container.querySelector(
+      '[data-testid="global-bar-account-nav"]',
+    ) as HTMLButtonElement;
+    expect(accountBtn).toBeTruthy();
+    expect(accountBtn.textContent).toMatch(/Account/);
+    act(() => {
+      accountBtn.click();
+    });
+    expect(requestOpenTradingTab).toHaveBeenCalled();
   });
 });

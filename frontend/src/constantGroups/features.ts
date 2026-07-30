@@ -1,8 +1,8 @@
 /** Phase 3 domain group (features.ts). */
 import { API_URL } from './chart_api';
 
-// ── Account (header) — former Trading tab + Reports ──────────────────────────
-/** Header control next to Today (Live); opens account / habits view. */
+// ── Account — former Trading tab + Reports (GlobalAppBar + sample AppHeader) ─
+/** Account control label (GlobalAppBar; sample AppHeader). */
 export const ACCOUNT_NAV_LABEL = 'Account';
 export const ACCOUNT_NAV_TITLE =
   'Account overview — positions, orders, and trading habit reports';

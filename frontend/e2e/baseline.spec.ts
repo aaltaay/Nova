@@ -34,7 +34,7 @@ test.describe('Phase 0 baseline', () => {
     await expect(gainers).toHaveClass(/active/);
     await expect(page.locator('.tab.active')).toContainText('Gainers');
 
-    const account = page.getByTestId('header-account-btn');
+    const account = page.getByTestId('global-bar-account-nav');
     await account.click();
     await expect(account).toHaveClass(/active/);
     await expect(page.getByTestId('account-view')).toBeVisible();

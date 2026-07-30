@@ -14,6 +14,7 @@ import { GatewayDisconnectedBanner } from '../ibkr/GatewayDisconnectedBanner';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
+import { setAccountNavActive } from '../components/accountNavActive';
 import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
@@ -149,7 +150,7 @@ export function DashboardPage() {
     setActiveTab(tab);
   }
 
-  // Global Working menu "View All Orders" → Account / Trading tab.
+  // Global Working menu / GlobalAppBar Account → Account / Trading tab.
   useEffect(() => {
     const openTrading = () => {
       if (visibility.trading === false) return;
@@ -167,6 +168,11 @@ export function DashboardPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
   }, [visibility.trading]);
+
+  useEffect(() => {
+    setAccountNavActive(activeTab === 'trading' || activeTab === 'reports');
+    return () => setAccountNavActive(false);
+  }, [activeTab]);
 
   return (
     <div className="nova-shell">
@@ -190,12 +196,6 @@ export function DashboardPage() {
           onBackendStarted={() => {
             void scanner.fetchData();
           }}
-          accountActive={activeTab === 'trading' || activeTab === 'reports'}
-          onAccountClick={
-            visibility.trading === false
-              ? undefined
-              : () => handleTabClick('trading')
-          }
           sampleDataActive={false}
           onSampleDataToggle={(on) => {
             if (on) enterSampleView();

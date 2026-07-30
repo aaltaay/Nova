@@ -52,6 +52,9 @@ export const GLOBAL_BAR_MODE_PAPER = 'Paper';
 export const GLOBAL_BAR_MODE_LIVE = 'Live';
 export const GLOBAL_BAR_MODE_DISCONNECTED = 'Disconnected';
 
-/** Settings gear on the shared GlobalAppBar (Scanner + Trader). */
+/** Account + Settings on the shared GlobalAppBar (Scanner + Trader). */
+export const GLOBAL_BAR_ACCOUNT_LABEL = 'Account';
+export const GLOBAL_BAR_ACCOUNT_TITLE =
+  'Account overview — positions, orders, and trading habit reports';
 export const GLOBAL_BAR_SETTINGS_LABEL = 'Settings';
 export const GLOBAL_BAR_SETTINGS_TITLE = 'Open Settings';

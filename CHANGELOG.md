@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Account control next to Settings on GlobalAppBar
+
+- **What:** Moved Account from the scanner AppHeader (beside Today/SYMBOL) to the GlobalAppBar, immediately left of Settings.
+- **Why:** User asked Account to sit with Settings in the shared top chrome.
+- **Files touched:** `GlobalAppBar.tsx`, `accountNavActive.ts`, `DashboardPage.tsx`, `global-app-bar.css`, e2e baseline.
+- **How it works now:** Account calls `requestOpenTradingTab()` (closes Trader first if needed). Active highlight syncs from DashboardPage via `accountNavActive`.
+- **Verified by:** Vitest GlobalAppBar Account click.
+
 ## 2026-07-29 -- Remove Dashboard tab; Gappers is homepage
 
 - **What:** Removed the Dashboard config tab from TabNav. Scanner opens on Gappers by default.

@@ -4,6 +4,8 @@
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import {
+  GLOBAL_BAR_ACCOUNT_LABEL,
+  GLOBAL_BAR_ACCOUNT_TITLE,
   GLOBAL_BAR_BP_LABEL,
   GLOBAL_BAR_BRAND,
   GLOBAL_BAR_DAY_PNL_LABEL,
@@ -26,12 +28,18 @@ import {
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { useSettingsOptional } from '../settings/SettingsContext';
+import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { formatMoney } from '../utils/formatMoney';
+import {
+  getAccountNavActive,
+  subscribeAccountNavActive,
+} from './accountNavActive';
 import { GlobalAccountCard } from './GlobalAccountCard';
 import { GlobalWorkingMenu } from './GlobalWorkingMenu';
 import { dayPnlFromSummary, formatSignedMoney, pnlToneClass } from './globalBarMoney';
 import { NovaLogo } from './NovaLogo';
+import { requestOpenTradingTab } from './openTradingTabNav';
 
 type OpenMenu = 'account' | 'working' | null;
 
@@ -47,13 +55,18 @@ export function GlobalAppBar() {
   const { summary, orders, refresh } = useIbkrAccountContext();
   const { orders: closedOrders } = useClosedOrders(ibkrConnected);
   const settingsApi = useSettingsOptional();
+  const { visibility } = useModuleVisibility();
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
+  const [accountNavActive, setAccountNavActive] = useState(getAccountNavActive);
   const clusterRef = useRef<HTMLDivElement>(null);
   const accountCardId = useId();
   const workingMenuId = useId();
 
   const traderActive = traderTabs.length > 0;
   const settingsOpen = settingsApi?.settings.showSettings ?? false;
+  const showAccountNav = visibility.trading !== false;
+
+  useEffect(() => subscribeAccountNavActive(setAccountNavActive), []);
   const canOpenTrader = traderActive || Boolean(selectedSymbol?.trim());
   const live = Boolean(ibkrConnected && summary?.connected);
   const dayPnl = dayPnlFromSummary(summary?.RealizedPnL, summary?.UnrealizedPnL);
@@ -236,6 +249,22 @@ export function GlobalAppBar() {
           />
           {modeLabel}
         </span>
+
+        {showAccountNav && (
+          <button
+            type="button"
+            className={`global-app-bar__account-nav${accountNavActive ? ' is-active' : ''}`}
+            title={GLOBAL_BAR_ACCOUNT_TITLE}
+            aria-pressed={accountNavActive}
+            data-testid="global-bar-account-nav"
+            onClick={() => {
+              requestOpenTradingTab();
+              if (traderActive) closeTraderView();
+            }}
+          >
+            {GLOBAL_BAR_ACCOUNT_LABEL}
+          </button>
+        )}
 
         {settingsApi && (
           <button
