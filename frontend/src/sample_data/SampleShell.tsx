@@ -4,10 +4,15 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
+import { GlobalAppBar } from '../components/GlobalAppBar';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
 import { StockViewPage } from '../pages/StockViewPage';
 import { SampleDashboardPage } from '../pages/SampleDashboardPage';
+import {
+  DATA_FEED_DEFAULT,
+  DISCOVERY_PROVIDER_DEFAULT,
+} from '../constants';
 import {
   leaveSampleTraderUrl,
   leaveSampleView,
@@ -49,10 +54,33 @@ function SampleShellInner() {
     setTraderSymbol(null);
   }, []);
 
+  const sampleScannerBar = {
+    mode: 'market' as const,
+    health: sample.health,
+    activeFeed: DATA_FEED_DEFAULT,
+    feedFellBack: false,
+    secondsAgo: 1,
+    pricesStale: false,
+    ibkrConnected: true,
+    ibkrMode: 'paper' as const,
+    ibkrGatewayMode: 'paper' as const,
+    historyDate: null,
+    historyDates: [],
+    onHistoryChange: () => {},
+    onLookup: setSelectedSymbol,
+    showScannerSource: true,
+    discoveryProvider: DISCOVERY_PROVIDER_DEFAULT,
+    sampleDataActive: true,
+    onSampleDataToggle: (on: boolean) => {
+      if (!on) leaveSampleView();
+    },
+  };
+
   if (traderSymbol) {
     return (
       <HodMomoFixtureProvider>
         <div className="nova-app-stack">
+          <GlobalAppBar scanner={sampleScannerBar} />
           <div className="nova-app-branch">
             <AppErrorBoundary source="sample-trader">
               <div className="nova-shell nova-shell--ticker-detail">
@@ -78,6 +106,7 @@ function SampleShellInner() {
   return (
     <HodMomoFixtureProvider>
       <div className="nova-app-stack">
+        <GlobalAppBar scanner={sampleScannerBar} />
         <div className="nova-app-branch">
           <AppErrorBoundary source="sample-dashboard">
             <SampleDashboardPage onOpenTrader={openTrader} onLeaveSample={leaveSampleView} />

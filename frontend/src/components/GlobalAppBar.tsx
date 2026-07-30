@@ -39,11 +39,56 @@ import { GlobalAccountCard } from './GlobalAccountCard';
 import { GlobalWorkingMenu } from './GlobalWorkingMenu';
 import { dayPnlFromSummary, formatSignedMoney, pnlToneClass } from './globalBarMoney';
 import { NovaLogo } from './NovaLogo';
+import { HeaderConnectionStatus } from './HeaderConnectionStatus';
+import { SymbolSearchBox } from './SymbolSearchBox';
+import { ThemeToggle } from './ThemeToggle';
 import { requestOpenTradingTab } from './openTradingTabNav';
+import { useScannerBarProps } from './scannerBarBridge';
 
 type OpenMenu = 'account' | 'working' | null;
 
-export function GlobalAppBar() {
+/** Scanner-only status block (market mode, chips, history, lookup) merged into this bar. */
+import type { HealthStatus } from '../types/health';
+import type { IbkrMode } from '../ibkr/types';
+
+export type GlobalAppBarScanner = {
+  mode: 'premarket' | 'market' | 'afterhours' | 'closed' | 'loading';
+  health: HealthStatus;
+  activeFeed: string;
+  feedFellBack: boolean;
+  secondsAgo: number | null;
+  pricesStale?: boolean;
+  ibkrConnected?: boolean;
+  ibkrMode?: IbkrMode;
+  ibkrGatewayMode?: 'paper' | 'live' | null;
+  historyDate: string | null;
+  historyDates: string[];
+  onHistoryChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  onLookup: (symbol: string) => void;
+  showScannerSource?: boolean;
+  discoveryProvider?: string;
+  onBackendStarted?: () => void;
+  sampleDataActive?: boolean;
+  onSampleDataToggle?: (active: boolean) => void;
+};
+
+const SCANNER_MODE_LABELS: Record<GlobalAppBarScanner['mode'], string> = {
+  loading: 'Connecting…',
+  premarket: 'Pre-Market',
+  market: 'Market Hours',
+  afterhours: 'After Hours',
+  closed: 'Market Closed',
+};
+
+function fmtHistoryDateShort(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarScanner }) {
+  const liveScanner = useScannerBarProps();
+  const scanner = scannerProp ?? liveScanner ?? undefined;
   const {
     selectedSymbol,
     traderTabs,
@@ -136,9 +181,63 @@ export function GlobalAppBar() {
         </nav>
       </div>
 
+      {scanner && (
+        <div className="global-app-bar__scanner" data-testid="global-bar-scanner">
+          <span className={`mode-badge mode-${scanner.mode}`}>
+            {scanner.sampleDataActive ? 'Sample data' : SCANNER_MODE_LABELS[scanner.mode]}
+          </span>
+          <HeaderConnectionStatus
+            health={scanner.health}
+            discoveryProvider={scanner.discoveryProvider}
+            ibkrConnected={scanner.ibkrConnected}
+            ibkrMode={scanner.ibkrMode}
+            ibkrGatewayMode={scanner.ibkrGatewayMode}
+            activeFeed={scanner.activeFeed}
+            feedFellBack={scanner.feedFellBack}
+            secondsAgo={scanner.secondsAgo}
+            pricesStale={scanner.pricesStale}
+            historyDate={scanner.historyDate}
+            compact
+            showScannerSource={scanner.showScannerSource ?? true}
+            onBackendStarted={scanner.onBackendStarted}
+          />
+          {scanner.onSampleDataToggle && (
+            <label
+              className={`sample-data-switch${scanner.sampleDataActive ? ' sample-data-switch--on' : ''}`}
+              title="Open isolated sample fixtures — never mixed with live market data"
+              data-testid="sample-data-switch"
+            >
+              <input
+                type="checkbox"
+                checked={scanner.sampleDataActive}
+                onChange={(e) => scanner.onSampleDataToggle?.(e.target.checked)}
+              />
+              <span>Sample</span>
+            </label>
+          )}
+          <select
+            className={`history-select${scanner.historyDate ? ' history-select--active' : ''}`}
+            value={scanner.historyDate ?? ''}
+            onChange={scanner.onHistoryChange}
+            title="Browse historical snapshots"
+            disabled={scanner.sampleDataActive}
+          >
+            <option value="">{scanner.sampleDataActive ? 'Sample (fixtures)' : 'Today (Live)'}</option>
+            {!scanner.sampleDataActive &&
+              scanner.historyDates.map((d) => (
+                <option key={d} value={d}>
+                  {fmtHistoryDateShort(d)}
+                </option>
+              ))}
+          </select>
+          <SymbolSearchBox onLookup={scanner.onLookup} />
+        </div>
+      )}
+
       <div className="global-app-bar__spacer" aria-hidden />
 
       <div className="global-app-bar__right">
+        <ThemeToggle />
         <div
           className="global-app-bar__account"
           ref={clusterRef}

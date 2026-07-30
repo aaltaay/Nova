@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Single header row (scanner chrome into GlobalAppBar)
+
+- **What:** Market mode, API/Gateway/Prices chips, Sample, history select, symbol lookup, and Theme moved from the portal `AppHeader` row into `GlobalAppBar`. One 40px header on Scanner and Trader.
+- **Why:** User asked to merge the two header rows without dropping information.
+- **Files touched:** `GlobalAppBar.tsx`, `scannerBarBridge.ts`, `ScannerBarBridge.tsx`, `DashboardPage.tsx`, `SampleShell.tsx`, `SampleDashboardPage.tsx`, `App.tsx`, `global-app-bar.css`.
+- **How it works now:** Live Scanner publishes status via `scannerBarBridge`; `GlobalAppBar` renders an optional middle scanner block. Trader has no scanner block. Sample passes fixtures via `scanner` prop. `AppHeader` still provides `MarketMode` type only for panels.
+- **Verified by:** `tsc --noEmit`; dock + nav Vitest.
+- **Related:** task-log entry.
+
 ## 2026-07-29 -- HOD dock middle-column only (3-column scanner)
 
 - **What:** HOD Momo dock no longer spans under the GlobalAppBar. It sits only in the Scanner middle column above a titled selected-scanner widget. Left rail + quote panel stay full-height side columns. Trader keeps the dock in its main column.

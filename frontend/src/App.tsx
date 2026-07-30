@@ -8,7 +8,6 @@
 import { useEffect, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { GlobalAppBar } from './components/GlobalAppBar';
-import { SCANNER_STATUS_SLOT_ID } from './components/scannerStatusSlot';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { HodMomoDock } from './hod_momo/HodMomoDock';
@@ -55,8 +54,7 @@ function AppShell() {
       <SettingsProvider>
         <HodMomoProvider>
           <div className="nova-app-stack">
-            {/* Scanner AppHeader portals status chrome here (above GlobalAppBar). */}
-            <div id={SCANNER_STATUS_SLOT_ID} className="scanner-status-slot" />
+            {/* Scanner status chrome is merged into GlobalAppBar (one header row). */}
             <GlobalAppBar />
             <NovaOsAttentionStrip global />
             <div className="nova-app-branch">

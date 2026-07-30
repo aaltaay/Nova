@@ -1,13 +1,12 @@
 /**
- * Main dashboard shell — header, tabs, side panel.
- * Settings overlay is owned by SettingsProvider at AppShell.
+ * Main dashboard shell — rail + middle stack + quote panel.
+ * Scanner status chrome is merged into GlobalAppBar (one header row).
  * HOD stream/config live in HodMomoProvider (AppShell); dock UI is middle-column only.
  */
 import { useEffect, useRef, useState } from 'react';
 import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
-import { AppHeader, fmtHistoryDate } from '../components/AppHeader';
 import { GatewayDisconnectedBanner } from '../ibkr/GatewayDisconnectedBanner';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
@@ -16,6 +15,7 @@ import { setAccountNavActive } from '../components/accountNavActive';
 import { consumeOpenTradingTabRequest } from '../components/openTradingTabNav';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
+import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useScannerData } from '../hooks/useScannerData';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
@@ -206,32 +206,11 @@ export function DashboardPage() {
 
   return (
     <div className="nova-shell">
-      <AppHeader
-        portalToTop
-        mode={scanner.mode}
-        health={scanner.health}
-        activeFeed={settings.activeFeed}
-        feedFellBack={settings.feedFellBack}
-        secondsAgo={secondsAgo}
-        pricesStale={showScannerPriceFreshness && scanner.pricesStale}
-        ibkrConnected={ibkrConnected}
-        ibkrMode={ibkrMode}
-        ibkrGatewayMode={ibkrGatewayMode}
-        historyDate={scanner.historyDate}
-        historyDates={scanner.historyDates}
+      <ScannerBarBridge
+        activeTab={mainTab}
+        scanner={scanner}
         onHistoryChange={handleHistoryChange}
-        onLookup={setSelectedSymbol}
-        showScannerSource={mainTab !== 'trading' && mainTab !== 'reports'}
-        discoveryProvider={settings.discoveryProvider}
-        onBackendStarted={() => {
-          void scanner.fetchData();
-        }}
-        sampleDataActive={false}
-        onSampleDataToggle={(on) => {
-          if (on) enterSampleView();
-        }}
       />
-
       <ScannerSideNav
         activeTab={mainTab}
         railHighlight={railHighlight}
@@ -253,7 +232,7 @@ export function DashboardPage() {
           <main className="panel">
             {scanner.historyDate && (
               <div className="history-banner">
-                <span>Viewing {fmtHistoryDate(scanner.historyDate)}</span>
+                <span>Viewing {scanner.historyDate}</span>
                 <button
                   type="button"
                   className="history-banner-btn"

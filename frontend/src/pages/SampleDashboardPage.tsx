@@ -1,23 +1,18 @@
 /**
  * Sample-data dashboard — fixtures only. Never mounts useScannerData / HOD WS / watchlist API.
- * HOD dock mounts in the middle column; left rail + quote panel stay full height.
+ * Scanner chrome lives on GlobalAppBar (SampleShell); HOD dock is middle-column only.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
-import { AppHeader } from '../components/AppHeader';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { useExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { useSampleData } from '../sample_data/SampleDataContext';
-import {
-  DATA_FEED_DEFAULT,
-  DISCOVERY_PROVIDER_DEFAULT,
-  SAMPLE_DATA_BANNER,
-  SAMPLE_DATA_SWITCH_LABEL,
-} from '../constants';
+import { DISCOVERY_PROVIDER_DEFAULT, SAMPLE_DATA_BANNER, SAMPLE_DATA_SWITCH_LABEL } from '../constants';
+import { setAccountNavActive } from '../components/accountNavActive';
 import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { getModule, isTabModuleId, type ActiveTab } from '../workspace/registry';
@@ -61,6 +56,11 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
 
   const mainTab = isDockTab(activeTab) ? 'gappers' : activeTab;
 
+  useEffect(() => {
+    setAccountNavActive(mainTab === 'trading' || mainTab === 'reports');
+    return () => setAccountNavActive(false);
+  }, [mainTab]);
+
   const navCounts = {
     gappers: filteredGappers.length,
     gainers: filteredGainers.length,
@@ -74,34 +74,6 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
 
   return (
     <div className="nova-shell" data-testid="sample-dashboard">
-      <AppHeader
-        mode="market"
-        health={sample.health}
-        activeFeed={DATA_FEED_DEFAULT}
-        feedFellBack={false}
-        secondsAgo={1}
-        pricesStale={false}
-        ibkrConnected
-        ibkrMode="paper"
-        ibkrGatewayMode="paper"
-        historyDate={null}
-        historyDates={[]}
-        onHistoryChange={() => {}}
-        onLookup={setSelectedSymbol}
-        showScannerSource
-        discoveryProvider={DISCOVERY_PROVIDER_DEFAULT}
-        sampleDataActive
-        onSampleDataToggle={(on) => {
-          if (!on) onLeaveSample();
-        }}
-        accountActive={mainTab === 'trading' || mainTab === 'reports'}
-        onAccountClick={
-          visibility.trading === false
-            ? undefined
-            : () => handleTabClick('trading')
-        }
-      />
-
       <ScannerSideNav
         activeTab={mainTab}
         railHighlight={railHighlight}

@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-29 | [Single header row (scanner chrome into GlobalAppBar)](2026-07-29-single-header-row.md) | Single header row (scanner chrome into GlobalAppBar) |
 | 2026-07-29 | [HOD dock middle-column only (3-column scanner)](2026-07-29-hod-dock-middle-column.md) | HOD dock middle-column only (3-column scanner) |
 | 2026-07-29 | [HOD Momo global AppShell dock](2026-07-29-hod-momo-global-dock.md) | HOD Momo global AppShell dock |
 | 2026-07-29 | [Webull-style left scanner rail](2026-07-29-webull-left-scanner-rail.md) | Webull-style left scanner rail |
