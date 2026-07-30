@@ -1,6 +1,7 @@
 /**
  * Fixed right rail: quote → (L2+T&S combined | drag | Trade ticket).
- * Horizontal splitter reallocates height between depth and Order Entry only.
+ * Horizontal splitter reallocates height between depth and Order Entry.
+ * TRADE keeps a min-height floor (depth shrinks first) so Trading Hours stays reachable.
  * Session Orders (Today) live under charts in the left column, not in this rail.
  */
 import { useRef, type CSSProperties } from 'react';

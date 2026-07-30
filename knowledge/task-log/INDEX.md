@@ -4,7 +4,9 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-29 | [Trader TRADE pane no longer clipped](2026-07-29-trader-trade-pane-clip.md) | Trader TRADE pane no longer clipped |
 | 2026-07-29 | [Global single-row app header (Webull-style)](2026-07-29-global-app-bar.md) | Shared AppShell bar: Scanner/Trader nav + Day P&L/Net Liq/BP/Working |
+| 2026-07-29 | [Shortcuts menu hold Ctrl+Alt popup](2026-07-29-shortcuts-menu-hold-ctrl.md) | Hold Ctrl+Alt peeks shortcuts menu; Listening accepts modifier chords |
 | 2026-07-29 | [Trader tabs + slim Quote Panel](2026-07-29-trader-tabs-slim-quote-panel.md) | L1-only scrollable Quote Panel; Trader max 3 editable L2/T&S tabs |
 | 2026-07-29 | [HOD multi-strategy pills stack vertically](2026-07-29-hod-strategy-pills-stack.md) | Stack STRATEGY pills; variable-height virtualizer offsets |
 | 2026-07-29 | [HOD strategy config schema v9 repair](2026-07-29-hod-strategy-config-schema-v9.md) | Re-enable 2–9; add Approaching HOD #13; clarify price 0 = disabled |

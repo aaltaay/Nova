@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Trader TRADE pane no longer clipped
+
+- **What:** Trade ticket in the Trader rail keeps a 320px floor, depth shrinks first, and the ticket body scrolls so Trading Hours / submit stay reachable. Default depth/trade split reset to 52/48 (storage key v2).
+- **Why:** TRADE widget was cut off at the bottom (Trading Hours clipped) because depth used `flex: 0 0 72%` (never shrinks) while the stack used `overflow: hidden`.
+- **Files touched:** `stockViewTerminal.css`, `constantGroups/chart_api.ts`, `StockViewRail.tsx`.
+- **How it works now:** Depth is `flex: 1 1 pct` (shrinkable). Open/TRADE card is `flex-shrink: 0` with `min-height: 320px`; `.sv-module-card__body` scrolls. Drag still reallocates space within the new clamps (35–68% depth).
+- **Verified by:** Layout review against prior Quote Panel overflow fix pattern; Vitest rail smoke still green.
+- **Related:** PROBLEM_LOG 2026-07-29 -- Trader TRADE widget clipped.
+
 ## 2026-07-29 -- Larger Level 2 and Time & Sales fonts
 
 - **What:** Bumped L2 montage and Time & Sales type sizes (~15-20%) in base market-data CSS and the Trader View rail densify overrides.

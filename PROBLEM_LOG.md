@@ -23,6 +23,34 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Trader TRADE widget clipped (Trading Hours cut off)
+
+- **Symptom:** In Trader View the right-rail TRADE ticket was cut off at the bottom; Trading Hours (and sometimes submit) were unreachable. Blue arrows in user screenshot pointed at TRADE title and the clipped bottom edge.
+- **Cause:** `.sv-rail__depth` used `flex: 0 0 72%` (flex-shrink: 0) so L2/T&S never yielded height. The trade stack had `overflow: hidden`, and `.sv-module-card__body` also clipped (`overflow: hidden`), so the order ticket's natural height was truncated instead of scrolling. `STOCK_VIEW_ORDER_PANE_MIN_PX = 140` was far shorter than the full ticket.
+- **Fix:** Depth becomes shrinkable (`flex: 1 1 pct`); TRADE card `flex-shrink: 0` with min-height 320px; open-card body `overflow-y: auto`; default split 52% depth (storage key `.v2`); max depth clamp 68%.
+- **Keywords:** Trader View, TRADE widget, clipped, Trading Hours, sv-rail__depth, flex-shrink, overflow hidden, order pane min, depthOrderSplitPct
+
+## 2026-07-29 -- Listening rejected Ctrl+Alt modifier chord
+
+- **Symptom:** While rebind showed "Listening…", Alt+letter recorded fine but Ctrl+Alt did nothing.
+- **Cause:** TanStack `hotkeyChordFromKeydown` returns null without a non-modifier key. Our first `bareModifierRecord` treated a second modifier as "contaminated," so Ctrl+Alt could never complete.
+- **Fix:** Track a set of armed modifiers and emit on the last modifier keyup; `bindingFromModifiers` / `eventMatchesModifierChord` support Ctrl+Alt; default menu chord set to `{ key: 'Alt', ctrl: true }`.
+- **Keywords:** shortcuts menu, Ctrl+Alt, Listening, bareModifierRecord, modifier-only chord, TanStack
+
+## 2026-07-29 -- Hold-Alt shortcuts menu dead in real UI (inputs + override)
+
+- **Symptom:** After hard refresh, hold-Alt still did not open the shortcuts cheat-sheet for the user; unit tests had passed.
+- **Cause:** (1) Menu keydown bailed on `isEditableTarget`, so Alt was ignored whenever ticker search / any input had focus (normal Nova state). (2) Accidental Listening rebind could store `shortcutsMenuKey` as a letter, so Alt no longer matched. Playwright only passed after clicking the blank page + clearing storage.
+- **Fix:** Allow Escape/menu chord even in inputs; one-time `SHORTCUTS_MENU_DEFAULT_EPOCH` clears stored menu overrides on load; Playwright e2e covers clean, focused-input, and override-migration paths.
+- **Keywords:** shortcuts menu, Alt, isEditableTarget, localStorage, shortcutsMenuKey, menu-default-epoch, Playwright
+
+## 2026-07-29 -- Hold-Alt shortcuts menu / Listening ignored bare Alt
+
+- **Symptom:** Shortcuts cheat-sheet on Alt felt broken; while rebind showed "Listening…", pressing Alt did nothing but letter keys recorded fine.
+- **Cause:** `@tanstack/hotkeys` `hotkeyChordFromKeydown` returns null for modifier-only keydowns, so bare Alt never completed a rebind. Bare Alt peek was also bubble-phase only, so the browser could steal Alt for the menu bar before Nova handled it.
+- **Fix:** Capture-phase menu keydown/keyup + preventDefault on Alt release; match Alt via `code` (AltLeft/AltRight); parallel bare-modifier recorder in `ShortcutRebindSession` / `bareModifierRecord.ts` so Listening accepts Alt/Ctrl/Shift/Meta alone.
+- **Keywords:** shortcuts menu, Alt, Listening, TanStack HotkeyRecorder, modifier-only, bareModifierRecord, capture phase
+
 ## 2026-07-29 -- Quote Panel could not scroll (overflow clipped chart / T&S)
 
 - **Symptom:** User could not scroll the scanner Quote Panel to see the full chart and Time & Sales; content was clipped at the viewport.

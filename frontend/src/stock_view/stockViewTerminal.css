@@ -707,7 +707,8 @@
 
 /* ── Right rail ────────────────────────────────────────────────────────────
    quote (auto) | trade-stack 1fr: (L2+T&S side-by-side | drag | Open ticket).
-   Depth is the dominant vertical share; rail may scroll only as a tiny-viewport fallback. */
+   TRADE pane has a hard min-height; depth flex-shrinks first. Rail scrolls only
+   as a tiny-viewport fallback. */
 
 .stock-view-page .sv-rail,
 .stock-view-page .stock-view-quote.sv-rail {
@@ -730,6 +731,7 @@
   display: flex;
   flex-direction: column;
   gap: 0;
+  /* Clip the stack; TRADE scrolls inside .sv-open-card so hours/submit stay reachable. */
   overflow: hidden;
 }
 
@@ -856,10 +858,11 @@
   white-space: nowrap;
 }
 
-/* Depth slot — top of trade stack (resizable vs Open ticket) */
+/* Depth slot — top of trade stack (resizable vs Open ticket).
+   flex-shrink:1 so the TRADE pane's min-height wins instead of clipping. */
 .stock-view-page .sv-rail__depth {
-  flex: 0 0 var(--sv-depth-pct, 72%);
-  min-height: var(--sv-depth-pane-min, 120px);
+  flex: 1 1 var(--sv-depth-pct, 52%);
+  min-height: var(--sv-depth-pane-min, 100px);
   max-height: none;
   overflow: hidden;
   display: flex;
@@ -1014,17 +1017,24 @@
   max-height: none;
 }
 
-/* Open / order ticket card — bottom of trade stack (gets remainder after drag) */
+/* Open / order ticket — never shrink below min; scroll body if ticket is taller. */
 .stock-view-page .sv-open-card {
+  flex: 1 0 var(--sv-order-pane-min, 320px);
+  min-height: var(--sv-order-pane-min, 320px);
+  overflow: hidden;
+}
+
+.stock-view-page .sv-open-card > .sv-module-card__body {
   flex: 1 1 0;
-  min-height: var(--sv-order-pane-min, 140px);
-  overflow: auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .stock-view-page .ticker-trade-bar--rail {
   margin: 0;
   max-height: none;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: none;
   padding: 0;
   border: none;
