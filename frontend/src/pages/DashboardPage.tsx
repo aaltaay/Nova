@@ -84,7 +84,6 @@ export function DashboardPage() {
   useEffect(() => {
     if (tabOverriddenRef.current) return;
     setActiveTab(prev => {
-      if (prev === 'dashboard') return prev;
       // Preserve Gainers vs Losers (same movers feed); do not clobber an open scanner tab
       // when session mode flips (e.g. market → afterhours) until the user opts in.
       if (prev === 'gainers' || prev === 'losers' || prev === 'gappers' || prev === 'afterhours') {
@@ -96,7 +95,7 @@ export function DashboardPage() {
     });
   }, [scanner.mode, tabOverridden]);
 
-  // If the active tab was hidden via Modules menu, fall back to Dashboard.
+  // If the active tab was hidden via Modules menu, fall back to Gappers.
   useEffect(() => {
     if (visibility[activeTab] === false) {
       setActiveTab(DEFAULT_ACTIVE_TAB);

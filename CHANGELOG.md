@@ -30,6 +30,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-29 -- Remove Dashboard tab; Gappers is homepage
+
+- **What:** Removed the Dashboard config tab from TabNav. Scanner opens on Gappers by default.
+- **Why:** Config moved to Settings; the Dashboard tab was only a pointer and wasted a homepage slot.
+- **Files touched:** `workspace/registry.ts`, `TabModuleHost.tsx`, `DashboardPage.tsx`, deleted `DashboardTab.tsx`, e2e baseline.
+- **How it works now:** `DEFAULT_ACTIVE_TAB = 'gappers'`. Settings (GlobalAppBar gear) owns exchange filter / Alpaca / trade prefs.
+- **Verified by:** Vitest registry + moduleVisibility; e2e baseline expects Gappers.
+
 ## 2026-07-29 -- Webull-style Settings overlay + Trade defaults
 
 - **What:** Settings is a full-viewport left-rail overlay (General / Hot Keys / Trade / Alerts / Account) opened from the GlobalAppBar gear on Scanner and Trader. Exchange filter + Alpaca panel moved into General; Trade > Stocks holds editable order defaults; Order Preferences hosts skip-confirm. Cleared `TICKER_TRADE_FORCE_QTY` so qty prefs apply.

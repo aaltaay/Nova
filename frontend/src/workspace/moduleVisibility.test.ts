@@ -40,7 +40,7 @@ describe('moduleVisibility (Phase 4)', () => {
 
   it('parse recovers from invalid JSON', () => {
     const parsed = parseModuleVisibility('{not-json');
-    expect(parsed.dashboard).toBe(true);
+    expect(parsed.gappers).toBe(true);
   });
 
   it('load/save round-trip through storage', () => {

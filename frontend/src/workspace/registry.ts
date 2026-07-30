@@ -38,7 +38,6 @@ export type ModuleCountKey =
 
 /** Tab ids — also the ActiveTab union used by Dashboard / TabNav. */
 export const TAB_MODULE_IDS = [
-  'dashboard',
   'gappers',
   'gainers',
   'losers',
@@ -53,7 +52,8 @@ export const TAB_MODULE_IDS = [
 
 export type ActiveTab = (typeof TAB_MODULE_IDS)[number];
 
-export const DEFAULT_ACTIVE_TAB: ActiveTab = 'dashboard';
+/** Scanner homepage — Gappers (Dashboard config tab removed; Settings owns config). */
+export const DEFAULT_ACTIVE_TAB: ActiveTab = 'gappers';
 
 /**
  * Tab modules that need Dashboard props are host-rendered (component is a stub).
@@ -81,14 +81,6 @@ export type NovaModule = {
 const host = HostRenderedModule as ComponentType<any>;
 
 export const NOVA_MODULES: readonly NovaModule[] = [
-  {
-    id: 'dashboard',
-    title: 'Dashboard',
-    component: host,
-    feedDeps: ['none'],
-    defaultPlacement: 'tab',
-    showInTabNav: true,
-  },
   {
     id: 'gappers',
     title: 'Gappers',

@@ -6,7 +6,6 @@ import { HodMomoSection } from '../hod_momo/HodMomoSection';
 import type { useHodMomoConfig } from '../hod_momo/useHodMomoConfig';
 import type { useHodMomoStream } from '../hod_momo/useHodMomoStream';
 import { ScannerTabPanels } from './ScannerTabPanels';
-import { DashboardTab } from '../pages/DashboardTab';
 import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
 import { getModule, type ActiveTab } from '../workspace/registry';
@@ -87,10 +86,6 @@ export function TabModuleHost(props: TabModuleHostProps) {
     onToggleHodSettings,
     onCloseHodSettings,
   } = props;
-
-  if (activeTab === 'dashboard') {
-    return <DashboardTab />;
-  }
 
   if (SCANNER_TABS.has(activeTab)) {
     return (

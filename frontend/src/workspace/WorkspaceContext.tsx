@@ -95,7 +95,7 @@ function initialTraderState(): {
     return { tabs: state, blockNotice: readBlockNotice() ? TRADER_BLOCK_NOTICE_MESSAGE : null };
   }
   // In-app: only restore if we were already in trader (no URL) — keep empty
-  // so dashboard is the default; detached window always has ?view=stock.
+  // so Gappers is the scanner default; detached window always has ?view=stock.
   return { tabs: EMPTY_TRADER_TABS, blockNotice: null };
 }
 

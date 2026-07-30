@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_ACTIVE_TAB,
   getModule,
   HostRenderedModule,
   listModules,
@@ -61,12 +62,19 @@ describe('module registry (Phase 4)', () => {
   });
 
   it('isTabModuleId gates ActiveTab ids', () => {
-    expect(isTabModuleId('dashboard')).toBe(true);
+    expect(isTabModuleId('gappers')).toBe(true);
     expect(isTabModuleId('watchlist')).toBe(true);
     expect(isTabModuleId('running_up')).toBe(true);
+    expect(isTabModuleId('dashboard')).toBe(false);
     expect(isTabModuleId('level2')).toBe(false);
     expect(isTabModuleId('strategy')).toBe(false);
     expect(isTabModuleId('movers')).toBe(false);
+  });
+
+  it('defaults homepage to Gappers and omits Dashboard from TabNav', () => {
+    expect(DEFAULT_ACTIVE_TAB).toBe('gappers');
+    expect(listTabModules().map(t => t.id)).not.toContain('dashboard');
+    expect(getModule('dashboard')).toBeUndefined();
   });
 
   it('registers Running Up as a sibling tab of HOD Momo', () => {
@@ -87,7 +95,7 @@ describe('module registry (Phase 4)', () => {
     for (const id of ['gappers', 'gainers', 'losers', 'afterhours', 'catalysts'] as const) {
       expect(tabUsesScannerPricePatch(id)).toBe(true);
     }
-    for (const id of ['dashboard', 'hod_momo', 'running_up', 'watchlist', 'trading'] as const) {
+    for (const id of ['hod_momo', 'running_up', 'watchlist', 'trading'] as const) {
       expect(tabUsesScannerPricePatch(id)).toBe(false);
     }
   });

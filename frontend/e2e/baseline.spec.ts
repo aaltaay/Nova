@@ -21,17 +21,18 @@ test.describe('Phase 0 baseline', () => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
     await expect(page.locator('.tab-bar')).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Dashboard/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Gappers/ })).toBeVisible();
+    await expect(page.locator('.tab.active')).toContainText('Gappers');
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
   test('tabs switch', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
-    const gappers = page.getByRole('button', { name: /^Gappers/ });
-    await gappers.click();
-    await expect(gappers).toHaveClass(/active/);
-    await expect(page.locator('.tab.active')).toContainText('Gappers');
+    const gainers = page.getByRole('button', { name: /^Gainers/ });
+    await gainers.click();
+    await expect(gainers).toHaveClass(/active/);
+    await expect(page.locator('.tab.active')).toContainText('Gainers');
 
     const account = page.getByTestId('header-account-btn');
     await account.click();
