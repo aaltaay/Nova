@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-07-31 | [Fix empty gappers/gainers after ib_async pin (startReq removal)](2026-07-31-fix-empty-gappers-startreq.md) | Typed requests/subscriptions registry adapter + real-import compat guard |
 | 2026-07-30 | [IBKR order-truth hardening (10349 / TIF / wedge)](2026-07-30-ibkr-order-truth-hardening.md) | False Cancelled heal; tif=DAY; cancel verify; lag wedged |
 | 2026-07-30 | [Webull-style Nova Actions (Buy 1 / Cancel All / long-only percent exits)](2026-07-30-webull-style-nova-actions.md) | Webull-style Nova Actions (Buy 1 / Cancel All / long-only percent exits) |
 | 2026-07-30 | [Shared GlobalAppBar status strip on Scanner and Trader](2026-07-30-shared-global-app-bar-status.md) | Shared GlobalAppBar status strip on Scanner and Trader |

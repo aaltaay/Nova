@@ -44,6 +44,8 @@ logger = logging.getLogger(__name__)
 _Stock = None
 _ScannerSubscription = None
 _ScanDataList = None
+_ScannerSub = None
+_ReqIdKey = None
 # Qualified Stock contracts reused across cold snapshot calls.
 _qualified_contracts: dict[str, object] = {}
 # Serialize cold reqTickersAsync so discovery/enrichment cannot fan out
@@ -119,7 +121,7 @@ def _cancel_snapshot_tickers(ib, contracts: list) -> None:
 
 
 def _load_ib_types() -> bool:
-    global _Stock, _ScannerSubscription, _ScanDataList
+    global _Stock, _ScannerSubscription, _ScanDataList, _ScannerSub, _ReqIdKey
     if _Stock is not None:
         return True
     try:
@@ -127,9 +129,48 @@ def _load_ib_types() -> bool:
         _Stock = Stock
         _ScannerSubscription = ScannerSubscription
         _ScanDataList = ScanDataList
+        # ScannerSub / ReqIdKey moved with the typed-registry refactor
+        # (ib_async pin c9f4c14, 2026-07-30) that dropped Wrapper.startReq /
+        # wrapper.reqId2Subscriber — see PROBLEM_LOG 2026-07-31. Both are
+        # optional: older ib_async releases still work via the legacy
+        # startReq fallback in _open_scan_future / recover_scanner_slots.
+        try:
+            from ib_async._subscriptions import ScannerSub
+            _ScannerSub = ScannerSub
+        except ImportError:
+            _ScannerSub = None
+        try:
+            from ib_async._requests import ReqIdKey
+            _ReqIdKey = ReqIdKey
+        except ImportError:
+            _ReqIdKey = None
         return True
     except ImportError:
         return False
+
+
+def _open_scan_future(ib, data_list) -> asyncio.Future:
+    """Open the awaitable future for a just-issued scanner subscription.
+
+    ``ib_async``'s typed ``RequestRegistry`` (pin c9f4c14, 2026-07-30)
+    replaced ``Wrapper.startReq`` with ``wrapper.requests.open(key, ...)``.
+    Prefer the new API; fall back to the legacy facade for older pins so a
+    partial rollback does not also need a code change. Raises
+    ``IbkrDiscoveryError`` with a clear message if neither exists — this is
+    the loud failure this helper exists to prevent (see PROBLEM_LOG
+    2026-07-31 empty gappers/gainers after startReq removal).
+    """
+    requests_registry = getattr(ib.wrapper, "requests", None)
+    if requests_registry is not None and _ReqIdKey is not None:
+        req, _ = requests_registry.open(_ReqIdKey(data_list.reqId), container=data_list)
+        return req.future
+    start_req = getattr(ib.wrapper, "startReq", None)
+    if callable(start_req):
+        return start_req(data_list.reqId, container=data_list)
+    raise IbkrDiscoveryError(
+        "ib_async Wrapper exposes neither requests.open nor startReq -- "
+        "scanner API surface changed; update ibkr/discovery.py._open_scan_future"
+    )
 
 
 def _clean(x: float | None) -> float | None:
@@ -172,11 +213,11 @@ async def _one_shot_scanner(ib, sub) -> list:
             slot_exhausted = True
 
     # hasattr-guarded: real ib_async.IB always has errorEvent; minimal test
-    # doubles that only stub reqScannerSubscription/wrapper.startReq do not.
+    # doubles that only stub reqScannerSubscription/wrapper.requests do not.
     has_error_hook = hasattr(ib, "errorEvent")
     if has_error_hook:
         ib.errorEvent += _on_scan_error
-    future = ib.wrapper.startReq(data_list.reqId, container=data_list)
+    future = _open_scan_future(ib, data_list)
     try:
         await asyncio.wait_for(future, timeout=IBKR_SCAN_REQUEST_TIMEOUT_SEC)
         if slot_exhausted:
@@ -234,18 +275,22 @@ def recover_scanner_slots(ib) -> int:
 
     Cancels only (a) reqIds this process still has recorded as in-flight —
     belt-and-suspenders for a ``_one_shot_scanner`` finally-block cancel that
-    itself raised — and (b) any entry in ib_async's own
-    ``wrapper.reqId2Subscriber`` registry whose container is a
-    ``ScanDataList`` (a real open scanner subscription IBKR is still holding
-    for this clientId, regardless of which call created it). Never touches
+    itself raised — and (b) any live ``ScannerSub`` in ib_async's own
+    subscription registry (``wrapper.subscriptions.subs_of_type``), each of
+    which is a real open scanner subscription IBKR is still holding for this
+    clientId, regardless of which call created it. Never touches
     mktData/tick/order/bar subscribers, and never disconnects — this is the
     Error 322 recovery path, not a Gateway restart (see PROBLEM_LOG
     2026-07-23 IBKR scanner subscription leak).
+
+    Uses ``wrapper.subscriptions.subs_of_type(ScannerSub)`` (typed-registry
+    API, ib_async pin c9f4c14+); falls back to the legacy
+    ``wrapper.reqId2Subscriber`` dict for older pins (see PROBLEM_LOG
+    2026-07-31 startReq/registry removal).
     """
     if ib is None or not _load_ib_types():
         return 0
     wrapper = getattr(ib, "wrapper", None)
-    registry = getattr(wrapper, "reqId2Subscriber", None) if wrapper is not None else None
     # ADR 008: never cancel currently-desired persistent leases.
     try:
         from ibkr.scanner_stream import persistent_reqids as _persistent_reqids
@@ -258,12 +303,24 @@ def recover_scanner_slots(ib) -> int:
         for req_id in list(_inflight_scan_reqids)
         if req_id not in protected
     }
-    if isinstance(registry, dict):
-        for req_id, subscriber in list(registry.items()):
-            if req_id in protected:
+
+    subscriptions = getattr(wrapper, "subscriptions", None) if wrapper is not None else None
+    subs_of_type = getattr(subscriptions, "subs_of_type", None) if subscriptions is not None else None
+    if callable(subs_of_type) and _ScannerSub is not None:
+        for sub in subs_of_type(_ScannerSub):
+            req_id = getattr(sub, "reqId", None)
+            if req_id is None or req_id in protected:
                 continue
-            if isinstance(subscriber, _ScanDataList):
-                candidates[req_id] = subscriber
+            candidates[req_id] = getattr(sub, "dataList", None)
+    else:
+        # Legacy ib_async (pre-c9f4c14): reqId2Subscriber maps reqId -> ScanDataList.
+        registry = getattr(wrapper, "reqId2Subscriber", None) if wrapper is not None else None
+        if isinstance(registry, dict):
+            for req_id, subscriber in list(registry.items()):
+                if req_id in protected:
+                    continue
+                if isinstance(subscriber, _ScanDataList):
+                    candidates[req_id] = subscriber
 
     recovered = 0
     for req_id, subscriber in candidates.items():
@@ -272,8 +329,6 @@ def recover_scanner_slots(ib) -> int:
                 ib.cancelScannerSubscription(subscriber)
             else:
                 ib.client.cancelScannerSubscription(req_id)
-                if isinstance(registry, dict):
-                    registry.pop(req_id, None)
             recovered += 1
         except Exception:
             logger.debug(

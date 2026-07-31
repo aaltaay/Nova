@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-31 -- Fix empty gappers/gainers after ib_async pin (startReq removal) + compat guard
+
+- **What:** `ibkr/discovery.py`'s one-shot scanner (`_one_shot_scanner`) and Error-322 slot recovery (`recover_scanner_slots`) now use the typed `ib_async` request/subscription registries (`wrapper.requests.open`, `wrapper.subscriptions.subs_of_type(ScannerSub)`) instead of the removed `Wrapper.startReq` / `wrapper.reqId2Subscriber` facade, with an automatic fallback to the legacy facade for older pins. Added `backend/tests/test_ibkr_async_scanner_api_compat.py`, which imports the real installed `ib_async` package (no fakes) and asserts this exact surface, plus an end-to-end call into the new helper against a genuine unconnected `IB()`.
+- **Why:** The 2026-07-30 `ib_async` pin bump to git `c9f4c14` (for Error 10349 -- see that day's entry) silently removed the scanner API discovery.py depended on. Every gappers/gainers/losers/HOD-seed scan raised `AttributeError` while IB Gateway itself stayed connected, so tables looked "empty" rather than broken. See PROBLEM_LOG 2026-07-31.
+- **Files touched:** `backend/ibkr/discovery.py`, `backend/tests/test_ibkr_discovery.py`, `backend/tests/test_ibkr_discovery_fail_loud.py`, `backend/tests/test_ibkr_async_scanner_api_compat.py` (new).
+- **How it works now:** `_open_scan_future(ib, data_list)` prefers `ib.wrapper.requests.open(ReqIdKey(reqId), container=data_list)` (current pin) and falls back to `ib.wrapper.startReq(reqId, container=data_list)` (pre-c9f4c14) only if the typed registry is absent; it raises `IbkrDiscoveryError` loudly if neither exists. `recover_scanner_slots()` mirrors the same primary/fallback shape for reclaiming leaked Error-322 scanner slots. The new compat test suite is the regression guard: it does not use fakes, so a future `ib_async` pin that removes/renames this surface fails there in CI, not as an empty premarket UI.
+- **Verified by:** `pytest backend/tests/test_ibkr_discovery.py backend/tests/test_ibkr_discovery_fail_loud.py backend/tests/test_scanner_session_adr008.py backend/tests/test_ibkr_async_scanner_api_compat.py` (45 passed); full backend suite (1067 passed); live check against the running API + connected IB Gateway.
+- **Related:** PROBLEM_LOG 2026-07-31 -- Empty gappers/gainers startReq removal; PROBLEM_LOG 2026-07-30 -- Error 10349 (the pin-bump trigger); `knowledge/task-log/2026-07-31-fix-empty-gappers-startreq.md`.
+
 ## 2026-07-30 -- IBKR order-truth hardening (10349 / TIF / wedge)
 
 - **What:** Stopped false `failed`/`Cancelled` ledger writes on live orders that are still PreSubmitted; always set `tif=DAY`; cancel verifies the order left openTrades; Working Orders shows held-to-open when IB Warning 399 applies; health reports `loop_lag_ms.wedged`; `run_coro` circuits under lag. Cancelled live CYCU 95053 after API restart.

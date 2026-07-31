@@ -51,6 +51,33 @@ class _FakeTicker:
         self.volume = volume
 
 
+class _FakeReq:
+    """Stands in for ib_async's typed ``Request`` (has ``.future``)."""
+
+    def __init__(self, future: asyncio.Future):
+        self.future = future
+
+
+class _FakeRequests:
+    """Stands in for ``Wrapper.requests`` (typed ``RequestRegistry``,
+    ib_async pin c9f4c14+ — see PROBLEM_LOG 2026-07-31 startReq removal)."""
+
+    def __init__(self, ib: "_FakeIB"):
+        self._ib = ib
+
+    def open(self, _key, *, container=None, **_k):
+        fut: asyncio.Future = asyncio.get_event_loop().create_future()
+        fut.set_result(list(self._ib._scan_rows))
+        return _FakeReq(fut), True
+
+
+class _FakeReqIdKey:
+    """Stands in for ``ib_async._requests.ReqIdKey``."""
+
+    def __init__(self, req_id: int):
+        self.reqId = req_id
+
+
 class _FakeIB:
     """Stands in for ib_async.IB — only the methods discovery.py calls."""
 
@@ -60,6 +87,7 @@ class _FakeIB:
         self._scan_rows = scan_rows
         self._tickers = tickers
         self.wrapper = self
+        self.requests = _FakeRequests(self)
         self.cancelled_req_ids: list[int] = []
 
     def reqScannerSubscription(self, subscription, *_a, **_k):
@@ -68,11 +96,6 @@ class _FakeIB:
         _FakeIB._next_req_id += 1
         data.reqId = _FakeIB._next_req_id
         return data
-
-    def startReq(self, req_id, container=None):
-        fut: asyncio.Future = asyncio.get_event_loop().create_future()
-        fut.set_result(list(self._scan_rows))
-        return fut
 
     def cancelScannerSubscription(self, data_list):
         self.cancelled_req_ids.append(getattr(data_list, "reqId", None))
@@ -88,6 +111,7 @@ def _patch_client(monkeypatch, fake_ib):
     """Wire fake IB + stub ib_async types so fail-loud discovery can construct subs."""
     monkeypatch.setattr(discovery._client, "get_ib", lambda: fake_ib)
     monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(discovery, "_ReqIdKey", _FakeReqIdKey)
     discovery._scan_lock = None
 
     class _Sub:

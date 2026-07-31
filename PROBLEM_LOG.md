@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-31 -- Empty gappers/gainers: `startReq` removed by the 2026-07-30 ib_async pin bump
+
+- **Symptom:** IB Gateway connected (`/api/ibkr/status` `connected: true`, `market_data_type: 1`), discovery provider `ibkr`, but `/api/gappers` and `/api/movers` returned `gappers: []` / `gainers: []` / `losers: []` with `last_scan: 0.0` all session. `/api/integrity` `scanner_ibkr_bridge` failed with `AttributeError: 'Wrapper' object has no attribute 'startReq'`.
+- **Cause:** The 2026-07-30 order-truth session (`957209c`, see below) bumped `ib_async` from PyPI `2.1.0` to git `next@c9f4c14` to make Error 10349 a warning instead of a hard cancel. That commit range also replaced `Wrapper.startReq` / `wrapper.reqId2Subscriber` with a typed `RequestRegistry` (`wrapper.requests.open(key, container=...)`) and typed subscription registry (`wrapper.subscriptions.subs_of_type(ScannerSub)`). `backend/ibkr/discovery.py`'s `_one_shot_scanner()` and `recover_scanner_slots()` still called the removed legacy facade, so every one-shot scanner request (gappers/gainers/losers/HOD seeds) raised `AttributeError` instead of returning rows. Scanner discovery was never re-verified after the pin bump because that session's own verification was scoped to order placement.
+- **Fix:** Added `ibkr/discovery._open_scan_future()` — tries `wrapper.requests.open(ReqIdKey(reqId), container=...)` first, falls back to legacy `wrapper.startReq` for older pins, raises a loud `IbkrDiscoveryError` if neither exists. `recover_scanner_slots()` now walks `wrapper.subscriptions.subs_of_type(ScannerSub)` first, with the same legacy `reqId2Subscriber` dict fallback. Added `backend/tests/test_ibkr_async_scanner_api_compat.py`, which imports the **real** installed `ib_async` (not a fake) and asserts the exact surface these two functions need, plus an end-to-end call into `_open_scan_future()` against a genuine unconnected `IB()` — so the next incompatible pin bump fails a pytest in CI instead of silently emptying the scanner tables.
+- **Keywords:** startReq, AttributeError, ib_async, c9f4c14, RequestRegistry, ScannerSub, reqId2Subscriber, empty gappers, empty gainers, last_scan=0, scanner_ibkr_bridge, pin bump, requests.open, subs_of_type
+
 ## 2026-07-30 -- Error 10349 false-Cancelled lied that live CYCU order failed
 
 - **Symptom:** Live BUY 1 CYCU (order 95053) written to execution ledger as `failed` / `BROKER_REJECT` / `Cancelled` with error "Order TIF was set to DAY based on order preset." UI Working Orders still showed Pending/PreSubmitted held until next open; no position.

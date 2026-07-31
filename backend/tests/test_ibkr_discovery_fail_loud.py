@@ -11,6 +11,14 @@ from ibkr.errors import IbkrDiscoveryError
 from metrics import op_metrics
 
 
+class _FakeReqIdKey:
+    """Stands in for ``ib_async._requests.ReqIdKey`` (typed-registry pin
+    c9f4c14+ — see PROBLEM_LOG 2026-07-31 startReq removal)."""
+
+    def __init__(self, req_id: int):
+        self.reqId = req_id
+
+
 @pytest.fixture(autouse=True)
 def reset_op_metrics():
     op_metrics.reset_for_tests()
@@ -40,10 +48,13 @@ async def test_scan_symbols_raises_on_scanner_request_timeout(monkeypatch):
             self.reqId = 42
 
     class _Wrapper:
-        def startReq(self, req_id, container=None):
+        def __init__(self):
+            self.requests = self
+
+        def open(self, key, *, container=None, **_k):
             fut: asyncio.Future = asyncio.get_running_loop().create_future()
             # Never complete — forces the local wait_for timeout path.
-            return fut
+            return SimpleNamespace(future=fut), True
 
     class _HangingIB:
         def __init__(self):
@@ -61,6 +72,7 @@ async def test_scan_symbols_raises_on_scanner_request_timeout(monkeypatch):
 
     monkeypatch.setattr(discovery._client, "get_ib", lambda: _HangingIB())
     monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(discovery, "_ReqIdKey", _FakeReqIdKey)
     monkeypatch.setattr(discovery, "IBKR_SCAN_REQUEST_TIMEOUT_SEC", 0.05)
 
     class _Sub:
@@ -95,10 +107,13 @@ async def test_scan_symbols_cancels_subscription_on_success(monkeypatch):
             self.reqId = 7
 
     class _Wrapper:
-        def startReq(self, req_id, container=None):
+        def __init__(self):
+            self.requests = self
+
+        def open(self, key, *, container=None, **_k):
             fut: asyncio.Future = asyncio.get_running_loop().create_future()
             fut.set_result([_Row()])
-            return fut
+            return SimpleNamespace(future=fut), True
 
     class _IB:
         def __init__(self):
@@ -112,6 +127,7 @@ async def test_scan_symbols_cancels_subscription_on_success(monkeypatch):
 
     monkeypatch.setattr(discovery._client, "get_ib", lambda: _IB())
     monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(discovery, "_ReqIdKey", _FakeReqIdKey)
 
     class _Sub:
         def __init__(self, **kwargs):
@@ -280,7 +296,11 @@ class TestScannerSlotRecovery:
         row = self._row("CCC")
 
         class _Wrapper:
-            def startReq(self, req_id, container=None):
+            def __init__(self):
+                self.requests = self
+
+            def open(self, key, *, container=None, **_k):
+                req_id = key.reqId
                 attempts.append(req_id)
                 fut: asyncio.Future = asyncio.get_running_loop().create_future()
                 if len(attempts) == 1:
@@ -292,7 +312,7 @@ class TestScannerSlotRecovery:
                     fut.set_result([])
                 else:
                     fut.set_result([row])
-                return fut
+                return SimpleNamespace(future=fut), True
 
         class _FakeIB:
             def __init__(self):
@@ -310,6 +330,7 @@ class TestScannerSlotRecovery:
         fake_ib = _FakeIB()
         monkeypatch.setattr(discovery._client, "get_ib", lambda: fake_ib)
         monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+        monkeypatch.setattr(discovery, "_ReqIdKey", _FakeReqIdKey)
 
         class _Sub:
             def __init__(self, **kwargs):
@@ -335,13 +356,17 @@ class TestScannerSlotRecovery:
         from constants import IBKR_ERROR_SCANNER_SLOT_EXHAUSTED
 
         class _Wrapper:
-            def startReq(self, req_id, container=None):
+            def __init__(self):
+                self.requests = self
+
+            def open(self, key, *, container=None, **_k):
+                req_id = key.reqId
                 fut: asyncio.Future = asyncio.get_running_loop().create_future()
                 fake_ib.errorEvent.fire(
                     req_id, IBKR_ERROR_SCANNER_SLOT_EXHAUSTED, "slot exhausted", None,
                 )
                 fut.set_result([])
-                return fut
+                return SimpleNamespace(future=fut), True
 
         class _FakeIB:
             def __init__(self):
@@ -359,6 +384,7 @@ class TestScannerSlotRecovery:
         fake_ib = _FakeIB()
         monkeypatch.setattr(discovery._client, "get_ib", lambda: fake_ib)
         monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+        monkeypatch.setattr(discovery, "_ReqIdKey", _FakeReqIdKey)
 
         class _Sub:
             def __init__(self, **kwargs):
@@ -374,20 +400,103 @@ class TestScannerSlotRecovery:
             await discovery.scan_symbols("TOP_PERC_GAIN")
 
 
-def test_recover_scanner_slots_only_cancels_scan_data_list_entries(monkeypatch):
+class _FakeScannerSub:
+    """Stands in for ``ib_async._subscriptions.ScannerSub`` (typed-registry
+    pin c9f4c14+ — see PROBLEM_LOG 2026-07-31 startReq/registry removal)."""
+
+    def __init__(self, req_id, data_list):
+        self.reqId = req_id
+        self.dataList = data_list
+
+
+class _FakeSubscriptions:
+    """Stands in for ``Wrapper.subscriptions`` (``SubscriptionRegistry``)."""
+
+    def __init__(self, subs: list):
+        self._subs = subs
+
+    def subs_of_type(self, sub_class):
+        return [s for s in self._subs if isinstance(s, sub_class)]
+
+
+def test_recover_scanner_slots_only_cancels_scanner_subs(monkeypatch):
     """Recovery must never touch live mktData/bars subscribers — only actual
-    open scanner subscriptions (ScanDataList containers)."""
+    open scanner subscriptions (``ScannerSub`` entries in the typed
+    subscription registry)."""
+
+    class _OtherSub:
+        """Stands in for a live mktData/bars subscriber — must be left alone."""
+
+        def __init__(self, req_id):
+            self.reqId = req_id
+
+    monkeypatch.setattr(discovery, "_ScannerSub", _FakeScannerSub)
+    monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+    discovery._inflight_scan_reqids.clear()
+
+    scan_data_list = SimpleNamespace(reqId=11)
+    scan_sub = _FakeScannerSub(11, scan_data_list)
+    other_sub = _OtherSub(22)
+
+    class _Wrapper:
+        subscriptions = _FakeSubscriptions([scan_sub, other_sub])
+
+    cancelled: list[object] = []
+
+    class _FakeIB:
+        wrapper = _Wrapper()
+
+        def cancelScannerSubscription(self, data_list):
+            cancelled.append(data_list)
+
+    recovered = discovery.recover_scanner_slots(_FakeIB())
+
+    assert recovered == 1
+    assert cancelled == [scan_data_list], "non-scanner subscriber must never be cancelled"
+
+
+def test_recover_scanner_slots_uses_tracked_reqids_when_not_in_subscriptions(monkeypatch):
+    """Belt-and-suspenders path: a reqId this process still has recorded as
+    in-flight must be reclaimed even if it fell out of the subscription
+    registry (e.g. a finally-block cancel that itself raised)."""
+    monkeypatch.setattr(discovery, "_ScannerSub", type("_Sentinel", (), {}))
+    monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
+    discovery._inflight_scan_reqids.clear()
+    discovery._inflight_scan_reqids.add(99)
+
+    calls: list[int] = []
+
+    class _Wrapper:
+        subscriptions = _FakeSubscriptions([])
+
+    class _Client:
+        def cancelScannerSubscription(self, req_id):
+            calls.append(req_id)
+
+    class _FakeIB:
+        wrapper = _Wrapper()
+        client = _Client()
+
+    recovered = discovery.recover_scanner_slots(_FakeIB())
+
+    assert recovered == 1
+    assert calls == [99]
+    assert discovery._inflight_scan_reqids == set()
+
+
+def test_recover_scanner_slots_legacy_registry_fallback(monkeypatch):
+    """Older ib_async pins (pre-c9f4c14) expose ``wrapper.reqId2Subscriber``
+    instead of ``wrapper.subscriptions`` — recovery must still work there."""
 
     class _FakeScanDataList:
         def __init__(self, req_id):
             self.reqId = req_id
 
     class _OtherSubscriber:
-        """Stands in for a live mktData/bars subscriber — must be left alone."""
-
         def __init__(self, req_id):
             self.reqId = req_id
 
+    monkeypatch.setattr(discovery, "_ScannerSub", None)
     monkeypatch.setattr(discovery, "_ScanDataList", _FakeScanDataList)
     monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
     discovery._inflight_scan_reqids.clear()
@@ -414,35 +523,6 @@ def test_recover_scanner_slots_only_cancels_scan_data_list_entries(monkeypatch):
     assert cancelled == [scan_entry]
     assert 22 in registry, "non-scanner subscriber must never be cancelled"
     assert 11 not in registry
-
-
-def test_recover_scanner_slots_uses_tracked_reqids_when_not_in_registry(monkeypatch):
-    """Belt-and-suspenders path: a reqId this process still has recorded as
-    in-flight must be reclaimed even if it fell out of the wrapper registry
-    (e.g. a finally-block cancel that itself raised)."""
-    monkeypatch.setattr(discovery, "_ScanDataList", type("_Sentinel", (), {}))
-    monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
-    discovery._inflight_scan_reqids.clear()
-    discovery._inflight_scan_reqids.add(99)
-
-    calls: list[int] = []
-
-    class _Wrapper:
-        reqId2Subscriber: dict = {}
-
-    class _Client:
-        def cancelScannerSubscription(self, req_id):
-            calls.append(req_id)
-
-    class _FakeIB:
-        wrapper = _Wrapper()
-        client = _Client()
-
-    recovered = discovery.recover_scanner_slots(_FakeIB())
-
-    assert recovered == 1
-    assert calls == [99]
-    assert discovery._inflight_scan_reqids == set()
 
 
 def test_recover_scanner_slots_returns_zero_when_ib_none():
