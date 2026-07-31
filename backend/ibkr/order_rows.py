@@ -39,6 +39,8 @@ def trade_to_order_row(trade) -> dict:
     broker_submitted, updated_at, filled_at = extract_trade_times(trade)
     oid = trade.order.orderId
     submitted_at = resolve_submitted_at(broker_submitted, oid)
+    from ibkr.order_held_until import held_until_iso_from_trade
+
     return {
         "order_id": oid,
         "symbol": trade.contract.symbol,
@@ -57,4 +59,5 @@ def trade_to_order_row(trade) -> dict:
         "submitted_at": submitted_at,
         "updated_at": updated_at,
         "filled_at": filled_at,
+        "held_until": held_until_iso_from_trade(trade),
     }

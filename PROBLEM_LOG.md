@@ -23,6 +23,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- Error 10349 false-Cancelled lied that live CYCU order failed
+
+- **Symptom:** Live BUY 1 CYCU (order 95053) written to execution ledger as `failed` / `BROKER_REJECT` / `Cancelled` with error "Order TIF was set to DAY based on order preset." UI Working Orders still showed Pending/PreSubmitted held until next open; no position.
+- **Cause:** (1) `ib_async` 2.1.0 (PyPI) treats IB Error 10349 as a hard cancel even though the order stays live. (2) Nova left `tif` blank on `MarketOrder`, triggering 10349. (3) `OrderWatch` first-ack-wins froze `Cancelled` and `finish_place` wrote ledger `failed` ~150ms before IB moved the same order to `PreSubmitted` (Warning 399: held until next RTH). (4) No ledger reconcile / open_orders re-check.
+- **Fix:** Pin `ib_async` to git `next@c9f4c14` (10349=warning); always set `tif=DAY`; ACK upgrade Cancelled→PreSubmitted; grace + open_orders heal before BROKER_REJECT; closed_orders skips Cancelled still in openTrades; cancel verifies gone; surface `held_until` from Warning 399.
+- **Keywords:** 10349, TIF, DAY, Cancelled, PreSubmitted, CYCU, 95053, false reject, BROKER_REJECT, Warning 399, held until open, ib_async
+
+## 2026-07-30 -- API_WEDGED hid open-order truth during CYCU place
+
+- **Symptom:** `/api/ibkr/status`, `/positions`, `/orders`, `/account` timed out (8s) while Gateway ports still listened; event-loop lag logged 22–35s; UI looked empty/stale.
+- **Cause:** Sustained uvicorn loop lag from stacked IBKR `run_coro` / completed-orders refresh timeouts; health probes hung so Nova could not refresh Working Orders even though IB still held PreSubmitted 95053.
+- **Fix:** Kill-restart API (Stop-NovaPorts + run_api); `loop_lag` exposes `wedged` after streak ≥3 samples ≥5s; `run_coro` circuit breaker reduces inflight when wedged.
+- **Keywords:** API_WEDGED, loop_lag, run_coro, circuit breaker, health timeout, CYCU
+
 ## 2026-07-30 -- Shared header status strip missing on Trader
 
 - **Symptom:** Scanner header showed MARKET HOURS / API / GATEWAY / Sample / history / lookup; Trader header did not -- looked like two different bars.

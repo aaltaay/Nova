@@ -98,17 +98,24 @@ export function renderWorkingOrderCell(
           {formatMoney(o.avg_fill_price ?? null)}
         </td>
       );
-    case 'status':
+    case 'status': {
+      const heldTitle = o.held_until
+        ? `${o.status} -- held until ${o.held_until} (exchange open)`
+        : o.status;
+      const label = o.held_until
+        ? `${ctx.statusLabel} (held to open)`
+        : ctx.statusLabel;
       return (
         <td key={col} className="ibkr-col--status">
           <span
             className={`ibkr-order-status ibkr-order-status--${ctx.tone}`}
-            title={o.status}
+            title={heldTitle}
           >
-            {ctx.statusLabel}
+            {label}
           </span>
         </td>
       );
+    }
     case 'time':
       return (
         <td key={col} className="ibkr-col--time" title={orderSubmittedTimeTitle(o)}>

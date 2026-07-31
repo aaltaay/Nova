@@ -7,7 +7,8 @@ tzdata==2025.3
 yfinance==1.2.2
 websockets==15.0.1
 watchfiles==1.1.1
-ib_async==2.1.0
+# Pin next @ c9f4c14 (includes Error 10349 as warning -- PyPI 2.1.0 still cancels).
+ib_async @ git+https://github.com/ib-api-reloaded/ib_async.git@c9f4c14cb0654c31b4272d07f6653841a9c7bee0
 sentry-sdk[fastapi]>=2.0.0,<3
 # FinBERT (optional) — install backend/requirements-ml.txt for local sentiment.
 # Kept out of the default/Railway image to avoid torch CVEs (SEC-007).

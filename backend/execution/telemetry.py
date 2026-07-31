@@ -22,6 +22,14 @@ _ACK_STATUSES = frozenset({
     "Inactive",
 })
 
+# Working (non-reject) ack statuses -- a later one upgrades a false Cancelled.
+WORKING_ACK_STATUSES = frozenset({
+    "PreSubmitted",
+    "Submitted",
+    "ApiPending",
+    "Filled",
+})
+
 # Broker terminal statuses that unblock wait_ack but must not count as place
 # success when there is no fill (Error 10243 fractional cancel).
 TERMINAL_REJECT_STATUSES = frozenset({
@@ -54,6 +62,7 @@ class OrderWatch:
         self.aggregate_eligible = aggregate_eligible
         self.ack_ns: int | None = None
         self.ack_status: str | None = None
+        self.latest_status: str | None = None
         self.filled_ns: int | None = None
         self.fills: list[dict[str, Any]] = []
         self.error_code: int | None = None
@@ -62,8 +71,9 @@ class OrderWatch:
         self._fill_event = asyncio.Event()
         self._last_status_filled = 0.0
         self._reconciled_fill_keys: set[tuple[str, str, str]] = set()
+        self._status_history: list[str] = []
 
-    def _persist_ack(self, status: str) -> None:
+    def _persist_ack(self, status: str, *, allow_upgrade: bool = False) -> None:
         if not self.aggregate_eligible or self.ack_ns is None:
             return
         try:
@@ -72,6 +82,7 @@ class OrderWatch:
             _store.mark_ack_by_order_id(
                 self.order_id, self.ack_ns, broker_status=status,
                 execution_id=self.execution_id,
+                allow_status_upgrade=allow_upgrade,
             )
         except Exception:
             logger.exception(
@@ -91,7 +102,24 @@ class OrderWatch:
     ) -> None:
         callback_perf = callback_perf_ns or time.perf_counter_ns()
         callback_wall = callback_wall_ns or time.time_ns()
-        if status in _ACK_STATUSES and self.ack_ns is None:
+        self.latest_status = status
+        if status:
+            self._status_history.append(status)
+            if len(self._status_history) > 16:
+                self._status_history = self._status_history[-16:]
+
+        if status in WORKING_ACK_STATUSES:
+            # First working ack, or upgrade off a false Cancelled (Error 10349).
+            if self.ack_ns is None or (
+                self.ack_status in TERMINAL_REJECT_STATUSES
+            ):
+                upgrade = self.ack_status in TERMINAL_REJECT_STATUSES
+                if self.ack_ns is None:
+                    self.ack_ns = callback_perf
+                self.ack_status = status
+                self._ack_event.set()
+                self._persist_ack(status, allow_upgrade=upgrade)
+        elif status in _ACK_STATUSES and self.ack_ns is None:
             self.ack_ns = callback_perf
             self.ack_status = status
             self._ack_event.set()
@@ -269,94 +297,17 @@ def ensure_handlers(ib) -> None:
     if ib is None or ib in _wired_instances:
         return
     try:
-        ib.orderStatusEvent += _on_order_status
-        ib.execDetailsEvent += _on_exec_details
+        from execution.telemetry_handlers import make_handlers
+
+        on_err, on_status, on_exec = make_handlers(_watches.get)
+        ib.orderStatusEvent += on_status
+        ib.execDetailsEvent += on_exec
         if hasattr(ib, "errorEvent"):
-            ib.errorEvent += _on_ib_error
+            ib.errorEvent += on_err
         _wired_instances.add(ib)
         logger.info("execution.telemetry: IBKR order status/exec handlers wired")
     except Exception:
         logger.exception("execution.telemetry: failed to wire IB handlers")
-
-
-def _on_ib_error(reqId: int, errorCode: int, errorString: str, _contract: Any = None) -> None:
-    try:
-        oid = int(reqId)
-    except (TypeError, ValueError):
-        return
-    w = _watches.get(oid)
-    if w is None:
-        return
-    try:
-        w.note_error(int(errorCode), str(errorString or ""))
-    except Exception:
-        logger.exception("execution.telemetry: errorEvent handler error")
-
-
-def _on_order_status(trade) -> None:
-    try:
-        oid = int(trade.order.orderId)
-        status = str(trade.orderStatus.status or "")
-        w = _watches.get(oid)
-        if w is None:
-            return
-        # Deduplicate: OrderWatch only records first ack / first fill.
-        callback_perf = time.perf_counter_ns()
-        callback_wall = time.time_ns()
-        order_status = trade.orderStatus
-        w.note_status(
-            status,
-            filled=_float_or_none(getattr(order_status, "filled", None)),
-            remaining=_float_or_none(getattr(order_status, "remaining", None)),
-            average_fill_price=_float_or_none(
-                getattr(order_status, "avgFillPrice", None)
-            ),
-            callback_perf_ns=callback_perf,
-            callback_wall_ns=callback_wall,
-        )
-        if status == "Filled":
-            w.note_filled()
-    except Exception:
-        logger.exception("execution.telemetry: orderStatus handler error")
-
-
-def _on_exec_details(trade, fill) -> None:
-    try:
-        oid = int(trade.order.orderId)
-        w = _watches.get(oid)
-        if w is None:
-            return
-        execution = fill.execution
-        order_status = trade.orderStatus
-        remaining = _float_or_none(getattr(trade.orderStatus, "remaining", None))
-        cumulative = _float_or_none(getattr(order_status, "filled", None))
-        requested = _float_or_none(
-            getattr(getattr(trade, "order", None), "totalQuantity", None)
-        )
-        complete = (
-            (
-                cumulative is not None
-                and requested is not None
-                and requested > 0
-                and cumulative >= requested
-            )
-            or str(trade.orderStatus.status) == "Filled"
-        )
-        w.note_execution(
-            avg_price=_float_or_none(getattr(execution, "avgPrice", None)),
-            price=_float_or_none(getattr(execution, "price", None)),
-            shares=_float_or_none(getattr(execution, "shares", None)),
-            cumulative_shares=cumulative,
-            remaining=remaining,
-            exchange_time=getattr(execution, "time", None),
-            complete=complete,
-            callback_perf_ns=time.perf_counter_ns(),
-            callback_wall_ns=time.time_ns(),
-        )
-        if complete:
-            w.note_filled()
-    except Exception:
-        logger.exception("execution.telemetry: execDetails handler error")
 
 
 def note_reconciliation_fill(fill: Any, *, complete: bool = True) -> bool:
@@ -369,13 +320,6 @@ def note_reconciliation_fill(fill: Any, *, complete: bool = True) -> bool:
     from execution.reconciliation import record_reconciliation_fill
 
     return record_reconciliation_fill(fill, watch, complete=complete)
-
-
-def _float_or_none(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
 
 
 def reset_for_tests() -> None:

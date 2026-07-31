@@ -1,6 +1,7 @@
 """Broker send / ack wait helpers for the execution service (ADR 007)."""
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Callable
 
@@ -14,8 +15,10 @@ from constants import (
 from execution import store
 from execution import telemetry
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
+from execution.place_reject_guard import confirm_terminal_reject
 from ibkr import client as _client
 from ibkr import orders as _orders
+from ibkr.cancel_verify import cancel_order_verified
 
 RejectFn = Callable[
     [str, ExecutionCommand, StageTimings, str, str],
@@ -40,30 +43,31 @@ async def wait_broker_ack(
         receipt.timings.filled_ns = watch.filled_ns
     receipt.broker_status = watch.ack_status
 
-    if (
-        cmd.operation != "cancel"
-        and (receipt.broker_status or "") in telemetry.TERMINAL_REJECT_STATUSES
-        and not watch.has_fill()
-    ):
-        if watch.error_code == IBKR_ERROR_FRACTIONAL_API:
-            receipt.error = IBKR_FRACTIONAL_ORDER_API_MSG
-            receipt.reason_code = "QTY_FRACTIONAL_API"
-        else:
-            receipt.error = (
-                watch.error_message
-                or f"Broker rejected/cancelled order ({receipt.broker_status})"
-            )
-            receipt.reason_code = "BROKER_REJECT"
-        receipt.ok = False
-        store.update_stages(
-            receipt.execution_id,
-            status="failed",
-            error=receipt.error,
-            reason_code=receipt.reason_code,
-            broker_ack_ns=receipt.timings.broker_ack_ns,
-            broker_status=receipt.broker_status,
+    if cmd.operation != "cancel":
+        is_reject, status = await confirm_terminal_reject(
+            watch, int(receipt.order_id),
         )
-        return receipt
+        receipt.broker_status = status
+        if is_reject:
+            if watch.error_code == IBKR_ERROR_FRACTIONAL_API:
+                receipt.error = IBKR_FRACTIONAL_ORDER_API_MSG
+                receipt.reason_code = "QTY_FRACTIONAL_API"
+            else:
+                receipt.error = (
+                    watch.error_message
+                    or f"Broker rejected/cancelled order ({receipt.broker_status})"
+                )
+                receipt.reason_code = "BROKER_REJECT"
+            receipt.ok = False
+            store.update_stages(
+                receipt.execution_id,
+                status="failed",
+                error=receipt.error,
+                reason_code=receipt.reason_code,
+                broker_ack_ns=receipt.timings.broker_ack_ns,
+                broker_status=receipt.broker_status,
+            )
+            return receipt
 
     status = (
         "filled"
@@ -101,7 +105,7 @@ async def send_broker(
         watch = telemetry.watch_order(
             cmd.order_id, execution_id, fresh=True, leg_role="cancel",
         )
-        raw = _orders.cancel_order(cmd.order_id)
+        raw = await asyncio.to_thread(cancel_order_verified, cmd.order_id)
         if not raw.get("ok"):
             store.update_stages(
                 execution_id, status="failed", error=str(raw.get("error")),
@@ -116,15 +120,18 @@ async def send_broker(
         if wait_ack:
             await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
             timings.broker_ack_ns = watch.ack_ns
+        broker_status = watch.ack_status or (
+            "Cancelled" if raw.get("verified_gone") else None
+        )
         store.update_stages(
             execution_id, status="acked" if timings.broker_ack_ns else "sent",
-            broker_ack_ns=timings.broker_ack_ns, broker_status=watch.ack_status,
+            broker_ack_ns=timings.broker_ack_ns, broker_status=broker_status,
         )
         return ExecutionReceipt(
             ok=True, execution_id=execution_id, operation=cmd.operation,
             source=cmd.source, idempotency_key=cmd.idempotency_key,
             mode=mode, order_id=cmd.order_id,
-            broker_status=watch.ack_status, timings=timings,
+            broker_status=broker_status, timings=timings,
         )
 
     if cmd.operation == "replace":
@@ -312,39 +319,38 @@ async def finish_place(
 
     broker_status = watch.ack_status if watch else None
     # Cancelled/ApiCancelled/Inactive without a fill is a broker reject
-    # (classic: Error 10243 fractional). Do not report ok=true to Flatten UI.
-    if (
-        watch is not None
-        and wait_ack
-        and (broker_status or "") in telemetry.TERMINAL_REJECT_STATUSES
-        and not watch.has_fill()
-    ):
-        if watch.error_code == IBKR_ERROR_FRACTIONAL_API:
-            err = IBKR_FRACTIONAL_ORDER_API_MSG
-            reason = "QTY_FRACTIONAL_API"
-        else:
-            err = (
-                watch.error_message
-                or f"Broker rejected/cancelled order ({broker_status})"
+    # (classic: Error 10243 fractional). Grace + open_orders heal Error 10349.
+    if watch is not None and wait_ack:
+        is_reject, broker_status = await confirm_terminal_reject(
+            watch, int(oid) if oid is not None else None,
+        )
+        if is_reject:
+            if watch.error_code == IBKR_ERROR_FRACTIONAL_API:
+                err = IBKR_FRACTIONAL_ORDER_API_MSG
+                reason = "QTY_FRACTIONAL_API"
+            else:
+                err = (
+                    watch.error_message
+                    or f"Broker rejected/cancelled order ({broker_status})"
+                )
+                reason = "BROKER_REJECT"
+            store.update_stages(
+                execution_id,
+                status="failed",
+                error=err,
+                reason_code=reason,
+                order_id=oid,
+                broker_ack_ns=timings.broker_ack_ns,
+                broker_status=broker_status,
+                mode=mode,
             )
-            reason = "BROKER_REJECT"
-        store.update_stages(
-            execution_id,
-            status="failed",
-            error=err,
-            reason_code=reason,
-            order_id=oid,
-            broker_ack_ns=timings.broker_ack_ns,
-            broker_status=broker_status,
-            mode=mode,
-        )
-        return ExecutionReceipt(
-            ok=False, execution_id=execution_id, operation=cmd.operation,
-            source=cmd.source, idempotency_key=cmd.idempotency_key,
-            error=err, reason_code=reason,
-            mode=mode, symbol=cmd.normalized_symbol(), order_id=oid,
-            broker_status=broker_status, timings=timings,
-        )
+            return ExecutionReceipt(
+                ok=False, execution_id=execution_id, operation=cmd.operation,
+                source=cmd.source, idempotency_key=cmd.idempotency_key,
+                error=err, reason_code=reason,
+                mode=mode, symbol=cmd.normalized_symbol(), order_id=oid,
+                broker_status=broker_status, timings=timings,
+            )
 
     store.update_stages(
         execution_id,

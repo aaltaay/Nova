@@ -269,13 +269,52 @@ def latency_rows(
 def mark_ack_by_order_id(
     order_id: int, ack_ns: int, broker_status: str | None = None,
     *, execution_id: str | None = None,
+    allow_status_upgrade: bool = False,
 ) -> bool:
-    """Persist first real broker ack after send (including wait_ack=False paths)."""
+    """Persist first real broker ack after send (including wait_ack=False paths).
+
+    When ``allow_status_upgrade`` is True (Cancelled -> PreSubmitted/Submitted),
+    rewrite broker_status even if broker_ack_ns was already set, and heal a
+    premature ``failed`` row back to ``acked``.
+    """
     init_db()
     conn = get_connection()
     try:
+        if allow_status_upgrade and broker_status is not None:
+            values = [broker_status, time.time(), execution_id, order_id, _BOOT_ID, _BOOT_ID]
+            cur = conn.execute(
+                """
+                UPDATE executions
+                SET broker_status = ?,
+                    updated_ts = ?,
+                    status = CASE
+                        WHEN status = 'failed' THEN 'acked'
+                        WHEN status IN ('sent', 'acked') THEN 'acked'
+                        ELSE status
+                    END,
+                    reason_code = CASE WHEN status = 'failed' THEN NULL ELSE reason_code END,
+                    error = CASE WHEN status = 'failed' THEN NULL ELSE error END
+                WHERE id = COALESCE(
+                    ?,
+                    (
+                        SELECT id FROM executions
+                        WHERE order_id = ? AND boot_id = ?
+                        ORDER BY created_ts DESC LIMIT 1
+                    )
+                )
+                  AND boot_id = ?
+                  AND (
+                    broker_status IS NULL
+                    OR broker_status IN ('Cancelled', 'ApiCancelled', 'Inactive')
+                  )
+                """,
+                values,
+            )
+            conn.commit()
+            return cur.rowcount > 0
+
         fields = [
-            "broker_ack_ns = ?",
+            "broker_ack_ns = COALESCE(broker_ack_ns, ?)",
             "updated_ts = ?",
             "status = CASE WHEN status IN ('sent', 'acked') THEN 'acked' ELSE status END",
         ]

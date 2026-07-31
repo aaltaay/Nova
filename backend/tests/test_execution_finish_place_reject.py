@@ -23,6 +23,9 @@ def _cmd() -> ExecutionCommand:
 
 def test_finish_place_fails_on_cancelled_with_10243(monkeypatch):
     monkeypatch.setattr(broker_send.store, "update_stages", lambda *_a, **_k: None)
+    import execution.place_reject_guard as guard
+    monkeypatch.setattr(guard, "EXECUTION_CANCEL_ACK_GRACE_SEC", 0.0)
+    monkeypatch.setattr(guard, "order_still_open", lambda _oid: False)
     watch = telemetry.OrderWatch(2928)
     watch.note_error(
         IBKR_ERROR_FRACTIONAL_API,
@@ -50,6 +53,9 @@ def test_finish_place_fails_on_cancelled_with_10243(monkeypatch):
 
 def test_finish_place_fails_on_cancelled_without_error_code(monkeypatch):
     monkeypatch.setattr(broker_send.store, "update_stages", lambda *_a, **_k: None)
+    import execution.place_reject_guard as guard
+    monkeypatch.setattr(guard, "EXECUTION_CANCEL_ACK_GRACE_SEC", 0.0)
+    monkeypatch.setattr(guard, "order_still_open", lambda _oid: False)
     watch = telemetry.OrderWatch(99)
     watch.note_status("Cancelled")
 
@@ -72,6 +78,9 @@ def test_finish_place_fails_on_cancelled_without_error_code(monkeypatch):
 def test_finish_place_ok_when_cancelled_but_filled(monkeypatch):
     """A filled then closed path must not be treated as a reject."""
     monkeypatch.setattr(broker_send.store, "update_stages", lambda *_a, **_k: None)
+    import execution.place_reject_guard as guard
+    monkeypatch.setattr(guard, "EXECUTION_CANCEL_ACK_GRACE_SEC", 0.0)
+    monkeypatch.setattr(guard, "order_still_open", lambda _oid: False)
     watch = telemetry.OrderWatch(100)
     watch.note_status("Filled")
     watch.note_filled()

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-30 -- IBKR order-truth hardening (10349 / TIF / wedge)
+
+- **What:** Stopped false `failed`/`Cancelled` ledger writes on live orders that are still PreSubmitted; always set `tif=DAY`; cancel verifies the order left openTrades; Working Orders shows held-to-open when IB Warning 399 applies; health reports `loop_lag_ms.wedged`; `run_coro` circuits under lag. Cancelled live CYCU 95053 after API restart.
+- **Why:** CYCU investigation -- Nova lied "broker rejected" while IB still held a Pending market order until next open; wedged API hid positions/orders.
+- **Files touched:** `backend/ibkr/orders.py`, `order_held_until.py`, `cancel_verify.py`, `execution/telemetry.py`, `telemetry_handlers.py`, `place_reject_guard.py`, `broker_send.py`, `store.py`, `loop_lag.py`, `ibkr/client.py`, `requirements.txt`, `frontend/.../workingOrderCells.tsx`, tests + logs.
+- **How it works now:** Place path waits a short grace and re-checks open orders before BROKER_REJECT on Cancelled-without-fill; working acks upgrade a false Cancelled in the ledger; closed list ignores Cancelled rows still in `openTrades`; cancels poll until gone; lag streak marks health wedged and caps new IB bridges.
+- **Verified by:** Cancelled 95053 (`orders=[]`, no CYCU position); pytest order-truth + closed + execution suites (52); Vitest workingOrderCells/orderDisplay (19).
+- **Follow-ups:** Paper AH smoke place after restart to confirm no 10349 in logs; UI banner for `loop_lag_ms.wedged` if not already wired.
+- **Related:** PROBLEM_LOG 2026-07-30 Error 10349 false-Cancelled; API_WEDGED hid open-order truth.
+
 ## 2026-07-30 -- Webull-style Nova Actions (Buy 1 / Cancel All / long-% exits)
 
 - **What:** Added typed hotkeys: Buy 1 @MKT (Ctrl+1), Cancel All stocks (Ctrl+Z), Sell 100/50/25% @ASK (Ctrl+4/5/6), Sell 50/25% @BID-$0.03 (Ctrl+2/3). Same System 2 path for paper and live.

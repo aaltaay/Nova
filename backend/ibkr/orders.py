@@ -62,12 +62,17 @@ def _build_order(
     outside_rth: bool,
 ):
     from ib_async import LimitOrder, MarketOrder, StopOrder
+    from constants import IBKR_ORDER_TIF_DEFAULT
 
+    # Always set tif -- blank TIF triggers IB Error 10349 (false Cancelled).
+    tif = IBKR_ORDER_TIF_DEFAULT
     if order_type == "MKT":
-        return MarketOrder(side, qty, outsideRth=bool(outside_rth))
+        return MarketOrder(side, qty, outsideRth=bool(outside_rth), tif=tif)
     if order_type == "LMT":
-        return LimitOrder(side, qty, limit_price, outsideRth=outside_rth)
-    return StopOrder(side, qty, stop_price, outsideRth=False)
+        return LimitOrder(
+            side, qty, limit_price, outsideRth=outside_rth, tif=tif,
+        )
+    return StopOrder(side, qty, stop_price, outsideRth=False, tif=tif)
 
 
 def place_order(
@@ -311,10 +316,21 @@ def closed_orders(limit: int | None = None) -> list[dict]:
         raise IbkrAccountError("IBKR not connected — cannot read closed orders")
     try:
         trades = list(ib.trades())
+        # Transient Cancelled (Error 10349) can still be in openTrades as
+        # PreSubmitted a tick later -- never list those as closed.
+        open_fn = getattr(ib, "openTrades", None)
+        open_trades = open_fn() if callable(open_fn) else []
+        open_ids = {
+            int(getattr(getattr(t, "order", None), "orderId", 0) or 0)
+            for t in (open_trades or [])
+        }
         rows: list[dict] = []
         for trade in trades:
             status = getattr(getattr(trade, "orderStatus", None), "status", "") or ""
             if status not in IBKR_CLOSED_ORDER_STATUSES:
+                continue
+            oid = int(getattr(getattr(trade, "order", None), "orderId", 0) or 0)
+            if status in ("Cancelled", "ApiCancelled", "Inactive") and oid in open_ids:
                 continue
             rows.append(_trade_to_order_row(trade))
         # Newest first when order ids grow monotonically (typical for a session).

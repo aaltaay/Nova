@@ -321,7 +321,9 @@ class TestTelemetryCallbacks:
             orderStatus=SimpleNamespace(status="Filled", remaining=0),
         )
         fill = SimpleNamespace(execution=SimpleNamespace(avgPrice=10.0, shares=1.0))
-        telemetry._on_exec_details(trade, fill)
+        from execution.telemetry_handlers import make_handlers
+        _err, _status, on_exec = make_handlers(telemetry._watches.get)
+        on_exec(trade, fill)
         assert w.ack_ns is not None
         assert w.filled_ns is not None
         updated = store.get_by_id(row["id"])

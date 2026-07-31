@@ -94,6 +94,10 @@ ASSETS_CACHE_TTL_SEC = 3600.0
 # Event-loop lag sampler cadence (backend/loop_lag.py) — how often the
 # background task measures actual vs expected wakeup time for /api/health.
 LOOP_LAG_SAMPLE_INTERVAL_SEC = 2.0
+# Sustained lag above this marks /api/health loop_lag_ms.wedged=true so the UI
+# can show API_WEDGED instead of silent spinners (CYCU incident 2026-07-30).
+LOOP_LAG_WEDGED_MS = 5000.0
+LOOP_LAG_WEDGED_STREAK = 3
 
 # ── Scan intervals (seconds) ────────────────────────────────────────────────
 # Real-time prices still come from the WebSocket; these control REST discovery cadence.

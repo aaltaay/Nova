@@ -55,6 +55,12 @@ NOVA_OS_FLATTEN_CONFIRM_TOKEN = "FLATTEN"  # typed confirm for flatten_positions
 EXECUTION_LEDGER_DB_FILENAME = "execution_ledger.db"
 EXECUTION_ACK_SLA_P95_MS = 250.0  # receive → first real broker ack (excludes fill)
 EXECUTION_ACK_WAIT_SEC = 5.0      # max wait for first non-PendingSubmit status
+# After a Cancelled-without-fill ack, wait this long for PreSubmitted/Submitted
+# before writing ledger failed (Error 10349 false-cancel race).
+EXECUTION_CANCEL_ACK_GRACE_SEC = 0.75
+# After cancel_order, poll open_orders until absent or this timeout.
+EXECUTION_CANCEL_VERIFY_TIMEOUT_SEC = 5.0
+EXECUTION_CANCEL_VERIFY_POLL_SEC = 0.25
 EXECUTION_FILL_WAIT_SEC = 30.0    # optional wait for complete fill (benchmark only)
 EXECUTION_FILL_EVIDENCE_LIMIT = 64  # bounded callback/poll observations per execution
 EXECUTION_METRICS_QUERY_LIMIT = 500

@@ -61,6 +61,15 @@ IBKR_FRACTIONAL_ORDER_API_MSG = (
     "IBKR API cannot place fractional-share orders (Error 10243). "
     "Close leftovers in TWS / IB Gateway desktop."
 )
+# Informational: IB rewrote TIF from account preset to DAY. Does NOT cancel
+# the order (ib_async <next> treats as warning; Nova also refuses to latch it).
+IBKR_ERROR_TIF_PRESET = 10349
+# Informational: outsideRth ignored for this order type/destination.
+IBKR_ERROR_OUTSIDE_RTH_IGNORED = 2109
+# Informational: order held until next RTH open (Warning 399).
+IBKR_ERROR_HELD_UNTIL_OPEN = 399
+# Default TIF for all Nova API orders -- never leave blank (triggers 10349).
+IBKR_ORDER_TIF_DEFAULT = "DAY"
 # Connectivity lost / restored (async via errorEvent). 1100 = lost; 1101/1102 = restored.
 IBKR_ERROR_CONNECTIVITY_CODES = frozenset({1100, 1101, 1102})
 IBKR_ERROR_CONNECTIVITY_LOST = 1100
@@ -169,6 +178,9 @@ IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # cold/discovery reqTickersAsync
 IBKR_SCAN_RESULT_TTL_SEC = 5.0
 IBKR_TABLE_REPRICE_CHUNK_TIMEOUT_SEC = 12.0     # honest snapshot budget (was 4s — impossible)
 IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC = 25.0        # thread->asyncio bridge wait ceiling
+# Cap concurrent run_coro bridges when the uvicorn loop is wedged (lag streak).
+IBKR_RUN_CORO_MAX_INFLIGHT = 12
+IBKR_RUN_CORO_MAX_INFLIGHT_WHEN_WEDGED = 2
 # Local wall on reqScannerDataAsync itself, inside the bridge ceiling above —
 # an unbounded scanner call previously could not be distinguished from any
 # other cause of a bridge timeout. Set below the bridge ceiling so a hung

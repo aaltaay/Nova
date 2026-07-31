@@ -47,6 +47,8 @@ from constants import (
     IBKR_CONNECT_TIMEOUT_SEC,
     IBKR_MARKET_DATA_TYPE_LIVE,
     IBKR_RECONNECT_DELAY_SEC,
+    IBKR_RUN_CORO_MAX_INFLIGHT,
+    IBKR_RUN_CORO_MAX_INFLIGHT_WHEN_WEDGED,
 )
 from ibkr import account_kind as _account_kind
 from ibkr import client_connect as _connect
@@ -279,6 +281,9 @@ def _accept_connected_session(ib: "IB", mode_label: str) -> tuple[bool, str]:
     return True, ""
 
 
+_run_coro_inflight = 0
+
+
 def run_coro(coro, timeout: float, *, label: str = "") -> Any:
     """
     Bridge: run an ib_async coroutine on the loop IB is connected to, blocking
@@ -298,10 +303,31 @@ def run_coro(coro, timeout: float, *, label: str = "") -> Any:
     result reflects a session the caller no longer owns and must not be
     applied.
     """
+    global _run_coro_inflight
     if _loop is None or not _loop.is_running():
         raise RuntimeError("IBKR event loop not running (client not started)")
     tag = f" [{label}]" if label else ""
+
+    # Circuit breaker: when the uvicorn loop is wedged, refuse to stack more
+    # IB bridges that would deepen the lag (CYCU / API_WEDGED 2026-07-30).
+    try:
+        import loop_lag as _loop_lag
+        wedged = _loop_lag.is_wedged()
+    except Exception:
+        wedged = False
+    cap = (
+        IBKR_RUN_CORO_MAX_INFLIGHT_WHEN_WEDGED
+        if wedged
+        else IBKR_RUN_CORO_MAX_INFLIGHT
+    )
+    if _run_coro_inflight >= cap:
+        raise TimeoutError(
+            f"IBKR run_coro circuit open{tag}: inflight={_run_coro_inflight} "
+            f"cap={cap} wedged={wedged}"
+        )
+
     generation_before = _session.generation()
+    _run_coro_inflight += 1
     future = asyncio.run_coroutine_threadsafe(coro, _loop)
     try:
         result = future.result(timeout=timeout)
@@ -312,6 +338,8 @@ def run_coro(coro, timeout: float, *, label: str = "") -> Any:
             timeout, tag, "accepted" if cancelled else "too late — already running/done",
         )
         raise
+    finally:
+        _run_coro_inflight = max(0, _run_coro_inflight - 1)
     if _session.generation() != generation_before:
         logger.warning(
             "IBKR: run_coro%s result from stale generation (%s -> %s) — discarding",

@@ -81,6 +81,8 @@ export interface IbkrOrder {
   updated_at?: string | null;
   /** ISO-8601 UTC of the last real broker fill; null when the order never filled. */
   filled_at?: string | null;
+  /** ISO-8601 UTC when IB Warning 399 holds the order until RTH open. */
+  held_until?: string | null;
 }
 
 export interface DepthLevel {

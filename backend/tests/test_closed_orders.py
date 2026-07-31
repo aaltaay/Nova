@@ -41,7 +41,11 @@ def test_closed_orders_filters_terminal_statuses(monkeypatch):
         _trade(5, "EEE", "Inactive", filled=0),
         _trade(6, "FFF", "PreSubmitted", filled=0),
     ]
-    monkeypatch.setattr(orders_mod._client, "get_ib", lambda: SimpleNamespace(trades=lambda: trades))
+    monkeypatch.setattr(
+        orders_mod._client,
+        "get_ib",
+        lambda: SimpleNamespace(trades=lambda: trades, openTrades=lambda: []),
+    )
 
     rows = orders_mod.closed_orders(limit=50)
     symbols = [r["symbol"] for r in rows]
@@ -49,9 +53,29 @@ def test_closed_orders_filters_terminal_statuses(monkeypatch):
     assert all(r["status"] in ("Filled", "Cancelled", "ApiCancelled", "Inactive") for r in rows)
 
 
+def test_closed_orders_skips_cancelled_still_open(monkeypatch):
+    """Transient Cancelled while still in openTrades must not appear closed."""
+    cancelled = _trade(9, "CYCU", "Cancelled", filled=0)
+    trades = [cancelled, _trade(2, "BBB", "Filled", filled=100)]
+    monkeypatch.setattr(
+        orders_mod._client,
+        "get_ib",
+        lambda: SimpleNamespace(
+            trades=lambda: trades,
+            openTrades=lambda: [cancelled],
+        ),
+    )
+    rows = orders_mod.closed_orders(limit=50)
+    assert [r["symbol"] for r in rows] == ["BBB"]
+
+
 def test_closed_orders_respects_limit(monkeypatch):
     trades = [_trade(i, f"S{i}", "Filled", filled=100) for i in range(1, 6)]
-    monkeypatch.setattr(orders_mod._client, "get_ib", lambda: SimpleNamespace(trades=lambda: trades))
+    monkeypatch.setattr(
+        orders_mod._client,
+        "get_ib",
+        lambda: SimpleNamespace(trades=lambda: trades, openTrades=lambda: []),
+    )
     rows = orders_mod.closed_orders(limit=2)
     assert len(rows) == 2
     assert rows[0]["order_id"] == 5
@@ -87,7 +111,11 @@ def test_closed_orders_keeps_real_partial_fill_qty():
 
 def test_closed_orders_async_returns_directly_when_non_empty(monkeypatch):
     trades = [_trade(1, "AAA", "Filled", filled=100)]
-    monkeypatch.setattr(orders_mod._client, "get_ib", lambda: SimpleNamespace(trades=lambda: trades))
+    monkeypatch.setattr(
+        orders_mod._client,
+        "get_ib",
+        lambda: SimpleNamespace(trades=lambda: trades, openTrades=lambda: []),
+    )
     calls = {"refresh": 0}
 
     async def fake_refresh():
@@ -106,7 +134,12 @@ def test_closed_orders_async_warms_once_when_empty_then_populated(monkeypatch):
     finished) → one single-flighted refresh, then a real re-read."""
     state = {"trades": []}
     monkeypatch.setattr(
-        orders_mod._client, "get_ib", lambda: SimpleNamespace(trades=lambda: state["trades"]),
+        orders_mod._client,
+        "get_ib",
+        lambda: SimpleNamespace(
+            trades=lambda: state["trades"],
+            openTrades=lambda: [],
+        ),
     )
     calls = {"refresh": 0}
 
