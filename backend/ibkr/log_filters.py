@@ -5,8 +5,9 @@ ib_async's internal loggers (``ib_async.wrapper``, ``ib_async.ib``,
 at ERROR: cancelled/no-data historical or scanner queries (Error 162), stale
 ticker-id lookups (Error 365), and ``cancelMktData``/``cancelMktDepth`` calls
 that lose the race against an already-cleared reqId. Sentry's
-LoggingIntegration (see ``observability.py``) opens an issue for every ERROR
-record by default, so these spammed the project (confirmed live as
+``LoggingIntegration`` (configured explicitly in ``observability.py`` with
+``event_level=ERROR``, plus ``before_send`` denylist) opens an issue for every
+ERROR record, so these spammed the project (confirmed live as
 PYTHON-FASTAPI-1/2/3/7/8/9/A).
 
 This filter downgrades matching records to WARNING *in place* — they still

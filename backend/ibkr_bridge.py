@@ -68,12 +68,13 @@ def run_ibkr(coro, *, on_error: str = "none", label: str = "ibkr"):
         return _ibkr_client.run_coro(coro, timeout=IBKR_DISCOVERY_BRIDGE_TIMEOUT_SEC, label=label)
     except Exception as exc:
         # TimeoutError / CancelledError often stringify to "" — always log type+repr.
+        # WARNING (not ERROR): expected when Gateway is down / reconnecting; runners
+        # also log keep-cache. Avoid double Sentry Issues via LoggingIntegration.
         detail = f"{type(exc).__name__}: {exc!r}"
-        logger.error(
+        logger.warning(
             "IBKR discovery bridge failed (%s): %s",
             label,
             detail,
-            exc_info=True,
         )
         try:
             state = get_runtime_state()

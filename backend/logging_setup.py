@@ -119,3 +119,5 @@ def configure_logging() -> None:
     # known-benign IBKR conditions (see ibkr/log_filters.py) -- local logs are
     # unaffected, they just see the downgraded WARNING level instead of ERROR.
     install_ibkr_log_filters()
+    # yfinance logs HTTP 404 Quote not found at ERROR for odd symbols.
+    logging.getLogger("yfinance").setLevel(logging.WARNING)

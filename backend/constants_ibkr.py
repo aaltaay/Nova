@@ -73,6 +73,16 @@ IBKR_ORDER_TIF_DEFAULT = "DAY"
 # Connectivity lost / restored (async via errorEvent). 1100 = lost; 1101/1102 = restored.
 IBKR_ERROR_CONNECTIVITY_CODES = frozenset({1100, 1101, 1102})
 IBKR_ERROR_CONNECTIVITY_LOST = 1100
+IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_LOST = 1101
+IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_KEPT = 1102
+# Soft 1100 with socket still up and no 1101/1102 — force disconnect + redial.
+IBKR_UNUSABLE_FORCE_RECONNECT_SEC = 30.0
+# Preferred port listening but connectAsync times out (Gateway Authenticating /
+# 2FA). Back off instead of thrashing clientId or alternate-port heal.
+IBKR_AUTH_BACKOFF_SEC_INITIAL = 30.0
+IBKR_AUTH_BACKOFF_SEC_MAX = 60.0
+# Hard wall for reqPositionsAsync during earn_usable warm-up (mirrors completed).
+IBKR_POSITIONS_TIMEOUT_SEC = 10.0
 # Data-farm OK / broken notices (async). Not fatal alone but worth surfacing.
 IBKR_ERROR_DATA_FARM_CODES = frozenset({2104, 2106, 2108})
 # "Max number of tickers has been reached" -- keep OUT of IBKR_BENIGN_LOG_ERROR_CODES.
@@ -96,18 +106,32 @@ IBKR_BENIGN_LOG_ERROR_CODES = frozenset({
     365,   # no scanner subscription for ticker id
     300,   # Can't find EId — late cancel vs already-cleared reqId
     354,   # requested market data not subscribed
+    200,   # no security definition (unknown/delisted contract)
+    202,   # order canceled notice (informational)
+    10349,  # TIF DAY preset notice (informational; not a hard cancel)
+    322,   # scanner subscription quota (recovery path handles; avoid Sentry flood)
+    326,   # client id already in use (reconnect race)
+    366,   # no historical data query for ticker id (cancel race; sibling of 365)
+    504,   # not connected (Gateway down / mid-reconnect)
+    1100,  # connectivity lost (ops-once via stamp_unusable capture)
+    1101,  # connectivity restored data lost (reconnect chatter)
+    1102,  # connectivity restored data kept (reconnect chatter)
     10089,  # tick-by-tick / depth needs additional market-data subscription
     10189,  # same family as 10089
 })
 IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
     "cancelmktdata: no reqid found",
     "cancelmktdepth: no reqid found",
+    "cancelmktdata: no subscription for",
+    "unknown reqid",
     "open orders request timed out",
     "completed orders request timed out",
     "make sure api port on tws/ibg is open",
     "api connection failed: connectionrefusederror",
     "peer closed connection",
 )
+# Ops-once Sentry fingerprint cooldown for session unusable / max tickers.
+SENTRY_SESSION_UNUSABLE_COOLDOWN_SEC = 300.0
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
 # When preferred LIVE Gateway port refuses/times out, try PAPER (4002) and

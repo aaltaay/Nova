@@ -87,14 +87,35 @@ def test_is_benign_false_for_error_101_max_tickers():
     assert is_benign_ibkr_log_message(msg) is False
 
 
-def test_is_benign_false_for_unrelated_error_code():
+def test_is_benign_matches_error_504_not_connected():
     msg = "Error 504, reqId 9: Not connected"
+    assert is_benign_ibkr_log_message(msg) is True
+
+
+def test_is_benign_false_for_unrelated_error_code():
+    msg = "Error 2110, reqId 9: Connectivity between Trader Workstation and server is broken"
     assert is_benign_ibkr_log_message(msg) is False
 
 
-def test_is_benign_false_for_genuinely_unexpected_message():
+def test_is_benign_matches_unknown_reqid():
     msg = "priceSizeTick: Unknown reqId: 42"
-    assert is_benign_ibkr_log_message(msg) is False
+    assert is_benign_ibkr_log_message(msg) is True
+
+
+def test_is_benign_matches_error_200_no_security_definition():
+    msg = (
+        "Error 200, reqId 4729: No security definition has been found for the "
+        "request, contract: Stock(symbol='OSCG')"
+    )
+    assert is_benign_ibkr_log_message(msg) is True
+
+
+def test_is_benign_matches_error_326_client_id():
+    msg = (
+        "Error 326, reqId -1: Unable to connect as the client id is already in use. "
+        "Retry with a unique client id."
+    )
+    assert is_benign_ibkr_log_message(msg) is True
 
 
 def test_filter_downgrades_benign_error_record_to_warning():
@@ -108,8 +129,18 @@ def test_filter_downgrades_benign_error_record_to_warning():
     assert record.levelname == "WARNING"
 
 
-def test_filter_leaves_unrelated_error_record_at_error_level():
+def test_filter_downgrades_unknown_reqid_to_warning():
     record = _make_record("tickByTickAllLast: Unknown reqId: 99")
+    kept = BenignIbkrErrorFilter().filter(record)
+    assert kept is True
+    assert record.levelno == logging.WARNING
+    assert record.levelname == "WARNING"
+
+
+def test_filter_leaves_unrelated_error_record_at_error_level():
+    record = _make_record(
+        "Error 2110, reqId 9: Connectivity between Trader Workstation and server is broken"
+    )
     kept = BenignIbkrErrorFilter().filter(record)
     assert kept is True
     assert record.levelno == logging.ERROR

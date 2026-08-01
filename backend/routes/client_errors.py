@@ -41,6 +41,11 @@ def _is_dev_tooling_noise(message: str, stack: str | None) -> bool:
     return False
 
 
+def _is_provider_shell_noise(message: str) -> bool:
+    """React provider/HMR shell races — local log only, not Sentry error Issues."""
+    return "must be used within" in (message or "").lower()
+
+
 class ClientErrorBody(BaseModel):
     message: str = Field(default="", max_length=CLIENT_ERRORS_MAX_MESSAGE_CHARS)
     stack: str | None = Field(default=None, max_length=CLIENT_ERRORS_MAX_MESSAGE_CHARS)
@@ -64,6 +69,15 @@ async def post_client_error(request: Request, body: ClientErrorBody):
     if _is_dev_tooling_noise(body.message or "", body.stack):
         return {"ok": True, "ignored": True, "reason": "dev_tooling_noise"}
 
+    if _is_provider_shell_noise(body.message or ""):
+        logger.warning(
+            "client_error_shell source=%s msg=%s url=%s",
+            body.source,
+            (body.message or "")[:CLIENT_ERRORS_MAX_MESSAGE_CHARS],
+            (body.url or "")[:200],
+        )
+        return {"ok": True, "ignored": True, "reason": "provider_shell_noise"}
+
     logger.warning(
         "client_error source=%s msg=%s url=%s ua=%s stack=%s component=%s",
         body.source,
@@ -79,15 +93,16 @@ async def post_client_error(request: Request, body: ClientErrorBody):
         import sentry_sdk
 
         if sentry_sdk.is_initialized():
+            msg = (body.message or "client_error")[:CLIENT_ERRORS_MAX_MESSAGE_CHARS]
+            source = body.source or "unknown"
             with sentry_sdk.push_scope() as scope:
-                scope.set_tag("source", body.source or "unknown")
+                scope.set_tag("source", source)
                 scope.set_extra("url", body.url)
                 scope.set_extra("user_agent", body.user_agent)
+                scope.set_extra("stack", (body.stack or "")[:800])
                 scope.set_extra("component_stack", (body.component_stack or "")[:800])
-                sentry_sdk.capture_message(
-                    (body.message or "client_error")[:CLIENT_ERRORS_MAX_MESSAGE_CHARS],
-                    level="error",
-                )
+                scope.fingerprint = ["client-error", source, msg[:120]]
+                sentry_sdk.capture_message(msg, level="error")
     except Exception:
         logger.debug("Sentry client_error mirror skipped", exc_info=True)
 

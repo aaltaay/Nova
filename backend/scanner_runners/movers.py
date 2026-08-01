@@ -63,7 +63,7 @@ def _run_gainers_update_ibkr(headers: dict | None) -> tuple[list[dict], list[dic
     try:
         gainers_rows = list(port.get_gainers() or [])
     except IbkrBridgeError as exc:
-        logger.error(
+        logger.warning(
             "Gainers bridge failed — keeping %d cached row(s): %s",
             len(state.gainer_cache),
             exc,
@@ -72,7 +72,7 @@ def _run_gainers_update_ibkr(headers: dict | None) -> tuple[list[dict], list[dic
     try:
         losers_rows = list(port.get_losers() or [])
     except IbkrBridgeError as exc:
-        logger.error(
+        logger.warning(
             "Losers bridge failed — keeping %d cached row(s): %s",
             len(state.loser_cache),
             exc,

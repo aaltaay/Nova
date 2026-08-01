@@ -30,6 +30,26 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-31 -- Sentry usefulness hardening (quiet inbox + ops-once)
+
+- **What:** Stopped Sentry from mirroring expected IBKR reconnect/scanner ERROR logs (~55k/7d). Explicit LoggingIntegration + `before_send` denylist; bridge/runner keep-cache and Error 1100 downgraded to WARNING; BenignIbkr expanded; ops-once fingerprinted `ibkr.session.unusable` / max-tickers; client intake gets stack + ignores provider shell; WS send-after-close treated as disconnect. Historical noise ignored in Sentry; `startReq` issues resolved. `SENTRY_ENVIRONMENT=local`.
+- **Why:** Sentry was a reconnect pager (`environment=production` + high-priority email on log spam), not a product-bug inbox.
+- **Files touched:** `backend/observability.py`, `observability_filters.py`, `constants_ibkr.py`, `ibkr_bridge.py`, `scanner_runners/*`, `ibkr/session_errors.py`, `ibkr/log_filters.py`, `logging_setup.py`, `routes/client_errors.py`, `routes/trading.py`, `routes/ticker.py`, `ws_close_errors.py`, FE `reportClientError.ts`, `.env.example`, tests.
+- **How it works now:** Expected Gateway churn stays in `blast.log` at WARNING. Sentry Issues are for real exceptions / capacity fingerprints. First usable→unusable stamp emits one fingerprinted session event (5 min cooldown). Restart API to load filters.
+- **Verified by:** pytest observability/log_filters/client_errors/ws_close/session_errors; Vitest reportClientError; Sentry MCP ignore/resolve + unresolved audit.
+- **Follow-ups:** Manually disable alert 3710085 in Sentry UI (no auth token for rule API). Restart API. Triage remaining client ReferenceError backlog.
+- **Related:** PROBLEM_LOG 2026-07-31 Sentry ERROR-log flood; task-log `2026-07-31-sentry-usefulness-hardening.md`
+
+## 2026-07-31 -- IBKR usable-session SoT + linear 1100/1101/1102 recovery
+
+- **What:** Closed the Error 1100 dead-end: soft connectivity lost now revokes usable, stamps `unusable_since`, and wakes the reconnect loop; 1101/1102 enqueue restore and run single-flight `earn_usable`; stuck unusable-with-socket force-reconnects; Authenticating (port open + connect timeout) uses auth-backoff without alternate-port heal. `/api/ibkr/status.connected` now means usable (READY); `transport_connected` + `session_reason` are separate. Consumer/ops follow-up: Gateway login banner only when transport is down; chart_bars / integrity / smoke / daily-start gate on usable; honest `unavailable_detail` at get_ib() None sites.
+- **Why:** After IB Error 1100 the TCP session could stay up while Nova stayed `degraded`, so `reconnect_loop` idled on a bare 5s sleep forever, charts/account saw "not connected", and the GATEWAY chip stayed green on raw socket. Consumers/ops still treated socket-up as "connected" and showed a false login CTA.
+- **Files touched:** Core: `backend/constants_ibkr.py`, `session_errors.py`, `session_usable.py`, `session_reconnect.py`, `client_ops.py`, `client.py`, `account.py`, `session_state.py`, `routes/trading.py`. Consumers/ops: `chart_bars.py`, `ibkr/bars.py`, `tape_stream.py`, `depth/subscribe.py`, `integrity_live.py`, `hod_momo_integrity_scanner.py`, `GatewayDisconnectedBanner.tsx`, `types.ts`, `useIbkrStatus.ts`, `WorkspaceContext.tsx`, `DashboardPage.tsx`, `scripts/smoke_check.ps1`, `scripts/Start-NovaDaily.ps1`, related tests.
+- **How it works now:** Product usable = `is_ready()` / `get_ib()`. Connectivity errors observe+classify+enqueue only; the dialer acts via `earn_usable`. Status exposes `connected` (usable) + `transport_connected` + `session_reason`. Login banner hides when transport is up (Error 1100 recovery). Chart/integrity/smoke require usable. Daily start waits for Gateway API port then `/api/ibkr/status.connected` (never treats Authenticating title / LISTEN alone as healthy). `client.unavailable_detail()` distinguishes transport down vs session not usable.
+- **Verified by:** Backend pytest 75 passed (session_errors/readiness/trading/gateway_mode/connect/integrity/account); Vitest 29 passed (banner/workspace/HeaderConnectionStatus/GlobalAppBar). Live after API restart: status shows `connected`+`transport_connected`+`session_reason` (warmup: connected=false/transport=true/reason=connecting, then ready/ok); positions 200; IBKR 1Min bars 200.
+- **Follow-ups:** Observe a real 1100/1102 cycle in production logs when Gateway next soft-blips.
+- **Related:** PROBLEM_LOG 2026-07-31 -- Error 1100 stuck unusable; `knowledge/task-log/2026-07-31-ibkr-usable-session-sot.md`.
+
 ## 2026-07-31 -- Fix empty gappers/gainers after ib_async pin (startReq removal) + compat guard
 
 - **What:** `ibkr/discovery.py`'s one-shot scanner (`_one_shot_scanner`) and Error-322 slot recovery (`recover_scanner_slots`) now use the typed `ib_async` request/subscription registries (`wrapper.requests.open`, `wrapper.subscriptions.subs_of_type(ScannerSub)`) instead of the removed `Wrapper.startReq` / `wrapper.reqId2Subscriber` facade, with an automatic fallback to the legacy facade for older pins. Added `backend/tests/test_ibkr_async_scanner_api_compat.py`, which imports the real installed `ib_async` package (no fakes) and asserts this exact surface, plus an end-to-end call into the new helper against a genuine unconnected `IB()`.

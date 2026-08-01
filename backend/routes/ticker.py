@@ -144,8 +144,13 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
         logger.debug("Ticker WS client disconnected for %s", symbol)
     except asyncio.CancelledError:
         raise
-    except Exception:
-        logger.exception("Ticker WS loop failed for %s", symbol)
+    except Exception as exc:
+        from ws_close_errors import is_websocket_send_after_close
+
+        if is_websocket_send_after_close(exc):
+            logger.debug("Ticker WS send-after-close for %s", symbol)
+        else:
+            logger.exception("Ticker WS loop failed for %s", symbol)
     finally:
         import ticker as _ticker_mod2
         _ticker_mod2._ticker_ws_clients.get(symbol, set()).discard(websocket)

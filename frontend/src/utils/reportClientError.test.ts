@@ -23,6 +23,19 @@ describe('isDevToolingNoise', () => {
     ).toBe(true);
   });
 
+  it('filters TradingView object disposed', () => {
+    expect(isDevToolingNoise('Uncaught Error: Object is disposed', null)).toBe(true);
+  });
+
+  it('filters provider shell mount races', () => {
+    expect(
+      isDevToolingNoise(
+        'useModuleVisibility must be used within ModuleVisibilityProvider',
+        null,
+      ),
+    ).toBe(true);
+  });
+
   it('keeps real product errors', () => {
     expect(
       isDevToolingNoise(

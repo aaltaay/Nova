@@ -60,3 +60,19 @@ def test_client_errors_ignores_tradingview_object_disposed():
     assert body.get("ok") is True
     assert body.get("ignored") is True
     assert body.get("reason") == "dev_tooling_noise"
+
+
+def test_client_errors_ignores_provider_shell_noise():
+    res = client.post(
+        "/api/client-errors",
+        json={
+            "message": "useModuleVisibility must be used within ModuleVisibilityProvider",
+            "source": "window.onerror",
+            "url": "http://127.0.0.1:5173/",
+        },
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert body.get("ok") is True
+    assert body.get("ignored") is True
+    assert body.get("reason") == "provider_shell_noise"

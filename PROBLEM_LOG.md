@@ -23,6 +23,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-07-31 -- Sentry ERROR-log flood made the product-bug inbox useless
+
+- **Symptom:** ~55k Sentry error events/7d on `python-fastapi`; high-priority email alert fired constantly; top issues were "IBKR not connected", bridge keep-cache, Unknown reqId, Error 326/1100 -- all `environment=production` on a local desktop. Real bugs (`startReq`, client ReferenceErrors) were buried.
+- **Cause:** Default LoggingIntegration promotes every `logger.error`/`exception` to an Issue. App loggers (`ibkr_bridge`, scanner runners, `session_errors`) logged expected Gateway churn at ERROR (often twice: bridge + runner). `BenignIbkrErrorFilter` only covered `ib_async.*`. `observability.init_sentry` did not set `environment` or `before_send`. Alert 3710085 emails on any high-priority issue with frequency 0.
+- **Fix:** Explicit LoggingIntegration + `before_send` denylist; downgrade bridge/keep-cache/1100/101 log levels; expand BenignIbkr codes/needles; ops-once fingerprinted captures; client stack + provider-shell filter; WS send-after-close as disconnect; `SENTRY_ENVIRONMENT=local`; bulk ignore/resolve historical noise. Alert rule still needs manual disable in Sentry UI.
+- **Keywords:** Sentry, LoggingIntegration, before_send, bridge failed, ib=none, Unknown reqId, Error 1100, Error 326, environment=production, BenignIbkr, session_unusable, client_errors
+
+## 2026-07-31 -- Error 1100 left session stuck unusable while socket stayed up
+
+- **Symptom:** After IB Error 1100 ("Connectivity between IB and TWS has been lost"), GATEWAY chip stayed green (`/api/ibkr/status.connected=true` from raw socket) while charts/positions/L2 failed with "IBKR not connected" (`get_ib()` None because session stayed `degraded`). Manual reconnect sometimes hit Gateway Authenticating (port open, handshake timeout) and thrashed. After core status SoT landed, consumers still gated on socket-only (`chart_bars.is_connected`, integrity `ibkr_connected`, smoke "connected") and the loud login banner would fire on transport_up + !usable.
+- **Cause:** `session_errors` set `DEGRADED` on 1100 but 1101/1102 only logged (dead end). `reconnect_loop` only redialed when `not isConnected()`, so a soft blip with TCP still up idled forever on `await _sleep_reconnect(5)`. Status advertised socket as `connected`. Warm-up had no positions timeout and no mid-sync revoke fence. Daily start treated Authenticating window title / LISTEN as healthy skip.
+- **Fix:** Linear pipeline: 1100 revokes usable + stamps `unusable_since` + wakes loop; 1101/1102 enqueue restore (`data_lost`/`data_kept`) and run single-flight `earn_usable`; stuck unusable >30s force disconnect+recreate; port-open+timeout auth-backoff (no alternate heal); status `connected`=usable, `transport_connected`=socket, `session_reason` published. Consumers: banner only when !transport / ports dark; chart_bars + integrity + smoke require `is_ready`/usable; `unavailable_detail()` at get_ib() None sites; Start-NovaDaily waits for API port then status.connected and loud-warns for phone 2FA (no Gateway kill / no IBC edits).
+- **Keywords:** Error 1100, 1101, 1102, degraded, stuck unusable, earn_usable, auth-backoff, Authenticating, transport_connected, session_reason, reconnect_loop, get_ib, GatewayDisconnectedBanner, chart_bars, integrity_live, smoke_check, Start-NovaDaily
+
 ## 2026-07-31 -- Empty gappers/gainers: `startReq` removed by the 2026-07-30 ib_async pin bump
 
 - **Symptom:** IB Gateway connected (`/api/ibkr/status` `connected: true`, `market_data_type: 1`), discovery provider `ibkr`, but `/api/gappers` and `/api/movers` returned `gappers: []` / `gainers: []` / `losers: []` with `last_scan: 0.0` all session. `/api/integrity` `scanner_ibkr_bridge` failed with `AttributeError: 'Wrapper' object has no attribute 'startReq'`.

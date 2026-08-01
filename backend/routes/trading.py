@@ -48,20 +48,27 @@ async def ibkr_status() -> dict:
     snap = _client_safety_status()
     from ibkr import gateway_heal as _heal
     from ibkr import port_diagnostics as _ports
-
     from ibkr import session_errors as _session_errors
+    from ibkr import session_state as _session_state
 
-    connected = _client.is_connected()
+    # Product "connected" = usable session (get_ib() non-None). Transport is
+    # separate so port hints / Authenticating ops stay honest.
+    usable = _client.is_ready()
+    transport = _client.is_connected()
     return {
         "enabled": _client.is_enabled(),
-        "connected": connected,
+        "connected": usable,
+        "transport_connected": transport,
+        "session_reason": _client.session_reason(),
+        "session_state": _session_state.state(),
+        "session_generation": _session_state.generation(),
         "mode": _client.account_mode(),
         "broker_account_kind": _client.broker_account_kind(),
         "market_data_type": _client.get_market_data_type(),
         "market_data_delayed": bool(_session_errors.is_delayed_data()),
         **snap,
         **_heal.heal_status(),
-        **_ports.status_port_fields(connected=connected),
+        **_ports.status_port_fields(connected=transport),
     }
 
 
@@ -234,7 +241,12 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
     except WebSocketDisconnect:
         logger.debug("IBKR depth WS disconnected: %s", symbol)
     except Exception as exc:
-        logger.exception("IBKR depth WS error for %s: %s", symbol, exc)
+        from ws_close_errors import is_websocket_send_after_close
+
+        if is_websocket_send_after_close(exc):
+            logger.debug("IBKR depth WS send-after-close: %s", symbol)
+        else:
+            logger.exception("IBKR depth WS error for %s: %s", symbol, exc)
     finally:
         # Release only once the LAST viewer is gone — and only after a short
         # grace window so React StrictMode / DepthLadder reconnects can
@@ -314,7 +326,12 @@ async def ws_tape(websocket: WebSocket, symbol: str) -> None:
     except WebSocketDisconnect:
         logger.debug("IBKR tape WS disconnected: %s", symbol)
     except Exception as exc:
-        logger.exception("IBKR tape WS error for %s: %s", symbol, exc)
+        from ws_close_errors import is_websocket_send_after_close
+
+        if is_websocket_send_after_close(exc):
+            logger.debug("IBKR tape WS send-after-close: %s", symbol)
+        else:
+            logger.exception("IBKR tape WS error for %s: %s", symbol, exc)
     finally:
         if viewer_opened and _tape.ws_viewer_closed(symbol):
             _tape.unsubscribe(symbol)

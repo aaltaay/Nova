@@ -11,14 +11,19 @@ export type ClientErrorReport = {
   url?: string;
 };
 
-/** Vite HMR / overlay internals — not product bugs; do not POST. */
+/** Vite HMR / overlay / chart dispose — not product bugs; do not POST. */
 export function isDevToolingNoise(message: string, stack?: string | null): boolean {
   const msg = String(message || '');
+  const msgL = msg.toLowerCase();
   const stk = String(stack || '');
   if (stk.includes('@vite/client') || stk.includes('/@vite/client')) return true;
   // Vite throws this when its error-overlay WS is not open yet.
   if (msg === 'send was called before connect') return true;
   if (msg.includes("reading 'send'") && stk.toLowerCase().includes('vite')) return true;
+  // LightweightCharts / TradingView dispose races during unmount or HMR.
+  if (msgL.includes('object is disposed')) return true;
+  // Provider mount races (HMR / StrictMode) — shell recovery handles these.
+  if (msgL.includes('must be used within')) return true;
   return false;
 }
 

@@ -36,7 +36,7 @@ def run_afterhours_discovery_scan() -> None:
         )
         source = "ah_scan"
         if raw is None:
-            logger.error(
+            logger.warning(
                 "AH discovery (IBKR): bridge failed — keeping last-good afterhours_cache (%d rows)",
                 len(state.afterhours_cache or []),
             )
@@ -51,7 +51,7 @@ def run_afterhours_discovery_scan() -> None:
                     label="afterhours_gainer_fallback",
                 )
                 if cold is None:
-                    logger.error(
+                    logger.warning(
                         "AH discovery (IBKR): gainer fallback bridge failed — "
                         "keeping last-good afterhours_cache (%d rows)",
                         len(state.afterhours_cache or []),

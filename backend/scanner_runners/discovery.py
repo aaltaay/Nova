@@ -26,7 +26,7 @@ def run_discovery_scan() -> None:
         gappers = list(sr.get_discovery_port().get_gappers() or [])
     except IbkrBridgeError as exc:
         # Never wipe a live table because the thread bridge timed out.
-        logger.error(
+        logger.warning(
             "Gapper discovery bridge failed — keeping %d cached row(s): %s",
             len(state.gapper_cache),
             exc,
