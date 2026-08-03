@@ -597,31 +597,27 @@ export const TICKER_TRADE_ORDER_DISCLOSURE =
 export const TICKER_TRADE_DEPTH_LEVELS = 10;
 
 /**
- * Multi-color Level 2 montage -- price-level groups (Webull / DAS style).
- * Same price shares one band; each new price steps to the next shade.
- * Inside-of-book tiers are brightest; deeper levels darken. Size bars are
- * brighter overlays of the same hue family (must read above the tier fill).
+ * Classic DAS multi-color Level 2 -- each distinct price level gets the next
+ * hue (shared by bids and asks). Same price = same color; next price = next
+ * color in the cycle. Order matches classic montage: yellow, green, cyan, ...
  */
-export const L2_DAS_TIER_BID: readonly string[] = [
-  'rgba(34, 197, 94, 0.78)',
-  'rgba(22, 163, 74, 0.62)',
-  'rgba(21, 128, 61, 0.50)',
-  'rgba(74, 222, 128, 0.40)',
-  'rgba(16, 185, 129, 0.34)',
-  'rgba(5, 150, 105, 0.28)',
-  'rgba(6, 95, 70, 0.24)',
-  'rgba(4, 120, 87, 0.20)',
+export const L2_DAS_TIER_COLORS: readonly string[] = [
+  'rgba(250, 204, 21, 0.92)', // yellow -- inside / best
+  'rgba(34, 197, 94, 0.90)', // green
+  'rgba(34, 211, 238, 0.90)', // cyan
+  'rgba(239, 68, 68, 0.90)', // red
+  'rgba(59, 130, 246, 0.90)', // blue
+  'rgba(249, 115, 22, 0.90)', // orange
+  'rgba(168, 85, 247, 0.90)', // purple
+  'rgba(236, 72, 153, 0.90)', // magenta
 ];
-export const L2_DAS_TIER_ASK: readonly string[] = [
-  'rgba(239, 68, 68, 0.78)',
-  'rgba(220, 38, 38, 0.62)',
-  'rgba(185, 28, 28, 0.50)',
-  'rgba(248, 113, 113, 0.40)',
-  'rgba(239, 68, 68, 0.34)',
-  'rgba(153, 27, 27, 0.28)',
-  'rgba(127, 29, 29, 0.24)',
-  'rgba(185, 28, 28, 0.20)',
-];
-/** Size heat fill -- brighter than tier bg so depth pops on each row. */
-export const L2_DAS_SIZE_BAR_BID = 'rgba(74, 222, 128, 0.92)';
-export const L2_DAS_SIZE_BAR_ASK = 'rgba(252, 165, 165, 0.92)';
+/** @deprecated Use L2_DAS_TIER_COLORS -- bid/ask share one rainbow palette. */
+export const L2_DAS_TIER_BID = L2_DAS_TIER_COLORS;
+/** @deprecated Use L2_DAS_TIER_COLORS -- bid/ask share one rainbow palette. */
+export const L2_DAS_TIER_ASK = L2_DAS_TIER_COLORS;
+/** Size heat overlay -- white wash works on every tier hue. */
+export const L2_DAS_SIZE_BAR = 'rgba(255, 255, 255, 0.32)';
+/** @deprecated Use L2_DAS_SIZE_BAR. */
+export const L2_DAS_SIZE_BAR_BID = L2_DAS_SIZE_BAR;
+/** @deprecated Use L2_DAS_SIZE_BAR. */
+export const L2_DAS_SIZE_BAR_ASK = L2_DAS_SIZE_BAR;

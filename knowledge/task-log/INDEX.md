@@ -4,7 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
-| 2026-08-03 | [Level 2 multi-color price tiers](2026-08-03-l2-multicolor-tiers.md) | Punch up L2 price-band + size-bar montage (Webull-style) |
+| 2026-08-03 | [Level 2 multi-color price tiers](2026-08-03-l2-multicolor-tiers.md) | Classic DAS rainbow L2 tiers (shared hue cycle) |
 | 2026-07-31 | [Sentry usefulness hardening (quiet inbox + ops-once)](2026-07-31-sentry-usefulness-hardening.md) | before_send + bridge WARN + BenignIbkr expand + session_unusable fingerprint; backlog cleaned |
 | 2026-07-31 | [IBKR usable-session SoT recovery (core + consumers/ops)](2026-07-31-ibkr-usable-session-sot.md) | Linear 1100/1101/1102 + earn_usable + status.connected=usable; banner/integrity/smoke/daily-start consumers |
 | 2026-07-31 | [Fix empty gappers/gainers after ib_async pin (startReq removal)](2026-07-31-fix-empty-gappers-startreq.md) | Typed requests/subscriptions registry adapter + real-import compat guard |

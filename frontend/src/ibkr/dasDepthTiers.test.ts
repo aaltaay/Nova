@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { assignPriceTiers, maxSize, padLevels } from './dasDepthTiers';
+import { L2_DAS_TIER_COLORS } from '../constants';
+import { assignPriceTiers, maxSize, padLevels, tierBackground } from './dasDepthTiers';
 import type { DepthLevel } from './types';
 
 function lvl(price: number, size: number, side: 'bid' | 'ask' = 'bid'): DepthLevel {
@@ -13,6 +14,14 @@ describe('assignPriceTiers', () => {
 
   it('advances tier on each new price', () => {
     expect(assignPriceTiers([lvl(5, 1), lvl(4, 1), lvl(3, 1)])).toEqual([0, 1, 2]);
+  });
+});
+
+describe('tierBackground', () => {
+  it('uses one shared rainbow palette for bid and ask tiers', () => {
+    expect(tierBackground(0)).toBe(L2_DAS_TIER_COLORS[0]);
+    expect(tierBackground(1)).toBe(L2_DAS_TIER_COLORS[1]);
+    expect(tierBackground(L2_DAS_TIER_COLORS.length)).toBe(L2_DAS_TIER_COLORS[0]);
   });
 });
 

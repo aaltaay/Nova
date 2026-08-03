@@ -376,29 +376,23 @@
 }
 
 .das-l2-size {
+  color: var(--nova-text, #f3f4f6);
   text-align: right;
   font-weight: 700;
-}
-
-.das-l2-size--bid {
-  color: #4ade80;
-}
-
-.das-l2-size--ask {
-  color: #f87171;
 }
 
 .das-l2-price {
+  color: var(--nova-text, #f3f4f6);
   font-weight: 700;
   text-align: right;
 }
 
-.das-l2-price--bid {
-  color: #4ade80;
-}
-
-.das-l2-price--ask {
-  color: #f87171;
+/* DAS rainbow bands are bright -- ink goes dark for contrast (classic montage). */
+.das-l2-row--tiered .das-l2-mm,
+.das-l2-row--tiered .das-l2-size,
+.das-l2-row--tiered .das-l2-price {
+  color: #111827;
+  text-shadow: none;
 }
 
 .das-l2-side--ask .das-l2-mm {

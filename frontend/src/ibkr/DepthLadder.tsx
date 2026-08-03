@@ -2,8 +2,7 @@ import { useEffect, type CSSProperties } from 'react';
 import {
   L2_DAS_HEADERS,
   L2_DAS_MM_FALLBACK,
-  L2_DAS_SIZE_BAR_ASK,
-  L2_DAS_SIZE_BAR_BID,
+  L2_DAS_SIZE_BAR,
   L2_HEURISTIC_ASK_LABEL,
   L2_HEURISTIC_BID_LABEL,
   L2_HEURISTIC_IDLE_LABEL,
@@ -72,7 +71,6 @@ function MontageSide({
   const tiers = assignPriceTiers(levels);
   const padded = padLevels(levels, TICKER_TRADE_DEPTH_LEVELS);
   const peak = maxSize(levels);
-  const barColor = side === 'bid' ? L2_DAS_SIZE_BAR_BID : L2_DAS_SIZE_BAR_ASK;
   const isBid = side === 'bid';
 
   return (
@@ -94,24 +92,26 @@ function MontageSide({
       </div>
       {padded.map((level, i) => {
         const tier = level != null ? (tiers[i] ?? 0) : 0;
-        const bg = level ? tierBackground(side, tier) : 'transparent';
-        const bar = level ? sizeBarStyle(level.size, peak, barColor, side, bg) : undefined;
+        const bg = level ? tierBackground(tier) : 'transparent';
+        const bar = level
+          ? sizeBarStyle(level.size, peak, L2_DAS_SIZE_BAR, side, bg)
+          : undefined;
         return (
           <div
             key={`${side}-${i}`}
-            className={`das-l2-row ${level ? '' : 'das-l2-row--empty'}`}
+            className={`das-l2-row ${level ? 'das-l2-row--tiered' : 'das-l2-row--empty'}`}
             style={bar ?? { backgroundColor: bg }}
           >
             {isBid ? (
               <>
                 <span className="das-l2-mm">{mmLabel(level)}</span>
-                <span className="das-l2-size das-l2-size--bid">{fmtSize(level?.size)}</span>
-                <span className="das-l2-price das-l2-price--bid">{fmtPrice(level?.price)}</span>
+                <span className="das-l2-size">{fmtSize(level?.size)}</span>
+                <span className="das-l2-price">{fmtPrice(level?.price)}</span>
               </>
             ) : (
               <>
-                <span className="das-l2-price das-l2-price--ask">{fmtPrice(level?.price)}</span>
-                <span className="das-l2-size das-l2-size--ask">{fmtSize(level?.size)}</span>
+                <span className="das-l2-price">{fmtPrice(level?.price)}</span>
+                <span className="das-l2-size">{fmtSize(level?.size)}</span>
                 <span className="das-l2-mm">{mmLabel(level)}</span>
               </>
             )}

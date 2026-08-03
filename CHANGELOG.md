@@ -30,14 +30,23 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-03 -- Level 2 classic DAS rainbow price tiers
+
+- **What:** Level 2 montage cycles distinct hues per price level (yellow → green → cyan → red → blue → …), shared by bids and asks. Dark ink on bright bands; white size-heat wash.
+- **Why:** User wanted classic DAS multi-color levels (each price a different color), not green-bids / red-asks shade fade.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts` (`L2_DAS_TIER_COLORS`), `frontend/src/ibkr/dasDepthTiers.ts`, `DepthLadder.tsx`, `marketData.css`
+- **How it works now:** `assignPriceTiers` indexes distinct prices; `tierBackground(n)` picks `L2_DAS_TIER_COLORS[n % len]` for both sides. Same price = same hue on every MM row.
+- **Verified by:** `npx vitest run src/ibkr/dasDepthTiers.test.ts`
+- **Related:** Supersedes Webull-style green/red punch-up (`64824b2`); task-log `knowledge/task-log/2026-08-03-l2-multicolor-tiers.md`
+
 ## 2026-08-03 -- Level 2 multi-color price tiers (Webull-style)
 
-- **What:** Punched up Level 2 montage so price-level color bands and size heat bars read clearly (brighter inside tiers, stepped darker bands, neon size/price text, size bars grow from price toward MM).
-- **Why:** User asked to turn on multi-color levels; the DAS tier path existed but the palette/size overlay was too faint to notice.
+- **What:** Intermediate green/red shade punch-up (superseded by DAS rainbow entry above).
+- **Why:** First pass before user clarified classic DAS hue cycling via screenshots.
 - **Files touched:** `frontend/src/constantGroups/chart_api.ts`, `frontend/src/ibkr/DepthLadder.tsx`, `frontend/src/ibkr/marketData.css`
-- **How it works now:** `assignPriceTiers` still groups same price → same band; `L2_DAS_TIER_*` / `L2_DAS_SIZE_BAR_*` are saturated enough that Trader View / Trading tab montage looks like classic multi-color L2. Size bar is brighter than the tier fill.
-- **Verified by:** `dasDepthTiers` vitest + lint on touched files.
-- **Related:** Existing `DepthLadder` / `dasDepthTiers` montage path (no new feed); task-log `knowledge/task-log/2026-08-03-l2-multicolor-tiers.md`
+- **How it works now:** Superseded -- see DAS rainbow entry.
+- **Verified by:** prior `dasDepthTiers` vitest.
+- **Related:** commit `64824b2`
 
 ## 2026-07-31 -- Sentry usefulness hardening (quiet inbox + ops-once)
 

@@ -1,8 +1,4 @@
-import {
-  L2_DAS_TIER_ASK,
-  L2_DAS_TIER_BID,
-  TICKER_TRADE_DEPTH_LEVELS,
-} from '../constants';
+import { L2_DAS_TIER_COLORS, TICKER_TRADE_DEPTH_LEVELS } from '../constants';
 import type { DepthLevel } from './types';
 
 /** Assign a DAS color-group index: same price → same tier; next price → next color. */
@@ -18,8 +14,9 @@ export function assignPriceTiers(levels: DepthLevel[]): number[] {
   return tiers;
 }
 
-export function tierBackground(side: 'bid' | 'ask', tierIndex: number): string {
-  const palette = side === 'bid' ? L2_DAS_TIER_BID : L2_DAS_TIER_ASK;
+/** Shared rainbow palette -- bid tier N and ask tier N use the same hue. */
+export function tierBackground(tierIndex: number): string {
+  const palette = L2_DAS_TIER_COLORS;
   return palette[tierIndex % palette.length] ?? palette[0];
 }
 
