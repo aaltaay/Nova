@@ -376,9 +376,16 @@
 }
 
 .das-l2-size {
-  color: var(--nova-text, #f3f4f6);
   text-align: right;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.das-l2-size--bid {
+  color: #4ade80;
+}
+
+.das-l2-size--ask {
+  color: #f87171;
 }
 
 .das-l2-price {
@@ -387,11 +394,11 @@
 }
 
 .das-l2-price--bid {
-  color: #86efac;
+  color: #4ade80;
 }
 
 .das-l2-price--ask {
-  color: #fca5a5;
+  color: #f87171;
 }
 
 .das-l2-side--ask .das-l2-mm {

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-03 -- Level 2 multi-color price tiers (Webull-style)
+
+- **What:** Punched up Level 2 montage so price-level color bands and size heat bars read clearly (brighter inside tiers, stepped darker bands, neon size/price text, size bars grow from price toward MM).
+- **Why:** User asked to turn on multi-color levels; the DAS tier path existed but the palette/size overlay was too faint to notice.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts`, `frontend/src/ibkr/DepthLadder.tsx`, `frontend/src/ibkr/marketData.css`
+- **How it works now:** `assignPriceTiers` still groups same price → same band; `L2_DAS_TIER_*` / `L2_DAS_SIZE_BAR_*` are saturated enough that Trader View / Trading tab montage looks like classic multi-color L2. Size bar is brighter than the tier fill.
+- **Verified by:** `dasDepthTiers` vitest + lint on touched files.
+- **Related:** Existing `DepthLadder` / `dasDepthTiers` montage path (no new feed); task-log `knowledge/task-log/2026-08-03-l2-multicolor-tiers.md`
+
 ## 2026-07-31 -- Sentry usefulness hardening (quiet inbox + ops-once)
 
 - **What:** Stopped Sentry from mirroring expected IBKR reconnect/scanner ERROR logs (~55k/7d). Explicit LoggingIntegration + `before_send` denylist; bridge/runner keep-cache and Error 1100 downgraded to WARNING; BenignIbkr expanded; ops-once fingerprinted `ibkr.session.unusable` / max-tickers; client intake gets stack + ignores provider shell; WS send-after-close treated as disconnect. Historical noise ignored in Sentry; `startReq` issues resolved. `SENTRY_ENVIRONMENT=local`.

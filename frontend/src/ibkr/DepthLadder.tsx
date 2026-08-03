@@ -55,7 +55,8 @@ function sizeBarStyle(
     return { backgroundColor: tierBg };
   }
   const pct = Math.min(100, Math.round((size / max) * 100));
-  const dir = side === 'bid' ? 'to right' : 'to left';
+  // Grow from the price column toward MM (bid: right-to-left, ask: left-to-right).
+  const dir = side === 'bid' ? 'to left' : 'to right';
   return {
     backgroundImage: `linear-gradient(${dir}, ${color} ${pct}%, transparent ${pct}%), linear-gradient(${tierBg}, ${tierBg})`,
   };
@@ -104,13 +105,13 @@ function MontageSide({
             {isBid ? (
               <>
                 <span className="das-l2-mm">{mmLabel(level)}</span>
-                <span className="das-l2-size">{fmtSize(level?.size)}</span>
+                <span className="das-l2-size das-l2-size--bid">{fmtSize(level?.size)}</span>
                 <span className="das-l2-price das-l2-price--bid">{fmtPrice(level?.price)}</span>
               </>
             ) : (
               <>
                 <span className="das-l2-price das-l2-price--ask">{fmtPrice(level?.price)}</span>
-                <span className="das-l2-size">{fmtSize(level?.size)}</span>
+                <span className="das-l2-size das-l2-size--ask">{fmtSize(level?.size)}</span>
                 <span className="das-l2-mm">{mmLabel(level)}</span>
               </>
             )}
