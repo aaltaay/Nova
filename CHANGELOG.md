@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-03 -- MASTER TEST QTY GATE (force one share)
+
+- **What:** Every `place` / `bracket` through ADR 007 `execute()` is forced to **1 share** while `IBKR_FORCE_ONE_SHARE = True`. UI qty unchanged.
+- **Why:** User asked for one master testing key so 100/500/1000 presets cannot size broker sends.
+- **Files touched:** `constants_ibkr.py`, `execution/qty_gate.py`, `execution/service.py`, `test_execution_qty_gate.py`, `execution-continuity.mdc`, `docs/trading-execution-validation.md`, Obsidian `IBKR-Force-One-Share-Test-Gate.md`
+- **How it works now:** `apply_force_one_share(cmd)` runs first in `execute()`. Flip `IBKR_FORCE_ONE_SHARE = False` (one line) to restore normal sizing. **Not a bug** if fills are always 1 while the form shows more.
+- **Verified by:** `pytest tests/test_execution_qty_gate.py tests/test_execution_service.py` (21 passed).
+- **Related:** task-log `knowledge/task-log/2026-08-03-force-one-share-qty-gate.md`
+
 ## 2026-08-03 -- Stock View right rail can stretch wider
 
 - **What:** Raised Stock View quote/L2 rail drag max from 440px to 720px.

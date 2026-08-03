@@ -31,6 +31,15 @@
 
 **Still NO-GO for `auto_live`.** This proof does not unlock live money.
 
+## MASTER TEST QTY GATE (`IBKR_FORCE_ONE_SHARE`)
+
+**Intentional.** While `IBKR_FORCE_ONE_SHARE = True` in `backend/constants_ibkr.py`, every `place` / `bracket` through `execution.service.execute` is forced to **1 share** before validate/send. TRADE UI quantity presets can stay at 100/500/1000; the broker only receives 1.
+
+- **Not a bug** if fills are always 1 share while the form shows a larger qty.
+- **Disable (one line):** set `IBKR_FORCE_ONE_SHARE = False`.
+- **Code:** `execution/qty_gate.py` + one call at the top of `execute()`.
+- Ledger payload may include `"forced_one_share": true`.
+
 ## Before / after path map
 
 | Caller | Before | After |

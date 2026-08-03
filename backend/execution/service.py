@@ -5,7 +5,7 @@ import asyncio
 import logging
 import time
 
-from constants import NOVA_OS_MAX_CONCURRENT_POSITIONS
+from constants import IBKR_FORCE_ONE_SHARE, NOVA_OS_MAX_CONCURRENT_POSITIONS
 from execution import store
 from execution import telemetry
 from execution import validate as _validate
@@ -14,6 +14,7 @@ from execution import timing as _timing
 from execution.broker_send import send_broker, wait_broker_ack
 from execution.latency import latency_summary
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
+from execution.qty_gate import apply_force_one_share
 from ibkr import client as _client
 
 logger = logging.getLogger(__name__)
@@ -108,6 +109,10 @@ async def execute(
 
     Strategies / UI / agents must call this — never ibkr.orders directly.
     """
+    # MASTER TEST GATE — see IBKR_FORCE_ONE_SHARE in constants_ibkr.py.
+    # One line to remove: delete the next assignment (or set the constant False).
+    cmd = apply_force_one_share(cmd)
+
     store.init_db()
     received = received_ns if received_ns is not None else time.perf_counter_ns()
     timings = StageTimings(received_ns=received)
@@ -122,7 +127,6 @@ async def execute(
         backend_ingress_perf_ns=received,
         backend_ingress_wall_ns=cmd.backend_ingress_wall_ns or time.time_ns(),
     )
-
     async with _lock:
         execution_id, is_new = store.reserve(
             idempotency_key=cmd.idempotency_key,
@@ -135,6 +139,8 @@ async def execute(
                 "order_type": cmd.order_type,
                 "side": (cmd.side or "").upper() or None,
                 "qty": cmd.qty if cmd.qty is not None else cmd.shares,
+                "forced_one_share": bool(IBKR_FORCE_ONE_SHARE)
+                and cmd.operation in ("place", "bracket"),
                 "requested_price": requested_price,
                 "reference_price": (
                     cmd.reference_price

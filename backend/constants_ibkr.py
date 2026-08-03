@@ -12,8 +12,22 @@ NOVA_DESKTOP_API_PORT = 8000
 #                                 cannot place buys/sells until you opt in.
 # IBKR_LIVE_TRADING_CONFIRMED   → second key required when gateway/account is live.
 # IBKR_SHORT_ENABLED=false      → third key for opening shorts (Phase K / ADR 009).
+# IBKR_FORCE_ONE_SHARE=True     → MASTER TEST QTY GATE (see below). Not a bug.
 IBKR_HOST = "127.0.0.1"
 IBKR_SHORT_ENABLED_DEFAULT = False
+
+# ── MASTER TEST QTY GATE (intentional; remove with one flip) ───────────────────
+# When True, ADR 007 `execution.service.execute` rewrites every place/bracket
+# qty (and shares) to IBKR_FORCE_ONE_SHARE_QTY before validate/send — UI/hotkeys
+# may still show 100/500/1000; the broker only ever receives 1 share.
+#
+# WHY: paper/live testing safety so a fat-finger preset cannot size a real send.
+# NOT A BUG: do not "fix" by deleting the clamp without flipping this off.
+#
+# REMOVE (one line): set IBKR_FORCE_ONE_SHARE = False
+#   (or delete the `cmd = apply_force_one_share(cmd)` line in execution/service.py)
+IBKR_FORCE_ONE_SHARE = True
+IBKR_FORCE_ONE_SHARE_QTY = 1.0
 # Tick-236 shortability freshness for order gates (seconds).
 IBKR_SHORTABILITY_TTL_SEC = 60.0
 # Shares thresholds for shortability states (IBKR tick 236 estimate).
