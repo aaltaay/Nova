@@ -352,11 +352,12 @@ export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE =
   'Switch Nova to the live Gateway port (4001) and reconnect. Requires IB Gateway already logged into a live account. Live spend still stays locked until IBKR_LIVE_TRADING_CONFIRMED is set separately.';
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
-/** Right-rail width (px) on Stock View — charts keep the rest of the viewport. */
+/** Right-rail width (px) on Stock View -- charts keep the rest of the viewport. */
 export const TICKER_TRADE_SIDE_WIDTH_PX = 360;
-/** Drag-to-resize clamp (px) for the Stock View right rail (dense; charts dominate). */
+/** Drag-to-resize clamp (px) for the Stock View right rail (quote + L2 + T&S + TRADE). */
 export const TICKER_TRADE_SIDE_WIDTH_MIN_PX = 320;
-export const TICKER_TRADE_SIDE_WIDTH_MAX_PX = 440;
+/** Allow a wide montage; charts keep `minmax(0, 1fr)` and shrink as the rail grows. */
+export const TICKER_TRADE_SIDE_WIDTH_MAX_PX = 720;
 /** Desktop breakpoint (px): 2×2 charts + right rail; below stacks rail under charts. */
 export const STOCK_VIEW_DESKTOP_MIN_PX = 900;
 /**

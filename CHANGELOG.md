@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-03 -- Stock View right rail can stretch wider
+
+- **What:** Raised Stock View quote/L2 rail drag max from 440px to 720px.
+- **Why:** Splitter stopped early when widening Level 2 toward the charts.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts` (`TICKER_TRADE_SIDE_WIDTH_MAX_PX`)
+- **How it works now:** `useResizableWidth` clamps the rail to 320–720px; charts keep `minmax(0, 1fr)` and shrink. Saved width in `nova.stockView.sideWidthPx` can grow past the old 440 cap on next drag.
+- **Verified by:** Constant + `StockViewPage` / `useResizableWidth` clamp path review.
+- **Related:** Double-click handle still resets to 360px default.
+
 ## 2026-08-03 -- Level 2 classic DAS rainbow price tiers
 
 - **What:** Level 2 montage cycles distinct hues per price level (yellow → green → cyan → red → blue → …), shared by bids and asks. Dark ink on bright bands; white size-heat wash.
