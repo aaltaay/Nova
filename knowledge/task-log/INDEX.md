@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-04 | [HOD Momo sort by TIME not emit lag](2026-08-04-hod-momo-time-sort.md) | HOD Momo sort by TIME not emit lag |
 | 2026-08-04 | [IBKRPRO up but Nova prereq false login / stuck synchronizing](2026-08-04-ibkr-prereq-false-login.md) | IBKRPRO up but Nova prereq false login / stuck synchronizing |
 | 2026-08-03 | [MASTER TEST QTY GATE (force one share)](2026-08-03-force-one-share-qty-gate.md) | IBKR_FORCE_ONE_SHARE clamps place/bracket to 1 share |
 | 2026-08-03 | [Level 2 multi-color price tiers](2026-08-03-l2-multicolor-tiers.md) | Classic DAS rainbow L2 tiers (shared hue cycle) |

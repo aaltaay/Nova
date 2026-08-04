@@ -4,11 +4,7 @@
  */
 import type { AlertObject } from './types';
 
-function alertUnix(a: AlertObject): number {
-  if (typeof a.created_ts === 'number' && a.created_ts > 0) return a.created_ts;
-  const ms = Date.parse(a.timestamp);
-  return Number.isFinite(ms) ? ms / 1000 : 0;
-}
+import { alertDisplayUnix } from './collapseAlertsBySymbol';
 
 /**
  * @param maxGapSec Merge consecutive same-ticker rows when their timestamps
@@ -29,8 +25,8 @@ export function collapseConsecutiveTickerAlerts(
       out.push(a);
       continue;
     }
-    const newer = alertUnix(prev);
-    const older = alertUnix(a);
+    const newer = alertDisplayUnix(prev);
+    const older = alertDisplayUnix(a);
     const delta = newer > 0 && older > 0 ? Math.abs(newer - older) : 0;
     if (delta > gap) {
       out.push(a);

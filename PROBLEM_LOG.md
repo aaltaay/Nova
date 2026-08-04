@@ -23,6 +23,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-04 -- HOD Momo TIME order wrong (AEHG above later PTIR/PLTU)
+
+- **Symptom:** HOD Momo list showed AEHG TIME 10:40:14 above PTIR 10:40:36 / PLTU 10:40:37; IPCX 10:39:16 at bottom. Looked like rows were reshuffling vs first-in TIME.
+- **Cause:** UI sorted/pinned on `created_ts` (emit/wall after consolidation) while TIME column renders trade `timestamp`. AEHG print lagged emit by ~32s so emit-sort put it above later prints.
+- **Fix:** `alertDisplayUnix` prefers `timestamp`; first-catch = earliest trade TIME; sort newest first-catch on top; burst window uses the same clock.
+- **Keywords:** HOD Momo, sort, TIME, created_ts, consolidation lag, AEHG, PTIR, collapseAlertsBySymbol, first-catch
+
+
 ## 2026-08-04 -- IBKRPRO up but Trading prerequisites said not READY / login
 
 - **Symptom:** IB Gateway window showed API Server **connected** + Market Data Farm ON (live), but Nova Trading prerequisites painted **IB Gateway (session READY)** red with "Log into IB Gateway / 2FA". `/api/ibkr/status` had `preferred_port_reachable=true`, `connected=false`, `session_state=synchronizing`, `last_connectivity_code=1100`, `disconnect_hint=live_port_open_but_disconnected`. Fresh `connectAsync(clientId=17)` from a side script succeeded; in-process reconnect thrashed TimeWait and never reached READY until API restart.

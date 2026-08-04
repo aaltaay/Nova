@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-04 -- HOD Momo rows sort by TIME column (not emit lag)
+
+- **What:** `collapseAlertsBySymbol` pins first-catch and sorts by trade `timestamp` (the TIME column), not delayed `created_ts`. Burst gap uses the same clock.
+- **Why:** Consolidation delays `created_ts` vs print time (e.g. AEHG TIME 10:40:14 emitted ~10:40:46), so rows shuffled vs the clock users read.
+- **Files touched:** `collapseAlertsBySymbol.ts`, `collapseConsecutiveTickerAlerts.ts`, Vitest regression.
+- **How it works now:** One row per ticker; TIME + order = earliest trade catch; newest first-catch on top; live price still from newest fire; `(N in Xs)` only inside the burst window.
+- **Verified by:** Vitest `collapseAlertsBySymbol` AEHG/PTIR skew case + existing pin/stability tests.
+- **Related:** PROBLEM_LOG 2026-08-04 -- HOD Momo TIME vs created_ts sort
+
+
 ## 2026-08-04 -- Honest IBKR prereq when Gateway port is open but session stuck
 
 - **What:** Trading prerequisites no longer tells you to log in / complete 2FA when the Gateway API port is already listening; it shows a Nova-session stuck message and a **Reconnect** CTA (`POST /api/ibkr/reconnect`). Backend clears sticky `SYNCHRONIZING` on dead transport and fences `reconnect_loop` so one crashed iteration cannot kill the dialer.

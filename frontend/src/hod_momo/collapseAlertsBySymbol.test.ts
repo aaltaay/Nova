@@ -151,4 +151,48 @@ describe('collapseAlertsBySymbol', () => {
   it('returns empty input unchanged', () => {
     expect(collapseAlertsBySymbol([])).toEqual([]);
   });
+
+  it('orders by trade TIME column, not delayed created_ts (AEHG/PTIR skew)', () => {
+    // Live bug 2026-08-04: AEHG print 10:40:14 ET emitted ~32s later so
+    // created_ts sorted it above PTIR/PLTU even though TIME showed earlier.
+    const rows = [
+      alert({
+        id: 'aehg',
+        ticker: 'AEHG',
+        timestamp: '2026-08-04T14:40:14.000Z',
+        created_ts: 1785854446.27, // ~10:40:46 ET emit
+        change_pct: 0,
+      }),
+      alert({
+        id: 'ptir',
+        ticker: 'PTIR',
+        timestamp: '2026-08-04T14:40:36.000Z',
+        created_ts: 1785854437.13, // ~10:40:37 ET emit
+        change_pct: 51.42,
+      }),
+      alert({
+        id: 'pltu',
+        ticker: 'PLTU',
+        timestamp: '2026-08-04T14:40:37.000Z',
+        created_ts: 1785854437.09,
+        change_pct: 51.25,
+      }),
+      alert({
+        id: 'ipcx-first',
+        ticker: 'IPCX',
+        timestamp: '2026-08-04T14:39:16.000Z',
+        created_ts: 1785854357.09,
+        consolidation_count: 2,
+      }),
+    ];
+    const out = collapseAlertsBySymbol(rows);
+    // Newest first-catch TIME on top — matches TIME column, ignores emit lag.
+    expect(out.map(r => r.ticker)).toEqual(['PLTU', 'PTIR', 'AEHG', 'IPCX']);
+    expect(out.map(r => r.timestamp)).toEqual([
+      '2026-08-04T14:40:37.000Z',
+      '2026-08-04T14:40:36.000Z',
+      '2026-08-04T14:40:14.000Z',
+      '2026-08-04T14:39:16.000Z',
+    ]);
+  });
 });
