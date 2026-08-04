@@ -161,3 +161,163 @@ def test_clear_sticky_bridge_error_on_ready_tolerates_missing_runtime_state(monk
     monkeypatch.setattr(ibkr_client, "_get_runtime_state", _raise)
 
     ibkr_client._clear_sticky_bridge_error_on_ready()  # must not raise
+
+
+def test_earn_usable_single_flight_and_promotes_ready(monkeypatch):
+    from ibkr import session_errors as se
+    from ibkr import session_usable as su
+
+    se.reset_for_tests()
+    su.reset_for_tests()
+    session.reset_for_testing()
+
+    fake_ib = MagicMock()
+    fake_ib.isConnected.return_value = True
+    calls: list[str] = []
+
+    async def _warm_pos(ib=None):
+        calls.append("pos")
+
+    async def _warm_orders(ib=None, force=False):
+        calls.append("orders")
+
+    async def _on_ready(ib, *, reason: str):
+        calls.append(f"ready:{reason}")
+
+    monkeypatch.setattr("ibkr.account.refresh_positions_cache", _warm_pos)
+    monkeypatch.setattr("ibkr.account.refresh_completed_orders_cache", _warm_orders)
+    monkeypatch.setattr(ibkr_client, "_on_session_ready", _on_ready)
+    monkeypatch.setattr(ibkr_client, "_clear_sticky_bridge_error_on_ready", lambda: None)
+    monkeypatch.setattr(ibkr_client, "_ib", fake_ib)
+
+    async def _run():
+        ok1, d1 = await su.earn_usable(fake_ib, "test")
+        ok2, d2 = await su.earn_usable(fake_ib, "test2")
+        return ok1, d1, ok2, d2
+
+    ok1, d1, ok2, d2 = asyncio.run(_run())
+    assert ok1 is True and d1 == "ok"
+    assert ok2 is True and d2 == "ok"
+    assert session.is_ready() is True
+    assert ibkr_client.get_ib() is fake_ib
+    assert ibkr_client.is_ready() is True
+    assert calls.count("pos") == 2
+    assert any(c.startswith("ready:") for c in calls)
+    assert se.unusable_since() is None
+
+
+def test_earn_usable_aborts_if_revoked_mid_sync(monkeypatch):
+    from ibkr import session_errors as se
+    from ibkr import session_usable as su
+
+    se.reset_for_tests()
+    su.reset_for_tests()
+    session.reset_for_testing()
+
+    fake_ib = MagicMock()
+    fake_ib.isConnected.return_value = True
+
+    async def _warm_pos(ib=None):
+        session.set_degraded()
+        se.stamp_unusable(code=1100)
+
+    async def _warm_orders(ib=None, force=False):
+        return None
+
+    monkeypatch.setattr("ibkr.account.refresh_positions_cache", _warm_pos)
+    monkeypatch.setattr("ibkr.account.refresh_completed_orders_cache", _warm_orders)
+
+    ok, detail = asyncio.run(su.earn_usable(fake_ib, "revoked"))
+    assert ok is False
+    assert detail == "revoked_during_sync"
+    assert session.is_ready() is False
+    assert ibkr_client.get_ib() is None
+
+
+def test_earn_usable_transport_down_clears_synchronizing(monkeypatch):
+    """Dead socket must not leave session_state=synchronizing (misleading UI)."""
+    from ibkr import session_usable as su
+
+    su.reset_for_tests()
+    session.reset_for_testing()
+    session.set_synchronizing()
+    ibkr_client.set_session_reason("synchronizing")
+
+    fake_ib = MagicMock()
+    fake_ib.isConnected.return_value = False
+
+    ok, detail = asyncio.run(su.earn_usable(fake_ib, "stale_sync"))
+    assert ok is False
+    assert detail == "transport_down"
+    assert session.state() == session.DISCONNECTED
+    assert ibkr_client.session_reason() == "disconnected"
+
+
+def test_stuck_unusable_force_reconnect_path(monkeypatch):
+    """Transport up + !usable past threshold → disconnect + recreate IB()."""
+    from ibkr import session_errors as se
+
+    se.reset_for_tests()
+    session.reset_for_testing()
+    session.set_degraded()
+    se.stamp_unusable(code=1100)
+    # Pretend we have been stuck long enough.
+    se._unusable_since = __import__("time").time() - 100.0  # type: ignore[attr-defined]
+
+    fake_ib = MagicMock()
+    fake_ib.isConnected.return_value = True
+    monkeypatch.setattr(ibkr_client, "_ib", fake_ib)
+    monkeypatch.setattr(ibkr_client, "_mode", "paper")
+    created: list[object] = []
+
+    class _NewIB:
+        def __init__(self):
+            created.append(self)
+
+        def isConnected(self):
+            return False
+
+        def disconnect(self):
+            return None
+
+    monkeypatch.setattr(ibkr_client, "IB", _NewIB)
+    monkeypatch.setattr(ibkr_client, "_safe_disconnect", lambda ib: None)
+    monkeypatch.setattr(se, "take_restore_pending", lambda: None)
+
+    asyncio.run(ibkr_client._handle_transport_up_unusable("paper"))
+    assert len(created) == 1
+    assert session.state() == session.DISCONNECTED
+
+
+def test_status_connected_matches_get_ib(monkeypatch):
+    """status.connected (usable) == (get_ib() is not None)."""
+    fake_ib = MagicMock()
+    fake_ib.isConnected.return_value = True
+    monkeypatch.setattr(ibkr_client, "_ib", fake_ib)
+    monkeypatch.setattr(ibkr_client, "_enabled", True)
+    session.reset_for_testing()
+
+    assert ibkr_client.get_ib() is None
+    assert ibkr_client.is_ready() is False
+
+    session.set_ready()
+    assert ibkr_client.get_ib() is fake_ib
+    assert ibkr_client.is_ready() is True
+    snap = ibkr_client.session_snapshot()
+    assert snap["usable"] is True
+    assert snap["transport_up"] is True
+
+
+def test_unavailable_detail_distinguishes_transport_vs_session(monkeypatch):
+    fake_ib = MagicMock()
+    fake_ib.isConnected.return_value = False
+    monkeypatch.setattr(ibkr_client, "_ib", fake_ib)
+    monkeypatch.setattr(ibkr_client, "_session_reason", "disconnected")
+    detail = ibkr_client.unavailable_detail("IBKR bars")
+    assert "transport down" in detail
+
+    fake_ib.isConnected.return_value = True
+    monkeypatch.setattr(ibkr_client, "_session_reason", "connectivity_lost")
+    detail = ibkr_client.unavailable_detail("IBKR bars")
+    assert "session not usable" in detail
+    assert "connectivity_lost" in detail

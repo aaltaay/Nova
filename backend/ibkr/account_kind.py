@@ -5,12 +5,18 @@ IBKR paper/demo accounts are conventionally ``DU…`` / ``DF…``. Live individu
 accounts are typically ``U…`` (not prefixed with D). Used so a connected
 session's account kind must match the mode being established (paper or live).
 
-Spend authority stays in ``ibkr.safety`` — this module only classifies ids.
+Also owns post-connect accept helpers (read managedAccounts + kind match)
+so ``ibkr.client`` stays under the file-size limit.
+
+Spend authority stays in ``ibkr.safety`` -- classification/accept only.
 """
 
 from __future__ import annotations
 
-from typing import Literal
+import logging
+from typing import Any, Literal
+
+logger = logging.getLogger(__name__)
 
 BrokerAccountKind = Literal["paper", "live", "unknown", "mixed"]
 
@@ -71,3 +77,49 @@ def accounts_match_mode(kind: BrokerAccountKind, mode_label: str) -> tuple[bool,
 def paper_mode_accounts_ok(kind: BrokerAccountKind) -> tuple[bool, str]:
     """Backward-compat wrapper — prefer ``accounts_match_mode``."""
     return accounts_match_mode(kind, "paper")
+
+
+def read_managed_account_ids(ib: Any) -> list[str]:
+    """Normalize ib_async managedAccounts() to a list of account id strings."""
+    try:
+        raw = ib.managedAccounts()
+    except Exception:
+        logger.warning("IBKR: managedAccounts() failed", exc_info=True)
+        return []
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
+    if isinstance(raw, (list, tuple)):
+        return [str(a).strip() for a in raw if str(a).strip()]
+    s = str(raw).strip()
+    return [s] if s else []
+
+
+def accept_connected_session(ib: Any, mode_label: str) -> tuple[bool, str]:
+    """
+    Classify managedAccounts; require kind to match ``mode_label``.
+    Updates ``client._broker_account_kind``. Returns (ok, reason). On failure
+    caller must disconnect.
+    """
+    from ibkr import client as _client
+
+    ids = read_managed_account_ids(ib)
+    kind = classify_managed_accounts(ids)
+    _client._broker_account_kind = kind
+    ok, reason = accounts_match_mode(kind, mode_label)
+    if not ok:
+        logger.error(
+            "IBKR: refusing session -- %s (accounts=%s mode=%s)",
+            reason,
+            ids,
+            mode_label,
+        )
+        return False, reason
+    logger.info(
+        "IBKR: session accounts kind=%s ids=%s mode=%s",
+        kind,
+        ids,
+        mode_label,
+    )
+    return True, ""

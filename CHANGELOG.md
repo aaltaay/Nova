@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-04 -- Honest IBKR prereq when Gateway port is open but session stuck
+
+- **What:** Trading prerequisites no longer tells you to log in / complete 2FA when the Gateway API port is already listening; it shows a Nova-session stuck message and a **Reconnect** CTA (`POST /api/ibkr/reconnect`). Backend clears sticky `SYNCHRONIZING` on dead transport and fences `reconnect_loop` so one crashed iteration cannot kill the dialer.
+- **Why:** IBKRPRO was connected (farm ON) while the desk blocked on a false login story after Error 1100 left a long-lived API unable to re-earn READY.
+- **Files touched:** `tradingPrerequisites.ts`, `TradingPrerequisitesGate.tsx`, `gatewayUxConstants.ts`, `session_usable.py`, `session_reconnect.py`, readiness + Vitest coverage, PROBLEM_LOG.
+- **How it works now:** `connected` still means usable READY. When `preferred_port_reachable` / `*_port_open_but_disconnected` and not usable, prereq action is `reconnect_ibkr` (not `launch_gateway`). Ops recovery for a wedged in-process client remains API restart.
+- **Verified by:** Live status after API restart (`connected=true`, `session_state=ready`, live); `pytest` readiness test; Vitest prereq case for port-open path.
+- **Related:** PROBLEM_LOG 2026-08-04 -- IBKRPRO up but Trading prerequisites said not READY
+
+
 ## 2026-08-03 -- MASTER TEST QTY GATE (force one share)
 
 - **What:** Every `place` / `bracket` through ADR 007 `execute()` is forced to **1 share** while `IBKR_FORCE_ONE_SHARE = True`. UI qty unchanged.

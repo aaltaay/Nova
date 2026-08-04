@@ -14,6 +14,7 @@ import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { HodMomoDock } from './hod_momo/HodMomoDock';
 import { HodMomoProvider } from './hod_momo/HodMomoProvider';
 import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
+import { TradingPrerequisitesGate } from './ibkr/TradingPrerequisitesGate';
 import { DashboardPage } from './pages/DashboardPage';
 import { SampleShell } from './sample_data/SampleShell';
 import { isSampleView } from './sample_data/sampleNav';
@@ -58,6 +59,7 @@ function AppShell() {
             {/* One shared header for Scanner + Trader; status strip never clears on route. */}
             <GlobalBarStatusBridge />
             <GlobalAppBar />
+            <TradingPrerequisitesGate />
             <NovaOsAttentionStrip global />
             <div className="nova-app-branch">
               {traderActive ? (

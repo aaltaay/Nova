@@ -29,7 +29,7 @@ def test_attempt_connect_hard_timeout_disconnects():
     ib.connectAsync = _hang
 
     async def _run():
-        with patch.object(ibkr_client, "IBKR_CONNECT_TIMEOUT_SEC", 0.05):
+        with patch("ibkr.client_connect.IBKR_CONNECT_TIMEOUT_SEC", 0.05):
             return await ibkr_client._attempt_connect(ib, "127.0.0.1", 4001, 17)
 
     ok, reason = asyncio.run(_run())
@@ -46,7 +46,7 @@ def test_attempt_connect_success():
     ib.connectAsync = AsyncMock(return_value=None)
 
     async def _run():
-        with patch.object(ibkr_client, "IBKR_CONNECT_TIMEOUT_SEC", 2.0):
+        with patch("ibkr.client_connect.IBKR_CONNECT_TIMEOUT_SEC", 2.0):
             return await ibkr_client._attempt_connect(ib, "127.0.0.1", 4001, 17)
 
     ok, reason = asyncio.run(_run())

@@ -14,7 +14,12 @@ This module tracks Nova's own opinion of readiness, in five states:
   CONNECTING     -- attempt_connect() in flight
   SYNCHRONIZING  -- transport connected, account/session validation running
   READY          -- account-kind accepted + positions/orders caches warm
-  DEGRADED       -- was READY, transport dropped before a clean disconnect
+  DEGRADED       -- was READY; Error 1100 or unclean drop (may still have TCP)
+
+DEGRADED must exit via 1101/1102 ``earn_usable`` or stuck-unusable force
+reconnect in ``client.reconnect_loop`` — never idle forever while the
+socket is still up. Public product story is usable + reason (status
+``connected``), not a larger DEGRADED enum.
 
 Every transition *into* READY bumps ``generation`` — an incrementing int
 callers can capture before starting IBKR work and compare afterward to

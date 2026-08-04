@@ -4,9 +4,18 @@
  */
 
 /** Loud global banner (all scanner tabs) shown while discovery=ibkr and Gateway is down. */
-export const GATEWAY_BANNER_TITLE = 'ACTION REQUIRED — IB Gateway login';
+export const GATEWAY_BANNER_TITLE = 'ACTION REQUIRED -- IB Gateway login';
 export const GATEWAY_BANNER_CTA_LABEL = 'Open IB Gateway';
-export const GATEWAY_BANNER_CTA_BUSY_LABEL = 'Opening…';
+export const GATEWAY_BANNER_CTA_BUSY_LABEL = 'Opening...';
+
+/** Trading prerequisites -- Gateway API port listening but Nova session not READY. */
+export const PREREQ_GATEWAY_PORT_OPEN_DETAIL =
+  'IB Gateway API port is open, but Nova session is not READY (reconnect stuck or Error 1100). Use Reconnect -- Gateway login is usually already done.';
+export const PREREQ_GATEWAY_RECONNECT_CTA_LABEL = 'Reconnect Nova to Gateway';
+export const PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL = 'Reconnecting...';
+/** Default when ports look dark / login needed. */
+export const PREREQ_GATEWAY_LOGIN_DETAIL =
+  'Log into IB Gateway (API port 4001 live / 4002 paper). Look at your desktop for 2FA.';
 
 /** How long (seconds) after a disconnected→connected transition to keep showing the
  * reconnect warm-up empty-state copy instead of the generic "no rows" message —

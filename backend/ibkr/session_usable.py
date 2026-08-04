@@ -1,0 +1,122 @@
+"""Single-flight path that promotes a connected IB session to Nova usable.
+
+``earn_usable`` warms account caches, fences mid-sync revoke (Error 1100),
+bumps generation via ``set_ready``, then runs READY side effects. Used by
+initial connect, self-heal, and 1101/1102 restore — never stack concurrent
+warm-ups (anti API_WEDGED).
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+from typing import Any
+
+from ibkr import session_state as _session
+
+logger = logging.getLogger(__name__)
+
+_earn_lock: asyncio.Lock | None = None
+_earn_in_flight = False
+
+
+def _lock() -> asyncio.Lock:
+    global _earn_lock
+    if _earn_lock is None:
+        _earn_lock = asyncio.Lock()
+    return _earn_lock
+
+
+def earn_in_flight() -> bool:
+    return _earn_in_flight
+
+
+async def earn_usable(ib: Any, reason: str) -> tuple[bool, str]:
+    """Warm caches → READY → session-ready side effects. Single-flighted.
+
+    Returns ``(ok, detail)``. Does not issue work if ``ib`` is missing or
+    transport is already down. If usable is revoked mid-SYNCHRONIZING
+    (Error 1100), aborts without calling ``set_ready``.
+    """
+    global _earn_in_flight
+    if ib is None:
+        return False, "ib_none"
+
+    async with _lock():
+        _earn_in_flight = True
+        try:
+            return await _earn_usable_locked(ib, reason)
+        finally:
+            _earn_in_flight = False
+
+
+async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
+    from ibkr import account as _account
+    from ibkr.client import (
+        _clear_sticky_bridge_error_on_ready,
+        _on_session_ready,
+        set_session_reason,
+    )
+    from ibkr import session_errors as _session_errors
+
+    try:
+        transport_up = bool(ib.isConnected())
+    except Exception:
+        transport_up = False
+    if not transport_up:
+        # Never leave SYNCHRONIZING sticky after a dead socket -- status would
+        # claim "synchronizing" while transport_connected=false (desk thinks
+        # login/2FA is needed even when Gateway is already up).
+        if _session.state() in (_session.SYNCHRONIZING, _session.CONNECTING, _session.READY):
+            _session.set_disconnected()
+        set_session_reason("disconnected")
+        return False, "transport_down"
+
+    _session.set_synchronizing()
+    set_session_reason("synchronizing")
+    logger.info("IBKR: earn_usable begin (%s)", reason)
+
+    try:
+        await _account.refresh_positions_cache(ib)
+        await _account.refresh_completed_orders_cache(ib, force=True)
+    except Exception as exc:
+        logger.warning(
+            "IBKR: earn_usable warm-up raised (%s): %s", reason, exc, exc_info=True,
+        )
+        # Best-effort warm continues to fence check — empty caches still fail closed.
+
+    # Fence: 1100 / disconnect during warm must not promote to READY.
+    if _session.state() != _session.SYNCHRONIZING:
+        logger.warning(
+            "IBKR: earn_usable aborted — state=%s after warm (%s)",
+            _session.state(),
+            reason,
+        )
+        _session_errors.stamp_unusable()
+        return False, "revoked_during_sync"
+
+    try:
+        if not ib.isConnected():
+            set_session_reason("disconnected")
+            _session.set_degraded()
+            _session_errors.stamp_unusable()
+            return False, "transport_lost"
+    except Exception:
+        set_session_reason("disconnected")
+        return False, "transport_lost"
+
+    gen = _session.set_ready()
+    _clear_sticky_bridge_error_on_ready()
+    await _on_session_ready(ib, reason=f"{reason} generation {gen}")
+    _session_errors.clear_unusable_stamp()
+    # Drop a stale restore flag if we earned usable another way.
+    _session_errors.take_restore_pending()
+    set_session_reason("ok")
+    logger.info("IBKR: session READY via earn_usable (generation %d, %s)", gen, reason)
+    return True, "ok"
+
+
+def reset_for_tests() -> None:
+    """Test isolation — drop lock state between cases."""
+    global _earn_lock, _earn_in_flight
+    _earn_lock = None
+    _earn_in_flight = False

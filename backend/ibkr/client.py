@@ -26,7 +26,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from concurrent.futures import TimeoutError as _FuturesTimeoutError
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -40,23 +39,25 @@ except ImportError:
     logger.warning("ib_async not installed — IBKR module disabled")
 
 from constants import (
+    IBKR_AUTH_BACKOFF_SEC_INITIAL,
     IBKR_HOST,
     IBKR_PAPER_PORT,
     IBKR_LIVE_PORT,
     IBKR_CLIENT_ID,
-    IBKR_CONNECT_TIMEOUT_SEC,
     IBKR_MARKET_DATA_TYPE_LIVE,
-    IBKR_RECONNECT_DELAY_SEC,
-    IBKR_RUN_CORO_MAX_INFLIGHT,
-    IBKR_RUN_CORO_MAX_INFLIGHT_WHEN_WEDGED,
 )
 from ibkr import account_kind as _account_kind
 from ibkr import client_connect as _connect
-from ibkr import gateway_heal as _heal
 from ibkr import safety as _safety
+from ibkr import session_errors as _session_errors
 from ibkr import session_state as _session
-from ibkr.errors import StaleIbkrSessionError
+from ibkr.client_bridge import run_coro as run_coro  # noqa: F401 -- public re-export
+from ibkr.errors import StaleIbkrSessionError  # noqa: F401 -- re-export for tests/callers
 from runtime_state import get_runtime_state as _get_runtime_state
+
+# Backward-compat aliases (session_reconnect / tests use client._accept_*)
+_read_managed_account_ids = _account_kind.read_managed_account_ids
+_accept_connected_session = _account_kind.accept_connected_session
 
 # ── Module-level state ─────────────────────────────────────────────────────────
 _ib: "IB | None" = None
@@ -68,11 +69,34 @@ _loop: asyncio.AbstractEventLoop | None = None  # captured at startup() — wher
 _wake_reconnect: asyncio.Event | None = None
 # Set after READY requests live market data (None until first successful READY).
 _market_data_type: int | None = None
+# Public SoT reason for status / ops (see session_snapshot / ibkr_status).
+_session_reason: str = "disabled"
+# Auth-backoff when preferred port is open but connect times out (Authenticating).
+_auth_backoff_sec: float = float(IBKR_AUTH_BACKOFF_SEC_INITIAL)
 
 
 def get_market_data_type() -> int | None:
     """Last requested IB market-data type, or None before first READY."""
     return _market_data_type
+
+
+def set_session_reason(reason: str) -> None:
+    """Publish the usable-session SoT reason string (status / diagnostics)."""
+    global _session_reason
+    _session_reason = str(reason or "unknown")
+
+
+def session_reason() -> str:
+    return _session_reason
+
+
+def unavailable_detail(what: str = "IBKR") -> str:
+    """Honest one-liner when get_ib() is None -- transport vs session not usable."""
+    label = (what or "IBKR").strip() or "IBKR"
+    if not is_connected():
+        return f"{label} transport down -- Gateway not connected"
+    reason = session_reason() or "unknown"
+    return f"{label} session not usable ({reason})"
 
 
 def _set_session(*, mode: str, broker_account_kind: str) -> None:
@@ -198,11 +222,17 @@ def current_generation() -> int:
 
 def session_snapshot() -> dict[str, Any]:
     """Diagnostic snapshot for /readyz and PROBLEM_LOG-style evidence."""
+    usable = is_ready()
     return {
         "state": _session.state(),
         "generation": _session.generation(),
-        "ready": is_ready(),
+        "ready": usable,
+        "usable": usable,
         "connected": is_connected(),
+        "transport_up": is_connected(),
+        "reason": _session_reason,
+        "unusable_since": _session_errors.unusable_since(),
+        "last_connectivity_code": _session_errors.last_connectivity_code(),
         "mode": account_mode(),
         "enabled": _enabled,
     }
@@ -236,122 +266,6 @@ def get_ib() -> "IB | None":
     return None
 
 
-def _read_managed_account_ids(ib: "IB") -> list[str]:
-    """Normalize ib_async managedAccounts() to a list of account id strings."""
-    try:
-        raw = ib.managedAccounts()
-    except Exception:
-        logger.warning("IBKR: managedAccounts() failed", exc_info=True)
-        return []
-    if raw is None:
-        return []
-    if isinstance(raw, str):
-        return [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
-    if isinstance(raw, (list, tuple)):
-        return [str(a).strip() for a in raw if str(a).strip()]
-    s = str(raw).strip()
-    return [s] if s else []
-
-
-def _accept_connected_session(ib: "IB", mode_label: str) -> tuple[bool, str]:
-    """
-    Classify managedAccounts; require kind to match ``mode_label``.
-    Updates ``_broker_account_kind``. Returns (ok, reason). On failure
-    caller must disconnect.
-    """
-    global _broker_account_kind
-    ids = _read_managed_account_ids(ib)
-    kind = _account_kind.classify_managed_accounts(ids)
-    _broker_account_kind = kind
-    ok, reason = _account_kind.accounts_match_mode(kind, mode_label)
-    if not ok:
-        logger.error(
-            "IBKR: refusing session — %s (accounts=%s mode=%s)",
-            reason,
-            ids,
-            mode_label,
-        )
-        return False, reason
-    logger.info(
-        "IBKR: session accounts kind=%s ids=%s mode=%s",
-        kind,
-        ids,
-        mode_label,
-    )
-    return True, ""
-
-
-_run_coro_inflight = 0
-
-
-def run_coro(coro, timeout: float, *, label: str = "") -> Any:
-    """
-    Bridge: run an ib_async coroutine on the loop IB is connected to, blocking
-    the calling thread until done. ib_async's IB instance is bound to whichever
-    event loop called connectAsync(), so scan-loop code running in a
-    ThreadPoolExecutor worker (see main.py's run_in_executor calls) cannot
-    await IBKR coroutines directly — this bridges that gap safely.
-
-    On timeout, cancels the submitted future instead of abandoning it — an
-    uncancelled ``run_coroutine_threadsafe`` future keeps running against the
-    IBKR session after the caller gives up, so a reconnect can race a still-
-    live old-generation request (see PROBLEM_LOG 2026-07-23). Cancellation
-    propagates into the coroutine as ``CancelledError`` at its next await.
-
-    Raises ``StaleIbkrSessionError`` if the IBKR session disconnected and
-    reconnected (generation changed) while this call was in flight — the
-    result reflects a session the caller no longer owns and must not be
-    applied.
-    """
-    global _run_coro_inflight
-    if _loop is None or not _loop.is_running():
-        raise RuntimeError("IBKR event loop not running (client not started)")
-    tag = f" [{label}]" if label else ""
-
-    # Circuit breaker: when the uvicorn loop is wedged, refuse to stack more
-    # IB bridges that would deepen the lag (CYCU / API_WEDGED 2026-07-30).
-    try:
-        import loop_lag as _loop_lag
-        wedged = _loop_lag.is_wedged()
-    except Exception:
-        wedged = False
-    cap = (
-        IBKR_RUN_CORO_MAX_INFLIGHT_WHEN_WEDGED
-        if wedged
-        else IBKR_RUN_CORO_MAX_INFLIGHT
-    )
-    if _run_coro_inflight >= cap:
-        raise TimeoutError(
-            f"IBKR run_coro circuit open{tag}: inflight={_run_coro_inflight} "
-            f"cap={cap} wedged={wedged}"
-        )
-
-    generation_before = _session.generation()
-    _run_coro_inflight += 1
-    future = asyncio.run_coroutine_threadsafe(coro, _loop)
-    try:
-        result = future.result(timeout=timeout)
-    except _FuturesTimeoutError:
-        cancelled = future.cancel()
-        logger.warning(
-            "IBKR: run_coro timed out after %.1fs%s (cancel %s)",
-            timeout, tag, "accepted" if cancelled else "too late — already running/done",
-        )
-        raise
-    finally:
-        _run_coro_inflight = max(0, _run_coro_inflight - 1)
-    if _session.generation() != generation_before:
-        logger.warning(
-            "IBKR: run_coro%s result from stale generation (%s -> %s) — discarding",
-            tag, generation_before, _session.generation(),
-        )
-        raise StaleIbkrSessionError(
-            f"session reconnected during call{tag} "
-            f"(generation {generation_before} -> {_session.generation()})"
-        )
-    return result
-
-
 def _safe_disconnect(ib: "IB | None") -> None:
     _connect.safe_disconnect(ib)
 
@@ -380,129 +294,20 @@ async def _try_connect_alternate_port(
     )
 
 
+async def _handle_transport_up_unusable(mode_label: str) -> None:
+    """Test-facing wrapper — recovery lives in session_reconnect."""
+    from ibkr import session_reconnect as _reconnect
+
+    import ibkr.client as _self
+
+    await _reconnect.handle_transport_up_unusable(_self, mode_label)
+
+
 async def reconnect_loop() -> None:
-    """Background task: keep connecting while IBKR_ENABLED is set.
+    """Background dialer — implementation in ``session_reconnect``."""
+    from ibkr.session_reconnect import reconnect_loop as _loop
 
-    Re-reads gateway mode/port each attempt so a .env change to paper/live
-    takes effect without requiring a full process restart (after reload_env).
-    On preferred-port refuse only, self-heals to the alternate reachable port.
-    """
-    global _ib, _enabled
-
-    if not _IB_AVAILABLE:
-        logger.warning("IBKR module enabled but ib_async not installed — skipping")
-        return
-
-    _ensure_wake_event()
-    _ib = IB()
-
-    while True:
-        enabled, host, port, mode_label, client_id = _resolve_config()
-        _enabled = enabled
-
-        if not _enabled:
-            _set_session(mode="disconnected", broker_account_kind="unknown")
-            _session.set_disconnected()
-            if _ib.isConnected():
-                _ib.disconnect()
-            await _sleep_reconnect(IBKR_RECONNECT_DELAY_SEC)
-            continue
-
-        if not _ib.isConnected():
-            if _session.state() == _session.READY:
-                # Was ready, transport dropped without going through the
-                # explicit disconnect paths below — label it honestly rather
-                # than silently jumping straight back to "connecting".
-                _session.set_degraded()
-            logger.info(
-                "IBKR: attempting connect to %s:%s (%s, clientId=%s)",
-                host,
-                port,
-                mode_label,
-                client_id,
-            )
-            _session.set_connecting()
-            ok, reason = await _attempt_connect(_ib, host, port, client_id)
-            if ok:
-                _session.set_synchronizing()
-                session_ok, session_reason = _accept_connected_session(_ib, mode_label)
-                if session_ok:
-                    _set_session(mode=mode_label, broker_account_kind=_broker_account_kind)
-                    _heal.record_connect_outcome(
-                        "connected", reason="ok", mode=mode_label,
-                    )
-                    logger.info(
-                        "IBKR: connected in %s mode (orders still gated by safety.py)",
-                        mode_label,
-                    )
-                    from ibkr import account as _account
-
-                    # Pass the just-connected ib directly (not get_ib(), which
-                    # gates on READY) — these warm-ups are what earn READY.
-                    await _account.refresh_positions_cache(_ib)
-                    await _account.refresh_completed_orders_cache(_ib, force=True)
-                    gen = _session.set_ready()
-                    _clear_sticky_bridge_error_on_ready()
-                    await _on_session_ready(_ib, reason=f"ready generation {gen}")
-                    logger.info("IBKR: session READY (generation %d)", gen)
-                else:
-                    logger.error(
-                        "IBKR: disconnecting after paper-pin reject: %s",
-                        session_reason,
-                    )
-                    _safe_disconnect(_ib)
-                    _ib = IB()
-                    _set_session(mode="disconnected", broker_account_kind="unknown")
-                    _session.set_disconnected()
-                    _heal.record_connect_outcome(
-                        "failed", reason=session_reason or "account_kind_mismatch",
-                    )
-                    await _sleep_reconnect(IBKR_RECONNECT_DELAY_SEC)
-                    continue
-            else:
-                # Recreate IB() so a half-open protocol state cannot pin the loop.
-                _safe_disconnect(_ib)
-                _ib = IB()
-                _session.set_connecting()
-                healed = await _try_connect_alternate_port(
-                    _ib, host, mode_label, client_id, reason,
-                )
-                if healed:
-                    _session.set_synchronizing()
-                    _set_session(mode=healed, broker_account_kind=_broker_account_kind)
-                    logger.info(
-                        "IBKR: connected in %s mode after self-heal "
-                        "(orders still gated by safety.py)",
-                        healed,
-                    )
-                    from ibkr import account as _account
-
-                    await _account.refresh_positions_cache(_ib)
-                    await _account.refresh_completed_orders_cache(_ib, force=True)
-                    gen = _session.set_ready()
-                    _clear_sticky_bridge_error_on_ready()
-                    await _on_session_ready(
-                        _ib, reason=f"ready after self-heal generation {gen}",
-                    )
-                    logger.info("IBKR: session READY after self-heal (generation %d)", gen)
-                    continue
-                _set_session(mode="disconnected", broker_account_kind="unknown")
-                _session.set_disconnected()
-                _heal.record_connect_outcome("failed", reason=reason)
-                _safe_disconnect(_ib)
-                _ib = IB()
-                await _sleep_reconnect(IBKR_RECONNECT_DELAY_SEC)
-                continue
-        elif _mode != mode_label:
-            # Mode flipped (paper↔live) in env while connected — drop and reconnect.
-            logger.warning(
-                "IBKR: gateway_mode changed %s → %s; reconnecting", _mode, mode_label,
-            )
-            _ib.disconnect()
-            _set_session(mode="disconnected", broker_account_kind="unknown")
-            _session.set_disconnected()
-            continue
-        await _sleep_reconnect(5)
+    await _loop()
 
 
 def reload_env_from_dotenv() -> dict[str, str]:
@@ -522,114 +327,17 @@ def reload_env_from_dotenv() -> dict[str, str]:
 
 
 async def force_reconnect() -> dict:
-    """Disconnect and let reconnect_loop pick up the current .env port/mode."""
-    global _ib
-    cfg = reload_env_from_dotenv()
-    if _ib is not None and _ib.isConnected():
-        _ib.disconnect()
-    _set_session(mode="disconnected", broker_account_kind="unknown")
-    _session.set_disconnected()
-    wake_reconnect_loop()
-    # Brief wait for the background loop to attempt connect.
-    await asyncio.sleep(min(IBKR_RECONNECT_DELAY_SEC, 2.0) + 1.0)
-    return {
-        **cfg,
-        "connected": is_connected(),
-        "mode": account_mode(),
-        "broker_account_kind": broker_account_kind(),
-        "spend_status": _safety.status_snapshot()["spend_status"],
-    }
+    """Disconnect and await usable — implementation in ``client_ops``."""
+    from ibkr.client_ops import force_reconnect as _force
+
+    return await _force()
 
 
 async def request_gateway_mode(mode: str) -> dict:
-    """
-    User-initiated Paper↔Live Gateway switch (StockViewAccountModeCapsule).
+    """User-initiated Paper↔Live switch — implementation in ``client_ops``."""
+    from ibkr.client_ops import request_gateway_mode as _switch
 
-    Persists IBKR_GATEWAY_MODE, disconnects, and wakes reconnect_loop to dial
-    the new port. Sets sticky intentional mode so a refused live port surfaces
-    honestly instead of silently self-healing to paper. Never touches
-    IBKR_LIVE_TRADING_CONFIRMED — spend stays locked until armed separately.
-    """
-    global _ib
-
-    target: str = "live" if str(mode).strip().lower() == "live" else "paper"
-    if str(mode).strip().lower() not in ("paper", "live"):
-        return {"ok": False, "error": f"invalid mode {mode!r} (must be paper or live)"}
-
-    if not _enabled:
-        return {
-            "ok": False,
-            "error": "IBKR_ENABLED is not set — cannot connect to any Gateway",
-            "requested_mode": target,
-        }
-
-    preferred_port = _heal.port_for_mode(target)
-    persisted = _heal.persist_gateway_mode(target)  # type: ignore[arg-type]
-    _heal.apply_runtime_gateway_mode(target)  # type: ignore[arg-type]
-    _heal.set_intentional_mode(target)  # type: ignore[arg-type]
-
-    if _ib is not None and _ib.isConnected():
-        _ib.disconnect()
-    _set_session(mode="disconnected", broker_account_kind="unknown")
-    _session.set_disconnected()
-    wake_reconnect_loop()
-
-    # reconnect_loop picks up the new port — wake + poll briefly.
-    deadline = IBKR_CONNECT_TIMEOUT_SEC + 3.0
-    waited = 0.0
-    step = 0.5
-    while waited < deadline and not is_connected():
-        await asyncio.sleep(step)
-        waited += step
-
-    connected = is_connected()
-    kind = broker_account_kind()
-    mode_now = account_mode()
-    error: str | None = None
-
-    if not connected:
-        error = (
-            f"Could not connect to the {target} Gateway on port {preferred_port} "
-            f"— start IB Gateway logged into the {target} account with the API "
-            "enabled on that port, then try again."
-        )
-        _heal.record_connect_outcome("failed", reason="switch_connect_failed")
-    elif target == "live" and kind != "live":
-        # Defensive: a paper-only Gateway session should never answer on the
-        # live port, but refuse loudly rather than pretend Live if it does.
-        bad_kind = kind
-        logger.error(
-            "IBKR: gateway-mode switch to live connected but "
-            "broker_account_kind=%s (expected live) — disconnecting",
-            bad_kind,
-        )
-        if _ib is not None and _ib.isConnected():
-            _ib.disconnect()
-        _set_session(mode="disconnected", broker_account_kind="unknown")
-        _session.set_disconnected()
-        connected = False
-        mode_now = "disconnected"
-        kind = "unknown"
-        error = (
-            "Connected on the live port but the logged-in account reports as "
-            f"{bad_kind!r}, not live — refusing to switch (disconnected)."
-        )
-        _heal.record_connect_outcome("failed", reason="live_account_kind_mismatch")
-    else:
-        _heal.record_connect_outcome("connected", reason="ok", mode=target)
-
-    return {
-        "ok": error is None,
-        "error": error,
-        "requested_mode": target,
-        "preferred_port": preferred_port,
-        "persisted": persisted,
-        "connected": connected,
-        "mode": mode_now,
-        "broker_account_kind": kind,
-        "spend_status": _safety.status_snapshot()["spend_status"],
-        "intentional_gateway_mode": _heal.intentional_mode(),
-    }
+    return await _switch(mode)
 
 
 async def startup() -> None:

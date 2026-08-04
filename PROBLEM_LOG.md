@@ -23,6 +23,14 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-04 -- IBKRPRO up but Trading prerequisites said not READY / login
+
+- **Symptom:** IB Gateway window showed API Server **connected** + Market Data Farm ON (live), but Nova Trading prerequisites painted **IB Gateway (session READY)** red with "Log into IB Gateway / 2FA". `/api/ibkr/status` had `preferred_port_reachable=true`, `connected=false`, `session_state=synchronizing`, `last_connectivity_code=1100`, `disconnect_hint=live_port_open_but_disconnected`. Fresh `connectAsync(clientId=17)` from a side script succeeded; in-process reconnect thrashed TimeWait and never reached READY until API restart.
+- **Cause:** (1) Error 1100 left the long-lived API (~23h, reload) unable to re-earn usable; sticky `synchronizing` + dead transport made the desk look like a login failure. (2) Prerequisites copy keyed only on `!ibkrConnected`, so "port open / Nova stuck" was mislabeled as 2FA. (3) `earn_usable` transport-down path set reason `disconnected` without clearing `SYNCHRONIZING`; reconnect_loop had no crash fence around iterations.
+- **Fix:** Restart API restored READY immediately. Code: honest prereq detail + **Reconnect** CTA when preferred port is open; `earn_usable` clears SYNCHRONIZING on transport_down; reconnect_loop wraps each iteration so a crash cannot kill the dialer; SYNCHRONIZING+TCP-down clears before redial.
+- **Keywords:** IBKRPRO, session READY, synchronizing, Error 1100, live_port_open_but_disconnected, Trading prerequisites, 2FA false alarm, earn_usable, reconnect_loop, clientId 17
+
+
 ## 2026-07-31 -- Sentry ERROR-log flood made the product-bug inbox useless
 
 - **Symptom:** ~55k Sentry error events/7d on `python-fastapi`; high-priority email alert fired constantly; top issues were "IBKR not connected", bridge keep-cache, Unknown reqId, Error 326/1100 -- all `environment=production` on a local desktop. Real bugs (`startReq`, client ReferenceErrors) were buried.
