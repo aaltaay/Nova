@@ -34,8 +34,8 @@ Entry template (copy and fill in):
 
 - **What:** Shipped usable-session SoT (connected = usable), Nova-process API health (no Alpaca RTT chip), Gateway banner honesty, header trading PIN lock, account-wide Orders (Today), place-dialog skip-confirm, T&S column fix, ops script alignment.
 - **Why:** Desk showed false login/API readiness and hid fills/locks behind wrong scopes.
-- **Files touched:** ackend/health_status.py, ackend/ibkr/*, header/IBKR frontend modules, OrdersToday*, AppDialogHost*, scripts, PROBLEM_LOG/task-log.
-- **How it works now:** /api/ibkr/status.connected means usable; API chip is local process; trading unlock is one session bus; Orders (Today) is account-wide.
+- **Files touched:** `backend/health_status.py`, `backend/ibkr/*`, header/IBKR frontend modules, `OrdersToday*`, `AppDialogHost*`, scripts, PROBLEM_LOG/task-log.
+- **How it works now:** `/api/ibkr/status.connected` means usable; API chip is local process; trading unlock is one session bus; Orders (Today) is account-wide.
 - **Verified by:** pytest trading/health suites; Vitest header/banner/PIN/orders/dialog suites (40 passed).
 - **Related:** PROBLEM_LOG 2026-08-03/04 entries; task-log usable-session + trading-prerequisites.
 
