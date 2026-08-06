@@ -7,16 +7,7 @@ This file is a **shared memory** of errors fixed and problems identified in this
 ## How agents update this file
 
 1. **When:** After you fix a failing build, test, linter error, runtime error, or incorrect behavior; or after you identify a non-obvious root cause worth remembering. **Required** — not optional for “obvious” or “quick” fixes.
-2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->
-
-## 2026-08-06 -- Route place test expected qty=5 under FORCE_ONE_SHARE
-
-- **Symptom:** \	est_place_order_route_happy_path_delegates_to_orders_module\ failed \ssert 1.0 == 5.0\ while shipping usable-session WIP.
-- **Cause:** MASTER TEST QTY GATE (\IBKR_FORCE_ONE_SHARE=True\) clamps place qty to 1; the route happy-path test still asserted requested qty 5 without disabling the gate.
-- **Fix:** Monkeypatch \IBKR_FORCE_ONE_SHARE=False\ on \xecution.service\ and \xecution.qty_gate\ for that wiring test (qty-gate behavior covered in \	est_execution_qty_gate.py\).
-- **Keywords:** IBKR_FORCE_ONE_SHARE, test_routes_trading, qty clamp, MASTER TEST GATE
-
-` marker (newest entries at the top).
+2. **Where:** Prepend a new `##` section **immediately below** the `<!-- ENTRIES_START -->` marker (newest entries at the top).
 3. **Keep it short:** A few lines per field is enough.
 
 Entry template (copy and fill in):
@@ -31,6 +22,14 @@ Entry template (copy and fill in):
 ```
 
 <!-- ENTRIES_START -->
+
+## 2026-08-06 -- Route place test expected qty=5 under FORCE_ONE_SHARE
+
+- **Symptom:** test_place_order_route_happy_path_delegates_to_orders_module failed assert 1.0 == 5.0 while shipping usable-session WIP.
+- **Cause:** MASTER TEST QTY GATE (IBKR_FORCE_ONE_SHARE=True) clamps place qty to 1; the route happy-path test still asserted requested qty 5 without disabling the gate.
+- **Fix:** Monkeypatch IBKR_FORCE_ONE_SHARE=False on execution.service and execution.qty_gate for that wiring test (qty-gate behavior covered in test_execution_qty_gate.py).
+- **Keywords:** IBKR_FORCE_ONE_SHARE, test_routes_trading, qty clamp, MASTER TEST GATE
+
 
 ## 2026-08-04 -- HOD Momo TIME order wrong (AEHG above later PTIR/PLTU)
 
