@@ -1,14 +1,12 @@
 /**
  * Compact Time & Sales tape — newest print on top.
  * Owns useIbkrTape (same pattern as DepthLadder → useIbkrDepth).
- * Row highlight = aggressor vs BBO at print time:
- *   ask (green) | bid (red) | between/unknown (black/neutral).
+ * Side is row tint only (no Side column): ask green | bid red | mid/unknown neutral.
  */
 import { useMemo } from 'react';
 import {
   TAPE_COL_HEADERS,
   TAPE_SECTION_TITLE,
-  TAPE_SIDE_LABELS,
 } from '../constants';
 import { useIbkrTape, type TapeSide } from './useIbkrTape';
 
@@ -48,13 +46,6 @@ function sideClass(side: TapeSide | undefined): string {
   }
 }
 
-function sideLabel(side: TapeSide | undefined): string {
-  if (side === 'ask') return TAPE_SIDE_LABELS.ask;
-  if (side === 'bid') return TAPE_SIDE_LABELS.bid;
-  if (side === 'between') return TAPE_SIDE_LABELS.between;
-  return TAPE_SIDE_LABELS.unknown;
-}
-
 export function TimeSalesPanel({ symbol, embedded = false }: Props) {
   const { prints, connected, error } = useIbkrTape(symbol);
 
@@ -73,7 +64,6 @@ export function TimeSalesPanel({ symbol, embedded = false }: Props) {
       <span className="ts-col--time">{TAPE_COL_HEADERS.time}</span>
       <span className="ts-col--price">{TAPE_COL_HEADERS.price}</span>
       <span className="ts-col--size">{TAPE_COL_HEADERS.size}</span>
-      <span className="ts-col--side">{TAPE_COL_HEADERS.side}</span>
       <span className="ts-col--exch">{TAPE_COL_HEADERS.exchange}</span>
     </div>
   );
@@ -88,7 +78,6 @@ export function TimeSalesPanel({ symbol, embedded = false }: Props) {
             <span className="ts-col--time">{fmtTime(p.time)}</span>
             <span className="ts-col--price">{fmtPrice(p.price)}</span>
             <span className="ts-col--size">{fmtSize(p.size)}</span>
-            <span className="ts-col--side">{sideLabel(p.side)}</span>
             <span className="ts-col--exch">{p.exchange || '—'}</span>
           </div>
         ))

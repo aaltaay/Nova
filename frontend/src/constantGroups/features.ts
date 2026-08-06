@@ -34,10 +34,9 @@ export const TAPE_COL_HEADERS = {
   time: 'Time',
   price: 'Price',
   size: 'Size',
-  side: 'Side',
   exchange: 'Exch',
 } as const;
-/** Labels for aggressor side (not color-only). */
+/** Aggressor labels (legacy / tests). Tape UI encodes side via row tint only. */
 export const TAPE_SIDE_LABELS = {
   ask: 'ASK',
   bid: 'BID',
