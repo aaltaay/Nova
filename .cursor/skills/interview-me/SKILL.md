@@ -30,19 +30,19 @@ Closes the gap between what was asked and what is wanted **before** plan/code.
 
 ### 1. Hypothesize
 
-```text
-HYPOTHESIS: <one sentence>
-CONFIDENCE: <0-100%> — <what's missing>
-```
+Use **short wrapping lines** (plain markdown). Do **not** put hypothesis/question/guess inside fenced code blocks -- Cursor chat often clips ` ```text ` blocks horizontally with no wrap.
+
+**Hypothesis:** <one sentence>  
+**Confidence:** <0-100%> -- <what's missing>
 
 ### 2. One question + guess
 
-```text
-Q: <one focused question>
-GUESS: <your predicted answer + why>
-```
+Same rule: wrapping prose or labeled lines, never a wide fenced block.
 
-Wait for the reply before the next question.
+**Q:** <one focused question>  
+**Guess:** <your predicted answer + why>
+
+Wait for the reply before the next question. If options are long, put each option on its own bullet so nothing truncates.
 
 ### 3. Listen for want vs should-want
 
@@ -50,15 +50,13 @@ If the user echoes a convention, ask what job that convention is supposed to do.
 
 ### 4. Stop near ~95% confidence
 
-Stop when you can predict the next three answers. Summarize:
+Stop when you can predict the next three answers. Summarize in wrapping bullets (no fenced dump):
 
-```text
-INTENT: …
-SUCCESS: …
-CONSTRAINTS: …
-OUT OF SCOPE: …
-NEXT: writing-plans | implement | specialist X
-```
+- **Intent:** …
+- **Success:** …
+- **Constraints:** …
+- **Out of scope:** …
+- **Next:** writing-plans | implement | specialist X
 
 ## Nova overlays
 

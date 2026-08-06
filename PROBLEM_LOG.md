@@ -33,11 +33,52 @@ Entry template (copy and fill in):
 
 ## 2026-08-04 -- IBKRPRO up but Trading prerequisites said not READY / login
 
-- **Symptom:** IB Gateway window showed API Server **connected** + Market Data Farm ON (live), but Nova Trading prerequisites painted **IB Gateway (session READY)** red with "Log into IB Gateway / 2FA". `/api/ibkr/status` had `preferred_port_reachable=true`, `connected=false`, `session_state=synchronizing`, `last_connectivity_code=1100`, `disconnect_hint=live_port_open_but_disconnected`. Fresh `connectAsync(clientId=17)` from a side script succeeded; in-process reconnect thrashed TimeWait and never reached READY until API restart.
+- **Symptom:** IB Gateway window showed API Server **connected** + Market Data Farm ON (live), but Nova Trading prerequisites painted **IB Gateway (session READY)** red with "Log into IB Gateway… 2FA". `/api/ibkr/status` had `preferred_port_reachable=true`, `connected=false`, `session_state=synchronizing`, `last_connectivity_code=1100`, `disconnect_hint=live_port_open_but_disconnected`. Fresh `connectAsync(clientId=17)` from a side script succeeded; in-process reconnect thrashed TimeWait and never reached READY until API restart.
 - **Cause:** (1) Error 1100 left the long-lived API (~23h, reload) unable to re-earn usable; sticky `synchronizing` + dead transport made the desk look like a login failure. (2) Prerequisites copy keyed only on `!ibkrConnected`, so "port open / Nova stuck" was mislabeled as 2FA. (3) `earn_usable` transport-down path set reason `disconnected` without clearing `SYNCHRONIZING`; reconnect_loop had no crash fence around iterations.
 - **Fix:** Restart API restored READY immediately. Code: honest prereq detail + **Reconnect** CTA when preferred port is open; `earn_usable` clears SYNCHRONIZING on transport_down; reconnect_loop wraps each iteration so a crash cannot kill the dialer; SYNCHRONIZING+TCP-down clears before redial.
 - **Keywords:** IBKRPRO, session READY, synchronizing, Error 1100, live_port_open_but_disconnected, Trading prerequisites, 2FA false alarm, earn_usable, reconnect_loop, clientId 17
 
+## 2026-08-03 -- Sample shell crashed: IbkrAccountProvider missing
+
+- **Symptom:** App error boundary / "Failed to start": `useIbkrAccountContext must be used within IbkrAccountProvider` from `GlobalAppBar` under `SampleShell`.
+- **Cause:** Live `AppShell` wraps `IbkrAccountProvider`, but sample mode returns `<SampleShell />` without that provider. Header lock/account work made `GlobalAppBar` call `useIbkrAccountContext` directly; sample still used the old "no provider" isolation.
+- **Fix:** Mount `IbkrAccountProvider` inside `SampleDataProvider` in `SampleShell` (provider already returns fixture state when sample is active -- no live poll).
+- **Keywords:** IbkrAccountProvider, useIbkrAccountContext, SampleShell, GlobalAppBar, AppErrorBoundary
+
+## 2026-08-03 -- Vite PARSE_ERROR: JSX in useTradingPinGate.ts
+
+- **Symptom:** App fail overlay: `[plugin:vite:oxc] Expected '>' but found Identifier` at `useTradingPinGate.ts:36` (`open={open}`).
+- **Cause:** Hook returned `<TradingPinDialog …/>` JSX but lived in a `.ts` file. Oxc only parses JSX in `.tsx` / `.jsx`. Flatten PIN tests mocked the hook, so Vitest never transformed the broken file.
+- **Fix:** Rename to `useTradingPinGate.tsx` (imports stay extensionless).
+- **Keywords:** vite, oxc, PARSE_ERROR, useTradingPinGate, JSX, .ts vs .tsx
+
+## 2026-08-03 -- symbolOrders is not defined after Orders (Today) account-wide
+
+- **Symptom:** Stock View error boundary: `symbolOrders is not defined`.
+- **Cause:** Account-wide change removed the `symbolOrders` memo but left a "Show sample" branch still referencing it.
+- **Fix:** Use `orders.length === 0` in that branch (`StockViewOpenOrdersDock.tsx`).
+- **Keywords:** symbolOrders, ReferenceError, Orders Today, StockViewOpenOrdersDock
+
+## 2026-08-03 -- Orders (Today) showed 0 while watching another ticker after a fill
+
+- **Symptom:** After flattening TGHL, Stock View on UPC showed Orders (Today) badge `0` and "No orders for UPC…"; user thought the fill was missing.
+- **Cause:** Dock filtered working/closed rows and badge by the open Stock View symbol.
+- **Fix:** Orders (Today) is account-wide; only Working/Filled/Canceled/Partial/All segments filter. Empty copy updated accordingly.
+- **Keywords:** Orders Today, symbol scope, UPC, TGHL, closed orders, badge count
+
+## 2026-08-03 -- Alpaca account RTT looked like "the API"; desk stayed usable when Gateway/API were down
+
+- **Symptom:** Header showed `up · Alpaca account RTT …` while scanners/charts could still look live; no single front door telling the user to get Nova API + IB Gateway up before trusting the desk or trading.
+- **Cause:** `cached_health` / API chip SoT was Alpaca `GET /v2/account`. Heal pieces (Start API, Gateway banner, spend badge) existed in isolation; no shared prerequisites checklist; bridge hardcoded `API_WEDGED` on `/mode` failure.
+- **Fix:** `mark_nova_process_health()` for API chip; remove Alpaca RTT + Alpaca header chip; `TradingPrerequisitesGate` blocks desk when API or Gateway down (no data wipe); bridge uses `diagnoseBackend`.
+- **Keywords:** Alpaca account RTT, API chip, nova_process, TradingPrerequisitesGate, API_DOWN, API_WEDGED, IB Gateway, trading prerequisites
+
+## 2026-08-03 -- Time & Sales Time/Price columns flush together
+
+- **Symptom:** In Stock View TIME & SALES, values looked like `09:35:024.3101` -- Time and Price had no gap (Size spacing was fine). Side/Exch were hidden.
+- **Cause:** Narrow-pane `@container md-pane (max-width: 200px)` set Time to `48px`. At ~0.85rem tabular-nums, `HH:MM:SS` overflows the cell and butts into Price. No `column-gap` on the grid.
+- **Fix:** Narrow Time column `48px` → `68px`; default Time `62px` → `72px`; `column-gap: 8px` on cols/rows; `white-space: nowrap` on `.ts-col--time` (`frontend/src/ibkr/marketData.css`).
+- **Keywords:** Time & Sales, tape, ts-panel, column-gap, md-pane, Time Price spacing, overflow
 
 ## 2026-07-31 -- Sentry ERROR-log flood made the product-bug inbox useless
 

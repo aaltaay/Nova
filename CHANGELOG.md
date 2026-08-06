@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-06 -- Trading desk usable-session, PIN lock, Orders Today
+
+- **What:** Shipped usable-session SoT (connected = usable), Nova-process API health (no Alpaca RTT chip), Gateway banner honesty, header trading PIN lock, account-wide Orders (Today), place-dialog skip-confirm, T&S column fix, ops script alignment.
+- **Why:** Desk showed false login/API readiness and hid fills/locks behind wrong scopes.
+- **Files touched:** ackend/health_status.py, ackend/ibkr/*, header/IBKR frontend modules, OrdersToday*, AppDialogHost*, scripts, PROBLEM_LOG/task-log.
+- **How it works now:** /api/ibkr/status.connected means usable; API chip is local process; trading unlock is one session bus; Orders (Today) is account-wide.
+- **Verified by:** pytest trading/health suites; Vitest header/banner/PIN/orders/dialog suites (40 passed).
+- **Related:** PROBLEM_LOG 2026-08-03/04 entries; task-log usable-session + trading-prerequisites.
+
 ## 2026-08-06 -- Engineering methodology graft (Superpowers + Addy skills)
 
 - **What:** Grafted Nova-adapted process skills and always-on rules: verification-before-completion, writing-plans (Superpowers lineage); interview-me, doubt-driven-development, code-review-and-quality (Addy lineage). Added `engineering-methodology.mdc` (soft TDD + skill map), tightened self-annealing, catalog/pins/`AGENTS.md` index, and `tools/engineering_skills_audit.py` (+ CI).
