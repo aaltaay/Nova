@@ -51,6 +51,7 @@ Other names are **unmanaged**. Merge unique content into home/`agent-*`, retarge
 - Preserve Obsidian `[[wikilinks]]` and CHANGELOG / PROBLEM_LOG prepend templates.
 - Preserve `knowledge/task-log/` INDEX newest-first order and the **Why this approach** section (never strip reasoning).
 - After writes: concise per-file summary + reason.
+- **Posture changes** (hosting, discovery SoT, roadmap NEXT, trading gates): update live homes in the same commit and keep `py -3 tools/doc_invariants.py` green -- see `doc-invariants.mdc`.
 
 ## Sibling boundaries
 

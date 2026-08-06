@@ -30,6 +30,26 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-05 -- Doc invariants CI gate (anti-stale live docs)
+
+- **What:** Added `tools/doc_invariants.py` (regex gate on live docs) wired into GitHub Actions `agent-contract` job; always-on `doc-invariants.mdc`; fixed High stale claims so the gate is green (trading wording, compliance table, Alpaca scanner `.env` line, ZAP tip, roadmap scope guard, `findings.md` banner, CORS audit copy).
+- **Why:** Ops posture changed (no Railway backend; IBKR SoT) while live docs lagged; need machine enforcement, not memory.
+- **Files touched:** `tools/doc_invariants.py`, `tools/test_doc_invariants.py`, `.github/workflows/deploy.yml`, `.cursor/rules/doc-invariants.mdc`, `AGENTS.md`, `README.md`, `.env.example`, continuity/security docs.
+- **How it works now:** `py -3 tools/doc_invariants.py` must pass in CI. Historical CHANGELOG/PROBLEM_LOG/task-log are not scanned. Posture changes update live homes in the same commit per `doc-invariants.mdc`.
+- **Verified by:** `py -3 tools/doc_invariants.py` OK; `pytest tools/test_doc_invariants.py` 6 passed.
+- **Follow-ups:** Optionally expand invariants for Dockerfile/Railway volume comments; banner remaining Obsidian Alpaca soft-toggle bodies.
+- **Related:** `knowledge/task-log/2026-08-05-doc-invariants-ci-gate.md`
+
+## 2026-08-05 -- Deploy docs: backend local-only, Railway retired
+
+- **What:** Corrected live docs and CI so agents stop treating Railway as the backend host. Backend is local / Desktop sidecar only; Vercel remains optional for static frontend.
+- **Why:** Stale `AGENTS.md` / `README.md` / workflow still claimed Railway cloud deploy after ops moved off it.
+- **Files touched:** `AGENTS.md`, `README.md`, `.env.example`, `frontend/.env.example`, `.github/workflows/deploy.yml`, `railway.toml*`, `commit-push-deploy.mdc`, `.cursor/agents/security.md`, related comments/scripts.
+- **How it works now:** Run API locally (`Run Nova.bat` / Desktop / uvicorn). GitHub Actions is CI-only (no Railway deploy job). Legacy `railway.toml` files are marked deprecated.
+- **Verified by:** Doc/config review; workflow no longer contains a Deploy-to-Railway job.
+- **Follow-ups:** Optional delete of deprecated `railway.toml*` and `check-railway-api-base.mjs` once no env still sets `RAILWAY_*`.
+- **Related:** `knowledge/task-log/2026-08-05-retire-railway-deploy-docs.md`
+
 ## 2026-08-04 -- HOD Momo rows sort by TIME column (not emit lag)
 
 - **What:** `collapseAlertsBySymbol` pins first-catch and sorts by trade `timestamp` (the TIME column), not delayed `created_ts`. Burst gap uses the same clock.

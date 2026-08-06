@@ -1,5 +1,7 @@
-# Used when the service "Config as code" path is /backend/railway.toml and
-# Root Directory is `backend`. Docker avoids Railpack guessing wrong.
+# DEPRECATED (2026-08-05): Nova no longer hosts the backend on Railway.
+# Do not point a Railway service Config-as-code path here. Local / Desktop only.
+# See AGENTS.md §8 and README.md Deploy.
+
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"

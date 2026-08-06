@@ -18,7 +18,7 @@ Update this file whenever a tool is upgraded; keep it in sync with `tools/securi
 ### Gitleaks
 
 - **GitHub:** https://github.com/gitleaks/gitleaks
-- **Role:** Git history secret scanning. Scans commits and working tree for leaked credentials (API keys, tokens, private keys). Runs before every deploy.
+- **Role:** Git history secret scanning. Scans commits and working tree for leaked credentials (API keys, tokens, private keys). Runs in CI on every push/PR.
 - **Install:** `winget install gitleaks` / binary release from GitHub releases
 - **Invoked as:** `gitleaks detect --source <repo> --report-format json --report-path -`
 - **Pin target:** ≥ 8.25.0

@@ -144,7 +144,7 @@ docker run --rm --network host `
 **Before running ZAP:**
 
 1. Start Nova dev server (`Run Nova.bat`)
-2. Confirm IB Gateway is **disconnected** or use `discovery=alpaca` mode
+2. Confirm IB Gateway is **disconnected** (do not run ZAP against a live IBKR session)
 3. Run ZAP baseline only — no `-a` (active) flag
 4. Review `zap-baseline-report.html` in `.tmp/`
 

@@ -217,16 +217,17 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 
 | Service | Purpose | Status |
 |---------|---------|--------|
-| Alpaca API | Source of truth for market data | ✅ Verified |
-| Web UI (Localhost) | Delivery dashboard for gappers | ✅ Verified |
+| Alpaca API | News + listing metadata (not price discovery) | ✅ Verified |
+| IB Gateway (local) | Scanner discovery + market data + optional orders | ✅ Verified |
+| Web UI (Localhost / Desktop) | Delivery dashboard for gappers | ✅ Verified |
 | yfinance | Fundamental data (float, short interest, etc.) | ✅ Verified |
-| Railway | Cloud deployment | ✅ Verified |
+| Vercel | Optional hosted frontend (web) only | ✅ Optional |
 
 ---
 
 ## 5. 📋 Behavioral Rules (Enforced)
 
-- **Read-Only Mode**: The system only reads market data from API and does not execute or manipulate trades.
+- **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7); paper is the default; `auto_live` remains NO-GO.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
 - **Git Commit & Push After Every Task**: After completing any task, the assistant MUST run `git add .`, `git commit -m "<descriptive message>"`, and `git push origin master`. No exceptions — the user should never have to remind this.
@@ -330,11 +331,11 @@ cd frontend && npm run electron:pack
 # Open: http://localhost:5173
 ```
 
-### Deploy (Railway / Vercel)
+### Deploy
 
-- Backend: auto-deploys from `master` branch (Railway).
-- Frontend (web): Vite build via Vercel Git integration.
-- Desktop: local installer only (not hosted on Vercel/Railway).
+- **Backend:** local only right now -- no cloud host (not Railway, not another PaaS). Run via `Run Nova.bat`, Desktop sidecar, or local uvicorn on `127.0.0.1:8000`.
+- **Frontend (web):** optional Vercel Git integration for the static UI. Point `VITE_API_BASE_URL` only if a reachable API exists; default local stack uses `http://localhost:8000`.
+- **Desktop:** Electron + local API sidecar (installer under `frontend/release/`).
 
 ---
 
@@ -354,10 +355,7 @@ When ANY error occurs during a task:
 
 ## 10. 🚨 Compliance Audit (Current Violations)
 
-| Violation | Severity | Rule Violated | Status |
-|-----------|----------|---------------|--------|
-| No `architecture/` directory exists | 🟡 Warning | §1.5 | Create when needed |
-| No automated tests exist | 🟡 Warning | §6.4 | Add incrementally |
+No open constitution compliance rows. `architecture/` (ADRs 001–009) and automated tests (pytest + Vitest) exist. Product/security open work lives in `Nova-Roadmap-Status.md` and `Security-Status.md`. Live-doc drift is gated by `py -3 tools/doc_invariants.py` (CI).
 
 ---
 
@@ -365,6 +363,8 @@ When ANY error occurs during a task:
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-08-05 | Doc invariants: `tools/doc_invariants.py` + CI gate; §5 trading wording + §10 compliance table corrected; posture-change rule in `doc-invariants.mdc`. | User Directive + Cursor Agent |
+| 2026-08-05 | Deploy truth: Railway retired from live docs. Backend is local-only (no cloud host); Vercel remains optional for static frontend only. §4 / §8 updated. | User Directive + Cursor Agent |
 | 2026-07-29 | Token economy: §12 no longer embeds full .mdc copies (stale duplicates of live rules). Replaced with a compact index pointing at `.cursor/rules/*.mdc`. Attachment modes: always-on vs glob vs agent-requested. Do not create `.cursorrules`. | Cursor Agent |
 | 2026-07-28 | Short-entry invariant (Phase K / ADR 009): Invariant #7 amended -- SELL is risk-reducing unless explicit `short_entry` + `IBKR_SHORT_ENABLED` + fresh IBKR shortability; `auto_live` still NO-GO. | User Directive + Cursor Agent |
 | 2026-07-28 | Co-Pilot Coaching Footer extended: §5 now requires two end-of-reply paragraphs -- **Better ask:** (request feedback + one new thing) and **Follow-up ask:** (a concrete next question about this problem/answer + why it is the highest-value follow-up). | User Directive + Cursor Agent |
@@ -451,6 +451,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `change-log.mdc` -- CHANGELOG after behavior changes
 - `task-log.mdc` -- task-log narrative after material work
 - `commit-push-deploy.mdc` -- commit + push (+ deploy when applicable) at task end
+- `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`
 - `self-annealing.mdc` -- root-cause fix protocol on any error
 
 **Glob-scoped** (attach when editing matching files; `alwaysApply: false`):

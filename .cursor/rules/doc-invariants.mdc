@@ -1,0 +1,33 @@
+---
+description: Keep live ops docs truthful -- posture changes update live homes; CI doc_invariants gate
+alwaysApply: true
+---
+
+# Doc invariants (anti-stale live docs)
+
+Historical CHANGELOG / PROBLEM_LOG / task-log may narrate past Railway or Alpaca eras. **Live** docs must not.
+
+## Live homes (update in the same commit as the posture change)
+
+| Fact | Authoritative home |
+|------|--------------------|
+| Where the API runs / deploy | `AGENTS.md` §8 (+ `README.md` Deploy) |
+| Market-data / scanner SoT | `.cursor/rules/single-market-data-feed.mdc` |
+| Roadmap NEXT / phase scope | `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` |
+| Trading gates / `auto_live` | `AGENTS.md` Invariant #7 + ADR 007/009 |
+
+When hosting, discovery provider, phase NEXT, or trading posture changes: update the matching live home(s) in the **same commit**. CHANGELOG alone is not enough.
+
+## Machine gate
+
+```text
+py -3 tools/doc_invariants.py
+```
+
+Wired in GitHub Actions (`agent-contract` job). Do not weaken patterns to silence a real drift -- fix the live doc or deliberately revise the invariant with evidence.
+
+## Do not
+
+- Restate deploy/hosting truth in many Obsidian notes (link the live home; banner archives).
+- Treat `findings.md` or old decision bodies as current law when they conflict with the table above.
+- Reintroduce Railway as the backend host, Alpaca as scanner SoT, or an absolute no-trading claim that ignores gated IBKR execution.

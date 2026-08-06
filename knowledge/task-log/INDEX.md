@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-05 | [Doc invariants CI gate](2026-08-05-doc-invariants-ci-gate.md) | Live-doc regex gate + Actions wiring; High stale claims fixed |
+| 2026-08-05 | [Retire Railway from live deploy docs](2026-08-05-retire-railway-deploy-docs.md) | Backend local-only; Railway retired from live docs/CI |
 | 2026-08-04 | [HOD Momo sort by TIME not emit lag](2026-08-04-hod-momo-time-sort.md) | HOD Momo sort by TIME not emit lag |
 | 2026-08-04 | [IBKRPRO up but Nova prereq false login / stuck synchronizing](2026-08-04-ibkr-prereq-false-login.md) | IBKRPRO up but Nova prereq false login / stuck synchronizing |
 | 2026-08-03 | [MASTER TEST QTY GATE (force one share)](2026-08-03-force-one-share-qty-gate.md) | IBKR_FORCE_ONE_SHARE clamps place/bracket to 1 share |

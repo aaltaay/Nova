@@ -58,7 +58,7 @@ def check_ci_missing_security_jobs() -> list[RawFinding]:
         " A warning-only security-audit job already runs tools/security_audit.py;"
         " add dedicated scanner steps next."
         if has_sentinel_job
-        else " Add gitleaks, osv-scanner, and semgrep steps before the deploy job."
+        else " Add gitleaks, osv-scanner, and semgrep steps to the CI workflow."
     )
     return [
         RawFinding(

@@ -131,8 +131,8 @@ def check_cors_wildcard() -> list[RawFinding]:
                     detail=(
                         f"{rel_path} sets CORS_ALLOWED_ORIGINS_DEFAULT = [\"*\"], which allows "
                         "any web origin to make cross-origin requests to the API. This is acceptable "
-                        "in pure local-dev, but becomes a high-risk misconfiguration if the API is "
-                        "deployed to Railway without setting NOVA_CORS_ALLOWED_ORIGINS in the env."
+                        "in pure local-dev, but becomes a high-risk misconfiguration if the API binds "
+                        "beyond loopback (or is cloud-exposed) without NOVA_CORS_ALLOWED_ORIGINS set."
                     ),
                     severity="high",
                     location=location(rel_path, line),

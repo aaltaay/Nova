@@ -1,6 +1,8 @@
-# Root config for monorepo deploys when Railway does not use a subdirectory as
-# the service root. Forces Docker so Railpack is not asked to infer Python
-# from the repo root (where there is no requirements.txt).
+# DEPRECATED (2026-08-05): Nova no longer hosts the backend on Railway.
+# Kept only so old dashboard links do not confuse operators; do not wire new
+# services to this file. Backend runs locally / Desktop sidecar only.
+# See AGENTS.md §8 and README.md Deploy.
+
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"

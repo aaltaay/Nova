@@ -1,6 +1,6 @@
 # Nova
 
-Stock alert automation system (read-only market data; does not execute trades).
+Stock alert automation: IBKR scanner/market data locally, optional gated IBKR orders (paper default), Alpaca for news/listing only. `auto_live` is NO-GO.
 
 ## Open the app (Windows)
 
@@ -39,10 +39,10 @@ The packaged app stores Alpaca keys and cache under `%APPDATA%\Nova\` (`.env`, `
 
 - In `frontend/`, run `npm install` if you have not already.
 - Ensure Python can run the backend (`py -3` or `python` on PATH) for browser/dev mode.
-- Copy `.env.example` → `.env` and set Alpaca keys (`APCA_API_KEY_ID`, `APCA_API_SECRET_KEY`, etc.).
+- Copy `.env.example` → `.env`. IB Gateway is required for scanner/prices. Alpaca keys (`APCA_API_KEY_ID`, `APCA_API_SECRET_KEY`) are for news/listing metadata.
 
-### Deploy (hosted web)
+### Deploy
 
-- **Frontend (web):** Vercel project `nova` (Git push).
-- **Backend (cloud):** Railway (see `.github/workflows/deploy.yml`).
-- **Desktop:** local sidecar only — not deployed to Vercel/Railway.
+- **Backend:** local only -- no cloud host right now. Use `Run Nova.bat`, Desktop, or uvicorn on `127.0.0.1:8000`.
+- **Frontend (web):** optional Vercel project `nova` (Git push) for the static UI.
+- **Desktop:** Electron + local API sidecar -- not a cloud backend.

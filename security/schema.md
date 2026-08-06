@@ -21,7 +21,7 @@ All findings stored in `security/findings-registry.json` conform to this schema.
 | `redacted_evidence` | string | no | Short verbatim snippet from source with any secret-looking values masked to `***REDACTED***`. Max 500 chars. |
 | `first_seen` | string (ISO 8601) | yes | Date of first discovery, e.g. `2026-07-16`. |
 | `last_seen` | string (ISO 8601) | yes | Date of most recent confirmation during a scan. Updated on every scan where the finding is still present. |
-| `compensating_controls` | string | no | Describe any compensating controls that reduce the effective risk (e.g. "only accessible on localhost in dev; Railway env disables this route"). |
+| `compensating_controls` | string | no | Describe any compensating controls that reduce the effective risk (e.g. "only accessible on localhost / Desktop sidecar; public bind requires NOVA_API_KEY"). |
 | `acceptance_rationale` | string | conditional | Required when `status` is `accepted` or `false_positive`. Explains why the risk is acceptable. |
 | `review_by` | string | conditional | ISO 8601 date by which an accepted finding must be re-reviewed. Required for `accepted` findings. |
 | `evidence_commit` | string | no | Git commit SHA at which the evidence was recorded. |

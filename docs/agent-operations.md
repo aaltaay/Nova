@@ -29,6 +29,8 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 |------|---------|
 | Validate all agents | `py -3 tools/agent_contract.py` |
 | Validate (CI mode, skip external canvas files) | `py -3 tools/agent_contract.py --ci` |
+| Live-doc invariants (stale deploy/SoT claims) | `py -3 tools/doc_invariants.py` |
+| Live-doc invariant unit tests | `py -3 -m pytest tools/test_doc_invariants.py -q` |
 | Sync canvas snapshots (dry-run) | `py -3 tools/sync_agent_surfaces.py` |
 | Sync canvas snapshots (write) | `py -3 tools/sync_agent_surfaces.py --write` |
 | Scaffold a new agent (dry-run) | `py -3 tools/create_nova_agent.py --id <id> --title "…" --domain "…"` |

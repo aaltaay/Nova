@@ -1,7 +1,7 @@
 /**
- * After `vite build`, write dist/config.json so production can load the API
- * base at runtime even when Vite did not inline VITE_API_BASE_URL (e.g. some
- * Railway/Nixpacks build env quirks). Reads the same env as the Vite build.
+ * After `vite build`, write dist/config.json so a hosted static UI can load the
+ * API base at runtime when Vite did not inline VITE_API_BASE_URL. Reads the
+ * same env as the Vite build. Local / Desktop usually use localhost:8000.
  */
 import fs from 'node:fs';
 import path from 'node:path';

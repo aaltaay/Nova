@@ -41,7 +41,7 @@ Nova OS engine internals (decide/control_mode/archive code bugs) still use `.cur
 
 ## Scope guard
 
-- Implement only the **active** roadmap phase from `Nova-Roadmap-Status.md` / the Master Roadmap plan.
-- Do not ship Phase D–G features while Phase B is NEXT unless the user explicitly redirects.
+- Implement only the **active** roadmap phase from `Nova-Roadmap-Status.md` (SSOT for NEXT; master plan file may be absent).
+- Phase B is **waived** -- do not treat shadow-ops Phase B as product NEXT unless the ledger says so again.
 - Do not reopen shipped work (Nova OS P0–P10, Phase H workspace 0–6, HOD/Stock View harden) without a proven regression.
-- Do not promote Phases K–Z without updating the Master Roadmap plan and getting user direction.
+- Do not promote L–Z parking-lot phases without updating `Nova-Roadmap-Status.md` and getting user direction.

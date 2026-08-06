@@ -1,22 +1,25 @@
-# 🔬 findings.md — Research & Discovery Log
+# 🔬 findings.md -- Research & Discovery Log
+>
+> **HISTORICAL (2026-04).** Not current product law.
+> Live SoT: `AGENTS.md`, `.cursor/rules/single-market-data-feed.mdc` (IBKR prices/scanner; Alpaca news/listing only).
 >
 > **Project:** Stock Alert Automation System
-> **Status:** Blueprint in Progress
-> **Last Updated:** 2026-04-13
+> **Status:** Archived discovery answers
+> **Last Updated:** 2026-08-05 (banner only)
 
 ---
 
 ## Discovery Answers
 >
-> ✅ RECORDED ON 2026-04-14
+> ✅ RECORDED ON 2026-04-14 (superseded for market-data SoT)
 
 | Question | Answer |
 |----------|--------|
 | North Star (singular outcome) | Identify gappers (stocks gapping up from previous day) from pre-market until market open. |
 | Integrations (external services) | Alpaca API, local web server. |
-| Source of Truth (primary data) | Alpaca Market Data API. |
+| Source of Truth (primary data) | HISTORICAL answer was Alpaca; current SoT is IBKR Gateway (see single-market-data-feed.mdc). |
 | Delivery Payload (how/where results go) | Local web dashboard with API health status and config. |
-| Behavioral Rules (tone, logic constraints) | Read-only mode for market data; stops updating once market opens. |
+| Behavioral Rules (tone, logic constraints) | HISTORICAL read-only scan era; gated IBKR orders exist now (Invariant #7); `auto_live` NO-GO. |
 
 ---
 

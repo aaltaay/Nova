@@ -1,32 +1,24 @@
-# CI + Railway deploy
+# CI (no cloud backend deploy)
 #
-# On every push to main and on PRs targeting main:
-#   1. backend-test  — install Python deps, run pytest (no tests = OK, real failures block)
-#   2. frontend-build — npm ci + vite build (catches TypeScript / import errors)
-#   3. deploy (main push only, after both jobs pass) — Railway CLI deploy
+# Backend is local / Desktop sidecar only -- Railway hosting is retired.
+# On every push to main/master and on PRs targeting those branches:
+#   1. backend-test   -- install Python deps, run pytest (no tests = OK, real failures block)
+#   2. frontend-build -- npm ci + vite build (catches TypeScript / import errors)
+#   3. security / agent-contract jobs (warning-only where noted)
+#   4. doc_invariants.py inside agent-contract (blocks stale live-doc claims)
 #
-# Optional GitHub secret (omit if you only deploy via Railway’s Git integration):
-#   RAILWAY_TOKEN       — Railway CLI token: https://railway.com/account/tokens
-#                         Repo → Settings → Secrets and variables → Actions → New secret
-#                         If missing or invalid, the deploy job is skipped or fails respectively.
-#
-# Required GitHub variables (Settings → Variables → Actions):
-#   RAILWAY_SERVICE_NAME   — name of the Railway service (e.g. "backend")
-#   VITE_API_BASE_URL      — public HTTPS URL of the Railway backend for the
-#                            frontend build, e.g. https://backend.up.railway.app
-#
-# IMPORTANT: When this workflow is active, disable Railway's built-in
-# "Deploy on push" in the Railway dashboard (Service → Settings → Source)
-# to avoid duplicate deploys on every push to main.
+# Optional GitHub variable (Settings → Variables → Actions):
+#   VITE_API_BASE_URL -- override for frontend CI build; defaults to a placeholder.
+# Optional static frontend host: Vercel Git integration (not this workflow).
 
-name: CI / Deploy
+name: CI
 
 on:
   push:
     branches: [main, master]
   pull_request:
     branches: [main, master]
-  # Lets you run CI from Actions → CI / Deploy → “Run workflow” when nothing has triggered yet
+  # Lets you run CI from Actions → CI → “Run workflow” when nothing has triggered yet
   workflow_dispatch:
 
 jobs:
@@ -77,8 +69,7 @@ jobs:
         working-directory: frontend
 
       - name: Build
-        # Default URL keeps vite/meta/postbuild happy when Actions var is unset
-        # (Railway still injects the real VITE_API_BASE_URL on Railway builds).
+        # Default URL keeps vite/meta/postbuild happy when Actions var is unset.
         run: |
           export VITE_API_BASE_URL="${VITE_API_BASE_URL:-https://ci-placeholder.invalid}"
           npm run build
@@ -170,36 +161,11 @@ jobs:
         run: pip install pytest
 
       - name: Agent tool tests
-        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py -q --tb=short
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py -q --tb=short
 
       - name: Structural validation (CI mode)
         # --ci skips user-local canvas file existence (canvases live outside the repo).
         run: python tools/agent_contract.py --ci
 
-  deploy:
-    name: Deploy to Railway
-    # security-audit is intentionally excluded from needs[] so deploy is never blocked by it.
-    # Add security-audit here (with continue-on-error on that job) when baseline is accepted.
-    needs: [backend-test, frontend-build]
-    runs-on: ubuntu-latest
-    # Only deploy on direct pushes to main/master, not on PRs.
-    # Skip when RAILWAY_TOKEN is unset (Railway’s native Git deploy still runs on Railway).
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy backend service
-        # --detach: don't wait for the deployment to finish (Railway streams
-        # build logs in the dashboard; CI just triggers and moves on).
-        run: |
-          if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "RAILWAY_TOKEN is unset. Skipping Railway CLI deploy."
-            exit 0
-          fi
-          railway up --service "$RAILWAY_SERVICE_NAME" --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_SERVICE_NAME: ${{ vars.RAILWAY_SERVICE_NAME }}
+      - name: Doc invariants (live docs must not re-introduce stale claims)
+        run: python tools/doc_invariants.py

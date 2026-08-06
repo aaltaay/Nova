@@ -11,7 +11,7 @@ Copy one row into `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` 
 | **Date (ET session)** | YYYY-MM-DD |
 | **Modes used** | `signal` → `confirm` → `auto_paper` (note which hours) |
 | **IB Gateway** | paper port connected? Y/N — API port |
-| **Discovery provider** | `ibkr` / `alpaca` |
+| **Discovery provider** | `ibkr` (required; Alpaca is not a scanner source) |
 | **Signals seen** | count + setups (gap_and_go / bull_flag / abcd) |
 | **Staged / approved** | count staged; count approved; count rejected |
 | **Paper fills** | count closed brackets (non-mock journal) |
