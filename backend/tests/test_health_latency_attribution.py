@@ -1,4 +1,4 @@
-"""Top-level RTT remains honestly attributed to Alpaca account health."""
+"""Top-level /api/health is Nova process -- not Alpaca account RTT."""
 from __future__ import annotations
 
 import asyncio
@@ -10,8 +10,25 @@ import observability
 import routes.health as health_routes
 
 
-def test_ping_health_labels_alpaca_account_rtt(monkeypatch):
+def test_mark_nova_process_health_labels_process_source(monkeypatch):
     state = SimpleNamespace(cached_health={})
+    monkeypatch.setattr(health_status, "get_runtime_state", lambda: state)
+
+    health_status.mark_nova_process_health()
+    assert state.cached_health["status"] == "connected"
+    assert state.cached_health["health_source"] == "nova_process"
+    assert state.cached_health["latency_source"] == "none"
+
+
+def test_ping_health_does_not_overwrite_api_chip(monkeypatch):
+    state = SimpleNamespace(
+        cached_health={
+            "status": "connected",
+            "latency_ms": 0,
+            "health_source": "nova_process",
+            "latency_source": "none",
+        }
+    )
     monkeypatch.setattr(health_status, "get_runtime_state", lambda: state)
     monkeypatch.setattr(
         health_status.requests,
@@ -20,17 +37,18 @@ def test_ping_health_labels_alpaca_account_rtt(monkeypatch):
     )
 
     assert health_status.ping_health("https://example.test", {"key": "x"}) is True
-    assert state.cached_health["health_source"] == "alpaca_account_api"
-    assert state.cached_health["latency_source"] == "alpaca_account_http"
+    assert state.cached_health["health_source"] == "nova_process"
 
 
-def test_health_api_distinguishes_rtt_from_market_data_source(monkeypatch):
-    state = SimpleNamespace(cached_health={
-        "status": "connected",
-        "latency_ms": 12,
-        "health_source": "alpaca_account_api",
-        "latency_source": "alpaca_account_http",
-    })
+def test_health_api_distinguishes_process_from_market_data_source(monkeypatch):
+    state = SimpleNamespace(
+        cached_health={
+            "status": "connected",
+            "latency_ms": 0,
+            "health_source": "nova_process",
+            "latency_source": "none",
+        }
+    )
     monkeypatch.setattr(health_routes, "get_runtime_state", lambda: state)
     monkeypatch.setattr(health_routes, "_get_discovery_provider", lambda: "ibkr")
     monkeypatch.setattr(health_routes, "_get_feed", lambda: "iex")
@@ -40,5 +58,5 @@ def test_health_api_distinguishes_rtt_from_market_data_source(monkeypatch):
     payload = asyncio.run(health_routes.health_check())
 
     assert payload["market_data_source"] == "ibkr"
-    assert payload["latency_source"] == "alpaca_account_http"
-    assert payload["health_source"] == "alpaca_account_api"
+    assert payload["latency_source"] == "none"
+    assert payload["health_source"] == "nova_process"

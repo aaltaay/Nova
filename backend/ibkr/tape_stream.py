@@ -193,7 +193,7 @@ async def subscribe_async(symbol: str) -> dict:
     symbol = symbol.upper()
     ib = _client.get_ib()
     if ib is None:
-        return {"ok": False, "error": "IBKR not connected"}
+        return {"ok": False, "error": _client.unavailable_detail("IBKR tape")}
     if not _load_ib_types():
         return {"ok": False, "error": "ib_async not available"}
 

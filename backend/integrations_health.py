@@ -13,30 +13,21 @@ def build_integrations_status() -> dict[str, Any]:
     """Snapshot of third-party / aux APIs Nova may call.
 
     Status vocabulary: ok | off | error | unknown
-    Never implies a chip is the live price feed.
+    Never implies a chip is the live price feed. Alpaca is aux only and must
+    not drive the top-level API chip (see health_status.mark_nova_process_health).
     """
     from alpaca import _alpaca_headers, _env
     from ibkr import client as _ibkr_client
     from news.ai_reasoning import _is_enabled as lincoln_enabled
-    from runtime_state import get_runtime_state
 
-    state = get_runtime_state()
-    health = state.cached_health or {}
-    h_status = str(health.get("status") or "")
     keys = bool(_alpaca_headers())
-
     if not keys:
-        alpaca = _chip("off", "APCA keys not configured")
-    elif h_status == "connected":
-        lat = health.get("latency_ms")
+        alpaca = _chip("off", "APCA keys not configured — news/listing aux unavailable")
+    else:
         alpaca = _chip(
             "ok",
-            f"Account ping ok{f' · {lat}ms' if lat else ''} — news/listing/RVOL aux, not live prices",
+            "APCA keys present — news/listing/RVOL aux, not live prices or API health",
         )
-    elif h_status in ("error", "disconnected"):
-        alpaca = _chip("error", str(health.get("message") or h_status))
-    else:
-        alpaca = _chip("unknown", "Alpaca health not checked yet")
 
     if _ibkr_client.is_connected():
         ibkr = _chip("ok", "Gateway API connected — live prices when discovery=ibkr")
@@ -63,7 +54,6 @@ def build_integrations_status() -> dict[str, Any]:
     except Exception as exc:
         yf = _chip("error", f"yfinance unavailable: {exc}")
 
-    # Light R2/config probe only — never walk cold archive on every health poll.
     try:
         from archive.r2 import r2_enabled, r2_status
 

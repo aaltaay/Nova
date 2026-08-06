@@ -18,6 +18,7 @@ def test_build_integrations_status_shape(monkeypatch):
     assert set(out) >= {"alpaca", "ibkr", "openai", "yfinance", "archive"}
     assert out["alpaca"]["status"] == "ok"
     assert "not live prices" in out["alpaca"]["detail"]
+    assert "API health" in out["alpaca"]["detail"]
     assert out["openai"]["status"] == "off"
 
 

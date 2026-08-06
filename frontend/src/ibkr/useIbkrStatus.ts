@@ -6,6 +6,8 @@ import type { IbkrStatus } from './types';
 const DEFAULT: IbkrStatus = {
   enabled: false,
   connected: false,
+  transport_connected: false,
+  session_reason: 'disabled',
   mode: 'disconnected',
   orders_enabled: false,
   short_enabled: false,
@@ -17,6 +19,8 @@ const DEFAULT: IbkrStatus = {
 const SAMPLE_STATUS: IbkrStatus = {
   enabled: true,
   connected: true,
+  transport_connected: true,
+  session_reason: 'ok',
   mode: 'paper',
   orders_enabled: true,
   short_enabled: true,

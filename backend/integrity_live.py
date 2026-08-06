@@ -80,7 +80,8 @@ def build_hod_integrity_report() -> dict[str, Any]:
         **active_metrics,
         "universe_size": len(state.hod_momo_universe),
         "discovery_provider": provider,
-        "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
+        # Product usable (is_ready), not socket-only -- matches status.connected SoT.
+        "ibkr_connected": ibkr_client.is_ready() if provider == "ibkr" else None,
         "current_mode": (state.current_mode or "").strip().lower(),
         "delayed_data": _session_errors.is_delayed_data(),
         "max_tickers_hit": _session_errors.max_tickers_hit(),
@@ -127,7 +128,8 @@ def build_scanner_integrity_report() -> dict[str, Any]:
 
     snap = {
         "discovery_provider": provider,
-        "ibkr_connected": ibkr_client.is_connected() if provider == "ibkr" else None,
+        # Product usable (is_ready), not socket-only -- matches status.connected SoT.
+        "ibkr_connected": ibkr_client.is_ready() if provider == "ibkr" else None,
         "current_mode": (state.current_mode or "").strip().lower(),
         "gapper_count": len(state.gapper_cache),
         "gainer_count": len(state.gainer_cache),

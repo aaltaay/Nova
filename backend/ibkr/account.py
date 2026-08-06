@@ -60,7 +60,9 @@ def get_positions() -> list[dict]:
     """
     ib = _client.get_ib()
     if ib is None:
-        raise IbkrAccountError("IBKR not connected — cannot read positions")
+        raise IbkrAccountError(
+            f"{_client.unavailable_detail('IBKR')} -- cannot read positions"
+        )
     try:
         with timed_sync("ibkr.account.positions_read"):
             positions = ib.positions()
@@ -277,8 +279,13 @@ async def refresh_positions_cache(ib: object | None = None) -> None:
     if req is None:
         return
     try:
+        from constants_ibkr import IBKR_POSITIONS_TIMEOUT_SEC
+
         async with timed("ibkr.account.positions_refresh"):
-            await req()
+            await asyncio.wait_for(
+                req(),
+                timeout=float(IBKR_POSITIONS_TIMEOUT_SEC),
+            )
         logger.info("IBKR: positions cache refreshed after connect")
     except Exception as exc:
         logger.warning(
@@ -354,7 +361,9 @@ def get_portfolio() -> list[dict]:
     disconnect / API failure — see ``get_positions`` docstring."""
     ib = _client.get_ib()
     if ib is None:
-        raise IbkrAccountError("IBKR not connected — cannot read portfolio")
+        raise IbkrAccountError(
+            f"{_client.unavailable_detail('IBKR')} -- cannot read portfolio"
+        )
     try:
         with timed_sync("ibkr.account.portfolio_read"):
             portfolio = ib.portfolio()

@@ -23,6 +23,7 @@ def test_build_scanner_report_includes_current_mode(monkeypatch):
         "alpaca._get_discovery_provider",
         lambda: "ibkr",
     )
+    monkeypatch.setattr(ibkr_client, "is_ready", lambda: True)
     monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
     monkeypatch.setattr(ibkr_scanner_l1, "get_last_ok_ts", lambda: 1_700_000_000.0)
     monkeypatch.setattr(

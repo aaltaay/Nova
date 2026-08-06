@@ -29,7 +29,7 @@ import nova_os.events_db as _nova_os_events_db
 import strategy.executor as _executor
 import strategy.risk as _risk
 import strategy.setups_stream as _setups_stream
-from alpaca import _alpaca_headers, _env, _get_discovery_provider
+from alpaca import _alpaca_headers, _get_discovery_provider
 from cache import (
     _migrate_legacy_files,
     cleanup_old_snapshots,
@@ -46,7 +46,7 @@ from constants import (
 )
 import archive.db as _archive_db
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
-from health_status import ping_health, set_health_broker_keys_missing
+from health_status import mark_nova_process_health, set_health_broker_keys_missing
 from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
 from ibkr import scanner_l1 as _scanner_l1
@@ -150,27 +150,12 @@ def _init_databases() -> None:
     _hod_momo.set_blocklist_changed_hook(invalidate_universe_cache)
 
 
-async def _ping_alpaca_health() -> None:
-    base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
+async def _mark_nova_api_health() -> None:
+    """API chip SoT = Nova process. Alpaca keys are aux-only (warn, do not fail API)."""
+    mark_nova_process_health()
     headers = _alpaca_headers()
     if not headers:
         set_health_broker_keys_missing()
-        logger.warning(
-            "Alpaca credentials missing (APCA_API_KEY_ID / APCA_API_SECRET_KEY); "
-            "scanner cannot run until they are set in the host environment."
-        )
-        return
-    try:
-        await asyncio.wait_for(
-            asyncio.get_running_loop().run_in_executor(
-                None, lambda: ping_health(base_url, headers)
-            ),
-            timeout=8.0,
-        )
-    except asyncio.TimeoutError:
-        logger.warning("Alpaca health ping timed out after 8s — continuing bootstrap")
-    except Exception:
-        logger.exception("Alpaca health ping failed")
 
 
 async def _wait_ibkr_connected(budget_sec: float) -> bool:
@@ -269,7 +254,7 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
 async def _bootstrap_runtime() -> None:
     """Deferred after HTTP yield: network ping, IBKR, recovery, loops."""
     global _runtime_tasks
-    await _ping_alpaca_health()
+    await _mark_nova_api_health()
 
     await _ibkr_client.startup()
     # Prefer waiting ~one connect wall; never block HTTP (already yielded).

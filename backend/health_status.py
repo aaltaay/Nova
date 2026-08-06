@@ -1,63 +1,61 @@
-"""Alpaca account health ping against the explicit runtime-state owner."""
+"""Nova process health for /api/health -- not Alpaca, not IBKR Gateway.
+
+IBKR session lives on /api/ibkr/status. Alpaca account pings are aux-only
+(see ping_alpaca_account) and must never drive the API chip.
+"""
 from __future__ import annotations
 
-import math
-from datetime import datetime
+import logging
 
 import requests
 
 from constants_metrics import (
-    HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
-    HEALTH_SOURCE_ALPACA_ACCOUNT,
+    HEALTH_LATENCY_SOURCE_NONE,
+    HEALTH_SOURCE_NOVA_PROCESS,
 )
 from runtime_state import get_runtime_state
 
+logger = logging.getLogger(__name__)
 
-def set_health_broker_keys_missing() -> None:
-    """Alpaca headers unavailable — avoid leaving /api/health stuck on 'loading'."""
+
+def mark_nova_process_health() -> None:
+    """Record that the Nova API process is serving -- SoT for API chip 'up'."""
     state = get_runtime_state()
     state.cached_health = {
-        "status": "error",
+        "status": "connected",
         "latency_ms": 0,
-        "health_source": HEALTH_SOURCE_ALPACA_ACCOUNT,
-        "latency_source": HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
-        "message": (
-            "Broker API keys are not set on this server. "
-            "In Railway (Backend service → Variables), add APCA_API_KEY_ID and "
-            "APCA_API_SECRET_KEY, then redeploy or restart. "
-            "Until then, /api/health stays in this state instead of 'loading'."
-        ),
+        "health_source": HEALTH_SOURCE_NOVA_PROCESS,
+        "latency_source": HEALTH_LATENCY_SOURCE_NONE,
     }
 
 
-def ping_health(base_url: str, headers: dict) -> bool:
-    state = get_runtime_state()
-    start = datetime.now()
+def set_health_broker_keys_missing() -> None:
+    """Alpaca keys missing -- log only; do not mark Nova API as down.
+
+    Kept for call-site compatibility. News/listing aux may be degraded, but
+    the API chip and trading desk prerequisites do not depend on Alpaca.
+    """
+    logger.warning(
+        "Alpaca credentials missing (APCA_API_KEY_ID / APCA_API_SECRET_KEY); "
+        "news/listing/avg-vol aux unavailable until set. Nova API health is unchanged."
+    )
+    mark_nova_process_health()
+
+
+def ping_alpaca_account(base_url: str, headers: dict) -> bool:
+    """Probe Alpaca GET /v2/account for aux credential checks. Does not set API health."""
     try:
         r = requests.get(f"{base_url}/v2/account", headers=headers, timeout=5)
-        latency = math.floor((datetime.now() - start).total_seconds() * 1000)
-        if r.status_code == 200:
-            state.cached_health = {
-                "status": "connected",
-                "latency_ms": latency,
-                "health_source": HEALTH_SOURCE_ALPACA_ACCOUNT,
-                "latency_source": HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
-            }
-            return True
-        state.cached_health = {
-            "status": "error",
-            "latency_ms": latency,
-            "health_source": HEALTH_SOURCE_ALPACA_ACCOUNT,
-            "latency_source": HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
-            "message": f"Alpaca HTTP {r.status_code}: {(r.text or '')[:200]}",
-        }
+        return r.status_code == 200
+    except Exception:
+        logger.debug("Alpaca account ping failed", exc_info=True)
         return False
-    except Exception as e:
-        state.cached_health = {
-            "status": "disconnected",
-            "latency_ms": 0,
-            "health_source": HEALTH_SOURCE_ALPACA_ACCOUNT,
-            "latency_source": HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
-            "message": str(e),
-        }
-        return False
+
+
+def ping_health(base_url: str, headers: dict) -> bool:
+    """Backward-compatible alias for aux Alpaca credential gates.
+
+    Legacy name used by alpaca_scanner / afterhours. Does **not** write
+    cached_health -- call mark_nova_process_health for the API chip.
+    """
+    return ping_alpaca_account(base_url, headers)

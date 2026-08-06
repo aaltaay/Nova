@@ -23,8 +23,12 @@ async def subscribe_async(symbol: str) -> dict:
     Qualify + subscribe to Level 2 (or L1 fallback).
     Safe under FastAPI's running event loop.
     """
-    if not _client.is_connected():
-        return {"ok": False, "error": "IBKR not connected", "symbols": state.subscribed_symbols()}
+    if not _client.is_ready():
+        return {
+            "ok": False,
+            "error": _client.unavailable_detail("IBKR depth"),
+            "symbols": state.subscribed_symbols(),
+        }
 
     async with state.get_subscribe_lock():
         if symbol in state._subscriptions:
@@ -53,7 +57,7 @@ async def subscribe_async(symbol: str) -> dict:
         if ib is None:
             return {
                 "ok": False,
-                "error": "IBKR not connected",
+                "error": _client.unavailable_detail("IBKR depth"),
                 "symbols": state.subscribed_symbols(),
             }
 

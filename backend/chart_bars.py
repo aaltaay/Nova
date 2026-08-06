@@ -41,14 +41,20 @@ def fetch_chart_bars(
     """
     symbol = symbol.upper()
     if discovery_provider == "ibkr":
-        if not _ibkr_client.is_connected():
-            raise HTTPException(
-                status_code=503,
-                detail=(
+        # Usable session (is_ready / get_ib), not socket-only is_connected.
+        if not _ibkr_client.is_ready():
+            reason = _ibkr_client.session_reason()
+            if not _ibkr_client.is_connected():
+                detail = (
                     "Chart bars require IB Gateway (discovery=ibkr). "
                     "Connect Gateway -- Nova will not fall back to Alpaca."
-                ),
-            )
+                )
+            else:
+                detail = (
+                    f"Chart bars unavailable: IBKR session not usable ({reason}). "
+                    "Nova will not fall back to Alpaca."
+                )
+            raise HTTPException(status_code=503, detail=detail)
         # Allow a little headroom beyond the IB request timeout for qualify + lock wait.
         run_timeout = IBKR_HISTORICAL_TIMEOUT_SEC + (5.0 if interactive else 2.0)
         try:

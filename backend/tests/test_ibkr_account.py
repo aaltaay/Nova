@@ -50,7 +50,8 @@ class _FakeSummaryItem:
 
 def test_get_positions_raises_when_disconnected(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
-    with pytest.raises(IbkrAccountError, match="not connected"):
+    monkeypatch.setattr(client_mod, "is_connected", lambda: False)
+    with pytest.raises(IbkrAccountError, match="transport down|not connected"):
         account_mod.get_positions()
 
 
@@ -146,7 +147,8 @@ def test_long_qty_sums_longs_ignores_flat_and_short(monkeypatch):
 
 def test_long_qty_raises_when_positions_unavailable(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
-    with pytest.raises(IbkrAccountError, match="not connected"):
+    monkeypatch.setattr(client_mod, "is_connected", lambda: False)
+    with pytest.raises(IbkrAccountError, match="transport down|not connected"):
         account_mod.long_qty("SPY")
 
 
@@ -181,7 +183,8 @@ def test_positions_for_ui_joins_mtm_from_portfolio(monkeypatch):
 
 def test_get_portfolio_raises_when_disconnected(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
-    with pytest.raises(IbkrAccountError, match="not connected"):
+    monkeypatch.setattr(client_mod, "is_connected", lambda: False)
+    with pytest.raises(IbkrAccountError, match="transport down|not connected"):
         account_mod.get_portfolio()
 
 

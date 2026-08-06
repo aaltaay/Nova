@@ -25,13 +25,13 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
         checks.append(check(
             "scanner_feed",
             "fail",
-            "discovery=ibkr but Gateway disconnected -- scanners will look empty",
+            "discovery=ibkr but IBKR session not usable -- scanners will look empty",
         ))
     else:
         checks.append(check(
             "scanner_feed",
             "pass",
-            f"provider={provider or 'unknown'} connected={ibkr_ok} mode={mode or 'unknown'}",
+            f"provider={provider or 'unknown'} usable={ibkr_ok} mode={mode or 'unknown'}",
         ))
 
     bridge_err = (snap.get("ibkr_bridge_last_error") or "").strip()

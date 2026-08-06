@@ -17,8 +17,8 @@ from constants import (
     TOP_N_DEFAULT,
 )
 from constants_metrics import (
-    HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
-    HEALTH_SOURCE_ALPACA_ACCOUNT,
+    HEALTH_LATENCY_SOURCE_NONE,
+    HEALTH_SOURCE_NOVA_PROCESS,
 )
 
 ScannerRow = dict[str, Any]
@@ -128,8 +128,8 @@ class ScannerRuntimeState:
         default_factory=lambda: {
             "status": "loading",
             "latency_ms": 0,
-            "health_source": HEALTH_SOURCE_ALPACA_ACCOUNT,
-            "latency_source": HEALTH_LATENCY_SOURCE_ALPACA_ACCOUNT,
+            "health_source": HEALTH_SOURCE_NOVA_PROCESS,
+            "latency_source": HEALTH_LATENCY_SOURCE_NONE,
         }
     )
     current_mode: str = "closed"

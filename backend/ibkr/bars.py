@@ -135,7 +135,10 @@ async def _fetch_bars_uncached(
 
     ib = _client.get_ib()
     if ib is None:
-        raise HTTPException(status_code=503, detail="IBKR not connected")
+        raise HTTPException(
+            status_code=503,
+            detail=_client.unavailable_detail("IBKR bars"),
+        )
 
     # Defense: cache path already clamps in fetch_bars_async; keep uncached path honest.
     if timeframe == "10Sec":

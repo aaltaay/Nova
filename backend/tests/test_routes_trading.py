@@ -105,7 +105,12 @@ def test_place_order_route_blocked_when_safety_gate_fails():
     assert "IBKR_ORDERS_ENABLED" in body["error"]
 
 
-def test_place_order_route_happy_path_delegates_to_orders_module():
+def test_place_order_route_happy_path_delegates_to_orders_module(monkeypatch):
+    # Route wiring asserts requested qty; disable MASTER TEST QTY GATE for this test.
+    monkeypatch.setattr(exec_svc, "IBKR_FORCE_ONE_SHARE", False)
+    import execution.qty_gate as qty_gate
+
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", False)
     fake_result = {"ok": True, "order_id": 42, "error": None, "mode": "paper"}
     patches = _arm_paper_gates()
     with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
@@ -312,18 +317,58 @@ def test_status_route_reports_safety_snapshot():
     }
     with patch.object(safety_mod, "status_snapshot", return_value=fake_snapshot), \
          patch.object(client_mod, "is_enabled", return_value=False), \
+         patch.object(client_mod, "is_ready", return_value=False), \
          patch.object(client_mod, "is_connected", return_value=False), \
+         patch.object(client_mod, "session_reason", return_value="disabled"), \
          patch.object(client_mod, "account_mode", return_value="disconnected"), \
          patch.object(client_mod, "get_market_data_type", return_value=1), \
          patch("ibkr.session_errors.is_delayed_data", return_value=True), \
-         patch("ibkr.port_diagnostics.status_port_fields", return_value=fake_ports):
+         patch("ibkr.port_diagnostics.status_port_fields", return_value=fake_ports) as ports:
         res = client.get("/api/ibkr/status")
     assert res.status_code == 200
     body = res.json()
     assert body["enabled"] is False
     assert body["connected"] is False
+    assert body["transport_connected"] is False
+    assert body["session_reason"] == "disabled"
     assert body["spend_status"] == "locked"
     assert body["disconnect_hint"] == "paper_port_refused_live_listening"
     assert body["preferred_port"] == 4002
     assert body["market_data_type"] == 1
     assert body["market_data_delayed"] is True
+    # Port hints must key off transport, not usable.
+    ports.assert_called_once_with(connected=False)
+
+
+def test_status_route_connected_means_usable_not_transport():
+    """Socket up + degraded → connected false; transport_connected true."""
+    fake_snapshot = {
+        "gateway_mode": "paper",
+        "orders_enabled": False,
+        "live_trading_confirmed": False,
+        "spend_status": "locked",
+    }
+    with patch.object(safety_mod, "status_snapshot", return_value=fake_snapshot), \
+         patch.object(client_mod, "is_enabled", return_value=True), \
+         patch.object(client_mod, "is_ready", return_value=False), \
+         patch.object(client_mod, "is_connected", return_value=True), \
+         patch.object(client_mod, "session_reason", return_value="connectivity_lost"), \
+         patch.object(client_mod, "account_mode", return_value="paper"), \
+         patch.object(client_mod, "broker_account_kind", return_value="paper"), \
+         patch.object(client_mod, "get_market_data_type", return_value=1), \
+         patch("ibkr.session_errors.is_delayed_data", return_value=False), \
+         patch("ibkr.port_diagnostics.status_port_fields", return_value={
+             "preferred_port": 4002,
+             "alternate_port": 4001,
+             "preferred_port_reachable": True,
+             "alternate_port_reachable": False,
+             "disconnect_hint": "paper_port_open_but_disconnected",
+             "live_port": 4001,
+             "paper_port": 4002,
+         }) as ports:
+        res = client.get("/api/ibkr/status")
+    body = res.json()
+    assert body["connected"] is False
+    assert body["transport_connected"] is True
+    assert body["session_reason"] == "connectivity_lost"
+    ports.assert_called_once_with(connected=True)

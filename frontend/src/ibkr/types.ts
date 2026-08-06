@@ -5,7 +5,15 @@ export type IbkrMode = 'paper' | 'live' | 'disconnected';
 
 export interface IbkrStatus {
   enabled: boolean;
+  /**
+   * Product usable session (READY / get_ib() non-null).
+   * Not the same as the TCP socket -- see transport_connected.
+   */
   connected: boolean;
+  /** Raw Gateway socket up (may be true while session is not usable, e.g. Error 1100). */
+  transport_connected?: boolean;
+  /** Usable-session SoT reason from /api/ibkr/status (ok, connectivity_lost, ...). */
+  session_reason?: string;
   mode: IbkrMode;
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */
@@ -16,7 +24,7 @@ export interface IbkrStatus {
   market_data_delayed?: boolean;
   orders_enabled?: boolean;
   live_trading_confirmed?: boolean;
-  /** Phase K / ADR 009 — third key for opening shorts. */
+  /** Phase K / ADR 009 -- third key for opening shorts. */
   short_enabled?: boolean;
   /** locked | locked_live_unconfirmed | paper_armed | live_armed */
   spend_status?: string;
@@ -24,7 +32,7 @@ export interface IbkrStatus {
   alternate_port?: number;
   preferred_port_reachable?: boolean;
   alternate_port_reachable?: boolean;
-  /** e.g. paper_port_refused_live_listening — see disconnectCopy.ts */
+  /** e.g. paper_port_refused_live_listening -- see disconnectCopy.ts */
   disconnect_hint?: string | null;
   intentional_gateway_mode?: 'paper' | 'live' | null;
   gateway_self_heal?: {

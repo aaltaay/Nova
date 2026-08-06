@@ -89,7 +89,7 @@ def test_request_gateway_mode_honest_failure_keeps_sticky_intent(monkeypatch):
     monkeypatch.setattr(ibkr_client, "is_connected", lambda: False)
     monkeypatch.setattr(ibkr_client, "broker_account_kind", lambda: "unknown")
     monkeypatch.setattr(ibkr_client, "account_mode", lambda: "disconnected")
-    monkeypatch.setattr(ibkr_client, "IBKR_CONNECT_TIMEOUT_SEC", 0.05)
+    monkeypatch.setattr("ibkr.client_ops.IBKR_CONNECT_TIMEOUT_SEC", 0.05)
 
     with (
         patch.object(heal, "persist_gateway_mode", return_value=True),
