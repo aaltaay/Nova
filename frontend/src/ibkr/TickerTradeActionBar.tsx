@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   APP_DIALOG_FLATTEN_LABEL,
   CLOSE_POSITION_ACCOUNT_ERROR_TITLE,
+  CLOSE_POSITION_PIN_LOCKED_TITLE,
   STOCK_VIEW_MODULE_OPEN_TITLE,
   TICKER_TRADE_ORDER_DISCLOSURE,
 } from '../constants';
@@ -15,7 +16,9 @@ import { formatShareQty } from '../utils/formatShareQty';
 import { closeFullPosition } from './closeFullPosition';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import type { PlaceOrderResult } from './placeOrder';
+import { readTicketSessionUnlocked } from './ticketUnlock';
 import { TickerTradeAutomateControls } from './TickerTradeAutomateControls';
+import { useTradingPinGate } from './useTradingPinGate';
 import type { IbkrListingFlags } from '../types/ticker';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
 
@@ -55,6 +58,7 @@ export function TickerTradeActionBar({
 }: Props) {
   const [closing, setClosing] = useState(false);
   const [resultMsg, setResultMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const { ensureUnlocked, pinDialog } = useTradingPinGate();
 
   const disabledReason = !connected
     ? 'IBKR disconnected — connect Gateway (Trading tab) to place orders'
@@ -76,6 +80,7 @@ export function TickerTradeActionBar({
 
   async function handleClose() {
     if (!canFlatten || !position || position.qty === 0) return;
+    if (!(await ensureUnlocked())) return;
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide: 'BUY' | 'SELL' = position.qty > 0 ? 'SELL' : 'BUY';
     const confirmed = await confirmApp({
@@ -185,13 +190,15 @@ export function TickerTradeActionBar({
             type="button"
             className="ticker-trade-close-btn"
             disabled={!canFlatten || !hasPosition}
-            onClick={handleClose}
+            onClick={() => void handleClose()}
             title={
               !hasPosition
                 ? 'No open position in this symbol'
                 : accountError
                   ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
-                  : disabledReason ?? 'Flatten position with market order'
+                  : !readTicketSessionUnlocked()
+                    ? CLOSE_POSITION_PIN_LOCKED_TITLE
+                    : disabledReason ?? 'Flatten position with market order'
             }
           >
             {closing
@@ -214,6 +221,7 @@ export function TickerTradeActionBar({
           </span>
         )}
       </div>
+      {pinDialog}
     </div>
   );
 }

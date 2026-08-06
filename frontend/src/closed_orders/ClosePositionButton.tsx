@@ -1,5 +1,6 @@
 /**
  * Flatten / close full position — ADR 007 place path (not cancel-working-order).
+ * Requires the same PIN session unlock as Place an order / header lock.
  */
 import { useState, type MouseEvent } from 'react';
 import {
@@ -8,12 +9,15 @@ import {
   CLOSE_POSITION_BUTTON_BUSY_LABEL,
   CLOSE_POSITION_BUTTON_LABEL,
   CLOSE_POSITION_NO_POSITION_TITLE,
+  CLOSE_POSITION_PIN_LOCKED_TITLE,
   CLOSE_POSITION_VS_CANCEL_HINT,
   TICKER_TRADE_ORDER_DISCLOSURE,
 } from '../constants';
 import { captureBrowserAction } from '../execution_latency';
 import { closeFullPosition } from '../ibkr/closeFullPosition';
+import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
+import { useTradingPinGate } from '../ibkr/useTradingPinGate';
 import { alertApp, confirmApp } from '../ux';
 import { formatShareQty } from '../utils/formatShareQty';
 
@@ -35,15 +39,18 @@ export function ClosePositionButton({
   onClosed,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const { ensureUnlocked, pinDialog } = useTradingPinGate();
   const hasPosition = position.qty !== 0;
   const spendLocked =
     spendStatus === 'locked' || spendStatus === 'locked_live_unconfirmed';
   const canClose =
     connected && mode !== 'disconnected' && hasPosition && !spendLocked && !disabled && !busy;
+  const pinLocked = !readTicketSessionUnlocked();
 
   async function handleClick(e: MouseEvent) {
     e.stopPropagation();
     if (!canClose) return;
+    if (!(await ensureUnlocked())) return;
     const actionTiming = captureBrowserAction('user_action');
     const absQty = formatShareQty(Math.abs(position.qty));
     const closeSide = position.qty > 0 ? 'SELL' : 'BUY';
@@ -72,28 +79,33 @@ export function ClosePositionButton({
   }
 
   return (
-    <button
-      type="button"
-      className="ibkr-flatten-btn"
-      data-testid="close-position-btn"
-      disabled={!canClose}
-      onClick={handleClick}
-      title={
-        !hasPosition
-          ? CLOSE_POSITION_NO_POSITION_TITLE
-          : disabled
-            ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
-            : spendLocked
-              ? 'Orders locked — enable IBKR orders / live confirm'
-              : CLOSE_POSITION_VS_CANCEL_HINT
-      }
-      aria-label={`Flatten position ${position.symbol}`}
-    >
-      {busy
-        ? CLOSE_POSITION_BUTTON_BUSY_LABEL
-        : hasPosition
-          ? `${CLOSE_POSITION_BUTTON_LABEL} ${Math.abs(position.qty)}`
-          : CLOSE_POSITION_BUTTON_LABEL}
-    </button>
+    <>
+      <button
+        type="button"
+        className="ibkr-flatten-btn"
+        data-testid="close-position-btn"
+        disabled={!canClose}
+        onClick={handleClick}
+        title={
+          !hasPosition
+            ? CLOSE_POSITION_NO_POSITION_TITLE
+            : disabled
+              ? CLOSE_POSITION_ACCOUNT_ERROR_TITLE
+              : spendLocked
+                ? 'Orders locked — enable IBKR orders / live confirm'
+                : pinLocked
+                  ? CLOSE_POSITION_PIN_LOCKED_TITLE
+                  : CLOSE_POSITION_VS_CANCEL_HINT
+        }
+        aria-label={`Flatten position ${position.symbol}`}
+      >
+        {busy
+          ? CLOSE_POSITION_BUTTON_BUSY_LABEL
+          : hasPosition
+            ? `${CLOSE_POSITION_BUTTON_LABEL} ${Math.abs(position.qty)}`
+            : CLOSE_POSITION_BUTTON_LABEL}
+      </button>
+      {pinDialog}
+    </>
   );
 }

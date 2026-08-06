@@ -140,7 +140,7 @@ function readApiBase(): string {
 }
 
 const _rawApiBase: string = readApiBase();
-/** REST base, e.g. https://your-service.up.railway.app */
+/** REST base, e.g. http://localhost:8000 (local / Desktop sidecar) */
 export const API_BASE_URL: string = _rawApiBase;
 /** REST API prefix, e.g. https://host/api */
 export const API_URL = `${API_BASE_URL}/api`;
@@ -445,6 +445,9 @@ export const CLOSE_POSITION_ACCOUNT_ERROR_TITLE =
   'IBKR account/positions read failed — Flatten disabled until the poll recovers';
 export const CLOSE_POSITION_VS_CANCEL_HINT =
   'Flatten closes the entire position with a market order (extended hours when pre/after-market). Cancel only removes a working order. Fill now cancels the rest of one order and markets that remainder.';
+/** Flatten is a user spend action — same PIN session as Place an order. */
+export const CLOSE_POSITION_PIN_LOCKED_TITLE =
+  'Unlock trading (PIN) before Flatten — same lock as Place an order.';
 /** Working-order panic: cancel rest + market the remaining qty (same side). */
 export const FILL_WORKING_ORDER_BUTTON_LABEL = 'Fill now';
 export const FILL_WORKING_ORDER_BUTTON_TITLE =
@@ -493,13 +496,16 @@ export const STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER =
  */
 export const ORDERS_TODAY_TITLE = 'Orders (Today)';
 /**
- * Empty-state copy split by *why* the tab is empty, so a real position with
- * no matching orders (symbol/filter mismatch) never looks identical to a
- * Gateway with genuinely zero completed orders for the day — see
- * `backend/ibkr/account.py:refresh_completed_orders_cache`.
+ * Empty-state copy split by *why* the tab is empty, so a filter with no
+ * matches never looks identical to a Gateway with genuinely zero completed
+ * orders for the day — see `backend/ibkr/account.py:refresh_completed_orders_cache`.
+ * Orders (Today) is account-wide (not scoped to the open Stock View ticker).
  */
 export const ORDERS_TODAY_EMPTY_MESSAGE =
   'No completed orders from Gateway yet today.';
+export const ORDERS_TODAY_EMPTY_FILTER_MESSAGE =
+  'No orders in this filter today (entire account).';
+/** @deprecated Symbol-scoped Orders (Today) retired — prefer ORDERS_TODAY_EMPTY_FILTER_MESSAGE. */
 export function ordersTodayEmptySymbolMessage(symbol: string): string {
   return `No orders for ${symbol} in this filter today.`;
 }
@@ -565,6 +571,13 @@ export const TICKER_TRADE_DOLLAR_PRESETS = [100, 500, 1_000, 5_000] as const;
 export const TICKER_TRADE_QTY_DECIMALS = 4;
 /** Primary CTA before local PIN unlock (does not bypass IBKR spend gates). */
 export const TICKER_TRADE_UNLOCK_LABEL = 'Unlock Trading';
+/** GlobalAppBar lock icon — same PIN session gate as Place an order. */
+export const TICKER_TRADE_LOCK_ICON_UNLOCKED_TITLE =
+  'Trading unlocked for this browser session. Click to lock.';
+export const TICKER_TRADE_LOCK_ICON_LOCKED_TITLE =
+  'Trading locked. Click and enter PIN to unlock Place an order / Nova Actions.';
+export const TICKER_TRADE_LOCK_ICON_ARIA_UNLOCKED = 'Lock trading';
+export const TICKER_TRADE_LOCK_ICON_ARIA_LOCKED = 'Unlock trading';
 /** Primary CTA after PIN unlock — submits the built order (live / offline). */
 export const TICKER_TRADE_PLACE_ORDER_LABEL = 'Place an order';
 /** Primary CTA after PIN unlock when IBKR Gateway mode is paper. */
@@ -600,7 +613,7 @@ export const TICKER_TRADE_DEPTH_LEVELS = 10;
 /**
  * Classic DAS multi-color Level 2 -- each distinct price level gets the next
  * hue (shared by bids and asks). Same price = same color; next price = next
- * color in the cycle. Order matches classic montage: yellow, green, cyan, ...
+ * color in the cycle. Order matches classic montage: yellow, green, cyan, …
  */
 export const L2_DAS_TIER_COLORS: readonly string[] = [
   'rgba(250, 204, 21, 0.92)', // yellow -- inside / best

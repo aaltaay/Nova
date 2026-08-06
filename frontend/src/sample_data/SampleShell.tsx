@@ -7,6 +7,7 @@ import { AppErrorBoundary } from '../components/AppErrorBoundary';
 import { GlobalAppBar } from '../components/GlobalAppBar';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
+import { IbkrAccountProvider } from '../ibkr/IbkrAccountContext';
 import { StockViewPage } from '../pages/StockViewPage';
 import { SampleDashboardPage } from '../pages/SampleDashboardPage';
 import {
@@ -118,9 +119,14 @@ function SampleShellInner() {
 }
 
 export function SampleShell() {
+  // SampleDataProvider must wrap IbkrAccountProvider so the poller serves
+  // SAMPLE_IBKR_ACCOUNT_STATE (no live /api/ibkr/*). GlobalAppBar requires
+  // the account context on both sample and live shells.
   return (
     <SampleDataProvider>
-      <SampleShellInner />
+      <IbkrAccountProvider>
+        <SampleShellInner />
+      </IbkrAccountProvider>
     </SampleDataProvider>
   );
 }

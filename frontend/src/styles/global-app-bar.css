@@ -251,6 +251,42 @@
   max-width: 10rem;
 }
 
+.global-app-bar__trade-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.25rem;
+  width: 1.85rem;
+  height: 1.85rem;
+  padding: 0;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  background: transparent;
+  color: var(--nova-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.global-app-bar__trade-lock:hover {
+  color: var(--nova-text);
+  border-color: color-mix(in srgb, var(--nova-text-muted) 50%, var(--nova-border));
+}
+
+.global-app-bar__trade-lock.is-locked {
+  color: var(--nova-danger, #ef4444);
+  border-color: color-mix(in srgb, var(--nova-danger, #ef4444) 45%, var(--nova-border));
+}
+
+.global-app-bar__trade-lock.is-unlocked {
+  color: var(--nova-success, #22c55e);
+  border-color: color-mix(in srgb, var(--nova-success, #22c55e) 45%, var(--nova-border));
+}
+
+.global-app-bar__trade-lock-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
 .global-app-bar__account-nav,
 .global-app-bar__settings {
   margin-left: 0.35rem;

@@ -8,6 +8,7 @@ import {
 } from '../constants';
 import {
   readTicketSessionUnlocked,
+  subscribeTicketSessionUnlock,
   tryUnlockTicketSession,
   writeTicketSessionUnlocked,
 } from './ticketUnlock';
@@ -34,5 +35,16 @@ describe('ticketUnlock', () => {
     expect(readTicketSessionUnlocked()).toBe(true);
     writeTicketSessionUnlocked(false);
     expect(readTicketSessionUnlocked()).toBe(false);
+  });
+
+  it('notifies subscribers on lock/unlock', () => {
+    const seen: boolean[] = [];
+    const unsub = subscribeTicketSessionUnlock(() => {
+      seen.push(readTicketSessionUnlocked());
+    });
+    writeTicketSessionUnlocked(true);
+    writeTicketSessionUnlocked(false);
+    unsub();
+    expect(seen).toEqual([true, false]);
   });
 });

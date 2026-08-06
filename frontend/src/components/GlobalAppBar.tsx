@@ -20,6 +20,7 @@ import {
 } from '../constants';
 import { useClosedOrders } from '../closed_orders/useClosedOrders';
 import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
@@ -235,6 +236,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           />
           {modeLabel}
         </span>
+
+        <TradingSessionLockButton />
 
         {showAccountNav && (
           <button

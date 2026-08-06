@@ -26,6 +26,7 @@ import { readSkipPlaceConfirm } from './placeConfirmPrefs';
 import { resolveShortabilityState } from './ShortabilityChip';
 import {
   readTicketSessionUnlocked,
+  subscribeTicketSessionUnlock,
   tryUnlockTicketSession,
 } from './ticketUnlock';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
@@ -92,6 +93,12 @@ export function ManualOrderTicket({
   const [sessionUnlocked, setSessionUnlocked] = useState(readTicketSessionUnlocked);
   const [confirmSummary, setConfirmSummary] = useState<string | null>(null);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const sync = () => setSessionUnlocked(readTicketSessionUnlocked());
+    sync();
+    return subscribeTicketSessionUnlock(sync);
+  }, []);
 
   const displayQuantityMode: QuantityMode = QTY_LOCKED ? 'shares' : quantityMode;
   const displayQuantityValue = QTY_LOCKED

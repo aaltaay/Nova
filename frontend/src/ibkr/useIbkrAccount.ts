@@ -1,7 +1,7 @@
 /**
  * Account / positions / open-orders reader.
  * Live path reads the shared IbkrAccountProvider poller. Sample path returns
- * fixtures without mounting the provider (SampleShell stays isolated).
+ * fixtures (SampleShell mounts the provider under SampleDataProvider).
  */
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import {

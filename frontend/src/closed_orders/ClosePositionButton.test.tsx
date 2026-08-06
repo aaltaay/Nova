@@ -9,10 +9,22 @@ import { ClosePositionButton } from './ClosePositionButton';
 
 const confirmAppMock = vi.fn();
 const alertAppMock = vi.fn();
+const ensureUnlockedMock = vi.fn(async () => true);
 
 vi.mock('../ux', () => ({
   confirmApp: (...args: unknown[]) => confirmAppMock(...args),
   alertApp: (...args: unknown[]) => alertAppMock(...args),
+}));
+
+vi.mock('../ibkr/useTradingPinGate', () => ({
+  useTradingPinGate: () => ({
+    ensureUnlocked: (...args: unknown[]) => ensureUnlockedMock(...args),
+    pinDialog: null,
+  }),
+}));
+
+vi.mock('../ibkr/ticketUnlock', () => ({
+  readTicketSessionUnlocked: () => true,
 }));
 
 describe('ClosePositionButton', () => {
@@ -25,6 +37,8 @@ describe('ClosePositionButton', () => {
     root = createRoot(container);
     confirmAppMock.mockReset();
     alertAppMock.mockReset();
+    ensureUnlockedMock.mockReset();
+    ensureUnlockedMock.mockResolvedValue(true);
     confirmAppMock.mockResolvedValue(true);
     alertAppMock.mockResolvedValue(undefined);
   });
@@ -105,6 +119,35 @@ describe('ClosePositionButton', () => {
       '[data-testid="close-position-btn"]',
     ) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+  });
+
+  it('does not flatten when PIN unlock is cancelled', async () => {
+    ensureUnlockedMock.mockResolvedValue(false);
+    const spy = vi.spyOn(closeMod, 'closeFullPosition');
+    act(() => {
+      root.render(
+        <ClosePositionButton
+          position={{
+            symbol: 'AAPL',
+            qty: 10,
+            market_price: 1,
+            market_value: 10,
+            avg_cost: 1,
+            unrealized_pnl: 0,
+            realized_pnl: 0,
+          }}
+          mode="paper"
+          connected
+          spendStatus="paper_armed"
+        />,
+      );
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="close-position-btn"]') as HTMLButtonElement).click();
+    });
+    expect(ensureUnlockedMock).toHaveBeenCalled();
+    expect(confirmAppMock).not.toHaveBeenCalled();
+    expect(spy).not.toHaveBeenCalled();
   });
 
   it('stays disabled when accountError gate sets disabled', () => {
