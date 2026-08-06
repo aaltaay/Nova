@@ -57,6 +57,9 @@ export function DashboardPage() {
     setAlpacaFeed: setWorkspaceAlpacaFeed,
     scannerPersistentAuthoritative,
     ibkrConnected,
+    ibkrTransportConnected,
+    ibkrPortsDark,
+    ibkrDisconnectHint,
     ibkrGatewayMode,
   } = useWorkspace();
   const { hodCount, runningUpCount, focusDock } = useHodMomo();
@@ -208,6 +211,9 @@ export function DashboardPage() {
         <GatewayDisconnectedBanner
           discoveryProvider={settings.discoveryProvider}
           ibkrConnected={ibkrConnected}
+          ibkrTransportConnected={ibkrTransportConnected}
+          ibkrPortsDark={ibkrPortsDark}
+          ibkrDisconnectHint={ibkrDisconnectHint}
           ibkrGatewayMode={ibkrGatewayMode}
         />
 

@@ -159,12 +159,10 @@ export function HeaderConnectionStatus({
         className={`status-chip status-chip--${apiChipTone}`}
         title={
           apiOk
-            ? latencyLabel
-              ? `Nova API process is reachable. ${latencyLabel} measures Alpaca account HTTP, not IB Gateway.`
-              : 'Nova API process is reachable. No source-attributed RTT is available; this is not IB Gateway.'
+            ? 'Nova API process is reachable on port 8000. IB Gateway is a separate chip; Alpaca is not the API.'
             : health.flag_hint ||
               health.message ||
-              'Nova API is unreachable — start the backend to restore scanner and quotes.'
+              'Nova API is unreachable — start the backend (port 8000) to restore scanner and quotes.'
         }
         data-testid="status-chip-api"
       >
@@ -242,20 +240,13 @@ export function HeaderConnectionStatus({
       {HEADER_INTEGRATION_CHIP_ORDER.map((key) => {
         const chip: IntegrationChipStatus | undefined = health.integrations?.[key];
         if (!chip) return null;
-        // Under discovery=ibkr, Gateway already shows IBKR connectivity — Alpaca chip
-        // here means news/listing/RVOL aux, not the live price feed.
         const tone = integrationTone(chip.status);
         const role = HEADER_INTEGRATION_CHIP_LABELS[key] || key;
         return (
           <span
             key={key}
             className={`status-chip status-chip--${tone}`}
-            title={
-              chip.detail ||
-              (key === 'alpaca'
-                ? 'News / listing aux (Alpaca) — not the live scanner or price feed. Gateway chip is scanner health.'
-                : `${role} integration status`)
-            }
+            title={chip.detail || `${role} integration status`}
             data-testid={`status-chip-integration-${key}`}
           >
             <span className={`dot ${toneDot(tone)}`} />
@@ -296,10 +287,12 @@ export function HeaderConnectionStatus({
           {health.message.length > 80 ? `${health.message.slice(0, 80)}…` : health.message}
         </span>
       )}
-      {!compact && apiOk && canReloadLocalBackend() && (
+      {/* Always show in GlobalAppBar (compact): reload picks up backend code /
+          resets cached_health; Start API recovers API_DOWN / API_WEDGED. */}
+      {apiOk && canReloadLocalBackend() && (
         <BackendReloadButton onReloaded={onBackendStarted} />
       )}
-      {!compact && (health.status === 'disconnected' || health.status === 'error') && (
+      {(health.status === 'disconnected' || health.status === 'error') && (
         <BackendStartButton
           onStarted={onBackendStarted}
           flag={health.flag}

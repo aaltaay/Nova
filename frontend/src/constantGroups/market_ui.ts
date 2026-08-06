@@ -214,15 +214,15 @@ export const SCANNER_RVOL_ALPACA_TITLE =
 export const QUOTE_RVOL_DAILY_LABEL = 'Rel vol (Alpaca avg)';
 export const QUOTE_RVOL_DAILY_TITLE = SCANNER_RVOL_ALPACA_TITLE;
 
-/** Header aux API chips (not the live price feed — Gateway/Feed stay separate). */
+/** Header aux chips (not the live price feed — Gateway/Feed stay separate).
+ * Alpaca is intentionally omitted: it is news/listing aux only and must never
+ * look like the Nova API or scanner source. */
 export const HEADER_INTEGRATION_CHIP_ORDER = [
-  'alpaca',
   'openai',
   'yfinance',
   'archive',
 ] as const;
 export const HEADER_INTEGRATION_CHIP_LABELS: Record<string, string> = {
-  // Under IBKR discovery this is news/listing aux — not the live scanner feed.
   alpaca: 'News',
   openai: 'OpenAI',
   yfinance: 'yfinance',

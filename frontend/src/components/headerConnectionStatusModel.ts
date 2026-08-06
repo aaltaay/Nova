@@ -48,10 +48,7 @@ export function toneDot(tone: HeaderChipTone): string {
   return 'loading';
 }
 
-export function healthLatencyLabel(health: HealthStatus): string | null {
-  if (health.latency_ms <= 0) return null;
-  if (health.latency_source === 'alpaca_account_http') {
-    return `Alpaca account RTT ${health.latency_ms}ms`;
-  }
+/** API chip no longer shows broker RTT -- Alpaca must not appear as "the API". */
+export function healthLatencyLabel(_health: HealthStatus): string | null {
   return null;
 }

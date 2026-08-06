@@ -36,9 +36,9 @@ vi.mock('../ibkr/useIbkrStatus', () => ({
 
 const healthy = {
   status: 'connected',
-  latency_ms: 610,
-  health_source: 'alpaca_account_api',
-  latency_source: 'alpaca_account_http',
+  latency_ms: 0,
+  health_source: 'nova_process',
+  latency_source: 'none',
   market_data_source: 'ibkr',
   integrations: {
     alpaca: { status: 'ok', detail: 'news/listing/RVOL aux, not live prices' },
@@ -67,11 +67,15 @@ describe('HeaderConnectionStatus', () => {
     container.remove();
   });
 
-  it('attributes Alpaca account RTT separately from Gateway and Prices', () => {
+  it('API chip is Nova process only — no Alpaca RTT or Alpaca chip', () => {
     act(() => {
       root.render(
         <HeaderConnectionStatus
-          health={healthy}
+          health={{
+            ...healthy,
+            latency_ms: 610,
+            latency_source: 'alpaca_account_http',
+          }}
           discoveryProvider="ibkr"
           ibkrConnected={false}
           activeFeed="sip"
@@ -89,48 +93,22 @@ describe('HeaderConnectionStatus', () => {
 
     expect(api?.textContent).toMatch(/API/);
     expect(api?.textContent).toMatch(/up/);
-    expect(api?.textContent).toMatch(/Alpaca account RTT 610ms/);
-    expect(api?.textContent).not.toMatch(/up\s*·\s*610ms/);
-    expect(api?.textContent).not.toMatch(/Connected/i);
+    expect(api?.textContent).not.toMatch(/Alpaca/i);
+    expect(api?.textContent).not.toMatch(/610ms/);
+    expect(api?.getAttribute('title')).toMatch(/port 8000/);
 
     expect(gateway?.textContent).toMatch(/Gateway/);
     expect(gateway?.textContent).toMatch(/offline/);
-    expect(gateway?.textContent).not.toMatch(/610ms/);
 
     expect(prices?.textContent).toMatch(/Prices/);
     expect(prices?.textContent).toMatch(/16h ago/);
     expect(prices?.textContent).toMatch(/stale/);
 
-    const alpacaAux = container.querySelector('[data-testid="status-chip-integration-alpaca"]');
+    expect(container.querySelector('[data-testid="status-chip-integration-alpaca"]')).toBeNull();
     const openai = container.querySelector('[data-testid="status-chip-integration-openai"]');
-    expect(alpacaAux?.textContent).toMatch(/News/);
-    expect(alpacaAux?.textContent).toMatch(/ok/);
     expect(openai?.textContent).toMatch(/OpenAI/);
     expect(openai?.textContent).toMatch(/off/);
-    // Under IBKR discovery, price feed chip must stay Gateway — not "Alpaca IEX"
     expect(container.querySelector('[data-testid="status-chip-feed"]')).toBeNull();
-  });
-
-  it('omits legacy latency when its source is unavailable', () => {
-    act(() => {
-      root.render(
-        <HeaderConnectionStatus
-          health={{ ...healthy, latency_source: undefined }}
-          discoveryProvider="ibkr"
-          ibkrConnected
-          activeFeed="sip"
-          feedFellBack={false}
-          secondsAgo={12}
-          historyDate={null}
-        />,
-      );
-    });
-
-    const api = container.querySelector('[data-testid="status-chip-api"]');
-    expect(api?.textContent).toMatch(/API/);
-    expect(api?.textContent).toMatch(/up/);
-    expect(api?.textContent).not.toMatch(/610ms/);
-    expect(api?.getAttribute('title')).toMatch(/No source-attributed RTT/);
   });
 
   it('labels Gateway paper vs LIVE so session money path is never ambiguous', () => {

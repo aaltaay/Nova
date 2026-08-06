@@ -107,8 +107,17 @@ export type WorkspaceValue = {
   alpacaFeed: string;
   setAlpacaFeed: (feed: string) => void;
   scannerPersistentAuthoritative: boolean;
+  /** Product usable session (status.connected / READY). */
   ibkrConnected: boolean;
-  /** Session mode from /api/ibkr/status — paper | live | disconnected. */
+  /** Raw Gateway socket (status.transport_connected). */
+  ibkrTransportConnected: boolean;
+  /** Usable-session SoT reason (status.session_reason). */
+  ibkrSessionReason: string | null;
+  /** Both preferred + alternate API ports unreachable. */
+  ibkrPortsDark: boolean;
+  /** Port / login disconnect_hint from status. */
+  ibkrDisconnectHint: string | null;
+  /** Session mode from /api/ibkr/status -- paper | live | disconnected. */
   ibkrMode: IbkrMode;
   /** Configured Gateway port mode (may differ briefly while reconnecting). */
   ibkrGatewayMode: 'paper' | 'live' | null;
@@ -276,6 +285,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setAlpacaFeed,
       scannerPersistentAuthoritative,
       ibkrConnected: ibkrStatus.connected,
+      ibkrTransportConnected: ibkrStatus.transport_connected === true,
+      ibkrSessionReason: ibkrStatus.session_reason ?? null,
+      ibkrPortsDark:
+        ibkrStatus.preferred_port_reachable === false
+        && ibkrStatus.alternate_port_reachable === false,
+      ibkrDisconnectHint: ibkrStatus.disconnect_hint ?? null,
       ibkrMode: ibkrStatus.mode,
       ibkrGatewayMode: ibkrStatus.gateway_mode ?? null,
       openStockView,
@@ -295,6 +310,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       alpacaFeed,
       scannerPersistentAuthoritative,
       ibkrStatus.connected,
+      ibkrStatus.transport_connected,
+      ibkrStatus.session_reason,
+      ibkrStatus.preferred_port_reachable,
+      ibkrStatus.alternate_port_reachable,
+      ibkrStatus.disconnect_hint,
       ibkrStatus.mode,
       ibkrStatus.gateway_mode,
       openStockView,

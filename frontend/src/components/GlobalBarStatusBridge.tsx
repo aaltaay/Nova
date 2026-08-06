@@ -7,6 +7,7 @@ import { API_URL, SCANNER_POLL_INTERVAL_IBKR_MS } from '../constants';
 import { enterSampleView } from '../sample_data/sampleNav';
 import { useSettings } from '../settings/SettingsContext';
 import type { HealthStatus } from '../types/health';
+import { diagnoseBackend, logBackendDiagnosis } from '../utils/diagnoseBackend';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import type { GlobalAppBarScanner } from './globalAppBarScanner';
 import {
@@ -34,21 +35,43 @@ export function GlobalBarStatusBridge() {
         const res = await fetch(`${API_URL}/mode`, {
           signal: AbortSignal.timeout(4000),
         });
-        if (!res.ok || cancelled) return;
+        if (cancelled) return;
+        if (!res.ok) {
+          const diag = await diagnoseBackend();
+          logBackendDiagnosis(diag);
+          setHealth({
+            status: 'disconnected',
+            latency_ms: 0,
+            message: diag.message,
+            flag: diag.flag,
+            flag_hint: diag.hint,
+            health_source: 'nova_process',
+          });
+          return;
+        }
         const data = (await res.json()) as {
           mode?: GlobalAppBarScanner['mode'];
           health?: HealthStatus;
         };
         if (cancelled) return;
         if (data.mode) setMode(data.mode);
-        if (data.health) setHealth(data.health);
+        if (data.health) {
+          setHealth({
+            ...data.health,
+            health_source: data.health.health_source ?? 'nova_process',
+          });
+        }
       } catch {
         if (!cancelled) {
+          const diag = await diagnoseBackend();
+          logBackendDiagnosis(diag);
           setHealth({
             status: 'disconnected',
             latency_ms: 0,
-            message: 'Backend hung (no health response)',
-            flag: 'API_WEDGED',
+            message: diag.message,
+            flag: diag.flag,
+            flag_hint: diag.hint,
+            health_source: 'nova_process',
           });
         }
       }
