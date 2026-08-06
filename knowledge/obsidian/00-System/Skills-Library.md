@@ -110,6 +110,65 @@ If a skill’s copy conflicts with Nova rules, **Nova constitution + `.cursor/ru
 | Crypto / Solana skill dumps | Explicit Phase A exclusion. |
 | Full `wshobson/agents` or `everything-claude-code` trees | Only high-fit skills; keeps the library small and reviewable. |
 
+## Engineering methodology graft (2026-08-06)
+
+Nova-adapted process skills. **Not** full plugin installs. `AGENTS.md` + trading/feed invariants win on conflict. Zero-hop default preserved (no Superpowers subagent-per-task as default). Always-on: `.cursor/rules/verification-before-completion.mdc`, `.cursor/rules/engineering-methodology.mdc`. Audit: `py -3 tools/engineering_skills_audit.py`.
+
+### verification-before-completion
+
+| Field | Value |
+|-------|--------|
+| **Purpose** | Block done/fixed/passing claims without fresh command evidence. |
+| **Triggers** | About to claim complete; after bugfix; before commit/PR language; subagent reported success. |
+| **When NOT to use** | N/A as discipline -- always-on MDC applies; skill is the expanded twin. |
+| **Source** | https://github.com/obra/superpowers (adapted) |
+| **Local path** | `.cursor/skills/verification-before-completion/` |
+| **Safety notes** | Does not authorize trading or weaken gates; logging ≠ verification. |
+
+### writing-plans
+
+| Field | Value |
+|-------|--------|
+| **Purpose** | Bite-sized implementation plans with exact files + red/green steps. |
+| **Triggers** | Plan mode; multi-file features; user asks for a plan/spec. |
+| **When NOT to use** | One-line fixes; pure docs; Gateway login ops. |
+| **Source** | https://github.com/obra/superpowers (adapted) |
+| **Local path** | `.cursor/skills/writing-plans/` |
+| **Safety notes** | Parent-session execution default; no `auto_live` / Alpaca price plans. |
+
+### interview-me
+
+| Field | Value |
+|-------|--------|
+| **Purpose** | One-question interview with hypothesis + confidence before plan/code. |
+| **Triggers** | Underspecified asks; "grill me" / "interview me". |
+| **When NOT to use** | Mechanical ops; user wants speed; non-interactive loops. |
+| **Source** | https://github.com/addyosmani/agent-skills (adapted) |
+| **Local path** | `.cursor/skills/interview-me/` |
+| **Safety notes** | Must not invent requirements that weaken feed/execution law. |
+
+### doubt-driven-development
+
+| Field | Value |
+|-------|--------|
+| **Purpose** | Adversarial review of non-trivial claims before they stand. |
+| **Triggers** | Branching logic; module boundaries; trading-adjacent safety claims. |
+| **When NOT to use** | Renames; obvious one-liners; user chose speed. |
+| **Source** | https://github.com/addyosmani/agent-skills (adapted) |
+| **Local path** | `.cursor/skills/doubt-driven-development/` |
+| **Safety notes** | Prefer parent-session doubt; specialists remain explicit opt-in. |
+
+### code-review-and-quality
+
+| Field | Value |
+|-------|--------|
+| **Purpose** | Five-axis review + Nova invariant checklist before ship. |
+| **Triggers** | Non-trivial diffs; after features/bug fixes; reviewing agent code. |
+| **When NOT to use** | Pure typo/docs with no behavior change (optional). |
+| **Source** | https://github.com/addyosmani/agent-skills (adapted) |
+| **Local path** | `.cursor/skills/code-review-and-quality/` |
+| **Safety notes** | Critical/major findings block ship claims until fixed or user-waived. |
+
 ## Related project skills (pre-existing)
 
 | Skill | Path | Role |

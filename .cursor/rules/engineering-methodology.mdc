@@ -1,0 +1,54 @@
+---
+description: Nova engineering methodology graft -- soft TDD, plan teeth, interview/doubt/review skills; does not replace domain constitution
+alwaysApply: true
+---
+
+# Engineering methodology (graft)
+
+Nova keeps its **domain constitution** (`AGENTS.md` + trading/feed invariants). This rule adds **engineering teeth** adapted from Superpowers and Addy Osmani agent-skills. If a skill conflicts with Nova law, **Nova wins**.
+
+## Skill map (load when intent matches)
+
+| Intent | Skill | Source lineage |
+|--------|-------|----------------|
+| Underspecified ask / "grill me" | `.cursor/skills/interview-me/SKILL.md` | addyosmani/agent-skills |
+| Multi-file feature after design agreement | `.cursor/skills/writing-plans/SKILL.md` | obra/superpowers |
+| Non-trivial decision / high stakes | `.cursor/skills/doubt-driven-development/SKILL.md` | addyosmani/agent-skills |
+| Before merge / after non-trivial impl | `.cursor/skills/code-review-and-quality/SKILL.md` | addyosmani/agent-skills |
+| About to claim done/fixed | `.cursor/rules/verification-before-completion.mdc` (+ skill twin) | obra/superpowers |
+| New behavior or bug fix | Soft TDD below | both (softened for Nova) |
+
+## Soft TDD (Nova)
+
+**Required:** For new behavior and bug fixes, write or update a failing test first, watch it fail, then implement minimal code. Prefer pytest / Vitest matching neighboring tests.
+
+**Exempt (ask only if unsure):** pure docs, comments, constants renames with no behavior change, rule/skill markdown-only edits, generated artifacts.
+
+**Not Superpowers-hard:** Do not delete an entire exploratory spike if the user asked for a spike; convert to TDD before calling the work "done."
+
+## Plan teeth (not always-on brainstorming)
+
+- Use `writing-plans` when: Plan mode, multi-file features, or the user asks for a plan/spec.
+- Do **not** hard-gate every one-line fix behind a design doc.
+- Roadmap phases still follow `nova-roadmap-continuity.mdc`.
+
+## Interview / doubt / review
+
+- **interview-me:** When who/why/success/constraint is missing and the ask is not mechanical.
+- **doubt-driven-development:** Non-trivial branching, module boundaries, irreversible or trading-adjacent claims. Prefer fresh-context review; stay in parent session (zero-hop default).
+- **code-review-and-quality:** Five-axis review before claiming ship on non-trivial diffs. May stay in-parent; specialists (`maintainer`, `security`, `tester`) remain explicit opt-in.
+
+## Explicitly NOT imported
+
+- Default subagent-per-task loops (conflicts with `specialist-routing.mdc` zero-hop).
+- Always-hard brainstorming gate on every change.
+- Replacing `AGENTS.md` with upstream constitutions.
+- Cloud launch theater that assumes a hosted backend (Nova API is local-only).
+
+## Precedence
+
+1. User explicit instruction for this turn  
+2. `AGENTS.md` + always-on domain MDCs (feed, IBKR, execution, modularity)  
+3. This methodology + verification rule  
+4. Individual skills  
+5. Model default behavior  

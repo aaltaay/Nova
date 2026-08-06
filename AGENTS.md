@@ -363,6 +363,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-08-06 | Engineering methodology graft: Superpowers verification/plan teeth + Addy interview/doubt/review as Nova-adapted skills + always-on MDCs; `tools/engineering_skills_audit.py`; domain constitution + zero-hop preserved. | User Directive + Cursor Agent |
 | 2026-08-05 | Doc invariants: `tools/doc_invariants.py` + CI gate; §5 trading wording + §10 compliance table corrected; posture-change rule in `doc-invariants.mdc`. | User Directive + Cursor Agent |
 | 2026-08-05 | Deploy truth: Railway retired from live docs. Backend is local-only (no cloud host); Vercel remains optional for static frontend only. §4 / §8 updated. | User Directive + Cursor Agent |
 | 2026-07-29 | Token economy: §12 no longer embeds full .mdc copies (stale duplicates of live rules). Replaced with a compact index pointing at `.cursor/rules/*.mdc`. Attachment modes: always-on vs glob vs agent-requested. Do not create `.cursorrules`. | Cursor Agent |
@@ -404,6 +405,18 @@ Discoverability for vendored Cursor skills (research/backtest advice only — **
 | **Local skill files** | `.cursor/skills/` (pins in `SOURCE-PINS.txt`) |
 
 Pre-existing: `karpathy-guidelines`, `graphify`. Phase A adds: `backtest`, `optimize`, `strategy-compare`, `vectorbt-expert`, `backtesting-frameworks`, `llm-trading-agent-security`.
+
+**Engineering methodology graft (2026-08-06):** Nova-adapted process skills (domain constitution still wins; zero-hop preserved):
+
+| Skill | Path | Role |
+|-------|------|------|
+| `verification-before-completion` | `.cursor/skills/verification-before-completion/` | Evidence before done/fixed claims (always-on MDC twin) |
+| `writing-plans` | `.cursor/skills/writing-plans/` | Bite-sized plans for Plan mode / multi-file work |
+| `interview-me` | `.cursor/skills/interview-me/` | One-question requirements interview |
+| `doubt-driven-development` | `.cursor/skills/doubt-driven-development/` | Adversarial review of non-trivial claims |
+| `code-review-and-quality` | `.cursor/skills/code-review-and-quality/` | Five-axis review before ship |
+
+Always-on rules: `verification-before-completion.mdc`, `engineering-methodology.mdc`. Audit: `py -3 tools/engineering_skills_audit.py`. Lineage pins in `.cursor/skills/SOURCE-PINS.txt` (`obra/superpowers`, `addyosmani/agent-skills`). **Not imported:** default subagent-per-task, always-hard brainstorming, replacing `AGENTS.md`.
 
 ### Specialized Cursor subagents
 
@@ -453,6 +466,8 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `commit-push-deploy.mdc` -- commit + push (+ deploy when applicable) at task end
 - `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`
 - `self-annealing.mdc` -- root-cause fix protocol on any error
+- `verification-before-completion.mdc` -- no done/fixed claims without fresh evidence
+- `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
 
 **Glob-scoped** (attach when editing matching files; `alwaysApply: false`):
 

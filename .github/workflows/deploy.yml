@@ -6,6 +6,7 @@
 #   2. frontend-build -- npm ci + vite build (catches TypeScript / import errors)
 #   3. security / agent-contract jobs (warning-only where noted)
 #   4. doc_invariants.py inside agent-contract (blocks stale live-doc claims)
+#   5. engineering_skills_audit.py (methodology graft: verify/plan/interview/doubt/review)
 #
 # Optional GitHub variable (Settings → Variables → Actions):
 #   VITE_API_BASE_URL -- override for frontend CI build; defaults to a placeholder.
@@ -161,7 +162,7 @@ jobs:
         run: pip install pytest
 
       - name: Agent tool tests
-        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py -q --tb=short
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py -q --tb=short
 
       - name: Structural validation (CI mode)
         # --ci skips user-local canvas file existence (canvases live outside the repo).
@@ -169,3 +170,6 @@ jobs:
 
       - name: Doc invariants (live docs must not re-introduce stale claims)
         run: python tools/doc_invariants.py
+
+      - name: Engineering skills audit (methodology graft)
+        run: python tools/engineering_skills_audit.py

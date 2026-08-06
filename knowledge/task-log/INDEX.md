@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-06 | [Engineering methodology graft](2026-08-06-engineering-methodology-graft.md) | Superpowers verify/plan + Addy interview/doubt/review; audit tool; domain law kept |
 | 2026-08-05 | [Doc invariants CI gate](2026-08-05-doc-invariants-ci-gate.md) | Live-doc regex gate + Actions wiring; High stale claims fixed |
 | 2026-08-05 | [Retire Railway from live deploy docs](2026-08-05-retire-railway-deploy-docs.md) | Backend local-only; Railway retired from live docs/CI |
 | 2026-08-04 | [HOD Momo sort by TIME not emit lag](2026-08-04-hod-momo-time-sort.md) | HOD Momo sort by TIME not emit lag |

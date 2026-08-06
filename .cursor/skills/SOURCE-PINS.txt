@@ -18,3 +18,19 @@ affaan-m/everything-claude-code
   license: MIT
   skill: llm-trading-agent-security
   path_in_source: skills/llm-trading-agent-security
+
+# Engineering methodology graft (2026-08-06) -- Nova-adapted copies, not full plugins
+# Domain constitution (AGENTS.md) remains supreme; zero-hop preserved.
+
+obra/superpowers
+  ref: main (adapted 2026-08-06; not a verbatim vendor tree)
+  license: MIT
+  adapted_skills: verification-before-completion, writing-plans
+  always_on_rules: verification-before-completion.mdc (partial), engineering-methodology.mdc (plan/TDD teeth)
+  skipped: subagent-driven-development as default, always-hard brainstorming gate, plugin install
+
+addyosmani/agent-skills
+  ref: main (adapted 2026-08-06; not a verbatim vendor tree)
+  license: MIT (assumed from upstream README badges; skill bodies adapted)
+  adapted_skills: interview-me, doubt-driven-development, code-review-and-quality
+  skipped: full /spec-/ship command pack, shipping-and-launch cloud theater, replacing AGENTS.md

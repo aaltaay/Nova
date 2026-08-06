@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-06 -- Engineering methodology graft (Superpowers + Addy skills)
+
+- **What:** Grafted Nova-adapted process skills and always-on rules: verification-before-completion, writing-plans (Superpowers lineage); interview-me, doubt-driven-development, code-review-and-quality (Addy lineage). Added `engineering-methodology.mdc` (soft TDD + skill map), tightened self-annealing, catalog/pins/`AGENTS.md` index, and `tools/engineering_skills_audit.py` (+ CI).
+- **Why:** Nova's domain constitution is strong; its Spec/Plan/Prove/Review loop was weak vs Superpowers/Addy. Steal teeth without a second constitution or default subagent-per-task.
+- **Files touched:** `.cursor/rules/verification-before-completion.mdc`, `.cursor/rules/engineering-methodology.mdc`, `.cursor/rules/self-annealing.mdc`, `.cursor/skills/{verification-before-completion,writing-plans,interview-me,doubt-driven-development,code-review-and-quality}/`, `SOURCE-PINS.txt`, `AGENTS.md`, `Skills-Library.md`, `tools/engineering_skills_audit.py`, `tools/test_engineering_skills_audit.py`, `.github/workflows/deploy.yml`.
+- **How it works now:** Domain law still wins. Always-on verification + methodology map point agents at the five skills. Plans are for Plan mode / multi-file work (not every one-liner). Zero-hop stays default. `py -3 tools/engineering_skills_audit.py` regresses the graft.
+- **Verified by:** `engineering_skills_audit` + pytest for that tool; `agent_contract`; `doc_invariants` (full audit suite in-session).
+- **Follow-ups:** Optional: short `docs/plans/README.md`; practice interview-me on next underspecified feature.
+- **Related:** task-log `2026-08-06-engineering-methodology-graft`.
+
 ## 2026-08-05 -- Doc invariants CI gate (anti-stale live docs)
 
 - **What:** Added `tools/doc_invariants.py` (regex gate on live docs) wired into GitHub Actions `agent-contract` job; always-on `doc-invariants.mdc`; fixed High stale claims so the gate is green (trading wording, compliance table, Alpaca scanner `.env` line, ZAP tip, roadmap scope guard, `findings.md` banner, CORS audit copy).

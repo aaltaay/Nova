@@ -1,0 +1,44 @@
+---
+description: Evidence before claims -- no done/fixed/passing without fresh verification output in this turn
+alwaysApply: true
+---
+
+# Verification before completion
+
+**Iron law:** No completion, fix, or pass claims without fresh verification evidence from this turn.
+
+Adapted from [obra/superpowers](https://github.com/obra/superpowers) `verification-before-completion`. Nova domain constitution (`AGENTS.md`) still wins on trading, feed, and modularity.
+
+## Gate (before claiming status)
+
+1. **IDENTIFY** -- What command or check proves the claim?
+2. **RUN** -- Execute it fresh in this turn (full command, not a memory of a prior run).
+3. **READ** -- Exit code, failures, and relevant output.
+4. **VERIFY** -- Does the output actually support the claim?
+5. **ONLY THEN** -- State the claim with the evidence.
+
+Skip any step = do not claim success.
+
+## Common claims
+
+| Claim | Requires | Not enough |
+|-------|----------|------------|
+| Tests pass | Test command: 0 failures | "Should pass", prior run |
+| Build OK | Build exit 0 | Lint alone |
+| Bug fixed | Symptom repro now passes | Code changed |
+| Requirements met | Checklist vs plan/spec | "Looks good" |
+| Agent task done | Diff + verification | Subagent said "success" |
+
+## Red flags -- STOP
+
+- "Should", "probably", "seems to", "looks correct"
+- Satisfaction ("Done!", "Fixed!") before running the check
+- Commit/push/PR language without verification (when commit was requested)
+- Trusting a subagent report without checking the diff / re-running tests
+
+## Nova scope notes
+
+- Prefer the repo's real commands (`pytest`, `npm test` / Vitest, `npm run build`, `py -3 tools/...`).
+- For UI: browser or Playwright evidence when the change is user-visible (see `browser-testing.mdc`).
+- Logging (CHANGELOG / PROBLEM_LOG / task-log) does **not** replace verification.
+- Domain gates still apply: never claim trading safety without the relevant IBKR/execution checks when those paths changed.
