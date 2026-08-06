@@ -13,6 +13,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { TICKER_TRADE_PLACE_CONFIRM_SKIP_LABEL } from '../constants';
+import { writeSkipPlaceConfirm } from '../ibkr/placeConfirmPrefs';
 import {
   registerAppDialogHandler,
   type AppDialogRequest,
@@ -34,7 +36,9 @@ export function AppDialogHost({ children }: Props) {
   const [queue, setQueue] = useState<AppDialogRequest[]>([]);
   const active = queue[0] ?? null;
   const inputId = useId();
+  const skipId = useId();
   const [promptValue, setPromptValue] = useState('');
+  const [skipChecked, setSkipChecked] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -45,6 +49,7 @@ export function AppDialogHost({ children }: Props) {
   }, []);
 
   useEffect(() => {
+    setSkipChecked(false);
     if (active?.kind === 'prompt') {
       setPromptValue('');
       const t = window.setTimeout(() => inputRef.current?.focus(), 30);
@@ -55,6 +60,9 @@ export function AppDialogHost({ children }: Props) {
 
   function dismissConfirm(ok: boolean) {
     if (!active || active.kind !== 'confirm') return;
+    if (ok && active.skipConfirmOption && skipChecked) {
+      writeSkipPlaceConfirm(true);
+    }
     active.resolve(ok);
     setQueue(prev => prev.slice(1));
   }
@@ -76,6 +84,11 @@ export function AppDialogHost({ children }: Props) {
     active?.kind === 'prompt' && active.expectedValue != null
       ? promptValue === active.expectedValue
       : true;
+  const showSkip =
+    active?.kind === 'confirm' && active.skipConfirmOption === true;
+  const skipLabel =
+    (active?.kind === 'confirm' && active.skipConfirmLabel) ||
+    TICKER_TRADE_PLACE_CONFIRM_SKIP_LABEL;
 
   return (
     <>
@@ -132,46 +145,69 @@ export function AppDialogHost({ children }: Props) {
               />
             )}
 
-            <AlertDialogFooter>
-              {active.kind !== 'alert' && (
-                <AlertDialogCancel
-                  type="button"
-                  data-testid="app-dialog-cancel"
-                  onClick={() =>
-                    active.kind === 'confirm' ? dismissConfirm(false) : dismissPrompt(null)
-                  }
+            <div
+              className={
+                showSkip ? 'app-dialog-actions app-dialog-actions--with-skip' : 'app-dialog-actions'
+              }
+            >
+              {showSkip && (
+                <label
+                  className="app-dialog-skip"
+                  htmlFor={skipId}
+                  data-testid="app-dialog-skip-confirm"
                 >
-                  {active.cancelLabel}
-                </AlertDialogCancel>
+                  <input
+                    id={skipId}
+                    type="checkbox"
+                    checked={skipChecked}
+                    onChange={e => setSkipChecked(e.target.checked)}
+                  />
+                  <span>{skipLabel}</span>
+                </label>
               )}
-              {active.kind === 'alert' ? (
-                <AlertDialogAction
-                  type="button"
-                  className={actionClass(tone)}
-                  data-testid="app-dialog-ok"
-                  onClick={dismissAlert}
-                >
-                  {active.okLabel}
-                </AlertDialogAction>
-              ) : (
-                <AlertDialogAction
-                  type="button"
-                  className={actionClass(tone)}
-                  data-testid="app-dialog-confirm"
-                  disabled={active.kind === 'prompt' && !promptMatches}
-                  onClick={e => {
-                    if (active.kind === 'prompt' && !promptMatches) {
-                      e.preventDefault();
-                      return;
+              <AlertDialogFooter>
+                {active.kind !== 'alert' && (
+                  <AlertDialogCancel
+                    type="button"
+                    data-testid="app-dialog-cancel"
+                    onClick={() =>
+                      active.kind === 'confirm'
+                        ? dismissConfirm(false)
+                        : dismissPrompt(null)
                     }
-                    if (active.kind === 'confirm') dismissConfirm(true);
-                    else dismissPrompt(promptValue);
-                  }}
-                >
-                  {active.confirmLabel}
-                </AlertDialogAction>
-              )}
-            </AlertDialogFooter>
+                  >
+                    {active.cancelLabel}
+                  </AlertDialogCancel>
+                )}
+                {active.kind === 'alert' ? (
+                  <AlertDialogAction
+                    type="button"
+                    className={actionClass(tone)}
+                    data-testid="app-dialog-ok"
+                    onClick={dismissAlert}
+                  >
+                    {active.okLabel}
+                  </AlertDialogAction>
+                ) : (
+                  <AlertDialogAction
+                    type="button"
+                    className={actionClass(tone)}
+                    data-testid="app-dialog-confirm"
+                    disabled={active.kind === 'prompt' && !promptMatches}
+                    onClick={e => {
+                      if (active.kind === 'prompt' && !promptMatches) {
+                        e.preventDefault();
+                        return;
+                      }
+                      if (active.kind === 'confirm') dismissConfirm(true);
+                      else dismissPrompt(promptValue);
+                    }}
+                  >
+                    {active.confirmLabel}
+                  </AlertDialogAction>
+                )}
+              </AlertDialogFooter>
+            </div>
           </AlertDialogContent>
         )}
       </AlertDialog>

@@ -4,6 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { TICKER_TRADE_SKIP_PLACE_CONFIRM_KEY } from '../constants';
 import { alertApp, confirmApp, promptApp } from './appDialogApi';
 import { AppDialogHost } from './AppDialogHost';
 
@@ -67,6 +68,34 @@ describe('AppDialogHost global UX', () => {
       await Promise.resolve();
     });
     expect(result).toBe(false);
+  });
+
+  it('skipConfirmOption checkbox persists don’t-ask-again on Place', async () => {
+    localStorage.removeItem(TICKER_TRADE_SKIP_PLACE_CONFIRM_KEY);
+    let result: boolean | undefined;
+    act(() => {
+      void confirmApp({
+        title: 'Confirm Nova Action',
+        message: 'BUY 1 EZRA (MKT) on LIVE account.',
+        confirmLabel: 'Place',
+        tone: 'warning',
+        skipConfirmOption: true,
+      }).then(v => {
+        result = v;
+      });
+    });
+
+    const skip = document.querySelector(
+      '[data-testid="app-dialog-skip-confirm"] input',
+    ) as HTMLInputElement;
+    expect(skip).toBeTruthy();
+    await act(async () => {
+      skip.click();
+      (document.querySelector('[data-testid="app-dialog-confirm"]') as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    expect(result).toBe(true);
+    expect(localStorage.getItem(TICKER_TRADE_SKIP_PLACE_CONFIRM_KEY)).toBe('1');
   });
 
   it('alertApp resolves after OK', async () => {

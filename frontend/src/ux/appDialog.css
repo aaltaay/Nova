@@ -75,3 +75,39 @@
 .app-dialog-action--danger:hover {
   background: #ef4444 !important;
 }
+
+.app-dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.app-dialog-actions--with-skip {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.app-dialog-actions--with-skip [data-slot='alert-dialog-footer'] {
+  margin-left: auto;
+}
+
+.app-dialog-skip {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex: 1 1 12rem;
+  max-width: 18rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: color-mix(in srgb, var(--muted-foreground, #94a3b8) 95%, #fff);
+  text-align: left;
+}
+
+.app-dialog-skip input {
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+}

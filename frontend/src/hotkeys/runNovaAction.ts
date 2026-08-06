@@ -80,6 +80,7 @@ async function maybeConfirm(
     message: summary,
     confirmLabel: 'Place',
     tone: 'warning',
+    skipConfirmOption: true,
   });
 }
 

@@ -19,6 +19,13 @@ export interface ConfirmDialogOptions {
   confirmLabel?: string;
   cancelLabel?: string;
   tone?: AppDialogTone;
+  /**
+   * Show “don’t ask again” checkbox (bottom-left). When checked and the user
+   * confirms, persists via placeConfirmPrefs (same as Manual Order ticket).
+   */
+  skipConfirmOption?: boolean;
+  /** Override checkbox label when skipConfirmOption is true. */
+  skipConfirmLabel?: string;
 }
 
 export interface AlertDialogOptions {
@@ -85,6 +92,8 @@ export function confirmApp(
       confirmLabel: opts.confirmLabel ?? APP_DIALOG_CONTINUE_LABEL,
       cancelLabel: opts.cancelLabel ?? APP_DIALOG_CANCEL_LABEL,
       tone: opts.tone ?? 'default',
+      skipConfirmOption: opts.skipConfirmOption === true,
+      skipConfirmLabel: opts.skipConfirmLabel,
       resolve,
     });
   });
