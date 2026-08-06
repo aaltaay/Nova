@@ -1,6 +1,7 @@
-# Nova IBKR smoke check — run with: .\scripts\smoke_check.ps1
+# Nova IBKR smoke check -- run with: .\scripts\smoke_check.ps1
 # Requires the backend on http://127.0.0.1:8000. IB Gateway should be logged in
-# when discovery=ibkr (empty scanners + connected:false = login blocker, not "no gaps").
+# when discovery=ibkr. status.connected means usable/ready (not socket-only);
+# empty scanners + connected:false = login or session blocker, not "no gaps".
 param(
     [string]$Base = "http://127.0.0.1:8000",
     [string]$SampleSymbol = "AAPL"
@@ -29,17 +30,27 @@ function Get-Json([string]$url, [int]$TimeoutSec = 8) {
     return ($r.Content | ConvertFrom-Json)
 }
 
-Write-Host "`nNova IBKR smoke check — $Base`n"
+Write-Host "`nNova IBKR smoke check -- $Base`n"
 
-# ── Core connectivity ─────────────────────────────────────────────────────────
+# -- Core connectivity ---------------------------------------------------------
 try {
     $ibkr = Get-Json "$Base/api/ibkr/status"
-    if ($ibkr.connected -eq $true) { Pass "IBKR connected (mode=$($ibkr.mode))" }
+    $transport = $ibkr.transport_connected
+    $reason = $ibkr.session_reason
+    if ($ibkr.connected -eq $true) {
+        Pass "IBKR usable/ready (mode=$($ibkr.mode) transport=$transport reason=$reason)"
+    }
     else {
-        Fail "IBKR connected" "connected=$($ibkr.connected) — log into IB Gateway"
+        Fail "IBKR usable/ready" "connected=$($ibkr.connected) transport=$transport reason=$reason"
         Write-Host ""
-        Write-Host "  ACTION REQUIRED — IB Gateway login" -ForegroundColor Yellow
-        Write-Host "  Gappers/movers will look empty until Gateway is logged in." -ForegroundColor Yellow
+        if ($transport -eq $true) {
+            Write-Host "  Transport is up but session is not usable (e.g. Error 1100 recovery)." -ForegroundColor Yellow
+            Write-Host "  Wait for reconnect / earn_usable -- do not treat this as a quiet market." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "  ACTION REQUIRED -- IB Gateway login" -ForegroundColor Yellow
+            Write-Host "  Gappers/movers will look empty until Gateway is logged in (phone 2FA if prompted)." -ForegroundColor Yellow
+        }
         Write-Host ""
     }
 } catch {
@@ -60,19 +71,19 @@ try {
     if ($prov) { Pass "Discovery provider=$prov" }
     else { Fail "Config discovery_provider" "missing" }
     if ($prov -eq "ibkr" -and $ibkr.connected -ne $true) {
-        Warn "discovery=ibkr but Gateway not connected — scanners will look empty"
+        Warn "discovery=ibkr but session not usable -- scanners will look empty"
     }
 } catch {
     Fail "Config endpoint" "$_"
 }
 
-# ── Scanner surfaces ──────────────────────────────────────────────────────────
+# -- Scanner surfaces ----------------------------------------------------------
 try {
     $g = Get-Json "$Base/api/gappers"
     $n = @($g.gappers).Count
     Pass "Gappers endpoint ($n rows)"
     if ($n -eq 0 -and $ibkr.connected -eq $true) {
-        Warn "Gappers empty with IBKR up — OK outside premarket / when no gaps"
+        Warn "Gappers empty with IBKR usable -- OK outside premarket / when no gaps"
     }
 } catch {
     Fail "Gappers endpoint" "$_"
@@ -84,7 +95,7 @@ try {
     $ln = @($m.losers).Count
     Pass "Movers endpoint (gainers=$gn losers=$ln)"
     if ($gn -eq 0 -and $ln -eq 0 -and $ibkr.connected -eq $true) {
-        Warn "Movers empty with IBKR up — OK outside market hours / quiet tape"
+        Warn "Movers empty with IBKR usable -- OK outside market hours / quiet tape"
     }
 } catch {
     Fail "Movers endpoint" "$_"
@@ -114,8 +125,8 @@ try {
     Fail "HOD Momo alerts endpoint" "$_"
 }
 
-# ── Ticker / bars (feed-coherence smoke) ──────────────────────────────────────
-# IBKR overnight detail can take ~10–15s (snapshot + news + fundamentals).
+# -- Ticker / bars (feed-coherence smoke) --------------------------------------
+# IBKR overnight detail can take ~10-15s (snapshot + news + fundamentals).
 try {
     $t = Get-Json "$Base/api/ticker/$SampleSymbol" -TimeoutSec 25
     if ($t.symbol -eq $SampleSymbol -or $t.symbol -eq $SampleSymbol.ToUpper()) {
@@ -133,20 +144,20 @@ try {
     $bn = @($bars.bars).Count
     if ($bn -gt 0) { Pass "Ticker bars $SampleSymbol ($bn bars)" }
     else {
-        # 503 / empty under IBKR when Gateway can't serve history is a loud fail path —
+        # 503 / empty under IBKR when Gateway can't serve history is a loud fail path --
         # treat empty as WARN unless status was non-200 (caught above).
-        Warn "Ticker bars $SampleSymbol empty — check Gateway history permissions / symbol"
+        Warn "Ticker bars $SampleSymbol empty -- check Gateway history permissions / symbol"
     }
 } catch {
     $msg = "$_"
     if ($msg -match "503") {
-        Warn "Ticker bars $SampleSymbol → 503 (fail-loud IBKR path — expected if Gateway bars unavailable)"
+        Warn "Ticker bars $SampleSymbol -> 503 (fail-loud IBKR path -- expected if Gateway bars unavailable)"
     } else {
         Fail "Ticker bars $SampleSymbol" $msg
     }
 }
 
 Write-Host "`nResult: $pass passed, $fail failed, $warn warnings`n"
-Write-Host "Manual UI checks still required — see scripts/ibkr_smoke_checklist.md`n"
+Write-Host "Manual UI checks still required -- see scripts/ibkr_smoke_checklist.md`n"
 if ($fail -gt 0) { exit 1 }
 exit 0

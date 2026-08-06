@@ -30,6 +30,13 @@
 
 .PARAMETER HealthWaitSec
   Max seconds to wait for /api/health after starting or recycling the API.
+
+.PARAMETER GatewayPortWaitSec
+  Max seconds to wait for Gateway API port 4001 or 4002 after launch.
+
+.PARAMETER IbkrUsableWaitSec
+  Max seconds to wait for /api/ibkr/status.connected (usable session) after API is up.
+  Authenticating window title / LISTEN alone is never treated as healthy.
 #>
 param(
     [string]$RepoRoot = "",
@@ -37,7 +44,9 @@ param(
     [switch]$SkipBrowser,
     [switch]$ForceRestart,
     [int]$OpenBrowserDelaySec = 8,
-    [int]$HealthWaitSec = 60
+    [int]$HealthWaitSec = 60,
+    [int]$GatewayPortWaitSec = 120,
+    [int]$IbkrUsableWaitSec = 180
 )
 
 $ErrorActionPreference = "Continue"
@@ -138,6 +147,83 @@ function Test-GatewayProcess {
     return [bool]$java
 }
 
+function Test-GatewayApiPort {
+    return (Test-PortListening 4001) -or (Test-PortListening 4002)
+}
+
+function Wait-GatewayApiPort {
+    param([int]$TimeoutSec = 120)
+    if (Test-GatewayApiPort) {
+        Write-DailyLog "Gateway API port already listening (4001 and/or 4002)"
+        return $true
+    }
+    Write-DailyLog "Waiting up to ${TimeoutSec}s for Gateway API port 4001/4002..."
+    Write-DailyLog (
+        "STATUS: If IB Gateway shows Authenticating, complete IBKR Mobile 2FA on your phone now."
+    ) "WARN"
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-GatewayApiPort) {
+            Write-DailyLog "Gateway API port is listening"
+            return $true
+        }
+        Start-Sleep -Seconds 3
+    }
+    Write-DailyLog "Gateway API port still dark after ${TimeoutSec}s" "ERROR"
+    Write-DailyLog (
+        "ACTION REQUIRED -- IB Gateway login / phone 2FA. Scanners stay empty until the API port opens."
+    ) "WARN"
+    return $false
+}
+
+function Get-IbkrStatusJson {
+    try {
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/ibkr/status" `
+            -UseBasicParsing -TimeoutSec 4
+        if ($resp.StatusCode -lt 200 -or $resp.StatusCode -ge 500) { return $null }
+        return ($resp.Content | ConvertFrom-Json)
+    } catch {
+        return $null
+    }
+}
+
+function Wait-IbkrUsable {
+    param([int]$TimeoutSec = 180)
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    Write-DailyLog "Waiting up to ${TimeoutSec}s for /api/ibkr/status.connected (usable session)..."
+    while ((Get-Date) -lt $deadline) {
+        $st = Get-IbkrStatusJson
+        if ($null -ne $st) {
+            $usable = ($st.connected -eq $true)
+            $transport = $st.transport_connected
+            $reason = $st.session_reason
+            if ($usable) {
+                Write-DailyLog (
+                    "IBKR usable/ready (mode=$($st.mode) transport=$transport reason=$reason)"
+                )
+                return $true
+            }
+            if ($transport -eq $true) {
+                Write-DailyLog (
+                    "IBKR transport up but not usable yet (reason=$reason) -- waiting"
+                )
+            }
+        }
+        Start-Sleep -Seconds 3
+    }
+    $st = Get-IbkrStatusJson
+    $transport = if ($null -ne $st) { $st.transport_connected } else { "unknown" }
+    $reason = if ($null -ne $st) { $st.session_reason } else { "unknown" }
+    Write-DailyLog (
+        "IBKR not usable after ${TimeoutSec}s (transport=$transport reason=$reason)"
+    ) "ERROR"
+    Write-DailyLog (
+        "ACTION REQUIRED -- look at IB Gateway / phone 2FA. " +
+        "Authenticating window title or LISTEN alone is not a healthy session."
+    ) "WARN"
+    return $false
+}
+
 function Start-IbGateway {
     $ibcPs1 = Join-Path $env:USERPROFILE ".nova\ibc\start_gateway.ps1"
     $ibcBat = Join-Path $env:USERPROFILE ".nova\ibc\StartGateway.bat"
@@ -147,14 +233,24 @@ function Start-IbGateway {
         if (Test-Path $defaultExe) { $gatewayExe = $defaultExe }
     }
 
-    if (Test-GatewayProcess -or (Test-PortListening 4001) -or (Test-PortListening 4002)) {
-        Write-DailyLog "IB Gateway already running (process or API port) -- skip launch"
+    # Only skip launch when the API port is already listening.
+    # Process / Authenticating window title alone is NOT healthy -- may still need 2FA.
+    if (Test-GatewayApiPort) {
+        Write-DailyLog "IB Gateway API port already listening -- skip launch"
+        return
+    }
+
+    if (Test-GatewayProcess) {
+        Write-DailyLog (
+            "IB Gateway process present but API ports dark -- not launching another instance. " +
+            "Complete login / IBKR Mobile 2FA if the window says Authenticating."
+        ) "WARN"
         return
     }
 
     if (Test-Path $ibcPs1) {
         Write-DailyLog "Starting IB Gateway via IBC ($ibcPs1)"
-        Write-DailyLog "Complete IBKR Mobile 2FA on your phone if prompted." "WARN"
+        Write-DailyLog "STATUS: Complete IBKR Mobile 2FA on your phone if prompted." "WARN"
         Start-Process -FilePath "powershell.exe" -ArgumentList @(
             "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $ibcPs1
         ) -WorkingDirectory (Split-Path $ibcPs1)
@@ -163,13 +259,14 @@ function Start-IbGateway {
 
     if (Test-Path $ibcBat) {
         Write-DailyLog "Starting IB Gateway via IBC bat ($ibcBat)"
-        Write-DailyLog "Complete IBKR Mobile 2FA on your phone if prompted." "WARN"
+        Write-DailyLog "STATUS: Complete IBKR Mobile 2FA on your phone if prompted." "WARN"
         Start-Process -FilePath $ibcBat -WorkingDirectory (Split-Path $ibcBat)
         return
     }
 
     if ($gatewayExe -and (Test-Path $gatewayExe)) {
         Write-DailyLog "IBC not configured -- launching Gateway exe (manual login required): $gatewayExe" "WARN"
+        Write-DailyLog "STATUS: Complete IBKR Mobile 2FA on your phone if prompted." "WARN"
         Start-Process -FilePath $gatewayExe
         return
     }
@@ -235,14 +332,25 @@ function Write-FinalStatus {
     $uiListen = Test-PortListening 5173
     $healthMs = if ($apiListen) { Measure-HealthMs } else { -1 }
     $healthTxt = if ($healthMs -ge 0) { "${healthMs}ms" } else { "FAIL" }
+    $st = if ($apiListen -and $healthMs -ge 0) { Get-IbkrStatusJson } else { $null }
+    $usable = if ($null -ne $st) { $st.connected } else { "n/a" }
+    $transport = if ($null -ne $st) { $st.transport_connected } else { "n/a" }
+    $reason = if ($null -ne $st) { $st.session_reason } else { "n/a" }
     Write-DailyLog (
         "STATUS gateway4001=$gw4001 gateway4002=$gw4002 " +
-        "apiListen=$apiListen health=$healthTxt uiListen=$uiListen"
+        "apiListen=$apiListen health=$healthTxt uiListen=$uiListen " +
+        "ibkrUsable=$usable transport=$transport reason=$reason"
     )
     if (-not $gw4001 -and -not $gw4002) {
         Write-DailyLog (
             "IB Gateway API ports are down. First login of the day may need " +
             "IBKR Mobile 2FA -- scanners stay empty until the API port opens."
+        ) "WARN"
+    }
+    elseif ($usable -ne $true) {
+        Write-DailyLog (
+            "STATUS WARN: IBKR session not usable yet (transport=$transport reason=$reason). " +
+            "If Gateway says Authenticating, complete phone 2FA now."
         ) "WARN"
     }
 }
@@ -251,11 +359,19 @@ Write-DailyLog "===== Nova daily start (repo=$RepoRoot) ====="
 
 if (-not $SkipGateway) {
     Start-IbGateway
+    $null = Wait-GatewayApiPort -TimeoutSec $GatewayPortWaitSec
 } else {
     Write-DailyLog "SkipGateway set -- not launching Gateway"
 }
 
 Start-NovaStack
+
+# Prefer usable session (status.connected) -- never treat Authenticating / LISTEN alone as healthy.
+$apiOk = (Measure-HealthMs) -ge 0
+if ($apiOk -and -not $SkipGateway) {
+    $null = Wait-IbkrUsable -TimeoutSec $IbkrUsableWaitSec
+}
+
 Write-FinalStatus
 
 if (-not $SkipBrowser) {
@@ -272,5 +388,5 @@ if (-not $SkipBrowser) {
 
 Write-DailyLog "Done. Log: $logFile"
 Write-Host ""
-Write-Host "Reminder: green Alpaca badges != IBKR logged in." -ForegroundColor Yellow
-Write-Host "Set Scanner Source to IBKR and confirm Gateway API connects (phone 2FA if needed)." -ForegroundColor Yellow
+Write-Host "Reminder: green Alpaca badges != IBKR logged in / usable." -ForegroundColor Yellow
+Write-Host "Set Scanner Source to IBKR and confirm /api/ibkr/status.connected (phone 2FA if needed)." -ForegroundColor Yellow
