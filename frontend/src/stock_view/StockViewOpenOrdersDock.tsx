@@ -78,39 +78,43 @@ export function StockViewOpenOrdersDock({
   const { orders: closedOrders } = useClosedOrders(connected);
 
   const symbolKey = symbol.toUpperCase();
-  const symbolOrders = useMemo(
-    () => orders.filter((o) => o.symbol.toUpperCase() === symbolKey),
-    [orders, symbolKey],
-  );
   const wantsWorkingSample =
     surface === 'orders' &&
     (filter === 'working' || filter === 'all' || filter === 'partial_filled');
+  // Account-wide desk: sample only when the account has zero working orders.
   const usingSample =
-    wantsWorkingSample && symbolOrders.length === 0 && !sampleHidden;
+    wantsWorkingSample && orders.length === 0 && !sampleHidden;
   const displayOrders = useMemo(
     () => (usingSample ? buildMockWorkingOrders(symbolKey) : orders),
     [usingSample, symbolKey, orders],
   );
-  // Real closed only (never sample) — see ordersTodayBadgeCount.
+  // Real closed only (never sample) — account-wide badge for active filter.
   const openCount = ordersTodayBadgeCount(
     displayOrders,
     closedOrders,
     filter,
-    symbolKey,
+    null,
   );
   const positionCount = positions.length;
 
   useEffect(() => {
     if (
       highlightOrderId != null ||
-      symbolOrders.length > 0 ||
+      orders.length > 0 ||
+      closedOrders.length > 0 ||
       usingSample ||
       positions.length > 0
     ) {
       setCollapsed(false);
       writeCollapsed(false);
     }
-  }, [highlightOrderId, symbolOrders.length, usingSample, positions.length]);
+  }, [
+    highlightOrderId,
+    orders.length,
+    closedOrders.length,
+    usingSample,
+    positions.length,
+  ]);
 
   const toggle = () => {
     setCollapsed((prev) => {
@@ -262,7 +266,7 @@ export function StockViewOpenOrdersDock({
           </button>
         ) : surface === 'orders' &&
           wantsWorkingSample &&
-          symbolOrders.length === 0 ? (
+          orders.length === 0 ? (
           <button
             type="button"
             className="sv-open-orders-dock__sample-btn"

@@ -5,7 +5,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ClosedOrder } from '../closed_orders/types';
-import { ORDERS_TODAY_EMPTY_MESSAGE } from '../constants';
+import {
+  ORDERS_TODAY_EMPTY_FILTER_MESSAGE,
+  ORDERS_TODAY_EMPTY_MESSAGE,
+} from '../constants';
 import type { IbkrOrder } from '../ibkr/types';
 import { OrdersTodayView } from './OrdersTodayView';
 
@@ -42,7 +45,7 @@ const baseProps = {
   onFilterChange: () => {},
 };
 
-describe('OrdersTodayView empty-state honesty', () => {
+describe('OrdersTodayView account-wide', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -65,15 +68,33 @@ describe('OrdersTodayView empty-state honesty', () => {
         <OrdersTodayView {...baseProps} filter="canceled" onFilterChange={() => {}} />,
       );
     });
-    // filter=canceled hides Working entirely and closedOrders is empty, so
-    // Closed falls back to sample rows for AAPL (non-empty) — not the empty
-    // gate. Assert no false-empty is shown while sample data is substituted.
+    // filter=canceled hides Working; empty closed falls back to sample rows.
     expect(
       container.querySelector('[data-testid="orders-today-empty"]'),
     ).toBeNull();
   });
 
-  it('shows a symbol-specific message when real orders exist for other symbols but not this one', () => {
+  it('shows other-symbol closed fills while Stock View is on a different ticker', () => {
+    act(() => {
+      root.render(
+        <OrdersTodayView
+          {...baseProps}
+          symbol="AAPL"
+          filter="all"
+          closedOrders={[CLOSED_MSFT]}
+        />,
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="orders-today-empty"]'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="stock-view-closed-orders"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toMatch(/MSFT/);
+  });
+
+  it('uses account filter empty copy when real orders exist but segment is empty', () => {
     act(() => {
       root.render(
         <OrdersTodayView
@@ -84,9 +105,10 @@ describe('OrdersTodayView empty-state honesty', () => {
         />,
       );
     });
+    // Real closed fills exist (so no sample substitute); canceled segment is empty.
     const empty = container.querySelector('[data-testid="orders-today-empty"]');
     expect(empty).toBeTruthy();
-    expect(empty?.textContent).toContain('AAPL');
+    expect(empty?.textContent).toBe(ORDERS_TODAY_EMPTY_FILTER_MESSAGE);
     expect(empty?.textContent).not.toBe(ORDERS_TODAY_EMPTY_MESSAGE);
   });
 
@@ -107,8 +129,6 @@ describe('OrdersTodayView empty-state honesty', () => {
     expect(
       container.querySelector('[data-testid="stock-view-closed-orders"]'),
     ).toBeTruthy();
-    // Real AAPL row rendered — sample banner (only shown when substituting
-    // mock rows) must not appear once a real closed order exists.
     expect(
       container.querySelector('[data-testid="closed-orders-sample-banner"]'),
     ).toBeNull();

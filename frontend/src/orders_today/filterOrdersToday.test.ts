@@ -67,13 +67,23 @@ describe('filterOrdersToday', () => {
     expect(closedRowsForToday(closed, 'canceled', 'AAPL')).toEqual([]);
   });
 
-  it('ordersTodayBadgeCount sums working + closed for the active filter', () => {
+  it('ordersTodayBadgeCount sums working + closed for the active filter (account-wide)', () => {
     const closed: ClosedOrder[] = [
       { ...WORKING, order_id: 3, status: 'Filled', filled_qty: 100, remaining_qty: 0 },
+      {
+        ...WORKING,
+        order_id: 4,
+        symbol: 'MSFT',
+        status: 'Filled',
+        filled_qty: 10,
+        remaining_qty: 0,
+      },
     ];
+    expect(ordersTodayBadgeCount([WORKING], closed, 'all', null)).toBe(3);
+    expect(ordersTodayBadgeCount([], closed, 'all', null)).toBe(2);
+    expect(ordersTodayBadgeCount([WORKING], closed, 'working', null)).toBe(1);
+    expect(ordersTodayBadgeCount([WORKING], closed, 'filled', null)).toBe(2);
+    // Legacy symbol scope still works for callers that pass a key.
     expect(ordersTodayBadgeCount([WORKING], closed, 'all', 'AAPL')).toBe(2);
-    expect(ordersTodayBadgeCount([], closed, 'all', 'AAPL')).toBe(1);
-    expect(ordersTodayBadgeCount([WORKING], closed, 'working', 'AAPL')).toBe(1);
-    expect(ordersTodayBadgeCount([WORKING], closed, 'filled', 'AAPL')).toBe(1);
   });
 });

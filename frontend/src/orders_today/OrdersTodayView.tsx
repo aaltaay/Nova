@@ -7,8 +7,8 @@ import { ClosedOrdersPanel } from '../closed_orders/ClosedOrdersPanel';
 import { buildMockClosedOrders } from '../closed_orders/mockClosedOrders';
 import type { ClosedOrder } from '../closed_orders/types';
 import {
+  ORDERS_TODAY_EMPTY_FILTER_MESSAGE,
   ORDERS_TODAY_EMPTY_MESSAGE,
-  ordersTodayEmptySymbolMessage,
 } from '../constants';
 import { WorkingOrdersPanel } from '../ibkr/WorkingOrdersPanel';
 import type { IbkrOrder } from '../ibkr/types';
@@ -54,13 +54,14 @@ export function OrdersTodayView({
     [usingClosedSample, closedOrders, symbol],
   );
 
+  // Account-wide: do not scope Orders (Today) to the open Stock View ticker.
   const workingRows = useMemo(
-    () => filterWorkingForToday(workingOrders, filter, symbol),
-    [workingOrders, filter, symbol],
+    () => filterWorkingForToday(workingOrders, filter, null),
+    [workingOrders, filter],
   );
   const closedRows = useMemo(
-    () => closedRowsForToday(closedSource, filter, symbol),
-    [closedSource, filter, symbol],
+    () => closedRowsForToday(closedSource, filter, null),
+    [closedSource, filter],
   );
   const closedStatusFilter = closedFilterFromToday(filter);
   const showWorking = showWorkingForToday(filter);
@@ -69,12 +70,10 @@ export function OrdersTodayView({
   const empty =
     (!showWorking || workingRows.length === 0) &&
     (!showClosed || closedRows.length === 0);
-  // Gateway truly has nothing yet (no real working/closed orders anywhere)
-  // vs. this symbol/filter just has no matches while other real orders
-  // exist — two different facts, two different messages.
+  // Gateway truly has nothing yet vs this filter segment has no matches.
   const hasAnyRealData = workingOrders.length > 0 || closedOrders.length > 0;
   const emptyMessage = hasAnyRealData
-    ? ordersTodayEmptySymbolMessage(symbol)
+    ? ORDERS_TODAY_EMPTY_FILTER_MESSAGE
     : ORDERS_TODAY_EMPTY_MESSAGE;
 
   return (
@@ -103,7 +102,7 @@ export function OrdersTodayView({
             <div data-testid="stock-view-working-orders">
               <WorkingOrdersPanel
                 orders={workingRows}
-                filterSymbol={symbol}
+                filterSymbol={null}
                 hideTitle
                 compact={false}
                 onCancelOrder={usingWorkingSample ? undefined : onCancelOrder}
@@ -120,7 +119,7 @@ export function OrdersTodayView({
             <div data-testid="stock-view-closed-orders">
               <ClosedOrdersPanel
                 orders={closedSource}
-                filterSymbol={symbol}
+                filterSymbol={null}
                 selectedSymbol={symbol}
                 hideTitle
                 hideFilters
