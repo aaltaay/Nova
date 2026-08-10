@@ -24,9 +24,9 @@ Use IBC’s sample config as a base. Set at least:
 - `TradingMode=live` or `paper` — must match `IBKR_GATEWAY_MODE` in Nova `.env`
 - `IbDir` — path to the Gateway install folder
 - `AcceptIncomingConnectionAction=accept` (or prompt -- your choice)
-- `AutoRestartTime=23:45` -- IBC shuts down and relaunches Gateway around the
-  daily re-auth window so Nova is not stuck disconnected until morning
-  (phone 2FA may still be required)
+- `AutoRestartTime=11:45 PM` -- must be `HH:MM AM/PM` (a bare `23:45` is
+  ignored). IBC sets Gateway **Auto restart** (week-long token path), not
+  Auto log off. Phone 2FA may still be required after Sunday security reset.
 
 Never commit `config.ini`. Add to your global gitignore if needed:
 
@@ -91,12 +91,14 @@ when the wrong local API port is listening:
 
 | Nova `IBKR_GATEWAY_MODE` | Listening port | Result |
 |---|---|---|
-| `live` | 4002 paper only | Self-heal → paper (refuse only; never on timeout) |
-| `paper` | 4001 live only | Self-heal → live (refuse only; never on timeout) |
+| `live` | 4002 paper only | Follow-Gateway heal → paper (refuse, or timeout/probe when preferred dark) |
+| `paper` | 4001 live only | Follow-Gateway heal → live (refuse, or timeout/probe when preferred dark) |
+| either | preferred still listening, connect times out | No heal (wedged / Error 326) — auth backoff |
 | either | both down | Stay disconnected — loud-warn login blocker |
 
 Account kind must match the mode being established after heal. Spend gates
 (`IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED`) are never auto-unlocked.
+Healed mode is persisted to `.env` so the next dial matches today's Gateway.
 
 `GET /api/ibkr/status` exposes `preferred_port`, `preferred_port_reachable`,
 `alternate_port_reachable`, and `disconnect_hint` (e.g.

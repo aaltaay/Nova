@@ -8,9 +8,10 @@ Users may start/focus Gateway via POST /api/ibkr/launch-gateway (header double-c
 Port selection uses IBKR_GATEWAY_MODE (paper→4002, live→4001), independent
 of IBKR_ORDERS_ENABLED / IBKR_LIVE_TRADING_CONFIRMED (see ibkr.safety).
 
-Self-heal is bidirectional when the preferred port is hard-refused and the
-alternate port answers (never on timeout / Error 326). After every connect,
-managedAccounts are classified and must match the mode being established.
+Self-heal follows the listening Gateway (probe-based): preferred dark +
+alternate up attaches and persists mode (refuse, timeout-on-dark, or pre-dial
+probe). Timeout while preferred still listens is not heal-eligible (Error 326 /
+wedged handshake). After every connect, managedAccounts must match the mode.
 
 Intentional Paper↔Live switches set sticky intent in gateway_heal (not a
 timer) so a failed switch cannot silently heal to the other mode mid-switch.
@@ -44,6 +45,7 @@ from constants import (
     IBKR_PAPER_PORT,
     IBKR_LIVE_PORT,
     IBKR_CLIENT_ID,
+    IBKR_MARKET_DATA_TYPE_DELAYED,
     IBKR_MARKET_DATA_TYPE_LIVE,
 )
 from ibkr import account_kind as _account_kind
@@ -139,12 +141,11 @@ async def _on_session_ready(ib: Any, *, reason: str) -> None:
     except Exception:
         logger.exception("IBKR: clear_all_subscriptions failed on READY (%s)", reason)
     try:
-        from ibkr import session_errors as _session_errors
-
         _session_errors.install_error_hook(ib)
     except Exception:
         logger.exception("IBKR: session_errors hook install failed on READY (%s)", reason)
     try:
+        _session_errors.reset_session_md_flags()
         ib.reqMarketDataType(int(IBKR_MARKET_DATA_TYPE_LIVE))
         _market_data_type = int(IBKR_MARKET_DATA_TYPE_LIVE)
         logger.info(
@@ -154,6 +155,34 @@ async def _on_session_ready(ib: Any, *, reason: str) -> None:
         )
     except Exception:
         logger.exception("IBKR: reqMarketDataType failed on READY (%s)", reason)
+
+
+def maybe_fallback_to_delayed_market_data() -> bool:
+    """If Error 10089 blocked live API MD, switch to delayed (type 3).
+
+    Safe to call from manager loops (not from errorEvent handlers). Returns
+    True when a downgrade request was issued this call.
+    """
+    global _market_data_type
+    if not _session_errors.live_market_data_blocked():
+        return False
+    if _market_data_type == int(IBKR_MARKET_DATA_TYPE_DELAYED):
+        return False
+    ib = get_ib()
+    if ib is None or not is_ready():
+        return False
+    try:
+        ib.reqMarketDataType(int(IBKR_MARKET_DATA_TYPE_DELAYED))
+        _market_data_type = int(IBKR_MARKET_DATA_TYPE_DELAYED)
+        logger.warning(
+            "IBKR: fell back to delayed market data type %s "
+            "(live API entitlement missing — Error 10089)",
+            _market_data_type,
+        )
+        return True
+    except Exception:
+        logger.exception("IBKR: delayed market data fallback failed")
+        return False
 
 
 def _ensure_wake_event() -> asyncio.Event:
@@ -290,6 +319,22 @@ async def _try_connect_alternate_port(
         preferred_mode,
         client_id,
         preferred_reason,
+        accept_session=_accept_connected_session,
+    )
+
+
+async def _maybe_heal_from_port_probes(
+    ib: "IB",
+    host: str,
+    preferred_mode: str,
+    client_id: int,
+) -> str | None:
+    """Follow-Gateway fast path when preferred TCP is dark and alternate listens."""
+    return await _connect.maybe_heal_from_port_probes(
+        ib,
+        host,
+        preferred_mode,
+        client_id,
         accept_session=_accept_connected_session,
     )
 

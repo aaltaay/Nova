@@ -171,6 +171,43 @@ async def _reconnect_once(client_mod: object) -> None:
             _session.set_disconnected()
             _session_errors.stamp_unusable()
             client_mod.set_session_reason("disconnected")  # type: ignore[attr-defined]
+        _session.set_connecting()
+        client_mod.set_session_reason("connecting")  # type: ignore[attr-defined]
+
+        # Follow-Gateway: if preferred is dark and the other mode is up, attach
+        # there immediately instead of waiting out a preferred-port timeout.
+        probe_healed = await client_mod._maybe_heal_from_port_probes(  # type: ignore[attr-defined]
+            client_mod._ib, host, mode_label, client_id,  # type: ignore[attr-defined]
+        )
+        if probe_healed:
+            client_mod._set_session(  # type: ignore[attr-defined]
+                mode=probe_healed,
+                broker_account_kind=client_mod._broker_account_kind,  # type: ignore[attr-defined]
+            )
+            logger.info(
+                "IBKR: connected in %s mode after probe self-heal "
+                "(orders still gated by safety.py)",
+                probe_healed,
+            )
+            earned, earn_detail = await _session_usable.earn_usable(
+                client_mod._ib, "self_heal",  # type: ignore[attr-defined]
+            )
+            if earned:
+                reset_auth_backoff(client_mod)
+                return
+            logger.error(
+                "IBKR: earn_usable failed after probe self-heal (%s)",
+                earn_detail,
+            )
+            client_mod._safe_disconnect(client_mod._ib)  # type: ignore[attr-defined]
+            client_mod._ib = client_mod.IB()  # type: ignore[attr-defined]
+            client_mod._set_session(  # type: ignore[attr-defined]
+                mode="disconnected", broker_account_kind="unknown",
+            )
+            _session.set_disconnected()
+            await client_mod._sleep_reconnect(IBKR_RECONNECT_DELAY_SEC)  # type: ignore[attr-defined]
+            return
+
         logger.info(
             "IBKR: attempting connect to %s:%s (%s, clientId=%s)",
             host,
@@ -178,8 +215,6 @@ async def _reconnect_once(client_mod: object) -> None:
             mode_label,
             client_id,
         )
-        _session.set_connecting()
-        client_mod.set_session_reason("connecting")  # type: ignore[attr-defined]
         ok, reason = await client_mod._attempt_connect(  # type: ignore[attr-defined]
             client_mod._ib, host, port, client_id,  # type: ignore[attr-defined]
         )

@@ -1,5 +1,5 @@
 """
-IBKR connect attempts + alternate-port self-heal (bidirectional, refused-only).
+IBKR connect attempts + alternate-port self-heal (follow listening Gateway).
 
 Extracted from client.py so the connection manager stays under the module
 size limit. Session acceptance (account-kind match) stays in client.py.
@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from constants import IBKR_CONNECT_TIMEOUT_SEC
 from ibkr import gateway_heal as _heal
+from ibkr.port_diagnostics import probe_port
 from metrics.op_metrics import timed
 
 if TYPE_CHECKING:
@@ -71,6 +72,10 @@ async def attempt_connect(
         return False, _heal.classify_connect_failure(exc, timed_out=False)
 
 
+def _probe_pair(host: str, preferred_port: int, alt_port: int) -> tuple[bool, bool]:
+    return probe_port(host, preferred_port), probe_port(host, alt_port)
+
+
 async def try_connect_alternate_port(
     ib: "IB",
     host: str,
@@ -80,11 +85,12 @@ async def try_connect_alternate_port(
     *,
     accept_session: AcceptSession,
 ) -> str | None:
-    """If preferred port was refused, try the alternate paper/live port.
+    """If preferred Gateway is dark and alternate listens, attach and persist.
 
-    Timeout / Error 326 is NOT heal-eligible — the preferred Gateway may still
-    be up (wedged handshake or clientId conflict). Account-kind match is
-    enforced by ``accept_session`` after a successful alternate connect.
+    Probe-based: refuse always heals; timeout / preferred_dark heals only when
+    preferred TCP is dark and alternate is up. Timeout while preferred still
+    listens is NOT heal-eligible (wedged handshake / Error 326).
+    Account-kind match is enforced by ``accept_session`` after connect.
     """
     if not _heal.self_heal_enabled():
         return None
@@ -95,8 +101,6 @@ async def try_connect_alternate_port(
             preferred_mode,
         )
         return None
-    if preferred_reason != "refused":
-        return None
 
     alt_mode = _heal.alternate_mode(preferred_mode)
     if not _heal.heal_target_allowed(from_mode=preferred_mode, to_mode=alt_mode):
@@ -104,11 +108,28 @@ async def try_connect_alternate_port(
 
     alt_port = _heal.port_for_mode(alt_mode)
     preferred_port = _heal.port_for_mode(preferred_mode)
+    preferred_up, alternate_up = _probe_pair(host, preferred_port, alt_port)
+    if not _heal.alternate_heal_eligible(
+        preferred_reason,
+        preferred_reachable=preferred_up,
+        alternate_reachable=alternate_up,
+    ):
+        logger.info(
+            "IBKR: alternate heal not eligible (reason=%s preferred_up=%s "
+            "alternate_up=%s)",
+            preferred_reason,
+            preferred_up,
+            alternate_up,
+        )
+        return None
+
     logger.info(
-        "IBKR: preferred %s:%s failed (%s); trying %s:%s (bidirectional self-heal)",
+        "IBKR: preferred %s:%s failed (%s; preferred_up=%s); trying %s:%s "
+        "(follow-Gateway self-heal)",
         preferred_mode,
         preferred_port,
         preferred_reason,
+        preferred_up,
         alt_mode,
         alt_port,
     )
@@ -132,3 +153,38 @@ async def try_connect_alternate_port(
         persisted=persisted,
     )
     return alt_mode
+
+
+async def maybe_heal_from_port_probes(
+    ib: "IB",
+    host: str,
+    preferred_mode: str,
+    client_id: int,
+    *,
+    accept_session: AcceptSession,
+) -> str | None:
+    """Fast path: preferred dark + alternate up → attach before preferred dial."""
+    preferred_port = _heal.port_for_mode(preferred_mode)
+    alt_port = _heal.port_for_mode(_heal.alternate_mode(preferred_mode))
+    preferred_up, alternate_up = _probe_pair(host, preferred_port, alt_port)
+    if not _heal.alternate_heal_eligible(
+        "preferred_dark",
+        preferred_reachable=preferred_up,
+        alternate_reachable=alternate_up,
+    ):
+        return None
+    logger.info(
+        "IBKR: preferred %s:%s dark; alternate %s listening — follow-Gateway "
+        "heal before preferred dial",
+        preferred_mode,
+        preferred_port,
+        alt_port,
+    )
+    return await try_connect_alternate_port(
+        ib,
+        host,
+        preferred_mode,
+        client_id,
+        "preferred_dark",
+        accept_session=accept_session,
+    )

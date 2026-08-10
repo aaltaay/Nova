@@ -30,6 +30,24 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-10 -- Follow-Gateway probe-based IBKR port heal
+
+- **What:** Nova now treats paper/live Gateway mismatch as core reconnect law: when the preferred API port is dark and the other mode's port is listening, attach there, persist `IBKR_GATEWAY_MODE`, and continue. Covers refuse, timeout-on-dark preferred (common on Windows), and a pre-dial TCP probe fast path.
+- **Why:** Live Gateway on 4001 with Nova stuck on paper 4002 left scanners blocked; status showed `paper_port_refused_live_listening` but heal never fired because heal was refuse-string-only and dark ports often time out.
+- **Files touched:** `backend/ibkr/gateway_heal.py`, `client_connect.py`, `client.py`, `session_reconnect.py`, `tests/test_gateway_heal.py`, `ibkr-gateway-login-warning.mdc`, `docs/ibc-gateway-setup.md`.
+- **How it works now:** Reconnect probes first. Preferred dark + alternate up → follow-Gateway heal before waiting on preferred dial. Timeout while preferred still listens stays non-heal (Error 326 / wedged). Intentional Paper/Live capsule still blocks silent heal. Spend gates unchanged.
+- **Verified by:** `pytest tests/test_gateway_heal.py tests/test_port_diagnostics.py tests/test_ibkr_client_connect.py` (24 passed). Live API log showed `trying live:4001 (follow-Gateway self-heal)` after paper refuse; attach still needs Gateway accepting API sockets (separate from heal eligibility).
+- **Related:** PROBLEM_LOG 2026-08-10 — Port heal stuck on timeout; task-log `knowledge/task-log/2026-08-10-follow-gateway-probe-heal.md`.
+
+## 2026-08-07 -- Paper scanners empty (quiet window + Error 10089)
+
+- **What:** Fixed empty paper scanners: timed-only READY quiet window; ADR 008 persistent scanners now authoritative by default; on IB Error 10089 (live API MD not entitled) Nova falls back to delayed `reqMarketDataType(3)` and marks `market_data_delayed`.
+- **Why:** Paper Gateway was connected but tables stayed empty -- quiet window waited forever on empty shadow, one-shot fought persistent leases, and paper lacked shared live MD (10089) so hydrate produced 0 rows.
+- **Files touched:** `backend/ibkr/scanner_stream.py`, `scanner_session` constants, `session_errors.py`, `client.py`, `constants_ibkr.py`, ADR 008, tests.
+- **How it works now:** Persistent stream owns roster caches. READY asks for live MD; if 10089 fires, manager loop switches to delayed so scanners populate on paper. Stay on paper for order testing; share live MD with paper in Account Management for real-time.
+- **Verified by:** pytest quiet-window + session_errors (12); live `/api/movers` 49/49 with `md_type=3 delayed=true` on paper.
+- **Related:** PROBLEM_LOG 2026-08-07 — Paper scanners empty; task-log `2026-08-07-paper-scanner-empty-md-entitlement.md`.
+
 ## 2026-08-06 -- Trading desk usable-session, PIN lock, Orders Today
 
 - **What:** Shipped usable-session SoT (connected = usable), Nova-process API health (no Alpaca RTT chip), Gateway banner honesty, header trading PIN lock, account-wide Orders (Today), place-dialog skip-confirm, T&S column fix, ops script alignment.

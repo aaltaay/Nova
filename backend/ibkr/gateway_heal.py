@@ -1,12 +1,18 @@
 """
-Self-heal IBKR Gateway port mismatch — **bidirectional auto-detect**.
+Self-heal IBKR Gateway port mismatch — **follow the listening Gateway**.
 
-When the preferred Gateway port (from IBKR_GATEWAY_MODE) is hard-refused but
-the alternate port accepts, flip runtime mode to the reachable port, persist
-``.env``, and reconnect. Account kind must match the mode being established
-(``account_kind.accounts_match_mode``).
+When Nova's preferred port (from ``IBKR_GATEWAY_MODE``) is dark but the
+alternate paper/live port is listening, flip runtime mode to the reachable
+port, persist ``.env``, and reconnect. Account kind must match the mode being
+established (``account_kind.accounts_match_mode``).
 
-Heal fires only on hard **refused** (not ambiguous timeout / Error 326).
+Eligibility is **probe-based**, not exception-string-only:
+
+- hard **refused** on preferred → heal-eligible
+- **timeout** / dark-preferred probe while alternate listens → heal-eligible
+  (Windows often times out a closed port instead of refusing immediately)
+- timeout while preferred **still listens** → NOT eligible (wedged handshake /
+  Error 326 / clientId conflict — do not silently jump ports)
 
 Intentional user switches (Stock View Paper/Live capsule) set a **sticky**
 requested mode that blocks silent heal until the user switches again or the
@@ -136,6 +142,25 @@ def classify_connect_failure(exc: BaseException | None, *, timed_out: bool) -> s
     if "timed out" in msg or "timeout" in msg:
         return "timeout"
     return "other"
+
+
+def alternate_heal_eligible(
+    preferred_reason: str,
+    *,
+    preferred_reachable: bool,
+    alternate_reachable: bool,
+) -> bool:
+    """True when Nova should dial the alternate paper/live Gateway port.
+
+    ``preferred_dark`` is the TCP-probe fast path (preferred closed, alternate
+    open) before waiting out a full preferred connect timeout.
+    """
+    reason = (preferred_reason or "").strip().lower()
+    if reason == "refused":
+        return True
+    if reason in ("timeout", "preferred_dark"):
+        return (not preferred_reachable) and alternate_reachable
+    return False
 
 
 def apply_runtime_gateway_mode(mode: GatewayMode) -> None:

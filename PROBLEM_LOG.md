@@ -23,6 +23,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-10 -- Port heal stuck on timeout (paper .env, live Gateway)
+
+- **Symptom:** IB Gateway green (API/farms connected) on live port 4001; Nova prerequisites still blocked targeting paper 4002. Status: `disconnect_hint=paper_port_refused_live_listening`, `gateway_self_heal=null`, session stuck connecting/disconnected after reconnect.
+- **Cause:** Self-heal was eligible only when preferred connect failed as `"refused"`. On Windows a dark preferred port often times out instead; timeout while preferred was dark never tried the alternate. Heal lagged the TCP truth already shown in status probes.
+- **Fix:** Probe-based `alternate_heal_eligible` + reconnect fast path (`preferred_dark`): preferred dark + alternate up → attach/persist. Timeout while preferred still listens remains non-heal.
+- **Keywords:** gateway_heal, self-heal, 4001, 4002, preferred_dark, timeout, paper_port_refused_live_listening, follow-Gateway
+
+## 2026-08-07 -- Paper scanners empty (quiet window + Error 10089)
+
+- **Symptom:** Paper Gateway connected (`mode=paper`, `connected=true`) but Gappers/Gainers/Losers empty; `last_scan=0` for hours; integrity showed frozen/empty caches.
+- **Cause:** Three stacked issues: (1) `in_ready_quiet_window` stayed True forever when `_shadow[table]` was `[]` (`not []` is True), pausing one-shot discovery; (2) persistent stream was shadow-only so UI caches never filled, while one-shot `TOP_PERC_*` timed out against the same clientId leases; (3) paper API lacks paid live MD -- Error 10089 on snapshots, so hydrate wrote 0 rows even after (1)/(2).
+- **Fix:** Timed-only quiet window; `IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=True`; detect 10089 and fall back to delayed market data type 3 via `maybe_fallback_to_delayed_market_data`. Keep paper for orders; share live MD with paper for real-time.
+- **Keywords:** empty scanners, paper, Error 10089, delayed, quiet window, IBKR_SCANNER_PERSISTENT_AUTHORITATIVE, reqMarketDataType, share market data
+
 ## 2026-08-06 -- Route place test expected qty=5 under FORCE_ONE_SHARE
 
 - **Symptom:** test_place_order_route_happy_path_delegates_to_orders_module failed assert 1.0 == 5.0 while shipping usable-session WIP.

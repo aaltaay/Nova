@@ -16,22 +16,24 @@ Any of these means Gateway needs the user:
 - Gateway window title is `IBKR Gateway` / `Authenticating...` / waiting for IBKR Mobile 2FA
 - Gateway process running but **no** local LISTEN on the API port (usually `4001` live / `4002` paper)
 
-## Port mismatch self-heal is bidirectional (do not treat as login)
+## Port mismatch self-heal follows the listening Gateway (not a login blocker)
 
-If Nova’s preferred Gateway port is hard-`ConnectionRefused` but the
-alternate port accepts, `ibkr/gateway_heal.py` flips mode to the reachable
-port, persists `.env`, and reconnects — **either** live→paper **or**
-paper→live. Look for log `IBKR: self-healed gateway_mode` and status
+If Nova's preferred Gateway port is dark but the alternate paper/live port
+is listening, `ibkr/gateway_heal.py` + `client_connect.py` flip mode to the
+reachable port, persist `.env`, and reconnect — **either** live→paper **or**
+paper→live. Eligibility is **TCP-probe-based**: hard refuse, or timeout /
+pre-dial probe when preferred is dark and alternate is up. Look for log
+`IBKR: self-healed gateway_mode` / `follow-Gateway` and status
 `gateway_self_heal`. Account kind must match the mode being established
 (`accounts_match_mode`); mixed/unknown accounts are refused.
 
-This is **not** a login blocker when one port is up — Nova auto-detects
+This is **not** a login blocker when one port is up — Nova attaches to
 whichever Gateway account is actually logged in. Status fields
 `disconnect_hint` / `preferred_port_reachable` / `alternate_port_reachable`
-still describe a mismatch while reconnect is in flight.
+still describe a mismatch while reconnect / heal is in flight.
 
-Timeouts (including Error 326 / clientId conflicts) are **not** heal-eligible —
-only a hard refuse on the preferred port can self-heal to the alternate.
+Timeout while the preferred port **still listens** is **not** heal-eligible
+(wedged handshake / Error 326 / clientId conflict) — do not jump ports then.
 
 **Still a login blocker:** both ports unreachable (neither Gateway logged in /
 API not listening). Loud-warn in that case.

@@ -4,6 +4,9 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-10 | [Follow-Gateway probe-based IBKR port heal](2026-08-10-follow-gateway-probe-heal.md) | Preferred dark + alternate up → attach/persist; timeout-on-listening still no-heal |
+| 2026-08-07 | [Paper scanners empty: quiet window + Error 10089 delayed fallback](2026-08-07-paper-scanner-empty-md-entitlement.md) | Quiet-window + ADR008 authoritative + Error 10089 delayed fallback; keep paper |
+| 2026-08-07 | [Small Account Challenge PDF downloads + daily workflow plan](2026-08-07-sac-pdf-downloads.md) | SAC PDFs on disk + digitize plan/log into Nova daily ritual |
 | 2026-08-06 | [Engineering methodology graft](2026-08-06-engineering-methodology-graft.md) | Superpowers verify/plan + Addy interview/doubt/review; audit tool; domain law kept |
 | 2026-08-05 | [Doc invariants CI gate](2026-08-05-doc-invariants-ci-gate.md) | Live-doc regex gate + Actions wiring; High stale claims fixed |
 | 2026-08-05 | [Retire Railway from live deploy docs](2026-08-05-retire-railway-deploy-docs.md) | Backend local-only; Railway retired from live docs/CI |
