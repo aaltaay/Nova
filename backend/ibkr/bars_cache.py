@@ -26,8 +26,8 @@ _DAILY_TFS = frozenset({"1Day", "1Week", "1Month"})
 _store_lock = threading.Lock()
 # key -> (expires_at_monotonic, payload)
 _entries: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
-# Touched only on the IB event loop (single-flight).
-_inflight: dict[tuple[str, str], asyncio.Future] = {}
+# Touched only on the IB event loop (single-flight). Task outlives caller cancel.
+_inflight: dict[tuple[str, str], asyncio.Task] = {}
 
 FetchFn = Callable[..., Awaitable[dict[str, Any]]]
 
@@ -114,7 +114,24 @@ def clear_for_tests() -> None:
     """Reset cache + inflight map (unit tests only)."""
     with _store_lock:
         _entries.clear()
+    leftover = list(_inflight.values())
     _inflight.clear()
+    for task in leftover:
+        if not task.done():
+            task.cancel()
+
+
+def _drop_inflight(key: tuple[str, str], task: asyncio.Task) -> None:
+    if _inflight.get(key) is task:
+        del _inflight[key]
+    if task.cancelled():
+        return
+    try:
+        exc = task.exception()
+    except asyncio.CancelledError:
+        return
+    if exc is not None:
+        logger.debug("ibkr.bars_cache fetch ended with %s", type(exc).__name__)
 
 
 async def get_or_fetch(
@@ -125,7 +142,12 @@ async def get_or_fetch(
     interactive: bool,
     fetch_fn: FetchFn,
 ) -> dict[str, Any]:
-    """Return cached bars or coalesce concurrent fetches for the same key."""
+    """Return cached bars or coalesce concurrent fetches for the same key.
+
+    The IBKR fetch runs in a detached task: a timed-out HTTP / ``run_coro``
+    cancel must not kill a historical another pane (or a retry) still needs.
+    ``reqHistoricalDataAsync`` keeps its own timeout as the backstop.
+    """
     hit = get_cached(symbol, timeframe, limit)
     if hit is not None:
         record("ibkr.bars_cache.hit", 0)
@@ -138,25 +160,19 @@ async def get_or_fetch(
         result = await asyncio.shield(existing)
         return _trim_payload({**result, "cache": "coalesce"}, limit)
 
-    loop = asyncio.get_running_loop()
-    fut: asyncio.Future = loop.create_future()
-    _inflight[key] = fut
     started = time.perf_counter_ns()
-    try:
+
+    async def _run() -> dict[str, Any]:
         result = await fetch_fn(
             symbol, timeframe, limit, interactive=interactive,
         )
         put_cached(result)
         record("ibkr.bars_cache.miss", time.perf_counter_ns() - started)
-        if not fut.done():
-            fut.set_result(result)
-        return _trim_payload({**result, "cache": "miss"}, limit)
-    except BaseException as exc:
-        if not fut.done():
-            fut.set_exception(exc)
-        # Avoid "exception was never retrieved" if no waiter remains.
-        fut.add_done_callback(lambda f: f.exception() if not f.cancelled() else None)
-        raise
-    finally:
-        if _inflight.get(key) is fut:
-            del _inflight[key]
+        return result
+
+    task = asyncio.create_task(_run())
+    _inflight[key] = task
+    task.add_done_callback(lambda t: _drop_inflight(key, t))
+
+    result = await asyncio.shield(task)
+    return _trim_payload({**result, "cache": "miss"}, limit)

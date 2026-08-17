@@ -16,6 +16,14 @@ export const PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL = 'Reconnecting...';
 /** Default when ports look dark / login needed. */
 export const PREREQ_GATEWAY_LOGIN_DETAIL =
   'Log into IB Gateway (API port 4001 live / 4002 paper). Look at your desktop for 2FA.';
+/** Preferred port dark, the other Gateway is already logged in. */
+export const PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL =
+  'Paper Gateway is already up on 4002. Nova is still targeting Live 4001 -- use Paper, or log into Live.';
+export const PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL =
+  'Live Gateway is already up on 4001. Nova is still targeting Paper 4002 -- use Live, or log into Paper.';
+export const PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL = 'Use paper Gateway';
+export const PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL = 'Use live Gateway';
+export const PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL = 'Switching...';
 
 /** How long (seconds) after a disconnected→connected transition to keep showing the
  * reconnect warm-up empty-state copy instead of the generic "no rows" message —

@@ -4,6 +4,20 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-17 | [Scanner Trader keeps tape subscribed](2026-08-17-trader-scanner-tape-linger.md) | View switch keeps T&S; linger covers remount |
+| 2026-08-17 | [Trader charts fetch one historical at a time](2026-08-17-trader-chart-historical-queue.md) | Queue panes; do not cancel an in-flight historical |
+| 2026-08-17 | [Place Network error was a wedged IB loop](2026-08-17-place-network-error-wedged.md) | TRUG validated never sent; reject when IB loop wedged |
+| 2026-08-17 | [Trader desk: drag a popped-out tab back in](2026-08-17-trader-desk-dock.md) | ADR 011 extract/dock protocol; drag tab onto the other Nova window |
+| 2026-08-17 | [10-Second chart defaults to no EMAs](2026-08-17-10sec-chart-no-emas.md) | 10Sec pane starts VWAP-only; EMAs still toggleable |
+| 2026-08-17 | [Trader tabs stay here; extract is opt-in](2026-08-17-trader-tabs-then-extract.md) | + / type stays in-window; Pop out or double-click extracts |
+| 2026-08-17 | [Trader click flashed a false API_WEDGED gate](2026-08-17-trader-false-api-wedged-gate.md) | Probe timeout no longer full-screen blocks Trader; capsule follows gateway_mode |
+| 2026-08-16 | [Follow the logged-in Gateway after overnight IBC restart](2026-08-16-gateway-follow-overnight.md) | Sticky Live no longer blocks paper Gateway after IBC restart |
+| 2026-08-16 | [Three Trader windows, one symbol each](2026-08-16-trader-multi-window.md) | Per-symbol OS windows, cap 3, place on next display |
+| 2026-08-16 | [Trader opens SPY when no symbol is selected](2026-08-16-trader-default-spy.md) | Empty Trader click opens SPY, not a disabled capsule |
+| 2026-08-16 | [Header Paper | Live sliding capsule](2026-08-16-header-paper-live-capsule.md) | Header Paper (orange left) / Live (green right) capsule |
+| 2026-08-14 | [ADR 010 IB loop isolation (runtime)](2026-08-14-adr-010-ib-loop-runtime.md) | Two loops, one scheduler, WEDGED never kills |
+| 2026-08-14 | [ADR 010 IB loop isolation (classification only)](2026-08-14-adr-010-ib-loop-isolation.md) | Law + HOT/COLD SSOT; no runtime loop move yet |
+| 2026-08-14 | [Premarket API_WEDGED soak (loop starve, not a restart)](2026-08-14-premarket-api-wedge-soak.md) | Banner was health timeout on a live PID; HOD seed+enrichment+WETO burst; soak running |
 | 2026-08-10 | [Follow-Gateway probe-based IBKR port heal](2026-08-10-follow-gateway-probe-heal.md) | Preferred dark + alternate up → attach/persist; timeout-on-listening still no-heal |
 | 2026-08-07 | [Paper scanners empty: quiet window + Error 10089 delayed fallback](2026-08-07-paper-scanner-empty-md-entitlement.md) | Quiet-window + ADR008 authoritative + Error 10089 delayed fallback; keep paper |
 | 2026-08-07 | [Small Account Challenge PDF downloads + daily workflow plan](2026-08-07-sac-pdf-downloads.md) | SAC PDFs on disk + digitize plan/log into Nova daily ritual |

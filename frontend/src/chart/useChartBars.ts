@@ -190,16 +190,20 @@ export function useChartBars({
     volSeriesRef,
   ]);
 
-  const fetchBars = useCallback(async (sym: string, tf: string, background = false) => {
+  const fetchBars = useCallback(async (
+    sym: string,
+    tf: string,
+    background = false,
+    signal?: AbortSignal,
+  ) => {
     const requestVersion = ++barsRequestVersionRef.current;
     if (!background) {
       setLoading(true);
       setError(null);
     }
-    const controller = new AbortController();
     try {
       const limit = CHART_TIMEFRAME_BAR_LIMITS[tf];
-      const bars = await ensureBars(sym, tf, controller.signal, limit);
+      const bars = await ensureBars(sym, tf, signal, limit);
       if (!isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current)) return;
       applyStoreBars(bars, { background, fitContent: !background });
     } catch (err) {
@@ -267,9 +271,11 @@ export function useChartBars({
       return;
     }
     const background = Boolean(entry && entry.bars.length > 0);
-    void fetchBars(symbol, timeframe, background);
+    const controller = new AbortController();
+    void fetchBars(symbol, timeframe, background, controller.signal);
     return () => {
       barsRequestVersionRef.current += 1;
+      controller.abort();
       clearErrorRetry();
     };
   }, [symbol, timeframe, fetchBars, chartActive, clearErrorRetry]);
@@ -279,10 +285,14 @@ export function useChartBars({
     if (!chartActive) return;
     const sec = CHART_REFETCH_SEC[timeframe];
     if (!sec) return;
+    const controller = new AbortController();
     const id = setInterval(() => {
-      void fetchBars(symbol, timeframe, true);
+      void fetchBars(symbol, timeframe, true, controller.signal);
     }, sec * 1000);
-    return () => clearInterval(id);
+    return () => {
+      controller.abort();
+      clearInterval(id);
+    };
   }, [symbol, timeframe, fetchBars, chartActive]);
 
   // Catch-up once when a hidden tab becomes active again.

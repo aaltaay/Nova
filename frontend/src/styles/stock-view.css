@@ -32,6 +32,28 @@ body:has(.nova-shell--ticker-detail) #root .app-shell-host {
   overflow: hidden;
 }
 
+/* Scanner/Trader is a view switch -- keep the desk mounted (tape/L2 stay hot)
+   but do not let a hidden shell steal flex space or trip body:has locks. */
+.nova-trader-desk-slot {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.nova-trader-desk-slot[hidden] {
+  display: none !important;
+}
+
+.nova-trader-desk-slot > .app-shell-host {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .nova-shell--ticker-detail {
   max-width: none;
   width: 100%;

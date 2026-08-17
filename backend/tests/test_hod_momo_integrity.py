@@ -68,7 +68,8 @@ def test_hod_surge_buffer_warns_while_seed_queue_drains():
     assert surge["status"] == "warn"
 
 
-def test_hod_surge_buffer_fails_when_cold_and_not_seeding():
+def test_hod_surge_buffer_warns_when_cold_and_not_seeding():
+    """ADR 010: dropped/deferred/no_history seed is warn; fail only for dead L1."""
     report = evaluate_hod_integrity(_base_hod(
         surge_ready_count=2,
         surge_seeded_count=0,
@@ -76,7 +77,7 @@ def test_hod_surge_buffer_fails_when_cold_and_not_seeding():
         buffer_symbol_count=20,
     ))
     surge = next(c for c in report["checks"] if c["id"] == "hod_surge_buffer")
-    assert surge["status"] == "fail"
+    assert surge["status"] == "warn"
 
 
 def test_hod_tick_stale_fails_when_not_second_by_second():

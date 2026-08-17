@@ -9,6 +9,8 @@ import {
 } from '../constants';
 import type { HealthStatus } from '../types/health';
 import {
+  PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL,
+  PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL,
   PREREQ_GATEWAY_LOGIN_DETAIL,
   PREREQ_GATEWAY_PORT_OPEN_DETAIL,
 } from './gatewayUxConstants';
@@ -19,6 +21,7 @@ export type PrereqAction =
   | 'start_api'
   | 'launch_gateway'
   | 'reconnect_ibkr'
+  | 'switch_gateway_mode'
   | 'env_spend'
   | null;
 
@@ -58,9 +61,11 @@ export interface TradingPrerequisites {
 function novaApiOk(health: HealthStatus | null | undefined): boolean {
   // Pending first probe: do not flash the gate before diagnose finishes.
   if (!health || health.status === 'loading') return true;
-  if (health.flag === BACKEND_DIAG_FLAG_DOWN || health.flag === BACKEND_DIAG_FLAG_WEDGED) {
-    return false;
-  }
+  if (health.ib_loop_lag_ms?.wedged) return false;
+  // Client API_WEDGED is a probe timeout while the PID still listens (Trader
+  // open / IB work). Do not cover the desk or offer Start API -- ADR 010.
+  if (health.flag === BACKEND_DIAG_FLAG_WEDGED) return true;
+  if (health.flag === BACKEND_DIAG_FLAG_DOWN) return false;
   return health.status === 'connected';
 }
 
@@ -71,8 +76,11 @@ function novaApiDetail(health: HealthStatus | null | undefined): string {
   if (health.flag === BACKEND_DIAG_FLAG_DOWN) {
     return health.flag_hint || health.message || 'Nothing answering on port 8000.';
   }
+  if (health.ib_loop_lag_ms?.wedged) {
+    return 'IB loop wedged -- desk blocked. Do not restart the API from this banner.';
+  }
   if (health.flag === BACKEND_DIAG_FLAG_WEDGED) {
-    return health.flag_hint || health.message || 'API process hung (health timed out).';
+    return health.flag_hint || health.message || 'IB loop or health probe stalled -- do not auto-kill the API.';
   }
   if (health.status === 'connected') {
     return 'Nova API process is reachable on port 8000.';
@@ -98,6 +106,14 @@ function spendDetail(spendStatus: string | null | undefined): string {
   return 'Spend status unknown — check Trading tab / .env.';
 }
 
+export function gatewayPortMismatchHint(
+  hint: string | null | undefined,
+): 'paper' | 'live' | null {
+  if (hint === 'live_port_refused_paper_listening') return 'paper';
+  if (hint === 'paper_port_refused_live_listening') return 'live';
+  return null;
+}
+
 /** Gateway desktop is up (API port listening) but Nova usable-session is not. */
 export function gatewayPortOpenButSessionDown(input: {
   preferredPortReachable?: boolean | null;
@@ -119,8 +135,11 @@ export function gatewayPortOpenButSessionDown(input: {
 
 function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): string {
   if (gatewayOk) {
-    return 'Gateway connected — live prices and order path available.';
+    return 'Gateway connected -- live prices and order path available.';
   }
+  const follow = gatewayPortMismatchHint(input.disconnectHint);
+  if (follow === 'paper') return PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL;
+  if (follow === 'live') return PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL;
   if (gatewayPortOpenButSessionDown(input)) {
     const reason = (input.sessionReason || '').trim();
     if (reason && reason !== 'ok' && reason !== 'disconnected') {
@@ -139,6 +158,7 @@ export function buildTradingPrerequisites(
   const enabled = input.ibkrEnabled !== false;
   const gatewayOk = Boolean(input.ibkrConnected);
   const ordersOk = spendArmed(input.spendStatus);
+  const followTarget = gatewayPortMismatchHint(input.disconnectHint);
   const portOpenStuck = !gatewayOk && gatewayPortOpenButSessionDown(input);
 
   const items: PrereqItem[] = [
@@ -147,7 +167,8 @@ export function buildTradingPrerequisites(
       ok: apiOk,
       label: 'Nova API (:8000)',
       detail: novaApiDetail(input.health),
-      action: apiOk ? null : 'start_api',
+      action:
+        !apiOk && input.health?.flag === BACKEND_DIAG_FLAG_DOWN ? 'start_api' : null,
     },
     {
       id: 'ibkr_enabled',
@@ -163,7 +184,13 @@ export function buildTradingPrerequisites(
       ok: gatewayOk,
       label: 'IB Gateway (session READY)',
       detail: gatewayDetail(input, gatewayOk),
-      action: gatewayOk ? null : portOpenStuck ? 'reconnect_ibkr' : 'launch_gateway',
+      action: gatewayOk
+        ? null
+        : followTarget
+          ? 'switch_gateway_mode'
+          : portOpenStuck
+            ? 'reconnect_ibkr'
+            : 'launch_gateway',
     },
     {
       id: 'orders_armed',

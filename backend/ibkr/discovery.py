@@ -22,6 +22,7 @@ from constants import (
     GAPPER_MIN_GAP_PCT,
     IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC,
     IBKR_ERROR_SCANNER_SLOT_EXHAUSTED,
+    IBKR_COLD_SNAPSHOT_BATCH,
     IBKR_QUOTE_BATCH_TIMEOUT_SEC,
     IBKR_SCAN_ABOVE_PRICE,
     IBKR_SCAN_CODE_AH_GAINERS,
@@ -430,6 +431,16 @@ async def snapshot_quotes(
     timeout / API failure raises ``IbkrDiscoveryError`` instead of returning ``{}``
     (which callers previously treated as a successful empty market).
     """
+    from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
+
+    if is_started() and not is_ib_loop():
+        return await on_ib(
+            snapshot_quotes(
+                symbols, timeout_sec=timeout_sec, require_success=require_success,
+            ),
+            max(1.0, float(timeout_sec) + 5.0),
+            label="snapshot_quotes",
+        )
     if not symbols:
         return {}
 
@@ -475,24 +486,31 @@ async def snapshot_quotes(
             )
         return {}
 
+    from ibkr.ib_scheduler import ColdDropped, cold_slot
+
+    tickers: list = []
+    batch_n = max(1, int(IBKR_COLD_SNAPSHOT_BATCH))
     try:
-        async with _get_snapshot_lock():
-            async with timed("ibkr.snapshot_quotes"):
+        async with timed("ibkr.snapshot_quotes"):
+            for i in range(0, len(qualified), batch_n):
+                chunk = qualified[i : i + batch_n]
                 try:
-                    tickers = await asyncio.wait_for(
-                        ib.reqTickersAsync(*qualified),
-                        timeout=max(0.5, float(timeout_sec)),
+                    async with cold_slot(label="snapshot_quotes", droppable=True):
+                        try:
+                            got = await asyncio.wait_for(
+                                ib.reqTickersAsync(*chunk),
+                                timeout=max(0.5, float(timeout_sec)),
+                            )
+                            if got:
+                                tickers.extend(got)
+                        finally:
+                            _cancel_snapshot_tickers(ib, chunk)
+                except ColdDropped:
+                    logger.info(
+                        "IBKR: snapshot_quotes dropped (%d remaining) -- interactive preempt",
+                        len(qualified) - i,
                     )
-                finally:
-                    # wait_for cancels the await, but not the IB-side snapshot
-                    # reqMktData lines reqTickersAsync opened. Without this,
-                    # each timed-out batch leaves zombie snapshot reqIds that
-                    # keep streaming onto the shared uvicorn loop and wedge it
-                    # (2026-07-29 cold-Gateway API_WEDGED). cancelMktData
-                    # resolves the live snapshot ticker via ticker(contract)
-                    # and calls client.cancelMktData(reqId). On a dead socket
-                    # this may return False / log "No reqId" — harmless.
-                    _cancel_snapshot_tickers(ib, qualified)
+                    break
     except asyncio.TimeoutError as exc:
         logger.warning(
             "IBKR: snapshot timeout (%.1fs) for %d symbols",

@@ -96,6 +96,14 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
 
 async def subscribe(symbol: str, owner: str = OWNER_DETAIL) -> bool:
     """Start or attach ``owner`` to a last-price stream. Returns True if live."""
+    from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
+
+    if is_started() and not is_ib_loop():
+        return await on_ib(
+            subscribe(symbol, owner),
+            float(IBKR_L1_QUALIFY_TIMEOUT_SEC) + 5.0,
+            label="reqMktData",
+        )
     symbol = (symbol or "").strip().upper()
     owner = (owner or OWNER_DETAIL).strip().lower()
     if not symbol:

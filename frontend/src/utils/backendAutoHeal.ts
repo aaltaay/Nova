@@ -1,17 +1,14 @@
 /**
- * Auto-heal local API when the header diagnoses API_WEDGED / API_DOWN.
- * One attempt per browser session (dev / Electron only — prod web cannot spawn).
+ * Auto-heal local API when nothing is listening (API_DOWN).
+ * API_WEDGED is IB-loop SoT / a probe miss -- never kill a live PID (ADR 010).
+ * One attempt per browser session (dev / Electron only -- prod web cannot spawn).
  */
-import {
-  BACKEND_DIAG_FLAG_DOWN,
-  BACKEND_DIAG_FLAG_WEDGED,
-} from '../constants';
+import { BACKEND_DIAG_FLAG_DOWN } from '../constants';
 import { startLocalApi, type StartLocalApiResult } from './startLocalApi';
 
 export const BACKEND_AUTO_HEAL_SESSION_KEY = 'nova:auto-heal:api';
 
 const AUTO_HEAL_FLAGS = new Set<string>([
-  BACKEND_DIAG_FLAG_WEDGED,
   BACKEND_DIAG_FLAG_DOWN,
 ]);
 
@@ -63,7 +60,7 @@ export function clearBackendAutoHealSlot(
 }
 
 /**
- * If flag is wedged/down and slot available, kill+restart local API once.
+ * If flag is API_DOWN and slot available, spawn/restart local API once.
  * Returns null when skipped (wrong flag, slot used, or non-dev without Electron).
  */
 export async function maybeAutoHealBackend(

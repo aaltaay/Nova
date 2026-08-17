@@ -2,11 +2,12 @@
 
 Installed once per ``IB()`` instance from ``client`` after READY. Covers
 connectivity (1100/1101/1102), data-farm notices (2104/2106/2108),
-max-tickers (101), and delayed-data (10167).
+max-tickers (101), delayed-data (10167), and MD-subscription-required (10089).
 
 Handlers MUST NOT issue new IB requests (ib_async forbids it). Connectivity
 codes only observe + classify + enqueue; ``reconnect_loop`` acts via
-``earn_usable`` / force-reconnect.
+``earn_usable`` / force-reconnect. Error 10089 sets a flag;
+``client.maybe_fallback_to_delayed_market_data`` applies ``reqMarketDataType(3)``.
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from constants import (
     IBKR_ERROR_DATA_FARM_CODES,
     IBKR_ERROR_DELAYED_DATA_NOTICE,
     IBKR_ERROR_MAX_TICKERS,
+    IBKR_ERROR_MD_REQUIRES_SUBSCRIPTION,
 )
 from ibkr import session_state as _session
 
@@ -31,6 +33,9 @@ RestoreKind = Literal["data_lost", "data_kept"]
 
 _error_hooked_ib_ids: set[int] = set()
 _delayed_data = False
+# True after Error 10089 — live API MD not entitled on this session (paper
+# without shared live subscriptions). Client should reqMarketDataType(delayed).
+_live_md_blocked = False
 _data_farm_status: str | None = None
 _data_farm_status_ts: float = 0.0
 _max_tickers_hit = False
@@ -44,6 +49,11 @@ _restore_pending: RestoreKind | None = None
 
 def is_delayed_data() -> bool:
     return _delayed_data
+
+
+def live_market_data_blocked() -> bool:
+    """True when IB rejected live API quotes (Error 10089) this session."""
+    return _live_md_blocked
 
 
 def get_data_farm_status() -> dict[str, Any]:
@@ -106,14 +116,22 @@ def stamp_unusable(*, code: int | None = None) -> None:
             logger.debug("session_errors: session_unusable capture skipped", exc_info=True)
 
 
+def reset_session_md_flags() -> None:
+    """Clear delayed / live-MD-blocked flags (call on READY before req type 1)."""
+    global _delayed_data, _live_md_blocked
+    _delayed_data = False
+    _live_md_blocked = False
+
+
 def reset_for_tests() -> None:
     """Clear module flags + hook set (unit tests only)."""
-    global _delayed_data, _data_farm_status, _data_farm_status_ts
+    global _delayed_data, _live_md_blocked, _data_farm_status, _data_farm_status_ts
     global _max_tickers_hit, _max_tickers_ts
     global _unusable_since, _last_connectivity_code, _last_connectivity_ts
     global _restore_pending
     _error_hooked_ib_ids.clear()
     _delayed_data = False
+    _live_md_blocked = False
     _data_farm_status = None
     _data_farm_status_ts = 0.0
     _max_tickers_hit = False
@@ -159,7 +177,7 @@ def _on_ib_error(
     errorString: str,
     contract: Any = None,
 ) -> None:
-    global _delayed_data, _data_farm_status, _data_farm_status_ts
+    global _delayed_data, _live_md_blocked, _data_farm_status, _data_farm_status_ts
     global _max_tickers_hit, _max_tickers_ts
     global _restore_pending, _last_connectivity_code, _last_connectivity_ts
 
@@ -257,5 +275,16 @@ def _on_ib_error(
         logger.warning(
             "IBKR session_errors: delayed market data (Error %s) — %s",
             code, msg or "displaying delayed data",
+        )
+        return
+
+    if code == IBKR_ERROR_MD_REQUIRES_SUBSCRIPTION:
+        _live_md_blocked = True
+        _delayed_data = True
+        logger.warning(
+            "IBKR session_errors: live API market data not entitled (Error %s) — "
+            "will fall back to delayed; share live MD with paper in Account "
+            "Management if you pay for live. %s",
+            code, msg or "",
         )
         return

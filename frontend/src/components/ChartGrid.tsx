@@ -9,7 +9,6 @@ import {
   CHART_GRID_OPTIONAL_DEFAULT_ON,
   CHART_GRID_OPTIONAL_STORAGE_KEY,
   CHART_GRID_PANE_INDICATORS,
-  CHART_TIMEFRAME_BAR_LIMITS,
   STOCK_VIEW_CHART_ROW_SPLIT_KEY,
   STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_MIN_PCT,
@@ -52,11 +51,9 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
 
   useEffect(() => {
     if (!chartActive || !symbol) return;
-    // Exclude TFs with a custom bar limit (10Sec) so the pane cold-fetches
-    // the full window instead of trusting a batch-trimmed 500-bar entry.
-    const tfs = panels
-      .map((p) => p.id)
-      .filter((id) => !(id in CHART_TIMEFRAME_BAR_LIMITS));
+    // Sequential per-TF ensureBars (priority queue + full 25s after dequeue).
+    // Include 10Sec so it uses CHART_TIMEFRAME_BAR_LIMITS instead of a 500-bar trim.
+    const tfs = panels.map((p) => p.id);
     if (tfs.length === 0) return;
     const controller = new AbortController();
     void ensureBarsBatch(symbol, tfs, controller.signal).catch(() => {

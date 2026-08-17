@@ -155,8 +155,16 @@ def on_ticker_update(
     if sub is not None and owner_detail not in sub.get("owners", set()):
         return
     ts = datetime.now(timezone.utc).isoformat()
-    try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(broadcast(symbol, price, None, ts, vol_i, prev_close))
-    except RuntimeError:
-        logger.debug("IBKR ticks: no running loop to broadcast %s", symbol)
+    def _broadcast() -> None:
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(broadcast(symbol, price, None, ts, vol_i, prev_close))
+        except RuntimeError:
+            logger.debug("IBKR ticks: no running loop to broadcast %s", symbol)
+
+    from ibkr.loop_supervisor import is_ib_loop, publish_to_http
+
+    if is_ib_loop():
+        publish_to_http(_broadcast)
+    else:
+        _broadcast()

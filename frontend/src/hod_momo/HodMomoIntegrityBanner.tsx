@@ -81,7 +81,7 @@ export function HodMomoIntegrityBanner() {
         <div>
           {error}
           <div className="hod-integrity-hint">
-            Check the header flag (API_DOWN / API_WEDGED) and click Start API if shown.
+            Check the header flag. Start API only for API_DOWN -- never auto-kill on WEDGED.
           </div>
         </div>
       ) : (

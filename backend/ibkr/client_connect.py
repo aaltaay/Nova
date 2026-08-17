@@ -94,13 +94,6 @@ async def try_connect_alternate_port(
     """
     if not _heal.self_heal_enabled():
         return None
-    if _heal.self_heal_suppressed():
-        logger.info(
-            "IBKR: self-heal suppressed (intentional gateway-mode switch in "
-            "progress) — surfacing %s failure honestly instead of auto-heal",
-            preferred_mode,
-        )
-        return None
 
     alt_mode = _heal.alternate_mode(preferred_mode)
     if not _heal.heal_target_allowed(from_mode=preferred_mode, to_mode=alt_mode):
@@ -109,6 +102,16 @@ async def try_connect_alternate_port(
     alt_port = _heal.port_for_mode(alt_mode)
     preferred_port = _heal.port_for_mode(preferred_mode)
     preferred_up, alternate_up = _probe_pair(host, preferred_port, alt_port)
+    if _heal.self_heal_suppressed(
+        preferred_reachable=preferred_up,
+        alternate_reachable=alternate_up,
+    ):
+        logger.info(
+            "IBKR: self-heal suppressed (intentional gateway-mode switch in "
+            "progress) -- surfacing %s failure honestly instead of auto-heal",
+            preferred_mode,
+        )
+        return None
     if not _heal.alternate_heal_eligible(
         preferred_reason,
         preferred_reachable=preferred_up,

@@ -105,6 +105,7 @@ async def send_broker(
         watch = telemetry.watch_order(
             cmd.order_id, execution_id, fresh=True, leg_role="cancel",
         )
+        # Poll/sleep stays off the IB loop; cancel_order / open_orders hop via call_on_ib.
         raw = await asyncio.to_thread(cancel_order_verified, cmd.order_id)
         if not raw.get("ok"):
             store.update_stages(

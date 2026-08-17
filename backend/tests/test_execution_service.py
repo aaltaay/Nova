@@ -144,6 +144,23 @@ class TestAccountAndRiskGates:
         assert r.reason_code == "ORDERS_GATE"
         assert called == []
 
+    def test_ib_loop_wedged_does_not_call_place(self, monkeypatch):
+        _arm_paper(monkeypatch)
+        import loop_lag as loop_lag_mod
+
+        monkeypatch.setattr(loop_lag_mod, "is_wedged", lambda: True)
+        called = []
+        monkeypatch.setattr(
+            orders_mod, "place_order", lambda **k: called.append(1) or {"ok": True}
+        )
+        r = asyncio.run(exec_svc.execute(_limit_buy("wedged"), wait_ack=False))
+        assert r.ok is False
+        assert r.reason_code == "IB_LOOP_WEDGED"
+        assert called == []
+        row = store.get_by_id(r.execution_id)
+        assert row is not None
+        assert row["status"] == "rejected"
+
     def test_buying_power_blocks_priced_buy(self, monkeypatch):
         _arm_paper(monkeypatch, buying_power=10.0)
         called = []

@@ -8,7 +8,6 @@ import { BackendReloadButton } from './BackendReloadButton';
 import {
   DATA_FEED_LABELS,
   DISCOVERY_PROVIDER_DEFAULT,
-  HEADER_GATEWAY_DELAYED_LABEL,
   HEADER_GATEWAY_LAUNCH_HINT,
   HEADER_GATEWAY_TITLE_DELAYED,
   HEADER_GATEWAY_TITLE_LIVE,
@@ -27,10 +26,11 @@ import {
 } from '../utils/formatScanAge';
 import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { launchIbGateway } from '../utils/launchIbGateway';
+import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import {
   apiLabel,
   apiTone,
-  gatewayModeLabel,
+  gatewayConnectionLabel,
   healthLatencyLabel,
   integrationTone,
   resolveGatewayModeTag,
@@ -105,7 +105,6 @@ export function HeaderConnectionStatus({
     : null;
 
   const modeTag = resolveGatewayModeTag(ibkrMode, ibkrGatewayMode);
-  const modeLabel = gatewayModeLabel(modeTag);
   const modeTitle =
     modeTag === 'live'
       ? HEADER_GATEWAY_TITLE_LIVE
@@ -132,22 +131,14 @@ export function HeaderConnectionStatus({
         ? 'bad'
         : marketDataDelayed
           ? 'warn'
-          : modeTag === 'live'
-            ? 'live'
-            : 'ok';
+          : 'ok';
 
-  let gatewayValue = 'offline';
-  if (gatewayLaunchBusy) gatewayValue = 'opening…';
-  else if (gatewayLaunchOk === true) gatewayValue = 'check desktop';
-  else if (gatewayLaunchOk === false) gatewayValue = 'launch failed';
-  else if (ibkrConnected) {
-    gatewayValue = modeLabel ? `connected · ${modeLabel}` : 'connected';
-    if (marketDataDelayed) {
-      gatewayValue = `${gatewayValue} · ${HEADER_GATEWAY_DELAYED_LABEL}`;
-    }
-  } else if (modeLabel) {
-    gatewayValue = `offline · ${modeLabel}`;
-  }
+  const gatewayValue = gatewayConnectionLabel({
+    connected: ibkrConnected,
+    delayed: marketDataDelayed,
+    launchBusy: gatewayLaunchBusy,
+    launchOk: gatewayLaunchOk,
+  });
 
   return (
     <div
@@ -215,6 +206,12 @@ export function HeaderConnectionStatus({
                 : gatewayLaunchHint}
             </span>
           )}
+          <GatewayModeCapsule
+            mode={ibkrMode}
+            gatewayMode={ibkrGatewayMode ?? undefined}
+            disconnectHint={ibkrStatusLive.disconnect_hint}
+            testId="header-gateway-mode-capsule"
+          />
         </>
       )}
 
@@ -288,7 +285,7 @@ export function HeaderConnectionStatus({
         </span>
       )}
       {/* Always show in GlobalAppBar (compact): reload picks up backend code /
-          resets cached_health; Start API recovers API_DOWN / API_WEDGED. */}
+          resets cached_health; Start API recovers API_DOWN only (not WEDGED). */}
       {apiOk && canReloadLocalBackend() && (
         <BackendReloadButton onReloaded={onBackendStarted} />
       )}

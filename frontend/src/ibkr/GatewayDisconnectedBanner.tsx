@@ -45,12 +45,16 @@ export function shouldShowGatewayLoginBanner(props: {
   if (props.ibkrTransportConnected === true) return false;
 
   const hint = props.ibkrDisconnectHint ?? null;
+  const portMismatch =
+    hint === 'paper_port_refused_live_listening'
+    || hint === 'live_port_refused_paper_listening';
+  // The other Gateway is already logged in -- prerequisites / capsule own this.
+  if (portMismatch) return false;
+
   const loginHint =
     hint === 'both_ports_unreachable'
     || hint === 'paper_port_open_but_disconnected'
-    || hint === 'live_port_open_but_disconnected'
-    || hint === 'paper_port_refused_live_listening'
-    || hint === 'live_port_refused_paper_listening';
+    || hint === 'live_port_open_but_disconnected';
 
   // Explicit transport-down, ports dark, or a disconnect/login hint.
   if (props.ibkrTransportConnected === false) return true;

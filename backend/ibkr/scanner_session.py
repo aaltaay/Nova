@@ -173,8 +173,16 @@ def freeze_table(
     try:
         import asyncio
         from scanner_push import broadcast_table_state
-        loop = asyncio.get_running_loop()
-        loop.create_task(broadcast_table_state(table, ts))
+        from ibkr.loop_supervisor import is_ib_loop, publish_to_http
+
+        def _bcast() -> None:
+            loop = asyncio.get_running_loop()
+            loop.create_task(broadcast_table_state(table, ts))
+
+        if is_ib_loop():
+            publish_to_http(_bcast)
+        else:
+            _bcast()
     except RuntimeError:
         pass
     except Exception:

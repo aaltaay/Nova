@@ -20,6 +20,14 @@ OrderSide = Literal["BUY", "SELL"]
 OrderType = Literal["MKT", "LMT", "STP"]
 
 
+def _ib_sync(fn, label: str, timeout: float = 15.0):
+    from ibkr.loop_supervisor import call_on_ib, is_ib_loop, is_ib_thread
+
+    if is_ib_loop() or is_ib_thread():
+        return fn()
+    return call_on_ib(fn, timeout, label=label)
+
+
 def _safety_check() -> tuple[bool, str]:
     return _safety.assert_orders_allowed(
         client_enabled=_client.is_enabled(),
@@ -130,7 +138,13 @@ def place_order(
         if order_id is not None:
             order.orderId = int(order_id)
 
-        trade = ib.placeOrder(contract, order)
+        from ibkr.loop_supervisor import assert_ib_loop, call_on_ib, is_ib_loop
+
+        def _place():
+            assert_ib_loop()
+            return ib.placeOrder(contract, order)
+
+        trade = _place() if is_ib_loop() else call_on_ib(_place, 15.0, label="placeOrder")
         oid = trade.order.orderId
         from ibkr.order_times import (
             audit_log_placed,
@@ -211,11 +225,15 @@ def place_bracket_order(
         contract = Stock(symbol, "SMART", "USD")
         from ibkr.order_times import remember_nova_placed, wall_utc_now_iso
 
-        bracket = ib.bracketOrder(side, qty, entry_price, target_price, stop_price)
-        nova_stamp = wall_utc_now_iso()
-        for order in bracket:
-            ib.placeOrder(contract, order)
-            remember_nova_placed(order.orderId, nova_stamp)
+        def _place_bracket():
+            bracket = ib.bracketOrder(side, qty, entry_price, target_price, stop_price)
+            nova_stamp = wall_utc_now_iso()
+            for order in bracket:
+                ib.placeOrder(contract, order)
+                remember_nova_placed(order.orderId, nova_stamp)
+            return bracket, nova_stamp
+
+        bracket, nova_stamp = _ib_sync(_place_bracket, "placeOrder")
         logger.info(
             "IBKR: placed %s bracket %s %s qty=%s entry=%s target=%s stop=%s "
             "(parent=%s nova_placed_at_utc=%s)",
@@ -260,7 +278,7 @@ def cancel_order(order_id: int) -> dict:
         from ib_async import Order
         order = Order()
         order.orderId = order_id
-        ib.cancelOrder(order)
+        _ib_sync(lambda: ib.cancelOrder(order), "cancelOrder")
         logger.info("IBKR: cancel requested for order %s", order_id)
         return {"ok": True, "error": None}
     except Exception as exc:

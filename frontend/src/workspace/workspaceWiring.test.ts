@@ -47,6 +47,8 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     const app = readFileSync(join(src, 'App.tsx'), 'utf8');
     expect(app).toMatch(/StockViewTabs/);
     expect(app).toMatch(/traderTabs/);
+    expect(app).toMatch(/traderViewActive/);
+    expect(app).toMatch(/nova-trader-desk-slot/);
   });
 });
 

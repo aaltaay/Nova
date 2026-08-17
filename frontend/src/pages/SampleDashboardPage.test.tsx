@@ -29,7 +29,10 @@ vi.mock('../workspace/WorkspaceContext', () => ({
     closeTraderTab: vi.fn(),
     renameTraderTab: vi.fn(),
     addTraderDraftTab: vi.fn(),
+    extractTraderTab: vi.fn(),
     closeTraderView: vi.fn(),
+    traderViewActive: false,
+    showScannerView: vi.fn(),
   }),
 }));
 

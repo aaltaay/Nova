@@ -12,8 +12,10 @@ export const IBKR_ACCOUNT_POLL_MS = 5_000;
 export const GLOBAL_BAR_BRAND = 'NOVA';
 export const GLOBAL_BAR_NAV_SCANNER = 'Scanner';
 export const GLOBAL_BAR_NAV_TRADER = 'Trader';
-export const GLOBAL_BAR_NAV_SCANNER_TITLE = 'Return to the scanner dashboard';
-export const GLOBAL_BAR_NAV_TRADER_TITLE = 'Open Trader View for the selected symbol';
+export const GLOBAL_BAR_NAV_SCANNER_TITLE =
+  'Return to the scanner dashboard without closing Trader tape or Level 2';
+export const GLOBAL_BAR_NAV_TRADER_TITLE =
+  'Open Trader View for the selected symbol, or SPY if none is selected. Use the arrow for QQQ / IWM.';
 export const GLOBAL_BAR_NAV_TRADER_DISABLED_TITLE =
   'Select a symbol first, then open Trader View';
 

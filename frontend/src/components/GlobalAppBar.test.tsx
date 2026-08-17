@@ -4,11 +4,13 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TRADER_DEFAULT_SYMBOL, TRADER_DEFAULT_SYMBOLS } from '../constants';
 import { GlobalAppBar } from './GlobalAppBar';
 import type { IbkrAccountState } from '../ibkr/IbkrAccountContext';
 import type { WorkspaceValue } from '../workspace/WorkspaceContext';
 
 const closeTraderView = vi.fn();
+const showScannerView = vi.fn();
 const openStockView = vi.fn();
 
 let workspace: WorkspaceValue;
@@ -55,8 +57,12 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     setAlpacaFeed: () => {},
     scannerPersistentAuthoritative: true,
     ibkrConnected: true,
+    ibkrTransportConnected: true,
     ibkrMode: 'paper',
     ibkrGatewayMode: 'paper',
+    ibkrDisconnectHint: null,
+    ibkrSessionReason: 'ok',
+    ibkrPortsDark: false,
     openStockView,
     traderTabs: [],
     activeTraderSymbol: null,
@@ -66,7 +72,17 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     closeTraderTab: () => {},
     renameTraderTab: () => {},
     addTraderDraftTab: () => {},
+    extractTraderTab: () => {},
+    acceptTraderTabDrop: () => false,
+    requestDockTraderTab: () => {},
+    traderWindowId: 'test-window',
+    traderDeskRole: 'host',
+    traderDockOffer: null,
+    publishTraderTabOffer: () => {},
+    publishTraderTabOfferEnd: () => {},
     closeTraderView,
+    traderViewActive: false,
+    showScannerView,
     ...overrides,
   };
 }
@@ -98,6 +114,7 @@ describe('GlobalAppBar', () => {
 
   beforeEach(() => {
     closeTraderView.mockReset();
+    showScannerView.mockReset();
     openStockView.mockReset();
     requestOpenTradingTab.mockReset();
     workspace = baseWorkspace();
@@ -214,8 +231,12 @@ describe('GlobalAppBar', () => {
     expect(openStockView).toHaveBeenCalledWith('AAPL');
   });
 
-  it('marks Trader active and returns to Scanner via closeTraderView', () => {
-    workspace = baseWorkspace({ traderTabs: ['AAPL'], activeTraderSymbol: 'AAPL' });
+  it('marks Trader active and returns to Scanner without closing tabs', () => {
+    workspace = baseWorkspace({
+      traderTabs: ['AAPL'],
+      activeTraderSymbol: 'AAPL',
+      traderViewActive: true,
+    });
     renderBar();
     const scanner = container.querySelector(
       '[data-testid="global-bar-nav-scanner"]',
@@ -227,16 +248,77 @@ describe('GlobalAppBar', () => {
     act(() => {
       scanner.click();
     });
-    expect(closeTraderView).toHaveBeenCalled();
+    expect(showScannerView).toHaveBeenCalled();
+    expect(closeTraderView).not.toHaveBeenCalled();
   });
 
-  it('disables Trader when no symbol and no tabs', () => {
+  it('reopens Trader from Scanner when tabs are already open', () => {
+    workspace = baseWorkspace({
+      traderTabs: ['AAPL'],
+      activeTraderSymbol: 'AAPL',
+      traderViewActive: false,
+      selectedSymbol: 'AAPL',
+    });
+    renderBar();
+    const scanner = container.querySelector(
+      '[data-testid="global-bar-nav-scanner"]',
+    ) as HTMLButtonElement;
+    const trader = container.querySelector(
+      '[data-testid="global-bar-nav-trader"]',
+    ) as HTMLButtonElement;
+    expect(scanner.getAttribute('aria-pressed')).toBe('true');
+    expect(trader.getAttribute('aria-pressed')).toBe('false');
+    act(() => {
+      trader.click();
+    });
+    expect(openStockView).toHaveBeenCalledWith('AAPL');
+  });
+
+  it('opens Trader on the default index symbol when none is selected', () => {
     workspace = baseWorkspace({ selectedSymbol: null, traderTabs: [] });
     renderBar();
     const trader = container.querySelector(
       '[data-testid="global-bar-nav-trader"]',
     ) as HTMLButtonElement;
-    expect(trader.disabled).toBe(true);
+    expect(trader.disabled).toBe(false);
+    act(() => {
+      trader.click();
+    });
+    expect(openStockView).toHaveBeenCalledWith(TRADER_DEFAULT_SYMBOL);
+  });
+
+  it('lets the operator pick QQQ or IWM from Trader index defaults', () => {
+    workspace = baseWorkspace({ selectedSymbol: null, traderTabs: [] });
+    renderBar();
+    const toggle = container.querySelector(
+      '[data-testid="global-bar-nav-trader-defaults"]',
+    ) as HTMLButtonElement;
+    expect(toggle).toBeTruthy();
+    act(() => {
+      toggle.click();
+    });
+    const labels = TRADER_DEFAULT_SYMBOLS.map((sym) => {
+      const btn = container.querySelector(
+        `[data-testid="trader-default-${sym}"]`,
+      ) as HTMLButtonElement;
+      expect(btn?.textContent).toBe(sym);
+      return btn;
+    });
+    act(() => {
+      labels[1].click();
+    });
+    expect(openStockView).toHaveBeenCalledWith('QQQ');
+  });
+
+  it('shows Paper | Live capsule when the scanner cluster is absent', () => {
+    renderBar();
+    const capsule = container.querySelector('[data-testid="header-gateway-mode-capsule"]');
+    expect(capsule).toBeTruthy();
+    const segs = capsule!.querySelectorAll('.gw-mode-capsule__seg');
+    expect(capsule!.classList.contains('is-paper')).toBe(true);
+    expect(segs[0].textContent).toMatch(/Paper/i);
+    expect(segs[1].textContent).toMatch(/Live/i);
+    expect(segs[0].classList.contains('is-paper')).toBe(true);
   });
 
   it('places Account next to Settings and opens the trading tab', () => {

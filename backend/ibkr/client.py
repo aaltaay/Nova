@@ -386,14 +386,20 @@ async def request_gateway_mode(mode: str) -> dict:
 
 
 async def startup() -> None:
-    """Called from lifespan bootstrap. Starts reconnect loop as a background task."""
+    """Called on the IB connect-loop. Starts reconnect as an IB-loop task."""
+    from ibkr.loop_supervisor import assert_ib_loop, get_loop, is_ib_loop, is_started, on_ib
+
+    if is_started() and not is_ib_loop():
+        await on_ib(startup(), timeout=30.0, label="startup")
+        return
     global _reconnect_task, _loop
-    _loop = asyncio.get_running_loop()
+    assert_ib_loop()
+    _loop = get_loop() or asyncio.get_running_loop()
     _ensure_wake_event()
     if _reconnect_task is not None and not _reconnect_task.done():
         return
     _reconnect_task = asyncio.create_task(reconnect_loop())
-    logger.info("IBKR client task started")
+    logger.info("IBKR client task started (IB connect-loop)")
 
 
 async def shutdown() -> None:

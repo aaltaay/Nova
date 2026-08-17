@@ -10,6 +10,7 @@
 @import "./styles/tokens-shell.css" layer(tokens);
 @import "./styles/tailwind-theme.css" layer(tokens);
 @import "./styles/global-app-bar.css" layer(components);
+@import "./ibkr/gatewayModeCapsule.css" layer(components);
 @import "./ibkr/marketData.css" layer(components);
 @import "./styles/settings-workspace.css" layer(features);
 @import "./styles/scanner-l2.css" layer(features);

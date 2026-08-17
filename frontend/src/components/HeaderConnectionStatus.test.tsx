@@ -31,7 +31,9 @@ vi.mock('../ibkr/useIbkrStatus', () => ({
     mode: 'paper',
     market_data_type: ibkrStatusMock.market_data_type,
     market_data_delayed: ibkrStatusMock.market_data_delayed,
+    disconnect_hint: null,
   }),
+  refreshIbkrStatusNow: () => {},
 }));
 
 const healthy = {
@@ -111,7 +113,7 @@ describe('HeaderConnectionStatus', () => {
     expect(container.querySelector('[data-testid="status-chip-feed"]')).toBeNull();
   });
 
-  it('labels Gateway paper vs LIVE so session money path is never ambiguous', () => {
+  it('Gateway chip is connection only — up / delayed / offline; mode lives on the capsule', () => {
     act(() => {
       root.render(
         <HeaderConnectionStatus
@@ -127,9 +129,11 @@ describe('HeaderConnectionStatus', () => {
         />,
       );
     });
-    expect(
-      container.querySelector('[data-testid="status-chip-gateway"]')?.textContent,
-    ).toMatch(/connected\s*·\s*PAPER/i);
+    const paperGateway = container.querySelector('[data-testid="status-chip-gateway"]');
+    expect(paperGateway?.textContent).toMatch(/Gateway\s*up/i);
+    expect(paperGateway?.textContent).not.toMatch(/PAPER|LIVE/i);
+    expect(paperGateway?.className).toMatch(/status-chip--ok/);
+    expect(paperGateway?.className).not.toMatch(/status-chip--live/);
 
     act(() => {
       root.render(
@@ -147,8 +151,60 @@ describe('HeaderConnectionStatus', () => {
       );
     });
     const liveGateway = container.querySelector('[data-testid="status-chip-gateway"]');
-    expect(liveGateway?.textContent).toMatch(/connected\s*·\s*LIVE/i);
-    expect(liveGateway?.className).toMatch(/status-chip--live/);
+    expect(liveGateway?.textContent).toMatch(/Gateway\s*up/i);
+    expect(liveGateway?.textContent).not.toMatch(/PAPER|LIVE/i);
+    expect(liveGateway?.className).toMatch(/status-chip--ok/);
+    expect(liveGateway?.className).not.toMatch(/status-chip--live/);
+  });
+
+  it('shows a Paper | Live capsule — paper orange, live green — next to Gateway', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          ibkrMode="paper"
+          ibkrGatewayMode="paper"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+    const capsule = container.querySelector('[data-testid="header-gateway-mode-capsule"]');
+    expect(capsule).toBeTruthy();
+    const segs = capsule!.querySelectorAll('.gw-mode-capsule__seg');
+    expect(segs).toHaveLength(2);
+    expect(segs[0].textContent).toMatch(/Paper/i);
+    expect(segs[1].textContent).toMatch(/Live/i);
+    expect(capsule!.classList.contains('is-paper')).toBe(true);
+    expect(segs[0].classList.contains('is-selected')).toBe(true);
+    expect(segs[0].classList.contains('is-paper')).toBe(true);
+    expect(segs[1].classList.contains('is-selected')).toBe(false);
+
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          ibkrMode="live"
+          ibkrGatewayMode="live"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+    const liveCapsule = container.querySelector('[data-testid="header-gateway-mode-capsule"]');
+    const liveSegs = liveCapsule!.querySelectorAll('.gw-mode-capsule__seg');
+    expect(liveCapsule!.classList.contains('is-live')).toBe(true);
+    expect(liveSegs[1].classList.contains('is-selected')).toBe(true);
+    expect(liveSegs[1].classList.contains('is-live')).toBe(true);
+    expect(liveSegs[0].classList.contains('is-selected')).toBe(false);
   });
 
   it('hides Prices chip when secondsAgo is null (non-scanner tab)', () => {

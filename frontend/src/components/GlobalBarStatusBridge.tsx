@@ -2,8 +2,12 @@
  * Always-on publisher for the GlobalAppBar middle status strip.
  * Mounted in AppShell so Scanner and Trader share one header (no clear on route change).
  */
-import { useEffect, useState, type ChangeEvent } from 'react';
-import { API_URL, SCANNER_POLL_INTERVAL_IBKR_MS } from '../constants';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import {
+  API_URL,
+  SCANNER_HEALTH_FAIL_GRACE_COUNT,
+  SCANNER_POLL_INTERVAL_IBKR_MS,
+} from '../constants';
 import { enterSampleView } from '../sample_data/sampleNav';
 import { useSettings } from '../settings/SettingsContext';
 import type { HealthStatus } from '../types/health';
@@ -27,9 +31,25 @@ export function GlobalBarStatusBridge() {
   const [health, setHealth] = useState<HealthStatus>(EMPTY_HEALTH);
   const historyDate = bar?.historyDate ?? null;
   const historyDates = bar?.historyDates ?? [];
+  const modeFailStreak = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
+    const publishProbeFailure = async () => {
+      modeFailStreak.current += 1;
+      if (modeFailStreak.current < SCANNER_HEALTH_FAIL_GRACE_COUNT) return;
+      const diag = await diagnoseBackend();
+      if (cancelled) return;
+      logBackendDiagnosis(diag);
+      setHealth({
+        status: 'disconnected',
+        latency_ms: 0,
+        message: diag.message,
+        flag: diag.flag,
+        flag_hint: diag.hint,
+        health_source: 'nova_process',
+      });
+    };
     const poll = async () => {
       try {
         const res = await fetch(`${API_URL}/mode`, {
@@ -37,16 +57,7 @@ export function GlobalBarStatusBridge() {
         });
         if (cancelled) return;
         if (!res.ok) {
-          const diag = await diagnoseBackend();
-          logBackendDiagnosis(diag);
-          setHealth({
-            status: 'disconnected',
-            latency_ms: 0,
-            message: diag.message,
-            flag: diag.flag,
-            flag_hint: diag.hint,
-            health_source: 'nova_process',
-          });
+          await publishProbeFailure();
           return;
         }
         const data = (await res.json()) as {
@@ -54,6 +65,7 @@ export function GlobalBarStatusBridge() {
           health?: HealthStatus;
         };
         if (cancelled) return;
+        modeFailStreak.current = 0;
         if (data.mode) setMode(data.mode);
         if (data.health) {
           setHealth({
@@ -63,16 +75,7 @@ export function GlobalBarStatusBridge() {
         }
       } catch {
         if (!cancelled) {
-          const diag = await diagnoseBackend();
-          logBackendDiagnosis(diag);
-          setHealth({
-            status: 'disconnected',
-            latency_ms: 0,
-            message: diag.message,
-            flag: diag.flag,
-            flag_hint: diag.hint,
-            health_source: 'nova_process',
-          });
+          await publishProbeFailure();
         }
       }
     };

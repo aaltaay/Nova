@@ -75,6 +75,11 @@ IBKR_FRACTIONAL_ORDER_API_MSG = (
     "IBKR API cannot place fractional-share orders (Error 10243). "
     "Close leftovers in TWS / IB Gateway desktop."
 )
+# Place/cancel while the IB connect-loop is wedged (historicals / cold work).
+IBKR_LOOP_WEDGED_ORDER_MSG = (
+    "IB loop wedged -- order was not sent. Wait for charts/historicals to "
+    "finish. Do not restart the API."
+)
 # Informational: IB rewrote TIF from account preset to DAY. Does NOT cancel
 # the order (ib_async <next> treats as warning; Nova also refuses to latch it).
 IBKR_ERROR_TIF_PRESET = 10349
@@ -103,8 +108,13 @@ IBKR_ERROR_DATA_FARM_CODES = frozenset({2104, 2106, 2108})
 IBKR_ERROR_MAX_TICKERS = 101
 # "Requested market data is not subscribed. Displaying delayed market data."
 IBKR_ERROR_DELAYED_DATA_NOTICE = 10167
-# reqMarketDataType(1) = live; see ibkr.client.get_market_data_type().
+# "Requested market data requires additional subscription for API. ... Delayed
+# market data is available." Common on paper Gateway when live MD is not shared
+# from the funded account (2026-08-07).
+IBKR_ERROR_MD_REQUIRES_SUBSCRIPTION = 10089
+# reqMarketDataType: 1=live, 3=delayed; see ibkr.client.get_market_data_type().
 IBKR_MARKET_DATA_TYPE_LIVE = 1
+IBKR_MARKET_DATA_TYPE_DELAYED = 3
 # Quote quality flag when ticks.py serves ticker.close because last is missing.
 IBKR_QUOTE_QUALITY_CLOSE_FALLBACK = "close_fallback"
 
@@ -148,10 +158,13 @@ IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
 SENTRY_SESSION_UNUSABLE_COOLDOWN_SEC = 300.0
 IBKR_GATEWAY_MODE_DEFAULT = "paper"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
-# When preferred LIVE Gateway port refuses/times out, try PAPER (4002) and
-# persist IBKR_GATEWAY_MODE=paper. Never auto-heals paper→live (paper pin).
-# Override with IBKR_GATEWAY_SELF_HEAL=false.
+# Follow the listening Gateway (paper↔live) when the preferred port is dark.
+# Override with IBKR_GATEWAY_SELF_HEAL=false. Spend gates never auto-unlock.
 IBKR_GATEWAY_SELF_HEAL_DEFAULT = True
+# After a user Paper/Live click, do not auto-follow the other port immediately
+# (they may be launching the requested Gateway + 2FA). After this grace, if
+# the requested port is still dark and the other is up, follow-Gateway resumes.
+IBKR_INTENTIONAL_FOLLOW_GRACE_SEC = 120.0
 # Terminal IBKR orderStatus values for Closed Orders (WID-027). Working /
 # pending / partial-still-open stay on open_orders (WID-026).
 IBKR_CLOSED_ORDER_STATUSES = frozenset({
@@ -207,6 +220,8 @@ IBKR_SCAN_ABOVE_PRICE = SCANNER_MIN_PRICE       # mirrors the Alpaca price floor
 # for live table freshness. Active tab + HOD use reqMktData L1 streams instead.
 IBKR_TABLE_REPRICE_MAX_SYMBOLS = 100
 IBKR_TABLE_REPRICE_CHUNK_SIZE = 20
+# ADR 010 -- cold reqTickersAsync batch. Never 40-wide on the IB loop.
+IBKR_COLD_SNAPSHOT_BATCH = 5
 IBKR_QUOTE_BATCH_TIMEOUT_SEC = 15.0             # cold/discovery reqTickersAsync (≥12s)
 # Coalesce duplicate reqScannerDataAsync calls for the same (scan_code,
 # below_price) within this window. Movers refresh, gapper's TOP_PERC_GAIN
@@ -224,15 +239,17 @@ IBKR_RUN_CORO_MAX_INFLIGHT_WHEN_WEDGED = 2
 # other cause of a bridge timeout. Set below the bridge ceiling so a hung
 # scanner call is attributable (and cancellable) before the outer wall fires.
 IBKR_SCAN_REQUEST_TIMEOUT_SEC = 20.0
-# ADR 008 — persistent scanner manager (ibkr/scanner_stream.py). Shadow by
-# default: builds rosters + lease registry without replacing one-shot scan_loop
-# until IBKR_SCANNER_PERSISTENT_AUTHORITATIVE is flipped (env override).
+# ADR 008 — persistent scanner manager (ibkr/scanner_stream.py). Authoritative
+# cutover on (2026-08-07): shadow+one-shot dual pipeline starved the UI —
+# empty-shadow quiet forever, then competing TOP_PERC_* oneshots timed out
+# against the same clientId leases. Env override still wins.
 IBKR_SCANNER_PERSISTENT_ENABLED = True
-IBKR_SCANNER_PERSISTENT_AUTHORITATIVE = False
-# One-shot scan_loop discovery defers to the persistent stream while it is
-# warming after READY (this is the *minimum* quiet window; see
-# scanner_stream.in_ready_quiet_window). Cold-Gateway hydrate takes 60s+ —
-# a 20s window let one-shot win the race and re-stamp the loop on 2026-07-29.
+IBKR_SCANNER_PERSISTENT_AUTHORITATIVE = True
+# One-shot scan_loop discovery defers to the persistent stream for this many
+# seconds after READY (see scanner_stream.in_ready_quiet_window). Timed only —
+# do not gate on non-empty shadow (empty [] kept quiet forever, 2026-08-07).
+# Cold-Gateway hydrate takes 60s+; a 20s window let one-shot re-stamp the loop
+# on 2026-07-29. With authoritative=True, scan_loop skips IBKR membership polls.
 IBKR_SCANNER_WARMUP_QUIET_SEC = 120.0
 IBKR_SCANNER_RECONCILE_SEC = 1.0
 # Watchdog: warn/resubscribe once when batch age exceeds max(min, mult × cadence).

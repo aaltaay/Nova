@@ -26,9 +26,8 @@ test.describe('Phase 2 — WorkspaceContext', () => {
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
-  test('quote panel Trader button opens detached window via openStockView', async ({
+  test('quote panel Trader button opens an in-app tab, not a popup', async ({
     page,
-    context,
   }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/');
@@ -39,16 +38,12 @@ test.describe('Phase 2 — WorkspaceContext', () => {
 
     const openBtn = page.locator('.side-panel').getByRole('button', { name: /Trader/i });
     await expect(openBtn).toBeVisible({ timeout: 15_000 });
-
-    const popupPromise = context.waitForEvent('page', { timeout: 10_000 });
     await openBtn.click();
-    const popup = await popupPromise;
 
-    await popup.waitForLoadState('domcontentloaded');
-    await expect(popup.locator('.stock-view-page')).toBeVisible({ timeout: 15_000 });
-    expect(popup.url()).toMatch(/view=stock/);
-    expect(popup.url()).toMatch(/symbol=AAPL/i);
-    await popup.close();
+    await expect(page.locator('[data-testid="sv-tabs-root"]')).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-testid="sv-tab-AAPL"]')).toBeVisible();
+    await expect(page.locator('.stock-view-page')).toBeVisible();
+    expect(page.url()).not.toMatch(/view=stock/);
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });

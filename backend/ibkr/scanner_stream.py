@@ -3,8 +3,9 @@
 Owns ``ScanDataList`` handles for the process lifetime. Desired set by period:
 Premarket = Gainers + Gappers; RTH = Gainers + Losers; AH = AH Gainers; Closed = none.
 
-Shadow by default (``IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=false``): builds
-rosters for parity evidence without replacing one-shot ``scan_loop`` writers.
+Authoritative by default (``IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=true``):
+commits hydrated rosters to runtime caches. Shadow-only mode remains available
+via env for rollback.
 """
 from __future__ import annotations
 
@@ -71,27 +72,19 @@ def shadow_roster(table: str) -> list[dict]:
 
 
 def in_ready_quiet_window() -> bool:
-    """True while the persistent stream is the single discovery owner.
+    """True only during the timed post-READY backoff.
 
-    Stays true for at least IBKR_SCANNER_WARMUP_QUIET_SEC after READY, and
-    until every live table has delivered at least one shadow roster batch.
-    One-shot scan_loop discovery defers during this window so a cold Gateway
-    is not stamped by two discovery pipelines (2026-07-29 API_WEDGED).
+    One-shot ``scan_loop`` discovery defers for
+    ``IBKR_SCANNER_WARMUP_QUIET_SEC`` after READY so a cold Gateway is not
+    stamped by two discovery pipelines (2026-07-29 API_WEDGED).
+
+    Do **not** extend quiet until shadow rosters are non-empty: empty is a
+    valid IB result / hydrate outcome, and when persistent is shadow-only
+    (not authoritative) one-shot is the sole UI writer. Waiting on
+    ``not _shadow[table]`` starved scanners for hours (2026-08-07) because
+    ``not []`` is True in Python.
     """
-    if time.monotonic() < _ready_quiet_until_mono:
-        return True
-    try:
-        desired = [
-            table
-            for table, _code in _session.desired_leases()
-            if _session.table_is_live(table)
-        ]
-    except Exception:
-        return True
-    if not desired:
-        return False
-    # Still quiet until each desired table has hydrated at least one roster.
-    return any(not (_shadow.get(table)) for table in desired)
+    return time.monotonic() < _ready_quiet_until_mono
 
 
 def bump_epoch() -> int:
@@ -155,6 +148,11 @@ def _on_batch(lease: _Lease, rows: list) -> None:
 
 
 def _schedule_hydrate() -> None:
+    from ibkr.loop_supervisor import is_ib_loop, publish_to_http
+
+    if is_ib_loop():
+        publish_to_http(_schedule_hydrate)
+        return
     global _hydrate_task
     try:
         loop = asyncio.get_running_loop()
@@ -192,6 +190,14 @@ async def _hydrate_pending() -> None:
 
 
 async def _open_lease(table: str, scan_code: str) -> _Lease | None:
+    from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
+
+    if is_started() and not is_ib_loop():
+        return await on_ib(
+            _open_lease(table, scan_code),
+            float(IBKR_SCAN_REQUEST_TIMEOUT_SEC) + 5.0,
+            label="reqScannerSubscription",
+        )
     ib = _client.get_ib()
     if ib is None or not _load_types() or not _client.is_ready():
         return None
@@ -347,6 +353,8 @@ async def manager_loop() -> None:
                 )
                 last_gen = gen
             _session.reconcile_session_tables(get_runtime_state())
+            # Error 10089 cannot reqMarketDataType inside errorEvent — apply here.
+            _client.maybe_fallback_to_delayed_market_data()
             await reconcile_leases()
             await _watchdog_once()
             now_m = time.monotonic()

@@ -7,14 +7,9 @@ import {
   GLOBAL_BAR_ACCOUNT_LABEL,
   GLOBAL_BAR_ACCOUNT_TITLE,
   GLOBAL_BAR_BRAND,
-  GLOBAL_BAR_MODE_DISCONNECTED,
-  GLOBAL_BAR_MODE_LIVE,
-  GLOBAL_BAR_MODE_PAPER,
   GLOBAL_BAR_NAV_SCANNER,
   GLOBAL_BAR_NAV_SCANNER_TITLE,
-  GLOBAL_BAR_NAV_TRADER,
-  GLOBAL_BAR_NAV_TRADER_DISABLED_TITLE,
-  GLOBAL_BAR_NAV_TRADER_TITLE,
+  TRADER_DEFAULT_SYMBOL,
   GLOBAL_BAR_SETTINGS_LABEL,
   GLOBAL_BAR_SETTINGS_TITLE,
 } from '../constants';
@@ -23,6 +18,7 @@ import { useIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { TradingSessionLockButton } from '../ibkr/TradingSessionLockButton';
 import { useSettingsOptional } from '../settings/SettingsContext';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
+import { parseStockViewSymbol } from '../utils/stockViewNav';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   getAccountNavActive,
@@ -31,10 +27,12 @@ import {
 import { GlobalBarAccountCluster } from './GlobalBarAccountCluster';
 import { resolveAccountChromeState } from './globalBarAccountChrome';
 import { NovaLogo } from './NovaLogo';
+import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { SymbolSearchBox } from './SymbolSearchBox';
 import { ThemeToggle } from './ThemeToggle';
 import { requestOpenTradingTab } from './openTradingTabNav';
+import { TraderNavButton } from './TraderNavButton';
 import { useScannerBarProps } from './scannerBarStore';
 import {
   fmtHistoryDateShort,
@@ -52,10 +50,14 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
   const {
     selectedSymbol,
     traderTabs,
+    traderViewActive,
     openStockView,
     closeTraderView,
+    showScannerView,
     ibkrConnected,
     ibkrMode,
+    ibkrGatewayMode,
+    ibkrDisconnectHint,
   } = useWorkspace();
   const { summary, orders, refresh, loading: accountLoading, error: accountError } =
     useIbkrAccountContext();
@@ -68,12 +70,18 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
   const accountCardId = useId();
   const workingMenuId = useId();
 
-  const traderActive = traderTabs.length > 0;
+  const traderActive = traderViewActive;
+  const detachedTrader = traderTabs.length > 0 && parseStockViewSymbol() != null;
+  const leaveTraderToScanner = () => {
+    if (!traderViewActive) return;
+    if (detachedTrader) closeTraderView();
+    else showScannerView();
+  };
   const settingsOpen = settingsApi?.settings.showSettings ?? false;
   const showAccountNav = visibility.trading !== false;
 
   useEffect(() => subscribeAccountNavActive(setAccountNavActive), []);
-  const canOpenTrader = traderActive || Boolean(selectedSymbol?.trim());
+  const traderSymbol = (selectedSymbol?.trim() || TRADER_DEFAULT_SYMBOL).toUpperCase();
   const accountChrome = resolveAccountChromeState({
     ibkrConnected: Boolean(ibkrConnected),
     summaryConnected: summary?.connected,
@@ -81,12 +89,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     error: accountError,
   });
   const workingCount = orders.length;
-  const modeLabel =
-    ibkrMode === 'paper'
-      ? GLOBAL_BAR_MODE_PAPER
-      : ibkrMode === 'live'
-        ? GLOBAL_BAR_MODE_LIVE
-        : GLOBAL_BAR_MODE_DISCONNECTED;
 
   useEffect(() => {
     if (!openMenu) return;
@@ -119,30 +121,16 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             title={GLOBAL_BAR_NAV_SCANNER_TITLE}
             data-testid="global-bar-nav-scanner"
             onClick={() => {
-              if (traderActive) closeTraderView();
+              leaveTraderToScanner();
             }}
           >
             {GLOBAL_BAR_NAV_SCANNER}
           </button>
-          <button
-            type="button"
-            className={`global-app-bar__nav-btn${traderActive ? ' is-active' : ''}`}
-            aria-pressed={traderActive}
-            disabled={!canOpenTrader}
-            title={
-              canOpenTrader
-                ? GLOBAL_BAR_NAV_TRADER_TITLE
-                : GLOBAL_BAR_NAV_TRADER_DISABLED_TITLE
-            }
-            data-testid="global-bar-nav-trader"
-            onClick={() => {
-              if (traderActive) return;
-              const sym = selectedSymbol?.trim().toUpperCase();
-              if (sym) openStockView(sym);
-            }}
-          >
-            {GLOBAL_BAR_NAV_TRADER}
-          </button>
+          <TraderNavButton
+            traderActive={traderActive}
+            traderSymbol={traderSymbol}
+            onOpen={openStockView}
+          />
         </nav>
       </div>
 
@@ -220,22 +208,19 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             workingMenuId={workingMenuId}
             closedOrders={closedOrders}
             traderActive={traderActive}
-            closeTraderView={closeTraderView}
+            closeTraderView={leaveTraderToScanner}
             refresh={refresh}
           />
         </div>
 
-        <span
-          className={`global-app-bar__mode global-app-bar__mode--${ibkrMode === 'live' ? 'live' : ibkrMode === 'paper' ? 'paper' : 'off'}`}
-          data-testid="global-bar-mode"
-          title={modeLabel}
-        >
-          <span
-            className={`global-app-bar__dot${ibkrConnected ? ' is-on' : ''}`}
-            aria-hidden
+        {!scanner && (
+          <GatewayModeCapsule
+            mode={ibkrMode}
+            gatewayMode={ibkrGatewayMode ?? undefined}
+            disconnectHint={ibkrDisconnectHint}
+            testId="header-gateway-mode-capsule"
           />
-          {modeLabel}
-        </span>
+        )}
 
         <TradingSessionLockButton />
 
@@ -248,7 +233,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             data-testid="global-bar-account-nav"
             onClick={() => {
               requestOpenTradingTab();
-              if (traderActive) closeTraderView();
+              leaveTraderToScanner();
             }}
           >
             {GLOBAL_BAR_ACCOUNT_LABEL}

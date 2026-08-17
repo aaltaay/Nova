@@ -16,6 +16,10 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [005](./decisions/005-frontend-feature-slices.md) | Frontend feature slices + workspace shell | Accepted |
 | [006](./decisions/006-css-itcss-cascade-layers.md) | ITCSS-inspired CSS + native cascade layers | Accepted |
 | [007](./decisions/007-centralized-trading-execution.md) | Centralized trading execution path | Accepted |
+| [008](./decisions/008-persistent-ibkr-scanner-rosters.md) | Session-owned persistent IBKR scanner rosters | Accepted |
+| [009](./decisions/009-short-entry.md) | Short entry (IBKR short selling) | Accepted |
+| [010](./decisions/010-ib-loop-isolation.md) | IB loop isolation (connect-loop + hot/cold) | Accepted |
+| [011](./decisions/011-trader-window-desk.md) | Trader desk (extract and dock) | Accepted |
 
 ## Rules and maps
 

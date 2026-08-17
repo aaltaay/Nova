@@ -228,6 +228,12 @@ export const NOVA_ACTION_PIN_LOCKED_MESSAGE =
   'Unlock the trading session (PIN) before hotkey orders.';
 export const NOVA_ACTION_SPEND_LOCKED_MESSAGE =
   'Orders remain locked by Nova environment safety settings.';
+export const EXECUTION_TRANSPORT_TIMEOUT_MESSAGE =
+  'Order request timed out -- IB loop is busy (charts/historicals). Check Working Orders before retrying.';
+export const EXECUTION_TRANSPORT_UNREACHABLE_MESSAGE =
+  'Could not reach Nova API. Check Working Orders / IB Gateway before retrying. Do not assume the order was sent.';
+export const EXECUTION_TRANSPORT_FAILED_MESSAGE =
+  'Order request failed. Check Working Orders before retrying.';
 export const NOVA_ACTION_ACCOUNT_ERROR_MESSAGE =
   'IBKR account/positions read failed -- Flatten/exit disabled until the poll recovers.';
 

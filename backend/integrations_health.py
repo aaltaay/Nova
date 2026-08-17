@@ -29,8 +29,12 @@ def build_integrations_status() -> dict[str, Any]:
             "APCA keys present — news/listing/RVOL aux, not live prices or API health",
         )
 
-    if _ibkr_client.is_connected():
-        ibkr = _chip("ok", "Gateway API connected — live prices when discovery=ibkr")
+    import loop_lag as _loop_lag
+
+    if _loop_lag.ib_lag.wedged:
+        ibkr = _chip("error", "IB loop wedged -- desk blocked (Gateway socket may still be up)")
+    elif _ibkr_client.is_connected():
+        ibkr = _chip("ok", "Gateway API connected -- live prices when discovery=ibkr")
     elif (_env("IBKR_ENABLED") or "").strip().lower() in ("1", "true", "yes"):
         ibkr = _chip("error", "IBKR enabled but Gateway offline")
     else:

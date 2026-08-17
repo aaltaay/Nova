@@ -23,6 +23,63 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-17 -- T&S resubscribe on Scanner | Trader
+
+- **Symptom:** Switching Scanner and Trader showed Time & Sales ERROR "Resubscribing in 10s -- please wait" while API and Gateway chips stayed green. Level 2 often still painted.
+- **Cause:** Scanner called `closeTraderView()`, which emptied tabs and unmounted `StockViewTabs`. `useIbkrTape` closed `/ws/ibkr/tape/{symbol}`; last viewer ran `cancelTickByTickData`. IB rejects a new `reqTickByTickData` on the same instrument for 15s (`IBKR_TAPE_RESUBSCRIBE_GUARD_SEC`). Open net / Gateway up does not waive that rule. The desk was being destroyed, not the socket dying.
+- **Fix:** Scanner | Trader is a view switch (`traderViewActive` + hidden `nova-trader-desk-slot`) so tape/L2 hooks stay mounted. Backend linger delays IB cancel 16s; remount reuses the live ticker. Last-tab X still tears down (linger covers a fast reopen).
+- **Keywords:** Resubscribing in 10s, Time & Sales, reqTickByTickData, 15s guard, closeTraderView, traderViewActive, tape linger, IPST
+
+## 2026-08-17 -- Trader 2x2 charts timeout (25s cancel stampede)
+
+- **Symptom:** Opening Trader on IPST: 5-Minute painted; 10-Second / Full Day / 1-Minute sat on "Chart bars timed out -- IBKR historical may be busy." L2 and Time & Sales stayed live. Gateway/API chips green.
+- **Cause:** Four panes (plus `/bars/batch` + ticker-WS warm) all start a 25s `run_coro` clock, but IBKR historical is one serial cold slot. First 5Min took 19.4s (`slot_wait=4.7s fetch=14.7s`) after HOD `snapshot_quotes` and a 25.8s IB-loop lag at 13:17. The other three hit 25s and `run_coro` **cancelled** them (`cancel accepted`), so 10Sec (4h of 10s bars) and 1Day (5Y) never finished or cached. Retries repeated the same cancel loop. When idle and sequential, the same 10Sec fetch is ~7s and 1Day ~1s.
+- **Fix:** Client historicals now go through a priority queue (1Min/5Min, then daily, 10Sec last). The 25s abort starts at dequeue, not at pane mount. `ensureBarsBatch` is sequential `/bars` (10Sec keeps limit=1500). Ticker WS no longer warms historicals. `bars_cache.get_or_fetch` runs the IBKR pull in a detached task so `run_coro` cancel cannot kill a fetch another pane or retry still needs. Did not change global `run_coro` cancel (reconnect-safety).
+- **Keywords:** Chart bars timed out, IPST, 10Sec, 1Day, run_coro, cancel accepted, historical_slot, CHART_BARS_FETCH_TIMEOUT_MS, snapshot_quotes preempt
+
+
+## 2026-08-17 -- Place showed Network error; order never reached Gateway
+
+- **Symptom:** Live ticket showed "Network error" after placing. Working orders empty. Ledger row TRUG 09:44:25 ET stuck at `validated` with no `order_id`.
+- **Cause:** IB connect-loop was wedged on a historical (`ib_cold_inflight=historical`, lag 9-20s). `execute` persisted `validated` then hopped `ensure_handlers` / `placeOrder` onto that loop. The browser never got a usable JSON body and the ticket catch-all said "Network error". Gateway was up; this was not wifi.
+- **Fix:** Reject place/cancel/replace while `loop_lag.is_wedged()` (`IB_LOOP_WEDGED`) before the IB hop. Ticket maps fetch/parse throws to an honest "check Working Orders" message instead of "Network error".
+- **Keywords:** Network error, TRUG, validated, IB loop wedged, historical, placeOrder, ManualOrderTicket, IB_LOOP_WEDGED
+
+## 2026-08-17 -- Trader click flashed Trading prerequisites (false API_WEDGED)
+
+- **Symptom:** Pressing Trader opened the full-screen Trading prerequisites modal with Nova API ERROR / "Port held by a hung process (health timed out)" and a Start API button. Gateway, IBKR enabled, and orders were all green. Paper/Live looked like it did not switch.
+- **Cause:** Opening Trader (SPY charts + L2 + tape) stalled the HTTP loop long enough that the header's 4s `/api/mode` probe timed out. `diagnoseBackend` labeled that single timeout `API_WEDGED`. `buildTradingPrerequisites` treated WEDGED like API_DOWN (`blockDesk` + Start API). The capsule also preferred session `mode` over configured `gateway_mode`, so a Live click stayed orange while the socket was still paper. Confirm dialog sat at z-50 under the gate (z-9000).
+- **Fix:** WEDGED probe miss no longer blocks the desk or offers Start API (only API_DOWN / server `ib_loop_lag.wedged`). Header `/mode` uses the same 2-fail grace as scanner polls. Capsule follows `gateway_mode`. App dialogs sit at z-index 10000.
+- **Keywords:** Trading prerequisites, API_WEDGED, Trader, Start API, hung process, Paper Live, gateway_mode, diagnoseBackend, GlobalBarStatusBridge
+
+## 2026-08-16 -- Live pin + IBC paper restart looked like Gateway closed
+
+- **Symptom:** Morning desk blocked on "Trading prerequisites" / "ACTION REQUIRED -- IB Gateway login" / Gateway offline, targeting LIVE 4001. Operator thought Gateway had closed overnight.
+- **Cause:** Gateway was running (PID since 12:22 AM) as paper on 4002. IBC `TradingMode=paper` + `AutoRestartTime=11:45 PM` restarted it as paper. Nova still had sticky `intentional_gateway_mode=live` from last night's capsule click, so follow-Gateway would not attach. The UI treated that mismatch as a login/2FA failure.
+- **Fix:** Immediate: POST `/api/ibkr/gateway-mode` paper (session READY). Lasting: expire sticky intent after 120s when preferred is dark and alternate is up; prerequisites CTA "Use paper/live Gateway"; hide the loud login banner on port-mismatch hints.
+- **Keywords:** IB Gateway, paper, live, 4001, 4002, IBC AutoRestart, intentional_gateway_mode, follow-Gateway, trading prerequisites, 2FA
+
+## 2026-08-16 -- tsc unused BACKEND_DIAG_FLAG_WEDGED in auto-heal
+
+- **Symptom:** `npm run build` failed: `backendAutoHeal.ts(8,3): error TS6133: 'BACKEND_DIAG_FLAG_WEDGED' is declared but its value is never read.`
+- **Cause:** ADR 010 removed `API_WEDGED` from `AUTO_HEAL_FLAGS` (never kill a live PID) but left the unused import.
+- **Fix:** Import only `BACKEND_DIAG_FLAG_DOWN`.
+- **Keywords:** tsc, TS6133, backendAutoHeal, API_WEDGED, unused import
+
+## 2026-08-14 -- API_WEDGED mid-trade (shared loop + auto-heal kill)
+
+- **Symptom:** Premarket Trading prerequisites showed Nova API CRITICAL / Auto-restarting API. `/livez` and `/api/health` timed out at 8s while PID still listened. Desk blocked mid-session.
+- **Cause:** `ib_async` shared uvicorn's loop. HOD seed historicals + `snapshot_quotes(40)` + WETO bars occupied that loop for 7-51s. UI 4s `/mode` + 2.5s `/health` probes classified `API_WEDGED` and called `startLocalApi` (kill :8000). Process was never dead.
+- **Fix:** ADR 010 -- dedicated IB connect-loop (`loop_supervisor`), one cold scheduler (no 40-wide snapshot), execute lock released before place/cancel, `API_WEDGED` removed from auto-heal, desk blocks on `ib_loop_lag.wedged`.
+- **Keywords:** API_WEDGED, loop_lag, connect-loop, on_ib, ib_scheduler, auto-heal, snapshot_quotes, surge_seed
+
+## 2026-08-14 -- Premarket API_WEDGED banner (loop starved, process never died)
+
+- **Symptom:** Trading prerequisites flashed Nova API CRITICAL ("Port held by a hung process (health timed out)") and "Auto-restarting API" with no user action. Desk blocked while Gateway/orders chips stayed green.
+- **Cause:** Shared uvicorn+ib_async event loop starved 7-51s. Trigger burst 08:14-08:16 ET: HOD surge-seed `reqHistorical` for ~25 symbols, HOD enrichment `snapshot_quotes` of 40 symbols (`run_ibkr` default label), mass scanner L1 subscribe, then WETO Trader open (multi-timeframe bars + depth + tape). First `run_coro` 25s timeout at 08:15:58; `loop_lag` hit 30s then 50.8s (`API_WEDGED` streak 3 at 08:19:21). UI `/api/mode` (4s, no grace) + `/api/health` (2.5s) timed out and armed session-once auto-heal. PID 40232 never died (up since 06:05:57, no WatchFiles). Circuit breaker only opens after 3x5s lag -- after the UI already decides to kill. Chronic ~2.3s lag all morning already sat next to the 2.5s probe.
+- **Fix:** Not patched this turn. External soak running at `C:\Users\aalta\.nova\soak\` (1Hz livez/health/mode + pid + lag). Process recovered ~08:21:40 same instance `1866c7cd0078`; `lag_max_ms` still 50790. Do not treat the banner as a real restart.
+- **Keywords:** API_WEDGED, health timeout, loop_lag, run_coro, HOD surge seed, enrichment snapshot_quotes, WETO, auto-heal, GlobalBarStatusBridge, PID 40232
+
 ## 2026-08-10 -- Port heal stuck on timeout (paper .env, live Gateway)
 
 - **Symptom:** IB Gateway green (API/farms connected) on live port 4001; Nova prerequisites still blocked targeting paper 4002. Status: `disconnect_hint=paper_port_refused_live_listening`, `gateway_self_heal=null`, session stuck connecting/disconnected after reconnect.

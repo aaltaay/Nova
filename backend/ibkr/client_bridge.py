@@ -43,15 +43,15 @@ def run_coro(coro, timeout: float, *, label: str = "") -> Any:
     applied.
     """
     from ibkr import client as _client
+    from ibkr.loop_supervisor import get_loop as _supervisor_loop
 
     global _run_coro_inflight
-    loop = _client._loop
+    loop = _supervisor_loop() or _client._loop
     if loop is None or not loop.is_running():
         raise RuntimeError("IBKR event loop not running (client not started)")
     tag = f" [{label}]" if label else ""
 
-    # Circuit breaker: when the uvicorn loop is wedged, refuse to stack more
-    # IB bridges that would deepen the lag (CYCU / API_WEDGED 2026-07-30).
+    # Circuit breaker keys off IB-loop lag (ADR 010), not uvicorn.
     try:
         import loop_lag as _loop_lag
         wedged = _loop_lag.is_wedged()

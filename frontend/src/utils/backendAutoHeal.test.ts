@@ -27,20 +27,26 @@ describe('backendAutoHeal', () => {
     sessionStorage.clear();
   });
 
-  it('only heals WEDGED / DOWN flags', () => {
-    expect(canAutoHealBackendFlag('API_WEDGED')).toBe(true);
+  it('only heals DOWN -- never WEDGED', () => {
+    expect(canAutoHealBackendFlag('API_WEDGED')).toBe(false);
     expect(canAutoHealBackendFlag('API_DOWN')).toBe(true);
     expect(canAutoHealBackendFlag('API_HTTP')).toBe(false);
   });
 
-  it('consumes one session slot', async () => {
+  it('maybeAutoHealBackend(API_WEDGED) is null', async () => {
+    const result = await maybeAutoHealBackend('API_WEDGED');
+    expect(result).toBeNull();
+    expect(startLocalApi).not.toHaveBeenCalled();
+  });
+
+  it('consumes one session slot on API_DOWN', async () => {
     expect(hasBackendAutoHealSlot()).toBe(true);
-    const first = await maybeAutoHealBackend('API_WEDGED');
+    const first = await maybeAutoHealBackend('API_DOWN');
     expect(first?.ok).toBe(true);
     expect(sessionStorage.getItem(BACKEND_AUTO_HEAL_SESSION_KEY)).toBe('1');
     expect(startLocalApi).toHaveBeenCalledOnce();
 
-    const second = await maybeAutoHealBackend('API_WEDGED');
+    const second = await maybeAutoHealBackend('API_DOWN');
     expect(second).toBeNull();
     expect(startLocalApi).toHaveBeenCalledOnce();
 

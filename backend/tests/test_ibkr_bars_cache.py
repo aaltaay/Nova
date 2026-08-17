@@ -126,6 +126,45 @@ def test_get_or_fetch_single_flight_coalesces():
     assert len(b["bars"]) == 3
 
 
+def test_get_or_fetch_survives_caller_cancel_and_still_caches():
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = {"n": 0}
+
+    async def slow_fetch(symbol, timeframe, limit, *, interactive=False):
+        calls["n"] += 1
+        started.set()
+        await release.wait()
+        return _payload(symbol=symbol, timeframe=timeframe, n=limit)
+
+    async def _run():
+        t1 = asyncio.create_task(
+            bars_cache.get_or_fetch(
+                "AAPL", "1Min", 3, interactive=True, fetch_fn=slow_fetch,
+            )
+        )
+        await started.wait()
+        t1.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await t1
+        assert bars_cache.get_cached("AAPL", "1Min", 3) is None
+        t2 = asyncio.create_task(
+            bars_cache.get_or_fetch(
+                "AAPL", "1Min", 3, interactive=True, fetch_fn=slow_fetch,
+            )
+        )
+        await asyncio.sleep(0)
+        release.set()
+        out = await t2
+        return out
+
+    out = asyncio.run(_run())
+    assert calls["n"] == 1
+    assert out["cache"] in ("coalesce", "miss", "hit")
+    assert len(out["bars"]) == 3
+    assert bars_cache.get_cached("AAPL", "1Min", 3) is not None
+
+
 def test_get_or_fetch_failure_not_cached_and_reraises():
     async def boom(*_a, **_k):
         raise HTTPException(status_code=503, detail="IBKR historical busy")

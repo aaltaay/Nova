@@ -4,6 +4,7 @@ import {
   buildStockViewUrl,
   openStockViewWindow,
   parseStockViewSymbol,
+  stockViewWindowName,
 } from './stockViewNav';
 
 describe('stockViewNav', () => {
@@ -31,6 +32,17 @@ describe('stockViewNav', () => {
     expect(parseStockViewSymbol(`?view=${STOCK_VIEW_QUERY_VIEW}`)).toBeNull();
   });
 
+  it('returns false when desktop IPC refuses a 4th Trader window', async () => {
+    window.novaDesktop = {
+      isDesktop: true,
+      apiBase: 'http://127.0.0.1:8000',
+      getVersion: async () => 'test',
+      openStockView: vi.fn(async () => false),
+    };
+    await expect(openStockViewWindow('MSFT')).resolves.toBe(false);
+    expect(window.open).not.toHaveBeenCalled();
+  });
+
   it('uses desktop IPC when novaDesktop.openStockView is available', async () => {
     const openStockView = vi.fn(async () => true);
     window.novaDesktop = {
@@ -46,6 +58,13 @@ describe('stockViewNav', () => {
     expect(openSpy).not.toHaveBeenCalled();
   });
 
+  it('names each Trader window after its symbol so three can sit on three screens', () => {
+    expect(stockViewWindowName('spy')).toBe('nova-trader-SPY');
+    expect(stockViewWindowName('qqq')).toBe('nova-trader-QQQ');
+    expect(stockViewWindowName('iwm')).toBe('nova-trader-IWM');
+    expect(stockViewWindowName('spy')).not.toBe(stockViewWindowName('qqq'));
+  });
+
   it('opens a named popup window with size features (not a bare tab)', async () => {
     const fakeWin = { opener: {} as Window | null, focus: vi.fn() };
     const openSpy = vi.fn(
@@ -57,7 +76,7 @@ describe('stockViewNav', () => {
     expect(openSpy).toHaveBeenCalledOnce();
     expect(openSpy).toHaveBeenCalledWith(
       expect.stringContaining('symbol=SHPH'),
-      'nova-trader',
+      'nova-trader-SHPH',
       expect.stringMatching(/popup=yes.*width=\d+.*height=\d+/),
     );
     const features = String(openSpy.mock.calls[0]?.[2] ?? '');

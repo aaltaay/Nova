@@ -2,7 +2,7 @@
 
 import {
   STOCK_VIEW_WINDOW_FEATURES,
-  TRADER_WINDOW_NAME,
+  TRADER_WINDOW_NAME_PREFIX,
 } from '../constants';
 
 export const STOCK_VIEW_QUERY_VIEW = 'stock';
@@ -23,9 +23,10 @@ export function parseStockViewSymbol(search = window.location.search): string | 
   return symbol || null;
 }
 
-/** One shared Trader OS window for all tabbed symbols. */
-export function stockViewWindowName(_symbol?: string): string {
-  return TRADER_WINDOW_NAME;
+/** One OS window per symbol so three traders can sit on three screens. */
+export function stockViewWindowName(symbol?: string): string {
+  const sym = (symbol ?? '').trim().toUpperCase();
+  return sym ? `${TRADER_WINDOW_NAME_PREFIX}-${sym}` : TRADER_WINDOW_NAME_PREFIX;
 }
 
 /**
@@ -45,8 +46,7 @@ export async function openStockViewWindow(symbol: string): Promise<boolean> {
 
   if (typeof window.novaDesktop?.openStockView === 'function') {
     try {
-      await window.novaDesktop.openStockView(url);
-      return true;
+      return Boolean(await window.novaDesktop.openStockView(url));
     } catch {
       // fall through to window.open
     }

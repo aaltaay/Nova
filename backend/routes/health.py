@@ -88,6 +88,10 @@ async def health_check():
     from observability import sentry_enabled
 
     state = get_runtime_state()
+    from ibkr.ib_scheduler import inflight_label
+
+    http_lag = _loop_lag.http_lag.snapshot()
+    ib_lag = _loop_lag.ib_lag.snapshot()
     return {
         **state.cached_health,
         "market_data_source": _get_discovery_provider(),
@@ -95,7 +99,10 @@ async def health_check():
         "feed_fell_back": _alpaca._feed_fell_back,
         "sentry_enabled": sentry_enabled(),
         "integrations": build_integrations_status(),
-        "loop_lag_ms": _loop_lag.snapshot(),
+        "loop_lag_ms": http_lag,
+        "http_loop_lag_ms": http_lag,
+        "ib_loop_lag_ms": ib_lag,
+        "ib_cold_inflight": inflight_label() or None,
         **instance_identity.snapshot(),
     }
 
@@ -188,7 +195,11 @@ def get_mode():
     state = get_runtime_state()
     return {
         "mode": state.current_mode,
-        "health": state.cached_health,
+        "health": {
+            **state.cached_health,
+            "http_loop_lag_ms": _loop_lag.http_lag.snapshot(),
+            "ib_loop_lag_ms": _loop_lag.ib_lag.snapshot(),
+        },
         "last_gapper_scan": state.gapper_cache_ts,
         "last_gainer_scan": state.gainer_cache_ts,
     }

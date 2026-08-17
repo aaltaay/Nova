@@ -331,7 +331,9 @@ async def refresh_completed_orders_cache(
         IBKR_COMPLETED_ORDERS_TIMEOUT_SEC,
     )
 
-    async with _completed_orders_guard():
+    from ibkr.ib_scheduler import cold_slot
+
+    async with cold_slot(label="completed_orders", droppable=False):
         # Re-check inside the lock so concurrent waiters do not each fire IBKR.
         now = time.monotonic()
         if (

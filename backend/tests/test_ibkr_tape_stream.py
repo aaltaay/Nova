@@ -120,11 +120,7 @@ def test_subscribe_is_idempotent_and_measured_once(monkeypatch):
             self.conId = 0
 
     ib = _IB()
-    tape._contracts.clear()
-    tape._tickers.clear()
-    tape._queues.clear()
-    tape._error_hooked_ib_ids.clear()
-    tape._cancelled_at.clear()
+    tape.reset_for_tests()
     op_metrics.reset_for_tests()
     monkeypatch.setattr(tape._client, "get_ib", lambda: ib)
     monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
@@ -157,11 +153,7 @@ def test_subscribe_request_failure_is_measured(monkeypatch):
             self.symbol = symbol
             self.conId = 0
 
-    tape._contracts.clear()
-    tape._tickers.clear()
-    tape._queues.clear()
-    tape._error_hooked_ib_ids.clear()
-    tape._cancelled_at.clear()
+    tape.reset_for_tests()
     op_metrics.reset_for_tests()
     monkeypatch.setattr(tape._client, "get_ib", lambda: _IB())
     monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
@@ -171,3 +163,87 @@ def test_subscribe_request_failure_is_measured(monkeypatch):
 
     assert result["ok"] is False
     assert op_metrics.snapshot()["operations"]["ibkr.tape.subscribe"]["error_count"] == 1
+
+
+def test_unsubscribe_lingers_so_resubscribe_reuses_ticker(monkeypatch):
+    class _IB:
+        def __init__(self):
+            self.errorEvent = _Event()
+            self.requests = 0
+            self.cancels = 0
+
+        async def qualifyContractsAsync(self, contract):
+            contract.conId = 42
+            return [contract]
+
+        def reqTickByTickData(self, *_args, **_kwargs):
+            self.requests += 1
+            return _FakeTicker([])
+
+        def cancelTickByTickData(self, *_args, **_kwargs):
+            self.cancels += 1
+
+    class _Stock:
+        def __init__(self, symbol, *_args):
+            self.symbol = symbol
+            self.conId = 0
+
+    ib = _IB()
+    tape.reset_for_tests()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: ib)
+    monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(tape, "_Stock", _Stock)
+    monkeypatch.setattr(tape, "IBKR_TAPE_LINGER_SEC", 60.0)
+
+    async def _run():
+        first = await tape.subscribe_async("IPST")
+        tape.unsubscribe("IPST")
+        second = await tape.subscribe_async("IPST")
+        still_live = "IPST" in tape._tickers
+        tape.reset_for_tests()
+        return first, second, still_live
+
+    first, second, still_live = asyncio.run(_run())
+    assert first["ok"] is True and second["ok"] is True
+    assert ib.requests == 1
+    assert ib.cancels == 0
+    assert still_live is True
+
+
+def test_linger_expires_then_cancels_ib(monkeypatch):
+    class _IB:
+        def __init__(self):
+            self.errorEvent = _Event()
+            self.cancels = 0
+
+        async def qualifyContractsAsync(self, contract):
+            contract.conId = 42
+            return [contract]
+
+        def reqTickByTickData(self, *_args, **_kwargs):
+            return _FakeTicker([])
+
+        def cancelTickByTickData(self, *_args, **_kwargs):
+            self.cancels += 1
+
+    class _Stock:
+        def __init__(self, symbol, *_args):
+            self.symbol = symbol
+            self.conId = 0
+
+    ib = _IB()
+    tape.reset_for_tests()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: ib)
+    monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(tape, "_Stock", _Stock)
+    monkeypatch.setattr(tape, "IBKR_TAPE_LINGER_SEC", 0.01)
+
+    async def _run():
+        await tape.subscribe_async("IPST")
+        tape.unsubscribe("IPST")
+        await asyncio.sleep(0.05)
+        cancels = ib.cancels
+        tape.reset_for_tests()
+        return cancels
+
+    assert asyncio.run(_run()) == 1

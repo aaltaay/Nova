@@ -10,11 +10,15 @@ import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   GATEWAY_BANNER_CTA_BUSY_LABEL,
   GATEWAY_BANNER_CTA_LABEL,
+  PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL,
+  PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL,
+  PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL,
   PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL,
   PREREQ_GATEWAY_RECONNECT_CTA_LABEL,
 } from './gatewayUxConstants';
 import {
   buildTradingPrerequisites,
+  gatewayPortMismatchHint,
   type PrereqItem,
 } from './tradingPrerequisites';
 import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
@@ -25,8 +29,11 @@ function ItemRow({
   item,
   onLaunchGateway,
   onReconnectIbkr,
+  onFollowGateway,
+  followTarget,
   gatewayBusy,
   reconnectBusy,
+  followBusy,
   healthFlag,
   healthHint,
   onApiStarted,
@@ -34,8 +41,11 @@ function ItemRow({
   item: PrereqItem;
   onLaunchGateway: () => void;
   onReconnectIbkr: () => void;
+  onFollowGateway: () => void;
+  followTarget: 'paper' | 'live' | null;
   gatewayBusy: boolean;
   reconnectBusy: boolean;
+  followBusy: boolean;
   healthFlag?: string;
   healthHint?: string;
   onApiStarted?: () => void;
@@ -72,6 +82,23 @@ function ItemRow({
             </button>
           </div>
         )}
+        {!item.ok && item.action === 'switch_gateway_mode' && followTarget && (
+          <div className="trading-prereq-item__cta">
+            <button
+              type="button"
+              className="trading-prereq-cta"
+              onClick={onFollowGateway}
+              disabled={followBusy}
+              data-testid="trading-prereq-follow-gateway"
+            >
+              {followBusy
+                ? PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL
+                : followTarget === 'paper'
+                  ? PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL
+                  : PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL}
+            </button>
+          </div>
+        )}
         {!item.ok && item.action === 'reconnect_ibkr' && (
           <div className="trading-prereq-item__cta">
             <button
@@ -103,7 +130,9 @@ export function TradingPrerequisitesGate() {
   const ibkr = useIbkrStatus();
   const [gatewayBusy, setGatewayBusy] = useState(false);
   const [reconnectBusy, setReconnectBusy] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
+  const followTarget = gatewayPortMismatchHint(ibkr.disconnect_hint);
 
   const health = bar?.health ?? { status: 'loading', latency_ms: 0 };
   const discovery = bar?.discoveryProvider ?? DISCOVERY_PROVIDER_DEFAULT;
@@ -142,6 +171,35 @@ export function TradingPrerequisitesGate() {
     setGatewayBusy(false);
   }, [gatewayBusy]);
 
+  const onFollowGateway = useCallback(async () => {
+    const target = gatewayPortMismatchHint(ibkr.disconnect_hint);
+    if (!target || followBusy) return;
+    setFollowBusy(true);
+    setLaunchHint(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/ibkr/gateway-mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: target }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        connected?: boolean;
+      };
+      refreshIbkrStatusNow();
+      if (res.ok && body.ok !== false && body.connected) {
+        setLaunchHint(`Attached to ${target} Gateway.`);
+      } else {
+        setLaunchHint(body.error || `Could not switch to ${target} Gateway.`);
+      }
+    } catch {
+      setLaunchHint('Switch request failed -- Nova API may be down.');
+    } finally {
+      setFollowBusy(false);
+    }
+  }, [followBusy, ibkr.disconnect_hint]);
+
   const onReconnectIbkr = useCallback(async () => {
     if (reconnectBusy) return;
     setReconnectBusy(true);
@@ -172,7 +230,7 @@ export function TradingPrerequisitesGate() {
     }
   }, [reconnectBusy]);
 
-  // Auto-heal Start API is owned by BackendStartButton when flag is WEDGED/DOWN.
+  // Auto-heal Start API is owned by BackendStartButton on API_DOWN only.
   useEffect(() => {
     if (prereqs.deskReady) setLaunchHint(null);
   }, [prereqs.deskReady]);
@@ -211,8 +269,11 @@ export function TradingPrerequisitesGate() {
               item={item}
               onLaunchGateway={() => void onLaunchGateway()}
               onReconnectIbkr={() => void onReconnectIbkr()}
+              onFollowGateway={() => void onFollowGateway()}
+              followTarget={followTarget}
               gatewayBusy={gatewayBusy}
               reconnectBusy={reconnectBusy}
+              followBusy={followBusy}
               healthFlag={health.flag}
               healthHint={health.flag_hint}
             />

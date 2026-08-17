@@ -179,7 +179,8 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
         if ready_pct < HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT and seeded_n < max(1, buf_n // 4):
             # While the seed queue is actively draining, warn — don't block
             # parity/observe on a transient post-reload cold start.
-            status = "warn" if pending > 0 else "fail"
+            # ADR 010: dropped/deferred/no_history seed is warn. Fail only for dead L1.
+            status = "warn"
             checks.append(check(
                 "hod_surge_buffer",
                 status,

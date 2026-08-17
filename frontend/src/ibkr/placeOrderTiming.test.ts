@@ -107,6 +107,25 @@ describe('IBKR client timing contract', () => {
     expect(span.complete).toHaveBeenCalledWith(false);
   });
 
+  it('maps a dropped place fetch to a ticket error instead of throwing', async () => {
+    vi.mocked(novaFetch).mockRejectedValue(new TypeError('Failed to fetch'));
+    const span = timing();
+    const result = await placeIbkrOrder(
+      {
+        symbol: 'TRUG',
+        side: 'BUY',
+        qty: 1,
+        order_type: 'MKT',
+        outside_rth: false,
+      },
+      'dropped-place',
+      { timing: span },
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/Could not reach Nova API/i);
+    expect(span.complete).toHaveBeenCalledWith(false);
+  });
+
   it('records HTTP 200 cancel rejection as a failed browser outcome', async () => {
     vi.mocked(novaFetch).mockResolvedValue(
       new Response(JSON.stringify({ ok: false, error: 'Already filled' }), {

@@ -31,6 +31,9 @@ export interface HealthStatus {
   parent_pid?: number;
   started_at?: number;
   reload?: boolean;
-  /** Event-loop lag sample (backend/loop_lag.py). */
-  loop_lag_ms?: { last_ms: number; max_ms: number; samples: number };
+  /** HTTP-loop lag sample (backend/loop_lag.py). */
+  loop_lag_ms?: { last_ms: number; max_ms: number; samples: number; wedged?: boolean };
+  http_loop_lag_ms?: { last_ms: number; max_ms: number; samples: number; wedged?: boolean };
+  /** IB connect-loop lag -- desk SoT when wedged (ADR 010). */
+  ib_loop_lag_ms?: { last_ms: number; max_ms: number; samples: number; wedged?: boolean };
 }

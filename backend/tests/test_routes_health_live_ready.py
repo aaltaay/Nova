@@ -62,3 +62,6 @@ def test_api_health_includes_instance_identity_and_loop_lag():
     assert body["pid"] == instance_identity.PID
     assert "loop_lag_ms" in body
     assert set(body["loop_lag_ms"]) >= {"last_ms", "max_ms", "samples", "wedged"}
+    assert "http_loop_lag_ms" in body
+    assert "ib_loop_lag_ms" in body
+    assert set(body["ib_loop_lag_ms"]) >= {"last_ms", "max_ms", "samples", "wedged"}

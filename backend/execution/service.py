@@ -5,7 +5,11 @@ import asyncio
 import logging
 import time
 
-from constants import IBKR_FORCE_ONE_SHARE, NOVA_OS_MAX_CONCURRENT_POSITIONS
+from constants import (
+    IBKR_FORCE_ONE_SHARE,
+    IBKR_LOOP_WEDGED_ORDER_MSG,
+    NOVA_OS_MAX_CONCURRENT_POSITIONS,
+)
 from execution import store
 from execution import telemetry
 from execution import validate as _validate
@@ -16,6 +20,7 @@ from execution.latency import latency_summary
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.qty_gate import apply_force_one_share
 from ibkr import client as _client
+import loop_lag as _loop_lag
 
 logger = logging.getLogger(__name__)
 
@@ -233,12 +238,20 @@ async def execute(
             mode=_client.account_mode(),
         )
 
+        if _loop_lag.is_wedged() and cmd.operation in (
+            "place", "bracket", "cancel", "replace",
+        ):
+            return _reject(
+                execution_id, cmd, timings,
+                IBKR_LOOP_WEDGED_ORDER_MSG, "IB_LOOP_WEDGED",
+            )
+
         ib = _client.get_ib()
         telemetry.ensure_handlers(ib)
-        receipt = await send_broker(
-            cmd, execution_id, timings, wait_ack=False, reject=_reject,
-        )
 
+    receipt = await send_broker(
+        cmd, execution_id, timings, wait_ack=False, reject=_reject,
+    )
     if wait_ack:
         return await wait_broker_ack(cmd, receipt)
     return receipt

@@ -24,12 +24,13 @@ import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
 import { StockViewTabs } from './stock_view/StockViewTabs';
 import { parseStockViewSymbol } from './utils/stockViewNav';
 import { AppDialogHost } from './ux';
+import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
 import { LayoutStoreProvider } from './workspace/useLayoutStore';
 import { ModuleVisibilityProvider } from './workspace/useModuleVisibility';
 
 function AppShell() {
-  const { traderTabs } = useWorkspace();
+  const { traderTabs, traderViewActive } = useWorkspace();
   const [sampleMode, setSampleMode] = useState(() => isSampleView());
 
   useEffect(() => {
@@ -48,8 +49,9 @@ function AppShell() {
     return <SampleShell />;
   }
 
-  const traderActive = traderTabs.length > 0;
-  const detached = traderActive && parseStockViewSymbol() != null;
+  const hasTraderDesk = traderTabs.length > 0;
+  const showTrader = hasTraderDesk && traderViewActive;
+  const detached = hasTraderDesk && parseStockViewSymbol() != null;
 
   return (
     <IbkrAccountProvider>
@@ -62,18 +64,32 @@ function AppShell() {
             <TradingPrerequisitesGate />
             <NovaOsAttentionStrip global />
             <div className="nova-app-branch">
-              {traderActive ? (
-                <AppErrorBoundary source="stock-view">
-                  <div className="nova-shell nova-shell--ticker-detail">
-                    <div className="main-col main-col--full main-col--trader-stack">
-                      <HodMomoDock />
-                      <main className="ticker-detail-main">
-                        <StockViewTabs detached={detached} />
-                      </main>
+              <TraderDockLayer />
+              {hasTraderDesk && (
+                <div
+                  className="nova-trader-desk-slot"
+                  hidden={!showTrader}
+                  aria-hidden={!showTrader}
+                >
+                  <AppErrorBoundary source="stock-view">
+                    <div
+                      className={
+                        showTrader
+                          ? 'nova-shell nova-shell--ticker-detail'
+                          : 'nova-shell'
+                      }
+                    >
+                      <div className="main-col main-col--full main-col--trader-stack">
+                        <HodMomoDock />
+                        <main className="ticker-detail-main">
+                          <StockViewTabs detached={detached} />
+                        </main>
+                      </div>
                     </div>
-                  </div>
-                </AppErrorBoundary>
-              ) : (
+                  </AppErrorBoundary>
+                </div>
+              )}
+              {!showTrader && (
                 <AppErrorBoundary source="dashboard">
                   <DashboardPage />
                 </AppErrorBoundary>

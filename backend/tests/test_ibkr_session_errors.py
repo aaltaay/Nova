@@ -131,11 +131,27 @@ def test_delayed_data_notice_sets_flag():
     assert se.is_delayed_data() is True
 
 
+def test_md_requires_subscription_blocks_live_and_marks_delayed():
+    """Error 10089 — paper without shared live MD (2026-08-07)."""
+    ib = _FakeIB()
+    se.install_error_hook(ib)
+    assert se.live_market_data_blocked() is False
+    ib.errorEvent.fire(
+        14, 10089,
+        "Requested market data requires additional subscription for API. "
+        "Delayed market data is available.",
+        None,
+    )
+    assert se.live_market_data_blocked() is True
+    assert se.is_delayed_data() is True
+
+
 def test_unrelated_error_codes_are_ignored():
     ib = _FakeIB()
     se.install_error_hook(ib)
     ib.errorEvent.fire(1, 200, "No security rules definition found", None)
     assert se.is_delayed_data() is False
+    assert se.live_market_data_blocked() is False
     assert se.max_tickers_hit() is False
     assert se.get_data_farm_status()["status"] is None
     assert se.peek_restore_pending() is None

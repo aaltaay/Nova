@@ -1,26 +1,61 @@
 /**
  * Editable symbol chips for Trader View (max TRADER_MAX_TABS).
+ * + / type stays here. Extract pops out. Drag docks onto another Nova window.
  */
 import { useEffect, useRef, useState } from 'react';
-import { TRADER_MAX_TABS } from '../constantGroups/trader_view';
+import {
+  TRADER_MAX_TABS,
+  TRADER_TAB_ADD_TITLE,
+  TRADER_TAB_DOCK_ARIA,
+  TRADER_TAB_DOCK_LABEL,
+  TRADER_TAB_DOCK_TITLE,
+  TRADER_TAB_DRAG_TITLE,
+  TRADER_TAB_EXTRACT_ARIA,
+  TRADER_TAB_EXTRACT_LABEL,
+  TRADER_TAB_EXTRACT_TITLE,
+  TRADER_TAB_LABEL_TITLE,
+  TRADER_TAB_STRIP_HINT,
+} from '../constants';
+import {
+  allowTraderTabDrop,
+  startTraderTabDrag,
+  takeForeignTraderTabDrop,
+  type TraderTabDragPayload,
+} from '../workspace/traderDesk';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 
 interface Props {
   tabs: string[];
   active: string | null;
+  windowId?: string;
+  showDock?: boolean;
+  dropReady?: boolean;
   onActivate: (symbol: string) => void;
   onClose: (symbol: string) => void;
   onRename: (from: string, to: string) => void;
   onAddDraft: () => void;
+  onExtract: (symbol: string) => void;
+  onDock?: (symbol: string) => void;
+  onTabDragStart?: (symbol: string) => void;
+  onTabDragEnd?: () => void;
+  onTabDrop?: (payload: TraderTabDragPayload) => void;
 }
 
 export function StockViewTabStrip({
   tabs,
   active,
+  windowId = '',
+  showDock = false,
+  dropReady = false,
   onActivate,
   onClose,
   onRename,
   onAddDraft,
+  onExtract,
+  onDock,
+  onTabDragStart,
+  onTabDragEnd,
+  onTabDrop,
 }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
@@ -40,11 +75,6 @@ export function StockViewTabStrip({
     }
   }, [editing]);
 
-  const beginEdit = (symbol: string) => {
-    setEditing(symbol);
-    setDraft(symbol === TRADER_DRAFT_SYMBOL ? '' : symbol);
-  };
-
   const commitEdit = () => {
     if (editing == null) return;
     const from = editing;
@@ -63,18 +93,39 @@ export function StockViewTabStrip({
     && !tabs.includes(TRADER_DRAFT_SYMBOL);
 
   return (
-    <div className="sv-tab-strip" role="tablist" aria-label="Trader tabs" data-testid="sv-tab-strip">
+    <div
+      className={`sv-tab-strip${dropReady ? ' sv-tab-strip--drop-ready' : ''}`}
+      role="tablist"
+      aria-label="Trader tabs"
+      data-testid="sv-tab-strip"
+      onDragOver={allowTraderTabDrop}
+      onDrop={(e) => {
+        const payload = takeForeignTraderTabDrop(e, windowId);
+        if (payload) onTabDrop?.(payload);
+      }}
+    >
       {tabs.map(symbol => {
         const isActive = symbol === active;
         const isEditing = editing === symbol;
-        const label = symbol === TRADER_DRAFT_SYMBOL ? 'New' : symbol;
+        const isDraft = symbol === TRADER_DRAFT_SYMBOL;
+        const label = isDraft ? 'New' : symbol;
         return (
           <div
-            key={symbol === TRADER_DRAFT_SYMBOL ? '__draft__' : symbol}
+            key={isDraft ? '__draft__' : symbol}
             className={`sv-tab${isActive ? ' sv-tab--active' : ''}`}
             role="tab"
             aria-selected={isActive}
             data-testid={`sv-tab-${label}`}
+            draggable={!isDraft && !isEditing}
+            onDragStart={(e) => {
+              if (isDraft || isEditing) {
+                e.preventDefault();
+                return;
+              }
+              startTraderTabDrag(e, { symbol, sourceWindowId: windowId });
+              onTabDragStart?.(symbol);
+            }}
+            onDragEnd={() => onTabDragEnd?.()}
           >
             {isEditing ? (
               <input
@@ -100,10 +151,43 @@ export function StockViewTabStrip({
                 type="button"
                 className="sv-tab__label"
                 onClick={() => onActivate(symbol)}
-                onDoubleClick={() => beginEdit(symbol)}
-                title="Double-click to edit ticker"
+                onDoubleClick={e => {
+                  e.preventDefault();
+                  if (!isDraft) onExtract(symbol);
+                }}
+                title={isDraft ? 'Type a ticker, then Enter' : TRADER_TAB_LABEL_TITLE}
               >
                 {label}
+              </button>
+            )}
+            {!isDraft && showDock && onDock && (
+              <button
+                type="button"
+                className="sv-tab__dock"
+                aria-label={`${TRADER_TAB_DOCK_ARIA} (${label})`}
+                title={TRADER_TAB_DOCK_TITLE}
+                data-testid={`sv-tab-dock-${label}`}
+                onClick={e => {
+                  e.stopPropagation();
+                  onDock(symbol);
+                }}
+              >
+                {TRADER_TAB_DOCK_LABEL}
+              </button>
+            )}
+            {!isDraft && (
+              <button
+                type="button"
+                className="sv-tab__extract"
+                aria-label={`${TRADER_TAB_EXTRACT_ARIA} (${label})`}
+                title={TRADER_TAB_EXTRACT_TITLE}
+                data-testid={`sv-tab-extract-${label}`}
+                onClick={e => {
+                  e.stopPropagation();
+                  onExtract(symbol);
+                }}
+              >
+                {TRADER_TAB_EXTRACT_LABEL}
               </button>
             )}
             <button
@@ -125,13 +209,16 @@ export function StockViewTabStrip({
         type="button"
         className="sv-tab-add"
         aria-label="Add ticker tab"
-        title={atCap ? `Max ${TRADER_MAX_TABS} Level 2 tabs` : 'Add ticker'}
+        title={atCap ? `Max ${TRADER_MAX_TABS} Level 2 tabs` : TRADER_TAB_ADD_TITLE}
         disabled={atCap || tabs.includes(TRADER_DRAFT_SYMBOL)}
         onClick={onAddDraft}
         data-testid="sv-tab-add"
       >
         +
       </button>
+      <span className="sv-tab-strip__hint" data-testid="sv-tab-strip-hint" title={TRADER_TAB_DRAG_TITLE}>
+        {TRADER_TAB_STRIP_HINT}
+      </span>
     </div>
   );
 }

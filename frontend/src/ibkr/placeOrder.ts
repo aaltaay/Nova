@@ -1,5 +1,6 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { executionTransportError } from './executionTransportError';
 import {
   beginBrowserExecutionTiming,
   clientTimingHeaders,
@@ -54,7 +55,11 @@ export async function placeIbkrOrder(
     return await parseTimedExecutionResponse<PlaceOrderResult>(response, timing);
   } catch (error) {
     timing.complete(false);
-    throw error;
+    return {
+      ok: false,
+      order_id: null,
+      error: executionTransportError(error),
+    };
   }
 }
 

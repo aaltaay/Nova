@@ -88,3 +88,10 @@ frontend/src/graphify-out/.needs_update
 
 # pytest cache (local scratch, not for VCS)
 .pytest_cache/
+
+# Local desktop launcher binary (rebuild via tools/nova-launcher)
+Nova.exe
+Nova.repo
+tools/nova-launcher/bin/
+tools/nova-launcher/obj/
+

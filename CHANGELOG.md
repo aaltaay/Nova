@@ -30,6 +30,119 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-17 -- Scanner | Trader keeps tape subscribed
+
+- **What:** Clicking Scanner no longer tears down Trader tabs or Time & Sales. The desk stays mounted (hidden). Last T&S viewer close lingers the IB tick-by-tick line for 16s so a remount reuses it.
+- **Why:** IB forbids a second `reqTickByTickData` within 15s of cancel. Scanner was calling `closeTraderView()`, which unmounted T&S, cancelled the IB line, then Trader remount hit "Resubscribing in 10s" even with Gateway/API up.
+- **Files touched:** `App.tsx`, `useTraderDeskBinding.ts`, `WorkspaceContext.tsx`, `GlobalAppBar.tsx`, `StockViewTabs.tsx`, `backend/ibkr/tape_stream.py`, `single-market-data-feed.mdc`.
+- **How it works now:** `traderViewActive` is the visible view. Tabs stay in session storage across Scanner. `closeTraderView` is last-tab X / detached close only. `unsubscribe()` schedules linger; `subscribe_async` cancels linger and reuses `_tickers`.
+- **Verified by:** `pytest tests/test_ibkr_tape_stream.py` (8 passed); `npx vitest run` GlobalAppBar + traderOpen + workspaceWiring + GlobalWorkingMenu (25 passed); `npm run build` exit 0.
+- **Related:** PROBLEM_LOG 2026-08-17 -- T&S resubscribe on Scanner | Trader.
+
+## 2026-08-17 -- Trader charts fetch one pane at a time
+
+- **What:** Opening Trader no longer starts four 25s IBKR historical clocks at once. Panes queue (1m/5m first, Full Day next, 10-Second last). An in-flight historical is not cancelled when one HTTP waiter times out.
+- **Why:** IPST 2x2 showed 5-Minute only; 10s / Full Day / 1m hit "Chart bars timed out" after ~25s while L2/tape stayed live.
+- **Files touched:** `frontend/src/chart/barsFetchQueue.ts`, `barsStore.ts`, `useChartBars.ts`, `ChartGrid.tsx`, `market_ui.ts`, `backend/ibkr/bars_cache.py`, `backend/routes/ticker.py`.
+- **How it works now:** `ensureBars` serializes across timeframes. Timeout starts when that TF actually hits the wire. Same-key calls still coalesce. Backend cache task outlives the cancelled `run_coro` so a retry can hit cache. Ticker WS only subscribes L1; it does not prefetch bars.
+- **Verified by:** `pytest tests/test_ibkr_bars_cache.py tests/test_historical_gate.py` (13 passed); `npx vitest run src/chart src/components/ChartGrid.test.tsx` (41 passed).
+- **Related:** PROBLEM_LOG 2026-08-17 -- Trader 2x2 charts timeout (25s cancel stampede).
+
+
+## 2026-08-17 -- Honest place failure when the IB loop is wedged
+
+- **What:** A live place no longer hangs behind a wedged IB historical and then show "Network error". The API rejects with `IB_LOOP_WEDGED`. The ticket says to check Working Orders.
+- **Why:** TRUG 09:44:25 ET was validated and never sent. Gateway was connected; the IB loop was busy on charts.
+- **Files touched:** `execution/service.py`, `constants_ibkr.py`, `placeOrder.ts`, `executionTransportError.ts`, `ManualOrderTicket.tsx`.
+- **How it works now:** After validate, if `ib_lag.wedged`, reject and do not call `placeOrder`. Fetch throws become a reachability/timeout message, not "Network error".
+- **Verified by:** `pytest tests/test_execution_service.py::TestAccountAndRiskGates::test_ib_loop_wedged_does_not_call_place` -- pass. Vitest place/transport suites -- 10 passed.
+- **Related:** PROBLEM_LOG 2026-08-17 -- Place showed Network error
+
+## 2026-08-17 -- Trader desk: drag a popped-out tab back in
+
+- **What:** Extract and dock are inverse operations. Drag a tab from a popped-out window onto another Nova window (or press Dock) to merge it back. The empty float window closes.
+- **Why:** Pop-out was one-way. The operator asked to press-and-drag the new window back, with a real architecture instead of another one-off.
+- **Files touched:** `architecture/decisions/011-trader-window-desk.md`, `frontend/src/workspace/traderDesk/*`, `WorkspaceContext.tsx`, `StockViewTabStrip.tsx`, `TraderDockLayer.tsx`.
+- **How it works now:** Each OS window is a host or float surface. HTML5 drag carries a versioned payload. `BroadcastChannel('nova.trader.desk')` tells the source to give the tab up after the target accepts (`tab-docked`) or that the host was full (`dock-reject`). Same-window drops are ignored. Title-bar window moves do not dock yet (Electron adapter is named in the ADR, not invented as a second model).
+- **Verified by:** `npx vitest run` on traderDesk + traderOpen + tab strip + workspace suites -- 32 passed.
+
+## 2026-08-17 -- 10-Second chart defaults to no EMAs
+
+- **What:** The Trader 10-Second pane no longer starts with 9/20/50/200 EMA lines. VWAP stays. EMAs can still be toggled on from the chart toolbar.
+- **Why:** Those overlays clutter a 10s tape chart and get in the way of clicking / drawing.
+- **Files touched:** `chart_api.ts` (`CHART_GRID_PANE_INDICATORS['10Sec']`), `ChartGrid.test.tsx`.
+- **How it works now:** 1m/5m still default EMAs+VWAP+MACD. 10Sec defaults to VWAP only. Full Day still uses the global overlay default (EMAs+VWAP).
+- **Verified by:** `npx vitest run src/components/ChartGrid.test.tsx` -- 3 passed.
+
+## 2026-08-17 -- Trader tabs stay in this window; pop out is explicit
+
+- **What:** Typing a symbol or pressing `+` adds a tab in the current window. A visible **Pop out** control and a double-click on the tab extract that symbol into a new window.
+- **Why:** After the one-window-per-symbol change, `+` / type spawned a second Edge window (IPST) instead of a tab next to SPY.
+- **Files touched:** `WorkspaceContext.tsx`, `StockViewTabStrip.tsx`, `StockViewTabs.tsx`, `trader_view.ts`, `single-market-data-feed.mdc`, e2e workspace spec.
+- **How it works now:** `openStockView` only mutates this window's tab strip. `extractTraderTab` calls `openStockViewWindow` and drops the tab here. The strip says "Double-click a tab to pop out" and each tab tooltip repeats that. Cap is still 3 live L2 symbols.
+- **Verified by:** Vitest 36 passed (`StockViewTabStrip`, `traderOpen`, workspace, GlobalAppBar, traderTabsState, stockViewNav). `npm run build` in this turn.
+- **Related:** task-log 2026-08-17-trader-tabs-then-extract
+
+## 2026-08-17 -- Trader open no longer fake-blocks the desk on a probe timeout
+
+- **What:** Opening Trader no longer covers the desk with Trading prerequisites + Start API just because one `/api/mode` probe timed out. Paper/Live now follows the configured Gateway target. Switch confirm sits above the gate.
+- **Why:** Pressing Trader (SPY + L2 + tape) stalled a 4s health probe. The UI called that a hung API and blocked the desk while Gateway was READY. Live clicks also looked like no-ops because the capsule painted the still-paper session.
+- **Files touched:** `tradingPrerequisites.ts`, `GlobalBarStatusBridge.tsx`, `GatewayModeCapsule.tsx`, `chart_api.ts`, `appDialog.css`, `BackendStartButton.tsx`.
+- **How it works now:** A client `API_WEDGED` flag is a probe miss, not a dead process. The gate only blocks on `API_DOWN` or server `ib_loop_lag_ms.wedged`, and Start API is DOWN-only. The header needs two `/mode` failures before it flips health. The capsule shows `gateway_mode` (with a short optimistic slide). Dialogs are z-index 10000.
+- **Verified by:** Vitest 43 passed (`tradingPrerequisites`, `GatewayModeCapsule`, header/bar/capsule, diagnose/auto-heal). `npm run build` exit 0. Live soak: POST paper/live/paper/live all `ok=true` `connected=true` in 506-719ms; left on live READY.
+- **Related:** PROBLEM_LOG 2026-08-17 -- Trader click flashed Trading prerequisites
+
+## 2026-08-16 -- Follow the logged-in Gateway after overnight IBC restart
+
+- **What:** A Paper/Live click no longer pins Nova to a dark port overnight. After 2 minutes, if the requested port is still down and the other Gateway is up, Nova attaches to the one that is logged in. The prerequisites modal says "Paper is already up -- use Paper" instead of "log in / 2FA". The loud login banner no longer fires on that mismatch.
+- **Why:** Last night Live worked on 4001. IBC AutoRestart at 11:45 PM brought Gateway back as paper (4002). Sticky Live intent blocked follow-Gateway, so the desk looked offline while Gateway was sitting there.
+- **Files touched:** `gateway_heal.py`, `client_connect.py`, `constants_ibkr.py`, `tradingPrerequisites.ts`, `TradingPrerequisitesGate.tsx`, `GatewayDisconnectedBanner.tsx`.
+- **How it works now:** Mid-switch (2FA) still stays honest for 120s. After that, follow whoever is listening. Spend gates never auto-unlock. Click Live when you want live and finish 2FA.
+- **Verified by:** pytest `test_gateway_heal.py` 18 passed; Vitest 23 passed (`tradingPrerequisites`, `GatewayDisconnectedBanner`, `disconnectCopy`); `npm run build` exit 0. Ops: POST paper → `connected=true` `mode=paper` `session_state=ready`.
+
+## 2026-08-16 -- Three Trader windows, one symbol each
+
+- **What:** Trader opens a separate OS window per symbol (up to 3). Clicking SPY then QQQ then IWM can put one window on each monitor. A fourth symbol is blocked. Same symbol focuses the existing window.
+- **Why:** One shared `nova-trader` window reused every symbol, so the desk could not park three names on three screens.
+- **Files touched:** `stockViewNav.ts`, `trader_view.ts`, `WorkspaceContext.tsx`, `electron/traderWindows.mjs`, `electron/main.mjs`, `single-market-data-feed.mdc`.
+- **How it works now:** Window name is `nova-trader-SPY` (etc.). Electron reuses that window, places the Nth window on the Nth display (cascade if fewer monitors), and refuses a 4th. Detached windows stay single-symbol. `+` in a detached window opens another window. Popup-blocked browsers still fall back to in-app tabs. Cap is still the Level 2 plan (3).
+- **Verified by:** Vitest 23 passed (`stockViewNav`, `traderWindowBounds`, `WorkspaceContext`, `GlobalAppBar`, `StockViewTabStrip`); `npm run build` exit 0.
+
+## 2026-08-16 -- Trader index defaults: SPY, QQQ, IWM
+
+- **What:** Trader still opens the selected symbol, or SPY on a blank click. A small arrow next to Trader lists SPY / QQQ / IWM so the operator can pick one.
+- **Why:** Empty-click SPY was not enough; they wanted the other liquid index ETFs as choices without auto-opening three Level 2 tabs.
+- **Files touched:** `trader_view.ts`, `TraderNavButton.tsx`, `GlobalAppBar.tsx`, `global-app-bar.css`.
+- **How it works now:** Main Trader click = selected row or SPY. Chevron menu = pick SPY, QQQ, or IWM (one tab). Cap stays 3. Does not pre-open all three.
+- **Verified by:** Vitest GlobalAppBar (defaults menu + existing suite); `npm run build`.
+
+## 2026-08-16 -- Trader opens SPY when no symbol is selected
+
+- **What:** The header Trader control is always clickable. With no selected symbol and no open tab, it opens Trader View on `SPY`.
+- **Why:** Empty Gappers / market closed left Trader greyed out, so the desk looked broken. Operator asked for a popular default (S&P 500) instead of a hard gate.
+- **Files touched:** `frontend/src/constantGroups/trader_view.ts`, `global_bar.ts`, `GlobalAppBar.tsx`, `GlobalAppBar.test.tsx`.
+- **How it works now:** Click Trader with a selected row and that symbol opens. Click with nothing selected and `TRADER_DEFAULT_SYMBOL` (`SPY`) opens. Still one tab, not a basket -- Level 2 cap stays 3. A selected symbol still wins over the default.
+- **Verified by:** Vitest `GlobalAppBar` default-symbol test + full file; `npm run build`.
+
+## 2026-08-16 -- Header Paper | Live sliding capsule
+
+- **What:** Replaced the lone LIVE/PAPER text in the global bar with a two-sided capsule next to the Gateway chip. Paper is the left (orange) side; Live is the right (green) side. The colored thumb slides to the selected side. The Gateway chip no longer repeats PAPER/LIVE -- it only shows up / delayed / offline.
+- **Why:** The header showed a single green LIVE label that looked like a status chip, not a mode switch. After the capsule owned the choice, the chip still said `connected · LIVE` in orange and clashed with the green Live segment.
+- **Files touched:** `frontend/src/ibkr/GatewayModeCapsule.tsx`, `frontend/src/ibkr/gatewayModeCapsule.css`, `HeaderConnectionStatus.tsx`, `headerConnectionStatusModel.ts`, `GlobalAppBar.tsx`, `StockViewTradingChrome.tsx`.
+- **How it works now:** One shared capsule posts `POST /api/ibkr/gateway-mode` after confirm. It never sets `IBKR_LIVE_TRADING_CONFIRMED`. Gateway chip = connection (up / delayed / offline). Capsule = paper vs live intent. Hover on Gateway still names the session in the tooltip. Canonical mode is still `/api/ibkr/status`.
+- **Verified by:** Vitest HeaderConnectionStatus (7 passed, including connection-only chip); prior capsule suite 40 passed; `npm run build`.
+- **Related:** Stock View account-mode capsule; ADR 007 spend gates stay separate; PROBLEM_LOG 2026-08-16 unused WEDGED import.
+
+## 2026-08-14 -- ADR 010 IB loop isolation (runtime)
+
+- **What:** IBKR now runs on a dedicated connect-loop thread. HTTP/WS stay on uvicorn. Cold IB work uses one scheduler (batch=5, interactive preempts). `API_WEDGED` never auto-kills the process.
+- **Why:** 2026-08-14 premarket banner was uvicorn loop starve (seed + 40-wide snapshot + WETO), not a dead PID. Timeout/grace-only would hide the flash and still block L1/orders.
+- **Files touched:** `ibkr/loop_supervisor.py`, `ibkr/ib_scheduler.py`, `loop_lag.py`, `client.py`, `client_bridge.py`, `app_lifespan.py`, `discovery.py`, `orders.py`, `execution/service.py`, `backendAutoHeal.ts`, `tradingPrerequisites.ts`.
+- **How it works now:** `connectAsync` + reconnect live on the IB thread. `on_ib` / `run_coro` hop HTTP to that loop. `/api/health` publishes `http_loop_lag_ms` and `ib_loop_lag_ms`. Desk blocks when IB lag is wedged even if HTTP is 5ms. Auto-heal is `API_DOWN` only (Vite + Electron).
+- **Verified by:** `pytest` supervisor/cold-queue/health/execution/integrity (68+100 focused); Vitest auto-heal + prerequisites (14 passed).
+- **Follow-ups:** Live seed-storm soak after the running API picks up this code (reload or Restart).
+- **Related:** PROBLEM_LOG 2026-08-14 -- Premarket API_WEDGED banner; ADR 010; task-log `knowledge/task-log/2026-08-14-adr-010-ib-loop-isolation.md`.
+
 ## 2026-08-10 -- Follow-Gateway probe-based IBKR port heal
 
 - **What:** Nova now treats paper/live Gateway mismatch as core reconnect law: when the preferred API port is dark and the other mode's port is listening, attach there, persist `IBKR_GATEWAY_MODE`, and continue. Covers refuse, timeout-on-dark preferred (common on Windows), and a pre-dial TCP probe fast path.

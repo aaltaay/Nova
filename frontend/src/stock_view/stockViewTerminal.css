@@ -355,14 +355,19 @@
   opacity: 1;
 }
 
+/* Shared Paper|Live capsule uses the sliding thumb; do not double-paint. */
+.stock-view-page .gw-mode-capsule .sv-capsule__seg.is-selected {
+  background: transparent;
+}
+
 .stock-view-page .sv-capsule__seg.is-selected.is-paper {
-  background: color-mix(in srgb, var(--green, #22c55e) 22%, var(--sv-bg-raised));
-  color: var(--green, #22c55e);
+  background: transparent;
+  color: #ea580c;
 }
 
 .stock-view-page .sv-capsule__seg.is-selected.is-live {
-  background: color-mix(in srgb, var(--red, #ef4444) 22%, var(--sv-bg-raised));
-  color: var(--red, #ef4444);
+  background: transparent;
+  color: var(--green, #22c55e);
 }
 
 .stock-view-page .sv-capsule__seg:not(:disabled):hover {

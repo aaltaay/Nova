@@ -46,6 +46,25 @@ describe('shouldShowGatewayLoginBanner', () => {
     ).toBe(false);
   });
 
+  it('hides when the other Gateway port is already up (not a login)', () => {
+    expect(
+      shouldShowGatewayLoginBanner({
+        discoveryProvider: 'ibkr',
+        ibkrConnected: false,
+        ibkrTransportConnected: false,
+        ibkrDisconnectHint: 'live_port_refused_paper_listening',
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowGatewayLoginBanner({
+        discoveryProvider: 'ibkr',
+        ibkrConnected: false,
+        ibkrTransportConnected: false,
+        ibkrDisconnectHint: 'paper_port_refused_live_listening',
+      }),
+    ).toBe(false);
+  });
+
   it('shows when transport is down', () => {
     expect(
       shouldShowGatewayLoginBanner({

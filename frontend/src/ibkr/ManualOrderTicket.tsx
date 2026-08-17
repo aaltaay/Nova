@@ -21,6 +21,7 @@ import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
+import { executionTransportError } from './executionTransportError';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import { readSkipPlaceConfirm } from './placeConfirmPrefs';
 import { resolveShortabilityState } from './ShortabilityChip';
@@ -233,8 +234,8 @@ export function ManualOrderTicket({
           : response.error ?? 'Order failed',
       });
       if (response.ok) onOrderPlaced?.(response);
-    } catch {
-      setResult({ ok: false, text: 'Network error' });
+    } catch (error) {
+      setResult({ ok: false, text: executionTransportError(error) });
     } finally {
       setSubmitting(false);
     }

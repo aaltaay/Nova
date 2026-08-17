@@ -1,0 +1,28 @@
+.nova-app-branch {
+  position: relative;
+}
+
+.trader-dock-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.trader-dock-layer--ready {
+  background: rgba(59, 130, 246, 0.12);
+  border: 2px dashed var(--accent-color, #3b82f6);
+}
+
+.trader-dock-layer__label {
+  margin: 0;
+  padding: 0.75rem 1.1rem;
+  border-radius: 8px;
+  background: var(--panel-bg, #12141a);
+  color: var(--text-primary, #e8eaed);
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+}

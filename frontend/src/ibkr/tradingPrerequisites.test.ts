@@ -80,6 +80,60 @@ describe('buildTradingPrerequisites', () => {
     expect(out.items.every((i) => i.ok)).toBe(true);
   });
 
+  it('does not block the desk on a client API_WEDGED probe timeout', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_WEDGED',
+        message: 'Backend hung (no health response)',
+        flag_hint:
+          'Port held by a hung process (health timed out) — Nova auto-restarts once in dev, or click Start API.',
+      },
+      ibkrEnabled: true,
+      ibkrConnected: true,
+      spendStatus: 'live_armed',
+    });
+    expect(out.items.find((i) => i.id === 'nova_api')?.ok).toBe(true);
+    expect(out.items.find((i) => i.id === 'nova_api')?.action).toBeNull();
+    expect(out.blockDesk).toBe(false);
+    expect(out.deskReady).toBe(true);
+  });
+
+  it('blocks desk when IB loop is wedged even if HTTP health is 5ms', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'connected',
+        latency_ms: 5,
+        ib_loop_lag_ms: { last_ms: 20000, max_ms: 20000, samples: 3, wedged: true },
+      },
+      ibkrEnabled: true,
+      ibkrConnected: true,
+      spendStatus: 'paper_armed',
+    });
+    expect(out.items.find((i) => i.id === 'nova_api')?.ok).toBe(false);
+    expect(out.items.find((i) => i.id === 'nova_api')?.action).toBeNull();
+    expect(out.blockDesk).toBe(true);
+    expect(out.deskReady).toBe(false);
+  });
+
+  it('offers Use paper Gateway when live is targeted but paper is listening', () => {
+    const out = buildTradingPrerequisites({
+      health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
+      ibkrEnabled: true,
+      ibkrConnected: false,
+      spendStatus: 'live_armed',
+      preferredPortReachable: false,
+      ibkrTransportConnected: false,
+      disconnectHint: 'live_port_refused_paper_listening',
+    });
+    const gw = out.items.find((i) => i.id === 'ibkr_gateway');
+    expect(out.blockDesk).toBe(true);
+    expect(gw?.action).toBe('switch_gateway_mode');
+    expect(gw?.detail).toMatch(/Paper Gateway is already up/i);
+    expect(gw?.detail).not.toMatch(/2FA/i);
+  });
+
   it('never treats Alpaca as a prerequisite id', () => {
     const out = buildTradingPrerequisites({
       health: {

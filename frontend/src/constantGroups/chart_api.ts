@@ -14,11 +14,13 @@ export const CHART_DEFAULT_INDICATORS: ChartIndicatorId[] = ['emas', 'vwap'];
 
 /**
  * Trader grid defaults per timeframe. 1m / 5m include MACD so both panes show
- * the oscillator without a per-pane toggle; Full Day / 10Sec stay overlay-only.
+ * the oscillator without a per-pane toggle. 10Sec is tape-first: VWAP only,
+ * no EMAs (those lines fight clicks / drawings on a 10s chart).
  */
 export const CHART_GRID_PANE_INDICATORS: Record<string, ChartIndicatorId[]> = {
   '1Min': ['emas', 'vwap', 'macd'],
   '5Min': ['emas', 'vwap', 'macd'],
+  '10Sec': ['vwap'],
 };
 
 export const CHART_OVERLAY_IDS: ChartOverlayId[] = ['emas', 'vwap'];
@@ -105,7 +107,7 @@ export const BACKEND_DIAG_HINTS: Record<string, string> = {
   [BACKEND_DIAG_FLAG_DOWN]:
     'Nothing answered on the API port — Nova auto-restarts once in dev, or click Start API / Run Nova.bat.',
   [BACKEND_DIAG_FLAG_WEDGED]:
-    'Port held by a hung process (health timed out) — Nova auto-restarts once in dev, or click Start API.',
+    'Health probe timed out -- the API PID is still listening. Opening Trader (charts / L2 / tape) can stall a probe. Do not kill the API.',
   [BACKEND_DIAG_FLAG_HTTP]:
     'API process responded but /api/health was not OK — check backend\\logs\\api-console.log.',
   [BACKEND_DIAG_FLAG_UNREACHABLE]:
@@ -295,7 +297,7 @@ export const STOCK_VIEW_TITLE = 'Trader';
 /** Button / tooltip copy for opening the detached Trader window. */
 export const STOCK_VIEW_OPEN_LABEL = 'Trader';
 export const STOCK_VIEW_OPEN_TITLE =
-  'Open Trader in a new window (charts, Level 2, Time & Sales, and order entry -- up to 3 tabs)';
+  'Open Trader in this window (charts, Level 2, Time & Sales, and order entry -- up to 3 tabs). Double-click a tab to pop it out; drag it back onto this window to dock.';
 /**
  * window.open feature string — size/popup flags force a real OS window.
  * Bare `_blank` with no features opens a browser tab (Chrome/Edge).

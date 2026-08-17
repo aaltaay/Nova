@@ -10,6 +10,11 @@ import {
   replaceStockViewUrl,
 } from '../utils/stockViewNav';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import {
+  allowTraderTabDrop,
+  isForeignTabDrag,
+  takeForeignTraderTabDrop,
+} from '../workspace/traderDesk';
 import { StockViewTabStrip } from './StockViewTabStrip';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 import './stockViewTabs.css';
@@ -28,7 +33,17 @@ export function StockViewTabs({ detached }: Props) {
     closeTraderTab,
     renameTraderTab,
     addTraderDraftTab,
+    extractTraderTab,
+    acceptTraderTabDrop,
+    requestDockTraderTab,
+    traderWindowId,
+    traderDeskRole,
+    traderDockOffer,
+    publishTraderTabOffer,
+    publishTraderTabOfferEnd,
     closeTraderView,
+    showScannerView,
+    traderViewActive,
     setSelectedSymbol,
   } = useWorkspace();
 
@@ -46,7 +61,7 @@ export function StockViewTabs({ detached }: Props) {
       if (window.opener) window.close();
       else closeTraderView();
     } else {
-      closeTraderView();
+      showScannerView();
     }
   };
 
@@ -63,8 +78,20 @@ export function StockViewTabs({ detached }: Props) {
     }
   };
 
+  const dropReady = Boolean(
+    traderDockOffer && isForeignTabDrag(traderDockOffer.sourceWindowId, traderWindowId),
+  );
+
   return (
-    <div className="sv-tabs-root" data-testid="sv-tabs-root">
+    <div
+      className={`sv-tabs-root${dropReady ? ' sv-tabs-root--drop-ready' : ''}`}
+      data-testid="sv-tabs-root"
+      onDragOver={allowTraderTabDrop}
+      onDrop={(e) => {
+        const payload = takeForeignTraderTabDrop(e, traderWindowId);
+        if (payload) acceptTraderTabDrop(payload);
+      }}
+    >
       {traderBlockNotice && (
         <div className="sv-tab-banner" role="status" data-testid="sv-tab-block-banner">
           <span>{traderBlockNotice}</span>
@@ -76,6 +103,9 @@ export function StockViewTabs({ detached }: Props) {
       <StockViewTabStrip
         tabs={traderTabs}
         active={activeTraderSymbol}
+        windowId={traderWindowId}
+        showDock={traderDeskRole === 'float'}
+        dropReady={dropReady}
         onActivate={onActivate}
         onClose={sym => {
           closeTraderTab(sym);
@@ -83,6 +113,11 @@ export function StockViewTabs({ detached }: Props) {
         }}
         onRename={onRename}
         onAddDraft={addTraderDraftTab}
+        onExtract={extractTraderTab}
+        onDock={requestDockTraderTab}
+        onTabDragStart={publishTraderTabOffer}
+        onTabDragEnd={publishTraderTabOfferEnd}
+        onTabDrop={acceptTraderTabDrop}
       />
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
@@ -113,7 +148,7 @@ export function StockViewTabs({ detached }: Props) {
                 detached={detached}
                 onBack={onBack}
                 onSelectSymbol={next => onRename(symbol, next)}
-                chartActive={show}
+                chartActive={show && traderViewActive}
               />
             </div>
           );

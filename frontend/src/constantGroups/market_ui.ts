@@ -350,7 +350,10 @@ export const GATEWAY_MODE_API_RESTART_HINT =
 export const HEADER_GATEWAY_LAUNCH_HINT =
   'Double-click to open or focus IB Gateway. Complete login + IBKR Mobile 2FA if prompted — Nova reconnects when the API port opens.';
 
-/** Header Gateway chip — paper vs live session (must stay visible; never omit). */
+/** Header Gateway chip visible states. Paper/Live lives on the mode capsule. */
+export const HEADER_GATEWAY_UP_LABEL = 'up';
+export const HEADER_GATEWAY_OFFLINE_LABEL = 'offline';
+/** Legacy chip suffixes -- kept for tooltip / older copy, not the chip value. */
 export const HEADER_GATEWAY_MODE_PAPER = 'PAPER';
 export const HEADER_GATEWAY_MODE_LIVE = 'LIVE';
 export const HEADER_GATEWAY_TITLE_PAPER =
@@ -504,8 +507,25 @@ export const SIDE_PANEL_STACK_BREAKPOINT_PX = 1100;
 export const CHART_MOCK_BAR_COUNT = 48;
 export const CHART_MOCK_BASE_PRICE = 10;
 export const CHART_MOCK_DATA_LABEL = 'Demo candles (no live bars for this timeframe)';
-/** Client abort for /bars so "Loading…" cannot spin past the IBKR historical budget. */
+/** Client abort for /bars so "Loading…" cannot spin past the IBKR historical budget.
+ *  Starts when the queued fetch actually begins, not when the pane mounts. */
 export const CHART_BARS_FETCH_TIMEOUT_MS = 25_000;
+/** Lower number runs first. Intraday desk panes beat daily; 10Sec is last (heaviest). */
+export const CHART_BARS_FETCH_PRIORITY: Record<string, number> = {
+  '1Min': 0,
+  '5Min': 0,
+  '15Min': 0,
+  '30Min': 0,
+  '1Hour': 0,
+  '4Hour': 0,
+  '1Day': 1,
+  '1Week': 1,
+  '1Month': 1,
+  '10Sec': 2,
+};
+export function chartBarsFetchPriority(timeframe: string): number {
+  return CHART_BARS_FETCH_PRIORITY[timeframe] ?? 1;
+}
 /**
  * After a foreground /bars failure with an empty store, wait this long then
  * retry once in the background so a transient IBKR wedge does not leave a

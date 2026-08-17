@@ -256,7 +256,12 @@ async def _bootstrap_runtime() -> None:
     global _runtime_tasks
     await _mark_nova_api_health()
 
+    from ibkr.loop_supervisor import set_http_loop, spawn_ib, start as start_ib_loop
+
+    set_http_loop(asyncio.get_running_loop())
+    start_ib_loop()
     await _ibkr_client.startup()
+    spawn_ib("observability.ib_loop_lag", _loop_lag.sample_ib_loop_lag_loop)
     # Prefer waiting ~one connect wall; never block HTTP (already yielded).
     connected = await _wait_ibkr_connected(float(IBKR_RECONNECT_DELAY_SEC) + 2.0)
     if not connected:
@@ -344,6 +349,11 @@ async def lifespan(app: FastAPI):
     except Exception:
         logger.exception("scan_executor shutdown failed")
     await _ibkr_client.shutdown()
+    try:
+        from ibkr.loop_supervisor import stop as stop_ib_loop
+        stop_ib_loop()
+    except Exception:
+        logger.exception("IB loop supervisor stop failed")
     try:
         from logging_setup import shutdown_logging
         shutdown_logging()

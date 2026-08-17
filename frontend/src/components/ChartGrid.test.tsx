@@ -73,6 +73,7 @@ describe('ChartGrid', () => {
     expect(byTitle('5-Minute')?.dataset.indicators).toContain('macd');
     expect(byTitle('Full Day')?.dataset.indicators ?? '').not.toContain('macd');
     expect(byTitle('10-Second')?.dataset.indicators ?? '').not.toContain('macd');
+    expect(byTitle('10-Second')?.dataset.indicators ?? '').not.toContain('emas');
   });
 
   it('can hide the 10-Second pane; 1m moves to top-right; Full Day stays bottom', () => {
@@ -94,13 +95,12 @@ describe('ChartGrid', () => {
     expect(toggle.textContent).toBe('Show 10-Second');
   });
 
-  it('batch-warms default panes but excludes 10Sec', () => {
+  it('queues all visible panes including 10Sec', () => {
     act(() => {
       root.render(<ChartGrid symbol="SDOT" />);
     });
     expect(ensureBarsBatch).toHaveBeenCalled();
     const tfs = vi.mocked(ensureBarsBatch).mock.calls[0][1] as string[];
-    expect(tfs).toEqual(['5Min', '1Day', '1Min']);
-    expect(tfs).not.toContain('10Sec');
+    expect(tfs).toEqual(['5Min', '10Sec', '1Day', '1Min']);
   });
 });

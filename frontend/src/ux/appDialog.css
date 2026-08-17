@@ -5,6 +5,12 @@
   backdrop-filter: blur(2px);
 }
 
+/* Above TradingPrerequisitesGate (z-index 9000) so Switch/Live confirm is visible. */
+[data-slot='alert-dialog-overlay'],
+[data-slot='alert-dialog-content'] {
+  z-index: 10000;
+}
+
 .app-dialog-content {
   border-color: color-mix(in srgb, var(--border, #334155) 90%, transparent);
   background: var(--card, #0f172a);

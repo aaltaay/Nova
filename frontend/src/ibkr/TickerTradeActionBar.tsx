@@ -14,6 +14,7 @@ import { confirmApp } from '../ux';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { closeFullPosition } from './closeFullPosition';
+import { executionTransportError } from './executionTransportError';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import type { PlaceOrderResult } from './placeOrder';
 import { readTicketSessionUnlocked } from './ticketUnlock';
@@ -113,8 +114,8 @@ export function TickerTradeActionBar({
           mode: data.mode,
         });
       }
-    } catch {
-      setResultMsg({ ok: false, text: 'Network error' });
+    } catch (error) {
+      setResultMsg({ ok: false, text: executionTransportError(error) });
     } finally {
       setClosing(false);
     }

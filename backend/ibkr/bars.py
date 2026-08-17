@@ -216,7 +216,11 @@ async def warm_symbol_bars(
     symbol: str,
     timeframes: tuple[str, ...] | list[str] | None = None,
 ) -> None:
-    """Prefetch grid timeframes into the TTL cache (open-ticker WS warm path)."""
+    """Prefetch grid timeframes into the TTL cache.
+
+    Ticker WS no longer calls this -- a parallel warm raced Trader `/bars`
+    and got `run_coro` cancelled at 25s. Kept for explicit/ops use.
+    """
     from constants import IBKR_BARS_WARM_TIMEFRAMES
 
     symbol = symbol.upper()

@@ -13,6 +13,7 @@ import {
   stopApiSidecar,
   waitForHealth,
 } from './sidecar.mjs';
+import { openOrFocusTraderWindow } from './traderWindows.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -40,9 +41,11 @@ function windowOptions() {
 /** Stock View double-click opens ?view=stock&symbol=… in a real child window. */
 function attachStockViewWindowOpen(win) {
   win.webContents.setWindowOpenHandler(({ url }) => {
-    const child = new BrowserWindow(windowOptions());
-    void child.loadURL(url);
-    attachStockViewWindowOpen(child);
+    try {
+      openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
+    } catch {
+      /* invalid or non-trader URL */
+    }
     return { action: 'deny' };
   });
 }
@@ -83,16 +86,7 @@ ipcMain.handle('nova:openStockView', (_event, url) => {
   if (typeof url !== 'string' || !url.startsWith('http')) {
     throw new Error('Invalid Trader URL');
   }
-  const child = new BrowserWindow(windowOptions());
-  child.setTitle('Nova — Trader');
-  attachStockViewWindowOpen(child);
-  void child.loadURL(url).then(() => {
-    if (!child.isDestroyed()) {
-      child.show();
-      child.focus();
-    }
-  });
-  return true;
+  return openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
 });
 
 app.whenReady().then(async () => {

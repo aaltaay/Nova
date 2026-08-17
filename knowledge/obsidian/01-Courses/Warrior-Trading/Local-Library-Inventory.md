@@ -7,7 +7,7 @@ tags: [warrior-trading, library, pinecone, downloads]
 
 # Warrior Trading — Local Library Inventory
 
-Updated **2026-07-17** (LMS full video catalog + caption coverage) after earlier 2026-07-14 member-dashboard sync + de-duplication against the existing `downloads/` tree.
+Updated **2026-08-07** (Small Account Challenge class PDFs) after earlier 2026-07-17 LMS catalog + caption coverage and 2026-07-14 member-dashboard sync.
 
 **Live member site map (URLs, LMS catalog, Day Trade Dash widgets):** [[Authenticated-Site-Map]] · runbook `docs/warrior-authenticated-access.md`.
 
@@ -36,6 +36,20 @@ Updated **2026-07-17** (LMS full video catalog + caption coverage) after earlier
 - `free/How_To_Day_Trade_eBook.pdf` — public page `warriortrading.com/wt-ebook/`
 - `excel/` — trade records templates + Roberto monthly tracker
 - `esignal/` — Ross/Mike layout zips + MA-plot indicator zips
+
+### Small Account Challenge class downloads (2026-08-07) → `warrior-trading-resources/small-account-challenge/`
+
+Source: YouTube [Growing a $2k Account…](https://www.youtube.com/watch?v=xGIa8Vg0PWM) → [warrior.app/30-days-downloads](https://warrior.app/30-days-downloads) → kit page `warriortrading.com/small-account-kit/` (CDN assets).
+
+| File | Role |
+|------|------|
+| `SAC2024-Strategy-PDF.pdf` | Small Account Strategy PDF |
+| `Sample-Trading-Plan.pdf` | Ross's Trading Plan Worksheet (fillable fields + pre-trade checklist) |
+| `Warrior-Trading-Stock-Selection.pdf` | Stock Selection Guide (5 pillars / RVOL / float / news) |
+| `PDF-of-Weekly-Reporting.pdf` | Trade Log + weekly reporting sheet |
+| `README.md` | Source URLs + fetch date |
+
+Daily use belongs in Nova workflow (journal / scanners / risk), not re-printing these PDFs -- see chat 2026-08-07 automation notes.
 
 ### Gaps filled in `warrior-trading-slides/`
 

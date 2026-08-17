@@ -27,10 +27,16 @@ pre-dial probe when preferred is dark and alternate is up. Look for log
 `gateway_self_heal`. Account kind must match the mode being established
 (`accounts_match_mode`); mixed/unknown accounts are refused.
 
-This is **not** a login blocker when one port is up — Nova attaches to
-whichever Gateway account is actually logged in. Status fields
-`disconnect_hint` / `preferred_port_reachable` / `alternate_port_reachable`
-still describe a mismatch while reconnect / heal is in flight.
+This is **not** a login blocker when one port is up -- Nova attaches to
+whichever Gateway account is actually logged in. A user Paper/Live click
+blocks that follow for `IBKR_INTENTIONAL_FOLLOW_GRACE_SEC` (2 min) so a
+mid-switch 2FA is not yanked. After the grace, if the requested port is
+still dark and the other is up, follow-Gateway resumes (overnight IBC
+restart as the other mode). Status fields `disconnect_hint` /
+`preferred_port_reachable` / `alternate_port_reachable` still describe a
+mismatch while reconnect / heal is in flight. The loud login banner must
+not fire for those mismatch hints -- the prerequisites modal offers
+"Use paper/live Gateway" instead.
 
 Timeout while the preferred port **still listens** is **not** heal-eligible
 (wedged handshake / Error 326 / clientId conflict) — do not jump ports then.

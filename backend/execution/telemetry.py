@@ -296,6 +296,11 @@ def ensure_handlers(ib) -> None:
     """Wire IB events once per IB instance. Safe across reconnect replacement."""
     if ib is None or ib in _wired_instances:
         return
+    from ibkr.loop_supervisor import call_on_ib, is_ib_loop, is_ib_thread
+
+    if not (is_ib_loop() or is_ib_thread()):
+        call_on_ib(lambda: ensure_handlers(ib), 5.0, label="ensure_handlers")
+        return
     try:
         from execution.telemetry_handlers import make_handlers
 

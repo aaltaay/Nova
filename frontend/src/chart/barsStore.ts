@@ -1,9 +1,15 @@
 /**
  * Shared in-memory OHLCV bar store for chart panes.
- * Dedupes in-flight fetches per (symbol, timeframe) and supports batch warm.
+ * Dedupes in-flight fetches per (symbol, timeframe) and serializes IBKR historicals.
  */
-import { API_BASE_URL, CHART_BARS_FETCH_TIMEOUT_MS } from '../constants';
+import {
+  API_BASE_URL,
+  CHART_BARS_FETCH_TIMEOUT_MS,
+  CHART_TIMEFRAME_BAR_LIMITS,
+  chartBarsFetchPriority,
+} from '../constants';
 import type { RawBar } from '../tickerChartData';
+import { enqueueBarsFetch, resetBarsFetchQueueForTests } from './barsFetchQueue';
 
 const API_URL = `${API_BASE_URL}/api`;
 
@@ -29,6 +35,7 @@ export function clearBarsStoreForTests(): void {
   entries.clear();
   listeners.clear();
   inflight.clear();
+  resetBarsFetchQueueForTests();
 }
 
 export function getBarsEntry(symbol: string, timeframe: string): BarsStoreEntry | null {
@@ -99,7 +106,7 @@ async function fetchSingleBars(
   return data.bars ?? [];
 }
 
-/** Deduped single-TF fetch; writes the store on success. */
+/** Deduped single-TF fetch; writes the store on success. Serialized across timeframes. */
 export function ensureBars(
   symbol: string,
   timeframe: string,
@@ -111,29 +118,36 @@ export function ensureBars(
   const existing = inflight.get(key);
   if (existing) return existing;
 
-  const controller = new AbortController();
-  const onAbort = () => controller.abort();
-  if (signal) {
-    if (signal.aborted) controller.abort();
-    else signal.addEventListener('abort', onAbort, { once: true });
-  }
-  const timeoutId = globalThis.setTimeout(
-    () => controller.abort(),
-    CHART_BARS_FETCH_TIMEOUT_MS,
-  );
-
   let promise!: Promise<RawBar[]>;
-  promise = (async () => {
-    try {
-      const bars = await fetchSingleBars(sym, timeframe, controller.signal, limit);
-      setBars(sym, timeframe, bars);
-      return bars;
-    } finally {
-      globalThis.clearTimeout(timeoutId);
-      if (signal) signal.removeEventListener('abort', onAbort);
-      if (inflight.get(key) === promise) inflight.delete(key);
-    }
-  })();
+  promise = enqueueBarsFetch({
+    priority: chartBarsFetchPriority(timeframe),
+    signal,
+    run: async () => {
+      if (signal?.aborted) {
+        throw new DOMException('Aborted', 'AbortError');
+      }
+      const controller = new AbortController();
+      const onAbort = () => controller.abort();
+      if (signal) {
+        if (signal.aborted) controller.abort();
+        else signal.addEventListener('abort', onAbort, { once: true });
+      }
+      const timeoutId = globalThis.setTimeout(
+        () => controller.abort(),
+        CHART_BARS_FETCH_TIMEOUT_MS,
+      );
+      try {
+        const bars = await fetchSingleBars(sym, timeframe, controller.signal, limit);
+        setBars(sym, timeframe, bars);
+        return bars;
+      } finally {
+        globalThis.clearTimeout(timeoutId);
+        if (signal) signal.removeEventListener('abort', onAbort);
+      }
+    },
+  }).finally(() => {
+    if (inflight.get(key) === promise) inflight.delete(key);
+  });
 
   inflight.set(key, promise);
   return promise;
@@ -144,7 +158,7 @@ export interface BatchBarsResult {
   errors: Record<string, string>;
 }
 
-/** One HTTP round-trip for multiple timeframes; populates the store per TF. */
+/** Sequential per-TF ensureBars (each gets a full timeout after dequeue). */
 export async function ensureBarsBatch(
   symbol: string,
   timeframes: string[],
@@ -154,48 +168,18 @@ export async function ensureBarsBatch(
   const unique = [...new Set(timeframes.filter(Boolean))];
   if (unique.length === 0) return { results: {}, errors: {} };
 
-  const qs = encodeURIComponent(unique.join(','));
-  const controller = new AbortController();
-  const onAbort = () => controller.abort();
-  if (signal) {
-    if (signal.aborted) controller.abort();
-    else signal.addEventListener('abort', onAbort, { once: true });
-  }
-  const timeoutId = globalThis.setTimeout(
-    () => controller.abort(),
-    CHART_BARS_FETCH_TIMEOUT_MS,
-  );
-
-  try {
-    const res = await fetch(
-      `${API_URL}/ticker/${encodeURIComponent(sym)}/bars/batch?timeframes=${qs}`,
-      { signal: controller.signal },
-    );
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(
-        typeof body?.detail === 'string' ? body.detail : `HTTP ${res.status}`,
-      );
+  const results: Record<string, RawBar[]> = {};
+  const errors: Record<string, string> = {};
+  for (const tf of unique) {
+    if (signal?.aborted) {
+      errors[tf] = 'Aborted';
+      continue;
     }
-    const data = (await res.json()) as {
-      results?: Record<string, { bars?: RawBar[] }>;
-      errors?: Record<string, { detail?: string }>;
-    };
-    const results: Record<string, RawBar[]> = {};
-    const errors: Record<string, string> = {};
-    for (const tf of unique) {
-      const payload = data.results?.[tf];
-      if (payload) {
-        const bars = payload.bars ?? [];
-        setBars(sym, tf, bars);
-        results[tf] = bars;
-      } else if (data.errors?.[tf]) {
-        errors[tf] = String(data.errors[tf].detail ?? 'Failed to load bars');
-      }
+    try {
+      results[tf] = await ensureBars(sym, tf, signal, CHART_TIMEFRAME_BAR_LIMITS[tf]);
+    } catch (err) {
+      errors[tf] = err instanceof Error ? err.message : 'Failed to load bars';
     }
-    return { results, errors };
-  } finally {
-    globalThis.clearTimeout(timeoutId);
-    if (signal) signal.removeEventListener('abort', onAbort);
   }
+  return { results, errors };
 }

@@ -1,12 +1,8 @@
-"""
-Lightweight asyncio event-loop lag sampler.
+"""Dual event-loop lag samplers (HTTP vs IB) -- ADR 010.
 
-A busy event loop (IBKR callbacks, an accidental blocking call sneaking onto
-the loop, etc.) delays every coroutine's next wakeup, including HTTP
-handlers. Prior incidents inferred loop contention from health-probe
-timeouts alone (see PROBLEM_LOG 2026-07-23) with no direct measurement. This
-module samples the gap between an expected and actual wakeup so
-``/api/health`` can report a real number instead of a guess.
+A busy loop delays every coroutine on that loop. HTTP and IB are separate
+after isolation; ``/api/health`` reports both. Circuit-break ``run_coro``
+keys off IB lag.
 """
 from __future__ import annotations
 
@@ -21,65 +17,85 @@ from constants import (
 
 logger = logging.getLogger(__name__)
 
-# Any single sample lagging this far past its expected wakeup logs a warning
-# (a genuinely idle loop lags by ~0ms; this only fires under real contention).
 _WARN_THRESHOLD_SEC = 1.0
 
-_last_lag_ms: float = 0.0
-_max_lag_ms: float = 0.0
-_samples: int = 0
-_high_streak: int = 0
-_wedged: bool = False
+
+class LoopLagSampler:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.last_ms: float = 0.0
+        self.max_ms: float = 0.0
+        self.samples: int = 0
+        self.high_streak: int = 0
+        self.wedged: bool = False
+
+    def snapshot(self) -> dict[str, float | int | bool]:
+        return {
+            "last_ms": round(self.last_ms, 1),
+            "max_ms": round(self.max_ms, 1),
+            "samples": self.samples,
+            "wedged": self.wedged,
+            "high_streak": self.high_streak,
+        }
+
+    def reset(self) -> None:
+        self.last_ms = 0.0
+        self.max_ms = 0.0
+        self.samples = 0
+        self.high_streak = 0
+        self.wedged = False
+
+    async def sample_loop(self) -> None:
+        loop = asyncio.get_running_loop()
+        while True:
+            expected = loop.time() + LOOP_LAG_SAMPLE_INTERVAL_SEC
+            await asyncio.sleep(LOOP_LAG_SAMPLE_INTERVAL_SEC)
+            lag_sec = max(0.0, loop.time() - expected)
+            self.last_ms = lag_sec * 1000.0
+            self.max_ms = max(self.max_ms, self.last_ms)
+            self.samples += 1
+            if self.last_ms >= LOOP_LAG_WEDGED_MS:
+                self.high_streak += 1
+            else:
+                self.high_streak = 0
+            was_wedged = self.wedged
+            self.wedged = self.high_streak >= LOOP_LAG_WEDGED_STREAK
+            if lag_sec > _WARN_THRESHOLD_SEC:
+                logger.warning(
+                    "%s loop lag %.0fms (sample #%d wedged=%s streak=%d)",
+                    self.name, self.last_ms, self.samples, self.wedged, self.high_streak,
+                )
+            if self.wedged and not was_wedged:
+                logger.error(
+                    "API_WEDGED: %s loop lag streak %d >= %d (last=%.0fms)",
+                    self.name, self.high_streak, LOOP_LAG_WEDGED_STREAK, self.last_ms,
+                )
+
+
+http_lag = LoopLagSampler("http")
+ib_lag = LoopLagSampler("ib")
 
 
 def snapshot() -> dict[str, float | int | bool]:
-    return {
-        "last_ms": round(_last_lag_ms, 1),
-        "max_ms": round(_max_lag_ms, 1),
-        "samples": _samples,
-        "wedged": _wedged,
-        "high_streak": _high_streak,
-    }
+    """Backward-compat: HTTP loop lag (``loop_lag_ms`` on /api/health)."""
+    return http_lag.snapshot()
 
 
 def is_wedged() -> bool:
-    return _wedged
+    """Circuit-break SoT is the IB loop (ADR 010)."""
+    return ib_lag.wedged
 
 
 def reset_for_testing() -> None:
-    global _last_lag_ms, _max_lag_ms, _samples, _high_streak, _wedged
-    _last_lag_ms = 0.0
-    _max_lag_ms = 0.0
-    _samples = 0
-    _high_streak = 0
-    _wedged = False
+    http_lag.reset()
+    ib_lag.reset()
 
 
 async def sample_loop_lag_loop() -> None:
-    """Background task: sleep a fixed interval, record how much longer it
-    actually took. Runs until cancelled at shutdown."""
-    global _last_lag_ms, _max_lag_ms, _samples, _high_streak, _wedged
-    loop = asyncio.get_running_loop()
-    while True:
-        expected = loop.time() + LOOP_LAG_SAMPLE_INTERVAL_SEC
-        await asyncio.sleep(LOOP_LAG_SAMPLE_INTERVAL_SEC)
-        lag_sec = max(0.0, loop.time() - expected)
-        _last_lag_ms = lag_sec * 1000.0
-        _max_lag_ms = max(_max_lag_ms, _last_lag_ms)
-        _samples += 1
-        if _last_lag_ms >= LOOP_LAG_WEDGED_MS:
-            _high_streak += 1
-        else:
-            _high_streak = 0
-        was_wedged = _wedged
-        _wedged = _high_streak >= LOOP_LAG_WEDGED_STREAK
-        if lag_sec > _WARN_THRESHOLD_SEC:
-            logger.warning(
-                "event loop lag %.0fms (sample #%d wedged=%s streak=%d)",
-                _last_lag_ms, _samples, _wedged, _high_streak,
-            )
-        if _wedged and not was_wedged:
-            logger.error(
-                "API_WEDGED: event loop lag streak %d >= %d (last=%.0fms)",
-                _high_streak, LOOP_LAG_WEDGED_STREAK, _last_lag_ms,
-            )
+    """HTTP-loop sampler (uvicorn)."""
+    await http_lag.sample_loop()
+
+
+async def sample_ib_loop_lag_loop() -> None:
+    """IB-loop sampler (supervisor thread)."""
+    await ib_lag.sample_loop()

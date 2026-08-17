@@ -35,9 +35,12 @@ _queues: dict[str, asyncio.Queue] = {}
 _ws_viewers: dict[str, int] = {}
 # Unix time when we last cancelled a symbol's tick-by-tick subscription.
 _cancelled_at: dict[str, float] = {}
+_linger_tasks: dict[str, asyncio.Task] = {}
 _error_hooked_ib_ids: set[int] = set()
 
 IBKR_TAPE_RESUBSCRIBE_GUARD_SEC = 16.0  # IB requires 15s gap; add 1s margin
+# Last WS viewer left -- keep the IB line up so Scanner/Trader remounts reuse it.
+IBKR_TAPE_LINGER_SEC = 16.0
 IBKR_TAPE_QUEUE_MAXSIZE = 2048          # cap buffer per symbol
 TAPE_STREAM_HEARTBEAT_SEC = 15.0        # yield None when no prints arrive
 
@@ -184,6 +187,45 @@ def _on_ib_error(reqId: int, errorCode: int, errorString: str, contract: Any) ->
         return
 
 
+def reset_for_tests() -> None:
+    """Drop in-memory tape state (unit tests only)."""
+    for task in list(_linger_tasks.values()):
+        if not task.done():
+            task.cancel()
+    _linger_tasks.clear()
+    _contracts.clear()
+    _tickers.clear()
+    _queues.clear()
+    _ws_viewers.clear()
+    _cancelled_at.clear()
+    _error_hooked_ib_ids.clear()
+
+
+def _cancel_linger(symbol: str) -> None:
+    task = _linger_tasks.pop(symbol, None)
+    if task is not None and not task.done():
+        task.cancel()
+
+
+def _schedule_linger(symbol: str) -> None:
+    """Delay IB cancel so a remount can reuse the live tick-by-tick line."""
+    _cancel_linger(symbol)
+
+    async def _later() -> None:
+        try:
+            await asyncio.sleep(IBKR_TAPE_LINGER_SEC)
+        except asyncio.CancelledError:
+            return
+        _release_subscription(symbol)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _release_subscription(symbol)
+        return
+    _linger_tasks[symbol] = loop.create_task(_later())
+
+
 async def subscribe_async(symbol: str) -> dict:
     """Subscribe to tick-by-tick AllLast for a symbol.
 
@@ -191,6 +233,7 @@ async def subscribe_async(symbol: str) -> dict:
     Safe to call multiple times — idempotent once subscribed.
     """
     symbol = symbol.upper()
+    _cancel_linger(symbol)
     ib = _client.get_ib()
     if ib is None:
         return {"ok": False, "error": _client.unavailable_detail("IBKR tape")}
@@ -245,7 +288,16 @@ async def subscribe_async(symbol: str) -> dict:
 
 
 def unsubscribe(symbol: str) -> None:
+    """Last WS viewer left. Linger before IB cancel so a remount can reuse."""
     symbol = symbol.upper()
+    if symbol not in _tickers:
+        return
+    _schedule_linger(symbol)
+
+
+def _release_subscription(symbol: str) -> None:
+    symbol = symbol.upper()
+    _cancel_linger(symbol)
     sub = _tickers.pop(symbol, None)
     contract = _contracts.pop(symbol, None)
     _queues.pop(symbol, None)

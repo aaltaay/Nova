@@ -1,6 +1,7 @@
 import {
-  HEADER_GATEWAY_MODE_LIVE,
-  HEADER_GATEWAY_MODE_PAPER,
+  HEADER_GATEWAY_DELAYED_LABEL,
+  HEADER_GATEWAY_OFFLINE_LABEL,
+  HEADER_GATEWAY_UP_LABEL,
 } from '../constants';
 import type { IbkrMode } from '../ibkr/types';
 import type { HealthStatus } from '../types/health';
@@ -16,10 +17,19 @@ export function resolveGatewayModeTag(
   return null;
 }
 
-export function gatewayModeLabel(tag: 'paper' | 'live' | null): string | null {
-  if (tag === 'live') return HEADER_GATEWAY_MODE_LIVE;
-  if (tag === 'paper') return HEADER_GATEWAY_MODE_PAPER;
-  return null;
+/** Gateway chip value: connection only. Mode is the Paper | Live capsule. */
+export function gatewayConnectionLabel(args: {
+  connected: boolean;
+  delayed: boolean;
+  launchBusy?: boolean;
+  launchOk?: boolean | null;
+}): string {
+  if (args.launchBusy) return 'opening…';
+  if (args.launchOk === true) return 'check desktop';
+  if (args.launchOk === false) return 'launch failed';
+  if (!args.connected) return HEADER_GATEWAY_OFFLINE_LABEL;
+  if (args.delayed) return HEADER_GATEWAY_DELAYED_LABEL;
+  return HEADER_GATEWAY_UP_LABEL;
 }
 
 export function apiTone(status: string): HeaderChipTone {

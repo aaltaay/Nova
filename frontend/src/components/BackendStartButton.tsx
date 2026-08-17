@@ -1,12 +1,11 @@
 /**
  * Shown next to Backend unreachable — one click restarts the local API
  * (Electron sidecar or Vite-dev Start-NovaApi.ps1).
- * Also auto-heals once per session on API_WEDGED / API_DOWN.
+ * Also auto-heals once per session on API_DOWN only (never WEDGED -- ADR 010).
  */
 import { useEffect, useRef, useState } from 'react';
 import {
   BACKEND_DIAG_FLAG_DOWN,
-  BACKEND_DIAG_FLAG_WEDGED,
 } from '../constants';
 import { maybeAutoHealBackend } from '../utils/backendAutoHeal';
 import { startLocalApi } from '../utils/startLocalApi';
@@ -29,7 +28,7 @@ export function BackendStartButton({ onStarted, flag, flagHint }: Props) {
 
   useEffect(() => {
     if (autoTriedRef.current) return;
-    if (flag !== BACKEND_DIAG_FLAG_WEDGED && flag !== BACKEND_DIAG_FLAG_DOWN) {
+    if (flag !== BACKEND_DIAG_FLAG_DOWN) {
       return;
     }
     autoTriedRef.current = true;
@@ -77,7 +76,7 @@ export function BackendStartButton({ onStarted, flag, flagHint }: Props) {
   const title = [
     flag ? `Flag ${flag}` : null,
     flagHint,
-    'Restart the local Nova API on port 8000 (auto once on WEDGED/DOWN)',
+    'Restart the local Nova API on port 8000 (auto once on API_DOWN only)',
   ]
     .filter(Boolean)
     .join(' — ');
