@@ -95,7 +95,7 @@ def pipeline_env(monkeypatch):
         scanner_l1._apply_quote = None
         ticks.remove_quote_listener(scanner_l1.on_l1_quote)
         scanner_l1._pending.clear()
-        scanner_l1._active_tab_symbols.clear()
+        scanner_l1._active_tab_tables.clear()
         runtime.gainer_cache, runtime.gainer_cache_ts = saved_gainers, saved_gainers_ts
         active.clear_session_state()
         ticks._subscribe_lock = None

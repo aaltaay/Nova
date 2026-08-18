@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Whole scanner column froze: one dominant tab hint, zero L1
+
+- **Symptom:** Gainers prices did not change on the live desk. `/api/integrity` showed `l1_active_tab: 0` with `l1_active_hod: 40` while 50 gainer rows existed; a `/ws/scanner` listener got **0 `price_patch` in 12s**, reproducible after every page reload. HOD ticks and `scanner_l1_age_sec` were both ~199s stale at the same instant.
+- **Cause:** Not IB historical pacing (the prior session's theory). `scanner_tab_registry.get_dominant_tab()` collapsed all clients to **one** table, but the desk renders several at once (main tab + scanner dock). `DEFAULT_ACTIVE_TAB` is `gappers` and is not persisted, so every reload declared `gappers` -- frozen after 09:30, so `symbols_for_tab` correctly returned `[]` (ADR 008). That emptied `_active_tab_symbols`, and `flush_loop`'s `if sym in _active_tab_symbols` filter then dropped **every** row for **every** table and `continue`d. Total silent feed outage with `l1_error: null`. Same failure when two desk windows sat on Gappers and one on Gainers: majority won, the Gainers window froze. The prior session measured 30 patches/12s only because its own probe had sent `set_active_tab: gainers`.
+- **Fix:** Clients now declare the **set** of displayed tables (`tabs: [...]`, `tab` kept for compat). `get_active_tables()` returns the union, most-demanded first. `scanner_l1` tracks `_active_tab_tables` (symbol -> owning table) instead of one set, so `flush_loop` emits one `price_patch` **per table** and cannot cross-tag a frozen table's rows. A displayed table with rows that streams nothing now sets `subscription.error` instead of going quiet. `HodMomoDock` declares its table in an effect (mount included), so a restored dock roster is not silent.
+- **Keywords:** gainers frozen, price_patch missing, l1_active_tab 0, dominant tab, DEFAULT_ACTIVE_TAB gappers, frozen table starves L1, _active_tab_symbols, ADR 008, scanner dock, multi-window starvation, set_active_tab tabs
+
 ## 2026-08-18 -- /bars 500s: bars_store calls in chart_bars broke two ways
 
 - **Symptom:** After the pacing send-rule commit, `GET /api/ticker/{sym}/bars` 500'd on every stored+ready chart: first `NameError: name 'bars_store' is not defined` (thin store), then `AttributeError: 'str' object has no attribute 'get'` once a series was complete.

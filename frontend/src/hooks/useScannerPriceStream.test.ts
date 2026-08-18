@@ -2,7 +2,24 @@ import { describe, expect, it } from 'vitest';
 import {
   applyScannerPricePatch,
   isRowQuoteStale,
+  tabHints,
 } from './useScannerPriceStream';
+
+describe('tabHints', () => {
+  it('keeps every displayed scanner table so the dock is not starved', () => {
+    // Main tab on frozen Gappers + dock on Gainers must declare both, or the
+    // visible Gainers rows get no price_patch at all.
+    expect(tabHints(['gappers', 'gainers'])).toEqual(['gappers', 'gainers']);
+  });
+
+  it('drops alert-only and unknown tabs, dedupes, and lowercases', () => {
+    expect(tabHints(['hod_momo', 'Gainers', 'gainers', 'catalysts', null])).toEqual(['gainers']);
+  });
+
+  it('returns an empty list when nothing scanner-ish is on screen', () => {
+    expect(tabHints(['trading', undefined])).toEqual([]);
+  });
+});
 
 describe('applyScannerPricePatch', () => {
   it('updates matching symbols and leaves others untouched', () => {

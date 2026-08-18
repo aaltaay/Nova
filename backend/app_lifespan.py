@@ -216,7 +216,7 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
     factories: list[tuple[str, object]] = [
         ("scanner_l1.reconcile", lambda: _scanner_l1.reconcile_loop(
             _get_discovery_provider,
-            _scanner_tabs.get_dominant_tab,
+            _scanner_tabs.get_active_tables,
             symbols_for_tab,
             hod_stream_symbols,
         )),

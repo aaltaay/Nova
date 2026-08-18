@@ -37,8 +37,8 @@ function setTableRows<T>(
 
 export function useScannerData(opts: {
   discoveryProvider: string;
-  /** Active UI tab — drives IBKR L1 subscription budget via /ws/scanner. */
-  activeTab?: string;
+  /** Every scanner table on screen — drives IBKR L1 budget via /ws/scanner. */
+  activeTabs?: readonly string[];
   /** When true, skip recurring IBKR membership REST polls (ADR 008 cutover). */
   scannerPersistentAuthoritative?: boolean;
   onActiveFeed?: (feed: string) => void;
@@ -46,7 +46,7 @@ export function useScannerData(opts: {
 }) {
   const {
     discoveryProvider,
-    activeTab,
+    activeTabs,
     scannerPersistentAuthoritative = false,
     onActiveFeed,
     onFeedFellBack,
@@ -120,7 +120,7 @@ export function useScannerData(opts: {
   const { pricesStale, flashSymbols, lastPriceTs, rowQuoteTs, subscriptionError } =
     useScannerPriceStream({
       enabled: discoveryProvider === 'ibkr' && historyDate === null,
-      activeTab,
+      activeTabs,
       onPatch: onScannerPricePatch,
       onRosterReplace,
       onTableState,

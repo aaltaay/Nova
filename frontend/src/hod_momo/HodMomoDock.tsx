@@ -1,7 +1,7 @@
 /**
  * AppShell top dock — collapsed strip or expanded HOD / roster scanner table.
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { ResizeHandle } from '../components/ResizeHandle';
 import { HOD_MOMO_DOCK_DEFAULT_HEIGHT_PX, API_BASE_URL } from '../constants';
 import { useWorkspace } from '../workspace/WorkspaceContext';
@@ -47,6 +47,16 @@ export function HodMomoDock({ onOpenTrading }: Props) {
   const dragStart = useRef<{ y: number; h: number } | null>(null);
   const openTrading = onOpenTrading ?? openStockView;
   const alertMode = isAlertDockMode(dockMode);
+
+  // Declare the dock's table for L1 streaming whenever it changes, including on
+  // mount: dockMode is restored from the previous session while the main tab
+  // resets to Gappers, so a click-only hint left a visible dock roster (e.g.
+  // Gainers) with no price_patch at all after every reload.
+  const setL1DockTab = roster?.setL1DockTab ?? null;
+  useEffect(() => {
+    if (!setL1DockTab) return;
+    setL1DockTab(isRosterDockMode(dockMode) ? dockMode : null);
+  }, [dockMode, setL1DockTab]);
 
   const clearAlerts = useCallback(() => {
     const label = dockMode === 'running_up' ? 'Running Up' : 'HOD Momentum';
@@ -102,7 +112,6 @@ export function HodMomoDock({ onOpenTrading }: Props) {
   const selectMode = (mode: HodDockMode) => {
     setDockMode(mode);
     if (collapsed) setCollapsed(false);
-    if (isRosterDockMode(mode)) roster?.setL1ActiveTab?.(mode);
   };
 
   const bodyIsRoster = isRosterDockMode(dockMode) && roster != null;

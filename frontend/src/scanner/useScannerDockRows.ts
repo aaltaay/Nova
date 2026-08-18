@@ -31,7 +31,8 @@ export type ScannerDockRows = {
   nowSec: number;
   tableMeta: Record<string, ScannerTableMeta>;
   counts: Record<ScannerDockRosterMode, number>;
-  setL1ActiveTab: ((tab: ActiveTab) => void) | null;
+  /** Declares the dock's own table for L1 streaming (separate from main tab). */
+  setL1DockTab: ((tab: ActiveTab | null) => void) | null;
 };
 
 export function useScannerDockRows(): ScannerDockRows | null {
@@ -68,7 +69,7 @@ export function useScannerDockRows(): ScannerDockRows | null {
           afterhours: afterhours.length,
           catalysts: live.catalysts.length,
         },
-        setL1ActiveTab: live.setL1ActiveTab,
+        setL1DockTab: live.setL1DockTab,
       };
     }
     if (sample) {
@@ -94,7 +95,7 @@ export function useScannerDockRows(): ScannerDockRows | null {
           afterhours: sample.afterhours.length,
           catalysts: sample.catalysts.length,
         },
-        setL1ActiveTab: null,
+        setL1DockTab: null,
       };
     }
     return null;

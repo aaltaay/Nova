@@ -101,12 +101,38 @@ describe('HodMomoDock', () => {
     expect(screen.queryByTestId('hod-momo-dock-mode-gainers')).toBeNull();
   });
 
+  it('declares the restored dock table for L1 on mount, not just on click', () => {
+    const setL1DockTab = vi.fn();
+    render(
+      <ScannerDataContextProvider value={makeLiveScannerFeedStub({ setL1DockTab })}>
+        <HodMomoContextProvider value={makeValue({ collapsed: false, dockMode: 'gainers' })}>
+          <HodMomoDock />
+        </HodMomoContextProvider>
+      </ScannerDataContextProvider>,
+    );
+    // A reload resets the main tab to frozen Gappers; without this the visible
+    // dock Gainers roster would never get a price_patch.
+    expect(setL1DockTab).toHaveBeenCalledWith('gainers');
+  });
+
+  it('clears the dock L1 table when showing an alert-only mode', () => {
+    const setL1DockTab = vi.fn();
+    render(
+      <ScannerDataContextProvider value={makeLiveScannerFeedStub({ setL1DockTab })}>
+        <HodMomoContextProvider value={makeValue({ collapsed: false, dockMode: 'hod_momo' })}>
+          <HodMomoDock />
+        </HodMomoContextProvider>
+      </ScannerDataContextProvider>,
+    );
+    expect(setL1DockTab).toHaveBeenCalledWith(null);
+  });
+
   it('shows roster pills and switches the dock body to that table', () => {
     const setDockMode = vi.fn();
-    const setL1ActiveTab = vi.fn();
+    const setL1DockTab = vi.fn();
     render(
       <ScannerDataContextProvider
-        value={makeLiveScannerFeedStub({ setL1ActiveTab })}
+        value={makeLiveScannerFeedStub({ setL1DockTab })}
       >
         <HodMomoContextProvider
           value={makeValue({
@@ -128,7 +154,7 @@ describe('HodMomoDock', () => {
     expect(screen.queryByTestId('hod-momo-dock-clear')).toBeNull();
     fireEvent.click(screen.getByTestId('hod-momo-dock-mode-gainers'));
     expect(setDockMode).toHaveBeenCalledWith('gainers');
-    expect(setL1ActiveTab).toHaveBeenCalledWith('gainers');
+    expect(setL1DockTab).toHaveBeenCalledWith('gappers');
   });
 });
 

@@ -47,22 +47,32 @@ export type ScannerRosterHandlers = {
 
 type Props = {
   enabled: boolean;
-  /** Active scanner tab — sent as set_active_tab for L1 budget. */
-  activeTab?: string;
+  /**
+   * Every scanner table currently on screen (main tab + scanner dock) — sent
+   * as set_active_tab so the backend streams L1 for all of them. A single tab
+   * could not express "main = Gappers (frozen) + dock = Gainers (live)", which
+   * left the visible Gainers column with no price_patch at all.
+   */
+  activeTabs?: readonly string[];
 } & ScannerRosterHandlers;
 
 const EMPTY_FLASH: Record<string, 'up' | 'down'> = {};
 const SCANNER_TABS = new Set(['gappers', 'gainers', 'losers', 'afterhours']);
 
-function tabHint(tab: string | undefined): string {
-  const t = (tab || 'none').toLowerCase();
-  if (SCANNER_TABS.has(t)) return t;
-  return 'none';
+/** Keep only real scanner tables, deduped — alert-only tabs contribute none. */
+export function tabHints(tabs: readonly (string | null | undefined)[]): string[] {
+  const out: string[] = [];
+  for (const raw of tabs) {
+    const t = (raw || '').toLowerCase();
+    if (!SCANNER_TABS.has(t) || out.includes(t)) continue;
+    out.push(t);
+  }
+  return out;
 }
 
 export function useScannerPriceStream({
   enabled,
-  activeTab,
+  activeTabs,
   onPatch,
   onRosterReplace,
   onTableState,
@@ -81,8 +91,9 @@ export function useScannerPriceStream({
   onStateRef.current = onTableState;
   const prevPricesRef = useRef<Record<string, number>>({});
   const wsRef = useRef<WebSocket | null>(null);
-  const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
+  const tabsKey = tabHints(activeTabs ?? []).join(',');
+  const activeTabsRef = useRef(tabsKey);
+  activeTabsRef.current = tabsKey;
   const tableRevRef = useRef<Record<string, number>>({});
 
   useEffect(() => {
@@ -105,9 +116,11 @@ export function useScannerPriceStream({
 
     function sendTabHint(socket: WebSocket) {
       if (socket.readyState !== WebSocket.OPEN) return;
+      const tabs = activeTabsRef.current ? activeTabsRef.current.split(',') : [];
       socket.send(JSON.stringify({
         type: 'set_active_tab',
-        tab: tabHint(activeTabRef.current),
+        tabs,
+        tab: tabs[0] ?? 'none',
       }));
     }
 
@@ -204,11 +217,13 @@ export function useScannerPriceStream({
     if (!enabled) return;
     const socket = wsRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    const tabs = tabsKey ? tabsKey.split(',') : [];
     socket.send(JSON.stringify({
       type: 'set_active_tab',
-      tab: tabHint(activeTab),
+      tabs,
+      tab: tabs[0] ?? 'none',
     }));
-  }, [enabled, activeTab]);
+  }, [enabled, tabsKey]);
 
   const age = lastPriceTs > 0 ? nowTick - lastPriceTs : Infinity;
   const pricesStale =

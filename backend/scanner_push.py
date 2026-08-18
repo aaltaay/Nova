@@ -106,10 +106,17 @@ async def ws_scanner(websocket: WebSocket) -> None:
             if not isinstance(msg, dict):
                 continue
             if msg.get("type") == "set_active_tab":
-                tab = _tabs.set_tab(websocket, str(msg.get("tab") or "none"))
+                # `tabs` is the full set of scanner tables this desk displays
+                # (main tab + scanner dock). `tab` remains for older clients.
+                raw = msg.get("tabs")
+                if not isinstance(raw, list):
+                    raw = [msg.get("tab") or "none"]
+                tabs = _tabs.set_tabs(websocket, [str(t) for t in raw])
                 await websocket.send_text(json.dumps({
                     "type": "subscription_state",
-                    "tab": tab,
+                    "tab": tabs[0] if tabs else "none",
+                    "tabs": tabs,
+                    "tables": _tabs.get_active_tables(),
                     "dominant_tab": _tabs.get_dominant_tab(),
                 }))
     except WebSocketDisconnect:
