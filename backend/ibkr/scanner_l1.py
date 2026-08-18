@@ -13,16 +13,15 @@ import time
 from typing import Any, Awaitable, Callable, Optional
 
 from constants import (
-    IBKR_L1_ACTIVE_TAB_MAX,
     IBKR_L1_BATCH_FLUSH_SEC,
     IBKR_L1_RECONCILE_SEC,
     IBKR_L1_STREAM_BUDGET,
-    IBKR_L1_STREAM_RESERVE,
     IBKR_L1_SUBSCRIBE_PACE_SEC,
     IBKR_L1_TAB_SWITCH_GRACE_SEC,
 )
 from ibkr import ticks as _ticks
 from ibkr import l1_minute as _l1_minute
+from ibkr.scanner_l1_plan import plan_stream_symbols
 from metrics.op_metrics import record_since
 
 logger = logging.getLogger(__name__)
@@ -150,58 +149,6 @@ def configure(apply_quote: ApplyQuoteFn) -> None:
     global _apply_quote
     _apply_quote = apply_quote
     _ticks.add_quote_listener(on_l1_quote)
-
-
-def _budget_for_streams() -> int:
-    return max(1, int(IBKR_L1_STREAM_BUDGET) - int(IBKR_L1_STREAM_RESERVE))
-
-
-def plan_stream_symbols(
-    tab_symbols: list[str],
-    hod_symbols: list[str],
-    *,
-    budget: int | None = None,
-    tab_max: int = IBKR_L1_ACTIVE_TAB_MAX,
-) -> dict[str, Any]:
-    """Pure planner: reserve tab slots first, then HOD, dedupe, reject overflow."""
-    cap = int(budget if budget is not None else _budget_for_streams())
-    tab_cap = max(0, min(int(tab_max), cap))
-    tab: list[str] = []
-    seen: set[str] = set()
-    for raw in tab_symbols:
-        sym = (raw or "").strip().upper()
-        if not sym or sym in seen:
-            continue
-        seen.add(sym)
-        tab.append(sym)
-        if len(tab) >= tab_cap:
-            break
-    rejected: list[str] = []
-    # Excess tab rows beyond tab_cap
-    for raw in tab_symbols[len(tab):]:
-        sym = (raw or "").strip().upper()
-        if sym and sym not in seen:
-            rejected.append(sym)
-
-    hod_slots = max(0, cap - len(tab))
-    hod: list[str] = []
-    for raw in hod_symbols:
-        sym = (raw or "").strip().upper()
-        if not sym or sym in seen:
-            continue
-        if len(hod) >= hod_slots:
-            rejected.append(sym)
-            continue
-        seen.add(sym)
-        hod.append(sym)
-
-    return {
-        "tab": tab,
-        "hod": hod,
-        "combined": tab + [s for s in hod if s not in tab],
-        "rejected": rejected,
-        "budget": cap,
-    }
 
 
 def _collect_tab_symbols(
@@ -385,6 +332,7 @@ async def flush_loop(push: PushFn) -> None:
     while True:
         try:
             await asyncio.sleep(float(IBKR_L1_BATCH_FLUSH_SEC))
+            _l1_minute.flush_elapsed(time.time())
             if not _pending:
                 continue
             pending = _pending

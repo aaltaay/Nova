@@ -112,7 +112,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - `backend/bars_store.py` -- durable IBKR bars + coverage
 - `backend/chart_bars.py` -- store-first IBKR-only when discovery=ibkr
 - `backend/ibkr/scanner_l1.py` — active-tab + reserved HOD L1 streams → `/ws/scanner`
-- `backend/ibkr/l1_minute.py` -- scanner L1 last → live 1Min `bars_intraday` (no hist tokens)
+- `backend/ibkr/l1_minute.py` -- scanner L1 last → live 1Min `bars_intraday` (no hist tokens; quiet minutes flush on the L1 heartbeat)
 - `backend/ibkr/ticks.py` — shared owner-aware `reqMktData` (detail / scanner / HOD)
 - `backend/ibkr/reprice.py` — detail backstop only (cold snapshots, not table SLA)
 - `backend/ibkr/tape_stream.py` — `reqTickByTickData AllLast` subscriber

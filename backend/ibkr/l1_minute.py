@@ -63,6 +63,15 @@ def on_last(symbol: str, price: float, ts: float) -> None:
     bucket.close = float(price)
 
 
+def flush_elapsed(now: float) -> None:
+    """Persist minutes that already closed even if the name went quiet."""
+    cutoff = float(now) - _MINUTE
+    for sym, bucket in list(_open.items()):
+        if bucket.minute_ts <= cutoff:
+            _flush(bucket)
+            _open.pop(sym, None)
+
+
 def _flush(bucket: _Bucket) -> None:
     try:
         enqueue_intraday_bar(

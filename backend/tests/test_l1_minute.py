@@ -61,7 +61,32 @@ def test_live_minute_does_not_mark_series_complete(monkeypatch, tmp_path):
     assert hit["coverage"]["filling"] is True
 
 
+def test_elapsed_minute_flushes_without_next_print(monkeypatch, tmp_path):
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    l1_minute.reset_for_tests()
+
+    minute_ts = 1_700_000_040.0 - (1_700_000_040.0 % 60.0)
+    l1_minute.on_last("aaoz", 2.0, minute_ts + 10.0)
+    assert wq.pending() == 0
+
+    l1_minute.flush_elapsed(minute_ts + 59.0)
+    assert wq.pending() == 0
+
+    l1_minute.flush_elapsed(minute_ts + 60.0)
+    assert wq.pending() == 1
+    wq.drain_once()
+    hit = bars_store.read("AAOZ", "1Min", 10)
+    assert hit is not None
+    assert hit["bars"][0]["c"] == 2.0
+
+    l1_minute.flush_elapsed(minute_ts + 120.0)
+    assert wq.pending() == 0
+
+
 def test_on_l1_quote_enqueues_without_sqlite(monkeypatch, tmp_path):
+
     monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
     archive_db.init_db()
     wq.reset_for_tests()

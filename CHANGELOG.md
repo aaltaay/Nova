@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Quiet L1 minutes flush without waiting for the next print
+
+- **What:** Completed 1Min buckets now persist when the clock rolls, even if that name goes quiet. `scanner_l1.flush_loop` heartbeats `l1_minute.flush_elapsed`.
+- **Why:** Flush-on-next-print left a quiet afterhours name's last minute in RAM until it traded again, so Squeeze/chart store-only seed missed bars Nova already quoted.
+- **Files touched:** `backend/ibkr/l1_minute.py`, `backend/ibkr/scanner_l1.py`, `backend/ibkr/scanner_l1_plan.py` (extract so scanner_l1 stays under 400).
+- **How it works now:** Same in-memory bucket. When `now >= minute_ts + 60`, the write queue gets that bar without a new last. Coverage still is not stamped.
+- **Verified by:** pytest `test_l1_minute.py` + `test_scanner_l1.py` + write-queue / bars_store / surge seed -- 40 passed. Live after restart: IBKR connected, `hod_surge_after_seed` pass, surge ready 25/42, 35 volume=0 1Min rows at the just-closed minute (L1 writer).
+- **Related:** task-log `knowledge/task-log/2026-08-18-l1-live-1min-store.md`
+
 ## 2026-08-18 -- Scanner L1 rolls live 1Min into bars_intraday
 
 - **What:** Streamed scanner/HOD L1 last prices now build 1Min OHLC in the same `bars_intraday` store charts and Squeeze already read. No extra `reqHistoricalData`.
