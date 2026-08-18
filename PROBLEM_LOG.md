@@ -23,12 +23,12 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
-## 2026-08-18 -- /bars 500: bars_store not imported in chart_bars
+## 2026-08-18 -- /bars 500s: bars_store calls in chart_bars broke two ways
 
-- **Symptom:** After the pacing send-rule commit, `GET /api/ticker/{sym}/bars` returned HTTP 500 whenever the store had bars and Gateway was ready. `NameError: name 'bars_store' is not defined` at `chart_bars.py:78`.
-- **Cause:** The skip-fill-when-settled edit called `bars_store.store_series_complete` / `is_coverage_fresh` in `fetch_chart_bars`, but `chart_bars.py` only imports `bars_store` lazily inside `_store_read` / `_empty_filling`. Every existing test patched `_store_read` and either had `is_ready=False` (short-circuits before the call) or an empty store, so the stored+ready path ran zero times in the suite.
-- **Fix:** Added `_store_series_settled` helper with the same lazy-import style; fill branch now sets `coverage["filling"] = True` honestly (it only runs when data is incomplete or stale). Two regression tests cover stored+ready: complete+fresh skips the fill, complete+stale schedules it.
-- **Keywords:** NameError, bars_store, chart_bars, 500, lazy import, coverage hole, stored+ready path, filling flag
+- **Symptom:** After the pacing send-rule commit, `GET /api/ticker/{sym}/bars` 500'd on every stored+ready chart: first `NameError: name 'bars_store' is not defined` (thin store), then `AttributeError: 'str' object has no attribute 'get'` once a series was complete.
+- **Cause:** Two mistakes in the same edit. (1) `fetch_chart_bars` referenced `bars_store`, which that module only imports lazily inside helpers. (2) `is_coverage_fresh(symbol, timeframe)` was the wrong signature -- it takes a coverage **dict** (`historical_service.py` had it right); the symbol string landed on `coverage.get`. Every existing test patched `_store_read` and either ran with `is_ready=False` or an empty store, and the new tests mocked `is_coverage_fresh` itself, so the real call shape ran zero times in the suite.
+- **Fix:** `_store_series_settled(timeframe, bar_count, coverage)` helper with the module's lazy-import style; `routes/ticker.py` warm skip passes `stored.get("coverage")` too. Fill branch reports `filling=True` honestly. Regression tests now use the **real** `is_coverage_fresh` with `fetched_ts` in the fixture coverage, so the signature is exercised.
+- **Keywords:** NameError, AttributeError, bars_store, is_coverage_fresh signature, chart_bars, 500, lazy import, mocked seam hid call shape, stored+ready path
 
 ## 2026-08-18 -- Gainers prices froze after chart-fill fix
 

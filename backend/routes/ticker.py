@@ -100,7 +100,7 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
                 stored
                 and stored.get("bars")
                 and bars_store.store_series_complete(tf, len(stored["bars"]))
-                and bars_store.is_coverage_fresh(symbol, tf)
+                and bars_store.is_coverage_fresh(stored.get("coverage"), tf)
             ):
                 continue
             schedule_fill(symbol, tf, CHART_DEFAULT_BARS, priority="warm")
