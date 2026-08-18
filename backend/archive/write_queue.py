@@ -34,6 +34,7 @@ from constants import (
     ARCHIVE_COUNTER_TAPE_DROPPED,
     ARCHIVE_COUNTER_TAPE_RECEIVED,
     ARCHIVE_SOURCE_IBKR,
+    ARCHIVE_SOURCE_IBKR_L1,
     ARCHIVE_WRITE_BATCH_MAX,
     ARCHIVE_WRITE_FLUSH_SEC,
     ARCHIVE_WRITE_QUEUE_MAX,
@@ -78,18 +79,6 @@ def _bar_sql(table: str) -> str:
     """
 
 
-_INTRADAY_SQL = """
-INSERT INTO bars_intraday
-    (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(symbol, timeframe, ts, source) DO UPDATE SET
-    high = MAX(high, excluded.high),
-    low = MIN(low, excluded.low),
-    close = excluded.close,
-    volume = CASE WHEN excluded.volume > 0 THEN excluded.volume ELSE volume END,
-    session_date = excluded.session_date
-WHERE volume = 0 OR excluded.volume > 0
-"""
 _lock = threading.Lock()
 _tape: deque[tuple] = deque()
 _l1: deque[tuple] = deque()
@@ -203,19 +192,18 @@ def enqueue_intraday_bar(
     close: float,
     volume: float = 0.0,
     timeframe: str = "1Min",
-    source: str = ARCHIVE_SOURCE_IBKR,
     session_date: str | None = None,
 ) -> None:
-    """Queue one chart-store bar. Safe to call from the IB loop.
+    """Queue one live overlay bar. Safe to call from the IB loop.
 
+    Always tags ``ibkr_l1``. Hist fills go through ``bars_store.write_payload``.
     Does not stamp ``bars_coverage`` -- live L1 minutes are not a hist fill.
-    Does not rewrite a row that already has volume (IB historical OHLC).
     """
     from archive.capture import session_date_for_ts
 
     _append(_bars_intraday, (
         symbol.upper(), str(timeframe), float(ts), float(open_), float(high),
-        float(low), float(close), float(volume), source,
+        float(low), float(close), float(volume), ARCHIVE_SOURCE_IBKR_L1,
         session_date or session_date_for_ts(ts),
     ))
 
@@ -296,7 +284,9 @@ def _write_batch(
         if bars_1d:
             conn.executemany(_bar_sql("bars_1d"), bars_1d)
         if bars_intraday:
-            conn.executemany(_INTRADAY_SQL, bars_intraday)
+            from bars_store import write_live_batch
+
+            write_live_batch(conn, bars_intraday)
         counters: list[tuple[str, int, float]] = []
         now = time.time()
         for name, count in (

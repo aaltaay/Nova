@@ -1,9 +1,10 @@
 """Build live 1Min OHLC from scanner L1 last -- no reqHistoricalData.
 
-Streamed names already pay for ``reqMktData``. Those lasts become minute
-bars in ``bars_intraday`` so Squeeze seed and chart 1Min share a path
-that does not wait on a chart click. Producers only mutate in-memory
-buckets and enqueue; SQLite stays on the write-queue drain (ADR 010).
+Streamed names already pay for ``reqMktData``. Those lasts become live
+overlay minutes (source=ibkr_l1) in ``bars_intraday`` so Squeeze seed and
+chart 1Min share a path that does not wait on a chart click. Hist fills
+own the same candle key and replace the overlay. Producers only mutate
+in-memory buckets and enqueue; SQLite stays on the write-queue drain (ADR 010).
 """
 from __future__ import annotations
 

@@ -18,6 +18,7 @@ SQLITE_BACKUP_FILENAMES = (
     "nova_os_events.db",
 )
 ARCHIVE_SOURCE_IBKR = "ibkr"
+ARCHIVE_SOURCE_IBKR_L1 = "ibkr_l1"          # live 1Min overlay; never shares hist row identity
 ARCHIVE_SOURCE_ALPACA = "alpaca"
 ARCHIVE_STREAM_TAPE = "tape"
 ARCHIVE_STREAM_L2 = "l2"

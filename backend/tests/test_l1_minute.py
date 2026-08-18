@@ -142,6 +142,102 @@ def test_l1_upsert_does_not_clobber_hist_ohlc(monkeypatch, tmp_path):
     assert hit["coverage"]["filling"] is False
 
 
+def _hist_payload(symbol: str, ts: float, *, volume: float) -> dict:
+    bar = {"t": ts, "o": 1.20, "h": 1.40, "l": 1.10, "c": 1.35, "v": volume}
+    return {
+        "symbol": symbol,
+        "timeframe": "1Min",
+        "source": "ibkr",
+        "bars": [bar],
+        "coverage": bars_store.coverage_from_bars([bar], filling=False),
+    }
+
+
+def test_l1_does_not_clobber_zero_volume_hist(monkeypatch, tmp_path):
+    """IB hist minutes can be volume=0 (halt / illiquid AH). Volume is not ownership."""
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    l1_minute.reset_for_tests()
+
+    ts = 1_700_000_040.0 - (1_700_000_040.0 % 60.0)
+    bars_store.write_payload(_hist_payload("AIXC", ts, volume=0))
+
+    l1_minute.on_last("aixc", 9.99, ts + 10.0)
+    l1_minute.flush_elapsed(ts + 60.0)
+    wq.drain_once()
+
+    bar = bars_store.read("AIXC", "1Min", 10)["bars"][0]
+    assert bar["o"] == 1.20
+    assert bar["h"] == 1.40
+    assert bar["l"] == 1.10
+    assert bar["c"] == 1.35
+    assert bar["v"] == 0
+    conn = archive_db.get_connection()
+    try:
+        n = conn.execute("SELECT COUNT(*) AS c FROM bars_intraday").fetchone()["c"]
+        source = conn.execute("SELECT source FROM bars_intraday").fetchone()["source"]
+    finally:
+        conn.close()
+    assert n == 1
+    assert source == "ibkr"
+
+
+def test_l1_volume_cannot_buy_a_hist_row(monkeypatch, tmp_path):
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+
+    ts = 1_700_000_000.0
+    bars_store.write_payload(_hist_payload("CAST", ts, volume=2938))
+    wq.enqueue_intraday_bar(
+        symbol="CAST", ts=ts, open_=9.0, high=9.99, low=8.0,
+        close=9.5, volume=50_000.0, timeframe="1Min",
+    )
+    wq.drain_once()
+
+    bar = bars_store.read("CAST", "1Min", 10)["bars"][0]
+    assert bar["h"] == 1.40
+    assert bar["c"] == 1.35
+    assert bar["v"] == 2938
+    conn = archive_db.get_connection()
+    try:
+        n = conn.execute("SELECT COUNT(*) AS c FROM bars_intraday").fetchone()["c"]
+    finally:
+        conn.close()
+    assert n == 1
+
+
+def test_hist_fill_replaces_live_minute(monkeypatch, tmp_path):
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    l1_minute.reset_for_tests()
+
+    ts = 1_700_000_040.0 - (1_700_000_040.0 % 60.0)
+    l1_minute.on_last("cdtg", 3.00, ts + 10.0)
+    l1_minute.flush_elapsed(ts + 60.0)
+    wq.drain_once()
+    assert bars_store.read("CDTG", "1Min", 10)["bars"][0]["c"] == 3.00
+
+    bars_store.write_payload(_hist_payload("CDTG", ts, volume=4100))
+    hit = bars_store.read("CDTG", "1Min", 10)
+    assert len(hit["bars"]) == 1
+    bar = hit["bars"][0]
+    assert bar["o"] == 1.20
+    assert bar["h"] == 1.40
+    assert bar["c"] == 1.35
+    assert bar["v"] == 4100
+    conn = archive_db.get_connection()
+    try:
+        sources = [
+            r["source"] for r in conn.execute("SELECT source FROM bars_intraday")
+        ]
+    finally:
+        conn.close()
+    assert sources == ["ibkr"]
+
+
 def test_l1_upsert_can_refine_live_only_row(monkeypatch, tmp_path):
     monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
     archive_db.init_db()
@@ -160,9 +256,17 @@ def test_l1_upsert_can_refine_live_only_row(monkeypatch, tmp_path):
     )
     wq.drain_once()
 
-    bar = bars_store.read("CDTG", "1Min", 10)["bars"][0]
+    hit = bars_store.read("CDTG", "1Min", 10)
+    bar = hit["bars"][0]
+    assert hit["source"] == "ibkr"
     assert bar["o"] == 3.00  # first open sticks
     assert bar["h"] == 3.50
     assert bar["l"] == 2.80
     assert bar["c"] == 3.40
     assert bar["v"] == 0
+    conn = archive_db.get_connection()
+    try:
+        tagged = conn.execute("SELECT source FROM bars_intraday").fetchone()["source"]
+    finally:
+        conn.close()
+    assert tagged == "ibkr_l1"

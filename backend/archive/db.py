@@ -13,7 +13,7 @@ import logging
 import sqlite3
 from pathlib import Path
 
-from constants import ARCHIVE_DB_FILENAME
+from constants import ARCHIVE_DB_FILENAME, ARCHIVE_SOURCE_IBKR
 from paths import cache_dir
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,7 @@ CREATE TABLE IF NOT EXISTS bars_intraday (
     volume REAL NOT NULL DEFAULT 0,
     source TEXT NOT NULL,
     session_date TEXT NOT NULL,
-    UNIQUE(symbol, timeframe, ts, source)
+    UNIQUE(symbol, timeframe, ts)
 );
 CREATE INDEX IF NOT EXISTS idx_bars_intraday_sym_tf_ts
     ON bars_intraday(symbol, timeframe, ts);
@@ -170,11 +170,66 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _bars_intraday_unique_cols(conn: sqlite3.Connection) -> list[str]:
+    for idx in conn.execute("PRAGMA index_list(bars_intraday)"):
+        if not idx["unique"]:
+            continue
+        info = conn.execute(f"PRAGMA index_info({idx['name']})").fetchall()
+        cols = [r["name"] for r in info]
+        if cols[:3] == ["symbol", "timeframe", "ts"]:
+            return cols
+    return []
+
+
+def migrate_bars_intraday_candle_unique(conn: sqlite3.Connection) -> bool:
+    """One candle per (symbol, timeframe, ts). Hist wins if a legacy pair exists."""
+    cols = _bars_intraday_unique_cols(conn)
+    if cols == ["symbol", "timeframe", "ts"]:
+        return False
+    conn.execute("DROP TABLE IF EXISTS bars_intraday_v2")
+    conn.execute(
+        """
+        CREATE TABLE bars_intraday_v2 (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            symbol TEXT NOT NULL,
+            timeframe TEXT NOT NULL,
+            ts REAL NOT NULL,
+            open REAL NOT NULL,
+            high REAL NOT NULL,
+            low REAL NOT NULL,
+            close REAL NOT NULL,
+            volume REAL NOT NULL DEFAULT 0,
+            source TEXT NOT NULL,
+            session_date TEXT NOT NULL,
+            UNIQUE(symbol, timeframe, ts)
+        )
+        """
+    )
+    _copy = """
+        INSERT OR IGNORE INTO bars_intraday_v2
+            (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
+        SELECT symbol, timeframe, ts, open, high, low, close, volume, source, session_date
+        FROM bars_intraday
+        WHERE source {op} ?
+    """
+    conn.execute(_copy.format(op="="), (ARCHIVE_SOURCE_IBKR,))
+    conn.execute(_copy.format(op="<>"), (ARCHIVE_SOURCE_IBKR,))
+    conn.execute("DROP TABLE bars_intraday")
+    conn.execute("ALTER TABLE bars_intraday_v2 RENAME TO bars_intraday")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bars_intraday_sym_tf_ts "
+        "ON bars_intraday(symbol, timeframe, ts)"
+    )
+    logger.info("archive.db: bars_intraday unique is now (symbol, timeframe, ts)")
+    return True
+
+
 def init_db() -> None:
     """Create tables if they don't exist. Safe to call repeatedly."""
     conn = get_connection()
     try:
         conn.executescript(_SCHEMA)
+        migrate_bars_intraday_candle_unique(conn)
         conn.commit()
     finally:
         conn.close()

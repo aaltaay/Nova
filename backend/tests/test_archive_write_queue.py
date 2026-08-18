@@ -108,6 +108,21 @@ class TestDrainWritesOneBatch:
         assert capture.get_counter(ARCHIVE_COUNTER_TAPE_RECEIVED) == 50
         assert capture.get_counter(ARCHIVE_COUNTER_L1_TICKS) == 20
 
+    def test_intraday_drain_opens_one_connection(self, monkeypatch):
+        for i in range(10):
+            wq.enqueue_tape_print(
+                symbol="cast", ts=1_700_000_000.0 + i, price=2.1, size=1,
+            )
+        wq.enqueue_intraday_bar(
+            symbol="CAST", ts=1_700_000_000.0, open_=2.0, high=2.2, low=1.9,
+            close=2.1, volume=0.0, timeframe="1Min",
+        )
+        opened = _forbid_connections(monkeypatch)
+        result = wq.drain_once()
+        assert result["tape"] == 10
+        assert result["bars_intraday"] == 1
+        assert len(opened) == 1, "intraday drain must share the batch connection"
+
     def test_rows_survive_round_trip_with_expected_shape(self):
         wq.enqueue_tape_print(
             symbol="pfsa", ts=1_700_000_000.0, price=16.72, size=250,

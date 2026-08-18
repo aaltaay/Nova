@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Volume is not hist ownership for 1Min candles
+
+- **Symptom:** After the L1 hist-protect UPSERT (`WHERE volume = 0 OR excluded.volume > 0`), a red test with a volume=0 hist candle (halt / illiquid AH) still jumped high from 1.40 to 9.99 on one L1 last. The same SQL also let an L1 row with volume=50000 rewrite a hist candle.
+- **Cause:** Two writers shared `(symbol, timeframe, ts, source=ibkr)`. Volume was used as a lock. IB historical minutes can be volume=0, so the clause treated hist as live. An integrity alarm on OHLC drift would have caught it after the hangover, not prevented the shared identity.
+- **Fix:** Unique candle is `(symbol, timeframe, ts)`. Hist writes `source=ibkr` and always replaces. L1 writes `source=ibkr_l1` and updates only `WHERE source = ibkr_l1`. `init_db` migrates legacy DBs by copying `ibkr` first, then other sources into gaps.
+- **Keywords:** bars_intraday, l1_minute, candle unique, ibkr_l1, volume=0 hist, UPSERT WHERE source, ADR 012
+
 ## 2026-08-18 -- L1 live 1Min upsert would clobber IB historical candles
 
 - **Symptom:** Scanner L1 last prices write the same `bars_intraday` table charts read. The first upsert SQL did `close = excluded.close` and `high = MAX(...)` even when the row already had IB historical volume. A red test showed a hist candle (o=1.20 h=1.40 l=1.10 c=1.35 v=2938) become high=9.99 after one L1 last of 9.99.

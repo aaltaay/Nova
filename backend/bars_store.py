@@ -1,9 +1,9 @@
 """Durable IBKR chart-bar store on archive.db (ADR 012).
 
-Reads never touch the broker. Writes come from ``historical_service`` after
-a successful ``reqHistoricalData``, and from scanner L1 last prices rolled
-into live 1Min bars (``ibkr.l1_minute``). Live minutes must not stamp hist
-coverage -- a streamed tip is not a finished fill.
+Reads never touch the broker. One candle identity: ``(symbol, timeframe, ts)``.
+``historical_service`` writes source=ibkr (authoritative). Scanner L1 writes
+source=ibkr_l1 and may only insert or refine a live row -- never a hist row.
+Live minutes must not stamp hist coverage -- a streamed tip is not a finished fill.
 """
 from __future__ import annotations
 
@@ -14,11 +14,40 @@ from typing import Any
 from archive import db as archive_db
 from archive.capture import session_date_for_ts
 from constants import (
+    ARCHIVE_SOURCE_IBKR,
+    ARCHIVE_SOURCE_IBKR_L1,
     IBKR_BARS_STORE_FRESH_DAILY_SEC,
     IBKR_BARS_STORE_FRESH_INTRADAY_SEC,
     IBKR_BARS_STORE_MIN_BARS,
 )
 from ibkr.historical_derive import bar_unix, unix_to_iso
+
+_HIST_UPSERT_SQL = """
+INSERT INTO bars_intraday
+    (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(symbol, timeframe, ts) DO UPDATE SET
+    open = excluded.open,
+    high = excluded.high,
+    low = excluded.low,
+    close = excluded.close,
+    volume = excluded.volume,
+    source = excluded.source,
+    session_date = excluded.session_date
+"""
+
+_LIVE_UPSERT_SQL = f"""
+INSERT INTO bars_intraday
+    (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(symbol, timeframe, ts) DO UPDATE SET
+    high = MAX(high, excluded.high),
+    low = MIN(low, excluded.low),
+    close = excluded.close,
+    volume = CASE WHEN excluded.volume > 0 THEN excluded.volume ELSE volume END,
+    session_date = excluded.session_date
+WHERE source = '{ARCHIVE_SOURCE_IBKR_L1}'
+"""
 
 logger = logging.getLogger(__name__)
 
@@ -67,11 +96,13 @@ def store_series_complete(timeframe: str, bar_count: int) -> bool:
 
 
 def write_payload(payload: dict[str, Any]) -> None:
-    """Upsert bars + coverage. Errors must never call this."""
+    """Upsert hist bars + coverage. Always tags ``ibkr``; payload source is ignored.
+
+    Errors must never call this.
+    """
     symbol = str(payload.get("symbol") or "").upper()
     timeframe = str(payload.get("timeframe") or "")
     bars = payload.get("bars") or []
-    source = str(payload.get("source") or "ibkr")
     if not symbol or not timeframe:
         return
     coverage = payload.get("coverage") or coverage_from_bars(bars, filling=False)
@@ -90,27 +121,22 @@ def write_payload(payload: dict[str, Any]) -> None:
             except (KeyError, TypeError, ValueError):
                 continue
             conn.execute(
-                """
-                INSERT INTO bars_intraday
-                    (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(symbol, timeframe, ts, source) DO UPDATE SET
-                    open = excluded.open,
-                    high = excluded.high,
-                    low = excluded.low,
-                    close = excluded.close,
-                    volume = excluded.volume,
-                    session_date = excluded.session_date
-                """,
+                _HIST_UPSERT_SQL,
                 (
                     symbol, timeframe, float(ts), open_, high, low, close, volume,
-                    source, session_date_for_ts(ts),
+                    ARCHIVE_SOURCE_IBKR, session_date_for_ts(ts),
                 ),
             )
         _upsert_coverage_locked(conn, symbol, timeframe, coverage)
         conn.commit()
     finally:
         conn.close()
+
+
+def write_live_batch(conn, rows: list[tuple]) -> None:
+    """L1 overlay. Caller owns the connection/transaction (write-queue drain)."""
+    if rows:
+        conn.executemany(_LIVE_UPSERT_SQL, rows)
 
 
 def _upsert_coverage_locked(
@@ -156,7 +182,6 @@ def read(symbol: str, timeframe: str, limit: int) -> dict[str, Any] | None:
             """,
             (symbol, timeframe, limit),
         ).fetchall()
-        source = "ibkr"
         # Chart store is bars_intraday only. Tape archive bars_1m / bars_1d is a
         # different product (often 1 print-built bar) and must not satisfy a miss.
         if not rows:
@@ -164,7 +189,6 @@ def read(symbol: str, timeframe: str, limit: int) -> dict[str, Any] | None:
         rows = list(reversed(rows))
         bars = []
         for row in rows:
-            source = str(row["source"] or "ibkr")
             bars.append({
                 "t": unix_to_iso(float(row["ts"])),
                 "o": float(row["open"]),
@@ -197,7 +221,7 @@ def read(symbol: str, timeframe: str, limit: int) -> dict[str, Any] | None:
             "symbol": symbol,
             "timeframe": timeframe,
             "bars": bars,
-            "source": source,
+            "source": ARCHIVE_SOURCE_IBKR,
             "cache": "store",
             "coverage": coverage,
         }

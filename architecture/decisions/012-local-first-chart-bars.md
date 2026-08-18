@@ -18,7 +18,9 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 
 3. **One paced service.** `ibkr/historical_service.py` is the only production scheduler of `reqHistoricalData`. Token bucket for IB's three rate rules. Bounded concurrency 3. Priority `open_chart` > `warm` > `background`. **Send rule (amended 2026-08-18):** `reqHistoricalData` is never sent while `wait_seconds > 0` beyond IB's short same-contract (2s) / identical-request (15s) windows. `background` and `warm` shed on any wait. `open_chart` sleeps only a short window; a 10-minute-bucket wait is rescheduled via `call_later` on the IB loop (never sleep-then-send, which starved L1 ticks). Cross-caller dedup (chart, surge seed, setups, warm). Shed/defer/reschedule log at INFO. `/bars` and the ticker WS skip `schedule_fill` when the stored series is complete and fresh.
 
-**Amendment (2026-08-18):** Scanner L1 last prices roll into live 1Min rows in the same `bars_intraday` store (`ibkr/l1_minute.py` -> write queue). That is not a second historical scheduler. Live minutes do not stamp `bars_coverage`; a streamed tip is not a finished hist fill, so `store_series_complete` + fresh coverage still gates skip-fill. A completed minute is flushed when the next print arrives *or* when the L1 batch heartbeat sees `now` past that minute -- quiet names do not wait for another trade. L1 upserts must not rewrite a row that already has historical volume (charts own that OHLC). HOD Squeeze seed and chart 1Min then share bars Nova already paid for with `reqMktData`.
+**Amendment (2026-08-18):** Scanner L1 last prices roll into live 1Min overlay rows in the same `bars_intraday` store (`ibkr/l1_minute.py` -> write queue). That is not a second historical scheduler. Live minutes do not stamp `bars_coverage`; a streamed tip is not a finished hist fill, so `store_series_complete` + fresh coverage still gates skip-fill. A completed minute is flushed when the next print arrives *or* when the L1 batch heartbeat sees `now` past that minute -- quiet names do not wait for another trade.
+
+**Amendment (2026-08-18, candle ownership):** One candle identity: `UNIQUE(symbol, timeframe, ts)`. Hist fills write `source=ibkr` and always replace. L1 writes `source=ibkr_l1` and may only insert or refine a live row (`WHERE source = ibkr_l1`). Volume is not a lock -- IB hist minutes can be volume=0. HTTP `/bars` still reports feed `source=ibkr`. HOD Squeeze seed and chart 1Min then share bars Nova already paid for with `reqMktData`. Legacy DBs migrate at `init_db` by copying `ibkr` rows first, then other sources into gaps. Pre-change L1 minutes were tagged `ibkr` (the old enqueue default); those grandfathered volume=0 rows stay hist until a chart fill overwrites them -- accepted, no retag.
 
 4. **Derive today's coarse panes from 1Min.** A 1Min / 1 D pull paints today's 5Min / 15Min / 30Min / 1Hour. Native longer spans still fetch in the background.
 
@@ -40,11 +42,15 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 - Parallel unbounded `reqHistoricalData` (trips pacing, Error 162).
 - Using archive tape `bars_1m` as the only store (Quote Panel never opens T&S).
 - Sleep-then-send for long pacing debt (2026-08-18 Gainers freeze): a 333s 10-min-bucket wait became `sleep(16)` + send, saturating the shared IB socket and starving `reqMktData` L1 ticks.
+- Volume=0 as the hist lock (2026-08-18): IB historical minutes can be volume=0, so L1 still rewrote OHLC.
+- A live integrity alarm on hist-OHLC drift: that detects a hangover after charts already painted it. Candle identity is the lock.
 
 ## Related
 
 - `backend/ibkr/historical_service.py`
 - `backend/ibkr/historical_pacing.py`
 - `backend/bars_store.py`
+- `backend/ibkr/l1_minute.py`
+- `backend/archive/write_queue.py`
 - `backend/chart_bars.py`
 - `.cursor/rules/single-market-data-feed.mdc`

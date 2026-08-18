@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- One candle identity: hist owns, L1 overlays
+
+- **What:** `bars_intraday` is one row per `(symbol, timeframe, ts)`. Hist fills tag `ibkr` and replace. Scanner L1 tags `ibkr_l1` and can only insert or refine a live row.
+- **Why:** The volume=0 UPSERT guard was not ownership. A zero-volume IB hist minute (halt / illiquid AH) could still have its OHLC rewritten by L1 last. An integrity alarm after the fact would not stop the two writers sharing a key.
+- **Files touched:** `backend/archive/db.py`, `backend/bars_store.py`, `backend/archive/write_queue.py`, `backend/ibkr/l1_minute.py`, ADR 012, `single-market-data-feed.mdc`.
+- **How it works now:** Unique candle key. Live SQL `WHERE source = ibkr_l1`. Hist SQL always overwrites and retags (`payload.source` is ignored). HTTP `/bars` still reports feed `ibkr`. `init_db` copies `ibkr` rows first, then other sources into gaps. Pre-change L1 minutes tagged `ibkr` stay hist until a chart fill -- accepted, no retag.
+- **Verified by:** backend pytest 1237 passed; frontend Vitest 697 passed; `npm run build` exit 0; `doc_invariants` OK. Focused: zero-volume hist, L1 volume cannot buy hist, hist replaces live, two-statement migrate, intraday drain one connection. Live 90s desk soak: 87028 closed `ibkr` 1Min candles unchanged (0 same-volume OHLC edits, 0 source flips); `ibkr_l1` 472->479; `ib_loop_lag_ms` last=3.1 max=46.4 wedged=false.
+- **Follow-ups:** Grandfathered volume=0 `ibkr` minutes (old L1 default source) wait for a hist fill.
+- **Related:** PROBLEM_LOG 2026-08-18 Volume is not hist ownership
+
 ## 2026-08-18 -- L1 1Min writer must not rewrite historical chart candles
 
 - **What:** Live scanner L1 still rolls 1Min into `bars_intraday`, but an upsert no longer changes a row that already has IB historical volume.
