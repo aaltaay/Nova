@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -82,6 +83,24 @@ def filter_bars_to_session(bars: list[dict], session_key: str) -> list[dict]:
     return out
 
 
+def filter_bars_to_recent(
+    bars: list[dict], *, now_ts: float, max_age_sec: float,
+) -> list[dict]:
+    """Keep bars whose timestamp is within ``max_age_sec`` of ``now_ts``.
+
+    Squeeze is last-N-minutes of the latest print. Older store bars cannot
+    participate once a newer live tick arrives, and they must not inflate
+    the buffer span so integrity thinks a window exists.
+    """
+    cutoff = float(now_ts) - max(0.0, float(max_age_sec))
+    out: list[dict] = []
+    for bar in bars or []:
+        ts = parse_bar_ts(bar.get("t"))
+        if ts is not None and ts >= cutoff:
+            out.append(bar)
+    return out
+
+
 def _read_local_bars(symbol: str, provider: str, limit: int) -> list[dict]:
     """Read bars already on disk. Never schedules an IB fill."""
     prov = (provider or "").strip().lower()
@@ -123,9 +142,6 @@ def seed_symbol(symbol: str, provider: str) -> str:
         )
         return "live"
 
-    bars = full_session_bars[-HOD_MOMO_SURGE_SEED_BARS:]
-    points = bars_to_surge_points(bars)
-    n = hm.seed_price_buffer(sym, points)
     try:
         sh = _high.seed_session_high_from_bars(sym, full_session_bars)
         if sh is not None:
@@ -135,14 +151,28 @@ def seed_symbol(symbol: str, provider: str) -> str:
             )
     except Exception as hexc:
         logger.warning("HOD Momo high seed failed for %s: %s", sym, hexc)
-    if points:
-        logger.info(
-            "HOD Momo surge seed: %s +%d buffer pts from %d store %s bars",
-            sym, n, len(bars), HOD_MOMO_SURGE_SEED_TIMEFRAME,
-        )
-        hm.reevaluate_after_surge_seed(sym)
-    else:
+
+    recent = filter_bars_to_recent(
+        full_session_bars,
+        now_ts=time.time(),
+        max_age_sec=float(HOD_MOMO_SURGE_SEED_BARS) * 60.0,
+    )
+    bars = recent[-HOD_MOMO_SURGE_SEED_BARS:]
+    points = bars_to_surge_points(bars)
+    if not points:
         hm.mark_surge_seed_attempted(sym)
+        logger.info(
+            "HOD Momo surge seed: %s live-only (store bars older than %ds)",
+            sym, HOD_MOMO_SURGE_SEED_BARS * 60,
+        )
+        return "live"
+
+    n = hm.seed_price_buffer(sym, points)
+    logger.info(
+        "HOD Momo surge seed: %s +%d buffer pts from %d store %s bars",
+        sym, n, len(bars), HOD_MOMO_SURGE_SEED_TIMEFRAME,
+    )
+    hm.reevaluate_after_surge_seed(sym)
     return "store"
 
 

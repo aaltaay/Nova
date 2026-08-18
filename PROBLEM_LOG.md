@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- hod_surge_after_seed afterhours warn: stale store bars poisoned Squeeze
+
+- **Symptom:** After zero-IB HOD seeding shipped, `/api/integrity` stayed `hod_surge_after_seed` warn: "13 seeded symbol(s) still have surge=None" for 40+ minutes in afterhours. Last trade age was ~1s. Chart 1Min in `bars_intraday` was 35-99 minutes stale for 76/80 HOD symbols; tape `bars_1m` was empty for almost all of them.
+- **Cause:** Two stacked mistakes. (1) `seed_symbol` copied the last 15 stored 1Min bars into the live surge buffer with no recency filter, so RTH fossils from ~15:20 ET sat next to a 16:50 live print. (2) `count_surge_none_after_seed` treated first-to-last span >= 5 min as "the squeeze window elapsed." `price_surge` only looks at the last 5 minutes of the latest print, so those fossils made integrity yell while Squeeze correctly returned None. This is not afterhours illiquidity we should "accept." It is a window mismatch the check invented.
+- **Fix:** Session high still seeds from full-session store bars. Surge buffer only takes bars younger than `HOD_MOMO_SURGE_SEED_BARS` minutes. Integrity counts None only when that same window has >=2 prices (the case where Squeeze should return a number). Sparse/gapped tapes are not a Nova failure.
+- **Keywords:** hod_surge_after_seed, surge=None, afterhours, bars_intraday stale, squeeze window, price_surge, filter_bars_to_recent, count_surge_none_after_seed
+
 ## 2026-08-18 -- IB loop wedged 67s: synchronous SQLite archive writes per tape print
 
 - **Symptom:** Trading prerequisites modal red: "Nova API (:8000) -- IB loop wedged -- desk blocked." `/api/mode` showed `ib_loop_lag_ms` `last_ms=48453`, `max_ms=67091`, `wedged=true`, `high_streak=35` while `http_loop_lag_ms` stayed at **11ms** and uvicorn answered in 2-33ms. IB Gateway was connected and READY the whole time. `hod_momo.log` showed L1 ticks arriving in bursts of ~50 symbols in 0.4s separated by **10-12s gaps**. Charts and scanner prices looked frozen; T&S kept printing.

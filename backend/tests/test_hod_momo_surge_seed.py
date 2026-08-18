@@ -83,22 +83,60 @@ def test_request_surge_seed_is_once_per_symbol(monkeypatch):
 
 def test_count_surge_none_skips_short_live_warmup_span():
     """Live-only buffers are structurally not-ready until the squeeze window
-    elapses -- that is warmup, not a Nova defect."""
+    has two prices -- that is warmup, not a Nova defect."""
     from collections import deque
 
     from hod_momo_flow import count_surge_none_after_seed
 
     now = time.time()
     short = deque([(now - 30.0, 1.0), (now, 1.1)])
-    ready = deque([(now - 400.0, 1.0), (now, 1.1)])
+    # Two prints 400s apart: span looks long, but the last 5 min has one print.
+    gapped = deque([(now - 400.0, 1.0), (now, 1.1)])
+    dense = deque([
+        (now - 400.0, 1.0),
+        (now - 240.0, 1.0),
+        (now - 120.0, 1.05),
+        (now, 1.1),
+    ])
     bad = count_surge_none_after_seed(
-        seeded={"SHORT", "READY", "EMPTY"},
-        price_buffer={"SHORT": short, "READY": ready},
+        seeded={"SHORT", "GAPPED", "DENSE", "EMPTY"},
+        price_buffer={"SHORT": short, "GAPPED": gapped, "DENSE": dense},
         ticker_snaps={},
         surge_fn=lambda *_a, **_k: None,
         window_min=5,
     )
-    assert bad == 1  # only READY has span >= 5 min and surge=None
+    # SHORT has 2 prices 30s apart -- that IS a populated squeeze window.
+    assert bad == 2  # SHORT + DENSE; GAPPED has one print in the last 5 min
+
+
+def test_stale_store_plus_fresh_tick_is_not_surge_none():
+    """Afterhours: RTH 1Min fossils + one live print must not trip integrity.
+
+    price_surge looks at the last 5 min of the latest print. Old bars are
+    outside that window, so Squeeze is honestly not computable -- not a
+    failed seed.
+    """
+    from collections import deque
+
+    from hod_momo_flow import count_surge_none_after_seed
+    from hod_momo_filters import price_surge
+
+    now = time.time()
+    buf = deque([
+        (now - 7200.0, 5.00),
+        (now - 7140.0, 5.10),
+        (now - 7080.0, 5.20),
+        (now, 4.00),
+    ])
+    assert price_surge(buf, 5, "low_to_current") is None
+    bad = count_surge_none_after_seed(
+        seeded={"CAST"},
+        price_buffer={"CAST": buf},
+        ticker_snaps={},
+        surge_fn=price_surge,
+        window_min=5,
+    )
+    assert bad == 0
 
 
 def test_seed_symbol_store_hit_seeds_high_and_buffer(monkeypatch):
@@ -158,3 +196,34 @@ def test_seed_symbol_never_calls_request_bars(monkeypatch):
     monkeypatch.setattr("ibkr.historical_service.request_bars", boom)
     monkeypatch.setattr("bars_store.read", lambda *_a, **_k: None)
     assert seed_symbol("NOIB", "ibkr") == "live"
+
+
+def test_seed_symbol_stale_store_does_not_poison_surge_buffer(monkeypatch):
+    """Chart 1Min last bar 90 min ago must not become the live Squeeze path."""
+    from hod_momo_surge_seed import seed_symbol
+    import hod_momo_high as high
+    from hod_momo_filters import price_surge
+
+    state = hm.replace_state(HodMomoState())
+    now = datetime.now(timezone.utc)
+    bars = []
+    for i in range(20):
+        t = now.timestamp() - 90 * 60 - (20 - i) * 60
+        iso = datetime.fromtimestamp(t, tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        bars.append({
+            "t": iso, "o": 4.0, "h": 9.5, "l": 3.8, "c": 4.2, "v": 1000,
+        })
+    monkeypatch.setattr(
+        "bars_store.read",
+        lambda *_a, **_k: {"bars": bars, "coverage": {"filling": False}},
+    )
+    kind = seed_symbol("STALE", "ibkr")
+    assert high.is_high_seeded("STALE")
+    assert state.session_highs["STALE"] == 9.5
+    buf = state.price_buffer.get("STALE") or []
+    assert len(buf) == 0
+    assert kind == "live"
+    hm._update_price_buffer("STALE", 4.0, time.time())
+    assert price_surge(state.price_buffer["STALE"], 5, "low_to_current") is None

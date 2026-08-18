@@ -32,19 +32,27 @@ def count_surge_none_after_seed(
     window_min: int = 5,
     method: str = "low_to_current",
 ) -> int:
-    """Count seeded symbols whose surge is None after the window has elapsed.
+    """Count symbols where Squeeze should be computable but returns None.
 
-    A live-only buffer is structurally not-ready until ``window_min`` of
-    prints accumulate -- that is warmup, not a Nova defect.
+    Same window as ``price_surge``: last ``window_min`` minutes of the
+    buffer's last timestamp, needing >=2 prices. A long first-to-last span
+    with a gap (stale store bars + one live print) is not a Nova defect.
     """
     need_span = max(1, int(window_min)) * 60.0
     bad = 0
     _ = ticker_snaps
     for _sym in seeded:
         buf = price_buffer.get(_sym)
-        if buffer_span_sec(buf) < need_span:
+        if not buf or len(buf) < 2:
             continue
-        surge = surge_fn(buf, window_min, method)
-        if surge is None:
+        last_ts = float(buf[-1][0])
+        cutoff = last_ts - need_span
+        in_window = 0
+        for ts, _px in buf:
+            if float(ts) >= cutoff:
+                in_window += 1
+        if in_window < 2:
+            continue
+        if surge_fn(buf, window_min, method) is None:
             bad += 1
     return bad

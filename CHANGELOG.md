@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- hod_surge_after_seed afterhours warn was a real seed/window bug
+
+- **What:** Squeeze seed no longer copies chart 1Min bars older than 15 minutes into the live price buffer. Session high still uses the full-session store. Integrity `hod_surge_after_seed` uses the same window as `price_surge` (>=2 prices in the last 5 minutes of the latest print), not first-to-last buffer span.
+- **Why:** After store-only seeding, integrity stayed at 13 `surge=None` for 40+ minutes in afterhours. That was framed as warmup noise. It was not. Chart 1Min last bars were 35-99 minutes old; those fossils plus one live print made span look like hours while `price_surge` saw one point.
+- **Files touched:** `backend/hod_momo_surge_seed.py`, `backend/hod_momo_flow.py`, `backend/hod_momo_integrity_hod.py`, `backend/tests/test_hod_momo_surge_seed.py`.
+- **How it works now:** HOD floor can come from all of today's stored highs. Squeeze buffer only accepts store bars whose timestamps fall inside the last 15 minutes. Quiet afterhours names with a gap are not a Nova failure. Squeeze becomes computable when two prices exist in the last 5 minutes -- from live L1, or from actually-recent store bars.
+- **Verified by:** pytest `test_hod_momo_surge_seed.py` + integrity/high -- 38 passed, including stale-store-does-not-poison and stale+fresh-tick-is-not-none.
+- **Related:** PROBLEM_LOG 2026-08-18 hod_surge_after_seed · prior CHANGELOG store-only seed
+
 ## 2026-08-18 -- HOD seeding is store-only (zero IB historical tokens)
 
 - **What:** HOD Momo no longer calls `reqHistoricalData`. Squeeze buffer seeds from `bars_store.read` when today's 1Min series is already on disk; otherwise it builds live. Session high stays tick-6 + observed prints, with a 60s observed-warmup floor that does not open the new-HOD alert window.

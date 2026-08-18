@@ -212,14 +212,14 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
         checks.append(check(
             "hod_surge_after_seed",
             "fail" if tape_dead else "warn",
-            f"{surge_none_after_seed} seeded symbol(s) still have surge=None "
-            f"after the squeeze window -- live-warmup incomplete or window mismatch",
+            f"{surge_none_after_seed} seeded symbol(s) have a populated "
+            f"squeeze window but surge=None -- buffer prices unusable",
         ))
     else:
         checks.append(check(
             "hod_surge_after_seed",
             "pass",
-            "no surge=None after squeeze window elapsed",
+            "no densely-windowed symbol with surge=None",
         ))
 
     if tracked <= 0:
