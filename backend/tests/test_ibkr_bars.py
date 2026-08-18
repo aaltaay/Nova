@@ -211,3 +211,34 @@ def test_fetch_chart_bars_fills_when_store_complete_but_stale():
                     )
     assert out["coverage"]["filling"] is True
     fill.assert_called_once()
+
+
+def test_fetch_chart_bars_live_only_store_still_schedules_hist_fill(tmp_path, monkeypatch):
+    """L1 minutes without a coverage row must not look like a finished chart fill."""
+    import archive.db as archive_db
+    import archive.write_queue as wq
+    import bars_store
+
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    ts = 1_700_000_000.0
+    wq.enqueue_intraday_bar(
+        symbol="CAST", ts=ts, open_=2.0, high=2.1, low=1.9,
+        close=2.05, volume=0.0, timeframe="1Min",
+    )
+    wq.drain_once()
+    stored = bars_store.read("CAST", "1Min", 400)
+    assert stored is not None
+    assert stored["coverage"]["filling"] is True
+    assert stored["coverage"]["fresh"] is False
+
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_store_read", return_value=stored):
+            with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+                out = chart_bars.fetch_chart_bars(
+                    "CAST", "1Min", 400,
+                    discovery_provider="ibkr", interactive=True,
+                )
+    assert out["coverage"]["filling"] is True
+    fill.assert_called_once()

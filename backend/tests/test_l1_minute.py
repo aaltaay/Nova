@@ -104,3 +104,65 @@ def test_on_l1_quote_enqueues_without_sqlite(monkeypatch, tmp_path):
     scanner_l1.on_l1_quote("CAST", 2.20, 1100, 1.90, 1_700_000_060.0)
     assert opened == []
     assert wq.pending() == 1
+
+
+def test_l1_upsert_does_not_clobber_hist_ohlc(monkeypatch, tmp_path):
+    """Charts read this table. L1 last is not a trade bar -- never rewrite hist."""
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    l1_minute.reset_for_tests()
+
+    ts = 1_700_000_040.0 - (1_700_000_040.0 % 60.0)
+    bars_store.write_payload({
+        "symbol": "AIXC",
+        "timeframe": "1Min",
+        "source": "ibkr",
+        "bars": [{
+            "t": ts, "o": 1.20, "h": 1.40, "l": 1.10, "c": 1.35, "v": 2938,
+        }],
+        "coverage": bars_store.coverage_from_bars(
+            [{"t": ts, "o": 1.20, "h": 1.40, "l": 1.10, "c": 1.35, "v": 2938}],
+            filling=False,
+        ),
+    })
+
+    l1_minute.on_last("aixc", 9.99, ts + 10.0)
+    l1_minute.flush_elapsed(ts + 60.0)
+    wq.drain_once()
+
+    hit = bars_store.read("AIXC", "1Min", 10)
+    assert hit is not None
+    bar = hit["bars"][0]
+    assert bar["o"] == 1.20
+    assert bar["h"] == 1.40
+    assert bar["l"] == 1.10
+    assert bar["c"] == 1.35
+    assert bar["v"] == 2938
+    assert hit["coverage"]["filling"] is False
+
+
+def test_l1_upsert_can_refine_live_only_row(monkeypatch, tmp_path):
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    l1_minute.reset_for_tests()
+
+    ts = 1_700_000_040.0 - (1_700_000_040.0 % 60.0)
+    wq.enqueue_intraday_bar(
+        symbol="CDTG", ts=ts, open_=3.00, high=3.10, low=2.90,
+        close=3.05, volume=0.0, timeframe="1Min",
+    )
+    wq.drain_once()
+    wq.enqueue_intraday_bar(
+        symbol="CDTG", ts=ts, open_=3.20, high=3.50, low=2.80,
+        close=3.40, volume=0.0, timeframe="1Min",
+    )
+    wq.drain_once()
+
+    bar = bars_store.read("CDTG", "1Min", 10)["bars"][0]
+    assert bar["o"] == 3.00  # first open sticks
+    assert bar["h"] == 3.50
+    assert bar["l"] == 2.80
+    assert bar["c"] == 3.40
+    assert bar["v"] == 0

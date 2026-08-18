@@ -88,6 +88,7 @@ ON CONFLICT(symbol, timeframe, ts, source) DO UPDATE SET
     close = excluded.close,
     volume = CASE WHEN excluded.volume > 0 THEN excluded.volume ELSE volume END,
     session_date = excluded.session_date
+WHERE volume = 0 OR excluded.volume > 0
 """
 _lock = threading.Lock()
 _tape: deque[tuple] = deque()
@@ -208,6 +209,7 @@ def enqueue_intraday_bar(
     """Queue one chart-store bar. Safe to call from the IB loop.
 
     Does not stamp ``bars_coverage`` -- live L1 minutes are not a hist fill.
+    Does not rewrite a row that already has volume (IB historical OHLC).
     """
     from archive.capture import session_date_for_ts
 

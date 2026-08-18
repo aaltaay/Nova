@@ -30,13 +30,13 @@ Every streamed L1 last updates the current minute in RAM. When the clock rolls -
 
 ## Why this approach
 
-Do not reuse tape `bars_1m` (Quote Panel never opens T&S; ADR 012 rejected that). Do not write SQLite from the IB callback (that wedged the desk). Do not mark live minutes as a finished fill (that would skip morning hist after 60 AH minutes). One store, two writers, coverage still owned by hist.
+Do not reuse tape `bars_1m` (Quote Panel never opens T&S; ADR 012 rejected that). Do not write SQLite from the IB callback (that wedged the desk). Do not mark live minutes as a finished fill (that would skip morning hist after 60 AH minutes). Do not let L1 last rewrite a hist-volume candle -- charts read the same table. One store, two writers, coverage still owned by hist.
 
 ## Verification
 
 `py -3 -m pytest backend/tests/test_l1_minute.py backend/tests/test_scanner_l1.py backend/tests/test_archive_write_queue.py backend/tests/test_bars_store.py backend/tests/test_hod_momo_surge_seed.py` -- 40 passed, including `test_elapsed_minute_flushes_without_next_print`.
 
-Live (API restart 2026-08-18 17:41 ET): IBKR connected; 35 volume=0 `1Min` rows at the just-closed minute; `hod_surge_after_seed` pass; surge ready 25/42.
+Live (API restart 2026-08-18 17:49 ET, hist-protect SQL): CAST 80s soak left 398 closed 1Min hist candles unchanged (5Min/10Sec/1Day too). `/bars` OHLC invariants 0 bad. `ib_loop_lag_ms` max=14.8 not wedged.
 
 ## Follow-ups
 

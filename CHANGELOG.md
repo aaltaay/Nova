@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- L1 1Min writer must not rewrite historical chart candles
+
+- **What:** Live scanner L1 still rolls 1Min into `bars_intraday`, but an upsert no longer changes a row that already has IB historical volume.
+- **Why:** Verification of the L1 store writer showed it would clobber hist OHLC (`close = excluded.close`, `high = MAX`). That is a Quote/Trader chart hangover, not an acceptable tradeoff.
+- **Files touched:** `backend/archive/write_queue.py`, `backend/tests/test_l1_minute.py`, `backend/tests/test_ibkr_bars.py`.
+- **How it works now:** L1 inserts missing minutes and can refine volume=0 live rows. Hist rows stay hist. Skip-fill still requires a real coverage row (`fetched_ts=0` live-only reads are not fresh). 10Sec/1Day are not L1-written.
+- **Verified by:** pytest 54 passed including `test_l1_upsert_does_not_clobber_hist_ohlc`; frontend chart Vitest 53 passed; live CAST 80s soak: 398 closed 1Min hist bars unchanged, same for 5Min/10Sec/1Day; `/bars` OHLC invariants 0 bad on AIXC/CAST/CDTG/SPY; `ib_loop_lag_ms` last=2.1 max=14.8 wedged=false.
+- **Related:** PROBLEM_LOG 2026-08-18 L1 live 1Min upsert would clobber IB historical candles
+
 ## 2026-08-18 -- Quiet L1 minutes flush without waiting for the next print
 
 - **What:** Completed 1Min buckets now persist when the clock rolls, even if that name goes quiet. `scanner_l1.flush_loop` heartbeats `l1_minute.flush_elapsed`.

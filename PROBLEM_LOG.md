@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- L1 live 1Min upsert would clobber IB historical candles
+
+- **Symptom:** Scanner L1 last prices write the same `bars_intraday` table charts read. The first upsert SQL did `close = excluded.close` and `high = MAX(...)` even when the row already had IB historical volume. A red test showed a hist candle (o=1.20 h=1.40 l=1.10 c=1.35 v=2938) become high=9.99 after one L1 last of 9.99.
+- **Cause:** Live last is not a trade bar. Sharing one table without a hist-protect clause meant the HOD seed writer could rewrite Quote/Trader 1Min OHLC, and `_persist_derived` is only safe because it derives from the hist fetch payload -- HTTP `/bars` 1Min reads the mixed store.
+- **Fix:** `enqueue_intraday_bar` UPSERT `WHERE volume = 0 OR excluded.volume > 0`. L1 may insert a missing minute and refine a volume=0 live row. It must not touch a hist row. Coverage still is not stamped. `test_l1_upsert_does_not_clobber_hist_ohlc` plus live `/bars` OHLC invariants.
+- **Keywords:** bars_intraday, l1_minute, chart OHLC, hist clobber, UPSERT WHERE, volume=0, ADR 012
+
 ## 2026-08-18 -- hod_surge_after_seed afterhours warn: stale store bars poisoned Squeeze
 
 - **Symptom:** After zero-IB HOD seeding shipped, `/api/integrity` stayed `hod_surge_after_seed` warn: "13 seeded symbol(s) still have surge=None" for 40+ minutes in afterhours. Last trade age was ~1s. Chart 1Min in `bars_intraday` was 35-99 minutes stale for 76/80 HOD symbols; tape `bars_1m` was empty for almost all of them.
