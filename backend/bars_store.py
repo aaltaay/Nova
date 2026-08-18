@@ -55,6 +55,15 @@ def is_coverage_fresh(coverage: dict[str, Any] | None, timeframe: str) -> bool:
     return (time.time() - float(fetched)) <= _fresh_ttl(timeframe)
 
 
+def store_series_complete(timeframe: str, bar_count: int) -> bool:
+    """A stub (tape leftover / 1 live tip) is not a finished historical fill."""
+    if bar_count <= 0:
+        return False
+    if timeframe in _DAILY_TFS:
+        return True
+    return bar_count >= 8
+
+
 def write_payload(payload: dict[str, Any]) -> None:
     """Upsert bars + coverage. Errors must never call this."""
     symbol = str(payload.get("symbol") or "").upper()
@@ -146,28 +155,8 @@ def read(symbol: str, timeframe: str, limit: int) -> dict[str, Any] | None:
             (symbol, timeframe, limit),
         ).fetchall()
         source = "ibkr"
-        if not rows and timeframe == "1Min":
-            rows = conn.execute(
-                """
-                SELECT ts, open, high, low, close, volume, source
-                FROM bars_1m
-                WHERE symbol = ?
-                ORDER BY ts DESC
-                LIMIT ?
-                """,
-                (symbol, limit),
-            ).fetchall()
-        if not rows and timeframe == "1Day":
-            rows = conn.execute(
-                """
-                SELECT ts, open, high, low, close, volume, source
-                FROM bars_1d
-                WHERE symbol = ?
-                ORDER BY ts DESC
-                LIMIT ?
-                """,
-                (symbol, limit),
-            ).fetchall()
+        # Chart store is bars_intraday only. Tape archive bars_1m / bars_1d is a
+        # different product (often 1 print-built bar) and must not satisfy a miss.
         if not rows:
             return None
         rows = list(reversed(rows))

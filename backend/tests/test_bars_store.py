@@ -46,3 +46,29 @@ def test_read_miss_is_none(tmp_path, monkeypatch):
     monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
     archive_db.init_db()
     assert bars_store.read("NOPE", "1Min", 10) is None
+
+
+def test_store_series_complete_rejects_intraday_stub():
+    assert bars_store.store_series_complete("1Min", 0) is False
+    assert bars_store.store_series_complete("1Min", 1) is False
+    assert bars_store.store_series_complete("5Min", 8) is True
+    assert bars_store.store_series_complete("1Day", 1) is True
+
+
+def test_read_does_not_use_tape_bars_1m_stub(tmp_path, monkeypatch):
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    conn = archive_db.get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO bars_1m
+                (symbol, ts, open, high, low, close, volume, source, session_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("CDTG", 1787068800.0, 3.9, 3.95, 3.8, 3.93, 100, "ibkr", "2026-08-18"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    assert bars_store.read("CDTG", "1Min", 500) is None

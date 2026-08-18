@@ -53,6 +53,23 @@ export function etCalendarDateString(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Coverage ``as_of`` is UTC; show HH:MM in America/New_York (do not slice ISO). */
+export function formatCoverageClockEt(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const hour = parts.find((p) => p.type === 'hour')?.value;
+  const minute = parts.find((p) => p.type === 'minute')?.value;
+  if (!hour || !minute) return null;
+  return `${hour}:${minute}`;
+}
+
 export function timeframeSeconds(timeframe: string): number {
   const match = timeframe.match(/^(\d+)(Sec|Min|Hour)$/);
   if (!match) return 60;
@@ -150,6 +167,46 @@ export function canIncrementalBarsUpdate(prev: RawBar[], next: RawBar[]): boolea
   if (next.length === prev.length) return true;
   // Appended one bar: previous tip must be the new second-to-last (closed bar).
   return prev[prev.length - 1].t === next[next.length - 2].t;
+}
+
+/**
+ * First historical paint (or stub → full series) must fit the time scale.
+ * Live tip / 1-bar appends must not -- that is what left 5Min/10Sec zoomed
+ * on the last candle after ``bars_patch`` replaced the series.
+ */
+/**
+ * After setData, show a session-sized window -- not the full IB duration.
+ * 5Min IB history is 5 calendar days; fitContent of that on a runner looks
+ * like one spike on a black pane. 1Min / 10Sec already are session-sized.
+ */
+export const CHART_PAINT_VISIBLE_BARS: Partial<Record<string, number>> = {
+  '5Min': 96,
+  '15Min': 96,
+  '30Min': 80,
+  '1Hour': 72,
+  '1Day': 180,
+};
+
+export function timeScaleRangeForSeries(
+  timeframe: string,
+  candleCount: number,
+): { from: number; to: number } | null {
+  if (candleCount <= 0) return null;
+  const keep = CHART_PAINT_VISIBLE_BARS[timeframe];
+  if (!keep || candleCount <= keep) return null;
+  return { from: candleCount - keep, to: candleCount - 1 };
+}
+
+export function shouldFitContentOnHistoryPaint(
+  prev: RawBar[] | null,
+  next: RawBar[],
+): boolean {
+  if (next.length === 0) return false;
+  if (prev == null || prev.length === 0) return true;
+  // Live tape painted 1-2 candles before the store fill arrived.
+  if (prev.length <= 2 && next.length > prev.length + 1) return true;
+  // Store jumped from a stub to a real series.
+  return next.length - prev.length > 10;
 }
 
 export function buildMockBars(count: number, basePrice: number): RawBar[] {

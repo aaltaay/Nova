@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CandlestickData, Time } from 'lightweight-charts';
 import { mergeLiveTradeCandle } from './liveTradeApply';
-import { clearEtOffsetCacheForTests } from '../tickerChartData';
+import { clearEtOffsetCacheForTests, tradeBucket } from '../tickerChartData';
 
 const tip = (time: Time, close = 10): CandlestickData<Time> => ({
   time,
@@ -12,10 +12,23 @@ const tip = (time: Time, close = 10): CandlestickData<Time> => ({
 });
 
 describe('mergeLiveTradeCandle', () => {
+  it('does not invent the first 10Sec candle from a tick', () => {
+    clearEtOffsetCacheForTests();
+    expect(
+      mergeLiveTradeCandle(
+        null,
+        { price: 1.5, timestamp: '2026-07-29T14:00:05Z' },
+        '10Sec',
+      ),
+    ).toBeNull();
+  });
+
   it('updates matching 10Sec tip and allows forward-jump new candle', () => {
     clearEtOffsetCacheForTests();
+    const bucket = tradeBucket('2026-07-29T14:00:05Z', '10Sec');
+    expect(bucket).not.toBeNull();
     const a = mergeLiveTradeCandle(
-      null,
+      tip(bucket as Time, 1.4),
       { price: 1.5, timestamp: '2026-07-29T14:00:05Z' },
       '10Sec',
     );
@@ -67,13 +80,10 @@ describe('mergeLiveTradeCandle', () => {
 
   it('rejects out-of-order trades', () => {
     clearEtOffsetCacheForTests();
-    const newer = mergeLiveTradeCandle(
-      null,
-      { price: 1, timestamp: '2026-07-29T14:01:00Z' },
-      '10Sec',
-    );
+    const newerBucket = tradeBucket('2026-07-29T14:01:00Z', '10Sec');
+    expect(newerBucket).not.toBeNull();
     const older = mergeLiveTradeCandle(
-      newer,
+      tip(newerBucket as Time, 1),
       { price: 0.5, timestamp: '2026-07-29T14:00:00Z' },
       '10Sec',
     );

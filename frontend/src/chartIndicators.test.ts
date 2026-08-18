@@ -38,6 +38,16 @@ describe('chartIndicators (library adapters)', () => {
     expect(bars[0].close).toBeTypeOf('number');
   });
 
+  it('keeps 1Day bars (business-day strings) instead of dropping them', () => {
+    const daily: RawBar[] = [
+      { t: '2024-08-20T00:00:00Z', o: 10, h: 11, l: 9, c: 10.5, v: 100 },
+      { t: '2024-08-21T00:00:00Z', o: 10.5, h: 12, l: 10, c: 11, v: 110 },
+    ];
+    const bars = rawBarsToIndicatorBars(daily, '1Day');
+    expect(bars).toHaveLength(2);
+    expect(bars.every(b => typeof b.time === 'number')).toBe(true);
+  });
+
   it('computes finite RSI points via lightweight-charts-indicators', () => {
     const bars = rawBarsToIndicatorBars(makeBars(40), '1Min');
     const { rsi } = computeRsiPane(bars);

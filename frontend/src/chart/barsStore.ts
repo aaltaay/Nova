@@ -106,14 +106,12 @@ export function subscribeBars(
 async function fetchSingleBars(
   symbol: string,
   timeframe: string,
-  signal?: AbortSignal,
   limit?: number,
 ): Promise<RawBar[]> {
   const params = new URLSearchParams({ timeframe });
   if (limit != null && limit > 0) params.set('limit', String(limit));
   const res = await fetch(
     `${API_URL}/ticker/${encodeURIComponent(symbol)}/bars?${params.toString()}`,
-    { signal },
   );
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -136,21 +134,28 @@ export function ensureBars(
 ): Promise<RawBar[]> {
   const sym = symbol.trim().toUpperCase();
   const key = barsStoreKey(sym, timeframe);
+  if (signal?.aborted) {
+    return Promise.reject(new DOMException('Aborted', 'AbortError'));
+  }
   const existing = inflight.get(key);
-  if (existing) return existing;
+  if (existing) {
+    if (!signal) return existing;
+    return existing.then((bars) => {
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+      return bars;
+    });
+  }
 
   let promise!: Promise<RawBar[]>;
-  promise = (async () => {
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-    return fetchSingleBars(sym, timeframe, signal, limit);
-  })().finally(() => {
+  promise = fetchSingleBars(sym, timeframe, limit).finally(() => {
     if (inflight.get(key) === promise) inflight.delete(key);
   });
-
   inflight.set(key, promise);
-  return promise;
+  if (!signal) return promise;
+  return promise.then((bars) => {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    return bars;
+  });
 }
 
 export interface BatchBarsResult {

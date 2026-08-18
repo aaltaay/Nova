@@ -22,6 +22,7 @@ import { useChartDrawingManager } from './useChartDrawingManager';
 import { useChartInstance } from './useChartInstance';
 import { useChartLiveTrade } from './useChartLiveTrade';
 import { useChartSessionHighlight } from './useChartSessionHighlight';
+import { formatCoverageClockEt } from '../tickerChartData';
 import type { ChartTradeUpdate } from './types';
 
 export type { ChartTradeUpdate } from './types';
@@ -166,8 +167,15 @@ function TickerChartInner({
     setEnabledIndicators(prev => toggleIndicator(prev, id));
   }
 
+  const coverageClock = formatCoverageClockEt(coverageAsOf);
+
   const card = (
-    <div className={`chart-card${maximized ? ' chart-card--maximized' : ''}${variant === 'grid' ? ' chart-card--grid' : ''}`}>
+    <div
+      className={`chart-card${maximized ? ' chart-card--maximized' : ''}${variant === 'grid' ? ' chart-card--grid' : ''}`}
+      data-testid={`ticker-chart-${timeframe}`}
+      data-bar-count={indicatorBars.length}
+      data-filling={filling ? '1' : '0'}
+    >
       <TickerChartControls
         activeTool={activeTool}
         enabledIndicators={enabledIndicators}
@@ -199,9 +207,7 @@ function TickerChartInner({
         )}
         {filling && indicatorBars.length > 0 && (
           <div className="chart-filling-hint">
-            {coverageAsOf
-              ? `as of ${coverageAsOf.slice(11, 16)} ET, filling…`
-              : 'filling…'}
+            {coverageClock ? `as of ${coverageClock} ET, filling…` : 'filling…'}
           </div>
         )}
       </div>

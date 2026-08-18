@@ -106,6 +106,26 @@ describe('barsStore', () => {
     expect(getBarsEntry('AAPL', '1Min')?.coverage?.filling).toBe(false);
   });
 
+  it('keeps the shared HTTP alive when one caller aborts', async () => {
+    let resolveFetch: (v: unknown) => void = () => {};
+    const fetchPromise = new Promise((resolve) => {
+      resolveFetch = resolve;
+    });
+    (fetch as ReturnType<typeof vi.fn>).mockReturnValue(fetchPromise);
+    const ac = new AbortController();
+    const aborted = ensureBars('AAPL', '1Min', ac.signal);
+    const kept = ensureBars('AAPL', '1Min');
+    ac.abort();
+    resolveFetch({
+      ok: true,
+      json: async () => ({ bars: [bar(0), bar(1)] }),
+    });
+    await expect(aborted).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(kept).resolves.toHaveLength(2);
+    expect(getBarsEntry('AAPL', '1Min')?.bars).toHaveLength(2);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
   it('does not start a fetch after abort', async () => {
     const ac = new AbortController();
     ac.abort();

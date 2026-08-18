@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Chart panes paint history instead of the live tip
+
+- **What:** Trader 2x2 no longer stays zoomed on 1-2 live candles after historical bars arrive. Full Day keeps daily bars. 5Min opens on a session-sized window. Coverage clocks show ET. The running API must be the ADR 012 worker (store + coverage).
+- **Why:** After store-first shipped, the timeout overlay was gone but CDTG still looked empty. History was in the store; the time scale and a few write/read bugs hid it.
+- **Files touched:** `frontend/src/chart/useChartBars.ts`, `barsStore.ts`, `liveTradeApply.ts`, `TickerChart.tsx`, `TickerChartOscillatorPanes.tsx`, `tickerChartData.ts`, `chartIndicators.ts`, `backend/bars_store.py`, `backend/ibkr/historical_service.py`.
+- **How it works now:** HTTP still store-first. A shared `/bars` fetch is not cancelled when one pane aborts. `setData` applies a session window (5Min last 96 bars; 1Min/10Sec fit the series). MACD follows the price chart and does not zoom it. Tape `bars_1m` is not a chart store hit. Live ticks do not invent the first candle.
+- **Verified by:** Vitest tickerChartData / barsStore / liveTradeApply / chartIndicators (32 passed). pytest `test_bars_store` + `test_historical_service` (7 passed). Playwright soak `/?view=stock&symbol=CDTG` then AAPL then CDTG: at 2s all four panes had 500/1464/500/492 bars; return trip filling=false; no page errors.
+- **Follow-ups:** Click Reload backend if `/bars` still lacks a `coverage` object (old sidecar). 10Sec orange pre-session block is LWC time-scale empty, not a missing fetch.
+- **Related:** PROBLEM_LOG 2026-08-18 -- Chart history arrived but panes stayed on the live tip. ADR 012.
+
 ## 2026-08-18 -- Local-first chart bars (ADR 012)
 
 - **What:** Ticker click no longer waits on a serialized IBKR historical. `/bars` reads a durable store and returns immediately with coverage; fills arrive as `bars_patch` on the ticker WebSocket. The red "IBKR historical may be busy" overlay is gone.

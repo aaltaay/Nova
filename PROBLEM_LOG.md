@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Chart history arrived but panes stayed on the live tip
+
+- **Symptom:** After ADR 012, Trader CDTG 5Min/10Sec showed 1-2 candles, Full Day was blank, 1Min looked only like the last hour. Graphs still felt slow. No red timeout.
+- **Cause:** Several stacked bugs, not one timeout. (1) `bars_patch` / background `setData` did not fit the time scale, and MACD's child range copied last-N back onto the price chart. (2) Live ticks invented the first candle on an empty series, so later history stayed zoomed on "now." (3) ChartGrid abort cancelled the shared `/bars` HTTP, so 10Sec/1Day never landed. (4) `bars_store.read` treated a 1-row tape `bars_1m` as a complete 1Min chart. (5) Daily indicator conversion dropped every 1Day bar (`typeof time !== 'number'`). (6) The Desktop/API process started at 10:36 and never loaded the 11:43 ADR 012 worker -- `/bars` had no `coverage`.
+- **Fix:** Session-sized time scale after every full `setData`. Parent-to-child oscillator sync only. No first candle from a tick. Shared fetch ignores caller abort. Chart store is `bars_intraday` only; stub series are not "fresh." Daily bars get numeric times. Restarted the API so store-first actually ran.
+- **Keywords:** CDTG, chart gaps, fitContent, bars_patch, MACD logical range, bars_1m, 1Day, AbortError, coverage, filling, ADR 012
+
 ## 2026-08-18 -- Chart timeout was the wrong constraint
 
 - **Symptom:** Clicking a scanner row (AIXC) or switching Trader symbols always started with "Chart bars timed out -- IBKR historical may be busy." The same overlay kept coming back after queue, cache, retry, and cancel-stampede patches.

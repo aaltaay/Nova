@@ -22,6 +22,7 @@ import {
   buildMockBars,
   canIncrementalBarsUpdate,
   rawBarsToSeries,
+  timeScaleRangeForSeries,
   type RawBar,
 } from '../tickerChartData';
 import { useWorkspace } from '../workspace';
@@ -48,17 +49,32 @@ interface UseChartBarsOptions {
   chartActive?: boolean;
 }
 
+function applyTimeScale(
+  chartRef: UseChartBarsOptions['chartRef'],
+  timeframe: string,
+  candleCount: number,
+): void {
+  const chart = chartRef.current;
+  if (!chart || candleCount <= 0) return;
+  const range = timeScaleRangeForSeries(timeframe, candleCount);
+  if (range) chart.timeScale().setVisibleLogicalRange(range);
+  else chart.timeScale().fitContent();
+}
+
 function paintFull(
   candles: CandlestickData<Time>[],
   volumes: ReturnType<typeof rawBarsToSeries>['volumes'],
   candleSeriesRef: UseChartBarsOptions['candleSeriesRef'],
   volSeriesRef: UseChartBarsOptions['volSeriesRef'],
   chartRef: UseChartBarsOptions['chartRef'],
-  fitContent: boolean,
+  timeframe: string,
 ): void {
   candleSeriesRef.current?.setData(candles);
   volSeriesRef.current?.setData(volumes);
-  if (fitContent && candles.length > 0) chartRef.current?.timeScale().fitContent();
+  applyTimeScale(chartRef, timeframe, candles.length);
+  requestAnimationFrame(() => {
+    applyTimeScale(chartRef, timeframe, candles.length);
+  });
 }
 
 function paintBars(
@@ -69,7 +85,6 @@ function paintBars(
   lastCandleRef: UseChartBarsOptions['lastCandleRef'],
   chartRef: UseChartBarsOptions['chartRef'],
   prevBars: RawBar[] | null,
-  fitContent: boolean,
 ): IndicatorBar[] {
   const { candles, volumes } = rawBarsToSeries(bars, tf);
   const canIncremental =
@@ -86,10 +101,10 @@ function paintBars(
       candleSeriesRef.current!.update(tip);
       volSeriesRef.current!.update(tipVol);
     } catch {
-      paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, fitContent);
+      paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, tf);
     }
   } else {
-    paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, fitContent);
+    paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, tf);
   }
   lastCandleRef.current = candles.length > 0 ? candles[candles.length - 1] : null;
   return rawBarsToIndicatorBars(bars, tf);
@@ -176,7 +191,6 @@ export function useChartBars({
       lastCandleRef,
       chartRef,
       paintedBarsRef.current,
-      opts.fitContent,
     );
     paintedBarsRef.current = next;
     setIndicatorBars(indicators);

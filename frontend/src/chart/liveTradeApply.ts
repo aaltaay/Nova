@@ -22,7 +22,11 @@ export function mergeLiveTradeCandle(
   const price = trade.price;
   const daily = isDailyTimeframe(timeframe);
 
-  if (prev && prev.time === bucket) {
+  // Do not invent the first candle from a tick -- that zooms the empty
+  // pane onto "now" so later setData(history) without fitContent looks empty.
+  if (!prev) return null;
+
+  if (prev.time === bucket) {
     return {
       time: bucket,
       open: prev.open,

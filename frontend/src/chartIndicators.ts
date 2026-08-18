@@ -25,10 +25,13 @@ export function rawBarsToIndicatorBars(bars: RawBar[], timeframe: string): Indic
   const out: IndicatorBar[] = [];
   for (const b of bars) {
     const t = isoToEtTime(b.t, daily);
-    if (typeof t !== 'number') continue;
+    const numeric = typeof t === 'number'
+      ? t
+      : Date.parse(`${String(t)}T00:00:00Z`) / 1000;
+    if (!Number.isFinite(numeric)) continue;
     if (![b.o, b.h, b.l, b.c].every(n => typeof n === 'number' && Number.isFinite(n))) continue;
     out.push({
-      time: t as number,
+      time: numeric,
       open: b.o,
       high: b.h,
       low: b.l,

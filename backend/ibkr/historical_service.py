@@ -84,9 +84,10 @@ async def request_bars(
 
     symbol = symbol.upper()
     stored = bars_store.read(symbol, timeframe, limit)
+    stored_n = len((stored or {}).get("bars") or [])
     if (
         stored
-        and stored.get("bars")
+        and bars_store.store_series_complete(timeframe, stored_n)
         and bars_store.is_coverage_fresh(stored.get("coverage"), timeframe)
         and not (stored.get("coverage") or {}).get("filling")
     ):

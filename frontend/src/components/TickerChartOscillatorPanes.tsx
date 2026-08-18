@@ -192,7 +192,15 @@ function OscillatorPane({
       lineBRef.current?.setData(data.signal);
     }
     lastPaintKeyRef.current = paintKey;
-  }, [bars, barsRevision, kind, seriesGen]);
+    // setData resets the child window to last-N. Follow the price chart --
+    // never copy that stub range back up (that zoomed 5Min/1Min onto the tip).
+    const parentRange = parentChart?.timeScale().getVisibleLogicalRange();
+    if (parentRange && chartRef.current) {
+      syncingRef.current = true;
+      chartRef.current.timeScale().setVisibleLogicalRange(parentRange);
+      syncingRef.current = false;
+    }
+  }, [bars, barsRevision, kind, seriesGen, parentChart]);
 
   useEffect(() => {
     const child = chartRef.current;
@@ -204,22 +212,14 @@ function OscillatorPane({
       child.timeScale().setVisibleLogicalRange(range);
       syncingRef.current = false;
     };
-    const syncFromChild = (range: LogicalRange | null) => {
-      if (!range || syncingRef.current) return;
-      syncingRef.current = true;
-      parentChart.timeScale().setVisibleLogicalRange(range);
-      syncingRef.current = false;
-    };
 
     parentChart.timeScale().subscribeVisibleLogicalRangeChange(syncFromParent);
-    child.timeScale().subscribeVisibleLogicalRangeChange(syncFromChild);
 
     const current = parentChart.timeScale().getVisibleLogicalRange();
     if (current) child.timeScale().setVisibleLogicalRange(current);
 
     return () => {
       parentChart.timeScale().unsubscribeVisibleLogicalRangeChange(syncFromParent);
-      child.timeScale().unsubscribeVisibleLogicalRangeChange(syncFromChild);
     };
   }, [parentChart, kind]);
 
