@@ -21,6 +21,8 @@ def isolated_archive(tmp_path, monkeypatch):
     monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
     monkeypatch.setattr(compact, "cache_dir", lambda: tmp_path)
     monkeypatch.setattr(l2_db, "cache_dir", lambda: tmp_path)
+    monkeypatch.setattr("paths.cache_dir", lambda: tmp_path)
+    monkeypatch.setattr("archive.backup.cache_dir", lambda: tmp_path)
     archive_db.init_db()
     l2_db.init_db()
     capture.clear_l2_stub_for_tests()

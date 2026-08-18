@@ -165,5 +165,63 @@ def backfill_session_date(session_date: str) -> int:
     return backfill_from_tape_rows(rows)
 
 
+def rollup_daily(session_date: str) -> int:
+    """Aggregate ``bars_1m`` for one session into ``bars_1d``. Returns bars written."""
+    from archive import db as archive_db
+
+    if not session_date:
+        return 0
+    conn = archive_db.get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT symbol, ts, open, high, low, close, volume, source
+            FROM bars_1m
+            WHERE session_date = ?
+            ORDER BY symbol, source, ts
+            """,
+            (session_date,),
+        ).fetchall()
+    finally:
+        conn.close()
+    groups: dict[tuple[str, str], dict] = {}
+    for row in rows:
+        key = (str(row["symbol"]), str(row["source"] or ARCHIVE_SOURCE_IBKR))
+        bucket = groups.get(key)
+        ts = float(row["ts"])
+        high = float(row["high"])
+        low = float(row["low"])
+        close = float(row["close"])
+        volume = float(row["volume"] or 0)
+        if bucket is None:
+            groups[key] = {
+                "ts": ts,
+                "open": float(row["open"]),
+                "high": high,
+                "low": low,
+                "close": close,
+                "volume": volume,
+            }
+            continue
+        bucket["high"] = max(bucket["high"], high)
+        bucket["low"] = min(bucket["low"], low)
+        bucket["close"] = close
+        bucket["volume"] += volume
+    for (symbol, source), bucket in groups.items():
+        record_bar(
+            symbol=symbol,
+            ts=bucket["ts"],
+            open_=bucket["open"],
+            high=bucket["high"],
+            low=bucket["low"],
+            close=bucket["close"],
+            volume=bucket["volume"],
+            timeframe="1d",
+            source=source,
+            session_date=session_date,
+        )
+    return len(groups)
+
+
 def reset_for_tests() -> None:
     _open.clear()

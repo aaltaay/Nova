@@ -124,3 +124,10 @@ def test_execute_sends_one_share_when_gate_on(monkeypatch):
     assert r.ok is True
     assert len(calls) == 1
     assert float(calls[0]["qty"]) == 1.0
+    row = store.get_by_id(r.execution_id)
+    assert row["payload"]["requested_qty"] == 1000.0
+    assert row["payload"]["sent_qty"] == 1.0
+    assert row["payload"]["forced_one_share"] is True
+    assert row["payload"]["short_entry"] is False
+    assert "orders_enabled" in row["payload"]
+    assert "gateway_mode" in row["payload"]

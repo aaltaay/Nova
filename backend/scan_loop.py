@@ -173,6 +173,12 @@ def run_news_catalyst_scan() -> None:
         state.news_catalyst_cache = catalysts
         state.news_catalyst_cache_ts = time.time()
         state.last_catalyst_scan_ts = time.monotonic()
+        try:
+            from news_catalyst_persist import save_news_catalyst_snapshot
+
+            save_news_catalyst_snapshot(catalysts, state.news_catalyst_cache_ts)
+        except Exception:
+            logger.exception("[catalyst] persist failed")
 
     except Exception:
         logger.exception("[catalyst] news catalyst scan failed")

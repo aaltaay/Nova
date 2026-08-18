@@ -9,6 +9,8 @@ import {
 import {
   disconnectHintSwitchTarget,
   emptyIbkrDisconnectedMessage,
+  lastKnownAsOfMessage,
+  lastKnownBanner,
   stockViewDisconnectLabel,
 } from './disconnectCopy';
 
@@ -31,6 +33,15 @@ describe('disconnectCopy', () => {
     expect(disconnectHintSwitchTarget('paper_port_refused_live_listening')).toBe('live');
     expect(disconnectHintSwitchTarget('live_port_refused_paper_listening')).toBe('paper');
     expect(disconnectHintSwitchTarget('both_ports_unreachable')).toBeNull();
+  });
+
+  it('formats last-known disconnect copy without doubling the banner', () => {
+    const msg = lastKnownAsOfMessage(1_700_000_000_000);
+    expect(msg).toContain('IBKR disconnected -- last known as of');
+    expect(lastKnownBanner(msg)).toBe(msg);
+    expect(lastKnownBanner('IBKR read failed -- positions (HTTP 503)')).toContain(
+      'showing last-known data',
+    );
   });
 
   it('keeps restart-API hint constant for stale gateway-mode 404', () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
+import { lastKnownAsOfMessage } from '../ibkr/disconnectCopy';
 import type { ClosedOrder } from './types';
 
 interface State {
@@ -40,8 +41,7 @@ export function useClosedOrders(connected: boolean): State {
 
   useEffect(() => {
     if (!connected) {
-      setOrders([]);
-      setError(null);
+      setError(lastKnownAsOfMessage(Date.now()));
       setLoading(false);
       return;
     }

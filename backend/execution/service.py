@@ -19,6 +19,8 @@ from execution.broker_send import send_broker, wait_broker_ack
 from execution.latency import latency_summary
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.qty_gate import apply_force_one_share
+from execution.record_payload import build_reserve_payload
+from execution.store_facts import lookup_symbol_for_order_id
 from ibkr import client as _client
 import loop_lag as _loop_lag
 
@@ -74,6 +76,26 @@ def _receipt_from_row(row: dict, *, duplicate: bool = False) -> ExecutionReceipt
     )
 
 
+def _open_order_symbol(order_id: int) -> str | None:
+    """Best-effort symbol from IB open orders when cancel omitted it."""
+    if _client.get_ib() is None:
+        return None
+    try:
+        from ibkr import orders as _orders
+
+        for row in _orders.open_orders():
+            if int(row.get("order_id") or 0) == order_id:
+                symbol = str(row.get("symbol") or "").strip().upper()
+                return symbol or None
+    except Exception:
+        logger.debug(
+            "execution: open-order symbol lookup failed for %s",
+            order_id,
+            exc_info=True,
+        )
+    return None
+
+
 def _reject(
     execution_id: str,
     cmd: ExecutionCommand,
@@ -114,14 +136,28 @@ async def execute(
 
     Strategies / UI / agents must call this — never ibkr.orders directly.
     """
+    requested_qty = (
+        float(cmd.qty) if cmd.qty is not None
+        else float(cmd.shares) if cmd.shares is not None
+        else None
+    )
     # MASTER TEST GATE — see IBKR_FORCE_ONE_SHARE in constants_ibkr.py.
     # One line to remove: delete the next assignment (or set the constant False).
     cmd = apply_force_one_share(cmd)
+    sent_qty = (
+        float(cmd.qty) if cmd.qty is not None
+        else float(cmd.shares) if cmd.shares is not None
+        else requested_qty
+    )
 
     store.init_db()
     received = received_ns if received_ns is not None else time.perf_counter_ns()
     timings = StageTimings(received_ns=received)
     symbol = cmd.normalized_symbol()
+    if cmd.operation == "cancel" and not symbol and cmd.order_id:
+        symbol = lookup_symbol_for_order_id(int(cmd.order_id)) or _open_order_symbol(
+            int(cmd.order_id)
+        )
     requested_price = (
         cmd.limit_price if cmd.limit_price is not None
         else cmd.stop_price if cmd.stop_price is not None
@@ -139,21 +175,14 @@ async def execute(
             source=cmd.source,
             symbol=symbol,
             received_ns=received,
-            payload={
-                "setup": cmd.setup,
-                "order_type": cmd.order_type,
-                "side": (cmd.side or "").upper() or None,
-                "qty": cmd.qty if cmd.qty is not None else cmd.shares,
-                "forced_one_share": bool(IBKR_FORCE_ONE_SHARE)
-                and cmd.operation in ("place", "bracket"),
-                "requested_price": requested_price,
-                "reference_price": (
-                    cmd.reference_price
-                    if cmd.reference_price is not None
-                    else requested_price
-                ),
-                "measurement": measurement,
-            },
+            payload=build_reserve_payload(
+                cmd,
+                requested_qty=requested_qty,
+                sent_qty=sent_qty,
+                requested_price=requested_price,
+                measurement=measurement,
+                forced_one_share=bool(IBKR_FORCE_ONE_SHARE),
+            ),
         )
         timings.persisted_ns = time.perf_counter_ns()
         store.update_stages(execution_id, persisted_ns=timings.persisted_ns)

@@ -41,8 +41,17 @@ def trade_to_order_row(trade) -> dict:
     submitted_at = resolve_submitted_at(broker_submitted, oid)
     from ibkr.order_held_until import held_until_iso_from_trade
 
+    perm_raw = getattr(trade.order, "permId", None)
+    try:
+        perm_id = int(perm_raw) if perm_raw not in (None, 0, "0") else None
+    except (TypeError, ValueError):
+        perm_id = None
+    if perm_id is not None and perm_id <= 0:
+        perm_id = None
+
     return {
         "order_id": oid,
+        "perm_id": perm_id,
         "symbol": trade.contract.symbol,
         "side": trade.order.action,
         "qty": qty,

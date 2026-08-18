@@ -51,7 +51,9 @@ def exchange_ts_unix(ticker: Any) -> float:
             continue
         try:
             if hasattr(raw, "timestamp"):
-                return float(raw.timestamp())
+                val = float(raw.timestamp())
+                if val > 1e9:
+                    return val
         except (TypeError, ValueError, OSError, OverflowError):
             continue
     return time.time()

@@ -149,11 +149,34 @@ def test_closed_orders_async_warms_once_when_empty_then_populated(monkeypatch):
 
     import ibkr.account as account_mod
     monkeypatch.setattr(account_mod, "refresh_completed_orders_cache", fake_refresh)
+    monkeypatch.setattr("ibkr.loop_supervisor.is_ib_loop", lambda: True)
 
     rows = asyncio.run(orders_mod.closed_orders_async())
     assert calls["refresh"] == 1
     assert len(rows) == 1
     assert rows[0]["symbol"] == "AAA"
+
+
+def test_closed_orders_async_skips_warm_off_ib_loop(monkeypatch):
+    """Empty session on the HTTP loop must not 500 the blotter."""
+    monkeypatch.setattr(
+        orders_mod._client,
+        "get_ib",
+        lambda: SimpleNamespace(trades=lambda: [], openTrades=lambda: []),
+    )
+    calls = {"refresh": 0}
+
+    async def fake_refresh():
+        calls["refresh"] += 1
+        raise RuntimeError("ib.* must run on the IB connect-loop")
+
+    import ibkr.account as account_mod
+    monkeypatch.setattr(account_mod, "refresh_completed_orders_cache", fake_refresh)
+    monkeypatch.setattr("ibkr.loop_supervisor.is_ib_loop", lambda: False)
+
+    rows = asyncio.run(orders_mod.closed_orders_async())
+    assert rows == []
+    assert calls["refresh"] == 0
 
 
 def test_closed_orders_async_raises_when_disconnected_without_warming(monkeypatch):

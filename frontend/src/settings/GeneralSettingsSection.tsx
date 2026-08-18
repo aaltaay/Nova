@@ -4,6 +4,7 @@
 import { useState, type FormEvent } from 'react';
 import { ExchangeFilterDropdown } from '../components/ExchangeFilterDropdown';
 import { SettingsPanel } from '../components/SettingsPanel';
+import { PrefsExportSection } from './PrefsExportSection';
 import type { ExchangeFilter } from '../hooks/useExchangeFilter';
 import {
   SETTINGS_GENERAL_API_TITLE,
@@ -44,6 +45,8 @@ export function GeneralSettingsSection(props: GeneralSettingsSectionProps) {
           onClose={() => setFilterOpen(false)}
         />
       </section>
+
+      <PrefsExportSection />
 
       <section className="settings-block">
         <h3 className="settings-block-title">{SETTINGS_GENERAL_API_TITLE}</h3>

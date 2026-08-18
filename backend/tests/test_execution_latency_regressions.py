@@ -104,9 +104,10 @@ def test_slow_ack_does_not_hold_send_lock(monkeypatch):
 
     monkeypatch.setattr(orders_mod, "place_order", place)
     monkeypatch.setattr(
-        orders_mod,
-        "cancel_order",
-        lambda order_id: cancel_calls.append(order_id) or {"ok": True},
+        broker_send,
+        "cancel_order_verified",
+        lambda order_id: cancel_calls.append(order_id)
+        or {"ok": True, "verified_gone": True, "order_id": order_id},
     )
 
     async def exercise() -> None:

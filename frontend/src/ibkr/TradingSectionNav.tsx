@@ -1,8 +1,9 @@
-export type TradingTabSection = 'overview' | 'reports' | 'latency';
+export type TradingTabSection = 'overview' | 'reports' | 'activity' | 'latency';
 
 const SECTIONS: readonly { id: TradingTabSection; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'reports', label: 'Reports' },
+  { id: 'activity', label: 'Activity' },
   { id: 'latency', label: 'Latency' },
 ];
 

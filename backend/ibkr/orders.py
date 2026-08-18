@@ -372,6 +372,16 @@ async def closed_orders_async(limit: int | None = None) -> list[dict]:
     if rows or _client.get_ib() is None:
         return rows
     from ibkr import account as _account
+    from ibkr.loop_supervisor import is_ib_loop
 
-    await _account.refresh_completed_orders_cache()
+    # HTTP / uvicorn is not the IB connect-loop. Connect-time warm already
+    # ran on that loop; hopping reqCompletedOrders here 500s the blotter
+    # (ADR 010). Skip and let the caller overlay the ledger.
+    if not is_ib_loop():
+        return rows
+    try:
+        await _account.refresh_completed_orders_cache()
+    except Exception:
+        logger.exception("closed_orders_async: completed-orders warm failed")
+        return rows
     return closed_orders(limit=limit)

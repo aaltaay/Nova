@@ -7,6 +7,16 @@ ARCHIVE_HOT_RETENTION_DAYS = 30                 # hot window before a day is com
 ARCHIVE_REQUIRE_VERIFIED_BEFORE_TRIM = True     # never timer-purge until remote verify
 ARCHIVE_MAINTENANCE_ENABLED = False             # opt-in via env ARCHIVE_MAINTENANCE_ENABLED
 ARCHIVE_MAINTENANCE_INTERVAL_SEC = 3600.0       # hourly stub when maintenance enabled
+ARCHIVE_L1_MIN_UNIX_TS = 1_000_000_000.0        # reject epoch-0 / 1969-12-31 L1 stamps
+SQLITE_BACKUP_DIRNAME = "backups"               # under cache_dir(), WAL-safe copies
+SQLITE_BACKUP_RETENTION_DAYS = 7
+SQLITE_BACKUP_FILENAMES = (
+    "execution_ledger.db",
+    "journal.db",
+    "archive.db",
+    "l2.db",
+    "nova_os_events.db",
+)
 ARCHIVE_SOURCE_IBKR = "ibkr"
 ARCHIVE_SOURCE_ALPACA = "alpaca"
 ARCHIVE_STREAM_TAPE = "tape"

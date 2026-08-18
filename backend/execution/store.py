@@ -8,40 +8,11 @@ import uuid
 from pathlib import Path
 
 from constants import EXECUTION_LEDGER_DB_FILENAME, EXECUTION_METRICS_QUERY_LIMIT
+from execution.store_schema import SCHEMA, ensure_executions_columns
 from paths import cache_dir
 
 _BOOT_ID = uuid.uuid4().hex
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS executions (
-    id TEXT PRIMARY KEY,
-    idempotency_key TEXT NOT NULL UNIQUE,
-    operation TEXT NOT NULL,
-    source TEXT NOT NULL,
-    symbol TEXT,
-    status TEXT NOT NULL,
-    reason_code TEXT,
-    error TEXT,
-    mode TEXT,
-    order_id INTEGER,
-    parent_order_id INTEGER,
-    target_order_id INTEGER,
-    stop_order_id INTEGER,
-    broker_status TEXT,
-    boot_id TEXT NOT NULL,
-    received_ns INTEGER NOT NULL,
-    validation_completed_ns INTEGER,
-    persisted_ns INTEGER,
-    broker_sent_ns INTEGER,
-    broker_ack_ns INTEGER,
-    filled_ns INTEGER,
-    created_ts REAL NOT NULL,
-    updated_ts REAL NOT NULL,
-    payload_json TEXT NOT NULL DEFAULT '{}'
-);
-CREATE INDEX IF NOT EXISTS idx_exec_symbol ON executions(symbol);
-CREATE INDEX IF NOT EXISTS idx_exec_created ON executions(created_ts);
-"""
+_SCHEMA = SCHEMA
 
 
 def _db_path() -> Path:
@@ -59,23 +30,7 @@ def init_db() -> None:
     conn = get_connection()
     try:
         conn.executescript(_SCHEMA)
-        columns = {
-            str(row["name"])
-            for row in conn.execute("PRAGMA table_info(executions)").fetchall()
-        }
-        if "boot_id" not in columns:
-            # Legacy monotonic stamps cannot safely mix with this process.
-            try:
-                conn.execute("ALTER TABLE executions ADD COLUMN boot_id TEXT")
-            except sqlite3.OperationalError:
-                # A concurrent startup may have completed the same migration
-                # after our PRAGMA read. Re-check; propagate every other error.
-                refreshed = {
-                    str(row["name"])
-                    for row in conn.execute("PRAGMA table_info(executions)").fetchall()
-                }
-                if "boot_id" not in refreshed:
-                    raise
+        ensure_executions_columns(conn)
         from execution import evidence_store
         evidence_store.init_db(conn)
         conn.commit()

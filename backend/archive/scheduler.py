@@ -36,6 +36,20 @@ def maintenance_enabled() -> bool:
 def run_maintenance_once(*, today: str | None = None) -> list[str]:
     """Compact finished days; upload to R2 when enabled. Returns dates compacted."""
     day = today or session_date_for_ts()
+    try:
+        from archive.bar_builder import rollup_daily
+
+        rollup_daily(day)
+        for finished_day in list_finished_dates(day):
+            rollup_daily(finished_day)
+    except Exception:
+        logger.exception("archive.maintenance: daily bar rollup failed")
+    try:
+        from archive.backup import backup_sqlite_once
+
+        backup_sqlite_once()
+    except Exception:
+        logger.exception("archive.maintenance: sqlite backup failed")
     finished = list_finished_dates(day)
     done: list[str] = []
     for d in finished:

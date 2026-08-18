@@ -15,6 +15,7 @@ import {
 import { API_BASE_URL, IBKR_ACCOUNT_POLL_MS } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
+import { lastKnownAsOfMessage } from './disconnectCopy';
 import type { IbkrAccountSummary, IbkrOrder, IbkrPosition } from './types';
 
 export interface IbkrAccountState {
@@ -22,8 +23,11 @@ export interface IbkrAccountState {
   positions: IbkrPosition[];
   orders: IbkrOrder[];
   loading: boolean;
-  /** Set when the last poll failed — last-good rows are kept, not wiped. */
+  /** Set when the last poll failed -- last-good rows are kept, not wiped. */
   error: string | null;
+  /** True after Gateway drops; rows are last-good and must not drive Flatten. */
+  stale: boolean;
+  staleSince: number | null;
   refresh: () => void;
 }
 
@@ -40,6 +44,8 @@ export const SAMPLE_IBKR_ACCOUNT_STATE: IbkrAccountState = {
   orders: [],
   loading: false,
   error: null,
+  stale: false,
+  staleSince: null,
   refresh: () => {},
 };
 
@@ -53,6 +59,8 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<IbkrOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
+  const [staleSince, setStaleSince] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     if (sample || !ibkrConnected) return;
@@ -80,6 +88,8 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
         failures.push(`orders (HTTP ${ordRes.status})`);
       }
       setError(failures.length ? `IBKR read failed -- ${failures.join(', ')}` : null);
+      setStale(false);
+      setStaleSince(null);
     } catch (err) {
       console.error('[Nova] IBKR account/positions/orders poll failed', err);
       setError('IBKR account/positions/orders fetch failed -- retrying');
@@ -91,10 +101,10 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (sample) return;
     if (!ibkrConnected) {
-      setSummary(null);
-      setPositions([]);
-      setOrders([]);
-      setError(null);
+      const since = Date.now();
+      setStale(true);
+      setStaleSince(since);
+      setError(lastKnownAsOfMessage(since));
       setLoading(false);
       return;
     }
@@ -113,8 +123,8 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<IbkrAccountState>(() => {
     if (sample) return SAMPLE_IBKR_ACCOUNT_STATE;
-    return { summary, positions, orders, loading, error, refresh };
-  }, [sample, summary, positions, orders, loading, error, refresh]);
+    return { summary, positions, orders, loading, error, stale, staleSince, refresh };
+  }, [sample, summary, positions, orders, loading, error, stale, staleSince, refresh]);
 
   return (
     <IbkrAccountContext.Provider value={value}>{children}</IbkrAccountContext.Provider>

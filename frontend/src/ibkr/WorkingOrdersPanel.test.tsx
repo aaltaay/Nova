@@ -168,6 +168,28 @@ describe('WorkingOrdersPanel', () => {
     );
   });
 
+  it('disables cancel and Fill now when the book is stale', () => {
+    act(() => {
+      root.render(
+        <WorkingOrdersPanel
+          orders={SAMPLE}
+          error="IBKR disconnected -- last known as of 3:00:00 PM"
+          onCancelOrder={vi.fn()}
+          onFillImmediately={vi.fn()}
+        />,
+      );
+    });
+    const cancel = container.querySelector(
+      '[aria-label="Cancel order 42"]',
+    ) as HTMLButtonElement;
+    const fill = container.querySelector(
+      '[aria-label="Fill now order 42"]',
+    ) as HTMLButtonElement;
+    expect(cancel.disabled).toBe(true);
+    expect(fill.disabled).toBe(true);
+    expect(container.textContent).toContain('last known as of');
+  });
+
   it('shows an error line instead of "No open orders" when the poll failed', () => {
     act(() => {
       root.render(<WorkingOrdersPanel orders={[]} error="IBKR read failed — orders (HTTP 503)" />);

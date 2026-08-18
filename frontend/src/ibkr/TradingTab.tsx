@@ -11,6 +11,7 @@
  */
 import { useCallback, useState } from 'react';
 import { ClosedOrdersModule } from '../closed_orders';
+import { ActivityDashboard } from '../activity';
 import { LatencyDashboard } from '../execution_latency';
 import {
   CLOSED_ORDERS_MODULE_ID,
@@ -101,6 +102,8 @@ export function TradingTab({
       <TradingSectionNav section={section} onChange={setSection} />
       {section === 'reports' ? (
         <ReportsTab />
+      ) : section === 'activity' ? (
+        <ActivityDashboard />
       ) : section === 'latency' ? (
         <LatencyDashboard />
       ) : (

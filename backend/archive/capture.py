@@ -191,6 +191,8 @@ def record_l1_tick(
     session_date: str | None = None,
 ) -> None:
     """Persist one HOD-decision L1 tick (what ``on_trade_update`` received)."""
+    if ts <= 0:
+        return
     symbol = symbol.upper()
     day = session_date or session_date_for_ts(ts)
     conn = archive_db.get_connection()

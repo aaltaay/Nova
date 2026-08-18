@@ -72,6 +72,9 @@ class OrderWatch:
         self._last_status_filled = 0.0
         self._reconciled_fill_keys: set[tuple[str, str, str]] = set()
         self._status_history: list[str] = []
+        self.perm_id: int | None = None
+        self.last_filled_qty: float | None = None
+        self.last_avg_fill: float | None = None
 
     def _persist_ack(self, status: str, *, allow_upgrade: bool = False) -> None:
         if not self.aggregate_eligible or self.ack_ns is None:
@@ -90,6 +93,38 @@ class OrderWatch:
                 self.order_id,
             )
 
+    def _remember_facts(
+        self,
+        *,
+        perm_id: int | None = None,
+        filled: float | None = None,
+        average_fill_price: float | None = None,
+    ) -> None:
+        if perm_id is not None and int(perm_id) > 0:
+            self.perm_id = int(perm_id)
+        if filled is not None:
+            self.last_filled_qty = float(filled)
+        if average_fill_price is not None and float(average_fill_price) != 0.0:
+            self.last_avg_fill = float(average_fill_price)
+
+    def _persist_facts(self) -> None:
+        if not self.execution_id:
+            return
+        try:
+            from execution.store_facts import record_broker_facts
+
+            record_broker_facts(
+                self.execution_id,
+                perm_id=self.perm_id,
+                filled_qty=self.last_filled_qty,
+                avg_fill_price=self.last_avg_fill,
+            )
+        except Exception:
+            logger.exception(
+                "execution.telemetry: failed to persist broker facts for order %s",
+                self.order_id,
+            )
+
     def note_status(
         self,
         status: str,
@@ -97,11 +132,17 @@ class OrderWatch:
         filled: float | None = None,
         remaining: float | None = None,
         average_fill_price: float | None = None,
+        perm_id: int | None = None,
         callback_wall_ns: int | None = None,
         callback_perf_ns: int | None = None,
     ) -> None:
         callback_perf = callback_perf_ns or time.perf_counter_ns()
         callback_wall = callback_wall_ns or time.time_ns()
+        self._remember_facts(
+            perm_id=perm_id,
+            filled=filled,
+            average_fill_price=average_fill_price,
+        )
         self.latest_status = status
         if status:
             self._status_history.append(status)
@@ -119,11 +160,13 @@ class OrderWatch:
                 self.ack_status = status
                 self._ack_event.set()
                 self._persist_ack(status, allow_upgrade=upgrade)
+                self._persist_facts()
         elif status in _ACK_STATUSES and self.ack_ns is None:
             self.ack_ns = callback_perf
             self.ack_status = status
             self._ack_event.set()
             self._persist_ack(status)
+            self._persist_facts()
         cumulative = float(filled or 0)
         complete = status == "Filled"
         if (
@@ -164,17 +207,24 @@ class OrderWatch:
         remaining: float | None = None,
         exchange_time: Any = None,
         complete: bool = False,
+        perm_id: int | None = None,
         callback_wall_ns: int | None = None,
         callback_perf_ns: int | None = None,
     ) -> None:
         # execDetails often arrives when orderStatus is skipped for fast fills.
         callback_perf = callback_perf_ns or time.perf_counter_ns()
         callback_wall = callback_wall_ns or time.time_ns()
+        self._remember_facts(
+            perm_id=perm_id,
+            filled=cumulative_shares,
+            average_fill_price=avg_price,
+        )
         if self.ack_ns is None:
             self.ack_ns = callback_perf
             self.ack_status = self.ack_status or "ExecDetails"
             self._ack_event.set()
             self._persist_ack(self.ack_status)
+            self._persist_facts()
         if not hasattr(self, "fills") or self.fills is None:
             self.fills = []
         self.fills.append(
@@ -203,6 +253,7 @@ class OrderWatch:
                 reference_source=self.reference_source,
                 aggregate_eligible=self.aggregate_eligible,
             )
+        self._persist_facts()
 
     def note_filled(self) -> None:
         if self.filled_ns is None:
@@ -220,9 +271,19 @@ class OrderWatch:
                     self.order_id, self.filled_ns,
                     execution_id=self.execution_id,
                 )
+            self._persist_facts()
         except Exception:
             logger.exception(
                 "execution.telemetry: failed to persist fill for order %s",
+                self.order_id,
+            )
+        try:
+            from journal.round_trip import notify_watch_filled
+
+            notify_watch_filled(self)
+        except Exception:
+            logger.exception(
+                "execution.telemetry: round-trip notify failed for order %s",
                 self.order_id,
             )
 
@@ -299,8 +360,19 @@ def ensure_handlers(ib) -> None:
     from ibkr.loop_supervisor import call_on_ib, is_ib_loop, is_ib_thread
 
     if not (is_ib_loop() or is_ib_thread()):
-        call_on_ib(lambda: ensure_handlers(ib), 5.0, label="ensure_handlers")
-        return
+        if getattr(ensure_handlers, "_hopping", False):
+            # call_on_ib ran inline (tests / no IB loop) -- wire here.
+            pass
+        else:
+            ensure_handlers._hopping = True
+            try:
+                call_on_ib(lambda: ensure_handlers(ib), 5.0, label="ensure_handlers")
+            finally:
+                ensure_handlers._hopping = False
+            if ib in _wired_instances:
+                return
+            if is_ib_loop() or is_ib_thread():
+                return
     try:
         from execution.telemetry_handlers import make_handlers
 
@@ -316,17 +388,13 @@ def ensure_handlers(ib) -> None:
 
 
 def note_reconciliation_fill(fill: Any, *, complete: bool = True) -> bool:
-    """Persist evidence from an existing poll/cache read without issuing requests."""
-    execution = getattr(fill, "execution", None)
-    oid = int(getattr(execution, "orderId", 0) or 0)
-    watch = _watches.get(oid)
-    if oid <= 0 or watch is None or watch.execution_id is None:
-        return False
-    from execution.reconciliation import record_reconciliation_fill
+    from execution.telemetry_handlers import note_reconciliation_fill as _note
 
-    return record_reconciliation_fill(fill, watch, complete=complete)
+    return _note(fill, _watches.get, complete=complete)
 
 
 def reset_for_tests() -> None:
     _watches.clear()
     _wired_instances.clear()
+    if hasattr(ensure_handlers, "_hopping"):
+        ensure_handlers._hopping = False

@@ -15,6 +15,7 @@ def test_trade_to_order_row_includes_fill_progress():
     trade = SimpleNamespace(
         order=SimpleNamespace(
             orderId=7,
+            permId=555001,
             action="BUY",
             totalQuantity=100,
             orderType="LMT",
@@ -40,6 +41,7 @@ def test_trade_to_order_row_includes_fill_progress():
     )
     row = _trade_to_order_row(trade)
     assert row["order_id"] == 7
+    assert row["perm_id"] == 555001
     assert row["symbol"] == "AAPL"
     assert row["side"] == "BUY"
     assert row["qty"] == 100

@@ -234,6 +234,26 @@ def test_order_route_rejects_non_positive_quantity():
     assert res.status_code == 422
 
 
+def test_executions_list_route_returns_shaped_rows():
+    execution_id, _ = exec_store.reserve(
+        idempotency_key="route-activity",
+        operation="place",
+        source="manual",
+        symbol="IVF",
+        received_ns=1,
+        payload={"side": "BUY", "requested_qty": 10, "sent_qty": 1, "forced_one_share": True},
+    )
+    exec_store.update_stages(execution_id, status="filled", order_id=19112)
+    res = client.get("/api/ibkr/executions?symbol=IVF")
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body) == 1
+    assert body[0]["id"] == execution_id
+    assert body[0]["requested_qty"] == 10
+    assert body[0]["sent_qty"] == 1
+    assert body[0]["forced_one_share"] is True
+
+
 def test_execution_latency_route_is_bounded_and_population_labeled():
     res = client.get("/api/ibkr/execution-latency")
     assert res.status_code == 200

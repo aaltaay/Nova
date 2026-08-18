@@ -155,6 +155,9 @@ async def commit_table(
     wall = time.time()
     setattr(state, rows_attr, rows)
     setattr(state, ts_attr, wall)
+    from ibkr.scanner_persist import persist_roster
+
+    persist_roster(table, rows, wall)
     ts = _session.table_attr(state, table)
     _session.mark_live(ts, source="scanner_stream", session_key=lease_session_key)
     ts.roster_ts = wall

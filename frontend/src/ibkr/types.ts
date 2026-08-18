@@ -69,6 +69,10 @@ export interface IbkrPosition {
 
 export interface IbkrOrder {
   order_id: number;
+  /** IB permId -- durable across reconnect. Session orderId may be 0. */
+  perm_id?: number | null;
+  /** nova = placed through ADR 007; ib_recovered = IB-only / TWS. */
+  source?: 'nova' | 'ib_recovered';
   symbol: string;
   side: 'BUY' | 'SELL';
   qty: number;

@@ -171,6 +171,7 @@ async def cancel_orders_for_symbol(
                 operation="cancel",
                 idempotency_key=f"cancel-all:{scope_key}:{oid}:{uuid.uuid4()}",
                 source="manual",
+                symbol=row_sym or None,
                 order_id=oid,
                 skip_risk=True,
                 skip_concurrency=True,
@@ -224,6 +225,18 @@ async def replace_order(
         received_ns=ingress_perf,
     )
     return _response(receipt)
+
+
+@router.get("/executions")
+async def list_executions(
+    limit: int | None = None,
+    symbol: str | None = None,
+) -> list[dict]:
+    from constants import EXECUTION_ACTIVITY_DEFAULT_LIMIT
+    from execution.activity import recent_activity
+
+    cap = EXECUTION_ACTIVITY_DEFAULT_LIMIT if limit is None else limit
+    return recent_activity(limit=cap, symbol=symbol)
 
 
 @router.get("/execution/{execution_id}")

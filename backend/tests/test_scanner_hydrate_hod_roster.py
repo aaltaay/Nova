@@ -74,6 +74,7 @@ def test_commit_table_live_hooks_hod_roster(monkeypatch):
     )
     monkeypatch.setattr(hydrate._session, "table_attr", lambda _state, _table: ts)
     monkeypatch.setattr(hydrate._session, "mark_live", lambda *a, **k: None)
+    monkeypatch.setattr("ibkr.scanner_persist.persist_roster", lambda *a, **k: None)
 
     async def fake_hydrate(*_a, **_k):
         return [{"symbol": "NEW1", "price": 1.0, "change_pct": 20.0}]

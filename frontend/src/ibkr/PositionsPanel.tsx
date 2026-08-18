@@ -4,6 +4,7 @@ import { ClosePositionButton } from '../closed_orders';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader';
+import { lastKnownBanner } from './disconnectCopy';
 import { positionSideClass, positionSideRowClass } from './orderDisplay';
 import {
   DEFAULT_POSITION_COLUMNS,
@@ -158,7 +159,7 @@ export function PositionsPanel({
       {!hideTitle && <h4 className="ibkr-section-title">Positions</h4>}
       {error && (
         <div className="ibkr-empty ibkr-empty--error" data-testid="positions-error">
-          {error} — showing last-known data.
+          {lastKnownBanner(error)}
         </div>
       )}
       {positions.length === 0 ? (

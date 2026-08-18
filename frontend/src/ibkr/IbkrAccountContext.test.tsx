@@ -14,14 +14,25 @@ vi.mock('../sample_data/SampleDataContext', () => ({
   useSampleDataOptional: () => null,
 }));
 
+const workspace = { ibkrConnected: true };
+
 vi.mock('../workspace/WorkspaceContext', () => ({
-  useWorkspace: () => ({ ibkrConnected: true }),
+  useWorkspace: () => workspace,
 }));
 
 vi.mock('../constants', async () => {
   const actual = await vi.importActual<typeof import('../constants')>('../constants');
   return { ...actual, IBKR_ACCOUNT_POLL_MS: 60_000, API_BASE_URL: 'http://test' };
 });
+
+function Probe() {
+  const a = useIbkrAccountContext();
+  return (
+    <div data-testid="probe">
+      {a.positions.length}:{a.stale ? 'stale' : 'live'}:{a.error ?? 'ok'}
+    </div>
+  );
+}
 
 function DualConsumer() {
   const a = useIbkrAccountContext();
@@ -39,6 +50,7 @@ describe('IbkrAccountProvider', () => {
   let root: Root;
 
   beforeEach(() => {
+    workspace.ibkrConnected = true;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -57,7 +69,7 @@ describe('IbkrAccountProvider', () => {
           };
         }
         if (String(url).includes('/positions')) {
-          return { ok: true, json: async () => [] };
+          return { ok: true, json: async () => [{ symbol: 'IVF', qty: 1 }] };
         }
         return { ok: true, json: async () => [] };
       }),
@@ -93,5 +105,34 @@ describe('IbkrAccountProvider', () => {
       (c: unknown[]) => String(c[0]).includes('/account'),
     );
     expect(accountCalls.length).toBe(1);
+  });
+
+  it('keeps last-good positions when Gateway disconnects', async () => {
+    await act(async () => {
+      root.render(
+        <IbkrAccountProvider>
+          <Probe />
+        </IbkrAccountProvider>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="probe"]')?.textContent).toBe(
+      '1:live:ok',
+    );
+
+    workspace.ibkrConnected = false;
+    await act(async () => {
+      root.render(
+        <IbkrAccountProvider>
+          <Probe />
+        </IbkrAccountProvider>,
+      );
+    });
+    const text = container.querySelector('[data-testid="probe"]')?.textContent ?? '';
+    expect(text.startsWith('1:stale:')).toBe(true);
+    expect(text).toContain('IBKR disconnected -- last known as of');
   });
 });

@@ -12,6 +12,7 @@ import {
   CLOSED_ORDERS_RECENT_TICK_MS,
   CLOSED_ORDERS_SAMPLE_BANNER,
 } from '../constants';
+import { lastKnownBanner } from '../ibkr/disconnectCopy';
 import {
   OrderTableColumnHeader,
   OrderTableDnd,
@@ -150,7 +151,7 @@ export function ClosedOrdersPanel({
       )}
       {error && (
         <div className="ibkr-empty ibkr-empty--error" data-testid="closed-orders-error">
-          {error} — showing last-known data.
+          {lastKnownBanner(error)}
         </div>
       )}
       {rows.length === 0 ? (

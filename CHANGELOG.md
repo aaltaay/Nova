@@ -30,6 +30,36 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-17 -- Persist-audit remainder (journal, Activity, last-good, capture)
+
+- **What:** Nova-placed flats now write real `journal.db` trades. Trading gains a read-only Activity trail of the ADR 007 ledger. Disconnect keeps last-good orders/positions with actions disabled. Archive rolls `bars_1d`, rejects epoch-0 L1, persists news catalysts, and nightly-backups SQLite; Settings can export/import desk prefs.
+- **Why:** The persist audit showed mock-only Reports, no trail UI, a wipe on Gateway drop, empty daily bars, `1969-12-31` L1 junk, catalysts that died on restart, and no backup/prefs bundle.
+- **Files touched:** `journal/round_trip.py`, `journal/db.py`, `journal/store.py`, `execution/activity.py`, `execution/telemetry.py`, `routes/trading_execution.py`, `frontend/src/activity/`, `IbkrAccountContext.tsx`, `useClosedOrders.ts`, `archive/bar_builder.py`, `archive/l1_cleanup.py`, `archive/backup.py`, `news_catalyst_persist.py`, `settings/prefsBundle.ts`.
+- **How it works now:** Fills update a per-symbol net; a return to flat writes `is_mock=0` with unique `close_key`. Brackets stay on the executor. Activity reads the local ledger (works while IB is down). Last-good sets `stale` + `error` so Flatten/Cancel/Fill stay off. `run_maintenance_once` rolls daily bars then `backup_sqlite_once`. `exchange_ts_unix` requires unix > 1e9; `init_db` purges epoch-0 L1. Catalysts write `news-catalysts-{date}.json`. Prefs export is an allowlisted localStorage bundle (trader tabs excluded).
+- **Verified by:** pytest 48 persist-remainder + 29 journal/executor/compact. Vitest 34 (Phase 1-3) then 29 (Activity/prefs/disconnect). `npm run build` exit 0. Live `GET /api/ibkr/executions?limit=5` 200. Browser Account > Activity painted 100 ledger rows (IVF 19112/19085, NOMA, TRUG). Settings > General shows Export/Import prefs.
+- **Follow-ups:** IB `CommissionReport` / net P/L. Journaling TWS / `ib_recovered` fills. Reports import UI.
+- **Related:** PROBLEM_LOG 2026-08-17 -- Last-good wipe on disconnect; 2026-08-17 -- Epoch-0 L1 ticks; task-log 2026-08-17-persist-audit-remainder.
+
+## 2026-08-17 -- Orders (Today) overlays the execution ledger
+
+- **What:** Closed-orders (`GET /api/ibkr/orders/closed`) now merges IB session trades with this session's Nova ledger rows. Zero `orderId` / qty from completed-order replay is replaced with the ledger client id, fill qty, and avg. The Order ID cell shows `--` when neither session id nor `permId` exists.
+- **Why:** IVF fills were already in `execution_ledger.db` (19085 / 19112, qty 1) while Orders (Today) showed 0 / 0 / 0 because the blotter only read `ib.trades()`.
+- **Files touched:** `execution/closed_blotter.py`, `execution/store_facts.py`, `routes/trading.py`, `ibkr/order_rows.py`, `closed_orders/formatClosedOrderId.ts`, `closedOrderCells.tsx`, `ibkr/types.ts`.
+- **How it works now:** After the IB closed read, `overlay_closed_orders` matches ledger place/bracket rows by `permId`, then client `order_id`, then symbol+side when IB's id is 0. Unmatched IB rows stay labeled `ib_recovered`. Unmatched ledger fills are appended. Benchmarks stay out. IB still required for the route (503 if disconnected).
+- **Verified by:** pytest 33 passed (`test_closed_blotter`, `test_orders_api_contract`, `test_closed_orders`, `test_open_orders_row`, `test_execution_store_facts`). Vitest 10 passed (`formatClosedOrderId`, `closedOrderCells`). `npm run build` exit 0. Live `GET /api/ibkr/orders/closed` after API restart: IVF 19112 and 19085, qty 1, `source=nova`, zero `order_id` rows.
+- **Follow-ups:** Journal-on-close. Activity / trail page. TWS-only recover is labeled, not invented.
+- **Related:** PROBLEM_LOG 2026-08-17 -- Orders (Today) ignores execution ledger; task-log 2026-08-17-closed-blotter-ledger.
+
+## 2026-08-17 -- Record permId, qty intent, cancel symbol, and scanner rosters
+
+- **What:** The execution ledger now stores requested vs sent qty, spend/short gates, `short_entry`, IB `permId`, fill qty / avg, and a symbol on cancel rows. Authoritative ADR 008 roster commits write today's dated scanner JSON again.
+- **Why:** The persist audit found IVF fills in the ledger without `permId` or fill size, cancel rows without a symbol, one-share force hiding the requested size, and today's Gappers/Gainers files missing because the stream path never wrote disk.
+- **Files touched:** `execution/record_payload.py`, `execution/store_schema.py`, `execution/store_facts.py`, `execution/store.py`, `execution/service.py`, `execution/telemetry.py`, `execution/telemetry_handlers.py`, `ibkr/scanner_persist.py`, `ibkr/scanner_hydrate.py`, `routes/trading_execution.py`.
+- **How it works now:** `execute` snapshots intent into `payload_json` before `apply_force_one_share`. Existing ledgers ALTER in `perm_id` / `filled_qty` / `avg_fill_price` then get indexes. IB `orderStatus` / `execDetails` write those columns. Cancel without a symbol copies it from the prior ledger row (or open orders if IB is up). `commit_table` calls `persist_roster` so restart restore is this session, not August 4. Orders (Today) still reads IB completed-orders -- display is the next pass.
+- **Verified by:** `pytest` 47 passed (`test_execution_record_payload`, `test_execution_store_facts`, `test_scanner_roster_persist`, `test_execution_qty_gate`, `test_execution_service`, `test_execution_latency_regressions`, `test_scanner_hydrate_hod_roster`, `test_trading_cancel_all`, `test_short_entry_e2e_gate`).
+- **Follow-ups:** Journal-on-close. Activity / trail page. (Blotter overlay shipped same day.)
+- **Related:** PROBLEM_LOG 2026-08-17 -- Ledger omitted permId and roster JSON; task-log 2026-08-17-persist-recording; persist-audit canvas.
+
 ## 2026-08-17 -- Scanner | Trader keeps tape subscribed
 
 - **What:** Clicking Scanner no longer tears down Trader tabs or Time & Sales. The desk stays mounted (hidden). Last T&S viewer close lingers the IB tick-by-tick line for 16s so a remount reuses it.

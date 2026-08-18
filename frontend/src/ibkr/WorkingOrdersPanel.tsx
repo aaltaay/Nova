@@ -9,6 +9,7 @@ import {
   FILL_WORKING_ORDER_BUTTON_TITLE,
   WORKING_ORDERS_PANEL_TITLE,
 } from '../constants';
+import { lastKnownBanner } from './disconnectCopy';
 import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader';
 import {
   formatOrderSide,
@@ -86,7 +87,7 @@ export function WorkingOrdersPanel({
       )}
       {error && (
         <div className="ibkr-empty ibkr-empty--error" data-testid="working-orders-error">
-          {error} — showing last-known data.
+          {lastKnownBanner(error)}
         </div>
       )}
       {rows.length === 0 ? (
@@ -142,7 +143,7 @@ export function WorkingOrdersPanel({
                           <button
                             type="button"
                             className="ibkr-fill-now-btn"
-                            disabled={rem <= 0}
+                            disabled={rem <= 0 || Boolean(error)}
                             onClick={(e) => {
                               e.stopPropagation();
                               onFillImmediately(o);
@@ -161,6 +162,7 @@ export function WorkingOrdersPanel({
                               e.stopPropagation();
                               onCancelOrder(o.order_id);
                             }}
+                            disabled={Boolean(error)}
                             title="Cancel resting order (does not reverse fills)"
                             aria-label={`Cancel order ${o.order_id}`}
                           >

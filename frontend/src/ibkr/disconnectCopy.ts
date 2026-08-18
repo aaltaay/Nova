@@ -43,6 +43,19 @@ export function stockViewDisconnectLabel(status: Partial<IbkrStatus>): string {
 }
 
 /** Suggested switch target when a port-mismatch hint is present. */
+export function lastKnownAsOfMessage(staleSinceMs: number | null | undefined): string {
+  const when =
+    staleSinceMs != null && Number.isFinite(staleSinceMs)
+      ? new Date(staleSinceMs).toLocaleTimeString()
+      : '--';
+  return `IBKR disconnected -- last known as of ${when}`;
+}
+
+export function lastKnownBanner(error: string): string {
+  if (error.includes('last known')) return error;
+  return `${error} -- showing last-known data.`;
+}
+
 export function disconnectHintSwitchTarget(
   hint: string | null | undefined,
 ): 'paper' | 'live' | null {

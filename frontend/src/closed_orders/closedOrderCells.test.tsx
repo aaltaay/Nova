@@ -92,6 +92,10 @@ describe('closedOrderCells — column contract', () => {
     expect(renderCell('qty', FILLED).text).toBe('100');
   });
 
+  it('Order ID 0 with no permId shows --', () => {
+    expect(renderCell('order_id', { ...FILLED, order_id: 0 }).text).toBe('--');
+  });
+
   it('Quantity shows fractional shares (not rounded to 0)', () => {
     const { text, html } = renderCell('qty', {
       ...FILLED,

@@ -150,6 +150,12 @@ def init_db() -> None:
         conn.commit()
     finally:
         conn.close()
+    try:
+        from archive.l1_cleanup import purge_epoch_zero_l1
+
+        purge_epoch_zero_l1()
+    except Exception:
+        logger.exception("archive.db: epoch-0 L1 cleanup failed")
     logger.debug("archive.db: schema ready at %s", _db_path())
 
 

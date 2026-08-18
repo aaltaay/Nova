@@ -133,6 +133,11 @@ def test_get_closed_orders_contract_fields():
             "closed_orders",
             return_value=[CLOSED_FILLED, CLOSED_PARTIAL_CANCEL],
         ),
+        patch.object(
+            trading_routes._closed_blotter,
+            "load_session_ledger",
+            return_value=[],
+        ),
     ):
         res = client.get("/api/ibkr/orders/closed")
     assert res.status_code == 200

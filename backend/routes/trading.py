@@ -26,6 +26,7 @@ import logging
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from execution import closed_blotter as _closed_blotter
 from ibkr import client as _client
 from ibkr import depth as _depth
 from ibkr import orders as _orders
@@ -136,7 +137,8 @@ async def ibkr_open_orders() -> list:
 async def ibkr_closed_orders(limit: int | None = None) -> list:
     """Filled / cancelled / failed session orders (Webull History / Closed)."""
     try:
-        return await _orders.closed_orders_async(limit=limit)
+        rows = await _orders.closed_orders_async(limit=limit)
+        return _closed_blotter.overlay_closed_orders(rows, limit=limit)
     except IbkrAccountError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

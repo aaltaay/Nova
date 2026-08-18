@@ -329,7 +329,7 @@ async def _check_fills_once() -> None:
             continue
 
         pnl = (exit_price - pos.entry_price) * pos.qty
-        record_trade(
+        trade_id = record_trade(
             symbol=pos.symbol,
             setup=pos.setup,
             side=EXECUTOR_ENTRY_SIDE_JOURNAL,
@@ -343,8 +343,10 @@ async def _check_fills_once() -> None:
             opened_ts=pos.opened_ts,
             closed_ts=time.time(),
             notes=f"Automated paper bracket (parent order {pos.parent_order_id}).",
+            close_key=f"{pos.symbol}|bracket|{pos.parent_order_id}",
         )
-        _risk.record_trade_result(pnl)
+        if trade_id:
+            _risk.record_trade_result(pnl)
         record_receipt(
             kind=KIND_ACTION,
             symbol=symbol,

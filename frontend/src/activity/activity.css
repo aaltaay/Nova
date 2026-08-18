@@ -1,0 +1,51 @@
+.activity-panel {
+  padding: 0.75rem 0 1.25rem;
+}
+
+.activity-panel__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+}
+
+.activity-panel__kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7280);
+}
+
+.activity-panel h2 {
+  margin: 0.15rem 0;
+}
+
+.activity-panel__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.activity-row {
+  cursor: pointer;
+}
+
+.activity-row--open {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 12%, transparent);
+}
+
+.activity-detail {
+  padding: 0.4rem 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #9ca3af);
+}
+
+.activity-detail__error {
+  color: var(--red, #ef4444);
+}
+
+.activity-evidence {
+  margin-top: 0.4rem;
+}

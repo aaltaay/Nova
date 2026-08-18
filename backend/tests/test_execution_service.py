@@ -503,3 +503,42 @@ class TestLatencySummary:
         assert summary["sample_count"] >= 5
         assert "broker_ack_ms" in summary
         assert summary["sla_p95_ms"] == 250.0
+
+
+def test_cancel_without_symbol_copies_prior_ledger_symbol(monkeypatch):
+    _arm_paper(monkeypatch)
+    import execution.broker_send as broker_send
+
+    place_id, _ = store.reserve(
+        idempotency_key="place-ivf",
+        operation="place",
+        source="manual",
+        symbol="IVF",
+        received_ns=1,
+        payload={"qty": 1},
+    )
+    store.update_stages(place_id, order_id=19112, status="sent")
+    monkeypatch.setattr(
+        broker_send,
+        "cancel_order_verified",
+        lambda order_id: {
+            "ok": True, "verified_gone": True, "order_id": order_id,
+        },
+    )
+    receipt = asyncio.run(
+        exec_svc.execute(
+            ExecutionCommand(
+                operation="cancel",
+                idempotency_key="cancel-ivf-bare",
+                source="manual",
+                order_id=19112,
+                skip_risk=True,
+                skip_concurrency=True,
+            ),
+            wait_ack=False,
+        )
+    )
+    assert receipt.ok is True
+    row = store.get_by_id(receipt.execution_id)
+    assert row["symbol"] == "IVF"
+    assert row["operation"] == "cancel"

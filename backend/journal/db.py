@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS trades (
     adherent INTEGER,
     notes TEXT,
     is_mock INTEGER NOT NULL DEFAULT 0,
-    tags TEXT NOT NULL DEFAULT '[]'
+    tags TEXT NOT NULL DEFAULT '[]',
+    close_key TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_closed_ts ON trades(closed_ts);
@@ -62,6 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_trades_closed_ts ON trades(closed_ts);
 _TRADES_MIGRATIONS = [
     ("is_mock", "INTEGER NOT NULL DEFAULT 0"),
     ("tags", "TEXT NOT NULL DEFAULT '[]'"),
+    ("close_key", "TEXT"),
 ]
 
 
@@ -85,6 +87,9 @@ def _migrate_trades_columns(conn: sqlite3.Connection) -> None:
     for name, ddl in _TRADES_MIGRATIONS:
         if name not in existing:
             conn.execute(f"ALTER TABLE trades ADD COLUMN {name} {ddl}")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_trades_close_key ON trades(close_key)"
+    )
 
 
 def init_db() -> None:

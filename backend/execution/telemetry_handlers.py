@@ -15,6 +15,14 @@ def float_or_none(value: Any) -> float | None:
         return None
 
 
+def perm_id_or_none(order: Any) -> int | None:
+    try:
+        perm = int(getattr(order, "permId", 0) or 0)
+    except (TypeError, ValueError):
+        return None
+    return perm if perm > 0 else None
+
+
 def make_handlers(get_watch):
     """Bind handlers to a watch lookup (avoids circular imports)."""
 
@@ -48,6 +56,7 @@ def make_handlers(get_watch):
                 average_fill_price=float_or_none(
                     getattr(order_status, "avgFillPrice", None)
                 ),
+                perm_id=perm_id_or_none(trade.order),
                 callback_perf_ns=time.perf_counter_ns(),
                 callback_wall_ns=time.time_ns(),
             )
@@ -86,6 +95,7 @@ def make_handlers(get_watch):
                 remaining=remaining,
                 exchange_time=getattr(execution, "time", None),
                 complete=complete,
+                perm_id=perm_id_or_none(trade.order),
                 callback_perf_ns=time.perf_counter_ns(),
                 callback_wall_ns=time.time_ns(),
             )
@@ -95,3 +105,15 @@ def make_handlers(get_watch):
             logger.exception("execution.telemetry: execDetails handler error")
 
     return on_ib_error, on_order_status, on_exec_details
+
+
+def note_reconciliation_fill(fill: Any, get_watch, *, complete: bool = True) -> bool:
+    """Persist evidence from an existing poll/cache read without issuing requests."""
+    execution = getattr(fill, "execution", None)
+    oid = int(getattr(execution, "orderId", 0) or 0)
+    watch = get_watch(oid)
+    if oid <= 0 or watch is None or watch.execution_id is None:
+        return False
+    from execution.reconciliation import record_reconciliation_fill
+
+    return record_reconciliation_fill(fill, watch, complete=complete)

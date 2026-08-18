@@ -61,3 +61,42 @@ def test_backfill_from_rows():
     finally:
         conn.close()
     assert count >= 2
+
+
+def test_rollup_daily_writes_bars_1d():
+    capture.record_bar(
+        symbol="AAA",
+        ts=1_700_000_000.0,
+        open_=10.0,
+        high=11.0,
+        low=9.5,
+        close=10.5,
+        volume=100,
+        timeframe="1m",
+        session_date="2026-08-17",
+    )
+    capture.record_bar(
+        symbol="AAA",
+        ts=1_700_000_060.0,
+        open_=10.5,
+        high=12.0,
+        low=10.0,
+        close=11.5,
+        volume=50,
+        timeframe="1m",
+        session_date="2026-08-17",
+    )
+    n = bar_builder.rollup_daily("2026-08-17")
+    assert n == 1
+    conn = archive_db.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT open, high, low, close, volume FROM bars_1d WHERE symbol = 'AAA'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert float(row["open"]) == 10.0
+    assert float(row["high"]) == 12.0
+    assert float(row["low"]) == 9.5
+    assert float(row["close"]) == 11.5
+    assert float(row["volume"]) == 150.0

@@ -10,6 +10,7 @@ empty trades table is reported honestly rather than faked.
 from __future__ import annotations
 
 import json
+import sqlite3
 import time
 
 from constants import (
@@ -96,18 +97,25 @@ def record_trade(
     notes: str = "",
     is_mock: bool = False,
     tags: list[str] | None = None,
+    close_key: str | None = None,
 ) -> int:
     """is_mock=True tags a synthetic row inserted by journal/mock_data.py for
     UI/logic testing before Phase D (paper execution) exists. Real callers
-    (Phase D, once built) must never pass is_mock=True."""
+    (Phase D, once built) must never pass is_mock=True.
+
+    close_key is a unique idempotency token (round-trip / executor). A
+    duplicate insert returns 0 instead of a second row.
+    """
     conn = get_connection()
+    key = (close_key or "").strip() or None
     try:
         cur = conn.execute(
             """
             INSERT INTO trades (
                 opened_ts, closed_ts, symbol, setup, side, qty, entry_price,
-                exit_price, stop_price, target_price, pnl, adherent, notes, is_mock, tags
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                exit_price, stop_price, target_price, pnl, adherent, notes,
+                is_mock, tags, close_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 opened_ts if opened_ts is not None else time.time(),
@@ -125,10 +133,13 @@ def record_trade(
                 notes,
                 int(is_mock),
                 _tags_to_json(tags),
+                key,
             ),
         )
         conn.commit()
         return int(cur.lastrowid)
+    except sqlite3.IntegrityError:
+        return 0
     finally:
         conn.close()
 

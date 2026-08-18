@@ -9,6 +9,7 @@ import {
 import type { ClosedOrderColumnId } from '../ibkr/orderTableColumns';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
+import { formatClosedOrderId } from './formatClosedOrderId';
 import type { ClosedOrder } from './types';
 
 export type ClosedCellCtx = {
@@ -28,8 +29,18 @@ export function renderClosedOrderCell(
   switch (col) {
     case 'order_id':
       return (
-        <td key={col} className="ibkr-col--text ibkr-order-id">
-          {o.order_id}
+        <td
+          key={col}
+          className="ibkr-col--text ibkr-order-id"
+          title={
+            o.source === 'ib_recovered'
+              ? 'IB recovered -- not placed in Nova'
+              : o.source === 'nova'
+                ? 'Nova ledger'
+                : undefined
+          }
+        >
+          {formatClosedOrderId(o)}
         </td>
       );
     case 'symbol':

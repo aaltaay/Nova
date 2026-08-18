@@ -143,6 +143,17 @@ class TestArchiveCapture:
         assert row["day_high"] == 12.75
         assert capture.get_counter(ARCHIVE_COUNTER_L1_TICKS) == 1
 
+    def test_record_l1_tick_rejects_epoch_zero(self):
+        before = capture.get_counter(ARCHIVE_COUNTER_L1_TICKS)
+        capture.record_l1_tick(symbol="BAD", ts=0.0, price=1.0, session_date="1969-12-31")
+        conn = archive_db.get_connection()
+        try:
+            n = conn.execute("SELECT COUNT(*) FROM l1_ticks WHERE ts <= 0").fetchone()[0]
+        finally:
+            conn.close()
+        assert n == 0
+        assert capture.get_counter(ARCHIVE_COUNTER_L1_TICKS) == before
+
     def test_record_enrichment_snapshot_upserts(self):
         capture.record_enrichment_snapshot(
             symbol="aaa",

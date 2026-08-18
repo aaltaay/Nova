@@ -132,6 +132,16 @@ def _restore_caches() -> None:
         state.gainer_cache_ts = mv_ts
         state.loser_cache_ts = mv_ts
 
+    try:
+        from news_catalyst_persist import load_news_catalyst_snapshot
+
+        catalysts, cat_ts = load_news_catalyst_snapshot()
+        if catalysts:
+            state.news_catalyst_cache = catalysts
+            state.news_catalyst_cache_ts = cat_ts
+    except Exception:
+        logger.exception("news catalysts: snapshot restore failed")
+
     # ADR 008: attach session_key / freeze metadata for restored rows.
     _scanner_session.reconcile_session_tables(state)
 
@@ -147,6 +157,12 @@ def _init_databases() -> None:
         _execution_store.init_db()
     except Exception:
         logger.exception("execution ledger: init_db failed")
+    try:
+        from journal.round_trip import rebuild_from_ledger
+
+        rebuild_from_ledger()
+    except Exception:
+        logger.exception("journal.round_trip: ledger rebuild failed")
     _hod_momo.set_blocklist_changed_hook(invalidate_universe_cache)
 
 

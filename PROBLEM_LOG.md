@@ -23,6 +23,48 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-17 -- Last-good wipe on IBKR disconnect
+
+- **Symptom:** When IBKR dropped, Working Orders, Positions, and Orders (Today) went empty even though the last snapshot was still in React state a tick earlier.
+- **Cause:** `IbkrAccountContext` and `useClosedOrders` treated `!ibkrConnected` as "clear the book" instead of "freeze the last good snapshot." Flatten/Cancel then had nothing to show, and reconnect looked like a blank desk.
+- **Fix:** Keep the last rows, set `stale` / `staleSince`, and put the last-known message on `error` so existing `disabled={Boolean(error)}` gates (Flatten, Cancel, Fill, hotkeys) stay closed. Banner copy lives in `disconnectCopy.ts`.
+- **Keywords:** last-good, disconnect, IbkrAccountContext, useClosedOrders, stale, Flatten, Cancel
+
+## 2026-08-17 -- Epoch-0 L1 ticks wrote 1969-12-31
+
+- **Symptom:** `archive.db` and `archive_cold/1969-12-31/` held L1 rows with `ts=0` / date 1969-12-31. Daily bars (`bars_1d`) stayed empty.
+- **Cause:** `exchange_ts_unix` called `.timestamp()` on a datetime that was still the Unix epoch, so the guard that was meant to reject missing stamps accepted `0.0`. `record_l1_tick` wrote it. No 1m-to-1d rollup ran in maintenance.
+- **Fix:** Require unix > 1e9 (`ARCHIVE_L1_MIN_UNIX_TS`). `record_l1_tick` returns on `ts<=0`. `purge_epoch_zero_l1` deletes those rows and the 1969 cold folder on `init_db`. `rollup_daily` writes `bars_1d` from `bars_1m` inside `run_maintenance_once`.
+- **Keywords:** 1969-12-31, epoch 0, exchange_ts_unix, record_l1_tick, bars_1d, rollup_daily, archive_cold
+
+## 2026-08-17 -- Closed-orders warm 500d off the IB loop
+
+- **Symptom:** After hours, `GET /api/ibkr/orders/closed` returned HTTP 500 (`RuntimeError: ib.* must run on the IB connect-loop`) when `ib.trades()` was empty.
+- **Cause:** `closed_orders_async` called `refresh_completed_orders_cache` on the uvicorn loop. ADR 010 `cold_slot` / `assert_ib_loop` rejects that. The blotter never reached the ledger overlay.
+- **Fix:** Skip the completed-orders warm unless already on the IB loop. Connect-time warm still runs there. Empty IB list plus ledger overlay is enough for Nova-placed fills.
+- **Keywords:** orders/closed, closed_orders_async, assert_ib_loop, ADR 010, completed_orders, HTTP 500
+
+## 2026-08-17 -- Orders (Today) showed ledger fills as 0 / 0 / 0
+
+- **Symptom:** IVF Filled rows on Orders (Today) showed Order ID 0, qty 0, filled 0. The same fills were already in `execution_ledger.db` as 19085 / 19112, BUY 1.
+- **Cause:** `GET /api/ibkr/orders/closed` returned only `ib.trades()` / completed-order replay. Session `orderId` and `totalQuantity` are often 0 on that replay. The route never read the ledger.
+- **Fix:** `overlay_closed_orders` merges this session's Nova place/bracket rows onto the IB list (match permId, then order_id, then symbol+side when id is 0). UI formats a missing id as `--`. IB-only rows stay `ib_recovered`.
+- **Keywords:** Order ID 0, Orders Today, closed_orders, overlay_closed_orders, execution_ledger, IVF
+
+## 2026-08-17 -- Ledger omitted permId and roster JSON
+
+- **Symptom:** IVF fills in `execution_ledger.db` had client `order_id` and payload qty 1, but no IB `permId`, no filled qty / avg, cancel rows often had no symbol, and today's `gappers-*.json` / `gainers-*.json` were missing. `init_db` on an existing ledger also raised `sqlite3.OperationalError: no such column: perm_id` when an index was created before ALTER.
+- **Cause:** Reserve payload never snapshotted requested vs sent qty or spend/short gates. Telemetry never wrote `permId` / fill size onto the row. Cancel-all sometimes omitted symbol; cancel with only `order_id` did not look the symbol up. ADR 008 `commit_table` updated RAM only -- the old `scan_loop` JSON writers no longer run when persistent scanners are authoritative. A first draft of the schema put `CREATE INDEX ... perm_id` in the same `executescript` as `CREATE TABLE IF NOT EXISTS`, so existing DBs skipped CREATE TABLE and failed on the index.
+- **Fix:** `build_reserve_payload` records requested/sent qty, `short_entry`, and gates. `ensure_executions_columns` ALTERs then indexes. `record_broker_facts` from orderStatus/execDetails. Cancel looks up symbol from the prior ledger row (open orders only if IB is connected). `persist_roster` writes dated JSON from `commit_table`.
+- **Keywords:** permId, perm_id, requested_qty, sent_qty, cancel symbol, gappers json, commit_table, no such column, execution_ledger
+
+## 2026-08-17 -- Orders (Today) ignores execution ledger
+
+- **Symptom:** IVF Filled rows showed Order ID 0, qty 0, filled 0. Same-session NOMA cancels showed real ids (72165, 72159).
+- **Cause:** Closed-orders UI reads IB `ib.trades()` + `reqCompletedOrders` (`order.orderId`). Completed-order replay often has session `orderId=0` and empty qty. Nova already persisted those IVF fills in `execution_ledger.db` as order_id 19085 / 19112 with payload qty 1. The blotter never queries the ledger. `permId` is not stored or shown.
+- **Fix:** Diagnosis only this pass. Next: ledger-first Orders (Today) for Nova-placed rows; persist `permId` + fill qty; label IB-recovered rows. Do not stand up hosted Postgres as the live book.
+- **Keywords:** Order ID 0, IVF, execution_ledger, permId, reqCompletedOrders, Orders Today, closed_orders
+
 ## 2026-08-17 -- T&S resubscribe on Scanner | Trader
 
 - **Symptom:** Switching Scanner and Trader showed Time & Sales ERROR "Resubscribing in 10s -- please wait" while API and Gateway chips stayed green. Level 2 often still painted.
