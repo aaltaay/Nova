@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Chart fills defer on pacing instead of staying on stubs
+
+- **What:** Opening a 2x2 no longer leaves 15Min/30Min/1Hour stuck on today's 9-bar stub. Pacing wait sleeps, then fetches. Suites that were red from earlier desk work are green again.
+- **Why:** `request_bars` treated "store has any bars + pacing wait" as done. A chart grid trips the same-contract 2s cap, so the last panes never asked IB for the real 1 M / 2 M / 3 M series. Derived 1Min stubs kept winning.
+- **Files touched:** `backend/ibkr/historical_service.py`, `backend/bars_store.py`, `backend/constants_scanner.py`, ADR 012, depth/executor/runtime_state/news-catalyst tests, `ManualOrderTicket.paperLabel.test.tsx`.
+- **How it works now:** HTTP is still store-first. `open_chart` / `warm` defer (`historical fill deferred` at INFO). Only `background` sheds. `store_series_complete` requires a per-timeframe count (1Hour needs 24, not 8). Derived 1Min cannot overwrite a longer stored series. Depth tests patch `is_ready`.
+- **Verified by:** pytest 1196 passed (incl. `test_open_chart_fetches_when_pacing_wait_and_store_has_stub`). Vitest 692 passed. `doc_invariants` OK. Live AIXC burst: first poll 1Hour=5 / 1Day=0; 25s later all six timeframes at full count (1Hour 400 from 2026-07-07). Log: `historical fill deferred AIXC 1Day`.
+- **Follow-ups:** Other symbols still sitting on pre-fix 1Hour stubs fill on the next open.
+- **Related:** PROBLEM_LOG 2026-08-18 -- Chart fill dropped on pacing wait. ADR 012.
+
 ## 2026-08-18 -- Chart panes paint history instead of the live tip
 
 - **What:** Trader 2x2 no longer stays zoomed on 1-2 live candles after historical bars arrive. Full Day keeps daily bars. 5Min opens on a session-sized window. Coverage clocks show ET. The running API must be the ADR 012 worker (store + coverage).

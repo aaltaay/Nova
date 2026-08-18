@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Chart fill dropped on pacing wait
+
+- **Symptom:** After the viewport fix, some panes still showed only today's candles (1Hour ~9 bars store-wide). Isolated 1Hour filled to 400; a 6-timeframe burst did not. No shed line in the log.
+- **Cause:** `request_bars` returned the stored stub whenever pacing wait > 0 and the store had any bars. `_run_fetch` already knew how to sleep the wait. A 9-bar 1Min-derived stub counted as "has bars," so the real 3-month 1Hour fetch never ran. Same-contract cap (5 / 2s) on a chart grid made this the default. Two helpers hid it: `store_series_complete` treated 8 bars as done, and `_persist_derived` read with `limit=len(derived)` so it could not see a longer series.
+- **Fix:** `open_chart` / `warm` fall through to `_run_fetch`. Background still sheds. Per-timeframe min bar counts. Derived write reads `CHART_DEFAULT_BARS`. Shed/defer log at INFO.
+- **Keywords:** 1Hour stub, pacing, HistoricalShed, derive_from_1min, store_series_complete, AIXC, ADR 012, same-contract cap
+
 ## 2026-08-18 -- Chart history arrived but panes stayed on the live tip
 
 - **Symptom:** After ADR 012, Trader CDTG 5Min/10Sec showed 1-2 candles, Full Day was blank, 1Min looked only like the last hour. Graphs still felt slow. No red timeout.

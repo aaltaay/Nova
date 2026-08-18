@@ -228,6 +228,17 @@ IBKR_HISTORICAL_SAME_CONTRACT_MAX = 5
 IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC = 15.0
 IBKR_BARS_STORE_FRESH_INTRADAY_SEC = 45.0
 IBKR_BARS_STORE_FRESH_DAILY_SEC = 900.0
+# A single session (or a 1Min-derived stub) is not a finished multi-day fill.
+# 1Hour / 3 M cannot be "complete" at 9 bars; 5Min / 5 D cannot at one session.
+IBKR_BARS_STORE_MIN_BARS: dict[str, int] = {
+    "10Sec": 100,
+    "1Min": 60,
+    "5Min": 200,
+    "15Min": 80,
+    "30Min": 40,
+    "1Hour": 24,
+    "4Hour": 20,
+}
 
 # In-process TTL sitting on top of the durable store (hot path only).
 IBKR_BARS_CACHE_TTL_INTRADAY_SEC = 20.0

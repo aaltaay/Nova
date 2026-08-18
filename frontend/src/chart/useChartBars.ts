@@ -159,7 +159,7 @@ export function useChartBars({
 
   const applyStoreBars = useCallback((
     bars: RawBar[],
-    opts: { background: boolean; fitContent: boolean; filling?: boolean },
+    opts: { background: boolean; filling?: boolean },
   ) => {
     let next = bars;
     let mock = false;
@@ -226,7 +226,6 @@ export function useChartBars({
       applyCoverage(sym, tf);
       applyStoreBars(bars, {
         background,
-        fitContent: !background,
         filling: cov.filling,
       });
     } catch (err) {
@@ -253,7 +252,6 @@ export function useChartBars({
       applyCoverage(symbol, timeframe);
       applyStoreBars(existing.bars, {
         background: false,
-        fitContent: true,
         filling: Boolean(existing.coverage?.filling),
       });
       setLoading(false);
@@ -266,7 +264,6 @@ export function useChartBars({
       applyCoverage(symbol, timeframe);
       applyStoreBars(entry.bars, {
         background: true,
-        fitContent: false,
         filling: Boolean(entry.coverage?.filling),
       });
     });

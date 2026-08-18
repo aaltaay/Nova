@@ -18,9 +18,15 @@ from metrics import op_metrics
 
 @pytest.fixture(autouse=True)
 def reset_op_metrics():
+    from ibkr.ib_scheduler import reset_for_testing as reset_cold_slot
+
     op_metrics.reset_for_tests()
+    account_mod.reset_completed_orders_cooldown_for_testing()
+    reset_cold_slot()
     yield
     op_metrics.reset_for_tests()
+    account_mod.reset_completed_orders_cooldown_for_testing()
+    reset_cold_slot()
 
 
 class _FakePosition:

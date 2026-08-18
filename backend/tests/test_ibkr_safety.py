@@ -183,6 +183,7 @@ class TestDepthCap:
     def test_resubscribe_same_symbol_is_idempotent(self, monkeypatch):
         import ibkr.client as client_mod
         monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+        monkeypatch.setattr(client_mod, "is_ready", lambda: True)
         self.depth._subscriptions["AAPL"] = {}
         result = self.depth.subscribe("AAPL")
         assert result["ok"] is True
@@ -322,6 +323,7 @@ class TestSmartDepthFlag:
         fake_ib = _FakeIbForSmartDepth()
         monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
         monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+        monkeypatch.setattr(client_mod, "is_ready", lambda: True)
         monkeypatch.setattr(self.depth, "_load_ib_types", lambda: True)
         monkeypatch.setattr(self.depth, "_Stock", lambda *a, **k: _FakeContract(0))
 

@@ -170,11 +170,6 @@ export function canIncrementalBarsUpdate(prev: RawBar[], next: RawBar[]): boolea
 }
 
 /**
- * First historical paint (or stub → full series) must fit the time scale.
- * Live tip / 1-bar appends must not -- that is what left 5Min/10Sec zoomed
- * on the last candle after ``bars_patch`` replaced the series.
- */
-/**
  * After setData, show a session-sized window -- not the full IB duration.
  * 5Min IB history is 5 calendar days; fitContent of that on a runner looks
  * like one spike on a black pane. 1Min / 10Sec already are session-sized.
@@ -195,18 +190,6 @@ export function timeScaleRangeForSeries(
   const keep = CHART_PAINT_VISIBLE_BARS[timeframe];
   if (!keep || candleCount <= keep) return null;
   return { from: candleCount - keep, to: candleCount - 1 };
-}
-
-export function shouldFitContentOnHistoryPaint(
-  prev: RawBar[] | null,
-  next: RawBar[],
-): boolean {
-  if (next.length === 0) return false;
-  if (prev == null || prev.length === 0) return true;
-  // Live tape painted 1-2 candles before the store fill arrived.
-  if (prev.length <= 2 && next.length > prev.length + 1) return true;
-  // Store jumped from a stub to a real series.
-  return next.length - prev.length > 10;
 }
 
 export function buildMockBars(count: number, basePrice: number): RawBar[] {

@@ -13,6 +13,7 @@ import { ManualOrderTicket } from './ManualOrderTicket';
 vi.mock('./ticketUnlock', () => ({
   readTicketSessionUnlocked: () => true,
   tryUnlockTicketSession: () => true,
+  subscribeTicketSessionUnlock: () => () => {},
 }));
 
 describe('ManualOrderTicket paper place label', () => {

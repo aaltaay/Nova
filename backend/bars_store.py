@@ -15,6 +15,7 @@ from archive.capture import session_date_for_ts
 from constants import (
     IBKR_BARS_STORE_FRESH_DAILY_SEC,
     IBKR_BARS_STORE_FRESH_INTRADAY_SEC,
+    IBKR_BARS_STORE_MIN_BARS,
 )
 from ibkr.historical_derive import bar_unix, unix_to_iso
 
@@ -56,12 +57,12 @@ def is_coverage_fresh(coverage: dict[str, Any] | None, timeframe: str) -> bool:
 
 
 def store_series_complete(timeframe: str, bar_count: int) -> bool:
-    """A stub (tape leftover / 1 live tip) is not a finished historical fill."""
+    """A stub (tape leftover / 1 live tip / today-only derive) is not a fill."""
     if bar_count <= 0:
         return False
     if timeframe in _DAILY_TFS:
         return True
-    return bar_count >= 8
+    return bar_count >= int(IBKR_BARS_STORE_MIN_BARS.get(timeframe, 24))
 
 
 def write_payload(payload: dict[str, Any]) -> None:

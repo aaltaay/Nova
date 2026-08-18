@@ -51,7 +51,10 @@ def test_read_miss_is_none(tmp_path, monkeypatch):
 def test_store_series_complete_rejects_intraday_stub():
     assert bars_store.store_series_complete("1Min", 0) is False
     assert bars_store.store_series_complete("1Min", 1) is False
-    assert bars_store.store_series_complete("5Min", 8) is True
+    assert bars_store.store_series_complete("1Hour", 9) is False
+    assert bars_store.store_series_complete("5Min", 8) is False
+    assert bars_store.store_series_complete("5Min", 200) is True
+    assert bars_store.store_series_complete("1Hour", 24) is True
     assert bars_store.store_series_complete("1Day", 1) is True
 
 

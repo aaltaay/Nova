@@ -101,3 +101,109 @@ def test_background_shed_while_open_chart_inflight():
             await chart
 
     asyncio.run(_run())
+
+
+def test_open_chart_fetches_when_pacing_wait_and_store_has_stub():
+    """A 9-bar derived stub must not cancel the real IB fill on pacing wait."""
+    fetched = {"n": 0}
+
+    async def fake_fetch(symbol, timeframe, limit, *, interactive=False):
+        fetched["n"] += 1
+        return {
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "bars": [
+                {"t": f"2026-07-14T{i:02d}:00:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}
+                for i in range(24)
+            ],
+            "source": "ibkr",
+        }
+
+    stub = {
+        "symbol": "AAPL",
+        "timeframe": "1Hour",
+        "bars": [{"t": "2026-08-18T14:00:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}] * 9,
+        "source": "ibkr",
+        "coverage": {"filling": True, "fetched_ts": 1.0, "fresh": False},
+    }
+
+    async def _run():
+        with (
+            patch("bars_store.read", return_value=stub),
+            patch("bars_store.store_series_complete", return_value=True),
+            patch("bars_store.is_coverage_fresh", return_value=False),
+            patch("bars_store.write_payload"),
+            patch("bars_store.coverage_from_bars", return_value={"filling": False}),
+            patch("ticker_bars_push.broadcast_bars_patch"),
+            patch(
+                "ibkr.historical_service._pacing.wait_seconds",
+                return_value=2.0,
+            ),
+            patch("ibkr.bars.fetch_bars_async", new=AsyncMock(side_effect=fake_fetch)),
+            patch("ibkr.historical_service._persist_derived"),
+            patch("asyncio.sleep", new=AsyncMock()),
+        ):
+            await request_bars("AAPL", "1Hour", 400, priority="open_chart")
+
+    asyncio.run(_run())
+    assert fetched["n"] == 1
+
+
+def test_background_sheds_when_pacing_wait_and_store_has_bars():
+    fetched = {"n": 0}
+
+    async def fake_fetch(symbol, timeframe, limit, *, interactive=False):
+        fetched["n"] += 1
+        return _payload(symbol, timeframe)
+
+    stub = {
+        "symbol": "AAPL",
+        "timeframe": "1Hour",
+        "bars": [{"t": "2026-08-18T14:00:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}],
+        "source": "ibkr",
+        "coverage": {"filling": True, "fetched_ts": 1.0},
+    }
+
+    async def _run():
+        with (
+            patch("bars_store.read", return_value=stub),
+            patch("bars_store.store_series_complete", return_value=True),
+            patch("bars_store.is_coverage_fresh", return_value=False),
+            patch("ibkr.historical_service._pacing.wait_seconds", return_value=2.0),
+            patch("ibkr.bars.fetch_bars_async", new=AsyncMock(side_effect=fake_fetch)),
+        ):
+            with pytest.raises(HistoricalShed):
+                await request_bars("AAPL", "1Hour", 400, priority="background")
+
+    asyncio.run(_run())
+    assert fetched["n"] == 0
+
+
+def test_persist_derived_skips_when_store_already_longer():
+    from ibkr.historical_service import _persist_derived
+
+    one_min = {
+        "symbol": "AAPL",
+        "bars": [
+            {
+                "t": f"2026-08-18T14:{i:02d}:00Z",
+                "o": 1, "h": 1, "l": 1, "c": 1, "v": 1,
+            }
+            for i in range(60)
+        ],
+    }
+    stored = [{"t": f"t{i}", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1} for i in range(200)]
+    writes: list[dict] = []
+
+    def fake_read(_symbol, _timeframe, limit):
+        return {"bars": stored[: max(1, int(limit))]}
+
+    with (
+        patch("bars_store.read", side_effect=fake_read),
+        patch("bars_store.write_payload", side_effect=writes.append),
+        patch("bars_store.coverage_from_bars", return_value={"filling": True}),
+        patch("ticker_bars_push.broadcast_bars_patch"),
+    ):
+        _persist_derived("AAPL", one_min)
+
+    assert writes == []

@@ -49,8 +49,8 @@ def test_reset_runtime_state_clears_all_mutable_scanner_values():
         assert reset.cached_health == {
             "status": "loading",
             "latency_ms": 0,
-            "health_source": "alpaca_account_api",
-            "latency_source": "alpaca_account_http",
+            "health_source": "nova_process",
+            "latency_source": "none",
         }
         assert reset.current_mode == "closed"
         assert reset.hod_momo_universe == set()

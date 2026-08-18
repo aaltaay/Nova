@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { CandlestickData, Time } from 'lightweight-charts';
 import {
   canIncrementalBarsUpdate,
-  shouldFitContentOnHistoryPaint,
   timeScaleRangeForSeries,
   formatCoverageClockEt,
   clearEtOffsetCacheForTests,
@@ -114,28 +113,4 @@ describe('ticker chart bar conversion', () => {
     expect(formatCoverageClockEt(null)).toBeNull();
   });
 
-  it('fits the first historical series and a stub-to-full jump', () => {
-    const stub: RawBar[] = [
-      { t: 'now', o: 1, h: 1, l: 1, c: 1, v: 1 },
-    ];
-    const history = Array.from({ length: 40 }, (_, i) => ({
-      t: `t${i}`,
-      o: 1,
-      h: 1,
-      l: 1,
-      c: 1,
-      v: 1,
-    }));
-    expect(shouldFitContentOnHistoryPaint(null, history)).toBe(true);
-    expect(shouldFitContentOnHistoryPaint([], history)).toBe(true);
-    expect(shouldFitContentOnHistoryPaint(stub, history)).toBe(true);
-    expect(shouldFitContentOnHistoryPaint(history, history)).toBe(false);
-    const tipUpdate = [
-      ...history.slice(0, -1),
-      { t: 't39', o: 1, h: 2, l: 1, c: 1.5, v: 9 },
-    ];
-    expect(shouldFitContentOnHistoryPaint(history, tipUpdate)).toBe(false);
-    expect(shouldFitContentOnHistoryPaint(history, [...history, stub[0]])).toBe(false);
-    expect(shouldFitContentOnHistoryPaint(history, [])).toBe(false);
-  });
 });

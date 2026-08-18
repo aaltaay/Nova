@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-18 | [Chart fills defer on pacing](2026-08-18-chart-fill-defer-pacing.md) | Pacing wait slept-and-fetched; stubs no longer cancelled the real IB fill |
 | 2026-08-18 | [Chart viewport after store-first](2026-08-18-chart-viewport-after-store-first.md) | History was in the store; the time scale and abort/tape bugs hid it |
 | 2026-08-18 | [Chart bars local-first (ADR 012)](2026-08-18-chart-bars-local-first.md) | Store-first /bars; paced historical service; retire the timeout overlay |
 | 2026-08-18 | [MACD pane empty with toggle on](2026-08-18-macd-pane-empty.md) | Align MACD to price bars; stop the candle canvas covering the pane |

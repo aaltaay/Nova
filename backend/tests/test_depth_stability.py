@@ -103,6 +103,7 @@ def depth(monkeypatch):
     depth_mod.reset_all()
     fake_ib = _FakeIb()
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(client_mod, "is_ready", lambda: True)
     monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
     monkeypatch.setattr(depth_mod, "_load_ib_types", lambda: True)
     monkeypatch.setattr(

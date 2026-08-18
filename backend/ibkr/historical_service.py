@@ -14,6 +14,7 @@ import logging
 from typing import Any, Literal
 
 from constants import (
+    CHART_DEFAULT_BARS,
     IBKR_BAR_DURATION,
     IBKR_HISTORICAL_MAX_CONCURRENT,
 )
@@ -97,6 +98,10 @@ async def request_bars(
     existing = _inflight.get(key)
     if existing is not None:
         if priority == "background" and open_chart_busy():
+            logger.info(
+                "historical fill shed %s %s: open chart has priority (inflight)",
+                symbol, timeframe,
+            )
             if stored and stored.get("bars"):
                 return stored
             raise HistoricalShed("open chart has priority")
@@ -104,18 +109,24 @@ async def request_bars(
         return _trim(result, limit)
 
     if priority == "background" and open_chart_busy():
+        logger.info("historical fill shed %s %s: open chart has priority", symbol, timeframe)
         if stored and stored.get("bars"):
             return stored
         raise HistoricalShed("open chart has priority")
 
     duration = IBKR_BAR_DURATION.get(timeframe) or ""
     wait = _pacing.wait_seconds(symbol, timeframe, duration)
-    if wait > 0 and stored and stored.get("bars"):
-        cov = dict(stored.get("coverage") or {})
-        cov["filling"] = True
-        return {**stored, "coverage": cov}
     if wait > 0 and priority == "background":
+        logger.info(
+            "historical fill shed %s %s: pacing wait %.1fs",
+            symbol, timeframe, wait,
+        )
         raise HistoricalShed(f"pacing wait {wait:.1f}s")
+    if wait > 0:
+        logger.info(
+            "historical fill deferred %s %s: wait %.1fs priority=%s",
+            symbol, timeframe, wait, priority,
+        )
 
     task = asyncio.create_task(
         _run_fetch(symbol, timeframe, limit, priority, wait),
@@ -154,7 +165,15 @@ async def _run_fetch(
             extra = _pacing.wait_seconds(symbol, timeframe, duration)
             if extra > 0:
                 if priority == "background":
+                    logger.info(
+                        "historical fill shed %s %s: pacing wait %.1fs (in flight)",
+                        symbol, timeframe, extra,
+                    )
                     raise HistoricalShed(f"pacing wait {extra:.1f}s")
+                logger.info(
+                    "historical fill deferred %s %s: wait %.1fs priority=%s (in flight)",
+                    symbol, timeframe, extra, priority,
+                )
                 await asyncio.sleep(min(extra, 16.0))
             _pacing.record(symbol, timeframe, duration)
             result = await ibkr_bars.fetch_bars_async(
@@ -189,7 +208,7 @@ def _persist_derived(symbol: str, one_min: dict[str, Any]) -> None:
         derived = derive_from_1min(source_bars, tf)
         if not derived:
             continue
-        existing = bars_store.read(symbol, tf, max(len(derived), 8))
+        existing = bars_store.read(symbol, tf, CHART_DEFAULT_BARS)
         existing_n = len((existing or {}).get("bars") or [])
         if existing_n > int(len(derived) * 1.2):
             continue
@@ -226,7 +245,7 @@ def schedule_fill(
         try:
             await request_bars(symbol, timeframe, limit, priority=priority)
         except HistoricalShed as exc:
-            logger.debug("historical fill shed %s %s: %s", symbol, timeframe, exc)
+            logger.info("historical fill shed %s %s: %s", symbol, timeframe, exc)
         except Exception:
             logger.warning(
                 "historical fill failed %s %s", symbol, timeframe, exc_info=True,

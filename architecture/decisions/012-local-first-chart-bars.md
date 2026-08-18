@@ -16,7 +16,7 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 
 2. **Paint archived IBKR bars with coverage.** The UI may show last IBKR bars immediately plus `as of …, filling…`. This is an explicit exception to "never serve last-good" -- last-good here is IBKR-sourced, labeled, and never mixed with Alpaca.
 
-3. **One paced service.** `ibkr/historical_service.py` is the only production scheduler of `reqHistoricalData`. Token bucket for IB's three rate rules. Bounded concurrency 3. Priority `open_chart` > `warm` > `background`. Background is shed, not queued. Cross-caller dedup (chart, surge seed, setups, warm).
+3. **One paced service.** `ibkr/historical_service.py` is the only production scheduler of `reqHistoricalData`. Token bucket for IB's three rate rules. Bounded concurrency 3. Priority `open_chart` > `warm` > `background`. Background is shed, not queued. `open_chart` / `warm` **defer** (sleep the wait, then fetch) -- they must not return a stored stub and drop the fill. Cross-caller dedup (chart, surge seed, setups, warm). Shed/defer log at INFO.
 
 4. **Derive today's coarse panes from 1Min.** A 1Min / 1 D pull paints today's 5Min / 15Min / 30Min / 1Hour. Native longer spans still fetch in the background.
 

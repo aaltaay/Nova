@@ -97,6 +97,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Serializing all `reqHistoricalData` through one `cold_slot` mutex (IB allows 50 in flight; the real limit is pacing)
 - ❌ Client 25s abort that paints "IBKR historical may be busy" on a ticker click
 - ❌ Classifying a pacing violation as retryable without a token bucket (retry storms)
+- ❌ Returning a stored stub when pacing wait > 0 and dropping the fill (wedges derived 1Hour / 15Min panes)
 
 ## Related
 

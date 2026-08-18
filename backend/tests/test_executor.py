@@ -71,6 +71,10 @@ def _approve_risk(monkeypatch, qty=100):
 
 def _arm_ibkr_execution(monkeypatch):
     """Open IBKR safety + account gates so execution.service can reach risk/broker."""
+    monkeypatch.setattr(exec_svc, "IBKR_FORCE_ONE_SHARE", False)
+    import execution.qty_gate as qty_gate
+
+    monkeypatch.setattr(qty_gate, "IBKR_FORCE_ONE_SHARE", False)
     monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
     monkeypatch.setattr(client_mod, "is_connected", lambda: True)
     monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")

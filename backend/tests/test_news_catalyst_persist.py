@@ -17,6 +17,7 @@ import news_catalyst_persist as persist
 def isolated_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(cache, "_CACHE_DIR", str(tmp_path))
     monkeypatch.setattr(cache, "_today_et", lambda: "2026-08-17")
+    monkeypatch.setattr(persist, "_today_et", lambda: "2026-08-17")
     yield
 
 
