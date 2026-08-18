@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Gainers prices froze after chart-fill fix
+
+- **Symptom:** After commit `fe192b3` (chart fill defer), Gainers scanner rows stopped updating while Quote Panel ticks still moved. Log showed `historical fill deferred ... wait 333.8s` / `wait 167.9s` lines.
+- **Cause:** The "defer instead of drop" fix slept `min(wait, 16.0)` then sent `reqHistoricalData` anyway. With the 60 req / 10 min bucket exhausted, each warm/open_chart request sent into a 200-600s pacing debt. Historicals share the single IB Gateway socket with `reqMktData` L1 ticks (ADR 010), so the historical storm starved the scanner L1 streams. Verification of the chart fix measured candle counts, not L1 freshness or `ib_loop_lag_ms`.
+- **Fix:** Send rule is now "never send `reqHistoricalData` while `wait_seconds > 0` beyond IB's short 2s/15s windows." `warm` sheds on any wait like `background`. `open_chart` sleeps only short windows; long 10-min-bucket debt is rescheduled via `loop.call_later` (no sleep on the IB loop). `/bars` and ticker WS skip `schedule_fill` when the stored series is complete and fresh. Red-first tests in `test_historical_service.py`.
+- **Keywords:** gainers frozen, L1 starved, pacing wait, HistoricalShed, sleep-then-send, ib_loop_lag_ms, reqMktData, ADR 012, ADR 010, warm priority
+
 ## 2026-08-18 -- Chart fill dropped on pacing wait
 
 - **Symptom:** After the viewport fix, some panes still showed only today's candles (1Hour ~9 bars store-wide). Isolated 1Hour filled to 400; a 6-timeframe burst did not. No shed line in the log.

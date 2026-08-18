@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Historical fills never send against pacing debt (Gainers freeze fix)
+
+- **What:** Gainers/L1 scanner rows keep ticking while charts fill. Warm prefetch sheds on any pacing wait; open_chart sleeps only IB's short 2s/15s windows and reschedules 10-minute-bucket debt via `call_later` on the IB loop instead of sleep-then-send.
+- **Why:** The earlier "defer on pacing" fix slept 16s then sent `reqHistoricalData` into a 200-600s pacing debt. Historicals share the single IB socket with `reqMktData` L1 ticks, so the storm froze scanner prices (PROBLEM_LOG 2026-08-18).
+- **Files touched:** `backend/ibkr/historical_service.py`, `backend/chart_bars.py`, `backend/routes/ticker.py`, ADR 012, `.cursor/rules/single-market-data-feed.mdc`, `backend/tests/test_historical_service.py`.
+- **How it works now:** `reqHistoricalData` is never sent while `wait_seconds > 0` beyond the short same-contract/identical windows. `warm` sheds like `background`. `open_chart` reschedules long debt with `loop.call_later` (IB loop stays free for L1). `/bars` and the ticker WS skip `schedule_fill` when the stored series is complete and fresh. A pane may sit at "filling..." during a budget hole -- honest, and the scanner never stalls.
+- **Verified by:** pytest 1198 passed (incl. red-first `test_warm_sheds_when_pacing_wait_and_store_has_bars`, `test_open_chart_does_not_send_when_global_bucket_wait_exceeds_cap`). Live `/api/movers` prices moved between two polls 8s apart (AIXC 1.61->1.651, XOS 4.25->4.185, CDTG 4.7->4.75); `ib_loop_lag_ms` last 8.6ms, not wedged.
+- **Related:** PROBLEM_LOG 2026-08-18 (Gainers froze), ADR 012 amendment, prior entry "Chart fills defer on pacing."
+
 ## 2026-08-18 -- Chart fills defer on pacing instead of staying on stubs
 
 - **What:** Opening a 2x2 no longer leaves 15Min/30Min/1Hour stuck on today's 9-bar stub. Pacing wait sleeps, then fetches. Suites that were red from earlier desk work are green again.

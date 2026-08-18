@@ -17,6 +17,8 @@ from constants import (
     CHART_DEFAULT_BARS,
     IBKR_BAR_DURATION,
     IBKR_HISTORICAL_MAX_CONCURRENT,
+    IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC,
+    IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC,
 )
 from ibkr.historical_derive import DERIVE_FROM_1MIN, derive_from_1min
 from ibkr.historical_pacing import HistoricalPacing
@@ -39,6 +41,12 @@ _open_chart_depth = 0
 _sem: asyncio.Semaphore | None = None
 _inflight: dict[tuple[str, str], asyncio.Task] = {}
 _pacing = HistoricalPacing()
+# Short IB windows (same-contract 2s, identical-request 15s) may be slept on the
+# IB loop. The 10-minute global bucket must reschedule, not sleep-then-send.
+_SHORT_PACING_WAIT_SEC = max(
+    float(IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC),
+    float(IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC),
+)
 
 
 def reset_for_testing() -> None:
@@ -116,11 +124,18 @@ async def request_bars(
 
     duration = IBKR_BAR_DURATION.get(timeframe) or ""
     wait = _pacing.wait_seconds(symbol, timeframe, duration)
-    if wait > 0 and priority == "background":
+    if wait > 0 and priority != "open_chart":
         logger.info(
-            "historical fill shed %s %s: pacing wait %.1fs",
-            symbol, timeframe, wait,
+            "historical fill shed %s %s: pacing wait %.1fs priority=%s",
+            symbol, timeframe, wait, priority,
         )
+        raise HistoricalShed(f"pacing wait {wait:.1f}s")
+    if wait > 0 and wait > _SHORT_PACING_WAIT_SEC:
+        logger.info(
+            "historical fill rescheduled %s %s: wait %.1fs priority=%s",
+            symbol, timeframe, wait, priority,
+        )
+        _reschedule_after_wait(symbol, timeframe, limit, priority, wait)
         raise HistoricalShed(f"pacing wait {wait:.1f}s")
     if wait > 0:
         logger.info(
@@ -164,17 +179,24 @@ async def _run_fetch(
             duration = IBKR_BAR_DURATION.get(timeframe) or ""
             extra = _pacing.wait_seconds(symbol, timeframe, duration)
             if extra > 0:
-                if priority == "background":
+                if priority != "open_chart":
                     logger.info(
                         "historical fill shed %s %s: pacing wait %.1fs (in flight)",
                         symbol, timeframe, extra,
                     )
                     raise HistoricalShed(f"pacing wait {extra:.1f}s")
+                if extra > _SHORT_PACING_WAIT_SEC:
+                    logger.info(
+                        "historical fill rescheduled %s %s: wait %.1fs priority=%s (in flight)",
+                        symbol, timeframe, extra, priority,
+                    )
+                    _reschedule_after_wait(symbol, timeframe, limit, priority, extra)
+                    raise HistoricalShed(f"pacing wait {extra:.1f}s")
                 logger.info(
                     "historical fill deferred %s %s: wait %.1fs priority=%s (in flight)",
                     symbol, timeframe, extra, priority,
                 )
-                await asyncio.sleep(min(extra, 16.0))
+                await asyncio.sleep(extra)
             _pacing.record(symbol, timeframe, duration)
             result = await ibkr_bars.fetch_bars_async(
                 symbol,
@@ -226,6 +248,33 @@ def _persist_derived(symbol: str, one_min: dict[str, Any]) -> None:
             broadcast_bars_patch(symbol, payload)
         except Exception:
             logger.debug("derived bars_patch failed for %s %s", symbol, tf)
+
+
+def _reschedule_after_wait(
+    symbol: str,
+    timeframe: str,
+    limit: int,
+    priority: Priority,
+    wait: float,
+) -> None:
+    """Re-queue an open_chart fill when the 10-min bucket frees a token.
+
+    Sleeping hundreds of seconds on the IB connect-loop would stall L1 ticks.
+    call_later keeps the loop free; request_bars re-checks pacing on wake.
+    """
+    from ibkr.loop_supervisor import get_loop
+
+    loop = get_loop()
+    if loop is None or not loop.is_running():
+        return
+
+    def _again() -> None:
+        try:
+            schedule_fill(symbol, timeframe, limit, priority=priority)
+        except Exception:
+            logger.debug("rescheduled fill failed to spawn %s %s", symbol, timeframe)
+
+    loop.call_later(max(0.5, float(wait)), _again)
 
 
 def schedule_fill(

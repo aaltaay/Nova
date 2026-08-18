@@ -179,6 +179,75 @@ def test_background_sheds_when_pacing_wait_and_store_has_bars():
     assert fetched["n"] == 0
 
 
+def test_warm_sheds_when_pacing_wait_and_store_has_bars():
+    """Warm prefetch must not burn the 60/10-min bucket when pacing says wait."""
+    fetched = {"n": 0}
+
+    async def fake_fetch(symbol, timeframe, limit, *, interactive=False):
+        fetched["n"] += 1
+        return _payload(symbol, timeframe)
+
+    stub = {
+        "symbol": "AAPL",
+        "timeframe": "1Hour",
+        "bars": [{"t": "2026-08-18T14:00:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}],
+        "source": "ibkr",
+        "coverage": {"filling": True, "fetched_ts": 1.0},
+    }
+
+    async def _run():
+        with (
+            patch("bars_store.read", return_value=stub),
+            patch("bars_store.store_series_complete", return_value=True),
+            patch("bars_store.is_coverage_fresh", return_value=False),
+            patch("ibkr.historical_service._pacing.wait_seconds", return_value=2.0),
+            patch("ibkr.bars.fetch_bars_async", new=AsyncMock(side_effect=fake_fetch)),
+        ):
+            with pytest.raises(HistoricalShed):
+                await request_bars("AAPL", "1Hour", 400, priority="warm")
+
+    asyncio.run(_run())
+    assert fetched["n"] == 0
+
+
+def test_open_chart_does_not_send_when_global_bucket_wait_exceeds_cap():
+    """A 333s pacing debt must not become sleep(16) + send. Reschedule instead."""
+    fetched = {"n": 0}
+    rescheduled: list[tuple[str, str]] = []
+
+    async def fake_fetch(symbol, timeframe, limit, *, interactive=False):
+        fetched["n"] += 1
+        return _payload(symbol, timeframe)
+
+    stub = {
+        "symbol": "AAPL",
+        "timeframe": "1Hour",
+        "bars": [{"t": "2026-08-18T14:00:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}] * 9,
+        "source": "ibkr",
+        "coverage": {"filling": True, "fetched_ts": 1.0, "fresh": False},
+    }
+
+    async def _run():
+        with (
+            patch("bars_store.read", return_value=stub),
+            patch("bars_store.store_series_complete", return_value=True),
+            patch("bars_store.is_coverage_fresh", return_value=False),
+            patch("ibkr.historical_service._pacing.wait_seconds", return_value=333.0),
+            patch("ibkr.bars.fetch_bars_async", new=AsyncMock(side_effect=fake_fetch)),
+            patch(
+                "ibkr.historical_service._reschedule_after_wait",
+                side_effect=lambda sym, tf, lim, pri, wait: rescheduled.append((sym, tf)),
+            ),
+            patch("asyncio.sleep", new=AsyncMock()),
+        ):
+            with pytest.raises(HistoricalShed):
+                await request_bars("AAPL", "1Hour", 400, priority="open_chart")
+
+    asyncio.run(_run())
+    assert fetched["n"] == 0
+    assert rescheduled == [("AAPL", "1Hour")]
+
+
 def test_persist_derived_skips_when_store_already_longer():
     from ibkr.historical_service import _persist_derived
 

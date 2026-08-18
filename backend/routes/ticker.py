@@ -15,6 +15,7 @@ import logging
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+import bars_store
 from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
 from constants import CHART_DEFAULT_BARS, CHART_DEFAULT_TIMEFRAME
 from ibkr import ticks as _ibkr_ticks
@@ -94,6 +95,14 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
         from ibkr.historical_service import schedule_fill
 
         for tf in IBKR_BARS_WARM_TIMEFRAMES:
+            stored = bars_store.read(symbol, tf, CHART_DEFAULT_BARS)
+            if (
+                stored
+                and stored.get("bars")
+                and bars_store.store_series_complete(tf, len(stored["bars"]))
+                and bars_store.is_coverage_fresh(symbol, tf)
+            ):
+                continue
             schedule_fill(symbol, tf, CHART_DEFAULT_BARS, priority="warm")
 
     loop = asyncio.get_event_loop()

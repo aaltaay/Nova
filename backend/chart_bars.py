@@ -72,7 +72,12 @@ def fetch_chart_bars(
         ready = _ibkr_client.is_ready()
         if stored and stored.get("bars"):
             coverage = dict(stored.get("coverage") or {})
-            if ready:
+            # A complete+fresh series needs no fill: do not queue pacing debt
+            # for a no-op. Incomplete or stale data still fills.
+            if ready and not (
+                bars_store.store_series_complete(timeframe, len(stored["bars"]))
+                and bars_store.is_coverage_fresh(symbol, timeframe)
+            ):
                 _schedule_ibkr_fill(
                     symbol, timeframe, limit, interactive=interactive,
                 )

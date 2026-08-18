@@ -16,7 +16,7 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 
 2. **Paint archived IBKR bars with coverage.** The UI may show last IBKR bars immediately plus `as of …, filling…`. This is an explicit exception to "never serve last-good" -- last-good here is IBKR-sourced, labeled, and never mixed with Alpaca.
 
-3. **One paced service.** `ibkr/historical_service.py` is the only production scheduler of `reqHistoricalData`. Token bucket for IB's three rate rules. Bounded concurrency 3. Priority `open_chart` > `warm` > `background`. Background is shed, not queued. `open_chart` / `warm` **defer** (sleep the wait, then fetch) -- they must not return a stored stub and drop the fill. Cross-caller dedup (chart, surge seed, setups, warm). Shed/defer log at INFO.
+3. **One paced service.** `ibkr/historical_service.py` is the only production scheduler of `reqHistoricalData`. Token bucket for IB's three rate rules. Bounded concurrency 3. Priority `open_chart` > `warm` > `background`. **Send rule (amended 2026-08-18):** `reqHistoricalData` is never sent while `wait_seconds > 0` beyond IB's short same-contract (2s) / identical-request (15s) windows. `background` and `warm` shed on any wait. `open_chart` sleeps only a short window; a 10-minute-bucket wait is rescheduled via `call_later` on the IB loop (never sleep-then-send, which starved L1 ticks). Cross-caller dedup (chart, surge seed, setups, warm). Shed/defer/reschedule log at INFO. `/bars` and the ticker WS skip `schedule_fill` when the stored series is complete and fresh.
 
 4. **Derive today's coarse panes from 1Min.** A 1Min / 1 D pull paints today's 5Min / 15Min / 30Min / 1Hour. Native longer spans still fetch in the background.
 
@@ -37,6 +37,7 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 - Serving expired in-memory TTL without coverage (lies about freshness).
 - Parallel unbounded `reqHistoricalData` (trips pacing, Error 162).
 - Using archive tape `bars_1m` as the only store (Quote Panel never opens T&S).
+- Sleep-then-send for long pacing debt (2026-08-18 Gainers freeze): a 333s 10-min-bucket wait became `sleep(16)` + send, saturating the shared IB socket and starving `reqMktData` L1 ticks.
 
 ## Related
 
