@@ -22,6 +22,7 @@ from constants import (
     IBKR_L1_TAB_SWITCH_GRACE_SEC,
 )
 from ibkr import ticks as _ticks
+from ibkr import l1_minute as _l1_minute
 from metrics.op_metrics import record_since
 
 logger = logging.getLogger(__name__)
@@ -118,6 +119,10 @@ def on_l1_quote(
     }
     if quote_quality:
         row["quote_quality"] = quote_quality
+    try:
+        _l1_minute.on_last(sym, float(price), float(ts_unix))
+    except Exception:
+        logger.debug("scanner_l1: l1_minute.on_last failed", exc_info=True)
     if _apply_quote is not None:
         try:
             try:

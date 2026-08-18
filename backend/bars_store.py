@@ -1,8 +1,9 @@
 """Durable IBKR chart-bar store on archive.db (ADR 012).
 
 Reads never touch the broker. Writes come from ``historical_service`` after
-a successful ``reqHistoricalData``. Coverage metadata is honest: archived
-IBKR bars may be painted while a fill is in flight.
+a successful ``reqHistoricalData``, and from scanner L1 last prices rolled
+into live 1Min bars (``ibkr.l1_minute``). Live minutes must not stamp hist
+coverage -- a streamed tip is not a finished fill.
 """
 from __future__ import annotations
 
@@ -189,8 +190,8 @@ def read(symbol: str, timeframe: str, limit: int) -> dict[str, Any] | None:
                 "fetched_ts": float(cov_row["fetched_ts"]),
             }
         else:
-            coverage = coverage_from_bars(bars, filling=False)
-            coverage["fetched_ts"] = time.time()
+            coverage = coverage_from_bars(bars, filling=True)
+            coverage["fetched_ts"] = 0.0
         coverage["fresh"] = is_coverage_fresh(coverage, timeframe)
         return {
             "symbol": symbol,

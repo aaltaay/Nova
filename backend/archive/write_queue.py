@@ -78,14 +78,26 @@ def _bar_sql(table: str) -> str:
     """
 
 
+_INTRADAY_SQL = """
+INSERT INTO bars_intraday
+    (symbol, timeframe, ts, open, high, low, close, volume, source, session_date)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(symbol, timeframe, ts, source) DO UPDATE SET
+    high = MAX(high, excluded.high),
+    low = MIN(low, excluded.low),
+    close = excluded.close,
+    volume = CASE WHEN excluded.volume > 0 THEN excluded.volume ELSE volume END,
+    session_date = excluded.session_date
+"""
 _lock = threading.Lock()
 _tape: deque[tuple] = deque()
 _l1: deque[tuple] = deque()
 _bars_1m: deque[tuple] = deque()
 _bars_1d: deque[tuple] = deque()
+_bars_intraday: deque[tuple] = deque()
 _dropped = 0
 
-_QUEUES: tuple[deque, ...] = (_tape, _l1, _bars_1m, _bars_1d)
+_QUEUES: tuple[deque, ...] = (_tape, _l1, _bars_1m, _bars_1d, _bars_intraday)
 
 
 def _append(queue: deque, row: tuple) -> None:
@@ -180,6 +192,32 @@ def enqueue_bar(
     ))
 
 
+def enqueue_intraday_bar(
+    *,
+    symbol: str,
+    ts: float,
+    open_: float,
+    high: float,
+    low: float,
+    close: float,
+    volume: float = 0.0,
+    timeframe: str = "1Min",
+    source: str = ARCHIVE_SOURCE_IBKR,
+    session_date: str | None = None,
+) -> None:
+    """Queue one chart-store bar. Safe to call from the IB loop.
+
+    Does not stamp ``bars_coverage`` -- live L1 minutes are not a hist fill.
+    """
+    from archive.capture import session_date_for_ts
+
+    _append(_bars_intraday, (
+        symbol.upper(), str(timeframe), float(ts), float(open_), float(high),
+        float(low), float(close), float(volume), source,
+        session_date or session_date_for_ts(ts),
+    ))
+
+
 def pending() -> int:
     with _lock:
         return sum(len(q) for q in _QUEUES)
@@ -192,6 +230,7 @@ def stats() -> dict[str, int]:
             "l1": len(_l1),
             "bars_1m": len(_bars_1m),
             "bars_1d": len(_bars_1d),
+            "bars_intraday": len(_bars_intraday),
             "dropped_pending": _dropped,
         }
 
@@ -208,27 +247,28 @@ def drain_once() -> dict[str, int]:
         l1 = _take(_l1, ARCHIVE_WRITE_BATCH_MAX)
         bars_1m = _take(_bars_1m, ARCHIVE_WRITE_BATCH_MAX)
         bars_1d = _take(_bars_1d, ARCHIVE_WRITE_BATCH_MAX)
+        bars_intraday = _take(_bars_intraday, ARCHIVE_WRITE_BATCH_MAX)
         dropped = _dropped
         _dropped = 0
 
     written = {
         "tape": len(tape), "l1": len(l1),
         "bars_1m": len(bars_1m), "bars_1d": len(bars_1d),
+        "bars_intraday": len(bars_intraday),
         "dropped": dropped,
     }
     if not any(written.values()):
         return written
     try:
-        _write_batch(tape, l1, bars_1m, bars_1d, dropped)
+        _write_batch(tape, l1, bars_1m, bars_1d, bars_intraday, dropped)
     except Exception:
-        # Non-fatal for live UI (archive policy) but must never be silent.
         logger.exception(
             "archive.write_queue: batch write failed -- lost %d tape / %d l1 / "
-            "%d 1m / %d 1d rows",
-            len(tape), len(l1), len(bars_1m), len(bars_1d),
+            "%d 1m / %d 1d / %d intraday rows",
+            len(tape), len(l1), len(bars_1m), len(bars_1d), len(bars_intraday),
         )
         return {**written, "failed": sum(
-            (len(tape), len(l1), len(bars_1m), len(bars_1d)),
+            (len(tape), len(l1), len(bars_1m), len(bars_1d), len(bars_intraday)),
         )}
     return written
 
@@ -238,6 +278,7 @@ def _write_batch(
     l1: list[tuple],
     bars_1m: list[tuple],
     bars_1d: list[tuple],
+    bars_intraday: list[tuple],
     dropped: int,
 ) -> None:
     from archive import db as archive_db
@@ -252,6 +293,8 @@ def _write_batch(
             conn.executemany(_bar_sql("bars_1m"), bars_1m)
         if bars_1d:
             conn.executemany(_bar_sql("bars_1d"), bars_1d)
+        if bars_intraday:
+            conn.executemany(_INTRADAY_SQL, bars_intraday)
         counters: list[tuple[str, int, float]] = []
         now = time.time()
         for name, count in (

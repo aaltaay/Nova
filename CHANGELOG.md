@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Scanner L1 rolls live 1Min into bars_intraday
+
+- **What:** Streamed scanner/HOD L1 last prices now build 1Min OHLC in the same `bars_intraday` store charts and Squeeze already read. No extra `reqHistoricalData`.
+- **Why:** Store-only HOD seed was "store if a chart already paid." Names Nova is already quoting via `reqMktData` should keep a live minute series without burning the IB hist budget.
+- **Files touched:** `backend/ibkr/l1_minute.py` (new), `backend/ibkr/scanner_l1.py`, `backend/archive/write_queue.py`, `backend/bars_store.py`, ADR 012, `single-market-data-feed.mdc`.
+- **How it works now:** `scanner_l1.on_l1_quote` updates an in-memory minute bucket on the IB loop and enqueues the completed minute. The archive write queue drains into `bars_intraday` and does not stamp `bars_coverage`. A live tip is not a finished hist fill -- skip-fill still requires `store_series_complete` plus a real coverage row. L1 volume is cumulative, so live bar volume is 0 and does not zero out a later hist bar.
+- **Verified by:** pytest `test_l1_minute.py` + write-queue / bars_store / scanner_l1 / historical_service / hod surge seed -- 51 passed.
+- **Related:** ADR 012 amendment 2026-08-18 · task-log `knowledge/task-log/2026-08-18-l1-live-1min-store.md`
+
 ## 2026-08-18 -- hod_surge_after_seed afterhours warn was a real seed/window bug
 
 - **What:** Squeeze seed no longer copies chart 1Min bars older than 15 minutes into the live price buffer. Session high still uses the full-session store. Integrity `hod_surge_after_seed` uses the same window as `price_surge` (>=2 prices in the last 5 minutes of the latest print), not first-to-last buffer span.

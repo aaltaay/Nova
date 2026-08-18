@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-18 | [Scanner L1 live 1Min into bars_intraday](2026-08-18-l1-live-1min-store.md) | Streamed reqMktData lasts roll into the chart/Squeeze 1Min store without hist tokens |
 | 2026-08-18 | [hod_surge_after_seed was a stale-seed window bug](2026-08-18-hod-surge-after-seed-stale-window.md) | Integrity used buffer span; Squeeze uses last 5 min of the latest print -- fossils were the 13 warns |
 | 2026-08-18 | [Zero-IB-cost HOD seeding](2026-08-18-hod-zero-ib-historical-seed.md) | HOD reads local 1Min store + tick-6 / 60s warmup; never calls reqHistoricalData |
 | 2026-08-18 | [IB loop wedge: archive SQLite on the market-data loop](2026-08-18-ib-loop-wedge-archive-writes.md) | py-spy caught two synchronous SQLite transactions per tape print on the IB loop (67s lag); archive writes now enqueue and drain in batches |
