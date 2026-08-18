@@ -103,6 +103,20 @@
   color: var(--danger);
 }
 
+.chart-overlay--info {
+  color: var(--text-secondary);
+}
+
+.chart-filling-hint {
+  position: absolute;
+  left: 8px;
+  bottom: 4px;
+  z-index: 8;
+  font-size: 11px;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
 /* ── Chart Drawing Toolbar ──────────────────────────────────────────────── */
 
 .chart-toolbar {

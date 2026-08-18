@@ -51,8 +51,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
 
   useEffect(() => {
     if (!chartActive || !symbol) return;
-    // Sequential per-TF ensureBars (priority queue + full 25s after dequeue).
-    // Include 10Sec so it uses CHART_TIMEFRAME_BAR_LIMITS instead of a 500-bar trim.
+    // Parallel store-first /bars. Include 10Sec so it uses CHART_TIMEFRAME_BAR_LIMITS.
     const tfs = panels.map((p) => p.id);
     if (tfs.length === 0) return;
     const controller = new AbortController();

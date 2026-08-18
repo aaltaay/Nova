@@ -118,7 +118,7 @@ function TickerChartInner({
     symbol,
   );
 
-  const { loading, error, usingMock, indicatorBars } = useChartBars({
+  const { loading, error, usingMock, indicatorBars, filling, coverageAsOf } = useChartBars({
     symbol,
     timeframe,
     chartRef,
@@ -186,8 +186,24 @@ function TickerChartInner({
       />
 
       <div className="chart-body" ref={containerRef}>
-        {loading && <div className="chart-overlay">Loading…</div>}
-        {!loading && error && <div className="chart-overlay chart-overlay--error">{error}</div>}
+        {loading && indicatorBars.length === 0 && (
+          <div className="chart-overlay">Loading…</div>
+        )}
+        {!loading && filling && indicatorBars.length === 0 && !error && (
+          <div className="chart-overlay chart-overlay--info">
+            Loading IBKR historical…
+          </div>
+        )}
+        {!loading && error && indicatorBars.length === 0 && (
+          <div className="chart-overlay chart-overlay--error">{error}</div>
+        )}
+        {filling && indicatorBars.length > 0 && (
+          <div className="chart-filling-hint">
+            {coverageAsOf
+              ? `as of ${coverageAsOf.slice(11, 16)} ET, filling…`
+              : 'filling…'}
+          </div>
+        )}
       </div>
       <TickerChartOverlays
         chart={chartApi}

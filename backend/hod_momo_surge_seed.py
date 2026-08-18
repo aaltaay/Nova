@@ -99,15 +99,21 @@ async def _fetch_seed_bars(
         return []
     prov = (provider or "").strip().lower()
     if prov == "ibkr":
-        from ibkr import bars as _ibkr_bars
+        from constants import IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC
+        from ibkr.historical_service import request_bars
+        from ibkr.loop_supervisor import on_ib
 
-        result = await _ibkr_bars.fetch_bars_async(
-            sym,
-            HOD_MOMO_SURGE_SEED_TIMEFRAME,
-            limit,
-            interactive=False,
+        result = await on_ib(
+            request_bars(
+                sym,
+                HOD_MOMO_SURGE_SEED_TIMEFRAME,
+                limit,
+                priority="background",
+            ),
+            timeout=float(IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC) + 8.0,
+            label="surge_seed",
         )
-        return list(result.get("bars") or [])
+        return list((result or {}).get("bars") or [])
 
     from bars import fetch_bars
 

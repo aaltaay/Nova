@@ -214,12 +214,22 @@ IBKR_BAR_DURATION: dict[str, str] = {
     "1Month": "20 Y",
 }
 IBKR_HISTORICAL_USE_RTH = False          # include extended hours (match chart live session)
-IBKR_HISTORICAL_TIMEOUT_SEC = 20.0       # interactive chart budget (fail loud, don't spin forever)
-IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC = 12.0  # setups_stream / non-UI fetches
+IBKR_HISTORICAL_TIMEOUT_SEC = 20.0       # per-request IB budget once dequeued
+IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC = 12.0  # setups_stream / surge seed
 IBKR_HISTORICAL_WHAT_TO_SHOW = "TRADES"
 
-# IBKR bars TTL cache (Phase 1 chart pipeline). Never serves expired entries;
-# cache-miss + IBKR failure stays a loud 503 (no stale last-good).
+# ADR 012 -- IB's real historical limits (not a mutex). Official TWS pacing:
+# 60 req / 10 min, 6+ same contract / 2s is a violation, identical / 15s.
+IBKR_HISTORICAL_MAX_CONCURRENT = 3
+IBKR_HISTORICAL_PACE_WINDOW_SEC = 600.0
+IBKR_HISTORICAL_PACE_MAX = 60
+IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC = 2.0
+IBKR_HISTORICAL_SAME_CONTRACT_MAX = 5
+IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC = 15.0
+IBKR_BARS_STORE_FRESH_INTRADAY_SEC = 45.0
+IBKR_BARS_STORE_FRESH_DAILY_SEC = 900.0
+
+# In-process TTL sitting on top of the durable store (hot path only).
 IBKR_BARS_CACHE_TTL_INTRADAY_SEC = 20.0
 IBKR_BARS_CACHE_TTL_DAILY_SEC = 900.0  # 15 min for 1Day / 1Week / 1Month
 IBKR_BARS_CACHE_MAX_KEYS = 256

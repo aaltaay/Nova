@@ -87,9 +87,14 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
     mark_resub()
     if _get_discovery_provider() == "ibkr":
         asyncio.create_task(_ibkr_ticks.subscribe(symbol))
-        # Do not warm historicals here. Trader grid + quote REST serialize
-        # through barsStore; a parallel warm raced those /bars calls and
-        # run_coro cancelled them at 25s (PROBLEM_LOG 2026-08-17).
+        # Store-first /bars is a local read. Background warm is safe: it
+        # goes through historical_service (paced, shedable) and lands as
+        # bars_patch -- it cannot cancel a chart HTTP request.
+        from constants import CHART_DEFAULT_BARS, IBKR_BARS_WARM_TIMEFRAMES
+        from ibkr.historical_service import schedule_fill
+
+        for tf in IBKR_BARS_WARM_TIMEFRAMES:
+            schedule_fill(symbol, tf, CHART_DEFAULT_BARS, priority="warm")
 
     loop = asyncio.get_event_loop()
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"

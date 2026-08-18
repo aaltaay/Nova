@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-18 | [Chart bars local-first (ADR 012)](2026-08-18-chart-bars-local-first.md) | Store-first /bars; paced historical service; retire the timeout overlay |
 | 2026-08-18 | [MACD pane empty with toggle on](2026-08-18-macd-pane-empty.md) | Align MACD to price bars; stop the candle canvas covering the pane |
 | 2026-08-18 | [One Desk chip for API + Gateway](2026-08-18-desk-chip-merge.md) | Merge API/Gateway pills; X closes the checklist |
 | 2026-08-18 | [Open paper and Open live Gateway](2026-08-18-open-paper-live-gateway.md) | Checklist on Gateway chip; Open paper / Open live sit together |

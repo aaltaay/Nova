@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Chart timeout was the wrong constraint
+
+- **Symptom:** Clicking a scanner row (AIXC) or switching Trader symbols always started with "Chart bars timed out -- IBKR historical may be busy." The same overlay kept coming back after queue, cache, retry, and cancel-stampede patches.
+- **Cause:** Nova serialized all historicals (and snapshots, and completed orders) through one `cold_slot` mutex, then stacked a client one-at-a-time queue and a 25s abort on top. IB's documented limits are 50 simultaneous historicals and a *rate* budget (60/10 min, 6+ same contract / 2s, identical / 15s). A click queued behind surge seed (HTTP loop awaiting `assert_ib_loop`) and `snapshot_quotes`. AbortError from the 25s timer *or* symbol-switch cleanup painted the same red string.
+- **Fix:** Store-first `/bars` + paced `historical_service` (ADR 012). Historicals leave `cold_slot`. Surge seed hops `on_ib` at background priority. Client queue and 25s abort deleted. UI shows coverage / filling instead of a dead-end timeout.
+- **Keywords:** Chart bars timed out, IBKR historical may be busy, AIXC, cold_slot, barsFetchQueue, run_coro, surge_seed, ADR 012, historical_service
+
 ## 2026-08-18 -- MACD pane empty with toggle on
 
 - **Symptom:** Quote chart MACD button was active. The MACD label showed under the candles. Histogram, MACD line, and signal line were missing (empty black pane).

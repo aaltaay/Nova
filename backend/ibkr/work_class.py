@@ -31,6 +31,8 @@ _COLD: frozenset[str] = frozenset(
         "reqhistoricaldataasync",
         "historical",
         "chart_bars",
+        "historical_service",
+        "bars_fill",
         "setups_stream",
         "reqcompletedordersasync",
         "completed_orders",

@@ -20,6 +20,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [009](./decisions/009-short-entry.md) | Short entry (IBKR short selling) | Accepted |
 | [010](./decisions/010-ib-loop-isolation.md) | IB loop isolation (connect-loop + hot/cold) | Accepted |
 | [011](./decisions/011-trader-window-desk.md) | Trader desk (extract and dock) | Accepted |
+| [012](./decisions/012-local-first-chart-bars.md) | Local-first chart bars + paced historicals | Accepted |
 
 ## Rules and maps
 

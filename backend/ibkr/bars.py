@@ -27,8 +27,7 @@ from constants import (
 )
 from ibkr import client as _client
 from ibkr.errors import describe_exc, is_transient_historical_failure
-from ibkr.historical_gate import HistoricalBusy, historical_slot
-from metrics.op_metrics import record, timed
+from metrics.op_metrics import timed
 
 logger = logging.getLogger(__name__)
 
@@ -147,67 +146,56 @@ async def _fetch_bars_uncached(
     timeout = IBKR_HISTORICAL_TIMEOUT_SEC if interactive else IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC
     contract = _Stock(symbol.upper(), "SMART", "USD")
     raw = None
-    slot_wait_s = 0.0
     fetch_s = 0.0
+    fetch_started = time.perf_counter()
+    try:
+        qualified = await ib.qualifyContractsAsync(contract)
+        if not qualified:
+            raise HTTPException(status_code=404, detail=f"Could not qualify contract for {symbol}")
+        contract = qualified[0]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        desc = describe_exc(exc)
+        logger.error("IBKR: qualify failed for bars %s: %s", symbol, desc, exc_info=True)
+        raise HTTPException(status_code=502, detail=f"IBKR qualify failed: {desc}") from exc
 
     try:
-        wait_started = time.perf_counter_ns()
-        async with historical_slot(interactive=interactive):
-            # First line after acquire -- wait time is lock queue only.
-            slot_wait_ns = time.perf_counter_ns() - wait_started
-            record("ibkr.historical_slot_wait", slot_wait_ns)
-            slot_wait_s = slot_wait_ns / 1_000_000_000
-            fetch_started = time.perf_counter()
-            try:
-                qualified = await ib.qualifyContractsAsync(contract)
-                if not qualified:
-                    raise HTTPException(status_code=404, detail=f"Could not qualify contract for {symbol}")
-                contract = qualified[0]
-            except HTTPException:
-                raise
-            except Exception as exc:
-                desc = describe_exc(exc)
-                logger.error("IBKR: qualify failed for bars %s: %s", symbol, desc, exc_info=True)
-                raise HTTPException(status_code=502, detail=f"IBKR qualify failed: {desc}") from exc
-
-            try:
-                async with timed("ibkr.historical_bars"):
-                    raw = await ib.reqHistoricalDataAsync(
-                        contract,
-                        endDateTime="",
-                        durationStr=duration,
-                        barSizeSetting=bar_size,
-                        whatToShow=IBKR_HISTORICAL_WHAT_TO_SHOW,
-                        useRTH=IBKR_HISTORICAL_USE_RTH,
-                        formatDate=1,
-                        keepUpToDate=False,
-                        timeout=timeout,
-                    )
-            except HTTPException:
-                raise
-            except Exception as exc:
-                desc = describe_exc(exc)
-                if is_transient_historical_failure(exc):
-                    logger.warning(
-                        "IBKR: historical bars transient for %s %s: %s", symbol, timeframe, desc,
-                    )
-                else:
-                    logger.error(
-                        "IBKR: historical bars failed for %s %s: %s",
-                        symbol, timeframe, desc, exc_info=True,
-                    )
-                raise HTTPException(
-                    status_code=502, detail=f"IBKR historical data failed: {desc}",
-                ) from exc
-            finally:
-                fetch_s = time.perf_counter() - fetch_started
-    except HistoricalBusy as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        async with timed("ibkr.historical_bars"):
+            raw = await ib.reqHistoricalDataAsync(
+                contract,
+                endDateTime="",
+                durationStr=duration,
+                barSizeSetting=bar_size,
+                whatToShow=IBKR_HISTORICAL_WHAT_TO_SHOW,
+                useRTH=IBKR_HISTORICAL_USE_RTH,
+                formatDate=1,
+                keepUpToDate=False,
+                timeout=timeout,
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        desc = describe_exc(exc)
+        if is_transient_historical_failure(exc):
+            logger.warning(
+                "IBKR: historical bars transient for %s %s: %s", symbol, timeframe, desc,
+            )
+        else:
+            logger.error(
+                "IBKR: historical bars failed for %s %s: %s",
+                symbol, timeframe, desc, exc_info=True,
+            )
+        raise HTTPException(
+            status_code=502, detail=f"IBKR historical data failed: {desc}",
+        ) from exc
+    finally:
+        fetch_s = time.perf_counter() - fetch_started
 
     bars = _normalize_bars(raw or [], limit)
     logger.info(
-        "IBKR bars timing %s %s slot_wait=%.1fs fetch=%.1fs bars=%d",
-        symbol.upper(), timeframe, slot_wait_s, fetch_s, len(bars),
+        "IBKR bars timing %s %s fetch=%.1fs bars=%d",
+        symbol.upper(), timeframe, fetch_s, len(bars),
     )
     return {"symbol": symbol.upper(), "timeframe": timeframe, "bars": bars, "source": "ibkr"}
 
@@ -222,13 +210,12 @@ async def warm_symbol_bars(
     and got `run_coro` cancelled at 25s. Kept for explicit/ops use.
     """
     from constants import IBKR_BARS_WARM_TIMEFRAMES
+    from ibkr.historical_service import request_bars
 
     symbol = symbol.upper()
     tfs = tuple(timeframes) if timeframes else IBKR_BARS_WARM_TIMEFRAMES
     for tf in tfs:
         try:
-            await fetch_bars_async(
-                symbol, tf, CHART_DEFAULT_BARS, interactive=True,
-            )
+            await request_bars(symbol, tf, CHART_DEFAULT_BARS, priority="warm")
         except Exception as exc:
             logger.debug("IBKR bars warm skipped for %s %s: %s", symbol, tf, exc)

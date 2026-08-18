@@ -125,6 +125,34 @@ CREATE TABLE IF NOT EXISTS integrity_counters (
     value INTEGER NOT NULL DEFAULT 0,
     updated_ts REAL NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS bars_intraday (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    symbol TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    ts REAL NOT NULL,
+    open REAL NOT NULL,
+    high REAL NOT NULL,
+    low REAL NOT NULL,
+    close REAL NOT NULL,
+    volume REAL NOT NULL DEFAULT 0,
+    source TEXT NOT NULL,
+    session_date TEXT NOT NULL,
+    UNIQUE(symbol, timeframe, ts, source)
+);
+CREATE INDEX IF NOT EXISTS idx_bars_intraday_sym_tf_ts
+    ON bars_intraday(symbol, timeframe, ts);
+
+CREATE TABLE IF NOT EXISTS bars_coverage (
+    symbol TEXT NOT NULL,
+    timeframe TEXT NOT NULL,
+    as_of TEXT,
+    complete_through TEXT,
+    filling INTEGER NOT NULL DEFAULT 0,
+    derived_from TEXT,
+    fetched_ts REAL NOT NULL,
+    PRIMARY KEY (symbol, timeframe)
+);
 """
 
 

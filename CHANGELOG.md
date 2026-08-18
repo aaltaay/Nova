@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Local-first chart bars (ADR 012)
+
+- **What:** Ticker click no longer waits on a serialized IBKR historical. `/bars` reads a durable store and returns immediately with coverage; fills arrive as `bars_patch` on the ticker WebSocket. The red "IBKR historical may be busy" overlay is gone.
+- **Why:** That timeout kept returning because the architecture treated IB as one-at-a-time. IB's real limit is rate (60/10 min), not a mutex. Every prior queue/retry patch left the click as a 25s pull behind surge seed and snapshots.
+- **Files touched:** `backend/ibkr/historical_service.py`, `historical_pacing.py`, `bars_store.py`, `chart_bars.py`, `hod_momo_surge_seed.py`, `frontend/src/chart/barsStore.ts`, `useChartBars.ts`, `TickerChart.tsx`, `useTickerStream.ts`. Deleted `barsFetchQueue.ts`.
+- **How it works now:** HTTP is store-first. `historical_service` is the only paced `reqHistoricalData` scheduler (concurrency 3, priority lanes, background shed). 1Min fills derive today's 5Min/15Min/30Min/1Hour. Charts paint archived IBKR bars plus an honest "filling" hint. Alpaca fallback stays forbidden. Empty store + Gateway down is still 503.
+- **Verified by:** pytest pacing/derive/store/service + `test_ibkr_bars` (62 passed). Vitest `barsStore` + chart policy (14 passed).
+- **Follow-ups:** Live rapid-click soak during HOD; confirm surge-seed now hops `on_ib` in API logs.
+- **Related:** ADR 012; `PROBLEM_LOG.md` 2026-08-18 -- Chart timeout was the wrong constraint; task-log `knowledge/task-log/2026-08-18-chart-bars-local-first.md`
+
 ## 2026-08-18 -- MACD pane renders on the quote chart
 
 - **What:** Turning on MACD now draws histogram + MACD/signal lines in the quote-panel oscillator. RSI uses the same alignment.

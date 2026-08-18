@@ -1,24 +1,27 @@
 /**
  * Shared in-memory OHLCV bar store for chart panes.
- * Dedupes in-flight fetches per (symbol, timeframe) and serializes IBKR historicals.
+ * Dedupes in-flight fetches per (symbol, timeframe). HTTP /bars is store-first
+ * on the server (ADR 012); no client serial queue and no 25s abort.
  */
-import {
-  API_BASE_URL,
-  CHART_BARS_FETCH_TIMEOUT_MS,
-  CHART_TIMEFRAME_BAR_LIMITS,
-  chartBarsFetchPriority,
-} from '../constants';
+import { API_BASE_URL, CHART_TIMEFRAME_BAR_LIMITS } from '../constants';
 import type { RawBar } from '../tickerChartData';
-import { enqueueBarsFetch, resetBarsFetchQueueForTests } from './barsFetchQueue';
 
 const API_URL = `${API_BASE_URL}/api`;
 
 export type BarsStoreKey = string;
 
+export interface BarsCoverage {
+  asOf: string | null;
+  completeThrough: string | null;
+  filling: boolean;
+  derivedFrom?: string | null;
+}
+
 export interface BarsStoreEntry {
   bars: RawBar[];
   revision: number;
   fetchedAt: number;
+  coverage?: BarsCoverage;
 }
 
 type Listener = () => void;
@@ -35,7 +38,6 @@ export function clearBarsStoreForTests(): void {
   entries.clear();
   listeners.clear();
   inflight.clear();
-  resetBarsFetchQueueForTests();
 }
 
 export function getBarsEntry(symbol: string, timeframe: string): BarsStoreEntry | null {
@@ -47,19 +49,36 @@ export function isBarsEntryFresh(entry: BarsStoreEntry | null, maxAgeMs: number)
   return Date.now() - entry.fetchedAt <= maxAgeMs;
 }
 
+export function parseBarsCoverage(raw: unknown): BarsCoverage | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const cov = raw as Record<string, unknown>;
+  return {
+    asOf: typeof cov.as_of === 'string' ? cov.as_of : null,
+    completeThrough: typeof cov.complete_through === 'string' ? cov.complete_through : null,
+    filling: Boolean(cov.filling),
+    derivedFrom: typeof cov.derived_from === 'string' ? cov.derived_from : null,
+  };
+}
+
 function notify(key: BarsStoreKey): void {
   const set = listeners.get(key);
   if (!set) return;
   for (const cb of set) cb();
 }
 
-export function setBars(symbol: string, timeframe: string, bars: RawBar[]): BarsStoreEntry {
+export function setBars(
+  symbol: string,
+  timeframe: string,
+  bars: RawBar[],
+  coverage?: BarsCoverage,
+): BarsStoreEntry {
   const key = barsStoreKey(symbol, timeframe);
   const prev = entries.get(key);
   const next: BarsStoreEntry = {
     bars,
     revision: (prev?.revision ?? 0) + 1,
     fetchedAt: Date.now(),
+    coverage,
   };
   entries.set(key, next);
   notify(key);
@@ -102,11 +121,13 @@ async function fetchSingleBars(
       typeof body?.detail === 'string' ? body.detail : `HTTP ${res.status}`,
     );
   }
-  const data = (await res.json()) as { bars?: RawBar[] };
-  return data.bars ?? [];
+  const data = (await res.json()) as { bars?: RawBar[]; coverage?: unknown };
+  const bars = data.bars ?? [];
+  setBars(symbol, timeframe, bars, parseBarsCoverage(data.coverage));
+  return bars;
 }
 
-/** Deduped single-TF fetch; writes the store on success. Serialized across timeframes. */
+/** Deduped single-TF fetch; writes the store on success. Parallel across timeframes. */
 export function ensureBars(
   symbol: string,
   timeframe: string,
@@ -119,33 +140,12 @@ export function ensureBars(
   if (existing) return existing;
 
   let promise!: Promise<RawBar[]>;
-  promise = enqueueBarsFetch({
-    priority: chartBarsFetchPriority(timeframe),
-    signal,
-    run: async () => {
-      if (signal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError');
-      }
-      const controller = new AbortController();
-      const onAbort = () => controller.abort();
-      if (signal) {
-        if (signal.aborted) controller.abort();
-        else signal.addEventListener('abort', onAbort, { once: true });
-      }
-      const timeoutId = globalThis.setTimeout(
-        () => controller.abort(),
-        CHART_BARS_FETCH_TIMEOUT_MS,
-      );
-      try {
-        const bars = await fetchSingleBars(sym, timeframe, controller.signal, limit);
-        setBars(sym, timeframe, bars);
-        return bars;
-      } finally {
-        globalThis.clearTimeout(timeoutId);
-        if (signal) signal.removeEventListener('abort', onAbort);
-      }
-    },
-  }).finally(() => {
+  promise = (async () => {
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+    return fetchSingleBars(sym, timeframe, signal, limit);
+  })().finally(() => {
     if (inflight.get(key) === promise) inflight.delete(key);
   });
 
@@ -158,28 +158,29 @@ export interface BatchBarsResult {
   errors: Record<string, string>;
 }
 
-/** Sequential per-TF ensureBars (each gets a full timeout after dequeue). */
+/** Parallel per-TF ensureBars (each /bars is a local store read). */
 export async function ensureBarsBatch(
   symbol: string,
   timeframes: string[],
   signal?: AbortSignal,
 ): Promise<BatchBarsResult> {
-  const sym = symbol.trim().toUpperCase();
   const unique = [...new Set(timeframes.filter(Boolean))];
   if (unique.length === 0) return { results: {}, errors: {} };
 
   const results: Record<string, RawBar[]> = {};
   const errors: Record<string, string> = {};
-  for (const tf of unique) {
-    if (signal?.aborted) {
-      errors[tf] = 'Aborted';
-      continue;
-    }
-    try {
-      results[tf] = await ensureBars(sym, tf, signal, CHART_TIMEFRAME_BAR_LIMITS[tf]);
-    } catch (err) {
-      errors[tf] = err instanceof Error ? err.message : 'Failed to load bars';
-    }
-  }
+  await Promise.all(
+    unique.map(async (tf) => {
+      if (signal?.aborted) {
+        errors[tf] = 'Aborted';
+        return;
+      }
+      try {
+        results[tf] = await ensureBars(symbol, tf, signal, CHART_TIMEFRAME_BAR_LIMITS[tf]);
+      } catch (err) {
+        errors[tf] = err instanceof Error ? err.message : 'Failed to load bars';
+      }
+    }),
+  );
   return { results, errors };
 }

@@ -1,7 +1,9 @@
 """Provider-aware chart bars facade.
 
 When discovery is IBKR, chart bars come from IBKR only -- never silently from
-Alpaca. Alpaca is used only when discovery_provider is explicitly alpaca.
+Alpaca. The HTTP path is store-first (ADR 012): return archived IBKR bars
+immediately and schedule a paced fill. Alpaca is used only when
+discovery_provider is explicitly alpaca.
 """
 from __future__ import annotations
 
@@ -15,12 +17,39 @@ from constants import (
     CHART_DEFAULT_TIMEFRAME,
     CHART_TIMEFRAMES,
     IBKR_BARS_WARM_TIMEFRAMES,
-    IBKR_HISTORICAL_TIMEOUT_SEC,
 )
 from ibkr import client as _ibkr_client
-from ibkr.errors import bars_failure_detail, describe_exc, is_transient_historical_failure
 
 logger = logging.getLogger(__name__)
+
+
+def _store_read(symbol: str, timeframe: str, limit: int) -> dict | None:
+    from bars_store import read
+
+    return read(symbol, timeframe, limit)
+
+
+def _schedule_ibkr_fill(
+    symbol: str,
+    timeframe: str,
+    limit: int,
+    *,
+    interactive: bool,
+) -> None:
+    from ibkr.historical_service import schedule_fill
+
+    schedule_fill(
+        symbol,
+        timeframe,
+        limit,
+        priority="open_chart" if interactive else "background",
+    )
+
+
+def _empty_filling(symbol: str, timeframe: str) -> dict:
+    from bars_store import empty_filling
+
+    return empty_filling(symbol, timeframe)
 
 
 def fetch_chart_bars(
@@ -31,57 +60,45 @@ def fetch_chart_bars(
     discovery_provider: str,
     interactive: bool = False,
 ) -> dict:
-    """Return ``{symbol, timeframe, bars, source}`` from the active discovery feed.
+    """Return ``{symbol, timeframe, bars, source, coverage}``.
 
-    Single-feed rule: when ``discovery_provider == \"ibkr\"``, IBKR must succeed
-    (Gateway connected + historical data). There is no silent Alpaca fallback --
-    callers get HTTP 503 so the UI cannot mix IBKR quotes with Alpaca candles.
-
-    ``interactive=True`` for the open ticker chart (priority over setups_stream).
+    Single-feed rule: when ``discovery_provider == \"ibkr\"``, candles are
+    IBKR-sourced (store and/or live historical). There is no silent Alpaca
+    fallback. An empty store while Gateway is down is still HTTP 503.
     """
     symbol = symbol.upper()
     if discovery_provider == "ibkr":
-        # Usable session (is_ready / get_ib), not socket-only is_connected.
-        if not _ibkr_client.is_ready():
-            reason = _ibkr_client.session_reason()
-            if not _ibkr_client.is_connected():
-                detail = (
-                    "Chart bars require IB Gateway (discovery=ibkr). "
-                    "Connect Gateway -- Nova will not fall back to Alpaca."
-                )
-            else:
-                detail = (
-                    f"Chart bars unavailable: IBKR session not usable ({reason}). "
-                    "Nova will not fall back to Alpaca."
-                )
-            raise HTTPException(status_code=503, detail=detail)
-        # Allow a little headroom beyond the IB request timeout for qualify + lock wait.
-        run_timeout = IBKR_HISTORICAL_TIMEOUT_SEC + (5.0 if interactive else 2.0)
-        try:
-            from ibkr import bars as _ibkr_bars
-            result = _ibkr_client.run_coro(
-                _ibkr_bars.fetch_bars_async(
+        stored = _store_read(symbol, timeframe, limit)
+        ready = _ibkr_client.is_ready()
+        if stored and stored.get("bars"):
+            coverage = dict(stored.get("coverage") or {})
+            if ready:
+                _schedule_ibkr_fill(
                     symbol, timeframe, limit, interactive=interactive,
-                ),
-                timeout=run_timeout,
-            )
-        except HTTPException:
-            raise
-        except Exception as exc:
-            detail = bars_failure_detail(symbol, exc)
-            if is_transient_historical_failure(exc):
-                # Expected under Gateway load / overnight cancels -- warning, not Sentry ERROR spam.
-                logger.warning("IBKR bars transient failure for %s: %s", symbol, describe_exc(exc))
+                )
+                coverage["filling"] = not coverage.get("fresh", False)
             else:
-                logger.error("IBKR bars failed for %s: %s", symbol, describe_exc(exc), exc_info=True)
-            raise HTTPException(status_code=503, detail=detail) from exc
-        if not isinstance(result, dict) or "bars" not in result:
-            raise HTTPException(
-                status_code=503,
-                detail=f"IBKR chart bars returned unexpected shape for {symbol}",
+                coverage["filling"] = False
+            stored["coverage"] = coverage
+            stored.setdefault("source", "ibkr")
+            return stored
+        if ready:
+            _schedule_ibkr_fill(
+                symbol, timeframe, limit, interactive=interactive,
             )
-        result.setdefault("source", "ibkr")
-        return result
+            return _empty_filling(symbol, timeframe)
+        reason = _ibkr_client.session_reason()
+        if not _ibkr_client.is_connected():
+            detail = (
+                "Chart bars require IB Gateway (discovery=ibkr). "
+                "Connect Gateway -- Nova will not fall back to Alpaca."
+            )
+        else:
+            detail = (
+                f"Chart bars unavailable: IBKR session not usable ({reason}). "
+                "Nova will not fall back to Alpaca."
+            )
+        raise HTTPException(status_code=503, detail=detail)
 
     payload = fetch_alpaca_bars(symbol, timeframe, limit)
     payload.setdefault("source", "alpaca")

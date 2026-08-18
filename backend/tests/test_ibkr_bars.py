@@ -95,14 +95,16 @@ def test_fetch_bars_async_clamps_10sec_limit():
 def test_fetch_chart_bars_ibkr_mode_errors_when_disconnected():
     from fastapi import HTTPException
 
-    with patch.object(chart_bars._ibkr_client, "is_connected", return_value=False):
-        with patch.object(chart_bars, "fetch_alpaca_bars") as alpaca:
-            try:
-                chart_bars.fetch_chart_bars("AAPL", "1Min", 10, discovery_provider="ibkr")
-                assert False, "expected HTTPException"
-            except HTTPException as exc:
-                assert exc.status_code == 503
-                assert "Alpaca" in str(exc.detail)
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=False):
+        with patch.object(chart_bars._ibkr_client, "is_connected", return_value=False):
+            with patch.object(chart_bars, "_store_read", return_value=None):
+                with patch.object(chart_bars, "fetch_alpaca_bars") as alpaca:
+                    try:
+                        chart_bars.fetch_chart_bars("AAPL", "1Min", 10, discovery_provider="ibkr")
+                        assert False, "expected HTTPException"
+                    except HTTPException as exc:
+                        assert exc.status_code == 503
+                        assert "Alpaca" in str(exc.detail)
     alpaca.assert_not_called()
 
 
@@ -125,23 +127,39 @@ def test_describe_exc_never_empty_for_timeout():
     assert is_transient_historical_failure(RuntimeError("Error 162: Historical Market Data Service query cancelled"))
 
 
-def test_fetch_chart_bars_ibkr_timeout_is_503_with_clear_detail():
-    from fastapi import HTTPException
-
-    def _timeout_bridge(coro, timeout):
-        coro.close()
-        raise TimeoutError()
-
-    with patch.object(chart_bars._ibkr_client, "is_connected", return_value=True):
-        with patch.object(chart_bars._ibkr_client, "run_coro", side_effect=_timeout_bridge):
+def test_fetch_chart_bars_ibkr_store_first_does_not_block_on_bridge():
+    fill = patch.object(chart_bars, "_schedule_ibkr_fill")
+    store = patch.object(chart_bars, "_store_read", return_value=None)
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with store, fill as spy:
             with patch.object(chart_bars, "fetch_alpaca_bars") as alpaca:
-                try:
-                    chart_bars.fetch_chart_bars("AAPL", "1Min", 10, discovery_provider="ibkr")
-                    assert False, "expected HTTPException"
-                except HTTPException as exc:
-                    assert exc.status_code == 503
-                    detail = str(exc.detail)
-                    assert "timed out" in detail.lower() or "cancelled" in detail.lower()
-                    assert "TimeoutError" in detail
-                    assert "Alpaca" in detail  # honesty: no silent fallback
+                out = chart_bars.fetch_chart_bars(
+                    "AAPL", "1Min", 10, discovery_provider="ibkr", interactive=True,
+                )
+    assert out["bars"] == []
+    assert out["coverage"]["filling"] is True
+    assert out["source"] == "ibkr"
+    spy.assert_called_once()
+    alpaca.assert_not_called()
+
+
+def test_fetch_chart_bars_paints_store_when_gateway_down():
+    stored = {
+        "symbol": "AIXC",
+        "timeframe": "1Min",
+        "bars": [{"t": "2026-08-18T14:00:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}],
+        "source": "ibkr",
+        "coverage": {"as_of": "2026-08-18T14:00:00Z", "filling": False, "fresh": False},
+    }
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=False):
+        with patch.object(chart_bars, "_store_read", return_value=stored):
+            with patch.object(chart_bars, "_schedule_ibkr_fill") as spy:
+                with patch.object(chart_bars, "fetch_alpaca_bars") as alpaca:
+                    out = chart_bars.fetch_chart_bars(
+                        "AIXC", "1Min", 10, discovery_provider="ibkr",
+                    )
+    assert len(out["bars"]) == 1
+    assert out["coverage"]["filling"] is False
+    spy.assert_not_called()
+    alpaca.assert_not_called()
     alpaca.assert_not_called()

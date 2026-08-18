@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL, TICKER_WS_HTTP_SEED_MS, WS_BASE_URL } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { BarData, TickerDetail, TickerTradeUpdate } from '../types/ticker';
+import { parseBarsCoverage, setBars } from '../chart/barsStore';
 import { tickerDetailFromHttp } from './tickerStreamHttp';
 
 const WS_URL = `${WS_BASE_URL}/ws`;
@@ -103,6 +104,10 @@ export function useTickerStream(symbol: string | null): {
               listing: msg.listing ?? prev.listing,
             };
           });
+        } else if (msg.type === 'bars_patch') {
+          const tf = typeof msg.timeframe === 'string' ? msg.timeframe : '';
+          if (!tf || !Array.isArray(msg.bars)) return;
+          setBars(symbol, tf, msg.bars, parseBarsCoverage(msg.coverage));
         } else if (msg.type === 'trade_update') {
           if (!initialReceived) return;
           const update = msg as TickerTradeUpdate;

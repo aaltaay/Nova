@@ -1,4 +1,4 @@
-/** ADR 005 -- REST bar loading via shared barsStore; incremental series updates. */
+/** ADR 005 / 012 -- store-first bar loading; fills arrive as bars_patch. */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
@@ -9,8 +9,6 @@ import type {
 } from 'lightweight-charts';
 import {
   CHART_BARS_CLIENT_STALE_MS,
-  CHART_BARS_ERROR_RETRY_MAX,
-  CHART_BARS_ERROR_RETRY_MS,
   CHART_MOCK_BAR_COUNT,
   CHART_MOCK_BASE_PRICE,
   CHART_REFETCH_SEC,
@@ -34,7 +32,6 @@ import {
   isBarsEntryFresh,
   subscribeBars,
 } from './barsStore';
-import { shouldScheduleBarsErrorRetry } from './barsErrorRetry';
 import { isCurrentBarsRequest } from './requestVersion';
 import type { ChartTradeUpdate } from './types';
 
@@ -48,7 +45,6 @@ interface UseChartBarsOptions {
   lastTrade: ChartTradeUpdate | null | undefined;
   applyLiveTrade: (trade: ChartTradeUpdate, tf: string) => void;
   onSeriesReset: () => void;
-  /** When false, pause polling and skip network (hidden Trader tab). */
   chartActive?: boolean;
 }
 
@@ -84,8 +80,6 @@ function paintBars(
     && candles.length > 0;
 
   if (canIncremental) {
-    // LWC update() only accepts the tip (same time replace) or a newer time.
-    // Never update penultimate -- that throws "Cannot update oldest data".
     const tip = candles[candles.length - 1];
     const tipVol = volumes[volumes.length - 1];
     try {
@@ -99,6 +93,14 @@ function paintBars(
   }
   lastCandleRef.current = candles.length > 0 ? candles[candles.length - 1] : null;
   return rawBarsToIndicatorBars(bars, tf);
+}
+
+function coverageFromEntry(symbol: string, timeframe: string): {
+  filling: boolean;
+  asOf: string | null;
+} {
+  const cov = getBarsEntry(symbol, timeframe)?.coverage;
+  return { filling: Boolean(cov?.filling), asOf: cov?.asOf ?? null };
 }
 
 export function useChartBars({
@@ -117,14 +119,14 @@ export function useChartBars({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usingMock, setUsingMock] = useState(false);
+  const [filling, setFilling] = useState(false);
+  const [coverageAsOf, setCoverageAsOf] = useState<string | null>(null);
   const [indicatorBars, setIndicatorBars] = useState<IndicatorBar[]>([]);
 
   const barsRequestVersionRef = useRef(0);
   const lastTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);
   const paintedBarsRef = useRef<RawBar[] | null>(null);
   const chartActiveRef = useRef(chartActive);
-  const errorRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const errorRetryCountRef = useRef(0);
 
   useEffect(() => {
     lastTradeRef.current = lastTrade;
@@ -134,20 +136,24 @@ export function useChartBars({
     chartActiveRef.current = chartActive;
   }, [chartActive]);
 
-  const clearErrorRetry = useCallback(() => {
-    if (errorRetryTimerRef.current != null) {
-      clearTimeout(errorRetryTimerRef.current);
-      errorRetryTimerRef.current = null;
-    }
+  const applyCoverage = useCallback((sym: string, tf: string) => {
+    const next = coverageFromEntry(sym, tf);
+    setFilling(next.filling);
+    setCoverageAsOf(next.asOf);
   }, []);
 
   const applyStoreBars = useCallback((
     bars: RawBar[],
-    opts: { background: boolean; fitContent: boolean },
+    opts: { background: boolean; fitContent: boolean; filling?: boolean },
   ) => {
     let next = bars;
     let mock = false;
     if (next.length === 0) {
+      if (opts.filling) {
+        setUsingMock(false);
+        setError(null);
+        return;
+      }
       if (!allowMockBarsFallback(discoveryProvider)) {
         setUsingMock(false);
         setIndicatorBars([]);
@@ -174,17 +180,13 @@ export function useChartBars({
     );
     paintedBarsRef.current = next;
     setIndicatorBars(indicators);
-    clearErrorRetry();
     setError(null);
-    // Re-apply latest trade after any successful paint (foreground or background)
-    // so a tip that arrived before the series was ready still merges.
     const liveTrade = lastTradeRef.current;
     if (liveTrade?.price && liveTrade.timestamp) applyLiveTrade(liveTrade, timeframe);
   }, [
     applyLiveTrade,
     candleSeriesRef,
     chartRef,
-    clearErrorRetry,
     discoveryProvider,
     lastCandleRef,
     timeframe,
@@ -206,48 +208,40 @@ export function useChartBars({
       const limit = CHART_TIMEFRAME_BAR_LIMITS[tf];
       const bars = await ensureBars(sym, tf, signal, limit);
       if (!isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current)) return;
-      applyStoreBars(bars, { background, fitContent: !background });
+      const cov = coverageFromEntry(sym, tf);
+      applyCoverage(sym, tf);
+      applyStoreBars(bars, {
+        background,
+        fitContent: !background,
+        filling: cov.filling,
+      });
     } catch (err) {
       if (!isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current)) return;
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       if (!background) {
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          setError('Chart bars timed out -- IBKR historical may be busy. Try again.');
-        } else {
-          setError(err instanceof Error ? err.message : 'Failed to load chart');
-        }
-      }
-      if (shouldScheduleBarsErrorRetry({
-        storeHasBars: Boolean(getBarsEntry(sym, tf)?.bars.length),
-        retriesUsed: errorRetryCountRef.current,
-        maxRetries: CHART_BARS_ERROR_RETRY_MAX,
-        chartActive: chartActiveRef.current,
-      })) {
-        errorRetryCountRef.current += 1;
-        clearErrorRetry();
-        const jitter = Math.floor(Math.random() * 1000);
-        errorRetryTimerRef.current = setTimeout(() => {
-          errorRetryTimerRef.current = null;
-          if (!chartActiveRef.current) return;
-          if (getBarsEntry(sym, tf)?.bars.length) return;
-          void fetchBars(sym, tf, true);
-        }, CHART_BARS_ERROR_RETRY_MS + jitter);
+        setError(err instanceof Error ? err.message : 'Failed to load chart');
       }
     } finally {
       if (isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current) && !background) {
         setLoading(false);
       }
     }
-  }, [applyStoreBars, clearErrorRetry]);
+  }, [applyCoverage, applyStoreBars]);
 
-  // Instant paint from shared store; subscribe for batch/warm updates.
   useEffect(() => {
     onSeriesReset();
     paintedBarsRef.current = null;
-    errorRetryCountRef.current = 0;
-    clearErrorRetry();
+    setIndicatorBars([]);
+    setFilling(false);
+    setCoverageAsOf(null);
     const existing = getBarsEntry(symbol, timeframe);
     if (existing && existing.bars.length > 0) {
-      applyStoreBars(existing.bars, { background: false, fitContent: true });
+      applyCoverage(symbol, timeframe);
+      applyStoreBars(existing.bars, {
+        background: false,
+        fitContent: true,
+        filling: Boolean(existing.coverage?.filling),
+      });
       setLoading(false);
       setError(null);
     }
@@ -255,20 +249,21 @@ export function useChartBars({
       if (!chartActiveRef.current) return;
       const entry = getBarsEntry(symbol, timeframe);
       if (!entry) return;
-      applyStoreBars(entry.bars, { background: true, fitContent: false });
+      applyCoverage(symbol, timeframe);
+      applyStoreBars(entry.bars, {
+        background: true,
+        fitContent: false,
+        filling: Boolean(entry.coverage?.filling),
+      });
     });
-    return () => {
-      clearErrorRetry();
-      unsub();
-    };
-  }, [symbol, timeframe, onSeriesReset, applyStoreBars, clearErrorRetry]);
+    return unsub;
+  }, [symbol, timeframe, onSeriesReset, applyStoreBars, applyCoverage]);
 
-  // Network load when active and store is missing/stale.
   useEffect(() => {
     if (!chartActive) return;
     const entry = getBarsEntry(symbol, timeframe);
     const fresh = isBarsEntryFresh(entry, CHART_BARS_CLIENT_STALE_MS);
-    if (fresh && entry && entry.bars.length > 0) {
+    if (fresh && entry && entry.bars.length > 0 && !entry.coverage?.filling) {
       return;
     }
     const background = Boolean(entry && entry.bars.length > 0);
@@ -277,11 +272,9 @@ export function useChartBars({
     return () => {
       barsRequestVersionRef.current += 1;
       controller.abort();
-      clearErrorRetry();
     };
-  }, [symbol, timeframe, fetchBars, chartActive, clearErrorRetry]);
+  }, [symbol, timeframe, fetchBars, chartActive]);
 
-  // Reconciliation poll -- paused while tab hidden.
   useEffect(() => {
     if (!chartActive) return;
     const sec = CHART_REFETCH_SEC[timeframe];
@@ -296,7 +289,6 @@ export function useChartBars({
     };
   }, [symbol, timeframe, fetchBars, chartActive]);
 
-  // Catch-up once when a hidden tab becomes active again.
   const wasActiveRef = useRef(chartActive);
   useEffect(() => {
     const was = wasActiveRef.current;
@@ -306,5 +298,5 @@ export function useChartBars({
     }
   }, [chartActive, fetchBars, symbol, timeframe]);
 
-  return { loading, error, usingMock, indicatorBars };
+  return { loading, error, usingMock, indicatorBars, filling, coverageAsOf };
 }
