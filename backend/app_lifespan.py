@@ -45,6 +45,7 @@ from constants import (
     L2_RETENTION_SWEEP_INTERVAL_SEC,
 )
 import archive.db as _archive_db
+import archive.write_queue as _archive_write_queue
 from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 from health_status import mark_nova_process_health, set_health_broker_keys_missing
 from ibkr import client as _ibkr_client
@@ -239,6 +240,9 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
         ("executor.fill", _executor.fill_poll_loop),
         ("l2.flush", _l2_batch.flush_loop),
         ("l2.retention", _l2_retention_loop),
+        # Drains tape/L1/bar rows queued by IB-loop producers. Without this the
+        # archive never persists; with a synchronous write it wedged the IB loop.
+        ("archive.write_queue", _archive_write_queue.drain_loop),
         ("ibkr.detail_reprice", lambda: _ibkr_reprice.detail_reprice_loop(
             get_ibkr_detail_symbols, run_ibkr, broadcast_trade_update, _find_ibkr_cache_row,
             lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),

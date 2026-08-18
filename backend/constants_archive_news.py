@@ -33,6 +33,12 @@ ARCHIVE_COUNTER_GAPS = "capture_gaps"
 ARCHIVE_COUNTER_INCOMPLETE_WINDOWS = "incomplete_windows"
 ARCHIVE_COUNTER_L1_TICKS = "l1_ticks"
 ARCHIVE_COUNTER_ENRICHMENT_SNAPSHOTS = "enrichment_snapshots"
+# Non-blocking archive writes (ADR 010): producers on the IB loop enqueue in
+# memory; one writer drains batches off that loop. Bound the queue so a disk
+# stall costs bounded RAM and counts drops instead of wedging the desk.
+ARCHIVE_WRITE_QUEUE_MAX = 100_000        # rows held before oldest are dropped
+ARCHIVE_WRITE_BATCH_MAX = 5_000          # rows per transaction
+ARCHIVE_WRITE_FLUSH_SEC = 1.0            # drain cadence
 ARCHIVE_TABLES_COLD = (
     "bars_1m",
     "bars_1d",

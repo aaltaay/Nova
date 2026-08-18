@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-18 | [IB loop wedge: archive SQLite on the market-data loop](2026-08-18-ib-loop-wedge-archive-writes.md) | py-spy caught two synchronous SQLite transactions per tape print on the IB loop (67s lag); archive writes now enqueue and drain in batches |
 | 2026-08-18 | [Scanner L1 follows every displayed table](2026-08-18-scanner-l1-displayed-tables.md) | One dominant tab hint on frozen Gappers zeroed every price_patch; clients now declare the set of tables on screen |
 | 2026-08-18 | [Gainers freeze: historical fills never send against pacing debt](2026-08-18-gainers-freeze-pacing-send-rule.md) | Gainers freeze: historical fills never send against pacing debt |
 | 2026-08-18 | [Chart fills defer on pacing](2026-08-18-chart-fill-defer-pacing.md) | Pacing wait slept-and-fetched; stubs no longer cancelled the real IB fill |

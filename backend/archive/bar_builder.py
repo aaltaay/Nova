@@ -45,8 +45,13 @@ def on_tape_print(
     price: float,
     size: float = 0.0,
     source: str = ARCHIVE_SOURCE_IBKR,
+    queued: bool = False,
 ) -> None:
-    """Update the open 1m bucket; flush prior minute when the clock rolls."""
+    """Update the open 1m bucket; flush prior minute when the clock rolls.
+
+    Live tape callers pass ``queued=True`` -- they run on the IB loop and must
+    not block on SQLite (ADR 010).
+    """
     symbol = symbol.upper()
     if price <= 0 or ts <= 0:
         return
@@ -61,7 +66,7 @@ def on_tape_print(
         )
         return
     if minute_ts > bucket.minute_ts:
-        _flush(bucket)
+        _flush(bucket, queued=queued)
         _open[key] = _Bucket(
             symbol=symbol, minute_ts=minute_ts,
             open=price, high=price, low=price, close=price,
@@ -70,10 +75,13 @@ def on_tape_print(
         return
     if minute_ts < bucket.minute_ts:
         # Late print for an older minute — write a one-print bar (idempotent upsert).
-        record_bar(
-            symbol=symbol, ts=minute_ts, open_=price, high=price,
-            low=price, close=price, volume=max(0.0, float(size)),
-            timeframe="1m", source=source,
+        _flush(
+            _Bucket(
+                symbol=symbol, minute_ts=minute_ts, open=price, high=price,
+                low=price, close=price, volume=max(0.0, float(size)),
+                source=source,
+            ),
+            queued=queued,
         )
         return
     bucket.high = max(bucket.high, price)
@@ -99,9 +107,22 @@ def flush_all() -> int:
     return n
 
 
-def _flush(bucket: _Bucket) -> None:
+def _flush(bucket: _Bucket, *, queued: bool = False) -> None:
+    """Persist a completed minute.
+
+    ``queued=True`` is the live path: minute rollover is reached from the IB
+    socket callback, where a blocking SQLite write starves market data
+    (ADR 010). Offline backfill/rollup keeps the direct write so callers can
+    read the rows back immediately.
+    """
     try:
-        record_bar(
+        if queued:
+            from archive.write_queue import enqueue_bar
+
+            write = enqueue_bar
+        else:
+            write = record_bar
+        write(
             symbol=bucket.symbol,
             ts=bucket.minute_ts,
             open_=bucket.open,

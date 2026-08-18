@@ -37,11 +37,15 @@ def _archive_l1_tick(
     volume: float | None = None,
     day_high: float | None = None,
 ) -> None:
-    """Non-fatal archive of one HOD-decision L1 tick (finding G5)."""
-    try:
-        from archive.capture import record_l1_tick
+    """Non-fatal archive of one HOD-decision L1 tick (finding G5).
 
-        record_l1_tick(
+    ADR 010: enqueue only. This is reached from IB tick callbacks, and a
+    synchronous SQLite write per tick wedged the IB loop (2026-08-18).
+    """
+    try:
+        from archive.write_queue import enqueue_l1_tick
+
+        enqueue_l1_tick(
             symbol=symbol,
             ts=ts,
             price=price,
@@ -49,7 +53,7 @@ def _archive_l1_tick(
             day_high=day_high,
         )
     except Exception:
-        logger.exception("archive.record_l1_tick failed for %s", symbol)
+        logger.exception("archive L1 tick enqueue failed for %s", symbol)
 
 
 class IbkrBridgeError(RuntimeError):

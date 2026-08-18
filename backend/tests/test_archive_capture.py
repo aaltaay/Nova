@@ -234,21 +234,25 @@ class TestEnrichmentSnapshotHook:
 
 
 class TestTapeStreamArchiveHook:
-    def test_on_tape_update_calls_record_tape_print(self, monkeypatch):
+    def test_on_tape_update_queues_the_print(self, monkeypatch):
+        """ADR 010: the IB socket callback enqueues; it never writes SQLite.
+
+        This asserted ``record_tape_print`` until 2026-08-18, when that
+        synchronous write was found wedging the IB loop (45s lag) and starving
+        every ``reqMktData`` tick on the desk.
+        """
         import asyncio
         from types import SimpleNamespace
 
+        import archive.write_queue as wq
         import ibkr.tape_stream as tape
 
         calls: list[dict] = []
-
-        def _fake_record(**kwargs):
-            calls.append(kwargs)
-
-        monkeypatch.setattr(capture, "record_tape_print", _fake_record)
-        # Force the import path inside tape_stream to hit our patched function.
-        import archive.capture as cap_mod
-        monkeypatch.setattr(cap_mod, "record_tape_print", _fake_record)
+        monkeypatch.setattr(wq, "enqueue_tape_print", lambda **kw: calls.append(kw))
+        monkeypatch.setattr(
+            capture, "record_tape_print",
+            lambda **_kw: pytest.fail("blocking SQLite write on the IB loop"),
+        )
 
         q: asyncio.Queue = asyncio.Queue()
         monkeypatch.setitem(tape._queues, "CNEY", q)

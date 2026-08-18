@@ -126,13 +126,17 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
                 "ask": ask,
             },
         )
-        # P6 — durable local archive (non-fatal if archive package fails)
+        # P6 — durable local archive (non-fatal if archive package fails).
+        # ADR 010: this runs inside the ib_async socket callback, so it must
+        # only enqueue. A synchronous SQLite write here starved reqMktData for
+        # the whole desk on high-print runners (2026-08-18 IB-loop wedge).
         try:
-            from archive.capture import parse_iso_to_unix, record_tape_print
+            from archive.capture import parse_iso_to_unix
+            from archive.write_queue import enqueue_tape_print
             from constants import ARCHIVE_SOURCE_IBKR
 
             print_ts = parse_iso_to_unix(ts_iso)
-            record_tape_print(
+            enqueue_tape_print(
                 symbol=symbol,
                 ts=print_ts,
                 price=price,
@@ -154,9 +158,10 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
                 price=price,
                 size=float(size_i),
                 source=ARCHIVE_SOURCE_IBKR,
+                queued=True,
             )
         except Exception:
-            logger.exception("IBKR tape: archive.record_tape_print failed for %s", symbol)
+            logger.exception("IBKR tape: archive enqueue failed for %s", symbol)
 
     # Clear consumed ticks to avoid re-processing on next updateEvent
     try:
