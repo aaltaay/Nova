@@ -149,3 +149,24 @@ def test_last_below_seeded_high_blocks():
 
     assert not state.pending_consolidation
     assert state.session_highs[sym] == 12.0
+
+
+def test_observed_warmup_seeds_floor_without_opening_alert_window():
+    """After N seconds unseeded, max observed print becomes the floor -- not a HOD break."""
+    from constants import HOD_MOMO_OBSERVED_SEED_WARMUP_SEC
+
+    _reset()
+    state = hm.get_state()
+    t0 = 1_700_000_000.0
+    high.note_observed_print("WARM", 4.10, now_ts=t0)
+    high.note_observed_print("WARM", 4.40, now_ts=t0 + 5.0)
+    assert not high.is_high_seeded("WARM")
+
+    high.maybe_warmup_seed("WARM", now_ts=t0 + HOD_MOMO_OBSERVED_SEED_WARMUP_SEC - 1.0)
+    assert not high.is_high_seeded("WARM")
+
+    high.maybe_warmup_seed("WARM", now_ts=t0 + HOD_MOMO_OBSERVED_SEED_WARMUP_SEC + 1.0)
+    assert high.is_high_seeded("WARM")
+    assert state.session_highs["WARM"] == 4.40
+    assert high.last_new_hod_age_sec("WARM") is None
+    assert "observed_warmup" in (state.session_high_source.get("WARM") or "")

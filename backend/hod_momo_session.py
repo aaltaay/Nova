@@ -116,8 +116,8 @@ def check_and_reset_session() -> bool:
     state.price_buffer = {}
     state.surge_seeded = set()
     state.pending_surge_seed = set()
-    state.surge_seed_no_history = set()
-    state.surge_seed_retries = {}
+    state.first_observed_ts = {}
+    state.observed_max = {}
     state.last_trade_ts = None
     _metrics.clear_volume_buffers()
     try:

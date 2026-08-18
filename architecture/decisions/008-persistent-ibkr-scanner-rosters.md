@@ -21,6 +21,8 @@ HOD Momo eligibility was also entangled with discovery: `hod_momo_seed.py` ran a
 
 **Implementation status (2026-08-07):** Code paths for (1)–(5) are in-tree. Persistent manager is enabled and **authoritative** by default (`IBKR_SCANNER_PERSISTENT_ENABLED=true`, `IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=true`). Cutover was forced after production evidence that shadow+one-shot dual ownership left UI caches empty (empty-shadow quiet window forever; competing one-shot `TOP_PERC_*` timed out against the same clientId leases). Set `IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=false` only for deliberate rollback.
 
+**Amendment (2026-08-18):** HOD Momo does not call `reqHistoricalData`. Session high is tick-6 + observed prints, with an observed-warmup floor after 60s of watching (`open_alert_window=False`). Squeeze buffer is a local `bars_store.read` of already-stored 1Min bars; empty store means live-only. The 60/10min IB historical budget belongs to Trader chart panes (max 4 timeframes per symbol).
+
 ## Consequences
 
 - Gappers/Gainers/Afterhours become genuinely frozen artifacts after their window — the frontend can trust "Frozen at 09:30 ET" instead of re-deriving staleness from a poll timestamp.

@@ -60,6 +60,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
    - Price/volume ticks into `hod_momo.on_trade_update` come from IBKR L1 streams (`ibkr/scanner_l1.py` / shared `ibkr/ticks.py`), not Alpaca WS.
    - HOD Momo's active set is exactly: current-session Gappers ∪ Gainers ∪ Afterhours ∪ manually curated Former Momo. Nothing else — Losers, the open ticker, IBKR volume seeds (`HOT_BY_VOLUME`/`TOP_VOLUME_RATE`/`MOST_ACTIVE`), a second `belowPrice`-filtered Gainers pass, and rotating discovery "explore" are excluded from HOD admission (ADR 008).
    - Sub-$20 stocks are ordinary Gainers rows — no special scanner, quota, or reserved slot.
+   - **HOD spends zero IB historical tokens.** Session-high floor is tick-6 + observed prints; if still unseeded after `HOD_MOMO_OBSERVED_SEED_WARMUP_SEC` (60s), self-seed from max observed print with `open_alert_window=False`. Squeeze buffer is `bars_store.read` of already-stored 1Min bars only. Empty store = live-only (Gainers `change_pct` covers the admission leg). Never call `historical_service.request_bars` from HOD.
    - `websocket.alpaca_trades_drive_hod()` is False when discovery=ibkr — skip `on_trade_update` and `l2.tape.on_alpaca_trade` for Alpaca prints.
    - `websocket.stream_loop` **does not open** Alpaca's market-data WebSocket under ibkr (idles and polls). Avoids dual-feed and Alpaca's one-connection limit.
    - Depth/tape hooks must compare `msg.symbol` to an **uppercased** current symbol key.
@@ -84,7 +85,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Applying a scanner/hydration callback from a superseded IB generation, subscription epoch, or session key
 - ❌ Reviving HOD volume seeds, a `belowPrice` Gainers pass, open-ticker priority, or Losers as HOD inputs
 - ❌ Pretending table prices are live when the active-tab L1 subscription is incomplete
-- ❌ Feeding T&S from the Alpaca recorder (`l2.tape`) instead of `tape_stream.py`
+- ❌ Calling `historical_service.request_bars` / `reqHistoricalData` from HOD surge seed (charts own the 60/10min budget)
+   - ❌ Feeding T&S from the Alpaca recorder (`l2.tape`) instead of `tape_stream.py`
 - ❌ Showing prior symbol's prints in T&S after a symbol switch
 - ❌ Mounting Level 2 or Time & Sales in the scanner Quote Panel (Trader tabs only)
 - ❌ Unmounting Trader (closing tape/L2 WS) when the operator clicks Scanner

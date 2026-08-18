@@ -38,7 +38,7 @@ def _merge_source(prev: str | None, addition: str) -> str:
         return addition
     parts = set(prev.split("+"))
     parts.add(addition)
-    order = ["bars", "tick6", "observed"]
+    order = ["bars", "tick6", "observed_warmup", "observed"]
     return "+".join(p for p in order if p in parts)
 
 
@@ -128,6 +128,55 @@ def seed_session_high_from_bars(symbol: str, bars: list[dict] | None) -> float |
 def is_high_seeded(symbol: str) -> bool:
     sym = (symbol or "").strip().upper()
     return bool(sym) and sym in _state.get_state().session_high_seeded
+
+
+def note_observed_print(
+    symbol: str, price: float, *, now_ts: float | None = None,
+) -> None:
+    """Track first-seen ts and max print while the high floor is still empty."""
+
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return
+    try:
+        px = float(price)
+    except (TypeError, ValueError):
+        return
+    if px <= 0:
+        return
+    state = _state.get_state()
+    ts = float(now_ts) if now_ts is not None else time.time()
+    state.first_observed_ts.setdefault(sym, ts)
+    prev = float(state.observed_max.get(sym, 0.0) or 0.0)
+    if px > prev:
+        state.observed_max[sym] = px
+
+
+def maybe_warmup_seed(symbol: str, *, now_ts: float | None = None) -> bool:
+    """If still unseeded after the warmup window, floor from max observed print.
+
+    Does not open the new-HOD alert window -- this is a watching-since floor,
+    not a live break.
+    """
+    from constants import HOD_MOMO_OBSERVED_SEED_WARMUP_SEC
+
+    sym = (symbol or "").strip().upper()
+    if not sym or is_high_seeded(sym):
+        return False
+    state = _state.get_state()
+    first = state.first_observed_ts.get(sym)
+    if first is None:
+        return False
+    now = float(now_ts) if now_ts is not None else time.time()
+    if now - float(first) < float(HOD_MOMO_OBSERVED_SEED_WARMUP_SEC):
+        return False
+    mx = float(state.observed_max.get(sym, 0.0) or 0.0)
+    if mx <= 0:
+        return False
+    apply_session_high(
+        sym, mx, source="observed_warmup", open_alert_window=False, now_ts=now,
+    )
+    return is_high_seeded(sym)
 
 
 def raise_observed_high(symbol: str, price: float, *, now_ts: float | None = None) -> bool:

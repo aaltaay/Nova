@@ -12,7 +12,6 @@ from constants import (
     HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_P95_SEC,
     HOD_MOMO_INTEGRITY_ENRICHED_MIN_PCT,
     HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC,
-    HOD_MOMO_INTEGRITY_SURGE_PENDING_WARN,
     HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT,
     HOD_MOMO_INTEGRITY_TICK_IDLE_MODES,
     HOD_MOMO_INTEGRITY_TICK_STALE_SEC,
@@ -214,26 +213,13 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             "hod_surge_after_seed",
             "fail" if tape_dead else "warn",
             f"{surge_none_after_seed} seeded symbol(s) still have surge=None "
-            f"-- historical seed incomplete or window mismatch",
+            f"after the squeeze window -- live-warmup incomplete or window mismatch",
         ))
     else:
         checks.append(check(
             "hod_surge_after_seed",
             "pass",
-            "no surge=None after completed historical seed",
-        ))
-
-    if pending >= HOD_MOMO_INTEGRITY_SURGE_PENDING_WARN:
-        checks.append(check(
-            "hod_surge_seed_backlog",
-            "warn",
-            f"pending_surge_seeds={pending} -- Squeeze cold-start queue backing up",
-        ))
-    else:
-        checks.append(check(
-            "hod_surge_seed_backlog",
-            "pass",
-            f"pending_surge_seeds={pending}",
+            "no surge=None after squeeze window elapsed",
         ))
 
     if tracked <= 0:

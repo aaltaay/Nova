@@ -81,47 +81,80 @@ def test_request_surge_seed_is_once_per_symbol(monkeypatch):
     assert hm.pop_pending_surge_seeds(10) == []
 
 
-def test_requeue_surge_seed_retries_then_exhausts():
-    """Transient seed failures requeue with a bounded budget; opening a chart
-    (503 HistoricalBusy) must not scar the symbol for the whole session."""
-    state = hm.replace_state(HodMomoState())
-    assert hm.requeue_surge_seed("FOO", max_retries=2) is True
-    assert "FOO" in state.pending_surge_seed
-    assert state.surge_seed_retries["FOO"] == 1
-    # Drain so the next requeue adds it again.
-    assert hm.pop_pending_surge_seeds(10) == ["FOO"]
-    assert hm.requeue_surge_seed("FOO", max_retries=2) is True
-    assert state.surge_seed_retries["FOO"] == 0
-    assert hm.pop_pending_surge_seeds(10) == ["FOO"]
-    # Budget exhausted -- caller must mark attempted instead.
-    assert hm.requeue_surge_seed("FOO", max_retries=2) is False
-    assert "FOO" not in state.pending_surge_seed
+def test_count_surge_none_skips_short_live_warmup_span():
+    """Live-only buffers are structurally not-ready until the squeeze window
+    elapses -- that is warmup, not a Nova defect."""
+    from collections import deque
 
-
-def test_no_history_excluded_from_surge_none_count():
-    """Illiquid symbols with no IBKR history are a property of the symbol,
-    not a Nova defect -- they must not paint Integrity warn."""
     from hod_momo_flow import count_surge_none_after_seed
 
-    state = hm.replace_state(HodMomoState())
-    state.surge_seeded = {"LIQUID", "ILLIQUID"}
-    state.surge_seed_no_history = {"ILLIQUID"}
-    state.price_buffer = {}  # both have empty buffers → would both count
-
+    now = time.time()
+    short = deque([(now - 30.0, 1.0), (now, 1.1)])
+    ready = deque([(now - 400.0, 1.0), (now, 1.1)])
     bad = count_surge_none_after_seed(
-        seeded=state.surge_seeded,
-        price_buffer=state.price_buffer,
+        seeded={"SHORT", "READY", "EMPTY"},
+        price_buffer={"SHORT": short, "READY": ready},
         ticker_snaps={},
         surge_fn=lambda *_a, **_k: None,
-        no_history=state.surge_seed_no_history,
+        window_min=5,
     )
-    assert bad == 1  # only LIQUID counts
+    assert bad == 1  # only READY has span >= 5 min and surge=None
 
 
-def test_mark_surge_seed_no_history_removes_from_queue():
+def test_seed_symbol_store_hit_seeds_high_and_buffer(monkeypatch):
+    from hod_momo_surge_seed import seed_symbol
+    import hod_momo_high as high
+
     state = hm.replace_state(HodMomoState())
-    hm.request_surge_seed("DEAD")
-    hm.mark_surge_seed_no_history("DEAD")
-    assert "DEAD" in state.surge_seed_no_history
-    assert "DEAD" not in state.pending_surge_seed
-    assert "DEAD" not in state.surge_seeded
+    now = datetime.now(timezone.utc)
+    bars = []
+    for i in range(20):
+        t = now.timestamp() - (20 - i) * 60
+        iso = datetime.fromtimestamp(t, tz=timezone.utc).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        bars.append({
+            "t": iso, "o": 4.0, "h": 5.0 + i * 0.01, "l": 3.8, "c": 4.2, "v": 1000,
+        })
+
+    monkeypatch.setattr(
+        "bars_store.read",
+        lambda *_a, **_k: {"bars": bars, "coverage": {"filling": False}},
+    )
+
+    kind = seed_symbol("SEED", "ibkr")
+    assert kind == "store"
+    assert "SEED" in state.surge_seeded
+    assert high.is_high_seeded("SEED")
+    assert len(state.price_buffer.get("SEED") or []) >= 2
+
+
+def test_seed_symbol_store_miss_marks_attempted_live(monkeypatch):
+    from hod_momo_surge_seed import seed_symbol
+
+    state = hm.replace_state(HodMomoState())
+    monkeypatch.setattr("bars_store.read", lambda *_a, **_k: None)
+    kind = seed_symbol("MISS", "ibkr")
+    assert kind == "live"
+    assert "MISS" in state.surge_seeded
+    assert not (state.price_buffer.get("MISS") or [])
+
+
+def test_seed_symbol_never_calls_request_bars(monkeypatch):
+    import inspect
+
+    import hod_momo_surge_seed as seed_mod
+    from hod_momo_surge_seed import seed_symbol
+
+    src = inspect.getsource(seed_mod)
+    assert "historical_service" not in src
+    assert "request_bars" not in src
+
+    hm.replace_state(HodMomoState())
+
+    def boom(*_a, **_k):
+        raise AssertionError("HOD must not call historical_service.request_bars")
+
+    monkeypatch.setattr("ibkr.historical_service.request_bars", boom)
+    monkeypatch.setattr("bars_store.read", lambda *_a, **_k: None)
+    assert seed_symbol("NOIB", "ibkr") == "live"

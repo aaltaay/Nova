@@ -1,13 +1,12 @@
-"""HOD Momo surge buffer seeding from recent 1-min bars.
+"""HOD Momo surge buffer seeding from local 1-min bars (never IB historicals).
 
-Warrior Squeeze (Up 5% in 5min / 10% in 10min) needs price history spanning the
-window. Nova's live path only appends IBKR 1Hz table ticks *after* a symbol
-joins the focus universe — first tick → surge:None; after a few flat ticks →
-surge≈0 even when the move already happened.
+Warrior Squeeze (Up 5% in 5min / 10% in 10min) needs a rolling price buffer.
+Live L1 only starts after a symbol joins the focus universe. If the operator
+already paid for today's 1Min series (chart open / warm prefetch), reuse
+``bars_store`` so Squeeze can see the trough. Otherwise the buffer builds
+live; the Gainers row's change_pct is the admission-leg signal.
 
-This module fetches recent bars (IBKR when discovery=ibkr) and seeds
-``hod_momo``'s rolling price buffer so ``low_to_current`` / ``fixed_start``
-surge can see the trough. No silent Alpaca fallback under discovery=ibkr.
+This module never calls ``reqHistoricalData``.
 """
 from __future__ import annotations
 
@@ -19,8 +18,6 @@ from typing import Callable
 from constants import (
     HOD_MOMO_FULL_SESSION_BAR_LIMIT,
     HOD_MOMO_SURGE_SEED_BARS,
-    HOD_MOMO_SURGE_SEED_MAX_PER_TICK,
-    HOD_MOMO_SURGE_SEED_MAX_RETRIES,
     HOD_MOMO_SURGE_SEED_POLL_SEC,
     HOD_MOMO_SURGE_SEED_TIMEFRAME,
 )
@@ -73,12 +70,7 @@ def bars_to_surge_points(bars: list[dict]) -> list[tuple[float, float]]:
 
 
 def filter_bars_to_session(bars: list[dict], session_key: str) -> list[dict]:
-    """Keep only bars whose 04:00 ET-anchored session matches ``session_key``.
-
-    A ``1 D`` IBKR duration pull can include a sliver of the prior calendar
-    day before 04:00 ET; without this filter that stale bar could pollute
-    today's session-high seed.
-    """
+    """Keep only bars whose 04:00 ET-anchored session matches ``session_key``."""
     out: list[dict] = []
     for bar in bars or []:
         ts = parse_bar_ts(bar.get("t"))
@@ -90,119 +82,95 @@ def filter_bars_to_session(bars: list[dict], session_key: str) -> list[dict]:
     return out
 
 
-async def _fetch_seed_bars(
-    symbol: str, provider: str, *, limit: int = HOD_MOMO_SURGE_SEED_BARS,
-) -> list[dict]:
-    """Fetch recent 1-min bars from the active discovery feed (no silent fallback)."""
-    sym = (symbol or "").strip().upper()
-    if not sym:
-        return []
+def _read_local_bars(symbol: str, provider: str, limit: int) -> list[dict]:
+    """Read bars already on disk. Never schedules an IB fill."""
     prov = (provider or "").strip().lower()
     if prov == "ibkr":
-        from constants import IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC
-        from ibkr.historical_service import request_bars
-        from ibkr.loop_supervisor import on_ib
+        import bars_store
 
-        result = await on_ib(
-            request_bars(
-                sym,
-                HOD_MOMO_SURGE_SEED_TIMEFRAME,
-                limit,
-                priority="background",
-            ),
-            timeout=float(IBKR_HISTORICAL_BACKGROUND_TIMEOUT_SEC) + 8.0,
-            label="surge_seed",
-        )
-        return list((result or {}).get("bars") or [])
+        stored = bars_store.read(symbol, HOD_MOMO_SURGE_SEED_TIMEFRAME, limit)
+        return list((stored or {}).get("bars") or [])
 
     from bars import fetch_bars
 
-    loop = asyncio.get_running_loop()
-    result = await loop.run_in_executor(
-        None,
-        lambda: fetch_bars(sym, HOD_MOMO_SURGE_SEED_TIMEFRAME, limit),
-    )
+    result = fetch_bars(symbol, HOD_MOMO_SURGE_SEED_TIMEFRAME, limit)
     return list((result or {}).get("bars") or [])
 
 
+def seed_symbol(symbol: str, provider: str) -> str:
+    """Apply a store-only seed. Returns ``store`` or ``live``.
+
+    ``live`` means the local store was empty -- the engine will build the
+    surge buffer from post-admission ticks and tick-6 / observed-warmup
+    handles the high floor.
+    """
+    import hod_momo as hm
+    import hod_momo_high as _high
+
+    sym = (symbol or "").strip().upper()
+    if not sym:
+        return "live"
+
+    full_session_bars = filter_bars_to_session(
+        _read_local_bars(sym, provider, HOD_MOMO_FULL_SESSION_BAR_LIMIT),
+        session_key_et(),
+    )
+    if not full_session_bars:
+        hm.mark_surge_seed_attempted(sym)
+        logger.info(
+            "HOD Momo surge seed: %s live-only (no local %s bars)",
+            sym, HOD_MOMO_SURGE_SEED_TIMEFRAME,
+        )
+        return "live"
+
+    bars = full_session_bars[-HOD_MOMO_SURGE_SEED_BARS:]
+    points = bars_to_surge_points(bars)
+    n = hm.seed_price_buffer(sym, points)
+    try:
+        sh = _high.seed_session_high_from_bars(sym, full_session_bars)
+        if sh is not None:
+            logger.info(
+                "HOD Momo high seed: %s session_high=%.4g from %d store bars",
+                sym, sh, len(full_session_bars),
+            )
+    except Exception as hexc:
+        logger.warning("HOD Momo high seed failed for %s: %s", sym, hexc)
+    if points:
+        logger.info(
+            "HOD Momo surge seed: %s +%d buffer pts from %d store %s bars",
+            sym, n, len(bars), HOD_MOMO_SURGE_SEED_TIMEFRAME,
+        )
+        hm.reevaluate_after_surge_seed(sym)
+    else:
+        hm.mark_surge_seed_attempted(sym)
+    return "store"
+
+
 async def surge_seed_loop(get_provider: Callable[[], str]) -> None:
-    """Background task: drain pending surge-seed symbols via historical bars."""
+    """Background task: drain pending seeds from the local bars store."""
     import hod_momo as hm
 
     while True:
         try:
             await asyncio.sleep(HOD_MOMO_SURGE_SEED_POLL_SEC)
-            pending = hm.pop_pending_surge_seeds(HOD_MOMO_SURGE_SEED_MAX_PER_TICK)
+            pending_n = len(hm.get_state().pending_surge_seed)
+            if pending_n <= 0:
+                continue
+            pending = hm.pop_pending_surge_seeds(pending_n)
             if not pending:
                 continue
             provider = (get_provider() or "").strip().lower() or "alpaca"
             for sym in pending:
                 try:
-                    # One fetch, full current session (04:00 ET forward) —
-                    # HOD truth needs the whole session's highs; the 5m/10m
-                    # surge buffer only needs the tail. Fetching once and
-                    # slicing keeps this on the same historical gate/pacing
-                    # queue as before (no extra IBKR request per symbol).
-                    full_session_bars = await _fetch_seed_bars(
-                        sym, provider, limit=HOD_MOMO_FULL_SESSION_BAR_LIMIT,
-                    )
-                    full_session_bars = filter_bars_to_session(
-                        full_session_bars, session_key_et(),
-                    )
-                    bars = full_session_bars[-HOD_MOMO_SURGE_SEED_BARS:]
-                    points = bars_to_surge_points(bars)
-                    n = hm.seed_price_buffer(sym, points)
-                    # Full-session bars → session-high seed (max h), not just
-                    # the surge tail. Avoids inventing HOD from the first L1
-                    # last print after admission, and avoids a falsely-low
-                    # floor for a runner whose actual high happened earlier
-                    # in the session than the last 15 minutes.
-                    try:
-                        import hod_momo_high as _high
-
-                        sh = _high.seed_session_high_from_bars(sym, full_session_bars)
-                        if sh is not None:
-                            logger.info(
-                                "HOD Momo high seed: %s session_high=%.4g from %d full-session bars",
-                                sym, sh, len(full_session_bars),
-                            )
-                    except Exception as hexc:
-                        logger.warning(
-                            "HOD Momo high seed failed for %s: %s", sym, hexc,
-                        )
-                    if points:
-                        logger.info(
-                            "HOD Momo surge seed: %s +%d buffer pts from %d %s bars (%s)",
-                            sym, n, len(bars), HOD_MOMO_SURGE_SEED_TIMEFRAME, provider,
-                        )
-                        hm.reevaluate_after_surge_seed(sym)
-                    else:
-                        # Empty result with no exception: IBKR has no usable
-                        # history for this symbol (illiquid). Classify it so it
-                        # is not retried nor counted as a Nova failure.
-                        logger.warning(
-                            "HOD Momo surge seed: %s no usable bars (provider=%s) "
-                            "-- classified no_history (not retried, not an integrity fail)",
-                            sym, provider,
-                        )
-                        hm.mark_surge_seed_no_history(sym)
+                    seed_symbol(sym, provider)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    # Transient failures (503 interactive-chart contention,
-                    # timeout, pacing) requeue with a bounded retry budget so a
-                    # single hiccup / open chart does not scar the session.
-                    if hm.requeue_surge_seed(sym, max_retries=HOD_MOMO_SURGE_SEED_MAX_RETRIES):
-                        logger.info(
-                            "HOD Momo surge seed: %s transient failure, requeued: %s",
-                            sym, exc,
-                        )
-                    else:
-                        hm.mark_surge_seed_attempted(sym)
-                        logger.warning(
-                            "HOD Momo surge seed failed for %s after retries: %s",
-                            sym, exc,
-                        )
+                    logger.warning(
+                        "HOD Momo store seed failed for %s: %s -- live-only",
+                        sym, exc,
+                    )
+                    hm.mark_surge_seed_attempted(sym)
         except asyncio.CancelledError:
             raise
         except Exception as exc:

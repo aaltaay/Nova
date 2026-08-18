@@ -58,24 +58,20 @@ HOD_MOMO_ALPACA_SUBSCRIBE_CHUNK = 200  # max symbols per Alpaca WS subscribe mes
 HOD_MOMO_SESSION_RESET_HOUR_ET = 4   # reset session state at 4:00 AM ET
 HOD_MOMO_SESSION_RESET_POLL_SEC = 30.0  # background rollover check cadence
 HOD_MOMO_SEED_REFRESH_SEC = 30.0     # IBKR volume-scanner seed cadence
-# Squeeze surge cold-start: live ticks alone start empty, so strategy 10/11 get
-# surge:None (or ~0%) when a name first joins the focus universe mid-move.
-# Seed the rolling price buffer from recent 1-min bars once per symbol/session.
+# Seed the rolling price buffer from *local* 1-min bars once per symbol
+# (store filled by operator charts / warm prefetch -- HOD never calls
+# reqHistoricalData). Session high prefers tick-6; observed-warmup covers
+# names that arrive unseeded. Full-session store bars still beat a 15-bar
+# surge tail for the high floor when they happen to be present.
 HOD_MOMO_SURGE_SEED_TIMEFRAME = "1Min"
 HOD_MOMO_SURGE_SEED_BARS = 15          # last ~15 minutes of 1-min OHLCV (surge buffer only)
-# HOD truth (session_high) is a *separate* concern from the 15-bar surge
-# buffer above: it must see the symbol's whole current session (04:00 ET
-# premarket open through now), not just the last 15 minutes, or a runner
-# that made its actual high 30+ minutes before joining the active set would
-# get a falsely-low seeded floor and fire a false "new HOD" on a mere retest.
-# ~960 one-minute bars covers the full 04:00-20:00 ET extended session.
+# ~960 one-minute bars covers the full 04:00-20:00 ET extended session when
+# the local store already has them (no IB fill from this path).
 HOD_MOMO_FULL_SESSION_BAR_LIMIT = 1000
 HOD_MOMO_SURGE_SEED_POLL_SEC = 1.0     # drain pending seed queue
-HOD_MOMO_SURGE_SEED_MAX_PER_TICK = 2   # IBKR historical pacing — keep low
-# Transient seed failures (timeout, 503 interactive-chart contention) requeue
-# instead of consuming the symbol's one shot. A permanent "IBKR has no data"
-# is classified separately and never retried nor counted as a Nova failure.
-HOD_MOMO_SURGE_SEED_MAX_RETRIES = 3
+# If tick-6 never arrives, seed the HOD floor from max observed print after
+# this many seconds of watching -- without opening the new-HOD alert window.
+HOD_MOMO_OBSERVED_SEED_WARMUP_SEC = 60.0
 # Integrity / fail-loud data-flow checks (invisible-bug detectors).
 HOD_MOMO_INTEGRITY_TICK_STALE_SEC = 15.0       # no HOD ticks while universe non-empty → fail (RTH)
 HOD_MOMO_INTEGRITY_TICK_WARN_SEC = 3.0         # soft warn before hard stale fail (RTH)
@@ -89,7 +85,6 @@ HOD_MOMO_INTEGRITY_TICK_IDLE_MODES = frozenset({"closed"})  # no live tape expec
 HOD_MOMO_INTEGRITY_WARMUP_SEC = 90.0           # grace after process start before tick check fails
 HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC = 240.0  # buffer span for "ready" (4 of 5 min window)
 HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT = 40.0  # % of buffered symbols that must be ready
-HOD_MOMO_INTEGRITY_SURGE_PENDING_WARN = 10     # pending historical seeds → warn
 HOD_MOMO_INTEGRITY_POLL_SEC = 20.0             # background integrity logger cadence
 HOD_MOMO_INTEGRITY_ENRICHED_MIN_PCT = 30.0     # snaps with rvol vs tracked snaps
 SCANNER_INTEGRITY_CACHE_STALE_SEC = 120.0      # gappers/gainers/losers cache age → warn/fail

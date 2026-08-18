@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- HOD seeding is store-only (zero IB historical tokens)
+
+- **What:** HOD Momo no longer calls `reqHistoricalData`. Squeeze buffer seeds from `bars_store.read` when today's 1Min series is already on disk; otherwise it builds live. Session high stays tick-6 + observed prints, with a 60s observed-warmup floor that does not open the new-HOD alert window.
+- **Why:** HOD was burning the shared IB 60/10min historical budget that Trader chart panes (max 4 timeframes per symbol) need. The operator does not need exact pre-admission reconstruction -- a Gainers row already going up and breaking high of day should ping.
+- **Files touched:** `backend/hod_momo_surge_seed.py`, `backend/hod_momo_high.py`, `backend/hod_momo_flow.py`, `backend/hod_momo_market.py`, `backend/hod_momo_state.py`, `backend/hod_momo_integrity_hod.py`, `backend/constants_hod_momo.py`, `architecture/decisions/008-persistent-ibkr-scanner-rosters.md`, `.cursor/rules/single-market-data-feed.mdc`.
+- **How it works now:** `seed_symbol` reads local 1Min bars only. Empty store marks the symbol attempted and leaves the buffer to live ticks (Gainers `change_pct` covers the admission leg). Retry / `no_history` classification is gone. After 60s unseeded, max observed print becomes the HOD floor with `open_alert_window=False`. Integrity `hod_surge_after_seed` skips buffers shorter than the squeeze window; `hod_surge_seed_backlog` is retired.
+- **Verified by:** pytest `backend/tests -k "hod_momo or surge_seed or integrity"` 166 passed, including store-hit, store-miss, never-calls-`request_bars`, observed-warmup, and span-skip tests.
+- **Follow-ups:** Premarket tick-6 is often RTH-only / below extended-session high; tune the 60s warmup later if needed. Chart 10Sec live-append is a separate defect.
+- **Related:** ADR 008 amendment 2026-08-18 · task-log `knowledge/task-log/2026-08-18-hod-zero-ib-historical-seed.md`
+
 ## 2026-08-18 -- Archive writes moved off the IB event loop (batched write queue)
 
 - **What:** Tape prints, HOD L1 ticks, and live 1m bar rollovers are no longer written to SQLite from inside IB socket callbacks. Producers enqueue in memory; a new background drain task writes batches. Behaviour visible to the desk: the IB loop stops wedging on high-print runners, so scanner prices, quote headers, and chart live tips keep updating.

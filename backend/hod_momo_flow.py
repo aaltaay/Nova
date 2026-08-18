@@ -29,28 +29,21 @@ def count_surge_none_after_seed(
     price_buffer: dict[str, deque[tuple[float, float]]],
     ticker_snaps: dict[str, Any],
     surge_fn,
-    no_history: set[str] | None = None,
     window_min: int = 5,
     method: str = "low_to_current",
 ) -> int:
-    """Count seeded symbols whose 5m surge is still None (hard integrity fail).
+    """Count seeded symbols whose surge is None after the window has elapsed.
 
-    Symbols IBKR permanently has no history for (``no_history``) are a property
-    of the symbol, not a Nova defect, and are excluded.
+    A live-only buffer is structurally not-ready until ``window_min`` of
+    prints accumulate -- that is warmup, not a Nova defect.
     """
-    excluded = no_history or set()
+    need_span = max(1, int(window_min)) * 60.0
     bad = 0
-    for sym in seeded:
-        if sym in excluded:
+    _ = ticker_snaps
+    for _sym in seeded:
+        buf = price_buffer.get(_sym)
+        if buffer_span_sec(buf) < need_span:
             continue
-        buf = price_buffer.get(sym)
-        if not buf:
-            bad += 1
-            continue
-        snap = ticker_snaps.get(sym)
-        if snap is not None and getattr(snap, "price", None):
-            # Ensure current price is represented for low_to_current.
-            pass
         surge = surge_fn(buf, window_min, method)
         if surge is None:
             bad += 1

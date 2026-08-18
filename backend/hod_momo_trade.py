@@ -88,7 +88,8 @@ def on_trade_update(
     _market.request_surge_seed(symbol)
     _note_active_quote(symbol, state.last_trade_ts)
 
-    # HOD truth: tick-6 / bar seed only — never invent session high from last.
+    # HOD truth: tick-6 / store bars / observed-warmup -- never invent from last.
+    _high.note_observed_print(symbol, price, now_ts=float(ts) if ts else None)
     if day_high is None:
         try:
             from ibkr import ticks as _ticks
@@ -98,6 +99,7 @@ def on_trade_update(
             day_high = None
     if day_high is not None:
         _high.apply_day_high(symbol, day_high)
+    _high.maybe_warmup_seed(symbol, now_ts=float(ts) if ts else None)
     _high.raise_observed_high(symbol, price, now_ts=float(ts) if ts else None)
     # Approach latch: arm after a genuine 0.5% dip below the seeded session high.
     _approach.update_latch(

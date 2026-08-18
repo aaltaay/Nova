@@ -24,13 +24,6 @@ class HodMomoState:
     price_buffer: dict[str, deque[tuple[float, float]]] = field(default_factory=dict)
     surge_seeded: set[str] = field(default_factory=set)
     pending_surge_seed: set[str] = field(default_factory=set)
-    # Symbols whose seed permanently failed because IBKR has no history for
-    # them (illiquid) -- a property of the symbol, NOT a Nova defect. Excluded
-    # from the surge_none_after_seed integrity count.
-    surge_seed_no_history: set[str] = field(default_factory=set)
-    # Remaining retry budget per symbol for transient seed failures (timeout,
-    # 503 chart-contention). Symbols requeue until this hits 0.
-    surge_seed_retries: dict[str, int] = field(default_factory=dict)
     last_trade_ts: float | None = None
     session_highs: dict[str, float] = field(default_factory=dict)
     # True once bar max-high and/or IBKR tick-6 day High has seeded the symbol.
@@ -42,6 +35,9 @@ class HodMomoState:
     # Wall time when session high last *rose* via observed print or post-seed
     # tick-6 (not the initial bars/tick6 floor seed). Opens HOD alert grace.
     session_high_raised_ts: dict[str, float] = field(default_factory=dict)
+    # First print ts / max print while unseeded -- observed-warmup self-seed.
+    first_observed_ts: dict[str, float] = field(default_factory=dict)
+    observed_max: dict[str, float] = field(default_factory=dict)
     # Approaching HOD (strategy 13): True after a 0.5% dip below session high;
     # cleared on fire. In-memory only — restart resets to not-armed.
     approach_armed: dict[str, bool] = field(default_factory=dict)
