@@ -15,9 +15,9 @@ Env gates (all must pass for a LIVE buy/sell):
 Paper pin (when IBKR_GATEWAY_MODE=paper):
   - Connection mode must be paper (port 4002 path)
   - Broker managedAccounts must classify as paper (DU… / DF…)
-  - Self-heal never attaches to live Gateway
 
 IBKR_GATEWAY_MODE=paper|live chooses which Gateway port to connect.
+Default is live (4001). Paper (4002) is the fallback when live is dark.
 It does NOT authorize spending by itself.
 """
 from __future__ import annotations

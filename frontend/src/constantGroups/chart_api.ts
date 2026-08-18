@@ -72,6 +72,8 @@ export const BACKEND_RELOAD_CONFIRM_MESSAGE =
 export const BACKEND_PROBE_TIMEOUT_MS = 2_500;
 /** Scanner poll fetch timeout — fail into diagnose instead of hanging for minutes. */
 export const SCANNER_FETCH_TIMEOUT_MS = 8_000;
+/** If ticker WS has not sent `initial` by then, seed from GET /api/ticker/{symbol}. */
+export const TICKER_WS_HTTP_SEED_MS = 2_500;
 /**
  * REST scanner poll cadence when there is NO IBKR L1 WebSocket driving live
  * price patches (Alpaca discovery) — this poll IS the price feed, so it stays 1Hz.
@@ -268,7 +270,7 @@ export const DEFAULT_MASTER_GATE = {
 };
 
 // ── Interactive Brokers (mirrors backend/constants.py IBKR_* block) ───────────
-/** IB Gateway paper trading port (default when IBKR_LIVE_TRADING_CONFIRMED is not set). */
+/** IB Gateway paper trading port (fallback when live 4001 is dark). */
 export const IBKR_PAPER_PORT = 4002;
 /** IB Gateway live trading port. */
 export const IBKR_LIVE_PORT = 4001;

@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 import logging
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from execution import closed_blotter as _closed_blotter
@@ -83,6 +83,10 @@ class GatewayModeRequest(BaseModel):
     mode: str  # "paper" | "live"
 
 
+class LaunchGatewayRequest(BaseModel):
+    mode: str | None = None  # optional paper | live -- pick a door
+
+
 @router.post("/gateway-mode")
 async def ibkr_gateway_mode(body: GatewayModeRequest) -> dict:
     """User-initiated Paper↔Live switch — persists + reconnects; never unlocks spend."""
@@ -93,11 +97,11 @@ async def ibkr_gateway_mode(body: GatewayModeRequest) -> dict:
 
 
 @router.post("/launch-gateway")
-async def ibkr_launch_gateway() -> dict:
-    """Start IB Gateway (or focus it) on this machine — does not place orders."""
+async def ibkr_launch_gateway(body: LaunchGatewayRequest | None = Body(default=None)) -> dict:
+    """Start IB Gateway (or focus it). Optional mode restarts IBC as paper or live."""
     from ibkr.launch_gateway import launch_or_focus_gateway
 
-    return launch_or_focus_gateway()
+    return launch_or_focus_gateway(mode=body.mode if body else None)
 
 
 def _client_safety_status() -> dict:

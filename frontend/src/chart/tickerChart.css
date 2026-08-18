@@ -83,6 +83,7 @@
 .chart-body {
   position: relative;
   width: 100%;
+  overflow: hidden;
 }
 
 .chart-overlay {
@@ -164,6 +165,7 @@
 .chart-oscillators {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   border-top: 1px solid var(--border-color);
 }
 

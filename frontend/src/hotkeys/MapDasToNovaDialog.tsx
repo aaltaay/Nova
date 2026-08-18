@@ -46,7 +46,8 @@ export function MapDasToNovaDialog({
             <dd>
               {suggestion.kind === 'exit_pos_pct' && `${suggestion.params.percent ?? 50}%`}
               {(suggestion.kind === 'buy_limit_ask_offset'
-                || suggestion.kind === 'sell_limit_bid_offset') && (
+                || suggestion.kind === 'sell_limit_bid_offset'
+                || suggestion.kind === 'sell_limit_ask_offset') && (
                 <>
                   {suggestion.params.shares ?? 100} sh · ±
                   {suggestion.params.offsetDollars ?? 0.05}

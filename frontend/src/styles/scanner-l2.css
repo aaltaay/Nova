@@ -504,6 +504,18 @@
   border-radius: 4px;
 }
 
+.gateway-disconnected-banner__title-btn {
+  appearance: none;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .gateway-disconnected-banner__title {
   display: block;
   font-size: 0.9rem;

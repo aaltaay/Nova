@@ -16,8 +16,11 @@ export function formatNovaActionParams(row: NovaActionRecord): string {
     row.kind === 'buy_market'
     || row.kind === 'buy_limit_ask_offset'
     || row.kind === 'sell_limit_bid_offset'
+    || row.kind === 'sell_limit_ask_offset'
   ) {
-    return `Qty: ${row.params.shares ?? 100}`;
+    const shares = row.params.shares ?? 100;
+    const eh = row.params.outsideRth ? ' · EH' : '';
+    return `Qty: ${shares}${eh}`;
   }
   if (row.kind === 'exit_pos' || row.kind === 'cancel_and_exit') return 'Position';
   if (row.kind === 'cancel_symbol') return 'Symbol open';
@@ -46,9 +49,23 @@ export function describeNovaAction(row: NovaActionRecord): string {
     case 'buy_market':
       return `Place a BUY market for ${row.params.shares ?? 1} whole share(s). Confirms; never opens a short.`;
     case 'buy_limit_ask_offset':
-      return `Place a BUY limit at Ask + $${row.params.offsetDollars ?? 0.05}, size ${row.params.shares ?? 100}.`;
+      return (
+        `Place a BUY limit at Ask + $${row.params.offsetDollars ?? 0.05}, `
+        + `size ${row.params.shares ?? 100}`
+        + `${row.params.outsideRth ? ', extended hours' : ''}.`
+      );
     case 'sell_limit_bid_offset':
-      return `Place a SELL limit at Bid - $${row.params.offsetDollars ?? 0.05}, size ${row.params.shares ?? 100}.`;
+      return (
+        `Place a SELL limit at Bid - $${row.params.offsetDollars ?? 0.05}, `
+        + `size ${row.params.shares ?? 100}`
+        + `${row.params.outsideRth ? ', extended hours' : ''}.`
+      );
+    case 'sell_limit_ask_offset':
+      return (
+        `Place a SELL limit at Ask + $${row.params.offsetDollars ?? 0.05}, `
+        + `size ${row.params.shares ?? 100}`
+        + `${row.params.outsideRth ? ', extended hours' : ''}.`
+      );
     case 'sell_pos_pct_ask':
       return `Sell ${row.params.percent ?? 50}% of a long at Ask (limit). Long-only; whole shares; needs L2.`;
     case 'sell_pos_pct_bid_offset':

@@ -69,7 +69,7 @@ describe('HeaderConnectionStatus', () => {
     container.remove();
   });
 
-  it('API chip is Nova process only — no Alpaca RTT or Alpaca chip', () => {
+  it('Desk chip is Nova API + Gateway — no Alpaca RTT or Alpaca chip', () => {
     act(() => {
       root.render(
         <HeaderConnectionStatus
@@ -89,18 +89,16 @@ describe('HeaderConnectionStatus', () => {
       );
     });
 
-    const api = container.querySelector('[data-testid="status-chip-api"]');
-    const gateway = container.querySelector('[data-testid="status-chip-gateway"]');
+    const desk = container.querySelector('[data-testid="status-chip-desk"]');
     const prices = container.querySelector('[data-testid="status-chip-prices"]');
 
-    expect(api?.textContent).toMatch(/API/);
-    expect(api?.textContent).toMatch(/up/);
-    expect(api?.textContent).not.toMatch(/Alpaca/i);
-    expect(api?.textContent).not.toMatch(/610ms/);
-    expect(api?.getAttribute('title')).toMatch(/port 8000/);
-
-    expect(gateway?.textContent).toMatch(/Gateway/);
-    expect(gateway?.textContent).toMatch(/offline/);
+    expect(container.querySelector('[data-testid="status-chip-api"]')).toBeNull();
+    expect(container.querySelector('[data-testid="status-chip-gateway"]')).toBeNull();
+    expect(desk?.textContent).toMatch(/Desk/);
+    expect(desk?.textContent).toMatch(/offline/);
+    expect(desk?.textContent).not.toMatch(/Alpaca/i);
+    expect(desk?.textContent).not.toMatch(/610ms/);
+    expect(desk?.getAttribute('title')).toMatch(/port 8000/);
 
     expect(prices?.textContent).toMatch(/Prices/);
     expect(prices?.textContent).toMatch(/16h ago/);
@@ -113,7 +111,7 @@ describe('HeaderConnectionStatus', () => {
     expect(container.querySelector('[data-testid="status-chip-feed"]')).toBeNull();
   });
 
-  it('Gateway chip is connection only — up / delayed / offline; mode lives on the capsule', () => {
+  it('Desk chip is connection only -- up / delayed / offline; mode lives on the capsule', () => {
     act(() => {
       root.render(
         <HeaderConnectionStatus
@@ -129,11 +127,11 @@ describe('HeaderConnectionStatus', () => {
         />,
       );
     });
-    const paperGateway = container.querySelector('[data-testid="status-chip-gateway"]');
-    expect(paperGateway?.textContent).toMatch(/Gateway\s*up/i);
-    expect(paperGateway?.textContent).not.toMatch(/PAPER|LIVE/i);
-    expect(paperGateway?.className).toMatch(/status-chip--ok/);
-    expect(paperGateway?.className).not.toMatch(/status-chip--live/);
+    const paperDesk = container.querySelector('[data-testid="status-chip-desk"]');
+    expect(paperDesk?.textContent).toMatch(/Desk\s*up/i);
+    expect(paperDesk?.textContent).not.toMatch(/PAPER|LIVE/i);
+    expect(paperDesk?.className).toMatch(/status-chip--ok/);
+    expect(paperDesk?.className).not.toMatch(/status-chip--live/);
 
     act(() => {
       root.render(
@@ -150,11 +148,11 @@ describe('HeaderConnectionStatus', () => {
         />,
       );
     });
-    const liveGateway = container.querySelector('[data-testid="status-chip-gateway"]');
-    expect(liveGateway?.textContent).toMatch(/Gateway\s*up/i);
-    expect(liveGateway?.textContent).not.toMatch(/PAPER|LIVE/i);
-    expect(liveGateway?.className).toMatch(/status-chip--ok/);
-    expect(liveGateway?.className).not.toMatch(/status-chip--live/);
+    const liveDesk = container.querySelector('[data-testid="status-chip-desk"]');
+    expect(liveDesk?.textContent).toMatch(/Desk\s*up/i);
+    expect(liveDesk?.textContent).not.toMatch(/PAPER|LIVE/i);
+    expect(liveDesk?.className).toMatch(/status-chip--ok/);
+    expect(liveDesk?.className).not.toMatch(/status-chip--live/);
   });
 
   it('shows a Paper | Live capsule — paper orange, live green — next to Gateway', () => {
@@ -244,10 +242,38 @@ describe('HeaderConnectionStatus', () => {
 
     const feed = container.querySelector('[data-testid="status-chip-feed"]');
     expect(feed?.textContent).toMatch(/Alpaca IEX/);
-    expect(container.querySelector('[data-testid="status-chip-gateway"]')).toBeNull();
+    expect(container.querySelector('[data-testid="status-chip-desk"]')).toBeNull();
+    expect(container.querySelector('[data-testid="status-chip-api"]')).not.toBeNull();
   });
 
-  it('shows amber delayed on Gateway chip when market_data_delayed', () => {
+  it('opens Trading prerequisites when the Desk chip is clicked', () => {
+    const opened: string[] = [];
+    const onOpen = () => opened.push('open');
+    window.addEventListener('nova-trading-prereq-open', onOpen);
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected={false}
+          ibkrMode="disconnected"
+          ibkrGatewayMode="live"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+    const desk = container.querySelector('[data-testid="status-chip-desk"]') as HTMLButtonElement;
+    act(() => {
+      desk.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    window.removeEventListener('nova-trading-prereq-open', onOpen);
+    expect(opened).toEqual(['open']);
+  });
+
+  it('shows amber delayed on Desk chip when market_data_delayed', () => {
     ibkrStatusMock.market_data_delayed = true;
     act(() => {
       root.render(
@@ -264,9 +290,9 @@ describe('HeaderConnectionStatus', () => {
         />,
       );
     });
-    const gateway = container.querySelector('[data-testid="status-chip-gateway"]');
-    expect(gateway?.textContent).toMatch(/delayed/i);
-    expect(gateway?.className).toMatch(/status-chip--warn/);
+    const desk = container.querySelector('[data-testid="status-chip-desk"]');
+    expect(desk?.textContent).toMatch(/delayed/i);
+    expect(desk?.className).toMatch(/status-chip--warn/);
   });
 
   it('shows Reload backend when API is up and local restart is available', () => {

@@ -1,8 +1,11 @@
 import {
+  BACKEND_DIAG_FLAG_DOWN,
+  BACKEND_DIAG_FLAG_WEDGED,
   HEADER_GATEWAY_DELAYED_LABEL,
   HEADER_GATEWAY_OFFLINE_LABEL,
   HEADER_GATEWAY_UP_LABEL,
 } from '../constants';
+import { HEADER_DESK_API_DOWN_LABEL } from '../ibkr/gatewayUxConstants';
 import type { IbkrMode } from '../ibkr/types';
 import type { HealthStatus } from '../types/health';
 
@@ -30,6 +33,35 @@ export function gatewayConnectionLabel(args: {
   if (!args.connected) return HEADER_GATEWAY_OFFLINE_LABEL;
   if (args.delayed) return HEADER_GATEWAY_DELAYED_LABEL;
   return HEADER_GATEWAY_UP_LABEL;
+}
+
+/** Nova process on :8000 -- not IB Gateway, not Alpaca. */
+export function apiProcessOk(health: HealthStatus): boolean {
+  if (!health || health.status === 'loading') return true;
+  if (health.ib_loop_lag_ms?.wedged) return false;
+  if (health.flag === BACKEND_DIAG_FLAG_WEDGED) return true;
+  if (health.flag === BACKEND_DIAG_FLAG_DOWN) return false;
+  return health.status === 'connected';
+}
+
+/** One Desk chip: API-down wins, then Gateway offline / delayed / up. */
+export function deskConnectionLabel(args: {
+  apiOk: boolean;
+  connected: boolean;
+  delayed: boolean;
+  launchBusy?: boolean;
+  launchOk?: boolean | null;
+}): string {
+  if (!args.apiOk) return HEADER_DESK_API_DOWN_LABEL;
+  return gatewayConnectionLabel(args);
+}
+
+export function deskChipTone(args: {
+  apiOk: boolean;
+  gatewayTone: HeaderChipTone;
+}): HeaderChipTone {
+  if (!args.apiOk) return 'bad';
+  return args.gatewayTone;
 }
 
 export function apiTone(status: string): HeaderChipTone {

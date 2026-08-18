@@ -72,7 +72,8 @@ export function HotkeysSettingsDetail({
 
       {(action.kind === 'buy_market'
         || action.kind === 'buy_limit_ask_offset'
-        || action.kind === 'sell_limit_bid_offset') && (
+        || action.kind === 'sell_limit_bid_offset'
+        || action.kind === 'sell_limit_ask_offset') && (
         <div className="hk-qty-row">
           <label className="hk-field hk-field-grow">
             <span>Quantity</span>
@@ -101,6 +102,22 @@ export function HotkeysSettingsDetail({
             </label>
           )}
         </div>
+      )}
+
+      {(action.kind === 'buy_limit_ask_offset'
+        || action.kind === 'sell_limit_bid_offset'
+        || action.kind === 'sell_limit_ask_offset') && (
+        <label className="hk-check-row">
+          <input
+            type="checkbox"
+            checked={Boolean(action.params.outsideRth)}
+            onChange={() => onChange({
+              ...action,
+              params: { ...action.params, outsideRth: !action.params.outsideRth },
+            })}
+          />
+          <span>Extended hours</span>
+        </label>
       )}
 
       {(action.kind === 'exit_pos_pct'

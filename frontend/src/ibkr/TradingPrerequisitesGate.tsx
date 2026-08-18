@@ -1,6 +1,7 @@
 /**
- * Blocking overlay when Nova API or IB Gateway is down.
- * Lists trading prerequisites + self-heal CTAs. Does not wipe desk data.
+ * Trading prerequisites checklist.
+ * Auto-covers the desk only when Nova API is down. Gateway-only mornings
+ * stay usable -- click the header Gateway chip to open this panel.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackendStartButton } from '../components/BackendStartButton';
@@ -8,9 +9,11 @@ import { useScannerBarProps } from '../components/scannerBarStore';
 import { API_BASE_URL, DISCOVERY_PROVIDER_DEFAULT } from '../constants';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
-  GATEWAY_BANNER_CTA_BUSY_LABEL,
-  GATEWAY_BANNER_CTA_LABEL,
+  PREREQ_CLOSE_ARIA,
+  PREREQ_CLOSE_LABEL,
   PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL,
+  PREREQ_LEAD_API,
+  PREREQ_LEAD_MANUAL,
   PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL,
   PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL,
   PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL,
@@ -21,17 +24,19 @@ import {
   gatewayPortMismatchHint,
   type PrereqItem,
 } from './tradingPrerequisites';
+import { GatewayModeLaunchButtons } from './GatewayModeLaunchButtons';
 import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
-import { launchIbGateway } from '../utils/launchIbGateway';
+import { TRADING_PREREQ_OPEN_EVENT } from './tradingPrereqUi';
+import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
 import './tradingPrerequisitesGate.css';
 
 function ItemRow({
   item,
   onLaunchGateway,
+  launchBusyMode,
   onReconnectIbkr,
   onFollowGateway,
   followTarget,
-  gatewayBusy,
   reconnectBusy,
   followBusy,
   healthFlag,
@@ -39,11 +44,11 @@ function ItemRow({
   onApiStarted,
 }: {
   item: PrereqItem;
-  onLaunchGateway: () => void;
+  onLaunchGateway: (mode: LaunchGatewayMode) => void;
+  launchBusyMode: LaunchGatewayMode | null;
   onReconnectIbkr: () => void;
   onFollowGateway: () => void;
   followTarget: 'paper' | 'live' | null;
-  gatewayBusy: boolean;
   reconnectBusy: boolean;
   followBusy: boolean;
   healthFlag?: string;
@@ -70,16 +75,12 @@ function ItemRow({
             />
           </div>
         )}
-        {!item.ok && item.action === 'launch_gateway' && (
+        {item.id === 'ibkr_gateway' && (
           <div className="trading-prereq-item__cta">
-            <button
-              type="button"
-              className="trading-prereq-cta"
-              onClick={onLaunchGateway}
-              disabled={gatewayBusy}
-            >
-              {gatewayBusy ? GATEWAY_BANNER_CTA_BUSY_LABEL : GATEWAY_BANNER_CTA_LABEL}
-            </button>
+            <GatewayModeLaunchButtons
+              busyMode={launchBusyMode}
+              onLaunch={onLaunchGateway}
+            />
           </div>
         )}
         {!item.ok && item.action === 'switch_gateway_mode' && followTarget && (
@@ -128,10 +129,12 @@ export function TradingPrerequisitesGate() {
   const bar = useScannerBarProps();
   const { ibkrConnected, ibkrGatewayMode } = useWorkspace();
   const ibkr = useIbkrStatus();
-  const [gatewayBusy, setGatewayBusy] = useState(false);
+  const [launchBusyMode, setLaunchBusyMode] = useState<LaunchGatewayMode | null>(null);
   const [reconnectBusy, setReconnectBusy] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [autoDismissed, setAutoDismissed] = useState(false);
   const followTarget = gatewayPortMismatchHint(ibkr.disconnect_hint);
 
   const health = bar?.health ?? { status: 'loading', latency_ms: 0 };
@@ -162,14 +165,14 @@ export function TradingPrerequisitesGate() {
     ],
   );
 
-  const onLaunchGateway = useCallback(async () => {
-    if (gatewayBusy) return;
-    setGatewayBusy(true);
+  const onLaunchGateway = useCallback(async (mode: LaunchGatewayMode) => {
+    if (launchBusyMode) return;
+    setLaunchBusyMode(mode);
     setLaunchHint(null);
-    const result = await launchIbGateway();
+    const result = await launchIbGateway(mode);
     setLaunchHint(result.message);
-    setGatewayBusy(false);
-  }, [gatewayBusy]);
+    setLaunchBusyMode(null);
+  }, [launchBusyMode]);
 
   const onFollowGateway = useCallback(async () => {
     const target = gatewayPortMismatchHint(ibkr.disconnect_hint);
@@ -235,8 +238,35 @@ export function TradingPrerequisitesGate() {
     if (prereqs.deskReady) setLaunchHint(null);
   }, [prereqs.deskReady]);
 
+  useEffect(() => {
+    if (!prereqs.autoOverlay) setAutoDismissed(false);
+  }, [prereqs.autoOverlay]);
+
+  useEffect(() => {
+    const open = () => {
+      setManualOpen(true);
+      setAutoDismissed(false);
+    };
+    window.addEventListener(TRADING_PREREQ_OPEN_EVENT, open);
+    return () => window.removeEventListener(TRADING_PREREQ_OPEN_EVENT, open);
+  }, []);
+
+  const closePanel = useCallback(() => {
+    setManualOpen(false);
+    setAutoDismissed(true);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closePanel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [closePanel]);
+
   if (discovery !== 'ibkr') return null;
-  if (!prereqs.blockDesk) return null;
+  const show = (prereqs.autoOverlay && !autoDismissed) || manualOpen;
+  if (!show) return null;
 
   const modeHint =
     ibkrGatewayMode === 'live'
@@ -252,14 +282,28 @@ export function TradingPrerequisitesGate() {
       aria-modal="true"
       aria-labelledby="trading-prereq-title"
       data-testid="trading-prerequisites-gate"
+      onClick={closePanel}
     >
-      <div className="trading-prereq-gate__panel">
-        <h2 id="trading-prereq-title" className="trading-prereq-gate__title">
-          Trading prerequisites
-        </h2>
+      <div
+        className="trading-prereq-gate__panel"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="trading-prereq-gate__head">
+          <h2 id="trading-prereq-title" className="trading-prereq-gate__title">
+            Trading prerequisites
+          </h2>
+          <button
+            type="button"
+            className="trading-prereq-gate__close"
+            data-testid="trading-prereq-close"
+            aria-label={PREREQ_CLOSE_ARIA}
+            onClick={closePanel}
+          >
+            {PREREQ_CLOSE_LABEL}
+          </button>
+        </div>
         <p className="trading-prereq-gate__lead">
-          Get these services up before trusting live data or placing orders.
-          The desk stays blocked until Nova API and IB Gateway are ready.
+          {prereqs.autoOverlay ? PREREQ_LEAD_API : PREREQ_LEAD_MANUAL}
         </p>
         <p className="trading-prereq-gate__mode">{modeHint}</p>
         <ul className="trading-prereq-list">
@@ -267,11 +311,11 @@ export function TradingPrerequisitesGate() {
             <ItemRow
               key={item.id}
               item={item}
-              onLaunchGateway={() => void onLaunchGateway()}
+              onLaunchGateway={(mode) => void onLaunchGateway(mode)}
+              launchBusyMode={launchBusyMode}
               onReconnectIbkr={() => void onReconnectIbkr()}
               onFollowGateway={() => void onFollowGateway()}
               followTarget={followTarget}
-              gatewayBusy={gatewayBusy}
               reconnectBusy={reconnectBusy}
               followBusy={followBusy}
               healthFlag={health.flag}

@@ -29,6 +29,8 @@ interface UseChartInstanceOptions extends ChartSeriesRefs {
   timeframe?: string;
   /** When false, skip ResizeObserver apply (hidden Trader tab). */
   chartActive?: boolean;
+  /** Remeasure fill height when RSI/MACD panes mount or unmount. */
+  oscillatorPaneCount?: number;
 }
 
 export function useChartInstance({
@@ -41,6 +43,7 @@ export function useChartInstance({
   maximized,
   timeframe = '1Min',
   chartActive = true,
+  oscillatorPaneCount = 0,
 }: UseChartInstanceOptions): IChartApi | null {
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
 
@@ -145,12 +148,16 @@ export function useChartInstance({
     const container = containerRef.current;
     const chart = chartRef.current;
     if (!container || !chart || !chartActive) return;
-    const ch = chartHeightRef.current;
-    const h = fillParentHeightRef.current
-      ? measureChartFillHeight(container, ch)
-      : ch;
-    chart.applyOptions({ width: container.clientWidth, height: h });
-  }, [containerRef, chartRef, maximized, fillParentHeight, chartHeight, chartActive]);
+    const apply = () => {
+      if (!containerRef.current || !chartRef.current || !chartActiveRef.current) return;
+      const next = fillParentHeightRef.current
+        ? measureChartFillHeight(containerRef.current, chartHeightRef.current)
+        : chartHeightRef.current;
+      chart.applyOptions({ width: containerRef.current.clientWidth, height: next });
+    };
+    apply();
+    requestAnimationFrame(apply);
+  }, [containerRef, chartRef, maximized, fillParentHeight, chartHeight, chartActive, oscillatorPaneCount]);
 
   return chartApi;
 }

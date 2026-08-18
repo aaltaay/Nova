@@ -31,6 +31,18 @@ describe('launchIbGateway', () => {
     expect(init.method).toBe('POST');
   });
 
+  it('posts a paper or live mode so IBC can pick a door', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, action: 'launched_ibc', message: 'Starting LIVE Gateway' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await launchIbGateway('live');
+    expect(result.ok).toBe(true);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.body).toBe(JSON.stringify({ mode: 'live' }));
+  });
+
   it('falls back to Vite middleware when API returns 404', async () => {
     const fetchMock = vi
       .fn()

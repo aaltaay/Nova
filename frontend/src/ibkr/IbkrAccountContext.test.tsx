@@ -107,6 +107,21 @@ describe('IbkrAccountProvider', () => {
     expect(accountCalls.length).toBe(1);
   });
 
+  it('does not treat first paint as a disconnect', async () => {
+    workspace.ibkrConnected = false;
+    await act(async () => {
+      root.render(
+        <IbkrAccountProvider>
+          <Probe />
+        </IbkrAccountProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="probe"]')?.textContent).toBe(
+      '0:live:ok',
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('keeps last-good positions when Gateway disconnects', async () => {
     await act(async () => {
       root.render(

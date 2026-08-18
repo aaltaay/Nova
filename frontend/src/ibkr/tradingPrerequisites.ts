@@ -54,8 +54,10 @@ export interface TradingPrerequisites {
   deskReady: boolean;
   /** True when deskReady and orders are paper_armed or live_armed. */
   tradeReady: boolean;
-  /** Show blocking overlay -- desk not ready (API or Gateway down). */
+  /** Desk not ready (API or Gateway down). Does not by itself cover the UI. */
   blockDesk: boolean;
+  /** Auto-cover the desk only when Nova API is actually down (not Gateway-only). */
+  autoOverlay: boolean;
 }
 
 function novaApiOk(health: HealthStatus | null | undefined): boolean {
@@ -209,5 +211,6 @@ export function buildTradingPrerequisites(
     deskReady,
     tradeReady,
     blockDesk: !deskReady,
+    autoOverlay: !apiOk,
   };
 }

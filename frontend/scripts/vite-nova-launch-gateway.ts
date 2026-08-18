@@ -39,10 +39,13 @@ function ibcLauncher(): string | null {
   return fs.existsSync(candidate) ? candidate : null;
 }
 
-function focusOrLaunch(): { ok: boolean; action: string; message: string; path?: string } {
+function focusOrLaunch(
+  mode?: 'paper' | 'live',
+): { ok: boolean; action: string; message: string; path?: string } {
   const ibc = ibcLauncher();
   if (ibc) {
-    spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ibc], {
+    const extra = mode ? ['-TradingMode', mode] : [];
+    spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ibc, ...extra], {
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
@@ -98,7 +101,8 @@ export function novaLaunchGatewayPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
         void (async () => {
-          const url = req.url?.split('?')[0] || '';
+          const rawUrl = req.url || '';
+          const url = rawUrl.split('?')[0] || '';
           if (url !== START_PATH) {
             next();
             return;
@@ -117,7 +121,9 @@ export function novaLaunchGatewayPlugin(): Plugin {
           }
           launching = true;
           try {
-            const result = focusOrLaunch();
+            const q = new URL(rawUrl, 'http://vite.local').searchParams.get('mode');
+            const mode = q === 'paper' || q === 'live' ? q : undefined;
+            const result = focusOrLaunch(mode);
             sendJson(res, result.ok ? 200 : 404, result);
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);

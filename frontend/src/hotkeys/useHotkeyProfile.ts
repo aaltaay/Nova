@@ -3,7 +3,8 @@
  * Imported records are never registered with useHotkeys.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { DESK_ASK_BID_HOTKEY_EPOCH } from '../constants';
 import {
   analyzeProfile,
   summarizeAnalyses,
@@ -12,6 +13,7 @@ import {
 import { createEmptyRecord, parseHtk, serializeHtk } from './htkFormat';
 import {
   createEmptyProfile,
+  deskAskBidEpochNeedsApply,
   loadProfile,
   profileFromRecords,
   restoreDefaultNovaActions,
@@ -42,6 +44,12 @@ export function useHotkeyProfile() {
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const dispatch = useHotkeyDispatchOptional();
+
+  useEffect(() => {
+    if (deskAskBidEpochNeedsApply()) {
+      setProfile(loadProfile());
+    }
+  }, [DESK_ASK_BID_HOTKEY_EPOCH]);
 
   const analyses = useMemo(
     () => analyzeProfile(profile.records),

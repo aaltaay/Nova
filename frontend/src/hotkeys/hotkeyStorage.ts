@@ -11,6 +11,8 @@ import {
 import { createDefaultNovaActions } from './novaActionDefaults';
 import type { NovaActionRecord } from './novaActionTypes';
 import {
+  DESK_ASK_BID_HOTKEY_EPOCH,
+  DESK_ASK_BID_HOTKEY_EPOCH_KEY,
   HOTKEY_ACTIONS,
   NOVA_ACTION_KINDS,
   SHORTCUTS_MENU_DEFAULT_EPOCH,
@@ -114,6 +116,49 @@ export function mergeMissingDefaultNovaActions(
   return merged;
 }
 
+const DESK_ASK_BID_IDS = new Set(['nova-buy-ask', 'nova-sell-bid', 'nova-sell-ask']);
+
+function isBareFunctionKey(chord: HotkeyKeyChord, key: string): boolean {
+  return (
+    chord.key.toLowerCase() === key
+    && !chord.ctrl
+    && !chord.shift
+    && !chord.alt
+    && !chord.meta
+  );
+}
+
+/** Rewrite desk Ask+/Bid- rows to current F1/F2/F5 1-share EH defaults. */
+export function applyDeskAskBidHotkeys(
+  existing: NovaActionRecord[],
+): NovaActionRecord[] {
+  const desk = new Map(
+    createDefaultNovaActions()
+      .filter((row) => DESK_ASK_BID_IDS.has(row.id))
+      .map((row) => [row.id, row]),
+  );
+  return existing.map((row) => {
+    const def = desk.get(row.id);
+    if (def) {
+      return {
+        ...row,
+        name: def.name,
+        key: def.key,
+        params: { ...def.params },
+        enabled: true,
+      };
+    }
+    if (
+      isBareFunctionKey(row.key, 'f1')
+      || isBareFunctionKey(row.key, 'f2')
+      || isBareFunctionKey(row.key, 'f5')
+    ) {
+      return { ...row, key: { label: '', key: '' } };
+    }
+    return row;
+  });
+}
+
 export function migrateProfile(raw: unknown): HotkeyProfile | null {
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Partial<HotkeyProfile> & { novaActions?: unknown };
@@ -134,6 +179,37 @@ export function migrateProfile(raw: unknown): HotkeyProfile | null {
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : new Date().toISOString(),
   };
+}
+
+/** True when this tab has not applied the current F1/F2/F5 desk epoch yet. */
+export function deskAskBidEpochNeedsApply(): boolean {
+  try {
+    return localStorage.getItem(DESK_ASK_BID_HOTKEY_EPOCH_KEY) !== DESK_ASK_BID_HOTKEY_EPOCH;
+  } catch {
+    return false;
+  }
+}
+
+/** One-time F1/F2 Ask+/Bid- rewrite so older local profiles pick up the desk pair. */
+function applyDeskAskBidEpoch(profile: HotkeyProfile): HotkeyProfile {
+  try {
+    if (localStorage.getItem(DESK_ASK_BID_HOTKEY_EPOCH_KEY) === DESK_ASK_BID_HOTKEY_EPOCH) {
+      return profile;
+    }
+    localStorage.setItem(DESK_ASK_BID_HOTKEY_EPOCH_KEY, DESK_ASK_BID_HOTKEY_EPOCH);
+    const next: HotkeyProfile = {
+      ...profile,
+      novaActions: applyDeskAskBidHotkeys(profile.novaActions ?? []),
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(HOTKEY_STORAGE_KEY, JSON.stringify(next));
+    return next;
+  } catch {
+    return {
+      ...profile,
+      novaActions: applyDeskAskBidHotkeys(profile.novaActions ?? []),
+    };
+  }
 }
 
 /** One-time drop of stored menu chord when the product default changes. */
@@ -172,6 +248,7 @@ export function loadProfile(): HotkeyProfile {
           SHORTCUTS_MENU_EPOCH_STORAGE_KEY,
           SHORTCUTS_MENU_DEFAULT_EPOCH,
         );
+        localStorage.setItem(DESK_ASK_BID_HOTKEY_EPOCH_KEY, DESK_ASK_BID_HOTKEY_EPOCH);
       } catch {
         /* ignore */
       }
@@ -179,7 +256,7 @@ export function loadProfile(): HotkeyProfile {
     }
     const parsed = JSON.parse(raw) as unknown;
     const profile = migrateProfile(parsed) ?? createEmptyProfile();
-    return applyMenuDefaultEpoch(profile);
+    return applyDeskAskBidEpoch(applyMenuDefaultEpoch(profile));
   } catch {
     return createEmptyProfile();
   }

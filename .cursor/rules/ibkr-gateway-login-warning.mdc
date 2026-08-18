@@ -42,7 +42,10 @@ Timeout while the preferred port **still listens** is **not** heal-eligible
 (wedged handshake / Error 326 / clientId conflict) — do not jump ports then.
 
 **Still a login blocker:** both ports unreachable (neither Gateway logged in /
-API not listening). Loud-warn in that case.
+API not listening). Loud-warn in that case. The Trading prerequisites
+checklist is **not** a full-screen desk block for Gateway-only mornings --
+click the header Desk chip (or the red banner title). Open paper /
+Open live start IBC as that door. Agents still loud-warn in chat.
 
 Spend gates (`IBKR_ORDERS_ENABLED` / live confirm) are never auto-unlocked.
 

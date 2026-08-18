@@ -48,8 +48,8 @@ notepad $env:USERPROFILE\.nova\ibc\config.ini
 
 Use the **local** `StartGateway.bat` in `.nova\ibc\` (not stock `C:\IBC\StartGateway.bat`).
 Stock IBC defaults to `Documents\IBC\config.ini` and an outdated `TWS_MAJOR_VRSN`.
-The Nova wrapper sets `CONFIG`, `TWS_MAJOR_VRSN=1045`, `TRADING_MODE=paper` (match `.env`),
-and `TWOFA_TIMEOUT_ACTION=restart`.
+The Nova wrapper sets `CONFIG`, `TWS_MAJOR_VRSN=1045`, `TRADING_MODE=live` (match `.env`;
+paper 4002 is the fallback), and `TWOFA_TIMEOUT_ACTION=restart`.
 
 Optional template in-repo: `scripts/start_gateway_ibc.ps1.example`.
 

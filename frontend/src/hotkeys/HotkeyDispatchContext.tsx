@@ -13,7 +13,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { HotkeyAction } from '../constants';
+import { DESK_ASK_BID_HOTKEY_EPOCH, type HotkeyAction } from '../constants';
 import {
   createHotkeyKeydownHandler,
   type HotkeyCallbacks,
@@ -23,7 +23,7 @@ import {
   getEffectiveAutomationBindings,
   getEffectiveMenuBinding,
 } from './effectiveBindings';
-import { loadProfile, saveProfile } from './hotkeyStorage';
+import { deskAskBidEpochNeedsApply, loadProfile, saveProfile } from './hotkeyStorage';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from './runNovaAction';
 import {
@@ -91,6 +91,12 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     topOfBook: null,
   });
   const { topOfBook } = useTopOfBook();
+
+  useEffect(() => {
+    if (deskAskBidEpochNeedsApply()) {
+      setProfile(readProfile());
+    }
+  }, [DESK_ASK_BID_HOTKEY_EPOCH]);
 
   useEffect(() => {
     runtimeRef.current = { ...runtimeRef.current, topOfBook };

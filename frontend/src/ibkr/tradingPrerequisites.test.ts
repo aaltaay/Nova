@@ -18,6 +18,7 @@ describe('buildTradingPrerequisites', () => {
       spendStatus: 'paper_armed',
     });
     expect(out.blockDesk).toBe(true);
+    expect(out.autoOverlay).toBe(true);
     expect(out.deskReady).toBe(false);
     expect(out.tradeReady).toBe(false);
     expect(out.items.find((i) => i.id === 'nova_api')?.action).toBe('start_api');
@@ -31,6 +32,7 @@ describe('buildTradingPrerequisites', () => {
       spendStatus: 'paper_armed',
     });
     expect(out.blockDesk).toBe(true);
+    expect(out.autoOverlay).toBe(false);
     expect(out.items.find((i) => i.id === 'ibkr_gateway')?.action).toBe('launch_gateway');
   });
 
@@ -75,6 +77,7 @@ describe('buildTradingPrerequisites', () => {
       spendStatus: 'live_armed',
     });
     expect(out.blockDesk).toBe(false);
+    expect(out.autoOverlay).toBe(false);
     expect(out.deskReady).toBe(true);
     expect(out.tradeReady).toBe(true);
     expect(out.items.every((i) => i.ok)).toBe(true);
@@ -114,6 +117,7 @@ describe('buildTradingPrerequisites', () => {
     expect(out.items.find((i) => i.id === 'nova_api')?.ok).toBe(false);
     expect(out.items.find((i) => i.id === 'nova_api')?.action).toBeNull();
     expect(out.blockDesk).toBe(true);
+    expect(out.autoOverlay).toBe(true);
     expect(out.deskReady).toBe(false);
   });
 

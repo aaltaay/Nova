@@ -23,6 +23,18 @@ def _reload_safety_stack(monkeypatch, env: dict):
     return safety_mod, client_mod, orders_mod
 
 
+class TestGatewayModeDefault:
+    def test_unset_env_defaults_to_live(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {})
+        assert safety_mod.gateway_mode() == "live"
+
+    def test_explicit_paper_still_wins(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(
+            monkeypatch, {"IBKR_GATEWAY_MODE": "paper"}
+        )
+        assert safety_mod.gateway_mode() == "paper"
+
+
 class TestOrderSafetyGate:
     def test_disabled_blocks_order(self, monkeypatch):
         _safety, _client, orders_mod = _reload_safety_stack(monkeypatch, {})

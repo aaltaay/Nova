@@ -24,6 +24,8 @@ interface Props {
   /** Env target (paper/live) — capsule selection when disconnected. */
   gatewayMode?: 'paper' | 'live';
   connected: boolean;
+  /** False while /api/ibkr/status has not been read this tab -- hide false Disconnected. */
+  statusReady?: boolean;
   /** Full status when available — drives actionable disconnect copy. */
   ibkrStatus?: Partial<IbkrStatus>;
   summary: IbkrAccountSummary | null;
@@ -42,6 +44,7 @@ export function StockViewHeader({
   mode,
   gatewayMode,
   connected,
+  statusReady = true,
   ibkrStatus,
   summary,
   onLookup,
@@ -80,7 +83,7 @@ export function StockViewHeader({
             gatewayMode={gatewayMode}
             disconnectHint={ibkrStatus?.disconnect_hint}
           />
-          {!connected && (
+          {!connected && statusReady && (
             <span
               className="sv-header__warn"
               data-testid="sv-disconnect-warn"

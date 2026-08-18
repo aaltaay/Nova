@@ -7,6 +7,10 @@ import {
   HOD_MOMO_DOCK_COLLAPSED_KEY,
   HOD_MOMO_DOCK_HEIGHT_KEY,
 } from '../constants';
+import {
+  makeLiveScannerFeedStub,
+  ScannerDataContextProvider,
+} from '../scanner/ScannerDataContext';
 import { HodMomoDock } from './HodMomoDock';
 import type { HodMomoContextValue } from './HodMomoContext';
 import { HodMomoContextProvider } from './HodMomoContext';
@@ -90,4 +94,41 @@ describe('HodMomoDock', () => {
     fireEvent.click(screen.getByTestId('hod-momo-dock-mode-ru'));
     expect(setDockMode).toHaveBeenCalledWith('running_up');
   });
+
+  it('hides roster scanner pills when no scanner feed is mounted', () => {
+    renderDock(makeValue({ collapsed: true }));
+    expect(screen.queryByTestId('hod-momo-dock-mode-gappers')).toBeNull();
+    expect(screen.queryByTestId('hod-momo-dock-mode-gainers')).toBeNull();
+  });
+
+  it('shows roster pills and switches the dock body to that table', () => {
+    const setDockMode = vi.fn();
+    const setL1ActiveTab = vi.fn();
+    render(
+      <ScannerDataContextProvider
+        value={makeLiveScannerFeedStub({ setL1ActiveTab })}
+      >
+        <HodMomoContextProvider
+          value={makeValue({
+            collapsed: false,
+            dockMode: 'gappers',
+            setDockMode,
+          })}
+        >
+          <HodMomoDock />
+        </HodMomoContextProvider>
+      </ScannerDataContextProvider>,
+    );
+    expect(screen.getByTestId('hod-momo-dock-mode-gappers')).toBeTruthy();
+    expect(screen.getByTestId('hod-momo-dock-mode-gainers')).toBeTruthy();
+    expect(screen.getByTestId('hod-momo-dock-mode-losers')).toBeTruthy();
+    expect(screen.getByTestId('hod-momo-dock-mode-afterhours')).toBeTruthy();
+    expect(screen.getByTestId('hod-momo-dock-mode-catalysts')).toBeTruthy();
+    expect(screen.getByTestId('hod-momo-dock-roster')).toBeTruthy();
+    expect(screen.queryByTestId('hod-momo-dock-clear')).toBeNull();
+    fireEvent.click(screen.getByTestId('hod-momo-dock-mode-gainers'));
+    expect(setDockMode).toHaveBeenCalledWith('gainers');
+    expect(setL1ActiveTab).toHaveBeenCalledWith('gainers');
+  });
 });
+

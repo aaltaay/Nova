@@ -17,7 +17,7 @@ User could not log into paper Gateway; connected **live** Gateway (funded ~$600)
 | Env | Purpose | Safe default |
 |-----|---------|--------------|
 | `IBKR_ENABLED` | Connect at all | false until opted in |
-| `IBKR_GATEWAY_MODE` | `paper`→4002 / `live`→4001 | paper |
+| `IBKR_GATEWAY_MODE` | `paper`→4002 / `live`→4001 | **live** (paper is fallback) |
 | `IBKR_ORDERS_ENABLED` | Master kill for BUY/SELL/brackets | **false** |
 | `IBKR_LIVE_TRADING_CONFIRMED` | Second key if account is live | **false** |
 

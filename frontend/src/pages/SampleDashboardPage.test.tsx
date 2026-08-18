@@ -4,6 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
 import { SampleDataProvider } from '../sample_data/SampleDataContext';
 import { LayoutStoreProvider } from '../workspace/useLayoutStore';
 import { ModuleVisibilityProvider } from '../workspace/useModuleVisibility';
@@ -42,6 +43,7 @@ describe('SampleDashboardPage', () => {
   let root: Root;
 
   beforeEach(() => {
+    Element.prototype.scrollTo = vi.fn();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -61,7 +63,9 @@ describe('SampleDashboardPage', () => {
         <ModuleVisibilityProvider>
           <LayoutStoreProvider>
             <SampleDataProvider>
-              <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
+              <HodMomoFixtureProvider>
+                <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
+              </HodMomoFixtureProvider>
             </SampleDataProvider>
           </LayoutStoreProvider>
         </ModuleVisibilityProvider>,

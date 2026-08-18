@@ -1,5 +1,5 @@
 /**
- * AppShell top dock — collapsed strip or expanded HOD / Running Up table.
+ * AppShell top dock — collapsed strip or expanded HOD / roster scanner table.
  */
 import { useCallback, useRef } from 'react';
 import { ResizeHandle } from '../components/ResizeHandle';
@@ -7,15 +7,13 @@ import { HOD_MOMO_DOCK_DEFAULT_HEIGHT_PX, API_BASE_URL } from '../constants';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { novaFetch } from '../api/novaFetch';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { useScannerDockRows } from '../scanner/useScannerDockRows';
 import { alertApp, confirmApp } from '../ux';
+import { HodMomoDockModes } from './HodMomoDockModes';
+import { HodMomoDockRoster } from './HodMomoDockRoster';
 import { useHodMomo, type HodDockMode } from './HodMomoContext';
 import { HodMomoSection } from './HodMomoSection';
-
-function formatCount(n: number): string {
-  if (n <= 0) return '';
-  if (n > 99) return '99+';
-  return String(n);
-}
+import { isAlertDockMode, isRosterDockMode } from './scannerDockModes';
 
 type Props = {
   /** Sample shell: open fixture trader instead of live Stock View. */
@@ -29,6 +27,7 @@ export function HodMomoDock({ onOpenTrading }: Props) {
     dockMode,
     setDockMode,
     collapsed,
+    setCollapsed,
     toggleCollapsed,
     heightPx,
     setHeightPx,
@@ -44,11 +43,13 @@ export function HodMomoDock({ onOpenTrading }: Props) {
     openStockView,
   } = useWorkspace();
   const sample = useSampleDataOptional();
+  const roster = useScannerDockRows();
   const dragStart = useRef<{ y: number; h: number } | null>(null);
   const openTrading = onOpenTrading ?? openStockView;
+  const alertMode = isAlertDockMode(dockMode);
 
   const clearAlerts = useCallback(() => {
-    const label = dockMode === 'hod_momo' ? 'HOD Momentum' : 'Running Up';
+    const label = dockMode === 'running_up' ? 'Running Up' : 'HOD Momentum';
     if (sample) {
       void alertApp({
         title: 'Sample data',
@@ -100,7 +101,11 @@ export function HodMomoDock({ onOpenTrading }: Props) {
 
   const selectMode = (mode: HodDockMode) => {
     setDockMode(mode);
+    if (collapsed) setCollapsed(false);
+    if (isRosterDockMode(mode)) roster?.setL1ActiveTab?.(mode);
   };
+
+  const bodyIsRoster = isRosterDockMode(dockMode) && roster != null;
 
   return (
     <section
@@ -108,7 +113,7 @@ export function HodMomoDock({ onOpenTrading }: Props) {
       data-testid="hod-momo-dock"
       data-dock-mode={dockMode}
       data-collapsed={collapsed ? '1' : '0'}
-      aria-label="HOD Momo scanner dock"
+      aria-label="Scanner dock"
     >
       <header
         className="hod-momo-dock__bar"
@@ -127,56 +132,20 @@ export function HodMomoDock({ onOpenTrading }: Props) {
           }}
           aria-expanded={!collapsed}
           data-testid="hod-momo-dock-toggle"
-          title={collapsed ? 'Expand HOD dock' : 'Collapse HOD dock'}
+          title={collapsed ? 'Expand scanner dock' : 'Collapse scanner dock'}
         >
           <span className="hod-momo-dock__chevron" aria-hidden="true">
             {collapsed ? '▸' : '▾'}
           </span>
         </button>
 
-        <div
-          className="hod-momo-dock__modes"
-          role="tablist"
-          aria-label="HOD scanner mode"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={dockMode === 'hod_momo'}
-            className={
-              dockMode === 'hod_momo'
-                ? 'hod-momo-dock__mode is-active'
-                : 'hod-momo-dock__mode'
-            }
-            data-testid="hod-momo-dock-mode-hod"
-            onClick={() => selectMode('hod_momo')}
-          >
-            HOD Momo
-            {hodCount > 0 ? (
-              <span className="hod-momo-dock__count">{formatCount(hodCount)}</span>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={dockMode === 'running_up'}
-            className={
-              dockMode === 'running_up'
-                ? 'hod-momo-dock__mode is-active'
-                : 'hod-momo-dock__mode'
-            }
-            data-testid="hod-momo-dock-mode-ru"
-            onClick={() => selectMode('running_up')}
-          >
-            Running Up
-            {runningUpCount > 0 ? (
-              <span className="hod-momo-dock__count">
-                {formatCount(runningUpCount)}
-              </span>
-            ) : null}
-          </button>
-        </div>
+        <HodMomoDockModes
+          dockMode={dockMode}
+          onSelect={selectMode}
+          hodCount={hodCount}
+          runningUpCount={runningUpCount}
+          rosterCounts={roster?.counts ?? null}
+        />
 
         <span
           className={`hod-momo-dock__live${stream.connected ? ' is-live' : ''}`}
@@ -185,26 +154,30 @@ export function HodMomoDock({ onOpenTrading }: Props) {
           {stream.connected ? 'Live' : 'Offline'}
         </span>
 
-        <div className="hod-momo-dock__actions" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            className="hod-momo-dock__action"
-            onClick={clearAlerts}
-            title="Clear today's shared HOD / Running Up alerts"
-            data-testid="hod-momo-dock-clear"
-          >
-            Clear
-          </button>
-          <button
-            type="button"
-            className="hod-momo-dock__action"
-            onClick={toggleHodSettings}
-            title="Configure HOD Momentum strategies"
-            data-testid="hod-momo-dock-configure"
-          >
-            Configure
-          </button>
-        </div>
+        {alertMode ? (
+          <div className="hod-momo-dock__actions" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="hod-momo-dock__action"
+              onClick={clearAlerts}
+              title="Clear today's shared HOD / Running Up alerts"
+              data-testid="hod-momo-dock-clear"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              className="hod-momo-dock__action"
+              onClick={toggleHodSettings}
+              title="Configure HOD Momentum strategies"
+              data-testid="hod-momo-dock-configure"
+            >
+              Configure
+            </button>
+          </div>
+        ) : (
+          <div className="hod-momo-dock__actions" />
+        )}
       </header>
 
       {!collapsed && (
@@ -214,21 +187,31 @@ export function HodMomoDock({ onOpenTrading }: Props) {
             style={{ height: heightPx }}
             data-testid="hod-momo-dock-body"
           >
-            <HodMomoSection
-              activeTab={dockMode}
-              hodMomoStream={stream}
-              hodMomoConfig={config}
-              selectedSymbol={selectedSymbol}
-              onSelect={setSelectedSymbol}
-              onOpenTrading={openTrading}
-              showHodSettings={showHodSettings}
-              onToggleHodSettings={toggleHodSettings}
-              onCloseHodSettings={() => setShowHodSettings(false)}
-            />
+            {bodyIsRoster ? (
+              <HodMomoDockRoster
+                mode={dockMode}
+                rows={roster}
+                selectedSymbol={selectedSymbol}
+                onSelect={setSelectedSymbol}
+                onOpenTrading={openTrading}
+              />
+            ) : (
+              <HodMomoSection
+                activeTab={alertMode ? dockMode : 'hod_momo'}
+                hodMomoStream={stream}
+                hodMomoConfig={config}
+                selectedSymbol={selectedSymbol}
+                onSelect={setSelectedSymbol}
+                onOpenTrading={openTrading}
+                showHodSettings={showHodSettings}
+                onToggleHodSettings={toggleHodSettings}
+                onCloseHodSettings={() => setShowHodSettings(false)}
+              />
+            )}
           </div>
           <ResizeHandle
             orientation="horizontal"
-            label="Resize HOD Momo dock"
+            label="Resize scanner dock"
             onPointerDown={onResizePointerDown}
             onDoubleClick={() => setHeightPx(HOD_MOMO_DOCK_DEFAULT_HEIGHT_PX)}
           />

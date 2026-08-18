@@ -96,6 +96,7 @@ function TickerChartInner({
     maximized,
     timeframe,
     chartActive,
+    oscillatorPaneCount: oscillatorEnabled.length,
   });
 
   const {

@@ -1,6 +1,6 @@
 /**
- * Header connection cluster — API, market-data gateway/feed, and price freshness
- * as three labeled signals so "Connected" is never ambiguous.
+ * Header connection cluster -- Desk (API + Gateway), Paper/Live, and freshness.
+ * One Desk chip opens the same checklist; do not show API and Gateway as twins.
  */
 import { useCallback, useState } from 'react';
 import { BackendStartButton } from './BackendStartButton';
@@ -27,10 +27,14 @@ import {
 import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { launchIbGateway } from '../utils/launchIbGateway';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
+import { HEADER_DESK_ROLE } from '../ibkr/gatewayUxConstants';
+import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
 import {
   apiLabel,
+  apiProcessOk,
   apiTone,
-  gatewayConnectionLabel,
+  deskChipTone,
+  deskConnectionLabel,
   healthLatencyLabel,
   integrationTone,
   resolveGatewayModeTag,
@@ -92,7 +96,7 @@ export function HeaderConnectionStatus({
     }, 10_000);
   }, [gatewayLaunchBusy]);
 
-  const apiOk = health.status === 'connected';
+  const apiOk = apiProcessOk(health);
   const apiChipTone = apiTone(health.status);
   const latencyLabel = healthLatencyLabel(health);
   const isIbkr = discoveryProvider === 'ibkr';
@@ -133,12 +137,22 @@ export function HeaderConnectionStatus({
           ? 'warn'
           : 'ok';
 
-  const gatewayValue = gatewayConnectionLabel({
+  const deskValue = deskConnectionLabel({
+    apiOk,
     connected: ibkrConnected,
     delayed: marketDataDelayed,
     launchBusy: gatewayLaunchBusy,
     launchOk: gatewayLaunchOk,
   });
+  const deskTone = deskChipTone({ apiOk, gatewayTone: gatewayChipTone });
+  const deskTitle = [
+    apiOk
+      ? 'Nova API process is reachable on port 8000.'
+      : health.flag_hint ||
+        health.message ||
+        'Nova API is unreachable -- start the backend (port 8000).',
+    gatewayTitle,
+  ].join('\n\n');
 
   return (
     <div
@@ -146,52 +160,38 @@ export function HeaderConnectionStatus({
       role="group"
       aria-label="Connection and data freshness"
     >
-      <span
-        className={`status-chip status-chip--${apiChipTone}`}
-        title={
-          apiOk
-            ? 'Nova API process is reachable on port 8000. IB Gateway is a separate chip; Alpaca is not the API.'
-            : health.flag_hint ||
-              health.message ||
-              'Nova API is unreachable — start the backend (port 8000) to restore scanner and quotes.'
-        }
-        data-testid="status-chip-api"
-      >
-        <span className={`dot ${toneDot(apiChipTone)}`} />
-        <span className="status-chip__role">API</span>
-        <span className="status-chip__value">
-          {apiLabel(health.status)}
-          {latencyLabel ? ` · ${latencyLabel}` : ''}
-        </span>
-      </span>
-
       {showScannerSource && isIbkr && (
         <>
           <button
             type="button"
-            className={`status-chip status-chip--action status-chip--${gatewayChipTone}${
+            className={`status-chip status-chip--action status-chip--${deskTone}${
               gatewayLaunchBusy ? ' status-chip--busy' : ''
             }`}
-            title={gatewayTitle}
-            data-testid="status-chip-gateway"
+            title={deskTitle}
+            data-testid="status-chip-desk"
+            onClick={(e) => {
+              e.preventDefault();
+              openTradingPrerequisites();
+            }}
             onDoubleClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               void onGatewayDoubleClick();
             }}
-            aria-label={`IB Gateway ${gatewayValue}. Double-click to open or focus Gateway.`}
+            aria-label={`Desk ${deskValue}. Click for API and Gateway checklist. X closes it. Double-click launches the current Gateway target.`}
           >
             <span
               className={`dot ${
                 gatewayLaunchBusy
                   ? 'loading'
-                  : ibkrConnected || gatewayLaunchOk === true
-                    ? 'connected'
-                    : 'disconnected'
+                  : toneDot(deskTone)
               }`}
             />
-            <span className="status-chip__role">Gateway</span>
-            <span className="status-chip__value">{gatewayValue}</span>
+            <span className="status-chip__role">{HEADER_DESK_ROLE}</span>
+            <span className="status-chip__value">
+              {deskValue}
+              {latencyLabel ? ` · ${latencyLabel}` : ''}
+            </span>
           </button>
           {gatewayLaunchHint && (
             <span
@@ -213,6 +213,27 @@ export function HeaderConnectionStatus({
             testId="header-gateway-mode-capsule"
           />
         </>
+      )}
+
+      {(!showScannerSource || !isIbkr) && (
+        <span
+          className={`status-chip status-chip--${apiChipTone}`}
+          title={
+            apiOk
+              ? 'Nova API process is reachable on port 8000. Alpaca is not the API.'
+              : health.flag_hint ||
+                health.message ||
+                'Nova API is unreachable -- start the backend (port 8000) to restore scanner and quotes.'
+          }
+          data-testid="status-chip-api"
+        >
+          <span className={`dot ${toneDot(apiChipTone)}`} />
+          <span className="status-chip__role">API</span>
+          <span className="status-chip__value">
+            {apiLabel(health.status)}
+            {latencyLabel ? ` · ${latencyLabel}` : ''}
+          </span>
+        </span>
       )}
 
       {showScannerSource && !isIbkr && (

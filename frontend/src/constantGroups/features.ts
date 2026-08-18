@@ -184,6 +184,7 @@ export const NOVA_ACTION_KINDS = [
   'buy_market',
   'buy_limit_ask_offset',
   'sell_limit_bid_offset',
+  'sell_limit_ask_offset',
   'sell_pos_pct_ask',
   'sell_pos_pct_bid_offset',
 ] as const;
@@ -199,6 +200,7 @@ export const NOVA_ACTION_KIND_LABELS: Record<NovaActionKind, string> = {
   buy_market: 'Buy market (fixed shares)',
   buy_limit_ask_offset: 'Buy limit at Ask ± offset',
   sell_limit_bid_offset: 'Sell limit at Bid ± offset',
+  sell_limit_ask_offset: 'Sell limit at Ask ± offset',
   sell_pos_pct_ask: 'Sell long % at Ask (limit)',
   sell_pos_pct_bid_offset: 'Sell long % at Bid − offset (limit)',
 };
@@ -211,11 +213,20 @@ export const NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS = 0.03;
 export const NOVA_ACTION_DEFAULT_SHARES = 100;
 /** Default shares for buy_market (quick paper/live smoke). */
 export const NOVA_ACTION_DEFAULT_BUY_MARKET_SHARES = 1;
+/** Desk F1/F2/F5 Ask+/Bid- size -- 1 share either way. */
+export const NOVA_ACTION_DESK_SHARES = 1;
+/**
+ * Bump when F1/F2/F5 desk defaults change -- loadProfile rewrites those rows
+ * once so an older local profile does not keep Ctrl+Shift+B / 100 shares.
+ */
+export const DESK_ASK_BID_HOTKEY_EPOCH = 'f1-f5-eh-2026-08-17';
+export const DESK_ASK_BID_HOTKEY_EPOCH_KEY = 'nova.hotkeys.desk-ask-bid-epoch';
 export const NOVA_ACTION_DEFAULT_EXIT_PCTS = [50, 25] as const;
 
 export const NOVA_ACTION_NEEDS_DEPTH: NovaActionKind[] = [
   'buy_limit_ask_offset',
   'sell_limit_bid_offset',
+  'sell_limit_ask_offset',
   'sell_pos_pct_ask',
   'sell_pos_pct_bid_offset',
 ];

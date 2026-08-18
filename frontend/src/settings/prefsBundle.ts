@@ -6,6 +6,7 @@ export const PREFS_DOWNLOAD_NAME = 'nova-prefs.json';
 export const PREFS_BUNDLE_KEYS = [
   'nova.hotkeys.profile.v1',
   'nova.hotkeys.menu-default-epoch',
+  'nova.hotkeys.desk-ask-bid-epoch',
   'nova_workspace_layout_v1',
   'nova_module_visibility_v1',
   'nova_side_panel_width_v1',

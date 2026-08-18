@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
+import { readLastIbkrStatus, writeLastIbkrStatus } from './ibkrStatusCache';
 import type { IbkrStatus } from './types';
 
 const DEFAULT: IbkrStatus = {
@@ -38,10 +39,20 @@ export function refreshIbkrStatusNow(): void {
   window.dispatchEvent(new Event(REFRESH_EVENT));
 }
 
+export type IbkrClientStatus = IbkrStatus & {
+  /** False until a poll finishes or this tab already has last-good status. */
+  clientReady: boolean;
+};
+
 /** Polls /api/ibkr/status every 5 s to reflect IB Gateway connection state. */
-export function useIbkrStatus(): IbkrStatus {
+export function useIbkrStatus(): IbkrClientStatus {
   const sample = useSampleDataOptional();
-  const [status, setStatus] = useState<IbkrStatus>(DEFAULT);
+  const [status, setStatus] = useState<IbkrStatus>(
+    () => readLastIbkrStatus() ?? DEFAULT,
+  );
+  const [clientReady, setClientReady] = useState(
+    () => readLastIbkrStatus() != null,
+  );
 
   useEffect(() => {
     if (sample) return;
@@ -51,10 +62,13 @@ export function useIbkrStatus(): IbkrStatus {
       try {
         const res = await fetch(`${API_BASE_URL}/api/ibkr/status`);
         if (res.ok && active) {
-          setStatus(await res.json());
+          const next = (await res.json()) as IbkrStatus;
+          writeLastIbkrStatus(next);
+          setStatus(next);
+          setClientReady(true);
         }
       } catch {
-        // Gateway not running or IBKR disabled — keep showing disconnected
+        // API down -- keep last-good (or DEFAULT). Header API chip owns that.
       }
     }
 
@@ -68,6 +82,6 @@ export function useIbkrStatus(): IbkrStatus {
     };
   }, [sample]);
 
-  if (sample) return SAMPLE_STATUS;
-  return status;
+  if (sample) return { ...SAMPLE_STATUS, clientReady: true };
+  return { ...status, clientReady };
 }

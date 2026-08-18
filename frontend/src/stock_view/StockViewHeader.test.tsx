@@ -120,6 +120,14 @@ describe('StockViewHeader trading chrome', () => {
     expect(segs[1].classList.contains('is-selected')).toBe(false);
   });
 
+  it('hides Disconnected until IBKR status is known', () => {
+    renderHeader({ connected: false, statusReady: false, summary: null });
+    expect(container.querySelector('[data-testid="sv-disconnect-warn"]')).toBeNull();
+    renderHeader({ connected: false, statusReady: true, summary: null });
+    expect(container.querySelector('[data-testid="sv-disconnect-warn"]')?.textContent)
+      .toMatch(/Disconnected/i);
+  });
+
   it('shows paper trading banner only when mode is paper', () => {
     renderHeader({ mode: 'paper' });
     const banner = container.querySelector('[data-testid="paper-trading-banner"]');

@@ -17,11 +17,12 @@ import {
   writeDockCollapsed,
   writeDockHeightPx,
 } from './hodMomoDockPersist';
+import { type HodDockMode } from './scannerDockModes';
 import { partitionScannerAlerts } from './scannerPartition';
 import type { useHodMomoConfig } from './useHodMomoConfig';
 import type { useHodMomoStream } from './useHodMomoStream';
 
-export type HodDockMode = 'hod_momo' | 'running_up';
+export type { HodDockMode } from './scannerDockModes';
 
 type HodStream = ReturnType<typeof useHodMomoStream>;
 type HodConfig = ReturnType<typeof useHodMomoConfig>;

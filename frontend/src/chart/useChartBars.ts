@@ -9,6 +9,7 @@ import type {
 } from 'lightweight-charts';
 import {
   CHART_BARS_CLIENT_STALE_MS,
+  CHART_BARS_ERROR_RETRY_MAX,
   CHART_BARS_ERROR_RETRY_MS,
   CHART_MOCK_BAR_COUNT,
   CHART_MOCK_BASE_PRICE,
@@ -123,7 +124,7 @@ export function useChartBars({
   const paintedBarsRef = useRef<RawBar[] | null>(null);
   const chartActiveRef = useRef(chartActive);
   const errorRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const errorRetryUsedRef = useRef(false);
+  const errorRetryCountRef = useRef(0);
 
   useEffect(() => {
     lastTradeRef.current = lastTrade;
@@ -207,29 +208,29 @@ export function useChartBars({
       if (!isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current)) return;
       applyStoreBars(bars, { background, fitContent: !background });
     } catch (err) {
-      if (isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current) && !background) {
+      if (!isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current)) return;
+      if (!background) {
         if (err instanceof DOMException && err.name === 'AbortError') {
           setError('Chart bars timed out -- IBKR historical may be busy. Try again.');
         } else {
           setError(err instanceof Error ? err.message : 'Failed to load chart');
         }
-        // One background retry after a transient wedge (no poll for 10Sec / 1Day).
-        if (shouldScheduleBarsErrorRetry({
-          background: false,
-          storeHasBars: Boolean(getBarsEntry(sym, tf)?.bars.length),
-          retryAlreadyUsed: errorRetryUsedRef.current,
-          chartActive: chartActiveRef.current,
-        })) {
-          errorRetryUsedRef.current = true;
-          clearErrorRetry();
-          const jitter = Math.floor(Math.random() * 1000);
-          errorRetryTimerRef.current = setTimeout(() => {
-            errorRetryTimerRef.current = null;
-            if (!chartActiveRef.current) return;
-            if (getBarsEntry(sym, tf)?.bars.length) return;
-            void fetchBars(sym, tf, true);
-          }, CHART_BARS_ERROR_RETRY_MS + jitter);
-        }
+      }
+      if (shouldScheduleBarsErrorRetry({
+        storeHasBars: Boolean(getBarsEntry(sym, tf)?.bars.length),
+        retriesUsed: errorRetryCountRef.current,
+        maxRetries: CHART_BARS_ERROR_RETRY_MAX,
+        chartActive: chartActiveRef.current,
+      })) {
+        errorRetryCountRef.current += 1;
+        clearErrorRetry();
+        const jitter = Math.floor(Math.random() * 1000);
+        errorRetryTimerRef.current = setTimeout(() => {
+          errorRetryTimerRef.current = null;
+          if (!chartActiveRef.current) return;
+          if (getBarsEntry(sym, tf)?.bars.length) return;
+          void fetchBars(sym, tf, true);
+        }, CHART_BARS_ERROR_RETRY_MS + jitter);
       }
     } finally {
       if (isCurrentBarsRequest(requestVersion, barsRequestVersionRef.current) && !background) {
@@ -242,7 +243,7 @@ export function useChartBars({
   useEffect(() => {
     onSeriesReset();
     paintedBarsRef.current = null;
-    errorRetryUsedRef.current = false;
+    errorRetryCountRef.current = 0;
     clearErrorRetry();
     const existing = getBarsEntry(symbol, timeframe);
     if (existing && existing.bars.length > 0) {

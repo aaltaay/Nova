@@ -13,11 +13,33 @@ describe('createDefaultNovaActions', () => {
     expect(kinds.has('buy_market')).toBe(true);
     expect(kinds.has('buy_limit_ask_offset')).toBe(true);
     expect(kinds.has('sell_limit_bid_offset')).toBe(true);
+    expect(kinds.has('sell_limit_ask_offset')).toBe(true);
     expect(kinds.has('sell_pos_pct_ask')).toBe(true);
     expect(kinds.has('sell_pos_pct_bid_offset')).toBe(true);
     const buy1 = actions.find((a) => a.id === 'nova-wb-buy-1');
     expect(buy1?.params.shares).toBe(1);
     expect(buy1?.key.label).toMatch(/Ctrl\+1/i);
+    const ask = actions.find((a) => a.id === 'nova-buy-ask');
+    const bid = actions.find((a) => a.id === 'nova-sell-bid');
+    expect(ask?.key.label).toBe('F1');
+    expect(ask?.params).toMatchObject({
+      shares: 1,
+      offsetDollars: 0.05,
+      outsideRth: true,
+    });
+    expect(bid?.key.label).toBe('F2');
+    expect(bid?.params).toMatchObject({
+      shares: 1,
+      offsetDollars: 0.05,
+      outsideRth: true,
+    });
+    const sellAsk = actions.find((a) => a.id === 'nova-sell-ask');
+    expect(sellAsk?.key.label).toBe('F5');
+    expect(sellAsk?.params).toMatchObject({
+      shares: 1,
+      offsetDollars: 0.05,
+      outsideRth: true,
+    });
   });
 
   it('marks cancel / cancel+flatten / primary exits as showButton', () => {

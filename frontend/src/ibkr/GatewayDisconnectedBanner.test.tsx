@@ -158,6 +158,8 @@ describe('GatewayDisconnectedBanner', () => {
     expect(banner).not.toBeNull();
     expect(banner?.textContent).toContain('ACTION REQUIRED');
     expect(banner?.textContent).toContain('4002');
+    expect(banner?.querySelector('[data-testid="open-gateway-paper"]')?.textContent).toMatch(/paper/i);
+    expect(banner?.querySelector('[data-testid="open-gateway-live"]')?.textContent).toMatch(/live/i);
   });
 
   it('calls launchIbGateway when the CTA is clicked', async () => {
@@ -171,14 +173,21 @@ describe('GatewayDisconnectedBanner', () => {
         />,
       );
     });
-    const button = container.querySelector('button') as HTMLButtonElement;
+    const button = container.querySelector('[data-testid="open-gateway-paper"]') as HTMLButtonElement;
     await act(async () => {
       button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await Promise.resolve();
     });
-    expect(launchIbGatewayMock).toHaveBeenCalledOnce();
+    expect(launchIbGatewayMock).toHaveBeenCalledWith('paper');
     expect(container.querySelector('[data-testid="gateway-disconnected-banner"]')?.textContent).toContain(
       'Started IB Gateway',
     );
+
+    const live = container.querySelector('[data-testid="open-gateway-live"]') as HTMLButtonElement;
+    await act(async () => {
+      live.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(launchIbGatewayMock).toHaveBeenCalledWith('live');
   });
 });

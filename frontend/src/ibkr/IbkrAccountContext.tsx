@@ -9,6 +9,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -61,6 +62,7 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   const [staleSince, setStaleSince] = useState<number | null>(null);
+  const hadSessionRef = useRef(false);
 
   const refresh = useCallback(async () => {
     if (sample || !ibkrConnected) return;
@@ -100,7 +102,14 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (sample) return;
+    if (ibkrConnected) {
+      hadSessionRef.current = true;
+    }
     if (!ibkrConnected) {
+      if (!hadSessionRef.current) {
+        setLoading(false);
+        return;
+      }
       const since = Date.now();
       setStale(true);
       setStaleSince(since);

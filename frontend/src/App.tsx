@@ -13,6 +13,7 @@ import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { HodMomoDock } from './hod_momo/HodMomoDock';
 import { HodMomoProvider } from './hod_momo/HodMomoProvider';
+import { ScannerDataProvider } from './scanner/ScannerDataContext';
 import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
 import { TradingPrerequisitesGate } from './ibkr/TradingPrerequisitesGate';
 import { DashboardPage } from './pages/DashboardPage';
@@ -56,8 +57,9 @@ function AppShell() {
   return (
     <IbkrAccountProvider>
       <SettingsProvider>
-        <HodMomoProvider>
-          <div className="nova-app-stack">
+        <ScannerDataProvider>
+          <HodMomoProvider>
+            <div className="nova-app-stack">
             {/* One shared header for Scanner + Trader; status strip never clears on route. */}
             <GlobalBarStatusBridge />
             <GlobalAppBar />
@@ -95,8 +97,9 @@ function AppShell() {
                 </AppErrorBoundary>
               )}
             </div>
-          </div>
-        </HodMomoProvider>
+            </div>
+          </HodMomoProvider>
+        </ScannerDataProvider>
       </SettingsProvider>
     </IbkrAccountProvider>
   );

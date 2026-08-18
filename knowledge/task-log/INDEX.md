@@ -4,10 +4,18 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-18 | [MACD pane empty with toggle on](2026-08-18-macd-pane-empty.md) | Align MACD to price bars; stop the candle canvas covering the pane |
+| 2026-08-18 | [One Desk chip for API + Gateway](2026-08-18-desk-chip-merge.md) | Merge API/Gateway pills; X closes the checklist |
+| 2026-08-18 | [Open paper and Open live Gateway](2026-08-18-open-paper-live-gateway.md) | Checklist on Gateway chip; Open paper / Open live sit together |
+| 2026-08-18 | [Live Gateway is the default door](2026-08-18-live-gateway-default.md) | Default dial is 4001 live; paper 4002 is fallback; IBC morning is live |
+| 2026-08-17 | [Desk recovers quote, charts, and F5 without a hard refresh](2026-08-17-desk-self-heal.md) | No hard refresh: last-good IBKR status, HTTP quote seed, chart retries, F5 epoch |
+| 2026-08-17 | [Sell 1 at Ask+$0.05 (F5)](2026-08-17-f3-sell-ask-offset.md) | F5 sell 1 Ask+$0.05 EH (`sell_limit_ask_offset`; was F3) |
+| 2026-08-17 | [F1 buy Ask+$0.05 / F2 sell Bid-$0.05](2026-08-17-f1-f2-ask-bid-hotkeys.md) | F1 buy 1 Ask+$0.05 EH; F2 sell 1 Bid-$0.05 EH |
 | 2026-08-17 | [Persist-audit remainder (journal, Activity, last-good, capture)](2026-08-17-persist-audit-remainder.md) | Real journal on Nova flat; Activity tab; last-good disconnect; daily bars / backups / prefs |
 | 2026-08-17 | [Orders Today reads the execution ledger](2026-08-17-closed-blotter-ledger.md) | Closed blotter overlays ledger; Order ID 0 / qty 0 healed |
 | 2026-08-17 | [Close persist recording holes](2026-08-17-persist-recording.md) | Ledger records permId, qty intent, cancel symbol; stream writes roster JSON |
 | 2026-08-17 | [Persistence audit (what the DBs keep)](2026-08-17-persist-audit.md) | Five SQLite files inventoried; blotter ignores ledger; no hosted DB |
+| 2026-08-17 | [Scanner dock pills for roster tables](2026-08-17-scanner-dock-roster-pills.md) | HOD dock row adds Gappers / Gainers / Losers / AH / Catalysts |
 | 2026-08-17 | [Scanner Trader keeps tape subscribed](2026-08-17-trader-scanner-tape-linger.md) | View switch keeps T&S; linger covers remount |
 | 2026-08-17 | [Trader charts fetch one historical at a time](2026-08-17-trader-chart-historical-queue.md) | Queue panes; do not cancel an in-flight historical |
 | 2026-08-17 | [Place Network error was a wedged IB loop](2026-08-17-place-network-error-wedged.md) | TRUG validated never sent; reject when IB loop wedged |

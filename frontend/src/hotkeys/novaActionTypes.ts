@@ -11,6 +11,8 @@ export interface NovaActionParams {
   offsetDollars?: number;
   /** Exit percent of position (e.g. 50). */
   percent?: number;
+  /** Force IB outsideRth (extended hours) on this place. */
+  outsideRth?: boolean;
 }
 
 export interface NovaActionRecord {

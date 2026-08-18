@@ -346,11 +346,11 @@ export const STOCK_VIEW_DISCONNECT_HINT_PORT_OPEN =
 export const GATEWAY_MODE_API_RESTART_HINT =
   'Restart Nova API (route missing), then try switching again.';
 
-/** Header Gateway chip tooltip — double-click launches/focuses the desktop app. */
+/** Header Desk chip tooltip -- click opens the checklist; double-click launches. */
 export const HEADER_GATEWAY_LAUNCH_HINT =
-  'Double-click to open or focus IB Gateway. Complete login + IBKR Mobile 2FA if prompted — Nova reconnects when the API port opens.';
+  'Click Desk for the API + Gateway checklist. X or Escape closes it. Open paper or Open live starts that IBC login. Double-click still launches the current target. Complete IBKR Mobile 2FA if prompted.';
 
-/** Header Gateway chip visible states. Paper/Live lives on the mode capsule. */
+/** Header Desk/Gateway chip visible states. Paper/Live lives on the mode capsule. */
 export const HEADER_GATEWAY_UP_LABEL = 'up';
 export const HEADER_GATEWAY_OFFLINE_LABEL = 'offline';
 /** Legacy chip suffixes -- kept for tooltip / older copy, not the chip value. */
@@ -532,6 +532,8 @@ export function chartBarsFetchPriority(timeframe: string): number {
  * permanent red overlay (Full Day / 10Sec have no CHART_REFETCH_SEC poll).
  */
 export const CHART_BARS_ERROR_RETRY_MS = 5_000;
+/** Keep retrying empty panes (no poll on 10Sec / 1Day) while IBKR historical is busy. */
+export const CHART_BARS_ERROR_RETRY_MAX = 8;
 export const CHART_REFETCH_SEC: Record<string, number> = {
   // Live forming candle comes from WS ticks; poll is reconciliation only.
   // 10Sec deliberately omitted -- historical once + live append (small-bar pacing).

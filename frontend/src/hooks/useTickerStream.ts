@@ -1,8 +1,9 @@
 /** WebSocket ticker detail stream — Phase 1 fast snapshot, Phase 2 slow enrich, live trades. */
 import { useEffect, useRef, useState } from 'react';
-import { WS_BASE_URL } from '../constants';
+import { API_BASE_URL, TICKER_WS_HTTP_SEED_MS, WS_BASE_URL } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { BarData, TickerDetail, TickerTradeUpdate } from '../types/ticker';
+import { tickerDetailFromHttp } from './tickerStreamHttp';
 
 const WS_URL = `${WS_BASE_URL}/ws`;
 
@@ -45,6 +46,29 @@ export function useTickerStream(symbol: string | null): {
 
     const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
     wsRef.current = ws;
+
+    const seedCtl = new AbortController();
+    const seedTimer = window.setTimeout(() => {
+      if (cancelled || initialReceived) return;
+      void fetch(`${API_BASE_URL}/api/ticker/${encodeURIComponent(symbol)}`, {
+        signal: seedCtl.signal,
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled || initialReceived || ws !== wsRef.current) return;
+          const seeded = tickerDetailFromHttp(data, symbol);
+          if (!seeded) return;
+          initialReceived = true;
+          hasDetailRef.current = true;
+          setDetail(seeded);
+          setLoading(false);
+          setRefreshing(false);
+          setFetchFailed(false);
+        })
+        .catch(() => {
+          /* WS may still deliver initial */
+        });
+    }, TICKER_WS_HTTP_SEED_MS);
 
     ws.onmessage = (e) => {
       if (cancelled || ws !== wsRef.current) return;
@@ -148,6 +172,8 @@ export function useTickerStream(symbol: string | null): {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(seedTimer);
+      seedCtl.abort();
       if (wsRef.current === ws) wsRef.current = null;
       ws.close();
     };

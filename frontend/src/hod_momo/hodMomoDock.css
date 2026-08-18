@@ -51,6 +51,17 @@
   align-items: center;
   gap: 0.2rem;
   min-width: 0;
+  flex: 1;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.hod-momo-dock__mode-gap {
+  flex-shrink: 0;
+  width: 1px;
+  height: 1.1rem;
+  margin: 0 0.3rem;
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .hod-momo-dock__mode {
@@ -140,6 +151,15 @@
 
 .hod-momo-dock__body .hod-scanner-blurb {
   display: none;
+}
+
+.hod-momo-dock__roster {
+  min-height: 100%;
+}
+
+.hod-momo-dock__roster .scanner-table,
+.hod-momo-dock__roster table {
+  font-size: 0.78rem;
 }
 
 .hod-momo-dock > .resize-handle--horizontal {

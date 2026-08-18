@@ -147,6 +147,17 @@ export function suggestNovaActionFromDas(command: string): MapSuggestion {
       name: NOVA_ACTION_KIND_LABELS.buy_limit_ask_offset,
     };
   }
+  if (isSell && priceIsAskOffset(priceTok?.value)) {
+    return {
+      ok: true,
+      kind: 'sell_limit_ask_offset',
+      params: {
+        shares: shareLit ?? NOVA_ACTION_DEFAULT_SHARES,
+        offsetDollars: parseOffsetDollars(priceTok?.value),
+      },
+      name: NOVA_ACTION_KIND_LABELS.sell_limit_ask_offset,
+    };
+  }
   if (isSell && priceIsBidOffset(priceTok?.value)) {
     return {
       ok: true,

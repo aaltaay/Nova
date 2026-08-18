@@ -19,14 +19,15 @@ import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { ScannerBarBridge } from '../components/ScannerBarBridge';
 import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
-import { useScannerData } from '../hooks/useScannerData';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
+import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
 import { useSettings } from '../settings/SettingsContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   DEFAULT_ACTIVE_TAB,
   getModule,
   isTabModuleId,
+  tabUsesScannerPricePatch,
   type ActiveTab,
 } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
@@ -55,7 +56,6 @@ export function DashboardPage() {
     openStockView,
     setDiscoveryProvider: setWorkspaceDiscovery,
     setAlpacaFeed: setWorkspaceAlpacaFeed,
-    scannerPersistentAuthoritative,
     ibkrConnected,
     ibkrTransportConnected,
     ibkrPortsDark,
@@ -73,13 +73,7 @@ export function DashboardPage() {
   const watchlist = useWatchlist(true);
 
   const fetchDataRef = useRef<() => void>(() => {});
-  const scanner = useScannerData({
-    discoveryProvider: settings.discoveryProvider,
-    activeTab: isDockTab(activeTab) ? DEFAULT_ACTIVE_TAB : activeTab,
-    scannerPersistentAuthoritative,
-    onActiveFeed: settings.setActiveFeed,
-    onFeedFellBack: settings.setFeedFellBack,
-  });
+  const scanner = useLiveScannerFeed();
   fetchDataRef.current = scanner.fetchData;
 
   useEffect(() => {
@@ -157,6 +151,7 @@ export function DashboardPage() {
     setTabOverridden(true);
     setActiveTab(tab);
     setRailHighlight(tab);
+    if (tabUsesScannerPricePatch(tab)) scanner.setL1ActiveTab(tab);
   }
 
   // Global Working menu / GlobalAppBar Account → Account / Trading tab.

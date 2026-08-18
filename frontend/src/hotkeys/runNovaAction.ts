@@ -285,23 +285,28 @@ export async function runNovaAction(
     );
   }
 
-  if (action.kind === 'buy_limit_ask_offset' || action.kind === 'sell_limit_bid_offset') {
+  if (
+    action.kind === 'buy_limit_ask_offset'
+    || action.kind === 'sell_limit_bid_offset'
+    || action.kind === 'sell_limit_ask_offset'
+  ) {
     const tobOrErr = requireDepth(runtime, symbol);
     if ('ok' in tobOrErr && tobOrErr.ok === false) return tobOrErr;
     const tob = tobOrErr as TopOfBook;
     const offset = action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_OFFSET_DOLLARS;
     const shares = action.params.shares ?? NOVA_ACTION_DEFAULT_SHARES;
     const isBuy = action.kind === 'buy_limit_ask_offset';
-    const base = isBuy ? tob.ask : tob.bid;
+    const fromAsk = action.kind !== 'sell_limit_bid_offset';
+    const base = fromAsk ? tob.ask : tob.bid;
     if (base == null || base <= 0) {
       return { ok: false, text: NOVA_ACTION_DEPTH_DISABLED_REASON };
     }
-    const limit = isBuy ? base + offset : base - offset;
+    const limit = fromAsk ? base + offset : base - offset;
     if (limit <= 0) {
       return { ok: false, text: 'Computed limit price is invalid' };
     }
     const side = isBuy ? 'BUY' : 'SELL';
-    const outside_rth = shouldUseOutsideRth(false);
+    const outside_rth = shouldUseOutsideRth(Boolean(action.params.outsideRth));
     const mode = accountModeLabel(runtime.accountMode);
     const summary =
       `${side} ${shares} ${symbol} (LMT @ $${limit.toFixed(2)}${outside_rth ? ' EH' : ''}) `

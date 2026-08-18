@@ -30,6 +30,79 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- MACD pane renders on the quote chart
+
+- **What:** Turning on MACD now draws histogram + MACD/signal lines in the quote-panel oscillator. RSI uses the same alignment.
+- **Why:** The MACD toggle was on but the pane stayed empty. The price canvas was still sized as if MACD were off, and MACD warmup bars were dropped so time-range sync looked at empty indices.
+- **Files touched:** `chartIndicators.ts`, `TickerChartOscillatorPanes.tsx`, `useChartInstance.ts`, `TickerChart.tsx`, `tickerChart.css`, `quote-layout.css`, `oscillatorPaint.ts`.
+- **How it works now:** Oscillator series keep one slot per price bar (NaN warmup is whitespace). The price chart remasures when an oscillator mounts and cannot paint over the pane. Paint waits until the pane series exist.
+- **Verified by:** Vitest `chartIndicators` + `oscillatorPaint` + `measureChartFillHeight` -- 12 passed. `npm run build` -- tsc + vite exit 0. Browser on `http://localhost:5173` SNDQ 1m: MACD toggle on, pane 110px, price body 157px (not covering), MACD canvas 2501 non-dark pixels.
+- **Related:** `PROBLEM_LOG.md` 2026-08-18 -- MACD pane empty; task-log `knowledge/task-log/2026-08-18-macd-pane-empty.md`
+
+## 2026-08-18 -- One Desk chip for API + Gateway
+
+- **What:** Header no longer shows twin **API up** and **GATEWAY up** pills. One **Desk** chip opens the same Trading prerequisites checklist. The checklist **X** (and Escape) dismisses it.
+- **Why:** Two green "up" chips looked like the same signal. The operator asked to merge them and keep a popup they can X out of.
+- **Files touched:** `HeaderConnectionStatus.tsx`, `headerConnectionStatusModel.ts`, `TradingPrerequisitesGate.tsx`, `gatewayUxConstants.ts`, `market_ui.ts`.
+- **How it works now:** Desk value is honest: `up`, `delayed`, `offline` (Gateway), or `API down`. Click opens the checklist with Open paper / Open live. Paper | Live capsule stays next to Desk. Reload backend stays. Alpaca is still not the API.
+- **Verified by:** Vitest HeaderConnectionStatus + headerConnectionStatusModel -- 15 passed. `npm run build` -- exit 0. Browser on `http://localhost:5173`: one Desk chip (no API/Gateway twins); click opened checklist with Open paper / Open live and X; X closed it.
+- **Related:** task-log `knowledge/task-log/2026-08-18-desk-chip-merge.md`
+
+## 2026-08-18 -- Open paper and Open live Gateway side by side
+
+- **What:** Trading prerequisites no longer auto-covers the desk for Gateway-only mornings. Click the header Gateway chip (or the red banner title) for the checklist. **Open paper Gateway** and **Open live Gateway** sit together so you pick the door. Close dismisses the panel.
+- **Why:** The full-screen checklist every morning was too loud when only Gateway was down. One generic Open button also hid the paper vs live choice.
+- **Files touched:** `TradingPrerequisitesGate.tsx`, `GatewayModeLaunchButtons.tsx`, `GatewayDisconnectedBanner.tsx`, `HeaderConnectionStatus.tsx`, `launchIbGateway.ts`, `backend/ibkr/launch_gateway.py`, `backend/routes/trading.py`, `ibkr-gateway-login-warning.mdc`.
+- **How it works now:** `autoOverlay` is API-down only. A Gateway-only morning stays usable; the thin red banner still loud-warns. Either Open button persists Nova `IBKR_GATEWAY_MODE`, aligns local IBC `TradingMode` + port, stops the current Gateway window if needed, and starts IBC as that door. Look at the desktop for 2FA. Spend gates do not auto-unlock. `auto_live` stays NO-GO.
+- **Verified by:** `py -3 -m pytest tests/test_launch_gateway.py tests/test_ibkr_safety.py::TestGatewayModeDefault -q` -- 10 passed. Vitest 4 files / 32 passed. `npm run build` -- exit 0. Browser: click Gateway chip on `http://localhost:5173` opened the checklist with **Open paper Gateway** and **Open live Gateway** side by side plus Close. Desk stayed usable (no auto-overlay; Gateway was already up).
+- **Follow-ups:** Live Open with existing spend flags arms live orders. Confirm IBC usernames match the door you pick.
+- **Related:** task-log `knowledge/task-log/2026-08-18-open-paper-live-gateway.md`
+
+## 2026-08-18 -- Gateway default is live; paper is fallback
+
+- **What:** Nova's preferred Gateway port is now live (4001). Paper (4002) is the secondary door when live is dark. Morning IBC on this machine logs into live. Spend gates are unchanged.
+- **Why:** Operator asked for live as the default place Nova checks, with paper as fallback, so the desk does not wake up targeting 4002 first.
+- **Files touched:** `AGENTS.md` Invariant #7 / §5, `backend/constants_ibkr.py`, `backend/ibkr/safety.py`, `backend/ibkr/client.py`, `backend/tests/test_ibkr_safety.py`, `.env.example`, `docs/ibc-gateway-setup.md`, local IBC launcher (not in git).
+- **How it works now:** Unset or default `IBKR_GATEWAY_MODE` is `live` → dial 4001. Follow-Gateway still attaches to 4002 if 4001 is dark and paper is up. Capsule can still force paper. `IBKR_ORDERS_ENABLED` / `IBKR_LIVE_TRADING_CONFIRMED` still gate spends. `auto_live` stays NO-GO.
+- **Verified by:** `py -3 -m pytest backend/tests/test_ibkr_safety.py::TestGatewayModeDefault backend/tests/test_ibkr_safety.py::TestOrderSafetyGate -q` -- 10 passed. `py -3 tools/doc_invariants.py` -- OK. `npm run build` -- exit 0. Live `GET /api/ibkr/status` after restart: `gateway_mode=live`, `preferred_port=4001`, `spend_status=live_armed`. API log: preferred live 4001 first, then paper 4002 fallback.
+- **Follow-ups:** Restart IB Gateway via IBC so it logs in live (phone 2FA). Connecting live with both spend flags already true arms live orders.
+- **Related:** task-log `knowledge/task-log/2026-08-18-live-gateway-default.md`
+
+## 2026-08-17 -- Desk self-heals quote, charts, and F5
+
+- **What:** Trader no longer needs a hard refresh. Last-good IBKR status avoids a fake Disconnected flash. Quote seeds from REST if the ticker socket hangs. Timed-out charts retry up to 8 times. F1/F2/F5 apply when the desk epoch changes in an already-open tab.
+- **Why:** Asking for Ctrl+Shift+R left F stuck on "Loading quote" and four chart timeouts while Gateway was actually up (paper delayed).
+- **How it works now:** Delayed Gateway chip means delayed/non-entitled IBKR data, not offline. Disconnected only after a real status read. F5 is written locally without a manual reload.
+- **Verified by:** Vitest status/account/quote-seed/chart-retry/hotkeys/header; `npm run build`; live `/api/ticker/F` + 1Min bars 200.
+- **Related:** PROBLEM_LOG false Disconnected + hung quote; F5 sell-ask same day.
+
+## 2026-08-17 -- Sell Ask+$0.05 is F5, not F3
+
+- **What:** `nova-sell-ask` is bound to F5. Desk epoch is now `f1-f5-eh-2026-08-17` so a profile that already got F3 is rewritten.
+- **Why:** Operator asked for F5 instead of F3.
+- **How it works now:** F1 buy Ask+$0.05, F2 sell Bid-$0.05, F5 sell Ask+$0.05. The running tab applies the epoch itself.
+- **Verified by:** Vitest hotkeys (this turn).
+- **Related:** F3 sell-ask entry same day.
+
+## 2026-08-17 -- F3 sell 1 at Ask+$0.05 EH
+
+- **What:** New Nova Action kind `sell_limit_ask_offset` bound to F3: SELL 1 LMT at Ask+$0.05, extended hours. Desk epoch bumped so existing local profiles pick it up.
+- **Why:** Operator already had F1 buy Ask+$0.05 and F2 sell Bid-$0.05; they also wanted a 1-share sell at the ask plus a nickel.
+- **Files touched:** `features.ts`, `novaActionDefaults.ts`, `runNovaAction.ts`, `hotkeyStorage.ts`, editors, `mapDasToNovaAction.ts`.
+- **How it works now:** F3 uses L2 ask + $0.05, qty 1, `outside_rth`. Same PIN / confirm / short-entry gates as F2. Not flatten.
+- **Verified by:** Vitest hotkeys (this turn).
+- **Related:** task-log 2026-08-17-f3-sell-ask-offset; F1/F2 entry same day.
+
+## 2026-08-17 -- F1 buy Ask+$0.05 / F2 sell Bid-$0.05 (1 share, EH)
+
+- **What:** Desk Nova Actions `nova-buy-ask` / `nova-sell-bid` are now F1 (BUY 1 LMT Ask+$0.05) and F2 (SELL 1 LMT Bid-$0.05), both with extended hours. Existing local profiles are rewritten once via `nova.hotkeys.desk-ask-bid-epoch`.
+- **Why:** Operator wanted fat-finger F-keys for the 1-share pair. Old defaults were Ctrl+Shift+B / Alt+Shift+S at 100 shares, and EH only followed the clock.
+- **Files touched:** `novaActionDefaults.ts`, `hotkeyStorage.ts`, `runNovaAction.ts`, `novaActionTypes.ts`, `HotkeysSettingsDetail.tsx`, `StockViewSymbolChip.tsx` (F2 no longer edits the symbol).
+- **How it works now:** Same typed Nova Action path (`buy_limit_ask_offset` / `sell_limit_bid_offset`) into `placeIbkrOrder` with `outside_rth` from `params.outsideRth`. Still needs live L2 on the open symbol, PIN unlock, and place-confirm. SELL is 1 share (not flatten); flat + F2 is still a short-entry gate reject. Backend `IBKR_FORCE_ONE_SHARE` still caps qty at 1.
+- **Verified by:** Vitest 71 hotkeys + 3 SettingsWorkspace. Fresh `npx vitest run src/hotkeys`.
+- **Follow-ups:** Commit when asked. F1/F2 need Trader L2, not the scanner Quote Panel.
+- **Related:** task-log 2026-08-17-f1-f2-ask-bid-hotkeys.
+
 ## 2026-08-17 -- Persist-audit remainder (journal, Activity, last-good, capture)
 
 - **What:** Nova-placed flats now write real `journal.db` trades. Trading gains a read-only Activity trail of the ADR 007 ledger. Disconnect keeps last-good orders/positions with actions disabled. Archive rolls `bars_1d`, rejects epoch-0 L1, persists news catalysts, and nightly-backups SQLite; Settings can export/import desk prefs.
@@ -59,6 +132,15 @@ Entry template (copy and fill in):
 - **Verified by:** `pytest` 47 passed (`test_execution_record_payload`, `test_execution_store_facts`, `test_scanner_roster_persist`, `test_execution_qty_gate`, `test_execution_service`, `test_execution_latency_regressions`, `test_scanner_hydrate_hod_roster`, `test_trading_cancel_all`, `test_short_entry_e2e_gate`).
 - **Follow-ups:** Journal-on-close. Activity / trail page. (Blotter overlay shipped same day.)
 - **Related:** PROBLEM_LOG 2026-08-17 -- Ledger omitted permId and roster JSON; task-log 2026-08-17-persist-recording; persist-audit canvas.
+
+## 2026-08-17 -- Scanner dock pills for Gappers / Gainers / Losers / AH / Catalysts
+
+- **What:** The HOD dock row now has the other IBKR scanners next to HOD Momo and Running Up. Clicking a pill expands the dock and shows that table (Trader included).
+- **Why:** Trader had no Gappers/Gainers chrome -- only HOD/Running Up -- so the operator could not watch the roster while charting.
+- **Files touched:** `HodMomoDock.tsx`, `HodMomoDockModes.tsx`, `HodMomoDockRoster.tsx`, `scannerDockModes.ts`, `ScannerDataContext.tsx`, `useScannerDockRows.ts`, `App.tsx`, `DashboardPage.tsx`.
+- **How it works now:** `ScannerDataProvider` owns roster fetch + `/ws/scanner` above the Scanner/Trader fork. Dock pills read those rows (or sample fixtures). Roster mode hides Clear/Configure. Selecting a roster pill sets the L1 `activeTab` so that table stays streamed.
+- **Verified by:** Vitest 51 passed (`HodMomoDock`, `scannerDockModes`, hod_momo, sample dashboard, wiring). `npx tsc --noEmit` exit 0. `npm run build` exit 0. Live UI: dock pills HOD / Running Up / Gappers / Gainers / Losers / AH / Catalysts; Gappers pill shows the roster table and hides Clear/Configure.
+- **Related:** task-log 2026-08-17-scanner-dock-roster-pills
 
 ## 2026-08-17 -- Scanner | Trader keeps tape subscribed
 

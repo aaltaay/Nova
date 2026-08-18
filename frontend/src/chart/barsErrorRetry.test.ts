@@ -2,38 +2,38 @@ import { describe, expect, it } from 'vitest';
 import { shouldScheduleBarsErrorRetry } from './barsErrorRetry';
 
 describe('shouldScheduleBarsErrorRetry', () => {
-  it('schedules once for a foreground failure with empty store while active', () => {
+  it('schedules while the store is empty, the tab is active, and retries remain', () => {
     expect(shouldScheduleBarsErrorRetry({
-      background: false,
       storeHasBars: false,
-      retryAlreadyUsed: false,
+      retriesUsed: 0,
+      maxRetries: 8,
+      chartActive: true,
+    })).toBe(true);
+    expect(shouldScheduleBarsErrorRetry({
+      storeHasBars: false,
+      retriesUsed: 7,
+      maxRetries: 8,
       chartActive: true,
     })).toBe(true);
   });
 
-  it('skips background failures, populated store, used retry, or inactive tab', () => {
+  it('stops when the store has bars, retries are exhausted, or the tab is hidden', () => {
     expect(shouldScheduleBarsErrorRetry({
-      background: true,
-      storeHasBars: false,
-      retryAlreadyUsed: false,
-      chartActive: true,
-    })).toBe(false);
-    expect(shouldScheduleBarsErrorRetry({
-      background: false,
       storeHasBars: true,
-      retryAlreadyUsed: false,
+      retriesUsed: 0,
+      maxRetries: 8,
       chartActive: true,
     })).toBe(false);
     expect(shouldScheduleBarsErrorRetry({
-      background: false,
       storeHasBars: false,
-      retryAlreadyUsed: true,
+      retriesUsed: 8,
+      maxRetries: 8,
       chartActive: true,
     })).toBe(false);
     expect(shouldScheduleBarsErrorRetry({
-      background: false,
       storeHasBars: false,
-      retryAlreadyUsed: false,
+      retriesUsed: 0,
+      maxRetries: 8,
       chartActive: false,
     })).toBe(false);
   });

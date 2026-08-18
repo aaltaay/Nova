@@ -7,7 +7,7 @@ import {
   NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS,
   NOVA_ACTION_DEFAULT_BUY_MARKET_SHARES,
   NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
-  NOVA_ACTION_DEFAULT_SHARES,
+  NOVA_ACTION_DESK_SHARES,
 } from '../constants';
 import { parseKeyChord } from './htkFormat';
 import type { NovaActionRecord } from './novaActionTypes';
@@ -66,24 +66,39 @@ export function createDefaultNovaActions(): NovaActionRecord[] {
     },
     {
       id: 'nova-buy-ask',
-      name: `Buy Ask+${NOVA_ACTION_DEFAULT_OFFSET_DOLLARS} ${NOVA_ACTION_DEFAULT_SHARES}`,
+      name: `Buy 1 Ask+$${NOVA_ACTION_DEFAULT_OFFSET_DOLLARS} EH`,
       kind: 'buy_limit_ask_offset',
-      key: chord('Ctrl+Shift+B'),
+      key: chord('F1'),
       params: {
-        shares: NOVA_ACTION_DEFAULT_SHARES,
+        shares: NOVA_ACTION_DESK_SHARES,
         offsetDollars: NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
+        outsideRth: true,
       },
       enabled: true,
       showButton: true,
     },
     {
       id: 'nova-sell-bid',
-      name: `Sell Bid-${NOVA_ACTION_DEFAULT_OFFSET_DOLLARS} ${NOVA_ACTION_DEFAULT_SHARES}`,
+      name: `Sell 1 Bid-$${NOVA_ACTION_DEFAULT_OFFSET_DOLLARS} EH`,
       kind: 'sell_limit_bid_offset',
-      key: chord('Alt+Shift+S'),
+      key: chord('F2'),
       params: {
-        shares: NOVA_ACTION_DEFAULT_SHARES,
+        shares: NOVA_ACTION_DESK_SHARES,
         offsetDollars: NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
+        outsideRth: true,
+      },
+      enabled: true,
+      showButton: true,
+    },
+    {
+      id: 'nova-sell-ask',
+      name: `Sell 1 Ask+$${NOVA_ACTION_DEFAULT_OFFSET_DOLLARS} EH`,
+      kind: 'sell_limit_ask_offset',
+      key: chord('F5'),
+      params: {
+        shares: NOVA_ACTION_DESK_SHARES,
+        offsetDollars: NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,
+        outsideRth: true,
       },
       enabled: true,
       showButton: true,

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   createChart,
   LineSeries,
@@ -16,6 +16,7 @@ import {
   computeRsiPane,
   type IndicatorBar,
 } from '../chartIndicators';
+import { shouldPaintOscillator } from '../chart/oscillatorPaint';
 import {
   formatChartCrosshairTime,
   formatChartTickMark,
@@ -82,6 +83,7 @@ function OscillatorPane({
   const histRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const syncingRef = useRef(false);
   const lastPaintKeyRef = useRef('');
+  const [seriesGen, setSeriesGen] = useState(0);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -142,6 +144,8 @@ function OscillatorPane({
     }
 
     chartRef.current = chart;
+    lastPaintKeyRef.current = '';
+    setSeriesGen(g => g + 1);
 
     const ro = new ResizeObserver(() => {
       if (!containerRef.current) return;
@@ -167,13 +171,17 @@ function OscillatorPane({
       lineARef.current = null;
       lineBRef.current = null;
       histRef.current = null;
+      lastPaintKeyRef.current = '';
     };
   }, [kind]);
 
   useEffect(() => {
-    const paintKey = `${barsRevision}:${kind}:${bars.length}`;
-    if (lastPaintKeyRef.current === paintKey) return;
-    lastPaintKeyRef.current = paintKey;
+    const seriesReady =
+      kind === 'rsi'
+        ? Boolean(lineARef.current)
+        : Boolean(histRef.current && lineARef.current && lineBRef.current);
+    const paintKey = `${seriesGen}:${barsRevision}:${kind}:${bars.length}`;
+    if (!shouldPaintOscillator(seriesReady, lastPaintKeyRef.current, paintKey)) return;
     if (kind === 'rsi') {
       const data = computeRsiPane(bars);
       lineARef.current?.setData(data.rsi);
@@ -183,7 +191,8 @@ function OscillatorPane({
       lineARef.current?.setData(data.macd);
       lineBRef.current?.setData(data.signal);
     }
-  }, [bars, barsRevision, kind]);
+    lastPaintKeyRef.current = paintKey;
+  }, [bars, barsRevision, kind, seriesGen]);
 
   useEffect(() => {
     const child = chartRef.current;

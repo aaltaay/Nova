@@ -10,6 +10,34 @@
   backdrop-filter: blur(2px);
 }
 
+.trading-prereq-gate__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.trading-prereq-gate__close {
+  appearance: none;
+  flex: 0 0 1.75rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 1px solid var(--border, #2a3340);
+  background: transparent;
+  color: var(--text, #e8eef7);
+  border-radius: 5px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.trading-prereq-gate__close:hover {
+  background: color-mix(in srgb, var(--bad, #c44) 22%, transparent);
+  border-color: color-mix(in srgb, var(--bad, #c44) 50%, var(--border, #2a3340));
+}
+
 .trading-prereq-gate__panel {
   width: min(36rem, 100%);
   max-height: min(90vh, 40rem);
@@ -109,21 +137,4 @@
 .trading-prereq-item__cta--hint {
   font-size: 0.78rem;
   color: var(--muted, #9aa8b8);
-}
-
-.trading-prereq-cta {
-  appearance: none;
-  border: 1px solid var(--border, #2a3340);
-  background: var(--accent, #2f6fed);
-  color: #fff;
-  border-radius: 5px;
-  padding: 0.4rem 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.trading-prereq-cta:disabled {
-  opacity: 0.6;
-  cursor: wait;
 }

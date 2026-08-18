@@ -54,3 +54,41 @@ def test_launch_unsupported_on_non_windows(monkeypatch):
     out = lg.launch_or_focus_gateway()
     assert out["ok"] is False
     assert out["action"] == "unsupported"
+
+
+def test_mode_launch_restarts_running_gateway(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(lg.os, "name", "nt")
+    monkeypatch.setattr(lg, "_gateway_process_running", lambda: True)
+    stopped: list[bool] = []
+    monkeypatch.setattr(lg, "_stop_gateway_process", lambda: stopped.append(True) or True)
+    launcher = tmp_path / "start_gateway.ps1"
+    launcher.write_text("#", encoding="utf-8")
+    monkeypatch.setattr(lg, "_ibc_launcher", lambda: launcher)
+    monkeypatch.setattr(lg, "_align_ibc_trading_mode", lambda _mode: None)
+    monkeypatch.setattr(lg, "_apply_nova_gateway_mode", lambda _mode: None)
+    started: list[tuple] = []
+
+    def fake_start(path: Path, *, via_powershell: bool = False, extra_args=None):
+        started.append((path, via_powershell, list(extra_args or [])))
+
+    monkeypatch.setattr(lg, "_start_process", fake_start)
+    out = lg.launch_or_focus_gateway("live")
+    assert out["ok"] is True
+    assert out["action"] == "launched_ibc"
+    assert out["mode"] == "live"
+    assert stopped == [True]
+    assert started == [(launcher, True, ["-TradingMode", "live"])]
+
+
+def test_mode_launch_rejects_garbage(monkeypatch):
+    monkeypatch.setattr(lg.os, "name", "nt")
+    out = lg.launch_or_focus_gateway("demo")
+    assert out["ok"] is False
+    assert out["action"] == "invalid_mode"
+
+
+def test_rewrite_ini_key_first_match_only(tmp_path: Path):
+    ini = tmp_path / "config.ini"
+    ini.write_text("TradingMode=paper\nOther=1\nTradingMode=ignore\n", encoding="utf-8")
+    assert lg._rewrite_ini_key(ini, "TradingMode", "live") is True
+    assert ini.read_text(encoding="utf-8") == "TradingMode=live\nOther=1\nTradingMode=ignore\n"

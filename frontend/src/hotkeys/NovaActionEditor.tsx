@@ -102,7 +102,8 @@ export function NovaActionEditor({
         </label>
         {(draft.kind === 'buy_market'
           || draft.kind === 'buy_limit_ask_offset'
-          || draft.kind === 'sell_limit_bid_offset') && (
+          || draft.kind === 'sell_limit_bid_offset'
+          || draft.kind === 'sell_limit_ask_offset') && (
           <>
             <label className="hotkey-editor-field">
               <span>Shares</span>
@@ -127,6 +128,24 @@ export function NovaActionEditor({
                     params: { ...draft.params, offsetDollars: Number(e.target.value) },
                   })}
                 />
+              </label>
+            )}
+            {(draft.kind === 'buy_limit_ask_offset'
+              || draft.kind === 'sell_limit_bid_offset'
+              || draft.kind === 'sell_limit_ask_offset') && (
+              <label className="hotkey-editor-field">
+                <span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(draft.params.outsideRth)}
+                    onChange={() => onChange({
+                      ...draft,
+                      params: { ...draft.params, outsideRth: !draft.params.outsideRth },
+                    })}
+                  />
+                  {' '}
+                  Extended hours
+                </span>
               </label>
             )}
           </>

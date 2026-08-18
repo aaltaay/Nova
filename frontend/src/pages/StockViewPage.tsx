@@ -167,6 +167,7 @@ export function StockViewPage({
         mode={ibkrStatus.mode}
         gatewayMode={ibkrStatus.gateway_mode}
         connected={ibkrStatus.connected}
+        statusReady={ibkrStatus.clientReady}
         ibkrStatus={ibkrStatus}
         summary={summary}
         onLookup={handleLookup}

@@ -7,6 +7,16 @@
 export const GATEWAY_BANNER_TITLE = 'ACTION REQUIRED -- IB Gateway login';
 export const GATEWAY_BANNER_CTA_LABEL = 'Open IB Gateway';
 export const GATEWAY_BANNER_CTA_BUSY_LABEL = 'Opening...';
+export const PREREQ_OPEN_PAPER_LABEL = 'Open paper Gateway';
+export const PREREQ_OPEN_LIVE_LABEL = 'Open live Gateway';
+export const PREREQ_CLOSE_LABEL = 'X';
+export const PREREQ_CLOSE_ARIA = 'Close checklist';
+export const HEADER_DESK_ROLE = 'Desk';
+export const HEADER_DESK_API_DOWN_LABEL = 'API down';
+export const PREREQ_LEAD_MANUAL =
+  'Pick paper (4002) or live (4001). Nova switches to that door and starts IBC. Approve IBKR Mobile 2FA if prompted.';
+export const PREREQ_LEAD_API =
+  'Nova API is down. Start the API before trusting live data or placing orders.';
 
 /** Trading prerequisites -- Gateway API port listening but Nova session not READY. */
 export const PREREQ_GATEWAY_PORT_OPEN_DETAIL =

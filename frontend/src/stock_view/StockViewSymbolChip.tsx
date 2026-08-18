@@ -95,7 +95,7 @@ export function StockViewSymbolChip({
   }
 
   function onChipKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === 'Enter' || e.key === 'F2') {
+    if (e.key === 'Enter') {
       e.preventDefault();
       beginEdit();
     }

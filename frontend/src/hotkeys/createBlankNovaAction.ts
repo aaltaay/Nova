@@ -17,6 +17,7 @@ export function kindsForSide(side: CustomButtonSide): NovaActionKind[] {
   if (side === 'buy') return ['buy_market', 'buy_limit_ask_offset'];
   return [
     'sell_limit_bid_offset',
+    'sell_limit_ask_offset',
     'sell_pos_pct_ask',
     'sell_pos_pct_bid_offset',
     'exit_pos',
@@ -47,7 +48,11 @@ export function createBlankNovaAction(
     };
   } else if (kind === 'buy_market') {
     params = { shares: NOVA_ACTION_DEFAULT_BUY_MARKET_SHARES };
-  } else if (kind === 'buy_limit_ask_offset' || kind === 'sell_limit_bid_offset') {
+  } else if (
+    kind === 'buy_limit_ask_offset'
+    || kind === 'sell_limit_bid_offset'
+    || kind === 'sell_limit_ask_offset'
+  ) {
     params = {
       shares: NOVA_ACTION_DEFAULT_SHARES,
       offsetDollars: NOVA_ACTION_DEFAULT_OFFSET_DOLLARS,

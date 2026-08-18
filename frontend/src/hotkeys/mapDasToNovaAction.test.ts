@@ -31,6 +31,18 @@ describe('suggestNovaActionFromDas', () => {
     }
   });
 
+  it('maps Ask+ offset sell to sell_limit_ask_offset', () => {
+    const s = suggestNovaActionFromDas(
+      'ROUTE=LIMIT;Price=Ask+0.05;Share=1;TIF=DAY+;SELL=Send',
+    );
+    expect(s.ok).toBe(true);
+    if (s.ok) {
+      expect(s.kind).toBe('sell_limit_ask_offset');
+      expect(s.params.shares).toBe(1);
+      expect(s.params.offsetDollars).toBe(0.05);
+    }
+  });
+
   it('maps Ask+ offset buy to buy_limit_ask_offset', () => {
     const s = suggestNovaActionFromDas(
       'ROUTE=LIMIT;Price=Ask+0.05;Share=100;TIF=DAY+;BUY=Send',

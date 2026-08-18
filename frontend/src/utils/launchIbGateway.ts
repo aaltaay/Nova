@@ -26,8 +26,17 @@ function parseBody(body: Record<string, unknown>): LaunchIbGatewayResult {
   };
 }
 
-async function postLaunch(url: string): Promise<{ httpOk: boolean; result: LaunchIbGatewayResult }> {
-  const res = await novaFetch(url, { method: 'POST' });
+export type LaunchGatewayMode = 'paper' | 'live';
+
+async function postLaunch(
+  url: string,
+  mode?: LaunchGatewayMode,
+): Promise<{ httpOk: boolean; result: LaunchIbGatewayResult }> {
+  const res = await novaFetch(url, {
+    method: 'POST',
+    headers: mode ? { 'Content-Type': 'application/json' } : undefined,
+    body: mode ? JSON.stringify({ mode }) : undefined,
+  });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   const parsed = parseBody(body);
   if (!res.ok) {
@@ -56,10 +65,13 @@ async function postLaunch(url: string): Promise<{ httpOk: boolean; result: Launc
   };
 }
 
-async function launchViaViteDev(): Promise<LaunchIbGatewayResult | null> {
+async function launchViaViteDev(
+  mode?: LaunchGatewayMode,
+): Promise<LaunchIbGatewayResult | null> {
   if (!import.meta.env.DEV) return null;
   try {
-    const res = await fetch(NOVA_LAUNCH_GATEWAY_DEV_PATH, { method: 'POST' });
+    const qs = mode ? `?mode=${mode}` : '';
+    const res = await fetch(`${NOVA_LAUNCH_GATEWAY_DEV_PATH}${qs}`, { method: 'POST' });
     const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     const parsed = parseBody(body);
     if (!res.ok) {
@@ -80,14 +92,16 @@ async function launchViaViteDev(): Promise<LaunchIbGatewayResult | null> {
   }
 }
 
-export async function launchIbGateway(): Promise<LaunchIbGatewayResult> {
+export async function launchIbGateway(
+  mode?: LaunchGatewayMode,
+): Promise<LaunchIbGatewayResult> {
   try {
-    const primary = await postLaunch(`${API_URL}/ibkr/launch-gateway`);
+    const primary = await postLaunch(`${API_URL}/ibkr/launch-gateway`, mode);
     if (primary.httpOk) return primary.result;
 
     // Stale API without the route → Vite can still spawn Gateway in local dev.
     if (primary.result.message.includes('404') || primary.result.message.includes('Not Found')) {
-      const viaVite = await launchViaViteDev();
+      const viaVite = await launchViaViteDev(mode);
       if (viaVite) return viaVite;
       return {
         ok: false,
@@ -98,7 +112,7 @@ export async function launchIbGateway(): Promise<LaunchIbGatewayResult> {
     }
     return primary.result;
   } catch (err) {
-    const viaVite = await launchViaViteDev();
+    const viaVite = await launchViaViteDev(mode);
     if (viaVite) return viaVite;
     return {
       ok: false,

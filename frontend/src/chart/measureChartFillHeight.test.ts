@@ -19,6 +19,24 @@ describe('measureChartFillHeight', () => {
     expect(measureChartFillHeight(body, CHART_HEIGHT_PANEL)).toBe(320);
   });
 
+  it('subtracts an oscillator pane so the price canvas does not cover MACD', () => {
+    const card = document.createElement('div');
+    card.className = 'chart-card';
+    Object.defineProperty(card, 'clientHeight', { value: 400 });
+    const header = document.createElement('div');
+    Object.defineProperty(header, 'offsetHeight', { value: 48 });
+    const toolbar = document.createElement('div');
+    Object.defineProperty(toolbar, 'offsetHeight', { value: 32 });
+    const body = document.createElement('div');
+    Object.defineProperty(body, 'clientHeight', { value: 0 });
+    const oscillators = document.createElement('div');
+    oscillators.className = 'chart-oscillators';
+    Object.defineProperty(oscillators, 'offsetHeight', { value: 110 });
+    card.append(header, toolbar, body, oscillators);
+
+    expect(measureChartFillHeight(body, CHART_HEIGHT_PANEL)).toBe(210);
+  });
+
   it('falls back when card has no height yet', () => {
     const body = document.createElement('div');
     Object.defineProperty(body, 'clientHeight', { value: 0 });

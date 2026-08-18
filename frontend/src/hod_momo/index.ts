@@ -10,6 +10,11 @@ export { HodMomoFixtureProvider } from './HodMomoFixtureProvider';
 export { useHodMomo, useHodMomoOptional } from './HodMomoContext';
 export type { HodDockMode, HodMomoContextValue } from './HodMomoContext';
 export {
+  isAlertDockMode,
+  isRosterDockMode,
+  SCANNER_DOCK_ROSTER_MODES,
+} from './scannerDockModes';
+export {
   isRunningUpStrategy,
   partitionScannerAlerts,
 } from './scannerPartition';

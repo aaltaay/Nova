@@ -41,16 +41,22 @@ describe('chartIndicators (library adapters)', () => {
   it('computes finite RSI points via lightweight-charts-indicators', () => {
     const bars = rawBarsToIndicatorBars(makeBars(40), '1Min');
     const { rsi } = computeRsiPane(bars);
-    expect(rsi.length).toBeGreaterThan(0);
-    expect(rsi.every(p => Number.isFinite(p.value))).toBe(true);
+    const valued = rsi.filter(p => 'value' in p && Number.isFinite(p.value));
+    expect(valued.length).toBeGreaterThan(0);
+    expect(rsi).toHaveLength(bars.length);
   });
 
-  it('computes MACD histogram + lines via lightweight-charts-indicators', () => {
+  it('keeps MACD series the same length as price bars (warmup is whitespace)', () => {
     const bars = rawBarsToIndicatorBars(makeBars(50), '1Min');
     const { histogram, macd, signal } = computeMacdPane(bars);
-    expect(histogram.length).toBeGreaterThan(0);
-    expect(macd.length).toBeGreaterThan(0);
-    expect(signal.length).toBeGreaterThan(0);
+    expect(histogram).toHaveLength(bars.length);
+    expect(macd).toHaveLength(bars.length);
+    expect(signal).toHaveLength(bars.length);
+    const valued = macd.filter(p => 'value' in p && Number.isFinite(p.value));
+    expect(valued.length).toBeGreaterThan(0);
+    expect(valued.length).toBeLessThan(bars.length);
+    const histValued = histogram.filter(p => 'value' in p && Number.isFinite(p.value));
+    expect(histValued.every(p => 'color' in p && typeof p.color === 'string' && p.color.length > 0)).toBe(true);
   });
 
   it('computes finite 9/20/50/200 EMA overlays via EMA.calculate', () => {

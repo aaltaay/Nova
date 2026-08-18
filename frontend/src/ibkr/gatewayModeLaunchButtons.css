@@ -1,0 +1,30 @@
+.gateway-mode-launch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.trading-prereq-cta {
+  appearance: none;
+  border: 1px solid var(--border, #2a3340);
+  background: var(--accent, #2f6fed);
+  color: #fff;
+  border-radius: 5px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.trading-prereq-cta:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.trading-prereq-cta--paper {
+  background: color-mix(in srgb, #c47a2a 88%, #000);
+}
+
+.trading-prereq-cta--live {
+  background: color-mix(in srgb, #2f8a55 88%, #000);
+}

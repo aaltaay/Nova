@@ -3,7 +3,7 @@
  * Calculation stays in the library — this file only maps Nova bars ↔ plot series.
  */
 import { EMA, MACD, RSI, VwapMvwapEmaCrossover } from 'lightweight-charts-indicators';
-import type { Time, LineData, HistogramData } from 'lightweight-charts';
+import type { Time, LineData, HistogramData, WhitespaceData } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import {
   CHART_EMA_LENGTHS,
@@ -48,27 +48,43 @@ function finiteLinePoints(
     .map(p => ({ time: p.time as Time, value: p.value }));
 }
 
-function finiteHistogramPoints(
-  points: Array<{ time: number; value: number; color?: string }> | undefined,
-): HistogramData<Time>[] {
+const MACD_HIST_UP = '#26A69A';
+const MACD_HIST_DOWN = '#FF5252';
+
+/** Keep one slot per price bar so a separate oscillator chart shares logical indices. */
+function alignedLinePoints(
+  points: Array<{ time: number; value: number }> | undefined,
+): Array<LineData<Time> | WhitespaceData<Time>> {
   if (!points) return [];
-  return points
-    .filter(p => Number.isFinite(p.value))
-    .map(p => ({
+  return points.map(p =>
+    Number.isFinite(p.value)
+      ? { time: p.time as Time, value: p.value }
+      : { time: p.time as Time },
+  );
+}
+
+function alignedHistogramPoints(
+  points: Array<{ time: number; value: number; color?: string }> | undefined,
+): Array<HistogramData<Time> | WhitespaceData<Time>> {
+  if (!points) return [];
+  return points.map(p => {
+    if (!Number.isFinite(p.value)) return { time: p.time as Time };
+    return {
       time: p.time as Time,
       value: p.value,
-      color: p.color,
-    }));
+      color: p.color || (p.value >= 0 ? MACD_HIST_UP : MACD_HIST_DOWN),
+    };
+  });
 }
 
 export interface RsiPaneData {
-  rsi: LineData<Time>[];
+  rsi: Array<LineData<Time> | WhitespaceData<Time>>;
 }
 
 export interface MacdPaneData {
-  histogram: HistogramData<Time>[];
-  macd: LineData<Time>[];
-  signal: LineData<Time>[];
+  histogram: Array<HistogramData<Time> | WhitespaceData<Time>>;
+  macd: Array<LineData<Time> | WhitespaceData<Time>>;
+  signal: Array<LineData<Time> | WhitespaceData<Time>>;
 }
 
 export type EmaOverlayData = Record<ChartEmaLength, LineData<Time>[]>;
@@ -106,7 +122,7 @@ export function computeRsiPane(bars: IndicatorBar[]): RsiPaneData {
     calculateDivergence: false,
     maType: 'None',
   });
-  return { rsi: finiteLinePoints(result.plots.plot0) };
+  return { rsi: alignedLinePoints(result.plots.plot0) };
 }
 
 export function computeMacdPane(bars: IndicatorBar[]): MacdPaneData {
@@ -117,9 +133,9 @@ export function computeMacdPane(bars: IndicatorBar[]): MacdPaneData {
     src: 'close',
   });
   return {
-    histogram: finiteHistogramPoints(result.plots.plot0),
-    macd: finiteLinePoints(result.plots.plot1),
-    signal: finiteLinePoints(result.plots.plot2),
+    histogram: alignedHistogramPoints(result.plots.plot0),
+    macd: alignedLinePoints(result.plots.plot1),
+    signal: alignedLinePoints(result.plots.plot2),
   };
 }
 

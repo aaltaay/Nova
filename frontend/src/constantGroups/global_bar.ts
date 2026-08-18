@@ -8,6 +8,8 @@ export const GLOBAL_APP_BAR_HEIGHT_PX = 40;
 
 /** IBKR account / positions / orders poll interval for the shared provider. */
 export const IBKR_ACCOUNT_POLL_MS = 5_000;
+/** sessionStorage last successful /api/ibkr/status -- avoids a false Disconnected flash. */
+export const IBKR_STATUS_SESSION_KEY = 'nova.ibkr.status.last';
 
 export const GLOBAL_BAR_BRAND = 'NOVA';
 export const GLOBAL_BAR_NAV_SCANNER = 'Scanner';

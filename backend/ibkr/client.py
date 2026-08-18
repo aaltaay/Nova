@@ -5,8 +5,8 @@ Connects to a user-managed IB Gateway process.
 Nova does not auto-login (IBKR Mobile 2FA still requires the user).
 Users may start/focus Gateway via POST /api/ibkr/launch-gateway (header double-click).
 
-Port selection uses IBKR_GATEWAY_MODE (paper→4002, live→4001), independent
-of IBKR_ORDERS_ENABLED / IBKR_LIVE_TRADING_CONFIRMED (see ibkr.safety).
+Port selection uses IBKR_GATEWAY_MODE (live→4001 default, paper→4002 fallback),
+independent of IBKR_ORDERS_ENABLED / IBKR_LIVE_TRADING_CONFIRMED (see ibkr.safety).
 
 Self-heal follows the listening Gateway (probe-based): preferred dark +
 alternate up attaches and persists mode (refuse, timeout-on-dark, or pre-dial

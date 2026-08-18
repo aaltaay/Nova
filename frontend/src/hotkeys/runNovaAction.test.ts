@@ -25,7 +25,7 @@ vi.mock('../ibkr/ticketUnlock', () => ({
 }));
 
 vi.mock('../ibkr/extendedSession', () => ({
-  shouldUseOutsideRth: () => false,
+  shouldUseOutsideRth: (flag?: boolean | null) => Boolean(flag),
 }));
 
 vi.mock('../execution_latency', () => ({
@@ -144,6 +144,60 @@ describe('runNovaAction Webull kinds', () => {
     expect(res.ok).toBe(true);
     expect(res.text).toMatch(/Cancelled 2/);
     expect(cancelAllWorkingOrders).toHaveBeenCalledOnce();
+  });
+
+  it('buy Ask+0.05 / sell Bid-0.05 place 1-share EH limits', async () => {
+    const buy = await runNovaAction(
+      action({
+        kind: 'buy_limit_ask_offset',
+        params: { shares: 1, offsetDollars: 0.05, outsideRth: true },
+      }),
+      runtime(),
+    );
+    expect(buy.ok).toBe(true);
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
+      symbol: 'AAPL',
+      side: 'BUY',
+      qty: 1,
+      order_type: 'LMT',
+      limit_price: 10.1,
+      outside_rth: true,
+    });
+
+    placeIbkrOrder.mockClear();
+    const sell = await runNovaAction(
+      action({
+        kind: 'sell_limit_bid_offset',
+        params: { shares: 1, offsetDollars: 0.05, outsideRth: true },
+      }),
+      runtime(),
+    );
+    expect(sell.ok).toBe(true);
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
+      side: 'SELL',
+      qty: 1,
+      order_type: 'LMT',
+      limit_price: 9.95,
+      outside_rth: true,
+    });
+    expect(placeIbkrOrder.mock.calls[0][0].short_entry).toBeUndefined();
+
+    placeIbkrOrder.mockClear();
+    const sellAsk = await runNovaAction(
+      action({
+        kind: 'sell_limit_ask_offset',
+        params: { shares: 1, offsetDollars: 0.05, outsideRth: true },
+      }),
+      runtime(),
+    );
+    expect(sellAsk.ok).toBe(true);
+    expect(placeIbkrOrder.mock.calls[0][0]).toMatchObject({
+      side: 'SELL',
+      qty: 1,
+      order_type: 'LMT',
+      limit_price: 10.1,
+      outside_rth: true,
+    });
   });
 
   it('sell without L2 fails loud', async () => {

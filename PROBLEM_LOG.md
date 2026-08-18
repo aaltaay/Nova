@@ -23,6 +23,20 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- MACD pane empty with toggle on
+
+- **Symptom:** Quote chart MACD button was active. The MACD label showed under the candles. Histogram, MACD line, and signal line were missing (empty black pane).
+- **Cause:** Two stacked issues. (1) Quote slot is a fixed height. `measureChartFillHeight` sized the price LWC before the oscillator existed, and the body was not clipped, so the candle canvas covered the MACD chart. Grid already reserved oscillator space; the quote panel did not. (2) `computeMacdPane` dropped warmup NaNs, so the oscillator series was shorter than the price series. Logical-range sync then showed a window with no MACD points.
+- **Fix:** Keep whitespace points so MACD/RSI length matches price bars. Remeasure fill height when oscillator count changes. `overflow: hidden` on `.chart-body` and `flex-shrink: 0` on oscillators. Do not consume the oscillator paint key until series exist.
+- **Keywords:** MACD, oscillator, quote panel, lightweight-charts, whitespace, measureChartFillHeight, logical range, SNDQ
+
+## 2026-08-17 -- False Disconnected + hung quote after refresh
+
+- **Symptom:** After a hard refresh on Trader F: yellow Disconnected next to Paper/Live, "Loading quote for F...", all four panes "Chart bars timed out", header Gateway delayed. API chip stayed green. Positions still showed last Net Liq.
+- **Cause:** `useIbkrStatus` boots as `connected=false` until the first poll, and last-good account work treated that as a real drop. Ticker WS waits forever for `initial` while `build_ticker_fast` sits behind inflight `snapshot_quotes`. Four chart panes abort at 25s and only retried once. Gateway was connected; `market_data_delayed` is paper Error 10167, not offline.
+- **Fix:** Persist last status in sessionStorage; hide Disconnected until status is known; do not stale the account book before the first connected session; seed quote from GET `/api/ticker/{symbol}` at 2.5s; retry empty charts up to 8 times; apply the F5 desk epoch from the already-mounted hotkey provider.
+- **Keywords:** Disconnected, Loading quote for F, Chart bars timed out, GATEWAY delayed, snapshot_quotes, hard refresh, F5
+
 ## 2026-08-17 -- Last-good wipe on IBKR disconnect
 
 - **Symptom:** When IBKR dropped, Working Orders, Positions, and Orders (Today) went empty even though the last snapshot was still in React state a tick earlier.

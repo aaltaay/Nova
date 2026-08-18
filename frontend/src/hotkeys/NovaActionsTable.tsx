@@ -43,8 +43,13 @@ function paramsCell(row: NovaActionRecord, liveDisabled: boolean): string {
     return liveDisabled ? `${base} · L2` : base;
   }
   if (row.kind === 'buy_market') return `${row.params.shares ?? 1} sh MKT`;
-  if (row.kind === 'buy_limit_ask_offset' || row.kind === 'sell_limit_bid_offset') {
-    const base = `${row.params.shares ?? 100} sh · ±${row.params.offsetDollars ?? 0.05}`;
+  if (
+    row.kind === 'buy_limit_ask_offset'
+    || row.kind === 'sell_limit_bid_offset'
+    || row.kind === 'sell_limit_ask_offset'
+  ) {
+    const eh = row.params.outsideRth ? ' · EH' : '';
+    const base = `${row.params.shares ?? 100} sh · ±${row.params.offsetDollars ?? 0.05}${eh}`;
     return liveDisabled ? `${base} · L2` : base;
   }
   if (row.kind === 'exit_pos' || row.kind === 'cancel_and_exit') return 'Pos';

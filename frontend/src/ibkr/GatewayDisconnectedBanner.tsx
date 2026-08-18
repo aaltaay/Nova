@@ -10,13 +10,11 @@
  */
 import { useCallback, useState } from 'react';
 import { HEADER_GATEWAY_LAUNCH_HINT } from '../constants';
-import { launchIbGateway } from '../utils/launchIbGateway';
+import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
 import { emptyIbkrDisconnectedMessage } from './disconnectCopy';
-import {
-  GATEWAY_BANNER_CTA_BUSY_LABEL,
-  GATEWAY_BANNER_CTA_LABEL,
-  GATEWAY_BANNER_TITLE,
-} from './gatewayUxConstants';
+import { GatewayModeLaunchButtons } from './GatewayModeLaunchButtons';
+import { GATEWAY_BANNER_TITLE } from './gatewayUxConstants';
+import { openTradingPrerequisites } from './tradingPrereqUi';
 
 interface Props {
   discoveryProvider: string;
@@ -74,17 +72,17 @@ export function GatewayDisconnectedBanner({
   ibkrDisconnectHint = null,
   ibkrGatewayMode = null,
 }: Props) {
-  const [busy, setBusy] = useState(false);
+  const [busyMode, setBusyMode] = useState<LaunchGatewayMode | null>(null);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
 
-  const onOpenGateway = useCallback(async () => {
-    if (busy) return;
-    setBusy(true);
+  const onOpenGateway = useCallback(async (mode: LaunchGatewayMode) => {
+    if (busyMode) return;
+    setBusyMode(mode);
     setLaunchHint(null);
-    const result = await launchIbGateway();
+    const result = await launchIbGateway(mode);
     setLaunchHint(result.message);
-    setBusy(false);
-  }, [busy]);
+    setBusyMode(null);
+  }, [busyMode]);
 
   if (
     !shouldShowGatewayLoginBanner({
@@ -105,19 +103,21 @@ export function GatewayDisconnectedBanner({
       aria-live="assertive"
       data-testid="gateway-disconnected-banner"
     >
-      <strong className="gateway-disconnected-banner__title">{GATEWAY_BANNER_TITLE}</strong>
+      <button
+        type="button"
+        className="gateway-disconnected-banner__title-btn"
+        onClick={() => openTradingPrerequisites()}
+      >
+        <strong className="gateway-disconnected-banner__title">{GATEWAY_BANNER_TITLE}</strong>
+      </button>
       <div className="gateway-disconnected-banner__body">
         {emptyIbkrDisconnectedMessage(ibkrGatewayMode)}
       </div>
       <div className="gateway-disconnected-banner__actions">
-        <button
-          type="button"
-          className="gateway-disconnected-banner__cta"
-          onClick={() => void onOpenGateway()}
-          disabled={busy}
-        >
-          {busy ? GATEWAY_BANNER_CTA_BUSY_LABEL : GATEWAY_BANNER_CTA_LABEL}
-        </button>
+        <GatewayModeLaunchButtons
+          busyMode={busyMode}
+          onLaunch={(mode) => void onOpenGateway(mode)}
+        />
         <span className="gateway-disconnected-banner__hint">
           {launchHint || HEADER_GATEWAY_LAUNCH_HINT}
         </span>

@@ -8,6 +8,7 @@ NOVA_DESKTOP_API_PORT = 8000
 # ── Interactive Brokers (optional trading module) ──────────────────────────────
 # Set IBKR_ENABLED=true in .env to activate.
 # IBKR_GATEWAY_MODE=paper|live  → which Gateway port to connect (data / L2).
+# Default is live (4001). Paper (4002) is the fallback when live is dark.
 # IBKR_ORDERS_ENABLED=false     → master kill switch; default OFF so live Gateway
 #                                 cannot place buys/sells until you opt in.
 # IBKR_LIVE_TRADING_CONFIRMED   → second key required when gateway/account is live.
@@ -156,7 +157,7 @@ IBKR_BENIGN_LOG_MESSAGE_SUBSTRINGS = (
 )
 # Ops-once Sentry fingerprint cooldown for session unusable / max tickers.
 SENTRY_SESSION_UNUSABLE_COOLDOWN_SEC = 300.0
-IBKR_GATEWAY_MODE_DEFAULT = "paper"
+IBKR_GATEWAY_MODE_DEFAULT = "live"
 IBKR_ORDERS_ENABLED_DEFAULT = False  # never spend until explicitly enabled
 # Follow the listening Gateway (paper↔live) when the preferred port is dark.
 # Override with IBKR_GATEWAY_SELF_HEAL=false. Spend gates never auto-unlock.
