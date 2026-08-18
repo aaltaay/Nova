@@ -36,3 +36,12 @@ When the user asks to **run** or **open** the app (or similar), **do it without 
 2. If the environment cannot launch `.bat` or needs headless terminals, start **both** servers the same way the batch file does: uvicorn in `backend/` and `npm run dev` in `frontend/` (background as appropriate), then note URLs `http://127.0.0.1:8000` and `http://localhost:5173`.
 
 Do not spend turns listing options unless something fails; execute first, then report URLs and how to stop.
+
+## Agent behavior: restart the API after backend changes ship
+
+When a task changes backend code and the running API only picks it up on restart (the API runs `run_api.py` without `--reload` unless `NOVA_API_RELOAD=true`), **restart the API yourself as part of finishing the task** -- do not leave "the new code is not live until restart" as a caveat for the user. Standing user directive (2026-08-18).
+
+1. Find the listener: `Get-NetTCPConnection -LocalPort 8000 -State Listen` -> owning PID; confirm it is `python ... run_api.py` (check the parent too -- if the parent is Electron, prefer the app's own restart path).
+2. Stop it, confirm the port is free, then start `py -3 run_api.py` from `backend/` in the background.
+3. Verify before claiming done: `/api/ibkr/status` shows `connected:true` / `session_state:ready` (reconnect is automatic; poll a few times), `/api/movers` has rows, and the endpoint touched by the change answers correctly.
+4. Never kill the API as a "fix" for unresponsiveness (loop starve is not a dead process -- see `single-market-data-feed.mdc`); this rule is only for loading freshly shipped code.

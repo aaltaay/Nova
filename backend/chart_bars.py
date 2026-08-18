@@ -52,6 +52,14 @@ def _empty_filling(symbol: str, timeframe: str) -> dict:
     return empty_filling(symbol, timeframe)
 
 
+def _store_series_settled(symbol: str, timeframe: str, bar_count: int) -> bool:
+    from bars_store import is_coverage_fresh, store_series_complete
+
+    return store_series_complete(timeframe, bar_count) and is_coverage_fresh(
+        symbol, timeframe
+    )
+
+
 def fetch_chart_bars(
     symbol: str,
     timeframe: str = CHART_DEFAULT_TIMEFRAME,
@@ -74,14 +82,13 @@ def fetch_chart_bars(
             coverage = dict(stored.get("coverage") or {})
             # A complete+fresh series needs no fill: do not queue pacing debt
             # for a no-op. Incomplete or stale data still fills.
-            if ready and not (
-                bars_store.store_series_complete(timeframe, len(stored["bars"]))
-                and bars_store.is_coverage_fresh(symbol, timeframe)
+            if ready and not _store_series_settled(
+                symbol, timeframe, len(stored["bars"])
             ):
                 _schedule_ibkr_fill(
                     symbol, timeframe, limit, interactive=interactive,
                 )
-                coverage["filling"] = not coverage.get("fresh", False)
+                coverage["filling"] = True
             else:
                 coverage["filling"] = False
             stored["coverage"] = coverage

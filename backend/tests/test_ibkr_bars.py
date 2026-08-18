@@ -163,3 +163,45 @@ def test_fetch_chart_bars_paints_store_when_gateway_down():
     spy.assert_not_called()
     alpaca.assert_not_called()
     alpaca.assert_not_called()
+
+
+def _stored_series(bar_count: int) -> dict:
+    return {
+        "symbol": "AAPL",
+        "timeframe": "1Hour",
+        "bars": [
+            {"t": f"2026-08-18T{i:02d}:00:00Z", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}
+            for i in range(bar_count)
+        ],
+        "source": "ibkr",
+        "coverage": {"filling": False, "fresh": True},
+    }
+
+
+def test_fetch_chart_bars_skips_fill_when_store_complete_and_fresh():
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_store_read", return_value=_stored_series(30)):
+            with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+                with patch("bars_store.store_series_complete", return_value=True):
+                    with patch("bars_store.is_coverage_fresh", return_value=True):
+                        out = chart_bars.fetch_chart_bars(
+                            "AAPL", "1Hour", 400,
+                            discovery_provider="ibkr", interactive=True,
+                        )
+    assert len(out["bars"]) == 30
+    assert out["coverage"]["filling"] is False
+    fill.assert_not_called()
+
+
+def test_fetch_chart_bars_fills_when_store_complete_but_stale():
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_store_read", return_value=_stored_series(30)):
+            with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+                with patch("bars_store.store_series_complete", return_value=True):
+                    with patch("bars_store.is_coverage_fresh", return_value=False):
+                        out = chart_bars.fetch_chart_bars(
+                            "AAPL", "1Hour", 400,
+                            discovery_provider="ibkr", interactive=True,
+                        )
+    assert out["coverage"]["filling"] is True
+    fill.assert_called_once()
