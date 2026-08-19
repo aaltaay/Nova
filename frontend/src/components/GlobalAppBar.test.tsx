@@ -60,6 +60,8 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     ibkrTransportConnected: true,
     ibkrMode: 'paper',
     ibkrGatewayMode: 'paper',
+    ibkrAccountKind: 'paper',
+    ibkrIntentionalMode: null,
     ibkrDisconnectHint: null,
     ibkrSessionReason: 'ok',
     ibkrPortsDark: false,

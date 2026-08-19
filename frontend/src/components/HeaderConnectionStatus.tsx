@@ -50,6 +50,8 @@ interface Props {
   ibkrMode?: IbkrMode;
   /** Configured Gateway port target when session mode is not yet known. */
   ibkrGatewayMode?: 'paper' | 'live' | null;
+  ibkrAccountKind?: string | null;
+  ibkrIntentionalMode?: 'paper' | 'live' | null;
   activeFeed: string;
   feedFellBack: boolean;
   secondsAgo: number | null;
@@ -66,6 +68,8 @@ export function HeaderConnectionStatus({
   ibkrConnected = false,
   ibkrMode = 'disconnected',
   ibkrGatewayMode = null,
+  ibkrAccountKind = null,
+  ibkrIntentionalMode = null,
   activeFeed,
   feedFellBack,
   secondsAgo,
@@ -108,7 +112,7 @@ export function HeaderConnectionStatus({
       : formatScanAge(secondsAgo)
     : null;
 
-  const modeTag = resolveGatewayModeTag(ibkrMode, ibkrGatewayMode);
+  const modeTag = resolveGatewayModeTag(ibkrMode, ibkrGatewayMode, ibkrAccountKind);
   const modeTitle =
     modeTag === 'live'
       ? HEADER_GATEWAY_TITLE_LIVE
@@ -209,6 +213,10 @@ export function HeaderConnectionStatus({
           <GatewayModeCapsule
             mode={ibkrMode}
             gatewayMode={ibkrGatewayMode ?? undefined}
+            accountKind={ibkrAccountKind ?? ibkrStatusLive.broker_account_kind ?? null}
+            intentionalMode={
+              ibkrIntentionalMode ?? ibkrStatusLive.intentional_gateway_mode ?? null
+            }
             disconnectHint={ibkrStatusLive.disconnect_hint}
             testId="header-gateway-mode-capsule"
           />

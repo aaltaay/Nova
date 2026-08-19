@@ -40,6 +40,8 @@ export type WorkspaceValue = {
   ibkrDisconnectHint: string | null;
   ibkrMode: IbkrMode;
   ibkrGatewayMode: 'paper' | 'live' | null;
+  ibkrAccountKind: string | null;
+  ibkrIntentionalMode: 'paper' | 'live' | null;
   openStockView: (symbol: string) => void;
   extractTraderTab: (symbol: string) => void;
   acceptTraderTabDrop: (payload: TraderTabDragPayload) => boolean;
@@ -113,6 +115,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       ibkrDisconnectHint: ibkrStatus.disconnect_hint ?? null,
       ibkrMode: ibkrStatus.mode,
       ibkrGatewayMode: ibkrStatus.gateway_mode ?? null,
+      ibkrAccountKind: ibkrStatus.broker_account_kind ?? null,
+      ibkrIntentionalMode: ibkrStatus.intentional_gateway_mode ?? null,
       openStockView: trader.openStockView,
       extractTraderTab: trader.extractTraderTab,
       acceptTraderTabDrop: trader.acceptTraderTabDrop,
@@ -147,6 +151,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       ibkrStatus.disconnect_hint,
       ibkrStatus.mode,
       ibkrStatus.gateway_mode,
+      ibkrStatus.broker_account_kind,
+      ibkrStatus.intentional_gateway_mode,
       trader,
     ],
   );

@@ -81,6 +81,8 @@ export function StockViewHeader({
           <StockViewAccountModeCapsule
             mode={mode}
             gatewayMode={gatewayMode}
+            accountKind={ibkrStatus?.broker_account_kind}
+            intentionalMode={ibkrStatus?.intentional_gateway_mode}
             disconnectHint={ibkrStatus?.disconnect_hint}
           />
           {!connected && statusReady && (

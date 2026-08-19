@@ -22,11 +22,15 @@ interface GatewayModeResponse {
   error?: string | null;
   detail?: string;
   mode?: IbkrMode;
+  launch_action?: string | null;
+  message?: string | null;
 }
 
 export interface GatewayModeCapsuleProps {
   mode: IbkrMode;
   gatewayMode?: 'paper' | 'live';
+  accountKind?: string | null;
+  intentionalMode?: 'paper' | 'live' | null;
   disconnectHint?: string | null;
   testId?: string;
   errorTestId?: string;
@@ -51,7 +55,11 @@ function gatewayModeErrorMessage(
 export function resolveCapsuleSelection(
   mode: IbkrMode,
   gatewayMode?: 'paper' | 'live',
+  accountKind?: string | null,
+  intentional?: 'paper' | 'live' | null,
 ): 'paper' | 'live' | null {
+  if (intentional === 'paper' || intentional === 'live') return intentional;
+  if (accountKind === 'paper' || accountKind === 'live') return accountKind;
   if (gatewayMode === 'live' || gatewayMode === 'paper') return gatewayMode;
   if (mode === 'live' || mode === 'paper') return mode;
   return null;
@@ -60,13 +68,16 @@ export function resolveCapsuleSelection(
 export function GatewayModeCapsule({
   mode,
   gatewayMode,
+  accountKind = null,
+  intentionalMode = null,
   disconnectHint,
   testId = 'gateway-mode-capsule',
   errorTestId,
   className,
 }: GatewayModeCapsuleProps) {
   const [pending, setPending] = useState<'paper' | 'live' | null>(null);
-  const selected = pending ?? resolveCapsuleSelection(mode, gatewayMode);
+  const selected =
+    pending ?? resolveCapsuleSelection(mode, gatewayMode, accountKind, intentionalMode);
   const [switching, setSwitching] = useState<'paper' | 'live' | null>(null);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const hintTarget = disconnectHintSwitchTarget(disconnectHint);
@@ -97,6 +108,8 @@ export function GatewayModeCapsule({
       }));
       if (!res.ok || !body.ok) {
         setSwitchError(gatewayModeErrorMessage(res, body, next));
+      } else if (body.message && body.launch_action && body.launch_action !== 'noop') {
+        setSwitchError(body.message);
       }
     } catch {
       setSwitchError('Could not reach Nova backend to switch Gateway mode');

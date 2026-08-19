@@ -27,16 +27,29 @@ pre-dial probe when preferred is dark and alternate is up. Look for log
 `gateway_self_heal`. Account kind must match the mode being established
 (`accounts_match_mode`); mixed/unknown accounts are refused.
 
+A user Paper/Live click is a door change (ADR 013), not "attach to
+whoever is on 4001." Port 4001 LISTEN is not a live account. Live while
+already `broker_account_kind=live` is a no-op. If the live port is already
+up, Nova reconnects (no 2FA). If live is dark, Nova stops both listeners
+and starts IBC live, and clears `Restart=OK` so IBKR Mobile can fire.
+One IBC install cannot keep paper and live at once. Nova cannot send
+the phone prompt.
+
 This is **not** a login blocker when one port is up -- Nova attaches to
-whichever Gateway account is actually logged in. A user Paper/Live click
-blocks that follow for `IBKR_INTENTIONAL_FOLLOW_GRACE_SEC` (2 min) so a
-mid-switch 2FA is not yanked. After the grace, if the requested port is
-still dark and the other is up, follow-Gateway resumes (overnight IBC
-restart as the other mode). Status fields `disconnect_hint` /
-`preferred_port_reachable` / `alternate_port_reachable` still describe a
-mismatch while reconnect / heal is in flight. The loud login banner must
-not fire for those mismatch hints -- the prerequisites modal offers
-"Use paper/live Gateway" instead.
+the requested door's port. A user Paper/Live click blocks follow-Gateway
+until that door connects (intentional mode stays set). Do not yank to the
+other port after 2 minutes just because it is still listening. Status
+fields `disconnect_hint` / `preferred_port_reachable` /
+`alternate_port_reachable` still describe a mismatch while reconnect is
+in flight. The loud login banner must not fire for those mismatch hints --
+the prerequisites modal offers "Use paper/live Gateway" instead.
+
+**Open live/paper** (prerequisites) still attaches when that API port is
+already listening -- do not Stop-Process a 2FA-in-progress Gateway.
+The header Paper/Live capsule is the door change: it dials 4001 or 4002.
+If that port is already up, do not kill. If it is dark, stop both
+listeners then IBC that door. 4001 LISTEN is still not live by itself
+(ADR 013).
 
 Timeout while the preferred port **still listens** is **not** heal-eligible
 (wedged handshake / Error 326 / clientId conflict) — do not jump ports then.

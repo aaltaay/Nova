@@ -145,17 +145,23 @@ async def try_connect_alternate_port(
         safe_disconnect(ib)
         return None
 
-    _heal.apply_runtime_gateway_mode(alt_mode)  # type: ignore[arg-type]
-    persisted = _heal.persist_gateway_mode(alt_mode)  # type: ignore[arg-type]
+    from ibkr import client as _client
+
+    accepted = _client._broker_account_kind
+    if accepted not in ("paper", "live"):
+        safe_disconnect(ib)
+        return None
+    _heal.apply_runtime_gateway_mode(accepted)
+    persisted = _heal.persist_gateway_mode(accepted)
     _heal.record_heal(
         from_mode=preferred_mode,
-        to_mode=alt_mode,  # type: ignore[arg-type]
+        to_mode=accepted,
         reason=preferred_reason,
         preferred_port=preferred_port,
         healed_port=alt_port,
         persisted=persisted,
     )
-    return alt_mode
+    return accepted
 
 
 async def maybe_heal_from_port_probes(
@@ -170,6 +176,11 @@ async def maybe_heal_from_port_probes(
     preferred_port = _heal.port_for_mode(preferred_mode)
     alt_port = _heal.port_for_mode(_heal.alternate_mode(preferred_mode))
     preferred_up, alternate_up = _probe_pair(host, preferred_port, alt_port)
+    if _heal.self_heal_suppressed(
+        preferred_reachable=preferred_up,
+        alternate_reachable=alternate_up,
+    ):
+        return None
     if not _heal.alternate_heal_eligible(
         "preferred_dark",
         preferred_reachable=preferred_up,

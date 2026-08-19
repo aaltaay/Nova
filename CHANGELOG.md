@@ -30,6 +30,108 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-19 -- Live dark means stop both doors so 2FA can appear
+
+- **What:** A Live click when 4001 is dark now force-restarts IBC: stop 4001 and 4002, clear `Restart=OK`, start live. Same for a Paper click when 4002 is dark. If the target port is already up, Nova still only reconnects.
+- **Why:** One IBC install retargets the existing Gateway window. Leaving paper on 4002 made Live start IBC without a new login, so SECOND FACTOR never showed.
+- **Files touched:** `client_ops.py`, `launch_gateway.py`, `gateway_spawn.py`, `mode_identity.py`, ADR 013, IBC setup + login-warning rule.
+- **How it works now:** Port up = attach, no 2FA. Port dark = close the running Gateway, then IBC that door. Live can prompt IBKR Mobile. Two simultaneous Gateways need a second IBC + `IbDir` (not shipped).
+- **Verified by:** pytest `test_gateway_mode_switch.py`, `test_launch_gateway.py`, `test_mode_identity.py`.
+- **Related:** PROBLEM_LOG 2026-08-19 Live click with paper still on 4002 skipped 2FA.
+
+## 2026-08-19 -- Paper dials 4002 only; trail harvest is suffix-only
+
+- **What:** Paper mode no longer attaches to 4001 just because 4002 is dark. IBC trail harvest only copies log lines written after this door click.
+- **Why:** A Paper/Live audit run showed refuse-spam on live-as-paper and fake 2FA rows on the paper click.
+- **Files touched:** `client.py`, `ibc_log_harvest.py`, `client_ops.py`, `client_connect.py`.
+- **How it works now:** Paper waits on 4002. Live waits on 4001. Trail IBC events are from this spawn, not the previous session.
+- **Verified by:** pytest `test_ibkr_account_kind.py` paper-stays-4002; `test_ibc_log_harvest.py` suffix harvest.
+- **Related:** PROBLEM_LOG 2026-08-19 Paper mode must not dial live 4001.
+
+
+## 2026-08-19 -- Paper/Live keeps both Gateways; no 2FA on flip
+
+- **What:** Paper/Live no longer kills the other Gateway. If the target port is already up, Nova only reconnects. If it is dark, IBC starts that door only. 2FA is for a new live login, not for dialing an already-logged-in live Gateway.
+- **Why:** Operator needed on-the-fly Paper/Live without re-authenticating. Killing both listeners was a Nova choice, not an IBKR rule.
+- **Files touched:** `mode_identity.py`, `client_ops.py`, `launch_gateway.py`, `gateway_heal.py`, ADR 013, capsule copy.
+- **How it works now:** Live=4001 and paper=4002 can stay logged in as two processes. Capsule dials the matching port. Intentional mode does not expire into follow-Gateway while the other door is still up.
+- **Verified by:** pytest `test_mode_identity.py`, `test_launch_gateway.py`, `test_gateway_mode_switch.py`, `test_gateway_heal.py`.
+- **Related:** PROBLEM_LOG 2026-08-19 Paper/Live killed the other session.
+
+
+## 2026-08-19 -- Live vs paper IBC usernames; password fill restored
+
+- **What:** Live/Paper IBC now switches `IbLoginId` from local `IbLoginIdLive` / `IbLoginIdPaper`. Same saved password. Live IBC fills both fields and clicks Log In so IBKR can send Mobile 2FA. Password was empty earlier because we blanked it on purpose and the wait timed out.
+- **Why:** Operator saw Live Trading selected but empty password. Live username is not the paper username with a 1 on the end unless IBC is pointed at the live id.
+- **Files touched:** `gateway_login_fill.py`, `launch_gateway.py`, `docs/ibc-gateway-setup.md`.
+- **How it works now:** Door click copies the matching login id, then IBC types user + password and clicks Log In. Watch the desktop and the phone. Nova still refuses a paper account on Live.
+- **Verified by:** pytest `test_gateway_login_fill.py` + `test_launch_gateway.py` (20 passed).
+- **Related:** PROBLEM_LOG 2026-08-19 empty password field.
+
+## 2026-08-19 -- Live login form stays; IBC will not click Log In
+
+- **What:** Live force-restart starts Gateway exe (no IBC) and clears `Restart=OK`. Also finds IBC-renamed `ibgateway1.exe`. Paper still uses IBC.
+- **Why:** IBC always clicks Log In. Paper/simulated never becomes the SECOND FACTOR AUTHENTICATION panel (the code box). `Restart=OK` reuses the week session.
+- **Files touched:** `launch_gateway.py`, `gateway_spawn.py`, `constants_ibkr.py`.
+- **How it works now:** Live click: look at the desktop Login window. Click Live Trading, then Log In. That same window should switch to SECOND FACTOR AUTHENTICATION. Type the code there. Nova still refuses a paper account.
+- **Verified by:** pytest `test_launch_gateway.py` force-live leaves login; clears Restart=OK.
+- **Related:** PROBLEM_LOG 2026-08-19 2FA code box vs IBC click-through.
+
+## 2026-08-19 -- Live IBC fills login and waits for phone 2FA
+
+- **What:** Live door uses IBC again (fills username/password). It no longer starts Gateway with a blank login. Live click writes AutoLogoff and clears AutoRestart in local IBC config so IBKR can send IBKR Mobile. Paper still uses the week-long AutoRestart token.
+- **Why:** Operator wanted autofill plus a phone auth code. Skipping IBC blocked autofill. AutoRestart was why IBKR often never sent 2FA after IBC clicked Log In.
+- **Files touched:** `launch_gateway.py`, `gateway_spawn.py`, `constants_ibkr.py`, ADR 013, `docs/ibc-gateway-setup.md`.
+- **How it works now:** Live click: IBC types credentials, clicks Log In, you approve the phone. Trail still records `ibc_second_factor` vs `ibc_simulated_trading`. Nova cannot send the IBKR Mobile prompt.
+- **Verified by:** pytest `test_launch_gateway.py` force-live uses IBC; align-live clears AutoRestart.
+- **Related:** PROBLEM_LOG 2026-08-19 Live 2FA vs AutoRestart.
+
+## 2026-08-19 -- Live click skipped IBC auto-login; IBC steps go on the door trail
+
+- **What:** A Live door restart starts `ibgateway.exe` (login screen stays up) instead of IBC typing credentials. IBC log facts (clicked Log In, Authenticating, Simulated Trading) append to the gateway trail as `actor=ibc`. Paper still uses IBC.
+- **Why:** Live never stuck because IBC auto-logged into Simulated Trading in ~3s. The operator never saw a lasting 2FA prompt.
+- **Files touched:** `backend/ibkr/launch_gateway.py`, `ibc_log_harvest.py`, `client_ops.py`, tests.
+- **How it works now:** Next Live click: look at the Gateway login window. Trail: `GET /api/ibkr/gateway-trail` includes `ibc_clicked_login` / `ibc_simulated_trading`. No passwords, account ids redacted.
+- **Verified by:** pytest `test_ibc_log_harvest.py`, `test_launch_gateway.py` live-skips-IBC, harvest + switch tests.
+- **Related:** PROBLEM_LOG 2026-08-19 IBC auto-login hid 2FA.
+
+## 2026-08-19 -- Paper/Live door trail
+
+- **What:** Operator Paper/Live clicks and IB attach/refuse now append to `ibkr-gateway-trail.jsonl`. `GET /api/ibkr/gateway-trail` and `gateway_trail` on `/api/ibkr/status` show who requested what and whether the account class matched.
+- **Why:** Door switches never wrote Nova OS events or the execution ledger, so agents could not tell click vs actual switch without grepping API logs.
+- **Files touched:** `backend/ibkr/gateway_trail.py`, `client_ops.py`, `account_kind.py`, `routes/trading.py`, `constants_ibkr.py`.
+- **How it works now:** Append-only JSONL under the cache dir (`schema_version=1`). `actor=operator` is a capsule/API click. `actor=ibkr` is attach, refuse, follow-paper, or refused_follow_paper. `switched=true` means the IB account class matched the door. Not an order receipt. No account ids stored.
+- **Verified by:** pytest `test_gateway_trail.py` plus existing gateway-mode / account_kind tests; GET trail after API restart.
+- **Related:** ADR 013.
+
+## 2026-08-19 -- Paper/Live follows the IB account, not port 4001
+
+- **What:** Live click no-ops when the session is already a live account. Live from a paper account (including paper parked on 4001) force-restarts IBC as live and does not follow-paper. Capsule stays on the requested door until the account class matches.
+- **Why:** 4001 LISTEN plus a leftover paper login looked "already live"; a Live click then snapped the capsule back to Paper.
+- **Files touched:** `backend/ibkr/mode_identity.py`, `client_ops.py`, `account_kind.py`, `launch_gateway.py`, `GatewayModeCapsule.tsx`, ADR 013.
+- **How it works now:** Three facts: requested door, listen port, `managedAccounts` kind. Capsule SSOT is account kind (intentional while a door change is in flight). `force_restart` stops the java PID on 4001/4002. Unattended paper-on-4001 follow still exists when there is no Live click. Spend gates unchanged. `auto_live` still NO-GO.
+- **Verified by:** pytest mode_identity / launch_gateway / gateway_mode_switch / account_kind; Vitest capsule; `npm run build`; API restart + `/api/ibkr/status` + gateway-mode POST.
+- **Related:** PROBLEM_LOG 2026-08-19 Live snap-back; ADR 013.
+
+## 2026-08-19 -- Follow paper account on a live-labeled port
+
+- **What:** If Gateway logs in as paper (DU/DF) while Nova asked live, Nova attaches as paper on that socket instead of connecting and immediately dropping Client 17. Paper mode can dial 4001 when 4002 is dark.
+- **Why:** Morning drill: IBC came up paper on 4001; farms green; API Client red; refuse loop.
+- **Files touched:** `backend/ibkr/account_kind.py`, `session_reconnect.py`, `client.py`, `client_connect.py`.
+- **How it works now:** Safe demote live-request + paper account -> persist paper, keep TCP, earn_usable. Live account while paper mode still refuses (no auto live). Spend gates unchanged.
+- **Verified by:** pytest account_kind + gateway_heal + connect 40 passed; live attach after API restart.
+
+
+## 2026-08-19 -- Do not restart a Gateway that is already listening
+
+- **What:** Open paper/live no longer kills a logged-in Gateway on the requested port. Login banner and prerequisites stop offering that CTA when the API port is open or Nova API is down/wedged. Morning check waits through `connecting` instead of failing at 03:55.
+- **Why:** 2026-08-19 desk: Gateway farms green, Nova still asked for login; Open live Gateway restarted IBC; API died; same morning class as 08-04 / 08-18.
+- **Files touched:** `backend/ibkr/launch_gateway.py`, `frontend/src/ibkr/tradingPrerequisites.ts`, `TradingPrerequisitesGate.tsx`, `GatewayDisconnectedBanner.tsx`, `scripts/vite-nova-launch-gateway.ts`, `scripts/Invoke-NovaMorningCheck.ps1`, ibkr-gateway-login-warning MDC.
+- **How it works now:** Requested port LISTEN -> persist mode, wake reconnect, focus window. Process up + both ports dark -> focus only (2FA). Kill+IBC only when switching to a dark port while the other door is already up. Prerequisites: API_DOWN starts API; API_WEDGED / port-open uses Reconnect.
+- **Verified by:** pytest `tests/test_launch_gateway.py` 10 passed; Vitest 24 passed; `npm run build` exit 0; after API start `/api/ibkr/status` ready/live and `/api/movers` 50 gainers (`table_state=live`).
+- **Related:** PROBLEM_LOG 2026-08-19 Open live Gateway killed a logged-in session; 2026-08-04 IBKRPRO up but not READY.
+
+
 ## 2026-08-18 -- Reliability track: problem-root guards + morning autopilot wiring
 
 - **What:** Wired the five PROBLEM_LOG root patterns into guards instead of more spot patches. Morning self-check script + `POST /api/alerts/system-event`; scanner REST now returns `table_state` / `roster_ts` / `feed_error`; pytest pins `NOVA_CACHE_DIR` before imports; maintainer IB-loop purity gate in CI (`--fail-on-kind ib_loop_sync_io`); blast-radius table in verification rule; persisted-state MDC.

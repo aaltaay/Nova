@@ -162,6 +162,14 @@ export function buildTradingPrerequisites(
   const ordersOk = spendArmed(input.spendStatus);
   const followTarget = gatewayPortMismatchHint(input.disconnectHint);
   const portOpenStuck = !gatewayOk && gatewayPortOpenButSessionDown(input);
+  const apiDown = input.health?.flag === BACKEND_DIAG_FLAG_DOWN;
+  const apiWedged = input.health?.flag === BACKEND_DIAG_FLAG_WEDGED;
+  let gatewayAction: PrereqAction = null;
+  if (!gatewayOk) {
+    if (followTarget) gatewayAction = 'switch_gateway_mode';
+    else if (portOpenStuck || apiWedged) gatewayAction = 'reconnect_ibkr';
+    else if (!apiDown) gatewayAction = 'launch_gateway';
+  }
 
   const items: PrereqItem[] = [
     {
@@ -186,13 +194,7 @@ export function buildTradingPrerequisites(
       ok: gatewayOk,
       label: 'IB Gateway (session READY)',
       detail: gatewayDetail(input, gatewayOk),
-      action: gatewayOk
-        ? null
-        : followTarget
-          ? 'switch_gateway_mode'
-          : portOpenStuck
-            ? 'reconnect_ibkr'
-            : 'launch_gateway',
+      action: gatewayAction,
     },
     {
       id: 'orders_armed',

@@ -14,7 +14,9 @@ export type HeaderChipTone = 'ok' | 'bad' | 'warn' | 'live';
 export function resolveGatewayModeTag(
   ibkrMode: IbkrMode,
   ibkrGatewayMode: 'paper' | 'live' | null,
+  accountKind?: string | null,
 ): 'paper' | 'live' | null {
+  if (accountKind === 'paper' || accountKind === 'live') return accountKind;
   if (ibkrMode === 'paper' || ibkrMode === 'live') return ibkrMode;
   if (ibkrGatewayMode === 'paper' || ibkrGatewayMode === 'live') return ibkrGatewayMode;
   return null;

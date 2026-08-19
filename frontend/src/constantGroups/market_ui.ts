@@ -357,9 +357,9 @@ export const HEADER_GATEWAY_OFFLINE_LABEL = 'offline';
 export const HEADER_GATEWAY_MODE_PAPER = 'PAPER';
 export const HEADER_GATEWAY_MODE_LIVE = 'LIVE';
 export const HEADER_GATEWAY_TITLE_PAPER =
-  'IBKR session: PAPER — paper account / paper Gateway port. Not live money.';
+  'IBKR account class: PAPER (DU/DF). The listen port is not the account. Not live money.';
 export const HEADER_GATEWAY_TITLE_LIVE =
-  'IBKR session: LIVE — real account Gateway. Market data and orders use the live port; spend still gated by IBKR_ORDERS_ENABLED + live confirm.';
+  'IBKR account class: LIVE (U/F/I). Market data uses this login; spend still gated by IBKR_ORDERS_ENABLED + live confirm.';
 export const HEADER_GATEWAY_TITLE_UNKNOWN =
   'IBKR session mode unknown — check Trading /api/ibkr/status (mode / gateway_mode).';
 /** Header Gateway chip suffix when /api/ibkr/status reports delayed market data. */

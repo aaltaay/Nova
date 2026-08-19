@@ -65,8 +65,20 @@ async def force_reconnect() -> dict:
 
 
 async def request_gateway_mode(mode: str) -> dict:
-    """User-initiated Paper↔Live Gateway switch (never unlocks spend)."""
+    """User-initiated Paper↔Live door change (ADR 013). Never unlocks spend.
+
+    Already on that account class -> no-op.
+    Target port already up -> reconnect only (no 2FA).
+    Target port dark -> start IBC with force_restart (stop both listeners).
+    Wrong class on the target port -> replace that port (also force_restart).
+    """
+    import os
+
+    from constants import IBKR_HOST
     from ibkr import client as c
+    from ibkr.launch_gateway import launch_or_focus_gateway
+    from ibkr.mode_identity import switch_plan
+    from ibkr.port_diagnostics import probe_port
 
     target: str = "live" if str(mode).strip().lower() == "live" else "paper"
     if str(mode).strip().lower() not in ("paper", "live"):
@@ -79,67 +91,105 @@ async def request_gateway_mode(mode: str) -> dict:
             "requested_mode": target,
         }
 
+    kind_now = c.broker_account_kind()
     preferred_port = _heal.port_for_mode(target)
+    host = (os.environ.get("IBKR_HOST") or IBKR_HOST).strip() or IBKR_HOST
+    target_up = probe_port(host, preferred_port)
+    current_port = _heal.port_for_mode(_safety.gateway_mode())
+    on_target = bool(c.is_connected() and current_port == preferred_port)
+    plan = switch_plan(
+        target=target,
+        account_kind=kind_now,
+        target_port_listening=target_up,
+        connected_on_target_port=on_target,
+    )
+
     persisted = _heal.persist_gateway_mode(target)  # type: ignore[arg-type]
     _heal.apply_runtime_gateway_mode(target)  # type: ignore[arg-type]
     _heal.set_intentional_mode(target)  # type: ignore[arg-type]
 
+    if plan == "noop":
+        from ibkr.gateway_trail import append_event as _trail
+
+        _trail(
+            actor="operator",
+            event="click",
+            requested=target,
+            kind_before=kind_now,
+            kind_after=kind_now,
+            plan="noop",
+            launch_action="noop",
+            switched=True,
+            note="already on that IB account class",
+        )
+        _heal.record_connect_outcome("connected", reason="ok", mode=target)
+        return {
+            "ok": True,
+            "error": None,
+            "requested_mode": target,
+            "preferred_port": preferred_port,
+            "persisted": persisted,
+            "connected": True,
+            "mode": c.account_mode(),
+            "broker_account_kind": kind_now,
+            "spend_status": _safety.status_snapshot()["spend_status"],
+            "intentional_gateway_mode": _heal.intentional_mode(),
+            "launch_action": "noop",
+            "message": f"Already on a {target} IB account -- Gateway was not restarted.",
+        }
+
+    from ibkr.gateway_login_fill import snapshot_ibc_log
+
+    origin_path, origin_size = snapshot_ibc_log()
+    del origin_path
+    launch = launch_or_focus_gateway(
+        target,
+        force_restart=(plan in ("replace_target", "start_ibc")),
+    )
+    from ibkr.gateway_trail import append_event as _trail
+
+    _trail(
+        actor="operator",
+        event="click",
+        requested=target,
+        kind_before=kind_now,
+        plan=plan,
+        launch_action=str(launch.get("action") or ""),
+        switched=False,
+        note=str(launch.get("message") or "")[:240],
+    )
+    if launch.get("action") == "launched_ibc":
+        from ibkr.ibc_log_harvest import record_recent_ibc_into_trail
+
+        try:
+            record_recent_ibc_into_trail(requested=target, origin_size=origin_size)
+        except Exception:
+            logger.warning("IBKR: IBC trail harvest failed", exc_info=True)
     if c._ib is not None and c._ib.isConnected():
         c._ib.disconnect()
     c._set_session(mode="disconnected", broker_account_kind="unknown")
     _session.set_disconnected()
+    c.set_session_reason("connecting")
     c.wake_reconnect_loop()
 
-    deadline = IBKR_CONNECT_TIMEOUT_SEC + 3.0
-    waited = 0.0
-    step = 0.5
-    while waited < deadline and not c.is_connected():
-        await asyncio.sleep(step)
-        waited += step
-
-    connected = c.is_connected()
-    kind = c.broker_account_kind()
-    mode_now = c.account_mode()
-    error: str | None = None
-
-    if not connected:
-        error = (
-            f"Could not connect to the {target} Gateway on port {preferred_port} "
-            f"-- start IB Gateway logged into the {target} account with the API "
-            "enabled on that port, then try again."
-        )
-        _heal.record_connect_outcome("failed", reason="switch_connect_failed")
-    elif target == "live" and kind != "live":
-        bad_kind = kind
-        logger.error(
-            "IBKR: gateway-mode switch to live connected but "
-            "broker_account_kind=%s (expected live) -- disconnecting",
-            bad_kind,
-        )
-        if c._ib is not None and c._ib.isConnected():
-            c._ib.disconnect()
-        c._set_session(mode="disconnected", broker_account_kind="unknown")
-        _session.set_disconnected()
-        connected = False
-        mode_now = "disconnected"
-        kind = "unknown"
-        error = (
-            "Connected on the live port but the logged-in account reports as "
-            f"{bad_kind!r}, not live -- refusing to switch (disconnected)."
-        )
-        _heal.record_connect_outcome("failed", reason="live_account_kind_mismatch")
+    launch_ok = bool(launch.get("ok"))
+    if launch_ok:
+        _heal.record_connect_outcome("failed", reason="switch_ibc_started")
     else:
-        _heal.record_connect_outcome("connected", reason="ok", mode=target)
+        _heal.record_connect_outcome("failed", reason="switch_ibc_failed")
 
     return {
-        "ok": error is None,
-        "error": error,
+        "ok": launch_ok,
+        "error": None if launch_ok else launch.get("message") or "IBC launch failed",
         "requested_mode": target,
         "preferred_port": preferred_port,
         "persisted": persisted,
-        "connected": connected,
-        "mode": mode_now,
-        "broker_account_kind": kind,
+        "connected": False,
+        "mode": "disconnected",
+        "broker_account_kind": "unknown",
         "spend_status": _safety.status_snapshot()["spend_status"],
         "intentional_gateway_mode": _heal.intentional_mode(),
+        "launch_action": launch.get("action"),
+        "message": launch.get("message"),
+        "plan": plan,
     }

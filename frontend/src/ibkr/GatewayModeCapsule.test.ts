@@ -5,19 +5,19 @@ import { describe, expect, it } from 'vitest';
 import { resolveCapsuleSelection } from './GatewayModeCapsule';
 
 describe('resolveCapsuleSelection', () => {
-  it('shows the configured Gateway target, not a stale paper session', () => {
+  it('keeps Live selected while a Live click is in flight even if the account is still paper', () => {
+    expect(resolveCapsuleSelection('paper', 'paper', 'paper', 'live')).toBe('live');
+  });
+
+  it('shows the IB account class, not the port label, once idle', () => {
+    expect(resolveCapsuleSelection('live', 'live', 'paper')).toBe('paper');
+    expect(resolveCapsuleSelection('paper', 'paper', 'live')).toBe('live');
+  });
+
+  it('falls back to configured door then session mode', () => {
     expect(resolveCapsuleSelection('paper', 'live')).toBe('live');
-    expect(resolveCapsuleSelection('disconnected', 'live')).toBe('live');
-  });
-
-  it('shows paper when that is the configured target', () => {
-    expect(resolveCapsuleSelection('live', 'paper')).toBe('paper');
     expect(resolveCapsuleSelection('disconnected', 'paper')).toBe('paper');
-  });
-
-  it('falls back to session mode when gateway_mode is unknown', () => {
     expect(resolveCapsuleSelection('paper')).toBe('paper');
-    expect(resolveCapsuleSelection('live')).toBe('live');
     expect(resolveCapsuleSelection('disconnected')).toBeNull();
   });
 });

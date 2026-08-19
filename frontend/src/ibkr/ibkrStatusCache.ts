@@ -27,6 +27,8 @@ export function writeLastIbkrStatus(status: IbkrStatus): void {
         session_reason: status.session_reason,
         mode: status.mode,
         gateway_mode: status.gateway_mode,
+        broker_account_kind: status.broker_account_kind,
+        intentional_gateway_mode: status.intentional_gateway_mode,
         market_data_delayed: status.market_data_delayed,
         orders_enabled: status.orders_enabled,
         spend_status: status.spend_status,

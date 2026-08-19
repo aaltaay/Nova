@@ -122,8 +122,6 @@ def test_heal_target_allowed_bidirectional():
 
 def test_intentional_mode_is_sticky_through_mid_switch_grace(monkeypatch):
     """User intent must not expire after ~18s the way the old suppress timer did."""
-    monkeypatch.setattr(heal, "IBKR_INTENTIONAL_FOLLOW_GRACE_SEC", 120.0)
-    assert heal.self_heal_suppressed() is False
     heal.set_intentional_mode("live")
     assert heal.self_heal_suppressed() is True
     assert heal.intentional_mode() == "live"
@@ -137,35 +135,27 @@ def test_intentional_mode_is_sticky_through_mid_switch_grace(monkeypatch):
     assert heal.self_heal_suppressed() is False
 
 
-def test_intentional_expires_when_only_alternate_listens(monkeypatch):
-    """Overnight IBC restart as the other mode: follow after grace."""
-    monkeypatch.setattr(heal, "IBKR_INTENTIONAL_FOLLOW_GRACE_SEC", 120.0)
+def test_intentional_stays_suppressed_while_set(monkeypatch):
+    """Other door staying up must not expire into follow-Gateway."""
     heal.set_intentional_mode("live")
     t0 = heal.heal_status()["intentional_gateway_mode_at"]
     monkeypatch.setattr(heal.time, "time", lambda: t0 + 121)
     assert heal.self_heal_suppressed(
         preferred_reachable=False,
         alternate_reachable=True,
-    ) is False
-    assert heal.self_heal_suppressed(
-        preferred_reachable=False,
-        alternate_reachable=False,
     ) is True
-    assert heal.self_heal_suppressed(
-        preferred_reachable=True,
-        alternate_reachable=True,
-    ) is True
+    heal.clear_intentional_mode(reason="test")
+    assert heal.self_heal_suppressed() is False
 
 
-def test_try_connect_alternate_heals_after_intentional_grace(
+def test_try_connect_alternate_skips_after_intentional_grace(
     tmp_path: Path, monkeypatch,
 ):
-    """Past grace + live dark + paper up → follow paper even if user last clicked Live."""
+    """Past grace + live dark + paper up must still not steal an in-flight Live click."""
     monkeypatch.setenv("IBKR_GATEWAY_SELF_HEAL", "true")
     monkeypatch.setenv("IBKR_GATEWAY_MODE", "live")
     monkeypatch.setenv("IBKR_LIVE_PORT", "4001")
     monkeypatch.setenv("IBKR_PAPER_PORT", "4002")
-    monkeypatch.setattr(heal, "IBKR_INTENTIONAL_FOLLOW_GRACE_SEC", 120.0)
     env = tmp_path / ".env"
     env.write_text("IBKR_GATEWAY_MODE=live\n", encoding="utf-8")
     heal.set_intentional_mode("live")
@@ -173,38 +163,19 @@ def test_try_connect_alternate_heals_after_intentional_grace(
     monkeypatch.setattr(heal.time, "time", lambda: t0 + 121)
 
     ib = MagicMock()
-    calls: list[int] = []
-
-    async def _connect(_host, port, clientId=0, timeout=1):  # noqa: N803
-        calls.append(port)
-        if port == 4002:
-            return None
-        raise ConnectionRefusedError(10061, "refused")
-
-    ib.connectAsync = _connect
-    ib.managedAccounts = lambda: ["DU1234567"]
-
-    real_persist = heal.persist_gateway_mode
-
-    def _persist(mode, env_path=None):
-        return real_persist(mode, env_path=env)
+    ib.connectAsync = AsyncMock()
 
     async def _run():
-        with (
-            patch("ibkr.client_connect.IBKR_CONNECT_TIMEOUT_SEC", 2.0),
-            patch.object(heal, "persist_gateway_mode", side_effect=_persist),
-            patch(
-                "ibkr.client_connect.probe_port",
-                side_effect=lambda _h, p, **_k: p == 4002,
-            ),
+        with patch(
+            "ibkr.client_connect.probe_port",
+            side_effect=lambda _h, p, **_k: p == 4002,
         ):
             return await ibkr_client._try_connect_alternate_port(
                 ib, "127.0.0.1", "live", 17, "refused",
             )
 
-    healed = asyncio.run(_run())
-    assert healed == "paper"
-    assert calls == [4002]
+    assert asyncio.run(_run()) is None
+    ib.connectAsync.assert_not_called()
 
 
 def test_try_connect_alternate_port_skips_when_intentional(monkeypatch):

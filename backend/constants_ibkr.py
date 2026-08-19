@@ -187,11 +187,23 @@ IBKR_COMPLETED_ORDERS_TIMEOUT_SEC = 10.0
 IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC = 300.0
 
 # User-initiated Gateway launch (header double-click → POST /api/ibkr/launch-gateway).
-# Override with IBKR_GATEWAY_EXE; otherwise newest ibgateway.exe under IBKR_GATEWAY_ROOT.
+# Override with IBKR_GATEWAY_EXE; otherwise ibgateway.exe or IBC-renamed ibgateway1.exe.
 IBKR_GATEWAY_ROOT = r"C:\Jts\ibgateway"
 IBKR_GATEWAY_EXE_DEFAULT = r"C:\Jts\ibgateway\1045\ibgateway.exe"
 # Optional IBC launcher (credentials stay outside git — see docs/ibc-gateway-setup.md).
 IBKR_IBC_LAUNCHER_REL = r".nova\ibc\start_gateway.ps1"
+# Paper IBC keeps the week-long Gateway token (no daily 2FA). Live door
+# writes AutoLogoff instead so IBKR can send IBKR Mobile after IBC fills login.
+IBKR_IBC_PAPER_AUTO_RESTART_TIME = "11:45 PM"
+IBKR_IBC_LIVE_AUTO_LOGOFF_TIME = "11:45 PM"
+# Gateway jts.ini Restart=OK reuses the week session and skips the 2FA code box.
+IBKR_JTS_INI_PATHS = (
+    r"C:\Jts\ibgateway\1045\jts.ini",
+    r"C:\Jts\jts.ini",
+)
+# Owner: ibkr/gateway_trail.py. Append-only Paper/Live click + attach/refuse.
+IBKR_GATEWAY_TRAIL_FILENAME = "ibkr-gateway-trail.jsonl"
+IBKR_GATEWAY_TRAIL_MAX_EVENTS = 200
 
 # ── Market-data discovery provider (gappers / gainers / losers source) ────────
 # Product lock: IBKR is the only scanner discovery source. Alpaca scanner

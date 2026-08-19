@@ -24,6 +24,36 @@ describe('buildTradingPrerequisites', () => {
     expect(out.items.find((i) => i.id === 'nova_api')?.action).toBe('start_api');
   });
 
+  it('does not offer Gateway launch while Nova API is down', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_DOWN',
+      },
+      ibkrEnabled: true,
+      ibkrConnected: false,
+      spendStatus: 'live_armed',
+    });
+    expect(out.items.find((i) => i.id === 'ibkr_gateway')?.action).toBeNull();
+  });
+
+  it('offers reconnect instead of launch when health probe timed out', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_WEDGED',
+      },
+      ibkrEnabled: true,
+      ibkrConnected: false,
+      spendStatus: 'live_armed',
+    });
+    expect(out.items.find((i) => i.id === 'ibkr_gateway')?.action).toBe(
+      'reconnect_ibkr',
+    );
+  });
+
   it('blocks desk when Gateway is disconnected', () => {
     const out = buildTradingPrerequisites({
       health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },

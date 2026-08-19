@@ -65,6 +65,34 @@ describe('shouldShowGatewayLoginBanner', () => {
     ).toBe(false);
   });
 
+  it('hides when Gateway API port is open but Nova session is not READY', () => {
+    expect(
+      shouldShowGatewayLoginBanner({
+        discoveryProvider: 'ibkr',
+        ibkrConnected: false,
+        ibkrTransportConnected: false,
+        ibkrDisconnectHint: 'live_port_open_but_disconnected',
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowGatewayLoginBanner({
+        discoveryProvider: 'ibkr',
+        ibkrConnected: false,
+        ibkrTransportConnected: false,
+        ibkrDisconnectHint: 'paper_port_open_but_disconnected',
+      }),
+    ).toBe(false);
+  });
+
+  it('hides when status fields are missing (API probe miss)', () => {
+    expect(
+      shouldShowGatewayLoginBanner({
+        discoveryProvider: 'ibkr',
+        ibkrConnected: false,
+      }),
+    ).toBe(false);
+  });
+
   it('shows when transport is down', () => {
     expect(
       shouldShowGatewayLoginBanner({

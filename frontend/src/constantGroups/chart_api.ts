@@ -351,9 +351,9 @@ export const STOCK_VIEW_OPERATOR_MODE_FULL_AUTO_TITLE =
 export const STOCK_VIEW_ACCOUNT_MODE_PAPER = 'Paper';
 export const STOCK_VIEW_ACCOUNT_MODE_LIVE = 'Live';
 export const STOCK_VIEW_ACCOUNT_MODE_PAPER_TITLE =
-  'Switch Nova to the paper Gateway port (4002) and reconnect. Requires IB Gateway already logged into a paper account.';
+  'Switch Nova to the paper Gateway (port 4002). If paper is already logged in, Nova only reconnects and does not close live. First paper login of the day may open a second Gateway window.';
 export const STOCK_VIEW_ACCOUNT_MODE_LIVE_TITLE =
-  'Switch Nova to the live Gateway port (4001) and reconnect. Requires IB Gateway already logged into a live account. Live spend still stays locked until IBKR_LIVE_TRADING_CONFIRMED is set separately.';
+  'Switch Nova to the live Gateway (port 4001). If live is already logged in, Nova only reconnects -- no 2FA. 2FA is only if live is not running. Live spend stays locked until IBKR_LIVE_TRADING_CONFIRMED is set separately.';
 
 // ── Full ticker trading page (double-click / Full view) ───────────────────────
 /** Right-rail width (px) on Stock View -- charts keep the rest of the viewport. */

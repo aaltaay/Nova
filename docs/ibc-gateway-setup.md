@@ -20,7 +20,8 @@ scanner after a reboot. **Credentials never belong in git.**
 
 Use IBC’s sample config as a base. Set at least:
 
-- `IbLoginId` / `IbPassword` — your IBKR credentials (local file only)
+- `IbLoginId` / `IbPassword` — IBC types these into Gateway (local file only)
+- `IbLoginIdLive` / `IbLoginIdPaper` — Nova copies the matching one onto `IbLoginId` on a Paper/Live click. Live and paper are different IBKR usernames.
 - `TradingMode=live` or `paper` — must match `IBKR_GATEWAY_MODE` in Nova `.env`
 - `IbDir` — path to the Gateway install folder
 - `AcceptIncomingConnectionAction=accept` (or prompt -- your choice)
@@ -59,23 +60,27 @@ Optional template in-repo: `scripts/start_gateway_ibc.ps1.example`.
 2. Confirm `GET http://127.0.0.1:8000/api/ibkr/status` → `"connected": true`.
 3. Run `.\scripts\smoke_check.ps1`.
 
-**2FA:** IBKR Mobile may still require approval. Agents must warn loudly and must
-not store passwords in the chat or the repo (see
-`.cursor/rules/ibkr-gateway-login-warning.mdc`).
+**2FA:** IBC may fill username/password. IBKR Mobile still requires *you*.
+Agents must warn loudly and must not store passwords in the chat or the repo
+(see `.cursor/rules/ibkr-gateway-login-warning.mdc`). Paper IBC may use
+`AutoRestartTime` (week-long token, often no daily 2FA). A Nova **Live**
+click clears that AutoRestart so a live login can prompt the phone.
 
 ## Switching Paper ↔ Live from Nova's UI
 
 The Stock View header's **Paper / Live** capsule switches which Gateway **port**
-Nova dials (`IBKR_GATEWAY_MODE` → 4002 paper / 4001 live, persisted to `.env`) and
-reconnects. It does **not** log you into Gateway and does **not** arm live spend:
+Nova dials (`IBKR_GATEWAY_MODE` -> 4002 paper / 4001 live, persisted to `.env`) and
+reconnects. One IBC install is one Gateway window. The switch does **not**
+arm live spend:
 
-1. **You** must already have IB Gateway running and logged into the account that
-   matches the mode you're switching to, with the API enabled on that port —
-   IBC above, or manual login. Nova never types credentials.
-2. Click Live/Paper in Nova → confirm → Nova persists the mode and reconnects.
-   If the target port refuses or times out, the capsule shows the error inline
-   (e.g. "start IB Gateway logged into the live account…") instead of quietly
-   reappearing as Paper.
+1. Click Live/Paper in Nova -> confirm -> Nova attaches to that port. If that
+   Gateway is already logged in, it is **not** closed and 2FA is **not** asked
+   again. If it is not running, Nova stops both 4001/4002 listeners, then IBC
+   starts that door. IBC fills username/password. A new live login can show
+   IBKR Mobile / SECOND FACTOR.
+2. One Gateway process is still one IB account. Fast flipping without 2FA
+   only works when the target port is already listening. A second IBC +
+   `IbDir` would be needed to keep both logged in at once.
 3. If the live port answers but the logged-in account is actually paper
    (`DU…`/`DF…`), Nova disconnects and refuses rather than pretending Live.
 4. Live spend (`IBKR_LIVE_TRADING_CONFIRMED`) is a **separate** key — the switch

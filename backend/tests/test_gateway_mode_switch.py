@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 from ibkr import client as ibkr_client
 from ibkr import gateway_heal as heal
@@ -46,18 +46,19 @@ def test_request_gateway_mode_success_persists_and_sets_sticky_intent(monkeypatc
         patch.object(heal, "persist_gateway_mode", return_value=True) as mock_persist,
         patch.object(heal, "apply_runtime_gateway_mode") as mock_apply,
         patch.object(heal, "set_intentional_mode") as mock_intent,
-        patch.object(ibkr_client, "wake_reconnect_loop") as mock_wake,
+        patch("ibkr.launch_gateway.launch_or_focus_gateway") as mock_launch,
     ):
         result = _run(ibkr_client.request_gateway_mode("paper"))
 
     assert result["ok"] is True
     assert result["error"] is None
     assert result["connected"] is True
+    assert result["launch_action"] == "noop"
     assert result["mode"] == "paper"
     mock_persist.assert_called_once_with("paper")
     mock_apply.assert_called_once_with("paper")
     mock_intent.assert_called_once_with("paper")
-    mock_wake.assert_called_once()
+    mock_launch.assert_not_called()
 
 
 def test_request_gateway_mode_never_unlocks_live_spend(monkeypatch):
@@ -74,61 +75,114 @@ def test_request_gateway_mode_never_unlocks_live_spend(monkeypatch):
         patch.object(heal, "persist_gateway_mode", return_value=True),
         patch.object(heal, "apply_runtime_gateway_mode"),
         patch.object(heal, "set_intentional_mode"),
-        patch.object(ibkr_client, "wake_reconnect_loop"),
+        patch("ibkr.launch_gateway.launch_or_focus_gateway") as mock_launch,
     ):
         result = _run(ibkr_client.request_gateway_mode("live"))
 
     assert result["ok"] is True
     assert result["spend_status"] == "locked_live_unconfirmed"
+    assert result["launch_action"] == "noop"
     assert os.environ.get("IBKR_LIVE_TRADING_CONFIRMED") is None
+    mock_launch.assert_not_called()
 
 
-def test_request_gateway_mode_honest_failure_keeps_sticky_intent(monkeypatch):
+def test_request_gateway_mode_disconnected_live_starts_ibc(monkeypatch):
     monkeypatch.setattr(ibkr_client, "_enabled", True)
     monkeypatch.setattr(ibkr_client, "_ib", None)
     monkeypatch.setattr(ibkr_client, "is_connected", lambda: False)
     monkeypatch.setattr(ibkr_client, "broker_account_kind", lambda: "unknown")
     monkeypatch.setattr(ibkr_client, "account_mode", lambda: "disconnected")
-    monkeypatch.setattr("ibkr.client_ops.IBKR_CONNECT_TIMEOUT_SEC", 0.05)
+    monkeypatch.setattr(ibkr_client, "wake_reconnect_loop", lambda: None)
+    monkeypatch.setattr(ibkr_client, "set_session_reason", lambda *_a, **_k: None)
+    monkeypatch.setattr(ibkr_client, "_set_session", lambda **_k: None)
 
     with (
         patch.object(heal, "persist_gateway_mode", return_value=True),
         patch.object(heal, "apply_runtime_gateway_mode"),
-        patch.object(ibkr_client, "wake_reconnect_loop"),
-        patch("asyncio.sleep", new=AsyncMock()),
+        patch("ibkr.launch_gateway.launch_or_focus_gateway") as mock_launch,
+        patch("ibkr.port_diagnostics.probe_port", return_value=False),
     ):
+        mock_launch.return_value = {
+            "ok": True,
+            "action": "launched_ibc",
+            "message": "Starting LIVE Gateway (port 4001).",
+        }
         result = _run(ibkr_client.request_gateway_mode("live"))
 
-    assert result["ok"] is False
+    assert result["ok"] is True
     assert result["connected"] is False
-    assert "Could not connect" in result["error"]
-    # Sticky intent survives the failed switch — heal stays blocked.
+    assert result["launch_action"] == "launched_ibc"
+    assert result["plan"] == "start_ibc"
     assert heal.intentional_mode() == "live"
-    assert heal.self_heal_suppressed() is True
+    mock_launch.assert_called_once_with("live", force_restart=True)
 
 
-def test_request_gateway_mode_refuses_paper_account_on_live_port(monkeypatch):
-    """Defensive: a paper account should never answer on the live port, but
-    if it does, disconnect and fail loud rather than pretending Live."""
+def test_request_gateway_mode_live_from_paper_on_4001_replaces_target(monkeypatch):
+    """Paper glued to 4001 is not Live -- replace that port only."""
     fake_ib = MagicMock()
     fake_ib.isConnected.return_value = True
 
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "live")
     monkeypatch.setattr(ibkr_client, "_enabled", True)
     monkeypatch.setattr(ibkr_client, "_ib", fake_ib)
     monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
     monkeypatch.setattr(ibkr_client, "broker_account_kind", lambda: "paper")
-    monkeypatch.setattr(ibkr_client, "account_mode", lambda: "live")
+    monkeypatch.setattr(ibkr_client, "account_mode", lambda: "paper")
+    monkeypatch.setattr(ibkr_client, "wake_reconnect_loop", lambda: None)
+    monkeypatch.setattr(ibkr_client, "set_session_reason", lambda *_a, **_k: None)
+    monkeypatch.setattr(ibkr_client, "_set_session", lambda **_k: None)
 
     with (
         patch.object(heal, "persist_gateway_mode", return_value=True),
         patch.object(heal, "apply_runtime_gateway_mode"),
-        patch.object(heal, "set_intentional_mode"),
-        patch.object(ibkr_client, "wake_reconnect_loop"),
+        patch("ibkr.launch_gateway.launch_or_focus_gateway") as mock_launch,
+        patch("ibkr.port_diagnostics.probe_port", return_value=True),
     ):
+        mock_launch.return_value = {
+            "ok": True,
+            "action": "launched_ibc",
+            "message": "Starting LIVE Gateway (port 4001).",
+        }
         result = _run(ibkr_client.request_gateway_mode("live"))
 
-    assert result["ok"] is False
-    assert result["connected"] is False
-    assert result["mode"] == "disconnected"
-    assert "not live" in result["error"]
+    assert result["ok"] is True
+    assert result["plan"] == "replace_target"
+    assert result["launch_action"] == "launched_ibc"
+    assert heal.intentional_mode() == "live"
     fake_ib.disconnect.assert_called()
+    mock_launch.assert_called_once_with("live", force_restart=True)
+
+
+def test_request_gateway_mode_paper_from_live_reattaches_if_4002_up(monkeypatch):
+    """Live stays running. Paper port already up → dial 4002, no kill."""
+    fake_ib = MagicMock()
+    fake_ib.isConnected.return_value = True
+
+    monkeypatch.setenv("IBKR_GATEWAY_MODE", "live")
+    monkeypatch.setattr(ibkr_client, "_enabled", True)
+    monkeypatch.setattr(ibkr_client, "_ib", fake_ib)
+    monkeypatch.setattr(ibkr_client, "is_connected", lambda: True)
+    monkeypatch.setattr(ibkr_client, "broker_account_kind", lambda: "live")
+    monkeypatch.setattr(ibkr_client, "account_mode", lambda: "live")
+    monkeypatch.setattr(ibkr_client, "wake_reconnect_loop", lambda: None)
+    monkeypatch.setattr(ibkr_client, "set_session_reason", lambda *_a, **_k: None)
+    monkeypatch.setattr(ibkr_client, "_set_session", lambda **_k: None)
+
+    with (
+        patch.object(heal, "persist_gateway_mode", return_value=True),
+        patch.object(heal, "apply_runtime_gateway_mode"),
+        patch("ibkr.launch_gateway.launch_or_focus_gateway") as mock_launch,
+        patch("ibkr.port_diagnostics.probe_port", return_value=True),
+    ):
+        mock_launch.return_value = {
+            "ok": True,
+            "action": "already_listening",
+            "message": "PAPER Gateway is already listening on port 4002.",
+        }
+        result = _run(ibkr_client.request_gateway_mode("paper"))
+
+    assert result["ok"] is True
+    assert result["plan"] == "reconnect"
+    assert result["launch_action"] == "already_listening"
+    fake_ib.disconnect.assert_called()
+    mock_launch.assert_called_once_with("paper", force_restart=False)

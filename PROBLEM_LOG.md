@@ -23,6 +23,83 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-19 -- Live click with paper still on 4002 skipped 2FA
+
+- **Symptom:** Operator clicked Live. Trail showed `plan=start_ibc` / `launched_ibc`. No SECOND FACTOR. Status stayed `connected=false`, `intent=live`, preferred 4001 dark, paper 4002 still LISTEN.
+- **Cause:** One IBC / one `C:\Jts` hijacks the existing paper window. Live `start_ibc` did not stop 4002 and did not clear `Restart=OK`, so IBC never opened a cold live login.
+- **Fix:** `start_ibc` and `replace_target` call `launch_or_focus_gateway(..., force_restart=True)`. Force restart stops both listen ports. Live also clears `Restart=OK`. Reconnect-only stays when the target port is already up.
+- **Keywords:** Live, 2FA, IBC, 4002, start_ibc, force_restart, Restart=OK, dual Gateway
+
+## 2026-08-19 -- Paper mode must not dial live 4001
+
+- **Symptom:** After a Paper click with 4002 still dark, Nova connected to 4001 as paper, refused the live account, and the trail filled with `refused` rows. IBC harvest also tagged old live 2FA onto the paper click.
+- **Cause:** `_resolve_config` used a leftover "paper often listens on 4001" probe. IBC harvest read the last 120 lines of the existing live IBC log. One IBC install also cannot keep two Gateway processes -- a second start retargets the same window.
+- **Fix:** Paper always dials 4002. Harvest only the IBC log suffix from this click. Heal-before-dial respects intentional suppress first.
+- **Keywords:** trail, paper, 4001, refuse, IBC harvest, dual Gateway
+
+
+## 2026-08-19 -- Paper/Live killed the other session and asked 2FA again
+
+- **Symptom:** Switching Paper then Live closed Gateway and required Mobile 2FA every time. Operator expected on-the-fly flips.
+- **Cause:** ADR 013 `force_ibc` stopped both 4001 and 4002 and every Gateway window. One process is one IB account, but Nova did not keep two processes. Intentional heal also expired after 2 minutes and could yank to the other door.
+- **Fix:** Reconnect when the target port is already listening. Start IBC only if that port is dark, without killing the other. Replace only a wrong-class session on the target port. Intentional mode stays set until that door connects.
+- **Keywords:** Paper, Live, 2FA, dual Gateway, force_restart, switch_plan, reconnect
+
+
+## 2026-08-19 -- Gateway password field stayed empty
+
+- **Symptom:** Login showed username (or Live Trading) but the password box was blank.
+- **Cause:** Nova blanked `IbPassword` so IBC would not click Log In, then waited on an IBC log suffix for "Setting user name". That wait timed out, so `type_password_only` never ran. Disk password was restored later, after the form was already empty. Java also ignores SendInput unless IBC focuses the field.
+- **Fix:** Stop blanking the password. Point `IbLoginId` at `IbLoginIdLive` or `IbLoginIdPaper` before IBC starts. IBC fills both fields and clicks Log In. Live 2FA is on the phone after that.
+- **Keywords:** IbPassword, empty password, IBC, type_password_only, IbLoginIdLive
+
+
+## 2026-08-19 -- 2FA code box never appears after IBC Log In
+
+- **Symptom:** Gateway already logged in (farms green, Client 17 red). Operator never saw the authentication-code panel.
+- **Cause:** IBC fills credentials and clicks Log In. Paper/simulated login does not use 2FA (IBC source). Live 1016+ puts the code box in the same Login window after it retitles to SECOND FACTOR AUTHENTICATION. `jts.ini` `Restart=OK` also reuses the week session.
+- **Fix:** Live force-restart skips IBC, clears `Restart=OK`, leaves the Login window up. Operator clicks Live Trading then Log In.
+- **Keywords:** 2FA, SECOND FACTOR AUTHENTICATION, IBC, Log In, Restart=OK, Client 17
+
+## 2026-08-19 -- Live 2FA skipped because of AutoRestart, not missing IBC
+
+- **Symptom:** Operator wanted IBC to fill username/password and still get an IBKR Mobile code. Skipping IBC left a blank login. With IBC, login finished in seconds with no phone prompt (Simulated Trading).
+- **Cause:** IBC AutoRestart is a week-long Gateway token. IBKR does not send 2FA on those logins. IBC also cannot send the phone prompt -- only IBKR can, after Log In on a live cold session. TradingMode=live plus paper Simulated Trading still means no live 2FA.
+- **Fix:** Live force-restart uses IBC again. Live align writes `AutoLogoffTime` and clears `AutoRestartTime` in local IBC config. Paper restore keeps `AutoRestartTime=11:45 PM`.
+- **Keywords:** IBC, 2FA, IBKR Mobile, AutoRestart, AutoLogoff, Live switch, autofill
+
+## 2026-08-19 -- IBC auto-login hid the Live 2FA screen
+
+- **Symptom:** Operator expected IBKR Mobile / login to stay on screen for a Live switch. Gateway went straight to farms green + Client 17 red. No lasting Authenticating window.
+- **Cause:** IBC is set to type saved credentials and click Log In. Log: Trading mode=live, Click button: Log In, Authenticating for ~3s, Login has completed, Simulated Trading config dialog. 2FA is not required when IB accepts that auto-login. Nova then refused paper-on-live.
+- **Fix:** Live `force_restart` launches Gateway exe without IBC so the login screen stays. IBC log steps are copied onto `ibkr-gateway-trail.jsonl` (`actor=ibc`). Paper still uses IBC.
+- **Keywords:** IBC, auto-login, 2FA, Authenticating, Simulated Trading, Live switch, Client 17, gateway trail
+
+
+## 2026-08-19 -- Live click snapped back to Paper on port 4001
+
+- **Symptom:** Operator clicked Live. Capsule flashed Live then returned to Paper. They were sure they were already live because 4001 was open from an earlier session. API log: intentional live, then `clearing intentional mode live (follow paper account)`, then `broker_account_kind=paper -- disconnecting`, then self-heal paper on 4001.
+- **Cause:** Three facts were one label. Port 4001 was treated as live. Unattended follow-paper ran during the Live click and persisted paper. `request_gateway_mode` then redialed the same paper socket and refused it.
+- **Fix:** ADR 013. Switch plan: already live = no-op; paper vs live = force IBC (`TradingMode`) and stop the listen PIDs (including java). Follow-paper is skipped while intentional live is set. Capsule uses account kind + intentional, not the port.
+- **Keywords:** Live capsule, snap-back, 4001, follow paper, DU, ADR 013, force_restart, IBC TradingMode
+
+
+## 2026-08-19 -- API Client 17 red: paper account on live mode
+
+- **Symptom:** After a cold IBC start, Gateway farms green and port 4001 LISTEN, but API Client stayed disconnected. Logs: connect succeeded then `refusing session -- PAPER account ... while establishing live mode (accounts=['DUQ266899'])` and immediate disconnect. Repeats every ~11s.
+- **Cause:** Open live / `IBKR_GATEWAY_MODE=live` always required a live account id. IBC came back as paper (DU…) on 4001. Paper-pin disconnect left Client 17 red. Follow-Gateway only flips when the *other port* is up, so same-port paper-on-4001 never healed.
+- **Fix:** If managedAccounts are paper while Nova asked live, persist paper and keep the socket (safe demote). Never auto-promote live. Paper reconnect may dial 4001 when 4002 is dark.
+- **Keywords:** API Client disconnected, Client 17, DUQ266899, paper-pin, 4001, follow paper account
+
+
+## 2026-08-19 -- Open live Gateway killed a logged-in session
+
+- **Symptom:** IBKRPRO farms green on live 4001; Nova Trading prerequisites still said log in / 2FA and showed Open live Gateway. Clicking it restarted IBC (process start 13:47). API :8000 later refused. 03:55 morning check failed `ibkr_status reason=connecting` even though Gateway + API health passed.
+- **Cause:** `launch_or_focus_gateway(live|paper)` always Stop-Process'd a running Gateway then spawned IBC. Prerequisites always rendered those buttons. Loud login banner treated `live_port_open_but_disconnected` and missing status fields as a login outage. Morning check failed on the first `connecting` snapshot instead of waiting for READY.
+- **Fix:** Attach/focus when the requested API port is already listening, or when Gateway is up with neither port open (2FA). Launch buttons only for a true launch action. Banner hides for port-open-but-disconnected and API probe misses. Morning check retries connecting/synchronizing up to ~90s.
+- **Keywords:** Open live Gateway, already_listening, 4001, Trading prerequisites, session READY, morning-check, connecting, IBC kill, flicker
+
+
 ## 2026-08-18 -- pytest still could write the operator cache (import-time path snapshot)
 
 - **Symptom:** Per-file monkeypatches did not stop pollution. `cache._CACHE_DIR` and `HOD_MOMO_CONFIG_FILE` are baked at import, so an autouse fixture that ran after `import cache` still pointed at `backend/.cache`. Live `.env` `IBKR_GATEWAY_MODE=live` could also leak into paper tests.

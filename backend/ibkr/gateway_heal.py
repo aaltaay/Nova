@@ -14,11 +14,9 @@ Eligibility is **probe-based**, not exception-string-only:
 - timeout while preferred **still listens** → NOT eligible (wedged handshake /
   Error 326 / clientId conflict — do not silently jump ports)
 
-Intentional user switches (Paper/Live capsule) block silent heal for a short
-grace (``IBKR_INTENTIONAL_FOLLOW_GRACE_SEC``) so a mid-switch login/2FA is
-not yanked to the other port. After that grace, if the requested port is
-still dark and the other is listening, follow-Gateway resumes (overnight
-IBC restart as the other mode). Both ports dark keeps waiting -- that is a
+Intentional user switches (Paper/Live capsule) block silent heal until
+that door connects. Dual-Gateway desks leave the other port listening, so
+heal must not yank to it after a grace timer. Both ports dark keeps waiting -- that is a
 login blocker.
 
 Never unlocks orders / live confirmation — safety.py remains SSOT for spend.
@@ -36,7 +34,6 @@ from typing import Any, Literal
 
 from constants import (
     IBKR_GATEWAY_SELF_HEAL_DEFAULT,
-    IBKR_INTENTIONAL_FOLLOW_GRACE_SEC,
     IBKR_LIVE_PORT,
     IBKR_PAPER_PORT,
 )
@@ -114,25 +111,11 @@ def self_heal_suppressed(
 ) -> bool:
     """True while an unresolved intentional switch should block automatic heal.
 
-    Mid-switch grace is sticky (not the old 18s timer). After the grace, heal
-    is allowed only when the requested port is dark and the other is up.
+    Dual-Gateway desks leave the other door up. Follow-Gateway must not steal
+    an in-flight Paper/Live click just because the other port is already listening.
     """
-    if _intentional_mode is None:
-        return False
-    age = time.time() - _intentional_at
-    if age < float(IBKR_INTENTIONAL_FOLLOW_GRACE_SEC):
-        return True
-    if preferred_reachable is True:
-        return True
-    if preferred_reachable is False and alternate_reachable is True:
-        logger.info(
-            "IBKR: intentional %s past %.0fs grace; preferred dark and "
-            "alternate listening -- allowing follow-Gateway",
-            _intentional_mode,
-            IBKR_INTENTIONAL_FOLLOW_GRACE_SEC,
-        )
-        return False
-    return True
+    del preferred_reachable, alternate_reachable
+    return _intentional_mode is not None
 
 
 def suppress_self_heal(seconds: float) -> None:

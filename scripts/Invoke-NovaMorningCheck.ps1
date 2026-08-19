@@ -169,21 +169,36 @@ if (-not $failedLeg) {
     }
 }
 
-# 3. IBKR usable session
+# 3. IBKR usable session (retry while still connecting -- Gateway can be up first)
 if (-not $failedLeg) {
-    try {
-        $ibkr = Get-Json "$Base/api/ibkr/status"
-        if ($ibkr.connected -eq $true) {
-            Write-CheckLog "ibkr_status connected mode=$($ibkr.mode)" "PASS"
-        } else {
-            $failedLeg = "ibkr_status"
-            $failedDetail = "connected=$($ibkr.connected) transport=$($ibkr.transport_connected) reason=$($ibkr.session_reason)"
-            Write-CheckLog $failedDetail "ERROR"
+    $ibkrOk = $false
+    $lastIbkrDetail = ""
+    foreach ($attempt in 1..6) {
+        try {
+            $ibkr = Get-Json "$Base/api/ibkr/status"
+            if ($ibkr.connected -eq $true) {
+                Write-CheckLog "ibkr_status connected mode=$($ibkr.mode)" "PASS"
+                $ibkrOk = $true
+                break
+            }
+            $reason = [string]$ibkr.session_reason
+            $lastIbkrDetail = "connected=$($ibkr.connected) transport=$($ibkr.transport_connected) reason=$reason"
+            if ($reason -eq "connecting" -or $reason -eq "synchronizing") {
+                Write-CheckLog "ibkr_status wait attempt=$attempt $lastIbkrDetail" "WARN"
+                Start-Sleep -Seconds 15
+                continue
+            }
+            Write-CheckLog $lastIbkrDetail "ERROR"
+            break
+        } catch {
+            $lastIbkrDetail = "GET /api/ibkr/status failed: $($_.Exception.Message)"
+            Write-CheckLog $lastIbkrDetail "ERROR"
+            break
         }
-    } catch {
+    }
+    if (-not $ibkrOk) {
         $failedLeg = "ibkr_status"
-        $failedDetail = "GET /api/ibkr/status failed: $($_.Exception.Message)"
-        Write-CheckLog $failedDetail "ERROR"
+        $failedDetail = $lastIbkrDetail
     }
 }
 

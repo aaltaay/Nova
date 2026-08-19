@@ -48,19 +48,22 @@ export function shouldShowGatewayLoginBanner(props: {
     || hint === 'live_port_refused_paper_listening';
   // The other Gateway is already logged in -- prerequisites / capsule own this.
   if (portMismatch) return false;
+  // API port is open -- login CTAs would kill a healthy Gateway. Reconnect owns this.
+  if (
+    hint === 'paper_port_open_but_disconnected'
+    || hint === 'live_port_open_but_disconnected'
+  ) {
+    return false;
+  }
 
-  const loginHint =
-    hint === 'both_ports_unreachable'
-    || hint === 'paper_port_open_but_disconnected'
-    || hint === 'live_port_open_but_disconnected';
+  const loginHint = hint === 'both_ports_unreachable';
 
   // Explicit transport-down, ports dark, or a disconnect/login hint.
   if (props.ibkrTransportConnected === false) return true;
   if (props.ibkrPortsDark === true) return true;
   if (loginHint) return true;
 
-  // Legacy status without transport_connected: fall back to !usable.
-  if (props.ibkrTransportConnected === undefined) return true;
+  // Missing status fields is an API probe miss, not a proven login outage.
   return false;
 }
 

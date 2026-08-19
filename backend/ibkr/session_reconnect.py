@@ -223,16 +223,18 @@ async def _reconnect_once(client_mod: object) -> None:
                 client_mod._ib, mode_label,  # type: ignore[attr-defined]
             )
             if session_ok:
+                kind = client_mod._broker_account_kind  # type: ignore[attr-defined]
+                mode_now = kind if kind in ("paper", "live") else mode_label
                 client_mod._set_session(  # type: ignore[attr-defined]
-                    mode=mode_label,
-                    broker_account_kind=client_mod._broker_account_kind,  # type: ignore[attr-defined]
+                    mode=mode_now,
+                    broker_account_kind=kind,
                 )
                 _heal.record_connect_outcome(
-                    "connected", reason="ok", mode=mode_label,
+                    "connected", reason="ok", mode=mode_now,
                 )
                 logger.info(
                     "IBKR: connected in %s mode (orders still gated by safety.py)",
-                    mode_label,
+                    mode_now,
                 )
                 earned, earn_detail = await _session_usable.earn_usable(
                     client_mod._ib, "connect",  # type: ignore[attr-defined]

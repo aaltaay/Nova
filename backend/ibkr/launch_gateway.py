@@ -1,11 +1,4 @@
-"""
-User-initiated IB Gateway launch / focus (Windows).
-
-Does not store credentials and does not auto-login. Prefer local IBC script
-when present; otherwise start ibgateway.exe and bring its window forward.
-"""
-from __future__ import annotations
-
+"""User-initiated IB Gateway launch / focus (Windows). Credentials stay in local IBC config."""
 import logging
 import os
 import re
@@ -15,11 +8,15 @@ from pathlib import Path
 from constants_ibkr import (
     IBKR_GATEWAY_EXE_DEFAULT,
     IBKR_GATEWAY_ROOT,
+    IBKR_HOST,
     IBKR_IBC_LAUNCHER_REL,
+    IBKR_IBC_LIVE_AUTO_LOGOFF_TIME,
+    IBKR_IBC_PAPER_AUTO_RESTART_TIME,
+    IBKR_LIVE_PORT,
+    IBKR_PAPER_PORT,
 )
 
 logger = logging.getLogger(__name__)
-
 
 def _ibc_launcher() -> Path | None:
     home = Path.home()
@@ -36,12 +33,15 @@ def _resolve_gateway_exe() -> Path | None:
     default = Path(IBKR_GATEWAY_EXE_DEFAULT)
     if default.is_file():
         return default
+    renamed_default = default.with_name("ibgateway1.exe")
+    if renamed_default.is_file():
+        return renamed_default
 
     root = Path(IBKR_GATEWAY_ROOT)
     if not root.is_dir():
         return None
     found = sorted(
-        root.glob("*/ibgateway.exe"),
+        list(root.glob("*/ibgateway.exe")) + list(root.glob("*/ibgateway1.exe")),
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
@@ -88,6 +88,18 @@ exit 0
         return False
 
 
+def _probe_api_port(port: int) -> bool:
+    """True when the local Gateway API socket already accepts TCP."""
+    from ibkr.port_diagnostics import probe_port
+
+    host = (os.environ.get("IBKR_HOST") or IBKR_HOST).strip() or IBKR_HOST
+    return probe_port(host, int(port))
+
+
+def _mode_api_port(mode: str) -> int:
+    return IBKR_LIVE_PORT if mode == "live" else IBKR_PAPER_PORT
+
+
 def _gateway_process_running() -> bool:
     if os.name != "nt":
         return False
@@ -126,11 +138,24 @@ def _rewrite_ini_key(path: Path, key: str, value: str) -> bool:
 
 
 def _align_ibc_trading_mode(mode: str) -> None:
-    """Point local IBC at paper (4002) or live (4001). Never touches credentials."""
+    """Point local IBC at paper (4002) or live (4001). Never touches credentials.
+
+    Live clears AutoRestart (writes AutoLogoff) so IBKR can send Mobile 2FA
+    after IBC fills username/password. Paper restores the week-long token.
+    """
     ini = _ibc_dir() / "config.ini"
     port = "4001" if mode == "live" else "4002"
     _rewrite_ini_key(ini, "TradingMode", mode)
     _rewrite_ini_key(ini, "OverrideTwsApiPort", port)
+    from ibkr.gateway_login_fill import align_ibc_login_id
+
+    align_ibc_login_id(ini, mode)
+    if mode == "live":
+        _rewrite_ini_key(ini, "AutoRestartTime", "")
+        _rewrite_ini_key(ini, "AutoLogoffTime", IBKR_IBC_LIVE_AUTO_LOGOFF_TIME)
+    else:
+        _rewrite_ini_key(ini, "AutoRestartTime", IBKR_IBC_PAPER_AUTO_RESTART_TIME)
+        _rewrite_ini_key(ini, "AutoLogoffTime", "")
 
 
 def _apply_nova_gateway_mode(mode: str) -> None:
@@ -141,6 +166,28 @@ def _apply_nova_gateway_mode(mode: str) -> None:
     heal.apply_runtime_gateway_mode(mode)  # type: ignore[arg-type]
     heal.set_intentional_mode(mode)  # type: ignore[arg-type]
     client_mod.wake_reconnect_loop()
+
+
+def _stop_listen_ports(*ports: int) -> None:
+    """Stop the process that owns Gateway API LISTEN sockets (often java.exe)."""
+    if os.name != "nt":
+        return
+    for port in ports:
+        ps = (
+            f"Get-NetTCPConnection -LocalPort {int(port)} -State Listen "
+            "-ErrorAction SilentlyContinue | ForEach-Object { "
+            "Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }"
+        )
+        try:
+            subprocess.run(
+                ["powershell", "-NoProfile", "-Command", ps],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        except Exception as exc:
+            logger.warning("IBKR: stop listen port %s failed: %s", port, exc)
 
 
 def _stop_gateway_process() -> bool:
@@ -205,12 +252,11 @@ def _normalize_launch_mode(mode: str | None) -> str | None:
     return ""
 
 
-def launch_or_focus_gateway(mode: str | None = None) -> dict:
-    """
-    Launch IB Gateway (or IBC) and/or focus its window.
-
-    Returns a JSON-serializable status dict for the route handler.
-    """
+def launch_or_focus_gateway(
+    mode: str | None = None,
+    *,
+    force_restart: bool = False,
+) -> dict:
     if os.name != "nt":
         return {
             "ok": False,
@@ -227,33 +273,57 @@ def launch_or_focus_gateway(mode: str | None = None) -> dict:
         }
 
     if target:
+        want_port = _mode_api_port(target)
+        if not force_restart and _probe_api_port(want_port):
+            _apply_nova_gateway_mode(target)
+            _align_ibc_trading_mode(target)
+            _focus_gateway_window()
+            return {
+                "ok": True,
+                "action": "already_listening",
+                "mode": target,
+                "message": (
+                    f"{target.upper()} Gateway is already listening on port {want_port}. "
+                    "Nova will attach -- Gateway was not restarted."
+                ),
+            }
+        other_port = IBKR_PAPER_PORT if target == "live" else IBKR_LIVE_PORT
+        if (
+            not force_restart
+            and _gateway_process_running()
+            and not _probe_api_port(other_port)
+        ):
+            _apply_nova_gateway_mode(target)
+            _align_ibc_trading_mode(target)
+            _focus_gateway_window()
+            return {
+                "ok": True,
+                "action": "focused_authenticating",
+                "mode": target,
+                "message": (
+                    "Gateway is already running and the API port is not open yet. "
+                    "Did not restart -- complete IBKR Mobile 2FA if prompted."
+                ),
+            }
         _apply_nova_gateway_mode(target)
         _align_ibc_trading_mode(target)
-        if _gateway_process_running():
-            _stop_gateway_process()
-        ibc = _ibc_launcher()
-        if ibc is not None:
-            try:
-                _start_process(
-                    ibc,
-                    via_powershell=True,
-                    extra_args=["-TradingMode", target],
-                )
-                logger.info("IBKR: launched IBC %s mode=%s", ibc, target)
-                port = "4001" if target == "live" else "4002"
-                return {
-                    "ok": True,
-                    "action": "launched_ibc",
-                    "mode": target,
-                    "path": str(ibc),
-                    "message": (
-                        f"Starting {target.upper()} Gateway (port {port}). "
-                        "Look at the desktop and approve IBKR Mobile 2FA if prompted."
-                    ),
-                }
-            except Exception as exc:
-                logger.warning("IBKR: IBC launcher failed (%s); trying exe", exc)
-        # Fall through to exe when IBC is missing.
+        if force_restart:
+            # One IBC install is one Gateway. A new login must stop the other
+            # door or IBC hijacks that window and live 2FA never appears.
+            _stop_listen_ports(want_port, other_port)
+        from ibkr.gateway_spawn import spawn_mode_gateway
+
+        if target == "live":
+            from ibkr.jts_ini import clear_restart_token
+
+            clear_restart_token()
+        return spawn_mode_gateway(
+            target,
+            ibc=_ibc_launcher(),
+            exe=_resolve_gateway_exe(),
+            start=_start_process,
+            focus=_focus_gateway_window,
+        )
 
     running = _gateway_process_running()
     if running and not target:

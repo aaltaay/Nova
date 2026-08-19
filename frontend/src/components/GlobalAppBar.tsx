@@ -57,6 +57,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
     ibkrConnected,
     ibkrMode,
     ibkrGatewayMode,
+    ibkrAccountKind,
+    ibkrIntentionalMode,
     ibkrDisconnectHint,
   } = useWorkspace();
   const { summary, orders, refresh, loading: accountLoading, error: accountError } =
@@ -145,6 +147,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
             ibkrConnected={scanner.ibkrConnected}
             ibkrMode={scanner.ibkrMode}
             ibkrGatewayMode={scanner.ibkrGatewayMode}
+            ibkrAccountKind={ibkrAccountKind}
+            ibkrIntentionalMode={ibkrIntentionalMode}
             activeFeed={scanner.activeFeed}
             feedFellBack={scanner.feedFellBack}
             secondsAgo={scanner.secondsAgo}
@@ -217,6 +221,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           <GatewayModeCapsule
             mode={ibkrMode}
             gatewayMode={ibkrGatewayMode ?? undefined}
+            accountKind={ibkrAccountKind}
+            intentionalMode={ibkrIntentionalMode}
             disconnectHint={ibkrDisconnectHint}
             testId="header-gateway-mode-capsule"
           />

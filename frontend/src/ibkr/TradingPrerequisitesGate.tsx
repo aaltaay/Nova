@@ -75,7 +75,7 @@ function ItemRow({
             />
           </div>
         )}
-        {item.id === 'ibkr_gateway' && (
+        {!item.ok && item.action === 'launch_gateway' && (
           <div className="trading-prereq-item__cta">
             <GatewayModeLaunchButtons
               busyMode={launchBusyMode}

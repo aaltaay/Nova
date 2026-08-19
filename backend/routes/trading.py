@@ -5,6 +5,7 @@ Endpoints:
   GET  /api/ibkr/status           -- connection state + mode (paper/live/disconnected)
   POST /api/ibkr/reconnect        -- reload .env + reconnect to configured port
   POST /api/ibkr/gateway-mode     -- user-initiated Paper<->Live port switch (no spend unlock)
+  GET  /api/ibkr/gateway-trail    -- Paper/Live click + attach/refuse trail
   POST /api/ibkr/launch-gateway  -- start/focus IB Gateway (user-initiated, Windows)
   GET  /api/ibkr/account          -- account summary
   GET  /api/ibkr/positions        -- portfolio / positions
@@ -70,7 +71,14 @@ async def ibkr_status() -> dict:
         **snap,
         **_heal.heal_status(),
         **_ports.status_port_fields(connected=transport),
+        "gateway_trail": _gateway_trail_tail(),
     }
+
+
+def _gateway_trail_tail() -> list[dict]:
+    from ibkr.gateway_trail import recent
+
+    return recent(limit=8)
 
 
 @router.post("/reconnect")
@@ -94,6 +102,15 @@ async def ibkr_gateway_mode(body: GatewayModeRequest) -> dict:
     if mode not in ("paper", "live"):
         raise HTTPException(status_code=400, detail=f"invalid mode {body.mode!r} (must be paper or live)")
     return await _client.request_gateway_mode(mode)
+
+
+@router.get("/gateway-trail")
+async def ibkr_gateway_trail(limit: int = 40) -> dict:
+    """Paper/Live door trail -- who requested what, and whether the account class matched."""
+    from ibkr.gateway_trail import recent
+
+    cap = max(1, min(int(limit), 200))
+    return {"ok": True, "events": recent(limit=cap)}
 
 
 @router.post("/launch-gateway")

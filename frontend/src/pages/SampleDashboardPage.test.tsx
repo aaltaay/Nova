@@ -21,6 +21,8 @@ vi.mock('../workspace/WorkspaceContext', () => ({
     ibkrConnected: true,
     ibkrMode: 'paper',
     ibkrGatewayMode: 'paper',
+    ibkrAccountKind: 'paper',
+    ibkrIntentionalMode: null,
     openStockView: vi.fn(),
     traderTabs: [],
     activeTraderSymbol: null,

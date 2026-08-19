@@ -4,6 +4,15 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-19 | [Live dark stops both doors so 2FA can appear](2026-08-19-live-dark-stop-both-for-2fa.md) | Port dark = kill both listeners + IBC; port up = reconnect only |
+| 2026-08-19 | [Dual Gateway Paper/Live without re-auth](2026-08-19-dual-gateway-no-reauth.md) | Keep both Gateways logged in; capsule only dials 4001 or 4002 |
+| 2026-08-19 | [Live vs paper IBC usernames; password field empty](2026-08-19-ibc-two-usernames.md) | Door copies IbLoginIdLive/Paper; stop blanking password; IBC fills both fields |
+| 2026-08-19 | [Live leaves Login so the 2FA code box can appear](2026-08-19-live-2fa-code-box.md) | Live restart skips IBC and clears Restart=OK; operator clicks Live then Log In |
+| 2026-08-19 | [Live IBC fills login; phone 2FA is IBKR](2026-08-19-live-ibc-phone-2fa.md) | Live click uses IBC autofill; clears AutoRestart so IBKR Mobile can fire |
+| 2026-08-19 | [Live click skips IBC so 2FA can show](2026-08-19-live-skip-ibc-auth.md) | Live force-restart uses Gateway exe; IBC log steps go on the door trail |
+| 2026-08-19 | [Paper/Live door trail](2026-08-19-gateway-door-trail.md) | JSONL trail: who clicked Paper/Live and whether the IB account class matched |
+| 2026-08-19 | [Paper/Live follows IB account not port](2026-08-19-ibkr-account-vs-port.md) | Live click no-ops if already live; paper-on-4001 force-restarts IBC; capsule uses account kind |
+| 2026-08-19 | [Gateway launch must not kill a listening session](2026-08-19-gateway-launch-no-kill.md) | Open live/paper attaches when 4001/4002 already LISTEN; no IBC kill on 2FA |
 | 2026-08-18 | [Reliability track: morning autopilot wiring + root-pattern guards](2026-08-18-reliability-track-root-guards.md) | 03:40/03:55 check + system-event alerts; fail-loud REST; pytest cache pin; IB-loop CI kind gate |
 | 2026-08-18 | [Problem log pattern analysis: 236 entries categorized](2026-08-18-problem-log-pattern-analysis.md) | 5 root patterns; morning failure = 5-leg chain; open umbrella = unattended pre-04:00 bring-up proof |
 | 2026-08-18 | [One candle identity for hist vs L1 1Min](2026-08-18-bars-intraday-candle-ownership.md) | Unique candle key; L1 overlays `ibkr_l1`; hist replaces; volume is not a lock |

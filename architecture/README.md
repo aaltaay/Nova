@@ -21,6 +21,7 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [010](./decisions/010-ib-loop-isolation.md) | IB loop isolation (connect-loop + hot/cold) | Accepted |
 | [011](./decisions/011-trader-window-desk.md) | Trader desk (extract and dock) | Accepted |
 | [012](./decisions/012-local-first-chart-bars.md) | Local-first chart bars + paced historicals | Accepted |
+| [013](./decisions/013-ibkr-account-vs-port.md) | IBKR account kind vs listen port vs requested door | Accepted |
 
 ## Rules and maps
 

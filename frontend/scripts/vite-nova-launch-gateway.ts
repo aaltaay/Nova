@@ -4,6 +4,7 @@
  */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -39,9 +40,36 @@ function ibcLauncher(): string | null {
   return fs.existsSync(candidate) ? candidate : null;
 }
 
-function focusOrLaunch(
+function probePort(port: number, timeoutMs = 400): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: '127.0.0.1', port });
+    const finish = (ok: boolean) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => finish(true));
+    socket.once('timeout', () => finish(false));
+    socket.once('error', () => finish(false));
+  });
+}
+
+async function focusOrLaunch(
   mode?: 'paper' | 'live',
-): { ok: boolean; action: string; message: string; path?: string } {
+): Promise<{ ok: boolean; action: string; message: string; path?: string }> {
+  if (mode) {
+    const want = mode === 'live' ? 4001 : 4002;
+    if (await probePort(want)) {
+      return {
+        ok: true,
+        action: 'already_listening',
+        message:
+          `${mode.toUpperCase()} Gateway is already listening on port ${want}. ` +
+          'Did not start another Gateway.',
+      };
+    }
+  }
   const ibc = ibcLauncher();
   if (ibc) {
     const extra = mode ? ['-TradingMode', mode] : [];
@@ -123,7 +151,7 @@ export function novaLaunchGatewayPlugin(): Plugin {
           try {
             const q = new URL(rawUrl, 'http://vite.local').searchParams.get('mode');
             const mode = q === 'paper' || q === 'live' ? q : undefined;
-            const result = focusOrLaunch(mode);
+            const result = await focusOrLaunch(mode);
             sendJson(res, result.ok ? 200 : 404, result);
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
