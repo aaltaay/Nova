@@ -119,3 +119,26 @@ def test_dispatch_no_channels_records_error(mock_list):
     results = dispatch.dispatch_alert({"type": "hod_momo", "alert": {}})
     assert results[0]["ok"] is False
     assert dispatch.get_status()
+
+
+def test_corrupt_channels_json_logs_error_and_returns_empty(tmp_path, monkeypatch, caplog):
+    store_file = tmp_path / "alerts_channels.json"
+    store_file.write_text("{not-json", encoding="utf-8")
+    monkeypatch.setattr(channels_store, "_store_path", lambda: store_file)
+    with caplog.at_level("ERROR", logger="alerts.channels_store"):
+        raw = channels_store._load_raw()
+    assert raw == []
+    assert any("CORRUPT" in rec.message for rec in caplog.records)
+
+
+@patch("alerts.dispatch.dispatch_alert", return_value=[{"ok": True}])
+def test_notify_system_event_builds_failed_text(mock_dispatch):
+    from alerts.hooks import notify_system_event
+
+    results = notify_system_event(leg="api_health", ok=False, detail="wedged=true")
+    assert results[0]["ok"] is True
+    event = mock_dispatch.call_args[0][0]
+    assert event["type"] == "system"
+    assert event["leg"] == "api_health"
+    assert "FAILED" in event["text"]
+    assert "wedged=true" in event["text"]

@@ -469,6 +469,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `self-annealing.mdc` -- root-cause fix protocol on any error
 - `verification-before-completion.mdc` -- no done/fixed claims without fresh evidence
 - `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
+- `persisted-state.mdc` -- cache files need owner + invalidation + schema_version
 
 **Glob-scoped** (attach when editing matching files; `alwaysApply: false`):
 

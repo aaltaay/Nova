@@ -81,8 +81,12 @@ try {
 try {
     $g = Get-Json "$Base/api/gappers"
     $n = @($g.gappers).Count
-    Pass "Gappers endpoint ($n rows)"
-    if ($n -eq 0 -and $ibkr.connected -eq $true) {
+    Pass "Gappers endpoint ($n rows table_state=$($g.table_state))"
+    if ($g.feed_error) {
+        Fail "Gappers feed_error" "$($g.feed_error)"
+    } elseif ($g.table_state -eq "unavailable") {
+        Fail "Gappers table_state" "unavailable"
+    } elseif ($n -eq 0 -and $ibkr.connected -eq $true) {
         Warn "Gappers empty with IBKR usable -- OK outside premarket / when no gaps"
     }
 } catch {
@@ -93,8 +97,10 @@ try {
     $m = Get-Json "$Base/api/movers"
     $gn = @($m.gainers).Count
     $ln = @($m.losers).Count
-    Pass "Movers endpoint (gainers=$gn losers=$ln)"
-    if ($gn -eq 0 -and $ln -eq 0 -and $ibkr.connected -eq $true) {
+    Pass "Movers endpoint (gainers=$gn losers=$ln table_state=$($m.table_state))"
+    if ($m.feed_error) {
+        Fail "Movers feed_error" "$($m.feed_error)"
+    } elseif ($gn -eq 0 -and $ln -eq 0 -and $ibkr.connected -eq $true) {
         Warn "Movers empty with IBKR usable -- OK outside market hours / quiet tape"
     }
 } catch {
@@ -104,7 +110,10 @@ try {
 try {
     $ah = Get-Json "$Base/api/afterhours"
     $n = @($ah.afterhours).Count
-    Pass "Afterhours endpoint ($n rows)"
+    Pass "Afterhours endpoint ($n rows table_state=$($ah.table_state))"
+    if ($ah.feed_error) {
+        Fail "Afterhours feed_error" "$($ah.feed_error)"
+    }
 } catch {
     Fail "Afterhours endpoint" "$_"
 }

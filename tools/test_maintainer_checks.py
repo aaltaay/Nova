@@ -365,3 +365,38 @@ def test_run_checks_on_real_repo_reports_index_css(mc):
     ]
     assert hard_app == [], f"unexpected hard app findings: {hard_app}"
     json.dumps(report)
+
+
+def test_fail_on_kind_exits_one_only_for_that_kind(mc):
+    class Args:
+        json = True
+        fail_on_findings = False
+        fail_on_kind = ["ib_loop_sync_io"]
+
+    # Wrapper: parse_args is used in main; call the kind filter logic via main argv.
+    rc = mc.main(["--fail-on-kind", "ib_loop_sync_io", "--json"])
+    assert rc == 0
+
+
+def test_ib_loop_purity_flags_sqlite3(mc, tmp_path: Path, monkeypatch):
+    fake_root = tmp_path / "repo"
+    target = fake_root / "backend" / "ibkr" / "tape_stream.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("import sqlite3\nconn = sqlite3.connect('x')\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    findings = mc.check_ib_loop_purity([target])
+    assert len(findings) == 1
+    assert findings[0].kind == "ib_loop_sync_io"
+    assert "sqlite3." in findings[0].detail
+
+
+def test_ib_loop_purity_skips_comment_and_unlisted_file(mc, tmp_path: Path, monkeypatch):
+    fake_root = tmp_path / "repo"
+    listed = fake_root / "backend" / "ibkr" / "ticks.py"
+    other = fake_root / "backend" / "cache.py"
+    listed.parent.mkdir(parents=True)
+    listed.write_text("# sqlite3.connect is forbidden here\nprint('ok')\n", encoding="utf-8")
+    other.write_text("import sqlite3\nsqlite3.connect('x')\n", encoding="utf-8")
+    monkeypatch.setattr(mc, "REPO_ROOT", fake_root)
+    findings = mc.check_ib_loop_purity([listed, other])
+    assert findings == []

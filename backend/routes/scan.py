@@ -32,6 +32,19 @@ def _strip_blocked(rows: list[dict]) -> list[dict]:
     return _exchanges.attach_exchanges(out)
 
 
+def _feed_error(state) -> str | None:
+    err = (getattr(state, "ibkr_bridge_last_error", "") or "").strip()
+    return err or None
+
+
+def _roster_surface(table) -> dict:
+    """Fail-loud roster fields so empty lists cannot look like a quiet market."""
+    return {
+        "table_state": table.state,
+        "roster_ts": table.roster_ts,
+    }
+
+
 def _scan_health() -> dict:
     return health_with_integrations(get_runtime_state().cached_health)
 
@@ -47,6 +60,8 @@ def get_gappers():
         "data_feed": _get_feed(),
         "gappers": _strip_blocked(state.gapper_cache),
         "last_scan": state.gapper_cache_ts,
+        **_roster_surface(state.gapper_table),
+        "feed_error": _feed_error(state),
     }
 
 
@@ -61,6 +76,10 @@ def get_movers():
         "gainers": _strip_blocked(state.gainer_cache),
         "losers": _strip_blocked(state.loser_cache),
         "last_scan": state.gainer_cache_ts,
+        **_roster_surface(state.gainer_table),
+        "loser_table_state": state.loser_table.state,
+        "loser_roster_ts": state.loser_table.roster_ts,
+        "feed_error": _feed_error(state),
     }
 
 
@@ -74,6 +93,8 @@ def get_afterhours():
         "health": _scan_health(),
         "afterhours": _strip_blocked(state.afterhours_cache),
         "last_scan": state.afterhours_cache_ts,
+        **_roster_surface(state.afterhours_table),
+        "feed_error": _feed_error(state),
     }
 
 

@@ -23,6 +23,13 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- pytest still could write the operator cache (import-time path snapshot)
+
+- **Symptom:** Per-file monkeypatches did not stop pollution. `cache._CACHE_DIR` and `HOD_MOMO_CONFIG_FILE` are baked at import, so an autouse fixture that ran after `import cache` still pointed at `backend/.cache`. Live `.env` `IBKR_GATEWAY_MODE=live` could also leak into paper tests.
+- **Cause:** Isolation was opt-in per test file (2026-07-20 ledger, 2026-07-23 fake LBGJ). No session-wide pin before backend imports.
+- **Fix:** `backend/tests/conftest.py` sets `NOVA_CACHE_DIR` and paper Gateway mode at import, then autouse-rebinds `_CACHE_DIR`, legacy paths, and HOD config/blocklist file constants per test.
+- **Keywords:** pytest, NOVA_CACHE_DIR, conftest, cache pollution, hod-momo-config, IBKR_GATEWAY_MODE, LBGJ
+
 ## 2026-08-18 -- Volume is not hist ownership for 1Min candles
 
 - **Symptom:** After the L1 hist-protect UPSERT (`WHERE volume = 0 OR excluded.volume > 0`), a red test with a volume=0 hist candle (halt / illiquid AH) still jumped high from 1.40 to 9.99 on one L1 last. The same SQL also let an L1 row with volume=50000 rewrite a hist candle.

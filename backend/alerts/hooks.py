@@ -7,6 +7,7 @@ import logging
 from constants import (
     ALERTS_EVENT_TYPE_HOD_MOMO,
     ALERTS_EVENT_TYPE_NOVA_OS,
+    ALERTS_EVENT_TYPE_SYSTEM,
     ALERTS_NOVA_OS_NOTIFY_ACTIONS,
     ALERTS_NOVA_OS_NOTIFY_KINDS,
 )
@@ -54,3 +55,26 @@ def notify_nova_os_event(receipt: dict) -> None:
         dispatch_alert({"type": ALERTS_EVENT_TYPE_NOVA_OS, "receipt": receipt})
     except Exception as exc:
         logger.warning("notify_nova_os_event failed: %s", exc)
+
+
+def notify_system_event(*, leg: str, ok: bool, detail: str = "") -> list[dict]:
+    """Best-effort ops/morning-check notify. Returns dispatch results; never raises."""
+    status = "passed" if ok else "FAILED"
+    text = f"Nova morning check {status}\nLeg: {leg}"
+    if detail:
+        text = f"{text}\n{detail}"
+    try:
+        from alerts.dispatch import dispatch_alert
+
+        return dispatch_alert(
+            {
+                "type": ALERTS_EVENT_TYPE_SYSTEM,
+                "leg": leg,
+                "ok": ok,
+                "text": text,
+                "detail": detail,
+            }
+        )
+    except Exception as exc:
+        logger.warning("notify_system_event failed: %s", exc)
+        return [{"ok": False, "error": str(exc), "event_type": ALERTS_EVENT_TYPE_SYSTEM}]

@@ -6,6 +6,7 @@ import json
 from constants import (
     ALERTS_EVENT_TYPE_HOD_MOMO,
     ALERTS_EVENT_TYPE_NOVA_OS,
+    ALERTS_EVENT_TYPE_SYSTEM,
     ALERTS_EVENT_TYPE_TEST,
 )
 
@@ -80,6 +81,18 @@ def format_event_payload(event: dict) -> dict:
             "text": format_nova_os_text(receipt),
             "receipt": receipt,
         }
+    if event_type == ALERTS_EVENT_TYPE_SYSTEM:
+        text = event.get("text")
+        if not (isinstance(text, str) and text.strip()):
+            leg = event.get("leg") or "?"
+            status = "passed" if event.get("ok") else "FAILED"
+            text = f"Nova morning check {status}\nLeg: {leg}"
+        return {
+            "type": ALERTS_EVENT_TYPE_SYSTEM,
+            "text": text.strip() if isinstance(text, str) else str(text),
+            "leg": event.get("leg"),
+            "ok": bool(event.get("ok")),
+        }
     # Test / unknown events — prefer explicit text so Discord embeds are not empty.
     text = event.get("text")
     if isinstance(text, str) and text.strip():
@@ -99,6 +112,9 @@ def format_discord_body(event: dict) -> dict:
     elif event_type == ALERTS_EVENT_TYPE_NOVA_OS:
         title = "Nova OS Event"
         color = 0x10B981
+    elif event_type == ALERTS_EVENT_TYPE_SYSTEM:
+        title = "Nova Morning Check"
+        color = 0x10B981 if event.get("ok") else 0xDC2626
     else:
         title = "Nova Test Alert"
         color = 0x6B7280

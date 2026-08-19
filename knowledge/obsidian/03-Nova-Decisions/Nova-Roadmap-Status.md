@@ -18,6 +18,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Active ops:** Phase B — Paper shadow (**`[~]` WAIVED** by user 2026-07-28 — not verified-complete; 0 evidence rows)
 - **Feature track:** Phases **A, D, E, F, G, G2, G3, J** complete; **I** evidence-framework ready (**verdict NO-GO**); **K** short entry **`[~]` IN PROGRESS** (full E2E K0–K4; ungated after B waive)
 - **Maintenance track:** Pattern-Driven Architecture (Phases 0–13) + **close remediation (Phases 1–7)** — **CLOSED** · metrics `architecture/program-close-metrics.md`
+- **Reliability track:** Problem-root elimination (WS0–WS7) opened 2026-08-18 from PROBLEM_LOG pattern analysis -- does not replace Phase K product NEXT; `auto_live` still NO-GO
 - **State:** Phase K is product NEXT; Phase B ops track closed by waive; Phase C remainder still optional operator work; `auto_live` NO-GO
 - **Last verified commit (finish pass):** `722d614` (D–G code + B/C/I/J honesty)
 - **Last verified commit:** `aad9bf9` (Architecture close remediation Phase 7)
@@ -26,18 +27,36 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Prior tip stamps:** `bb281f4` / `71ec21e` / `95884f7` / `2111511` / `342b6cc`
 - **Phase A skills commit:** `9f4ca3f`
 - **Phase G2 commit:** `645761b`
-- **Last updated:** 2026-07-28 (Phase B WAIVED; Phase K opened for full E2E K0–K4)
+- **Last updated:** 2026-08-18 (Reliability track WS0-WS7 shipped; WS1 proof pending first unattended morning)
 - **Last verified commit (gap closure):** `378be02` (execution-ledger test isolation fix + full backend/frontend/docs backlog from 2026-07-19/20)
 - **`auto_live`:** **NO-GO** — rejected in `backend/nova_os/control_mode.py`; do not enable or implement
 - **Execution proof (user-directed, not Phase I unlock):** ADR 007 centralized path + synthetic p95 ack pass — see `docs/trading-execution-validation.md`. Does **not** complete Phase B or Phase I.
 - **IBKR ops (2026-07-20 evening):** Paper Gateway logged in on port **4002**. `GET /api/ibkr/status` → `connected=true`, `mode=paper`, `broker_account_kind=paper`, `gateway_mode=paper`, `preferred_port_reachable=true`, `orders_enabled=true`, `live_trading_confirmed=false`, `spend_status=paper_armed`. Account summary reads (`BuyingPower` present). Live-readiness scorecard still **NO-GO** (0/5 shadow days, 0 closed non-mock trades).
 
+## Reliability track -- problem-root elimination (2026-08-18)
+
+Closes the five PROBLEM_LOG root patterns (236 entries). Product NEXT stays Phase K. Do not treat this as a Master Roadmap letter phase.
+
+| WS | Status | Closes |
+|----|--------|--------|
+| 0 Ledger | `[x]` | This section |
+| 1 Morning autopilot | `[~]` | Tooling shipped 2026-08-18. Proof = first real 03:55 ET evidence line in `backend/logs/morning-check.log`. Jul 30 PROBLEM_LOG stays OPEN until then. |
+| 2 IB-loop purity guard | `[x]` | `tools/maintainer_lib/ib_loop.py` + CI `--fail-on-kind ib_loop_sync_io` |
+| 3 Fail-loud REST | `[x]` | `table_state` / `roster_ts` / `feed_error` on gappers/movers/AH |
+| 4 Persisted-state rule | `[x]` | `.cursor/rules/persisted-state.mdc` + corrupt channels ERROR log |
+| 5 SSOT audit | `[x]` | Remaining dual-read: `chart_bars.py` Alpaca path is gated (discovery coerced to ibkr); qty SSOT is `ib.positions()` with portfolio MTM join; Orders Today is ledger overlay. No new dual-source to add. |
+| 6 Test isolation | `[x]` | conftest import-time `NOVA_CACHE_DIR` + paper Gateway pin |
+| 7 Blast-radius verification | `[x]` | table in `verification-before-completion.mdc` |
+
+**Operator (WS1):** configure one Phase D channel (Discord recommended); leave the PC on / enable wake timers; re-run `.\scripts\Install-NovaDailyTask.ps1` once so 03:40 ET start + 03:55 ET check exist. Weekly IBKR 2FA still needs the phone.
+
 ## Exact next action (human)
 
 1. **K3 paper short days (human):** set `IBKR_SHORT_ENABLED=true` on paper Gateway; place short_entry orders; fill K3 Evidence (≥3 days) + sign-off before any live short.
-2. Optional Phase C remainder: Cloudflare Bucket Lock + R2 token rotation + cold `walk_day`.
-3. **Hard ban:** no `auto_live`. Live short needs K3 sign-off + `IBKR_LIVE_TRADING_CONFIRMED` on top of `IBKR_SHORT_ENABLED`.
-4. Phase B is **waived** -- do not block work on ≥5 B days.
+2. **Reliability WS1 (human):** configure a Discord/Telegram channel in Settings; run `.\scripts\Install-NovaDailyTask.ps1` once; leave the PC on overnight (wake timers). First 03:55 ET `backend/logs/morning-check.log` line closes Jul 30 OPEN.
+3. Optional Phase C remainder: Cloudflare Bucket Lock + R2 token rotation + cold `walk_day`.
+4. **Hard ban:** no `auto_live`. Live short needs K3 sign-off + `IBKR_LIVE_TRADING_CONFIRMED` on top of `IBKR_SHORT_ENABLED`.
+5. Phase B is **waived** -- do not block work on ≥5 B days.
 
 ## COMPLETE history (do not reopen)
 
@@ -305,6 +324,7 @@ Newest first. Do not rewrite prior rows — only append.
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-08-18 | Reliability track WS0-WS7: morning check + system-event alerts, fail-loud scanner REST, pytest cache isolation, IB-loop purity CI gate, blast-radius + persisted-state rules. WS1 proof still needs first unattended 03:55 ET run. `auto_live` NO-GO. | (this commit) |
 | 2026-07-28 | Phase B WAIVED + Phase K E2E ship: ADR 009, shortability module, `IBKR_SHORT_ENABLED` + `short_entry` gates, flatten cover, Shortability chip + Long/Short ticket. K3 human paper short days still open. `auto_live` NO-GO. | `125f3ce` |
 | 2026-07-28 | Phase K short entry DEFINED (not started): K0 constitution+ADR 009, K1 shortability truth (tick 236, fail-closed), K2 execution gate (`IBKR_SHORT_ENABLED`, explicit opt-in, inverse brackets, buy-to-cover), K3 paper proof → live unlock, K4 shortability chip next to L2 + Long/Short ticket toggle; gated on Phase B; `auto_live` NO-GO. Ledger entry is the SSOT (master plan file absent). | (this commit) |
 | 2026-07-21 | Operator unlocked live spend: `IBKR_LIVE_TRADING_CONFIRMED=true` so Flatten/place work on live Gateway (`spend_status=live_armed`). Explicit request — not Phase I GO. `auto_live` still NO-GO. Phase B shadow days should still prefer paper Gateway when practicing. | `.env` only (not committed) |

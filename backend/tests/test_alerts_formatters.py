@@ -12,6 +12,7 @@ from alerts.telegram import _safe_error_message
 from constants import (
     ALERTS_EVENT_TYPE_HOD_MOMO,
     ALERTS_EVENT_TYPE_NOVA_OS,
+    ALERTS_EVENT_TYPE_SYSTEM,
     ALERTS_EVENT_TYPE_TEST,
     NOVA_OS_ACTION_STAGED,
 )
@@ -56,6 +57,22 @@ def test_should_notify_nova_os_filters():
     assert should_notify_nova_os({"would_execute": True}) is True
     assert should_notify_nova_os({"executed": True}) is True
     assert should_notify_nova_os({"type": ALERTS_EVENT_TYPE_NOVA_OS}) is False
+
+
+def test_system_event_discord_embed_names_failed_leg():
+    event = {
+        "type": ALERTS_EVENT_TYPE_SYSTEM,
+        "leg": "ibkr_status",
+        "ok": False,
+        "text": "Nova morning check FAILED\nLeg: ibkr_status\nconnected=false",
+    }
+    body = format_discord_body(event)
+    assert body["embeds"][0]["title"] == "Nova Morning Check"
+    assert body["embeds"][0]["color"] == 0xDC2626
+    assert "ibkr_status" in body["embeds"][0]["description"]
+    payload = format_event_payload(event)
+    assert payload["type"] == ALERTS_EVENT_TYPE_SYSTEM
+    assert payload["ok"] is False
 
 
 def test_telegram_safe_error_redacts_token_in_url():

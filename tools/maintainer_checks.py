@@ -24,6 +24,7 @@ if _TOOLS_DIR not in sys.path:
 from maintainer_lib.artifacts import ARTIFACT_PATHS, check_artifacts as _check_artifacts  # noqa: E402
 from maintainer_lib.baselines import apply_baseline_fingerprints  # noqa: E402
 from maintainer_lib.deps import check_cross_feature_imports, check_import_main  # noqa: E402
+from maintainer_lib.ib_loop import check_ib_loop_purity as _check_ib_loop_purity  # noqa: E402
 
 MAIN_PY_LIMIT = 200
 APP_TSX_LIMIT = 150
@@ -425,6 +426,10 @@ def check_css_design_contract(files: list[Path]) -> list[Finding]:
     return findings
 
 
+def check_ib_loop_purity(files: list[Path]) -> list[Finding]:
+    return _check_ib_loop_purity(files, _rel, Finding)
+
+
 def run_checks() -> dict:
     files = iter_source_files()
     findings = (
@@ -435,6 +440,7 @@ def run_checks() -> dict:
         + check_import_main(files, _rel, Finding)
         + check_cross_feature_imports(files, _rel, Finding)
         + check_css_design_contract(files)
+        + check_ib_loop_purity(files)
     )
     apply_baseline_fingerprints(findings)
     non_baseline = [f for f in findings if not f.baseline]
@@ -484,6 +490,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Exit 1 if any non-baseline finding exists",
     )
+    parser.add_argument(
+        "--fail-on-kind",
+        action="append",
+        default=[],
+        help="Exit 1 if a non-baseline finding of this kind exists (repeatable)",
+    )
     args = parser.parse_args(argv)
     report = run_checks()
     if args.json:
@@ -493,6 +505,15 @@ def main(argv: list[str] | None = None) -> int:
         print_human(report)
     if args.fail_on_findings and report["non_baseline_count"] > 0:
         return 1
+    fail_kinds = set(args.fail_on_kind or [])
+    if fail_kinds:
+        hits = [
+            f
+            for f in report["findings"]
+            if (not f.get("baseline")) and f.get("kind") in fail_kinds
+        ]
+        if hits:
+            return 1
     return 0
 
 

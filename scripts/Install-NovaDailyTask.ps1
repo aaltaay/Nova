@@ -7,18 +7,25 @@
   Does not store IBKR passwords. Gateway login uses your local IBC config.
 
 .PARAMETER Trigger
-  Daily     - once per day at -AtTime (default 06:00)
+  Daily     - once per day at -AtTime (default 06:00) plus -PremarketAtTime (default 03:40)
   AtLogon   - when you sign into Windows
-  Both      - Daily + AtLogon + session unlock (default; wake from sleep)
+  Both      - Daily + Premarket + AtLogon + session unlock (default; wake from sleep)
 
 .PARAMETER AtTime
-  Local clock time for the Daily trigger (default 06:00).
+  Local clock time for the backstop Daily trigger (default 06:00).
+
+.PARAMETER PremarketAtTime
+  Local clock time for the pre-04:00 ET start (default 03:40). Machine should be ET.
+  Pass empty string to skip this extra trigger.
+
+.PARAMETER MorningCheckAtTime
+  Local clock time for NovaMorningCheck (default 03:55). Empty string skips it.
 
 .PARAMETER TaskName
   Scheduled task name (default NovaDailyStart).
 
 .PARAMETER Unregister
-  Remove the task instead of creating/updating it.
+  Remove the daily-start task and NovaMorningCheck.
 
 .PARAMETER SkipGateway
   Pass -SkipGateway through to Start-NovaDaily.ps1.
@@ -36,7 +43,10 @@ param(
     [ValidateSet("Daily", "AtLogon", "Both")]
     [string]$Trigger = "Both",
     [string]$AtTime = "06:00",
+    [string]$PremarketAtTime = "03:40",
+    [string]$MorningCheckAtTime = "03:55",
     [string]$TaskName = "NovaDailyStart",
+    [string]$MorningCheckTaskName = "NovaMorningCheck",
     [switch]$Unregister,
     [switch]$SkipGateway,
     [switch]$SkipBrowser
@@ -51,12 +61,14 @@ if (-not (Test-Path $startScript)) {
 }
 
 if ($Unregister) {
-    $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    if ($existing) {
-        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
-        Write-Host "Removed scheduled task '$TaskName'." -ForegroundColor Green
-    } else {
-        Write-Host "No scheduled task named '$TaskName' - nothing to remove." -ForegroundColor Yellow
+    foreach ($name in @($TaskName, $MorningCheckTaskName)) {
+        $existing = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+        if ($existing) {
+            Unregister-ScheduledTask -TaskName $name -Confirm:$false
+            Write-Host "Removed scheduled task '$name'." -ForegroundColor Green
+        } else {
+            Write-Host "No scheduled task named '$name' - nothing to remove." -ForegroundColor Yellow
+        }
     }
     return
 }
@@ -89,6 +101,14 @@ if ($Trigger -eq "Daily" -or $Trigger -eq "Both") {
         throw "Invalid -AtTime '$AtTime'. Use something like 06:00 or 6:00AM."
     }
     $triggers += New-ScheduledTaskTrigger -Daily -At $parsed
+    if ($PremarketAtTime) {
+        try {
+            $preParsed = Get-Date $PremarketAtTime
+        } catch {
+            throw "Invalid -PremarketAtTime '$PremarketAtTime'. Use something like 03:40."
+        }
+        $triggers += New-ScheduledTaskTrigger -Daily -At $preParsed
+    }
 }
 if ($Trigger -eq "AtLogon" -or $Trigger -eq "Both") {
     $triggers += New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
@@ -150,15 +170,52 @@ if ($Trigger -ne "AtLogon") {
 Write-Host ""
 Write-Host "Registered scheduled task '$TaskName'" -ForegroundColor Green
 Write-Host "  Trigger : $triggerDesc"
+if ($PremarketAtTime -and ($Trigger -eq "Daily" -or $Trigger -eq "Both")) {
+    Write-Host "  Premarket start : $PremarketAtTime local (before 04:00 ET gappers window)"
+}
 Write-Host "  Script  : $startScript"
 Write-Host "  Repo    : $repoRoot"
 Write-Host ""
+
+$checkScript = Join-Path $repoRoot "scripts\Invoke-NovaMorningCheck.ps1"
+if ($MorningCheckAtTime -and (Test-Path $checkScript)) {
+    try {
+        $checkParsed = Get-Date $MorningCheckAtTime
+    } catch {
+        throw "Invalid -MorningCheckAtTime '$MorningCheckAtTime'. Use something like 03:55."
+    }
+    $checkArg = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Normal -File `"$checkScript`" -RepoRoot `"$repoRoot`""
+    $checkAction = New-ScheduledTaskAction `
+        -Execute "powershell.exe" `
+        -Argument $checkArg `
+        -WorkingDirectory $repoRoot
+    $checkTrigger = New-ScheduledTaskTrigger -Daily -At $checkParsed
+    $existingCheck = Get-ScheduledTask -TaskName $MorningCheckTaskName -ErrorAction SilentlyContinue
+    if ($existingCheck) {
+        Unregister-ScheduledTask -TaskName $MorningCheckTaskName -Confirm:$false
+    }
+    Register-ScheduledTask `
+        -TaskName $MorningCheckTaskName `
+        -Action $checkAction `
+        -Trigger $checkTrigger `
+        -Settings $settings `
+        -Principal $principal `
+        -Description "Nova pre-open self-check. Alerts Discord/Telegram on a failed leg. See scripts/Invoke-NovaMorningCheck.ps1." | Out-Null
+    Write-Host "Registered scheduled task '$MorningCheckTaskName' at $MorningCheckAtTime local" -ForegroundColor Green
+} elseif ($MorningCheckAtTime) {
+    Write-Host "Morning check script missing: $checkScript" -ForegroundColor Yellow
+}
+
+Write-Host ""
 Write-Host "Test now:" -ForegroundColor Cyan
 Write-Host ("  schtasks /Run /TN " + $TaskName)
+Write-Host ("  schtasks /Run /TN " + $MorningCheckTaskName)
 Write-Host ("  OR:  powershell -NoProfile -ExecutionPolicy Bypass -File " + $startScript)
+Write-Host ("  OR:  powershell -NoProfile -ExecutionPolicy Bypass -File " + $checkScript)
 Write-Host ""
 Write-Host "Remove later:" -ForegroundColor Cyan
 Write-Host "  .\scripts\Install-NovaDailyTask.ps1 -Unregister"
 Write-Host ""
-Write-Host "Note: if the PC is asleep at $AtTime, enable wake timers in Windows" -ForegroundColor Yellow
+Write-Host "Note: if the PC is asleep at $PremarketAtTime / $AtTime, enable wake timers in Windows" -ForegroundColor Yellow
 Write-Host "power settings. Default Both also runs on session unlock (wake/lock)." -ForegroundColor Yellow
+Write-Host "Configure a Discord/Telegram channel in Nova Settings so a failed morning check is loud." -ForegroundColor Yellow

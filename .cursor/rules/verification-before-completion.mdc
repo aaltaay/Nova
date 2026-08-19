@@ -42,3 +42,16 @@ Skip any step = do not claim success.
 - For UI: browser or Playwright evidence when the change is user-visible (see `browser-testing.mdc`).
 - Logging (CHANGELOG / PROBLEM_LOG / task-log) does **not** replace verification.
 - Domain gates still apply: never claim trading safety without the relevant IBKR/execution checks when those paths changed.
+
+## Shared-resource blast radius
+
+After touching a shared resource, re-verify its **loudest neighbor** in the same turn -- not only the unit you changed. Narrow verification is how scanners emptied after an `ib_async` pin bump and how Gainers L1 froze after a chart-fill change.
+
+| You touched | Also verify (fresh command this turn) |
+|-------------|----------------------------------------|
+| IB socket / pacing / `reqHistoricalData` / `historical_service` | Scanner L1 freshness (`/api/movers` or `/ws/scanner` patches) **and** gapper/gainer row honesty |
+| `ib_async` pin / IB client connect path | Scanner rows **and** a place/cancel or ledger receipt -- not orders alone |
+| `bars_store` / chart `/bars` / ADR 012 fill | Chart candles **and** HOD Squeeze / 1Min store |
+| `execution_ledger` / `execute` | Orders Today blotter **and** a receipt round-trip |
+| Archive write path / SQLite on a callback | `ib_loop_lag_ms.wedged` stays false under tape/L1 |
+| Scanner REST empty-list payloads | `feed_error` / `table_state` -- empty rows are not "OK" when the feed is down |

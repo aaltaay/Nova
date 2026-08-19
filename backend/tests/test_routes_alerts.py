@@ -107,6 +107,32 @@ def test_test_endpoint_monkeypatched_dispatcher():
     mock_test.assert_called_once()
 
 
+def test_system_event_requires_leg():
+    res = client.post("/api/alerts/system-event", json={"ok": False, "detail": "x"})
+    assert res.status_code == 422
+
+
+def test_system_event_dispatches_named_leg():
+    with patch(
+        "alerts.dispatch.dispatch_alert",
+        return_value=[{"ok": True, "channel_id": "a"}],
+    ) as mock_dispatch:
+        res = client.post(
+            "/api/alerts/system-event",
+            json={"leg": "gateway_port", "ok": False, "detail": "neither 4001 nor 4002 listening"},
+        )
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ok"] is True
+    assert body["leg"] == "gateway_port"
+    event = mock_dispatch.call_args[0][0]
+    assert event["type"] == "system"
+    assert event["leg"] == "gateway_port"
+    assert event["ok"] is False
+    assert "gateway_port" in event["text"]
+    assert "FAILED" in event["text"]
+
+
 def test_status_endpoint():
     dispatch.record_status({"ok": False, "error": "timeout", "channel_id": "x"})
     res = client.get("/api/alerts/status")

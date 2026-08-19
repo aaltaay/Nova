@@ -34,6 +34,12 @@ class TestRequest(BaseModel):
     message: str | None = None
 
 
+class SystemEventRequest(BaseModel):
+    leg: str
+    ok: bool = False
+    detail: str = ""
+
+
 @router.get("/channels")
 def list_channels() -> dict:
     return {"channels": channels_store.list_channels()}
@@ -84,6 +90,19 @@ def test_alert(body: TestRequest) -> dict:
     )
     ok = all(r.get("ok") for r in results) if results else False
     return {"ok": ok, "results": results}
+
+
+@router.post("/system-event")
+def post_system_event(body: SystemEventRequest) -> dict:
+    """Ops / morning-check notify. Names the failed leg; never raises to the desk."""
+    from alerts.hooks import notify_system_event
+
+    leg = (body.leg or "").strip()
+    if not leg:
+        raise HTTPException(status_code=400, detail="leg is required")
+    results = notify_system_event(leg=leg, ok=body.ok, detail=body.detail or "")
+    ok = all(r.get("ok") for r in results) if results else False
+    return {"ok": ok, "leg": leg, "results": results}
 
 
 @router.get("/status")

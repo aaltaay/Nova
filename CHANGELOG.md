@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-18 -- Reliability track: problem-root guards + morning autopilot wiring
+
+- **What:** Wired the five PROBLEM_LOG root patterns into guards instead of more spot patches. Morning self-check script + `POST /api/alerts/system-event`; scanner REST now returns `table_state` / `roster_ts` / `feed_error`; pytest pins `NOVA_CACHE_DIR` before imports; maintainer IB-loop purity gate in CI (`--fail-on-kind ib_loop_sync_io`); blast-radius table in verification rule; persisted-state MDC.
+- **Why:** Categorizing 236 log entries showed "wake up and it is broken" is a 5-leg chain. Code legs A-D already shipped; leg E needed wiring, not new infrastructure. Other roots kept recurring because they were convention, not tests.
+- **Files touched:** `backend/alerts/*`, `backend/routes/scan.py`, `backend/tests/conftest.py`, `scripts/Invoke-NovaMorningCheck.ps1`, `scripts/Install-NovaDailyTask.ps1`, `tools/maintainer_lib/ib_loop.py`, `.cursor/rules/persisted-state.mdc`, `.cursor/rules/verification-before-completion.mdc`, `Nova-Roadmap-Status.md`.
+- **How it works now:** Task Scheduler (after you re-run the installer) starts Nova at 03:40 ET and runs the self-check at 03:55. A failed leg names itself on Discord/Telegram. Empty gappers during a feed error are no longer silent. Pytest cannot inherit live Gateway mode or the operator cache path at import time. IB-callback modules cannot grow `sqlite3.` / `time.sleep(` / `requests.` without CI red.
+- **Verified by:** `pytest tests/test_routes_alerts.py tests/test_alerts_*.py tests/test_scan_roster_surface.py` 29 passed; persist/isolation 44 passed; backend suite 1239 passed (ignored pre-existing `test_execution_latency_regressions` tools import); `tools/test_maintainer_checks.py` 28 passed; `maintainer_checks.py --fail-on-kind ib_loop_sync_io` exit 0; `doc_invariants` OK; `agent_contract --ci` PASS.
+- **Follow-ups:** Operator must run `.\scripts\Install-NovaDailyTask.ps1` once, configure a Phase D channel, leave the PC on / wake timers. Jul 30 OPEN/DEFERRED stays open until the first real 03:55 ET evidence line. `--fail-on-findings` is still not CI-wide (50 pre-existing non-baseline findings).
+- **Related:** PROBLEM_LOG 2026-07-30 OPEN/DEFERRED premarket stack; task-log pattern analysis `d10b90e`.
+
 ## 2026-08-18 -- One candle identity: hist owns, L1 overlays
 
 - **What:** `bars_intraday` is one row per `(symbol, timeframe, ts)`. Hist fills tag `ibkr` and replace. Scanner L1 tags `ibkr_l1` and can only insert or refine a live row.

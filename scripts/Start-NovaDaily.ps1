@@ -3,7 +3,7 @@
   Morning / logon bootstrap: IB Gateway (IBC if configured) + Nova API + UI.
 
 .DESCRIPTION
-  Idempotent. Skips pieces that are already healthy so a 6am task and an
+  Idempotent. Skips pieces that are already healthy so a 03:40 ET task and an
   AtLogon task can both fire without double-killing healthy servers.
   Credentials stay in %USERPROFILE%\.nova\ibc\ -- never in this script.
 

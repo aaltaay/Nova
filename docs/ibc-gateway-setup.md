@@ -108,12 +108,21 @@ After pulling a build that adds `POST /api/ibkr/gateway-mode`, **restart the
 Nova API** (stale uvicorn returns 404; the capsule then says “Restart Nova API”).
 Smoke: open `http://127.0.0.1:8000/openapi.json` and confirm `/api/ibkr/gateway-mode`.
 
-## Daily auto-start (boot / 6am)
+## Daily auto-start (pre-04:00 ET)
 
-To start Gateway (via IBC) + Nova API + UI automatically:
+Gappers only hydrate 04:00-09:30 ET (ADR 008). Default `Install-NovaDailyTask.ps1`
+registers:
+
+- **03:40** local -- `Start-NovaDaily.ps1` (Gateway + API + UI)
+- **03:55** local -- `Invoke-NovaMorningCheck.ps1` (ports, health, IBKR session,
+  gappers `feed_error`/`table_state`, loop lag). A failed leg POSTs
+  `/api/alerts/system-event` (Discord/Telegram if configured). If the API is
+  down it falls back to a direct Discord/webhook POST from `alerts_channels.json`.
+- **06:00** local -- backstop start
+- AtLogon + session unlock -- wake-from-sleep backstop
 
 ```powershell
-# Register: daily 6:00 AM local + every Windows logon (default)
+# Register all of the above (machine should be on Eastern Time)
 .\scripts\Install-NovaDailyTask.ps1
 
 # Or only 6am / only logon:
@@ -122,22 +131,29 @@ To start Gateway (via IBC) + Nova API + UI automatically:
 
 # Run once now (no scheduler):
 .\scripts\Start-NovaDaily.ps1
+.\scripts\Invoke-NovaMorningCheck.ps1
 # or double-click: Start Nova Daily.bat
 
-# Remove:
+# Remove both NovaDailyStart and NovaMorningCheck:
 .\scripts\Install-NovaDailyTask.ps1 -Unregister
 ```
 
-`Start-NovaDaily.ps1` is idempotent (skips healthy API/UI/Gateway). Log:
-`backend/logs/daily-start.log`. IBKR Mobile 2FA may still require your phone.
+`Start-NovaDaily.ps1` is idempotent (skips healthy API/UI/Gateway). Logs:
+`backend/logs/daily-start.log` and `backend/logs/morning-check.log`.
+IBKR Mobile 2FA may still require your phone -- that is the only remaining
+human morning step once a Phase D channel is configured.
 
-If the PC is asleep at 6am, either enable wake timers in Windows power
-settings or rely on the AtLogon trigger when you unlock.
+If the PC is asleep at 03:40, enable wake timers in Windows power settings
+or rely on the AtLogon / session-unlock triggers when you unlock.
+
+`AutoRestartTime` in `%USERPROFILE%\.nova\ibc\config.ini` must be `11:45 PM`
+(AM/PM). A bare `23:45` is ignored by IBC.
 
 ## Related
 
-- `scripts/start_gateway_ibc.ps1.example` — template launcher (no secrets)
-- `scripts/Start-NovaDaily.ps1` / `Install-NovaDailyTask.ps1` — morning auto-start
-- `scripts/smoke_check.ps1` — post-login API smoke
+- `scripts/start_gateway_ibc.ps1.example` -- template launcher (no secrets)
+- `scripts/Start-NovaDaily.ps1` / `Install-NovaDailyTask.ps1` -- morning auto-start
+- `scripts/Invoke-NovaMorningCheck.ps1` -- pre-open self-check + loud alert
+- `scripts/smoke_check.ps1` -- post-login API smoke
 - `IBKR_GATEWAY_MODE` / `IBKR_LIVE_PORT` / `IBKR_PAPER_PORT` in `.env`
-- `.cursor/rules/ibkr-gateway-login-warning.mdc` — loud-warn vs bidirectional self-heal
+- `.cursor/rules/ibkr-gateway-login-warning.mdc` -- loud-warn vs bidirectional self-heal

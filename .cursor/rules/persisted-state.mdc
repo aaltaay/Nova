@@ -1,0 +1,30 @@
+---
+description: Every persisted cache file needs an owner, invalidation trigger, and schema_version
+alwaysApply: true
+---
+
+# Persisted state ownership
+
+Nova writes operator data under `backend/.cache` (or `NOVA_CACHE_DIR`). A cache without an owner or invalidation trigger is how session highs vanished, schema migrations never ran, and sticky paper/live intent blocked morning attach.
+
+## When adding a new persisted file
+
+Declare all three in the owning module (comment or constant is enough):
+
+1. **Owner** -- the one module that reads and writes it.
+2. **Invalidation trigger** -- the lifecycle event that stales it (session rollover, reconnect generation, schema bump, process start).
+3. **`schema_version`** -- integer in the JSON/SQLite payload. Load path migrates or refuse-loud; never silently ignore an unknown version.
+
+## Existing gaps (do not copy)
+
+| Artifact | Gap |
+|----------|-----|
+| `hod-momo-session-focus.json` | no schema_version |
+| `hod-momo-blocklist.json` | no schema_version |
+| `alerts_channels.json` | corrupt file currently logs ERROR then empty (loud, but no schema_version) |
+
+Do not add a fourth file with the same gap.
+
+## Tests
+
+Pytest must not write the operator cache. `backend/tests/conftest.py` pins `NOVA_CACHE_DIR` to a temp dir. New persist tests that need a disk must use that pin or their own `tmp_path` -- never `backend/.cache`.

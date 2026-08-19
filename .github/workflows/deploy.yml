@@ -173,3 +173,6 @@ jobs:
 
       - name: Engineering skills audit (methodology graft)
         run: python tools/engineering_skills_audit.py
+
+      - name: Maintainer IB-loop purity (fail on ib_loop_sync_io)
+        run: python tools/maintainer_checks.py --fail-on-kind ib_loop_sync_io
