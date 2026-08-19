@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-18 | [Problem log pattern analysis: 236 entries categorized](2026-08-18-problem-log-pattern-analysis.md) | 5 root patterns; morning failure = 5-leg chain; open umbrella = unattended pre-04:00 bring-up proof |
 | 2026-08-18 | [One candle identity for hist vs L1 1Min](2026-08-18-bars-intraday-candle-ownership.md) | Unique candle key; L1 overlays `ibkr_l1`; hist replaces; volume is not a lock |
 | 2026-08-18 | [Scanner L1 live 1Min into bars_intraday](2026-08-18-l1-live-1min-store.md) | Streamed reqMktData lasts roll into the chart/Squeeze 1Min store without hist tokens |
 | 2026-08-18 | [hod_surge_after_seed was a stale-seed window bug](2026-08-18-hod-surge-after-seed-stale-window.md) | Integrity used buffer span; Squeeze uses last 5 min of the latest print -- fossils were the 13 warns |
