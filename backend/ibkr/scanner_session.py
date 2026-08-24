@@ -71,20 +71,22 @@ def session_period(now: datetime | None = None) -> str:
 
 
 def desired_leases(now: datetime | None = None) -> list[tuple[str, str]]:
-    """Return ``(table, scan_code)`` pairs for the current period (≤2 slots)."""
+    """Return ``(table, scan_code)`` pairs for the current period (<=2 slots).
+
+    Premarket holds a single lease. ``TOP_OPEN_PERC_GAIN`` has no open to
+    measure before 09:30 ET, so IB answers it with an empty list plus Warning
+    165; premarket Gappers is instead projected from this Gainers roster by
+    ``ibkr/gapper_view.py`` (ADR 008 amendment 2026-08-24).
+    """
     from constants import (
         IBKR_SCAN_CODE_AH_GAINERS,
         IBKR_SCAN_CODE_GAINERS,
-        IBKR_SCAN_CODE_GAPPERS,
         IBKR_SCAN_CODE_LOSERS,
     )
 
     period = session_period(now)
     if period == PERIOD_PREMARKET:
-        return [
-            (TABLE_GAINERS, IBKR_SCAN_CODE_GAINERS),
-            (TABLE_GAPPERS, IBKR_SCAN_CODE_GAPPERS),
-        ]
+        return [(TABLE_GAINERS, IBKR_SCAN_CODE_GAINERS)]
     if period == PERIOD_RTH:
         return [
             (TABLE_GAINERS, IBKR_SCAN_CODE_GAINERS),

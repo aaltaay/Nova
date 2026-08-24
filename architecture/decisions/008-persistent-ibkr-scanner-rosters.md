@@ -21,6 +21,30 @@ HOD Momo eligibility was also entangled with discovery: `hod_momo_seed.py` ran a
 
 **Implementation status (2026-08-07):** Code paths for (1)–(5) are in-tree. Persistent manager is enabled and **authoritative** by default (`IBKR_SCANNER_PERSISTENT_ENABLED=true`, `IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=true`). Cutover was forced after production evidence that shadow+one-shot dual ownership left UI caches empty (empty-shadow quiet window forever; competing one-shot `TOP_PERC_*` timed out against the same clientId leases). Set `IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=false` only for deliberate rollback.
 
+**Amendment (2026-08-24) -- names-first admission, Gappers is a projection:**
+
+Decision 1's premarket set changes from *Gainers + Gappers* to **Gainers only**, and
+roster admission is decoupled from quotes (implements ADR 010 decision 5):
+
+- **A ranked IB name is a row.** `commit_table` writes the batch immediately with
+  `price=None`; the L1 hot path fills price / `prev_close` / `change_pct`. Admission
+  never awaits `snapshot_quotes`. Row order is IB's rank -- Nova does not re-sort a
+  ranked scan. Rationale: the old gate coupled "does this stock exist on the desk" to a
+  COLD `reqTickersAsync` bounded at 20s by the HTTP->IB hop, and on 2026-08-24 that
+  starved the entire premarket while IB was pushing names normally.
+- **Premarket Gappers is derived, not scanned.** `backend/ibkr/gapper_view.py` filters
+  the live Gainers roster at `GAPPER_MIN_GAP_PCT`. `TOP_OPEN_PERC_GAIN` compares today's
+  open to the prior close, which is undefined before 09:30 ET (IB replies with Warning
+  165), so it gets no premarket lease. The projection still freezes at 09:30 and is
+  immutable afterward, exactly as decision 2 requires.
+- **One writer, enforced.** With `discovery=ibkr` the persistent lease is the only roster
+  owner: `scanner_runners/discovery.py` and `scanner_runners/movers.py` return early and
+  `adapters/ibkr_scanner.py` raises. Decision 6's shadow/rollback flag is superseded by
+  ADR 010 decision 10 -- rollback is git revert, not a second writer.
+- **Empty is not fresh.** A batch with no names must not `mark_live` or stamp
+  `last_scan`. Integrity fails a Gainers table that never committed a roster while IBKR
+  is connected inside its window, instead of passing it as "OK if another list is live."
+
 **Amendment (2026-08-18):** HOD Momo does not call `reqHistoricalData`. Session high is tick-6 + observed prints, with an observed-warmup floor after 60s of watching (`open_alert_window=False`). Squeeze buffer is a local `bars_store.read` of already-stored 1Min bars; empty store means live-only. The 60/10min IB historical budget belongs to Trader chart panes (max 4 timeframes per symbol).
 
 ## Consequences

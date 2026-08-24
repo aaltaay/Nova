@@ -17,6 +17,14 @@ def run_discovery_scan() -> None:
 
     sr = facade()
     state = sr.get_runtime_state()
+    if sr._get_discovery_provider() == "ibkr":
+        # Single roster owner (ADR 008 + ADR 010 decision 5): the persistent
+        # scanner lease admits names and `ibkr/gapper_view.py` projects
+        # premarket Gappers from them. This one-shot path has been unreachable
+        # since the 2026-08-07 authoritative cutover, yet three sessions
+        # "fixed" premarket gappers here while the live path never called it.
+        logger.debug("Gapper discovery skipped -- IBKR roster is lease-owned")
+        return
     if state.gapper_table.state == TABLE_STATE_FROZEN:
         logger.info("Gapper discovery skipped — table frozen (ADR 008)")
         return

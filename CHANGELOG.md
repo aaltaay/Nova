@@ -30,6 +30,43 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-24 — Scanner rosters admit names first; premarket Gappers is a Gainers projection
+
+- **What:** IBKR scanner rows now appear the moment IB pushes a ranked name, with `price` null until the first L1 tick, instead of waiting for a cold `snapshot_quotes` batch. Premarket Gappers is no longer its own IB lease -- it is a filtered projection of the live Gainers roster. One-shot IBKR discovery is removed as a writer, empty IB batches can no longer stamp a table `live`, and a Gainers feed that never commits now fails integrity instead of passing.
+- **Why:** 2026-08-24 premarket outage (see `PROBLEM_LOG.md`): Gateway healthy, IB delivering names, both scanner tables empty for 10+ minutes because every admission attempt died on the 20s `on_ib` ceiling. Implements ADR 010 decision 5, accepted 2026-08-14 and never built.
+- **Files touched:** `backend/ibkr/scanner_hydrate.py`, `backend/ibkr/gapper_view.py` (new), `backend/ibkr/scanner_stream.py`, `backend/ibkr/scanner_session.py`, `backend/ibkr/discovery.py`, `backend/ibkr_bridge.py`, `backend/hod_momo_integrity_scanner.py`, `backend/scanner_runners/{discovery,movers}.py`, `backend/adapters/ibkr_scanner.py`, `frontend/src/types/scanner.ts`, `frontend/src/components/EmptyState.tsx`, `scripts/Invoke-NovaMorningCheck.ps1`, `architecture/decisions/010-ib-loop-isolation.md`, `.cursor/rules/{single-market-data-feed,verification-before-completion}.mdc`.
+- **How it works now:** One writer per table. `scanner_stream` receives a ranked batch -> `commit_table` writes those names in IB rank order (`hydrate_rows` builds stubs, no IB call, and preserves rows the L1 path already filled) -> `broadcast_roster_replace`. Scanner L1 subscribes from the committed cache and `reprice_mover_row` fills `price` / `prev_close` / `change_pct`, writing `prev_close` back so a stub becomes a real row. `gapper_view.refresh` runs after every Gainers commit and every L1 tick, selecting rows at or above `GAPPER_MIN_GAP_PCT`; it stamps `gapper_cache_ts` only when the projection has rows, and bumps revision / persists / broadcasts only when membership changes. Premarket holds one lease (Gainers); Gappers still freezes at 09:30 ET per ADR 008. `snapshot_quotes` stays COLD and is still used by ticker/HOD/detail -- it just no longer decides whether a stock exists.
+- **Verified by:** `py -3 -m pytest backend/tests` -> 1287 passed. New `backend/tests/test_scanner_names_first.py` (9 tests) written red first: it reproduces the outage by making `snapshot_quotes` raise `asyncio.TimeoutError` and asserting the roster still commits with `gainer_cache_ts > 0`, plus an AST guard that `scanner_hydrate` never references `snapshot_quotes` again. `npm run build` clean; Vitest suite run.
+- **Follow-ups:** Live premarket confirmation of the Gappers projection needs tomorrow's 04:00-09:30 ET window (this ship landed at 09:30). Consider a CI gate that diffs ADR decision ledgers against shipped evidence.
+- **Related:** `PROBLEM_LOG.md` 2026-08-24 — Premarket scanners empty; `knowledge/task-log/2026-08-24-scanner-names-first-admission.md`; ADR 008 amendment; ADR 010 decision ledger.
+
+## 2026-08-23 -- Commit-count versioning + git hooks
+
+- **What:** Version is now `0.1.<commit-count>` (currently `0.1.418`). `VERSION` + `frontend/package.json` sync on every commit via `.githooks/pre-commit`; `pre-push` verifies no drift. Installer artifacts become `Nova-Setup-0.1.N.exe`.
+- **Why:** User asked for automatic versioning tied to git history instead of hand-edited `0.1.0`.
+- **Files touched:** `VERSION`, `tools/bump_version.py`, `.githooks/pre-commit`, `.githooks/pre-push`, `tools/install_git_hooks.ps1`, `backend/tests/test_bump_version.py`, `README.md`.
+- **How it works now:** Run `tools/install_git_hooks.ps1` once. Each new commit bumps patch to `rev-list --count HEAD` after landing; amend keeps the same count. Minor `1` is the Nova product line until you manually bump for a 2.0 milestone.
+- **Verified by:** `py -3 -m pytest backend/tests/test_bump_version.py -q` (5 passed); `py -3 tools/bump_version.py --show`.
+- **Related:** README versioning section.
+
+## 2026-08-19 -- Drop Orders armed from Trading prerequisites
+
+- **What:** Trading prerequisites no longer shows an "Orders armed" / `IBKR_ORDERS_ENABLED` row.
+- **Why:** Operator already has the ticket unlock / PIN / confirm gates before any order. The checklist row was noise.
+- **Files touched:** `tradingPrerequisites.ts`, `TradingPrerequisitesGate.tsx`, tests.
+- **How it works now:** Prerequisites = API + IBKR enabled + Gateway READY. Spend env and ticket locks stay on the place-order path, not this modal.
+- **Verified by:** Vitest `tradingPrerequisites.test.ts`.
+- **Related:** PROBLEM_LOG n/a (product preference, not a bug).
+
+## 2026-08-19 -- Desktop installer seeds IBKR_ENABLED and shows door trail
+
+- **What:** Packaged Nova now fills missing IBKR connection keys in `%APPDATA%\Nova\.env` (not spend gates). Trading prerequisites and Account → Activity show the Paper/Live door trail.
+- **Why:** The installer used a stub `.env` without `IBKR_ENABLED`, so Gateway could be logged in while Nova stayed `disabled`. The trail existed only as an API/file with no UI.
+- **Files touched:** `frontend/electron/sidecar.mjs`, `electron/envMerge.mjs`, `GatewayDoorTrail.tsx`, `TradingPrerequisitesGate.tsx`, `ActivityDashboard.tsx`.
+- **How it works now:** Launching desktop Nova adds `IBKR_ENABLED=true` only if that key is missing. Door trail lists IBC 2FA / attach rows from `GET /api/ibkr/gateway-trail`. Orders stay locked unless you set spend keys yourself.
+- **Verified by:** Vitest `desktopEnvMerge`, `formatDoorTrail`, `GatewayDoorTrail`; then AppData env + reconnect.
+- **Related:** PROBLEM_LOG 2026-08-19 Installer .env missing IBKR_ENABLED.
+
 ## 2026-08-19 -- Live dark means stop both doors so 2FA can appear
 
 - **What:** A Live click when 4001 is dark now force-restarts IBC: stop 4001 and 4002, clear `Restart=OK`, start live. Same for a Paper click when 4002 is dark. If the target port is already up, Nova still only reconnects.

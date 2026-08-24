@@ -42,7 +42,11 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
    - **Tape linger:** last T&S WebSocket close schedules IB `cancelTickByTickData` after `IBKR_TAPE_LINGER_SEC` (16s). A remount cancels the linger and reuses `_tickers`. Immediate cancel + resubscribe hits IB's 15s same-instrument guard ("Resubscribing in 10s").
    - **Honesty:** per-row source age + header stale when the active-tab subscription is incomplete or patches are late. Never hide lag behind a frozen green "updated" badge.
 
-6. **Session-owned persistent scanner rosters (ADR 008).** `backend/ibkr/scanner_stream.py` owns persistent `reqScannerSubscription` handles for the life of the process — it does not poll. Desired subscriptions by session period: Premarket = Gainers + Gappers; RTH = Gainers + Losers (UI-only); Afterhours = AH Gainers; Closed = none (at most two persistent slots). Each table (`gappers`/`gainers`/`losers`/`afterhours`) carries its own `session_key` (04:00 ET-anchored), `state` (`live`/`frozen`/`unavailable`), `revision`, `roster_ts`, and `frozen_at` in `runtime_state`:
+6. **Session-owned persistent scanner rosters (ADR 008).** `backend/ibkr/scanner_stream.py` owns persistent `reqScannerSubscription` handles for the life of the process — it does not poll. Desired subscriptions by session period: Premarket = Gainers only; RTH = Gainers + Losers (UI-only); Afterhours = AH Gainers; Closed = none (at most two persistent slots).
+ - **Roster admission is name-only (ADR 010 decision 5).** An IB scanner name becomes a row immediately, with `price=null` until the first L1 tick. Admission must never `await` a COLD `snapshot_quotes` / `reqTickersAsync` — that coupling emptied the desk for a full premarket on 2026-08-24 when every cold batch died on the 20s `on_ib` ceiling. Row order is IB's rank; do not re-sort a ranked scan.
+ - **Premarket Gappers is a projection, not a lease.** `backend/ibkr/gapper_view.py` filters the live Gainers roster to `GAPPER_MIN_GAP_PCT`. `TOP_OPEN_PERC_GAIN` has no open to measure before 09:30 ET (IB answers with Warning 165), so it gets no premarket lease. The projection freezes at 09:30 like any other table.
+ - **One roster owner per table.** With `discovery=ibkr` the persistent lease is the only writer: `scanner_runners/discovery.py` and `scanner_runners/movers.py` refuse, and `adapters/ibkr_scanner.py` raises. Rollback is git revert, not a second writer (ADR 010 decision 10).
+ - **Empty is not fresh.** A batch with no names (Warning 165) must not stamp `table_state=live` + a new `last_scan`. Leave the roster untouched and let integrity alarm. Each table (`gappers`/`gainers`/`losers`/`afterhours`) carries its own `session_key` (04:00 ET-anchored), `state` (`live`/`frozen`/`unavailable`), `revision`, `roster_ts`, and `frozen_at` in `runtime_state`:
    - Gappers is `live` 04:00–09:30 ET, then `frozen` (immutable) for the rest of the session.
    - Gainers is `live` 04:00–16:00 ET, then `frozen`.
    - Afterhours is `live` 16:00–20:00 ET, then `frozen`.
@@ -81,6 +85,10 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Nesting table reprice inside `_scan_loop` sleep (starves prices for 10–90s during movers scans)
 - ❌ Using `reqTickersAsync` / 4s timeouts for active-table freshness (IB `tickSnapshotEnd` ≈ 11s)
 - ❌ Streaming the whole discovery universe via `reqMktData`
+- ❌ Blocking roster admission on a cold `snapshot_quotes` / `reqTickersAsync` result (a name with no quote is a row with `price=null`, not a dropped row)
+- ❌ Rendering `0.00` for a newly admitted scanner name that has no L1 tick yet
+- ❌ Opening a `TOP_OPEN_PERC_GAIN` lease before 09:30 ET, or treating its Warning 165 empty result as "no gaps today"
+- ❌ Letting one empty table vouch for another ("OK if another scanner list is live") when both are empty
 - ❌ Mutating a `frozen` table's membership/rank/values/timestamp after its session boundary
 - ❌ Applying a scanner/hydration callback from a superseded IB generation, subscription epoch, or session key
 - ❌ Reviving HOD volume seeds, a `belowPrice` Gainers pass, open-ticker priority, or Losers as HOD inputs

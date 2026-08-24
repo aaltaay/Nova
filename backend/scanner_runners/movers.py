@@ -7,7 +7,6 @@ import time
 from constants import SCANNER_MIN_PRICE
 from fundamentals import _fundamentals_cache, fetch_fundamentals_batch as _fetch_fundamentals_batch
 import exchanges as _exchanges
-from ibkr_bridge import IbkrBridgeError
 from scanner import _check_news, _fetch_snapshots
 from scanner_runners._facade import facade
 from universe import ensure_avg_volume
@@ -54,50 +53,6 @@ def _build_mover_entry(raw: dict, snaps: dict, premarket_gap_map: dict) -> dict:
     return _exchanges.attach_exchange(entry)
 
 
-def _run_gainers_update_ibkr(headers: dict | None) -> tuple[list[dict], list[dict]] | None:
-    sr = facade()
-    state = sr.get_runtime_state()
-    port = sr.get_movers_port()
-    gainers_rows: list[dict] | None
-    losers_rows: list[dict] | None
-    try:
-        gainers_rows = list(port.get_gainers() or [])
-    except IbkrBridgeError as exc:
-        logger.warning(
-            "Gainers bridge failed — keeping %d cached row(s): %s",
-            len(state.gainer_cache),
-            exc,
-        )
-        gainers_rows = None
-    try:
-        losers_rows = list(port.get_losers() or [])
-    except IbkrBridgeError as exc:
-        logger.warning(
-            "Losers bridge failed — keeping %d cached row(s): %s",
-            len(state.loser_cache),
-            exc,
-        )
-        losers_rows = None
-    if gainers_rows is None and losers_rows is None:
-        return None
-    if gainers_rows is None:
-        gainers_rows = list(state.gainer_cache or [])
-    if losers_rows is None:
-        losers_rows = list(state.loser_cache or [])
-    if not gainers_rows and not losers_rows:
-        return None
-    all_symbols = list({r["symbol"] for r in gainers_rows + losers_rows})
-    news: dict = {}
-    # Alpaca headers are optional listing/news metadata — never required for IBKR prices.
-    if headers:
-        sr.ensure_avg_volume(all_symbols, headers)
-        news = sr._check_news(all_symbols, headers)
-        _fetch_fundamentals_batch(all_symbols)
-    gainers = [sr.enrich_ibkr_mover(r, news) for r in gainers_rows]
-    losers = [sr.enrich_ibkr_mover(r, news) for r in losers_rows]
-    return gainers, losers
-
-
 def _run_gainers_update_alpaca(headers: dict) -> tuple[list[dict], list[dict]] | None:
     sr = facade()
     state = sr.get_runtime_state()
@@ -142,11 +97,13 @@ def run_gainers_update() -> None:
     headers = sr._alpaca_headers()
 
     if sr._get_discovery_provider() == "ibkr":
-        result = _run_gainers_update_ibkr(headers)
-    else:
-        if not headers:
-            return
-        result = _run_gainers_update_alpaca(headers)
+        # Single roster owner -- see run_discovery_scan. Gainers/Losers
+        # membership belongs to the persistent lease + L1 fill.
+        logger.debug("Movers update skipped -- IBKR roster is lease-owned")
+        return
+    if not headers:
+        return
+    result = _run_gainers_update_alpaca(headers)
     if result is None:
         return
     gainers, losers = result

@@ -55,11 +55,12 @@ export function EmptyState({
   if (context === 'premarket') {
     return (
       <div className="empty-state">
-        No gappers with a gap of at least {GAPPER_MIN_GAP_PCT}% in the cache.
+        No gainer is up at least {GAPPER_MIN_GAP_PCT}% yet.
         <div className="empty-state-hint">
-          If this stays empty while IBKR is connected, check the integrity banner above
-          (bridge timeouts used to wipe the table silently). Open the <strong>Gainers</strong> tab
-          — that feed may still be live.
+          Premarket gappers are the <strong>Gainers</strong> roster filtered to a{' '}
+          {GAPPER_MIN_GAP_PCT}% move, so this list fills as quotes arrive. If the Gainers
+          tab is also empty while IBKR is connected, that is a feed problem — check the
+          integrity banner.
         </div>
       </div>
     );

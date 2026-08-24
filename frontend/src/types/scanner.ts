@@ -5,10 +5,14 @@ export interface ScannerRow {
   symbol: string;
   /** Listing venue from Alpaca assets (e.g. NASDAQ, NYSE, ARCA, AMEX). */
   exchange?: string | null;
-  price: number;
-  prev_close: number;
-  change_pct: number;
-  change_abs: number;
+  /** IB scanner rank for this batch (1 = top of the ranked scan). */
+  rank?: number;
+  /** Null until the first L1 tick. A newly admitted scanner name is a real row
+   * with no quote yet (ADR 010 decision 5) -- never render it as 0.00. */
+  price: number | null;
+  prev_close: number | null;
+  change_pct: number | null;
+  change_abs: number | null;
   gap_percent: number | null;
   volume: number;
   rel_volume: number | null;

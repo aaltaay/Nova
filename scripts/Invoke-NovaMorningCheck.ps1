@@ -218,15 +218,43 @@ if (-not $failedLeg) {
             $failedDetail = "table_state=unavailable rows=$n"
             Write-CheckLog $failedDetail "ERROR"
         } elseif ((Test-PremarketEt) -and $n -eq 0) {
-            $failedLeg = "gappers"
-            $failedDetail = "premarket and 0 gapper rows (table_state=$tableState)"
-            Write-CheckLog $failedDetail "ERROR"
+            # Gappers is a projection of the Gainers roster (ADR 008 amendment
+            # 2026-08-24): zero rows can simply mean nothing clears the gap
+            # floor yet. The load-bearing premarket signal is leg 4b below.
+            Write-CheckLog "premarket and 0 gapper rows (table_state=$tableState)" "WARN"
         } else {
             Write-CheckLog "gappers rows=$n table_state=$tableState" "PASS"
         }
     } catch {
         $failedLeg = "gappers"
         $failedDetail = "GET /api/gappers failed: $($_.Exception.Message)"
+        Write-CheckLog $failedDetail "ERROR"
+    }
+}
+
+# 4b. Gainers roster honesty -- the feed that owns discovery 04:00-16:00 ET.
+# Added after 2026-08-24: this check watched only gappers, so a Gainers feed
+# that never committed a single row went unnoticed for the whole premarket.
+if (-not $failedLeg) {
+    try {
+        $m = Get-Json "$Base/api/movers"
+        $gn = @($m.gainers).Count
+        $mFeedErr = [string]$m.feed_error
+        $gainerState = [string]$m.table_state
+        if ($mFeedErr -and $mFeedErr -ne "") {
+            $failedLeg = "gainers"
+            $failedDetail = "feed_error=$mFeedErr table_state=$gainerState rows=$gn"
+            Write-CheckLog $failedDetail "ERROR"
+        } elseif ((Test-PremarketEt) -and $gn -eq 0) {
+            $failedLeg = "gainers"
+            $failedDetail = "premarket and 0 gainer rows (table_state=$gainerState) -- IB names are not reaching the roster"
+            Write-CheckLog $failedDetail "ERROR"
+        } else {
+            Write-CheckLog "gainers rows=$gn table_state=$gainerState" "PASS"
+        }
+    } catch {
+        $failedLeg = "gainers"
+        $failedDetail = "GET /api/movers failed: $($_.Exception.Message)"
         Write-CheckLog $failedDetail "ERROR"
     }
 }

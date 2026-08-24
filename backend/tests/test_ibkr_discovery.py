@@ -221,28 +221,15 @@ class TestSnapshotQuotes:
         assert quotes["LASTONLY"]["prev_close"] is None
 
 
-class TestGetGappers:
-    def test_builds_expected_row_shape_and_filters_min_gap(self, monkeypatch):
-        scan_rows = [_FakeScanRow("BIGGAP"), _FakeScanRow("SMALLGAP")]
-        tickers = [
-            _FakeTicker("BIGGAP", last=11.0, close=10.0),    # +10% gap
-            _FakeTicker("SMALLGAP", last=10.01, close=10.0),  # ~0.1% gap, below floor
-        ]
-        fake_ib = _FakeIB(scan_rows, tickers)
-        _patch_client(monkeypatch, fake_ib)
+class TestGappersHaveNoOneShotScan:
+    def test_discovery_module_exposes_no_get_gappers(self):
+        """Premarket Gappers is projected from Gainers (ibkr/gapper_view.py).
 
-        rows = asyncio.run(discovery.get_gappers())
-        symbols = [r["symbol"] for r in rows]
-        assert "BIGGAP" in symbols
-        assert "SMALLGAP" not in symbols
-
-        row = next(r for r in rows if r["symbol"] == "BIGGAP")
-        assert row["price"] == 11.0
-        assert row["previous_close"] == row["prev_close"] == 10.0
-        assert row["current_price"] == row["price"]
-        assert math.isclose(row["gap_percent"], 0.1)
-        assert math.isclose(row["change_pct"], row["gap_percent"])
-        assert math.isclose(row["change_abs"], 1.0)
+        ``TOP_OPEN_PERC_GAIN`` measures an open that does not exist before
+        09:30 ET, so this scan returned nothing every morning while looking
+        like a working code path.
+        """
+        assert not hasattr(discovery, "get_gappers")
 
 
 class TestGetMovers:

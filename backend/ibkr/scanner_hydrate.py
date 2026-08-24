@@ -1,73 +1,49 @@
-"""Hydration + shadow parity for ADR 008 persistent scanner stream."""
+"""Roster admission for ADR 008 persistent scanner leases.
+
+ADR 010 decision 5: a ranked IB scanner name is admitted as a row the moment IB
+pushes it. Price, ``prev_close`` and ``change_pct`` arrive from the L1 hot path
+(``ibkr/scanner_l1.py`` -> ``ibkr_bridge.apply_l1_quote``), which is the same
+feed that keeps displayed rows fresh.
+
+Admission must never depend on a COLD ``snapshot_quotes`` round trip. That
+coupling is what emptied the desk for an entire premarket on 2026-08-24: IB had
+already delivered ``TOP_PERC_GAIN`` names, every cold batch died on the 20s
+``on_ib`` bridge ceiling, and ``gainer_cache_ts`` stayed 0 while the Gateway
+reported healthy. An unpriced row is honest; a missing row is not.
+
+Row order is IB's scanner rank. Nova does not re-sort a ranked scan -- doing so
+invents a second ranking that disagrees with the feed as L1 ticks land.
+"""
 from __future__ import annotations
 
 import logging
 import time
-from typing import Any
 
-from constants import GAPPER_MIN_GAP_PCT, IBKR_QUOTE_BATCH_TIMEOUT_SEC, SCANNER_MIN_PRICE
 from ibkr import client as _client
-from ibkr import discovery as _discovery
 from ibkr import scanner_session as _session
 from metrics.op_metrics import timed
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
-# Per-table known-good rows, keyed by symbol. Persists across batches so an
-# unchanged symbol's row is preserved rather than re-quoted (plan §2: "cold
-# reqTickersAsync hydration only for newly admitted symbols"). Live price
-# refresh for displayed/live rows comes from the separate L1 hot path once a
-# table is active — this cold path only backfills roster/rank for new names.
-_known_rows: dict[str, dict[str, dict]] = {}
-_known_session: dict[str, str] = {}
 
+def stub_row(sym: str, rank: int) -> dict:
+    """Newly admitted name with no quote yet.
 
-def _known_for(table: str, session_key: str) -> dict[str, dict]:
-    if _known_session.get(table) != session_key:
-        _known_rows[table] = {}
-        _known_session[table] = session_key
-    return _known_rows.setdefault(table, {})
-
-
-def reset_known(table: str | None = None) -> None:
-    """Clear cached known-good rows (process shutdown / lease reopen)."""
-    if table is None:
-        _known_rows.clear()
-        _known_session.clear()
-    else:
-        _known_rows.pop(table, None)
-        _known_session.pop(table, None)
-
-
-def row_from_quote(sym: str, q: dict, *, as_gapper: bool) -> dict | None:
-    price, prev_close = q.get("price"), q.get("prev_close")
-    if price is None or price < SCANNER_MIN_PRICE or not prev_close:
-        return None
-    change = (price - prev_close) / prev_close
-    if as_gapper and change * 100 < GAPPER_MIN_GAP_PCT:
-        return None
-    base = {
+    ``None`` (not ``0.0``) for every price field so the UI can render "waiting
+    for L1" instead of a fabricated flat quote.
+    """
+    return {
         "symbol": sym,
-        "price": price,
-        "prev_close": prev_close,
-        "change_pct": change,
-        "change_abs": price - prev_close,
-        "volume": q.get("volume", 0),
-        "exchange": q.get("exchange"),
+        "rank": rank,
+        "price": None,
+        "prev_close": None,
+        "change_pct": None,
+        "change_abs": None,
+        "gap_percent": None,
+        "volume": 0,
+        "exchange": None,
     }
-    if as_gapper:
-        base.update({
-            "previous_close": prev_close,
-            "current_price": price,
-            "gap_percent": change,
-        })
-    else:
-        open_price = q.get("open")
-        base["gap_percent"] = (
-            (open_price - prev_close) / prev_close if open_price and prev_close else None
-        )
-    return base
 
 
 async def hydrate_rows(
@@ -75,36 +51,28 @@ async def hydrate_rows(
     *,
     table: str,
     session_key: str,
-    as_gapper: bool,
-    reverse: bool,
+    existing: list[dict] | None = None,
 ) -> list[dict]:
-    """Roster rows for *symbols*, cold-quoting only newly admitted names.
+    """Roster rows for *symbols* in IB rank order.
 
-    Symbols already known this session keep their last row unchanged
-    (rank/order still follows the fresh ``symbols`` sequence from IB) —
-    price freshness for live/displayed rows comes from the L1 hot path,
-    not a repeated cold ``reqTickersAsync`` on every scanner batch.
+    Rows already present in *existing* (the table's live cache) keep whatever
+    the L1 path has filled in; only their rank follows the fresh batch. Symbols
+    absent from the current ranked batch are dropped.
     """
-    known = _known_for(table, session_key)
-    new_symbols = [s for s in symbols if s not in known]
-    if new_symbols:
-        quotes = await _discovery.snapshot_quotes(
-            new_symbols, timeout_sec=IBKR_QUOTE_BATCH_TIMEOUT_SEC, require_success=False,
-        )
-        for sym in new_symbols:
-            q = quotes.get(sym)
-            if not q:
-                continue
-            row = row_from_quote(sym, q, as_gapper=as_gapper)
-            if row:
-                known[sym] = row
-    # Drop symbols no longer present in the current ranked batch.
-    for sym in list(known):
-        if sym not in symbols:
-            known.pop(sym, None)
-    rows = [known[s] for s in symbols if s in known]
-    sort_key = "gap_percent" if as_gapper else "change_pct"
-    rows.sort(key=lambda r: r.get(sort_key) or 0, reverse=reverse)
+    by_sym = {
+        (r.get("symbol") or "").strip().upper(): r
+        for r in (existing or [])
+        if r.get("symbol")
+    }
+    rows: list[dict] = []
+    for rank, sym in enumerate(symbols, start=1):
+        prior = by_sym.get(sym)
+        if prior is None:
+            rows.append(stub_row(sym, rank))
+        elif prior.get("rank") == rank:
+            rows.append(prior)
+        else:
+            rows.append({**prior, "rank": rank})
     return rows
 
 
@@ -128,14 +96,23 @@ async def commit_table(
     ):
         logger.debug("scanner_stream: discard stale commit for %s", table)
         return None
-    as_gapper = table == _session.TABLE_GAPPERS
+    if not symbols:
+        # IB Warning 165 / no items. Never stamp a live roster clock for it:
+        # "0 rows, scanned just now" reads as a quiet market, and that lie is
+        # what hid a dead premarket feed on 2026-08-24. Integrity owns the
+        # alarm; this path simply refuses to fabricate freshness.
+        logger.warning(
+            "scanner_stream: %s batch had no names -- leaving roster untouched",
+            table,
+        )
+        return None
+    rows_attr, ts_attr = _session.cache_attr_names(table)
     async with timed("ibkr.scanner.hydrate"):
         rows = await hydrate_rows(
             symbols,
             table=table,
             session_key=lease_session_key,
-            as_gapper=as_gapper,
-            reverse=table != _session.TABLE_LOSERS,
+            existing=getattr(state, rows_attr) or [],
         )
     shadow[table] = rows
     if not _session.is_persistent_authoritative():
@@ -151,10 +128,13 @@ async def commit_table(
         session_key=lease_session_key,
     ):
         return None
-    rows_attr, ts_attr = _session.cache_attr_names(table)
     wall = time.time()
     setattr(state, rows_attr, rows)
     setattr(state, ts_attr, wall)
+    # A landed roster proves the feed recovered. Without this the error set by
+    # a previous failed commit would paint Integrity red for the rest of the
+    # session (PROBLEM_LOG 2026-07-23, sticky banner after reconnect).
+    state.ibkr_bridge_last_error = ""
     from ibkr.scanner_persist import persist_roster
 
     persist_roster(table, rows, wall)
@@ -162,6 +142,13 @@ async def commit_table(
     _session.mark_live(ts, source="scanner_stream", session_key=lease_session_key)
     ts.roster_ts = wall
     ts.revision += 1
+    if table == _session.TABLE_GAINERS:
+        # Premarket Gappers is a filtered projection of this roster (ADR 008
+        # amendment 2026-08-24), so a new Gainers membership can add or drop
+        # gappers even before any L1 tick lands.
+        from ibkr import gapper_view
+
+        gapper_view.refresh(state, source="gainers_commit")
     try:
         from scanner_push import broadcast_roster_replace
         await broadcast_roster_replace(table, rows, ts)

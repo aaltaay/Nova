@@ -1,3 +1,14 @@
+# Note added 2026-08-24 — missing root pattern #6
+
+The five patterns below did not name **admission coupled to a cold call**: a record only
+exists if some slow, cancellable dependency answers first. The 2026-08-24 premarket
+outage was exactly that shape (scanner rows gated on `snapshot_quotes`), and because the
+pattern was unnamed, ten prior "empty scanners" entries were filed as surfacing,
+ownership, or infra fixes. `PROBLEM_LOG.md` now carries a `Fix class` field so a run of
+surfacing-only fixes on one symptom is visible. Treat this as **pattern #6**: when a
+symptom keeps returning, check whether existence itself depends on a call that can time
+out. See `knowledge/task-log/2026-08-24-scanner-names-first-admission.md`.
+
 # 2026-08-18 — Problem log pattern analysis: 236 entries categorized
 
 - **Status:** completed (analysis; no product code changed)

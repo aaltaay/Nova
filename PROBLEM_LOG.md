@@ -18,10 +18,39 @@ Entry template (copy and fill in):
 - **Symptom:** What failed or misbehaved (error text, stack trace one-liner, or user-visible behavior).
 - **Cause:** Root cause in plain language.
 - **Fix:** What changed (conceptually; file paths if helpful).
+- **Fix class:** admission | ownership | surfacing | infra — see below.
 - **Keywords:** comma, separated, terms, for, search
 ```
 
+**Fix class** (added 2026-08-24) makes repeat-offender areas visible:
+
+| Class | Meaning |
+|-------|---------|
+| `admission` | Changed the contract for whether data exists at all (a row, a record, a cache entry) |
+| `ownership` | Changed who writes a piece of state, or fencing / quiet windows between writers |
+| `surfacing` | Only changed how a failure is displayed or logged; the failing mechanism still works the same way |
+| `infra` | Dependency, loop, transport, packaging, or process-level fix |
+
+If a symptom keeps returning and every prior entry is `surfacing`, stop patching the
+message and go read the admission contract. Ten consecutive `surfacing` fixes on empty
+scanners is exactly how the 2026-08-24 outage survived for a year.
+
 <!-- ENTRIES_START -->
+
+## 2026-08-24 — Premarket scanners empty: roster admission required a cold quote
+
+- **Symptom:** Fresh installer launch at 08:28 ET. `/api/health` `connected`, IB Gateway logged in live on 4001, market-data farms OK, `ib_loop_lag_ms.wedged=false`. Gappers and Gainers both showed zero rows for 10+ minutes. Logs: `scanner_stream: opened gainers (TOP_PERC_GAIN)` then repeating `IB on_ib timed out after 20.0s [snapshot_quotes]` / `scanner_stream: hydrate failed for gainers`, plus `Warning 165, reqId ...: Historical Market Data Service query message:no items retrieved` for gappers. `/api/mode` showed `last_gainer_scan: 0.0` while `last_gapper_scan` advanced with 0 rows. `/api/scan/integrity` reported `scanner_gainers: pass`.
+- **Cause:** Two separate faults on one broken contract. (1) `ibkr/scanner_hydrate.hydrate_rows` refused to admit any symbol as a table row until a COLD `snapshot_quotes` (`reqTickersAsync`) batch returned price + `prev_close`. That call hops HTTP -> IB via `on_ib` with a `IBKR_QUOTE_BATCH_TIMEOUT_SEC + 5` = 20s ceiling; with ~50 new names at batch size 5 and IB completing snapshots on `tickSnapshotEnd` (~11s each) while SPY charts, depth and tape shared the IB loop, it could not finish. The exception left `commit_table` unreached, so `gainer_cache_ts` stayed 0 and scanner L1 had no roster to subscribe to (`symbols_for_tab` reads the cache), making the gap self-sustaining. (2) The premarket Gappers lease used `TOP_OPEN_PERC_GAIN`, which measures today's open against the prior close; before 09:30 there is no open, so IB returned an empty list, and an empty-but-successful commit still called `mark_live` and stamped `last_scan` — advertising a fresh scan of nothing. Integrity then classified Gainers with no timestamp as `pass` ("OK if another scanner list is live"), so two dead tables vouched for each other. The correct behavior was already written down as ADR 010 decision 5 (accepted 2026-08-14) and never implemented; the 2026-07-14 `TOP_OPEN -> TOP_PERC_GAIN` fallback lived on the one-shot path that the 2026-08-07 authoritative cutover made unreachable.
+- **Fix:** Names-first admission. `scanner_hydrate` no longer imports discovery at all: a ranked IB name becomes a row immediately with `price=None`, IB rank order preserved, and the L1 hot path (`reprice_mover_row`, which now writes back the resolved `prev_close`) fills price/change. New `ibkr/gapper_view.py` projects premarket Gappers from the live Gainers roster at `GAPPER_MIN_GAP_PCT` and is the only `gapper_cache` writer under `discovery=ibkr`; the `TOP_OPEN_PERC_GAIN` premarket lease is gone. `commit_table` refuses empty batches (no `mark_live`, no timestamp) and clears `ibkr_bridge_last_error` on a landed roster; a failed commit now sets it so REST `feed_error` shows a reason. Integrity fails Gainers with no roster while IBKR is connected inside its window. One-shot IBKR discovery is dead by construction: both runners refuse and `adapters/ibkr_scanner.py` raises; `discovery.get_gappers` deleted. Morning check gained a Gainers leg. Guard test asserts `scanner_hydrate` never references `snapshot_quotes` again.
+- **Fix class:** admission (prior ten entries on this symptom were `surfacing` / `ownership` / `infra`).
+- **Keywords:** empty gappers, empty gainers, last_gainer_scan 0, snapshot_quotes, on_ib timeout, hydrate failed, Warning 165, TOP_OPEN_PERC_GAIN, names-first, gapper_view, ADR 010 decision 5, scanner admission, integrity pass
+
+## 2026-08-19 -- Installer .env missing IBKR_ENABLED; no door-trail UI
+
+- **Symptom:** After NSIS install, IB Gateway showed API connected and phone 2FA succeeded. Nova stayed IBKR offline. Trading prerequisites: `IBKR_ENABLED` fail, session reason `disabled`. Door trail not visible.
+- **Cause:** `%APPDATA%\Nova\.env` was an old Alpaca stub (`IBKR_GATEWAY_MODE=live` only). Packaged Electron does not read the repo `.env`. Door trail was JSONL + GET only -- no panel.
+- **Fix:** Sidecar merges missing connection keys (`IBKR_ENABLED`, host, ports) without adding spend gates. UI: Door trail on prerequisites and Activity.
+- **Keywords:** installer, APPDATA, IBKR_ENABLED, door trail, audit, disabled, NSIS
 
 ## 2026-08-19 -- Live click with paper still on 4002 skipped 2FA
 

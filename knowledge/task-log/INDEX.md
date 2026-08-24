@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-24 | [Scanner names-first admission (ADR 010 D5)](2026-08-24-scanner-names-first-admission.md) | IB names become rows instantly, L1 fills prices; premarket Gappers projects from Gainers; one roster owner + anti-hiding gates |
+| 2026-08-19 | [Installer IBKR_ENABLED and door-trail UI](2026-08-19-installer-ibkr-enabled-door-trail.md) | AppData .env gets IBKR_ENABLED if missing; Door trail on prereq + Activity |
 | 2026-08-19 | [Live dark stops both doors so 2FA can appear](2026-08-19-live-dark-stop-both-for-2fa.md) | Port dark = kill both listeners + IBC; port up = reconnect only |
 | 2026-08-19 | [Dual Gateway Paper/Live without re-auth](2026-08-19-dual-gateway-no-reauth.md) | Keep both Gateways logged in; capsule only dials 4001 or 4002 |
 | 2026-08-19 | [Live vs paper IBC usernames; password field empty](2026-08-19-ibc-two-usernames.md) | Door copies IbLoginIdLive/Paper; stop blanking password; IBC fills both fields |

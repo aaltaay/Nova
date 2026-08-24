@@ -1,6 +1,8 @@
 """Tests for scan_runners.run_discovery_scan control flow."""
 from __future__ import annotations
 
+import pytest
+
 import scan_runners
 from runtime_state import ScannerRuntimeState
 
@@ -29,34 +31,20 @@ def _fake_state() -> ScannerRuntimeState:
     return ScannerRuntimeState()
 
 
-def test_run_discovery_scan_ibkr_populates_cache_without_alpaca_headers(monkeypatch):
-    """IBKR prices must populate even when Alpaca listing/news credentials are absent."""
+def test_run_discovery_scan_alpaca_populates_cache(monkeypatch):
+    """The Alpaca provider still owns its own one-shot discovery."""
     state = _fake_state()
-    calls = {"ensure_avg_volume": 0, "check_news": 0, "mark_resub": 0, "save": 0}
+    calls = {"mark_resub": 0, "save": 0}
 
     monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
-    monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
+    monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "alpaca")
     monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
     monkeypatch.setattr(
         scan_runners,
         "get_discovery_port",
         lambda: _FakeDiscoveryPort([{"symbol": "AAPL", "gap_percent": 0.1}]),
     )
-    monkeypatch.setattr(
-        scan_runners,
-        "ensure_avg_volume",
-        lambda *a, **k: calls.__setitem__("ensure_avg_volume", calls["ensure_avg_volume"] + 1),
-    )
-    monkeypatch.setattr(
-        scan_runners,
-        "_check_news",
-        lambda *a, **k: calls.__setitem__("check_news", calls["check_news"] + 1) or {},
-    )
-    monkeypatch.setattr(
-        scan_runners,
-        "enrich_gappers",
-        lambda gappers, news: list(gappers),
-    )
+    monkeypatch.setattr(scan_runners, "enrich_gappers", lambda gappers, news: list(gappers))
     monkeypatch.setattr(
         scan_runners,
         "mark_resub",
@@ -71,119 +59,56 @@ def test_run_discovery_scan_ibkr_populates_cache_without_alpaca_headers(monkeypa
     scan_runners.run_discovery_scan()
 
     assert state.gapper_cache == [{"symbol": "AAPL", "gap_percent": 0.1}]
-    assert calls == {"ensure_avg_volume": 0, "check_news": 0, "mark_resub": 1, "save": 1}
+    assert calls == {"mark_resub": 1, "save": 1}
 
 
-def test_run_discovery_scan_ibkr_happy_path_populates_cache(monkeypatch):
+def test_run_discovery_scan_refuses_when_provider_is_ibkr(monkeypatch):
+    """One roster owner: the persistent lease, not this one-shot scan.
+
+    The IBKR branch here has been unreachable since the 2026-08-07
+    authoritative cutover. It stayed in the tree long enough to attract three
+    separate "premarket gappers" fixes that production never executed
+    (2026-08-24), so it now refuses instead of writing a second roster.
+    """
     state = _fake_state()
-
     monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
     monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
     monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: {"api-key": "x"})
-    monkeypatch.setattr(
-        scan_runners,
-        "get_discovery_port",
-        lambda: _FakeDiscoveryPort([{"symbol": "AAPL", "gap_percent": 0.1}]),
-    )
-    monkeypatch.setattr(scan_runners, "ensure_avg_volume", lambda *a, **k: None)
-    monkeypatch.setattr(scan_runners, "_check_news", lambda *a, **k: {"AAPL": "2026-07-15T00:00:00Z"})
-    monkeypatch.setattr(
-        scan_runners, "enrich_gappers",
-        lambda gappers, news: [{**g, "has_news": g["symbol"] in news} for g in gappers],
-    )
-    saved = {}
-    monkeypatch.setattr(
-        scan_runners, "save_gapper_snapshot",
-        lambda gappers, ts: saved.update(gappers=gappers, ts=ts),
-    )
-    resub_calls = []
-    monkeypatch.setattr(scan_runners, "mark_resub", lambda: resub_calls.append(True))
+
+    def _boom_port():
+        raise AssertionError("IBKR one-shot discovery must not be reached")
+
+    monkeypatch.setattr(scan_runners, "get_discovery_port", _boom_port)
 
     scan_runners.run_discovery_scan()
 
-    assert state.gapper_cache == [{"symbol": "AAPL", "gap_percent": 0.1, "has_news": True}]
-    assert resub_calls == [True]
-    assert saved["gappers"] == state.gapper_cache
+    assert state.gapper_cache == []
+    assert state.gapper_cache_ts == 0.0
 
 
-def test_run_gainers_update_ibkr_without_alpaca_headers(monkeypatch):
+def test_run_gainers_update_refuses_when_provider_is_ibkr(monkeypatch):
     state = _fake_state()
     monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
     monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
     monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
-    monkeypatch.setattr(
-        scan_runners,
-        "get_movers_port",
-        lambda: _FakeMoversPort([{"symbol": "XYZ", "price": 10.0, "change_pct": 0.05}]),
-    )
-    monkeypatch.setattr(
-        scan_runners,
-        "enrich_ibkr_mover",
-        lambda row, news: {**row, "enriched": True, "news": news},
-    )
-    monkeypatch.setattr(scan_runners, "save_movers_snapshot", lambda *a, **k: None)
-    monkeypatch.setattr(scan_runners, "mark_resub", lambda: None)
+
+    def _boom_port():
+        raise AssertionError("IBKR one-shot movers must not be reached")
+
+    monkeypatch.setattr(scan_runners, "get_movers_port", _boom_port)
 
     scan_runners.run_gainers_update()
 
-    assert len(state.gainer_cache) == 1
-    assert state.gainer_cache[0]["symbol"] == "XYZ"
-    assert state.gainer_cache[0]["enriched"] is True
+    assert state.gainer_cache == []
+    assert state.loser_cache == []
 
 
-def test_run_gainers_update_clears_sticky_bridge_error(monkeypatch):
-    """Successful movers refresh must clear sticky ibkr_bridge_last_error (RTH)."""
-    state = _fake_state()
-    state.ibkr_bridge_last_error = (
-        "gainers: IbkrDiscoveryError: scanner TOP_PERC_GAIN timed out after 20s"
-    )
-    state.ibkr_bridge_last_error_ts = 1_700_000_000.0
-    monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
-    monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
-    monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
-    monkeypatch.setattr(
-        scan_runners,
-        "get_movers_port",
-        lambda: _FakeMoversPort([{"symbol": "XYZ", "price": 10.0, "change_pct": 0.05}]),
-    )
-    monkeypatch.setattr(
-        scan_runners,
-        "enrich_ibkr_mover",
-        lambda row, news: {**row, "enriched": True},
-    )
-    monkeypatch.setattr(scan_runners, "save_movers_snapshot", lambda *a, **k: None)
-    monkeypatch.setattr(scan_runners, "mark_resub", lambda: None)
+def test_ibkr_scanner_adapter_refuses_every_roster_call():
+    """Backstop chokepoint: any surviving caller fails loud, never writes."""
+    from adapters.ibkr_scanner import IbkrScannerAdapter
+    from ibkr_bridge import IbkrBridgeError
 
-    scan_runners.run_gainers_update()
-
-    assert state.gainer_cache
-    assert state.ibkr_bridge_last_error == ""
-
-
-def test_run_gainers_update_clears_sticky_bridge_error_on_losers_only(monkeypatch):
-    """Clearing must not require gainers specifically — losers landing rows
-    proves the bridge is live again just as well (see PROBLEM_LOG 2026-07-23
-    sticky-banner-after-reconnect)."""
-    state = _fake_state()
-    state.ibkr_bridge_last_error = "losers: IbkrDiscoveryError: ib=none"
-    state.ibkr_bridge_last_error_ts = 1_700_000_000.0
-    monkeypatch.setattr(scan_runners, "get_runtime_state", lambda: state)
-    monkeypatch.setattr(scan_runners, "_get_discovery_provider", lambda: "ibkr")
-    monkeypatch.setattr(scan_runners, "_alpaca_headers", lambda: None)
-    monkeypatch.setattr(
-        scan_runners,
-        "get_movers_port",
-        lambda: _FakeMoversPort([], [{"symbol": "ZZZ", "price": 5.0, "change_pct": -0.05}]),
-    )
-    monkeypatch.setattr(
-        scan_runners,
-        "enrich_ibkr_mover",
-        lambda row, news: {**row, "enriched": True},
-    )
-    monkeypatch.setattr(scan_runners, "save_movers_snapshot", lambda *a, **k: None)
-    monkeypatch.setattr(scan_runners, "mark_resub", lambda: None)
-
-    scan_runners.run_gainers_update()
-
-    assert state.loser_cache
-    assert state.ibkr_bridge_last_error == ""
+    adapter = IbkrScannerAdapter()
+    for call in (adapter.get_gappers, adapter.get_gainers, adapter.get_losers):
+        with pytest.raises(IbkrBridgeError, match="lease-owned"):
+            call()

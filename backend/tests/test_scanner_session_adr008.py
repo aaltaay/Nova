@@ -29,8 +29,10 @@ def test_session_key_midnight_belongs_to_prior_session():
 
 
 def test_desired_leases_by_period():
+    # Premarket holds one lease: TOP_OPEN_PERC_GAIN has no open to measure
+    # before 09:30 (IB Warning 165), so Gappers is projected from Gainers.
     assert [t for t, _ in ss.desired_leases(_et(2026, 7, 23, 8, 0))] == [
-        ss.TABLE_GAINERS, ss.TABLE_GAPPERS,
+        ss.TABLE_GAINERS,
     ]
     assert [t for t, _ in ss.desired_leases(_et(2026, 7, 23, 10, 0))] == [
         ss.TABLE_GAINERS, ss.TABLE_LOSERS,
@@ -91,94 +93,64 @@ def test_rollover_clears_prior_session(monkeypatch):
     assert frozen == [] or ss.TABLE_GAPPERS not in frozen
 
 
-def test_hydrate_rows_preserves_unchanged_symbols(monkeypatch):
-    """Plan §2: cold reqTickersAsync hydration only for newly admitted
-    symbols; unchanged symbols keep their previously-hydrated row."""
+def test_hydrate_rows_preserves_unchanged_symbols():
+    """L1-filled rows survive the next IB batch; new names join as stubs.
+
+    ADR 010 decision 5: admission is name-only, so the price a row already
+    carries comes from the L1 hot path and must not be discarded when IB
+    re-ranks the scan.
+    """
     import asyncio
 
     from ibkr import scanner_hydrate as hydrate
 
-    hydrate.reset_known()
-    calls: list[list[str]] = []
-
-    async def fake_snapshot_quotes(symbols, **_kw):
-        calls.append(list(symbols))
-        return {s: {"price": 10.0, "prev_close": 9.0, "volume": 1} for s in symbols}
-
-    monkeypatch.setattr(hydrate._discovery, "snapshot_quotes", fake_snapshot_quotes)
-
-    rows1 = asyncio.run(hydrate.hydrate_rows(
-        ["AAA", "BBB"], table="gainers", session_key="2026-07-23",
-        as_gapper=False, reverse=True,
-    ))
-    assert {r["symbol"] for r in rows1} == {"AAA", "BBB"}
-    assert calls == [["AAA", "BBB"]]
-
-    # BBB re-quoted at a different price to prove it is NOT re-fetched.
-    async def fake_snapshot_quotes_2(symbols, **_kw):
-        calls.append(list(symbols))
-        return {s: {"price": 99.0, "prev_close": 9.0, "volume": 1} for s in symbols}
-
-    monkeypatch.setattr(hydrate._discovery, "snapshot_quotes", fake_snapshot_quotes_2)
+    live = [
+        {"symbol": "AAA", "rank": 1, "price": 10.0, "prev_close": 9.0},
+        {"symbol": "BBB", "rank": 2, "price": 10.0, "prev_close": 9.0},
+    ]
 
     rows2 = asyncio.run(hydrate.hydrate_rows(
         ["AAA", "BBB", "CCC"], table="gainers", session_key="2026-07-23",
-        as_gapper=False, reverse=True,
+        existing=live,
     ))
-    assert calls[-1] == ["CCC"]  # only the newly admitted symbol was cold-quoted
     by_sym = {r["symbol"]: r for r in rows2}
-    assert by_sym["AAA"]["price"] == 10.0  # preserved, not re-quoted
-    assert by_sym["BBB"]["price"] == 10.0  # preserved, not re-quoted
-    assert by_sym["CCC"]["price"] == 99.0  # newly admitted, hydrated
+    assert by_sym["CCC"]["price"] is None  # newly admitted, awaiting first L1 tick
+    assert by_sym["AAA"]["price"] == 10.0  # preserved L1 fill
+    assert by_sym["BBB"]["price"] == 10.0  # preserved L1 fill
+    assert [r["rank"] for r in rows2] == [1, 2, 3]  # rank follows the fresh batch
 
 
-def test_hydrate_rows_drops_symbols_no_longer_in_batch(monkeypatch):
+def test_hydrate_rows_drops_symbols_no_longer_in_batch():
     import asyncio
 
     from ibkr import scanner_hydrate as hydrate
 
-    hydrate.reset_known()
-
-    async def fake_snapshot_quotes(symbols, **_kw):
-        return {s: {"price": 1.0, "prev_close": 1.0, "volume": 1} for s in symbols}
-
-    monkeypatch.setattr(hydrate._discovery, "snapshot_quotes", fake_snapshot_quotes)
-
-    asyncio.run(hydrate.hydrate_rows(
-        ["AAA", "BBB"], table="gainers", session_key="2026-07-23",
-        as_gapper=False, reverse=True,
-    ))
+    live = [
+        {"symbol": "AAA", "rank": 1, "price": 1.0, "prev_close": 1.0},
+        {"symbol": "BBB", "rank": 2, "price": 1.0, "prev_close": 1.0},
+    ]
     rows = asyncio.run(hydrate.hydrate_rows(
-        ["BBB"], table="gainers", session_key="2026-07-23",
-        as_gapper=False, reverse=True,
+        ["BBB"], table="gainers", session_key="2026-07-23", existing=live,
     ))
     assert {r["symbol"] for r in rows} == {"BBB"}
 
 
-def test_hydrate_rows_resets_on_session_rollover(monkeypatch):
+def test_hydrate_rows_carries_no_cross_session_memory():
+    """Rollover clears the table cache; hydrate must not resurrect it.
+
+    Previously hydrate kept its own per-session ``_known_rows`` map, so a
+    session-key change was what forced a re-quote. The table cache is now the
+    only roster memory, and ``reconcile_session_tables`` empties it at 04:00
+    ET -- so a fresh session starts from stubs with no hidden state.
+    """
     import asyncio
 
     from ibkr import scanner_hydrate as hydrate
 
-    hydrate.reset_known()
-    calls: list[list[str]] = []
-
-    async def fake_snapshot_quotes(symbols, **_kw):
-        calls.append(list(symbols))
-        return {s: {"price": 1.0, "prev_close": 1.0, "volume": 1} for s in symbols}
-
-    monkeypatch.setattr(hydrate._discovery, "snapshot_quotes", fake_snapshot_quotes)
-
-    asyncio.run(hydrate.hydrate_rows(
-        ["AAA"], table="gainers", session_key="2026-07-22",
-        as_gapper=False, reverse=True,
+    rows = asyncio.run(hydrate.hydrate_rows(
+        ["AAA"], table="gainers", session_key="2026-07-23", existing=[],
     ))
-    asyncio.run(hydrate.hydrate_rows(
-        ["AAA"], table="gainers", session_key="2026-07-23",
-        as_gapper=False, reverse=True,
-    ))
-    # New session — AAA must be re-quoted, not reused from the prior day.
-    assert calls == [["AAA"], ["AAA"]]
+    assert rows[0]["price"] is None
 
 
 def test_recover_skips_persistent_leases(monkeypatch):

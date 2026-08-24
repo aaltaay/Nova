@@ -58,11 +58,35 @@ A timeout/grace/auto-heal-only patch would hide the banner and still leave L1 an
 - A new global event bus.
 - Feature-flag two-loop half-migration (worse than today: `_loop` identity split).
 
+## Decision ledger (accepted is not implemented)
+
+Accepted status covers the whole ADR; each decision ships separately. This
+table is the record. Update it in the same commit that ships a decision --
+decision 5 sat unimplemented for 10 days behind an "Accepted" header while the
+Related list below still said Tasks 1/3 were "not yet" (they shipped in the
+same commit as this file). That combination is why the 2026-08-24 premarket
+outage looked like new news.
+
+| # | Decision | Status | Evidence |
+|---|----------|--------|----------|
+| 1 | One process, one `IBKR_CLIENT_ID` | shipped | `ibkr/client_connect.py` |
+| 2 | Two loops, `ib.*` on the connect loop | shipped 2026-08-17 | `ibkr/loop_supervisor.py` |
+| 3 | Cross-loop seam (`on_ib` / `publish_to_http`) | shipped 2026-08-17 | `ibkr/loop_supervisor.py` |
+| 4 | Honest invariant (no auto-kill on IB lag) | shipped | `routes/health.py` |
+| 5 | **`snapshot_quotes` never gates admission; new names wait for L1** | **shipped 2026-08-24** | `ibkr/scanner_hydrate.py`, `ibkr/gapper_view.py`, `tests/test_scanner_names_first.py` |
+| 6 | One IB-loop scheduler replaces three locks | shipped 2026-08-17 | `ibkr/ib_scheduler.py` |
+| 7 | Execution lock does not span the hop | shipped | `execution/service.py` |
+| 8 | WEDGED is IB-loop SoT | shipped | `routes/health.py`, `utils/backendAutoHeal.ts` |
+| 9 | HOD integrity matches drop policy | shipped | `hod_momo_integrity_scanner.py` |
+| 10 | No half-on feature flag | standing rule | rollback is git revert |
+
 ## Related
 
 - `backend/ibkr/work_class.py` -- HOT/COLD SSOT (this ADR, Task 0)
-- `backend/ibkr/loop_supervisor.py` -- IB thread (Task 1, not yet)
-- `backend/ibkr/ib_scheduler.py` -- one cold scheduler (Task 3, not yet)
+- `backend/ibkr/loop_supervisor.py` -- IB thread (shipped 2026-08-17)
+- `backend/ibkr/ib_scheduler.py` -- one cold scheduler (shipped 2026-08-17)
+- `backend/ibkr/scanner_hydrate.py` -- decision 5 admission path (shipped 2026-08-24)
+- `backend/ibkr/gapper_view.py` -- premarket Gappers projection (shipped 2026-08-24)
 - `.cursor/rules/single-market-data-feed.mdc` -- two-loop + hot/cold rule
 - `frontend/src/utils/backendAutoHeal.ts` -- WEDGED must not kill (Task 4)
 - Soak notes: `C:\Users\aalta\.nova\soak\incident-2026-08-14-0816.md`

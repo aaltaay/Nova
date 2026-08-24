@@ -17,7 +17,6 @@ from typing import Any
 
 from constants import (
     IBKR_SCAN_ABOVE_PRICE,
-    IBKR_SCAN_CODE_GAPPERS,
     IBKR_SCAN_INSTRUMENT,
     IBKR_SCAN_LOCATION,
     IBKR_SCAN_MAX_ROWS,
@@ -133,16 +132,6 @@ def _on_batch(lease: _Lease, rows: list) -> None:
     lease.last_batch_mono = now_m
     if lease.first_batch_event is not None and not lease.first_batch_event.is_set():
         lease.first_batch_event.set()
-    if lease.table == _session.TABLE_GAPPERS and not symbols:
-        pending_gainers = _pending_hydrate.get(_session.TABLE_GAINERS)
-        symbols = list(pending_gainers[0] if pending_gainers else []) or [
-            r["symbol"] for r in (_shadow.get(_session.TABLE_GAINERS) or [])
-        ]
-        if symbols:
-            logger.info(
-                "scanner_stream: %s empty — derive from gainers (%d)",
-                IBKR_SCAN_CODE_GAPPERS, len(symbols),
-            )
     _pending_hydrate[lease.table] = (symbols, time.perf_counter_ns())
     _schedule_hydrate()
 
@@ -181,9 +170,15 @@ async def _hydrate_pending() -> None:
                 epoch=_epoch,
                 shadow=_shadow,
             )
-        except Exception:
+        except Exception as exc:
             record_since("ibkr.scanner.pipeline", started_ns, ok=False)
             logger.exception("scanner_stream: hydrate failed for %s", table)
+            # Surface it on /api/gappers + /api/movers as feed_error. A commit
+            # that never lands used to leave the roster clock at 0 with no
+            # visible reason (2026-08-24).
+            get_runtime_state().ibkr_bridge_last_error = (
+                f"{table} roster commit failed: {type(exc).__name__}"
+            )
         else:
             if committed is not None:
                 record_since("ibkr.scanner.pipeline", started_ns, ok=committed)
@@ -376,4 +371,3 @@ async def shutdown() -> None:
         _cancel_lease(table, freeze_first=False)
     _shadow.clear()
     _pending_hydrate.clear()
-    _hydrate.reset_known()

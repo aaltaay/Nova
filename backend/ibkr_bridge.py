@@ -278,6 +278,14 @@ def apply_l1_quote(
                     "volume": r.get("volume", volume),
                 })
                 break
+        # This tick may have moved a name across the gap floor in either
+        # direction — premarket Gappers is a projection of this roster.
+        try:
+            from ibkr import gapper_view
+
+            gapper_view.refresh(state, source="l1")
+        except Exception:
+            logger.debug("apply_l1_quote: gapper view refresh failed", exc_info=True)
     if state.loser_cache and not _ss.is_table_frozen(state, _ss.TABLE_LOSERS):
         state.loser_cache = [
             _touch_row(r, _ibkr_discovery.reprice_mover_row) for r in state.loser_cache

@@ -121,7 +121,7 @@ def test_historical_request_failure_measured_once(monkeypatch):
 
 
 def test_hydration_and_pipeline_metrics_include_error_paths(monkeypatch):
-    state = SimpleNamespace()
+    state = SimpleNamespace(gainer_cache=[], gainer_cache_ts=0.0)
     monkeypatch.setattr(scanner_hydrate, "get_runtime_state", lambda: state)
     monkeypatch.setattr(scanner_hydrate._client, "current_generation", lambda: 1)
     monkeypatch.setattr(scanner_hydrate._session, "can_commit_roster", lambda *_a, **_k: True)

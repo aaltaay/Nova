@@ -19,7 +19,6 @@ import math
 import time
 
 from constants import (
-    GAPPER_MIN_GAP_PCT,
     IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC,
     IBKR_ERROR_SCANNER_SLOT_EXHAUSTED,
     IBKR_COLD_SNAPSHOT_BATCH,
@@ -27,7 +26,6 @@ from constants import (
     IBKR_SCAN_ABOVE_PRICE,
     IBKR_SCAN_CODE_AH_GAINERS,
     IBKR_SCAN_CODE_GAINERS,
-    IBKR_SCAN_CODE_GAPPERS,
     IBKR_SCAN_CODE_LOSERS,
     IBKR_SCAN_INSTRUMENT,
     IBKR_SCAN_LOCATION,
@@ -561,56 +559,6 @@ def chunk_symbols(symbols: list[str], chunk_size: int) -> list[list[str]]:
     return [ordered[i : i + chunk_size] for i in range(0, len(ordered), chunk_size)]
 
 
-def _meets_min_gap(gap_frac: float | None) -> bool:
-    return gap_frac is not None and gap_frac * 100 >= GAPPER_MIN_GAP_PCT
-
-
-async def get_gappers() -> list[dict]:
-    """Gap scan: current price vs prior session close.
-
-    Prefers ``TOP_OPEN_PERC_GAIN`` (open vs prior close). Before the regular
-    open IB often returns an empty/cancelled result for that code — fall back
-    to ``TOP_PERC_GAIN`` (last vs prior close), which is the correct premarket
-    gap definition and matches what traders mean by "gappers" at 4:00–9:30 ET.
-    """
-    symbols = await scan_symbols(IBKR_SCAN_CODE_GAPPERS)
-    if not symbols:
-        logger.info(
-            "IBKR gappers: %s empty — falling back to %s (premarket / pre-open)",
-            IBKR_SCAN_CODE_GAPPERS,
-            IBKR_SCAN_CODE_GAINERS,
-        )
-        symbols = await scan_symbols(IBKR_SCAN_CODE_GAINERS)
-    if not symbols:
-        logger.info("IBKR gappers: both scanner codes returned 0 symbols (empty market)")
-        return []
-    quotes = await snapshot_quotes(symbols, require_success=True)
-
-    rows: list[dict] = []
-    for sym, q in quotes.items():
-        price, prev_close = q["price"], q["prev_close"]
-        if price < SCANNER_MIN_PRICE or not prev_close:
-            continue
-        gap_frac = (price - prev_close) / prev_close
-        if not _meets_min_gap(gap_frac):
-            continue
-        rows.append({
-            "symbol": sym,
-            "price": price,
-            "prev_close": prev_close,
-            "change_pct": gap_frac,
-            "change_abs": price - prev_close,
-            "previous_close": prev_close,   # WS handler compat, mirrors Alpaca path
-            "current_price": price,         # WS handler compat, mirrors Alpaca path
-            "gap_percent": gap_frac,
-            "volume": q["volume"],
-            "exchange": q.get("exchange"),
-        })
-    rows.sort(key=lambda x: x["gap_percent"], reverse=True)
-    logger.info("IBKR gappers: %d rows after %.0f%% filter", len(rows), GAPPER_MIN_GAP_PCT)
-    return rows
-
-
 async def _get_movers(
     scan_code: str, reverse: bool, *, below_price: float | None = None,
 ) -> list[dict]:
@@ -685,15 +633,22 @@ def reprice_gapper_row(g: dict, q: dict) -> dict:
 
 
 def reprice_mover_row(m: dict, q: dict) -> dict:
-    """Gainer/loser counterpart to reprice_gapper_row."""
+    """Gainer/loser counterpart to reprice_gapper_row.
+
+    Also the fill path for a names-first stub row (ADR 010 decision 5): the
+    resolved ``prev_close`` is written back so the row stops being a stub after
+    the first L1 tick that carries a close. Without a close the price is still
+    recorded, but no change is invented against an unknown baseline.
+    """
     prev_close = m.get("prev_close") or q.get("prev_close")
     price = q["price"]
     if not prev_close:
-        return m
+        return {**m, "price": price, "volume": q.get("volume", m.get("volume", 0))}
     change_pct = (price - prev_close) / prev_close
     return {
         **m,
         "price": price,
+        "prev_close": prev_close,
         "change_pct": change_pct,
         "change_abs": price - prev_close,
         "volume": q.get("volume", m.get("volume", 0)),

@@ -13,6 +13,10 @@ from hod_momo_integrity_common import check, worst
 # Gappers freeze at the open by design — do not fail RTH/AH on a stale gapper cache.
 _GAPPER_OPTIONAL_MODES = frozenset({"market", "regular", "rth", "afterhours", "closed"})
 
+# Gainers owns discovery while its window is open (04:00-16:00 ET). An empty
+# Gainers roster inside this window is a broken pipeline, not a quiet tape.
+_GAINER_LIVE_MODES = frozenset({"premarket", "market", "regular", "rth"})
+
 
 def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
     """Evaluate gappers/gainers/losers cache freshness + discovery feed."""
@@ -102,7 +106,27 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
 
         if age is None:
             if count <= 0:
-                # Premarket empty with no timestamp is suspicious when IBKR is up.
+                # A missing timestamp means no roster ever committed. For the
+                # feed that owns discovery (Gainers, live 04:00-16:00 ET) that
+                # is a dead pipeline, not a quiet market: on 2026-08-24 this
+                # branch reported "pass -- OK if another scanner list is live"
+                # for eight minutes while IB was pushing names the roster
+                # commit kept dropping. Never let one empty table vouch for
+                # another empty table.
+                if (
+                    provider == "ibkr"
+                    and ibkr_ok
+                    and name == "gainers"
+                    and mode in _GAINER_LIVE_MODES
+                ):
+                    checks.append(check(
+                        "scanner_gainers",
+                        "fail",
+                        "gainers: no roster ever committed while discovery=ibkr "
+                        "connected -- IB names are not reaching the table "
+                        "(check roster commit / feed_error)",
+                    ))
+                    continue
                 status = (
                     "warn"
                     if name == "gappers" and mode == "premarket" and provider == "ibkr"
