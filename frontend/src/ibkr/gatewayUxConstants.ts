@@ -35,6 +35,14 @@ export const PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL = 'Use paper Gateway';
 export const PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL = 'Use live Gateway';
 export const PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL = 'Switching...';
 
+export const DOOR_TRAIL_TITLE = 'Door trail';
+export const DOOR_TRAIL_KICKER = 'Paper / Live audit';
+export const DOOR_TRAIL_HINT =
+  'Who clicked Paper or Live, what IBC did, and whether Nova attached. Not order Activity.';
+export const DOOR_TRAIL_EMPTY =
+  'No door events yet. A Paper/Live click or Gateway attach will show here.';
+export const DOOR_TRAIL_REFRESH = 'Refresh';
+
 /** How long (seconds) after a disconnected→connected transition to keep showing the
  * reconnect warm-up empty-state copy instead of the generic "no rows" message —
  * covers ADR 008 persistent scanner roster + L1 resubscribe time. */

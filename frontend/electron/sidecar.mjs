@@ -7,6 +7,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, dialog, shell } from 'electron';
+import { IBKR_CONNECT_DEFAULTS, mergeMissingEnvKeys } from './envMerge.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,6 +48,11 @@ function ensureUserEnv() {
           ].join('\n');
       fs.writeFileSync(envPath, template, 'utf8');
     }
+  }
+  const raw = fs.readFileSync(envPath, 'utf8');
+  const merged = mergeMissingEnvKeys(raw, IBKR_CONNECT_DEFAULTS);
+  if (merged !== raw) {
+    fs.writeFileSync(envPath, merged, 'utf8');
   }
   return { envPath, cacheDir, logDir, userData };
 }

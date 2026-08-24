@@ -1,0 +1,5 @@
+#!/bin/sh
+# Bump Nova to 0.1.<next-commit-count> and stage VERSION + frontend/package.json.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+py -3 tools/bump_version.py --pre-commit

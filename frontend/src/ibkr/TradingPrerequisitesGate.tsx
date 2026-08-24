@@ -25,6 +25,7 @@ import {
   type PrereqItem,
 } from './tradingPrerequisites';
 import { GatewayModeLaunchButtons } from './GatewayModeLaunchButtons';
+import { GatewayDoorTrail } from './GatewayDoorTrail';
 import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
 import { TRADING_PREREQ_OPEN_EVENT } from './tradingPrereqUi';
 import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
@@ -115,9 +116,9 @@ function ItemRow({
             </button>
           </div>
         )}
-        {!item.ok && item.action === 'env_spend' && (
+        {!item.ok && item.action === 'env_ibkr' && (
           <div className="trading-prereq-item__cta trading-prereq-item__cta--hint">
-            Edit local <code>.env</code>, then restart Nova API. Spend gates never auto-unlock.
+            Edit local <code>.env</code> (desktop: <code>%APPDATA%\Nova\.env</code>), then restart Nova.
           </div>
         )}
       </div>
@@ -146,7 +147,6 @@ export function TradingPrerequisitesGate() {
         health,
         ibkrEnabled: ibkr.enabled,
         ibkrConnected: Boolean(ibkrConnected || ibkr.connected),
-        spendStatus: ibkr.spend_status,
         ibkrTransportConnected: ibkr.transport_connected,
         preferredPortReachable: ibkr.preferred_port_reachable,
         disconnectHint: ibkr.disconnect_hint,
@@ -156,7 +156,6 @@ export function TradingPrerequisitesGate() {
       health,
       ibkr.enabled,
       ibkr.connected,
-      ibkr.spend_status,
       ibkr.transport_connected,
       ibkr.preferred_port_reachable,
       ibkr.disconnect_hint,
@@ -328,6 +327,7 @@ export function TradingPrerequisitesGate() {
             {launchHint}
           </p>
         )}
+        <GatewayDoorTrail compact />
       </div>
     </div>
   );

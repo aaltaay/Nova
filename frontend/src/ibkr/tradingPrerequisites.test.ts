@@ -15,7 +15,6 @@ describe('buildTradingPrerequisites', () => {
       },
       ibkrEnabled: true,
       ibkrConnected: true,
-      spendStatus: 'paper_armed',
     });
     expect(out.blockDesk).toBe(true);
     expect(out.autoOverlay).toBe(true);
@@ -33,7 +32,6 @@ describe('buildTradingPrerequisites', () => {
       },
       ibkrEnabled: true,
       ibkrConnected: false,
-      spendStatus: 'live_armed',
     });
     expect(out.items.find((i) => i.id === 'ibkr_gateway')?.action).toBeNull();
   });
@@ -47,7 +45,6 @@ describe('buildTradingPrerequisites', () => {
       },
       ibkrEnabled: true,
       ibkrConnected: false,
-      spendStatus: 'live_armed',
     });
     expect(out.items.find((i) => i.id === 'ibkr_gateway')?.action).toBe(
       'reconnect_ibkr',
@@ -59,7 +56,6 @@ describe('buildTradingPrerequisites', () => {
       health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
       ibkrEnabled: true,
       ibkrConnected: false,
-      spendStatus: 'paper_armed',
     });
     expect(out.blockDesk).toBe(true);
     expect(out.autoOverlay).toBe(false);
@@ -71,7 +67,6 @@ describe('buildTradingPrerequisites', () => {
       health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
       ibkrEnabled: true,
       ibkrConnected: false,
-      spendStatus: 'live_armed',
       preferredPortReachable: true,
       ibkrTransportConnected: false,
       disconnectHint: 'live_port_open_but_disconnected',
@@ -86,25 +81,27 @@ describe('buildTradingPrerequisites', () => {
     expect(gw?.detail).not.toMatch(/Look at your desktop for 2FA/i);
   });
 
-  it('desk ready but not trade ready when spend locked', () => {
+  it('does not list Orders armed -- spend locks live on the trade ticket', () => {
     const out = buildTradingPrerequisites({
       health: { status: 'connected', latency_ms: 0 },
       ibkrEnabled: true,
       ibkrConnected: true,
-      spendStatus: 'locked',
     });
-    expect(out.blockDesk).toBe(false);
+    expect(out.items.some((i) => i.id === 'orders_armed')).toBe(false);
+    expect(out.items.map((i) => i.id)).toEqual([
+      'nova_api',
+      'ibkr_enabled',
+      'ibkr_gateway',
+    ]);
     expect(out.deskReady).toBe(true);
-    expect(out.tradeReady).toBe(false);
-    expect(out.items.find((i) => i.id === 'orders_armed')?.ok).toBe(false);
+    expect(out.tradeReady).toBe(true);
   });
 
-  it('trade ready when API + Gateway + spend armed', () => {
+  it('desk ready when API + Gateway are up', () => {
     const out = buildTradingPrerequisites({
       health: { status: 'connected', latency_ms: 0 },
       ibkrEnabled: true,
       ibkrConnected: true,
-      spendStatus: 'live_armed',
     });
     expect(out.blockDesk).toBe(false);
     expect(out.autoOverlay).toBe(false);
@@ -125,7 +122,6 @@ describe('buildTradingPrerequisites', () => {
       },
       ibkrEnabled: true,
       ibkrConnected: true,
-      spendStatus: 'live_armed',
     });
     expect(out.items.find((i) => i.id === 'nova_api')?.ok).toBe(true);
     expect(out.items.find((i) => i.id === 'nova_api')?.action).toBeNull();
@@ -142,7 +138,6 @@ describe('buildTradingPrerequisites', () => {
       },
       ibkrEnabled: true,
       ibkrConnected: true,
-      spendStatus: 'paper_armed',
     });
     expect(out.items.find((i) => i.id === 'nova_api')?.ok).toBe(false);
     expect(out.items.find((i) => i.id === 'nova_api')?.action).toBeNull();
@@ -156,7 +151,6 @@ describe('buildTradingPrerequisites', () => {
       health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
       ibkrEnabled: true,
       ibkrConnected: false,
-      spendStatus: 'live_armed',
       preferredPortReachable: false,
       ibkrTransportConnected: false,
       disconnectHint: 'live_port_refused_paper_listening',
@@ -176,7 +170,6 @@ describe('buildTradingPrerequisites', () => {
         latency_source: 'alpaca_account_http',
       },
       ibkrConnected: true,
-      spendStatus: 'paper_armed',
     });
     expect(out.items.some((i) => i.id.includes('alpaca'))).toBe(false);
     expect(out.tradeReady).toBe(true);

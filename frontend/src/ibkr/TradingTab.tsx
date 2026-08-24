@@ -172,8 +172,9 @@ export function TradingTab({
               </ul>
             </li>
             <li>
-              Set <code>IBKR_ENABLED=true</code> in your <code>.env</code> file
-              and restart Nova. For live trading also add{' '}
+              Set <code>IBKR_ENABLED=true</code> in the desktop{' '}
+              <code>%APPDATA%\Nova\.env</code> file (installer) or the repo{' '}
+              <code>.env</code> (dev), then restart Nova. For live trading also add{' '}
               <code>IBKR_LIVE_TRADING_CONFIRMED=true</code>.
             </li>
           </ol>

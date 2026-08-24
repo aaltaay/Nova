@@ -31,7 +31,18 @@ cd frontend
 npm run electron:pack
 ```
 
-Installer output: `frontend/release/Nova-Setup-*.exe`.
+Installer output: `frontend/release/Nova-Setup-*.exe` (version comes from `frontend/package.json`, synced from commit count).
+
+### Versioning (commit-count semver)
+
+Nova uses **`0.1.<commit-count>`** (e.g. `0.1.418` = 418 commits on `master`). The patch number is `git rev-list --count HEAD` after each commit lands.
+
+- **SSOT:** repo root `VERSION` + `frontend/package.json` (Electron / NSIS read `package.json`).
+- **Install hooks once:** `powershell -File tools/install_git_hooks.ps1` (sets `core.hooksPath` to `.githooks`).
+- **pre-commit:** bumps to the next count and stages `VERSION` + `package.json`.
+- **pre-push:** blocks push if those files drift from the commit count.
+- **Manual sync:** `py -3 tools/bump_version.py --sync` (align to current HEAD without committing).
+- **Tags (optional):** `v0.1.418` on release builds.
 
 The packaged app stores Alpaca keys and cache under `%APPDATA%\Nova\` (`.env`, `cache\`, `logs\`).
 

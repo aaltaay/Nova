@@ -1,6 +1,7 @@
 /**
- * Trading Prerequisites checklist -- single model for "can I trade?"
- * Required services: Nova API, IB Gateway (READY), spend armed.
+ * Trading Prerequisites checklist -- desk connectivity only.
+ * Required: Nova API, IBKR enabled, IB Gateway READY.
+ * Order spend / PIN / ticket unlock stay on the trade path -- not this list.
  * Alpaca is never a prerequisite.
  */
 import {
@@ -15,14 +16,14 @@ import {
   PREREQ_GATEWAY_PORT_OPEN_DETAIL,
 } from './gatewayUxConstants';
 
-export type PrereqId = 'nova_api' | 'ibkr_gateway' | 'ibkr_enabled' | 'orders_armed';
+export type PrereqId = 'nova_api' | 'ibkr_gateway' | 'ibkr_enabled';
 
 export type PrereqAction =
   | 'start_api'
   | 'launch_gateway'
   | 'reconnect_ibkr'
   | 'switch_gateway_mode'
-  | 'env_spend'
+  | 'env_ibkr'
   | null;
 
 export interface PrereqItem {
@@ -37,7 +38,6 @@ export interface TradingPrerequisitesInput {
   health: HealthStatus | null | undefined;
   ibkrEnabled?: boolean;
   ibkrConnected: boolean;
-  spendStatus?: string | null;
   /** Raw socket -- true while session may still be syncing / degraded. */
   ibkrTransportConnected?: boolean | null;
   /** Preferred Gateway API port accepts TCP (status.preferred_port_reachable). */
@@ -50,9 +50,9 @@ export interface TradingPrerequisitesInput {
 
 export interface TradingPrerequisites {
   items: PrereqItem[];
-  /** True when Nova API + IBKR Gateway are up (desk may browse; trade still needs spend). */
+  /** True when Nova API + IBKR enabled + Gateway READY. */
   deskReady: boolean;
-  /** True when deskReady and orders are paper_armed or live_armed. */
+  /** Same as deskReady -- spend / ticket locks are outside this checklist. */
   tradeReady: boolean;
   /** Desk not ready (API or Gateway down). Does not by itself cover the UI. */
   blockDesk: boolean;
@@ -88,24 +88,6 @@ function novaApiDetail(health: HealthStatus | null | undefined): string {
     return 'Nova API process is reachable on port 8000.';
   }
   return health.message || health.flag_hint || `API status: ${health.status}`;
-}
-
-function spendArmed(spendStatus: string | null | undefined): boolean {
-  return spendStatus === 'paper_armed' || spendStatus === 'live_armed';
-}
-
-function spendDetail(spendStatus: string | null | undefined): string {
-  if (spendStatus === 'paper_armed') return 'Paper orders armed (IBKR_ORDERS_ENABLED).';
-  if (spendStatus === 'live_armed') {
-    return 'Live orders armed (IBKR_ORDERS_ENABLED + IBKR_LIVE_TRADING_CONFIRMED).';
-  }
-  if (spendStatus === 'locked_live_unconfirmed') {
-    return 'Orders need IBKR_LIVE_TRADING_CONFIRMED=true in .env for live money.';
-  }
-  if (spendStatus === 'locked') {
-    return 'Orders locked — set IBKR_ORDERS_ENABLED=true in .env (never auto-unlocked).';
-  }
-  return 'Spend status unknown — check Trading tab / .env.';
 }
 
 export function gatewayPortMismatchHint(
@@ -159,7 +141,6 @@ export function buildTradingPrerequisites(
   const apiOk = novaApiOk(input.health);
   const enabled = input.ibkrEnabled !== false;
   const gatewayOk = Boolean(input.ibkrConnected);
-  const ordersOk = spendArmed(input.spendStatus);
   const followTarget = gatewayPortMismatchHint(input.disconnectHint);
   const portOpenStuck = !gatewayOk && gatewayPortOpenButSessionDown(input);
   const apiDown = input.health?.flag === BACKEND_DIAG_FLAG_DOWN;
@@ -187,7 +168,7 @@ export function buildTradingPrerequisites(
       detail: enabled
         ? 'IBKR_ENABLED is on.'
         : 'Set IBKR_ENABLED=true in .env and restart the API.',
-      action: enabled ? null : 'env_spend',
+      action: enabled ? null : 'env_ibkr',
     },
     {
       id: 'ibkr_gateway',
@@ -196,22 +177,14 @@ export function buildTradingPrerequisites(
       detail: gatewayDetail(input, gatewayOk),
       action: gatewayAction,
     },
-    {
-      id: 'orders_armed',
-      ok: ordersOk,
-      label: 'Orders armed',
-      detail: spendDetail(input.spendStatus),
-      action: ordersOk ? null : 'env_spend',
-    },
   ];
 
   const deskReady = apiOk && enabled && gatewayOk;
-  const tradeReady = deskReady && ordersOk;
 
   return {
     items,
     deskReady,
-    tradeReady,
+    tradeReady: deskReady,
     blockDesk: !deskReady,
     autoOverlay: !apiOk,
   };
