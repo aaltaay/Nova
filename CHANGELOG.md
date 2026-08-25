@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- Level 2 depth given the same per-viewer queue fan-out as the tape fix
+
+- **What:** `ibkr/depth/state.py` had the identical single-shared-queue-per-symbol design that caused the Time & Sales freeze (previous entry below) -- two viewers of the same symbol's depth would compete for book updates instead of both receiving every one. Fixed preemptively, at the user's explicit request, before it was reported as broken.
+- **Why:** Named as a follow-up risk in the tape fix's task log; user asked to fix it now while the pattern was fresh rather than wait for a real report.
+- **Files touched:** `backend/ibkr/depth/state.py`, `backend/ibkr/depth/stream.py`, `backend/ibkr/depth/__init__.py`, `backend/routes/trading.py`, `backend/tests/test_depth_stability.py`, `backend/tests/test_ibkr_depth_state.py`, `backend/tests/test_ibkr_safety.py`.
+- **How it works now:** Same shape as tape's fix -- `_viewer_queues: dict[str, list[asyncio.Queue]]` replaces the single `_queues[symbol]`; `push_book` broadcasts to every registered queue; `open_viewer_queue`/`close_viewer_queue` manage each WS connection's own queue; `stream()` takes a queue directly. `has_queue` renamed to `is_subscribed` (now checks `_subscriptions`, decoupled from queue lifecycle -- queues no longer exist at subscribe time, only at viewer-open time). Depth did not need tape's linger/lock fixes: `release_when_idle` already re-checks `viewer_count` inline before releasing, and `subscribe_async` already serializes through one `get_subscribe_lock()`.
+- **Verified by:** `pytest` depth suites (47 passed) + full backend suite (1343 passed). Live: restarted the local API with IB Gateway connected live; opened two concurrent WebSocket viewers to `/ws/ibkr/depth/DAIC` and held both open 15s -- both received an identical 15 book updates each, proving fan-out instead of a competing split.
+- **Related:** PROBLEM_LOG.md 2026-08-25 "Level 2 depth given the same per-viewer fan-out fix as tape, preemptively"; CHANGELOG.md 2026-08-25 "Time & Sales no longer freezes..." (same session, prior entry).
+
 ## 2026-08-25 -- Time & Sales no longer freezes on a StrictMode double-mount; afterhours reprice no longer crashes on unpriced rows
 
 - **What:** Fixed a Time & Sales freeze (reported: "time and sale is stuck") where the tape stopped moving and the LIVE badge kept lying. Two bugs stacked: an idle-release "linger" could cancel a tick-by-tick line a viewer was still watching, and even once that was fixed, two viewers of the same symbol were competing consumers on one shared queue instead of both receiving every print. Also fixed an unrelated but actively-crashing bug found while soak-verifying the tape fix: afterhours repricing threw `TypeError` on every quote tick once any scanner row was still unpriced (`gap_percent=None`), which per ADR 010's name-only roster admission is the normal state for a freshly admitted name.

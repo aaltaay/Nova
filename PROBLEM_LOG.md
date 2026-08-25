@@ -37,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- Level 2 depth given the same per-viewer fan-out fix as tape, preemptively
+
+- **Symptom:** None reported yet -- fixed preemptively after diagnosing the tape freeze below. `ibkr/depth/state.py` shared the exact same single-shared-queue-per-symbol shape that caused tape's surviving viewer to receive zero of 1,902 archived prints.
+- **Cause:** `push_book(symbol, book)` wrote into one `_queues[symbol]` and `stream(symbol)` read from that same single queue. Two viewers of the same symbol (a StrictMode double-mount, or two genuine Trader tabs both showing depth for the same ticker -- an explicitly supported case per `single-market-data-feed.mdc`) would be competing consumers: each book update goes to whichever viewer's task is next in the queue's internal FIFO, never both. Depth did **not** have tape's other bug (an idle-release linger that could cancel a still-watched line) -- `release_when_idle` already re-checks `viewer_count` inline before releasing, and `subscribe_async` already serializes via a single `get_subscribe_lock()`, so only the queue-fan-out defect applied here.
+- **Fix:** Same shape as the tape fix: `_queues` replaced with `_viewer_queues: dict[str, list[asyncio.Queue]]`; `push_book` broadcasts to every registered queue; new `open_viewer_queue`/`close_viewer_queue`; `stream()` now takes a queue directly instead of a symbol; `has_queue` renamed `is_subscribed` (checks `_subscriptions`, decoupled from queue lifecycle). `routes/trading.py`'s `ws_depth` opens/closes its own per-connection queue in a `finally` block, matching `ws_tape`'s structure.
+- **Fix class:** admission (single-consumer queue never delivered to more than one reader).
+- **Verified by:** `pytest backend/tests/test_depth_stability.py backend/tests/test_ibkr_depth_state.py backend/tests/test_ibkr_safety.py` (47 passed) + full backend suite (1343 passed). Live: restarted the local API with IB Gateway connected live; opened two concurrent WebSocket viewers to `/ws/ibkr/depth/DAIC` and held both open for 15s -- both received the identical count (15 book updates each), confirming fan-out rather than a competing split.
+- **Keywords:** Level 2 depth, competing consumers, single shared queue, fan-out, push_book, open_viewer_queue, has_queue, is_subscribed, DepthLadder, preemptive fix, tape_stream parity
+
 ## 2026-08-25 -- Time & Sales froze: linger released a still-watched line, and viewers competed for one shared queue
 
 - **Symptom:** User report: "time and sale is stuck... it is just not moving." DAIC's tape stopped at `16:33:40` and WVVIP's at `16:32:46`; the LIVE badge stayed green with no error.

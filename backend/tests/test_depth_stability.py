@@ -200,7 +200,7 @@ class TestCapEvictionForActiveViewer:
         depth_mod, fake_ib = depth
         for i, sym in enumerate(["EHGO", "GFUZ", "LVLU"]):
             depth_mod._subscriptions[sym] = {"bids": [], "asks": [], "l1_fallback": False}
-            depth_mod._queues[sym] = asyncio.Queue(maxsize=100)
+            depth_mod._viewer_queues[sym] = [asyncio.Queue(maxsize=100)]
             depth_mod._contracts[sym] = _FakeContract(10 + i, sym)
             depth_mod._ws_viewers[sym] = 3  # leaked StrictMode / orphan WS counts
 
@@ -229,7 +229,7 @@ class TestMarketMakerForwarding:
     def test_dom_levels_include_mm_for_das_montage(self, depth):
         depth_mod, _fake_ib = depth
         depth_mod._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
-        depth_mod._queues["SHPH"] = asyncio.Queue(maxsize=100)
+        depth_mod._viewer_queues["SHPH"] = [asyncio.Queue(maxsize=100)]
 
         ticker = SimpleNamespace(
             domBids=[
@@ -260,7 +260,7 @@ class TestMarketMakerForwarding:
     def test_l1_fallback_rows_tag_mm_as_l1(self, depth):
         depth_mod, _fake_ib = depth
         depth_mod._subscriptions["AAPL"] = {"bids": [], "asks": [], "l1_fallback": True}
-        depth_mod._queues["AAPL"] = asyncio.Queue(maxsize=100)
+        depth_mod._viewer_queues["AAPL"] = [asyncio.Queue(maxsize=100)]
         ticker = SimpleNamespace(bid=190.0, bidSize=10, ask=190.1, askSize=12)
         depth_mod._on_update_ticker(ticker, "AAPL")
         book = depth_mod.current_book("AAPL")
@@ -274,7 +274,6 @@ class TestStreamHeartbeat:
         depth_mod, _fake_ib = depth
         depth_mod._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
         q: asyncio.Queue = asyncio.Queue(maxsize=100)
-        depth_mod._queues["SHPH"] = q
 
         async def run():
             # Shrink the heartbeat timeout so the test stays fast.
@@ -284,7 +283,7 @@ class TestStreamHeartbeat:
                 return await real_wait_for(awaitable, timeout=0.02)
 
             monkeypatch.setattr(asyncio, "wait_for", fast_wait_for)
-            gen = depth_mod.stream("SHPH")
+            gen = depth_mod.stream(q)
             first = await gen.__anext__()
             assert first is None  # heartbeat
             await q.put({"bids": [{"price": 1.0, "size": 1, "side": "bid", "mm": "OVERNIGHT"}],
@@ -295,14 +294,22 @@ class TestStreamHeartbeat:
 
         asyncio.run(run())
 
-    def test_stream_exits_immediately_when_queue_missing(self, depth):
+    def test_stream_broadcasts_to_two_viewer_queues_of_same_symbol(self, depth):
+        """2026-08-25: proved live in tape_stream.py that a single shared
+        queue makes concurrent viewers competing consumers -- depth has the
+        identical shape, fixed preemptively here before it was reported.
+        """
+        from ibkr.depth import state as depth_state
+
         depth_mod, _fake_ib = depth
+        depth_mod._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
+        q1 = depth_mod.open_viewer_queue("SHPH")
+        q2 = depth_mod.open_viewer_queue("SHPH")
 
-        async def run():
-            items = [item async for item in depth_mod.stream("MISSING")]
-            return items
+        depth_state.push_book("SHPH", {"bids": [{"price": 4.5}], "asks": [], "l1_fallback": False})
 
-        assert asyncio.run(run()) == []
+        assert q1.get_nowait()["bids"][0]["price"] == 4.5
+        assert q2.get_nowait()["bids"][0]["price"] == 4.5
 
 
 class TestViewerLeakDoesNotBlockActiveSymbol:

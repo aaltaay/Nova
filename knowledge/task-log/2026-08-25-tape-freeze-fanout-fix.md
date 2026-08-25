@@ -56,9 +56,24 @@ Separately (found live, not by design): `ibkr/scanner_l1.py`'s `apply_l1_quote` 
 
 ## Follow-ups
 
-- `ibkr/depth/state.py` has the same single-queue-per-symbol shape as tape's pre-fix design. Not reopened here (see Why this approach) -- give it a dedicated pass if multi-viewer Level 2 delivery is ever reported stale.
 - Consider moving `IBKR_TAPE_LINGER_SEC` / `IBKR_TAPE_RESUBSCRIBE_GUARD_SEC` out of `tape_stream.py` module-locals into `constants_ibkr.py` (per `centralized-constants.mdc`), matching `IBKR_DEPTH_RELEASE_GRACE_SEC`'s facade-read pattern so tests can keep monkeypatching them.
+
+## Addendum (same session) -- Level 2 depth given the same fan-out fix, preemptively
+
+The "Follow-ups" section above originally named `ibkr/depth/state.py` as unreopened, unproven scope creep. The user explicitly asked to fix it anyway, immediately, rather than wait for a real report -- so it was done in the same session while the pattern was fresh.
+
+**What changed:** `backend/ibkr/depth/state.py`, `backend/ibkr/depth/stream.py`, `backend/ibkr/depth/__init__.py`, `backend/routes/trading.py` (`ws_depth`), plus `backend/tests/test_depth_stability.py`, `backend/tests/test_ibkr_depth_state.py`, `backend/tests/test_ibkr_safety.py`.
+
+**Scope difference from tape:** depth only needed the fan-out half of the fix. Its `release_when_idle` already re-checks `viewer_count` inline (synchronously, in the closing connection's own `finally`, not a fire-and-forget background task like tape's linger) before releasing, and `subscribe_async` already serializes through one global `get_subscribe_lock()`. Neither of tape's first two bugs (linger-cancels-a-watched-line, unserialized concurrent subscribe) existed in depth. Only the single-shared-`_queues[symbol]`-per-symbol competing-consumer defect was identical, and got the identical fix: `_viewer_queues: dict[str, list[asyncio.Queue]]`, `open_viewer_queue`/`close_viewer_queue`, `push_book` broadcasting to every registered queue, `stream()` taking a queue directly instead of a symbol. `has_queue` renamed `is_subscribed` (now backed by `_subscriptions`, decoupled from queue lifecycle) since queues no longer exist at subscribe time.
+
+**Deliberately not touched:** `evict_for_capacity`'s force-eviction path (in `subscribe.py`) can silently kill an active viewer's depth line to free a slot at `IBKR_MAX_DEPTH_SYMBOLS` cap, with no notification to that viewer -- an orthogonal, pre-existing behavior unrelated to the fan-out bug. Not in scope for this pass; named here so it isn't rediscovered as a surprise.
+
+**Verification:** `pytest backend/tests/test_depth_stability.py backend/tests/test_ibkr_depth_state.py backend/tests/test_ibkr_safety.py` (47 passed) + full backend suite (1343 passed). Live: restarted the local API with IB Gateway connected live; opened two concurrent WebSocket viewers to `/ws/ibkr/depth/DAIC`, held both open 15s -- both received an identical 15 book updates each (not a competing split), confirming fan-out.
+
+## Follow-ups (updated)
+
+- `evict_for_capacity`'s force-eviction of a "busy" (non-idle) depth slot at cap, with no notification to the orphaned viewer -- separate from this fix, flagged for a future pass if it's ever reported.
 
 ## Keywords
 
-time and sales stuck, tape frozen, IBKR_TAPE_LINGER_SEC, StrictMode double-mount, competing consumers, single shared queue, fan-out, viewer_count, afterhours reprice, apply_quote failed, gap_percent None, ADR 010, pytest sys.path
+time and sales stuck, tape frozen, IBKR_TAPE_LINGER_SEC, StrictMode double-mount, competing consumers, single shared queue, fan-out, viewer_count, afterhours reprice, apply_quote failed, gap_percent None, ADR 010, pytest sys.path, Level 2 depth, push_book, open_viewer_queue, has_queue, is_subscribed, preemptive fix

@@ -9,8 +9,17 @@ from constants import IBKR_DEPTH_RELEASE_GRACE_SEC
 
 logger = logging.getLogger(__name__)
 
+IBKR_DEPTH_QUEUE_MAXSIZE = 100
+
 _subscriptions: dict[str, dict] = {}
-_queues: dict[str, asyncio.Queue] = {}
+# Fan-out: one queue per *viewer*, not one shared queue per symbol. Two
+# viewers of the same symbol (StrictMode double-mount, or a genuine second
+# Trader tab on the same ticker) must each see every book update -- a single
+# shared queue makes them competing consumers instead, so whichever
+# socket's handler task keeps winning the race silently starves the other
+# (same defect class as tape_stream.py, fixed there first -- PROBLEM_LOG
+# 2026-08-25).
+_viewer_queues: dict[str, list[asyncio.Queue]] = {}
 _tickers: dict[str, Any] = {}
 _contracts: dict[str, Any] = {}
 
@@ -41,7 +50,7 @@ def reset_all() -> None:
     """Clear all depth state — called on facade reload for test isolation."""
     global _subscribe_lock, _Stock
     _subscriptions.clear()
-    _queues.clear()
+    _viewer_queues.clear()
     _tickers.clear()
     _contracts.clear()
     _update_handlers.clear()
@@ -85,8 +94,9 @@ def current_book(symbol: str) -> dict | None:
     return _subscriptions.get(symbol)
 
 
-def has_queue(symbol: str) -> bool:
-    return symbol in _queues
+def is_subscribed(symbol: str) -> bool:
+    """Is there an active IB depth/L1-fallback subscription for this symbol."""
+    return symbol in _subscriptions
 
 
 def ws_viewer_opened(symbol: str) -> None:
@@ -121,30 +131,50 @@ async def release_when_idle(symbol: str) -> bool:
 
 
 def push_book(symbol: str, book: dict) -> None:
-    """Enqueue a book snapshot for stream() consumers."""
-    q = _queues.get(symbol)
-    if q is None:
-        return
-    try:
-        q.put_nowait(book)
-    except asyncio.QueueFull:
+    """Broadcast a book snapshot to every viewer currently watching this symbol."""
+    for q in list(_viewer_queues.get(symbol, ())):
         try:
-            q.get_nowait()
             q.put_nowait(book)
-        except asyncio.QueueEmpty:
-            logger.debug("IBKR depth: queue empty after full for %s", symbol)
         except asyncio.QueueFull:
-            logger.warning("IBKR depth: queue still full for %s after drop", symbol)
+            try:
+                q.get_nowait()
+                q.put_nowait(book)
+            except asyncio.QueueEmpty:
+                logger.debug("IBKR depth: queue empty after full for %s", symbol)
+            except asyncio.QueueFull:
+                logger.warning("IBKR depth: queue still full for %s after drop", symbol)
 
 
 def reserve_slot(symbol: str) -> None:
     _subscriptions[symbol] = {"bids": [], "asks": [], "l1_fallback": False}
-    _queues[symbol] = asyncio.Queue(maxsize=100)
 
 
 def drop_slot(symbol: str) -> None:
     _subscriptions.pop(symbol, None)
-    _queues.pop(symbol, None)
+
+
+def open_viewer_queue(symbol: str) -> asyncio.Queue:
+    """Register a new viewer's own queue so it gets every broadcast book update.
+
+    Each caller (each WS connection) must hold exactly one queue and pass
+    it to ``stream()``; release it via ``close_viewer_queue`` in a
+    ``finally`` block regardless of how the connection ends.
+    """
+    q: asyncio.Queue = asyncio.Queue(maxsize=IBKR_DEPTH_QUEUE_MAXSIZE)
+    _viewer_queues.setdefault(symbol, []).append(q)
+    return q
+
+
+def close_viewer_queue(symbol: str, q: asyncio.Queue) -> None:
+    queues = _viewer_queues.get(symbol)
+    if not queues:
+        return
+    try:
+        queues.remove(q)
+    except ValueError:
+        pass
+    if not queues:
+        _viewer_queues.pop(symbol, None)
 
 
 def pop_contract(symbol: str) -> Any | None:

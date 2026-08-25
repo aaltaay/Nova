@@ -230,14 +230,15 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
     # paired with a matching close, permanently inflating the viewer count and
     # defeating cleanup (see PROBLEM_LOG 2026-07-13, "Level 2 depth line leak").
     viewer_opened = False
+    queue: asyncio.Queue | None = None
     try:
         _depth.ws_viewer_opened(symbol)
         viewer_opened = True
 
         # Remount race: a previous viewer's cleanup may have dropped the line
         # between our initial subscribe check and viewer_opened. Re-subscribe
-        # before streaming so stream() does not exit immediately on a missing queue.
-        if not _depth.has_queue(symbol):
+        # before streaming so the line actually exists to hold a viewer queue.
+        if not _depth.is_subscribed(symbol):
             result = await _depth.subscribe_async(symbol)
             if not result["ok"]:
                 await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
@@ -247,6 +248,11 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
             except Exception:
                 logger.exception("l2.continuous: failed to restart for WS %s", symbol)
 
+        # Own queue per viewer -- a shared per-symbol queue makes concurrent
+        # viewers (StrictMode double-mount, or a second Trader tab on the
+        # same symbol) competing consumers instead of both seeing every book
+        # update (same defect class as tape_stream.py -- PROBLEM_LOG 2026-08-25).
+        queue = _depth.open_viewer_queue(symbol)
         await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
 
         # A symbol already subscribed by another viewer (or a fresh page
@@ -256,7 +262,7 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
         if _depth.should_send_current_book(current):
             await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": current}))
 
-        async for book in _depth.stream(symbol):
+        async for book in _depth.stream(queue):
             if book is None:
                 # Heartbeat timeout
                 await websocket.send_text(json.dumps({"type": "ping"}))
@@ -272,6 +278,8 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
         else:
             logger.exception("IBKR depth WS error for %s: %s", symbol, exc)
     finally:
+        if queue is not None:
+            _depth.close_viewer_queue(symbol, queue)
         # Release only once the LAST viewer is gone — and only after a short
         # grace window so React StrictMode / DepthLadder reconnects can
         # reattach without tearing down reqMktDepth (Connecting-depth flicker).

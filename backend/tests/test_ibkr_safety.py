@@ -343,7 +343,7 @@ class TestSmartDepthFlag:
         contract = _FakeContract(265598)
         self.depth._contracts["AAPL"] = contract
         self.depth._subscriptions["AAPL"] = {"bids": [], "asks": [], "l1_fallback": False}
-        self.depth._queues["AAPL"] = asyncio.Queue(maxsize=100)
+        self.depth._viewer_queues["AAPL"] = [asyncio.Queue(maxsize=100)]
 
         self.depth._on_ib_error(1, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "not supported", contract)
         assert fake_ib.cancel_depth_calls == [(contract, IBKR_DEPTH_SMART)]
@@ -370,7 +370,8 @@ class TestDepthAsyncErrorFallback:
         contract = _FakeContract(890751584)
         self.depth._contracts["SHPH"] = contract
         self.depth._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
-        self.depth._queues["SHPH"] = asyncio.Queue(maxsize=100)
+        viewer_q = asyncio.Queue(maxsize=100)
+        self.depth._viewer_queues["SHPH"] = [viewer_q]
 
         self.depth._on_ib_error(6, IBKR_ERROR_DEPTH_NOT_SUPPORTED, "Deep market data is not supported", contract)
 
@@ -380,7 +381,7 @@ class TestDepthAsyncErrorFallback:
         # A viewer already connected before the async rejection arrived must
         # learn about the fallback via the queue — it won't re-poll
         # current_book() on its own (see PROBLEM_LOG 2026-07-13).
-        queued = self.depth._queues["SHPH"].get_nowait()
+        queued = viewer_q.get_nowait()
         assert queued["l1_fallback"] is True
 
     def test_unrelated_error_code_ignored(self, monkeypatch):
@@ -449,7 +450,7 @@ class TestUpdateHandlerReplacement:
         contract = _FakeContract(890751584)
         self.depth._contracts["SHPH"] = contract
         self.depth._subscriptions["SHPH"] = {"bids": [], "asks": [], "l1_fallback": False}
-        self.depth._queues["SHPH"] = asyncio.Queue(maxsize=100)
+        self.depth._viewer_queues["SHPH"] = [asyncio.Queue(maxsize=100)]
         # Simulate reqMktDepth() having wired the depth handler onto the same
         # ticker object that reqMktData() will later return for the fallback.
         self.depth._attach_update_handler(

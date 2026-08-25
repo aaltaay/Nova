@@ -10,8 +10,8 @@ Implementation split: state / handlers / subscribe / stream.
 
 Facade owner: Phase 9 (Pattern-Driven Architecture).
 Removal criterion: no production imports of ``ibkr.depth`` private attrs
-(``_subscriptions``, ``_queues``, …) and tests call ``reset_all`` via the
-public API only.
+(``_subscriptions``, ``_viewer_queues``, …) and tests call ``reset_all`` via
+the public API only.
 """
 from __future__ import annotations
 
@@ -32,9 +32,11 @@ from ibkr.depth.handlers import (
     on_update_ticker as _on_update_ticker,
 )
 from ibkr.depth.state import (
+    close_viewer_queue,
     current_book,
-    has_queue,
+    is_subscribed,
     load_ib_types as _load_ib_types_impl,
+    open_viewer_queue,
     release_when_idle,
     reset_all,
     subscribed_symbols,
@@ -53,7 +55,7 @@ from ibkr.depth.stream import should_send_current_book, stream
 _STATE_ATTRS = frozenset({
     "_contracts",
     "_error_hooked_ib_ids",
-    "_queues",
+    "_viewer_queues",
     "_subscriptions",
     "_tickers",
     "_update_handlers",
@@ -93,8 +95,10 @@ if not isinstance(_mod, _DepthModule):
 
 __all__ = [
     "IBKR_DEPTH_RELEASE_GRACE_SEC",
+    "close_viewer_queue",
     "current_book",
-    "has_queue",
+    "is_subscribed",
+    "open_viewer_queue",
     "release_when_idle",
     "reset_all",
     "should_send_current_book",

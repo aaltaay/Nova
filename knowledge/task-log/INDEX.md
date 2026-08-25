@@ -4,7 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
-| 2026-08-25 | [Time & Sales freeze: linger + single-queue fan-out fix](2026-08-25-tape-freeze-fanout-fix.md) | Idle-release linger could cancel a still-watched tick-by-tick line; single shared queue also meant two viewers competed instead of both getting every print. Plus an afterhours reprice TypeError crashing every quote tick, found live while verifying. |
+| 2026-08-25 | [Time & Sales freeze: linger + single-queue fan-out fix](2026-08-25-tape-freeze-fanout-fix.md) | Idle-release linger could cancel a still-watched tick-by-tick line; single shared queue also meant two viewers competed instead of both getting every print. Plus an afterhours reprice TypeError crashing every quote tick, found live while verifying. Addendum: Level 2 depth given the identical fan-out fix preemptively, same session. |
 | 2026-08-25 | [One session VWAP shared by every chart timeframe](2026-08-25-session-vwap-single-series.md) | Per-pane cumulative VWAP anchored wherever each timeframe's bar window started (DAIC spanned $3.73-$3.87); now one 09:30-ET series from 1Min bars sampled onto every pane, off on daily |
 | 2026-08-25 | [Chart filling hint no longer covers the time axis](2026-08-25-chart-filling-hint-header.md) | Filling status is a header chip; it no longer paints over 1:30 PM / TradingView |
 | 2026-08-25 | [Chart VWAP axis shows dollar amount](2026-08-25-chart-vwap-axis-dollars.md) | Orange VWAP axis tag shows `VWAP $X.XX` instead of the bare word VWAP |
