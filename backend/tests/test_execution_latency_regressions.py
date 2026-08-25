@@ -3,8 +3,17 @@ from __future__ import annotations
 
 import asyncio
 import sqlite3
+import sys
+from pathlib import Path
 
 import pytest
+
+# `tools/` lives at the repo root, a sibling of `backend/` -- not on
+# sys.path when pytest is invoked from inside backend/ (only CI's
+# `pytest backend/` from the repo root happens to already have it).
+# Same idiom as the other backend/tests/*.py sys.path inserts, one
+# parent further up (see PROBLEM_LOG 2026-08-25).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import execution.broker_send as broker_send
 import execution.service as service

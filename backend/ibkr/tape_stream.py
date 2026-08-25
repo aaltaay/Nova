@@ -31,12 +31,23 @@ logger = logging.getLogger(__name__)
 _Stock = None
 _contracts: dict[str, Any] = {}
 _tickers: dict[str, Any] = {}
-_queues: dict[str, asyncio.Queue] = {}
+# Fan-out: one queue per *viewer*, not one shared queue per symbol. Two
+# viewers of the same symbol (StrictMode double-mount, or a genuine second
+# Trader tab) must each see every print -- a single shared queue makes them
+# competing consumers instead, so whichever socket's handler task keeps
+# winning the race starves the other (see PROBLEM_LOG 2026-08-25: a live
+# soak proved 1,902 archived DAIC prints delivered zero of them to the
+# surviving viewer while a discarded StrictMode socket was still alive).
+_viewer_queues: dict[str, list[asyncio.Queue]] = {}
 _ws_viewers: dict[str, int] = {}
 # Unix time when we last cancelled a symbol's tick-by-tick subscription.
 _cancelled_at: dict[str, float] = {}
 _linger_tasks: dict[str, asyncio.Task] = {}
 _error_hooked_ib_ids: set[int] = set()
+# Serializes subscribe_async per symbol so two concurrent viewers (e.g. a
+# React StrictMode double-mount) cannot both build a queue / attach a
+# handler for the same symbol (see PROBLEM_LOG 2026-08-25 tape freeze).
+_subscribe_locks: dict[str, asyncio.Lock] = {}
 
 IBKR_TAPE_RESUBSCRIBE_GUARD_SEC = 16.0  # IB requires 15s gap; add 1s margin
 # Last WS viewer left -- keep the IB line up so Scanner/Trader remounts reuse it.
@@ -67,19 +78,18 @@ def _clean(x: float | None) -> float | None:
 
 
 def _push_queue(symbol: str, payload: dict) -> None:
-    q = _queues.get(symbol)
-    if q is None:
-        return
-    try:
-        q.put_nowait(payload)
-    except asyncio.QueueFull:
+    """Broadcast payload to every viewer currently watching this symbol."""
+    for q in list(_viewer_queues.get(symbol, ())):
         try:
-            q.get_nowait()
             q.put_nowait(payload)
-        except asyncio.QueueEmpty:
-            logger.debug("IBKR tape: queue empty after full for %s", symbol)
         except asyncio.QueueFull:
-            logger.warning("IBKR tape: queue still full for %s after drop", symbol)
+            try:
+                q.get_nowait()
+                q.put_nowait(payload)
+            except asyncio.QueueEmpty:
+                logger.debug("IBKR tape: queue empty after full for %s", symbol)
+            except asyncio.QueueFull:
+                logger.warning("IBKR tape: queue still full for %s after drop", symbol)
 
 
 def _on_tape_update(ticker: Any, symbol: str) -> None:
@@ -200,10 +210,11 @@ def reset_for_tests() -> None:
     _linger_tasks.clear()
     _contracts.clear()
     _tickers.clear()
-    _queues.clear()
+    _viewer_queues.clear()
     _ws_viewers.clear()
     _cancelled_at.clear()
     _error_hooked_ib_ids.clear()
+    _subscribe_locks.clear()
 
 
 def _cancel_linger(symbol: str) -> None:
@@ -220,6 +231,20 @@ def _schedule_linger(symbol: str) -> None:
         try:
             await asyncio.sleep(IBKR_TAPE_LINGER_SEC)
         except asyncio.CancelledError:
+            return
+        # A viewer may have reattached without going through subscribe_async
+        # (is_subscribed() was already true, so ws_tape skipped straight to
+        # streaming) -- release only if the line is still actually idle.
+        # Without this re-check, a StrictMode double-mount schedules a
+        # linger from the discarded socket's cleanup, and 16s later it
+        # silently cancels a line the surviving socket is watching (see
+        # PROBLEM_LOG 2026-08-25 -- DAIC/WVVIP tape freeze).
+        if viewer_count(symbol) > 0:
+            logger.info(
+                "IBKR tape: linger expired for %s but viewer reattached -- keeping line",
+                symbol,
+            )
+            _linger_tasks.pop(symbol, None)
             return
         _release_subscription(symbol)
 
@@ -248,6 +273,18 @@ async def subscribe_async(symbol: str) -> dict:
     if symbol in _tickers:
         return {"ok": True, "error": None}
 
+    # Serialize per symbol: two concurrent callers (StrictMode double-mount,
+    # or a remount racing a slow qualifyContractsAsync) must not both build
+    # a queue and attach a handler for the same symbol.
+    lock = _subscribe_locks.setdefault(symbol, asyncio.Lock())
+    async with lock:
+        return await _subscribe_locked(symbol, ib)
+
+
+async def _subscribe_locked(symbol: str, ib: Any) -> dict:
+    if symbol in _tickers:
+        return {"ok": True, "error": None}
+
     # IB 15-second same-instrument guard
     last_cancel = _cancelled_at.get(symbol, 0)
     wait_remaining = IBKR_TAPE_RESUBSCRIBE_GUARD_SEC - (time.time() - last_cancel)
@@ -269,7 +306,6 @@ async def subscribe_async(symbol: str) -> dict:
 
     contract = qualified[0]
     _contracts[symbol] = contract
-    _queues[symbol] = asyncio.Queue(maxsize=IBKR_TAPE_QUEUE_MAXSIZE)
     _install_error_hook(ib)
 
     try:
@@ -286,7 +322,6 @@ async def subscribe_async(symbol: str) -> dict:
     except Exception as exc:
         logger.exception("IBKR tape: reqTickByTickData failed for %s: %s", symbol, exc)
         _contracts.pop(symbol, None)
-        _queues.pop(symbol, None)
         return {"ok": False, "error": str(exc)}
 
     return {"ok": True, "error": None}
@@ -305,7 +340,6 @@ def _release_subscription(symbol: str) -> None:
     _cancel_linger(symbol)
     sub = _tickers.pop(symbol, None)
     contract = _contracts.pop(symbol, None)
-    _queues.pop(symbol, None)
     if sub is None:
         return
     ib = _client.get_ib()
@@ -331,9 +365,25 @@ def _release_subscription(symbol: str) -> None:
             )
     _cancelled_at[symbol] = time.time()
     logger.info("IBKR tape: unsubscribed %s", symbol)
+    # Any viewer still watching (should not normally happen -- unsubscribe
+    # only runs after the last viewer closed and the linger re-check found
+    # nothing) gets told so its socket closes and reconnects instead of
+    # sitting on a dead line behind a stale "LIVE" badge.
+    _push_queue(
+        symbol,
+        {
+            "type": "error",
+            "symbol": symbol,
+            "message": "Tape line dropped -- reconnecting",
+            "released": True,
+        },
+    )
 
 
 def ws_viewer_opened(symbol: str) -> None:
+    # A reattaching viewer that finds is_subscribed() already true skips
+    # subscribe_async entirely, so it must cancel a pending linger itself.
+    _cancel_linger(symbol)
     _ws_viewers[symbol] = _ws_viewers.get(symbol, 0) + 1
 
 
@@ -350,18 +400,42 @@ def viewer_count(symbol: str) -> int:
     return _ws_viewers.get(symbol, 0)
 
 
-def has_queue(symbol: str) -> bool:
-    return symbol in _queues
+def is_subscribed(symbol: str) -> bool:
+    """Is there an active IB tick-by-tick line for this symbol right now."""
+    return symbol in _tickers
 
 
-async def stream(symbol: str):
-    """AsyncGenerator yielding print dicts (or None on heartbeat timeout)."""
-    q = _queues.get(symbol)
-    if q is None:
+def open_viewer_queue(symbol: str) -> asyncio.Queue:
+    """Register a new viewer's own queue so it gets every broadcast print.
+
+    Each caller (each WS connection) must hold exactly one queue and pass
+    it to ``stream()``; release it via ``close_viewer_queue`` in a
+    ``finally`` block regardless of how the connection ends.
+    """
+    q: asyncio.Queue = asyncio.Queue(maxsize=IBKR_TAPE_QUEUE_MAXSIZE)
+    _viewer_queues.setdefault(symbol, []).append(q)
+    return q
+
+
+def close_viewer_queue(symbol: str, q: asyncio.Queue) -> None:
+    queues = _viewer_queues.get(symbol)
+    if not queues:
         return
+    try:
+        queues.remove(q)
+    except ValueError:
+        pass
+    if not queues:
+        _viewer_queues.pop(symbol, None)
+
+
+async def stream(queue: asyncio.Queue):
+    """AsyncGenerator yielding print dicts (or None on heartbeat timeout)
+    for one viewer's own queue -- see ``open_viewer_queue``.
+    """
     while True:
         try:
-            print_data = await asyncio.wait_for(q.get(), timeout=TAPE_STREAM_HEARTBEAT_SEC)
+            print_data = await asyncio.wait_for(queue.get(), timeout=TAPE_STREAM_HEARTBEAT_SEC)
             yield print_data
         except asyncio.TimeoutError:
             yield None

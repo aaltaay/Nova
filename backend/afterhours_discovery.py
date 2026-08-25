@@ -109,5 +109,21 @@ def reprice_afterhours_rows_ibkr(
             "volume": vol,
             "rel_volume": paced if paced is not None else raw_rvol,
         })
-    updated.sort(key=lambda x: x["gap_percent"], reverse=True)
+    updated.sort(key=_gap_sort_key, reverse=True)
     return updated
+
+
+def _gap_sort_key(row: dict) -> float:
+    """Sort key for reprice_afterhours_rows_ibkr.
+
+    Unpriced rows (no quote yet, or an unpriceable quote) keep the
+    original ``gap_percent`` unchanged, which is ``None`` for a name-only
+    admission (ADR 010 -- a row exists before its first L1 tick). Plain
+    ``sort(key=lambda x: x["gap_percent"])`` raises TypeError the moment
+    any row lacks a computed gap (None is unorderable against None or a
+    float in Python 3) -- this was crashing on_l1_quote on every afterhours
+    tick (PROBLEM_LOG 2026-08-25). Map None to -inf so unpriced rows sink
+    to the bottom instead of raising.
+    """
+    gap = row.get("gap_percent")
+    return gap if gap is not None else float("-inf")

@@ -21,6 +21,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -306,7 +307,7 @@ async def ws_tape(websocket: WebSocket, symbol: str) -> None:
         await websocket.close()
         return
 
-    if not _tape.has_queue(symbol):
+    if not _tape.is_subscribed(symbol):
         result = await _tape.subscribe_async(symbol)
         if not result["ok"]:
             await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
@@ -314,20 +315,27 @@ async def ws_tape(websocket: WebSocket, symbol: str) -> None:
             return
 
     viewer_opened = False
+    queue: asyncio.Queue | None = None
     try:
         _tape.ws_viewer_opened(symbol)
         viewer_opened = True
 
-        # Remount race: previous viewer cleanup may have dropped the queue.
-        if not _tape.has_queue(symbol):
+        # Remount race: previous viewer cleanup may have dropped the line.
+        if not _tape.is_subscribed(symbol):
             result = await _tape.subscribe_async(symbol)
             if not result["ok"]:
                 await websocket.send_text(json.dumps({"type": "error", "message": result["error"]}))
                 return
 
+        # Own queue per viewer -- a shared per-symbol queue makes concurrent
+        # viewers (StrictMode double-mount, or a second Trader tab on the
+        # same symbol) competing consumers instead of both seeing every
+        # print (PROBLEM_LOG 2026-08-25: a live soak proved this starved
+        # the surviving viewer for 1,902 archived prints).
+        queue = _tape.open_viewer_queue(symbol)
         await websocket.send_text(json.dumps({"type": "subscribed", "symbol": symbol}))
 
-        async for print_data in _tape.stream(symbol):
+        async for print_data in _tape.stream(queue):
             if print_data is None:
                 await websocket.send_text(json.dumps({"type": "ping", "symbol": symbol}))
                 continue
@@ -344,6 +352,12 @@ async def ws_tape(websocket: WebSocket, symbol: str) -> None:
                         }
                     )
                 )
+                if print_data.get("released"):
+                    # Line was torn down (idle-linger release) -- close so
+                    # the client's onclose backoff reconnects it instead of
+                    # sitting on a dead line behind a stale "LIVE" badge.
+                    await websocket.close()
+                    break
             else:
                 await websocket.send_text(json.dumps({**print_data, "type": "print"}))
     except WebSocketDisconnect:
@@ -356,5 +370,7 @@ async def ws_tape(websocket: WebSocket, symbol: str) -> None:
         else:
             logger.exception("IBKR tape WS error for %s: %s", symbol, exc)
     finally:
+        if queue is not None:
+            _tape.close_viewer_queue(symbol, queue)
         if viewer_opened and _tape.ws_viewer_closed(symbol):
             _tape.unsubscribe(symbol)

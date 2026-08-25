@@ -255,7 +255,7 @@ class TestTapeStreamArchiveHook:
         )
 
         q: asyncio.Queue = asyncio.Queue()
-        monkeypatch.setitem(tape._queues, "CNEY", q)
+        monkeypatch.setitem(tape._viewer_queues, "CNEY", [q])
         monkeypatch.setattr(
             tape._depth,
             "current_book",
