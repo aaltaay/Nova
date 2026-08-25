@@ -172,9 +172,12 @@ export function canIncrementalBarsUpdate(prev: RawBar[], next: RawBar[]): boolea
 /**
  * After setData, show a session-sized window -- not the full IB duration.
  * 5Min IB history is 5 calendar days; fitContent of that on a runner looks
- * like one spike on a black pane. 1Min / 10Sec already are session-sized.
+ * like one spike on a black pane. 10Sec already is session-sized.
+ * 1Min now fetches the full extended session (the session VWAP source needs it),
+ * so pin the viewport to the ~500 bars it showed before that change.
  */
 export const CHART_PAINT_VISIBLE_BARS: Partial<Record<string, number>> = {
+  '1Min': 500,
   '5Min': 96,
   '15Min': 96,
   '30Min': 80,

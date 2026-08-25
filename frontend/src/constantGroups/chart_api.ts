@@ -39,6 +39,22 @@ export const CHART_EMA_COLORS: Record<ChartEmaLength, string> = {
 };
 export const CHART_VWAP_COLOR = '#F97316'; // orange
 
+/**
+ * Session VWAP is accumulated from this one timeframe for every pane, then
+ * sampled onto the pane's own bar times (``chart/vwapSession.ts``). Accumulating
+ * per pane anchors wherever that pane's IB duration + bar-limit trim happens to
+ * start, which is why 10Sec / 1Min / 5Min used to disagree.
+ */
+export const CHART_VWAP_SOURCE_TIMEFRAME = '1Min';
+/**
+ * Anchor at the 09:30 ET regular-hours open and stop accumulating at the 16:00
+ * ET close (the final value then carries flat through after-hours), matching
+ * what IBKR / TradingView show. Seconds from ET midnight -- bar times are ET
+ * wall clock encoded as an epoch (see ``isoToEtTime``).
+ */
+export const CHART_VWAP_SESSION_START_SEC = 9 * 3600 + 30 * 60;
+export const CHART_VWAP_SESSION_END_SEC = 16 * 3600;
+
 export const CHART_INDICATOR_PANE_HEIGHT = 110;
 export const CHART_RSI_LENGTH = 14;
 export const CHART_MACD_FAST = 12;

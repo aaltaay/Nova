@@ -1,6 +1,8 @@
 /**
  * Price-pane overlays (EMAs + VWAP) on the main lightweight-charts instance.
- * Math comes from lightweight-charts-indicators — this only hosts LineSeries.
+ * EMA math comes from lightweight-charts-indicators; VWAP comes from the one
+ * session-anchored series in `chart/vwapSession.ts`, sampled onto this pane's
+ * bars so every timeframe draws the same line. This file only hosts LineSeries.
  */
 import { useEffect, useRef } from 'react';
 import {
@@ -20,9 +22,11 @@ import {
 } from '../constants';
 import {
   computeEmaOverlays,
-  computeVwapLine,
+  vwapAxisTitleFromLine,
   type IndicatorBar,
 } from '../chartIndicators';
+import { sampleVwapOntoBars, sessionVwapPoints } from '../chart/vwapSession';
+import { isDailyTimeframe } from '../tickerChartData';
 
 interface Props {
   chart: IChartApi | null;
@@ -30,17 +34,34 @@ interface Props {
   /** Stable revision from parent -- skip recompute when only identity changes. */
   barsRevision?: number;
   enabled: ChartIndicatorId[];
+  timeframe: string;
+  /** Shared 1Min bars the session VWAP is accumulated from. */
+  vwapSourceBars?: IndicatorBar[];
+  vwapSourceRevision?: number;
+  vwapCoversOpen?: boolean;
 }
 
 type EmaSeriesMap = Partial<Record<ChartEmaLength, ISeriesApi<'Line'>>>;
 
-export function TickerChartOverlays({ chart, bars, barsRevision = 0, enabled }: Props) {
+export function TickerChartOverlays({
+  chart,
+  bars,
+  barsRevision = 0,
+  enabled,
+  timeframe,
+  vwapSourceBars = [],
+  vwapSourceRevision = 0,
+  vwapCoversOpen = true,
+}: Props) {
   const emaSeriesRef = useRef<EmaSeriesMap>({});
   const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const lastPaintKeyRef = useRef<string>('');
 
   const showEmas = enabled.includes('emas');
-  const showVwap = enabled.includes('vwap');
+  // A single-session VWAP means nothing on a daily+ chart, so it is not offered
+  // there rather than drawing one hlc3 point per bar (which is what the old
+  // per-pane cumulative indicator did).
+  const showVwap = enabled.includes('vwap') && !isDailyTimeframe(timeframe);
 
   // Create / destroy EMA line series
   useEffect(() => {
@@ -120,7 +141,10 @@ export function TickerChartOverlays({ chart, bars, barsRevision = 0, enabled }: 
   // Push computed data into series (skip when revision + toggles unchanged).
   useEffect(() => {
     if (!chart || bars.length === 0) return;
-    const paintKey = `${barsRevision}:${showEmas}:${showVwap}:${bars.length}`;
+    const paintKey = [
+      barsRevision, showEmas, showVwap, bars.length,
+      vwapSourceRevision, vwapSourceBars.length, vwapCoversOpen,
+    ].join(':');
     if (lastPaintKeyRef.current === paintKey) return;
     lastPaintKeyRef.current = paintKey;
 
@@ -133,9 +157,20 @@ export function TickerChartOverlays({ chart, bars, barsRevision = 0, enabled }: 
     }
 
     if (showVwap && vwapSeriesRef.current) {
-      vwapSeriesRef.current.setData(computeVwapLine(bars) as LineData<Time>[]);
+      const line = sampleVwapOntoBars(
+        sessionVwapPoints(vwapSourceBars),
+        bars,
+        timeframe,
+      );
+      vwapSeriesRef.current.setData(line);
+      vwapSeriesRef.current.applyOptions({
+        title: vwapAxisTitleFromLine(line, !vwapCoversOpen),
+      });
     }
-  }, [chart, bars, barsRevision, showEmas, showVwap]);
+  }, [
+    chart, bars, barsRevision, showEmas, showVwap, timeframe,
+    vwapSourceBars, vwapSourceRevision, vwapCoversOpen,
+  ]);
 
   return null;
 }

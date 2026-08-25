@@ -30,6 +30,34 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- One session VWAP shared by every chart timeframe
+
+- **What:** VWAP is now a single 09:30-ET-anchored session series computed from 1Min bars and sampled onto each pane, so 10Sec / 1Min / 5Min / 15Min / 30Min / 1Hour / 4Hour all show the same value. It is no longer offered on 1Day / 1Week / 1Month. The axis tag reads `VWAP $X.XX (partial)` when the source bars do not reach that day's open.
+- **Why:** Every pane disagreed. Live on DAIC the five intraday panes spanned $3.73-$3.87 on a $3.88 stock, because each pane accumulated its own VWAP from its own bar window and therefore anchored at a different time of day.
+- **Files touched:** `frontend/src/chart/vwapSession.ts` (new), `frontend/src/chart/vwapSession.test.ts` (new), `frontend/src/chart/useVwapSourceBars.ts` (new), `frontend/src/chartIndicators.ts`, `frontend/src/chartIndicators.test.ts`, `frontend/src/components/TickerChartOverlays.tsx`, `frontend/src/chart/TickerChart.tsx`, `frontend/src/constantGroups/chart_api.ts`, `frontend/src/constantGroups/market_ui.ts`, `frontend/src/tickerChartData.ts`.
+- **How it works now:** `useVwapSourceBars` holds the `(symbol, '1Min')` entry from the shared bars store -- free when the 1Min pane is already open, since `ensureBars` dedupes and the backend already warms 1Min. `sessionVwapPoints` accumulates `hlc3 * volume` over that one series, resetting each ET day at `CHART_VWAP_SESSION_START_SEC` (09:30) and stopping at `CHART_VWAP_SESSION_END_SEC` (16:00, after which the final value carries flat). `sampleVwapOntoBars` then maps that series onto a pane's bar times, giving each bar the newest source point that closed inside it. Panes cannot drift apart because they render the same numbers. `lightweight-charts-indicators` still owns EMA / RSI / MACD; only VWAP left the library, because its community indicator has no session anchor and resets only on a calendar-day change. `CHART_TIMEFRAME_BAR_LIMITS['1Min']` is 1000 (was the backend default 500) so the source still reaches 09:30 after ~17:50 ET; `CHART_PAINT_VISIBLE_BARS['1Min']` is pinned to 500 so the wider array does not change the 1Min viewport.
+- **Verified by:** `npx vitest run` -- 163 files / 729 tests pass, including 17 new `vwapSession` cases (09:30 anchor, volume weighting, cross-timeframe equality at shared bar closes, zero-volume carry-forward, 16:00 stop, per-session reset, both DST transition weeks, no cross-day bleed, daily returns empty). `npm run build` (`tsc -b && vite build`) exit 0. Live check driving the shipped functions against `/api` bars: DAIC produced `VWAP $3.92` on all six intraday timeframes and AIXI `VWAP $1.32` on all six, both matching an independent Python recomputation; daily returned no line. Browser on the DAIC Trader 2x2 grid: VWAP present on 5Min / 10Sec / 1Min, absent on 1Day, no `(partial)` suffix, no console errors.
+- **Follow-ups:** The VWAP tip can lag 1-2 minutes because L1-rolled 1Min bars carry `volume=0.0` (`backend/ibkr/l1_minute.py`) until the ~30s reconciliation replaces them with real IB minutes. Giving those bars real volume is a backend change. Separately, `ibkr/ticks.py` requests no generic ticks -- adding `"233"` (RTVolume) would surface IBKR's own session VWAP as a live cross-check at no extra subscription cost.
+- **Related:** `PROBLEM_LOG.md` 2026-08-25 -- VWAP showed a different value on every chart timeframe; task-log `knowledge/task-log/2026-08-25-session-vwap-single-series.md`. Closes the follow-up left by the 2026-07-15 "Chart EMAs + VWAP overlays" entry.
+
+## 2026-08-25 -- Chart filling hint no longer covers the time axis
+
+- **What:** The "as of HH:MM ET, filling..." status moved from the bottom-left of the chart plot into the chart header. The TradingView attribution mark is lifted above the time labels.
+- **Why:** On the Quote Panel chart the filling overlay sat on "1:30 PM" and the TradingView logo, so the first time label was unreadable.
+- **Files touched:** `frontend/src/chart/TickerChart.tsx`, `frontend/src/components/TickerChartControls.tsx`, `frontend/src/components/TickerChartControls.test.tsx`, `frontend/src/chart/tickerChart.css`.
+- **How it works now:** While a store-first fill is in flight and bars already exist, a header chip shows the coverage clock. It is not an absolute overlay on `.chart-body`. The required TradingView link is CSS-offset `bottom: 28px` so it sits in the plot, not on the axis.
+- **Verified by:** `npx vitest run src/components/TickerChartControls.test.tsx` (2/2). `npm run build` (`tsc -b && vite build`) exit 0. Browser on AIXI Quote Panel: no filling overlay on `.chart-body`; TradingView mark `bottom: 28px` (57px above the chart-body bottom, clear of the time labels).
+- **Related:** `PROBLEM_LOG.md` 2026-08-25 -- Chart filling hint covered time axis; task-log `knowledge/task-log/2026-08-25-chart-filling-hint-header.md`
+
+## 2026-08-25 -- Chart VWAP axis shows dollar amount
+
+- **What:** The orange VWAP tag on the right price axis now reads `VWAP $78.52` (last computed value) instead of the word `VWAP` alone.
+- **Why:** Operator asked to read VWAP on the fly without hovering the crosshair onto the dashed line.
+- **Files touched:** `frontend/src/chartIndicators.ts`, `frontend/src/chartIndicators.test.ts`, `frontend/src/components/TickerChartOverlays.tsx`.
+- **How it works now:** lightweight-charts uses the LineSeries `title` as the axis label text (it replaces the numeric last-value). After each VWAP paint, Nova sets that title to the last plot point formatted as `VWAP $X.XX`. EMAs stay name-only.
+- **Verified by:** `npx vitest run src/chartIndicators.test.ts` (8/8 pass). `npm run build` (`tsc -b && vite build`) exit 0. Browser: NVDA Trader chart with VWAP on; orange axis tag read `VWAP $212.18`.
+- **Related:** task-log `knowledge/task-log/2026-08-25-chart-vwap-axis-dollars.md`
+
 ## 2026-08-25 — New "Large Cap" swing table (ADR 014)
 
 - **What:** New scanner tab, "Large Cap," for swing trading large-cap movers (TSLA/NVDA/AMD/META/AAPL-class names) instead of the day-trade Gainers/Losers tables, which small caps dominate. One persistent IBKR `TOP_VOLUME_RATE` scanner lease filtered server-side by market cap (`marketCapAbove`, tunable, default $50B) and volume (`aboveVolume`, default 1M shares) with `stockTypeFilter="CORP"` to exclude ETF/ETN/REIT/CEF pollution. Ranks by relative volume (RVOL), ATR-relative range expansion, and 5-day/20-day % change, plus a composite 0-100 "Large Cap Score" (equal-weighted percentile ranks within the current roster). A days-to-earnings badge is shown but never hides a row. Own breakout alert channel (20-day high/low break confirmed by RVOL >= 2x), separate from HOD Momo's day-trade chimes. The table is always-live (never freezes, unlike Gappers/Gainers/Losers/Afterhours) and the cap/volume filters are runtime-tunable via `GET`/`POST /api/large-cap/config`.

@@ -37,6 +37,23 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- VWAP showed a different value on every chart timeframe
+
+- **Symptom:** The orange VWAP tag disagreed pane to pane for the same symbol at the same moment. Measured live on DAIC: 10Sec $3.73, 1Min $3.87, 5Min $3.79, 15Min $3.76, 1Hour $3.74 -- a 14-cent spread on a $3.88 stock. AIXI spread $1.22-$1.37 (over 11%). A 15Min store caught mid-refill briefly produced $0.61 on that same $3.88 stock.
+- **Cause:** VWAP was accumulated separately inside each pane from that pane's own bar array, via `VwapMvwapEmaCrossover` from `lightweight-charts-indicators`. That indicator has no session anchor -- it resets only on a calendar-day change and then accumulates from whatever bar happens to be first in the array. Each timeframe holds a different slice of history (per-timeframe `IBKR_BAR_DURATION` plus the 500-bar trim), so each one anchored somewhere different: 10Sec at 4h ago, 1Min at 500 minutes ago, the coarser panes at 04:00 ET. On 1Day/1Week/1Month every bar is its own calendar day, so the line was just `(H+L+C)/3` per bar, not a VWAP at all. Using per-bar `hlc3` as the price proxy added a second, bar-size-dependent error on top.
+- **Fix:** One session VWAP, accumulated only from 1Min bars and sampled onto each pane's bar times (`frontend/src/chart/vwapSession.ts` + `useVwapSourceBars.ts`). Anchored at 09:30 ET, stops accumulating at 16:00 ET, resets per ET day. Every pane draws the same series, so they cannot drift. Disabled on daily and above. `CHART_TIMEFRAME_BAR_LIMITS['1Min']` raised 500 -> 1000 so the source still reaches 09:30 late in the day; axis title says `(partial)` when it does not.
+- **Fix class:** ownership
+- **Keywords:** VWAP, session VWAP, timeframe mismatch, chart overlay, VwapMvwapEmaCrossover, lightweight-charts-indicators, hlc3, anchor, 09:30 ET, IBKR_BAR_DURATION, bar limit trim
+- **Related:** `CHANGELOG.md` 2026-08-25 -- One session VWAP shared by every chart timeframe; task-log `knowledge/task-log/2026-08-25-session-vwap-single-series.md`
+
+## 2026-08-25 -- Chart filling hint covered the time axis and TradingView mark
+
+- **Symptom:** Quote Panel 1m chart showed "as of ... filling..." painted on top of the first time label (e.g. 1:30 PM) and the TradingView logo in the bottom-left corner.
+- **Cause:** `.chart-filling-hint` was `position: absolute; left: 8px; bottom: 4px` inside `.chart-body`, the same corner lightweight-charts uses for the time axis and attribution logo.
+- **Fix:** Move the filling status into the chart header chip. Lift the TradingView attribution with CSS so it sits in the plot, not on the time labels.
+- **Fix class:** surfacing
+- **Keywords:** chart, filling hint, overlap, time axis, TradingView attribution, Quote Panel, tickerChart.css
+
 ## 2026-08-25 — IBKR ScannerSubscription.marketCapAbove is in millions, not raw dollars
 
 - **Symptom:** Diagnostic probe (`tools/ibkr_scan_params.py`, pre-production research for the Large Cap swing table) set `marketCapAbove=50_000_000_000` ($50B, raw dollars) on `HOT_BY_VOLUME` / `TOP_VOLUME_RATE` / `MOST_ACTIVE` / `TOP_PERC_GAIN` / `TOP_PERC_LOSE`. Every filtered run returned **zero rows**, even for scan codes whose unfiltered baseline plainly contained >$50B names (NVDA, INTC).

@@ -1,8 +1,11 @@
 /**
- * Adapters around lightweight-charts-indicators (EMA / VWAP / RSI / MACD).
+ * Adapters around lightweight-charts-indicators (EMA / RSI / MACD).
  * Calculation stays in the library — this file only maps Nova bars ↔ plot series.
+ * VWAP is the exception: it needs one session-anchored series shared by every
+ * timeframe, which the library's per-array cumulative indicator cannot give.
+ * See `chart/vwapSession.ts`.
  */
-import { EMA, MACD, RSI, VwapMvwapEmaCrossover } from 'lightweight-charts-indicators';
+import { EMA, MACD, RSI } from 'lightweight-charts-indicators';
 import type { Time, LineData, HistogramData, WhitespaceData } from 'lightweight-charts';
 import type { Bar } from 'oakscriptjs';
 import {
@@ -112,10 +115,22 @@ export function computeEmaOverlays(bars: IndicatorBar[]): EmaOverlayData {
   return out;
 }
 
-/** Session-style VWAP from library community indicator — take plot0 only. */
-export function computeVwapLine(bars: IndicatorBar[]): LineData<Time>[] {
-  const result = VwapMvwapEmaCrossover.calculate(bars, { vwapLength: 1 });
-  return finiteLinePoints(result.plots.plot0);
+/**
+ * Right-axis tag for the VWAP overlay. Title replaces the numeric last-value.
+ * ``partial`` marks a line whose source bars did not reach the session open, so
+ * the number understates real session volume.
+ */
+export function formatVwapAxisTitle(value: number, partial = false): string {
+  return `VWAP $${value.toFixed(2)}${partial ? ' (partial)' : ''}`;
+}
+
+export function vwapAxisTitleFromLine(
+  line: LineData<Time>[],
+  partial = false,
+): string {
+  const last = line.at(-1);
+  if (!last || !Number.isFinite(last.value)) return 'VWAP';
+  return formatVwapAxisTitle(last.value, partial);
 }
 
 export function computeRsiPane(bars: IndicatorBar[]): RsiPaneData {

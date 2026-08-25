@@ -17,6 +17,8 @@ interface Props {
   timeframe: string;
   title?: string;
   usingMock: boolean;
+  /** Store-first fill status -- lives in the header so it cannot cover the time axis. */
+  fillingHint?: string | null;
   onClearAll: () => void;
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   onMaximize: () => void;
@@ -41,6 +43,7 @@ export function TickerChartControls({
   timeframe,
   title,
   usingMock,
+  fillingHint = null,
   onClearAll,
   onIndicatorToggle,
   onMaximize,
@@ -73,6 +76,9 @@ export function TickerChartControls({
           </div>
         )}
         {usingMock && <span className="chart-mock-badge" title={CHART_MOCK_DATA_LABEL}>{CHART_MOCK_DATA_LABEL}</span>}
+        {fillingHint && (
+          <span className="chart-filling-hint" role="status">{fillingHint}</span>
+        )}
         {!lockTimeframe ? (
           <div className="chart-tabs" role="group" aria-label="Timeframe">
             {CHART_TIMEFRAMES.map(option => (

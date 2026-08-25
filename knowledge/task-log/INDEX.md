@@ -4,6 +4,9 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-25 | [One session VWAP shared by every chart timeframe](2026-08-25-session-vwap-single-series.md) | Per-pane cumulative VWAP anchored wherever each timeframe's bar window started (DAIC spanned $3.73-$3.87); now one 09:30-ET series from 1Min bars sampled onto every pane, off on daily |
+| 2026-08-25 | [Chart filling hint no longer covers the time axis](2026-08-25-chart-filling-hint-header.md) | Filling status is a header chip; it no longer paints over 1:30 PM / TradingView |
+| 2026-08-25 | [Chart VWAP axis shows dollar amount](2026-08-25-chart-vwap-axis-dollars.md) | Orange VWAP axis tag shows `VWAP $X.XX` instead of the bare word VWAP |
 | 2026-08-25 | [Large Cap swing scanner (ADR 014)](2026-08-25-large-cap-swing-scanner.md) | New always-live "Large Cap" tab: one IBKR TOP_VOLUME_RATE lease filtered by market cap/volume, ranked by RVOL/ATR-expansion/5d-20d change with a composite score and its own breakout alert channel, separate from HOD Momo |
 | 2026-08-25 | [Exchange filter fail-open + IB primaryExchange passthrough](2026-08-25-exchange-filter-blanking-fail-open.md) | Backend had 31 gappers/50 gainers live; NASDAQ-only default filter silently dropped every row without a known exchange down to 1; filter now fails open, defaults to all exchanges, and a hidden-count banner replaces silence |
 | 2026-08-24 | [Scanner names-first admission (ADR 010 D5)](2026-08-24-scanner-names-first-admission.md) | IB names become rows instantly, L1 fills prices; premarket Gappers projects from Gainers; one roster owner + anti-hiding gates |

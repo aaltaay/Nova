@@ -22,6 +22,7 @@ import { useChartDrawingManager } from './useChartDrawingManager';
 import { useChartInstance } from './useChartInstance';
 import { useChartLiveTrade } from './useChartLiveTrade';
 import { useChartSessionHighlight } from './useChartSessionHighlight';
+import { useVwapSourceBars } from './useVwapSourceBars';
 import { formatCoverageClockEt } from '../tickerChartData';
 import type { ChartTradeUpdate } from './types';
 
@@ -146,6 +147,9 @@ function TickerChartInner({
     barsRevision,
   });
 
+  // One 09:30-anchored VWAP for every pane, not a per-timeframe accumulation.
+  const vwapSource = useVwapSourceBars(symbol, chartActive);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
@@ -186,6 +190,11 @@ function TickerChartInner({
         timeframe={timeframe}
         title={title}
         usingMock={usingMock}
+        fillingHint={
+          filling && indicatorBars.length > 0
+            ? (coverageClock ? `as of ${coverageClock} ET, filling…` : 'filling…')
+            : null
+        }
         onClearAll={handleClearAll}
         onIndicatorToggle={handleIndicatorToggle}
         onMaximize={handleMaximize}
@@ -205,17 +214,16 @@ function TickerChartInner({
         {!loading && error && indicatorBars.length === 0 && (
           <div className="chart-overlay chart-overlay--error">{error}</div>
         )}
-        {filling && indicatorBars.length > 0 && (
-          <div className="chart-filling-hint">
-            {coverageClock ? `as of ${coverageClock} ET, filling…` : 'filling…'}
-          </div>
-        )}
       </div>
       <TickerChartOverlays
         chart={chartApi}
         bars={indicatorBars}
         barsRevision={barsRevision}
         enabled={enabledIndicators}
+        timeframe={timeframe}
+        vwapSourceBars={vwapSource.bars}
+        vwapSourceRevision={vwapSource.revision}
+        vwapCoversOpen={vwapSource.coversOpen}
       />
       {oscillatorEnabled.length > 0 && (
         <TickerChartOscillatorPanes

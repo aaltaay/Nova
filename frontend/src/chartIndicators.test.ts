@@ -4,9 +4,10 @@ import {
   computeEmaOverlays,
   computeMacdPane,
   computeRsiPane,
-  computeVwapLine,
+  formatVwapAxisTitle,
   rawBarsToIndicatorBars,
   toggleIndicator,
+  vwapAxisTitleFromLine,
 } from './chartIndicators';
 import { CHART_EMA_LENGTHS } from './constants';
 import type { RawBar } from './tickerChartData';
@@ -80,11 +81,19 @@ describe('chartIndicators (library adapters)', () => {
     expect(ema9.length).toBe(emas[9].length);
   });
 
-  it('computes finite VWAP via VwapMvwapEmaCrossover plot0', () => {
-    const bars = rawBarsToIndicatorBars(makeBars(40), '1Min');
-    const vwap = computeVwapLine(bars);
-    expect(vwap.length).toBeGreaterThan(0);
-    expect(vwap.every(p => Number.isFinite(p.value))).toBe(true);
+  it('puts the last VWAP dollar amount in the axis title', () => {
+    expect(formatVwapAxisTitle(78.524)).toBe('VWAP $78.52');
+    expect(formatVwapAxisTitle(0.4)).toBe('VWAP $0.40');
+    expect(vwapAxisTitleFromLine([])).toBe('VWAP');
+    expect(vwapAxisTitleFromLine([{ time: 1, value: 79.51 }])).toBe('VWAP $79.51');
+  });
+
+  it('marks the VWAP title partial when the source misses the session open', () => {
+    expect(formatVwapAxisTitle(78.524, true)).toBe('VWAP $78.52 (partial)');
+    expect(vwapAxisTitleFromLine([{ time: 1, value: 79.51 }], true))
+      .toBe('VWAP $79.51 (partial)');
+    // Nothing to label when there is no line at all.
+    expect(vwapAxisTitleFromLine([], true)).toBe('VWAP');
   });
 
   it('toggles indicator ids without duplicates', () => {
