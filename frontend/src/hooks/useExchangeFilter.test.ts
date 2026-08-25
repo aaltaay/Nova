@@ -1,55 +1,51 @@
 import { describe, it, expect } from 'vitest';
-import { SCANNER_EXCHANGE_DEFAULTS } from '../constants';
+import { SCANNER_EXCHANGE_DEFAULTS, SCANNER_EXCHANGE_OPTIONS } from '../constants';
+import { filterRowsBySelection } from './useExchangeFilter';
 
-// filterRows is pure; test it without React hook machinery
 type Row = { exchange?: string | null; symbol: string };
-
-function makeFilterRows(selected: string[]) {
-  const SCANNER_EXCHANGE_OPTIONS = ['NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS', 'IEX', 'CBOE'] as const;
-  return (rows: Row[]) => {
-    if (selected.length === SCANNER_EXCHANGE_OPTIONS.length) return rows;
-    return rows.filter(r => r.exchange && selected.includes(r.exchange));
-  };
-}
 
 const rows: Row[] = [
   { symbol: 'AAPL', exchange: 'NASDAQ' },
   { symbol: 'SOBR', exchange: 'NASDAQ' },
   { symbol: 'CPHI', exchange: 'AMEX' },
-  { symbol: 'XYZ',  exchange: 'BATS' },
+  { symbol: 'XYZ', exchange: 'BATS' },
   { symbol: 'NOXCH', exchange: null },
   { symbol: 'NOEXCH', exchange: undefined },
 ];
 
 describe('exchange filterRows', () => {
-  it('defaults to NASDAQ only', () => {
-    expect(SCANNER_EXCHANGE_DEFAULTS).toEqual(['NASDAQ']);
+  it('defaults to all exchanges -- a narrow default silently hid real movers', () => {
+    expect(SCANNER_EXCHANGE_DEFAULTS).toEqual([...SCANNER_EXCHANGE_OPTIONS]);
   });
 
-  it('NASDAQ-only drops AMEX, BATS, and null-exchange rows', () => {
-    const filter = makeFilterRows(['NASDAQ']);
-    const out = filter(rows);
-    expect(out.map(r => r.symbol)).toEqual(['AAPL', 'SOBR']);
+  it('NASDAQ-only keeps NASDAQ rows and fails open on unknown-exchange rows', () => {
+    // 2026-08-25: IBKR roster rows arrive with exchange=null before a listing
+    // exchange is known. A filter that drops them blanked the desk to 1 row.
+    const out = filterRowsBySelection(['NASDAQ'], rows);
+    expect(out.map(r => r.symbol)).toEqual(['AAPL', 'SOBR', 'NOXCH', 'NOEXCH']);
   });
 
-  it('NASDAQ + AMEX keeps both', () => {
-    const filter = makeFilterRows(['NASDAQ', 'AMEX']);
-    const out = filter(rows);
+  it('NASDAQ-only still drops a row with a KNOWN, unselected exchange', () => {
+    const out = filterRowsBySelection(['NASDAQ'], rows);
+    expect(out.map(r => r.symbol)).not.toContain('CPHI');
+    expect(out.map(r => r.symbol)).not.toContain('XYZ');
+  });
+
+  it('NASDAQ + AMEX keeps both known exchanges plus unknown rows', () => {
+    const out = filterRowsBySelection(['NASDAQ', 'AMEX'], rows);
     expect(out.map(r => r.symbol)).toContain('CPHI');
     expect(out.map(r => r.symbol)).toContain('AAPL');
     expect(out.map(r => r.symbol)).not.toContain('XYZ');
   });
 
   it('all-options selected returns full list (passthrough)', () => {
-    const all = ['NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS', 'IEX', 'CBOE'];
-    const filter = makeFilterRows(all);
-    expect(filter(rows)).toHaveLength(rows.length);
+    const out = filterRowsBySelection([...SCANNER_EXCHANGE_OPTIONS], rows);
+    expect(out).toHaveLength(rows.length);
   });
 
-  it('rows with null/undefined exchange are dropped when filter is active', () => {
-    const filter = makeFilterRows(['NASDAQ']);
-    const out = filter(rows);
-    expect(out.find(r => r.symbol === 'NOXCH')).toBeUndefined();
-    expect(out.find(r => r.symbol === 'NOEXCH')).toBeUndefined();
+  it('rows with null/undefined exchange are always kept (fail open)', () => {
+    const out = filterRowsBySelection(['NASDAQ'], rows);
+    expect(out.find(r => r.symbol === 'NOXCH')).toBeDefined();
+    expect(out.find(r => r.symbol === 'NOEXCH')).toBeDefined();
   });
 });

@@ -140,6 +140,16 @@ export function DashboardPage() {
   const filteredLosers = exchangeFilter.filterRows(scanner.losers);
   const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
 
+  // Fail-loud (single-market-data-feed.mdc): a client-side filter must never
+  // hide rows in silence. 2026-08-25 the exchange filter blanked the desk to
+  // 1 row and nothing on screen said why.
+  const hiddenByExchangeFilter: Record<string, number> = {
+    gappers: scanner.gappers.length - filteredGappers.length,
+    gainers: scanner.gainers.length - filteredGainers.length,
+    losers: scanner.losers.length - filteredLosers.length,
+    afterhours: scanner.afterhours.length - filteredAfterhours.length,
+  };
+
   function handleTabClick(tab: ActiveTab) {
     if (!isTabModuleId(tab)) return;
     if (isDockTab(tab)) {
@@ -179,6 +189,7 @@ export function DashboardPage() {
   }, [activeTab]);
 
   const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
+  const activeHiddenCount = hiddenByExchangeFilter[mainTab] ?? 0;
 
   const navCounts = {
     gappers: filteredGappers.length,
@@ -230,6 +241,15 @@ export function DashboardPage() {
                 >
                   Back to Live
                 </button>
+              </div>
+            )}
+
+            {activeHiddenCount > 0 && (
+              <div className="history-banner exchange-filter-banner">
+                <span>
+                  {activeHiddenCount} row{activeHiddenCount === 1 ? '' : 's'} hidden by
+                  exchange filter -- open Settings &gt; General to adjust.
+                </span>
               </div>
             )}
 

@@ -153,6 +153,43 @@ def test_hydrate_rows_carries_no_cross_session_memory():
     assert rows[0]["price"] is None
 
 
+def test_hydrate_rows_stubs_carry_ib_exchange():
+    """A newly admitted stub gets its exchange from the same IB scan row --
+    no extra IB call, and no dependence on the Alpaca universe refresh that
+    IBKR discovery never runs (2026-08-25 exchange-filter blanking)."""
+    import asyncio
+
+    from ibkr import scanner_hydrate as hydrate
+
+    rows = asyncio.run(hydrate.hydrate_rows(
+        ["AAA", "BBB"], table="gainers", session_key="2026-07-23", existing=[],
+        exchanges={"AAA": "NASDAQ"},
+    ))
+    by_sym = {r["symbol"]: r for r in rows}
+    assert by_sym["AAA"]["exchange"] == "NASDAQ"
+    assert by_sym["BBB"]["exchange"] is None
+
+
+def test_hydrate_rows_backfills_but_never_overwrites_exchange():
+    """A later batch can fill an unknown exchange on a prior row, but must
+    never clobber one already recorded."""
+    import asyncio
+
+    from ibkr import scanner_hydrate as hydrate
+
+    live = [
+        {"symbol": "AAA", "rank": 1, "price": 10.0, "exchange": None},
+        {"symbol": "BBB", "rank": 2, "price": 5.0, "exchange": "NYSE"},
+    ]
+    rows = asyncio.run(hydrate.hydrate_rows(
+        ["AAA", "BBB"], table="gainers", session_key="2026-07-23", existing=live,
+        exchanges={"AAA": "NASDAQ", "BBB": "AMEX"},
+    ))
+    by_sym = {r["symbol"]: r for r in rows}
+    assert by_sym["AAA"]["exchange"] == "NASDAQ"  # backfilled
+    assert by_sym["BBB"]["exchange"] == "NYSE"  # never overwritten
+
+
 def test_recover_skips_persistent_leases(monkeypatch):
     from ibkr import discovery
 

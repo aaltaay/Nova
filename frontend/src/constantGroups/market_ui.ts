@@ -264,8 +264,14 @@ export const DASHBOARD_TOP_N = 50;
 // ── Exchange filter (Dashboard + scanner tabs) ────────────────────────────────
 /** All exchanges that can appear in scanner rows. Displayed in order in the dropdown. */
 export const SCANNER_EXCHANGE_OPTIONS = ['NASDAQ', 'NYSE', 'AMEX', 'ARCA', 'BATS', 'IEX', 'CBOE'] as const;
-/** Exchanges selected by default (NASDAQ only). */
-export const SCANNER_EXCHANGE_DEFAULTS: string[] = ['NASDAQ'];
+/**
+ * Exchanges selected by default -- all of them.
+ * A NASDAQ-only default silently dropped every row IBKR admits before its
+ * listing exchange arrives (unknown-exchange rows are unaffected by the
+ * fail-open filter fix, but a narrow default still hides real NYSE/AMEX/etc.
+ * movers the moment the exchange IS known -- 2026-08-25).
+ */
+export const SCANNER_EXCHANGE_DEFAULTS: string[] = [...SCANNER_EXCHANGE_OPTIONS];
 /** localStorage key used by useExchangeFilter. */
 export const SCANNER_EXCHANGE_STORAGE_KEY = 'nova_exchange_filter_v1';
 

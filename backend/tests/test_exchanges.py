@@ -1,6 +1,13 @@
 """Tests for listing-exchange lookup used on scanner rows."""
 
-from exchanges import attach_exchange, attach_exchanges, clear, exchange_for, update_from_assets
+from exchanges import (
+    attach_exchange,
+    attach_exchanges,
+    clear,
+    exchange_for,
+    normalize_ib_exchange,
+    update_from_assets,
+)
 
 
 def setup_function() -> None:
@@ -39,3 +46,19 @@ def test_attach_exchanges_batch() -> None:
     assert rows[0]["exchange"] == "NYSE"
     assert rows[1]["exchange"] == "AMEX"
     assert rows[2]["exchange"] is None
+
+
+def test_normalize_ib_exchange_passthrough_for_known_values() -> None:
+    assert normalize_ib_exchange("NASDAQ") == "NASDAQ"
+    assert normalize_ib_exchange("nyse") == "NYSE"
+
+
+def test_normalize_ib_exchange_maps_known_aliases() -> None:
+    assert normalize_ib_exchange("ISLAND") == "NASDAQ"
+    assert normalize_ib_exchange("NYSEARCA") == "ARCA"
+
+
+def test_normalize_ib_exchange_unknown_or_missing_is_none() -> None:
+    assert normalize_ib_exchange("SOME_UNKNOWN_VENUE") is None
+    assert normalize_ib_exchange(None) is None
+    assert normalize_ib_exchange("") is None

@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-25 | [Exchange filter fail-open + IB primaryExchange passthrough](2026-08-25-exchange-filter-blanking-fail-open.md) | Backend had 31 gappers/50 gainers live; NASDAQ-only default filter silently dropped every row without a known exchange down to 1; filter now fails open, defaults to all exchanges, and a hidden-count banner replaces silence |
 | 2026-08-24 | [Scanner names-first admission (ADR 010 D5)](2026-08-24-scanner-names-first-admission.md) | IB names become rows instantly, L1 fills prices; premarket Gappers projects from Gainers; one roster owner + anti-hiding gates |
 | 2026-08-19 | [Installer IBKR_ENABLED and door-trail UI](2026-08-19-installer-ibkr-enabled-door-trail.md) | AppData .env gets IBKR_ENABLED if missing; Door trail on prereq + Activity |
 | 2026-08-19 | [Live dark stops both doors so 2FA can appear](2026-08-19-live-dark-stop-both-for-2fa.md) | Port dark = kill both listeners + IBC; port up = reconnect only |

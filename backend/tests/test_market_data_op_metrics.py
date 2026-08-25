@@ -147,7 +147,7 @@ def test_hydration_and_pipeline_metrics_include_error_paths(monkeypatch):
         generation=1, epoch=1, session_key="2026-07-23",
     )
     scanner_stream._pending_hydrate["gainers"] = (
-        ["AAPL"], scanner_stream.time.perf_counter_ns(),
+        ["AAPL"], {}, scanner_stream.time.perf_counter_ns(),
     )
 
     async def commit_ok(**_kwargs):
@@ -157,7 +157,7 @@ def test_hydration_and_pipeline_metrics_include_error_paths(monkeypatch):
     asyncio.run(scanner_stream._hydrate_pending())
 
     scanner_stream._pending_hydrate["gainers"] = (
-        ["MSFT"], scanner_stream.time.perf_counter_ns(),
+        ["MSFT"], {}, scanner_stream.time.perf_counter_ns(),
     )
 
     async def fail_commit(**_kwargs):

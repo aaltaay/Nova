@@ -3,12 +3,46 @@
 Populated from Alpaca /v2/assets responses when the tradable universe is
 refreshed. Rows call ``attach_exchange`` so the UI can show where each
 symbol is listed next to the ticker.
+
+IBKR discovery does not run the Alpaca universe refresh, so
+``normalize_ib_exchange`` maps ``contract.primaryExchange`` (already present
+on every IB scanner row) onto the same option set the frontend filter
+understands -- no extra IB call needed.
 """
 
 from __future__ import annotations
 
+# Frontend SCANNER_EXCHANGE_OPTIONS (frontend/src/constantGroups/market_ui.ts)
+# kept in sync manually -- both sides are small, stable enums.
+_KNOWN_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "ARCA", "BATS", "IEX", "CBOE"}
+# IB primaryExchange aliases that resolve to one of _KNOWN_EXCHANGES.
+_IB_EXCHANGE_ALIASES = {
+    "NASDAQ.NMS": "NASDAQ",
+    "NASDAQGM": "NASDAQ",
+    "NASDAQCM": "NASDAQ",
+    "ISLAND": "NASDAQ",
+    "NYSEARCA": "ARCA",
+    "BATS": "BATS",
+    "BZX": "BATS",
+}
+
 # symbol → Alpaca asset ``exchange`` field (e.g. "NASDAQ", "NYSE", "ARCA")
 _symbol_exchange: dict[str, str] = {}
+
+
+def normalize_ib_exchange(value: str | None) -> str | None:
+    """Map an IB ``contract.primaryExchange`` value onto a known option.
+
+    Returns ``None`` for anything unrecognized rather than guessing -- an
+    unknown exchange must stay ``None`` so the UI filter treats it as
+    unfiltered (fail open), not as a fabricated match.
+    """
+    if not value:
+        return None
+    upper = str(value).strip().upper()
+    if upper in _KNOWN_EXCHANGES:
+        return upper
+    return _IB_EXCHANGE_ALIASES.get(upper)
 
 
 def clear() -> None:

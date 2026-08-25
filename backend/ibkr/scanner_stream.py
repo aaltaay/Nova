@@ -42,7 +42,7 @@ _epoch = 0
 # one-shot discovery backs off (see in_ready_quiet_window).
 _ready_quiet_until_mono: float = 0.0
 _shadow: dict[str, list[dict]] = {}
-_pending_hydrate: dict[str, tuple[list[str], int]] = {}
+_pending_hydrate: dict[str, tuple[list[str], dict[str, str], int]] = {}
 _hydrate_task: asyncio.Task | None = None
 
 
@@ -104,18 +104,30 @@ def _load_types() -> bool:
         return False
 
 
-def _symbols_from_rows(rows: list) -> list[str]:
+def _symbols_from_rows(rows: list) -> tuple[list[str], dict[str, str]]:
+    """Ranked symbols plus a symbol -> normalized exchange map.
+
+    IB's scan result already carries ``contract.primaryExchange`` for every
+    row, so listing exchange is free here -- no extra IB round trip.
+    """
+    import exchanges as _exchanges
+
     out: list[str] = []
+    exchanges: dict[str, str] = {}
     seen: set[str] = set()
     for row in rows:
         try:
-            sym = row.contractDetails.contract.symbol
+            contract = row.contractDetails.contract
+            sym = contract.symbol
         except AttributeError:
             continue
         if sym and sym not in seen:
             seen.add(sym)
             out.append(sym)
-    return out
+        exch = _exchanges.normalize_ib_exchange(getattr(contract, "primaryExchange", None))
+        if sym and exch:
+            exchanges[sym] = exch
+    return out, exchanges
 
 
 def _on_batch(lease: _Lease, rows: list) -> None:
@@ -124,7 +136,7 @@ def _on_batch(lease: _Lease, rows: list) -> None:
         return
     if lease.session_key != _session.session_key_et():
         return
-    symbols = _symbols_from_rows(list(rows or []))
+    symbols, row_exchanges = _symbols_from_rows(list(rows or []))
     now_m = time.monotonic()
     if lease.last_batch_mono > 0:
         lease.batch_intervals.append(now_m - lease.last_batch_mono)
@@ -132,7 +144,7 @@ def _on_batch(lease: _Lease, rows: list) -> None:
     lease.last_batch_mono = now_m
     if lease.first_batch_event is not None and not lease.first_batch_event.is_set():
         lease.first_batch_event.set()
-    _pending_hydrate[lease.table] = (symbols, time.perf_counter_ns())
+    _pending_hydrate[lease.table] = (symbols, row_exchanges, time.perf_counter_ns())
     _schedule_hydrate()
 
 
@@ -156,7 +168,7 @@ async def _hydrate_pending() -> None:
     await asyncio.sleep(0)
     pending = dict(_pending_hydrate)
     _pending_hydrate.clear()
-    for table, (symbols, started_ns) in pending.items():
+    for table, (symbols, row_exchanges, started_ns) in pending.items():
         lease = _leases.get(table)
         if lease is None:
             continue
@@ -164,6 +176,7 @@ async def _hydrate_pending() -> None:
             committed = await _hydrate.commit_table(
                 table=table,
                 symbols=symbols,
+                exchanges=row_exchanges,
                 lease_generation=lease.generation,
                 lease_epoch=lease.epoch,
                 lease_session_key=lease.session_key,

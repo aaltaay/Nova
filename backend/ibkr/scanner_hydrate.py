@@ -27,11 +27,12 @@ from runtime_state import get_runtime_state
 logger = logging.getLogger(__name__)
 
 
-def stub_row(sym: str, rank: int) -> dict:
+def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
     """Newly admitted name with no quote yet.
 
     ``None`` (not ``0.0``) for every price field so the UI can render "waiting
-    for L1" instead of a fabricated flat quote.
+    for L1" instead of a fabricated flat quote. ``exchange`` comes free from
+    the same IB scan row (``contract.primaryExchange``) -- no extra IB call.
     """
     return {
         "symbol": sym,
@@ -42,7 +43,7 @@ def stub_row(sym: str, rank: int) -> dict:
         "change_abs": None,
         "gap_percent": None,
         "volume": 0,
-        "exchange": None,
+        "exchange": exchange,
     }
 
 
@@ -52,27 +53,34 @@ async def hydrate_rows(
     table: str,
     session_key: str,
     existing: list[dict] | None = None,
+    exchanges: dict[str, str] | None = None,
 ) -> list[dict]:
     """Roster rows for *symbols* in IB rank order.
 
     Rows already present in *existing* (the table's live cache) keep whatever
     the L1 path has filled in; only their rank follows the fresh batch. Symbols
-    absent from the current ranked batch are dropped.
+    absent from the current ranked batch are dropped. ``exchanges`` backfills
+    an unknown exchange on a prior row -- it never overwrites one already set.
     """
     by_sym = {
         (r.get("symbol") or "").strip().upper(): r
         for r in (existing or [])
         if r.get("symbol")
     }
+    exchanges = exchanges or {}
     rows: list[dict] = []
     for rank, sym in enumerate(symbols, start=1):
         prior = by_sym.get(sym)
+        exch = exchanges.get(sym)
         if prior is None:
-            rows.append(stub_row(sym, rank))
-        elif prior.get("rank") == rank:
+            rows.append(stub_row(sym, rank, exchange=exch))
+        elif prior.get("rank") == rank and (prior.get("exchange") or not exch):
             rows.append(prior)
         else:
-            rows.append({**prior, "rank": rank})
+            next_row = {**prior, "rank": rank}
+            if not next_row.get("exchange") and exch:
+                next_row["exchange"] = exch
+            rows.append(next_row)
     return rows
 
 
@@ -85,6 +93,7 @@ async def commit_table(
     lease_session_key: str,
     epoch: int,
     shadow: dict[str, list[dict]],
+    exchanges: dict[str, str] | None = None,
 ) -> bool | None:
     state = get_runtime_state()
     gen = _client.current_generation()
@@ -113,6 +122,7 @@ async def commit_table(
             table=table,
             session_key=lease_session_key,
             existing=getattr(state, rows_attr) or [],
+            exchanges=exchanges,
         )
     shadow[table] = rows
     if not _session.is_persistent_authoritative():

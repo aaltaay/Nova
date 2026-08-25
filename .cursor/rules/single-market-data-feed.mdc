@@ -109,6 +109,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Classifying a pacing violation as retryable without a token bucket (retry storms)
 - ❌ Returning a stored stub when pacing wait > 0 and dropping the fill (wedges derived 1Hour / 15Min panes)
 - ❌ Letting scanner L1 last upserts rewrite a hist-owned `bars_intraday` candle (same `(symbol, timeframe, ts)` -- volume is not ownership; IB hist minutes can be volume=0)
+- ❌ A client-side scanner filter (exchange, watch, etc.) dropping a row because a metadata field is unknown -- unknown must fail open, and a real narrowing must show a visible hidden-count, not a quiet empty table (2026-08-25: NASDAQ-only default + drop-on-unknown blanked 31 gappers/50 gainers to 1 row with no on-screen cause)
 
 ## Related
 
