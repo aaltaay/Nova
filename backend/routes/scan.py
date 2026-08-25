@@ -1,19 +1,24 @@
 """
-Scanner REST routes — gappers, movers, afterhours, catalysts, history.
+Scanner REST routes — gappers, movers, afterhours, catalysts, large cap, history.
 
 Endpoints:
-  GET /api/gappers
-  GET /api/movers
-  GET /api/afterhours
-  GET /api/news-catalysts
-  GET /api/history/dates
-  GET /api/history/{cache_type}/{date}
+  GET  /api/gappers
+  GET  /api/movers
+  GET  /api/afterhours
+  GET  /api/large-cap
+  GET  /api/large-cap/config
+  POST /api/large-cap/config
+  GET  /api/large-cap/alerts
+  GET  /api/news-catalysts
+  GET  /api/history/dates
+  GET  /api/history/{cache_type}/{date}
 """
 from __future__ import annotations
 
 import re
 
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 import exchanges as _exchanges
 import hod_momo as _hod_momo
@@ -98,6 +103,59 @@ def get_afterhours():
     }
 
 
+@router.get("/api/large-cap")
+def get_large_cap():
+    """Large Cap swing table (ADR 014). Always-live -- never freezes."""
+    import large_cap_admin as _lc_admin
+    import large_cap_metrics as _lc_metrics
+
+    state = get_runtime_state()
+    rows = _strip_blocked(state.large_cap_cache)
+    rows = _lc_metrics.compute_scores(rows, weights=_lc_admin.get_score_weights())
+    return {
+        "rev": NOVA_API_REV,
+        "mode": state.current_mode,
+        "health": _scan_health(),
+        "large_cap": rows,
+        "last_scan": state.large_cap_cache_ts,
+        **_roster_surface(state.large_cap_table),
+        "feed_error": _feed_error(state),
+    }
+
+
+class LargeCapConfigPatch(BaseModel):
+    market_cap_above: float | None = None
+    above_volume: int | None = None
+    scan_code: str | None = None
+    stock_type_filter: str | None = None
+    score_weights: dict[str, float] | None = None
+
+
+@router.get("/api/large-cap/config")
+def get_large_cap_config():
+    import large_cap_admin as _lc_admin
+
+    return _lc_admin.get_config()
+
+
+@router.post("/api/large-cap/config")
+def update_large_cap_config(patch: LargeCapConfigPatch):
+    import large_cap_admin as _lc_admin
+    from fastapi import HTTPException
+
+    try:
+        return _lc_admin.update_config(patch.model_dump(exclude_none=True))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/api/large-cap/alerts")
+def get_large_cap_alerts():
+    import large_cap_alerts as _lc_alerts
+
+    return {"alerts": _lc_alerts.get_alert_history()}
+
+
 @router.get("/api/news-catalysts")
 def get_news_catalysts():
     """News-driven catalyst list."""
@@ -129,10 +187,13 @@ def get_all_integrity():
     return build_all_integrity_report()
 
 
+_HISTORY_CACHE_TYPES = {"gappers", "movers", "afterhours", "large_cap"}
+
+
 @router.get("/api/history/dates")
 def get_history_dates(type: str = "gappers"):
-    """Return available past dates for a cache type. ?type=gappers|movers|afterhours"""
-    if type not in {"gappers", "movers", "afterhours"}:
+    """Return available past dates for a cache type. ?type=gappers|movers|afterhours|large_cap"""
+    if type not in _HISTORY_CACHE_TYPES:
         return {"dates": []}
     return {"dates": list_history_dates(type)}
 
@@ -140,7 +201,7 @@ def get_history_dates(type: str = "gappers"):
 @router.get("/api/history/{cache_type}/{date}")
 def get_history_snapshot(cache_type: str, date: str):
     """Return a historical snapshot for a specific cache type and date (YYYY-MM-DD)."""
-    if cache_type not in {"gappers", "movers", "afterhours"}:
+    if cache_type not in _HISTORY_CACHE_TYPES:
         return {}
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         return {}

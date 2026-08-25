@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable
 
@@ -30,11 +31,36 @@ TABLE_GAPPERS = "gappers"
 TABLE_GAINERS = "gainers"
 TABLE_LOSERS = "losers"
 TABLE_AFTERHOURS = "afterhours"
+TABLE_LARGE_CAP = "large_cap"
 
 PERIOD_PREMARKET = "premarket"
 PERIOD_RTH = "rth"
 PERIOD_AFTERHOURS = "afterhours"
 PERIOD_CLOSED = "closed"
+
+# ADR 014: Large Cap is a swing table, deliberately exempt from the
+# freeze-at-boundary contract every other table follows. Named carve-out
+# (not an all-day pair of minute constants) so the intent is explicit at the
+# call sites in table_is_live() / table_should_be_frozen() below.
+_ALWAYS_LIVE = frozenset({TABLE_LARGE_CAP})
+
+
+@dataclass(frozen=True, slots=True)
+class LeaseSpec:
+    """One desired persistent ``reqScannerSubscription`` lease.
+
+    Replaces the bare ``(table, scan_code)`` tuple so a table can carry its
+    own server-side filters (ADR 014) -- ``_open_lease`` and the
+    reconcile/watchdog comparison in ``scanner_stream.py`` compare the full
+    spec, not just ``scan_code``, so a runtime filter change (e.g. a tunable
+    cap floor) correctly triggers a resubscribe.
+    """
+
+    table: str
+    scan_code: str
+    market_cap_above: float | None = None   # MILLIONS of USD (IB wire units)
+    above_volume: int | None = None
+    stock_type_filter: str = ""
 
 # Live window end (minutes from midnight ET) — freeze exactly at this boundary.
 _FREEZE_AT_MIN: dict[str, int] = {
@@ -70,13 +96,30 @@ def session_period(now: datetime | None = None) -> str:
     return PERIOD_CLOSED
 
 
-def desired_leases(now: datetime | None = None) -> list[tuple[str, str]]:
-    """Return ``(table, scan_code)`` pairs for the current period (<=2 slots).
+def _large_cap_lease() -> LeaseSpec:
+    """Large Cap's lease spec, reading the tunable filters (ADR 014 Step 8)."""
+    from large_cap_admin import get_large_cap_filters
 
-    Premarket holds a single lease. ``TOP_OPEN_PERC_GAIN`` has no open to
-    measure before 09:30 ET, so IB answers it with an empty list plus Warning
-    165; premarket Gappers is instead projected from this Gainers roster by
-    ``ibkr/gapper_view.py`` (ADR 008 amendment 2026-08-24).
+    filters = get_large_cap_filters()
+    return LeaseSpec(
+        table=TABLE_LARGE_CAP,
+        scan_code=filters["scan_code"],
+        market_cap_above=filters["market_cap_above"],
+        above_volume=filters["above_volume"],
+        stock_type_filter=filters["stock_type_filter"],
+    )
+
+
+def desired_leases(now: datetime | None = None) -> list[LeaseSpec]:
+    """Return desired lease specs for the current period (<=3 slots).
+
+    Premarket holds a single day-trade lease. ``TOP_OPEN_PERC_GAIN`` has no
+    open to measure before 09:30 ET, so IB answers it with an empty list plus
+    Warning 165; premarket Gappers is instead projected from this Gainers
+    roster by ``ibkr/gapper_view.py`` (ADR 008 amendment 2026-08-24).
+
+    Large Cap (ADR 014) is a swing table, present in every period including
+    Closed -- it is not a day-trade discovery lease and never freezes.
     """
     from constants import (
         IBKR_SCAN_CODE_AH_GAINERS,
@@ -85,20 +128,24 @@ def desired_leases(now: datetime | None = None) -> list[tuple[str, str]]:
     )
 
     period = session_period(now)
+    large_cap = _large_cap_lease()
     if period == PERIOD_PREMARKET:
-        return [(TABLE_GAINERS, IBKR_SCAN_CODE_GAINERS)]
+        return [LeaseSpec(TABLE_GAINERS, IBKR_SCAN_CODE_GAINERS), large_cap]
     if period == PERIOD_RTH:
         return [
-            (TABLE_GAINERS, IBKR_SCAN_CODE_GAINERS),
-            (TABLE_LOSERS, IBKR_SCAN_CODE_LOSERS),
+            LeaseSpec(TABLE_GAINERS, IBKR_SCAN_CODE_GAINERS),
+            LeaseSpec(TABLE_LOSERS, IBKR_SCAN_CODE_LOSERS),
+            large_cap,
         ]
     if period == PERIOD_AFTERHOURS:
-        return [(TABLE_AFTERHOURS, IBKR_SCAN_CODE_AH_GAINERS)]
-    return []
+        return [LeaseSpec(TABLE_AFTERHOURS, IBKR_SCAN_CODE_AH_GAINERS), large_cap]
+    return [large_cap]
 
 
 def table_is_live(table: str, now: datetime | None = None) -> bool:
     """True when the table's session window is open (not yet at freeze boundary)."""
+    if table in _ALWAYS_LIVE:
+        return True
     now = now or now_et()
     mins = _minutes_et(now)
     start = _LIVE_FROM_MIN.get(table)
@@ -110,6 +157,8 @@ def table_is_live(table: str, now: datetime | None = None) -> bool:
 
 def table_should_be_frozen(table: str, now: datetime | None = None) -> bool:
     """True when past the freeze boundary for the current session calendar day."""
+    if table in _ALWAYS_LIVE:
+        return False
     now = now or now_et()
     mins = _minutes_et(now)
     end = _FREEZE_AT_MIN.get(table)
@@ -131,6 +180,7 @@ def table_attr(state, table: str) -> TableState:
         TABLE_GAINERS: state.gainer_table,
         TABLE_LOSERS: state.loser_table,
         TABLE_AFTERHOURS: state.afterhours_table,
+        TABLE_LARGE_CAP: state.large_cap_table,
     }
     return mapping[table]
 
@@ -142,6 +192,7 @@ def cache_attr_names(table: str) -> tuple[str, str]:
         TABLE_GAINERS: ("gainer_cache", "gainer_cache_ts"),
         TABLE_LOSERS: ("loser_cache", "loser_cache_ts"),
         TABLE_AFTERHOURS: ("afterhours_cache", "afterhours_cache_ts"),
+        TABLE_LARGE_CAP: ("large_cap_cache", "large_cap_cache_ts"),
     }[table]
 
 
@@ -248,9 +299,20 @@ def reconcile_session_tables(
     now = now or now_et()
     key = session_key_et(now)
     frozen: list[str] = []
-    for table in (TABLE_GAPPERS, TABLE_GAINERS, TABLE_LOSERS, TABLE_AFTERHOURS):
+    for table in (
+        TABLE_GAPPERS, TABLE_GAINERS, TABLE_LOSERS, TABLE_AFTERHOURS, TABLE_LARGE_CAP,
+    ):
         ts = table_attr(state, table)
         if ts.session_key and ts.session_key != key:
+            if table in _ALWAYS_LIVE:
+                # ADR 014: an always-live table's roster is not a session
+                # artifact to discard -- it persists across the 04:00
+                # rollover exactly as the underlying IB lease does. Only the
+                # bookkeeping session_key advances, for consistency with the
+                # other tables' TableState shape.
+                ts.session_key = key
+                ts.revision += 1
+                continue
             # New session — clear prior live/frozen flag so a missed morning
             # cannot be treated as today's live roster without a fresh scan.
             rows_attr, ts_attr = cache_attr_names(table)

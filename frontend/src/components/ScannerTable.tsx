@@ -135,9 +135,54 @@ function renderCell(
           </span>
         </span>
       );
+    // ── Large Cap swing table only (ADR 014) ──────────────────────────────────
+    case 'rvol':
+      return row.rvol != null ? (
+        <span className={row.rvol >= 2 ? 'positive' : ''}>{row.rvol.toFixed(1)}x</span>
+      ) : <span className="na-muted">—</span>;
+    case 'atr_expansion':
+      return row.atr_expansion != null ? (
+        <span className={row.atr_expansion >= 1 ? 'positive' : ''}>{row.atr_expansion.toFixed(1)}x</span>
+      ) : <span className="na-muted">—</span>;
+    case 'change_5d_pct':
+      return <span className={pctClass(row.change_5d_pct)}>{fmtPct(row.change_5d_pct ?? null)}</span>;
+    case 'change_20d_pct':
+      return <span className={pctClass(row.change_20d_pct)}>{fmtPct(row.change_20d_pct ?? null)}</span>;
+    case 'high_20d':
+      return (
+        <span className="cell-stack">
+          <span className="cell-stack-primary">
+            {row.high_20d != null ? fmtPrice(row.high_20d) : <span className="na-muted">—</span>}
+          </span>
+          <span className="cell-stack-secondary">
+            {row.low_20d != null ? fmtPrice(row.low_20d) : <span className="na-muted">—</span>}
+          </span>
+        </span>
+      );
+    case 'large_cap_score':
+      return row.large_cap_score != null ? (
+        <span title={
+          row.score_completeness != null
+            ? `${Math.round(row.score_completeness * 100)}% of signals present`
+            : undefined
+        }>
+          {row.large_cap_score.toFixed(0)}
+        </span>
+      ) : <span className="na-muted">—</span>;
+    case 'days_to_earnings':
+      return row.days_to_earnings != null ? (
+        <span className={row.days_to_earnings <= 7 ? 'negative' : ''}>
+          {row.days_to_earnings}d
+        </span>
+      ) : <span className="na-muted">—</span>;
     default:
       return <span className="na-muted">—</span>;
   }
+}
+
+function pctClass(v: number | null | undefined): string {
+  if (v == null) return '';
+  return v >= 0 ? 'positive' : 'negative';
 }
 
 export function ScannerTable({

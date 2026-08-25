@@ -4,6 +4,8 @@ export type ScannerScanAges = {
   gappers: number;
   movers: number;
   afterhours: number;
+  /** Large Cap swing table (ADR 014) — always-live, its own independent age. */
+  largeCap: number;
 };
 
 /**
@@ -16,5 +18,6 @@ export function scanAgeForTab(tab: string, ages: ScannerScanAges): number {
   // Gainers/Losers share the movers feed timestamp (same /api/movers poll).
   if (tab === 'movers' || tab === 'gainers' || tab === 'losers') return ages.movers;
   if (tab === 'afterhours') return ages.afterhours;
-  return Math.max(ages.gappers, ages.movers, ages.afterhours);
+  if (tab === 'large_cap') return ages.largeCap;
+  return Math.max(ages.gappers, ages.movers, ages.afterhours, ages.largeCap);
 }

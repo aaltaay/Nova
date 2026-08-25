@@ -47,6 +47,15 @@ roster admission is decoupled from quotes (implements ADR 010 decision 5):
 
 **Amendment (2026-08-18):** HOD Momo does not call `reqHistoricalData`. Session high is tick-6 + observed prints, with an observed-warmup floor after 60s of watching (`open_alert_window=False`). Squeeze buffer is a local `bars_store.read` of already-stored 1Min bars; empty store means live-only. The 60/10min IB historical budget belongs to Trader chart panes (max 4 timeframes per symbol).
 
+**Amendment (2026-08-25) -- always-live carve-out for a non-freezing table:** ADR 014
+adds `TABLE_LARGE_CAP`, a swing-oriented table that is deliberately exempt from this
+ADR's freeze-at-boundary contract (decision 2). It is added to an explicit `_ALWAYS_LIVE`
+set in `scanner_session.py` rather than reusing the freeze-boundary machinery with
+all-day bounds, and its lease carries per-table `marketCapAbove` / `aboveVolume` /
+`stockTypeFilter` via a new `LeaseSpec`, extending decision 1's bare
+`(scan_code)` model. See ADR 014 for the full decision, live-verified scan-code choice,
+and rejected alternatives.
+
 ## Consequences
 
 - Gappers/Gainers/Afterhours become genuinely frozen artifacts after their window — the frontend can trust "Frozen at 09:30 ET" instead of re-deriving staleness from a poll timestamp.

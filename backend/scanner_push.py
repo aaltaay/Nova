@@ -80,6 +80,7 @@ def _snapshot_payload() -> dict[str, Any]:
         _ss.TABLE_GAINERS: (state.gainer_cache, state.gainer_table),
         _ss.TABLE_LOSERS: (state.loser_cache, state.loser_table),
         _ss.TABLE_AFTERHOURS: (state.afterhours_cache, state.afterhours_table),
+        _ss.TABLE_LARGE_CAP: (state.large_cap_cache, state.large_cap_table),
     }
     out: dict[str, Any] = {}
     for name, (rows, meta) in tables.items():

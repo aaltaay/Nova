@@ -18,6 +18,7 @@ ALLOWED_TABS = frozenset({
     "gainers",
     "losers",
     "afterhours",
+    "large_cap",
     "catalysts",
     "none",
 })

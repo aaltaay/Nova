@@ -18,7 +18,7 @@ export function EmptyState({
   /** When 'ibkr' and Gateway is down, show that instead of "no gaps yet". */
   discoveryProvider?: string;
   /** Which feed's default "no X in the feed" message to show (Gainers/Losers sub-tabs). */
-  emptyLabel?: 'gainers' | 'losers';
+  emptyLabel?: 'gainers' | 'losers' | 'large cap movers';
 }) {
   const ibkr = useIbkrStatus();
   const isIbkr = discoveryProvider === 'ibkr';

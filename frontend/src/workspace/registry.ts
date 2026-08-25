@@ -31,6 +31,7 @@ export type ModuleCountKey =
   | 'gainers'
   | 'losers'
   | 'afterhours'
+  | 'largeCap'
   | 'catalysts'
   | 'hodMomo'
   | 'runningUp'
@@ -42,6 +43,7 @@ export const TAB_MODULE_IDS = [
   'gainers',
   'losers',
   'afterhours',
+  'large_cap',
   'catalysts',
   'hod_momo',
   'running_up',
@@ -116,6 +118,15 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     defaultPlacement: 'tab',
     showInTabNav: true,
     countKey: 'afterhours',
+  },
+  {
+    id: 'large_cap',
+    title: 'Large Cap',
+    component: host,
+    feedDeps: ['scanner'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    countKey: 'largeCap',
   },
   {
     id: 'catalysts',

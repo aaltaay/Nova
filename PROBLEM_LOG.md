@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 — IBKR ScannerSubscription.marketCapAbove is in millions, not raw dollars
+
+- **Symptom:** Diagnostic probe (`tools/ibkr_scan_params.py`, pre-production research for the Large Cap swing table) set `marketCapAbove=50_000_000_000` ($50B, raw dollars) on `HOT_BY_VOLUME` / `TOP_VOLUME_RATE` / `MOST_ACTIVE` / `TOP_PERC_GAIN` / `TOP_PERC_LOSE`. Every filtered run returned **zero rows**, even for scan codes whose unfiltered baseline plainly contained >$50B names (NVDA, INTC).
+- **Cause:** IB's live `reqScannerParametersAsync()` XML documents the field's wire code as `marketCapAbove1e6` with `<suffix>*1,000,000</suffix>` — the value must be supplied in **millions of USD**. $50B raw dollars was interpreted as a $50 trillion floor, filtering out every listed US equity. Confirmed via a direct XML dump (`RangeFilter id=MKTCAP`) rather than assumption.
+- **Fix:** Pass `marketCapAbove` in millions (e.g. `50_000` for a $50B floor) everywhere in the codebase, present and future. `aboveVolume` (`SimpleFilter id=VOLUME`, `IntField`, no `*1,000,000` suffix) is unaffected — raw share counts are correct as-is. Also discovered `stockTypeFilter='CORP'` (the plain wire value, not the XML-internal `inc:CORP` label) is required to exclude ETFs/ETNs/REITs/CEFs from `HOT_BY_VOLUME` / `TOP_VOLUME_RATE` / `MOST_ACTIVE` results — `instrument="STK"` alone does not exclude them, since ETFs are `STK`-typed contracts in IB's model.
+- **Fix class:** infra
+- **Keywords:** ScannerSubscription, marketCapAbove, reqScannerParameters, millions, units, stockTypeFilter, CORP, ETF pollution, Large Cap scanner, TOP_VOLUME_RATE
+
 ## 2026-08-25 — Exchange filter silently blanked the scanner desk to 1 row
 
 - **Symptom:** Premarket, IB Gateway connected and live, `/api/health` and `/api/ibkr/status` both healthy. `/api/movers` and `/api/gappers` REST returned full rosters (50 gainers, 28-31 gappers). Probing `/ws/scanner` directly confirmed the backend was pushing `roster_replace` with the full roster and rising revisions. The UI nav badges nonetheless showed `Gappers 1` / `Gainers 1`, with only the symbol whose detail panel had been opened (AMIX) visible. Losers/Afterhours empty was correct (premarket lease design, ADR 008) but Gappers/Gainers being reduced to 1 row was not.

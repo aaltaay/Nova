@@ -1,7 +1,11 @@
-"""Persistent IBKR scanner subscriptions (ADR 008).
+"""Persistent IBKR scanner subscriptions (ADR 008 + ADR 014).
 
 Owns ``ScanDataList`` handles for the process lifetime. Desired set by period:
-Premarket = Gainers + Gappers; RTH = Gainers + Losers; AH = AH Gainers; Closed = none.
+Premarket = Gainers + Large Cap; RTH = Gainers + Losers + Large Cap;
+AH = AH Gainers + Large Cap; Closed = Large Cap only. Large Cap (ADR 014) is
+an always-live swing table present in every period, with its own per-table
+``marketCapAbove``/``aboveVolume``/``stockTypeFilter`` (see ``LeaseSpec`` in
+``scanner_session.py``) -- every other lease uses none of those filters.
 
 Authoritative by default (``IBKR_SCANNER_PERSISTENT_AUTHORITATIVE=true``):
 commits hydrated rosters to runtime caches. Shadow-only mode remains available
@@ -50,6 +54,9 @@ _hydrate_task: asyncio.Task | None = None
 class _Lease:
     table: str
     scan_code: str
+    market_cap_above: float | None = None
+    above_volume: int | None = None
+    stock_type_filter: str = ""
     data_list: Any = None
     req_id: int | None = None
     generation: int = 0
@@ -197,31 +204,44 @@ async def _hydrate_pending() -> None:
                 record_since("ibkr.scanner.pipeline", started_ns, ok=committed)
 
 
-async def _open_lease(table: str, scan_code: str) -> _Lease | None:
+async def _open_lease(spec: "_session.LeaseSpec") -> _Lease | None:
     from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
 
+    table, scan_code = spec.table, spec.scan_code
     if is_started() and not is_ib_loop():
         return await on_ib(
-            _open_lease(table, scan_code),
+            _open_lease(spec),
             float(IBKR_SCAN_REQUEST_TIMEOUT_SEC) + 5.0,
             label="reqScannerSubscription",
         )
     ib = _client.get_ib()
     if ib is None or not _load_types() or not _client.is_ready():
         return None
-    sub = _ScannerSubscription(
+    sub_kwargs: dict[str, Any] = dict(
         numberOfRows=IBKR_SCAN_MAX_ROWS,
         instrument=IBKR_SCAN_INSTRUMENT,
         locationCode=IBKR_SCAN_LOCATION,
         scanCode=scan_code,
         abovePrice=IBKR_SCAN_ABOVE_PRICE,
     )
+    # ADR 014: per-table filters. marketCapAbove is in MILLIONS of USD (IB
+    # wire units) -- see PROBLEM_LOG 2026-08-25.
+    if spec.market_cap_above is not None:
+        sub_kwargs["marketCapAbove"] = spec.market_cap_above
+    if spec.above_volume is not None:
+        sub_kwargs["aboveVolume"] = spec.above_volume
+    if spec.stock_type_filter:
+        sub_kwargs["stockTypeFilter"] = spec.stock_type_filter
+    sub = _ScannerSubscription(**sub_kwargs)
     with timed_sync("ibkr.scanner.persistent_subscribe"):
         data_list = ib.reqScannerSubscription(sub)
     req_id = getattr(data_list, "reqId", None)
     lease = _Lease(
         table=table,
         scan_code=scan_code,
+        market_cap_above=spec.market_cap_above,
+        above_volume=spec.above_volume,
+        stock_type_filter=spec.stock_type_filter,
         data_list=data_list,
         req_id=req_id,
         generation=_client.current_generation(),
@@ -291,29 +311,40 @@ def _cancel_lease(table: str, *, freeze_first: bool = False) -> None:
     logger.info("scanner_stream: cancelled %s reqId=%s", table, lease.req_id)
 
 
+def _lease_matches_spec(lease: "_Lease", spec: "_session.LeaseSpec") -> bool:
+    """Full filter comparison, not just scan_code (ADR 014) -- a tunable cap-floor
+    change must trigger a resubscribe, not be swallowed by a scan_code match."""
+    return (
+        lease.scan_code == spec.scan_code
+        and lease.market_cap_above == spec.market_cap_above
+        and lease.above_volume == spec.above_volume
+        and lease.stock_type_filter == spec.stock_type_filter
+    )
+
+
 async def reconcile_leases() -> None:
     """Open/cancel leases to match desired set; freeze before cancelling."""
     if not _client.is_ready() or not _load_types():
         return
     desired = {
-        table: code for table, code in _session.desired_leases()
-        if _session.table_is_live(table)
+        spec.table: spec for spec in _session.desired_leases()
+        if _session.table_is_live(spec.table)
     }
     for table in list(_leases):
         if table not in desired:
             _cancel_lease(table, freeze_first=_session.table_should_be_frozen(table))
     gen = _client.current_generation()
-    for table, code in desired.items():
+    for table, spec in desired.items():
         existing = _leases.get(table)
         if existing is not None:
             if (
-                existing.scan_code == code
+                _lease_matches_spec(existing, spec)
                 and existing.generation == gen
                 and existing.epoch == _epoch
             ):
                 continue
             _cancel_lease(table, freeze_first=False)
-        await _open_lease(table, code)
+        await _open_lease(spec)
 
 
 async def _watchdog_once() -> None:
@@ -335,9 +366,15 @@ async def _watchdog_once() -> None:
             "scanner_stream: watchdog resubscribe %s (batch age %.0fs > %.0fs)",
             table, age, limit,
         )
-        code = lease.scan_code
+        spec = _session.LeaseSpec(
+            table=table,
+            scan_code=lease.scan_code,
+            market_cap_above=lease.market_cap_above,
+            above_volume=lease.above_volume,
+            stock_type_filter=lease.stock_type_filter,
+        )
         _cancel_lease(table, freeze_first=False)
-        await _open_lease(table, code)
+        await _open_lease(spec)
 
 
 async def manager_loop() -> None:

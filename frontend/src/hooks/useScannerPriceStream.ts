@@ -14,6 +14,16 @@ export type ScannerPricePatchRow = {
   volume?: number | null;
   gap_percent?: number | null;
   quote_ts?: number | null;
+  // Large Cap swing table only (ADR 014) — undefined on every other table's patch.
+  rvol?: number | null;
+  atr_expansion?: number | null;
+  change_5d_pct?: number | null;
+  change_20d_pct?: number | null;
+  high_20d?: number | null;
+  low_20d?: number | null;
+  days_to_earnings?: number | null;
+  market_cap?: number | null;
+  float?: number | null;
 };
 
 export type ScannerTableMeta = {
@@ -57,7 +67,7 @@ type Props = {
 } & ScannerRosterHandlers;
 
 const EMPTY_FLASH: Record<string, 'up' | 'down'> = {};
-const SCANNER_TABS = new Set(['gappers', 'gainers', 'losers', 'afterhours']);
+const SCANNER_TABS = new Set(['gappers', 'gainers', 'losers', 'afterhours', 'large_cap']);
 
 /** Keep only real scanner tables, deduped — alert-only tabs contribute none. */
 export function tabHints(tabs: readonly (string | null | undefined)[]): string[] {
@@ -271,6 +281,16 @@ export function applyScannerPricePatch<T extends { symbol: string }>(
       ...(p.change_abs != null ? { change_abs: p.change_abs } : {}),
       ...(p.volume != null ? { volume: p.volume } : {}),
       ...(p.gap_percent != null ? { gap_percent: p.gap_percent } : {}),
+      // Large Cap swing table only (ADR 014) — no-ops on every other table's patch.
+      ...(p.rvol !== undefined ? { rvol: p.rvol } : {}),
+      ...(p.atr_expansion !== undefined ? { atr_expansion: p.atr_expansion } : {}),
+      ...(p.change_5d_pct !== undefined ? { change_5d_pct: p.change_5d_pct } : {}),
+      ...(p.change_20d_pct !== undefined ? { change_20d_pct: p.change_20d_pct } : {}),
+      ...(p.high_20d !== undefined ? { high_20d: p.high_20d } : {}),
+      ...(p.low_20d !== undefined ? { low_20d: p.low_20d } : {}),
+      ...(p.days_to_earnings !== undefined ? { days_to_earnings: p.days_to_earnings } : {}),
+      ...(p.market_cap !== undefined ? { market_cap: p.market_cap } : {}),
+      ...(p.float !== undefined ? { float: p.float } : {}),
     };
   });
   return changed ? next : rows;

@@ -14,7 +14,7 @@ import {
 } from '../constants';
 import { isNovaApiDebug } from '../debug';
 import type { MarketMode } from '../components/AppHeader';
-import type { Afterhours, Gapper, Mover } from '../types/scanner';
+import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
 import {
@@ -58,12 +58,14 @@ export function useScannerData(opts: {
   const [gainers, setGainers] = useState<Mover[]>([]);
   const [losers, setLosers] = useState<Mover[]>([]);
   const [afterhours, setAfterhours] = useState<Afterhours[]>([]);
+  const [largeCap, setLargeCap] = useState<ScannerRow[]>([]);
   const [catalysts, setCatalysts] = useState<Catalyst[]>([]);
   const [tableMeta, setTableMeta] = useState<Record<string, ScannerTableMeta>>({});
   const [scanAges, setScanAges] = useState<ScannerScanAges>({
     gappers: 0,
     movers: 0,
     afterhours: 0,
+    largeCap: 0,
   });
   const [now, setNow] = useState(() => Date.now() / 1000);
   const [historyDate, setHistoryDate] = useState<string | null>(null);
@@ -81,6 +83,7 @@ export function useScannerData(opts: {
       else if (table === 'gainers') apply(setGainers, 'movers');
       else if (table === 'losers') apply(setLosers, 'movers');
       else if (table === 'afterhours') apply(setAfterhours, 'afterhours');
+      else if (table === 'large_cap') apply(setLargeCap, 'largeCap');
       else {
         // Legacy patches without table — apply to all (shadow / older backends).
         setGappers(prev => applyScannerPricePatch(prev, rows));
@@ -104,12 +107,15 @@ export function useScannerData(opts: {
     else if (table === 'gainers') setTableRows(setGainers, rows);
     else if (table === 'losers') setTableRows(setLosers, rows);
     else if (table === 'afterhours') setTableRows(setAfterhours, rows);
+    else if (table === 'large_cap') setTableRows(setLargeCap, rows);
     const ts = meta.roster_ts || Date.now() / 1000;
     if (table === 'gappers') setScanAges(prev => ({ ...prev, gappers: ts }));
     else if (table === 'gainers' || table === 'losers') {
       setScanAges(prev => ({ ...prev, movers: ts }));
     } else if (table === 'afterhours') {
       setScanAges(prev => ({ ...prev, afterhours: ts }));
+    } else if (table === 'large_cap') {
+      setScanAges(prev => ({ ...prev, largeCap: ts }));
     }
   }, []);
 
@@ -129,10 +135,11 @@ export function useScannerData(opts: {
   const fetchData = useCallback(async () => {
     const signal = AbortSignal.timeout(SCANNER_FETCH_TIMEOUT_MS);
     try {
-      const [gr, moversRes, ahRes, catalystRes] = await Promise.all([
+      const [gr, moversRes, ahRes, largeCapRes, catalystRes] = await Promise.all([
         fetch(`${API_URL}/gappers`, { signal }),
         fetch(`${API_URL}/movers`, { signal }),
         fetch(`${API_URL}/afterhours`, { signal }),
+        fetch(`${API_URL}/large-cap`, { signal }),
         fetch(`${API_URL}/news-catalysts`, { signal }),
       ]);
       consecutiveFailuresRef.current = 0;
@@ -182,6 +189,17 @@ export function useScannerData(opts: {
         }
       }
 
+      if (largeCapRes.ok) {
+        const data = await largeCapRes.json();
+        if (data.mode) setMode(data.mode as Mode);
+        if (data.last_scan) nextAges = { ...nextAges, largeCap: data.last_scan };
+        if (Array.isArray(data.large_cap)) {
+          setLargeCap(prev =>
+            data.large_cap.length === 0 && prev.length > 0 ? prev : data.large_cap,
+          );
+        }
+      }
+
       if (Object.keys(nextAges).length > 0) {
         setScanAges(prev => ({ ...prev, ...nextAges }));
       }
@@ -196,6 +214,7 @@ export function useScannerData(opts: {
           ['gappers', gr],
           ['movers', moversRes],
           ['afterhours', ahRes],
+          ['large-cap', largeCapRes],
           ['catalysts', catalystRes],
         ] as const) {
           if (!res.ok) {
@@ -325,6 +344,7 @@ export function useScannerData(opts: {
     gainers,
     losers,
     afterhours,
+    largeCap,
     catalysts,
     tableMeta,
     scanAges,

@@ -147,6 +147,47 @@ def test_apply_table_quotes_archives_active_set_tick(monkeypatch):
     assert archived[0]["volume"] == 100.0
 
 
+def test_apply_l1_quote_reprices_large_cap_cache(monkeypatch):
+    """ADR 014: an L1 tick for a symbol on the Large Cap table must reprice
+    that row's swing metrics too, independent of gainer/gapper/afterhours."""
+    state = _fake_state()
+    state.large_cap_cache = [
+        {"symbol": "NVDA", "price": 190.0, "prev_close": 185.0, "volume": 1_000_000},
+    ]
+    state.large_cap_cache_ts = 0.0
+    monkeypatch.setattr(ibkr_bridge, "get_runtime_state", lambda: state)
+    monkeypatch.setattr(_hod_active, "get_active_symbols", lambda: [])
+
+    import large_cap_metrics as _lc_metrics
+
+    monkeypatch.setattr(
+        _lc_metrics, "build_row_metrics",
+        lambda sym, **kw: {
+            "rvol": 3.0, "atr_expansion": 1.0, "change_5d_pct": 0.01,
+            "change_20d_pct": 0.02, "high_20d": 195.0, "low_20d": 150.0,
+            "days_to_earnings": 5,
+        },
+    )
+
+    patch = ibkr_bridge.apply_l1_quote("NVDA", 200.0, 2_000_000, 185.0, 444.0)
+
+    assert state.large_cap_cache[0]["price"] == 200.0
+    assert state.large_cap_cache[0]["rvol"] == 3.0
+    assert state.large_cap_cache_ts == 444.0
+    assert patch["rvol"] == 3.0
+
+
+def test_apply_l1_quote_ignores_large_cap_when_cache_empty(monkeypatch):
+    state = _fake_state()
+    monkeypatch.setattr(ibkr_bridge, "get_runtime_state", lambda: state)
+    monkeypatch.setattr(_hod_active, "get_active_symbols", lambda: [])
+
+    patch = ibkr_bridge.apply_l1_quote("NVDA", 200.0, 2_000_000, 185.0, 444.0)
+
+    assert state.large_cap_cache == []
+    assert "rvol" not in patch
+
+
 def test_refresh_hod_active_set_always_recomputes(monkeypatch):
     """Regression for the WLDS lockout (PROBLEM_LOG 2026-07-23): once all three
     scanner tables freeze for the day, their cache list objects are never

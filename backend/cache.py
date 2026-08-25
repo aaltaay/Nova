@@ -76,6 +76,7 @@ from constants import (
     HOD_MOMO_HIGHS_PREFIX,
     HOD_MOMO_CONFIG_FILE,
     HOD_MOMO_BLOCKLIST_FILE,
+    LARGE_CAP_CONFIG_FILE,
 )
 
 
@@ -233,6 +234,18 @@ def save_afterhours_snapshot(rows: list[dict], ts: float) -> None:
         _atomic_write(_dated_path("afterhours", _today_et()), payload)
     except Exception:
         logger.warning("cache: save_afterhours_snapshot failed to persist to disk", exc_info=True)
+
+
+# ADR 014 — Large Cap swing table. Independent dated file/revision like every
+# other table; unlike gappers/gainers/losers/afterhours it is always-live and
+# never freezes, but still gets a fresh file each session day for history.
+def save_large_cap_snapshot(rows: list[dict], ts: float) -> None:
+    """Atomically persist the Large Cap cache to today's dated file."""
+    try:
+        payload = {"date": _today_et(), "ts": ts, "large_cap": rows}
+        _atomic_write(_dated_path("large_cap", _today_et()), payload)
+    except Exception:
+        logger.warning("cache: save_large_cap_snapshot failed to persist to disk", exc_info=True)
 
 
 def load_afterhours_snapshot() -> tuple[list[dict], float]:
@@ -450,6 +463,26 @@ def load_hod_momo_configs() -> dict:
     """Load strategy configs + master gate. Returns {} if file doesn't exist."""
     try:
         with open(HOD_MOMO_CONFIG_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+# ── Large Cap (ADR 014) — tunable lease filters ────────────────────────────────
+
+def save_large_cap_config(payload: dict) -> None:
+    """Persist Large Cap's tunable cap floor / volume floor / score weights."""
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        _atomic_write(LARGE_CAP_CONFIG_FILE, payload)
+    except Exception:
+        logger.warning("cache: save_large_cap_config failed to persist to disk", exc_info=True)
+
+
+def load_large_cap_config() -> dict:
+    """Load Large Cap's tunable config. Returns {} if file doesn't exist."""
+    try:
+        with open(LARGE_CAP_CONFIG_FILE, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}

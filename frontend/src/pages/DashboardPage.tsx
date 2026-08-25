@@ -42,6 +42,7 @@ function isMainScannerTab(tab: ActiveTab): boolean {
     || tab === 'gainers'
     || tab === 'losers'
     || tab === 'afterhours'
+    || tab === 'large_cap'
     || tab === 'catalysts'
     || tab === 'watchlist'
     || tab === 'trading'
@@ -139,6 +140,7 @@ export function DashboardPage() {
   const filteredGainers = exchangeFilter.filterRows(scanner.gainers);
   const filteredLosers = exchangeFilter.filterRows(scanner.losers);
   const filteredAfterhours = exchangeFilter.filterRows(scanner.afterhours);
+  const filteredLargeCap = exchangeFilter.filterRows(scanner.largeCap);
 
   // Fail-loud (single-market-data-feed.mdc): a client-side filter must never
   // hide rows in silence. 2026-08-25 the exchange filter blanked the desk to
@@ -148,6 +150,7 @@ export function DashboardPage() {
     gainers: scanner.gainers.length - filteredGainers.length,
     losers: scanner.losers.length - filteredLosers.length,
     afterhours: scanner.afterhours.length - filteredAfterhours.length,
+    large_cap: scanner.largeCap.length - filteredLargeCap.length,
   };
 
   function handleTabClick(tab: ActiveTab) {
@@ -196,6 +199,7 @@ export function DashboardPage() {
     gainers: filteredGainers.length,
     losers: filteredLosers.length,
     afterhours: filteredAfterhours.length,
+    largeCap: filteredLargeCap.length,
     catalysts: scanner.catalysts.length,
     hodMomo: hodCount,
     runningUp: runningUpCount,
@@ -262,6 +266,7 @@ export function DashboardPage() {
               gainers={filteredGainers}
               losers={filteredLosers}
               afterhours={filteredAfterhours}
+              largeCap={filteredLargeCap}
               catalysts={scanner.catalysts}
               watchlistEntries={watchlist.entries}
               watchlistLoading={watchlist.loading}

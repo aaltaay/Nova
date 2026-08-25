@@ -186,7 +186,12 @@ def test_gapper_view_ignores_unpriced_stub_rows():
 
 
 def test_premarket_leases_are_gainers_only():
-    """TOP_OPEN_PERC_GAIN has no open to measure before 09:30 (IB Warning 165)."""
+    """TOP_OPEN_PERC_GAIN has no open to measure before 09:30 (IB Warning 165).
+
+    Large Cap (ADR 014) is present too -- it is an always-live swing table,
+    not a day-trade discovery lease, so it does not break "gainers only" for
+    the day-trade leases this test is actually about.
+    """
     from datetime import datetime
 
     from market import ET
@@ -194,4 +199,4 @@ def test_premarket_leases_are_gainers_only():
     premarket = datetime(2026, 8, 24, 8, 30, tzinfo=ET)
     leases = _ss.desired_leases(premarket)
 
-    assert [table for table, _code in leases] == [_ss.TABLE_GAINERS]
+    assert [spec.table for spec in leases] == [_ss.TABLE_GAINERS, _ss.TABLE_LARGE_CAP]

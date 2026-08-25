@@ -171,6 +171,12 @@ async def commit_table(
         on_hod_roster_commit(table)
     except Exception:
         logger.debug("scanner_stream: HOD roster commit hook failed", exc_info=True)
+    try:
+        from large_cap_hooks import on_large_cap_roster_commit
+
+        on_large_cap_roster_commit(table, rows)
+    except Exception:
+        logger.debug("scanner_stream: Large Cap roster commit hook failed", exc_info=True)
     return True
 
 
@@ -181,7 +187,7 @@ def log_shadow_parity(
     state = get_runtime_state()
     for table in (
         _session.TABLE_GAPPERS, _session.TABLE_GAINERS,
-        _session.TABLE_LOSERS, _session.TABLE_AFTERHOURS,
+        _session.TABLE_LOSERS, _session.TABLE_AFTERHOURS, _session.TABLE_LARGE_CAP,
     ):
         shadow_syms = {r["symbol"] for r in (shadow.get(table) or []) if r.get("symbol")}
         rows_attr, _ = _session.cache_attr_names(table)

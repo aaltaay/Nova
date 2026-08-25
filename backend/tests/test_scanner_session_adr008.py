@@ -29,18 +29,37 @@ def test_session_key_midnight_belongs_to_prior_session():
 
 
 def test_desired_leases_by_period():
-    # Premarket holds one lease: TOP_OPEN_PERC_GAIN has no open to measure
-    # before 09:30 (IB Warning 165), so Gappers is projected from Gainers.
-    assert [t for t, _ in ss.desired_leases(_et(2026, 7, 23, 8, 0))] == [
-        ss.TABLE_GAINERS,
+    # Premarket holds one day-trade lease: TOP_OPEN_PERC_GAIN has no open to
+    # measure before 09:30 (IB Warning 165), so Gappers is projected from
+    # Gainers. Large Cap (ADR 014) is present in every period, including
+    # Closed -- it is a swing table, not a day-trade discovery lease.
+    assert [s.table for s in ss.desired_leases(_et(2026, 7, 23, 8, 0))] == [
+        ss.TABLE_GAINERS, ss.TABLE_LARGE_CAP,
     ]
-    assert [t for t, _ in ss.desired_leases(_et(2026, 7, 23, 10, 0))] == [
-        ss.TABLE_GAINERS, ss.TABLE_LOSERS,
+    assert [s.table for s in ss.desired_leases(_et(2026, 7, 23, 10, 0))] == [
+        ss.TABLE_GAINERS, ss.TABLE_LOSERS, ss.TABLE_LARGE_CAP,
     ]
-    assert [t for t, _ in ss.desired_leases(_et(2026, 7, 23, 17, 0))] == [
-        ss.TABLE_AFTERHOURS,
+    assert [s.table for s in ss.desired_leases(_et(2026, 7, 23, 17, 0))] == [
+        ss.TABLE_AFTERHOURS, ss.TABLE_LARGE_CAP,
     ]
-    assert ss.desired_leases(_et(2026, 7, 23, 21, 0)) == []
+    assert [s.table for s in ss.desired_leases(_et(2026, 7, 23, 21, 0))] == [
+        ss.TABLE_LARGE_CAP,
+    ]
+
+
+def test_large_cap_lease_carries_filters():
+    spec = ss.desired_leases(_et(2026, 7, 23, 21, 0))[0]
+    assert spec.scan_code == "TOP_VOLUME_RATE"
+    assert spec.market_cap_above == 50_000  # millions of USD ($50B)
+    assert spec.above_volume == 1_000_000
+    assert spec.stock_type_filter == "CORP"
+
+
+def test_large_cap_always_live_never_freezes():
+    for hh in (2, 8, 12, 17, 22):
+        now = _et(2026, 7, 23, hh, 0)
+        assert ss.table_is_live(ss.TABLE_LARGE_CAP, now)
+        assert not ss.table_should_be_frozen(ss.TABLE_LARGE_CAP, now)
 
 
 def test_gappers_live_then_freeze_at_0930():

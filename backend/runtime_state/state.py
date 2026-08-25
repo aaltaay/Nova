@@ -117,6 +117,12 @@ class ScannerRuntimeState:
     loser_cache_ts: float = 0.0
     loser_table: TableState = field(default_factory=TableState)
 
+    # ADR 014 — Large Cap swing table. Always-live (never freezes); roster
+    # persists across the 04:00 session rollover unlike gappers/gainers/losers.
+    large_cap_cache: list[ScannerRow] = field(default_factory=list)
+    large_cap_cache_ts: float = 0.0
+    large_cap_table: TableState = field(default_factory=TableState)
+
     news_catalyst_cache: list[ScannerRow] = field(default_factory=list)
     news_catalyst_cache_ts: float = 0.0
     last_catalyst_scan_ts: float = 0.0

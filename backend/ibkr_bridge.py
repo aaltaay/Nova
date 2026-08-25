@@ -160,6 +160,9 @@ def symbols_for_tab(tab: str) -> list[str]:
         rows = state.loser_cache
     elif t == "afterhours":
         rows = state.afterhours_cache
+    elif t == _ss.TABLE_LARGE_CAP:
+        # ADR 014: never frozen -- no TABLE_STATE_FROZEN check needed here.
+        rows = state.large_cap_cache
     else:
         return []
     out: list[str] = []
@@ -328,33 +331,19 @@ def apply_l1_quote(
                 })
                 break
 
-    active = set(_hod_active.get_active_symbols())
-    if not active:
-        active = {sym}
-        refresh_hod_active_set()
-        active = set(_hod_active.get_active_symbols()) or {sym}
-    if sym in active:
-        try:
-            from ibkr import ticks as _ticks
+    if state.large_cap_cache:
+        import large_cap_reprice as _lc_reprice
 
-            day_high = _ticks.get_day_high(sym)
-            _hod_active.note_quote(sym, now)
-            _hod_momo.on_trade_update(
-                sym,
-                float(price),
-                now,
-                volume=int(volume) if volume is not None else None,
-                day_high=day_high,
-            )
-            _archive_l1_tick(
-                sym,
-                float(price),
-                now,
-                volume=float(volume) if volume is not None else None,
-                day_high=day_high,
-            )
-        except Exception:
-            logger.exception("HOD Momo: IBKR L1 tick failed for %s", sym)
+        state.large_cap_cache, lc_patch = _lc_reprice.apply_l1_tick(
+            state.large_cap_cache, sym, q, now,
+        )
+        state.large_cap_cache_ts = now
+        if lc_patch:
+            patch.update(lc_patch)
+
+    from hod_tick_feed import feed_hod_on_tick
+
+    feed_hod_on_tick(sym, price, volume, now)
     return patch
 
 

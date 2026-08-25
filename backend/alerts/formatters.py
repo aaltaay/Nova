@@ -8,6 +8,7 @@ from constants import (
     ALERTS_EVENT_TYPE_NOVA_OS,
     ALERTS_EVENT_TYPE_SYSTEM,
     ALERTS_EVENT_TYPE_TEST,
+    LARGE_CAP_ALERT_EVENT_TYPE,
 )
 
 
@@ -93,6 +94,13 @@ def format_event_payload(event: dict) -> dict:
             "leg": event.get("leg"),
             "ok": bool(event.get("ok")),
         }
+    if event_type == LARGE_CAP_ALERT_EVENT_TYPE:
+        return {
+            "type": LARGE_CAP_ALERT_EVENT_TYPE,
+            "text": event.get("text") or "",
+            "symbol": event.get("symbol"),
+            "direction": event.get("direction"),
+        }
     # Test / unknown events — prefer explicit text so Discord embeds are not empty.
     text = event.get("text")
     if isinstance(text, str) and text.strip():
@@ -115,6 +123,9 @@ def format_discord_body(event: dict) -> dict:
     elif event_type == ALERTS_EVENT_TYPE_SYSTEM:
         title = "Nova Morning Check"
         color = 0x10B981 if event.get("ok") else 0xDC2626
+    elif event_type == LARGE_CAP_ALERT_EVENT_TYPE:
+        title = "Large Cap Breakout"
+        color = 0x10B981 if event.get("direction") == "up" else 0xDC2626
     else:
         title = "Nova Test Alert"
         color = 0x6B7280

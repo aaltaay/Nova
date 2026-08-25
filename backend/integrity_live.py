@@ -147,6 +147,12 @@ def build_scanner_integrity_report() -> dict[str, Any]:
         "gainer_frozen": _frozen(_scanner_session.TABLE_GAINERS),
         "loser_frozen": _frozen(_scanner_session.TABLE_LOSERS),
         "afterhours_frozen": _frozen(_scanner_session.TABLE_AFTERHOURS),
+        # ADR 014 — informational only (Large Cap is always-live, never
+        # frozen, and not a hard trading-desk safety gate like Gainers).
+        "large_cap_count": len(getattr(state, "large_cap_cache", None) or []),
+        "large_cap_age_sec": _cache_age(
+            getattr(state, "large_cap_cache_ts", None) or None
+        ),
         "scanner_l1_age_sec": l1_age,
         "scanner_l1_event_age_sec": l1_event_age,
         "l1_active_total": sub.get("active_total"),

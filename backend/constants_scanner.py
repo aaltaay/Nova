@@ -3,6 +3,7 @@ Authoritative policy and thresholds for Nova.
 Define scan cadence, filters, and tier rules here; import from this module in
 `main.py` and elsewhere instead of scattering magic numbers.
 """
+import os as _os
 import re
 
 # ── Market cap tiers (USD) ────────────────────────────────────────────────
@@ -20,6 +21,54 @@ NEWS_FLAME_MAX_HOURS = 24   # yellow badge (12 – 24 h); hide above this
 # ── Relative volume ────────────────────────────────────────────────────────
 REL_VOLUME_HIGH = 2         # highlight threshold
 RVOL_LOOKBACK_DAYS = 30     # trading days of history used to compute avg daily volume
+
+# ── Large Cap swing table (ADR 014) ─────────────────────────────────────────
+# Nova's own swing metrics -- NOT a Warrior Trading parity target (Warrior has
+# no published swing criteria; see ADR 014 context). Tunable at runtime via
+# GET/POST /api/large-cap/config (large_cap_admin.py); these are the defaults.
+LARGE_CAP_TABLE = "large_cap"
+LARGE_CAP_SCAN_CODE = "TOP_VOLUME_RATE"      # IB's native RVOL-style ranking; verified
+LARGE_CAP_STOCK_TYPE_FILTER = "CORP"          # excludes ETF/ETN/REIT/CEF (see PROBLEM_LOG)
+# IB's ScannerSubscription.marketCapAbove wire units are MILLIONS of USD, not
+# raw dollars (reqScannerParameters XML: "marketCapAbove1e6"). 50_000 = $50B.
+LARGE_CAP_MARKET_CAP_ABOVE_MM_DEFAULT = 50_000
+LARGE_CAP_ABOVE_VOLUME_DEFAULT = 1_000_000    # raw shares (today's volume floor)
+LARGE_CAP_CONFIG_SCHEMA_VERSION = 1
+
+# Daily-bar lookback for ATR(14) / 5d / 20d change / 20d high-low. +1 for the
+# prior-close anchor each %-change calc needs.
+LARGE_CAP_DAILY_BARS_LOOKBACK = 20
+LARGE_CAP_ATR_PERIOD = 14
+# Daily bars don't change intraday (only today's live price does) -- cache the
+# derived metrics instead of hitting bars_store.read on every L1 tick.
+LARGE_CAP_DAILY_METRICS_TTL_SEC = 900.0  # 15 min
+
+# Composite "Large Cap Score": equal-weighted percentile ranks of the three
+# user-selected signals, computed within the current roster (not raw units).
+LARGE_CAP_SCORE_WEIGHTS: dict[str, float] = {
+    "rvol": 1.0 / 3.0,
+    "atr_expansion": 1.0 / 3.0,
+    "change_20d_pct": 1.0 / 3.0,
+}
+
+# Breakout alert (own channel, never HOD): 20-day high/low break confirmed by
+# RVOL. Per-symbol per-direction, once per session.
+LARGE_CAP_ALERT_MIN_RVOL = 2.0
+LARGE_CAP_ALERT_EVENT_TYPE = "large_cap_breakout"
+LARGE_CAP_ALERT_HISTORY_SIZE = 200
+
+
+def _large_cap_cache_root() -> str:
+    return (
+        _os.environ.get("NOVA_CACHE_DIR")
+        or _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+        or _os.path.join(_os.path.dirname(__file__), ".cache")
+    )
+
+
+# Owner: large_cap_admin.py. Invalidation trigger: process start + explicit
+# POST /api/large-cap/config (persisted-state.mdc).
+LARGE_CAP_CONFIG_FILE = _os.path.join(_large_cap_cache_root(), "large-cap-config.json")
 
 # ── Client error telemetry (browser → API) ─────────────────────────────────
 CLIENT_ERRORS_ENABLED = True

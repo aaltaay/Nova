@@ -7,8 +7,8 @@ import { CatalystsTable } from './CatalystsTable';
 import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
 import { frozenTableLabel, type ScannerTableMeta } from '../hooks/useScannerPriceStream';
-import { SCANNER_COLUMNS } from '../constants';
-import type { Afterhours, Gapper, Mover, SortConfig } from '../types/scanner';
+import { LARGE_CAP_COLUMNS, SCANNER_COLUMNS } from '../constants';
+import type { Afterhours, Gapper, Mover, ScannerRow, SortConfig } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
 import type { MarketMode } from './AppHeader';
@@ -17,7 +17,7 @@ import { useWatchlistOverlay } from '../strategy/useWatchlistOverlay';
 import type { WatchlistEntry } from '../strategy/types';
 
 interface Props {
-  activeTab: 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'catalysts';
+  activeTab: 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'large_cap' | 'catalysts';
   mode: MarketMode;
   health: HealthStatus;
   discoveryProvider: string;
@@ -25,6 +25,8 @@ interface Props {
   gainers: Mover[];
   losers: Mover[];
   afterhours: Afterhours[];
+  /** Large Cap swing table (ADR 014) — always-live, never freezes. */
+  largeCap: ScannerRow[];
   catalysts: Catalyst[];
   watchlistEntries: WatchlistEntry[];
   selectedSymbol: string | null;
@@ -47,6 +49,7 @@ export function ScannerTabPanels({
   gainers,
   losers,
   afterhours,
+  largeCap,
   catalysts,
   watchlistEntries,
   selectedSymbol,
@@ -64,6 +67,8 @@ export function ScannerTabPanels({
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [loserSort, setLoserSort] = useState<SortConfig>({ key: '', dir: null });
   const [afterhoursSort, setAfterhoursSort] = useState<SortConfig>({ key: '', dir: null });
+  // Default sort RVOL descending -- "unusual volume first" (ADR 014 user decision).
+  const [largeCapSort, setLargeCapSort] = useState<SortConfig>({ key: 'rvol', dir: 'desc' });
   const [catalystSort, setCatalystSort] = useState<SortConfig>({ key: '', dir: null });
 
   const gappersWithWatchlist = useWatchlistOverlay(gappers, watchlistEntries);
@@ -86,6 +91,12 @@ export function ScannerTabPanels({
   const sortedAfterhours = useMemo(
     () => sortedArray(afterhoursWithWatchlist, afterhoursSort),
     [afterhoursWithWatchlist, afterhoursSort],
+  );
+  // No watchlist overlay -- Five Pillars scoring (price $2-$20, float <20M) is a
+  // day-trade fit test that does not apply to a large-cap swing table.
+  const sortedLargeCap = useMemo(
+    () => sortedArray(largeCap, largeCapSort),
+    [largeCap, largeCapSort],
   );
   const sortedCatalysts = useMemo(
     () => sortedArray(catalysts, catalystSort),
@@ -174,8 +185,7 @@ export function ScannerTabPanels({
         emptyLabel="losers"
       />
     );
-  } else {
-    // afterhours
+  } else if (activeTab === 'afterhours') {
     panel = (
       <>
         {sortedAfterhours.length > 0 ? (
@@ -200,6 +210,31 @@ export function ScannerTabPanels({
           />
         )}
       </>
+    );
+  } else {
+    // large_cap (ADR 014) — always-live, never freezes, so an empty list here
+    // means the IB lease hasn't hydrated yet, not a quiet market.
+    panel = sortedLargeCap.length > 0 ? (
+      <ScannerTable
+        columns={LARGE_CAP_COLUMNS}
+        data={sortedLargeCap}
+        sortState={largeCapSort}
+        onSort={key => toggleSort(largeCapSort, setLargeCapSort, key)}
+        selectedSymbol={selectedSymbol}
+        onSelect={onSelect}
+        onOpenTrading={onOpenTrading}
+        pricesStale={pricesStale}
+        flashSymbols={flashSymbols}
+        rowQuoteTs={rowQuoteTs}
+        nowSec={nowSec}
+      />
+    ) : (
+      <EmptyState
+        health={health}
+        context={mode === 'market' ? 'market' : mode}
+        discoveryProvider={discoveryProvider}
+        emptyLabel="large cap movers"
+      />
     );
   }
 

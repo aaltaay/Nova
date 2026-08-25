@@ -31,6 +31,9 @@ export function HodMomoDockRoster({
         gainers={rows.gainers}
         losers={rows.losers}
         afterhours={rows.afterhours}
+        // Large Cap (ADR 014) never appears in the HOD dock roster -- excluded
+        // by design (scannerDockModes.ts has no 'large_cap' entry).
+        largeCap={[]}
         catalysts={rows.catalysts}
         watchlistEntries={rows.watchlistEntries}
         selectedSymbol={selectedSymbol}

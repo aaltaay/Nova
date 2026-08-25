@@ -48,6 +48,12 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M21 14.5A8.5 8.5 0 1112.5 4a7 7 0 008.5 10.5z" />
     </Icon>
   ),
+  large_cap: (
+    <Icon>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 15l3-4 3 2 4-6" />
+    </Icon>
+  ),
   catalysts: (
     <Icon>
       <path d="M4 6h12" />

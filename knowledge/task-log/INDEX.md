@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-25 | [Large Cap swing scanner (ADR 014)](2026-08-25-large-cap-swing-scanner.md) | New always-live "Large Cap" tab: one IBKR TOP_VOLUME_RATE lease filtered by market cap/volume, ranked by RVOL/ATR-expansion/5d-20d change with a composite score and its own breakout alert channel, separate from HOD Momo |
 | 2026-08-25 | [Exchange filter fail-open + IB primaryExchange passthrough](2026-08-25-exchange-filter-blanking-fail-open.md) | Backend had 31 gappers/50 gainers live; NASDAQ-only default filter silently dropped every row without a known exchange down to 1; filter now fails open, defaults to all exchanges, and a hidden-count banner replaces silence |
 | 2026-08-24 | [Scanner names-first admission (ADR 010 D5)](2026-08-24-scanner-names-first-admission.md) | IB names become rows instantly, L1 fills prices; premarket Gappers projects from Gainers; one roster owner + anti-hiding gates |
 | 2026-08-19 | [Installer IBKR_ENABLED and door-trail UI](2026-08-19-installer-ibkr-enabled-door-trail.md) | AppData .env gets IBKR_ENABLED if missing; Door trail on prereq + Activity |

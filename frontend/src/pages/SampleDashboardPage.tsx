@@ -113,6 +113,8 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
               gainers={filteredGainers}
               losers={filteredLosers}
               afterhours={filteredAfterhours}
+              // Sample/demo fixture has no Large Cap data yet (ADR 014).
+              largeCap={[]}
               catalysts={sample.catalysts}
               watchlistEntries={sample.watchlist}
               watchlistLoading={false}

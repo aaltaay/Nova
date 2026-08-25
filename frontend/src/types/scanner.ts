@@ -28,6 +28,20 @@ export interface ScannerRow {
   /** Flat mirror of watchlist.composite_score so the generic column sorter (App.tsx
    * sortedArray) can sort on a primitive — same pattern as change_pct/change_abs. */
   watchlist_score?: number | null;
+
+  // ── Large Cap swing table only (ADR 014) — undefined on every other table. ──
+  /** Pace RVOL (today's volume vs. expected-by-now from the average). */
+  rvol?: number | null;
+  /** abs(price - prev_close) / ATR(14) -- today's move relative to its own range. */
+  atr_expansion?: number | null;
+  change_5d_pct?: number | null;
+  change_20d_pct?: number | null;
+  high_20d?: number | null;
+  low_20d?: number | null;
+  /** Composite percentile-rank score (0-100), null until >=1 component is present. */
+  large_cap_score?: number | null;
+  score_completeness?: number | null;
+  days_to_earnings?: number | null;
 }
 
 // Legacy aliases — kept for any remaining narrower references

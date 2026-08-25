@@ -177,6 +177,24 @@ export const SCANNER_COLUMNS: [string, string][] = [
   ['market_cap',          'Mkt Cap'],
 ];
 
+// ── Large Cap swing table (ADR 014) ───────────────────────────────────────────
+// Different metric set than the day-trade tables above: RVOL / ATR expansion /
+// 5d & 20d change / 20d high-low / composite score / days-to-earnings badge.
+// Default sort is 'rvol' descending (set in ScannerTabPanels).
+export const LARGE_CAP_COLUMNS: [string, string][] = [
+  ['symbol',              'Symbol'],
+  ['price',               'Price'],
+  ['change_pct',          'Change'],
+  ['rvol',                'RVOL'],
+  ['atr_expansion',       'ATR Exp.'],
+  ['change_5d_pct',       '5D'],
+  ['change_20d_pct',      '20D'],
+  ['high_20d',            '20D High/Low'],
+  ['large_cap_score',     'Score'],
+  ['days_to_earnings',    'Earnings'],
+  ['market_cap',          'Mkt Cap'],
+];
+
 // ── HOD Momo Scanner ──────────────────────────────────────────────────────────
 
 export interface StrategyMeta {

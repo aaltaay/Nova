@@ -62,7 +62,8 @@ def test_persistent_scanner_subscribe_is_measured_once(monkeypatch):
     monkeypatch.setattr(scanner_stream._session, "session_key_et", lambda: "2026-07-23")
     monkeypatch.setattr(scanner_stream.asyncio, "wait_for", skip_first_batch_wait)
 
-    lease = asyncio.run(scanner_stream._open_lease("gainers", "TOP_PERC_GAIN"))
+    spec = scanner_stream._session.LeaseSpec(table="gainers", scan_code="TOP_PERC_GAIN")
+    lease = asyncio.run(scanner_stream._open_lease(spec))
 
     assert lease is not None
     assert ib.calls == 1

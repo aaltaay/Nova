@@ -21,6 +21,8 @@ def persist_roster(table: str, rows: list[dict], ts: float) -> None:
             _cache.save_loser_snapshot(rows, ts)
         elif table == _session.TABLE_AFTERHOURS:
             _cache.save_afterhours_snapshot(rows, ts)
+        elif table == _session.TABLE_LARGE_CAP:
+            _cache.save_large_cap_snapshot(rows, ts)
     except Exception:
         logger.warning(
             "scanner_persist: failed to write %s snapshot", table, exc_info=True

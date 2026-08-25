@@ -7,7 +7,7 @@ import { ScannerTabPanels } from './ScannerTabPanels';
 import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
 import { getModule, type ActiveTab } from '../workspace/registry';
-import type { Afterhours, Gapper, Mover } from '../types/scanner';
+import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import type { Catalyst } from '../types/catalyst';
 import type { HealthStatus } from '../types/health';
@@ -23,6 +23,7 @@ export type TabModuleHostProps = {
   gainers: Mover[];
   losers: Mover[];
   afterhours: Afterhours[];
+  largeCap: ScannerRow[];
   catalysts: Catalyst[];
   watchlistEntries: WatchlistEntry[];
   watchlistLoading: boolean;
@@ -43,6 +44,7 @@ const SCANNER_TABS = new Set([
   'gainers',
   'losers',
   'afterhours',
+  'large_cap',
   'catalysts',
 ]);
 
@@ -59,6 +61,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
     gainers,
     losers,
     afterhours,
+    largeCap,
     catalysts,
     watchlistEntries,
     watchlistLoading,
@@ -81,7 +84,9 @@ export function TabModuleHost(props: TabModuleHostProps) {
   if (SCANNER_TABS.has(activeTab)) {
     return (
       <ScannerTabPanels
-        activeTab={activeTab as 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'catalysts'}
+        activeTab={
+          activeTab as 'gappers' | 'gainers' | 'losers' | 'afterhours' | 'large_cap' | 'catalysts'
+        }
         mode={mode}
         health={health}
         discoveryProvider={discoveryProvider}
@@ -89,6 +94,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
         gainers={gainers}
         losers={losers}
         afterhours={afterhours}
+        largeCap={largeCap}
         catalysts={catalysts}
         watchlistEntries={watchlistEntries}
         selectedSymbol={selectedSymbol}
