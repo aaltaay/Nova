@@ -78,6 +78,8 @@ graphify-out/.graphify_cached.json
 graphify-out/.graphify_uncached.txt
 graphify-out/.needs_update
 graphify-out/*.bak
+graphify-out/usage.json
+graphify-out/memory/
 
 # Mis-targeted graphify runs under backend/ or frontend/ (canonical is repo-root graphify-out/)
 backend/graphify-out/

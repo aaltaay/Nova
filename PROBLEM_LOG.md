@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- Graphify wired opt-in so agents skipped it
+
+- **Symptom:** Graphify CLI was installed and `graphify query` worked, but agents answered architecture/vault questions from markdown instead of querying the graph. No usage log existed (`graphify-out/memory/` empty; `cost.json` only counted rebuilds).
+- **Cause:** `.cursor/rules/graphify.mdc` had `alwaysApply: false` (agent-requested). The skill is a rebuild playbook; the query fast path was easy to skip. Bare `graphify query` did not record a savings meter.
+- **Fix:** Always-on short rule; required wrapper `tools/graphify_ask.py` that records cited-note token savings to `graphify-out/usage.json`; session brief shows the meter.
+- **Fix class:** ownership
+- **Keywords:** graphify, alwaysApply, graphify_ask, usage.json, token savings, skip
+
 ## 2026-08-25 -- Wake up, approve IBKR Mobile 2FA, login still doesn't complete
 
 - **Symptom:** Operator wakes up, IB Gateway is showing the Second Factor Authentication prompt, approves it on the phone -- nothing happens. Has to go back to the Nova UI and click login/launch again. `%USERPROFILE%\.nova\ibc\Logs\IBC-*.txt` this morning: `Second Factor Authentication initiated` at 03:40:11, dialog finally closes at 08:52:44 (operator's approval), immediately followed by `Duration since login: 18754 seconds` / `Re-login after second factor authentication timeout in 5 second` -- IBC discarded the approval it just received and started a brand-new login (which the operator then had to approve a second time). Confirmed live again mid-session tonight at 20:30-20:38 (independent run, same pattern) and previously on 2026-08-20, where an unattended prompt looped through 8 login attempts and hit IBKR's own "Too many failed login attempts. Please wait 55 seconds" twice.
@@ -44,6 +52,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Live now keeps the same week-long `AutoRestartTime` token paper already used (`backend/constants_ibkr.py` `IBKR_IBC_LIVE_AUTO_RESTART_TIME`, `backend/ibkr/launch_gateway.py::_align_ibc_trading_mode`) -- a routine cold start reuses the existing session instead of forcing a nightly cold login. Clearing the `jts.ini` Restart=OK token (`clear_restart_token()`) is now opt-in via a new `force_fresh_login` flag on `launch_or_focus_gateway` / `POST /api/ibkr/launch-gateway`, not automatic on every live launch. Local IBC `config.ini`: `ReloginAfterSecondFactorAuthenticationTimeout=no` so an unattended prompt no longer retry-loops into a rate limit. New `backend/ibkr/second_factor.py` reads the IBC log to detect a prompt that has already sat open longer than 180s (`second_factor_pending` / `_age_sec` / `_stale` on `GET /api/ibkr/status`); the UI (`TradingPrerequisitesGate`, `GatewayDisconnectedBanner`) now shows "Start fresh login" instead of a dead focus-only retry, which restarts IBC with `force_fresh_login=true` (kills the stuck Authenticating process via `_stop_gateway_process()`, since a stalled prompt holds no LISTEN port for `_stop_listen_ports` to find).
 - **Fix class:** admission
 - **Keywords:** IBKR Mobile, Second Factor Authentication, 2FA, IBC, SecondFactorAuthenticationTimeout, ReloginAfterSecondFactorAuthenticationTimeout, AutoRestartTime, AutoLogoffTime, Restart=OK, stale prompt, force_fresh_login, launch_or_focus_gateway, rate limit
+
+## 2026-08-25 -- Unattended 03:40 daily start never reached the AutoRestartTime fix at all
+
+- **Symptom:** Verifying the fix above by closing Nova and re-running the morning start script, `%USERPROFILE%\.nova\ibc\config.ini` still had the old `AutoLogoffTime=11:45 PM` / `AutoRestartTime=` (blank) values on disk, even after the Python code fix was committed and pushed.
+- **Cause:** `backend/ibkr/launch_gateway.py::_align_ibc_trading_mode` only runs inside Nova's Python process, triggered by a UI action hitting `POST /api/ibkr/launch-gateway` or `/gateway-mode`. `scripts/Start-NovaDaily.ps1` (the script the 03:40 / 06:00 / AtLogon scheduled tasks actually run) starts IBC directly via `Start-Process` in `Start-IbGateway` -- it never calls the Nova API at all, because the API is not even running yet when Gateway needs to launch. The exact unattended path that caused the original bug (nobody awake at 03:40) was never touched by the code fix, only the UI-driven Paper/Live click path was.
+- **Fix:** Added `Repair-IbcAutoRestartConfig` to `scripts/Start-NovaDaily.ps1`, called at the top of `Start-IbGateway`, which directly rewrites `AutoRestartTime=11:45 PM` / `AutoLogoffTime=` in the local `config.ini` before any launch decision -- self-healing regardless of which path (UI click or unattended scheduled task) runs first. Verified line-for-line on a scratch copy (`Compare-Object`) that only those two lines change.
+- **Fix class:** ownership
+- **Keywords:** Start-NovaDaily.ps1, unattended path, scheduled task, AutoRestartTime, config.ini, two writers, IBC, self-heal, verification caught it
 
 ## 2026-08-25 -- Level 2 depth given the same per-viewer fan-out fix as tape, preemptively
 

@@ -363,6 +363,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-08-25 | Graphify rule always-on; agents must use `tools/graphify_ask.py` (token-savings meter). Rebuild skill stays on-demand. | User Directive + Cursor Agent |
 | 2026-08-18 | Gateway connection default is live (4001); paper (4002) is fallback. Invariant #7 and §5 updated -- spend gates unchanged; `auto_live` still NO-GO. | User Directive + Cursor Agent |
 | 2026-08-06 | Engineering methodology graft: Superpowers verification/plan teeth + Addy interview/doubt/review as Nova-adapted skills + always-on MDCs; `tools/engineering_skills_audit.py`; domain constitution + zero-hop preserved. | User Directive + Cursor Agent |
 | 2026-08-05 | Doc invariants: `tools/doc_invariants.py` + CI gate; §5 trading wording + §10 compliance table corrected; posture-change rule in `doc-invariants.mdc`. | User Directive + Cursor Agent |
@@ -470,6 +471,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `verification-before-completion.mdc` -- no done/fixed claims without fresh evidence
 - `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
 - `persisted-state.mdc` -- cache files need owner + invalidation + schema_version
+- `graphify.mdc` -- vault/decision questions: `py -3 tools/graphify_ask.py query` + savings meter
 
 **Glob-scoped** (attach when editing matching files; `alwaysApply: false`):
 
@@ -484,7 +486,6 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `browser-testing.mdc` -- web verification / Playwright / agent-browser
 - `run-app.mdc` -- how to run/open Nova locally
 - `nova-os-continuity.mdc` -- Nova OS engine phases (closed; rare)
-- `graphify.mdc` -- query graphify for vault/decision relationships
 
 Karpathy full text: `.cursor/rules/karpathy-guidelines.mdc` (also `.cursor/skills/karpathy-guidelines/`).
 Browser testing full text: `.cursor/rules/browser-testing.mdc`.

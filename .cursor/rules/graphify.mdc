@@ -1,13 +1,17 @@
 ---
-description: Query the graphify knowledge graph for Nova decisions, strategy links, or vault-relationship questions instead of reading Obsidian notes
-alwaysApply: false
+description: Query the Graphify vault graph first; record token savings on every ask
+alwaysApply: true
 ---
 
-This project has a graphify knowledge graph at `graphify-out/` built from `knowledge/obsidian/` (Nova decisions, strategies, courses index, memory router).
+Vault / decision / "what connects X to Y?" questions: run the wrapper, not a vault grep first.
 
-- For questions about Nova decisions, strategy links, IBKR/Alpaca choices, Gap and Go, Nova OS phases, or how vault notes relate: when `graphify-out/graph.json` exists, first run `graphify query "<question>"` (or `graphify path "<A>" "<B>"` / `graphify explain "<concept>"`). These return a scoped subgraph, usually much smaller than `GRAPH_REPORT.md` or raw vault greps.
-- If `graphify-out/wiki/index.md` exists, navigate it instead of reading every Obsidian note
-- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review or when query/path/explain do not surface enough context
-- Graphify complements (does not replace) Pinecone course recall and Obsidian source notes — see `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`
-- After editing notes under `knowledge/obsidian/`, rebuild with `/graphify knowledge/obsidian --update --wiki` (semantic; uses the assistant). Do not use AST-only `graphify update` for Markdown-only vault changes — that path is for code
-- Optional later: `/graphify . --wiki` to add the full codebase into a separate or merged graph
+```text
+py -3 tools/graphify_ask.py query "<question>"
+py -3 tools/graphify_ask.py path "A" "B"
+py -3 tools/graphify_ask.py explain "Concept"
+py -3 tools/graphify_ask.py status
+```
+
+MUST keep the `graphify_usage ... total_saved=` footer. That number is cited-note tokens avoided minus query tokens. If it stays 0, delete Graphify.
+
+Do not read the graphify rebuild skill unless rebuilding. ADRs live in `architecture/decisions/` -- this graph does not contain them.

@@ -52,6 +52,16 @@ def build_brief() -> str | None:
     roadmap = _roadmap_next()
     if roadmap:
         lines.append(f"Roadmap NEXT: {roadmap}")
+    try:
+        from graphify_usage import DEFAULT_STORE, format_status, load_usage
+
+        lines.append(
+            "Graphify meter: "
+            + format_status(load_usage(DEFAULT_STORE))
+            + " (py -3 tools/graphify_ask.py status; delete Graphify if total_saved stays 0)"
+        )
+    except Exception:
+        pass
     lines.append(
         "Zero-hop default: work in-session; invoke a specialist only if explicitly named. "
         "Cracks? Prefer `py -3 tools/agent_fleet.py` (no hop). (specialist-routing.mdc)"

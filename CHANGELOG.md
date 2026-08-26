@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- Graphify always-on wrapper with a keep/kill token meter
+
+- **What:** Vault/decision questions now go through `py -3 tools/graphify_ask.py` (not a bare `graphify query`). The wrapper writes `graphify-out/usage.json` and prints a `graphify_usage ... total_saved=` footer. `graphify.mdc` is always-on and short. Session start shows the meter.
+- **Why:** Agents could run Graphify but skipped it (opt-in rule + 600-line rebuild skill). There was no savings counter, so we could not tell if the tool paid for itself.
+- **Files touched:** `tools/graphify_ask.py`, `tools/graphify_usage.py`, `tools/test_graphify_ask.py`, `tools/session_brief_hook.py`, `.cursor/rules/graphify.mdc`, `AGENTS.md`, `CLAUDE.md`, Graphify skill copies, `knowledge/obsidian/00-System/Graphify-Knowledge-Graph.md`.
+- **How it works now:** `saved` = tokens in unique source notes cited by the query minus tokens in the query output. No cited file => 0 saved (no fake vault-wide credit). `py -3 tools/graphify_ask.py status` is the scoreboard. If `total_saved` stays 0, delete Graphify.
+- **Verified by:** `py -3 -m pytest tools/test_graphify_ask.py tools/test_session_brief_hook.py` plus a live `graphify_ask.py query` that prints the footer.
+- **Related:** PROBLEM_LOG 2026-08-25 -- Graphify wired opt-in so agents skipped it
+
 ## 2026-08-25 -- Live Gateway keeps the week-long login token; stale 2FA prompt gets a one-click restart
 
 - **What:** Live Gateway no longer logs itself off every night. It keeps the same week-long `AutoRestartTime` token paper already used, so a routine cold start (e.g. the 03:40 `NovaDailyStart` task) reuses the existing authenticated session instead of forcing a fresh IBKR Mobile 2FA while the operator is asleep. When a Second Factor prompt does appear and sits unanswered past IBC's own 180s timeout, `GET /api/ibkr/status` now reports it as stale and the UI (Trading prerequisites panel, red Gateway banner) shows "Start fresh login" instead of a dead focus-only retry.

@@ -6,7 +6,8 @@ Nova’s Obsidian vault is indexed into a **queryable knowledge graph** (not a v
 
 | Path | Purpose |
 |---|---|
-| `graphify-out/graph.json` | Persistent graph — `graphify query` / `path` / `explain` |
+| `graphify-out/graph.json` | Persistent graph — query via `py -3 tools/graphify_ask.py` |
+| `graphify-out/usage.json` | Token-savings meter (cited notes minus query). Local; gitignored. |
 | `graphify-out/GRAPH_REPORT.md` | God nodes, communities, surprising links |
 | `graphify-out/graph.html` | Interactive browser visualization |
 | `graphify-out/wiki/index.md` | Agent-crawlable wiki (start here for navigation) |
@@ -30,10 +31,11 @@ Trust order for automation advice is unchanged: Obsidian Active-Strategy / Roadm
 # Ensure graphify is on PATH (Windows / uv tool)
 $env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
 
-# Query / path / explain against the built graph
-graphify query "What connects Gap and Go to IBKR safety gates?"
-graphify path "Gap and Go Setup" "IBKR Safety Gates"
-graphify explain "Nova OS Decision Brain"
+# Query / path / explain (wrapper records the savings meter -- required)
+py -3 tools/graphify_ask.py query "What connects Gap and Go to IBKR safety gates?"
+py -3 tools/graphify_ask.py path "Gap and Go Setup" "IBKR Safety Gates"
+py -3 tools/graphify_ask.py explain "Nova OS Decision Brain"
+py -3 tools/graphify_ask.py status
 
 # Rebuild after vault note changes (in Cursor: ask for /graphify knowledge/obsidian --update --wiki)
 # Full rebuild: /graphify knowledge/obsidian --wiki

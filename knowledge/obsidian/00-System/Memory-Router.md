@@ -8,7 +8,7 @@ This note is the human-readable twin of `tools/course_memory/recall.py`.
 |---|---|---|
 | “What did *we* decide for Nova?” | Obsidian `03-Nova-Decisions/` | Graphify query for related decisions |
 | “Which strategy should I *build*?” | Obsidian `02-Strategies/` | Pinecone (course evidence) |
-| “What *connects* Gap and Go to IBKR gates / Nova OS?” | Graphify (`graphify query` / `path`) | Obsidian note bodies for exact wording |
+| “What *connects* Gap and Go to IBKR gates / Nova OS?” | Graphify (`py -3 tools/graphify_ask.py query` / `path`) | Obsidian note bodies for exact wording |
 | “What are the *entry rules* for Gap and Go?” | Pinecone | Obsidian if we already chose it |
 | “Summarize Chapter 5 psychology” | Pinecone | — |
 | “How does this map to IBKR / scanner?” | Obsidian + Pinecone | Graphify for cross-decision links |

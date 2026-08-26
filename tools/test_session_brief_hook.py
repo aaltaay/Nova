@@ -45,6 +45,8 @@ def test_roadmap_next_missing_file(hook, tmp_path, monkeypatch):
 def test_build_brief_real_repo_smoke(hook):
     brief = hook.build_brief()
     assert brief is None or "Nova fleet brief" in brief
+    if brief:
+        assert "Graphify meter:" in brief
 
 
 def test_main_emits_additional_context(hook, monkeypatch, capsys):
