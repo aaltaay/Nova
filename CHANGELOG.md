@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- Nova Action hotkeys gain edit/delete; IBC AutoRestart fix extended to the unattended daily path
+
+- **What:** Two unrelated pieces of already-implemented, already-tested work were sitting uncommitted in the working tree and got committed/pushed at user request. (1) Each Nova Action row in the shortcuts cheat-sheet now has Key (rebind), Edit (change the action via `NovaActionEditor`), and a guarded two-click delete (`ConfirmDeleteIconButton` arms on first click, confirms within `SHORTCUTS_MENU_DELETE_ARM_MS` = 4s on the second) instead of rebind-only. (2) `Start-NovaDaily.ps1`'s unattended/scheduled path now repairs `~/.nova/ibc/config.ini`'s `AutoRestartTime`/`AutoLogoffTime` itself before launching IBC, extending the earlier stale-live-2FA fix (previous CHANGELOG entry) to the one path that actually caused that bug -- an unattended 03:40 cold start with nobody there for the phone prompt, which never goes through Nova's Python `launch_gateway.py`.
+- **Why:** (1) shortcuts menu previously only let a Nova Action be rebound to a different key, not edited or removed. (2) the prior AutoRestart fix only patched the config when a UI Paper/Live click ran it through `launch_gateway.py`; the scheduled task's own IBC launch path never touched it.
+- **Files touched:** `frontend/src/hotkeys/*` (new: `ConfirmDeleteIconButton.tsx`, `ShortcutsMenuRowActions.tsx`; new `frontend/src/styles/shortcuts-menu.css`), `frontend/src/constantGroups/features.ts`, `scripts/Start-NovaDaily.ps1`.
+- **How it works now:** `hotkeyStorage` persists a `removedNovaActionIds` list on the profile so `mergeMissingDefaultNovaActions` skips reviving a deleted default action on the next load; `deleteNovaActionFromProfile`/`upsertNovaActionInProfile` are the new mutation helpers. `Repair-IbcAutoRestartConfig` in the PS1 script runs at the top of `Start-IbGateway` and only rewrites `config.ini` when a value actually differs, logging when it does.
+- **Verified by:** Full frontend suite (163 files / 739 tests passed) and `npm run build` clean, both run fresh before committing.
+- **Related:** commits `e9fc955` (hotkeys) and `be62a43` (IBC script), pushed same session as the depth eviction fix above.
+
 ## 2026-08-25 -- Depth cap eviction now notifies the viewer it kills; test isolation gap fixed
 
 - **What:** `evict_for_capacity`'s force-eviction path (used when all `IBKR_MAX_DEPTH_SYMBOLS` depth slots look busy) used to silently tear down a symbol's Level 2 line -- possibly an actually-active viewer's, not just a leaked count -- with no notification. It now broadcasts an error to any open viewer queue before unsubscribing, and the WS route closes that socket so the frontend's existing backoff reconnects it. Also fixed: five of six `ibkr.depth`-touching test classes in `test_ibkr_safety.py` reloaded the facade module between test methods but never called `reset_all()`, so `ibkr.depth.state`'s shared dicts silently accumulated across methods -- found because it made a new regression test order-dependent.
