@@ -281,9 +281,15 @@ $ibcIni = Join-Path $env:USERPROFILE ".nova\ibc\config.ini"
 if (Test-Path $ibcIni) {
     $raw = Get-Content -Path $ibcIni -ErrorAction SilentlyContinue
     $restart = $null
+    $relogin = $null
+    $sfTimeout = $null
     foreach ($line in $raw) {
         if ($line -match '^\s*AutoRestartTime\s*=\s*(.*)$') {
             $restart = $Matches[1].Trim()
+        } elseif ($line -match '^\s*ReloginAfterSecondFactorAuthenticationTimeout\s*=\s*(.*)$') {
+            $relogin = $Matches[1].Trim()
+        } elseif ($line -match '^\s*SecondFactorAuthenticationTimeout\s*=\s*(.*)$') {
+            $sfTimeout = $Matches[1].Trim()
         }
     }
     if (-not $restart) {
@@ -292,6 +298,20 @@ if (Test-Path $ibcIni) {
         Write-CheckLog "IBC AutoRestartTime='$restart' is not HH:MM AM/PM (bare 23:45 is ignored)" "WARN"
     } else {
         Write-CheckLog "IBC AutoRestartTime=$restart" "PASS"
+    }
+    # PROBLEM_LOG 2026-08-25: 'yes' here retries an unanswered Second Factor
+    # prompt in a loop and can hit IBKR's login rate limit (Aug 20 incident).
+    if ($relogin -and $relogin -match '(?i)^yes$') {
+        Write-CheckLog "IBC ReloginAfterSecondFactorAuthenticationTimeout=yes -- unattended 2FA will retry-loop (set to 'no')" "WARN"
+    } elseif ($relogin) {
+        Write-CheckLog "IBC ReloginAfterSecondFactorAuthenticationTimeout=$relogin" "PASS"
+    }
+    # backend/ibkr/second_factor.py's stale-prompt detector assumes this
+    # matches IBC's own timeout -- see IBKR_SECOND_FACTOR_STALE_AFTER_SEC.
+    if ($sfTimeout -and $sfTimeout -ne "180") {
+        Write-CheckLog "IBC SecondFactorAuthenticationTimeout=$sfTimeout (Nova's stale-prompt detector assumes 180 -- update IBKR_SECOND_FACTOR_STALE_AFTER_SEC if this is intentional)" "WARN"
+    } elseif ($sfTimeout) {
+        Write-CheckLog "IBC SecondFactorAuthenticationTimeout=$sfTimeout" "PASS"
     }
 } else {
     Write-CheckLog "IBC config.ini not found (optional)" "WARN"

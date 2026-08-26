@@ -27,7 +27,12 @@ Use IBC’s sample config as a base. Set at least:
 - `AcceptIncomingConnectionAction=accept` (or prompt -- your choice)
 - `AutoRestartTime=11:45 PM` -- must be `HH:MM AM/PM` (a bare `23:45` is
   ignored). IBC sets Gateway **Auto restart** (week-long token path), not
-  Auto log off. Phone 2FA may still be required after Sunday security reset.
+  Auto log off, for **both** Live and Paper. Phone 2FA may still be required
+  after IBKR's own weekly forced re-auth.
+- `ReloginAfterSecondFactorAuthenticationTimeout=no` -- an unanswered 2FA
+  prompt sits inert instead of IBC auto-retrying (that retry loop hit
+  IBKR's own login rate limit twice on 2026-08-20). Use Nova's "Start fresh
+  login" CTA to restart the login on purpose.
 
 Never commit `config.ini`. Add to your global gitignore if needed:
 
@@ -62,9 +67,20 @@ Optional template in-repo: `scripts/start_gateway_ibc.ps1.example`.
 
 **2FA:** IBC may fill username/password. IBKR Mobile still requires *you*.
 Agents must warn loudly and must not store passwords in the chat or the repo
-(see `.cursor/rules/ibkr-gateway-login-warning.mdc`). Paper IBC may use
-`AutoRestartTime` (week-long token, often no daily 2FA). A Nova **Live**
-click clears that AutoRestart so a live login can prompt the phone.
+(see `.cursor/rules/ibkr-gateway-login-warning.mdc`). Both Live and Paper IBC
+use `AutoRestartTime` (week-long token, no daily cold 2FA) -- see
+PROBLEM_LOG 2026-08-25: a live 2FA prompt approved more than
+`SecondFactorAuthenticationTimeout` (180s) after Log In is silently
+discarded by IBC and re-tried, and Nova's nightly logoff used to guarantee
+that window was missed every morning. A routine door launch/attach never
+clears the `jts.ini` `Restart=OK` token that makes this possible. Only the
+explicit "Start fresh login" recovery (`force_fresh_login=true` on
+`POST /api/ibkr/launch-gateway`, offered by the UI when
+`GET /api/ibkr/status` reports `second_factor_stale: true`) clears it and
+forces a genuinely new login/2FA. Set local `config.ini`
+`ReloginAfterSecondFactorAuthenticationTimeout=no` so an unattended stale
+prompt sits inert instead of retry-looping into IBKR's own login rate limit
+(it hit that limit twice on 2026-08-20).
 
 ## Switching Paper ↔ Live from Nova's UI
 
@@ -76,8 +92,9 @@ arm live spend:
 1. Click Live/Paper in Nova -> confirm -> Nova attaches to that port. If that
    Gateway is already logged in, it is **not** closed and 2FA is **not** asked
    again. If it is not running, Nova stops both 4001/4002 listeners, then IBC
-   starts that door. IBC fills username/password. A new live login can show
-   IBKR Mobile / SECOND FACTOR.
+   starts that door on its existing week-long `AutoRestartTime` token -- no
+   2FA in the common case. IBKR's own mandatory weekly re-auth (or an
+   explicit "Start fresh login") is what shows IBKR Mobile / SECOND FACTOR.
 2. One Gateway process is still one IB account. Fast flipping without 2FA
    only works when the target port is already listening. A second IBC +
    `IbDir` would be needed to keep both logged in at once.
@@ -145,8 +162,11 @@ registers:
 
 `Start-NovaDaily.ps1` is idempotent (skips healthy API/UI/Gateway). Logs:
 `backend/logs/daily-start.log` and `backend/logs/morning-check.log`.
-IBKR Mobile 2FA may still require your phone -- that is the only remaining
-human morning step once a Phase D channel is configured.
+With the week-long `AutoRestartTime` token on both doors, a routine 03:40
+start should NOT need IBKR Mobile 2FA most mornings -- only IBKR's own
+mandatory weekly re-auth does. If the prompt sits unanswered past 180s, it
+goes stale (see PROBLEM_LOG 2026-08-25); use Nova's "Start fresh login" CTA
+rather than approving a dead prompt.
 
 If the PC is asleep at 03:40, enable wake timers in Windows power settings
 or rely on the AtLogon / session-unlock triggers when you unlock.

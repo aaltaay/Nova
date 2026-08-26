@@ -192,10 +192,11 @@ IBKR_GATEWAY_ROOT = r"C:\Jts\ibgateway"
 IBKR_GATEWAY_EXE_DEFAULT = r"C:\Jts\ibgateway\1045\ibgateway.exe"
 # Optional IBC launcher (credentials stay outside git — see docs/ibc-gateway-setup.md).
 IBKR_IBC_LAUNCHER_REL = r".nova\ibc\start_gateway.ps1"
-# Paper IBC keeps the week-long Gateway token (no daily 2FA). Live door
-# writes AutoLogoff instead so IBKR can send IBKR Mobile after IBC fills login.
+# Both doors keep the week-long Gateway token (self-restart nightly, no daily
+# cold 2FA) -- see PROBLEM_LOG 2026-08-25. A routine launch/attach never clears
+# it; only an explicit re-auth (force_fresh_login) does, via jts_ini.clear_restart_token.
 IBKR_IBC_PAPER_AUTO_RESTART_TIME = "11:45 PM"
-IBKR_IBC_LIVE_AUTO_LOGOFF_TIME = "11:45 PM"
+IBKR_IBC_LIVE_AUTO_RESTART_TIME = "11:45 PM"
 # Gateway jts.ini Restart=OK reuses the week session and skips the 2FA code box.
 IBKR_JTS_INI_PATHS = (
     r"C:\Jts\ibgateway\1045\jts.ini",
@@ -204,6 +205,12 @@ IBKR_JTS_INI_PATHS = (
 # Owner: ibkr/gateway_trail.py. Append-only Paper/Live click + attach/refuse.
 IBKR_GATEWAY_TRAIL_FILENAME = "ibkr-gateway-trail.jsonl"
 IBKR_GATEWAY_TRAIL_MAX_EVENTS = 200
+# Owner: ibkr/second_factor.py. Mirrors the local IBC config.ini's own
+# SecondFactorAuthenticationTimeout (180s) -- IBC silently discards and
+# retries a Second Factor prompt once it has sat open longer than this, even
+# if the operator approves it a moment later (see PROBLEM_LOG 2026-08-25).
+# Keep in sync with config.ini; do not tune independently of that file.
+IBKR_SECOND_FACTOR_STALE_AFTER_SEC = 180.0
 
 # ── Market-data discovery provider (gappers / gainers / losers source) ────────
 # Product lock: IBKR is the only scanner discovery source. Alpaca scanner

@@ -13,7 +13,10 @@ import { HEADER_GATEWAY_LAUNCH_HINT } from '../constants';
 import { launchIbGateway, type LaunchGatewayMode } from '../utils/launchIbGateway';
 import { emptyIbkrDisconnectedMessage } from './disconnectCopy';
 import { GatewayModeLaunchButtons } from './GatewayModeLaunchButtons';
-import { GATEWAY_BANNER_TITLE } from './gatewayUxConstants';
+import {
+  GATEWAY_BANNER_TITLE,
+  PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL,
+} from './gatewayUxConstants';
 import { openTradingPrerequisites } from './tradingPrereqUi';
 
 interface Props {
@@ -27,6 +30,9 @@ interface Props {
   /** Port / login disconnect_hint from status (e.g. both_ports_unreachable). */
   ibkrDisconnectHint?: string | null;
   ibkrGatewayMode?: 'paper' | 'live' | null;
+  /** The on-screen Second Factor prompt is already too old for IBKR to
+   * honor -- clicking Open must restart the login, not just focus it. */
+  ibkrSecondFactorStale?: boolean;
 }
 
 /** True when the loud login banner should render (Gateway actually down). */
@@ -74,6 +80,7 @@ export function GatewayDisconnectedBanner({
   ibkrPortsDark = false,
   ibkrDisconnectHint = null,
   ibkrGatewayMode = null,
+  ibkrSecondFactorStale = false,
 }: Props) {
   const [busyMode, setBusyMode] = useState<LaunchGatewayMode | null>(null);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
@@ -82,10 +89,12 @@ export function GatewayDisconnectedBanner({
     if (busyMode) return;
     setBusyMode(mode);
     setLaunchHint(null);
-    const result = await launchIbGateway(mode);
+    // A stale prompt is already dead -- focusing it does nothing, so this
+    // must restart the login (PROBLEM_LOG 2026-08-25), not just attach.
+    const result = await launchIbGateway(mode, ibkrSecondFactorStale);
     setLaunchHint(result.message);
     setBusyMode(null);
-  }, [busyMode]);
+  }, [busyMode, ibkrSecondFactorStale]);
 
   if (
     !shouldShowGatewayLoginBanner({
@@ -114,7 +123,9 @@ export function GatewayDisconnectedBanner({
         <strong className="gateway-disconnected-banner__title">{GATEWAY_BANNER_TITLE}</strong>
       </button>
       <div className="gateway-disconnected-banner__body">
-        {emptyIbkrDisconnectedMessage(ibkrGatewayMode)}
+        {ibkrSecondFactorStale
+          ? PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL
+          : emptyIbkrDisconnectedMessage(ibkrGatewayMode)}
       </div>
       <div className="gateway-disconnected-banner__actions">
         <GatewayModeLaunchButtons

@@ -206,7 +206,7 @@ describe('GatewayDisconnectedBanner', () => {
       button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await Promise.resolve();
     });
-    expect(launchIbGatewayMock).toHaveBeenCalledWith('paper');
+    expect(launchIbGatewayMock).toHaveBeenCalledWith('paper', false);
     expect(container.querySelector('[data-testid="gateway-disconnected-banner"]')?.textContent).toContain(
       'Started IB Gateway',
     );
@@ -216,6 +216,28 @@ describe('GatewayDisconnectedBanner', () => {
       live.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       await Promise.resolve();
     });
-    expect(launchIbGatewayMock).toHaveBeenCalledWith('live');
+    expect(launchIbGatewayMock).toHaveBeenCalledWith('live', false);
+  });
+
+  it('forces a fresh login instead of just focusing a stale Second Factor prompt', async () => {
+    launchIbGatewayMock.mockResolvedValue({ ok: true, message: 'Started IB Gateway' });
+    act(() => {
+      root.render(
+        <GatewayDisconnectedBanner
+          discoveryProvider="ibkr"
+          ibkrConnected={false}
+          ibkrTransportConnected={false}
+          ibkrSecondFactorStale
+        />,
+      );
+    });
+    const banner = container.querySelector('[data-testid="gateway-disconnected-banner"]');
+    expect(banner?.textContent).toContain('expired');
+    const live = container.querySelector('[data-testid="open-gateway-live"]') as HTMLButtonElement;
+    await act(async () => {
+      live.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(launchIbGatewayMock).toHaveBeenCalledWith('live', true);
   });
 });

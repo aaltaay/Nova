@@ -40,7 +40,19 @@ describe('launchIbGateway', () => {
     const result = await launchIbGateway('live');
     expect(result.ok).toBe(true);
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(init.body).toBe(JSON.stringify({ mode: 'live' }));
+    expect(init.body).toBe(JSON.stringify({ mode: 'live', force_fresh_login: false }));
+  });
+
+  it('posts force_fresh_login for the stale Second Factor CTA', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ ok: true, action: 'launched_ibc', message: 'Starting LIVE Gateway' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await launchIbGateway('live', true);
+    expect(result.ok).toBe(true);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.body).toBe(JSON.stringify({ mode: 'live', force_fresh_login: true }));
   });
 
   it('falls back to Vite middleware when API returns 404', async () => {

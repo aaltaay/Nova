@@ -38,6 +38,10 @@ export type WorkspaceValue = {
   ibkrSessionReason: string | null;
   ibkrPortsDark: boolean;
   ibkrDisconnectHint: string | null;
+  /** A Second Factor prompt has sat open longer than IBC's own timeout --
+   * an approval now will be silently discarded (PROBLEM_LOG 2026-08-25). */
+  ibkrSecondFactorStale: boolean;
+  ibkrSecondFactorAgeSec: number | null;
   ibkrMode: IbkrMode;
   ibkrGatewayMode: 'paper' | 'live' | null;
   ibkrAccountKind: string | null;
@@ -113,6 +117,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         ibkrStatus.preferred_port_reachable === false
         && ibkrStatus.alternate_port_reachable === false,
       ibkrDisconnectHint: ibkrStatus.disconnect_hint ?? null,
+      ibkrSecondFactorStale: ibkrStatus.second_factor_stale === true,
+      ibkrSecondFactorAgeSec: ibkrStatus.second_factor_age_sec ?? null,
       ibkrMode: ibkrStatus.mode,
       ibkrGatewayMode: ibkrStatus.gateway_mode ?? null,
       ibkrAccountKind: ibkrStatus.broker_account_kind ?? null,
@@ -149,6 +155,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       ibkrStatus.preferred_port_reachable,
       ibkrStatus.alternate_port_reachable,
       ibkrStatus.disconnect_hint,
+      ibkrStatus.second_factor_stale,
+      ibkrStatus.second_factor_age_sec,
       ibkrStatus.mode,
       ibkrStatus.gateway_mode,
       ibkrStatus.broker_account_kind,

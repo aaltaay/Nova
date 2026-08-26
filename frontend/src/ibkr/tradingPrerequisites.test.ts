@@ -162,6 +162,34 @@ describe('buildTradingPrerequisites', () => {
     expect(gw?.detail).not.toMatch(/2FA/i);
   });
 
+  it('offers Start fresh login when the on-screen Second Factor prompt is stale', () => {
+    const out = buildTradingPrerequisites({
+      health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
+      ibkrEnabled: true,
+      ibkrConnected: false,
+      secondFactorStale: true,
+      secondFactorAgeSec: 245,
+    });
+    const gw = out.items.find((i) => i.id === 'ibkr_gateway');
+    expect(out.blockDesk).toBe(true);
+    expect(gw?.action).toBe('stale_second_factor');
+    expect(gw?.detail).toMatch(/expired/i);
+    expect(gw?.detail).toContain('245s');
+  });
+
+  it('prefers stale_second_factor over a port-mismatch follow target', () => {
+    const out = buildTradingPrerequisites({
+      health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
+      ibkrEnabled: true,
+      ibkrConnected: false,
+      disconnectHint: 'live_port_refused_paper_listening',
+      secondFactorStale: true,
+      secondFactorAgeSec: 200,
+    });
+    const gw = out.items.find((i) => i.id === 'ibkr_gateway');
+    expect(gw?.action).toBe('stale_second_factor');
+  });
+
   it('never treats Alpaca as a prerequisite id', () => {
     const out = buildTradingPrerequisites({
       health: {

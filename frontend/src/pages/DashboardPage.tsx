@@ -61,6 +61,7 @@ export function DashboardPage() {
     ibkrTransportConnected,
     ibkrPortsDark,
     ibkrDisconnectHint,
+    ibkrSecondFactorStale,
     ibkrGatewayMode,
   } = useWorkspace();
   const { hodCount, runningUpCount, focusDock } = useHodMomo();
@@ -225,6 +226,7 @@ export function DashboardPage() {
           ibkrPortsDark={ibkrPortsDark}
           ibkrDisconnectHint={ibkrDisconnectHint}
           ibkrGatewayMode={ibkrGatewayMode}
+          ibkrSecondFactorStale={ibkrSecondFactorStale}
         />
 
         <HodMomoDock />

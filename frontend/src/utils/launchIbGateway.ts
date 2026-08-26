@@ -31,11 +31,15 @@ export type LaunchGatewayMode = 'paper' | 'live';
 async function postLaunch(
   url: string,
   mode?: LaunchGatewayMode,
+  forceFreshLogin?: boolean,
 ): Promise<{ httpOk: boolean; result: LaunchIbGatewayResult }> {
+  const hasBody = Boolean(mode) || Boolean(forceFreshLogin);
   const res = await novaFetch(url, {
     method: 'POST',
-    headers: mode ? { 'Content-Type': 'application/json' } : undefined,
-    body: mode ? JSON.stringify({ mode }) : undefined,
+    headers: hasBody ? { 'Content-Type': 'application/json' } : undefined,
+    body: hasBody
+      ? JSON.stringify({ mode, force_fresh_login: Boolean(forceFreshLogin) })
+      : undefined,
   });
   const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   const parsed = parseBody(body);
@@ -94,9 +98,14 @@ async function launchViaViteDev(
 
 export async function launchIbGateway(
   mode?: LaunchGatewayMode,
+  forceFreshLogin?: boolean,
 ): Promise<LaunchIbGatewayResult> {
   try {
-    const primary = await postLaunch(`${API_URL}/ibkr/launch-gateway`, mode);
+    const primary = await postLaunch(
+      `${API_URL}/ibkr/launch-gateway`,
+      mode,
+      forceFreshLogin,
+    );
     if (primary.httpOk) return primary.result;
 
     // Stale API without the route → Vite can still spawn Gateway in local dev.

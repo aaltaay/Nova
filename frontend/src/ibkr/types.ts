@@ -35,6 +35,13 @@ export interface IbkrStatus {
   /** e.g. paper_port_refused_live_listening -- see disconnectCopy.ts */
   disconnect_hint?: string | null;
   intentional_gateway_mode?: 'paper' | 'live' | null;
+  /** A Second Factor prompt is currently open on the Gateway desktop. */
+  second_factor_pending?: boolean;
+  /** Seconds since that prompt opened (null when none is pending). */
+  second_factor_age_sec?: number | null;
+  /** True once the prompt has sat open longer than IBC's own timeout --
+   * IBC will silently discard it even if approved a moment later. */
+  second_factor_stale?: boolean;
   gateway_self_heal?: {
     from_mode?: string;
     to_mode?: string;

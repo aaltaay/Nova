@@ -162,6 +162,11 @@ def test_mode_launch_force_restart_kills_listening_port(monkeypatch, tmp_path: P
 
 
 def test_mode_launch_force_live_uses_ibc(monkeypatch, tmp_path: Path):
+    """Routine force_restart (e.g. Live click when 4001 is dark) must NOT clear
+    the week-long Restart=OK token -- only an explicit force_fresh_login may
+    (PROBLEM_LOG 2026-08-25: unconditional clearing forced a cold login every
+    morning, and IBC silently discards a live 2FA approved >180s after Log In).
+    """
     monkeypatch.setattr(lg.os, "name", "nt")
     monkeypatch.setattr(lg, "_gateway_process_running", lambda: False)
     monkeypatch.setattr(lg, "_probe_api_port", lambda _port: False)
@@ -190,6 +195,49 @@ def test_mode_launch_force_live_uses_ibc(monkeypatch, tmp_path: Path):
     assert out["ok"] is True
     assert out["action"] == "launched_ibc"
     assert stopped_ports == [(4001, 4002)]
+    assert cleared == []
+    assert started == [(launcher, True, ["-TradingMode", "live"])]
+
+
+def test_mode_launch_force_fresh_login_clears_token_and_kills_stuck_process(
+    monkeypatch, tmp_path: Path
+):
+    """The 'Start fresh login' CTA for a stale Second Factor prompt: clears
+    Restart=OK and stops the stuck Authenticating process (which holds no
+    LISTEN port, so _stop_listen_ports alone would find nothing to kill).
+    """
+    monkeypatch.setattr(lg.os, "name", "nt")
+    monkeypatch.setattr(lg, "_gateway_process_running", lambda: True)
+    monkeypatch.setattr(lg, "_probe_api_port", lambda _port: False)
+    stopped_ports: list[tuple] = []
+    monkeypatch.setattr(
+        lg,
+        "_stop_listen_ports",
+        lambda *ports: stopped_ports.append(ports),
+    )
+    stopped_process: list[bool] = []
+    monkeypatch.setattr(
+        lg, "_stop_gateway_process", lambda: stopped_process.append(True) or True
+    )
+    launcher = tmp_path / "start_gateway.ps1"
+    launcher.write_text("#", encoding="utf-8")
+    monkeypatch.setattr(lg, "_ibc_launcher", lambda: launcher)
+    monkeypatch.setattr(lg, "_align_ibc_trading_mode", lambda _mode: None)
+    monkeypatch.setattr(lg, "_apply_nova_gateway_mode", lambda _mode: None)
+    cleared: list[bool] = []
+    monkeypatch.setattr("ibkr.jts_ini.clear_restart_token", lambda: cleared.append(True))
+    monkeypatch.setattr(lg, "_focus_gateway_window", lambda: True)
+    started: list[tuple] = []
+
+    def fake_start(path: Path, *, via_powershell: bool = False, extra_args=None):
+        started.append((path, via_powershell, list(extra_args or [])))
+
+    monkeypatch.setattr(lg, "_start_process", fake_start)
+    out = lg.launch_or_focus_gateway("live", force_restart=True, force_fresh_login=True)
+    assert out["ok"] is True
+    assert out["action"] == "launched_ibc"
+    assert stopped_ports == [(4001, 4002)]
+    assert stopped_process == [True]
     assert cleared == [True]
     assert started == [(launcher, True, ["-TradingMode", "live"])]
 
@@ -206,7 +254,10 @@ def test_clear_jts_restart_token(tmp_path: Path, monkeypatch):
     assert "Restart=OK" not in text
 
 
-def test_align_ibc_live_clears_week_token(monkeypatch, tmp_path: Path):
+def test_align_ibc_live_keeps_week_token(monkeypatch, tmp_path: Path):
+    """Both doors keep AutoRestartTime -- live no longer switches to
+    AutoLogoffTime, which is what forced a cold login every night
+    (PROBLEM_LOG 2026-08-25)."""
     ini = tmp_path / "config.ini"
     ini.write_text(
         "TradingMode=paper\nOverrideTwsApiPort=4002\n"
@@ -219,8 +270,8 @@ def test_align_ibc_live_clears_week_token(monkeypatch, tmp_path: Path):
     text = ini.read_text(encoding="utf-8")
     assert "TradingMode=live" in text
     assert "OverrideTwsApiPort=4001" in text
-    assert "AutoRestartTime=\n" in text
-    assert "AutoLogoffTime=11:45 PM" in text
+    assert "AutoRestartTime=11:45 PM" in text
+    assert "AutoLogoffTime=\n" in text
     assert "IbLoginId=liveuser" in text
     lg._align_ibc_trading_mode("paper")
     text = ini.read_text(encoding="utf-8")

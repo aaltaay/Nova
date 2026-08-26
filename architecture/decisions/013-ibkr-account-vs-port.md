@@ -40,6 +40,16 @@ Port 4001 can serve a paper login. This chat attached Nova to that socket so sca
 - Capsule uses `broker_account_kind`, plus `intentional_gateway_mode` while a door change is in flight.
 - Live spend still needs `IBKR_LIVE_TRADING_CONFIRMED`. This ADR does not arm live money.
 
+## Amendment 2026-08-25 -- routine `start_ibc`/`replace_target` no longer clears Restart=OK
+
+Point 5 above ("A new live login clears `Restart=OK`") described the code as it stood on 2026-08-19, but that unconditional clear is what caused a cold IBKR Mobile 2FA every night (PROBLEM_LOG 2026-08-25 -- clearing the token forced `AutoLogoffTime` behavior, and an approval more than 180s after Log In is silently discarded by IBC regardless). As of 2026-08-25:
+
+- A routine `start_ibc` / `replace_target` (any door change where the target port is dark) still stops both listen PIDs and starts IBC, but **does not** clear `Restart=OK`. Both doors now carry the same week-long `AutoRestartTime` token, so a routine cold start reuses the existing session with no cold login.
+- Clearing `Restart=OK` is now opt-in via a separate `force_fresh_login` flag on `launch_or_focus_gateway` (`POST /api/ibkr/launch-gateway {"force_fresh_login": true}`), used only for the operator-triggered "Start fresh login" recovery when `backend/ibkr/second_factor.py` reports the on-screen Second Factor prompt as stale.
+- This does not change any part of this ADR's account-kind / door-change logic (decisions 1-4) -- only which login gets a genuinely fresh IBKR challenge.
+
+See `knowledge/task-log/2026-08-25-stale-live-2fa-fix.md` for the full investigation.
+
 ## Rejected alternatives
 
 - Treat 4001 LISTEN as live (today's incident).

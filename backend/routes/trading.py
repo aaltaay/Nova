@@ -51,6 +51,7 @@ async def ibkr_status() -> dict:
     snap = _client_safety_status()
     from ibkr import gateway_heal as _heal
     from ibkr import port_diagnostics as _ports
+    from ibkr import second_factor as _second_factor
     from ibkr import session_errors as _session_errors
     from ibkr import session_state as _session_state
 
@@ -58,6 +59,7 @@ async def ibkr_status() -> dict:
     # separate so port hints / Authenticating ops stay honest.
     usable = _client.is_ready()
     transport = _client.is_connected()
+    sf_state = _second_factor.current_state()
     return {
         "enabled": _client.is_enabled(),
         "connected": usable,
@@ -72,6 +74,9 @@ async def ibkr_status() -> dict:
         **snap,
         **_heal.heal_status(),
         **_ports.status_port_fields(connected=transport),
+        "second_factor_pending": sf_state.pending,
+        "second_factor_age_sec": sf_state.age_sec,
+        "second_factor_stale": sf_state.stale,
         "gateway_trail": _gateway_trail_tail(),
     }
 
@@ -94,6 +99,7 @@ class GatewayModeRequest(BaseModel):
 
 class LaunchGatewayRequest(BaseModel):
     mode: str | None = None  # optional paper | live -- pick a door
+    force_fresh_login: bool = False  # explicit re-auth: clear jts.ini Restart=OK
 
 
 @router.post("/gateway-mode")
@@ -116,10 +122,19 @@ async def ibkr_gateway_trail(limit: int = 40) -> dict:
 
 @router.post("/launch-gateway")
 async def ibkr_launch_gateway(body: LaunchGatewayRequest | None = Body(default=None)) -> dict:
-    """Start IB Gateway (or focus it). Optional mode restarts IBC as paper or live."""
+    """Start IB Gateway (or focus it). Optional mode restarts IBC as paper or live.
+
+    ``force_fresh_login`` is the "Start fresh login" CTA for a stale Second
+    Factor prompt -- it clears jts.ini Restart=OK so IBC opens a genuinely
+    new live login instead of reusing the week-long token.
+    """
     from ibkr.launch_gateway import launch_or_focus_gateway
 
-    return launch_or_focus_gateway(mode=body.mode if body else None)
+    return launch_or_focus_gateway(
+        mode=body.mode if body else None,
+        force_restart=bool(body.force_fresh_login) if body else False,
+        force_fresh_login=bool(body.force_fresh_login) if body else False,
+    )
 
 
 def _client_safety_status() -> dict:

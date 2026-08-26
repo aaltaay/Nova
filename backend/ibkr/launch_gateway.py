@@ -10,7 +10,7 @@ from constants_ibkr import (
     IBKR_GATEWAY_ROOT,
     IBKR_HOST,
     IBKR_IBC_LAUNCHER_REL,
-    IBKR_IBC_LIVE_AUTO_LOGOFF_TIME,
+    IBKR_IBC_LIVE_AUTO_RESTART_TIME,
     IBKR_IBC_PAPER_AUTO_RESTART_TIME,
     IBKR_LIVE_PORT,
     IBKR_PAPER_PORT,
@@ -140,8 +140,14 @@ def _rewrite_ini_key(path: Path, key: str, value: str) -> bool:
 def _align_ibc_trading_mode(mode: str) -> None:
     """Point local IBC at paper (4002) or live (4001). Never touches credentials.
 
-    Live clears AutoRestart (writes AutoLogoff) so IBKR can send Mobile 2FA
-    after IBC fills username/password. Paper restores the week-long token.
+    Both doors keep the week-long AutoRestartTime token so a routine cold
+    start reuses the existing session instead of forcing a cold login while
+    the operator is asleep (see PROBLEM_LOG 2026-08-25 -- a live login that
+    sits unanswered past IBC's SecondFactorAuthenticationTimeout is silently
+    discarded and retried, which is what made every morning need a fresh
+    approval). A live re-auth is opt-in via ``force_fresh_login`` on
+    ``launch_or_focus_gateway``, which clears the jts.ini Restart=OK token
+    that lets this AutoRestartTime silently reuse the session.
     """
     ini = _ibc_dir() / "config.ini"
     port = "4001" if mode == "live" else "4002"
@@ -151,11 +157,10 @@ def _align_ibc_trading_mode(mode: str) -> None:
 
     align_ibc_login_id(ini, mode)
     if mode == "live":
-        _rewrite_ini_key(ini, "AutoRestartTime", "")
-        _rewrite_ini_key(ini, "AutoLogoffTime", IBKR_IBC_LIVE_AUTO_LOGOFF_TIME)
+        _rewrite_ini_key(ini, "AutoRestartTime", IBKR_IBC_LIVE_AUTO_RESTART_TIME)
     else:
         _rewrite_ini_key(ini, "AutoRestartTime", IBKR_IBC_PAPER_AUTO_RESTART_TIME)
-        _rewrite_ini_key(ini, "AutoLogoffTime", "")
+    _rewrite_ini_key(ini, "AutoLogoffTime", "")
 
 
 def _apply_nova_gateway_mode(mode: str) -> None:
@@ -256,6 +261,7 @@ def launch_or_focus_gateway(
     mode: str | None = None,
     *,
     force_restart: bool = False,
+    force_fresh_login: bool = False,
 ) -> dict:
     if os.name != "nt":
         return {
@@ -290,6 +296,7 @@ def launch_or_focus_gateway(
         other_port = IBKR_PAPER_PORT if target == "live" else IBKR_LIVE_PORT
         if (
             not force_restart
+            and not force_fresh_login
             and _gateway_process_running()
             and not _probe_api_port(other_port)
         ):
@@ -311,9 +318,17 @@ def launch_or_focus_gateway(
             # One IBC install is one Gateway. A new login must stop the other
             # door or IBC hijacks that window and live 2FA never appears.
             _stop_listen_ports(want_port, other_port)
+        if force_fresh_login:
+            # A stale Authenticating window holds neither port LISTEN, so
+            # _stop_listen_ports above finds nothing to kill -- stop the
+            # windowed process directly so IBC opens a genuinely new login.
+            _stop_gateway_process()
         from ibkr.gateway_spawn import spawn_mode_gateway
 
-        if target == "live":
+        if target == "live" and force_fresh_login:
+            # Opt-in only -- a routine cold start must NOT clear this token.
+            # Clearing it unconditionally is what forced a cold IBKR Mobile
+            # login every morning (PROBLEM_LOG 2026-08-25).
             from ibkr.jts_ini import clear_restart_token
 
             clear_restart_token()

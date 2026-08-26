@@ -35,6 +35,13 @@ export const PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL = 'Use paper Gateway';
 export const PREREQ_GATEWAY_FOLLOW_LIVE_CTA_LABEL = 'Use live Gateway';
 export const PREREQ_GATEWAY_FOLLOW_CTA_BUSY_LABEL = 'Switching...';
 
+/** The Second Factor prompt on screen is older than IBC's own timeout --
+ * approving it now will not complete the login (PROBLEM_LOG 2026-08-25). */
+export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL =
+  'The Second Factor prompt on screen has expired -- IBKR will not accept an approval now.';
+export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_LABEL = 'Start fresh login';
+export const PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_BUSY_LABEL = 'Restarting login...';
+
 export const DOOR_TRAIL_TITLE = 'Door trail';
 export const DOOR_TRAIL_KICKER = 'Paper / Live audit';
 export const DOOR_TRAIL_HINT =

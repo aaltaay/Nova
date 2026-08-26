@@ -18,6 +18,8 @@ import {
   PREREQ_GATEWAY_FOLLOW_PAPER_CTA_LABEL,
   PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL,
   PREREQ_GATEWAY_RECONNECT_CTA_LABEL,
+  PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_BUSY_LABEL,
+  PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_LABEL,
 } from './gatewayUxConstants';
 import {
   buildTradingPrerequisites,
@@ -43,6 +45,8 @@ function ItemRow({
   healthFlag,
   healthHint,
   onApiStarted,
+  onStartFreshLogin,
+  freshLoginBusy,
 }: {
   item: PrereqItem;
   onLaunchGateway: (mode: LaunchGatewayMode) => void;
@@ -55,6 +59,8 @@ function ItemRow({
   healthFlag?: string;
   healthHint?: string;
   onApiStarted?: () => void;
+  onStartFreshLogin: () => void;
+  freshLoginBusy: boolean;
 }) {
   return (
     <li
@@ -101,6 +107,21 @@ function ItemRow({
             </button>
           </div>
         )}
+        {!item.ok && item.action === 'stale_second_factor' && (
+          <div className="trading-prereq-item__cta">
+            <button
+              type="button"
+              className="trading-prereq-cta"
+              onClick={onStartFreshLogin}
+              disabled={freshLoginBusy}
+              data-testid="trading-prereq-fresh-login"
+            >
+              {freshLoginBusy
+                ? PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_BUSY_LABEL
+                : PREREQ_GATEWAY_STALE_SECOND_FACTOR_CTA_LABEL}
+            </button>
+          </div>
+        )}
         {!item.ok && item.action === 'reconnect_ibkr' && (
           <div className="trading-prereq-item__cta">
             <button
@@ -133,6 +154,7 @@ export function TradingPrerequisitesGate() {
   const [launchBusyMode, setLaunchBusyMode] = useState<LaunchGatewayMode | null>(null);
   const [reconnectBusy, setReconnectBusy] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
+  const [freshLoginBusy, setFreshLoginBusy] = useState(false);
   const [launchHint, setLaunchHint] = useState<string | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [autoDismissed, setAutoDismissed] = useState(false);
@@ -151,6 +173,8 @@ export function TradingPrerequisitesGate() {
         preferredPortReachable: ibkr.preferred_port_reachable,
         disconnectHint: ibkr.disconnect_hint,
         sessionReason: ibkr.session_reason,
+        secondFactorStale: ibkr.second_factor_stale,
+        secondFactorAgeSec: ibkr.second_factor_age_sec,
       }),
     [
       health,
@@ -160,6 +184,8 @@ export function TradingPrerequisitesGate() {
       ibkr.preferred_port_reachable,
       ibkr.disconnect_hint,
       ibkr.session_reason,
+      ibkr.second_factor_stale,
+      ibkr.second_factor_age_sec,
       ibkrConnected,
     ],
   );
@@ -172,6 +198,17 @@ export function TradingPrerequisitesGate() {
     setLaunchHint(result.message);
     setLaunchBusyMode(null);
   }, [launchBusyMode]);
+
+  const onStartFreshLogin = useCallback(async () => {
+    if (freshLoginBusy) return;
+    setFreshLoginBusy(true);
+    setLaunchHint(null);
+    const mode: LaunchGatewayMode = ibkrGatewayMode === 'paper' ? 'paper' : 'live';
+    const result = await launchIbGateway(mode, true);
+    setLaunchHint(result.message);
+    refreshIbkrStatusNow();
+    setFreshLoginBusy(false);
+  }, [freshLoginBusy, ibkrGatewayMode]);
 
   const onFollowGateway = useCallback(async () => {
     const target = gatewayPortMismatchHint(ibkr.disconnect_hint);
@@ -319,6 +356,8 @@ export function TradingPrerequisitesGate() {
               followBusy={followBusy}
               healthFlag={health.flag}
               healthHint={health.flag_hint}
+              onStartFreshLogin={() => void onStartFreshLogin()}
+              freshLoginBusy={freshLoginBusy}
             />
           ))}
         </ul>

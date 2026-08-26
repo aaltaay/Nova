@@ -63,6 +63,8 @@ function baseWorkspace(overrides: Partial<WorkspaceValue> = {}): WorkspaceValue 
     ibkrAccountKind: 'paper',
     ibkrIntentionalMode: null,
     ibkrDisconnectHint: null,
+    ibkrSecondFactorStale: false,
+    ibkrSecondFactorAgeSec: null,
     ibkrSessionReason: 'ok',
     ibkrPortsDark: false,
     openStockView,

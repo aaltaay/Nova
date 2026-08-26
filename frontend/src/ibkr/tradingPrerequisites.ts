@@ -14,6 +14,7 @@ import {
   PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL,
   PREREQ_GATEWAY_LOGIN_DETAIL,
   PREREQ_GATEWAY_PORT_OPEN_DETAIL,
+  PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL,
 } from './gatewayUxConstants';
 
 export type PrereqId = 'nova_api' | 'ibkr_gateway' | 'ibkr_enabled';
@@ -23,6 +24,7 @@ export type PrereqAction =
   | 'launch_gateway'
   | 'reconnect_ibkr'
   | 'switch_gateway_mode'
+  | 'stale_second_factor'
   | 'env_ibkr'
   | null;
 
@@ -46,6 +48,11 @@ export interface TradingPrerequisitesInput {
   disconnectHint?: string | null;
   /** status.session_reason */
   sessionReason?: string | null;
+  /** status.second_factor_stale -- the on-screen prompt is already too old
+   * for IBKR to honor, even if approved right now. */
+  secondFactorStale?: boolean | null;
+  /** status.second_factor_age_sec -- surfaced in the CTA detail copy. */
+  secondFactorAgeSec?: number | null;
 }
 
 export interface TradingPrerequisites {
@@ -121,6 +128,10 @@ function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): st
   if (gatewayOk) {
     return 'Gateway connected -- live prices and order path available.';
   }
+  if (input.secondFactorStale) {
+    const age = Math.round(input.secondFactorAgeSec ?? 0);
+    return `${PREREQ_GATEWAY_STALE_SECOND_FACTOR_DETAIL} (open ${age}s -- IBKR's own limit is 180s.)`;
+  }
   const follow = gatewayPortMismatchHint(input.disconnectHint);
   if (follow === 'paper') return PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL;
   if (follow === 'live') return PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL;
@@ -147,7 +158,8 @@ export function buildTradingPrerequisites(
   const apiWedged = input.health?.flag === BACKEND_DIAG_FLAG_WEDGED;
   let gatewayAction: PrereqAction = null;
   if (!gatewayOk) {
-    if (followTarget) gatewayAction = 'switch_gateway_mode';
+    if (input.secondFactorStale) gatewayAction = 'stale_second_factor';
+    else if (followTarget) gatewayAction = 'switch_gateway_mode';
     else if (portOpenStuck || apiWedged) gatewayAction = 'reconnect_ibkr';
     else if (!apiDown) gatewayAction = 'launch_gateway';
   }
