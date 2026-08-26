@@ -7,6 +7,9 @@ from constants import (
     HOD_MOMO_INTEGRITY_TICK_STALE_SEC,
     HOD_MOMO_INTEGRITY_TICK_WARN_SEC,
     SCANNER_INTEGRITY_CACHE_STALE_SEC,
+    SCANNER_ROW_PRICE_FAIL_PCT,
+    SCANNER_ROW_PRICE_GRACE_SEC,
+    SCANNER_ROW_PRICE_WARN_PCT,
 )
 from hod_momo_integrity_common import check, worst
 
@@ -16,6 +19,50 @@ _GAPPER_OPTIONAL_MODES = frozenset({"market", "regular", "rth", "afterhours", "c
 # Gainers owns discovery while its window is open (04:00-16:00 ET). An empty
 # Gainers roster inside this window is a broken pipeline, not a quiet tape.
 _GAINER_LIVE_MODES = frozenset({"premarket", "market", "regular", "rth"})
+
+
+def _row_price_checks(coverage: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """One check per displayed live table: are its rows actually priced?
+
+    Name-only admission (ADR 008) means a fresh roster shows ``price=null``
+    briefly, so coverage is only judged once the roster is older than
+    ``SCANNER_ROW_PRICE_GRACE_SEC``. Below that window a table with rows the
+    operator can see but no prices is L1 starvation, and every other scanner
+    check here would still say pass.
+    """
+    out: list[dict[str, str]] = []
+    for entry in coverage:
+        table = str(entry.get("table") or "unknown")
+        rows = int(entry.get("rows") or 0)
+        priced = int(entry.get("priced") or 0)
+        age = entry.get("roster_age_sec")
+        if rows <= 0:
+            continue
+        pct = priced / rows * 100.0
+        if age is None or float(age) < SCANNER_ROW_PRICE_GRACE_SEC:
+            out.append(check(
+                f"scanner_{table}_row_prices",
+                "pass",
+                f"{table}: {priced}/{rows} rows priced -- roster still inside "
+                f"the {SCANNER_ROW_PRICE_GRACE_SEC:.0f}s admission grace",
+            ))
+            continue
+        detail = (
+            f"{table}: only {priced}/{rows} rows priced ({pct:.0f}%) "
+            f"{float(age):.0f}s after roster commit while displayed and live "
+            f"-- active-tab L1 is starved"
+        )
+        if pct < SCANNER_ROW_PRICE_FAIL_PCT:
+            out.append(check(f"scanner_{table}_row_prices", "fail", detail))
+        elif pct < SCANNER_ROW_PRICE_WARN_PCT:
+            out.append(check(f"scanner_{table}_row_prices", "warn", detail))
+        else:
+            out.append(check(
+                f"scanner_{table}_row_prices",
+                "pass",
+                f"{table}: {priced}/{rows} rows priced ({pct:.0f}%)",
+            ))
+    return out
 
 
 def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
@@ -189,6 +236,8 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
                 "pass",
                 f"{name}: {count} rows age={age_f:.0f}s",
             ))
+
+    checks.extend(_row_price_checks(snap.get("row_price_coverage") or []))
 
     # Feed liveness (socket alive) is the honest signal; fall back to
     # price-change recency only when no event timestamp exists yet.

@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+import mover_enrich_view as _mover_enrich
 import scanner_tab_registry as _tabs
 from runtime_state import get_runtime_state
 from runtime_state.state import TableState
@@ -46,11 +47,16 @@ async def broadcast(payload: dict[str, Any]) -> None:
 
 
 async def broadcast_roster_replace(table: str, rows: list[dict], ts: TableState) -> None:
-    """Structural roster replace for one table (ADR 008)."""
+    """Structural roster replace for one table (ADR 008).
+
+    Rows are decorated with reference columns on the way out (never in the
+    cache) so a roster replace cannot blank the RVOL / float / short interest /
+    market cap the REST surface is already showing.
+    """
     await broadcast({
         "type": "roster_replace",
         "table": table,
-        "rows": rows,
+        "rows": _mover_enrich.decorate_rows(rows),
         "meta": _table_meta(ts),
         "ts": ts.roster_ts or time_now(),
     })
@@ -84,7 +90,10 @@ def _snapshot_payload() -> dict[str, Any]:
     }
     out: dict[str, Any] = {}
     for name, (rows, meta) in tables.items():
-        out[name] = {"rows": list(rows or []), "meta": _table_meta(meta)}
+        out[name] = {
+            "rows": _mover_enrich.decorate_rows(rows),
+            "meta": _table_meta(meta),
+        }
     return out
 
 

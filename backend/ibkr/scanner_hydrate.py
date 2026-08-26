@@ -177,6 +177,12 @@ async def commit_table(
         on_large_cap_roster_commit(table, rows)
     except Exception:
         logger.debug("scanner_stream: Large Cap roster commit hook failed", exc_info=True)
+    try:
+        from mover_enrich_hooks import on_mover_roster_commit
+
+        on_mover_roster_commit(table, rows)
+    except Exception:
+        logger.debug("scanner_stream: mover enrich hook failed", exc_info=True)
     return True
 
 

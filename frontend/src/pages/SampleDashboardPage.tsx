@@ -17,6 +17,7 @@ import { useHodMomo } from '../hod_momo/HodMomoContext';
 import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { usePublishScannerNews } from '../hod_momo/usePublishScannerNews';
 import { getModule, isTabModuleId, type ActiveTab } from '../workspace/registry';
+import { isDockTab } from '../workspace/scannerTabs';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 
@@ -24,10 +25,6 @@ type Props = {
   onOpenTrader: (symbol: string) => void;
   onLeaveSample: () => void;
 };
-
-function isDockTab(tab: ActiveTab): tab is 'hod_momo' | 'running_up' {
-  return tab === 'hod_momo' || tab === 'running_up';
-}
 
 export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
   const sample = useSampleData();

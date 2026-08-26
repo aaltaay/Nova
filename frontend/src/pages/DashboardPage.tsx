@@ -27,28 +27,10 @@ import {
   DEFAULT_ACTIVE_TAB,
   getModule,
   isTabModuleId,
-  tabUsesScannerPricePatch,
   type ActiveTab,
 } from '../workspace/registry';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
-
-function isDockTab(tab: ActiveTab): tab is 'hod_momo' | 'running_up' {
-  return tab === 'hod_momo' || tab === 'running_up';
-}
-
-function isMainScannerTab(tab: ActiveTab): boolean {
-  return (
-    tab === 'gappers'
-    || tab === 'gainers'
-    || tab === 'losers'
-    || tab === 'afterhours'
-    || tab === 'large_cap'
-    || tab === 'catalysts'
-    || tab === 'watchlist'
-    || tab === 'trading'
-    || tab === 'reports'
-  );
-}
+import { isDockTab, isMainScannerTab } from '../workspace/scannerTabs';
 
 export function DashboardPage() {
   const {
@@ -165,7 +147,6 @@ export function DashboardPage() {
     setTabOverridden(true);
     setActiveTab(tab);
     setRailHighlight(tab);
-    if (tabUsesScannerPricePatch(tab)) scanner.setL1ActiveTab(tab);
   }
 
   // Global Working menu / GlobalAppBar Account → Account / Trading tab.
@@ -194,6 +175,17 @@ export function DashboardPage() {
 
   const mainTab = isMainScannerTab(activeTab) ? activeTab : DEFAULT_ACTIVE_TAB;
   const activeHiddenCount = hiddenByExchangeFilter[mainTab] ?? 0;
+
+  // Declare the table actually on screen for IBKR L1, on mount as well as on
+  // change. A click-only hint left `l1ActiveTab` at DEFAULT_ACTIVE_TAB after
+  // every reload; Gappers freezes at 09:30, a frozen table contributes no
+  // symbols (ADR 008), so OWNER_SCANNER subscribed nothing for a whole session
+  // and half the visible Gainers rows never got a price. `tabHints` drops
+  // non-scanner tabs, so passing Trading/Reports here correctly declares none.
+  const setL1ActiveTab = scanner.setL1ActiveTab;
+  useEffect(() => {
+    setL1ActiveTab(mainTab);
+  }, [mainTab, setL1ActiveTab]);
 
   const navCounts = {
     gappers: filteredGappers.length,

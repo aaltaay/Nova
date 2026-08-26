@@ -88,6 +88,14 @@ HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT = 40.0  # % of buffered symbols that must
 HOD_MOMO_INTEGRITY_POLL_SEC = 20.0             # background integrity logger cadence
 HOD_MOMO_INTEGRITY_ENRICHED_MIN_PCT = 30.0     # snaps with rvol vs tracked snaps
 SCANNER_INTEGRITY_CACHE_STALE_SEC = 120.0      # gappers/gainers/losers cache age → warn/fail
+# Row-price honesty on a *live* table (ADR 008 admission is name-only, so a
+# fresh roster legitimately shows price=null for a short while). Past the grace
+# window a live table whose rows still have no price means its L1 is starved —
+# that is what silently emptied Price/Change/Volume for half the Gainers roster
+# on 2026-08-26 while every other scanner check reported pass.
+SCANNER_ROW_PRICE_GRACE_SEC = 180.0            # after roster_ts before coverage is judged
+SCANNER_ROW_PRICE_WARN_PCT = 95.0              # priced rows below this → warn
+SCANNER_ROW_PRICE_FAIL_PCT = 80.0              # priced rows below this → fail
 # Active evaluation set (capacity-bounded) — ADR 008: deterministic admission,
 # no quotas. Former Momo first (guaranteed), then round-robin across ranked
 # Gappers/Gainers/Afterhours (see hod_momo_active.build_active_set). Live SLO:

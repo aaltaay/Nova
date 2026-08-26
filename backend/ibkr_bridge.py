@@ -7,7 +7,6 @@ import logging
 import time
 
 import afterhours_discovery as _ah_discovery
-import exchanges as _exchanges
 import hod_momo as _hod_momo
 import hod_momo_active as _hod_active
 from constants import (
@@ -19,7 +18,6 @@ from constants import (
     IBKR_TABLE_REPRICE_MAX_SYMBOLS,
 )
 from ibkr import discovery as _ibkr_discovery
-from fundamentals import _fundamentals_cache
 from ibkr import client as _ibkr_client
 from ibkr import reprice as _ibkr_reprice
 from ibkr import scanner_session as _ss
@@ -91,23 +89,6 @@ def run_ibkr(coro, *, on_error: str = "none", label: str = "ibkr"):
         if on_error == "none":
             return None
         return []
-
-
-def enrich_ibkr_mover(entry: dict, news: dict[str, str]) -> dict:
-    """Attach RVOL / news / fundamentals / exchange to an IBKR mover row."""
-    state = get_runtime_state()
-    sym = entry["symbol"]
-    avg_vol = state.avg_volume_cache.get(sym)
-    vol = entry["volume"]
-    fund = _fundamentals_cache.get(sym, {})
-    entry["rel_volume"] = round(vol / avg_vol, 2) if avg_vol and avg_vol > 0 and vol > 0 else None
-    entry["has_news"] = sym in news
-    entry["newest_headline_at"] = news.get(sym)
-    entry["market_cap"] = fund.get("market_cap")
-    entry["float"] = fund.get("float_shares")
-    entry["short_interest"] = fund.get("short_interest")
-    entry["short_ratio"] = fund.get("short_ratio")
-    return _exchanges.attach_exchange(entry)
 
 
 def get_ibkr_detail_symbols() -> list[str]:
@@ -237,6 +218,7 @@ def apply_l1_quote(
     ts_unix: float,
     *,
     quote_quality: str | None = None,
+    open_price: float | None = None,
 ) -> dict | None:
     """Apply one L1 tick onto scanner caches + HOD; return patch row fields.
 
@@ -253,6 +235,7 @@ def apply_l1_quote(
         "price": float(price),
         "prev_close": prev_close,
         "volume": volume if volume is not None else 0,
+        "open": open_price,
     }
     now = float(ts_unix)
     patch: dict = {

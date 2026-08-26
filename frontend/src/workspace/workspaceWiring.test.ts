@@ -18,6 +18,17 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     expect(dash).not.toMatch(/interface Props/);
   });
 
+  it('Dashboard declares the L1 active tab from an effect, not only on click', () => {
+    // Click-only declaration left l1ActiveTab at DEFAULT_ACTIVE_TAB after every
+    // reload. Gappers freezes at 09:30 and a frozen table contributes no L1
+    // symbols (ADR 008), so the scanner owner subscribed nothing for a whole
+    // session and half the visible Gainers rows never got a price.
+    const dash = readFileSync(join(src, 'pages/DashboardPage.tsx'), 'utf8');
+    expect(dash).toMatch(/useEffect\(\s*\(\)\s*=>\s*\{\s*setL1ActiveTab\(mainTab\);/);
+    expect(dash).toMatch(/\[mainTab, setL1ActiveTab\]/);
+    expect(dash).not.toMatch(/tabUsesScannerPricePatch\(tab\)\s*&&|if \(tabUsesScannerPricePatch\(tab\)\)/);
+  });
+
   it('StockViewPage does not fetch /api/config independently', () => {
     const page = readFileSync(join(src, 'pages/StockViewPage.tsx'), 'utf8');
     expect(page).toMatch(/useWorkspace\(/);

@@ -92,6 +92,42 @@ def build_hod_integrity_report() -> dict[str, Any]:
     return report
 
 
+def _row_price_coverage(state: Any) -> list[dict[str, Any]]:
+    """Priced-row coverage for every *displayed* live scanner table.
+
+    Scoped to the tables clients declare via ``set_active_tab``: a live table
+    nobody is displaying gets no scanner-owner L1 by design (bounded L1, see
+    single-market-data-feed.mdc), so judging it would fail loudly on correct
+    behavior. A declared live table with unpriced rows is the real starvation
+    signal.
+    """
+    import scanner_tab_registry as _tabs
+    from ibkr import scanner_session as _ss
+    from runtime_state.state import TABLE_STATE_LIVE
+
+    out: list[dict[str, Any]] = []
+    now = time.time()
+    for table in _tabs.get_active_tables():
+        try:
+            meta = _ss.table_attr(state, table)
+            rows_attr, _ = _ss.cache_attr_names(table)
+        except (AttributeError, KeyError):
+            continue
+        if (meta.state or "").strip().lower() != TABLE_STATE_LIVE:
+            continue
+        rows = getattr(state, rows_attr, None) or []
+        if not rows:
+            continue
+        priced = sum(1 for r in rows if r.get("price") is not None)
+        out.append({
+            "table": table,
+            "rows": len(rows),
+            "priced": priced,
+            "roster_age_sec": max(0.0, now - float(meta.roster_ts)) if meta.roster_ts else None,
+        })
+    return out
+
+
 def build_scanner_integrity_report() -> dict[str, Any]:
     from alpaca import _get_discovery_provider
     from ibkr import client as ibkr_client
@@ -127,6 +163,7 @@ def build_scanner_integrity_report() -> dict[str, Any]:
             return False
 
     snap = {
+        "row_price_coverage": _row_price_coverage(state),
         "discovery_provider": provider,
         # Product usable (is_ready), not socket-only -- matches status.connected SoT.
         "ibkr_connected": ibkr_client.is_ready() if provider == "ibkr" else None,

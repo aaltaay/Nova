@@ -206,13 +206,21 @@ export const QUOTE_ASSET_LABELS = {
 /** Display value for listing feed row (Alpaca asset metadata only — not prices/L2). */
 export const QUOTE_LISTING_FEED_VALUE = 'Alpaca Assets API (flags only)';
 
-/** Scanner Volume column: live volume is IBKR; RVOL denom badge is Alpaca avg. */
+/** Scanner Volume column: live volume is IBKR; RVOL denominator is yfinance avg.
+ * Deliberately NOT Alpaca: IEX daily bars capture a sliver of consolidated
+ * volume for thin low-float names and blew RVOL up 100x-3000x (PROBLEM_LOG
+ * 2026-07-16). Backend owner: mover_enrich_view + hod_momo_enrichment. */
 export const SCANNER_VOLUME_COLUMN_LABEL = 'Volume · RVOL';
-export const SCANNER_RVOL_ALPACA_BADGE = 'Alpaca avg';
-export const SCANNER_RVOL_ALPACA_TITLE =
-  'Live volume is IBKR L1. Relative volume uses Alpaca daily-bar average (aux) — not IBKR consolidated volume. Thin names can look wrong; study vs tape before trusting.';
+export const SCANNER_RVOL_SOURCE_BADGE = 'yfinance avg';
+export const SCANNER_RVOL_SOURCE_TITLE =
+  'Live volume is IBKR L1. Relative volume divides it by the yfinance average daily volume (aux) — not IBKR consolidated volume. Thin names can still look off; study vs tape before trusting.';
+
+/** Ticker detail / Stock View RVOL still divides by Alpaca daily-bar average
+ * (`ticker_detail.fetch_ticker_avg_volume` reads `avg_volume_cache`), so it
+ * keeps its own honest attribution — do not alias it to the scanner strings. */
 export const QUOTE_RVOL_DAILY_LABEL = 'Rel vol (Alpaca avg)';
-export const QUOTE_RVOL_DAILY_TITLE = SCANNER_RVOL_ALPACA_TITLE;
+export const QUOTE_RVOL_DAILY_TITLE =
+  'Live volume is IBKR L1. Relative volume uses Alpaca daily-bar average (aux) — not IBKR consolidated volume. Thin names can look wrong; study vs tape before trusting.';
 
 /** Header aux chips (not the live price feed — Gateway/Feed stay separate).
  * Alpaca is intentionally omitted: it is news/listing aux only and must never

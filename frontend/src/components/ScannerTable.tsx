@@ -7,8 +7,8 @@ import { NewsCell } from './NewsCell';
 import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import {
-  SCANNER_RVOL_ALPACA_BADGE,
-  SCANNER_RVOL_ALPACA_TITLE,
+  SCANNER_RVOL_SOURCE_BADGE,
+  SCANNER_RVOL_SOURCE_TITLE,
   SCANNER_VOLUME_COLUMN_LABEL,
 } from '../constants';
 import type { ScannerRow, SortConfig } from '../types/scanner';
@@ -100,14 +100,14 @@ function renderCell(
       );
     case 'volume':
       return (
-        <span className="cell-stack" title={SCANNER_RVOL_ALPACA_TITLE}>
+        <span className="cell-stack" title={SCANNER_RVOL_SOURCE_TITLE}>
           <span className="cell-stack-primary">{fmtVolume(row.volume)}</span>
           <span className="cell-stack-secondary">
             {row.rel_volume != null ? (
               <>
                 {row.rel_volume}x rel{' '}
-                <span className="rvol-source-badge" title={SCANNER_RVOL_ALPACA_TITLE}>
-                  {SCANNER_RVOL_ALPACA_BADGE}
+                <span className="rvol-source-badge" title={SCANNER_RVOL_SOURCE_TITLE}>
+                  {SCANNER_RVOL_SOURCE_BADGE}
                 </span>
               </>
             ) : (
@@ -202,7 +202,7 @@ export function ScannerTable({
                 key={key}
                 className="sortable-th"
                 onClick={() => onSort(key)}
-                title={key === 'volume' ? SCANNER_RVOL_ALPACA_TITLE : undefined}
+                title={key === 'volume' ? SCANNER_RVOL_SOURCE_TITLE : undefined}
                 aria-sort={
                   sortState.key === key
                     ? sortState.dir === 'asc' ? 'ascending' : 'descending'

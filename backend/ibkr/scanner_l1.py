@@ -21,7 +21,7 @@ from constants import (
 )
 from ibkr import ticks as _ticks
 from ibkr import l1_minute as _l1_minute
-from ibkr.scanner_l1_plan import plan_stream_symbols
+from ibkr.scanner_l1_plan import count_tab_contributions, plan_stream_symbols
 from metrics.op_metrics import record_since
 
 logger = logging.getLogger(__name__)
@@ -44,18 +44,26 @@ _pending_started_ns: int | None = None
 # tab) is what lets the desk show Gappers and Gainers at the same time.
 _active_tab_tables: dict[str, str] = {}
 _last_ok_ts: float | None = None
-_subscription_state: dict[str, Any] = {
-    "tab": "none",
-    "tables": [],
-    "requested_tab": 0,
-    "active_tab": 0,
-    "requested_hod": 0,
-    "active_hod": 0,
-    "active_total": 0,
-    "budget": IBKR_L1_STREAM_BUDGET,
-    "rejected": [],
-    "error": None,
-}
+
+
+def _idle_state() -> dict[str, Any]:
+    """Subscription state when nothing scanner-ish is streaming."""
+    return {
+        "tab": "none",
+        "tables": [],
+        "tab_counts": {},
+        "requested_tab": 0,
+        "active_tab": 0,
+        "requested_hod": 0,
+        "active_hod": 0,
+        "active_total": 0,
+        "budget": IBKR_L1_STREAM_BUDGET,
+        "rejected": [],
+        "error": None,
+    }
+
+
+_subscription_state: dict[str, Any] = _idle_state()
 _tab_grace_until = 0.0
 _prev_tab_symbols: list[str] = []
 _apply_quote: ApplyQuoteFn | None = None
@@ -104,6 +112,7 @@ def on_l1_quote(
     ts_unix: float,
     *,
     quote_quality: str | None = None,
+    open_price: float | None = None,
 ) -> None:
     """ticks.py quote listener — buffer for the next batch flush."""
     sym = (symbol or "").strip().upper()
@@ -132,9 +141,20 @@ def on_l1_quote(
                     prev_close,
                     ts_unix,
                     quote_quality=quote_quality,
+                    open_price=open_price,
                 )
             except TypeError:
-                patched = _apply_quote(sym, price, volume, prev_close, ts_unix)
+                try:
+                    patched = _apply_quote(
+                        sym,
+                        price,
+                        volume,
+                        prev_close,
+                        ts_unix,
+                        quote_quality=quote_quality,
+                    )
+                except TypeError:
+                    patched = _apply_quote(sym, price, volume, prev_close, ts_unix)
             if patched:
                 row.update(patched)
         except Exception:
@@ -186,18 +206,7 @@ async def _reconcile_once(
         await _ticks.set_owner_symbols(_ticks.OWNER_SCANNER, [])
         await _ticks.set_owner_symbols(_ticks.OWNER_HOD, [])
         _active_tab_tables.clear()
-        _subscription_state = {
-            **_subscription_state,
-            "tab": "none",
-            "tables": [],
-            "requested_tab": 0,
-            "active_tab": 0,
-            "requested_hod": 0,
-            "active_hod": 0,
-            "active_total": 0,
-            "rejected": [],
-            "error": None,
-        }
+        _subscription_state = {**_subscription_state, **_idle_state()}
         return
 
     tables = [t for t in (get_active_tables() or []) if t and t != "none"]
@@ -290,6 +299,9 @@ async def _reconcile_once(
     _subscription_state = {
         "tab": tables[0] if tables else "none",
         "tables": list(tables),
+        "tab_counts": count_tab_contributions(
+            tables, raw_tab, owner_table, _active_tab_tables,
+        ),
         "requested_tab": len(raw_tab),
         "active_tab": len(tab_result.get("active") or []),
         "requested_hod": len(raw_hod),

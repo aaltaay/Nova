@@ -14,6 +14,28 @@ def _budget_for_streams() -> int:
     return max(1, int(IBKR_L1_STREAM_BUDGET) - int(IBKR_L1_STREAM_RESERVE))
 
 
+def count_tab_contributions(
+    tables: list[str],
+    tab_symbols: list[str],
+    owner_table: dict[str, str],
+    streaming_tables: dict[str, str],
+) -> dict[str, dict[str, int]]:
+    """Requested vs streaming symbol count per declared table.
+
+    Makes "declared Gappers, got 0 symbols" visible instead of hiding inside a
+    single ``active_tab`` total: a declared table requesting 0 is the frozen
+    table that starved the desk on 2026-08-26, while one requesting many but
+    streaming 0 is a subscribe failure.
+    """
+    return {
+        table: {
+            "requested": sum(1 for s in tab_symbols if owner_table.get(s) == table),
+            "streaming": sum(1 for owner in streaming_tables.values() if owner == table),
+        }
+        for table in tables
+    }
+
+
 def plan_stream_symbols(
     tab_symbols: list[str],
     hod_symbols: list[str],

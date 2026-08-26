@@ -68,6 +68,7 @@ def notify_quote_listeners(
     ts_unix: float,
     *,
     quote_quality: str | None,
+    open_price: float | None = None,
 ) -> None:
     for listener in list(listeners):
         try:
@@ -79,10 +80,22 @@ def notify_quote_listeners(
                     prev_close,
                     ts_unix,
                     quote_quality=quote_quality,
+                    open_price=open_price,
                 )
             except TypeError:
-                # Legacy 5-arg listeners (no quote_quality kwarg).
-                listener(symbol, float(price), vol_i, prev_close, ts_unix)
+                try:
+                    # Listeners that take quote_quality but not open_price.
+                    listener(
+                        symbol,
+                        float(price),
+                        vol_i,
+                        prev_close,
+                        ts_unix,
+                        quote_quality=quote_quality,
+                    )
+                except TypeError:
+                    # Legacy 5-arg listeners (no keyword extras at all).
+                    listener(symbol, float(price), vol_i, prev_close, ts_unix)
         except Exception:
             logger.exception("IBKR ticks: quote listener failed for %s", symbol)
 
@@ -106,6 +119,10 @@ def on_ticker_update(
         sub["last_update_ts"] = time.time()
     last = clean(getattr(ticker, "last", None))
     close = clean(getattr(ticker, "close", None))
+    # Tick type 14 = session OPEN. IB sends it on the same streaming ticker, so
+    # Gap % costs no extra request (the COLD snapshot path already reads it --
+    # see ibkr/discovery.py snapshot_quotes).
+    open_price = clean(getattr(ticker, "open", None))
     # Tick type 6 = day High (ib_async: ticker.high) -- HOD truth floor.
     day_high = clean(getattr(ticker, "high", None))
     day_high_changed = False
@@ -149,6 +166,7 @@ def on_ticker_update(
             prev_close,
             ts_unix,
             quote_quality=quote_quality,
+            open_price=open_price if open_price and open_price > 0 else None,
         )
 
     if not price_changed or broadcast is None:

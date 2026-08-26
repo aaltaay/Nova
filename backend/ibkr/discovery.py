@@ -639,17 +639,29 @@ def reprice_mover_row(m: dict, q: dict) -> dict:
     resolved ``prev_close`` is written back so the row stops being a stub after
     the first L1 tick that carries a close. Without a close the price is still
     recorded, but no change is invented against an unknown baseline.
+
+    ``gap_percent`` needs the session open (IB tick type 14), which arrives on
+    the same streaming ticker. Before it lands the row keeps whatever gap it
+    already had rather than reusing ``change_pct`` -- an intraday move is not a
+    gap, and inventing one is what a null column is protecting against.
     """
     prev_close = m.get("prev_close") or q.get("prev_close")
     price = q["price"]
     if not prev_close:
         return {**m, "price": price, "volume": q.get("volume", m.get("volume", 0))}
     change_pct = (price - prev_close) / prev_close
+    open_price = m.get("open") or q.get("open")
+    gap_percent = (
+        (open_price - prev_close) / prev_close
+        if open_price and prev_close else m.get("gap_percent")
+    )
     return {
         **m,
         "price": price,
         "prev_close": prev_close,
+        "open": open_price or m.get("open"),
         "change_pct": change_pct,
         "change_abs": price - prev_close,
+        "gap_percent": gap_percent,
         "volume": q.get("volume", m.get("volume", 0)),
     }

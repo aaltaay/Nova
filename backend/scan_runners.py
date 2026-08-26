@@ -22,7 +22,7 @@ from cache import (
 )
 from composition.market_data_providers import get_discovery_port, get_movers_port
 from ibkr import discovery as _ibkr_discovery
-from ibkr_bridge import enrich_ibkr_mover, run_ibkr
+from ibkr_bridge import run_ibkr
 from runtime_state import get_runtime_state
 from scanner import _check_news
 from scanner_runners.afterhours import run_afterhours_discovery_scan, run_afterhours_focus_scan
@@ -52,7 +52,6 @@ __all__ = [
     "save_movers_snapshot",
     "save_gainer_snapshot",
     "save_loser_snapshot",
-    "enrich_ibkr_mover",
     "get_discovery_port",
     "get_movers_port",
 ]
