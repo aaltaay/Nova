@@ -46,7 +46,8 @@ test.describe('Phase 0 baseline', () => {
     await page.goto('/?view=stock&symbol=AAPL');
 
     await expect(page.locator('.stock-view-page')).toBeVisible();
-    await expect(page.getByTestId('stock-view-header')).toBeVisible();
+    await expect(page.getByTestId('stock-view-header')).toHaveCount(0);
+    await expect(page.getByTestId('header-market-clock')).toBeVisible();
     await expect(page.getByText('Trader', { exact: true })).toBeVisible();
     await expect(page).toHaveTitle(/AAPL.*Trader/);
 

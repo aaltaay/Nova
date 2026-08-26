@@ -111,6 +111,29 @@ describe('HeaderConnectionStatus', () => {
     expect(container.querySelector('[data-testid="status-chip-feed"]')).toBeNull();
   });
 
+  it('places an ET clock next to Desk without a session label', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          ibkrMode="paper"
+          ibkrGatewayMode="paper"
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={12}
+          historyDate={null}
+        />,
+      );
+    });
+    const clock = container.querySelector('[data-testid="header-market-clock"]');
+    expect(clock?.textContent).toMatch(/\d{2}:\d{2}:\d{2} ET/);
+    expect(clock?.textContent).not.toMatch(/After-hours|Premarket|\bRTH\b|Closed|AFTER HOURS/i);
+    const desk = container.querySelector('[data-testid="status-chip-desk"]');
+    expect(desk).toBeTruthy();
+  });
+
   it('Desk chip is connection only -- up / delayed / offline; mode lives on the capsule', () => {
     act(() => {
       root.render(

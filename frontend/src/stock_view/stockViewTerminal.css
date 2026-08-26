@@ -688,6 +688,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.stock-view-page .sv-quote-card__last--missing {
+  color: var(--sv-muted);
+  font-weight: 600;
+}
+
 .stock-view-page .sv-quote-card__chg.positive {
   color: var(--green, #22c55e);
 }

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-26 -- Trader last/change under Stock Quote; ET clock beside Desk
+
+- **What:** Removed the leftover Trader command bar (symbol chip + clock + After-hours label). Last/change now sits under Stock Quote. The Eastern clock sits next to Desk on the global bar, time-only. The header AFTER HOURS / Premarket / RTH badge is the session label. Tab strip (ticker / Pop out / close) stays.
+- **Why:** Operator asked to stop wasting a full row on price+clock when Stock Quote and Desk already exist, and to drop the After Hours duplicate under the clock.
+- **Files touched:** `StockViewPage.tsx`, deleted `StockViewHeader.tsx`, `StockViewQuotePrice.tsx`, `StockViewDepthTape.tsx`, `StockViewMarketClock.tsx`, `HeaderConnectionStatus.tsx`, `global-app-bar.css`, tests + e2e.
+- **How it works now:** Trader workspace is tab strip (if any) + paper banner + charts/rail. Quote last/change is `data-testid="stock-view-quote-price"` inside the Stock Quote card. Clock is `data-testid="header-market-clock"` immediately after the Desk chip; session name is hover `title` only.
+- **Verified by:** `npx vitest run` in `frontend/` -- 170 files / 819 tests passed. `npm run build` (`tsc -b && vite build`) exit 0. Playwright (system Chrome) against `http://127.0.0.1:5173/?view=sample&symbol=AAPL`: header count 0, quote `AAPL $4.25`, clock `HH:MM:SS ET` with no After Hours text, clock bounding box immediately right of Desk (same row).
+- **Related:** CHANGELOG 2026-08-26 strip duplicate Trader chrome.
+
 ## 2026-08-26 -- Strip duplicate Trader chrome (HOD dock + fake mode bar)
 
 - **What:** Trader View no longer shows the HOD Live/Clear/Configure dock or the second command bar (Paper/Live, Net Liq, BP, Manual/Normal/Fully Automated). Symbol chip, clock, paper banner, and disconnect warn stay. Paper/Live and account numbers stay on the global top bar.

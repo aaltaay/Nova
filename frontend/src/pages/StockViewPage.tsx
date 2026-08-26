@@ -2,7 +2,7 @@
  * Stock View — detachable terminal page (double-click → new window).
  *
  * Thin data coordinator: streams, IBKR gates, resizable rail, detached nav.
- * Layout chrome lives under `stock_view/` (header + rail + quote card).
+ * Layout chrome lives under `stock_view/` (rail + quote card).
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { ChartGrid } from '../components/ChartGrid';
@@ -17,7 +17,7 @@ import { confirmAndFillWorkingOrder } from '../ibkr/fillWorkingOrderImmediately'
 import type { PlaceOrderResult } from '../ibkr/placeOrder';
 import type { IbkrOrder } from '../ibkr/types';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
-import { StockViewHeader } from '../stock_view/StockViewHeader';
+import { PaperTradingBanner } from '../ibkr/PaperTradingBanner';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
 import { StockViewRail } from '../stock_view/StockViewRail';
 import {
@@ -143,37 +143,14 @@ export function StockViewPage({
     [refresh],
   );
 
-  const handleLookup = useCallback(
-    (next: string) => {
-      onSelectSymbol(next);
-    },
-    [onSelectSymbol],
-  );
-
   return (
     <div
       className="stock-view-page"
       style={{ ['--ticker-trade-side-width' as string]: `${sideWidth}px` }}
     >
-      <StockViewHeader
-        symbol={symbol}
-        detailReady={detailReady}
-        detailSymbol={detail?.symbol}
-        mainPrice={metrics?.mainPrice ?? null}
-        mainChangeAbs={metrics?.mainChangeAbs ?? null}
-        mainChangePct={metrics?.mainChangePct ?? null}
-        isPositive={metrics?.isPositive ?? true}
-        refreshing={refreshing}
-        mode={ibkrStatus.mode}
-        gatewayMode={ibkrStatus.gateway_mode}
-        connected={ibkrStatus.connected}
-        statusReady={ibkrStatus.clientReady}
-        ibkrStatus={ibkrStatus}
-        onLookup={handleLookup}
-      />
-
+      <PaperTradingBanner mode={ibkrStatus.mode} />
       {/*
-        Positions / Orders / Nova OS dock must not wait on ticker WS — account
+        Positions / Orders / Nova OS dock must not wait on ticker WS -- account
         tables stay usable while charts/rail load (also keeps e2e stable).
       */}
       <div

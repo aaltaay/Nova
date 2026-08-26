@@ -306,8 +306,26 @@
 }
 
 .global-app-bar__scanner .status-chip,
-.global-app-bar__scanner .mode-badge {
+.global-app-bar__scanner .mode-badge,
+.global-app-bar__scanner .header-market-clock {
   flex-shrink: 0;
+}
+
+.header-market-clock {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--nova-border);
+  border-radius: 999px;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--nova-text);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .global-app-bar__scanner .history-select {

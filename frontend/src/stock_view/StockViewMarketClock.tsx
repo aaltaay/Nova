@@ -1,4 +1,4 @@
-/** Live Eastern market clock + session chip for Stock View header. */
+/** Live Eastern clock for the global bar -- time only; session is the mode badge. */
 import { useEffect, useState } from 'react';
 import { STOCK_VIEW_CLOCK_TICK_MS } from '../constants';
 import { marketClockSnapshot } from './marketClock';
@@ -16,15 +16,14 @@ export function StockViewMarketClock() {
 
   return (
     <time
-      className={`sv-header__clock sv-header__clock--${snap.sessionKind}`}
+      className={`header-market-clock header-market-clock--${snap.sessionKind}`}
       dateTime={new Date().toISOString()}
-      data-testid="stock-view-market-clock"
+      data-testid="header-market-clock"
       data-session={snap.sessionKind}
       title={`US equity session · ${snap.sessionLabel}`}
-      aria-label={`Eastern time ${snap.timeLabel}, session ${snap.sessionLabel}`}
+      aria-label={`Eastern time ${snap.timeLabel}`}
     >
-      <span className="sv-header__clock-time">{snap.timeLabel}</span>
-      <span className="sv-header__clock-session">{snap.sessionLabel}</span>
+      {snap.timeLabel}
     </time>
   );
 }

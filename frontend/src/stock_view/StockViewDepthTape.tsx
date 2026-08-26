@@ -1,5 +1,5 @@
 /**
- * Stock Quote module — one card: quote stats + Level 2 | Time & Sales.
+ * Stock Quote module — last/change + stats + Level 2 | Time & Sales.
  * Height vs Order Entry is controlled by StockViewRail's horizontal splitter.
  */
 import { ShortabilityChip } from '../ibkr/ShortabilityChip';
@@ -13,12 +13,22 @@ import type { IbkrListingFlags } from '../types/ticker';
 import type { TickerDetail } from '../types/ticker';
 import { useModuleVisibility, useWorkspace } from '../workspace';
 import { StockViewModuleCard } from './StockViewModuleCard';
+import { StockViewQuotePrice } from './StockViewQuotePrice';
 import { StockViewQuoteStats } from './StockViewQuoteStats';
 
 interface Props {
   selectedSymbol: string;
   detail: TickerDetail;
   listingIbkr?: IbkrListingFlags | null;
+}
+
+function QuoteHead({ detail }: { detail: TickerDetail }) {
+  return (
+    <>
+      <StockViewQuotePrice detail={detail} />
+      <StockViewQuoteStats detail={detail} />
+    </>
+  );
 }
 
 export function StockViewDepthTape({
@@ -40,7 +50,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card sv-quote-depth-card--empty"
         testId="stock-view-depth-stack"
       >
-        <StockViewQuoteStats detail={detail} />
+        <QuoteHead detail={detail} />
         <p className="sv-depth-stack__hint">
           Connect IB Gateway for Level 2 and Time & Sales
         </p>
@@ -55,7 +65,7 @@ export function StockViewDepthTape({
         className="sv-quote-depth-card"
         testId="stock-view-depth-stack"
       >
-        <StockViewQuoteStats detail={detail} />
+        <QuoteHead detail={detail} />
       </StockViewModuleCard>
     );
   }
@@ -67,7 +77,7 @@ export function StockViewDepthTape({
       testId="stock-view-depth-stack"
       aria-label={STOCK_VIEW_MODULE_QUOTE_TITLE}
     >
-      <StockViewQuoteStats detail={detail} />
+      <QuoteHead detail={detail} />
       <div
         className="depth-and-tape sv-depth-and-tape"
         data-module="stock-view-depth"

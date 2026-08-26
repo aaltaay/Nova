@@ -23,7 +23,7 @@ test.describe('Phase 3 — Quote panels / Stock View terminal', () => {
     await page.goto('/?view=stock&symbol=MSFT');
 
     await expect(page.locator('.stock-view-page')).toBeVisible();
-    await expect(page.getByTestId('stock-view-header')).toBeVisible();
+    await expect(page.getByTestId('stock-view-header')).toHaveCount(0);
     await expect(page.getByTestId('stock-view-rail')).toBeVisible({ timeout: 20_000 });
 
     // Compact quote card (not Quote Panel modules)
@@ -33,8 +33,8 @@ test.describe('Phase 3 — Quote panels / Stock View terminal', () => {
     await expect(page.locator('.manual-order-ticket')).toBeVisible();
     await expect(page.locator('.ticker-trade-bar--rail')).toBeVisible();
 
-    // Symbol / price on command bar
-    await expect(page.locator('.sv-header__symbol')).toContainText(/MSFT/i, {
+    // Symbol / price live under Stock Quote, not a second command bar
+    await expect(page.getByTestId('stock-view-quote-price')).toContainText(/MSFT/i, {
       timeout: 20_000,
     });
 

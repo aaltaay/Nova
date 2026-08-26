@@ -27,6 +27,7 @@ import {
 import { canReloadLocalBackend } from '../utils/startLocalApi';
 import { launchIbGateway } from '../utils/launchIbGateway';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
+import { StockViewMarketClock } from '../stock_view/StockViewMarketClock';
 import { HEADER_DESK_ROLE } from '../ibkr/gatewayUxConstants';
 import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
 import {
@@ -197,6 +198,7 @@ export function HeaderConnectionStatus({
               {latencyLabel ? ` · ${latencyLabel}` : ''}
             </span>
           </button>
+          <StockViewMarketClock />
           {gatewayLaunchHint && (
             <span
               className={`status-hint status-hint--gateway${

@@ -3,22 +3,17 @@ import {
   STOCK_VIEW_MODULE_QUOTE_TITLE,
 } from '../constants';
 import type { TickerDetail } from '../types/ticker';
-import { fmtPct } from '../utils/quoteFormat';
-import { useWorkspace } from '../workspace';
-import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { StockViewModuleCard } from './StockViewModuleCard';
+import { StockViewQuotePrice } from './StockViewQuotePrice';
 import { StockViewQuoteStats } from './StockViewQuoteStats';
 
 interface Props {
   detail: TickerDetail;
-  /** When true, omit duplicate symbol/price (page header already shows them). */
+  /** When true, omit last/change (tests / callers that already show price). */
   hidePrice?: boolean;
 }
 
-export function StockViewQuoteCard({ detail, hidePrice = true }: Props) {
-  const { discoveryProvider } = useWorkspace();
-  const m = computeQuoteMetrics(detail, discoveryProvider);
-
+export function StockViewQuoteCard({ detail, hidePrice = false }: Props) {
   return (
     <StockViewModuleCard
       title={STOCK_VIEW_MODULE_QUOTE_TITLE}
@@ -27,22 +22,7 @@ export function StockViewQuoteCard({ detail, hidePrice = true }: Props) {
       aria-label="Stock Quote"
     >
       <div data-module="stock-view-quote">
-        {!hidePrice && (
-          <div className="sv-quote-card__price">
-            <span className="sv-quote-card__symbol">{detail.symbol}</span>
-            {m.mainPrice != null && (
-              <span className="sv-quote-card__last">{m.mainPrice.toFixed(2)}</span>
-            )}
-            {m.mainChangeAbs != null && (
-              <span
-                className={`sv-quote-card__chg ${(m.mainChangePct ?? 0) >= 0 ? 'positive' : 'negative'}`}
-              >
-                {m.mainChangeAbs >= 0 ? '+' : ''}
-                {m.mainChangeAbs.toFixed(2)} ({fmtPct(m.mainChangePct)})
-              </span>
-            )}
-          </div>
-        )}
+        {!hidePrice && <StockViewQuotePrice detail={detail} />}
         <StockViewQuoteStats detail={detail} />
       </div>
     </StockViewModuleCard>

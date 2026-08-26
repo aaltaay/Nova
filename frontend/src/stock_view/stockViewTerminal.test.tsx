@@ -186,7 +186,7 @@ describe('StockViewQuoteCard', () => {
       root.render(wrap(<StockViewQuoteCard detail={makeDetail()} hidePrice={false} />));
     });
     expect(container.querySelector('.sv-quote-card__symbol')?.textContent).toBe('AAPL');
-    expect(container.querySelector('.sv-quote-card__last')?.textContent).toBe('190.50');
+    expect(container.querySelector('.sv-quote-card__last')?.textContent).toBe('$190.50');
   });
 });
 
@@ -221,6 +221,9 @@ describe('StockViewDepthTape', () => {
       new RegExp(STOCK_VIEW_MODULE_QUOTE_TITLE, 'i'),
     );
     expect(container.querySelector('[data-testid="stock-view-quote-stats"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="stock-view-quote-price"]')).toBeTruthy();
+    expect(container.querySelector('.sv-quote-card__symbol')?.textContent).toBe('AAPL');
+    expect(container.querySelector('.sv-quote-card__last')?.textContent).toBe('$190.50');
     expect(container.querySelector('[data-testid="stock-view-depth-side-by-side"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="stock-view-l2-col"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="stock-view-tape-col"]')).toBeTruthy();
@@ -492,13 +495,13 @@ describe('StockViewPage symbol gate', () => {
       );
     });
     expect(container.querySelector('.stock-view-page')).toBeTruthy();
-    expect(container.querySelector('[data-testid="stock-view-header"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="stock-view-symbol-chip"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="stock-view-header"]')).toBeNull();
+    expect(container.querySelector('[data-testid="stock-view-symbol-chip"]')).toBeNull();
     expect(container.querySelector('[data-testid="sv-account-mode-capsule"]')).toBeNull();
     expect(container.querySelector('[data-testid="sv-operator-mode-capsule"]')).toBeNull();
     expect(container.querySelector('[data-testid="sv-trading-lock"]')).toBeNull();
-    expect(container.querySelector('[data-testid="stock-view-header"]')!.textContent).not.toMatch(/Net Liq/);
-    expect(container.querySelector('[data-testid="stock-view-header"]')!.textContent).not.toMatch(/Fully Automated/);
+    expect(container.querySelector('[data-testid="stock-view-quote-price"]')).toBeTruthy();
+    expect(container.querySelector('.sv-quote-card__symbol')?.textContent).toMatch(/AAPL/);
     expect(container.textContent).not.toMatch(/Look Up/i);
     expect(container.textContent).not.toMatch(/Hide charts/i);
     expect(container.textContent).not.toMatch(/Stop Automation/i);
