@@ -174,6 +174,7 @@ class TestAccountAndRiskGates:
         )
         assert r.ok is False
         assert r.reason_code == "BUYING_POWER"
+        assert r.legacy_place_dict()["reason_code"] == "BUYING_POWER"
         assert called == []
 
     def test_buying_power_unknown_when_account_summary_raises(self, monkeypatch):

@@ -101,7 +101,7 @@ function TickerChartInner({
     oscillatorPaneCount: oscillatorEnabled.length,
   });
 
-  const { applyLiveTrade, lastCandleRef, resetTradeState } = useChartLiveTrade(
+  const { applyLiveTrade, lastCandleRef, resetTradeState, liveTipTime } = useChartLiveTrade(
     candleSeriesRef,
     lastTrade,
     timeframe,
@@ -227,6 +227,7 @@ function TickerChartInner({
         vwapSourceBars={vwapSource.bars}
         vwapSourceRevision={vwapSource.revision}
         vwapCoversOpen={vwapSource.coversOpen}
+        liveTipTime={liveTipTime}
       />
       {oscillatorEnabled.length > 0 && (
         <TickerChartOscillatorPanes

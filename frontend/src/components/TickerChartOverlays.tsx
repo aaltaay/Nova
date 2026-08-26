@@ -1,8 +1,9 @@
 /**
  * Price-pane overlays (EMAs + VWAP) on the main lightweight-charts instance.
- * EMA math comes from lightweight-charts-indicators; VWAP comes from the one
- * session-anchored series in `chart/vwapSession.ts`, sampled onto this pane's
- * bars so every timeframe draws the same line. This file only hosts LineSeries.
+ * EMA math comes from lightweight-charts-indicators; VWAP comes from the
+ * session-anchored series in `chart/vwapSession.ts`. Sub-minute panes splice
+ * their own bars into that series so the line walks with painted candles
+ * instead of stepping once per source minute. This file only hosts LineSeries.
  */
 import { useEffect, useRef } from 'react';
 import {
@@ -25,7 +26,12 @@ import {
   vwapAxisTitleFromLine,
   type IndicatorBar,
 } from '../chartIndicators';
-import { sampleVwapOntoBars, sessionVwapPoints } from '../chart/vwapSession';
+import {
+  coversSessionOpen,
+  sampleVwapOntoBars,
+  sessionVwapPoints,
+  vwapSourceForPane,
+} from '../chart/vwapSession';
 import { isDailyTimeframe } from '../tickerChartData';
 
 interface Props {
@@ -39,6 +45,8 @@ interface Props {
   vwapSourceBars?: IndicatorBar[];
   vwapSourceRevision?: number;
   vwapCoversOpen?: boolean;
+  /** Live candle time ahead of the store -- VWAP must reach the painted tip. */
+  liveTipTime?: number | null;
 }
 
 type EmaSeriesMap = Partial<Record<ChartEmaLength, ISeriesApi<'Line'>>>;
@@ -52,6 +60,7 @@ export function TickerChartOverlays({
   vwapSourceBars = [],
   vwapSourceRevision = 0,
   vwapCoversOpen = true,
+  liveTipTime = null,
 }: Props) {
   const emaSeriesRef = useRef<EmaSeriesMap>({});
   const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
@@ -144,6 +153,7 @@ export function TickerChartOverlays({
     const paintKey = [
       barsRevision, showEmas, showVwap, bars.length,
       vwapSourceRevision, vwapSourceBars.length, vwapCoversOpen,
+      liveTipTime ?? '',
     ].join(':');
     if (lastPaintKeyRef.current === paintKey) return;
     lastPaintKeyRef.current = paintKey;
@@ -157,19 +167,24 @@ export function TickerChartOverlays({
     }
 
     if (showVwap && vwapSeriesRef.current) {
+      const sourceBars = vwapSourceForPane(vwapSourceBars, bars, timeframe);
       const line = sampleVwapOntoBars(
-        sessionVwapPoints(vwapSourceBars),
+        sessionVwapPoints(sourceBars),
         bars,
         timeframe,
+        { extendToTime: liveTipTime ?? undefined },
       );
       vwapSeriesRef.current.setData(line);
       vwapSeriesRef.current.applyOptions({
-        title: vwapAxisTitleFromLine(line, !vwapCoversOpen),
+        title: vwapAxisTitleFromLine(
+          line,
+          sourceBars.length > 0 ? !coversSessionOpen(sourceBars) : !vwapCoversOpen,
+        ),
       });
     }
   }, [
     chart, bars, barsRevision, showEmas, showVwap, timeframe,
-    vwapSourceBars, vwapSourceRevision, vwapCoversOpen,
+    vwapSourceBars, vwapSourceRevision, vwapCoversOpen, liveTipTime,
   ]);
 
   return null;

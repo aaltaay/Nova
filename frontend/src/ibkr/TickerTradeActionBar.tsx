@@ -16,6 +16,7 @@ import { formatShareQty } from '../utils/formatShareQty';
 import { closeFullPosition } from './closeFullPosition';
 import { executionTransportError } from './executionTransportError';
 import { ManualOrderTicket } from './ManualOrderTicket';
+import { notifyOrderRejected } from './notifyOrderRejected';
 import type { PlaceOrderResult } from './placeOrder';
 import { readTicketSessionUnlocked } from './ticketUnlock';
 import { TickerTradeAutomateControls } from './TickerTradeAutomateControls';
@@ -100,22 +101,28 @@ export function TickerTradeActionBar({
     setResultMsg(null);
     try {
       const data = await closeFullPosition(symbol, position.qty);
-      setResultMsg({
-        ok: data.ok,
-        text: data.ok
-          ? `Flatten order #${data.order_id} (${data.mode ?? mode})`
-          : data.error,
-      });
       if (data.ok) {
+        setResultMsg({
+          ok: true,
+          text: `Flatten order #${data.order_id} (${data.mode ?? mode})`,
+        });
         onOrderPlaced?.({
           ok: true,
           order_id: data.order_id,
           error: null,
           mode: data.mode,
         });
+      } else {
+        setResultMsg({ ok: false, text: data.error });
+        notifyOrderRejected({
+          message: data.error,
+          reasonCode: data.place?.reason_code,
+        });
       }
     } catch (error) {
-      setResultMsg({ ok: false, text: executionTransportError(error) });
+      const text = executionTransportError(error);
+      setResultMsg({ ok: false, text });
+      notifyOrderRejected({ message: text });
     } finally {
       setClosing(false);
     }

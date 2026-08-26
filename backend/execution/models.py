@@ -113,6 +113,7 @@ class ExecutionReceipt:
             "ok": self.ok,
             "order_id": self.order_id,
             "error": self.error,
+            "reason_code": self.reason_code,
             "mode": self.mode,
             "execution_id": self.execution_id,
             "duplicate": self.duplicate,

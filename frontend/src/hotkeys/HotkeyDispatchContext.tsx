@@ -14,6 +14,7 @@ import {
   type ReactNode,
 } from 'react';
 import { DESK_ASK_BID_HOTKEY_EPOCH, type HotkeyAction } from '../constants';
+import { notifyOrderRejected } from '../ibkr/notifyOrderRejected';
 import {
   chordToBinding,
   createHotkeyKeydownHandler,
@@ -150,6 +151,7 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   const runAction = useCallback(async (action: NovaActionRecord) => {
     const result = await runNovaAction(action, runtimeRef.current);
     setLastResult(result);
+    if (!result.ok) notifyOrderRejected({ message: result.text });
     return result;
   }, []);
 

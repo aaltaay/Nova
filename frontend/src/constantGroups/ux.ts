@@ -15,3 +15,21 @@ export const APP_DIALOG_PLACE_LABEL = 'Place';
 export const APP_DIALOG_FILL_LABEL = 'Fill now';
 export const APP_DIALOG_SWITCH_TO_LIVE_LABEL = 'Switch to Live';
 export const APP_DIALOG_SWITCH_TO_PAPER_LABEL = 'Switch to Paper';
+
+/** Place/flatten rejects -- pop-up titles (inline ticket footer is too easy to miss). */
+export const ORDER_REJECT_DEFAULT_TITLE = 'Order rejected';
+export const ORDER_REJECT_TITLES: Record<string, string> = {
+  BUYING_POWER: 'Not enough buying power',
+  BUYING_POWER_UNKNOWN: 'Buying power unavailable',
+  NO_POSITION: 'No position to sell',
+  OVERSELL: 'Sell quantity too large',
+  ORDERS_GATE: 'Orders locked',
+  BROKER_REJECT: 'Broker rejected the order',
+  ACCOUNT_UNAVAILABLE: 'Account unavailable',
+  POSITION_UNAVAILABLE: 'Position unavailable',
+};
+/** User dismissed the confirm dialog -- not a reject. */
+export const ORDER_REJECT_SKIP_MESSAGES = [
+  'Order cancelled',
+  'Fill now cancelled',
+];

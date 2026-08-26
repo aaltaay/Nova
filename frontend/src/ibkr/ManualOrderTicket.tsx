@@ -22,6 +22,7 @@ import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
 import { executionTransportError } from './executionTransportError';
+import { notifyOrderRejected } from './notifyOrderRejected';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import { readSkipPlaceConfirm } from './placeConfirmPrefs';
 import { resolveShortabilityState } from './ShortabilityChip';
@@ -182,13 +183,15 @@ export function ManualOrderTicket({
     return ok;
   }
 
+  function fail(text: string, reasonCode?: string | null) {
+    setResult({ ok: false, text });
+    notifyOrderRejected({ message: text, reasonCode });
+  }
+
   async function executeOrder() {
     if (!connected || submitting) return;
     if (spendLocked) {
-      setResult({
-        ok: false,
-        text: 'Orders remain locked by Nova environment safety settings.',
-      });
+      fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
       return;
     }
     const timing = beginBrowserExecutionTiming(
@@ -215,7 +218,7 @@ export function ManualOrderTicket({
       },
     );
     if (!built.ok) {
-      setResult({ ok: false, text: built.error });
+      fail(built.error);
       return;
     }
 
@@ -227,15 +230,17 @@ export function ManualOrderTicket({
         undefined,
         { timing, referencePrice },
       );
-      setResult({
-        ok: response.ok,
-        text: response.ok
-          ? `Order #${response.order_id} placed (${response.mode ?? mode})`
-          : response.error ?? 'Order failed',
-      });
-      if (response.ok) onOrderPlaced?.(response);
+      if (response.ok) {
+        setResult({
+          ok: true,
+          text: `Order #${response.order_id} placed (${response.mode ?? mode})`,
+        });
+        onOrderPlaced?.(response);
+      } else {
+        fail(response.error ?? 'Order failed', response.reason_code);
+      }
     } catch (error) {
-      setResult({ ok: false, text: executionTransportError(error) });
+      fail(executionTransportError(error));
     } finally {
       setSubmitting(false);
     }
@@ -244,15 +249,12 @@ export function ManualOrderTicket({
   function requestPlaceOrder() {
     if (!connected || submitting) return;
     if (spendLocked) {
-      setResult({
-        ok: false,
-        text: 'Orders remain locked by Nova environment safety settings.',
-      });
+      fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
       return;
     }
 
     if (shortEntry && shortBlockReason) {
-      setResult({ ok: false, text: shortBlockReason });
+      fail(shortBlockReason);
       return;
     }
 
@@ -275,7 +277,7 @@ export function ManualOrderTicket({
       },
     );
     if (!built.ok) {
-      setResult({ ok: false, text: built.error });
+      fail(built.error);
       return;
     }
 

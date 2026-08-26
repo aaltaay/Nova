@@ -40,12 +40,22 @@ def _pid_alive(pid: int) -> bool:
     if os.name == "nt":
         import ctypes
 
-        # SYNCHRONIZE is enough to prove the PID still exists.
-        handle = ctypes.windll.kernel32.OpenProcess(0x00100000, 0, int(pid))
-        if handle:
-            ctypes.windll.kernel32.CloseHandle(handle)
+        # OpenProcess(SYNCHRONIZE) can succeed on a just-killed PID. Query the
+        # exit code: 259 (STILL_ACTIVE) is the only "alive" signal.
+        process_query_limited = 0x1000
+        still_active = 259
+        access_denied = 5
+        handle = ctypes.windll.kernel32.OpenProcess(
+            process_query_limited, False, int(pid)
+        )
+        if not handle:
+            return ctypes.GetLastError() == access_denied
+        code = ctypes.c_ulong()
+        ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+        ctypes.windll.kernel32.CloseHandle(handle)
+        if not ok:
             return True
-        return False
+        return int(code.value) == still_active
     try:
         os.kill(pid, 0)
     except OSError:

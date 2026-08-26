@@ -3,6 +3,7 @@ import {
   coversSessionOpen,
   sampleVwapOntoBars,
   sessionVwapPoints,
+  vwapSourceForPane,
 } from './vwapSession';
 import type { IndicatorBar } from '../chartIndicators';
 
@@ -194,19 +195,35 @@ describe('sampleVwapOntoBars', () => {
     expect(fifteenMin.at(-1)!.value).toBeCloseTo(oneMin.at(-1)!.value, 10);
   });
 
-  it('steps a 10Sec pane once per source minute', () => {
-    const minutes = rthMinutes(5);
-    const points = sessionVwapPoints(minutes);
-
-    const tenSec = sampleVwapOntoBars(points, tenSecondBars(minutes), '10Sec');
-    const oneMin = sampleVwapOntoBars(points, minutes, '1Min');
-
-    const minuteStart = etTime(2026, 7, 25, 9, 32);
-    const expected = valueAt(oneMin, minuteStart)!;
-    for (let s = 0; s < 60; s += 10) {
-      expect(valueAt(tenSec, minuteStart + s)).toBeCloseTo(expected, 10);
+  it('walks a 10Sec pane with each painted bar instead of once per minute', () => {
+    const open = etTime(2026, 7, 25, 9, 30);
+    const minutes = [bar(open, 10, 1_000), bar(open + 60, 10, 1_000)];
+    const tenSec: IndicatorBar[] = [];
+    for (let s = 0; s < 120; s += 10) {
+      tenSec.push(bar(open + s, 10 + (s / 10) * 2, 1_000));
     }
-    expect(valueAt(tenSec, etTime(2026, 7, 25, 9, 33))).not.toBeCloseTo(expected, 6);
+    const line = sampleVwapOntoBars(
+      sessionVwapPoints(vwapSourceForPane(minutes, tenSec, '10Sec')),
+      tenSec,
+      '10Sec',
+    );
+
+    expect(line).toHaveLength(tenSec.length);
+    expect(valueAt(line, open + 50)).not.toBeCloseTo(valueAt(line, open)!, 6);
+    expect(valueAt(line, open + 60)).not.toBeCloseTo(valueAt(line, open + 50)!, 6);
+  });
+
+  it('extends onto a live tip the store has not painted yet', () => {
+    const minutes = rthMinutes(3);
+    const line = sampleVwapOntoBars(
+      sessionVwapPoints(minutes),
+      minutes,
+      '1Min',
+      { extendToTime: etTime(2026, 7, 25, 9, 33) },
+    );
+
+    expect(line.at(-1)!.time).toBe(etTime(2026, 7, 25, 9, 33));
+    expect(line.at(-1)!.value).toBeCloseTo(line.at(-2)!.value, 10);
   });
 
   it('draws nothing on a pane bar before the open', () => {
@@ -246,6 +263,25 @@ describe('sampleVwapOntoBars', () => {
   it('returns nothing when either side is empty', () => {
     expect(sampleVwapOntoBars([], rthMinutes(3), '1Min')).toEqual([]);
     expect(sampleVwapOntoBars(sessionVwapPoints(rthMinutes(3)), [], '1Min')).toEqual([]);
+  });
+});
+
+describe('vwapSourceForPane', () => {
+  it('keeps 1Min bars from before the 10Sec window so the 09:30 anchor survives', () => {
+    const minutes = rthMinutes(90);
+    const paneStart = etTime(2026, 7, 25, 10, 0);
+    const pane = tenSecondBars(minutes.filter((b) => b.time >= paneStart));
+    const source = vwapSourceForPane(minutes, pane, '10Sec');
+
+    expect(source[0].time).toBe(etTime(2026, 7, 25, 9, 30));
+    const overlap = source.filter((b) => b.time >= paneStart);
+    expect(overlap.some((b) => b.time === paneStart + 10)).toBe(true);
+    expect(overlap.every((b) => pane.some((p) => p.time === b.time))).toBe(true);
+  });
+
+  it('leaves a 1Min pane on the 1Min source', () => {
+    const minutes = rthMinutes(10);
+    expect(vwapSourceForPane(minutes, minutes, '1Min')).toBe(minutes);
   });
 });
 

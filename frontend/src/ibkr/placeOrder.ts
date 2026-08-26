@@ -13,6 +13,7 @@ export interface PlaceOrderResult {
   ok: boolean;
   order_id: number | null;
   error: string | null;
+  reason_code?: string | null;
   mode?: string;
   execution_id?: string;
   duplicate?: boolean;

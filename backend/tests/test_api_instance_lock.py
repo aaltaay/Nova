@@ -10,6 +10,7 @@ import api_instance_lock as lock
 def test_pid_alive_sees_this_process():
     assert lock._pid_alive(os.getpid()) is True
     assert lock._pid_alive(0) is False
+    assert lock._pid_alive(999_999_999) is False
 
 
 def test_acquire_same_pid_is_idempotent(tmp_path: Path, monkeypatch):

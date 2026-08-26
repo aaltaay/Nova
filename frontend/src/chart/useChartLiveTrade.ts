@@ -1,6 +1,6 @@
 /** ADR 005 -- monotonic live-trade candle merging into the open bar. */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CandlestickData, ISeriesApi, Time } from 'lightweight-charts';
 import { mergeLiveTradeCandle } from './liveTradeApply';
 import { tradeMatchesChartSymbol } from './liveTradeGate';
@@ -14,6 +14,8 @@ export function useChartLiveTrade(
 ) {
   const lastCandleRef = useRef<CandlestickData<Time> | null>(null);
   const prevTradeTsRef = useRef<string | null>(null);
+  const liveTipTimeRef = useRef<number | null>(null);
+  const [liveTipTime, setLiveTipTime] = useState<number | null>(null);
 
   const applyLiveTrade = useCallback((trade: ChartTradeUpdate, tf: string) => {
     if (!trade.price || !trade.timestamp || !candleSeriesRef.current) return;
@@ -28,6 +30,10 @@ export function useChartLiveTrade(
     try {
       candleSeriesRef.current.update(next);
       lastCandleRef.current = next;
+      if (typeof next.time === 'number' && next.time !== liveTipTimeRef.current) {
+        liveTipTimeRef.current = next.time;
+        setLiveTipTime(next.time);
+      }
     } catch {
       /* series not ready / LWC rejected -- next paint will reset tip */
     }
@@ -44,7 +50,9 @@ export function useChartLiveTrade(
   const resetTradeState = useCallback(() => {
     prevTradeTsRef.current = null;
     lastCandleRef.current = null;
+    liveTipTimeRef.current = null;
+    setLiveTipTime(null);
   }, []);
 
-  return { applyLiveTrade, lastCandleRef, resetTradeState };
+  return { applyLiveTrade, lastCandleRef, resetTradeState, liveTipTime };
 }
