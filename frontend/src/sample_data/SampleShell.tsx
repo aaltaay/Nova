@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
 import { GlobalAppBar } from '../components/GlobalAppBar';
-import { HodMomoDock } from '../hod_momo/HodMomoDock';
 import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
 import { IbkrAccountProvider } from '../ibkr/IbkrAccountContext';
 import { StockViewPage } from '../pages/StockViewPage';
@@ -79,28 +78,25 @@ function SampleShellInner() {
 
   if (traderSymbol) {
     return (
-      <HodMomoFixtureProvider>
-        <div className="nova-app-stack">
-          <GlobalAppBar scanner={sampleScannerBar} />
-          <div className="nova-app-branch">
-            <AppErrorBoundary source="sample-trader">
-              <div className="nova-shell nova-shell--ticker-detail">
-                <div className="main-col main-col--full main-col--trader-stack">
-                  <HodMomoDock onOpenTrading={openTrader} />
-                  <main className="ticker-detail-main">
-                    <StockViewPage
-                      symbol={traderSymbol}
-                      detached
-                      onBack={backToSampleDash}
-                      onSelectSymbol={openTrader}
-                    />
-                  </main>
-                </div>
+      <div className="nova-app-stack">
+        <GlobalAppBar scanner={sampleScannerBar} />
+        <div className="nova-app-branch">
+          <AppErrorBoundary source="sample-trader">
+            <div className="nova-shell nova-shell--ticker-detail">
+              <div className="main-col main-col--full main-col--trader-stack">
+                <main className="ticker-detail-main">
+                  <StockViewPage
+                    symbol={traderSymbol}
+                    detached
+                    onBack={backToSampleDash}
+                    onSelectSymbol={openTrader}
+                  />
+                </main>
               </div>
-            </AppErrorBoundary>
-          </div>
+            </div>
+          </AppErrorBoundary>
         </div>
-      </HodMomoFixtureProvider>
+      </div>
     );
   }
 

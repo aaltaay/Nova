@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-26 -- Strip duplicate Trader chrome (HOD dock + fake mode bar)
+
+- **What:** Trader View no longer shows the HOD Live/Clear/Configure dock or the second command bar (Paper/Live, Net Liq, BP, Manual/Normal/Fully Automated). Symbol chip, clock, paper banner, and disconnect warn stay. Paper/Live and account numbers stay on the global top bar.
+- **Why:** Operator asked to remove an unsolicited duplicate toolbar. GlobalAppBar already had Day P&L / Net Liq / BP / Paper-Live; the mode capsule was a disabled placeholder (`auto_live` NO-GO).
+- **Files touched:** `App.tsx`, `SampleShell.tsx`, `StockViewHeader.tsx`, deleted `StockViewTradingChrome.tsx`, `stockViewTerminal.css`, `hodMomoDock.css`, `constantGroups/chart_api.ts`, tests.
+- **How it works now:** `HodMomoProvider` still owns the HOD websocket above the Scanner/Trader fork so opening Trader does not kill alerts. Dock UI mounts only in the Scanner middle column. Gateway Paper/Live lives on `HeaderConnectionStatus` / `GatewayModeCapsule`. Trader header is symbol + ET clock only.
+- **Verified by:** `npx vitest run` in `frontend/` -- 171 files / 821 tests passed. `npm run build` (`tsc -b && vite build`) exit 0. Playwright against `http://127.0.0.1:5173/?view=sample&symbol=AAPL`: HOD dock 0, no operator/account capsules, header has no Net Liq / Fully Automated; symbol chip + ET clock remain. Sample Scanner still has the HOD dock (count 1).
+- **Related:** CHANGELOG 2026-07-29 Global single-row app header follow-up (slim duplicated Net Liq/BP).
+
 ## 2026-08-26 -- DEFERRED_LOG.md for known bugs and parked features
 
 - **What:** New repo-root `DEFERRED_LOG.md` is the SSOT for known bugs and parked features, enforced like `PROBLEM_LOG.md`. Lifecycle footers now require `deferred_log=`. Open P0/P1 items show up in the session-start fleet brief.

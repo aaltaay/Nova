@@ -170,16 +170,12 @@
   flex-shrink: 0;
 }
 
-/* Trader: dock stacks above Stock View in the main column only. */
+/* Trader: Stock View fills the main column (HOD dock stays on Scanner). */
 .main-col--trader-stack {
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-}
-
-.main-col--trader-stack > .hod-momo-dock {
-  flex-shrink: 0;
 }
 
 .main-col--trader-stack > .ticker-detail-main {

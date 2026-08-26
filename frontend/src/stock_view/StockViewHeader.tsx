@@ -1,15 +1,10 @@
-/** Trader window command bar — symbol, ET clock, account metrics, Paper/Live, mode. */
-import type { IbkrAccountSummary, IbkrMode, IbkrStatus } from '../ibkr/types';
+/** Trader command bar -- symbol, ET clock, disconnect warn. Account chrome lives on GlobalAppBar. */
+import type { IbkrMode, IbkrStatus } from '../ibkr/types';
 import { PaperTradingBanner } from '../ibkr/PaperTradingBanner';
 import { stockViewDisconnectLabel } from '../ibkr/disconnectCopy';
 import { STOCK_VIEW_TITLE } from '../constants';
-import { formatMoney } from '../utils/formatMoney';
 import { StockViewMarketClock } from './StockViewMarketClock';
 import { StockViewSymbolChip } from './StockViewSymbolChip';
-import {
-  StockViewAccountModeCapsule,
-  StockViewOperatorModeCapsule,
-} from './StockViewTradingChrome';
 
 interface Props {
   symbol: string;
@@ -21,14 +16,13 @@ interface Props {
   isPositive: boolean;
   refreshing: boolean;
   mode: IbkrMode;
-  /** Env target (paper/live) — capsule selection when disconnected. */
+  /** Env target (paper/live) -- used for disconnect copy when session mode is unknown. */
   gatewayMode?: 'paper' | 'live';
   connected: boolean;
   /** False while /api/ibkr/status has not been read this tab -- hide false Disconnected. */
   statusReady?: boolean;
-  /** Full status when available — drives actionable disconnect copy. */
+  /** Full status when available -- drives actionable disconnect copy. */
   ibkrStatus?: Partial<IbkrStatus>;
-  summary: IbkrAccountSummary | null;
   onLookup: (symbol: string) => void;
 }
 
@@ -46,7 +40,6 @@ export function StockViewHeader({
   connected,
   statusReady = true,
   ibkrStatus,
-  summary,
   onLookup,
 }: Props) {
   const disconnectLabel = stockViewDisconnectLabel({
@@ -77,36 +70,15 @@ export function StockViewHeader({
 
         <div className="sv-header__spacer" aria-hidden />
 
-        <div className="sv-header__account" aria-label="Account">
-          <StockViewAccountModeCapsule
-            mode={mode}
-            gatewayMode={gatewayMode}
-            accountKind={ibkrStatus?.broker_account_kind}
-            intentionalMode={ibkrStatus?.intentional_gateway_mode}
-            disconnectHint={ibkrStatus?.disconnect_hint}
-          />
-          {!connected && statusReady && (
-            <span
-              className="sv-header__warn"
-              data-testid="sv-disconnect-warn"
-              title={disconnectLabel}
-            >
-              {disconnectLabel}
-            </span>
-          )}
-          {summary?.connected && (
-            <>
-              <span className="sv-header__metric">
-                <label>Net Liq</label> {formatMoney(summary.NetLiquidation, 0)}
-              </span>
-              <span className="sv-header__metric">
-                <label>BP</label> {formatMoney(summary.BuyingPower, 0)}
-              </span>
-            </>
-          )}
-        </div>
-
-        <StockViewOperatorModeCapsule />
+        {!connected && statusReady && (
+          <span
+            className="sv-header__warn"
+            data-testid="sv-disconnect-warn"
+            title={disconnectLabel}
+          >
+            {disconnectLabel}
+          </span>
+        )}
       </header>
     </>
   );

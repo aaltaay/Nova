@@ -2,8 +2,8 @@
  * Nova root layout — WorkspaceProvider + sample/Stock View gates + Dashboard shell.
  * Business logic lives in pages/hooks/components (frontend-modularity rule).
  *
- * HOD stream owner lives here; the dock UI mounts in the Scanner middle column
- * (and Trader main) so left rail + quote panel stay full-height side kings.
+ * HOD stream owner lives here so Trader does not tear down the WS.
+ * Dock UI mounts in the Scanner middle column only -- not on Trader.
  */
 import { useEffect, useState } from 'react';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
@@ -11,7 +11,6 @@ import { GlobalAppBar } from './components/GlobalAppBar';
 import { GlobalBarStatusBridge } from './components/GlobalBarStatusBridge';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
-import { HodMomoDock } from './hod_momo/HodMomoDock';
 import { HodMomoProvider } from './hod_momo/HodMomoProvider';
 import { ScannerDataProvider } from './scanner/ScannerDataContext';
 import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
@@ -82,7 +81,6 @@ function AppShell() {
                       }
                     >
                       <div className="main-col main-col--full main-col--trader-stack">
-                        <HodMomoDock />
                         <main className="ticker-detail-main">
                           <StockViewTabs detached={detached} />
                         </main>

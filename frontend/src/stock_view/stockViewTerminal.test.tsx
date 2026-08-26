@@ -494,13 +494,11 @@ describe('StockViewPage symbol gate', () => {
     expect(container.querySelector('.stock-view-page')).toBeTruthy();
     expect(container.querySelector('[data-testid="stock-view-header"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="stock-view-symbol-chip"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="sv-account-mode-capsule"]')).toBeTruthy();
-    expect(container.querySelector('[data-testid="sv-operator-mode-capsule"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="sv-account-mode-capsule"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sv-operator-mode-capsule"]')).toBeNull();
     expect(container.querySelector('[data-testid="sv-trading-lock"]')).toBeNull();
-    expect(container.textContent).toMatch(/Net Liq/);
-    expect(container.textContent).toMatch(/BP/);
-    expect(container.textContent).toMatch(/Normal/);
-    expect(container.textContent).toMatch(/Paper/);
+    expect(container.querySelector('[data-testid="stock-view-header"]')!.textContent).not.toMatch(/Net Liq/);
+    expect(container.querySelector('[data-testid="stock-view-header"]')!.textContent).not.toMatch(/Fully Automated/);
     expect(container.textContent).not.toMatch(/Look Up/i);
     expect(container.textContent).not.toMatch(/Hide charts/i);
     expect(container.textContent).not.toMatch(/Stop Automation/i);
@@ -513,7 +511,7 @@ describe('StockViewPage symbol gate', () => {
     expect(container.querySelector('[data-module="data-sources"]')).toBeNull();
   });
 
-  it('keeps Manual and Fully Automated disabled; Normal selected', async () => {
+  it('does not render the unused Manual/Normal/Fully Automated capsule', async () => {
     tickerStreamState.selectedPassthrough = true;
     await act(async () => {
       root.render(
@@ -526,17 +524,8 @@ describe('StockViewPage symbol gate', () => {
         ),
       );
     });
-    const capsule = container.querySelector('[data-testid="sv-operator-mode-capsule"]');
-    expect(capsule).toBeTruthy();
-    const segs = capsule!.querySelectorAll('.sv-capsule__seg');
-    expect(segs).toHaveLength(3);
-    expect((segs[0] as HTMLButtonElement).disabled).toBe(true);
-    expect((segs[0] as HTMLButtonElement).textContent).toMatch(/Manual/);
-    expect((segs[1] as HTMLButtonElement).disabled).toBe(false);
-    expect((segs[1] as HTMLButtonElement).classList.contains('is-selected')).toBe(true);
-    expect((segs[1] as HTMLButtonElement).textContent).toMatch(/Normal/);
-    expect((segs[2] as HTMLButtonElement).disabled).toBe(true);
-    expect((segs[2] as HTMLButtonElement).textContent).toMatch(/Fully Automated/);
+    expect(container.querySelector('[data-testid="sv-operator-mode-capsule"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/Fully Automated/);
   });
 
   it('hides live rail when detail.symbol mismatches; charts still mount for selected symbol', async () => {

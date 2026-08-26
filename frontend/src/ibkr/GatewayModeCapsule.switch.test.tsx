@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * Intentional Paper<->Live Gateway switch capsule — real POST to
+ * Intentional Paper<->Live Gateway switch -- real POST to
  * /api/ibkr/gateway-mode, honest error surfacing, never arms live spend.
  */
 import { act } from 'react';
@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const refreshIbkrStatusNow = vi.fn();
 const confirmAppMock = vi.fn();
 
-vi.mock('../ibkr/useIbkrStatus', () => ({
+vi.mock('./useIbkrStatus', () => ({
   refreshIbkrStatusNow: () => refreshIbkrStatusNow(),
 }));
 
@@ -19,9 +19,9 @@ vi.mock('../ux', () => ({
   confirmApp: (...args: unknown[]) => confirmAppMock(...args),
 }));
 
-import { StockViewAccountModeCapsule } from './StockViewTradingChrome';
+import { GatewayModeCapsule } from './GatewayModeCapsule';
 
-describe('StockViewAccountModeCapsule — intentional Gateway switch', () => {
+describe('GatewayModeCapsule — intentional Gateway switch', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -48,9 +48,11 @@ describe('StockViewAccountModeCapsule — intentional Gateway switch', () => {
   ) {
     act(() => {
       root.render(
-        <div className="stock-view-page">
-          <StockViewAccountModeCapsule mode={mode} gatewayMode={gatewayMode} />
-        </div>,
+        <GatewayModeCapsule
+          mode={mode}
+          gatewayMode={gatewayMode}
+          errorTestId="gateway-mode-capsule-error"
+        />,
       );
     });
   }
@@ -119,7 +121,7 @@ describe('StockViewAccountModeCapsule — intentional Gateway switch', () => {
       await Promise.resolve();
     });
 
-    const error = container.querySelector('[data-testid="sv-account-mode-error"]');
+    const error = container.querySelector('[data-testid="gateway-mode-capsule-error"]');
     expect(error).toBeTruthy();
     expect(error!.textContent).toMatch(/Could not connect/);
     expect(liveButton().classList.contains('is-selected')).toBe(false);
@@ -136,7 +138,7 @@ describe('StockViewAccountModeCapsule — intentional Gateway switch', () => {
       await Promise.resolve();
     });
 
-    const error = container.querySelector('[data-testid="sv-account-mode-error"]');
+    const error = container.querySelector('[data-testid="gateway-mode-capsule-error"]');
     expect(error).toBeTruthy();
     expect(error!.textContent).toMatch(/Could not reach Nova backend/);
   });
@@ -168,7 +170,7 @@ describe('StockViewAccountModeCapsule — intentional Gateway switch', () => {
       await Promise.resolve();
     });
 
-    const error = container.querySelector('[data-testid="sv-account-mode-error"]');
+    const error = container.querySelector('[data-testid="gateway-mode-capsule-error"]');
     expect(error).toBeTruthy();
     expect(error!.textContent).toMatch(/Restart Nova API/i);
   });
@@ -176,13 +178,11 @@ describe('StockViewAccountModeCapsule — intentional Gateway switch', () => {
   it('shows a one-click Switch CTA when disconnect_hint is a port mismatch', () => {
     act(() => {
       root.render(
-        <div className="stock-view-page">
-          <StockViewAccountModeCapsule
-            mode="disconnected"
-            gatewayMode="paper"
-            disconnectHint="paper_port_refused_live_listening"
-          />
-        </div>,
+        <GatewayModeCapsule
+          mode="disconnected"
+          gatewayMode="paper"
+          disconnectHint="paper_port_refused_live_listening"
+        />,
       );
     });
     const cta = container.querySelector('[data-testid="sv-disconnect-hint-cta"]');

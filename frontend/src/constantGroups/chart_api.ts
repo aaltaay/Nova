@@ -268,7 +268,7 @@ export const HOD_MOMO_ALERT_BATCH_MS = 150;
 /** Max stacked strategy pills per row before collapsing the rest into a "+N" chip. */
 export const HOD_MOMO_MAX_INLINE_STRATEGY_PILLS = 4;
 
-/** Middle-column HOD Momo / Running Up dock (Scanner main-col / Trader main). */
+/** Middle-column HOD Momo / Running Up dock (Scanner main-col only). */
 export const HOD_MOMO_DOCK_COLLAPSED_KEY = 'nova.hodMomo.dock.v2.collapsed';
 export const HOD_MOMO_DOCK_HEIGHT_KEY = 'nova.hodMomo.dock.v2.heightPx';
 /** First visit: expanded in the middle column (side rails stay full height). */
@@ -361,20 +361,9 @@ export const STOCK_VIEW_SYMBOL_EDIT_ARIA = 'Change symbol';
 /** Max length for ticker typed into the Stock View symbol chip. */
 export const STOCK_VIEW_SYMBOL_MAX_LEN = 12;
 
-/** Stock View header — operator mode capsule (Manual / Normal / Fully Automated). */
-export const STOCK_VIEW_OPERATOR_MODE_MANUAL = 'Manual';
-export const STOCK_VIEW_OPERATOR_MODE_NORMAL = 'Normal';
-export const STOCK_VIEW_OPERATOR_MODE_FULL_AUTO = 'Fully Automated';
-export const STOCK_VIEW_OPERATOR_MODE_MANUAL_TITLE =
-  'Manual mode is not available yet — placeholder only';
-export const STOCK_VIEW_OPERATOR_MODE_NORMAL_TITLE =
-  'Normal operator mode — place orders manually with existing IBKR safety gates';
-export const STOCK_VIEW_OPERATOR_MODE_FULL_AUTO_TITLE =
-  'Fully Automated (auto_live) is NO-GO — not selectable';
-
-/** Stock View header — Paper / Live account-mode capsule labels.
+/** Paper / Live account-mode capsule labels (GlobalAppBar GatewayModeCapsule).
  * Clicking these switches which IBKR Gateway port Nova targets and
- * reconnects (persisted to IBKR_GATEWAY_MODE) — see POST /api/ibkr/gateway-mode.
+ * reconnects (persisted to IBKR_GATEWAY_MODE) -- see POST /api/ibkr/gateway-mode.
  * Orders stay locked until IBKR_LIVE_TRADING_CONFIRMED is armed separately. */
 export const STOCK_VIEW_ACCOUNT_MODE_PAPER = 'Paper';
 export const STOCK_VIEW_ACCOUNT_MODE_LIVE = 'Live';

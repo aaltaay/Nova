@@ -61,5 +61,14 @@ describe('WorkspaceContext wiring (Phase 2)', () => {
     expect(app).toMatch(/traderViewActive/);
     expect(app).toMatch(/nova-trader-desk-slot/);
   });
+
+  it('Trader desk does not remount the HOD dock; Scanner column owns it', () => {
+    const app = readFileSync(join(src, 'App.tsx'), 'utf8');
+    const sample = readFileSync(join(src, 'sample_data/SampleShell.tsx'), 'utf8');
+    expect(app).toMatch(/HodMomoProvider/);
+    expect(app).not.toMatch(/HodMomoDock/);
+    const traderReturn = sample.split('if (traderSymbol)')[1]?.split('return (')[1] ?? '';
+    expect(traderReturn).not.toMatch(/HodMomoDock/);
+  });
 });
 

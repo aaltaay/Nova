@@ -169,7 +169,6 @@ export function StockViewPage({
         connected={ibkrStatus.connected}
         statusReady={ibkrStatus.clientReady}
         ibkrStatus={ibkrStatus}
-        summary={summary}
         onLookup={handleLookup}
       />
 
