@@ -130,19 +130,38 @@ async def release_when_idle(symbol: str) -> bool:
     return viewer_count(symbol) <= 0
 
 
-def push_book(symbol: str, book: dict) -> None:
-    """Broadcast a book snapshot to every viewer currently watching this symbol."""
+def _broadcast(symbol: str, payload: dict) -> None:
     for q in list(_viewer_queues.get(symbol, ())):
         try:
-            q.put_nowait(book)
+            q.put_nowait(payload)
         except asyncio.QueueFull:
             try:
                 q.get_nowait()
-                q.put_nowait(book)
+                q.put_nowait(payload)
             except asyncio.QueueEmpty:
                 logger.debug("IBKR depth: queue empty after full for %s", symbol)
             except asyncio.QueueFull:
                 logger.warning("IBKR depth: queue still full for %s after drop", symbol)
+
+
+def push_book(symbol: str, book: dict) -> None:
+    """Broadcast a book snapshot to every viewer currently watching this symbol."""
+    _broadcast(symbol, book)
+
+
+def push_error(symbol: str, message: str, *, evicted: bool = False) -> None:
+    """Broadcast an error to every viewer currently watching this symbol.
+
+    Used when a line is torn down out from under a still-open viewer (e.g.
+    force-eviction at the depth symbol cap) so its WS route can close and
+    the frontend's own backoff reconnects it, instead of it sitting
+    silently on a dead line -- same pattern as tape_stream's ``released``
+    notice (PROBLEM_LOG 2026-08-25).
+    """
+    _broadcast(
+        symbol,
+        {"type": "error", "symbol": symbol, "message": message, "evicted": evicted},
+    )
 
 
 def reserve_slot(symbol: str) -> None:

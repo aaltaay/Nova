@@ -277,12 +277,29 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
         if _depth.should_send_current_book(current):
             await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": current}))
 
-        async for book in _depth.stream(queue):
-            if book is None:
+        async for item in _depth.stream(queue):
+            if item is None:
                 # Heartbeat timeout
                 await websocket.send_text(json.dumps({"type": "ping"}))
+                continue
+            if item.get("type") == "error":
+                # Line torn down out from under this viewer (e.g. capacity
+                # force-eviction) -- tell the client, then close so its
+                # onclose backoff reconnects it (PROBLEM_LOG 2026-08-25).
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "symbol": symbol,
+                            "message": item.get("message") or "Depth error",
+                        }
+                    )
+                )
+                if item.get("evicted"):
+                    await websocket.close()
+                    break
             else:
-                await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": book}))
+                await websocket.send_text(json.dumps({"type": "book", "symbol": symbol, "data": item}))
     except WebSocketDisconnect:
         logger.debug("IBKR depth WS disconnected: %s", symbol)
     except Exception as exc:

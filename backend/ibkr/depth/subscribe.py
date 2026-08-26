@@ -153,6 +153,17 @@ async def evict_for_capacity(incoming: str) -> None:
                 "IBKR: force-evicting depth slot %s (viewer_count=%s, possible leak) for %s",
                 victim, state.viewer_count(victim), incoming,
             )
+            # "Possible leak" is a guess, not a guarantee -- if viewer_count
+            # was real (an active viewer, not a leaked count), this line is
+            # being torn down out from under them. Tell any open viewer
+            # queue before unsubscribing so its socket closes and the
+            # frontend reconnects instead of silently sitting on a dead
+            # line (PROBLEM_LOG 2026-08-25).
+            state.push_error(
+                victim,
+                f"Depth line closed to free capacity for {incoming}",
+                evicted=True,
+            )
             state._ws_viewers.pop(victim, None)
         unsubscribe(victim)
         try:

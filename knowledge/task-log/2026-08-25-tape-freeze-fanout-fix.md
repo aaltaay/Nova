@@ -72,8 +72,30 @@ The "Follow-ups" section above originally named `ibkr/depth/state.py` as unreope
 
 ## Follow-ups (updated)
 
-- `evict_for_capacity`'s force-eviction of a "busy" (non-idle) depth slot at cap, with no notification to the orphaned viewer -- separate from this fix, flagged for a future pass if it's ever reported.
+- (Resolved below.) `evict_for_capacity`'s force-eviction of a "busy" (non-idle) depth slot at cap previously had no notification to the orphaned viewer.
+
+## Addendum 2 (same session) -- Depth cap eviction notification + a test-isolation bug found while fixing it
+
+Asked directly: "did you see other clear bugs?" Two, both found by inspection immediately after the depth fan-out fix, in the same files just touched -- not from a broader audit.
+
+**Bug A -- silent eviction:** `evict_for_capacity`'s force-evict branch (`ibkr/depth/subscribe.py`) picks a victim by `others[0]` when no idle slot exists, on the assumption its `viewer_count` is a "possible leak." That's a guess, not a guarantee. If it was a real, active viewer, their line died with zero notification -- same failure shape as the tape freeze, just via a different trigger (capacity pressure instead of a StrictMode race).
+
+**Fix A:** Extracted `push_book`'s broadcast loop into a shared `_broadcast(symbol, payload)` in `state.py`; added `push_error(symbol, message, evicted=True)` on top of it. `evict_for_capacity` calls it before `unsubscribe()` in the force-evict branch only (the idle branch has no live viewer to notify by definition). `ws_depth`'s message loop previously wrapped every non-heartbeat queue item as `{"type": "book", "data": item}` unconditionally -- it now checks `item.get("type") == "error"` first (a plain book dict has no `"type"` key, so this is backward compatible), forwards the error, and closes the socket when `evicted` is set so the frontend's existing reconnect backoff takes over.
+
+**Bug B -- test cross-contamination:** Writing a regression test for Bug A (`test_force_evict_notifies_any_open_viewer_queue`) initially failed intermittently on *which* symbol got evicted, depending on test execution order within `TestDepthCap`. Root cause: `importlib.reload(depth_mod)` in `setup_method` only re-executes the **facade** module (`ibkr/depth/__init__.py`); `ibkr.depth.state`'s module-level dicts are a separately-loaded module already sitting in `sys.modules`, never re-executed by that reload, so `_subscriptions`/`_ws_viewers`/`_viewer_queues` silently persisted and accumulated across every test method in five of six classes in `test_ibkr_safety.py`. One class (`TestSmartDepthFlag`) already had the fix, with a comment noting "Import-time reset was removed (Phase 2)" -- it was never propagated to the other five when that removal happened.
+
+**Fix B:** Added `depth_mod.reset_all()` to all five affected `setup_method`s (one `StrReplace` with `replace_all`, since the code block was byte-identical across all five).
+
+**Why this approach:** Reused the exact `_broadcast` pattern from the tape/depth fan-out fix rather than inventing a new notification mechanism -- one shape for "tell every viewer queue something happened," used for both normal book pushes and out-of-band eviction/error notices. For Bug B, fixed the root cause (missing `reset_all()`) rather than just hardcoding my new test to tolerate any victim -- test order-dependency in a shared-state test class is a real bug that will bite the next person who adds a test to that file, not just a quirk of my one test.
+
+**What was deliberately not done:** No broader audit of the rest of the codebase for similar test-isolation gaps was performed -- this fix is scoped to the one file and six classes actually touched this session. If a similar pattern exists elsewhere (any `setup_method` that reloads a facade module without resetting its backing submodule state), it wasn't searched for here.
+
+**Verification:** New `test_force_evict_notifies_any_open_viewer_queue`; full `tests/test_ibkr_safety.py` (34 passed, order-independent now); full backend suite (1353 passed). Live: restarted the local API with IB Gateway connected live; confirmed normal single-viewer `/ws/ibkr/depth/DAIC` still streams book updates correctly through the restructured message loop (no regression from the `item.get("type")` branch added to `ws_depth`).
+
+## Follow-ups (updated again)
+
+- No further known gaps from this session. Scope was: tape freeze (linger + fan-out), afterhours crash, pytest sys.path, depth fan-out (preemptive), depth eviction notification + test isolation (found on inspection, not audit).
 
 ## Keywords
 
-time and sales stuck, tape frozen, IBKR_TAPE_LINGER_SEC, StrictMode double-mount, competing consumers, single shared queue, fan-out, viewer_count, afterhours reprice, apply_quote failed, gap_percent None, ADR 010, pytest sys.path, Level 2 depth, push_book, open_viewer_queue, has_queue, is_subscribed, preemptive fix
+time and sales stuck, tape frozen, IBKR_TAPE_LINGER_SEC, StrictMode double-mount, competing consumers, single shared queue, fan-out, viewer_count, afterhours reprice, apply_quote failed, gap_percent None, ADR 010, pytest sys.path, Level 2 depth, push_book, open_viewer_queue, has_queue, is_subscribed, preemptive fix, evict_for_capacity, force-evict, push_error, importlib.reload does not reset submodules, test isolation, TestDepthCap

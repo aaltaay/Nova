@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- Depth cap eviction now notifies the viewer it kills; test isolation gap fixed
+
+- **What:** `evict_for_capacity`'s force-eviction path (used when all `IBKR_MAX_DEPTH_SYMBOLS` depth slots look busy) used to silently tear down a symbol's Level 2 line -- possibly an actually-active viewer's, not just a leaked count -- with no notification. It now broadcasts an error to any open viewer queue before unsubscribing, and the WS route closes that socket so the frontend's existing backoff reconnects it. Also fixed: five of six `ibkr.depth`-touching test classes in `test_ibkr_safety.py` reloaded the facade module between test methods but never called `reset_all()`, so `ibkr.depth.state`'s shared dicts silently accumulated across methods -- found because it made a new regression test order-dependent.
+- **Why:** User asked "did you see other clear bugs?" after the tape/depth fan-out fix session; this was found by inspection immediately after, in the same file just touched.
+- **Files touched:** `backend/ibkr/depth/state.py` (`push_error`, `_broadcast` extraction), `backend/ibkr/depth/subscribe.py` (`evict_for_capacity`), `backend/routes/trading.py` (`ws_depth`), `backend/tests/test_ibkr_safety.py`.
+- **How it works now:** `state.push_error(symbol, message, evicted=True)` fans the notice out to every viewer queue on that symbol (same `_broadcast` helper `push_book` now delegates to). `ws_depth`'s message loop checks `item.get("type") == "error"` on stream items (previously every non-heartbeat item was blindly wrapped as a `"book"`), forwards the error, and closes the socket when `evicted` is set. All six `TestDepthCap`/`TestDepthWsViewerRefcount`/etc. `setup_method`s now call `depth_mod.reset_all()` after `importlib.reload`, since reload only re-executes the facade -- `ibkr.depth.state` stays the same already-imported module and keeps its dicts.
+- **Verified by:** New `test_force_evict_notifies_any_open_viewer_queue` (34 passed in `test_ibkr_safety.py`); full backend suite (1353 passed). Live: restarted the local API with IB Gateway connected live; confirmed a normal single-viewer `/ws/ibkr/depth/DAIC` connection still streams book updates through the restructured message loop (no regression).
+- **Related:** PROBLEM_LOG.md 2026-08-25 "Depth cap force-eviction silently killed a possibly-active viewer's line; test class shared state across methods".
+
 ## 2026-08-25 -- Graphify always-on wrapper with a keep/kill token meter
 
 - **What:** Vault/decision questions now go through `py -3 tools/graphify_ask.py` (not a bare `graphify query`). The wrapper writes `graphify-out/usage.json` and prints a `graphify_usage ... total_saved=` footer. `graphify.mdc` is always-on and short. Session start shows the meter.

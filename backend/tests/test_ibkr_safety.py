@@ -151,6 +151,13 @@ class TestDepthCap:
     def setup_method(self):
         import ibkr.depth as depth_mod
         importlib.reload(depth_mod)
+        # reload() only re-executes the facade -- ibkr.depth.state's
+        # module-level dicts are a separately loaded module and are NOT
+        # reset by reload alone, so leftover _subscriptions/_ws_viewers
+        # from a previous test method leak in and make eviction-victim
+        # selection order-dependent (found live while adding a regression
+        # test -- PROBLEM_LOG 2026-08-25).
+        depth_mod.reset_all()
         self.depth = depth_mod
 
     def test_subscribe_when_disconnected_returns_error(self, monkeypatch):
@@ -180,6 +187,32 @@ class TestDepthCap:
         # Force path clears the leaked viewer count on the victim.
         assert sum(1 for s in ("SYM0", "SYM1", "SYM2") if s in self.depth._subscriptions) == 2
 
+    def test_force_evict_notifies_any_open_viewer_queue(self):
+        """"Possible leak" is a guess -- if the victim's viewer_count was
+        real (an active watcher, not a leak), force-eviction must not
+        silently kill its line. Whichever symbol gets evicted, an open
+        viewer queue on it must get an evicted error so its WS route closes
+        and the frontend reconnects (PROBLEM_LOG 2026-08-25).
+        """
+        self.depth.reset_all()  # this class doesn't reset between methods
+        from constants import IBKR_MAX_DEPTH_SYMBOLS
+        viewer_qs = {}
+        for i in range(IBKR_MAX_DEPTH_SYMBOLS):
+            sym = f"ZQ{i}"
+            self.depth._subscriptions[sym] = {}
+            self.depth._ws_viewers[sym] = 1
+            viewer_qs[sym] = self.depth.open_viewer_queue(sym)
+
+        asyncio.run(self.depth._evict_for_capacity("EXTRA"))
+
+        evicted = [s for s, q in viewer_qs.items() if not q.empty()]
+        assert len(evicted) == 1
+        notice = viewer_qs[evicted[0]].get_nowait()
+        assert notice["type"] == "error"
+        assert notice["evicted"] is True
+        assert "EXTRA" in notice["message"]
+        assert evicted[0] not in self.depth.subscribed_symbols()
+
     def test_resubscribe_same_symbol_is_idempotent(self, monkeypatch):
         import ibkr.client as client_mod
         monkeypatch.setattr(client_mod, "is_connected", lambda: True)
@@ -200,6 +233,13 @@ class TestDepthWsViewerRefcount:
     def setup_method(self):
         import ibkr.depth as depth_mod
         importlib.reload(depth_mod)
+        # reload() only re-executes the facade -- ibkr.depth.state's
+        # module-level dicts are a separately loaded module and are NOT
+        # reset by reload alone, so leftover _subscriptions/_ws_viewers
+        # from a previous test method leak in and make eviction-victim
+        # selection order-dependent (found live while adding a regression
+        # test -- PROBLEM_LOG 2026-08-25).
+        depth_mod.reset_all()
         self.depth = depth_mod
 
     def test_single_viewer_open_close_releases(self):
@@ -358,6 +398,13 @@ class TestDepthAsyncErrorFallback:
     def setup_method(self):
         import ibkr.depth as depth_mod
         importlib.reload(depth_mod)
+        # reload() only re-executes the facade -- ibkr.depth.state's
+        # module-level dicts are a separately loaded module and are NOT
+        # reset by reload alone, so leftover _subscriptions/_ws_viewers
+        # from a previous test method leak in and make eviction-victim
+        # selection order-dependent (found live while adding a regression
+        # test -- PROBLEM_LOG 2026-08-25).
+        depth_mod.reset_all()
         self.depth = depth_mod
 
     def test_matching_conid_falls_back_to_l1(self, monkeypatch):
@@ -431,6 +478,13 @@ class TestUpdateHandlerReplacement:
     def setup_method(self):
         import ibkr.depth as depth_mod
         importlib.reload(depth_mod)
+        # reload() only re-executes the facade -- ibkr.depth.state's
+        # module-level dicts are a separately loaded module and are NOT
+        # reset by reload alone, so leftover _subscriptions/_ws_viewers
+        # from a previous test method leak in and make eviction-victim
+        # selection order-dependent (found live while adding a regression
+        # test -- PROBLEM_LOG 2026-08-25).
+        depth_mod.reset_all()
         self.depth = depth_mod
 
     def test_fallback_detaches_old_depth_listener_from_shared_ticker(self, monkeypatch):
@@ -482,6 +536,13 @@ class TestShouldSendCurrentBook:
     def setup_method(self):
         import ibkr.depth as depth_mod
         importlib.reload(depth_mod)
+        # reload() only re-executes the facade -- ibkr.depth.state's
+        # module-level dicts are a separately loaded module and are NOT
+        # reset by reload alone, so leftover _subscriptions/_ws_viewers
+        # from a previous test method leak in and make eviction-victim
+        # selection order-dependent (found live while adding a regression
+        # test -- PROBLEM_LOG 2026-08-25).
+        depth_mod.reset_all()
         self.depth = depth_mod
 
     def test_none_book_is_not_sent(self):
