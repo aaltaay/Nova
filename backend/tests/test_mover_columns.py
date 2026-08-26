@@ -17,6 +17,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import mover_enrich_hooks as meh  # noqa: E402
 import mover_enrich_view as mev  # noqa: E402
 from hod_momo_integrity_scanner import _row_price_checks  # noqa: E402
 from ibkr.discovery import reprice_mover_row  # noqa: E402
@@ -114,6 +115,56 @@ def test_decorate_rows_avg_volume_is_yfinance_not_alpaca(monkeypatch):
     monkeypatch.setitem(_fundamentals_cache, "CJMB", {"average_volume": 3_375_816.0})
     out = mev.decorate_rows([{"symbol": "CJMB", "volume": 3_375_816}])
     assert out[0]["rel_volume"] == 1.0
+
+
+# --- fundamentals warm is single-flight ------------------------------------
+
+def test_mover_warm_is_single_flight(monkeypatch):
+    """One warm worker at a time.
+
+    A thread per commit per table stacked hundreds of live yfinance sockets and
+    threads onto the API process on a cold cache until it stopped accepting
+    connections on :8000.
+    """
+    import threading
+
+    batches: list[list[str]] = []
+    entered = threading.Event()
+    gate = threading.Event()
+
+    def fake_batch(symbols):
+        batches.append(list(symbols))
+        entered.set()
+        gate.wait(timeout=5)
+
+    monkeypatch.setattr("fundamentals.fetch_fundamentals_batch", fake_batch)
+    meh._pending.clear()
+    meh._worker = None
+
+    meh.on_mover_roster_commit("gainers", [{"symbol": "AAA"}])
+    first = meh._worker
+    assert first is not None
+    assert entered.wait(timeout=5), "warm worker never started"
+
+    # Commits while the worker is busy must queue, not spawn more threads.
+    meh.on_mover_roster_commit("losers", [{"symbol": "BBB"}])
+    meh.on_mover_roster_commit("afterhours", [{"symbol": "CCC"}])
+    assert meh._worker is first
+    assert meh._pending == {"BBB", "CCC"}
+
+    gate.set()
+    first.join(timeout=5)
+    assert batches[0] == ["AAA"]
+    assert batches[1] == ["BBB", "CCC"]
+    assert meh._pending == set()
+
+
+def test_mover_warm_ignores_non_mover_tables():
+    meh._pending.clear()
+    meh._worker = None
+    meh.on_mover_roster_commit("large_cap", [{"symbol": "AAPL"}])
+    assert meh._pending == set()
+    assert meh._worker is None
 
 
 # --- row-price honesty on a displayed live table ---------------------------

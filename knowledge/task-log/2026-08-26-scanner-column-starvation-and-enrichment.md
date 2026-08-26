@@ -67,6 +67,12 @@ Three invariants:
   - Browser screenshot of the Gainers table: Float / Short Int. / Mkt Cap populated, RVOL badge reads `YFINANCE AVG`, `Sample` unchecked and selector on "Today (Live)".
 - Blast radius (shared `ticks_handler` + L1 reconcile): Gappers and Large Cap rows and HOD integrity all still `pass` after the change; HOD active set 40/40 with quote age p95 ~1.1s.
 
+## Addendum (same session) — the warm hook took the API down
+
+Copying `large_cap_hooks`' thread-per-commit shape was wrong for the mover tables and I caught it only because the desk went dark ~40 minutes after the first commit: `run_api.py` was alive with a healthy IB socket but had stopped accepting on :8000, holding ~300 ESTABLISHED Yahoo sockets. Large Cap gets away with a thread per commit because it is one table committing rarely; gainers/losers/afterhours are three tables committing every couple of minutes, and on a cold fundamentals cache each thread runs up to 50 sequential `yf.Ticker(sym).info` calls with its own session and executor. The TTL skip in `fetch_fundamentals_batch` cannot help while the cache is still cold, because every overlapping thread asks for the same uncached symbols.
+
+Fixed by making the warm single-flight: one worker, symbols coalesced into a pending set, and the worker releases its slot while still holding the lock a producer checks so a commit arriving during shutdown is not dropped. Lesson worth keeping: "mirror the existing hook" is only safe when the *call frequency* matches too, and the read side (`decorate_rows`) was never the risky half — the write/fetch side was.
+
 ## Follow-ups
 
 - NEWS flame column is still dead under IBKR discovery — needs a roster news-fetch loop.

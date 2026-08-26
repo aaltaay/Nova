@@ -1,8 +1,17 @@
 """Post-roster-commit fundamentals warm for the mover tables (ADR 008).
 
-Mirrors ``large_cap_hooks``: ``fetch_fundamentals_batch`` is synchronous
-per-symbol network I/O and must never run on the asyncio loop that also serves
-HTTP/WS (the same loop ``scanner_hydrate._hydrate_pending`` runs on).
+Mirrors ``large_cap_hooks`` in spirit: ``fetch_fundamentals_batch`` is
+synchronous per-symbol network I/O and must never run on the asyncio loop that
+also serves HTTP/WS (the same loop ``scanner_hydrate._hydrate_pending`` runs
+on).
+
+Unlike Large Cap -- one table, rare commits -- the mover tables commit often and
+there are three of them, so a thread-per-commit pile-up is real: each
+``fetch_fundamentals_batch`` opens a yfinance HTTPS session per symbol, and
+overlapping warms for a cold cache stacked hundreds of live Yahoo sockets and
+threads onto the API process until it stopped accepting connections. So this
+hook is **single-flight**: one warm worker at a time, with pending symbols
+coalesced into a set that the running worker drains before exiting.
 
 Warming only fills the yfinance cache. ``mover_enrich_view.decorate_rows``
 reads it at serialization time, so a frozen table's stored row is never
@@ -27,23 +36,52 @@ _MOVER_TABLES = frozenset({
     _ss.TABLE_AFTERHOURS,
 })
 
+_lock = threading.Lock()
+_pending: set[str] = set()
+_worker: threading.Thread | None = None
+
 
 def on_mover_roster_commit(table: str, rows: list[dict]) -> None:
+    """Queue this table's symbols for a background yfinance warm."""
+    global _worker
     if table not in _MOVER_TABLES:
         return
-    symbols = [r.get("symbol") for r in rows if r.get("symbol")]
+    symbols = {
+        sym for sym in (
+            (r.get("symbol") or "").strip().upper() for r in rows
+        ) if sym
+    }
     if not symbols:
         return
-    threading.Thread(
-        target=_warm_fundamentals, args=(symbols,), daemon=True,
-        name=f"mover_fundamentals_warm_{table}",
-    ).start()
+    with _lock:
+        _pending.update(symbols)
+        if _worker is not None and _worker.is_alive():
+            return
+        _worker = threading.Thread(
+            target=_drain, daemon=True, name="mover_fundamentals_warm",
+        )
+        _worker.start()
 
 
-def _warm_fundamentals(symbols: list[str]) -> None:
-    try:
-        from fundamentals import fetch_fundamentals_batch
+def _drain() -> None:
+    """Fetch queued symbols until the queue is empty, one batch at a time."""
+    global _worker
+    from fundamentals import fetch_fundamentals_batch
 
-        fetch_fundamentals_batch(symbols)
-    except Exception:
-        logger.exception("mover_enrich_hooks: fundamentals warm failed")
+    while True:
+        with _lock:
+            batch = sorted(_pending)
+            _pending.clear()
+            if not batch:
+                # Release the slot under the same lock a producer checks, so a
+                # commit arriving right now cannot see a live-but-exiting
+                # worker and drop its symbols on the floor.
+                _worker = None
+                return
+        try:
+            fetch_fundamentals_batch(batch)
+        except Exception:
+            logger.exception(
+                "mover_enrich_hooks: fundamentals warm failed for %d symbol(s)",
+                len(batch),
+            )

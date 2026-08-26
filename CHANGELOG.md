@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-26 -- Mover fundamentals warm is single-flight
+
+- **What:** The yfinance warm added with the scanner column fix now runs at most one background worker instead of one thread per roster commit per table.
+- **Why:** Thread-per-commit across three mover tables stacked hundreds of yfinance threads and Yahoo sockets onto the API process on a cold cache until uvicorn stopped accepting on :8000. See PROBLEM_LOG 2026-08-26.
+- **Files touched:** `backend/mover_enrich_hooks.py`, `backend/tests/test_mover_columns.py`.
+- **How it works now:** `on_mover_roster_commit` adds the table's symbols to a module-level pending set under a lock; if a worker is already alive it just queues. The worker loops, draining the pending set one `fetch_fundamentals_batch` at a time, and clears its own slot while still holding the lock so a commit arriving mid-shutdown cannot be dropped. `large_cap_hooks` keeps its simpler thread-per-commit shape -- one table, rare commits.
+- **Verified by:** `test_mover_warm_is_single_flight` (second and third commits queue, both batches still fetched); 1397 pytest green; live API healthy with established socket count falling 145 → 124 over 90s instead of climbing.
+- **Related:** PROBLEM_LOG 2026-08-26 "API stopped serving :8000…"; the entry below that introduced the hook.
+
 ## 2026-08-26 -- Scanner tables: every row gets L1, and Gap % / RVOL / Float / Short Int. / Mkt Cap actually fill
 
 - **What:** The scanner table you are looking at is now declared for IBKR Level-1 streaming on mount, not only when you click its tab -- so all 50 rows get a price instead of the ~25 that HOD's pool happened to cover. `Gap %` is computed from the real IBKR session open (tick 14). `RVOL`, `Float`, `Short Int.`, and `Mkt Cap` are filled from yfinance for gainers/losers/afterhours/gappers, which previously showed `—` / `N/A` forever under `discovery=ibkr`. The RVOL badge now reads `yfinance avg` instead of `Alpaca avg`.

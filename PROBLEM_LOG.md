@@ -37,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-26 -- API stopped serving :8000 after the mover fundamentals warm piled up yfinance threads
+
+- **Symptom:** Within an hour of shipping the mover enrichment hook, `run_api.py` was still alive with a healthy IB socket but had **no listener on :8000** -- `/api/health` returned nothing, and the process held ~300 ESTABLISHED HTTPS sockets to Yahoo. A second API refused to start because `api_instance_lock` correctly reported the (genuinely alive, just not serving) PID.
+- **Cause:** `mover_enrich_hooks.on_mover_roster_commit` copied `large_cap_hooks` and started a **new daemon thread per roster commit**. Large Cap gets away with that -- one table, rare commits. The mover tables are three (gainers/losers/afterhours) and commit every couple of minutes, and on a cold fundamentals cache every one of those threads runs up to 50 sequential `yf.Ticker(sym).info` calls, each opening its own session and its own `ThreadPoolExecutor`. Overlapping warms stacked hundreds of threads and Yahoo sockets onto the API process until uvicorn stopped accepting on :8000. `fetch_fundamentals_batch`'s TTL skip does not help while the cache is still cold, because all the overlapping threads request the same not-yet-cached symbols.
+- **Fix:** Made the warm **single-flight** in `backend/mover_enrich_hooks.py`: one worker thread ever, with incoming symbols coalesced into a module-level pending set that the running worker drains before exiting. The worker releases its slot while still holding the same lock a producer checks, so a commit arriving during shutdown cannot see a live-but-exiting worker and drop its symbols. `mover_enrich_view` (read side) was unaffected.
+- **Fix class:** ownership
+- **Verified by:** New `test_mover_warm_is_single_flight` proves a second and third commit queue instead of spawning threads and that both batches are still fetched; 1397 pytest green. Live after restart: API healthy on :8000 and established socket count trending **down** (145 → 132 → 131 → 124 over 90s) instead of climbing.
+- **Keywords:** api not listening, port 8000, uvicorn stopped accepting, yfinance thread pile-up, Yahoo ESTABLISHED sockets, mover_enrich_hooks, fetch_fundamentals_batch, single-flight, daemon thread per commit, large_cap_hooks, api_instance_lock false positive
+
 ## 2026-08-26 -- Gainers columns empty all session: half the rows unpriced, Gap %/RVOL/Float/Short Int./Mkt Cap never filled
 
 - **Symptom:** The Gainers table showed red `N/A` for CHANGE on ~half its rows with `—` price and `0` volume, `N/A` for GAP % on **every** row, and `—` for FLOAT / SHORT INT. / MKT CAP plus `N/A` for the RVOL sub-line on every row -- premarket through the close. Some rows populated after 09:30 and the rest never did. Every scanner integrity check reported `pass` the whole time.
