@@ -59,4 +59,14 @@ describe('TickerChartControls filling hint', () => {
     });
     expect(container.querySelector('.chart-filling-hint')).toBeNull();
   });
+
+  it('does not spend chart header space on a session legend', async () => {
+    await act(async () => {
+      root.render(renderControls(null));
+    });
+    expect(container.querySelector('.chart-session-legend')).toBeNull();
+    expect(container.textContent).not.toContain('Premarket');
+    expect(container.textContent).not.toContain('RTH');
+    expect(container.textContent).not.toContain('After-hours');
+  });
 });

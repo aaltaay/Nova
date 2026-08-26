@@ -1,8 +1,9 @@
 """Session-level IBKR errorEvent handler (G1/G4 + usable-session SoT).
 
-Installed once per ``IB()`` instance from ``client`` after READY. Covers
-connectivity (1100/1101/1102), data-farm notices (2104/2106/2108),
-max-tickers (101), delayed-data (10167), and MD-subscription-required (10089).
+Installed on each ``IB()`` before ``connectAsync`` (so Error 326 is seen)
+and again after READY. Covers clientId-in-use (326), connectivity
+(1100/1101/1102), data-farm notices (2104/2106/2108), max-tickers (101),
+delayed-data (10167), and MD-subscription-required (10089).
 
 Handlers MUST NOT issue new IB requests (ib_async forbids it). Connectivity
 codes only observe + classify + enqueue; ``reconnect_loop`` acts via
@@ -16,6 +17,7 @@ import time
 from typing import Any, Literal
 
 from constants import (
+    IBKR_ERROR_CLIENT_ID_IN_USE,
     IBKR_ERROR_CONNECTIVITY_CODES,
     IBKR_ERROR_CONNECTIVITY_LOST,
     IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_KEPT,
@@ -184,6 +186,17 @@ def _on_ib_error(
     code = int(errorCode)
     msg = (errorString or "").strip()
     now = time.time()
+
+    if code == IBKR_ERROR_CLIENT_ID_IN_USE:
+        logger.warning(
+            "IBKR session_errors: clientId already in use (Error %s) — %s",
+            code, msg or "another API is holding the Gateway slot",
+        )
+        _last_connectivity_code = code
+        _last_connectivity_ts = now
+        _publish_reason("client_id_in_use")
+        stamp_unusable(code=code)
+        return
 
     if code == IBKR_ERROR_CONNECTIVITY_LOST:
         # WARNING: expected Gateway churn; ops-once Sentry via stamp_unusable.

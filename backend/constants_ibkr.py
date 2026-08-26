@@ -39,6 +39,8 @@ IBKR_LIVE_PORT = 4001        # IB Gateway live trading port
 # workers → Error 326 "client id already in use" / hung connectAsync that can
 # wedge the FastAPI event loop. Override with IBKR_CLIENT_ID in .env.
 IBKR_CLIENT_ID = 17
+# Error 326 -- another process already holds this clientId (second API).
+IBKR_ERROR_CLIENT_ID_IN_USE = 326
 IBKR_MAX_DEPTH_SYMBOLS = 3   # IBKR plan cap: 3 simultaneous Level 2 streams
 IBKR_DEPTH_NUM_ROWS = 10     # Bid/ask rows requested per side of the book
 # SMART-routed depth requires isSmartDepth=True (TWS API ≥974). With False,

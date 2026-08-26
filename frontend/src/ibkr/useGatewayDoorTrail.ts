@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '../constants';
-import type { DoorTrailEvent } from './formatDoorTrail';
+import { doorTrailLoadError, type DoorTrailEvent } from './formatDoorTrail';
 
 const TRAIL_LIMIT = 80;
 
@@ -33,7 +33,7 @@ export function useGatewayDoorTrail(active = true): {
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'trail unavailable');
+          setError(doorTrailLoadError(err));
         }
       } finally {
         if (!cancelled) setLoading(false);

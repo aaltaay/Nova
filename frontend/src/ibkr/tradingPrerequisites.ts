@@ -10,6 +10,7 @@ import {
 } from '../constants';
 import type { HealthStatus } from '../types/health';
 import {
+  PREREQ_GATEWAY_CLIENT_ID_DETAIL,
   PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL,
   PREREQ_GATEWAY_FOLLOW_PAPER_DETAIL,
   PREREQ_GATEWAY_LOGIN_DETAIL,
@@ -137,6 +138,9 @@ function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): st
   if (follow === 'live') return PREREQ_GATEWAY_FOLLOW_LIVE_DETAIL;
   if (gatewayPortOpenButSessionDown(input)) {
     const reason = (input.sessionReason || '').trim();
+    if (reason === 'client_id_in_use') {
+      return PREREQ_GATEWAY_CLIENT_ID_DETAIL;
+    }
     if (reason && reason !== 'ok' && reason !== 'disconnected') {
       return `${PREREQ_GATEWAY_PORT_OPEN_DETAIL} (reason: ${reason})`;
     }

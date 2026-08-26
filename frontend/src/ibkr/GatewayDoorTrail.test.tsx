@@ -61,4 +61,21 @@ describe('GatewayDoorTrail', () => {
     expect(container.textContent).toContain('Click');
     expect(container.textContent).toContain('live');
   });
+
+  it('shows an honest hint when the trail fetch fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
+    await act(async () => {
+      root.render(<GatewayDoorTrail />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const err = container.querySelector('[data-testid="gateway-door-trail-error"]');
+    expect(err?.textContent).toMatch(/two Nova APIs/i);
+    expect(err?.textContent).not.toBe('Failed to fetch');
+  });
 });

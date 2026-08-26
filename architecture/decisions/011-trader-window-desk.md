@@ -6,10 +6,11 @@
 
 ## Context
 
-Trader View grew two one-way gestures:
+Trader View grew two one-way gestures, then a third operator request:
 
-1. Default: add a tab in this window (`openStockView`).
+1. Default: a ticker click opens Trader in this window (`openStockView`).
 2. Extract: `window.open` / Electron `BrowserWindow` + drop the tab here.
+3. Scanner clicks must not stack extra tabs -- they replace the active tab. `+` remains the only in-window add.
 
 There was no inverse. A popped-out window could only be closed. Session tab state lived in per-window `sessionStorage`, so windows could not agree on a move. `WorkspaceContext` was becoming the place every new windowing idea would get patched.
 
@@ -31,11 +32,21 @@ The operator needs Chrome-style docking: grab the ticker in the floated window a
 
 6. **Cap stays `TRADER_MAX_TABS` on the target.** If the target cannot take S, it does not publish `tab-docked` and the source stays put.
 
+7. **Ticker click replaces the active tab; `+` adds; Pop out extracts.** `openStockView` calls `replaceActiveTab`, not `addTab`:
+   - No Trader tab: create the first tab and show Trader.
+   - Occupied active tab: replace that tab's symbol in place. Tab count does not change, so a click never burns a 4th L2 slot.
+   - Symbol already open: activate that tab. Do not duplicate.
+   - Draft active tab: commit the draft to the clicked symbol.
+   - `+` / dock / drop still use `addTab` / `addDraftTab` and can hit the cap.
+   - `Pop out` and **tab** double-click still extract. A scanner ticker double-click has no special action.
+
+7a. **Row body vs ticker button is a spatial split, not click-vs-double-click (2026-08-26).** On tables that render a separate `SymbolSelectButton` (scanner tables, Catalysts, HOD Momo + Running Up, Watchlist, Signals), only the ticker opens Trader (`openStockView`). The row body calls `WorkspaceContext.selectRowSymbol`: on Scanner it only updates `selectedSymbol` (Quote Panel), leaving the operator on Scanner; while Trader is already showing (no Quote Panel to update) it falls through to `tryReplaceActive`, so a dock/roster row click there still switches the active tab. `SelectableTableRow`'s `openOnRowClick` prop (default `true`) keeps the old single-gesture behavior on tables with no ticker button (Positions, Working/Closed Orders, Journal, Executor, HOD debug) -- their row click still opens Trader directly. This does **not** reopen the temporal click-vs-double-click split rejected below; row and ticker are two different DOM elements clicked once, not one element clicked twice.
+
 ## Consequences
 
 - Docking works in Vite/browser and in Electron with one protocol.
-- `WorkspaceContext` stays a shell: it applies `addTab` / `closeTab` and talks to the desk bus.
-- A 4th live L2 symbol is still blocked on the receiving strip.
+- `WorkspaceContext` stays a shell: it applies `replaceActiveTab` / `addTab` / `closeTab` and talks to the desk bus.
+- A 4th live L2 symbol is still blocked on add/dock. Scanner clicks replace instead of adding, so they do not hit that cap.
 - Dragging the OS title bar (not the tab) does not dock until the Electron adapter exists.
 
 ## Rejected alternatives
@@ -46,11 +57,15 @@ The operator needs Chrome-style docking: grab the ticker in the floated window a
 - dnd-kit -- same-document only; docking is cross-window.
 - Auto-dock when two BrowserWindows overlap -- false docks while arranging monitors. Geometry may later *emit* the desk command after an explicit release rule, not replace it.
 - A repo-wide event bus for other features.
+- Reusing `addTab` for an occupied active tab -- that stacked symbols on every scanner click.
+- Delayed click-vs-double-click on ticker rows (Quote Panel first, Trader 280ms later) -- the second click had no special action, and the delay made Trader feel broken.
 
 ## Implementation map
 
 | Piece | Path |
 |-------|------|
+| Replace vs add | `frontend/src/stock_view/traderTabsState.ts` (`replaceActiveTab` / `addTab`) |
+| Open vs extract | `frontend/src/workspace/traderDesk/useTraderDeskBinding.ts` |
 | Drag + message codec | `frontend/src/workspace/traderDesk/protocol.ts` |
 | Role / close / claim | `frontend/src/workspace/traderDesk/commands.ts` |
 | BroadcastChannel | `frontend/src/workspace/traderDesk/bus.ts` |

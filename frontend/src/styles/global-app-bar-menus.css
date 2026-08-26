@@ -1,0 +1,70 @@
+/* Account / Working dropdowns for GlobalAppBar. */
+
+.global-app-bar__card {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  min-width: 15rem;
+  padding: 0.45rem 0;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  background: var(--menu-bg, var(--nova-panel));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+}
+
+.global-app-bar__card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 0.35rem 0.75rem;
+  color: var(--nova-text-muted);
+}
+
+.global-app-bar__card-row:hover {
+  background: var(--hover-bg);
+}
+
+.global-app-bar__card-row span:last-child {
+  color: var(--nova-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.global-app-bar__tone--filled {
+  color: #32d4a4;
+  font-weight: 650;
+}
+
+.global-app-bar__menu-divider {
+  height: 1px;
+  margin: 0.25rem 0;
+  background: var(--nova-border);
+}
+
+.global-app-bar__menu-action {
+  display: block;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text);
+  font: inherit;
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+
+.global-app-bar__menu-action:hover:not(:disabled) {
+  background: var(--hover-bg);
+}
+
+.global-app-bar__menu-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.global-app-bar__working-menu {
+  right: 0;
+  min-width: 13.5rem;
+}

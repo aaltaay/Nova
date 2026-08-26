@@ -409,12 +409,6 @@ export const CHART_SESSION_COLORS = {
   closed: 'rgba(0, 0, 0, 0.18)',
 } as const;
 
-export const CHART_SESSION_LEGEND = [
-  { id: 'premarket', label: 'Premarket', color: CHART_SESSION_COLORS.premarket },
-  { id: 'rth', label: 'RTH', color: CHART_SESSION_COLORS.rth },
-  { id: 'afterhours', label: 'After-hours', color: CHART_SESSION_COLORS.afterhours },
-] as const;
-
 // ── Ticker chart ─────────────────────────────────────────────────────────────
 // Mirrors backend CHART_TIMEFRAMES / CHART_DEFAULT_TIMEFRAME in constants.py.
 export interface ChartTimeframe {
@@ -541,6 +535,8 @@ export function chartBarsFetchPriority(timeframe: string): number {
 export const CHART_REFETCH_SEC: Record<string, number> = {
   // Live forming candle comes from WS ticks; poll is reconciliation only.
   // 10Sec deliberately omitted -- historical once + live append (small-bar pacing).
+  // If that one-shot fetch lands empty+filling (bars_patch not yet delivered),
+  // useChartBars' stuck-retry backstop (below) covers it instead of a poll.
   '1Min': 30,
   '5Min': 30,
   '15Min': 45,
@@ -548,6 +544,11 @@ export const CHART_REFETCH_SEC: Record<string, number> = {
   '1Hour': 120,
   '4Hour': 180,
 };
+
+/** Backoff bounds for the "empty + filling" stuck-pane retry (chartBarsStuckRetry.ts).
+ * Unbounded attempt count on purpose -- capped interval, not a dead end. */
+export const CHART_BARS_STUCK_RETRY_MIN_MS = 3_000;
+export const CHART_BARS_STUCK_RETRY_MAX_MS = 15_000;
 
 /**
  * Chart indicator toggles — computed via lightweight-charts-indicators (not hand-rolled).

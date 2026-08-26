@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DrawingManager, TrendLine, type Anchor } from 'lightweight-charts-drawing';
 import type { IChartApi, ISeriesApi, MouseEventParams, Time } from 'lightweight-charts';
 import { CHART_DRAWING_STYLE, CHART_SINGLE_ANCHOR_TOOLS } from './chartDrawingConfig';
+import { deleteSelectedDrawingOnKey } from './chartDrawingKeys';
+
 interface UseChartDrawingManagerOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
   chartRef: React.RefObject<IChartApi | null>;
@@ -81,10 +83,19 @@ export function useChartDrawingManager({
   useEffect(() => {
     const manager = managerRef.current;
     if (!manager) return;
-    const unsub = manager.on('drawing:added', () => {
+    const unsubAdded = manager.on('drawing:added', () => {
       setActiveTool(null);
     });
-    return unsub;
+    const onDeleteKey = (event: KeyboardEvent) => {
+      const current = managerRef.current;
+      if (!current) return;
+      deleteSelectedDrawingOnKey(current, event);
+    };
+    window.addEventListener('keydown', onDeleteKey);
+    return () => {
+      unsubAdded();
+      window.removeEventListener('keydown', onDeleteKey);
+    };
   }, [chartApi]);
 
   function handleToolClick(toolId: string) {

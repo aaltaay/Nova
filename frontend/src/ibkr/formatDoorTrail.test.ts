@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { DOOR_TRAIL_FETCH_FAILED } from './gatewayUxConstants';
 import {
   doorTrailEventLabel,
+  doorTrailLoadError,
   formatDoorTrailLine,
   newestFirst,
 } from './formatDoorTrail';
@@ -34,5 +36,12 @@ describe('formatDoorTrail', () => {
       { event: 'attached', ts: 2 },
     ]);
     expect(rows[0]?.event).toBe('attached');
+  });
+
+  it('maps Failed to fetch to an honest dual-API hint', () => {
+    expect(doorTrailLoadError(new TypeError('Failed to fetch'))).toBe(
+      DOOR_TRAIL_FETCH_FAILED,
+    );
+    expect(doorTrailLoadError(new Error('HTTP 500'))).toBe('HTTP 500');
   });
 });

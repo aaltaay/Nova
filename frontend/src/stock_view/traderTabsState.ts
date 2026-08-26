@@ -107,6 +107,27 @@ export function renameTab(
   return { state: { tabs, active: toSym }, blocked: false };
 }
 
+/**
+ * Ticker click (ADR 011 decision 7): open the first tab, activate an
+ * already-open symbol, or replace the active tab's symbol in place --
+ * never adds a second tab and never blocks at the cap. `+` / dock / drop
+ * keep using `addTab` for the "grow the strip" cases.
+ */
+export function replaceActiveTab(
+  state: TraderTabsState,
+  symbol: string,
+  maxTabs: number,
+): TraderTabsResult {
+  const sym = norm(symbol);
+  if (!sym) return { state, blocked: false };
+  if (state.tabs.length === 0) return addTab(state, sym, maxTabs);
+  if (state.tabs.includes(sym)) {
+    return { state: { tabs: state.tabs, active: sym }, blocked: false };
+  }
+  const target = state.active ?? state.tabs[0];
+  return renameTab(state, target, sym, maxTabs);
+}
+
 export type PersistedTraderTabs = {
   tabs: string[];
   active: string | null;

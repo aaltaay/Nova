@@ -34,6 +34,7 @@ function WatchlistRow({
       selected={selected}
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
+      openOnRowClick={false}
     >
       <td>
         <SymbolSelectButton
@@ -138,7 +139,7 @@ export function WatchlistTab({
           <div className="watchlist-description">
             Ranked by the Five Pillars (price, % change, relative volume, catalyst, float) with a
             composite score breaking ties. Signal only — no orders are placed from this tab.
-            Click a symbol for the side panel; double-click for the full trading view.
+            Click a row for the Quote Panel; click the ticker to open Trader.
           </div>
           {error && <div className="empty-state">{error}</div>}
           {!error && entries.length === 0 ? (
@@ -150,7 +151,7 @@ export function WatchlistTab({
               <table>
                 <thead>
                   <tr>
-                    <th title="Click: side panel. Double-click: full trading view.">Symbol</th>
+                    <th title="Click the row for the Quote Panel. Click the ticker to open Trader.">Symbol</th>
                     <th title="How many of the 5 Pillars (price, % change, relative volume, catalyst, float) currently pass. All 5 passing ranks a symbol above any partial match.">Pillars</th>
                     <th title="Hover a chip above to see exactly why that pillar passed or failed for this symbol.">Detail</th>
                     {Object.entries(WATCHLIST_SUBSCORE_LABELS).map(([key, label]) => (

@@ -275,6 +275,21 @@ async def _reconnect_once(client_mod: object) -> None:
         client_mod._ib = client_mod.IB()  # type: ignore[attr-defined]
         _session.set_connecting()
 
+        if reason == "client_id_in_use":
+            client_mod.set_session_reason("client_id_in_use")  # type: ignore[attr-defined]
+            client_mod._set_session(  # type: ignore[attr-defined]
+                mode="disconnected", broker_account_kind="unknown",
+            )
+            _session.set_disconnected()
+            _heal.record_connect_outcome("failed", reason="client_id_in_use")
+            logger.error(
+                "IBKR: clientId %s already in use (Error 326) -- another Nova "
+                "API is holding the Gateway slot. One process on :8000 only.",
+                client_id,
+            )
+            await client_mod._sleep_reconnect(IBKR_RECONNECT_DELAY_SEC)  # type: ignore[attr-defined]
+            return
+
         if reason == "timeout":
             from ibkr.port_diagnostics import probe_port
 

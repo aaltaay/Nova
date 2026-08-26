@@ -140,7 +140,7 @@ function TickerChartInner({
       ? (indicatorBars[indicatorBars.length - 1].time as number)
       : 0);
 
-  const sessionHighlight = useChartSessionHighlight({
+  useChartSessionHighlight({
     chartApi,
     candleSeriesRef,
     timeframe,
@@ -185,7 +185,6 @@ function TickerChartInner({
         enabledIndicators={enabledIndicators}
         lockTimeframe={lockTimeframe}
         maximized={maximized}
-        showSessionLegend={sessionHighlight}
         subtitle={subtitle}
         timeframe={timeframe}
         title={title}

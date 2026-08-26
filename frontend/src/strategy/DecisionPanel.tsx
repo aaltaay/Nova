@@ -1,7 +1,6 @@
 /** DecisionPanel — gate-by-gate Nova OS audit (signal only; never places orders). */
 import { useEffect, useRef } from 'react';
-import { NOVA_OS_DECISION_LABELS, SETUP_LABELS, SYMBOL_DOUBLE_CLICK_MS } from '../constants';
-import { createClickVsDoubleClick } from '../utils/clickVsDoubleClick';
+import { NOVA_OS_DECISION_LABELS, SETUP_LABELS, TICKER_OPEN_TRADER_TITLE } from '../constants';
 import {
   attentionKindForDecision,
   pushNovaOsAttention,
@@ -26,29 +25,16 @@ function DecisionCard({
   onOpenTrading: (symbol: string) => void;
 }) {
   const failed = firstFailedGate(decision.gates);
-  const symbolRef = useRef(decision.symbol);
-  const onSelectRef = useRef(onSelect);
-  const onOpenRef = useRef(onOpenTrading);
-  symbolRef.current = decision.symbol;
-  onSelectRef.current = onSelect;
-  onOpenRef.current = onOpenTrading;
-
-  const handlersRef = useRef(
-    createClickVsDoubleClick(
-      () => onSelectRef.current(symbolRef.current),
-      () => onOpenRef.current(symbolRef.current),
-      SYMBOL_DOUBLE_CLICK_MS,
-    ),
-  );
-
-  useEffect(() => () => handlersRef.current.cancel(), []);
 
   return (
     <button
       type="button"
       className={`nova-os-decision-card ${selected ? 'selected' : ''} ${decisionClass(decision.decision)}`}
-      onClick={() => handlersRef.current.handleClick()}
-      title="Click: Quote Panel · Double-click: Trader (new window)"
+      onClick={() => {
+        onSelect(decision.symbol);
+        onOpenTrading(decision.symbol);
+      }}
+      title={TICKER_OPEN_TRADER_TITLE}
     >
       <div className="nova-os-decision-card-head">
         <strong>{decision.symbol}</strong>

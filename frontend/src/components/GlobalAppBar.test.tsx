@@ -325,6 +325,29 @@ describe('GlobalAppBar', () => {
     expect(segs[0].classList.contains('is-paper')).toBe(true);
   });
 
+  it('drops the flex spacer so zoom can move scanner onto its own row', () => {
+    act(() => {
+      root.render(
+        <GlobalAppBar
+          scanner={{
+            mode: 'closed',
+            health: { status: 'ok', latency_ms: 1 },
+            activeFeed: 'ibkr',
+            feedFellBack: false,
+            secondsAgo: 1,
+            historyDate: null,
+            historyDates: [],
+            onHistoryChange: () => {},
+            onLookup: () => {},
+          }}
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="global-bar-scanner"]')).toBeTruthy();
+    expect(container.querySelector('.global-app-bar__spacer')).toBeNull();
+    expect(container.textContent).toMatch(/Market Closed/);
+  });
+
   it('places Account next to Settings and opens the trading tab', () => {
     renderBar();
     const accountBtn = container.querySelector(

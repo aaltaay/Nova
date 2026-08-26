@@ -28,29 +28,6 @@
   letter-spacing: 0.04em;
 }
 
-.chart-session-legend {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.65rem;
-  color: var(--text-secondary);
-}
-
-.chart-session-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.chart-session-swatch {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-sizing: border-box;
-}
-
 .chart-tabs {
   display: flex;
   gap: 2px;

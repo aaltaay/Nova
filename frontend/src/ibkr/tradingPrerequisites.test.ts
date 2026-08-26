@@ -62,6 +62,24 @@ describe('buildTradingPrerequisites', () => {
     expect(out.items.find((i) => i.id === 'ibkr_gateway')?.action).toBe('launch_gateway');
   });
 
+  it('names a clientId fight instead of Error 1100 when session_reason is client_id_in_use', () => {
+    const out = buildTradingPrerequisites({
+      health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
+      ibkrEnabled: true,
+      ibkrConnected: false,
+      preferredPortReachable: true,
+      ibkrTransportConnected: false,
+      disconnectHint: 'live_port_open_but_disconnected',
+      sessionReason: 'client_id_in_use',
+    });
+    const gw = out.items.find((i) => i.id === 'ibkr_gateway');
+    expect(gw?.action).toBe('reconnect_ibkr');
+    expect(gw?.detail).toMatch(/clientId 17/i);
+    expect(gw?.detail).toMatch(/extra API/i);
+    expect(gw?.detail).not.toMatch(/Error 1100/i);
+    expect(gw?.detail).toMatch(/not a Gateway login/i);
+  });
+
   it('offers reconnect (not login) when Gateway port is open but session not READY', () => {
     const out = buildTradingPrerequisites({
       health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },

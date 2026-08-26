@@ -17,10 +17,17 @@ import {
   addTab,
   closeTab,
   renameTab,
+  replaceActiveTab,
   type TraderTabsState,
 } from '../../stock_view/traderTabsState';
 import { claimDockTarget, closePolicyAfterGive, deskRoleFromStockView, isForeignTabDrag } from './commands';
-import { initialTraderState, readStoredTabs, writeBlockNotice, writeStoredTabs } from './traderSession';
+import {
+  initialTraderState,
+  persistSymbolReplace,
+  readStoredTabs,
+  writeBlockNotice,
+  writeStoredTabs,
+} from './traderSession';
 import { useTraderDesk } from './useTraderDesk';
 import { getTraderWindowId } from './windowId';
 import type { TraderTabDragPayload } from './protocol';
@@ -69,6 +76,26 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     return ok;
   }, [setSelectedSymbol, showBlockNotice]);
 
+  /** Ticker click (ADR 011 decision 7): open the first tab, activate an
+   * already-open symbol, or replace the active tab's symbol in place --
+   * never adds a second tab, never blocked. `+` / dock / drop keep using
+   * `tryAddTab` above. */
+  const tryReplaceActive = useCallback((symbol: string) => {
+    const sym = symbol.trim().toUpperCase();
+    if (!sym) return;
+    setSelectedSymbol(sym);
+    setTraderViewActive(true);
+    writeBlockNotice(null);
+    setTraderBlockNotice(null);
+    const urlSym = parseStockViewSymbol();
+    setTraderState((prev) => {
+      const fromSymbol = prev.tabs.length > 0 ? (prev.active ?? prev.tabs[0]) : null;
+      const { state } = replaceActiveTab(prev, sym, TRADER_MAX_TABS);
+      persistSymbolReplace(urlSym, fromSymbol, sym, state);
+      return state;
+    });
+  }, [setSelectedSymbol]);
+
   const onDockRequest = useCallback((symbol: string, requestId: string) => {
     if (role !== 'host') return false;
     try {
@@ -116,8 +143,21 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
   }, []);
 
   const openStockView = useCallback((symbol: string) => {
-    tryAddTab(symbol);
-  }, [tryAddTab]);
+    tryReplaceActive(symbol);
+  }, [tryReplaceActive]);
+
+  /** Row-body click (not the ticker) on tables that also render a
+   * `SymbolSelectButton`. On Scanner, a row only loads the Quote Panel --
+   * it must not steal focus into Trader. Once Trader is already showing
+   * there is no Quote Panel to update, so the row instead switches the
+   * active tab, same as a ticker click. */
+  const selectRowSymbol = useCallback((symbol: string) => {
+    if (traderViewActive) {
+      tryReplaceActive(symbol);
+    } else {
+      setSelectedSymbol(symbol.trim().toUpperCase());
+    }
+  }, [traderViewActive, tryReplaceActive, setSelectedSymbol]);
 
   const extractTraderTab = useCallback((symbol: string) => {
     const sym = symbol.trim().toUpperCase();
@@ -186,13 +226,7 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
         showBlockNotice(to);
         return prev;
       }
-      if (urlSym && toSym && fromKey === urlSym) {
-        const registry = closeTab(readStoredTabs(), urlSym);
-        const merged = addTab(registry, toSym, TRADER_MAX_TABS);
-        if (!merged.blocked) writeStoredTabs(merged.state);
-      } else if (!urlSym) {
-        writeStoredTabs(state);
-      }
+      persistSymbolReplace(urlSym, fromKey, toSym, state);
       return state;
     });
   }, [showBlockNotice]);
@@ -232,6 +266,7 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     traderBlockNotice,
     desk,
     openStockView,
+    selectRowSymbol,
     extractTraderTab,
     acceptTraderTabDrop,
     requestDockTraderTab,

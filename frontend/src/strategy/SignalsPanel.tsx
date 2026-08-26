@@ -37,6 +37,7 @@ function SignalRow({
       selected={selected}
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
+      openOnRowClick={false}
     >
       <td className="hod-time-cell">{fmtTime(signal.timestamp)}</td>
       <td>
@@ -82,7 +83,7 @@ export function SignalsPanel({
     <div className="signals-panel">
       <div className="watchlist-description">
         Live setup triggers (Gap and Go, Bull Flag, ABCD) — signal only, no orders are placed.
-        Click a symbol for the side panel; double-click for the full trading view.
+        Click a row for the Quote Panel; click the ticker to open Trader.
         {!connected && <span className="na-muted"> Reconnecting…</span>}
       </div>
       {signals.length === 0 ? (
@@ -95,7 +96,7 @@ export function SignalsPanel({
             <thead>
               <tr>
                 <th title="When this setup was detected as eligible.">Time</th>
-                <th title="Click: side panel. Double-click: full trading view.">Symbol</th>
+                <th title="Click the row for the Quote Panel. Click the ticker to open Trader.">Symbol</th>
                 <th title="Which pattern triggered: Gap and Go, Bull Flag, or ABCD. See backend/strategy/*.py for the exact rule.">Setup</th>
                 <th title="Nova OS decide() verdict for this signal (BUY / WAIT / NO BUY). Signal only — no orders.">Nova OS</th>
                 <th title="Suggested entry price if this signal were acted on.">Entry</th>

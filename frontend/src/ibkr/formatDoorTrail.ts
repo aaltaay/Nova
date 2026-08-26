@@ -1,4 +1,5 @@
 /** Format Paper/Live door-trail rows for the operator UI. No account ids. */
+import { DOOR_TRAIL_FETCH_FAILED } from './gatewayUxConstants';
 
 export type DoorTrailEvent = {
   schema_version?: number;
@@ -58,4 +59,12 @@ export function formatDoorTrailLine(row: DoorTrailEvent): string {
 
 export function newestFirst(rows: DoorTrailEvent[]): DoorTrailEvent[] {
   return [...rows].reverse();
+}
+
+export function doorTrailLoadError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err ?? '');
+  if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+    return DOOR_TRAIL_FETCH_FAILED;
+  }
+  return msg.trim() || 'trail unavailable';
 }

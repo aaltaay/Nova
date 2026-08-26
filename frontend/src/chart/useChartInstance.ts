@@ -11,6 +11,7 @@ import {
   type Time,
 } from 'lightweight-charts';
 import { formatChartCrosshairTime, formatChartTickMark } from './chartTimeFormat';
+import { CHART_CROSSHAIR_OPTIONS } from './chartInteractionConfig';
 import { measureChartFillHeight } from './measureChartFillHeight';
 import { isSubMinuteTimeframe } from '../tickerChartData';
 
@@ -77,10 +78,7 @@ export function useChartInstance({
     const chart = createChart(container, {
       layout: { background: { color: '#161921' }, textColor: '#8b92a5' },
       grid: { vertLines: { color: '#262a36' }, horzLines: { color: '#262a36' } },
-      crosshair: {
-        vertLine: { color: '#3b82f6', labelBackgroundColor: '#3b82f6' },
-        horzLine: { color: '#3b82f6', labelBackgroundColor: '#3b82f6' },
-      },
+      crosshair: CHART_CROSSHAIR_OPTIONS,
       localization: {
         locale: 'en-US',
         timeFormatter: (t: Time) => formatChartCrosshairTime(t, showSecondsRef.current),

@@ -11,6 +11,8 @@ import {
 } from '../../constantGroups/trader_view';
 import {
   EMPTY_TRADER_TABS,
+  addTab,
+  closeTab,
   hydrateWithSymbol,
   parseTraderTabs,
   serializeTraderTabs,
@@ -36,6 +38,29 @@ export function writeStoredTabs(state: TraderTabsState): void {
   } catch {
     /* private mode / quota */
   }
+}
+
+/**
+ * Shared persistence for "the target symbol changed here" (rename commit or
+ * ticker-click replace, ADR 011 decision 7). A float window's sessionStorage
+ * carries a copy of the host's multi-symbol registry from extraction time
+ * even though its own tab strip shows one tab, so a target change closes the
+ * old symbol in that stored registry (not just this window's `nextState`) --
+ * otherwise a later dock-back would resurrect the stale symbol.
+ */
+export function persistSymbolReplace(
+  urlSym: string | null,
+  fromSymbol: string | null,
+  toSymbol: string,
+  nextState: TraderTabsState,
+): void {
+  if (urlSym && toSymbol && fromSymbol === urlSym) {
+    const registry = closeTab(readStoredTabs(), urlSym);
+    const merged = addTab(registry, toSymbol, TRADER_MAX_TABS);
+    if (!merged.blocked) writeStoredTabs(merged.state);
+    return;
+  }
+  if (!urlSym) writeStoredTabs(nextState);
 }
 
 export function readBlockNotice(): string | null {

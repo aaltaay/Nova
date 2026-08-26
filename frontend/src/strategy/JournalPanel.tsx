@@ -5,7 +5,7 @@
  * when on — nothing here silently substitutes fake data for real. */
 import { useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
-import { SETUP_LABELS } from '../constants';
+import { SETUP_LABELS, TICKER_OPEN_TRADER_TITLE } from '../constants';
 import { formatShareQty } from '../utils/formatShareQty';
 import { useJournal } from './useJournal';
 import type { GoNoGoCriterion, JournalMetrics, JournalTradeRow, RiskStatus } from './types';
@@ -148,7 +148,7 @@ function TradesTable({
         <thead>
           <tr>
             <th title="When the trade closed.">Closed</th>
-            <th title="Ticker symbol. Click: Quote Panel · Double-click: Trader.">Symbol</th>
+            <th title={`Ticker symbol. ${TICKER_OPEN_TRADER_TITLE}`}>Symbol</th>
             <th title="Which setup pattern triggered the entry.">Setup</th>
             <th title="Long (bought first) or short (sold first).">Side</th>
             <th title="Share quantity.">Qty</th>
@@ -256,7 +256,7 @@ export function JournalPanel({
             <thead>
               <tr>
                 <th>Time</th>
-                <th title="Click: Quote Panel · Double-click: Trader">Symbol</th>
+                <th title={TICKER_OPEN_TRADER_TITLE}>Symbol</th>
                 <th>Setup</th>
                 <th>Entry</th>
                 <th>Stop</th>

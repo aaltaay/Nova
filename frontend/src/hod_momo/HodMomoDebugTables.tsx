@@ -1,5 +1,6 @@
 /** Decision + snap tables for the HOD Momo debug panel. */
 import { SelectableTableRow } from '../components/SelectableTableRow';
+import { TICKER_OPEN_TRADER_TITLE } from '../constants';
 
 export interface DebugDecisionRow {
   ts: number;
@@ -67,7 +68,7 @@ export function RecentDecisionsTable({
           <thead>
             <tr>
               <th>Time</th>
-              <th title="Click: Quote Panel · Double-click: Trader">Symbol</th>
+              <th title={TICKER_OPEN_TRADER_TITLE}>Symbol</th>
               <th>Price</th>
               <th>RVOL</th>
               <th>Gap%</th>
@@ -123,7 +124,7 @@ export function SnapsTable({
         <table className="dbg-table">
           <thead>
             <tr>
-              <th title="Click: Quote Panel · Double-click: Trader">Symbol</th>
+              <th title={TICKER_OPEN_TRADER_TITLE}>Symbol</th>
               <th>Price</th>
               <th>RVOL</th>
               <th>Float</th>

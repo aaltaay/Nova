@@ -30,6 +30,42 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-26 -- Dual API Error 326 no longer looks like a Gateway login failure
+
+- **What:** A second Nova API can no longer start beside a living one. Error 326 (clientId already in use) is now a first-class session reason with honest Trading prerequisites copy. Door trail fetch failures no longer show the raw browser `Failed to fetch` string.
+- **Why:** Two processes (`run_api.py` + a stray `uvicorn`) both dialed clientId 17. The desk stayed `connecting` with "Error 1100" copy while Gateway 4001 was already up, and the door trail request died because the sidecar listen socket was gone.
+- **Files touched:** `backend/api_instance_lock.py`, `backend/main.py`, `backend/ibkr/client_connect.py`, `backend/ibkr/session_errors.py`, `backend/ibkr/session_reconnect.py`, `frontend/src/ibkr/tradingPrerequisites.ts`, `frontend/src/ibkr/formatDoorTrail.ts`, `frontend/src/ibkr/gatewayUxConstants.ts`.
+- **How it works now:** Importing `main` claims `backend/.cache/api-instance.lock` (schema_version 1). A live foreign PID exits. Connect installs the error hook before `connectAsync`, so Error 326 becomes `session_reason=client_id_in_use` instead of generic `connecting` / auth-backoff. Prerequisites say "stop the extra API". One process on :8000 / clientId 17.
+- **Verified by:** `pytest tests/test_api_instance_lock.py tests/test_ibkr_session_errors.py tests/test_ibkr_client_connect.py tests/test_gateway_heal.py` (39 passed); Vitest tradingPrerequisites + formatDoorTrail + GatewayDoorTrail (20 passed). Live `GET /api/ibkr/status` `connected=true` `session_state=ready`; `/api/movers` 50 gainers; `/api/gappers` 18 rows `table_state=live`; browser Trading prerequisites all green + door trail rows (no Failed to fetch). `npm run build` exit 0.
+- **Related:** PROBLEM_LOG 2026-08-26 -- Dual API Error 326; 2026-08-04 IBKRPRO not READY.
+
+## 2026-08-26 -- Scanner row click only updates Quote Panel; ticker click opens Trader
+
+- **What:** On Gappers/Gainers/Losers/AH/Large Cap, Catalysts, HOD Momo + Running Up, Watchlist, and Signals, clicking the row body now only loads the symbol into the Quote Panel and keeps the operator on Scanner. Only the blue ticker text opens Trader (unchanged). If Trader is already open, a row click in the HOD dock/roster switches the active tab in place instead of updating a Quote Panel that is not visible. Tables with no ticker button (Positions, Working/Closed Orders, Journal, Executor, HOD debug) are unchanged -- their row click still opens Trader directly.
+- **Why:** Operator ask: browsing scanner rows for quick quote checks was jumping into Trader on every row click, which was too aggressive; the ticker click should be the deliberate "go to Trader" gesture.
+- **Files touched:** `frontend/src/components/SelectableTableRow.tsx` (new `openOnRowClick` prop, default `true`), `ScannerTable.tsx`, `CatalystsTable.tsx`, `hod_momo/HodMomoAlertRow.tsx`, `strategy/WatchlistTab.tsx`, `strategy/SignalsPanel.tsx` (all set `openOnRowClick={false}`), `workspace/traderDesk/useTraderDeskBinding.ts` + `workspace/WorkspaceContext.tsx` (new `selectRowSymbol`), `pages/DashboardPage.tsx` + `hod_momo/HodMomoDock.tsx` (wired as table `onSelect`), `constantGroups/trader_view.ts` (`ROW_SELECT_QUOTE_TITLE`).
+- **How it works now:** `SelectableTableRow.openRow()` only calls `onOpenTrading` when `openOnRowClick` is true. The five ticker-bearing tables pass `false`; their `SymbolSelectButton` is unaffected and still opens Trader. `WorkspaceContext.selectRowSymbol(symbol)` branches on `traderViewActive`: false -> `setSelectedSymbol` (Quote Panel, stay on Scanner); true -> `tryReplaceActive` (same replace-the-active-tab behavior as a ticker click, since there is no Quote Panel to update while Trader is showing). `HodMomoDock` keeps plain `setSelectedSymbol` when the sample-shell `onOpenTrading` override is present, so fixtures never touch the live trader tab state.
+- **Verified by:** New `SelectableTableRow.test.tsx` (4 tests) + 2 new cases in `workspace/traderOpen.test.tsx`; full suite `npm test -- --run` 767/767 passed; `npm run build` exit 0.
+- **Related:** `architecture/decisions/011-trader-window-desk.md` §7a; `.cursor/rules/single-market-data-feed.mdc` rule 3.
+
+## 2026-08-26 -- Chart drawings delete individually and place at cursor price
+
+- **What:** With a vertical / horizontal / trend / cross line selected (blue handles), Delete or Backspace removes that one line. New drawings now land at the exact cursor price, including a candle's high/low wick, instead of snapping to its close. The toolbar X still clears every drawing.
+- **Why:** Nova had no delete listener, and Lightweight Charts' default Magnet crosshair moved click Y to the candle close before drawing placement.
+- **Files touched:** `frontend/src/chart/chartDrawingKeys.ts`, `chartInteractionConfig.ts`, `useChartDrawingManager.ts`, `useChartInstance.ts`, `TickerChartControls.tsx`.
+- **How it works now:** Window keydown removes the DrawingManager's selected id for plain Delete/Backspace. The price chart uses `CrosshairMode.Normal`, so horizontal, vertical, cross, and trend anchors use free cursor coordinates. Modifier chords and text inputs remain untouched.
+- **Verified by:** Vitest chart interaction suite (3 files, 11 passed). `npm run build` exit 0. Live browser on DAIC 1m placed a horizontal line near $5.90 while the candle close was about $5.68, proving placement was no longer magnetized; no chart error surfaced.
+- **Related:** PROBLEM_LOG 2026-08-26 Delete key chart drawing.
+
+## 2026-08-25 -- Global app bar wraps on zoom instead of overlapping
+
+- **What:** Header chrome no longer paints MARKET CLOSED on Scanner/Trader, or the lock on Net Liq / BP, when the window is zoomed or narrower than ~1680 CSS px.
+- **Why:** The bar was one shrinking nowrap row. Flex items overflowed visibly onto their neighbors.
+- **Files touched:** `frontend/src/styles/global-app-bar.css`, `global-app-bar-responsive.css`, `global-app-bar-menus.css`, `frontend/src/components/GlobalAppBar.tsx`, `frontend/src/hod_momo/hodMomoDock.css`.
+- **How it works now:** Three grid columns on a wide desk. Below 1680px the scanner status moves to its own row. Metrics still hide on a schedule (BP / Day P&L / Net Liq). Dock tabs `flex-shrink: 0` and scroll instead of stacking on the chevron.
+- **Verified by:** Vitest `GlobalAppBar.test.tsx` 13 passed; agent-browser boxes at 1100 and 1536 CSS px (0 overlaps, Look Up unclipped).
+- **Related:** PROBLEM_LOG 2026-08-25 Global app bar zoom overlap.
+
 ## 2026-08-25 -- Hotkey profile writes no longer setState the dispatcher during render
 
 - **What:** `useHotkeyProfile` no longer calls `reloadNovaActions()` from inside a `setProfile` updater.

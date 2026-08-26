@@ -1,4 +1,7 @@
-/** ADR 005 / 012 -- store-first bar loading; fills arrive as bars_patch. */
+/** ADR 005 / 012 -- store-first bar loading; fills arrive as bars_patch.
+ * A pane with no periodic refetch (see CHART_REFETCH_SEC) still self-heals if
+ * the one-shot fetch lands empty+filling and the bars_patch push is missed
+ * (see the stuck-retry effect below / chartBarsStuckRetry.ts). */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
@@ -9,11 +12,14 @@ import type {
 } from 'lightweight-charts';
 import {
   CHART_BARS_CLIENT_STALE_MS,
+  CHART_BARS_STUCK_RETRY_MAX_MS,
+  CHART_BARS_STUCK_RETRY_MIN_MS,
   CHART_MOCK_BAR_COUNT,
   CHART_MOCK_BASE_PRICE,
   CHART_REFETCH_SEC,
   CHART_TIMEFRAME_BAR_LIMITS,
 } from '../constants';
+import { isStuckLoadingBars, nextStuckRetryDelayMs } from './chartBarsStuckRetry';
 import {
   rawBarsToIndicatorBars,
   type IndicatorBar,
@@ -308,6 +314,33 @@ export function useChartBars({
       void fetchBars(symbol, timeframe, true);
     }
   }, [chartActive, fetchBars, symbol, timeframe]);
+
+  const stuckRetryDelayRef = useRef(CHART_BARS_STUCK_RETRY_MIN_MS);
+  useEffect(() => {
+    const stuck = isStuckLoadingBars({
+      filling,
+      hasBars: indicatorBars.length > 0,
+      chartActive,
+    });
+    if (!stuck) {
+      stuckRetryDelayRef.current = CHART_BARS_STUCK_RETRY_MIN_MS;
+      return;
+    }
+    const delay = stuckRetryDelayRef.current;
+    const controller = new AbortController();
+    const id = setTimeout(() => {
+      stuckRetryDelayRef.current = nextStuckRetryDelayMs(
+        delay,
+        CHART_BARS_STUCK_RETRY_MIN_MS,
+        CHART_BARS_STUCK_RETRY_MAX_MS,
+      );
+      void fetchBars(symbol, timeframe, true, controller.signal);
+    }, delay);
+    return () => {
+      controller.abort();
+      clearTimeout(id);
+    };
+  }, [symbol, timeframe, chartActive, filling, indicatorBars.length, fetchBars]);
 
   return { loading, error, usingMock, indicatorBars, filling, coverageAsOf };
 }

@@ -1,5 +1,5 @@
 /**
- * Trader View (Stock View) — tabbed terminal opened by double-click.
+ * Trader View (Stock View) -- tabbed terminal opened by a ticker click.
  * Cap matches backend IBKR_MAX_DEPTH_SYMBOLS (IBKR Level 2 plan limit).
  */
 
@@ -11,6 +11,16 @@ export const TRADER_DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'IWM'] as const;
 
 /** Open this when Trader is clicked with no selected symbol (S&P 500 ETF). */
 export const TRADER_DEFAULT_SYMBOL = TRADER_DEFAULT_SYMBOLS[0];
+
+/** Shared ticker hover copy for the replace-active-tab click behavior. */
+export const TICKER_OPEN_TRADER_TITLE =
+  'Click to open Trader here and replace the active tab.';
+
+/** Row-body hover copy for tables where the ticker (not the row) opens
+ * Trader. While Trader is already showing, the row instead switches focus
+ * to that symbol's tab -- see selectRowSymbol in useTraderDeskBinding. */
+export const ROW_SELECT_QUOTE_TITLE =
+  'Click to load this symbol in the Quote Panel. Click the ticker to open Trader.';
 
 export const TRADER_DEFAULTS_TOGGLE_LABEL = 'Index defaults';
 export const TRADER_DEFAULTS_MENU_TITLE =

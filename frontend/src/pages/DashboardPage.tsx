@@ -53,8 +53,8 @@ function isMainScannerTab(tab: ActiveTab): boolean {
 export function DashboardPage() {
   const {
     selectedSymbol,
-    setSelectedSymbol,
     openStockView,
+    selectRowSymbol,
     setDiscoveryProvider: setWorkspaceDiscovery,
     setAlpacaFeed: setWorkspaceAlpacaFeed,
     ibkrConnected,
@@ -274,7 +274,7 @@ export function DashboardPage() {
               watchlistLoading={watchlist.loading}
               watchlistError={watchlist.error}
               selectedSymbol={selectedSymbol}
-              onSelect={setSelectedSymbol}
+              onSelect={selectRowSymbol}
               onOpenTrading={openStockView}
               pricesStale={scanner.pricesStale}
               flashSymbols={scanner.flashSymbols}

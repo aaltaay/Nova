@@ -1,11 +1,13 @@
-/** Table body row: click anywhere → Quote Panel; double-click → Trader. */
-import { useEffect, useRef, type CSSProperties, type ReactNode, type KeyboardEvent } from 'react';
-import {
-  QUOTE_PANEL_TITLE,
-  STOCK_VIEW_TITLE,
-  SYMBOL_DOUBLE_CLICK_MS,
-} from '../constants';
-import { createClickVsDoubleClick } from '../utils/clickVsDoubleClick';
+/** Table body row: click (or Enter/Space) opens Trader and replaces the
+ * active tab (ADR 011). Double-click has no special action here.
+ *
+ * When `openOnRowClick` is false (tables that also render a blue
+ * `SymbolSelectButton`), the row body only selects the symbol -- it does
+ * not open Trader. The ticker button is the one gesture that opens Trader.
+ * This is a spatial split (row vs ticker), not the click-vs-double-click
+ * split ADR 011 rejected. */
+import type { CSSProperties, ReactNode, KeyboardEvent } from 'react';
+import { ROW_SELECT_QUOTE_TITLE, TICKER_OPEN_TRADER_TITLE } from '../constants';
 
 interface Props {
   symbol: string;
@@ -15,14 +17,15 @@ interface Props {
   children: ReactNode;
   className?: string;
   style?: CSSProperties;
-  /** Optional row tip prepended before the click/double-click hint. */
+  /** Optional row tip prepended before the row hint. */
   hintPrefix?: string;
   /** Marks extremely recent closed fills/cancels for tests + CSS. */
   dataRecent?: boolean;
+  /** False when a sibling `SymbolSelectButton` owns opening Trader; the row
+   * body then only calls `onSelect`. Defaults to true for rows with no
+   * ticker button (Positions, Orders, Journal, Executor, ...). */
+  openOnRowClick?: boolean;
 }
-
-const ROW_NAV_TITLE =
-  `Click: ${QUOTE_PANEL_TITLE} · Double-click: ${STOCK_VIEW_TITLE} (new window)`;
 
 export function SelectableTableRow({
   symbol,
@@ -34,41 +37,28 @@ export function SelectableTableRow({
   style,
   hintPrefix,
   dataRecent = false,
+  openOnRowClick = true,
 }: Props) {
-  const symbolRef = useRef(symbol);
-  const onSelectRef = useRef(onSelect);
-  const onOpenRef = useRef(onOpenTrading);
-  symbolRef.current = symbol;
-  onSelectRef.current = onSelect;
-  onOpenRef.current = onOpenTrading;
-
-  const handlersRef = useRef(
-    createClickVsDoubleClick(
-      () => onSelectRef.current(symbolRef.current),
-      () => onOpenRef.current(symbolRef.current),
-      SYMBOL_DOUBLE_CLICK_MS,
-    ),
-  );
-
-  useEffect(() => {
-    const handlers = handlersRef.current;
-    return () => handlers.cancel();
-  }, []);
+  function openRow() {
+    onSelect(symbol);
+    if (openOnRowClick) onOpenTrading(symbol);
+  }
 
   function onKeyDown(e: KeyboardEvent<HTMLTableRowElement>) {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onSelect(symbol);
+      openRow();
     }
   }
 
-  const title = hintPrefix ? `${hintPrefix} · ${ROW_NAV_TITLE}` : ROW_NAV_TITLE;
+  const baseTitle = openOnRowClick ? TICKER_OPEN_TRADER_TITLE : ROW_SELECT_QUOTE_TITLE;
+  const title = hintPrefix ? `${hintPrefix} · ${baseTitle}` : baseTitle;
 
   return (
     <tr
       className={`selectable-row${selected ? ' row-selected' : ''}${className ? ` ${className}` : ''}`}
       style={style}
-      onClick={() => handlersRef.current.handleClick()}
+      onClick={openRow}
       onKeyDown={onKeyDown}
       tabIndex={0}
       aria-selected={selected}

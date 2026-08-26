@@ -4,6 +4,10 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-26 | [Dual API Error 326 desk restore](2026-08-26-dual-api-clientid-326.md) | Single-instance API lock; Error 326 is `client_id_in_use` not Error 1100; door trail fetch failures are honest |
+| 2026-08-26 | [Scanner row click updates Quote Panel; ticker opens Trader](2026-08-26-row-click-quote-ticker-trader.md) | Row body only selects the symbol on ticker-bearing tables; blue ticker still opens Trader; a row click while already in Trader switches the active tab instead |
+| 2026-08-26 | [Chart drawing delete and wick placement](2026-08-26-chart-delete-selected-drawing.md) | Delete/Backspace removes the selected line; free crosshair places anchors at wick prices instead of candle close |
+| 2026-08-25 | [Global app bar no longer overlaps on zoom](2026-08-25-global-app-bar-zoom-overlap.md) | Grid header: scanner drops to its own row under 1680px so zoom cannot paint chips on neighbors |
 | 2026-08-25 | [Nova Action Key, Edit, and guarded delete](2026-08-25-nova-action-edit-delete.md) | Shortcuts menu: Key rebinds, Edit opens the action, trash needs a second click; deleted defaults stay gone |
 | 2026-08-25 | [Graphify always-on wrapper + token meter](2026-08-25-graphify-always-on-meter.md) | Always-on short rule; wrapper records cited-note token savings; delete Graphify if total_saved stays 0 |
 | 2026-08-25 | [Stale live 2FA login fix](2026-08-25-stale-live-2fa-fix.md) | Stale live 2FA login fix |

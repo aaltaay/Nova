@@ -37,6 +37,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-26 -- Dual API stole clientId 17; desk said connecting / Error 1100
+
+- **Symptom:** Trading prerequisites: IB Gateway (session READY) red -- "port is open, but Nova session is not READY (reconnect stuck or Error 1100) (reason: connecting)". Door trail: Failed to fetch. Health probe timed out while a PID still "listened". Gateway 4001 was up and logged in.
+- **Cause:** Two Nova APIs were alive: morning `run_api.py` (pid 54868, 06:38) and a later `uvicorn main:app` (pid 54840, 08:12). Both used clientId 17. The stray uvicorn got Error 326 until Gateway restarted at 08:47, then stole the slot. The sidecar's listen socket died (Established leftovers only, new HTTP refused) so door trail and fresh probes failed. Prerequisites keyed the leftover `connecting` reason to Error 1100 copy, which this was not.
+- **Fix:** Single-instance lock at `main` import (`api-instance.lock`, schema_version 1). Error hook installed before `connectAsync`; Error 326 sets `session_reason=client_id_in_use` with dedicated prereq copy. Door trail maps `Failed to fetch` to a dual-API hint. Stopped the stray uvicorn and restarted the dead-listen sidecar.
+- **Fix class:** ownership
+- **Keywords:** Error 326, clientId 17, dual API, uvicorn, run_api.py, session READY, connecting, Failed to fetch, door trail, Error 1100, listen socket
+
+## 2026-08-26 -- Chart line Delete missing and anchors snap to candle close
+
+- **Symptom:** Clicking a drawn vertical line showed the blue handle, but Delete left it in place. Horizontal, vertical, cross, and trend anchors also locked to the candle close instead of the high/low wick under the cursor.
+- **Cause:** `useChartDrawingManager` had no delete key listener. Separately, Lightweight Charts defaults to `CrosshairMode.Magnet`; drawing placement consumed the magnetized click point, so its Y coordinate followed the candle close.
+- **Fix:** Plain Delete/Backspace calls `removeDrawing` on the selected id. The price chart now uses `CrosshairMode.Normal`, preserving the exact cursor price for drawing anchors.
+- **Fix class:** ownership
+- **Keywords:** chart, drawing, wick, tail, candle close, CrosshairMode, Magnet, Normal, VerticalLine, HorizontalLine, Delete, Backspace, DrawingManager
+
+## 2026-08-25 -- Global app bar overlaps when zoomed
+
+- **Symptom:** Zooming the desk painted MARKET CLOSED on Scanner/Trader, the red lock on BP / Net Liq, and smashed Account / Working / Settings.
+- **Cause:** `.global-app-bar` was a single 40px nowrap flex row. Left/right had `min-width: 0`, so they shrank while children stayed nowrap and overflowed visibly onto neighbors. A growing spacer also stole width from the scanner (Look Up clipped to "Look").
+- **Fix:** CSS grid (`max-content | 1fr | max-content`). Below 1680px scanner takes a second full row. Removed the spacer. Dock mode tabs no longer shrink.
+- **Fix class:** surfacing
+- **Keywords:** global-app-bar, zoom, overlap, MARKET CLOSED, trade lock, Net Liq, header wrap
+
 ## 2026-08-25 -- HotkeyDispatchProvider setState-during-render on profile writes
 
 - **Symptom:** Browser console: `Cannot update a component (HotkeyDispatchProvider) while rendering a different component (HotkeyManager)` after deleting a Nova Action in Settings.

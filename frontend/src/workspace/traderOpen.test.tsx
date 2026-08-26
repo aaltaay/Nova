@@ -1,7 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * Typing / Trader open stays in this window. Extract / double-click pops out.
+ * A ticker click (openStockView) opens Trader here and replaces the active
+ * tab (ADR 011 decision 7) -- it never stacks a second tab. Only `+` /
+ * dock / drop grow the strip. Extract / tab double-click pops out.
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -80,34 +82,53 @@ describe('Trader open vs extract', () => {
     });
   }
 
-  it('openStockView adds a tab here and does not open a window', async () => {
+  it('openStockView opens the first symbol here, then replaces the active tab', async () => {
+    await mount();
+    await act(async () => {
+      latest?.openStockView('SPY');
+    });
+    expect(latest?.traderTabs).toEqual(['SPY']);
+    expect(latest?.activeTraderSymbol).toBe('SPY');
+    await act(async () => {
+      latest?.openStockView('IPST');
+    });
+    expect(latest?.traderTabs).toEqual(['IPST']);
+    expect(latest?.activeTraderSymbol).toBe('IPST');
+    expect(opened).toEqual([]);
+  });
+
+  it('openStockView activates an already-open symbol instead of duplicating it', async () => {
     await mount();
     await act(async () => {
       latest?.openStockView('SPY');
     });
     await act(async () => {
-      latest?.openStockView('IPST');
+      latest?.acceptTraderTabDrop({ v: 1, symbol: 'IPST', sourceWindowId: 'other-window' });
     });
     expect(latest?.traderTabs).toEqual(['SPY', 'IPST']);
-    expect(latest?.activeTraderSymbol).toBe('IPST');
-    expect(opened).toEqual([]);
+    await act(async () => {
+      latest?.openStockView('spy');
+    });
+    expect(latest?.traderTabs).toEqual(['SPY', 'IPST']);
+    expect(latest?.activeTraderSymbol).toBe('SPY');
   });
 
   it('extractTraderTab opens a window and removes the tab here', async () => {
     await mount();
     await act(async () => {
-      latest?.openStockView('SPY');
-    });
-    await act(async () => {
       latest?.openStockView('IPST');
     });
     await act(async () => {
-      latest?.extractTraderTab('IPST');
+      latest?.acceptTraderTabDrop({ v: 1, symbol: 'SPY', sourceWindowId: 'other-window' });
+    });
+    expect(latest?.traderTabs).toEqual(['IPST', 'SPY']);
+    await act(async () => {
+      latest?.extractTraderTab('SPY');
       await Promise.resolve();
     });
-    expect(opened.some((u) => /symbol=IPST/i.test(u))).toBe(true);
-    expect(latest?.traderTabs).toEqual(['SPY']);
-    expect(latest?.activeTraderSymbol).toBe('SPY');
+    expect(opened.some((u) => /symbol=SPY/i.test(u))).toBe(true);
+    expect(latest?.traderTabs).toEqual(['IPST']);
+    expect(latest?.activeTraderSymbol).toBe('IPST');
   });
 
   it('acceptTraderTabDrop adds a foreign tab and ignores a self drag', async () => {
@@ -132,6 +153,30 @@ describe('Trader open vs extract', () => {
       });
     });
     expect(latest?.traderTabs).toEqual(['SPY', 'IPST']);
+  });
+
+  it('selectRowSymbol on Scanner only updates selectedSymbol -- it does not open Trader', async () => {
+    await mount();
+    await act(async () => {
+      latest?.selectRowSymbol('ipst');
+    });
+    expect(latest?.selectedSymbol).toBe('IPST');
+    expect(latest?.traderTabs).toEqual([]);
+    expect(latest?.traderViewActive).toBe(false);
+  });
+
+  it('selectRowSymbol while Trader is showing switches the active tab instead', async () => {
+    await mount();
+    await act(async () => {
+      latest?.openStockView('SPY');
+    });
+    expect(latest?.traderTabs).toEqual(['SPY']);
+    await act(async () => {
+      latest?.selectRowSymbol('IPST');
+    });
+    expect(latest?.traderTabs).toEqual(['IPST']);
+    expect(latest?.activeTraderSymbol).toBe('IPST');
+    expect(latest?.selectedSymbol).toBe('IPST');
   });
 
   it('showScannerView keeps tabs so Trader can return without a new subscribe', async () => {

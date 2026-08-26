@@ -40,12 +40,16 @@ export function HodMomoDock({ onOpenTrading }: Props) {
   const {
     selectedSymbol,
     setSelectedSymbol,
+    selectRowSymbol,
     openStockView,
   } = useWorkspace();
   const sample = useSampleDataOptional();
   const roster = useScannerDockRows();
   const dragStart = useRef<{ y: number; h: number } | null>(null);
   const openTrading = onOpenTrading ?? openStockView;
+  // Sample shell drives its own fixture Trader state (see SampleShell) --
+  // it must not read/mutate the live traderViewActive via selectRowSymbol.
+  const selectSymbol = onOpenTrading ? setSelectedSymbol : selectRowSymbol;
   const alertMode = isAlertDockMode(dockMode);
 
   // Declare the dock's table for L1 streaming whenever it changes, including on
@@ -201,7 +205,7 @@ export function HodMomoDock({ onOpenTrading }: Props) {
                 mode={dockMode}
                 rows={roster}
                 selectedSymbol={selectedSymbol}
-                onSelect={setSelectedSymbol}
+                onSelect={selectSymbol}
                 onOpenTrading={openTrading}
               />
             ) : (
@@ -210,7 +214,7 @@ export function HodMomoDock({ onOpenTrading }: Props) {
                 hodMomoStream={stream}
                 hodMomoConfig={config}
                 selectedSymbol={selectedSymbol}
-                onSelect={setSelectedSymbol}
+                onSelect={selectSymbol}
                 onOpenTrading={openTrading}
                 showHodSettings={showHodSettings}
                 onToggleHodSettings={toggleHodSettings}

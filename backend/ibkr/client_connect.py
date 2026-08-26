@@ -11,7 +11,7 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from constants import IBKR_CONNECT_TIMEOUT_SEC
+from constants import IBKR_CONNECT_TIMEOUT_SEC, IBKR_ERROR_CLIENT_ID_IN_USE
 from ibkr import gateway_heal as _heal
 from ibkr.port_diagnostics import probe_port
 from metrics.op_metrics import timed
@@ -35,10 +35,25 @@ def safe_disconnect(ib: Any) -> None:
         logger.debug("IBKR: disconnect during reset failed", exc_info=True)
 
 
+def client_id_in_use(exc: BaseException | None = None) -> bool:
+    """True when Error 326 already landed on this IB instance (or the exception)."""
+    from ibkr import session_errors as se
+
+    if se.last_connectivity_code() == IBKR_ERROR_CLIENT_ID_IN_USE:
+        return True
+    if exc is None:
+        return False
+    msg = str(exc).lower()
+    return "already in use" in msg or "error 326" in msg
+
+
 async def attempt_connect(
     ib: "IB", host: str, port: int, client_id: int,
 ) -> tuple[bool, str]:
     """Connect with a hard asyncio wall. Returns (ok, failure_reason)."""
+    from ibkr import session_errors as se
+
+    se.install_error_hook(ib)
     wall = float(IBKR_CONNECT_TIMEOUT_SEC)
     inner = max(1.0, wall - 0.5)
     try:
@@ -49,6 +64,17 @@ async def attempt_connect(
             )
         return True, "ok"
     except asyncio.TimeoutError:
+        if client_id_in_use():
+            logger.warning(
+                "IBKR: connect timed out after %.1fs to %s:%s -- Error 326 "
+                "(clientId=%s already in use by another Nova API)",
+                wall,
+                host,
+                port,
+                client_id,
+            )
+            safe_disconnect(ib)
+            return False, "client_id_in_use"
         logger.warning(
             "IBKR: connect timed out after %.1fs to %s:%s (clientId=%s) — "
             "Gateway may be wedged or clientId in use (Error 326)",
@@ -61,6 +87,16 @@ async def attempt_connect(
         return False, _heal.classify_connect_failure(None, timed_out=True)
     except Exception as exc:
         msg = str(exc) or type(exc).__name__
+        if client_id_in_use(exc):
+            logger.warning(
+                "IBKR: connect failed to %s:%s (clientId=%s already in use): %s",
+                host,
+                port,
+                client_id,
+                msg,
+            )
+            safe_disconnect(ib)
+            return False, "client_id_in_use"
         logger.warning(
             "IBKR: connect failed to %s:%s (clientId=%s): %s",
             host,

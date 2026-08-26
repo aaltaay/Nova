@@ -17,8 +17,9 @@ env/
 .env
 .env.local
 
-# Ephemeral agent scratch (screenshots, browser dumps — never commit)
+# Ephemeral agent scratch (screenshots, browser dumps -- never commit)
 .tmp/
+.tmp_snapshot*.txt
 
 # Local browser auth exports (cookies/localStorage) — never commit
 .local/

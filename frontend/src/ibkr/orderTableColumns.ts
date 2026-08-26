@@ -2,6 +2,7 @@
  * Persisted column order for IBKR order / position tables.
  * Drag headers to reorder; layout survives refresh via localStorage.
  */
+import { TICKER_OPEN_TRADER_TITLE } from '../constants';
 
 export type OrderTableId = 'working' | 'closed' | 'positions';
 
@@ -100,7 +101,7 @@ export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
     id: 'symbol',
     label: 'Symbol',
     className: 'ibkr-col--text',
-    title: 'Click: Quote Panel · Double-click: Trader',
+    title: TICKER_OPEN_TRADER_TITLE,
   },
   qty: {
     id: 'qty',
@@ -148,7 +149,7 @@ export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
     id: 'symbol',
     label: 'Symbol',
     className: 'ibkr-col--text',
-    title: 'Click: Quote Panel · Double-click: Trader',
+    title: TICKER_OPEN_TRADER_TITLE,
   },
   qty: {
     id: 'qty',
@@ -193,7 +194,7 @@ export const POSITION_COLUMN_META: Record<PositionColumnId, ColumnMeta> = {
     id: 'symbol',
     label: 'Symbol',
     className: 'ibkr-col--text',
-    title: 'Click: Quote Panel · Double-click: Trader',
+    title: TICKER_OPEN_TRADER_TITLE,
   },
   qty: {
     id: 'qty',

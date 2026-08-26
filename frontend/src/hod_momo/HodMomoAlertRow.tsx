@@ -106,6 +106,7 @@ export const HodMomoAlertRow = memo(function HodMomoAlertRow({
       onOpenTrading={onOpenTrading}
       className="hod-alert-row"
       style={{ height: rowHeightPx }}
+      openOnRowClick={false}
     >
       {HOD_MOMO_COLUMNS.map(([key]) => {
         switch (key) {

@@ -1,0 +1,84 @@
+/* Zoom / narrow breakpoints for GlobalAppBar. Keep the base sheet under 400 lines. */
+
+@container app-bar-scanner (max-width: 36rem) {
+  .history-select,
+  .sample-data-switch {
+    display: none;
+  }
+}
+
+@container app-bar-scanner (max-width: 22rem) {
+  .header-symbol-search {
+    display: none;
+  }
+}
+
+/* 1920 at 125% zoom is ~1536 CSS px -- give scanner its own row before chips collide. */
+@media (max-width: 1679px) {
+  .global-app-bar:has(.global-app-bar__scanner) {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__right {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__scanner {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 820px) {
+  .global-app-bar:has(.global-app-bar__scanner) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__right {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: stretch;
+  }
+
+  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__scanner {
+    grid-column: 1;
+    grid-row: 3;
+  }
+}
+
+@media (max-width: 1280px) {
+  .global-app-bar__metric--bp,
+  .global-app-bar__sep--bp {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .global-app-bar__metric--day {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .global-app-bar__metric--netliq {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .global-app-bar__wordmark {
+    display: none;
+  }
+}

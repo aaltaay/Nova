@@ -1,19 +1,20 @@
-/* Shared Webull-style single-row chrome — mount once above every live page. */
+/* Shared Webull-style chrome -- mount once above every live page.
+   Grid columns (not a shrinking flex row) so zoom cannot paint chips on neighbors. */
 
 .global-app-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   align-items: center;
-  gap: 0.75rem;
-  height: 40px;
+  column-gap: 0.75rem;
+  row-gap: 0.35rem;
   min-height: 40px;
-  padding: 0 0.75rem;
+  padding: 0.25rem 0.75rem;
   box-sizing: border-box;
   border-bottom: 1px solid var(--nova-border);
   background: var(--nova-panel);
   color: var(--nova-text);
   font-size: 0.75rem;
   line-height: 1;
-  white-space: nowrap;
   flex-shrink: 0;
   z-index: 40;
 }
@@ -22,8 +23,19 @@
 .global-app-bar__right {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
   min-width: 0;
+}
+
+.global-app-bar__left {
+  grid-column: 1;
+}
+
+.global-app-bar__right {
+  grid-column: 3;
+  justify-content: flex-end;
+  max-width: 100%;
 }
 
 .global-app-bar__brand {
@@ -49,6 +61,7 @@
 .global-app-bar__nav {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 0.15rem;
   padding: 0.1rem;
   border: 1px solid var(--nova-border);
@@ -141,19 +154,15 @@
   background: color-mix(in srgb, var(--nova-accent) 18%, transparent);
 }
 
-.global-app-bar__spacer {
-  flex: 1 1 auto;
-  min-width: 0.5rem;
-}
-
 .global-app-bar__account {
   position: relative;
-  min-width: 0;
+  flex: 0 0 auto;
 }
 
 .global-app-bar__cluster {
   display: inline-flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.45rem;
   padding: 0.1rem 0;
   color: inherit;
@@ -276,14 +285,16 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--nova-success) 25%, transparent);
 }
 
-/* Scanner status block merged into this bar (one header row). */
+/* Scanner status sits in the middle column (or its own row under 1680px). */
 .global-app-bar__scanner {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
   min-width: 0;
-  flex: 1 1 auto;
-  overflow: hidden;
+  grid-column: 2;
+  container-type: inline-size;
+  container-name: app-bar-scanner;
 }
 
 .global-app-bar__scanner .status-cluster {
@@ -291,11 +302,11 @@
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
-  overflow: hidden;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
 }
 
-.global-app-bar__scanner .status-chip {
+.global-app-bar__scanner .status-chip,
+.global-app-bar__scanner .mode-badge {
   flex-shrink: 0;
 }
 
@@ -312,7 +323,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-left: 0.25rem;
+  flex-shrink: 0;
   width: 1.85rem;
   height: 1.85rem;
   padding: 0;
@@ -346,7 +357,7 @@
 
 .global-app-bar__account-nav,
 .global-app-bar__settings {
-  margin-left: 0.35rem;
+  flex-shrink: 0;
   background: transparent;
   color: var(--nova-text-muted);
   border: 1px solid var(--nova-border);
@@ -368,92 +379,4 @@
   color: var(--nova-text);
   background: color-mix(in srgb, var(--nova-accent, #3b82f6) 18%, transparent);
   border-color: color-mix(in srgb, var(--nova-accent, #3b82f6) 45%, var(--nova-border));
-}
-
-.global-app-bar__card {
-  position: absolute;
-  top: calc(100% + 0.35rem);
-  right: 0;
-  min-width: 15rem;
-  padding: 0.45rem 0;
-  border: 1px solid var(--nova-border);
-  border-radius: var(--radius-control, 8px);
-  background: var(--menu-bg, var(--nova-panel));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  z-index: 50;
-}
-
-.global-app-bar__card-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.25rem;
-  padding: 0.35rem 0.75rem;
-  color: var(--nova-text-muted);
-}
-
-.global-app-bar__card-row:hover {
-  background: var(--hover-bg);
-}
-
-.global-app-bar__card-row span:last-child {
-  color: var(--nova-text);
-  font-variant-numeric: tabular-nums;
-}
-
-.global-app-bar__tone--filled {
-  color: #32d4a4;
-  font-weight: 650;
-}
-
-.global-app-bar__menu-divider {
-  height: 1px;
-  margin: 0.25rem 0;
-  background: var(--nova-border);
-}
-
-.global-app-bar__menu-action {
-  display: block;
-  width: 100%;
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--nova-text);
-  font: inherit;
-  text-align: left;
-  padding: 0.4rem 0.75rem;
-  cursor: pointer;
-}
-
-.global-app-bar__menu-action:hover:not(:disabled) {
-  background: var(--hover-bg);
-}
-
-.global-app-bar__menu-action:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.global-app-bar__working-menu {
-  right: 0;
-  min-width: 13.5rem;
-}
-
-@media (max-width: 1100px) {
-  .global-app-bar__metric--bp,
-  .global-app-bar__sep--bp {
-    display: none;
-  }
-}
-
-@media (max-width: 900px) {
-  .global-app-bar__metric--day {
-    display: none;
-  }
-}
-
-@media (max-width: 720px) {
-  .global-app-bar__wordmark {
-    display: none;
-  }
 }

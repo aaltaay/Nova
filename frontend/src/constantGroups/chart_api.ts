@@ -319,13 +319,7 @@ export const IBKR_L1_ROW_STALE_SEC = 3.0;
 /** Brief flash duration when a table price ticks up/down. */
 export const SCANNER_PRICE_FLASH_MS = 400;
 
-// ── Quote Panel (scanner right sidebar) vs Trader window (double-click) ─────
-/**
- * Delay before a single click selects the Quote Panel. A second click within
- * this window opens Trader instead (native dblclick is unreliable when the
- * first click re-renders / shifts layout).
- */
-export const SYMBOL_DOUBLE_CLICK_MS = 280;
+// ── Quote Panel (scanner right sidebar) vs Trader window (ticker click) ─────
 /** Right-hand scanner sidebar that shows quote + fundamentals for the selected symbol. */
 export const QUOTE_PANEL_TITLE = 'Quote Panel';
 /** Full single-stock page opened by double-click / “Trader” (detached window). */

@@ -146,6 +146,20 @@ def test_md_requires_subscription_blocks_live_and_marks_delayed():
     assert se.is_delayed_data() is True
 
 
+def test_client_id_in_use_sets_reason_and_code():
+    ib = _FakeIB()
+    se.install_error_hook(ib)
+    with patch("ibkr.client.set_session_reason") as reason:
+        ib.errorEvent.fire(
+            -1, 326,
+            "Unable to connect as the client id is already in use.",
+            None,
+        )
+        reason.assert_called_with("client_id_in_use")
+    assert se.last_connectivity_code() == 326
+    assert se.unusable_since() is not None
+
+
 def test_unrelated_error_codes_are_ignored():
     ib = _FakeIB()
     se.install_error_hook(ib)

@@ -21,6 +21,8 @@ export const PREREQ_LEAD_API =
 /** Trading prerequisites -- Gateway API port listening but Nova session not READY. */
 export const PREREQ_GATEWAY_PORT_OPEN_DETAIL =
   'IB Gateway API port is open, but Nova session is not READY (reconnect stuck or Error 1100). Use Reconnect -- Gateway login is usually already done.';
+export const PREREQ_GATEWAY_CLIENT_ID_DETAIL =
+  'Another Nova API already holds IBKR clientId 17. Stop the extra API (only one process on port 8000), then Reconnect -- this is not a Gateway login / 2FA problem.';
 export const PREREQ_GATEWAY_RECONNECT_CTA_LABEL = 'Reconnect Nova to Gateway';
 export const PREREQ_GATEWAY_RECONNECT_CTA_BUSY_LABEL = 'Reconnecting...';
 /** Default when ports look dark / login needed. */
@@ -49,6 +51,8 @@ export const DOOR_TRAIL_HINT =
 export const DOOR_TRAIL_EMPTY =
   'No door events yet. A Paper/Live click or Gateway attach will show here.';
 export const DOOR_TRAIL_REFRESH = 'Refresh';
+export const DOOR_TRAIL_FETCH_FAILED =
+  'Could not load the door trail -- the API did not answer. If two Nova APIs are running, stop the extra one (only one process on port 8000).';
 
 /** How long (seconds) after a disconnected→connected transition to keep showing the
  * reconnect warm-up empty-state copy instead of the generic "no rows" message —

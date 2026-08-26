@@ -41,6 +41,30 @@ def test_attempt_connect_hard_timeout_disconnects():
     assert stats["error_count"] == 1
 
 
+def test_attempt_connect_timeout_after_326_is_client_id_in_use():
+    from ibkr import session_errors as se
+
+    se.reset_for_tests()
+    ib = MagicMock()
+    ib.errorEvent = MagicMock()
+    ib.errorEvent.__iadd__ = MagicMock(return_value=ib.errorEvent)
+
+    async def _hang(*_a, **_k):
+        se.stamp_unusable(code=326)
+        await asyncio.sleep(60)
+
+    ib.connectAsync = _hang
+
+    async def _run():
+        with patch("ibkr.client_connect.IBKR_CONNECT_TIMEOUT_SEC", 0.05):
+            return await ibkr_client._attempt_connect(ib, "127.0.0.1", 4001, 17)
+
+    ok, reason = asyncio.run(_run())
+    assert ok is False
+    assert reason == "client_id_in_use"
+    ib.disconnect.assert_called()
+
+
 def test_attempt_connect_success():
     ib = MagicMock()
     ib.connectAsync = AsyncMock(return_value=None)

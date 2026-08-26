@@ -191,8 +191,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
         </div>
       )}
 
-      <div className="global-app-bar__spacer" aria-hidden />
-
       <div className="global-app-bar__right">
         <ThemeToggle />
         <div

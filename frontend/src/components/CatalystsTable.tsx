@@ -90,6 +90,7 @@ export function CatalystsTable({
                       selected={selectedSymbol === c.symbol}
                       onSelect={onSelect}
                       onOpenTrading={onOpenTrading}
+                      openOnRowClick={false}
                     >
                       <td>
                         <SymbolSelectButton

@@ -229,6 +229,7 @@ export function ScannerTable({
               selected={selectedSymbol === row.symbol}
               onSelect={onSelect}
               onOpenTrading={onOpenTrading}
+              openOnRowClick={false}
             >
               {columns.map(([key]) =>
                 key === 'symbol' ? (

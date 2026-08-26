@@ -9,6 +9,7 @@ import {
   hydrateWithSymbol,
   parseTraderTabs,
   renameTab,
+  replaceActiveTab,
   serializeTraderTabs,
 } from './traderTabsState';
 
@@ -94,5 +95,48 @@ describe('traderTabsState', () => {
       'D',
       MAX,
     ).blocked).toBe(true);
+  });
+
+  describe('replaceActiveTab (ADR 011 decision 7 -- ticker click)', () => {
+    it('creates the first tab when there are none', () => {
+      const r = replaceActiveTab(EMPTY_TRADER_TABS, 'nuwe', MAX);
+      expect(r.blocked).toBe(false);
+      expect(r.state).toEqual({ tabs: ['NUWE'], active: 'NUWE' });
+    });
+
+    it('replaces the occupied active tab in place; tab count unchanged', () => {
+      const state = { tabs: ['AAPL', 'NUWE'], active: 'AAPL' };
+      const r = replaceActiveTab(state, 'ipst', MAX);
+      expect(r.blocked).toBe(false);
+      expect(r.state).toEqual({ tabs: ['IPST', 'NUWE'], active: 'IPST' });
+    });
+
+    it('activates an already-open symbol instead of duplicating it', () => {
+      const state = { tabs: ['AAPL', 'NUWE'], active: 'AAPL' };
+      const r = replaceActiveTab(state, 'nuwe', MAX);
+      expect(r.blocked).toBe(false);
+      expect(r.state).toEqual({ tabs: ['AAPL', 'NUWE'], active: 'NUWE' });
+    });
+
+    it('commits a draft active tab to the clicked symbol', () => {
+      const draft = addDraftTab(EMPTY_TRADER_TABS, MAX).state;
+      const r = replaceActiveTab(draft, 'mvo', MAX);
+      expect(r.blocked).toBe(false);
+      expect(r.state).toEqual({ tabs: ['MVO'], active: 'MVO' });
+    });
+
+    it('replaces even when already at the tab cap -- never blocked', () => {
+      const full = { tabs: ['A', 'B', 'C'], active: 'A' };
+      const r = replaceActiveTab(full, 'D', MAX);
+      expect(r.blocked).toBe(false);
+      expect(r.state).toEqual({ tabs: ['D', 'B', 'C'], active: 'D' });
+    });
+
+    it('falls back to the first tab when active is null', () => {
+      const state = { tabs: ['A', 'B'], active: null };
+      const r = replaceActiveTab(state, 'C', MAX);
+      expect(r.blocked).toBe(false);
+      expect(r.state).toEqual({ tabs: ['C', 'B'], active: 'C' });
+    });
   });
 });
