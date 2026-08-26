@@ -224,7 +224,40 @@ function Wait-IbkrUsable {
     return $false
 }
 
+function Repair-IbcAutoRestartConfig {
+    <#
+    This scheduled/unattended path starts IBC directly -- it never calls
+    Nova's Python launch_gateway.py, so that code's AutoRestartTime fix
+    (PROBLEM_LOG 2026-08-25) never reaches the one path that actually
+    caused the bug (an unattended 03:40 cold start with nobody there for
+    the phone prompt). Repair the two keys here too so config.ini is
+    correct even before any UI-triggered Paper/Live click has run.
+    #>
+    $ibcIni = Join-Path $env:USERPROFILE ".nova\ibc\config.ini"
+    if (-not (Test-Path $ibcIni)) { return }
+    $text = Get-Content -Path $ibcIni -Raw -ErrorAction SilentlyContinue
+    if (-not $text) { return }
+    $changed = $false
+    if ($text -match '(?m)^AutoRestartTime\s*=.*$') {
+        if ($Matches[0] -ne "AutoRestartTime=11:45 PM") {
+            $text = [regex]::Replace($text, '(?m)^AutoRestartTime\s*=.*$', "AutoRestartTime=11:45 PM", 1)
+            $changed = $true
+        }
+    }
+    if ($text -match '(?m)^AutoLogoffTime\s*=.*$') {
+        if ($Matches[0] -ne "AutoLogoffTime=") {
+            $text = [regex]::Replace($text, '(?m)^AutoLogoffTime\s*=.*$', "AutoLogoffTime=", 1)
+            $changed = $true
+        }
+    }
+    if ($changed) {
+        Set-Content -Path $ibcIni -Value $text -Encoding UTF8 -NoNewline
+        Write-DailyLog "Repaired IBC config.ini: AutoRestartTime=11:45 PM, AutoLogoffTime= (week-long token for both doors)"
+    }
+}
+
 function Start-IbGateway {
+    Repair-IbcAutoRestartConfig
     $ibcPs1 = Join-Path $env:USERPROFILE ".nova\ibc\start_gateway.ps1"
     $ibcBat = Join-Path $env:USERPROFILE ".nova\ibc\StartGateway.bat"
     $gatewayExe = $env:IBKR_GATEWAY_EXE
