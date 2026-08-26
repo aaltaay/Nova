@@ -50,12 +50,14 @@ Use each agent's registered phrases from the registry (also listed in the agent 
 Every Nova specialist report must end with:
 
 ```text
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 `task_log=` is required after material work: write `knowledge/task-log/YYYY-MM-DD-*.md` (see `.cursor/rules/task-log.mdc`), or `skipped` / `n/a` with a brief reason when the skip rules apply. The parent must ensure one aggregate entry exists for multi-domain work done in-session.
 
 `problem_log=` is **mandatory for every agent** (see `.cursor/rules/problem-log.mdc`): after any bug fix or full diagnosis, prepend `PROBLEM_LOG.md` and set `problem_log=<YYYY-MM-DD title>`; otherwise `skipped` / `n/a`. Silent omission after a real fix is a constitution violation.
+
+`deferred_log=` is **mandatory for every agent** (see `.cursor/rules/deferred-log.mdc`): after parking a known bug or a feature you will not build this session, prepend `DEFERRED_LOG.md` and set `deferred_log=D-NNN`; otherwise `none` / `skipped` / `n/a`. Silent omission after parking real work is a constitution violation. Do not dump parked work only into agent-memory Backlog.
 
 The `subagentStop` hook (`.cursor/hooks.json`) may remind once if the footer is missing. It is fail-open and never edits files.
 

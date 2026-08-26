@@ -38,6 +38,8 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 | Fleet crack index (human text) | `py -3 tools/agent_fleet.py` |
 | Fleet crack index (JSON) | `py -3 tools/agent_fleet.py --json` |
 | Session brief (top-3 cracks, used by hook) | `py -3 tools/agent_fleet.py --session-brief` |
+| Deferred log (ranked open bugs/features) | `py -3 tools/deferred_log.py status` |
+| Deferred log (next durable ID) | `py -3 tools/deferred_log.py next-id` |
 | Lifecycle hook (Cursor) | `.cursor/hooks.json` → `tools/subagent_lifecycle_hook.py` |
 | Session-start fleet brief hook (Cursor) | `.cursor/hooks.json` → `tools/session_brief_hook.py` |
 | Agent dreaming (dry-run) | `py -3 tools/agent_dream.py` |
@@ -96,10 +98,12 @@ See `.cursor/rules/specialist-routing.mdc`. Defaults (all opt-in unless noted):
 Every specialist report must end with:
 
 ```text
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 `problem_log=` is mandatory for **every** agent (rule: `.cursor/rules/problem-log.mdc`). After any bug fix or full diagnosis, prepend `PROBLEM_LOG.md` and set `problem_log=<YYYY-MM-DD title>`; otherwise `skipped` / `n/a`. Parent Auto sessions without a Lifecycle line still must write PROBLEM_LOG when they fix a bug.
+
+`deferred_log=` is mandatory for **every** agent (rule: `.cursor/rules/deferred-log.mdc`). After parking a known bug or a feature you will not build this session, prepend `DEFERRED_LOG.md` and set `deferred_log=D-NNN`; otherwise `none` / `skipped` / `n/a`. Agent-memory Backlog is not the SSOT. Parent Auto sessions without a Lifecycle line still must write DEFERRED_LOG when they park work.
 
 The `subagentStop` hook reminds once (fail-open, `loop_limit: 1`) if a Nova agent omits this line. It never edits files and never blocks completion.
 
@@ -114,7 +118,17 @@ After every completed material task, append a narrative under `knowledge/task-lo
 | Template | `knowledge/task-log/_template.md` |
 | Scaffold | `py -3 tools/task_log_new.py --slug <kebab> --title "…"` |
 
-The parent writes one aggregate entry for multi-domain jobs done in-session. CHANGELOG / PROBLEM_LOG remain short; the task log holds tradeoffs and rejected alternatives.
+The parent writes one aggregate entry for multi-domain jobs done in-session. CHANGELOG / PROBLEM_LOG / DEFERRED_LOG remain short; the task log holds tradeoffs and rejected alternatives.
+
+## Deferred log (known bugs + parked features)
+
+Parked work that is **not** a closed fix lives in repo-root `DEFERRED_LOG.md` -- same respect as `PROBLEM_LOG.md`. Open P0/P1 items also appear in the session-start fleet brief.
+
+| Piece | Path |
+|-------|------|
+| File (SSOT) | `DEFERRED_LOG.md` |
+| Rule (always apply) | `.cursor/rules/deferred-log.mdc` |
+| Ranked list | `py -3 tools/deferred_log.py status` |
 
 ## Adding a future agent
 

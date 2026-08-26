@@ -84,7 +84,7 @@ Windows: always `py -3` for Python.
 - **Refuse-to-DIY:** <unowned domains this task touches, or none>
 - **Conflict check:** <clear | agent X and Y both claim path — resolved by: ...>
 
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<agent(s)> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<agent(s)> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 After the Routing card, hand off — do not continue into implementation unless the parent explicitly asks the router itself to do the work (rare; router should decline non-triage work when a specialist fits).

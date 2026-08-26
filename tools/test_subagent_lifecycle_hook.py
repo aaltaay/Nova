@@ -60,12 +60,31 @@ def test_present_footer_noop(hook):
             "summary": (
                 "## Test report\n"
                 "**Lifecycle:** memory=unchanged | promotion=none | "
-                "dashboard=clean | handoff=none | task_log=n/a | problem_log=n/a\n"
+                "dashboard=clean | handoff=none | task_log=n/a | "
+                "problem_log=n/a | deferred_log=none\n"
             ),
             "loop_count": 0,
         }
     )
     assert out == {}
+
+
+def test_footer_missing_deferred_log_followup(hook):
+    out = hook.handle_payload(
+        {
+            "subagent_type": "tester",
+            "status": "completed",
+            "summary": (
+                "## Test report\n"
+                "**Lifecycle:** memory=unchanged | promotion=none | "
+                "dashboard=clean | handoff=none | task_log=n/a | "
+                "problem_log=n/a\n"
+            ),
+            "loop_count": 0,
+        }
+    )
+    assert "followup_message" in out
+    assert "deferred_log" in out["followup_message"]
 
 
 def test_footer_missing_problem_log_followup(hook):

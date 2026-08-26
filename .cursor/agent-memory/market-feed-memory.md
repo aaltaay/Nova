@@ -41,6 +41,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 - [ ] Coordinate with hod-momo before any scanner_l1 subscription-cap change.
 - [ ] Document first symbol-gate regression reproduction path in memory.
+- Parked scanner gaps are in `DEFERRED_LOG.md` (D-001 NEWS column, D-002 afterhours Gap %). Do not restate them here.
 
 ### Completed
 

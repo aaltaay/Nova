@@ -3,7 +3,7 @@
 - **Status:** completed
 - **Agents:** parent | security | …
 - **Domain:** security | market-feed | docs | …
-- **Related:** `CHANGELOG.md` §… · `PROBLEM_LOG.md` §… · SEC-NNN / roadmap phase (if any)
+- **Related:** `CHANGELOG.md` §… · `PROBLEM_LOG.md` §… · `DEFERRED_LOG.md` D-NNN · SEC-NNN / roadmap phase (if any)
 
 ## Task
 

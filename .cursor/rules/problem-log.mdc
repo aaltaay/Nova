@@ -52,14 +52,15 @@ problem_log=<YYYY-MM-DD title or entry anchor>|skipped|n/a
 Example after logging a fix:
 
 ```text
-**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-07-23-example.md | problem_log=2026-07-23 — API_WEDGED
+**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-07-23-example.md | problem_log=2026-07-23 -- API_WEDGED | deferred_log=none
 ```
 
 ## Relationship to other logs
 
 | Log | Answers |
 |-----|---------|
-| `PROBLEM_LOG.md` | What went wrong and how it was fixed (bugs / failures only) |
+| `PROBLEM_LOG.md` | What went wrong and how it was **fixed** (bugs / failures only) |
+| `DEFERRED_LOG.md` | What is **still wrong or not built**, parked with severity (`deferred-log.mdc`) |
 | `CHANGELOG.md` | What the codebase does now (every behavior change) |
 | `knowledge/task-log/` | Full job narrative + why this approach |
 
@@ -70,4 +71,5 @@ A bug fix that changes behavior needs **PROBLEM_LOG + CHANGELOG** (and task-log 
 - `.cursor/rules/self-annealing.mdc`
 - `.cursor/rules/change-log.mdc`
 - `.cursor/rules/task-log.mdc`
+- `.cursor/rules/deferred-log.mdc`
 - `docs/agent-operations.md`

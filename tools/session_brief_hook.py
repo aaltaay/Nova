@@ -53,6 +53,12 @@ def build_brief() -> str | None:
     if roadmap:
         lines.append(f"Roadmap NEXT: {roadmap}")
     try:
+        import deferred_log  # noqa: E402  (path inserted above)
+
+        lines.extend(deferred_log.format_session_brief_lines())
+    except Exception:
+        pass
+    try:
         from graphify_usage import DEFAULT_STORE, format_status, load_usage
 
         lines.append(

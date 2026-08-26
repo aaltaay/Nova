@@ -7,9 +7,10 @@ alwaysApply: true
 
 `knowledge/task-log/` is the **durable story of completed work**: task, goal, why it mattered, what changed, how it works now, and especially **why this approach** (tradeoffs / rejected alternatives).
 
-CHANGELOG = short “what the code does now.”  
-PROBLEM_LOG = bug diagnosis.  
-**Task log = full job narrative + reasoning.** All three can apply to one job.
+CHANGELOG = short "what the code does now."
+PROBLEM_LOG = bug diagnosis after a **fix**.
+DEFERRED_LOG = known bugs and parked features that are **not** done yet.
+**Task log = full job narrative + reasoning.** All four can apply to one job.
 
 ## When (mandatory)
 
@@ -42,7 +43,7 @@ If skipping, Lifecycle must say `task_log=skipped` or `task_log=n/a` with a one-
 Example Lifecycle:
 
 ```text
-**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-07-18-sec-001-008-remediation.md | problem_log=2026-07-18 — SEC-001–008
+**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-07-18-sec-001-008-remediation.md | problem_log=2026-07-18 -- SEC-001-008 | deferred_log=none
 ```
 
 ## Ownership
@@ -64,5 +65,5 @@ Example Lifecycle:
 ## Related
 
 - `knowledge/task-log/README.md`
-- `.cursor/rules/change-log.mdc`, `.cursor/rules/problem-log.mdc`
+- `.cursor/rules/change-log.mdc`, `.cursor/rules/problem-log.mdc`, `.cursor/rules/deferred-log.mdc`
 - `docs/agent-operations.md`

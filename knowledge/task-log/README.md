@@ -6,9 +6,10 @@ This is **not** a substitute for:
 
 | File | Job |
 |------|-----|
-| `CHANGELOG.md` | Short “what the codebase does now” |
-| `PROBLEM_LOG.md` | Bug/failure diagnosis (symptom → cause → fix) |
-| Agent `*-memory.md` | Per-specialist working memory |
+| `CHANGELOG.md` | Short "what the codebase does now" |
+| `PROBLEM_LOG.md` | Bug/failure diagnosis after a **fix** (symptom -> cause -> fix) |
+| `DEFERRED_LOG.md` | Known bugs and parked features that are **not** done yet |
+| Agent `*-memory.md` | Per-specialist working memory (not the SSOT for parked work) |
 | This folder | Full task story + **reasoning / tradeoffs** |
 
 Cold agents should skim `INDEX.md`, then open the matching entry before re-touching the same area.
@@ -24,7 +25,7 @@ Cold agents should skim `INDEX.md`, then open the matching entry before re-touch
 1. Copy `_template.md` → `YYYY-MM-DD-<kebab-slug>.md` (UTC or local calendar date; newest work uses today’s date).
 2. Fill every section. The **Why this approach** section is mandatory — that is the point of this log.
 3. Prepend a row to `INDEX.md` (newest first).
-4. Cross-link from `CHANGELOG.md` / `PROBLEM_LOG.md` when those also get an entry (`Related:` → task-log path).
+4. Cross-link from `CHANGELOG.md` / `PROBLEM_LOG.md` / `DEFERRED_LOG.md` when those also get an entry (`Related:` -> task-log path).
 5. In the agent Lifecycle line, set `task_log=<relative-path>|skipped|n/a`.
 
 Helper:

@@ -134,7 +134,7 @@ Before editing any `.canvas.tsx`, read the Canvas skill (`~/.cursor/skills-curso
 - **Blocked gates:** (none | Vale/Lychee/…)
 - **Memory update:** none | run-log only | promoted: <what> | backlog +N
 
-**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
+**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 After material docs/process work, write `knowledge/task-log/` (see `.cursor/rules/task-log.mdc`).

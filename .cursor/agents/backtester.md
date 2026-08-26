@@ -65,7 +65,7 @@ Windows: always `py -3` for Python.
 - **Honesty labels:** …
 - **Memory update:** none | run-log only | promoted: <what> | backlog +N
 
-**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
+**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 ## Self-improvement protocol

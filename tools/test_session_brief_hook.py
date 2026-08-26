@@ -47,6 +47,9 @@ def test_build_brief_real_repo_smoke(hook):
     assert brief is None or "Nova fleet brief" in brief
     if brief:
         assert "Graphify meter:" in brief
+        assert "Deferred" in brief
+        assert "D-001" in brief
+        assert "D-002" in brief
 
 
 def test_main_emits_additional_context(hook, monkeypatch, capsys):

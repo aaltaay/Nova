@@ -42,7 +42,7 @@ These rules CANNOT be violated under ANY circumstance:
 | 3 | **Secrets in `.env` only** | No API keys, tokens, or credentials EVER appear in source code, logs, or commits. |
 | 4 | **`.tmp/` is ephemeral** | Never treat `.tmp/` files as a source of truth. |
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
-| 6 | **Self-Annealing** | Any error → Analyze → Patch → Test → Update SOP/rules → **MUST** log in `PROBLEM_LOG.md` (every agent; see `problem-log.mdc`). |
+| 6 | **Self-Annealing** | Any error -> Analyze -> Patch -> Test -> Update SOP/rules -> **MUST** log in `PROBLEM_LOG.md` (every agent; see `problem-log.mdc`). If the bug cannot be fixed this session (too big, wrong task, needs an ADR), **MUST** log it in `DEFERRED_LOG.md` instead of a band-aid (`deferred-log.mdc`). |
 | 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway connection default is **live** (port 4001); paper (4002) is the fallback when live is dark. Spending still requires `IBKR_ENABLED=true` and `IBKR_ORDERS_ENABLED=true`; live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. **Short entry (Phase K / ADR 009):** every SELL is risk-reducing unless an explicit `short_entry` opt-in on the execution command is approved by the short gate (`IBKR_SHORT_ENABLED=true` + fresh IBKR tick-236 `shortable_est`). Never infer shorts from side + flat position. `auto_live` remains NO-GO. |
 | 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a maintenance log entry, THEN write the code. |
 
@@ -299,9 +299,16 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 ### 7.2b Task log (`knowledge/task-log/`)
 
 - After every completed material task (parent or specialist), append a dated narrative under `knowledge/task-log/` and prepend `INDEX.md`.
-- **Why this approach** is mandatory — capture tradeoffs and rejected alternatives, not only the diff.
+- **Why this approach** is mandatory -- capture tradeoffs and rejected alternatives, not only the diff.
 - Rule: `.cursor/rules/task-log.mdc`. Scaffold: `py -3 tools/task_log_new.py --slug <kebab> --title "…"`.
-- Lifecycle footer includes `task_log=<path>|skipped|n/a` and `problem_log=<entry>|skipped|n/a`.
+- Lifecycle footer includes `task_log=<path>|skipped|n/a`, `problem_log=<entry>|skipped|n/a`, and `deferred_log=<D-NNN>|none|skipped|n/a`.
+
+### 7.2c DEFERRED_LOG.md
+
+- **Mandatory for every agent** (parent + all specialists). Rule: `.cursor/rules/deferred-log.mdc`.
+- Prepend (or extend) an entry after parking a known bug or a feature you will not build this session -- same session, same severity as skipping PROBLEM_LOG after a real fix.
+- Use the template in `DEFERRED_LOG.md` (Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence). IDs are durable (`D-001`). Ranked list: `py -3 tools/deferred_log.py status`.
+- Lifecycle footer **MUST** include `deferred_log=<D-NNN>|none|skipped|n/a`. Agent-memory Backlog is not the SSOT. Product-phase NEXT stays in `Nova-Roadmap-Status.md`.
 
 ### 7.3 .cursor/rules/
 
@@ -348,7 +355,7 @@ When ANY error occurs during a task:
 3. **Root Cause** — Identify the actual cause, not the symptom.
 4. **Patch** — Fix the root cause in the correct module (not in `main.py`).
 5. **Test** — Verify the fix works (build, run, or test).
-6. **Update SOP** — Add entry to `PROBLEM_LOG.md` and update relevant MDC rule if needed.
+6. **Update SOP** -- Add entry to `PROBLEM_LOG.md` (if fixed) or `DEFERRED_LOG.md` (if parked), and update relevant MDC rule if needed.
 7. **Commit** — `git add . && git commit -m "<msg>" && git push origin master`.
 
 ---
@@ -363,6 +370,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-08-26 | DEFERRED_LOG.md: parked bugs/features with same respect as PROBLEM_LOG; Lifecycle `deferred_log=`; always-on `deferred-log.mdc`; session brief lists open P0/P1. | User Directive + Cursor Agent |
 | 2026-08-25 | Graphify rule always-on; agents must use `tools/graphify_ask.py` (token-savings meter). Rebuild skill stays on-demand. | User Directive + Cursor Agent |
 | 2026-08-18 | Gateway connection default is live (4001); paper (4002) is fallback. Invariant #7 and §5 updated -- spend gates unchanged; `auto_live` still NO-GO. | User Directive + Cursor Agent |
 | 2026-08-06 | Engineering methodology graft: Superpowers verification/plan teeth + Addy interview/doubt/review as Nova-adapted skills + always-on MDCs; `tools/engineering_skills_audit.py`; domain constitution + zero-hop preserved. | User Directive + Cursor Agent |
@@ -463,6 +471,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `engineering-standards.mdc` -- Tailwind direction, tests, CI, deps, patterns
 - `karpathy-guidelines.mdc` -- think / simplify / surgical / verify
 - `problem-log.mdc` -- mandatory PROBLEM_LOG after bug fixes
+- `deferred-log.mdc` -- mandatory DEFERRED_LOG after parking a bug or feature
 - `change-log.mdc` -- CHANGELOG after behavior changes
 - `task-log.mdc` -- task-log narrative after material work
 - `commit-push-deploy.mdc` -- commit + push (+ deploy when applicable) at task end

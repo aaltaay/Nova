@@ -1,0 +1,82 @@
+---
+description: MANDATORY DEFERRED_LOG.md for every agent after parking a bug or feature
+alwaysApply: true
+---
+
+# Deferred log -- mandatory for every agent
+
+The repo root file `DEFERRED_LOG.md` is the **parking lot for known bugs and parked features**. It is a peer of `PROBLEM_LOG.md` -- same respect, same Lifecycle declaration, same constitution severity if you skip it after parking real work.
+
+**This rule applies to every agent that works in this repo** -- parent Auto sessions, Cursor built-ins used on Nova work, and every Nova specialist (`tester`, `hod-momo`, `market-feed`, ...). There is no exception by agent type or "we were busy" framing.
+
+## Hard requirement
+
+When a session **finds a real bug it will not fix now**, or **parks a feature the human asked for**, the agent **MUST** prepend (or extend) an entry in `DEFERRED_LOG.md` in the **same session** (before or with the CHANGELOG / task-log / commit):
+
+- A bug whose fix is too big, architectural, or the wrong task for this session
+- A fully diagnosed root cause whose patch is deferred (do not band-aid; do not stay silent)
+- A user-requested feature you declined to build now (too complicated, needs an ADR, needs a human decision)
+
+**Skipping DEFERRED_LOG after parking real work is a constitution violation** -- same severity as skipping `PROBLEM_LOG.md` after a real fix.
+
+Search `DEFERRED_LOG.md` (and `py -3 tools/deferred_log.py status`) before dumping a new item. Extend an existing `D-NNN` when the same gap is rediscovered.
+
+## Where and how
+
+1. Open items: prepend a new `## D-NNN` section immediately below `<!-- OPEN_START -->`. Next ID: `py -3 tools/deferred_log.py next-id`.
+2. Use the template in `DEFERRED_LOG.md`. Severity, Effort, Why parked, Blast radius, Unblock, Next, and Evidence are never optional.
+3. Do not log secrets, tokens, or personal data.
+4. Cross-link from CHANGELOG / task-log `Related:` when those also get an entry.
+5. When you later **fix** it: move the section to Closed, write `PROBLEM_LOG.md` if it was a bug, and set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`.
+
+## Do not
+
+- Dump parked work only into `.cursor/agent-memory/*-memory.md` Backlog (scratchpad, not SSOT)
+- Dump product-phase NEXT / L-Z parking-lot work here -- that stays in `Nova-Roadmap-Status.md`
+- Treat a CHANGELOG `Follow-ups:` bullet as enough -- if it is a real bug or parked feature, it belongs here
+- Band-aid a P0/P1 so you can skip writing the entry
+- Invent an ID; never reuse a Closed ID
+
+## When skip is allowed
+
+Only for:
+
+- You actually **fixed** the bug this session (that is `PROBLEM_LOG.md`, then `deferred_log=none` unless you also closed a D-NNN)
+- Purely cosmetic edits with nothing parked
+- Status-only polls / read-only triage with no new gap found
+- The gap is already an open `D-NNN` and you did not learn anything new -- still declare `deferred_log=D-NNN` if you touched that area, else `none`
+
+When skipping, Lifecycle (specialists) or the closing report (parent) **MUST** say `deferred_log=none`, `deferred_log=skipped`, or `deferred_log=n/a` -- never silently omit the declaration.
+
+## Lifecycle declaration (specialists + parent reports that use Lifecycle)
+
+Every Lifecycle footer **MUST** include:
+
+```text
+deferred_log=<D-NNN>|none|skipped|n/a
+```
+
+Example after parking a bug:
+
+```text
+**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-08-26-example.md | problem_log=n/a | deferred_log=D-001
+```
+
+## Relationship to other logs
+
+| Log | Answers |
+|-----|---------|
+| `PROBLEM_LOG.md` | What went wrong and how it was **fixed** |
+| `DEFERRED_LOG.md` | What is **still wrong or not built**, with severity so a human can prioritize |
+| `CHANGELOG.md` | What the codebase does now |
+| `knowledge/task-log/` | Full job narrative + why this approach |
+| `Nova-Roadmap-Status.md` | Product phase NEXT (not a bug tracker) |
+
+## Related
+
+- `.cursor/rules/problem-log.mdc`
+- `.cursor/rules/self-annealing.mdc`
+- `.cursor/rules/change-log.mdc`
+- `.cursor/rules/task-log.mdc`
+- `docs/agent-operations.md`
+- `tools/deferred_log.py`

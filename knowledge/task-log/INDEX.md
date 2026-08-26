@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-26 | [DEFERRED_LOG.md for known bugs and parked features](2026-08-26-deferred-log.md) | One honored parking-lot file (peer of PROBLEM_LOG) with severity/effort/unblock; Lifecycle `deferred_log=`; seeded NEWS + afterhours gap |
 | 2026-08-26 | [Scanner column starvation and mover enrichment](2026-08-26-scanner-column-starvation-and-enrichment.md) | Click-only L1 tab declaration left the visible table pointing at frozen Gappers, so `OWNER_SCANNER` subscribed 6 symbols all day and half the Gainers rows never got a price; Gap % now comes from the IB open tick and RVOL/float/short-int/mkt-cap are decorated at serialization (yfinance, never Alpaca IEX averages) |
 | 2026-08-26 | [VWAP walks with painted chart bars](2026-08-26-vwap-walk-painted-bars.md) | 10Sec VWAP now uses that pane's bars (09:30 still from 1Min) and extends onto the live forming candle so the orange line sits on the same times as the painted bars |
 | 2026-08-26 | [Persistent cross-timeframe chart drawings (ADR 015)](2026-08-26-persistent-cross-timeframe-chart-drawings.md) | Drawings are stored per symbol on the backend and shared by every timeframe pane; one canonical ET epoch anchor is snapped to each pane's nearest bar, because `timeToCoordinate` returns null off-scale and would silently hide trend/vertical/cross lines |

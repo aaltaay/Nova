@@ -5,7 +5,7 @@ This file is a running narrative of **what changed in this repo and why**, so fu
 - **Scope:** code behavior, module boundaries, public APIs, constants, tooling, rules, user-visible UI changes.
 - **Out of scope:** pure typo fixes, formatting-only edits, local scratch files.
 
-Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix). This file answers "what does the codebase do now and why"; `PROBLEM_LOG.md` answers "what went wrong and how was it diagnosed."
+Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix). Parked bugs and features belong in `DEFERRED_LOG.md`, not only as a Follow-ups bullet here. This file answers "what does the codebase do now and why"; `PROBLEM_LOG.md` answers "what went wrong and how was it diagnosed"; `DEFERRED_LOG.md` answers "what is still wrong or not built."
 
 ## How agents update this file
 
@@ -29,6 +29,15 @@ Entry template (copy and fill in):
 ```
 
 <!-- ENTRIES_START -->
+
+## 2026-08-26 -- DEFERRED_LOG.md for known bugs and parked features
+
+- **What:** New repo-root `DEFERRED_LOG.md` is the SSOT for known bugs and parked features, enforced like `PROBLEM_LOG.md`. Lifecycle footers now require `deferred_log=`. Open P0/P1 items show up in the session-start fleet brief.
+- **Why:** Agents were parking work in specialist memory Backlog (or CHANGELOG Follow-ups) where a human would never look. The operator asked for one respected file so parked work is visible and triaged (severity, effort, unblock, next step).
+- **Files touched:** `DEFERRED_LOG.md`, `.cursor/rules/deferred-log.mdc`, `tools/deferred_log.py`, `tools/session_brief_hook.py`, `tools/subagent_lifecycle_hook.py`, `.cursor/agent-system/contract.json`, `AGENTS.md`, agent prompts, `docs/agent-operations.md`.
+- **How it works now:** Find a bug you cannot fix this session (or park a feature) -> prepend `D-NNN` under `<!-- OPEN_START -->` with Kind/Severity/Effort/Why parked/Blast radius/Unblock/Next/Evidence. Ranked list: `py -3 tools/deferred_log.py status`. Agent-memory Backlog is scratch only. Roadmap NEXT stays in `Nova-Roadmap-Status.md`. Closing an item means move it to Closed and write PROBLEM_LOG if it was a bug.
+- **Verified by:** `py -3 -m pytest tools/test_deferred_log.py tools/test_subagent_lifecycle_hook.py tools/test_session_brief_hook.py` plus `py -3 tools/agent_contract.py`.
+- **Related:** seeded `D-001` (scanner NEWS dead under ibkr) and `D-002` (afterhours Gap % == Change %).
 
 ## 2026-08-26 -- Mover fundamentals warm is single-flight
 

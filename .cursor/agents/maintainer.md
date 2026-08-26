@@ -137,7 +137,7 @@ Rules:
 - **Suggested next fixes:** (ordered; one commit each; parent decides)
 - **Memory update:** none | run-log only | baseline updated: <what> | backlog +N
 
-**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
+**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 Keep the report short. Prefer evidence over narrative. If CLEAN, say so — do not invent findings to look busy.

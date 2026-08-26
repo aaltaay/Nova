@@ -151,7 +151,7 @@ Rules:
 - **PROBLEM_LOG match:** (none | entry title)
 - **Memory update:** none | run-log only | promoted to tester.md: <what> | backlog +N
 
-**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a
+**Lifecycle:** memory=unchanged | promotion=none | dashboard=clean | handoff=none | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 Keep the report short. Prefer evidence over narrative. Include pass counts from this run (and update Current snapshot when full gates are re-verified).
