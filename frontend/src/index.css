@@ -13,6 +13,7 @@
 @import "./ibkr/gatewayModeCapsule.css" layer(components);
 @import "./ibkr/marketData.css" layer(components);
 @import "./styles/settings-workspace.css" layer(features);
+@import "./styles/shortcuts-menu.css" layer(features);
 @import "./styles/scanner-l2.css" layer(features);
 @import "./styles/scanner-side-nav.css" layer(features);
 @import "./styles/scanner-misc.css" layer(features);

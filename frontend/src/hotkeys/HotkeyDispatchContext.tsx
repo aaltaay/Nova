@@ -15,6 +15,7 @@ import {
 } from 'react';
 import { DESK_ASK_BID_HOTKEY_EPOCH, type HotkeyAction } from '../constants';
 import {
+  chordToBinding,
   createHotkeyKeydownHandler,
   type HotkeyCallbacks,
 } from '../hooks/hotkeyUtils';
@@ -23,7 +24,15 @@ import {
   getEffectiveAutomationBindings,
   getEffectiveMenuBinding,
 } from './effectiveBindings';
-import { deskAskBidEpochNeedsApply, loadProfile, saveProfile } from './hotkeyStorage';
+import {
+  deleteNovaActionFromProfile,
+  deskAskBidEpochNeedsApply,
+  loadProfile,
+  saveProfile,
+  upsertNovaActionInProfile,
+} from './hotkeyStorage';
+import { NovaActionEditor } from './NovaActionEditor';
+import { novaActionConflictMessage } from './novaActionConflict';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
 import { runNovaAction, type NovaActionRuntime } from './runNovaAction';
 import {
@@ -81,6 +90,8 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   const [rebindTarget, setRebindTarget] = useState<ShortcutRebindTarget | null>(null);
   const [rebindExcludeId, setRebindExcludeId] = useState<string | null>(null);
   const [rebindConflict, setRebindConflict] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<NovaActionRecord | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
   const rebindActiveRef = useRef(false);
   rebindActiveRef.current = rebindTarget != null;
 
@@ -142,10 +153,16 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     return result;
   }, []);
 
+  const pinMenu = useCallback(() => {
+    setMenuState((s) => (s.mode === 'closed' ? s : { ...s, mode: 'pinned' }));
+  }, []);
+
   const closePinnedMenu = useCallback(() => {
     setRebindTarget(null);
     setRebindExcludeId(null);
     setRebindConflict(null);
+    setEditDraft(null);
+    setEditError(null);
     setMenuState(initialShortcutsMenuState());
   }, []);
 
@@ -223,11 +240,59 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   );
 
   const onStartRebind = useCallback((target: ShortcutRebindTarget, excludeId: string) => {
-    setMenuState((s) => (s.mode === 'closed' ? s : { ...s, mode: 'pinned' }));
+    pinMenu();
+    setEditDraft(null);
+    setEditError(null);
     setRebindConflict(null);
     setRebindTarget(target);
     setRebindExcludeId(excludeId);
-  }, []);
+  }, [pinMenu]);
+
+  const editConflict = useMemo(
+    () => (editDraft ? novaActionConflictMessage(editDraft, profile.novaActions) : null),
+    [editDraft, profile.novaActions],
+  );
+
+  const onEditAction = useCallback((id: string) => {
+    const row = novaActionsRef.current.find((a) => a.id === id);
+    if (!row) return;
+    pinMenu();
+    setRebindTarget(null);
+    setRebindExcludeId(null);
+    setRebindConflict(null);
+    setEditDraft({ ...row, params: { ...row.params } });
+    setEditError(null);
+  }, [pinMenu]);
+
+  const onDeleteAction = useCallback((id: string) => {
+    pinMenu();
+    setEditDraft(null);
+    setEditError(null);
+    setProfile((prev) => {
+      const next = deleteNovaActionFromProfile(prev, id);
+      saveProfile(next);
+      return next;
+    });
+  }, [pinMenu]);
+
+  const saveEditAction = useCallback(() => {
+    if (!editDraft) return;
+    if (editConflict) {
+      setEditError(editConflict);
+      return;
+    }
+    if (!chordToBinding(editDraft.key)) {
+      setEditError('Key chord is required');
+      return;
+    }
+    setProfile((prev) => {
+      const next = upsertNovaActionInProfile(prev, editDraft);
+      saveProfile(next);
+      return next;
+    });
+    setEditDraft(null);
+    setEditError(null);
+  }, [editDraft, editConflict]);
 
   const onCancelRebind = useCallback(() => {
     setRebindTarget(null);
@@ -298,7 +363,20 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
         onApplyRebind={onApplyRebind}
         onRebindConflict={setRebindConflict}
         onCancelRebind={onCancelRebind}
+        onEditAction={onEditAction}
+        onDeleteAction={onDeleteAction}
+        onPinMenu={pinMenu}
       />
+      {editDraft && (
+        <NovaActionEditor
+          draft={editDraft}
+          conflictMsg={editConflict}
+          error={editError}
+          onChange={setEditDraft}
+          onSave={saveEditAction}
+          onCancel={() => { setEditDraft(null); setEditError(null); }}
+        />
+      )}
     </HotkeyDispatchContext.Provider>
   );
 }

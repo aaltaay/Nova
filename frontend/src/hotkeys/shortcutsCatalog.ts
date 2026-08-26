@@ -28,6 +28,10 @@ export type ShortcutCatalogRow = {
   label: string;
   detail?: string;
   rebind?: ShortcutRebindTarget;
+  /** Open the Nova Action editor (System 2 rows only). */
+  canEditAction?: boolean;
+  /** Two-step delete (System 2 rows only). */
+  canDelete?: boolean;
 };
 
 export type ShortcutCatalogSection = {
@@ -83,6 +87,8 @@ export function buildShortcutsCatalog(
         label: a.name || NOVA_ACTION_KIND_LABELS[a.kind],
         detail: NOVA_ACTION_KIND_LABELS[a.kind],
         rebind: { type: 'nova', id: a.id },
+        canEditAction: true,
+        canDelete: true,
       })),
   };
 

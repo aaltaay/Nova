@@ -9,6 +9,7 @@ import {
   type NovaActionKind,
 } from '../constants';
 import { formatKeyChord, parseKeyChord } from './htkFormat';
+import { ConfirmDeleteIconButton } from './ConfirmDeleteIconButton';
 import { KeyCapture } from './KeyCapture';
 import { describeNovaAction } from './novaActionFormat';
 import type { NovaActionRecord } from './novaActionTypes';
@@ -17,10 +18,12 @@ export function HotkeysSettingsDetail({
   action,
   conflictMsg,
   onChange,
+  onDelete,
 }: {
   action: NovaActionRecord;
   conflictMsg: string | null;
   onChange: (next: NovaActionRecord) => void;
+  onDelete?: (id: string) => void;
 }) {
   const [capturing, setCapturing] = useState(false);
 
@@ -170,6 +173,17 @@ export function HotkeysSettingsDetail({
       </label>
 
       {conflictMsg && <p className="empty-state" role="alert">{conflictMsg}</p>}
+
+      {onDelete && (
+        <div className="hk-settings-delete-row">
+          <ConfirmDeleteIconButton
+            label={action.name}
+            onConfirm={() => onDelete(action.id)}
+            testId="hotkeys-settings-delete-btn"
+          />
+          <span className="na-muted">Delete needs a second click</span>
+        </div>
+      )}
 
       {capturing && (
         <KeyCapture

@@ -158,11 +158,16 @@ export const SHORTCUTS_MENU_EPOCH_STORAGE_KEY = 'nova.hotkeys.menu-default-epoch
 export const SHORTCUTS_MENU_DOUBLE_TAP_MS = 450;
 export const SHORTCUTS_MENU_TITLE = 'Keyboard shortcuts';
 export const SHORTCUTS_MENU_HINT_PEEK =
-  'Hold Ctrl+Alt · release to close · tap twice quickly to pin · Edit or double-click a row to rebind';
+  'Hold Ctrl+Alt · release to close · tap twice to pin · Key rebinds · Edit changes the action';
 export const SHORTCUTS_MENU_HINT_PINNED =
-  'Pinned · Esc or Ctrl+Alt to close · Edit or double-click a row to rebind';
+  'Pinned · Esc or Ctrl+Alt closes · Key rebinds · Edit changes the action · trash needs a second click';
 export const SHORTCUTS_MENU_REBIND_HINT = 'Press the new shortcut now';
 export const SHORTCUTS_MENU_CONFLICT_PREFIX = 'Already used by';
+export const SHORTCUTS_MENU_KEY_BTN = 'Key';
+export const SHORTCUTS_MENU_ACTION_BTN = 'Edit';
+export const SHORTCUTS_MENU_DELETE_CONFIRM = 'Delete?';
+/** First trash click only arms; second click within this window deletes. */
+export const SHORTCUTS_MENU_DELETE_ARM_MS = 4000;
 
 // ── DAS-compatible hotkey manager (Phase G2 / G3) ────────────────────────────
 /** Shown in Settings → Hotkeys for the DAS import table. */

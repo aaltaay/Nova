@@ -13,6 +13,7 @@ import {
 import { createEmptyRecord, parseHtk, serializeHtk } from './htkFormat';
 import {
   createEmptyProfile,
+  deleteNovaActionFromProfile,
   deskAskBidEpochNeedsApply,
   loadProfile,
   profileFromRecords,
@@ -173,6 +174,14 @@ export function useHotkeyProfile() {
     });
   }, [dispatch]);
 
+  const deleteNovaAction = useCallback((id: string) => {
+    setProfile((prev) => {
+      const next = commit(deleteNovaActionFromProfile(prev, id));
+      dispatch?.reloadNovaActions();
+      return next;
+    });
+  }, [dispatch]);
+
   return {
     profile,
     analyses,
@@ -192,5 +201,6 @@ export function useHotkeyProfile() {
     resetProfile,
     setNovaActions,
     restoreNovaDefaults,
+    deleteNovaAction,
   };
 }

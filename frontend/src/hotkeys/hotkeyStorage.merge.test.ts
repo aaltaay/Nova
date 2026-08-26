@@ -4,8 +4,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyDeskAskBidHotkeys,
+  createEmptyProfile,
+  deleteNovaActionFromProfile,
   deskAskBidEpochNeedsApply,
   mergeMissingDefaultNovaActions,
+  migrateProfile,
+  restoreDefaultNovaActions,
 } from './hotkeyStorage';
 import { DESK_ASK_BID_HOTKEY_EPOCH, DESK_ASK_BID_HOTKEY_EPOCH_KEY } from '../constants';
 import type { NovaActionRecord } from './novaActionTypes';
@@ -93,6 +97,35 @@ describe('mergeMissingDefaultNovaActions', () => {
     expect(other?.key.key).toBe('');
   });
 
+  it('skips tombstoned default ids so a delete survives reload', () => {
+    const existing = [stub('user-custom', 'exit_pos')];
+    const merged = mergeMissingDefaultNovaActions(existing, ['nova-wb-buy-1']);
+    expect(merged.find((a) => a.id === 'nova-wb-buy-1')).toBeUndefined();
+    expect(merged.find((a) => a.id === 'user-custom')).toBeTruthy();
+  });
+});
+
+describe('deleteNovaActionFromProfile', () => {
+  it('removes the row and records a tombstone', () => {
+    const profile = createEmptyProfile();
+    const id = profile.novaActions[0]?.id;
+    expect(id).toBeTruthy();
+    const next = deleteNovaActionFromProfile(profile, id!);
+    expect(next.novaActions.find((a) => a.id === id)).toBeUndefined();
+    expect(next.removedNovaActionIds).toContain(id);
+    const migrated = migrateProfile(next);
+    expect(migrated?.novaActions.find((a) => a.id === id)).toBeUndefined();
+  });
+
+  it('restore defaults clears tombstones and brings the set back', () => {
+    const profile = deleteNovaActionFromProfile(createEmptyProfile(), 'nova-wb-buy-1');
+    const restored = restoreDefaultNovaActions(profile);
+    expect(restored.removedNovaActionIds).toEqual([]);
+    expect(restored.novaActions.find((a) => a.id === 'nova-wb-buy-1')).toBeTruthy();
+  });
+});
+
+describe('desk epoch helper', () => {
   it('knows when the desk F1/F2/F5 epoch still needs apply', () => {
     localStorage.removeItem(DESK_ASK_BID_HOTKEY_EPOCH_KEY);
     expect(deskAskBidEpochNeedsApply()).toBe(true);

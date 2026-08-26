@@ -45,6 +45,7 @@ export function HotkeyManager() {
     deleteKey,
     setNovaActions,
     restoreNovaDefaults,
+    deleteNovaAction,
   } = useHotkeyProfile();
 
   const [tab, setTab] = useState<LandingTab>('trade');
@@ -206,6 +207,7 @@ export function HotkeyManager() {
           initialSelectedId={settingsFocusId}
           onChange={setNovaActions}
           onRestoreDefaults={restoreNovaDefaults}
+          onDelete={deleteNovaAction}
           onClose={() => setSettingsOpen(false)}
         />
       )}

@@ -88,6 +88,11 @@ export interface HotkeyProfile {
   automationBindings?: Partial<Record<HotkeyAction, HotkeyKeyChord>>;
   /** Optional override for the shortcuts cheat-sheet chord (default Ctrl+Alt). */
   shortcutsMenuKey?: HotkeyKeyChord;
+  /**
+   * Default Nova Action ids the operator deleted. loadProfile must not
+   * merge those defaults back (owner: hotkeyStorage; invalidate: restore defaults).
+   */
+  removedNovaActionIds?: string[];
   updatedAt: string;
 }
 

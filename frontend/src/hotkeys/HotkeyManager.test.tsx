@@ -80,6 +80,28 @@ describe('HotkeyManager', () => {
     expect(container.querySelector('[data-testid="hotkeys-settings-dialog"]')).toBeNull();
   });
 
+  it('requires a second click to delete a Nova Action in settings', async () => {
+    act(() => {
+      root.render(<HotkeyManager />);
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="hotkeys-settings-cta"]') as HTMLButtonElement).click();
+    });
+    expect(container.textContent).toContain('Cancel symbol orders');
+    const trash = container.querySelector(
+      '[data-testid="hotkeys-settings-delete-btn"]',
+    ) as HTMLButtonElement;
+    expect(trash).toBeTruthy();
+    await act(async () => {
+      trash.click();
+    });
+    expect(container.textContent).toContain('Cancel symbol orders');
+    await act(async () => {
+      trash.click();
+    });
+    expect(container.textContent).not.toContain('Cancel symbol orders');
+  });
+
   it('creates a customized button from + and appends to list', async () => {
     act(() => {
       root.render(<HotkeyManager />);

@@ -103,17 +103,55 @@ function migrateAutomationBindings(
  */
 export function mergeMissingDefaultNovaActions(
   existing: NovaActionRecord[],
+  removedIds: Iterable<string> = [],
 ): NovaActionRecord[] {
+  const removed = new Set(removedIds);
   const defaults = createDefaultNovaActions();
   const byId = new Set(existing.map((a) => a.id));
-  const merged = [...existing];
+  const merged = existing.filter((a) => !removed.has(a.id));
   for (const def of defaults) {
-    if (!byId.has(def.id)) {
-      merged.push(def);
-      byId.add(def.id);
-    }
+    if (removed.has(def.id) || byId.has(def.id)) continue;
+    merged.push(def);
+    byId.add(def.id);
   }
   return merged;
+}
+
+function parseRemovedIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((id): id is string => typeof id === 'string' && id.length > 0);
+}
+
+/** Drop a Nova Action and remember the id so defaults do not revive on load. */
+export function deleteNovaActionFromProfile(
+  profile: HotkeyProfile,
+  id: string,
+): HotkeyProfile {
+  const removed = new Set(profile.removedNovaActionIds ?? []);
+  removed.add(id);
+  return {
+    ...profile,
+    novaActions: profile.novaActions.filter((a) => a.id !== id),
+    removedNovaActionIds: [...removed],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function upsertNovaActionInProfile(
+  profile: HotkeyProfile,
+  draft: NovaActionRecord,
+): HotkeyProfile {
+  const exists = profile.novaActions.some((a) => a.id === draft.id);
+  return {
+    ...profile,
+    novaActions: exists
+      ? profile.novaActions.map((a) => (a.id === draft.id ? draft : a))
+      : [...profile.novaActions, draft],
+    removedNovaActionIds: (profile.removedNovaActionIds ?? []).filter(
+      (id) => id !== draft.id,
+    ),
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 const DESK_ASK_BID_IDS = new Set(['nova-buy-ask', 'nova-sell-bid', 'nova-sell-ask']);
@@ -164,8 +202,12 @@ export function migrateProfile(raw: unknown): HotkeyProfile | null {
   const obj = raw as Partial<HotkeyProfile> & { novaActions?: unknown };
   if (!Array.isArray(obj.records)) return null;
   const records = obj.records.filter(isRecord);
+  const removedNovaActionIds = parseRemovedIds(obj.removedNovaActionIds);
   const novaActions = Array.isArray(obj.novaActions)
-    ? mergeMissingDefaultNovaActions(obj.novaActions.filter(isNovaAction))
+    ? mergeMissingDefaultNovaActions(
+      obj.novaActions.filter(isNovaAction),
+      removedNovaActionIds,
+    )
     : createDefaultNovaActions();
   return {
     schemaVersion: HOTKEY_PROFILE_SCHEMA_VERSION,
@@ -176,6 +218,8 @@ export function migrateProfile(raw: unknown): HotkeyProfile | null {
     shortcutsMenuKey: isKeyChord(obj.shortcutsMenuKey)
       ? obj.shortcutsMenuKey
       : undefined,
+    removedNovaActionIds:
+      removedNovaActionIds.length > 0 ? removedNovaActionIds : undefined,
     updatedAt:
       typeof obj.updatedAt === 'string' ? obj.updatedAt : new Date().toISOString(),
   };
@@ -280,6 +324,7 @@ export function restoreDefaultNovaActions(profile: HotkeyProfile): HotkeyProfile
   return {
     ...profile,
     novaActions: createDefaultNovaActions(),
+    removedNovaActionIds: [],
     updatedAt: new Date().toISOString(),
   };
 }

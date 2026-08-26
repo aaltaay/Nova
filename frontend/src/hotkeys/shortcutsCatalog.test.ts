@@ -25,5 +25,9 @@ describe('buildShortcutsCatalog', () => {
     expect(sections[1].rows).toHaveLength(6);
     expect(sections[1].rows[0].rebind?.type).toBe('automation');
     expect(sections[2].rows[0].rebind).toEqual({ type: 'nova', id: 'a1' });
+    expect(sections[2].rows[0].canEditAction).toBe(true);
+    expect(sections[2].rows[0].canDelete).toBe(true);
+    expect(sections[0].rows[0].canEditAction).toBeUndefined();
+    expect(sections[1].rows[0].canDelete).toBeUndefined();
   });
 });

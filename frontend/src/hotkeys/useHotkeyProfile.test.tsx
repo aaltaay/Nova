@@ -85,6 +85,25 @@ describe('useHotkeyProfile', () => {
     expect(latest!.profile.records[0].name).toBe('Panic');
   });
 
+  it('deleteNovaAction tombstones a default so remount does not revive it', () => {
+    mount();
+    const id = 'nova-wb-buy-1';
+    expect(latest!.profile.novaActions.some((a) => a.id === id)).toBe(true);
+    act(() => {
+      latest!.deleteNovaAction(id);
+    });
+    expect(latest!.profile.novaActions.some((a) => a.id === id)).toBe(false);
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    mount();
+    expect(latest!.profile.novaActions.some((a) => a.id === id)).toBe(false);
+  });
+
   it('exportText round-trips without registering keydown listeners', () => {
     const addListener = vi.spyOn(window, 'addEventListener');
     mount();

@@ -1,5 +1,5 @@
 /**
- * Global shortcuts cheat-sheet overlay — peek/pin + double-click / Edit rebind.
+ * Global shortcuts cheat-sheet overlay — peek/pin + Key / Edit / delete.
  */
 
 import {
@@ -8,6 +8,7 @@ import {
   SHORTCUTS_MENU_TITLE,
 } from '../constants';
 import { ShortcutRebindSession } from './ShortcutRebindSession';
+import { ShortcutsMenuRowActions } from './ShortcutsMenuRowActions';
 import type { ShortcutCatalogSection, ShortcutRebindTarget } from './shortcutsCatalog';
 import type { ShortcutOccupiedSlot } from './shortcutConflicts';
 import type { ShortcutsMenuMode } from './shortcutsMenuState';
@@ -25,6 +26,9 @@ type Props = {
   onApplyRebind: (target: ShortcutRebindTarget, chord: HotkeyKeyChord) => void;
   onRebindConflict: (message: string) => void;
   onCancelRebind: () => void;
+  onEditAction?: (id: string) => void;
+  onDeleteAction?: (id: string) => void;
+  onPinMenu?: () => void;
 };
 
 export function ShortcutsMenuOverlay({
@@ -39,6 +43,9 @@ export function ShortcutsMenuOverlay({
   onApplyRebind,
   onRebindConflict,
   onCancelRebind,
+  onEditAction,
+  onDeleteAction,
+  onPinMenu,
 }: Props) {
   if (mode === 'closed') return null;
   const pinned = mode === 'pinned';
@@ -89,7 +96,7 @@ export function ShortcutsMenuOverlay({
                     className={`shortcuts-menu-row${row.rebind ? ' shortcuts-menu-row--rebindable' : ''}${
                       rebindExcludeId === row.id ? ' shortcuts-menu-row--recording' : ''
                     }`}
-                    title={row.rebind ? 'Double-click or press Edit to change shortcut' : undefined}
+                    title={row.rebind ? 'Double-click or press Key to change shortcut' : undefined}
                     onDoubleClick={(e) => {
                       if (!row.rebind) return;
                       e.preventDefault();
@@ -107,17 +114,13 @@ export function ShortcutsMenuOverlay({
                       )}
                     </span>
                     {row.rebind && (
-                      <button
-                        type="button"
-                        className="shortcuts-menu-edit-btn"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          beginRebind(row.rebind!, row.id);
-                        }}
-                      >
-                        Edit
-                      </button>
+                      <ShortcutsMenuRowActions
+                        row={row}
+                        onRebind={() => beginRebind(row.rebind!, row.id)}
+                        onEditAction={onEditAction}
+                        onDeleteAction={onDeleteAction}
+                        onArmDelete={onPinMenu}
+                      />
                     )}
                   </li>
                 ))}

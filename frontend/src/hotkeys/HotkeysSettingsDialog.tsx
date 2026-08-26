@@ -21,12 +21,14 @@ export function HotkeysSettingsDialog({
   initialSelectedId,
   onChange,
   onRestoreDefaults,
+  onDelete,
   onClose,
 }: {
   actions: NovaActionRecord[];
   initialSelectedId?: string | null;
   onChange: (next: NovaActionRecord[]) => void;
   onRestoreDefaults: () => void;
+  onDelete?: (id: string) => void;
   onClose: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -119,6 +121,7 @@ export function HotkeysSettingsDialog({
                 action={selected}
                 conflictMsg={conflictMsg}
                 onChange={patchSelected}
+                onDelete={onDelete}
               />
             ) : (
               <p className="na-muted">Select a hotkey or create a new one.</p>
