@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-26 | [Persistent cross-timeframe chart drawings (ADR 015)](2026-08-26-persistent-cross-timeframe-chart-drawings.md) | Drawings are stored per symbol on the backend and shared by every timeframe pane; one canonical ET epoch anchor is snapped to each pane's nearest bar, because `timeToCoordinate` returns null off-scale and would silently hide trend/vertical/cross lines |
+| 2026-08-26 | [Buying-power reject pop-up + dead API lock](2026-08-26-buying-power-reject-popup.md) | META BUY never reached IB (BP short); rejects now pop up; lock no longer treats a killed PID as alive |
 | 2026-08-26 | [Dual API Error 326 desk restore](2026-08-26-dual-api-clientid-326.md) | Single-instance API lock; Error 326 is `client_id_in_use` not Error 1100; door trail fetch failures are honest |
 | 2026-08-26 | [Scanner row click updates Quote Panel; ticker opens Trader](2026-08-26-row-click-quote-ticker-trader.md) | Row body only selects the symbol on ticker-bearing tables; blue ticker still opens Trader; a row click while already in Trader switches the active tab instead |
 | 2026-08-26 | [Chart drawing delete and wick placement](2026-08-26-chart-delete-selected-drawing.md) | Delete/Backspace removes the selected line; free crosshair places anchors at wick prices instead of candle close |

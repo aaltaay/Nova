@@ -101,18 +101,6 @@ function TickerChartInner({
     oscillatorPaneCount: oscillatorEnabled.length,
   });
 
-  const {
-    activeTool,
-    setActiveTool,
-    handleToolClick,
-    handleClearAll,
-  } = useChartDrawingManager({
-    containerRef,
-    chartRef,
-    candleSeriesRef,
-    chartApi,
-  });
-
   const { applyLiveTrade, lastCandleRef, resetTradeState } = useChartLiveTrade(
     candleSeriesRef,
     lastTrade,
@@ -139,6 +127,22 @@ function TickerChartInner({
     (typeof indicatorBars[indicatorBars.length - 1]?.time === 'number'
       ? (indicatorBars[indicatorBars.length - 1].time as number)
       : 0);
+
+  // Below useChartBars on purpose: hydrating drawings needs the painted series
+  // so anchors can snap onto this pane's bar grid (ADR 015).
+  const {
+    activeTool,
+    setActiveTool,
+    handleToolClick,
+    handleClearAll,
+  } = useChartDrawingManager({
+    containerRef,
+    chartRef,
+    candleSeriesRef,
+    chartApi,
+    symbol,
+    seriesRevision: barsRevision,
+  });
 
   useChartSessionHighlight({
     chartApi,

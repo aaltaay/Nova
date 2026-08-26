@@ -30,6 +30,26 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-26 -- Chart drawings are shared across timeframes and survive restart
+
+- **What:** A drawing placed on any chart pane (Trend Line, Horizontal Line, Vertical Line, Crosshair) now appears on every timeframe pane for that symbol and persists to the backend, surviving reload, API restart, and reboot. Clear-all clears the symbol everywhere. Switching symbol no longer leaves the previous ticker's lines painted on the new one.
+- **Why:** User request: "when I draw a horizontal line in any chart, I want it to show in all timelines, and I want that drawing to survive shutdown/reboot."
+- **Files touched:** `backend/chart_drawings.py`, `backend/routes/chart_drawings.py`, `backend/app_routers.py`, `backend/cache.py`, `backend/constants_scanner.py`, `frontend/src/chart/chartDrawingsStore.ts`, `chartDrawingTime.ts`, `chartDrawingHydrate.ts`, `useChartDrawingManager.ts`, `TickerChart.tsx`, `frontend/src/constantGroups/market_ui.ts`, `architecture/decisions/015-persistent-chart-drawings.md`.
+- **How it works now:** `backend/.cache/chart-drawings.json` (owner `chart_drawings.py`, `schema_version` 1, refuse-loud) is served by `GET/PUT/DELETE /api/chart-drawings/{symbol}`; `PUT` replaces a symbol's whole list. The frontend `chartDrawingsStore` holds one list per symbol, fans out synchronously to every subscribed pane (that is what shares them), and debounces writes into one `PUT`. Anchors are stored as a single canonical ET-shifted epoch and snapped to each pane's nearest real bar on hydrate -- required because intraday series use epoch numbers, 1Day+ series use `'YYYY-MM-DD'` strings, and `timeToCoordinate` returns `null` off-scale. A per-symbol revision counter lets a pane tell its own echo from a sibling's edit, so a coarse 1Day pane never rewrites 1Min-precision anchors and the pane that just drew does not wipe its own line. `DrawingManager` stays per-pane; only its contents are shared.
+- **Verified by:** pytest 1384 passed (24 new: `test_chart_drawings.py`, `test_routes_chart_drawings.py`). Vitest 816 passed + 33 new chart drawing tests (`chartDrawingTime`, `chartDrawingsStore`, `chartDrawingHydrate`). `npx tsc --noEmit` and `npm run build` exit 0. Live HTTP round-trip against the local API. Operator confirmed in-app: a horizontal line and a trend line drawn on CRE persisted to `chart-drawings.json` with canonical anchors.
+- **Follow-ups:** Editing a time-anchored drawing on a coarse pane saves that pane's bar resolution (documented tradeoff in ADR 015); horizontal lines are unaffected since only price matters.
+- **Related:** ADR 015; PROBLEM_LOG 2026-08-26 -- Chart drawings were per-pane, bled across symbols, and died on reload; 2026-08-26 -- Fresh chart drawing erased by an in-flight GET.
+
+## 2026-08-26 -- Buying-power rejects pop up; dead API lock no longer blocks restart
+
+- **What:** Place, flatten, and Nova Action rejects open a blocking `alertApp` pop-up (title like "Not enough buying power") instead of only a tiny footer span. The place HTTP receipt now includes `reason_code`. The API instance lock treats a killed PID as stale (`GetExitCodeProcess`, not `OpenProcess(SYNCHRONIZE)`).
+- **Why:** A live META BUY 1 LMT @ $596.54 was rejected (`BUYING_POWER` vs $552.79 BP) with almost no on-screen notice. Restarting a wedged API then failed because the lock still thought pid 4916 was alive.
+- **Files touched:** `frontend/src/ibkr/notifyOrderRejected.ts`, `ManualOrderTicket.tsx`, `TickerTradeActionBar.tsx`, `HotkeyDispatchContext.tsx`, `placeOrder.ts`, `constantGroups/ux.ts`, `backend/execution/models.py`, `backend/api_instance_lock.py`.
+- **How it works now:** Validation still refuses the spend before IB sees it (ledger status `rejected`). The UI calls `notifyOrderRejected` on fail. Confirm-dialog cancels (`Order cancelled`) do not pop. A dead lock PID is reclaimed so one API can start on :8000.
+- **Verified by:** Live ledger `d29f349d-...` META BUYING_POWER. Vitest notifyOrderRejected + host dialog (11) + neighbors (30). pytest `TestAccountAndRiskGates` (7) + `test_api_instance_lock` (5). `npm run build` exit 0. After restart: `/api/ibkr/status` connected/ready live; `/api/movers` 50 gainers `table_state=live`; `/api/gappers` 20 rows live.
+- **Related:** PROBLEM_LOG 2026-08-26 -- Buying-power reject had no pop-up; 2026-08-26 -- Instance lock false-alive PID.
+
+
 ## 2026-08-26 -- Dual API Error 326 no longer looks like a Gateway login failure
 
 - **What:** A second Nova API can no longer start beside a living one. Error 326 (clientId already in use) is now a first-class session reason with honest Trading prerequisites copy. Door trail fetch failures no longer show the raw browser `Failed to fetch` string.

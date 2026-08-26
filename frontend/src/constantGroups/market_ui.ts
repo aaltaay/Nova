@@ -550,6 +550,20 @@ export const CHART_REFETCH_SEC: Record<string, number> = {
 export const CHART_BARS_STUCK_RETRY_MIN_MS = 3_000;
 export const CHART_BARS_STUCK_RETRY_MAX_MS = 15_000;
 
+/** Chart drawings (ADR 015) — shared across timeframes and persisted per symbol. */
+/** Dragging an anchor fires `drawing:updated` per mousemove; coalesce the PUTs. */
+export const CHART_DRAWINGS_SAVE_DEBOUNCE_MS = 400;
+/** Matches backend CHART_DRAWINGS_MAX_PER_SYMBOL — refuse locally before the 400. */
+export const CHART_DRAWINGS_MAX_PER_SYMBOL = 200;
+/** Cross-window channel so a detached Trader window sees a level drawn in the host. */
+export const CHART_DRAWINGS_BROADCAST_CHANNEL = 'nova.chart.drawings';
+/**
+ * Only the horizontal line renders from price alone; every other tool resolves
+ * its anchor through `timeScale.timeToCoordinate`, which returns null for a time
+ * that is not on that pane's scale. See chartDrawingTime.ts.
+ */
+export const CHART_DRAWING_PRICE_ONLY_TYPES: readonly string[] = ['horizontal-line'];
+
 /**
  * Chart indicator toggles — computed via lightweight-charts-indicators (not hand-rolled).
  * `emas` / `vwap` are price-pane overlays; `rsi` / `macd` are oscillator panes.

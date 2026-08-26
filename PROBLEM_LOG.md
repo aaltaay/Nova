@@ -37,6 +37,39 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-26 -- Chart drawings were per-pane, bled across symbols, and died on reload
+
+- **Symptom:** A horizontal line drawn on the 1Min pane was invisible on the 5m / 1D / 10Sec panes and in the Quote Panel chart. Every drawing vanished on page reload and on restart. A level drawn on AAPL stayed painted over TSLA after switching symbol.
+- **Cause:** Each `TickerChart` constructed its own `DrawingManager` in a `useEffect` with no shared store and no persistence, so one symbol had up to five disconnected drawing sets that all died on unmount. Nothing cleared the manager on symbol change, hence the bleed. Sharing anchors across timeframes is not free either: intraday series carry ET-shifted epoch numbers while 1Day+ series carry `'YYYY-MM-DD'` strings, and `timeScale.timeToCoordinate` returns `null` for an off-scale time -- so a naive share would make trend/vertical/cross lines silently paint nothing.
+- **Fix:** ADR 015. Backend `chart_drawings.py` + `GET/PUT/DELETE /api/chart-drawings/{symbol}` (schema_version, refuse-loud). Frontend `chartDrawingsStore.ts` (per-symbol shared store, deduped GET, debounced PUT), `chartDrawingTime.ts` (canonical epoch + snap-to-nearest-bar per pane, clamp at edges), `chartDrawingHydrate.ts`. `useChartDrawingManager` now hydrates from the store and clears on symbol change.
+- **Fix class:** ownership
+- **Keywords:** chart drawings, horizontal line, trend line, DrawingManager, lightweight-charts-drawing, timeToCoordinate null, timeframe, persistence, symbol bleed, ADR 015
+
+## 2026-08-26 -- Fresh chart drawing erased by an in-flight GET
+
+- **Symptom:** With a slow/wedged API, a just-drawn line could disappear a moment after placement.
+- **Cause:** Found while building ADR 015, before shipping. `fetchDrawings` called `setLocal` unconditionally, so a `GET` that started before the draw and returned `drawings: []` bumped the store revision and made every pane rebuild from the empty server list. `setLocal` also bumped the revision when content was unchanged, causing needless rebuilds that drop the held selection.
+- **Fix:** `fetchDrawings` captures the revision at request start and discards the server payload if it moved while the request was pending (local edit wins). `setLocal` returns early when the list is unchanged.
+- **Fix class:** ownership
+- **Keywords:** chart drawings, race, stale GET, revision, clobber, chartDrawingsStore
+
+## 2026-08-26 -- Buying-power reject had no pop-up
+
+- **Symptom:** Operator placed META BUY 1 LMT @ 596.54 live. Ledger: `rejected` / `BUYING_POWER` / "estimated notional 596.54 exceeds BuyingPower 552.79". Almost no notification. Order never reached IB (`order_id` null, `broker_sent_ms` null).
+- **Cause:** Place failures only set a small `manual-order-result` span under the ticket. Cancel/flatten already used `alertApp`. Place did not. Confirm pop-up fired (~9s), then the reject hid in the footer.
+- **Fix:** `notifyOrderRejected` -> `alertApp` on ticket/hotkey/flatten fails. Titles keyed by `reason_code` (BUYING_POWER = "Not enough buying power"). Receipt JSON now includes `reason_code`.
+- **Fix class:** surfacing
+- **Keywords:** BUYING_POWER, estimated notional, BuyingPower, Activity trail, alertApp, ManualOrderTicket, META, pop-up
+
+## 2026-08-26 -- Instance lock false-alive PID blocked API restart
+
+- **Symptom:** After the sidecar HTTP socket died (new connects refused, IB still attached), `run_api.py` exited: "another Nova API is already running (pid=4916)" even though that PID was gone (`tasklist` empty).
+- **Cause:** `_pid_alive` used `OpenProcess(SYNCHRONIZE)`, which can succeed on a just-killed Windows PID. Reclaim never ran.
+- **Fix:** Query `GetExitCodeProcess`; only 259 (`STILL_ACTIVE`) counts as alive. Access-denied still fail-closed (assume alive).
+- **Fix class:** infra
+- **Keywords:** api-instance.lock, _pid_alive, OpenProcess, SYNCHRONIZE, GetExitCodeProcess, STILL_ACTIVE, pid 4916, Error 326
+
+
 ## 2026-08-26 -- Dual API stole clientId 17; desk said connecting / Error 1100
 
 - **Symptom:** Trading prerequisites: IB Gateway (session READY) red -- "port is open, but Nova session is not READY (reconnect stuck or Error 1100) (reason: connecting)". Door trail: Failed to fetch. Health probe timed out while a PID still "listened". Gateway 4001 was up and logged in.

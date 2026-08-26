@@ -72,6 +72,7 @@ def _atomic_write(path: str, payload: dict) -> None:
 # ── Migration ─────────────────────────────────────────────────────────────────
 
 from constants import (
+    CHART_DRAWINGS_FILE,
     HOD_MOMO_ALERTS_PREFIX,
     HOD_MOMO_HIGHS_PREFIX,
     HOD_MOMO_CONFIG_FILE,
@@ -483,6 +484,26 @@ def load_large_cap_config() -> dict:
     """Load Large Cap's tunable config. Returns {} if file doesn't exist."""
     try:
         with open(LARGE_CAP_CONFIG_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+# ── Chart drawings (ADR 015) — operator-drawn lines per symbol ────────────────
+
+def save_chart_drawings(payload: dict) -> None:
+    """Persist every symbol's operator-drawn chart lines."""
+    try:
+        os.makedirs(_CACHE_DIR, exist_ok=True)
+        _atomic_write(CHART_DRAWINGS_FILE, payload)
+    except Exception:
+        logger.warning("cache: save_chart_drawings failed to persist to disk", exc_info=True)
+
+
+def load_chart_drawings() -> dict:
+    """Load persisted chart drawings. Returns {} if file doesn't exist."""
+    try:
+        with open(CHART_DRAWINGS_FILE, encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {}

@@ -79,10 +79,18 @@ def _isolate_operator_state(tmp_path, monkeypatch):
         str(cache_root / "large-cap-config.json"),
         raising=False,
     )
+    monkeypatch.setattr(
+        cache_mod,
+        "CHART_DRAWINGS_FILE",
+        str(cache_root / "chart-drawings.json"),
+        raising=False,
+    )
+    import chart_drawings as _chart_drawings
     import large_cap_admin as _large_cap_admin
     import large_cap_alerts as _large_cap_alerts
     import large_cap_metrics as _large_cap_metrics
 
+    _chart_drawings.reset_for_testing()
     _large_cap_admin.reset_for_testing()
     _large_cap_alerts.reset_for_testing()
     _large_cap_metrics.reset_for_testing()

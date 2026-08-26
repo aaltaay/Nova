@@ -13,6 +13,7 @@ from routes.executor import router as executor_router
 from routes.l2 import router as l2_router
 from routes.news import router as news_router
 from routes.ticker import router as ticker_router
+from routes.chart_drawings import router as chart_drawings_router
 from scanner_push import router as scanner_ws_router
 from routes.health import router as health_router
 from routes.scan import router as scan_router
@@ -35,6 +36,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(l2_router)
     app.include_router(news_router)
     app.include_router(ticker_router)
+    app.include_router(chart_drawings_router)
     app.include_router(health_router)
     app.include_router(scan_router)
     app.include_router(hod_momo_router)

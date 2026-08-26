@@ -233,6 +233,32 @@ CHART_MAX_BARS     = 5000  # hard ceiling — prevents runaway requests
 # 4h of 10s bars = 1440; headroom so tip updates do not displace history.
 IBKR_10SEC_FETCH_BARS = 1500
 
+
+# ── Chart drawings (ADR 015) ──────────────────────────────────────────────────
+# Operator-drawn trend/horizontal/vertical/cross lines, stored per symbol so
+# every timeframe pane paints the same set and it survives a restart.
+CHART_DRAWINGS_SCHEMA_VERSION = 1
+# One symbol's whole list is replaced per PUT; the cap stops a runaway client
+# loop from growing the file without bound.
+CHART_DRAWINGS_MAX_PER_SYMBOL = 200
+CHART_DRAWINGS_MAX_ANCHORS = 8  # widest tool in lightweight-charts-drawing
+
+
+def _chart_drawings_cache_root() -> str:
+    return (
+        _os.environ.get("NOVA_CACHE_DIR")
+        or _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+        or _os.path.join(_os.path.dirname(__file__), ".cache")
+    )
+
+
+# Owner: chart_drawings.py. Invalidation trigger: explicit PUT/DELETE only --
+# drawings are deliberately session-independent, so nothing stales them on a
+# session rollover or reconnect (persisted-state.mdc).
+CHART_DRAWINGS_FILE = _os.path.join(
+    _chart_drawings_cache_root(), "chart-drawings.json"
+)
+
 # IBKR historical bars (reqHistoricalData) — used when discovery_provider=ibkr
 # so the chart matches IBKR live quotes instead of Alpaca IEX.
 IBKR_BAR_SIZE: dict[str, str] = {
