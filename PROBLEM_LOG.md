@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- HotkeyDispatchProvider setState-during-render on profile writes
+
+- **Symptom:** Browser console: `Cannot update a component (HotkeyDispatchProvider) while rendering a different component (HotkeyManager)` after deleting a Nova Action in Settings.
+- **Cause:** `useHotkeyProfile` called `dispatch.reloadNovaActions()` (parent `setState`) from inside a `setProfile` updater. React runs that updater while rendering `HotkeyManager`.
+- **Fix:** Persist in the updater only; sync the dispatcher with `setTimeout(0)` after the write (`syncDispatch`).
+- **Fix class:** ownership
+- **Keywords:** hotkeys, setState-during-render, reloadNovaActions, useHotkeyProfile, HotkeyDispatchProvider
+
 ## 2026-08-25 -- Graphify wired opt-in so agents skipped it
 
 - **Symptom:** Graphify CLI was installed and `graphify query` worked, but agents answered architecture/vault questions from markdown instead of querying the graph. No usage log existed (`graphify-out/memory/` empty; `cost.json` only counted rebuilds).

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-25 -- Hotkey profile writes no longer setState the dispatcher during render
+
+- **What:** `useHotkeyProfile` no longer calls `reloadNovaActions()` from inside a `setProfile` updater.
+- **Why:** Browser verification of the new Settings delete control logged React's setState-during-render warning (`HotkeyDispatchProvider` updated while `HotkeyManager` rendered).
+- **Files touched:** `frontend/src/hotkeys/useHotkeyProfile.ts`.
+- **How it works now:** The updater only persists. A `setTimeout(0)` `syncDispatch` reloads the shell dispatcher after commit.
+- **Verified by:** Scoped Vitest 80 passed; Settings delete still two-step in agent-browser.
+- **Related:** PROBLEM_LOG 2026-08-25 HotkeyDispatchProvider setState-during-render; task-log `knowledge/task-log/2026-08-25-nova-action-edit-delete.md`.
+
 ## 2026-08-25 -- Nova Action hotkeys gain edit/delete; IBC AutoRestart fix extended to the unattended daily path
 
 - **What:** Two unrelated pieces of already-implemented, already-tested work were sitting uncommitted in the working tree and got committed/pushed at user request. (1) Each Nova Action row in the shortcuts cheat-sheet now has Key (rebind), Edit (change the action via `NovaActionEditor`), and a guarded two-click delete (`ConfirmDeleteIconButton` arms on first click, confirms within `SHORTCUTS_MENU_DELETE_ARM_MS` = 4s on the second) instead of rebind-only. (2) `Start-NovaDaily.ps1`'s unattended/scheduled path now repairs `~/.nova/ibc/config.ini`'s `AutoRestartTime`/`AutoLogoffTime` itself before launching IBC, extending the earlier stale-live-2FA fix (previous CHANGELOG entry) to the one path that actually caused that bug -- an unattended 03:40 cold start with nobody there for the phone prompt, which never goes through Nova's Python `launch_gateway.py`.

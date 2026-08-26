@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-25 | [Nova Action Key, Edit, and guarded delete](2026-08-25-nova-action-edit-delete.md) | Shortcuts menu: Key rebinds, Edit opens the action, trash needs a second click; deleted defaults stay gone |
 | 2026-08-25 | [Graphify always-on wrapper + token meter](2026-08-25-graphify-always-on-meter.md) | Always-on short rule; wrapper records cited-note token savings; delete Graphify if total_saved stays 0 |
 | 2026-08-25 | [Stale live 2FA login fix](2026-08-25-stale-live-2fa-fix.md) | Stale live 2FA login fix |
 | 2026-08-25 | [Time & Sales freeze: linger + single-queue fan-out fix](2026-08-25-tape-freeze-fanout-fix.md) | Idle-release linger could cancel a still-watched tick-by-tick line; single shared queue also meant two viewers competed instead of both getting every print. Plus an afterhours reprice TypeError crashing every quote tick, found live while verifying. Addenda (same session): Level 2 depth given the identical fan-out fix preemptively; depth cap eviction now notifies the viewer it kills instead of silently orphaning it; fixed a test-isolation gap (5/6 setup_methods never called reset_all()) found while regression-testing that. |

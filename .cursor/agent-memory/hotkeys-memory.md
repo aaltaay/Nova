@@ -9,11 +9,15 @@ Companion to: `.cursor/agents/hotkeys.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-08-17T21:36:00Z
-source_revision: ""
-result: f1_f2_ask_bid_desk
+captured_at: 2026-08-25T22:22:00Z
+source_revision: e9fc955
+result: nova_action_key_edit_guarded_delete
 metrics:
   nova_actions_default: 14  # 7 classic + 7 nova-wb-*
+  overlay_key_btn: true
+  overlay_action_edit: true
+  overlay_two_step_delete: true
+  delete_tombstones: removedNovaActionIds
   desk_f1: buy_limit_ask_offset 1sh Ask+0.05 EH
   desk_f2: sell_limit_bid_offset 1sh Bid-0.05 EH
   desk_f5: sell_limit_ask_offset 1sh Ask+0.05 EH
@@ -64,6 +68,7 @@ Or:
 
 | Date | Note |
 |------|------|
+| 2026-08-25 | Overlay Key / Edit / two-step trash on System 2; tombstones; Settings delete; reloadNovaActions moved off setProfile updater. |
 | 2026-08-17 | Desk self-heal: F5 epoch applies without hard refresh. |
 | 2026-08-17 | Rebound sell-Ask+$0.05 from F3 to F5. Epoch `f1-f5-eh-2026-08-17`. |
 | 2026-08-17 | F3 Sell 1 Ask+$0.05 EH (`sell_limit_ask_offset`). Epoch bumped to f1-f3-eh. |
