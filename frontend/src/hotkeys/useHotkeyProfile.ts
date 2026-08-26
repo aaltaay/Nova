@@ -148,39 +148,34 @@ export function useHotkeyProfile() {
     [updateRecord],
   );
 
+  const syncDispatch = useCallback(() => {
+    window.setTimeout(() => dispatch?.reloadNovaActions(), 0);
+  }, [dispatch]);
+
   const resetProfile = useCallback(() => {
     setProfile(commit(createEmptyProfile()));
     setSelectedId(null);
-    dispatch?.reloadNovaActions();
-  }, [dispatch]);
+    syncDispatch();
+  }, [syncDispatch]);
 
   const setNovaActions = useCallback((novaActions: NovaActionRecord[]) => {
-    setProfile((prev) => {
-      const next = commit({
-        ...prev,
-        novaActions,
-        updatedAt: new Date().toISOString(),
-      });
-      dispatch?.reloadNovaActions();
-      return next;
-    });
-  }, [dispatch]);
+    setProfile((prev) => commit({
+      ...prev,
+      novaActions,
+      updatedAt: new Date().toISOString(),
+    }));
+    syncDispatch();
+  }, [syncDispatch]);
 
   const restoreNovaDefaults = useCallback(() => {
-    setProfile((prev) => {
-      const next = commit(restoreDefaultNovaActions(prev));
-      dispatch?.reloadNovaActions();
-      return next;
-    });
-  }, [dispatch]);
+    setProfile((prev) => commit(restoreDefaultNovaActions(prev)));
+    syncDispatch();
+  }, [syncDispatch]);
 
   const deleteNovaAction = useCallback((id: string) => {
-    setProfile((prev) => {
-      const next = commit(deleteNovaActionFromProfile(prev, id));
-      dispatch?.reloadNovaActions();
-      return next;
-    });
-  }, [dispatch]);
+    setProfile((prev) => commit(deleteNovaActionFromProfile(prev, id)));
+    syncDispatch();
+  }, [syncDispatch]);
 
   return {
     profile,
