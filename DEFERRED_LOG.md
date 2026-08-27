@@ -61,6 +61,23 @@ Entry template (copy and fill in):
 
 <!-- OPEN_START -->
 
+## D-003 -- Trader 10Sec / Full Day sit on "Loading IBKR historical..." for minutes
+
+- **Status:** blocked
+- **Kind:** bug
+- **Severity:** P1
+- **Effort:** M
+- **Domain:** market-feed
+- **User-visible:** yes
+- **Logged:** 2026-08-26
+- **Why parked:** Phases 0-4 of the roadmap are implemented and pytest-green (fresh full-suite run, 1386 passed), but the running Nova API process could not be restarted from this agent session to live-verify (see Unblock) -- the process is not visible to this shell's `Get-Process` (likely a different Windows session/Electron sidecar), and the constitution forbids touching a live-trading process blindly. Do not close until a live restart confirms the pacing bucket and 10Sec paint time.
+- **Blast radius:** Unchanged from the original diagnosis until live-verified: any ticker whose 10Sec/1Day series is not already in `bars_store` opens two black quadrants; Large Cap backfill competed for the same 60 req / 10 min IB bucket; stale 1Min/5Min took `open_chart` slots.
+- **Unblock:** User restarts Nova (Desktop app relaunch, or the header "Start API" control, or `Run Nova.bat`) so the new code loads, then re-run the live checks in Next.
+- **Next:** After restart, verify in the same session: (1) `/api/metrics/ops` -> `historical_pacing.window_used` stays well under 60 across two Large Cap roster commits (Phase 1). (2) Open a cold Trader symbol and confirm 10Sec paints within a few seconds via `/api/ticker/{symbol}/bars?timeframe=10Sec` (`bars` non-empty even before the hist fill lands) (Phases 2-4). (3) Re-check scanner L1 freshness (`/ws/scanner` patches or `/api/movers` ages) in the same window (blast-radius rule). Then move this entry to Closed and write the matching PROBLEM_LOG close-out.
+- **Evidence (soak, 2026-08-26 ~19:32 ET):** Trader MSS: 5Min and 1Min painted; 10Sec and Full Day overlay. `/api/ticker/MSS/bars`: 10Sec n=0 filling=true; 1Day n=0 filling=true. `/api/metrics/ops` `ibkr.historical_bars` last_sample_age ~448s (no send for ~7.5 min). `backend/logs/blast.log` 18:53 shed storm of Large Cap 1Day (ORCL/T/F/PLTR/...).
+- **Evidence (implementation, 2026-08-26 ~20:xx):** New `HistoricalPacing.snapshot()` unit-tested (`window_used` counts sends). `large_cap_hooks`/`large_cap_metrics` once-per-session + store-complete guards unit-tested (17 tests). `chart_bars.fetch_chart_bars` priority split (`open_chart` empty-store / `warm` stale-store / `background` unchanged for scan callers) unit-tested (36 tests). New `ibkr/tape_10sec.py` provisional 10Sec candles from tape prints (`source=ibkr_l1`, never fakes `store_series_complete`) unit-tested (4 tests) + wired into `tape_stream._on_tape_update` and `scanner_l1.flush_loop` heartbeat. Trader-seam warm fill on first tape subscriber, store-settled guarded, unit-tested (2 tests). Full backend suite: 1386 passed (excl. one pre-existing flaky transformers-import test unrelated to this change).
+- **Keywords:** Loading IBKR historical, 10Sec, 1Day, Full Day, MSS, ADR 012, historical_service, 60/10 min pacing, Large Cap, open_chart, bars_store
+
 ## D-002 -- Afterhours Gap % equals Change %, not the open-vs-prior-close gap
 
 - **Status:** open

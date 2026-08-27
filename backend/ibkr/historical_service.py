@@ -65,6 +65,11 @@ def open_chart_busy() -> bool:
     return _open_chart_depth > 0
 
 
+def pacing_snapshot() -> dict:
+    """Read-only view of the 60-req/10-min budget (see ``historical_pacing.py``)."""
+    return _pacing.snapshot()
+
+
 def _semaphore() -> asyncio.Semaphore:
     global _sem
     if _sem is None:

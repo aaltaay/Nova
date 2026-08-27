@@ -21,6 +21,7 @@ from constants import (
 )
 from ibkr import ticks as _ticks
 from ibkr import l1_minute as _l1_minute
+from ibkr import tape_10sec as _tape_10sec
 from ibkr.scanner_l1_plan import count_tab_contributions, plan_stream_symbols
 from metrics.op_metrics import record_since
 
@@ -345,6 +346,9 @@ async def flush_loop(push: PushFn) -> None:
         try:
             await asyncio.sleep(float(IBKR_L1_BATCH_FLUSH_SEC))
             _l1_minute.flush_elapsed(time.time())
+            # Same heartbeat closes out quiet 10Sec tape buckets (D-003) --
+            # a Trader symbol with no new prints for 10s must still flush.
+            _tape_10sec.flush_elapsed(time.time())
             if not _pending:
                 continue
             pending = _pending

@@ -34,16 +34,11 @@ def _schedule_ibkr_fill(
     timeframe: str,
     limit: int,
     *,
-    interactive: bool,
+    priority: str,
 ) -> None:
     from ibkr.historical_service import schedule_fill
 
-    schedule_fill(
-        symbol,
-        timeframe,
-        limit,
-        priority="open_chart" if interactive else "background",
-    )
+    schedule_fill(symbol, timeframe, limit, priority=priority)
 
 
 def _empty_filling(symbol: str, timeframe: str) -> dict:
@@ -87,8 +82,14 @@ def fetch_chart_bars(
             if ready and not _store_series_settled(
                 timeframe, len(stored["bars"]), stored.get("coverage")
             ):
+                # Pane already painted something -- this is a reconciliation
+                # refresh, not a blank-screen wait. "warm" sheds on any
+                # pacing wait so it cannot starve a genuinely empty pane's
+                # open_chart fill of the shared 60-req/10-min IB budget
+                # (PROBLEM_LOG 2026-08-26 chart hist starvation).
                 _schedule_ibkr_fill(
-                    symbol, timeframe, limit, interactive=interactive,
+                    symbol, timeframe, limit,
+                    priority="warm" if interactive else "background",
                 )
                 coverage["filling"] = True
             else:
@@ -97,8 +98,11 @@ def fetch_chart_bars(
             stored.setdefault("source", "ibkr")
             return stored
         if ready:
+            # Store is genuinely empty -- this is the blank-screen case that
+            # should win the budget over already-painted stale panes.
             _schedule_ibkr_fill(
-                symbol, timeframe, limit, interactive=interactive,
+                symbol, timeframe, limit,
+                priority="open_chart" if interactive else "background",
             )
             return _empty_filling(symbol, timeframe)
         reason = _ibkr_client.session_reason()

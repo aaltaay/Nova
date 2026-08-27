@@ -26,10 +26,19 @@ def on_large_cap_roster_commit(table: str, rows: list[dict]) -> None:
         target=_warm_fundamentals, args=(symbols,), daemon=True,
         name="large_cap_fundamentals_warm",
     ).start()
+    import bars_store
     import large_cap_metrics as _metrics
+    from constants import LARGE_CAP_DAILY_BARS_LOOKBACK
 
     for sym in symbols:
         try:
+            # Store already complete -- do not spend an IB historical token
+            # re-requesting daily bars that do not change intraday (see
+            # large_cap_metrics.schedule_daily_fill for the session guard
+            # that also covers the incomplete-but-already-tried case).
+            stored = bars_store.read(sym, "1Day", LARGE_CAP_DAILY_BARS_LOOKBACK + 1)
+            if len((stored or {}).get("bars") or []) >= LARGE_CAP_DAILY_BARS_LOOKBACK + 1:
+                continue
             _metrics.schedule_daily_fill(sym)
         except Exception:
             logger.debug(

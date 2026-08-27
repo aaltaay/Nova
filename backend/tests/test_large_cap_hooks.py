@@ -26,8 +26,10 @@ def test_warms_fundamentals_in_background_thread_and_schedules_daily_bars(monkey
     warmed: list[list[str]] = []
     monkeypatch.setattr(large_cap_hooks, "_warm_fundamentals", lambda syms: warmed.append(syms))
 
+    import bars_store
     import large_cap_metrics as _metrics
 
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
     scheduled: list[str] = []
     monkeypatch.setattr(_metrics, "schedule_daily_fill", lambda sym: scheduled.append(sym))
 
@@ -38,3 +40,25 @@ def test_warms_fundamentals_in_background_thread_and_schedules_daily_bars(monkey
     time.sleep(0.05)
     assert warmed and set(warmed[0]) == {"NVDA", "AMD"}
     assert set(scheduled) == {"NVDA", "AMD"}
+
+
+def test_skips_schedule_when_store_already_complete(monkeypatch):
+    """A symbol with a full stored 1Day series must not spend an IB token."""
+    monkeypatch.setattr(large_cap_hooks, "_warm_fundamentals", lambda syms: None)
+
+    import bars_store
+    import large_cap_metrics as _metrics
+    from constants import LARGE_CAP_DAILY_BARS_LOOKBACK
+
+    complete = {
+        "bars": [{"t": f"d{i}", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}
+                 for i in range(LARGE_CAP_DAILY_BARS_LOOKBACK + 1)],
+    }
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: complete)
+    scheduled: list[str] = []
+    monkeypatch.setattr(_metrics, "schedule_daily_fill", lambda sym: scheduled.append(sym))
+
+    large_cap_hooks.on_large_cap_roster_commit(
+        _ss.TABLE_LARGE_CAP, [{"symbol": "AAPL"}],
+    )
+    assert scheduled == []

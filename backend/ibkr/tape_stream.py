@@ -68,6 +68,35 @@ def _load_ib_types() -> bool:
         return False
 
 
+def _should_warm_10sec(symbol: str) -> bool:
+    """Mirrors the store-settled guard ``routes/ticker.py`` uses for its warm
+    timeframes -- true when the store is missing, incomplete, or stale."""
+    import bars_store
+    from constants import IBKR_10SEC_FETCH_BARS
+
+    stored = bars_store.read(symbol, "10Sec", IBKR_10SEC_FETCH_BARS)
+    if not stored or not stored.get("bars"):
+        return True
+    if not bars_store.store_series_complete("10Sec", len(stored["bars"])):
+        return True
+    return not bars_store.is_coverage_fresh(stored.get("coverage"), "10Sec")
+
+
+def _warm_10sec_fill(symbol: str) -> None:
+    """First Trader tape subscriber for a symbol warms its 10Sec hist fill
+    (D-003) -- ``priority="warm"`` sheds on any pacing wait, so this never
+    competes with a genuinely empty pane's ``open_chart`` fill."""
+    try:
+        if not _should_warm_10sec(symbol):
+            return
+        from constants import IBKR_10SEC_FETCH_BARS
+        from ibkr.historical_service import schedule_fill
+
+        schedule_fill(symbol, "10Sec", IBKR_10SEC_FETCH_BARS, priority="warm")
+    except Exception:
+        logger.debug("IBKR tape: 10Sec warm schedule failed for %s", symbol, exc_info=True)
+
+
 def _clean(x: float | None) -> float | None:
     if x is None:
         return None
@@ -170,6 +199,12 @@ def _on_tape_update(ticker: Any, symbol: str) -> None:
                 source=ARCHIVE_SOURCE_IBKR,
                 queued=True,
             )
+            # Provisional 10Sec chart bars (D-003 / ADR 012) -- paints the
+            # Trader 10Sec pane in seconds instead of waiting on the paced
+            # 4h IB historical fill. Hist fill still lands and replaces.
+            from ibkr import tape_10sec as _tape_10sec
+
+            _tape_10sec.on_print(symbol, price, float(size_i), print_ts)
         except Exception:
             logger.exception("IBKR tape: archive enqueue failed for %s", symbol)
 
@@ -324,6 +359,7 @@ async def _subscribe_locked(symbol: str, ib: Any) -> dict:
         _contracts.pop(symbol, None)
         return {"ok": False, "error": str(exc)}
 
+    _warm_10sec_fill(symbol)
     return {"ok": True, "error": None}
 
 

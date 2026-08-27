@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-26 | [Instant chart loading roadmap (D-003 implementation)](2026-08-26-instant-chart-loading-roadmap.md) | Pacing budget observability, Large Cap once-per-session guard, chart priority split, tape-based provisional 10Sec candles; pytest-green, live verification pending |
+| 2026-08-26 | [Trader chart hist loading soak](2026-08-26-chart-hist-loading-soak.md) | 10Sec/Full Day overlay is empty store waiting on IB hist tokens; Large Cap 1Day spray can empty the 60/10min bucket; parked as D-003 |
 | 2026-08-26 | [Reclaim Trader header space](2026-08-26-reclaim-trader-header-space.md) | Last/change under Stock Quote; ET clock beside Desk; delete leftover Trader command bar |
 | 2026-08-26 | [Strip duplicate Trader chrome](2026-08-26-strip-trader-chrome.md) | Remove HOD dock + duplicate Paper/Live/Net Liq/mode bar from Trader; account chrome stays on GlobalAppBar |
 | 2026-08-26 | [DEFERRED_LOG.md for known bugs and parked features](2026-08-26-deferred-log.md) | One honored parking-lot file (peer of PROBLEM_LOG) with severity/effort/unblock; Lifecycle `deferred_log=`; seeded NEWS + afterhours gap |

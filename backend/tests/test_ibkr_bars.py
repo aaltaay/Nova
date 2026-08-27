@@ -213,6 +213,57 @@ def test_fetch_chart_bars_fills_when_store_complete_but_stale():
     fill.assert_called_once()
 
 
+def test_fetch_chart_bars_empty_store_schedules_open_chart_priority():
+    """A genuinely blank pane wins the shared hist budget over stale ones."""
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(chart_bars, "_store_read", return_value=None):
+            with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+                chart_bars.fetch_chart_bars(
+                    "AAPL", "10Sec", 1500,
+                    discovery_provider="ibkr", interactive=True,
+                )
+    fill.assert_called_once()
+    assert fill.call_args.kwargs["priority"] == "open_chart"
+
+
+def test_fetch_chart_bars_stale_stored_series_schedules_warm_priority():
+    """A pane that already painted something must not compete at open_chart
+    priority -- that starves a genuinely empty pane's fill (PROBLEM_LOG
+    2026-08-26 chart hist starvation)."""
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(
+            chart_bars, "_store_read",
+            return_value=_stored_series(30, fetched_ts=time.time() - 100000),
+        ):
+            with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+                with patch("bars_store.store_series_complete", return_value=True):
+                    chart_bars.fetch_chart_bars(
+                        "AAPL", "1Hour", 400,
+                        discovery_provider="ibkr", interactive=True,
+                    )
+    fill.assert_called_once()
+    assert fill.call_args.kwargs["priority"] == "warm"
+
+
+def test_fetch_chart_bars_background_caller_stays_background_regardless_of_store():
+    """setups_stream / nova_os decide (interactive=False) must not be bumped
+    to warm just because the store happens to have stale bars -- they were
+    already deliberately low priority."""
+    with patch.object(chart_bars._ibkr_client, "is_ready", return_value=True):
+        with patch.object(
+            chart_bars, "_store_read",
+            return_value=_stored_series(30, fetched_ts=time.time() - 100000),
+        ):
+            with patch.object(chart_bars, "_schedule_ibkr_fill") as fill:
+                with patch("bars_store.store_series_complete", return_value=True):
+                    chart_bars.fetch_chart_bars(
+                        "AAPL", "1Hour", 400,
+                        discovery_provider="ibkr", interactive=False,
+                    )
+    fill.assert_called_once()
+    assert fill.call_args.kwargs["priority"] == "background"
+
+
 def test_fetch_chart_bars_live_only_store_still_schedules_hist_fill(tmp_path, monkeypatch):
     """L1 minutes without a coverage row must not look like a finished chart fill."""
     import archive.db as archive_db

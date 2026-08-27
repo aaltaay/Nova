@@ -248,6 +248,21 @@ def test_open_chart_does_not_send_when_global_bucket_wait_exceeds_cap():
     assert rescheduled == [("AAPL", "1Hour")]
 
 
+def test_historical_pacing_snapshot():
+    import ibkr.historical_service as hs
+
+    hs._pacing.record("AAPL", "1Day", "5 Y")
+    hs._pacing.record("MSFT", "1Day", "5 Y")
+    hs._pacing.record("TSLA", "1Day", "5 Y")
+
+    snap = hs.pacing_snapshot()
+    assert snap["window_used"] == 3
+    assert snap["window_max"] == 60
+    assert snap["next_token_wait_sec"] == 0.0
+    assert snap["identical_keys"] == 3
+    assert snap["contract_hot"] == []
+
+
 def test_persist_derived_skips_when_store_already_longer():
     from ibkr.historical_service import _persist_derived
 

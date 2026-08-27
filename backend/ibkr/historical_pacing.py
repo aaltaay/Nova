@@ -80,3 +80,28 @@ class HistoricalPacing:
         self._all.append(now)
         self._contract[symbol.upper()].append(now)
         self._identical[(symbol.upper(), timeframe, duration)] = now
+
+    def snapshot(self) -> dict:
+        """Read-only view of the current budget for observability (no I/O)."""
+        now = float(self._now())
+        self._prune(now)
+        window_used = len(self._all)
+        window_max = int(IBKR_HISTORICAL_PACE_MAX)
+        next_token_wait_sec = 0.0
+        if window_used >= window_max and self._all:
+            next_token_wait_sec = max(
+                0.0, self._all[0] + float(IBKR_HISTORICAL_PACE_WINDOW_SEC) - now
+            )
+        contract_hot = [
+            sym
+            for sym, times in self._contract.items()
+            if len(times) >= int(IBKR_HISTORICAL_SAME_CONTRACT_MAX)
+        ]
+        return {
+            "window_used": window_used,
+            "window_max": window_max,
+            "window_sec": float(IBKR_HISTORICAL_PACE_WINDOW_SEC),
+            "next_token_wait_sec": round(next_token_wait_sec, 1),
+            "identical_keys": len(self._identical),
+            "contract_hot": sorted(contract_hot),
+        }

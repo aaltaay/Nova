@@ -32,6 +32,12 @@ logger = logging.getLogger(__name__)
 
 _daily_metrics_cache: dict[str, dict[str, Any]] = {}
 _daily_metrics_cache_ts: dict[str, float] = {}
+# Owner: this module. Invalidation trigger: 04:00 ET session rollover
+# (``market.session_key_et`` changes) -- see PROBLEM_LOG 2026-08-26 chart
+# hist starvation. Daily bars do not change intraday, so re-scheduling the
+# same symbol on every roster commit / TTL miss only burns the shared
+# 60-req/10-min IBKR historical budget that Trader chart fills also need.
+_scheduled_this_session: dict[str, str] = {}
 
 _EMPTY_DAILY: dict[str, Any] = {
     "atr14": None,
@@ -74,7 +80,18 @@ def _atr(bars: list[dict], *, period: int) -> float | None:
 
 
 def schedule_daily_fill(symbol: str) -> None:
-    """Fire-and-forget background daily-bar fill (ADR 012). Never blocks."""
+    """Fire-and-forget background daily-bar fill (ADR 012). Never blocks.
+
+    Once-per-session guard: skip if this symbol was already scheduled in the
+    current 04:00 ET session, even if the fill is still incomplete (pacing
+    shed it, or IB was mid-fetch). A session rollover clears the guard.
+    """
+    import market
+
+    session_key = market.session_key_et()
+    if _scheduled_this_session.get(symbol) == session_key:
+        return
+    _scheduled_this_session[symbol] = session_key
     try:
         from ibkr import historical_service
 
@@ -211,3 +228,4 @@ def compute_scores(rows: list[dict], *, weights: dict[str, float] | None = None)
 def reset_for_testing() -> None:
     _daily_metrics_cache.clear()
     _daily_metrics_cache_ts.clear()
+    _scheduled_this_session.clear()

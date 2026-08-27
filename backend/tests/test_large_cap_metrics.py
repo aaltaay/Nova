@@ -74,6 +74,67 @@ def test_daily_bar_metrics_full_history_computes_all_fields(monkeypatch):
     assert out["atr14"] is not None and out["atr14"] > 0
 
 
+def test_schedule_daily_fill_once_per_session(monkeypatch):
+    """Repeated calls within the same 04:00-ET session must not respray the
+    shared 60-req/10-min IBKR historical budget (PROBLEM_LOG 2026-08-26)."""
+    import market
+
+    monkeypatch.setattr(market, "session_key_et", lambda *a, **k: "2026-08-26")
+    sent: list[str] = []
+    from ibkr import historical_service as hs
+
+    monkeypatch.setattr(
+        hs, "schedule_fill",
+        lambda sym, tf, limit, *, priority="background": sent.append(sym),
+    )
+    lcm.schedule_daily_fill("NVDA")
+    lcm.schedule_daily_fill("NVDA")
+    lcm.schedule_daily_fill("NVDA")
+    assert sent == ["NVDA"]
+
+    # A different symbol still gets its own first send.
+    lcm.schedule_daily_fill("AMD")
+    assert sent == ["NVDA", "AMD"]
+
+
+def test_schedule_daily_fill_resends_after_session_rollover(monkeypatch):
+    import market
+
+    sent: list[str] = []
+    from ibkr import historical_service as hs
+
+    monkeypatch.setattr(
+        hs, "schedule_fill",
+        lambda sym, tf, limit, *, priority="background": sent.append(sym),
+    )
+    monkeypatch.setattr(market, "session_key_et", lambda *a, **k: "2026-08-26")
+    lcm.schedule_daily_fill("NVDA")
+    monkeypatch.setattr(market, "session_key_et", lambda *a, **k: "2026-08-27")
+    lcm.schedule_daily_fill("NVDA")
+    assert sent == ["NVDA", "NVDA"]
+
+
+def test_daily_bar_metrics_partial_history_respects_session_guard(monkeypatch):
+    """The 15-min TTL recompute path must reuse the same once-per-session
+    guard as the roster-commit hook, not respray on every miss."""
+    import market
+
+    monkeypatch.setattr(market, "session_key_et", lambda *a, **k: "2026-08-26")
+    sent: list[str] = []
+    from ibkr import historical_service as hs
+
+    monkeypatch.setattr(
+        hs, "schedule_fill",
+        lambda sym, tf, limit, *, priority="background": sent.append(sym),
+    )
+    import bars_store
+
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
+    lcm._compute_daily_bar_metrics("NVDA")
+    lcm._compute_daily_bar_metrics("NVDA")
+    assert sent == ["NVDA"]
+
+
 def test_daily_bar_metrics_is_ttl_cached(monkeypatch):
     calls = {"n": 0}
 

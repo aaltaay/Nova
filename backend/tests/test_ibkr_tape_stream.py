@@ -152,6 +152,89 @@ def test_subscribe_is_idempotent_and_measured_once(monkeypatch):
     assert stats["error_count"] == 0
 
 
+def test_subscribe_warms_10sec_fill_exactly_once(monkeypatch):
+    class _IB:
+        def __init__(self):
+            self.errorEvent = _Event()
+            self.requests = 0
+
+        async def qualifyContractsAsync(self, contract):
+            contract.conId = 42
+            return [contract]
+
+        def reqTickByTickData(self, *_args, **_kwargs):
+            self.requests += 1
+            return _FakeTicker([])
+
+    class _Stock:
+        def __init__(self, symbol, *_args):
+            self.symbol = symbol
+            self.conId = 0
+
+    tape.reset_for_tests()
+    op_metrics.reset_for_tests()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: _IB())
+    monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(tape, "_Stock", _Stock)
+
+    import bars_store
+
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: None)
+    scheduled: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "ibkr.historical_service.schedule_fill",
+        lambda sym, tf, limit, *, priority="background": scheduled.append((sym, tf, priority)),
+    )
+
+    asyncio.run(tape.subscribe_async("MSS"))
+    asyncio.run(tape.subscribe_async("MSS"))  # idempotent -- no second warm
+
+    assert scheduled == [("MSS", "10Sec", "warm")]
+
+
+def test_subscribe_skips_10sec_warm_when_store_already_settled(monkeypatch):
+    class _IB:
+        def __init__(self):
+            self.errorEvent = _Event()
+
+        async def qualifyContractsAsync(self, contract):
+            contract.conId = 42
+            return [contract]
+
+        def reqTickByTickData(self, *_args, **_kwargs):
+            return _FakeTicker([])
+
+    class _Stock:
+        def __init__(self, symbol, *_args):
+            self.symbol = symbol
+            self.conId = 0
+
+    tape.reset_for_tests()
+    op_metrics.reset_for_tests()
+    monkeypatch.setattr(tape._client, "get_ib", lambda: _IB())
+    monkeypatch.setattr(tape, "_load_ib_types", lambda: True)
+    monkeypatch.setattr(tape, "_Stock", _Stock)
+
+    import bars_store
+
+    settled = {
+        "bars": [{"t": f"t{i}"} for i in range(150)],
+        "coverage": {"filling": False, "fresh": True},
+    }
+    monkeypatch.setattr(bars_store, "read", lambda *a, **k: settled)
+    monkeypatch.setattr(bars_store, "store_series_complete", lambda *a, **k: True)
+    monkeypatch.setattr(bars_store, "is_coverage_fresh", lambda *a, **k: True)
+    scheduled: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        "ibkr.historical_service.schedule_fill",
+        lambda sym, tf, limit, *, priority="background": scheduled.append((sym, tf, priority)),
+    )
+
+    asyncio.run(tape.subscribe_async("AAPL"))
+
+    assert scheduled == []
+
+
 def test_subscribe_request_failure_is_measured(monkeypatch):
     class _IB:
         def __init__(self):
