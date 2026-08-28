@@ -37,6 +37,32 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-28 -- Premarket VWAP was 09:30-only
+
+- **Symptom:** AEMD 1Min had no real VWAP through 04:00-09:30 even after the leftover-to-open diagonal was removed. The orange line started at the bell.
+- **Cause:** 2026-08-25 chose a 09:30 ET RTH anchor (IBKR / TradingView regular-hours). That skips the premarket tape this desk actually trades. Live AEMD: 341 premarket bars / 15.0M shares never entered the accumulator.
+- **Fix:** `CHART_VWAP_SESSION_START_SEC` is now `SESSION_PREMARKET_START_MIN_ET * 60` (04:00 ET). One session from 04:00-16:00. Overnight leftover gap stays.
+- **Fix class:** chart / frontend
+- **Keywords:** VWAP, premarket, 04:00, CHART_VWAP_SESSION_START_SEC, AEMD
+- **Related:** CHANGELOG 2026-08-28 -- Chart VWAP starts at 04:00 ET premarket
+
+## 2026-08-28 -- VWAP leftover-to-open diagonal on overnight 1Min
+
+- **Symptom:** AEMD 1Min VWAP was a near-straight dashed orange line from the prior evening (~$2.25) up to the open, ignoring the 4:00 / 7:00 spikes. Axis tag said `VWAP $3.01` while the line sat well below the candles through premarket.
+- **Cause:** Session VWAP is RTH-only (09:30-16:00). After 16:00 the close value carries flat (AEMD leftover $2.2547 at 23:59). Premarket has no points. `sampleVwapOntoBars` skipped those bars instead of inserting whitespace, so yesterday 23:59 and today 09:30 were adjacent in the LineSeries. lightweight-charts draws a straight line between adjacent points -- a 571-minute fake diagonal. 15.0M premarket shares never entered the RTH accumulator (by design from 2026-08-25).
+- **Fix:** Paint only the newest ET day. Emit whitespace on skipped bars so the library cannot interpolate the hole. Empty / premarket-only title is `VWAP (09:30 ET)`. Trail: `py -3 tools/vwap_probe.py AEMD`.
+- **Fix class:** chart / frontend
+- **Keywords:** VWAP, premarket, overnight, LineSeries, whitespace, leftover, AEMD, sampleVwapOntoBars, 09:30, interpolation
+- **Related:** CHANGELOG 2026-08-28 -- Chart VWAP no longer draws a leftover-to-open diagonal; 2026-08-25 session VWAP; 2026-08-26 walk-with-bars
+
+## 2026-08-28 -- Desk refreshed and Start API appeared while the API process was still alive
+
+- **Symptom:** Operator saw the UI refresh a few times and thought the API stopped. Daily start at 08:22 logged `API health still failing after 60s` / `apiListen=False`. At 09:11 Vite fired a burst of HMR updates. During soak, `/api/health` missed a 4s probe and the header showed a red Start API while Desk stayed green.
+- **Cause:** Three stacked issues, same family as 2026-07-14 / 2026-08-14 / 2026-08-17. (1) `Start-NovaApi.ps1` always set `NOVA_API_RELOAD=1`, so every daily / Run Nova / Vite Start API path was WatchFiles-on. (2) Lifespan logged `instance starting` at 08:22:25 and `HTTP ready` at 08:23:59 -- 94s with no listener -- because `init_sentry()` + cache/DB restore run before `yield`. Daily start's 60s health wait expired in that hole. (3) HTTP loop lag spiked to 4360ms (`ib_cold_inflight=snapshot_quotes`); a 4s `/api/health` abort is `API_WEDGED` / `health.status=disconnected`, which paints Start API. The PID never died (16820 / instance `86bbb510002d`). The 09:11 "refreshes" were Vite HMR of `index.css` + Dashboard/Trader modules, not an API restart. Yahoo sockets were stable (~125), so this was not the 2026-08-26 yfinance thread pile-up.
+- **Fix:** Launcher default is `NOVA_API_RELOAD=0` (`-Reload` opt-in). Daily `HealthWaitSec` default is 180. Live process was not restarted (a post-09:30 restart would lose today's Gappers freeze). `init_sentry` blocking yield is parked as D-006 -- editing `app_lifespan.py` now would WatchFiles-kill this reload=true process.
+- **Fix class:** infra
+- **Keywords:** NOVA_API_RELOAD, Start-NovaApi, WatchFiles, Vite HMR, Start API, API_WEDGED, health timeout, init_sentry, HTTP ready, snapshot_quotes, loop_lag, daily-start
+
 ## 2026-08-27 -- Large Cap earnings countdown used last report
 
 - **Symptom:** Live `fetch_fundamentals('AAPL')` returned `earnings_date=2026-07-30` and `days_to_earnings=-28`. Large Cap painted that as a red "-28d" under Earnings.

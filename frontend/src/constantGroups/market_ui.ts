@@ -491,10 +491,10 @@ export function buildChartGridPanels(show10Sec: boolean): ChartGridPanel[] {
  * Per-timeframe REST bar limits (overrides CHART_DEFAULT_BARS on the wire).
  * 10Sec: 4h @ 10s = 1440 bars; ask for 1500 so the full window is not trimmed.
  * 1Min: every pane's session VWAP is accumulated from this series, so it must
- * still reach 09:30 ET late in the day. The backend default of 500 stops
- * covering the open around 17:50 ET; 1000 spans the full 04:00-20:00 extended
- * session (960 minutes). IB already returns `1 D` of extended minutes, so this
- * only stops discarding rows -- it is not an extra IBKR request.
+ * still reach 04:00 ET late in the day. The backend default of 500 stops
+ * covering the premarket open around 12:20 ET; 1000 spans the full 04:00-20:00
+ * extended session (960 minutes). IB already returns `1 D` of extended minutes,
+ * so this only stops discarding rows -- it is not an extra IBKR request.
  */
 export const CHART_TIMEFRAME_BAR_LIMITS: Record<string, number> = {
   '10Sec': 1500,

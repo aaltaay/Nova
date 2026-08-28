@@ -78,23 +78,43 @@ function tenSecondBars(minuteBars: IndicatorBar[]): IndicatorBar[] {
   return out;
 }
 
-function valueAt(line: Array<{ time: unknown; value: number }>, time: number): number | undefined {
-  return line.find((p) => p.time === time)?.value;
+function valueAt(
+  line: Array<{ time: unknown; value?: number }>,
+  time: number,
+): number | undefined {
+  const point = line.find((p) => p.time === time);
+  return typeof point?.value === 'number' && Number.isFinite(point.value)
+    ? point.value
+    : undefined;
+}
+
+function valued(
+  line: Array<{ time: unknown; value?: number }>,
+): Array<{ time: unknown; value: number }> {
+  return line.filter(
+    (p): p is { time: unknown; value: number } => (
+      typeof p.value === 'number' && Number.isFinite(p.value)
+    ),
+  );
+}
+
+function etDay(time: number): number {
+  const d = new Date(time * 1000);
+  return d.getUTCFullYear() * 10_000 + d.getUTCMonth() * 100 + d.getUTCDate();
 }
 
 describe('sessionVwapPoints', () => {
-  it('anchors at the 09:30 ET open and ignores premarket volume', () => {
+  it('anchors at the 04:00 ET premarket open and includes that volume', () => {
     const bars = [
-      bar(etTime(2026, 7, 25, 4, 0), 50, 100_000),
-      bar(etTime(2026, 7, 25, 9, 29), 50, 100_000),
-      bar(etTime(2026, 7, 25, 9, 30), 10, 1_000),
-      bar(etTime(2026, 7, 25, 9, 31), 10, 1_000),
+      bar(etTime(2026, 7, 25, 3, 59), 50, 100_000),
+      bar(etTime(2026, 7, 25, 4, 0), 10, 1_000),
+      bar(etTime(2026, 7, 25, 4, 1), 10, 1_000),
     ];
     const points = sessionVwapPoints(bars);
 
     expect(points).toHaveLength(2);
-    expect(points[0].time).toBe(etTime(2026, 7, 25, 9, 30));
-    // hlc3 of a flat 10.0 bar; the 50.00 premarket prints contributed nothing.
+    expect(points[0].time).toBe(etTime(2026, 7, 25, 4, 0));
+    // 03:59 is still yesterday's leftover window -- it must not pull VWAP to 50.
     expect(points[0].value).toBeCloseTo(10, 10);
     expect(points[1].value).toBeCloseTo(10, 10);
   });
@@ -150,11 +170,11 @@ describe('sessionVwapPoints', () => {
     expect(points[2].value).toBeCloseTo(10, 10);
   });
 
-  it('anchors at 09:30 ET on both DST transition weeks', () => {
+  it('anchors at 04:00 ET on both DST transition weeks', () => {
     for (const [monthIndex, day] of [[2, 9], [10, 2]] as const) {
       const bars = [
-        bar(etTime(2026, monthIndex, day, 9, 29), 99, 500_000),
-        bar(etTime(2026, monthIndex, day, 9, 30), 10, 1_000),
+        bar(etTime(2026, monthIndex, day, 3, 59), 99, 500_000),
+        bar(etTime(2026, monthIndex, day, 4, 0), 10, 1_000),
       ];
       const points = sessionVwapPoints(bars);
       expect(points).toHaveLength(1);
@@ -162,12 +182,12 @@ describe('sessionVwapPoints', () => {
     }
   });
 
-  it('returns nothing before the open', () => {
-    const premarketOnly = [
-      bar(etTime(2026, 7, 25, 4, 0), 10, 1_000),
-      bar(etTime(2026, 7, 25, 8, 15), 11, 2_000),
+  it('returns nothing before the premarket open', () => {
+    const overnightOnly = [
+      bar(etTime(2026, 7, 25, 0, 30), 10, 1_000),
+      bar(etTime(2026, 7, 25, 3, 59), 11, 2_000),
     ];
-    expect(sessionVwapPoints(premarketOnly)).toEqual([]);
+    expect(sessionVwapPoints(overnightOnly)).toEqual([]);
     expect(sessionVwapPoints([])).toEqual([]);
   });
 });
@@ -226,14 +246,24 @@ describe('sampleVwapOntoBars', () => {
     expect(line.at(-1)!.value).toBeCloseTo(line.at(-2)!.value, 10);
   });
 
-  it('draws nothing on a pane bar before the open', () => {
+  it('draws nothing on a pane bar before the premarket open', () => {
     const minutes = rthMinutes(5);
     const points = sessionVwapPoints(minutes);
-    const paneBars = [bar(etTime(2026, 7, 25, 8, 0), 10, 1_000), ...minutes];
+    const paneBars = [bar(etTime(2026, 7, 25, 3, 0), 10, 1_000), ...minutes];
 
     const line = sampleVwapOntoBars(points, paneBars, '1Min');
-    expect(valueAt(line, etTime(2026, 7, 25, 8, 0))).toBeUndefined();
-    expect(line).toHaveLength(minutes.length);
+    expect(valueAt(line, etTime(2026, 7, 25, 3, 0))).toBeUndefined();
+    expect(valued(line)).toHaveLength(minutes.length);
+  });
+
+  it('still carries the close VWAP on a same-day after-hours pane', () => {
+    const pane = [
+      bar(etTime(2026, 7, 27, 15, 59), 2.18, 1_495),
+      bar(etTime(2026, 7, 27, 21, 50), 3.20, 0),
+    ];
+    const line = sampleVwapOntoBars(sessionVwapPoints(pane), pane, '1Min');
+    expect(valueAt(line, etTime(2026, 7, 27, 21, 50)))
+      .toBeCloseTo(valueAt(line, etTime(2026, 7, 27, 15, 59))!, 10);
   });
 
   it('does not bleed one session into the next premarket', () => {
@@ -252,6 +282,36 @@ describe('sampleVwapOntoBars', () => {
     expect(valueAt(line, etTime(2026, 7, 26, 9, 30))).toBeDefined();
   });
 
+  it('does not paint yesterday leftover through overnight into the open', () => {
+    // AEMD-shaped 1Min window: after-hours leftover, a 15M-share premarket,
+    // then the 09:30 print. LineSeries connects adjacent valued points, so a
+    // leftover $2.25 sitting next to today's $2.91 becomes a fake diagonal.
+    const pane = [
+      bar(etTime(2026, 7, 27, 15, 59), 2.18, 1_495),
+      bar(etTime(2026, 7, 27, 16, 0), 2.26, 2_271),
+      bar(etTime(2026, 7, 27, 21, 50), 3.20, 0),
+      bar(etTime(2026, 7, 27, 23, 59), 3.23, 0),
+      bar(etTime(2026, 7, 28, 4, 0), 3.23, 10_000),
+      bar(etTime(2026, 7, 28, 7, 0), 3.82, 377_534),
+      bar(etTime(2026, 7, 28, 9, 29), 2.90, 85_297),
+      bar(etTime(2026, 7, 28, 9, 30), 2.95, 260_670),
+      bar(etTime(2026, 7, 28, 9, 31), 2.97, 50_000),
+    ];
+    const line = sampleVwapOntoBars(sessionVwapPoints(pane), pane, '1Min');
+    const painted = valued(line);
+
+    expect(valueAt(line, etTime(2026, 7, 27, 21, 50))).toBeUndefined();
+    expect(valueAt(line, etTime(2026, 7, 28, 4, 0))).toBeDefined();
+    expect(valueAt(line, etTime(2026, 7, 28, 7, 0))).toBeDefined();
+    expect(valueAt(line, etTime(2026, 7, 28, 9, 29))).toBeDefined();
+    expect(valueAt(line, etTime(2026, 7, 28, 9, 30))).toBeDefined();
+    expect(painted.length).toBe(5);
+    expect(painted.every((p) => etDay(p.time as number) === etDay(etTime(2026, 7, 28, 9, 30)))).toBe(true);
+    for (let i = 1; i < painted.length; i += 1) {
+      expect(etDay(painted[i].time as number)).toBe(etDay(painted[i - 1].time as number));
+    }
+  });
+
   it('returns nothing for daily and above', () => {
     const minutes = rthMinutes(10);
     const points = sessionVwapPoints(minutes);
@@ -267,13 +327,16 @@ describe('sampleVwapOntoBars', () => {
 });
 
 describe('vwapSourceForPane', () => {
-  it('keeps 1Min bars from before the 10Sec window so the 09:30 anchor survives', () => {
-    const minutes = rthMinutes(90);
+  it('keeps 1Min bars from before the 10Sec window so the 04:00 anchor survives', () => {
+    const minutes = [
+      bar(etTime(2026, 7, 25, 4, 0), 10, 1_000),
+      ...rthMinutes(90),
+    ];
     const paneStart = etTime(2026, 7, 25, 10, 0);
     const pane = tenSecondBars(minutes.filter((b) => b.time >= paneStart));
     const source = vwapSourceForPane(minutes, pane, '10Sec');
 
-    expect(source[0].time).toBe(etTime(2026, 7, 25, 9, 30));
+    expect(source[0].time).toBe(etTime(2026, 7, 25, 4, 0));
     const overlap = source.filter((b) => b.time >= paneStart);
     expect(overlap.some((b) => b.time === paneStart + 10)).toBe(true);
     expect(overlap.every((b) => pane.some((p) => p.time === b.time))).toBe(true);
@@ -286,8 +349,8 @@ describe('vwapSourceForPane', () => {
 });
 
 describe('coversSessionOpen', () => {
-  it('is true when the source reaches the open', () => {
-    expect(coversSessionOpen(rthMinutes(10))).toBe(true);
+  it('is true when the source reaches the 04:00 open', () => {
+    expect(coversSessionOpen(rthMinutes(10))).toBe(false);
     expect(coversSessionOpen([
       bar(etTime(2026, 7, 25, 4, 0), 10, 1_000),
       ...rthMinutes(10),

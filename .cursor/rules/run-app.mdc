@@ -14,7 +14,7 @@ From the **repository root** (`Nova/`):
 
 That script:
 
-- Starts the **API** in a titled window: FastAPI at `http://127.0.0.1:8000` (`uvicorn main:app --reload` in `backend/`).
+- Starts the **API** in a titled window: FastAPI at `http://127.0.0.1:8000` (`py -3 run_api.py` in `backend/`, reload off unless `-Reload`).
 - Starts the **UI** in another window: Vite dev server at `http://localhost:5173` (`npm run dev` in `frontend/`).
 - Opens the browser to the UI after a short delay.
 
@@ -24,7 +24,7 @@ Close each titled CMD window to stop that server.
 
 ## Manual equivalent (if not using the batch file)
 
-- Terminal A, repo `backend/`: `py -3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000` (or `python -m uvicorn ...`).
+- Terminal A, repo `backend/`: `py -3 run_api.py` (stable; set `NOVA_API_RELOAD=1` only when you want WatchFiles).
 - Terminal B, repo `frontend/`: `npm run dev`.
 - Open `http://localhost:5173` in the browser.
 

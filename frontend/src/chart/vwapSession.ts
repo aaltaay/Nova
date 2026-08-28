@@ -2,13 +2,13 @@
  * Session VWAP shared by every chart pane.
  *
  * Closed minutes come from ``CHART_VWAP_SOURCE_TIMEFRAME`` so every pane still
- * anchors at 09:30 ET. Sub-minute panes then splice in their own bars for the
+ * anchors at 04:00 ET. Sub-minute panes then splice in their own bars for the
  * visible window -- otherwise VWAP is a once-per-minute staircase that stops
  * while 10Sec candles keep painting. Coarser panes keep sampling the 1Min
  * series (one VWAP point per painted candle). Accumulating from each pane's
  * own window with no session anchor was the old per-timeframe drift.
  */
-import type { LineData, Time } from 'lightweight-charts';
+import type { LineData, Time, WhitespaceData } from 'lightweight-charts';
 import {
   CHART_VWAP_SESSION_END_SEC,
   CHART_VWAP_SESSION_START_SEC,
@@ -24,6 +24,12 @@ import {
 export interface VwapPoint {
   time: number;
   value: number;
+}
+
+export type VwapLinePoint = LineData<Time> | WhitespaceData<Time>;
+
+export function hasVwapValue(point: VwapLinePoint): point is LineData<Time> {
+  return 'value' in point && Number.isFinite(point.value);
 }
 
 const SEC_PER_DAY = 86_400;
@@ -49,8 +55,8 @@ function latestDayKey(bars: IndicatorBar[]): number {
 }
 
 /**
- * Running session VWAP per source bar, resetting each ET day at the RTH open.
- * Premarket bars produce no point (nothing to anchor yet); zero-volume bars and
+ * Running session VWAP per source bar, resetting each ET day at the 04:00
+ * premarket open. Bars before 04:00 produce no point; zero-volume bars and
  * post-close bars carry the previous value forward.
  */
 export function sessionVwapPoints(minuteBars: IndicatorBar[]): VwapPoint[] {
@@ -91,16 +97,10 @@ export function sessionVwapPoints(minuteBars: IndicatorBar[]): VwapPoint[] {
 }
 
 /**
- * Map session VWAP onto a pane's bars. A pane bar takes the newest source point
- * that closed inside it, so a coarse bar shows the VWAP as of its own close and
- * sub-minute bars step once per source bar. Returns `[]` for daily and above --
- * a single-session VWAP has no meaning there.
- */
-/**
  * Sub-minute panes need their own bars in the accumulator or VWAP is a
  * once-per-minute staircase that sits still while 10Sec candles keep painting.
  * 1Min bars before the pane window stay in so a 4-hour 10Sec slice still
- * anchors at 09:30. Coarser panes keep the 1Min series -- one point per
+ * anchors at 04:00. Coarser panes keep the 1Min series -- one point per
  * painted candle is already walking with those bars.
  */
 export function vwapSourceForPane(
@@ -120,17 +120,27 @@ export function vwapSourceForPane(
   return [...head, ...paneBars];
 }
 
+/**
+ * Map session VWAP onto a pane's bars. A pane bar takes the newest source point
+ * that closed inside it, so a coarse bar shows the VWAP as of its own close and
+ * sub-minute bars step once per source bar. Only the newest ET day is painted --
+ * leftover from yesterday is not today's VWAP. Skipped bars are whitespace so
+ * LineSeries cannot interpolate across the overnight hole. Returns `[]` for
+ * daily and above -- a single-session VWAP has no meaning there.
+ */
 export function sampleVwapOntoBars(
   points: VwapPoint[],
   paneBars: IndicatorBar[],
   timeframe: string,
   options?: { extendToTime?: number },
-): LineData<Time>[] {
+): VwapLinePoint[] {
   if (isDailyTimeframe(timeframe)) return [];
   if (points.length === 0 || paneBars.length === 0) return [];
 
   const bucket = timeframeSeconds(timeframe);
-  const out: LineData<Time>[] = [];
+  // One session on screen -- leftover from yesterday is not today's VWAP.
+  const paintDay = latestDayKey(paneBars);
+  const out: VwapLinePoint[] = [];
   let index = 0;
   let value = NaN;
   let valueDay = -1;
@@ -144,30 +154,44 @@ export function sampleVwapOntoBars(
       valueDay = etDayKey(points[index].time);
       index += 1;
     }
-    if (!Number.isFinite(value)) continue;
-    // Yesterday's close must not bleed across today's premarket.
-    if (etDayKey(time) !== valueDay) continue;
-    out.push({ time: time as Time, value });
-  }
-
-  const extendToTime = options?.extendToTime;
-  if (
-    out.length > 0
-    && extendToTime != null
-    && Number.isFinite(extendToTime)
-  ) {
-    const last = out[out.length - 1];
-    const lastTime = last.time as number;
-    if (extendToTime > lastTime && etDayKey(extendToTime) === etDayKey(lastTime)) {
-      out.push({ time: extendToTime as Time, value: last.value });
+    const barDay = etDayKey(time);
+    // Whitespace breaks the line so LineSeries cannot draw a diagonal across
+    // the overnight hole (yesterday 23:59 leftover -> today's 04:00).
+    if (
+      Number.isFinite(value)
+      && barDay === valueDay
+      && barDay === paintDay
+    ) {
+      out.push({ time: time as Time, value });
+    } else {
+      out.push({ time: time as Time });
     }
   }
 
-  return out;
+  const extendToTime = options?.extendToTime;
+  if (extendToTime != null && Number.isFinite(extendToTime)) {
+    let lastValued: LineData<Time> | undefined;
+    for (let i = out.length - 1; i >= 0; i -= 1) {
+      const point = out[i];
+      if (hasVwapValue(point)) {
+        lastValued = point;
+        break;
+      }
+    }
+    if (
+      lastValued
+      && extendToTime > (lastValued.time as number)
+      && etDayKey(extendToTime) === etDayKey(lastValued.time as number)
+    ) {
+      out.push({ time: extendToTime as Time, value: lastValued.value });
+    }
+  }
+
+  return out.some(hasVwapValue) ? out : [];
 }
 
 /**
- * Whether the source bars reach the newest day's RTH open. False means the store
+ * Whether the source bars reach the newest day's 04:00 ET open. False means the store
  * window starts mid-session, so the line understates real session volume and has
  * to say so instead of passing as authoritative.
  */

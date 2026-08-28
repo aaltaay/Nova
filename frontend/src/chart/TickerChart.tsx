@@ -19,6 +19,7 @@ import { useMaximizedChartPortal } from '../hooks/useMaximizedChartPortal';
 import { toggleIndicator } from '../chartIndicators';
 import { useChartBars } from './useChartBars';
 import { useChartDrawingManager } from './useChartDrawingManager';
+import { claimChartDrawingHotkeyFocus } from './chartDrawingKeys';
 import { useChartInstance } from './useChartInstance';
 import { useChartLiveTrade } from './useChartLiveTrade';
 import { useChartSessionHighlight } from './useChartSessionHighlight';
@@ -69,6 +70,7 @@ function TickerChartInner({
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const drawingHotkeyOwnerRef = useRef(Symbol('chart-drawing-hotkeys'));
 
   const [userTimeframe, setUserTimeframe] = useState(
     fixedTimeframe ?? CHART_DEFAULT_TIMEFRAME,
@@ -142,6 +144,7 @@ function TickerChartInner({
     chartApi,
     symbol,
     seriesRevision: barsRevision,
+    hotkeyOwner: drawingHotkeyOwnerRef.current,
   });
 
   useChartSessionHighlight({
@@ -151,7 +154,7 @@ function TickerChartInner({
     barsRevision,
   });
 
-  // One 09:30-anchored VWAP for every pane, not a per-timeframe accumulation.
+  // One 04:00-anchored VWAP for every pane, not a per-timeframe accumulation.
   const vwapSource = useVwapSourceBars(symbol, chartActive);
 
   useEffect(() => {
@@ -183,6 +186,8 @@ function TickerChartInner({
       data-testid={`ticker-chart-${timeframe}`}
       data-bar-count={indicatorBars.length}
       data-filling={filling ? '1' : '0'}
+      onPointerDown={() => claimChartDrawingHotkeyFocus(drawingHotkeyOwnerRef.current)}
+      onPointerEnter={() => claimChartDrawingHotkeyFocus(drawingHotkeyOwnerRef.current)}
     >
       <TickerChartControls
         activeTool={activeTool}

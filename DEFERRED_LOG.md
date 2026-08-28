@@ -61,6 +61,70 @@ Entry template (copy and fill in):
 
 <!-- OPEN_START -->
 
+## D-007 -- After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset
+
+- **Status:** parked
+- **Kind:** decision
+- **Severity:** P2
+- **Effort:** M
+- **Domain:** market-feed
+- **User-visible:** yes
+- **Logged:** 2026-08-28
+- **Why parked:** Operator asked to record the platform mismatch and not change paint until the after-close consequences are clear. Premarket-in-the-same-line (04:00-16:00) already shipped this morning.
+- **Blast radius:** After 16:00 Nova carries the 16:00 VWAP flat. Webull and DAS treat after-hours as a **new** VWAP (reset at 16:00), not more volume on the daytime line. TradingView with Extended Hours on keeps adding. A Webull vs Nova compare after the close will disagree. Overnight leftover still must not diagonal into tomorrow.
+- **Unblock:** One live look -- Webull 1Min after 16:00: does the orange line sit still, start a new line, or keep walking? Do not flip `CHART_VWAP_SESSION_END_SEC` or add a second series without that.
+- **Next:** After the cash close, screenshot Nova and Webull on the same symbol. Then either leave freeze (current), add a second AH VWAP (Webull/DAS), or keep adding (TradingView ETH).
+- **Evidence:** TradingView help: VWAP "begins at the open and stops at the close" (ETH-on includes those bars). DAS docs: checkbox "also draw a VWAP line for pre and post" -- extra lines, not one blend. Community [Webull-Style Segmented VWAP](https://www.tradingview.com/script/E7GAlJYk-Webull-Style-Segmented-VWAP/) resets at premarket / regular / after-hours. Robinhood docs never state session bounds. Reddit r/Daytrading: IB / Webull / Fidelity / NinjaTrader printed different VWAPs the same morning.
+- **Keywords:** VWAP, after-hours, 16:00, Webull, DAS, TradingView, session reset, CHART_VWAP_SESSION_END_SEC, D-007
+
+## D-006 -- init_sentry + cache restore block HTTP yield for ~94s
+
+- **Status:** open
+- **Kind:** bug
+- **Severity:** P1
+- **Effort:** S
+- **Domain:** ibkr-ops
+- **User-visible:** yes
+- **Logged:** 2026-08-28
+- **Why parked:** Found on the 08:22 daily start soak. Patch is `app_lifespan.py` (move `init_sentry` / heavy restore after `yield` or bound it). The live API is `reload=true`; a backend edit would WatchFiles-restart it and, after 09:30, today's Gappers cannot be rebuilt.
+- **Blast radius:** Daily start's old 60s health wait declared the API dead while the process was still in lifespan. UI shows API down / Start API. A click then kills a live PID.
+- **Unblock:** After a no-reload API start (tomorrow's daily, or a weekend restart), defer `init_sentry` until after `yield` and time `_restore_caches` / `_init_databases`.
+- **Next:** Add a lifespan test that `yield` happens before Sentry/network, then restart API with `NOVA_API_RELOAD=0`.
+- **Evidence:** `api-console.log` 08:22:25 `instance starting` -> 08:23:32 Sentry enabled -> 08:23:59 `HTTP ready`. `daily-start.log` 08:23:05 `API health still failing after 60s`. Soak health later missed 4s then answered in 3689ms; `http_loop_lag_ms.max_ms` reached 4360.
+- **Keywords:** init_sentry, lifespan yield, HTTP ready, HealthWaitSec, daily-start, API_WEDGED, Start API
+
+## D-005 -- Aborted API terminal can leave a live process with no HTTP listener
+
+- **Status:** open
+- **Kind:** bug
+- **Severity:** P1
+- **Effort:** M
+- **Domain:** ibkr-ops
+- **User-visible:** yes
+- **Logged:** 2026-08-26
+- **Why parked:** Found while completing chart-tool verification; process supervision and safe stale-owner recovery are outside the chart UI task.
+- **Blast radius:** Nova can show "Start API" while port 8000 refuses connections, but `run_api.py` refuses recovery because the lock owner PID is still active. The desk remains down until the orphan is identified and stopped.
+- **Unblock:** Define a safe ownership rule that distinguishes a healthy active API from an orphaned, non-listening child without ever starting a second clientId 17 session.
+- **Next:** Reproduce terminal abort in an isolated paper session, then make the launcher terminate its child on parent loss or add a listener/parent-aware stale-owner recovery after a bounded grace period.
+- **Evidence:** Terminal 336841 was aborted at 21:52:45 ET; child `python3.13.exe` PID 35140 remained active through 22:01 with no port 8000 listener. A new start was rejected by `api-instance.lock`. Stopping the orphan and launcher, then starting once, restored `/api/health=connected`, IBKR `session=ready`, and 21 Gappers.
+- **Keywords:** api-instance.lock, orphan API, terminal aborted, port 8000 refused, clientId 17, run_api.py, process supervision
+
+## D-004 -- Vite restart-lock test shares the live lock path
+
+- **Status:** open
+- **Kind:** bug
+- **Severity:** P2
+- **Effort:** S
+- **Domain:** frontend tooling
+- **User-visible:** no
+- **Logged:** 2026-08-26
+- **Why parked:** Found while verifying the chart drawing task; changing API restart locking is unrelated to chart tools and needs its own focused test pass.
+- **Blast radius:** `npx vitest run` can fail when a live Vite restart owns `backend/.cache/start-api.lock`, and the test's `afterEach` can delete that live lock, briefly removing restart-race protection.
+- **Unblock:** None.
+- **Next:** Make `acquireLock` / `releaseLock` accept an injected lock path or construct a lock owner around a path, then point the test at `tmpdir()` instead of the operator cache.
+- **Evidence:** Full Vitest run at 21:57 ET failed `vite-nova-start-api.test.ts` because its first `acquireLock()` returned false while the running app held the production path; the test cleanup removed the lock and an immediate retry passed all 835 tests.
+- **Keywords:** vite-nova-start-api, start-api.lock, test isolation, operator cache, restart race
+
 ## D-003 -- Trader 10Sec / Full Day sit on "Loading IBKR historical..." for minutes
 
 - **Status:** blocked

@@ -4,6 +4,10 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-28 | [Park after-hours VWAP convention (D-007)](2026-08-28-vwap-afterhours-convention.md) | No universal AH rule; Nova stays frozen at 16:00 until a live Webull compare; do not invent |
+| 2026-08-28 | [Chart VWAP starts at premarket 04:00](2026-08-28-vwap-premarket-anchor.md) | Session VWAP now includes 04:00-09:30 volume; 09:30-only was the wrong product for this desk |
+| 2026-08-28 | [Chart VWAP overnight gap and soak trail](2026-08-28-vwap-overnight-gap.md) | AEMD leftover $2.25 interpolated 571 min to the open; pane paints latest ET day only; `tools/vwap_probe.py` is the trail |
+| 2026-08-28 | [Morning API soak: refreshes were Vite, API process never died](2026-08-28-morning-api-soak-reload-off.md) | Daily launcher forced WatchFiles; 94s HTTP-dark startup; Vite HMR at 09:11; Start API chip is a 4s probe miss -- do not kill pid 16820 |
 | 2026-08-27 | [Earnings dots column on day-trade scanners](2026-08-27-earnings-dots-column.md) | Three-dot Earnings column on Gappers/Gainers/Losers/AH from Yahoo earningsTimestamp; Large Cap countdown now uses the next date |
 | 2026-08-26 | [Instant chart loading roadmap (D-003 implementation)](2026-08-26-instant-chart-loading-roadmap.md) | Pacing budget observability, Large Cap once-per-session guard, chart priority split, tape-based provisional 10Sec candles; pytest-green, live verification pending |
 | 2026-08-26 | [Trader chart hist loading soak](2026-08-26-chart-hist-loading-soak.md) | 10Sec/Full Day overlay is empty store waiting on IB hist tokens; Large Cap 1Day spray can empty the 60/10min bucket; parked as D-003 |

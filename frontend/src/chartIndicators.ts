@@ -14,6 +14,7 @@ import {
   CHART_MACD_SIGNAL,
   CHART_MACD_SLOW,
   CHART_RSI_LENGTH,
+  CHART_VWAP_SESSION_START_SEC,
   type ChartEmaLength,
   type ChartIndicatorId,
 } from './constants';
@@ -124,13 +125,24 @@ export function formatVwapAxisTitle(value: number, partial = false): string {
   return `VWAP $${value.toFixed(2)}${partial ? ' (partial)' : ''}`;
 }
 
+export function vwapWaitingTitle(): string {
+  const hour = Math.floor(CHART_VWAP_SESSION_START_SEC / 3600);
+  const minute = Math.floor((CHART_VWAP_SESSION_START_SEC % 3600) / 60);
+  const clock = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  return `VWAP (${clock} ET)`;
+}
+
 export function vwapAxisTitleFromLine(
-  line: LineData<Time>[],
+  line: Array<LineData<Time> | WhitespaceData<Time>>,
   partial = false,
 ): string {
-  const last = line.at(-1);
-  if (!last || !Number.isFinite(last.value)) return 'VWAP';
-  return formatVwapAxisTitle(last.value, partial);
+  for (let i = line.length - 1; i >= 0; i -= 1) {
+    const point = line[i];
+    if ('value' in point && Number.isFinite(point.value)) {
+      return formatVwapAxisTitle(point.value, partial);
+    }
+  }
+  return vwapWaitingTitle();
 }
 
 export function computeRsiPane(bars: IndicatorBar[]): RsiPaneData {

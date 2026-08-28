@@ -30,6 +30,36 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-28 -- Chart VWAP starts at 04:00 ET premarket
+
+- **What:** Session VWAP now accumulates from 04:00 ET (Nova's premarket open), not 09:30. The overnight leftover gap is unchanged -- yesterday still cannot draw a diagonal into today. Axis waiting title is `VWAP (04:00 ET)`.
+- **Why:** Operator needs VWAP on the morning tape. 09:30-only ignored 15.0M AEMD premarket shares and left the orange line blank until the bell.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts`, `vwapSession.ts`, `vwapSession.test.ts`, `TickerChart.tsx`, `market_ui.ts`, `tools/vwap_probe.py`, `tools/test_vwap_probe.py`.
+- **How it works now:** One continuous VWAP from 04:00 to 16:00 on the newest ET day. Premarket volume counts. After 16:00 the close value still carries (no new after-hours volume). `tools/vwap_probe.py` prints the painted 04:00 number and a 09:30 what-if.
+- **Verified by:** `npx vitest run src/chart src/chartIndicators.test.ts` -- 18 files / 138 passed. `py -3 -m pytest tools/test_vwap_probe.py -q` -- 4 passed. `npm run build` (`tsc -b && vite build`) exit 0. Live `py -3 tools/vwap_probe.py AEMD`: painted first $3.51 at 04:00, last $3.109 at 10:03; RTH-only what-if $3.088; 341 premarket bars / 15.0M vol included. Browser AEMD 1Min (EMAs off): orange dashed line starts at 04:00 and runs through premarket, axis `VWAP $3.11`.
+- **Follow-ups:** After-hours convention vs Webull/DAS is parked as D-007 -- do not keep adding 16:00-20:00 volume until a live Webull compare.
+- **Related:** `PROBLEM_LOG.md` 2026-08-28 -- Premarket VWAP was 09:30-only; `DEFERRED_LOG.md` D-007; task-log `knowledge/task-log/2026-08-28-vwap-premarket-anchor.md`. Follows the leftover-to-open diagonal fix the same morning.
+
+## 2026-08-28 -- Chart VWAP no longer draws a leftover-to-open diagonal
+
+- **What:** Session VWAP on an overnight 1Min pane no longer paints yesterday's leftover as a straight orange line through premarket. The line starts at today's 09:30 ET. Before the open the axis tag reads `VWAP (09:30 ET)`. `py -3 tools/vwap_probe.py AEMD` reprints RTH vs extended and the overnight pair.
+- **Why:** Operator screenshot of AEMD: a rising dashed line from last night at ~$2.25 to the open, while price chopped $2.70-$3.80. Premarket did not "fail to paint" -- RTH VWAP is 09:30-only, and LineSeries interpolated the 571-minute hole.
+- **Files touched:** `frontend/src/chart/vwapSession.ts`, `vwapSession.test.ts`, `chartIndicators.ts`, `constantGroups/chart_api.ts`, `tools/vwap_probe.py`, `tools/test_vwap_probe.py`.
+- **How it works now:** The pane paints only the newest ET day. Skipped bars (premarket, prior leftover) are whitespace so the library cannot connect 23:59 leftover to 09:30. Same-day after-hours still carry the close VWAP. Accumulation is still 09:30-16:00; 04:00 extended is a probe what-if, not a product change.
+- **Verified by:** `npx vitest run src/chart src/chartIndicators.test.ts` -- 18 files / 138 passed, including AEMD-shaped overnight. `py -3 -m pytest tools/test_vwap_probe.py -q` -- 4 passed. `npm run build` (`tsc -b && vite build`) exit 0. Live `py -3 tools/vwap_probe.py AEMD`: leftover $2.2547 at 23:59 -> open $2.9133 at 09:30, gap 571 min. Browser on AEMD 1Min (EMAs off): orange line starts at 09:30, none through overnight/premarket, axis `VWAP $3.10` vs last ~$3.19.
+- **Follow-ups:** Shipped later the same morning -- VWAP now starts at 04:00 ET.
+- **Related:** `PROBLEM_LOG.md` 2026-08-28 -- VWAP leftover-to-open diagonal; task-log `knowledge/task-log/2026-08-28-vwap-overnight-gap.md`. Extends 2026-08-25 session VWAP and 2026-08-26 walk-with-bars.
+
+## 2026-08-28 -- Daily / Run Nova API starts stable (reload off)
+
+- **What:** `Start-NovaApi.ps1` no longer forces `NOVA_API_RELOAD=1`. Default is a stable `run_api.py` process. `-Reload` is opt-in. Daily start waits 180s for `/api/health` (was 60s).
+- **Why:** This morning's daily start launched WatchFiles-on API, then declared the API dead at 60s while lifespan was still blocked. Vite HMR also remounted the desk. Same class as 2026-07-14 / 2026-08-14.
+- **Files touched:** `scripts/Start-NovaApi.ps1`, `scripts/Start-NovaDaily.ps1`, `.cursor/rules/run-app.mdc`, `tools/test_start_nova_api_script.py`.
+- **How it works now:** Run Nova / daily / Vite Start API spawn `NOVA_API_RELOAD=0`. The live 08:22 process is left alone (reload still true until tomorrow). Do not click Start API when Desk is green -- the PID is alive.
+- **Verified by:** `py -3 -m pytest tools/test_start_nova_api_script.py backend/tests/test_scripts_ascii.py -q` -- 6 passed. Live soak: instance `86bbb510002d` pid 16820 still LISTEN, IB ready, 16 Gappers / 50 Gainers. Browser Desk up. Health can take >4s (max 4360ms) so the red Start API chip is a probe miss, not a dead process.
+- **Follow-ups:** D-006 -- `init_sentry` + cache restore blocked HTTP yield for 94s. Do not restart this API today (gappers freeze at 09:30).
+- **Related:** PROBLEM_LOG 2026-08-28 morning refresh / false API stop.
+
 ## 2026-08-27 -- Earnings dots column on day-trade scanners
 
 - **What:** Gappers, Gainers, Losers, and Afterhours now have an Earnings column of three dots (tomorrow / today / yesterday). Hover shows the Yahoo date plus before-open / after-close. Large Cap countdown now uses the next scheduled date, not the last report.

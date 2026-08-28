@@ -44,7 +44,7 @@ param(
     [switch]$SkipBrowser,
     [switch]$ForceRestart,
     [int]$OpenBrowserDelaySec = 8,
-    [int]$HealthWaitSec = 60,
+    [int]$HealthWaitSec = 180,
     [int]$GatewayPortWaitSec = 120,
     [int]$IbkrUsableWaitSec = 180
 )

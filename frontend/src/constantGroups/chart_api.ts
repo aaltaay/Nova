@@ -1,6 +1,11 @@
 /** Phase 3 domain group (chart_api.ts). */
 
-import type { ChartIndicatorId, ChartOverlayId, ChartOscillatorId } from './market_ui';
+import {
+  SESSION_PREMARKET_START_MIN_ET,
+  type ChartIndicatorId,
+  type ChartOverlayId,
+  type ChartOscillatorId,
+} from './market_ui';
 
 export const CHART_INDICATORS: { id: ChartIndicatorId; label: string }[] = [
   { id: 'emas', label: 'EMAs' },
@@ -47,12 +52,15 @@ export const CHART_VWAP_COLOR = '#F97316'; // orange
  */
 export const CHART_VWAP_SOURCE_TIMEFRAME = '1Min';
 /**
- * Anchor at the 09:30 ET regular-hours open and stop accumulating at the 16:00
- * ET close (the final value then carries flat through after-hours), matching
- * what IBKR / TradingView show. Seconds from ET midnight -- bar times are ET
- * wall clock encoded as an epoch (see ``isoToEtTime``).
+ * Anchor at the 04:00 ET premarket open (same clock as
+ * ``SESSION_PREMARKET_START_MIN_ET``) and stop accumulating at the 16:00 ET
+ * close. The final value then carries flat through after-hours of that same
+ * ET day. The pane only paints the newest ET day and inserts whitespace on
+ * the overnight hole so LineSeries cannot draw leftover-to-open as a diagonal.
+ * Seconds from ET midnight -- bar times are ET wall clock encoded as an epoch
+ * (see ``isoToEtTime``).
  */
-export const CHART_VWAP_SESSION_START_SEC = 9 * 3600 + 30 * 60;
+export const CHART_VWAP_SESSION_START_SEC = SESSION_PREMARKET_START_MIN_ET * 60;
 export const CHART_VWAP_SESSION_END_SEC = 16 * 3600;
 
 export const CHART_INDICATOR_PANE_HEIGHT = 110;
