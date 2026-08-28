@@ -158,15 +158,32 @@ def test_build_row_metrics_never_calls_fetch_fundamentals(monkeypatch):
 
     monkeypatch.setattr(fundamentals, "fetch_fundamentals", _boom)
     fundamentals._fundamentals_cache["NVDA"] = {
-        "average_volume": 40_000_000, "earnings_date": "2026-11-20",
+        "average_volume": 40_000_000,
+        "earnings_date": "2026-07-30",
+        "earnings_next_date": "2026-11-20",
         "market_cap": 4_500_000_000_000, "float_shares": 24_000_000_000,
     }
     monkeypatch.setattr(lcm, "daily_bar_metrics", lambda sym: dict(lcm._EMPTY_DAILY))
     out = lcm.build_row_metrics("NVDA", price=190.0, prev_close=185.0, volume=50_000_000)
     assert "rvol" in out
-    assert out["days_to_earnings"] is not None
+    assert out["days_to_earnings"] == lcm.days_to_earnings("2026-11-20")
+    assert out["days_to_earnings"] != lcm.days_to_earnings("2026-07-30")
     assert out["market_cap"] == 4_500_000_000_000
     assert out["float"] == 24_000_000_000
+
+
+def test_build_row_metrics_ignores_last_event_when_next_missing(monkeypatch):
+    """Last-report earnings_date must not become a Large Cap countdown."""
+    import fundamentals
+
+    fundamentals._fundamentals_cache["AAPL"] = {
+        "average_volume": 50_000_000,
+        "earnings_date": "2026-07-30",
+        "earnings_next_date": None,
+    }
+    monkeypatch.setattr(lcm, "daily_bar_metrics", lambda sym: dict(lcm._EMPTY_DAILY))
+    out = lcm.build_row_metrics("AAPL", price=190.0, prev_close=185.0, volume=50_000_000)
+    assert out["days_to_earnings"] is None
 
 
 def test_compute_scores_percentile_ranks_and_direction_agnostic():

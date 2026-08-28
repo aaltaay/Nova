@@ -4,6 +4,7 @@ import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
 import { ScannerPriceCell } from './ScannerPriceCell';
 import { NewsCell } from './NewsCell';
+import { EarningsDots } from './EarningsDots';
 import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import {
@@ -118,6 +119,15 @@ function renderCell(
       );
     case 'newest_headline_at':
       return <NewsCell newest_headline_at={row.newest_headline_at} />;
+    case 'earnings_day_offset':
+      return (
+        <EarningsDots
+          offset={row.earnings_day_offset}
+          earningsDate={row.earnings_date}
+          session={row.earnings_session}
+          estimated={row.earnings_estimated}
+        />
+      );
     case 'watchlist_score':
       return <WatchCell watchlist={row.watchlist} />;
     case 'market_cap':

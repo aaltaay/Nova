@@ -38,10 +38,27 @@ _EMPTY: dict = {
     "dividend_yield": None,
     "beta": None,
     "earnings_date": None,
+    "earnings_ts": None,
+    "earnings_estimated": None,
+    "earnings_next_date": None,
     "recent_split": None,
     "average_volume": None,
     "current_volume": None,
 }
+
+
+def _yf_epoch(raw) -> int | None:
+    """Coerce a Yahoo timestamp (int, float, or one-element list) to epoch seconds."""
+    if raw is None:
+        return None
+    if isinstance(raw, (list, tuple)):
+        raw = raw[0] if raw else None
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 def _yf_date_str(raw) -> str | None:
@@ -93,15 +110,16 @@ def fetch_fundamentals(symbol: str) -> dict:
                     return stale
                 raise
 
-        earnings_date: str | None = None
-        raw_ed = info.get("earningsDate") or info.get("earningsTimestamp")
-        if raw_ed is not None:
-            try:
-                if isinstance(raw_ed, (list, tuple)) and len(raw_ed) > 0:
-                    raw_ed = raw_ed[0]
-                earnings_date = _yf_date_str(raw_ed)
-            except Exception:
-                earnings_date = None
+        from earnings_window import earnings_date_et
+
+        earnings_ts = _yf_epoch(info.get("earningsTimestamp"))
+        earnings_date = earnings_date_et(earnings_ts)
+        earnings_next_date = earnings_date_et(
+            _yf_epoch(info.get("earningsTimestampStart") or info.get("earningsTimestampEnd"))
+        )
+        estimated = info.get("isEarningsDateEstimate")
+        if estimated is not None:
+            estimated = bool(estimated)
 
         fundamentals = {
             "market_cap": info.get("marketCap"),
@@ -120,6 +138,9 @@ def fetch_fundamentals(symbol: str) -> dict:
             "dividend_yield": info.get("dividendYield"),
             "beta": info.get("beta"),
             "earnings_date": earnings_date,
+            "earnings_ts": earnings_ts,
+            "earnings_estimated": estimated,
+            "earnings_next_date": earnings_next_date,
             "recent_split": format_recent_split(
                 info.get("lastSplitFactor"),
                 info.get("lastSplitDate"),

@@ -572,6 +572,32 @@
   flex-shrink: 0;
 }
 
+.earnings-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  cursor: help;
+  vertical-align: middle;
+}
+
+.earnings-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.35);
+  box-shadow: none;
+}
+
+.earnings-dot.lit {
+  background: #f59e0b;
+  box-shadow: 0 0 5px #f59e0b;
+}
+
+.table-wrapper .earnings-dot {
+  width: calc(var(--scanner-table-fs, 1rem) * 0.42);
+  height: calc(var(--scanner-table-fs, 1rem) * 0.42);
+}
+
 .flame-hot {
   background-color: #ff1a1a;
   box-shadow: 0 0 6px #ff1a1a;

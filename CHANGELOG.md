@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-27 -- Earnings dots column on day-trade scanners
+
+- **What:** Gappers, Gainers, Losers, and Afterhours now have an Earnings column of three dots (tomorrow / today / yesterday). Hover shows the Yahoo date plus before-open / after-close. Large Cap countdown now uses the next scheduled date, not the last report.
+- **Why:** Operator asked for a natural per-row earnings-day signal from Yahoo, same idea as the News flame, and not on HOD Momo or Running Up.
+- **Files touched:** `backend/earnings_window.py`, `backend/fundamentals.py`, `backend/mover_enrich_view.py`, `backend/large_cap_metrics.py`, `frontend/src/components/EarningsDots.tsx`, `ScannerTable.tsx`, `constantGroups/chart_api.ts`.
+- **How it works now:** Roster-commit yfinance warm already fills `_fundamentals_cache`. `decorate_rows` adds `earnings_day_offset` from `earningsTimestamp` (event of record). Large Cap `days_to_earnings` reads `earnings_next_date` from `earningsTimestampStart`. No new Yahoo loop and no IB calls.
+- **Verified by:** pytest earnings window / decorate / Large Cap / fundamentals mapping (45 passed); Vitest EarningsDots (10 passed); `npm run build` exit 0. Live API: IBKR ready, Afterhours ESTC/GAP/AFRM offset 0 AMC, Gainers OKTA offset -1. Browser: After Hours Earnings column with 3 lit center dots; HOD Momo headers have no Earnings column.
+- **Related:** PROBLEM_LOG 2026-08-27 Large Cap last-report countdown.
+
 ## 2026-08-26 -- Instant chart loading roadmap: pacing observability, Large Cap budget guard, priority split, tape-based 10Sec bars
 
 - **What:** Four phases against D-003 ("Loading IBKR historical..." starvation): (1) `/api/metrics/ops.historical_pacing` exposes the live 60-req/10-min IB historical budget. (2) Large Cap no longer sprays a `1Day` fill for every roster name on every commit -- once-per-session + store-complete guards. (3) `chart_bars.fetch_chart_bars` gives `open_chart` priority only to genuinely empty panes; a pane that already painted something gets `warm` instead, so it cannot starve a blank pane's fill. (4) New `ibkr/tape_10sec.py` builds live 10-second candles from the tick-by-tick prints Trader already streams, so the 10Sec pane paints in seconds instead of waiting on the paced 4-hour IB pull; the pull still lands and replaces the provisional candles.

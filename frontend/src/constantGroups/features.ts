@@ -70,15 +70,12 @@ export const DEFAULT_STRATEGY_CONFIG = {
   requires_hod: true,
 };
 
-/** Party badge next to ticker when earnings date is today (US/Eastern). */
-export const EARNINGS_TODAY_PARTY = '🥳';
-export const EARNINGS_TODAY_TITLE = 'Earnings today — may be a catalyst';
-/** localStorage key: comma-separated symbols forced to show the party badge (testing). */
-export const EARNINGS_TODAY_FORCE_STORAGE_KEY = 'nova_force_earnings_today';
-/** URL query (?earningsParty=AEHR) also forces badges for testing. */
-export const EARNINGS_TODAY_FORCE_QUERY = 'earningsParty';
-export const EARNINGS_TODAY_BATCH_MS = 400;
-export const EARNINGS_TODAY_BATCH_MAX = 25;
+/** Scanner Earnings column: three dots for tomorrow / today / yesterday. */
+export const EARNINGS_DOT_SESSION_BMO = 'before open';
+export const EARNINGS_DOT_SESSION_AMC = 'after close';
+export const EARNINGS_DOT_SESSION_INTRADAY = 'intraday';
+export const EARNINGS_DOT_ESTIMATED = 'estimated';
+export const EARNINGS_DOT_EMPTY_TITLE = 'No earnings date';
 
 /** HOD Strategies filter dropdown — tall enough to show most strategies without scroll. */
 export const HOD_STRATEGY_FILTER_MAX_HEIGHT_PX = 520;

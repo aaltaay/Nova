@@ -183,6 +183,7 @@ export const WS_BASE_URL: string = _rawApiBase
 export const SCANNER_COLUMNS: [string, string][] = [
   ['newest_headline_at',  'News'],
   ['symbol',              'Symbol'],
+  ['earnings_day_offset', 'Earnings'],
   ['price',               'Price'],
   ['change_pct',          'Change'],
   ['gap_percent',         'Gap %'],

@@ -451,13 +451,6 @@
   overflow: hidden;
 }
 
-.symbol-earnings-party {
-  flex-shrink: 0;
-  font-size: 0.85em;
-  line-height: 1;
-  cursor: help;
-}
-
 .row-selected {
   background: rgba(59, 130, 246, 0.06);
 }

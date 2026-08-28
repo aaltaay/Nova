@@ -22,6 +22,13 @@ export interface ScannerRow {
   float: number | null;
   short_interest: number | null;
   short_ratio: number | null;
+  /** Yahoo event-of-record date (ET), used by the Earnings dots hover. */
+  earnings_date?: string | null;
+  /** +1 tomorrow, 0 today, -1 yesterday; null outside the 1-day window. */
+  earnings_day_offset?: number | null;
+  /** 'bmo' | 'amc' | 'intraday' from the Yahoo timestamp hour in ET. */
+  earnings_session?: 'bmo' | 'amc' | 'intraday' | null;
+  earnings_estimated?: boolean | null;
   /** Joined client-side from GET /api/strategy/watchlist by symbol (see useWatchlistOverlay).
    * Null/undefined when the symbol isn't currently ranked in the watchlist. */
   watchlist?: WatchlistEntry | null;

@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-27 -- Large Cap earnings countdown used last report
+
+- **Symptom:** Live `fetch_fundamentals('AAPL')` returned `earnings_date=2026-07-30` and `days_to_earnings=-28`. Large Cap painted that as a red "-28d" under Earnings.
+- **Cause:** `fundamentals.py` read `info.get("earningsDate") or info.get("earningsTimestamp")`. `.info` has no `earningsDate` key. `earningsTimestamp` is the last/current event and stays parked for days after the report. The next date is `earningsTimestampStart` / `End`.
+- **Fix:** Store `earnings_ts` + `earnings_date` from `earningsTimestamp` (scanner dots) and `earnings_next_date` from Start/End. `large_cap_metrics.build_row_metrics` now counts down from `earnings_next_date` only.
+- **Fix class:** admission
+- **Keywords:** earningsTimestamp, earningsTimestampStart, days_to_earnings, Large Cap, yfinance, AAPL, last report
+
 ## 2026-08-26 -- Trader 10Sec / Full Day charts starved of IBKR historical tokens for minutes
 
 - **Symptom:** Opening a Trader tab on a cold symbol (MSS) painted 5-Minute and 1-Minute instantly but left 10-Second and Full Day (1Day) on "Loading IBKR historical..." for several minutes. `/api/metrics/ops` showed `ibkr.historical_bars` pinned at 60/60 sends with no new send for ~7.5 minutes, even though a completed IB pull only takes ~331ms (p50).

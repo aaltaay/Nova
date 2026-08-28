@@ -186,8 +186,9 @@ FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
 # Hard timeout for a single yfinance .info call; prevents Yahoo stalls from blocking Phase 2.
 # On timeout, stale cached data (if any) is returned; otherwise an empty dict is used.
 YFINANCE_TIMEOUT_S = 5.0
-# Cap symbols per /api/earnings-today request (scanner party badges).
-EARNINGS_TODAY_MAX_SYMBOLS = 25
+# Scanner Earnings column lights a dot when the Yahoo event is within this
+# many ET calendar days of today (1 = yesterday / today / tomorrow).
+EARNINGS_DOT_WINDOW_DAYS = 1
 # Asset metadata (name, exchange, tradability) rarely changes intraday.
 TICKER_ASSET_CACHE_TTL = 900.0      # 15 minutes (extended from 5 min — static intraday)
 # Snapshot (price, quote, bars) is live data; only cache briefly to de-dup rapid clicks.

@@ -27,6 +27,8 @@ _FUND_FIELDS: tuple[tuple[str, str], ...] = (
     ("float", "float_shares"),
     ("short_interest", "short_interest"),
     ("short_ratio", "short_ratio"),
+    ("earnings_date", "earnings_date"),
+    ("earnings_estimated", "earnings_estimated"),
 )
 
 
@@ -51,6 +53,7 @@ def decorate_rows(rows: list[dict] | None) -> list[dict]:
     """
     if not rows:
         return list(rows or [])
+    from earnings_window import earnings_day_offset, earnings_session
     from fundamentals import _fundamentals_cache
     from hod_momo_enrichment import ibkr_avg_volume
 
@@ -69,5 +72,12 @@ def decorate_rows(rows: list[dict] | None) -> list[dict]:
             entry["rel_volume"] = relative_volume(
                 entry.get("volume"), ibkr_avg_volume(sym),
             )
+        if entry.get("earnings_day_offset") is None:
+            entry["earnings_day_offset"] = earnings_day_offset(
+                fund.get("earnings_ts"),
+                earnings_date=fund.get("earnings_date") or entry.get("earnings_date"),
+            )
+        if entry.get("earnings_session") is None:
+            entry["earnings_session"] = earnings_session(fund.get("earnings_ts"))
         out.append(entry)
     return out

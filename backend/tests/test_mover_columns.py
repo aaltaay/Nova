@@ -105,6 +105,51 @@ def test_relative_volume_guards():
     assert mev.relative_volume(250, 100) == 2.5
 
 
+def test_decorate_rows_attaches_earnings_window(monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from fundamentals import _fundamentals_cache
+
+    et = ZoneInfo("America/New_York")
+    ts = int(datetime(2026, 8, 27, 16, 0, tzinfo=et).timestamp())
+    monkeypatch.setattr(
+        "market.now_et",
+        lambda: datetime(2026, 8, 27, 10, 0, tzinfo=et),
+    )
+    monkeypatch.setitem(_fundamentals_cache, "MRVL", {
+        "earnings_ts": ts,
+        "earnings_date": "2026-08-27",
+        "earnings_estimated": False,
+    })
+    out = mev.decorate_rows([{"symbol": "MRVL", "volume": 10}])
+    assert out[0]["earnings_date"] == "2026-08-27"
+    assert out[0]["earnings_day_offset"] == 0
+    assert out[0]["earnings_session"] == "amc"
+    assert out[0]["earnings_estimated"] is False
+
+
+def test_decorate_rows_does_not_overwrite_earnings_fields(monkeypatch):
+    from fundamentals import _fundamentals_cache
+
+    monkeypatch.setitem(_fundamentals_cache, "AAOG", {
+        "earnings_ts": 1,
+        "earnings_date": "2026-01-01",
+        "earnings_estimated": True,
+    })
+    out = mev.decorate_rows([{
+        "symbol": "AAOG",
+        "earnings_date": "preset",
+        "earnings_day_offset": 1,
+        "earnings_session": "bmo",
+        "earnings_estimated": False,
+    }])
+    assert out[0]["earnings_date"] == "preset"
+    assert out[0]["earnings_day_offset"] == 1
+    assert out[0]["earnings_session"] == "bmo"
+    assert out[0]["earnings_estimated"] is False
+
+
 def test_decorate_rows_avg_volume_is_yfinance_not_alpaca(monkeypatch):
     """PROBLEM_LOG 2026-07-16: Alpaca IEX avg volume blew RVOL up 100x-3000x."""
     from fundamentals import _fundamentals_cache

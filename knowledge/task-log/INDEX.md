@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-27 | [Earnings dots column on day-trade scanners](2026-08-27-earnings-dots-column.md) | Three-dot Earnings column on Gappers/Gainers/Losers/AH from Yahoo earningsTimestamp; Large Cap countdown now uses the next date |
 | 2026-08-26 | [Instant chart loading roadmap (D-003 implementation)](2026-08-26-instant-chart-loading-roadmap.md) | Pacing budget observability, Large Cap once-per-session guard, chart priority split, tape-based provisional 10Sec candles; pytest-green, live verification pending |
 | 2026-08-26 | [Trader chart hist loading soak](2026-08-26-chart-hist-loading-soak.md) | 10Sec/Full Day overlay is empty store waiting on IB hist tokens; Large Cap 1Day spray can empty the 60/10min bucket; parked as D-003 |
 | 2026-08-26 | [Reclaim Trader header space](2026-08-26-reclaim-trader-header-space.md) | Last/change under Stock Quote; ET clock beside Desk; delete leftover Trader command bar |

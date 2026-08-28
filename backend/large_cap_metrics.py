@@ -5,9 +5,11 @@ Trading parity target -- Warrior has no published swing criteria (see ADR
 014 context). Split by cost:
 
 - ``compute_rvol`` / ``days_to_earnings`` are zero-IB-cost: they read fields
-  ``fundamentals.py`` already fetches via yfinance. Callers read the module
-  cache dict directly (never call ``fetch_fundamentals`` -- that can block on
-  a cold-cache yfinance round trip, which must never happen on the hot L1
+  ``fundamentals.py`` already fetches via yfinance. ``days_to_earnings`` uses
+  ``earnings_next_date`` (Yahoo ``earningsTimestampStart``), not the last
+  report parked in ``earnings_date``. Callers read the module cache dict
+  directly (never call ``fetch_fundamentals`` -- that can block on a
+  cold-cache yfinance round trip, which must never happen on the hot L1
   tick path).
 - ``daily_bar_metrics`` reads ``bars_store`` (already-archived IBKR daily
   bars); a miss schedules a paced background fill (ADR 012) and returns
@@ -163,7 +165,7 @@ def build_row_metrics(
     daily = daily_bar_metrics(symbol)
     return {
         "rvol": compute_rvol(volume, fund.get("average_volume")),
-        "days_to_earnings": days_to_earnings(fund.get("earnings_date")),
+        "days_to_earnings": days_to_earnings(fund.get("earnings_next_date")),
         "atr_expansion": range_expansion(price, prev_close, daily.get("atr14")),
         "market_cap": fund.get("market_cap"),
         "float": fund.get("float_shares"),
