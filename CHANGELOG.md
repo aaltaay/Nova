@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-31 -- Drop the "sanitized snapshot" copy on the public page
+
+- **What:** The Source block on `site/` is just the Nova-public GitHub button. The "sanitized snapshot / clone / Run Nova.bat / no cloud backend" paragraph is gone.
+- **Why:** That copy made the product sound like a demo extract instead of the desk.
+- **Files touched:** `site/index.html`
+- **How it works now:** `#source` is a heading plus the GitHub and Altay Studio links. Setup instructions stay in the repo README, not on the marketing page.
+- **Verified by:** grep of the removed sentence is empty; live check after deploy.
+- **Related:** `2026-08-31 -- Public domain is a marketing page`
+
 ## 2026-08-31 -- Public domain is a marketing page, not the hosted scanner
 
 - **What:** `site/` is a static HTML/CSS landing page for `nova.altaystudio.com`: product story, real desk screenshots, and a primary CTA to [Nova-public](https://github.com/aaltaay/Nova-public). The trading SPA is no longer what that domain should serve.
