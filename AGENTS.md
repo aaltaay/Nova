@@ -221,7 +221,7 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 | IB Gateway (local) | Scanner discovery + market data + optional orders | ✅ Verified |
 | Web UI (Localhost / Desktop) | Delivery dashboard for gappers | ✅ Verified |
 | yfinance | Fundamental data (float, short interest, etc.) | ✅ Verified |
-| Vercel | Optional hosted frontend (web) only | ✅ Optional |
+| Vercel | Optional host for the `site/` marketing page (`nova.altaystudio.com`), not the live scanner | ✅ Optional |
 
 ---
 
@@ -342,7 +342,8 @@ cd frontend && npm run electron:pack
 ### Deploy
 
 - **Backend:** local only right now -- no cloud host (not Railway, not another PaaS). Run via `Run Nova.bat`, Desktop sidecar, or local uvicorn on `127.0.0.1:8000`.
-- **Frontend (web):** optional Vercel Git integration for the static UI. Point `VITE_API_BASE_URL` only if a reachable API exists; default local stack uses `http://localhost:8000`.
+- **Public site:** `nova.altaystudio.com` is a static marketing page (`site/`) -- features, screenshots, and the [Nova-public](https://github.com/aaltaay/Nova-public) link. It is not the live scanner and has no API. Point the Vercel project Root Directory at `site`.
+- **Frontend (app UI):** local Vite / Desktop only (`http://localhost:5173`). Do not host the trading SPA on the public domain.
 - **Desktop:** Electron + local API sidecar (installer under `frontend/release/`).
 
 ---
@@ -371,6 +372,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-08-31 | Public domain is a marketing page (`site/` on Vercel). Live scanner stays local Vite / Desktop. §4 / §8 updated. | User Directive + Cursor Agent |
 | 2026-08-31 | DEFERRED_LOG.md is the to-do / what's-missing list (`deferred_log.py status` / `priorities`); agents must search it before any fix; D-010 parked chart Trend Line. | User Directive + Cursor Agent |
 | 2026-08-26 | DEFERRED_LOG.md: parked bugs/features with same respect as PROBLEM_LOG; Lifecycle `deferred_log=`; always-on `deferred-log.mdc`; session brief lists open P0/P1. | User Directive + Cursor Agent |
 | 2026-08-25 | Graphify rule always-on; agents must use `tools/graphify_ask.py` (token-savings meter). Rebuild skill stays on-demand. | User Directive + Cursor Agent |

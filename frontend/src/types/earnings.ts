@@ -1,6 +1,7 @@
 /** Earnings calendar tab -- Finnhub calendar dates + EPS/revenue estimates,
  * decorated with company name/sector/market cap from the yfinance cache
- * (backend/earnings_calendar.py). No implied move / IV -- not computed. */
+ * and logo_url from Finnhub profile2 cache (backend/earnings_logos.py).
+ * No implied move / IV -- not computed. */
 
 export type EarningsSession = 'bmo' | 'amc' | 'intraday';
 export type EarningsRange = 'today' | 'tomorrow' | 'week' | 'month';
@@ -18,6 +19,7 @@ export interface EarningsRow {
   company_name: string | null;
   sector: string | null;
   market_cap: number | null;
+  logo_url: string | null;
 }
 
 export interface EarningsDay {

@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-31 | [Public marketing page for nova.altaystudio.com](2026-08-31-public-marketing-page.md) | Static `site/` landing: features, desk screenshots, Nova-public CTA; not the hosted scanner |
+| 2026-08-31 | [Earnings card Finnhub logos](2026-08-31-earnings-logos.md) | Paced profile2 logo cache on Earnings cards; letter fallback when cold |
 | 2026-08-31 | [Earnings scanner tab (Finnhub calendar, 1c layout)](2026-08-31-earnings-scanner-tab.md) | Earnings scanner tab (Finnhub calendar, 1c layout) |
 | 2026-08-31 | [Scanner row numbers](2026-08-31-scanner-row-numbers.md) | `#` column on Gappers/Gainers/Losers/AH/Large Cap/Catalysts/Watchlist; not HOD Momo or Running Up |
 | 2026-08-31 | [Park chart Trend Line two-click (D-010)](2026-08-31-park-chart-trend-line.md) | Operator forbade a drawing rewrite; two-click Trend Line pans the chart; to-do is `deferred_log.py priorities` |

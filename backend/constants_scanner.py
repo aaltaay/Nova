@@ -79,8 +79,15 @@ EARNINGS_CALENDAR_TTL_SEC = 900.0           # 15 min -- Finnhub free tier is rat
 EARNINGS_CALENDAR_WINDOW_DAYS = 31          # widest window fetched/cached at once ("This month")
 EARNINGS_CALENDAR_HTTP_TIMEOUT_SEC = 8.0
 FINNHUB_EARNINGS_URL = "https://finnhub.io/api/v1/calendar/earnings"
+FINNHUB_PROFILE2_URL = "https://finnhub.io/api/v1/stock/profile2"
 EARNINGS_CALENDAR_RANGES = ("today", "tomorrow", "week", "month")
 EARNINGS_LANE_PREVIEW_CAP = 8                # cards shown per BMO/AMC lane before "+N"
+# Logo cache (Finnhub profile2) -- one HTTP call per symbol; pace for free tier.
+EARNINGS_LOGO_SCHEMA_VERSION = 1
+EARNINGS_LOGO_HIT_TTL_SEC = 7 * 24 * 3600.0  # logos rarely change
+EARNINGS_LOGO_MISS_TTL_SEC = 24 * 3600.0     # retry misses next day
+EARNINGS_LOGO_HTTP_TIMEOUT_SEC = 6.0
+EARNINGS_LOGO_FETCH_PACING_SEC = 1.1         # stay under Finnhub free ~60/min
 
 
 def _earnings_calendar_cache_root() -> str:
@@ -95,6 +102,12 @@ def _earnings_calendar_cache_root() -> str:
 # restart re-reading this snapshot (persisted-state.mdc).
 EARNINGS_CALENDAR_CACHE_FILE = _os.path.join(
     _earnings_calendar_cache_root(), "earnings-calendar.json"
+)
+
+# Owner: earnings_logos.py. Invalidation: per-entry TTL (hit vs miss) or
+# EARNINGS_LOGO_SCHEMA_VERSION bump (persisted-state.mdc).
+EARNINGS_LOGO_CACHE_FILE = _os.path.join(
+    _earnings_calendar_cache_root(), "earnings-logos.json"
 )
 
 # ── Client error telemetry (browser → API) ─────────────────────────────────

@@ -23,6 +23,7 @@ function rowFor(symbol: string): EarningsRow {
     company_name: null,
     sector: null,
     market_cap: null,
+    logo_url: null,
   };
 }
 

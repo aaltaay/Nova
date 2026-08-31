@@ -30,6 +30,26 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-31 -- Public domain is a marketing page, not the hosted scanner
+
+- **What:** `site/` is a static HTML/CSS landing page for `nova.altaystudio.com`: product story, real desk screenshots, and a primary CTA to [Nova-public](https://github.com/aaltaay/Nova-public). The trading SPA is no longer what that domain should serve.
+- **Why:** The scanner is local-first (Phase J). Hosting the Vite app on the public domain implied a live desk that does not exist there.
+- **Files touched:** `site/index.html`, `site/styles.css`, `site/motion.js`, `site/shots/*`, `AGENTS.md` §8, `README.md` Deploy.
+- **How it works now:** Vercel Root Directory must be `site` (no build). The live scanner stays `Run Nova.bat` / Desktop. Higgsfield atmospheric plates are a follow-up -- the Higgsfield MCP session was expired this pass, so the hero uses the existing `hero-bg.png` with a blue grade plus CSS grid/spotlight.
+- **Verified by:** `py -3 tools/doc_invariants.py` (OK); `py -3 -m http.server 4177` in `site/` (all assets HTTP 200); Playwright: h1 visible at (115, 224), lightbox opens, GitHub CTA is `https://github.com/aaltaay/Nova-public`, Features nav lands on the feature grid. Viewport 1440x900 + 390x844 screenshots.
+- **Follow-ups:** Reconnect Higgsfield MCP, generate hero/section plates, drop them in `site/assets/`. Operator must switch the Vercel project Root Directory from `frontend` to `site` (or the old SPA keeps deploying).
+- **Related:** task-log `knowledge/task-log/2026-08-31-public-marketing-page.md`
+
+## 2026-08-31 -- Earnings cards show Finnhub company logos
+
+- **What:** Earnings cards render a company logo (Finnhub `profile2` `logo` URL) with a letter fallback when the cache is cold or the image fails.
+- **Why:** User asked for logos so the tab feels more custom and readable at a glance.
+- **Files touched:** `backend/earnings_logos.py` (new), `backend/earnings_calendar.py`, `backend/constants_scanner.py`, `backend/tests/test_earnings_logos.py`, `frontend/src/earnings/EarningsCard.tsx`, `earningsPanel.css`, `types/earnings.ts`, card/lane tests.
+- **How it works now:** Calendar rows still come from Finnhub `/calendar/earnings` (no logos there). `earnings_logos.warm()` paces background `GET /stock/profile2` calls (~1.1s apart) for symbols in the visible range and persists hits/misses under `earnings-logos.json` (`schema_version`, 7-day hit TTL / 1-day miss TTL). `_decorate` attaches `logo_url` cache-only -- HTTP handlers never wait on profile2. UI shows `<img>` or a letter chip.
+- **Verified by:** `py -3 -m pytest tests/test_earnings_logos.py tests/test_earnings_calendar.py tests/test_earnings_enrich_hooks.py tests/test_routes_earnings.py -q` (21 passed); `npx vitest run src/earnings` (11 passed); `npm run build` exit 0; live `/api/earnings?range=today` returned `logo_url` on warmed symbols after paced profile2 fetches; IBKR still connected.
+- **Follow-ups:** First open of a busy week may take a minute for every logo to fill in (paced free-tier); later polls are cache hits.
+- **Related:** Earnings tab CHANGELOG entry same day.
+
 ## 2026-08-31 -- Earnings tab (Finnhub calendar, day bands + BEFORE OPEN/AFTER CLOSE)
 
 - **What:** New left-rail **Earnings** tab: Today / Tomorrow / This week / This month range chips, sticky day bands, and BEFORE OPEN / AFTER CLOSE (+ Intraday) card lanes truncated to 8 with a "+N more" expand. Cards show ticker, company name, sector/market cap (from the existing yfinance cache), and Finnhub's EPS estimate/actual. Ticker click opens Trader the same way every other scanner ticker does (ADR 011); the card body only selects the Quote Panel symbol.

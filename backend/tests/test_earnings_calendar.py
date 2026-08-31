@@ -157,6 +157,7 @@ def test_build_earnings_view_groups_by_day_and_lane(monkeypatch):
     ]
     ec._cache_ts = 1.0
     monkeypatch.setattr("earnings_enrich_hooks.warm", lambda syms: None)
+    monkeypatch.setattr("earnings_logos.warm", lambda syms: None)
 
     view = ec.build_earnings_view("today")
     assert view["range"] == "today"
@@ -186,12 +187,15 @@ def test_build_earnings_view_decorates_from_fundamentals_cache(monkeypatch):
         "company_name": "NVIDIA", "sector": "Technology", "market_cap": 3_100_000_000_000,
     })
     monkeypatch.setattr("earnings_enrich_hooks.warm", lambda syms: None)
+    monkeypatch.setattr("earnings_logos.warm", lambda syms: None)
+    monkeypatch.setattr("earnings_logos.get_cached_logo_url", lambda s: "https://static.example/nvda.png" if s == "NVDA" else None)
 
     view = ec.build_earnings_view("today")
     row = view["days"][0]["amc"][0]
     assert row["company_name"] == "NVIDIA"
     assert row["sector"] == "Technology"
     assert row["market_cap"] == 3_100_000_000_000
+    assert row["logo_url"] == "https://static.example/nvda.png"
 
 
 def test_build_earnings_view_warms_todays_symbols_only(monkeypatch):
@@ -206,7 +210,10 @@ def test_build_earnings_view_warms_todays_symbols_only(monkeypatch):
     ]
     ec._cache_ts = 1.0
     warmed = []
+    logo_warmed = []
     monkeypatch.setattr("earnings_enrich_hooks.warm", lambda syms: warmed.append(list(syms)))
+    monkeypatch.setattr("earnings_logos.warm", lambda syms: logo_warmed.append(sorted(syms)))
 
     ec.build_earnings_view("week")
     assert warmed == [["NVDA"]]
+    assert logo_warmed == [["HRL", "NVDA"]]

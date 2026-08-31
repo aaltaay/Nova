@@ -183,19 +183,21 @@ def get_calendar_rows(*, force: bool = False) -> tuple[list[dict], float, str | 
 
 
 def _decorate(row: dict) -> dict:
-    """Attach company name / sector / market cap from the yfinance cache only.
+    """Attach name/sector/mcap + logo from caches only (no network).
 
-    Read-only, no network -- mirrors ``mover_enrich_view.decorate_rows``.
-    A cold cache leaves these ``None``; ``earnings_enrich_hooks.warm`` fills
-    it in the background for the next poll.
+    Fundamentals: yfinance cache (``earnings_enrich_hooks.warm``).
+    Logo: Finnhub profile2 cache (``earnings_logos.warm``).
+    Cold caches leave fields ``None`` until the next poll after warm.
     """
     from fundamentals import _fundamentals_cache
+    from earnings_logos import get_cached_logo_url
 
     fund = _fundamentals_cache.get(row["symbol"]) or {}
     out = dict(row)
     out["company_name"] = fund.get("company_name")
     out["sector"] = fund.get("sector")
     out["market_cap"] = fund.get("market_cap")
+    out["logo_url"] = get_cached_logo_url(row["symbol"])
     return out
 
 
@@ -218,6 +220,7 @@ def build_earnings_view(range_key: str) -> dict:
     end = today + timedelta(days=_RANGE_MAX_OFFSET_DAYS[range_key])
 
     by_date: dict[str, dict[str, list[dict]]] = {}
+    view_symbols: list[str] = []
     for row in rows:
         try:
             d = date.fromisoformat(str(row["date"]))
@@ -225,6 +228,7 @@ def build_earnings_view(range_key: str) -> dict:
             continue
         if d < today or d > end:
             continue
+        view_symbols.append(row["symbol"])
         bucket = by_date.setdefault(row["date"], {"bmo": [], "amc": [], "intraday": []})
         bucket[row["session"]].append(_decorate(row))
 
@@ -232,6 +236,9 @@ def build_earnings_view(range_key: str) -> dict:
     if today_symbols:
         from earnings_enrich_hooks import warm as _warm_fundamentals
         _warm_fundamentals(today_symbols)
+    if view_symbols:
+        from earnings_logos import warm as _warm_logos
+        _warm_logos(view_symbols)
 
     days = []
     for date_str in sorted(by_date.keys()):

@@ -38,6 +38,7 @@ function viewFor(range: EarningsView['range']): EarningsView {
             company_name: 'NVIDIA',
             sector: 'Technology',
             market_cap: 3_100_000_000_000,
+            logo_url: null,
           },
         ],
         intraday: [],

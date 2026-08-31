@@ -55,5 +55,6 @@ The packaged app stores Alpaca keys and cache under `%APPDATA%\Nova\` (`.env`, `
 ### Deploy
 
 - **Backend:** local only -- no cloud host right now. Use `Run Nova.bat`, Desktop, or uvicorn on `127.0.0.1:8000`.
-- **Frontend (web):** optional Vercel project `nova` (Git push) for the static UI.
+- **Public site:** `nova.altaystudio.com` is the static marketing page in `site/` (Vercel Root Directory = `site`). It lists features, shows desk screenshots, and links to [Nova-public](https://github.com/aaltaay/Nova-public). It does not run the scanner.
+- **App UI:** local only -- Vite at `http://localhost:5173` or the Desktop installer.
 - **Desktop:** Electron + local API sidecar -- not a cloud backend.

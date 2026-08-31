@@ -21,6 +21,7 @@ const ROW: EarningsRow = {
   company_name: 'NVIDIA',
   sector: 'Technology',
   market_cap: 3_100_000_000_000,
+  logo_url: null,
 };
 
 describe('EarningsCard (ADR 011 row-vs-ticker split)', () => {
@@ -63,5 +64,25 @@ describe('EarningsCard (ADR 011 row-vs-ticker split)', () => {
       />,
     );
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+
+  it('renders logo image when logo_url is present', () => {
+    const { container } = render(
+      <EarningsCard
+        row={{ ...ROW, logo_url: 'https://static.example/nvda.png' }}
+        selectedSymbol={null}
+        onSelect={() => {}}
+        onOpenTrading={() => {}}
+      />,
+    );
+    const img = container.querySelector('img.earnings-card__logo') as HTMLImageElement | null;
+    expect(img?.src).toContain('nvda.png');
+  });
+
+  it('shows letter fallback when logo_url is missing', () => {
+    const { container } = render(
+      <EarningsCard row={ROW} selectedSymbol={null} onSelect={() => {}} onOpenTrading={() => {}} />,
+    );
+    expect(container.querySelector('.earnings-card__logo--fallback')?.textContent).toBe('N');
   });
 });
