@@ -1,7 +1,11 @@
 """IBKR reconnect_loop + soft-blip / auth-backoff recovery.
 
-Owns the background dialer: connect → earn_usable, 1101/1102 restore,
-stuck-unusable force reconnect, and Authenticating auth-backoff.
+Owns the background dialer: connect → earn_usable, 1101/1102 restore, and
+Authenticating auth-backoff. Stuck-unusable force-reconnect and dead/frozen-
+dialer recovery live in ``ibkr.session_watchdog`` -- a sibling IB-loop task,
+deliberately NOT this module, because a watchdog inside the task it watches
+cannot fire once that task itself is what froze (PROBLEM_LOG 2026-08-31).
+
 Mutates ``ibkr.client`` session globals (single owner of the IB singleton).
 """
 from __future__ import annotations
@@ -15,7 +19,6 @@ from constants import (
     IBKR_AUTH_BACKOFF_SEC_INITIAL,
     IBKR_AUTH_BACKOFF_SEC_MAX,
     IBKR_RECONNECT_DELAY_SEC,
-    IBKR_UNUSABLE_FORCE_RECONNECT_SEC,
 )
 from ibkr import gateway_heal as _heal
 from ibkr import session_errors as _session_errors
@@ -26,6 +29,24 @@ if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+# Dialer heartbeat -- stamped at the top of every _reconnect_once iteration.
+# session_watchdog reads this (dialer_heartbeat_age_sec) to tell a normally
+# busy dialer apart from one that is dead or frozen mid-await.
+_last_iteration_ts: float = 0.0
+
+
+def dialer_heartbeat_age_sec() -> float | None:
+    """Seconds since the last _reconnect_once iteration started, or None
+    before the dialer has ever run (nothing to judge yet)."""
+    if _last_iteration_ts <= 0.0:
+        return None
+    return time.monotonic() - _last_iteration_ts
+
+
+def reset_heartbeat_for_testing() -> None:
+    global _last_iteration_ts
+    _last_iteration_ts = 0.0
 
 
 def reset_auth_backoff(client_mod: object) -> None:
@@ -42,7 +63,14 @@ def bump_auth_backoff(client_mod: object) -> float:
 
 
 async def handle_transport_up_unusable(client_mod: object, mode_label: str) -> None:
-    """Act on soft blip / stuck unusable while the TCP session is still up."""
+    """Act on soft blip while the TCP session is still up.
+
+    Stuck-unusable force-reconnect no longer lives here -- see module
+    docstring. This function only attempts the 1101/1102 restore and, when
+    there is nothing to restore, waits briefly for the sibling watchdog
+    (which owns the stuck-for-N-seconds decision) rather than duplicating
+    that timer inside the task the watchdog is supposed to be independent of.
+    """
     restore = _session_errors.take_restore_pending()
     if restore is not None:
         client_mod.set_session_reason(  # type: ignore[attr-defined]
@@ -61,7 +89,7 @@ async def handle_transport_up_unusable(client_mod: object, mode_label: str) -> N
             reset_auth_backoff(client_mod)
             return
         logger.warning(
-            "IBKR: earn_usable after %s failed (%s) -- checking stuck watchdog",
+            "IBKR: earn_usable after %s failed (%s) -- watchdog owns stuck-unusable timing",
             restore,
             detail,
         )
@@ -69,26 +97,8 @@ async def handle_transport_up_unusable(client_mod: object, mode_label: str) -> N
     if client_mod.is_ready():  # type: ignore[attr-defined]
         return
 
-    since = _session_errors.unusable_since()
-    if since is None:
+    if _session_errors.unusable_since() is None:
         _session_errors.stamp_unusable()
-        since = _session_errors.unusable_since() or time.time()
-    stuck_for = time.time() - float(since)
-    if stuck_for >= float(IBKR_UNUSABLE_FORCE_RECONNECT_SEC):
-        logger.error(
-            "IBKR session stuck unusable for %.1fs with transport up -- "
-            "forcing disconnect + recreate (threshold=%.1fs)",
-            stuck_for,
-            float(IBKR_UNUSABLE_FORCE_RECONNECT_SEC),
-        )
-        client_mod.set_session_reason("force_reconnect_stuck_unusable")  # type: ignore[attr-defined]
-        client_mod._safe_disconnect(client_mod._ib)  # type: ignore[attr-defined]
-        client_mod._ib = client_mod.IB()  # type: ignore[attr-defined]
-        client_mod._set_session(  # type: ignore[attr-defined]
-            mode="disconnected", broker_account_kind="unknown",
-        )
-        _session.set_disconnected()
-        return
 
     await client_mod._sleep_reconnect(1.0)  # type: ignore[attr-defined]
 
@@ -147,6 +157,8 @@ async def reconnect_loop() -> None:
 
 async def _reconnect_once(client_mod: object) -> None:
     """One reconnect_loop iteration (extracted so crashes cannot kill the dialer)."""
+    global _last_iteration_ts
+    _last_iteration_ts = time.monotonic()
     enabled, host, port, mode_label, client_id = client_mod._resolve_config()  # type: ignore[attr-defined]
     client_mod._enabled = enabled  # type: ignore[attr-defined]
 

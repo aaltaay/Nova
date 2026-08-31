@@ -14,6 +14,8 @@ export interface IbkrStatus {
   transport_connected?: boolean;
   /** Usable-session SoT reason from /api/ibkr/status (ok, connectivity_lost, ...). */
   session_reason?: string;
+  /** disconnected | connecting | synchronizing | ready | degraded (ibkr/session_state.py). */
+  session_state?: string;
   mode: IbkrMode;
   gateway_mode?: 'paper' | 'live';
   /** Session account classification from IB account ids (DU…=paper, U…=live). */

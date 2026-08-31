@@ -53,6 +53,7 @@ from ibkr import reprice as _ibkr_reprice
 from ibkr import scanner_l1 as _scanner_l1
 from ibkr import scanner_session as _scanner_session
 from ibkr import scanner_stream as _scanner_stream
+from ibkr import session_watchdog as _session_watchdog
 from ibkr import ticks as _ibkr_ticks
 from ibkr_bridge import (
     apply_l1_quote,
@@ -282,6 +283,9 @@ async def _bootstrap_runtime() -> None:
     start_ib_loop()
     await _ibkr_client.startup()
     spawn_ib("observability.ib_loop_lag", _loop_lag.sample_ib_loop_lag_loop)
+    # Sibling task to the dialer, not inside it -- see session_watchdog
+    # module docstring / PROBLEM_LOG 2026-08-31.
+    spawn_ib("ibkr.session_watchdog", _session_watchdog.run)
     # Prefer waiting ~one connect wall; never block HTTP (already yielded).
     connected = await _wait_ibkr_connected(float(IBKR_RECONNECT_DELAY_SEC) + 2.0)
     if not connected:

@@ -61,6 +61,20 @@ Entry template (copy and fill in):
 
 <!-- OPEN_START -->
 
+## D-008 -- Earnings-day-offset test fails; sentiment model import segfaults full suite
+
+- **Status:** open
+- **Kind:** bug
+- **Severity:** P2
+- **Effort:** S
+- **Domain:** news
+- **User-visible:** no (test-suite only; not touched by the IBKR session-watchdog work in this session)
+- **Why parked:** Found while running the full backend suite to verify an unrelated IBKR fix (session freeze / watchdog). Both symptoms are in `backend/news/` and `backend/mover_evaluate.py`, neither of which this session touched -- wrong task to fix mid-verification.
+- **Blast radius:** (1) `test_mover_columns.py::test_decorate_rows_attaches_earnings_window` fails deterministically -- `out[0]["earnings_day_offset"]` is `None` instead of `0` for a same-day earnings row. (2) `test_news_impact.py::test_fresh_bucket_boundary` triggers a native crash (`Windows fatal exception: code 0xc0000139`) while importing `torchvision`/`transformers` for the sentiment pipeline (`news/sentiment.py:_get_pipeline` -> `news/impact_evaluate.py:evaluate_news_impact`); pytest survives and the run completes, but that test's own pass/fail is unreliable on this machine.
+- **Unblock:** (1) Read `mover_evaluate.decorate_rows`'s earnings-day-offset calc against the `2026-08-27` fixture case to find why 0-day offset resolves to `None`. (2) Pin/repair the local torch/torchvision/transformers install (DLL version mismatch is the classic cause of `0xc0000139`) or lazy-guard the sentiment pipeline import so a broken native extension degrades to no-sentiment instead of crashing the process.
+- **Next:** Reproduce each in isolation (`py -3 -m pytest backend/tests/test_mover_columns.py::test_decorate_rows_attaches_earnings_window -q` and the news_impact test alone) and decide whether the torch crash needs a `try/except` import guard in `news/sentiment.py` or a local env fix.
+- **Evidence:** `py -3 -m pytest -q` from `backend/`, 2026-08-31 -- 1446 passed, 1 failed (`test_mover_columns.py`), plus the printed native traceback during `test_news_impact.py::test_fresh_bucket_boundary`. Neither `backend/news/`, `backend/mover_evaluate.py`, nor their tests were modified this session (`git status --porcelain` on those paths is empty).
+
 ## D-007 -- After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset
 
 - **Status:** parked

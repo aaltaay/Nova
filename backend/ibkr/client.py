@@ -251,7 +251,12 @@ def current_generation() -> int:
 
 def session_snapshot() -> dict[str, Any]:
     """Diagnostic snapshot for /readyz and PROBLEM_LOG-style evidence."""
+    from ibkr import ib_scheduler as _ib_scheduler
+    from ibkr import session_reconnect as _reconnect
+    from ibkr import session_usable as _session_usable
+
     usable = is_ready()
+    task = _reconnect_task
     return {
         "state": _session.state(),
         "generation": _session.generation(),
@@ -264,6 +269,13 @@ def session_snapshot() -> dict[str, Any]:
         "last_connectivity_code": _session_errors.last_connectivity_code(),
         "mode": account_mode(),
         "enabled": _enabled,
+        # Diagnostics for the exact freeze this instrumentation was added
+        # for (PROBLEM_LOG 2026-08-31) -- one query instead of an hour of
+        # log archaeology next time.
+        "earn_in_flight": _session_usable.earn_in_flight(),
+        "ib_cold_inflight": _ib_scheduler.inflight_label() or None,
+        "dialer_alive": task is not None and not task.done(),
+        "dialer_heartbeat_age_sec": _reconnect.dialer_heartbeat_age_sec(),
     }
 
 
@@ -400,6 +412,22 @@ async def startup() -> None:
         return
     _reconnect_task = asyncio.create_task(reconnect_loop())
     logger.info("IBKR client task started (IB connect-loop)")
+
+
+def reconnect_task() -> "asyncio.Task | None":
+    """The dialer task -- read by session_watchdog to detect dead/frozen."""
+    return _reconnect_task
+
+
+def restart_reconnect_task() -> None:
+    """Force-respawn the dialer (session_watchdog recovery only). Cancels any
+    existing task first; safe even if it is the one that is stuck, since
+    cancelling a suspended await does not require it to be responsive."""
+    global _reconnect_task
+    if _reconnect_task is not None and not _reconnect_task.done():
+        _reconnect_task.cancel()
+    _reconnect_task = asyncio.create_task(reconnect_loop())
+    logger.warning("IBKR client task force-respawned (session watchdog recovery)")
 
 
 async def shutdown() -> None:

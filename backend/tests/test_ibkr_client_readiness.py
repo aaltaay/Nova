@@ -253,15 +253,18 @@ def test_earn_usable_transport_down_clears_synchronizing(monkeypatch):
     assert ibkr_client.session_reason() == "disconnected"
 
 
-def test_stuck_unusable_force_reconnect_path(monkeypatch):
-    """Transport up + !usable past threshold → disconnect + recreate IB()."""
+def test_transport_up_unusable_no_longer_force_reconnects_itself(monkeypatch):
+    """Stuck-unusable force-reconnect moved to ibkr/session_watchdog.py (a
+    sibling IB-loop task) -- see test_ibkr_session_watchdog.py. This function
+    must only stamp unusable + wait, never disconnect/recreate IB() on its
+    own: a watchdog living inside the task it watches cannot fire once that
+    task itself is the thing that froze (PROBLEM_LOG 2026-08-31)."""
     from ibkr import session_errors as se
 
     se.reset_for_tests()
     session.reset_for_testing()
     session.set_degraded()
     se.stamp_unusable(code=1100)
-    # Pretend we have been stuck long enough.
     se._unusable_since = __import__("time").time() - 100.0  # type: ignore[attr-defined]
 
     fake_ib = MagicMock()
@@ -283,10 +286,16 @@ def test_stuck_unusable_force_reconnect_path(monkeypatch):
     monkeypatch.setattr(ibkr_client, "IB", _NewIB)
     monkeypatch.setattr(ibkr_client, "_safe_disconnect", lambda ib: None)
     monkeypatch.setattr(se, "take_restore_pending", lambda: None)
+    monkeypatch.setattr(ibkr_client, "_sleep_reconnect", lambda _delay: _fast_noop())
 
     asyncio.run(ibkr_client._handle_transport_up_unusable("paper"))
-    assert len(created) == 1
-    assert session.state() == session.DISCONNECTED
+    assert len(created) == 0
+    assert session.state() == session.DEGRADED  # untouched -- watchdog's job now
+    assert se.unusable_since() is not None  # still stamped for the watchdog to read
+
+
+async def _fast_noop() -> None:
+    return None
 
 
 def test_status_connected_matches_get_ib(monkeypatch):
@@ -306,6 +315,56 @@ def test_status_connected_matches_get_ib(monkeypatch):
     snap = ibkr_client.session_snapshot()
     assert snap["usable"] is True
     assert snap["transport_up"] is True
+
+
+def test_restart_reconnect_task_cancels_existing_and_spawns_new(monkeypatch):
+    """session_watchdog's recovery path -- must not require the old task to
+    be responsive (cancelling a suspended/frozen await does not need it to
+    cooperate beyond raising CancelledError, which asyncio does for us)."""
+    async def _main():
+        old = asyncio.create_task(asyncio.sleep(60))
+        monkeypatch.setattr(ibkr_client, "_reconnect_task", old)
+
+        async def _fresh_loop():
+            await asyncio.sleep(60)
+
+        monkeypatch.setattr(ibkr_client, "reconnect_loop", _fresh_loop)
+
+        assert ibkr_client.reconnect_task() is old
+        ibkr_client.restart_reconnect_task()
+        new_task = ibkr_client.reconnect_task()
+
+        assert new_task is not old
+        assert old.cancelled() or old.cancelling() > 0
+        new_task.cancel()
+        for task in (old, new_task):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+    asyncio.run(_main())
+
+
+def test_restart_reconnect_task_handles_no_prior_task(monkeypatch):
+    async def _main():
+        monkeypatch.setattr(ibkr_client, "_reconnect_task", None)
+
+        async def _fresh_loop():
+            await asyncio.sleep(60)
+
+        monkeypatch.setattr(ibkr_client, "reconnect_loop", _fresh_loop)
+
+        ibkr_client.restart_reconnect_task()
+        new_task = ibkr_client.reconnect_task()
+        assert new_task is not None
+        new_task.cancel()
+        try:
+            await new_task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(_main())
 
 
 def test_unavailable_detail_distinguishes_transport_vs_session(monkeypatch):

@@ -57,6 +57,9 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
         set_session_reason,
     )
     from ibkr import session_errors as _session_errors
+    # Local import (not the constants.py barrel) so tests can monkeypatch
+    # this deadline per-case -- same pattern as ibkr/account.py's timeouts.
+    from constants_ibkr import IBKR_EARN_USABLE_TIMEOUT_SEC
 
     try:
         transport_up = bool(ib.isConnected())
@@ -75,9 +78,26 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
     set_session_reason("synchronizing")
     logger.info("IBKR: earn_usable begin (%s)", reason)
 
-    try:
+    async def _warm() -> None:
         await _account.refresh_positions_cache(ib)
         await _account.refresh_completed_orders_cache(ib, force=True)
+
+    try:
+        await asyncio.wait_for(_warm(), timeout=float(IBKR_EARN_USABLE_TIMEOUT_SEC))
+    except TimeoutError:
+        # Each call has its own internal bound (positions / completed-orders
+        # timeout, cold_slot acquire timeout) -- this overall deadline is
+        # belt-and-suspenders for the case where one of those is bypassed
+        # (see PROBLEM_LOG 2026-08-31). Unlike a caught request failure below,
+        # do not promote to READY on top of a warm-up that never finished --
+        # leave unusable and let session_watchdog force-reset the session.
+        logger.exception(
+            "IBKR: earn_usable warm-up exceeded overall deadline (%.1fs, %s) -- "
+            "aborting, watchdog will force-reset",
+            float(IBKR_EARN_USABLE_TIMEOUT_SEC), reason,
+        )
+        _session_errors.stamp_unusable()
+        return False, "warmup_deadline_exceeded"
     except Exception as exc:
         logger.warning(
             "IBKR: earn_usable warm-up raised (%s): %s", reason, exc, exc_info=True,

@@ -392,3 +392,102 @@ def test_status_route_connected_means_usable_not_transport():
     assert body["transport_connected"] is True
     assert body["session_reason"] == "connectivity_lost"
     ports.assert_called_once_with(connected=True)
+
+
+def test_status_route_surfaces_freeze_diagnostics():
+    """PROBLEM_LOG 2026-08-31 -- one query instead of an hour of log
+    archaeology the next time the session freezes with the port open."""
+    fake_snapshot = {
+        "gateway_mode": "live",
+        "orders_enabled": False,
+        "live_trading_confirmed": False,
+        "spend_status": "locked",
+    }
+    with patch.object(safety_mod, "status_snapshot", return_value=fake_snapshot), \
+         patch.object(client_mod, "is_enabled", return_value=True), \
+         patch.object(client_mod, "is_ready", return_value=False), \
+         patch.object(client_mod, "is_connected", return_value=True), \
+         patch.object(client_mod, "session_reason", return_value="connectivity_restored"), \
+         patch.object(client_mod, "account_mode", return_value="live"), \
+         patch.object(client_mod, "broker_account_kind", return_value="live"), \
+         patch.object(client_mod, "get_market_data_type", return_value=1), \
+         patch("ibkr.session_errors.is_delayed_data", return_value=False), \
+         patch("ibkr.port_diagnostics.status_port_fields", return_value={
+             "preferred_port": 4001,
+             "alternate_port": 4002,
+             "preferred_port_reachable": True,
+             "alternate_port_reachable": False,
+             "disconnect_hint": None,
+             "live_port": 4001,
+             "paper_port": 4002,
+         }), \
+         patch("ibkr.session_usable.earn_in_flight", return_value=False), \
+         patch("ibkr.ib_scheduler.inflight_label", return_value=""), \
+         patch("ibkr.session_reconnect.dialer_heartbeat_age_sec", return_value=25200.0):
+        res = client.get("/api/ibkr/status")
+    body = res.json()
+    assert body["earn_in_flight"] is False
+    assert body["ib_cold_inflight"] is None
+    assert body["dialer_heartbeat_age_sec"] == 25200.0
+
+
+def test_launch_gateway_route_already_listening_and_ready_is_a_noop():
+    """Session is fine -- the button should just focus the window, no rebuild."""
+    fake_launch = {
+        "ok": True,
+        "action": "already_listening",
+        "mode": "live",
+        "message": "LIVE Gateway is already listening on port 4001.",
+    }
+    with patch("ibkr.launch_gateway.launch_or_focus_gateway", return_value=fake_launch), \
+         patch.object(client_mod, "is_ready", return_value=True):
+        res = client.post("/api/ibkr/launch-gateway", json={"mode": "live"})
+    assert res.status_code == 200
+    assert res.json() == fake_launch
+
+
+def test_launch_gateway_route_rebuilds_session_when_port_open_but_not_ready():
+    """PROBLEM_LOG 2026-08-31 -- Open live/paper Gateway must not be a no-op
+    when Gateway is fine but Nova's own session never reached READY."""
+    fake_launch = {
+        "ok": True,
+        "action": "already_listening",
+        "mode": "live",
+        "message": "LIVE Gateway is already listening on port 4001.",
+    }
+    fake_rebuild = {
+        "connected": True,
+        "session_state": "ready",
+        "session_reason": "ok",
+    }
+    with patch("ibkr.launch_gateway.launch_or_focus_gateway", return_value=fake_launch), \
+         patch.object(client_mod, "is_ready", return_value=False), \
+         patch.object(
+             client_mod, "force_reconnect", new=AsyncMock(return_value=fake_rebuild)
+         ) as mock_rebuild:
+        res = client.post("/api/ibkr/launch-gateway", json={"mode": "live"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["action"] == "rebuild_session"
+    assert body["connected"] is True
+    assert body["session_state"] == "ready"
+    assert "rebuilt the connection" in body["message"]
+    mock_rebuild.assert_called_once_with()
+
+
+def test_launch_gateway_route_does_not_rebuild_when_not_already_listening():
+    """focused_authenticating (2FA in progress) must not trigger a rebuild --
+    there is nothing to dial yet."""
+    fake_launch = {
+        "ok": True,
+        "action": "focused_authenticating",
+        "mode": "live",
+        "message": "Gateway is already running and the API port is not open yet.",
+    }
+    with patch("ibkr.launch_gateway.launch_or_focus_gateway", return_value=fake_launch), \
+         patch.object(client_mod, "is_ready", return_value=False), \
+         patch.object(client_mod, "force_reconnect", new=AsyncMock()) as mock_rebuild:
+        res = client.post("/api/ibkr/launch-gateway", json={"mode": "live"})
+    assert res.status_code == 200
+    assert res.json() == fake_launch
+    mock_rebuild.assert_not_called()

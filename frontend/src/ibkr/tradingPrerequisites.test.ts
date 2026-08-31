@@ -99,6 +99,29 @@ describe('buildTradingPrerequisites', () => {
     expect(gw?.detail).not.toMatch(/Look at your desktop for 2FA/i);
   });
 
+  it('offers reconnect (not login) when the socket is up but the session never reached READY', () => {
+    // PROBLEM_LOG 2026-08-31 -- transport_connected=true is the exact state
+    // that used to fall through to "log into Gateway" for 7 hours even
+    // though the port (and the socket) were fine the whole time.
+    const out = buildTradingPrerequisites({
+      health: { status: 'connected', latency_ms: 0, health_source: 'nova_process' },
+      ibkrEnabled: true,
+      ibkrConnected: false,
+      preferredPortReachable: true,
+      ibkrTransportConnected: true,
+      disconnectHint: null,
+      sessionReason: 'connectivity_restored',
+      sessionState: 'degraded',
+    });
+    const gw = out.items.find((i) => i.id === 'ibkr_gateway');
+    expect(out.blockDesk).toBe(true);
+    expect(gw?.action).toBe('reconnect_ibkr');
+    expect(gw?.detail).toMatch(/not READY/i);
+    expect(gw?.detail).toMatch(/reason: connectivity_restored/i);
+    expect(gw?.detail).toMatch(/state: degraded/i);
+    expect(gw?.detail).not.toMatch(/Log into IB Gateway/i);
+  });
+
   it('does not list Orders armed -- spend locks live on the trade ticket', () => {
     const out = buildTradingPrerequisites({
       health: { status: 'connected', latency_ms: 0 },

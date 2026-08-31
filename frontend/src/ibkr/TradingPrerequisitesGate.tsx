@@ -173,6 +173,7 @@ export function TradingPrerequisitesGate() {
         preferredPortReachable: ibkr.preferred_port_reachable,
         disconnectHint: ibkr.disconnect_hint,
         sessionReason: ibkr.session_reason,
+        sessionState: ibkr.session_state,
         secondFactorStale: ibkr.second_factor_stale,
         secondFactorAgeSec: ibkr.second_factor_age_sec,
       }),
@@ -184,6 +185,7 @@ export function TradingPrerequisitesGate() {
       ibkr.preferred_port_reachable,
       ibkr.disconnect_hint,
       ibkr.session_reason,
+      ibkr.session_state,
       ibkr.second_factor_stale,
       ibkr.second_factor_age_sec,
       ibkrConnected,
@@ -196,6 +198,10 @@ export function TradingPrerequisitesGate() {
     setLaunchHint(null);
     const result = await launchIbGateway(mode);
     setLaunchHint(result.message);
+    // "already_listening" can now come back as a backend-side session
+    // rebuild (see routes/trading.py ibkr_launch_gateway) -- refresh
+    // immediately instead of leaving the checklist stale for up to 5s.
+    refreshIbkrStatusNow();
     setLaunchBusyMode(null);
   }, [launchBusyMode]);
 

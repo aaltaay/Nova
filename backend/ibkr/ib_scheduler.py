@@ -21,6 +21,13 @@ class ColdDropped(Exception):
     """Droppable cold work aborted because interactive/hot needs the slot."""
 
 
+class ColdSlotTimeout(Exception):
+    """Lock acquire exceeded IBKR_COLD_SLOT_ACQUIRE_TIMEOUT_SEC -- a stranded
+    holder (crashed/cancelled without releasing) or a stuck IB request is
+    blocking every future cold job. Caller must treat this as a failed
+    warm-up, not retry the acquire inline (see PROBLEM_LOG 2026-08-31)."""
+
+
 def _get_lock() -> asyncio.Lock:
     global _lock
     if _lock is None:
@@ -58,8 +65,22 @@ async def cold_slot(
     try:
         if not interactive and droppable and _interactive_depth > 0:
             raise ColdDropped("interactive chart has priority")
+        # Local import of the domain module (not the constants.py barrel) so
+        # tests can monkeypatch the constant per-case -- same pattern as
+        # ibkr/account.py's completed-orders timeout.
+        from constants_ibkr import IBKR_COLD_SLOT_ACQUIRE_TIMEOUT_SEC
+
         lock = _get_lock()
-        await lock.acquire()
+        try:
+            await asyncio.wait_for(
+                lock.acquire(), timeout=float(IBKR_COLD_SLOT_ACQUIRE_TIMEOUT_SEC),
+            )
+        except TimeoutError as exc:
+            raise ColdSlotTimeout(
+                f"cold_slot acquire timed out after "
+                f"{float(IBKR_COLD_SLOT_ACQUIRE_TIMEOUT_SEC):.1f}s "
+                f"(label={label!r}, current_holder={_inflight_label!r})"
+            ) from exc
         try:
             if not interactive and droppable and _interactive_depth > 0:
                 raise ColdDropped("interactive chart has priority")

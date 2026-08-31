@@ -98,7 +98,29 @@ IBKR_ERROR_CONNECTIVITY_LOST = 1100
 IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_LOST = 1101
 IBKR_ERROR_CONNECTIVITY_RESTORED_DATA_KEPT = 1102
 # Soft 1100 with socket still up and no 1101/1102 — force disconnect + redial.
+# Owner: ibkr/session_watchdog.py -- a sibling IB-loop task, NOT the dialer
+# itself (session_reconnect.reconnect_loop). A watchdog living inside the
+# task it watches cannot fire once that task is the thing that froze -- see
+# PROBLEM_LOG 2026-08-31 (IBKR session frozen 7h with transport up).
 IBKR_UNUSABLE_FORCE_RECONNECT_SEC = 30.0
+# How often session_watchdog checks stuck-unusable + dialer heartbeat.
+IBKR_SESSION_WATCHDOG_INTERVAL_SEC = 5.0
+# Dialer heartbeat (session_reconnect stamps this at the top of every
+# _reconnect_once iteration). Worst legitimate single iteration is roughly
+# IBKR_CONNECT_TIMEOUT_SEC (8s) + IBKR_EARN_USABLE_TIMEOUT_SEC (45s) below;
+# this leaves a comfortable margin before the watchdog decides the dialer
+# task itself is dead or frozen and force-respawns it.
+IBKR_DIALER_HEARTBEAT_STALE_SEC = 75.0
+# Bound on the cold_slot lock acquire (ibkr/ib_scheduler.py). Without this, a
+# stranded lock (holder crashed/cancelled without releasing, or a caller
+# stuck inside the IB request itself) blocks every future cold job forever
+# with no exception and no log line -- exactly what happened 2026-08-31.
+IBKR_COLD_SLOT_ACQUIRE_TIMEOUT_SEC = 20.0
+# Overall deadline on earn_usable's warm-up phase (positions + completed
+# orders), on top of each call's own internal timeout. Belt-and-suspenders:
+# covers the case where an inner bound is bypassed (e.g. an ib_async request
+# that does not honor Task cancellation) without needing to know why.
+IBKR_EARN_USABLE_TIMEOUT_SEC = 45.0
 # Preferred port listening but connectAsync times out (Gateway Authenticating /
 # 2FA). Back off instead of thrashing clientId or alternate-port heal.
 IBKR_AUTH_BACKOFF_SEC_INITIAL = 30.0

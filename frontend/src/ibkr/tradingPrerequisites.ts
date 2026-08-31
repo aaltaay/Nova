@@ -49,6 +49,8 @@ export interface TradingPrerequisitesInput {
   disconnectHint?: string | null;
   /** status.session_reason */
   sessionReason?: string | null;
+  /** status.session_state (disconnected/connecting/synchronizing/ready/degraded) */
+  sessionState?: string | null;
   /** status.second_factor_stale -- the on-screen prompt is already too old
    * for IBKR to honor, even if approved right now. */
   secondFactorStale?: boolean | null;
@@ -106,7 +108,15 @@ export function gatewayPortMismatchHint(
   return null;
 }
 
-/** Gateway desktop is up (API port listening) but Nova usable-session is not. */
+/**
+ * Gateway desktop is up (API port listening) but Nova usable-session is not.
+ * Only called when the caller already knows !connected, so the port alone
+ * decides this -- whether the socket is down (ibkrTransportConnected=false)
+ * OR up but the session never reached READY (ibkrTransportConnected=true,
+ * e.g. the dialer froze after connect -- see PROBLEM_LOG 2026-08-31, where
+ * this predicate's old `!== true` transport gate hid a 7-hour freeze behind
+ * a "log into Gateway" prompt while the socket was healthy the whole time).
+ */
 export function gatewayPortOpenButSessionDown(input: {
   preferredPortReachable?: boolean | null;
   disconnectHint?: string | null;
@@ -119,10 +129,7 @@ export function gatewayPortOpenButSessionDown(input: {
   ) {
     return true;
   }
-  if (input.preferredPortReachable === true && input.ibkrTransportConnected !== true) {
-    return true;
-  }
-  return false;
+  return input.preferredPortReachable === true;
 }
 
 function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): string {
@@ -141,8 +148,10 @@ function gatewayDetail(input: TradingPrerequisitesInput, gatewayOk: boolean): st
     if (reason === 'client_id_in_use') {
       return PREREQ_GATEWAY_CLIENT_ID_DETAIL;
     }
+    const state = (input.sessionState || '').trim();
     if (reason && reason !== 'ok' && reason !== 'disconnected') {
-      return `${PREREQ_GATEWAY_PORT_OPEN_DETAIL} (reason: ${reason})`;
+      const stateNote = state ? `, state: ${state}` : '';
+      return `${PREREQ_GATEWAY_PORT_OPEN_DETAIL} (reason: ${reason}${stateNote})`;
     }
     return PREREQ_GATEWAY_PORT_OPEN_DETAIL;
   }

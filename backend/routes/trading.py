@@ -57,6 +57,10 @@ async def ibkr_status() -> dict:
 
     # Product "connected" = usable session (get_ib() non-None). Transport is
     # separate so port hints / Authenticating ops stay honest.
+    from ibkr import ib_scheduler as _ib_scheduler
+    from ibkr import session_reconnect as _reconnect
+    from ibkr import session_usable as _session_usable
+
     usable = _client.is_ready()
     transport = _client.is_connected()
     sf_state = _second_factor.current_state()
@@ -78,6 +82,11 @@ async def ibkr_status() -> dict:
         "second_factor_age_sec": sf_state.age_sec,
         "second_factor_stale": sf_state.stale,
         "gateway_trail": _gateway_trail_tail(),
+        # See PROBLEM_LOG 2026-08-31 -- one query instead of an hour of log
+        # archaeology the next time the session freezes with the port open.
+        "earn_in_flight": _session_usable.earn_in_flight(),
+        "ib_cold_inflight": _ib_scheduler.inflight_label() or None,
+        "dialer_heartbeat_age_sec": _reconnect.dialer_heartbeat_age_sec(),
     }
 
 
@@ -127,14 +136,32 @@ async def ibkr_launch_gateway(body: LaunchGatewayRequest | None = Body(default=N
     ``force_fresh_login`` is the "Start fresh login" CTA for a stale Second
     Factor prompt -- it clears jts.ini Restart=OK so IBC opens a genuinely
     new live login instead of reusing the week-long token.
+
+    ``already_listening`` (port is up, no restart needed) used to be the
+    end of the story even when Nova's own session was not READY on that
+    port -- the operator's click focused a healthy Gateway window and did
+    nothing for a frozen Nova session (PROBLEM_LOG 2026-08-31: 7 hours
+    stuck with the port open the whole time). When that happens, rebuild
+    the Nova-side session instead of leaving the button a no-op.
     """
     from ibkr.launch_gateway import launch_or_focus_gateway
 
-    return launch_or_focus_gateway(
+    result = launch_or_focus_gateway(
         mode=body.mode if body else None,
         force_restart=bool(body.force_fresh_login) if body else False,
         force_fresh_login=bool(body.force_fresh_login) if body else False,
     )
+    if result.get("action") == "already_listening" and not _client.is_ready():
+        rebuild = await _client.force_reconnect()
+        note = "Nova's session was not READY -- rebuilt the connection instead of only focusing the window."
+        result = {
+            **result,
+            "action": "rebuild_session",
+            "connected": rebuild.get("connected"),
+            "session_state": rebuild.get("session_state"),
+            "message": f"{result.get('message', '')} {note}".strip(),
+        }
+    return result
 
 
 def _client_safety_status() -> dict:
