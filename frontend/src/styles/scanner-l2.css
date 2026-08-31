@@ -79,6 +79,25 @@
   font-size: calc(var(--scanner-table-fs, 1rem) * 0.75);
 }
 
+.table-wrapper .scanner-row-num-th,
+.table-wrapper .scanner-row-num {
+  width: 2.4em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.table-wrapper .scanner-row-num-th {
+  cursor: default;
+  font-weight: 600;
+}
+
+.table-wrapper .scanner-row-num {
+  font-weight: 500;
+}
+
 .table-wrapper .scanner-symbol-cell {
   white-space: nowrap;
 }

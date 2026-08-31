@@ -2,7 +2,14 @@
  * @vitest-environment jsdom
  */
 import { describe, expect, it, vi } from 'vitest';
-import { deleteSelectedDrawingOnKey, shouldDeleteSelectedDrawing } from './chartDrawingKeys';
+import {
+  claimChartDrawingHotkeyFocus,
+  deleteSelectedDrawingOnKey,
+  ownsChartDrawingHotkeyFocus,
+  releaseChartDrawingHotkeyFocus,
+  resolveChartDrawingHotkey,
+  shouldDeleteSelectedDrawing,
+} from './chartDrawingKeys';
 
 function keyEvent(
   key: string,
@@ -89,5 +96,59 @@ describe('deleteSelectedDrawingOnKey', () => {
     };
     expect(deleteSelectedDrawingOnKey(manager, keyEvent('Delete'))).toBe(false);
     expect(removeDrawing).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveChartDrawingHotkey', () => {
+  it.each([
+    ['t', 'TrendLine'],
+    ['h', 'HorizontalLine'],
+    ['v', 'VerticalLine'],
+    ['e', 'ExtendedLine'],
+    ['j', 'Ray'],
+    ['r', 'HorizontalRay'],
+  ])('maps Alt+%s to %s', (key, tool) => {
+    expect(resolveChartDrawingHotkey(keyEvent(key, { alt: true }))).toBe(tool);
+  });
+
+  it('is case-insensitive', () => {
+    expect(resolveChartDrawingHotkey(keyEvent('T', { alt: true, shift: true }))).toBe(
+      'TrendLine',
+    );
+  });
+
+  it('ignores keys without Alt or with Ctrl/Meta', () => {
+    expect(resolveChartDrawingHotkey(keyEvent('t'))).toBeNull();
+    expect(resolveChartDrawingHotkey(keyEvent('t', { alt: true, ctrl: true }))).toBeNull();
+    expect(resolveChartDrawingHotkey(keyEvent('t', { alt: true, meta: true }))).toBeNull();
+  });
+
+  it('does not fire while typing or on key repeat', () => {
+    expect(
+      resolveChartDrawingHotkey(
+        keyEvent('h', { alt: true, target: document.createElement('input') }),
+      ),
+    ).toBeNull();
+    expect(resolveChartDrawingHotkey(keyEvent('h', { alt: true, repeat: true }))).toBeNull();
+  });
+});
+
+describe('chart drawing hotkey focus', () => {
+  it('gives ownership to only the last chart that claimed it', () => {
+    const first = Symbol('first-chart');
+    const second = Symbol('second-chart');
+
+    claimChartDrawingHotkeyFocus(first);
+    expect(ownsChartDrawingHotkeyFocus(first)).toBe(true);
+    expect(ownsChartDrawingHotkeyFocus(second)).toBe(false);
+
+    claimChartDrawingHotkeyFocus(second);
+    expect(ownsChartDrawingHotkeyFocus(first)).toBe(false);
+    expect(ownsChartDrawingHotkeyFocus(second)).toBe(true);
+
+    releaseChartDrawingHotkeyFocus(first);
+    expect(ownsChartDrawingHotkeyFocus(second)).toBe(true);
+    releaseChartDrawingHotkeyFocus(second);
+    expect(ownsChartDrawingHotkeyFocus(second)).toBe(false);
   });
 });

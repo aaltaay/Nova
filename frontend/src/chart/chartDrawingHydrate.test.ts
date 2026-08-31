@@ -71,6 +71,23 @@ describe('drawingFactory', () => {
     expect(drawingFactory('trend-line', trend)?.anchors).toHaveLength(2);
   });
 
+  it.each([
+    ['ray', 2],
+    ['extended-line', 2],
+    ['horizontal-ray', 1],
+  ])('rebuilds a stored %s', (type, anchorCount) => {
+    const drawing = {
+      ...stored,
+      id: `${type}-1`,
+      type,
+      anchors: [
+        { time: 1_756_000_000 as Time, price: 10 },
+        { time: 1_756_003_600 as Time, price: 12 },
+      ].slice(0, anchorCount),
+    } as SerializedDrawing;
+    expect(drawingFactory(type, drawing)?.type).toBe(type);
+  });
+
   it('returns null for a tool type the library does not know', () => {
     expect(drawingFactory('not-a-real-tool', stored)).toBeNull();
   });

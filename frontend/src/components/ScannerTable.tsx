@@ -8,6 +8,8 @@ import { EarningsDots } from './EarningsDots';
 import { isRowQuoteStale } from '../hooks/useScannerPriceStream';
 import { fmtMarketCap, fmtPct, fmtPrice, fmtVolume } from '../utils/quoteFormat';
 import {
+  SCANNER_ROW_NUM_LABEL,
+  SCANNER_ROW_NUM_TITLE,
   SCANNER_RVOL_SOURCE_BADGE,
   SCANNER_RVOL_SOURCE_TITLE,
   SCANNER_VOLUME_COLUMN_LABEL,
@@ -195,6 +197,23 @@ function pctClass(v: number | null | undefined): string {
   return v >= 0 ? 'positive' : 'negative';
 }
 
+/** Non-sortable display-index column shared by scanner tables (not HOD/Running Up). */
+export function ScannerRowNumHeader() {
+  return (
+    <th className="scanner-row-num-th" title={SCANNER_ROW_NUM_TITLE} aria-sort="none">
+      {SCANNER_ROW_NUM_LABEL}
+    </th>
+  );
+}
+
+export function ScannerRowNumCell({ index }: { index: number }) {
+  return (
+    <td className="scanner-row-num" aria-label={`Row ${index + 1}`}>
+      {index + 1}
+    </td>
+  );
+}
+
 export function ScannerTable({
   columns, data, sortState, onSort, selectedSymbol, onSelect, onOpenTrading,
   pricesStale = false,
@@ -207,6 +226,7 @@ export function ScannerTable({
       <table>
         <thead>
           <tr>
+            <ScannerRowNumHeader />
             {columns.map(([key, label]) => (
               <th
                 key={key}
@@ -232,7 +252,7 @@ export function ScannerTable({
           </tr>
         </thead>
         <tbody>
-          {data.map(row => (
+          {data.map((row, index) => (
             <SelectableTableRow
               key={row.symbol}
               symbol={row.symbol}
@@ -241,6 +261,7 @@ export function ScannerTable({
               onOpenTrading={onOpenTrading}
               openOnRowClick={false}
             >
+              <ScannerRowNumCell index={index} />
               {columns.map(([key]) =>
                 key === 'symbol' ? (
                   <td key={key}>

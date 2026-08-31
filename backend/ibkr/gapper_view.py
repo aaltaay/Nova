@@ -79,7 +79,10 @@ def _publish(table: str, rows: list[dict], ts, wall: float) -> None:
         from scanner_push import broadcast_roster_replace
 
         try:
-            persist_roster(table, rows, wall)
+            # Empty projection is "nothing qualifies yet", not a completed
+            # scan -- never persist it over a non-empty day's snapshot.
+            if rows:
+                persist_roster(table, rows, wall)
         except Exception:
             logger.debug("gapper_view: persist failed", exc_info=True)
         loop = asyncio.get_running_loop()

@@ -38,6 +38,8 @@ interface Props {
   nowSec?: number;
   /** ADR 008 — per-table freeze/session metadata, keyed by table name. */
   tableMeta?: Record<string, ScannerTableMeta>;
+  /** When set, hide live freeze chrome and live empty-state copy. */
+  historyDate?: string | null;
 }
 
 export function ScannerTabPanels({
@@ -60,9 +62,12 @@ export function ScannerTabPanels({
   rowQuoteTs = {},
   nowSec = 0,
   tableMeta = {},
+  historyDate = null,
 }: Props) {
   const frozenLabel =
-    activeTab !== 'catalysts' ? frozenTableLabel(tableMeta[activeTab]) : null;
+    !historyDate && activeTab !== 'catalysts'
+      ? frozenTableLabel(tableMeta[activeTab])
+      : null;
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [loserSort, setLoserSort] = useState<SortConfig>({ key: '', dir: null });
@@ -125,6 +130,8 @@ export function ScannerTabPanels({
         health={health}
         context={mode === 'market' ? 'premarket' : mode}
         discoveryProvider={discoveryProvider}
+        historyDate={historyDate}
+        emptyLabel="gappers"
       />
     );
   } else if (activeTab === 'catalysts') {
@@ -160,6 +167,7 @@ export function ScannerTabPanels({
         context={mode === 'premarket' ? 'market' : mode}
         discoveryProvider={discoveryProvider}
         emptyLabel="gainers"
+        historyDate={historyDate}
       />
     );
   } else if (activeTab === 'losers') {
@@ -183,6 +191,7 @@ export function ScannerTabPanels({
         context={mode === 'premarket' ? 'market' : mode}
         discoveryProvider={discoveryProvider}
         emptyLabel="losers"
+        historyDate={historyDate}
       />
     );
   } else if (activeTab === 'afterhours') {
@@ -207,6 +216,8 @@ export function ScannerTabPanels({
             health={health}
             context={mode === 'market' ? 'afterhours' : mode}
             discoveryProvider={discoveryProvider}
+            emptyLabel="after-hours movers"
+            historyDate={historyDate}
           />
         )}
       </>
@@ -234,6 +245,7 @@ export function ScannerTabPanels({
         context={mode === 'market' ? 'market' : mode}
         discoveryProvider={discoveryProvider}
         emptyLabel="large cap movers"
+        historyDate={historyDate}
       />
     );
   }

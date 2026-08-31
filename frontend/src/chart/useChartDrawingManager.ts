@@ -10,13 +10,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   DrawingManager,
-  TrendLine,
   type Anchor,
   type IDrawing,
 } from 'lightweight-charts-drawing';
 import type { IChartApi, ISeriesApi, MouseEventParams, Time } from 'lightweight-charts';
-import { CHART_DRAWING_STYLE, CHART_SINGLE_ANCHOR_TOOLS } from './chartDrawingConfig';
-import { deleteSelectedDrawingOnKey } from './chartDrawingKeys';
+import {
+  CHART_DRAWING_STYLE,
+  CHART_SINGLE_ANCHOR_TOOLS,
+  CHART_TWO_ANCHOR_TOOLS,
+} from './chartDrawingConfig';
+import {
+  deleteSelectedDrawingOnKey,
+  ownsChartDrawingHotkeyFocus,
+  releaseChartDrawingHotkeyFocus,
+  resolveChartDrawingHotkey,
+} from './chartDrawingKeys';
 import { toStorableDrawing } from './chartDrawingTime';
 import {
   drawingFactory,
@@ -46,6 +54,8 @@ interface UseChartDrawingManagerOptions {
   symbol: string;
   /** Bumps when this pane repaints its series, so anchors can re-snap. */
   seriesRevision?: number;
+  /** Only the last interacted chart pane may consume line-tool hotkeys. */
+  hotkeyOwner: symbol;
 }
 
 export function useChartDrawingManager({
@@ -55,6 +65,7 @@ export function useChartDrawingManager({
   candleSeriesRef,
   symbol,
   seriesRevision = 0,
+  hotkeyOwner,
 }: UseChartDrawingManagerOptions) {
   const managerRef = useRef<DrawingManager | null>(null);
   const [activeTool, setActiveTool] = useState<string | null>(null);
@@ -98,14 +109,17 @@ export function useChartDrawingManager({
     if (time === null || price === null) return;
     const anchor: Anchor = { time, price };
 
-    if (tool === 'TrendLine') {
+    const TwoAnchorDrawing = CHART_TWO_ANCHOR_TOOLS[tool];
+    if (TwoAnchorDrawing) {
       const pending = pendingAnchorRef.current;
       if (!pending) {
         pendingAnchorRef.current = anchor;
         return;
       }
-      manager.addDrawing(new TrendLine(`trendline-${Date.now()}`, [pending, anchor], CHART_DRAWING_STYLE));
       pendingAnchorRef.current = null;
+      manager.addDrawing(
+        new TwoAnchorDrawing(`${tool.toLowerCase()}-${Date.now()}`, [pending, anchor], CHART_DRAWING_STYLE),
+      );
       return;
     }
 
@@ -199,7 +213,12 @@ export function useChartDrawingManager({
     const onDeleteKey = (event: KeyboardEvent) => {
       const current = managerRef.current;
       if (!current) return;
-      deleteSelectedDrawingOnKey(current, event);
+      if (deleteSelectedDrawingOnKey(current, event)) return;
+      if (!ownsChartDrawingHotkeyFocus(hotkeyOwner)) return;
+      const tool = resolveChartDrawingHotkey(event);
+      if (!tool) return;
+      event.preventDefault();
+      setActiveTool(tool);
     };
     window.addEventListener('keydown', onDeleteKey);
     return () => {
@@ -207,8 +226,9 @@ export function useChartDrawingManager({
       unsubUpdated();
       unsubRemoved();
       window.removeEventListener('keydown', onDeleteKey);
+      releaseChartDrawingHotkeyFocus(hotkeyOwner);
     };
-  }, [managerEpoch, persist, storeDrawing]);
+  }, [hotkeyOwner, managerEpoch, persist, storeDrawing]);
 
   function handleToolClick(toolId: string) {
     setActiveTool(prev => (prev === toolId ? null : toolId));

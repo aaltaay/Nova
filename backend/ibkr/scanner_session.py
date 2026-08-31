@@ -223,21 +223,38 @@ def freeze_table(
     ts.roster_ts = wall
     ts.revision += 1
     logger.info("scanner session: froze %s (session_key=%s rev=%d)", table, key, ts.revision)
+
+    def _persist_frozen() -> None:
+        from ibkr.scanner_persist import persist_roster
+
+        rows_attr, _ = cache_attr_names(table)
+        persist_roster(table, getattr(state, rows_attr) or [], wall)
+
     try:
         import asyncio
         from scanner_push import broadcast_table_state
         from ibkr.loop_supervisor import is_ib_loop, publish_to_http
 
-        def _bcast() -> None:
-            loop = asyncio.get_running_loop()
-            loop.create_task(broadcast_table_state(table, ts))
+        def _after_freeze() -> None:
+            try:
+                _persist_frozen()
+            except Exception:
+                logger.debug("scanner session: freeze persist failed", exc_info=True)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(broadcast_table_state(table, ts))
+            except RuntimeError:
+                pass
 
         if is_ib_loop():
-            publish_to_http(_bcast)
+            publish_to_http(_after_freeze)
         else:
-            _bcast()
+            _after_freeze()
     except RuntimeError:
-        pass
+        try:
+            _persist_frozen()
+        except Exception:
+            logger.debug("scanner session: freeze persist failed", exc_info=True)
     except Exception:
         logger.debug("scanner session: freeze broadcast failed", exc_info=True)
     return True

@@ -10,7 +10,7 @@ When ANY error occurs during a task — build failure, runtime exception, incorr
 ## Steps
 
 1. **STOP** — Do not apply a quick band-aid or workaround.
-2. **Search** — Check `PROBLEM_LOG.md` for prior matching entries by symptom or keyword.
+2. **Search** -- Check `PROBLEM_LOG.md` *and* `DEFERRED_LOG.md` (`py -3 tools/deferred_log.py status`) for matching symptoms. If an open/parked `D-NNN` already covers it, work from that entry (or leave it parked) -- do not start a parallel fix.
 3. **Analyze** — Identify the ROOT CAUSE, not the symptom. Read the actual error, trace the call stack, check the code. Do not propose a patch until root cause is named (Superpowers-style: investigate before fix). If you cannot patch this session (too big, wrong task, needs an ADR), write `DEFERRED_LOG.md` (`deferred-log.mdc`) and continue the original job -- do not band-aid, do not stay silent.
 4. **Patch** — Fix the root cause in the CORRECT MODULE (not in `main.py` or `App.tsx`). Prefer a failing regression test first when behavior changed (soft TDD -- see `engineering-methodology.mdc`).
 5. **Test** — Verify the fix works with **fresh** command evidence (see `verification-before-completion.mdc`). No "should work" claims.
@@ -28,4 +28,5 @@ When ANY error occurs during a task — build failure, runtime exception, incorr
 - ❌ Closing a fix with CHANGELOG only and no PROBLEM_LOG
 - ❌ Finding a bug you will not fix now and moving on with no DEFERRED_LOG entry
 - ❌ Dumping parked work only into agent-memory Backlog
+- ❌ Starting a fix that is already a `D-NNN` without reading that entry first
 - ❌ Moving on without verifying the fix actually works

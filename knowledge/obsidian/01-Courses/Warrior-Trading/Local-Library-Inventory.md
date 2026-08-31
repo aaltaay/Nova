@@ -7,7 +7,7 @@ tags: [warrior-trading, library, pinecone, downloads]
 
 # Warrior Trading — Local Library Inventory
 
-Updated **2026-08-07** (Small Account Challenge class PDFs) after earlier 2026-07-17 LMS catalog + caption coverage and 2026-07-14 member-dashboard sync.
+Updated **2026-08-28** (LMS re-crawl: 572 unique enrolled videos / 581 local mp4s; Swing SWOP101 not enrolled) after earlier 2026-08-07 Small Account Challenge class PDFs and 2026-07-17 LMS catalog + caption coverage.
 
 **Live member site map (URLs, LMS catalog, Day Trade Dash widgets):** [[Authenticated-Site-Map]] · runbook `docs/warrior-authenticated-access.md`.
 
@@ -17,8 +17,8 @@ Updated **2026-08-07** (Small Account Challenge class PDFs) after earlier 2026-0
 |------|---------|
 | `downloads/warrior-trading-slides/` | LMS slide PDFs + layout packs by course |
 | `downloads/warrior-trading-resources/` | Free ebook, Excel trade sheets, eSignal zips |
-| `downloads/warrior-trading-caption-notes/` | Official captions + Whisper gap transcripts · `TRANSCRIPT_COVERAGE.md` · `_caption_cache/catalog.json` (544 videos / 18 captioned as of 2026-07-17) |
-| `downloads/warrior-trading-videos/` | Local MP4s (for Whisper gap fill) |
+| `downloads/warrior-trading-caption-notes/` | Official captions + Whisper gap transcripts · `TRANSCRIPT_COVERAGE.md` · `_caption_cache/catalog.json` (572 videos / 24 captioned as of 2026-08-28) |
+| `downloads/warrior-trading-videos/` | Local MP4s (for Whisper gap fill) -- 100% of enrolled catalog media as of 2026-08-28 |
 
 `docs/warrior-trading/` was created briefly then **removed** after merging unique files into the roots above (68 exact duplicate slide PDFs discarded).
 
@@ -73,6 +73,8 @@ Daily use belongs in Nova workflow (journal / scanners / risk), not re-printing 
 8. Day Trading in an IRA — no PDF hits  
 9. Member Interviews — no PDF hits  
 10–12. Grad courses (Jess / Danny / Max) — course PDFs on disk  
+
+**Not enrolled (2026-08-28):** Swing & Options Trading (`SWOP101`) -- exists in LMS catalog with `enrollment_required`; offline video harvest blocked until human enrolls. Also catalog-only: Getting Started (`Go`), Warrior Pro Special Access (`MBG`), Mentoring Sessions (`MS26`). 
 
 ## Support / access notes
 

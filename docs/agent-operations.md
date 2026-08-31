@@ -39,6 +39,7 @@ How Nova's custom Cursor agents are installed, validated, and kept in sync.
 | Fleet crack index (JSON) | `py -3 tools/agent_fleet.py --json` |
 | Session brief (top-3 cracks, used by hook) | `py -3 tools/agent_fleet.py --session-brief` |
 | Deferred log (ranked open bugs/features) | `py -3 tools/deferred_log.py status` |
+| Deferred log (same list; human "priorities" ask) | `py -3 tools/deferred_log.py priorities` |
 | Deferred log (next durable ID) | `py -3 tools/deferred_log.py next-id` |
 | Lifecycle hook (Cursor) | `.cursor/hooks.json` → `tools/subagent_lifecycle_hook.py` |
 | Session-start fleet brief hook (Cursor) | `.cursor/hooks.json` → `tools/session_brief_hook.py` |
@@ -79,6 +80,7 @@ See `.cursor/rules/specialist-routing.mdc`. Defaults (all opt-in unless noted):
 
 - "Just get this done" / multi-domain work → the parent, in-session (no automatic dispatch)
 - Classification / crack index only → `py -3 tools/agent_fleet.py` (default); `router` only on explicit ask
+- "What's on the to-do / what's missing / priorities?" → `py -3 tools/deferred_log.py status` (alias `priorities`); file is `DEFERRED_LOG.md`
 - Product change verification → `tester` (explicit ask) or run pytest/Vitest/build yourself
 - Maintainability / danger audit → `maintainer`
 - Full-repo security posture → `security`
@@ -124,11 +126,13 @@ The parent writes one aggregate entry for multi-domain jobs done in-session. CHA
 
 Parked work that is **not** a closed fix lives in repo-root `DEFERRED_LOG.md` -- same respect as `PROBLEM_LOG.md`. Open P0/P1 items also appear in the session-start fleet brief.
 
+**Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search the file. If a `D-NNN` already covers the ask, work from that entry (`parked` means do not start it). When the human asks "what's on the to-do / what's missing / priorities," that command is the answer -- do not invent a second tracker.
+
 | Piece | Path |
 |-------|------|
 | File (SSOT) | `DEFERRED_LOG.md` |
 | Rule (always apply) | `.cursor/rules/deferred-log.mdc` |
-| Ranked list | `py -3 tools/deferred_log.py status` |
+| Ranked list | `py -3 tools/deferred_log.py status` (alias `priorities`) |
 
 ## Adding a future agent
 

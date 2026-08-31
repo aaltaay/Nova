@@ -12,13 +12,16 @@ export function EmptyState({
   context,
   discoveryProvider,
   emptyLabel = 'gainers',
+  historyDate = null,
 }: {
   health: HealthStatus;
   context: MarketMode;
   /** When 'ibkr' and Gateway is down, show that instead of "no gaps yet". */
   discoveryProvider?: string;
   /** Which feed's default "no X in the feed" message to show (Gainers/Losers sub-tabs). */
-  emptyLabel?: 'gainers' | 'losers' | 'large cap movers';
+  emptyLabel?: 'gappers' | 'gainers' | 'losers' | 'large cap movers' | 'after-hours movers';
+  /** Past-date snapshot view -- do not reuse live market-closed copy. */
+  historyDate?: string | null;
 }) {
   const ibkr = useIbkrStatus();
   const isIbkr = discoveryProvider === 'ibkr';
@@ -26,6 +29,17 @@ export function EmptyState({
 
   if (context === 'loading') {
     return <div className="empty-state">Loading market data…</div>;
+  }
+  if (historyDate) {
+    return (
+      <div className="empty-state">
+        No saved {emptyLabel} for {historyDate}.
+        <div className="empty-state-hint">
+          This day&apos;s snapshot was empty when it was last written. Click
+          Back to Live for today&apos;s lists.
+        </div>
+      </div>
+    );
   }
   if (health.status === 'disconnected' || health.status === 'error') {
     return (

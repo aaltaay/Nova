@@ -273,6 +273,7 @@ export function DashboardPage() {
               rowQuoteTs={scanner.rowQuoteTs}
               nowSec={scanner.now}
               tableMeta={scanner.tableMeta}
+              historyDate={scanner.historyDate}
             />
           </main>
         </SelectedScannerWidget>

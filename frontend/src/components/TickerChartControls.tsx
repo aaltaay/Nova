@@ -5,6 +5,7 @@ import {
   CHART_TIMEFRAMES,
   type ChartIndicatorId,
 } from '../constants';
+import { ChartDrawToolsMenu } from './ChartDrawToolsMenu';
 
 interface Props {
   activeTool: string | null;
@@ -23,13 +24,6 @@ interface Props {
   onTimeframeChange: (timeframe: string) => void;
   onToolClick: (toolId: string) => void;
 }
-
-const DRAW_TOOLS = [
-  { id: 'TrendLine', label: 'Trend Line', icon: '╱' },
-  { id: 'HorizontalLine', label: 'Horizontal Line', icon: '─' },
-  { id: 'VerticalLine', label: 'Vertical Line', icon: '│' },
-  { id: 'CrossLine', label: 'Crosshair', icon: '┼' },
-];
 
 export function TickerChartControls({
   activeTool,
@@ -76,17 +70,18 @@ export function TickerChartControls({
         )}
       </div>
       <div className="chart-toolbar">
-        {DRAW_TOOLS.map(tool => (
-          <button
-            key={tool.id}
-            className={`chart-tool-btn${activeTool === tool.id ? ' chart-tool-btn--active' : ''}`}
-            onClick={() => onToolClick(tool.id)}
-            title={tool.label}
-          >
-            <span className="chart-tool-icon">{tool.icon}</span>
-          </button>
-        ))}
+        <ChartDrawToolsMenu activeTool={activeTool} onToolClick={onToolClick} />
         <button
+          type="button"
+          className={`chart-tool-btn${activeTool === 'CrossLine' ? ' chart-tool-btn--active' : ''}`}
+          onClick={() => onToolClick('CrossLine')}
+          title="Crosshair"
+          aria-label="Use Crosshair"
+        >
+          <span className="chart-tool-icon">┼</span>
+        </button>
+        <button
+          type="button"
           className="chart-tool-btn chart-tool-btn--danger"
           onClick={onClearAll}
           title="Clear all drawings. Delete or Backspace removes the selected line."

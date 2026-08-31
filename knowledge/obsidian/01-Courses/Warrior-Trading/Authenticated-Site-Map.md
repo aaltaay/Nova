@@ -301,26 +301,38 @@ Nova today: one scanner/HOD tab + side quote column. Architectural path: workspa
 **Title:** Learner Home  
 **Nav:** Courses · Help · Account menu
 
-### My Courses (visible catalog, 2026-07-16)
+### My Courses (enrolled Learner Home, reconfirmed 2026-08-28)
 
-| Course |
-|--------|
-| 1. Day Trading: The Basics |
-| 2. Day Trading: Strategies & Scaling |
-| 3. Live Trading Archives |
-| 4. Trader Rehab |
-| _Platform Demos & Layouts_ |
-| _Trading Psychology: Developing the Trader's Mindset_ |
-| Algo Scalping Strategy |
-| Day Trading in an IRA |
-| Member Interviews |
-| { Grad Course: High Volatility Momentum Trading (Jess) } |
-| { Grad Course: Momentum Trading with Thinkorswim (Danny) } |
-| ~ Grad Course: Scalping Small Cap Momentum (Max) ~ |
+| Course | Code |
+|--------|------|
+| 1. Day Trading: The Basics | BA101 |
+| 2. Day Trading: Strategies & Scaling | SS101 |
+| 3. Live Trading Archives | LTA |
+| 4. Trader Rehab | RH101 |
+| _Platform Demos & Layouts_ | DE101 |
+| _Trading Psychology: Developing the Trader's Mindset_ | PSY101 |
+| Algo Scalping Strategy | AS101 |
+| Day Trading in an IRA | IRA101 |
+| Member Interviews | INT101 |
+| { Grad Course: High Volatility Momentum Trading (Jess) } | HVM101 |
+| { Grad Course: Momentum Trading with Thinkorswim (Danny) } | TOS101 |
+| ~ Grad Course: Scalping Small Cap Momentum (Max) ~ | SCAL101 |
+
+**Not enrolled on this account** (visible via `/api/courses/v1/courses/` but `enrollment_required`):
+
+| Course | Code | Notes |
+|--------|------|-------|
+| Swing & Options Trading | SWOP101 | Blocker for Swing offline harvest until LMS enrollment |
+| *Getting Started | Go | |
+| 0. Your Warrior Pro Special Access | MBG | |
+| _Mentoring Sessions_ | MS26 | |
+| Warrior Pro Preview / Test / DELETE stubs | WPPrev / Test / WPP | Ignore |
 
 Course home URL pattern:  
-`https://lms.warriortrading.ai/learning/course/course-v1:WarriorTrading+{CODE}+2026/home`  
-Example: `…+BA101+2026/home`.
+`https://lms.warriortrading.ai/learning/course/course-v1:WarriorTrading+{CODE}+{YEAR}/home`  
+Example: `…+BA101+2026/home`. SWOP year is `2020`.
+
+LMS entry: Members Dashboard → **View Courses in Education Portal** → `https://www.warriortrading.com/learning-portal` (no trailing slash; trailing slash 404'd 2026-08-28).
 
 ### BA101 — Day Trading: The Basics (chapter index)
 
@@ -347,25 +359,29 @@ Chapters (each with Quiz + Quiz Answers where listed):
 
 Local slide/video mirrors: see [[Local-Library-Inventory]] under `downloads/warrior-trading-*`.
 
-### LMS video / caption inventory (2026-07-17)
+### LMS video / caption inventory (2026-08-28)
 
-Full catalog harvest (titles + Wistia media-ids only; transcript bodies stay under gitignored `downloads/warrior-trading-caption-notes/`):
+Full catalog harvest for **enrolled** courses only (titles + Wistia media-ids; transcript bodies stay under gitignored `downloads/warrior-trading-caption-notes/`):
 
 | Metric | Count |
 |--------|------:|
-| Unique video units (12 enrolled courses) | 544 |
-| Official English caption tracks | 18 |
-| Caption gaps (need Whisper / local video) | 526 |
-| Whisper BA101 already on disk | 7 |
+| Unique video units (12 enrolled courses) | 572 |
+| Official English caption tracks | 24 |
+| Caption gaps (need Whisper / local video) | 548 |
+| Local MP4s under `downloads/warrior-trading-videos/` | 581 (100% of catalog media; extras are orphans/superseded) |
 
 Course codes enrolled: BA101, SS101, LTA, RH101, DE101, PSY101, AS101, IRA101, INT101, HVM101, TOS101, SCAL101.
 
-**Priority gaps (no official captions):**
+Delta vs 2026-07-17: +28 unique units (all LTA; 289 → 317). Prior 19 catalog gaps re-downloaded 2026-08-28.
 
-- SS101 · Part 1: Daily Chart Patterns — media `gbw1yl3luq` (~3341s)
-- SS101 · Stock Scanning (Day Trade Dash Scanner) — media `m0ilv07764` (~1369s)
+**Swing blocker:** `SWOP101` exists in the LMS course catalog but this membership is **not enrolled** (`course_access.error_code=enrollment_required`). Do not auto-enroll / purchase -- human must enroll Swing & Options (or confirm Pro course entitlement unlocks it), then re-run harvest.
 
-Re-run: `downloads/warrior-trading-caption-notes/_harvest_lms_captions.py` · gap report: `TRANSCRIPT_COVERAGE.md`.
+**Priority Whisper gaps (no official captions; mp4s now on disk):**
+
+- SS101 · Part 1: Daily Chart Patterns -- media `gbw1yl3luq` (~3341s)
+- SS101 · Stock Scanning (Day Trade Dash Scanner) -- media `m0ilv07764` (~1369s)
+
+Re-run: `downloads/warrior-trading-caption-notes/_harvest_lms_captions.py` · gap report: `TRANSCRIPT_COVERAGE.md` · offline mp4 download via `_download_and_whisper_gaps.py` helpers.
 
 ---
 

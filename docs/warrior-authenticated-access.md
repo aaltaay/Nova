@@ -14,6 +14,8 @@ From the Nova repo root:
 Optional landing URL:
 
 ```powershell
+.\scripts\open_warrior_site.ps1 -Url "https://www.warriortrading.com/learning-portal"
+# note: trailing slash `/learning-portal/` 404'd (2026-08-28); no trailing slash SSO → LMS
 .\scripts\open_warrior_site.ps1 -Url "https://lms.warriortrading.ai/learner-dashboard/"
 .\scripts\open_warrior_site.ps1 -Url "https://www.warriortrading.com/chat-room-access/"
 ```

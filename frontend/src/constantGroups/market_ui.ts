@@ -206,6 +206,11 @@ export const QUOTE_ASSET_LABELS = {
 /** Display value for listing feed row (Alpaca asset metadata only — not prices/L2). */
 export const QUOTE_LISTING_FEED_VALUE = 'Alpaca Assets API (flags only)';
 
+/** First-column label on ranked scanner tables (not HOD Momo / Running Up). */
+export const SCANNER_ROW_NUM_LABEL = '#';
+export const SCANNER_ROW_NUM_TITLE =
+  'Row number in the current list (after sort and filters). Not IB scanner rank.';
+
 /** Scanner Volume column: live volume is IBKR; RVOL denominator is yfinance avg.
  * Deliberately NOT Alpaca: IEX daily bars capture a sliver of consolidated
  * volume for thin low-float names and blew RVOL up 100x-3000x (PROBLEM_LOG

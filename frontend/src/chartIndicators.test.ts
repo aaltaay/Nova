@@ -8,6 +8,7 @@ import {
   rawBarsToIndicatorBars,
   toggleIndicator,
   vwapAxisTitleFromLine,
+  vwapWaitingTitle,
 } from './chartIndicators';
 import { CHART_EMA_LENGTHS } from './constants';
 import type { RawBar } from './tickerChartData';
@@ -84,16 +85,16 @@ describe('chartIndicators (library adapters)', () => {
   it('puts the last VWAP dollar amount in the axis title', () => {
     expect(formatVwapAxisTitle(78.524)).toBe('VWAP $78.52');
     expect(formatVwapAxisTitle(0.4)).toBe('VWAP $0.40');
-    expect(vwapAxisTitleFromLine([])).toBe('VWAP');
+    expect(vwapAxisTitleFromLine([])).toBe(vwapWaitingTitle());
     expect(vwapAxisTitleFromLine([{ time: 1, value: 79.51 }])).toBe('VWAP $79.51');
+    expect(vwapAxisTitleFromLine([{ time: 1 }, { time: 2, value: 79.51 }])).toBe('VWAP $79.51');
   });
 
   it('marks the VWAP title partial when the source misses the session open', () => {
     expect(formatVwapAxisTitle(78.524, true)).toBe('VWAP $78.52 (partial)');
     expect(vwapAxisTitleFromLine([{ time: 1, value: 79.51 }], true))
       .toBe('VWAP $79.51 (partial)');
-    // Nothing to label when there is no line at all.
-    expect(vwapAxisTitleFromLine([], true)).toBe('VWAP');
+    expect(vwapAxisTitleFromLine([], true)).toBe(vwapWaitingTitle());
   });
 
   it('toggles indicator ids without duplicates', () => {

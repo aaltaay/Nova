@@ -37,6 +37,7 @@ export type TabModuleHostProps = {
   nowSec?: number;
   /** ADR 008 — per-table freeze/session metadata, keyed by table name. */
   tableMeta?: Record<string, ScannerTableMeta>;
+  historyDate?: string | null;
 };
 
 const SCANNER_TABS = new Set([
@@ -74,6 +75,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
     rowQuoteTs = {},
     nowSec = 0,
     tableMeta = {},
+    historyDate = null,
   } = props;
 
   // Defensive: HOD / Running Up are dock-only; never blank the main column.
@@ -105,6 +107,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
         rowQuoteTs={rowQuoteTs}
         nowSec={nowSec}
         tableMeta={tableMeta}
+        historyDate={historyDate}
       />
     );
   }

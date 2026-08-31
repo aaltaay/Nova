@@ -1,6 +1,7 @@
 /** Watchlist tab — Five Pillars ranked table + live setup Signals + Nova OS Decision audit. Signal-only; no orders placed. */
 import { useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
+import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTable';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
 import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
 import { ArchiveRewind } from './ArchiveRewind';
@@ -19,11 +20,13 @@ function fmtScore(v: number): string {
 
 function WatchlistRow({
   entry,
+  index,
   selected,
   onSelect,
   onOpenTrading,
 }: {
   entry: WatchlistEntry;
+  index: number;
   selected: boolean;
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
@@ -36,6 +39,7 @@ function WatchlistRow({
       onOpenTrading={onOpenTrading}
       openOnRowClick={false}
     >
+      <ScannerRowNumCell index={index} />
       <td>
         <SymbolSelectButton
           symbol={entry.symbol}
@@ -151,6 +155,7 @@ export function WatchlistTab({
               <table>
                 <thead>
                   <tr>
+                    <ScannerRowNumHeader />
                     <th title="Click the row for the Quote Panel. Click the ticker to open Trader.">Symbol</th>
                     <th title="How many of the 5 Pillars (price, % change, relative volume, catalyst, float) currently pass. All 5 passing ranks a symbol above any partial match.">Pillars</th>
                     <th title="Hover a chip above to see exactly why that pillar passed or failed for this symbol.">Detail</th>
@@ -161,10 +166,11 @@ export function WatchlistTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {entries.map(entry => (
+                  {entries.map((entry, index) => (
                     <WatchlistRow
                       key={entry.symbol}
                       entry={entry}
+                      index={index}
                       selected={selectedSymbol === entry.symbol}
                       onSelect={onSelectSymbol}
                       onOpenTrading={onOpenTrading}

@@ -9,16 +9,19 @@ Companion to: `.cursor/agents/warrior.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-23T20:28:00Z
-source_revision: 5c8b878
-result: PASS
+captured_at: 2026-08-28T14:00:00Z
+source_revision: local
+result: PARTIAL
 metrics:
   hosts_mapped: 5
   day_trade_dash_widgets: 6
-  lms_courses_listed: 12
-  lms_video_units_unique: 544
-  lms_official_captions: 18
-  lms_caption_gaps: 526
+  lms_courses_enrolled: 12
+  lms_courses_catalog_visible: 19
+  lms_video_units_unique: 572
+  lms_official_captions: 24
+  lms_caption_gaps: 548
+  lms_mp4s_on_disk: 581
+  lms_mp4_catalog_miss: 0
   whisper_ba101_units: 7
   ba101_chapters: 15
   ss101_chapters_outlined: 20
@@ -26,9 +29,10 @@ metrics:
   hod_momo_unique_symbols: 8
   hod_sub_strategies_kb: 11
   warrior_latest_ts: 1784308360
-blockers: []
+blockers:
+  - "SWOP101 Swing & Options Trading: enrollment_required -- not on My Courses; cannot harvest until human enrolls"
 dashboard_freshness: refresh-required
-notes: "HOD Momo desired-outcomes index promoted to Authenticated-Site-Map (2026-07-23). Primary = new-HOD+momentum discovery for human due diligence; SS101 Ch.12 Whisper covers anti-automation. Prior: LMS caption harvest 544/18."
+notes: "2026-08-28 full LMS pass: enrolled still 12; catalog has SWOP101 + Go/MBG/MS26 not enrolled. Catalog 544→572 (+28 LTA). Downloaded 19 prior gaps + 28 new LTA mp4s; enrolled catalog miss=0."
 ```
 
 ---
@@ -47,6 +51,7 @@ Durable navigation facts → `warrior.md` and/or Obsidian `Authenticated-Site-Ma
 
 ## Backlog
 
+- [ ] **Enroll SWOP101 (Swing & Options Trading)** on LMS (human) then re-run `_harvest_lms_captions.py` + mp4 download for that course only.
 - [ ] Map SS101 chapter index the same way as BA101.
 - [ ] Inventory News Room stream join + layout presets under Settings → Layouts.
 - [ ] Confirm Top Gainers full column set vs Gappers side-by-side.
@@ -60,6 +65,7 @@ Durable navigation facts → `warrior.md` and/or Obsidian `Authenticated-Site-Ma
 
 ### Completed
 
+- [x] 2026-08-28 — LMS full-account video pass: re-auth; 12 enrolled; SWOP101 found not enrolled; catalog 572; downloaded 19 gaps + 28 new LTA mp4s (enrolled miss=0).
 - [x] 2026-07-17 — Full LMS video catalog + official caption harvest (544 / 18 / 526); `TRANSCRIPT_COVERAGE.md` + `_harvest_lms_captions.py`.
 - [x] 2026-07-16 — Live map of dashboard, LMS catalog, BA101 chapters, Day Trade Dash widgets.
 - [x] 2026-07-16 — Access runbook + `scripts/open_warrior_site.ps1` + persistent profile.
@@ -82,6 +88,9 @@ Durable navigation facts → `warrior.md` and/or Obsidian `Authenticated-Site-Ma
 - HOD Time cells may include burst tags: `06:32:46 pm (2 in 3sec) expand row` — strip to `HH:MM:SS am/pm` when writing `warrior_latest.json`.
 - **Access Denied on www while LMS still works:** Members Dashboard + `/chat-room-access/` + `chatroom…/dashboard` redirect to `/no-access/` with Sign in. CRM may still show Active Day Trade Dash Tools. Fix = human re-login in headed profile (CAPTCHA/2FA if shown). Do **not** invent `warrior_latest.json` rows while blocked. Do **not** click Unpause / billing without user.
 - `chatroom.warriortrading.com/` may load an empty shell title “WarriorTrading Chatroom” without SSO; `/dashboard` still bounces to www `/no-access/`.
+- `/learning-portal/` (trailing slash) can 404; use `/learning-portal` (no slash) for SSO into LMS.
+- Direct `lms…/learner-dashboard/` often lands on LMS login; enter via Members Dashboard → View Courses in Education Portal.
+- `SWOP101` (Swing & Options Trading) is in the LMS course catalog but may be `enrollment_required` even with Pro course-access CRM rows -- do not auto-enroll; ask human.
 - `%USERPROFILE%\.nova\secrets\local-credentials.env` may be ACL’d Write-only (`(W)`). Temporarily `icacls … /grant USER:(R)` to Sign in, then restore Write-only. Never copy secrets into the repo.
 
 ## Former Momo (research conclusion)
@@ -110,6 +119,15 @@ Durable navigation facts → `warrior.md` and/or Obsidian `Authenticated-Site-Ma
 Newest first. Keep entries short. No secrets.
 
 <!-- RUN_LOG_START -->
+
+### 2026-08-28 — Full LMS video harvest / offline mp4 pass
+
+- **Scope:** Authenticate LMS; enumerate ALL courses; harvest missing; download offline mp4s (Swing + any missing).
+- **Result:** PARTIAL -- enrolled catalog complete offline; Swing blocked.
+- **Evidence:** Learner Home OK (user 374341); enrollment API 12 courses; courses API 19 (includes SWOP101 Swing & Options Trading with `enrollment_required`); fresh crawl 574 placements / 572 unique (+28 LTA vs prior 544); downloaded 19 prior gaps + 28 new LTA; enrolled catalog mp4 miss=0 (581 files on disk).
+- **Blocker / human gate:** Enroll `SWOP101` (and optionally Go/MBG/MS26) in LMS -- agent will not auto-enroll/purchase. CRM shows Pro course-access membership; no separate Swing product line named.
+- **Learning:** `/learning-portal/` (trailing slash) 404; `/learning-portal` SSO works. Direct LMS URL hits login; enter via Education Portal link. `cookies --json` can return empty -- use `cookies get` text + convert for harvest.
+- **Files updated:** Authenticated-Site-Map, Local-Library-Inventory, warrior-authenticated-access, `_harvest_lms_captions.py` COURSE_CODE_NAMES, caption cache/catalog/COURSE_INVENTORY (gitignored downloads), warrior-memory, agent-warrior canvas.
 
 ### 2026-07-23 — HOD Momo desired outcomes (Warrior teaching index)
 

@@ -10,8 +10,11 @@ Ranked list without reading the whole file:
 
 ```text
 py -3 tools/deferred_log.py status
+py -3 tools/deferred_log.py priorities
 py -3 tools/deferred_log.py next-id
 ```
+
+`priorities` is the same ranked list as `status`. When the human asks "what's on the to-do / what's missing / priorities," run that command -- do not invent a second tracker.
 
 Every new chat also sees open P0/P1 items in the session-start fleet brief.
 
@@ -60,6 +63,22 @@ Entry template (copy and fill in):
 **Status values:** `open` (actionable) | `blocked` (waiting on Unblock) | `parked` (explicitly not this month) | `wontfix` (human said no) | `done` (belongs in Closed).
 
 <!-- OPEN_START -->
+
+## D-010 -- Trend Line two-click place pans the chart instead
+
+- **Status:** parked
+- **Kind:** bug
+- **Severity:** P1
+- **Effort:** L
+- **Domain:** widgets
+- **User-visible:** yes
+- **Logged:** 2026-08-31
+- **Why parked:** Operator recorded this and forbade a fix this session. They do not want another custom "armed / ready to draw" click collector. Pull only when they name D-010.
+- **Blast radius:** Trend Line cannot be placed with two clicks. A click or drag pans the time scale (X-axis) instead of dropping anchors. The other two-anchor tools (Extended Line, Ray) likely share the same gesture. Operators cannot mark trends on the live desk.
+- **Unblock:** Operator names D-010. Then use a drawing library that already does two-click place (click point A, click point B, line exists) without stealing pan -- do not invent a third Nova click protocol.
+- **Next:** When unblocked, reproduce with Trend Line armed: two clicks on prices, no drag. Confirm whether `chart.subscribeClick` in `useChartDrawingManager.ts` even fires, or whether Lightweight Charts pan eats the gesture. Prefer `lightweight-charts-drawing` native placement (or a replacement library) over more `pendingAnchorRef` code.
+- **Evidence:** Operator report 2026-08-31: select Trend Line, click a point expecting two-click draw; the chart moves on the X-axis. Current path: `ChartDrawToolsMenu` sets `activeTool` -> `handleChartClick` via `subscribeClick` collects two anchors while the chart's default drag is still pan. Record-only session -- no live screenshot, no chart code change.
+- **Keywords:** trend line, TrendLine, two-click, pan, x-axis, lightweight-charts-drawing, handleChartClick, pendingAnchorRef, ChartDrawToolsMenu, ADR 015, D-010
 
 ## D-009 -- Ticker cold snapshot returns empty for a symbol chart bars fetch fine
 

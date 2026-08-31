@@ -1,5 +1,5 @@
 ---
-description: MANDATORY DEFERRED_LOG.md for every agent after parking a bug or feature
+description: Check DEFERRED_LOG.md before any fix; park known bugs/features; to-do via deferred_log.py status / priorities
 alwaysApply: true
 ---
 
@@ -19,6 +19,16 @@ When a session **finds a real bug it will not fix now**, or **parks a feature th
 
 **Skipping DEFERRED_LOG after parking real work is a constitution violation** -- same severity as skipping `PROBLEM_LOG.md` after a real fix.
 
+## Before any fix (mandatory, every chat)
+
+**Read this file first** -- before writing a patch, before "quick" UI/tooling work, before telling the human you will fix something.
+
+1. Run `py -3 tools/deferred_log.py status` (alias: `priorities`). The file is repo-root `DEFERRED_LOG.md`. That ranked list **is** the known-bugs / parked-features to-do. When the human asks "what's missing / what are our priorities," answer from this command -- do not invent a second tracker.
+2. Search the file for the module, symptom, or keyword. If a `D-NNN` already covers the ask: **work from that entry**. Honor **Status** (`parked` means do not start it), **Unblock**, and **Next**. Do not start a parallel fix that ignores them.
+3. If you are about to "improve" chart drawings, scanners, VWAP, lifespan, NEWS, or any other named row: you must cite the matching `D-NNN` or explain why this is a different bug.
+
+Starting a fix that is already written on this page, without reading the page, is a constitution violation -- same class as parking work with no entry.
+
 Search `DEFERRED_LOG.md` (and `py -3 tools/deferred_log.py status`) before dumping a new item. Extend an existing `D-NNN` when the same gap is rediscovered.
 
 ## Where and how
@@ -36,6 +46,7 @@ Search `DEFERRED_LOG.md` (and `py -3 tools/deferred_log.py status`) before dumpi
 - Treat a CHANGELOG `Follow-ups:` bullet as enough -- if it is a real bug or parked feature, it belongs here
 - Band-aid a P0/P1 so you can skip writing the entry
 - Invent an ID; never reuse a Closed ID
+- Start a fix that is already a `D-NNN` without reading that entry first (honor `parked` / Unblock / Next)
 
 ## When skip is allowed
 

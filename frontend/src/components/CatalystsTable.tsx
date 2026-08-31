@@ -4,6 +4,7 @@
 import { Fragment, useState } from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
+import { ScannerRowNumCell, ScannerRowNumHeader } from './ScannerTable';
 import { NewsCell } from './NewsCell';
 import { NewsImpactPanel } from './NewsImpactPanel';
 import { fmtPct, fmtVolume } from '../utils/quoteFormat';
@@ -57,6 +58,7 @@ export function CatalystsTable({
           <table>
             <thead>
               <tr>
+                <ScannerRowNumHeader />
                 {CATALYST_COLUMNS.map(([key, label]) => (
                   <th
                     key={key}
@@ -81,7 +83,7 @@ export function CatalystsTable({
               </tr>
             </thead>
             <tbody>
-              {catalysts.map(c => {
+              {catalysts.map((c, index) => {
                 const isExpanded = expanded.has(c.symbol);
                 return (
                   <Fragment key={c.symbol}>
@@ -92,6 +94,7 @@ export function CatalystsTable({
                       onOpenTrading={onOpenTrading}
                       openOnRowClick={false}
                     >
+                      <ScannerRowNumCell index={index} />
                       <td>
                         <SymbolSelectButton
                           symbol={c.symbol}
@@ -168,7 +171,7 @@ export function CatalystsTable({
                     </SelectableTableRow>
                     {isExpanded && c.news_impact && (
                       <tr className="catalyst-expand-row">
-                        <td colSpan={CATALYST_COLUMNS.length}>
+                        <td colSpan={CATALYST_COLUMNS.length + 1}>
                           <NewsImpactPanel verdict={c.news_impact} />
                         </td>
                       </tr>

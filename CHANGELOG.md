@@ -30,6 +30,26 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-31 -- Scanner tables show a # row number
+
+- **What:** Gappers, Gainers, Losers, After Hours, Large Cap, Catalysts, and Watchlist now show a leading `#` column. HOD Momo and Running Up are unchanged.
+- **Why:** Operator asked for row numbers on every scanner except the HOD/Running Up dock.
+- **Files touched:** `frontend/src/components/ScannerTable.tsx`, `CatalystsTable.tsx`, `frontend/src/strategy/WatchlistTab.tsx`, `frontend/src/constantGroups/market_ui.ts`, `frontend/src/styles/scanner-l2.css`.
+- **How it works now:** `#` is the 1-based index of the currently displayed list (after sort and exchange filters). It is not IB scanner rank and is not sortable. HOD/Running Up keep their Time-first columns.
+- **Verified by:** `npx vitest run src/components/ScannerTable.test.tsx` (pass). `npm run build` exit 0. Live UI at localhost:5173 -- Gappers 1-19, Gainers 1-50, Losers 1-50, Large Cap 1-48, Catalysts 1-2, Watchlist 1-58; HOD/Running Up headers still News/Time/Symbol with 0 `#` cells. After Hours was empty this session (same ScannerTable path).
+- **Related:** task-log `knowledge/task-log/2026-08-31-scanner-row-numbers.md`
+
+
+## 2026-08-31 -- DEFERRED_LOG is the to-do list; Trend Line parked as D-010
+
+- **What:** `tools/deferred_log.py` now accepts `priorities` as an alias of `status`. Agents must run that command (and search `DEFERRED_LOG.md`) before any fix. Chart Trend Line two-click place is parked as **D-010** -- no chart code changed.
+- **Why:** Operator does not want this drawing bug fixed now, but does want it on the ranked to-do, and does not want the next agent to start a parallel chart-drawing "fix" that ignores the page.
+- **Files touched:** `DEFERRED_LOG.md`, `tools/deferred_log.py`, `tools/test_deferred_log.py`, `AGENTS.md` §7.2c / §9 / §11 / §12, `.cursor/rules/deferred-log.mdc`, `constitution.mdc`, `specialist-routing.mdc`, `self-annealing.mdc`, `docs/agent-operations.md`.
+- **How it works now:** Ask "what's missing / priorities" and the answer is `py -3 tools/deferred_log.py priorities`. Before any patch, search `DEFERRED_LOG.md`. `parked` means do not start it. D-010 is the Trend Line pan-instead-of-two-click bug; pull only when the operator names that ID.
+- **Verified by:** `py -3 -m pytest tools/test_deferred_log.py -q` and `py -3 tools/deferred_log.py priorities` listing D-010.
+- **Follow-ups:** Do not start D-010 until named. Chart drawing library replacement stays parked.
+- **Related:** `DEFERRED_LOG.md` D-010; task-log `2026-08-31-park-chart-trend-line`.
+
 ## 2026-08-31 -- Fresh unpriced scanner names can no longer be starved out of L1 forever
 
 - **What:** `hod_momo_active.build_active_set` now tie-breaks still-unpriced (score `0.0`) rows on IB's own scanner rank instead of the symbol alphabet, and reserves `HOD_MOMO_ACTIVE_DISCOVERY_SLOTS` (6) slots *inside* the existing 40-symbol HOD L1 capacity for those rows so a fully-priced roster can no longer permanently block a brand-new name from ever getting its first quote. A discovery-admitted symbol that never prices up yields its slot after `HOD_MOMO_DISCOVERY_HOLD_SEC` (20s). `ibkr/scanner_hydrate.stub_row` now stamps `admitted_ts` once per row (survives every later rank/reprice merge). `/api/scan/integrity` now also judges Gainers price coverage whenever Gappers is displayed and live (Gappers is a filtered projection of Gainers), using the oldest unpriced row's `admitted_ts` instead of the ever-refreshing `roster_ts`.

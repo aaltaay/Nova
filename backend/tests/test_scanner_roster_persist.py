@@ -27,6 +27,49 @@ def test_persist_roster_writes_dated_gappers(tmp_path, monkeypatch):
     assert data["gappers"][0]["symbol"] == "IVF"
 
 
+def test_persist_roster_does_not_overwrite_nonempty_with_empty(tmp_path, monkeypatch):
+    """A names-first Gainers replace can project zero gappers for a few
+    seconds. That must not wipe the day's history file (2026-08-24)."""
+    monkeypatch.setattr("cache._CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr("cache._today_et", lambda: "2026-08-24")
+    scanner_persist.persist_roster(
+        _ss.TABLE_GAPPERS,
+        [{"symbol": "CRE", "gap_percent": 0.4}],
+        1.0,
+    )
+    scanner_persist.persist_roster(_ss.TABLE_GAPPERS, [], 2.0)
+    data = json.loads((tmp_path / "gappers-2026-08-24.json").read_text(encoding="utf-8"))
+    assert data["gappers"][0]["symbol"] == "CRE"
+    assert data["ts"] == 1.0
+
+
+def test_load_snapshot_movers_composes_gainers_and_losers(tmp_path, monkeypatch):
+    import cache as cache_mod
+
+    monkeypatch.setattr("cache._CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr("cache._today_et", lambda: "2026-08-24")
+    cache_mod.save_gainer_snapshot([{"symbol": "AAA"}], 10.0)
+    cache_mod.save_loser_snapshot([{"symbol": "BBB"}], 11.0)
+    data = cache_mod.load_snapshot_for_date("movers", "2026-08-24")
+    assert data["gainers"][0]["symbol"] == "AAA"
+    assert data["losers"][0]["symbol"] == "BBB"
+
+
+def test_list_history_dates_skips_empty_snapshots(tmp_path, monkeypatch):
+    import cache as cache_mod
+
+    monkeypatch.setattr("cache._CACHE_DIR", str(tmp_path))
+    monkeypatch.setattr("cache._today_et", lambda: "2026-08-26")
+    (tmp_path / "gappers-2026-08-24.json").write_text(
+        '{"date":"2026-08-24","ts":1,"gappers":[]}', encoding="utf-8"
+    )
+    (tmp_path / "gappers-2026-08-25.json").write_text(
+        '{"date":"2026-08-25","ts":1,"gappers":[{"symbol":"CRE"}]}',
+        encoding="utf-8",
+    )
+    assert cache_mod.list_history_dates("gappers") == ["2026-08-25"]
+
+
 def test_commit_table_persists_authoritative_roster(tmp_path, monkeypatch):
     monkeypatch.setattr("cache._CACHE_DIR", str(tmp_path))
     monkeypatch.setattr("cache._today_et", lambda: "2026-08-17")

@@ -4,8 +4,9 @@
 
 ## Context
 
-Nova's chart drawing tools (Trend Line, Horizontal Line, Vertical Line, Crosshair) are
-provided by `lightweight-charts-drawing`, driven by `frontend/src/chart/useChartDrawingManager.ts`.
+Nova's chart drawing tools (Trendline, Horizontal Line, Vertical Line, Extended Line,
+Ray, Horizontal Ray, and Crosshair) are provided by `lightweight-charts-drawing`,
+driven by `frontend/src/chart/useChartDrawingManager.ts`.
 Each `TickerChart` instance constructed its own `DrawingManager`. Because the Trader desk
 renders a 2x2 multi-timeframe grid (`ChartGrid.tsx`) and the scanner Quote Panel renders a
 fifth chart, one symbol had up to five independent, disconnected drawing sets. A support

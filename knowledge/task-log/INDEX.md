@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-31 | [Scanner row numbers](2026-08-31-scanner-row-numbers.md) | `#` column on Gappers/Gainers/Losers/AH/Large Cap/Catalysts/Watchlist; not HOD Momo or Running Up |
+| 2026-08-31 | [Park chart Trend Line two-click (D-010)](2026-08-31-park-chart-trend-line.md) | Operator forbade a drawing rewrite; two-click Trend Line pans the chart; to-do is `deferred_log.py priorities` |
 | 2026-08-31 | [Fix L1 starvation that hid new gappers (XAIR)](2026-08-31-xair-l1-starvation-fix.md) | Fix L1 starvation that hid new gappers (XAIR) |
 | 2026-08-31 | [IBKR session watchdog: self-heal a frozen dialer](2026-08-31-ibkr-session-watchdog.md) | IBKR session watchdog: self-heal a frozen dialer |
 | 2026-08-28 | [Park after-hours VWAP convention (D-007)](2026-08-28-vwap-afterhours-convention.md) | No universal AH rule; Nova stays frozen at 16:00 until a live Webull compare; do not invent |

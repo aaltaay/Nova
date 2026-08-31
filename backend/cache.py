@@ -137,6 +137,7 @@ def list_history_dates(cache_type: str, extra_allowed: set[str] | None = None) -
     """
     Return all dates for which a snapshot of *cache_type* exists on disk,
     sorted descending (newest first). Does not include today — today is live.
+    Empty snapshots are omitted so the date picker does not offer a blank day.
     """
     if not os.path.isdir(_CACHE_DIR):
         return []
@@ -144,27 +145,52 @@ def list_history_dates(cache_type: str, extra_allowed: set[str] | None = None) -
     _ = extra_allowed  # reserved for future use
     today = _today_et()
     dates = []
+    row_key = cache_type if cache_type != "hod-momo" else "alerts"
     for fname in os.listdir(_CACHE_DIR):
         m = pattern.match(fname)
         if m:
             d = m.group(1)
-            if d != today:
-                dates.append(d)
+            if d == today:
+                continue
+            data = _read_dated_json(cache_type, d)
+            rows = data.get(row_key)
+            if isinstance(rows, list) and not rows:
+                continue
+            dates.append(d)
     dates.sort(reverse=True)
     return dates
+
+
+def _read_dated_json(prefix: str, date: str) -> dict:
+    path = _dated_path(prefix, date)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
 
 
 def load_snapshot_for_date(cache_type: str, date: str) -> dict:
     """
     Load any dated snapshot. Returns the raw JSON dict from the file, or an
     empty dict if the file does not exist or cannot be parsed.
+
+    ``movers`` is composed from independent ``gainers-`` / ``losers-`` files
+    (ADR 008 split). The legacy combined ``movers-*.json`` is fallback only.
     """
-    path = _dated_path(cache_type, date)
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    if cache_type == "movers":
+        gainers = _read_dated_json("gainers", date)
+        losers = _read_dated_json("losers", date)
+        g_rows = gainers.get("gainers")
+        l_rows = losers.get("losers")
+        g_rows = g_rows if isinstance(g_rows, list) else []
+        l_rows = l_rows if isinstance(l_rows, list) else []
+        if g_rows or l_rows:
+            ts = max(float(gainers.get("ts") or 0), float(losers.get("ts") or 0))
+            return {"date": date, "gainers": g_rows, "losers": l_rows, "ts": ts}
+    data = _read_dated_json(cache_type, date)
+    return data
 
 
 # ── Normalisation (backward compat for old on-disk shapes) ───────────────────
@@ -196,7 +222,14 @@ def _normalize_gapper_row(row: dict) -> dict:
 # ── Gappers ───────────────────────────────────────────────────────────────────
 
 def save_gapper_snapshot(gappers: list[dict], ts: float) -> None:
-    """Atomically persist the gapper cache to today's dated file."""
+    """Atomically persist the gapper cache to today's dated file.
+
+    Empty payloads are refused: a transient zero projection (names-first
+    Gainers replace, last name dropping below the floor) must not wipe the
+    day's history file.
+    """
+    if not gappers:
+        return
     try:
         payload = {"date": _today_et(), "ts": ts, "gappers": gappers}
         _atomic_write(_dated_path("gappers", _today_et()), payload)
@@ -230,6 +263,8 @@ def load_gapper_snapshot() -> tuple[list[dict], float]:
 
 def save_afterhours_snapshot(rows: list[dict], ts: float) -> None:
     """Atomically persist the after-hours cache to today's dated file."""
+    if not rows:
+        return
     try:
         payload = {"date": _today_et(), "ts": ts, "afterhours": rows}
         _atomic_write(_dated_path("afterhours", _today_et()), payload)
@@ -242,6 +277,8 @@ def save_afterhours_snapshot(rows: list[dict], ts: float) -> None:
 # never freezes, but still gets a fresh file each session day for history.
 def save_large_cap_snapshot(rows: list[dict], ts: float) -> None:
     """Atomically persist the Large Cap cache to today's dated file."""
+    if not rows:
+        return
     try:
         payload = {"date": _today_et(), "ts": ts, "large_cap": rows}
         _atomic_write(_dated_path("large_cap", _today_et()), payload)
@@ -280,6 +317,8 @@ def load_afterhours_snapshot() -> tuple[list[dict], float]:
 
 def save_gainer_snapshot(gainers: list[dict], ts: float) -> None:
     """Atomically persist the gainer cache to today's dated file."""
+    if not gainers:
+        return
     try:
         payload = {"date": _today_et(), "ts": ts, "gainers": gainers}
         _atomic_write(_dated_path("gainers", _today_et()), payload)
@@ -306,6 +345,8 @@ def load_gainer_snapshot() -> tuple[list[dict], float]:
 
 def save_loser_snapshot(losers: list[dict], ts: float) -> None:
     """Atomically persist the loser cache to today's dated file."""
+    if not losers:
+        return
     try:
         payload = {"date": _today_et(), "ts": ts, "losers": losers}
         _atomic_write(_dated_path("losers", _today_et()), payload)

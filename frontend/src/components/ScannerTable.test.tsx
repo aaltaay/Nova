@@ -1,0 +1,77 @@
+/**
+ * @vitest-environment jsdom
+ */
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SCANNER_ROW_NUM_LABEL } from '../constants';
+import type { ScannerRow } from '../types/scanner';
+import { ScannerTable } from './ScannerTable';
+
+function row(symbol: string): ScannerRow {
+  return {
+    symbol,
+    price: 1.25,
+    prev_close: 1,
+    change_pct: 25,
+    change_abs: 0.25,
+    gap_percent: 25,
+    volume: 1000,
+    rel_volume: null,
+    has_news: false,
+    newest_headline_at: null,
+    market_cap: null,
+    float: null,
+    short_interest: null,
+    short_ratio: null,
+  };
+}
+
+describe('ScannerTable row numbers', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
+  it('numbers displayed rows 1..n and does not treat # as sortable', async () => {
+    const onSort = vi.fn();
+    await act(() => {
+      root.render(
+        <ScannerTable
+          columns={[['symbol', 'Symbol'], ['price', 'Price']]}
+          data={[row('AAA'), row('BBB')]}
+          sortState={{ key: '', dir: null }}
+          onSort={onSort}
+          selectedSymbol={null}
+          onSelect={() => {}}
+          onOpenTrading={() => {}}
+        />,
+      );
+    });
+
+    const headers = [...container.querySelectorAll('thead th')].map(
+      th => th.textContent?.trim() ?? '',
+    );
+    expect(headers[0]).toBe(SCANNER_ROW_NUM_LABEL);
+    expect(container.querySelector('thead th.scanner-row-num-th')).not.toBeNull();
+
+    const nums = [...container.querySelectorAll('td.scanner-row-num')].map(
+      td => td.textContent?.trim(),
+    );
+    expect(nums).toEqual(['1', '2']);
+
+    (container.querySelector('thead th.scanner-row-num-th') as HTMLElement).click();
+    expect(onSort).not.toHaveBeenCalled();
+  });
+});

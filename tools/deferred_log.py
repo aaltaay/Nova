@@ -3,7 +3,12 @@
 
 Usage:
   py -3 tools/deferred_log.py status
+  py -3 tools/deferred_log.py priorities
   py -3 tools/deferred_log.py next-id
+
+`priorities` is an alias of `status`. When the human asks what is on the
+to-do / what is missing / what the priorities are, run this tool -- do not
+invent a second tracker. The file is repo-root DEFERRED_LOG.md.
 """
 
 from __future__ import annotations
@@ -114,8 +119,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="DEFERRED_LOG.md helpers")
     parser.add_argument(
         "command",
-        choices=("status", "next-id"),
-        help="status = ranked open list; next-id = next durable D-NNN",
+        choices=("status", "priorities", "next-id"),
+        help="status/priorities = ranked open list; next-id = next durable D-NNN",
     )
     parser.add_argument(
         "--path",

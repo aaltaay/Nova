@@ -305,9 +305,10 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 
 ### 7.2c DEFERRED_LOG.md
 
-- **Mandatory for every agent** (parent + all specialists). Rule: `.cursor/rules/deferred-log.mdc`.
+- **Mandatory for every agent** (parent + all specialists). Rule: `.cursor/rules/deferred-log.mdc`. File name is `DEFERRED_LOG.md` (repo root) -- this is the features-and-bugs parking lot.
+- **Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search the file for the symptom/module. If a `D-NNN` already covers the ask, work from that entry (honor `parked` / Unblock / Next). Do not start a parallel fix that ignores the page. When the human asks "what's on the to-do / what's missing / priorities," that command is the answer.
 - Prepend (or extend) an entry after parking a known bug or a feature you will not build this session -- same session, same severity as skipping PROBLEM_LOG after a real fix.
-- Use the template in `DEFERRED_LOG.md` (Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence). IDs are durable (`D-001`). Ranked list: `py -3 tools/deferred_log.py status`.
+- Use the template in `DEFERRED_LOG.md` (Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence). IDs are durable (`D-001`). Ranked list: `py -3 tools/deferred_log.py status` or `priorities`.
 - Lifecycle footer **MUST** include `deferred_log=<D-NNN>|none|skipped|n/a`. Agent-memory Backlog is not the SSOT. Product-phase NEXT stays in `Nova-Roadmap-Status.md`.
 
 ### 7.3 .cursor/rules/
@@ -351,7 +352,7 @@ cd frontend && npm run electron:pack
 When ANY error occurs during a task:
 
 1. **STOP** — Do not apply a band-aid.
-2. **Analyze** — Read `PROBLEM_LOG.md` for prior matching entries.
+2. **Analyze** -- Read `PROBLEM_LOG.md` *and* `DEFERRED_LOG.md` (`py -3 tools/deferred_log.py status`) for prior matching entries. If an open/parked `D-NNN` already covers it, work from that entry (or leave it parked) -- do not start a parallel fix.
 3. **Root Cause** — Identify the actual cause, not the symptom.
 4. **Patch** — Fix the root cause in the correct module (not in `main.py`).
 5. **Test** — Verify the fix works (build, run, or test).
@@ -370,6 +371,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-08-31 | DEFERRED_LOG.md is the to-do / what's-missing list (`deferred_log.py status` / `priorities`); agents must search it before any fix; D-010 parked chart Trend Line. | User Directive + Cursor Agent |
 | 2026-08-26 | DEFERRED_LOG.md: parked bugs/features with same respect as PROBLEM_LOG; Lifecycle `deferred_log=`; always-on `deferred-log.mdc`; session brief lists open P0/P1. | User Directive + Cursor Agent |
 | 2026-08-25 | Graphify rule always-on; agents must use `tools/graphify_ask.py` (token-savings meter). Rebuild skill stays on-demand. | User Directive + Cursor Agent |
 | 2026-08-18 | Gateway connection default is live (4001); paper (4002) is fallback. Invariant #7 and §5 updated -- spend gates unchanged; `auto_live` still NO-GO. | User Directive + Cursor Agent |
@@ -471,7 +473,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `engineering-standards.mdc` -- Tailwind direction, tests, CI, deps, patterns
 - `karpathy-guidelines.mdc` -- think / simplify / surgical / verify
 - `problem-log.mdc` -- mandatory PROBLEM_LOG after bug fixes
-- `deferred-log.mdc` -- mandatory DEFERRED_LOG after parking a bug or feature
+- `deferred-log.mdc` -- check DEFERRED_LOG before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
 - `change-log.mdc` -- CHANGELOG after behavior changes
 - `task-log.mdc` -- task-log narrative after material work
 - `commit-push-deploy.mdc` -- commit + push (+ deploy when applicable) at task end

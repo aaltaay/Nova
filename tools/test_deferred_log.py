@@ -120,13 +120,18 @@ def test_cli_status_and_next_id(dl, tmp_path, capsys):
     assert dl.main(["status", "--path", str(path)]) == 0
     out = capsys.readouterr().out
     assert "D-010" in out
+    assert dl.main(["priorities", "--path", str(path)]) == 0
+    assert "D-010" in capsys.readouterr().out
     assert dl.main(["next-id", "--path", str(path)]) == 0
     assert capsys.readouterr().out.strip() == "D-011"
 
 
 def test_live_file_has_seed_ids(dl):
     text = dl.DEFAULT_PATH.read_text(encoding="utf-8")
-    ids = {e["id"] for e in dl.parse_entries(text, section="OPEN")}
+    open_entries = dl.parse_entries(text, section="OPEN")
+    ids = {e["id"] for e in open_entries}
     assert "D-001" in ids
     assert "D-002" in ids
-    assert dl.next_id(text) == "D-003"
+    assert "D-010" in ids
+    nums = [int(e["id"].split("-")[1]) for e in open_entries]
+    assert dl.next_id(text) == f"D-{max(nums) + 1:03d}"
