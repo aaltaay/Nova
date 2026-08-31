@@ -10,8 +10,8 @@
   --line: rgba(255, 255, 255, 0.12);
   --line-strong: rgba(255, 255, 255, 0.22);
   --radius: 14px;
-  --font-display: "Syne", "Segoe UI", sans-serif;
-  --font-body: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-body: "Outfit", "Segoe UI", sans-serif;
   --max: 1120px;
 }
 
@@ -104,9 +104,8 @@ main,
   gap: 10px;
   color: var(--text);
   text-decoration: none;
-  font-family: var(--font-display);
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .nav-links {
@@ -133,8 +132,8 @@ main,
   background: var(--text);
   color: #000;
   text-decoration: none;
+  font-family: var(--font-body);
   font-weight: 600;
-  font-size: 0.88rem;
 }
 
 .cta-git:hover {
@@ -143,16 +142,20 @@ main,
 
 .hero {
   position: relative;
-  min-height: 88vh;
-  display: flex;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(260px, 0.92fr) minmax(300px, 1.08fr);
+  gap: 36px 40px;
   align-items: center;
-  padding: 14vh 8vw 10vh;
+  padding: 40px 8vw 36px;
 }
 
 .hero-media {
   position: absolute;
   inset: 0;
+  z-index: 0;
   overflow: hidden;
+  pointer-events: none;
 }
 
 .hero-photo {
@@ -182,8 +185,38 @@ main,
     linear-gradient(180deg, rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.55));
 }
 
+.hero-copy,
+.hero-frame {
+  position: relative;
+  z-index: 1;
+}
+
 .hero-copy {
-  max-width: 640px;
+  max-width: 36rem;
+}
+
+.hero-frame {
+  margin: 0;
+}
+
+.hero-frame button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--panel);
+  cursor: zoom-in;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+.hero-frame img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  object-position: top left;
 }
 
 .eyebrow {
@@ -199,14 +232,14 @@ main,
 .sec-head h2,
 .source h2 {
   font-family: var(--font-display);
-  font-weight: 750;
-  letter-spacing: -0.03em;
-  line-height: 1.05;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
 }
 
 .hero h1 {
-  margin: 0 0 18px;
-  font-size: clamp(2.4rem, 6vw, 4.4rem);
+  margin: 0 0 16px;
+  font-size: clamp(2.6rem, 5.4vw, 4.15rem);
   text-shadow: 0 12px 40px rgba(0, 0, 0, 0.65);
 }
 
@@ -222,7 +255,7 @@ main,
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
-  margin: 28px 0 16px;
+  margin: 22px 0 0;
 }
 
 .btn-source {
@@ -265,10 +298,10 @@ main,
   padding: 13px 2px;
 }
 
-.hero-note {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
+.hero .lede {
+  color: rgba(245, 245, 247, 0.86);
+  font-size: 1.12rem;
+  max-width: 38ch;
 }
 
 .proof {
@@ -282,22 +315,24 @@ main,
 
 .proof article {
   background: var(--bg);
-  padding: 36px 32px;
+  padding: 22px 28px;
 }
 
 .proof-k {
   margin: 0 0 8px;
   color: var(--accent-2);
-  font-size: 0.75rem;
-  letter-spacing: 0.14em;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  font-weight: 600;
 }
 
 .proof-v {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   font-family: var(--font-display);
-  font-size: 1.35rem;
-  font-weight: 650;
+  font-size: clamp(1.35rem, 2vw, 1.7rem);
+  font-weight: 400;
 }
 
 .proof-d {
@@ -309,7 +344,7 @@ main,
 .desk,
 .features,
 .source {
-  padding: 88px 8vw;
+  padding: 56px 8vw;
 }
 
 .sec-head {
@@ -401,7 +436,8 @@ main,
 .feat h3 {
   margin: 0 0 10px;
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.45rem;
+  font-weight: 400;
 }
 
 .feat p {
@@ -512,7 +548,8 @@ main,
 
   .proof,
   .feat-grid,
-  .gallery {
+  .gallery,
+  .hero {
     grid-template-columns: 1fr;
   }
 
@@ -521,8 +558,7 @@ main,
   }
 
   .hero {
-    min-height: auto;
-    padding-top: 12vh;
+    padding: 28px 22px 24px;
   }
 
   .source-card,

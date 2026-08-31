@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-31 -- Marketing hero fills the first screen
+
+- **What:** The public `site/` hero is a two-column layout: headline + CTAs on the left, Trader View screenshot on the right. Headlines use Instrument Serif; UI copy uses Outfit. The first viewport is no longer a blank dark field.
+- **Why:** The hero media overlay painted on top of the copy (no z-index), and `min-height: 88vh` left a huge empty band. The previous Syne / IBM Plex pair also looked generic.
+- **Files touched:** `site/index.html`, `site/styles.css`
+- **How it works now:** `.hero-media` is `z-index: 0`; copy and frame are `z-index: 1`. Hero height follows content (~470px at 1440x900), not 88vh. Proof labels are larger. Desk heading dropped the "not a hosted demo" line.
+- **Verified by:** Playwright 1440x900: `elementFromPoint` hits the h1 (`Instrument Serif`); body is Outfit; hero height 472px; lightbox opens from the hero frame. Mobile 390px: h1 still hit-tested.
+- **Related:** PROBLEM_LOG 2026-08-31 marketing hero overlay
+
 ## 2026-08-31 -- Drop the "sanitized snapshot" copy on the public page
 
 - **What:** The Source block on `site/` is just the Nova-public GitHub button. The "sanitized snapshot / clone / Run Nova.bat / no cloud backend" paragraph is gone.

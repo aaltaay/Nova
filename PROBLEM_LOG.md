@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-31 -- Marketing hero looked empty; headline was under the overlay
+
+- **Symptom:** First screen of `nova.altaystudio.com` was nav + a dark void + the FEED/HOME/CONTROL strip. Headline and CTAs were missing to the eye.
+- **Cause:** `.hero-media` was `position: absolute; inset: 0` with no z-index, so it painted on top of in-flow `.hero-copy`. Playwright still found the h1 in the a11y tree. Combined with `min-height: 88vh`, the overlay-owned band read as empty space.
+- **Fix:** `isolation: isolate` on `.hero`; media `z-index: 0`; copy and screenshot frame `z-index: 1`. Dropped the 88vh min-height; two-column hero with the Trader shot. New type: Instrument Serif + Outfit.
+- **Fix class:** surfacing
+- **Keywords:** marketing, landing, site/, hero overlay, z-index, empty space, fonts, Instrument Serif, Outfit
+
 ## 2026-08-31 -- XAIR (IB gainer rank 3, ~30% up) never reached Gappers -- alphabetical tie-break starved L1
 
 - **Symptom:** User reported XAIR up ~30% but absent from Gappers. `/api/movers` showed XAIR admitted on the Gainers roster at IB rank 3 with `price: null`; `/api/scan/integrity` reported `pass` throughout (`gappers: 11/11 rows priced`).
