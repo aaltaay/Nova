@@ -77,6 +77,16 @@ describe('module registry (Phase 4)', () => {
     expect(getModule('dashboard')).toBeUndefined();
   });
 
+  it('registers Earnings as a calendar tab with no scanner feed dependency', () => {
+    const earnings = getModule('earnings');
+    expect(earnings?.title).toBe('Earnings');
+    expect(earnings?.defaultPlacement).toBe('tab');
+    expect(earnings?.feedDeps).toEqual(['none']);
+    expect(earnings?.countKey).toBe('earnings');
+    expect(listTabModules().map(t => t.id)).toContain('earnings');
+    expect(tabUsesScannerPricePatch('earnings')).toBe(false);
+  });
+
   it('registers Running Up as a sibling tab of HOD Momo', () => {
     const hod = getModule('hod_momo');
     const ru = getModule('running_up');

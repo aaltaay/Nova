@@ -77,6 +77,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
    - A slow IB loop blocks the desk honestly. It never auto-kills the process (`API_WEDGED` must not call `startLocalApi` / Electron `restartApi` once Task 4 ships).
    - Do not move `connectAsync` onto a new thread during a live `NOVA_API_RELOAD=1` session.
 
+10. **Earnings tab is calendar metadata, not a price feed.** `backend/earnings_calendar.py` fetches Finnhub's `/calendar/earnings` (symbol, date, BMO/AMC session, EPS/revenue estimate + actual) -- no IBKR `reqScannerSubscription` lease, no `/ws/scanner` price stream, and no HOD Momo admission (same carve-out as Large Cap, ADR 008). Company name/sector/market cap are decorated read-time from the existing yfinance fundamentals cache (cache-only, background-warmed by `earnings_enrich_hooks.py`) -- never a blocking per-row Yahoo call. Implied move / IV / surprise-% are **not computed** -- Finnhub's free calendar has no options data; do not invent a formula. A ticker click opens Trader the same way every other scanner ticker does (`SymbolSelectButton` -> `onOpenTrading`, ADR 011).
+
 ## Anti-patterns
 
 - ❌ Keeping previous `detail` while loading the next ticker so L2 stays on NXTC under an MVO quote
@@ -112,6 +114,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Letting scanner L1 last upserts rewrite a hist-owned `bars_intraday` candle (same `(symbol, timeframe, ts)` -- volume is not ownership; IB hist minutes can be volume=0)
 - ❌ A client-side scanner filter (exchange, watch, etc.) dropping a row because a metadata field is unknown -- unknown must fail open, and a real narrowing must show a visible hidden-count, not a quiet empty table (2026-08-25: NASDAQ-only default + drop-on-unknown blanked 31 gappers/50 gainers to 1 row with no on-screen cause)
 - ❌ Starting a second `uvicorn` / `run_api.py` while one already holds `:8000` and clientId 17 (Error 326, session stuck `connecting`, door trail `Failed to fetch`)
+- ❌ Opening an IBKR scanner lease, streaming L1, or admitting Earnings-tab symbols into HOD Momo -- it is a Finnhub calendar list, not a discovery table
+- ❌ Inventing implied move / IV / surprise-% for the Earnings tab from price alone -- Finnhub's free calendar has no options data
 
 ## Related
 
@@ -128,6 +132,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - `backend/ibkr/ticks.py` — shared owner-aware `reqMktData` (detail / scanner / HOD)
 - `backend/ibkr/reprice.py` — detail backstop only (cold snapshots, not table SLA)
 - `backend/ibkr/tape_stream.py` — `reqTickByTickData AllLast` subscriber
+- `backend/earnings_calendar.py` -- Finnhub calendar fetch/cache; `earnings_enrich_hooks.py` -- background yfinance name/sector/mcap warm
 - `backend/scanner_push.py` — `/ws/scanner` + `set_active_tab`
 - `frontend/src/hooks/useTickerStream.ts`, `useIbkrDepth.ts`, `useIbkrTape.ts`, `useScannerPriceStream.ts`
 - `frontend/src/utils/dataSourceMap.ts` — honest attribution

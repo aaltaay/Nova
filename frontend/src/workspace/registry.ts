@@ -32,6 +32,7 @@ export type ModuleCountKey =
   | 'losers'
   | 'afterhours'
   | 'largeCap'
+  | 'earnings'
   | 'catalysts'
   | 'hodMomo'
   | 'runningUp'
@@ -44,6 +45,7 @@ export const TAB_MODULE_IDS = [
   'losers',
   'afterhours',
   'large_cap',
+  'earnings',
   'catalysts',
   'hod_momo',
   'running_up',
@@ -127,6 +129,18 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     defaultPlacement: 'tab',
     showInTabNav: true,
     countKey: 'largeCap',
+  },
+  {
+    id: 'earnings',
+    title: 'Earnings',
+    component: host,
+    // Finnhub calendar metadata -- not an IBKR scanner lease, no /ws/scanner
+    // price stream (single-market-data-feed.mdc). Prices chip must not claim
+    // this tab is covered by that feed.
+    feedDeps: ['none'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    countKey: 'earnings',
   },
   {
     id: 'catalysts',

@@ -70,6 +70,33 @@ def _large_cap_cache_root() -> str:
 # POST /api/large-cap/config (persisted-state.mdc).
 LARGE_CAP_CONFIG_FILE = _os.path.join(_large_cap_cache_root(), "large-cap-config.json")
 
+# ── Earnings calendar (Finnhub) -- Earnings tab, NOT an IBKR scanner lease ──
+# Same carve-out as Large Cap: no reqScannerSubscription, no HOD admission
+# (single-market-data-feed.mdc). Implied move / IV are NOT computed -- Finnhub's
+# free calendar has no options data; do not invent a formula for it.
+EARNINGS_CALENDAR_SCHEMA_VERSION = 1
+EARNINGS_CALENDAR_TTL_SEC = 900.0           # 15 min -- Finnhub free tier is rate-limited
+EARNINGS_CALENDAR_WINDOW_DAYS = 31          # widest window fetched/cached at once ("This month")
+EARNINGS_CALENDAR_HTTP_TIMEOUT_SEC = 8.0
+FINNHUB_EARNINGS_URL = "https://finnhub.io/api/v1/calendar/earnings"
+EARNINGS_CALENDAR_RANGES = ("today", "tomorrow", "week", "month")
+EARNINGS_LANE_PREVIEW_CAP = 8                # cards shown per BMO/AMC lane before "+N"
+
+
+def _earnings_calendar_cache_root() -> str:
+    return (
+        _os.environ.get("NOVA_CACHE_DIR")
+        or _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
+        or _os.path.join(_os.path.dirname(__file__), ".cache")
+    )
+
+
+# Owner: earnings_calendar.py. Invalidation trigger: TTL expiry, or process
+# restart re-reading this snapshot (persisted-state.mdc).
+EARNINGS_CALENDAR_CACHE_FILE = _os.path.join(
+    _earnings_calendar_cache_root(), "earnings-calendar.json"
+)
+
 # ── Client error telemetry (browser → API) ─────────────────────────────────
 CLIENT_ERRORS_ENABLED = True
 CLIENT_ERRORS_MAX_BODY_BYTES = 16_384

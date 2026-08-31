@@ -1,0 +1,180 @@
+/** Earnings tab -- day bands + BEFORE OPEN / AFTER CLOSE card lanes (1c layout).
+ * Reuses shell tokens (tokens-shell.css) -- dark desk, not the wireframe's
+ * paper/light mock theme. */
+
+.earnings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.5rem 0.25rem 1rem;
+}
+
+.earnings-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.earnings-panel__ranges {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.earnings-panel__range {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.earnings-panel__range.active {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+.earnings-panel__count {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.earnings-panel__days {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.earnings-day-band__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-control);
+}
+
+.earnings-day-band__date {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.earnings-day-band__count {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.earnings-day-band__lanes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.earnings-lane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.earnings-lane__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.earnings-lane__count {
+  font-family: var(--mono-font, monospace);
+  opacity: 0.7;
+}
+
+.earnings-lane__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.earnings-lane__more {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--accent-color);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0.15rem 0;
+}
+
+.earnings-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-control);
+  background: var(--card-bg);
+  cursor: pointer;
+}
+
+.earnings-card:hover {
+  background: var(--hover-bg);
+}
+
+.earnings-card--selected {
+  border-color: var(--accent-color);
+}
+
+.earnings-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.earnings-card__name {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.earnings-card__meta {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.earnings-card__eps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  text-align: right;
+  font-size: 0.78rem;
+  color: var(--text-primary);
+}
+
+.earnings-card__eps-row {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.earnings-card__eps-label {
+  color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+  .earnings-day-band__lanes {
+    grid-template-columns: 1fr;
+  }
+}

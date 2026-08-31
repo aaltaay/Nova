@@ -6,6 +6,7 @@
 import { ScannerTabPanels } from './ScannerTabPanels';
 import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
+import { EarningsPanel } from '../earnings/EarningsPanel';
 import { getModule, type ActiveTab } from '../workspace/registry';
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
@@ -38,6 +39,10 @@ export type TabModuleHostProps = {
   /** ADR 008 — per-table freeze/session metadata, keyed by table name. */
   tableMeta?: Record<string, ScannerTableMeta>;
   historyDate?: string | null;
+  /** Sample dashboard is fixtures-only and must never mount a live fetch
+   * (see SampleDashboardPage header comment) -- Earnings self-fetches via
+   * useEarningsCalendar, so it is the one tab that needs this flag. */
+  sampleMode?: boolean;
 };
 
 const SCANNER_TABS = new Set([
@@ -76,6 +81,7 @@ export function TabModuleHost(props: TabModuleHostProps) {
     nowSec = 0,
     tableMeta = {},
     historyDate = null,
+    sampleMode = false,
   } = props;
 
   // Defensive: HOD / Running Up are dock-only; never blank the main column.
@@ -131,6 +137,19 @@ export function TabModuleHost(props: TabModuleHostProps) {
         error={watchlistError}
         selectedSymbol={selectedSymbol}
         onSelectSymbol={onSelect}
+        onOpenTrading={onOpenTrading}
+      />
+    );
+  }
+
+  if (activeTab === 'earnings') {
+    if (sampleMode) {
+      return <div className="empty-state">Earnings calendar is not available in Sample Data mode.</div>;
+    }
+    return (
+      <EarningsPanel
+        selectedSymbol={selectedSymbol}
+        onSelect={onSelect}
         onOpenTrading={onOpenTrading}
       />
     );

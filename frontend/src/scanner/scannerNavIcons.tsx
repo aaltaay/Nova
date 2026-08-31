@@ -54,6 +54,14 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M7 15l3-4 3 2 4-6" />
     </Icon>
   ),
+  earnings: (
+    <Icon>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 8h8" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
+    </Icon>
+  ),
   catalysts: (
     <Icon>
       <path d="M4 6h12" />

@@ -22,6 +22,7 @@ _fundamentals_cache: dict[str, dict] = {}
 _fundamentals_cache_ts: dict[str, float] = {}
 
 _EMPTY: dict = {
+    "company_name": None,
     "market_cap": None,
     "shares_outstanding": None,
     "float_shares": None,
@@ -122,6 +123,7 @@ def fetch_fundamentals(symbol: str) -> dict:
             estimated = bool(estimated)
 
         fundamentals = {
+            "company_name": info.get("longName") or info.get("shortName"),
             "market_cap": info.get("marketCap"),
             "shares_outstanding": info.get("sharesOutstanding"),
             "float_shares": info.get("floatShares"),

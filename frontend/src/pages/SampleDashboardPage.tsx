@@ -123,6 +123,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
               flashSymbols={{}}
               rowQuoteTs={{}}
               nowSec={Date.now() / 1000}
+              sampleMode
             />
           </main>
         </SelectedScannerWidget>

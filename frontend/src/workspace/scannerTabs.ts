@@ -13,6 +13,7 @@ export function isMainScannerTab(tab: ActiveTab): boolean {
     || tab === 'losers'
     || tab === 'afterhours'
     || tab === 'large_cap'
+    || tab === 'earnings'
     || tab === 'catalysts'
     || tab === 'watchlist'
     || tab === 'trading'

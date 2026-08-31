@@ -77,6 +77,25 @@ export const EARNINGS_DOT_SESSION_INTRADAY = 'intraday';
 export const EARNINGS_DOT_ESTIMATED = 'estimated';
 export const EARNINGS_DOT_EMPTY_TITLE = 'No earnings date';
 
+/** Earnings tab (calendar metadata, not an IBKR scanner lease -- see
+ * single-market-data-feed.mdc). Range chips + lane truncation + poll cadence. */
+export const EARNINGS_RANGES = ['today', 'tomorrow', 'week', 'month'] as const;
+export const EARNINGS_RANGE_LABELS: Record<string, string> = {
+  today: 'Today',
+  tomorrow: 'Tomorrow',
+  week: 'This week',
+  month: 'This month',
+};
+export const EARNINGS_LANE_PREVIEW_CAP = 8;
+export const EARNINGS_POLL_MS = 60_000;
+export const EARNINGS_SESSION_LABELS: Record<string, string> = {
+  bmo: 'Before open',
+  amc: 'After close',
+  intraday: 'Intraday',
+};
+export const EARNINGS_NO_KEY_MESSAGE =
+  'Finnhub is not configured -- set FINNHUB_API_KEY in .env to load the earnings calendar.';
+
 /** HOD Strategies filter dropdown — tall enough to show most strategies without scroll. */
 export const HOD_STRATEGY_FILTER_MAX_HEIGHT_PX = 520;
 
