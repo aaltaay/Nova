@@ -33,6 +33,13 @@ def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
     ``None`` (not ``0.0``) for every price field so the UI can render "waiting
     for L1" instead of a fabricated flat quote. ``exchange`` comes free from
     the same IB scan row (``contract.primaryExchange``) -- no extra IB call.
+
+    ``admitted_ts`` is stamped once, here, and carried forward untouched by
+    every later rank/reprice merge (``hydrate_rows`` and ``reprice_mover_row``
+    both spread the prior row with ``{**prior, ...}``). ``roster_ts`` gets
+    rewritten on every IB scanner push, so it can never age past the
+    coverage grace on a busy table -- ``admitted_ts`` is the per-row clock
+    integrity needs to tell "just admitted" apart from "starved for L1".
     """
     return {
         "symbol": sym,
@@ -44,6 +51,7 @@ def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
         "gap_percent": None,
         "volume": 0,
         "exchange": exchange,
+        "admitted_ts": time.time(),
     }
 
 

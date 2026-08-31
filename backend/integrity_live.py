@@ -93,21 +93,35 @@ def build_hod_integrity_report() -> dict[str, Any]:
 
 
 def _row_price_coverage(state: Any) -> list[dict[str, Any]]:
-    """Priced-row coverage for every *displayed* live scanner table.
+    """Priced-row coverage for every *displayed* live scanner table, plus
+    Gainers whenever Gappers is displayed and live.
 
     Scoped to the tables clients declare via ``set_active_tab``: a live table
     nobody is displaying gets no scanner-owner L1 by design (bounded L1, see
     single-market-data-feed.mdc), so judging it would fail loudly on correct
-    behavior. A declared live table with unpriced rows is the real starvation
-    signal.
+    behavior. Gainers is the one exception -- premarket Gappers is a filtered
+    *projection* of the Gainers roster (``ibkr/gapper_view.py``), so an
+    unpriced Gainers row is exactly what keeps a fresh gapper from ever
+    reaching the Gappers table, even while every row Gappers itself displays
+    is fully priced (2026-08-31: Gappers read 11/11 priced while IB's #3
+    gainer, XAIR, had no quote at all -- PROBLEM_LOG).
+
+    Age comes from the oldest *unpriced* row's ``admitted_ts`` (stamped once
+    by ``ibkr/scanner_hydrate.stub_row``) when one exists, not ``roster_ts``:
+    a busy table gets ``roster_ts`` rewritten on every IB scanner push, so it
+    can never age past the admission grace window on its own.
     """
     import scanner_tab_registry as _tabs
     from ibkr import scanner_session as _ss
     from runtime_state.state import TABLE_STATE_LIVE
 
+    tables = list(_tabs.get_active_tables())
+    if _ss.TABLE_GAPPERS in tables and _ss.TABLE_GAINERS not in tables:
+        tables.append(_ss.TABLE_GAINERS)
+
     out: list[dict[str, Any]] = []
     now = time.time()
-    for table in _tabs.get_active_tables():
+    for table in tables:
         try:
             meta = _ss.table_attr(state, table)
             rows_attr, _ = _ss.cache_attr_names(table)
@@ -119,11 +133,20 @@ def _row_price_coverage(state: Any) -> list[dict[str, Any]]:
         if not rows:
             continue
         priced = sum(1 for r in rows if r.get("price") is not None)
+        unpriced_ages = [
+            now - float(r["admitted_ts"])
+            for r in rows
+            if r.get("price") is None and r.get("admitted_ts")
+        ]
+        age = (
+            max(unpriced_ages) if unpriced_ages
+            else (max(0.0, now - float(meta.roster_ts)) if meta.roster_ts else None)
+        )
         out.append({
             "table": table,
             "rows": len(rows),
             "priced": priced,
-            "roster_age_sec": max(0.0, now - float(meta.roster_ts)) if meta.roster_ts else None,
+            "roster_age_sec": age,
         })
     return out
 

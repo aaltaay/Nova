@@ -15,8 +15,10 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from constants import (
+    HOD_MOMO_ACTIVE_DISCOVERY_SLOTS,
     HOD_MOMO_ACTIVE_HOT_PER_TICK,
     HOD_MOMO_ACTIVE_SET_CAPACITY,
+    HOD_MOMO_DISCOVERY_HOLD_SEC,
     HOD_MOMO_FORMER_MOMO_MAX_SLOTS,
     HOD_MOMO_INTEGRITY_ACTIVE_EVAL_MAX_SEC,
     HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC,
@@ -34,6 +36,11 @@ _uncovered_symbols: list[str] = []
 # symbol → unix deadline; set when IBKR L1 subscribe/qualify fails
 _l1_fail_until: dict[str, float] = {}
 _tail_rotate = 0
+# Discovery-quota bookkeeping (score=0.0 rows only, see build_active_set):
+# symbol → when it first took a discovery slot, and symbol → cooldown
+# deadline once it has yielded that slot without ever pricing up.
+_discovery_since: dict[str, float] = {}
+_discovery_cooldown_until: dict[str, float] = {}
 
 
 @dataclass
@@ -128,6 +135,8 @@ def clear_session_state() -> None:
     _universe_entry_ts.clear()
     _priority_reason.clear()
     _l1_fail_until.clear()
+    _discovery_since.clear()
+    _discovery_cooldown_until.clear()
     _active_symbols = []
     _uncovered_symbols = []
     _tail_rotate = 0
@@ -158,18 +167,60 @@ def _ordered_unique(symbols: Iterable[str]) -> list[str]:
     return out
 
 
+def _row_rank(row: dict) -> float:
+    """IB's own scanner rank, or +inf when the row carries none."""
+    raw = row.get("rank")
+    if raw is None:
+        return float("inf")
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return float("inf")
+
+
 def _ranked_symbols(rows: Iterable[dict] | None) -> list[str]:
-    """Rows ranked by magnitude of move, hottest first (ties by symbol)."""
-    ranked: list[tuple[float, str]] = []
+    """Rows ranked by magnitude of move, hottest first.
+
+    Ties (most commonly every still-unpriced row, score 0.0) break on IB's
+    own scanner rank, not the symbol string -- sorting unpriced rows
+    alphabetically is what buried XAIR (IB gainer rank 3) behind BY/CNTB/ECF
+    on 2026-08-31 (PROBLEM_LOG). Rank is also the ordering the discovery
+    quota below uses for rows no score has reached yet.
+    """
+    ranked: list[tuple[float, float, str]] = []
     seen: set[str] = set()
     for row in rows or []:
         sym = (row.get("symbol") or "").strip().upper()
         if not sym or sym in seen:
             continue
         seen.add(sym)
-        ranked.append((_row_score(row), sym))
-    ranked.sort(key=lambda t: (-t[0], t[1]))
-    return [sym for _score, sym in ranked]
+        ranked.append((_row_score(row), _row_rank(row), sym))
+    ranked.sort(key=lambda t: (-t[0], t[1], t[2]))
+    return [sym for _score, _rank, sym in ranked]
+
+
+def _discovery_candidates(rows_lists: Iterable[Iterable[dict] | None]) -> list[str]:
+    """Still-unpriced (score 0.0) symbols across every table, IB rank first.
+
+    A row with a real score already competes for a normal round-robin slot
+    on merit -- this pool exists only for rows no L1 tick has reached yet,
+    which ``_row_score`` cannot otherwise distinguish from "legitimately
+    quiet" (both score 0.0). IB rank is the only signal that still exists for
+    those rows, so it decides discovery order.
+    """
+    ranked: list[tuple[float, str]] = []
+    seen: set[str] = set()
+    for rows in rows_lists:
+        for row in rows or []:
+            sym = (row.get("symbol") or "").strip().upper()
+            if not sym or sym in seen:
+                continue
+            seen.add(sym)
+            if _row_score(row) != 0.0:
+                continue
+            ranked.append((_row_rank(row), sym))
+    ranked.sort(key=lambda t: (t[0], t[1]))
+    return [sym for _rank, sym in ranked]
 
 
 def build_active_set(
@@ -179,18 +230,25 @@ def build_active_set(
     afterhours_rows: Iterable[dict] | None = None,
     priority_symbols: Iterable[str] | None = None,
     capacity: int = HOD_MOMO_ACTIVE_SET_CAPACITY,
+    now: float | None = None,
 ) -> ActiveSetSnapshot:
     """Deterministic bounded admission — the ADR 008 HOD union.
 
     1. Manual Former Momo (``priority_symbols``) admitted first, in list
        order, up to ``HOD_MOMO_FORMER_MOMO_MAX_SLOTS``. Excess former symbols
        are uncovered with reason ``former_momo_over_cap``.
-    2. Remaining capacity fills via deterministic round-robin across ranked
+    2. Up to ``HOD_MOMO_ACTIVE_DISCOVERY_SLOTS`` still-unpriced rows admitted
+       next, ranked by IB scan rank, so a fully-priced roster can never
+       permanently starve a brand-new name of its first L1 tick (2026-08-31
+       XAIR: 40 already-priced rows filled every ordinary slot before an
+       unpriced row -- however it was ranked -- was ever reached).
+    3. Remaining capacity fills via deterministic round-robin across ranked
        Gappers / Gainers / Afterhours queues (hottest-in-category first),
        so no single table can monopolize every slot.
     """
     global _active_symbols, _uncovered_symbols
 
+    wall = float(now if now is not None else time.time())
     cap = max(1, int(capacity))
     former_cap = max(0, min(int(HOD_MOMO_FORMER_MOMO_MAX_SLOTS), cap))
     active: list[str] = []
@@ -218,6 +276,35 @@ def build_active_set(
             continue
         if _take(s, "former_momo"):
             former_taken += 1
+
+    candidates = _discovery_candidates((gapper_rows, gainer_rows, afterhours_rows))
+    candidate_set = set(candidates)
+    for sym in list(_discovery_since):
+        if sym not in candidate_set:
+            _discovery_since.pop(sym, None)
+    discovery_slots = max(0, min(int(HOD_MOMO_ACTIVE_DISCOVERY_SLOTS), cap - len(active)))
+    discovery_taken = 0
+    for sym in candidates:
+        if discovery_taken >= discovery_slots:
+            break
+        if sym in seen or is_l1_subscribe_blocked(sym):
+            continue
+        cooldown = _discovery_cooldown_until.get(sym)
+        if cooldown is not None:
+            if wall < cooldown:
+                continue
+            _discovery_cooldown_until.pop(sym, None)
+        since = _discovery_since.get(sym)
+        if since is not None and (wall - since) > float(HOD_MOMO_DISCOVERY_HOLD_SEC):
+            # Held a slot this long with no price ever landing -- yield it to
+            # the next candidate and cool down before trying again.
+            _discovery_since.pop(sym, None)
+            _discovery_cooldown_until[sym] = wall + float(HOD_MOMO_DISCOVERY_HOLD_SEC)
+            continue
+        if _take(sym, "discovery"):
+            if since is None:
+                _discovery_since[sym] = wall
+            discovery_taken += 1
 
     queues: dict[str, list[str]] = {
         "gapper": _ranked_symbols(gapper_rows),

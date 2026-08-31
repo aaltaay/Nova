@@ -9,7 +9,11 @@ from __future__ import annotations
 import inspect
 
 import hod_momo_active as active
-from constants import HOD_MOMO_FORMER_MOMO_MAX_SLOTS
+from constants import (
+    HOD_MOMO_ACTIVE_DISCOVERY_SLOTS,
+    HOD_MOMO_DISCOVERY_HOLD_SEC,
+    HOD_MOMO_FORMER_MOMO_MAX_SLOTS,
+)
 
 
 def test_former_momo_always_admitted_first():
@@ -153,6 +157,87 @@ def test_l1_subscribe_fail_excludes_symbol_from_admission():
     )
     assert "FRE" not in snap.active
     assert "AAA" in snap.active
+
+
+def test_discovery_quota_admits_unpriced_rows_a_full_priced_roster_would_starve():
+    """2026-08-31 XAIR bug: 34 already-priced gainers (nonzero score) fill
+    every ordinary round-robin slot before an unpriced row is ever reached.
+    The discovery quota must still carve room for the unpriced rows."""
+    active.clear_session_state()
+    priced = [
+        {"symbol": f"P{i:02d}", "change_pct": 100 - i, "rank": i + 1}
+        for i in range(40)
+    ]
+    unpriced = [{"symbol": "XAIR", "rank": 3}]
+    snap = active.build_active_set(gainer_rows=priced + unpriced, capacity=40)
+    assert "XAIR" in snap.active
+    assert snap.reasons.get("XAIR") == "discovery"
+
+
+def test_discovery_quota_orders_candidates_by_ib_rank_not_alphabet():
+    """More unpriced candidates than discovery slots -- IB rank (not the
+    symbol string) decides which ones win the shared quota."""
+    active.clear_session_state()
+    unpriced = [
+        {"symbol": "AAAA", "rank": 80},
+        {"symbol": "BBBB", "rank": 70},
+        {"symbol": "CCCC", "rank": 60},
+        {"symbol": "DDDD", "rank": 50},
+        {"symbol": "XAIR", "rank": 3},
+        {"symbol": "YDDL", "rank": 4},
+        {"symbol": "ZOOZ", "rank": 90},
+        {"symbol": "WETO", "rank": 6},
+    ]
+    # Capacity == the discovery quota itself so the round-robin fallback has
+    # no leftover room to admit the losing candidates a second way.
+    snap = active.build_active_set(
+        gainer_rows=unpriced, capacity=HOD_MOMO_ACTIVE_DISCOVERY_SLOTS,
+    )
+    admitted = {s["symbol"] for s in unpriced if s["symbol"] in snap.active}
+    expected = {
+        r["symbol"]
+        for r in sorted(unpriced, key=lambda r: r["rank"])[:HOD_MOMO_ACTIVE_DISCOVERY_SLOTS]
+    }
+    assert admitted == expected
+    assert "XAIR" in admitted
+    assert "ZOOZ" not in admitted  # worst rank of the eight
+
+
+def test_discovery_slot_yields_to_next_candidate_after_hold_timeout():
+    """A discovery-admitted symbol that never prices up must not squat its
+    slot forever -- it yields to the next unpriced-by-rank candidate."""
+    active.clear_session_state()
+    unpriced = [
+        {"symbol": "STUCK", "rank": 1},
+        {"symbol": "NEXT", "rank": 2},
+    ]
+    t0 = 1_000_000.0
+    snap1 = active.build_active_set(gainer_rows=unpriced, capacity=1, now=t0)
+    assert snap1.active == ["STUCK"]
+
+    still_within_hold = active.build_active_set(
+        gainer_rows=unpriced, capacity=1, now=t0 + 1.0,
+    )
+    assert still_within_hold.active == ["STUCK"]
+
+    past_hold = active.build_active_set(
+        gainer_rows=unpriced,
+        capacity=1,
+        now=t0 + HOD_MOMO_DISCOVERY_HOLD_SEC + 1.0,
+    )
+    assert past_hold.active == ["NEXT"]
+
+
+def test_zero_score_row_ranked_by_ib_rank_when_no_discovery_quota_left():
+    """Once a row actually prices up it drops out of the discovery pool and
+    competes on ranked score like any other row -- unaffected by discovery."""
+    active.clear_session_state()
+    gainers = [
+        {"symbol": "HOT", "change_pct": 0.5, "rank": 1},
+        {"symbol": "WARM", "change_pct": 0.2, "rank": 2},
+    ]
+    snap = active.build_active_set(gainer_rows=gainers, capacity=2)
+    assert snap.active == ["HOT", "WARM"]
 
 
 def test_demoted_active_symbol_clears_stale_quote_age():

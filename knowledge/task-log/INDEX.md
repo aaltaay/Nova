@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-31 | [Fix L1 starvation that hid new gappers (XAIR)](2026-08-31-xair-l1-starvation-fix.md) | Fix L1 starvation that hid new gappers (XAIR) |
 | 2026-08-31 | [IBKR session watchdog: self-heal a frozen dialer](2026-08-31-ibkr-session-watchdog.md) | IBKR session watchdog: self-heal a frozen dialer |
 | 2026-08-28 | [Park after-hours VWAP convention (D-007)](2026-08-28-vwap-afterhours-convention.md) | No universal AH rule; Nova stays frozen at 16:00 until a live Webull compare; do not invent |
 | 2026-08-28 | [Chart VWAP starts at premarket 04:00](2026-08-28-vwap-premarket-anchor.md) | Session VWAP now includes 04:00-09:30 volume; 09:30-only was the wrong product for this desk |

@@ -61,6 +61,22 @@ Entry template (copy and fill in):
 
 <!-- OPEN_START -->
 
+## D-009 -- Ticker cold snapshot returns empty for a symbol chart bars fetch fine
+
+- **Status:** open
+- **Kind:** bug
+- **Severity:** P2
+- **Effort:** M
+- **Domain:** market-feed
+- **User-visible:** yes (Stock View / ticker detail can show an empty quote for a symbol that is trading fine)
+- **Logged:** 2026-08-31
+- **Why parked:** Found while diagnosing the XAIR "not on Gappers" report. The scanner-side L1 starvation (separate root cause) was fixed and verified this session; this ticker-detail cold-snapshot path is a different code path (`ticker_ibkr.py`) that this session did not trace to a root cause.
+- **Blast radius:** `GET /api/ticker/{symbol}` can return `snapshot: {}` (and `avg_volume`/`rel_volume: None`) for a symbol whose 1Min bars are fetching correctly via `reqHistoricalData` (5 fresh bars, real volume) at the same moment. `ticker_ibkr._price_from_l1_stream` and `_price_from_chart_bars` both apparently returned `None` too, since the code fell through to the slow `snapshot_quotes` cold path, which then failed with a blank exception message (`ticker IBKR snapshot failed for XAIR: `).
+- **Unblock:** Reproduce on a currently-live symbol with the same shape (has bars, no scanner L1 owner yet) and add a non-blank exception message/traceback at the `logger.warning` call in `ticker_ibkr.py` (currently logs `%s` on an exception whose `str()` is empty) so the actual IB error surfaces.
+- **Next:** Read `ticker_ibkr.py` around the cold `snapshot_quotes` fallback (roughly lines 110-150), reproduce with a symbol not in any active L1 pool, and get a non-empty exception detail before deciding whether the fix belongs in `ibkr/discovery.snapshot_quotes` or the fallback ordering in `ticker_ibkr.py`.
+- **Evidence:** `backend/logs/api-console.log` 2026-08-31 08:06:03 -- `WARNING ticker_ibkr ticker IBKR snapshot failed for XAIR: ` (empty message) immediately followed by `WARNING ticker_detail ticker REST: IBKR snapshot empty for XAIR - returning empty (no Alpaca fallback)`. Same minute, `GET /api/ticker/XAIR/bars?timeframe=1Min` returned 5 real bars (`c=5.7, v=302768` on the last one). `GET /api/ticker/XAIR` returned `{"snapshot": {}, "avg_volume": null, "rel_volume": null, ...}`.
+- **Keywords:** ticker_ibkr, snapshot_quotes, cold snapshot, empty exception, XAIR, Stock View, blank error message
+
 ## D-008 -- Earnings-day-offset test fails; sentiment model import segfaults full suite
 
 - **Status:** open
@@ -74,6 +90,7 @@ Entry template (copy and fill in):
 - **Unblock:** (1) Read `mover_evaluate.decorate_rows`'s earnings-day-offset calc against the `2026-08-27` fixture case to find why 0-day offset resolves to `None`. (2) Pin/repair the local torch/torchvision/transformers install (DLL version mismatch is the classic cause of `0xc0000139`) or lazy-guard the sentiment pipeline import so a broken native extension degrades to no-sentiment instead of crashing the process.
 - **Next:** Reproduce each in isolation (`py -3 -m pytest backend/tests/test_mover_columns.py::test_decorate_rows_attaches_earnings_window -q` and the news_impact test alone) and decide whether the torch crash needs a `try/except` import guard in `news/sentiment.py` or a local env fix.
 - **Evidence:** `py -3 -m pytest -q` from `backend/`, 2026-08-31 -- 1446 passed, 1 failed (`test_mover_columns.py`), plus the printed native traceback during `test_news_impact.py::test_fresh_bucket_boundary`. Neither `backend/news/`, `backend/mover_evaluate.py`, nor their tests were modified this session (`git status --porcelain` on those paths is empty).
+- **Update (2026-08-31, later session, XAIR L1-starvation fix):** Reconfirmed independently. `test_decorate_rows_attaches_earnings_window` passes every time run alone or as the only test in its file, but fails deterministically inside the full-suite run (order-dependent state leak, not a torch/transformers crash this time -- `1456 passed, 1 failed` with no native traceback). Confirmed it fails identically with this session's `hod_momo_active.py` / `scanner_hydrate.py` / `integrity_live.py` changes stashed out, so it is pre-existing test-isolation, not caused by either session's product code. Likely culprit: some earlier test in suite order mutates a module-global (`_fundamentals_cache`, or a memoized earnings/day-offset calc) that `mover_evaluate.decorate_rows` reads without a per-test reset.
 
 ## D-007 -- After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset
 

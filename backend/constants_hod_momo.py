@@ -103,6 +103,16 @@ SCANNER_ROW_PRICE_FAIL_PCT = 80.0              # priced rows below this → fail
 HOD_MOMO_ACTIVE_SET_CAPACITY = 40
 # Former Momo is guaranteed at most half the pool; live movers get the rest.
 HOD_MOMO_FORMER_MOMO_MAX_SLOTS = 20
+# Reserved *inside* HOD_MOMO_ACTIVE_SET_CAPACITY (not on top of it) for
+# freshly-admitted, still-unpriced (score=0.0) rows ranked by IB scan rank.
+# Without this, a table whose priced rows already fill capacity never lets a
+# brand-new name (e.g. a fresh gapper at IB rank 3) win an L1 slot -- it has
+# no score yet, so round-robin never reaches it (2026-08-31 XAIR starvation).
+HOD_MOMO_ACTIVE_DISCOVERY_SLOTS = 6
+# A discovery slot yields to the next unpriced-by-rank candidate once held
+# this long without ever producing a price (broken/illiquid contract) --
+# otherwise one stuck name could squat a slot for the rest of the session.
+HOD_MOMO_DISCOVERY_HOLD_SEC = 20.0
 HOD_MOMO_ACTIVE_HOT_PER_TICK = 10              # priority symbols every 1Hz tick
 # hod_momo_session_focus.py's sticky/alert-history priority is retired from
 # the active-set build path (REQ-HOD-005) but the module + constant below
