@@ -142,7 +142,9 @@ describe('sessionVwapPoints', () => {
     expect(points[1].value).toBeCloseTo(10, 10);
   });
 
-  it('stops accumulating at the 16:00 ET close and carries the final value', () => {
+  it('resets at 16:00 ET so after-hours volume starts a new VWAP', () => {
+    // LABT-shaped: dead RTH then a huge AH print. Mixing those volumes would
+    // erase the daytime decision level (D-007). Webull/DAS start a new session.
     const bars = [
       bar(etTime(2026, 7, 25, 9, 30), 10, 1_000),
       bar(etTime(2026, 7, 25, 15, 59), 10, 1_000),
@@ -152,6 +154,23 @@ describe('sessionVwapPoints', () => {
     const points = sessionVwapPoints(bars);
 
     expect(points).toHaveLength(4);
+    expect(points[1].value).toBeCloseTo(10, 10);
+    expect(points[2].value).toBeCloseTo(500, 0);
+    expect(points[3].value).toBeCloseTo(500, 0);
+    expect(points[3].value).not.toBeCloseTo(points[1].value, 1);
+  });
+
+  it('stops accumulating at the 20:00 ET after-hours end and carries that value', () => {
+    const bars = [
+      bar(etTime(2026, 7, 25, 16, 0), 10, 1_000),
+      bar(etTime(2026, 7, 25, 19, 59), 10, 1_000),
+      bar(etTime(2026, 7, 25, 20, 0), 500, 5_000_000),
+      bar(etTime(2026, 7, 25, 21, 50), 500, 5_000_000),
+    ];
+    const points = sessionVwapPoints(bars);
+
+    expect(points).toHaveLength(4);
+    expect(points[1].value).toBeCloseTo(10, 10);
     expect(points[3].value).toBeCloseTo(points[1].value, 10);
     expect(points[3].value).toBeCloseTo(10, 10);
   });
@@ -256,14 +275,18 @@ describe('sampleVwapOntoBars', () => {
     expect(valued(line)).toHaveLength(minutes.length);
   });
 
-  it('still carries the close VWAP on a same-day after-hours pane', () => {
+  it('paints the after-hours VWAP on a same-day pane, not the frozen 16:00 value', () => {
     const pane = [
       bar(etTime(2026, 7, 27, 15, 59), 2.18, 1_495),
-      bar(etTime(2026, 7, 27, 21, 50), 3.20, 0),
+      bar(etTime(2026, 7, 27, 16, 0), 3.20, 50_000),
+      bar(etTime(2026, 7, 27, 16, 1), 3.20, 50_000),
     ];
     const line = sampleVwapOntoBars(sessionVwapPoints(pane), pane, '1Min');
-    expect(valueAt(line, etTime(2026, 7, 27, 21, 50)))
-      .toBeCloseTo(valueAt(line, etTime(2026, 7, 27, 15, 59))!, 10);
+    expect(valueAt(line, etTime(2026, 7, 27, 15, 59))).toBeCloseTo(2.18, 1);
+    expect(valueAt(line, etTime(2026, 7, 27, 16, 1)))
+      .toBeCloseTo(3.20, 1);
+    expect(valueAt(line, etTime(2026, 7, 27, 16, 1)))
+      .not.toBeCloseTo(valueAt(line, etTime(2026, 7, 27, 15, 59))!, 1);
   });
 
   it('does not bleed one session into the next premarket', () => {

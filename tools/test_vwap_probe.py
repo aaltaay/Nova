@@ -6,7 +6,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from vwap_probe import interpolation_pair, paint_latest_day, session_vwap, RTH_END, RTH_START, EXT_START
+from vwap_probe import (
+    interpolation_pair,
+    paint_latest_day,
+    segmented_session_vwap,
+    session_vwap,
+    RTH_END,
+    RTH_START,
+    EXT_START,
+)
 
 
 def _bar(iso: str, price: float, volume: float) -> dict:
@@ -57,3 +65,16 @@ def test_extended_includes_premarket_volume():
     today_ext = [p for p in ext if p["day"] == "2026-08-28"]
     assert today_ext[0]["t"].startswith("2026-08-28 04:00")
     assert today_ext[-1]["value"] != today_rth[-1]["value"]
+
+
+def test_afterhours_resets_instead_of_blending():
+    bars = [
+        _bar("2026-08-27T13:30:00Z", 10.0, 1_000),   # 09:30 ET
+        _bar("2026-08-27T19:59:00Z", 10.0, 1_000),   # 15:59 ET
+        _bar("2026-08-27T20:00:00Z", 500.0, 5_000_000),  # 16:00 ET
+        _bar("2026-08-27T23:59:00Z", 500.0, 5_000_000),  # 19:59 ET
+    ]
+    painted = paint_latest_day(segmented_session_vwap(bars), "2026-08-27")
+    assert painted[1]["value"] == 10.0
+    assert abs(painted[-1]["value"] - 500.0) < 1.0
+    assert painted[-1]["value"] != painted[1]["value"]

@@ -4,7 +4,8 @@
 Fetches store-first ``/api/ticker/{symbol}/bars`` and reprints the same
 questions a human asks when the orange line looks wrong:
 
-  * What is session VWAP (04:00-16:00 ET) -- what the chart paints?
+  * What is daytime VWAP (04:00-16:00 ET)?
+  * What is after-hours VWAP (16:00-20:00 ET) -- the line after the cash close?
   * What would RTH-only VWAP (09:30-16:00 ET) be?
   * Does yesterday leftover sit next to today's 04:00? LineSeries would
     draw a diagonal through that hole.
@@ -31,6 +32,7 @@ ET = ZoneInfo("America/New_York")
 RTH_START = 9 * 3600 + 30 * 60
 RTH_END = 16 * 3600
 EXT_START = 4 * 3600
+AH_END = 20 * 3600
 DEFAULT_URL = "http://127.0.0.1:8000"
 
 
@@ -61,6 +63,54 @@ def session_vwap(bars: list[dict], start_sec: int, end_sec: int) -> list[dict]:
         if second < start_sec:
             continue
         if second < end_sec:
+            volume = float(bar.get("v") or 0)
+            if volume > 0:
+                hlc3 = (float(bar["h"]) + float(bar["l"]) + float(bar["c"])) / 3.0
+                cum_pv += hlc3 * volume
+                cum_v += volume
+        if cum_v > 0:
+            value = cum_pv / cum_v
+            out.append(
+                {
+                    "t": dt.isoformat(sep=" "),
+                    "value": value,
+                    "close": float(bar["c"]),
+                    "volume": float(bar.get("v") or 0),
+                    "day": key.isoformat(),
+                    "sod": second,
+                }
+            )
+    return out
+
+
+def segmented_session_vwap(bars: list[dict]) -> list[dict]:
+    """Mirror of ``sessionVwapPoints`` after D-007: 04:00-16:00, reset, 16:00-20:00."""
+    out: list[dict] = []
+    cum_pv = 0.0
+    cum_v = 0.0
+    value: float | None = None
+    day = None
+    in_after_hours = False
+    for bar in bars:
+        dt = _parse(str(bar["t"]))
+        key = dt.date()
+        if key != day:
+            cum_pv = 0.0
+            cum_v = 0.0
+            value = None
+            day = key
+            in_after_hours = False
+        second = _sod(dt)
+        if second < EXT_START:
+            continue
+        after_cash = second >= RTH_END
+        if after_cash and not in_after_hours:
+            cum_pv = 0.0
+            cum_v = 0.0
+            value = None
+            in_after_hours = True
+        accumulating = second < AH_END if after_cash else True
+        if accumulating:
             volume = float(bar.get("v") or 0)
             if volume > 0:
                 hlc3 = (float(bar["h"]) + float(bar["l"]) + float(bar["c"])) / 3.0
@@ -124,9 +174,10 @@ def report(payload: dict) -> dict:
     last = _parse(str(bars[-1]["t"]))
     pane_day = last.date().isoformat()
     rth = session_vwap(bars, RTH_START, RTH_END)
-    ext = session_vwap(bars, EXT_START, RTH_END)
-    painted = paint_latest_day(ext, pane_day)
-    pair = interpolation_pair(ext)
+    daytime = session_vwap(bars, EXT_START, RTH_END)
+    ah = session_vwap(bars, RTH_END, AH_END)
+    painted = paint_latest_day(segmented_session_vwap(bars), pane_day)
+    pair = interpolation_pair(daytime)
 
     today_bars = [b for b in bars if _parse(str(b["t"])).date().isoformat() == pane_day]
     premarket = [b for b in today_bars if _sod(_parse(str(b["t"]))) < RTH_START]
@@ -135,8 +186,18 @@ def report(payload: dict) -> dict:
         for b in today_bars
         if RTH_START <= _sod(_parse(str(b["t"]))) < RTH_END
     ]
+    ah_today = [
+        b
+        for b in today_bars
+        if RTH_END <= _sod(_parse(str(b["t"]))) < AH_END
+    ]
     premarket_vol = sum(float(b.get("v") or 0) for b in premarket)
     rth_vol = sum(float(b.get("v") or 0) for b in rth_today)
+    ah_vol = sum(float(b.get("v") or 0) for b in ah_today)
+
+    rth_today_pts = [p for p in rth if p["day"] == pane_day and p["sod"] < RTH_END]
+    daytime_today = [p for p in daytime if p["day"] == pane_day and p["sod"] < RTH_END]
+    ah_today_pts = [p for p in ah if p["day"] == pane_day]
 
     return {
         "symbol": payload.get("symbol"),
@@ -145,18 +206,24 @@ def report(payload: dict) -> dict:
         "bar_count": len(bars),
         "window_et": {"first": first.strftime("%Y-%m-%d %H:%M"), "last": last.strftime("%Y-%m-%d %H:%M")},
         "rth": {
-            "points": len(rth),
-            "last": rth[-1] if rth else None,
+            "points": len(rth_today_pts),
+            "last": rth_today_pts[-1] if rth_today_pts else None,
         },
-        "extended": {
-            "points": len(ext),
-            "last": ext[-1] if ext else None,
+        "daytime": {
+            "points": len(daytime_today),
+            "last": daytime_today[-1] if daytime_today else None,
+        },
+        "afterhours": {
+            "points": len(ah_today_pts),
+            "last": ah_today_pts[-1] if ah_today_pts else None,
         },
         "today": {
             "premarket_bars": len(premarket),
             "premarket_volume": premarket_vol,
             "rth_bars": len(rth_today),
             "rth_volume": rth_vol,
+            "ah_bars": len(ah_today),
+            "ah_volume": ah_vol,
         },
         "interpolation_pair": pair,
         "paint_latest_day": {
@@ -165,10 +232,11 @@ def report(payload: dict) -> dict:
             "last": painted[-1] if painted else None,
         },
         "how_to_read": (
-            "Extended 04:00-16:00 is what the chart paints. RTH 09:30 is the "
-            "what-if. would_interpolate=YES means leftover sits next to "
-            "today's 04:00 with a hole -- LineSeries would draw a diagonal. "
-            "paint_latest_day is the line on the newest ET day only."
+            "Paint is segmented: 04:00-16:00 daytime, reset at 16:00, "
+            "16:00-20:00 after-hours. RTH 09:30 is the cash-session what-if. "
+            "would_interpolate=YES means leftover sits next to today's 04:00 "
+            "with a hole -- LineSeries would draw a diagonal. "
+            "paint_latest_day last is the axis tag (AH after 16:00)."
         ),
     }
 
@@ -186,14 +254,17 @@ def print_text(rep: dict) -> None:
     print(f"{rep['symbol']}  {rep['timeframe']}  bars={rep['bar_count']}  source={rep['source']}")
     print(f"window ET  {rep['window_et']['first']}  ..  {rep['window_et']['last']}")
     print()
-    print("EXT 04:00-16:00  (chart paints this)")
-    print(f"  points={rep['extended']['points']}  last  {_fmt_point(rep['extended']['last'])}")
+    print("DAY 04:00-16:00  (orange on RTH/premarket bars)")
+    print(f"  points={rep['daytime']['points']}  last  {_fmt_point(rep['daytime']['last'])}")
+    print("AH  16:00-20:00  (orange after the cash close)")
+    print(f"  points={rep['afterhours']['points']}  last  {_fmt_point(rep['afterhours']['last'])}")
     print("RTH 09:30-16:00  (what-if)")
     print(f"  points={rep['rth']['points']}  last  {_fmt_point(rep['rth']['last'])}")
     today = rep["today"]
     print()
     print(f"today premarket  bars={today['premarket_bars']}  vol={today['premarket_volume']:.0f}")
     print(f"today RTH        bars={today['rth_bars']}  vol={today['rth_volume']:.0f}")
+    print(f"today afterhours bars={today['ah_bars']}  vol={today['ah_volume']:.0f}")
     pair = rep.get("interpolation_pair")
     print()
     if pair:
@@ -206,7 +277,7 @@ def print_text(rep: dict) -> None:
         print("overnight pair  (none -- one session only)")
     paint = rep["paint_latest_day"]
     print()
-    print("paint latest ET day (new rule)")
+    print("paint latest ET day (segmented 04:00 / 16:00)")
     print(f"  points={paint['points']}")
     print(f"  first  {_fmt_point(paint['first'])}")
     print(f"  last   {_fmt_point(paint['last'])}")

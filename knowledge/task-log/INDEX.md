@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-08-31 | [After-hours VWAP resets at 16:00](2026-08-31-vwap-afterhours-reset.md) | Daytime orange VWAP stays 04:00-16:00; a new AH VWAP starts at the cash close (D-007) |
 | 2026-08-31 | [Marketing hero density and fonts](2026-08-31-marketing-hero-density.md) | Two-column hero + Instrument Serif/Outfit; overlay no longer hides the headline |
 | 2026-08-31 | [Public marketing page for nova.altaystudio.com](2026-08-31-public-marketing-page.md) | Static `site/` landing: features, desk screenshots, Nova-public CTA; not the hosted scanner |
 | 2026-08-31 | [Earnings card Finnhub logos](2026-08-31-earnings-logos.md) | Paced profile2 logo cache on Earnings cards; letter fallback when cold |

@@ -10,6 +10,7 @@
  */
 import type { LineData, Time, WhitespaceData } from 'lightweight-charts';
 import {
+  CHART_VWAP_AFTERHOURS_END_SEC,
   CHART_VWAP_SESSION_END_SEC,
   CHART_VWAP_SESSION_START_SEC,
   CHART_VWAP_SOURCE_TIMEFRAME,
@@ -55,9 +56,11 @@ function latestDayKey(bars: IndicatorBar[]): number {
 }
 
 /**
- * Running session VWAP per source bar, resetting each ET day at the 04:00
- * premarket open. Bars before 04:00 produce no point; zero-volume bars and
- * post-close bars carry the previous value forward.
+ * Running session VWAP per source bar. Resets each ET day at the 04:00
+ * premarket open, then again at the 16:00 cash close so after-hours volume
+ * cannot overwrite the daytime line (Webull/DAS, D-007). Bars before 04:00
+ * produce no point. Zero-volume bars and post-20:00 bars carry the current
+ * session's last value forward.
  */
 export function sessionVwapPoints(minuteBars: IndicatorBar[]): VwapPoint[] {
   const out: VwapPoint[] = [];
@@ -65,6 +68,7 @@ export function sessionVwapPoints(minuteBars: IndicatorBar[]): VwapPoint[] {
   let cumVolume = 0;
   let value = NaN;
   let day = -1;
+  let inAfterHours = false;
 
   for (const bar of minuteBars) {
     const time = bar.time;
@@ -76,12 +80,24 @@ export function sessionVwapPoints(minuteBars: IndicatorBar[]): VwapPoint[] {
       cumVolume = 0;
       value = NaN;
       day = key;
+      inAfterHours = false;
     }
 
     const secondOfDay = etSecondsOfDay(time);
     if (secondOfDay < CHART_VWAP_SESSION_START_SEC) continue;
 
-    if (secondOfDay < CHART_VWAP_SESSION_END_SEC) {
+    const afterCashClose = secondOfDay >= CHART_VWAP_SESSION_END_SEC;
+    if (afterCashClose && !inAfterHours) {
+      cumPriceVolume = 0;
+      cumVolume = 0;
+      value = NaN;
+      inAfterHours = true;
+    }
+
+    const accumulating = afterCashClose
+      ? secondOfDay < CHART_VWAP_AFTERHOURS_END_SEC
+      : true;
+    if (accumulating) {
       const volume = Number(bar.volume);
       if (Number.isFinite(volume) && volume > 0) {
         cumPriceVolume += ((bar.high + bar.low + bar.close) / 3) * volume;

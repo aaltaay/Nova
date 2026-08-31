@@ -37,6 +37,15 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-08-31 -- After-hours VWAP sat frozen at the 16:00 cash close
+
+- **Symptom:** On LABT 1Min after the close, Nova's orange VWAP sat at ~$2.46 while price ran $3.48-$3.77. Webull's orange line in the grey AH zone sat near ~$3.45 and still walked.
+- **Cause:** `sessionVwapPoints` stopped accumulating at `CHART_VWAP_SESSION_END_SEC` (16:00) and carried the daytime value. That is a valid cash-session VWAP, but with extended hours on the pane it looks dead. Keep-adding AH volume into the same line would have erased the $2.46 daytime level (LABT AH volume 8.5M vs RTH 362k).
+- **Fix:** Reset the accumulator at 16:00 and accumulate a new AH VWAP until 20:00. Same orange series; 04:00-16:00 daytime segment unchanged. D-007.
+- **Fix class:** admission
+- **Keywords:** VWAP, after-hours, 16:00, LABT, D-007, session reset, CHART_VWAP_AFTERHOURS_END_SEC
+- **Related:** CHANGELOG 2026-08-31 after-hours VWAP resets at 16:00; `DEFERRED_LOG.md` D-007
+
 ## 2026-08-31 -- Marketing hero looked empty; headline was under the overlay
 
 - **Symptom:** First screen of `nova.altaystudio.com` was nav + a dark void + the FEED/HOME/CONTROL strip. Headline and CTAs were missing to the eye.

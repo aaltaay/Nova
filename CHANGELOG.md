@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-08-31 -- After-hours VWAP resets at 16:00 (D-007)
+
+- **What:** Chart VWAP still runs 04:00-16:00 on the orange line, then **resets** at the cash close and starts a new after-hours VWAP through 20:00. It no longer paints a frozen $2.46 leftover under a $3.50 AH runner.
+- **Why:** LABT vs Webull: Nova froze the daytime VWAP after 16:00. Webull/DAS start a new session; mixing AH volume into the daytime number would have turned LABT's $2.46 into $3.37.
+- **Files touched:** `frontend/src/chart/vwapSession.ts`, `frontend/src/constantGroups/chart_api.ts`, `frontend/src/chart/vwapSession.test.ts`, `tools/vwap_probe.py`
+- **How it works now:** `sessionVwapPoints` zeros the accumulator when the bar clock crosses `CHART_VWAP_SESSION_END_SEC` (16:00) and accumulates until `CHART_VWAP_AFTERHOURS_END_SEC` (20:00). Premarket stays in the daytime segment (no 09:30 reset). Axis tag after 16:00 is the AH value. Overnight leftover still cannot diagonal into tomorrow.
+- **Verified by:** `npx vitest run src/chart/vwapSession.test.ts src/chartIndicators.test.ts` -- 31 passed. `py -3 -m pytest tools/test_vwap_probe.py -q` -- 5 passed. Live `py -3 tools/vwap_probe.py LABT`: daytime last $2.4644 at 15:59, AH last $3.4159 at 17:05, paint last $3.4159. `npm run build` exit 0. Playwright LABT Trader (`/?view=stock&symbol=LABT`) at 17:09 ET: no page errors; 1Min/5Min/10Sec axis tag `VWAP $3.42 (partial)`; orange line stays near $2.50 through RTH then walks with AH candles after 16:00. Vite :5173 and API :8000 already up (not restarted).
+- **Related:** PROBLEM_LOG 2026-08-31 after-hours VWAP freeze; `DEFERRED_LOG.md` D-007 closed; task-log `knowledge/task-log/2026-08-31-vwap-afterhours-reset.md`
+
 ## 2026-08-31 -- Marketing hero fills the first screen
 
 - **What:** The public `site/` hero is a two-column layout: headline + CTAs on the left, Trader View screenshot on the right. Headlines use Instrument Serif; UI copy uses Outfit. The first viewport is no longer a blank dark field.

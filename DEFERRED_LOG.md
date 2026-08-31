@@ -111,22 +111,6 @@ Entry template (copy and fill in):
 - **Evidence:** `py -3 -m pytest -q` from `backend/`, 2026-08-31 -- 1446 passed, 1 failed (`test_mover_columns.py`), plus the printed native traceback during `test_news_impact.py::test_fresh_bucket_boundary`. Neither `backend/news/`, `backend/mover_evaluate.py`, nor their tests were modified this session (`git status --porcelain` on those paths is empty).
 - **Update (2026-08-31, later session, XAIR L1-starvation fix):** Reconfirmed independently. `test_decorate_rows_attaches_earnings_window` passes every time run alone or as the only test in its file, but fails deterministically inside the full-suite run (order-dependent state leak, not a torch/transformers crash this time -- `1456 passed, 1 failed` with no native traceback). Confirmed it fails identically with this session's `hod_momo_active.py` / `scanner_hydrate.py` / `integrity_live.py` changes stashed out, so it is pre-existing test-isolation, not caused by either session's product code. Likely culprit: some earlier test in suite order mutates a module-global (`_fundamentals_cache`, or a memoized earnings/day-offset calc) that `mover_evaluate.decorate_rows` reads without a per-test reset.
 
-## D-007 -- After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset
-
-- **Status:** parked
-- **Kind:** decision
-- **Severity:** P2
-- **Effort:** M
-- **Domain:** market-feed
-- **User-visible:** yes
-- **Logged:** 2026-08-28
-- **Why parked:** Operator asked to record the platform mismatch and not change paint until the after-close consequences are clear. Premarket-in-the-same-line (04:00-16:00) already shipped this morning.
-- **Blast radius:** After 16:00 Nova carries the 16:00 VWAP flat. Webull and DAS treat after-hours as a **new** VWAP (reset at 16:00), not more volume on the daytime line. TradingView with Extended Hours on keeps adding. A Webull vs Nova compare after the close will disagree. Overnight leftover still must not diagonal into tomorrow.
-- **Unblock:** One live look -- Webull 1Min after 16:00: does the orange line sit still, start a new line, or keep walking? Do not flip `CHART_VWAP_SESSION_END_SEC` or add a second series without that.
-- **Next:** After the cash close, screenshot Nova and Webull on the same symbol. Then either leave freeze (current), add a second AH VWAP (Webull/DAS), or keep adding (TradingView ETH).
-- **Evidence:** TradingView help: VWAP "begins at the open and stops at the close" (ETH-on includes those bars). DAS docs: checkbox "also draw a VWAP line for pre and post" -- extra lines, not one blend. Community [Webull-Style Segmented VWAP](https://www.tradingview.com/script/E7GAlJYk-Webull-Style-Segmented-VWAP/) resets at premarket / regular / after-hours. Robinhood docs never state session bounds. Reddit r/Daytrading: IB / Webull / Fidelity / NinjaTrader printed different VWAPs the same morning.
-- **Keywords:** VWAP, after-hours, 16:00, Webull, DAS, TradingView, session reset, CHART_VWAP_SESSION_END_SEC, D-007
-
 ## D-006 -- init_sentry + cache restore block HTTP yield for ~94s
 
 - **Status:** open
@@ -227,5 +211,24 @@ Entry template (copy and fill in):
 <!-- OPEN_END -->
 
 <!-- CLOSED_START -->
+
+## D-007 -- After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset
+
+- **Status:** done
+- **Kind:** decision
+- **Severity:** P2
+- **Effort:** M
+- **Domain:** market-feed
+- **User-visible:** yes
+- **Logged:** 2026-08-28
+- **Closed:** 2026-08-31
+- **Why parked:** Operator asked to record the platform mismatch and not change paint until the after-close consequences are clear. Premarket-in-the-same-line (04:00-16:00) already shipped this morning.
+- **Blast radius:** After 16:00 Nova carries the 16:00 VWAP flat. Webull and DAS treat after-hours as a **new** VWAP (reset at 16:00), not more volume on the daytime line. TradingView with Extended Hours on keeps adding. A Webull vs Nova compare after the close will disagree. Overnight leftover still must not diagonal into tomorrow.
+- **Unblock:** One live look -- Webull 1Min after 16:00: does the orange line sit still, start a new line, or keep walking? Do not flip `CHART_VWAP_SESSION_END_SEC` or add a second series without that.
+- **Next:** After the cash close, screenshot Nova and Webull on the same symbol. Then either leave freeze (current), add a second AH VWAP (Webull/DAS), or keep adding (TradingView ETH).
+- **Evidence:** TradingView help: VWAP "begins at the open and stops at the close" (ETH-on includes those bars). DAS docs: checkbox "also draw a VWAP line for pre and post" -- extra lines, not one blend. Community [Webull-Style Segmented VWAP](https://www.tradingview.com/script/E7GAlJYk-Webull-Style-Segmented-VWAP/) resets at premarket / regular / after-hours. Robinhood docs never state session bounds. Reddit r/Daytrading: IB / Webull / Fidelity / NinjaTrader printed different VWAPs the same morning.
+- **Close-out:** LABT 2026-08-31: RTH VWAP $2.46 vs AH $3.41. Research: institutional VWAP stops at the cash close; DAS extra pre/post lines; Webull segmented reset. Shipped a 16:00 reset on the same orange series (not keep-adding, not a 09:30 reset). `sessionVwapPoints` + `CHART_VWAP_AFTERHOURS_END_SEC`.
+- **Related:** PROBLEM_LOG 2026-08-31 after-hours VWAP freeze; CHANGELOG 2026-08-31 after-hours VWAP resets at 16:00; task-log `knowledge/task-log/2026-08-31-vwap-afterhours-reset.md`
+- **Keywords:** VWAP, after-hours, 16:00, Webull, DAS, TradingView, session reset, CHART_VWAP_SESSION_END_SEC, D-007
 
 <!-- CLOSED_END -->
