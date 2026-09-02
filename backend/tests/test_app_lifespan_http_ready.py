@@ -67,3 +67,44 @@ def test_lifespan_yields_before_sentry_and_restore(monkeypatch):
             assert network_started.is_set()
 
     asyncio.run(asyncio.wait_for(_body(), timeout=3.0))
+
+
+def test_scan_and_health_do_not_500_during_delayed_restore(monkeypatch):
+    """Empty caches during the new listen window must not crash the desk."""
+    hold = threading.Event()
+    restore_entered = threading.Event()
+
+    def slow_restore() -> None:
+        restore_entered.set()
+        hold.wait(timeout=5.0)
+
+    monkeypatch.setattr(app_lifespan, "init_sentry", lambda: False)
+    monkeypatch.setattr(app_lifespan, "_restore_caches", slow_restore)
+    monkeypatch.setattr(app_lifespan, "_init_databases", lambda: None)
+
+    async def park_network() -> None:
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(app_lifespan, "_mark_nova_api_health", park_network)
+
+    from fastapi.testclient import TestClient
+    from main import app
+
+    try:
+        with TestClient(app) as client:
+            assert restore_entered.wait(timeout=1.0), "restore should start after yield"
+            live = client.get("/livez")
+            assert live.status_code == 200
+            assert live.json()["status"] == "alive"
+            health = client.get("/api/health")
+            assert health.status_code == 200
+            gappers = client.get("/api/gappers")
+            assert gappers.status_code == 200
+            assert isinstance(gappers.json()["gappers"], list)
+            movers = client.get("/api/movers")
+            assert movers.status_code == 200
+            assert isinstance(movers.json()["gainers"], list)
+            assert isinstance(movers.json()["losers"], list)
+            assert not hold.is_set()
+    finally:
+        hold.set()

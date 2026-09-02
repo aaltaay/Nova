@@ -34,8 +34,9 @@ Yield-then-sync-on-the-loop would still freeze `/livez` for the Sentry RTT (67s 
 
 ## Verification
 
-- Focused pytest 34 passed (`test_app_lifespan_http_ready` plus spawn/observability/health/metrics/trading).
-- Test proves yield while `init_sentry` is blocked, event loop still sleeps 50ms, then restore/db run, then `_mark_nova_api_health`.
+- Blast-radius pytest 101 passed (lifespan, health, scan roster, runtime state, execution, trading, HOD persist).
+- Yield-order test: Sentry blocked, event loop still sleeps 50ms, then restore/db, then network mark.
+- During-restore test: `/livez` `/api/health` `/api/gappers` `/api/movers` all 200 with empty lists while restore is held.
 - Live `python3 run_api.py` on :8010 (`NOVA_API_RELOAD=0`): `HTTP ready` at 15:26:07.602, then `local startup sentry=0ms cache=1ms db=16ms` at 15:26:07.619. `GET /livez` -> 200 `alive`. IBKR disconnected in this cloud VM (expected).
 
 ## Follow-ups
