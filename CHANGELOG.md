@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Daily start logged `instance starting` then sat dark for ~94s (67s Sentry + 27s disk). HealthWaitSec expired and the UI offered Start API against a live PID.
 - **Files touched:** `backend/app_lifespan.py`, `backend/tests/test_app_lifespan_http_ready.py`
 - **How it works now:** `lifespan` does tick/L1 `configure` then `yield`. `_bootstrap_runtime` starts with `asyncio.to_thread(_local_startup)` (Sentry + caches + DBs, timed in one log line), then the existing IBKR/recovery/loops path. `/livez` can answer during that window; `/readyz` stays 503 until bootstrap completes.
-- **Verified by:** `python3 -m pytest tests/test_app_lifespan_http_ready.py tests/test_app_lifespan_spawn.py tests/test_observability.py tests/test_routes_health_live_ready.py -q` -- 13 passed.
+- **Verified by:** Focused pytest 34 passed (`test_app_lifespan_http_ready` plus spawn/observability/health/metrics/trading). Live `python3 run_api.py` on :8010: `HTTP ready` at 15:26:07.602, then `local startup sentry=0ms cache=1ms db=16ms` at 15:26:07.619. `GET /livez` -> 200 `alive`. IBKR disconnected in this cloud VM (expected).
 - **Related:** PROBLEM_LOG 2026-09-02 init_sentry blocked yield; `DEFERRED_LOG.md` D-006 closed; task-log `knowledge/task-log/2026-09-02-d006-http-ready-before-sentry.md`
 
 ## 2026-08-31 -- After-hours VWAP resets at 16:00 (D-007)
