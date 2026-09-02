@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-02 -- Linux CI red: windll, R2 mock, asyncio, WindowsPath, D-008
+
+- **Symptom:** PR #4 CI failed Backend tests, Agent contract, Gitleaks, and OSV Scanner. Backend died at collection: `AttributeError: module 'ctypes' has no attribute 'windll'`. After that guard, `-x` would have stopped on empty R2 `uploads`, `@pytest.mark.asyncio` without the plugin, `WindowsPath` on Linux, and `earnings_day_offset is None`.
+- **Cause:** (1) `gateway_login_fill` imported `ctypes.windll` at module level. (2) `r2_status` called local `boto3_available()`, so tests that patch `archive.r2.boto3_available` still saw "boto3 not installed" and returned `uploads=[]`. (3) CI `pip install` omitted `pytest-asyncio`. (4) Tests set `os.name = "nt"`; `pathlib.Path` then builds `WindowsPath`. (5) `earnings_window` bound `market.now_et` at import (D-008). (6) Agent-contract expected `open_findings >= 1` and rejected `dashboard_freshness: clean`. (7) Gitleaks lacked `pull-requests: read`. (8) OSV action v2 dropped `--skip-git`. Job-level `continue-on-error` still marks those checks failed.
+- **Fix:** Guard windll on `win32`. `r2_status` uses the facade `boto3_available`. Extract Linux-safe `_local_path` (`sys.platform`) to `ibkr/gateway_paths.py`. Late-import `market.now_et`. Install `pytest-asyncio` in CI. Relax agent-contract asserts. Gitleaks `pull-requests: read`. OSV scan-args `-r ./`. Move warning-only `continue-on-error` to the scanner step.
+- **Fix class:** infra
+- **Keywords:** CI, windll, boto3_available, pytest-asyncio, WindowsPath, D-008, gitleaks, osv-scanner, skip-git
+
+## 2026-09-02 -- init_sentry + cache restore blocked HTTP yield for ~94s
+
+- **Symptom:** Daily start at 08:22 logged `API health still failing after 60s`. Lifespan printed `instance starting` at 08:22:25 and `HTTP ready` at 08:23:59. :8000 had no listener in that hole.
+- **Cause:** `app_lifespan.lifespan` called `init_sentry()`, `_restore_caches()`, and `_init_databases()` before `yield`. Sentry DSN handshake took ~67s; disk restore ~27s. Starlette does not accept connections until yield.
+- **Fix:** Yield after sync tick/L1 wiring. Run Sentry + restore + DB init in `asyncio.to_thread(_local_startup)` at the start of `_bootstrap_runtime`, with per-step timings. Loops still start only after restore.
+- **Fix class:** infra
+- **Keywords:** D-006, init_sentry, lifespan yield, HTTP ready, HealthWaitSec, to_thread, /livez
+
 ## 2026-08-31 -- After-hours VWAP sat frozen at the 16:00 cash close
 
 - **Symptom:** On LABT 1Min after the close, Nova's orange VWAP sat at ~$2.46 while price ran $3.48-$3.77. Webull's orange line in the grey AH zone sat near ~$3.45 and still walked.

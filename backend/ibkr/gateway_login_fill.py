@@ -4,8 +4,8 @@ from __future__ import annotations
 import ctypes
 import logging
 import re
+import sys
 import time
-from ctypes import wintypes
 from pathlib import Path
 from typing import Callable, NamedTuple
 
@@ -14,21 +14,29 @@ logger = logging.getLogger(__name__)
 _KEY_RE = re.compile(r"^(IbLoginId|IbPassword)=(.*)$")
 _IBC_LOG_DIR = Path.home() / ".nova" / "ibc" / "Logs"
 
-user32 = ctypes.windll.user32
+# SendInput / EnumWindows are Windows-only. Parse helpers below must stay
+# importable on Linux CI (pytest collects this module on ubuntu-latest).
+if sys.platform == "win32":
+    from ctypes import wintypes
 
+    user32 = ctypes.windll.user32
 
-class _KEYBDINPUT(ctypes.Structure):
-    _fields_ = (
-        ("wVk", wintypes.WORD),
-        ("wScan", wintypes.WORD),
-        ("dwFlags", wintypes.DWORD),
-        ("time", wintypes.DWORD),
-        ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
-    )
+    class _KEYBDINPUT(ctypes.Structure):
+        _fields_ = (
+            ("wVk", wintypes.WORD),
+            ("wScan", wintypes.WORD),
+            ("dwFlags", wintypes.DWORD),
+            ("time", wintypes.DWORD),
+            ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+        )
 
-
-class _INPUT(ctypes.Structure):
-    _fields_ = (("type", wintypes.DWORD), ("ki", _KEYBDINPUT))
+    class _INPUT(ctypes.Structure):
+        _fields_ = (("type", wintypes.DWORD), ("ki", _KEYBDINPUT))
+else:
+    wintypes = None  # type: ignore[assignment]
+    user32 = None
+    _KEYBDINPUT = None  # type: ignore[assignment]
+    _INPUT = None  # type: ignore[assignment]
 
 
 class Credentials(NamedTuple):

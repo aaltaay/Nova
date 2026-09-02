@@ -6,46 +6,16 @@ import subprocess
 from pathlib import Path
 
 from constants_ibkr import (
-    IBKR_GATEWAY_EXE_DEFAULT,
     IBKR_GATEWAY_ROOT,
     IBKR_HOST,
-    IBKR_IBC_LAUNCHER_REL,
     IBKR_IBC_LIVE_AUTO_RESTART_TIME,
     IBKR_IBC_PAPER_AUTO_RESTART_TIME,
     IBKR_LIVE_PORT,
     IBKR_PAPER_PORT,
 )
+from ibkr.gateway_paths import _ibc_launcher, _resolve_gateway_exe
 
 logger = logging.getLogger(__name__)
-
-def _ibc_launcher() -> Path | None:
-    home = Path.home()
-    candidate = home / IBKR_IBC_LAUNCHER_REL
-    return candidate if candidate.is_file() else None
-
-
-def _resolve_gateway_exe() -> Path | None:
-    override = (os.environ.get("IBKR_GATEWAY_EXE") or "").strip()
-    if override:
-        p = Path(override)
-        return p if p.is_file() else None
-
-    default = Path(IBKR_GATEWAY_EXE_DEFAULT)
-    if default.is_file():
-        return default
-    renamed_default = default.with_name("ibgateway1.exe")
-    if renamed_default.is_file():
-        return renamed_default
-
-    root = Path(IBKR_GATEWAY_ROOT)
-    if not root.is_dir():
-        return None
-    found = sorted(
-        list(root.glob("*/ibgateway.exe")) + list(root.glob("*/ibgateway1.exe")),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    return found[0] if found else None
 
 
 def _focus_gateway_window() -> bool:

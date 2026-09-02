@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ibkr import gateway_paths as gp
 from ibkr import launch_gateway as lg
 
 
@@ -20,15 +21,15 @@ def test_resolve_exe_ibc_renamed(monkeypatch, tmp_path: Path):
     exe1 = ver / "ibgateway1.exe"
     exe1.write_bytes(b"x")
     monkeypatch.delenv("IBKR_GATEWAY_EXE", raising=False)
-    monkeypatch.setattr(lg, "IBKR_GATEWAY_EXE_DEFAULT", str(ver / "ibgateway.exe"))
-    monkeypatch.setattr(lg, "IBKR_GATEWAY_ROOT", str(root))
+    monkeypatch.setattr(gp, "IBKR_GATEWAY_EXE_DEFAULT", str(ver / "ibgateway.exe"))
+    monkeypatch.setattr(gp, "IBKR_GATEWAY_ROOT", str(root))
     assert lg._resolve_gateway_exe() == exe1
 
 
 def test_resolve_exe_missing_env(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("IBKR_GATEWAY_EXE", str(tmp_path / "missing.exe"))
-    monkeypatch.setattr(lg, "IBKR_GATEWAY_EXE_DEFAULT", str(tmp_path / "also-missing.exe"))
-    monkeypatch.setattr(lg, "IBKR_GATEWAY_ROOT", str(tmp_path / "empty-root"))
+    monkeypatch.setattr(gp, "IBKR_GATEWAY_EXE_DEFAULT", str(tmp_path / "also-missing.exe"))
+    monkeypatch.setattr(gp, "IBKR_GATEWAY_ROOT", str(tmp_path / "empty-root"))
     assert lg._resolve_gateway_exe() is None
 
 

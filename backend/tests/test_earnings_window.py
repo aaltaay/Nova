@@ -62,3 +62,12 @@ def test_earnings_date_et():
     assert ew.earnings_date_et(_ts(2026, 8, 27, 16, 0)) == "2026-08-27"
     assert ew.earnings_date_et(_ts(2026, 11, 19, 8, 30)) == "2026-11-19"
     assert ew.earnings_date_et(None) is None
+
+
+def test_offset_follows_patched_market_now_et(monkeypatch):
+    """D-008: do not bind market.now_et at import -- suite order would freeze 'today'."""
+    monkeypatch.setattr(
+        "market.now_et",
+        lambda: datetime(2026, 8, 27, 10, 0, tzinfo=ET),
+    )
+    assert ew.earnings_day_offset(_ts(2026, 8, 27, 16, 0)) == 0

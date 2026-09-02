@@ -36,7 +36,7 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r backend/requirements.txt pytest
+        run: pip install -r backend/requirements.txt pytest pytest-asyncio
 
       - name: Run tests
         # Exit 5 means "no tests collected" — acceptable until tests are added.
@@ -116,26 +116,33 @@ jobs:
   gitleaks:
     name: Gitleaks
     runs-on: ubuntu-latest
-    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # Warning-only: step continue-on-error keeps the check green while
+      # leaks still show in the job log. Job-level continue-on-error still
+      # reports the check as failed.
       - uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   osv-scanner:
     name: OSV Scanner
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
+      # Warning-only (SEC-005). v2 dropped --skip-git (skip is now default).
+      # Step continue-on-error keeps the check green; vulns stay in the log.
       - uses: google/osv-scanner-action/osv-scanner-action@v2.0.3
+        continue-on-error: true
         with:
           scan-args: |-
             -r
-            --skip-git
             ./
 
   semgrep:

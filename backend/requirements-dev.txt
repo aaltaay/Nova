@@ -1,5 +1,6 @@
 -r requirements.txt
 pytest
+pytest-asyncio>=0.24,<2
 ruff
 pip-audit
 # CVSS v4 scoring library — used by tools/security_audit.py to classify pip-audit findings
