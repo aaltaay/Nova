@@ -3,16 +3,15 @@ FastAPI lifespan — startup restore, background tasks, shutdown cleanup.
 
 Extracted from ``main.py`` so the app factory stays a thin wiring file.
 
-HTTP readiness: yield as soon as local restore/DB init finishes. IBKR connect,
-Alpaca health ping, Nova OS recovery, and background loops run in a deferred
-bootstrap task so a hung Gateway handshake cannot leave :8000 listening but
-never serving (Starlette startup blocked on the same event loop).
+HTTP readiness (D-006): yield before Sentry/cache/DB. Those run off-loop
+in the deferred bootstrap, then IBKR, recovery, and background loops.
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -272,9 +271,24 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
     return tasks
 
 
+def _local_startup() -> None:
+    """Sentry + disk restore + DB init. After HTTP yield, off the loop."""
+    t0 = time.perf_counter()
+    init_sentry()
+    t_s = time.perf_counter()
+    _restore_caches()
+    t_c = time.perf_counter()
+    _init_databases()
+    logger.info(
+        "lifespan: local startup sentry=%.0fms cache=%.0fms db=%.0fms",
+        (t_s - t0) * 1000, (t_c - t_s) * 1000, (time.perf_counter() - t_c) * 1000,
+    )
+
+
 async def _bootstrap_runtime() -> None:
-    """Deferred after HTTP yield: network ping, IBKR, recovery, loops."""
+    """Deferred after HTTP yield: local restore, then network/IBKR/loops."""
     global _runtime_tasks
+    await asyncio.to_thread(_local_startup)
     await _mark_nova_api_health()
 
     from ibkr.loop_supervisor import set_http_loop, spawn_ib, start as start_ib_loop
@@ -322,16 +336,12 @@ async def lifespan(app: FastAPI):
         instance_identity.PARENT_PID,
         instance_identity.RELOAD_ENABLED,
     )
-    init_sentry()
-    _restore_caches()
-    _init_databases()
-
-    # Sync wiring only — no await on IBKR/network before yield.
+    # Sync wiring only — no Sentry, disk, or IBKR/network before yield.
     _ibkr_ticks.configure(broadcast_trade_update, _find_ibkr_cache_row)
     _scanner_l1.configure(apply_l1_quote)
 
     bootstrap_task = asyncio.create_task(_bootstrap_runtime())
-    logger.info("lifespan: HTTP ready — IBKR/bootstrap deferred")
+    logger.info("lifespan: HTTP ready — Sentry/restore/IBKR deferred")
     yield
 
     try:

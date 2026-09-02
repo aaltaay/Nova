@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-02 -- HTTP ready before Sentry and cache restore (D-006)
+
+- **What:** FastAPI now yields (binds :8000) before `init_sentry`, snapshot restore, and DB init. Those run off the HTTP event loop in the existing deferred bootstrap task.
+- **Why:** Daily start logged `instance starting` then sat dark for ~94s (67s Sentry + 27s disk). HealthWaitSec expired and the UI offered Start API against a live PID.
+- **Files touched:** `backend/app_lifespan.py`, `backend/tests/test_app_lifespan_http_ready.py`
+- **How it works now:** `lifespan` does tick/L1 `configure` then `yield`. `_bootstrap_runtime` starts with `asyncio.to_thread(_local_startup)` (Sentry + caches + DBs, timed in one log line), then the existing IBKR/recovery/loops path. `/livez` can answer during that window; `/readyz` stays 503 until bootstrap completes.
+- **Verified by:** `python3 -m pytest tests/test_app_lifespan_http_ready.py tests/test_app_lifespan_spawn.py tests/test_observability.py tests/test_routes_health_live_ready.py -q` -- 13 passed.
+- **Related:** PROBLEM_LOG 2026-09-02 init_sentry blocked yield; `DEFERRED_LOG.md` D-006 closed; task-log `knowledge/task-log/2026-09-02-d006-http-ready-before-sentry.md`
+
 ## 2026-08-31 -- After-hours VWAP resets at 16:00 (D-007)
 
 - **What:** Chart VWAP still runs 04:00-16:00 on the orange line, then **resets** at the cash close and starts a new after-hours VWAP through 20:00. It no longer paints a frozen $2.46 leftover under a $3.50 AH runner.

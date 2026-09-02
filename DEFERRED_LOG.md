@@ -111,22 +111,6 @@ Entry template (copy and fill in):
 - **Evidence:** `py -3 -m pytest -q` from `backend/`, 2026-08-31 -- 1446 passed, 1 failed (`test_mover_columns.py`), plus the printed native traceback during `test_news_impact.py::test_fresh_bucket_boundary`. Neither `backend/news/`, `backend/mover_evaluate.py`, nor their tests were modified this session (`git status --porcelain` on those paths is empty).
 - **Update (2026-08-31, later session, XAIR L1-starvation fix):** Reconfirmed independently. `test_decorate_rows_attaches_earnings_window` passes every time run alone or as the only test in its file, but fails deterministically inside the full-suite run (order-dependent state leak, not a torch/transformers crash this time -- `1456 passed, 1 failed` with no native traceback). Confirmed it fails identically with this session's `hod_momo_active.py` / `scanner_hydrate.py` / `integrity_live.py` changes stashed out, so it is pre-existing test-isolation, not caused by either session's product code. Likely culprit: some earlier test in suite order mutates a module-global (`_fundamentals_cache`, or a memoized earnings/day-offset calc) that `mover_evaluate.decorate_rows` reads without a per-test reset.
 
-## D-006 -- init_sentry + cache restore block HTTP yield for ~94s
-
-- **Status:** open
-- **Kind:** bug
-- **Severity:** P1
-- **Effort:** S
-- **Domain:** ibkr-ops
-- **User-visible:** yes
-- **Logged:** 2026-08-28
-- **Why parked:** Found on the 08:22 daily start soak. Patch is `app_lifespan.py` (move `init_sentry` / heavy restore after `yield` or bound it). The live API is `reload=true`; a backend edit would WatchFiles-restart it and, after 09:30, today's Gappers cannot be rebuilt.
-- **Blast radius:** Daily start's old 60s health wait declared the API dead while the process was still in lifespan. UI shows API down / Start API. A click then kills a live PID.
-- **Unblock:** After a no-reload API start (tomorrow's daily, or a weekend restart), defer `init_sentry` until after `yield` and time `_restore_caches` / `_init_databases`.
-- **Next:** Add a lifespan test that `yield` happens before Sentry/network, then restart API with `NOVA_API_RELOAD=0`.
-- **Evidence:** `api-console.log` 08:22:25 `instance starting` -> 08:23:32 Sentry enabled -> 08:23:59 `HTTP ready`. `daily-start.log` 08:23:05 `API health still failing after 60s`. Soak health later missed 4s then answered in 3689ms; `http_loop_lag_ms.max_ms` reached 4360.
-- **Keywords:** init_sentry, lifespan yield, HTTP ready, HealthWaitSec, daily-start, API_WEDGED, Start API
-
 ## D-005 -- Aborted API terminal can leave a live process with no HTTP listener
 
 - **Status:** open
@@ -211,6 +195,25 @@ Entry template (copy and fill in):
 <!-- OPEN_END -->
 
 <!-- CLOSED_START -->
+
+## D-006 -- init_sentry + cache restore block HTTP yield for ~94s
+
+- **Status:** done
+- **Kind:** bug
+- **Severity:** P1
+- **Effort:** S
+- **Domain:** ibkr-ops
+- **User-visible:** yes
+- **Logged:** 2026-08-28
+- **Closed:** 2026-09-02
+- **Why parked:** Found on the 08:22 daily start soak. Patch is `app_lifespan.py` (move `init_sentry` / heavy restore after `yield` or bound it). The live API is `reload=true`; a backend edit would WatchFiles-restart it and, after 09:30, today's Gappers cannot be rebuilt.
+- **Blast radius:** Daily start's old 60s health wait declared the API dead while the process was still in lifespan. UI shows API down / Start API. A click then kills a live PID.
+- **Unblock:** After a no-reload API start (tomorrow's daily, or a weekend restart), defer `init_sentry` until after `yield` and time `_restore_caches` / `_init_databases`.
+- **Next:** Add a lifespan test that `yield` happens before Sentry/network, then restart API with `NOVA_API_RELOAD=0`.
+- **Evidence:** `api-console.log` 08:22:25 `instance starting` -> 08:23:32 Sentry enabled -> 08:23:59 `HTTP ready`. `daily-start.log` 08:23:05 `API health still failing after 60s`. Soak health later missed 4s then answered in 3689ms; `http_loop_lag_ms.max_ms` reached 4360.
+- **Close-out:** `lifespan` yields after tick/L1 configure. `_local_startup` (Sentry + caches + DBs) runs in `asyncio.to_thread` at the top of `_bootstrap_runtime`, with per-step ms logs. `/livez` can answer during that window; `/readyz` still waits for loops.
+- **Related:** PROBLEM_LOG 2026-09-02 init_sentry blocked yield; CHANGELOG 2026-09-02 HTTP ready before Sentry; task-log `knowledge/task-log/2026-09-02-d006-http-ready-before-sentry.md`
+- **Keywords:** init_sentry, lifespan yield, HTTP ready, HealthWaitSec, daily-start, API_WEDGED, Start API, D-006
 
 ## D-007 -- After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset
 
