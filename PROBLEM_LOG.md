@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-02 -- Linux CI red: windll, R2 mock, asyncio, WindowsPath, D-008
+
+- **Symptom:** PR #4 CI failed Backend tests, Agent contract, Gitleaks, and OSV Scanner. Backend died at collection: `AttributeError: module 'ctypes' has no attribute 'windll'`. After that guard, `-x` would have stopped on empty R2 `uploads`, `@pytest.mark.asyncio` without the plugin, `WindowsPath` on Linux, and `earnings_day_offset is None`.
+- **Cause:** (1) `gateway_login_fill` imported `ctypes.windll` at module level. (2) `r2_status` called local `boto3_available()`, so tests that patch `archive.r2.boto3_available` still saw "boto3 not installed" and returned `uploads=[]`. (3) CI `pip install` omitted `pytest-asyncio`. (4) Tests set `os.name = "nt"`; `pathlib.Path` then builds `WindowsPath`. (5) `earnings_window` bound `market.now_et` at import (D-008). (6) Agent-contract expected `open_findings >= 1` and rejected `dashboard_freshness: clean`. (7) Gitleaks lacked `pull-requests: read`. (8) OSV action v2 dropped `--skip-git`. Job-level `continue-on-error` still marks those checks failed.
+- **Fix:** Guard windll on `win32`. `r2_status` uses the facade `boto3_available`. Extract Linux-safe `_local_path` (`sys.platform`) to `ibkr/gateway_paths.py`. Late-import `market.now_et`. Install `pytest-asyncio` in CI. Relax agent-contract asserts. Gitleaks `pull-requests: read`. OSV scan-args `-r ./`. Move warning-only `continue-on-error` to the scanner step.
+- **Fix class:** infra
+- **Keywords:** CI, windll, boto3_available, pytest-asyncio, WindowsPath, D-008, gitleaks, osv-scanner, skip-git
+
 ## 2026-09-02 -- init_sentry + cache restore blocked HTTP yield for ~94s
 
 - **Symptom:** Daily start at 08:22 logged `API health still failing after 60s`. Lifespan printed `instance starting` at 08:22:25 and `HTTP ready` at 08:23:59. :8000 had no listener in that hole.

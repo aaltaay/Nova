@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from typing import Any
 
 from constants import (
@@ -49,6 +50,15 @@ def boto3_available() -> bool:
         return False
 
 
+def _facade_boto3_available() -> bool:
+    """Prefer ``archive.r2.boto3_available`` so tests can monkeypatch the facade."""
+    facade = sys.modules.get("archive.r2")
+    fn = getattr(facade, "boto3_available", None) if facade is not None else None
+    if callable(fn):
+        return bool(fn())
+    return boto3_available()
+
+
 def r2_status() -> dict[str, Any]:
     """Loud status — never claims configured when keys/boto3 are missing."""
     creds = _credentials()
@@ -56,7 +66,7 @@ def r2_status() -> dict[str, Any]:
         k for k in (_ENV_ACCOUNT, _ENV_ACCESS, _ENV_SECRET)
         if not (os.environ.get(k) or "").strip()
     ]
-    has_boto = boto3_available()
+    has_boto = _facade_boto3_available()
     configured = not missing and has_boto
     return {
         "enabled": r2_enabled(),

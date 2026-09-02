@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-02 -- Unblock Linux CI (backend, agent-contract, gitleaks, OSV)
+
+- **What:** PR CI on ubuntu-latest can collect and pass the backend suite, agent-contract tests, and the warning-only Gitleaks/OSV jobs. Four pre-existing Linux/CI bugs, not D-006 product regressions.
+- **Why:** `pytest backend/ -x` died on `ctypes.windll` import, then archive R2 mocks, async discovery tests, Gateway `WindowsPath`, and D-008 earnings isolation. Agent-contract asserted stale security counts. Gitleaks 403'd on PR commits. OSV v2 rejected `--skip-git`.
+- **Files touched:** `backend/ibkr/gateway_login_fill.py`, `backend/ibkr/gateway_paths.py`, `backend/ibkr/launch_gateway.py`, `backend/archive/r2_client.py`, `backend/earnings_window.py`, `backend/tests/test_earnings_window.py`, `backend/tests/test_launch_gateway.py`, `tools/test_sync_agent_surfaces.py`, `.github/workflows/deploy.yml`, `backend/requirements-dev.txt`
+- **How it works now:** Windll/SendInput stay Windows-only. `r2_status` honors a monkeypatched `archive.r2.boto3_available`. Gateway path helpers use `sys.platform`, not a mocked `os.name`. `earnings_day_offset` late-imports `market.now_et`. CI installs `pytest-asyncio`. Gitleaks has `pull-requests: read`. OSV v2 scan-args are `-r ./`. Warning-only scanners use step-level `continue-on-error` so the check can stay green.
+- **Verified by:** `python3 -m pytest backend/ -q --tb=line` -- 1481 passed. Agent-contract pytest -- 39 passed. `test_offset_follows_patched_market_now_et` locks D-008.
+- **Related:** PROBLEM_LOG 2026-09-02 Linux CI; D-008 closed; task-log `knowledge/task-log/2026-09-02-linux-ci-unblock.md`
+
 ## 2026-09-02 -- HTTP ready before Sentry and cache restore (D-006)
 
 - **What:** FastAPI now yields (binds :8000) before `init_sentry`, snapshot restore, and DB init. Those run off the HTTP event loop in the existing deferred bootstrap task.

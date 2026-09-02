@@ -4,6 +4,7 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-09-02 | [Unblock Linux CI](2026-09-02-linux-ci-unblock.md) | Windll/R2/asyncio/WindowsPath/D-008 plus gitleaks/OSV so PR CI can go green |
 | 2026-09-02 | [HTTP ready before Sentry and cache restore](2026-09-02-d006-http-ready-before-sentry.md) | Yield /livez before init_sentry and disk restore (D-006) |
 | 2026-08-31 | [After-hours VWAP resets at 16:00](2026-08-31-vwap-afterhours-reset.md) | Daytime orange VWAP stays 04:00-16:00; a new AH VWAP starts at the cash close (D-007) |
 | 2026-08-31 | [Marketing hero density and fonts](2026-08-31-marketing-hero-density.md) | Two-column hero + Instrument Serif/Outfit; overlay no longer hides the headline |

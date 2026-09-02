@@ -10,7 +10,7 @@ from datetime import date, datetime
 from typing import Any
 
 from constants import EARNINGS_DOT_WINDOW_DAYS, SESSION_RTH_CLOSE_MIN_ET, SESSION_RTH_OPEN_MIN_ET
-from market import ET, now_et as _now_et
+from market import ET
 
 
 def _as_epoch(raw: Any) -> int | None:
@@ -50,7 +50,11 @@ def earnings_day_offset(
     +1 tomorrow, 0 today, -1 yesterday. None outside
     ``EARNINGS_DOT_WINDOW_DAYS`` or when the date is unknown.
     """
-    today = (now_et or _now_et()).date()
+    if now_et is None:
+        from market import now_et as live_now_et
+
+        now_et = live_now_et()
+    today = now_et.date()
     epoch = _as_epoch(earnings_ts)
     if epoch is not None:
         event = datetime.fromtimestamp(epoch, tz=ET).date()

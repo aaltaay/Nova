@@ -44,8 +44,11 @@ dashboard_freshness: stale
 
 def test_security_counts_from_registry(sync):
     counts = sync.security_counts()
-    assert counts.get("open_findings", 0) >= 1
+    assert "open_findings" in counts
     assert "accepted_risks" in counts
+    assert isinstance(counts["open_findings"], int)
+    assert counts["open_findings"] >= 0
+    assert counts["accepted_risks"] >= 0
 
 
 def test_no_writes_without_flag(sync, tmp_path, monkeypatch):
@@ -112,6 +115,7 @@ def test_stale_detection(sync):
         "stale",
         "unknown",
         "fresh",
+        "clean",
     )
 
 

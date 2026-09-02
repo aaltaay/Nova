@@ -96,21 +96,6 @@ Entry template (copy and fill in):
 - **Evidence:** `backend/logs/api-console.log` 2026-08-31 08:06:03 -- `WARNING ticker_ibkr ticker IBKR snapshot failed for XAIR: ` (empty message) immediately followed by `WARNING ticker_detail ticker REST: IBKR snapshot empty for XAIR - returning empty (no Alpaca fallback)`. Same minute, `GET /api/ticker/XAIR/bars?timeframe=1Min` returned 5 real bars (`c=5.7, v=302768` on the last one). `GET /api/ticker/XAIR` returned `{"snapshot": {}, "avg_volume": null, "rel_volume": null, ...}`.
 - **Keywords:** ticker_ibkr, snapshot_quotes, cold snapshot, empty exception, XAIR, Stock View, blank error message
 
-## D-008 -- Earnings-day-offset test fails; sentiment model import segfaults full suite
-
-- **Status:** open
-- **Kind:** bug
-- **Severity:** P2
-- **Effort:** S
-- **Domain:** news
-- **User-visible:** no (test-suite only; not touched by the IBKR session-watchdog work in this session)
-- **Why parked:** Found while running the full backend suite to verify an unrelated IBKR fix (session freeze / watchdog). Both symptoms are in `backend/news/` and `backend/mover_evaluate.py`, neither of which this session touched -- wrong task to fix mid-verification.
-- **Blast radius:** (1) `test_mover_columns.py::test_decorate_rows_attaches_earnings_window` fails deterministically -- `out[0]["earnings_day_offset"]` is `None` instead of `0` for a same-day earnings row. (2) `test_news_impact.py::test_fresh_bucket_boundary` triggers a native crash (`Windows fatal exception: code 0xc0000139`) while importing `torchvision`/`transformers` for the sentiment pipeline (`news/sentiment.py:_get_pipeline` -> `news/impact_evaluate.py:evaluate_news_impact`); pytest survives and the run completes, but that test's own pass/fail is unreliable on this machine.
-- **Unblock:** (1) Read `mover_evaluate.decorate_rows`'s earnings-day-offset calc against the `2026-08-27` fixture case to find why 0-day offset resolves to `None`. (2) Pin/repair the local torch/torchvision/transformers install (DLL version mismatch is the classic cause of `0xc0000139`) or lazy-guard the sentiment pipeline import so a broken native extension degrades to no-sentiment instead of crashing the process.
-- **Next:** Reproduce each in isolation (`py -3 -m pytest backend/tests/test_mover_columns.py::test_decorate_rows_attaches_earnings_window -q` and the news_impact test alone) and decide whether the torch crash needs a `try/except` import guard in `news/sentiment.py` or a local env fix.
-- **Evidence:** `py -3 -m pytest -q` from `backend/`, 2026-08-31 -- 1446 passed, 1 failed (`test_mover_columns.py`), plus the printed native traceback during `test_news_impact.py::test_fresh_bucket_boundary`. Neither `backend/news/`, `backend/mover_evaluate.py`, nor their tests were modified this session (`git status --porcelain` on those paths is empty).
-- **Update (2026-08-31, later session, XAIR L1-starvation fix):** Reconfirmed independently. `test_decorate_rows_attaches_earnings_window` passes every time run alone or as the only test in its file, but fails deterministically inside the full-suite run (order-dependent state leak, not a torch/transformers crash this time -- `1456 passed, 1 failed` with no native traceback). Confirmed it fails identically with this session's `hod_momo_active.py` / `scanner_hydrate.py` / `integrity_live.py` changes stashed out, so it is pre-existing test-isolation, not caused by either session's product code. Likely culprit: some earlier test in suite order mutates a module-global (`_fundamentals_cache`, or a memoized earnings/day-offset calc) that `mover_evaluate.decorate_rows` reads without a per-test reset.
-
 ## D-005 -- Aborted API terminal can leave a live process with no HTTP listener
 
 - **Status:** open
@@ -195,6 +180,20 @@ Entry template (copy and fill in):
 <!-- OPEN_END -->
 
 <!-- CLOSED_START -->
+
+## D-008 -- Earnings-day-offset test fails; sentiment model import segfaults full suite
+
+- **Status:** done
+- **Kind:** bug
+- **Severity:** P2
+- **Effort:** S
+- **Domain:** news
+- **User-visible:** no (test-suite only)
+- **Logged:** 2026-08-31
+- **Closed:** 2026-09-02
+- **Why parked:** Found mid-unrelated IBKR verification. Isolation half blocked Linux CI (`pytest backend/ -x`).
+- **Closed how:** `earnings_window.earnings_day_offset` late-imports `market.now_et` instead of binding it at import. A prior suite import froze "today" to the real calendar date, so the 2026-08-27 fixture sat outside `EARNINGS_DOT_WINDOW_DAYS` (1) and returned `None`. `test_offset_follows_patched_market_now_et` locks it. The Windows `torchvision`/`transformers` `0xc0000139` crash was not reproduced on Linux CI and is a local DLL install issue, not a product bug.
+- **Related:** PROBLEM_LOG 2026-09-02 Linux CI; CHANGELOG 2026-09-02 Linux CI; task-log `knowledge/task-log/2026-09-02-linux-ci-unblock.md`
 
 ## D-006 -- init_sentry + cache restore block HTTP yield for ~94s
 
