@@ -19,6 +19,7 @@ import bars_store
 from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
 from constants import CHART_DEFAULT_BARS, CHART_DEFAULT_TIMEFRAME
 from ibkr import ticks as _ibkr_ticks
+from ticker_detail import ticker_alpaca_required_error
 from websocket import mark_resub
 
 router = APIRouter(tags=["ticker"])
@@ -107,11 +108,12 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
 
     loop = asyncio.get_event_loop()
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = _alpaca_headers()
+    blocked = ticker_alpaca_required_error(symbol)
+    headers = _alpaca_headers() or {}
 
     try:
-        if not headers:
-            await websocket.send_text(json.dumps({"type": "initial", "error": "API keys not configured"}))
+        if blocked:
+            await websocket.send_text(json.dumps({"type": "initial", **blocked}))
         else:
             feed = _get_feed()
 

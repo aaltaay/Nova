@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-05 -- Trader no longer crashes when Alpaca keys are empty
+
+- **What:** Trader / Stock View opens on IBKR quotes even if `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` are unset. A bad ticker WS `initial` can no longer become `detail` and crash on `.toUpperCase()`.
+- **Why:** Fresh clone + empty `.env` sent `{type: "initial", error: "API keys not configured"}` with no symbol. The UI treated that as a quote.
+- **Files touched:** `backend/ticker_detail.py`, `backend/routes/ticker.py`, `frontend/src/hooks/tickerStreamHttp.ts`, `frontend/src/hooks/useTickerStream.ts`, `frontend/src/pages/StockViewPage.tsx`
+- **How it works now:** Missing Alpaca keys only block ticker build when discovery is not `ibkr`. IBKR snapshots still go out with `symbol`. The frontend rejects error-only `initial` messages. News/listing stay empty until keys are set.
+- **Verified by:** pytest `test_ticker_detail_ibkr_no_alpaca.py` (7 with snapshot tests); Vitest `tickerStreamHttp.test.ts` (4); `npm run build`; browser Trader on SPY at $769.45 with no error boundary. Afterhours still 50 live rows after API restart.
+- **Follow-ups:** D-001 / D-009 unchanged. Paste Alpaca keys if you want news on the quote.
+- **Related:** PROBLEM_LOG 2026-09-05 -- Trader toUpperCase; task-log `knowledge/task-log/2026-09-05-trader-alpaca-keys-crash.md`
+
 ## 2026-09-02 -- Unblock Linux CI (backend, agent-contract, gitleaks, OSV)
 
 - **What:** PR CI on ubuntu-latest can collect and pass the backend suite, agent-contract tests, and the warning-only Gitleaks/OSV jobs. Four pre-existing Linux/CI bugs, not D-006 product regressions.
