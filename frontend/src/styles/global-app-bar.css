@@ -285,30 +285,108 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--nova-success) 25%, transparent);
 }
 
-/* Scanner status sits in the middle column (or its own row under 1680px). */
-.global-app-bar__scanner {
+/* Middle column: context (Trader tabs | scanner controls) + status cluster.
+   One row always; narrow widths hide chips (global-app-bar-responsive.css). */
+.global-app-bar__center {
+  grid-column: 2;
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  min-width: 0;
+  min-height: 28px;
+}
+
+.global-app-bar__context {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
   gap: 0.4rem 0.5rem;
   min-width: 0;
-  grid-column: 2;
+  overflow: hidden;
   container-type: inline-size;
   container-name: app-bar-scanner;
 }
 
-.global-app-bar__scanner .status-cluster {
+.global-app-bar__status {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
-  flex-wrap: wrap;
+  white-space: nowrap;
 }
 
-.global-app-bar__scanner .status-chip,
-.global-app-bar__scanner .mode-badge,
-.global-app-bar__scanner .header-market-clock {
+.global-app-bar__status .status-cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+.global-app-bar__status .status-chip,
+.global-app-bar__status .mode-badge,
+.global-app-bar__status .header-market-clock {
   flex-shrink: 0;
+}
+
+/* Trader tab strip lives here (portal from StockViewTabs). Chips, not tabs. */
+.global-app-bar__trader-slot {
+  align-self: stretch;
+}
+
+.global-app-bar__trader-slot .sv-tab-strip {
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0;
+  border-bottom: none;
+  background: transparent;
+  min-width: 0;
+  scrollbar-width: none;
+}
+
+.global-app-bar__trader-slot .sv-tab-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.global-app-bar__trader-slot .sv-tab {
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  background: color-mix(in srgb, var(--nova-raised) 55%, transparent);
+  max-width: 150px;
+}
+
+.global-app-bar__trader-slot .sv-tab--active {
+  background: color-mix(in srgb, var(--nova-accent) 18%, transparent);
+  border-color: color-mix(in srgb, var(--nova-accent) 45%, var(--nova-border));
+  color: var(--nova-text);
+}
+
+.global-app-bar__trader-slot .sv-tab__label {
+  padding: 0.22rem 0.35rem 0.22rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.global-app-bar__trader-slot .sv-tab__input {
+  margin: 0.1rem 0 0.1rem 0.3rem;
+}
+
+.global-app-bar__trader-slot .sv-tab__close {
+  padding: 0.15rem 0.4rem 0.2rem 0.1rem;
+}
+
+.global-app-bar__trader-slot .sv-tab-add {
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+}
+
+.global-app-bar__trader-slot .sv-tab-strip__hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 24rem;
 }
 
 .header-market-clock {
@@ -330,6 +408,20 @@
 
 .global-app-bar__scanner .history-select {
   max-width: 8rem;
+}
+
+/* Header symbol lookup. Lives in this (components) layer so the container-query
+   hide in global-app-bar-responsive.css can win -- a `display:flex` in the
+   features layer used to override it and clip the input instead. */
+.header-symbol-search {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.header-symbol-input {
+  width: 7.5rem;
+  min-width: 0;
 }
 
 .global-app-bar__scanner .header-symbol-input {

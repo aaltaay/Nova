@@ -67,6 +67,23 @@ export const CHART_VWAP_SESSION_END_SEC = 16 * 3600;
 export const CHART_VWAP_AFTERHOURS_END_SEC = SESSION_AFTERHOURS_END_MIN_ET * 60;
 
 export const CHART_INDICATOR_PANE_HEIGHT = 110;
+/**
+ * Trader grid oscillator block (RSI / MACD) as a share of its chart card (%).
+ * Proportional, not a fixed px height, so a short window keeps most of the
+ * pane for candles. Drag the handle above the block; double-click resets.
+ * One saved value per pane timeframe (`${KEY}.${timeframe}`).
+ */
+export const CHART_GRID_OSCILLATOR_SPLIT_KEY = 'nova.chartGrid.oscillatorPct';
+export const CHART_GRID_OSCILLATOR_PCT = 26;
+export const CHART_GRID_OSCILLATOR_MIN_PCT = 12;
+export const CHART_GRID_OSCILLATOR_MAX_PCT = 55;
+/** Shared desk toolbar copy (one bar above the 2x2 grid, Webull-style). */
+export const CHART_DESK_TOOLBAR_ARIA = 'Chart tools';
+export const CHART_DESK_TOOLBAR_TARGET_TITLE =
+  'Indicator toggles apply to the highlighted pane. Click a chart to pick it.';
+export const CHART_DESK_CLEAR_TITLE =
+  'Clear every drawing on this symbol (all panes). Delete or Backspace removes the selected line.';
+export const CHART_OSCILLATOR_CLOSE_TITLE = 'Hide this indicator pane';
 export const CHART_RSI_LENGTH = 14;
 export const CHART_MACD_FAST = 12;
 export const CHART_MACD_SLOW = 26;

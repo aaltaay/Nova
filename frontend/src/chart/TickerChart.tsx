@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import {
@@ -7,15 +7,21 @@ import {
   CHART_HEIGHT_PAGE,
   CHART_HEIGHT_GRID,
   CHART_DEFAULT_INDICATORS,
+  CHART_GRID_OSCILLATOR_MAX_PCT,
+  CHART_GRID_OSCILLATOR_MIN_PCT,
+  CHART_GRID_OSCILLATOR_PCT,
+  CHART_GRID_OSCILLATOR_SPLIT_KEY,
   CHART_OSCILLATOR_IDS,
   type ChartIndicatorId,
   type ChartOscillatorId,
 } from '../constants';
+import { ResizeHandle } from '../components/ResizeHandle';
 import { TickerChartControls } from '../components/TickerChartControls';
 import { TickerChartErrorBoundary } from '../components/TickerChartErrorBoundary';
 import { TickerChartOverlays } from '../components/TickerChartOverlays';
 import { TickerChartOscillatorPanes } from '../components/TickerChartOscillatorPanes';
 import { useMaximizedChartPortal } from '../hooks/useMaximizedChartPortal';
+import { useResizableHeight } from '../hooks/useResizableHeight';
 import { toggleIndicator } from '../chartIndicators';
 import { useChartBars } from './useChartBars';
 import { useChartDrawingManager } from './useChartDrawingManager';
@@ -38,6 +44,22 @@ interface TickerChartProps {
   subtitle?: string;
   /** Override default indicator toggles (e.g. grid 1m/5m start with MACD on). */
   initialIndicators?: ChartIndicatorId[];
+  /**
+   * Controlled indicators (Trader grid: the shared desk toolbar owns them).
+   * When set, `initialIndicators` is ignored and toggles go through
+   * `onIndicatorToggle`.
+   */
+  indicators?: ChartIndicatorId[];
+  onIndicatorToggle?: (id: ChartIndicatorId) => void;
+  /** Controlled drawing tool shared across grid panes (see useChartDrawingManager). */
+  activeTool?: string | null;
+  onActiveToolChange?: (tool: string | null) => void;
+  /** One-line header, no per-pane toolbar (desk toolbar lives above the grid). */
+  compactChrome?: boolean;
+  /** Highlight as the pane the desk toolbar's indicator toggles target. */
+  focused?: boolean;
+  /** Pointer-down on this pane -- desk toolbar retargets to it. */
+  onFocusPane?: () => void;
   /** When false, pause bar polling and resize work (hidden Trader tab). */
   chartActive?: boolean;
 }
@@ -59,6 +81,13 @@ function TickerChartInner({
   title,
   subtitle,
   initialIndicators,
+  indicators: controlledIndicators,
+  onIndicatorToggle,
+  activeTool: controlledTool,
+  onActiveToolChange,
+  compactChrome = false,
+  focused = false,
+  onFocusPane,
   chartActive = true,
 }: TickerChartProps) {
   const chartHeight =
@@ -67,6 +96,7 @@ function TickerChartInner({
     : CHART_HEIGHT_PANEL;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
@@ -77,9 +107,20 @@ function TickerChartInner({
   );
   const timeframe = fixedTimeframe ?? userTimeframe;
   const [maximized, setMaximized] = useState(false);
-  const [enabledIndicators, setEnabledIndicators] = useState<ChartIndicatorId[]>(
+  const [localIndicators, setLocalIndicators] = useState<ChartIndicatorId[]>(
     () => [...(initialIndicators ?? CHART_DEFAULT_INDICATORS)],
   );
+  const enabledIndicators = controlledIndicators ?? localIndicators;
+
+  // Grid panes: oscillator block is a share of the card, dragged per pane.
+  const { topPct: pricePct, onDragStart: onOscDragStart, reset: resetOscSplit } =
+    useResizableHeight({
+      storageKey: `${CHART_GRID_OSCILLATOR_SPLIT_KEY}.${timeframe}`,
+      defaultPct: 100 - CHART_GRID_OSCILLATOR_PCT,
+      minPct: 100 - CHART_GRID_OSCILLATOR_MAX_PCT,
+      maxPct: 100 - CHART_GRID_OSCILLATOR_MIN_PCT,
+      containerRef: cardRef,
+    });
 
   // Panel: fill the Quote Panel slot so LWC (incl. time axis) fits under
   // header/toolbar instead of painting 280px and getting clipped by max-height.
@@ -145,6 +186,8 @@ function TickerChartInner({
     symbol,
     seriesRevision: barsRevision,
     hotkeyOwner: drawingHotkeyOwnerRef.current,
+    activeTool: controlledTool,
+    onActiveToolChange,
   });
 
   useChartSessionHighlight({
@@ -175,18 +218,42 @@ function TickerChartInner({
   }
 
   function handleIndicatorToggle(id: ChartIndicatorId) {
-    setEnabledIndicators(prev => toggleIndicator(prev, id));
+    if (onIndicatorToggle) {
+      onIndicatorToggle(id);
+      return;
+    }
+    setLocalIndicators(prev => toggleIndicator(prev, id));
   }
 
   const coverageClock = formatCoverageClockEt(coverageAsOf);
+  const gridOscillators = variant === 'grid' && oscillatorEnabled.length > 0;
+  const cardClass = [
+    'chart-card',
+    maximized ? 'chart-card--maximized' : '',
+    variant === 'grid' ? 'chart-card--grid' : '',
+    compactChrome ? 'chart-card--compact' : '',
+    focused ? 'chart-card--focused' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const card = (
     <div
-      className={`chart-card${maximized ? ' chart-card--maximized' : ''}${variant === 'grid' ? ' chart-card--grid' : ''}`}
+      ref={cardRef}
+      className={cardClass}
       data-testid={`ticker-chart-${timeframe}`}
       data-bar-count={indicatorBars.length}
       data-filling={filling ? '1' : '0'}
-      onPointerDown={() => claimChartDrawingHotkeyFocus(drawingHotkeyOwnerRef.current)}
+      data-focused={focused ? '1' : '0'}
+      style={
+        gridOscillators
+          ? ({ ['--chart-osc-pct' as string]: `${100 - pricePct}%` } as CSSProperties)
+          : undefined
+      }
+      onPointerDown={() => {
+        claimChartDrawingHotkeyFocus(drawingHotkeyOwnerRef.current);
+        onFocusPane?.();
+      }}
       onPointerEnter={() => claimChartDrawingHotkeyFocus(drawingHotkeyOwnerRef.current)}
     >
       <TickerChartControls
@@ -198,6 +265,7 @@ function TickerChartInner({
         timeframe={timeframe}
         title={title}
         usingMock={usingMock}
+        compact={compactChrome}
         fillingHint={
           filling && indicatorBars.length > 0
             ? (coverageClock ? `as of ${coverageClock} ET, filling…` : 'filling…')
@@ -234,12 +302,21 @@ function TickerChartInner({
         vwapCoversOpen={vwapSource.coversOpen}
         liveTipTime={liveTipTime}
       />
+      {gridOscillators && (
+        <ResizeHandle
+          orientation="horizontal"
+          onPointerDown={onOscDragStart}
+          onDoubleClick={resetOscSplit}
+          label="Resize indicator pane"
+        />
+      )}
       {oscillatorEnabled.length > 0 && (
         <TickerChartOscillatorPanes
           parentChart={chartApi}
           bars={indicatorBars}
           barsRevision={barsRevision}
           enabled={oscillatorEnabled}
+          onClose={variant === 'grid' ? handleIndicatorToggle : undefined}
         />
       )}
     </div>

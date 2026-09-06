@@ -60,6 +60,56 @@ describe('TickerChartControls filling hint', () => {
     expect(container.querySelector('.chart-filling-hint')).toBeNull();
   });
 
+  it('compact grid pane: one header line, no toolbar, maximize stays reachable', async () => {
+    await act(async () => {
+      root.render(
+        <TickerChartControls
+          activeTool={null}
+          enabledIndicators={['vwap']}
+          lockTimeframe
+          maximized={false}
+          timeframe="5Min"
+          title="5-Minute"
+          usingMock={false}
+          compact
+          onClearAll={noop}
+          onIndicatorToggle={noop}
+          onMaximize={noop}
+          onTimeframeChange={noop}
+          onToolClick={noop}
+        />,
+      );
+    });
+    expect(container.querySelector('.chart-header--compact')).toBeTruthy();
+    expect(container.querySelector('.chart-toolbar')).toBeNull();
+    expect(container.querySelector('[aria-label="Indicators"]')).toBeNull();
+    expect(container.querySelector('.chart-header [aria-label="Maximize chart"]')).toBeTruthy();
+  });
+
+  it('compact pane that is maximized gets its own toolbar back', async () => {
+    await act(async () => {
+      root.render(
+        <TickerChartControls
+          activeTool={null}
+          enabledIndicators={['vwap']}
+          lockTimeframe
+          maximized
+          timeframe="5Min"
+          usingMock={false}
+          compact
+          onClearAll={noop}
+          onIndicatorToggle={noop}
+          onMaximize={noop}
+          onTimeframeChange={noop}
+          onToolClick={noop}
+        />,
+      );
+    });
+    expect(container.querySelector('.chart-toolbar')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Indicators"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Restore chart"]')).toBeTruthy();
+  });
+
   it('does not spend chart header space on a session legend', async () => {
     await act(async () => {
       root.render(renderControls(null));

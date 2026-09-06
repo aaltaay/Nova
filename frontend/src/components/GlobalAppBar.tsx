@@ -1,6 +1,11 @@
 /**
  * Webull-style single-row chrome shared by Scanner and Trader View.
  * Mounted once in AppShell so every live page inherits it automatically.
+ *
+ * Middle column = context (Trader tab strip via portal slot, or scanner
+ * controls) + always-on status cluster (session badge, Desk, clock, Paper/Live).
+ * One row -- the old "scanner strip drops to row 2 under 1680px" is gone;
+ * narrow widths hide low-value chips instead (global-app-bar-responsive.css).
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import {
@@ -28,6 +33,7 @@ import { GlobalBarAccountCluster } from './GlobalBarAccountCluster';
 import { resolveAccountChromeState } from './globalBarAccountChrome';
 import { NovaLogo } from './NovaLogo';
 import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
+import { setGlobalBarTraderSlot } from './globalBarSlots';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { SymbolSearchBox } from './SymbolSearchBox';
 import { ThemeToggle } from './ThemeToggle';
@@ -136,60 +142,77 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
         </nav>
       </div>
 
-      {scanner && (
-        <div className="global-app-bar__scanner" data-testid="global-bar-scanner">
-          <span className={`mode-badge mode-${scanner.mode}`}>
-            {scanner.sampleDataActive ? 'Sample data' : SCANNER_MODE_LABELS[scanner.mode]}
-          </span>
-          <HeaderConnectionStatus
-            health={scanner.health}
-            discoveryProvider={scanner.discoveryProvider}
-            ibkrConnected={scanner.ibkrConnected}
-            ibkrMode={scanner.ibkrMode}
-            ibkrGatewayMode={scanner.ibkrGatewayMode}
-            ibkrAccountKind={ibkrAccountKind}
-            ibkrIntentionalMode={ibkrIntentionalMode}
-            activeFeed={scanner.activeFeed}
-            feedFellBack={scanner.feedFellBack}
-            secondsAgo={scanner.secondsAgo}
-            pricesStale={scanner.pricesStale}
-            historyDate={scanner.historyDate}
-            compact
-            showScannerSource={scanner.showScannerSource ?? true}
-            onBackendStarted={scanner.onBackendStarted}
+      <div className="global-app-bar__center" data-testid="global-bar-center">
+        {traderActive ? (
+          <div
+            ref={setGlobalBarTraderSlot}
+            className="global-app-bar__context global-app-bar__trader-slot"
+            data-testid="global-bar-trader-slot"
           />
-          {scanner.onSampleDataToggle && (
-            <label
-              className={`sample-data-switch${scanner.sampleDataActive ? ' sample-data-switch--on' : ''}`}
-              title="Open isolated sample fixtures — never mixed with live market data"
-              data-testid="sample-data-switch"
+        ) : (
+          scanner && (
+            <div
+              className="global-app-bar__context global-app-bar__scanner"
+              data-testid="global-bar-scanner"
             >
-              <input
-                type="checkbox"
-                checked={scanner.sampleDataActive}
-                onChange={(e) => scanner.onSampleDataToggle?.(e.target.checked)}
-              />
-              <span>Sample</span>
-            </label>
-          )}
-          <select
-            className={`history-select${scanner.historyDate ? ' history-select--active' : ''}`}
-            value={scanner.historyDate ?? ''}
-            onChange={scanner.onHistoryChange}
-            title="Browse historical snapshots"
-            disabled={scanner.sampleDataActive}
-          >
-            <option value="">{scanner.sampleDataActive ? 'Sample (fixtures)' : 'Today (Live)'}</option>
-            {!scanner.sampleDataActive &&
-              scanner.historyDates.map((d) => (
-                <option key={d} value={d}>
-                  {fmtHistoryDateShort(d)}
-                </option>
-              ))}
-          </select>
-          <SymbolSearchBox onLookup={scanner.onLookup} />
-        </div>
-      )}
+              {scanner.onSampleDataToggle && (
+                <label
+                  className={`sample-data-switch${scanner.sampleDataActive ? ' sample-data-switch--on' : ''}`}
+                  title="Open isolated sample fixtures — never mixed with live market data"
+                  data-testid="sample-data-switch"
+                >
+                  <input
+                    type="checkbox"
+                    checked={scanner.sampleDataActive}
+                    onChange={(e) => scanner.onSampleDataToggle?.(e.target.checked)}
+                  />
+                  <span>Sample</span>
+                </label>
+              )}
+              <select
+                className={`history-select${scanner.historyDate ? ' history-select--active' : ''}`}
+                value={scanner.historyDate ?? ''}
+                onChange={scanner.onHistoryChange}
+                title="Browse historical snapshots"
+                disabled={scanner.sampleDataActive}
+              >
+                <option value="">{scanner.sampleDataActive ? 'Sample (fixtures)' : 'Today (Live)'}</option>
+                {!scanner.sampleDataActive &&
+                  scanner.historyDates.map((d) => (
+                    <option key={d} value={d}>
+                      {fmtHistoryDateShort(d)}
+                    </option>
+                  ))}
+              </select>
+              <SymbolSearchBox onLookup={scanner.onLookup} />
+            </div>
+          )
+        )}
+        {scanner && (
+          <div className="global-app-bar__status" data-testid="global-bar-status">
+            <span className={`mode-badge mode-${scanner.mode}`}>
+              {scanner.sampleDataActive ? 'Sample data' : SCANNER_MODE_LABELS[scanner.mode]}
+            </span>
+            <HeaderConnectionStatus
+              health={scanner.health}
+              discoveryProvider={scanner.discoveryProvider}
+              ibkrConnected={scanner.ibkrConnected}
+              ibkrMode={scanner.ibkrMode}
+              ibkrGatewayMode={scanner.ibkrGatewayMode}
+              ibkrAccountKind={ibkrAccountKind}
+              ibkrIntentionalMode={ibkrIntentionalMode}
+              activeFeed={scanner.activeFeed}
+              feedFellBack={scanner.feedFellBack}
+              secondsAgo={scanner.secondsAgo}
+              pricesStale={scanner.pricesStale}
+              historyDate={scanner.historyDate}
+              compact
+              showScannerSource={scanner.showScannerSource ?? true}
+              onBackendStarted={scanner.onBackendStarted}
+            />
+          </div>
+        )}
+      </div>
 
       <div className="global-app-bar__right">
         <ThemeToggle />

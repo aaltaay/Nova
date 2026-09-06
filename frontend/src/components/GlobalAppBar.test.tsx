@@ -325,27 +325,53 @@ describe('GlobalAppBar', () => {
     expect(segs[0].classList.contains('is-paper')).toBe(true);
   });
 
-  it('drops the flex spacer so zoom can move scanner onto its own row', () => {
+  const scannerProps = {
+    mode: 'closed' as const,
+    health: { status: 'ok', latency_ms: 1 },
+    activeFeed: 'ibkr' as const,
+    feedFellBack: false,
+    secondsAgo: 1,
+    historyDate: null,
+    historyDates: [],
+    onHistoryChange: () => {},
+    onLookup: () => {},
+  };
+
+  it('keeps scanner controls + status in the single middle column (no spacer)', () => {
     act(() => {
-      root.render(
-        <GlobalAppBar
-          scanner={{
-            mode: 'closed',
-            health: { status: 'ok', latency_ms: 1 },
-            activeFeed: 'ibkr',
-            feedFellBack: false,
-            secondsAgo: 1,
-            historyDate: null,
-            historyDates: [],
-            onHistoryChange: () => {},
-            onLookup: () => {},
-          }}
-        />,
-      );
+      root.render(<GlobalAppBar scanner={scannerProps} />);
     });
-    expect(container.querySelector('[data-testid="global-bar-scanner"]')).toBeTruthy();
+    const center = container.querySelector('[data-testid="global-bar-center"]');
+    expect(center).toBeTruthy();
+    expect(center!.querySelector('[data-testid="global-bar-scanner"]')).toBeTruthy();
+    expect(center!.querySelector('[data-testid="global-bar-status"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="global-bar-trader-slot"]')).toBeNull();
     expect(container.querySelector('.global-app-bar__spacer')).toBeNull();
     expect(container.textContent).toMatch(/Market Closed/);
+  });
+
+  it('offers the Trader tab-strip slot instead of scanner controls while Trader is showing', async () => {
+    const { getGlobalBarTraderSlot, resetGlobalBarSlotsForTests } = await import('./globalBarSlots');
+    resetGlobalBarSlotsForTests();
+    workspace = baseWorkspace({
+      traderTabs: ['AAPL'],
+      activeTraderSymbol: 'AAPL',
+      traderViewActive: true,
+    });
+    act(() => {
+      root.render(<GlobalAppBar scanner={scannerProps} />);
+    });
+    const slot = container.querySelector('[data-testid="global-bar-trader-slot"]');
+    expect(slot).toBeTruthy();
+    expect(getGlobalBarTraderSlot()).toBe(slot);
+    // Scanner-only controls leave; the status cluster stays so the clock/desk chips survive.
+    expect(container.querySelector('[data-testid="global-bar-scanner"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-bar-status"]')).toBeTruthy();
+    act(() => {
+      root.unmount();
+    });
+    expect(getGlobalBarTraderSlot()).toBeNull();
+    root = createRoot(container);
   });
 
   it('places Account next to Settings and opens the trading tab', () => {

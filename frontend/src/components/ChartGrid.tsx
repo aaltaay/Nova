@@ -1,6 +1,11 @@
-/** Multi-timeframe chart grid for Trader / Stock View (batch-warmed bars). */
+/**
+ * Multi-timeframe chart grid for Trader / Stock View (batch-warmed bars).
+ * One desk toolbar above the 2x2 grid owns draw tools (shared) and indicator
+ * toggles (focused pane). Panes render a one-line header only.
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { TickerChart, type ChartTradeUpdate } from '../TickerChart';
+import { ChartGridToolbar } from './ChartGridToolbar';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import {
@@ -13,8 +18,11 @@ import {
   STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_MIN_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_PCT,
+  type ChartIndicatorId,
 } from '../constants';
 import { ensureBarsBatch } from '../chart/barsStore';
+import { clearDrawings, drawingsKey } from '../chart/chartDrawingsStore';
+import { toggleIndicator } from '../chartIndicators';
 
 interface Props {
   symbol: string;
@@ -33,6 +41,16 @@ function readOptionalEnabled(): boolean {
   }
 }
 
+/** Every pane the grid can show, seeded with its per-timeframe defaults. */
+function defaultIndicatorsByPane(): Record<string, ChartIndicatorId[]> {
+  return Object.fromEntries(
+    buildChartGridPanels(true).map((p) => [
+      p.id,
+      [...(CHART_GRID_PANE_INDICATORS[p.id] ?? CHART_DEFAULT_INDICATORS)],
+    ]),
+  );
+}
+
 export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
   const gridRef = useRef<HTMLDivElement>(null);
   const { topPct, onDragStart, reset } = useResizableHeight({
@@ -43,8 +61,14 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
     containerRef: gridRef,
   });
   const [showOptional, setShowOptional] = useState(readOptionalEnabled);
+  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [focusedPaneId, setFocusedPaneId] = useState<string | null>(null);
+  const [indicatorsByPane, setIndicatorsByPane] = useState(defaultIndicatorsByPane);
 
   const panels = useMemo(() => buildChartGridPanels(showOptional), [showOptional]);
+  // A hidden 10-Second pane cannot stay the toggle target.
+  const focusedPane =
+    panels.find((p) => p.id === focusedPaneId) ?? panels[0];
 
   const topPanels = panels.slice(0, 2);
   const bottomPanels = panels.slice(2);
@@ -73,6 +97,44 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
     });
   };
 
+  const toggleIndicatorFor = (paneId: string, id: ChartIndicatorId) => {
+    setIndicatorsByPane((prev) => ({
+      ...prev,
+      [paneId]: toggleIndicator(prev[paneId] ?? CHART_DEFAULT_INDICATORS, id),
+    }));
+  };
+
+  const handleToolClick = (toolId: string) => {
+    setActiveTool((prev) => (prev === toolId ? null : toolId));
+  };
+
+  // Drawings are stored per symbol; every pane rebuilds from the empty set.
+  const handleClearAll = () => {
+    clearDrawings(drawingsKey(symbol));
+    setActiveTool(null);
+  };
+
+  const renderPane = (panel: (typeof panels)[number]) => (
+    <div key={panel.id} className="chart-grid-cell">
+      <TickerChart
+        symbol={symbol}
+        lastTrade={lastTrade}
+        variant="grid"
+        fixedTimeframe={panel.id}
+        title={panel.label}
+        subtitle={panel.note}
+        indicators={indicatorsByPane[panel.id] ?? CHART_DEFAULT_INDICATORS}
+        onIndicatorToggle={(id) => toggleIndicatorFor(panel.id, id)}
+        activeTool={activeTool}
+        onActiveToolChange={setActiveTool}
+        compactChrome
+        focused={panel.id === focusedPane.id}
+        onFocusPane={() => setFocusedPaneId(panel.id)}
+        chartActive={chartActive}
+      />
+    </div>
+  );
+
   return (
     <div
       ref={gridRef}
@@ -82,34 +144,18 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
       style={{ ['--chart-row-top-pct' as string]: `${topPct}%` }}
       data-testid="chart-grid"
     >
-      <div className="chart-grid__toolbar">
-        <button
-          type="button"
-          className="chart-grid__optional-toggle"
-          onClick={toggleOptional}
-          aria-pressed={showOptional}
-          data-testid="chart-grid-optional-toggle"
-        >
-          {showOptional ? 'Hide 10-Second' : 'Show 10-Second'}
-        </button>
-      </div>
+      <ChartGridToolbar
+        activeTool={activeTool}
+        focusedLabel={focusedPane.label}
+        focusedIndicators={indicatorsByPane[focusedPane.id] ?? CHART_DEFAULT_INDICATORS}
+        showOptional={showOptional}
+        onToolClick={handleToolClick}
+        onClearAll={handleClearAll}
+        onIndicatorToggle={(id) => toggleIndicatorFor(focusedPane.id, id)}
+        onToggleOptional={toggleOptional}
+      />
       <div className="chart-grid__row chart-grid__row--top">
-        {topPanels.map((panel) => (
-          <div key={panel.id} className="chart-grid-cell">
-            <TickerChart
-              symbol={symbol}
-              lastTrade={lastTrade}
-              variant="grid"
-              fixedTimeframe={panel.id}
-              title={panel.label}
-              subtitle={panel.note}
-              initialIndicators={
-                CHART_GRID_PANE_INDICATORS[panel.id] ?? CHART_DEFAULT_INDICATORS
-              }
-              chartActive={chartActive}
-            />
-          </div>
-        ))}
+        {topPanels.map(renderPane)}
       </div>
       <ResizeHandle
         orientation="horizontal"
@@ -122,22 +168,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
           bottomPanels.length === 1 ? ' chart-grid__row--single' : ''
         }`}
       >
-        {bottomPanels.map((panel) => (
-          <div key={panel.id} className="chart-grid-cell">
-            <TickerChart
-              symbol={symbol}
-              lastTrade={lastTrade}
-              variant="grid"
-              fixedTimeframe={panel.id}
-              title={panel.label}
-              subtitle={panel.note}
-              initialIndicators={
-                CHART_GRID_PANE_INDICATORS[panel.id] ?? CHART_DEFAULT_INDICATORS
-              }
-              chartActive={chartActive}
-            />
-          </div>
-        ))}
+        {bottomPanels.map(renderPane)}
       </div>
     </div>
   );
