@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-06 -- Deep-dive audit parked as D-011..D-040 (docs only)
+
+- **What:** Read-only reliability / speed / honesty audit of every product section, written into `DEFERRED_LOG.md` as 30 new ranked entries (1 P0, 14 P1, 14 P2, 1 P3). No product code changed.
+- **Why:** Operator asked for a deep dive into underdeveloped features and unfound bugs, recorded in the proper tracker rather than fixed. Several known gaps lived only in CHANGELOG `Follow-ups:` bullets or an OPEN PROBLEM_LOG line and were invisible to `deferred_log.py status`.
+- **Files touched:** `DEFERRED_LOG.md`, `CHANGELOG.md`, `knowledge/task-log/2026-09-06-deferred-log-deep-dive.md`, `knowledge/task-log/INDEX.md`
+- **How it works now:** `py -3 tools/deferred_log.py status` is the to-do. Top of the list: D-011 (broker send outside the ADR 007 lock -- P0), D-037 / D-038 (kill-switch scope, live spend with unknown account kind), then the honesty cluster D-021 / D-022 / D-023 / D-014 (ticker WS never reconnects, scanner last-good rows with no marker, 11 status pollers keeping "connected", sample orders on an empty blotter). Feed-loop hot spots: D-018 (hist SQLite on the IB loop), D-019 (O(n) cache rebuild per tick), D-020 (listing_flags sleep), D-025 (short pacing sleeps). Infra: D-029 (CI runs neither lint nor Vitest; master is ESLint-red), D-017 (schema_version gaps), D-030 (Railway leftovers). D-035 promotes the Jul 30 premarket OPEN into the ranked list.
+- **Verified by:** Fresh gates this session: `pytest backend/` 1481 passed; `npx vitest run` 858 passed; `tsc --noEmit` and `npm run build` exit 0; `npx eslint . --max-warnings=0` exit 1 (4 errors, 6 warnings); `ruff check backend` 11 findings; `tools/maintainer_checks.py`, `doc_invariants.py` OK, `agent_fleet.py`. Every P0/P1 claim from the four sub-audits was re-read in source before logging (snippets cited per entry). `tools/deferred_log.py status` parses all 37 open entries; `pytest tools/test_deferred_log.py` 8 passed.
+- **Follow-ups:** None outside DEFERRED_LOG -- that file is the follow-up. Do not start D-011 without the concurrency regression test named in its Next.
+- **Related:** task-log `knowledge/task-log/2026-09-06-deferred-log-deep-dive.md`; PROBLEM_LOG n/a (nothing fixed)
+
 ## 2026-09-02 -- Unblock Linux CI (backend, agent-contract, gitleaks, OSV)
 
 - **What:** PR CI on ubuntu-latest can collect and pass the backend suite, agent-contract tests, and the warning-only Gitleaks/OSV jobs. Four pre-existing Linux/CI bugs, not D-006 product regressions.
