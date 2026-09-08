@@ -52,6 +52,19 @@ def rvol_5min_fields(
     return {"volume_in_5min": vol_5m, "rvol_5min": rvol5}
 
 
+def ticker_alpaca_required_error(symbol: str) -> dict | None:
+    """Return a block payload only when discovery still needs Alpaca keys.
+
+    IBKR discovery can build a quote without APCA keys. News/listing stay empty.
+    Always include ``symbol`` so the UI cannot crash on ``.toUpperCase()``.
+    """
+    if _get_discovery_provider() == "ibkr":
+        return None
+    if _alpaca_headers():
+        return None
+    return {"error": "API keys not configured", "symbol": symbol.upper()}
+
+
 def _snapshot_for_provider(symbol: str, headers: dict, feed: str) -> dict:
     """Composed TickerSnapshotPort — no silent Alpaca fallback when discovery=ibkr."""
     from composition.market_data_providers import get_ticker_snapshot_port
@@ -120,10 +133,11 @@ def build_ticker_slow(symbol: str, headers: dict) -> dict:
 
 def build_ticker_detail(symbol: str) -> dict:
     """Fetch and assemble full ticker detail for a symbol. Used by the REST endpoint."""
+    blocked = ticker_alpaca_required_error(symbol)
+    if blocked:
+        return blocked
     base_url = _env("APCA_API_BASE_URL", "https://api.alpaca.markets") or "https://api.alpaca.markets"
-    headers = _alpaca_headers()
-    if not headers:
-        return {"error": "API keys not configured"}
+    headers = _alpaca_headers() or {}
 
     feed = _get_feed()
     use_ibkr = _get_discovery_provider() == "ibkr"

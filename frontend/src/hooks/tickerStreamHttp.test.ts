@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tickerDetailFromHttp } from './tickerStreamHttp';
+import { tickerDetailFromHttp, tickerDetailFromWsInitial } from './tickerStreamHttp';
 
 describe('tickerDetailFromHttp', () => {
   it('accepts a matching REST ticker body', () => {
@@ -14,5 +14,24 @@ describe('tickerDetailFromHttp', () => {
     expect(tickerDetailFromHttp({ symbol: 'AAPL', snapshot: {} }, 'F')).toBeNull();
     expect(tickerDetailFromHttp({ symbol: 'F', error: 'no keys' }, 'F')).toBeNull();
     expect(tickerDetailFromHttp({ symbol: 'F' }, 'F')).toBeNull();
+  });
+});
+
+describe('tickerDetailFromWsInitial', () => {
+  it('accepts a matching WS initial body', () => {
+    const row = tickerDetailFromWsInitial(
+      { type: 'initial', symbol: 'SPY', snapshot: { latest_trade: { price: 1 } } },
+      'spy',
+    );
+    expect(row?.symbol).toBe('SPY');
+  });
+
+  it('rejects Alpaca-missing error payload with no symbol', () => {
+    expect(
+      tickerDetailFromWsInitial(
+        { type: 'initial', error: 'API keys not configured' },
+        'SPY',
+      ),
+    ).toBeNull();
   });
 });

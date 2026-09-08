@@ -4,7 +4,7 @@ import { API_BASE_URL, TICKER_WS_HTTP_SEED_MS, WS_BASE_URL } from '../constants'
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { BarData, TickerDetail, TickerTradeUpdate } from '../types/ticker';
 import { parseBarsCoverage, setBars } from '../chart/barsStore';
-import { tickerDetailFromHttp } from './tickerStreamHttp';
+import { tickerDetailFromHttp, tickerDetailFromWsInitial } from './tickerStreamHttp';
 
 const WS_URL = `${WS_BASE_URL}/ws`;
 
@@ -79,9 +79,13 @@ export function useTickerStream(symbol: string | null): {
         if (msgSym != null && msgSym !== symbol) return;
 
         if (msg.type === 'initial') {
-          const { type: _t, ...data } = msg;
-          const next = data as TickerDetail;
-          if (next.symbol && next.symbol.toUpperCase() !== symbol) return;
+          const next = tickerDetailFromWsInitial(msg, symbol);
+          if (!next) {
+            setLoading(false);
+            setRefreshing(false);
+            setFetchFailed(true);
+            return;
+          }
           initialReceived = true;
           hasDetailRef.current = true;
           setDetail(next);

@@ -1,79 +1,79 @@
-/* Zoom / narrow breakpoints for GlobalAppBar. Keep the base sheet under 400 lines. */
+/* Zoom / narrow breakpoints for GlobalAppBar. Keep the base sheet under 400 lines.
+   Contract: the bar stays ONE row down to 820px. Narrow widths hide low-value
+   chips (hint copy, BP, Day P&L, Reload, session badge, Net Liq, clock) in
+   that order instead of pushing content onto a second row. */
 
-@container app-bar-scanner (max-width: 36rem) {
-  .history-select,
+/* Scanner controls shed in priority order as their column narrows:
+   Sample (~5rem) -> history select (~8rem) -> symbol lookup (~12rem). The Quote
+   Panel keeps its own lookup box, so losing the header one is not a dead end. */
+@container app-bar-scanner (max-width: 26rem) {
   .sample-data-switch {
     display: none;
   }
 }
 
-@container app-bar-scanner (max-width: 22rem) {
+@container app-bar-scanner (max-width: 20rem) {
+  .history-select {
+    display: none;
+  }
+}
+
+@container app-bar-scanner (max-width: 12rem) {
   .header-symbol-search {
     display: none;
   }
 }
 
-/* 1920 at 125% zoom is ~1536 CSS px -- give scanner its own row before chips collide. */
-@media (max-width: 1679px) {
-  .global-app-bar:has(.global-app-bar__scanner) {
-    grid-template-columns: max-content minmax(0, 1fr);
-  }
-
-  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__left {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__right {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-  }
-
-  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__scanner {
-    grid-column: 1 / -1;
-    grid-row: 2;
+/* Tab-strip hint copy is the first thing to go (the title attribute keeps it). */
+@media (max-width: 1500px) {
+  .global-app-bar__trader-slot .sv-tab-strip__hint {
+    display: none;
   }
 }
 
-@media (max-width: 820px) {
-  .global-app-bar:has(.global-app-bar__scanner) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__left {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__right {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: stretch;
-  }
-
-  .global-app-bar:has(.global-app-bar__scanner) .global-app-bar__scanner {
-    grid-column: 1;
-    grid-row: 3;
-  }
-}
-
-@media (max-width: 1280px) {
+@media (max-width: 1400px) {
   .global-app-bar__metric--bp,
-  .global-app-bar__sep--bp {
+  .global-app-bar__sep--bp,
+  .global-app-bar__status .backend-start-btn--reload {
+    display: none;
+  }
+}
+
+/* Session badge goes before the clock: the Desk chip already says whether the
+   desk is up, and the symbol lookup must survive down to ~1024. */
+@media (max-width: 1280px) {
+  .global-app-bar__metric--day,
+  .global-app-bar__status .mode-badge {
     display: none;
   }
 }
 
 @media (max-width: 1100px) {
-  .global-app-bar__metric--day {
+  .global-app-bar__metric--netliq,
+  .global-app-bar__status .header-market-clock {
     display: none;
   }
 }
 
-@media (max-width: 900px) {
-  .global-app-bar__metric--netliq {
-    display: none;
+@media (max-width: 820px) {
+  .global-app-bar {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
+  .global-app-bar__left {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .global-app-bar__right {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .global-app-bar__center {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 
