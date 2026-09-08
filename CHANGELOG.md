@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-08 -- PR body is the task narrative; roadmap note trimmed
+
+- **What:** Added `.github/pull_request_template.md` (What / Why this approach / Verified by / Related issue + a logs checklist). `knowledge/task-log/` is now the fallback home for work that ships without a PR. `Nova-Roadmap-Status.md` shrank from 366 to ~100 lines; closed phases, verification baselines, the maintenance track, and pre-2026-07-28 History moved verbatim to a new `Nova-Roadmap-Archive.md`.
+- **Why:** Operator asked whether four hand-maintained markdown logs are the standard way to track work. Agreed split: GitHub Issues own the to-do, PR bodies own the "why this approach" narrative, `CHANGELOG.md` + `PROBLEM_LOG.md` stay in-repo (greppable offline history), and the roadmap note stays a short status page.
+- **Files touched:** `.github/pull_request_template.md`, `.cursor/rules/task-log.mdc`, `knowledge/task-log/README.md`, `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`, `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Archive.md`, `.cursor/rules/nova-roadmap-continuity.mdc`, `.cursor/rules/{constitution,specialist-routing,problem-log,deferred-log}.mdc`, `AGENTS.md` §7.2b / §12, `docs/agent-operations.md`, `tools/subagent_lifecycle_hook.py`
+- **How it works now:** Work that ships in a PR puts the narrative in the PR body and cites the PR URL in `task_log=`. Work with no PR still writes `knowledge/task-log/YYYY-MM-DD-<slug>.md` + an `INDEX.md` row. Never both for one job. The Lifecycle regex already accepted `task_log=.+`, so agent specs needed no change. Roadmap: read `Nova-Roadmap-Status.md` for NEXT/blockers, append History rows there; `Nova-Roadmap-Archive.md` is read-only.
+- **Verified by:** `python3 tools/doc_invariants.py` OK; `pytest tools/ -q --ignore=tools/course_memory` 161 passed; `tools/agent_contract.py --ci` PASS (14 agents); `engineering_skills_audit.py` PASS; `maintainer_checks.py --fail-on-kind ib_loop_sync_io` exit 0.
+- **Related:** 2026-09-08 deferred-tracker entry below; no phase state changed and `auto_live` stays NO-GO.
+
 ## 2026-09-08 -- Deferred tracker moves to GitHub Issues
 
 - **What:** The to-do / parked-bug list is GitHub Issues labeled `deferred`. `DEFERRED_LOG.md` is how-to only. `deferred_log.py status` / `priorities` / `next-id` read GitHub via `gh`. One-shot `publish` copied the markdown entries (D-001..D-040) into issues.

@@ -296,12 +296,13 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 - Use the template in `PROBLEM_LOG.md` (Symptom, Cause, Fix, Keywords).
 - Lifecycle footer **MUST** include `problem_log=<YYYY-MM-DD title>|skipped|n/a`.
 
-### 7.2b Task log (`knowledge/task-log/`)
+### 7.2b Task narrative (PR body first, `knowledge/task-log/` when there is no PR)
 
-- After every completed material task (parent or specialist), append a dated narrative under `knowledge/task-log/` and prepend `INDEX.md`.
-- **Why this approach** is mandatory -- capture tradeoffs and rejected alternatives, not only the diff.
-- Rule: `.cursor/rules/task-log.mdc`. Scaffold: `py -3 tools/task_log_new.py --slug <kebab> --title "…"`.
-- Lifecycle footer includes `task_log=<path>|skipped|n/a`, `problem_log=<entry>|skipped|n/a`, and `deferred_log=<D-NNN>|none|skipped|n/a`.
+- Every completed material task (parent or specialist) needs a reasoning narrative. **Default home is the pull request body** -- fill `.github/pull_request_template.md`: What / Why this approach / Verified by / Related issue.
+- No PR (direct push, ops diagnosis, audit conclusion)? Append a dated file under `knowledge/task-log/` and prepend `INDEX.md`. Scaffold: `py -3 tools/task_log_new.py --slug <kebab> --title "…"`.
+- **Why this approach** is mandatory in either home -- capture tradeoffs and rejected alternatives, not only the diff. Never write both homes for one job.
+- Rule: `.cursor/rules/task-log.mdc`.
+- Lifecycle footer includes `task_log=<PR URL>|<path>|skipped|n/a`, `problem_log=<entry>|skipped|n/a`, and `deferred_log=<D-NNN>|none|skipped|n/a`.
 
 ### 7.2c Deferred tracker (GitHub Issues)
 
@@ -373,6 +374,8 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 | Date | Change | Author |
 |------|--------|--------|
 | 2026-09-08 | Deferred tracker SSOT is GitHub Issues labeled `deferred`. `DEFERRED_LOG.md` is how-to only. Invariant #6, §7.2c, §9 updated. | User Directive + Cursor Agent |
+| 2026-09-08 | Task narrative default home is the PR body (`.github/pull_request_template.md`: What / Why this approach / Verified by / Related issue); `knowledge/task-log/` covers no-PR work. Roadmap note trimmed to a status page (closed detail in `Nova-Roadmap-Archive.md`). §7.2b / §12 updated. | User Directive + Cursor Agent |
+| 2026-09-08 | Deferred tracker is GitHub Issues labeled `deferred`; `DEFERRED_LOG.md` is how-to only. Invariant #6 / §7.2c / §9 updated. | User Directive + Cursor Agent |
 | 2026-08-31 | Public domain is a marketing page (`site/` on Vercel). Live scanner stays local Vite / Desktop. §4 / §8 updated. | User Directive + Cursor Agent |
 | 2026-08-31 | DEFERRED_LOG.md is the to-do / what's-missing list (`deferred_log.py status` / `priorities`); agents must search it before any fix; D-010 parked chart Trend Line. | User Directive + Cursor Agent |
 | 2026-08-26 | DEFERRED_LOG.md: parked bugs/features with same respect as PROBLEM_LOG; Lifecycle `deferred_log=`; always-on `deferred-log.mdc`; session brief lists open P0/P1. | User Directive + Cursor Agent |
@@ -478,7 +481,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `problem-log.mdc` -- mandatory PROBLEM_LOG after bug fixes
 - `deferred-log.mdc` -- check GitHub Issues (`deferred`) before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
 - `change-log.mdc` -- CHANGELOG after behavior changes
-- `task-log.mdc` -- task-log narrative after material work
+- `task-log.mdc` -- reasoning narrative after material work (PR body first; file when no PR)
 - `commit-push-deploy.mdc` -- commit + push (+ deploy when applicable) at task end
 - `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`
 - `self-annealing.mdc` -- root-cause fix protocol on any error

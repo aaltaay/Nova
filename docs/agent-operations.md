@@ -100,7 +100,7 @@ See `.cursor/rules/specialist-routing.mdc`. Defaults (all opt-in unless noted):
 Every specialist report must end with:
 
 ```text
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<PR URL>|<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 `problem_log=` is mandatory for **every** agent (rule: `.cursor/rules/problem-log.mdc`). After any bug fix or full diagnosis, prepend `PROBLEM_LOG.md` and set `problem_log=<YYYY-MM-DD title>`; otherwise `skipped` / `n/a`. Parent Auto sessions without a Lifecycle line still must write PROBLEM_LOG when they fix a bug.
@@ -109,18 +109,19 @@ Every specialist report must end with:
 
 The `subagentStop` hook reminds once (fail-open, `loop_limit: 1`) if a Nova agent omits this line. It never edits files and never blocks completion.
 
-## Task log (reasoning archive)
+## Task narrative (reasoning archive)
 
-After every completed material task, append a narrative under `knowledge/task-log/` so future agents keep the **why**, not only the diff.
+After every completed material task, write the narrative so future agents keep the **why**, not only the diff. Default home is the **PR body**; the `knowledge/task-log/` folder covers work that ships without a PR.
 
 | Piece | Path |
 |-------|------|
 | Rule (always apply) | `.cursor/rules/task-log.mdc` |
-| Index | `knowledge/task-log/INDEX.md` |
+| PR template (default home) | `.github/pull_request_template.md` |
+| Index (no-PR entries) | `knowledge/task-log/INDEX.md` |
 | Template | `knowledge/task-log/_template.md` |
 | Scaffold | `py -3 tools/task_log_new.py --slug <kebab> --title "…"` |
 
-The parent writes one aggregate entry for multi-domain jobs done in-session. CHANGELOG / PROBLEM_LOG / deferred Issues remain short; the task log holds tradeoffs and rejected alternatives.
+The parent writes one aggregate narrative for multi-domain jobs done in-session, and never both a PR body and a task-log file for the same job. CHANGELOG / PROBLEM_LOG / deferred Issues remain short; the narrative holds tradeoffs and rejected alternatives.
 
 ## Deferred tracker (known bugs + parked features)
 

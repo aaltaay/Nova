@@ -80,7 +80,7 @@ Example after parking a bug:
 | `PROBLEM_LOG.md` | What went wrong and how it was **fixed** |
 | GitHub Issues (`deferred`) | What is **still wrong or not built**, with severity so a human can prioritize |
 | `CHANGELOG.md` | What the codebase does now |
-| `knowledge/task-log/` | Full job narrative + why this approach |
+| PR body (or `knowledge/task-log/`) | Full job narrative + why this approach |
 | `Nova-Roadmap-Status.md` | Product phase NEXT (not a bug tracker) |
 
 ## Related
