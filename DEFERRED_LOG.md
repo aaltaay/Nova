@@ -1,12 +1,16 @@
-# Deferred log (agent-maintained -- MANDATORY)
+# Deferred tracker (GitHub Issues -- MANDATORY)
 
-This file is the **shared parking lot for work we already know about and did not do**. Known bugs found mid-task. Features the human asked for that got parked because they are too big, need an ADR, or were the wrong job for that session.
+The parking lot for known bugs and parked features is **GitHub Issues** labeled `deferred`:
 
-**Mandatory for every agent** in this project (parent sessions and all Nova specialists). Rule: `.cursor/rules/deferred-log.mdc`. Finding a real bug (or parking a real feature) and walking away with no entry here is a constitution violation -- same severity as skipping `PROBLEM_LOG.md` after a real fix. Lifecycle footers must declare `deferred_log=<D-NNN>|none|skipped|n/a`.
+https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred
 
-This is **not** `PROBLEM_LOG.md` (that is closed: symptom / cause / fix). This is **not** `Nova-Roadmap-Status.md` (that is product NEXT / phases L-Z). This is **not** an agent-memory Backlog (those are specialist scratchpads; they are not the SSOT).
+`DEFERRED_LOG.md` is the how-to. It is **not** the to-do list. Do not prepend new `## D-NNN` sections here.
 
-Ranked list without reading the whole file:
+**Mandatory for every agent.** Rule: `.cursor/rules/deferred-log.mdc`. Finding a real bug (or parking a real feature) and walking away with no GitHub issue is a constitution violation -- same severity as skipping `PROBLEM_LOG.md` after a real fix. Lifecycle footers must declare `deferred_log=<D-NNN>|none|skipped|n/a`.
+
+This is **not** `PROBLEM_LOG.md` (closed: symptom / cause / fix). This is **not** `CHANGELOG.md` (what the code does now). This is **not** `knowledge/task-log/` (why we shipped a change). This is **not** `Nova-Roadmap-Status.md` (product NEXT / phases L-Z). This is **not** an agent-memory Backlog.
+
+Ranked list:
 
 ```text
 py -3 tools/deferred_log.py status
@@ -14,223 +18,87 @@ py -3 tools/deferred_log.py priorities
 py -3 tools/deferred_log.py next-id
 ```
 
-`priorities` is the same ranked list as `status`. When the human asks "what's on the to-do / what's missing / priorities," run that command -- do not invent a second tracker.
+`priorities` is the same ranked list as `status`. When the human asks "what's on the to-do / what's missing / priorities," run that command -- do not invent a second tracker. Every new chat also sees open P0/P1 items in the session-start fleet brief.
 
-Every new chat also sees open P0/P1 items in the session-start fleet brief.
+If `gh` cannot read Issues (some CI / cloud tokens), the command says so and falls back to `knowledge/deferred-index.json` (schema_version 1, owner `tools/deferred_github.py`). That file is a snapshot, not a second to-do. After you open or close an issue, refresh it in the same commit:
 
-## How to triage (so a human can decide)
+```text
+py -3 tools/deferred_log.py refresh-index
+```
+
+A stale snapshot is how `next-id` hands out an ID that already exists. `refresh-index` refuses to overwrite a nonempty snapshot when `gh` returns zero issues, so a token that cannot read Issues cannot erase the fallback.
+
+Browse in the browser: filter Issues by label `deferred`, then `P0` / `P1` / `bug` / `decision` / `domain:execution` (and the other domain labels).
+
+## How to triage
 
 | Field | What it answers |
 |-------|-----------------|
 | **Kind** | `bug` (wrong today) / `feature` (wanted, not built) / `decision` (blocked on a human call) |
-| **Severity** | `P0` desk-broken, wrong money, trading safety, cannot operate. `P1` daily-use wrong (a column, a number, a control the operator uses every session). `P2` edge session / annoying / honesty gap that is not silent-wrong-money. `P3` polish. |
+| **Severity** | `P0` desk-broken, wrong money, trading safety, cannot operate. `P1` daily-use wrong. `P2` edge session / annoying / honesty gap that is not silent-wrong-money. `P3` polish. |
 | **Effort** | `S` hours in one session. `M` a full session, shape is known. `L` architectural / multi-session / needs an ADR. |
 | **Why parked** | Doing other work / too big for this task / needs an ADR / blocked on a human decision. Never "didn't feel like it." |
 | **Blast radius** | What else is lying or missing while this stays open. |
 | **Unblock** | The one decision or missing piece that lets an agent start. |
 | **Next** | One concrete first step, not a design essay. |
-| **Evidence** | How we know it is real (endpoint, screenshot, log line). No entry without this. |
+| **Evidence** | How we know it is real (endpoint, screenshot, log line). No issue without this. |
 
-Pull into a session when: severity is P0, or the human names the ID, or you are already in that module and Effort is S. Do **not** silently expand the current task into an L item -- write it here and finish what you were asked.
+Pull into a session when: severity is P0, or the human names the ID, or you are already in that module and Effort is S. Do **not** silently expand the current task into an L item -- open or comment on the issue and finish what you were asked.
 
-## How agents update this file
+## How agents open or close an item
 
-1. **When:** You found a real bug and did not fix it this session; or the human asked for a feature you parked; or you fully diagnosed a root cause and deferred the patch. Search this file first -- extend an existing ID rather than duplicating.
-2. **Where (open):** Prepend a new `## D-NNN` section **immediately below** the `<!-- OPEN_START -->` marker. IDs are durable. Get the next one with `py -3 tools/deferred_log.py next-id`. Never reuse an ID.
-3. **Where (done):** Cut the whole `##` section from Open into Closed (below `<!-- CLOSED_START -->`), set **Status:** `done`, add **Closed:** date plus **Related:** PROBLEM_LOG / CHANGELOG / task-log. Do not delete history.
-4. **Keep it short:** A few lines per field. No secrets, tokens, or personal data.
+1. **Search first.** `py -3 tools/deferred_log.py status` and `gh issue list --repo aaltaay/Nova --label deferred --search "<symptom>"`. If a `D-NNN` already covers the ask: comment on that issue. Honor `parked` (label `parked` -- do not start it), `blocked`, Unblock, and Next.
+2. **New item.** `py -3 tools/deferred_log.py next-id` then:
 
-Entry template (copy and fill in):
-
-```markdown
-## D-NNN -- Short descriptive title
-
+```text
+gh issue create --repo aaltaay/Nova \
+  --title "D-NNN -- short title" \
+  --label deferred --label P1 --label bug --label "domain:execution" \
+  --body-file - <<'EOF'
 - **Status:** open
-- **Kind:** bug | feature | decision
-- **Severity:** P0 | P1 | P2 | P3
-- **Effort:** S | M | L
-- **Domain:** market-feed | news | execution | hod-momo | ...
-- **User-visible:** yes | no
+- **Kind:** bug
+- **Severity:** P1
+- **Effort:** S
+- **Domain:** execution
+- **User-visible:** yes
 - **Logged:** YYYY-MM-DD
-- **Why parked:** One or two sentences. Name the task you were in.
-- **Blast radius:** What else is wrong or missing while this stays open.
-- **Unblock:** The decision or missing piece that lets an agent start.
-- **Next:** One concrete first step.
-- **Evidence:** Endpoint, log line, or screenshot that proves it.
-- **Keywords:** comma, separated, terms, for, search
+- **Why parked:** ...
+- **Blast radius:** ...
+- **Unblock:** ...
+- **Next:** ...
+- **Evidence:** ...
+- **Keywords:** ...
+EOF
 ```
 
-**Status values:** `open` (actionable) | `blocked` (waiting on Unblock) | `parked` (explicitly not this month) | `wontfix` (human said no) | `done` (belongs in Closed).
+Title contract is `D-NNN -- title` (ASCII double hyphen). Labels: always `deferred` plus one of `P0`..`P3`, plus `bug` / `enhancement` (feature) / `decision`, plus `domain:<name>` from `execution`, `market-feed`, `widgets`, `news`, `hod-momo`, `ibkr-ops`, `tester`, `security`, `docs`, `frontend`. Add `blocked` or `parked` when that is the status.
+3. **Done.** Close the GitHub issue (reason completed). Write `PROBLEM_LOG.md` if it was a bug. Set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`. Do not delete history.
+4. **Keep it short.** No secrets, tokens, or personal data.
 
-<!-- OPEN_START -->
+IDs are durable. Never reuse a closed ID.
 
-## D-010 -- Trend Line two-click place pans the chart instead
+## Do not
 
-- **Status:** parked
-- **Kind:** bug
-- **Severity:** P1
-- **Effort:** L
-- **Domain:** widgets
-- **User-visible:** yes
-- **Logged:** 2026-08-31
-- **Why parked:** Operator recorded this and forbade a fix this session. They do not want another custom "armed / ready to draw" click collector. Pull only when they name D-010.
-- **Blast radius:** Trend Line cannot be placed with two clicks. A click or drag pans the time scale (X-axis) instead of dropping anchors. The other two-anchor tools (Extended Line, Ray) likely share the same gesture. Operators cannot mark trends on the live desk.
-- **Unblock:** Operator names D-010. Then use a drawing library that already does two-click place (click point A, click point B, line exists) without stealing pan -- do not invent a third Nova click protocol.
-- **Next:** When unblocked, reproduce with Trend Line armed: two clicks on prices, no drag. Confirm whether `chart.subscribeClick` in `useChartDrawingManager.ts` even fires, or whether Lightweight Charts pan eats the gesture. Prefer `lightweight-charts-drawing` native placement (or a replacement library) over more `pendingAnchorRef` code.
-- **Evidence:** Operator report 2026-08-31: select Trend Line, click a point expecting two-click draw; the chart moves on the X-axis. Current path: `ChartDrawToolsMenu` sets `activeTool` -> `handleChartClick` via `subscribeClick` collects two anchors while the chart's default drag is still pan. Record-only session -- no live screenshot, no chart code change.
-- **Keywords:** trend line, TrendLine, two-click, pan, x-axis, lightweight-charts-drawing, handleChartClick, pendingAnchorRef, ChartDrawToolsMenu, ADR 015, D-010
+- Dump parked work only into `.cursor/agent-memory/*-memory.md` Backlog
+- Dump product-phase NEXT / L-Z parking-lot work here -- that stays in `Nova-Roadmap-Status.md`
+- Treat a CHANGELOG `Follow-ups:` bullet as enough
+- Prepend a new `## D-NNN` section to this markdown file
+- Band-aid a P0/P1 so you can skip the issue
+- Invent an ID
+- Start a fix that is already a `D-NNN` without reading that issue first
 
-## D-009 -- Ticker cold snapshot returns empty for a symbol chart bars fetch fine
+## When skip is allowed
 
-- **Status:** open
-- **Kind:** bug
-- **Severity:** P2
-- **Effort:** M
-- **Domain:** market-feed
-- **User-visible:** yes (Stock View / ticker detail can show an empty quote for a symbol that is trading fine)
-- **Logged:** 2026-08-31
-- **Why parked:** Found while diagnosing the XAIR "not on Gappers" report. The scanner-side L1 starvation (separate root cause) was fixed and verified this session; this ticker-detail cold-snapshot path is a different code path (`ticker_ibkr.py`) that this session did not trace to a root cause.
-- **Blast radius:** `GET /api/ticker/{symbol}` can return `snapshot: {}` (and `avg_volume`/`rel_volume: None`) for a symbol whose 1Min bars are fetching correctly via `reqHistoricalData` (5 fresh bars, real volume) at the same moment. `ticker_ibkr._price_from_l1_stream` and `_price_from_chart_bars` both apparently returned `None` too, since the code fell through to the slow `snapshot_quotes` cold path, which then failed with a blank exception message (`ticker IBKR snapshot failed for XAIR: `).
-- **Unblock:** Reproduce on a currently-live symbol with the same shape (has bars, no scanner L1 owner yet) and add a non-blank exception message/traceback at the `logger.warning` call in `ticker_ibkr.py` (currently logs `%s` on an exception whose `str()` is empty) so the actual IB error surfaces.
-- **Next:** Read `ticker_ibkr.py` around the cold `snapshot_quotes` fallback (roughly lines 110-150), reproduce with a symbol not in any active L1 pool, and get a non-empty exception detail before deciding whether the fix belongs in `ibkr/discovery.snapshot_quotes` or the fallback ordering in `ticker_ibkr.py`.
-- **Evidence:** `backend/logs/api-console.log` 2026-08-31 08:06:03 -- `WARNING ticker_ibkr ticker IBKR snapshot failed for XAIR: ` (empty message) immediately followed by `WARNING ticker_detail ticker REST: IBKR snapshot empty for XAIR - returning empty (no Alpaca fallback)`. Same minute, `GET /api/ticker/XAIR/bars?timeframe=1Min` returned 5 real bars (`c=5.7, v=302768` on the last one). `GET /api/ticker/XAIR` returned `{"snapshot": {}, "avg_volume": null, "rel_volume": null, ...}`.
-- **Keywords:** ticker_ibkr, snapshot_quotes, cold snapshot, empty exception, XAIR, Stock View, blank error message
+Only for: you fixed the bug this session (`PROBLEM_LOG.md`); purely cosmetic edits; status-only polls with no new gap; the gap is already an open issue and you learned nothing new (still declare `deferred_log=D-NNN` if you touched that area).
 
-## D-005 -- Aborted API terminal can leave a live process with no HTTP listener
+## Relationship to other logs
 
-- **Status:** open
-- **Kind:** bug
-- **Severity:** P1
-- **Effort:** M
-- **Domain:** ibkr-ops
-- **User-visible:** yes
-- **Logged:** 2026-08-26
-- **Why parked:** Found while completing chart-tool verification; process supervision and safe stale-owner recovery are outside the chart UI task.
-- **Blast radius:** Nova can show "Start API" while port 8000 refuses connections, but `run_api.py` refuses recovery because the lock owner PID is still active. The desk remains down until the orphan is identified and stopped.
-- **Unblock:** Define a safe ownership rule that distinguishes a healthy active API from an orphaned, non-listening child without ever starting a second clientId 17 session.
-- **Next:** Reproduce terminal abort in an isolated paper session, then make the launcher terminate its child on parent loss or add a listener/parent-aware stale-owner recovery after a bounded grace period.
-- **Evidence:** Terminal 336841 was aborted at 21:52:45 ET; child `python3.13.exe` PID 35140 remained active through 22:01 with no port 8000 listener. A new start was rejected by `api-instance.lock`. Stopping the orphan and launcher, then starting once, restored `/api/health=connected`, IBKR `session=ready`, and 21 Gappers.
-- **Keywords:** api-instance.lock, orphan API, terminal aborted, port 8000 refused, clientId 17, run_api.py, process supervision
+| Log | Answers |
+|-----|---------|
+| `PROBLEM_LOG.md` | What went wrong and how it was **fixed** |
+| GitHub Issues (`deferred`) | What is **still wrong or not built** |
+| `CHANGELOG.md` | What the codebase does now |
+| `knowledge/task-log/` | Full job narrative + why this approach |
+| `Nova-Roadmap-Status.md` | Product phase NEXT (not a bug tracker) |
 
-## D-004 -- Vite restart-lock test shares the live lock path
-
-- **Status:** open
-- **Kind:** bug
-- **Severity:** P2
-- **Effort:** S
-- **Domain:** frontend tooling
-- **User-visible:** no
-- **Logged:** 2026-08-26
-- **Why parked:** Found while verifying the chart drawing task; changing API restart locking is unrelated to chart tools and needs its own focused test pass.
-- **Blast radius:** `npx vitest run` can fail when a live Vite restart owns `backend/.cache/start-api.lock`, and the test's `afterEach` can delete that live lock, briefly removing restart-race protection.
-- **Unblock:** None.
-- **Next:** Make `acquireLock` / `releaseLock` accept an injected lock path or construct a lock owner around a path, then point the test at `tmpdir()` instead of the operator cache.
-- **Evidence:** Full Vitest run at 21:57 ET failed `vite-nova-start-api.test.ts` because its first `acquireLock()` returned false while the running app held the production path; the test cleanup removed the lock and an immediate retry passed all 835 tests.
-- **Keywords:** vite-nova-start-api, start-api.lock, test isolation, operator cache, restart race
-
-## D-003 -- Trader 10Sec / Full Day sit on "Loading IBKR historical..." for minutes
-
-- **Status:** blocked
-- **Kind:** bug
-- **Severity:** P1
-- **Effort:** M
-- **Domain:** market-feed
-- **User-visible:** yes
-- **Logged:** 2026-08-26
-- **Why parked:** Phases 0-4 of the roadmap are implemented and pytest-green (fresh full-suite run, 1386 passed), but the running Nova API process could not be restarted from this agent session to live-verify (see Unblock) -- the process is not visible to this shell's `Get-Process` (likely a different Windows session/Electron sidecar), and the constitution forbids touching a live-trading process blindly. Do not close until a live restart confirms the pacing bucket and 10Sec paint time.
-- **Blast radius:** Unchanged from the original diagnosis until live-verified: any ticker whose 10Sec/1Day series is not already in `bars_store` opens two black quadrants; Large Cap backfill competed for the same 60 req / 10 min IB bucket; stale 1Min/5Min took `open_chart` slots.
-- **Unblock:** User restarts Nova (Desktop app relaunch, or the header "Start API" control, or `Run Nova.bat`) so the new code loads, then re-run the live checks in Next.
-- **Next:** After restart, verify in the same session: (1) `/api/metrics/ops` -> `historical_pacing.window_used` stays well under 60 across two Large Cap roster commits (Phase 1). (2) Open a cold Trader symbol and confirm 10Sec paints within a few seconds via `/api/ticker/{symbol}/bars?timeframe=10Sec` (`bars` non-empty even before the hist fill lands) (Phases 2-4). (3) Re-check scanner L1 freshness (`/ws/scanner` patches or `/api/movers` ages) in the same window (blast-radius rule). Then move this entry to Closed and write the matching PROBLEM_LOG close-out.
-- **Evidence (soak, 2026-08-26 ~19:32 ET):** Trader MSS: 5Min and 1Min painted; 10Sec and Full Day overlay. `/api/ticker/MSS/bars`: 10Sec n=0 filling=true; 1Day n=0 filling=true. `/api/metrics/ops` `ibkr.historical_bars` last_sample_age ~448s (no send for ~7.5 min). `backend/logs/blast.log` 18:53 shed storm of Large Cap 1Day (ORCL/T/F/PLTR/...).
-- **Evidence (implementation, 2026-08-26 ~20:xx):** New `HistoricalPacing.snapshot()` unit-tested (`window_used` counts sends). `large_cap_hooks`/`large_cap_metrics` once-per-session + store-complete guards unit-tested (17 tests). `chart_bars.fetch_chart_bars` priority split (`open_chart` empty-store / `warm` stale-store / `background` unchanged for scan callers) unit-tested (36 tests). New `ibkr/tape_10sec.py` provisional 10Sec candles from tape prints (`source=ibkr_l1`, never fakes `store_series_complete`) unit-tested (4 tests) + wired into `tape_stream._on_tape_update` and `scanner_l1.flush_loop` heartbeat. Trader-seam warm fill on first tape subscriber, store-settled guarded, unit-tested (2 tests). Full backend suite: 1386 passed (excl. one pre-existing flaky transformers-import test unrelated to this change).
-- **Keywords:** Loading IBKR historical, 10Sec, 1Day, Full Day, MSS, ADR 012, historical_service, 60/10 min pacing, Large Cap, open_chart, bars_store
-
-## D-002 -- Afterhours Gap % equals Change %, not the open-vs-prior-close gap
-
-- **Status:** open
-- **Kind:** bug
-- **Severity:** P1
-- **Effort:** S
-- **Domain:** market-feed
-- **User-visible:** yes
-- **Logged:** 2026-08-26
-- **Why parked:** The Gainers/Losers `reprice_mover_row` path now derives `gap_percent` from the IBKR session-open tick (tick 14). The afterhours reprice path (`ibkr_bridge.apply_l1_quote` afterhours branch / `_ah_discovery`) was not migrated in that same change, and the evening session was already on the afterhours table so we could not E2E the gainer gap at the same time.
-- **Blast radius:** Afterhours Gap % on every row is a lie whenever the session move is not equal to the overnight gap. An operator can treat a +50% runner as a +50% gapper.
-- **Unblock:** None -- shape is known. Do it in a session that can see a live afterhours roster.
-- **Next:** Thread `open_price` through the afterhours L1 reprice the same way `discovery.reprice_mover_row` does; do not reuse `change_pct` as gap. Add a regression that an AH row with open != last keeps a real gap.
-- **Evidence:** 2026-08-26 live OKTG: Gap % showed `+53.29%` (same as Change %) while open vs prior close was `-2.50%`.
-- **Keywords:** afterhours, gap_percent, change_pct, OKTG, _ah_discovery, apply_l1_quote, tick 14, reprice_mover_row
-
-## D-001 -- Scanner NEWS column is dead under discovery=ibkr
-
-- **Status:** open
-- **Kind:** bug
-- **Severity:** P1
-- **Effort:** M
-- **Domain:** news
-- **User-visible:** yes
-- **Logged:** 2026-08-26
-- **Why parked:** Found while filling Gap % / RVOL / Float / Short Int. / Mkt Cap on IBKR movers. Every writer of `has_news` / `newest_headline_at` is still on the Alpaca-era movers/discovery runners, which early-return when `discovery=ibkr`. Fixing it is a new periodic job, not a one-line decorate, and that session was already shipping L1 + fundamentals.
-- **Blast radius:** Gappers / Gainers / Losers / Afterhours NEWS column is empty every session. Catalysts elsewhere are unrelated -- this is the scanner table badge.
-- **Unblock:** None on the human side. Do not write news flags into a frozen roster cache (ADR 008). Decorate at read time, same as `mover_enrich_view.decorate_rows`.
-- **Next:** Periodic job over current roster symbols (the same set `mover_enrich_hooks.on_mover_roster_commit` already gathers), reuse Alpaca `_check_news`, stamp `has_news` / `newest_headline_at` at `routes/scan._strip_blocked`, `scanner_push.broadcast_roster_replace`, and `_snapshot_payload`.
-- **Evidence:** 2026-08-26 live `/api/movers` Gainers rows carried neither `has_news` nor `newest_headline_at` (keys absent, not null). `scanner_runners/movers.py` returns immediately when discovery is ibkr.
-- **Keywords:** has_news, newest_headline_at, NEWS column, discovery=ibkr, scanner_runners, mover_enrich_view, Alpaca news, ADR 008
-
-<!-- OPEN_END -->
-
-<!-- CLOSED_START -->
-
-## D-008 -- Earnings-day-offset test fails; sentiment model import segfaults full suite
-
-- **Status:** done
-- **Kind:** bug
-- **Severity:** P2
-- **Effort:** S
-- **Domain:** news
-- **User-visible:** no (test-suite only)
-- **Logged:** 2026-08-31
-- **Closed:** 2026-09-02
-- **Why parked:** Found mid-unrelated IBKR verification. Isolation half blocked Linux CI (`pytest backend/ -x`).
-- **Closed how:** `earnings_window.earnings_day_offset` late-imports `market.now_et` instead of binding it at import. A prior suite import froze "today" to the real calendar date, so the 2026-08-27 fixture sat outside `EARNINGS_DOT_WINDOW_DAYS` (1) and returned `None`. `test_offset_follows_patched_market_now_et` locks it. The Windows `torchvision`/`transformers` `0xc0000139` crash was not reproduced on Linux CI and is a local DLL install issue, not a product bug.
-- **Related:** PROBLEM_LOG 2026-09-02 Linux CI; CHANGELOG 2026-09-02 Linux CI; task-log `knowledge/task-log/2026-09-02-linux-ci-unblock.md`
-
-## D-006 -- init_sentry + cache restore block HTTP yield for ~94s
-
-- **Status:** done
-- **Kind:** bug
-- **Severity:** P1
-- **Effort:** S
-- **Domain:** ibkr-ops
-- **User-visible:** yes
-- **Logged:** 2026-08-28
-- **Closed:** 2026-09-02
-- **Why parked:** Found on the 08:22 daily start soak. Patch is `app_lifespan.py` (move `init_sentry` / heavy restore after `yield` or bound it). The live API is `reload=true`; a backend edit would WatchFiles-restart it and, after 09:30, today's Gappers cannot be rebuilt.
-- **Blast radius:** Daily start's old 60s health wait declared the API dead while the process was still in lifespan. UI shows API down / Start API. A click then kills a live PID.
-- **Unblock:** After a no-reload API start (tomorrow's daily, or a weekend restart), defer `init_sentry` until after `yield` and time `_restore_caches` / `_init_databases`.
-- **Next:** Add a lifespan test that `yield` happens before Sentry/network, then restart API with `NOVA_API_RELOAD=0`.
-- **Evidence:** `api-console.log` 08:22:25 `instance starting` -> 08:23:32 Sentry enabled -> 08:23:59 `HTTP ready`. `daily-start.log` 08:23:05 `API health still failing after 60s`. Soak health later missed 4s then answered in 3689ms; `http_loop_lag_ms.max_ms` reached 4360.
-- **Close-out:** `lifespan` yields after tick/L1 configure. `_local_startup` (Sentry + caches + DBs) runs in `asyncio.to_thread` at the top of `_bootstrap_runtime`, with per-step ms logs. `/livez` can answer during that window; `/readyz` still waits for loops.
-- **Related:** PROBLEM_LOG 2026-09-02 init_sentry blocked yield; CHANGELOG 2026-09-02 HTTP ready before Sentry; task-log `knowledge/task-log/2026-09-02-d006-http-ready-before-sentry.md`
-- **Keywords:** init_sentry, lifespan yield, HTTP ready, HealthWaitSec, daily-start, API_WEDGED, Start API, D-006
-
-## D-007 -- After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset
-
-- **Status:** done
-- **Kind:** decision
-- **Severity:** P2
-- **Effort:** M
-- **Domain:** market-feed
-- **User-visible:** yes
-- **Logged:** 2026-08-28
-- **Closed:** 2026-08-31
-- **Why parked:** Operator asked to record the platform mismatch and not change paint until the after-close consequences are clear. Premarket-in-the-same-line (04:00-16:00) already shipped this morning.
-- **Blast radius:** After 16:00 Nova carries the 16:00 VWAP flat. Webull and DAS treat after-hours as a **new** VWAP (reset at 16:00), not more volume on the daytime line. TradingView with Extended Hours on keeps adding. A Webull vs Nova compare after the close will disagree. Overnight leftover still must not diagonal into tomorrow.
-- **Unblock:** One live look -- Webull 1Min after 16:00: does the orange line sit still, start a new line, or keep walking? Do not flip `CHART_VWAP_SESSION_END_SEC` or add a second series without that.
-- **Next:** After the cash close, screenshot Nova and Webull on the same symbol. Then either leave freeze (current), add a second AH VWAP (Webull/DAS), or keep adding (TradingView ETH).
-- **Evidence:** TradingView help: VWAP "begins at the open and stops at the close" (ETH-on includes those bars). DAS docs: checkbox "also draw a VWAP line for pre and post" -- extra lines, not one blend. Community [Webull-Style Segmented VWAP](https://www.tradingview.com/script/E7GAlJYk-Webull-Style-Segmented-VWAP/) resets at premarket / regular / after-hours. Robinhood docs never state session bounds. Reddit r/Daytrading: IB / Webull / Fidelity / NinjaTrader printed different VWAPs the same morning.
-- **Close-out:** LABT 2026-08-31: RTH VWAP $2.46 vs AH $3.41. Research: institutional VWAP stops at the cash close; DAS extra pre/post lines; Webull segmented reset. Shipped a 16:00 reset on the same orange series (not keep-adding, not a 09:30 reset). `sessionVwapPoints` + `CHART_VWAP_AFTERHOURS_END_SEC`.
-- **Related:** PROBLEM_LOG 2026-08-31 after-hours VWAP freeze; CHANGELOG 2026-08-31 after-hours VWAP resets at 16:00; task-log `knowledge/task-log/2026-08-31-vwap-afterhours-reset.md`
-- **Keywords:** VWAP, after-hours, 16:00, Webull, DAS, TradingView, session reset, CHART_VWAP_SESSION_END_SEC, D-007
-
-<!-- CLOSED_END -->
+Pre-2026-09-08 entries lived in this file. Git history still has them. Live items are the GitHub issues.

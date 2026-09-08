@@ -60,9 +60,9 @@ Example after logging a fix:
 | Log | Answers |
 |-----|---------|
 | `PROBLEM_LOG.md` | What went wrong and how it was **fixed** (bugs / failures only) |
-| `DEFERRED_LOG.md` | What is **still wrong or not built**, parked with severity (`deferred-log.mdc`) |
+| GitHub Issues (`deferred`) | What is **still wrong or not built**, parked with severity (`deferred-log.mdc`) |
 | `CHANGELOG.md` | What the codebase does now (every behavior change) |
-| `knowledge/task-log/` | Full job narrative + why this approach |
+| PR body (or `knowledge/task-log/`) | Full job narrative + why this approach |
 
 A bug fix that changes behavior needs **PROBLEM_LOG + CHANGELOG** (and task-log when material). Do not treat CHANGELOG alone as satisfying this rule.
 

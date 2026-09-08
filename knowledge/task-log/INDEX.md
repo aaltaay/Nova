@@ -4,6 +4,8 @@ Newest first. Full narratives live in sibling `YYYY-MM-DD-*.md` files.
 
 | Date | Entry | One-line summary |
 |------|-------|------------------|
+| 2026-09-08 | [Deferred tracker moves to GitHub Issues](2026-09-08-deferred-github-issues.md) | To-do is Issues labeled `deferred`; DEFERRED_LOG.md is how-to only |
+| 2026-09-06 | [Deep-dive audit parked as D-011..D-040](2026-09-06-deferred-log-deep-dive.md) | Read-only reliability/speed/honesty audit; 30 ranked DEFERRED_LOG entries, no code changed |
 | 2026-09-05 | [Trader small-screen overhaul](2026-09-05-trader-small-screen-desk-toolbar-single-header.md) | One shared chart toolbar, proportional/closable MACD, tab strip in a single-row header |
 | 2026-09-05 | [Trader crash on missing Alpaca keys](2026-09-05-trader-alpaca-keys-crash.md) | IBKR Trader quote no longer dies when APCA keys are empty |
 | 2026-09-02 | [Unblock Linux CI](2026-09-02-linux-ci-unblock.md) | Windll/R2/asyncio/WindowsPath/D-008 plus gitleaks/OSV so PR CI can go green |

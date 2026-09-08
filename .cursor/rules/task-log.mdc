@@ -1,16 +1,23 @@
 ---
-description: After every completed task, append a reasoning-rich entry under knowledge/task-log/
+description: After every completed task, write the reasoning narrative in the PR body (or knowledge/task-log/ when there is no PR)
 alwaysApply: true
 ---
 
-# Task log — record what we did and why
+# Task narrative -- record what we did and why
 
-`knowledge/task-log/` is the **durable story of completed work**: task, goal, why it mattered, what changed, how it works now, and especially **why this approach** (tradeoffs / rejected alternatives).
+Every completed task needs a **reasoning-rich narrative**: task, goal, why it mattered, what changed, how it works now, and especially **why this approach** (tradeoffs / rejected alternatives).
+
+Where that narrative lives depends on whether the work ships through a pull request.
+
+| Situation | Home |
+|---|---|
+| Work ships in a PR (default for code, config, CI, rules) | **PR body** -- `.github/pull_request_template.md` |
+| No PR (direct push, ops diagnosis, audit conclusion, docs-only local commit) | `knowledge/task-log/YYYY-MM-DD-<slug>.md` |
 
 CHANGELOG = short "what the code does now."
 PROBLEM_LOG = bug diagnosis after a **fix**.
-DEFERRED_LOG = known bugs and parked features that are **not** done yet.
-**Task log = full job narrative + reasoning.** All four can apply to one job.
+GitHub Issues labeled `deferred` = known bugs and parked features that are **not** done yet.
+**This rule = full job narrative + reasoning.** All four can apply to one job.
 
 ## When (mandatory)
 
@@ -20,7 +27,7 @@ At the **end of every completed task** — parent session or specialist — that
 - Closed or materially advanced a roadmap/security finding
 - Produced an audit/ops conclusion future agents must not re-derive from scratch
 
-Also required when the **parent** closes a multi-domain task done in-session (one aggregate entry is enough — see `specialist-routing.mdc` zero-hop default).
+Also required when the **parent** closes a multi-domain task done in-session (one narrative is enough — see `specialist-routing.mdc` zero-hop default).
 
 ## When to skip
 
@@ -31,39 +38,52 @@ Also required when the **parent** closes a multi-domain task done in-session (on
 
 If skipping, Lifecycle must say `task_log=skipped` or `task_log=n/a` with a one-word reason in the report body when useful.
 
-## How
+## How -- PR path (default)
+
+1. Fill every section of `.github/pull_request_template.md`. **Why this approach** and **Verified by** are never optional.
+2. Link the deferred issue you closed (`Closes #NNN`) or `none`.
+3. Cross-link from CHANGELOG / PROBLEM_LOG `Related:` when those files also get an entry.
+4. Lifecycle footer includes `task_log=<PR URL>`.
+
+Do **not** write both a PR body and a `knowledge/task-log/` file for the same job. Two homes for one story is how they drift.
+
+Existing `knowledge/task-log/` entries stay where they are. They are append-only history -- never delete or thin one out to "deduplicate" against a PR body.
+
+## How -- file path (no PR)
 
 1. Prefer scaffolder: `py -3 tools/task_log_new.py --slug <kebab> --title "<title>"`
 2. Or copy `knowledge/task-log/_template.md` → `knowledge/task-log/YYYY-MM-DD-<slug>.md`
 3. Fill **every** section — **Why this approach** is never optional for completed remediations
 4. Prepend a row to `knowledge/task-log/INDEX.md` (newest first)
-5. Cross-link from CHANGELOG / PROBLEM_LOG `Related:` when those files also get an entry
-6. Lifecycle footer includes `task_log=<relative-path-from-repo-root>` or `skipped` / `n/a`
+5. Lifecycle footer includes `task_log=<relative-path-from-repo-root>`
 
 Example Lifecycle:
 
 ```text
-**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=knowledge/task-log/2026-07-18-sec-001-008-remediation.md | problem_log=2026-07-18 -- SEC-001-008 | deferred_log=none
+**Lifecycle:** memory=changed | promotion=none | dashboard=clean | handoff=none | task_log=https://github.com/aaltaay/Nova/pull/49 | problem_log=2026-07-18 -- SEC-001-008 | deferred_log=none
 ```
 
 ## Ownership
 
 | Role | Duty |
 |------|------|
-| Parent / implementer | Write the entry for work they shipped, including one aggregate entry for multi-domain work done in-session |
+| Parent / implementer | Write the narrative for work they shipped, including one aggregate narrative for multi-domain work done in-session |
 | Specialists (opt-in) | Write when their run is the source of truth (audit conclusion, ops diagnosis); otherwise hand facts to the parent |
 | Docs | May tidy prose; must not invent technical reasons |
 
 ## Anti-patterns
 
 - ❌ “Fixed it” with no why / tradeoffs
-- ❌ Secrets, tokens, or full `.env` contents in an entry
+- ❌ An empty or template-only PR body ("see commits")
+- ❌ Duplicating the same narrative in a PR body *and* a task-log file
+- ❌ Secrets, tokens, or full `.env` contents in a narrative
 - ❌ Duplicating a 40-line stack trace (summarize)
-- ❌ Skipping the task log because CHANGELOG already has a bullet
+- ❌ Skipping the narrative because CHANGELOG already has a bullet
 - ❌ Editing old entries to rewrite history — add a new dated note instead
 
 ## Related
 
+- `.github/pull_request_template.md`
 - `knowledge/task-log/README.md`
 - `.cursor/rules/change-log.mdc`, `.cursor/rules/problem-log.mdc`, `.cursor/rules/deferred-log.mdc`
 - `docs/agent-operations.md`

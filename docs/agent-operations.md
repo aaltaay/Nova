@@ -80,7 +80,7 @@ See `.cursor/rules/specialist-routing.mdc`. Defaults (all opt-in unless noted):
 
 - "Just get this done" / multi-domain work → the parent, in-session (no automatic dispatch)
 - Classification / crack index only → `py -3 tools/agent_fleet.py` (default); `router` only on explicit ask
-- "What's on the to-do / what's missing / priorities?" → `py -3 tools/deferred_log.py status` (alias `priorities`); file is `DEFERRED_LOG.md`
+- "What's on the to-do / what's missing / priorities?" → `py -3 tools/deferred_log.py status` (alias `priorities`); GitHub Issues labeled `deferred`
 - Product change verification → `tester` (explicit ask) or run pytest/Vitest/build yourself
 - Maintainability / danger audit → `maintainer`
 - Full-repo security posture → `security`
@@ -100,37 +100,39 @@ See `.cursor/rules/specialist-routing.mdc`. Defaults (all opt-in unless noted):
 Every specialist report must end with:
 
 ```text
-**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
+**Lifecycle:** memory=unchanged|changed | promotion=none|<what> | dashboard=clean|refresh-required | handoff=none|<sibling|parent> | task_log=<PR URL>|<path>|skipped|n/a | problem_log=<entry>|skipped|n/a | deferred_log=<id>|none|skipped|n/a
 ```
 
 `problem_log=` is mandatory for **every** agent (rule: `.cursor/rules/problem-log.mdc`). After any bug fix or full diagnosis, prepend `PROBLEM_LOG.md` and set `problem_log=<YYYY-MM-DD title>`; otherwise `skipped` / `n/a`. Parent Auto sessions without a Lifecycle line still must write PROBLEM_LOG when they fix a bug.
 
-`deferred_log=` is mandatory for **every** agent (rule: `.cursor/rules/deferred-log.mdc`). After parking a known bug or a feature you will not build this session, prepend `DEFERRED_LOG.md` and set `deferred_log=D-NNN`; otherwise `none` / `skipped` / `n/a`. Agent-memory Backlog is not the SSOT. Parent Auto sessions without a Lifecycle line still must write DEFERRED_LOG when they park work.
+`deferred_log=` is mandatory for **every** agent (rule: `.cursor/rules/deferred-log.mdc`). After parking a known bug or a feature you will not build this session, open or update a GitHub Issue labeled `deferred` and set `deferred_log=D-NNN`; otherwise `none` / `skipped` / `n/a`. Agent-memory Backlog is not the SSOT. Parent Auto sessions without a Lifecycle line still must open the issue when they park work.
 
 The `subagentStop` hook reminds once (fail-open, `loop_limit: 1`) if a Nova agent omits this line. It never edits files and never blocks completion.
 
-## Task log (reasoning archive)
+## Task narrative (reasoning archive)
 
-After every completed material task, append a narrative under `knowledge/task-log/` so future agents keep the **why**, not only the diff.
+After every completed material task, write the narrative so future agents keep the **why**, not only the diff. Default home is the **PR body**; the `knowledge/task-log/` folder covers work that ships without a PR.
 
 | Piece | Path |
 |-------|------|
 | Rule (always apply) | `.cursor/rules/task-log.mdc` |
-| Index | `knowledge/task-log/INDEX.md` |
+| PR template (default home) | `.github/pull_request_template.md` |
+| Index (no-PR entries) | `knowledge/task-log/INDEX.md` |
 | Template | `knowledge/task-log/_template.md` |
 | Scaffold | `py -3 tools/task_log_new.py --slug <kebab> --title "…"` |
 
-The parent writes one aggregate entry for multi-domain jobs done in-session. CHANGELOG / PROBLEM_LOG / DEFERRED_LOG remain short; the task log holds tradeoffs and rejected alternatives.
+The parent writes one aggregate narrative for multi-domain jobs done in-session, and never both a PR body and a task-log file for the same job. CHANGELOG / PROBLEM_LOG / deferred Issues remain short; the narrative holds tradeoffs and rejected alternatives.
 
-## Deferred log (known bugs + parked features)
+## Deferred tracker (known bugs + parked features)
 
-Parked work that is **not** a closed fix lives in repo-root `DEFERRED_LOG.md` -- same respect as `PROBLEM_LOG.md`. Open P0/P1 items also appear in the session-start fleet brief.
+Parked work that is **not** a closed fix lives as GitHub Issues labeled `deferred` -- same respect as `PROBLEM_LOG.md`. Open P0/P1 items also appear in the session-start fleet brief. `DEFERRED_LOG.md` is the how-to, not the list.
 
-**Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search the file. If a `D-NNN` already covers the ask, work from that entry (`parked` means do not start it). When the human asks "what's on the to-do / what's missing / priorities," that command is the answer -- do not invent a second tracker.
+**Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search open issues. If a `D-NNN` already covers the ask, work from that issue (`parked` means do not start it). When the human asks "what's on the to-do / what's missing / priorities," that command is the answer -- do not invent a second tracker.
 
 | Piece | Path |
 |-------|------|
-| File (SSOT) | `DEFERRED_LOG.md` |
+| SSOT | GitHub Issues labeled `deferred` |
+| How-to | `DEFERRED_LOG.md` |
 | Rule (always apply) | `.cursor/rules/deferred-log.mdc` |
 | Ranked list | `py -3 tools/deferred_log.py status` (alias `priorities`) |
 

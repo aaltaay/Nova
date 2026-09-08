@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-08 -- Closed-section parser swallowed every open D-NNN
+
+- **Symptom:** `parse_entries(section="CLOSED")` returned 40 items, including all still-open D-001..D-040, so a migrate-to-GitHub close pass would have closed live to-do items.
+- **Cause:** `_section` used `str.find` for `<!-- CLOSED_START -->`. The how-to sentence "move it below `<!-- CLOSED_START -->`" matched first, so the CLOSED slice started in the header and ran through the real closed fence -- open entries included.
+- **Fix:** Only treat start/end markers that sit alone on a line. Inline backticks in prose are ignored. Regression: `test_prose_marker_mention_does_not_steal_closed_section`.
+- **Fix class:** admission
+- **Keywords:** DEFERRED_LOG, CLOSED_START, find vs line fence, publish, GitHub migrate
+- **Related:** CHANGELOG 2026-09-08 deferred GitHub Issues
 ## 2026-09-05 -- Trader crash: toUpperCase on missing ticker symbol
 
 - **Symptom:** Clicking Trader showed the red pane "Something went wrong in this view" with `Cannot read properties of undefined (reading 'toUpperCase')`. Header (DESK up, Net Liq) stayed fine.

@@ -5,7 +5,7 @@ This file is a running narrative of **what changed in this repo and why**, so fu
 - **Scope:** code behavior, module boundaries, public APIs, constants, tooling, rules, user-visible UI changes.
 - **Out of scope:** pure typo fixes, formatting-only edits, local scratch files.
 
-Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix). Parked bugs and features belong in `DEFERRED_LOG.md`, not only as a Follow-ups bullet here. This file answers "what does the codebase do now and why"; `PROBLEM_LOG.md` answers "what went wrong and how was it diagnosed"; `DEFERRED_LOG.md` answers "what is still wrong or not built."
+Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix). Parked bugs and features belong on GitHub Issues labeled `deferred`, not only as a Follow-ups bullet here. This file answers "what does the codebase do now and why"; `PROBLEM_LOG.md` answers "what went wrong and how was it diagnosed"; GitHub Issues (`deferred`) answer "what is still wrong or not built."
 
 ## How agents update this file
 
@@ -30,6 +30,34 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-08 -- PR body is the task narrative; roadmap note trimmed
+
+- **What:** Added `.github/pull_request_template.md` (What / Why this approach / Verified by / Related issue + a logs checklist). `knowledge/task-log/` is now the fallback home for work that ships without a PR. `Nova-Roadmap-Status.md` shrank from 366 to ~100 lines; closed phases, verification baselines, the maintenance track, and pre-2026-07-28 History moved verbatim to a new `Nova-Roadmap-Archive.md`.
+- **Why:** Operator asked whether four hand-maintained markdown logs are the standard way to track work. Agreed split: GitHub Issues own the to-do, PR bodies own the "why this approach" narrative, `CHANGELOG.md` + `PROBLEM_LOG.md` stay in-repo (greppable offline history), and the roadmap note stays a short status page.
+- **Files touched:** `.github/pull_request_template.md`, `.cursor/rules/task-log.mdc`, `knowledge/task-log/README.md`, `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md`, `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Archive.md`, `.cursor/rules/nova-roadmap-continuity.mdc`, `.cursor/rules/{constitution,specialist-routing,problem-log,deferred-log}.mdc`, `AGENTS.md` §7.2b / §12, `docs/agent-operations.md`, `tools/subagent_lifecycle_hook.py`
+- **How it works now:** Work that ships in a PR puts the narrative in the PR body and cites the PR URL in `task_log=`. Work with no PR still writes `knowledge/task-log/YYYY-MM-DD-<slug>.md` + an `INDEX.md` row. Never both for one job. The Lifecycle regex already accepted `task_log=.+`, so agent specs needed no change. Roadmap: read `Nova-Roadmap-Status.md` for NEXT/blockers, append History rows there; `Nova-Roadmap-Archive.md` is read-only.
+- **Also in this PR (pre-merge review):** `deferred_log.py refresh-index` rewrites `knowledge/deferred-index.json` from live Issues and **refuses** to overwrite a nonempty snapshot when `gh` returns zero issues -- a token that cannot read Issues must not erase the fallback, because a stale snapshot lets `next-id` reuse a D-NNN. Rules/how-to now require `refresh-index` in the same commit as any issue open/close. Two throwaway probe issues (#7/#8) had their tracker labels cleared so `label:deferred` is exactly the 40 real items (37 open + 3 closed).
+- **Verified by:** `python3 tools/doc_invariants.py` OK; `pytest tools/ -q --ignore=tools/course_memory` 164 passed; `tools/agent_contract.py --ci` PASS (14 agents); `engineering_skills_audit.py` PASS; `maintainer_checks.py --fail-on-kind ib_loop_sync_io` exit 0; `deferred_log.py refresh-index` correctly refused to erase the 40-item snapshot from this token; GitHub `label:deferred` listing shows 40 issues.
+- **Related:** 2026-09-08 deferred-tracker entry below; no phase state changed and `auto_live` stays NO-GO.
+
+## 2026-09-08 -- Deferred tracker moves to GitHub Issues
+
+- **What:** The to-do / parked-bug list is GitHub Issues labeled `deferred`. `DEFERRED_LOG.md` is how-to only. `deferred_log.py status` / `priorities` / `next-id` read GitHub via `gh`. One-shot `publish` copied the markdown entries (D-001..D-040) into issues.
+- **Why:** Operator asked to move tracking into GitHub instead of markdown. CHANGELOG, PROBLEM_LOG, and task-log stay in the repo (those are history, not a to-do).
+- **Files touched:** `tools/deferred_log.py`, `tools/deferred_github.py`, `tools/test_deferred_log.py`, `tools/test_deferred_github.py`, `DEFERRED_LOG.md`, `AGENTS.md` §7.2c / Invariant #6 / §9 / §11 / §12, `.cursor/rules/deferred-log.mdc` and sibling log rules, `docs/agent-operations.md`, `CHANGELOG.md`, `PROBLEM_LOG.md`
+- **How it works now:** Browse https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred . Agents run `py -3 tools/deferred_log.py status` before any fix and open a labeled issue when they park work. Title contract: `D-NNN -- title`. Do not prepend new `## D-NNN` sections to the markdown file.
+- **Verified by:** `pytest tools/test_deferred_log.py tools/test_deferred_github.py`; `deferred_log.py publish` then `deferred_log.py status` listing the same open IDs with issue numbers; `doc_invariants.py` OK.
+- **Related:** PROBLEM_LOG 2026-09-08 deferred fence parser; task-log `knowledge/task-log/2026-09-08-deferred-github-issues.md`
+
+## 2026-09-06 -- Deep-dive audit parked as D-011..D-040 (docs only)
+
+- **What:** Read-only reliability / speed / honesty audit of every product section, written into `DEFERRED_LOG.md` as 30 new ranked entries (1 P0, 14 P1, 14 P2, 1 P3). No product code changed.
+- **Why:** Operator asked for a deep dive into underdeveloped features and unfound bugs, recorded in the proper tracker rather than fixed. Several known gaps lived only in CHANGELOG `Follow-ups:` bullets or an OPEN PROBLEM_LOG line and were invisible to `deferred_log.py status`.
+- **Files touched:** `DEFERRED_LOG.md`, `CHANGELOG.md`, `knowledge/task-log/2026-09-06-deferred-log-deep-dive.md`, `knowledge/task-log/INDEX.md`
+- **How it works now:** `py -3 tools/deferred_log.py status` is the to-do. Top of the list: D-011 (broker send outside the ADR 007 lock -- P0), D-037 / D-038 (kill-switch scope, live spend with unknown account kind), then the honesty cluster D-021 / D-022 / D-023 / D-014 (ticker WS never reconnects, scanner last-good rows with no marker, 11 status pollers keeping "connected", sample orders on an empty blotter). Feed-loop hot spots: D-018 (hist SQLite on the IB loop), D-019 (O(n) cache rebuild per tick), D-020 (listing_flags sleep), D-025 (short pacing sleeps). Infra: D-029 (CI runs neither lint nor Vitest; master is ESLint-red), D-017 (schema_version gaps), D-030 (Railway leftovers). D-035 promotes the Jul 30 premarket OPEN into the ranked list.
+- **Verified by:** Fresh gates this session: `pytest backend/` 1481 passed; `npx vitest run` 858 passed; `tsc --noEmit` and `npm run build` exit 0; `npx eslint . --max-warnings=0` exit 1 (4 errors, 6 warnings); `ruff check backend` 11 findings; `tools/maintainer_checks.py`, `doc_invariants.py` OK, `agent_fleet.py`. Every P0/P1 claim from the four sub-audits was re-read in source before logging (snippets cited per entry). `tools/deferred_log.py status` parses all 37 open entries; `pytest tools/test_deferred_log.py` 8 passed.
+- **Follow-ups:** None outside DEFERRED_LOG -- that file is the follow-up. Do not start D-011 without the concurrency regression test named in its Next.
+- **Related:** task-log `knowledge/task-log/2026-09-06-deferred-log-deep-dive.md`; PROBLEM_LOG n/a (nothing fixed)
 ## 2026-09-05 -- Trader small screens: one desk toolbar, proportional MACD, single header row
 
 - **What:** The Trader 2x2 grid has one shared draw/indicator toolbar above it (Webull-style) instead of four; each pane keeps a one-line header (title, note, timeframe badge, maximize). RSI/MACD sub-panes are a percentage of the card with a drag handle and an x to close, not a fixed 120px block. The app header is one row: the Trader tab strip portals into the middle column while Trader shows, scanner controls sit there otherwise, and narrow widths hide low-value chips (hint copy, BP, Day P&L, Reload, session badge, Net Liq, clock, in that order) instead of wrapping to rows two and three.
