@@ -1,8 +1,12 @@
 /**
  * Trader View container — tab strip + one StockViewPage per tab.
  * Inactive panes stay mounted (display:none) so L1/L2/tape stay hot.
+ * The tab strip portals into GlobalAppBar's middle column when that slot is
+ * mounted (one header row), else renders inline above the panes.
  */
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useGlobalBarTraderSlot } from '../components/globalBarSlots';
 import { StockViewPage } from '../pages/StockViewPage';
 import {
   leaveStockViewUrl,
@@ -81,6 +85,29 @@ export function StockViewTabs({ detached }: Props) {
   const dropReady = Boolean(
     traderDockOffer && isForeignTabDrag(traderDockOffer.sourceWindowId, traderWindowId),
   );
+  const headerSlot = useGlobalBarTraderSlot();
+
+  const tabStrip = (
+    <StockViewTabStrip
+      tabs={traderTabs}
+      active={activeTraderSymbol}
+      windowId={traderWindowId}
+      showDock={traderDeskRole === 'float'}
+      dropReady={dropReady}
+      onActivate={onActivate}
+      onClose={sym => {
+        closeTraderTab(sym);
+        if (traderTabs.length <= 1) onBack();
+      }}
+      onRename={onRename}
+      onAddDraft={addTraderDraftTab}
+      onExtract={extractTraderTab}
+      onDock={requestDockTraderTab}
+      onTabDragStart={publishTraderTabOffer}
+      onTabDragEnd={publishTraderTabOfferEnd}
+      onTabDrop={acceptTraderTabDrop}
+    />
+  );
 
   return (
     <div
@@ -100,25 +127,7 @@ export function StockViewTabs({ detached }: Props) {
           </button>
         </div>
       )}
-      <StockViewTabStrip
-        tabs={traderTabs}
-        active={activeTraderSymbol}
-        windowId={traderWindowId}
-        showDock={traderDeskRole === 'float'}
-        dropReady={dropReady}
-        onActivate={onActivate}
-        onClose={sym => {
-          closeTraderTab(sym);
-          if (traderTabs.length <= 1) onBack();
-        }}
-        onRename={onRename}
-        onAddDraft={addTraderDraftTab}
-        onExtract={extractTraderTab}
-        onDock={requestDockTraderTab}
-        onTabDragStart={publishTraderTabOffer}
-        onTabDragEnd={publishTraderTabOfferEnd}
-        onTabDrop={acceptTraderTabDrop}
-      />
+      {headerSlot && traderViewActive ? createPortal(tabStrip, headerSlot) : tabStrip}
       <div className="sv-tabs-panes">
         {traderTabs.map(symbol => {
           if (symbol === TRADER_DRAFT_SYMBOL) {

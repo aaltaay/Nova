@@ -56,6 +56,12 @@ interface UseChartDrawingManagerOptions {
   seriesRevision?: number;
   /** Only the last interacted chart pane may consume line-tool hotkeys. */
   hotkeyOwner: symbol;
+  /**
+   * Controlled active tool (Trader grid shares one tool across all panes so a
+   * single desk toolbar drives every chart). Omit for per-pane local state.
+   */
+  activeTool?: string | null;
+  onActiveToolChange?: (tool: string | null) => void;
 }
 
 export function useChartDrawingManager({
@@ -66,10 +72,27 @@ export function useChartDrawingManager({
   symbol,
   seriesRevision = 0,
   hotkeyOwner,
+  activeTool: controlledTool,
+  onActiveToolChange,
 }: UseChartDrawingManagerOptions) {
   const managerRef = useRef<DrawingManager | null>(null);
-  const [activeTool, setActiveTool] = useState<string | null>(null);
+  const [localTool, setLocalTool] = useState<string | null>(null);
+  const controlled = controlledTool !== undefined;
+  const activeTool = controlled ? controlledTool : localTool;
   const activeToolRef = useRef<string | null>(null);
+  const onToolChangeRef = useRef(onActiveToolChange);
+  onToolChangeRef.current = onActiveToolChange;
+  const setActiveTool = useCallback(
+    (next: string | null | ((prev: string | null) => string | null)) => {
+      if (controlled) {
+        const resolved = typeof next === 'function' ? next(activeToolRef.current) : next;
+        onToolChangeRef.current?.(resolved);
+        return;
+      }
+      setLocalTool(next);
+    },
+    [controlled],
+  );
   const pendingAnchorRef = useRef<Anchor | null>(null);
   const symbolRef = useRef(drawingsKey(symbol));
   /** True while rebuilding from the store -- suppresses our own echo writes. */
@@ -228,7 +251,7 @@ export function useChartDrawingManager({
       window.removeEventListener('keydown', onDeleteKey);
       releaseChartDrawingHotkeyFocus(hotkeyOwner);
     };
-  }, [hotkeyOwner, managerEpoch, persist, storeDrawing]);
+  }, [hotkeyOwner, managerEpoch, persist, setActiveTool, storeDrawing]);
 
   function handleToolClick(toolId: string) {
     setActiveTool(prev => (prev === toolId ? null : toolId));

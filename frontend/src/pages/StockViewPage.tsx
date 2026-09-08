@@ -98,7 +98,11 @@ export function StockViewPage({
     };
   }, [symbol]);
 
-  const detailReady = detail != null && detail.symbol.toUpperCase() === symbol.toUpperCase();
+  const detailSymbol = typeof detail?.symbol === 'string' ? detail.symbol : '';
+  const detailReady =
+    detail != null &&
+    detailSymbol !== '' &&
+    detailSymbol.toUpperCase() === symbol.toUpperCase();
   const showSpinner = (loading || refreshing || (!detailReady && !fetchFailed)) && !detailReady;
   const metrics = detailReady && detail ? computeQuoteMetrics(detail, discoveryProvider) : null;
   const lastTrade =

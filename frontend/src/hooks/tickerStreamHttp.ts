@@ -13,3 +13,15 @@ export function tickerDetailFromHttp(
   if (!row.snapshot || typeof row.snapshot !== 'object') return null;
   return row;
 }
+
+/** WS `initial` must be a real quote. Error-only payloads must not become detail. */
+export function tickerDetailFromWsInitial(
+  msg: unknown,
+  symbol: string,
+): TickerDetail | null {
+  if (!msg || typeof msg !== 'object') return null;
+  const row = msg as { type?: unknown };
+  if (row.type !== 'initial') return null;
+  const { type: _type, ...data } = row as Record<string, unknown>;
+  return tickerDetailFromHttp(data, symbol);
+}

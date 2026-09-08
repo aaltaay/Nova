@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-05 -- Trader crash: toUpperCase on missing ticker symbol
+
+- **Symptom:** Clicking Trader showed the red pane "Something went wrong in this view" with `Cannot read properties of undefined (reading 'toUpperCase')`. Header (DESK up, Net Liq) stayed fine.
+- **Cause:** `/ws/ticker/{symbol}` treated missing Alpaca headers as fatal and sent `{type: "initial", error: "API keys not configured"}` with no `symbol`. `useTickerStream` stored that as `detail`. `StockViewPage` then did `detail.symbol.toUpperCase()`. REST `build_ticker_detail` had the same Alpaca gate, so HTTP seed could not recover.
+- **Fix:** IBKR discovery no longer requires APCA keys to build a ticker snapshot (`ticker_alpaca_required_error`). WS/REST include `symbol` on the remaining Alpaca-required error. Frontend `tickerDetailFromWsInitial` rejects error-only initials. `StockViewPage` guards a missing `detail.symbol`.
+- **Fix class:** admission
+- **Keywords:** Trader, toUpperCase, API keys not configured, Alpaca, /ws/ticker, StockViewPage, useTickerStream, SPY
+
 ## 2026-09-02 -- Linux CI red: windll, R2 mock, asyncio, WindowsPath, D-008
 
 - **Symptom:** PR #4 CI failed Backend tests, Agent contract, Gitleaks, and OSV Scanner. Backend died at collection: `AttributeError: module 'ctypes' has no attribute 'windll'`. After that guard, `-x` would have stopped on empty R2 `uploads`, `@pytest.mark.asyncio` without the plugin, `WindowsPath` on Linux, and `earnings_day_offset is None`.

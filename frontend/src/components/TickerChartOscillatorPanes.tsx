@@ -9,6 +9,7 @@ import {
 } from 'lightweight-charts';
 import {
   CHART_INDICATOR_PANE_HEIGHT,
+  CHART_OSCILLATOR_CLOSE_TITLE,
   type ChartOscillatorId,
 } from '../constants';
 import {
@@ -27,6 +28,8 @@ interface Props {
   bars: IndicatorBar[];
   barsRevision?: number;
   enabled: ChartOscillatorId[];
+  /** Per-pane "x" -- turns the oscillator off without hunting for a toolbar. */
+  onClose?: (id: ChartOscillatorId) => void;
 }
 
 /**
@@ -38,9 +41,10 @@ export function TickerChartOscillatorPanes({
   bars,
   barsRevision = 0,
   enabled,
+  onClose,
 }: Props) {
   return (
-    <div className="chart-oscillators">
+    <div className="chart-oscillators" data-testid="chart-oscillators">
       {enabled.includes('rsi') && (
         <OscillatorPane
           label="RSI"
@@ -48,6 +52,7 @@ export function TickerChartOscillatorPanes({
           bars={bars}
           barsRevision={barsRevision}
           kind="rsi"
+          onClose={onClose}
         />
       )}
       {enabled.includes('macd') && (
@@ -57,6 +62,7 @@ export function TickerChartOscillatorPanes({
           bars={bars}
           barsRevision={barsRevision}
           kind="macd"
+          onClose={onClose}
         />
       )}
     </div>
@@ -69,12 +75,14 @@ function OscillatorPane({
   bars,
   barsRevision,
   kind,
+  onClose,
 }: {
   label: string;
   parentChart: IChartApi | null;
   bars: IndicatorBar[];
   barsRevision: number;
   kind: 'rsi' | 'macd';
+  onClose?: (id: ChartOscillatorId) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -224,8 +232,22 @@ function OscillatorPane({
   }, [parentChart, kind]);
 
   return (
-    <div className="chart-oscillator-pane">
-      <span className="chart-oscillator-label">{label}</span>
+    <div className="chart-oscillator-pane" data-testid={`chart-oscillator-${kind}`}>
+      <span className="chart-oscillator-label">
+        {label}
+        {onClose && (
+          <button
+            type="button"
+            className="chart-oscillator-close"
+            title={CHART_OSCILLATOR_CLOSE_TITLE}
+            aria-label={`Hide ${label}`}
+            data-testid={`chart-oscillator-close-${kind}`}
+            onClick={() => onClose(kind)}
+          >
+            ×
+          </button>
+        )}
+      </span>
       <div className="chart-oscillator-body" ref={containerRef} />
     </div>
   );
