@@ -101,7 +101,7 @@ def test_session_brief_p2_only_summarizes(dl):
 <!-- CLOSED_END -->
 """
     lines = dl.format_session_brief_lines(text)
-    assert lines == ["Deferred: 1 open (highest P2) -- DEFERRED_LOG.md"]
+    assert lines == ["Deferred: 1 open (highest P2) -- deferred tracker"]
 
 
 def test_session_brief_empty(dl):
@@ -126,12 +126,45 @@ def test_cli_status_and_next_id(dl, tmp_path, capsys):
     assert capsys.readouterr().out.strip() == "D-011"
 
 
-def test_live_file_has_seed_ids(dl):
+def test_prose_marker_mention_does_not_steal_closed_section(dl):
+    text = """How-to: move it below `<!-- CLOSED_START -->` when done.
+
+<!-- OPEN_START -->
+## D-002 -- Still open
+- **Status:** open
+- **Kind:** bug
+- **Severity:** P1
+<!-- OPEN_END -->
+
+<!-- CLOSED_START -->
+## D-001 -- Finished
+- **Status:** done
+- **Kind:** bug
+- **Severity:** P1
+<!-- CLOSED_END -->
+"""
+    open_ids = [e["id"] for e in dl.parse_entries(text, section="OPEN")]
+    closed_ids = [e["id"] for e in dl.parse_entries(text, section="CLOSED")]
+    assert open_ids == ["D-002"]
+    assert closed_ids == ["D-001"]
+
+
+def test_format_status_includes_github_number(dl):
+    items = [
+        {
+            "id": "D-011",
+            "title": "Lock gap",
+            "kind": "bug",
+            "severity": "P0",
+            "status": "open",
+            "number": "12",
+        }
+    ]
+    blob = dl.format_status_items(dl.open_actionable(items))
+    assert "D-011 #12 Lock gap" in blob
+
+
+def test_live_file_points_at_github(dl):
     text = dl.DEFAULT_PATH.read_text(encoding="utf-8")
-    open_entries = dl.parse_entries(text, section="OPEN")
-    ids = {e["id"] for e in open_entries}
-    assert "D-001" in ids
-    assert "D-002" in ids
-    assert "D-010" in ids
-    nums = [int(e["id"].split("-")[1]) for e in open_entries]
-    assert dl.next_id(text) == f"D-{max(nums) + 1:03d}"
+    assert "github.com/aaltaay/Nova/issues" in text
+    assert "label:deferred" in text or "label `deferred`" in text or "label: `deferred`" in text

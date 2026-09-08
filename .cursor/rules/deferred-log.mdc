@@ -1,52 +1,52 @@
 ---
-description: Check DEFERRED_LOG.md before any fix; park known bugs/features; to-do via deferred_log.py status / priorities
+description: Check GitHub Issues (label deferred) before any fix; park known bugs/features; to-do via deferred_log.py status / priorities
 alwaysApply: true
 ---
 
-# Deferred log -- mandatory for every agent
+# Deferred tracker -- mandatory for every agent
 
-The repo root file `DEFERRED_LOG.md` is the **parking lot for known bugs and parked features**. It is a peer of `PROBLEM_LOG.md` -- same respect, same Lifecycle declaration, same constitution severity if you skip it after parking real work.
+The **parking lot for known bugs and parked features** is GitHub Issues labeled `deferred` on `aaltaay/Nova`. `DEFERRED_LOG.md` is the how-to only -- do not prepend `## D-NNN` sections there. Peer of `PROBLEM_LOG.md` -- same respect, same Lifecycle declaration, same constitution severity if you skip it after parking real work.
+
+Browse: https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred
 
 **This rule applies to every agent that works in this repo** -- parent Auto sessions, Cursor built-ins used on Nova work, and every Nova specialist (`tester`, `hod-momo`, `market-feed`, ...). There is no exception by agent type or "we were busy" framing.
 
 ## Hard requirement
 
-When a session **finds a real bug it will not fix now**, or **parks a feature the human asked for**, the agent **MUST** prepend (or extend) an entry in `DEFERRED_LOG.md` in the **same session** (before or with the CHANGELOG / task-log / commit):
+When a session **finds a real bug it will not fix now**, or **parks a feature the human asked for**, the agent **MUST** open or comment on a GitHub Issue labeled `deferred` in the **same session** (before or with the CHANGELOG / task-log / commit):
 
 - A bug whose fix is too big, architectural, or the wrong task for this session
 - A fully diagnosed root cause whose patch is deferred (do not band-aid; do not stay silent)
 - A user-requested feature you declined to build now (too complicated, needs an ADR, needs a human decision)
 
-**Skipping DEFERRED_LOG after parking real work is a constitution violation** -- same severity as skipping `PROBLEM_LOG.md` after a real fix.
+**Skipping the GitHub issue after parking real work is a constitution violation** -- same severity as skipping `PROBLEM_LOG.md` after a real fix.
 
 ## Before any fix (mandatory, every chat)
 
-**Read this file first** -- before writing a patch, before "quick" UI/tooling work, before telling the human you will fix something.
-
-1. Run `py -3 tools/deferred_log.py status` (alias: `priorities`). The file is repo-root `DEFERRED_LOG.md`. That ranked list **is** the known-bugs / parked-features to-do. When the human asks "what's missing / what are our priorities," answer from this command -- do not invent a second tracker.
-2. Search the file for the module, symptom, or keyword. If a `D-NNN` already covers the ask: **work from that entry**. Honor **Status** (`parked` means do not start it), **Unblock**, and **Next**. Do not start a parallel fix that ignores them.
+1. Run `py -3 tools/deferred_log.py status` (alias: `priorities`). That ranked list **is** the known-bugs / parked-features to-do. When the human asks "what's missing / what are our priorities," answer from this command -- do not invent a second tracker.
+2. Search open `deferred` issues for the module, symptom, or keyword. If a `D-NNN` already covers the ask: **work from that issue**. Honor **Status** (label `parked` means do not start it), **Unblock**, and **Next**. Do not start a parallel fix that ignores them.
 3. If you are about to "improve" chart drawings, scanners, VWAP, lifespan, NEWS, or any other named row: you must cite the matching `D-NNN` or explain why this is a different bug.
 
-Starting a fix that is already written on this page, without reading the page, is a constitution violation -- same class as parking work with no entry.
-
-Search `DEFERRED_LOG.md` (and `py -3 tools/deferred_log.py status`) before dumping a new item. Extend an existing `D-NNN` when the same gap is rediscovered.
+Starting a fix that is already an open issue, without reading the issue, is a constitution violation -- same class as parking work with no issue.
 
 ## Where and how
 
-1. Open items: prepend a new `## D-NNN` section immediately below `<!-- OPEN_START -->`. Next ID: `py -3 tools/deferred_log.py next-id`.
-2. Use the template in `DEFERRED_LOG.md`. Severity, Effort, Why parked, Blast radius, Unblock, Next, and Evidence are never optional.
-3. Do not log secrets, tokens, or personal data.
-4. Cross-link from CHANGELOG / task-log `Related:` when those also get an entry.
-5. When you later **fix** it: move the section to Closed, write `PROBLEM_LOG.md` if it was a bug, and set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`.
+1. Next ID: `py -3 tools/deferred_log.py next-id`. Title: `D-NNN -- short title` (ASCII double hyphen). Never reuse an ID.
+2. Labels: always `deferred`, plus one of `P0`..`P3`, plus `bug` / `enhancement` (feature) / `decision`, plus `domain:<name>`. Add `blocked` or `parked` when that is the status.
+3. Body fields (never optional): Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. How-to: `DEFERRED_LOG.md`.
+4. Do not log secrets, tokens, or personal data.
+5. Cross-link from CHANGELOG / task-log `Related:` when those also get an entry.
+6. When you later **fix** it: close the issue (reason completed), write `PROBLEM_LOG.md` if it was a bug, and set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`.
 
 ## Do not
 
 - Dump parked work only into `.cursor/agent-memory/*-memory.md` Backlog (scratchpad, not SSOT)
 - Dump product-phase NEXT / L-Z parking-lot work here -- that stays in `Nova-Roadmap-Status.md`
-- Treat a CHANGELOG `Follow-ups:` bullet as enough -- if it is a real bug or parked feature, it belongs here
-- Band-aid a P0/P1 so you can skip writing the entry
+- Treat a CHANGELOG `Follow-ups:` bullet as enough -- if it is a real bug or parked feature, it belongs on a `deferred` issue
+- Prepend a new `## D-NNN` section to `DEFERRED_LOG.md`
+- Band-aid a P0/P1 so you can skip writing the issue
 - Invent an ID; never reuse a Closed ID
-- Start a fix that is already a `D-NNN` without reading that entry first (honor `parked` / Unblock / Next)
+- Start a fix that is already a `D-NNN` without reading that issue first (honor `parked` / Unblock / Next)
 
 ## When skip is allowed
 
@@ -55,7 +55,7 @@ Only for:
 - You actually **fixed** the bug this session (that is `PROBLEM_LOG.md`, then `deferred_log=none` unless you also closed a D-NNN)
 - Purely cosmetic edits with nothing parked
 - Status-only polls / read-only triage with no new gap found
-- The gap is already an open `D-NNN` and you did not learn anything new -- still declare `deferred_log=D-NNN` if you touched that area, else `none`
+- The gap is already an open issue and you did not learn anything new -- still declare `deferred_log=D-NNN` if you touched that area, else `none`
 
 When skipping, Lifecycle (specialists) or the closing report (parent) **MUST** say `deferred_log=none`, `deferred_log=skipped`, or `deferred_log=n/a` -- never silently omit the declaration.
 
@@ -78,7 +78,7 @@ Example after parking a bug:
 | Log | Answers |
 |-----|---------|
 | `PROBLEM_LOG.md` | What went wrong and how it was **fixed** |
-| `DEFERRED_LOG.md` | What is **still wrong or not built**, with severity so a human can prioritize |
+| GitHub Issues (`deferred`) | What is **still wrong or not built**, with severity so a human can prioritize |
 | `CHANGELOG.md` | What the codebase does now |
 | `knowledge/task-log/` | Full job narrative + why this approach |
 | `Nova-Roadmap-Status.md` | Product phase NEXT (not a bug tracker) |
@@ -91,3 +91,4 @@ Example after parking a bug:
 - `.cursor/rules/task-log.mdc`
 - `docs/agent-operations.md`
 - `tools/deferred_log.py`
+- `DEFERRED_LOG.md` (how-to)

@@ -37,7 +37,7 @@ Prepend a new entry after completing any task that changes:
    - **Files touched:** Key files only.
    - **How it works now:** The mental model a future agent needs.
    - **Verified by:** How you confirmed it works (built + ran, test, click path).
-   - **Follow-ups:** (optional) anything deferred. If it is a real parked bug or feature, also write `DEFERRED_LOG.md` -- a CHANGELOG bullet is not enough.
+   - **Follow-ups:** (optional) anything deferred. If it is a real parked bug or feature, also open a GitHub Issue labeled `deferred` -- a CHANGELOG bullet is not enough.
    - **Related:** (optional) commit SHA, PROBLEM_LOG date, issue link.
    ```
 
@@ -47,7 +47,7 @@ Prepend a new entry after completing any task that changes:
 
 - `CHANGELOG.md` = "what does the codebase do now and why" (every non-trivial task).
 - `PROBLEM_LOG.md` = "what went wrong and how was it fixed" (bugs, failures, subtle root causes only -- see `problem-log.mdc`).
-- `DEFERRED_LOG.md` = "what is still wrong or not built" (parked bugs and features -- see `deferred-log.mdc`).
+- GitHub Issues (`deferred`) = "what is still wrong or not built" (parked bugs and features -- see `deferred-log.mdc`).
 - When a task is a bug fix, write **PROBLEM_LOG + CHANGELOG**, and cross-reference in the `Related` field.
 - When a task parks work, write **DEFERRED_LOG**; a CHANGELOG `Follow-ups:` bullet is not enough.
 

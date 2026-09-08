@@ -14,8 +14,8 @@ Wiring metadata (invoke phrases, dashboards, handoffs) for opt-in specialists li
 1. **Explicit specialist ask** (e.g. "Use the ibkr-ops subagent to diagnose IB Gateway") → invoke that subagent with its registered phrase. This is the only path that opens a hop.
 2. **Everything else — including "just get this done" and multi-domain work** → the parent works in-session. For multi-domain work, sequence the steps yourself in one session and follow each domain's continuity rule (see Defaults below for which file governs which area); write one aggregate task-log entry when done.
 3. **"Who owns X / what's cracked?"** → run `py -3 tools/agent_fleet.py` first (no LLM hop, deterministic). Only invoke `router` if the user explicitly asks for a routing card.
-4. **"What's on the to-do / what's missing / priorities?"** → `py -3 tools/deferred_log.py status` (alias `priorities`). File is `DEFERRED_LOG.md`. Do not invent a second tracker. Roadmap NEXT stays in `Nova-Roadmap-Status.md`.
-5. **Before any fix** → search `DEFERRED_LOG.md` for the symptom/module. If a `D-NNN` already covers the ask: **work from that entry**. Honor **Status** (`parked` means do not start it), **Unblock**, and **Next**. Do not start a parallel fix that ignores the page.
+4. **"What's on the to-do / what's missing / priorities?"** → `py -3 tools/deferred_log.py status` (alias `priorities`). Source of truth is GitHub Issues labeled `deferred`. Do not invent a second tracker. Roadmap NEXT stays in `Nova-Roadmap-Status.md`.
+5. **Before any fix** → run that command and search open `deferred` issues for the symptom/module. If a `D-NNN` already covers the ask: **work from that issue**. Honor **Status** (`parked` means do not start it), **Unblock**, and **Next**. Do not start a parallel fix that ignores the issue.
 
 ## Defaults (ownership guidance, not auto-invoke targets)
 
@@ -59,7 +59,7 @@ Every Nova specialist report must end with:
 
 `problem_log=` is **mandatory for every agent** (see `.cursor/rules/problem-log.mdc`): after any bug fix or full diagnosis, prepend `PROBLEM_LOG.md` and set `problem_log=<YYYY-MM-DD title>`; otherwise `skipped` / `n/a`. Silent omission after a real fix is a constitution violation.
 
-`deferred_log=` is **mandatory for every agent** (see `.cursor/rules/deferred-log.mdc`): after parking a known bug or a feature you will not build this session, prepend `DEFERRED_LOG.md` and set `deferred_log=D-NNN`; otherwise `none` / `skipped` / `n/a`. Silent omission after parking real work is a constitution violation. Do not dump parked work only into agent-memory Backlog.
+`deferred_log=` is **mandatory for every agent** (see `.cursor/rules/deferred-log.mdc`): after parking a known bug or a feature you will not build this session, open or update a GitHub Issue labeled `deferred` and set `deferred_log=D-NNN`; otherwise `none` / `skipped` / `n/a`. Silent omission after parking real work is a constitution violation. Do not dump parked work only into agent-memory Backlog.
 
 The `subagentStop` hook (`.cursor/hooks.json`) may remind once if the footer is missing. It is fail-open and never edits files.
 

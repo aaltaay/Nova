@@ -3,7 +3,7 @@
 > **Single source of truth.** `gemini.md` is a legacy alias that `@`-imports this file (consolidated 2026-07-28 after the two mirrors drifted).
 >
 > **Status:** ENFORCED — Active governance document
-> **Last Updated:** 2026-04-27
+> **Last Updated:** 2026-09-08
 > **Project:** Nova — Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
@@ -42,7 +42,7 @@ These rules CANNOT be violated under ANY circumstance:
 | 3 | **Secrets in `.env` only** | No API keys, tokens, or credentials EVER appear in source code, logs, or commits. |
 | 4 | **`.tmp/` is ephemeral** | Never treat `.tmp/` files as a source of truth. |
 | 5 | **SOP before code** | If logic changes, update `architecture/` or relevant `.cursor/rules/` FIRST, then write code. |
-| 6 | **Self-Annealing** | Any error -> Analyze -> Patch -> Test -> Update SOP/rules -> **MUST** log in `PROBLEM_LOG.md` (every agent; see `problem-log.mdc`). If the bug cannot be fixed this session (too big, wrong task, needs an ADR), **MUST** log it in `DEFERRED_LOG.md` instead of a band-aid (`deferred-log.mdc`). |
+| 6 | **Self-Annealing** | Any error -> Analyze -> Patch -> Test -> Update SOP/rules -> **MUST** log in `PROBLEM_LOG.md` (every agent; see `problem-log.mdc`). If the bug cannot be fixed this session (too big, wrong task, needs an ADR), **MUST** open or update a GitHub Issue labeled `deferred` instead of a band-aid (`deferred-log.mdc`). |
 | 7 | **Broker Execution Gate** | Alpaca-sourced scanning is permanently read-only. Trade execution is permitted ONLY through the explicit opt-in `backend/ibkr/` module. Gateway connection default is **live** (port 4001); paper (4002) is the fallback when live is dark. Spending still requires `IBKR_ENABLED=true` and `IBKR_ORDERS_ENABLED=true`; live money also requires `IBKR_LIVE_TRADING_CONFIRMED=true` in `.env`. No other module may place orders. **Short entry (Phase K / ADR 009):** every SELL is risk-reducing unless an explicit `short_entry` opt-in on the execution command is approved by the short gate (`IBKR_SHORT_ENABLED=true` + fresh IBKR tick-236 `shortable_est`). Never infer shorts from side + flat position. `auto_live` remains NO-GO. |
 | 8 | **Constitution is Law** | No code change may contradict this document. If a contradiction is needed, update this document FIRST with a maintenance log entry, THEN write the code. |
 
@@ -303,12 +303,12 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 - Rule: `.cursor/rules/task-log.mdc`. Scaffold: `py -3 tools/task_log_new.py --slug <kebab> --title "…"`.
 - Lifecycle footer includes `task_log=<path>|skipped|n/a`, `problem_log=<entry>|skipped|n/a`, and `deferred_log=<D-NNN>|none|skipped|n/a`.
 
-### 7.2c DEFERRED_LOG.md
+### 7.2c Deferred tracker (GitHub Issues)
 
-- **Mandatory for every agent** (parent + all specialists). Rule: `.cursor/rules/deferred-log.mdc`. File name is `DEFERRED_LOG.md` (repo root) -- this is the features-and-bugs parking lot.
-- **Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search the file for the symptom/module. If a `D-NNN` already covers the ask, work from that entry (honor `parked` / Unblock / Next). Do not start a parallel fix that ignores the page. When the human asks "what's on the to-do / what's missing / priorities," that command is the answer.
-- Prepend (or extend) an entry after parking a known bug or a feature you will not build this session -- same session, same severity as skipping PROBLEM_LOG after a real fix.
-- Use the template in `DEFERRED_LOG.md` (Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence). IDs are durable (`D-001`). Ranked list: `py -3 tools/deferred_log.py status` or `priorities`.
+- **Mandatory for every agent** (parent + all specialists). Rule: `.cursor/rules/deferred-log.mdc`. Source of truth is GitHub Issues labeled `deferred` -- https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred . `DEFERRED_LOG.md` is the how-to, not the to-do.
+- **Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search open `deferred` issues. If a `D-NNN` already covers the ask, work from that issue (honor `parked` / Unblock / Next). Do not start a parallel fix that ignores it. When the human asks "what's on the to-do / what's missing / priorities," that command is the answer.
+- Open (or comment on) a GitHub issue after parking a known bug or a feature you will not build this session -- same session, same severity as skipping PROBLEM_LOG after a real fix.
+- Title contract: `D-NNN -- short title`. Labels: `deferred` + `P0`..`P3` + `bug`/`enhancement`/`decision` + `domain:<name>`. Body fields: Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. Next ID: `py -3 tools/deferred_log.py next-id`.
 - Lifecycle footer **MUST** include `deferred_log=<D-NNN>|none|skipped|n/a`. Agent-memory Backlog is not the SSOT. Product-phase NEXT stays in `Nova-Roadmap-Status.md`.
 
 ### 7.3 .cursor/rules/
@@ -353,11 +353,11 @@ cd frontend && npm run electron:pack
 When ANY error occurs during a task:
 
 1. **STOP** — Do not apply a band-aid.
-2. **Analyze** -- Read `PROBLEM_LOG.md` *and* `DEFERRED_LOG.md` (`py -3 tools/deferred_log.py status`) for prior matching entries. If an open/parked `D-NNN` already covers it, work from that entry (or leave it parked) -- do not start a parallel fix.
+2. **Analyze** -- Read `PROBLEM_LOG.md` *and* run `py -3 tools/deferred_log.py status` (GitHub Issues labeled `deferred`) for prior matching entries. If an open/parked `D-NNN` already covers it, work from that issue (or leave it parked) -- do not start a parallel fix.
 3. **Root Cause** — Identify the actual cause, not the symptom.
 4. **Patch** — Fix the root cause in the correct module (not in `main.py`).
 5. **Test** — Verify the fix works (build, run, or test).
-6. **Update SOP** -- Add entry to `PROBLEM_LOG.md` (if fixed) or `DEFERRED_LOG.md` (if parked), and update relevant MDC rule if needed.
+6. **Update SOP** -- Add entry to `PROBLEM_LOG.md` (if fixed) or open/update a GitHub Issue labeled `deferred` (if parked), and update relevant MDC rule if needed.
 7. **Commit** — `git add . && git commit -m "<msg>" && git push origin master`.
 
 ---
@@ -372,6 +372,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-08 | Deferred tracker SSOT is GitHub Issues labeled `deferred`. `DEFERRED_LOG.md` is how-to only. Invariant #6, §7.2c, §9 updated. | User Directive + Cursor Agent |
 | 2026-08-31 | Public domain is a marketing page (`site/` on Vercel). Live scanner stays local Vite / Desktop. §4 / §8 updated. | User Directive + Cursor Agent |
 | 2026-08-31 | DEFERRED_LOG.md is the to-do / what's-missing list (`deferred_log.py status` / `priorities`); agents must search it before any fix; D-010 parked chart Trend Line. | User Directive + Cursor Agent |
 | 2026-08-26 | DEFERRED_LOG.md: parked bugs/features with same respect as PROBLEM_LOG; Lifecycle `deferred_log=`; always-on `deferred-log.mdc`; session brief lists open P0/P1. | User Directive + Cursor Agent |
@@ -475,7 +476,7 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `engineering-standards.mdc` -- Tailwind direction, tests, CI, deps, patterns
 - `karpathy-guidelines.mdc` -- think / simplify / surgical / verify
 - `problem-log.mdc` -- mandatory PROBLEM_LOG after bug fixes
-- `deferred-log.mdc` -- check DEFERRED_LOG before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
+- `deferred-log.mdc` -- check GitHub Issues (`deferred`) before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
 - `change-log.mdc` -- CHANGELOG after behavior changes
 - `task-log.mdc` -- task-log narrative after material work
 - `commit-push-deploy.mdc` -- commit + push (+ deploy when applicable) at task end

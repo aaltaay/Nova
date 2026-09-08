@@ -5,7 +5,7 @@ This file is a running narrative of **what changed in this repo and why**, so fu
 - **Scope:** code behavior, module boundaries, public APIs, constants, tooling, rules, user-visible UI changes.
 - **Out of scope:** pure typo fixes, formatting-only edits, local scratch files.
 
-Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix). Parked bugs and features belong in `DEFERRED_LOG.md`, not only as a Follow-ups bullet here. This file answers "what does the codebase do now and why"; `PROBLEM_LOG.md` answers "what went wrong and how was it diagnosed"; `DEFERRED_LOG.md` answers "what is still wrong or not built."
+Bug fixes should **also** be logged in `PROBLEM_LOG.md` (symptom / cause / fix). Parked bugs and features belong on GitHub Issues labeled `deferred`, not only as a Follow-ups bullet here. This file answers "what does the codebase do now and why"; `PROBLEM_LOG.md` answers "what went wrong and how was it diagnosed"; GitHub Issues (`deferred`) answer "what is still wrong or not built."
 
 ## How agents update this file
 
@@ -29,6 +29,15 @@ Entry template (copy and fill in):
 ```
 
 <!-- ENTRIES_START -->
+
+## 2026-09-08 -- Deferred tracker moves to GitHub Issues
+
+- **What:** The to-do / parked-bug list is GitHub Issues labeled `deferred`. `DEFERRED_LOG.md` is how-to only. `deferred_log.py status` / `priorities` / `next-id` read GitHub via `gh`. One-shot `publish` copied the markdown entries (D-001..D-040) into issues.
+- **Why:** Operator asked to move tracking into GitHub instead of markdown. CHANGELOG, PROBLEM_LOG, and task-log stay in the repo (those are history, not a to-do).
+- **Files touched:** `tools/deferred_log.py`, `tools/deferred_github.py`, `tools/test_deferred_log.py`, `tools/test_deferred_github.py`, `DEFERRED_LOG.md`, `AGENTS.md` §7.2c / Invariant #6 / §9 / §11 / §12, `.cursor/rules/deferred-log.mdc` and sibling log rules, `docs/agent-operations.md`, `CHANGELOG.md`, `PROBLEM_LOG.md`
+- **How it works now:** Browse https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred . Agents run `py -3 tools/deferred_log.py status` before any fix and open a labeled issue when they park work. Title contract: `D-NNN -- title`. Do not prepend new `## D-NNN` sections to the markdown file.
+- **Verified by:** `pytest tools/test_deferred_log.py tools/test_deferred_github.py`; `deferred_log.py publish` then `deferred_log.py status` listing the same open IDs with issue numbers; `doc_invariants.py` OK.
+- **Related:** PROBLEM_LOG 2026-09-08 deferred fence parser; task-log `knowledge/task-log/2026-09-08-deferred-github-issues.md`
 
 ## 2026-09-06 -- Deep-dive audit parked as D-011..D-040 (docs only)
 
