@@ -131,6 +131,46 @@ def test_fetch_entries_uses_index_when_gh_empty(gh, tmp_path, monkeypatch):
     assert items[0]["id"] == "D-011"
 
 
+def test_refresh_index_writes_live_issues(gh, tmp_path, monkeypatch):
+    path = tmp_path / "deferred-index.json"
+    monkeypatch.setattr(gh, "INDEX_PATH", path)
+    monkeypatch.setattr(
+        gh,
+        "list_issues",
+        lambda **_k: [
+            {
+                "number": 39,
+                "title": "D-011 -- Lock gap",
+                "state": "OPEN",
+                "labels": ["deferred", "P0", "bug"],
+            }
+        ],
+    )
+    count, target = gh.refresh_index()
+    assert count == 1
+    assert target == str(path)
+    assert gh.load_index(path)[0]["id"] == "D-011"
+
+
+def test_refresh_index_refuses_to_erase_snapshot(gh, tmp_path, monkeypatch):
+    path = tmp_path / "deferred-index.json"
+    gh.write_index([{"id": "D-011", "title": "Lock gap", "status": "open"}], path=path)
+    monkeypatch.setattr(gh, "INDEX_PATH", path)
+    monkeypatch.setattr(gh, "list_issues", lambda **_k: [])
+    with pytest.raises(RuntimeError, match="refusing to overwrite"):
+        gh.refresh_index()
+    assert gh.load_index(path)[0]["id"] == "D-011"
+
+
+def test_refresh_index_seeds_empty_snapshot(gh, tmp_path, monkeypatch):
+    path = tmp_path / "deferred-index.json"
+    monkeypatch.setattr(gh, "INDEX_PATH", path)
+    monkeypatch.setattr(gh, "list_issues", lambda **_k: [])
+    count, _ = gh.refresh_index()
+    assert count == 0
+    assert gh.load_index(path) == []
+
+
 def test_live_index_has_seed_ids(gh):
     items = gh.load_index()
     ids = {e["id"] for e in items}

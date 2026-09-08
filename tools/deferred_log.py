@@ -8,6 +8,7 @@ Usage:
   py -3 tools/deferred_log.py status
   py -3 tools/deferred_log.py priorities
   py -3 tools/deferred_log.py next-id
+  py -3 tools/deferred_log.py refresh-index
   py -3 tools/deferred_log.py publish [--path DEFERRED_LOG.md]
 
 ``priorities`` is an alias of ``status``. When the human asks what is on the
@@ -16,6 +17,11 @@ invent a second tracker.
 
 ``--path`` reads a markdown snapshot (tests + one-shot publish). Live
 status/next-id talk to GitHub via ``gh``.
+
+``refresh-index`` rewrites ``knowledge/deferred-index.json`` -- the offline
+fallback that ``status`` uses when ``gh`` cannot read Issues. Run it in the
+same commit as any issue you open or close, or a later ``next-id`` can hand
+out an ID that already exists.
 """
 
 from __future__ import annotations
@@ -244,8 +250,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Nova deferred tracker (GitHub Issues)")
     parser.add_argument(
         "command",
-        choices=("status", "priorities", "next-id", "publish"),
+        choices=("status", "priorities", "next-id", "refresh-index", "publish"),
         help="status/priorities = ranked open list; next-id = next durable D-NNN; "
+        "refresh-index = rewrite the offline snapshot from GitHub; "
         "publish = one-shot markdown -> GitHub",
     )
     parser.add_argument(
@@ -275,10 +282,23 @@ def main(argv: list[str] | None = None) -> int:
     if tools_dir not in sys.path:
         sys.path.insert(0, tools_dir)
     try:
-        from deferred_github import fetch_entries, issues_url, next_id_from_issues
+        from deferred_github import (
+            fetch_entries,
+            issues_url,
+            next_id_from_issues,
+            refresh_index,
+        )
     except Exception as exc:
         print(f"deferred_log: cannot import GitHub helper: {exc}", file=sys.stderr)
         return 1
+    if args.command == "refresh-index":
+        try:
+            count, target = refresh_index()
+        except Exception as exc:
+            print(f"deferred_log: refresh-index failed: {exc}", file=sys.stderr)
+            return 1
+        print(f"refresh-index: wrote {count} item(s) to {target}")
+        return 0
     try:
         if args.command == "next-id":
             print(next_id_from_issues())

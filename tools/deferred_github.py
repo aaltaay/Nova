@@ -7,6 +7,7 @@ Title contract: ``D-NNN -- short title`` (ASCII double hyphen).
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import re
@@ -209,7 +210,7 @@ def write_index(items: list[dict[str, str]], path: Path | None = None) -> None:
         "schema_version": INDEX_SCHEMA_VERSION,
         "source": "github",
         "repo": repo_slug(),
-        "updated": __import__("datetime").date.today().isoformat(),
+        "updated": _dt.date.today().isoformat(),
         "items": items,
     }
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -258,6 +259,27 @@ def fetch_entries(*, state: str = "open") -> list[dict[str, str]]:
         )
         return indexed
     return live
+
+
+def refresh_index() -> tuple[int, str]:
+    """Rewrite the offline snapshot from live issues.
+
+    Refuses to overwrite a nonempty snapshot with an empty read -- a token
+    that cannot see issues must not erase the fallback.
+    """
+    live = [parsed for issue in list_issues(state="all") if (parsed := parse_issue(issue))]
+    if not live:
+        try:
+            existing = load_index()
+        except Exception:
+            existing = []
+        if existing:
+            raise RuntimeError(
+                "gh returned 0 deferred issues; refusing to overwrite "
+                f"{INDEX_PATH.name} ({len(existing)} items). Check `gh auth status`."
+            )
+    write_index(live)
+    return len(live), str(INDEX_PATH)
 
 
 def existing_ids() -> dict[str, dict[str, str]]:

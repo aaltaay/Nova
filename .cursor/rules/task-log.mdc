@@ -47,6 +47,8 @@ If skipping, Lifecycle must say `task_log=skipped` or `task_log=n/a` with a one-
 
 Do **not** write both a PR body and a `knowledge/task-log/` file for the same job. Two homes for one story is how they drift.
 
+Existing `knowledge/task-log/` entries stay where they are. They are append-only history -- never delete or thin one out to "deduplicate" against a PR body.
+
 ## How -- file path (no PR)
 
 1. Prefer scaffolder: `py -3 tools/task_log_new.py --slug <kebab> --title "<title>"`

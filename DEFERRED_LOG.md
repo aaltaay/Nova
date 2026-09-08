@@ -20,7 +20,13 @@ py -3 tools/deferred_log.py next-id
 
 `priorities` is the same ranked list as `status`. When the human asks "what's on the to-do / what's missing / priorities," run that command -- do not invent a second tracker. Every new chat also sees open P0/P1 items in the session-start fleet brief.
 
-If `gh` cannot read Issues (some CI / cloud tokens), the command falls back to `knowledge/deferred-index.json` (schema_version 1, owner `tools/deferred_github.py`). That file is a snapshot, not a second to-do -- after you open or close an issue, refresh it (`write_index`) in the same commit when GitHub is unreachable from `gh`.
+If `gh` cannot read Issues (some CI / cloud tokens), the command says so and falls back to `knowledge/deferred-index.json` (schema_version 1, owner `tools/deferred_github.py`). That file is a snapshot, not a second to-do. After you open or close an issue, refresh it in the same commit:
+
+```text
+py -3 tools/deferred_log.py refresh-index
+```
+
+A stale snapshot is how `next-id` hands out an ID that already exists. `refresh-index` refuses to overwrite a nonempty snapshot when `gh` returns zero issues, so a token that cannot read Issues cannot erase the fallback.
 
 Browse in the browser: filter Issues by label `deferred`, then `P0` / `P1` / `bug` / `decision` / `domain:execution` (and the other domain labels).
 

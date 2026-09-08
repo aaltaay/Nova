@@ -4,7 +4,7 @@ Append-only folder of **completed work narratives** — what we set out to do, w
 
 Since 2026-09-08 the **default home for that narrative is the pull request body** (`.github/pull_request_template.md`). This folder is for work that ships **without** a PR: direct pushes, ops diagnoses, audit conclusions, and local docs commits. Rule: `.cursor/rules/task-log.mdc`.
 
-Do not write both a PR body and a file here for the same job.
+Do not write both a PR body and a file here for the same job. Entries already in this folder are append-only history -- never delete one to deduplicate against a PR.
 
 This is **not** a substitute for:
 

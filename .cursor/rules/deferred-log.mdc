@@ -37,6 +37,7 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 4. Do not log secrets, tokens, or personal data.
 5. Cross-link from CHANGELOG / task-log `Related:` when those also get an entry.
 6. When you later **fix** it: close the issue (reason completed), write `PROBLEM_LOG.md` if it was a bug, and set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`.
+7. After opening or closing an issue, run `py -3 tools/deferred_log.py refresh-index` in the same commit. A stale `knowledge/deferred-index.json` is how `next-id` hands out an ID that already exists.
 
 ## Do not
 
