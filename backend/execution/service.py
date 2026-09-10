@@ -21,6 +21,7 @@ from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.qty_gate import apply_force_one_share
 from execution.record_payload import build_reserve_payload
 from execution.store_facts import lookup_symbol_for_order_id
+from execution import verification_gate
 from ibkr import client as _client
 import loop_lag as _loop_lag
 
@@ -259,6 +260,17 @@ async def execute(
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "ACCOUNT")
 
+        verification_block = verification_gate.entry_block(cmd)
+        if verification_block is not None:
+            timings.validation_completed_ns = time.perf_counter_ns()
+            return _reject(
+                execution_id,
+                cmd,
+                timings,
+                verification_block.message,
+                verification_block.reason_code,
+            )
+
         timings.validation_completed_ns = time.perf_counter_ns()
         store.update_stages(
             execution_id,
@@ -340,3 +352,4 @@ def finalize_http_response(execution_id: str, *, duplicate: bool = False) -> dic
 
 def reset_for_tests() -> None:
     telemetry.reset_for_tests()
+    verification_gate.reset_for_tests()

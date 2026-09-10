@@ -160,21 +160,6 @@ export const BACKEND_DIAG_HINTS: Record<string, string> = {
     'Backend unreachable — click Start API, or double-click Run Nova.bat.',
 };
 
-declare global {
-  interface Window {
-    __NOVA_API_BASE__?: string;
-    novaDesktop?: {
-      isDesktop: boolean;
-      apiBase: string;
-      getVersion: () => Promise<string>;
-      /** Electron IPC: open Stock View in a child BrowserWindow. */
-      openStockView?: (url: string) => Promise<boolean>;
-      /** Electron IPC: stop + start the local FastAPI sidecar, then wait for health. */
-      restartApi?: () => Promise<{ ok: boolean; error?: string }>;
-    };
-  }
-}
-
 function readApiBase(): string {
   if (typeof window !== 'undefined') {
     const fromDesktop = window.novaDesktop?.apiBase?.trim();

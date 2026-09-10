@@ -14,6 +14,7 @@ from constants import (
 )
 from execution import store
 from execution import telemetry
+from execution import verification_gate
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.place_reject_guard import confirm_terminal_reject
 from ibkr import client as _client
@@ -49,7 +50,13 @@ async def wait_broker_ack(
         )
         receipt.broker_status = status
         if is_reject:
-            if watch.error_code == IBKR_ERROR_FRACTIONAL_API:
+            verification = verification_gate.classify_reject(
+                watch.error_code, watch.error_message, cmd.normalized_symbol(),
+            )
+            if verification is not None:
+                receipt.error = verification.message
+                receipt.reason_code = verification.reason_code
+            elif watch.error_code == IBKR_ERROR_FRACTIONAL_API:
                 receipt.error = IBKR_FRACTIONAL_ORDER_API_MSG
                 receipt.reason_code = "QTY_FRACTIONAL_API"
             else:
@@ -326,7 +333,13 @@ async def finish_place(
             watch, int(oid) if oid is not None else None,
         )
         if is_reject:
-            if watch.error_code == IBKR_ERROR_FRACTIONAL_API:
+            verification = verification_gate.classify_reject(
+                watch.error_code, watch.error_message, cmd.normalized_symbol(),
+            )
+            if verification is not None:
+                err = verification.message
+                reason = verification.reason_code
+            elif watch.error_code == IBKR_ERROR_FRACTIONAL_API:
                 err = IBKR_FRACTIONAL_ORDER_API_MSG
                 reason = "QTY_FRACTIONAL_API"
             else:

@@ -25,4 +25,14 @@ export interface NovaActionRecord {
   showButton: boolean;
 }
 
-export type NovaActionResult = { ok: boolean; text: string };
+export type NovaActionResult = {
+  ok: boolean;
+  text: string;
+  reasonCode?: string | null;
+  order?: {
+    symbol: string;
+    side: string;
+    qty: number;
+    mode?: string | null;
+  };
+};

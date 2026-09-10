@@ -103,6 +103,27 @@ describe('runNovaAction Webull kinds', () => {
     expect(payload.short_entry).toBeUndefined();
   });
 
+  it('preserves verification reason and order context for the global dialog', async () => {
+    placeIbkrOrder.mockResolvedValue({
+      ok: false,
+      order_id: 96902,
+      error: 'Order was not placed. IBKR requires Client Portal verification.',
+      reason_code: 'IBKR_VERIFICATION_REQUIRED',
+      mode: 'live',
+    });
+
+    const res = await runNovaAction(
+      action({ kind: 'buy_market', params: { shares: 1 } }),
+      runtime({ accountMode: 'live', spendStatus: 'live_armed' }),
+    );
+
+    expect(res).toMatchObject({
+      ok: false,
+      reasonCode: 'IBKR_VERIFICATION_REQUIRED',
+      order: { symbol: 'AAPL', side: 'BUY', qty: 1, mode: 'LIVE' },
+    });
+  });
+
   it('sell_pos_pct_ask refuses short/flat and sells floor of long', async () => {
     const shortRes = await runNovaAction(
       action({ kind: 'sell_pos_pct_ask', params: { percent: 50 } }),

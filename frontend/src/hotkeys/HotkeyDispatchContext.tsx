@@ -151,7 +151,7 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
   const runAction = useCallback(async (action: NovaActionRecord) => {
     const result = await runNovaAction(action, runtimeRef.current);
     setLastResult(result);
-    if (!result.ok) notifyOrderRejected({ message: result.text });
+    if (!result.ok) void notifyOrderRejected({ message: result.text, reasonCode: result.reasonCode, order: result.order });
     return result;
   }, []);
 

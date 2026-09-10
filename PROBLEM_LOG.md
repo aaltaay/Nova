@@ -37,6 +37,23 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-10 -- Verification tests leaked latch state and missed browser semantics
+
+- **Symptom:** The first portal-helper run failed with `window is not defined`; the first full frontend run had an uppercase-mode assertion mismatch and an acknowledgment-alert timeout; the first full backend run left AAPL latched and blocked four later happy-path tests.
+- **Cause:** The new tests omitted jsdom and latch teardown. One assertion expected raw `live` although `accountModeLabel` intentionally returns `LIVE`, and the failure path awaited a second modal before the test could close it.
+- **Fix:** Declared jsdom, matched the actual mode label, made the follow-up failure alert non-blocking, and added an autouse reset fixture around every verification service test. This follows the prior 2026-07-24 browser/test-runtime boundary pattern.
+- **Fix class:** infra
+- **Keywords:** Vitest, pytest, jsdom, window is not defined, latch pollution, modal timeout, openIbkrClientPortal, Electron
+
+## 2026-09-10 -- IBKR verification reject had no recovery flow
+
+- **Symptom:** A live AAPL BUY reached IBKR, became `Inactive`, and received Error 201 requiring Client Portal email-token verification. Nova showed a generic "Broker rejected the order" dialog containing raw uppercase broker text and only an OK button.
+- **Cause:** The execution boundary treated every non-fractional broker rejection as generic `BROKER_REJECT`. No state represented IBKR's per-security verification hold, so Nova could neither guide the operator nor stop repeated entry sends after learning about it.
+- **Fix:** Classify the exact Error 201 token message as `IBKR_VERIFICATION_REQUIRED`, latch the affected symbol in the execution service, and reject later risk-increasing entries before broker send. Added an explicit acknowledgment endpoint and an actionable Desktop/browser dialog. Cancel, replace, long reduction, short cover, and flatten bypass the entry latch; retries remain manual.
+- **Fix class:** admission
+- **Keywords:** IBKR Error 201, Client Portal, verification token, AAPL, Broker rejected, entry latch, exit safety, openExternal
+- **Related:** CHANGELOG 2026-09-10 IBKR verification-required recovery flow; [D-013](https://github.com/aaltaay/Nova/issues/36)
+
 ## 2026-09-08 -- Closed-section parser swallowed every open D-NNN
 
 - **Symptom:** `parse_entries(section="CLOSED")` returned 40 items, including all still-open D-001..D-040, so a migrate-to-GitHub close pass would have closed live to-do items.

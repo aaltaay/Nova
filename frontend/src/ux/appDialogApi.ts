@@ -26,6 +26,9 @@ export interface ConfirmDialogOptions {
   skipConfirmOption?: boolean;
   /** Override checkbox label when skipConfirmOption is true. */
   skipConfirmLabel?: string;
+  /** Optional action that does not close or resolve the dialog. */
+  auxiliaryLabel?: string;
+  onAuxiliary?: () => void;
 }
 
 export interface AlertDialogOptions {
@@ -94,6 +97,8 @@ export function confirmApp(
       tone: opts.tone ?? 'default',
       skipConfirmOption: opts.skipConfirmOption === true,
       skipConfirmLabel: opts.skipConfirmLabel,
+      auxiliaryLabel: opts.auxiliaryLabel,
+      onAuxiliary: opts.onAuxiliary,
       resolve,
     });
   });

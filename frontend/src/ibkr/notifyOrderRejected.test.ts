@@ -23,4 +23,10 @@ describe('notifyOrderRejected copy', () => {
     expect(orderRejectTitle('MADE_UP')).toBe('Order rejected');
     expect(orderRejectTone('BROKER_REJECT')).toBe('danger');
   });
+
+  it('gives Client Portal verification its own title', () => {
+    expect(orderRejectTitle('IBKR_VERIFICATION_REQUIRED')).toBe(
+      'Order not placed -- IBKR verification required',
+    );
+  });
 });

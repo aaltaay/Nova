@@ -75,6 +75,12 @@ export async function placeMarketExit(
       text: res.ok
         ? `Exit order #${res.order_id}${outside_rth ? ' (EH)' : ''}`
         : res.error ?? 'Exit failed',
+      ...(!res.ok
+        ? {
+            reasonCode: res.reason_code,
+            order: { symbol, side, qty, mode },
+          }
+        : {}),
     };
   } catch {
     return { ok: false, text: 'Network error placing exit' };
@@ -146,6 +152,12 @@ export async function placeLongPctLimit(
       text: res.ok
         ? `Order #${res.order_id} placed`
         : res.error ?? 'Order failed',
+      ...(!res.ok
+        ? {
+            reasonCode: res.reason_code,
+            order: { symbol, side: 'SELL', qty: built.qty, mode },
+          }
+        : {}),
     };
   } catch {
     return { ok: false, text: 'Network error placing order' };

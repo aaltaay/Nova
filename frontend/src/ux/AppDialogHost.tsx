@@ -13,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { TICKER_TRADE_PLACE_CONFIRM_SKIP_LABEL } from '../constants';
 import { writeSkipPlaceConfirm } from '../ibkr/placeConfirmPrefs';
 import {
@@ -166,6 +167,16 @@ export function AppDialogHost({ children }: Props) {
                 </label>
               )}
               <AlertDialogFooter>
+                {active.kind === 'confirm' && active.auxiliaryLabel && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    data-testid="app-dialog-auxiliary"
+                    onClick={active.onAuxiliary}
+                  >
+                    {active.auxiliaryLabel}
+                  </Button>
+                )}
                 {active.kind !== 'alert' && (
                   <AlertDialogCancel
                     type="button"

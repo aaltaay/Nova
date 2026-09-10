@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-10 -- IBKR verification-required recovery flow
+
+- **What:** IBKR Error 201 token-verification rejects now become typed `IBKR_VERIFICATION_REQUIRED` receipts and an actionable dialog. Nova blocks repeated new entries for the affected symbol until explicit acknowledgment, while cancel, replace, long exits, short covers, and flatten remain available.
+- **Why:** A live AAPL order was rejected by IBKR and the operator received raw broker text with no professional recovery path.
+- **Files touched:** `backend/execution/verification_gate.py`, `backend/execution/{service,broker_send}.py`, `backend/routes/trading_execution.py`, `frontend/src/ibkr/{notifyOrderRejected,acknowledgeVerification,openIbkrClientPortal,useManualOrderSubmission}.ts`, `frontend/electron/{main.mjs,preload.cjs}`, ADR 007, execution/UI tests
+- **How it works now:** The exact Client Portal token message latches only that symbol at the centralized execution boundary. A later entry is rejected before broker send; order-management and position-reducing commands bypass the latch. The dialog shows the order context, opens only the allowlisted official IBKR portal in the system browser, and clears the latch only when the operator confirms completion. Nova never retries automatically.
+- **Verified by:** Backend 1,493 passed; frontend 878 passed across 180 files; `npm run build`; doc invariants and IB-loop maintainer gate passed; local-browser dialog verification without sending an order. `npm run lint` remains red only on the pre-existing D-029 baseline.
+- **Related:** PROBLEM_LOG 2026-09-10 IBKR verification reject; [D-013](https://github.com/aaltaay/Nova/issues/36); restart verification reproduced existing [D-005](https://github.com/aaltaay/Nova/issues/42); `knowledge/task-log/2026-09-10-ibkr-verification-required-flow.md`
+
 ## 2026-09-08 -- PR body is the task narrative; roadmap note trimmed
 
 - **What:** Added `.github/pull_request_template.md` (What / Why this approach / Verified by / Related issue + a logs checklist). `knowledge/task-log/` is now the fallback home for work that ships without a PR. `Nova-Roadmap-Status.md` shrank from 366 to ~100 lines; closed phases, verification baselines, the maintenance track, and pre-2026-07-28 History moved verbatim to a new `Nova-Roadmap-Archive.md`.

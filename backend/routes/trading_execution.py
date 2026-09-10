@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from execution import service as _execution_service
+from execution import verification_gate
 from execution.models import ExecutionCommand
 from execution.timing import ingress_stamps
 from ibkr import orders as _orders
@@ -98,6 +99,18 @@ async def place_order(req: OrderRequest, request: Request) -> dict:
         received_ns=ingress_perf,
     )
     return _response(receipt)
+
+
+@router.post("/verification/{symbol}/acknowledge")
+async def acknowledge_verification(symbol: str) -> dict:
+    normalized = symbol.strip().upper()
+    if not normalized:
+        raise HTTPException(status_code=400, detail="symbol is required")
+    return {
+        "ok": True,
+        "symbol": normalized,
+        "cleared": verification_gate.acknowledge(normalized),
+    }
 
 
 @router.delete("/order/{order_id}")

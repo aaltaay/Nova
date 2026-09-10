@@ -114,15 +114,21 @@ export function TickerTradeActionBar({
         });
       } else {
         setResultMsg({ ok: false, text: data.error });
-        notifyOrderRejected({
+        void notifyOrderRejected({
           message: data.error,
           reasonCode: data.place?.reason_code,
+          order: {
+            symbol,
+            side: closeSide,
+            qty: Math.abs(position.qty),
+            mode,
+          },
         });
       }
     } catch (error) {
       const text = executionTransportError(error);
       setResultMsg({ ok: false, text });
-      notifyOrderRejected({ message: text });
+      void notifyOrderRejected({ message: text });
     } finally {
       setClosing(false);
     }

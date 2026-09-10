@@ -255,6 +255,12 @@ export async function runNovaAction(
         text: res.ok
           ? `Order #${res.order_id} placed`
           : res.error ?? 'Order failed',
+        ...(!res.ok
+          ? {
+              reasonCode: res.reason_code,
+              order: { symbol, side: 'BUY', qty: built.qty, mode },
+            }
+          : {}),
       };
     } catch {
       return { ok: false, text: 'Network error placing order' };
@@ -335,6 +341,12 @@ export async function runNovaAction(
         text: res.ok
           ? `Order #${res.order_id} placed`
           : res.error ?? 'Order failed',
+        ...(!res.ok
+          ? {
+              reasonCode: res.reason_code,
+              order: { symbol, side, qty: shares, mode },
+            }
+          : {}),
       };
     } catch {
       return { ok: false, text: 'Network error placing order' };

@@ -4,7 +4,7 @@
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import {
   API_BASE,
   openEnvFileIfNeeded,
@@ -17,6 +17,7 @@ import { openOrFocusTraderWindow } from './traderWindows.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
+const ALLOWED_EXTERNAL_HOSTS = new Set(['www.interactivebrokers.com']);
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
@@ -87,6 +88,18 @@ ipcMain.handle('nova:openStockView', (_event, url) => {
     throw new Error('Invalid Trader URL');
   }
   return openOrFocusTraderWindow(url, windowOptions(), attachStockViewWindowOpen);
+});
+
+ipcMain.handle('nova:openExternal', async (_event, url) => {
+  const parsed = new URL(String(url));
+  if (
+    parsed.protocol !== 'https:'
+    || !ALLOWED_EXTERNAL_HOSTS.has(parsed.hostname)
+  ) {
+    throw new Error('External URL is not allowed');
+  }
+  await shell.openExternal(parsed.toString());
+  return true;
 });
 
 app.whenReady().then(async () => {

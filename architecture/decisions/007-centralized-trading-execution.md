@@ -20,6 +20,7 @@ Nova had a single IBKR broker adapter (`ibkr/orders.py`) but fragmented entry po
 10. **Metrics populations are explicit:** paper, live, benchmark/synthetic, operation, source, and fill provenance remain separately labeled in rollups. Percentiles always include sample counts and insufficiency state. Read APIs return bounded rows/segments and no account identifiers, secrets, or unbounded broker identifiers.
 11. **Mixed populations cannot produce an aggregate SLA verdict:** normalized population (`live`, `paper`, `benchmark_paper`, `benchmark_synthetic`, or `unknown`) is the mixing authority. When more than one population is present, aggregate distributions remain available only as explicitly mixed diagnostics and aggregate `sla_pass` is null; dashboards must use the population segments for verdicts.
 12. **Bracket legs retain identity:** parent, target, and stop watches carry their actual side, leg role, and known leg reference. Child-leg evidence remains auditable but is not eligible to update the parent execution's ack/fill stages or enter parent-entry fill/slippage aggregates. Unknown leg attribution is excluded rather than inferred.
+13. **Broker verification rejects fail loud and latch entries:** IBKR Error 201 text that requires Client Portal token verification maps to a typed `IBKR_VERIFICATION_REQUIRED` receipt. The execution service latches the affected symbol and refuses later risk-increasing entries until the operator explicitly confirms verification. Cancel, replace, long-position reduction, short cover, and flatten remain available; Nova never retries a rejected order automatically.
 
 ## Consequences
 
@@ -27,6 +28,7 @@ Nova had a single IBKR broker adapter (`ibkr/orders.py`) but fragmented entry po
 - Local `PendingSubmit` / assigned order id is **not** acknowledgment; first non-PendingSubmit `orderStatus` (or `execDetails` when status is skipped) is.
 - Paper proves structural/API latency; IBKR paper fills are simulated and do not prove live slippage.
 - Live one-share probes require a separate explicit user approval phase.
+- A Client Portal verification hold cannot be predicted from a healthy Gateway session. After IBKR reveals it on an attempted order, Nova shows an actionable verification dialog and blocks repeated entries in that symbol until operator acknowledgment.
 - The browser/UI owner may add the optional client timing payload and render-complete stamp later. The backend contract deliberately stops at response-ready or an existing server event-emission hook; it does not pretend to measure frontend render or subtract clocks across hosts.
 - Execution telemetry reuses existing IBKR callbacks and reconciliation loops. It does not add broker requests or increase polling cadence.
 

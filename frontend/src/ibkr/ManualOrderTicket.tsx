@@ -1,10 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  beginBrowserExecutionTiming,
-  captureBrowserAction,
-} from '../execution_latency';
-import {
-  buildManualOrder,
   forcedManualOrderQty,
   presetsForQuantityMode,
   type ManualOrderSide,
@@ -21,10 +16,7 @@ import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
-import { executionTransportError } from './executionTransportError';
-import { notifyOrderRejected } from './notifyOrderRejected';
-import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
-import { readSkipPlaceConfirm } from './placeConfirmPrefs';
+import type { PlaceOrderResult } from './placeOrder';
 import { resolveShortabilityState } from './ShortabilityChip';
 import {
   readTicketSessionUnlocked,
@@ -32,6 +24,7 @@ import {
   tryUnlockTicketSession,
 } from './ticketUnlock';
 import type { IbkrAccountSummary, IbkrMode, IbkrPosition } from './types';
+import { useManualOrderSubmission } from './useManualOrderSubmission';
 import { useIbkrStatus } from './useIbkrStatus';
 
 interface Props {
@@ -90,10 +83,7 @@ export function ManualOrderTicket({
   const [limitPrice, setLimitPrice] = useState(initial.limitPrice);
   const [stopPrice, setStopPrice] = useState(initial.stopPrice);
   const [outsideRth, setOutsideRth] = useState(initial.outsideRth);
-  const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [sessionUnlocked, setSessionUnlocked] = useState(readTicketSessionUnlocked);
-  const [confirmSummary, setConfirmSummary] = useState<string | null>(null);
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
 
   useEffect(() => {
@@ -106,6 +96,38 @@ export function ManualOrderTicket({
   const displayQuantityValue = QTY_LOCKED
     ? String(FORCED_QTY)
     : quantityValue;
+  const spendLocked =
+    spendStatus === 'locked' || spendStatus === 'locked_live_unconfirmed';
+  const needsPinUnlock = !sessionUnlocked;
+  const {
+    submitting,
+    result,
+    confirmSummary,
+    submit,
+    executeOrder,
+    setConfirmSummary,
+    resetSubmission,
+  } = useManualOrderSubmission({
+    symbol,
+    mode,
+    connected,
+    spendLocked,
+    needsPinUnlock,
+    side,
+    shortEntry,
+    shortBlockReason,
+    orderType,
+    quantityMode: displayQuantityMode,
+    quantityValue: displayQuantityValue,
+    limitPrice,
+    stopPrice,
+    outsideRth,
+    referencePrice,
+    summary,
+    position,
+    onNeedsPin: () => setPinDialogOpen(true),
+    onOrderPlaced,
+  });
 
   useEffect(() => {
     const next = applyTicketDefaults(symbol, referencePrice, topOfBook);
@@ -117,8 +139,7 @@ export function ManualOrderTicket({
     setLimitPrice(next.limitPrice);
     setStopPrice(next.stopPrice);
     setOutsideRth(next.outsideRth);
-    setResult(null);
-    setConfirmSummary(null);
+    resetSubmission();
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function selectDirection(nextShort: boolean) {
@@ -135,7 +156,7 @@ export function ManualOrderTicket({
     );
     if (orderType === 'LMT') setLimitPrice(seeded.limitPrice);
     if (orderType === 'STP') setStopPrice(seeded.stopPrice);
-    setResult(null);
+    resetSubmission();
   }
 
   useEffect(() => {
@@ -151,21 +172,17 @@ export function ManualOrderTicket({
     }
   }, [referencePrice, limitPrice, orderType, side, symbol, topOfBook]);
 
-  const spendLocked =
-    spendStatus === 'locked' || spendStatus === 'locked_live_unconfirmed';
-  const needsPinUnlock = !sessionUnlocked;
-
   function selectOrderType(next: ManualOrderType) {
     setOrderType(next);
     if (next !== 'LMT') setOutsideRth(false);
-    setResult(null);
+    resetSubmission();
   }
 
   function selectQuantityMode(next: QuantityMode) {
     if (QTY_LOCKED) return;
     setQuantityMode(next);
     setQuantityValue(String(presetsForQuantityMode(next)[0]));
-    setResult(null);
+    resetSubmission();
   }
 
   function onQuantityValueChange(next: string) {
@@ -177,139 +194,10 @@ export function ManualOrderTicket({
     const ok = tryUnlockTicketSession(pin);
     if (ok) {
       setSessionUnlocked(true);
-      setResult(null);
+      resetSubmission();
       setPinDialogOpen(false);
     }
     return ok;
-  }
-
-  function fail(text: string, reasonCode?: string | null) {
-    setResult({ ok: false, text });
-    notifyOrderRejected({ message: text, reasonCode });
-  }
-
-  async function executeOrder() {
-    if (!connected || submitting) return;
-    if (spendLocked) {
-      fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
-      return;
-    }
-    const timing = beginBrowserExecutionTiming(
-      'manual_place',
-      captureBrowserAction('user_action'),
-    );
-
-    const built = buildManualOrder(
-      {
-        symbol,
-        side,
-        orderType,
-        quantityMode: displayQuantityMode,
-        quantityValue: displayQuantityValue,
-        limitPrice,
-        stopPrice,
-        outsideRth,
-        shortEntry,
-      },
-      {
-        marketReferencePrice: referencePrice,
-        buyingPower: summary?.BuyingPower ?? null,
-        positionQty: position?.qty ?? null,
-      },
-    );
-    if (!built.ok) {
-      fail(built.error);
-      return;
-    }
-
-    setSubmitting(true);
-    setResult(null);
-    try {
-      const response = await placeIbkrOrder(
-        built.payload,
-        undefined,
-        { timing, referencePrice },
-      );
-      if (response.ok) {
-        setResult({
-          ok: true,
-          text: `Order #${response.order_id} placed (${response.mode ?? mode})`,
-        });
-        onOrderPlaced?.(response);
-      } else {
-        fail(response.error ?? 'Order failed', response.reason_code);
-      }
-    } catch (error) {
-      fail(executionTransportError(error));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  function requestPlaceOrder() {
-    if (!connected || submitting) return;
-    if (spendLocked) {
-      fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
-      return;
-    }
-
-    if (shortEntry && shortBlockReason) {
-      fail(shortBlockReason);
-      return;
-    }
-
-    const built = buildManualOrder(
-      {
-        symbol,
-        side,
-        orderType,
-        quantityMode: displayQuantityMode,
-        quantityValue: displayQuantityValue,
-        limitPrice,
-        stopPrice,
-        outsideRth,
-        shortEntry,
-      },
-      {
-        marketReferencePrice: referencePrice,
-        buyingPower: summary?.BuyingPower ?? null,
-        positionQty: position?.qty ?? null,
-      },
-    );
-    if (!built.ok) {
-      fail(built.error);
-      return;
-    }
-
-    const priceText =
-      orderType === 'LMT'
-        ? ` @ $${limitPrice}`
-        : orderType === 'STP'
-          ? ` stop $${stopPrice}`
-          : '';
-    const hoursText = outsideRth ? ' including extended hours' : ' during regular hours';
-    const dirText = shortEntry ? 'SHORT' : side;
-    const summaryText =
-      `${dirText} ${built.quantity} ${symbol.toUpperCase()} (${orderType}${priceText})` +
-      `${hoursText} on the ${mode.toUpperCase()} account.`;
-
-    if (readSkipPlaceConfirm()) {
-      void executeOrder();
-      return;
-    }
-    setConfirmSummary(summaryText);
-  }
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!connected || submitting) return;
-
-    if (needsPinUnlock) {
-      setPinDialogOpen(true);
-      return;
-    }
-
-    requestPlaceOrder();
   }
 
   return (
