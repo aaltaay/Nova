@@ -1,5 +1,16 @@
 """Classifier tests for leftover merged/closed PR head branches."""
 
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# pytest puts this file's directory on sys.path, so `import tools` fails
+# unless the repo root is also present (CI agent-contract job).
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from tools.stale_pr_branches import classify_stale_branches
 
 

@@ -14,7 +14,7 @@ For issue, code, config, CI, security, or rule work, load `.cursor/skills/github
 3. Every actionable issue has kind, priority, domain, concrete acceptance/Next, human owner while active, and a Nova Delivery project item when access exists.
 4. Milestones and relationships are conditional facts, never filler.
 5. Use `Closes #NNN` only when the whole issue is complete. Partial work uses `Refs #NNN`, gets an evidence comment, and leaves the issue open.
-6. Before merge, run relevant pytest, Ruff, ESLint, Vitest, build, Playwright/browser, doc, agent-contract, and shared-neighbor gates.
+6. Before merge, run relevant pytest, Ruff, ESLint, Vitest, build, Playwright/browser, doc, agent-contract, shared-neighbor gates, and wait for Desktop pack (Windows EXE artifact `Nova-Setup-vNNN.exe`) when that job applies.
 7. After closing a deferred issue, run `py -3 tools/deferred_log.py refresh-index` and ship the refreshed index.
 8. After a PR is merged or closed, **delete the head branch in the same session** if it is still on origin. GitHub `delete_branch_on_merge` is on (backup sweep). Do not skip the check. Run `git fetch origin --prune`, then `py -3 tools/stale_pr_branches.py`. If the head is still listed, run `git push origin --delete <branch>` (or the GitHub "Delete branch" control) and prune again. Never delete `master` / `main`, and never delete a branch that still has an **open** PR.
 

@@ -45,6 +45,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix class:** surfacing
 - **Keywords:** catalysts, news universe, D-015, Nova News, IBKR roster, _find_ibkr_cache_row
 
+## 2026-09-11 -- Desktop pack CI found no Python on windows-latest
+
+- **Symptom:** `Desktop pack` failed at `npm run electron:pack` with `[build-api] no Python found (tried py -3, python, python3)` after `setup-python` had already run `python tools/bump_version.py --sync`.
+- **Cause:** `build-api-sidecar.mjs` probed with `spawnSync(..., ['-c', 'import sys'], { shell: true })`. On Windows that becomes `python -c import sys` (no quotes), so the probe always fails. The pack step also did not pass `NOVA_PYTHON`.
+- **Fix:** Probe with `--version` and `shell: false`. Pack job sets `NOVA_PYTHON=python`. Checkout the PR head SHA so the merge commit does not bump `vNNN` by one.
+- **Fix class:** infra
+- **Keywords:** electron:pack, build-api-sidecar, NOVA_PYTHON, windows-latest, spawnSync shell, PyInstaller, Desktop pack
+
+## 2026-09-11 -- Agent contract cannot import tools.stale_pr_branches
+
+- **Symptom:** `CI / Agent contract` collection failed: `ModuleNotFoundError: No module named 'tools'` from `tools/test_stale_pr_branches.py`.
+- **Cause:** pytest puts the test file's directory (`tools/`) on `sys.path`. `from tools.stale_pr_branches import ...` then looks for `tools/tools/`. The agent-contract job does not set `PYTHONPATH`.
+- **Fix:** Insert the repo root on `sys.path` in the test, and set `PYTHONPATH=${{ github.workspace }}` on that CI step.
+- **Fix class:** infra
+- **Keywords:** agent-contract, PYTHONPATH, test_stale_pr_branches, ModuleNotFoundError, pytest collection
+
 ## 2026-09-10 -- CI skipped strict gates and E2E shared operator state
 
 - **Symptom:** Master carried 4 ESLint errors, 6 warnings, and 11 Ruff findings while CI stayed green because it ran only pytest and the frontend build. Vitest could delete the operator's live `start-api.lock`, and the unrun Playwright suite reused port 5173, mixed operator state into tests, and had 12 stale selector/data failures.

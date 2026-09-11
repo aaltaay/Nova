@@ -40,6 +40,15 @@ Entry template (copy and fill in):
 - **Follow-ups:** D-015 FinBERT warmup and Earnings Finnhub 429 remain open. D-001 scanner NEWS column is unchanged.
 - **Related:** #59; Refs #35; PROBLEM_LOG 2026-09-11 Catalysts copy vs roster filter
 
+## 2026-09-11 -- PR Desktop pack EXE and vNNN tags
+
+- **What:** Every PR and master push now packs the Windows NSIS installer and uploads `Nova-Setup-vNNN.exe`. Public revision is `vNNN` (git commit count from the first commit, at least three digits). Successful master/main pushes create git tag `vNNN` only -- no GitHub Release.
+- **Why:** Operator asked that PRs cannot close without a real desktop build, that the EXE show up on the PR, and that releases are just incrementing `vNNN` tags.
+- **Files touched:** `tools/bump_version.py`, `backend/tests/test_bump_version.py`, `.github/workflows/desktop-pack.yml`, `frontend/scripts/{run-electron-pack.mjs,build-api-sidecar.mjs}`, `frontend/package.json`, `README.md`, `.cursor/skills/github-delivery/SKILL.md`
+- **How it works now:** `git rev-list --count HEAD` is N. `VERSION` is `vNNN`. `package.json` stays `0.1.N` because electron-builder needs semver. CI checks out the full history, stamps those files, runs `npm run electron:pack` on `windows-latest`, and fails if the EXE is missing. After a green pack on master, the workflow creates tag `vNNN` if it is not already there.
+- **Verified by:** `pytest backend/tests/test_bump_version.py tools/test_desktop_pack_workflow.py tools/test_stale_pr_branches.py`; `python3 tools/bump_version.py --show`; frontend production build. First Actions run failed (no Python probe on Windows; `tools` import in agent-contract) -- see PROBLEM_LOG 2026-09-11. The Windows EXE itself is produced by the retry of `Desktop pack` on this PR.
+- **Related:** Closes #56. PROBLEM_LOG 2026-09-11 Desktop pack Python probe; 2026-09-11 Agent contract tools import.
+
 ## 2026-09-11 -- GitHub auto-deletes merged PR heads (backup)
 
 - **What:** Live delivery docs now say GitHub `delete_branch_on_merge` is on. Agents still confirm the head is gone after merge/close; `--delete` only if `stale_pr_branches.py` still lists it.

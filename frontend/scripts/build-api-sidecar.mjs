@@ -20,13 +20,36 @@ function run(cmd, args, cwd) {
   }
 }
 
+function pythonLauncher() {
+  const override = process.env.NOVA_PYTHON;
+  if (override) {
+    return [override, []];
+  }
+  // Probe with --version and shell:false. `shell: true` plus `-c import sys`
+  // becomes `python -c import sys` on Windows (no quotes), so the probe
+  // always fails even when setup-python is on PATH.
+  for (const [cmd, prefix] of [
+    ['py', ['-3']],
+    ['python', []],
+    ['python3', []],
+  ]) {
+    const probe = spawnSync(cmd, [...prefix, '--version'], { shell: false });
+    if (probe.status === 0) {
+      return [cmd, prefix];
+    }
+  }
+  console.error('[build-api] no Python found (tried py -3, python, python3)');
+  process.exit(1);
+}
+
 if (!fs.existsSync(spec)) {
   console.error('[build-api] missing', spec);
   process.exit(1);
 }
 
-run('py', ['-3', '-m', 'pip', 'install', '-q', 'pyinstaller'], backendDir);
-run('py', ['-3', '-m', 'PyInstaller', 'nova_api.spec', '--noconfirm'], backendDir);
+const [pyCmd, pyPrefix] = pythonLauncher();
+run(pyCmd, [...pyPrefix, '-m', 'pip', 'install', '-q', 'pyinstaller'], backendDir);
+run(pyCmd, [...pyPrefix, '-m', 'PyInstaller', 'nova_api.spec', '--noconfirm'], backendDir);
 
 if (!fs.existsSync(exe)) {
   console.error('[build-api] expected output missing:', exe);
