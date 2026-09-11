@@ -36,8 +36,8 @@ Entry template (copy and fill in):
 - **Why:** Operator asked that PRs cannot close without a real desktop build, that the EXE show up on the PR, and that releases are just incrementing `vNNN` tags.
 - **Files touched:** `tools/bump_version.py`, `backend/tests/test_bump_version.py`, `.github/workflows/desktop-pack.yml`, `frontend/scripts/{run-electron-pack.mjs,build-api-sidecar.mjs}`, `frontend/package.json`, `README.md`, `.cursor/skills/github-delivery/SKILL.md`
 - **How it works now:** `git rev-list --count HEAD` is N. `VERSION` is `vNNN`. `package.json` stays `0.1.N` because electron-builder needs semver. CI checks out the full history, stamps those files, runs `npm run electron:pack` on `windows-latest`, and fails if the EXE is missing. After a green pack on master, the workflow creates tag `vNNN` if it is not already there.
-- **Verified by:** `pytest backend/tests/test_bump_version.py tools/test_desktop_pack_workflow.py`; `python3 tools/bump_version.py --show`; frontend production build. The Windows EXE itself is produced by GitHub Actions on this PR (Linux agents cannot pack NSIS).
-- **Related:** Closes the Feature issue for PR desktop EXE pack and vNNN tags.
+- **Verified by:** `pytest backend/tests/test_bump_version.py tools/test_desktop_pack_workflow.py tools/test_stale_pr_branches.py`; `python3 tools/bump_version.py --show`; frontend production build. First Actions run failed (no Python probe on Windows; `tools` import in agent-contract) -- see PROBLEM_LOG 2026-09-11. The Windows EXE itself is produced by the retry of `Desktop pack` on this PR.
+- **Related:** Closes #56. PROBLEM_LOG 2026-09-11 Desktop pack Python probe; 2026-09-11 Agent contract tools import.
 
 ## 2026-09-11 -- GitHub auto-deletes merged PR heads (backup)
 
