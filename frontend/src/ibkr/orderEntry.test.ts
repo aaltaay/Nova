@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildManualOrder,
   forcedManualOrderQty,
+  nudgeQuantityValue,
   presetsForQuantityMode,
   resolveOrderQuantity,
   type ManualOrderValues,
@@ -164,5 +165,23 @@ describe('manual order payloads', () => {
     expect(presetsForQuantityMode('shares')).toEqual([10, 50, 100, 500]);
     expect(presetsForQuantityMode('percent')).toEqual([10, 25, 50, 100]);
     expect(presetsForQuantityMode('dollars')).toEqual([100, 500, 1000, 5000]);
+  });
+});
+
+describe('nudgeQuantityValue', () => {
+  it('adds and subtracts one from a share quantity', () => {
+    expect(nudgeQuantityValue('100', 1, 'shares')).toBe('101');
+    expect(nudgeQuantityValue('100', -1, 'shares')).toBe('99');
+  });
+
+  it('treats empty or junk input as zero', () => {
+    expect(nudgeQuantityValue('', 1, 'shares')).toBe('1');
+    expect(nudgeQuantityValue('nope', -1, 'shares')).toBe('0');
+  });
+
+  it('never goes below zero and never past 100 percent', () => {
+    expect(nudgeQuantityValue('0', -1, 'shares')).toBe('0');
+    expect(nudgeQuantityValue('100', 1, 'percent')).toBe('100');
+    expect(nudgeQuantityValue('99.5', 1, 'percent')).toBe('100');
   });
 });

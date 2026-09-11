@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Compact single-row quantity ticket
+
+- **What:** Manual order Quantity is one compact row: input, stack/%/$ mode chips, presets, and +1/-1. The old two-row Qty/%/$ plus 10/50/100/500 grid is gone.
+- **Why:** Operator asked for Classic Trade density so the ticket stops eating vertical space.
+- **Files touched:** `frontend/src/ibkr/ManualOrderQuantityRow.tsx`, `ManualOrderFields.tsx`, `orderEntry.ts`, `tradeTicket.css`, `stockViewTerminal.css`, `constantGroups/chart_api.ts`.
+- **How it works now:** Shares / % / $ still convert the same way. Presets still swap with the mode. Chip labels are just the number (the mode chip already shows Qty / % / $). +1/-1 nudge the typed number (`TICKER_TRADE_QTY_NUDGE`); percent stops at 100. A thin rule sits between units and presets. The row stays one line.
+- **Verified by:** `npx vitest run` orderEntry + ManualOrderQuantityRow -- 17 passed. `npm run lint` 0 warnings. `npm run build` exit 0. Sample trader `/?view=sample&symbol=SMPL`: +1 100->101, -1 back to 100, preset 50, $ mode presets 100/500/1000/5000 on the same row, share preset 100. Playwright chromium is not installed on this VM; CI Frontend E2E is the gate.
+- **Related:** WID-014 layout only. No issue. `problem_log=n/a` `deferred_log=none`.
+
 ## 2026-09-11 -- Large Cap News and Earnings share Gainers columns
 
 - **What:** Large Cap now shows the same News flame and Earnings dots as Gainers / Gappers. The swing `days_to_earnings` countdown stays as **Days**. News-badge fetch includes Large Cap roster names. Sample desk now has Large Cap fixture rows so the columns are visible without IBKR.
