@@ -61,7 +61,6 @@ LARGE_CAP_ALERT_HISTORY_SIZE = 200
 def _large_cap_cache_root() -> str:
     return (
         _os.environ.get("NOVA_CACHE_DIR")
-        or _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
         or _os.path.join(_os.path.dirname(__file__), ".cache")
     )
 
@@ -93,7 +92,6 @@ EARNINGS_LOGO_FETCH_PACING_SEC = 1.1         # stay under Finnhub free ~60/min
 def _earnings_calendar_cache_root() -> str:
     return (
         _os.environ.get("NOVA_CACHE_DIR")
-        or _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
         or _os.path.join(_os.path.dirname(__file__), ".cache")
     )
 
@@ -116,9 +114,8 @@ CLIENT_ERRORS_MAX_BODY_BYTES = 16_384
 CLIENT_ERRORS_MAX_MESSAGE_CHARS = 2_000
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
-# Local-dev default: Vite origins only (SEC-003). Override for deploys with
-# NOVA_CORS_ALLOWED_ORIGINS (comma-separated exact origins, e.g.
-# "https://nova.up.railway.app,https://nova.vercel.app").
+# Local-dev default: Vite origins only (SEC-003). Override with
+# NOVA_CORS_ALLOWED_ORIGINS (comma-separated exact origins).
 CORS_ALLOWED_ORIGINS_DEFAULT = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -295,7 +292,6 @@ CHART_DRAWINGS_MAX_ANCHORS = 8  # widest tool in lightweight-charts-drawing
 def _chart_drawings_cache_root() -> str:
     return (
         _os.environ.get("NOVA_CACHE_DIR")
-        or _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
         or _os.path.join(_os.path.dirname(__file__), ".cache")
     )
 

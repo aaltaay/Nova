@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Desk ops: sidecar restart, Railway leftovers, config write auth
+
+- **What:** Electron sidecar restarts are serialized and wait for port 8000 to free; main and Trader window bounds persist in userData with `schema_version`. Railway toml/prebuild/volume fallbacks are gone; `api-console.log` rotates by size. `POST /api/config` requires `NOVA_API_KEY` even on loopback.
+- **Why:** D-032 overlapping `nova:restartApi` races and unsaved geometry; D-030 retired Railway path still runnable and the launcher log grew without bound; D-040 any local process could rewrite `.env`.
+- **Files touched:** `frontend/electron/{sidecar,main,traderWindows,windowBounds,serialQueue,portWait,envMerge,preload}.mjs`, `backend/auth.py`, `backend/routes/health.py`, `scripts/Start-NovaApi.ps1`, `tools/rotate_log_file.py`, Railway/Docker leftovers, `SECURITY.md`
+- **How it works now:** One sidecar queue runs start/restart. Bounds restore only when they still overlap a display. Config writes fail closed without `X-Nova-Api-Key`; Desktop provisions the key. Launcher rotates `api-console.log` at 5 MB and keeps five dated files. Cache paths honor `NOVA_CACHE_DIR` only.
+- **Verified by:** pytest auth/config/hygiene/rotate; Vitest serial queue, bounds, envMerge, novaFetch.
+- **Related:** Closes #17 (D-032), #19 (D-030), #9 (D-040). PROBLEM_LOG 2026-09-11 desk-ops batch.
+
 ## 2026-09-11 -- Quote Panel ticker WS reconnects after close
 
 - **What:** `useTickerStream` now reconnects `/ws/ticker/{symbol}` with the same backoff + timer cleanup as `useIbkrDepth`. After a snapshot, a drop keeps the last quote and marks it stale. Quote Panel shows a yellow "Quote stale -- reconnecting" badge with last-live time.
@@ -39,6 +48,7 @@ Entry template (copy and fill in):
 - **Verified by:** `npx vitest run src/hooks/useTickerStream.test.tsx` -- 3 passed; `npm test` -- 888 passed; `npm run lint` -- 0 warnings; `npm run build` -- tsc + vite exit 0.
 - **Follow-ups:** D-023 (#25) still parks the header status chip that can keep last-good "connected".
 - **Related:** Closes #26. PROBLEM_LOG 2026-09-11 Quote Panel ticker WS never reconnects.
+
 
 ## 2026-09-11 -- Market-feed honesty: AH gap, yfinance miss, ticker snapshot
 

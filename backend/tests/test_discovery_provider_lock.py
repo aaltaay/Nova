@@ -39,13 +39,14 @@ def test_post_config_persists_ibkr_not_alpaca(monkeypatch, tmp_path):
     env_path = tmp_path / ".env"
     env_path.write_text("NOVA_DISCOVERY_PROVIDER=ibkr\n", encoding="utf-8")
     monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
-    monkeypatch.delenv("NOVA_API_KEY", raising=False)
+    monkeypatch.setenv("NOVA_API_KEY", "test-config-key")
     monkeypatch.setattr("routes.health.env_file_path", lambda: env_path)
     monkeypatch.setattr(alpaca_mod, "_active_discovery_provider", "")
 
     client = TestClient(app)
     res = client.post(
         "/api/config",
+        headers={"X-Nova-Api-Key": "test-config-key"},
         json={
             "api_key": "",
             "api_secret": "",

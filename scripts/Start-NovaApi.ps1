@@ -37,6 +37,15 @@ if ($logDir -and -not (Test-Path $logDir)) {
 
 $pyLauncher = if (Get-Command py -ErrorAction SilentlyContinue) { "py -3" } else { "python" }
 
+$rotateTool = Join-Path $PSScriptRoot "..\tools\rotate_log_file.py"
+if (Test-Path $rotateTool) {
+    $absLog = $LogFile
+    if (-not [System.IO.Path]::IsPathRooted($LogFile)) {
+        $absLog = Join-Path (Get-Location) $LogFile
+    }
+    cmd /c "$pyLauncher `"$rotateTool`" --path `"$absLog`""
+}
+
 if ($Reload) {
     $env:NOVA_API_RELOAD = "1"
 } else {
