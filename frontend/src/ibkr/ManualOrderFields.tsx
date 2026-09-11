@@ -1,10 +1,7 @@
-import { useMemo } from 'react';
 import {
   TICKER_TRADE_DEFAULT_ORDER_TYPE,
-  TICKER_TRADE_FORCE_QTY,
   TICKER_TRADE_LABEL_LIMIT_PRICE,
   TICKER_TRADE_LABEL_ORDER_TYPE,
-  TICKER_TRADE_LABEL_QUANTITY,
   TICKER_TRADE_LABEL_SIDE,
   TICKER_TRADE_LABEL_STOP_PRICE,
   TICKER_TRADE_LABEL_TRADING_HOURS,
@@ -14,8 +11,8 @@ import {
   TICKER_TRADE_LABEL_LONG,
   TICKER_TRADE_LABEL_SHORT,
 } from '../constantGroups/shortability';
+import { ManualOrderQuantityRow } from './ManualOrderQuantityRow';
 import {
-  presetsForQuantityMode,
   type ManualOrderSide,
   type ManualOrderType,
   type QuantityMode,
@@ -58,18 +55,6 @@ const ORDER_TYPES: readonly { value: ManualOrderType; label: string; title?: str
   { value: 'STP', label: 'Stop', title: 'Stop order' },
 ];
 
-const QUANTITY_MODES: readonly { value: QuantityMode; label: string; title: string }[] = [
-  { value: 'shares', label: 'Qty', title: 'Quantity in shares' },
-  { value: 'percent', label: '%', title: 'Percentage of Buying Power or position' },
-  { value: 'dollars', label: '$', title: 'Dollar amount converted to shares' },
-];
-
-function formatPreset(value: number, mode: QuantityMode): string {
-  if (mode === 'percent') return `${value}%`;
-  if (mode === 'dollars') return `$${value.toLocaleString('en-US')}`;
-  return String(value);
-}
-
 export function ManualOrderFields({
   side,
   orderType,
@@ -91,15 +76,6 @@ export function ManualOrderFields({
   onStopPriceChange,
   onOutsideRthChange,
 }: Props) {
-  const presets = useMemo(
-    () => presetsForQuantityMode(quantityMode),
-    [quantityMode],
-  );
-  const qtyDisabled = disabled || quantityLocked;
-  const qtyLockTitle =
-    quantityLocked && TICKER_TRADE_FORCE_QTY != null
-      ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
-      : undefined;
   const shortBlocked = Boolean(shortDisabledReason);
 
   return (
@@ -199,51 +175,14 @@ export function ManualOrderFields({
         })}
       </div>
 
-      <label className="manual-order-label" htmlFor="manual-order-quantity">
-        {TICKER_TRADE_LABEL_QUANTITY}
-      </label>
-      <div className="manual-order-quantity-row">
-        <input
-          id="manual-order-quantity"
-          type="number"
-          min="0"
-          step={quantityMode === 'shares' ? '1' : '0.01'}
-          value={quantityValue}
-          onChange={event => onQuantityValueChange(event.target.value)}
-          disabled={qtyDisabled}
-          readOnly={quantityLocked}
-          title={qtyLockTitle}
-        />
-        <div className="manual-order-unit-toggle" role="group" aria-label="Quantity unit">
-          {QUANTITY_MODES.map(item => (
-            <button
-              key={item.value}
-              type="button"
-              className={quantityMode === item.value ? 'is-active' : ''}
-              aria-pressed={quantityMode === item.value}
-              title={qtyLockTitle ?? item.title}
-              onClick={() => onQuantityModeChange(item.value)}
-              disabled={qtyDisabled}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="manual-order-presets" aria-label="Quick quantity presets">
-        {presets.map(value => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => onQuantityValueChange(String(value))}
-            disabled={qtyDisabled}
-            title={qtyLockTitle}
-          >
-            {formatPreset(value, quantityMode)}
-          </button>
-        ))}
-      </div>
+      <ManualOrderQuantityRow
+        quantityMode={quantityMode}
+        quantityValue={quantityValue}
+        disabled={disabled}
+        quantityLocked={quantityLocked}
+        onQuantityModeChange={onQuantityModeChange}
+        onQuantityValueChange={onQuantityValueChange}
+      />
 
       {orderType === 'LMT' && (
         <>

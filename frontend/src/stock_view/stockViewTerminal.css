@@ -983,33 +983,7 @@
   font-size: 0.72rem;
 }
 
-.stock-view-page .ticker-trade-bar--rail .manual-order-quantity-row {
-  grid-template-columns: minmax(4rem, 32%) minmax(0, 1fr);
-  gap: var(--mot-space-2, 8px);
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-unit-toggle {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--mot-space-2, 8px);
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-unit-toggle button {
-  min-height: var(--mot-control-h);
-  font-size: 0.68rem;
-  padding: 0 8px;
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-presets {
-  gap: var(--mot-space-2, 8px);
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-presets button {
-  min-height: 28px;
-  font-size: 0.65rem;
-  padding: 3px 6px;
-}
-
-.stock-view-page .ticker-trade-bar--rail .manual-order-ticket input,
+.stock-view-page .ticker-trade-bar--rail .manual-order-ticket input:not(.manual-order-quantity-input),
 .stock-view-page .ticker-trade-bar--rail .manual-order-ticket select {
   min-height: var(--mot-control-h);
   font-size: 0.72rem;

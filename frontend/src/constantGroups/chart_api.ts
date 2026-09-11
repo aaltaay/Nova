@@ -573,6 +573,10 @@ export const TICKER_TRADE_DEFAULT_ORDER_TYPE = 'MKT' as const;
 export const TICKER_TRADE_SHARE_PRESETS = [10, 50, 100, 500] as const;
 export const TICKER_TRADE_PERCENT_PRESETS = [10, 25, 50, 100] as const;
 export const TICKER_TRADE_DOLLAR_PRESETS = [100, 500, 1_000, 5_000] as const;
+/** Compact ticket +1 / -1 step. Same unit as the active quantity mode. */
+export const TICKER_TRADE_QTY_NUDGE = 1;
+export const TICKER_TRADE_QTY_NUDGE_PLUS_LABEL = '+1';
+export const TICKER_TRADE_QTY_NUDGE_MINUS_LABEL = '-1';
 /**
  * IBKR fractional quantity precision for dollar/percentage sizing and for
  * Positions / Orders / journal qty display (`formatShareQty`).

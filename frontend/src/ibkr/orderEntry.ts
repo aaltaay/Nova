@@ -3,6 +3,7 @@ import {
   TICKER_TRADE_FORCE_QTY,
   TICKER_TRADE_PERCENT_PRESETS,
   TICKER_TRADE_QTY_DECIMALS,
+  TICKER_TRADE_QTY_NUDGE,
   TICKER_TRADE_SHARE_PRESETS,
 } from '../constants';
 
@@ -58,6 +59,28 @@ export function presetsForQuantityMode(mode: QuantityMode): readonly number[] {
   if (mode === 'percent') return TICKER_TRADE_PERCENT_PRESETS;
   if (mode === 'dollars') return TICKER_TRADE_DOLLAR_PRESETS;
   return TICKER_TRADE_SHARE_PRESETS;
+}
+
+/** Format a nudged qty so integers stay clean and fractions match IBKR precision. */
+function formatNudgedQuantity(value: number): string {
+  if (Number.isInteger(value)) return String(value);
+  return String(floorQuantity(value));
+}
+
+/**
+ * +1 / -1 on the compact quantity row. Empty or junk input counts as 0.
+ * Percent never walks past 100. Result is never negative.
+ */
+export function nudgeQuantityValue(
+  current: string,
+  delta: number = TICKER_TRADE_QTY_NUDGE,
+  mode: QuantityMode = 'shares',
+): string {
+  const parsed = Number(current);
+  const base = Number.isFinite(parsed) ? parsed : 0;
+  let next = Math.max(0, base + delta);
+  if (mode === 'percent') next = Math.min(100, next);
+  return formatNudgedQuantity(next);
 }
 
 export function orderReferencePrice(
