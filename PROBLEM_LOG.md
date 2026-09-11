@@ -44,6 +44,7 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** The send moved inside the lock (ack wait stays outside). `execution/inflight.py` records the qty an unresolved place already spent, under that same lock, and `validate.check_account_and_position` subtracts it from `long_qty` (SELL) and from `short_qty` for the new `OVERCOVER` BUY mirror. Commitments are released on a failed send, a verified cancel, or a terminal broker status. UI/hotkeys now send one idempotency key per gesture, and `execution/startup_sweep.py` closes out rows a previous process abandoned.
 - **Fix class:** ownership
 - **Keywords:** execution lock, send_broker, ADR 007 decision 5, OVERSELL, OVERCOVER, double place, in-flight commitment, idempotency_key, D-011
+
 ## 2026-09-11 -- Semgrep logger-credential false positive on config audit logs
 
 - **Symptom:** CI Semgrep (`p/python`) failed PR #76 with 4 blocking `python-logger-credential-disclosure` findings in `backend/auth.py` and `backend/routes/health.py`.

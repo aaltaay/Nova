@@ -39,6 +39,7 @@ Entry template (copy and fill in):
 - **Verified by:** `pytest backend/tests` (1533 passed), new `test_execution_lock_race.py` / `test_execution_startup_sweep.py` (red before the fix: two SELL 100 against a 100 long produced two `placeOrder` calls), frontend `npx vitest run` (890 passed), `npm run lint`, `npm run build`, `ruff check backend/`.
 - **Follow-ups:** D-012 (#37) ledger writes / cancel-verify on the wrong thread is untouched and still open.
 - **Related:** Closes #39. PROBLEM_LOG 2026-09-11 Broker send outside the execution lock.
+
 ## 2026-09-11 -- Desk ops: sidecar restart, Railway leftovers, config write auth
 
 - **What:** Electron sidecar restarts are serialized and wait for port 8000 to free; main and Trader window bounds persist in userData with `schema_version`. Railway toml/prebuild/volume fallbacks are gone; `api-console.log` rotates by size. `POST /api/config` requires `NOVA_API_KEY` even on loopback.
