@@ -1,6 +1,6 @@
 ---
 name: github-delivery
-description: Enforces Nova's issue-to-branch-to-PR-to-close workflow, GitHub Project and Milestone metadata, issue relationships, Development links, Actions auto-merge of ready PRs, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
+description: Enforces Nova's clean start from origin/master, ready-PR finish line, issue-to-branch-to-PR-to-close workflow, GitHub Project and Milestone metadata, issue relationships, Development links, Actions auto-merge of ready PRs, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
 ---
 
 # Nova GitHub delivery
@@ -42,13 +42,17 @@ Never fill metadata merely to avoid blanks.
 
 ## 3. Start work
 
-Code, config, CI, security, and rule changes are PR-first:
+Code, config, CI, security, and rule changes are PR-first. These gates are **MUST**. They override casual phrasing ("quick fix", "just tweak"). Only an **explicit** user override ("stay on this branch", "leave as draft", "commit locally only") can waive them -- and that waiver MUST be stated in the PR body if work ships.
 
-1. Update local `master`.
-2. Create a focused branch such as `fix/issue-20-ci-gates`.
-3. Set the issue/project status to In Progress.
-4. Preserve issue identity in the branch or PR.
-5. Use soft TDD for behavior changes.
+**Clean start (before any edits):**
+
+1. `git fetch origin`.
+2. Create or switch to a **new** focused branch from `origin/master` only (example: `fix/issue-20-ci-gates`). Never from a dirty local `master` tip. Never from another feature branch unless the user explicitly names that branch to continue.
+3. If the worktree has uncommitted or unrelated dirty files: do **not** proceed on top of them. Reset or clean tracked files you do not own in this task so they match `origin/master`, or abort and report the dirty paths. Never "just keep working" on mixed dirty state.
+4. Cloud and desktop agents: "isolated" means a clean tip of `origin/master` plus a new branch. Local dirty IDE state is not a valid base.
+5. Set the issue/project status to In Progress.
+6. Preserve issue identity in the branch or PR.
+7. Use soft TDD for behavior changes.
 
 Direct `master` pushes are limited to status-only operations or explicit user instruction.
 
@@ -168,11 +172,11 @@ If plan or token permissions block the setting, say so. Never claim `master` is 
 
 A verified, non-draft PR targeting `master` is finished work. GitHub Actions merges it. The human does not have to say merge. Agents do not sit idle on an open PR.
 
-- Mark the PR ready (not draft) after verification.
+- Mark the PR ready (not draft) after verification. CI still running is not a reason to stay draft.
 - CI job `Auto-merge` runs `python tools/pr_delivery.py merge --pr N` after the four gating jobs.
 - Hourly / `workflow_run` sweep in `.github/workflows/pr-delivery.yml` catches leftovers.
 - Closed PR heads are deleted by that same workflow plus `delete_branch_on_merge`.
-- Hold a PR with draft or label `do-not-merge`.
+- Hold a PR with draft or label `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker is documented in the PR.
 - Dirty (conflict) or failed gating checks stay open -- rebase or fix, do not leave them for the human to babysit if you can rebase in-session.
 
-Do not treat "opened a PR" as done when the change is shippable. The pile of idle PRs is a delivery bug.
+Do not end a coding session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line. The pile of idle PRs is a delivery bug.

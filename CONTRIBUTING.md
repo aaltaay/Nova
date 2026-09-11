@@ -11,7 +11,8 @@ Nova is a local-first Interactive Brokers workstation. Changes that touch tradin
 
 ## How to land a change
 
-- Work on a focused branch. Open a ready (non-draft) pull request against `master`.
+- Start from a clean `origin/master` tip on a new focused branch. Do not pile a change on a dirty local worktree.
+- Work on that focused branch. Open a ready (non-draft) pull request against `master`.
 - Fill every section of [`.github/pull_request_template.md`](.github/pull_request_template.md). **Why this approach** and **Verified by** are required.
 - Use `Closes #NNN` only when the entire issue is done. Use `Refs #NNN` for partial work.
 - GitHub Actions merges ready pull requests when gating CI is green. Draft or the `do-not-merge` label holds a pull request.

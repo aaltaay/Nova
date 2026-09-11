@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Agent sessions MUST start on origin/master and end with a ready PR
+
+- **What:** Delivery rules now have hard clean-start and ready-PR finish gates. Agents must fetch, branch from `origin/master` only, refuse mixed dirty worktrees, and open a ready (non-draft) PR. Casual "quick fix" / "just tweak" phrasing does not waive this.
+- **Why:** Always-on PR-first rules still lost to dirty local/desktop worktrees and parked drafts. Soft language was not enough.
+- **Files touched:** `AGENTS.md` §5.1, `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-delivery.mdc`, `.cursor/rules/constitution.mdc`, `.cursor/rules/nova-roadmap-continuity.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `.github/pull_request_template.md`, `CONTRIBUTING.md`, `tools/engineering_skills_audit.py`.
+- **How it works now:** Before edits: `git fetch origin`, new branch from `origin/master`, abort or reset unrelated dirty files. End of session: verify, commit, push, ready PR URL. Draft / `do-not-merge` only on an explicit user hold or a documented hard external blocker. Actions auto-merge, `Closes` vs `Refs`, and delete-head-after-merge are unchanged.
+- **Verified by:** `python3 tools/engineering_skills_audit.py`; `python3 tools/doc_invariants.py`; `python3 tools/agent_contract.py` (run on this branch).
+- **Related:** Rule change; no product code; no `PROBLEM_LOG` (no failure).
+
 ## 2026-09-11 -- Scanner bottom dock matches Trader Positions strip
 
 - **What:** Scanner (live + sample) now has the same bottom strip as Trader: Positions, Orders (Today), and Nova OS, under the selected scanner table. Quote Panel stays on the right, like Trader's order rail.

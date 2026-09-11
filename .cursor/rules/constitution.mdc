@@ -14,7 +14,7 @@ Before writing ANY code in this project, you MUST:
 4. **Never violate modularity.** Do not add logic to `main.py` or `App.tsx`. Extract to modules.
 5. **Never violate file size limits.** No file > 400 lines for new code.
 6. **Log your work.** Update `CHANGELOG.md` for every behavior change; **MUST** prepend `PROBLEM_LOG.md` after any bug fix / diagnosis (mandatory for every agent -- see `problem-log.mdc`); **MUST** run `py -3 tools/deferred_log.py status` **before any fix**, and open or update a GitHub Issue labeled `deferred` after parking a known bug or feature (see `deferred-log.mdc`); write the task narrative in the PR body (`.github/pull_request_template.md`), or under `knowledge/task-log/` when there is no PR (see `task-log.mdc`).
-7. **PR-first delivery** at the end of every code/config/CI/security/rule task. Verify, commit on a focused branch, push, fill the PR template, and open a ready PR. GitHub Actions merges it when CI is green (`github-delivery.mdc` item 10). Do not wait for the human to say merge. Direct `master` pushes require status-only scope or explicit user instruction. After the PR is merged or closed, **delete the head branch** (`github-delivery.mdc` item 8).
+7. **PR-first delivery** for every code/config/CI/security/rule task. **Clean start:** `git fetch origin`, then a NEW focused branch from `origin/master` only. Do not start on a dirty local/desktop worktree or another feature branch unless the user explicitly names that branch. **Finish:** verify, commit, push, and open a ready (non-draft) PR. The PR URL is the finish line -- do not end with local-only or unpushed commits. Casual phrasing ("quick fix", "just tweak") does not waive this. GitHub Actions merges it when CI is green (`github-delivery.mdc` item 10). Do not wait for the human to say merge. Direct `master` pushes require status-only scope or explicit user instruction. After the PR is merged or closed, **delete the head branch** (`github-delivery.mdc` item 8).
 
 ## Rule Hierarchy (highest to lowest)
 
@@ -28,6 +28,9 @@ Before writing ANY code in this project, you MUST:
 - ❌ Adding a component to `frontend/src/App.tsx` → put it in `components/`
 - ❌ Hardcoding a number or string → put it in `constants.py` / `constants.ts`
 - ❌ Direct-pushing product work to `master` -- use a focused branch and PR
+- ❌ Starting edits on a dirty worktree or a stale local `master` -- fetch and branch from `origin/master`
+- ❌ Ending a coding session with local-only commits, unpushed commits, or "I'll open the PR later"
+- ❌ Parking a shippable PR as draft because CI is still running
 - ❌ Leaving a shippable PR open and idle -- Actions merges ready PRs; do not wait for "please merge"
 - ❌ Leaving a merged or closed PR's head branch on origin -- delete it in the same session
 - ❌ Forgetting CHANGELOG.md → entry required for every behavior change
