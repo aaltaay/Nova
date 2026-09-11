@@ -3,6 +3,7 @@ import {
   BACKEND_DIAG_FLAG_WEDGED,
   HEADER_GATEWAY_DELAYED_LABEL,
   HEADER_GATEWAY_OFFLINE_LABEL,
+  HEADER_GATEWAY_STALE_LABEL,
   HEADER_GATEWAY_UP_LABEL,
 } from '../constants';
 import { HEADER_DESK_API_DOWN_LABEL } from '../ibkr/gatewayUxConstants';
@@ -26,12 +27,14 @@ export function resolveGatewayModeTag(
 export function gatewayConnectionLabel(args: {
   connected: boolean;
   delayed: boolean;
+  stale?: boolean;
   launchBusy?: boolean;
   launchOk?: boolean | null;
 }): string {
   if (args.launchBusy) return 'opening…';
   if (args.launchOk === true) return 'check desktop';
   if (args.launchOk === false) return 'launch failed';
+  if (args.stale) return HEADER_GATEWAY_STALE_LABEL;
   if (!args.connected) return HEADER_GATEWAY_OFFLINE_LABEL;
   if (args.delayed) return HEADER_GATEWAY_DELAYED_LABEL;
   return HEADER_GATEWAY_UP_LABEL;
@@ -51,6 +54,7 @@ export function deskConnectionLabel(args: {
   apiOk: boolean;
   connected: boolean;
   delayed: boolean;
+  stale?: boolean;
   launchBusy?: boolean;
   launchOk?: boolean | null;
 }): string {
