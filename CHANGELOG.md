@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** D-023 / #25 -- eleven independent 5s pollers; empty `catch` kept `connected: true`. D-005 / #42 -- an aborted terminal (or a wedged uvicorn) left a live PID holding `api-instance.lock` with no :8000 listener, so Start API refused.
 - **Files touched:** `frontend/src/ibkr/ibkrStatusPoller.ts`, `frontend/src/ibkr/useIbkrStatus.ts`, `frontend/src/components/headerConnectionStatusModel.ts`, `frontend/src/workspace/WorkspaceContext.tsx`, `backend/api_instance_lock.py`, `backend/api_process_guard.py`
 - **How it works now:** First subscriber starts one interval with an in-flight guard. Consecutive misses stamp `stale_since` and persist `connected: false` after `IBKR_STATUS_STALE_AFTER_MISSES`. Lock classify is healthy (listening) / starting (dark, in grace) / orphan (dark, past grace, kill then reclaim) / dead. Never start a second clientId 17 beside a living holder.
-- **Verified by:** pending in this PR -- pytest lock + guard; Vitest poller + desk label; lint/build.
+- **Verified by:** `pytest` lock + guard + identity 14 passed; Vitest poller / Desk label / Header / Workspace / prerequisites 46 passed; Ruff clean; `npm run lint` exit 0; `npm run build` exit 0; `doc_invariants` OK; `agent_contract --ci` PASS.
 - **Related:** Closes #25 #42. PROBLEM_LOG 2026-09-11 D-023; 2026-09-11 D-005.
 
 ## 2026-09-11 -- Scanner L1 apply, roster commit, and Error 101 budget
