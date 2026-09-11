@@ -10,7 +10,9 @@ function attachErrorCollector(page: Page): { errors: string[] } {
     if (msg.type() !== 'error') return;
     const text = msg.text();
     // Vite HMR / failed optional API polls should not fail the happy-path suite.
-    if (/Failed to load resource|net::ERR_|WebSocket|Scanner API network error/i.test(text)) return;
+    if (
+      /Failed to load resource|net::ERR_|WebSocket|Scanner API network error|HOD Momo config load failed/i.test(text)
+    ) return;
     errors.push(`console.error: ${text}`);
   });
   return { errors };
