@@ -223,6 +223,15 @@ def audit() -> list[Finding]:
                 "Always-on delivery rule must require deleting the PR head branch after merge or close.",
             )
         )
+    if "master branch protection" not in delivery_mdc.lower():
+        findings.append(
+            Finding(
+                "error",
+                "missing_master_branch_protection",
+                ".cursor/rules/github-delivery.mdc",
+                "Always-on delivery rule must require master branch protection (no force-push/delete, required CI).",
+            )
+        )
 
     # Index wiring
     agents = _read("AGENTS.md")

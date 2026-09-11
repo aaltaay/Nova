@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Unprotected master (force-push / delete / merge-without-CI)
+
+- **Symptom:** GitHub Security: "Your master branch isn't protected. Protect this branch from force pushing or deletion, or require status checks before merging." `GET /repos/aaltaay/Nova/branches/master` returned `protected: false`.
+- **Cause:** No branch protection rule existed. Cloud Agent `gh` is a GitHub App integration without Administration (`PUT .../protection` -> 403 Resource not accessible by integration). Rulesets API also returned 403 "Upgrade to GitHub Pro or make this repository public." Official docs: protected branches on a private personal repo need GitHub Pro.
+- **Fix:** Policy + apply/check tool (`tools/master_branch_protection.py`), delivery rule item 9, advisory CI check. Live apply is a human admin + Pro step (issue #63). Do not make Nova public.
+- **Fix class:** infra
+- **Keywords:** branch protection, master, force-push, GitHub Pro, Administration, rulesets, status checks
+
 ## 2026-09-11 -- Desktop pack CI found no Python on windows-latest
 
 - **Symptom:** `Desktop pack` failed at `npm run electron:pack` with `[build-api] no Python found (tried py -3, python, python3)` after `setup-python` had already run `python tools/bump_version.py --sync`.

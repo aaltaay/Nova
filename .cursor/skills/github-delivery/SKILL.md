@@ -143,3 +143,23 @@ Also confirm the head of a PR you **close without merging** (superseded, rejecte
 Never delete `master` or `main`. Never delete a branch that still has an **open** PR. A branch with no PR yet is in-progress work -- leave it.
 
 GitHub `delete_branch_on_merge` is on. That is a backup sweep, not a skip. If GitHub already removed the ref, a `--delete` may fail because the branch is gone -- that is success. If `stale_pr_branches.py` still lists the head, delete it. If permissions block the delete, say so -- do not silently leave the branch.
+
+## 9. Master branch protection
+
+`master` must be protected so GitHub Security cannot report "Your master branch isn't protected."
+
+Required policy (SSOT: `tools/master_branch_protection.py`):
+
+- Block force-push and deletion, including for admins (`enforce_admins`).
+- Require status checks before merge: `Backend tests`, `Frontend build`, `Frontend E2E`, `Agent contract`.
+- Do **not** require pull-request reviews (solo repo -- that deadlocks merges).
+- Do **not** require a pull request to push. Status-only `master` commits and `.github/workflows/ai-news.yml` stay allowed.
+
+```text
+py -3 tools/master_branch_protection.py check
+py -3 tools/master_branch_protection.py apply
+```
+
+`apply` needs a human admin token. Cloud Agent GitHub App tokens return `403 Resource not accessible by integration`. A private personal repo also needs **GitHub Pro**. Do not make Nova public to get branch protection. UI: `https://github.com/aaltaay/Nova/settings/branches`.
+
+If plan or token permissions block the setting, say so. Never claim `master` is protected without `check` exiting 0.

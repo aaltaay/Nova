@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Protect master from force-push, delete, and merge-without-CI
+
+- **What:** Documented and automated the GitHub branch-protection policy for `master`. A checker/applier lives in `tools/master_branch_protection.py`. CI unit-tests the policy and runs a live `check` (advisory) on every PR.
+- **Why:** GitHub Security reported "Your master branch isn't protected." Live `GET /branches/master` was `protected: false`. Cloud Agent tokens cannot flip Administration settings; a private personal repo also needs GitHub Pro.
+- **Files touched:** `tools/master_branch_protection.py`, `tools/test_master_branch_protection.py`, `.github/workflows/deploy.yml`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `AGENTS.md`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`
+- **How it works now:** Policy is no force-push, no deletion, `enforce_admins`, required checks `Backend tests` / `Frontend build` / `Frontend E2E` / `Agent contract`. Reviews are not required (solo). Direct fast-forward pushes stay allowed (status-only + AI news digest). Human with admin + Pro runs `python3 tools/master_branch_protection.py apply` or Settings → Branches. Agents run `check` and must not claim protection exists unless it exits 0.
+- **Verified by:** `pytest tools/test_master_branch_protection.py` (14 passed); live `check` and `apply` against origin (403 integration / `protected: false`).
+- **Follow-ups:** Issue #63 stays open until GitHub reports `protected: true` and Security drops the warning. Do not make Nova public to unlock the feature.
+- **Related:** Refs #63. PROBLEM_LOG 2026-09-11 unprotected master.
+
 ## 2026-09-11 -- PR Desktop pack EXE and vNNN tags
 
 - **What:** Every PR and master push now packs the Windows NSIS installer and uploads `Nova-Setup-vNNN.exe`. Public revision is `vNNN` (git commit count from the first commit, at least three digits). Successful master/main pushes create git tag `vNNN` only -- no GitHub Release.
