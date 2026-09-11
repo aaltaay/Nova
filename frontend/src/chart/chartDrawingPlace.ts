@@ -8,10 +8,9 @@
  * third "ready to draw" protocol.
  */
 
-export interface ChartPlaceAnchor {
-  time: unknown;
-  price: number;
-}
+import type { Anchor } from 'lightweight-charts-drawing';
+
+export type ChartPlaceAnchor = Anchor;
 
 export interface ChartPlacePoint {
   x: number;

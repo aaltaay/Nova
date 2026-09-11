@@ -8,8 +8,8 @@ import {
   pointerPointInElement,
 } from './chartDrawingPlace';
 
-const a = { time: 1, price: 10 };
-const b = { time: 2, price: 12 };
+const a = { time: 1 as const, price: 10 };
+const b = { time: 2 as const, price: 12 };
 
 describe('placeArmedToolClick', () => {
   it('ignores clicks when no tool is armed', () => {
@@ -85,6 +85,32 @@ describe('bindArmedToolPointer', () => {
     const unbind = bindArmedToolPointer(el, () => false, onPoint);
     el.dispatchEvent(new PointerEvent('pointerup', { button: 0, clientX: 1, clientY: 1, bubbles: true }));
     expect(onPoint).not.toHaveBeenCalled();
+    unbind();
+  });
+
+  it('two pointerups complete a Trend Line without a drag', () => {
+    const el = document.createElement('div');
+    Object.defineProperty(el, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0, right: 200, bottom: 100, width: 200, height: 100 }),
+    });
+    let pending: { time: number; price: number } | null = null;
+    const actions: string[] = [];
+    const unbind = bindArmedToolPointer(el, () => true, (point) => {
+      const result = placeArmedToolClick({
+        tool: 'TrendLine',
+        pending,
+        anchor: { time: point.x, price: point.y },
+        twoAnchorTool: true,
+        singleAnchorTool: false,
+      });
+      pending = result.pending as { time: number; price: number } | null;
+      actions.push(result.action);
+    });
+    el.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientX: 20, clientY: 80, bubbles: true }));
+    el.dispatchEvent(new PointerEvent('pointerup', { button: 0, clientX: 24, clientY: 84, bubbles: true }));
+    el.dispatchEvent(new PointerEvent('pointerdown', { button: 0, clientX: 160, clientY: 20, bubbles: true }));
+    el.dispatchEvent(new PointerEvent('pointerup', { button: 0, clientX: 168, clientY: 18, bubbles: true }));
+    expect(actions).toEqual(['wait', 'two']);
     unbind();
   });
 });
