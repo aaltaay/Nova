@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Always-on PR-first rules still lost to dirty local/desktop worktrees and parked drafts. Soft language was not enough.
 - **Files touched:** `AGENTS.md` §5.1, `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-delivery.mdc`, `.cursor/rules/constitution.mdc`, `.cursor/rules/nova-roadmap-continuity.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `.github/pull_request_template.md`, `CONTRIBUTING.md`, `tools/engineering_skills_audit.py`.
 - **How it works now:** Before edits: `git fetch origin`, new branch from `origin/master`, abort or reset unrelated dirty files. End of session: verify, commit, push, ready PR URL. Draft / `do-not-merge` only on an explicit user hold or a documented hard external blocker. Actions auto-merge, `Closes` vs `Refs`, and delete-head-after-merge are unchanged.
-- **Verified by:** `python3 tools/engineering_skills_audit.py`; `python3 tools/doc_invariants.py`; `python3 tools/agent_contract.py` (run on this branch).
+- **Verified by:** `python3 tools/engineering_skills_audit.py` PASS (0 findings). `python3 tools/doc_invariants.py` OK. `python3 tools/agent_contract.py --ci` PASS (14 agents). `pytest tools/test_engineering_skills_audit.py tools/test_agent_contract.py tools/test_doc_invariants.py -q` 21 passed. Bare `agent_contract.py` (no `--ci`) fails on this cloud VM because desktop canvases are not mounted; CI uses `--ci`.
 - **Related:** Rule change; no product code; no `PROBLEM_LOG` (no failure).
 
 ## 2026-09-11 -- Scanner bottom dock matches Trader Positions strip
