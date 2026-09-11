@@ -864,6 +864,18 @@
   border-bottom: 1px solid var(--border-color);
 }
 
+.detail-stale-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--warn, #eab308);
+  background: color-mix(in srgb, var(--warn, #eab308) 12%, var(--bg-secondary));
+  border-bottom: 1px solid var(--border-color);
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
