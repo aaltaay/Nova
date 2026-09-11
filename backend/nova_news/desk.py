@@ -46,6 +46,19 @@ def _counts_for(stories: list) -> dict[str, int]:
     return counts
 
 
+def _public_sources(sources: list[ProviderResult], stories: list) -> list[dict]:
+    admitted: dict[str, int] = {}
+    for story in stories:
+        admitted[story.provider] = admitted.get(story.provider, 0) + 1
+    public = []
+    for src in sources:
+        row = src.to_public()
+        if src.ok:
+            row["count"] = admitted.get(src.id, 0)
+        public.append(row)
+    return public
+
+
 def _view(
     stories: list,
     sources: list[ProviderResult],
@@ -61,7 +74,7 @@ def _view(
         "schema_version": NOVA_NEWS_DESK_SCHEMA_VERSION,
         "as_of": as_of,
         "error": error,
-        "sources": [src.to_public() for src in sources],
+        "sources": _public_sources(sources, capped),
         "counts": _counts_for(capped),
         "columns": columns,
         "stories": [s.to_dict() for s in capped],
@@ -125,7 +138,7 @@ def build_desk(*, force: bool = False, now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc)
     results = fetch_all_providers()
     stories = stories_from_providers(results, now=now)
-    any_ok = any(r.ok and r.count > 0 for r in results)
+    any_ok = any(r.ok for r in results)
 
     if not any_ok and not stories:
         if _cache_view:

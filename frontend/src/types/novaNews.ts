@@ -2,7 +2,7 @@
 
 export type NovaNewsCriticality = 'critical' | 'high' | 'watch' | 'background';
 
-export type NovaNewsFilter = 'all' | 'markets' | 'filings' | 'yahoo' | 'small';
+export type NovaNewsFilter = 'all' | 'executes' | 'funds' | 'research' | 'small';
 
 export type NovaNewsSource = {
   id: string;

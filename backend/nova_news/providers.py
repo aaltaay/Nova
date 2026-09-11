@@ -15,34 +15,15 @@ from constants import (
     NEWS_CATALYST_ARTICLE_LIMIT,
     NEWS_CATALYST_LOOKBACK_HOURS,
     NOVA_NEWS_DESK_HTTP_TIMEOUT_SEC,
-    NOVA_NEWS_GOOGLE_MARKETS_RSS,
-    NOVA_NEWS_GOOGLE_WIRES_RSS,
     NOVA_NEWS_HTTP_USER_AGENT,
     NOVA_NEWS_OUTLET_FEEDS,
-    NOVA_NEWS_YAHOO_FINANCE_RSS,
-    NOVA_NEWS_YAHOO_NEWS_RSS,
+    NOVA_NEWS_SEARCH_FEEDS,
 )
 from market import now_et
 from nova_news.models import ProviderResult
 from nova_news.rss import fetch_rss
 
 logger = logging.getLogger(__name__)
-
-
-def fetch_yahoo_finance() -> ProviderResult:
-    return fetch_rss("yahoo_finance", "Yahoo Finance", NOVA_NEWS_YAHOO_FINANCE_RSS)
-
-
-def fetch_yahoo_news() -> ProviderResult:
-    return fetch_rss("yahoo_news", "Yahoo News", NOVA_NEWS_YAHOO_NEWS_RSS)
-
-
-def fetch_google_markets() -> ProviderResult:
-    return fetch_rss("google_news", "Google News", NOVA_NEWS_GOOGLE_MARKETS_RSS)
-
-
-def fetch_google_wires() -> ProviderResult:
-    return fetch_rss("google_wires", "Reuters / AP / Bloomberg", NOVA_NEWS_GOOGLE_WIRES_RSS)
 
 
 def fetch_finnhub() -> ProviderResult:
@@ -171,15 +152,8 @@ def fetch_alpaca() -> ProviderResult:
 
 
 def fetch_all_providers() -> list[ProviderResult]:
-    jobs = [
-        fetch_yahoo_finance,
-        fetch_yahoo_news,
-        fetch_google_markets,
-        fetch_google_wires,
-        fetch_finnhub,
-        fetch_alpaca,
-    ]
-    for feed_id, label, url in NOVA_NEWS_OUTLET_FEEDS:
+    jobs = [fetch_finnhub, fetch_alpaca]
+    for feed_id, label, url in (*NOVA_NEWS_SEARCH_FEEDS, *NOVA_NEWS_OUTLET_FEEDS):
         jobs.append(lambda fid=feed_id, lab=label, u=url: fetch_rss(fid, lab, u))
 
     results: list[ProviderResult] = []

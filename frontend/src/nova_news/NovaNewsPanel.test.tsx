@@ -34,12 +34,12 @@ describe('NovaNewsPanel', () => {
     );
     expect(screen.getByTestId('nova-news-grid')).toBeTruthy();
     expect(screen.getByTestId('nova-news-lead')).toBeTruthy();
-    expect(screen.getAllByText('SEC charges ACME after FDA rejection').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Citadel expands its AI trading desk/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('nova-news-column-critical')).toBeTruthy();
     expect(screen.getByTestId('nova-news-column-background')).toBeTruthy();
   });
 
-  it('Yahoo filter hides non-yahoo stories', async () => {
+  it('Executes filter hides research-only stories', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
       status: 200,
@@ -55,11 +55,11 @@ describe('NovaNewsPanel', () => {
     });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('tab', { name: 'Yahoo' }));
+      fireEvent.click(screen.getByRole('tab', { name: 'Executes' }));
     });
 
-    expect(screen.getAllByText(/NVDA contract award/).length).toBeGreaterThan(0);
-    expect(screen.queryByText(/SEC charges ACME/)).toBeNull();
+    expect(screen.getAllByText(/Citadel expands its AI trading desk/).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/machine learning for portfolios/)).toBeNull();
   });
 
   it('shows a loud error instead of an empty success', async () => {
@@ -100,7 +100,7 @@ describe('NovaNewsPanel', () => {
       );
     });
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(screen.getAllByText(/NVDA contract award/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Citadel expands its AI trading desk/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('nova-news-lead')).toBeTruthy();
   });
 });

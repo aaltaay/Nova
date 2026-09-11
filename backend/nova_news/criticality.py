@@ -1,4 +1,4 @@
-"""Rules-first criticality scoring for Nova News stories.
+"""Rules-first criticality for AI-in-trading stories.
 
 No FinBERT. Thresholds live in constants_archive_news.py.
 """
@@ -8,17 +8,17 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from constants import (
-    NOVA_NEWS_CRITICAL_KEYWORDS,
     NOVA_NEWS_CRITICAL_MIN_SCORE,
-    NOVA_NEWS_FILING_KEYWORDS,
-    NOVA_NEWS_HIGH_KEYWORDS,
     NOVA_NEWS_HIGH_MIN_SCORE,
-    NOVA_NEWS_MACRO_KEYWORDS,
+    NOVA_NEWS_HIGH_SIGNAL_PHRASES,
+    NOVA_NEWS_NOISE_PHRASES,
+    NOVA_NEWS_REGULATORY_KEYWORDS,
     NOVA_NEWS_TIER_POINTS,
     NOVA_NEWS_WATCH_MIN_SCORE,
 )
 from news.impact_helpers import age_hours
 from news.sources import classify_source_tier
+from nova_news.topic import first_hit, is_ai_trading_story, topic_tags
 
 
 @dataclass(frozen=True)
@@ -29,8 +29,7 @@ class CriticalityScore:
     tier: str
     age_hours: float | None
     haystack: str
-    filing_hit: bool
-    macro_hit: bool
+    topic_tags: list[str]
 
 
 def _haystack(article: dict) -> str:
@@ -39,13 +38,6 @@ def _haystack(article: dict) -> str:
         str(article.get("summary") or ""),
         str(article.get("source") or ""),
     ]).lower()
-
-
-def _first_hit(hay: str, keywords: tuple[str, ...]) -> str | None:
-    for key in keywords:
-        if key in hay:
-            return key
-    return None
 
 
 def _band(score: int) -> str:
@@ -60,26 +52,43 @@ def _band(score: int) -> str:
 
 def score_story(article: dict, *, now: datetime | None = None) -> CriticalityScore:
     now = now or datetime.now(timezone.utc)
+    headline = str(article.get("headline") or "")
+    summary = str(article.get("summary") or "")
     hay = _haystack(article)
     tier = classify_source_tier(article)
     points = int(NOVA_NEWS_TIER_POINTS.get(tier, 0))
     reasons = [f"Source tier {tier}."]
+    tags = topic_tags(
+        headline,
+        summary,
+        url=str(article.get("url") or ""),
+        source=str(article.get("source") or ""),
+    )
 
-    crit = _first_hit(hay, NOVA_NEWS_CRITICAL_KEYWORDS)
-    high = _first_hit(hay, NOVA_NEWS_HIGH_KEYWORDS)
-    filing = _first_hit(hay, NOVA_NEWS_FILING_KEYWORDS)
-    macro = _first_hit(hay, NOVA_NEWS_MACRO_KEYWORDS)
-
-    if crit:
+    high_signal = first_hit(hay, NOVA_NEWS_HIGH_SIGNAL_PHRASES)
+    if high_signal:
         points += 40
-        reasons.append(f"Critical language: {crit}.")
-    elif high:
+        reasons.append(f"AI is doing the trading: {high_signal}.")
+    elif is_ai_trading_story(headline, summary):
         points += 22
-        reasons.append(f"High-signal language: {high}.")
+        reasons.append("Headline pairs AI with trading.")
 
-    if filing or tier == "official":
-        points += 10
-        reasons.append("Official / filing language.")
+    if "funds" in tags and high_signal:
+        points += 8
+        reasons.append("Fund / desk coverage.")
+    if "research" in tags:
+        points += 6
+        reasons.append("Primary research.")
+
+    regulatory = first_hit(hay, NOVA_NEWS_REGULATORY_KEYWORDS)
+    if regulatory:
+        points += 12
+        reasons.append(f"Regulatory language: {regulatory}.")
+
+    noise = first_hit(hay, NOVA_NEWS_NOISE_PHRASES)
+    if noise:
+        points -= 25
+        reasons.append(f"Promo / stock-tip language: {noise}.")
 
     age = age_hours(article.get("created_at"), now=now)
     if age is not None:
@@ -101,6 +110,5 @@ def score_story(article: dict, *, now: datetime | None = None) -> CriticalitySco
         tier=tier,
         age_hours=round(age, 3) if age is not None else None,
         haystack=hay,
-        filing_hit=bool(filing),
-        macro_hit=bool(macro),
+        topic_tags=tags,
     )

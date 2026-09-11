@@ -37,11 +37,19 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Nova News first cut was a general market firehose
+
+- **Symptom:** The new Nova News desk would have shown Fed tape, earnings, and "Nvidia is an AI stock" next to real desk news. The operator wanted AI used in trading.
+- **Cause:** First queries were generic Yahoo / Google markets RSS. Admission had no AI+trading gate. Criticality scored bankruptcy and earnings language.
+- **Fix:** Targeted Google News + trade-press RSS. `nova_news.topic.is_ai_trading_story` admits high-signal "AI is doing the trading" phrases or an AI+trading headline pair. Off-topic live fetches stay an honest empty desk. Cache schema_version is 2. Marketing `rank_articles` is not imported.
+- **Fix class:** admission
+- **Keywords:** Nova News, AI trading, algorithmic trading, topic gate, schema_version 2, NVIDIA, Fed
+
 ## 2026-09-11 -- Catalysts promised a news universe the filter did not deliver
 
 - **Symptom:** Catalysts tab copy said it surfaced any ticker mentioned in recent market news, regardless of exchange or size. Under `discovery=ibkr` the scan only kept names already on Gappers/Gainers/AH.
 - **Cause:** UI copy and `scan_loop.run_news_catalyst_scan` disagreed. D-015 parked that decision.
-- **Fix:** Product split -- Catalysts copy now describes the on-roster filter. Nova News (#59) is the news universe (Yahoo + wires + small publishers, criticality columns). Roster filter itself is unchanged.
+- **Fix:** Product split -- Catalysts copy now describes the on-roster filter. Nova News (#59) is the AI-in-trading desk. Roster filter itself is unchanged.
 - **Fix class:** surfacing
 - **Keywords:** catalysts, news universe, D-015, Nova News, IBKR roster, _find_ibkr_cache_row
 

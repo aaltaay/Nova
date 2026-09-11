@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from nova_news.criticality import score_story
 from nova_news.models import ProviderResult, Story
+from nova_news.topic import is_ai_trading_story
 
 _CASHTAG = re.compile(r"\$([A-Z]{1,5})\b")
 _EXCHANGE_TICKER = re.compile(
@@ -73,21 +74,18 @@ def _tags(
     provider: str,
     source: str,
     tier: str,
-    symbols: list[str],
-    haystack: str,
-    filing_hit: bool,
-    macro_hit: bool,
+    topic: list[str],
 ) -> list[str]:
     tags: list[str] = []
-    if "yahoo" in f"{provider} {source}".lower():
+    seen: set[str] = set()
+    for tag in topic:
+        if tag not in seen:
+            seen.add(tag)
+            tags.append(tag)
+    if "yahoo" in f"{provider} {source}".lower() and "yahoo" not in seen:
         tags.append("yahoo")
-    if filing_hit or tier == "official":
-        tags.append("filings")
-    kind = _outlet_kind(provider, source, tier)
-    if kind == "small":
+    if _outlet_kind(provider, source, tier) == "small" and "small" not in seen:
         tags.append("small")
-    if macro_hit or not symbols:
-        tags.append("markets")
     return tags
 
 
@@ -100,6 +98,8 @@ def stories_from_providers(results: list[ProviderResult], now: datetime | None =
             headline = str(article.get("headline") or "").strip()
             url = str(article.get("url") or "").strip()
             if not headline or not url:
+                continue
+            if not is_ai_trading_story(headline, str(article.get("summary") or "")):
                 continue
             sid = story_id(url, headline)
             if sid in by_id:
@@ -127,10 +127,7 @@ def stories_from_providers(results: list[ProviderResult], now: datetime | None =
                     result.id,
                     source,
                     scored.tier,
-                    symbols,
-                    scored.haystack,
-                    scored.filing_hit,
-                    scored.macro_hit,
+                    scored.topic_tags,
                 ),
             )
             by_id[sid] = story

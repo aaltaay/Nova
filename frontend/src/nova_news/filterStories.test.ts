@@ -8,35 +8,36 @@ function story(overrides: Partial<NovaNewsStory> = {}): NovaNewsStory {
     headline: 'Test',
     summary: '',
     url: 'https://example.com',
-    source: 'Yahoo Finance',
-    publisher: 'Yahoo Finance',
-    outlet_kind: 'yahoo',
+    source: 'Hedgeweek',
+    publisher: 'Hedgeweek',
+    outlet_kind: 'small',
     criticality: 'watch',
     criticality_score: 40,
     reasons: [],
     symbols: [],
     published_at: null,
     age_hours: null,
-    provider: 'yahoo_finance',
-    tags: ['yahoo', 'markets'],
+    provider: 'hedgeweek',
+    tags: ['executes', 'small'],
     ...overrides,
   };
 }
 
 describe('filterStories', () => {
   const rows = [
-    story({ id: 'a', tags: ['yahoo', 'markets'] }),
-    story({ id: 'b', tags: ['filings'], source: 'SEC' }),
-    story({ id: 'c', tags: ['small', 'markets'], source: 'Hedgeweek' }),
+    story({ id: 'a', tags: ['executes', 'funds'] }),
+    story({ id: 'b', tags: ['research'], source: 'arXiv' }),
+    story({ id: 'c', tags: ['small'], source: 'Hedgeweek' }),
   ];
 
   it('keeps every story on all', () => {
     expect(filterStories(rows, 'all')).toHaveLength(3);
   });
 
-  it('narrows to yahoo or small without dropping unknown tags', () => {
-    expect(filterStories(rows, 'yahoo').map((s) => s.id)).toEqual(['a']);
+  it('narrows to executes, funds, research, or small', () => {
+    expect(filterStories(rows, 'executes').map((s) => s.id)).toEqual(['a']);
+    expect(filterStories(rows, 'funds').map((s) => s.id)).toEqual(['a']);
+    expect(filterStories(rows, 'research').map((s) => s.id)).toEqual(['b']);
     expect(filterStories(rows, 'small').map((s) => s.id)).toEqual(['c']);
-    expect(filterStories(rows, 'filings').map((s) => s.id)).toEqual(['b']);
   });
 });

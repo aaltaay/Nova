@@ -148,7 +148,7 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     id: 'nova_news',
     title: 'Nova News',
     component: host,
-    // Headline desk from Yahoo/Finnhub/Alpaca APIs -- not IBKR prices, not HOD.
+    // AI-in-trading headline desk -- not IBKR prices, not HOD.
     feedDeps: ['news'],
     defaultPlacement: 'tab',
     showInTabNav: true,

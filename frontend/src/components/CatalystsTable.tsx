@@ -1,6 +1,6 @@
 /** News Catalysts tab: on-roster names (IBKR Gappers / Gainers / AH) that also
  * have a recent headline, sorted by absolute gap magnitude. The full news
- * universe lives on Nova News -- this table is not that product. */
+ * AI-in-trading desk lives on Nova News -- this table is not that product. */
 import { Fragment, useState } from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
@@ -52,7 +52,7 @@ export function CatalystsTable({
       <div className="catalysts-description">
         On-roster news scanner -- names already on today's IBKR Gappers,
         Gainers, or After Hours lists that also have a recent headline.
-        Open Nova News for Yahoo, wires, and small publishers.
+        Open Nova News for AI-in-trading headlines.
       </div>
       {catalysts.length > 0 ? (
         <div className="table-wrapper">
