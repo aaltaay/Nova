@@ -455,6 +455,16 @@ def test_recover_scanner_slots_only_cancels_scanner_subs(monkeypatch):
     assert cancelled == [scan_data_list], "non-scanner subscriber must never be cancelled"
 
 
+def test_clear_inflight_scan_reqids_drops_stale_ids():
+    """D-039: a reconnect must forget reqIds the new socket never issued."""
+    discovery._inflight_scan_reqids.clear()
+    discovery._inflight_scan_reqids.add(7)
+    discovery._inflight_scan_reqids.add(8)
+    n = discovery.clear_inflight_scan_reqids(reason="reconnect")
+    assert n == 2
+    assert discovery._inflight_scan_reqids == set()
+
+
 def test_recover_scanner_slots_uses_tracked_reqids_when_not_in_subscriptions(monkeypatch):
     """Belt-and-suspenders path: a reqId this process still has recorded as
     in-flight must be reclaimed even if it fell out of the subscription

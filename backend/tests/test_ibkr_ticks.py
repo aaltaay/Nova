@@ -166,3 +166,21 @@ def test_on_ticker_update_still_notifies_legacy_five_arg_listener():
     assert len(seen) == 1
     assert seen[0][0] == "ABC"
     assert seen[0][1] == 2.0
+
+
+def test_ticker_budget_status_counts_unique_lines_and_owners():
+    """D-039: Error 101 budget is a visible number before Gateway trips."""
+    from constants import IBKR_L1_STREAM_BUDGET
+
+    _reset()
+    ticks._subs["AAA"] = {"owners": {ticks.OWNER_SCANNER, ticks.OWNER_HOD}}
+    ticks._subs["BBB"] = {"owners": {ticks.OWNER_DETAIL}}
+    snap = ticks.ticker_budget_status()
+    assert snap["reqMktData_lines"] == 2
+    assert snap["reqMktData_by_owner"][ticks.OWNER_SCANNER] == 1
+    assert snap["reqMktData_by_owner"][ticks.OWNER_HOD] == 1
+    assert snap["reqMktData_by_owner"][ticks.OWNER_DETAIL] == 1
+    assert snap["reqMktData_limit"] == IBKR_L1_STREAM_BUDGET
+    assert snap["reqMktData_remaining"] == IBKR_L1_STREAM_BUDGET - 2
+    assert snap["max_tickers_hit"] is False
+    _reset()

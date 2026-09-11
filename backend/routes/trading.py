@@ -60,6 +60,7 @@ async def ibkr_status() -> dict:
     from ibkr import ib_scheduler as _ib_scheduler
     from ibkr import session_reconnect as _reconnect
     from ibkr import session_usable as _session_usable
+    from ibkr import ticks as _ticks
 
     usable = _client.is_ready()
     transport = _client.is_connected()
@@ -87,6 +88,7 @@ async def ibkr_status() -> dict:
         "earn_in_flight": _session_usable.earn_in_flight(),
         "ib_cold_inflight": _ib_scheduler.inflight_label() or None,
         "dialer_heartbeat_age_sec": _reconnect.dialer_heartbeat_age_sec(),
+        **_ticks.ticker_budget_status(),
     }
 
 

@@ -15,6 +15,7 @@ from typing import Any, Awaitable, Callable, Optional
 from constants import (
     IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE,
     IBKR_L1_QUALIFY_TIMEOUT_SEC,
+    IBKR_L1_STREAM_BUDGET,
 )
 from ibkr import client as _client
 from ibkr.ticks_handler import get_last_event_ts as get_last_event_ts
@@ -238,6 +239,35 @@ async def set_owner_symbols(owner: str, symbols: list[str]) -> dict[str, Any]:
 
 def subscribed_symbols() -> list[str]:
     return list(_subs.keys())
+
+
+def ticker_budget_status() -> dict[str, Any]:
+    """Live ``reqMktData`` lines vs ``IBKR_L1_STREAM_BUDGET`` (Error 101).
+
+    One line per symbol. Owner counts can sum higher than ``reqMktData_lines``
+    when scanner / HOD / detail share a stream.
+    """
+    from ibkr import session_errors as _se
+
+    by_owner: dict[str, int] = {
+        OWNER_DETAIL: 0,
+        OWNER_SCANNER: 0,
+        OWNER_HOD: 0,
+    }
+    for sub in _subs.values():
+        for owner in sub.get("owners") or ():
+            key = str(owner)
+            by_owner[key] = by_owner.get(key, 0) + 1
+    lines = len(_subs)
+    limit = int(IBKR_L1_STREAM_BUDGET)
+    return {
+        "reqMktData_lines": lines,
+        "reqMktData_by_owner": by_owner,
+        "reqMktData_limit": limit,
+        "reqMktData_remaining": max(0, limit - lines),
+        "max_tickers_hit": bool(_se.max_tickers_hit()),
+        "max_tickers_ts": _se.max_tickers_ts(),
+    }
 
 
 def get_ticker(symbol: str) -> Any | None:

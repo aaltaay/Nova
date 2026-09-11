@@ -37,6 +37,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- D-019 apply_l1_quote rebuilt every scanner list per tick
+
+- **Symptom:** Busy desks showed `ib_loop_lag_ms` spikes with no historical work in flight. Each IB L1 tick list-comprehended Gainers, Losers, AH, and Large Cap.
+- **Cause:** `ibkr_bridge.apply_l1_quote` rebuilt every non-empty live cache to find one symbol, then stamped that table's `*_cache_ts` even when the symbol was not on it.
+- **Fix:** `ibkr/l1_apply.py` keeps a `symbol -> index` per table and patches one slot. Gapper projection rebuilds only on membership flip. AH L1 still uses D-002 open-vs-prior-close gap.
+- **Fix class:** ownership
+- **Keywords:** D-019, apply_l1_quote, gainer_cache rebuild, ib_loop_lag_ms, l1_apply, row index
+
+## 2026-09-11 -- D-026 roster commit reported failure after REST already advanced
+
+- **Symptom:** Callers and pipeline metrics treated a roster commit as failed while `/api/movers` already served the new revision.
+- **Cause:** `commit_table` persisted + `mark_live` + bumped revision, then returned `False` if `broadcast_roster_replace` raised.
+- **Fix:** WS push is after-commit. Failures log WARNING, increment `roster_push_failed`, and still return `True`.
+- **Fix class:** surfacing
+- **Keywords:** D-026, commit_table, broadcast_roster_replace, split-brain, revision, roster_push_failed
+
+## 2026-09-11 -- D-039 stale scanner reqIds and no Error 101 budget
+
+- **Symptom:** After a full reconnect, `recover_scanner_slots` could cancel reqIds the new socket never issued. Error 101 left new roster names at `price=null` with no visible count.
+- **Cause:** `_inflight_scan_reqids` survived the new `IB()`. `session_errors` named Error 101 but ticks never exposed live `reqMktData` lines vs the ceiling.
+- **Fix:** `_on_session_ready` clears inflight reqIds. `ticks.ticker_budget_status()` is merged into `/api/ibkr/status`.
+- **Fix class:** ownership
+- **Keywords:** D-039, _inflight_scan_reqids, reconnect, Error 101, reqMktData_lines, IBKR_L1_STREAM_BUDGET
+
 ## 2026-09-11 -- Semgrep logger-credential false positive on config audit logs
 
 - **Symptom:** CI Semgrep (`p/python`) failed PR #76 with 4 blocking `python-logger-credential-disclosure` findings in `backend/auth.py` and `backend/routes/health.py`.
