@@ -25,12 +25,15 @@ function pythonLauncher() {
   if (override) {
     return [override, []];
   }
+  // Probe with --version and shell:false. `shell: true` plus `-c import sys`
+  // becomes `python -c import sys` on Windows (no quotes), so the probe
+  // always fails even when setup-python is on PATH.
   for (const [cmd, prefix] of [
     ['py', ['-3']],
     ['python', []],
     ['python3', []],
   ]) {
-    const probe = spawnSync(cmd, [...prefix, '-c', 'import sys'], { shell: true });
+    const probe = spawnSync(cmd, [...prefix, '--version'], { shell: false });
     if (probe.status === 0) {
       return [cmd, prefix];
     }

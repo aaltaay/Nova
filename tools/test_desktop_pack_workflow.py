@@ -24,5 +24,7 @@ def test_desktop_pack_workflow_gates_prs_and_uploads_exe():
     assert "--ensure-tag" in text
     assert "github.event_name == 'push'" in text
     assert "contents: write" in text
+    assert "NOVA_PYTHON" in text
+    assert "pull_request.head.sha" in text
     assert "gh release" not in text.lower()
     assert "softprops/action-gh-release" not in text
