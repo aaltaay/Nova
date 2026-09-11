@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Auto-merge deadlocked on its own pending check
+
+- **Symptom:** PR #65 stayed open after all gating jobs and Desktop pack were green. The `Auto-merge` job sat in `Merge when gating CI is green`.
+- **Cause:** `gh pr merge` waits for every check on the PR. `Auto-merge` is itself a check, still `IN_PROGRESS`, so `mergeStateStatus` stays `UNSTABLE` and `gh pr merge` never finishes.
+- **Fix:** `pr_delivery.py` merges with `PUT /pulls/{n}/merge` and then deletes the head. That API does not wait for the Auto-merge job.
+- **Fix class:** ownership
+- **Keywords:** auto-merge, deadlock, gh pr merge, UNSTABLE, pull request, GITHUB_TOKEN
+
 ## 2026-09-11 -- Ready PRs sat open until someone said merge
 
 - **Symptom:** Three pull requests visible, no agent working. Heads stayed open after the work was done. The operator had to ask why and then ask to merge.

@@ -245,16 +245,33 @@ def _decision_from_pr(pr: dict[str, Any], checks: list[dict[str, Any]]) -> Decis
     )
 
 
-def _merge_now(number: int) -> int:
+def _merge_now(number: int, head_ref: str) -> int:
+    # Use the REST merge endpoint. `gh pr merge` waits for every check,
+    # including this Auto-merge job, so it deadlocks on itself.
+    slug = repo_slug()
     proc = _gh(
-        ["pr", "merge", str(number), "--merge", "--delete-branch"],
+        [
+            "api",
+            "-X",
+            "PUT",
+            f"repos/{slug}/pulls/{number}/merge",
+            "-f",
+            "merge_method=merge",
+            "-f",
+            f"commit_title=Merge pull request #{number}",
+        ],
         check=False,
     )
-    if proc.returncode == 0:
-        print(f"merged #{number}")
-        return 0
-    print(proc.stderr or proc.stdout or f"gh pr merge #{number} failed", file=sys.stderr)
-    return 2
+    if proc.returncode != 0:
+        print(
+            proc.stderr or proc.stdout or f"merge #{number} failed",
+            file=sys.stderr,
+        )
+        return 2
+    print(f"merged #{number}")
+    if head_ref:
+        cmd_delete_closed(head_ref, same_repo=True)
+    return 0
 
 
 def cmd_decide(number: int) -> int:
@@ -271,7 +288,7 @@ def cmd_merge(number: int, *, wait_desktop_minutes: int) -> int:
         decision = _decision_from_pr(pr, checks)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
-            return _merge_now(number)
+            return _merge_now(number, str(pr.get("headRefName") or ""))
         if decision.action == ACTION_WAIT and time.time() < deadline:
             time.sleep(20)
             continue
@@ -300,7 +317,7 @@ def cmd_sweep() -> int:
         decision = _decision_from_pr(pr, checks)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
-            errors += 0 if _merge_now(number) == 0 else 1
+            errors += 0 if _merge_now(number, str(pr.get("headRefName") or "")) == 0 else 1
     return 1 if errors else 0
 
 
