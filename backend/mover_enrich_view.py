@@ -10,7 +10,10 @@ functions that do fetch yfinance fundamentals (``universe.enrich_gappers`` and
 
 Decoration happens at *serialization* time rather than in the cache so a frozen
 table's stored membership, rank, and values stay immutable (ADR 008) -- these
-columns are a view over the row, not a mutation of it.
+columns are a view over the row, not a mutation of it. NEWS
+(``has_news`` / ``newest_headline_at``) is stamped the same way from
+``scanner_news_badge`` so IBKR discovery can light the flame without a roster
+write.
 
 Average volume comes from yfinance, never ``state.avg_volume_cache``. Alpaca's
 IEX daily bars capture only a sliver of consolidated volume for the thin
@@ -79,5 +82,7 @@ def decorate_rows(rows: list[dict] | None) -> list[dict]:
             )
         if entry.get("earnings_session") is None:
             entry["earnings_session"] = earnings_session(fund.get("earnings_ts"))
+        from scanner_news_badge import stamp_row
+        stamp_row(entry)
         out.append(entry)
     return out

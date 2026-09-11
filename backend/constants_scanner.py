@@ -195,6 +195,10 @@ FOCUS_INTERVAL_SEC = 30.0    # reconcile current gapper list
 GAINERS_INTERVAL_SEC = 20.0    # market-hours screener refresh
 CLOSED_INTERVAL_SEC = 60.0    # closed-hours background refresh
 NEWS_CATALYST_INTERVAL_SEC = 60.0    # news-first catalyst scan interval
+# Scanner NEWS badge under discovery=ibkr (D-001): side-cache refresh cadence.
+# Frozen rosters cannot be rewritten (ADR 008); this only refills the view cache.
+NEWS_BADGE_INTERVAL_SEC = 60.0
+NEWS_BADGE_SYMBOL_BATCH = 50          # matches scanner._check_news Alpaca cap
 # full universe scan (after-hours, same cadence as pre-market)
 AFTERHOURS_DISCOVERY_INTERVAL_SEC = 120.0
 AFTERHOURS_FOCUS_INTERVAL_SEC = 30.0   # reconcile current after-hours list

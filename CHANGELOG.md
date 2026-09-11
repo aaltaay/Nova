@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Scanner NEWS column works under discovery=ibkr
+
+- **What:** Gappers / Gainers / Losers / Afterhours NEWS flames light again when discovery is IBKR. Alpaca `_check_news` still supplies today's headlines; they are stamped at read time, not written into the roster cache.
+- **Why:** D-001 / #45 -- every writer of `has_news` / `newest_headline_at` lived on Alpaca-era movers/discovery runners that return immediately under `discovery=ibkr`.
+- **Files touched:** `backend/scanner_news_badge.py`, `backend/mover_enrich_view.py`, `backend/ibkr/scanner_hydrate.py`, `backend/app_lifespan.py`, `backend/constants_scanner.py`, `backend/routes/scan.py`
+- **How it works now:** Roster commit and a 60s refresh loop queue current Gappers/Gainers/Losers/AH symbols (not Large Cap). A single-flight worker fills an in-memory ET-dated headline map. `decorate_rows` (REST `_strip_blocked`, WS `roster_replace`, WS snapshot) copies `has_news` / `newest_headline_at` onto the outgoing row. Frozen membership/rank/values stay untouched (ADR 008). No Alpaca keys means the column stays a dash and logs once.
+- **Verified by:** `pytest backend/tests/test_scanner_news_badge.py backend/tests/test_mover_columns.py backend/tests/test_scanner_hydrate_hod_roster.py`
+- **Follow-ups:** D-015 / #35 Finnhub 429 + FinBERT warmup left parked (FinBERT is not small).
+- **Related:** Closes #45. PROBLEM_LOG 2026-09-11 Scanner NEWS dead under ibkr.
+
 ## 2026-09-11 -- Order docks no longer default to mock sample rows
 
 - **What:** Closed Orders, Orders (Today) closed sample, and the Open Orders dock now start with real IB rows only. Zero orders is an empty blotter. Sample rows appear under global Sample mode (`useSampleDataOptional`) or after the operator clicks Show sample.
