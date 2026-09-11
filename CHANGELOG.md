@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- New issues auto-land on Nova Delivery
+
+- **What:** New GitHub issues (opened / reopened / transferred) and same-repo PRs are added to the existing Nova Delivery user project. Agents must attach the same delivery metadata. Priority stays on labels P0-P3.
+- **Why:** The board already existed and was linked to `aaltaay/Nova`, but nothing durable put new items on it, and Cloud Agent tokens often cannot write Projects.
+- **Files touched:** `.github/workflows/nova-delivery-project.yml`, `tools/nova_delivery_project.py`, `AGENTS.md`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`.
+- **How it works now:** Canonical board is https://github.com/users/aaltaay/projects/1 (id `PVT_kwHOAXJK5M4Ab7Vq`, number 1, owner `aaltaay`). Do not recreate it. The workflow runs `gh project item-add 1 --owner aaltaay --url <html_url>` via `tools/nova_delivery_project.py`, treats already-on-board as success, and defaults Status to Todo unless the item is already In Progress. Classic `GITHUB_TOKEN` cannot write user projects -- store PAT secret `NOVA_PROJECT_TOKEN` (scopes `project` + `repo`). A 403 or `Could not resolve to a ProjectV2` is a token limit; report it, never claim the item exists.
+- **Verified by:** `pytest tools/test_nova_delivery_project.py tools/test_engineering_skills_audit.py -q` and `python3 tools/engineering_skills_audit.py`.
+- **Follow-ups:** Operator adds `NOVA_PROJECT_TOKEN`, then opens a test issue and confirms it appears on Nova Delivery as Todo. Open issues are bulk-added separately.
+- **Related:** Board https://github.com/users/aaltaay/projects/1
+
 ## 2026-09-11 -- First tape print paints Trader 10Sec immediately (D-003)
 
 - **What:** Trader's 10-Second pane now seeds from the first symbol-gated IBKR Time & Sales print and keeps retrying an empty store until bars arrive. A late empty HTTP response cannot erase the provisional live candle.

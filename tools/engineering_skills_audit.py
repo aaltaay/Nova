@@ -259,6 +259,35 @@ def audit() -> list[Finding]:
                 "Always-on delivery rule must say casual phrasing such as 'quick fix' does not waive the gates.",
             )
         )
+    board_url = "https://github.com/users/aaltaay/projects/1"
+    if board_url not in delivery_mdc:
+        findings.append(
+            Finding(
+                "error",
+                "missing_nova_delivery_board",
+                ".cursor/rules/github-delivery.mdc",
+                "Always-on delivery rule must name the canonical Nova Delivery board URL.",
+            )
+        )
+    if "gh project item-add" not in delivery_mdc:
+        findings.append(
+            Finding(
+                "error",
+                "missing_nova_delivery_item_add",
+                ".cursor/rules/github-delivery.mdc",
+                "Always-on delivery rule must require `gh project item-add` when the token allows.",
+            )
+        )
+    delivery_skill = _read(".cursor/skills/github-delivery/SKILL.md")
+    if board_url not in delivery_skill or "gh project item-add" not in delivery_skill:
+        findings.append(
+            Finding(
+                "error",
+                "missing_nova_delivery_skill_board",
+                ".cursor/skills/github-delivery/SKILL.md",
+                "github-delivery skill must name the Nova Delivery board and item-add command.",
+            )
+        )
 
     finish_mdc = _read(".cursor/rules/commit-push-deploy.mdc")
     if "origin/master" not in finish_mdc.lower():
@@ -293,6 +322,7 @@ def audit() -> list[Finding]:
         "github-delivery.mdc",
         "Session lifecycle (Deliver)",
         "origin/master",
+        "https://github.com/users/aaltaay/projects/1",
     ):
         if needle not in agents:
             findings.append(
