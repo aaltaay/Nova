@@ -15,8 +15,10 @@ Usage:
   python3 tools/master_branch_protection.py dump-policy
 
 `apply` needs a token with Administration on aaltaay/Nova. Cloud Agent
-integrations return 403. Public repos unlock branch protection on GitHub
-Free. A private personal repo still needs GitHub Pro.
+integrations return 403 on PUT and on GET /protection. `check` still
+works: GET /branches/master includes a public `protection` summary
+(required checks + `enforcement_level`). Public repos unlock branch
+protection on GitHub Free. A private personal repo still needs GitHub Pro.
 """
 
 from __future__ import annotations
@@ -123,6 +125,15 @@ def _flag_enabled(block: Any, default: bool | None = None) -> bool | None:
     return default
 
 
+def _is_public_summary(protection: dict[str, Any]) -> bool:
+    """Branch payload `protection` omits admin-only force-push / deletion flags."""
+    return (
+        "allow_force_pushes" not in protection
+        and "allow_deletions" not in protection
+        and "enforce_admins" not in protection
+    )
+
+
 def evaluate(
     *,
     branch_protected: bool | None,
@@ -160,14 +171,30 @@ def evaluate(
             ("master is not protected (force-push and deletion are open).",),
             EXIT_UNPROTECTED,
         )
+    if protection.get("enabled") is False:
+        return CheckResult(
+            False,
+            "unprotected",
+            ("master is not protected (force-push and deletion are open).",),
+            EXIT_UNPROTECTED,
+        )
 
     reasons: list[str] = []
-    if _flag_enabled(protection.get("allow_force_pushes"), default=True):
-        reasons.append("Force-push is still allowed.")
-    if _flag_enabled(protection.get("allow_deletions"), default=True):
-        reasons.append("Branch deletion is still allowed.")
-    if _flag_enabled(protection.get("enforce_admins"), default=False) is False:
-        reasons.append("Admins can bypass protection (owner force-push hole).")
+    if _is_public_summary(protection):
+        level = (protection.get("required_status_checks") or {}).get(
+            "enforcement_level"
+        )
+        if level != "everyone":
+            reasons.append(
+                "Admins can bypass protection (enforcement_level is not everyone)."
+            )
+    else:
+        if _flag_enabled(protection.get("allow_force_pushes"), default=True):
+            reasons.append("Force-push is still allowed.")
+        if _flag_enabled(protection.get("allow_deletions"), default=True):
+            reasons.append("Branch deletion is still allowed.")
+        if _flag_enabled(protection.get("enforce_admins"), default=False) is False:
+            reasons.append("Admins can bypass protection (owner force-push hole).")
 
     have = required_contexts(protection)
     missing = [name for name in REQUIRED_CONTEXTS if name not in have]
@@ -226,23 +253,28 @@ def _branch_path(branch: str) -> str:
 
 def check_live(branch: str = DEFAULT_BRANCH) -> CheckResult:
     code, status, payload, message = _gh_api(_branch_path(branch))
-    if status in (401, 403) or (code != 0 and payload is None):
+    if payload is None and (status in (401, 403) or code != 0):
         err = classify_http_error(status or 403, message)
         return evaluate(branch_protected=None, protection=None, error=err)
 
     protected = bool(payload.get("protected")) if payload else False
+    summary = payload.get("protection") if payload else None
+    if not isinstance(summary, dict):
+        summary = None
     if not protected:
         return evaluate(branch_protected=False, protection=None, error=None)
 
     p_code, p_status, protection, p_message = _gh_api(
         f"{_branch_path(branch)}/protection"
     )
-    if p_status >= 400 or (p_code != 0 and protection is None):
-        err = classify_http_error(p_status or 403, p_message)
-        if err == "not_found":
-            return evaluate(branch_protected=False, protection=None, error="not_found")
-        return evaluate(branch_protected=protected, protection=None, error=err)
-    return evaluate(branch_protected=True, protection=protection, error=None)
+    if p_status < 400 and protection:
+        return evaluate(branch_protected=True, protection=protection, error=None)
+    if summary:
+        return evaluate(branch_protected=True, protection=summary, error=None)
+    err = classify_http_error(p_status or 403, p_message)
+    if err == "not_found":
+        return evaluate(branch_protected=False, protection=None, error="not_found")
+    return evaluate(branch_protected=protected, protection=None, error=err)
 
 
 def apply_live(branch: str = DEFAULT_BRANCH) -> CheckResult:

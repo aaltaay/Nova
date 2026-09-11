@@ -147,3 +147,50 @@ def test_evaluate_integration_forbidden_is_blocked():
     )
     assert result.status == "integration_forbidden"
     assert result.exit_code == EXIT_BLOCKED
+
+
+def _public_summary() -> dict:
+    return {
+        "enabled": True,
+        "required_status_checks": {
+            "enforcement_level": "everyone",
+            "contexts": list(REQUIRED_CONTEXTS),
+            "checks": [{"context": name, "app_id": 15368} for name in REQUIRED_CONTEXTS],
+        },
+    }
+
+
+def test_evaluate_ok_on_public_branch_summary():
+    """App tokens cannot GET /protection; GET /branches/master still has this."""
+    result = evaluate(
+        branch_protected=True,
+        protection=_public_summary(),
+        error=None,
+    )
+    assert result.ok is True
+    assert result.exit_code == EXIT_OK
+
+
+def test_evaluate_mismatch_when_public_summary_not_everyone():
+    prot = _public_summary()
+    prot["required_status_checks"]["enforcement_level"] = "non_admins"
+    result = evaluate(branch_protected=True, protection=prot, error=None)
+    assert result.status == "policy_mismatch"
+    assert any("admin" in r.lower() for r in result.reasons)
+
+
+def test_evaluate_mismatch_when_public_summary_missing_check():
+    prot = _public_summary()
+    prot["required_status_checks"]["contexts"] = ["Backend tests"]
+    prot["required_status_checks"]["checks"] = [{"context": "Backend tests"}]
+    result = evaluate(branch_protected=True, protection=prot, error=None)
+    assert result.status == "policy_mismatch"
+    assert any("Agent contract" in r for r in result.reasons)
+
+
+def test_evaluate_unprotected_when_public_summary_disabled():
+    prot = _public_summary()
+    prot["enabled"] = False
+    result = evaluate(branch_protected=True, protection=prot, error=None)
+    assert result.status == "unprotected"
+    assert result.exit_code == EXIT_UNPROTECTED
