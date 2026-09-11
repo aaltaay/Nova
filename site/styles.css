@@ -571,6 +571,12 @@ main,
   background: linear-gradient(180deg, #141416, var(--panel));
 }
 
+/* The lead takes a whole row, so an even total leaves the last card stranded
+   alone in a two-column row. Let it span instead of opening a hole. */
+.wire-item:last-child:nth-child(even) {
+  grid-column: 1 / -1;
+}
+
 .wire-link {
   display: flex;
   gap: 16px;
