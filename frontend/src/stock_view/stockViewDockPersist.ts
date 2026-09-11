@@ -13,35 +13,22 @@ import {
   type OrdersTodayFilterId,
   type StockViewDockSurface,
 } from '../constants';
+import { parseBoolFlag, readPref, writePref } from '../utils/prefStore';
 
 export function readCollapsed(): boolean {
-  try {
-    const raw = localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY);
-    if (raw === '1') return true;
-    if (raw === '0') return false;
-  } catch {
-    /* private mode */
-  }
-  return STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED;
+  return readPref(
+    STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
+    STOCK_VIEW_OPEN_ORDERS_DEFAULT_COLLAPSED,
+    parseBoolFlag,
+  );
 }
 
 export function writeCollapsed(collapsed: boolean): void {
-  try {
-    localStorage.setItem(
-      STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY,
-      collapsed ? '1' : '0',
-    );
-  } catch {
-    /* ignore */
-  }
+  writePref(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY, collapsed);
 }
 
 export function readSampleHidden(): boolean {
-  try {
-    return localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY) === '1';
-  } catch {
-    return false;
-  }
+  return readPref(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY, false, parseBoolFlag);
 }
 
 /** Persist Hide sample. Absent key means "no stored hide", not "show sample". */
@@ -72,18 +59,23 @@ function migrateLegacyTab(raw: string | null): OrdersTodayFilterId | null {
   return null;
 }
 
+function parseFilter(raw: unknown): OrdersTodayFilterId | null {
+  if (
+    raw === 'working' ||
+    raw === 'filled' ||
+    raw === 'canceled' ||
+    raw === 'partial_filled' ||
+    raw === 'all'
+  ) {
+    return raw;
+  }
+  return null;
+}
+
 export function readFilter(): OrdersTodayFilterId {
+  const stored = readPref(ORDERS_TODAY_FILTER_STORAGE_KEY, null, parseFilter);
+  if (stored) return stored;
   try {
-    const raw = localStorage.getItem(ORDERS_TODAY_FILTER_STORAGE_KEY);
-    if (
-      raw === 'working' ||
-      raw === 'filled' ||
-      raw === 'canceled' ||
-      raw === 'partial_filled' ||
-      raw === 'all'
-    ) {
-      return raw;
-    }
     const legacy = migrateLegacyTab(localStorage.getItem(STOCK_VIEW_ORDERS_TAB_KEY));
     if (legacy) return legacy;
   } catch {
@@ -93,27 +85,22 @@ export function readFilter(): OrdersTodayFilterId {
 }
 
 export function writeFilter(filter: OrdersTodayFilterId): void {
-  try {
-    localStorage.setItem(ORDERS_TODAY_FILTER_STORAGE_KEY, filter);
-  } catch {
-    /* ignore */
-  }
+  writePref(ORDERS_TODAY_FILTER_STORAGE_KEY, filter);
+}
+
+function parseSurface(raw: unknown): StockViewDockSurface | null {
+  if (raw === 'positions' || raw === 'orders' || raw === 'nova_os') return raw;
+  return null;
 }
 
 export function readSurface(): StockViewDockSurface {
-  try {
-    const raw = localStorage.getItem(STOCK_VIEW_DOCK_SURFACE_KEY);
-    if (raw === 'positions' || raw === 'orders' || raw === 'nova_os') return raw;
-  } catch {
-    /* ignore */
-  }
-  return STOCK_VIEW_DOCK_SURFACE_DEFAULT;
+  return readPref(
+    STOCK_VIEW_DOCK_SURFACE_KEY,
+    STOCK_VIEW_DOCK_SURFACE_DEFAULT,
+    parseSurface,
+  );
 }
 
 export function writeSurface(surface: StockViewDockSurface): void {
-  try {
-    localStorage.setItem(STOCK_VIEW_DOCK_SURFACE_KEY, surface);
-  } catch {
-    /* ignore */
-  }
+  writePref(STOCK_VIEW_DOCK_SURFACE_KEY, surface);
 }

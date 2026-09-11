@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from cache_schema import ALERTS_CHANNELS_SCHEMA_VERSION, accept_schema, stamp_schema
 from constants import (
     ALERTS_CHANNEL_TYPE_DISCORD,
     ALERTS_CHANNEL_TYPE_TELEGRAM,
@@ -35,6 +36,8 @@ class Channel:
     extra: dict[str, Any] = field(default_factory=dict)
 
 
+# Owner: this module. Invalidation: operator channel CRUD.
+# schema_version: ALERTS_CHANNELS_SCHEMA_VERSION (cache_schema).
 def _store_path() -> Path:
     return cache_dir() / ALERTS_CHANNELS_FILENAME
 
@@ -93,7 +96,18 @@ def _load_raw() -> list[dict]:
         return []
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        return list(data.get("channels") or [])
+        if not isinstance(data, dict):
+            logger.warning(
+                "alerts channels_store: refusing %s -- payload is not an object",
+                path.name,
+            )
+            return []
+        accepted = accept_schema(
+            data, ALERTS_CHANNELS_SCHEMA_VERSION, name="alerts_channels",
+        )
+        if accepted is None:
+            return []
+        return list(accepted.get("channels") or [])
     except Exception as exc:
         logger.exception(
             "alerts channels_store: CORRUPT or unreadable %s: %s -- treating as no channels",
@@ -106,7 +120,10 @@ def _load_raw() -> list[dict]:
 def _save_raw(channels: list[dict]) -> None:
     path = _store_path()
     path.write_text(
-        json.dumps({"channels": channels}, indent=2),
+        json.dumps(
+            stamp_schema({"channels": channels}, ALERTS_CHANNELS_SCHEMA_VERSION),
+            indent=2,
+        ),
         encoding="utf-8",
     )
 

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { ORDER_TABLE_SORT_STORAGE_KEY } from '../constants';
+import { readPref, writePref } from '../utils/prefStore';
 import {
   cycleOrderSort,
   isOrderSortKey,
@@ -11,27 +12,27 @@ function storageKey(table: OrderSortMode): string {
   return `${ORDER_TABLE_SORT_STORAGE_KEY}.${table}`;
 }
 
-function readSort(table: OrderSortMode): OrderSortState {
-  try {
-    const raw = localStorage.getItem(storageKey(table));
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as OrderSortState;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (level) =>
-        level &&
-        isOrderSortKey(level.key) &&
-        (level.dir === 'asc' || level.dir === 'desc'),
+function parseSortState(raw: unknown): OrderSortState | null {
+  if (!Array.isArray(raw)) return null;
+  return raw.filter((level): level is OrderSortState[number] => {
+    if (!level || typeof level !== 'object') return false;
+    const item = level as { key?: unknown; dir?: unknown };
+    return (
+      typeof item.key === 'string' &&
+      isOrderSortKey(item.key) &&
+      (item.dir === 'asc' || item.dir === 'desc')
     );
-  } catch {
-    return [];
-  }
+  });
+}
+
+function readSort(table: OrderSortMode): OrderSortState {
+  return readPref(storageKey(table), [], parseSortState);
 }
 
 function writeSort(table: OrderSortMode, state: OrderSortState): void {
   try {
     if (!state.length) localStorage.removeItem(storageKey(table));
-    else localStorage.setItem(storageKey(table), JSON.stringify(state));
+    else writePref(storageKey(table), state);
   } catch {
     /* private mode */
   }

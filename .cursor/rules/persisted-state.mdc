@@ -17,13 +17,7 @@ Declare all three in the owning module (comment or constant is enough):
 
 ## Existing gaps (do not copy)
 
-| Artifact | Gap |
-|----------|-----|
-| `hod-momo-session-focus.json` | no schema_version |
-| `hod-momo-blocklist.json` | no schema_version |
-| `alerts_channels.json` | corrupt file currently logs ERROR then empty (loud, but no schema_version) |
-
-Do not add a fourth file with the same gap.
+Dated scanner/HOD snapshots, `hod-momo-blocklist.json`, `hod-momo-session-focus.json`, and `alerts_channels.json` now stamp ``schema_version`` (D-017). Unknown versions refuse loud; missing version is a legacy migrate. Do not add a new persist file without a version.
 
 ## Tests
 

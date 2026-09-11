@@ -71,12 +71,13 @@ def _atomic_write(path: str, payload: dict) -> None:
 
 # ── Migration ─────────────────────────────────────────────────────────────────
 
-from constants import (
+from cache_schema import accept_schema, stamp_schema, version_for_prefix
+from constants import (  # noqa: F401 -- aliases for cache_snapshots + test patches
     CHART_DRAWINGS_FILE,
     HOD_MOMO_ALERTS_PREFIX,
-    HOD_MOMO_HIGHS_PREFIX,
-    HOD_MOMO_CONFIG_FILE,
     HOD_MOMO_BLOCKLIST_FILE,
+    HOD_MOMO_CONFIG_FILE,
+    HOD_MOMO_HIGHS_PREFIX,
     LARGE_CAP_CONFIG_FILE,
 )
 
@@ -161,12 +162,26 @@ def list_history_dates(cache_type: str, extra_allowed: set[str] | None = None) -
     return dates
 
 
+def _write_dated(prefix: str, date: str, payload: dict) -> None:
+    """Stamp ``schema_version`` for *prefix* and atomically write the dated file."""
+    _atomic_write(
+        _dated_path(prefix, date),
+        stamp_schema(payload, version_for_prefix(prefix)),
+    )
+
+
 def _read_dated_json(prefix: str, date: str) -> dict:
+    """Load a dated snapshot. Missing version migrates; unknown version is {}."""
     path = _dated_path(prefix, date)
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        return data if isinstance(data, dict) else {}
+        if not isinstance(data, dict):
+            return {}
+        accepted = accept_schema(
+            data, version_for_prefix(prefix), name=f"{prefix}-{date}",
+        )
+        return accepted or {}
     except Exception:
         return {}
 
@@ -219,356 +234,32 @@ def _normalize_gapper_row(row: dict) -> dict:
     }
 
 
-# ── Gappers ───────────────────────────────────────────────────────────────────
-
-def save_gapper_snapshot(gappers: list[dict], ts: float) -> None:
-    """Atomically persist the gapper cache to today's dated file.
-
-    Empty payloads are refused: a transient zero projection (names-first
-    Gainers replace, last name dropping below the floor) must not wipe the
-    day's history file.
-    """
-    if not gappers:
-        return
-    try:
-        payload = {"date": _today_et(), "ts": ts, "gappers": gappers}
-        _atomic_write(_dated_path("gappers", _today_et()), payload)
-    except Exception:
-        logger.warning("cache: save_gapper_snapshot failed to persist to disk", exc_info=True)
-
-
-def load_gapper_snapshot() -> tuple[list[dict], float]:
-    """
-    Load today's gapper snapshot from disk.
-
-    Returns (gappers, ts) if the file exists and was written today (ET),
-    otherwise returns ([], 0.0) so the scan loop starts fresh.
-    """
-    try:
-        path = _dated_path("gappers", _today_et())
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("date") != _today_et():
-            return [], 0.0
-        raw = data.get("gappers", [])
-        ts = float(data.get("ts", 0.0))
-        if not isinstance(raw, list):
-            return [], 0.0
-        return [_normalize_gapper_row(g) for g in raw], ts
-    except Exception:
-        return [], 0.0
-
-
-# ── After-hours ───────────────────────────────────────────────────────────────
-
-def save_afterhours_snapshot(rows: list[dict], ts: float) -> None:
-    """Atomically persist the after-hours cache to today's dated file."""
-    if not rows:
-        return
-    try:
-        payload = {"date": _today_et(), "ts": ts, "afterhours": rows}
-        _atomic_write(_dated_path("afterhours", _today_et()), payload)
-    except Exception:
-        logger.warning("cache: save_afterhours_snapshot failed to persist to disk", exc_info=True)
-
-
-# ADR 014 — Large Cap swing table. Independent dated file/revision like every
-# other table; unlike gappers/gainers/losers/afterhours it is always-live and
-# never freezes, but still gets a fresh file each session day for history.
-def save_large_cap_snapshot(rows: list[dict], ts: float) -> None:
-    """Atomically persist the Large Cap cache to today's dated file."""
-    if not rows:
-        return
-    try:
-        payload = {"date": _today_et(), "ts": ts, "large_cap": rows}
-        _atomic_write(_dated_path("large_cap", _today_et()), payload)
-    except Exception:
-        logger.warning("cache: save_large_cap_snapshot failed to persist to disk", exc_info=True)
-
-
-def load_afterhours_snapshot() -> tuple[list[dict], float]:
-    """
-    Load today's after-hours snapshot from disk.
-
-    Returns (rows, ts) if the file exists and was written today (ET),
-    otherwise returns ([], 0.0) so the scan loop starts fresh.
-    """
-    try:
-        path = _dated_path("afterhours", _today_et())
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("date") != _today_et():
-            return [], 0.0
-        raw = data.get("afterhours", [])
-        ts = float(data.get("ts", 0.0))
-        if not isinstance(raw, list):
-            return [], 0.0
-        return [_normalize_gapper_row(g) for g in raw], ts
-    except Exception:
-        return [], 0.0
-
-
-# ── Movers (gainers + losers) ─────────────────────────────────────────────────
-# ADR 008: Gainers and Losers freeze/update independently (Gainers 04:00–16:00,
-# Losers RTH-only, UI-only, never HOD) — each owns its own dated file/revision so
-# a Gainers freeze can never advance Losers' timestamp, and vice versa. The
-# combined ``movers-*.json`` file remains a read-only compatibility fallback for
-# snapshots written before this split (see load_movers_snapshot).
-
-def save_gainer_snapshot(gainers: list[dict], ts: float) -> None:
-    """Atomically persist the gainer cache to today's dated file."""
-    if not gainers:
-        return
-    try:
-        payload = {"date": _today_et(), "ts": ts, "gainers": gainers}
-        _atomic_write(_dated_path("gainers", _today_et()), payload)
-    except Exception:
-        logger.warning("cache: save_gainer_snapshot failed to persist to disk", exc_info=True)
-
-
-def load_gainer_snapshot() -> tuple[list[dict], float]:
-    """Load today's gainer snapshot. Returns ([], 0.0) if missing/stale."""
-    try:
-        path = _dated_path("gainers", _today_et())
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("date") != _today_et():
-            return [], 0.0
-        raw = data.get("gainers", [])
-        ts = float(data.get("ts", 0.0))
-        if not isinstance(raw, list):
-            return [], 0.0
-        return raw, ts
-    except Exception:
-        return [], 0.0
-
-
-def save_loser_snapshot(losers: list[dict], ts: float) -> None:
-    """Atomically persist the loser cache to today's dated file."""
-    if not losers:
-        return
-    try:
-        payload = {"date": _today_et(), "ts": ts, "losers": losers}
-        _atomic_write(_dated_path("losers", _today_et()), payload)
-    except Exception:
-        logger.warning("cache: save_loser_snapshot failed to persist to disk", exc_info=True)
-
-
-def load_loser_snapshot() -> tuple[list[dict], float]:
-    """Load today's loser snapshot. Returns ([], 0.0) if missing/stale."""
-    try:
-        path = _dated_path("losers", _today_et())
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("date") != _today_et():
-            return [], 0.0
-        raw = data.get("losers", [])
-        ts = float(data.get("ts", 0.0))
-        if not isinstance(raw, list):
-            return [], 0.0
-        return raw, ts
-    except Exception:
-        return [], 0.0
-
-
-def save_movers_snapshot(gainers: list[dict], losers: list[dict], ts: float) -> None:
-    """Deprecated combined writer — kept only so old on-disk snapshots stay
-    readable by ``load_movers_snapshot``'s fallback. New writes go through
-    ``save_gainer_snapshot`` / ``save_loser_snapshot`` (independent revisions)."""
-    try:
-        payload = {"date": _today_et(), "ts": ts, "gainers": gainers, "losers": losers}
-        _atomic_write(_dated_path("movers", _today_et()), payload)
-    except Exception:
-        logger.warning("cache: save_movers_snapshot failed to persist to disk", exc_info=True)
-
-
-def load_movers_snapshot() -> tuple[list[dict], list[dict], float]:
-    """
-    Load today's gainers + losers snapshot from disk.
-
-    Prefers the independent ``gainers-*.json`` / ``losers-*.json`` files; falls
-    back to the legacy combined ``movers-*.json`` only for whichever side has
-    no independent file yet (one-time migration read, not a write path).
-    """
-    gainers, gainers_ts = load_gainer_snapshot()
-    losers, losers_ts = load_loser_snapshot()
-    if gainers and losers:
-        return gainers, losers, max(gainers_ts, losers_ts)
-    try:
-        path = _dated_path("movers", _today_et())
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("date") == _today_et():
-            legacy_gainers = data.get("gainers", [])
-            legacy_losers = data.get("losers", [])
-            legacy_ts = float(data.get("ts", 0.0))
-            if not gainers and isinstance(legacy_gainers, list):
-                gainers, gainers_ts = legacy_gainers, legacy_ts
-            if not losers and isinstance(legacy_losers, list):
-                losers, losers_ts = legacy_losers, legacy_ts
-    except Exception:
-        pass
-    return gainers, losers, max(gainers_ts, losers_ts)
-
-
-# ── HOD Momo — alert snapshots ────────────────────────────────────────────────
-
-def save_hod_momo_snapshot(alerts: list[dict], ts: float) -> None:
-    """Atomically persist today's HOD Momo alert list."""
-    save_hod_momo_snapshot_for_date(_today_et(), alerts, ts)
-
-
-def save_hod_momo_snapshot_for_date(date_str: str, alerts: list[dict], ts: float) -> None:
-    """Atomically persist HOD Momo alerts under a specific ET calendar date."""
-    try:
-        payload = {"date": date_str, "ts": ts, "alerts": alerts}
-        _atomic_write(_dated_path(HOD_MOMO_ALERTS_PREFIX, date_str), payload)
-    except Exception:
-        logger.warning(
-            "cache: save_hod_momo_snapshot_for_date(%s) failed to persist to disk",
-            date_str,
-            exc_info=True,
-        )
-
-
-def load_hod_momo_snapshot() -> tuple[list[dict], float]:
-    """Load today's HOD Momo alerts from disk.
-
-    Returns (alerts, ts) or ([], 0.0) if not found / stale.
-    """
-    try:
-        path = _dated_path(HOD_MOMO_ALERTS_PREFIX, _today_et())
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("date") != _today_et():
-            return [], 0.0
-        raw = data.get("alerts", [])
-        ts = float(data.get("ts", 0.0))
-        if not isinstance(raw, list):
-            return [], 0.0
-        return raw, ts
-    except Exception:
-        return [], 0.0
-
-
-def load_hod_momo_snapshot_for_date(date_str: str) -> dict:
-    """Load HOD Momo alerts for an arbitrary past date (YYYY-MM-DD)."""
-    try:
-        path = _dated_path(HOD_MOMO_ALERTS_PREFIX, date_str)
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-# ── HOD Momo — session-high truth ─────────────────────────────────────────────
-# Session highs/day-highs are in-memory only otherwise, so a process restart
-# (including a dev --reload) would throw away every high-of-day already
-# observed today even though it was correct a moment before the restart.
-
-def save_hod_momo_highs(data: dict) -> None:
-    """Atomically persist today's HOD-high truth fields (date stamp added here)."""
-    try:
-        payload = {"date": _today_et(), **data}
-        _atomic_write(_dated_path(HOD_MOMO_HIGHS_PREFIX, _today_et()), payload)
-    except Exception:
-        logger.warning(
-            "cache: save_hod_momo_highs failed to persist to disk", exc_info=True,
-        )
-
-
-def load_hod_momo_highs() -> dict:
-    """Load today's HOD-high truth fields from disk. Returns {} if stale/missing."""
-    try:
-        path = _dated_path(HOD_MOMO_HIGHS_PREFIX, _today_et())
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        if data.get("date") != _today_et():
-            return {}
-        return data
-    except Exception:
-        return {}
-
-
-# ── HOD Momo — configs ────────────────────────────────────────────────────────
-
-def save_hod_momo_configs(payload: dict) -> None:
-    """Persist strategy configs + master gate to the fixed config file."""
-    try:
-        os.makedirs(_CACHE_DIR, exist_ok=True)
-        _atomic_write(HOD_MOMO_CONFIG_FILE, payload)
-    except Exception:
-        logger.warning("cache: save_hod_momo_configs failed to persist to disk", exc_info=True)
-
-
-def load_hod_momo_configs() -> dict:
-    """Load strategy configs + master gate. Returns {} if file doesn't exist."""
-    try:
-        with open(HOD_MOMO_CONFIG_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-# ── Large Cap (ADR 014) — tunable lease filters ────────────────────────────────
-
-def save_large_cap_config(payload: dict) -> None:
-    """Persist Large Cap's tunable cap floor / volume floor / score weights."""
-    try:
-        os.makedirs(_CACHE_DIR, exist_ok=True)
-        _atomic_write(LARGE_CAP_CONFIG_FILE, payload)
-    except Exception:
-        logger.warning("cache: save_large_cap_config failed to persist to disk", exc_info=True)
-
-
-def load_large_cap_config() -> dict:
-    """Load Large Cap's tunable config. Returns {} if file doesn't exist."""
-    try:
-        with open(LARGE_CAP_CONFIG_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-# ── Chart drawings (ADR 015) — operator-drawn lines per symbol ────────────────
-
-def save_chart_drawings(payload: dict) -> None:
-    """Persist every symbol's operator-drawn chart lines."""
-    try:
-        os.makedirs(_CACHE_DIR, exist_ok=True)
-        _atomic_write(CHART_DRAWINGS_FILE, payload)
-    except Exception:
-        logger.warning("cache: save_chart_drawings failed to persist to disk", exc_info=True)
-
-
-def load_chart_drawings() -> dict:
-    """Load persisted chart drawings. Returns {} if file doesn't exist."""
-    try:
-        with open(CHART_DRAWINGS_FILE, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-# ── HOD Momo — blocklist ─────────────────────────────────────────────────────
-
-def save_hod_momo_blocklist(symbols: list[str]) -> None:
-    """Persist the HOD Momo global blocklist."""
-    try:
-        os.makedirs(_CACHE_DIR, exist_ok=True)
-        _atomic_write(HOD_MOMO_BLOCKLIST_FILE, {"symbols": symbols})
-    except Exception:
-        logger.warning("cache: save_hod_momo_blocklist failed to persist to disk", exc_info=True)
-
-
-def load_hod_momo_blocklist() -> list[str]:
-    """Load the HOD Momo global blocklist. Returns [] if not found."""
-    try:
-        with open(HOD_MOMO_BLOCKLIST_FILE, encoding="utf-8") as f:
-            data = json.load(f)
-        raw = data.get("symbols", [])
-        if not isinstance(raw, list):
-            return []
-        return [str(s) for s in raw]
-    except Exception:
-        return []
+from cache_snapshots import (  # noqa: E402, F401
+    load_afterhours_snapshot,
+    load_chart_drawings,
+    load_gapper_snapshot,
+    load_gainer_snapshot,
+    load_hod_momo_blocklist,
+    load_hod_momo_configs,
+    load_hod_momo_highs,
+    load_hod_momo_snapshot,
+    load_hod_momo_snapshot_for_date,
+    load_large_cap_config,
+    load_large_cap_fired,
+    load_loser_snapshot,
+    load_movers_snapshot,
+    save_afterhours_snapshot,
+    save_chart_drawings,
+    save_gapper_snapshot,
+    save_gainer_snapshot,
+    save_hod_momo_blocklist,
+    save_hod_momo_configs,
+    save_hod_momo_highs,
+    save_hod_momo_snapshot,
+    save_hod_momo_snapshot_for_date,
+    save_large_cap_config,
+    save_large_cap_fired,
+    save_large_cap_snapshot,
+    save_loser_snapshot,
+    save_movers_snapshot,
+)
