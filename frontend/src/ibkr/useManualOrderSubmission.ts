@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import {
   beginBrowserExecutionTiming,
   captureBrowserAction,
@@ -11,6 +11,7 @@ import {
   type QuantityMode,
 } from './orderEntry';
 import { executionTransportError } from './executionTransportError';
+import { newGestureKey } from './gestureKey';
 import { notifyOrderRejected } from './notifyOrderRejected';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import { readSkipPlaceConfirm } from './placeConfirmPrefs';
@@ -46,6 +47,11 @@ export function useManualOrderSubmission(params: Params) {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmSummary, setConfirmSummary] = useState<string | null>(null);
+  // `submitting` state lands a render later — a double-click inside one tick
+  // would pass it and place twice. The refs close that window and keep one
+  // idempotency key for the whole click → confirm → place gesture (D-011).
+  const inFlightRef = useRef(false);
+  const gestureKeyRef = useRef<string | null>(null);
 
   function build() {
     return buildManualOrder(
@@ -89,7 +95,7 @@ export function useManualOrderSubmission(params: Params) {
   }
 
   async function executeOrder() {
-    if (!params.connected || submitting) return;
+    if (!params.connected || submitting || inFlightRef.current) return;
     if (params.spendLocked) {
       fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
       return;
@@ -104,12 +110,15 @@ export function useManualOrderSubmission(params: Params) {
       return;
     }
 
+    inFlightRef.current = true;
+    const idempotencyKey = gestureKeyRef.current ?? newGestureKey('manual');
+    gestureKeyRef.current = idempotencyKey;
     setSubmitting(true);
     setResult(null);
     try {
       const response = await placeIbkrOrder(
         built.payload,
-        undefined,
+        idempotencyKey,
         { timing, referencePrice: params.referencePrice },
       );
       if (response.ok) {
@@ -128,12 +137,14 @@ export function useManualOrderSubmission(params: Params) {
     } catch (error) {
       fail(executionTransportError(error));
     } finally {
+      inFlightRef.current = false;
+      gestureKeyRef.current = null;
       setSubmitting(false);
     }
   }
 
   function requestPlaceOrder() {
-    if (!params.connected || submitting) return;
+    if (!params.connected || submitting || inFlightRef.current) return;
     if (params.spendLocked) {
       fail('Orders remain locked by Nova environment safety settings.', 'ORDERS_GATE');
       return;
@@ -163,6 +174,9 @@ export function useManualOrderSubmission(params: Params) {
       `(${params.orderType}${priceText})${hoursText} on the ` +
       `${params.mode.toUpperCase()} account.`;
 
+    // One key for this click, whether it places straight away or waits on the
+    // confirm dialog — a double-clicked Confirm replays instead of re-placing.
+    gestureKeyRef.current = newGestureKey('manual');
     if (readSkipPlaceConfirm()) {
       void executeOrder();
       return;
@@ -181,6 +195,7 @@ export function useManualOrderSubmission(params: Params) {
   }
 
   function resetSubmission() {
+    gestureKeyRef.current = null;
     setResult(null);
     setConfirmSummary(null);
   }

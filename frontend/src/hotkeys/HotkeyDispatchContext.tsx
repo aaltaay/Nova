@@ -13,7 +13,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { HotkeyAction } from '../constants';
+import { NOVA_ACTION_IN_FLIGHT_MESSAGE, type HotkeyAction } from '../constants';
 import { notifyOrderRejected } from '../ibkr/notifyOrderRejected';
 import {
   chordToBinding,
@@ -148,11 +148,29 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     runtimeRef.current = { ...runtimeRef.current, ...partial };
   }, []);
 
+  // `event.repeat` only filters a held key. A second press, a second window,
+  // or a menu click while the first order is still in flight is a real second
+  // gesture — refuse it until the receipt lands (D-011).
+  const inFlightActionsRef = useRef<Set<string>>(new Set());
+
   const runAction = useCallback(async (action: NovaActionRecord) => {
-    const result = await runNovaAction(action, runtimeRef.current);
-    setLastResult(result);
-    if (!result.ok) void notifyOrderRejected({ message: result.text, reasonCode: result.reasonCode, order: result.order });
-    return result;
+    if (inFlightActionsRef.current.has(action.id)) {
+      const busy: NovaActionResult = {
+        ok: false,
+        text: NOVA_ACTION_IN_FLIGHT_MESSAGE,
+      };
+      setLastResult(busy);
+      return busy;
+    }
+    inFlightActionsRef.current.add(action.id);
+    try {
+      const result = await runNovaAction(action, runtimeRef.current);
+      setLastResult(result);
+      if (!result.ok) void notifyOrderRejected({ message: result.text, reasonCode: result.reasonCode, order: result.order });
+      return result;
+    } finally {
+      inFlightActionsRef.current.delete(action.id);
+    }
   }, []);
 
   const pinMenu = useCallback(() => {

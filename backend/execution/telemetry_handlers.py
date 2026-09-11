@@ -5,6 +5,8 @@ import logging
 import time
 from typing import Any
 
+from execution import inflight
+
 logger = logging.getLogger("execution.telemetry")
 
 
@@ -62,6 +64,7 @@ def make_handlers(get_watch):
             )
             if status == "Filled":
                 w.note_filled()
+            inflight.release_on_broker_status(oid, status)
         except Exception:
             logger.exception("execution.telemetry: orderStatus handler error")
 
@@ -101,6 +104,7 @@ def make_handlers(get_watch):
             )
             if complete:
                 w.note_filled()
+                inflight.release_order(oid)
         except Exception:
             logger.exception("execution.telemetry: execDetails handler error")
 

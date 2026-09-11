@@ -10,6 +10,7 @@ from constants import (
     IBKR_LOOP_WEDGED_ORDER_MSG,
     NOVA_OS_MAX_CONCURRENT_POSITIONS,
 )
+from execution import inflight
 from execution import store
 from execution import telemetry
 from execution import validate as _validate
@@ -125,6 +126,21 @@ def _reject(
         symbol=cmd.normalized_symbol(),
         timings=timings,
     )
+
+
+def _commit_position(
+    cmd: ExecutionCommand, execution_id: str, symbol: str | None,
+) -> None:
+    """Hold the position this send will consume until the order resolves.
+
+    Short-opening SELLs are skipped — they add exposure instead of spending a
+    long, and holding one would refuse a legitimate exit in the same symbol.
+    """
+    if cmd.operation != "place" or not symbol:
+        return
+    if (cmd.side or "").upper() == "SELL" and getattr(cmd, "short_entry", False):
+        return
+    inflight.commit(execution_id, symbol=symbol, side=cmd.side, qty=cmd.qty)
 
 
 async def execute(
@@ -290,9 +306,20 @@ async def execute(
         ib = _client.get_ib()
         telemetry.ensure_handlers(ib)
 
-    receipt = await send_broker(
-        cmd, execution_id, timings, wait_ack=False, reject=_reject,
-    )
+        # ADR 007 decision 5: the lock covers reservation, validation, and the
+        # synchronous broker send. Commit the shares first so a command that
+        # validates behind this one cannot spend them again (D-011).
+        _commit_position(cmd, execution_id, symbol)
+        receipt = await send_broker(
+            cmd, execution_id, timings, wait_ack=False, reject=_reject,
+        )
+        if receipt.ok:
+            inflight.attach_order(execution_id, receipt.order_id)
+        else:
+            inflight.release_execution(execution_id)
+
+    # Only the acknowledgment wait happens after release, so a slow order
+    # cannot block an urgent cancel/flatten send.
     if wait_ack:
         return await wait_broker_ack(cmd, receipt)
     return receipt
@@ -353,3 +380,4 @@ def finalize_http_response(execution_id: str, *, duplicate: bool = False) -> dic
 def reset_for_tests() -> None:
     telemetry.reset_for_tests()
     verification_gate.reset_for_tests()
+    inflight.reset_for_tests()

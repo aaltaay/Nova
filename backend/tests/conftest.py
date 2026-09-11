@@ -86,10 +86,14 @@ def _isolate_operator_state(tmp_path, monkeypatch):
         raising=False,
     )
     import chart_drawings as _chart_drawings
+    import execution.inflight as _inflight
     import large_cap_admin as _large_cap_admin
     import large_cap_alerts as _large_cap_alerts
     import large_cap_metrics as _large_cap_metrics
 
+    # Position commitments are process-global; a working order left behind by
+    # one module would refuse the next module's SELL (ADR 007 / D-011).
+    _inflight.reset_for_tests()
     _chart_drawings.reset_for_testing()
     _large_cap_admin.reset_for_testing()
     _large_cap_alerts.reset_for_testing()

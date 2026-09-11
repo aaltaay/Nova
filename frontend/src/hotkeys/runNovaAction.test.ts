@@ -103,6 +103,15 @@ describe('runNovaAction Webull kinds', () => {
     expect(payload.short_entry).toBeUndefined();
   });
 
+  it('stamps one idempotency key per invocation (D-011)', async () => {
+    const buy = action({ kind: 'buy_market', params: { shares: 1 } });
+    await runNovaAction(buy, runtime());
+    await runNovaAction(buy, runtime());
+    const [first, second] = placeIbkrOrder.mock.calls.map((call) => call[1]);
+    expect(first).toMatch(/^nova_action:buy_market:/);
+    expect(second).not.toBe(first);
+  });
+
   it('preserves verification reason and order context for the global dialog', async () => {
     placeIbkrOrder.mockResolvedValue({
       ok: false,

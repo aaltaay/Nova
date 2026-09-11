@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Broker send ran outside the execution lock (double SELL)
+
+- **Symptom:** Two `place` SELLs on the same symbol with different `idempotency_key`s (hotkey twice, Exit + Flatten, two windows) could both pass the `OVERSELL` gate against the same `long_qty` and both reach `placeOrder` -- double-size exit, or an accidental short. Reproduced in `backend/tests/test_execution_lock_race.py`: long 100, two SELL 100, two broker calls.
+- **Cause:** Two gaps, and either one alone still lets the second order through. `execution.service.execute` exited `async with _lock` before `await send_broker(...)`, which contradicts ADR 007 decision 5. More importantly the gate compared only the broker position, and `ib.positions()` does not move until a fill -- so the second command validating during the first command's ack wait saw the whole 100 as still available. Idempotency only protects a repeated *same* key.
+- **Fix:** The send moved inside the lock (ack wait stays outside). `execution/inflight.py` records the qty an unresolved place already spent, under that same lock, and `validate.check_account_and_position` subtracts it from `long_qty` (SELL) and from `short_qty` for the new `OVERCOVER` BUY mirror. Commitments are released on a failed send, a verified cancel, or a terminal broker status. UI/hotkeys now send one idempotency key per gesture, and `execution/startup_sweep.py` closes out rows a previous process abandoned.
+- **Fix class:** ownership
+- **Keywords:** execution lock, send_broker, ADR 007 decision 5, OVERSELL, OVERCOVER, double place, in-flight commitment, idempotency_key, D-011
+
 ## 2026-09-11 -- D-023 failed IBKR status poll kept the desk connected
 
 - **Symptom:** Desk chip / Trading gates stayed `connected` after `/api/ibkr/status` failed. Eleven `useIbkrStatus` mounts each ran a 5s interval; empty `catch` kept last-good sessionStorage.

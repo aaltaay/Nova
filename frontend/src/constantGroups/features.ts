@@ -268,6 +268,8 @@ export const EXECUTION_TRANSPORT_FAILED_MESSAGE =
   'Order request failed. Check Working Orders before retrying.';
 export const NOVA_ACTION_ACCOUNT_ERROR_MESSAGE =
   'IBKR account/positions read failed -- Flatten/exit disabled until the poll recovers.';
+export const NOVA_ACTION_IN_FLIGHT_MESSAGE =
+  'That action is still running -- wait for the order receipt before firing again.';
 
 // ── Webull-style Hotkeys Settings shell (UI pass 1) ───────────────────────────
 export const HOTKEYS_LANDING_TITLE = 'Hot Keys';

@@ -67,6 +67,14 @@ Machine-readable block only. Update after material runs. Do not duplicate mutabl
 - **Monotonic ledger boundary:** each row stores a process `boot_id`; callbacks and rollups require the current id. Migrated legacy rows keep `boot_id=NULL` and are excluded from `perf_counter_ns` deltas.
 - **Probe isolation + fill:** every benchmark run uses a unique idempotency prefix. Rollups expose send→fill and ack→fill p50/p95/max/count; synthetic fill remains simulator evidence, never live quality evidence.
 
+## Durable lock / in-flight facts (promoted 2026-09-11, D-011)
+
+- **The "ack lock scope" fact above was aspirational until 2026-09-11.** `execute` exited `async with _lock` *before* `await send_broker(...)`. It now sends inside the lock and releases before `wait_broker_ack`, as ADR 007 decision 5 always said.
+- **Position gates are not enough on their own.** `long_qty` / `short_qty` come from `ib.positions()`, which does not move until a fill, so a second command validating during the first command's ack wait saw the whole position as available. `execution/inflight.py` holds the qty an unresolved `place` already sent; validation subtracts it (`OVERSELL` for SELL, new `OVERCOVER` for BUY while short).
+- **Release direction is deliberate:** a false Cancelled (Error 10349) frees a commitment a beat early rather than risk a stuck commitment refusing a real exit.
+- **Client keys are per gesture, not per request.** `ibkr/gestureKey.ts`; the manual ticket keeps one key from Submit through Confirm, and `HotkeyDispatchProvider` refuses a second run of an action still in flight.
+- **Cross-boot rows:** `execution/startup_sweep.py` reconciles a previous process's `reserved`/`sent` rows against `open_orders` / `closed_orders`; unexplained rows become `abandoned`, never invented as filled.
+
 ## Durable end-to-end measurement facts (promoted 2026-07-24)
 
 - **Clock boundary:** browser `performance.now()` is only compared with browser `performance.now()`; backend `perf_counter_ns` is only compared within the same boot. Browser→backend wall subtraction is labeled offset+transport uncertainty and `latency_usable=false`.

@@ -5,6 +5,7 @@ import logging
 import math
 
 from constants import IBKR_FRACTIONAL_ORDER_API_MSG
+from execution import inflight as _inflight
 from execution.models import ExecutionCommand
 from ibkr import account as _account
 from ibkr import client as _client
@@ -146,6 +147,8 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
             if bp is not None and est is not None and est > float(bp):
                 return False, f"estimated notional {est:.2f} exceeds BuyingPower {bp}", "BUYING_POWER"
 
+            return _check_cover_qty(cmd)
+
         if cmd.operation == "place" and (cmd.side or "").upper() == "SELL":
             # Position-reducing sells (flatten/close) are allowed; opening a short
             # requires explicit short_entry + IBKR_SHORT_ENABLED + fresh shortable_est
@@ -170,9 +173,53 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
                 sell_qty = float(cmd.qty or 0)
                 if pos_qty <= 0:
                     return False, "SELL refused — no long position to reduce", "NO_POSITION"
-                if sell_qty > pos_qty + 1e-6:
+                # Shares already sent and not yet resolved are spent, even
+                # though the broker position will not move until they fill.
+                working = _inflight.committed_qty(
+                    cmd.normalized_symbol() or "", "SELL",
+                )
+                available = pos_qty - working
+                if sell_qty > available + 1e-6:
+                    if working > 0:
+                        return (
+                            False,
+                            f"SELL qty {sell_qty} exceeds {available} available "
+                            f"(long {pos_qty}, {working} already sent)",
+                            "OVERSELL",
+                        )
                     return False, f"SELL qty {sell_qty} exceeds position {pos_qty}", "OVERSELL"
 
+    return True, "OK", None
+
+
+def _check_cover_qty(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
+    """BUY mirror of OVERSELL — never buy past the short being covered.
+
+    Only fires while the account is short that symbol: an opening BUY from
+    flat or long is a normal entry and stays on the BuyingPower gate alone.
+    """
+    symbol = cmd.normalized_symbol() or ""
+    try:
+        short_open = _account.short_qty(symbol)
+    except IbkrAccountError as exc:
+        logger.exception(
+            "validate: short_qty failed — refusing BUY for %s: %s", symbol, exc,
+        )
+        return False, f"BUY refused — position unavailable: {exc}", "POSITION_UNAVAILABLE"
+    if short_open <= 0:
+        return True, "OK", None
+
+    working = _inflight.committed_qty(symbol, "BUY")
+    available = short_open - working
+    buy_qty = float(cmd.qty or 0)
+    if buy_qty > available + 1e-6:
+        detail = f"BUY qty {buy_qty} exceeds short position {short_open}"
+        if working > 0:
+            detail = (
+                f"BUY qty {buy_qty} exceeds {available} available "
+                f"(short {short_open}, {working} already sent)"
+            )
+        return False, detail, "OVERCOVER"
     return True, "OK", None
 
 

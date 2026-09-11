@@ -32,6 +32,12 @@ Nova had a single IBKR broker adapter (`ibkr/orders.py`) but fragmented entry po
 - The browser/UI owner may add the optional client timing payload and render-complete stamp later. The backend contract deliberately stops at response-ready or an existing server event-emission hook; it does not pretend to measure frontend render or subtract clocks across hosts.
 - Execution telemetry reuses existing IBKR callbacks and reconciliation loops. It does not add broker requests or increase polling cadence.
 
+## Lock scope and in-flight position gates (2026-09-11, D-011)
+
+Decision 5 is implemented literally: `execute` holds `_lock` across reserve, validate, and the broker send, and releases before `wait_broker_ack`. A broker position does not move until a fill, so the gates alone would let a second command spend the same shares while the first waits for its ack. `execution/inflight.py` records the qty an unresolved `place` already sent -- under the same lock -- and validation compares `long_qty - working` (SELL / `OVERSELL`) and `short_qty - working` (BUY / `OVERCOVER`, only while the account is short that symbol). Short-opening SELLs are not committed; they add exposure instead of spending a long.
+
+Commitments are process-local and released on a failed send, a verified cancel, or a terminal broker status. A false Cancelled (Error 10349) frees them a beat early on purpose -- a commitment stuck open would refuse a real exit. The durable half is the ledger's `boot_id`: `execution/startup_sweep.py` reconciles the previous process's non-terminal rows against `open_orders` / `closed_orders`, and marks a row `abandoned` rather than inventing an outcome neither list explains.
+
 ## Broker long qty SSOT (2026-07-20)
 
 Anti-short / flatten sizing and Positions **qty** share one API: `ibkr.account.long_qty(symbol)` backed only by `ib.positions()` (sum same-symbol longs; raise `IbkrAccountError` on read failure). `GET /api/ibkr/positions` takes qty from that cache and joins mark/PnL from `ib.portfolio()` — never invents a long from portfolio-only rows. Validate maps read failure → `POSITION_UNAVAILABLE` (not `NO_POSITION`). UI Flatten stays `source="manual"` (anti-short on); Nova OS flatten place stays `source="flatten"` (reconcile via `long_qty` is the gate). Account summary reads raise on failure so LMT BUY cannot skip BuyingPower (`BUYING_POWER_UNKNOWN`).

@@ -47,6 +47,7 @@ export async function placeMarketExit(
   label: string,
   actionTiming: BrowserActionStamp,
   maybeConfirm: (runtime: NovaActionRuntime, summary: string) => Promise<boolean>,
+  idempotencyKey?: string,
 ): Promise<NovaActionResult> {
   const outside_rth = shouldUseOutsideRth(false);
   const hours = outside_rth ? ' extended hours' : '';
@@ -65,7 +66,7 @@ export async function placeMarketExit(
         order_type: 'MKT',
         outside_rth,
       },
-      undefined,
+      idempotencyKey,
       {
         timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
       },
@@ -95,6 +96,7 @@ export async function placeLongPctLimit(
   offsetDollars: number,
   actionTiming: BrowserActionStamp,
   maybeConfirm: (runtime: NovaActionRuntime, summary: string) => Promise<boolean>,
+  idempotencyKey?: string,
 ): Promise<NovaActionResult> {
   if (runtime.accountError) {
     return { ok: false, text: NOVA_ACTION_ACCOUNT_ERROR_MESSAGE };
@@ -141,7 +143,7 @@ export async function placeLongPctLimit(
         limit_price: Number(limit.toFixed(4)),
         outside_rth,
       },
-      undefined,
+      idempotencyKey,
       {
         timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
         referencePrice: base,

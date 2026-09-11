@@ -32,6 +32,8 @@ Product fixes inside `backend/execution/` require an explicit ask each time.
 - **Adapter exclusivity:** `placeOrder` / order send lives only in `backend/ibkr/orders.py` (via `ExecutionPort`).
 - **Ack honesty:** local `PendingSubmit` / assigned `orderId` ≠ broker acknowledgment.
 - **Persist-before-send:** ledger reserve/commit before broker send; idempotency key uniqueness.
+- **Lock scope (ADR 007 decision 5):** `_lock` covers reserve + validate + the broker send. Only `wait_broker_ack` runs after release. Never move the send back outside.
+- **In-flight position gates:** `long_qty` / `short_qty` do not move until a fill, so `execution/inflight.py` holds what an unresolved place already sent and validation subtracts it (`OVERSELL` for SELL, `OVERCOVER` for BUY while short). One idempotency key per **user gesture** on the client, not per HTTP call.
 - **`auto_live` NO-GO:** never unlock live auto-trading from this domain. Live probes need a separate user-approved phase.
 - **Paper and live share the same code path** — only Gateway account/credentials and safety gates differ.
 - **MASTER TEST QTY GATE (`IBKR_FORCE_ONE_SHARE`):** when True (default during testing), `execution.qty_gate.apply_force_one_share` rewrites place/bracket `qty`/`shares` to 1 at `execute()` ingress. UI may show 100/500/1000 — broker send is always 1. **This is intentional, not a sizing bug.** Disable with one line: `IBKR_FORCE_ONE_SHARE = False` in `constants_ibkr.py` (or remove the `apply_force_one_share` call in `service.py`).
