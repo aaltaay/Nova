@@ -9,7 +9,11 @@ export type GlobalAppBarScanner = {
   activeFeed: string;
   feedFellBack: boolean;
   secondsAgo: number | null;
+  /** Unix seconds of last /ws/scanner price_patch. 0 = no L1 yet. Null = not a scanner tab. */
+  lastPriceTs?: number | null;
   pricesStale?: boolean;
+  /** feed_error / subscriptionError / unavailable / last-good -- one chip. */
+  honestyText?: string | null;
   ibkrConnected?: boolean;
   ibkrMode?: IbkrMode;
   ibkrGatewayMode?: 'paper' | 'live' | null;

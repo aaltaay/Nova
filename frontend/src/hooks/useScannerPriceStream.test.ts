@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyScannerPricePatch,
+  frozenTableLabel,
   isRowQuoteStale,
   tabHints,
 } from './useScannerPriceStream';
@@ -52,5 +53,21 @@ describe('isRowQuoteStale', () => {
   it('falls back to global stale when the row has never quoted', () => {
     expect(isRowQuoteStale('ZZZ', {}, 1000, true)).toBe(true);
     expect(isRowQuoteStale('ZZZ', {}, 1000, false)).toBe(false);
+  });
+});
+
+describe('frozenTableLabel', () => {
+  it('shows unavailable instead of staying silent', () => {
+    expect(
+      frozenTableLabel({
+        state: 'unavailable',
+        session_key: 's',
+        revision: 1,
+        roster_ts: 0,
+        quote_ts: 0,
+        frozen_at: 0,
+        source: 'ws',
+      }),
+    ).toMatch(/Unavailable/);
   });
 });

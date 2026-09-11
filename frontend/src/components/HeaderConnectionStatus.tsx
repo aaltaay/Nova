@@ -31,6 +31,11 @@ import { StockViewMarketClock } from '../stock_view/StockViewMarketClock';
 import { HEADER_DESK_ROLE } from '../ibkr/gatewayUxConstants';
 import { openTradingPrerequisites } from '../ibkr/tradingPrereqUi';
 import {
+  SCANNER_HONESTY_CHIP_ROLE,
+  priceAgeChipText,
+  showPriceAgeChip,
+} from '../scanner/scannerHonesty';
+import {
   apiLabel,
   apiProcessOk,
   apiTone,
@@ -56,7 +61,9 @@ interface Props {
   activeFeed: string;
   feedFellBack: boolean;
   secondsAgo: number | null;
+  lastPriceTs?: number | null;
   pricesStale?: boolean;
+  honestyText?: string | null;
   historyDate: string | null;
   compact?: boolean;
   showScannerSource?: boolean;
@@ -74,9 +81,10 @@ export function HeaderConnectionStatus({
   activeFeed,
   feedFellBack,
   secondsAgo,
+  lastPriceTs,
   pricesStale = false,
+  honestyText = null,
   historyDate,
-  compact = false,
   showScannerSource = true,
   onBackendStarted,
 }: Props) {
@@ -105,13 +113,17 @@ export function HeaderConnectionStatus({
   const apiChipTone = apiTone(health.status);
   const latencyLabel = healthLatencyLabel(health);
   const isIbkr = discoveryProvider === 'ibkr';
-  const showPrices = !compact && !historyDate && secondsAgo != null;
-  const priceTone: HeaderChipTone = pricesStale ? 'warn' : 'ok';
+  const showPrices = showPriceAgeChip({ historyDate, lastPriceTs, secondsAgo });
   const priceText = showPrices
-    ? pricesStale
-      ? `stale · ${formatScanAge(secondsAgo)}`
-      : formatScanAge(secondsAgo)
+    ? priceAgeChipText({
+        lastPriceTs,
+        secondsAgo,
+        pricesStale,
+        formatAge: formatScanAge,
+      })
     : null;
+  const priceTone: HeaderChipTone =
+    lastPriceTs === 0 || pricesStale ? 'warn' : 'ok';
 
   const modeTag = resolveGatewayModeTag(ibkrMode, ibkrGatewayMode, ibkrAccountKind);
   const modeTitle =
@@ -288,17 +300,31 @@ export function HeaderConnectionStatus({
         );
       })}
 
+      {honestyText ? (
+        <span
+          className="status-chip status-chip--warn"
+          title={honestyText}
+          data-testid="status-chip-honesty"
+        >
+          <span className="dot loading" />
+          <span className="status-chip__role">{SCANNER_HONESTY_CHIP_ROLE}</span>
+          <span className="status-chip__value">{honestyText}</span>
+        </span>
+      ) : null}
+
       {priceText != null && (
         <span
           className={`status-chip status-chip--${priceTone}`}
           title={
-            pricesStale
-              ? 'Last successful table price tick is late or skipped — prices are not live right now.'
-              : 'Age of the last successful table price tick for the active scanner tab.'
+            lastPriceTs === 0
+              ? 'No IBKR L1 price_patch has arrived for the active scanner tab.'
+              : pricesStale
+                ? 'Last successful table price tick is late or skipped -- prices are not live right now.'
+                : 'Age of the last successful table price tick for the active scanner tab.'
           }
           data-testid="status-chip-prices"
         >
-          <span className={`dot ${pricesStale ? 'loading' : 'connected'}`} />
+          <span className={`dot ${lastPriceTs === 0 || pricesStale ? 'loading' : 'connected'}`} />
           <span className="status-chip__role">Prices</span>
           <span className="status-chip__value">{priceText}</span>
         </span>

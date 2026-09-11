@@ -6,7 +6,9 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { CatalystsTable } from './CatalystsTable';
 import { EmptyState } from './EmptyState';
 import { ScannerTable } from './ScannerTable';
-import { frozenTableLabel, type ScannerTableMeta } from '../hooks/useScannerPriceStream';
+import { type ScannerTableMeta } from '../hooks/useScannerPriceStream';
+import { tableHonestyLabel } from '../scanner/scannerHonesty';
+import { useLiveScannerFeedOptional } from '../scanner/ScannerDataContext';
 import { LARGE_CAP_COLUMNS, SCANNER_COLUMNS } from '../constants';
 import type { Afterhours, Gapper, Mover, ScannerRow, SortConfig } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
@@ -64,10 +66,14 @@ export function ScannerTabPanels({
   tableMeta = {},
   historyDate = null,
 }: Props) {
-  const frozenLabel =
+  const live = useLiveScannerFeedOptional();
+  const honestyBadge =
     !historyDate && activeTab !== 'catalysts'
-      ? frozenTableLabel(tableMeta[activeTab])
+      ? tableHonestyLabel(tableMeta[activeTab], live?.lastGood?.[activeTab])
       : null;
+  const emptyHonesty =
+    live?.feedError
+    || (tableMeta[activeTab]?.state === 'unavailable' ? 'Unavailable -- no live roster' : null);
   const [gapperSort, setGapperSort] = useState<SortConfig>({ key: '', dir: null });
   const [gainerSort, setGainerSort] = useState<SortConfig>({ key: '', dir: null });
   const [loserSort, setLoserSort] = useState<SortConfig>({ key: '', dir: null });
@@ -131,6 +137,8 @@ export function ScannerTabPanels({
         context={mode === 'market' ? 'premarket' : mode}
         discoveryProvider={discoveryProvider}
         historyDate={historyDate}
+        historyError={live?.historyError}
+        honestyHint={emptyHonesty}
         emptyLabel="gappers"
       />
     );
@@ -144,6 +152,7 @@ export function ScannerTabPanels({
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}
         health={health}
+        fetchError={live?.catalystsError}
       />
     );
   } else if (activeTab === 'gainers') {
@@ -168,6 +177,8 @@ export function ScannerTabPanels({
         discoveryProvider={discoveryProvider}
         emptyLabel="gainers"
         historyDate={historyDate}
+        historyError={live?.historyError}
+        honestyHint={emptyHonesty}
       />
     );
   } else if (activeTab === 'losers') {
@@ -192,6 +203,8 @@ export function ScannerTabPanels({
         discoveryProvider={discoveryProvider}
         emptyLabel="losers"
         historyDate={historyDate}
+        historyError={live?.historyError}
+        honestyHint={emptyHonesty}
       />
     );
   } else if (activeTab === 'afterhours') {
@@ -218,6 +231,8 @@ export function ScannerTabPanels({
             discoveryProvider={discoveryProvider}
             emptyLabel="after-hours movers"
             historyDate={historyDate}
+            historyError={live?.historyError}
+            honestyHint={emptyHonesty}
           />
         )}
       </>
@@ -246,19 +261,29 @@ export function ScannerTabPanels({
         discoveryProvider={discoveryProvider}
         emptyLabel="large cap movers"
         historyDate={historyDate}
+        historyError={live?.historyError}
+        honestyHint={emptyHonesty}
       />
     );
   }
 
   return (
     <>
-      {frozenLabel && (
+      {honestyBadge && (
         <div
-          className="scanner-frozen-badge"
+          className={
+            honestyBadge.kind === 'frozen'
+              ? 'scanner-frozen-badge'
+              : 'scanner-frozen-badge scanner-honesty-badge'
+          }
           role="status"
-          title="This table is immutable for the rest of the session (ADR 008)"
+          title={
+            honestyBadge.kind === 'frozen'
+              ? 'This table is immutable for the rest of the session (ADR 008)'
+              : honestyBadge.text
+          }
         >
-          {frozenLabel}
+          {honestyBadge.text}
         </div>
       )}
       {panel}

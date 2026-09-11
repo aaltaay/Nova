@@ -13,6 +13,8 @@ export function EmptyState({
   discoveryProvider,
   emptyLabel = 'gainers',
   historyDate = null,
+  historyError = null,
+  honestyHint = null,
 }: {
   health: HealthStatus;
   context: MarketMode;
@@ -22,6 +24,9 @@ export function EmptyState({
   emptyLabel?: 'gappers' | 'gainers' | 'losers' | 'large cap movers' | 'after-hours movers';
   /** Past-date snapshot view -- do not reuse live market-closed copy. */
   historyDate?: string | null;
+  historyError?: string | null;
+  /** feed_error / unavailable -- do not sell this as a quiet market. */
+  honestyHint?: string | null;
 }) {
   const ibkr = useIbkrStatus();
   const isIbkr = discoveryProvider === 'ibkr';
@@ -31,6 +36,17 @@ export function EmptyState({
     return <div className="empty-state">Loading market data…</div>;
   }
   if (historyDate) {
+    if (historyError) {
+      return (
+        <div className="empty-state">
+          {historyError}
+          <div className="empty-state-hint">
+            This is a load failure, not an empty session. Click Back to Live for
+            today&apos;s lists.
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="empty-state">
         No saved {emptyLabel} for {historyDate}.
@@ -59,6 +75,16 @@ export function EmptyState({
       </div>
     );
   }
+  if (honestyHint) {
+    return (
+      <div className="empty-state">
+        {emptyLabel} feed: {honestyHint}
+        <div className="empty-state-hint">
+          This is not a quiet market. The roster did not commit a live list.
+        </div>
+      </div>
+    );
+  }
   if (context === 'closed') {
     return (
       <div className="empty-state">
@@ -72,9 +98,9 @@ export function EmptyState({
         No gainer is up at least {GAPPER_MIN_GAP_PCT}% yet.
         <div className="empty-state-hint">
           Premarket gappers are the <strong>Gainers</strong> roster filtered to a{' '}
-          {GAPPER_MIN_GAP_PCT}% move, so this list fills as quotes arrive. If the Gainers
-          tab is also empty while IBKR is connected, that is a feed problem — check the
-          integrity banner.
+          {GAPPER_MIN_GAP_PCT}% move, so this list fills as quotes arrive. If the
+          Gainers tab is also empty while IBKR is connected, check the Roster /
+          Prices chips -- that is a feed problem, not a quiet tape.
         </div>
       </div>
     );

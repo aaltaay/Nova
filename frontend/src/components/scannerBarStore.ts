@@ -40,9 +40,14 @@ export function setGlobalBarHistoryDates(dates: string[]): void {
  * and shared history selection.
  */
 export function publishGlobalBarCore(
-  core: Omit<
+  core:     Omit<
     GlobalAppBarScanner,
-    'secondsAgo' | 'pricesStale' | 'historyDate' | 'historyDates'
+    | 'secondsAgo'
+    | 'pricesStale'
+    | 'lastPriceTs'
+    | 'honestyText'
+    | 'historyDate'
+    | 'historyDates'
   >,
 ): void {
   current = {
@@ -51,6 +56,8 @@ export function publishGlobalBarCore(
     historyDates,
     secondsAgo: current?.secondsAgo ?? null,
     pricesStale: current?.pricesStale ?? false,
+    lastPriceTs: current?.lastPriceTs ?? null,
+    honestyText: current?.honestyText ?? null,
     onBackendStarted: current?.onBackendStarted ?? core.onBackendStarted,
   };
   emit();
