@@ -51,6 +51,21 @@
 | Staged approve / auto_paper | `place_bracket_order` via executor | `execute(bracket)` + idempotency key |
 | Kill / cancel-working / flatten | Direct cancel/place | `execute` with `source=kill\|flatten` |
 
+## Spend-gate probe (no broker, no Gateway)
+
+```text
+py -3 tools/execution_safety_probe.py
+```
+
+Drives the real `main:app` over `TestClient` with the broker stubbed only at
+`ibkr.orders`, so the account pin (D-038 / ADR 013) and the kill latch (D-037)
+are exercised through the production `execution.service.execute` +
+`ibkr.safety` code. Pins `NOVA_CACHE_DIR` to a temp dir and never reads the
+operator's `.env` gates. Exit 0 means every gate that lets money out held;
+non-zero means one did not, and the desk should not trade until that is
+understood. Complements `execution_latency_probe.py`, which needs a live paper
+Gateway and does place real orders.
+
 ## Kill switch is a spend latch, not an automation toggle (D-037, 2026-09-11)
 
 `skip_risk=True` on manual / hotkey places means "skip the Nova OS risk and

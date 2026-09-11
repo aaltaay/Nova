@@ -25,6 +25,7 @@ Product fixes inside `backend/execution/` require an explicit ask each time.
 2. Read `docs/trading-execution-validation.md`.
 3. Read `.cursor/agent-memory/execution-memory.md`.
 4. Run `py -3 -m pytest backend/tests/test_execution_service.py -q` before claiming the pipe is healthy.
+5. Touched a spend gate? Also run `py -3 tools/execution_safety_probe.py` (no broker, no Gateway) — it proves the account pin and kill latch through the real app, not just the unit seams.
 
 ## Hard invariants
 
