@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** D-001 / #45 -- every writer of `has_news` / `newest_headline_at` lived on Alpaca-era movers/discovery runners that return immediately under `discovery=ibkr`.
 - **Files touched:** `backend/scanner_news_badge.py`, `backend/mover_enrich_view.py`, `backend/ibkr/scanner_hydrate.py`, `backend/app_lifespan.py`, `backend/constants_scanner.py`, `backend/routes/scan.py`
 - **How it works now:** Roster commit and a 60s refresh loop queue current Gappers/Gainers/Losers/AH symbols (not Large Cap). A single-flight worker fills an in-memory ET-dated headline map. `decorate_rows` (REST `_strip_blocked`, WS `roster_replace`, WS snapshot) copies `has_news` / `newest_headline_at` onto the outgoing row. Frozen membership/rank/values stay untouched (ADR 008). No Alpaca keys means the column stays a dash and logs once.
-- **Verified by:** `pytest backend/tests/test_scanner_news_badge.py backend/tests/test_mover_columns.py backend/tests/test_scanner_hydrate_hod_roster.py`
+- **Verified by:** `pytest backend/tests -q` 1528 passed; `ruff check backend` clean; `doc_invariants` OK; `agent_contract --ci` PASS; frontend `eslint` 0 warnings, Vitest 895 passed, `npm run build` exit 0. Local Playwright skipped (Chromium binary not installed on this VM; CI Frontend E2E is the gate).
 - **Follow-ups:** D-015 / #35 Finnhub 429 + FinBERT warmup left parked (FinBERT is not small).
 - **Related:** Closes #45. PROBLEM_LOG 2026-09-11 Scanner NEWS dead under ibkr.
 
