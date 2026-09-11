@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Scanner NEWS column dead under discovery=ibkr
+
+- **Symptom:** Gappers / Gainers / Losers / Afterhours NEWS cells were empty every session. `/api/movers` rows lacked `has_news` / `newest_headline_at` (keys absent, not null).
+- **Cause:** Those fields were only written by Alpaca-era `scanner_runners` (movers / discovery / afterhours). Under `discovery=ibkr` those runners return before `_check_news`. ADR 008 also forbids writing late metadata into a frozen roster.
+- **Fix:** Side cache `scanner_news_badge` reuses Alpaca `_check_news` on current roster symbols (commit + 60s refresh). `mover_enrich_view.decorate_rows` stamps the fields on the serialized copy only.
+- **Fix class:** ownership
+- **Keywords:** D-001, has_news, newest_headline_at, NEWS column, discovery=ibkr, scanner_news_badge, decorate_rows, ADR 008, Alpaca news
+
 ## 2026-09-11 -- D-014 order docks painted mock fills on a quiet paper day
 
 - **Symptom:** Closed Orders and the Open Orders dock showed paper-style fills when IB returned zero orders. A reconnect before `reqCompletedOrders` landed looked the same.

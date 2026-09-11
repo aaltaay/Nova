@@ -35,9 +35,9 @@ router = APIRouter(tags=["scan"])
 def _strip_blocked(rows: list[dict]) -> list[dict]:
     """Remove blocklisted symbols, attach listing ``exchange``, fill reference columns.
 
-    Reference columns (RVOL / float / short interest / market cap) are decorated
-    here rather than written into the cache so a frozen table's stored values
-    stay immutable (ADR 008). See ``mover_enrich_view``.
+    Reference columns (RVOL / float / short interest / market cap / NEWS)
+    are decorated here rather than written into the cache so a frozen table's
+    stored values stay immutable (ADR 008). See ``mover_enrich_view``.
     """
     out = [r for r in rows if not _hod_momo.is_blocked(r.get("symbol", ""))]
     return _mover_enrich.decorate_rows(_exchanges.attach_exchanges(out))
