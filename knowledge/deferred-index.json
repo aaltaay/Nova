@@ -86,11 +86,11 @@
       "title": "Aborted API terminal can leave a live process with no HTTP listener",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "ibkr-ops",
       "number": "42",
       "url": "https://github.com/aaltaay/Nova/issues/42",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-004",
@@ -119,11 +119,11 @@
       "title": "Broker send happens after the execution lock is released (ADR 007 says inside)",
       "kind": "bug",
       "severity": "P0",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "39",
       "url": "https://github.com/aaltaay/Nova/issues/39",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-010",
@@ -141,33 +141,33 @@
       "title": "Ledger writes and cancel-verify run on the wrong thread (IB callbacks / `to_thread`)",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | execution",
       "number": "37",
       "url": "https://github.com/aaltaay/Nova/issues/37",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-013",
       "title": "Order UI: Place enabled while spend is locked; backend `detail` dropped; unknown status tone",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "36",
       "url": "https://github.com/aaltaay/Nova/issues/36",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-015",
       "title": "News / Earnings: Catalysts limited to IBKR roster; FinBERT cold load on scan pool; Finnhub no 429 path",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "news",
       "number": "35",
       "url": "https://github.com/aaltaay/Nova/issues/35",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-016",
@@ -196,11 +196,11 @@
       "title": "Historical fills write SQLite synchronously on the IB loop",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "32",
       "url": "https://github.com/aaltaay/Nova/issues/32",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-019",
@@ -229,33 +229,33 @@
       "title": "Off-owner `reqMktData` and a 1.8 s sleep on the IB loop (listing_flags, depth fallback)",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "29",
       "url": "https://github.com/aaltaay/Nova/issues/29",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-022",
       "title": "Scanner tables can look live while the feed is down or L1 never arrived",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | widgets",
       "number": "28",
       "url": "https://github.com/aaltaay/Nova/issues/28",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-024",
       "title": "Unbounded in-process growth on a day-long desk",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "27",
       "url": "https://github.com/aaltaay/Nova/issues/27",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-021",
@@ -273,22 +273,22 @@
       "title": "Eleven independent `/api/ibkr/status` pollers; a failed poll keeps \"connected\"",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "widgets | ibkr-ops",
       "number": "25",
       "url": "https://github.com/aaltaay/Nova/issues/25",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-025",
       "title": "Historical fills still sleep on the IB loop for short pacing waits",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "24",
       "url": "https://github.com/aaltaay/Nova/issues/24",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-026",
@@ -350,11 +350,11 @@
       "title": "Frontend speed: full-grid re-render per price patch, 705 kB App chunk, oversized CSS",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "widgets",
       "number": "18",
       "url": "https://github.com/aaltaay/Nova/issues/18",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-032",
@@ -372,22 +372,22 @@
       "title": "Stale comments and dead code contradict the ADRs",
       "kind": "bug",
       "severity": "P3",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | docs",
       "number": "16",
       "url": "https://github.com/aaltaay/Nova/issues/16",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-033",
       "title": "Test coverage holes on the paths that lose money or freeze the desk",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "tester",
       "number": "15",
       "url": "https://github.com/aaltaay/Nova/issues/15",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-035",
@@ -416,22 +416,22 @@
       "title": "Kill switch does not stop manual / hotkey places, is memory-only, cancels brackets only",
       "kind": "decision",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "12",
       "url": "https://github.com/aaltaay/Nova/issues/12",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-038",
       "title": "Live spend allowed with `broker_account_kind=unknown`; `spend_status` follows the env door, not the account",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "execution",
       "number": "11",
       "url": "https://github.com/aaltaay/Nova/issues/11",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-039",
