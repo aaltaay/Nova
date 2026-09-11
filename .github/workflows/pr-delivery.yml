@@ -1,0 +1,67 @@
+# Finish-line delivery: merge green PRs and delete closed heads.
+#
+# This is the non-agentic path. Agents open a ready PR. GitHub Actions
+# merges it when gating CI is green and deletes the head on close.
+# Label `do-not-merge` or leave the PR as draft to hold it.
+#
+# `delete_branch_on_merge` is still the backup for merges. This workflow
+# also deletes heads of PRs that close without merge.
+
+name: PR delivery
+
+on:
+  schedule:
+    # Catch leftover ready PRs if a merge job raced or CI finished off-hours.
+    - cron: "12 * * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [closed]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+  actions: read
+
+jobs:
+  merge-ready:
+    name: Merge ready PRs
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Sweep open PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOVA_GITHUB_REPO: ${{ github.repository }}
+        run: python tools/pr_delivery.py sweep
+
+  delete-closed-head:
+    name: Delete closed PR head
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Delete head if leftover
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOVA_GITHUB_REPO: ${{ github.repository }}
+        run: |
+          EXTRA=""
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            EXTRA="--fork"
+          fi
+          python tools/pr_delivery.py delete-closed --ref "${{ github.event.pull_request.head.ref }}" $EXTRA

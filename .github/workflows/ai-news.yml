@@ -37,6 +37,9 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Install pytest
+        run: pip install pytest
+
       - name: Unit tests (ranking must hold before it can publish)
         run: python -m pytest tools/test_ai_news_digest.py -q
 

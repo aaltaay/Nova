@@ -173,7 +173,7 @@ Nova-adapted process skills. **Not** full plugin installs. `AGENTS.md` + trading
 
 | Field | Value |
 |-------|-------|
-| **Purpose** | Truthful issue metadata, PR-first delivery, delete the head branch after merge or close, strict quality gates, and complete-only closure. |
+| **Purpose** | Truthful issue metadata, PR-first delivery, Actions merge of ready PRs, delete the head branch after merge or close, strict quality gates, and complete-only closure. |
 | **Triggers** | Issues, PRs, Projects, Milestones, Development links, releases, or closing work. |
 | **When NOT to use** | Pure status reads that do not change delivery state. |
 | **Source** | Nova-local workflow, adapted from observed GitHub delivery gaps. |

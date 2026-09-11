@@ -18,7 +18,8 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 - **Baseline:** first captured 2026-07-16; remediations 2026-07-18
 - **Blocking status:** no security gate blocks deploys yet (intentional; warning-first)
 - **`auto_live`:** **NO-GO** — unchanged; no security work affects this gate
-- **Last updated:** 2026-07-18
+- **Last updated:** 2026-09-11
+- **Master branch:** `[ ]` GitHub protection not on yet (`protected: false` on 2026-09-11). Policy + apply tool shipped; human admin + GitHub Pro must run `python3 tools/master_branch_protection.py apply` or Settings → Branches. Issue #63. Do not make the private repo public to unlock the feature.
 
 ---
 
@@ -103,6 +104,7 @@ See `security/tooling.md` for commands and Windows setup.
 
 | Date | Entry |
 |------|-------|
+| 2026-09-11 | GitHub Security "master isn't protected." Live `protected: false`. Tool + policy shipped; apply blocked on Administration token + GitHub Pro. Issue #63. |
 | 2026-07-18 | Security subagent re-audit verified SEC-001–SEC-008 remain fixed; builtin empty; dashboard refreshed to CLEAN. |
 | 2026-07-16 | Baseline audit completed: 6 findings (SEC-001–SEC-006) recorded in registry; compensating controls seeded for all findings; open findings section populated; verification ledger updated. Findings intentionally open — no product fixes applied. |
 | 2026-07-16 | Security-Status ledger created; `security-audit` CI job added (warning-only); `tools/security_audit.py` created; `security/tooling.md` created; `cvss` added to `requirements-dev.txt` |

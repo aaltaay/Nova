@@ -202,7 +202,7 @@ jobs:
       - name: Agent tool tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py -q --tb=short
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py tools/test_master_branch_protection.py tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py -q --tb=short
 
       - name: Structural validation (CI mode)
         # --ci skips user-local canvas file existence (canvases live outside the repo).
@@ -221,5 +221,37 @@ jobs:
           git fetch --prune origin
           python tools/stale_pr_branches.py
 
+      - name: Master branch protection
+        # Advisory until a human admin token / GitHub Pro can apply the rule.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python tools/master_branch_protection.py check
+
       - name: Maintainer IB-loop purity (fail on ib_loop_sync_io)
         run: python tools/maintainer_checks.py --fail-on-kind ib_loop_sync_io
+
+  auto-merge:
+    name: Auto-merge
+    needs: [backend-test, frontend-build, frontend-e2e, agent-contract]
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Merge when gating CI is green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOVA_GITHUB_REPO: ${{ github.repository }}
+        run: python tools/pr_delivery.py merge --pr ${{ github.event.pull_request.number }} --wait-desktop-minutes 25
