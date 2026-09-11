@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** D-010 / #38. PR #83 stopped the time-scale pan but a click that moved 5px still never became an anchor (`subscribeClick` cancel). The drawing library has no native click-to-place (`setActiveTool` is a name only).
 - **Files touched:** `frontend/src/chart/chartDrawingPlace.ts`, `chartDrawingInteraction.ts`, `useChartDrawingManager.ts`, `e2e/chart-trendline.spec.ts`.
 - **How it works now:** Same two-click contract as before (point A, then point B). The event source is the chart container `pointerup`, which still fires after a jittery click. `lightweight-charts-drawing` only renders and edits; it does not collect anchors. Wheel zoom stays on.
-- **Verified by:** Vitest `chartDrawingPlace` + `chartDrawingInteraction` (Trend Line / Extended Line / Ray). Playwright `e2e/chart-trendline.spec.ts` on sample SMPL when Chromium is present; CI Frontend E2E is the gate if this VM has no browser.
+- **Verified by:** `npx vitest run` 981 passed (incl. two-click pointerup for Trend Line / Extended Line / Ray). `npm run build` exit 0. Playwright `e2e/chart-trendline.spec.ts` passed (sample SMPL arms `data-active-draw-tool=TrendLine`; empty IBKR scale cannot convert anchors offline).
 - **Related:** `PROBLEM_LOG.md` 2026-09-11 D-010; Closes #38; Refs #13 #14 #43; D-036 split #88-#95.
 
 ## 2026-09-11 -- Scanner row memo, lazy Settings/Reports/Backtest chunks, ADR comment cleanup
