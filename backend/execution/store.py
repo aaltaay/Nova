@@ -7,7 +7,12 @@ import time
 import uuid
 from pathlib import Path
 
-from constants import EXECUTION_LEDGER_DB_FILENAME, EXECUTION_METRICS_QUERY_LIMIT
+from constants import (
+    EXECUTION_LEDGER_DB_FILENAME,
+    EXECUTION_METRICS_QUERY_LIMIT,
+    EXECUTION_NON_TERMINAL_STATUSES,
+    EXECUTION_SWEEP_ROW_LIMIT,
+)
 from execution.store_schema import SCHEMA, ensure_executions_columns
 from paths import cache_dir
 
@@ -186,6 +191,40 @@ def list_recent(limit: int = 100) -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM executions ORDER BY created_ts DESC LIMIT ?",
             (limit,),
+        ).fetchall()
+        return [_row_to_dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def non_terminal_rows(
+    *,
+    exclude_current_boot: bool = True,
+    limit: int = EXECUTION_SWEEP_ROW_LIMIT,
+) -> list[dict]:
+    """Rows that never reached a terminal outcome, oldest first.
+
+    Excluding the current boot by default leaves live in-flight work alone —
+    the startup sweep only owns what an earlier process abandoned.
+    """
+    init_db()
+    placeholders = ", ".join("?" for _ in EXECUTION_NON_TERMINAL_STATUSES)
+    where = [f"status IN ({placeholders})"]
+    values: list = list(EXECUTION_NON_TERMINAL_STATUSES)
+    if exclude_current_boot:
+        where.append("(boot_id IS NULL OR boot_id != ?)")
+        values.append(_BOOT_ID)
+    values.append(limit)
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            f"""
+            SELECT * FROM executions
+            WHERE {' AND '.join(where)}
+            ORDER BY created_ts ASC
+            LIMIT ?
+            """,
+            values,
         ).fetchall()
         return [_row_to_dict(r) for r in rows]
     finally:

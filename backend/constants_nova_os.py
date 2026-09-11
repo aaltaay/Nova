@@ -65,6 +65,9 @@ EXECUTION_FILL_WAIT_SEC = 30.0    # optional wait for complete fill (benchmark o
 EXECUTION_FILL_EVIDENCE_LIMIT = 64  # bounded callback/poll observations per execution
 EXECUTION_METRICS_QUERY_LIMIT = 500
 EXECUTION_ACTIVITY_DEFAULT_LIMIT = 100
+# Startup sweep: ledger rows a previous process left mid-flight, oldest first.
+EXECUTION_SWEEP_ROW_LIMIT = 200
+EXECUTION_NON_TERMINAL_STATUSES = ("reserved", "validated", "sent", "acked")
 EXECUTION_METRICS_MIN_PERCENTILE_SAMPLES = 20
 IBKR_VERIFICATION_REQUIRED_REASON = "IBKR_VERIFICATION_REQUIRED"
 IBKR_VERIFICATION_REQUIRED_MARKERS = (

@@ -114,7 +114,8 @@ def test_place_order_route_happy_path_delegates_to_orders_module(monkeypatch):
     fake_result = {"ok": True, "order_id": 42, "error": None, "mode": "paper"}
     patches = _arm_paper_gates()
     with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
-         patches[7], patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
+         patches[7], patches[8], \
+         patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
         res = client.post(
             "/api/ibkr/order",
             json={
@@ -172,7 +173,8 @@ def test_limit_order_route_delegates_extended_hours():
     fake_result = {"ok": True, "order_id": 44, "error": None, "mode": "paper"}
     patches = _arm_paper_gates()
     with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
-         patches[7], patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
+         patches[7], patches[8], \
+         patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
         res = client.post(
             "/api/ibkr/order",
             json={
@@ -198,7 +200,8 @@ def test_order_route_persists_clock_safe_client_measurement():
     fake_result = {"ok": True, "order_id": 45, "error": None, "mode": "paper"}
     patches = _arm_paper_gates()
     with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
-         patches[7], patch.object(orders_mod, "place_order", return_value=fake_result):
+         patches[7], patches[8], \
+         patch.object(orders_mod, "place_order", return_value=fake_result):
         res = client.post(
             "/api/ibkr/order",
             json={
@@ -270,7 +273,8 @@ def test_duplicate_idempotency_key_does_not_resend(monkeypatch):
     fake_result = {"ok": True, "order_id": 88, "error": None, "mode": "paper"}
     patches = _arm_paper_gates()
     with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6], \
-         patches[7], patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
+         patches[7], patches[8], \
+         patch.object(orders_mod, "place_order", return_value=fake_result) as place_mock:
         body = {
             "symbol": "AAPL",
             "side": "BUY",

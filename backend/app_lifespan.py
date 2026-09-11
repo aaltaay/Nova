@@ -308,17 +308,9 @@ async def _bootstrap_runtime() -> None:
             "disconnected mode; reconnect_loop keeps retrying"
         )
 
-    try:
-        _risk.reconstruct_from_journal()
-    except Exception:
-        logger.exception("Risk engine: startup reconstruction from journal failed")
+    from startup_reconciliation import run_startup_reconciliation
 
-    from nova_os.recovery import run_startup_recovery
-
-    try:
-        run_startup_recovery()
-    except Exception:
-        logger.exception("Nova OS startup recovery failed")
+    run_startup_reconciliation()
 
     _runtime_tasks = _spawn_runtime_tasks()
     global _bootstrap_complete

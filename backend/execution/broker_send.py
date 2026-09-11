@@ -12,6 +12,7 @@ from constants import (
     IBKR_ERROR_FRACTIONAL_API,
     IBKR_FRACTIONAL_ORDER_API_MSG,
 )
+from execution import inflight
 from execution import store
 from execution import telemetry
 from execution import verification_gate
@@ -66,6 +67,7 @@ async def wait_broker_ack(
                 )
                 receipt.reason_code = "BROKER_REJECT"
             receipt.ok = False
+            inflight.release_execution(receipt.execution_id)
             store.update_stages(
                 receipt.execution_id,
                 status="failed",
@@ -81,6 +83,8 @@ async def wait_broker_ack(
         if receipt.timings.filled_ns
         else "acked" if receipt.timings.broker_ack_ns else "sent"
     )
+    if status == "filled":
+        inflight.release_execution(receipt.execution_id)
     store.update_stages(
         receipt.execution_id,
         status=status,
@@ -128,6 +132,8 @@ async def send_broker(
         if wait_ack:
             await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
             timings.broker_ack_ns = watch.ack_ns
+        # The cancelled order is no longer going to consume the position.
+        inflight.release_order(cmd.order_id)
         broker_status = watch.ack_status or (
             "Cancelled" if raw.get("verified_gone") else None
         )
@@ -348,6 +354,7 @@ async def finish_place(
                     or f"Broker rejected/cancelled order ({broker_status})"
                 )
                 reason = "BROKER_REJECT"
+            inflight.release_execution(execution_id)
             store.update_stages(
                 execution_id,
                 status="failed",
