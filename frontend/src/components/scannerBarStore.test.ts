@@ -13,9 +13,25 @@ import {
 
 function core(
   overrides: Partial<
-    Omit<GlobalAppBarScanner, 'secondsAgo' | 'pricesStale' | 'historyDate' | 'historyDates'>
+    Omit<
+      GlobalAppBarScanner,
+      | 'secondsAgo'
+      | 'pricesStale'
+      | 'lastPriceTs'
+      | 'honestyText'
+      | 'historyDate'
+      | 'historyDates'
+    >
   > = {},
-): Omit<GlobalAppBarScanner, 'secondsAgo' | 'pricesStale' | 'historyDate' | 'historyDates'> {
+): Omit<
+  GlobalAppBarScanner,
+  | 'secondsAgo'
+  | 'pricesStale'
+  | 'lastPriceTs'
+  | 'honestyText'
+  | 'historyDate'
+  | 'historyDates'
+> {
   return {
     mode: 'market',
     health: { status: 'connected', latency_ms: 10 },

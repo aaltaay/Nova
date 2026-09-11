@@ -318,6 +318,50 @@ describe('HeaderConnectionStatus', () => {
     expect(desk?.className).toMatch(/status-chip--warn/);
   });
 
+  it('says no L1 yet when lastPriceTs is 0, even in compact GlobalAppBar', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={null}
+          lastPriceTs={0}
+          pricesStale={false}
+          historyDate={null}
+          compact
+        />,
+      );
+    });
+    const prices = container.querySelector('[data-testid="status-chip-prices"]');
+    expect(prices?.textContent).toMatch(/no L1 yet/);
+    expect(prices?.className).toMatch(/warn/);
+  });
+
+  it('renders feed_error / subscriptionError as one Roster chip', () => {
+    act(() => {
+      root.render(
+        <HeaderConnectionStatus
+          health={healthy}
+          discoveryProvider="ibkr"
+          ibkrConnected
+          activeFeed="sip"
+          feedFellBack={false}
+          secondsAgo={3}
+          lastPriceTs={100}
+          honestyText="L1 capacity"
+          historyDate={null}
+          compact
+        />,
+      );
+    });
+    const chip = container.querySelector('[data-testid="status-chip-honesty"]');
+    expect(chip?.textContent).toMatch(/Roster/);
+    expect(chip?.textContent).toMatch(/L1 capacity/);
+  });
+
   it('shows Reload backend when API is up and local restart is available', () => {
     act(() => {
       root.render(

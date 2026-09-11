@@ -296,9 +296,11 @@ export function applyScannerPricePatch<T extends { symbol: string }>(
   return changed ? next : rows;
 }
 
-/** Human label for a frozen scanner table. */
+/** Human label for a frozen or unavailable scanner table. */
 export function frozenTableLabel(meta: ScannerTableMeta | null | undefined): string | null {
-  if (!meta || meta.state !== 'frozen' || !meta.frozen_at) return null;
+  if (!meta) return null;
+  if (meta.state === 'unavailable') return 'Unavailable -- no live roster';
+  if (meta.state !== 'frozen' || !meta.frozen_at) return null;
   const d = new Date(meta.frozen_at * 1000);
   const hh = d.toLocaleTimeString('en-US', {
     timeZone: 'America/New_York',

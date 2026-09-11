@@ -204,7 +204,9 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
               activeFeed={scanner.activeFeed}
               feedFellBack={scanner.feedFellBack}
               secondsAgo={scanner.secondsAgo}
+              lastPriceTs={scanner.lastPriceTs}
               pricesStale={scanner.pricesStale}
+              honestyText={scanner.honestyText}
               historyDate={scanner.historyDate}
               compact
               showScannerSource={scanner.showScannerSource ?? true}

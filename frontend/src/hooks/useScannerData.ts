@@ -24,16 +24,16 @@ import {
 } from './useScannerPriceStream';
 import type { ScannerScanAges } from '../utils/scanAge';
 import { diagnoseBackend, logBackendDiagnosis } from '../utils/diagnoseBackend';
+import {
+  applyRosterTable,
+  catalystsHttpError,
+  feedErrorFromPayload,
+  historyLoadError,
+  mergeRestTableMeta,
+  SCANNER_CATALYSTS_FETCH_FAILED,
+} from '../scanner/scannerHonesty';
 
 type Mode = MarketMode;
-
-function setTableRows<T>(
-  setter: (fn: (prev: T[]) => T[]) => void,
-  rows: unknown,
-): void {
-  if (!Array.isArray(rows)) return;
-  setter(prev => (rows.length === 0 && prev.length > 0 ? prev : (rows as T[])));
-}
 
 export function useScannerData(opts: {
   discoveryProvider: string;
@@ -61,6 +61,10 @@ export function useScannerData(opts: {
   const [largeCap, setLargeCap] = useState<ScannerRow[]>([]);
   const [catalysts, setCatalysts] = useState<Catalyst[]>([]);
   const [tableMeta, setTableMeta] = useState<Record<string, ScannerTableMeta>>({});
+  const [lastGood, setLastGood] = useState<Record<string, boolean>>({});
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const [catalystsError, setCatalystsError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [scanAges, setScanAges] = useState<ScannerScanAges>({
     gappers: 0,
     movers: 0,
@@ -103,11 +107,11 @@ export function useScannerData(opts: {
 
   const onRosterReplace = useCallback((table: string, rows: unknown[], meta: ScannerTableMeta) => {
     setTableMeta(prev => ({ ...prev, [table]: meta }));
-    if (table === 'gappers') setTableRows(setGappers, rows);
-    else if (table === 'gainers') setTableRows(setGainers, rows);
-    else if (table === 'losers') setTableRows(setLosers, rows);
-    else if (table === 'afterhours') setTableRows(setAfterhours, rows);
-    else if (table === 'large_cap') setTableRows(setLargeCap, rows);
+    if (table === 'gappers') applyRosterTable(setGappers, setLastGood, table, rows);
+    else if (table === 'gainers') applyRosterTable(setGainers, setLastGood, table, rows);
+    else if (table === 'losers') applyRosterTable(setLosers, setLastGood, table, rows);
+    else if (table === 'afterhours') applyRosterTable(setAfterhours, setLastGood, table, rows);
+    else if (table === 'large_cap') applyRosterTable(setLargeCap, setLastGood, table, rows);
     const ts = meta.roster_ts || Date.now() / 1000;
     if (table === 'gappers') setScanAges(prev => ({ ...prev, gappers: ts }));
     else if (table === 'gainers' || table === 'losers') {
@@ -154,11 +158,10 @@ export function useScannerData(opts: {
         }
         if (data.mode) setMode(data.mode as Mode);
         if (data.data_feed) onActiveFeed?.(data.data_feed);
-        if (Array.isArray(data.gappers)) {
-          setGappers(prev =>
-            data.gappers.length === 0 && prev.length > 0 ? prev : data.gappers,
-          );
-        }
+        applyRosterTable(setGappers, setLastGood, 'gappers', data.gappers);
+        setTableMeta(prev => mergeRestTableMeta(prev, 'gappers', data.table_state, data.roster_ts));
+        const gapFeed = feedErrorFromPayload(data);
+        if (gapFeed !== undefined) setFeedError(gapFeed);
         if (data.last_scan) nextAges = { ...nextAges, gappers: data.last_scan };
       }
 
@@ -166,38 +169,35 @@ export function useScannerData(opts: {
         const data = await moversRes.json();
         if (data.mode) setMode(data.mode as Mode);
         if (data.last_scan) nextAges = { ...nextAges, movers: data.last_scan };
-        if (Array.isArray(data.gainers)) {
-          setGainers(prev =>
-            data.gainers.length === 0 && prev.length > 0 ? prev : data.gainers,
-          );
-        }
-        if (Array.isArray(data.losers)) {
-          setLosers(prev =>
-            data.losers.length === 0 && prev.length > 0 ? prev : data.losers,
-          );
-        }
+        applyRosterTable(setGainers, setLastGood, 'gainers', data.gainers);
+        applyRosterTable(setLosers, setLastGood, 'losers', data.losers);
+        setTableMeta(prev => {
+          let next = mergeRestTableMeta(prev, 'gainers', data.table_state, data.roster_ts);
+          next = mergeRestTableMeta(next, 'losers', data.loser_table_state, data.loser_roster_ts);
+          return next;
+        });
+        const moversFeed = feedErrorFromPayload(data);
+        if (moversFeed !== undefined) setFeedError(moversFeed);
       }
 
       if (ahRes.ok) {
         const data = await ahRes.json();
         if (data.mode) setMode(data.mode as Mode);
         if (data.last_scan) nextAges = { ...nextAges, afterhours: data.last_scan };
-        if (Array.isArray(data.afterhours)) {
-          setAfterhours(prev =>
-            data.afterhours.length === 0 && prev.length > 0 ? prev : data.afterhours,
-          );
-        }
+        applyRosterTable(setAfterhours, setLastGood, 'afterhours', data.afterhours);
+        setTableMeta(prev => mergeRestTableMeta(prev, 'afterhours', data.table_state, data.roster_ts));
+        const ahFeed = feedErrorFromPayload(data);
+        if (ahFeed !== undefined) setFeedError(ahFeed);
       }
 
       if (largeCapRes.ok) {
         const data = await largeCapRes.json();
         if (data.mode) setMode(data.mode as Mode);
         if (data.last_scan) nextAges = { ...nextAges, largeCap: data.last_scan };
-        if (Array.isArray(data.large_cap)) {
-          setLargeCap(prev =>
-            data.large_cap.length === 0 && prev.length > 0 ? prev : data.large_cap,
-          );
-        }
+        applyRosterTable(setLargeCap, setLastGood, 'large_cap', data.large_cap);
+        setTableMeta(prev => mergeRestTableMeta(prev, 'large_cap', data.table_state, data.roster_ts));
+        const lcFeed = feedErrorFromPayload(data);
+        if (lcFeed !== undefined) setFeedError(lcFeed);
       }
 
       if (Object.keys(nextAges).length > 0) {
@@ -206,7 +206,12 @@ export function useScannerData(opts: {
 
       if (catalystRes.ok) {
         const data = await catalystRes.json();
-        if (Array.isArray(data.catalysts)) setCatalysts(data.catalysts);
+        if (Array.isArray(data.catalysts)) {
+          setCatalysts(data.catalysts);
+          setCatalystsError(null);
+        }
+      } else {
+        setCatalystsError(catalystsHttpError(catalystRes.status));
       }
 
       if (isNovaApiDebug()) {
@@ -254,10 +259,15 @@ export function useScannerData(opts: {
       });
       if (catalystRes.ok) {
         const data = await catalystRes.json();
-        if (Array.isArray(data.catalysts)) setCatalysts(data.catalysts);
+        if (Array.isArray(data.catalysts)) {
+          setCatalysts(data.catalysts);
+          setCatalystsError(null);
+        }
+      } else {
+        setCatalystsError(catalystsHttpError(catalystRes.status));
       }
     } catch {
-      // soft — membership comes from WS when authoritative
+      setCatalystsError(SCANNER_CATALYSTS_FETCH_FAILED);
     }
   }, []);
 
@@ -280,6 +290,11 @@ export function useScannerData(opts: {
         fetch(`${API_URL}/history/movers/${date}`),
         fetch(`${API_URL}/history/afterhours/${date}`),
       ]);
+      if (!gr.ok && !moversRes.ok && !ahRes.ok) {
+        setHistoryError(historyLoadError(date));
+        return;
+      }
+      setHistoryError(null);
       if (gr.ok) {
         const data = await gr.json();
         setGappers(Array.isArray(data.gappers) ? data.gappers : []);
@@ -294,7 +309,7 @@ export function useScannerData(opts: {
         setAfterhours(Array.isArray(data.afterhours) ? data.afterhours : []);
       }
     } catch {
-      // silent
+      setHistoryError(historyLoadError(date));
     }
   }, []);
 
@@ -347,6 +362,10 @@ export function useScannerData(opts: {
     largeCap,
     catalysts,
     tableMeta,
+    lastGood,
+    feedError,
+    catalystsError,
+    historyError,
     scanAges,
     now,
     historyDate,

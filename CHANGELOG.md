@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Scanner tables paint last-good / no L1 / feed_error
+
+- **What:** Scanner chrome now shows when an empty roster was ignored (last-good), when L1 never arrived (`no L1 yet`), and when `feed_error` / `subscriptionError` / `unavailable` is the reason the list looks live. Catalysts empty copy no longer says "scan running" on a dead feed.
+- **Why:** D-022 / #28. Backend WS3 already ships `table_state` / `roster_ts` / `feed_error`. The UI kept last-good rows and fell back to roster `lastScan` for the Prices chip, so a down feed looked fresh.
+- **Files touched:** `frontend/src/scanner/scannerHonesty.ts`, `frontend/src/hooks/useScannerData.ts`, `frontend/src/hooks/useScannerPriceStream.ts`, `frontend/src/components/ScannerBarBridge.tsx`, `frontend/src/components/HeaderConnectionStatus.tsx`, `frontend/src/components/ScannerTabPanels.tsx`, `frontend/src/components/EmptyState.tsx`, `frontend/src/components/CatalystsTable.tsx`
+- **How it works now:** `applyRosterTable` sets `lastGood` when `[]` is ignored. The Roster chip is `subscriptionError` then `feed_error` then `unavailable` then `last-good`. Prices uses `lastPriceTs` only -- `0` means `no L1 yet`, not roster age. Table badge covers frozen + unavailable + last-good. Catalysts distinguish fetch failure from an honest empty roster.
+- **Verified by:** Vitest `scannerHonesty`, `HeaderConnectionStatus` no-L1 / Roster chip, `EmptyState` honesty hint, `frozenTableLabel` unavailable; `npm run lint`; `npm run build`; `npm test -- --run` on the honesty files.
+- **Related:** Closes #28. PROBLEM_LOG 2026-09-11 Scanner tables looked live with no L1.
+
 ## 2026-09-11 -- IB connect-loop stays non-blocking (D-012 / D-018 / D-020 / D-025)
 
 - **What:** Four related ADR 010 violations removed. Historical chart fills no longer run SQLite or a pacing `sleep` on the IB loop. Execution ledger writes issued from IB `orderStatus` / `execDetails` callbacks are queued and drained off-loop. `cancel_order_verified` is an awaitable that runs on the IB loop instead of a worker thread that `time.sleep`-polled `ib.openTrades()`. Shortability (tick 236) and the depth L1 fallback stopped opening their own `reqMktData` lines.

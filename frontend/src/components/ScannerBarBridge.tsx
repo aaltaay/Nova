@@ -4,8 +4,8 @@
  */
 import { useEffect, useRef } from 'react';
 import { useScannerData } from '../hooks/useScannerData';
+import { scannerHonestyChip } from '../scanner/scannerHonesty';
 import { useSettings } from '../settings/SettingsContext';
-import { scanAgeForTab } from '../utils/scanAge';
 import { tabUsesScannerPricePatch, type ActiveTab } from '../workspace/registry';
 import {
   patchScannerBarProps,
@@ -26,8 +26,12 @@ export function ScannerBarBridge({ activeTab, scanner }: Props) {
     lastPriceTs,
     now,
     pricesStale,
-    scanAges,
     setHistoryDate,
+    subscriptionError,
+    feedError,
+    lastGood,
+    tableMeta,
+    catalystsError,
   } = scanner;
   const refreshRef = useRef<() => void>(() => {});
   refreshRef.current = () => {
@@ -43,18 +47,27 @@ export function ScannerBarBridge({ activeTab, scanner }: Props) {
   }, [bar, historyDate, setHistoryDate, fetchData]);
 
   useEffect(() => {
-    const showFresh =
-      tabUsesScannerPricePatch(activeTab) &&
-      settings.discoveryProvider === 'ibkr' &&
-      historyDate === null;
-    const lastScan = scanAgeForTab(activeTab, scanAges);
-    const ts = lastPriceTs > 0 ? lastPriceTs : lastScan;
+    const onLiveIbkr =
+      settings.discoveryProvider === 'ibkr' && historyDate === null;
+    const showFresh = onLiveIbkr && tabUsesScannerPricePatch(activeTab);
     const secondsAgo =
-      showFresh && ts > 0 ? Math.max(0, Math.floor(now - ts)) : null;
+      showFresh && lastPriceTs > 0
+        ? Math.max(0, Math.floor(now - lastPriceTs))
+        : null;
+    const honestyText = onLiveIbkr
+      ? scannerHonestyChip({
+          subscriptionError,
+          feedError: feedError ?? (activeTab === 'catalysts' ? catalystsError : null),
+          tableState: tableMeta[activeTab]?.state,
+          lastGood: Boolean(lastGood[activeTab]),
+        })
+      : null;
 
     patchScannerBarProps({
       secondsAgo,
+      lastPriceTs: showFresh ? lastPriceTs : null,
       pricesStale: showFresh && pricesStale,
+      honestyText,
       onBackendStarted: () => refreshRef.current(),
     });
   }, [
@@ -62,9 +75,13 @@ export function ScannerBarBridge({ activeTab, scanner }: Props) {
     historyDate,
     lastPriceTs,
     pricesStale,
-    scanAges,
     now,
     settings.discoveryProvider,
+    subscriptionError,
+    feedError,
+    lastGood,
+    tableMeta,
+    catalystsError,
   ]);
 
   return null;

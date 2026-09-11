@@ -11,6 +11,7 @@ import { fmtPct, fmtVolume } from '../utils/quoteFormat';
 import { NEWS_IMPACT_CLASS_LABELS, NEWS_IMPACT_CLASS_TOOLTIPS } from '../constants';
 import type { Catalyst } from '../types/catalyst';
 import type { SortConfig } from '../types/scanner';
+import { catalystsEmptyCopy } from '../scanner/scannerHonesty';
 import type { HealthStatus } from '../types/health';
 
 const CATALYST_COLUMNS: [string, string][] = [
@@ -31,10 +32,12 @@ interface CatalystsTableProps {
   onSelect: (symbol: string) => void;
   onOpenTrading: (symbol: string) => void;
   health: HealthStatus;
+  fetchError?: string | null;
 }
 
 export function CatalystsTable({
   catalysts, sortState, onSort, selectedSymbol, onSelect, onOpenTrading, health,
+  fetchError = null,
 }: CatalystsTableProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -185,9 +188,11 @@ export function CatalystsTable({
         </div>
       ) : (
         <div className="empty-state">
-          {health.status === 'disconnected' || health.status === 'error'
-            ? (health.message || 'Check API keys in Settings.')
-            : 'No news catalysts found yet — scan running\u2026'}
+          {catalystsEmptyCopy({
+            fetchError,
+            healthStatus: health.status,
+            healthMessage: health.message,
+          })}
         </div>
       )}
     </>

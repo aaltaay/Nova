@@ -45,4 +45,20 @@ describe('EmptyState history', () => {
     expect(container.textContent).not.toContain('Market is closed');
     expect(container.textContent).not.toContain('Scanning continues');
   });
+
+  it('does not point at the HOD integrity banner, and paints feed_error', async () => {
+    await act(() => {
+      root.render(
+        <EmptyState
+          health={{ status: 'ok', latency_ms: 1 }}
+          context="premarket"
+          discoveryProvider="ibkr"
+          emptyLabel="gappers"
+          honestyHint="gappers: TimeoutError"
+        />,
+      );
+    });
+    expect(container.textContent).toMatch(/gappers: TimeoutError/);
+    expect(container.textContent).not.toMatch(/integrity banner/);
+  });
 });

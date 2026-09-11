@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Scanner tables looked live with no L1
+
+- **Symptom:** Gappers/Gainers could show yesterday's names and a green "Xs ago" Prices chip after Warning 165, disconnect, or a roster that never got L1. Catalysts said "scan running" when the news fetch failed.
+- **Cause:** `setTableRows` kept last-good rows with no flag. `ScannerBarBridge` used roster `lastScan` when `lastPriceTs === 0`. `subscriptionError` and `table_state=unavailable` were stored and never painted. EmptyState pointed at a HOD-only integrity banner.
+- **Fix:** Track `lastGood` / `feedError` / catalysts+history fetch errors. One Roster chip + `no L1 yet` on the Prices chip. Table badge and empty copy use the same signals.
+- **Fix class:** surfacing
+- **Keywords:** last-good, lastPriceTs, no L1 yet, feed_error, subscriptionError, unavailable, catalysts empty, D-022, #28
+
 ## 2026-09-11 -- IB loop blocked by ledger writes, hist SQLite, pacing sleep and off-owner reqMktData
 
 - **Symptom:** Four separately reported desk freezes with one shape: L1 ticks pause for the whole desk. During a cancel or a fill burst (`orderStatus` / `execDetails`), during a big chart fill, while a chart waits on pacing, and when a ticker detail opens.
@@ -92,7 +100,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** `_on_session_ready` clears inflight reqIds. `ticks.ticker_budget_status()` is merged into `/api/ibkr/status`.
 - **Fix class:** ownership
 - **Keywords:** D-039, _inflight_scan_reqids, reconnect, Error 101, reqMktData_lines, IBKR_L1_STREAM_BUDGET
-
 
 ## 2026-09-11 -- Semgrep logger-credential false positive on config audit logs
 
