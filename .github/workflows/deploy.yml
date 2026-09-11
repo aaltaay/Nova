@@ -78,6 +78,21 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
 
+  site-test:
+    name: Marketing site tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # site/ ships with no package.json on purpose (Vercel serves it as static
+      # files with zero build), so these run on the Node built-in test runner.
+      - name: Ranking and RSS unit tests
+        run: node --test site/api/_lib/*.test.mjs
+
   security-audit:
     name: Security audit (warning-only)
     runs-on: ubuntu-latest

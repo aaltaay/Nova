@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Marketing site: curated "AI is used to trade" headline feed
+
+- **What:** `nova.altaystudio.com` gained a Signal section on the homepage showing up to six live headlines about AI actually running money. Backed by a new read-only Vercel function, `GET /api/ai-trading-news`. First server code the public site has ever had.
+- **Why:** User request -- the .com should surface the best current reporting on how AI is used to trade.
+- **Files touched:** `site/api/ai-trading-news.mjs`, `site/api/_lib/{constants,publishers,lexicon,rss,rank}.mjs` (+ `rank.test.mjs`, `rss.test.mjs`), `site/{index.html,styles.css,news.js}`, `scripts/serve-site.mjs`, `.github/workflows/deploy.yml`, `AGENTS.md`
+- **How it works now:** The function fetches six targeted Google News RSS queries in parallel, then filters hard. Quality comes from an **exact-host publisher allowlist** (`publishers.mjs`), because the raw feed for this topic is mostly crypto-affiliate sites and press-release wires -- a blocklist is unwinnable. Surviving items must contain both an AI term and a market term, must not match observed spam shapes, and are dropped when they are AI-*sector* stories with no trading signal. Remaining items score on publisher tier + signal phrases + recency decay, are collapsed per news event using IDF-weighted title similarity, then capped at two per publisher. Results cache for 15 min in lambda memory and at the edge. Zero secrets and zero broker or market-data access -- the public site still never reaches IBKR.
+- **Verified by:** `node --test site/api/_lib/*.test.mjs` (22 passing, fixtures are real captured headlines); live endpoint returned `status: ok`, `sources 6/6`, six distinct stories; warm cache confirmed via `x-nova-cache: hit`; browser check of loaded, error, and mobile states through `node scripts/serve-site.mjs`.
+- **Follow-ups:** Publisher list is intentionally narrow -- extend `publishers.mjs` rather than loosening the filters. Google News is a single point of failure; a second mainstream source would need one that exposes the publisher host (Bing News RSS does not).
+- **Related:** `knowledge/task-log/` narrative lives in the PR body per `task-log.mdc`.
+
 ## 2026-09-10 -- IBKR verification-required recovery flow
 
 - **What:** IBKR Error 201 token-verification rejects now become typed `IBKR_VERIFICATION_REQUIRED` receipts and an actionable dialog. Nova blocks repeated new entries for the affected symbol until explicit acknowledgment, while cancel, replace, long exits, short covers, and flatten remain available.

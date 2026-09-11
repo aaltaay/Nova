@@ -57,6 +57,7 @@
         Nova
       </a>
       <nav class="nav-links" aria-label="Page">
+        <a href="#signal">Signal</a>
         <a href="#desk">Desk</a>
         <a href="#features">Features</a>
         <a href="#source">Source</a>
@@ -110,6 +111,25 @@
           <p class="proof-v">You confirm every spend</p>
           <p class="proof-d">Paper is gated. Live money needs an explicit confirm. Auto-live is blocked.</p>
         </article>
+      </section>
+
+      <section class="wire" id="signal">
+        <header class="sec-head">
+          <p class="eyebrow">Signal</p>
+          <h2>How AI is actually being used to trade.</h2>
+          <p>
+            Live headlines from a vetted list of financial and technology publishers, filtered
+            down to AI that runs money -- quant desks, execution algorithms, agentic portfolios.
+            Not AI stocks going up.
+          </p>
+        </header>
+        <ol class="wire-list" id="wire-list" data-state="loading" aria-busy="true" aria-live="polite">
+          <li class="wire-skeleton" aria-hidden="true"></li>
+          <li class="wire-skeleton" aria-hidden="true"></li>
+          <li class="wire-skeleton" aria-hidden="true"></li>
+          <li class="wire-skeleton" aria-hidden="true"></li>
+        </ol>
+        <p class="wire-note" id="wire-note">Loading the latest coverage...</p>
       </section>
 
       <section class="desk" id="desk">
@@ -238,5 +258,6 @@
     </dialog>
 
     <script src="/motion.js" defer></script>
+    <script src="/news.js" defer></script>
   </body>
 </html>

@@ -222,6 +222,7 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 | Web UI (Localhost / Desktop) | Delivery dashboard for gappers | ✅ Verified |
 | yfinance | Fundamental data (float, short interest, etc.) | ✅ Verified |
 | Vercel | Optional host for the `site/` marketing page (`nova.altaystudio.com`), not the live scanner | ✅ Optional |
+| Google News RSS | Marketing-site headline feed only (`site/api/ai-trading-news.mjs`). Never a price, scanner, or Nova-app news source | ✅ Verified |
 
 ---
 
@@ -343,7 +344,7 @@ cd frontend && npm run electron:pack
 ### Deploy
 
 - **Backend:** local only right now -- no cloud host (not Railway, not another PaaS). Run via `Run Nova.bat`, Desktop sidecar, or local uvicorn on `127.0.0.1:8000`.
-- **Public site:** `nova.altaystudio.com` is a static marketing page (`site/`) -- features, screenshots, and the [Nova-public](https://github.com/aaltaay/Nova-public) link. It is not the live scanner and has no API. Point the Vercel project Root Directory at `site`.
+- **Public site:** `nova.altaystudio.com` is a marketing page (`site/`) -- features, screenshots, and the [Nova-public](https://github.com/aaltaay/Nova-public) link. Point the Vercel project Root Directory at `site`. Its only server code is one read-only Vercel function, `site/api/ai-trading-news.mjs`, which returns curated AI-in-the-markets headlines for the homepage Signal section. It holds no secrets, touches no broker, and serves no market data -- **the public site is still not the live scanner and never reaches IBKR.**
 - **Frontend (app UI):** local Vite / Desktop only (`http://localhost:5173`). Do not host the trading SPA on the public domain.
 - **Desktop:** Electron + local API sidecar (installer under `frontend/release/`).
 
