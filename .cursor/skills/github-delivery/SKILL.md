@@ -1,6 +1,6 @@
 ---
 name: github-delivery
-description: Enforces Nova's issue-to-branch-to-PR-to-close workflow, GitHub Project and Milestone metadata, issue relationships, Development links, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
+description: Enforces Nova's issue-to-branch-to-PR-to-close workflow, GitHub Project and Milestone metadata, issue relationships, Development links, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
 ---
 
 # Nova GitHub delivery
@@ -112,4 +112,23 @@ After merge:
 2. Move the project item to Done.
 3. Confirm assignee, milestone, and relationships still reflect reality.
 4. Leave partially completed parent issues open.
-5. Report the PR, issue state, project status, milestone, and verification.
+5. **Delete the head branch** (required -- see section 8).
+6. Report the PR, issue state, project status, milestone, verification, and that the head branch is gone.
+
+## 8. Delete the head branch after merge or close
+
+This is mandatory for every agent, every PR, parent or specialist. A merged or closed PR whose branch is still on origin is unfinished delivery.
+
+In the **same session** as the merge or close:
+
+```text
+git push origin --delete <head-branch>
+git fetch origin --prune
+py -3 tools/stale_pr_branches.py
+```
+
+Also delete the head of a PR you **close without merging** (superseded, rejected, abandoned).
+
+Never delete `master` or `main`. Never delete a branch that still has an **open** PR. A branch with no PR yet is in-progress work -- leave it.
+
+Do not skip this because GitHub "should" auto-delete. This repo's `delete_branch_on_merge` setting has been off; agents own the cleanup. If a human later turns the setting on, still run `stale_pr_branches.py` and prune locals. If permissions block the delete, say so -- do not silently leave the branch.

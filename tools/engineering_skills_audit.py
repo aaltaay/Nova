@@ -213,6 +213,17 @@ def audit() -> list[Finding]:
                 )
             )
 
+    delivery_mdc = _read(".cursor/rules/github-delivery.mdc")
+    if "delete the head branch" not in delivery_mdc.lower():
+        findings.append(
+            Finding(
+                "error",
+                "missing_delete_head_branch",
+                ".cursor/rules/github-delivery.mdc",
+                "Always-on delivery rule must require deleting the PR head branch after merge or close.",
+            )
+        )
+
     # Index wiring
     agents = _read("AGENTS.md")
     for needle in (
