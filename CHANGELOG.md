@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- D-041 is the P0 follow for unprotected master
+
+- **What:** Issue #63 is now deferred item D-041 at P0 blocked. `python3 tools/deferred_log.py status` lists it first. Live `master` is still `protected: false`.
+- **Why:** Operator said keep following master protection at highest criticality until it is finished. Cloud Agent cannot apply the rule (no Administration).
+- **Files touched:** `knowledge/deferred-index.json`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`, `tools/test_deferred_github.py`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`
+- **How it works now:** Same issue, durable id D-041. Labels: `deferred` + `P0` + `bug` + `domain:security` + `blocked`. Close only when `python3 tools/master_branch_protection.py check` exits 0. Do not open a second ticket. Human apply: Settings -> Branches, or `apply` as aaltaay.
+- **Verified by:** GitHub issue #63 title/labels/body; `python3 tools/deferred_log.py status` / `next-id`; `pytest tools/test_deferred_github.py`; live `check` still exit 1.
+- **Follow-ups:** Human Administration apply, then close #63.
+- **Related:** Refs #63. Deferred D-041.
+
 ## 2026-09-11 -- Public source home is aaltaay/Nova
 
 - **What:** Nova is the public source repository. README, LICENSE, SECURITY, and CONTRIBUTING are production copy. The marketing site CTA points at `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive, not the code home. Live delivery docs no longer say "keep the repo private to unlock branch protection."

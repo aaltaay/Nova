@@ -20,7 +20,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 - **`auto_live`:** **NO-GO** — unchanged; no security work affects this gate
 - **Last updated:** 2026-09-11
 - **Visibility:** public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
-- **Master branch:** `[ ]` GitHub protection not on yet (`protected: false` on 2026-09-11). Policy + apply tool shipped; public Free unlocks the feature. `apply` still needs a human Administration token (`python3 tools/master_branch_protection.py apply` or Settings → Branches). Issue #63.
+- **Master branch:** `[ ]` **P0 D-041 / #63 blocked.** Live `protected: false` on public Nova (2026-09-11). Policy + apply tool shipped. Cloud Agent cannot PUT protection (no Administration). Human apply: Settings -> Branches or `python3 tools/master_branch_protection.py apply` as aaltaay. Close only when `check` exits 0.
 
 ---
 
@@ -105,6 +105,7 @@ See `security/tooling.md` for commands and Windows setup.
 
 | Date | Entry |
 |------|-------|
+| 2026-09-11 | #63 promoted to deferred **D-041** at P0 blocked. Ranked `deferred_log.py status` lists it first. `master` still `protected: false`. |
 | 2026-09-11 | Source published as `aaltaay/Nova`. Historical Alpaca `.env` keys revoked. `Nova-public` archived private. Master protection still needs `apply` (#63). |
 | 2026-09-11 | GitHub Security "master isn't protected." Live `protected: false`. Tool + policy shipped; apply blocked on Administration token + GitHub Pro. Issue #63. |
 | 2026-07-18 | Security subagent re-audit verified SEC-001–SEC-008 remain fixed; builtin empty; dashboard refreshed to CLEAN. |

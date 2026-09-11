@@ -177,4 +177,5 @@ def test_live_index_has_seed_ids(gh):
     assert "D-001" in ids
     assert "D-011" in ids
     assert "D-040" in ids
-    assert gh.next_id_from_issues(items) == "D-041"
+    assert "D-041" in ids
+    assert gh.next_id_from_issues(items) == "D-042"

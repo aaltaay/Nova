@@ -2,8 +2,19 @@
   "schema_version": 1,
   "source": "github",
   "repo": "aaltaay/Nova",
-  "updated": "2026-09-10",
+  "updated": "2026-09-11",
   "items": [
+    {
+      "id": "D-041",
+      "title": "Protect master from force-push, deletion, and merge-without-CI",
+      "kind": "bug",
+      "severity": "P0",
+      "status": "blocked",
+      "domain": "security",
+      "number": "63",
+      "url": "https://github.com/aaltaay/Nova/issues/63",
+      "state": "OPEN"
+    },
     {
       "id": "D-007",
       "title": "After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset",
