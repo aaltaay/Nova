@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- IBKR status poll honesty and orphan API lock reclaim
+
+- **What:** All `useIbkrStatus()` callers now read one shared `/api/ibkr/status` snapshot. A failed poll marks the Desk chip stale and forces `connected=false`, so last-good sessionStorage cannot keep the desk green. The API instance lock treats a live PID with no HTTP listener after startup grace as an orphan: terminate that PID, then reclaim. The API process also exits if its launcher parent dies or the bind port goes dark.
+- **Why:** D-023 / #25 -- eleven independent 5s pollers; empty `catch` kept `connected: true`. D-005 / #42 -- an aborted terminal (or a wedged uvicorn) left a live PID holding `api-instance.lock` with no :8000 listener, so Start API refused.
+- **Files touched:** `frontend/src/ibkr/ibkrStatusPoller.ts`, `frontend/src/ibkr/useIbkrStatus.ts`, `frontend/src/components/headerConnectionStatusModel.ts`, `frontend/src/workspace/WorkspaceContext.tsx`, `backend/api_instance_lock.py`, `backend/api_process_guard.py`
+- **How it works now:** First subscriber starts one interval with an in-flight guard. Consecutive misses stamp `stale_since` and persist `connected: false` after `IBKR_STATUS_STALE_AFTER_MISSES`. Lock classify is healthy (listening) / starting (dark, in grace) / orphan (dark, past grace, kill then reclaim) / dead. Never start a second clientId 17 beside a living holder.
+- **Verified by:** pending in this PR -- pytest lock + guard; Vitest poller + desk label; lint/build.
+- **Related:** Closes #25 #42. PROBLEM_LOG 2026-09-11 D-023; 2026-09-11 D-005.
+
 ## 2026-09-11 -- Scanner L1 apply, roster commit, and Error 101 budget
 
 - **What:** L1 ticks patch one roster row in place instead of rebuilding every scanner list. Roster commit stays live on REST if the WebSocket replace throws. Scanner one-shot reqIds clear on READY, and `/api/ibkr/status` shows live `reqMktData` lines vs `IBKR_L1_STREAM_BUDGET`.
@@ -38,6 +47,7 @@ Entry template (copy and fill in):
 - **How it works now:** Each table keeps a `symbol -> index` map rebuilt only when the roster list is replaced. AH L1 uses `reprice_afterhours_row_ibkr` and keeps D-002 gap (open vs prior close) separate from Change %. `commit_table` treats WS push as after-commit; failures increment `roster_push_failed` and still return `True`. `_on_session_ready` clears `_inflight_scan_reqids`. Status carries `reqMktData_lines`, `reqMktData_by_owner`, `reqMktData_limit`, `reqMktData_remaining`, `max_tickers_hit`.
 - **Verified by:** focused pytest on bridge / hydrate / discovery / ticks / client READY / `/api/ibkr/status` plus AH D-002 neighbor tests.
 - **Related:** PROBLEM_LOG 2026-09-11 scanner reliability pack. Closes #31 #23 #10.
+
 ## 2026-09-11 -- Desk ops: sidecar restart, Railway leftovers, config write auth
 
 - **What:** Electron sidecar restarts are serialized and wait for port 8000 to free; main and Trader window bounds persist in userData with `schema_version`. Railway toml/prebuild/volume fallbacks are gone; `api-console.log` rotates by size. `POST /api/config` requires `NOVA_API_KEY` even on loopback.

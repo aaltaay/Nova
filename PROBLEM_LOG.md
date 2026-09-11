@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- D-023 failed IBKR status poll kept the desk connected
+
+- **Symptom:** Desk chip / Trading gates stayed `connected` after `/api/ibkr/status` failed. Eleven `useIbkrStatus` mounts each ran a 5s interval; empty `catch` kept last-good sessionStorage.
+- **Cause:** Each caller owned its own poller. A failed fetch did not update state, so `connected: true` from the last success survived.
+- **Fix:** One module poller (`ibkrStatusPoller.ts`). In-flight guard. First miss stamps `stale` / `staleSince` and forces `connected=false`. After N misses the disconnected snapshot is persisted. Desk chip shows `stale`.
+- **Fix class:** ownership
+- **Keywords:** D-023, useIbkrStatus, last-good connected, sessionStorage, stale_since, Desk chip, in-flight guard
+
+## 2026-09-11 -- D-005 aborted API left a live PID with no HTTP listener
+
+- **Symptom:** Start API refused while port 8000 was dark. `api-instance.lock` still named a live `run_api.py` PID. Manual Stop-Process then one start restored health.
+- **Cause:** Lock treated any live PID as a healthy API. An aborted terminal (or a wedged uvicorn that lost LISTEN) did not exit, so reclaim never ran. Starting beside that PID would fight clientId 17.
+- **Fix:** Ownership classify: listening = healthy; dark + in grace = starting; dark + past grace = orphan (terminate, then reclaim; refuse if kill fails). Process guard exits on parent loss or a dark bind port after grace.
+- **Fix class:** ownership
+- **Keywords:** D-005, api-instance.lock, orphan API, port 8000, parent watch, listen watch, clientId 17
+
 ## 2026-09-11 -- D-019 apply_l1_quote rebuilt every scanner list per tick
 
 - **Symptom:** Busy desks showed `ib_loop_lag_ms` spikes with no historical work in flight. Each IB L1 tick list-comprehended Gainers, Losers, AH, and Large Cap.
@@ -60,6 +76,7 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** `_on_session_ready` clears inflight reqIds. `ticks.ticker_budget_status()` is merged into `/api/ibkr/status`.
 - **Fix class:** ownership
 - **Keywords:** D-039, _inflight_scan_reqids, reconnect, Error 101, reqMktData_lines, IBKR_L1_STREAM_BUDGET
+
 
 ## 2026-09-11 -- Semgrep logger-credential false positive on config audit logs
 

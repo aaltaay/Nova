@@ -113,7 +113,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       alpacaFeed,
       setAlpacaFeed,
       scannerPersistentAuthoritative,
-      ibkrConnected: ibkrStatus.connected,
+      ibkrConnected: ibkrStatus.connected && !ibkrStatus.stale,
       ibkrTransportConnected: ibkrStatus.transport_connected === true,
       ibkrSessionReason: ibkrStatus.session_reason ?? null,
       ibkrPortsDark:
@@ -154,6 +154,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       alpacaFeed,
       scannerPersistentAuthoritative,
       ibkrStatus.connected,
+      ibkrStatus.stale,
       ibkrStatus.transport_connected,
       ibkrStatus.session_reason,
       ibkrStatus.preferred_port_reachable,

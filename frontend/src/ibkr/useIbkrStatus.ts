@@ -1,23 +1,17 @@
-import { useEffect, useState } from 'react';
-import { API_BASE_URL } from '../constants';
+import { useSyncExternalStore } from 'react';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
-import { readLastIbkrStatus, writeLastIbkrStatus } from './ibkrStatusCache';
-import type { IbkrStatus } from './types';
+import {
+  DEFAULT_IBKR_STATUS,
+  getIbkrStatusSnapshot,
+  refreshIbkrStatusNow,
+  subscribeIbkrStatus,
+  type IbkrClientStatus,
+} from './ibkrStatusPoller';
 
-const DEFAULT: IbkrStatus = {
-  enabled: false,
-  connected: false,
-  transport_connected: false,
-  session_reason: 'disabled',
-  mode: 'disconnected',
-  orders_enabled: false,
-  short_enabled: false,
-  spend_status: 'locked',
-  market_data_type: null,
-  market_data_delayed: false,
-};
+export type { IbkrClientStatus };
+export { refreshIbkrStatusNow };
 
-const SAMPLE_STATUS: IbkrStatus = {
+const SAMPLE_STATUS: IbkrClientStatus = {
   enabled: true,
   connected: true,
   transport_connected: true,
@@ -28,60 +22,32 @@ const SAMPLE_STATUS: IbkrStatus = {
   spend_status: 'paper_armed',
   market_data_type: 1,
   market_data_delayed: false,
+  clientReady: true,
+  stale: false,
+  staleSince: null,
 };
 
-/** Broadcast to make every mounted useIbkrStatus() poll immediately (e.g. right
- * after a user-initiated Paper<->Live gateway-mode switch), without waiting
- * up to 5 s for the next interval tick. */
-const REFRESH_EVENT = 'ibkr-status-refresh';
+const EMPTY: IbkrClientStatus = {
+  ...DEFAULT_IBKR_STATUS,
+  clientReady: false,
+  stale: false,
+  staleSince: null,
+};
 
-export function refreshIbkrStatusNow(): void {
-  window.dispatchEvent(new Event(REFRESH_EVENT));
+function noopSubscribe(_onStoreChange: () => void): () => void {
+  return () => {};
 }
 
-export type IbkrClientStatus = IbkrStatus & {
-  /** False until a poll finishes or this tab already has last-good status. */
-  clientReady: boolean;
-};
+function getSampleSnapshot(): IbkrClientStatus {
+  return SAMPLE_STATUS;
+}
 
-/** Polls /api/ibkr/status every 5 s to reflect IB Gateway connection state. */
+/** Shared /api/ibkr/status -- one poller, every caller reads the same snapshot. */
 export function useIbkrStatus(): IbkrClientStatus {
   const sample = useSampleDataOptional();
-  const [status, setStatus] = useState<IbkrStatus>(
-    () => readLastIbkrStatus() ?? DEFAULT,
+  return useSyncExternalStore(
+    sample ? noopSubscribe : subscribeIbkrStatus,
+    sample ? getSampleSnapshot : getIbkrStatusSnapshot,
+    () => EMPTY,
   );
-  const [clientReady, setClientReady] = useState(
-    () => readLastIbkrStatus() != null,
-  );
-
-  useEffect(() => {
-    if (sample) return;
-    let active = true;
-
-    async function poll() {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/ibkr/status`);
-        if (res.ok && active) {
-          const next = (await res.json()) as IbkrStatus;
-          writeLastIbkrStatus(next);
-          setStatus(next);
-          setClientReady(true);
-        }
-      } catch {
-        // API down -- keep last-good (or DEFAULT). Header API chip owns that.
-      }
-    }
-
-    poll();
-    const id = setInterval(poll, 5_000);
-    window.addEventListener(REFRESH_EVENT, poll);
-    return () => {
-      active = false;
-      clearInterval(id);
-      window.removeEventListener(REFRESH_EVENT, poll);
-    };
-  }, [sample]);
-
-  if (sample) return { ...SAMPLE_STATUS, clientReady: true };
-  return { ...status, clientReady };
 }
