@@ -1,6 +1,7 @@
 import { novaFetch } from '../api/novaFetch';
 import { API_BASE_URL } from '../constants';
 import { executionTransportError } from './executionTransportError';
+import { newGestureKey } from './gestureKey';
 import {
   beginBrowserExecutionTiming,
   clientTimingHeaders,
@@ -21,12 +22,8 @@ export interface PlaceOrderResult {
   broker_status?: string | null;
 }
 
-function newIdempotencyKey(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `manual-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
+// Callers own the key: pass one per user gesture so a retry of that gesture
+// replays instead of placing a second order (see gestureKey.ts).
 
 export async function placeIbkrOrder(
   payload: ManualOrderPayload,
@@ -44,7 +41,7 @@ export async function placeIbkrOrder(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...payload,
-        idempotency_key: idempotencyKey || newIdempotencyKey(),
+        idempotency_key: idempotencyKey || newGestureKey('place'),
         reference_price:
           options?.referencePrice != null
           && Number.isFinite(options.referencePrice)

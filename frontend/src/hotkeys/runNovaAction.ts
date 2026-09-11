@@ -24,6 +24,7 @@ import {
   buildExitFullPosition,
   buildExitPositionPercent,
 } from '../ibkr/exitPosition';
+import { newGestureKey } from '../ibkr/gestureKey';
 import {
   cancelAllOrdersForSymbol,
   cancelAllWorkingOrders,
@@ -89,6 +90,9 @@ export async function runNovaAction(
   runtime: NovaActionRuntime,
 ): Promise<NovaActionResult> {
   const actionTiming = captureBrowserAction('user_action');
+  // One keypress is one gesture: every place this invocation makes carries
+  // the same key, so a re-fired hotkey replays instead of doubling up.
+  const idempotencyKey = newGestureKey(`nova_action:${action.kind}`);
 
   if (action.kind === 'cancel_all_orders') {
     const gated = gateConnected(runtime);
@@ -192,6 +196,7 @@ export async function runNovaAction(
       'cancel+flatten',
       actionTiming,
       maybeConfirm,
+      idempotencyKey,
     );
     if (!exit.ok) {
       return {
@@ -222,6 +227,7 @@ export async function runNovaAction(
       action.kind === 'exit_pos' ? 'flatten' : 'partial exit',
       actionTiming,
       maybeConfirm,
+      idempotencyKey,
     );
   }
 
@@ -245,7 +251,7 @@ export async function runNovaAction(
           order_type: 'MKT',
           outside_rth,
         },
-        undefined,
+        idempotencyKey,
         {
           timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
         },
@@ -276,6 +282,7 @@ export async function runNovaAction(
       action.params.offsetDollars ?? 0,
       actionTiming,
       maybeConfirm,
+      idempotencyKey,
     );
   }
 
@@ -288,6 +295,7 @@ export async function runNovaAction(
       action.params.offsetDollars ?? NOVA_ACTION_DEFAULT_BID_EXIT_OFFSET_DOLLARS,
       actionTiming,
       maybeConfirm,
+      idempotencyKey,
     );
   }
 
@@ -330,7 +338,7 @@ export async function runNovaAction(
           limit_price: Number(limit.toFixed(4)),
           outside_rth,
         },
-        undefined,
+        idempotencyKey,
         {
           timing: beginBrowserExecutionTiming('nova_action_place', actionTiming),
           referencePrice: base,
