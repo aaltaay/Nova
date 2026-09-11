@@ -172,7 +172,7 @@ If plan or token permissions block the setting, say so. Never claim `master` is 
 
 A verified, non-draft PR targeting `master` is finished work. GitHub Actions merges it. The human does not have to say merge. Agents do not sit idle on an open PR.
 
-- Mark the PR ready (not draft) after verification. CI still running is not a reason to stay draft.
+- Mark the PR **ready (non-draft)** after verification. CI still running is not a reason to stay draft.
 - CI job `Auto-merge` runs `python tools/pr_delivery.py merge --pr N` after the four gating jobs.
 - Hourly / `workflow_run` sweep in `.github/workflows/pr-delivery.yml` catches leftovers.
 - Closed PR heads are deleted by that same workflow plus `delete_branch_on_merge`.
