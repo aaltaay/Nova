@@ -32,6 +32,8 @@ export function writeLastIbkrStatus(status: IbkrStatus): void {
         market_data_delayed: status.market_data_delayed,
         orders_enabled: status.orders_enabled,
         spend_status: status.spend_status,
+        armed_for_account_kind: status.armed_for_account_kind ?? null,
+        spend_locked_reason: status.spend_locked_reason ?? null,
         disconnect_hint: status.disconnect_hint ?? null,
         preferred_port_reachable: status.preferred_port_reachable,
         alternate_port_reachable: status.alternate_port_reachable,

@@ -33,6 +33,7 @@ import {
 } from '../ibkr/placeOrder';
 import { readSkipPlaceConfirm } from '../ibkr/placeConfirmPrefs';
 import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
+import { isSpendLocked } from '../ibkr/spendLock';
 import { confirmApp } from '../ux';
 import type { TopOfBook } from './TopOfBookContext';
 import type { NovaActionRecord, NovaActionResult } from './novaActionTypes';
@@ -46,9 +47,7 @@ import type { NovaActionRuntime } from './runNovaActionRuntime';
 
 export type { NovaActionRuntime } from './runNovaActionRuntime';
 
-function spendLocked(status?: string): boolean {
-  return status === 'locked' || status === 'locked_live_unconfirmed';
-}
+const spendLocked = isSpendLocked;
 
 function gateConnected(runtime: NovaActionRuntime): NovaActionResult | null {
   if (!runtime.connected) {

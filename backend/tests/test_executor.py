@@ -206,6 +206,112 @@ class TestArmDisarmKillSwitch:
         assert result["armed"] is True
 
 
+class TestKillSwitchDurability:
+    """D-037: the latch survives a restart and only reset clears it."""
+
+    def test_kill_persists_across_process_restart(self, monkeypatch):
+        _arm_ibkr_execution(monkeypatch)
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [])
+        executor.kill_switch()
+        # Simulate a fresh process: drop the in-memory latch so the next read
+        # has to come from disk.
+        executor._kill_switch_tripped = None
+        assert executor.is_kill_switch_tripped() is True
+        assert executor.status()["kill_switch_tripped"] is True
+
+    def test_reset_persists_across_process_restart(self, monkeypatch):
+        _arm_ibkr_execution(monkeypatch)
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [])
+        executor.kill_switch()
+        executor.reset_kill_switch()
+        executor._kill_switch_tripped = None
+        assert executor.is_kill_switch_tripped() is False
+
+    def test_clean_cache_dir_is_not_tripped(self):
+        executor._kill_switch_tripped = None
+        assert executor.is_kill_switch_tripped() is False
+
+    def test_unreadable_latch_fails_tripped(self, monkeypatch):
+        from strategy import kill_switch_state as kill_state
+
+        kill_state._path().write_text("{not json", encoding="utf-8")
+        executor._kill_switch_tripped = None
+        assert executor.is_kill_switch_tripped() is True
+
+    def test_unknown_schema_version_fails_tripped(self):
+        import json
+
+        from strategy import kill_switch_state as kill_state
+
+        kill_state._path().write_text(
+            json.dumps({"schema_version": 99, "tripped": False}), encoding="utf-8"
+        )
+        executor._kill_switch_tripped = None
+        assert executor.is_kill_switch_tripped() is True
+
+
+class TestKillSwitchCancelsEveryWorkingOrder:
+    """D-037: a manual working LMT must not survive a kill."""
+
+    def test_untracked_working_order_is_cancelled(self, monkeypatch):
+        _arm_ibkr_execution(monkeypatch)
+        cancelled_ids = []
+        monkeypatch.setattr(
+            orders_mod, "open_orders", lambda: [{"order_id": 55, "symbol": "TSLA"}]
+        )
+        monkeypatch.setattr(
+            orders_mod,
+            "cancel_order",
+            lambda oid: cancelled_ids.append(oid) or {"ok": True},
+        )
+        result = executor.kill_switch()
+        assert cancelled_ids == [55]
+        assert result["kill_switch_tripped"] is True
+
+    def test_sweep_preserves_protective_legs_of_filled_parent(self, monkeypatch):
+        _arm_ibkr_execution(monkeypatch)
+        cancelled_ids = []
+        monkeypatch.setattr(
+            orders_mod,
+            "open_orders",
+            lambda: [
+                {"order_id": 2, "symbol": "AAPL"},
+                {"order_id": 3, "symbol": "AAPL"},
+                {"order_id": 77, "symbol": "TSLA"},
+            ],
+        )
+        monkeypatch.setattr(
+            orders_mod,
+            "cancel_order",
+            lambda oid: cancelled_ids.append(oid) or {"ok": True},
+        )
+        executor._open_positions["AAPL"] = executor.OpenPosition(
+            symbol="AAPL", setup="gap_and_go", qty=100,
+            entry_price=5.0, stop_price=4.9, target_price=5.2,
+            parent_order_id=1, target_order_id=2, stop_order_id=3,
+            opened_ts=time.time(),
+        )
+        executor.kill_switch()
+        # Parent 1 already filled → 2/3 are the live stop+target. Only the
+        # unrelated manual order is swept.
+        assert cancelled_ids == [77]
+
+    def test_sweep_skipped_when_disconnected(self, monkeypatch):
+        cancelled_ids = []
+        monkeypatch.setattr(executor._ibkr_client, "is_connected", lambda: False)
+        monkeypatch.setattr(
+            orders_mod, "open_orders", lambda: [{"order_id": 55, "symbol": "TSLA"}]
+        )
+        monkeypatch.setattr(
+            orders_mod,
+            "cancel_order",
+            lambda oid: cancelled_ids.append(oid) or {"ok": True},
+        )
+        result = executor.kill_switch()
+        assert cancelled_ids == []
+        assert result["kill_switch_tripped"] is True
+
+
 class TestOnSignal:
     def test_does_nothing_when_disarmed(self, monkeypatch):
         called = []

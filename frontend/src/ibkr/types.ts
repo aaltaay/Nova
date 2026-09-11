@@ -28,8 +28,16 @@ export interface IbkrStatus {
   live_trading_confirmed?: boolean;
   /** Phase K / ADR 009 -- third key for opening shorts. */
   short_enabled?: boolean;
-  /** locked | locked_live_unconfirmed | paper_armed | live_armed */
+  /**
+   * locked | locked_live_unconfirmed | locked_account_unconfirmed
+   * | paper_armed | live_armed — read it through `spendLock.ts`, never by
+   * comparing literals (a new locked state must not read as armed).
+   */
   spend_status?: string;
+  /** The IB account class spending is armed for, or null when locked. */
+  armed_for_account_kind?: 'paper' | 'live' | null;
+  /** Backend-authored reason for the spend lock (safety.py). */
+  spend_locked_reason?: string | null;
   preferred_port?: number;
   alternate_port?: number;
   preferred_port_reachable?: boolean;

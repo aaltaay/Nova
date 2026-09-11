@@ -168,7 +168,7 @@ async def ibkr_launch_gateway(body: LaunchGatewayRequest | None = Body(default=N
 
 def _client_safety_status() -> dict:
     from ibkr import safety as _safety
-    return _safety.status_snapshot()
+    return _safety.status_snapshot(_client.broker_account_kind())
 
 
 # ── Account ────────────────────────────────────────────────────────────────────

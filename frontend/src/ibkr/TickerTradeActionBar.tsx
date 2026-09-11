@@ -17,6 +17,7 @@ import { closeFullPosition } from './closeFullPosition';
 import { executionTransportError } from './executionTransportError';
 import { ManualOrderTicket } from './ManualOrderTicket';
 import { notifyOrderRejected } from './notifyOrderRejected';
+import { spendLockReason } from './spendLock';
 import type { PlaceOrderResult } from './placeOrder';
 import { readTicketSessionUnlocked } from './ticketUnlock';
 import { TickerTradeAutomateControls } from './TickerTradeAutomateControls';
@@ -66,11 +67,7 @@ export function TickerTradeActionBar({
     ? 'IBKR disconnected — connect Gateway (Trading tab) to place orders'
     : mode === 'disconnected'
       ? 'IBKR mode offline'
-      : spendStatus === 'locked'
-        ? 'Orders locked — enable IBKR orders in Nova settings/environment'
-        : spendStatus === 'locked_live_unconfirmed'
-          ? 'Live orders locked — explicit live confirmation is required'
-          : null;
+      : spendLockReason(spendStatus);
 
   const canTrade = connected && mode !== 'disconnected' && disabledReason == null && !closing;
   const canFlatten = canTrade && !accountError;

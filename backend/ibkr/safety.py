@@ -16,6 +16,12 @@ Paper pin (when IBKR_GATEWAY_MODE=paper):
   - Connection mode must be paper (port 4002 path)
   - Broker managedAccounts must classify as paper (DU… / DF…)
 
+Account pin (ADR 013 — the account class is the truth, not the env door):
+  - A live place needs `broker_account_kind == "live"`. `unknown` (managed
+    accounts not received yet), `paper`, and `mixed` all refuse.
+  - `spend_status` is derived from (gateway mode, broker_account_kind) so the
+    header can never say `live_armed` over a DU… account.
+
 IBKR_GATEWAY_MODE=paper|live chooses which Gateway port to connect.
 Default is live (4001). Paper (4002) is the fallback when live is dark.
 It does NOT authorize spending by itself.
@@ -65,26 +71,50 @@ def short_enabled() -> bool:
     return _env_bool("IBKR_SHORT_ENABLED", IBKR_SHORT_ENABLED_DEFAULT)
 
 
-def status_snapshot() -> dict:
+def normalize_account_kind(broker_account_kind: str | None) -> str:
+    """paper | live | mixed | unknown — anything unrecognized is `unknown`."""
+    kind = (broker_account_kind or "unknown").strip().lower()
+    return kind if kind in ("paper", "live", "mixed") else "unknown"
+
+
+def spend_state(broker_account_kind: str | None) -> tuple[str, str]:
+    """(spend_status, locked_reason) for a gateway mode + account class.
+
+    ADR 013: the account class behind the socket decides, not the env door.
+    A door whose accounts are not yet classified is locked, not armed.
+    """
+    mode = gateway_mode()
+    kind = normalize_account_kind(broker_account_kind)
+    if not orders_enabled():
+        return "locked", (
+            "IBKR_ORDERS_ENABLED is false — orders locked "
+            "(market data / Level 2 still allowed)"
+        )
+    if mode == "live" and not live_trading_confirmed():
+        return "locked_live_unconfirmed", (
+            "Live trading requires IBKR_LIVE_TRADING_CONFIRMED=true"
+        )
+    if kind != mode:
+        return "locked_account_unconfirmed", (
+            f"{mode} door but broker managedAccounts are {kind!r} — "
+            f"spending stays locked until the account class reads {mode!r}"
+        )
+    return ("live_armed" if mode == "live" else "paper_armed"), ""
+
+
+def status_snapshot(broker_account_kind: str | None = None) -> dict:
     """Fields for /api/ibkr/status — UI + operators."""
     mode = gateway_mode()
-    orders_on = orders_enabled()
-    live_ok = live_trading_confirmed()
-    short_on = short_enabled()
-    if not orders_on:
-        spend = "locked"
-    elif mode == "live" and not live_ok:
-        spend = "locked_live_unconfirmed"
-    elif mode == "live":
-        spend = "live_armed"
-    else:
-        spend = "paper_armed"
+    spend, locked_reason = spend_state(broker_account_kind)
+    armed = mode if spend in ("live_armed", "paper_armed") else None
     return {
         "gateway_mode": mode,
-        "orders_enabled": orders_on,
-        "live_trading_confirmed": live_ok,
-        "short_enabled": short_on,
+        "orders_enabled": orders_enabled(),
+        "live_trading_confirmed": live_trading_confirmed(),
+        "short_enabled": short_enabled(),
         "spend_status": spend,
+        "armed_for_account_kind": armed,
+        "spend_locked_reason": locked_reason or None,
     }
 
 
@@ -113,7 +143,7 @@ def assert_orders_allowed(
 
     env_mode = gateway_mode()
     conn_mode = account_mode if account_mode in ("paper", "live") else env_mode
-    kind = (broker_account_kind or "unknown").strip().lower()
+    kind = normalize_account_kind(broker_account_kind)
 
     # ── Paper pin: env paper ⇒ connection + accounts must be paper ──────────
     if env_mode == "paper":
@@ -132,8 +162,13 @@ def assert_orders_allowed(
     # ── Live env / live accounts / live connection: second key required ─────
     if not live_trading_confirmed():
         return False, "Live trading requires IBKR_LIVE_TRADING_CONFIRMED=true"
-    if kind == "mixed":
-        return False, "Refusing place with mixed paper+live managedAccounts"
+    # Account pin (ADR 013): `unknown` means managedAccounts has not arrived
+    # yet — an unclassified account is never allowed to spend live money.
+    if kind != "live":
+        return False, (
+            "Live pin: broker managedAccounts are "
+            f"{kind!r} (need live) — refusing place"
+        )
     return True, ""
 
 

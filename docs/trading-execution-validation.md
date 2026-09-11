@@ -45,10 +45,49 @@
 | Caller | Before | After |
 |--------|--------|-------|
 | Manual UI `POST /api/ibkr/order` | `ibkr.orders.place_order` (bypassed risk) | `execute(place, source=manual, skip_risk)` |
+| Kill switch scope | automation only (`skip_risk` places slipped through) | refuses **every** place/bracket except `kill`/`flatten`/`cancel_working` |
 | Manual cancel | `orders.cancel_order` | `execute(cancel)` |
 | Price replace | Missing | `PATCH /api/ibkr/order/{id}` → `execute(replace)` |
 | Staged approve / auto_paper | `place_bracket_order` via executor | `execute(bracket)` + idempotency key |
 | Kill / cancel-working / flatten | Direct cancel/place | `execute` with `source=kill\|flatten` |
+
+## Spend-gate probe (no broker, no Gateway)
+
+```text
+py -3 tools/execution_safety_probe.py
+```
+
+Drives the real `main:app` over `TestClient` with the broker stubbed only at
+`ibkr.orders`, so the account pin (D-038 / ADR 013) and the kill latch (D-037)
+are exercised through the production `execution.service.execute` +
+`ibkr.safety` code. Pins `NOVA_CACHE_DIR` to a temp dir and never reads the
+operator's `.env` gates. Exit 0 means every gate that lets money out held;
+non-zero means one did not, and the desk should not trade until that is
+understood. Complements `execution_latency_probe.py`, which needs a live paper
+Gateway and does place real orders.
+
+## Kill switch is a spend latch, not an automation toggle (D-037, 2026-09-11)
+
+`skip_risk=True` on manual / hotkey places means "skip the Nova OS risk and
+concurrency chain" — it does **not** mean "skip the kill switch". The kill
+check in `execution.service.execute` sits **before** the `skip_risk` block:
+
+- A tripped kill refuses every `place` / `bracket`, whatever the source, with
+  `reason_code=KILL_SWITCH` and zero broker calls. That includes the Trading
+  ticket and Nova Action hotkeys.
+- `cancel` and `replace` are never blocked — a kill must still let the
+  operator get flat.
+- `source` in (`kill`, `flatten`, `cancel_working`) is exempt so Flatten can
+  sell out of an existing position after a kill.
+- The latch is persisted (`strategy/kill_switch_state.py`, `schema_version` 1,
+  under `paths.cache_dir()`). An API restart no longer re-arms the desk; only
+  `POST /api/strategy/executor/reset-kill-switch` clears it. An unreadable or
+  unknown-version latch file fails **tripped**.
+- `kill_switch()` sets the latch first, then cancels tracked unfilled parents,
+  then sweeps every other working order on the account. Protective stop/target
+  legs of an already-filled parent (and of any position whose fill state could
+  not be proven) are preserved — cancelling those would leave a naked
+  position.
 
 ## Stage latency (synthetic, 2026-07-23)
 

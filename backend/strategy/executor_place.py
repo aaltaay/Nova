@@ -160,10 +160,10 @@ async def place_from_ticket_async(
 
 
 async def on_signal(symbol: str, setup_name: str, signal_dict: dict) -> dict | None:
-    from strategy.executor import _kill_switch_tripped
+    from strategy.executor import is_kill_switch_tripped
 
     _staged.expire_due()
-    if _kill_switch_tripped:
+    if is_kill_switch_tripped():
         return None
 
     effective = _control_mode.get_effective_mode()

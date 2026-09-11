@@ -625,6 +625,11 @@
 .ibkr-order-status--filled { color: var(--green, #22c55e); }
 .ibkr-order-status--cancelled,
 .ibkr-order-status--failed { color: var(--text-muted, #6b7280); }
+/* Broker status Nova cannot map — flagged, never dressed as "Pending". */
+.ibkr-order-status--unknown {
+  color: #f59e0b;
+  font-style: italic;
+}
 
 /* Just-placed pulse sits on top of buy/sell row tint. */
 .ibkr-order-row--highlight td {

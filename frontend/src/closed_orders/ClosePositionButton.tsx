@@ -15,6 +15,7 @@ import {
 } from '../constants';
 import { captureBrowserAction } from '../execution_latency';
 import { closeFullPosition } from '../ibkr/closeFullPosition';
+import { isSpendLocked } from '../ibkr/spendLock';
 import { readTicketSessionUnlocked } from '../ibkr/ticketUnlock';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
 import { useTradingPinGate } from '../ibkr/useTradingPinGate';
@@ -41,8 +42,7 @@ export function ClosePositionButton({
   const [busy, setBusy] = useState(false);
   const { ensureUnlocked, pinDialog } = useTradingPinGate();
   const hasPosition = position.qty !== 0;
-  const spendLocked =
-    spendStatus === 'locked' || spendStatus === 'locked_live_unconfirmed';
+  const spendLocked = isSpendLocked(spendStatus);
   const canClose =
     connected && mode !== 'disconnected' && hasPosition && !spendLocked && !disabled && !busy;
   const pinLocked = !readTicketSessionUnlocked();
