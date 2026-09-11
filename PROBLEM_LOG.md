@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Desktop pack built NSIS only so portable EXE was missing
+
+- **Symptom:** PR #61 `Prove both EXEs exist` failed: `missing frontend/release/Nova-Portable-v476.exe`. The pack step itself was green.
+- **Cause:** `frontend/package.json` `electron:pack` still ended with `run-electron-pack.mjs nsis`. That override never builds portable, even though `win.target` lists both.
+- **Fix:** Drop the `nsis` argument so the script default (`nsis` + `portable`) runs. Contract test asserts `electron:pack` does not force nsis-only.
+- **Fix class:** infra
+- **Keywords:** electron:pack, Nova-Portable, nsis, run-electron-pack, Desktop pack, v476
+
 ## 2026-09-11 -- Release page showed source zip instead of the installer EXE
 
 - **Symptom:** Tag `v475` Assets listed only `Source code (zip)` and `Source code (tar.gz)`. Operator expected the built Windows installer and a portable EXE.
