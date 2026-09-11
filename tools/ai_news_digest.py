@@ -1,17 +1,13 @@
-"""Build the "AI x the tape" news block on nova.altaystudio.com.
+"""Build the AI-in-trading digest on nova.altaystudio.com.
 
-The marketing site is static: no build step, no API, no secrets. So the digest
-is generated ahead of time and committed as plain HTML between sentinel
-comments in `site/index.html`. A scheduled GitHub Action re-runs this and
-commits the diff; Vercel redeploys from git. Readers get server-rendered
-markup -- no client fetch, no loading flash, no empty state if JS is off.
+The marketing site is static: no API, no secrets. A scheduled Action fetches
+public RSS, ranks it, and commits HTML. Homepage gets a short teaser;
+`/news` gets the full Reddit-style feed (50+ when inventory exists).
 
-Sources are public RSS/Atom only, so this needs no API key and stdlib only.
+    python3 tools/ai_news_digest.py --dry-run --json
+    python3 tools/ai_news_digest.py
 
-    py -3 tools/ai_news_digest.py --dry-run --json    # inspect the picks
-    py -3 tools/ai_news_digest.py                     # rewrite site/index.html
-
-Ranking lives in `tools/ai_news_rank.py`.
+Ranking: `tools/ai_news_rank.py`. HTML: `tools/ai_news_html.py`.
 """
 from __future__ import annotations
 
@@ -28,72 +24,35 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from xml.etree import ElementTree
 
+from ai_news_feeds import FEEDS
+from ai_news_html import (
+    END_MARKER,
+    FEED_END_MARKER,
+    FEED_START_MARKER,
+    START_MARKER,
+    count_marked_items,
+    feed_json_text,
+    inject,
+    render_block,
+    render_feed_block,
+)
 from ai_news_rank import Article, rank_articles
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_HTML = REPO_ROOT / "site" / "index.html"
-
-START_MARKER = "<!-- AI_NEWS:START -->"
-END_MARKER = "<!-- AI_NEWS:END -->"
+NEWS_HTML = REPO_ROOT / "site" / "news" / "index.html"
+FEED_JSON = REPO_ROOT / "site" / "news" / "feed.json"
 
 DEFAULT_LIMIT = 6
-# Refuse to publish a thin page. Nova's own feed rule applies here too: an
-# empty result is a failure, not a fresh answer. Better to keep yesterday's
-# good block than overwrite it with one survivor of a bad fetch.
+DEFAULT_FEED_LIMIT = 60
 DEFAULT_MIN_ITEMS = 4
+DEFAULT_FEED_MIN_ITEMS = 50
+FEED_MAX_PER_DOMAIN = 10
+FEED_MIN_SCORE = 0.35
+TRADE_PRESS_BOOST = 1.25
 FETCH_TIMEOUT_SEC = 20
 MAX_SUMMARY_CHARS = 190
 USER_AGENT = "NovaNewsDigest/1.0 (+https://nova.altaystudio.com)"
-
-# Google News search feeds aggregate paywalled wires (Reuters, Bloomberg, FT)
-# that publish no usable RSS of their own; the publisher is recovered from each
-# item's <source url="..."> element. Publisher feeds cover the AI trade press.
-_GNEWS = "https://news.google.com/rss/search?q={}&hl=en-US&gl=US&ceid=US:en"
-
-# The searches aim straight at "AI is doing the trading". Broad queries such as
-# `"artificial intelligence" trading` were tried and mostly returned AI-as-a-
-# hot-stock coverage, so the phrases themselves are the query.
-FEEDS: tuple[tuple[str, str], ...] = (
-    ("Google News", _GNEWS.format(
-        "%22algorithmic+trading%22+OR+%22AI+trading%22+OR+%22trading+algorithm%22+when:14d")),
-    ("Google News", _GNEWS.format(
-        "%22quant+fund%22+OR+%22quantitative+trading%22+OR+%22AI+hedge+fund%22+"
-        "OR+%22systematic+trading%22+when:14d")),
-    ("Google News", _GNEWS.format("%22artificial+intelligence%22+%22hedge+fund%22+when:14d")),
-    ("Google News", _GNEWS.format(
-        "%22machine+learning%22+%22market+making%22+OR+%22trade+execution%22+"
-        "OR+%22order+flow%22+when:14d")),
-    ("Google News", _GNEWS.format(
-        "%22AI+agents%22+trading+OR+%22autonomous+trading%22+OR+%22trading+bots%22+when:14d")),
-    # Site-scoped searches reach outlets whose own feeds are paywalled or
-    # Cloudflare-blocked. thetradenews.com and waterstechnology.com are the
-    # sharpest sources on this beat and are only reachable this way.
-    ("Google News", _GNEWS.format(
-        "%28AI+OR+%22artificial+intelligence%22%29+trading+site:thetradenews.com+OR+"
-        "site:waterstechnology.com+OR+site:risk.net+OR+site:institutionalinvestor.com+"
-        "OR+site:pionline.com+when:30d")),
-    ("Google News", _GNEWS.format(
-        "%22artificial+intelligence%22+trading+site:reuters.com+OR+site:bloomberg.com+"
-        "OR+site:wsj.com+OR+site:ft.com+when:30d")),
-    # Direct publisher feeds, all verified reachable.
-    ("Financial Times", "https://www.ft.com/markets?format=rss"),
-    ("Financial Times", "https://www.ft.com/technology?format=rss"),
-    ("CNBC Investing", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=15839069"),
-    ("CNBC Technology", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19854910"),
-    ("CNBC Finance", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"),
-    ("MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
-    ("The Guardian", "https://www.theguardian.com/uk/business/rss"),
-    ("WIRED", "https://www.wired.com/feed/category/business/latest/rss"),
-    ("MIT Technology Review", "https://www.technologyreview.com/feed/"),
-    ("Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
-    ("TechCrunch AI", "https://techcrunch.com/category/artificial-intelligence/feed/"),
-    # Market-structure trade press: low volume, but this is their actual beat.
-    ("Traders Magazine", "https://www.tradersmagazine.com/feed/"),
-    ("Finextra", "https://www.finextra.com/rss/headlines.aspx"),
-    ("Markets Media", "https://www.marketsmedia.com/feed/"),
-    ("Hedgeweek", "https://www.hedgeweek.com/feed/"),
-    ("arXiv q-fin.TR", "http://export.arxiv.org/rss/q-fin.TR"),
-)
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
@@ -256,108 +215,141 @@ def collect(feeds: tuple[tuple[str, str], ...] = FEEDS) -> list[Article]:
     return [article for batch in batches for article in batch]
 
 
-def _relative_day(published: datetime | None, now: datetime) -> str:
-    if published is None:
-        return "Recent"
-    days = (now.date() - published.date()).days
-    if days <= 0:
-        return "Today"
-    if days == 1:
-        return "Yesterday"
-    return f"{days} days ago"
+def rank_teaser(candidates: list[Article], now: datetime, limit: int) -> list[Article]:
+    """Tight homepage shortlist -- known sources, 2 per domain."""
+    return rank_articles(candidates, now, limit)
 
 
-def render_block(articles: list[Article], now: datetime) -> str:
-    """Render the shortlist as the static HTML that lives inside the markers."""
-    rows: list[str] = ['      <ol class="news-list">']
-    for index, article in enumerate(articles, start=1):
-        stamp = article.published.isoformat() if article.published else now.isoformat()
-        summary = (
-            f'\n            <p class="news-sum">{html.escape(article.summary)}</p>'
-            if article.summary else ""
-        )
-        rows.append(f"""        <li class="news-item">
-          <a class="news-link" href="{html.escape(article.url, quote=True)}" rel="noopener noreferrer" target="_blank">
-            <p class="news-meta">
-              <span class="news-rank">{index:02d}</span>
-              <span class="news-src">{html.escape(article.source)}</span>
-              <time datetime="{html.escape(stamp, quote=True)}">{_relative_day(article.published, now)}</time>
-            </p>
-            <h3>{html.escape(article.title)}</h3>{summary}
-          </a>
-        </li>""")
-    rows.append("      </ol>")
-    rows.append(
-        f'      <p class="news-foot">Ranked by source credibility, topical depth, and '
-        f'recency. Headlines link to the publisher. Updated '
-        f'<time datetime="{now.isoformat()}">{now.strftime("%b %d, %Y %H:%M UTC")}</time>.</p>'
+def rank_feed(candidates: list[Article], now: datetime, limit: int) -> list[Article]:
+    """Public /news list -- higher volume, trade press preferred."""
+    return rank_articles(
+        candidates,
+        now,
+        limit,
+        max_per_domain=FEED_MAX_PER_DOMAIN,
+        min_score=FEED_MIN_SCORE,
+        require_known_source=False,
+        trade_press_boost=TRADE_PRESS_BOOST,
     )
-    return "\n".join(rows)
 
 
-def inject(page_html: str, block: str) -> str:
-    """Replace whatever sits between the sentinels. Raises if they are missing."""
-    start = page_html.find(START_MARKER)
-    end = page_html.find(END_MARKER)
-    if start == -1 or end == -1 or end < start:
-        raise ValueError(f"{START_MARKER} / {END_MARKER} not found in the page")
-    head = page_html[: start + len(START_MARKER)]
-    tail = page_html[end:]
-    return f"{head}\n{block}\n      {tail}"
+def _write_if_changed(path: Path, text: str) -> bool:
+    if path.exists() and path.read_text(encoding="utf-8") == text:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
+def publish(
+    candidates: list[Article],
+    *,
+    now: datetime,
+    homepage_limit: int = DEFAULT_LIMIT,
+    feed_limit: int = DEFAULT_FEED_LIMIT,
+    homepage_min: int = DEFAULT_MIN_ITEMS,
+    feed_min: int = DEFAULT_FEED_MIN_ITEMS,
+    index_path: Path = INDEX_HTML,
+    news_path: Path = NEWS_HTML,
+    feed_json_path: Path = FEED_JSON,
+    dry_run: bool = False,
+) -> int:
+    """Write teaser + /news when each list clears its honesty floor.
+
+    A thin feed never overwrites a page that already has `feed_min` rows.
+    Homepage still uses today's min-items rule. Exit 1 only if the teaser
+    is too thin to publish.
+    """
+    teaser = rank_teaser(candidates, now, homepage_limit)
+    feed = rank_feed(candidates, now, feed_limit)
+    print(f"{len(teaser)} teaser / {len(feed)} feed stories survived ranking", file=sys.stderr)
+
+    existing_feed = 0
+    if news_path.exists():
+        existing_feed = count_marked_items(
+            news_path.read_text(encoding="utf-8"), FEED_START_MARKER, FEED_END_MARKER,
+        )
+
+    write_home = len(teaser) >= homepage_min
+    write_feed = len(feed) >= feed_min
+    if not write_feed:
+        print(
+            f"REFUSING to write /news: {len(feed)} stories < --feed-min-items {feed_min}. "
+            f"Keeping the previously published feed ({existing_feed} rows).",
+            file=sys.stderr,
+        )
+
+    if not write_home:
+        print(
+            f"REFUSING to write homepage: {len(teaser)} stories < --min-items {homepage_min}. "
+            "Keeping the previously published block.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if dry_run:
+        print("Dry run -- pages not modified.", file=sys.stderr)
+        return 0
+
+    home_page = index_path.read_text(encoding="utf-8")
+    home_updated = inject(home_page, render_block(teaser, now), START_MARKER, END_MARKER)
+    if home_updated != home_page:
+        index_path.write_text(home_updated, encoding="utf-8")
+        print(f"Wrote {len(teaser)} teaser stories to {index_path}", file=sys.stderr)
+    else:
+        print("Homepage teaser unchanged.", file=sys.stderr)
+
+    if write_feed:
+        news_page = news_path.read_text(encoding="utf-8")
+        news_updated = inject(
+            news_page, render_feed_block(feed, now), FEED_START_MARKER, FEED_END_MARKER,
+        )
+        if news_updated != news_page:
+            news_path.write_text(news_updated, encoding="utf-8")
+            print(f"Wrote {len(feed)} feed stories to {news_path}", file=sys.stderr)
+        dumped = feed_json_text(feed, now)
+        if _write_if_changed(feed_json_path, dumped):
+            print(f"Wrote {len(feed)} stories to {feed_json_path}", file=sys.stderr)
+
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT, help="stories to publish")
+    parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT, help="homepage teaser size")
+    parser.add_argument("--feed-limit", type=int, default=DEFAULT_FEED_LIMIT,
+                        help="full /news feed size")
     parser.add_argument("--min-items", type=int, default=DEFAULT_MIN_ITEMS,
-                        help="refuse to write below this many stories")
-    parser.add_argument("--index", type=Path, default=INDEX_HTML, help="page to rewrite")
+                        help="refuse homepage write below this many stories")
+    parser.add_argument("--feed-min-items", type=int, default=DEFAULT_FEED_MIN_ITEMS,
+                        help="refuse /news overwrite below this many stories")
+    parser.add_argument("--index", type=Path, default=INDEX_HTML, help="homepage to rewrite")
+    parser.add_argument("--news-page", type=Path, default=NEWS_HTML, help="/news page to rewrite")
+    parser.add_argument("--feed-json", type=Path, default=FEED_JSON, help="debug JSON dump")
     parser.add_argument("--dry-run", action="store_true", help="rank but do not write")
-    parser.add_argument("--json", action="store_true", help="print the ranked picks as JSON")
+    parser.add_argument("--json", action="store_true", help="print the ranked feed as JSON")
     args = parser.parse_args(argv)
 
     now = datetime.now(timezone.utc).replace(microsecond=0)
     candidates = collect()
     print(f"{len(candidates)} candidates fetched", file=sys.stderr)
 
-    picks = rank_articles(candidates, now, args.limit)
-    print(f"{len(picks)} stories survived ranking", file=sys.stderr)
-
     if args.json:
-        print(json.dumps([
-            {
-                "rank": i,
-                "score": round(a.score, 2),
-                "source": a.source,
-                "domain": a.domain,
-                "title": a.title,
-                "url": a.url,
-                "published": a.published.isoformat() if a.published else None,
-                "why": a.reasons,
-            }
-            for i, a in enumerate(picks, start=1)
-        ], indent=2))
+        feed = rank_feed(candidates, now, args.feed_limit)
+        print(json.dumps(json.loads(feed_json_text(feed, now))["stories"], indent=2))
 
-    if len(picks) < args.min_items:
-        print(
-            f"REFUSING to write: {len(picks)} stories < --min-items {args.min_items}. "
-            "Keeping the previously published block.",
-            file=sys.stderr,
-        )
-        return 1
-
-    if args.dry_run:
-        print("Dry run -- page not modified.", file=sys.stderr)
-        return 0
-
-    page = args.index.read_text(encoding="utf-8")
-    updated = inject(page, render_block(picks, now))
-    if updated == page:
-        print("No change.", file=sys.stderr)
-        return 0
-    args.index.write_text(updated, encoding="utf-8")
-    print(f"Wrote {len(picks)} stories to {args.index}", file=sys.stderr)
-    return 0
+    return publish(
+        candidates,
+        now=now,
+        homepage_limit=args.limit,
+        feed_limit=args.feed_limit,
+        homepage_min=args.min_items,
+        feed_min=args.feed_min_items,
+        index_path=args.index,
+        news_path=args.news_page,
+        feed_json_path=args.feed_json,
+        dry_run=args.dry_run,
+    )
 
 
 if __name__ == "__main__":

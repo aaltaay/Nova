@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Public Nova News page on the marketing site
+
+- **What:** `nova.altaystudio.com/news` is a Reddit-style AI-in-trading feed (50+ rows when inventory exists). The homepage keeps a 6-item teaser with a Full feed link. Actions refresh about every 10 minutes.
+- **Why:** Issue #106 -- visitors were treating the thin homepage digest as the product. The full desk already lives in Desktop (PR #62); marketing needed its own public page without an API.
+- **Files touched:** `tools/ai_news_{digest,rank,html,feeds}.py`, `tools/test_ai_news_digest.py`, `site/news/index.html`, `site/index.html`, `site/styles.css`, `site/sitemap.xml`, `.github/workflows/ai-news.yml`, `README.md`.
+- **How it works now:** Same public RSS set, same AI-is-doing-the-trading gate. Homepage ranking stays tight (known sources, 2 per domain). `/news` uses a higher domain cap and a trade-press boost so Traders Magazine / Finextra / Markets Media / Hedgeweek beat WSJ/CNBC filler. A fetch under 50 stories refuses to overwrite a good `/news` page. `site/news/feed.json` is a debug dump, not a browser API. Vercel still publishes from git and may lag when rate-limited.
+- **Verified by:** `pytest tools/test_ai_news_digest.py` -- 42 passed. Live fetch 860 candidates -> 6 teaser + 51 feed stories. `ruff` clean on the new tools. `doc_invariants.py` OK. `agent_contract.py --ci` PASS. Local static `/news` and homepage teaser checked in a browser.
+- **Related:** Closes #106. Refs #59.
+
 ## 2026-09-11 -- New issues auto-land on Nova Delivery
 
 - **What:** New GitHub issues (opened / reopened / transferred) and same-repo PRs are added to the existing Nova Delivery user project. Agents must attach the same delivery metadata. Priority stays on labels P0-P3.
