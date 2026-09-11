@@ -49,6 +49,28 @@
       "state": "CLOSED"
     },
     {
+      "id": "D-001",
+      "title": "Scanner NEWS column is dead under discovery=ibkr",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "news",
+      "number": "45",
+      "url": "https://github.com/aaltaay/Nova/issues/45",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-002",
+      "title": "Afterhours Gap % equals Change %, not the open-vs-prior-close gap",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "44",
+      "url": "https://github.com/aaltaay/Nova/issues/44",
+      "state": "CLOSED"
+    },
+    {
       "id": "D-004",
       "title": "Vite restart-lock test shares the live lock path",
       "kind": "bug",
@@ -57,6 +79,50 @@
       "domain": "tester",
       "number": "41",
       "url": "https://github.com/aaltaay/Nova/issues/41",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-009",
+      "title": "Ticker cold snapshot returns empty for a symbol chart bars fetch fine",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "40",
+      "url": "https://github.com/aaltaay/Nova/issues/40",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-016",
+      "title": "yfinance failure caches an empty row for 15 minutes, silently",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "34",
+      "url": "https://github.com/aaltaay/Nova/issues/34",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-014",
+      "title": "Closed Orders / Open Orders dock default to mock sample rows when IB returns zero orders",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "execution | widgets",
+      "number": "33",
+      "url": "https://github.com/aaltaay/Nova/issues/33",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-021",
+      "title": "Quote Panel ticker WebSocket never reconnects; stale price with no badge",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "market-feed",
+      "number": "26",
+      "url": "https://github.com/aaltaay/Nova/issues/26",
       "state": "CLOSED"
     },
     {
@@ -71,26 +137,37 @@
       "state": "CLOSED"
     },
     {
-      "id": "D-001",
-      "title": "Scanner NEWS column is dead under discovery=ibkr",
+      "id": "D-030",
+      "title": "Railway leftovers still runnable; api-console.log never rotates",
       "kind": "bug",
-      "severity": "P1",
-      "status": "open",
-      "domain": "news",
-      "number": "45",
-      "url": "https://github.com/aaltaay/Nova/issues/45",
-      "state": "OPEN"
+      "severity": "P2",
+      "status": "done",
+      "domain": "ibkr-ops | docs",
+      "number": "19",
+      "url": "https://github.com/aaltaay/Nova/issues/19",
+      "state": "CLOSED"
     },
     {
-      "id": "D-002",
-      "title": "Afterhours Gap % equals Change %, not the open-vs-prior-close gap",
+      "id": "D-032",
+      "title": "Electron sidecar restart race and unsaved window geometry",
       "kind": "bug",
-      "severity": "P1",
-      "status": "open",
-      "domain": "market-feed",
-      "number": "44",
-      "url": "https://github.com/aaltaay/Nova/issues/44",
-      "state": "OPEN"
+      "severity": "P2",
+      "status": "done",
+      "domain": "widgets | ibkr-ops",
+      "number": "17",
+      "url": "https://github.com/aaltaay/Nova/issues/17",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-040",
+      "title": "`POST /api/config` rewrites `.env` with no auth on loopback",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "done",
+      "domain": "security",
+      "number": "9",
+      "url": "https://github.com/aaltaay/Nova/issues/9",
+      "state": "CLOSED"
     },
     {
       "id": "D-003",
@@ -112,17 +189,6 @@
       "domain": "ibkr-ops",
       "number": "42",
       "url": "https://github.com/aaltaay/Nova/issues/42",
-      "state": "OPEN"
-    },
-    {
-      "id": "D-009",
-      "title": "Ticker cold snapshot returns empty for a symbol chart bars fetch fine",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "open",
-      "domain": "market-feed",
-      "number": "40",
-      "url": "https://github.com/aaltaay/Nova/issues/40",
       "state": "OPEN"
     },
     {
@@ -153,7 +219,7 @@
       "kind": "bug",
       "severity": "P1",
       "status": "open",
-      "domain": "market-feed | execution",
+      "domain": "widgets | execution",
       "number": "37",
       "url": "https://github.com/aaltaay/Nova/issues/37",
       "state": "OPEN"
@@ -179,28 +245,6 @@
       "number": "35",
       "url": "https://github.com/aaltaay/Nova/issues/35",
       "state": "OPEN"
-    },
-    {
-      "id": "D-016",
-      "title": "yfinance failure caches an empty row for 15 minutes, silently",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "open",
-      "domain": "market-feed",
-      "number": "34",
-      "url": "https://github.com/aaltaay/Nova/issues/34",
-      "state": "OPEN"
-    },
-    {
-      "id": "D-014",
-      "title": "Closed Orders / Open Orders dock default to mock sample rows when IB returns zero orders",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "execution | widgets",
-      "number": "33",
-      "url": "https://github.com/aaltaay/Nova/issues/33",
-      "state": "CLOSED"
     },
     {
       "id": "D-018",
@@ -269,17 +313,6 @@
       "state": "OPEN"
     },
     {
-      "id": "D-021",
-      "title": "Quote Panel ticker WebSocket never reconnects; stale price with no badge",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "open",
-      "domain": "market-feed",
-      "number": "26",
-      "url": "https://github.com/aaltaay/Nova/issues/26",
-      "state": "OPEN"
-    },
-    {
       "id": "D-023",
       "title": "Eleven independent `/api/ibkr/status` pollers; a failed poll keeps \"connected\"",
       "kind": "bug",
@@ -335,17 +368,6 @@
       "state": "OPEN"
     },
     {
-      "id": "D-030",
-      "title": "Railway leftovers still runnable; api-console.log never rotates",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "open",
-      "domain": "ibkr-ops | docs",
-      "number": "19",
-      "url": "https://github.com/aaltaay/Nova/issues/19",
-      "state": "OPEN"
-    },
-    {
       "id": "D-031",
       "title": "Frontend speed: full-grid re-render per price patch, 705 kB App chunk, oversized CSS",
       "kind": "bug",
@@ -354,17 +376,6 @@
       "domain": "widgets",
       "number": "18",
       "url": "https://github.com/aaltaay/Nova/issues/18",
-      "state": "OPEN"
-    },
-    {
-      "id": "D-032",
-      "title": "Electron sidecar restart race and unsaved window geometry",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "open",
-      "domain": "widgets | ibkr-ops",
-      "number": "17",
-      "url": "https://github.com/aaltaay/Nova/issues/17",
       "state": "OPEN"
     },
     {
@@ -442,17 +453,6 @@
       "domain": "market-feed",
       "number": "10",
       "url": "https://github.com/aaltaay/Nova/issues/10",
-      "state": "OPEN"
-    },
-    {
-      "id": "D-040",
-      "title": "`POST /api/config` rewrites `.env` with no auth on loopback",
-      "kind": "decision",
-      "severity": "P2",
-      "status": "open",
-      "domain": "security",
-      "number": "9",
-      "url": "https://github.com/aaltaay/Nova/issues/9",
       "state": "OPEN"
     }
   ]
