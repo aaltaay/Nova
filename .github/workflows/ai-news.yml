@@ -1,21 +1,22 @@
-# Refresh the "AI x the tape" digest on nova.altaystudio.com.
+# Refresh the public AI-in-trading digest on nova.altaystudio.com.
 #
-# The marketing site is static with no API and no secrets, so the digest is
-# pre-rendered here and committed into site/index.html. Vercel redeploys from
-# git, so the commit *is* the publish step.
+# Static site: no API, no secrets. This job pre-renders the homepage teaser
+# and the /news feed, then commits when the HTML changed. Vercel redeploys
+# from git -- that is the publish step. Vercel is often rate-limited; the
+# git history can still move while the live CDN lags.
 #
-# Sources are public RSS/Atom and the generator is stdlib-only -- no API key,
-# no pip install. If the fetch degrades, `ai_news_digest.py` exits non-zero
-# without touching the page, so a bad morning keeps yesterday's good block
-# instead of publishing a thin one.
+# GitHub cron is best-effort (often delayed under load). 10 minutes is the
+# target, not a hard SLA. 5 minutes is not worth the extra queue noise.
+#
+# Sources are public RSS/Atom and the generator is stdlib-only. A thin
+# fetch exits without overwriting a good /news page.
 
 name: AI news digest
 
 on:
   schedule:
-    # 11:10 and 23:10 UTC. Offset from the hour because GitHub's scheduler
-    # queues heavily on the hour and can drop runs.
-    - cron: "10 11,23 * * *"
+    # Every 10 minutes, offset from :00 so we are not in the hourly stampede.
+    - cron: "7,17,27,37,47,57 * * * *"
   workflow_dispatch:
 
 # Serialize: two overlapping runs would race on the same commit.
@@ -44,16 +45,16 @@ jobs:
         run: python -m pytest tools/test_ai_news_digest.py -q
 
       - name: Rebuild the digest
-        run: python tools/ai_news_digest.py --limit 6
+        run: python tools/ai_news_digest.py --limit 6 --feed-limit 60
 
-      - name: Commit when the shortlist changed
+      - name: Commit when the pages changed
         run: |
-          if git diff --quiet -- site/index.html; then
+          if git diff --quiet -- site/index.html site/news/index.html site/news/feed.json; then
             echo "No change to the digest."
             exit 0
           fi
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add site/index.html
-          git commit -m "chore(site): refresh AI-in-trading news digest"
+          git add site/index.html site/news/index.html site/news/feed.json
+          git commit -m "chore(site): refresh AI-in-trading news feed"
           git push

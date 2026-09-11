@@ -123,7 +123,7 @@ python3 tools/doc_invariants.py
 ## Deploy
 
 - **Desk:** local only -- `Run Nova.bat`, Desktop sidecar, or uvicorn on loopback. There is no cloud API host.
-- **Marketing:** `nova.altaystudio.com` serves `site/` (Vercel Root Directory = `site`). It does not run the scanner.
+- **Marketing:** `nova.altaystudio.com` serves `site/` (Vercel Root Directory = `site`). It does not run the scanner. Public AI-in-trading headlines live at [`/news`](https://nova.altaystudio.com/news).
 - **App UI:** local Vite or the Desktop installer. Do not host the trading SPA on the public domain.
 
 The older `Nova-public` repository is a private archive. It is not the source home.

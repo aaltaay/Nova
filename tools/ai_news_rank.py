@@ -21,6 +21,16 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from urllib.parse import urlsplit, urlunsplit
 
+from ai_news_sources import (
+    BLOCKED_DOMAINS,
+    FEED_SPAM_DOMAINS,
+    REQUIRE_KNOWN_SOURCE,
+    SOURCE_WEIGHTS,
+    TRADE_PRESS_DOMAINS,
+    UNKNOWN_CRYPTO_TERMS,
+    UNKNOWN_SOURCE_WEIGHT,
+)
+
 # --- Tunables -------------------------------------------------------------
 # "AI is actually trading" is a narrow beam -- some days produce two stories,
 # not twenty. A 48h half-life over a 21-day window keeps the page full of real
@@ -41,7 +51,6 @@ MAX_PER_DOMAIN = 2
 MIN_SCORE = 1.5
 # Two headlines sharing this fraction of their words are the same wire story.
 DUPLICATE_TITLE_OVERLAP = 0.6
-UNKNOWN_SOURCE_WEIGHT = 0.45
 
 # --- Vocabulary -----------------------------------------------------------
 AI_TERMS = (
@@ -93,7 +102,7 @@ HIGH_SIGNAL_PHRASES = (
 
 # Retail clickbait and promo copy. Real, but never "best of the best".
 NOISE_PHRASES = (
-    "stocks to buy", "best ai stocks", "top 5", "top 10", "top 3",
+    "stocks to buy", "best ai stocks", "best ai trading", "top 5", "top 10", "top 3",
     "should you buy", "should buy", "price prediction", "price target",
     "motley fool", "sponsored", "prnewswire", "globenewswire", "giveaway",
     "discount", "here's why", "here's where", "millionaire", "get rich",
@@ -109,47 +118,6 @@ NOISE_PHRASES = (
     "data centre", "startup", "led the round", "ipo", "capex",
     "chipmaker", "semiconductor",
 )
-
-# Credibility weights by domain. This doubles as a hard allowlist: an unlisted
-# domain never reaches the homepage (see REQUIRE_KNOWN_SOURCE). Weighting alone
-# was tried and failed -- a keyword-stuffed PRLog release promising "189%
-# annualized return" outscored every real newsroom on the page.
-SOURCE_WEIGHTS = {
-    # Wires and national desks
-    "reuters.com": 1.0, "bloomberg.com": 1.0, "ft.com": 1.0, "wsj.com": 1.0,
-    "economist.com": 0.95, "nytimes.com": 0.9, "theinformation.com": 0.9,
-    "cnbc.com": 0.85, "marketwatch.com": 0.85, "barrons.com": 0.85,
-    "axios.com": 0.8, "semafor.com": 0.78, "fortune.com": 0.72,
-    "businessinsider.com": 0.7, "cnn.com": 0.68, "bbc.co.uk": 0.75,
-    "theguardian.com": 0.72, "washingtonpost.com": 0.82, "forbes.com": 0.6,
-    # Market-structure and buy-side trade press -- the outlets that actually
-    # cover execution algos, quant funds, and trading technology week to week.
-    "thetradenews.com": 0.88, "risk.net": 0.88, "waterstechnology.com": 0.85,
-    "institutionalinvestor.com": 0.85, "pionline.com": 0.82,
-    "marketsmedia.com": 0.78, "hedgeweek.com": 0.76, "finextra.com": 0.72,
-    "tradersmagazine.com": 0.72, "efinancialcareers.com": 0.6,
-    # Technology desks
-    "technologyreview.com": 0.75, "wired.com": 0.72, "arstechnica.com": 0.72,
-    "techcrunch.com": 0.7, "theverge.com": 0.68, "venturebeat.com": 0.66,
-    # Primary research
-    "arxiv.org": 0.62,
-}
-
-# "Best of the best" means an unknown domain does not get a slot. Flip this off
-# only if you also accept press-release spam on the front page.
-REQUIRE_KNOWN_SOURCE = True
-
-# Syndication hosts that republish paid press releases under a trusted parent
-# domain. Without this, the parent-domain walk hands a newsroom's credibility
-# to ACCESSWIRE crypto spam (observed: markets.businessinsider.com).
-BLOCKED_DOMAINS = frozenset({
-    "markets.businessinsider.com",
-    "finance.yahoo.com",
-    "prnewswire.com",
-    "globenewswire.com",
-    "businesswire.com",
-    "accesswire.com",
-})
 
 _WORD_SPLIT = re.compile(r"[^a-z0-9]+")
 # Short/ambiguous terms need word boundaries so "sec" does not match "second"
@@ -226,6 +194,25 @@ def source_weight(url: str) -> float:
     """Credibility multiplier; unlisted domains fall back to the low default."""
     weight = _lookup_weight(url)
     return UNKNOWN_SOURCE_WEIGHT if weight is None else weight
+
+
+def _host_in(url: str, table: frozenset[str]) -> bool:
+    host = domain_of(url)
+    while host:
+        if host in table:
+            return True
+        _, _, host = host.partition(".")
+    return False
+
+
+def is_blocked_source(url: str) -> bool:
+    """True for press-release hosts, including when unknown sources are allowed."""
+    return _host_in(url, BLOCKED_DOMAINS)
+
+
+def is_spam_source(url: str) -> bool:
+    """True for exchange blogs and content mills that sneak past the topic gate."""
+    return _host_in(url, FEED_SPAM_DOMAINS)
 
 
 def is_known_source(url: str) -> bool:
@@ -327,10 +314,27 @@ def _is_duplicate(tokens: frozenset[str], seen: list[frozenset[str]]) -> bool:
     return False
 
 
-def rank_articles(articles: list[Article], now: datetime, limit: int) -> list[Article]:
-    """Filter, score, dedupe, and diversify down to the homepage shortlist."""
+def rank_articles(
+    articles: list[Article],
+    now: datetime,
+    limit: int,
+    *,
+    max_per_domain: int | None = None,
+    min_score: float | None = None,
+    require_known_source: bool | None = None,
+    trade_press_boost: float = 1.0,
+) -> list[Article]:
+    """Filter, score, dedupe, and diversify down to `limit` stories.
+
+    Homepage keeps the tight defaults (2 per domain, known sources only).
+    The public /news feed passes a higher domain cap and a trade-press boost
+    so small publishers can fill 50+ rows without becoming a CNBC clone.
+    """
     scored: list[Article] = []
     seen_urls: set[str] = set()
+    known_gate = REQUIRE_KNOWN_SOURCE if require_known_source is None else require_known_source
+    floor = MIN_SCORE if min_score is None else min_score
+    domain_cap = MAX_PER_DOMAIN if max_per_domain is None else max_per_domain
 
     for article in articles:
         if not article.title.strip() or not article.url.strip():
@@ -338,12 +342,22 @@ def rank_articles(articles: list[Article], now: datetime, limit: int) -> list[Ar
         key = canonical_url(article.url)
         if key in seen_urls:
             continue
-        if REQUIRE_KNOWN_SOURCE and not is_known_source(article.publisher_url or article.url):
+        url = article.publisher_url or article.url
+        if is_blocked_source(url) or is_spam_source(url):
+            continue
+        known = is_known_source(url)
+        if known_gate and not known:
             continue
         if not is_on_topic(article):
             continue
+        if not known:
+            body = f"{article.title} {article.summary}".lower()
+            if _count_terms(body, UNKNOWN_CRYPTO_TERMS) > 0:
+                continue
         article.score = score_article(article, now)
-        if article.score < MIN_SCORE:
+        if trade_press_boost != 1.0 and article.domain in TRADE_PRESS_DOMAINS:
+            article.score *= trade_press_boost
+        if article.score < floor:
             continue
         seen_urls.add(key)
         scored.append(article)
@@ -360,7 +374,7 @@ def rank_articles(articles: list[Article], now: datetime, limit: int) -> list[Ar
         if _is_duplicate(tokens, seen_titles):
             continue
         domain = article.domain
-        if per_domain.get(domain, 0) >= MAX_PER_DOMAIN:
+        if per_domain.get(domain, 0) >= domain_cap:
             continue
         per_domain[domain] = per_domain.get(domain, 0) + 1
         seen_titles.append(tokens)
