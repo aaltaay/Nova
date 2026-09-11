@@ -39,7 +39,7 @@ def rotate_if_needed(
             for p in target.parent.glob(f"{target.stem}-*{target.suffix}")
             if p.is_file() and p.name != target.name
         ),
-        key=lambda p: p.stat().st_mtime,
+        key=lambda p: (p.stat().st_mtime, p.name),
         reverse=True,
     )
     for stale in siblings[keep:]:
