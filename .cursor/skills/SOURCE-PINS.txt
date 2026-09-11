@@ -34,3 +34,8 @@ addyosmani/agent-skills
   license: MIT (assumed from upstream README badges; skill bodies adapted)
   adapted_skills: interview-me, doubt-driven-development, code-review-and-quality
   skipped: full /spec-/ship command pack, shipping-and-launch cloud theater, replacing AGENTS.md
+
+Nova local
+  adapted: 2026-09-10 from repository issue/PR delivery gaps
+  skill: github-delivery
+  always_on_rule: github-delivery.mdc

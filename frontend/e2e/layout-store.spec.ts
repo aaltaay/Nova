@@ -40,7 +40,7 @@ test.describe('Phase 5 — Layout store panel order', () => {
       [LAYOUT_STORAGE_KEY, MODULE_VISIBILITY_STORAGE_KEY] as const,
     );
     await page.reload();
-    await expect(page.locator('.tab-bar')).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Scanner views' })).toBeVisible();
 
     const stored = await page.evaluate((key) => localStorage.getItem(key), LAYOUT_STORAGE_KEY);
     expect(stored).toBeTruthy();
@@ -53,7 +53,7 @@ test.describe('Phase 5 — Layout store panel order', () => {
 
   test('side panel quote blocks follow saved layout order', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await page.goto('/');
+    await page.goto('/?view=sample');
     await page.evaluate((key) => {
       localStorage.setItem(
         key,
@@ -68,11 +68,11 @@ test.describe('Phase 5 — Layout store panel order', () => {
       );
     }, LAYOUT_STORAGE_KEY);
     await page.reload();
-    await expect(page.locator('.tab-bar')).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Scanner views' })).toBeVisible();
 
     const search = page.locator('.side-panel .side-search-input');
     await expect(search).toBeVisible();
-    await search.fill('AAPL');
+    await search.fill('SMPL');
     await page.locator('.side-panel .side-search-btn').click();
 
     const detailBody = page.locator('.side-panel .detail-body .cq-root');

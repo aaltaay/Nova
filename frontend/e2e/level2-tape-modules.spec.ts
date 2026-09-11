@@ -22,6 +22,11 @@ async function lookUpSymbol(page: Page, symbol: string) {
 }
 
 test.describe('Phase 1 — Level 2 + Time & Sales modules', () => {
+  test.skip(
+    process.env.NOVA_E2E_LIVE_IBKR !== '1',
+    'Requires local IBKR READY; deterministic CI has no Gateway',
+  );
+
   test('Stock View renders independent L2 and T&S modules', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=stock&symbol=AAPL');

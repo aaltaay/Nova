@@ -15,6 +15,7 @@ Nova keeps its **domain constitution** (`AGENTS.md` + trading/feed invariants). 
 | Multi-file feature after design agreement | `.cursor/skills/writing-plans/SKILL.md` | obra/superpowers |
 | Non-trivial decision / high stakes | `.cursor/skills/doubt-driven-development/SKILL.md` | addyosmani/agent-skills |
 | Before merge / after non-trivial impl | `.cursor/skills/code-review-and-quality/SKILL.md` | addyosmani/agent-skills |
+| Issue / PR / Project / Milestone / close lifecycle | `.cursor/skills/github-delivery/SKILL.md` | Nova-local |
 | About to claim done/fixed | `.cursor/rules/verification-before-completion.mdc` (+ skill twin) | obra/superpowers |
 | New behavior or bug fix | Soft TDD below | both (softened for Nova) |
 

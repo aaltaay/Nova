@@ -1,29 +1,41 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { acquireLock, isLockStale, LOCK_PATH, releaseLock } from './vite-nova-start-api';
 
+const TEST_LOCK_PATH = path.join(
+  os.tmpdir(),
+  `nova-vite-start-api-${process.pid}.lock`,
+);
+
 describe('acquireLock / releaseLock', () => {
+  beforeEach(() => {
+    expect(TEST_LOCK_PATH).not.toBe(LOCK_PATH);
+    fs.rmSync(TEST_LOCK_PATH, { force: true });
+  });
+
   afterEach(() => {
-    fs.rmSync(LOCK_PATH, { force: true });
+    fs.rmSync(TEST_LOCK_PATH, { force: true });
   });
 
   it('coalesces a concurrent restart into exactly one holder', () => {
     // Simulates the manual "Start API" button racing browser auto-heal —
     // only one of the two POSTs may proceed at a time (see PROBLEM_LOG
     // 2026-07-23: unlocked concurrent restarts caused WinError 10048).
-    expect(acquireLock()).toBe(true);
-    expect(acquireLock()).toBe(false);
-    releaseLock();
-    expect(acquireLock()).toBe(true);
-    releaseLock();
+    expect(acquireLock(TEST_LOCK_PATH)).toBe(true);
+    expect(fs.existsSync(TEST_LOCK_PATH)).toBe(true);
+    expect(acquireLock(TEST_LOCK_PATH)).toBe(false);
+    releaseLock(TEST_LOCK_PATH);
+    expect(acquireLock(TEST_LOCK_PATH)).toBe(true);
+    releaseLock(TEST_LOCK_PATH);
   });
 
   it('steals a stale lock left by a crashed process', () => {
-    fs.mkdirSync(path.dirname(LOCK_PATH), { recursive: true });
-    fs.writeFileSync(LOCK_PATH, JSON.stringify({ pid: 999999, ts: Date.now() - 120_000 }));
-    expect(acquireLock()).toBe(true);
-    releaseLock();
+    fs.mkdirSync(path.dirname(TEST_LOCK_PATH), { recursive: true });
+    fs.writeFileSync(TEST_LOCK_PATH, JSON.stringify({ pid: 999999, ts: Date.now() - 120_000 }));
+    expect(acquireLock(TEST_LOCK_PATH)).toBe(true);
+    releaseLock(TEST_LOCK_PATH);
   });
 });
 

@@ -1,7 +1,7 @@
 {
   "name": "nova",
   "private": true,
-  "version": "0.1.461",
+  "version": "0.1.462",
   "description": "Nova — local stock scanner (web + Windows desktop)",
   "author": "Altay Studio",
   "type": "module",
@@ -12,7 +12,7 @@
     "build": "tsc -b && vite build",
     "postbuild": "node scripts/write-dist-api-config.mjs",
     "build:electron-renderer": "cross-env NOVA_ELECTRON_BUILD=1 tsc -b && cross-env NOVA_ELECTRON_BUILD=1 vite build",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:orders-pyramid": "vitest run src/ibkr/orderQtyMath.test.ts src/ibkr/workingOrderCells.test.tsx src/ibkr/orderDisplay.test.ts src/ibkr/mockWorkingOrders.test.ts src/ibkr/fillWorkingOrderImmediately.test.ts src/ibkr/WorkingOrdersPanel.test.tsx src/closed_orders/closedOrderCells.test.tsx src/closed_orders/filterClosedOrders.test.ts src/closed_orders/mockClosedOrders.test.ts",
     "test:e2e": "playwright test",

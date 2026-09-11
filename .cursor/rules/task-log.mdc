@@ -12,7 +12,7 @@ Where that narrative lives depends on whether the work ships through a pull requ
 | Situation | Home |
 |---|---|
 | Work ships in a PR (default for code, config, CI, rules) | **PR body** -- `.github/pull_request_template.md` |
-| No PR (direct push, ops diagnosis, audit conclusion, docs-only local commit) | `knowledge/task-log/YYYY-MM-DD-<slug>.md` |
+| No PR (status-only direct push, ops diagnosis, audit conclusion) | `knowledge/task-log/YYYY-MM-DD-<slug>.md` |
 
 CHANGELOG = short "what the code does now."
 PROBLEM_LOG = bug diagnosis after a **fix**.
@@ -41,7 +41,7 @@ If skipping, Lifecycle must say `task_log=skipped` or `task_log=n/a` with a one-
 ## How -- PR path (default)
 
 1. Fill every section of `.github/pull_request_template.md`. **Why this approach** and **Verified by** are never optional.
-2. Link the deferred issue you closed (`Closes #NNN`) or `none`.
+2. Use `Closes #NNN` only when the full issue is complete. Use `Refs #NNN` for partial work and leave that issue open.
 3. Cross-link from CHANGELOG / PROBLEM_LOG `Related:` when those files also get an entry.
 4. Lifecycle footer includes `task_log=<PR URL>`.
 

@@ -36,6 +36,7 @@ export const E2E_CLOSED_FILLED = {
   status: 'Filled',
   submitted_at: '2026-07-18T13:00:00.000Z',
   updated_at: '2026-07-18T13:41:23.000Z',
+  filled_at: '2026-07-18T13:41:23.000Z',
 };
 
 export const E2E_CLOSED_PARTIAL_CANCEL = {

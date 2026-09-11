@@ -70,10 +70,8 @@ def apply_session_high(
         return None
     state = _state.get_state()
     prev = float(state.session_highs.get(sym, 0.0) or 0.0)
-    raised = False
     if h > prev:
         state.session_highs[sym] = h
-        raised = True
         if open_alert_window is None:
             # First seed establishes the floor only — not a live HOD break.
             open_alert_window = prev > 0 and source in ("observed", "tick6")

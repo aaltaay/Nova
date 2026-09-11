@@ -5,7 +5,6 @@ import asyncio
 import logging
 from collections import defaultdict
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 import hod_momo_metrics as _metrics
 import hod_momo_persist as _persist

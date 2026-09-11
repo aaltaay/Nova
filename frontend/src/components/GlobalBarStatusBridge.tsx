@@ -2,7 +2,7 @@
  * Always-on publisher for the GlobalAppBar middle status strip.
  * Mounted in AppShell so Scanner and Trader share one header (no clear on route change).
  */
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   API_URL,
   SCANNER_HEALTH_FAIL_GRACE_COUNT,
@@ -30,7 +30,7 @@ export function GlobalBarStatusBridge() {
   const [mode, setMode] = useState<GlobalAppBarScanner['mode']>('loading');
   const [health, setHealth] = useState<HealthStatus>(EMPTY_HEALTH);
   const historyDate = bar?.historyDate ?? null;
-  const historyDates = bar?.historyDates ?? [];
+  const historyDates = useMemo(() => bar?.historyDates ?? [], [bar?.historyDates]);
   const modeFailStreak = useRef(0);
 
   useEffect(() => {

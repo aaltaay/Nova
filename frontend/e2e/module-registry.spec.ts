@@ -24,7 +24,7 @@ async function clearModuleVisibility(page: Page) {
     localStorage.removeItem(key);
   }, MODULE_VISIBILITY_STORAGE_KEY);
   await page.reload();
-  await expect(page.locator('.tab-bar')).toBeVisible();
+  await expect(page.getByTestId('scanner-side-nav')).toBeVisible();
 }
 
 test.describe('Phase 4 — Module registry tabs', () => {
@@ -40,11 +40,11 @@ test.describe('Phase 4 — Module registry tabs', () => {
     await expect(page.getByTestId('modules-menu')).toHaveCount(0);
 
     await page.locator('[data-tab="gainers"]').click();
-    await expect(page.locator('.tab-bar')).toHaveAttribute('data-active-tab', 'gainers');
+    await expect(page.getByTestId('scanner-side-nav')).toHaveAttribute('data-active-tab', 'gainers');
 
     await page.locator('[data-tab="losers"]').evaluate((el: HTMLElement) => el.click());
-    await expect(page.locator('.tab-bar')).toHaveAttribute('data-active-tab', 'losers');
-    await expect(page.locator('[data-tab="losers"]')).toHaveClass(/active/);
+    await expect(page.getByTestId('scanner-side-nav')).toHaveAttribute('data-active-tab', 'losers');
+    await expect(page.locator('[data-tab="losers"]')).toHaveClass(/is-active/);
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
@@ -56,7 +56,7 @@ test.describe('Phase 4 — Module registry tabs', () => {
       localStorage.setItem(key, JSON.stringify({ gappers: false }));
     }, MODULE_VISIBILITY_STORAGE_KEY);
     await page.reload();
-    await expect(page.locator('.tab-bar')).toBeVisible();
+    await expect(page.getByTestId('scanner-side-nav')).toBeVisible();
     await expect(page.locator('[data-tab="gappers"]')).toHaveCount(0);
     await expect(page.locator('[data-tab="gainers"]')).toBeVisible();
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);

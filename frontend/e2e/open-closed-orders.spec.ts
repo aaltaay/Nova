@@ -92,7 +92,7 @@ test.describe('Orders pyramid L3 — Open/Closed dock (mocked API)', () => {
     await page.addInitScript(() => {
       try {
         localStorage.setItem('nova.stockView.openOrders.collapsed', '0');
-        localStorage.removeItem('nova.stockView.openOrders.sampleHidden');
+        localStorage.setItem('nova.stockView.openOrders.sampleHidden', '1');
         localStorage.setItem('nova.stockView.dock.surface', 'orders');
         localStorage.setItem('nova.stockView.ordersToday.filter', 'working');
       } catch {

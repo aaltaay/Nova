@@ -31,8 +31,8 @@ Nova OS engine internals (decide/control_mode/archive code bugs) still use `.cur
 2. Update `Nova-Roadmap-Status.md`: phase checkboxes, state, exact next phase task; **append** a History row to the live note (do not rewrite prior History, and do not edit `Nova-Roadmap-Archive.md`). When a phase closes, move its detail into the archive so the live note stays a status page.
 3. Refresh `nova-home.canvas.tsx` if phase status or live health materially changed.
 4. Prepend `CHANGELOG.md` (and `PROBLEM_LOG.md` if a bug was fixed).
-5. **Hard rule — commit and push every phase:** `git add` (intentional phase files only) → `git commit` → `git push`. Phase completion is **incomplete** until push succeeds. Record the resulting commit SHA in `Nova-Roadmap-Status.md` (`Last verified commit`). Never leave a verified phase uncommitted. If git auth/network fails, record the blocker in Crash/blocker and do not claim verified.
-6. Stop — next chat begins the next phase from the status note. A new chat must not start the next phase until this phase's commit+push is done.
+5. **Hard rule -- PR-first phase delivery:** commit intentional phase files on a focused branch, push, fill the PR template, and merge after checks. Phase completion is **incomplete** until the PR merges. Record the merge commit SHA in `Nova-Roadmap-Status.md` (`Last verified commit`). If auth/network/checks fail, record the blocker and do not claim verified.
+6. Stop -- next chat begins the next phase from the status note. A new chat must not start the next phase until this phase's PR is merged.
 
 ## Interrupted phase
 

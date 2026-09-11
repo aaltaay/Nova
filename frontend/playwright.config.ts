@@ -1,7 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 4173);
+const baseURL = `http://127.0.0.1:${port}`;
+const apiBase = process.env.NOVA_E2E_API_BASE ?? 'http://127.0.0.1:8999';
+
 /**
- * Phase 0 baseline e2e — Vite on :5173.
+ * Isolated E2E Vite server. Never reuse the operator's live :5173 desk.
  * Backend at :8000 is preferred for Stock View ticker data but not required
  * for the structural checks in frontend/e2e/.
  */
@@ -13,7 +17,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL,
     trace: 'on-first-retry',
   },
   projects: [
@@ -23,9 +27,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
+    command: `cross-env VITE_API_BASE_URL=${apiBase} npm run dev -- --host 127.0.0.1 --port ${port}`,
+    url: baseURL,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

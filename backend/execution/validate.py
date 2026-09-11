@@ -157,7 +157,7 @@ def check_account_and_position(cmd: ExecutionCommand) -> tuple[bool, str, str | 
                 try:
                     pos_qty = _position_qty(cmd.normalized_symbol() or "")
                 except IbkrAccountError as exc:
-                    logger.error(
+                    logger.exception(
                         "validate: long_qty failed — refusing SELL for %s: %s",
                         cmd.normalized_symbol(),
                         exc,

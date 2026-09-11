@@ -10,7 +10,7 @@ function attachErrorCollector(page: Page): { errors: string[] } {
     if (msg.type() !== 'error') return;
     const text = msg.text();
     // Vite HMR / failed optional API polls should not fail the happy-path suite.
-    if (/Failed to load resource|net::ERR_|WebSocket/i.test(text)) return;
+    if (/Failed to load resource|net::ERR_|WebSocket|Scanner API network error/i.test(text)) return;
     errors.push(`console.error: ${text}`);
   });
   return { errors };
@@ -36,20 +36,20 @@ test.describe('Phase 0 baseline', () => {
     const account = page.getByTestId('global-bar-account-nav');
     await account.click();
     await expect(account).toHaveClass(/active/);
-    await expect(page.getByTestId('account-view')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Account' })).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Reports' })).toBeVisible();
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
   test('Trader window opens via URL and has no page scroll', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
-    await page.goto('/?view=stock&symbol=AAPL');
+    await page.goto('/?view=sample&symbol=SMPL');
 
-    await expect(page.locator('.stock-view-page')).toBeVisible();
+    await expect(page.getByRole('main')).toBeVisible();
     await expect(page.getByTestId('stock-view-header')).toHaveCount(0);
     await expect(page.getByTestId('header-market-clock')).toBeVisible();
     await expect(page.getByText('Trader', { exact: true })).toBeVisible();
-    await expect(page).toHaveTitle(/AAPL.*Trader/);
+    await expect(page).toHaveTitle(/SMPL.*Trader/);
 
     const noPageScroll = await page.evaluate(() => {
       const el = document.documentElement;
@@ -58,9 +58,9 @@ test.describe('Phase 0 baseline', () => {
     expect(noPageScroll, 'documentElement must not page-scroll on Trader').toBe(true);
 
     // Terminal composition: charts + rail (when detail loads)
-    await expect(page.getByTestId('stock-view-rail')).toBeVisible({ timeout: 20_000 });
-    await expect(page.locator('.stock-view-charts .chart-grid')).toBeVisible();
-    await expect(page.locator('.manual-order-ticket')).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Trader' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Multi-timeframe charts' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Trade order' })).toBeVisible();
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });

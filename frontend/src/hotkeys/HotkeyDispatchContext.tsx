@@ -13,7 +13,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { DESK_ASK_BID_HOTKEY_EPOCH, type HotkeyAction } from '../constants';
+import type { HotkeyAction } from '../constants';
 import { notifyOrderRejected } from '../ibkr/notifyOrderRejected';
 import {
   chordToBinding,
@@ -108,7 +108,7 @@ export function HotkeyDispatchProvider({ children }: { children: ReactNode }) {
     if (deskAskBidEpochNeedsApply()) {
       setProfile(readProfile());
     }
-  }, [DESK_ASK_BID_HOTKEY_EPOCH]);
+  }, []);
 
   useEffect(() => {
     runtimeRef.current = { ...runtimeRef.current, topOfBook };

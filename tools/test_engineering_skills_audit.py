@@ -36,3 +36,5 @@ def test_required_skills_listed():
     assert "interview-me" in mod.REQUIRED_SKILLS
     assert "verification-before-completion" in mod.REQUIRED_SKILLS
     assert "writing-plans" in mod.REQUIRED_SKILLS
+    assert "github-delivery" in mod.REQUIRED_SKILLS
+    assert "github-delivery.mdc" in mod.REQUIRED_ALWAYS_ON_MDC

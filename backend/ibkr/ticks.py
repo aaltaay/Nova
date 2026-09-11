@@ -17,7 +17,8 @@ from constants import (
     IBKR_L1_QUALIFY_TIMEOUT_SEC,
 )
 from ibkr import client as _client
-from ibkr.ticks_handler import get_last_event_ts, on_ticker_update
+from ibkr.ticks_handler import get_last_event_ts as get_last_event_ts
+from ibkr.ticks_handler import on_ticker_update
 
 logger = logging.getLogger(__name__)
 

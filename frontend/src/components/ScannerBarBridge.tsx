@@ -20,41 +20,50 @@ type Props = {
 export function ScannerBarBridge({ activeTab, scanner }: Props) {
   const { settings } = useSettings();
   const bar = useScannerBarProps();
+  const {
+    fetchData,
+    historyDate,
+    lastPriceTs,
+    now,
+    pricesStale,
+    scanAges,
+    setHistoryDate,
+  } = scanner;
   const refreshRef = useRef<() => void>(() => {});
   refreshRef.current = () => {
-    void scanner.fetchData();
+    void fetchData();
   };
 
   // Keep scanner history in sync with the shared bar (owned by AppShell bridge).
   useEffect(() => {
     if (!bar) return;
-    if (bar.historyDate === scanner.historyDate) return;
-    scanner.setHistoryDate(bar.historyDate);
-    if (bar.historyDate === null) void scanner.fetchData();
-  }, [bar, scanner.historyDate, scanner.setHistoryDate, scanner.fetchData]);
+    if (bar.historyDate === historyDate) return;
+    setHistoryDate(bar.historyDate);
+    if (bar.historyDate === null) void fetchData();
+  }, [bar, historyDate, setHistoryDate, fetchData]);
 
   useEffect(() => {
     const showFresh =
       tabUsesScannerPricePatch(activeTab) &&
       settings.discoveryProvider === 'ibkr' &&
-      scanner.historyDate === null;
-    const lastScan = scanAgeForTab(activeTab, scanner.scanAges);
-    const ts = scanner.lastPriceTs > 0 ? scanner.lastPriceTs : lastScan;
+      historyDate === null;
+    const lastScan = scanAgeForTab(activeTab, scanAges);
+    const ts = lastPriceTs > 0 ? lastPriceTs : lastScan;
     const secondsAgo =
-      showFresh && ts > 0 ? Math.max(0, Math.floor(scanner.now - ts)) : null;
+      showFresh && ts > 0 ? Math.max(0, Math.floor(now - ts)) : null;
 
     patchScannerBarProps({
       secondsAgo,
-      pricesStale: showFresh && scanner.pricesStale,
+      pricesStale: showFresh && pricesStale,
       onBackendStarted: () => refreshRef.current(),
     });
   }, [
     activeTab,
-    scanner.historyDate,
-    scanner.lastPriceTs,
-    scanner.pricesStale,
-    scanner.scanAges,
-    scanner.now,
+    historyDate,
+    lastPriceTs,
+    pricesStale,
+    scanAges,
+    now,
     settings.discoveryProvider,
   ]);
 

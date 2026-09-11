@@ -1,23 +1,32 @@
 ﻿---
-description: Run commit, push, and deploy operations at the end of every task
+description: Verify, commit, push a focused branch, open a PR, and deploy when applicable
 alwaysApply: true
 ---
 
-# Commit, Push, and Deploy after Every Task
+# PR-first delivery after every task
 
 At the end of every task or whenever you complete a chunk of work that has been verified/tested:
 
 1. **Verify the changes**
    - Ensure the application builds and all automated tests pass before committing.
 
-2. **Commit the changes**
+2. **Use a focused branch**
+   - Code, config, CI, security, and rule changes never start or finish directly on `master`.
+   - Status-only work may use direct push; explicit user instructions override.
+
+3. **Commit the changes**
    - Stage all intentional changes: `git add -A` (be careful not to commit secrets or untracked local environment files).
    - Commit with a clear, descriptive, and imperative commit message summarizing the changes.
 
-3. **Push to the remote repository**
+4. **Push to the remote repository**
    - Push the committed changes to the current branch on the remote: e.g., `git push` or `git push -u origin HEAD` if the upstream is not set.
 
-4. **Deploy the changes**
+5. **Open the pull request**
+   - Fill `.github/pull_request_template.md`; its body is the task narrative.
+   - Use `Closes #NNN` only when the entire issue is complete. Use `Refs #NNN` for partial work.
+   - Apply the owner, Nova Delivery project, conditional milestone, and real relationships from `github-delivery.mdc`.
+
+6. **Deploy the changes**
    - **Backend has no cloud host right now** (local / Desktop sidecar only). Do not assume Railway or another PaaS deploy. Pushing git does not deploy the API.
    - Identify the project's deployment mechanism for what actually exists:
      - **Public site (optional):** Vercel may redeploy `site/` (marketing page at nova.altaystudio.com) when Root Directory is `site`. That is not the live scanner.
@@ -27,4 +36,4 @@ At the end of every task or whenever you complete a chunk of work that has been 
    - If the deployment command or target is not clear, ask the user for confirmation or check `AGENTS.md` §8 / `README.md`.
    - Report the deployment status clearly to the user (including "no backend cloud deploy" when only local applies).
 
-Do not skip commit/push unless explicitly instructed otherwise. Skip cloud deploy steps when there is no applicable host (Nova backend today).
+Do not skip branch/commit/push/PR unless explicitly instructed otherwise. Skip cloud deploy steps when there is no applicable host (Nova backend today).

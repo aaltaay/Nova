@@ -30,14 +30,25 @@ Touched a shared resource? Also verify its loudest neighbor (blast-radius table 
 ## Related issue
 
 <!--
-Closes #NNN for the deferred GitHub issue this ships (label `deferred`), or "none".
+Closes #NNN only when this PR completes the entire issue.
+Use Refs #NNN for partial progress and leave that issue open, or "none".
 Also list: CHANGELOG entry date, PROBLEM_LOG entry (bug fixes), ADR, roadmap phase.
 Parked something new instead of fixing it? Open a `deferred` issue and link it here.
 -->
+
+## GitHub delivery metadata
+
+- **Issue owner:** <!-- human assignee or n/a with reason -->
+- **Nova Delivery project status:** <!-- Todo / In Progress / Done, or blocked by permission -->
+- **Milestone:** <!-- release/roadmap target, or n/a because not release-bound -->
+- **Relationships:** <!-- parent / sub-issue / blocked-by / duplicate / related, or none -->
+- **Development link:** <!-- issue number linked by Closes or Refs -->
 
 ## Logs
 
 - [ ] `CHANGELOG.md` entry in this PR (behavior / endpoint / constant / rule / UI change)
 - [ ] `PROBLEM_LOG.md` entry in this PR (any bug fixed or fully diagnosed)
-- [ ] GitHub issue opened or closed for anything parked or finished (label `deferred`)
+- [ ] Issue labels, human owner, Project status, conditional Milestone, and real relationships are correct
+- [ ] `Closes` is used only for full completion; partial work uses `Refs` and leaves the issue open
+- [ ] GitHub issue opened or closed for anything parked or fully finished (label `deferred`)
 - [ ] Live docs updated in the same commit if hosting / feed / phase / trading posture changed (`doc-invariants.mdc`)
