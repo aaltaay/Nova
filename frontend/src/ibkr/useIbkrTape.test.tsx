@@ -4,6 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearBarsStoreForTests, getBarsEntry } from '../chart/barsStore';
 import { useIbkrTape, type TapeState } from './useIbkrTape';
 
 class FakeWebSocket {
@@ -60,6 +61,7 @@ describe('useIbkrTape lifecycle', () => {
 
   beforeEach(() => {
     FakeWebSocket.instances = [];
+    clearBarsStoreForTests();
     latest = null;
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -131,5 +133,34 @@ describe('useIbkrTape lifecycle', () => {
       vi.advanceTimersByTime(8_000);
     });
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('seeds an empty 10Sec chart from the first live tape print', () => {
+    renderSymbol('SPCI');
+
+    act(() => {
+      FakeWebSocket.instances[0].onmessage?.({
+        data: JSON.stringify({
+          type: 'print',
+          symbol: 'SPCI',
+          time: '2026-09-11T13:29:55.000Z',
+          price: 150,
+          size: 100,
+        }),
+      });
+    });
+
+    const entry = getBarsEntry('SPCI', '10Sec');
+    expect(entry?.bars).toEqual([
+      {
+        t: '2026-09-11T13:29:50.000Z',
+        o: 150,
+        h: 150,
+        l: 150,
+        c: 150,
+        v: 100,
+      },
+    ]);
+    expect(entry?.coverage?.filling).toBe(true);
   });
 });

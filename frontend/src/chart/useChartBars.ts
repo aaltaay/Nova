@@ -19,7 +19,7 @@ import {
   CHART_REFETCH_SEC,
   CHART_TIMEFRAME_BAR_LIMITS,
 } from '../constants';
-import { isStuckLoadingBars, nextStuckRetryDelayMs } from './chartBarsStuckRetry';
+import { isStuckLoadingBars, startStuckBarsRetries } from './chartBarsStuckRetry';
 import {
   rawBarsToIndicatorBars,
   type IndicatorBar,
@@ -315,30 +315,24 @@ export function useChartBars({
     }
   }, [chartActive, fetchBars, symbol, timeframe]);
 
-  const stuckRetryDelayRef = useRef(CHART_BARS_STUCK_RETRY_MIN_MS);
   useEffect(() => {
     const stuck = isStuckLoadingBars({
       filling,
       hasBars: indicatorBars.length > 0,
       chartActive,
     });
-    if (!stuck) {
-      stuckRetryDelayRef.current = CHART_BARS_STUCK_RETRY_MIN_MS;
-      return;
-    }
-    const delay = stuckRetryDelayRef.current;
+    if (!stuck) return;
     const controller = new AbortController();
-    const id = setTimeout(() => {
-      stuckRetryDelayRef.current = nextStuckRetryDelayMs(
-        delay,
-        CHART_BARS_STUCK_RETRY_MIN_MS,
-        CHART_BARS_STUCK_RETRY_MAX_MS,
-      );
-      void fetchBars(symbol, timeframe, true, controller.signal);
-    }, delay);
+    const stop = startStuckBarsRetries(
+      () => {
+        void fetchBars(symbol, timeframe, true, controller.signal);
+      },
+      CHART_BARS_STUCK_RETRY_MIN_MS,
+      CHART_BARS_STUCK_RETRY_MAX_MS,
+    );
     return () => {
+      stop();
       controller.abort();
-      clearTimeout(id);
     };
   }, [symbol, timeframe, chartActive, filling, indicatorBars.length, fetchBars]);
 

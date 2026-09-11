@@ -26,6 +26,8 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 
 5. **Push fills.** Successful fetches persist and broadcast `bars_patch` on `/ws/ticker/{symbol}` with a `msg.symbol` gate. The client serial queue and 25s abort are deleted.
 
+**Amendment (2026-09-11, 10Sec first paint):** Trader already receives IBKR AllLast prints through `/ws/ibkr/tape/{symbol}`. The first symbol-gated print seeds the client's empty 10Sec bar store immediately, and later prints update that provisional candle while the paced historical fill remains authoritative. A late empty `/bars` response cannot erase a client-side tape candle. Empty+filling panes use a self-scheduling capped retry loop whose continuation does not depend on React rendering; unchanged empty responses therefore cannot turn recovery into a one-shot request.
+
 6. **Historicals leave `cold_slot`.** Snapshots and completed-orders keep the cold lock. Chart fills no longer wait behind them.
 
 ## Consequences
@@ -53,4 +55,6 @@ IB's documented limits are the opposite of that model: 50 simultaneous historica
 - `backend/ibkr/l1_minute.py`
 - `backend/archive/write_queue.py`
 - `backend/chart_bars.py`
+- `frontend/src/chart/barsStore.ts`
+- `frontend/src/chart/chartBarsStuckRetry.ts`
 - `.cursor/rules/single-market-data-feed.mdc`

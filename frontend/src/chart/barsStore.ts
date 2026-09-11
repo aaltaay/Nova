@@ -85,6 +85,56 @@ export function setBars(
   return next;
 }
 
+export function upsertTapePrint10SecBar(
+  symbol: string,
+  print: { time: string; price: number; size: number },
+): boolean {
+  const sym = symbol.trim().toUpperCase();
+  const stamp = new Date(print.time).getTime();
+  const price = Number(print.price);
+  const size = Math.max(0, Number(print.size) || 0);
+  if (!sym || !Number.isFinite(stamp) || !Number.isFinite(price) || price <= 0) {
+    return false;
+  }
+
+  const bucketMs = Math.floor(stamp / 10_000) * 10_000;
+  const bucketIso = new Date(bucketMs).toISOString();
+  const current = getBarsEntry(sym, '10Sec');
+  const bars = [...(current?.bars ?? [])];
+  const last = bars.at(-1);
+
+  if (last) {
+    const lastMs = new Date(last.t).getTime();
+    if (!Number.isFinite(lastMs) || bucketMs < lastMs) return false;
+    if (bucketMs === lastMs) {
+      bars[bars.length - 1] = {
+        ...last,
+        h: Math.max(last.h, price),
+        l: Math.min(last.l, price),
+        c: price,
+        v: last.v + size,
+      };
+    } else {
+      bars.push({ t: bucketIso, o: price, h: price, l: price, c: price, v: size });
+    }
+  } else {
+    bars.push({ t: bucketIso, o: price, h: price, l: price, c: price, v: size });
+  }
+
+  const limit = CHART_TIMEFRAME_BAR_LIMITS['10Sec'];
+  setBars(
+    sym,
+    '10Sec',
+    limit && bars.length > limit ? bars.slice(-limit) : bars,
+    current?.coverage ?? {
+      asOf: bucketIso,
+      completeThrough: null,
+      filling: true,
+    },
+  );
+  return true;
+}
+
 export function subscribeBars(
   symbol: string,
   timeframe: string,
@@ -121,6 +171,10 @@ async function fetchSingleBars(
   }
   const data = (await res.json()) as { bars?: RawBar[]; coverage?: unknown };
   const bars = data.bars ?? [];
+  const current = getBarsEntry(symbol, timeframe);
+  if (bars.length === 0 && current && current.bars.length > 0) {
+    return current.bars;
+  }
   setBars(symbol, timeframe, bars, parseBarsCoverage(data.coverage));
   return bars;
 }
