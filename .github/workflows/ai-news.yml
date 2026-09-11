@@ -1,0 +1,56 @@
+# Refresh the "AI x the tape" digest on nova.altaystudio.com.
+#
+# The marketing site is static with no API and no secrets, so the digest is
+# pre-rendered here and committed into site/index.html. Vercel redeploys from
+# git, so the commit *is* the publish step.
+#
+# Sources are public RSS/Atom and the generator is stdlib-only -- no API key,
+# no pip install. If the fetch degrades, `ai_news_digest.py` exits non-zero
+# without touching the page, so a bad morning keeps yesterday's good block
+# instead of publishing a thin one.
+
+name: AI news digest
+
+on:
+  schedule:
+    # 11:10 and 23:10 UTC. Offset from the hour because GitHub's scheduler
+    # queues heavily on the hour and can drop runs.
+    - cron: "10 11,23 * * *"
+  workflow_dispatch:
+
+# Serialize: two overlapping runs would race on the same commit.
+concurrency:
+  group: ai-news-digest
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    name: Refresh digest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Unit tests (ranking must hold before it can publish)
+        run: python -m pytest tools/test_ai_news_digest.py -q
+
+      - name: Rebuild the digest
+        run: python tools/ai_news_digest.py --limit 6
+
+      - name: Commit when the shortlist changed
+        run: |
+          if git diff --quiet -- site/index.html; then
+            echo "No change to the digest."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/index.html
+          git commit -m "chore(site): refresh AI-in-trading news digest"
+          git push
