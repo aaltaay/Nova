@@ -168,7 +168,7 @@ export function TradingPrerequisitesGate() {
       buildTradingPrerequisites({
         health,
         ibkrEnabled: ibkr.enabled,
-        ibkrConnected: Boolean(ibkrConnected || ibkr.connected),
+        ibkrConnected: Boolean((ibkrConnected || ibkr.connected) && !ibkr.stale),
         ibkrTransportConnected: ibkr.transport_connected,
         preferredPortReachable: ibkr.preferred_port_reachable,
         disconnectHint: ibkr.disconnect_hint,
@@ -181,6 +181,7 @@ export function TradingPrerequisitesGate() {
       health,
       ibkr.enabled,
       ibkr.connected,
+      ibkr.stale,
       ibkr.transport_connected,
       ibkr.preferred_port_reachable,
       ibkr.disconnect_hint,

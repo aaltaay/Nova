@@ -372,6 +372,8 @@ export const HEADER_GATEWAY_LAUNCH_HINT =
 /** Header Desk/Gateway chip visible states. Paper/Live lives on the mode capsule. */
 export const HEADER_GATEWAY_UP_LABEL = 'up';
 export const HEADER_GATEWAY_OFFLINE_LABEL = 'offline';
+/** /api/ibkr/status missed N polls -- last-good must not keep the chip green. */
+export const HEADER_GATEWAY_STALE_LABEL = 'stale';
 /** Legacy chip suffixes -- kept for tooltip / older copy, not the chip value. */
 export const HEADER_GATEWAY_MODE_PAPER = 'PAPER';
 export const HEADER_GATEWAY_MODE_LIVE = 'LIVE';

@@ -48,6 +48,17 @@ describe('deskConnectionLabel', () => {
       }),
     ).toBe('up');
   });
+
+  it('marks the chip stale after missed IBKR status polls', () => {
+    expect(
+      deskConnectionLabel({
+        apiOk: true,
+        connected: true,
+        delayed: false,
+        stale: true,
+      }),
+    ).toBe('stale');
+  });
 });
 
 describe('apiProcessOk', () => {

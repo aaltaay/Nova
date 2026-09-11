@@ -132,20 +132,24 @@ export function HeaderConnectionStatus({
     .filter(Boolean)
     .join('\n\n');
 
+  const statusStale = ibkrStatusLive.stale === true;
   const gatewayChipTone: HeaderChipTone = gatewayLaunchOk === false
     ? 'bad'
     : gatewayLaunchOk === true
       ? 'ok'
-      : !ibkrConnected
-        ? 'bad'
-        : marketDataDelayed
-          ? 'warn'
-          : 'ok';
+      : statusStale
+        ? 'warn'
+        : !ibkrConnected
+          ? 'bad'
+          : marketDataDelayed
+            ? 'warn'
+            : 'ok';
 
   const deskValue = deskConnectionLabel({
     apiOk,
     connected: ibkrConnected,
     delayed: marketDataDelayed,
+    stale: statusStale,
     launchBusy: gatewayLaunchBusy,
     launchOk: gatewayLaunchOk,
   });

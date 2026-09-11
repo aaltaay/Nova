@@ -8,6 +8,10 @@ export const GLOBAL_APP_BAR_HEIGHT_PX = 40;
 
 /** IBKR account / positions / orders poll interval for the shared provider. */
 export const IBKR_ACCOUNT_POLL_MS = 5_000;
+/** One shared /api/ibkr/status interval for every useIbkrStatus subscriber. */
+export const IBKR_STATUS_POLL_MS = 5_000;
+/** Consecutive failed polls before last-good `connected` is forced false. */
+export const IBKR_STATUS_STALE_AFTER_MISSES = 2;
 /** sessionStorage last successful /api/ibkr/status -- avoids a false Disconnected flash. */
 export const IBKR_STATUS_SESSION_KEY = 'nova.ibkr.status.last';
 
