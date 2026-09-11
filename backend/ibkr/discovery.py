@@ -586,6 +586,7 @@ async def _get_movers(
             "volume": q["volume"],
             "gap_percent": gap_percent,
             "prev_close": prev_close,
+            "open": open_price,
             "exchange": q.get("exchange"),
         })
     rows.sort(key=lambda x: x["change_pct"], reverse=reverse)

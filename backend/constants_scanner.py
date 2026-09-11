@@ -227,8 +227,11 @@ DATA_FEED_OPTIONS = ("iex", "sip")
 # ── Ticker detail caches ──────────────────────────────────────────────────────
 # Fundamentals (yfinance/Yahoo) are slow; cache aggressively.
 FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
+# Failed Yahoo / timeout / empty exception: short negative cache so a blip
+# does not blank float / SI / mcap / RVOL for a full scan cycle (D-016).
+FUNDAMENTALS_NEGATIVE_CACHE_TTL = 60.0
 # Hard timeout for a single yfinance .info call; prevents Yahoo stalls from blocking Phase 2.
-# On timeout, stale cached data (if any) is returned; otherwise an empty dict is used.
+# On timeout, a successful stale cache is returned; a prior failure is retried.
 YFINANCE_TIMEOUT_S = 5.0
 # Scanner Earnings column lights a dot when the Yahoo event is within this
 # many ET calendar days of today (1 = yesterday / today / tomorrow).
