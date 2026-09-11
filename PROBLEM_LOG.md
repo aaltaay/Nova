@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Catalysts promised a news universe the filter did not deliver
+
+- **Symptom:** Catalysts tab copy said it surfaced any ticker mentioned in recent market news, regardless of exchange or size. Under `discovery=ibkr` the scan only kept names already on Gappers/Gainers/AH.
+- **Cause:** UI copy and `scan_loop.run_news_catalyst_scan` disagreed. D-015 parked that decision.
+- **Fix:** Product split -- Catalysts copy now describes the on-roster filter. Nova News (#59) is the news universe (Yahoo + wires + small publishers, criticality columns). Roster filter itself is unchanged.
+- **Fix class:** surfacing
+- **Keywords:** catalysts, news universe, D-015, Nova News, IBKR roster, _find_ibkr_cache_row
+
 ## 2026-09-10 -- CI skipped strict gates and E2E shared operator state
 
 - **Symptom:** Master carried 4 ESLint errors, 6 warnings, and 11 Ruff findings while CI stayed green because it ran only pytest and the frontend build. Vitest could delete the operator's live `start-api.lock`, and the unrun Playwright suite reused port 5173, mixed operator state into tests, and had 12 stale selector/data failures.

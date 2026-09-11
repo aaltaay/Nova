@@ -33,6 +33,7 @@ export type ModuleCountKey =
   | 'afterhours'
   | 'largeCap'
   | 'earnings'
+  | 'novaNews'
   | 'catalysts'
   | 'hodMomo'
   | 'runningUp'
@@ -46,6 +47,7 @@ export const TAB_MODULE_IDS = [
   'afterhours',
   'large_cap',
   'earnings',
+  'nova_news',
   'catalysts',
   'hod_momo',
   'running_up',
@@ -141,6 +143,16 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     defaultPlacement: 'tab',
     showInTabNav: true,
     countKey: 'earnings',
+  },
+  {
+    id: 'nova_news',
+    title: 'Nova News',
+    component: host,
+    // Headline desk from Yahoo/Finnhub/Alpaca APIs -- not IBKR prices, not HOD.
+    feedDeps: ['news'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
+    countKey: 'novaNews',
   },
   {
     id: 'catalysts',

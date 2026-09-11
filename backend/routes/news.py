@@ -1,9 +1,9 @@
 """
-News impact routes — READ-ONLY decision layer over existing Alpaca news /
-catalyst data. Never places orders.
+News impact + Nova News desk routes. READ-ONLY. Never places orders.
 
 Endpoints:
   GET /api/news/impact/{symbol}  -- explicit NewsImpactVerdict for one symbol
+  GET /api/news/desk             -- Nova News criticality desk (not a price feed)
 """
 from __future__ import annotations
 
@@ -11,7 +11,9 @@ import logging
 
 from fastapi import APIRouter
 
+from constants import NOVA_API_REV
 from news.impact import evaluate_news_impact
+from nova_news.desk import build_desk
 from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
@@ -82,6 +84,12 @@ def _gather_context(symbol: str) -> dict:
         "rel_volume": rel_volume,
         "l2_features": l2_features,
     }
+
+
+@router.get("/desk")
+def news_desk() -> dict:
+    """Full-page Nova News desk. Headlines only -- never IBKR prices or HOD."""
+    return {"rev": NOVA_API_REV, **build_desk()}
 
 
 @router.get("/impact/{symbol}")

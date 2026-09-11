@@ -111,12 +111,91 @@ NEWS_IMPACT_OFFICIAL_URL_KEYWORDS = (
 NEWS_IMPACT_MAJOR_SOURCE_KEYWORDS = (
     "bloomberg", "reuters", "wsj", "wall street journal", "cnbc", "marketwatch",
     "benzinga", "dow jones", "associated press", "ap news", "financial times",
-    "barron", "the street", "yahoo finance",
+    "barron", "the street", "yahoo finance", "yahoo news", "yahoo",
 )
 NEWS_IMPACT_SECONDARY_SOURCE_KEYWORDS = (
     "motley fool", "seeking alpha", "investopedia", "zacks", "tipranks",
-    "investorplace", "fool.com",
+    "investorplace", "fool.com", "traders magazine", "markets media",
+    "hedgeweek", "finextra", "techcrunch", "ars technica",
 )
+
+# ── Nova News desk (headline product -- not a price feed, not HOD) ──────────
+# Owner: nova_news.desk. Invalidation: TTL expiry or schema bump.
+# Disk snapshot lives under paths.cache_dir() / NOVA_NEWS_DESK_CACHE_FILENAME.
+NOVA_NEWS_DESK_SCHEMA_VERSION = 1
+NOVA_NEWS_DESK_TTL_SEC = 120.0
+NOVA_NEWS_DESK_HTTP_TIMEOUT_SEC = 8.0
+NOVA_NEWS_DESK_MAX_STORIES = 120
+NOVA_NEWS_DESK_CACHE_FILENAME = "nova-news-desk.json"
+NOVA_NEWS_HTTP_USER_AGENT = "NovaNews/1.0 (+https://github.com/aaltaay/Nova)"
+FINNHUB_MARKET_NEWS_URL = "https://finnhub.io/api/v1/news"
+FINNHUB_NEWS_CATEGORIES = ("general", "merger")
+NOVA_NEWS_YAHOO_FINANCE_RSS = "https://finance.yahoo.com/news/rssindex"
+NOVA_NEWS_YAHOO_NEWS_RSS = "https://news.yahoo.com/rss/"
+NOVA_NEWS_GOOGLE_MARKETS_RSS = (
+    "https://news.google.com/rss/search"
+    "?q=when:24h+stock+OR+markets+OR+%22wall+street%22"
+    "&hl=en-US&gl=US&ceid=US:en"
+)
+# Major wires that no longer publish a free first-party RSS.
+NOVA_NEWS_GOOGLE_WIRES_RSS = (
+    "https://news.google.com/rss/search"
+    "?q=when:24h+(stock+OR+markets+OR+earnings)"
+    "+site:reuters.com+OR+site:apnews.com+OR+site:bloomberg.com"
+    "+OR+site:wsj.com+OR+site:ft.com"
+    "&hl=en-US&gl=US&ceid=US:en"
+)
+# Public RSS for major wires + smaller trade press. Not a price feed.
+NOVA_NEWS_OUTLET_FEEDS = (
+    ("cnbc", "CNBC", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664"),
+    ("marketwatch", "MarketWatch", "https://feeds.content.dowjones.io/public/rss/mw_topstories"),
+    ("guardian", "Guardian Business", "https://www.theguardian.com/uk/business/rss"),
+    ("ft", "Financial Times", "https://www.ft.com/markets?format=rss"),
+    ("benzinga", "Benzinga", "https://www.benzinga.com/feed"),
+    ("traders_magazine", "Traders Magazine", "https://www.tradersmagazine.com/feed/"),
+    ("markets_media", "Markets Media", "https://www.marketsmedia.com/feed/"),
+    ("hedgeweek", "Hedgeweek", "https://www.hedgeweek.com/feed/"),
+    ("finextra", "Finextra", "https://www.finextra.com/rss/headlines.aspx"),
+)
+NOVA_NEWS_CRITICAL_KEYWORDS = (
+    "bankruptcy", "chapter 11", "going concern",
+    "trading halt", "halted",
+    "sec charges", "doj", "subpoena", "investigation",
+    "fda rejection", "complete response letter", "clinical hold",
+    "fda approval",
+    "registered direct", "atm offering", "public offering",
+    "merger agreement", "take-private", "acquisition of",
+    "guidance cut", "profit warning",
+    "data breach", "cybersecurity breach",
+    "delisting",
+)
+NOVA_NEWS_HIGH_KEYWORDS = (
+    "earnings beat", "earnings miss", "raises guidance", "cuts guidance",
+    "upgrade", "downgrade", "price target",
+    "partnership", "contract award",
+    "insider buy", "initiated coverage",
+    "offering",
+)
+NOVA_NEWS_FILING_KEYWORDS = (
+    "8-k", "10-k", "10-q", "s-1", "form 4", "edgar", "press release",
+    "investor relations",
+)
+NOVA_NEWS_MACRO_KEYWORDS = (
+    "federal reserve", "fomc", "inflation", "cpi ", "treasury",
+    "interest rate", "recession", "jobs report", "oil prices",
+    "wall street", "stock market",
+)
+NOVA_NEWS_CRITICAL_MIN_SCORE = 70
+NOVA_NEWS_HIGH_MIN_SCORE = 45
+NOVA_NEWS_WATCH_MIN_SCORE = 25
+NOVA_NEWS_TIER_POINTS = {
+    "official": 40,
+    "major": 25,
+    "secondary": 12,
+    "unknown": 8,
+    "none": 0,
+}
+NOVA_NEWS_CRITICALITY_ORDER = ("critical", "high", "watch", "background")
 
 # ── News language understanding (FinBERT sentiment + Lincoln AI narrative) ───
 # FinBERT (ProsusAI/finbert) reads the headline text itself and returns a

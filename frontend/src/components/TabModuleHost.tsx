@@ -7,6 +7,7 @@ import { ScannerTabPanels } from './ScannerTabPanels';
 import { TradingTab } from '../ibkr/TradingTab';
 import { WatchlistTab } from '../strategy/WatchlistTab';
 import { EarningsPanel } from '../earnings/EarningsPanel';
+import { NovaNewsPanel } from '../nova_news/NovaNewsPanel';
 import { getModule, type ActiveTab } from '../workspace/registry';
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
@@ -40,8 +41,8 @@ export type TabModuleHostProps = {
   tableMeta?: Record<string, ScannerTableMeta>;
   historyDate?: string | null;
   /** Sample dashboard is fixtures-only and must never mount a live fetch
-   * (see SampleDashboardPage header comment) -- Earnings self-fetches via
-   * useEarningsCalendar, so it is the one tab that needs this flag. */
+   * (see SampleDashboardPage header comment). Earnings and Nova News
+   * self-fetch, so they take this flag. */
   sampleMode?: boolean;
 };
 
@@ -151,6 +152,17 @@ export function TabModuleHost(props: TabModuleHostProps) {
         selectedSymbol={selectedSymbol}
         onSelect={onSelect}
         onOpenTrading={onOpenTrading}
+      />
+    );
+  }
+
+  if (activeTab === 'nova_news') {
+    return (
+      <NovaNewsPanel
+        selectedSymbol={selectedSymbol}
+        onSelect={onSelect}
+        onOpenTrading={onOpenTrading}
+        sampleMode={sampleMode}
       />
     );
   }

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Nova News full-page desk
+
+- **What:** Added Nova News as a first-class scanner-rail product: a full-page newsroom with a top-of-desk row plus Critical / High / Watch / Background columns. Stories come from Yahoo Finance/News RSS, Google News (markets + major wires), public outlet feeds, Finnhub market news, and Alpaca news. Catalysts copy now says it is on-roster only.
+- **Why:** The desk treated news as a ticker sidebar and a roster-filtered Catalysts table. The operator asked for a competing news product -- Yahoo plus major and small publishers -- with rows/columns and criticality triage.
+- **Files touched:** `backend/nova_news/`, `backend/routes/news.py`, `backend/constants_archive_news.py`, `frontend/src/nova_news/`, `frontend/src/workspace/registry.ts`, `frontend/src/components/TabModuleHost.tsx`, `frontend/src/components/CatalystsTable.tsx`, `.cursor/rules/single-market-data-feed.mdc`
+- **How it works now:** `GET /api/news/desk` fans out HTTP API/RSS fetches, dedupes by URL, scores criticality from source tier + catalyst language + freshness (no FinBERT on this path), and caches a `schema_version=1` snapshot. The Nova News tab fills the main column: a three-story lead row, then four triage columns, with All / Markets / Filings / Yahoo / Small publishers filters. Ticker chips open Trader. This is not a price feed and not a HOD input. If every source is down and there is no cache, the payload carries a loud `error`. Sample Data uses a fixture desk.
+- **Verified by:** pytest `backend/tests/test_nova_news_*.py`; Vitest `frontend/src/nova_news`; registry + build gates on this PR.
+- **Follow-ups:** D-015 FinBERT warmup and Earnings Finnhub 429 remain open. D-001 scanner NEWS column is unchanged.
+- **Related:** #59; Refs #35; PROBLEM_LOG 2026-09-11 Catalysts copy vs roster filter
+
 ## 2026-09-11 -- GitHub auto-deletes merged PR heads (backup)
 
 - **What:** Live delivery docs now say GitHub `delete_branch_on_merge` is on. Agents still confirm the head is gone after merge/close; `--delete` only if `stale_pr_branches.py` still lists it.

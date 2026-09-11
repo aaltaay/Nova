@@ -87,6 +87,16 @@ describe('module registry (Phase 4)', () => {
     expect(tabUsesScannerPricePatch('earnings')).toBe(false);
   });
 
+  it('registers Nova News as a headline desk, not a scanner price tab', () => {
+    const news = getModule('nova_news');
+    expect(news?.title).toBe('Nova News');
+    expect(news?.defaultPlacement).toBe('tab');
+    expect(news?.feedDeps).toEqual(['news']);
+    expect(news?.countKey).toBe('novaNews');
+    expect(listTabModules().map(t => t.id)).toContain('nova_news');
+    expect(tabUsesScannerPricePatch('nova_news')).toBe(false);
+  });
+
   it('registers Running Up as a sibling tab of HOD Momo', () => {
     const hod = getModule('hod_momo');
     const ru = getModule('running_up');
@@ -105,7 +115,7 @@ describe('module registry (Phase 4)', () => {
     for (const id of ['gappers', 'gainers', 'losers', 'afterhours', 'catalysts'] as const) {
       expect(tabUsesScannerPricePatch(id)).toBe(true);
     }
-    for (const id of ['hod_momo', 'running_up', 'watchlist', 'trading'] as const) {
+    for (const id of ['hod_momo', 'running_up', 'watchlist', 'trading', 'nova_news'] as const) {
       expect(tabUsesScannerPricePatch(id)).toBe(false);
     }
   });

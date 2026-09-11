@@ -79,6 +79,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 
 10. **Earnings tab is calendar metadata, not a price feed.** `backend/earnings_calendar.py` fetches Finnhub's `/calendar/earnings` (symbol, date, BMO/AMC session, EPS/revenue estimate + actual) -- no IBKR `reqScannerSubscription` lease, no `/ws/scanner` price stream, and no HOD Momo admission (same carve-out as Large Cap, ADR 008). Company name/sector/market cap are decorated read-time from the existing yfinance fundamentals cache (cache-only, background-warmed by `earnings_enrich_hooks.py`) -- never a blocking per-row Yahoo call. Implied move / IV / surprise-% are **not computed** -- Finnhub's free calendar has no options data; do not invent a formula. A ticker click opens Trader the same way every other scanner ticker does (`SymbolSelectButton` -> `onOpenTrading`, ADR 011).
 
+11. **Nova News is a headline desk, not a price feed.** `backend/nova_news/` aggregates Yahoo Finance/News RSS, Google News markets + major-wire RSS, public outlet RSS, Finnhub `/news`, and Alpaca `/v1beta1/news`. It is not an IBKR scanner lease, has no `/ws/scanner` price stream, and must never admit symbols into HOD Momo. Empty + all-sources-down is a loud `error`, not a fresh empty desk. Ticker chips open Trader (`SymbolSelectButton` -> `onOpenTrading`, ADR 011). Do not scrape HTML. Do not paint Alpaca/Yahoo/Finnhub prices from this path. Catalysts stays on-roster-with-news; Nova News is the news universe.
+
 ## Anti-patterns
 
 - ❌ Keeping previous `detail` while loading the next ticker so L2 stays on NXTC under an MVO quote
@@ -116,6 +118,8 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Starting a second `uvicorn` / `run_api.py` while one already holds `:8000` and clientId 17 (Error 326, session stuck `connecting`, door trail `Failed to fetch`)
 - ❌ Opening an IBKR scanner lease, streaming L1, or admitting Earnings-tab symbols into HOD Momo -- it is a Finnhub calendar list, not a discovery table
 - ❌ Inventing implied move / IV / surprise-% for the Earnings tab from price alone -- Finnhub's free calendar has no options data
+- ❌ Treating Nova News as a scanner/price feed, admitting its symbols into HOD Momo, or scraping publisher HTML instead of the HTTP APIs/feeds
+- ❌ Letting Catalysts copy claim a news universe while the filter is still IBKR-roster-only -- Nova News is that universe
 
 ## Related
 
@@ -133,6 +137,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - `backend/ibkr/reprice.py` — detail backstop only (cold snapshots, not table SLA)
 - `backend/ibkr/tape_stream.py` — `reqTickByTickData AllLast` subscriber
 - `backend/earnings_calendar.py` -- Finnhub calendar fetch/cache; `earnings_enrich_hooks.py` -- background yfinance name/sector/mcap warm
+- `backend/nova_news/` -- Nova News desk (Yahoo/Finnhub/Alpaca headlines, criticality columns)
 - `backend/scanner_push.py` — `/ws/scanner` + `set_active_tab`
 - `frontend/src/hooks/useTickerStream.ts`, `useIbkrDepth.ts`, `useIbkrTape.ts`, `useScannerPriceStream.ts`
 - `frontend/src/utils/dataSourceMap.ts` — honest attribution
