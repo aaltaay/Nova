@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Trend Line two-click still failed after pan disable (D-010)
+
+- **Symptom:** Select Trend Line, click two prices. The chart used to pan on the X-axis. After PR #83 disabled `pressedMouseMove`, a careful click still often dropped no anchor, so the line never appeared. Extended Line and Ray shared the gesture.
+- **Cause:** `lightweight-charts-drawing` `setActiveTool` does not place anything -- its `handleClick` is a no-op while a tool is armed. Nova collected anchors via Lightweight Charts `subscribeClick`, which is cancelled once the pointer moves 5px (`CancelClickManhattanDistance`). Human clicks routinely exceed that. Disabling pan stopped the scroll but did not make `subscribeClick` fire.
+- **Fix:** Place from the chart container `pointerup` (`chartDrawingPlace.bindArmedToolPointer`) using the existing two-click / one-click contract. Keep pan / axis-drag / kinetic fling off while armed. Do not add a third "ready to draw" click.
+- **Fix class:** admission
+- **Keywords:** D-010, Trend Line, subscribeClick, pointerup, pendingAnchor, 5px, lightweight-charts-drawing, Extended Line, Ray
+
 ## 2026-09-11 -- Surge-seed stale-store test failed at 04:00 ET session roll
 
 - **Symptom:** `test_seed_symbol_stale_store_does_not_poison_surge_buffer` asserted `is_high_seeded("STALE")` and failed every run near 04:00 ET (08:00 UTC in EDT).

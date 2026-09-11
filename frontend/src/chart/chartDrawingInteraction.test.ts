@@ -9,12 +9,17 @@ describe('chartInteractionForTool', () => {
     expect(opts.handleScroll.mouseWheel).toBe(true);
   });
 
-  it('disables pan/scale drag while Trend Line is armed', () => {
-    const opts = chartInteractionForTool('TrendLine');
-    expect(opts.handleScroll.pressedMouseMove).toBe(false);
-    expect(opts.handleScroll.horzTouchDrag).toBe(false);
-    expect(opts.handleScroll.vertTouchDrag).toBe(false);
-    expect(opts.handleScale.axisPressedMouseMove).toBe(false);
-    expect(opts.handleScroll.mouseWheel).toBe(true);
-  });
+  it.each(['TrendLine', 'ExtendedLine', 'Ray'])(
+    'disables pan/scale drag and kinetic fling while %s is armed',
+    (tool) => {
+      const opts = chartInteractionForTool(tool);
+      expect(opts.handleScroll.pressedMouseMove).toBe(false);
+      expect(opts.handleScroll.horzTouchDrag).toBe(false);
+      expect(opts.handleScroll.vertTouchDrag).toBe(false);
+      expect(opts.handleScale.axisPressedMouseMove).toBe(false);
+      expect(opts.kineticScroll.mouse).toBe(false);
+      expect(opts.kineticScroll.touch).toBe(false);
+      expect(opts.handleScroll.mouseWheel).toBe(true);
+    },
+  );
 });
