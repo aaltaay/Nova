@@ -122,13 +122,20 @@ This is mandatory for every agent, every PR, parent or specialist. A merged or c
 In the **same session** as the merge or close:
 
 ```text
+git fetch origin --prune
+py -3 tools/stale_pr_branches.py
+```
+
+If that checker still lists the head, then delete it:
+
+```text
 git push origin --delete <head-branch>
 git fetch origin --prune
 py -3 tools/stale_pr_branches.py
 ```
 
-Also delete the head of a PR you **close without merging** (superseded, rejected, abandoned).
+Also confirm the head of a PR you **close without merging** (superseded, rejected, abandoned).
 
 Never delete `master` or `main`. Never delete a branch that still has an **open** PR. A branch with no PR yet is in-progress work -- leave it.
 
-Do not skip this because GitHub "should" auto-delete. This repo's `delete_branch_on_merge` setting has been off; agents own the cleanup. If a human later turns the setting on, still run `stale_pr_branches.py` and prune locals. If permissions block the delete, say so -- do not silently leave the branch.
+GitHub `delete_branch_on_merge` is on. That is a backup sweep, not a skip. If GitHub already removed the ref, a `--delete` may fail because the branch is gone -- that is success. If `stale_pr_branches.py` still lists the head, delete it. If permissions block the delete, say so -- do not silently leave the branch.

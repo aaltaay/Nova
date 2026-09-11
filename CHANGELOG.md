@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- GitHub auto-deletes merged PR heads (backup)
+
+- **What:** Live delivery docs now say GitHub `delete_branch_on_merge` is on. Agents still confirm the head is gone after merge/close; `--delete` only if `stale_pr_branches.py` still lists it.
+- **Why:** Human turned on **Automatically delete head branches** on `aaltaay/Nova`. Docs still claimed the setting was off.
+- **Files touched:** `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `.cursor/rules/commit-push-deploy.mdc`, `tools/stale_pr_branches.py`, `AGENTS.md`
+- **How it works now:** GitHub is the backup sweep. After merge or close: `git fetch origin --prune` then `py -3 tools/stale_pr_branches.py`. A missing remote ref is success. A leftover still gets `--delete`. `master` / `main` and open-PR heads stay.
+- **Verified by:** REST + GraphQL `delete_branch_on_merge` / `deleteBranchOnMerge` both true before this PR. After merge, this proof branch must vanish with no `git push origin --delete`.
+- **Related:** Follow-up to the 2026-09-11 leftover-branch rule (PR #54).
+
 ## 2026-09-11 -- Delete merged PR head branches (every agent)
 
 - **What:** After a pull request is merged or closed, every agent must delete that PR's head branch in the same session. Always-on in `github-delivery.mdc` and `commit-push-deploy.mdc`. CI fails if a leftover merged/closed head is still on origin (`tools/stale_pr_branches.py`).
