@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Historical Alpaca keys in git .env
+
+- **Symptom:** Before publishing the source, a history scan found a tracked `.env` in early commits (April 2026 through 2026-07-10) with filled `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`. No GitHub PATs, OpenAI keys, IBKR passwords, or other vendor secrets were in those blobs. The file is not in HEAD.
+- **Cause:** The initial commit stored a working `.env`. It was deleted from the tree on 2026-07-10 (`d56c197`) but the blobs stayed in history. Making the repository public would have exposed those strings.
+- **Fix:** Operator revoked the Alpaca pair in the vendor console. `.env` stays gitignored. Public docs (`SECURITY.md`, README) say historical credentials are burned. `Nova-public` is taken private so it is no longer the public snapshot.
+- **Fix class:** infra
+- **Keywords:** alpaca, .env, git history, secrets, revoke, public repo, Nova-public
+
 ## 2026-09-11 -- Auto-merge deadlocked on its own pending check
 
 - **Symptom:** PR #65 stayed open after all gating jobs and Desktop pack were green. The `Auto-merge` job sat in `Merge when gating CI is green`.

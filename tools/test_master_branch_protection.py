@@ -134,6 +134,9 @@ def test_evaluate_plan_required_is_blocked():
     result = evaluate(branch_protected=None, protection=None, error="plan_required")
     assert result.status == "plan_required"
     assert result.exit_code == EXIT_BLOCKED
+    joined = " ".join(result.reasons).lower()
+    assert "do not make nova public" not in joined
+    assert "public nova unlocks" in joined
 
 
 def test_evaluate_integration_forbidden_is_blocked():

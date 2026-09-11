@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Public source home is aaltaay/Nova
+
+- **What:** Nova is the public source repository. README, LICENSE, SECURITY, and CONTRIBUTING are production copy. The marketing site CTA points at `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive, not the code home. Live delivery docs no longer say "keep the repo private to unlock branch protection."
+- **Why:** Operator chose to publish the source. A historical `.env` with Alpaca news keys was already removed from the tree; those keys were revoked before publish. No GitHub PATs were in history.
+- **Files touched:** `README.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `site/index.html`, `AGENTS.md`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `tools/master_branch_protection.py`, `tools/doc_invariants.py`
+- **How it works now:** Clone `https://github.com/aaltaay/Nova`. Marketing page and constitution agree. Branch protection is available on GitHub Free because the repo is public. `apply` still needs an Administration token. `Nova-public` stays on GitHub as a private snapshot.
+- **Verified by:** history scan (no PAT / OpenAI / IBKR password blobs; Alpaca `.env` keys revoked); `pytest tools/test_master_branch_protection.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py`; `python3 tools/doc_invariants.py`; `python3 tools/engineering_skills_audit.py`.
+- **Follow-ups:** Close #63 only after `master_branch_protection.py check` exits 0.
+- **Related:** PROBLEM_LOG 2026-09-11 historical Alpaca `.env` revoked. Refs #63.
+
 ## 2026-09-11 -- GitHub Actions merges ready PRs and deletes heads
 
 - **What:** Ready (non-draft) PRs now merge from GitHub Actions when gating CI is green. Closed PR heads are deleted by workflow, not by hoping an agent remembers. Also landed the leftover #58 pytest install for the AI news digest Action and the #64 master-protection policy/tool.
