@@ -30,7 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
-## 2026-09-10 -- PR-first GitHub delivery and strict CI gates
+## 2026-09-11 -- AI-in-trading news digest on the marketing site
+
+- **What:** `nova.altaystudio.com` now carries a ranked "AI x the tape" section on the homepage: the best current reporting on AI actually being used to trade. A scheduled workflow regenerates it twice a day and commits the result.
+- **Why:** User request -- surface the best-of-the-best AI-in-trading news on the `.com` homepage.
+- **Files touched:** `tools/ai_news_rank.py` (new, pure ranking), `tools/ai_news_digest.py` (new, fetch + render), `tools/test_ai_news_digest.py` (new, 31 tests), `site/index.html`, `site/styles.css`, `.github/workflows/ai-news.yml` (new).
+- **How it works now:** The site is static with no API and no secrets, so nothing is fetched in the browser. The generator pulls ~23 public RSS/Atom feeds with stdlib only, ranks them, and rewrites the HTML between `<!-- AI_NEWS:START -->` / `<!-- AI_NEWS:END -->` in `site/index.html`. The commit is the publish step -- Vercel redeploys from git. Ranking takes three independent bars: a topic gate (an "AI is doing the trading" phrase, or an AI term *and* a markets term in the headline), a score (topic depth + high-signal bonus - promo/capex penalty, scaled by source credibility and 72h-half-life recency decay), and diversity (max 2 stories per outlet). `SOURCE_WEIGHTS` doubles as a hard allowlist and `BLOCKED_DOMAINS` stops press-release subdomains inheriting a newsroom's credibility. Below `--min-items` the generator exits non-zero **without** touching the page, so a degraded fetch keeps the last good block rather than publishing a thin one.
+- **Verified by:** `pytest tools/test_ai_news_digest.py` (31 passed); `ruff check` clean; `tools/doc_invariants.py` OK; `tools/agent_contract.py --ci` PASS; live run against real feeds (771 candidates -> 6 stories); browser screenshots at 1440x900 and 390x844 confirming the grid renders and collapses to one column.
+- **Follow-ups:** `thetradenews.com`'s own feed is Cloudflare-blocked, so that outlet is reached via a Google News `site:` query instead. The desk app does not show this digest -- marketing site only.
+- **Related:** Does not touch the trading desk feed; no IBKR/Alpaca path is involved and no market data is sourced here.
 
 - **What:** Added Nova's `github-delivery` skill/rule, PR and issue metadata contracts, structured bug/feature forms, and PR-first governance. CI now blocks on Ruff, zero-warning ESLint, Vitest, build, and isolated Playwright Chromium; the existing 4 ESLint errors, 6 warnings, and 11 Ruff findings are clean.
 - **Why:** Issue work was direct-pushed with no Project, Milestone, assignee, relationships, or Development link. D-029 documented that frontend tests/lint, Playwright, and Ruff could all regress while CI stayed green; D-004 let Vitest touch the operator's live API-start lock.
