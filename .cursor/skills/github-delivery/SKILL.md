@@ -80,9 +80,9 @@ npm run test:e2e
 
 Also run `py -3 tools/doc_invariants.py`, the agent contract for rules/skills, and the shared-resource neighbor checks from `verification-before-completion.mdc`.
 
-PRs that change the desktop shell, sidecar, pack scripts, or versioning must wait for the **Desktop pack** GitHub Actions job (Windows NSIS). That job uploads `Nova-Setup-vNNN.exe` on the PR. A red Desktop pack job means the PR is not mergeable. Linux agents cannot produce that EXE locally; the workflow is the proof.
+PRs that change the desktop shell, sidecar, pack scripts, or versioning must wait for the **Desktop pack** GitHub Actions job (Windows NSIS + portable). That job uploads `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe` on the PR. A red Desktop pack job means the PR is not mergeable. Linux agents cannot produce those EXEs locally; the workflow is the proof.
 
-Releases are git tags `vNNN` (commit count from the first commit). Do not open a GitHub Release unless the operator asks.
+Releases are git tags `vNNN` (commit count from the first commit) plus a GitHub Release that attaches those two EXEs. GitHub's Source code zip/tar is automatic and is not the app.
 
 Do not claim a strict pass when a required check is red. Existing baselines must be named and linked, not hidden.
 

@@ -7,8 +7,9 @@
 #   3. frontend-e2e   -- Playwright Chromium
 #   4. security / agent-contract jobs (warning-only where noted)
 #   5. doc_invariants.py + engineering_skills_audit.py
-#   6. Desktop pack (Windows EXE + vNNN tag) lives in desktop-pack.yml --
-#      required before merge; this file stays the Linux test/lint/e2e gate.
+#   6. Desktop pack (Windows installer + portable EXE + vNNN Release) lives
+#      in desktop-pack.yml -- required before merge; this file stays the
+#      Linux test/lint/e2e gate.
 #
 # Optional GitHub variable (Settings → Variables → Actions):
 #   VITE_API_BASE_URL -- override for frontend CI build; defaults to a placeholder.

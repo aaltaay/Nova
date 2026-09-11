@@ -1,6 +1,7 @@
 /**
  * Stamp NOVA_RELEASE_TAG from repo VERSION (vNNN) and run electron-builder.
- * Usage: node scripts/run-electron-pack.mjs nsis|dir
+ * Usage: node scripts/run-electron-pack.mjs [nsis|portable|dir]
+ * Default (no arg): nsis + portable.
  */
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -11,7 +12,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendDir = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(frontendDir, '..');
 const versionFile = path.join(repoRoot, 'VERSION');
-const target = process.argv[2] === 'dir' ? 'dir' : 'nsis';
+const arg = process.argv[2];
+const targets =
+  arg === 'dir' ? ['dir'] : arg === 'nsis' ? ['nsis'] : arg === 'portable' ? ['portable'] : ['nsis', 'portable'];
 
 function releaseTagFromVersionFile() {
   if (!fs.existsSync(versionFile)) {
@@ -35,10 +38,10 @@ const env = {
   CSC_IDENTITY_AUTO_DISCOVERY: 'false',
 };
 
-console.log(`[electron-pack] NOVA_RELEASE_TAG=${tag} target=${target}`);
+console.log(`[electron-pack] NOVA_RELEASE_TAG=${tag} targets=${targets.join(',')}`);
 const r = spawnSync(
   'npx',
-  ['electron-builder', '--win', target, '--x64'],
+  ['electron-builder', '--win', ...targets, '--x64'],
   { cwd: frontendDir, env, stdio: 'inherit', shell: true },
 );
 process.exit(r.status ?? 1);
