@@ -22,6 +22,9 @@ test.describe('Large Cap shared News and Earnings columns', () => {
       path: '/opt/cursor/artifacts/large-cap-news-earnings.png',
       fullPage: true,
     });
+    await table.screenshot({
+      path: '/opt/cursor/artifacts/large-cap-news-earnings-table.png',
+    });
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });

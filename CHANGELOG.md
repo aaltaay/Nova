@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Operators wanted those two Gainers columns on Large Cap without a second news or earnings pipeline.
 - **Files touched:** `frontend/src/constantGroups/scanner_columns.ts`, `chart_api.ts`, `frontend/src/sample_data/sampleRows.ts`, `SampleDataContext.tsx`, `frontend/src/pages/SampleDashboardPage.tsx`, `backend/scanner_news_badge.py`.
 - **How it works now:** `SCANNER_NEWS_COLUMN` and `SCANNER_EARNINGS_COLUMN` are the one definition both tables import. REST `/api/large-cap` and `/ws/scanner` already run `decorate_rows` (same stamper as Gainers). `scanner_news_badge` now queues Large Cap symbols so a name only on that table can light News. HOD admission is unchanged.
-- **Verified by:** pytest news-badge + large-cap route tests; Vitest column-identity + SampleDashboard Large Cap headers; frontend build.
+- **Verified by:** `pytest` 37 passed (news-badge + large-cap route + mover columns + large-cap hooks). `npx vitest run` 985 passed. `npx playwright test e2e/large-cap-news-earnings.spec.ts` 1 passed. `npm run build` exit 0. `python3 tools/doc_invariants.py` OK.
 - **Related:** Closes #97
 
 ## 2026-09-11 -- Trend Line two-click place uses pointerup (D-010)
