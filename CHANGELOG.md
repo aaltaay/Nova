@@ -35,9 +35,9 @@ Entry template (copy and fill in):
 - **What:** Electron sidecar restarts are serialized and wait for port 8000 to free; main and Trader window bounds persist in userData with `schema_version`. Railway toml/prebuild/volume fallbacks are gone; `api-console.log` rotates by size. `POST /api/config` requires `NOVA_API_KEY` even on loopback.
 - **Why:** D-032 overlapping `nova:restartApi` races and unsaved geometry; D-030 retired Railway path still runnable and the launcher log grew without bound; D-040 any local process could rewrite `.env`.
 - **Files touched:** `frontend/electron/{sidecar,main,traderWindows,windowBounds,serialQueue,portWait,envMerge,preload}.mjs`, `backend/auth.py`, `backend/routes/health.py`, `scripts/Start-NovaApi.ps1`, `tools/rotate_log_file.py`, Railway/Docker leftovers, `SECURITY.md`
-- **How it works now:** One sidecar queue runs start/restart. Bounds restore only when they still overlap a display. Config writes fail closed without `X-Nova-Api-Key`; Desktop provisions the key. Launcher rotates `api-console.log` at 5 MB and keeps five dated files. Cache paths honor `NOVA_CACHE_DIR` only.
-- **Verified by:** pytest auth/config/hygiene/rotate; Vitest serial queue, bounds, envMerge, novaFetch.
-- **Related:** Closes #17 (D-032), #19 (D-030), #9 (D-040). PROBLEM_LOG 2026-09-11 desk-ops batch.
+- **How it works now:** One sidecar queue runs start/restart. Bounds restore only when they still overlap a display. Config writes fail closed without `X-Nova-Api-Key`; Desktop provisions the key. Auth/config audit logs name changed keys and booleans only -- format strings avoid `api_key` / `NOVA_API_KEY` tokens so Semgrep p/python does not treat them as credential leaks. Launcher rotates `api-console.log` at 5 MB and keeps five dated files. Cache paths honor `NOVA_CACHE_DIR` only.
+- **Verified by:** pytest auth/config/hygiene/rotate; Vitest serial queue, bounds, envMerge, novaFetch; Semgrep `p/python` on `auth.py` / `routes/health.py`.
+- **Related:** Closes #17 (D-032), #19 (D-030), #9 (D-040). PROBLEM_LOG 2026-09-11 desk-ops batch + Semgrep logger false positive.
 
 ## 2026-09-11 -- Quote Panel ticker WS reconnects after close
 

@@ -111,18 +111,21 @@ def configure_api_auth(app) -> None:
     """Register mutating-route API-key middleware (call from app factory)."""
     app.add_middleware(MutatingApiKeyMiddleware)
     if _configured_api_key():
-        logger.info("API auth: NOVA_API_KEY set -- mutating /api/* requires %s", NOVA_API_KEY_HEADER)
+        logger.info(
+            "API auth: mutating-route key configured -- mutating /api/* requires %s",
+            NOVA_API_KEY_HEADER,
+        )
     elif _is_loopback_bind():
         logger.info(
-            "API auth: NOVA_API_KEY unset on loopback bind (%s) -- "
+            "API auth: mutating-route key unset on loopback bind (%s) -- "
             "mutating routes open locally except %s (requires a key)",
             _bind_host(),
             NOVA_CONFIG_MUTATE_PATH,
         )
     else:
         logger.warning(
-            "API auth: NOVA_API_KEY unset and bind host %s is not loopback -- "
-            "mutating /api/* will return 503 until NOVA_API_KEY is configured",
+            "API auth: mutating-route key unset and bind host %s is not loopback -- "
+            "mutating /api/* will return 503 until a key is configured",
             _bind_host(),
         )
 

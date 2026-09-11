@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Semgrep logger-credential false positive on config audit logs
+
+- **Symptom:** CI Semgrep (`p/python`) failed PR #76 with 4 blocking `python-logger-credential-disclosure` findings in `backend/auth.py` and `backend/routes/health.py`.
+- **Cause:** The rule treats a logger format string that contains `NOVA_API_KEY` / `api_key` / `api_secret` as a hardcoded secret. Those lines log env-var presence, header name, bind host, and changed key *names* -- never secret values (`test_update_config_audit_redacts_secrets`).
+- **Fix:** Rewrote the format strings to `mutating-route key` / `listing_id_changed` / `listing_auth_changed`. Same audit, no secret tokens in the format string.
+- **Fix class:** surfacing
+- **Keywords:** semgrep, python-logger-credential-disclosure, auth.py, update_config, NOVA_API_KEY, PR 76
+
 ## 2026-09-11 -- D-032 sidecar restart race and unsaved window geometry
 
 - **Symptom:** Concurrent `nova:restartApi` / Start API heal produced "health timed out" or a second `run_api.py` on `:8000`. Main and popped-out Trader windows reset size/position every launch.
