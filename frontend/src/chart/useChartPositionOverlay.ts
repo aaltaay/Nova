@@ -2,7 +2,7 @@
  * Paint the open IBKR position onto a candle series: avg-cost price line
  * plus session fill arrows. Display only -- never stages or sends an order.
  */
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import {
   createSeriesMarkers,
   type IChartApi,
@@ -24,7 +24,7 @@ interface Args {
   candleSeriesRef: RefObject<ISeriesApi<'Candlestick'> | null>;
   symbol: string;
   timeframe: string;
-  bars: readonly { time: Time }[];
+  bars: readonly { time: Time | number }[];
   barsRevision: number;
 }
 
@@ -37,19 +37,23 @@ export function useChartPositionOverlay({
   barsRevision,
 }: Args): ChartPositionSnapshot | null {
   const account = useOptionalIbkrAccountContext();
-  const positions = account?.positions ?? [];
-  const working = account?.orders ?? [];
-  const closed = account?.closedOrders ?? [];
-  const position = findOpenPosition(positions, symbol);
-  const fills = position ? mergeFills(working, closed, symbol) : [];
+  const positions = account?.positions;
+  const working = account?.orders;
+  const closed = account?.closedOrders;
+  const position = findOpenPosition(positions ?? [], symbol);
+  const fills = position
+    ? mergeFills(working ?? [], closed ?? [], symbol)
+    : [];
   const positionKey = position
     ? `${position.symbol}:${position.qty}:${position.avgCost}:${position.unrealizedPnl ?? ''}`
     : '';
   const fillsKey = fills.map((f) => `${f.orderId}:${f.timeIso}:${f.price}`).join('|');
+  const barsRef = useRef(bars);
+  barsRef.current = bars;
 
   useEffect(() => {
     const series = candleSeriesRef.current;
-    const next = findOpenPosition(positions, symbol);
+    const next = findOpenPosition(positions ?? [], symbol);
     if (!chart || !series || !next) return;
     const line = series.createPriceLine(positionPriceLineOptions(next));
     return () => {
@@ -65,13 +69,14 @@ export function useChartPositionOverlay({
     const series = candleSeriesRef.current;
     if (!chart || !series) return;
     const plugin = createSeriesMarkers(series, []);
-    const next = findOpenPosition(positions, symbol);
-    const nextFills = next ? mergeFills(working, closed, symbol) : [];
-    if (nextFills.length > 0 && bars.length > 0) {
+    const next = findOpenPosition(positions ?? [], symbol);
+    const nextFills = next ? mergeFills(working ?? [], closed ?? [], symbol) : [];
+    const times = barsRef.current;
+    if (nextFills.length > 0 && times.length > 0) {
       plugin.setMarkers(
         seriesMarkersForFills(
           nextFills,
-          buildSeriesTimeIndex(bars.map((bar) => bar.time)),
+          buildSeriesTimeIndex(times.map((bar) => bar.time as Time)),
           timeframe,
         ),
       );
@@ -92,7 +97,7 @@ export function useChartPositionOverlay({
     working,
     closed,
     fillsKey,
-    barsRevision, // bar identity; do not depend on the bars array itself
+    barsRevision,
     timeframe,
   ]);
 
