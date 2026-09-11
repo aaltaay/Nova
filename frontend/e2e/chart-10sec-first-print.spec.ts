@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { E2E_IBKR_STATUS } from './fixtures/orderRows';
 import { attachErrorCollector } from './helpers/errorCollector';
 
 async function emptyIbkrBars(route: Route) {
@@ -46,6 +47,13 @@ async function mockFirstTapePrint(page: Page) {
 
 test('first live tape print removes the empty 10Sec loading overlay', async ({ page }) => {
   const { errors } = attachErrorCollector(page);
+  await page.route('**/api/ibkr/status', (route) => {
+    void route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(E2E_IBKR_STATUS),
+    });
+  });
   await page.route('**/api/ticker/SMPL/bars?*', emptyIbkrBars);
   await mockFirstTapePrint(page);
 
