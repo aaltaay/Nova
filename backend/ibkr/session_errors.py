@@ -69,6 +69,10 @@ def max_tickers_hit() -> bool:
     return _max_tickers_hit
 
 
+def max_tickers_ts() -> float | None:
+    return _max_tickers_ts or None
+
+
 def unusable_since() -> float | None:
     return _unusable_since
 

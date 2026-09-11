@@ -29,6 +29,7 @@ def test_apply_l1_tick_updates_matching_row_only(monkeypatch):
 
     nvda = next(r for r in new_rows if r["symbol"] == "NVDA")
     amd = next(r for r in new_rows if r["symbol"] == "AMD")
+    assert new_rows is rows
     assert nvda["price"] == 200.0
     assert nvda["rvol"] == 3.0
     assert nvda["quote_ts"] == 123.0

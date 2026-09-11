@@ -26,6 +26,19 @@ from runtime_state import get_runtime_state
 
 logger = logging.getLogger(__name__)
 
+# REST commit is authoritative. A WS failure must not report the commit as
+# failed (D-026) -- that split REST revision from caller/metrics truth.
+_roster_push_failed = 0
+
+
+def roster_push_failed_count() -> int:
+    return _roster_push_failed
+
+
+def reset_roster_push_failed_for_tests() -> None:
+    global _roster_push_failed
+    _roster_push_failed = 0
+
 
 def stub_row(sym: str, rank: int, exchange: str | None = None) -> dict:
     """Newly admitted name with no quote yet.
@@ -171,8 +184,14 @@ async def commit_table(
         from scanner_push import broadcast_roster_replace
         await broadcast_roster_replace(table, rows, ts)
     except Exception:
-        logger.debug("scanner_stream: roster push failed", exc_info=True)
-        return False
+        global _roster_push_failed
+        _roster_push_failed += 1
+        logger.warning(
+            "scanner_stream: roster push failed (REST revision=%s push_failed=%s)",
+            ts.revision,
+            _roster_push_failed,
+            exc_info=True,
+        )
     try:
         from hod_roster_hooks import on_hod_roster_commit
 

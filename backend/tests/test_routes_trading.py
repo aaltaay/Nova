@@ -431,6 +431,49 @@ def test_status_route_surfaces_freeze_diagnostics():
     assert body["dialer_heartbeat_age_sec"] == 25200.0
 
 
+def test_status_route_includes_reqmkt_data_budget():
+    """D-039: /api/ibkr/status exposes the Error 101 ticker ceiling."""
+    fake_snapshot = {
+        "gateway_mode": "paper",
+        "orders_enabled": False,
+        "live_trading_confirmed": False,
+        "spend_status": "locked",
+    }
+    budget = {
+        "reqMktData_lines": 3,
+        "reqMktData_by_owner": {"detail": 1, "scanner": 2, "hod": 1},
+        "reqMktData_limit": 100,
+        "reqMktData_remaining": 97,
+        "max_tickers_hit": False,
+        "max_tickers_ts": None,
+    }
+    with patch.object(safety_mod, "status_snapshot", return_value=fake_snapshot), \
+         patch.object(client_mod, "is_enabled", return_value=True), \
+         patch.object(client_mod, "is_ready", return_value=True), \
+         patch.object(client_mod, "is_connected", return_value=True), \
+         patch.object(client_mod, "session_reason", return_value="ok"), \
+         patch.object(client_mod, "account_mode", return_value="paper"), \
+         patch.object(client_mod, "broker_account_kind", return_value="paper"), \
+         patch.object(client_mod, "get_market_data_type", return_value=1), \
+         patch("ibkr.session_errors.is_delayed_data", return_value=False), \
+         patch("ibkr.port_diagnostics.status_port_fields", return_value={
+             "preferred_port": 4002,
+             "alternate_port": 4001,
+             "preferred_port_reachable": True,
+             "alternate_port_reachable": False,
+             "disconnect_hint": None,
+             "live_port": 4001,
+             "paper_port": 4002,
+         }), \
+         patch("ibkr.ticks.ticker_budget_status", return_value=budget):
+        res = client.get("/api/ibkr/status")
+    body = res.json()
+    assert body["reqMktData_lines"] == 3
+    assert body["reqMktData_limit"] == 100
+    assert body["reqMktData_remaining"] == 97
+    assert body["max_tickers_hit"] is False
+
+
 def test_launch_gateway_route_already_listening_and_ready_is_a_noop():
     """Session is fine -- the button should just focus the window, no rebuild."""
     fake_launch = {

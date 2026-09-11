@@ -120,6 +120,34 @@ def test_commit_table_survives_dead_cold_quote_path(monkeypatch):
     assert marked, "table must be marked live once names are committed"
 
 
+def test_commit_table_ws_failure_keeps_rest_revision(monkeypatch):
+    """D-026: WS throw after persist must not report commit failure."""
+    state = ScannerRuntimeState()
+    ts, marked = _commit_env(monkeypatch, state)
+    hydrate.reset_roster_push_failed_for_tests()
+
+    async def boom(*_a, **_k):
+        raise RuntimeError("ws down")
+
+    monkeypatch.setattr("scanner_push.broadcast_roster_replace", boom)
+
+    committed = asyncio.run(hydrate.commit_table(
+        table=_ss.TABLE_GAINERS,
+        symbols=["AAA"],
+        lease_generation=1,
+        lease_epoch=1,
+        lease_session_key="2026-08-24",
+        epoch=1,
+        shadow={},
+    ))
+
+    assert committed is True
+    assert [r["symbol"] for r in state.gainer_cache] == ["AAA"]
+    assert ts.revision == 1
+    assert marked, "REST roster is live even when the desk push raises"
+    assert hydrate.roster_push_failed_count() == 1
+
+
 def test_commit_table_empty_batch_does_not_mark_live(monkeypatch):
     """IB Warning 165 / no items is not a quiet market -- never stamp live."""
     state = ScannerRuntimeState()

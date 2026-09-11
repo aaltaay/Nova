@@ -316,7 +316,7 @@ SCANNER_PRICE_STALE_SEC = 5.0
 # ── Active-tab + reserved HOD Level-1 streaming (reqMktData) ──────────────────
 # Budget ≈ active tab (≤50) + HOD active set (40) + open ticker reserve, with
 # overlap dedupe. Do not stream the whole discovery universe.
-IBKR_L1_STREAM_BUDGET = 100                     # hard cap concurrent L1 lines
+IBKR_L1_STREAM_BUDGET = 100                     # Error 101 ceiling; /api/ibkr/status reqMktData_limit
 IBKR_L1_STREAM_RESERVE = 5                      # headroom for open ticker / depth peers
 IBKR_L1_ACTIVE_TAB_MAX = 50                     # IBKR scanner row cap per tab
 IBKR_L1_BATCH_FLUSH_SEC = 0.35                  # coalesce ticks → /ws/scanner patches

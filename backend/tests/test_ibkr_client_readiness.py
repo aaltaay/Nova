@@ -380,3 +380,25 @@ def test_unavailable_detail_distinguishes_transport_vs_session(monkeypatch):
     detail = ibkr_client.unavailable_detail("IBKR bars")
     assert "session not usable" in detail
     assert "connectivity_lost" in detail
+
+
+def test_on_session_ready_clears_stale_scanner_reqids(monkeypatch):
+    """D-039: READY after a full reconnect forgets prior-socket scanner reqIds."""
+    from ibkr import discovery
+
+    discovery._inflight_scan_reqids.clear()
+    discovery._inflight_scan_reqids.add(99)
+
+    async def _clear(*, reason=""):
+        return 0
+
+    monkeypatch.setattr("ibkr.ticks.clear_all_subscriptions", _clear)
+    monkeypatch.setattr(ibkr_client._session_errors, "install_error_hook", lambda _ib: None)
+    monkeypatch.setattr(ibkr_client._session_errors, "reset_session_md_flags", lambda: None)
+
+    class _IB:
+        def reqMarketDataType(self, _n):
+            return None
+
+    asyncio.run(ibkr_client._on_session_ready(_IB(), reason="reconnect test"))
+    assert discovery._inflight_scan_reqids == set()
