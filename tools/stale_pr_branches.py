@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Fail if origin still holds a branch whose pull request is merged or closed.
 
-After a PR is merged or closed, agents MUST delete its head branch in the
-same session. GitHub `delete_branch_on_merge` is not reliable here -- do not
-wait for it. Open PR heads and branches with no PR yet are kept.
+After a PR is merged or closed, agents MUST confirm the head is gone in the
+same session. GitHub `delete_branch_on_merge` is on as a backup -- still run
+this checker. If a leftover remains, delete it. Open PR heads and branches
+with no PR yet are kept.
 
 Usage:
   py -3 tools/stale_pr_branches.py

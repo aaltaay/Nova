@@ -52,4 +52,4 @@ Parked something new instead of fixing it? Open a `deferred` issue and link it h
 - [ ] `Closes` is used only for full completion; partial work uses `Refs` and leaves the issue open
 - [ ] GitHub issue opened or closed for anything parked or fully finished (label `deferred`)
 - [ ] Live docs updated in the same commit if hosting / feed / phase / trading posture changed (`doc-invariants.mdc`)
-- [ ] After this PR is merged or closed I will delete the head branch the same session (`stale_pr_branches.py`)
+- [ ] After this PR is merged or closed I will confirm the head is gone the same session (`stale_pr_branches.py`; `--delete` only if it remains)
