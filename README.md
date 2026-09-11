@@ -1,22 +1,59 @@
 # Nova
 
-Stock alert automation: IBKR scanner/market data locally, optional gated IBKR orders (paper default), Alpaca for news/listing only. `auto_live` is NO-GO.
+Local-first Interactive Brokers trading workstation. Scanner, charts, Trader View, and gated orders run on your machine. The public site is marketing only. This repository is the source.
 
-## Open the app (Windows)
+[![CI](https://github.com/aaltaay/Nova/actions/workflows/deploy.yml/badge.svg)](https://github.com/aaltaay/Nova/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-0f172a.svg)](LICENSE)
 
-### Option A — browser (web UI)
+**Site:** [nova.altaystudio.com](https://nova.altaystudio.com) · **Releases:** [GitHub Releases](https://github.com/aaltaay/Nova/releases)
 
-1. Open the project folder `Nova`.
-2. **Double-click** `Run Nova.bat`.
+## What it is
 
-You should get:
+Nova is a single-operator desk for US equities:
 
-- **API:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- **Web UI:** [http://localhost:5173](http://localhost:5173)
+- Persistent IBKR scanner rosters (Gappers, Gainers, Afterhours, Large Cap)
+- HOD Momo alerts from names already on the desk
+- Store-first IBKR charts
+- Trader View with Level 2, Time & Sales, and a ticket (depth-plan cap)
+- News: on-roster catalysts plus an AI-in-trading desk
+- Optional paper or live orders through one execution command
 
-### Option B — installable desktop (Electron + local API)
+It is not a hosted brokerage, not a cloud scanner, and not an unattended trading bot.
 
-Full local stack: Electron shell + FastAPI sidecar on loopback (same React UI).
+## Safety
+
+| Gate | Default |
+|------|---------|
+| Market data | Interactive Brokers only |
+| Alpaca | News and listing metadata only |
+| Orders | Off until `IBKR_ENABLED` and `IBKR_ORDERS_ENABLED` |
+| Live money | Also requires `IBKR_LIVE_TRADING_CONFIRMED` |
+| Short entry | Off until `IBKR_SHORT_ENABLED` plus an explicit `short_entry` on the command |
+| `auto_live` | Rejected in code. Do not enable it. |
+
+The API binds to `127.0.0.1:8000`. Do not expose it to the internet.
+
+## Requirements
+
+- Windows for the supported desktop and `Run Nova.bat` path
+- Python 3.13 and Node.js 20
+- [IB Gateway](https://www.interactivebrokers.com/en/trading/ibgateway-stable.php) logged in (live port 4001, paper 4002)
+- Alpaca keys only if you want news and listing flags
+- Optional: Finnhub (Earnings calendar), Discord/Telegram (alerts)
+
+## Quick start (Windows)
+
+1. Clone this repository.
+2. Copy `.env.example` to `.env`. Leave secrets out of git.
+3. In `frontend/`, run `npm install` once.
+4. Double-click `Run Nova.bat`.
+
+Expected local endpoints:
+
+- API: [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- UI: [http://localhost:5173](http://localhost:5173)
+
+Desktop (Electron + local API sidecar):
 
 ```bat
 cd frontend
@@ -24,40 +61,83 @@ npm install
 npm run electron:dev
 ```
 
-Build a Windows installer (NSIS):
+Installer and portable EXE:
 
 ```bat
 cd frontend
 npm run electron:pack
 ```
 
-Pack output: `frontend/release/Nova-Setup-vNNN.exe` (NSIS installer) and `frontend/release/Nova-Portable-vNNN.exe` (no install). Public identity is the commit-count tag.
+Output: `frontend/release/Nova-Setup-vNNN.exe` and `frontend/release/Nova-Portable-vNNN.exe`. The packaged app stores keys and cache under `%APPDATA%\Nova\`.
 
-Every pull request must pack both EXEs in CI (`Desktop pack` workflow). Download them from the workflow artifacts on the PR. Do not merge if that job is red.
+## Releases
 
-### Versioning (commit-count `vNNN`)
+Public revision is **`vNNN`**: `v` plus the git commit count, at least three digits. `VERSION` is the source of truth. `frontend/package.json` keeps `0.1.N` because electron-builder requires semver.
 
-Nova's public revision is **`vNNN`**: `v` plus the git commit count from the first commit, at least three digits (`v001`, `v473`, `v1000`). `git rev-list --count HEAD` is the number.
+A green push to `master` creates tag `vNNN` and a GitHub Release with both EXEs. The automatic Source code zip is not the app. Pull requests upload the same EXEs as workflow artifacts.
 
-- **SSOT:** repo root `VERSION` stores `vNNN`. `frontend/package.json` stores `0.1.N` because electron-builder requires semver. Both share the same N.
-- **CI pack:** `.github/workflows/desktop-pack.yml` checks out the full history, runs `tools/bump_version.py --sync`, packs the Windows NSIS installer and portable EXE, and uploads both.
-- **Releases:** a successful push to `master` / `main` creates git tag `vNNN` and a GitHub Release that attaches `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe`. GitHub also adds Source code zip/tar -- those are not the app.
-- **Install hooks once:** `powershell -File tools/install_git_hooks.ps1` (sets `core.hooksPath` to `.githooks`).
-- **pre-commit:** bumps to the next count and stages `VERSION` + `package.json`.
-- **pre-push:** blocks push if those files drift from the commit count.
-- **Manual sync:** `py -3 tools/bump_version.py --sync` (align to current HEAD without committing).
+Install git hooks once: `powershell -File tools/install_git_hooks.ps1`.
 
-The packaged app stores Alpaca keys and cache under `%APPDATA%\Nova\` (`.env`, `cache\`, `logs\`).
+## Configuration
 
-### First-time setup
+All secrets go in `.env`. The tracked file is `.env.example` (empty placeholders only).
 
-- In `frontend/`, run `npm install` if you have not already.
-- Ensure Python can run the backend (`py -3` or `python` on PATH) for browser/dev mode.
-- Copy `.env.example` → `.env`. IB Gateway is required for scanner/prices. Alpaca keys (`APCA_API_KEY_ID`, `APCA_API_SECRET_KEY`) are for news/listing metadata.
+| Variable | Role |
+|----------|------|
+| `NOVA_DISCOVERY_PROVIDER` | Must stay `ibkr` |
+| `APCA_API_KEY_ID` / `APCA_API_SECRET_KEY` | Alpaca news and listing metadata |
+| `IBKR_ENABLED` / `IBKR_ORDERS_ENABLED` | Connect and spend |
+| `IBKR_LIVE_TRADING_CONFIRMED` | Live money |
+| `IBKR_SHORT_ENABLED` | Short entry (Phase K) |
+| `NOVA_API_KEY` | Required if the API is bound off loopback |
+| `FINNHUB_API_KEY` | Earnings calendar |
 
-### Deploy
+Gateway default is live (4001). Paper (4002) is the fallback when live is dark. Port 4001 listening is not proof of a live account.
 
-- **Backend:** local only -- no cloud host right now. Use `Run Nova.bat`, Desktop, or uvicorn on `127.0.0.1:8000`.
-- **Public site:** `nova.altaystudio.com` is the static marketing page in `site/` (Vercel Root Directory = `site`). It lists features, shows desk screenshots, and links to [Nova-public](https://github.com/aaltaay/Nova-public). It does not run the scanner.
-- **App UI:** local only -- Vite at `http://localhost:5173` or the Desktop installer.
-- **Desktop:** Electron + local API sidecar -- not a cloud backend.
+## Architecture
+
+| Layer | Location |
+|-------|----------|
+| Constitution | [AGENTS.md](AGENTS.md) |
+| ADRs | [architecture/decisions/](architecture/decisions/) |
+| Backend | FastAPI modules under `backend/` (`main.py` is the app factory only) |
+| Frontend | React + Vite under `frontend/src/` (`App.tsx` is the shell only) |
+| Execution | `execution.service.execute` -- sole broker mutation entry (ADR 007) |
+| Feed | IBKR scanner, L1, charts, depth, tape. See `.cursor/rules/single-market-data-feed.mdc` |
+
+## Development
+
+```text
+# API
+cd backend && python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
+
+# UI
+cd frontend && npm run dev
+
+# Tests
+pytest backend/ -q
+cd frontend && npm test -- --run && npm run build
+python3 tools/doc_invariants.py
+```
+
+## Deploy
+
+- **Desk:** local only -- `Run Nova.bat`, Desktop sidecar, or uvicorn on loopback. There is no cloud API host.
+- **Marketing:** `nova.altaystudio.com` serves `site/` (Vercel Root Directory = `site`). It does not run the scanner.
+- **App UI:** local Vite or the Desktop installer. Do not host the trading SPA on the public domain.
+
+The older `Nova-public` repository is a private archive. It is not the source home.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests must be ready (not draft) and include verification evidence. GitHub Actions merges when gating CI is green.
+
+## Security
+
+See [SECURITY.md](SECURITY.md). Report vulnerabilities through GitHub Security Advisories. Do not commit `.env` files or tokens.
+
+## License
+
+[MIT](LICENSE). Copyright (c) 2026 Ahmi Altaay.
+
+Not investment advice. Not a hosted brokerage. You are responsible for IBKR permissions, keys, and every order.

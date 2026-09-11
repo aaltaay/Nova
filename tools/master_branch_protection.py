@@ -3,7 +3,7 @@
 
 Closes the Security Overview hole: "Your master branch isn't protected."
 
-Policy (solo private repo):
+Policy (solo public repo):
 - Block force-push and deletion, including for admins.
 - Require gating CI checks before a PR can merge.
 - Do not require pull-request reviews (would deadlock a solo merge).
@@ -15,8 +15,8 @@ Usage:
   python3 tools/master_branch_protection.py dump-policy
 
 `apply` needs a token with Administration on aaltaay/Nova. Cloud Agent
-integrations return 403. Private repos also need GitHub Pro -- do not make
-Nova public to unlock the feature.
+integrations return 403. Public repos unlock branch protection on GitHub
+Free. A private personal repo still needs GitHub Pro.
 """
 
 from __future__ import annotations
@@ -142,7 +142,7 @@ def evaluate(
             "plan_required",
             (
                 "Private repo branch protection needs GitHub Pro. "
-                "Do not make Nova public to unlock it.",
+                "Public Nova unlocks this setting on GitHub Free.",
             ),
             EXIT_BLOCKED,
         )
@@ -281,7 +281,7 @@ def _print_result(result: CheckResult, *, as_json: bool) -> int:
         print(f"- {reason}")
     if not result.ok:
         print(
-            "Apply with a human admin token after GitHub Pro is on: "
+            "Apply with a human admin token: "
             "python3 tools/master_branch_protection.py apply"
         )
         print("UI: https://github.com/aaltaay/Nova/settings/branches")

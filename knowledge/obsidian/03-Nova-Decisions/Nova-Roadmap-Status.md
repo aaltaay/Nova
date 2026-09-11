@@ -98,6 +98,7 @@ Newest first. Append here; do not rewrite prior rows. Rows before 2026-07-28 are
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-09-11 | Public source home is `aaltaay/Nova`. Marketing CTA retargeted. `Nova-public` is a private archive. Phase NEXT unchanged (K3). `auto_live` NO-GO. | (this commit) |
 | 2026-09-08 | Roadmap note trimmed to a live status page; closed phases, verification baselines, maintenance track, and pre-2026-07-28 History moved verbatim to [[Nova-Roadmap-Archive]]. Task narratives now default to PR bodies. No phase state changed; `auto_live` NO-GO. | (this commit) |
 | 2026-08-31 | Public domain `nova.altaystudio.com` is a static marketing page (`site/`), not the hosted scanner. CTA is Nova-public. Phase J local-first. `auto_live` NO-GO. | (that commit) |
 | 2026-08-18 | Reliability track WS0-WS7: morning check + system-event alerts, fail-loud scanner REST, pytest cache isolation, IB-loop purity CI gate, blast-radius + persisted-state rules. WS1 proof still needs first unattended 03:55 ET run. `auto_live` NO-GO. | (that commit) |
