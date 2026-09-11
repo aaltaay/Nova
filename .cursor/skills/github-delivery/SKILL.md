@@ -160,7 +160,7 @@ py -3 tools/master_branch_protection.py check
 py -3 tools/master_branch_protection.py apply
 ```
 
-`apply` needs a human admin token. Cloud Agent GitHub App tokens return `403 Resource not accessible by integration`. Public Nova unlocks branch protection on GitHub Free. A private personal repo still needs **GitHub Pro**. UI: `https://github.com/aaltaay/Nova/settings/branches`.
+`apply` needs a human admin token. Cloud Agent GitHub App tokens return `403` on PUT and on GET `/protection`. `check` still reads the public `GET /branches/master` `protection` summary (required checks + `enforcement_level`). Public Nova unlocks branch protection on GitHub Free. A private personal repo still needs **GitHub Pro**. UI: `https://github.com/aaltaay/Nova/settings/branches`.
 
 If plan or token permissions block the setting, say so. Never claim `master` is protected without `check` exiting 0.
 

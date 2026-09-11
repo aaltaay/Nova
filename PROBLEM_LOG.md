@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- check lied after master was protected
+
+- **Symptom:** `python3 tools/master_branch_protection.py check` exited 2 (`integration_forbidden`) after `master` was already `protected: true` with the four required checks.
+- **Cause:** `check_live` treated any 403 on GET `/branches/master/protection` as a hard block. Cloud Agent GitHub App tokens cannot read that admin endpoint, but `GET /branches/master` already returns the public `protection` summary (`enabled`, required contexts, `enforcement_level`).
+- **Fix:** Evaluate the public summary when GET `/protection` is 403. `enforcement_level: everyone` stands in for `enforce_admins`. Force-push / deletion flags stay on the admin GET when the token can read it.
+- **Fix class:** surfacing
+- **Keywords:** master protection, check, integration_forbidden, public summary, enforcement_level, #63, D-041
+
 ## 2026-09-11 -- Historical Alpaca keys in git .env
 
 - **Symptom:** Before publishing the source, a history scan found a tracked `.env` in early commits (April 2026 through 2026-07-10) with filled `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`. No GitHub PATs, OpenAI keys, IBKR passwords, or other vendor secrets were in those blobs. The file is not in HEAD.

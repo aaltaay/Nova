@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Master protection is live; check reads the public summary
+
+- **What:** `master` is protected on public `aaltaay/Nova`. The check tool no longer treats a 403 on GET `/protection` as "cannot see the rule" when `GET /branches/master` already has the public summary. Security-Status marks the row done. Deferred index includes closed D-041 / #63.
+- **Why:** The owner applied the rule from the desktop. Cloud Agent `check` still exited 2 (`integration_forbidden`) and live docs still said unprotected.
+- **Files touched:** `tools/master_branch_protection.py`, `tools/test_master_branch_protection.py`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`, `knowledge/deferred-index.json`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`
+- **How it works now:** `python3 tools/master_branch_protection.py check` uses the full GET `/protection` body when the token can read it. App tokens fall back to the public summary: required checks plus `enforcement_level: everyone`. `apply` still needs Administration.
+- **Verified by:** live `GET /branches/master` `protected: true` with the four required checks; `pytest tools/test_master_branch_protection.py`; `python3 tools/master_branch_protection.py check` exit 0.
+- **Related:** PROBLEM_LOG 2026-09-11 check lied after master was protected. Refs #63 (already closed).
+
 ## 2026-09-11 -- Public source home is aaltaay/Nova
 
 - **What:** Nova is the public source repository. README, LICENSE, SECURITY, and CONTRIBUTING are production copy. The marketing site CTA points at `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive, not the code home. Live delivery docs no longer say "keep the repo private to unlock branch protection."
