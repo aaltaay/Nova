@@ -1,6 +1,6 @@
 ---
 name: github-delivery
-description: Enforces Nova's issue-to-branch-to-PR-to-close workflow, GitHub Project and Milestone metadata, issue relationships, Development links, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
+description: Enforces Nova's issue-to-branch-to-PR-to-close workflow, GitHub Project and Milestone metadata, issue relationships, Development links, Actions auto-merge of ready PRs, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
 ---
 
 # Nova GitHub delivery
@@ -143,3 +143,36 @@ Also confirm the head of a PR you **close without merging** (superseded, rejecte
 Never delete `master` or `main`. Never delete a branch that still has an **open** PR. A branch with no PR yet is in-progress work -- leave it.
 
 GitHub `delete_branch_on_merge` is on. That is a backup sweep, not a skip. If GitHub already removed the ref, a `--delete` may fail because the branch is gone -- that is success. If `stale_pr_branches.py` still lists the head, delete it. If permissions block the delete, say so -- do not silently leave the branch.
+
+## 9. Master branch protection
+
+`master` must be protected so GitHub Security cannot report "Your master branch isn't protected."
+
+Required policy (SSOT: `tools/master_branch_protection.py`):
+
+- Block force-push and deletion, including for admins (`enforce_admins`).
+- Require status checks before merge: `Backend tests`, `Frontend build`, `Frontend E2E`, `Agent contract`.
+- Do **not** require pull-request reviews (solo repo -- that deadlocks merges).
+- Do **not** require a pull request to push. Status-only `master` commits and `.github/workflows/ai-news.yml` stay allowed.
+
+```text
+py -3 tools/master_branch_protection.py check
+py -3 tools/master_branch_protection.py apply
+```
+
+`apply` needs a human admin token. Cloud Agent GitHub App tokens return `403` on PUT and on GET `/protection`. `check` still reads the public `GET /branches/master` `protection` summary (required checks + `enforcement_level`). Public Nova unlocks branch protection on GitHub Free. A private personal repo still needs **GitHub Pro**. UI: `https://github.com/aaltaay/Nova/settings/branches`.
+
+If plan or token permissions block the setting, say so. Never claim `master` is protected without `check` exiting 0.
+
+## 10. Actions merge ready PRs (not a human "please merge")
+
+A verified, non-draft PR targeting `master` is finished work. GitHub Actions merges it. The human does not have to say merge. Agents do not sit idle on an open PR.
+
+- Mark the PR ready (not draft) after verification.
+- CI job `Auto-merge` runs `python tools/pr_delivery.py merge --pr N` after the four gating jobs.
+- Hourly / `workflow_run` sweep in `.github/workflows/pr-delivery.yml` catches leftovers.
+- Closed PR heads are deleted by that same workflow plus `delete_branch_on_merge`.
+- Hold a PR with draft or label `do-not-merge`.
+- Dirty (conflict) or failed gating checks stay open -- rebase or fix, do not leave them for the human to babysit if you can rebase in-session.
+
+Do not treat "opened a PR" as done when the change is shippable. The pile of idle PRs is a delivery bug.

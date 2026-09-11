@@ -12,6 +12,7 @@ Historical CHANGELOG / PROBLEM_LOG / task-log may narrate past Railway or Alpaca
 | Fact | Authoritative home |
 |------|--------------------|
 | Where the API runs / deploy | `AGENTS.md` §8 (+ `README.md` Deploy) |
+| Public source home | `README.md` (+ `site/index.html` CTA) |
 | Market-data / scanner SoT | `.cursor/rules/single-market-data-feed.mdc` |
 | Roadmap NEXT / phase scope | `knowledge/obsidian/03-Nova-Decisions/Nova-Roadmap-Status.md` |
 | Trading gates / `auto_live` | `AGENTS.md` Invariant #7 + ADR 007/009 |

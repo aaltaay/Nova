@@ -18,9 +18,50 @@ def test_build_afterhours_rows_filters_and_shapes():
     )
     syms = [r["symbol"] for r in rows]
     assert syms == ["XCUR", "ATHE"]
-    assert rows[0]["gap_percent"] == 0.5455
+    assert rows[0]["change_pct"] == 0.5455
+    # No session open on the source row -- do not invent a gap from change.
+    assert rows[0]["gap_percent"] is None
     assert rows[0]["volume"] == 4_170_000
     assert rows[0]["current_price"] == 2.55
+
+
+def test_build_afterhours_gap_uses_open_not_change():
+    """D-002: AH Gap % is open vs prior close (OKTG shape: last != open)."""
+    rows = build_afterhours_rows_from_ibkr_gainers(
+        [
+            {
+                "symbol": "OKTG",
+                "price": 15.329,
+                "prev_close": 10.0,
+                "open": 9.75,
+                "change_pct": 0.5329,
+                "volume": 1_000_000,
+            },
+        ],
+        min_change_pct=10.0,
+    )
+    assert len(rows) == 1
+    assert round(rows[0]["change_pct"], 4) == 0.5329
+    assert round(rows[0]["gap_percent"], 4) == -0.025
+    assert rows[0]["open"] == 9.75
+
+
+def test_build_afterhours_keeps_mover_gap_when_open_missing():
+    rows = build_afterhours_rows_from_ibkr_gainers(
+        [
+            {
+                "symbol": "CRE",
+                "price": 6.77,
+                "prev_close": 2.57,
+                "change_pct": (6.77 - 2.57) / 2.57,
+                "gap_percent": (3.0 - 2.57) / 2.57,
+                "volume": 10,
+            },
+        ],
+        min_change_pct=10.0,
+    )
+    assert round(rows[0]["gap_percent"], 4) == round((3.0 - 2.57) / 2.57, 4)
+    assert rows[0]["gap_percent"] != rows[0]["change_pct"]
 
 
 def test_reprice_afterhours_rows_ibkr_updates_price_and_volume(monkeypatch):
@@ -44,6 +85,33 @@ def test_reprice_afterhours_rows_ibkr_updates_price_and_volume(monkeypatch):
     assert out[0]["price"] == 2.55
     assert out[0]["volume"] == 4_170_000
     assert out[0]["rel_volume"] == 41.7  # 4.17M / 100k at full-day pace
+    # Quote has no open -- keep the prior gap; do not copy change_pct.
+    assert out[0]["gap_percent"] == 0.45
+    assert out[0]["change_pct"] != out[0]["gap_percent"]
+
+
+def test_reprice_afterhours_gap_from_open_not_last(monkeypatch):
+    """D-002: L1 last can be a +50% runner while the overnight gap is negative."""
+    import market as m
+
+    monkeypatch.setattr(m, "volume_day_elapsed_fraction", lambda now=None: 1.0)
+    rows = [
+        {
+            "symbol": "OKTG",
+            "price": 10.0,
+            "prev_close": 10.0,
+            "previous_close": 10.0,
+            "current_price": 10.0,
+            "gap_percent": None,
+            "change_pct": 0.0,
+            "volume": 1000,
+        }
+    ]
+    quotes = {"OKTG": {"price": 15.329, "volume": 50_000, "open": 9.75, "prev_close": 10.0}}
+    out = reprice_afterhours_rows_ibkr(rows, quotes, {})
+    assert round(out[0]["change_pct"], 4) == 0.5329
+    assert round(out[0]["gap_percent"], 4) == -0.025
+    assert out[0]["open"] == 9.75
 
 
 def test_reprice_afterhours_rows_ibkr_tolerates_unpriced_row(monkeypatch):

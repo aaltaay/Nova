@@ -18,7 +18,9 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` complete / accepted
 - **Baseline:** first captured 2026-07-16; remediations 2026-07-18
 - **Blocking status:** no security gate blocks deploys yet (intentional; warning-first)
 - **`auto_live`:** **NO-GO** — unchanged; no security work affects this gate
-- **Last updated:** 2026-07-18
+- **Last updated:** 2026-09-11
+- **Visibility:** public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
+- **Master branch:** `[x]` Protected 2026-09-11 (issue #63 / D-041). Force-push and deletion blocked, including admins. Required checks: `Backend tests`, `Frontend build`, `Frontend E2E`, `Agent contract`. No required reviews. Cloud Agent `check` reads the public branch summary when GET `/protection` is 403.
 
 ---
 
@@ -103,6 +105,9 @@ See `security/tooling.md` for commands and Windows setup.
 
 | Date | Entry |
 |------|-------|
+| 2026-09-11 | Master protection live. Owner applied via `gh api` as aaltaay. #63 / D-041 closed. `check` now uses the public branch summary so App tokens stop reporting `integration_forbidden`. |
+| 2026-09-11 | Source published as `aaltaay/Nova`. Historical Alpaca `.env` keys revoked. `Nova-public` archived private. Master protection still needs `apply` (#63). |
+| 2026-09-11 | GitHub Security "master isn't protected." Live `protected: false`. Tool + policy shipped; apply blocked on Administration token + GitHub Pro. Issue #63. |
 | 2026-07-18 | Security subagent re-audit verified SEC-001–SEC-008 remain fixed; builtin empty; dashboard refreshed to CLEAN. |
 | 2026-07-16 | Baseline audit completed: 6 findings (SEC-001–SEC-006) recorded in registry; compensating controls seeded for all findings; open findings section populated; verification ledger updated. Findings intentionally open — no product fixes applied. |
 | 2026-07-16 | Security-Status ledger created; `security-audit` CI job added (warning-only); `tools/security_audit.py` created; `security/tooling.md` created; `cvss` added to `requirements-dev.txt` |

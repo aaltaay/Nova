@@ -40,6 +40,73 @@ Entry template (copy and fill in):
 - **Follow-ups:** D-012 (#37) ledger writes / cancel-verify on the wrong thread is untouched and still open.
 - **Related:** Closes #39. PROBLEM_LOG 2026-09-11 Broker send outside the execution lock.
 
+## 2026-09-11 -- Quote Panel ticker WS reconnects after close
+
+- **What:** `useTickerStream` now reconnects `/ws/ticker/{symbol}` with the same backoff + timer cleanup as `useIbkrDepth`. After a snapshot, a drop keeps the last quote and marks it stale. Quote Panel shows a yellow "Quote stale -- reconnecting" badge with last-live time.
+- **Why:** D-021 / #26. After an API restart or Gateway blip the Quote Panel froze on the last price with no reconnect and no badge. Every other Nova WS hook already had backoff.
+- **Files touched:** `frontend/src/hooks/useTickerStream.ts`, `frontend/src/hooks/useTickerStream.test.tsx`, `frontend/src/components/SidePanel.tsx`, `frontend/src/constantGroups/chart_api.ts`, `frontend/src/styles/quote-layout.css`
+- **How it works now:** Close/error no longer stops the hook after `initial`. `onclose` sets `stale` + `disconnectedSince` when a snapshot exists, then `setTimeout(connect)` with 1s..30s backoff. Symbol switch and unmount clear the timer so a late reconnect cannot open an orphan socket. A later `initial` / `detail_update` / `trade_update` clears stale. HTTP seed still fills a first quote if WS is late.
+- **Verified by:** `npx vitest run src/hooks/useTickerStream.test.tsx` -- 3 passed; `npm test` -- 888 passed; `npm run lint` -- 0 warnings; `npm run build` -- tsc + vite exit 0.
+- **Follow-ups:** D-023 (#25) still parks the header status chip that can keep last-good "connected".
+- **Related:** Closes #26. PROBLEM_LOG 2026-09-11 Quote Panel ticker WS never reconnects.
+
+## 2026-09-11 -- Market-feed honesty: AH gap, yfinance miss, ticker snapshot
+
+- **What:** Afterhours Gap % is open vs prior close (not Change %). A yfinance failure is logged and cached for 60s, not 15 minutes of silent blanks. Ticker cold snapshot reads stored 1Min bars and afterhours cache, and logs a real exception type when `reqTickersAsync` times out.
+- **Why:** D-002 / #44 (OKTG Gap % == Change %), D-016 / #34 (empty Yahoo row cached 900s), D-009 / #40 (XAIR snapshot `{}` while chart bars were live).
+- **Files touched:** `backend/afterhours_discovery.py`, `backend/ibkr/discovery.py`, `backend/scanner_runners/afterhours.py`, `backend/fundamentals.py`, `backend/constants_scanner.py`, `backend/ticker_ibkr.py`
+- **How it works now:** AH build/reprice thread tick-14 `open` the same way `reprice_mover_row` does and keep Change % separate. Fundamentals use one Yahoo worker, `describe_exc` on failure, and `FUNDAMENTALS_NEGATIVE_CACHE_TTL`. Ticker last print prefers scanner row (including AH), L1, then `bars_store` 1Min; cold snapshot is last and no longer logs a blank `TimeoutError`.
+- **Verified by:** `pytest` afterhours / fundamentals cache / ticker snapshot / IBKR cache-priority tests.
+- **Related:** PROBLEM_LOG 2026-09-11 AH gap / yfinance negative cache / ticker snapshot. Closes #44 #34 #40.
+
+## 2026-09-11 -- Scanner NEWS column works under discovery=ibkr
+
+- **What:** Gappers / Gainers / Losers / Afterhours NEWS flames light again when discovery is IBKR. Alpaca `_check_news` still supplies today's headlines; they are stamped at read time, not written into the roster cache.
+- **Why:** D-001 / #45 -- every writer of `has_news` / `newest_headline_at` lived on Alpaca-era movers/discovery runners that return immediately under `discovery=ibkr`.
+- **Files touched:** `backend/scanner_news_badge.py`, `backend/mover_enrich_view.py`, `backend/ibkr/scanner_hydrate.py`, `backend/app_lifespan.py`, `backend/constants_scanner.py`, `backend/routes/scan.py`
+- **How it works now:** Roster commit and a 60s refresh loop queue current Gappers/Gainers/Losers/AH symbols (not Large Cap). A single-flight worker fills an in-memory ET-dated headline map. `decorate_rows` (REST `_strip_blocked`, WS `roster_replace`, WS snapshot) copies `has_news` / `newest_headline_at` onto the outgoing row. Frozen membership/rank/values stay untouched (ADR 008). No Alpaca keys means the column stays a dash and logs once.
+- **Verified by:** `pytest backend/tests -q` 1528 passed; `ruff check backend` clean; `doc_invariants` OK; `agent_contract --ci` PASS; frontend `eslint` 0 warnings, Vitest 895 passed, `npm run build` exit 0. Local Playwright skipped (Chromium binary not installed on this VM; CI Frontend E2E is the gate).
+- **Follow-ups:** D-015 / #35 Finnhub 429 + FinBERT warmup left parked (FinBERT is not small).
+- **Related:** Closes #45. PROBLEM_LOG 2026-09-11 Scanner NEWS dead under ibkr.
+
+## 2026-09-11 -- Order docks no longer default to mock sample rows
+
+- **What:** Closed Orders, Orders (Today) closed sample, and the Open Orders dock now start with real IB rows only. Zero orders is an empty blotter. Sample rows appear under global Sample mode (`useSampleDataOptional`) or after the operator clicks Show sample.
+- **Why:** D-014 / #33 -- a quiet paper day, or the gap before `reqCompletedOrders` lands, painted fake fills because `preferSample` / `preferClosedSample` / `sampleHidden` defaulted to show.
+- **Files touched:** `frontend/src/closed_orders/ClosedOrdersModule.tsx`, `frontend/src/orders_today/OrdersTodayView.tsx`, `frontend/src/stock_view/StockViewOpenOrdersDock.tsx`, `frontend/src/stock_view/stockViewDockPersist.ts`
+- **How it works now:** Each host reads `useSampleDataOptional()`. Live desk: prefer-sample flags start false; the dock treats sample as hidden unless Sample mode is on or the operator hid it earlier. Show sample / Show closed sample stay opt-in. A stored Hide still wins over Sample mode. Read failures still never substitute mocks.
+- **Verified by:** focused Vitest `ClosedOrdersModule.test.tsx`, `OrdersTodayView.test.tsx`, `StockViewOpenOrdersDock.test.tsx`, `stockViewDockPersist.test.ts`.
+- **Related:** PROBLEM_LOG 2026-09-11 D-014 mock sample default. Closes #33.
+
+## 2026-09-11 -- Master protection is live; check reads the public summary
+
+- **What:** `master` is protected on public `aaltaay/Nova`. The check tool no longer treats a 403 on GET `/protection` as "cannot see the rule" when `GET /branches/master` already has the public summary. Security-Status marks the row done. Deferred index includes closed D-041 / #63.
+- **Why:** The owner applied the rule from the desktop. Cloud Agent `check` still exited 2 (`integration_forbidden`) and live docs still said unprotected.
+- **Files touched:** `tools/master_branch_protection.py`, `tools/test_master_branch_protection.py`, `knowledge/obsidian/03-Nova-Decisions/Security-Status.md`, `knowledge/deferred-index.json`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`
+- **How it works now:** `python3 tools/master_branch_protection.py check` uses the full GET `/protection` body when the token can read it. App tokens fall back to the public summary: required checks plus `enforcement_level: everyone`. `apply` still needs Administration.
+- **Verified by:** live `GET /branches/master` `protected: true` with the four required checks; `pytest tools/test_master_branch_protection.py`; `python3 tools/master_branch_protection.py check` exit 0.
+- **Related:** PROBLEM_LOG 2026-09-11 check lied after master was protected. Refs #63 (already closed).
+
+## 2026-09-11 -- Public source home is aaltaay/Nova
+
+- **What:** Nova is the public source repository. README, LICENSE, SECURITY, and CONTRIBUTING are production copy. The marketing site CTA points at `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive, not the code home. Live delivery docs no longer say "keep the repo private to unlock branch protection."
+- **Why:** Operator chose to publish the source. A historical `.env` with Alpaca news keys was already removed from the tree; those keys were revoked before publish. No GitHub PATs were in history.
+- **Files touched:** `README.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `site/index.html`, `AGENTS.md`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `tools/master_branch_protection.py`, `tools/doc_invariants.py`
+- **How it works now:** Clone `https://github.com/aaltaay/Nova`. Marketing page and constitution agree. Branch protection is available on GitHub Free because the repo is public. `apply` still needs an Administration token. `Nova-public` stays on GitHub as a private snapshot.
+- **Verified by:** history scan (no PAT / OpenAI / IBKR password blobs; Alpaca `.env` keys revoked); `pytest tools/test_master_branch_protection.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py`; `python3 tools/doc_invariants.py`; `python3 tools/engineering_skills_audit.py`.
+- **Follow-ups:** Close #63 only after `master_branch_protection.py check` exits 0.
+- **Related:** PROBLEM_LOG 2026-09-11 historical Alpaca `.env` revoked. Refs #63.
+
+## 2026-09-11 -- GitHub Actions merges ready PRs and deletes heads
+
+- **What:** Ready (non-draft) PRs now merge from GitHub Actions when gating CI is green. Closed PR heads are deleted by workflow, not by hoping an agent remembers. Also landed the leftover #58 pytest install for the AI news digest Action and the #64 master-protection policy/tool.
+- **Why:** Three PRs sat open with idle agents because delivery stopped at "open a PR" unless a human said merge. That is agent memory, not a workflow.
+- **Files touched:** `tools/pr_delivery.py`, `.github/workflows/pr-delivery.yml`, `.github/workflows/deploy.yml`, `.github/workflows/ai-news.yml`, `tools/master_branch_protection.py`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `AGENTS.md`
+- **How it works now:** An agent opens a verified ready PR. CI job `Auto-merge` plus hourly `PR delivery` sweep run `tools/pr_delivery.py`, which merges through the REST API (not `gh pr merge`, which deadlocks waiting for the Auto-merge check itself). Draft or label `do-not-merge` holds. Conflicts and failed gating checks stay open. Closed heads are deleted even when the PR was not merged. `delete_branch_on_merge` stays as backup. Master protection still needs a human admin + GitHub Pro (`check` is advisory; issue #63).
+- **Verified by:** `pytest tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py tools/test_master_branch_protection.py tools/test_engineering_skills_audit.py`; `python3 tools/engineering_skills_audit.py`; `python3 tools/doc_invariants.py`.
+- **Follow-ups:** Close leftover #58 and #64 onto this branch; #63 stays open until `master` is actually protected.
+- **Related:** PROBLEM_LOG 2026-09-11 ready PRs sat open; AI news digest pytest; unprotected master. Refs #63. Supersedes #58 and #64.
+
 ## 2026-09-11 -- Nova News full-page desk
 
 - **What:** Added Nova News as a first-class scanner-rail product: a full-page newsroom with a top-of-desk row plus Critical / High / Watch / Background columns. The beat is **AI used in trading** (algos, quants, bots, research). Stories come from targeted Google News RSS, Yahoo-scoped AI-trading RSS, trade-press / tech / arXiv feeds, plus Finnhub and Alpaca after an admission gate. Catalysts copy now says it is on-roster only.

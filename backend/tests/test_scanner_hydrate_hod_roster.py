@@ -90,6 +90,7 @@ def test_commit_table_live_hooks_hod_roster(monkeypatch):
     sys.modules["scanner_push"].broadcast_roster_replace = fake_broadcast
 
     hooked: list[str] = []
+    news_hooked: list[tuple[str, list]] = []
     monkeypatch.setattr(
         hod_roster_hooks,
         "on_hod_roster_commit",
@@ -99,6 +100,10 @@ def test_commit_table_live_hooks_hod_roster(monkeypatch):
     monkeypatch.setattr(
         "hod_roster_hooks.on_hod_roster_commit",
         lambda table: hooked.append(table),
+    )
+    monkeypatch.setattr(
+        "scanner_news_badge.on_roster_commit",
+        lambda table, rows: news_hooked.append((table, list(rows))),
     )
 
     ok = asyncio.run(
@@ -114,4 +119,6 @@ def test_commit_table_live_hooks_hod_roster(monkeypatch):
     )
     assert ok is True
     assert hooked == [_ss.TABLE_GAPPERS]
+    assert news_hooked and news_hooked[0][0] == _ss.TABLE_GAPPERS
+    assert any(r.get("symbol") == "NEW1" for r in news_hooked[0][1])
     assert any(r.get("symbol") == "NEW1" for r in (state.gapper_cache or []))

@@ -55,6 +55,7 @@ def test_fetch_fundamentals_splits_last_and_next_earnings(monkeypatch):
     monkeypatch.setattr(fund.yf, "Ticker", lambda _s: _Ticker())
     fund._fundamentals_cache.clear()
     fund._fundamentals_cache_ts.clear()
+    fund._fundamentals_cache_ttl.clear()
     out = fund.fetch_fundamentals("AAPL")
     assert out["earnings_ts"] == 1785441600
     assert out["earnings_date"] == "2026-07-30"

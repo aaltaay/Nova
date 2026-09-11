@@ -230,7 +230,7 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 - **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
-- **PR-first delivery after every task:** Code, config, CI, security, and rule changes MUST use a focused branch and pull request. Direct `master` pushes are limited to status-only operations or explicit user instruction. Complete `.github/pull_request_template.md`, link the issue truthfully (`Closes` only for full completion; `Refs` for partial work), verify, commit, push the branch, and open the PR. After that PR is merged or closed, **delete the head branch in the same session** if it is still on origin (`git fetch --prune` then `py -3 tools/stale_pr_branches.py`; `--delete` only if the head remains). GitHub `delete_branch_on_merge` is on as backup. Never leave merged or superseded branches on origin. Never delete `master` or a branch that still has an open PR.
+- **PR-first delivery after every task:** Code, config, CI, security, and rule changes MUST use a focused branch and pull request. Direct `master` pushes are limited to status-only operations or explicit user instruction. Complete `.github/pull_request_template.md`, link the issue truthfully (`Closes` only for full completion; `Refs` for partial work), verify, commit, push the branch, and open a **ready** (non-draft) PR. **GitHub Actions merges ready PRs** when gating CI is green (`tools/pr_delivery.py`). Do not wait for the human to say merge. Draft or label `do-not-merge` is the hold. After that PR is merged or closed, **delete the head branch** (`git fetch --prune` then `py -3 tools/stale_pr_branches.py`; `--delete` only if the head remains). GitHub `delete_branch_on_merge` plus `.github/workflows/pr-delivery.yml` are the backup sweep. Never leave merged or superseded branches on origin. Never delete `master` or a branch that still has an open PR. **Master branch protection** (no force-push, no deletion, required gating CI) is the required GitHub setting; verify with `py -3 tools/master_branch_protection.py check` and do not claim it exists unless that command exits 0. Public Nova unlocks that setting on GitHub Free. A private personal repo still needs GitHub Pro. The public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
 - **Co-Pilot Coaching Footer**: At the very end of every substantive reply, the assistant MUST append two short paragraphs, in this order (each max ~5 sentences, plain language):
   1. **Better ask:** -- honest feedback on how the user's request could have been asked better or clearer, plus one thing the user likely did not know. The goal is direct judgment that makes the user a better co-pilot, not flattery.
   2. **Follow-up ask:** -- one concrete, well-phrased follow-up question the user could ask next about this problem or answer (the natural next step), plus one sentence on why that follow-up is the highest-value one. Teach the shape of a good follow-up by example: reference the specific answer or artifact, narrow the scope, and state the decision it informs.
@@ -344,7 +344,7 @@ cd frontend && npm run electron:pack
 ### Deploy
 
 - **Backend:** local only right now -- no cloud host (not Railway, not another PaaS). Run via `Run Nova.bat`, Desktop sidecar, or local uvicorn on `127.0.0.1:8000`.
-- **Public site:** `nova.altaystudio.com` is a static marketing page (`site/`) -- features, screenshots, and the [Nova-public](https://github.com/aaltaay/Nova-public) link. It is not the live scanner and has no API. Point the Vercel project Root Directory at `site`.
+- **Public site:** `nova.altaystudio.com` is a static marketing page (`site/`) -- features, screenshots, and the [source](https://github.com/aaltaay/Nova) link. It is not the live scanner and has no API. Point the Vercel project Root Directory at `site`.
 - **Frontend (app UI):** local Vite / Desktop only (`http://localhost:5173`). Do not host the trading SPA on the public domain.
 - **Desktop:** Electron + local API sidecar. Local pack: `frontend/release/Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe`. Every PR must pass the `Desktop pack` GitHub Actions job, which uploads both EXEs. Merges to master/main create git tag `vNNN` and a GitHub Release that attaches those EXEs. GitHub's Source code zip/tar is automatic and is not the app.
 
@@ -374,6 +374,8 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-11 | Public source home is `aaltaay/Nova`. Marketing site CTA points here. `Nova-public` is a private archive. Master protection no longer blocked on "keep private." | User Directive + Cursor Agent |
+| 2026-09-11 | GitHub Actions merges ready PRs and deletes closed heads (`pr_delivery.py`). Agents do not wait for a human merge ask. Master protection policy + apply tool also shipped. | User Directive + Cursor Agent |
 | 2026-09-11 | Desktop pack builds NSIS installer + portable EXE. Master/main GitHub Release attaches both. Source zip/tar is not the app. | User Directive + Cursor Agent |
 | 2026-09-11 | Desktop pack CI uploads `Nova-Setup-vNNN.exe` on every PR. Public revision is `vNNN` (commit count). Master/main creates git tag `vNNN` only. | User Directive + Cursor Agent |
 | 2026-09-11 | GitHub `delete_branch_on_merge` is on. Agents still confirm the head is gone (`stale_pr_branches.py`) and `--delete` only if it remains. | User Directive + Cursor Agent |
@@ -439,7 +441,7 @@ Pre-existing: `karpathy-guidelines`, `graphify`. Phase A adds: `backtest`, `opti
 | `interview-me` | `.cursor/skills/interview-me/` | One-question requirements interview |
 | `doubt-driven-development` | `.cursor/skills/doubt-driven-development/` | Adversarial review of non-trivial claims |
 | `code-review-and-quality` | `.cursor/skills/code-review-and-quality/` | Five-axis review before ship |
-| `github-delivery` | `.cursor/skills/github-delivery/` | Issue metadata, PR-first delivery, delete head branch after merge/close, strict gates, complete-only closure |
+| `github-delivery` | `.cursor/skills/github-delivery/` | Issue metadata, PR-first delivery, Actions merge of ready PRs, delete head after merge/close, strict gates |
 
 Always-on rules: `verification-before-completion.mdc`, `engineering-methodology.mdc`, `github-delivery.mdc`. Audit: `py -3 tools/engineering_skills_audit.py`. Lineage pins in `.cursor/skills/SOURCE-PINS.txt`. **Not imported:** default subagent-per-task, always-hard brainstorming, replacing `AGENTS.md`.
 
@@ -489,12 +491,12 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `deferred-log.mdc` -- check GitHub Issues (`deferred`) before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
 - `change-log.mdc` -- CHANGELOG after behavior changes
 - `task-log.mdc` -- reasoning narrative after material work (PR body first; file when no PR)
-- `commit-push-deploy.mdc` -- verify, commit, push branch, open PR, delete head after merge (+ deploy when applicable)
+- `commit-push-deploy.mdc` -- verify, commit, push branch, open a ready PR; Actions merges it; delete head after merge (+ deploy when applicable)
 - `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`
 - `self-annealing.mdc` -- root-cause fix protocol on any error
 - `verification-before-completion.mdc` -- no done/fixed claims without fresh evidence
 - `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
-- `github-delivery.mdc` -- issue metadata, PR-first development links, delete head branch after merge/close, strict gates, complete-only closure
+- `github-delivery.mdc` -- issue metadata, PR-first links, Actions merge of ready PRs, delete head after merge/close, strict gates
 - `persisted-state.mdc` -- cache files need owner + invalidation + schema_version
 - `graphify.mdc` -- vault/decision questions: `py -3 tools/graphify_ask.py query` + savings meter
 

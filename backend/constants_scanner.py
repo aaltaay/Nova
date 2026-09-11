@@ -195,6 +195,10 @@ FOCUS_INTERVAL_SEC = 30.0    # reconcile current gapper list
 GAINERS_INTERVAL_SEC = 20.0    # market-hours screener refresh
 CLOSED_INTERVAL_SEC = 60.0    # closed-hours background refresh
 NEWS_CATALYST_INTERVAL_SEC = 60.0    # news-first catalyst scan interval
+# Scanner NEWS badge under discovery=ibkr (D-001): side-cache refresh cadence.
+# Frozen rosters cannot be rewritten (ADR 008); this only refills the view cache.
+NEWS_BADGE_INTERVAL_SEC = 60.0
+NEWS_BADGE_SYMBOL_BATCH = 50          # matches scanner._check_news Alpaca cap
 # full universe scan (after-hours, same cadence as pre-market)
 AFTERHOURS_DISCOVERY_INTERVAL_SEC = 120.0
 AFTERHOURS_FOCUS_INTERVAL_SEC = 30.0   # reconcile current after-hours list
@@ -223,8 +227,11 @@ DATA_FEED_OPTIONS = ("iex", "sip")
 # ── Ticker detail caches ──────────────────────────────────────────────────────
 # Fundamentals (yfinance/Yahoo) are slow; cache aggressively.
 FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
+# Failed Yahoo / timeout / empty exception: short negative cache so a blip
+# does not blank float / SI / mcap / RVOL for a full scan cycle (D-016).
+FUNDAMENTALS_NEGATIVE_CACHE_TTL = 60.0
 # Hard timeout for a single yfinance .info call; prevents Yahoo stalls from blocking Phase 2.
-# On timeout, stale cached data (if any) is returned; otherwise an empty dict is used.
+# On timeout, a successful stale cache is returned; a prior failure is retried.
 YFINANCE_TIMEOUT_S = 5.0
 # Scanner Earnings column lights a dot when the Yahoo event is within this
 # many ET calendar days of today (1 = yesterday / today / tomorrow).

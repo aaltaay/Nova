@@ -45,6 +45,102 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix class:** ownership
 - **Keywords:** execution lock, send_broker, ADR 007 decision 5, OVERSELL, OVERCOVER, double place, in-flight commitment, idempotency_key, D-011
 
+## 2026-09-11 -- Quote Panel ticker WS never reconnects
+
+- **Symptom:** After `/ws/ticker/{symbol}` closed (API restart, Gateway blip), Quote Panel kept the last price and daily bar with no reconnect and no stale badge. `rel_volume` kept recomputing from the frozen snapshot.
+- **Cause:** `useTickerStream` `onclose` / `onerror` only cleared loading flags and set `fetchFailed` when no `initial` had arrived. There was no backoff timer. Sibling hooks (`useIbkrDepth`, tape, scanner, HOD, signals) already reconnect.
+- **Fix:** Copied the depth-hook reconnect shape (backoff ref + timer ref + cleanup) into `useTickerStream`. Returned `stale` / `disconnectedSince`. Quote Panel renders a stale bar while the last quote stays visible.
+- **Fix class:** infra
+- **Keywords:** useTickerStream, /ws/ticker, reconnect, onclose, stale quote, Quote Panel, fetchFailed, backoff, D-021
+
+## 2026-09-11 -- Afterhours Gap % copied Change %
+
+- **Symptom:** AH Gap % matched Change % on every row (OKTG showed +53.29% gap while open vs prior close was -2.50%).
+- **Cause:** `build_afterhours_rows_from_ibkr_gainers` and `reprice_afterhours_rows_ibkr` set `gap_percent` from last vs prior close. Gainers already used tick-14 open; the AH path was never migrated.
+- **Fix:** Thread `open` through AH build/L1 reprice. Gap is open vs prior close (or the incoming mover gap). Never reuse `change_pct`. HOD AH seed now passes change and gap separately.
+- **Fix class:** admission
+- **Keywords:** afterhours, gap_percent, change_pct, OKTG, D-002, #44, tick 14, reprice_afterhours_rows_ibkr
+
+## 2026-09-11 -- yfinance failure cached empty row for 15 minutes
+
+- **Symptom:** Float / Short Int. / Mkt Cap / RVOL went blank for a full scan cycle after one Yahoo miss, with no log line.
+- **Cause:** `fetch_fundamentals` swallowed `Exception`, stored `_EMPTY` under the full `FUNDAMENTALS_CACHE_TTL` (900s), and spawned a new `ThreadPoolExecutor` per call.
+- **Fix:** WARNING + `describe_exc`, `FUNDAMENTALS_NEGATIVE_CACHE_TTL` (60s) for failures, one module executor. A successful stale cache can still be returned on timeout; a prior failure is retried after 60s.
+- **Fix class:** admission
+- **Keywords:** fundamentals, yfinance, _EMPTY, negative cache, D-016, #34, FUNDAMENTALS_NEGATIVE_CACHE_TTL, describe_exc
+
+## 2026-09-11 -- Ticker cold snapshot empty while chart bars lived
+
+- **Symptom:** `GET /api/ticker/XAIR` returned `snapshot: {}` in the same minute `/bars?timeframe=1Min` returned 5 real candles. Log: `ticker IBKR snapshot failed for XAIR: ` (blank).
+- **Cause:** `_price_from_chart_bars` called `fetch_chart_bars(interactive=True)`, which on an empty store only schedules a fill and returns no bars. Fallback `snapshot_quotes` via `run_coro` timed out (`TimeoutError` has empty `str()`). `find_ibkr_cache_row` also skipped `afterhours_cache`.
+- **Fix:** Read `bars_store` 1Min last close (store-first). Retry the store after a failed cold snapshot. Include afterhours rows in the cache lookup. Log `describe_exc` so TimeoutError is visible.
+- **Fix class:** admission
+- **Keywords:** ticker_ibkr, snapshot_quotes, D-009, #40, XAIR, bars_store, describe_exc, afterhours_cache
+
+## 2026-09-11 -- Scanner NEWS column dead under discovery=ibkr
+
+- **Symptom:** Gappers / Gainers / Losers / Afterhours NEWS cells were empty every session. `/api/movers` rows lacked `has_news` / `newest_headline_at` (keys absent, not null).
+- **Cause:** Those fields were only written by Alpaca-era `scanner_runners` (movers / discovery / afterhours). Under `discovery=ibkr` those runners return before `_check_news`. ADR 008 also forbids writing late metadata into a frozen roster.
+- **Fix:** Side cache `scanner_news_badge` reuses Alpaca `_check_news` on current roster symbols (commit + 60s refresh). `mover_enrich_view.decorate_rows` stamps the fields on the serialized copy only.
+- **Fix class:** ownership
+- **Keywords:** D-001, has_news, newest_headline_at, NEWS column, discovery=ibkr, scanner_news_badge, decorate_rows, ADR 008, Alpaca news
+
+## 2026-09-11 -- D-014 order docks painted mock fills on a quiet paper day
+
+- **Symptom:** Closed Orders and the Open Orders dock showed paper-style fills when IB returned zero orders. A reconnect before `reqCompletedOrders` landed looked the same.
+- **Cause:** `preferSample` and `preferClosedSample` initialized `true`. The dock's `sampleHidden` defaulted false, so `usingSample` fired on an empty working list. Global Sample mode (`useSampleDataOptional`) was not the gate. Read-failure was already excluded (`!error`).
+- **Fix:** Defaults follow Sample mode. Live desk starts off; Show sample stays opt-in. Dock `initialSampleHidden(globalSampleActive)` hides unless Sample mode is on or the operator already hid it.
+- **Fix class:** admission
+- **Keywords:** D-014, preferSample, preferClosedSample, wantsWorkingSample, sampleHidden, useSampleDataOptional, Closed Orders, Open Orders dock, mock fills
+
+## 2026-09-11 -- check lied after master was protected
+
+- **Symptom:** `python3 tools/master_branch_protection.py check` exited 2 (`integration_forbidden`) after `master` was already `protected: true` with the four required checks.
+- **Cause:** `check_live` treated any 403 on GET `/branches/master/protection` as a hard block. Cloud Agent GitHub App tokens cannot read that admin endpoint, but `GET /branches/master` already returns the public `protection` summary (`enabled`, required contexts, `enforcement_level`).
+- **Fix:** Evaluate the public summary when GET `/protection` is 403. `enforcement_level: everyone` stands in for `enforce_admins`. Force-push / deletion flags stay on the admin GET when the token can read it.
+- **Fix class:** surfacing
+- **Keywords:** master protection, check, integration_forbidden, public summary, enforcement_level, #63, D-041
+
+## 2026-09-11 -- Historical Alpaca keys in git .env
+
+- **Symptom:** Before publishing the source, a history scan found a tracked `.env` in early commits (April 2026 through 2026-07-10) with filled `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`. No GitHub PATs, OpenAI keys, IBKR passwords, or other vendor secrets were in those blobs. The file is not in HEAD.
+- **Cause:** The initial commit stored a working `.env`. It was deleted from the tree on 2026-07-10 (`d56c197`) but the blobs stayed in history. Making the repository public would have exposed those strings.
+- **Fix:** Operator revoked the Alpaca pair in the vendor console. `.env` stays gitignored. Public docs (`SECURITY.md`, README) say historical credentials are burned. `Nova-public` is taken private so it is no longer the public snapshot.
+- **Fix class:** infra
+- **Keywords:** alpaca, .env, git history, secrets, revoke, public repo, Nova-public
+
+## 2026-09-11 -- Auto-merge deadlocked on its own pending check
+
+- **Symptom:** PR #65 stayed open after all gating jobs and Desktop pack were green. The `Auto-merge` job sat in `Merge when gating CI is green`.
+- **Cause:** `gh pr merge` waits for every check on the PR. `Auto-merge` is itself a check, still `IN_PROGRESS`, so `mergeStateStatus` stays `UNSTABLE` and `gh pr merge` never finishes.
+- **Fix:** `pr_delivery.py` merges with `PUT /pulls/{n}/merge` and then deletes the head. That API does not wait for the Auto-merge job.
+- **Fix class:** ownership
+- **Keywords:** auto-merge, deadlock, gh pr merge, UNSTABLE, pull request, GITHUB_TOKEN
+
+## 2026-09-11 -- Ready PRs sat open until someone said merge
+
+- **Symptom:** Three pull requests visible, no agent working. Heads stayed open after the work was done. The operator had to ask why and then ask to merge.
+- **Cause:** Delivery rules said "open a PR" and only deleted the branch *after* a merge. Cloud agents also refuse to merge unless the user says merge. So a green PR was treated as done and the agent went idle. Branch delete on close was still agent-memory plus `delete_branch_on_merge` (merges only).
+- **Fix:** `tools/pr_delivery.py` + CI `Auto-merge` + `.github/workflows/pr-delivery.yml` merge ready PRs and delete closed heads. Rules now say Actions merges; draft / `do-not-merge` is the hold. Leftover #58/#64 content replayed here so those idle PRs can close.
+- **Fix class:** ownership
+- **Keywords:** pull request, auto-merge, idle agent, delete branch, pr_delivery, do-not-merge
+
+## 2026-09-11 -- AI news digest Action crashed before it could publish
+
+- **Symptom:** `nova.altaystudio.com` kept the digest baked into PR #52. Manual `workflow_dispatch` of `AI news digest` failed in 3s; log: `python: No module named pytest`.
+- **Cause:** `.github/workflows/ai-news.yml` ran `python -m pytest tools/test_ai_news_digest.py` on `actions/setup-python` CPython 3.13 with no `pip install pytest`. The job never reached `ai_news_digest.py`.
+- **Fix:** Install pytest in the digest job before the unit-test step (from leftover PR #58).
+- **Fix class:** infra
+- **Keywords:** nova.altaystudio.com, ai-news.yml, pytest, digest, workflow_dispatch
+
+## 2026-09-11 -- Unprotected master (force-push / delete / merge-without-CI)
+
+- **Symptom:** GitHub Security: "Your master branch isn't protected." `GET /repos/aaltaay/Nova/branches/master` returned `protected: false`.
+- **Cause:** No branch protection rule existed. Cloud Agent `gh` is a GitHub App integration without Administration. Rulesets API also returned 403 "Upgrade to GitHub Pro or make this repository public."
+- **Fix:** Policy + apply/check tool (`tools/master_branch_protection.py`), delivery rule item 9, advisory CI check (from leftover PR #64). Live apply is a human admin + Pro step (issue #63). Do not make Nova public.
+- **Fix class:** infra
+- **Keywords:** branch protection, master, force-push, GitHub Pro, Administration, rulesets, status checks
+
 ## 2026-09-11 -- Semgrep blocked Nova News story_id SHA1
 
 - **Symptom:** CI Semgrep `p/python` failed on PR #62: `insecure-hash-algorithm-sha1` at `nova_news.normalize.story_id`.

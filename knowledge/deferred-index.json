@@ -2,8 +2,19 @@
   "schema_version": 1,
   "source": "github",
   "repo": "aaltaay/Nova",
-  "updated": "2026-09-10",
+  "updated": "2026-09-11",
   "items": [
+    {
+      "id": "D-041",
+      "title": "Protect master from force-push, deletion, and merge-without-CI",
+      "kind": "bug",
+      "severity": "P0",
+      "status": "done",
+      "domain": "security",
+      "number": "63",
+      "url": "https://github.com/aaltaay/Nova/issues/63",
+      "state": "CLOSED"
+    },
     {
       "id": "D-007",
       "title": "After-hours VWAP: Nova freezes at 16:00; Webull/DAS reset",
@@ -38,6 +49,28 @@
       "state": "CLOSED"
     },
     {
+      "id": "D-004",
+      "title": "Vite restart-lock test shares the live lock path",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "done",
+      "domain": "tester",
+      "number": "41",
+      "url": "https://github.com/aaltaay/Nova/issues/41",
+      "state": "CLOSED"
+    },
+    {
+      "id": "D-029",
+      "title": "CI does not run lint, Vitest, Playwright, or ruff; master is ESLint-red",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "done",
+      "domain": "tester",
+      "number": "20",
+      "url": "https://github.com/aaltaay/Nova/issues/20",
+      "state": "CLOSED"
+    },
+    {
       "id": "D-001",
       "title": "Scanner NEWS column is dead under discovery=ibkr",
       "kind": "bug",
@@ -60,17 +93,6 @@
       "state": "OPEN"
     },
     {
-      "id": "D-005",
-      "title": "Aborted API terminal can leave a live process with no HTTP listener",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "open",
-      "domain": "ibkr-ops",
-      "number": "42",
-      "url": "https://github.com/aaltaay/Nova/issues/42",
-      "state": "OPEN"
-    },
-    {
       "id": "D-003",
       "title": "Trader 10Sec / Full Day sit on \"Loading IBKR historical...\" for minutes",
       "kind": "bug",
@@ -82,15 +104,15 @@
       "state": "OPEN"
     },
     {
-      "id": "D-004",
-      "title": "Vite restart-lock test shares the live lock path",
+      "id": "D-005",
+      "title": "Aborted API terminal can leave a live process with no HTTP listener",
       "kind": "bug",
-      "severity": "P2",
-      "status": "done",
-      "domain": "tester",
-      "number": "41",
-      "url": "https://github.com/aaltaay/Nova/issues/41",
-      "state": "CLOSED"
+      "severity": "P1",
+      "status": "open",
+      "domain": "ibkr-ops",
+      "number": "42",
+      "url": "https://github.com/aaltaay/Nova/issues/42",
+      "state": "OPEN"
     },
     {
       "id": "D-009",
@@ -148,17 +170,6 @@
       "state": "OPEN"
     },
     {
-      "id": "D-016",
-      "title": "yfinance failure caches an empty row for 15 minutes, silently",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "open",
-      "domain": "market-feed",
-      "number": "34",
-      "url": "https://github.com/aaltaay/Nova/issues/34",
-      "state": "OPEN"
-    },
-    {
       "id": "D-015",
       "title": "News / Earnings: Catalysts limited to IBKR roster; FinBERT cold load on scan pool; Finnhub no 429 path",
       "kind": "bug",
@@ -170,15 +181,26 @@
       "state": "OPEN"
     },
     {
+      "id": "D-016",
+      "title": "yfinance failure caches an empty row for 15 minutes, silently",
+      "kind": "bug",
+      "severity": "P1",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "34",
+      "url": "https://github.com/aaltaay/Nova/issues/34",
+      "state": "OPEN"
+    },
+    {
       "id": "D-014",
       "title": "Closed Orders / Open Orders dock default to mock sample rows when IB returns zero orders",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "execution | widgets",
       "number": "33",
       "url": "https://github.com/aaltaay/Nova/issues/33",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-018",
@@ -192,17 +214,6 @@
       "state": "OPEN"
     },
     {
-      "id": "D-017",
-      "title": "Persisted files still ship without `schema_version` (backend JSON + frontend localStorage)",
-      "kind": "bug",
-      "severity": "P2",
-      "status": "open",
-      "domain": "market-feed | widgets | hod-momo | news",
-      "number": "30",
-      "url": "https://github.com/aaltaay/Nova/issues/30",
-      "state": "OPEN"
-    },
-    {
       "id": "D-019",
       "title": "`apply_l1_quote` rebuilds every scanner cache list on each IB tick",
       "kind": "bug",
@@ -211,6 +222,17 @@
       "domain": "market-feed",
       "number": "31",
       "url": "https://github.com/aaltaay/Nova/issues/31",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-017",
+      "title": "Persisted files still ship without `schema_version` (backend JSON + frontend localStorage)",
+      "kind": "bug",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed | widgets | hod-momo | news",
+      "number": "30",
+      "url": "https://github.com/aaltaay/Nova/issues/30",
       "state": "OPEN"
     },
     {
@@ -280,17 +302,6 @@
       "state": "OPEN"
     },
     {
-      "id": "D-027",
-      "title": "Depth cap force-evicts a live viewer instead of refusing the 4th symbol",
-      "kind": "decision",
-      "severity": "P2",
-      "status": "open",
-      "domain": "market-feed",
-      "number": "22",
-      "url": "https://github.com/aaltaay/Nova/issues/22",
-      "state": "OPEN"
-    },
-    {
       "id": "D-026",
       "title": "Roster commit mutates state then reports failure if the WS push throws",
       "kind": "bug",
@@ -299,6 +310,17 @@
       "domain": "market-feed",
       "number": "23",
       "url": "https://github.com/aaltaay/Nova/issues/23",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-027",
+      "title": "Depth cap force-evicts a live viewer instead of refusing the 4th symbol",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "22",
+      "url": "https://github.com/aaltaay/Nova/issues/22",
       "state": "OPEN"
     },
     {
@@ -311,17 +333,6 @@
       "number": "21",
       "url": "https://github.com/aaltaay/Nova/issues/21",
       "state": "OPEN"
-    },
-    {
-      "id": "D-029",
-      "title": "CI does not run lint, Vitest, Playwright, or ruff; master is ESLint-red",
-      "kind": "bug",
-      "severity": "P1",
-      "status": "done",
-      "domain": "tester",
-      "number": "20",
-      "url": "https://github.com/aaltaay/Nova/issues/20",
-      "state": "CLOSED"
     },
     {
       "id": "D-030",
@@ -423,17 +434,6 @@
       "state": "OPEN"
     },
     {
-      "id": "D-040",
-      "title": "`POST /api/config` rewrites `.env` with no auth on loopback",
-      "kind": "decision",
-      "severity": "P2",
-      "status": "open",
-      "domain": "security",
-      "number": "9",
-      "url": "https://github.com/aaltaay/Nova/issues/9",
-      "state": "OPEN"
-    },
-    {
       "id": "D-039",
       "title": "Scanner reqIds survive a full reconnect; Error 101 has no ticker budget",
       "kind": "bug",
@@ -442,6 +442,17 @@
       "domain": "market-feed",
       "number": "10",
       "url": "https://github.com/aaltaay/Nova/issues/10",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-040",
+      "title": "`POST /api/config` rewrites `.env` with no auth on loopback",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "open",
+      "domain": "security",
+      "number": "9",
+      "url": "https://github.com/aaltaay/Nova/issues/9",
       "state": "OPEN"
     }
   ]

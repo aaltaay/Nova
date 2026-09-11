@@ -57,6 +57,18 @@ def test_detects_discovery_alpaca_instruction(di):
     assert any(h.invariant_id == "discovery_alpaca_mode" for h in hits)
 
 
+def test_detects_nova_public_as_source(di):
+    text = "Clone https://github.com/aaltaay/Nova-public and run the desk.\n"
+    hits = di.scan_text(Path("README.md"), text)
+    assert any(h.invariant_id == "nova_public_as_source" for h in hits)
+
+
+def test_allows_nova_public_archive_wording(di):
+    text = "The older `Nova-public` repository is a private archive.\n"
+    hits = di.scan_text(Path("README.md"), text)
+    assert hits == []
+
+
 def test_main_exits_nonzero_on_violation(di, tmp_path, monkeypatch, capsys):
     live = tmp_path / "AGENTS.md"
     live.write_text("Deploy to Railway now.\n", encoding="utf-8")

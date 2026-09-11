@@ -124,7 +124,7 @@ def run_afterhours_discovery_scan() -> None:
                     price=float(r["current_price"]),
                     rvol=r.get("rel_volume"),
                     volume=int(r.get("volume") or 0) or None,
-                    change_pct=float(r["gap_percent"]) * 100.0 if r.get("gap_percent") is not None else None,
+                    change_pct=float(r["change_pct"]) * 100.0 if r.get("change_pct") is not None else None,
                     gap_pct=float(r["gap_percent"]) * 100.0 if r.get("gap_percent") is not None else None,
                     float_shares=r.get("float"),
                     rvol_source="ibkr_pace" if r.get("rel_volume") is not None else None,

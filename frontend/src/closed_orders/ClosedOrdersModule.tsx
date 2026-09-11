@@ -5,6 +5,7 @@
 import { useMemo, useState } from 'react';
 import { CLOSED_ORDERS_MODULE_ID } from '../constants';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { ClosedOrdersPanel } from './ClosedOrdersPanel';
 import { buildMockClosedOrders } from './mockClosedOrders';
 import { useClosedOrders } from './useClosedOrders';
@@ -27,8 +28,9 @@ export function ClosedOrdersModule({
 }: Props) {
   const status = useIbkrStatus();
   const { orders, error } = useClosedOrders(status.connected);
-  /** When Gateway has no terminal orders, show paper-style sample until hidden. */
-  const [preferSample, setPreferSample] = useState(true);
+  const sample = useSampleDataOptional();
+  /** Sample rows only under global Sample mode, or after opt-in Show sample. */
+  const [preferSample, setPreferSample] = useState(() => Boolean(sample));
 
   // Never substitute sample data for a genuine read failure — that would
   // hide the failure behind fake "success" rows.

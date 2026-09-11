@@ -33,6 +33,8 @@ LIVE_PATHS: tuple[str, ...] = (
     "security/tooling.md",
     "security/schema.md",
     "security/SOURCE-PINS.md",
+    "SECURITY.md",
+    "site/index.html",
     "tools/security_lib/checks_api.py",
     "tools/security_lib/checks_infra.py",
 )
@@ -106,6 +108,11 @@ INVARIANTS: tuple[tuple[str, re.Pattern[str], str], ...] = (
         "do_not_promote_k_z",
         re.compile(r"(?i)Do not promote Phases K[–-]Z"),
         "Blocks promoting K–Z while K is the active product phase (parking lot is L–Z).",
+    ),
+    (
+        "nova_public_as_source",
+        re.compile(r"github\.com/aaltaay/Nova-public"),
+        "Live docs still treat Nova-public as the public source (aaltaay/Nova is the source home).",
     ),
 )
 

@@ -118,6 +118,10 @@ export const BACKEND_PROBE_TIMEOUT_MS = 2_500;
 export const SCANNER_FETCH_TIMEOUT_MS = 8_000;
 /** If ticker WS has not sent `initial` by then, seed from GET /api/ticker/{symbol}. */
 export const TICKER_WS_HTTP_SEED_MS = 2_500;
+/** First reconnect delay after /ws/ticker close -- same shape as useIbkrDepth. */
+export const TICKER_WS_RECONNECT_MS = 1_000;
+/** Cap for ticker WS exponential backoff. */
+export const TICKER_WS_RECONNECT_CAP_MS = 30_000;
 /**
  * REST scanner poll cadence when there is NO IBKR L1 WebSocket driving live
  * price patches (Alpaca discovery) — this poll IS the price feed, so it stays 1Hz.
@@ -336,6 +340,8 @@ export const SCANNER_PRICE_FLASH_MS = 400;
 // ── Quote Panel (scanner right sidebar) vs Trader window (ticker click) ─────
 /** Right-hand scanner sidebar that shows quote + fundamentals for the selected symbol. */
 export const QUOTE_PANEL_TITLE = 'Quote Panel';
+/** Shown on the Quote Panel when /ws/ticker dropped after a snapshot. */
+export const QUOTE_PANEL_STALE_LABEL = 'Quote stale -- reconnecting';
 /** Full single-stock page opened by double-click / “Trader” (detached window). */
 export const STOCK_VIEW_TITLE = 'Trader';
 /** Button / tooltip copy for opening the detached Trader window. */

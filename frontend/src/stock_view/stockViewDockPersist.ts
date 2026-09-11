@@ -44,6 +44,28 @@ export function readSampleHidden(): boolean {
   }
 }
 
+/** Persist Hide sample. Absent key means "no stored hide", not "show sample". */
+export function writeSampleHidden(hidden: boolean): void {
+  try {
+    if (hidden) {
+      localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY, '1');
+    } else {
+      localStorage.removeItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Working-order sample starts hidden unless global Sample mode is on.
+ * A stored Hide still wins over Sample mode.
+ */
+export function initialSampleHidden(globalSampleActive: boolean): boolean {
+  if (readSampleHidden()) return true;
+  return !globalSampleActive;
+}
+
 function migrateLegacyTab(raw: string | null): OrdersTodayFilterId | null {
   if (raw === 'open') return 'working';
   if (raw === 'closed') return 'all';

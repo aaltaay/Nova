@@ -191,6 +191,12 @@ async def commit_table(
         on_mover_roster_commit(table, rows)
     except Exception:
         logger.debug("scanner_stream: mover enrich hook failed", exc_info=True)
+    try:
+        from scanner_news_badge import on_roster_commit
+
+        on_roster_commit(table, rows)
+    except Exception:
+        logger.debug("scanner_stream: news badge hook failed", exc_info=True)
     return True
 
 

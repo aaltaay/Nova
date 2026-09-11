@@ -21,16 +21,17 @@ At the end of every task or whenever you complete a chunk of work that has been 
 4. **Push to the remote repository**
    - Push the committed changes to the current branch on the remote: e.g., `git push` or `git push -u origin HEAD` if the upstream is not set.
 
-5. **Open the pull request**
+5. **Open the pull request ready, not parked**
    - Fill `.github/pull_request_template.md`; its body is the task narrative.
    - Use `Closes #NNN` only when the entire issue is complete. Use `Refs #NNN` for partial work.
    - Apply the owner, Nova Delivery project, conditional milestone, and real relationships from `github-delivery.mdc`.
+   - Mark the PR ready (not draft). GitHub Actions merges it when gating CI is green. Do not wait for the human to say merge. Draft or label `do-not-merge` is the only hold.
 
 6. **After the PR is merged or closed, delete the head branch if it is still on origin**
    - Same session. `git fetch origin --prune`, then `py -3 tools/stale_pr_branches.py`.
-   - GitHub `delete_branch_on_merge` is on (backup). If the head is still listed, `git push origin --delete <branch>` and prune again.
+   - GitHub `delete_branch_on_merge` plus `.github/workflows/pr-delivery.yml` are the backup. If the head is still listed, `git push origin --delete <branch>` and prune again.
    - Never delete `master` / `main` or a branch that still has an open PR.
-   - See `github-delivery.mdc` item 8.
+   - See `github-delivery.mdc` items 8 and 10.
 
 7. **Deploy the changes**
    - **Backend has no cloud host right now** (local / Desktop sidecar only). Do not assume Railway or another PaaS deploy. Pushing git does not deploy the API.

@@ -64,6 +64,7 @@ from ibkr_bridge import (
 import scanner_tab_registry as _scanner_tabs
 from scanner_push import broadcast as _scanner_broadcast
 from scan_loop import scan_loop
+import scanner_news_badge as _scanner_news_badge
 from ticker import _find_ibkr_cache_row
 from universe import invalidate_universe_cache
 from websocket import broadcast_trade_update, stream_loop
@@ -233,6 +234,7 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
         ("hod_momo.universe_enrichment", _hod_momo_enrichment.universe_enrichment_loop),
         ("hod_momo.fundamentals_enrichment", _hod_momo_enrichment.fundamentals_enrichment_loop),
         ("integrity_live", _integrity_live.integrity_loop),
+        ("scanner_news_badge", _scanner_news_badge.refresh_loop),
         ("setups_stream", _setups_stream.scan_loop),
         ("risk.session_reset", _risk.session_reset_loop),
         # Name is fill_poll_loop (singular). The old fills_poll_loop typo raised
