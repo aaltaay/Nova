@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** The desk treated news as a ticker sidebar and a roster-filtered Catalysts table. The operator asked for a competing news product -- Yahoo plus major and small publishers -- with rows/columns and criticality triage.
 - **Files touched:** `backend/nova_news/`, `backend/routes/news.py`, `backend/constants_archive_news.py`, `frontend/src/nova_news/`, `frontend/src/workspace/registry.ts`, `frontend/src/components/TabModuleHost.tsx`, `frontend/src/components/CatalystsTable.tsx`, `.cursor/rules/single-market-data-feed.mdc`
 - **How it works now:** `GET /api/news/desk` fans out HTTP API/RSS fetches, dedupes by URL, scores criticality from source tier + catalyst language + freshness (no FinBERT on this path), and caches a `schema_version=1` snapshot. The Nova News tab fills the main column: a three-story lead row, then four triage columns, with All / Markets / Filings / Yahoo / Small publishers filters. Ticker chips open Trader. This is not a price feed and not a HOD input. If every source is down and there is no cache, the payload carries a loud `error`. Sample Data uses a fixture desk.
-- **Verified by:** pytest `backend/tests/test_nova_news_*.py`; Vitest `frontend/src/nova_news`; registry + build gates on this PR.
+- **Verified by:** pytest `backend/tests` 1505 passed; Ruff clean on the Nova News modules; frontend Vitest 885 passed; `npm run lint` zero warnings; `npm run build` exit 0; `doc_invariants` OK; `agent_contract --ci` PASS.
 - **Follow-ups:** D-015 FinBERT warmup and Earnings Finnhub 429 remain open. D-001 scanner NEWS column is unchanged.
 - **Related:** #59; Refs #35; PROBLEM_LOG 2026-09-11 Catalysts copy vs roster filter
 
