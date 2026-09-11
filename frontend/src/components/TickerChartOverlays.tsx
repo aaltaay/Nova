@@ -5,7 +5,7 @@
  * their own bars into that series so the line walks with painted candles
  * instead of stepping once per source minute. This file only hosts LineSeries.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import {
   LineSeries,
   LineStyle,
@@ -14,6 +14,7 @@ import {
   type LineData,
   type Time,
 } from 'lightweight-charts';
+import { useChartPositionOverlay } from '../chart/useChartPositionOverlay';
 import {
   CHART_EMA_COLORS,
   CHART_EMA_LENGTHS,
@@ -36,6 +37,8 @@ import { isDailyTimeframe } from '../tickerChartData';
 
 interface Props {
   chart: IChartApi | null;
+  candleSeriesRef: RefObject<ISeriesApi<'Candlestick'> | null>;
+  symbol: string;
   bars: IndicatorBar[];
   /** Stable revision from parent -- skip recompute when only identity changes. */
   barsRevision?: number;
@@ -53,6 +56,8 @@ type EmaSeriesMap = Partial<Record<ChartEmaLength, ISeriesApi<'Line'>>>;
 
 export function TickerChartOverlays({
   chart,
+  candleSeriesRef,
+  symbol,
   bars,
   barsRevision = 0,
   enabled,
@@ -65,6 +70,15 @@ export function TickerChartOverlays({
   const emaSeriesRef = useRef<EmaSeriesMap>({});
   const vwapSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const lastPaintKeyRef = useRef<string>('');
+
+  useChartPositionOverlay({
+    chart,
+    candleSeriesRef,
+    symbol,
+    timeframe,
+    bars,
+    barsRevision,
+  });
 
   const showEmas = enabled.includes('emas');
   // A single-session VWAP means nothing on a daily+ chart, so it is not offered

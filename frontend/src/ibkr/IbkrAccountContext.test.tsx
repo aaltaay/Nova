@@ -105,6 +105,10 @@ describe('IbkrAccountProvider', () => {
       (c: unknown[]) => String(c[0]).includes('/account'),
     );
     expect(accountCalls.length).toBe(1);
+    const closedCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c: unknown[]) => String(c[0]).includes('/orders/closed'),
+    );
+    expect(closedCalls.length).toBe(1);
   });
 
   it('does not treat first paint as a disconnect', async () => {

@@ -23,6 +23,8 @@ export interface IbkrAccountState {
   summary: IbkrAccountSummary | null;
   positions: IbkrPosition[];
   orders: IbkrOrder[];
+  /** Session terminal orders -- chart fill arrows. Optional on older fixtures. */
+  closedOrders?: IbkrOrder[];
   loading: boolean;
   /** Set when the last poll failed -- last-good rows are kept, not wiped. */
   error: string | null;
@@ -53,6 +55,7 @@ export const SAMPLE_IBKR_ACCOUNT_STATE: IbkrAccountState = {
     },
   ],
   orders: [],
+  closedOrders: [],
   loading: false,
   error: null,
   stale: false,
@@ -68,6 +71,7 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
   const [summary, setSummary] = useState<IbkrAccountSummary | null>(null);
   const [positions, setPositions] = useState<IbkrPosition[]>([]);
   const [orders, setOrders] = useState<IbkrOrder[]>([]);
+  const [closedOrders, setClosedOrders] = useState<IbkrOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
@@ -78,10 +82,11 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
     if (sample || !ibkrConnected) return;
     setLoading(true);
     try {
-      const [sumRes, posRes, ordRes] = await Promise.all([
+      const [sumRes, posRes, ordRes, closedRes] = await Promise.all([
         fetch(`${API_BASE_URL}/api/ibkr/account`),
         fetch(`${API_BASE_URL}/api/ibkr/positions`),
         fetch(`${API_BASE_URL}/api/ibkr/orders`),
+        fetch(`${API_BASE_URL}/api/ibkr/orders/closed`),
       ]);
       const failures: string[] = [];
       if (sumRes.ok) {
@@ -98,6 +103,11 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
         setOrders(await ordRes.json());
       } else {
         failures.push(`orders (HTTP ${ordRes.status})`);
+      }
+      if (closedRes.ok) {
+        setClosedOrders(await closedRes.json());
+      } else {
+        failures.push(`closed orders (HTTP ${closedRes.status})`);
       }
       setError(failures.length ? `IBKR read failed -- ${failures.join(', ')}` : null);
       setStale(false);
@@ -142,8 +152,10 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<IbkrAccountState>(() => {
     if (sample) return SAMPLE_IBKR_ACCOUNT_STATE;
-    return { summary, positions, orders, loading, error, stale, staleSince, refresh };
-  }, [sample, summary, positions, orders, loading, error, stale, staleSince, refresh]);
+    return {
+      summary, positions, orders, closedOrders, loading, error, stale, staleSince, refresh,
+    };
+  }, [sample, summary, positions, orders, closedOrders, loading, error, stale, staleSince, refresh]);
 
   return (
     <IbkrAccountContext.Provider value={value}>{children}</IbkrAccountContext.Provider>
