@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { HodMomoFixtureProvider } from '../hod_momo/HodMomoFixtureProvider';
+import { IbkrAccountProvider } from '../ibkr/IbkrAccountContext';
 import { SampleDataProvider } from '../sample_data/SampleDataContext';
 import { LayoutStoreProvider } from '../workspace/useLayoutStore';
 import { ModuleVisibilityProvider } from '../workspace/useModuleVisibility';
@@ -24,6 +25,7 @@ vi.mock('../workspace/WorkspaceContext', () => ({
     ibkrAccountKind: 'paper',
     ibkrIntentionalMode: null,
     openStockView: vi.fn(),
+    selectRowSymbol: vi.fn(),
     traderTabs: [],
     activeTraderSymbol: null,
     traderBlockNotice: null,
@@ -65,9 +67,11 @@ describe('SampleDashboardPage', () => {
         <ModuleVisibilityProvider>
           <LayoutStoreProvider>
             <SampleDataProvider>
+              <IbkrAccountProvider>
               <HodMomoFixtureProvider>
                 <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
               </HodMomoFixtureProvider>
+              </IbkrAccountProvider>
             </SampleDataProvider>
           </LayoutStoreProvider>
         </ModuleVisibilityProvider>,
@@ -89,9 +93,11 @@ describe('SampleDashboardPage', () => {
         <ModuleVisibilityProvider>
           <LayoutStoreProvider>
             <SampleDataProvider>
+              <IbkrAccountProvider>
               <HodMomoFixtureProvider>
                 <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
               </HodMomoFixtureProvider>
+              </IbkrAccountProvider>
             </SampleDataProvider>
           </LayoutStoreProvider>
         </ModuleVisibilityProvider>,
@@ -112,4 +118,35 @@ describe('SampleDashboardPage', () => {
     expect(container.querySelector('.news-flame')).not.toBeNull();
     expect(container.querySelector('.earnings-dots')).not.toBeNull();
   });
+
+  it('shows the shared Positions dock under the sample scanner tables', async () => {
+    await act(async () => {
+      root.render(
+        <ModuleVisibilityProvider>
+          <LayoutStoreProvider>
+            <SampleDataProvider>
+              <IbkrAccountProvider>
+              <HodMomoFixtureProvider>
+                <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
+              </HodMomoFixtureProvider>
+              </IbkrAccountProvider>
+            </SampleDataProvider>
+          </LayoutStoreProvider>
+        </ModuleVisibilityProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="scanner-desk"]')).toBeTruthy();
+    const positionsTab = container.querySelector(
+      '[data-testid="stock-view-dock-tab-positions"]',
+    ) as HTMLButtonElement;
+    expect(positionsTab).toBeTruthy();
+    await act(async () => {
+      positionsTab.click();
+    });
+    expect(container.querySelector('[data-testid="stock-view-positions"]')?.textContent).toContain(
+      'SMPL',
+    );
+  });
 });
+

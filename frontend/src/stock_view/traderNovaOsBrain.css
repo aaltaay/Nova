@@ -1,6 +1,6 @@
 /* Nova OS judgment panel — dock tab; sized for readable trading chrome. */
 
-.stock-view-page .sv-open-orders-dock__body .trader-nova-os-brain {
+.sv-open-orders-dock__body .trader-nova-os-brain {
   display: flex;
   flex-direction: column;
   gap: 0;

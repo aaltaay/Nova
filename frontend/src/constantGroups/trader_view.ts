@@ -65,3 +65,14 @@ export const TRADER_DOCK_NO_HOST_MESSAGE =
   'Open the main Nova window, then dock this tab onto it.';
 export const TRADER_EXTRACT_BLOCKED_MESSAGE =
   'Popup blocked -- allow popups to extract a window, or keep the tab here.';
+
+/**
+ * Scanner tables vs account dock vertical split (WID-019 on the discovery desk).
+ * Independent of STOCK_VIEW_MAIN_ORDERS_SPLIT_* so Trader chart height stays put.
+ */
+export const SCANNER_ACCOUNT_DOCK_SPLIT_KEY = 'nova.scanner.accountDockSplitPct';
+/** Tables share the column with HOD dock, so the account strip needs more than Trader's 22%. */
+export const SCANNER_ACCOUNT_DOCK_SPLIT_PCT = 58;
+export const SCANNER_ACCOUNT_DOCK_SPLIT_MIN_PCT = 40;
+export const SCANNER_ACCOUNT_DOCK_SPLIT_MAX_PCT = 82;
+export const SCANNER_ACCOUNT_DOCK_RESIZE_LABEL = 'Resize scanner tables and Positions';

@@ -41,7 +41,17 @@ const SAMPLE_SUMMARY: IbkrAccountSummary = {
 
 export const SAMPLE_IBKR_ACCOUNT_STATE: IbkrAccountState = {
   summary: SAMPLE_SUMMARY,
-  positions: [],
+  positions: [
+    {
+      symbol: 'SMPL',
+      qty: 200,
+      market_price: 4.25,
+      market_value: 850,
+      avg_cost: 3.1,
+      unrealized_pnl: 230,
+      realized_pnl: 0,
+    },
+  ],
   orders: [],
   loading: false,
   error: null,

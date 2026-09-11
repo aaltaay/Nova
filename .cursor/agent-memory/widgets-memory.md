@@ -100,6 +100,13 @@ notes: "Account → Latency consumes corrected mixed/SLA/fill-leg fields; cancel
 
 <!-- RUN_LOG_START -->
 
+### 2026-09-11 -- Scanner desk mounts shared Positions dock
+
+- **Scope:** User asked for Webull-style positions on Scanner, matching Trader's bottom strip.
+- **Result:** `ScannerDesk` reuses `StockViewOpenOrdersDock` under the selected scanner table (not under Quote Panel). WID-019 Nova path now names Scanner + Trader. Status stays matched. Flatten / cancel unchanged. `auto_live` still NO-GO.
+- **Learning:** Do not fork a second positions table. Share the dock and keep a scanner-only height persist key.
+- **Verified:** See CHANGELOG 2026-09-11 Scanner bottom dock.
+
 ### 2026-07-24 — Clock-safe execution latency dashboard
 
 - **Scope:** Daddy dispatch — implement the frontend owner of ADR 007 end-to-end

@@ -18,6 +18,7 @@
 @import "./styles/shortcuts-menu.css" layer(features);
 @import "./styles/scanner-l2.css" layer(features);
 @import "./styles/scanner-side-nav.css" layer(features);
+@import "./scanner/scannerDesk.css" layer(features);
 @import "./styles/scanner-misc.css" layer(features);
 @import "./reports/reports.css" layer(features);
 @import "./styles/quote-layout.css" layer(features);
@@ -28,6 +29,7 @@
 @import "./chart/tickerChart.css" layer(features);
 @import "./styles/stock-view.css" layer(features);
 @import "./stock_view/stockViewTerminal.css" layer(features);
+@import "./stock_view/openOrdersDock.css" layer(features);
 @import "./ibkr/tradingTab.css" layer(features);
 @import "./closed_orders/closedOrders.css" layer(features);
 @import "./orders_today/ordersToday.css" layer(features);

@@ -21,6 +21,7 @@ import { setGlobalBarHistoryDate } from '../components/scannerBarStore';
 import { useWatchlist } from '../strategy/useWatchlist';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
 import { useLiveScannerFeed } from '../scanner/ScannerDataContext';
+import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useSettings } from '../settings/SettingsContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
@@ -223,6 +224,7 @@ export function DashboardPage() {
 
         <HodMomoDock />
 
+        <ScannerDesk>
         <SelectedScannerWidget title={getModule(mainTab)?.title ?? 'Scanner'}>
           <main className="panel">
             {scanner.historyDate && (
@@ -277,6 +279,7 @@ export function DashboardPage() {
             />
           </main>
         </SelectedScannerWidget>
+        </ScannerDesk>
       </div>
       <PanelResizeHandle
         onPointerDown={sidePanel.onHandlePointerDown}
