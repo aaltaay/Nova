@@ -1,7 +1,7 @@
 {
   "name": "nova",
   "private": true,
-  "version": "0.1.475",
+  "version": "0.1.477",
   "description": "Nova — local stock scanner (web + Windows desktop)",
   "author": "Altay Studio",
   "type": "module",
@@ -21,7 +21,7 @@
     "preview": "vite preview",
     "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env NOVA_VITE_URL=http://127.0.0.1:5173 electron .\"",
     "build:api": "node scripts/build-api-sidecar.mjs",
-    "electron:pack": "npm run build:api && npm run build:electron-renderer && node scripts/run-electron-pack.mjs nsis",
+    "electron:pack": "npm run build:api && npm run build:electron-renderer && node scripts/run-electron-pack.mjs",
     "electron:dir": "npm run build:api && npm run build:electron-renderer && node scripts/run-electron-pack.mjs dir"
   },
   "dependencies": {
@@ -97,17 +97,26 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "artifactName": "Nova-Setup-${env.NOVA_RELEASE_TAG}.${ext}",
       "signAndEditExecutable": false
     },
     "nsis": {
+      "artifactName": "Nova-Setup-${env.NOVA_RELEASE_TAG}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Nova"
+    },
+    "portable": {
+      "artifactName": "Nova-Portable-${env.NOVA_RELEASE_TAG}.${ext}"
     }
   }
 }

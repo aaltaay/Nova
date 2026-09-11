@@ -31,17 +31,17 @@ cd frontend
 npm run electron:pack
 ```
 
-Installer output: `frontend/release/Nova-Setup-vNNN.exe` (public identity is the commit-count tag).
+Pack output: `frontend/release/Nova-Setup-vNNN.exe` (NSIS installer) and `frontend/release/Nova-Portable-vNNN.exe` (no install). Public identity is the commit-count tag.
 
-Every pull request must pack this EXE in CI (`Desktop pack` workflow). Download it from the workflow artifacts on the PR. Do not merge if that job is red.
+Every pull request must pack both EXEs in CI (`Desktop pack` workflow). Download them from the workflow artifacts on the PR. Do not merge if that job is red.
 
 ### Versioning (commit-count `vNNN`)
 
 Nova's public revision is **`vNNN`**: `v` plus the git commit count from the first commit, at least three digits (`v001`, `v473`, `v1000`). `git rev-list --count HEAD` is the number.
 
 - **SSOT:** repo root `VERSION` stores `vNNN`. `frontend/package.json` stores `0.1.N` because electron-builder requires semver. Both share the same N.
-- **CI pack:** `.github/workflows/desktop-pack.yml` checks out the full history, runs `tools/bump_version.py --sync`, packs the Windows NSIS installer, and uploads `Nova-Setup-vNNN.exe`.
-- **Releases:** a successful push to `master` / `main` creates git tag `vNNN` only. No GitHub Release object.
+- **CI pack:** `.github/workflows/desktop-pack.yml` checks out the full history, runs `tools/bump_version.py --sync`, packs the Windows NSIS installer and portable EXE, and uploads both.
+- **Releases:** a successful push to `master` / `main` creates git tag `vNNN` and a GitHub Release that attaches `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe`. GitHub also adds Source code zip/tar -- those are not the app.
 - **Install hooks once:** `powershell -File tools/install_git_hooks.ps1` (sets `core.hooksPath` to `.githooks`).
 - **pre-commit:** bumps to the next count and stages `VERSION` + `package.json`.
 - **pre-push:** blocks push if those files drift from the commit count.

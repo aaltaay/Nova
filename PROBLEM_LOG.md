@@ -45,6 +45,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix class:** surfacing
 - **Keywords:** catalysts, news universe, D-015, Nova News, IBKR roster, _find_ibkr_cache_row
 
+## 2026-09-11 -- Desktop pack built NSIS only so portable EXE was missing
+
+- **Symptom:** PR #61 `Prove both EXEs exist` failed: `missing frontend/release/Nova-Portable-v476.exe`. The pack step itself was green.
+- **Cause:** `frontend/package.json` `electron:pack` still ended with `run-electron-pack.mjs nsis`. That override never builds portable, even though `win.target` lists both.
+- **Fix:** Drop the `nsis` argument so the script default (`nsis` + `portable`) runs. Contract test asserts `electron:pack` does not force nsis-only.
+- **Fix class:** infra
+- **Keywords:** electron:pack, Nova-Portable, nsis, run-electron-pack, Desktop pack, v476
+
+## 2026-09-11 -- Release page showed source zip instead of the installer EXE
+
+- **Symptom:** Tag `v475` Assets listed only `Source code (zip)` and `Source code (tar.gz)`. Operator expected the built Windows installer and a portable EXE.
+- **Cause:** The first pack workflow created a git tag only (no GitHub Release). GitHub's tag page then shows automatic source archives. Pack also built NSIS only, so there was no portable EXE to attach. The installer existed only as the Actions artifact `Nova-Setup-v475`.
+- **Fix:** Created GitHub Release `v475` and uploaded the already-built `Nova-Setup-v475.exe`. Pack now builds nsis + portable. Master/main publish job attaches both EXEs to the Release.
+- **Fix class:** infra
+- **Keywords:** GitHub Release, v475, Nova-Setup, Nova-Portable, source zip, electron-builder portable, Desktop pack
+
 ## 2026-09-11 -- Desktop pack CI found no Python on windows-latest
 
 - **Symptom:** `Desktop pack` failed at `npm run electron:pack` with `[build-api] no Python found (tried py -3, python, python3)` after `setup-python` had already run `python tools/bump_version.py --sync`.

@@ -3,7 +3,7 @@
 > **Single source of truth.** `gemini.md` is a legacy alias that `@`-imports this file (consolidated 2026-07-28 after the two mirrors drifted).
 >
 > **Status:** ENFORCED — Active governance document
-> **Last Updated:** 2026-09-08
+> **Last Updated:** 2026-09-11
 > **Project:** Nova — Stock Alert Automation System
 > **Enforcement:** Every AI agent (Cursor, Antigravity, any LLM assistant) MUST read this file before writing ANY code. Violations are NEVER acceptable.
 
@@ -346,7 +346,7 @@ cd frontend && npm run electron:pack
 - **Backend:** local only right now -- no cloud host (not Railway, not another PaaS). Run via `Run Nova.bat`, Desktop sidecar, or local uvicorn on `127.0.0.1:8000`.
 - **Public site:** `nova.altaystudio.com` is a static marketing page (`site/`) -- features, screenshots, and the [Nova-public](https://github.com/aaltaay/Nova-public) link. It is not the live scanner and has no API. Point the Vercel project Root Directory at `site`.
 - **Frontend (app UI):** local Vite / Desktop only (`http://localhost:5173`). Do not host the trading SPA on the public domain.
-- **Desktop:** Electron + local API sidecar. Local pack: `frontend/release/Nova-Setup-vNNN.exe`. Every PR must pass the `Desktop pack` GitHub Actions job, which uploads that EXE. Merges to master/main create git tag `vNNN` only (no GitHub Release).
+- **Desktop:** Electron + local API sidecar. Local pack: `frontend/release/Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe`. Every PR must pass the `Desktop pack` GitHub Actions job, which uploads both EXEs. Merges to master/main create git tag `vNNN` and a GitHub Release that attaches those EXEs. GitHub's Source code zip/tar is automatic and is not the app.
 
 ---
 
@@ -374,6 +374,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-11 | Desktop pack builds NSIS installer + portable EXE. Master/main GitHub Release attaches both. Source zip/tar is not the app. | User Directive + Cursor Agent |
 | 2026-09-11 | Desktop pack CI uploads `Nova-Setup-vNNN.exe` on every PR. Public revision is `vNNN` (commit count). Master/main creates git tag `vNNN` only. | User Directive + Cursor Agent |
 | 2026-09-11 | GitHub `delete_branch_on_merge` is on. Agents still confirm the head is gone (`stale_pr_branches.py`) and `--delete` only if it remains. | User Directive + Cursor Agent |
 | 2026-09-11 | After a PR is merged or closed, every agent must delete the head branch in the same session. `github-delivery.mdc` item 8 + `tools/stale_pr_branches.py`. | User Directive + Cursor Agent |
