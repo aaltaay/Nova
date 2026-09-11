@@ -26,7 +26,7 @@ Every actionable Nova issue needs:
 
 - Kind: `bug`, `enhancement`, or `decision`
 - Priority: exactly one of `P0` through `P3`
-- Domain: exactly one `domain:*` label
+- Domain: at least one `domain:*` owner label; use multiple only for genuinely cross-domain scope
 - Owner: assign the human currently responsible once work starts; never assign an AI identity
 - Acceptance criteria or a concrete `Next`
 - Nova Delivery project item, when project access is available
