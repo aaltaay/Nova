@@ -1,6 +1,8 @@
 """TIF default + Warning 399 held-until parse + cancel verify."""
 from __future__ import annotations
 
+import asyncio
+
 from ibkr.cancel_verify import cancel_order_verified
 from ibkr.order_held_until import held_until_iso_from_message
 from ibkr.orders import _build_order
@@ -46,6 +48,6 @@ def test_cancel_order_verified_gone(monkeypatch):
     monkeypatch.setattr(cv, "EXECUTION_CANCEL_VERIFY_POLL_SEC", 0.0)
     monkeypatch.setattr(cv, "EXECUTION_CANCEL_VERIFY_TIMEOUT_SEC", 2.0)
 
-    out = cancel_order_verified(7)
+    out = asyncio.run(cancel_order_verified(7))
     assert out["ok"] is True
     assert out["verified_gone"] is True

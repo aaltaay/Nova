@@ -103,9 +103,11 @@ def test_background_shed_while_open_chart_inflight():
     asyncio.run(_run())
 
 
-def test_open_chart_fetches_when_pacing_wait_and_store_has_stub():
-    """A 9-bar derived stub must not cancel the real IB fill on pacing wait."""
+def test_open_chart_reschedules_short_pacing_wait_instead_of_sleeping():
+    """A 2s same-contract wait reschedules -- it must not sleep on the IB loop."""
     fetched = {"n": 0}
+    rescheduled: list[tuple[str, str, float]] = []
+    slept: list[float] = []
 
     async def fake_fetch(symbol, timeframe, limit, *, interactive=False):
         fetched["n"] += 1
@@ -127,6 +129,9 @@ def test_open_chart_fetches_when_pacing_wait_and_store_has_stub():
         "coverage": {"filling": True, "fetched_ts": 1.0, "fresh": False},
     }
 
+    async def fake_sleep(delay, *args, **kwargs):
+        slept.append(float(delay))
+
     async def _run():
         with (
             patch("bars_store.read", return_value=stub),
@@ -141,12 +146,21 @@ def test_open_chart_fetches_when_pacing_wait_and_store_has_stub():
             ),
             patch("ibkr.bars.fetch_bars_async", new=AsyncMock(side_effect=fake_fetch)),
             patch("ibkr.historical_service._persist_derived"),
-            patch("asyncio.sleep", new=AsyncMock()),
+            patch(
+                "ibkr.historical_service._reschedule_after_wait",
+                side_effect=lambda sym, tf, lim, pri, wait: rescheduled.append(
+                    (sym, tf, wait),
+                ),
+            ),
+            patch("asyncio.sleep", new=fake_sleep),
         ):
-            await request_bars("AAPL", "1Hour", 400, priority="open_chart")
+            with pytest.raises(HistoricalShed):
+                await request_bars("AAPL", "1Hour", 400, priority="open_chart")
 
     asyncio.run(_run())
-    assert fetched["n"] == 1
+    assert fetched["n"] == 0
+    assert rescheduled == [("AAPL", "1Hour", 2.0)]
+    assert slept == []
 
 
 def test_background_sheds_when_pacing_wait_and_store_has_bars():
@@ -288,6 +302,6 @@ def test_persist_derived_skips_when_store_already_longer():
         patch("bars_store.coverage_from_bars", return_value={"filling": True}),
         patch("ticker_bars_push.broadcast_bars_patch"),
     ):
-        _persist_derived("AAPL", one_min)
+        asyncio.run(_persist_derived("AAPL", one_min))
 
     assert writes == []

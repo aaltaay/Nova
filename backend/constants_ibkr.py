@@ -330,6 +330,9 @@ IBKR_L1_QUALIFY_TIMEOUT_SEC = 4.0
 IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE = 5
 # Per-row honesty: tint when last IB tick older than this (liquid symbols).
 IBKR_L1_ROW_STALE_SEC = 3.0
+# Shortability (tick 236) rides the shared L1 line — see ibkr/ticks_generic.py.
+IBKR_SHORTABLE_TICK_WAIT_SEC = 1.8              # max wait for the first 236 tick
+IBKR_LISTING_FLAGS_TIMEOUT_SEC = 10.0           # sync bridge ceiling for ticker builders
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
 # Signal-only thresholds (see backend/strategy/five_pillars.py). These never place

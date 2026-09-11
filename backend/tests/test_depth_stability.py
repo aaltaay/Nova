@@ -146,25 +146,43 @@ class _DepthRejectedIb(_FakeIb):
         raise RuntimeError("no market data permissions for depth")
 
 
-class TestDepthL1FallbackReusesTicksStream:
-    """When depth is unavailable, the L1 fallback must not open a SECOND
-    reqMktData line for a symbol ibkr.ticks already streams (open ticker /
-    scanner / HOD) — and unsubscribe must not cancel that shared line out
-    from under ticks' other owners (see gap6 in the end-to-end verification)."""
+@pytest.fixture
+def ticks_clean():
+    """Empty ibkr.ticks owner map + a lock bound to the test's own loop."""
+    import ibkr.ticks as ticks_mod
 
-    def test_reuses_existing_ticks_stream_instead_of_second_reqmktdata(self, depth, monkeypatch):
+    ticks_mod._subs.clear()
+    ticks_mod._subscribe_lock = None
+    yield ticks_mod
+    ticks_mod._subs.clear()
+    ticks_mod._subscribe_lock = None
+
+
+class TestDepthL1FallbackReusesTicksStream:
+    """When depth is unavailable, the L1 fallback must go through ibkr.ticks.
+
+    ``IB.reqMktData`` is idempotent per qualified contract, so a private line
+    hands back the same pooled ticker while depth's ``cancelMktData`` would
+    close the desk's stream (D-020). The fallback therefore takes an owner on
+    the shared line and releases it on unsubscribe.
+    """
+
+    def test_attaches_to_existing_ticks_stream_instead_of_second_reqmktdata(
+        self, depth, ticks_clean, monkeypatch,
+    ):
         depth_mod, _ = depth
         fake_ib = _DepthRejectedIb()
         import ibkr.client as client_mod
         monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
 
-        import ibkr.ticks as ticks_mod
-        shared_ticker = _FakeTicker()
-        monkeypatch.setattr(ticks_mod, "get_ticker", lambda sym: shared_ticker)
+        async def scenario():
+            assert await ticks_clean.subscribe("AAPL", ticks_clean.OWNER_SCANNER)
+            return await depth_mod.subscribe_async("AAPL")
 
-        result = asyncio.run(depth_mod.subscribe_async("AAPL"))
+        result = asyncio.run(scenario())
         assert result["ok"] is True
-        assert fake_ib.l1_calls == []  # no second reqMktData opened
+        assert fake_ib.l1_calls == ["AAPL"]  # scanner's line only, no second one
+        assert ticks_clean.owners_for("AAPL") == {"scanner", "depth"}
         stats = op_metrics.snapshot()["operations"]["ibkr.depth.subscribe"]
         assert stats["count"] == 1
         assert stats["error_count"] == 1
@@ -172,25 +190,28 @@ class TestDepthL1FallbackReusesTicksStream:
         assert depth_state.is_shared_l1("AAPL") is True
 
         depth_mod.unsubscribe("AAPL")
-        assert fake_ib.cancel_data_calls == []  # ticks owns cancellation, not depth
+        assert fake_ib.cancel_data_calls == []  # scanner still owns the line
+        assert ticks_clean.owners_for("AAPL") == {"scanner"}
 
-    def test_opens_own_l1_when_ticks_has_no_stream(self, depth, monkeypatch):
+    def test_takes_a_ticks_owner_when_no_stream_exists(
+        self, depth, ticks_clean, monkeypatch,
+    ):
         depth_mod, _ = depth
         fake_ib = _DepthRejectedIb()
         import ibkr.client as client_mod
         monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
 
-        import ibkr.ticks as ticks_mod
-        monkeypatch.setattr(ticks_mod, "get_ticker", lambda sym: None)
-
         result = asyncio.run(depth_mod.subscribe_async("AAPL"))
         assert result["ok"] is True
-        assert fake_ib.l1_calls == ["AAPL"]  # own reqMktData opened, as before
+        assert fake_ib.l1_calls == ["AAPL"]  # opened once, owned by ticks
+        assert ticks_clean.owners_for("AAPL") == {"depth"}
         from ibkr.depth import state as depth_state
-        assert depth_state.is_shared_l1("AAPL") is False
+        assert depth_state.is_shared_l1("AAPL") is True
 
         depth_mod.unsubscribe("AAPL")
-        assert fake_ib.cancel_data_calls == ["AAPL"]  # depth owns and cancels its own line
+        # Last owner left, so ticks -- not depth -- cancelled the line.
+        assert fake_ib.cancel_data_calls == ["AAPL"]
+        assert ticks_clean.owners_for("AAPL") == set()
 
 
 class TestCapEvictionForActiveViewer:

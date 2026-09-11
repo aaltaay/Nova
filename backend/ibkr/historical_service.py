@@ -6,6 +6,10 @@ reads come from ``bars_store``; this module replenishes the store and pushes
 
 Priority: open_chart > warm > background. Background is shed when an open
 chart is in flight or the pacing budget is tight -- not queued behind it.
+
+Nothing here may occupy the IB connect-loop: every pacing wait reschedules via
+``call_later`` (never ``sleep``-then-send) and every ``bars_store`` call is a
+SQLite round trip handed to a worker thread (ADR 010).
 """
 from __future__ import annotations
 
@@ -17,8 +21,6 @@ from constants import (
     CHART_DEFAULT_BARS,
     IBKR_BAR_DURATION,
     IBKR_HISTORICAL_MAX_CONCURRENT,
-    IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC,
-    IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC,
 )
 from ibkr.historical_derive import DERIVE_FROM_1MIN, derive_from_1min
 from ibkr.historical_pacing import HistoricalPacing
@@ -41,12 +43,6 @@ _open_chart_depth = 0
 _sem: asyncio.Semaphore | None = None
 _inflight: dict[tuple[str, str], asyncio.Task] = {}
 _pacing = HistoricalPacing()
-# Short IB windows (same-contract 2s, identical-request 15s) may be slept on the
-# IB loop. The 10-minute global bucket must reschedule, not sleep-then-send.
-_SHORT_PACING_WAIT_SEC = max(
-    float(IBKR_HISTORICAL_SAME_CONTRACT_WINDOW_SEC),
-    float(IBKR_HISTORICAL_IDENTICAL_COOLDOWN_SEC),
-)
 
 
 def reset_for_testing() -> None:
@@ -97,7 +93,7 @@ async def request_bars(
     import bars_store
 
     symbol = symbol.upper()
-    stored = bars_store.read(symbol, timeframe, limit)
+    stored = await asyncio.to_thread(bars_store.read, symbol, timeframe, limit)
     stored_n = len((stored or {}).get("bars") or [])
     if (
         stored
@@ -135,21 +131,16 @@ async def request_bars(
             symbol, timeframe, wait, priority,
         )
         raise HistoricalShed(f"pacing wait {wait:.1f}s")
-    if wait > 0 and wait > _SHORT_PACING_WAIT_SEC:
+    if wait > 0:
         logger.info(
             "historical fill rescheduled %s %s: wait %.1fs priority=%s",
             symbol, timeframe, wait, priority,
         )
         _reschedule_after_wait(symbol, timeframe, limit, priority, wait)
         raise HistoricalShed(f"pacing wait {wait:.1f}s")
-    if wait > 0:
-        logger.info(
-            "historical fill deferred %s %s: wait %.1fs priority=%s",
-            symbol, timeframe, wait, priority,
-        )
 
     task = asyncio.create_task(
-        _run_fetch(symbol, timeframe, limit, priority, wait),
+        _run_fetch(symbol, timeframe, limit, priority),
         name=f"hist.{priority}.{symbol}.{timeframe}",
     )
     _inflight[key] = task
@@ -168,7 +159,6 @@ async def _run_fetch(
     timeframe: str,
     limit: int,
     priority: Priority,
-    wait: float,
 ) -> dict[str, Any]:
     global _open_chart_depth
     import bars_store
@@ -178,8 +168,6 @@ async def _run_fetch(
     if priority == "open_chart":
         _open_chart_depth += 1
     try:
-        if wait > 0:
-            await asyncio.sleep(min(wait, 16.0))
         async with _semaphore():
             duration = IBKR_BAR_DURATION.get(timeframe) or ""
             extra = _pacing.wait_seconds(symbol, timeframe, duration)
@@ -190,18 +178,14 @@ async def _run_fetch(
                         symbol, timeframe, extra,
                     )
                     raise HistoricalShed(f"pacing wait {extra:.1f}s")
-                if extra > _SHORT_PACING_WAIT_SEC:
-                    logger.info(
-                        "historical fill rescheduled %s %s: wait %.1fs priority=%s (in flight)",
-                        symbol, timeframe, extra, priority,
-                    )
-                    _reschedule_after_wait(symbol, timeframe, limit, priority, extra)
-                    raise HistoricalShed(f"pacing wait {extra:.1f}s")
+                # Raising releases the semaphore before the wait, so a paced
+                # open_chart cannot hold a hist slot idle.
                 logger.info(
-                    "historical fill deferred %s %s: wait %.1fs priority=%s (in flight)",
+                    "historical fill rescheduled %s %s: wait %.1fs priority=%s (in flight)",
                     symbol, timeframe, extra, priority,
                 )
-                await asyncio.sleep(extra)
+                _reschedule_after_wait(symbol, timeframe, limit, priority, extra)
+                raise HistoricalShed(f"pacing wait {extra:.1f}s")
             _pacing.record(symbol, timeframe, duration)
             result = await ibkr_bars.fetch_bars_async(
                 symbol,
@@ -213,9 +197,9 @@ async def _run_fetch(
                 result.get("bars") or [], filling=False,
             )
             result = {**result, "coverage": coverage}
-            bars_store.write_payload(result)
+            await asyncio.to_thread(bars_store.write_payload, result)
             if timeframe == "1Min":
-                _persist_derived(symbol, result)
+                await _persist_derived(symbol, result)
             try:
                 broadcast_bars_patch(symbol, result)
             except Exception:
@@ -226,7 +210,7 @@ async def _run_fetch(
             _open_chart_depth = max(0, _open_chart_depth - 1)
 
 
-def _persist_derived(symbol: str, one_min: dict[str, Any]) -> None:
+async def _persist_derived(symbol: str, one_min: dict[str, Any]) -> None:
     import bars_store
     from ticker_bars_push import broadcast_bars_patch
 
@@ -235,7 +219,9 @@ def _persist_derived(symbol: str, one_min: dict[str, Any]) -> None:
         derived = derive_from_1min(source_bars, tf)
         if not derived:
             continue
-        existing = bars_store.read(symbol, tf, CHART_DEFAULT_BARS)
+        existing = await asyncio.to_thread(
+            bars_store.read, symbol, tf, CHART_DEFAULT_BARS,
+        )
         existing_n = len((existing or {}).get("bars") or [])
         if existing_n > int(len(derived) * 1.2):
             continue
@@ -248,7 +234,7 @@ def _persist_derived(symbol: str, one_min: dict[str, Any]) -> None:
                 derived, filling=True, derived_from="1Min",
             ),
         }
-        bars_store.write_payload(payload)
+        await asyncio.to_thread(bars_store.write_payload, payload)
         try:
             broadcast_bars_patch(symbol, payload)
         except Exception:
@@ -262,10 +248,13 @@ def _reschedule_after_wait(
     priority: Priority,
     wait: float,
 ) -> None:
-    """Re-queue an open_chart fill when the 10-min bucket frees a token.
+    """Re-queue an open_chart fill once pacing frees the request.
 
-    Sleeping hundreds of seconds on the IB connect-loop would stall L1 ticks.
-    call_later keeps the loop free; request_bars re-checks pacing on wake.
+    Every wait reschedules -- the 10-minute bucket debt and the short
+    same-contract / identical-request windows alike. Awaiting the wait here
+    instead would keep the fill parked on the IB connect-loop holding a hist
+    semaphore slot while ``reqMktData`` L1 ticks share that loop.
+    ``request_bars`` re-checks pacing on wake.
     """
     from ibkr.loop_supervisor import get_loop
 

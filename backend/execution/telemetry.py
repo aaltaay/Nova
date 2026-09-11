@@ -5,7 +5,9 @@ import asyncio
 import logging
 import time
 import weakref
-from typing import Any
+from typing import Any, Callable
+
+from execution import telemetry_persist as _persist
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,9 @@ class OrderWatch:
         self.error_message: str | None = None
         self._ack_event = asyncio.Event()
         self._fill_event = asyncio.Event()
+        # Called synchronously on the IB loop from note_status, so a verifier
+        # awaiting on that same loop can wake on the callback instead of polling.
+        self._status_listeners: list[Callable[[str], None]] = []
         self._last_status_filled = 0.0
         self._reconciled_fill_keys: set[tuple[str, str, str]] = set()
         self._status_history: list[str] = []
@@ -79,19 +84,10 @@ class OrderWatch:
     def _persist_ack(self, status: str, *, allow_upgrade: bool = False) -> None:
         if not self.aggregate_eligible or self.ack_ns is None:
             return
-        try:
-            from execution import store as _store
-
-            _store.mark_ack_by_order_id(
-                self.order_id, self.ack_ns, broker_status=status,
-                execution_id=self.execution_id,
-                allow_status_upgrade=allow_upgrade,
-            )
-        except Exception:
-            logger.exception(
-                "execution.telemetry: failed to persist ack for order %s",
-                self.order_id,
-            )
+        _persist.submit_ack(
+            self.order_id, self.ack_ns, status, self.execution_id,
+            allow_upgrade=allow_upgrade,
+        )
 
     def _remember_facts(
         self,
@@ -110,20 +106,13 @@ class OrderWatch:
     def _persist_facts(self) -> None:
         if not self.execution_id:
             return
-        try:
-            from execution.store_facts import record_broker_facts
-
-            record_broker_facts(
-                self.execution_id,
-                perm_id=self.perm_id,
-                filled_qty=self.last_filled_qty,
-                avg_fill_price=self.last_avg_fill,
-            )
-        except Exception:
-            logger.exception(
-                "execution.telemetry: failed to persist broker facts for order %s",
-                self.order_id,
-            )
+        _persist.submit_facts(
+            self.order_id,
+            self.execution_id,
+            perm_id=self.perm_id,
+            filled_qty=self.last_filled_qty,
+            avg_fill_price=self.last_avg_fill,
+        )
 
     def note_status(
         self,
@@ -173,9 +162,7 @@ class OrderWatch:
             self.execution_id
             and cumulative > self._last_status_filled
         ):
-            from execution import evidence_store
-
-            evidence_store.record_fill(
+            _persist.submit_fill_evidence(
                 execution_id=self.execution_id,
                 order_id=self.order_id,
                 provenance="orderStatus",
@@ -196,6 +183,7 @@ class OrderWatch:
         if complete and self.filled_ns is None:
             self.filled_ns = callback_perf
             self._fill_event.set()
+        self._fire_status_listeners(status)
 
     def note_execution(
         self,
@@ -231,9 +219,7 @@ class OrderWatch:
             {"avg_price": avg_price, "shares": shares, "ns": callback_perf}
         )
         if self.execution_id:
-            from execution import evidence_store
-
-            evidence_store.record_fill(
+            _persist.submit_fill_evidence(
                 execution_id=self.execution_id,
                 order_id=self.order_id,
                 provenance="execDetails",
@@ -263,29 +249,12 @@ class OrderWatch:
             self.ack_ns = self.filled_ns
             self.ack_status = "Filled"
             self._ack_event.set()
-        try:
-            from execution import store as _store
-
-            if self.aggregate_eligible:
-                _store.mark_filled_by_order_id(
-                    self.order_id, self.filled_ns,
-                    execution_id=self.execution_id,
-                )
-            self._persist_facts()
-        except Exception:
-            logger.exception(
-                "execution.telemetry: failed to persist fill for order %s",
-                self.order_id,
+        if self.aggregate_eligible:
+            _persist.submit_filled(
+                self.order_id, self.filled_ns, self.execution_id,
             )
-        try:
-            from journal.round_trip import notify_watch_filled
-
-            notify_watch_filled(self)
-        except Exception:
-            logger.exception(
-                "execution.telemetry: round-trip notify failed for order %s",
-                self.order_id,
-            )
+        self._persist_facts()
+        _persist.submit_round_trip(self)
 
     def note_error(self, error_code: int, error_message: str) -> None:
         """Record the first IBKR errorEvent for this order (e.g. Error 10243)."""
@@ -295,6 +264,24 @@ class OrderWatch:
             except (TypeError, ValueError):
                 self.error_code = None
             self.error_message = str(error_message or "").strip() or None
+
+    def add_status_listener(self, listener: Callable[[str], None]) -> None:
+        if listener not in self._status_listeners:
+            self._status_listeners.append(listener)
+
+    def remove_status_listener(self, listener: Callable[[str], None]) -> None:
+        if listener in self._status_listeners:
+            self._status_listeners.remove(listener)
+
+    def _fire_status_listeners(self, status: str) -> None:
+        for listener in list(self._status_listeners):
+            try:
+                listener(status)
+            except Exception:
+                logger.exception(
+                    "execution.telemetry: status listener failed for order %s",
+                    self.order_id,
+                )
 
     def has_fill(self) -> bool:
         return self.filled_ns is not None or bool(self.fills)

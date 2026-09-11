@@ -519,13 +519,10 @@ def test_cancel_without_symbol_copies_prior_ledger_symbol(monkeypatch):
         payload={"qty": 1},
     )
     store.update_stages(place_id, order_id=19112, status="sent")
-    monkeypatch.setattr(
-        broker_send,
-        "cancel_order_verified",
-        lambda order_id: {
-            "ok": True, "verified_gone": True, "order_id": order_id,
-        },
-    )
+    async def fake_cancel(order_id, *, watch=None):
+        return {"ok": True, "verified_gone": True, "order_id": order_id}
+
+    monkeypatch.setattr(broker_send, "cancel_order_verified_on_ib", fake_cancel)
     receipt = asyncio.run(
         exec_svc.execute(
             ExecutionCommand(

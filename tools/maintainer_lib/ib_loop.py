@@ -12,7 +12,12 @@ IB_LOOP_PURITY_RELS = (
     "backend/ibkr/tape_stream.py",
     "backend/ibkr/scanner_l1.py",
     "backend/ibkr/scanner_stream.py",
+    "backend/ibkr/cancel_verify.py",
+    "backend/ibkr/historical_service.py",
     "backend/archive/capture.py",
+    "backend/execution/telemetry.py",
+    "backend/execution/telemetry_handlers.py",
+    "backend/execution/telemetry_persist.py",
 )
 IB_LOOP_SYNC_IO_NEEDLES: tuple[tuple[str, str], ...] = (
     ("sqlite3.", "sync sqlite3 on IB-callback module -- enqueue instead (ADR 010)"),
