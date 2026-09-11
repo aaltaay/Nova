@@ -230,12 +230,35 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 - **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
-- **PR-first delivery after every task:** Code, config, CI, security, and rule changes MUST use a focused branch and pull request. Direct `master` pushes are limited to status-only operations or explicit user instruction. Complete `.github/pull_request_template.md`, link the issue truthfully (`Closes` only for full completion; `Refs` for partial work), verify, commit, push the branch, and open a **ready** (non-draft) PR. **GitHub Actions merges ready PRs** when gating CI is green (`tools/pr_delivery.py`). Do not wait for the human to say merge. Draft or label `do-not-merge` is the hold. After that PR is merged or closed, **delete the head branch** (`git fetch --prune` then `py -3 tools/stale_pr_branches.py`; `--delete` only if the head remains). GitHub `delete_branch_on_merge` plus `.github/workflows/pr-delivery.yml` are the backup sweep. Never leave merged or superseded branches on origin. Never delete `master` or a branch that still has an open PR. **Master branch protection** (no force-push, no deletion, required gating CI) is the required GitHub setting; verify with `py -3 tools/master_branch_protection.py check` and do not claim it exists unless that command exits 0. Public Nova unlocks that setting on GitHub Free. A private personal repo still needs GitHub Pro. The public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
+- **PR-first delivery after every task:** Code, config, CI, security, and rule changes MUST follow §5.1 (clean start from `origin/master`, ready PR finish line). Direct `master` pushes are limited to status-only operations or explicit user instruction. Complete `.github/pull_request_template.md`, link the issue truthfully (`Closes` only for full completion; `Refs` for partial work), verify, commit, push the branch, and open a **ready** (non-draft) PR. **GitHub Actions merges ready PRs** when gating CI is green (`tools/pr_delivery.py`). Do not wait for the human to say merge. Draft or label `do-not-merge` is the hold, and only under §5.1. After that PR is merged or closed, **delete the head branch** (`git fetch --prune` then `py -3 tools/stale_pr_branches.py`; `--delete` only if the head remains). GitHub `delete_branch_on_merge` plus `.github/workflows/pr-delivery.yml` are the backup sweep. Never leave merged or superseded branches on origin. Never delete `master` or a branch that still has an open PR. **Master branch protection** (no force-push, no deletion, required gating CI) is the required GitHub setting; verify with `py -3 tools/master_branch_protection.py check` and do not claim it exists unless that command exits 0. Public Nova unlocks that setting on GitHub Free. A private personal repo still needs GitHub Pro. The public source home is `aaltaay/Nova`. `aaltaay/Nova-public` is a private archive.
 - **Co-Pilot Coaching Footer**: At the very end of every substantive reply, the assistant MUST append two short paragraphs, in this order (each max ~5 sentences, plain language):
   1. **Better ask:** -- honest feedback on how the user's request could have been asked better or clearer, plus one thing the user likely did not know. The goal is direct judgment that makes the user a better co-pilot, not flattery.
   2. **Follow-up ask:** -- one concrete, well-phrased follow-up question the user could ask next about this problem or answer (the natural next step), plus one sentence on why that follow-up is the highest-value one. Teach the shape of a good follow-up by example: reference the specific answer or artifact, narrow the scope, and state the decision it informs.
 
   Skip both only for trivial exchanges (one-word pings, tiny confirmations, pure status checks) at the assistant's judgement -- never pad a small answer with forced content.
+
+### 5.1 Session lifecycle (Deliver)
+
+These gates are **MUST**. They override casual phrasing such as "quick fix" or "just tweak." Only an **explicit** user override ("stay on this branch", "leave as draft", "commit locally only") can waive them. If work still ships, state that waiver in the PR body.
+
+**A. Clean start -- before any edits**
+
+1. `git fetch origin`.
+2. Create or switch to a **new** focused branch from `origin/master` only. Never branch from a dirty local `master` tip. Never continue another feature branch unless the user explicitly names that branch.
+3. If the worktree has uncommitted or unrelated dirty files: do **not** proceed on top of them. Reset or clean tracked files you do not own in this task so they match `origin/master`, or abort and report the dirty paths. Never "just keep working" on mixed dirty state.
+4. Cloud and desktop agents: "isolated" means a clean tip of `origin/master` plus a new branch. Local dirty IDE state is not a valid base.
+
+**B. Mandatory finish -- end of every coding session or task**
+
+1. Verify (tests and build appropriate to the change).
+2. Commit intentional changes on the focused branch.
+3. Push the branch.
+4. Open a **ready (non-draft)** PR targeting `master`, filled from `.github/pull_request_template.md`.
+5. Draft or `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker (for example, needs live IBKR proof) is documented in the PR -- not because CI is still running.
+6. Do not end the session with only local commits, unpushed commits, or "I'll open the PR later." The PR URL is the finish line.
+7. Keep existing rules: Actions auto-merge when available; `Closes` vs `Refs`; delete the head after merge or close; required checks unchanged.
+
+Always-on copies: `.cursor/rules/commit-push-deploy.mdc`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`.
 
 ---
 
@@ -360,7 +383,7 @@ When ANY error occurs during a task:
 4. **Patch** — Fix the root cause in the correct module (not in `main.py`).
 5. **Test** — Verify the fix works (build, run, or test).
 6. **Update SOP** -- Add entry to `PROBLEM_LOG.md` (if fixed) or open/update a GitHub Issue labeled `deferred` (if parked), and update relevant MDC rule if needed.
-7. **Deliver** -- verify, commit on a focused branch, push, and open a PR. Use `Closes #NNN` only when the full issue is complete; otherwise use `Refs #NNN`. After the PR is merged or closed, confirm the head is gone (`stale_pr_branches.py`; `--delete` only if it remains).
+7. **Deliver** -- follow §5.1: verify, commit on the focused branch created from `origin/master`, push, and open a **ready (non-draft)** PR. The PR URL is the finish line. Use `Closes #NNN` only when the full issue is complete; otherwise use `Refs #NNN`. After the PR is merged or closed, confirm the head is gone (`stale_pr_branches.py`; `--delete` only if it remains).
 
 ---
 
@@ -374,6 +397,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-11 | Session lifecycle (§5.1): clean start from `origin/master`; every coding session MUST end with a ready (non-draft) PR. Casual "quick fix" phrasing does not waive. | User Directive + Cursor Agent |
 | 2026-09-11 | Public source home is `aaltaay/Nova`. Marketing site CTA points here. `Nova-public` is a private archive. Master protection no longer blocked on "keep private." | User Directive + Cursor Agent |
 | 2026-09-11 | GitHub Actions merges ready PRs and deletes closed heads (`pr_delivery.py`). Agents do not wait for a human merge ask. Master protection policy + apply tool also shipped. | User Directive + Cursor Agent |
 | 2026-09-11 | Desktop pack builds NSIS installer + portable EXE. Master/main GitHub Release attaches both. Source zip/tar is not the app. | User Directive + Cursor Agent |
@@ -441,7 +465,7 @@ Pre-existing: `karpathy-guidelines`, `graphify`. Phase A adds: `backtest`, `opti
 | `interview-me` | `.cursor/skills/interview-me/` | One-question requirements interview |
 | `doubt-driven-development` | `.cursor/skills/doubt-driven-development/` | Adversarial review of non-trivial claims |
 | `code-review-and-quality` | `.cursor/skills/code-review-and-quality/` | Five-axis review before ship |
-| `github-delivery` | `.cursor/skills/github-delivery/` | Issue metadata, PR-first delivery, Actions merge of ready PRs, delete head after merge/close, strict gates |
+| `github-delivery` | `.cursor/skills/github-delivery/` | Issue metadata, clean start from `origin/master`, ready-PR finish line, Actions merge, delete head after merge/close, strict gates |
 
 Always-on rules: `verification-before-completion.mdc`, `engineering-methodology.mdc`, `github-delivery.mdc`. Audit: `py -3 tools/engineering_skills_audit.py`. Lineage pins in `.cursor/skills/SOURCE-PINS.txt`. **Not imported:** default subagent-per-task, always-hard brainstorming, replacing `AGENTS.md`.
 
@@ -491,12 +515,12 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `deferred-log.mdc` -- check GitHub Issues (`deferred`) before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
 - `change-log.mdc` -- CHANGELOG after behavior changes
 - `task-log.mdc` -- reasoning narrative after material work (PR body first; file when no PR)
-- `commit-push-deploy.mdc` -- verify, commit, push branch, open a ready PR; Actions merges it; delete head after merge (+ deploy when applicable)
+- `commit-push-deploy.mdc` -- clean start from `origin/master`; verify, commit, push, open a ready PR; Actions merges it; delete head after merge (+ deploy when applicable)
 - `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`
 - `self-annealing.mdc` -- root-cause fix protocol on any error
 - `verification-before-completion.mdc` -- no done/fixed claims without fresh evidence
 - `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
-- `github-delivery.mdc` -- issue metadata, PR-first links, Actions merge of ready PRs, delete head after merge/close, strict gates
+- `github-delivery.mdc` -- issue metadata, clean-start + ready-PR session gates, Actions merge of ready PRs, delete head after merge/close, strict gates
 - `persisted-state.mdc` -- cache files need owner + invalidation + schema_version
 - `graphify.mdc` -- vault/decision questions: `py -3 tools/graphify_ask.py query` + savings meter
 

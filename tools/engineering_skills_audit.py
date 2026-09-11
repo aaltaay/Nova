@@ -241,6 +241,44 @@ def audit() -> list[Finding]:
                 "Always-on delivery rule must say GitHub Actions merges ready PRs (no wait for a human merge ask).",
             )
         )
+    if "origin/master" not in delivery_mdc.lower():
+        findings.append(
+            Finding(
+                "error",
+                "missing_clean_start_origin_master",
+                ".cursor/rules/github-delivery.mdc",
+                "Always-on delivery rule must require a clean start from origin/master.",
+            )
+        )
+    if "quick fix" not in delivery_mdc.lower():
+        findings.append(
+            Finding(
+                "error",
+                "missing_prompt_priority_override",
+                ".cursor/rules/github-delivery.mdc",
+                "Always-on delivery rule must say casual phrasing such as 'quick fix' does not waive the gates.",
+            )
+        )
+
+    finish_mdc = _read(".cursor/rules/commit-push-deploy.mdc")
+    if "origin/master" not in finish_mdc.lower():
+        findings.append(
+            Finding(
+                "error",
+                "missing_commit_push_clean_start",
+                ".cursor/rules/commit-push-deploy.mdc",
+                "Always-on commit/push rule must require a clean start from origin/master.",
+            )
+        )
+    if "ready (non-draft)" not in finish_mdc.lower():
+        findings.append(
+            Finding(
+                "error",
+                "missing_commit_push_ready_pr",
+                ".cursor/rules/commit-push-deploy.mdc",
+                "Always-on commit/push rule must require a ready (non-draft) PR as the finish line.",
+            )
+        )
 
     # Index wiring
     agents = _read("AGENTS.md")
@@ -253,6 +291,8 @@ def audit() -> list[Finding]:
         "code-review-and-quality",
         "github-delivery",
         "github-delivery.mdc",
+        "Session lifecycle (Deliver)",
+        "origin/master",
     ):
         if needle not in agents:
             findings.append(
