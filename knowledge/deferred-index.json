@@ -5,6 +5,94 @@
   "updated": "2026-09-11",
   "items": [
     {
+      "id": "D-049",
+      "title": "L1 1Min volume=0 VWAP lag and RTVolume tick 233",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "95",
+      "url": "https://github.com/aaltaay/Nova/issues/95",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-048",
+      "title": "Former Momo 39/40 HOD slot crowding (operator decision)",
+      "kind": "decision",
+      "severity": "P2",
+      "status": "parked",
+      "domain": "hod-momo",
+      "number": "94",
+      "url": "https://github.com/aaltaay/Nova/issues/94",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-047",
+      "title": "Hotkeys Settings tab and OrderTicket Automate are Coming soon",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "widgets",
+      "number": "93",
+      "url": "https://github.com/aaltaay/Nova/issues/93",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-046",
+      "title": "Journal-on-close, CommissionReport P/L, Reports import, Activity page",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "92",
+      "url": "https://github.com/aaltaay/Nova/issues/92",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-045",
+      "title": "Backend TIF/GTC and bracket TP/SL defaults",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "execution",
+      "number": "91",
+      "url": "https://github.com/aaltaay/Nova/issues/91",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-044",
+      "title": "Per-row scanner Exchange via qualified-contract lookup",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "market-feed",
+      "number": "90",
+      "url": "https://github.com/aaltaay/Nova/issues/90",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-043",
+      "title": "Large Cap historical date-picker UI",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "widgets",
+      "number": "89",
+      "url": "https://github.com/aaltaay/Nova/issues/89",
+      "state": "OPEN"
+    },
+    {
+      "id": "D-042",
+      "title": "Persist scanner activeTab across reload",
+      "kind": "feature",
+      "severity": "P2",
+      "status": "open",
+      "domain": "widgets",
+      "number": "88",
+      "url": "https://github.com/aaltaay/Nova/issues/88",
+      "state": "OPEN"
+    },
+    {
       "id": "D-041",
       "title": "Protect master from force-push, deletion, and merge-without-CI",
       "kind": "bug",
@@ -130,7 +218,7 @@
       "title": "Trend Line two-click place pans the chart instead",
       "kind": "bug",
       "severity": "P1",
-      "status": "parked",
+      "status": "open",
       "domain": "widgets",
       "number": "38",
       "url": "https://github.com/aaltaay/Nova/issues/38",
