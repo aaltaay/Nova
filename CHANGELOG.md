@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Execution lock covers the broker send; in-flight position gates
+
+- **What:** `execution.service.execute` now holds `_lock` through the broker send (only the ack wait is outside it), the position gates subtract shares already sent but not yet resolved, BUY gained an `OVERCOVER` mirror of `OVERSELL`, the UI/hotkeys carry one idempotency key per user gesture, and startup reconciles ledger rows a previous process left mid-flight.
+- **Why:** D-011 (#39): two SELLs with different idempotency keys could both clear `OVERSELL` against the same `long_qty` and both reach `placeOrder` -- a double-size exit or an accidental short on a fast double SELL.
+- **Files touched:** `backend/execution/{service,validate,inflight,startup_sweep,broker_send,store,telemetry_handlers}.py`, `backend/startup_reconciliation.py`, `backend/app_lifespan.py`, `backend/constants_nova_os.py`, `frontend/src/ibkr/{gestureKey.ts,placeOrder.ts,useManualOrderSubmission.ts}`, `frontend/src/hotkeys/{runNovaAction.ts,runNovaActionPlace.ts,HotkeyDispatchContext.tsx}`
+- **How it works now:** Reserve, validate, and send happen under one lock, exactly as ADR 007 decision 5 states; `wait_broker_ack` still runs after release so a slow order cannot block an urgent cancel. Because a broker position does not move until a fill, `execution/inflight.py` holds the qty an unresolved place already spent, and `validate.check_account_and_position` compares against `long_qty - working` (SELL) or `short_qty - working` (BUY, only while short). Commitments are freed when the send fails, when the order is cancelled, or when the broker reports it terminal; they are process-local, so a restart starts empty and `execution/startup_sweep.py` closes out the previous process's `reserved`/`sent` rows against `open_orders` / `closed_orders` -- marking them `abandoned` rather than guessing when neither list explains them. On the client, `newGestureKey` mints the key when the gesture starts, so a double-clicked Confirm or a re-fired hotkey replays instead of placing twice.
+- **Verified by:** `pytest backend/tests` (1533 passed), new `test_execution_lock_race.py` / `test_execution_startup_sweep.py` (red before the fix: two SELL 100 against a 100 long produced two `placeOrder` calls), frontend `npx vitest run` (890 passed), `npm run lint`, `npm run build`, `ruff check backend/`.
+- **Follow-ups:** D-012 (#37) ledger writes / cancel-verify on the wrong thread is untouched and still open.
+- **Related:** Closes #39. PROBLEM_LOG 2026-09-11 Broker send outside the execution lock.
+
 ## 2026-09-11 -- Nova News full-page desk
 
 - **What:** Added Nova News as a first-class scanner-rail product: a full-page newsroom with a top-of-desk row plus Critical / High / Watch / Background columns. The beat is **AI used in trading** (algos, quants, bots, research). Stories come from targeted Google News RSS, Yahoo-scoped AI-trading RSS, trade-press / tech / arXiv feeds, plus Finnhub and Alpaca after an admission gate. Catalysts copy now says it is on-roster only.
