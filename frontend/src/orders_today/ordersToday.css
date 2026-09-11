@@ -73,32 +73,21 @@
   color: var(--text, #e5e7eb);
 }
 
-.stock-view-page .orders-today-filters {
+.sv-open-orders-dock .orders-today-filters {
   border-color: var(--sv-border);
   background: color-mix(in srgb, var(--sv-surface, #0a0a0a) 70%, transparent);
 }
 
-.stock-view-page .orders-today-filters__btn {
+.sv-open-orders-dock .orders-today-filters__btn {
   color: var(--sv-secondary);
 }
 
-.stock-view-page .orders-today-filters__btn:hover {
+.sv-open-orders-dock .orders-today-filters__btn:hover {
   color: var(--sv-primary);
 }
 
-.stock-view-page .orders-today-filters__btn.is-active {
+.sv-open-orders-dock .orders-today-filters__btn.is-active {
   color: var(--sv-accent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sv-accent) 70%, transparent);
   background: color-mix(in srgb, var(--sv-accent) 12%, transparent);
-}
-
-.stock-view-page .sv-open-orders-dock__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.88rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: none;
-  color: var(--sv-primary);
 }

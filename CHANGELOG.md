@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Scanner bottom dock matches Trader Positions strip
+
+- **What:** Scanner (live + sample) now has the same bottom strip as Trader: Positions, Orders (Today), and Nova OS, under the selected scanner table. Quote Panel stays on the right, like Trader's order rail.
+- **Why:** Operators wanted a Webull-style way to see open size without flipping Scanner | Trader.
+- **Files touched:** `frontend/src/scanner/ScannerDesk.tsx`, `StockViewOpenOrdersDock.tsx`, `DashboardPage.tsx`, `SampleDashboardPage.tsx`, `openOrdersDock.css`, `IbkrAccountContext.tsx`.
+- **How it works now:** `ScannerDesk` reuses `StockViewOpenOrdersDock` and the shared `IbkrAccountProvider` poll. Collapse / tab persist is the same as Trader. Height split uses `SCANNER_ACCOUNT_DOCK_SPLIT_KEY` so Trader chart height stays put. A position row still opens Trader (ADR 011). Sample desk ships a fixture SMPL position so the strip is visible without Gateway.
+- **Verified by:** Vitest `ScannerDesk.test.tsx` + SampleDashboardPage dock case; Playwright `e2e/scanner-account-dock.spec.ts`; frontend build.
+- **Related:** Closes #101. WID-019 / 026 / 027.
+
 ## 2026-09-11 -- Compact single-row quantity ticket
 
 - **What:** Manual order Quantity is one compact row: input, stack/%/$ mode chips, presets, and +1/-1. The old two-row Qty/%/$ plus 10/50/100/500 grid is gone.

@@ -43,6 +43,8 @@ type Props = {
   connected: boolean;
   spendStatus?: string;
   onSelectSymbol: (symbol: string) => void;
+  /** Defaults to onSelectSymbol (Trader tab switch). Scanner passes openStockView. */
+  onOpenTrading?: (symbol: string) => void;
   onCancelOrder?: (id: number) => void;
   onFillImmediately?: (order: IbkrOrder) => void;
   onPositionClosed?: () => void;
@@ -61,6 +63,7 @@ export function StockViewOpenOrdersDock({
   connected,
   spendStatus,
   onSelectSymbol,
+  onOpenTrading,
   onCancelOrder,
   onFillImmediately,
   onPositionClosed,
@@ -290,7 +293,7 @@ export function StockViewOpenOrdersDock({
                 error={accountError}
                 selectedSymbol={symbolKey}
                 onSelectSymbol={onSelectSymbol}
-                onOpenTrading={onSelectSymbol}
+                onOpenTrading={onOpenTrading ?? onSelectSymbol}
                 mode={mode}
                 connected={connected}
                 spendStatus={spendStatus}

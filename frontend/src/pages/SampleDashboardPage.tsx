@@ -10,6 +10,7 @@ import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { useExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSidePanelWidth } from '../hooks/useSidePanelWidth';
+import { ScannerDesk } from '../scanner/ScannerDesk';
 import { useSampleData } from '../sample_data/SampleDataContext';
 import { DISCOVERY_PROVIDER_DEFAULT, SAMPLE_DATA_BANNER, SAMPLE_DATA_SWITCH_LABEL } from '../constants';
 import { setAccountNavActive } from '../components/accountNavActive';
@@ -101,6 +102,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
 
         <HodMomoDock onOpenTrading={onOpenTrader} />
 
+        <ScannerDesk onOpenTrading={onOpenTrader}>
         <SelectedScannerWidget title={getModule(mainTab)?.title ?? 'Scanner'}>
           <main className="panel">
             <TabModuleHost
@@ -128,6 +130,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
             />
           </main>
         </SelectedScannerWidget>
+        </ScannerDesk>
       </div>
       <PanelResizeHandle
         onPointerDown={sidePanel.onHandlePointerDown}
