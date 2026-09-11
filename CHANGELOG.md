@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** D-022 / #28. Backend WS3 already ships `table_state` / `roster_ts` / `feed_error`. The UI kept last-good rows and fell back to roster `lastScan` for the Prices chip, so a down feed looked fresh.
 - **Files touched:** `frontend/src/scanner/scannerHonesty.ts`, `frontend/src/hooks/useScannerData.ts`, `frontend/src/hooks/useScannerPriceStream.ts`, `frontend/src/components/ScannerBarBridge.tsx`, `frontend/src/components/HeaderConnectionStatus.tsx`, `frontend/src/components/ScannerTabPanels.tsx`, `frontend/src/components/EmptyState.tsx`, `frontend/src/components/CatalystsTable.tsx`
 - **How it works now:** `applyRosterTable` sets `lastGood` when `[]` is ignored. The Roster chip is `subscriptionError` then `feed_error` then `unavailable` then `last-good`. Prices uses `lastPriceTs` only -- `0` means `no L1 yet`, not roster age. Table badge covers frozen + unavailable + last-good. Catalysts distinguish fetch failure from an honest empty roster.
-- **Verified by:** Vitest `scannerHonesty`, `HeaderConnectionStatus` no-L1 / Roster chip, `EmptyState` honesty hint, `frozenTableLabel` unavailable; `npm run lint`; `npm run build`; `npm test -- --run` on the honesty files.
+- **Verified by:** `npm test -- --run` 183 files / 899 passed; honesty files 47/47; `npm run lint` 0 warnings; `npm run build` tsc+vite exit 0; `python3 tools/doc_invariants.py` OK. No live IBKR desk in this environment -- chips proven via HeaderConnectionStatus / EmptyState / scannerHonesty tests.
 - **Related:** Closes #28. PROBLEM_LOG 2026-09-11 Scanner tables looked live with no L1.
 
 ## 2026-09-11 -- IB connect-loop stays non-blocking (D-012 / D-018 / D-020 / D-025)
