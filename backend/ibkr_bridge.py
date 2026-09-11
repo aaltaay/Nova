@@ -192,7 +192,7 @@ def refresh_hod_active_set() -> list[str]:
 
 
 def hod_stream_symbols() -> list[str]:
-    """Reserved HOD L1 pool (quota-selected; includes off-table volume seeds)."""
+    """Reserved HOD L1 pool for the current-session displayed union (ADR 008)."""
     return refresh_hod_active_set()
 
 

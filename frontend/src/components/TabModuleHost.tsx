@@ -3,12 +3,23 @@
  * Keeps DashboardPage under the component size limit.
  * HOD Momo / Running Up live in the AppShell dock — not hosted here.
  */
+import { lazy, Suspense } from 'react';
 import { ScannerTabPanels } from './ScannerTabPanels';
-import { TradingTab } from '../ibkr/TradingTab';
-import { WatchlistTab } from '../strategy/WatchlistTab';
-import { EarningsPanel } from '../earnings/EarningsPanel';
-import { NovaNewsPanel } from '../nova_news/NovaNewsPanel';
+import { TabLazyFallback } from './TabLazyFallback';
 import { getModule, type ActiveTab } from '../workspace/registry';
+
+const TradingTab = lazy(() =>
+  import('../ibkr/TradingTab').then(m => ({ default: m.TradingTab })),
+);
+const WatchlistTab = lazy(() =>
+  import('../strategy/WatchlistTab').then(m => ({ default: m.WatchlistTab })),
+);
+const EarningsPanel = lazy(() =>
+  import('../earnings/EarningsPanel').then(m => ({ default: m.EarningsPanel })),
+);
+const NovaNewsPanel = lazy(() =>
+  import('../nova_news/NovaNewsPanel').then(m => ({ default: m.NovaNewsPanel })),
+);
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import type { Catalyst } from '../types/catalyst';
@@ -121,25 +132,29 @@ export function TabModuleHost(props: TabModuleHostProps) {
 
   if (activeTab === 'trading' || activeTab === 'reports') {
     return (
-      <TradingTab
-        selectedSymbol={selectedSymbol}
-        onSelectSymbol={onSelect}
-        onOpenTrading={onOpenTrading}
-        initialSection={activeTab === 'reports' ? 'reports' : 'overview'}
-      />
+      <Suspense fallback={<TabLazyFallback />}>
+        <TradingTab
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelect}
+          onOpenTrading={onOpenTrading}
+          initialSection={activeTab === 'reports' ? 'reports' : 'overview'}
+        />
+      </Suspense>
     );
   }
 
   if (activeTab === 'watchlist') {
     return (
-      <WatchlistTab
-        entries={watchlistEntries}
-        loading={watchlistLoading}
-        error={watchlistError}
-        selectedSymbol={selectedSymbol}
-        onSelectSymbol={onSelect}
-        onOpenTrading={onOpenTrading}
-      />
+      <Suspense fallback={<TabLazyFallback />}>
+        <WatchlistTab
+          entries={watchlistEntries}
+          loading={watchlistLoading}
+          error={watchlistError}
+          selectedSymbol={selectedSymbol}
+          onSelectSymbol={onSelect}
+          onOpenTrading={onOpenTrading}
+        />
+      </Suspense>
     );
   }
 
@@ -148,22 +163,26 @@ export function TabModuleHost(props: TabModuleHostProps) {
       return <div className="empty-state">Earnings calendar is not available in Sample Data mode.</div>;
     }
     return (
-      <EarningsPanel
-        selectedSymbol={selectedSymbol}
-        onSelect={onSelect}
-        onOpenTrading={onOpenTrading}
-      />
+      <Suspense fallback={<TabLazyFallback />}>
+        <EarningsPanel
+          selectedSymbol={selectedSymbol}
+          onSelect={onSelect}
+          onOpenTrading={onOpenTrading}
+        />
+      </Suspense>
     );
   }
 
   if (activeTab === 'nova_news') {
     return (
-      <NovaNewsPanel
-        selectedSymbol={selectedSymbol}
-        onSelect={onSelect}
-        onOpenTrading={onOpenTrading}
-        sampleMode={sampleMode}
-      />
+      <Suspense fallback={<TabLazyFallback />}>
+        <NovaNewsPanel
+          selectedSymbol={selectedSymbol}
+          onSelect={onSelect}
+          onOpenTrading={onOpenTrading}
+          sampleMode={sampleMode}
+        />
+      </Suspense>
     );
   }
 

@@ -2,8 +2,8 @@
 
 Replaces the infeasible 1Hz reqTickersAsync table loop. IBKR L1 is one
 reqMktData subscription per symbol; ticks are coalesced into price_patch
-batches. HOD discovery remains independent (volume seeds) with a reserved
-live pool that cannot be starved by the active gainer/gapper table.
+batches. The reserved HOD pool is the current-session displayed union
+(ADR 008) -- it cannot be starved by the active gainer/gapper table.
 """
 from __future__ import annotations
 

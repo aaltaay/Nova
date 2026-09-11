@@ -1,12 +1,16 @@
 /** Watchlist tab — Five Pillars ranked table + live setup Signals + Nova OS Decision audit. Signal-only; no orders placed. */
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ScannerRowNumCell, ScannerRowNumHeader } from '../components/ScannerTable';
 import { SymbolSelectButton } from '../components/SymbolSelectButton';
+import { TabLazyFallback } from '../components/TabLazyFallback';
 import { WATCHLIST_SUBSCORE_LABELS, WATCHLIST_SUBSCORE_TOOLTIPS } from '../constants';
 import { ArchiveRewind } from './ArchiveRewind';
-import { BacktestPanel } from './BacktestPanel';
 import { DecisionPanel } from './DecisionPanel';
+
+const BacktestPanel = lazy(() =>
+  import('./BacktestPanel').then(m => ({ default: m.BacktestPanel })),
+);
 import { ExecutorPanel } from './ExecutorPanel';
 import { JournalPanel } from './JournalPanel';
 import { PillarChips } from './PillarChips';
@@ -222,7 +226,11 @@ export function WatchlistTab({
 
       {subTab === 'archive' && <ArchiveRewind active={subTab === 'archive'} />}
 
-      {subTab === 'backtest' && <BacktestPanel active={subTab === 'backtest'} />}
+      {subTab === 'backtest' && (
+        <Suspense fallback={<TabLazyFallback />}>
+          <BacktestPanel active={subTab === 'backtest'} />
+        </Suspense>
+      )}
     </div>
   );
 }

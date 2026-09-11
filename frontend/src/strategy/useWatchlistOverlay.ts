@@ -8,6 +8,16 @@ import { useMemo } from 'react';
 import type { ScannerRow } from '../types/scanner';
 import type { WatchlistEntry } from './types';
 
+/** Join one scanner row to its watchlist entry without cloning unchanged rows. */
+export function joinWatchlistOnRow<T extends ScannerRow>(
+  row: T,
+  entry: WatchlistEntry | null,
+): T {
+  const score = entry?.composite_score ?? null;
+  if (row.watchlist === entry && row.watchlist_score === score) return row;
+  return { ...row, watchlist: entry, watchlist_score: score };
+}
+
 export function useWatchlistOverlay<T extends ScannerRow>(
   rows: T[],
   watchlistEntries: WatchlistEntry[],
@@ -19,11 +29,7 @@ export function useWatchlistOverlay<T extends ScannerRow>(
   }, [watchlistEntries]);
 
   return useMemo(
-    () =>
-      rows.map(row => {
-        const entry = bySymbol.get(row.symbol) ?? null;
-        return { ...row, watchlist: entry, watchlist_score: entry?.composite_score ?? null };
-      }),
+    () => rows.map(row => joinWatchlistOnRow(row, bySymbol.get(row.symbol) ?? null)),
     [rows, bySymbol],
   );
 }

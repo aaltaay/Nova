@@ -36,6 +36,7 @@ export const TRADE_ORDER_PREFS_SKIP_CONFIRM_HINT =
 export const SETTINGS_GEAR_LABEL = 'Settings';
 export const SETTINGS_GEAR_TITLE = 'Open Settings';
 export const SETTINGS_OVERLAY_TITLE = 'Settings';
+export const SETTINGS_OVERLAY_LOADING = 'Loading settings…';
 export const SETTINGS_CLOSE_LABEL = 'Close';
 
 export const SETTINGS_GENERAL_EXCHANGE_TITLE = 'Exchange Filter';

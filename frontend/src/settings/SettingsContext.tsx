@@ -3,6 +3,8 @@
  */
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -10,9 +12,13 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import { SettingsWorkspace } from '../components/SettingsWorkspace';
 import { useExchangeFilter, type ExchangeFilter } from '../hooks/useExchangeFilter';
 import { useSettingsForm } from '../hooks/useSettingsForm';
+import { SETTINGS_OVERLAY_LOADING } from '../constants';
+
+const SettingsWorkspace = lazy(() =>
+  import('../components/SettingsWorkspace').then(m => ({ default: m.SettingsWorkspace })),
+);
 
 type SettingsForm = ReturnType<typeof useSettingsForm>;
 
@@ -76,23 +82,31 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     <SettingsContext.Provider value={value}>
       {children}
       {showSettings && (
-        <SettingsWorkspace
-          filter={exchangeFilter}
-          apiKey={settings.apiKey}
-          onApiKeyChange={settings.setApiKey}
-          apiSecret={settings.apiSecret}
-          onApiSecretChange={settings.setApiSecret}
-          apiKeySet={settings.apiKeySet}
-          apiSecretSet={settings.apiSecretSet}
-          baseUrl={settings.baseUrl}
-          onBaseUrlChange={settings.setBaseUrl}
-          dataFeed={settings.dataFeed}
-          onDataFeedChange={settings.setDataFeed}
-          dataFeedOptions={settings.dataFeedOptions}
-          discoveryProvider={settings.discoveryProvider}
-          onSubmit={settings.handleConfigUpdate}
-          onCancel={closeSettings}
-        />
+        <Suspense
+          fallback={
+            <div className="settings-overlay" role="status" aria-label={SETTINGS_OVERLAY_LOADING}>
+              {SETTINGS_OVERLAY_LOADING}
+            </div>
+          }
+        >
+          <SettingsWorkspace
+            filter={exchangeFilter}
+            apiKey={settings.apiKey}
+            onApiKeyChange={settings.setApiKey}
+            apiSecret={settings.apiSecret}
+            onApiSecretChange={settings.setApiSecret}
+            apiKeySet={settings.apiKeySet}
+            apiSecretSet={settings.apiSecretSet}
+            baseUrl={settings.baseUrl}
+            onBaseUrlChange={settings.setBaseUrl}
+            dataFeed={settings.dataFeed}
+            onDataFeedChange={settings.setDataFeed}
+            dataFeedOptions={settings.dataFeedOptions}
+            discoveryProvider={settings.discoveryProvider}
+            onSubmit={settings.handleConfigUpdate}
+            onCancel={closeSettings}
+          />
+        </Suspense>
       )}
     </SettingsContext.Provider>
   );

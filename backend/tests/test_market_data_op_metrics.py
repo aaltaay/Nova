@@ -17,7 +17,6 @@ def reset_metrics_and_caches():
     discovery.reset_scan_cache()
     discovery._qualified_contracts.clear()
     discovery._scan_lock = None
-    discovery._snapshot_lock = None
     yield
     op_metrics.reset_for_tests()
 
