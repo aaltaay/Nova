@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Market-feed honesty: AH gap, yfinance miss, ticker snapshot
+
+- **What:** Afterhours Gap % is open vs prior close (not Change %). A yfinance failure is logged and cached for 60s, not 15 minutes of silent blanks. Ticker cold snapshot reads stored 1Min bars and afterhours cache, and logs a real exception type when `reqTickersAsync` times out.
+- **Why:** D-002 / #44 (OKTG Gap % == Change %), D-016 / #34 (empty Yahoo row cached 900s), D-009 / #40 (XAIR snapshot `{}` while chart bars were live).
+- **Files touched:** `backend/afterhours_discovery.py`, `backend/ibkr/discovery.py`, `backend/scanner_runners/afterhours.py`, `backend/fundamentals.py`, `backend/constants_scanner.py`, `backend/ticker_ibkr.py`
+- **How it works now:** AH build/reprice thread tick-14 `open` the same way `reprice_mover_row` does and keep Change % separate. Fundamentals use one Yahoo worker, `describe_exc` on failure, and `FUNDAMENTALS_NEGATIVE_CACHE_TTL`. Ticker last print prefers scanner row (including AH), L1, then `bars_store` 1Min; cold snapshot is last and no longer logs a blank `TimeoutError`.
+- **Verified by:** `pytest` afterhours / fundamentals cache / ticker snapshot / IBKR cache-priority tests.
+- **Related:** PROBLEM_LOG 2026-09-11 AH gap / yfinance negative cache / ticker snapshot. Closes #44 #34 #40.
+
 ## 2026-09-11 -- Scanner NEWS column works under discovery=ibkr
 
 - **What:** Gappers / Gainers / Losers / Afterhours NEWS flames light again when discovery is IBKR. Alpaca `_check_news` still supplies today's headlines; they are stamped at read time, not written into the roster cache.

@@ -23,7 +23,12 @@ def find_ibkr_cache_row(symbol: str) -> dict | None:
     gainer/loser row (see PROBLEM_LOG 2026-07-13).
     """
     state = get_runtime_state()
-    for cache in (state.gainer_cache, state.loser_cache, state.gapper_cache):
+    for cache in (
+        state.gainer_cache,
+        state.loser_cache,
+        state.afterhours_cache,
+        state.gapper_cache,
+    ):
         for row in cache:
             if row.get("symbol") == symbol:
                 return row
@@ -46,25 +51,30 @@ def _price_from_l1_stream(symbol: str) -> float | None:
 
 
 def _price_from_chart_bars(symbol: str) -> float | None:
-    """Last 1‑min bar close — same feed the Stock View charts already use."""
-    try:
-        from alpaca import _get_discovery_provider
-        from chart_bars import fetch_chart_bars
+    """Last stored 1Min close -- the same store HTTP /bars paints (ADR 012).
 
-        payload = fetch_chart_bars(
-            symbol,
-            timeframe="1Min",
-            limit=5,
-            discovery_provider=_get_discovery_provider(),
-            interactive=True,
-        )
-        bars = payload.get("bars") or []
+    ``fetch_chart_bars(interactive=True)`` on an empty store only schedules a
+    fill and returns ``bars=[]``. That made ticker REST miss a last print the
+    chart already had (or was about to persist) and fall through to a cold
+    ``snapshot_quotes`` that often times out with a blank ``TimeoutError``.
+    """
+    try:
+        from bars_store import read
+
+        stored = read((symbol or "").strip().upper(), "1Min", 5)
+        bars = (stored or {}).get("bars") or []
         if not bars:
             return None
         close = bars[-1].get("c")
         return float(close) if close is not None else None
     except Exception as exc:
-        logger.debug("ticker IBKR chart-bar lookup failed for %s: %s", symbol, exc)
+        from ibkr.errors import describe_exc
+
+        logger.debug(
+            "ticker IBKR chart-bar lookup failed for %s: %s",
+            symbol,
+            describe_exc(exc),
+        )
         return None
 
 
@@ -115,9 +125,10 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
         prev_close = cached_row.get("previous_close") or cached_row.get("prev_close")
         volume = cached_row.get("volume", 0) or 0
         exchange = cached_row.get("exchange")
+        open_price = cached_row.get("open")
 
-    # Fast path before slow reqTickersAsync — Stock View charts already prove
-    # bars work when the cold snapshot path returns nothing (e.g. CJMB).
+    # Fast path before slow reqTickersAsync -- Stock View charts already prove
+    # bars work when the cold snapshot path returns nothing (e.g. CJMB / XAIR).
     if price is None:
         price = _price_from_l1_stream(symbol)
     if price is None:
@@ -127,6 +138,7 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
     if price is None:
         from ibkr import client as _ibkr_client
         from ibkr import discovery as _ibkr_discovery
+        from ibkr.errors import describe_exc
 
         try:
             quotes = _ibkr_client.run_coro(
@@ -136,7 +148,11 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
                 timeout=TICKER_IBKR_BRIDGE_TIMEOUT_SEC,
             ) or {}
         except Exception as exc:
-            logger.warning("ticker IBKR snapshot failed for %s: %s", symbol, exc)
+            logger.warning(
+                "ticker IBKR snapshot failed for %s: %s",
+                symbol,
+                describe_exc(exc),
+            )
             quotes = {}
         q = quotes.get(symbol) or quotes.get((symbol or "").strip().upper())
         if q:
@@ -145,6 +161,10 @@ def fetch_ticker_snapshot_ibkr(symbol: str) -> dict:
             volume = q.get("volume", 0) or 0
             exchange = q.get("exchange")
             open_price = q.get("open")
+
+    # Chart fill can land while snapshot_quotes is dying -- read the store again.
+    if price is None:
+        price = _price_from_chart_bars(symbol)
 
     if price is None:
         return {}

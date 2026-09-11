@@ -14,12 +14,19 @@ from datetime import datetime, timezone
 
 import yfinance as yf
 
-from constants import FUNDAMENTALS_CACHE_TTL, YFINANCE_TIMEOUT_S
+from constants import (
+    FUNDAMENTALS_CACHE_TTL,
+    FUNDAMENTALS_NEGATIVE_CACHE_TTL,
+    YFINANCE_TIMEOUT_S,
+)
+from ibkr.errors import describe_exc
 
 logger = logging.getLogger(__name__)
 
 _fundamentals_cache: dict[str, dict] = {}
 _fundamentals_cache_ts: dict[str, float] = {}
+_fundamentals_cache_ttl: dict[str, float] = {}
+_YF_POOL = ThreadPoolExecutor(max_workers=1, thread_name_prefix="yf-fundamentals")
 
 _EMPTY: dict = {
     "company_name": None,
@@ -91,25 +98,47 @@ def format_recent_split(split_factor, split_date) -> str | None:
     return str(split_factor)
 
 
+def _cache_ttl(symbol: str) -> float:
+    return _fundamentals_cache_ttl.get(symbol, FUNDAMENTALS_CACHE_TTL)
+
+
+def _is_fresh(symbol: str, now: float) -> bool:
+    if symbol not in _fundamentals_cache:
+        return False
+    return (now - _fundamentals_cache_ts.get(symbol, 0.0)) < _cache_ttl(symbol)
+
+
+def _is_negative_cache(symbol: str) -> bool:
+    return _fundamentals_cache_ttl.get(symbol) == FUNDAMENTALS_NEGATIVE_CACHE_TTL
+
+
+def _store_cache(symbol: str, payload: dict, now: float, ttl: float) -> dict:
+    _fundamentals_cache[symbol] = payload
+    _fundamentals_cache_ts[symbol] = now
+    _fundamentals_cache_ttl[symbol] = ttl
+    return payload
+
+
 def fetch_fundamentals(symbol: str) -> dict:
     """Fetch fundamental data for a single symbol via yfinance with TTL caching."""
     now = time.monotonic()
-    cached_ts = _fundamentals_cache_ts.get(symbol, 0.0)
-    if symbol in _fundamentals_cache and (now - cached_ts) < FUNDAMENTALS_CACHE_TTL:
+    if _is_fresh(symbol, now):
         return _fundamentals_cache[symbol]
     try:
         # yfinance has no built-in timeout; a stalled Yahoo request can block for 15-20s.
-        # Run it in a dedicated thread so we can cap the wait at YFINANCE_TIMEOUT_S.
-        with ThreadPoolExecutor(max_workers=1) as yf_pool:
-            future = yf_pool.submit(lambda: yf.Ticker(symbol).info)
-            try:
-                info = future.result(timeout=YFINANCE_TIMEOUT_S)
-            except Exception:
-                stale = _fundamentals_cache.get(symbol)
-                if stale is not None:
-                    logger.warning("yfinance timeout/error for %s — returning stale cache", symbol)
-                    return stale
-                raise
+        # Reuse one worker so a Yahoo stall does not spawn a thread per symbol.
+        future = _YF_POOL.submit(lambda: yf.Ticker(symbol).info)
+        try:
+            info = future.result(timeout=YFINANCE_TIMEOUT_S)
+        except Exception:
+            stale = _fundamentals_cache.get(symbol)
+            if stale is not None and not _is_negative_cache(symbol):
+                logger.warning(
+                    "yfinance timeout/error for %s -- returning stale cache",
+                    symbol,
+                )
+                return stale
+            raise
 
         from earnings_window import earnings_date_et
 
@@ -150,24 +179,16 @@ def fetch_fundamentals(symbol: str) -> dict:
             "average_volume": info.get("averageVolume"),
             "current_volume": info.get("volume"),
         }
-        _fundamentals_cache[symbol] = fundamentals
-        _fundamentals_cache_ts[symbol] = now
-        return fundamentals
-    except Exception:
-        empty = dict(_EMPTY)
-        _fundamentals_cache[symbol] = empty
-        _fundamentals_cache_ts[symbol] = now
-        return empty
+        return _store_cache(symbol, fundamentals, now, FUNDAMENTALS_CACHE_TTL)
+    except Exception as exc:
+        logger.warning("yfinance fetch failed for %s: %s", symbol, describe_exc(exc))
+        return _store_cache(symbol, dict(_EMPTY), now, FUNDAMENTALS_NEGATIVE_CACHE_TTL)
 
 
 def fetch_fundamentals_batch(symbols: list[str]) -> None:
     """Populate the fundamentals cache for symbols (skips fresh cache hits)."""
     now = time.monotonic()
-    missing = [
-        s for s in symbols
-        if s not in _fundamentals_cache
-        or (now - _fundamentals_cache_ts.get(s, 0.0)) >= FUNDAMENTALS_CACHE_TTL
-    ]
+    missing = [s for s in symbols if not _is_fresh(s, now)]
     for sym in missing:
         fetch_fundamentals(sym)
 

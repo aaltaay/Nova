@@ -37,6 +37,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Afterhours Gap % copied Change %
+
+- **Symptom:** AH Gap % matched Change % on every row (OKTG showed +53.29% gap while open vs prior close was -2.50%).
+- **Cause:** `build_afterhours_rows_from_ibkr_gainers` and `reprice_afterhours_rows_ibkr` set `gap_percent` from last vs prior close. Gainers already used tick-14 open; the AH path was never migrated.
+- **Fix:** Thread `open` through AH build/L1 reprice. Gap is open vs prior close (or the incoming mover gap). Never reuse `change_pct`. HOD AH seed now passes change and gap separately.
+- **Fix class:** admission
+- **Keywords:** afterhours, gap_percent, change_pct, OKTG, D-002, #44, tick 14, reprice_afterhours_rows_ibkr
+
+## 2026-09-11 -- yfinance failure cached empty row for 15 minutes
+
+- **Symptom:** Float / Short Int. / Mkt Cap / RVOL went blank for a full scan cycle after one Yahoo miss, with no log line.
+- **Cause:** `fetch_fundamentals` swallowed `Exception`, stored `_EMPTY` under the full `FUNDAMENTALS_CACHE_TTL` (900s), and spawned a new `ThreadPoolExecutor` per call.
+- **Fix:** WARNING + `describe_exc`, `FUNDAMENTALS_NEGATIVE_CACHE_TTL` (60s) for failures, one module executor. A successful stale cache can still be returned on timeout; a prior failure is retried after 60s.
+- **Fix class:** admission
+- **Keywords:** fundamentals, yfinance, _EMPTY, negative cache, D-016, #34, FUNDAMENTALS_NEGATIVE_CACHE_TTL, describe_exc
+
+## 2026-09-11 -- Ticker cold snapshot empty while chart bars lived
+
+- **Symptom:** `GET /api/ticker/XAIR` returned `snapshot: {}` in the same minute `/bars?timeframe=1Min` returned 5 real candles. Log: `ticker IBKR snapshot failed for XAIR: ` (blank).
+- **Cause:** `_price_from_chart_bars` called `fetch_chart_bars(interactive=True)`, which on an empty store only schedules a fill and returns no bars. Fallback `snapshot_quotes` via `run_coro` timed out (`TimeoutError` has empty `str()`). `find_ibkr_cache_row` also skipped `afterhours_cache`.
+- **Fix:** Read `bars_store` 1Min last close (store-first). Retry the store after a failed cold snapshot. Include afterhours rows in the cache lookup. Log `describe_exc` so TimeoutError is visible.
+- **Fix class:** admission
+- **Keywords:** ticker_ibkr, snapshot_quotes, D-009, #40, XAIR, bars_store, describe_exc, afterhours_cache
+
 ## 2026-09-11 -- Scanner NEWS column dead under discovery=ibkr
 
 - **Symptom:** Gappers / Gainers / Losers / Afterhours NEWS cells were empty every session. `/api/movers` rows lacked `has_news` / `newest_headline_at` (keys absent, not null).

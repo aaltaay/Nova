@@ -73,3 +73,66 @@ def test_snapshot_falls_back_to_chart_bars(monkeypatch):
     snap = ticker_ibkr.fetch_ticker_snapshot_ibkr("CJMB")
     assert snap["latest_trade"]["price"] == 1.2902
     assert snap["prev_close"] == 1.10
+
+
+def test_snapshot_uses_store_bars_when_cold_snapshot_fails(monkeypatch):
+    """D-009 / XAIR: 1Min store already has bars; reqTickersAsync times out blank."""
+    monkeypatch.setattr(ticker_ibkr, "find_ibkr_cache_row", lambda _s: None)
+    monkeypatch.setattr(ticker_ibkr, "_price_from_l1_stream", lambda _s: None)
+    monkeypatch.setattr(ticker_ibkr, "_prev_close_from_daily_bars", lambda _s: 5.0)
+
+    def _read(symbol, timeframe, limit):
+        assert symbol == "XAIR"
+        assert timeframe == "1Min"
+        return {"bars": [{"c": 5.7, "v": 302768}]}
+
+    monkeypatch.setattr("bars_store.read", _read)
+    monkeypatch.setattr(
+        "ibkr.client.run_coro",
+        lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("snapshot_quotes should be skipped")),
+    )
+    snap = ticker_ibkr.fetch_ticker_snapshot_ibkr("XAIR")
+    assert snap["latest_trade"]["price"] == 5.7
+    assert snap["prev_close"] == 5.0
+
+
+def test_snapshot_failure_logs_exception_type(monkeypatch, caplog):
+    monkeypatch.setattr(ticker_ibkr, "find_ibkr_cache_row", lambda _s: None)
+    monkeypatch.setattr(ticker_ibkr, "_price_from_l1_stream", lambda _s: None)
+    monkeypatch.setattr(ticker_ibkr, "_price_from_chart_bars", lambda _s: None)
+    monkeypatch.setattr(ticker_ibkr, "_prev_close_from_daily_bars", lambda _s: None)
+    def _timeout(coro, timeout=None):
+        if hasattr(coro, "close"):
+            coro.close()
+        raise TimeoutError()
+
+    monkeypatch.setattr("ibkr.client.run_coro", _timeout)
+    snap = ticker_ibkr.fetch_ticker_snapshot_ibkr("XAIR")
+    assert snap == {}
+    assert "TimeoutError" in caplog.text
+    assert "XAIR" in caplog.text
+
+
+def test_snapshot_retries_store_after_cold_snapshot_fails(monkeypatch):
+    """Store can fill while snapshot_quotes is dying (chart HTTP already working)."""
+    reads = {"n": 0}
+
+    def _read(_symbol, _timeframe, _limit):
+        reads["n"] += 1
+        if reads["n"] == 1:
+            return {"bars": []}
+        return {"bars": [{"c": 5.7}]}
+
+    monkeypatch.setattr(ticker_ibkr, "find_ibkr_cache_row", lambda _s: None)
+    monkeypatch.setattr(ticker_ibkr, "_price_from_l1_stream", lambda _s: None)
+    monkeypatch.setattr(ticker_ibkr, "_prev_close_from_daily_bars", lambda _s: None)
+    monkeypatch.setattr("bars_store.read", _read)
+    def _timeout(coro, timeout=None):
+        if hasattr(coro, "close"):
+            coro.close()
+        raise TimeoutError()
+
+    monkeypatch.setattr("ibkr.client.run_coro", _timeout)
+    snap = ticker_ibkr.fetch_ticker_snapshot_ibkr("XAIR")
+    assert snap["latest_trade"]["price"] == 5.7
+    assert reads["n"] >= 2

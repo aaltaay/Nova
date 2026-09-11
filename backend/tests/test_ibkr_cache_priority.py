@@ -65,5 +65,20 @@ def test_returns_none_when_symbol_in_no_cache(state):
     state.gapper_cache = []
     state.gainer_cache = []
     state.loser_cache = []
+    state.afterhours_cache = []
 
     assert ticker._find_ibkr_cache_row("NOPE") is None
+
+
+def test_finds_afterhours_row_when_not_on_day_tables(state):
+    """D-009: AH-only names were invisible to ticker snapshot cache lookup."""
+    state.gapper_cache = []
+    state.gainer_cache = []
+    state.loser_cache = []
+    state.afterhours_cache = [
+        {"symbol": "XAIR", "price": 5.7, "prev_close": 5.0, "volume": 302768},
+    ]
+
+    row = ticker._find_ibkr_cache_row("XAIR")
+    assert row is not None
+    assert row["price"] == 5.7

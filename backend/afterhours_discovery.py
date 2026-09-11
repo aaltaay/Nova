@@ -48,15 +48,22 @@ def build_afterhours_rows_from_ibkr_gainers(
             continue
         if change_f < floor:
             continue
+        incoming_gap = r.get("gap_percent")
+        try:
+            incoming_gap_f = float(incoming_gap) if incoming_gap is not None else None
+        except (TypeError, ValueError):
+            incoming_gap_f = None
+        open_f = _coerce_open(r.get("open"))
         out.append({
             "symbol": sym,
             "price": price_f,
             "prev_close": prev_f,
+            "open": open_f,
             "change_pct": change_f,
             "change_abs": price_f - prev_f,
             "previous_close": prev_f,
             "current_price": price_f,
-            "gap_percent": change_f,
+            "gap_percent": _session_gap_frac(open_f, prev_f, incoming_gap_f),
             "volume": int(r.get("volume") or 0),
             "exchange": r.get("exchange"),
         })
@@ -93,7 +100,13 @@ def reprice_afterhours_rows_ibkr(
         if price_f < SCANNER_MIN_PRICE or prev_f <= 0:
             continue
         vol = int(q["volume"]) if q.get("volume") is not None else int(r.get("volume") or 0)
-        gap_frac = (price_f - prev_f) / prev_f
+        change_frac = (price_f - prev_f) / prev_f
+        open_f = _coerce_open(q.get("open") if q.get("open") is not None else r.get("open"))
+        prior_gap = r.get("gap_percent")
+        try:
+            prior_gap_f = float(prior_gap) if prior_gap is not None else None
+        except (TypeError, ValueError):
+            prior_gap_f = None
         avg = avg_volume_by_symbol.get(sym)
         paced = pace_relative_volume(vol, avg) if avg and vol else None
         raw_rvol = round(vol / avg, 2) if avg and avg > 0 and vol > 0 else r.get("rel_volume")
@@ -101,29 +114,48 @@ def reprice_afterhours_rows_ibkr(
             **r,
             "price": price_f,
             "prev_close": prev_f,
-            "change_pct": gap_frac,
+            "open": open_f if open_f is not None else r.get("open"),
+            "change_pct": change_frac,
             "change_abs": price_f - prev_f,
             "current_price": price_f,
             "previous_close": prev_f,
-            "gap_percent": gap_frac,
+            "gap_percent": _session_gap_frac(open_f, prev_f, prior_gap_f),
             "volume": vol,
             "rel_volume": paced if paced is not None else raw_rvol,
         })
-    updated.sort(key=_gap_sort_key, reverse=True)
+    # Rank by session move (AH gainers), not overnight gap. Gap used to equal
+    # change_pct, so this key used to be the same number.
+    updated.sort(key=_change_sort_key, reverse=True)
     return updated
 
 
-def _gap_sort_key(row: dict) -> float:
-    """Sort key for reprice_afterhours_rows_ibkr.
+def _coerce_open(raw) -> float | None:
+    if raw is None:
+        return None
+    try:
+        open_f = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return open_f if open_f else None
 
-    Unpriced rows (no quote yet, or an unpriceable quote) keep the
-    original ``gap_percent`` unchanged, which is ``None`` for a name-only
-    admission (ADR 010 -- a row exists before its first L1 tick). Plain
-    ``sort(key=lambda x: x["gap_percent"])`` raises TypeError the moment
-    any row lacks a computed gap (None is unorderable against None or a
-    float in Python 3) -- this was crashing on_l1_quote on every afterhours
-    tick (PROBLEM_LOG 2026-08-25). Map None to -inf so unpriced rows sink
-    to the bottom instead of raising.
+
+def _session_gap_frac(
+    open_price: float | None,
+    prev_close: float,
+    fallback: float | None,
+) -> float | None:
+    """Open vs prior close. Never invent a gap from last / change_pct."""
+    if open_price and prev_close:
+        return (open_price - prev_close) / prev_close
+    return fallback
+
+
+def _change_sort_key(row: dict) -> float:
+    """None-safe AH rank key (ADR 010 name-only rows have change_pct=None).
+
+    Mapping None to -inf keeps unpriced rows at the bottom. A plain
+    ``sort(key=lambda x: x["change_pct"])`` raises TypeError (PROBLEM_LOG
+    2026-08-25, same crash when the key was still gap_percent).
     """
-    gap = row.get("gap_percent")
-    return gap if gap is not None else float("-inf")
+    change = row.get("change_pct")
+    return change if change is not None else float("-inf")
