@@ -8,8 +8,8 @@ from datetime import date
 import large_cap_metrics as lcm
 
 
-def _bar(t, o, h, l, c, v):
-    return {"t": t, "o": o, "h": h, "l": l, "c": c, "v": v}
+def _bar(t, o, h, low, c, v):
+    return {"t": t, "o": o, "h": h, "l": low, "c": c, "v": v}
 
 
 def test_days_to_earnings_future_and_none():

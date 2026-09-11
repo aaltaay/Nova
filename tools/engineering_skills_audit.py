@@ -26,11 +26,13 @@ REQUIRED_SKILLS: tuple[str, ...] = (
     "interview-me",
     "doubt-driven-development",
     "code-review-and-quality",
+    "github-delivery",
 )
 
 REQUIRED_ALWAYS_ON_MDC: tuple[str, ...] = (
     "verification-before-completion.mdc",
     "engineering-methodology.mdc",
+    "github-delivery.mdc",
 )
 
 # Phrases that must NOT appear as instructions to weaken Nova law.
@@ -220,6 +222,8 @@ def audit() -> list[Finding]:
         "writing-plans",
         "doubt-driven-development",
         "code-review-and-quality",
+        "github-delivery",
+        "github-delivery.mdc",
     ):
         if needle not in agents:
             findings.append(

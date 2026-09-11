@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-10 -- PR-first GitHub delivery and strict CI gates
+
+- **What:** Added Nova's `github-delivery` skill/rule, PR and issue metadata contracts, structured bug/feature forms, and PR-first governance. CI now blocks on Ruff, zero-warning ESLint, Vitest, build, and isolated Playwright Chromium; the existing 4 ESLint errors, 6 warnings, and 11 Ruff findings are clean.
+- **Why:** Issue work was direct-pushed with no Project, Milestone, assignee, relationships, or Development link. D-029 documented that frontend tests/lint, Playwright, and Ruff could all regress while CI stayed green; D-004 let Vitest touch the operator's live API-start lock.
+- **Files touched:** `.cursor/skills/github-delivery/`, `.cursor/rules/github-delivery.mdc`, `AGENTS.md`, `.github/{pull_request_template.md,ISSUE_TEMPLATE/,workflows/deploy.yml}`, `frontend/{eslint.config.js,playwright.config.ts}`, lint fixes and E2E specs, `tools/engineering_skills_audit.py`
+- **How it works now:** Code/config/CI/security/rule tasks start on a branch and ship through a fully populated PR. Issues close only when their whole scope is complete; partial work uses `Refs` and stays open. Every actionable issue gets labels, a human owner, and Nova Delivery project status when permissions allow; milestones and relationships are conditional facts. Hosted E2E uses isolated port 4173 and no local API, with two live-Gateway L2/Tape specs explicitly gated by `NOVA_E2E_LIVE_IBKR=1`.
+- **Verified by:** Backend 1,493 passed; Ruff clean; zero-warning ESLint clean; frontend 878 passed; production build passed; isolated Playwright 17 passed / 2 live-Gateway specs explicitly skipped; agent contract, engineering skill audit, doc invariants, issue/workflow YAML, and Project metadata checks passed. GitHub PR CI runs the same gates.
+- **Related:** PROBLEM_LOG 2026-09-10 strict CI and isolated E2E; [D-029](https://github.com/aaltaay/Nova/issues/20); [D-004](https://github.com/aaltaay/Nova/issues/41)
+
 ## 2026-09-10 -- IBKR verification-required recovery flow
 
 - **What:** IBKR Error 201 token-verification rejects now become typed `IBKR_VERIFICATION_REQUIRED` receipts and an actionable dialog. Nova blocks repeated new entries for the affected symbol until explicit acknowledgment, while cancel, replace, long exits, short covers, and flatten remain available.

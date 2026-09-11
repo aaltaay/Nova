@@ -146,8 +146,7 @@ export function ensureBars(
     });
   }
 
-  let promise!: Promise<RawBar[]>;
-  promise = fetchSingleBars(sym, timeframe, limit).finally(() => {
+  const promise = fetchSingleBars(sym, timeframe, limit).finally(() => {
     if (inflight.get(key) === promise) inflight.delete(key);
   });
   inflight.set(key, promise);

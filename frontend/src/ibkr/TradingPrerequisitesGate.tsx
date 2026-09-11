@@ -160,7 +160,7 @@ export function TradingPrerequisitesGate() {
   const [autoDismissed, setAutoDismissed] = useState(false);
   const followTarget = gatewayPortMismatchHint(ibkr.disconnect_hint);
 
-  const health = bar?.health ?? { status: 'loading', latency_ms: 0 };
+  const health = useMemo(() => bar?.health ?? { status: 'loading', latency_ms: 0 }, [bar?.health]);
   const discovery = bar?.discoveryProvider ?? DISCOVERY_PROVIDER_DEFAULT;
 
   const prereqs = useMemo(

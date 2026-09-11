@@ -96,7 +96,7 @@ export function ShortcutRebindSession({
       // rebindTarget in React StrictMode (mount → cleanup → remount).
       recorder.stopRecording();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one session per mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one recorder session per mount
   }, []);
 
   // TanStack returns null for modifier-only keydowns — accept bare Alt/Ctrl/… on keyup.
@@ -119,7 +119,6 @@ export function ShortcutRebindSession({
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('keyup', onKeyUp, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one session per mount
   }, []);
 
   return (

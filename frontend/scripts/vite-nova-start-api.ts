@@ -44,33 +44,33 @@ export function isLockStale(raw: string, nowMs: number, staleMs = LOCK_STALE_MS)
   }
 }
 
-export function acquireLock(): boolean {
-  fs.mkdirSync(path.dirname(LOCK_PATH), { recursive: true });
+export function acquireLock(lockPath = LOCK_PATH): boolean {
+  fs.mkdirSync(path.dirname(lockPath), { recursive: true });
   try {
-    fs.writeFileSync(LOCK_PATH, JSON.stringify({ pid: process.pid, ts: Date.now() }), { flag: 'wx' });
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, ts: Date.now() }), { flag: 'wx' });
     return true;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
   }
   let stale = true;
   try {
-    stale = isLockStale(fs.readFileSync(LOCK_PATH, 'utf8'), Date.now());
+    stale = isLockStale(fs.readFileSync(lockPath, 'utf8'), Date.now());
   } catch {
     stale = true; // unreadable lock — treat as abandoned
   }
   if (!stale) return false;
   try {
-    fs.rmSync(LOCK_PATH, { force: true });
-    fs.writeFileSync(LOCK_PATH, JSON.stringify({ pid: process.pid, ts: Date.now() }), { flag: 'wx' });
+    fs.rmSync(lockPath, { force: true });
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, ts: Date.now() }), { flag: 'wx' });
     return true;
   } catch {
     return false;
   }
 }
 
-export function releaseLock(): void {
+export function releaseLock(lockPath = LOCK_PATH): void {
   try {
-    fs.rmSync(LOCK_PATH, { force: true });
+    fs.rmSync(lockPath, { force: true });
   } catch {
     // best-effort — a leftover lock just self-heals via the staleness check
   }

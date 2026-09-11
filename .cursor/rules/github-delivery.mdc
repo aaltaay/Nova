@@ -1,0 +1,20 @@
+---
+description: Enforce truthful GitHub issue metadata, PR-first delivery, strict gates, and complete-only closure
+alwaysApply: true
+---
+
+# GitHub delivery lifecycle
+
+For issue, code, config, CI, security, or rule work, load `.cursor/skills/github-delivery/SKILL.md`.
+
+## Required
+
+1. Inspect the issue body, labels, owner, project, milestone, relationships, and Development links before work.
+2. Code/config/CI/rule changes use a feature branch and PR. Direct `master` push is only for status-only work or explicit user instruction.
+3. Every actionable issue has kind, priority, domain, concrete acceptance/Next, human owner while active, and a Nova Delivery project item when access exists.
+4. Milestones and relationships are conditional facts, never filler.
+5. Use `Closes #NNN` only when the whole issue is complete. Partial work uses `Refs #NNN`, gets an evidence comment, and leaves the issue open.
+6. Before merge, run relevant pytest, Ruff, ESLint, Vitest, build, Playwright/browser, doc, agent-contract, and shared-neighbor gates.
+7. After closing a deferred issue, run `py -3 tools/deferred_log.py refresh-index` and ship the refreshed index.
+
+If GitHub plan or token permissions prevent Projects or branch protection, report the exact limitation. Never claim the metadata or protection exists.

@@ -95,7 +95,7 @@ def _load_raw() -> list[dict]:
         data = json.loads(path.read_text(encoding="utf-8"))
         return list(data.get("channels") or [])
     except Exception as exc:
-        logger.error(
+        logger.exception(
             "alerts channels_store: CORRUPT or unreadable %s: %s -- treating as no channels",
             path.name,
             exc,

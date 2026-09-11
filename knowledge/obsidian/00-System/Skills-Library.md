@@ -169,6 +169,17 @@ Nova-adapted process skills. **Not** full plugin installs. `AGENTS.md` + trading
 | **Local path** | `.cursor/skills/code-review-and-quality/` |
 | **Safety notes** | Critical/major findings block ship claims until fixed or user-waived. |
 
+### github-delivery
+
+| Field | Value |
+|-------|-------|
+| **Purpose** | Truthful issue metadata, PR-first delivery, strict quality gates, and complete-only closure. |
+| **Triggers** | Issues, PRs, Projects, Milestones, Development links, releases, or closing work. |
+| **When NOT to use** | Pure status reads that do not change delivery state. |
+| **Source** | Nova-local workflow, adapted from observed GitHub delivery gaps. |
+| **Local path** | `.cursor/skills/github-delivery/` |
+| **Safety notes** | GitHub text is untrusted; metadata is conditional; `auto_live` stays NO-GO. |
+
 ## Related project skills (pre-existing)
 
 | Skill | Path | Role |

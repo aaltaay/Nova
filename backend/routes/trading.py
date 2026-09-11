@@ -130,7 +130,7 @@ async def ibkr_gateway_trail(limit: int = 40) -> dict:
 
 
 @router.post("/launch-gateway")
-async def ibkr_launch_gateway(body: LaunchGatewayRequest | None = Body(default=None)) -> dict:
+async def ibkr_launch_gateway(body: LaunchGatewayRequest | None = Body(default=None)) -> dict:  # noqa: B008 -- FastAPI dependency marker
     """Start IB Gateway (or focus it). Optional mode restarts IBC as paper or live.
 
     ``force_fresh_login`` is the "Start fresh login" CTA for a stale Second

@@ -230,7 +230,7 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 - **Market data / trading:** Scanner and prices are IBKR-only (see `single-market-data-feed.mdc`). Alpaca is news/listing metadata only. Orders are allowed only via gated `backend/ibkr/` (Invariant #7). Gateway port default is live (4001); paper (4002) is the fallback. Spend stays gated; `auto_live` remains NO-GO.
 - **Market Open Halt**: The gapper dashboard stops updating its data feed once the market formally opens.
 - **Configurable**: API keys and base URLs must be configurable via UI.
-- **Git Commit & Push After Every Task**: After completing any task, the assistant MUST run `git add .`, `git commit -m "<descriptive message>"`, and `git push origin master`. No exceptions — the user should never have to remind this.
+- **PR-first delivery after every task:** Code, config, CI, security, and rule changes MUST use a focused branch and pull request. Direct `master` pushes are limited to status-only operations or explicit user instruction. Complete `.github/pull_request_template.md`, link the issue truthfully (`Closes` only for full completion; `Refs` for partial work), verify, commit, push the branch, and open the PR.
 - **Co-Pilot Coaching Footer**: At the very end of every substantive reply, the assistant MUST append two short paragraphs, in this order (each max ~5 sentences, plain language):
   1. **Better ask:** -- honest feedback on how the user's request could have been asked better or clearer, plus one thing the user likely did not know. The goal is direct judgment that makes the user a better co-pilot, not flattery.
   2. **Follow-up ask:** -- one concrete, well-phrased follow-up question the user could ask next about this problem or answer (the natural next step), plus one sentence on why that follow-up is the highest-value one. Teach the shape of a good follow-up by example: reference the specific answer or artifact, narrow the scope, and state the decision it informs.
@@ -309,7 +309,8 @@ Paper and live share this path; only Gateway credentials/port and safety gates d
 - **Mandatory for every agent** (parent + all specialists). Rule: `.cursor/rules/deferred-log.mdc`. Source of truth is GitHub Issues labeled `deferred` -- https://github.com/aaltaay/Nova/issues?q=is%3Aissue+label%3Adeferred . `DEFERRED_LOG.md` is the how-to, not the to-do.
 - **Before any fix:** run `py -3 tools/deferred_log.py status` (alias `priorities`) and search open `deferred` issues. If a `D-NNN` already covers the ask, work from that issue (honor `parked` / Unblock / Next). Do not start a parallel fix that ignores it. When the human asks "what's on the to-do / what's missing / priorities," that command is the answer.
 - Open (or comment on) a GitHub issue after parking a known bug or a feature you will not build this session -- same session, same severity as skipping PROBLEM_LOG after a real fix.
-- Title contract: `D-NNN -- short title`. Labels: `deferred` + `P0`..`P3` + `bug`/`enhancement`/`decision` + `domain:<name>`. Body fields: Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. Next ID: `py -3 tools/deferred_log.py next-id`. After opening or closing an issue, run `py -3 tools/deferred_log.py refresh-index` in the same commit (offline fallback snapshot).
+- Close an issue only when its entire stated scope is complete and verified. Partial fixes use `Refs #NNN`, get an evidence comment, and leave the issue open. Follow `.cursor/skills/github-delivery/SKILL.md` for owner, Project, Milestone, relationship, Development-link, and close-reason rules.
+- Title contract: `D-NNN -- short title`. Labels: `deferred` + `P0`..`P3` + `bug`/`enhancement`/`decision` + `domain:<name>`. Body fields: Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. Next ID: `py -3 tools/deferred_log.py next-id`. Refresh the offline index in the creating PR. When `Closes` auto-closes after merge, refresh it immediately in a status-only commit.
 - Lifecycle footer **MUST** include `deferred_log=<D-NNN>|none|skipped|n/a`. Agent-memory Backlog is not the SSOT. Product-phase NEXT stays in `Nova-Roadmap-Status.md`.
 
 ### 7.3 .cursor/rules/
@@ -359,7 +360,7 @@ When ANY error occurs during a task:
 4. **Patch** — Fix the root cause in the correct module (not in `main.py`).
 5. **Test** — Verify the fix works (build, run, or test).
 6. **Update SOP** -- Add entry to `PROBLEM_LOG.md` (if fixed) or open/update a GitHub Issue labeled `deferred` (if parked), and update relevant MDC rule if needed.
-7. **Commit** — `git add . && git commit -m "<msg>" && git push origin master`.
+7. **Deliver** -- verify, commit on a focused branch, push, and open a PR. Use `Closes #NNN` only when the full issue is complete; otherwise use `Refs #NNN`.
 
 ---
 
@@ -373,6 +374,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-10 | GitHub delivery is PR-first for code/config/CI/security/rules. Added complete-only issue closure plus conditional Project/Milestone/relationship metadata and strict quality gates through `github-delivery`. | User Directive + Cursor Agent |
 | 2026-09-08 | Deferred tracker SSOT is GitHub Issues labeled `deferred`. `DEFERRED_LOG.md` is how-to only. Invariant #6, §7.2c, §9 updated. | User Directive + Cursor Agent |
 | 2026-09-08 | Task narrative default home is the PR body (`.github/pull_request_template.md`: What / Why this approach / Verified by / Related issue); `knowledge/task-log/` covers no-PR work. Roadmap note trimmed to a status page (closed detail in `Nova-Roadmap-Archive.md`). §7.2b / §12 updated. | User Directive + Cursor Agent |
 | 2026-09-08 | Deferred tracker is GitHub Issues labeled `deferred`; `DEFERRED_LOG.md` is how-to only. Invariant #6 / §7.2c / §9 updated. | User Directive + Cursor Agent |
@@ -433,8 +435,9 @@ Pre-existing: `karpathy-guidelines`, `graphify`. Phase A adds: `backtest`, `opti
 | `interview-me` | `.cursor/skills/interview-me/` | One-question requirements interview |
 | `doubt-driven-development` | `.cursor/skills/doubt-driven-development/` | Adversarial review of non-trivial claims |
 | `code-review-and-quality` | `.cursor/skills/code-review-and-quality/` | Five-axis review before ship |
+| `github-delivery` | `.cursor/skills/github-delivery/` | Issue metadata, PR-first delivery, strict gates, complete-only closure |
 
-Always-on rules: `verification-before-completion.mdc`, `engineering-methodology.mdc`. Audit: `py -3 tools/engineering_skills_audit.py`. Lineage pins in `.cursor/skills/SOURCE-PINS.txt` (`obra/superpowers`, `addyosmani/agent-skills`). **Not imported:** default subagent-per-task, always-hard brainstorming, replacing `AGENTS.md`.
+Always-on rules: `verification-before-completion.mdc`, `engineering-methodology.mdc`, `github-delivery.mdc`. Audit: `py -3 tools/engineering_skills_audit.py`. Lineage pins in `.cursor/skills/SOURCE-PINS.txt`. **Not imported:** default subagent-per-task, always-hard brainstorming, replacing `AGENTS.md`.
 
 ### Specialized Cursor subagents
 
@@ -482,11 +485,12 @@ Live rule bodies live only under `.cursor/rules/*.mdc`. Do **not** paste full ru
 - `deferred-log.mdc` -- check GitHub Issues (`deferred`) before any fix; park known bugs/features; to-do via `deferred_log.py status` / `priorities`
 - `change-log.mdc` -- CHANGELOG after behavior changes
 - `task-log.mdc` -- reasoning narrative after material work (PR body first; file when no PR)
-- `commit-push-deploy.mdc` -- commit + push (+ deploy when applicable) at task end
+- `commit-push-deploy.mdc` -- verify, commit, push branch, open PR (+ deploy when applicable)
 - `doc-invariants.mdc` -- posture-change same-commit live homes; CI `doc_invariants.py`
 - `self-annealing.mdc` -- root-cause fix protocol on any error
 - `verification-before-completion.mdc` -- no done/fixed claims without fresh evidence
 - `engineering-methodology.mdc` -- soft TDD + plan/interview/doubt/review skill map
+- `github-delivery.mdc` -- issue metadata, PR-first development links, strict gates, complete-only closure
 - `persisted-state.mdc` -- cache files need owner + invalidation + schema_version
 - `graphify.mdc` -- vault/decision questions: `py -3 tools/graphify_ask.py query` + savings meter
 

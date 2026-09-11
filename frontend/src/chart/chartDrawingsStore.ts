@@ -133,8 +133,7 @@ export function ensureDrawings(symbol: string): Promise<SerializedDrawing[]> {
   const existing = inflight.get(key);
   if (existing) return existing;
 
-  let promise!: Promise<SerializedDrawing[]>;
-  promise = fetchDrawings(key)
+  const promise = fetchDrawings(key)
     .catch(() => getDrawings(key))
     .finally(() => {
       if (inflight.get(key) === promise) inflight.delete(key);

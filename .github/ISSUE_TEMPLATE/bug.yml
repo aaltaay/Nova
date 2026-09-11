@@ -1,0 +1,67 @@
+name: Bug
+description: Report incorrect Nova behavior with reproducible evidence.
+title: "Bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, account identifiers, tokens, or full .env contents.
+  - type: textarea
+    id: symptom
+    attributes:
+      label: Symptom
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and evidence
+      description: Exact steps, timestamps, logs, screenshots, or failing command.
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Proposed priority
+      options:
+        - P0 - trading safety or total outage
+        - P1 - major reliability or operator blocker
+        - P2 - normal defect
+        - P3 - minor defect
+    validations:
+      required: true
+  - type: dropdown
+    id: domain
+    attributes:
+      label: Domain
+      options:
+        - execution
+        - ibkr-ops
+        - market-feed
+        - frontend
+        - tester
+        - security
+        - docs
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable checks that must pass before this issue can close.
+      placeholder: |
+        - [ ] Regression test reproduces and passes
+        - [ ] Relevant neighbor remains healthy
+        - [ ] User-visible behavior is verified
+    validations:
+      required: true
+  - type: textarea
+    id: relationships
+    attributes:
+      label: Relationships and blockers
+      description: Parent, sub-issue, blocked-by, duplicate, or related issue numbers. Write "none" when there is no real relationship.
+    validations:
+      required: true

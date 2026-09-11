@@ -1,22 +1,8 @@
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { attachErrorCollector } from './helpers/errorCollector';
 
 /** Mirrors MODULE_VISIBILITY_STORAGE_KEY — avoid importing Vite-bound constants in e2e. */
 const MODULE_VISIBILITY_STORAGE_KEY = 'nova_module_visibility_v1';
-
-/** Collect page errors + console.error; ignore benign network noise. */
-function attachErrorCollector(page: Page): { errors: string[] } {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => {
-    errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error') return;
-    const text = msg.text();
-    if (/Failed to load resource|net::ERR_|WebSocket|Scanner API network error/i.test(text)) return;
-    errors.push(`console.error: ${text}`);
-  });
-  return { errors };
-}
 
 async function clearModuleVisibility(page: Page) {
   await page.goto('/');
@@ -24,7 +10,7 @@ async function clearModuleVisibility(page: Page) {
     localStorage.removeItem(key);
   }, MODULE_VISIBILITY_STORAGE_KEY);
   await page.reload();
-  await expect(page.locator('.tab-bar')).toBeVisible();
+  await expect(page.getByTestId('scanner-side-nav')).toBeVisible();
 }
 
 test.describe('Phase 4 — Module registry tabs', () => {
@@ -40,11 +26,11 @@ test.describe('Phase 4 — Module registry tabs', () => {
     await expect(page.getByTestId('modules-menu')).toHaveCount(0);
 
     await page.locator('[data-tab="gainers"]').click();
-    await expect(page.locator('.tab-bar')).toHaveAttribute('data-active-tab', 'gainers');
+    await expect(page.getByTestId('scanner-side-nav')).toHaveAttribute('data-active-tab', 'gainers');
 
     await page.locator('[data-tab="losers"]').evaluate((el: HTMLElement) => el.click());
-    await expect(page.locator('.tab-bar')).toHaveAttribute('data-active-tab', 'losers');
-    await expect(page.locator('[data-tab="losers"]')).toHaveClass(/active/);
+    await expect(page.getByTestId('scanner-side-nav')).toHaveAttribute('data-active-tab', 'losers');
+    await expect(page.locator('[data-tab="losers"]')).toHaveClass(/is-active/);
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
@@ -56,7 +42,7 @@ test.describe('Phase 4 — Module registry tabs', () => {
       localStorage.setItem(key, JSON.stringify({ gappers: false }));
     }, MODULE_VISIBILITY_STORAGE_KEY);
     await page.reload();
-    await expect(page.locator('.tab-bar')).toBeVisible();
+    await expect(page.getByTestId('scanner-side-nav')).toBeVisible();
     await expect(page.locator('[data-tab="gappers"]')).toHaveCount(0);
     await expect(page.locator('[data-tab="gainers"]')).toBeVisible();
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);

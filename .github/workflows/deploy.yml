@@ -2,11 +2,11 @@
 #
 # Backend is local / Desktop sidecar only -- Railway hosting is retired.
 # On every push to main/master and on PRs targeting those branches:
-#   1. backend-test   -- install Python deps, run pytest (no tests = OK, real failures block)
-#   2. frontend-build -- npm ci + vite build (catches TypeScript / import errors)
-#   3. security / agent-contract jobs (warning-only where noted)
-#   4. doc_invariants.py inside agent-contract (blocks stale live-doc claims)
-#   5. engineering_skills_audit.py (methodology graft: verify/plan/interview/doubt/review)
+#   1. backend-test   -- Ruff + pytest
+#   2. frontend-build -- ESLint + Vitest + production build
+#   3. frontend-e2e   -- Playwright Chromium
+#   4. security / agent-contract jobs (warning-only where noted)
+#   5. doc_invariants.py + engineering_skills_audit.py
 #
 # Optional GitHub variable (Settings → Variables → Actions):
 #   VITE_API_BASE_URL -- override for frontend CI build; defaults to a placeholder.
@@ -36,22 +36,13 @@ jobs:
           cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: pip install -r backend/requirements.txt pytest pytest-asyncio
+        run: pip install -r backend/requirements.txt pytest pytest-asyncio ruff==0.15.21
+
+      - name: Ruff
+        run: ruff check backend
 
       - name: Run tests
-        # Exit 5 means "no tests collected" — acceptable until tests are added.
-        # GitHub's bash runs with `set -e`; pytest exit 5 would abort before we read $?.
-        run: |
-          set +e
-          pytest backend/ -x -q --tb=short
-          PYTEST_EXIT=$?
-          set -e
-          if [ "$PYTEST_EXIT" -eq 5 ]; then
-            echo "No tests collected — OK"
-            exit 0
-          fi
-          exit "$PYTEST_EXIT"
-        shell: bash
+        run: pytest backend/ -x -q --tb=short
 
   frontend-build:
     name: Frontend build
@@ -69,6 +60,14 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      - name: Lint
+        run: npm run lint
+        working-directory: frontend
+
+      - name: Unit tests
+        run: npm test -- --run
+        working-directory: frontend
+
       - name: Build
         # Default URL keeps vite/meta/postbuild happy when Actions var is unset.
         run: |
@@ -77,6 +76,30 @@ jobs:
         working-directory: frontend
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+
+  frontend-e2e:
+    name: Frontend E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Playwright
+        run: npm run test:e2e
+        working-directory: frontend
 
   security-audit:
     name: Security audit (warning-only)

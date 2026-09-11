@@ -36,8 +36,8 @@ Starting a fix that is already an open issue, without reading the issue, is a co
 3. Body fields (never optional): Kind, Severity, Effort, Why parked, Blast radius, Unblock, Next, Evidence. How-to: `DEFERRED_LOG.md`.
 4. Do not log secrets, tokens, or personal data.
 5. Cross-link from CHANGELOG / task-log `Related:` when those also get an entry.
-6. When you later **fix** it: close the issue (reason completed), write `PROBLEM_LOG.md` if it was a bug, and set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`.
-7. After opening or closing an issue, run `py -3 tools/deferred_log.py refresh-index` in the same commit. A stale `knowledge/deferred-index.json` is how `next-id` hands out an ID that already exists.
+6. When you later **fix the entire issue**: use `Closes #NNN` in the PR, close with reason completed, write `PROBLEM_LOG.md` for a bug, and set Lifecycle `deferred_log=D-NNN` plus `problem_log=...`. Partial fixes use `Refs #NNN`, get an evidence comment, and leave the issue open.
+7. Refresh the index in the PR that opens an issue. When `Closes` auto-closes after merge, run `py -3 tools/deferred_log.py refresh-index` immediately and push that generated snapshot as a status-only commit. A stale index is how `next-id` reuses an ID.
 
 ## Do not
 

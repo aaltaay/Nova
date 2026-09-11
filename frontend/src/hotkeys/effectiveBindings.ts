@@ -49,7 +49,7 @@ export function getEffectiveAutomationBindings(
 function isLegacyMenuDefault(chord: HotkeyKeyChord): boolean {
   const key = chord.key.toLowerCase();
   const bare =
-    !chord.shift && !chord.meta && !Boolean(chord.ctrl) && !Boolean(chord.alt);
+    !chord.shift && !chord.meta && !chord.ctrl && !chord.alt;
   if ((key === 'control' || key === 'alt') && bare) return true;
   return (
     key === 'm'

@@ -1,19 +1,5 @@
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test';
-
-/** Collect page errors + console.error; ignore benign network noise. */
-function attachErrorCollector(page: Page): { errors: string[] } {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => {
-    errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error') return;
-    const text = msg.text();
-    if (/Failed to load resource|net::ERR_|WebSocket/i.test(text)) return;
-    errors.push(`console.error: ${text}`);
-  });
-  return { errors };
-}
+import { test, expect, type Page } from '@playwright/test';
+import { attachErrorCollector } from './helpers/errorCollector';
 
 async function lookUpSymbol(page: Page, symbol: string) {
   const input = page.getByLabel('Look up symbol');
@@ -22,6 +8,11 @@ async function lookUpSymbol(page: Page, symbol: string) {
 }
 
 test.describe('Phase 1 — Level 2 + Time & Sales modules', () => {
+  test.skip(
+    process.env.NOVA_E2E_LIVE_IBKR !== '1',
+    'Requires local IBKR READY; deterministic CI has no Gateway',
+  );
+
   test('Stock View renders independent L2 and T&S modules', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=stock&symbol=AAPL');

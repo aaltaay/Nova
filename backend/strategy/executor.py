@@ -32,7 +32,6 @@ from dataclasses import dataclass
 from constants import (
     EXECUTOR_ENTRY_SIDE_JOURNAL,
     EXECUTOR_FILL_POLL_INTERVAL_SEC,
-    NOVA_OS_MAX_CONCURRENT_POSITIONS,
     NOVA_OS_MODE_CONFIRM,
     NOVA_OS_MODE_SIGNAL,
 )
@@ -158,7 +157,7 @@ def _cancel_bracket_if_parent_unfilled(pos: OpenPosition) -> tuple[list[int], st
         # Cannot verify whether the parent is still working — treat as
         # unknown rather than guessing "unfilled" and cancelling a filled
         # position's live protective stop/target.
-        logger.error("kill/cancel: open_orders failed for %s — %s", pos.symbol, exc)
+        logger.exception("kill/cancel: open_orders failed for %s — %s", pos.symbol, exc)
         return [], "unknown_state"
     if pos.parent_order_id not in open_ids:
         return [], "preserved_protective"

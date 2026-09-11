@@ -221,7 +221,6 @@ def test_approach_percent_scales_across_price_levels():
     assert abs(approach.reset_threshold(0.50) - 0.50 * (1 - HOD_MOMO_REAPPROACH_RESET_PCT)) < 1e-9
     assert abs(approach.reset_threshold(6.00) - 6.00 * (1 - HOD_MOMO_REAPPROACH_RESET_PCT)) < 1e-9
     # $0.50 stock: arm at/below 0.4975
-    state = hm.get_state()
     _reset()
     assert not approach.is_armed("PENNY")
     approach.update_latch("PENNY", 0.4975, 0.50, high_seeded=True)

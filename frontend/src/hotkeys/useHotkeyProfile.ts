@@ -4,7 +4,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DESK_ASK_BID_HOTKEY_EPOCH } from '../constants';
 import {
   analyzeProfile,
   summarizeAnalyses,
@@ -50,7 +49,7 @@ export function useHotkeyProfile() {
     if (deskAskBidEpochNeedsApply()) {
       setProfile(loadProfile());
     }
-  }, [DESK_ASK_BID_HOTKEY_EPOCH]);
+  }, []);
 
   const analyses = useMemo(
     () => analyzeProfile(profile.records),

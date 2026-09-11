@@ -1,19 +1,5 @@
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test';
-
-/** Collect page errors + console.error; ignore benign network noise. */
-function attachErrorCollector(page: Page): { errors: string[] } {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => {
-    errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error') return;
-    const text = msg.text();
-    if (/Failed to load resource|net::ERR_|WebSocket/i.test(text)) return;
-    errors.push(`console.error: ${text}`);
-  });
-  return { errors };
-}
+import { test, expect } from '@playwright/test';
+import { attachErrorCollector } from './helpers/errorCollector';
 
 test.describe('Phase 2 — WorkspaceContext', () => {
   test('Trader URL still opens under WorkspaceProvider', async ({ page }) => {

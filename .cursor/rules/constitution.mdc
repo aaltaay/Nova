@@ -14,7 +14,7 @@ Before writing ANY code in this project, you MUST:
 4. **Never violate modularity.** Do not add logic to `main.py` or `App.tsx`. Extract to modules.
 5. **Never violate file size limits.** No file > 400 lines for new code.
 6. **Log your work.** Update `CHANGELOG.md` for every behavior change; **MUST** prepend `PROBLEM_LOG.md` after any bug fix / diagnosis (mandatory for every agent -- see `problem-log.mdc`); **MUST** run `py -3 tools/deferred_log.py status` **before any fix**, and open or update a GitHub Issue labeled `deferred` after parking a known bug or feature (see `deferred-log.mdc`); write the task narrative in the PR body (`.github/pull_request_template.md`), or under `knowledge/task-log/` when there is no PR (see `task-log.mdc`).
-7. **Commit and push** at the end of every task. `git add . && git commit -m "<msg>" && git push origin master`.
+7. **PR-first delivery** at the end of every code/config/CI/security/rule task. Verify, commit on a focused branch, push, fill the PR template, and open a PR. Direct `master` pushes require status-only scope or explicit user instruction.
 
 ## Rule Hierarchy (highest to lowest)
 
@@ -27,7 +27,7 @@ Before writing ANY code in this project, you MUST:
 - ❌ Adding a function to `backend/main.py` → put it in the correct module
 - ❌ Adding a component to `frontend/src/App.tsx` → put it in `components/`
 - ❌ Hardcoding a number or string → put it in `constants.py` / `constants.ts`
-- ❌ Forgetting to commit and push → always run git add/commit/push
+- ❌ Direct-pushing product work to `master` -- use a focused branch and PR
 - ❌ Forgetting CHANGELOG.md → entry required for every behavior change
 - ❌ Fixing a bug without a `PROBLEM_LOG.md` entry → mandatory for every agent
 - ❌ Parking a known bug or feature without a GitHub Issue labeled `deferred` → dump in agent-memory Backlog is not enough
