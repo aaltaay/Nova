@@ -218,11 +218,11 @@
       "title": "Persisted files still ship without `schema_version` (backend JSON + frontend localStorage)",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed | widgets | hod-momo | news",
       "number": "30",
       "url": "https://github.com/aaltaay/Nova/issues/30",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-020",
@@ -306,22 +306,22 @@
       "title": "Depth cap force-evicts a live viewer instead of refusing the 4th symbol",
       "kind": "decision",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "market-feed",
       "number": "22",
       "url": "https://github.com/aaltaay/Nova/issues/22",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-028",
       "title": "HOD / alert honesty: mutual-vouch integrity, memory-only Large Cap dedupe, cooldown 0",
       "kind": "bug",
       "severity": "P2",
-      "status": "open",
+      "status": "done",
       "domain": "hod-momo",
       "number": "21",
       "url": "https://github.com/aaltaay/Nova/issues/21",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-029",
