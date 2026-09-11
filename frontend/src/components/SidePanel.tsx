@@ -1,6 +1,7 @@
 /** Scanner side panel — quote, panel chart, fundamentals for selectedSymbol. */
 import { useEffect, useMemo, useState } from 'react';
 import {
+  QUOTE_PANEL_STALE_LABEL,
   QUOTE_PANEL_TITLE,
   STOCK_VIEW_OPEN_LABEL,
   STOCK_VIEW_OPEN_TITLE,
@@ -27,7 +28,8 @@ export function SidePanel({
     openStockView,
   } = useWorkspace();
   const [input, setInput] = useState(selectedSymbol ?? '');
-  const { detail, loading, refreshing, fetchFailed } = useTickerStream(selectedSymbol);
+  const { detail, loading, refreshing, fetchFailed, stale, disconnectedSince } =
+    useTickerStream(selectedSymbol);
 
   const watchlistEntry = useMemo(() => {
     if (!selectedSymbol) return null;
@@ -94,6 +96,19 @@ export function SidePanel({
           <div className="detail-refreshing-bar">
             <div className="detail-loading-spinner detail-loading-spinner--small" />
             <span>Updating {selectedSymbol}…</span>
+          </div>
+        )}
+        {!showFullSpinner && selectedSymbol && stale && detail?.symbol === selectedSymbol && (
+          <div
+            className="detail-stale-bar"
+            role="status"
+            data-testid="quote-stale-badge"
+            title={QUOTE_PANEL_STALE_LABEL}
+          >
+            {QUOTE_PANEL_STALE_LABEL}
+            {disconnectedSince != null
+              ? ` · last live ${new Date(disconnectedSince).toLocaleTimeString()}`
+              : ''}
           </div>
         )}
         {!showFullSpinner && selectedSymbol && detail?.symbol === selectedSymbol && (

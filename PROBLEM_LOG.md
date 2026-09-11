@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Quote Panel ticker WS never reconnects
+
+- **Symptom:** After `/ws/ticker/{symbol}` closed (API restart, Gateway blip), Quote Panel kept the last price and daily bar with no reconnect and no stale badge. `rel_volume` kept recomputing from the frozen snapshot.
+- **Cause:** `useTickerStream` `onclose` / `onerror` only cleared loading flags and set `fetchFailed` when no `initial` had arrived. There was no backoff timer. Sibling hooks (`useIbkrDepth`, tape, scanner, HOD, signals) already reconnect.
+- **Fix:** Copied the depth-hook reconnect shape (backoff ref + timer ref + cleanup) into `useTickerStream`. Returned `stale` / `disconnectedSince`. Quote Panel renders a stale bar while the last quote stays visible.
+- **Fix class:** infra
+- **Keywords:** useTickerStream, /ws/ticker, reconnect, onclose, stale quote, Quote Panel, fetchFailed, backoff, D-021
+
 ## 2026-09-11 -- Afterhours Gap % copied Change %
 
 - **Symptom:** AH Gap % matched Change % on every row (OKTG showed +53.29% gap while open vs prior close was -2.50%).

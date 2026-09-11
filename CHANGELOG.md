@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Quote Panel ticker WS reconnects after close
+
+- **What:** `useTickerStream` now reconnects `/ws/ticker/{symbol}` with the same backoff + timer cleanup as `useIbkrDepth`. After a snapshot, a drop keeps the last quote and marks it stale. Quote Panel shows a yellow "Quote stale -- reconnecting" badge with last-live time.
+- **Why:** D-021 / #26. After an API restart or Gateway blip the Quote Panel froze on the last price with no reconnect and no badge. Every other Nova WS hook already had backoff.
+- **Files touched:** `frontend/src/hooks/useTickerStream.ts`, `frontend/src/hooks/useTickerStream.test.tsx`, `frontend/src/components/SidePanel.tsx`, `frontend/src/constantGroups/chart_api.ts`, `frontend/src/styles/quote-layout.css`
+- **How it works now:** Close/error no longer stops the hook after `initial`. `onclose` sets `stale` + `disconnectedSince` when a snapshot exists, then `setTimeout(connect)` with 1s..30s backoff. Symbol switch and unmount clear the timer so a late reconnect cannot open an orphan socket. A later `initial` / `detail_update` / `trade_update` clears stale. HTTP seed still fills a first quote if WS is late.
+- **Verified by:** `npx vitest run src/hooks/useTickerStream.test.tsx` -- 3 passed; `npm test` -- 888 passed; `npm run lint` -- 0 warnings; `npm run build` -- tsc + vite exit 0.
+- **Follow-ups:** D-023 (#25) still parks the header status chip that can keep last-good "connected".
+- **Related:** Closes #26. PROBLEM_LOG 2026-09-11 Quote Panel ticker WS never reconnects.
+
 ## 2026-09-11 -- Market-feed honesty: AH gap, yfinance miss, ticker snapshot
 
 - **What:** Afterhours Gap % is open vs prior close (not Change %). A yfinance failure is logged and cached for 60s, not 15 minutes of silent blanks. Ticker cold snapshot reads stored 1Min bars and afterhours cache, and logs a real exception type when `reqTickersAsync` times out.
