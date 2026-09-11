@@ -1,7 +1,7 @@
 {
   "name": "nova",
   "private": true,
-  "version": "0.1.466",
+  "version": "0.1.474",
   "description": "Nova — local stock scanner (web + Windows desktop)",
   "author": "Altay Studio",
   "type": "module",
@@ -21,8 +21,8 @@
     "preview": "vite preview",
     "electron:dev": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"wait-on http://127.0.0.1:5173 && cross-env NOVA_VITE_URL=http://127.0.0.1:5173 electron .\"",
     "build:api": "node scripts/build-api-sidecar.mjs",
-    "electron:pack": "npm run build:api && npm run build:electron-renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis --x64",
-    "electron:dir": "npm run build:api && npm run build:electron-renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win dir --x64"
+    "electron:pack": "npm run build:api && npm run build:electron-renderer && node scripts/run-electron-pack.mjs nsis",
+    "electron:dir": "npm run build:api && npm run build:electron-renderer && node scripts/run-electron-pack.mjs dir"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -99,7 +99,7 @@
           ]
         }
       ],
-      "artifactName": "Nova-Setup-${version}.${ext}",
+      "artifactName": "Nova-Setup-${env.NOVA_RELEASE_TAG}.${ext}",
       "signAndEditExecutable": false
     },
     "nsis": {

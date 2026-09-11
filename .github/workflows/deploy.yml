@@ -7,6 +7,8 @@
 #   3. frontend-e2e   -- Playwright Chromium
 #   4. security / agent-contract jobs (warning-only where noted)
 #   5. doc_invariants.py + engineering_skills_audit.py
+#   6. Desktop pack (Windows EXE + vNNN tag) lives in desktop-pack.yml --
+#      required before merge; this file stays the Linux test/lint/e2e gate.
 #
 # Optional GitHub variable (Settings → Variables → Actions):
 #   VITE_API_BASE_URL -- override for frontend CI build; defaults to a placeholder.
@@ -197,7 +199,7 @@ jobs:
         run: pip install pytest
 
       - name: Agent tool tests
-        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py -q --tb=short
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py tools/test_desktop_pack_workflow.py -q --tb=short
 
       - name: Structural validation (CI mode)
         # --ci skips user-local canvas file existence (canvases live outside the repo).
