@@ -17,8 +17,8 @@ from constants import (
     IBKR_TABLE_REPRICE_CHUNK_SIZE,
     IBKR_TABLE_REPRICE_MAX_SYMBOLS,
 )
-from ibkr import discovery as _ibkr_discovery
 from ibkr import client as _ibkr_client
+from ibkr import l1_apply as _l1_apply
 from ibkr import reprice as _ibkr_reprice
 from ibkr import scanner_session as _ss
 from runtime_state import get_runtime_state
@@ -220,114 +220,17 @@ def apply_l1_quote(
     quote_quality: str | None = None,
     open_price: float | None = None,
 ) -> dict | None:
-    """Apply one L1 tick onto scanner caches + HOD; return patch row fields.
-
-    ADR 008: HOD's reserved L1 pool keeps ticking retained symbols after
-    their table freezes (09:30/16:00/20:00). Each cache write below is
-    gated on that table's ``TableState`` so a HOD-only tick can never mutate
-    a table the user is told is immutable for the rest of the session.
-    """
-    sym = (symbol or "").strip().upper()
-    if not sym or price is None:
-        return None
-    state = get_runtime_state()
-    q = {
-        "price": float(price),
-        "prev_close": prev_close,
-        "volume": volume if volume is not None else 0,
-        "open": open_price,
-    }
-    now = float(ts_unix)
-    patch: dict = {
-        "symbol": sym,
-        "price": float(price),
-        "volume": volume,
-        "quote_ts": now,
-    }
-    if quote_quality:
-        patch["quote_quality"] = quote_quality
-
-    def _touch_row(row: dict, reprice_fn) -> dict:
-        return reprice_fn(row, q) if row.get("symbol", "").upper() == sym else row
-
-    if state.gainer_cache and not _ss.is_table_frozen(state, _ss.TABLE_GAINERS):
-        state.gainer_cache = [
-            _touch_row(r, _ibkr_discovery.reprice_mover_row) for r in state.gainer_cache
-        ]
-        state.gainer_cache_ts = now
-        for r in state.gainer_cache:
-            if (r.get("symbol") or "").upper() == sym:
-                patch.update({
-                    "change_pct": r.get("change_pct"),
-                    "change_abs": r.get("change_abs"),
-                    "gap_percent": r.get("gap_percent"),
-                    "volume": r.get("volume", volume),
-                })
-                break
-        # This tick may have moved a name across the gap floor in either
-        # direction — premarket Gappers is a projection of this roster.
-        try:
-            from ibkr import gapper_view
-
-            gapper_view.refresh(state, source="l1")
-        except Exception:
-            logger.debug("apply_l1_quote: gapper view refresh failed", exc_info=True)
-    if state.loser_cache and not _ss.is_table_frozen(state, _ss.TABLE_LOSERS):
-        state.loser_cache = [
-            _touch_row(r, _ibkr_discovery.reprice_mover_row) for r in state.loser_cache
-        ]
-        state.loser_cache_ts = now
-    if (
-        state.gapper_cache
-        and not (state.gainer_cache or state.loser_cache)
-        and not _ss.is_table_frozen(state, _ss.TABLE_GAPPERS)
-    ):
-        state.gapper_cache = [
-            _touch_row(r, _ibkr_discovery.reprice_gapper_row) for r in state.gapper_cache
-        ]
-        state.gapper_cache_ts = now
-        for r in state.gapper_cache:
-            if (r.get("symbol") or "").upper() == sym:
-                patch.update({
-                    "change_pct": r.get("change_pct"),
-                    "change_abs": r.get("change_abs"),
-                    "gap_percent": r.get("gap_percent"),
-                    "volume": r.get("volume", volume),
-                })
-                break
-    if (
-        state.afterhours_cache
-        and state.current_mode == "afterhours"
-        and not _ss.is_table_frozen(state, _ss.TABLE_AFTERHOURS)
-    ):
-        state.afterhours_cache = _ah_discovery.reprice_afterhours_rows_ibkr(
-            state.afterhours_cache, {sym: q}, state.avg_volume_cache,
-        )
-        state.afterhours_cache_ts = now
-        for r in state.afterhours_cache:
-            if (r.get("symbol") or "").upper() == sym:
-                patch.update({
-                    "change_pct": r.get("change_pct"),
-                    "change_abs": r.get("change_abs"),
-                    "gap_percent": r.get("gap_percent"),
-                    "volume": r.get("volume", volume),
-                })
-                break
-
-    if state.large_cap_cache:
-        import large_cap_reprice as _lc_reprice
-
-        state.large_cap_cache, lc_patch = _lc_reprice.apply_l1_tick(
-            state.large_cap_cache, sym, q, now,
-        )
-        state.large_cap_cache_ts = now
-        if lc_patch:
-            patch.update(lc_patch)
-
-    from hod_tick_feed import feed_hod_on_tick
-
-    feed_hod_on_tick(sym, price, volume, now)
-    return patch
+    """IB-tick apply. Tests patch ``ibkr_bridge.get_runtime_state``."""
+    return _l1_apply.apply_l1_quote(
+        symbol,
+        price,
+        volume,
+        prev_close,
+        ts_unix,
+        quote_quality=quote_quality,
+        open_price=open_price,
+        get_state=get_runtime_state,
+    )
 
 
 def apply_table_quotes(quotes: dict) -> dict | None:

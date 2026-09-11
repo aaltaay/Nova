@@ -141,6 +141,12 @@ async def _on_session_ready(ib: Any, *, reason: str) -> None:
     except Exception:
         logger.exception("IBKR: clear_all_subscriptions failed on READY (%s)", reason)
     try:
+        from ibkr import discovery as _discovery
+
+        _discovery.clear_inflight_scan_reqids(reason=reason)
+    except Exception:
+        logger.exception("IBKR: clear_inflight_scan_reqids failed on READY (%s)", reason)
+    try:
         _session_errors.install_error_hook(ib)
     except Exception:
         logger.exception("IBKR: session_errors hook install failed on READY (%s)", reason)

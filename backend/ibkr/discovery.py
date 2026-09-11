@@ -70,6 +70,23 @@ def reset_scan_cache() -> None:
     _scan_cache.clear()
 
 
+def clear_inflight_scan_reqids(*, reason: str = "") -> int:
+    """Drop one-shot scanner reqIds after a full reconnect.
+
+    A new ``IB()`` invalidates those ids. Leaving them lets
+    ``recover_scanner_slots`` cancel ids the new session never issued (D-039).
+    """
+    n = len(_inflight_scan_reqids)
+    _inflight_scan_reqids.clear()
+    if n:
+        logger.warning(
+            "IBKR discovery: cleared %d stale scanner reqId(s) (%s)",
+            n,
+            reason or "unspecified",
+        )
+    return n
+
+
 def _get_scan_lock() -> asyncio.Lock:
     global _scan_lock
     if _scan_lock is None:

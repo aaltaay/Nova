@@ -40,6 +40,14 @@ Entry template (copy and fill in):
 - **Follow-ups:** D-012 (#37) ledger writes / cancel-verify on the wrong thread is untouched and still open.
 - **Related:** Closes #39. PROBLEM_LOG 2026-09-11 Broker send outside the execution lock.
 
+## 2026-09-11 -- Scanner L1 apply, roster commit, and Error 101 budget
+
+- **What:** L1 ticks patch one roster row in place instead of rebuilding every scanner list. Roster commit stays live on REST if the WebSocket replace throws. Scanner one-shot reqIds clear on READY, and `/api/ibkr/status` shows live `reqMktData` lines vs `IBKR_L1_STREAM_BUDGET`.
+- **Why:** D-019 / #31 (IB callback CPU), D-026 / #23 (REST/WS split-brain), D-039 / #10 (stale reqIds + silent Error 101).
+- **Files touched:** `backend/ibkr/l1_apply.py`, `backend/ibkr_bridge.py`, `backend/ibkr/scanner_hydrate.py`, `backend/ibkr/discovery.py`, `backend/ibkr/client.py`, `backend/ibkr/ticks.py`, `backend/routes/trading.py`, `backend/afterhours_discovery.py`
+- **How it works now:** Each table keeps a `symbol -> index` map rebuilt only when the roster list is replaced. AH L1 uses `reprice_afterhours_row_ibkr` and keeps D-002 gap (open vs prior close) separate from Change %. `commit_table` treats WS push as after-commit; failures increment `roster_push_failed` and still return `True`. `_on_session_ready` clears `_inflight_scan_reqids`. Status carries `reqMktData_lines`, `reqMktData_by_owner`, `reqMktData_limit`, `reqMktData_remaining`, `max_tickers_hit`.
+- **Verified by:** focused pytest on bridge / hydrate / discovery / ticks / client READY / `/api/ibkr/status` plus AH D-002 neighbor tests.
+- **Related:** PROBLEM_LOG 2026-09-11 scanner reliability pack. Closes #31 #23 #10.
 ## 2026-09-11 -- Desk ops: sidecar restart, Railway leftovers, config write auth
 
 - **What:** Electron sidecar restarts are serialized and wait for port 8000 to free; main and Trader window bounds persist in userData with `schema_version`. Railway toml/prebuild/volume fallbacks are gone; `api-console.log` rotates by size. `POST /api/config` requires `NOVA_API_KEY` even on loopback.
@@ -48,6 +56,7 @@ Entry template (copy and fill in):
 - **How it works now:** One sidecar queue runs start/restart. Bounds restore only when they still overlap a display. Config writes fail closed without `X-Nova-Api-Key`; Desktop provisions the key. Auth/config audit logs name changed keys and booleans only -- format strings avoid `api_key` / `NOVA_API_KEY` tokens so Semgrep p/python does not treat them as credential leaks. Launcher rotates `api-console.log` at 5 MB and keeps five dated files. Cache paths honor `NOVA_CACHE_DIR` only.
 - **Verified by:** pytest auth/config/hygiene/rotate; Vitest serial queue, bounds, envMerge, novaFetch; Semgrep `p/python` on `auth.py` / `routes/health.py`.
 - **Related:** Closes #17 (D-032), #19 (D-030), #9 (D-040). PROBLEM_LOG 2026-09-11 desk-ops batch + Semgrep logger false positive.
+
 
 ## 2026-09-11 -- Quote Panel ticker WS reconnects after close
 

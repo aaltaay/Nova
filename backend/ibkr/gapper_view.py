@@ -31,6 +31,20 @@ from market import session_key_et
 logger = logging.getLogger(__name__)
 
 
+def row_qualifies(row: dict | None) -> bool:
+    """True when a gainer row clears the premarket gap floor."""
+    if not row or not (row.get("symbol") or "").strip():
+        return False
+    price = row.get("price")
+    prev_close = row.get("prev_close")
+    change_pct = row.get("change_pct")
+    if price is None or not prev_close or change_pct is None:
+        return False
+    if price < SCANNER_MIN_PRICE:
+        return False
+    return change_pct * 100 >= GAPPER_MIN_GAP_PCT
+
+
 def derive_rows(gainer_rows: list[dict] | None) -> list[dict]:
     """Gapper-shaped rows for gainers whose move clears the gap floor.
 
@@ -39,18 +53,11 @@ def derive_rows(gainer_rows: list[dict] | None) -> list[dict]:
     """
     out: list[dict] = []
     for row in gainer_rows or []:
-        sym = (row.get("symbol") or "").strip().upper()
-        if not sym:
+        if not row_qualifies(row):
             continue
-        price = row.get("price")
         prev_close = row.get("prev_close")
+        price = row.get("price")
         change_pct = row.get("change_pct")
-        if price is None or not prev_close or change_pct is None:
-            continue
-        if price < SCANNER_MIN_PRICE:
-            continue
-        if change_pct * 100 < GAPPER_MIN_GAP_PCT:
-            continue
         out.append({
             **row,
             "previous_close": prev_close,
