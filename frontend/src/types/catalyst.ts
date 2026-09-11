@@ -1,7 +1,7 @@
 import type { NewsImpactVerdict } from './newsImpact';
 
-/** One row of the experimental News Catalysts tab — any ticker mentioned in recent
- * market news, regardless of exchange/size (unlike the Gappers/Movers scanners). */
+/** One row of the on-roster News Catalysts tab -- IBKR Gappers/Gainers/AH
+ * names that also have a recent headline. Nova News is the AI-in-trading desk. */
 export interface Catalyst {
   symbol: string;
   /** Listing venue from Alpaca assets (e.g. NASDAQ, NYSE, ARCA). */

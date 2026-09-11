@@ -62,6 +62,14 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M8 16h5" />
     </Icon>
   ),
+  nova_news: (
+    <Icon>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 8h10" />
+      <path d="M7 12h6" />
+      <path d="M7 16h8" />
+    </Icon>
+  ),
   catalysts: (
     <Icon>
       <path d="M4 6h12" />

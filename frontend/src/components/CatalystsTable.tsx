@@ -1,6 +1,6 @@
-/** News Catalysts tab: any ticker mentioned in recent market news, regardless of
- * exchange or size — sorted by absolute gap magnitude. Extracted from App.tsx to
- * keep the root layout file thin (see frontend-modularity rule). */
+/** News Catalysts tab: on-roster names (IBKR Gappers / Gainers / AH) that also
+ * have a recent headline, sorted by absolute gap magnitude. The full news
+ * AI-in-trading desk lives on Nova News -- this table is not that product. */
 import { Fragment, useState } from 'react';
 import { SymbolSelectButton } from './SymbolSelectButton';
 import { SelectableTableRow } from './SelectableTableRow';
@@ -50,8 +50,9 @@ export function CatalystsTable({
   return (
     <>
       <div className="catalysts-description">
-        News-first scanner — surfaces any ticker mentioned in recent market
-        news regardless of exchange or size. Sorted by absolute gap magnitude.
+        On-roster news scanner -- names already on today's IBKR Gappers,
+        Gainers, or After Hours lists that also have a recent headline.
+        Open Nova News for AI-in-trading headlines.
       </div>
       {catalysts.length > 0 ? (
         <div className="table-wrapper">

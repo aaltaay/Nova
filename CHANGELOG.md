@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Nova News full-page desk
+
+- **What:** Added Nova News as a first-class scanner-rail product: a full-page newsroom with a top-of-desk row plus Critical / High / Watch / Background columns. The beat is **AI used in trading** (algos, quants, bots, research). Stories come from targeted Google News RSS, Yahoo-scoped AI-trading RSS, trade-press / tech / arXiv feeds, plus Finnhub and Alpaca after an admission gate. Catalysts copy now says it is on-roster only.
+- **Why:** The operator asked for a news product, then clarified it is AI-in-trading news -- not a general market firehose and not "AI stocks to buy."
+- **Files touched:** `backend/nova_news/`, `backend/routes/news.py`, `backend/constants_archive_news.py`, `frontend/src/nova_news/`, `frontend/src/workspace/registry.ts`, `frontend/src/components/TabModuleHost.tsx`, `frontend/src/components/CatalystsTable.tsx`, `.cursor/rules/single-market-data-feed.mdc`
+- **How it works now:** `GET /api/news/desk` fans out HTTP API/RSS fetches, drops any headline that is not AI-doing-the-trading or an AI+trading headline pair, scores criticality from source tier + that beat + freshness (no FinBERT; does not reuse `tools/ai_news_rank.rank_articles`), and caches a `schema_version=2` snapshot. Filters are All / Executes / Funds / Research / Small publishers. Ticker chips open Trader. This is not a price feed and not a HOD input. If every source is down and there is no cache, the payload carries a loud `error`. Live sources with only off-topic headlines are an honest empty desk. Sample Data uses a fixture desk.
+- **Verified by:** pytest `backend/tests/test_nova_news_*.py`; Ruff on the Nova News modules; frontend Vitest Nova News tests; `npm run lint`; `npm run build`; `doc_invariants`; `agent_contract --ci`.
+- **Follow-ups:** D-015 FinBERT warmup and Earnings Finnhub 429 remain open. D-001 scanner NEWS column is unchanged.
+- **Related:** #59; Refs #35; PROBLEM_LOG 2026-09-11 Catalysts copy vs roster filter; 2026-09-11 Nova News general-market firehose; 2026-09-11 Semgrep SHA1 story_id
+
 ## 2026-09-11 -- GitHub Release attaches installer and portable EXE
 
 - **What:** Desktop pack now builds `Nova-Setup-vNNN.exe` (NSIS) and `Nova-Portable-vNNN.exe`. Master/main publishes a GitHub Release on tag `vNNN` and attaches both EXEs. PRs still upload both as Checks artifacts only.

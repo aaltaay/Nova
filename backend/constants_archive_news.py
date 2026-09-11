@@ -111,12 +111,128 @@ NEWS_IMPACT_OFFICIAL_URL_KEYWORDS = (
 NEWS_IMPACT_MAJOR_SOURCE_KEYWORDS = (
     "bloomberg", "reuters", "wsj", "wall street journal", "cnbc", "marketwatch",
     "benzinga", "dow jones", "associated press", "ap news", "financial times",
-    "barron", "the street", "yahoo finance",
+    "barron", "the street", "yahoo finance", "yahoo news", "yahoo",
 )
 NEWS_IMPACT_SECONDARY_SOURCE_KEYWORDS = (
     "motley fool", "seeking alpha", "investopedia", "zacks", "tipranks",
-    "investorplace", "fool.com",
+    "investorplace", "fool.com", "traders magazine", "markets media",
+    "hedgeweek", "finextra", "techcrunch", "ars technica",
 )
+
+# ── Nova News desk (AI-in-trading headlines -- not a price feed, not HOD) ─
+# Owner: nova_news.desk. Invalidation: TTL expiry or schema bump.
+# Disk snapshot lives under paths.cache_dir() / NOVA_NEWS_DESK_CACHE_FILENAME.
+# Beat: AI used in trading. Not a general market wire. Not "AI stocks to buy."
+NOVA_NEWS_DESK_SCHEMA_VERSION = 2
+NOVA_NEWS_DESK_TTL_SEC = 120.0
+NOVA_NEWS_DESK_HTTP_TIMEOUT_SEC = 8.0
+NOVA_NEWS_DESK_MAX_STORIES = 120
+NOVA_NEWS_DESK_CACHE_FILENAME = "nova-news-desk.json"
+NOVA_NEWS_HTTP_USER_AGENT = "NovaNews/1.0 (+https://github.com/aaltaay/Nova)"
+FINNHUB_MARKET_NEWS_URL = "https://finnhub.io/api/v1/news"
+FINNHUB_NEWS_CATEGORIES = ("general", "merger")
+_GNEWS = "https://news.google.com/rss/search?q={}&hl=en-US&gl=US&ceid=US:en"
+# Targeted Google News searches. Broad "AI trading" union queries were tried
+# and mostly returned AI-as-a-hot-stock coverage.
+NOVA_NEWS_SEARCH_FEEDS = (
+    ("gnews_algo", "AI trading", _GNEWS.format(
+        "%22algorithmic+trading%22+OR+%22AI+trading%22+OR+%22trading+algorithm%22+when:14d")),
+    ("gnews_quant", "Quant / AI funds", _GNEWS.format(
+        "%22quant+fund%22+OR+%22quantitative+trading%22+OR+%22AI+hedge+fund%22+"
+        "OR+%22systematic+trading%22+when:14d")),
+    ("gnews_hf", "AI hedge funds", _GNEWS.format(
+        "%22artificial+intelligence%22+%22hedge+fund%22+when:14d")),
+    ("gnews_ml_exec", "ML execution", _GNEWS.format(
+        "%22machine+learning%22+%22market+making%22+OR+%22trade+execution%22+"
+        "OR+%22order+flow%22+when:14d")),
+    ("gnews_agents", "AI agents / bots", _GNEWS.format(
+        "%22AI+agents%22+trading+OR+%22autonomous+trading%22+OR+%22trading+bots%22+when:14d")),
+    ("gnews_trade_press", "Trade press AI", _GNEWS.format(
+        "%28AI+OR+%22artificial+intelligence%22%29+trading+site:thetradenews.com+OR+"
+        "site:waterstechnology.com+OR+site:risk.net+OR+site:institutionalinvestor.com+"
+        "OR+site:pionline.com+when:30d")),
+    ("gnews_wires", "Wires AI trading", _GNEWS.format(
+        "%22artificial+intelligence%22+trading+site:reuters.com+OR+site:bloomberg.com+"
+        "OR+site:wsj.com+OR+site:ft.com+when:30d")),
+    ("gnews_yahoo", "Yahoo AI trading", _GNEWS.format(
+        "%28AI+OR+%22artificial+intelligence%22%29+trading+site:finance.yahoo.com+OR+"
+        "site:news.yahoo.com+when:14d")),
+)
+# Publisher RSS that actually covers this beat. Generic stock wires stay out.
+NOVA_NEWS_OUTLET_FEEDS = (
+    ("ft_markets", "FT Markets", "https://www.ft.com/markets?format=rss"),
+    ("ft_tech", "FT Technology", "https://www.ft.com/technology?format=rss"),
+    ("cnbc_tech", "CNBC Technology", "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=19854910"),
+    ("techcrunch_ai", "TechCrunch AI", "https://techcrunch.com/category/artificial-intelligence/feed/"),
+    ("mit_tr", "MIT Technology Review", "https://www.technologyreview.com/feed/"),
+    ("wired", "WIRED Business", "https://www.wired.com/feed/category/business/latest/rss"),
+    ("ars", "Ars Technica", "https://feeds.arstechnica.com/arstechnica/index"),
+    ("traders_magazine", "Traders Magazine", "https://www.tradersmagazine.com/feed/"),
+    ("markets_media", "Markets Media", "https://www.marketsmedia.com/feed/"),
+    ("hedgeweek", "Hedgeweek", "https://www.hedgeweek.com/feed/"),
+    ("finextra", "Finextra", "https://www.finextra.com/rss/headlines.aspx"),
+    ("arxiv_qfin", "arXiv q-fin.TR", "http://export.arxiv.org/rss/q-fin.TR"),
+)
+NOVA_NEWS_AI_TERMS = (
+    "artificial intelligence", "machine learning", "deep learning",
+    "neural network", "large language model", "generative ai", "genai",
+    "reinforcement learning", "foundation model", "transformer model",
+    "ai model", "ai system", "ai tool", "ai agent", "agentic", "chatgpt",
+    "openai", "anthropic", "deepmind", "llm", "algorithm", "ai",
+)
+NOVA_NEWS_MARKET_TERMS = (
+    "trading", "trader", "trade", "trades", "trade desk", "trading desk",
+    "hedge fund", "quant", "quantitative", "asset manager",
+    "asset management", "portfolio", "market maker", "market making",
+    "broker", "brokerage", "order flow", "order execution",
+    "trade execution", "backtest", "buy-side", "sell-side", "buy side",
+    "proprietary trading", "wealth management", "stock picking",
+    "securities trading", "high-frequency", "market microstructure",
+    "invest", "invests", "investing", "investment",
+    "wall street", "capital markets", "stock market",
+    "equities", "fund manager", "money manager",
+)
+NOVA_NEWS_HIGH_SIGNAL_PHRASES = (
+    "algorithmic trading", "algo trading", "ai trading", "ai-powered trading",
+    "ai-driven trading", "trading algorithm", "trading bot", "trading model",
+    "quantitative trading", "systematic trading", "high-frequency trading",
+    "quant fund", "quant hedge fund", "ai hedge fund",
+    "execution algorithm", "alpha generation", "signal generation",
+    "portfolio optimization", "robo-advisor", "robo-adviser",
+    "market microstructure", "ai analyst", "autonomous trading",
+    "trading strategy", "ai in markets",
+)
+NOVA_NEWS_FUND_KEYWORDS = (
+    "hedge fund", "quant fund", "quant", "asset manager", "asset management",
+    "systematic trading", "proprietary trading", "fund manager",
+)
+NOVA_NEWS_RESEARCH_KEYWORDS = (
+    "arxiv", "preprint", "working paper", "q-fin", "white paper",
+)
+NOVA_NEWS_NOISE_PHRASES = (
+    "stocks to buy", "best ai stocks", "top 5", "top 10", "top 3",
+    "should you buy", "price prediction", "price target",
+    "motley fool", "sponsored", "prnewswire", "penny stock",
+)
+NOVA_NEWS_REGULATORY_KEYWORDS = (
+    "sec charges", "doj", "subpoena", "trading halt", "halted",
+    "enforcement", "investigation",
+)
+NOVA_NEWS_BOUNDED_TERMS = frozenset({
+    "ai", "llm", "genai", "quant", "trade", "trades", "broker",
+    "invest", "invests", "investing", "investment",
+})
+NOVA_NEWS_CRITICAL_MIN_SCORE = 70
+NOVA_NEWS_HIGH_MIN_SCORE = 45
+NOVA_NEWS_WATCH_MIN_SCORE = 25
+NOVA_NEWS_TIER_POINTS = {
+    "official": 40,
+    "major": 25,
+    "secondary": 12,
+    "unknown": 8,
+    "none": 0,
+}
+NOVA_NEWS_CRITICALITY_ORDER = ("critical", "high", "watch", "background")
 
 # ── News language understanding (FinBERT sentiment + Lincoln AI narrative) ───
 # FinBERT (ProsusAI/finbert) reads the headline text itself and returns a
