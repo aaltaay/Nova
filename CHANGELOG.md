@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Chart shows open position avg cost (WID-028)
+
+- **What:** Opening a ticker you are in (Trader or Quote chart panes) now draws a Webull-style average-cost line on the candles, with Long/Short qty, avg, and unrealized P/L on the axis. Session fill arrows appear when working or closed orders have a fill price and time.
+- **Why:** Positions lived only in the table. The operator could not see cost vs price on the FTFT (or any) chart the way Webull shows entry arrows and avg price.
+- **Files touched:** `frontend/src/chart/positionOverlay.ts`, `useChartPositionOverlay.ts`, `TickerChart.tsx`, `TickerChartOverlays.tsx`, `frontend/src/ibkr/IbkrAccountContext.tsx`, `docs/webull-widget-parity.md`.
+- **How it works now:** Qty and avg cost still come from `ib.positions()` (same SSOT as the Positions table). The overlay is display-only. Fill arrows snap onto the pane's bar grid (same ADR 015 snap as drawings). No fill time means the cost line still paints; we do not invent a candle. This is not chart trading (WID-017) and does not place or move orders.
+- **Verified by:** `npx vitest run` 995 passed. `npm run lint` exit 0. Focused overlay + account tests 13 passed. `python3 tools/doc_invariants.py` OK.
+- **Related:** Closes #103; WID-028; S7 chart position display.
+
 ## 2026-09-11 -- Agent sessions MUST start on origin/master and end with a ready PR
 
 - **What:** Delivery rules now have hard clean-start and ready-PR finish gates. Agents must fetch, branch from `origin/master` only, refuse mixed dirty worktrees, and open a ready (non-draft) PR. Casual "quick fix" / "just tweak" phrasing does not waive this.

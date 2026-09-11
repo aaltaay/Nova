@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import {
@@ -29,7 +29,10 @@ import { claimChartDrawingHotkeyFocus } from './chartDrawingKeys';
 import { useChartInstance } from './useChartInstance';
 import { useChartLiveTrade } from './useChartLiveTrade';
 import { useChartSessionHighlight } from './useChartSessionHighlight';
+import { useTickerChartEscape } from './useTickerChartEscape';
 import { useVwapSourceBars } from './useVwapSourceBars';
+import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import { findOpenPosition } from './positionOverlay';
 import { formatCoverageClockEt } from '../tickerChartData';
 import type { ChartTradeUpdate } from './types';
 
@@ -200,18 +203,10 @@ function TickerChartInner({
   // One 04:00-anchored VWAP for every pane, not a per-timeframe accumulation.
   const vwapSource = useVwapSourceBars(symbol, chartActive);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (activeTool) {
-        setActiveTool(null);
-        return;
-      }
-      if (maximized) setMaximized(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeTool, maximized, setActiveTool]);
+  useTickerChartEscape(activeTool, setActiveTool, maximized, setMaximized);
+
+  const account = useOptionalIbkrAccountContext();
+  const openPosition = findOpenPosition(account?.positions ?? [], symbol);
 
   function handleMaximize() {
     setMaximized(m => !m);
@@ -245,6 +240,8 @@ function TickerChartInner({
       data-bar-count={indicatorBars.length}
       data-filling={filling ? '1' : '0'}
       data-focused={focused ? '1' : '0'}
+      data-position-avg={openPosition ? String(openPosition.avgCost) : undefined}
+      data-position-qty={openPosition ? String(openPosition.qty) : undefined}
       style={
         gridOscillators
           ? ({ ['--chart-osc-pct' as string]: `${100 - pricePct}%` } as CSSProperties)
@@ -293,6 +290,8 @@ function TickerChartInner({
       </div>
       <TickerChartOverlays
         chart={chartApi}
+        candleSeriesRef={candleSeriesRef}
+        symbol={symbol}
         bars={indicatorBars}
         barsRevision={barsRevision}
         enabled={enabledIndicators}

@@ -7,20 +7,20 @@ canonical; this memory tracks summary state, durable lessons, and next work.
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-07-24T01:35:00-04:00
-source_revision: working-tree-2026-07-24
-result: EXECUTION_LATENCY_DASHBOARD_HARDENED
+captured_at: 2026-09-11T00:00:00-04:00
+source_revision: working-tree-2026-09-11
+result: CHART_POSITION_OVERLAY_WID_028
 metrics:
-  capabilities_total: 27
+  capabilities_total: 28
   matched: 7
-  partial: 14
+  partial: 15
   missing: 5
   nova_only: 0
   not_comparable: 1
   unknown: 0
 blockers: []
 dashboard_freshness: clean
-notes: "Account → Latency consumes corrected mixed/SLA/fill-leg fields; cancel failures are visible; cross-feature imports use public barrels. No Webull parity row changed. Tester browser pass pending; auto_live still NO-GO."
+notes: "WID-028: open IBKR position paints avg-cost line + session fill arrows on every TickerChart pane. Not WID-017 chart trading. auto_live still NO-GO."
 ```
 
 
@@ -55,6 +55,9 @@ notes: "Account → Latency consumes corrected mixed/SLA/fill-leg fields; cancel
   orders from `GET /api/ibkr/orders/closed`. No Cancel on this panel.
 - Flatten / Close position ≠ Cancel: Flatten uses `closeFullPosition` →
   `placeIbkrOrder` (ADR 007). Cancel uses DELETE working-order routes.
+- Chart position overlay (WID-028): avg-cost price line + session fill arrows
+  on the open ticker. Qty/avg come from `ib.positions()`. Do not stage orders
+  from the chart (that is WID-017). Webull screenshots are research-only.
 - Execution latency must stay split by clock domain. Browser action/request/
   response/visible deltas use one document's `performance.now()`; backend
   stages use same-boot `perf_counter_ns`; paired wall clocks are uncertainty,
@@ -65,6 +68,8 @@ notes: "Account → Latency consumes corrected mixed/SLA/fill-leg fields; cancel
 
 ## Backlog
 
+- [ ] WID-028 follow-up: working limit/stop lines on the chart (not adjustable
+      chart trading). Cost line + fill arrows shipped 2026-09-11.
 - [ ] Implement WID-020 CSV / multi-day History Records export (after Closed
       Orders usage evidence); still no order-edit until export exists.
 - [ ] Audit exact chart indicator/drawing coverage against WID-005.
@@ -80,6 +85,8 @@ notes: "Account → Latency consumes corrected mixed/SLA/fill-leg fields; cancel
 
 ### Completed
 
+- [x] 2026-09-11 — WID-028 chart position overlay (avg-cost line + session
+      fill arrows) from IBKR positions / working / closed orders.
 - [x] 2026-07-24 — Modular Account → Latency dashboard + paired manual/cancel/
       flatten/Fill now/Nova Action browser timing; corrected mixed SLA/fill-leg
       display and visible cancel failures; no broker probe or order.
@@ -99,6 +106,17 @@ notes: "Account → Latency consumes corrected mixed/SLA/fill-leg fields; cancel
 ## Run log
 
 <!-- RUN_LOG_START -->
+
+### 2026-09-11 -- Chart position overlay (WID-028)
+
+- **Scope:** User asked to see the open ticker position on the charts the way
+  Webull draws avg-cost / fill arrows (FTFT vs SPCX screenshots).
+- **Result:** Avg-cost price line + P/L title on every pane from
+  `ib.positions()`. Session fill arrows from working + closed orders already
+  polled by `IbkrAccountProvider`. Not chart trading. Not a second qty SSOT.
+- **Learning:** S7 "chart order/position display" is two capabilities. Position
+  display is WID-028. Staging/adjusting orders on the chart stays WID-017.
+- **Verified:** Vitest `positionOverlay.test.ts` plus account/chart neighbors.
 
 ### 2026-09-11 -- Scanner desk mounts shared Positions dock
 
