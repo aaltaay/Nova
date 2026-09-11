@@ -55,3 +55,12 @@ def test_pack_script_defaults_to_nsis_and_portable():
     assert "nsis" in text
     assert "portable" in text
     assert "--win" in text
+
+
+def test_npm_electron_pack_does_not_force_nsis_only():
+    script = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["scripts"]["electron:pack"]
+    assert "run-electron-pack.mjs" in script
+    assert not script.rstrip().endswith("nsis")
+    assert "portable" in json.dumps(
+        json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["build"]["win"]["target"]
+    )
