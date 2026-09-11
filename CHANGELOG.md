@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** D-028 / D-027 / D-017. Two empty tables could call each other "OK". Large Cap re-fired Discord/Telegram after restart. Depth cap tore down a real Trader ladder. Persist files had no version, so a shape change would load half-parsed rows.
 - **Files touched:** `backend/hod_momo_integrity_scanner.py`, `backend/large_cap_alerts.py`, `backend/ibkr/depth/subscribe.py`, `backend/cache.py`, `backend/cache_schema.py`, `backend/news_catalyst_persist.py`, `backend/hod_momo_session_focus.py`, `backend/alerts/channels_store.py`, `frontend/src/utils/prefStore.ts`, `frontend/src/hooks/useExchangeFilter.ts`, `frontend/src/components/ChartGrid.tsx`, `frontend/src/stock_view/stockViewDockPersist.ts`, `frontend/src/ibkr/useOrderTableSort.ts`
 - **How it works now:** Sibling-vouch requires another table to be live with rows (or frozen with rows). `_fired_today` is stored on today's `large_cap-*.json`. Depth evicts idle slots only; three live viewers stay. Missing `schema_version` migrates; unknown versions refuse loud. `HOD_MOMO_COOLDOWN_SEC` stays 0 -- consolidation (10s) is the rate limit (Warrior burst badge, 2026-07-17). Persist already pins cooldown to that constant.
-- **Verified by:** focused pytest + Vitest on this branch (see PR).
+- **Verified by:** `pytest backend/tests` 1606 passed; `ruff check backend` clean; focused honesty tests 109 passed; `npm test` 917 passed; `npm run lint` 0 warnings. Frontend build on this revision.
 - **Related:** Closes #21 #22 #30. PROBLEM_LOG 2026-09-11 honesty batch.
 
 ## 2026-09-11 -- Execution safety batch: account-pinned spend, kill switch is a spend latch, honest order ticket

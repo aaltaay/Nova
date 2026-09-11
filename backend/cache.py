@@ -234,7 +234,7 @@ def _normalize_gapper_row(row: dict) -> dict:
     }
 
 
-from cache_snapshots import (  # noqa: E402
+from cache_snapshots import (  # noqa: E402, F401
     load_afterhours_snapshot,
     load_chart_drawings,
     load_gapper_snapshot,

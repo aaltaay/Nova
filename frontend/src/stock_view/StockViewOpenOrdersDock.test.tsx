@@ -148,7 +148,9 @@ describe('StockViewOpenOrdersDock', () => {
     expect(
       container.querySelector('[data-testid="orders-today-filters"]'),
     ).toBeTruthy();
-    expect(localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY)).toBe('0');
+    expect(
+      JSON.parse(localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY) ?? '').value,
+    ).toBe(false);
   });
 
   it('auto-shows sample rows under SampleDataProvider', () => {

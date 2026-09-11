@@ -27,7 +27,7 @@ def test_unknown_schema_does_not_restore_fired(monkeypatch):
         json.dumps({
             "schema_version": LARGE_CAP_SCHEMA_VERSION + 9,
             "date": today,
-            "fired_today": {f"NVDA:up": session_key_et()},
+            "fired_today": {"NVDA:up": session_key_et()},
         }),
         encoding="utf-8",
     )
