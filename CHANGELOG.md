@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** D-021 / #26. After an API restart or Gateway blip the Quote Panel froze on the last price with no reconnect and no badge. Every other Nova WS hook already had backoff.
 - **Files touched:** `frontend/src/hooks/useTickerStream.ts`, `frontend/src/hooks/useTickerStream.test.tsx`, `frontend/src/components/SidePanel.tsx`, `frontend/src/constantGroups/chart_api.ts`, `frontend/src/styles/quote-layout.css`
 - **How it works now:** Close/error no longer stops the hook after `initial`. `onclose` sets `stale` + `disconnectedSince` when a snapshot exists, then `setTimeout(connect)` with 1s..30s backoff. Symbol switch and unmount clear the timer so a late reconnect cannot open an orphan socket. A later `initial` / `detail_update` / `trade_update` clears stale. HTTP seed still fills a first quote if WS is late.
-- **Verified by:** Vitest `useTickerStream.test.tsx` (symbol switch clears; close schedules reconnect; unmount cancels timer); frontend lint + build on this branch.
+- **Verified by:** `npx vitest run src/hooks/useTickerStream.test.tsx` -- 3 passed; `npm test` -- 888 passed; `npm run lint` -- 0 warnings; `npm run build` -- tsc + vite exit 0.
 - **Follow-ups:** D-023 (#25) still parks the header status chip that can keep last-good "connected".
 - **Related:** Closes #26. PROBLEM_LOG 2026-09-11 Quote Panel ticker WS never reconnects.
 

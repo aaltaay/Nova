@@ -60,6 +60,7 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
       return;
     }
 
+    const symKey = symbol;
     let cancelled = false;
     let initialReceived = false;
     backoffRef.current = TICKER_WS_RECONNECT_MS;
@@ -76,13 +77,13 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
     const seedCtl = new AbortController();
     const seedTimer = window.setTimeout(() => {
       if (cancelled || initialReceived || !mountedRef.current) return;
-      void fetch(`${API_BASE_URL}/api/ticker/${encodeURIComponent(symbol)}`, {
+      void fetch(`${API_BASE_URL}/api/ticker/${encodeURIComponent(symKey)}`, {
         signal: seedCtl.signal,
       })
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (cancelled || initialReceived || !mountedRef.current) return;
-          const seeded = tickerDetailFromHttp(data, symbol);
+          const seeded = tickerDetailFromHttp(data, symKey);
           if (!seeded) return;
           initialReceived = true;
           hasDetailRef.current = true;
@@ -106,7 +107,7 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
 
     function connect() {
       if (!mountedRef.current || cancelled) return;
-      const ws = new WebSocket(`${WS_URL}/ticker/${symbol}`);
+      const ws = new WebSocket(`${WS_URL}/ticker/${symKey}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -119,10 +120,10 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
         try {
           const msg = JSON.parse(e.data);
           const msgSym = typeof msg.symbol === 'string' ? msg.symbol.toUpperCase() : null;
-          if (msgSym != null && msgSym !== symbol) return;
+          if (msgSym != null && msgSym !== symKey) return;
 
           if (msg.type === 'initial') {
-            const next = tickerDetailFromWsInitial(msg, symbol);
+            const next = tickerDetailFromWsInitial(msg, symKey);
             if (!next) {
               setLoading(false);
               setRefreshing(false);
@@ -139,7 +140,7 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
             if (!initialReceived) return;
             markLive();
             setDetail(prev => {
-              if (!prev || prev.symbol.toUpperCase() !== symbol) return prev;
+              if (!prev || prev.symbol.toUpperCase() !== symKey) return prev;
               return {
                 ...prev,
                 news: msg.news ?? prev.news,
@@ -155,13 +156,13 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
           } else if (msg.type === 'bars_patch') {
             const tf = typeof msg.timeframe === 'string' ? msg.timeframe : '';
             if (!tf || !Array.isArray(msg.bars)) return;
-            setBars(symbol, tf, msg.bars, parseBarsCoverage(msg.coverage));
+            setBars(symKey, tf, msg.bars, parseBarsCoverage(msg.coverage));
           } else if (msg.type === 'trade_update') {
             if (!initialReceived) return;
             markLive();
             const update = msg as TickerTradeUpdate;
             setDetail(prev => {
-              if (!prev || prev.symbol.toUpperCase() !== symbol) return prev;
+              if (!prev || prev.symbol.toUpperCase() !== symKey) return prev;
               const newPrice = update.price;
               const prevDailyBar = prev.snapshot?.daily_bar ?? null;
               const newDailyBar: BarData | null = prevDailyBar
