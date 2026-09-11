@@ -5,6 +5,7 @@ import {
   SAMPLE_CATALYSTS,
   SAMPLE_GAPPERS,
   SAMPLE_GAINERS,
+  SAMPLE_LARGE_CAP,
   SAMPLE_LOSERS,
 } from './sampleRows';
 import { SAMPLE_DECISIONS, SAMPLE_WATCHLIST } from './sampleStrategy';
@@ -15,6 +16,9 @@ describe('sample fixtures populate every major surface', () => {
     expect(SAMPLE_GAINERS.length).toBeGreaterThanOrEqual(5);
     expect(SAMPLE_LOSERS.length).toBeGreaterThanOrEqual(4);
     expect(SAMPLE_AFTERHOURS.length).toBeGreaterThanOrEqual(2);
+    expect(SAMPLE_LARGE_CAP.length).toBeGreaterThanOrEqual(3);
+    expect(SAMPLE_LARGE_CAP.some((r) => r.newest_headline_at != null)).toBe(true);
+    expect(SAMPLE_LARGE_CAP.some((r) => r.earnings_day_offset != null)).toBe(true);
     expect(SAMPLE_CATALYSTS.length).toBeGreaterThanOrEqual(4);
     expect(SAMPLE_HOD_ALERTS.length).toBeGreaterThanOrEqual(5);
     expect(SAMPLE_WATCHLIST.length).toBeGreaterThanOrEqual(4);

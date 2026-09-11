@@ -82,4 +82,34 @@ describe('SampleDashboardPage', () => {
     expect(urls.some((u) => u.includes('/gappers') || u.includes('/movers'))).toBe(false);
     fetchSpy.mockRestore();
   });
+
+  it('shows shared News and Earnings columns on the Large Cap sample table', async () => {
+    await act(async () => {
+      root.render(
+        <ModuleVisibilityProvider>
+          <LayoutStoreProvider>
+            <SampleDataProvider>
+              <HodMomoFixtureProvider>
+                <SampleDashboardPage onOpenTrader={() => {}} onLeaveSample={() => {}} />
+              </HodMomoFixtureProvider>
+            </SampleDataProvider>
+          </LayoutStoreProvider>
+        </ModuleVisibilityProvider>,
+      );
+    });
+
+    await act(async () => {
+      (container.querySelector('[data-testid="scanner-nav-large_cap"]') as HTMLButtonElement).click();
+    });
+
+    const headers = [...container.querySelectorAll('thead th')].map(
+      th => th.textContent?.replace(/[↑↓↕]/g, '').trim() ?? '',
+    );
+    expect(headers).toContain('News');
+    expect(headers).toContain('Earnings');
+    expect(headers).toContain('Days');
+    expect(container.textContent).toMatch(/GOOGL|NVDA|ORCL/);
+    expect(container.querySelector('.news-flame')).not.toBeNull();
+    expect(container.querySelector('.earnings-dots')).not.toBeNull();
+  });
 });

@@ -40,6 +40,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
   const filteredGainers = exchangeFilter.filterRows(sample.gainers);
   const filteredLosers = exchangeFilter.filterRows(sample.losers);
   const filteredAfterhours = exchangeFilter.filterRows(sample.afterhours);
+  const filteredLargeCap = exchangeFilter.filterRows(sample.largeCap);
 
   usePublishScannerNews({
     source: 'sample',
@@ -73,6 +74,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
     gainers: filteredGainers.length,
     losers: filteredLosers.length,
     afterhours: filteredAfterhours.length,
+    largeCap: filteredLargeCap.length,
     catalysts: sample.catalysts.length,
     hodMomo: hodCount,
     runningUp: runningUpCount,
@@ -110,8 +112,7 @@ export function SampleDashboardPage({ onOpenTrader, onLeaveSample }: Props) {
               gainers={filteredGainers}
               losers={filteredLosers}
               afterhours={filteredAfterhours}
-              // Sample/demo fixture has no Large Cap data yet (ADR 014).
-              largeCap={[]}
+              largeCap={filteredLargeCap}
               catalysts={sample.catalysts}
               watchlistEntries={sample.watchlist}
               watchlistLoading={false}

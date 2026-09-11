@@ -1,6 +1,6 @@
 /** Sample scanner + catalyst rows — UI demo only; never mixed with live feeds. */
 import type { Catalyst } from '../types/catalyst';
-import type { Afterhours, Gapper, Mover } from '../types/scanner';
+import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { NewsImpactVerdict } from '../types/newsImpact';
 
 function impact(
@@ -94,6 +94,62 @@ export const SAMPLE_LOSERS: Mover[] = [
   row('SINK', 0.62, 0.95, 33_000_000, { gap_percent: null, float: 2_100_000 }),
   row('SLIP', 8.4, 10.1, 5_100_000, { gap_percent: null }),
   row('DUMP', 2.3, 3.0, 12_800_000, { gap_percent: null }),
+];
+
+function hoursAgoIso(hours: number): string {
+  return new Date(Date.now() - hours * 3_600_000).toISOString();
+}
+
+export const SAMPLE_LARGE_CAP: ScannerRow[] = [
+  row('GOOGL', 165.4, 163.2, 18_200_000, {
+    market_cap: 2_010_000_000_000,
+    float: 11_200_000_000,
+    rvol: 1.8,
+    atr_expansion: 0.9,
+    change_5d_pct: 2.1,
+    change_20d_pct: 4.8,
+    high_20d: 172.4,
+    low_20d: 154.1,
+    large_cap_score: 72,
+    days_to_earnings: 47,
+    newest_headline_at: hoursAgoIso(1.2),
+    has_news: true,
+    earnings_day_offset: 0,
+    earnings_date: '2026-09-11',
+    earnings_session: 'amc',
+    earnings_estimated: false,
+  }),
+  row('NVDA', 118.6, 116.4, 42_000_000, {
+    market_cap: 2_900_000_000_000,
+    rvol: 2.4,
+    atr_expansion: 1.3,
+    change_5d_pct: 3.6,
+    change_20d_pct: 8.2,
+    high_20d: 124.0,
+    low_20d: 102.5,
+    large_cap_score: 88,
+    days_to_earnings: 61,
+    newest_headline_at: hoursAgoIso(8),
+    has_news: true,
+    earnings_day_offset: 1,
+    earnings_date: '2026-09-12',
+    earnings_session: 'bmo',
+    earnings_estimated: true,
+  }),
+  row('ORCL', 164.2, 161.8, 9_400_000, {
+    market_cap: 450_000_000_000,
+    rvol: 0.7,
+    atr_expansion: 0.4,
+    change_5d_pct: -1.1,
+    change_20d_pct: 1.4,
+    high_20d: 169.5,
+    low_20d: 148.0,
+    large_cap_score: 41,
+    days_to_earnings: 90,
+    newest_headline_at: null,
+    has_news: false,
+    earnings_day_offset: null,
+  }),
 ];
 
 export const SAMPLE_AFTERHOURS: Afterhours[] = [
