@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Semgrep blocked Nova News story_id SHA1
+
+- **Symptom:** CI Semgrep `p/python` failed on PR #62: `insecure-hash-algorithm-sha1` at `nova_news.normalize.story_id`.
+- **Cause:** Story ids used `hashlib.sha1` as a short stable fingerprint. Semgrep treats SHA1 as a blocking crypto finding on new files.
+- **Fix:** `story_id` now uses SHA-256 and still truncates to 16 hex chars. This is an id, not a signature.
+- **Fix class:** infra
+- **Keywords:** Semgrep, SHA1, SHA256, story_id, nova_news, insecure-hash-algorithm
+
 ## 2026-09-11 -- Nova News first cut was a general market firehose
 
 - **Symptom:** The new Nova News desk would have shown Fed tape, earnings, and "Nvidia is an AI stock" next to real desk news. The operator wanted AI used in trading.

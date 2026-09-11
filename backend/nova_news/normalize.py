@@ -21,7 +21,7 @@ _FALSE_TICKERS = {
 
 def story_id(url: str, headline: str) -> str:
     raw = (url or headline).strip().lower()
-    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def extract_symbols(article: dict) -> list[str]:

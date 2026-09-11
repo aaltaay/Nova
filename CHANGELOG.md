@@ -38,7 +38,7 @@ Entry template (copy and fill in):
 - **How it works now:** `GET /api/news/desk` fans out HTTP API/RSS fetches, drops any headline that is not AI-doing-the-trading or an AI+trading headline pair, scores criticality from source tier + that beat + freshness (no FinBERT; does not reuse `tools/ai_news_rank.rank_articles`), and caches a `schema_version=2` snapshot. Filters are All / Executes / Funds / Research / Small publishers. Ticker chips open Trader. This is not a price feed and not a HOD input. If every source is down and there is no cache, the payload carries a loud `error`. Live sources with only off-topic headlines are an honest empty desk. Sample Data uses a fixture desk.
 - **Verified by:** pytest `backend/tests/test_nova_news_*.py`; Ruff on the Nova News modules; frontend Vitest Nova News tests; `npm run lint`; `npm run build`; `doc_invariants`; `agent_contract --ci`.
 - **Follow-ups:** D-015 FinBERT warmup and Earnings Finnhub 429 remain open. D-001 scanner NEWS column is unchanged.
-- **Related:** #59; Refs #35; PROBLEM_LOG 2026-09-11 Catalysts copy vs roster filter; 2026-09-11 Nova News general-market firehose
+- **Related:** #59; Refs #35; PROBLEM_LOG 2026-09-11 Catalysts copy vs roster filter; 2026-09-11 Nova News general-market firehose; 2026-09-11 Semgrep SHA1 story_id
 
 ## 2026-09-11 -- GitHub Release attaches installer and portable EXE
 
