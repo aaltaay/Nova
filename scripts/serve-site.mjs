@@ -87,7 +87,12 @@ const server = createServer(async (request, response) => {
       response.writeHead(404, { "content-type": "text/plain" }).end("Not found");
       return;
     }
-    response.writeHead(200, { "content-type": MIME[extname(filePath)] ?? "application/octet-stream" });
+    response.writeHead(200, {
+      "content-type": MIME[extname(filePath)] ?? "application/octet-stream",
+      // A preview server that lets the browser cache CSS will happily show you
+      // yesterday's layout and let you believe an edit did not work.
+      "cache-control": "no-store",
+    });
     response.end(await readFile(filePath));
   } catch (error) {
     console.error(`[serve-site] ${pathname}:`, error);
