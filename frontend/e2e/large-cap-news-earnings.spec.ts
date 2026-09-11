@@ -8,13 +8,15 @@ test.describe('Large Cap shared News and Earnings columns', () => {
     await expect(page.getByTestId('sample-dashboard')).toBeVisible();
     await page.getByTestId('scanner-nav-large_cap').click();
 
-    const headers = page.locator('thead th');
-    await expect(headers.filter({ hasText: 'News' })).toHaveCount(1);
-    await expect(headers.filter({ hasText: 'Earnings' })).toHaveCount(1);
-    await expect(headers.filter({ hasText: 'Days' })).toHaveCount(1);
-    await expect(page.getByText('GOOGL', { exact: true })).toBeVisible();
-    await expect(page.locator('.news-flame').first()).toBeVisible();
-    await expect(page.locator('.earnings-dots').first()).toBeVisible();
+    const table = page.locator('main.panel table');
+    await expect(table).toBeVisible();
+    const headers = table.locator('thead th');
+    await expect(headers.filter({ hasText: /^News/ })).toHaveCount(1);
+    await expect(headers.filter({ hasText: /^Earnings/ })).toHaveCount(1);
+    await expect(headers.filter({ hasText: /^Days/ })).toHaveCount(1);
+    await expect(table.getByText('GOOGL', { exact: true })).toBeVisible();
+    await expect(table.locator('.news-flame').first()).toBeVisible();
+    await expect(table.locator('.earnings-dots').first()).toBeVisible();
 
     await page.screenshot({
       path: '/opt/cursor/artifacts/large-cap-news-earnings.png',
