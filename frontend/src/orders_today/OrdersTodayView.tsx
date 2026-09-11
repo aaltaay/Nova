@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react';
 import { ClosedOrdersPanel } from '../closed_orders/ClosedOrdersPanel';
 import { buildMockClosedOrders } from '../closed_orders/mockClosedOrders';
 import type { ClosedOrder } from '../closed_orders/types';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import {
   ORDERS_TODAY_EMPTY_FILTER_MESSAGE,
   ORDERS_TODAY_EMPTY_MESSAGE,
@@ -46,7 +47,8 @@ export function OrdersTodayView({
   filter,
   onFilterChange,
 }: Props) {
-  const [preferClosedSample, setPreferClosedSample] = useState(true);
+  const sample = useSampleDataOptional();
+  const [preferClosedSample, setPreferClosedSample] = useState(() => Boolean(sample));
 
   const usingClosedSample = closedOrders.length === 0 && preferClosedSample;
   const closedSource = useMemo(
