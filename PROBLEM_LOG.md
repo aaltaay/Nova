@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Surge-seed stale-store test failed at 04:00 ET session roll
+
+- **Symptom:** `test_seed_symbol_stale_store_does_not_poison_surge_buffer` asserted `is_high_seeded("STALE")` and failed every run near 04:00 ET (08:00 UTC in EDT).
+- **Cause:** The test built 90-minute-old bars from `datetime.now(timezone.utc)`. After the 04:00 ET session key rolls, those bars belong to the prior session, so `filter_bars_to_session` drops them and high seed never runs. Production is correct; the clock was not pinned.
+- **Fix:** Pin `time.time` and `session_key_et` to 2026-07-15 12:00 ET so 90-minute-old bars stay in-session.
+- **Fix class:** surfacing
+- **Keywords:** surge seed, session_key_et, 04:00 ET, is_high_seeded, STALE, test flake
+
 ## 2026-09-11 -- ScannerTable re-rendered the full grid on every price_patch
 
 - **Symptom:** Busy Gainers / Large Cap felt janky. Every `/ws/scanner` `price_patch` (and the 1 Hz stale-age clock) reconciled every visible row. `vite build` also warned that `App-*.js` was 705 kB.
