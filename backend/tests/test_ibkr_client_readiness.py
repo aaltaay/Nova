@@ -388,6 +388,8 @@ def test_on_session_ready_clears_stale_scanner_reqids(monkeypatch):
 
     discovery._inflight_scan_reqids.clear()
     discovery._inflight_scan_reqids.add(99)
+    discovery._qualified_contracts.clear()
+    discovery._qualified_contracts["AAA"] = object()
 
     async def _clear(*, reason=""):
         return 0
@@ -402,3 +404,4 @@ def test_on_session_ready_clears_stale_scanner_reqids(monkeypatch):
 
     asyncio.run(ibkr_client._on_session_ready(_IB(), reason="reconnect test"))
     assert discovery._inflight_scan_reqids == set()
+    assert discovery._qualified_contracts == {}

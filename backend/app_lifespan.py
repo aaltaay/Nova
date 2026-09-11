@@ -281,6 +281,11 @@ def _local_startup() -> None:
     _restore_caches()
     t_c = time.perf_counter()
     _init_databases()
+    try:
+        from news.sentiment import warm_pipeline
+        warm_pipeline()
+    except Exception:
+        logger.exception("news.sentiment: FinBERT warm failed to start")
     logger.info(
         "lifespan: local startup sentry=%.0fms cache=%.0fms db=%.0fms",
         (t_s - t0) * 1000, (t_c - t_s) * 1000, (time.perf_counter() - t_c) * 1000,

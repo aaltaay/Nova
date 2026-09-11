@@ -39,6 +39,9 @@ IBKR_LIVE_PORT = 4001        # IB Gateway live trading port
 # workers → Error 326 "client id already in use" / hung connectAsync that can
 # wedge the FastAPI event loop. Override with IBKR_CLIENT_ID in .env.
 IBKR_CLIENT_ID = 17
+# Qualified Stock contracts reused across cold snapshots. Bounded + cleared on
+# READY so a day-long desk cannot keep every snapshotted Contract forever (D-024).
+IBKR_QUALIFIED_CONTRACTS_MAX = 256
 # Error 326 -- another process already holds this clientId (second API).
 IBKR_ERROR_CLIENT_ID_IN_USE = 326
 IBKR_MAX_DEPTH_SYMBOLS = 3   # IBKR plan cap: 3 simultaneous Level 2 streams

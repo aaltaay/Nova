@@ -144,6 +144,7 @@ async def _on_session_ready(ib: Any, *, reason: str) -> None:
         from ibkr import discovery as _discovery
 
         _discovery.clear_inflight_scan_reqids(reason=reason)
+        _discovery.clear_qualified_contracts(reason=reason)
     except Exception:
         logger.exception("IBKR: clear_inflight_scan_reqids failed on READY (%s)", reason)
     try:

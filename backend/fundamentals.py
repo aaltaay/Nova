@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import yfinance as yf
 
 from constants import (
+    FUNDAMENTALS_CACHE_MAX_ENTRIES,
     FUNDAMENTALS_CACHE_TTL,
     FUNDAMENTALS_NEGATIVE_CACHE_TTL,
     YFINANCE_TIMEOUT_S,
@@ -112,10 +113,37 @@ def _is_negative_cache(symbol: str) -> bool:
     return _fundamentals_cache_ttl.get(symbol) == FUNDAMENTALS_NEGATIVE_CACHE_TTL
 
 
+def _drop_cache(symbol: str) -> None:
+    _fundamentals_cache.pop(symbol, None)
+    _fundamentals_cache_ts.pop(symbol, None)
+    _fundamentals_cache_ttl.pop(symbol, None)
+
+
+def cache_size() -> int:
+    return len(_fundamentals_cache)
+
+
+def evict_stale(now: float, keep: str | None = None) -> None:
+    """Drop expired keys, then LRU-cap the rest (D-024)."""
+    for sym in list(_fundamentals_cache):
+        if sym == keep:
+            continue
+        if not _is_fresh(sym, now):
+            _drop_cache(sym)
+    max_n = max(1, int(FUNDAMENTALS_CACHE_MAX_ENTRIES))
+    while len(_fundamentals_cache) > max_n:
+        candidates = [s for s in _fundamentals_cache if s != keep]
+        if not candidates:
+            break
+        oldest = min(candidates, key=lambda s: _fundamentals_cache_ts.get(s, 0.0))
+        _drop_cache(oldest)
+
+
 def _store_cache(symbol: str, payload: dict, now: float, ttl: float) -> dict:
     _fundamentals_cache[symbol] = payload
     _fundamentals_cache_ts[symbol] = now
     _fundamentals_cache_ttl[symbol] = ttl
+    evict_stale(now, keep=symbol)
     return payload
 
 
@@ -188,6 +216,7 @@ def fetch_fundamentals(symbol: str) -> dict:
 def fetch_fundamentals_batch(symbols: list[str]) -> None:
     """Populate the fundamentals cache for symbols (skips fresh cache hits)."""
     now = time.monotonic()
+    evict_stale(now)
     missing = [s for s in symbols if not _is_fresh(s, now)]
     for sym in missing:
         fetch_fundamentals(sym)

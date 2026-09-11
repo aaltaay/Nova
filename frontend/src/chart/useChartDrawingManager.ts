@@ -19,6 +19,7 @@ import {
   CHART_SINGLE_ANCHOR_TOOLS,
   CHART_TWO_ANCHOR_TOOLS,
 } from './chartDrawingConfig';
+import { chartInteractionForTool } from './chartDrawingInteraction';
 import {
   deleteSelectedDrawingOnKey,
   ownsChartDrawingHotkeyFocus,
@@ -213,7 +214,8 @@ export function useChartDrawingManager({
     if (containerRef.current) {
       containerRef.current.style.cursor = activeTool ? 'crosshair' : 'default';
     }
-  }, [activeTool, containerRef]);
+    chartRef.current?.applyOptions(chartInteractionForTool(activeTool));
+  }, [activeTool, containerRef, chartRef]);
 
   useEffect(() => {
     const manager = managerRef.current;

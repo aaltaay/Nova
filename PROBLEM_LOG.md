@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Finnhub 429 emptied Earnings; FinBERT stalled scan; desk maps grew; Trend Line panned
+
+- **Symptom:** (1) A Finnhub 429 or missing `FINNHUB_API_KEY` left Earnings looking live on a stale snapshot, or empty after a month-view burst. (2) First catalyst headline could stall both scan workers on a FinBERT/torch download. (3) A day-long desk kept every qualified contract, tape lock, expired fundamentals row, quiet 1m archive bucket, and every strategy signal. (4) Armed Trend Line clicks dragged the time scale instead of dropping anchors.
+- **Cause:** Calendar/logo treated 429 like any non-200 and returned cache with `error=None`. Classify called `_get_pipeline()` on the scan path. Five in-process maps had no eviction. Lightweight Charts default `pressedMouseMove` pan stayed on while `subscribeClick` collected two-click anchors.
+- **Fix:** Shared `finnhub_http` Retry-After cooldown; `missing_key` / `rate_limited` tokens with banner+rows UI. Classify never loads; `warm_pipeline` is a startup daemon thread. LRU/TTL/flush_elapsed on the five maps plus `/api/metrics/ops` `maps`. Disable pressed-mouse pan/scale while a drawing tool is armed.
+- **Fix class:** surfacing (Earnings honesty) | infra (FinBERT / map bounds / chart interaction)
+- **Keywords:** D-015, D-024, D-010, Finnhub, 429, Retry-After, missing_key, FinBERT, _qualified_contracts, tape_stream, fundamentals cache, bar_builder, useSignalsStream, TrendLine, pressedMouseMove
+
 ## 2026-09-11 -- Scanner tables looked live with no L1
 
 - **Symptom:** Gappers/Gainers could show yesterday's names and a green "Xs ago" Prices chip after Warning 165, disconnect, or a roster that never got L1. Catalysts said "scan running" when the news fetch failed.

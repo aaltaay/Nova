@@ -23,6 +23,16 @@ def isolated_archive(tmp_path, monkeypatch):
     bar_builder.reset_for_tests()
 
 
+def test_flush_elapsed_drops_quiet_open_bucket():
+    m0 = int(1_700_000_000.0 // 60) * 60
+    bar_builder.on_tape_print(symbol="QQQ", ts=m0 + 1, price=10.0, size=1)
+    assert len(bar_builder._open) == 1
+    assert bar_builder.flush_elapsed(m0 + 30, queued=False) == 0
+    assert len(bar_builder._open) == 1
+    assert bar_builder.flush_elapsed(m0 + 61, queued=False) == 1
+    assert bar_builder._open == {}
+
+
 def test_two_minutes_flush_two_bars():
     base = 1_700_000_000.0  # aligned-ish epoch
     m0 = int(base // 60) * 60

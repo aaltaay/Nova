@@ -237,12 +237,15 @@ NOVA_NEWS_CRITICALITY_ORDER = ("critical", "high", "watch", "background")
 # ── News language understanding (FinBERT sentiment + Lincoln AI narrative) ───
 # FinBERT (ProsusAI/finbert) reads the headline text itself and returns a
 # positive/negative/neutral label. It runs locally (no API key, no per-call
-# cost), lazily loading the model on first real headline. It is informational
-# only — it never changes impact_class/confidence, so the rules stay the
-# visible, authoritative decision layer per this module's own contract.
+# cost). Classify never loads the model -- warmup is a background thread at
+# startup (D-015). Informational only; never changes impact_class/confidence.
 NEWS_SENTIMENT_ENABLED = True
 NEWS_SENTIMENT_MODEL_NAME = "ProsusAI/finbert"
 NEWS_SENTIMENT_CACHE_MAX_ENTRIES = 500
+# Finnhub free-tier 429 with no Retry-After header (calendar + logos share this).
+FINNHUB_RETRY_AFTER_DEFAULT_SEC = 60.0
+EARNINGS_ERROR_MISSING_KEY = "missing_key"
+EARNINGS_ERROR_RATE_LIMITED = "rate_limited"
 
 # Loughran-McDonald financial lexicon (pysentiment2) — a hand-built financial
 # word list, not a fine-tuned model. Zero GPU/model-download cost, so it runs

@@ -6,14 +6,16 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+import finnhub_http
 import earnings_calendar as ec
 
 ET = ZoneInfo("America/New_York")
 
 
 class _FakeResponse:
-    def __init__(self, status_code: int, payload: dict | None = None):
+    def __init__(self, status_code: int, payload: dict | None = None, headers: dict | None = None):
         self.status_code = status_code
+        self.headers = headers or {}
         self._payload = payload or {}
 
     def json(self):
@@ -25,8 +27,10 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(ec, "EARNINGS_CALENDAR_CACHE_FILE", str(tmp_path / "earnings-calendar.json"))
     monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
     ec.reset_for_testing()
+    finnhub_http.reset_for_testing()
     yield
     ec.reset_for_testing()
+    finnhub_http.reset_for_testing()
 
 
 def _finnhub_payload(rows):
@@ -53,8 +57,22 @@ def test_fetch_finnhub_maps_hour_to_session(monkeypatch):
 
 
 def test_fetch_finnhub_http_error_returns_none(monkeypatch):
-    monkeypatch.setattr(ec.requests, "get", lambda *a, **k: _FakeResponse(429))
+    monkeypatch.setattr(ec.requests, "get", lambda *a, **k: _FakeResponse(500))
     assert ec._fetch_finnhub("2026-09-01", "2026-10-01", "key") is None
+
+
+def test_fetch_finnhub_429_honours_retry_after_and_skips(monkeypatch):
+    calls = []
+
+    def _get(*a, **k):
+        calls.append(1)
+        return _FakeResponse(429, headers={"Retry-After": "90"})
+
+    monkeypatch.setattr(ec.requests, "get", _get)
+    assert ec._fetch_finnhub("2026-09-01", "2026-10-01", "key") is None
+    assert finnhub_http.is_blocked()
+    assert ec._fetch_finnhub("2026-09-01", "2026-10-01", "key") is None
+    assert calls == [1]  # second call skipped while cooldown is live
 
 
 def test_fetch_finnhub_network_exception_returns_none(monkeypatch):
@@ -62,6 +80,14 @@ def test_fetch_finnhub_network_exception_returns_none(monkeypatch):
         raise ConnectionError("boom")
     monkeypatch.setattr(ec.requests, "get", _raise)
     assert ec._fetch_finnhub("2026-09-01", "2026-10-01", "key") is None
+
+
+def test_get_calendar_rows_missing_key_with_cache_is_token():
+    ec._cache_rows = [{"symbol": "NVDA", "date": "2026-09-01", "session": "amc"}]
+    ec._cache_ts = 10**12
+    rows, _, error = ec.get_calendar_rows()
+    assert error == "missing_key"
+    assert rows[0]["symbol"] == "NVDA"
 
 
 def test_get_calendar_rows_missing_key_no_cache_is_loud_error():
@@ -90,6 +116,26 @@ def test_get_calendar_rows_fetches_once_then_serves_cache(monkeypatch):
     assert err1 is None and err2 is None
     assert rows1 == rows2
     assert ts1 == ts2
+
+
+def test_get_calendar_rows_429_serves_stale_with_rate_limited(monkeypatch):
+    monkeypatch.setenv("FINNHUB_API_KEY", "key")
+    monkeypatch.setattr(
+        ec.requests, "get",
+        lambda *a, **k: _FakeResponse(200, _finnhub_payload([
+            {"symbol": "NVDA", "date": "2026-09-01", "hour": "amc"},
+        ])),
+    )
+    rows1, _, err1 = ec.get_calendar_rows()
+    assert err1 is None and len(rows1) == 1
+    ec._cache_ts = 0.0
+    monkeypatch.setattr(
+        ec.requests, "get",
+        lambda *a, **k: _FakeResponse(429, headers={"Retry-After": "30"}),
+    )
+    rows2, _, err2 = ec.get_calendar_rows()
+    assert err2 == "rate_limited"
+    assert rows2 == rows1
 
 
 def test_get_calendar_rows_http_failure_falls_back_to_stale(monkeypatch):
@@ -123,9 +169,9 @@ def test_disk_snapshot_round_trip(tmp_path, monkeypatch):
 
     # Fresh process (no in-memory cache) must read the persisted snapshot.
     ec.reset_for_testing()
-    monkeypatch.delenv("FINNHUB_API_KEY", raising=False)  # no key needed -- disk snapshot is fresh
+    monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
     rows, ts, err = ec.get_calendar_rows()
-    assert err is None
+    assert err == "missing_key"
     assert rows[0]["symbol"] == "NVDA"
     assert ts > 0
 

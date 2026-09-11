@@ -252,6 +252,25 @@ def reset_for_tests() -> None:
     _subscribe_locks.clear()
 
 
+def prune_idle_maps(now: float | None = None) -> dict[str, int]:
+    """Drop cancel/lock entries that are past the 15s resubscribe guard (D-024)."""
+    stamp = now if now is not None else time.time()
+    dropped_cancel = 0
+    dropped_locks = 0
+    for sym, cancelled in list(_cancelled_at.items()):
+        if stamp - cancelled <= IBKR_TAPE_RESUBSCRIBE_GUARD_SEC:
+            continue
+        if sym in _tickers or _ws_viewers.get(sym, 0) > 0:
+            continue
+        _cancelled_at.pop(sym, None)
+        dropped_cancel += 1
+        lock = _subscribe_locks.get(sym)
+        if lock is not None and not lock.locked():
+            _subscribe_locks.pop(sym, None)
+            dropped_locks += 1
+    return {"cancelled_at": dropped_cancel, "subscribe_locks": dropped_locks}
+
+
 def _cancel_linger(symbol: str) -> None:
     task = _linger_tasks.pop(symbol, None)
     if task is not None and not task.done():
@@ -311,6 +330,7 @@ async def subscribe_async(symbol: str) -> dict:
     # Serialize per symbol: two concurrent callers (StrictMode double-mount,
     # or a remount racing a slow qualifyContractsAsync) must not both build
     # a queue and attach a handler for the same symbol.
+    prune_idle_maps()
     lock = _subscribe_locks.setdefault(symbol, asyncio.Lock())
     async with lock:
         return await _subscribe_locked(symbol, ib)
@@ -400,6 +420,7 @@ def _release_subscription(symbol: str) -> None:
                 exc,
             )
     _cancelled_at[symbol] = time.time()
+    prune_idle_maps()
     logger.info("IBKR tape: unsubscribed %s", symbol)
     # Any viewer still watching (should not normally happen -- unsubscribe
     # only runs after the last viewer closed and the linger re-check found

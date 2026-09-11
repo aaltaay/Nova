@@ -5,12 +5,14 @@ import time
 
 import pytest
 
+import finnhub_http
 import earnings_logos as el
 
 
 class _FakeResponse:
-    def __init__(self, status_code: int, payload: dict | None = None):
+    def __init__(self, status_code: int, payload: dict | None = None, headers: dict | None = None):
         self.status_code = status_code
+        self.headers = headers or {}
         self._payload = payload or {}
 
     def json(self):
@@ -23,8 +25,10 @@ def _isolate(tmp_path, monkeypatch):
     monkeypatch.setattr(el, "EARNINGS_LOGO_FETCH_PACING_SEC", 0.0)
     monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
     el.reset_for_testing()
+    finnhub_http.reset_for_testing()
     yield
     el.reset_for_testing()
+    finnhub_http.reset_for_testing()
 
 
 def test_get_cached_logo_url_empty_without_warm():
@@ -64,6 +68,18 @@ def test_warm_writes_cache_then_get_cached(monkeypatch):
             break
         time.sleep(0.05)
     assert url == "https://static.example/nvda.png"
+
+
+def test_fetch_one_429_does_not_cache_a_miss(monkeypatch):
+    monkeypatch.setattr(
+        el.requests, "get",
+        lambda *a, **k: _FakeResponse(429, headers={"Retry-After": "15"}),
+    )
+    assert el._fetch_one("AAPL", "key") is el._SKIP
+    assert finnhub_http.is_blocked()
+    with el._lock:
+        el._ensure_loaded()
+        assert "AAPL" not in (el._entries or {})
 
 
 def test_warm_noop_without_api_key(monkeypatch):
