@@ -1,7 +1,7 @@
 {
   "name": "nova",
   "private": true,
-  "version": "0.1.475",
+  "version": "0.1.476",
   "description": "Nova — local stock scanner (web + Windows desktop)",
   "author": "Altay Studio",
   "type": "module",
@@ -97,17 +97,26 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "artifactName": "Nova-Setup-${env.NOVA_RELEASE_TAG}.${ext}",
       "signAndEditExecutable": false
     },
     "nsis": {
+      "artifactName": "Nova-Setup-${env.NOVA_RELEASE_TAG}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Nova"
+    },
+    "portable": {
+      "artifactName": "Nova-Portable-${env.NOVA_RELEASE_TAG}.${ext}"
     }
   }
 }

@@ -1,12 +1,14 @@
-# Windows desktop installer (NSIS EXE) + vNNN tags
+# Windows desktop installer + portable EXE + vNNN GitHub Release
 #
 # Every PR and every push to master/main:
 #   1. Stamp VERSION / package.json from `git rev-list --count HEAD` (full history).
-#   2. Pack the Electron + FastAPI sidecar installer.
-#   3. Upload Nova-Setup-vNNN.exe as a workflow artifact (required file).
+#   2. Pack the Electron + FastAPI sidecar as NSIS installer and portable EXE.
+#   3. Upload both EXEs as a workflow artifact (required files).
 #
 # On push to master/main only, after a successful pack:
-#   create lightweight git tag vNNN if it is missing. No GitHub Release.
+#   create git tag vNNN if missing, then create or update the GitHub Release
+#   and attach Nova-Setup-vNNN.exe + Nova-Portable-vNNN.exe.
+#   GitHub also adds Source code zip/tar -- those are not the app.
 
 name: Desktop pack
 
@@ -28,6 +30,8 @@ jobs:
     timeout-minutes: 60
     permissions:
       contents: read
+    outputs:
+      tag: ${{ steps.rev.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,7 +80,7 @@ jobs:
         run: npm ci
         working-directory: frontend
 
-      - name: Pack Windows installer
+      - name: Pack Windows installer and portable
         working-directory: frontend
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://ci-placeholder.invalid' }}
@@ -85,16 +89,28 @@ jobs:
           NOVA_PYTHON: python
         run: npm run electron:pack
 
-      - name: Upload installer EXE
+      - name: Prove both EXEs exist
+        shell: pwsh
+        run: |
+          $tag = "${{ steps.rev.outputs.tag }}"
+          $setup = "frontend/release/Nova-Setup-$tag.exe"
+          $portable = "frontend/release/Nova-Portable-$tag.exe"
+          if (-not (Test-Path $setup)) { throw "missing $setup" }
+          if (-not (Test-Path $portable)) { throw "missing $portable" }
+          Get-Item $setup, $portable | Format-Table Name, Length
+
+      - name: Upload Windows EXEs
         uses: actions/upload-artifact@v4
         with:
-          name: Nova-Setup-${{ steps.rev.outputs.tag }}
-          path: frontend/release/Nova-Setup-${{ steps.rev.outputs.tag }}.exe
+          name: Nova-${{ steps.rev.outputs.tag }}-win
+          path: |
+            frontend/release/Nova-Setup-${{ steps.rev.outputs.tag }}.exe
+            frontend/release/Nova-Portable-${{ steps.rev.outputs.tag }}.exe
           if-no-files-found: error
           retention-days: 14
 
-  release-tag:
-    name: Create vNNN tag
+  publish-release:
+    name: Publish vNNN EXEs
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     needs: [desktop-pack]
     runs-on: ubuntu-latest
@@ -109,19 +125,33 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Create and push vNNN tag
+      - name: Download Windows EXEs
+        uses: actions/download-artifact@v4
+        with:
+          name: Nova-${{ needs.desktop-pack.outputs.tag }}-win
+          path: dist-win
+
+      - name: Tag and attach EXEs to GitHub Release
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.desktop-pack.outputs.tag }}
           GIT_AUTHOR_NAME: github-actions[bot]
           GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
           GIT_COMMITTER_NAME: github-actions[bot]
           GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
           set -euo pipefail
-          TAG="$(python tools/bump_version.py --print-tag)"
-          echo "HEAD tag is ${TAG}"
-          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
-            echo "remote already has ${TAG}"
-            exit 0
-          fi
           python tools/bump_version.py --ensure-tag
-          git push origin "refs/tags/${TAG}"
+          if ! git ls-remote --tags origin "refs/tags/${TAG}" | grep -q .; then
+            git push origin "refs/tags/${TAG}"
+          fi
+          SETUP="dist-win/Nova-Setup-${TAG}.exe"
+          PORTABLE="dist-win/Nova-Portable-${TAG}.exe"
+          test -f "$SETUP"
+          test -f "$PORTABLE"
+          NOTES="$(printf 'Nova %s Windows desktop.\n\n- Installer: Nova-Setup-%s.exe (NSIS)\n- Portable: Nova-Portable-%s.exe (no install)\n\nGitHub also attaches Source code zip/tar automatically. Those are not the app.' "$TAG" "$TAG" "$TAG")"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$SETUP" "$PORTABLE" --clobber
+          else
+            gh release create "$TAG" "$SETUP" "$PORTABLE" --title "$TAG" --notes "$NOTES" --verify-tag
+          fi

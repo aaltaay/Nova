@@ -23,7 +23,7 @@ REQUIRED. Fresh evidence from this branch, not "should work" (verification-befor
 Paste the commands and their results, e.g.:
 - `pytest backend/ -q` -> N passed
 - `npm run build` (frontend) -> exit 0
-- Desktop pack CI -> `Nova-Setup-vNNN.exe` artifact on this PR
+- Desktop pack CI -> `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe` artifacts on this PR
 - browser / Playwright path clicked, screenshot or recording
 Touched a shared resource? Also verify its loudest neighbor (blast-radius table in verification-before-completion.mdc).
 -->
@@ -54,4 +54,4 @@ Parked something new instead of fixing it? Open a `deferred` issue and link it h
 - [ ] GitHub issue opened or closed for anything parked or fully finished (label `deferred`)
 - [ ] Live docs updated in the same commit if hosting / feed / phase / trading posture changed (`doc-invariants.mdc`)
 - [ ] After this PR is merged or closed I will confirm the head is gone the same session (`stale_pr_branches.py`; `--delete` only if it remains)
-- [ ] Desktop pack produced `Nova-Setup-vNNN.exe` on this PR (or the change cannot affect the installer)
+- [ ] Desktop pack produced `Nova-Setup-vNNN.exe` and `Nova-Portable-vNNN.exe` on this PR (or the change cannot affect the installer)

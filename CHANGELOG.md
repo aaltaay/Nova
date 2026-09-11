@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- GitHub Release attaches installer and portable EXE
+
+- **What:** Desktop pack now builds `Nova-Setup-vNNN.exe` (NSIS) and `Nova-Portable-vNNN.exe`. Master/main publishes a GitHub Release on tag `vNNN` and attaches both EXEs. PRs still upload both as Checks artifacts only.
+- **Why:** Tag v475 showed only GitHub's automatic Source code zip/tar. The operator needs the built installer and a portable EXE on the Release page.
+- **Files touched:** `.github/workflows/desktop-pack.yml`, `frontend/package.json`, `frontend/scripts/run-electron-pack.mjs`, `tools/test_desktop_pack_workflow.py`, `README.md`, `AGENTS.md`, `.cursor/skills/github-delivery/SKILL.md`
+- **How it works now:** `npm run electron:pack` runs electron-builder for nsis + portable with distinct artifact names. After a green master pack, the publish job creates or updates the GitHub Release and uploads both EXEs. Source zip/tar stays (GitHub always adds them) and is not the app. v475 already has the installer attached; portable lands on the next tagged pack.
+- **Verified by:** `pytest tools/test_desktop_pack_workflow.py`; `gh release view v475` shows `Nova-Setup-v475.exe`. Portable EXE is produced by the next Windows Desktop pack (Linux cannot pack NSIS/portable).
+- **Related:** Closes #60. Follow-up to #56 / #57. PROBLEM_LOG 2026-09-11 Release page showed source zip only.
+
 ## 2026-09-11 -- PR Desktop pack EXE and vNNN tags
 
 - **What:** Every PR and master push now packs the Windows NSIS installer and uploads `Nova-Setup-vNNN.exe`. Public revision is `vNNN` (git commit count from the first commit, at least three digits). Successful master/main pushes create git tag `vNNN` only -- no GitHub Release.
