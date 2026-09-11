@@ -71,7 +71,8 @@ export const TRADER_EXTRACT_BLOCKED_MESSAGE =
  * Independent of STOCK_VIEW_MAIN_ORDERS_SPLIT_* so Trader chart height stays put.
  */
 export const SCANNER_ACCOUNT_DOCK_SPLIT_KEY = 'nova.scanner.accountDockSplitPct';
-export const SCANNER_ACCOUNT_DOCK_SPLIT_PCT = 72;
-export const SCANNER_ACCOUNT_DOCK_SPLIT_MIN_PCT = 48;
-export const SCANNER_ACCOUNT_DOCK_SPLIT_MAX_PCT = 90;
+/** Tables share the column with HOD dock, so the account strip needs more than Trader's 22%. */
+export const SCANNER_ACCOUNT_DOCK_SPLIT_PCT = 58;
+export const SCANNER_ACCOUNT_DOCK_SPLIT_MIN_PCT = 40;
+export const SCANNER_ACCOUNT_DOCK_SPLIT_MAX_PCT = 82;
 export const SCANNER_ACCOUNT_DOCK_RESIZE_LABEL = 'Resize scanner tables and Positions';

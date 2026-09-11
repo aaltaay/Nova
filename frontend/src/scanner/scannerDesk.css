@@ -27,7 +27,7 @@
 }
 
 .scanner-desk:not(.scanner-desk--orders-collapsed) > .scanner-desk__tables {
-  flex: 0 0 var(--sv-main-pct, 72%);
+  flex: 0 0 var(--sv-main-pct, 58%);
   min-height: 120px;
 }
 

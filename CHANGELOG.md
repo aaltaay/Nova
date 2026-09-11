@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Operators wanted a Webull-style way to see open size without flipping Scanner | Trader.
 - **Files touched:** `frontend/src/scanner/ScannerDesk.tsx`, `StockViewOpenOrdersDock.tsx`, `DashboardPage.tsx`, `SampleDashboardPage.tsx`, `openOrdersDock.css`, `IbkrAccountContext.tsx`.
 - **How it works now:** `ScannerDesk` reuses `StockViewOpenOrdersDock` and the shared `IbkrAccountProvider` poll. Collapse / tab persist is the same as Trader. Height split uses `SCANNER_ACCOUNT_DOCK_SPLIT_KEY` so Trader chart height stays put. A position row still opens Trader (ADR 011). Sample desk ships a fixture SMPL position so the strip is visible without Gateway.
-- **Verified by:** Vitest `ScannerDesk.test.tsx` + SampleDashboardPage dock case; Playwright `e2e/scanner-account-dock.spec.ts`; frontend build.
+- **Verified by:** `npx vitest run` 5 files / 28 passed (ScannerDesk, SampleDashboardPage, StockViewOpenOrdersDock, stockViewTerminal, IbkrAccountContext). `npx playwright test e2e/scanner-account-dock.spec.ts e2e/open-closed-orders.spec.ts e2e/baseline.spec.ts` 7 passed. `npm run build` exit 0. `python3 tools/doc_invariants.py` OK. Browser sample desk: Positions tab shows SMPL 200.
 - **Related:** Closes #101. WID-019 / 026 / 027.
 
 ## 2026-09-11 -- Compact single-row quantity ticket
