@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Trader 10Sec recovery was one-shot despite live tape (D-003)
+
+- **Symptom:** A newly loaded Trader symbol could show live Time & Sales while the 10-Second pane stayed on "Loading IBKR historical..." for minutes.
+- **Cause:** Two frontend handoffs were missing. The empty+filling retry effect scheduled once, but an identical empty response changed no React dependency, so no second timer was created. Separately, the client received each symbol-gated AllLast print immediately but only added it to Time & Sales; the 10Sec chart waited for backend bucket close, archive drain, and a later HTTP read.
+- **Fix:** `useChartBars` now starts a self-scheduling capped retry loop while the pane remains empty+filling. `useIbkrTape` upserts each valid print into the client 10Sec bar store, which seeds the first candle immediately, merges later prints, rejects out-of-order data, and cannot be erased by a late empty `/bars` response.
+- **Fix class:** ownership
+- **Keywords:** D-003, 10Sec, Loading IBKR historical, Time & Sales, AllLast, useChartBars, useIbkrTape, barsStore, one-shot retry
+
 ## 2026-09-11 -- Trend Line two-click still failed after pan disable (D-010)
 
 - **Symptom:** Select Trend Line, click two prices. The chart used to pan on the X-axis. After PR #83 disabled `pressedMouseMove`, a careful click still often dropped no anchor, so the line never appeared. Extended Line and Ray shared the gesture.

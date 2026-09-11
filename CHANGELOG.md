@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- First tape print paints Trader 10Sec immediately (D-003)
+
+- **What:** Trader's 10-Second pane now seeds from the first symbol-gated IBKR Time & Sales print and keeps retrying an empty store until bars arrive. A late empty HTTP response cannot erase the provisional live candle.
+- **Why:** Live Time & Sales could be visible while 10Sec remained on "Loading IBKR historical..." for minutes because the retry was actually one-shot and tape prints were not connected to the client chart store.
+- **Files touched:** `frontend/src/chart/barsStore.ts`, `frontend/src/chart/chartBarsStuckRetry.ts`, `frontend/src/chart/useChartBars.ts`, `frontend/src/ibkr/useIbkrTape.ts`, ADR 012, and the single-market-data-feed rule.
+- **How it works now:** The validated AllLast print is bucketed to 10 seconds and upserted into the shared client store. This gives the pane an immediate honest IBKR candle while historical pacing continues in the background; retry timers self-schedule independently of React rerenders.
+- **Verified by:** Red baseline: 2 focused failures proved no recurring scheduler and no tape-to-chart entry. Green result: 3 Vitest files, 22 tests passed, including first-print seed, same-bucket merge, late-empty-response protection, and recurring retry.
+- **Follow-ups:** Keep D-003 open until the same baseline is timed against a live Gateway/Desktop session.
+- **Related:** `PROBLEM_LOG.md` 2026-09-11 D-003; Refs #43; ADR 012.
+
 ## 2026-09-11 -- Chart shows open position avg cost (WID-028)
 
 - **What:** Opening a ticker you are in (Trader or Quote chart panes) now draws a Webull-style average-cost line on the candles, with Long/Short qty, avg, and unrealized P/L on the axis. Session fill arrows appear when working or closed orders have a fill price and time.

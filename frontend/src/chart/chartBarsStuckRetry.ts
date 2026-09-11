@@ -21,3 +21,28 @@ export function isStuckLoadingBars({ filling, hasBars, chartActive }: StuckBarsR
 export function nextStuckRetryDelayMs(currentDelayMs: number, minMs: number, maxMs: number): number {
   return Math.min(Math.max(currentDelayMs * 2, minMs), maxMs);
 }
+
+export function startStuckBarsRetries(
+  retry: () => void,
+  minMs: number,
+  maxMs: number,
+): () => void {
+  let stopped = false;
+  let delayMs = minMs;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const schedule = () => {
+    timer = setTimeout(() => {
+      if (stopped) return;
+      retry();
+      delayMs = nextStuckRetryDelayMs(delayMs, minMs, maxMs);
+      schedule();
+    }, delayMs);
+  };
+
+  schedule();
+  return () => {
+    stopped = true;
+    if (timer !== null) clearTimeout(timer);
+  };
+}

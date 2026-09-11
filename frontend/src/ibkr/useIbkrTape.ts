@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { WS_BASE_URL } from '../constants';
+import { upsertTapePrint10SecBar } from '../chart/barsStore';
 import {
   appendTapePrint,
   emptyTapeState,
@@ -67,6 +68,11 @@ export function useIbkrTape(symbol: string | null): TapeState {
               bid: msg.bid ?? null,
               ask: msg.ask ?? null,
             };
+            upsertTapePrint10SecBar(symKey!, {
+              time: print.time,
+              price: print.price,
+              size: print.size,
+            });
             setState(s => ({
               ...s,
               prints: appendTapePrint(s.prints, print),

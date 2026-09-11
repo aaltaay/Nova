@@ -1,5 +1,13 @@
-import { describe, expect, it } from 'vitest';
-import { isStuckLoadingBars, nextStuckRetryDelayMs } from './chartBarsStuckRetry';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  isStuckLoadingBars,
+  nextStuckRetryDelayMs,
+  startStuckBarsRetries,
+} from './chartBarsStuckRetry';
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('isStuckLoadingBars', () => {
   it('is stuck when the pane is active, still filling, and has no bars yet', () => {
@@ -32,5 +40,23 @@ describe('nextStuckRetryDelayMs', () => {
 
   it('never goes below minMs', () => {
     expect(nextStuckRetryDelayMs(0, 3000, 15000)).toBe(3000);
+  });
+});
+
+describe('startStuckBarsRetries', () => {
+  it('keeps retrying when an empty filling response does not trigger a React render', async () => {
+    vi.useFakeTimers();
+    const retry = vi.fn().mockResolvedValue(undefined);
+
+    const stop = startStuckBarsRetries(retry, 3000, 15000);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(retry).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(retry).toHaveBeenCalledTimes(2);
+
+    stop();
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(retry).toHaveBeenCalledTimes(2);
   });
 });

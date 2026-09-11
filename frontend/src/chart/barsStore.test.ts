@@ -8,6 +8,7 @@ import {
   parseBarsCoverage,
   setBars,
   subscribeBars,
+  upsertTapePrint10SecBar,
 } from './barsStore';
 import type { RawBar } from '../tickerChartData';
 
@@ -161,5 +162,50 @@ describe('barsStore', () => {
     const url = String((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]);
     expect(url).toContain('timeframe=10Sec');
     expect(url).toContain('limit=1500');
+  });
+
+  it('merges live tape prints into the current 10Sec bucket', () => {
+    expect(upsertTapePrint10SecBar('spci', {
+      time: '2026-09-11T13:29:55.000Z',
+      price: 150,
+      size: 100,
+    })).toBe(true);
+    expect(upsertTapePrint10SecBar('SPCI', {
+      time: '2026-09-11T13:29:58.000Z',
+      price: 149.5,
+      size: 40,
+    })).toBe(true);
+
+    expect(getBarsEntry('SPCI', '10Sec')?.bars).toEqual([
+      {
+        t: '2026-09-11T13:29:50.000Z',
+        o: 150,
+        h: 150,
+        l: 149.5,
+        c: 149.5,
+        v: 140,
+      },
+    ]);
+  });
+
+  it('does not let a late empty HTTP response erase a live tape candle', async () => {
+    let resolveFetch: (v: unknown) => void = () => {};
+    (fetch as ReturnType<typeof vi.fn>).mockReturnValue(new Promise((resolve) => {
+      resolveFetch = resolve;
+    }));
+    const request = ensureBars('SPCI', '10Sec', undefined, 1500);
+
+    upsertTapePrint10SecBar('SPCI', {
+      time: '2026-09-11T13:29:55.000Z',
+      price: 150,
+      size: 100,
+    });
+    resolveFetch({
+      ok: true,
+      json: async () => ({ bars: [], coverage: { filling: true } }),
+    });
+
+    await expect(request).resolves.toHaveLength(1);
+    expect(getBarsEntry('SPCI', '10Sec')?.bars).toHaveLength(1);
   });
 });
