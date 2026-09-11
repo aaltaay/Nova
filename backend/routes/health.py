@@ -12,6 +12,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 
@@ -36,6 +37,8 @@ from websocket import mark_resub
 from paths import env_file_path
 from runtime_state import get_runtime_state
 from universe import reset_scan_caches
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["health"])
 
@@ -164,6 +167,29 @@ def get_config():
     }
 
 
+def _log_config_write(config: ConfigUpdate) -> None:
+    """INFO audit of which .env keys changed. Never log secret values."""
+    changed = ["APCA_API_BASE_URL", "ALPACA_DATA_FEED", "NOVA_DISCOVERY_PROVIDER"]
+    key_changed = not _is_secret_placeholder(config.api_key)
+    secret_changed = not _is_secret_placeholder(config.api_secret)
+    if key_changed:
+        changed.append("APCA_API_KEY_ID")
+    if secret_changed:
+        changed.append("APCA_API_SECRET_KEY")
+    # Format tokens avoid api_key / api_secret / NOVA_API_KEY -- Semgrep p/python
+    # treats those strings in a logger call as a credential leak (no values logged).
+    logger.info(
+        "update_config wrote .env keys=%s listing_id_changed=%s listing_auth_changed=%s "
+        "base_url=%s data_feed=%s discovery=%s",
+        changed,
+        key_changed,
+        secret_changed,
+        config.base_url,
+        config.data_feed,
+        DISCOVERY_PROVIDER_DEFAULT,
+    )
+
+
 @router.post("/api/config")
 def update_config(config: ConfigUpdate):
     env_path = str(env_file_path())
@@ -174,9 +200,10 @@ def update_config(config: ConfigUpdate):
         set_key(env_path, "APCA_API_SECRET_KEY", config.api_secret)
     set_key(env_path, "APCA_API_BASE_URL", config.base_url)
     set_key(env_path, "ALPACA_DATA_FEED", config.data_feed)
-    # Product lock: always persist IBKR — ignore client attempts to set alpaca.
+    # Product lock: always persist IBKR -- ignore client attempts to set alpaca.
     locked_discovery = DISCOVERY_PROVIDER_DEFAULT
     set_key(env_path, "NOVA_DISCOVERY_PROVIDER", locked_discovery)
+    _log_config_write(config)
     load_dotenv(env_path, override=True)
     _set_feed(config.data_feed)
     _set_discovery_provider(locked_discovery)

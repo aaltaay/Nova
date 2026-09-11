@@ -4,10 +4,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const API_BASE = 'http://127.0.0.1:8000';
+const apiKey = ipcRenderer.sendSync('nova:apiKeySync') || '';
 
 contextBridge.exposeInMainWorld('novaDesktop', {
   isDesktop: true,
   apiBase: API_BASE,
+  apiKey,
   getVersion: () => ipcRenderer.invoke('app:version'),
   /** Open Stock View in a dedicated BrowserWindow (double-click / Stock View btn). */
   openStockView: (url) => ipcRenderer.invoke('nova:openStockView', url),

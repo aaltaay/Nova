@@ -89,7 +89,7 @@ All secrets go in `.env`. The tracked file is `.env.example` (empty placeholders
 | `IBKR_ENABLED` / `IBKR_ORDERS_ENABLED` | Connect and spend |
 | `IBKR_LIVE_TRADING_CONFIRMED` | Live money |
 | `IBKR_SHORT_ENABLED` | Short entry (Phase K) |
-| `NOVA_API_KEY` | Required if the API is bound off loopback |
+| `NOVA_API_KEY` | Required for `POST /api/config` even on loopback; required for all mutating `/api/*` off loopback |
 | `FINNHUB_API_KEY` | Earnings calendar |
 
 Gateway default is live (4001). Paper (4002) is the fallback when live is dark. Port 4001 listening is not proof of a live account.

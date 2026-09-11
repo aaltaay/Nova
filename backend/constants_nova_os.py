@@ -167,11 +167,14 @@ NOVA_OS_REASON_CODES = (
 NOVA_OS_LOSS_POLICY_DOWNGRADE_AFTER_LOSSES = 1  # first loss → force `confirm`
 NOVA_OS_LOSS_POLICY_HALT_AFTER_LOSSES = 3       # third loss → halt (== RISK_MAX_CONSECUTIVE_LOSSES)
 
-# ── Local API auth (SEC-002 / SEC-004) ──────────────────────────────────────────
+# ── Local API auth (SEC-002 / SEC-004 / D-040) ────────────────────────────────
 # Mutating /api/* routes require this header when NOVA_API_KEY is set, or when
 # the bind host is not loopback (see backend/auth.py).
+# POST /api/config always requires a configured key, including loopback -- any
+# local process can otherwise rewrite Alpaca keys into .env.
 NOVA_API_KEY_HEADER = "X-Nova-Api-Key"
 NOVA_API_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+NOVA_CONFIG_MUTATE_PATH = "/api/config"
 
 # ── Outbound alerts (Phase D) ───────────────────────────────────────────────────
 ALERTS_CHANNELS_FILENAME = "alerts_channels.json"

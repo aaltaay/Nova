@@ -4,9 +4,10 @@
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
 import {
   API_BASE,
+  getDesktopApiKey,
   openEnvFileIfNeeded,
   restartApiSidecar,
   startApiSidecar,
@@ -14,6 +15,11 @@ import {
   waitForHealth,
 } from './sidecar.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
+import {
+  WINDOW_ID_MAIN,
+  bindWindowBoundsPersist,
+  restoreWindowBounds,
+} from './windowBounds.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -21,6 +27,15 @@ const ALLOWED_EXTERNAL_HOSTS = new Set(['www.interactivebrokers.com']);
 
 /** @type {BrowserWindow | null} */
 let mainWindow = null;
+
+function displayWorkAreas() {
+  return screen.getAllDisplays().map((d) => ({
+    x: d.workArea.x,
+    y: d.workArea.y,
+    width: d.workArea.width,
+    height: d.workArea.height,
+  }));
+}
 
 function windowOptions() {
   return {
@@ -52,7 +67,10 @@ function attachStockViewWindowOpen(win) {
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow(windowOptions());
+  const userData = app.getPath('userData');
+  const saved = restoreWindowBounds(userData, WINDOW_ID_MAIN, displayWorkAreas());
+  mainWindow = new BrowserWindow({ ...windowOptions(), ...(saved || {}) });
+  bindWindowBoundsPersist(mainWindow, userData, WINDOW_ID_MAIN);
 
   if (isDev) {
     const viteUrl = process.env.NOVA_VITE_URL || 'http://127.0.0.1:5173';
@@ -71,6 +89,9 @@ function createWindow() {
 
 ipcMain.handle('app:version', () => app.getVersion());
 ipcMain.handle('nova:apiBase', () => API_BASE);
+ipcMain.on('nova:apiKeySync', (event) => {
+  event.returnValue = getDesktopApiKey();
+});
 
 ipcMain.handle('nova:restartApi', async () => {
   try {

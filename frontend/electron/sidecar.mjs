@@ -7,7 +7,13 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, dialog, shell } from 'electron';
-import { IBKR_CONNECT_DEFAULTS, mergeMissingEnvKeys } from './envMerge.mjs';
+import {
+  IBKR_CONNECT_DEFAULTS,
+  ensureNovaApiKey,
+  mergeMissingEnvKeys,
+} from './envMerge.mjs';
+import { waitForPortFree } from './portWait.mjs';
+import { createSerialQueue } from './serialQueue.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,6 +23,12 @@ export const API_PORT = 8000;
 export const API_BASE = `http://${API_HOST}:${API_PORT}`;
 
 let apiChild = null;
+let desktopApiKey = '';
+const sidecarQueue = createSerialQueue();
+
+export function getDesktopApiKey() {
+  return desktopApiKey;
+}
 
 function repoRootFromElectron() {
   // frontend/electron -> frontend -> Nova
@@ -51,8 +63,10 @@ function ensureUserEnv() {
   }
   const raw = fs.readFileSync(envPath, 'utf8');
   const merged = mergeMissingEnvKeys(raw, IBKR_CONNECT_DEFAULTS);
-  if (merged !== raw) {
-    fs.writeFileSync(envPath, merged, 'utf8');
+  const withKey = ensureNovaApiKey(merged);
+  desktopApiKey = withKey.key;
+  if (withKey.text !== raw) {
+    fs.writeFileSync(envPath, withKey.text, 'utf8');
   }
   return { envPath, cacheDir, logDir, userData };
 }
@@ -68,6 +82,7 @@ function sidecarEnv() {
     NOVA_API_PORT: String(API_PORT),
     PYTHONUTF8: '1',
     PYTHONIOENCODING: 'utf-8',
+    NOVA_API_KEY: desktopApiKey || process.env.NOVA_API_KEY || '',
   };
 }
 
@@ -147,7 +162,7 @@ export function waitForHealth(timeoutMs = 90_000) {
   });
 }
 
-export async function startApiSidecar() {
+async function startApiSidecarUnlocked() {
   if (apiChild) return;
 
   // Reuse an already-running local API (e.g. Run Nova.bat) when healthy.
@@ -156,7 +171,7 @@ export async function startApiSidecar() {
     console.log('[nova-api] reusing existing healthy API at', API_BASE);
     return;
   } catch {
-    // nothing listening — start our own
+    // nothing listening -- start our own
   }
 
   const { command, args, cwd } = resolveSpawn();
@@ -184,7 +199,7 @@ export async function startApiSidecar() {
   });
 }
 
-export function stopApiSidecar() {
+function stopApiSidecarUnlocked() {
   if (!apiChild) return;
   const child = apiChild;
   apiChild = null;
@@ -202,24 +217,37 @@ export function stopApiSidecar() {
   }
 }
 
+function stopExternalListener() {
+  if (process.platform !== 'win32') return;
+  const stopScript = path.join(repoRootFromElectron(), 'scripts', 'Stop-NovaPorts.ps1');
+  if (!fs.existsSync(stopScript)) return;
+  spawnSync(
+    'powershell',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', stopScript, '-Ports', String(API_PORT)],
+    { stdio: 'ignore', windowsHide: true },
+  );
+}
+
+export function startApiSidecar() {
+  return sidecarQueue.enqueue(() => startApiSidecarUnlocked());
+}
+
+export function stopApiSidecar() {
+  stopApiSidecarUnlocked();
+}
+
 /** Stop our sidecar (if any), free port 8000, start fresh, wait for /api/health. */
-export async function restartApiSidecar() {
-  stopApiSidecar();
-  apiChild = null;
-  // Also kill a wedged external API (e.g. Run Nova.bat) that we did not spawn.
-  if (process.platform === 'win32') {
-    const stopScript = path.join(repoRootFromElectron(), 'scripts', 'Stop-NovaPorts.ps1');
-    if (fs.existsSync(stopScript)) {
-      spawnSync(
-        'powershell',
-        ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', stopScript, '-Ports', String(API_PORT)],
-        { stdio: 'ignore', windowsHide: true },
-      );
+export function restartApiSidecar() {
+  return sidecarQueue.enqueue(async () => {
+    stopApiSidecarUnlocked();
+    stopExternalListener();
+    const freed = await waitForPortFree(API_HOST, API_PORT);
+    if (!freed) {
+      console.warn('[nova-api] port still busy after stop; starting anyway');
     }
-  }
-  await new Promise((r) => setTimeout(r, 500));
-  await startApiSidecar();
-  await waitForHealth();
+    await startApiSidecarUnlocked();
+    await waitForHealth();
+  });
 }
 
 export async function openEnvFileIfNeeded() {

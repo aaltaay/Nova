@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   IBKR_CONNECT_DEFAULTS,
+  ensureNovaApiKey,
   mergeMissingEnvKeys,
   parseEnvKeys,
 } from '../../electron/envMerge.mjs';
@@ -26,5 +27,17 @@ describe('desktop envMerge', () => {
     expect(out).toMatch(/^IBKR_ENABLED=false\n/);
     expect(out.match(/IBKR_ENABLED=/g)?.length).toBe(1);
     expect(out).not.toMatch(/IBKR_ENABLED=true/);
+  });
+
+  it('provisions NOVA_API_KEY once and keeps an existing value', () => {
+    const created = ensureNovaApiKey('APCA_API_KEY_ID=abc\n', () => 'generated-key');
+    expect(created.created).toBe(true);
+    expect(created.key).toBe('generated-key');
+    expect(created.text).toMatch(/NOVA_API_KEY=generated-key/);
+
+    const again = ensureNovaApiKey(created.text, () => 'other');
+    expect(again.created).toBe(false);
+    expect(again.key).toBe('generated-key');
+    expect(again.text.match(/NOVA_API_KEY=/g)?.length).toBe(1);
   });
 });

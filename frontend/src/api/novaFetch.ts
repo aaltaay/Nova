@@ -1,10 +1,15 @@
 /**
- * fetch wrapper that attaches X-Nova-Api-Key when VITE_NOVA_API_KEY is set.
- * Local loopback APIs without a key need no header (backend auth.py).
+ * fetch wrapper that attaches X-Nova-Api-Key when a desktop, Vite, or
+ * localStorage key is present. POST /api/config always requires this header
+ * (D-040), even on loopback.
  */
 import { NOVA_API_KEY_HEADER } from '../constantGroups/api_auth';
 
 function resolveApiKey(): string {
+  const fromDesktop = typeof window !== 'undefined'
+    ? window.novaDesktop?.apiKey?.trim()
+    : '';
+  if (fromDesktop) return fromDesktop;
   const fromEnv = (import.meta.env.VITE_NOVA_API_KEY as string | undefined)?.trim();
   if (fromEnv) return fromEnv;
   if (typeof localStorage !== 'undefined') {

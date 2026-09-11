@@ -24,6 +24,7 @@ Nova is a local-first workstation. The API is not a hosted trading backend.
 - Bind the API to loopback (`NOVA_API_HOST=127.0.0.1`). That is the supported default.
 - When `NOVA_API_KEY` is set, mutating `/api/*` routes require the `X-Nova-Api-Key` header.
 - Binding to a public interface (`0.0.0.0`) requires `NOVA_API_KEY`. Do not expose the API to the internet.
+- `POST /api/config` always requires a configured `NOVA_API_KEY`, including on loopback. CORS only limits browser origins; any local process can still call `127.0.0.1:8000` and rewrite Alpaca keys / feed settings into `.env`. The Desktop sidecar provisions the key and sends it. Vite Settings needs the same value as `VITE_NOVA_API_KEY` or `localStorage.nova_api_key`. Config writes log the changed key names at INFO; secret values are never logged.
 
 See `.env.example` for configuration. Secrets belong in `.env` only. `.env` is gitignored and must stay that way.
 

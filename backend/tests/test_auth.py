@@ -58,3 +58,43 @@ def test_public_bind_without_key_rejects(monkeypatch):
     monkeypatch.setenv("NOVA_API_HOST", "0.0.0.0")
     res = client.post("/api/strategy/executor/disarm")
     assert res.status_code == 503
+
+
+def _config_payload() -> dict:
+    return {
+        "api_key": "",
+        "api_secret": "",
+        "base_url": "https://api.alpaca.markets",
+        "data_feed": "iex",
+        "discovery_provider": "ibkr",
+    }
+
+
+def test_config_post_loopback_without_key_rejects(monkeypatch):
+    monkeypatch.delenv("NOVA_API_KEY", raising=False)
+    monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
+    res = client.post("/api/config", json=_config_payload())
+    assert res.status_code == 503
+    assert "NOVA_API_KEY" in res.json()["detail"]
+
+
+def test_config_post_loopback_wrong_key_rejects(api_key):
+    res = client.post(
+        "/api/config",
+        json=_config_payload(),
+        headers={NOVA_API_KEY_HEADER: "wrong"},
+    )
+    assert res.status_code == 401
+
+
+def test_config_post_loopback_valid_key_accepted(api_key, monkeypatch, tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("NOVA_DISCOVERY_PROVIDER=ibkr\n", encoding="utf-8")
+    monkeypatch.setattr("routes.health.env_file_path", lambda: env_path)
+    res = client.post(
+        "/api/config",
+        json=_config_payload(),
+        headers={NOVA_API_KEY_HEADER: api_key},
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "success"

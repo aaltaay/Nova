@@ -13,7 +13,6 @@ HOD_MOMO_HIGHS_PREFIX = "hod-momo-highs"
 def _hod_momo_cache_root() -> str:
     return (
         _os.environ.get("NOVA_CACHE_DIR")
-        or _os.environ.get("RAILWAY_VOLUME_MOUNT_PATH")
         or _os.path.join(_os.path.dirname(__file__), ".cache")
     )
 
