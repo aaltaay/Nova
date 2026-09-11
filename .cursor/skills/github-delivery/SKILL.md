@@ -1,6 +1,6 @@
 ---
 name: github-delivery
-description: Enforces Nova's clean start from origin/master, ready-PR finish line, issue-to-branch-to-PR-to-close workflow, GitHub Project and Milestone metadata, issue relationships, Development links, Actions auto-merge of ready PRs, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
+description: Enforces Nova's clean start from origin/master, ready-PR finish line, issue-to-branch-to-PR-to-close workflow, Nova Delivery project (https://github.com/users/aaltaay/projects/1) and Milestone metadata, issue relationships, Development links, Actions auto-merge of ready PRs, deleting the head branch after merge or close, and strict verification. Use for issues, pull requests, releases, projects, milestones, delivery status, or closing work.
 ---
 
 # Nova GitHub delivery
@@ -29,7 +29,19 @@ Every actionable Nova issue needs:
 - Domain: at least one `domain:*` owner label; use multiple only for genuinely cross-domain scope
 - Owner: assign the human currently responsible once work starts; never assign an AI identity
 - Acceptance criteria or a concrete `Next`
-- Nova Delivery project item, when project access is available
+- Nova Delivery project item on the existing board [Nova Delivery](https://github.com/users/aaltaay/projects/1) (user project number `1`, owner `aaltaay`, id `PVT_kwHOAXJK5M4Ab7Vq`). Do not recreate it.
+
+Priority is the issue label `P0`..`P3`. Do not invent a second Priority field on the Project unless one already exists (today it does not).
+
+When the token can write Projects:
+
+```text
+gh project item-add 1 --owner aaltaay --url <issue-or-pr html_url>
+```
+
+Default new items to Status **Todo** unless the item is already In Progress. Adding an item that is already on the board is success.
+
+When the token cannot (classic `GITHUB_TOKEN` and the Cloud Agent GitHub App typically lack `project` scope; look for `403` or `Could not resolve to a ProjectV2`): report that limitation. Owner `gh` as `aaltaay` can mutate. Actions uses repo secret `NOVA_PROJECT_TOKEN` (classic PAT scopes `project` + `repo`). Never claim the item is on the board. Never run `gh project create`.
 
 Apply these only when true:
 
@@ -117,7 +129,7 @@ When `Closes` auto-closes on merge, push the refreshed generated index immediate
 After merge:
 
 1. Confirm the issue closed only if the PR used `Closes`.
-2. Move the project item to Done.
+2. Move the Nova Delivery item (https://github.com/users/aaltaay/projects/1) to Done.
 3. Confirm assignee, milestone, and relationships still reflect reality.
 4. Leave partially completed parent issues open.
 5. **Delete the head branch** (required -- see section 8).

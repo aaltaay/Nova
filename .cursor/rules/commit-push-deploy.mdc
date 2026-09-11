@@ -31,7 +31,7 @@ Code, config, CI, security, and rule changes never start or finish directly on `
 4. **Open a ready (non-draft) PR targeting `master`**
    - Fill `.github/pull_request_template.md`; its body is the task narrative.
    - Use `Closes #NNN` only when the entire issue is complete. Use `Refs #NNN` for partial work.
-   - Apply the owner, Nova Delivery project, conditional milestone, and real relationships from `github-delivery.mdc`.
+   - Apply the owner, [Nova Delivery](https://github.com/users/aaltaay/projects/1) project (`gh project item-add 1 --owner aaltaay --url ...` when the token allows; on 403 report the limitation), conditional milestone, and real relationships from `github-delivery.mdc`. Default Status is Todo unless already In Progress. Priority stays on labels P0-P3.
    - Mark the PR ready (not draft). GitHub Actions merges it when gating CI is green. Do not wait for the human to say merge.
    - Draft or label `do-not-merge` only when the user explicitly asked to hold, or a hard external blocker (for example, needs live IBKR proof) is documented in the PR -- not because CI is still running.
 

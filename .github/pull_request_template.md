@@ -40,7 +40,7 @@ Parked something new instead of fixing it? Open a `deferred` issue and link it h
 ## GitHub delivery metadata
 
 - **Issue owner:** <!-- human assignee or n/a with reason -->
-- **Nova Delivery project status:** <!-- Todo / In Progress / Done, or blocked by permission -->
+- **Nova Delivery project status:** <!-- Todo / In Progress / Done, or blocked by permission. Board: https://github.com/users/aaltaay/projects/1 -->
 - **Milestone:** <!-- release/roadmap target, or n/a because not release-bound -->
 - **Relationships:** <!-- parent / sub-issue / blocked-by / duplicate / related, or none -->
 - **Development link:** <!-- issue number linked by Closes or Refs -->

@@ -1,0 +1,57 @@
+# Add every new issue (and same-repo PR) to the existing Nova Delivery board.
+#
+# Do not recreate this project.
+#   https://github.com/users/aaltaay/projects/1
+#   title Nova Delivery, id PVT_kwHOAXJK5M4Ab7Vq, number 1, owner aaltaay
+#   Status options: Todo / In Progress / Done
+#
+# Implementation (tools/nova_delivery_project.py) runs:
+#   gh project item-add 1 --owner aaltaay --url <issue-or-pr html_url>
+# then defaults Status to Todo unless the item is already In Progress.
+# Adding an item that is already on the board is success (idempotent).
+#
+# Token: classic GITHUB_TOKEN cannot write user-owned Projects v2.
+# Cloud Agent GitHub App tokens typically lack `project` scope too.
+# Owner `gh` as aaltaay can mutate. For this workflow, store a classic PAT
+# (scopes: project, repo) as repo secret NOVA_PROJECT_TOKEN.
+# If that secret is missing, the job uses GITHUB_TOKEN and fails loud with
+# setup instructions -- never pretend the item landed, never create a board.
+#
+# Priority stays on issue labels P0-P3. Do not invent a Project Priority field.
+
+name: Nova Delivery project
+
+on:
+  issues:
+    types: [opened, reopened, transferred]
+  pull_request:
+    types: [opened, reopened]
+
+concurrency:
+  group: nova-delivery-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  add-to-board:
+    name: Add to Nova Delivery
+    if: >
+      github.event_name == 'issues' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Add issue or PR to Nova Delivery
+        env:
+          GH_TOKEN: ${{ secrets.NOVA_PROJECT_TOKEN || secrets.GITHUB_TOKEN }}
+          NOVA_ITEM_URL: ${{ github.event.issue.html_url || github.event.pull_request.html_url }}
+        run: python tools/nova_delivery_project.py add --url "$NOVA_ITEM_URL"
