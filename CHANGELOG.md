@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Large Cap News and Earnings share Gainers columns
+
+- **What:** Large Cap now shows the same News flame and Earnings dots as Gainers / Gappers. The swing `days_to_earnings` countdown stays as **Days**. News-badge fetch includes Large Cap roster names. Sample desk now has Large Cap fixture rows so the columns are visible without IBKR.
+- **Why:** Operators wanted those two Gainers columns on Large Cap without a second news or earnings pipeline.
+- **Files touched:** `frontend/src/constantGroups/scanner_columns.ts`, `chart_api.ts`, `frontend/src/sample_data/sampleRows.ts`, `SampleDataContext.tsx`, `frontend/src/pages/SampleDashboardPage.tsx`, `backend/scanner_news_badge.py`.
+- **How it works now:** `SCANNER_NEWS_COLUMN` and `SCANNER_EARNINGS_COLUMN` are the one definition both tables import. REST `/api/large-cap` and `/ws/scanner` already run `decorate_rows` (same stamper as Gainers). `scanner_news_badge` now queues Large Cap symbols so a name only on that table can light News. HOD admission is unchanged.
+- **Verified by:** `pytest` 37 passed (news-badge + large-cap route + mover columns + large-cap hooks). `npx vitest run` 985 passed. `npx playwright test e2e/large-cap-news-earnings.spec.ts` 1 passed. `npm run build` exit 0. `python3 tools/doc_invariants.py` OK.
+- **Related:** Closes #97
+
 ## 2026-09-11 -- Trend Line two-click place uses pointerup (D-010)
 
 - **What:** Armed Trend Line / Extended Line / Ray now place from two chart pointerups. Lightweight Charts `subscribeClick` is no longer the collector. Pan, axis-drag, and kinetic fling stay off while a tool is armed.

@@ -5,7 +5,7 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import type { AlertObject, HodMomoConfigState } from '../hod_momo/types';
 import type { HealthStatus } from '../types/health';
-import type { Afterhours, Gapper, Mover } from '../types/scanner';
+import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { Catalyst } from '../types/catalyst';
 import type { NovaOsDecision, SetupSignal, WatchlistEntry } from '../strategy/types';
 import { SAMPLE_HOD_ALERTS, SAMPLE_HOD_CONFIG } from './sampleHod';
@@ -14,6 +14,7 @@ import {
   SAMPLE_CATALYSTS,
   SAMPLE_GAPPERS,
   SAMPLE_GAINERS,
+  SAMPLE_LARGE_CAP,
   SAMPLE_LOSERS,
 } from './sampleRows';
 import {
@@ -30,6 +31,7 @@ export type SampleDataBundle = {
   gainers: Mover[];
   losers: Mover[];
   afterhours: Afterhours[];
+  largeCap: ScannerRow[];
   catalysts: Catalyst[];
   hodAlerts: AlertObject[];
   hodConfig: HodMomoConfigState;
@@ -46,6 +48,7 @@ const SAMPLE_BUNDLE: SampleDataBundle = {
   gainers: SAMPLE_GAINERS,
   losers: SAMPLE_LOSERS,
   afterhours: SAMPLE_AFTERHOURS,
+  largeCap: SAMPLE_LARGE_CAP,
   catalysts: SAMPLE_CATALYSTS,
   hodAlerts: SAMPLE_HOD_ALERTS,
   hodConfig: SAMPLE_HOD_CONFIG,

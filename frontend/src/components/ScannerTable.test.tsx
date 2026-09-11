@@ -4,7 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SCANNER_ROW_NUM_LABEL } from '../constants';
+import { LARGE_CAP_COLUMNS, SCANNER_ROW_NUM_LABEL } from '../constants';
 import type { ScannerRow } from '../types/scanner';
 import { ScannerTable } from './ScannerTable';
 
@@ -73,5 +73,30 @@ describe('ScannerTable row numbers', () => {
 
     (container.querySelector('thead th.scanner-row-num-th') as HTMLElement).click();
     expect(onSort).not.toHaveBeenCalled();
+  });
+
+  it('shows shared News and Earnings headers on Large Cap columns', async () => {
+    await act(() => {
+      root.render(
+        <ScannerTable
+          columns={LARGE_CAP_COLUMNS}
+          data={[row('NVDA')]}
+          sortState={{ key: '', dir: null }}
+          onSort={() => {}}
+          selectedSymbol={null}
+          onSelect={() => {}}
+          onOpenTrading={() => {}}
+        />,
+      );
+    });
+
+    const headers = [...container.querySelectorAll('thead th')].map(
+      th => th.textContent?.replace(/[↑↓↕]/g, '').trim() ?? '',
+    );
+    expect(headers).toContain('News');
+    expect(headers).toContain('Earnings');
+    expect(headers).toContain('Days');
+    expect(headers.filter(h => h === 'Earnings')).toHaveLength(1);
+    expect(container.querySelector('.earnings-dots')).not.toBeNull();
   });
 });

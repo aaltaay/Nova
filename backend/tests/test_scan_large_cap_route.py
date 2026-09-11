@@ -70,3 +70,42 @@ def test_history_dates_accepts_large_cap_type():
 def test_history_dates_rejects_unknown_type():
     body = get_history_dates(type="not-a-real-type")
     assert body["dates"] == []
+
+
+def test_get_large_cap_decorates_shared_news_and_earnings(monkeypatch):
+    """Large Cap REST uses the same decorate_rows News/Earnings stamps as Gainers."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import scanner_news_badge as snb
+    from fundamentals import _fundamentals_cache
+
+    et = ZoneInfo("America/New_York")
+    ts = int(datetime(2026, 9, 11, 16, 0, tzinfo=et).timestamp())
+    monkeypatch.setattr(
+        "market.now_et",
+        lambda: datetime(2026, 9, 11, 10, 0, tzinfo=et),
+    )
+    monkeypatch.setitem(_fundamentals_cache, "NVDA", {
+        "earnings_ts": ts,
+        "earnings_date": "2026-09-11",
+        "earnings_estimated": False,
+    })
+    snb.reset_for_testing()
+    snb.record({"NVDA": "2026-09-11T12:00:00Z"})
+
+    state = get_runtime_state()
+    prev_rows = state.large_cap_cache
+    try:
+        state.large_cap_cache = [
+            {"symbol": "NVDA", "price": 200.0, "rvol": 3.0},
+        ]
+        nvda = get_large_cap()["large_cap"][0]
+        assert nvda["newest_headline_at"] == "2026-09-11T12:00:00Z"
+        assert nvda["has_news"] is True
+        assert nvda["earnings_day_offset"] == 0
+        assert nvda["earnings_session"] == "amc"
+        assert nvda["earnings_date"] == "2026-09-11"
+    finally:
+        state.large_cap_cache = prev_rows
+        snb.reset_for_testing()
