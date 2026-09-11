@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- TestClient-based tool silently killed by api_process_guard (empty stdout, exit 1)
+
+- **Symptom:** After rebasing onto master, `py -3 tools/execution_safety_probe.py` exited 1 roughly 10s in with **completely empty stdout** and no traceback on stderr. It always died at the same step, and the backend pytest suite using the same `TestClient` harness stayed green, so it looked like the probe's own cancel assertion had broken against master's new `cancel_order_verified_on_ib`.
+- **Cause:** Not the cancel path at all. `api_instance_lock.acquire_or_exit()` starts `api_process_guard`, whose `_watch_listen` thread calls `os._exit(1)` once nothing is listening on `127.0.0.1:8000` for `STARTUP_GRACE_SEC` (10s) -- the D-005 dark-port orphan check. The probe serves requests in-process through `TestClient` and never binds the API port, so it *is* that shape. `os._exit` skips stdio flushing, which is why every `print` vanished and no traceback appeared. Pytest is exempt via the `"pytest" in sys.modules` branch, so the test suite never showed it; the probe only crossed the 10s grace because two `EXECUTION_ACK_WAIT_SEC` waits made the run long enough.
+- **Fix:** The probe sets `NOVA_SKIP_INSTANCE_LOCK=1` alongside its `NOVA_CACHE_DIR` pin, which is the documented opt-out in `acquire_or_exit`. That also stops the probe from ever claiming a real operator's instance lock. The guard itself is correct and unchanged -- a live PID with a dark API port should still exit.
+- **Fix class:** infra
+- **Keywords:** api_process_guard, os._exit, empty stdout, no traceback, exit 1, dark port, STARTUP_GRACE_SEC, NOVA_SKIP_INSTANCE_LOCK, acquire_or_exit, TestClient, execution_safety_probe, D-005
+
 ## 2026-09-11 -- Unknown IB account could live-spend; kill switch let manual places through
 
 - **Symptom:** Three execution-safety holes found in the execution audit pass and fixed together. (1) With `IBKR_GATEWAY_MODE=live` + `IBKR_LIVE_TRADING_CONFIRMED=true`, `assert_orders_allowed` refused only `broker_account_kind == "mixed"`, so `unknown` (managedAccounts not received yet) and `paper` both passed a live place; `/api/ibkr/status` separately showed `spend_status=live_armed` over a `DU...` paper account. (2) The Trading ticket and Nova Action hotkeys kept placing orders after Kill, and an API restart silently re-armed the desk. (3) The order ticket left Place enabled while spend was locked, showed a generic "Order failed" on any FastAPI `{detail: ...}` reject, and painted an unmapped broker status in the `pending` tone.

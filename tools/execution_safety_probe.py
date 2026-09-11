@@ -40,6 +40,11 @@ def _pin_isolated_env() -> Path:
     """Never touch the operator cache or read their real .env gates."""
     cache = Path(tempfile.mkdtemp(prefix="nova_safety_probe_"))
     os.environ["NOVA_CACHE_DIR"] = str(cache)
+    # This harness serves requests in-process via TestClient and never binds
+    # the API port, which is exactly the shape `api_process_guard` exists to
+    # kill (D-005 dark-port orphan). Opt out of the instance lock so the probe
+    # is not shot mid-run, and so it never claims a real operator's lock.
+    os.environ["NOVA_SKIP_INSTANCE_LOCK"] = "1"
     os.environ["IBKR_ENABLED"] = "true"
     os.environ["IBKR_ORDERS_ENABLED"] = "true"
     os.environ["IBKR_GATEWAY_MODE"] = "live"

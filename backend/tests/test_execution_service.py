@@ -393,6 +393,24 @@ class TestKillSwitchBlocksAllPlaces:
         assert r.reason_code != "KILL_SWITCH"
         assert called == [1]
 
+    def test_kill_refusal_leaves_no_inflight_commitment(self, monkeypatch):
+        """The kill gate sits upstream of the D-011 in-flight hold.
+
+        It rejects before `_commit_position`, so a killed place must not park
+        shares that would then refuse a legitimate exit with OVERSELL.
+        """
+        from execution import inflight
+
+        _arm_paper(monkeypatch)
+        executor._kill_switch_tripped = True
+        monkeypatch.setattr(
+            orders_mod, "place_order", lambda **k: {"ok": True, "order_id": 5}
+        )
+        r = asyncio.run(exec_svc.execute(_limit_buy("kill-inflight"), wait_ack=False))
+        assert r.reason_code == "KILL_SWITCH"
+        assert inflight.committed_qty("AAPL", "BUY") == 0.0
+        assert inflight.snapshot() == []
+
     def test_place_allowed_again_after_reset(self, monkeypatch):
         _arm_paper(monkeypatch)
         executor._kill_switch_tripped = True
