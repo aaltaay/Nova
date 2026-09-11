@@ -86,7 +86,7 @@ Run the deterministic script first. Then layer judgment. Cite file + line when p
 
 ### 6. Container / IaC
 
-- `Dockerfile` -- no `--privileged`, no world-writable mounts, no secrets in ENV directives. Legacy `railway.toml*` files are deprecated (backend not cloud-hosted).
+- `Dockerfile` -- no `--privileged`, no world-writable mounts, no secrets in ENV directives. Optional local image only (backend is not cloud-hosted). `railway.toml*` is deleted.
 - `vercel.json` -- no exposed server routes that bypass auth (static frontend only).
 
 ### 7. Safe localhost API fuzzing (opt-in only)

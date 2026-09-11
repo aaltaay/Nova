@@ -20,3 +20,9 @@ def test_start_nova_api_reload_is_opt_in_only() -> None:
     assert "if ($Reload)" in text
     after = text.split("if ($Reload)", 1)[1]
     assert '$env:NOVA_API_RELOAD = "1"' in after
+
+
+def test_start_nova_api_rotates_console_log() -> None:
+    text = _SCRIPT.read_text(encoding="ascii")
+    assert "rotate_log_file.py" in text
+    assert "--path" in text

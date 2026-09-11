@@ -7,7 +7,12 @@
  * dock-request when a float is released over the host -- do not add a
  * second Electron-only dock model here.
  */
-import { BrowserWindow, screen } from 'electron';
+import { app, BrowserWindow, screen } from 'electron';
+import {
+  bindWindowBoundsPersist,
+  restoreWindowBounds,
+  traderWindowId,
+} from './windowBounds.mjs';
 
 export const TRADER_MAX_WINDOWS = 3;
 const EDGE_PAD = 24;
@@ -72,14 +77,18 @@ export function openOrFocusTraderWindow(url, windowOptions, attachHandler) {
     if (first && !first.isDestroyed()) first.focus();
     return false;
   }
-  const bounds = boundsForTraderWindow(
-    displayWorkAreas(),
+  const userData = app.getPath('userData');
+  const displays = displayWorkAreas();
+  const saved = restoreWindowBounds(userData, traderWindowId(sym), displays);
+  const bounds = saved || boundsForTraderWindow(
+    displays,
     traderWindows.size,
     windowOptions.width ?? 1440,
     windowOptions.height ?? 900,
   );
   const child = new BrowserWindow({ ...windowOptions, ...bounds });
   let currentSym = sym;
+  bindWindowBoundsPersist(child, userData, () => traderWindowId(currentSym));
   child.setTitle(`Nova -- ${currentSym}`);
   attachHandler?.(child);
   traderWindows.set(currentSym, child);

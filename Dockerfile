@@ -1,6 +1,5 @@
-# Build from repository root (default when Railway "Root Directory" is unset).
-# Railpack only inspects the service root; Python lives under backend/, so we
-# use an explicit Docker build instead of language auto-detection.
+# Optional local container image. Not a cloud host -- Nova API is local /
+# Desktop sidecar only. Public bind requires NOVA_API_KEY (see auth.py).
 FROM python:3.13-slim-bookworm
 
 WORKDIR /app
@@ -20,5 +19,4 @@ RUN useradd --create-home --uid 10001 --shell /usr/sbin/nologin nova \
 
 USER nova
 
-# Railway sets PORT at runtime. Public bind requires NOVA_API_KEY (see auth.py).
-CMD sh -c "exec uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+CMD sh -c 'if [ -z "$$NOVA_API_KEY" ]; then echo "NOVA_API_KEY required when using this image" >&2; exit 1; fi; exec uvicorn main:app --host 0.0.0.0 --port $${PORT:-8000}'

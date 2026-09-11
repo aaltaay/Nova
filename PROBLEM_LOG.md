@@ -37,6 +37,38 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Semgrep logger-credential false positive on config audit logs
+
+- **Symptom:** CI Semgrep (`p/python`) failed PR #76 with 4 blocking `python-logger-credential-disclosure` findings in `backend/auth.py` and `backend/routes/health.py`.
+- **Cause:** The rule treats a logger format string that contains `NOVA_API_KEY` / `api_key` / `api_secret` as a hardcoded secret. Those lines log env-var presence, header name, bind host, and changed key *names* -- never secret values (`test_update_config_audit_redacts_secrets`).
+- **Fix:** Rewrote the format strings to `mutating-route key` / `listing_id_changed` / `listing_auth_changed`. Same audit, no secret tokens in the format string.
+- **Fix class:** surfacing
+- **Keywords:** semgrep, python-logger-credential-disclosure, auth.py, update_config, NOVA_API_KEY, PR 76
+
+## 2026-09-11 -- D-032 sidecar restart race and unsaved window geometry
+
+- **Symptom:** Concurrent `nova:restartApi` / Start API heal produced "health timed out" or a second `run_api.py` on `:8000`. Main and popped-out Trader windows reset size/position every launch.
+- **Cause:** `restartApiSidecar` always slept 500 ms then started, with no in-flight lock. `BrowserWindow` used fixed `windowOptions` and never wrote bounds.
+- **Fix:** Serial queue for start/restart; wait until port 8000 is free; persist `window-bounds.json` (`schema_version=1`) per `main` / `trader:SYMBOL` and restore only when the rect still overlaps a display.
+- **Fix class:** ownership
+- **Keywords:** restartApiSidecar, sidecar.mjs, window bounds, traderWindows, Electron, D-032
+
+## 2026-09-11 -- D-030 Railway leftovers still runnable; api-console.log never rotated
+
+- **Symptom:** Deprecated `railway.toml` / Railway prebuild / `RAILWAY_VOLUME_MOUNT_PATH` still worked. `Start-NovaApi.ps1` appended forever to `api-console.log`.
+- **Cause:** 2026-08-05 retirement left the files and the `>>` launcher redirect. `doc_invariants.py` only guards live docs.
+- **Fix:** Deleted `railway.toml*` and `check-railway-api-base.mjs`; removed the npm `prebuild` hook and volume fallbacks; `tools/rotate_log_file.py` size-caps the console log (5 MB, keep 5).
+- **Fix class:** infra
+- **Keywords:** railway.toml, prebuild, RAILWAY_VOLUME_MOUNT_PATH, api-console.log, D-030
+
+## 2026-09-11 -- D-040 POST /api/config rewrote .env with no loopback auth
+
+- **Symptom:** Unauthenticated `POST /api/config` on `127.0.0.1:8000` persisted Alpaca keys and feed settings.
+- **Cause:** `auth.py` treated missing `NOVA_API_KEY` on loopback as open for every mutating route. CORS does not stop a local process.
+- **Fix:** Config writes always require a configured key + `X-Nova-Api-Key`. Desktop sidecar provisions the key. INFO audit logs changed key names only.
+- **Fix class:** admission
+- **Keywords:** /api/config, update_config, NOVA_API_KEY, loopback, D-040
+
 ## 2026-09-11 -- Quote Panel ticker WS never reconnects
 
 - **Symptom:** After `/ws/ticker/{symbol}` closed (API restart, Gateway blip), Quote Panel kept the last price and daily bar with no reconnect and no stale badge. `rel_volume` kept recomputing from the frozen snapshot.
@@ -44,6 +76,7 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix:** Copied the depth-hook reconnect shape (backoff ref + timer ref + cleanup) into `useTickerStream`. Returned `stale` / `disconnectedSince`. Quote Panel renders a stale bar while the last quote stays visible.
 - **Fix class:** infra
 - **Keywords:** useTickerStream, /ws/ticker, reconnect, onclose, stale quote, Quote Panel, fetchFailed, backoff, D-021
+
 
 ## 2026-09-11 -- Afterhours Gap % copied Change %
 
@@ -1428,7 +1461,6 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Cause:** `frontend/vite.config.ts`'s `test` block has no `setupFiles`, and nothing anywhere in the repo sets `globalThis.IS_REACT_ACT_ENVIRONMENT`. React 19's `isConcurrentActEnvironment()` (`react-dom/cjs/react-dom-client.development.js`) treats the flag as unset → prints the "not configured" warning on every `act()`-wrapped `createRoot().render()`/`.unmount()` call. Worse: the *same* unset flag also short-circuits `warnIfUpdatesNotWrappedWithActDEV`, i.e. it disables React's real "update was not wrapped in act(...)" safety warning in **both** directions (wrapped or not) — so this is not purely cosmetic, it silently removes the guardrail that would catch a state update escaping a manual `act()` block (e.g. via `setTimeout`/unresolved promise/effect firing after the synchronous `act()` callback returns). This project has no `@testing-library/react` dependency at all (confirmed absent from `package.json` and `node_modules`) — all 24 `*.test.tsx` files that render JSX use this same hand-rolled `createRoot` + `act` pattern (grep-confirmed), not just the two files reported. Verified via a throwaway probe test + `--reporter=verbose`: flag is `undefined` before/during/after every `act()` call; full-suite run showed 653 instances of the warning across those 24 files (386 tests, 94 files total, all passing).
 - **Fix (recommended, not applied — audit only):** Add a tiny shared Vitest setup file (e.g. `frontend/src/testSetup/reactActEnvironment.ts`) that sets `globalThis.IS_REACT_ACT_ENVIRONMENT = true`, and wire it via `test.setupFiles` in `vite.config.ts`. No RTL needed since none is used; this is a one-line env bootstrap, not a tunable constant.
 - **Keywords:** IS_REACT_ACT_ENVIRONMENT, act() environment, createRoot, react-dom-client, isConcurrentActEnvironment, warnIfUpdatesNotWrappedWithActDEV, verbose reporter hides console, no testing-library/react, workingOrderCells, closedOrderCells
-
 
 
 - **Symptom:** Transport/API failures surfaced as empty scanner/HOD universes with little or no useful log detail; UI looked “frozen” or empty while other tabs still had data.
