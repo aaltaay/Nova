@@ -37,6 +37,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Ready PRs sat open until someone said merge
+
+- **Symptom:** Three pull requests visible, no agent working. Heads stayed open after the work was done. The operator had to ask why and then ask to merge.
+- **Cause:** Delivery rules said "open a PR" and only deleted the branch *after* a merge. Cloud agents also refuse to merge unless the user says merge. So a green PR was treated as done and the agent went idle. Branch delete on close was still agent-memory plus `delete_branch_on_merge` (merges only).
+- **Fix:** `tools/pr_delivery.py` + CI `Auto-merge` + `.github/workflows/pr-delivery.yml` merge ready PRs and delete closed heads. Rules now say Actions merges; draft / `do-not-merge` is the hold. Leftover #58/#64 content replayed here so those idle PRs can close.
+- **Fix class:** ownership
+- **Keywords:** pull request, auto-merge, idle agent, delete branch, pr_delivery, do-not-merge
+
+## 2026-09-11 -- AI news digest Action crashed before it could publish
+
+- **Symptom:** `nova.altaystudio.com` kept the digest baked into PR #52. Manual `workflow_dispatch` of `AI news digest` failed in 3s; log: `python: No module named pytest`.
+- **Cause:** `.github/workflows/ai-news.yml` ran `python -m pytest tools/test_ai_news_digest.py` on `actions/setup-python` CPython 3.13 with no `pip install pytest`. The job never reached `ai_news_digest.py`.
+- **Fix:** Install pytest in the digest job before the unit-test step (from leftover PR #58).
+- **Fix class:** infra
+- **Keywords:** nova.altaystudio.com, ai-news.yml, pytest, digest, workflow_dispatch
+
+## 2026-09-11 -- Unprotected master (force-push / delete / merge-without-CI)
+
+- **Symptom:** GitHub Security: "Your master branch isn't protected." `GET /repos/aaltaay/Nova/branches/master` returned `protected: false`.
+- **Cause:** No branch protection rule existed. Cloud Agent `gh` is a GitHub App integration without Administration. Rulesets API also returned 403 "Upgrade to GitHub Pro or make this repository public."
+- **Fix:** Policy + apply/check tool (`tools/master_branch_protection.py`), delivery rule item 9, advisory CI check (from leftover PR #64). Live apply is a human admin + Pro step (issue #63). Do not make Nova public.
+- **Fix class:** infra
+- **Keywords:** branch protection, master, force-push, GitHub Pro, Administration, rulesets, status checks
+
 ## 2026-09-11 -- Semgrep blocked Nova News story_id SHA1
 
 - **Symptom:** CI Semgrep `p/python` failed on PR #62: `insecure-hash-algorithm-sha1` at `nova_news.normalize.story_id`.

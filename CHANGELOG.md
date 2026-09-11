@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- GitHub Actions merges ready PRs and deletes heads
+
+- **What:** Ready (non-draft) PRs now merge from GitHub Actions when gating CI is green. Closed PR heads are deleted by workflow, not by hoping an agent remembers. Also landed the leftover #58 pytest install for the AI news digest Action and the #64 master-protection policy/tool.
+- **Why:** Three PRs sat open with idle agents because delivery stopped at "open a PR" unless a human said merge. That is agent memory, not a workflow.
+- **Files touched:** `tools/pr_delivery.py`, `.github/workflows/pr-delivery.yml`, `.github/workflows/deploy.yml`, `.github/workflows/ai-news.yml`, `tools/master_branch_protection.py`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `AGENTS.md`
+- **How it works now:** An agent opens a verified ready PR. CI job `Auto-merge` plus hourly `PR delivery` sweep run `tools/pr_delivery.py`. Draft or label `do-not-merge` holds. Conflicts and failed gating checks stay open. Closed heads are deleted even when the PR was not merged. `delete_branch_on_merge` stays as backup. Master protection still needs a human admin + GitHub Pro (`check` is advisory; issue #63).
+- **Verified by:** `pytest tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py tools/test_master_branch_protection.py tools/test_engineering_skills_audit.py`; `python3 tools/engineering_skills_audit.py`; `python3 tools/doc_invariants.py`.
+- **Follow-ups:** Close leftover #58 and #64 onto this branch; #63 stays open until `master` is actually protected.
+- **Related:** PROBLEM_LOG 2026-09-11 ready PRs sat open; AI news digest pytest; unprotected master. Refs #63. Supersedes #58 and #64.
+
 ## 2026-09-11 -- Nova News full-page desk
 
 - **What:** Added Nova News as a first-class scanner-rail product: a full-page newsroom with a top-of-desk row plus Critical / High / Watch / Background columns. The beat is **AI used in trading** (algos, quants, bots, research). Stories come from targeted Google News RSS, Yahoo-scoped AI-trading RSS, trade-press / tech / arXiv feeds, plus Finnhub and Alpaca after an admission gate. Catalysts copy now says it is on-roster only.
