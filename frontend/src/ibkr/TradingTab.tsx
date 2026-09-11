@@ -9,10 +9,11 @@
  * When IBKR is not connected the tab renders a friendly setup guide.
  * Scanner tabs still need Gateway for live IBKR discovery.
  */
-import { useCallback, useState } from 'react';
+import { lazy, Suspense, useCallback, useState } from 'react';
 import { ClosedOrdersModule } from '../closed_orders';
 import { ActivityDashboard } from '../activity';
 import { LatencyDashboard } from '../execution_latency';
+import { TabLazyFallback } from '../components/TabLazyFallback';
 import {
   CLOSED_ORDERS_MODULE_ID,
   IBKR_PAPER_PORT,
@@ -27,7 +28,9 @@ import { OrderTicket } from './OrderTicket';
 import { PaperTradingBanner } from './PaperTradingBanner';
 import { PositionsPanel } from './PositionsPanel';
 import { isSpendLocked, spendLockReason, spendStatusLabel } from './spendLock';
-import { ReportsTab } from '../reports/ReportsTab';
+const ReportsTab = lazy(() =>
+  import('../reports/ReportsTab').then(m => ({ default: m.ReportsTab })),
+);
 import { alertApp } from '../ux';
 import { cancelIbkrOrderWithFeedback } from './cancelOrder';
 import { confirmAndFillWorkingOrder } from './fillWorkingOrderImmediately';
@@ -102,7 +105,9 @@ export function TradingTab({
       {/* ── Section toggle: Reports is nested here, not a top-level tab ── */}
       <TradingSectionNav section={section} onChange={setSection} />
       {section === 'reports' ? (
-        <ReportsTab />
+        <Suspense fallback={<TabLazyFallback />}>
+          <ReportsTab />
+        </Suspense>
       ) : section === 'activity' ? (
         <ActivityDashboard />
       ) : section === 'latency' ? (

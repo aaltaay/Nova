@@ -7,9 +7,9 @@ Drives the REAL path end-to-end with a scripted IB feed:
             -> ibkr_bridge.apply_l1_quote
                 -> hod_momo.on_trade_update (real engine)
 
-Asserts admission gating, day-high propagation, coalescing behavior, and
--- as an xfail -- the post-reconnect zombie-subscription gap documented in
-docs/audits/2026-07-28-hod-scanner-capture-audit.md.
+Asserts admission gating, day-high propagation, and coalescing behavior.
+The G1 reconnect gap in docs/audits/2026-07-28-hod-scanner-capture-audit.md
+§5b is covered by a real (non-xfail) test after 79f749e.
 """
 from __future__ import annotations
 

@@ -48,9 +48,6 @@ _ScannerSub = None
 _ReqIdKey = None
 # Qualified Stock contracts reused across cold snapshot calls.
 _qualified_contracts: dict[str, object] = {}
-# Serialize cold reqTickersAsync so discovery/enrichment cannot fan out
-# concurrent snapshot batches against the shared Gateway socket.
-_snapshot_lock: asyncio.Lock | None = None
 # Short-TTL result cache keyed by (scan_code, num_rows, below_price) — see
 # IBKR_SCAN_RESULT_TTL_SEC. Coalesces duplicate one-shot scanner calls
 # fired from independent loops (movers refresh, gapper fallback, HOD seed).
@@ -131,13 +128,6 @@ def _get_scan_lock() -> asyncio.Lock:
     if _scan_lock is None:
         _scan_lock = asyncio.Lock()
     return _scan_lock
-
-
-def _get_snapshot_lock() -> asyncio.Lock:
-    global _snapshot_lock
-    if _snapshot_lock is None:
-        _snapshot_lock = asyncio.Lock()
-    return _snapshot_lock
 
 
 def _cancel_snapshot_tickers(ib, contracts: list) -> None:

@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 logger = logging.getLogger(__name__)
 
 _ET = ZoneInfo("America/New_York")
-# Prefer NOVA_CACHE_DIR (Electron desktop), then Railway volume, then local .cache/.
+# Prefer NOVA_CACHE_DIR (Electron desktop), then local backend/.cache/.
 from paths import cache_dir as _nova_cache_dir
 
 _CACHE_DIR = str(_nova_cache_dir())

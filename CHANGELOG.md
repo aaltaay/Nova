@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Scanner row memo, lazy Settings/Reports/Backtest chunks, ADR comment cleanup
+
+- **What:** Scanner tables now memoize each row so a `/ws/scanner` `price_patch` only reconciles the symbols that changed. Settings, Reports, Backtest, Account, Earnings, Nova News, Trader, and Sample are lazy-loaded so they leave the first App chunk. Stale volume-seed / Railway / xfail comments and the unused `discovery._snapshot_lock` are gone. Depth and tape hooks have lifecycle Vitest coverage.
+- **Why:** Deferred issues #18 (D-031 jank + 705 kB App chunk), #16 (D-034 comments that contradict ADR 008/010), and #15 (D-033 remaining hook holes after the money-path tests landed on master).
+- **Files touched:** `frontend/src/components/ScannerTable.tsx`, `ScannerTableRow.tsx`, `TabModuleHost.tsx`, `frontend/src/settings/SettingsContext.tsx`, `frontend/src/ibkr/TradingTab.tsx`, `frontend/src/strategy/WatchlistTab.tsx`, `useWatchlistOverlay.ts`, `frontend/src/App.tsx`, `backend/ibkr/discovery.py`, `scanner_l1.py`, `ibkr_bridge.py`, `cache.py`, `backend/tests/test_hod_momo_surge_seed.py`.
+- **How it works now:** `applyScannerPricePatch` already keeps unchanged row object identity. `joinWatchlistOnRow` does the same for the watchlist join. `ScannerTableRow` compares those refs plus this symbol's `flash` / `stale` booleans, so the 1 Hz `nowSec` clock does not redraw every Gainers row. Off-scanner tabs load on first open via `React.lazy`. Cold snapshots use `cold_slot` only -- there is no second discovery mutex. The stale-store surge-seed test pins midday ET so 90-minute-old bars stay in-session.
+- **Verified by:** `pytest backend/tests -q` (1645 passed after pinning the surge-seed clock; 1 prior fail was `test_seed_symbol_stale_store_does_not_poison_surge_buffer` at the 04:00 ET boundary); `npx vitest run` (972 passed); `npm run lint` (0 warnings); `ruff check` on touched backend files; `tools/doc_invariants.py` OK; `npm run build` -- `App-*.js` is 28.44 kB (was 705 kB). Settings 65 kB, Reports 14 kB, Backtest 4.4 kB, Trading 14 kB are separate chunks. The remaining >500 kB warning is `vendor-charts` (already split). Playwright E2E was not run here (no Chromium on this VM); CI `Frontend E2E` is the gate.
+- **Follow-ups:** `settings-workspace.css` / `stockViewTerminal.css` still exceed the 1000-line stylesheet baseline -- that is a split, not this perf Next.
+- **Related:** Closes #18 #16 #15. PROBLEM_LOG 2026-09-11 -- ScannerTable full-grid re-render; D-034 stale ADR comments.
+
 ## 2026-09-11 -- Honesty batch: HOD integrity, depth cap refuse, persist schema_version
 
 - **What:** Empty scanner tables no longer pass integrity by vouching for each other. Large Cap breakout dedupe survives an API restart. A 4th live Level 2 symbol is refused instead of evicting a live ladder. Dated cache JSON, blocklist, session-focus, alert channels, and the localStorage prefs we touch now carry `schema_version`.

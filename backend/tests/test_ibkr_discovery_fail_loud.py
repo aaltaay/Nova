@@ -177,15 +177,6 @@ async def test_snapshot_require_success_raises_on_timeout(monkeypatch):
     discovery._qualified_contracts.clear()
     discovery._qualified_contracts["AAA"] = object()
 
-    class _Lock:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *_a):
-            return False
-
-    monkeypatch.setattr(discovery, "_get_snapshot_lock", lambda: _Lock())
-
     with pytest.raises(IbkrDiscoveryError, match="snapshot timeout"):
         await discovery.snapshot_quotes(["AAA"], require_success=True)
 
@@ -236,15 +227,6 @@ async def test_snapshot_timeout_cancels_snapshot_reqids(monkeypatch):
     monkeypatch.setattr(discovery, "_load_ib_types", lambda: True)
     discovery._qualified_contracts.clear()
     discovery._qualified_contracts["AAA"] = aaa_contract
-
-    class _Lock:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *_a):
-            return False
-
-    monkeypatch.setattr(discovery, "_get_snapshot_lock", lambda: _Lock())
 
     with pytest.raises(IbkrDiscoveryError, match="snapshot timeout"):
         await discovery.snapshot_quotes(["AAA"], require_success=True)

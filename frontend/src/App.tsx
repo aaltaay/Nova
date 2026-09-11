@@ -5,10 +5,12 @@
  * HOD stream owner lives here so Trader does not tear down the WS.
  * Dock UI mounts in the Scanner middle column only -- not on Trader.
  */
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { LazySampleShell, LazyStockViewTabs } from './appLazy';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { GlobalAppBar } from './components/GlobalAppBar';
 import { GlobalBarStatusBridge } from './components/GlobalBarStatusBridge';
+import { TabLazyFallback } from './components/TabLazyFallback';
 import { HotkeyDispatchProvider } from './hotkeys/HotkeyDispatchContext';
 import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { HodMomoProvider } from './hod_momo/HodMomoProvider';
@@ -16,12 +18,10 @@ import { ScannerDataProvider } from './scanner/ScannerDataContext';
 import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
 import { TradingPrerequisitesGate } from './ibkr/TradingPrerequisitesGate';
 import { DashboardPage } from './pages/DashboardPage';
-import { SampleShell } from './sample_data/SampleShell';
 import { isSampleView } from './sample_data/sampleNav';
 import { SettingsProvider } from './settings/SettingsContext';
 import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
 import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
-import { StockViewTabs } from './stock_view/StockViewTabs';
 import { parseStockViewSymbol } from './utils/stockViewNav';
 import { AppDialogHost } from './ux';
 import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
@@ -46,7 +46,11 @@ function AppShell() {
 
   // Hard gate: sample route never mounts live Dashboard or live Stock View.
   if (sampleMode) {
-    return <SampleShell />;
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <LazySampleShell />
+      </Suspense>
+    );
   }
 
   const hasTraderDesk = traderTabs.length > 0;
@@ -82,7 +86,9 @@ function AppShell() {
                     >
                       <div className="main-col main-col--full main-col--trader-stack">
                         <main className="ticker-detail-main">
-                          <StockViewTabs detached={detached} />
+                          <Suspense fallback={<TabLazyFallback />}>
+                            <LazyStockViewTabs detached={detached} />
+                          </Suspense>
                         </main>
                       </div>
                     </div>

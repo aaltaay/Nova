@@ -37,6 +37,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Surge-seed stale-store test failed at 04:00 ET session roll
+
+- **Symptom:** `test_seed_symbol_stale_store_does_not_poison_surge_buffer` asserted `is_high_seeded("STALE")` and failed every run near 04:00 ET (08:00 UTC in EDT).
+- **Cause:** The test built 90-minute-old bars from `datetime.now(timezone.utc)`. After the 04:00 ET session key rolls, those bars belong to the prior session, so `filter_bars_to_session` drops them and high seed never runs. Production is correct; the clock was not pinned.
+- **Fix:** Pin `time.time` and `session_key_et` to 2026-07-15 12:00 ET so 90-minute-old bars stay in-session.
+- **Fix class:** surfacing
+- **Keywords:** surge seed, session_key_et, 04:00 ET, is_high_seeded, STALE, test flake
+
+## 2026-09-11 -- ScannerTable re-rendered the full grid on every price_patch
+
+- **Symptom:** Busy Gainers / Large Cap felt janky. Every `/ws/scanner` `price_patch` (and the 1 Hz stale-age clock) reconciled every visible row. `vite build` also warned that `App-*.js` was 705 kB.
+- **Cause:** `ScannerTable` had no row `memo` boundary, and `useWatchlistOverlay` cloned every row whenever the patched array identity changed. Settings / Reports / Backtest / Trader were static imports from the Dashboard tree, so they shipped in the first App chunk.
+- **Fix:** Memoize `ScannerTableRow` on row-object identity plus this symbol's flash/stale; keep overlay joins from cloning unchanged rows; `React.lazy` Settings, Reports, Backtest, Account, Earnings, Nova News, Trader, and Sample.
+- **Fix class:** ownership
+- **Keywords:** ScannerTable, price_patch, React.memo, code splitting, lazy, D-031, useWatchlistOverlay, nowSec
+
+## 2026-09-11 -- Stale comments invited restoring ADR-banned HOD volume seeds
+
+- **Symptom:** `scanner_l1.py` and `hod_stream_symbols` still said HOD used off-table volume seeds. `discovery._get_snapshot_lock` sat unused next to ADR 010's `cold_slot`. `cache.py` mentioned a Railway volume. A fake-feed test docstring still called a reconnect case an `xfail`.
+- **Cause:** Docs-only drift from the 2026-09-06 deep-dive, parked as D-034.
+- **Fix:** Rewrote the four comments to match ADR 008/010 and local-only cache. Deleted `_snapshot_lock` / `_get_snapshot_lock` (zero production callers) and their test monkeypatches.
+- **Fix class:** surfacing
+- **Keywords:** D-034, volume seeds, ADR 008, _snapshot_lock, cold_slot, Railway, xfail
+
 ## 2026-09-11 -- Scanner integrity mutual-vouch and Large Cap re-fire on restart
 
 - **Symptom:** Integrity could pass empty Gappers/Losers with "OK if another scanner list is live" while the sibling was also empty. Large Cap Discord/Telegram breakouts re-fired after an API restart. Cooldown default 0 looked like a missing mute.

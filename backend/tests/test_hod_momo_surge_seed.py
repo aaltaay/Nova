@@ -204,8 +204,17 @@ def test_seed_symbol_stale_store_does_not_poison_surge_buffer(monkeypatch):
     import hod_momo_high as high
     from hod_momo_filters import price_surge
 
+    # Pin midday ET. Wall-clock near 04:00 ET drops 90-minute-old bars as the
+    # prior session, so is_high_seeded is false even though the store is "today."
+    fixed_now = datetime(2026, 7, 15, 16, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(time, "time", lambda: fixed_now.timestamp())
+    monkeypatch.setattr(
+        "hod_momo_surge_seed.session_key_et",
+        lambda now=None: session_key_et(fixed_now),
+    )
+
     state = hm.replace_state(HodMomoState())
-    now = datetime.now(timezone.utc)
+    now = fixed_now
     bars = []
     for i in range(20):
         t = now.timestamp() - 90 * 60 - (20 - i) * 60

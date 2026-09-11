@@ -306,3 +306,6 @@ export const HOTKEYS_TAB_SOON = 'Coming soon';
 export const HOTKEYS_EMPTY_LIST = 'No Nova Actions yet -- open Hotkeys Settings to add one.';
 export const HOTKEYS_DEFAULT_CUSTOM_NAME = 'Custom1';
 
+/** Suspense copy while a lazy Settings / Account / Backtest chunk loads (D-031). */
+export const TAB_CHUNK_LOADING = 'Loading…';
+
