@@ -1,10 +1,12 @@
-"""Nova release version = 0.1.<commit-count>.
+"""Nova release identity = vNNN (commit count from the first commit).
 
-Owner: this script (writes VERSION + frontend/package.json).
-Invalidation: pre-commit hook before each new commit; pre-push verifies match.
+Public tag / VERSION file: v001, v042, v473, v1000 (at least three digits).
+electron-builder still needs semver, so frontend/package.json stays 0.1.N
+with the same N.
 
-Semver patch is the total commit count on HEAD (after the commit lands).
-Major 0 = pre-1.0 product. Minor 1 = Nova app line (bump manually for 2.0 milestones).
+Owner: this script (writes VERSION + frontend/package.json; optional git tag).
+Invalidation: pre-commit hook before each new commit; pre-push verifies match;
+CI stamps from `git rev-list --count HEAD` with a full clone before packing.
 """
 from __future__ import annotations
 
@@ -13,13 +15,16 @@ import json
 import os
 import re
 import subprocess
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 VERSION_FILE = REPO_ROOT / "VERSION"
 PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
 SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+TAG_RE = re.compile(r"^v(\d+)$")
+PACKAGE_MAJOR = 0
+PACKAGE_MINOR = 1
+TAG_MIN_WIDTH = 3
 
 
 def git_commit_count() -> int:
@@ -36,15 +41,34 @@ def is_amend_commit() -> bool:
     return "amend" in action.lower()
 
 
-def target_patch_for_hook() -> int:
+def target_count_for_hook() -> int:
     count = git_commit_count()
     if is_amend_commit():
         return count
     return count + 1
 
 
-def format_version(major: int = 0, minor: int = 1, patch: int = 0) -> str:
-    return f"{major}.{minor}.{patch}"
+def format_release_tag(count: int) -> str:
+    if count < 1:
+        raise ValueError(f"commit count must be >= 1, got {count}")
+    return f"v{count:0{TAG_MIN_WIDTH}d}"
+
+
+def format_package_version(count: int) -> str:
+    if count < 1:
+        raise ValueError(f"commit count must be >= 1, got {count}")
+    return f"{PACKAGE_MAJOR}.{PACKAGE_MINOR}.{count}"
+
+
+def parse_release_count(text: str) -> int | None:
+    raw = text.strip()
+    tag = TAG_RE.match(raw)
+    if tag:
+        return int(tag.group(1))
+    semver = SEMVER_RE.match(raw)
+    if semver:
+        return int(semver.group(3))
+    return None
 
 
 def read_version_file() -> str | None:
@@ -54,8 +78,8 @@ def read_version_file() -> str | None:
     return text or None
 
 
-def write_version_file(version: str) -> None:
-    VERSION_FILE.write_text(f"{version}\n", encoding="utf-8")
+def write_version_file(tag: str) -> None:
+    VERSION_FILE.write_text(f"{tag}\n", encoding="utf-8")
 
 
 def read_package_version() -> str | None:
@@ -75,23 +99,16 @@ def write_package_version(version: str) -> None:
     )
 
 
-def parse_version(version: str) -> tuple[int, int, int] | None:
-    m = SEMVER_RE.match(version.strip())
-    if not m:
-        return None
-    return int(m.group(1)), int(m.group(2)), int(m.group(3))
-
-
-def sync_version(version: str, *, stage: bool = False) -> bool:
-    """Write VERSION + package.json if needed. Returns True when files changed."""
+def sync_revision(count: int, *, stage: bool = False) -> bool:
+    """Write VERSION (vNNN) + package.json (0.1.N). Returns True when changed."""
+    tag = format_release_tag(count)
+    package = format_package_version(count)
     changed = False
-    current_vf = read_version_file()
-    if current_vf != version:
-        write_version_file(version)
+    if read_version_file() != tag:
+        write_version_file(tag)
         changed = True
-    current_pkg = read_package_version()
-    if current_pkg != version:
-        write_package_version(version)
+    if read_package_version() != package:
+        write_package_version(package)
         changed = True
     if changed and stage:
         subprocess.run(
@@ -102,63 +119,113 @@ def sync_version(version: str, *, stage: bool = False) -> bool:
     return changed
 
 
-def expected_version_for_head() -> str:
-    return format_version(patch=git_commit_count())
+def expected_tag_for_head() -> str:
+    return format_release_tag(git_commit_count())
 
 
-def expected_version_for_next_commit() -> str:
-    return format_version(patch=target_patch_for_hook())
+def expected_package_for_head() -> str:
+    return format_package_version(git_commit_count())
+
+
+def expected_tag_for_next_commit() -> str:
+    return format_release_tag(target_count_for_hook())
 
 
 def run_pre_commit() -> int:
-    version = expected_version_for_next_commit()
-    changed = sync_version(version, stage=True)
+    count = target_count_for_hook()
+    tag = format_release_tag(count)
+    changed = sync_revision(count, stage=True)
     if changed:
-        print(f"bump_version: staged {version} (VERSION + frontend/package.json)")
+        print(f"bump_version: staged {tag} / {format_package_version(count)}")
     else:
-        print(f"bump_version: already {version}")
+        print(f"bump_version: already {tag}")
     return 0
 
 
 def run_pre_push() -> int:
-    expected = expected_version_for_head()
+    count = git_commit_count()
+    expected_tag = format_release_tag(count)
+    expected_pkg = format_package_version(count)
     vf = read_version_file()
     pkg = read_package_version()
     problems: list[str] = []
-    if vf != expected:
-        problems.append(f"VERSION is {vf!r}, expected {expected!r}")
-    if pkg != expected:
-        problems.append(f"frontend/package.json is {pkg!r}, expected {expected!r}")
+    if vf != expected_tag:
+        problems.append(f"VERSION is {vf!r}, expected {expected_tag!r}")
+    if pkg != expected_pkg:
+        problems.append(f"frontend/package.json is {pkg!r}, expected {expected_pkg!r}")
     if problems:
         print("bump_version: version drift -- run: py -3 tools/bump_version.py --sync")
         for line in problems:
             print(f"  - {line}")
         return 1
-    print(f"bump_version: ok ({expected})")
+    print(f"bump_version: ok ({expected_tag} / {expected_pkg})")
     return 0
 
 
 def run_sync() -> int:
-    version = expected_version_for_head()
-    changed = sync_version(version, stage=False)
-    print(f"bump_version: {'updated' if changed else 'already'} {version}")
+    count = git_commit_count()
+    tag = format_release_tag(count)
+    changed = sync_revision(count, stage=False)
+    print(f"bump_version: {'updated' if changed else 'already'} {tag}")
     return 0
 
 
 def run_show() -> int:
     count = git_commit_count()
     print(f"commits={count}")
-    print(f"head={expected_version_for_head()}")
-    print(f"next_commit={expected_version_for_next_commit()}")
-    vf = read_version_file()
-    pkg = read_package_version()
-    print(f"VERSION_file={vf}")
-    print(f"package_json={pkg}")
+    print(f"tag={format_release_tag(count)}")
+    print(f"package={format_package_version(count)}")
+    print(f"next_tag={format_release_tag(target_count_for_hook())}")
+    print(f"VERSION_file={read_version_file()}")
+    print(f"package_json={read_package_version()}")
+    return 0
+
+
+def run_print_tag() -> int:
+    print(format_release_tag(git_commit_count()))
+    return 0
+
+
+def existing_tag_commit(tag: str) -> str | None:
+    listed = subprocess.check_output(
+        ["git", "tag", "-l", tag],
+        cwd=REPO_ROOT,
+        text=True,
+    ).strip()
+    if not listed:
+        return None
+    return subprocess.check_output(
+        ["git", "rev-list", "-n", "1", tag],
+        cwd=REPO_ROOT,
+        text=True,
+    ).strip()
+
+
+def create_lightweight_tag(tag: str) -> None:
+    subprocess.run(["git", "tag", tag], cwd=REPO_ROOT, check=True)
+
+
+def push_tag(tag: str) -> None:
+    subprocess.run(["git", "push", "origin", tag], cwd=REPO_ROOT, check=True)
+
+
+def run_ensure_tag(*, push: bool = False) -> int:
+    """Create vNNN on HEAD when missing. Does not move an existing tag."""
+    tag = expected_tag_for_head()
+    existing = existing_tag_commit(tag)
+    if existing:
+        print(f"bump_version: tag {tag} already exists ({existing[:12]})")
+        return 0
+    create_lightweight_tag(tag)
+    print(f"bump_version: created tag {tag}")
+    if push:
+        push_tag(tag)
+        print(f"bump_version: pushed {tag}")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Nova commit-count versioning")
+    parser = argparse.ArgumentParser(description="Nova commit-count vNNN versioning")
     parser.add_argument(
         "--pre-commit",
         action="store_true",
@@ -167,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--pre-push",
         action="store_true",
-        help="Verify VERSION matches current commit count",
+        help="Verify VERSION tag and package.json match current commit count",
     )
     parser.add_argument(
         "--sync",
@@ -177,7 +244,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--show",
         action="store_true",
-        help="Print commit count and version fields",
+        help="Print commit count, vNNN tag, and package semver",
+    )
+    parser.add_argument(
+        "--print-tag",
+        action="store_true",
+        help="Print only the vNNN tag for HEAD (CI / pack scripts)",
+    )
+    parser.add_argument(
+        "--ensure-tag",
+        action="store_true",
+        help="Create lightweight git tag vNNN on HEAD if it does not exist",
+    )
+    parser.add_argument(
+        "--push-tag",
+        action="store_true",
+        help="With --ensure-tag, push the new tag to origin",
     )
     args = parser.parse_args(argv)
     if args.pre_commit:
@@ -188,6 +270,10 @@ def main(argv: list[str] | None = None) -> int:
         return run_sync()
     if args.show:
         return run_show()
+    if args.print_tag:
+        return run_print_tag()
+    if args.ensure_tag:
+        return run_ensure_tag(push=args.push_tag)
     parser.print_help()
     return 2
 

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Block push when VERSION / package.json drift from commit count.
+# Block push when VERSION (vNNN) / package.json (0.1.N) drift from commit count.
 set -e
 cd "$(git rev-parse --show-toplevel)"
 py -3 tools/bump_version.py --pre-push

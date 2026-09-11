@@ -31,18 +31,21 @@ cd frontend
 npm run electron:pack
 ```
 
-Installer output: `frontend/release/Nova-Setup-*.exe` (version comes from `frontend/package.json`, synced from commit count).
+Installer output: `frontend/release/Nova-Setup-vNNN.exe` (public identity is the commit-count tag).
 
-### Versioning (commit-count semver)
+Every pull request must pack this EXE in CI (`Desktop pack` workflow). Download it from the workflow artifacts on the PR. Do not merge if that job is red.
 
-Nova uses **`0.1.<commit-count>`** (e.g. `0.1.418` = 418 commits on `master`). The patch number is `git rev-list --count HEAD` after each commit lands.
+### Versioning (commit-count `vNNN`)
 
-- **SSOT:** repo root `VERSION` + `frontend/package.json` (Electron / NSIS read `package.json`).
+Nova's public revision is **`vNNN`**: `v` plus the git commit count from the first commit, at least three digits (`v001`, `v473`, `v1000`). `git rev-list --count HEAD` is the number.
+
+- **SSOT:** repo root `VERSION` stores `vNNN`. `frontend/package.json` stores `0.1.N` because electron-builder requires semver. Both share the same N.
+- **CI pack:** `.github/workflows/desktop-pack.yml` checks out the full history, runs `tools/bump_version.py --sync`, packs the Windows NSIS installer, and uploads `Nova-Setup-vNNN.exe`.
+- **Releases:** a successful push to `master` / `main` creates git tag `vNNN` only. No GitHub Release object.
 - **Install hooks once:** `powershell -File tools/install_git_hooks.ps1` (sets `core.hooksPath` to `.githooks`).
 - **pre-commit:** bumps to the next count and stages `VERSION` + `package.json`.
 - **pre-push:** blocks push if those files drift from the commit count.
 - **Manual sync:** `py -3 tools/bump_version.py --sync` (align to current HEAD without committing).
-- **Tags (optional):** `v0.1.418` on release builds.
 
 The packaged app stores Alpaca keys and cache under `%APPDATA%\Nova\` (`.env`, `cache\`, `logs\`).
 
