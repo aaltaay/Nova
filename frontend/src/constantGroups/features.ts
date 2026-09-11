@@ -95,6 +95,12 @@ export const EARNINGS_SESSION_LABELS: Record<string, string> = {
 };
 export const EARNINGS_NO_KEY_MESSAGE =
   'Finnhub is not configured -- set FINNHUB_API_KEY in .env to load the earnings calendar.';
+export const EARNINGS_MISSING_KEY_STALE_MESSAGE =
+  'Finnhub is not configured -- showing the last cached earnings calendar.';
+export const EARNINGS_RATE_LIMITED_MESSAGE =
+  'Finnhub rate-limited the earnings calendar. Retry shortly.';
+export const EARNINGS_RATE_LIMITED_STALE_MESSAGE =
+  'Finnhub rate-limited -- showing the last cached earnings calendar.';
 
 /** HOD Strategies filter dropdown — tall enough to show most strategies without scroll. */
 export const HOD_STRATEGY_FILTER_MAX_HEIGHT_PX = 520;

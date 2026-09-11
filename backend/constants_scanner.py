@@ -227,6 +227,8 @@ FUNDAMENTALS_CACHE_TTL = 900.0      # 15 minutes
 # Failed Yahoo / timeout / empty exception: short negative cache so a blip
 # does not blank float / SI / mcap / RVOL for a full scan cycle (D-016).
 FUNDAMENTALS_NEGATIVE_CACHE_TTL = 60.0
+# Hard cap so mover_enrich warming new names cannot grow the cache all day (D-024).
+FUNDAMENTALS_CACHE_MAX_ENTRIES = 400
 # Hard timeout for a single yfinance .info call; prevents Yahoo stalls from blocking Phase 2.
 # On timeout, a successful stale cache is returned; a prior failure is retried.
 YFINANCE_TIMEOUT_S = 5.0

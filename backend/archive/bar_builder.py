@@ -89,6 +89,18 @@ def on_tape_print(
     bucket.volume += max(0.0, float(size))
 
 
+def flush_elapsed(now: float, *, queued: bool = True) -> int:
+    """Flush minutes that already closed even if the tape went quiet (D-024)."""
+    cutoff = float(now) - _MINUTE
+    n = 0
+    for key, bucket in list(_open.items()):
+        if bucket.minute_ts <= cutoff:
+            _open.pop(key, None)
+            _flush(bucket, queued=queued)
+            n += 1
+    return n
+
+
 def flush_symbol(symbol: str, *, source: str = ARCHIVE_SOURCE_IBKR) -> None:
     key = (symbol.upper(), source)
     bucket = _open.pop(key, None)

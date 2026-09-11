@@ -32,8 +32,11 @@ from constants import (
     EARNINGS_CALENDAR_SCHEMA_VERSION,
     EARNINGS_CALENDAR_TTL_SEC,
     EARNINGS_CALENDAR_WINDOW_DAYS,
+    EARNINGS_ERROR_MISSING_KEY,
+    EARNINGS_ERROR_RATE_LIMITED,
     FINNHUB_EARNINGS_URL,
 )
+import finnhub_http
 from market import now_et
 
 logger = logging.getLogger(__name__)
@@ -59,6 +62,12 @@ def _window_dates(today: date) -> tuple[date, date]:
 
 
 def _fetch_finnhub(date_from: str, date_to: str, api_key: str) -> list[dict] | None:
+    if finnhub_http.is_blocked():
+        logger.warning(
+            "earnings_calendar: skipping Finnhub -- rate-limited for %.0fs",
+            finnhub_http.remaining_sec(),
+        )
+        return None
     try:
         resp = requests.get(
             FINNHUB_EARNINGS_URL,
@@ -67,6 +76,9 @@ def _fetch_finnhub(date_from: str, date_to: str, api_key: str) -> list[dict] | N
         )
     except Exception:
         logger.warning("earnings_calendar: Finnhub request failed", exc_info=True)
+        return None
+    if resp.status_code == 429:
+        finnhub_http.note_rate_limit(resp)
         return None
     if resp.status_code != 200:
         logger.warning(
@@ -158,23 +170,30 @@ def get_calendar_rows(*, force: bool = False) -> tuple[list[dict], float, str | 
     _ensure_loaded_from_disk()
 
     now = time.time()
+    api_key = os.environ.get("FINNHUB_API_KEY", "").strip()
     fresh = _cache_rows is not None and (now - _cache_ts) < EARNINGS_CALENDAR_TTL_SEC
     if fresh and not force:
+        if not api_key:
+            return _cache_rows, _cache_ts, EARNINGS_ERROR_MISSING_KEY
         return _cache_rows, _cache_ts, None
 
-    api_key = os.environ.get("FINNHUB_API_KEY", "").strip()
     if not api_key:
         if _cache_rows:
-            return _cache_rows, _cache_ts, None
+            return _cache_rows, _cache_ts, EARNINGS_ERROR_MISSING_KEY
         return [], 0.0, "FINNHUB_API_KEY is not set -- Earnings calendar has no data source."
 
     start, end = _window_dates(now_et().date())
     fetched = _fetch_finnhub(start.isoformat(), end.isoformat(), api_key)
     if fetched is None:
+        err = (
+            EARNINGS_ERROR_RATE_LIMITED
+            if finnhub_http.is_blocked()
+            else "Finnhub earnings calendar request failed and no cached snapshot exists."
+        )
         if _cache_rows:
-            logger.warning("earnings_calendar: Finnhub fetch failed -- serving stale snapshot")
-            return _cache_rows, _cache_ts, None
-        return [], 0.0, "Finnhub earnings calendar request failed and no cached snapshot exists."
+            logger.warning("earnings_calendar: Finnhub fetch failed -- serving stale snapshot (%s)", err)
+            return _cache_rows, _cache_ts, err if err == EARNINGS_ERROR_RATE_LIMITED else None
+        return [], 0.0, err
 
     _cache_rows = fetched
     _cache_ts = now

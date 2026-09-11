@@ -27,6 +27,7 @@ from constants import (
     EARNINGS_LOGO_SCHEMA_VERSION,
     FINNHUB_PROFILE2_URL,
 )
+import finnhub_http
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,13 @@ def get_cached_logo_url(symbol: str) -> str | None:
         return url if isinstance(url, str) and url.strip() else None
 
 
-def _fetch_one(symbol: str, api_key: str) -> str | None:
+# Returned by _fetch_one when Finnhub 429'd -- caller must not cache a miss.
+_SKIP = object()
+
+
+def _fetch_one(symbol: str, api_key: str) -> str | None | object:
+    if finnhub_http.is_blocked():
+        return _SKIP
     try:
         resp = requests.get(
             FINNHUB_PROFILE2_URL,
@@ -116,6 +123,9 @@ def _fetch_one(symbol: str, api_key: str) -> str | None:
     except Exception:
         logger.warning("earnings_logos: profile2 failed for %s", symbol, exc_info=True)
         return None
+    if resp.status_code == 429:
+        finnhub_http.note_rate_limit(resp)
+        return _SKIP
     if resp.status_code != 200:
         logger.warning(
             "earnings_logos: profile2 HTTP %s for %s", resp.status_code, symbol,
@@ -169,6 +179,11 @@ def _drain(api_key: str) -> None:
             symbol = sorted(_pending)[0]
             _pending.discard(symbol)
         url = _fetch_one(symbol, api_key)
+        if url is _SKIP:
+            with _lock:
+                _pending.add(symbol)
+            time.sleep(max(EARNINGS_LOGO_FETCH_PACING_SEC, finnhub_http.remaining_sec() or 1.0))
+            continue
         with _lock:
             _ensure_loaded()
             assert _entries is not None

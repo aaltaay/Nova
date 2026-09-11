@@ -129,4 +129,27 @@ describe('EarningsPanel', () => {
 
     expect(screen.getByText(/FINNHUB_API_KEY/)).toBeTruthy();
   });
+
+  it('keeps cached rows visible when Finnhub is missing_key', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        ...viewFor('today'),
+        error: 'missing_key',
+      }),
+      status: 200,
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      render(
+        <EarningsPanel selectedSymbol={null} onSelect={() => {}} onOpenTrading={() => {}} />,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText(/last cached earnings calendar/)).toBeTruthy();
+    expect(screen.getByText('NVIDIA')).toBeTruthy();
+  });
 });

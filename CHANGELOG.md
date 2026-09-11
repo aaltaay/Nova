@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- News 429 honesty, FinBERT off the scan pool, desk map bounds, Trend Line pan lock
+
+- **What:** Earnings Finnhub calls honour Retry-After on HTTP 429 and surface `missing_key` / `rate_limited` instead of a silent stale tab. FinBERT no longer cold-loads on the first catalyst headline (warmup is a background thread; classify returns unavailable until ready). Day-long in-process maps (qualified contracts, tape cancel/locks, fundamentals cache, archive 1m buckets, signals stream) are now TTL/LRU-capped and reported on `/api/metrics/ops`. Armed chart drawing tools disable pressed-mouse pan so Trend Line clicks can land.
+- **Why:** D-015 leftover (Finnhub 429 + FinBERT scan stall), D-024 unbounded desk growth, and a focused D-010 try (two-click Trend Line was panning the X-axis).
+- **Files touched:** `backend/finnhub_http.py`, `backend/earnings_calendar.py`, `backend/earnings_logos.py`, `backend/news/sentiment.py`, `backend/process_maps.py`, `backend/ibkr/discovery.py`, `backend/ibkr/tape_stream.py`, `backend/fundamentals.py`, `backend/archive/bar_builder.py`, `frontend/src/chart/chartDrawingInteraction.ts`, `frontend/src/strategy/useSignalsStream.ts`, `frontend/src/earnings/EarningsPanel.tsx`
+- **How it works now:** Classify never imports transformers. Calendar/logo fetchers share one Finnhub cooldown. READY clears qualified contracts; each map evicts. `/api/metrics/ops` exposes `maps`. A drawing tool applies `pressedMouseMove: false` until the tool clears. Earnings shows a banner and keeps cached rows.
+- **Verified by:** pytest on the new/updated news, earnings, bounds, tape, and bar-builder tests; Vitest on earnings error copy, signals cap, and chart interaction.
+- **Follow-ups:** D-010 still needs a live two-click desk check (this lock is the focused fix, not a new click protocol).
+- **Related:** Closes #35 #27; Refs #38; PROBLEM_LOG 2026-09-11 news/growth/trendline.
+
 ## 2026-09-11 -- Scanner tables paint last-good / no L1 / feed_error
 
 - **What:** Scanner chrome now shows when an empty roster was ignored (last-good), when L1 never arrived (`no L1 yet`), and when `feed_error` / `subscriptionError` / `unavailable` is the reason the list looks live. Catalysts empty copy no longer says "scan running" on a dead feed.

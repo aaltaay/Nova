@@ -5,6 +5,7 @@
 import { useState } from 'react';
 import { EARNINGS_RANGES, EARNINGS_RANGE_LABELS } from '../constants';
 import { useEarningsCalendar } from './useEarningsCalendar';
+import { earningsErrorCopy } from './earningsError';
 import { EarningsDayBand } from './EarningsDayBand';
 import type { EarningsRange } from '../types/earnings';
 
@@ -21,7 +22,8 @@ export function EarningsPanel({
   const { view, loading, fetchError } = useEarningsCalendar(range);
 
   const totalReports = view?.days.reduce((sum, d) => sum + d.count, 0) ?? 0;
-  const error = view?.error || fetchError || null;
+  const hasDays = Boolean(view?.days.length);
+  const error = earningsErrorCopy(view?.error || fetchError || null, hasDays);
 
   return (
     <div className="earnings-panel">
@@ -43,13 +45,10 @@ export function EarningsPanel({
         </span>
       </div>
 
-      {error ? (
-        <div className="empty-state">{error}</div>
-      ) : view && view.days.length === 0 ? (
-        <div className="empty-state">No earnings reports in this range.</div>
-      ) : view ? (
+      {error ? <div className="empty-state">{error}</div> : null}
+      {hasDays ? (
         <div className="earnings-panel__days">
-          {view.days.map((day) => (
+          {view!.days.map((day) => (
             <EarningsDayBand
               key={day.date}
               day={day}
@@ -59,6 +58,8 @@ export function EarningsPanel({
             />
           ))}
         </div>
+      ) : error ? null : view ? (
+        <div className="empty-state">No earnings reports in this range.</div>
       ) : (
         <div className="empty-state">Loading earnings calendar…</div>
       )}

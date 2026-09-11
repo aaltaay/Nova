@@ -20,6 +20,7 @@ import time
 
 from constants import (
     IBKR_DISCOVERY_QUALIFY_TIMEOUT_SEC,
+    IBKR_QUALIFIED_CONTRACTS_MAX,
     IBKR_ERROR_SCANNER_SLOT_EXHAUSTED,
     IBKR_COLD_SNAPSHOT_BATCH,
     IBKR_QUOTE_BATCH_TIMEOUT_SEC,
@@ -85,6 +86,44 @@ def clear_inflight_scan_reqids(*, reason: str = "") -> int:
             reason or "unspecified",
         )
     return n
+
+
+def qualified_contract_count() -> int:
+    return len(_qualified_contracts)
+
+
+def clear_qualified_contracts(*, reason: str = "") -> int:
+    """Drop cached Stock contracts after a full reconnect (D-024)."""
+    n = len(_qualified_contracts)
+    _qualified_contracts.clear()
+    if n:
+        logger.info(
+            "IBKR discovery: cleared %d qualified contracts (%s)",
+            n,
+            reason or "unspecified",
+        )
+    return n
+
+
+def remember_qualified_contract(symbol: str, contract: object) -> None:
+    """LRU-insert a qualified contract. Oldest keys drop past the cap."""
+    sym = (symbol or "").strip().upper()
+    if not sym or contract is None:
+        return
+    _qualified_contracts.pop(sym, None)
+    _qualified_contracts[sym] = contract
+    max_n = max(1, int(IBKR_QUALIFIED_CONTRACTS_MAX))
+    while len(_qualified_contracts) > max_n:
+        _qualified_contracts.pop(next(iter(_qualified_contracts)))
+
+
+def take_qualified_contract(symbol: str):
+    """Return a cached contract and mark it most-recently used."""
+    contract = _qualified_contracts.pop(symbol, None)
+    if contract is None:
+        return None
+    _qualified_contracts[symbol] = contract
+    return contract
 
 
 def _get_scan_lock() -> asyncio.Lock:
@@ -491,9 +530,9 @@ async def snapshot_quotes(
                 continue
             sym = getattr(c, "symbol", None)
             if sym:
-                _qualified_contracts[sym.upper()] = c
+                remember_qualified_contract(sym.upper(), c)
 
-    qualified = [_qualified_contracts[s] for s in symbols if s in _qualified_contracts]
+    qualified = [c for s in symbols if (c := take_qualified_contract(s)) is not None]
     if not qualified:
         if require_success:
             raise IbkrDiscoveryError(

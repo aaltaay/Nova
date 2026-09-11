@@ -1,6 +1,7 @@
 /** Opens /ws/strategy, receives recent signal history, then appends live setup signals. */
 import { useEffect, useRef, useState } from 'react';
-import { WS_BASE_URL } from '../constants';
+import { SIGNALS_STREAM_MAX, WS_BASE_URL } from '../constants';
+import { prependBounded } from './signalsStreamBound';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import type { SetupSignal } from './types';
 
@@ -51,7 +52,7 @@ export function useSignalsStream(): SignalsStreamState {
                 receipt_id: msg.receipt_id,
               };
             }
-            setSignals(prev => [signal, ...prev]);
+            setSignals(prev => prependBounded(signal, prev, SIGNALS_STREAM_MAX));
           }
           // ignore "ping"
         } catch {
