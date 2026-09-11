@@ -6,7 +6,6 @@ import {
   STOCK_VIEW_MODULE_NOVA_OS_TITLE,
   STOCK_VIEW_MODULE_POSITIONS_TITLE,
   STOCK_VIEW_OPEN_ORDERS_SAMPLE_BANNER,
-  STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY,
   type StockViewDockSurface,
 } from '../constants';
 import { PositionsPanel } from '../ibkr/PositionsPanel';
@@ -19,13 +18,15 @@ import type {
 } from '../ibkr/types';
 import { OrdersTodayView, ordersTodayBadgeCount } from '../orders_today';
 import type { OrdersTodayFilter } from '../orders_today';
+import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import {
+  initialSampleHidden,
   readCollapsed,
   readFilter,
-  readSampleHidden,
   readSurface,
   writeCollapsed,
   writeFilter,
+  writeSampleHidden,
   writeSurface,
 } from './stockViewDockPersist';
 import { TraderNovaOsBrain } from './TraderNovaOsBrain';
@@ -66,8 +67,11 @@ export function StockViewOpenOrdersDock({
   highlightOrderId = null,
   onCollapsedChange,
 }: Props) {
+  const sample = useSampleDataOptional();
   const [collapsed, setCollapsed] = useState(readCollapsed);
-  const [sampleHidden, setSampleHidden] = useState(readSampleHidden);
+  const [sampleHidden, setSampleHidden] = useState(() =>
+    initialSampleHidden(Boolean(sample)),
+  );
   const [filter, setFilter] = useState<OrdersTodayFilter>(readFilter);
   const [surface, setSurface] = useState<StockViewDockSurface>(readSurface);
 
@@ -140,20 +144,12 @@ export function StockViewOpenOrdersDock({
 
   const hideSample = () => {
     setSampleHidden(true);
-    try {
-      localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY, '1');
-    } catch {
-      /* ignore */
-    }
+    writeSampleHidden(true);
   };
 
   const showSample = () => {
     setSampleHidden(false);
-    try {
-      localStorage.removeItem(STOCK_VIEW_OPEN_ORDERS_SAMPLE_HIDDEN_KEY);
-    } catch {
-      /* ignore */
-    }
+    writeSampleHidden(false);
     setCollapsed(false);
     writeCollapsed(false);
   };

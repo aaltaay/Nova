@@ -10,6 +10,7 @@ import {
   ORDERS_TODAY_EMPTY_MESSAGE,
 } from '../constants';
 import type { IbkrOrder } from '../ibkr/types';
+import { SampleDataProvider } from '../sample_data/SampleDataContext';
 import { OrdersTodayView } from './OrdersTodayView';
 
 const CLOSED_MSFT: ClosedOrder = {
@@ -68,10 +69,49 @@ describe('OrdersTodayView account-wide', () => {
         <OrdersTodayView {...baseProps} filter="canceled" onFilterChange={() => {}} />,
       );
     });
-    // filter=canceled hides Working; empty closed falls back to sample rows.
+    const empty = container.querySelector('[data-testid="orders-today-empty"]');
+    expect(empty).toBeTruthy();
+    expect(empty?.textContent).toBe(ORDERS_TODAY_EMPTY_MESSAGE);
+    expect(
+      container.querySelector('[data-testid="orders-today-closed-sample-toggle"]')
+        ?.textContent,
+    ).toBe('Show closed sample');
+  });
+
+  it('Show closed sample opt-in paints mock closed rows', () => {
+    act(() => {
+      root.render(
+        <OrdersTodayView {...baseProps} filter="canceled" onFilterChange={() => {}} />,
+      );
+    });
+    const toggle = container.querySelector(
+      '[data-testid="orders-today-closed-sample-toggle"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      toggle.click();
+    });
     expect(
       container.querySelector('[data-testid="orders-today-empty"]'),
     ).toBeNull();
+    expect(container.textContent).toContain('9003');
+  });
+
+  it('defaults to closed sample rows under SampleDataProvider', () => {
+    act(() => {
+      root.render(
+        <SampleDataProvider>
+          <OrdersTodayView
+            {...baseProps}
+            filter="canceled"
+            onFilterChange={() => {}}
+          />
+        </SampleDataProvider>,
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="orders-today-empty"]'),
+    ).toBeNull();
+    expect(container.textContent).toContain('9003');
   });
 
   it('shows other-symbol closed fills while Stock View is on a different ticker', () => {

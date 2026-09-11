@@ -13,6 +13,7 @@ import {
 } from '../constants';
 import type { ClosedOrder } from '../closed_orders/types';
 import type { IbkrOrder, IbkrPosition } from '../ibkr/types';
+import { SampleDataProvider } from '../sample_data/SampleDataContext';
 import { StockViewOpenOrdersDock } from './StockViewOpenOrdersDock';
 
 vi.mock('../ibkr/useIbkrStatus', () => ({
@@ -112,7 +113,7 @@ describe('StockViewOpenOrdersDock', () => {
     container.remove();
   });
 
-  it('auto-shows sample rows when empty and expands', () => {
+  it('does not auto-show sample rows when IB returns zero working orders', () => {
     act(() => {
       root.render(<StockViewOpenOrdersDock {...baseProps} />);
     });
@@ -120,13 +121,49 @@ describe('StockViewOpenOrdersDock', () => {
       '[data-testid="stock-view-open-orders-dock"]',
     );
     expect(dock).toBeTruthy();
-    expect(dock?.getAttribute('data-sample')).toBe('1');
+    expect(dock?.getAttribute('data-sample')).not.toBe('1');
     expect(container.textContent).toContain(ORDERS_TODAY_TITLE);
+    expect(container.textContent).not.toContain('90001');
+    expect(
+      container.querySelector('[data-testid="stock-view-open-orders-show-sample"]')
+        ?.textContent,
+    ).toBe('Show sample');
+  });
+
+  it('Show sample opt-in paints mock working rows', () => {
+    act(() => {
+      root.render(<StockViewOpenOrdersDock {...baseProps} />);
+    });
+    const show = container.querySelector(
+      '[data-testid="stock-view-open-orders-show-sample"]',
+    ) as HTMLButtonElement;
+    act(() => {
+      show.click();
+    });
+    const dock = container.querySelector(
+      '[data-testid="stock-view-open-orders-dock"]',
+    );
+    expect(dock?.getAttribute('data-sample')).toBe('1');
+    expect(container.textContent).toContain('90001');
     expect(
       container.querySelector('[data-testid="orders-today-filters"]'),
     ).toBeTruthy();
-    expect(container.textContent).toContain('90001');
     expect(localStorage.getItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY)).toBe('0');
+  });
+
+  it('auto-shows sample rows under SampleDataProvider', () => {
+    act(() => {
+      root.render(
+        <SampleDataProvider>
+          <StockViewOpenOrdersDock {...baseProps} />
+        </SampleDataProvider>,
+      );
+    });
+    const dock = container.querySelector(
+      '[data-testid="stock-view-open-orders-dock"]',
+    );
+    expect(dock?.getAttribute('data-sample')).toBe('1');
+    expect(container.textContent).toContain('90001');
   });
 
   it('Orders badge counts real closed orders for a pre-existing position with no working order', () => {

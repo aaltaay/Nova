@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- D-014 order docks painted mock fills on a quiet paper day
+
+- **Symptom:** Closed Orders and the Open Orders dock showed paper-style fills when IB returned zero orders. A reconnect before `reqCompletedOrders` landed looked the same.
+- **Cause:** `preferSample` and `preferClosedSample` initialized `true`. The dock's `sampleHidden` defaulted false, so `usingSample` fired on an empty working list. Global Sample mode (`useSampleDataOptional`) was not the gate. Read-failure was already excluded (`!error`).
+- **Fix:** Defaults follow Sample mode. Live desk starts off; Show sample stays opt-in. Dock `initialSampleHidden(globalSampleActive)` hides unless Sample mode is on or the operator already hid it.
+- **Fix class:** admission
+- **Keywords:** D-014, preferSample, preferClosedSample, wantsWorkingSample, sampleHidden, useSampleDataOptional, Closed Orders, Open Orders dock, mock fills
+
 ## 2026-09-11 -- check lied after master was protected
 
 - **Symptom:** `python3 tools/master_branch_protection.py check` exited 2 (`integration_forbidden`) after `master` was already `protected: true` with the four required checks.

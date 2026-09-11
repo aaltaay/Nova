@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Order docks no longer default to mock sample rows
+
+- **What:** Closed Orders, Orders (Today) closed sample, and the Open Orders dock now start with real IB rows only. Zero orders is an empty blotter. Sample rows appear under global Sample mode (`useSampleDataOptional`) or after the operator clicks Show sample.
+- **Why:** D-014 / #33 -- a quiet paper day, or the gap before `reqCompletedOrders` lands, painted fake fills because `preferSample` / `preferClosedSample` / `sampleHidden` defaulted to show.
+- **Files touched:** `frontend/src/closed_orders/ClosedOrdersModule.tsx`, `frontend/src/orders_today/OrdersTodayView.tsx`, `frontend/src/stock_view/StockViewOpenOrdersDock.tsx`, `frontend/src/stock_view/stockViewDockPersist.ts`
+- **How it works now:** Each host reads `useSampleDataOptional()`. Live desk: prefer-sample flags start false; the dock treats sample as hidden unless Sample mode is on or the operator hid it earlier. Show sample / Show closed sample stay opt-in. A stored Hide still wins over Sample mode. Read failures still never substitute mocks.
+- **Verified by:** focused Vitest `ClosedOrdersModule.test.tsx`, `OrdersTodayView.test.tsx`, `StockViewOpenOrdersDock.test.tsx`, `stockViewDockPersist.test.ts`.
+- **Related:** PROBLEM_LOG 2026-09-11 D-014 mock sample default. Closes #33.
+
 ## 2026-09-11 -- Master protection is live; check reads the public summary
 
 - **What:** `master` is protected on public `aaltaay/Nova`. The check tool no longer treats a 403 on GET `/protection` as "cannot see the rule" when `GET /branches/master` already has the public summary. Security-Status marks the row done. Deferred index includes closed D-041 / #63.
