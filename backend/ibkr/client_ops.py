@@ -60,7 +60,9 @@ async def force_reconnect() -> dict:
         "session_generation": _session.generation(),
         "mode": c.account_mode(),
         "broker_account_kind": c.broker_account_kind(),
-        "spend_status": _safety.status_snapshot()["spend_status"],
+        "spend_status": _safety.status_snapshot(c.broker_account_kind())[
+            "spend_status"
+        ],
     }
 
 
@@ -132,7 +134,7 @@ async def request_gateway_mode(mode: str) -> dict:
             "connected": True,
             "mode": c.account_mode(),
             "broker_account_kind": kind_now,
-            "spend_status": _safety.status_snapshot()["spend_status"],
+            "spend_status": _safety.status_snapshot(kind_now)["spend_status"],
             "intentional_gateway_mode": _heal.intentional_mode(),
             "launch_action": "noop",
             "message": f"Already on a {target} IB account -- Gateway was not restarted.",
@@ -187,7 +189,7 @@ async def request_gateway_mode(mode: str) -> dict:
         "connected": False,
         "mode": "disconnected",
         "broker_account_kind": "unknown",
-        "spend_status": _safety.status_snapshot()["spend_status"],
+        "spend_status": _safety.status_snapshot("unknown")["spend_status"],
         "intentional_gateway_mode": _heal.intentional_mode(),
         "launch_action": launch.get("action"),
         "message": launch.get("message"),

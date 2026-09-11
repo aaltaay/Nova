@@ -178,6 +178,12 @@ NOVA_API_KEY_HEADER = "X-Nova-Api-Key"
 NOVA_API_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 NOVA_CONFIG_MUTATE_PATH = "/api/config"
 
+# ── Kill switch latch (D-037) ───────────────────────────────────────────────────
+# Persisted so an API restart cannot silently re-arm spending. Owner +
+# invalidation trigger are documented in strategy/kill_switch_state.py.
+KILL_SWITCH_STATE_FILENAME = "kill_switch_state.json"
+KILL_SWITCH_STATE_SCHEMA_VERSION = 1
+
 # ── Outbound alerts (Phase D) ───────────────────────────────────────────────────
 ALERTS_CHANNELS_FILENAME = "alerts_channels.json"
 # Optional comma-separated host allowlist for outbound webhooks (SEC-008).

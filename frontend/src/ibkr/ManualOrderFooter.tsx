@@ -15,6 +15,7 @@ interface Props {
   connected: boolean;
   submitting: boolean;
   spendLocked: boolean;
+  spendLockReason?: string | null;
   quantityLocked: boolean;
   forcedQty: number | null;
   sessionUnlocked: boolean;
@@ -33,6 +34,7 @@ export function ManualOrderFooter({
   connected,
   submitting,
   spendLocked,
+  spendLockReason = null,
   quantityLocked,
   forcedQty,
   sessionUnlocked,
@@ -47,19 +49,26 @@ export function ManualOrderFooter({
   const placeLabel = isPaper
     ? TICKER_TRADE_PLACE_PAPER_ORDER_LABEL
     : TICKER_TRADE_PLACE_ORDER_LABEL;
+  const lockReason =
+    spendLockReason ?? 'IBKR orders remain gated by environment safety settings';
+  // Unlock is not a place — keep the PIN affordance reachable while locked so
+  // the operator is never stuck, but never offer Place into a certain reject.
+  const placeBlockedBySpend = spendLocked && !needsPinUnlock;
   const buttonText = !connected
     ? 'Connect IB Gateway'
     : needsPinUnlock
       ? TICKER_TRADE_UNLOCK_LABEL
-      : submitting
-        ? 'Placing…'
-        : placeLabel;
+      : placeBlockedBySpend
+        ? 'Orders locked'
+        : submitting
+          ? 'Placing…'
+          : placeLabel;
   const buttonTitle = !connected
     ? 'Connect IB Gateway first'
     : needsPinUnlock
       ? `Enter unlock code, then ${placeLabel}`
       : spendLocked
-        ? 'IBKR orders remain gated by environment safety settings'
+        ? lockReason
         : quantityLocked
           ? `Quantity locked to ${TICKER_TRADE_FORCE_QTY} share (temporary safety)`
           : isPaper
@@ -77,7 +86,7 @@ export function ManualOrderFooter({
             ? 'manual-order-submit manual-order-submit--paper mt-1 w-full'
             : 'manual-order-submit mt-1 w-full'
         }
-        disabled={!connected || submitting}
+        disabled={!connected || submitting || placeBlockedBySpend}
         title={buttonTitle}
       >
         {buttonText}
@@ -88,9 +97,9 @@ export function ManualOrderFooter({
           Enter the unlock code to enable {placeLabel}.
         </span>
       )}
-      {sessionUnlocked && spendLocked && (
-        <span className="manual-order-lock-note">
-          Session unlocked. IBKR env gates may still reject the order until orders are enabled.
+      {spendLocked && (
+        <span className="manual-order-lock-note" data-testid="spend-lock-note">
+          {lockReason}
         </span>
       )}
       {quantityLocked && sessionUnlocked && (

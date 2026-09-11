@@ -26,6 +26,7 @@ import { DepthLadder } from './DepthLadder';
 import { OrderTicket } from './OrderTicket';
 import { PaperTradingBanner } from './PaperTradingBanner';
 import { PositionsPanel } from './PositionsPanel';
+import { isSpendLocked, spendLockReason, spendStatusLabel } from './spendLock';
 import { ReportsTab } from '../reports/ReportsTab';
 import { alertApp } from '../ux';
 import { cancelIbkrOrderWithFeedback } from './cancelOrder';
@@ -126,19 +127,16 @@ export function TradingTab({
               marginLeft: 12,
               fontSize: '0.75rem',
               fontWeight: 700,
-              color: status.spend_status === 'locked' || status.spend_status === 'locked_live_unconfirmed'
+              color: isSpendLocked(status.spend_status)
                 ? 'var(--green)'
                 : 'var(--red)',
             }}
-            title="Orders are gated by ibkr/safety.py (IBKR_ORDERS_ENABLED + live confirmation)"
+            title={
+              spendLockReason(status.spend_status, status.spend_locked_reason)
+              ?? 'Orders are gated by ibkr/safety.py (IBKR_ORDERS_ENABLED + live confirmation + IB account class)'
+            }
           >
-            {status.spend_status === 'locked' || status.spend_status === 'locked_live_unconfirmed'
-              ? 'ORDERS LOCKED — no spends'
-              : status.spend_status === 'live_armed'
-                ? 'LIVE ORDERS ARMED'
-                : status.spend_status === 'paper_armed'
-                  ? 'PAPER ORDERS ON'
-                  : ''}
+            {spendStatusLabel(status.spend_status)}
           </span>
         )}
       </div>

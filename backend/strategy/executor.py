@@ -13,10 +13,22 @@ Safety model (defense in depth):
   3. One open executor position per symbol; max concurrent = open + staged.
   4. ibkr.orders.place_bracket_order() env/paper gates — never bypassed.
 
+Kill switch scope (D-037 decision, 2026-09-11):
+  Kill means "no Nova-originated spend of ANY source until reset" — not
+  "stop automation". `execution.service.execute` refuses every place/bracket
+  while the latch is set, including manual ticket places and Nova Action
+  hotkeys that pass `skip_risk=True`. Only the protective sources
+  (kill / flatten / cancel_working) may still reach the broker.
+  The latch is persisted (strategy/kill_switch_state.py) so an API restart
+  cannot silently re-arm the desk; only reset_kill_switch() clears it.
+
 Emergency semantics:
-  - kill_switch: force signal, reject staged, cancel ONLY unfilled parents
-    (+ children). If parent already filled, protective stop/target are preserved.
+  - kill_switch: force signal, reject staged, cancel unfilled parents
+    (+ children), then cancel every other open order on the account so a
+    manual working LMT cannot fill after the kill. If a parent already
+    filled, its protective stop/target are preserved.
   - cancel_working_entry: cancel one symbol's unfilled parent (+ children).
+  - Cancel mechanics live in strategy/executor_cancel.py (ADR 007 cancels).
   - flatten_positions (strategy/executor_flatten.py): typed FLATTEN token;
     reconciles against IBKR's real position qty before selling — a tracked
     position whose parent never filled has nothing to sell and is dropped
@@ -41,8 +53,10 @@ from journal.store import record_trade
 from nova_os import control_mode as _control_mode
 from nova_os import staged_tickets as _staged
 from nova_os.events import KIND_ACTION, KIND_SYSTEM, record_receipt
+from strategy import executor_cancel as _cancel
 from strategy import executor_flatten as _executor_flatten
 from strategy import executor_place as _executor_place
+from strategy import kill_switch_state as _kill_state
 from strategy import risk as _risk
 
 logger = logging.getLogger(__name__)
@@ -62,16 +76,19 @@ class OpenPosition:
     opened_ts: float
 
 
-_kill_switch_tripped: bool = False
+# None = not hydrated from disk yet. Read through is_kill_switch_tripped()
+# so a restart restores a tripped latch (strategy/kill_switch_state.py).
+_kill_switch_tripped: bool | None = None
 _open_positions: dict[str, OpenPosition] = {}
 
 _MODE_DISCLOSURE = (
     "Control mode starts at signal on every restart and is never persisted. "
     "P5 allows signal (display), confirm (stage → Approve), and auto_paper "
     "(paper Gateway + orders enabled + risk clear + not holiday — places without "
-    "Approve). auto_live stays blocked. Kill forces signal, rejects staged, and "
-    "cancels only unfilled entry parents — protective stops on filled positions "
-    "are preserved. Flatten requires typing FLATTEN."
+    "Approve). auto_live stays blocked. Kill forces signal, rejects staged, blocks "
+    "every new place (including manual tickets and hotkeys) until reset, survives "
+    "an API restart, and cancels working orders — protective stops on already "
+    "filled positions are preserved. Flatten requires typing FLATTEN."
 )
 
 
@@ -86,10 +103,22 @@ def restore_tracked_position(pos: OpenPosition) -> None:
 
 def is_armed() -> bool:
     """Legacy: True when mode is not signal and kill is clear (confirm stages)."""
-    return (not _kill_switch_tripped) and _control_mode.get_mode() != NOVA_OS_MODE_SIGNAL
+    return (
+        not is_kill_switch_tripped()
+        and _control_mode.get_mode() != NOVA_OS_MODE_SIGNAL
+    )
 
 
 def is_kill_switch_tripped() -> bool:
+    """Sole read of the latch — hydrates from disk once per process."""
+    global _kill_switch_tripped
+    if _kill_switch_tripped is None:
+        _kill_switch_tripped = bool(_kill_state.load()["tripped"])
+        if _kill_switch_tripped:
+            logger.warning(
+                "KILL SWITCH restored from disk — Nova will refuse every place "
+                "until reset_kill_switch()"
+            )
     return _kill_switch_tripped
 
 
@@ -102,7 +131,7 @@ def status() -> dict:
         "control_mode": _control_mode.get_mode(),
         "effective_mode": effective,
         "loss_policy_reason": loss_reason,
-        "kill_switch_tripped": _kill_switch_tripped,
+        "kill_switch_tripped": is_kill_switch_tripped(),
         "ibkr_connected": _ibkr_client.is_connected(),
         "ibkr_mode": _ibkr_client.account_mode(),
         "staged": [t.to_dict() for t in _staged.list_staged()],
@@ -142,101 +171,63 @@ def disarm() -> dict:
     return status()
 
 
-def _cancel_bracket_if_parent_unfilled(pos: OpenPosition) -> tuple[list[int], str]:
-    """Cancel parent+children only when parent is still in open_orders.
-
-    Returns (cancelled_ids, outcome) where outcome is
-    'cancelled_unfilled' | 'preserved_protective' | 'unknown_state'.
-    Cancels go through execution.service (ADR 007).
-    """
-    if not _ibkr_client.is_connected():
-        return [], "unknown_state"
-    try:
-        open_ids = {o["order_id"] for o in _orders.open_orders()}
-    except _orders.IbkrAccountError as exc:
-        # Cannot verify whether the parent is still working — treat as
-        # unknown rather than guessing "unfilled" and cancelling a filled
-        # position's live protective stop/target.
-        logger.exception("kill/cancel: open_orders failed for %s — %s", pos.symbol, exc)
-        return [], "unknown_state"
-    if pos.parent_order_id not in open_ids:
-        return [], "preserved_protective"
-    cancelled: list[int] = []
-    for order_id in (pos.parent_order_id, pos.target_order_id, pos.stop_order_id):
-        try:
-            _cancel_via_service(order_id, source="kill")
-            cancelled.append(order_id)
-        except Exception:
-            logger.exception("cancel failed for order %s (%s)", order_id, pos.symbol)
-    return cancelled, "cancelled_unfilled"
-
-
-def _cancel_via_service(order_id: int, *, source: str) -> dict:
-    """Sync cancel helper for kill/flatten — uses execution.service."""
-    import uuid
-    from execution.models import ExecutionCommand
-    from execution.service import execute
-
-    async def _run():
-        return await execute(
-            ExecutionCommand(
-                operation="cancel",
-                idempotency_key=f"{source}:cancel:{order_id}:{uuid.uuid4()}",
-                source=source,  # type: ignore[arg-type]
-                order_id=order_id,
-                skip_risk=True,
-                skip_concurrency=True,
-            ),
-            wait_ack=False,
-        )
-
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        receipt = asyncio.run(_run())
-        return receipt.legacy_place_dict()
-    # Nested in async context (e.g. fill poll) — schedule and do not block forever.
-    # Kill/flatten routes are sync FastAPI handlers, so asyncio.run is the common path.
-    raise RuntimeError("cancel from running loop — use async execute directly")
-
-
 def kill_switch() -> dict:
-    """Stop automation: force signal, reject staged, cancel unfilled parents only."""
+    """Kill all Nova spend: latch, force signal, reject staged, cancel working.
+
+    The latch is set (and persisted) FIRST so no place can race in between the
+    cancels — `execution.service.execute` refuses every non-protective place
+    while it is set.
+    """
     global _kill_switch_tripped
     _kill_switch_tripped = True
+    _kill_state.save(tripped=True, reason="kill_switch")
     _control_mode.force_signal("kill_switch")
     rejected = _staged.reject_all("kill_switch")
     cancelled: list[int] = []
     preserved: list[str] = []
     unknown: list[str] = []
+    preserve_ids: set[int] = set()
     for symbol, pos in list(_open_positions.items()):
-        ids, outcome = _cancel_bracket_if_parent_unfilled(pos)
+        ids, outcome = _cancel.cancel_bracket_if_parent_unfilled(pos)
         cancelled.extend(ids)
         if outcome == "preserved_protective":
             preserved.append(symbol)
+            preserve_ids.update({pos.target_order_id, pos.stop_order_id})
         elif outcome == "unknown_state":
             unknown.append(symbol)
+            preserve_ids.update({pos.target_order_id, pos.stop_order_id})
+    swept, sweep_failed = _cancel.cancel_remaining_open_orders(
+        preserve_ids=preserve_ids, already_cancelled=set(cancelled),
+    )
+    cancelled.extend(swept)
     record_receipt(
         kind=KIND_SYSTEM,
         mode=NOVA_OS_MODE_SIGNAL,
         payload={
             "event": "kill_switch",
             "cancelled_order_ids": cancelled,
+            "swept_order_ids": swept,
+            "failed_cancel_order_ids": sweep_failed,
             "preserved_symbols": preserved,
             "unknown_symbols": unknown,
             "rejected_staged": len(rejected),
+            "blocks_manual_places": True,
+            "persisted": True,
         },
     )
     logger.warning(
-        "KILL SWITCH — cancelled=%s preserved=%s unknown=%s staged_rejected=%s",
-        cancelled, preserved, unknown, len(rejected),
+        "KILL SWITCH — cancelled=%s swept=%s failed=%s preserved=%s unknown=%s "
+        "staged_rejected=%s (manual + hotkey places blocked until reset)",
+        cancelled, swept, sweep_failed, preserved, unknown, len(rejected),
     )
     return status()
 
 
 def reset_kill_switch() -> dict:
+    """Sole invalidation trigger for the persisted latch."""
     global _kill_switch_tripped
     _kill_switch_tripped = False
+    _kill_state.save(tripped=False, reason="reset_kill_switch")
     return status()
 
 
@@ -246,7 +237,7 @@ def cancel_working_entry(symbol: str) -> dict:
     pos = _open_positions.get(symbol)
     if pos is None:
         return {"ok": False, "error": f"no tracked position for {symbol}", **status()}
-    ids, outcome = _cancel_bracket_if_parent_unfilled(pos)
+    ids, outcome = _cancel.cancel_bracket_if_parent_unfilled(pos)
     if outcome == "cancelled_unfilled":
         del _open_positions[symbol]
         record_receipt(

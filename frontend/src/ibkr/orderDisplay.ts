@@ -3,7 +3,14 @@
  * Wire data stays IBKR (LMT, PreSubmitted, …); the table never shows those raw.
  */
 
-export type OrderStatusTone = 'working' | 'pending' | 'partial' | 'filled' | 'cancelled' | 'failed';
+export type OrderStatusTone =
+  | 'working'
+  | 'pending'
+  | 'partial'
+  | 'filled'
+  | 'cancelled'
+  | 'failed'
+  | 'unknown';
 
 export function formatOrderSide(side: string): string {
   const s = side.trim().toUpperCase();
@@ -126,7 +133,9 @@ export function orderStatusTone(label: string): OrderStatusTone {
     case 'Failed':
       return 'failed';
     default:
-      return 'pending';
+      // A broker status Nova has no mapping for must not borrow the `pending`
+      // tone — that reads as "still working" for an order nobody can vouch for.
+      return 'unknown';
   }
 }
 

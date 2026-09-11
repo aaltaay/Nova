@@ -30,6 +30,8 @@ Product fixes inside `backend/execution/` require an explicit ask each time.
 
 - **One mutation entry:** callers use `execution.service.execute` → `ExecutionReceipt`. Strategies/UI/agents must not call the broker SDK directly.
 - **Adapter exclusivity:** `placeOrder` / order send lives only in `backend/ibkr/orders.py` (via `ExecutionPort`).
+- **Kill is a spend latch, not an automation toggle (D-037):** the kill check in `service.execute` sits **above** the `skip_risk` block. `skip_risk=True` skips the risk/concurrency chain only — never the kill. A tripped kill refuses every `place`/`bracket` from any source except `kill` / `flatten` / `cancel_working`; `cancel` and `replace` are never blocked. The latch is persisted (`strategy/kill_switch_state.py`, `schema_version` 1) and only `reset_kill_switch()` clears it — do not "fix" a restart-clears-kill regression by making it in-memory again.
+- **Account class decides live spend (D-038 / ADR 013):** `assert_orders_allowed` refuses a live place unless `broker_account_kind == "live"`; `unknown` is a refusal, not a maybe. `spend_status` comes from `safety.spend_state(kind)` — never from `IBKR_GATEWAY_MODE` alone. Frontend reads it only through `ibkr/spendLock.ts` (fails closed on any non-`*_armed` status).
 - **Ack honesty:** local `PendingSubmit` / assigned `orderId` ≠ broker acknowledgment.
 - **Persist-before-send:** ledger reserve/commit before broker send; idempotency key uniqueness.
 - **Lock scope (ADR 007 decision 5):** `_lock` covers reserve + validate + the broker send. Only `wait_broker_ack` runs after release. Never move the send back outside.

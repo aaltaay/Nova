@@ -62,6 +62,14 @@ describe('orderDisplay', () => {
     expect(orderStatusTone('Cancelled (partial fill)')).toBe('partial');
   });
 
+  it('gives an unmapped broker status its own tone, not pending (D-013)', () => {
+    expect(orderStatusTone('Pending')).toBe('pending');
+    // A new IB status string must not render as if the order were working.
+    expect(orderStatusTone('SomeNewIbStatus')).toBe('unknown');
+    expect(orderStatusTone('—')).toBe('unknown');
+    expect(formatOrderStatus('SomeNewIbStatus', 0, 100)).toBe('SomeNewIbStatus');
+  });
+
   it('formats exact Eastern times with seconds', () => {
     const label = formatOrderDateTime('2026-07-18T13:41:23+00:00');
     expect(label).toMatch(/Jul 18, 2026/);

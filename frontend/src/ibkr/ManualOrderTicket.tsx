@@ -18,6 +18,7 @@ import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
 import type { PlaceOrderResult } from './placeOrder';
 import { resolveShortabilityState } from './ShortabilityChip';
+import { isSpendLocked, spendLockReason } from './spendLock';
 import {
   readTicketSessionUnlocked,
   subscribeTicketSessionUnlock,
@@ -96,8 +97,11 @@ export function ManualOrderTicket({
   const displayQuantityValue = QTY_LOCKED
     ? String(FORCED_QTY)
     : quantityValue;
-  const spendLocked =
-    spendStatus === 'locked' || spendStatus === 'locked_live_unconfirmed';
+  const spendLocked = isSpendLocked(spendStatus);
+  const spendLockNote = spendLockReason(
+    spendStatus,
+    ibkrStatus.spend_locked_reason,
+  );
   const needsPinUnlock = !sessionUnlocked;
   const {
     submitting,
@@ -230,6 +234,7 @@ export function ManualOrderTicket({
         connected={connected}
         submitting={submitting}
         spendLocked={spendLocked}
+        spendLockReason={spendLockNote}
         quantityLocked={QTY_LOCKED}
         forcedQty={FORCED_QTY}
         sessionUnlocked={sessionUnlocked}

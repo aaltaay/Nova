@@ -99,7 +99,7 @@ def _cancel_protective_legs(pos: "OpenPosition") -> list[int]:
 
     Cancels go through execution.service (ADR 007).
     """
-    from strategy.executor import _cancel_via_service
+    from strategy.executor_cancel import cancel_via_service as _cancel_via_service
 
     cancelled: list[int] = []
     open_ids: set = set()

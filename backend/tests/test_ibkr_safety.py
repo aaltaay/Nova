@@ -131,6 +131,73 @@ class TestOrderSafetyGate:
         assert ok is False
         assert "Paper pin" in reason
 
+    def test_live_confirmed_blocks_unknown_broker_accounts(self, monkeypatch):
+        """D-038: managedAccounts not received yet must never spend live."""
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        ok, reason = safety_mod.assert_orders_allowed(
+            client_enabled=True,
+            connected=True,
+            account_mode="live",
+            broker_account_kind="unknown",
+        )
+        assert ok is False
+        assert "Live pin" in reason
+        assert "unknown" in reason
+
+    def test_live_confirmed_blocks_paper_broker_accounts(self, monkeypatch):
+        """D-038: a DU… account behind a live door is not live money."""
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        ok, reason = safety_mod.assert_orders_allowed(
+            client_enabled=True,
+            connected=True,
+            account_mode="live",
+            broker_account_kind="paper",
+        )
+        assert ok is False
+        assert "Live pin" in reason
+
+    def test_live_confirmed_blocks_mixed_broker_accounts(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        ok, reason = safety_mod.assert_orders_allowed(
+            client_enabled=True,
+            connected=True,
+            account_mode="live",
+            broker_account_kind="mixed",
+        )
+        assert ok is False
+        assert "Live pin" in reason
+
+    def test_live_confirmed_allows_live_broker_accounts(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        ok, reason = safety_mod.assert_orders_allowed(
+            client_enabled=True,
+            connected=True,
+            account_mode="live",
+            broker_account_kind="live",
+        )
+        assert ok is True
+        assert reason == ""
+
     def test_cancel_allowed_when_orders_locked(self, monkeypatch):
         _safety, client_mod, orders_mod = _reload_safety_stack(monkeypatch, {
             "IBKR_ENABLED": "true",
@@ -145,6 +212,83 @@ class TestOrderSafetyGate:
         assert "IBKR_ORDERS_ENABLED" not in (result.get("error") or "")
         assert result["ok"] is False
         assert "Not connected" in (result.get("error") or "")
+
+
+class TestSpendStatusFollowsAccount:
+    """D-038: spend_status is (mode, broker_account_kind), not the env door."""
+
+    def test_orders_off_is_locked(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_ORDERS_ENABLED": "false",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        snap = safety_mod.status_snapshot("live")
+        assert snap["spend_status"] == "locked"
+        assert snap["armed_for_account_kind"] is None
+        assert "IBKR_ORDERS_ENABLED" in snap["spend_locked_reason"]
+
+    def test_live_door_unconfirmed_is_locked_live_unconfirmed(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_LIVE_TRADING_CONFIRMED": "false",
+        })
+        snap = safety_mod.status_snapshot("live")
+        assert snap["spend_status"] == "locked_live_unconfirmed"
+        assert snap["armed_for_account_kind"] is None
+
+    def test_live_door_unknown_account_never_reads_live_armed(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        snap = safety_mod.status_snapshot("unknown")
+        assert snap["spend_status"] == "locked_account_unconfirmed"
+        assert snap["armed_for_account_kind"] is None
+        assert "unknown" in snap["spend_locked_reason"]
+
+    def test_live_door_paper_account_never_reads_live_armed(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        assert (
+            safety_mod.status_snapshot("paper")["spend_status"]
+            == "locked_account_unconfirmed"
+        )
+
+    def test_live_door_live_account_is_live_armed(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "live",
+            "IBKR_LIVE_TRADING_CONFIRMED": "true",
+        })
+        snap = safety_mod.status_snapshot("live")
+        assert snap["spend_status"] == "live_armed"
+        assert snap["armed_for_account_kind"] == "live"
+        assert snap["spend_locked_reason"] is None
+
+    def test_paper_door_paper_account_is_paper_armed(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "paper",
+        })
+        snap = safety_mod.status_snapshot("paper")
+        assert snap["spend_status"] == "paper_armed"
+        assert snap["armed_for_account_kind"] == "paper"
+
+    def test_paper_door_unknown_account_is_locked(self, monkeypatch):
+        safety_mod, _, _ = _reload_safety_stack(monkeypatch, {
+            "IBKR_ORDERS_ENABLED": "true",
+            "IBKR_GATEWAY_MODE": "paper",
+        })
+        assert (
+            safety_mod.status_snapshot()["spend_status"]
+            == "locked_account_unconfirmed"
+        )
 
 
 class TestDepthCap:

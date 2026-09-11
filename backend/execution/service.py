@@ -221,16 +221,27 @@ async def execute(
             timings.validation_completed_ns = time.perf_counter_ns()
             return _reject(execution_id, cmd, timings, detail, reason or "VALIDATION")
 
+        # Kill switch is checked BEFORE skip_risk (D-037): a tripped kill means
+        # no Nova-originated spend of any source, so manual ticket places and
+        # Nova Action hotkeys (which pass skip_risk=True) are refused too.
+        # Only protective sources may still reach the broker.
+        if cmd.operation in ("place", "bracket") and cmd.source not in (
+            "kill", "flatten", "cancel_working",
+        ):
+            from strategy import executor as _executor
+
+            if _executor.is_kill_switch_tripped():
+                timings.validation_completed_ns = time.perf_counter_ns()
+                return _reject(
+                    execution_id, cmd, timings,
+                    "Kill switch tripped — reset it before placing any order",
+                    "KILL_SWITCH",
+                )
+
         if not cmd.skip_risk and cmd.operation in ("place", "bracket"):
             from strategy import risk as _risk
             from nova_os import control_mode as _control_mode
             from strategy import executor as _executor
-
-            if _executor.is_kill_switch_tripped() and cmd.source not in (
-                "kill", "flatten", "cancel_working",
-            ):
-                timings.validation_completed_ns = time.perf_counter_ns()
-                return _reject(execution_id, cmd, timings, "kill switch tripped", "KILL_SWITCH")
 
             if cmd.operation == "bracket" and not cmd.skip_concurrency:
                 concurrent = len(_executor.open_positions()) + len(

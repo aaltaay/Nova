@@ -291,6 +291,129 @@ class TestAccountAndRiskGates:
         assert called == []
 
 
+class TestKillSwitchBlocksAllPlaces:
+    """D-037: kill means no Nova-originated spend of any source until reset."""
+
+    def test_manual_place_with_skip_risk_is_refused(self, monkeypatch):
+        _arm_paper(monkeypatch)
+        executor._kill_switch_tripped = True
+        called = []
+        monkeypatch.setattr(
+            orders_mod, "place_order", lambda **k: called.append(1) or {"ok": True}
+        )
+        r = asyncio.run(exec_svc.execute(_limit_buy("kill-manual"), wait_ack=False))
+        assert r.ok is False
+        assert r.reason_code == "KILL_SWITCH"
+        assert called == []
+        row = store.get_by_id(r.execution_id)
+        assert row is not None and row["status"] == "rejected"
+
+    def test_hotkey_market_place_is_refused(self, monkeypatch):
+        """Nova Actions hit the same manual route (skip_risk + skip_concurrency)."""
+        _arm_paper(monkeypatch)
+        executor._kill_switch_tripped = True
+        called = []
+        monkeypatch.setattr(
+            orders_mod, "place_order", lambda **k: called.append(1) or {"ok": True}
+        )
+        r = asyncio.run(
+            exec_svc.execute(
+                _limit_buy("kill-hotkey", order_type="MKT", limit_price=None),
+                wait_ack=False,
+            )
+        )
+        assert r.ok is False
+        assert r.reason_code == "KILL_SWITCH"
+        assert called == []
+
+    def test_bracket_with_skip_risk_is_refused(self, monkeypatch):
+        _arm_paper(monkeypatch)
+        executor._kill_switch_tripped = True
+        r = asyncio.run(
+            exec_svc.execute(
+                ExecutionCommand(
+                    operation="bracket",
+                    idempotency_key="kill-bracket",
+                    source="manual",
+                    symbol="AAPL",
+                    side="BUY",
+                    qty=1,
+                    entry_price=10.0,
+                    stop_price=9.0,
+                    target_price=12.0,
+                    skip_risk=True,
+                    skip_concurrency=True,
+                ),
+                wait_ack=False,
+            )
+        )
+        assert r.ok is False
+        assert r.reason_code == "KILL_SWITCH"
+
+    def test_protective_sources_still_reach_the_broker(self, monkeypatch):
+        """Flatten must be able to sell out of a position after a kill."""
+        _arm_paper(monkeypatch)
+        executor._kill_switch_tripped = True
+        called = []
+        monkeypatch.setattr(
+            orders_mod,
+            "place_order",
+            lambda **k: called.append(1) or {"ok": True, "order_id": 7},
+        )
+        r = asyncio.run(
+            exec_svc.execute(
+                _limit_buy("kill-flatten", source="flatten", side="SELL"),
+                wait_ack=False,
+            )
+        )
+        assert r.reason_code != "KILL_SWITCH"
+        assert called == [1]
+
+    def test_cancel_is_never_blocked_by_kill(self, monkeypatch):
+        _arm_paper(monkeypatch)
+        executor._kill_switch_tripped = True
+        called = []
+        monkeypatch.setattr(
+            orders_mod, "cancel_order", lambda oid: called.append(1) or {"ok": True}
+        )
+        monkeypatch.setattr(orders_mod, "open_orders", lambda: [])
+        r = asyncio.run(
+            exec_svc.execute(
+                ExecutionCommand(
+                    operation="cancel",
+                    idempotency_key="kill-cancel",
+                    source="manual",
+                    order_id=42,
+                    skip_risk=True,
+                    skip_concurrency=True,
+                ),
+                wait_ack=False,
+            )
+        )
+        assert r.reason_code != "KILL_SWITCH"
+        assert called == [1]
+
+    def test_place_allowed_again_after_reset(self, monkeypatch):
+        _arm_paper(monkeypatch)
+        executor._kill_switch_tripped = True
+        called = []
+        monkeypatch.setattr(
+            orders_mod,
+            "place_order",
+            lambda **k: called.append(1) or {"ok": True, "order_id": 9},
+        )
+        blocked = asyncio.run(
+            exec_svc.execute(_limit_buy("kill-before"), wait_ack=False)
+        )
+        assert blocked.reason_code == "KILL_SWITCH"
+        executor.reset_kill_switch()
+        allowed = asyncio.run(
+            exec_svc.execute(_limit_buy("kill-after"), wait_ack=False)
+        )
+        assert allowed.reason_code != "KILL_SWITCH"
+        assert called == [1]
+
+
 class TestPersistBeforeSend:
     def test_ledger_row_exists_before_broker_call(self, monkeypatch):
         _arm_paper(monkeypatch)
