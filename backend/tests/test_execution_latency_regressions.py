@@ -112,12 +112,11 @@ def test_slow_ack_does_not_hold_send_lock(monkeypatch):
         return {"ok": True, "order_id": 501, "error": None, "mode": "paper"}
 
     monkeypatch.setattr(orders_mod, "place_order", place)
-    monkeypatch.setattr(
-        broker_send,
-        "cancel_order_verified",
-        lambda order_id: cancel_calls.append(order_id)
-        or {"ok": True, "verified_gone": True, "order_id": order_id},
-    )
+    async def fake_cancel(order_id, *, watch=None):
+        cancel_calls.append(order_id)
+        return {"ok": True, "verified_gone": True, "order_id": order_id}
+
+    monkeypatch.setattr(broker_send, "cancel_order_verified_on_ib", fake_cancel)
 
     async def exercise() -> None:
         slow = asyncio.create_task(service.execute(_place_command("slow-ack")))

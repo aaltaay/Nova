@@ -112,7 +112,7 @@ def make_handlers(get_watch):
 
 
 def note_reconciliation_fill(fill: Any, get_watch, *, complete: bool = True) -> bool:
-    """Persist evidence from an existing poll/cache read without issuing requests."""
+    """Persist evidence from an existing poll/cache read; issues no IB request."""
     execution = getattr(fill, "execution", None)
     oid = int(getattr(execution, "orderId", 0) or 0)
     watch = get_watch(oid)

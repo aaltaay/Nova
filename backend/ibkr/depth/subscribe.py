@@ -108,13 +108,16 @@ async def subscribe_async(symbol: str) -> dict:
             try:
                 from ibkr import ticks as _ticks
 
-                shared_ticker = _ticks.get_ticker(symbol)
-                reused = shared_ticker is not None
-                if reused:
-                    ticker = shared_ticker
-                    state.mark_shared_l1(symbol)
-                else:
-                    ticker = ib.reqMktData(contract, "", False, False)
+                # Own the fallback through ticks: a private reqMktData returns
+                # the same pooled ticker anyway, and depth's cancelMktData
+                # would then close a line scanner/detail/HOD still want.
+                reused = _ticks.get_ticker(symbol) is not None
+                if not await _ticks.subscribe(symbol, _ticks.OWNER_DEPTH):
+                    raise RuntimeError("shared L1 subscribe failed")
+                ticker = _ticks.get_ticker(symbol)
+                if ticker is None:
+                    raise RuntimeError("shared L1 ticker missing after subscribe")
+                state.mark_shared_l1(symbol)
                 handlers.attach_update_handler(
                     symbol, ticker, lambda t: handlers.on_update_ticker(t, symbol),
                 )
@@ -207,7 +210,8 @@ def unsubscribe(symbol: str) -> None:
             )
         # Shared fallback ticker is owned by ibkr.ticks (refcounted by owner) —
         # cancelling it here would kill the stream out from under scanner/HOD/
-        # detail owners who still want it.
+        # detail owners who still want it. Release the depth owner instead; ticks
+        # cancels only when depth was the last one holding the line.
         if not shared:
             try:
                 ib.cancelMktData(contract)
@@ -216,3 +220,7 @@ def unsubscribe(symbol: str) -> None:
                     "IBKR: cancelMktData on unsubscribe for %s ignored: %s",
                     symbol, exc,
                 )
+    if shared:
+        from ibkr import ticks as _ticks
+
+        _ticks.drop_owner(symbol, _ticks.OWNER_DEPTH)

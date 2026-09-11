@@ -58,9 +58,11 @@ EXECUTION_ACK_WAIT_SEC = 5.0      # max wait for first non-PendingSubmit status
 # After a Cancelled-without-fill ack, wait this long for PreSubmitted/Submitted
 # before writing ledger failed (Error 10349 false-cancel race).
 EXECUTION_CANCEL_ACK_GRACE_SEC = 0.75
-# After cancel_order, poll open_orders until absent or this timeout.
+# After cancel_order, re-read open_orders until absent or this timeout.
 EXECUTION_CANCEL_VERIFY_TIMEOUT_SEC = 5.0
 EXECUTION_CANCEL_VERIFY_POLL_SEC = 0.25
+# Headroom on the IB-loop hop so on_ib does not time out before the verify does.
+EXECUTION_CANCEL_VERIFY_HOP_MARGIN_SEC = 2.0
 EXECUTION_FILL_WAIT_SEC = 30.0    # optional wait for complete fill (benchmark only)
 EXECUTION_FILL_EVIDENCE_LIMIT = 64  # bounded callback/poll observations per execution
 EXECUTION_METRICS_QUERY_LIMIT = 500

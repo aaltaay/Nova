@@ -1,7 +1,6 @@
 """Broker send / ack wait helpers for the execution service (ADR 007)."""
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Callable
 
@@ -20,7 +19,7 @@ from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.place_reject_guard import confirm_terminal_reject
 from ibkr import client as _client
 from ibkr import orders as _orders
-from ibkr.cancel_verify import cancel_order_verified
+from ibkr.cancel_verify import cancel_order_verified_on_ib
 
 RejectFn = Callable[
     [str, ExecutionCommand, StageTimings, str, str],
@@ -116,8 +115,8 @@ async def send_broker(
         watch = telemetry.watch_order(
             cmd.order_id, execution_id, fresh=True, leg_role="cancel",
         )
-        # Poll/sleep stays off the IB loop; cancel_order / open_orders hop via call_on_ib.
-        raw = await asyncio.to_thread(cancel_order_verified, cmd.order_id)
+        # cancelOrder / openTrades run on the IB loop; the wait is awaited there.
+        raw = await cancel_order_verified_on_ib(cmd.order_id, watch=watch)
         if not raw.get("ok"):
             store.update_stages(
                 execution_id, status="failed", error=str(raw.get("error")),

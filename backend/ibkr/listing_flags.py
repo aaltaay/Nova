@@ -11,15 +11,17 @@ from typing import Any
 
 from ib_async import Stock
 
-from constants import IBKR_L1_QUALIFY_TIMEOUT_SEC
+from constants import (
+    IBKR_L1_QUALIFY_TIMEOUT_SEC,
+    IBKR_LISTING_FLAGS_TIMEOUT_SEC,
+    IBKR_SHORTABLE_TICK_WAIT_SEC,
+)
 from ibkr import client as _client
 
 logger = logging.getLogger(__name__)
 
 # Generic ticks: 236 → shortableShares (+ related shortability fields on Ticker).
 _SHORTABLE_GENERIC_TICKS = "236"
-_SHORTABLE_WAIT_SEC = 1.8
-_FETCH_TIMEOUT_SEC = 10.0
 
 
 def _empty(*, error: str | None = None, connected: bool = True) -> dict[str, Any]:
@@ -108,18 +110,8 @@ async def _fetch_async(symbol: str) -> dict[str, Any]:
     except Exception as exc:
         logger.debug("IBKR listing_flags: contractDetails %s: %s", sym, exc)
 
-    ticker = None
     try:
-        ticker = ib.reqMktData(contract, _SHORTABLE_GENERIC_TICKS, False, False)
-        await asyncio.sleep(_SHORTABLE_WAIT_SEC)
-        shares_raw = getattr(ticker, "shortableShares", None)
-        shares: float | None
-        try:
-            shares = float(shares_raw) if shares_raw is not None else None
-            if shares is not None and (shares != shares):  # NaN
-                shares = None
-        except (TypeError, ValueError):
-            shares = None
+        shares = await _shortable_shares(sym)
         out["shortable_shares"] = shares
         short_type, detail = _short_type_from_shares(shares)
         out["short_type"] = short_type
@@ -127,22 +119,79 @@ async def _fetch_async(symbol: str) -> dict[str, Any]:
     except Exception as exc:
         logger.warning("IBKR listing_flags: shortable tick failed for %s: %s", sym, exc)
         out["error"] = f"shortable tick failed: {exc}"
-    finally:
-        if ticker is not None and ib is not None:
-            try:
-                ib.cancelMktData(contract)
-            except Exception:
-                logger.debug(
-                    "IBKR listing_flags: cancelMktData failed for %s", sym, exc_info=True
-                )
 
     return out
+
+
+def _shares_or_none(ticker: Any) -> float | None:
+    raw = getattr(ticker, "shortableShares", None)
+    if raw is None:
+        return None
+    try:
+        shares = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return None if shares != shares else shares  # NaN
+
+
+async def _shortable_shares(symbol: str) -> float | None:
+    """Read tick-236 shortableShares off the shared owner-aware L1 line.
+
+    Never opens a private ``reqMktData``: that call is idempotent per contract,
+    so it would hand back the desk's pooled ticker without the extra tick, and
+    the matching ``cancelMktData`` would close the scanner/detail stream. The
+    wait is event-driven -- a fixed sleep parked the IB connect-loop coroutine
+    for the whole window even when the tick had already landed.
+    """
+    from ibkr import ticks as _ticks
+
+    if not await _ticks.subscribe(
+        symbol, _ticks.OWNER_LISTING, generic_ticks=_SHORTABLE_GENERIC_TICKS,
+    ):
+        return None
+    try:
+        ticker = _ticks.get_ticker(symbol)
+        if ticker is None or not _ticks.has_generic_tick(
+            symbol, _SHORTABLE_GENERIC_TICKS,
+        ):
+            return None
+        shares = _shares_or_none(ticker)
+        if shares is not None:
+            return shares
+        return await _await_shortable_tick(ticker)
+    finally:
+        await _ticks.unsubscribe(symbol, _ticks.OWNER_LISTING)
+
+
+async def _await_shortable_tick(ticker: Any) -> float | None:
+    """Wait for the first shortableShares update, bounded by the tick budget."""
+    arrived: asyncio.Future[float] = asyncio.get_running_loop().create_future()
+
+    def _on_update(t: Any) -> None:
+        shares = _shares_or_none(t)
+        if shares is not None and not arrived.done():
+            arrived.set_result(shares)
+
+    ticker.updateEvent += _on_update
+    try:
+        return await asyncio.wait_for(
+            arrived, timeout=float(IBKR_SHORTABLE_TICK_WAIT_SEC),
+        )
+    except asyncio.TimeoutError:
+        return None
+    finally:
+        try:
+            ticker.updateEvent -= _on_update
+        except (ValueError, AttributeError, KeyError, TypeError) as exc:
+            logger.debug("IBKR listing_flags: tick listener detach failed: %s", exc)
 
 
 def fetch_listing_flags_sync(symbol: str) -> dict[str, Any]:
     """Thread-safe bridge for ticker builders (ThreadPoolExecutor)."""
     try:
-        return _client.run_coro(_fetch_async(symbol), timeout=_FETCH_TIMEOUT_SEC)
+        return _client.run_coro(
+            _fetch_async(symbol), timeout=float(IBKR_LISTING_FLAGS_TIMEOUT_SEC),
+        )
     except RuntimeError as exc:
         return _empty(error=str(exc), connected=False)
     except Exception as exc:

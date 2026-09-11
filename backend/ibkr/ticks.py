@@ -9,15 +9,15 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from typing import Any, Awaitable, Callable, Optional
 
 from constants import (
     IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE,
     IBKR_L1_QUALIFY_TIMEOUT_SEC,
-    IBKR_L1_STREAM_BUDGET,
 )
 from ibkr import client as _client
+from ibkr import ticks_generic as _generic
+from ibkr import ticks_status as _status
 from ibkr.ticks_handler import get_last_event_ts as get_last_event_ts
 from ibkr.ticks_handler import on_ticker_update
 
@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 OWNER_DETAIL = "detail"
 OWNER_SCANNER = "scanner"
 OWNER_HOD = "hod"
+OWNER_DEPTH = "depth"
+OWNER_LISTING = "listing"
+_OWNERS = (OWNER_DETAIL, OWNER_SCANNER, OWNER_HOD, OWNER_DEPTH, OWNER_LISTING)
 
 BroadcastFn = Callable[..., Awaitable[None]]
 FindCacheRowFn = Callable[[str], Optional[dict]]
@@ -96,13 +99,24 @@ def _on_ticker_update(ticker: Any, symbol: str) -> None:
     )
 
 
-async def subscribe(symbol: str, owner: str = OWNER_DETAIL) -> bool:
-    """Start or attach ``owner`` to a last-price stream. Returns True if live."""
+async def subscribe(
+    symbol: str,
+    owner: str = OWNER_DETAIL,
+    *,
+    generic_ticks: str = "",
+) -> bool:
+    """Start or attach ``owner`` to a last-price stream. Returns True if live.
+
+    ``generic_ticks`` (e.g. ``"236"`` shortableShares) rides this one shared
+    line: ``reqMktData`` is idempotent per contract, so a caller that opens its
+    own line gets the pooled ticker with no extra ticks and cancels the desk's
+    stream on the way out. An existing line missing the ticks is upgraded.
+    """
     from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
 
     if is_started() and not is_ib_loop():
         return await on_ib(
-            subscribe(symbol, owner),
+            subscribe(symbol, owner, generic_ticks=generic_ticks),
             float(IBKR_L1_QUALIFY_TIMEOUT_SEC) + 5.0,
             label="reqMktData",
         )
@@ -111,8 +125,17 @@ async def subscribe(symbol: str, owner: str = OWNER_DETAIL) -> bool:
     if not symbol:
         return False
     async with _get_lock():
-        if symbol in _subs:
-            _subs[symbol]["owners"].add(owner)
+        existing = _subs.get(symbol)
+        if existing is not None:
+            existing["owners"].add(owner)
+            if generic_ticks and not _generic.has_all(
+                existing.get("generic_ticks"), generic_ticks,
+            ):
+                if not _generic.upgrade_line(
+                    _client.get_ib(), symbol, existing, generic_ticks,
+                ):
+                    _subs.pop(symbol, None)
+                    return False
             return True
         if not _load_ib_types():
             return False
@@ -144,7 +167,7 @@ async def subscribe(symbol: str, owner: str = OWNER_DETAIL) -> bool:
             return False
 
         try:
-            ticker = ib.reqMktData(contract, "", False, False)
+            ticker = ib.reqMktData(contract, generic_ticks, False, False)
         except Exception as exc:
             logger.warning("IBKR ticks: reqMktData failed for %s: %s", symbol, exc)
             return False
@@ -158,12 +181,13 @@ async def subscribe(symbol: str, owner: str = OWNER_DETAIL) -> bool:
             "contract": contract,
             "handler": handler,
             "owners": {owner},
+            "generic_ticks": generic_ticks,
             "last_price": None,
             "last_update_ts": None,
         }
         logger.info(
-            "IBKR ticks: subscribed last-price for %s (conId=%s, owner=%s)",
-            symbol, contract.conId, owner,
+            "IBKR ticks: subscribed last-price for %s (conId=%s, owner=%s, ticks=%s)",
+            symbol, contract.conId, owner, generic_ticks or "-",
         )
         return True
 
@@ -174,29 +198,46 @@ async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:
     if not symbol:
         return
     async with _get_lock():
-        sub = _subs.get(symbol)
-        if not sub:
-            return
-        owners = sub.get("owners") or set()
-        owners.discard(owner)
-        if owners:
-            return
-        ib = _client.get_ib()
-        ticker = sub.get("ticker")
-        handler = sub.get("handler")
-        contract = sub.get("contract")
-        if ticker is not None and handler is not None:
-            try:
-                ticker.updateEvent -= handler
-            except (ValueError, AttributeError, KeyError) as exc:
-                logger.debug("IBKR ticks: handler detach failed for %s: %s", symbol, exc)
-        if ib is not None and contract is not None:
-            try:
-                ib.cancelMktData(contract)
-            except Exception:
-                logger.debug("IBKR ticks: cancelMktData failed for %s", symbol, exc_info=True)
-        _subs.pop(symbol, None)
-        logger.info("IBKR ticks: unsubscribed %s (last owner=%s)", symbol, owner)
+        _release_owner(symbol, owner)
+
+
+def drop_owner(symbol: str, owner: str) -> None:
+    """Sync owner release for callers that cannot await (depth unsubscribe).
+
+    Skips the subscribe lock deliberately: it performs no awaits, so it cannot
+    interleave with itself, and a symbol still inside ``qualifyContractsAsync``
+    has no ``_subs`` entry to touch yet.
+    """
+    symbol = (symbol or "").strip().upper()
+    owner = (owner or "").strip().lower()
+    if symbol and owner:
+        _release_owner(symbol, owner)
+
+
+def _release_owner(symbol: str, owner: str) -> None:
+    sub = _subs.get(symbol)
+    if not sub:
+        return
+    owners = sub.get("owners") or set()
+    owners.discard(owner)
+    if owners:
+        return
+    ib = _client.get_ib()
+    ticker = sub.get("ticker")
+    handler = sub.get("handler")
+    contract = sub.get("contract")
+    if ticker is not None and handler is not None:
+        try:
+            ticker.updateEvent -= handler
+        except (ValueError, AttributeError, KeyError) as exc:
+            logger.debug("IBKR ticks: handler detach failed for %s: %s", symbol, exc)
+    if ib is not None and contract is not None:
+        try:
+            ib.cancelMktData(contract)
+        except Exception:
+            logger.debug("IBKR ticks: cancelMktData failed for %s", symbol, exc_info=True)
+    _subs.pop(symbol, None)
+    logger.info("IBKR ticks: unsubscribed %s (last owner=%s)", symbol, owner)
 
 
 async def set_owner_symbols(owner: str, symbols: list[str]) -> dict[str, Any]:
@@ -242,32 +283,8 @@ def subscribed_symbols() -> list[str]:
 
 
 def ticker_budget_status() -> dict[str, Any]:
-    """Live ``reqMktData`` lines vs ``IBKR_L1_STREAM_BUDGET`` (Error 101).
-
-    One line per symbol. Owner counts can sum higher than ``reqMktData_lines``
-    when scanner / HOD / detail share a stream.
-    """
-    from ibkr import session_errors as _se
-
-    by_owner: dict[str, int] = {
-        OWNER_DETAIL: 0,
-        OWNER_SCANNER: 0,
-        OWNER_HOD: 0,
-    }
-    for sub in _subs.values():
-        for owner in sub.get("owners") or ():
-            key = str(owner)
-            by_owner[key] = by_owner.get(key, 0) + 1
-    lines = len(_subs)
-    limit = int(IBKR_L1_STREAM_BUDGET)
-    return {
-        "reqMktData_lines": lines,
-        "reqMktData_by_owner": by_owner,
-        "reqMktData_limit": limit,
-        "reqMktData_remaining": max(0, limit - lines),
-        "max_tickers_hit": bool(_se.max_tickers_hit()),
-        "max_tickers_ts": _se.max_tickers_ts(),
-    }
+    """Live ``reqMktData`` lines vs the Error 101 budget."""
+    return _status.ticker_budget_status(_subs, _OWNERS)
 
 
 def get_ticker(symbol: str) -> Any | None:
@@ -281,6 +298,14 @@ def get_ticker(symbol: str) -> Any | None:
     return sub.get("ticker") if sub else None
 
 
+def has_generic_tick(symbol: str, tick: str) -> bool:
+    """True when ``symbol``'s live line was opened with ``tick`` requested."""
+    sub = _subs.get((symbol or "").strip().upper())
+    if not sub:
+        return False
+    return _generic.has_all(sub.get("generic_ticks"), tick)
+
+
 def owners_for(symbol: str) -> set[str]:
     sub = _subs.get((symbol or "").strip().upper())
     if not sub:
@@ -289,60 +314,15 @@ def owners_for(symbol: str) -> set[str]:
 
 
 def last_quotes(symbols: list[str] | None = None) -> dict[str, dict[str, Any]]:
-    """Return last known L1 price/ts for subscribed symbols (heartbeat use)."""
-    wanted = None
-    if symbols is not None:
-        wanted = {(s or "").strip().upper() for s in symbols if s and str(s).strip()}
-    out: dict[str, dict[str, Any]] = {}
-    for sym, sub in _subs.items():
-        if wanted is not None and sym not in wanted:
-            continue
-        price = sub.get("last_price")
-        if price is None:
-            continue
-        try:
-            px = float(price)
-        except (TypeError, ValueError):
-            continue
-        row = {
-            "price": px,
-            "last_update_ts": sub.get("last_update_ts"),
-            "owners": set(sub.get("owners") or set()),
-        }
-        dh = sub.get("day_high")
-        if dh is not None:
-            try:
-                row["day_high"] = float(dh)
-            except (TypeError, ValueError):
-                pass
-        out[sym] = row
-    return out
+    return _status.last_quotes(_subs, symbols)
 
 
 def get_day_high(symbol: str) -> float | None:
-    """IBKR L1 tick-6 day High for a subscribed symbol, if known."""
-    sub = _subs.get((symbol or "").strip().upper())
-    if not sub:
-        return None
-    dh = sub.get("day_high")
-    if dh is None:
-        return None
-    try:
-        h = float(dh)
-    except (TypeError, ValueError):
-        return None
-    return h if h > 0 else None
+    return _status.get_day_high(_subs, symbol)
 
 
 def is_fresh(symbol: str, max_age_sec: float) -> bool:
-    """True if ``symbol`` has a live stream that ticked within ``max_age_sec``."""
-    sub = _subs.get(symbol.upper())
-    if sub is None:
-        return False
-    last_ts = sub.get("last_update_ts")
-    if last_ts is None:
-        return False
-    return (time.time() - last_ts) <= max_age_sec
+    return _status.is_fresh(_subs, symbol, max_age_sec)
 
 
 async def clear_all_subscriptions(*, reason: str = "") -> int:
