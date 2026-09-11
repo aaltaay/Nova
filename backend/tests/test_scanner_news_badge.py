@@ -86,12 +86,17 @@ def test_on_roster_commit_is_single_flight(monkeypatch):
     assert snb.headline_for("AAA") == "2026-09-11T12:00:00Z"
 
 
-def test_on_roster_commit_ignores_large_cap(monkeypatch):
+def test_on_roster_commit_accepts_large_cap(monkeypatch):
     _ibkr(monkeypatch)
     snb.reset_for_testing()
+    monkeypatch.setattr(snb, "_alpaca_headers", lambda: None)
     snb.on_roster_commit("large_cap", [{"symbol": "AAPL"}])
+    assert "AAPL" in snb._pending or snb.headline_for("AAPL") is None
+    worker = snb._worker
+    if worker is not None:
+        worker.join(timeout=5)
     assert snb._pending == set()
-    assert snb._worker is None
+    assert snb.headline_for("AAPL") is None
 
 
 def test_on_roster_commit_accepts_gappers(monkeypatch):
@@ -116,7 +121,7 @@ def test_on_roster_commit_noops_when_not_ibkr(monkeypatch):
     assert snb._worker is None
 
 
-def test_queue_current_roster_gathers_four_tables_not_large_cap(monkeypatch):
+def test_queue_current_roster_gathers_large_cap_with_day_trade_tables(monkeypatch):
     _ibkr(monkeypatch)
     snb.reset_for_testing()
     state = get_runtime_state()
@@ -131,12 +136,8 @@ def test_queue_current_roster_gathers_four_tables_not_large_cap(monkeypatch):
     if worker is not None:
         worker.join(timeout=5)
     assert snb._pending == set()
-    # Keys missing means we queued then drained with no headers; large cap
-    # must never have been queued (would still be pending if worker skipped it
-    # after start). Prove gather itself excluded AAPL:
     gathered = snb.roster_symbols()
-    assert gathered == {"G1", "N1", "L1", "A1"}
-    assert "AAPL" not in gathered
+    assert gathered == {"G1", "N1", "L1", "A1", "AAPL"}
 
 
 def test_check_news_is_chunked(monkeypatch):

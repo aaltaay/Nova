@@ -188,46 +188,15 @@ export const WS_BASE_URL: string = _rawApiBase
   .replace(/^https:\/\//, 'wss://')
   .replace(/^http:\/\//, 'ws://');
 
-// ── Scanner table columns ─────────────────────────────────────────────────────
-// Single source of truth for the columns shown in the Gappers and Movers tables.
-// The key must match the ScannerRow field name; the label is the column header text.
-// Dense layout: Change combines change_pct/change_abs, Volume combines volume/rel_volume,
-// Watch combines watchlist_score (sort key) with the Five Pillars checkmark, and
-// Short Int. combines short_interest/short_ratio into stacked dual-value cells
-// (see renderCell in components/ScannerTable.tsx). Sort keys stay on the primary field.
-// Watch is joined client-side from the Watchlist tab's own scoring (see
-// strategy/useWatchlistOverlay.ts) — it does not re-run any scoring logic here.
-export const SCANNER_COLUMNS: [string, string][] = [
-  ['newest_headline_at',  'News'],
-  ['symbol',              'Symbol'],
-  ['earnings_day_offset', 'Earnings'],
-  ['price',               'Price'],
-  ['change_pct',          'Change'],
-  ['gap_percent',         'Gap %'],
-  ['volume',              'Volume · RVOL'], // label mirrored in market_ui.SCANNER_VOLUME_COLUMN_LABEL
-  ['watchlist_score',     'Watch'],
-  ['float',               'Float'],
-  ['short_interest',      'Short Int.'],
-  ['market_cap',          'Mkt Cap'],
-];
-
-// ── Large Cap swing table (ADR 014) ───────────────────────────────────────────
-// Different metric set than the day-trade tables above: RVOL / ATR expansion /
-// 5d & 20d change / 20d high-low / composite score / days-to-earnings badge.
-// Default sort is 'rvol' descending (set in ScannerTabPanels).
-export const LARGE_CAP_COLUMNS: [string, string][] = [
-  ['symbol',              'Symbol'],
-  ['price',               'Price'],
-  ['change_pct',          'Change'],
-  ['rvol',                'RVOL'],
-  ['atr_expansion',       'ATR Exp.'],
-  ['change_5d_pct',       '5D'],
-  ['change_20d_pct',      '20D'],
-  ['high_20d',            '20D High/Low'],
-  ['large_cap_score',     'Score'],
-  ['days_to_earnings',    'Earnings'],
-  ['market_cap',          'Mkt Cap'],
-];
+// Scanner / Large Cap column tuples live in scanner_columns.ts (News +
+// Earnings are one shared definition). Re-export so the constants barrel
+// and existing `from '../constants'` imports stay stable.
+export {
+  LARGE_CAP_COLUMNS,
+  SCANNER_COLUMNS,
+  SCANNER_EARNINGS_COLUMN,
+  SCANNER_NEWS_COLUMN,
+} from './scanner_columns';
 
 // ── HOD Momo Scanner ──────────────────────────────────────────────────────────
 

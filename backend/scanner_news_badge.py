@@ -4,7 +4,8 @@ Under ``discovery=ibkr`` the Alpaca movers/discovery runners return before they
 can stamp ``has_news`` / ``newest_headline_at``. This module owns a side cache
 of today's Alpaca headlines for current roster symbols and stamps them at
 serialization time (``mover_enrich_view.decorate_rows``). It never writes into
-the frozen roster (ADR 008).
+the frozen roster (ADR 008). Large Cap is in the headline roster so it can
+share the Gainers News flame; it is still excluded from HOD admission.
 
 Owner: this module (in-memory only). Invalidation: ET date rollover, or
 process start. No disk ``schema_version`` -- the cache is not persisted.
@@ -29,6 +30,7 @@ _NEWS_TABLES = frozenset({
     _ss.TABLE_GAINERS,
     _ss.TABLE_LOSERS,
     _ss.TABLE_AFTERHOURS,
+    _ss.TABLE_LARGE_CAP,
 })
 
 _lock = threading.Lock()
@@ -90,7 +92,11 @@ def stamp_row(entry: dict) -> None:
 
 
 def roster_symbols() -> set[str]:
-    """Current Gappers/Gainers/Losers/AH names. Large Cap is out of scope."""
+    """Current scanner-table names, including Large Cap.
+
+    Large Cap shares the Gainers News flame (``newest_headline_at``). HOD
+    admission still excludes Large Cap (ADR 008) -- this set is headlines only.
+    """
     state = get_runtime_state()
     out: set[str] = set()
     for cache in (
@@ -98,6 +104,7 @@ def roster_symbols() -> set[str]:
         state.gainer_cache,
         state.loser_cache,
         state.afterhours_cache,
+        state.large_cap_cache,
     ):
         for row in cache or []:
             sym = (row.get("symbol") or "").strip().upper()
