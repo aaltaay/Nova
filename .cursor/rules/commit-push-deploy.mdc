@@ -26,7 +26,13 @@ At the end of every task or whenever you complete a chunk of work that has been 
    - Use `Closes #NNN` only when the entire issue is complete. Use `Refs #NNN` for partial work.
    - Apply the owner, Nova Delivery project, conditional milestone, and real relationships from `github-delivery.mdc`.
 
-6. **Deploy the changes**
+6. **After the PR is merged or closed, delete the head branch**
+   - Same session. `git push origin --delete <branch>` then `git fetch --prune`.
+   - Confirm with `py -3 tools/stale_pr_branches.py`.
+   - Never delete `master` / `main` or a branch that still has an open PR.
+   - Do not assume GitHub will sweep it. See `github-delivery.mdc` item 8.
+
+7. **Deploy the changes**
    - **Backend has no cloud host right now** (local / Desktop sidecar only). Do not assume Railway or another PaaS deploy. Pushing git does not deploy the API.
    - Identify the project's deployment mechanism for what actually exists:
      - **Public site (optional):** Vercel may redeploy `site/` (marketing page at nova.altaystudio.com) when Root Directory is `site`. That is not the live scanner.

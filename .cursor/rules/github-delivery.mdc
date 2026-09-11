@@ -1,5 +1,5 @@
 ---
-description: Enforce truthful GitHub issue metadata, PR-first delivery, strict gates, and complete-only closure
+description: Enforce truthful GitHub issue metadata, PR-first delivery, delete merged PR branches, strict gates, and complete-only closure
 alwaysApply: true
 ---
 
@@ -16,5 +16,6 @@ For issue, code, config, CI, security, or rule work, load `.cursor/skills/github
 5. Use `Closes #NNN` only when the whole issue is complete. Partial work uses `Refs #NNN`, gets an evidence comment, and leaves the issue open.
 6. Before merge, run relevant pytest, Ruff, ESLint, Vitest, build, Playwright/browser, doc, agent-contract, and shared-neighbor gates.
 7. After closing a deferred issue, run `py -3 tools/deferred_log.py refresh-index` and ship the refreshed index.
+8. After a PR is merged or closed, **delete the head branch in the same session**. Do not leave merged or superseded branches on origin. Run `git push origin --delete <branch>` (or the GitHub "Delete branch" control), then `git fetch --prune`. Confirm with `py -3 tools/stale_pr_branches.py`. Never delete `master` / `main`, and never delete a branch that still has an **open** PR. Do not assume GitHub will sweep it -- `delete_branch_on_merge` is off unless a human turns it on.
 
 If GitHub plan or token permissions prevent Projects or branch protection, report the exact limitation. Never claim the metadata or protection exists.

@@ -181,8 +181,13 @@ jobs:
   agent-contract:
     name: Agent contract
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -192,7 +197,7 @@ jobs:
         run: pip install pytest
 
       - name: Agent tool tests
-        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py -q --tb=short
+        run: pytest tools/test_agent_contract.py tools/test_subagent_lifecycle_hook.py tools/test_sync_agent_surfaces.py tools/test_create_nova_agent.py tools/test_doc_invariants.py tools/test_engineering_skills_audit.py tools/test_stale_pr_branches.py -q --tb=short
 
       - name: Structural validation (CI mode)
         # --ci skips user-local canvas file existence (canvases live outside the repo).
@@ -203,6 +208,13 @@ jobs:
 
       - name: Engineering skills audit (methodology graft)
         run: python tools/engineering_skills_audit.py
+
+      - name: No leftover merged or closed PR head branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git fetch --prune origin
+          python tools/stale_pr_branches.py
 
       - name: Maintainer IB-loop purity (fail on ib_loop_sync_io)
         run: python tools/maintainer_checks.py --fail-on-kind ib_loop_sync_io

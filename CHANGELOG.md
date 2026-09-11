@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Delete merged PR head branches (every agent)
+
+- **What:** After a pull request is merged or closed, every agent must delete that PR's head branch in the same session. Always-on in `github-delivery.mdc` and `commit-push-deploy.mdc`. CI fails if a leftover merged/closed head is still on origin (`tools/stale_pr_branches.py`).
+- **Why:** Six finished PR branches were still on the remote because GitHub `delete_branch_on_merge` is off and agents treated merge as the last step.
+- **Files touched:** `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`, `.cursor/rules/{commit-push-deploy,constitution}.mdc`, `AGENTS.md`, `.github/{pull_request_template.md,workflows/deploy.yml}`, `tools/stale_pr_branches.py`, `tools/test_stale_pr_branches.py`, `tools/engineering_skills_audit.py`
+- **How it works now:** Merge or close is unfinished until `git push origin --delete <branch>` and `py -3 tools/stale_pr_branches.py` are green. Open PR heads and branches with no PR yet stay. `master` / `main` are never deleted. Do not rely on GitHub auto-delete.
+- **Verified by:** `pytest tools/test_stale_pr_branches.py`; `python3 tools/stale_pr_branches.py`; `python3 tools/engineering_skills_audit.py`; `python3 tools/doc_invariants.py`; `python3 tools/agent_contract.py --ci`
+- **Related:** User directive after leftover branches from PRs #4, #5, #6, #49, #51, #52.
+
 ## 2026-09-11 -- AI-in-trading news digest on the marketing site
 
 - **What:** `nova.altaystudio.com` now carries a ranked "AI x the tape" section on the homepage: the best current reporting on AI actually being used to trade. A scheduled workflow regenerates it twice a day and commits the result.
