@@ -17,6 +17,13 @@ test.describe('Phase 3 — Quote panels / Stock View terminal', () => {
     await expect(page.getByRole('region', { name: 'Trade order' })).toBeVisible();
     await expect(page.locator('.ticker-trade-bar--rail')).toBeVisible();
 
+    const qtyRow = page.getByTestId('manual-order-quantity-row');
+    await expect(qtyRow).toBeVisible();
+    await expect(qtyRow.locator('#manual-order-quantity')).toBeVisible();
+    await expect(qtyRow.getByTestId('manual-order-qty-nudge-plus')).toBeVisible();
+    await expect(qtyRow.locator('.manual-order-presets')).toBeVisible();
+    await expect(page.locator('.manual-order-quantity-row')).toHaveCount(1);
+
     // Symbol / price live under Stock Quote, not a second command bar
     await expect(page.getByRole('region', { name: 'Stock Quote' })).toContainText(/SMPL/i);
 

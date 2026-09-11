@@ -31,10 +31,15 @@ const QUANTITY_MODES: readonly {
   { value: 'dollars', label: '$', title: 'Dollar amount converted to shares' },
 ];
 
-function formatPreset(value: number, mode: QuantityMode): string {
-  if (mode === 'percent') return `${value}%`;
-  if (mode === 'dollars') return `$${value.toLocaleString('en-US')}`;
+/** Chip text only -- the mode toggle already shows Qty / % / $. */
+function formatPreset(value: number): string {
   return String(value);
+}
+
+function presetAria(value: number, mode: QuantityMode): string {
+  if (mode === 'percent') return `${value} percent`;
+  if (mode === 'dollars') return `${value} dollars`;
+  return `${value} shares`;
 }
 
 function SharesModeIcon() {
@@ -42,8 +47,8 @@ function SharesModeIcon() {
     <svg
       className="manual-order-qty-icon"
       viewBox="0 0 16 16"
-      width="13"
-      height="13"
+      width="11"
+      height="11"
       aria-hidden
     >
       <ellipse cx="8" cy="3.3" rx="5.1" ry="1.7" fill="currentColor" />
@@ -143,9 +148,10 @@ export function ManualOrderQuantityRow({
               type="button"
               onClick={() => onQuantityValueChange(String(value))}
               disabled={qtyDisabled}
-              title={qtyLockTitle}
+              aria-label={presetAria(value, quantityMode)}
+              title={qtyLockTitle ?? presetAria(value, quantityMode)}
             >
-              {formatPreset(value, quantityMode)}
+              {formatPreset(value)}
             </button>
           ))}
           <button

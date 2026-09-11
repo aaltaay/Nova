@@ -35,7 +35,7 @@ Entry template (copy and fill in):
 - **What:** Manual order Quantity is one compact row: input, stack/%/$ mode chips, presets, and +1/-1. The old two-row Qty/%/$ plus 10/50/100/500 grid is gone.
 - **Why:** Operator asked for Classic Trade density so the ticket stops eating vertical space.
 - **Files touched:** `frontend/src/ibkr/ManualOrderQuantityRow.tsx`, `ManualOrderFields.tsx`, `orderEntry.ts`, `tradeTicket.css`, `stockViewTerminal.css`, `constantGroups/chart_api.ts`.
-- **How it works now:** Shares / % / $ still convert the same way. Presets still swap with the mode. +1/-1 nudge the typed number (`TICKER_TRADE_QTY_NUDGE`); percent stops at 100. A thin rule sits between units and presets. Narrow widths wrap the pills instead of stacking fat rows.
+- **How it works now:** Shares / % / $ still convert the same way. Presets still swap with the mode. Chip labels are just the number (the mode chip already shows Qty / % / $). +1/-1 nudge the typed number (`TICKER_TRADE_QTY_NUDGE`); percent stops at 100. A thin rule sits between units and presets. The row stays one line.
 - **Verified by:** Vitest `nudgeQuantityValue` + `ManualOrderQuantityRow`; `npm run build`; browser click-through on the ticket.
 - **Related:** WID-014 layout only. No issue. `problem_log=n/a` `deferred_log=none`.
 

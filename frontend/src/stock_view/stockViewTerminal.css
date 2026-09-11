@@ -964,7 +964,7 @@
   --mot-space-3: 12px;
   --mot-control-h: 30px;
   gap: var(--mot-space-3);
-  padding: var(--mot-space-2) var(--mot-space-2) var(--mot-space-3);
+  padding: var(--mot-space-2) 6px var(--mot-space-3);
 }
 
 .stock-view-page .ticker-trade-bar--rail .manual-order-label {
