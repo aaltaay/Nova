@@ -196,11 +196,11 @@
       "title": "Closed Orders / Open Orders dock default to mock sample rows when IB returns zero orders",
       "kind": "bug",
       "severity": "P1",
-      "status": "open",
+      "status": "done",
       "domain": "execution | widgets",
       "number": "33",
       "url": "https://github.com/aaltaay/Nova/issues/33",
-      "state": "OPEN"
+      "state": "CLOSED"
     },
     {
       "id": "D-018",
