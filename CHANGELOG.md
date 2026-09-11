@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Trend Line two-click place uses pointerup (D-010)
+
+- **What:** Armed Trend Line / Extended Line / Ray now place from two chart pointerups. Lightweight Charts `subscribeClick` is no longer the collector. Pan, axis-drag, and kinetic fling stay off while a tool is armed.
+- **Why:** D-010 / #38. PR #83 stopped the time-scale pan but a click that moved 5px still never became an anchor (`subscribeClick` cancel). The drawing library has no native click-to-place (`setActiveTool` is a name only).
+- **Files touched:** `frontend/src/chart/chartDrawingPlace.ts`, `chartDrawingInteraction.ts`, `useChartDrawingManager.ts`, `e2e/chart-trendline.spec.ts`.
+- **How it works now:** Same two-click contract as before (point A, then point B). The event source is the chart container `pointerup`, which still fires after a jittery click. `lightweight-charts-drawing` only renders and edits; it does not collect anchors. Wheel zoom stays on.
+- **Verified by:** Vitest `chartDrawingPlace` + `chartDrawingInteraction` (Trend Line / Extended Line / Ray). Playwright `e2e/chart-trendline.spec.ts` on sample SMPL when Chromium is present; CI Frontend E2E is the gate if this VM has no browser.
+- **Related:** `PROBLEM_LOG.md` 2026-09-11 D-010; Closes #38; Refs #13 #14 #43; D-036 split #88-#95.
+
 ## 2026-09-11 -- Scanner row memo, lazy Settings/Reports/Backtest chunks, ADR comment cleanup
 
 - **What:** Scanner tables now memoize each row so a `/ws/scanner` `price_patch` only reconciles the symbols that changed. Settings, Reports, Backtest, Account, Earnings, Nova News, Trader, and Sample are lazy-loaded so they leave the first App chunk. Stale volume-seed / Railway / xfail comments and the unused `discovery._snapshot_lock` are gone. Depth and tape hooks have lifecycle Vitest coverage.

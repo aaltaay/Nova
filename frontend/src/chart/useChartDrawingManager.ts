@@ -13,13 +13,18 @@ import {
   type Anchor,
   type IDrawing,
 } from 'lightweight-charts-drawing';
-import type { IChartApi, ISeriesApi, MouseEventParams, Time } from 'lightweight-charts';
+import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import {
   CHART_DRAWING_STYLE,
   CHART_SINGLE_ANCHOR_TOOLS,
   CHART_TWO_ANCHOR_TOOLS,
 } from './chartDrawingConfig';
 import { chartInteractionForTool } from './chartDrawingInteraction';
+import {
+  bindArmedToolPointer,
+  placeArmedToolClick,
+  type ChartPlacePoint,
+} from './chartDrawingPlace';
 import {
   deleteSelectedDrawingOnKey,
   ownsChartDrawingHotkeyFocus,
@@ -121,37 +126,41 @@ export function useChartDrawingManager({
     persist(() => upsertDrawing(symbolRef.current, storable));
   }, [persist]);
 
-  const handleChartClick = useCallback((param: MouseEventParams<Time>) => {
+  const placeFromPoint = useCallback((point: ChartPlacePoint) => {
     const tool = activeToolRef.current;
     const chart = chartRef.current;
     const series = candleSeriesRef.current;
     const manager = managerRef.current;
-    if (!tool || !manager || !chart || !series || !param.point) return;
+    if (!tool || !manager || !chart || !series) return;
 
-    const time = chart.timeScale().coordinateToTime(param.point.x);
-    const price = series.coordinateToPrice(param.point.y);
+    const time = chart.timeScale().coordinateToTime(point.x);
+    const price = series.coordinateToPrice(point.y);
     if (time === null || price === null) return;
     const anchor: Anchor = { time, price };
-
-    const TwoAnchorDrawing = CHART_TWO_ANCHOR_TOOLS[tool];
-    if (TwoAnchorDrawing) {
-      const pending = pendingAnchorRef.current;
-      if (!pending) {
-        pendingAnchorRef.current = anchor;
-        return;
-      }
-      pendingAnchorRef.current = null;
+    const result = placeArmedToolClick({
+      tool,
+      pending: pendingAnchorRef.current,
+      anchor,
+      twoAnchorTool: Boolean(CHART_TWO_ANCHOR_TOOLS[tool]),
+      singleAnchorTool: Boolean(CHART_SINGLE_ANCHOR_TOOLS[tool]),
+    });
+    pendingAnchorRef.current = result.pending;
+    if (result.action === 'two') {
+      const DrawingClass = CHART_TWO_ANCHOR_TOOLS[tool];
+      if (!DrawingClass) return;
       manager.addDrawing(
-        new TwoAnchorDrawing(`${tool.toLowerCase()}-${Date.now()}`, [pending, anchor], CHART_DRAWING_STYLE),
+        new DrawingClass(`${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE),
       );
-      return;
+    } else if (result.action === 'one') {
+      const DrawingClass = CHART_SINGLE_ANCHOR_TOOLS[tool];
+      if (!DrawingClass) return;
+      manager.addDrawing(
+        new DrawingClass(`${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE),
+      );
     }
-
-    const DrawingClass = CHART_SINGLE_ANCHOR_TOOLS[tool];
-    if (DrawingClass) {
-      manager.addDrawing(new DrawingClass(`${tool.toLowerCase()}-${Date.now()}`, [anchor], CHART_DRAWING_STYLE));
-    }
-  }, [chartRef, candleSeriesRef]);
+    const host = containerRef.current;
+    if (host) host.dataset.drawingCount = String(manager.getAllDrawings().length);
+  }, [chartRef, candleSeriesRef, containerRef]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -162,16 +171,20 @@ export function useChartDrawingManager({
     const manager = new DrawingManager();
     manager.attach(chartApi, candleSeries, container);
     managerRef.current = manager;
-    chart.subscribeClick(handleChartClick);
+    const unbind = bindArmedToolPointer(
+      container,
+      () => Boolean(activeToolRef.current),
+      placeFromPoint,
+    );
     setManagerEpoch(e => e + 1);
 
     return () => {
-      chart.unsubscribeClick(handleChartClick);
+      unbind();
       manager.detach();
       managerRef.current = null;
       hydratedRef.current = null;
     };
-  }, [chartApi, containerRef, candleSeriesRef, chartRef, handleChartClick]);
+  }, [chartApi, containerRef, candleSeriesRef, chartRef, placeFromPoint]);
 
   // Load this symbol's stored set and follow every later change to it.
   useEffect(() => {
@@ -205,14 +218,18 @@ export function useChartDrawingManager({
       applyingRef.current = false;
     }
     hydratedRef.current = { symbol: key, revision: target.revision, hadBars: target.hasBars };
-  }, [symbol, storeTick, seriesRevision, managerEpoch, candleSeriesRef]);
+    const host = containerRef.current;
+    if (host) host.dataset.drawingCount = String(manager.getAllDrawings().length);
+  }, [symbol, storeTick, seriesRevision, managerEpoch, candleSeriesRef, containerRef]);
 
   useEffect(() => {
     activeToolRef.current = activeTool;
     pendingAnchorRef.current = null;
     managerRef.current?.setActiveTool(activeTool);
+    if (activeTool) managerRef.current?.deselectAll();
     if (containerRef.current) {
       containerRef.current.style.cursor = activeTool ? 'crosshair' : 'default';
+      containerRef.current.dataset.activeDrawTool = activeTool ?? '';
     }
     chartRef.current?.applyOptions(chartInteractionForTool(activeTool));
   }, [activeTool, containerRef, chartRef]);
@@ -277,7 +294,6 @@ export function useChartDrawingManager({
   return {
     activeTool,
     setActiveTool,
-    handleChartClick,
     handleToolClick,
     handleClearAll,
   };
