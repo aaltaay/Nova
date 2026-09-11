@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- AI news digest Action crashed before it could publish
+
+- **Symptom:** `nova.altaystudio.com` kept the digest baked into PR #52 (`Updated Sep 11, 2026 01:16 UTC`). Manual `workflow_dispatch` of `AI news digest` failed in 3s; log: `python: No module named pytest`.
+- **Cause:** `.github/workflows/ai-news.yml` ran `python -m pytest tools/test_ai_news_digest.py` on `actions/setup-python` CPython 3.13 with no `pip install pytest`. The job never reached `ai_news_digest.py` or the commit/push, so Vercel had nothing new to deploy from this path. Separately, the merge commit for PR #52 (`958c474`) created no Vercel production deployment; the custom domain stayed on the previous production (`f10d355`, no news block) until PR #54/#55 rebuilt production from current master.
+- **Fix:** Install pytest in the digest job before the unit-test step.
+- **Fix class:** infra
+- **Keywords:** nova.altaystudio.com, ai-news.yml, pytest, digest, Vercel, site/, workflow_dispatch
+
 ## 2026-09-10 -- CI skipped strict gates and E2E shared operator state
 
 - **Symptom:** Master carried 4 ESLint errors, 6 warnings, and 11 Ruff findings while CI stayed green because it ran only pytest and the frontend build. Vitest could delete the operator's live `start-api.lock`, and the unrun Playwright suite reused port 5173, mixed operator state into tests, and had 12 stale selector/data failures.

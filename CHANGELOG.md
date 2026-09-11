@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- AI news digest workflow installs pytest
+
+- **What:** The twice-daily `AI news digest` Action now `pip install pytest` before it ranks and commits `site/index.html`.
+- **Why:** The first real run died immediately with `No module named pytest`, so the homepage digest could never refresh after the initial PR bake.
+- **Files touched:** `.github/workflows/ai-news.yml`
+- **How it works now:** Same publish path as designed (tests, then `ai_news_digest.py`, then commit only if the shortlist changed). The runner is a bare CPython 3.13 image; pytest is installed in the job, matching the other Actions that already do `pip install pytest`.
+- **Verified by:** Fresh `gh workflow run` after this lands; first run on master failed in 3s at the pytest step ([run 34557201214](https://github.com/aaltaay/Nova/actions/runs/34557201214)).
+- **Related:** PROBLEM_LOG 2026-09-11 AI news digest pytest; live site already served the baked block from later master deploys.
+
 ## 2026-09-11 -- GitHub auto-deletes merged PR heads (backup)
 
 - **What:** Live delivery docs now say GitHub `delete_branch_on_merge` is on. Agents still confirm the head is gone after merge/close; `--delete` only if `stale_pr_branches.py` still lists it.
