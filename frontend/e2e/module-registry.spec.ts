@@ -1,22 +1,8 @@
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+import { attachErrorCollector } from './helpers/errorCollector';
 
 /** Mirrors MODULE_VISIBILITY_STORAGE_KEY — avoid importing Vite-bound constants in e2e. */
 const MODULE_VISIBILITY_STORAGE_KEY = 'nova_module_visibility_v1';
-
-/** Collect page errors + console.error; ignore benign network noise. */
-function attachErrorCollector(page: Page): { errors: string[] } {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => {
-    errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error') return;
-    const text = msg.text();
-    if (/Failed to load resource|net::ERR_|WebSocket|Scanner API network error/i.test(text)) return;
-    errors.push(`console.error: ${text}`);
-  });
-  return { errors };
-}
 
 async function clearModuleVisibility(page: Page) {
   await page.goto('/');

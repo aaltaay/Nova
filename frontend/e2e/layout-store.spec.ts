@@ -1,22 +1,9 @@
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { attachErrorCollector } from './helpers/errorCollector';
 
 /** Mirrors LAYOUT_STORAGE_KEY — avoid importing Vite-bound constants in e2e. */
 const LAYOUT_STORAGE_KEY = 'nova_workspace_layout_v1';
 const MODULE_VISIBILITY_STORAGE_KEY = 'nova_module_visibility_v1';
-
-function attachErrorCollector(page: Page): { errors: string[] } {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => {
-    errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error') return;
-    const text = msg.text();
-    if (/Failed to load resource|net::ERR_|WebSocket|Scanner API network error/i.test(text)) return;
-    errors.push(`console.error: ${text}`);
-  });
-  return { errors };
-}
 
 test.describe('Phase 5 — Layout store panel order', () => {
   test('layout localStorage persists across reload', async ({ page }) => {

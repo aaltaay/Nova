@@ -1,22 +1,5 @@
-import { test, expect, type ConsoleMessage, type Page } from '@playwright/test';
-
-/** Collect page errors + console.error; ignore benign network noise. */
-function attachErrorCollector(page: Page): { errors: string[] } {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => {
-    errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error') return;
-    const text = msg.text();
-    // Vite HMR / failed optional API polls should not fail the happy-path suite.
-    if (
-      /Failed to load resource|net::ERR_|WebSocket|Scanner API network error|HOD Momo config load failed/i.test(text)
-    ) return;
-    errors.push(`console.error: ${text}`);
-  });
-  return { errors };
-}
+import { test, expect } from '@playwright/test';
+import { attachErrorCollector } from './helpers/errorCollector';
 
 test.describe('Phase 0 baseline', () => {
   test('app loads', async ({ page }) => {

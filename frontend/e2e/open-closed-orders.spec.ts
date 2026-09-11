@@ -2,7 +2,7 @@
  * L3 Orders pyramid — Stock View Open/Closed dock with mocked IBKR APIs.
  * Never places/cancels real orders (tester safety).
  */
-import { test, expect, type ConsoleMessage, type Page, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
 import {
   E2E_ACCOUNT,
   E2E_CLOSED_API_CANCELLED,
@@ -15,20 +15,7 @@ import {
   E2E_WORKING_PARTIAL,
   E2E_WORKING_PRESUBMITTED,
 } from './fixtures/orderRows';
-
-function attachErrorCollector(page: Page): { errors: string[] } {
-  const errors: string[] = [];
-  page.on('pageerror', (err) => {
-    errors.push(`pageerror: ${err.message}`);
-  });
-  page.on('console', (msg: ConsoleMessage) => {
-    if (msg.type() !== 'error') return;
-    const text = msg.text();
-    if (/Failed to load resource|net::ERR_|WebSocket/i.test(text)) return;
-    errors.push(`console.error: ${text}`);
-  });
-  return { errors };
-}
+import { attachErrorCollector } from './helpers/errorCollector';
 
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({
