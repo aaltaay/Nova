@@ -20,6 +20,7 @@ import {
   STOCK_VIEW_CHART_ROW_SPLIT_PCT,
   type ChartIndicatorId,
 } from '../constants';
+import { parseBoolFlag, readPref, writePref } from '../utils/prefStore';
 import { ensureBarsBatch } from '../chart/barsStore';
 import { clearDrawings, drawingsKey } from '../chart/chartDrawingsStore';
 import { toggleIndicator } from '../chartIndicators';
@@ -32,13 +33,11 @@ interface Props {
 }
 
 function readOptionalEnabled(): boolean {
-  try {
-    const raw = localStorage.getItem(CHART_GRID_OPTIONAL_STORAGE_KEY);
-    if (raw === null) return CHART_GRID_OPTIONAL_DEFAULT_ON;
-    return raw !== '0';
-  } catch {
-    return CHART_GRID_OPTIONAL_DEFAULT_ON;
-  }
+  return readPref(
+    CHART_GRID_OPTIONAL_STORAGE_KEY,
+    CHART_GRID_OPTIONAL_DEFAULT_ON,
+    parseBoolFlag,
+  );
 }
 
 /** Every pane the grid can show, seeded with its per-timeframe defaults. */
@@ -88,11 +87,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
   const toggleOptional = () => {
     setShowOptional((prev) => {
       const next = !prev;
-      try {
-        localStorage.setItem(CHART_GRID_OPTIONAL_STORAGE_KEY, next ? '1' : '0');
-      } catch {
-        /* ignore */
-      }
+      writePref(CHART_GRID_OPTIONAL_STORAGE_KEY, next);
       return next;
     });
   };

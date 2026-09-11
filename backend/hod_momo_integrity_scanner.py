@@ -20,6 +20,40 @@ _GAPPER_OPTIONAL_MODES = frozenset({"market", "regular", "rth", "afterhours", "c
 # Gainers roster inside this window is a broken pipeline, not a quiet tape.
 _GAINER_LIVE_MODES = frozenset({"premarket", "market", "regular", "rth"})
 
+# Sibling-vouch (D-028): an empty table may pass only when another list is
+# actually live with rows. Frozen-with-rows counts (ADR 008). Large Cap does
+# not vouch -- it is a swing table, not a day-trade roster.
+_SIBLING_TABLES = (
+    ("gappers", "gapper_count", "gapper_age_sec", "gapper_frozen"),
+    ("gainers", "gainer_count", "gainer_age_sec", "gainer_frozen"),
+    ("losers", "loser_count", "loser_age_sec", "loser_frozen"),
+    ("afterhours", "afterhours_count", "afterhours_age_sec", "afterhours_frozen"),
+)
+
+
+def _table_is_live(
+    snap: dict[str, Any],
+    count_key: str,
+    age_key: str,
+    frozen_key: str,
+) -> bool:
+    count = int(snap.get(count_key) or 0)
+    if count <= 0:
+        return False
+    if snap.get(frozen_key):
+        return True
+    age = snap.get(age_key)
+    return age is not None and float(age) <= SCANNER_INTEGRITY_CACHE_STALE_SEC
+
+
+def _sibling_live_name(snap: dict[str, Any], exclude: str) -> str | None:
+    for name, count_key, age_key, frozen_key in _SIBLING_TABLES:
+        if name == exclude:
+            continue
+        if _table_is_live(snap, count_key, age_key, frozen_key):
+            return name
+    return None
+
 
 def _row_price_checks(coverage: list[dict[str, Any]]) -> list[dict[str, str]]:
     """One check per displayed live table: are its rows actually priced?
@@ -174,16 +208,32 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
                         "(check roster commit / feed_error)",
                     ))
                     continue
-                status = (
-                    "warn"
-                    if name == "gappers" and mode == "premarket" and provider == "ibkr"
-                    else "pass"
-                )
-                checks.append(check(
-                    f"scanner_{name}",
-                    status,
-                    f"{name}: empty (no cache yet) -- OK if another scanner list is live",
-                ))
+                sibling = _sibling_live_name(snap, name)
+                if sibling:
+                    checks.append(check(
+                        f"scanner_{name}",
+                        "pass",
+                        f"{name}: empty (no cache yet) -- {sibling} is live with rows",
+                    ))
+                    continue
+                if name == "gappers" and mode == "premarket" and provider == "ibkr":
+                    checks.append(check(
+                        "scanner_gappers",
+                        "warn",
+                        "gappers: empty (no cache yet) -- no live sibling scanner list",
+                    ))
+                elif provider == "ibkr" and ibkr_ok:
+                    checks.append(check(
+                        f"scanner_{name}",
+                        "fail",
+                        f"{name}: empty (no cache yet) -- no live sibling scanner list",
+                    ))
+                else:
+                    checks.append(check(
+                        f"scanner_{name}",
+                        "pass",
+                        f"{name}: empty (no cache yet)",
+                    ))
             else:
                 checks.append(check(
                     f"scanner_{name}",

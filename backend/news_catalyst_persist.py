@@ -1,10 +1,9 @@
 """Dated JSON snapshot for news catalysts (mirrors gapper snapshots)."""
 from __future__ import annotations
 
-import json
 import logging
 
-from cache import _atomic_write, _dated_path, _today_et
+from cache import _read_dated_json, _today_et, _write_dated
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +12,11 @@ _PREFIX = "news-catalysts"
 
 def save_news_catalyst_snapshot(rows: list[dict], ts: float) -> None:
     try:
-        payload = {"date": _today_et(), "ts": ts, "catalysts": rows}
-        _atomic_write(_dated_path(_PREFIX, _today_et()), payload)
+        _write_dated(
+            _PREFIX,
+            _today_et(),
+            {"date": _today_et(), "ts": ts, "catalysts": rows},
+        )
     except Exception:
         logger.warning(
             "news_catalyst_persist: save failed",
@@ -24,9 +26,7 @@ def save_news_catalyst_snapshot(rows: list[dict], ts: float) -> None:
 
 def load_news_catalyst_snapshot() -> tuple[list[dict], float]:
     try:
-        path = _dated_path(_PREFIX, _today_et())
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
+        data = _read_dated_json(_PREFIX, _today_et())
         if data.get("date") != _today_et():
             return [], 0.0
         raw = data.get("catalysts", [])

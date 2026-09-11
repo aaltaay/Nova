@@ -11,6 +11,7 @@ import {
   SCANNER_EXCHANGE_OPTIONS,
   SCANNER_EXCHANGE_STORAGE_KEY,
 } from '../constants';
+import { readPref, writePref } from '../utils/prefStore';
 
 /** Pure predicate — exported so tests exercise the real filter, not a copy. */
 export function filterRowsBySelection<T extends { exchange?: string | null }>(
@@ -22,30 +23,24 @@ export function filterRowsBySelection<T extends { exchange?: string | null }>(
   return rows.filter(r => !r.exchange || selected.includes(r.exchange));
 }
 
+function parseExchangeList(raw: unknown): string[] | null {
+  if (!Array.isArray(raw) || !raw.every((x) => typeof x === 'string')) return null;
+  const kept = raw.filter((x) =>
+    (SCANNER_EXCHANGE_OPTIONS as readonly string[]).includes(x),
+  );
+  return kept.length > 0 ? kept : null;
+}
+
 function loadFromStorage(): string[] {
-  try {
-    const raw = localStorage.getItem(SCANNER_EXCHANGE_STORAGE_KEY);
-    if (!raw) return SCANNER_EXCHANGE_DEFAULTS;
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) {
-      // Only keep values that are still valid options
-      const kept = parsed.filter(x =>
-        (SCANNER_EXCHANGE_OPTIONS as readonly string[]).includes(x),
-      );
-      return kept.length > 0 ? kept : SCANNER_EXCHANGE_DEFAULTS;
-    }
-  } catch {
-    // ignore
-  }
-  return SCANNER_EXCHANGE_DEFAULTS;
+  return readPref(
+    SCANNER_EXCHANGE_STORAGE_KEY,
+    SCANNER_EXCHANGE_DEFAULTS,
+    parseExchangeList,
+  );
 }
 
 function saveToStorage(selected: string[]) {
-  try {
-    localStorage.setItem(SCANNER_EXCHANGE_STORAGE_KEY, JSON.stringify(selected));
-  } catch {
-    // ignore
-  }
+  writePref(SCANNER_EXCHANGE_STORAGE_KEY, selected);
 }
 
 export interface ExchangeFilter {

@@ -37,6 +37,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-11 -- Scanner integrity mutual-vouch and Large Cap re-fire on restart
+
+- **Symptom:** Integrity could pass empty Gappers/Losers with "OK if another scanner list is live" while the sibling was also empty. Large Cap Discord/Telegram breakouts re-fired after an API restart. Cooldown default 0 looked like a missing mute.
+- **Cause:** The no-cache branch never checked that a sibling table was actually live with rows. `_fired_today` lived only in process memory. `HOD_MOMO_COOLDOWN_SEC = 0` is the 2026-07-17 Warrior burst-badge decision -- consolidation (10s) is the rate limit, and persist already pins cooldown to that constant.
+- **Fix:** Sibling-vouch requires another table live-with-rows (or frozen-with-rows). Persist `_fired_today` on the dated Large Cap snapshot with `schema_version`. Leave cooldown at 0 and document it.
+- **Fix class:** surfacing (integrity) / ownership (Large Cap dedupe)
+- **Keywords:** D-028, mutual vouch, OK if another scanner list is live, _fired_today, large_cap_alerts, HOD_MOMO_COOLDOWN_SEC, schema_version
+
+## 2026-09-11 -- Depth cap force-evicted a live Level 2 viewer
+
+- **Symptom:** Opening a 4th Trader L2 (or a race past the UI cap) unsubscribed one of the three live ladders.
+- **Cause:** `evict_for_capacity` treated `viewer_count > 0` as a possible leak and force-evicted `others[0]`.
+- **Fix:** Evict idle slots only (`viewer_count == 0`). When all three slots have viewers, refuse the 4th with the existing capacity error (ADR 011 / D-027).
+- **Fix class:** ownership
+- **Keywords:** D-027, depth cap, IBKR_MAX_DEPTH_SYMBOLS, force-evict, viewer_count, TRADER_MAX_TABS, ADR 011
+
+## 2026-09-11 -- Persist files loaded without schema_version
+
+- **Symptom:** Dated scanner/HOD JSON, blocklist, session-focus, alert channels, and several localStorage prefs restored whatever parsed after a payload change.
+- **Cause:** Writes omitted `schema_version`. Load paths had no refuse-loud / migrate contract (`persisted-state.mdc` named three of these).
+- **Fix:** `cache_schema.py` stamps one version per dated prefix. Missing version migrates; unknown refuses. Same contract on the three named files plus a frontend `readPref` / `writePref` helper for the prefs this batch touches.
+- **Fix class:** admission
+- **Keywords:** D-017, schema_version, persisted-state, _atomic_write, alerts_channels, session-focus, blocklist, localStorage, readPref
+
 ## 2026-09-11 -- TestClient-based tool silently killed by api_process_guard (empty stdout, exit 1)
 
 - **Symptom:** After rebasing onto master, `py -3 tools/execution_safety_probe.py` exited 1 roughly 10s in with **completely empty stdout** and no traceback on stderr. It always died at the same step, and the backend pytest suite using the same `TestClient` harness stayed green, so it looked like the probe's own cancel assertion had broken against master's new `cancel_order_verified_on_ib`.

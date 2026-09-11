@@ -312,9 +312,10 @@ async def ws_depth(websocket: WebSocket, symbol: str) -> None:
                 await websocket.send_text(json.dumps({"type": "ping"}))
                 continue
             if item.get("type") == "error":
-                # Line torn down out from under this viewer (e.g. capacity
-                # force-eviction) -- tell the client, then close so its
-                # onclose backoff reconnects it (PROBLEM_LOG 2026-08-25).
+                # Line torn down out from under this viewer -- tell the
+                # client, then close so its onclose backoff reconnects
+                # (PROBLEM_LOG 2026-08-25). Live 4th-symbol refuses never
+                # evict, so this path is unsubscribe / idle reclaim.
                 await websocket.send_text(
                     json.dumps(
                         {

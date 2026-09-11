@@ -131,6 +131,19 @@ def test_corrupt_channels_json_logs_error_and_returns_empty(tmp_path, monkeypatc
     assert any("CORRUPT" in rec.message for rec in caplog.records)
 
 
+def test_unknown_channels_schema_is_refused(tmp_path, monkeypatch, caplog):
+    store_file = tmp_path / "alerts_channels.json"
+    store_file.write_text(
+        '{"schema_version": 99, "channels": [{"id": "x", "type": "webhook", "enabled": true, "name": "x"}]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(channels_store, "_store_path", lambda: store_file)
+    with caplog.at_level("WARNING"):
+        raw = channels_store._load_raw()
+    assert raw == []
+    assert "schema_version" in caplog.text
+
+
 @patch("alerts.dispatch.dispatch_alert", return_value=[{"ok": True}])
 def test_notify_system_event_builds_failed_text(mock_dispatch):
     from alerts.hooks import notify_system_event

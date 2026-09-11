@@ -215,22 +215,21 @@ class TestDepthL1FallbackReusesTicksStream:
 
 
 class TestCapEvictionForActiveViewer:
-    def test_subscribe_at_full_cap_with_leaked_viewers_still_succeeds(self, depth):
-        """The screenshot failure: EHGO/GFUZ/LVLU held slots with leaked
-        viewer_count>0; SHPH reconnect-looped on Symbol cap reached."""
+    def test_subscribe_at_full_cap_with_live_viewers_is_refused(self, depth):
+        """D-027: three live ladders stay; a 4th subscribe is refused."""
         depth_mod, fake_ib = depth
         for i, sym in enumerate(["EHGO", "GFUZ", "LVLU"]):
             depth_mod._subscriptions[sym] = {"bids": [], "asks": [], "l1_fallback": False}
             depth_mod._viewer_queues[sym] = [asyncio.Queue(maxsize=100)]
             depth_mod._contracts[sym] = _FakeContract(10 + i, sym)
-            depth_mod._ws_viewers[sym] = 3  # leaked StrictMode / orphan WS counts
+            depth_mod._ws_viewers[sym] = 3
 
         result = asyncio.run(depth_mod.subscribe_async("SHPH"))
-        assert result["ok"] is True, result
-        assert "SHPH" in depth_mod.subscribed_symbols()
-        assert len(depth_mod.subscribed_symbols()) == IBKR_MAX_DEPTH_SYMBOLS
-        assert len(fake_ib.depth_calls) == 1
-        assert fake_ib.depth_calls[0]["symbol"] == "SHPH"
+        assert result["ok"] is False, result
+        assert "cap" in (result.get("error") or "").lower()
+        assert "SHPH" not in depth_mod.subscribed_symbols()
+        assert set(depth_mod.subscribed_symbols()) == {"EHGO", "GFUZ", "LVLU"}
+        assert fake_ib.depth_calls == []
 
     def test_idle_slot_is_preferred_over_busy_slot(self, depth):
         depth_mod, fake_ib = depth
@@ -334,17 +333,15 @@ class TestStreamHeartbeat:
 
 
 class TestViewerLeakDoesNotBlockActiveSymbol:
-    def test_force_evict_clears_leaked_viewer_count(self, depth):
+    def test_live_viewers_are_not_force_evicted(self, depth):
         depth_mod, _fake_ib = depth
         for i in range(IBKR_MAX_DEPTH_SYMBOLS):
             sym = f"SYM{i}"
             depth_mod._subscriptions[sym] = {}
             depth_mod._ws_viewers[sym] = 5
         asyncio.run(depth_mod._evict_for_capacity("EXTRA"))
-        remaining_viewers = sum(depth_mod._ws_viewers.values())
-        # Victim's leaked count must be gone so a later idle check can succeed.
-        assert len(depth_mod._subscriptions) == IBKR_MAX_DEPTH_SYMBOLS - 1
-        assert remaining_viewers == 5 * (IBKR_MAX_DEPTH_SYMBOLS - 1)
+        assert len(depth_mod._subscriptions) == IBKR_MAX_DEPTH_SYMBOLS
+        assert sum(depth_mod._ws_viewers.values()) == 5 * IBKR_MAX_DEPTH_SYMBOLS
 
     def test_release_grace_lets_strictmode_reattach(self, depth, monkeypatch):
         depth_mod, _fake_ib = depth

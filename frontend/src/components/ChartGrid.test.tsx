@@ -109,7 +109,7 @@ describe('ChartGrid', () => {
       '1-Minute',
       'Full Day',
     ]);
-    expect(localStorage.getItem('nova.chartGrid.show10Sec')).toBe('0');
+    expect(JSON.parse(localStorage.getItem('nova.chartGrid.show10Sec') ?? '').value).toBe(false);
     expect(toggle.textContent).toBe('Show 10-Second');
   });
 

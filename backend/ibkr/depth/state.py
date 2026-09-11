@@ -152,11 +152,11 @@ def push_book(symbol: str, book: dict) -> None:
 def push_error(symbol: str, message: str, *, evicted: bool = False) -> None:
     """Broadcast an error to every viewer currently watching this symbol.
 
-    Used when a line is torn down out from under a still-open viewer (e.g.
-    force-eviction at the depth symbol cap) so its WS route can close and
-    the frontend's own backoff reconnects it, instead of it sitting
-    silently on a dead line -- same pattern as tape_stream's ``released``
-    notice (PROBLEM_LOG 2026-08-25).
+    Used when a line is torn down out from under a still-open viewer so
+    its WS route can close and the frontend's own backoff reconnects it
+    instead of sitting silently on a dead line -- same pattern as
+    tape_stream's ``released`` notice (PROBLEM_LOG 2026-08-25). A 4th
+    live symbol is refused, not force-evicted (D-027).
     """
     _broadcast(
         symbol,

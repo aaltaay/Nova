@@ -23,8 +23,40 @@ from constants import (
 logger = logging.getLogger(__name__)
 
 # (symbol, direction) -> session_key already alerted this session.
+# Owner: this module. Persisted on today's dated Large Cap snapshot
+# (``fired_today``) with schema_version from cache_schema. Invalidation:
+# session_key_et() rollover. Memory is a cache of that file.
 _fired_today: dict[tuple[str, str], str] = {}
+_fired_loaded = False
 _history: deque[dict[str, Any]] = deque(maxlen=LARGE_CAP_ALERT_HISTORY_SIZE)
+_FIRED_SEP = ":"
+
+
+def _serialize_fired() -> dict[str, str]:
+    return {f"{sym}{_FIRED_SEP}{direction}": session for (sym, direction), session in _fired_today.items()}
+
+
+def _ensure_fired_loaded() -> None:
+    global _fired_loaded
+    if _fired_loaded:
+        return
+    _fired_loaded = True
+    from cache import load_large_cap_fired
+    from market import session_key_et
+
+    today = session_key_et()
+    for key, session in load_large_cap_fired().items():
+        if session != today or _FIRED_SEP not in key:
+            continue
+        symbol, direction = key.rsplit(_FIRED_SEP, 1)
+        if symbol and direction in ("up", "down"):
+            _fired_today[(symbol, direction)] = session
+
+
+def _persist_fired() -> None:
+    from cache import save_large_cap_fired
+
+    save_large_cap_fired(_serialize_fired())
 
 
 def get_alert_history() -> list[dict[str, Any]]:
@@ -53,11 +85,13 @@ def check_breakout(
 
     from market import session_key_et
 
+    _ensure_fired_loaded()
     key = (symbol, direction)
     session_key = session_key_et()
     if _fired_today.get(key) == session_key:
         return None
     _fired_today[key] = session_key
+    _persist_fired()
 
     event = {
         "type": LARGE_CAP_ALERT_EVENT_TYPE,
@@ -84,5 +118,7 @@ def check_breakout(
 
 
 def reset_for_testing() -> None:
+    global _fired_loaded
     _fired_today.clear()
+    _fired_loaded = False
     _history.clear()

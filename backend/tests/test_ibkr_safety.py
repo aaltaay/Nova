@@ -321,24 +321,18 @@ class TestDepthCap:
         assert len(self.depth._subscriptions) == IBKR_MAX_DEPTH_SYMBOLS - 1
         assert "EXTRA" not in self.depth._subscriptions
 
-    def test_subscribe_force_evicts_when_all_slots_look_busy(self):
+    def test_subscribe_refuses_when_all_slots_have_viewers(self):
         from constants import IBKR_MAX_DEPTH_SYMBOLS
         for i in range(IBKR_MAX_DEPTH_SYMBOLS):
             self.depth._subscriptions[f"SYM{i}"] = {}
-            self.depth._ws_viewers[f"SYM{i}"] = 1  # leaked viewer counts
+            self.depth._ws_viewers[f"SYM{i}"] = 1
         asyncio.run(self.depth._evict_for_capacity("EXTRA"))
-        assert len(self.depth._subscriptions) == IBKR_MAX_DEPTH_SYMBOLS - 1
-        # Force path clears the leaked viewer count on the victim.
-        assert sum(1 for s in ("SYM0", "SYM1", "SYM2") if s in self.depth._subscriptions) == 2
+        assert len(self.depth._subscriptions) == IBKR_MAX_DEPTH_SYMBOLS
+        assert set(self.depth._subscriptions) == {f"SYM{i}" for i in range(IBKR_MAX_DEPTH_SYMBOLS)}
 
-    def test_force_evict_notifies_any_open_viewer_queue(self):
-        """"Possible leak" is a guess -- if the victim's viewer_count was
-        real (an active watcher, not a leak), force-eviction must not
-        silently kill its line. Whichever symbol gets evicted, an open
-        viewer queue on it must get an evicted error so its WS route closes
-        and the frontend reconnects (PROBLEM_LOG 2026-08-25).
-        """
-        self.depth.reset_all()  # this class doesn't reset between methods
+    def test_fourth_live_viewer_is_refused_not_evicted(self):
+        """ADR 011 / D-027: three live ladders stay up; the 4th is refused."""
+        self.depth.reset_all()
         from constants import IBKR_MAX_DEPTH_SYMBOLS
         viewer_qs = {}
         for i in range(IBKR_MAX_DEPTH_SYMBOLS):
@@ -349,13 +343,8 @@ class TestDepthCap:
 
         asyncio.run(self.depth._evict_for_capacity("EXTRA"))
 
-        evicted = [s for s, q in viewer_qs.items() if not q.empty()]
-        assert len(evicted) == 1
-        notice = viewer_qs[evicted[0]].get_nowait()
-        assert notice["type"] == "error"
-        assert notice["evicted"] is True
-        assert "EXTRA" in notice["message"]
-        assert evicted[0] not in self.depth.subscribed_symbols()
+        assert all(q.empty() for q in viewer_qs.values())
+        assert set(self.depth.subscribed_symbols()) == set(viewer_qs)
 
     def test_resubscribe_same_symbol_is_idempotent(self, monkeypatch):
         import ibkr.client as client_mod

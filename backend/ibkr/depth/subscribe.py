@@ -1,4 +1,4 @@
-"""IBKR depth subscribe / unsubscribe and capacity eviction."""
+"""IBKR depth subscribe / unsubscribe and idle-only capacity eviction."""
 from __future__ import annotations
 
 import asyncio
@@ -135,39 +135,28 @@ async def subscribe_async(symbol: str) -> dict:
 
 
 async def evict_for_capacity(incoming: str) -> None:
-    """Free depth slot(s) so `incoming` can subscribe."""
+    """Free idle depth slot(s) so `incoming` can subscribe.
+
+    Live viewers (``viewer_count > 0``) are never evicted -- a 4th symbol
+    is refused by the caller (ADR 011 / D-027). Idle-only eviction stays
+    so a leaked empty slot cannot wedge the cap.
+    """
     while len(state._subscriptions) >= IBKR_MAX_DEPTH_SYMBOLS:
         idle = [
             s for s in list(state._subscriptions.keys())
             if s != incoming and state.viewer_count(s) <= 0
         ]
-        if idle:
-            victim = idle[0]
+        if not idle:
             logger.warning(
-                "IBKR: evicting idle depth slot %s to free capacity for %s",
-                victim, incoming,
+                "IBKR: refusing depth subscribe for %s -- %s live viewers at cap",
+                incoming, IBKR_MAX_DEPTH_SYMBOLS,
             )
-        else:
-            others = [s for s in list(state._subscriptions.keys()) if s != incoming]
-            if not others:
-                return
-            victim = others[0]
-            logger.warning(
-                "IBKR: force-evicting depth slot %s (viewer_count=%s, possible leak) for %s",
-                victim, state.viewer_count(victim), incoming,
-            )
-            # "Possible leak" is a guess, not a guarantee -- if viewer_count
-            # was real (an active viewer, not a leaked count), this line is
-            # being torn down out from under them. Tell any open viewer
-            # queue before unsubscribing so its socket closes and the
-            # frontend reconnects instead of silently sitting on a dead
-            # line (PROBLEM_LOG 2026-08-25).
-            state.push_error(
-                victim,
-                f"Depth line closed to free capacity for {incoming}",
-                evicted=True,
-            )
-            state._ws_viewers.pop(victim, None)
+            return
+        victim = idle[0]
+        logger.warning(
+            "IBKR: evicting idle depth slot %s to free capacity for %s",
+            victim, incoming,
+        )
         unsubscribe(victim)
         try:
             from l2 import continuous as _l2_continuous

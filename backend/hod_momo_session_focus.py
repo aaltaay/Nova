@@ -16,6 +16,7 @@ import logging
 from pathlib import Path
 
 import hod_momo_state as _state
+from cache_schema import SESSION_FOCUS_SCHEMA_VERSION, accept_schema, stamp_schema
 from constants import (
     HOD_MOMO_FORMER_MOMO_STRATEGY_ID,
     HOD_MOMO_SESSION_FOCUS_MAX,
@@ -26,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 _sticky: list[str] = []
 _sticky_date: str = ""
+# Owner: this module. Invalidation: session date rollover.
+# schema_version: SESSION_FOCUS_SCHEMA_VERSION (cache_schema).
 _STICKY_FILE = "hod-momo-session-focus.json"
 
 
@@ -181,11 +184,18 @@ def _ensure_loaded() -> None:
     except (OSError, json.JSONDecodeError) as exc:
         logger.warning("HOD Momo: session-focus sticky load failed: %s", exc)
         return
-    if str(raw.get("date") or "") != today:
+    if not isinstance(raw, dict):
+        return
+    accepted = accept_schema(
+        raw, SESSION_FOCUS_SCHEMA_VERSION, name="hod-momo-session-focus",
+    )
+    if accepted is None:
+        return
+    if str(accepted.get("date") or "") != today:
         return
     seen: set[str] = set()
     ordered: list[str] = []
-    for item in raw.get("symbols") or []:
+    for item in accepted.get("symbols") or []:
         sym = str(item or "").strip().upper()
         if sym and sym not in seen:
             seen.add(sym)
@@ -200,7 +210,10 @@ def _save() -> None:
 
     global _sticky_date
     _sticky_date = current_date_et()
-    payload = {"date": _sticky_date, "symbols": list(_sticky)}
+    payload = stamp_schema(
+        {"date": _sticky_date, "symbols": list(_sticky)},
+        SESSION_FOCUS_SCHEMA_VERSION,
+    )
     try:
         _path().write_text(json.dumps(payload), encoding="utf-8")
     except OSError as exc:
