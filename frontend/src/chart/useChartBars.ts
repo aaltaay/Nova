@@ -327,8 +327,8 @@ export function useChartBars({
       () => {
         void fetchBars(symbol, timeframe, true, controller.signal);
       },
-        CHART_BARS_STUCK_RETRY_MIN_MS,
-        CHART_BARS_STUCK_RETRY_MAX_MS,
+      CHART_BARS_STUCK_RETRY_MIN_MS,
+      CHART_BARS_STUCK_RETRY_MAX_MS,
     );
     return () => {
       stop();
