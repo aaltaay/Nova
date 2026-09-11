@@ -5,7 +5,6 @@ import hashlib
 import re
 from datetime import datetime, timezone
 
-from news.sources import classify_source_tier
 from nova_news.criticality import score_story
 from nova_news.models import ProviderResult, Story
 
