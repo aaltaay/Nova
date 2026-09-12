@@ -9,8 +9,12 @@ import { useTickerChartMaximize } from './useTickerChartMaximize';
 
 let current: Element | null = null;
 
+function setFullscreenElement(el: Element | null) {
+  current = el;
+}
+
 function installFullscreenMock() {
-  current = null;
+  setFullscreenElement(null);
   markChartFullscreen(false);
   takeEscapeConsumedForFullscreen();
   Object.defineProperty(document, 'fullscreenElement', {
@@ -18,12 +22,12 @@ function installFullscreenMock() {
     get: () => current,
   });
   HTMLElement.prototype.requestFullscreen = vi.fn(function (this: HTMLElement) {
-    current = this;
+    setFullscreenElement(this);
     document.dispatchEvent(new Event('fullscreenchange'));
     return Promise.resolve();
   });
   document.exitFullscreen = vi.fn(() => {
-    current = null;
+    setFullscreenElement(null);
     document.dispatchEvent(new Event('fullscreenchange'));
     return Promise.resolve();
   });

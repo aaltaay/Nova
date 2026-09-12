@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Issue #115. After #113 the header icon shared the grid-maximize path. Operator clarification: wire ⛶ to true fullscreen; keep double-click as grid maximize.
 - **Files touched:** `useTickerChartMaximize.ts`, `chartFullscreen.ts`, `useChartFullscreen.ts`, `useChartGridMaximize.ts`, `TickerChart.tsx`, `TickerChartControls.tsx`, `ChartGrid.tsx`, `tickerChart.css`.
 - **How it works now:** Two expand paths. Double-click sets `ChartGrid` `maximizedPaneId` (rails stay). Header ⛶ calls `requestFullscreen` on that pane's portal host. Esc exits fullscreen first and does not clear grid maximize on that same keypress. Quote Panel / standalone charts still use the body portal.
-- **Verified by:** Vitest (`chartFullscreen`, `useTickerChartMaximize`, `ChartGrid`, `TickerChartControls`) plus Playwright `chart-pane-maximize.spec.ts` (grid double-click, header fullscreen, Esc keeps grid-max).
+- **Verified by:** `npm test -- --run` -- 215 files / 1043 passed. `npm run lint` + `npm run build` exit 0. Playwright `e2e/chart-pane-maximize.spec.ts` -- 3 passed (grid double-click, 10Sec header fullscreen, Esc keeps grid-max). Neighbor `e2e/chart-trendline.spec.ts` -- 2 passed. `doc_invariants.py` OK. `agent_contract.py --ci` PASS.
 - **Related:** Closes #115. Refs #110 / PR #113. PROBLEM_LOG 2026-09-12 Chart expand icon.
 
 ## 2026-09-12 -- Chart Long/Short tag opens a position menu

@@ -37,20 +37,29 @@ test.describe('Trader chart pane maximize', () => {
     const grid = page.getByTestId('chart-grid');
     const cell = page.getByTestId('chart-grid-cell-10Sec');
     await expect(grid).toBeVisible();
+    await expect(cell).toBeVisible();
 
-    await cell.getByTestId('chart-expand-btn').click();
+    const expand = cell.getByTestId('chart-expand-btn');
+    await expand.scrollIntoViewIfNeeded();
+    await expand.click();
+    await expect.poll(async () =>
+      page.evaluate(() => document.fullscreenElement?.className ?? ''),
+    ).toContain('chart-portal-host');
     await expect(grid).not.toHaveClass(/chart-grid--pane-maximized/);
-    const fullscreenClass = await page.evaluate(() => {
-      const el = document.fullscreenElement;
-      return el instanceof HTMLElement ? el.className : '';
-    });
-    expect(fullscreenClass).toContain('chart-portal-host');
     await expect(page.locator('[data-testid="chart-portal-host"][data-chart-fullscreen="1"]')).toHaveCount(1);
+    await page.screenshot({
+      path: '/opt/cursor/artifacts/chart-fullscreen.png',
+      fullPage: true,
+    });
 
     await page.keyboard.press('Escape');
     await expect.poll(async () => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
     await expect(grid).not.toHaveClass(/chart-grid--pane-maximized/);
     await expect(page.getByTestId('stock-view-rail')).toBeVisible();
+    await page.screenshot({
+      path: '/opt/cursor/artifacts/chart-fullscreen-restored.png',
+      fullPage: true,
+    });
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
@@ -65,11 +74,19 @@ test.describe('Trader chart pane maximize', () => {
     await cell.getByTestId('chart-expand-btn').click();
     await expect.poll(async () => page.evaluate(() => document.fullscreenElement !== null)).toBe(true);
     await expect(grid).toHaveAttribute('data-maximized-pane', '5Min');
+    await page.screenshot({
+      path: '/opt/cursor/artifacts/chart-grid-then-fullscreen.png',
+      fullPage: true,
+    });
 
     await page.keyboard.press('Escape');
     await expect.poll(async () => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
     await expect(grid).toHaveAttribute('data-maximized-pane', '5Min');
     await expect(page.getByTestId('stock-view-rail')).toBeVisible();
+    await page.screenshot({
+      path: '/opt/cursor/artifacts/chart-fullscreen-desk-kept.png',
+      fullPage: true,
+    });
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 });
