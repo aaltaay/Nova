@@ -1,0 +1,61 @@
+/* Clickable Long/Short badge + in-app position menu (WID-029). */
+
+.chart-position-tag {
+  position: absolute;
+  z-index: 6;
+  transform: translateY(-50%);
+  pointer-events: auto;
+}
+
+.chart-position-tag__badge {
+  appearance: none;
+  border: 0;
+  border-radius: 3px;
+  color: #fff;
+  cursor: pointer;
+  font: 600 11px/1.2 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.01em;
+  padding: 0.18rem 0.4rem;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.chart-position-tag__badge:hover,
+.chart-position-tag__badge[aria-expanded='true'] {
+  filter: brightness(1.08);
+}
+
+.chart-position-menu {
+  position: absolute;
+  top: calc(100% + 0.28rem);
+  right: 0;
+  min-width: 12.5rem;
+  padding: 0.3rem 0;
+  border: 1px solid var(--nova-border, #2a3040);
+  border-radius: 8px;
+  background: #1c212c;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  z-index: 8;
+}
+
+.chart-position-menu__item {
+  display: block;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text, #e8eaed);
+  font: inherit;
+  text-align: left;
+  padding: 0.42rem 0.8rem;
+  cursor: pointer;
+}
+
+.chart-position-menu__item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.chart-position-menu__item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

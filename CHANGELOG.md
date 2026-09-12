@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- Chart Long/Short tag opens a position menu
+
+- **What:** Left-click (or right-click) the Long/Short position badge on a ticker chart opens an in-app menu: Close Position and View Trade Details. Esc and click-outside dismiss it. Chart draw/pan do not start from the badge.
+- **Why:** Issue #111 -- the overlay tag had no useful left-click, and right-click showed the browser menu. Operators wanted a Webull-style position menu.
+- **Files touched:** `frontend/src/chart/ChartPositionTag.tsx`, `positionOverlay.ts`, `TickerChart.tsx`, `closed_orders/ClosePositionButton.tsx`, `stock_view/requestDockSurface.ts`, `StockViewOpenOrdersDock.tsx`, `docs/webull-widget-parity.md`.
+- **How it works now:** The canvas price-line title is empty (axis still shows avg cost). An HTML badge sits on the line -- or at a fallback Y when the sample series is empty -- and owns clicks. Close Position is the existing flatten path (`closeFullPosition`, PIN + spend + paper/live gates). View Trade Details expands the Positions dock. Ticks Mode and Color Settings are omitted (no Nova counterpart). Sample SMPL 200 @ $3.10 demos the tag. Not chart trading (WID-017). `auto_live` still NO-GO.
+- **Verified by:** Rebased onto `origin/master` (`8b237b0`, #113 after #112). Linear rebase, no merge commit. Focused Vitest plus drawing/maximize neighbors; Playwright `chart-position-menu.spec.ts`, `chart-trendline.spec.ts`, and `chart-pane-maximize.spec.ts`.
+- **Follow-ups:** Drawing tools shipped in #112. Chart maximize shipped in #113.
+- **Related:** Closes #111. Refs #104 (WID-028 overlay). WID-029. Rebase onto #113 (`8b237b0`).
+
 ## 2026-09-12 -- Double-click maximizes a Trader chart pane inside the grid
 
 - **What:** Double-click a Trader 2x2 pane to expand it across the chart region only. Restore with a second double-click, Esc (after it disarms any drawing tool), the pane Restore button, or desk-toolbar **Restore grid**.

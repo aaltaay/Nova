@@ -29,6 +29,10 @@ interface Props {
   spendStatus?: string;
   disabled?: boolean;
   onClosed?: () => void;
+  /** `menu` is the chart position overlay (same flatten path). */
+  variant?: 'button' | 'menu';
+  label?: string;
+  testId?: string;
 }
 
 export function ClosePositionButton({
@@ -38,6 +42,9 @@ export function ClosePositionButton({
   spendStatus,
   disabled = false,
   onClosed,
+  variant = 'button',
+  label,
+  testId = 'close-position-btn',
 }: Props) {
   const [busy, setBusy] = useState(false);
   const { ensureUnlocked, pinDialog } = useTradingPinGate();
@@ -82,8 +89,11 @@ export function ClosePositionButton({
     <>
       <button
         type="button"
-        className="ibkr-flatten-btn"
-        data-testid="close-position-btn"
+        className={
+          variant === 'menu' ? 'chart-position-menu__item' : 'ibkr-flatten-btn'
+        }
+        role={variant === 'menu' ? 'menuitem' : undefined}
+        data-testid={testId}
         disabled={!canClose}
         onClick={handleClick}
         title={
@@ -101,9 +111,11 @@ export function ClosePositionButton({
       >
         {busy
           ? CLOSE_POSITION_BUTTON_BUSY_LABEL
-          : hasPosition
-            ? `${CLOSE_POSITION_BUTTON_LABEL} ${Math.abs(position.qty)}`
-            : CLOSE_POSITION_BUTTON_LABEL}
+          : label
+            ? label
+            : hasPosition
+              ? `${CLOSE_POSITION_BUTTON_LABEL} ${Math.abs(position.qty)}`
+              : CLOSE_POSITION_BUTTON_LABEL}
       </button>
       {pinDialog}
     </>

@@ -244,6 +244,27 @@ describe('StockViewOpenOrdersDock', () => {
     ).toBe('positions');
   });
 
+  it('opens Positions when the chart tag requests the dock', () => {
+    localStorage.setItem(STOCK_VIEW_OPEN_ORDERS_COLLAPSED_KEY, '1');
+    act(() => {
+      root.render(
+        <StockViewOpenOrdersDock {...baseProps} positions={[POSITION]} />,
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="stock-view-positions"]'),
+    ).toBeNull();
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('nova:stock-view-dock', { detail: { surface: 'positions' } }),
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="stock-view-positions"]'),
+    ).toBeTruthy();
+    expect(container.textContent).toContain('AAPL');
+  });
+
   it('switches to Nova OS tab and mounts the judgment panel', () => {
     act(() => {
       root.render(<StockViewOpenOrdersDock {...baseProps} />);

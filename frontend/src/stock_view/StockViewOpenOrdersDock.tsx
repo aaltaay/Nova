@@ -20,6 +20,10 @@ import { OrdersTodayView, ordersTodayBadgeCount } from '../orders_today';
 import type { OrdersTodayFilter } from '../orders_today';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import {
+  parseDockRequest,
+  STOCK_VIEW_DOCK_REQUEST_EVENT,
+} from './requestDockSurface';
+import {
   initialSampleHidden,
   readCollapsed,
   readFilter,
@@ -122,6 +126,23 @@ export function StockViewOpenOrdersDock({
     usingSample,
     positions.length,
   ]);
+
+  useEffect(() => {
+    const onReq = (event: Event) => {
+      const req = parseDockRequest((event as CustomEvent).detail);
+      if (!req) return;
+      if (req.filter) {
+        setFilter(req.filter);
+        writeFilter(req.filter);
+      }
+      setSurface(req.surface);
+      writeSurface(req.surface);
+      setCollapsed(false);
+      writeCollapsed(false);
+    };
+    window.addEventListener(STOCK_VIEW_DOCK_REQUEST_EVENT, onReq);
+    return () => window.removeEventListener(STOCK_VIEW_DOCK_REQUEST_EVENT, onReq);
+  }, []);
 
   const toggle = () => {
     setCollapsed((prev) => {
