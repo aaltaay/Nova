@@ -11,6 +11,10 @@ test.describe('D-010 Trend Line two-click place', () => {
     const menu = page.getByTestId('chart-draw-tools-menu');
     await expect(menu).toBeVisible();
     await expect(menu.getByRole('menuitemradio', { name: /Trendline/ })).toBeVisible();
+    await page.screenshot({
+      path: '/opt/cursor/artifacts/d109-draw-tools-menu.png',
+      fullPage: true,
+    });
     await menu.getByRole('menuitemradio', { name: /Horizontal Line/ }).click();
 
     const chart = page.locator('.chart-body').first();

@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Issue #109. After D-010 / #38, the shared desk toolbar clipped the dropdown (`overflow-x: auto` on `.chart-desk-toolbar`), and `importDrawings` -> `drawing:added` called `setActiveTool(null)` on every hydrate, so a 2x2 grid with existing lines could not stay armed.
 - **Files touched:** `ChartDrawToolsMenu.tsx`, `useChartDrawingManager.ts`, `chartDrawingHydrate.ts`, `chartDrawingPlace.ts`, `ChartGridToolbar.tsx`, `tickerChart.css`, `stock-view.css`, Vitest + Playwright coverage.
 - **How it works now:** The line-tool menu portals to `document.body` with `position: fixed` under the pencil cluster, so toolbar scroll cannot clip it. Hydrate re-imports ignore `drawing:added` for disarm (`shouldDisarmToolOnDrawingAdded`). Place listeners use capture and map through `.tv-lightweight-charts` when that host exists.
-- **Verified by:** Vitest ChartDrawToolsMenu / ChartGrid / chartDrawingHydrate / chartDrawingPlace; Playwright `chart-trendline.spec.ts` dropdown + arm path.
+- **Verified by:** `npm test -- --run` in `frontend/` -- 208 files / 1014 passed. `npm run build` exit 0. ESLint clean on touched files. `npx playwright test e2e/chart-trendline.spec.ts` -- 2 passed (dropdown opens + Horizontal Line arms; Use Trendline stays armed after two clicks). `doc_invariants.py` OK.
 - **Related:** Closes #109. Refs #38 (D-010). PROBLEM_LOG 2026-09-12 Trader drawing tools.
 
 ## 2026-09-11 -- Public Nova News page on the marketing site
