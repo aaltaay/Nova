@@ -4,6 +4,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   bindArmedToolPointer,
+  chartAnchorFromPoint,
   placeArmedToolClick,
   placePointFromPointer,
   pointerPointInElement,
@@ -52,6 +53,28 @@ describe('placeArmedToolClick', () => {
       twoAnchorTool: false,
       singleAnchorTool: true,
     })).toEqual({ action: 'one', pending: null, anchors: [a] });
+  });
+});
+
+describe('chartAnchorFromPoint', () => {
+  it('returns null when the time scale cannot convert', () => {
+    expect(
+      chartAnchorFromPoint(
+        { timeScale: () => ({ coordinateToTime: () => null }) },
+        { coordinateToPrice: () => 10 },
+        { x: 1, y: 2 },
+      ),
+    ).toBeNull();
+  });
+
+  it('maps a plot point to a time/price anchor', () => {
+    expect(
+      chartAnchorFromPoint(
+        { timeScale: () => ({ coordinateToTime: () => 99 as const }) },
+        { coordinateToPrice: () => 7.5 },
+        { x: 1, y: 2 },
+      ),
+    ).toEqual({ time: 99, price: 7.5 });
   });
 });
 

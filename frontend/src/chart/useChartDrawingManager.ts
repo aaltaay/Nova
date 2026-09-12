@@ -19,9 +19,20 @@ import {
   CHART_SINGLE_ANCHOR_TOOLS,
   CHART_TWO_ANCHOR_TOOLS,
 } from './chartDrawingConfig';
-import { chartInteractionForTool } from './chartDrawingInteraction';
+import { applyChartHostInteraction } from './chartDrawingInteraction';
+import { bindHandleEditPointer } from './chartDrawingHandle';
+import {
+  attachPlacePreview,
+  bindPlacePreviewPointer,
+  createPlacePreviewDrawing,
+  detachPlacePreview,
+  markPlacePreviewHost,
+  movePlacePreview,
+  shouldShowPlacePreview,
+} from './chartDrawingPreview';
 import {
   bindArmedToolPointer,
+  chartAnchorFromPoint,
   placeArmedToolClick,
   type ChartPlacePoint,
 } from './chartDrawingPlace';
@@ -101,6 +112,8 @@ export function useChartDrawingManager({
     [controlled],
   );
   const pendingAnchorRef = useRef<Anchor | null>(null);
+  const previewDrawingRef = useRef<IDrawing | null>(null);
+  const editingHandleRef = useRef(false);
   const symbolRef = useRef(drawingsKey(symbol));
   /** True while rebuilding from the store -- suppresses our own echo writes. */
   const applyingRef = useRef(false);
@@ -127,6 +140,43 @@ export function useChartDrawingManager({
     persist(() => upsertDrawing(symbolRef.current, storable));
   }, [persist]);
 
+  const clearPlacePreview = useCallback(() => {
+    detachPlacePreview(previewDrawingRef.current);
+    previewDrawingRef.current = null;
+    markPlacePreviewHost(containerRef.current, false);
+  }, [containerRef]);
+
+  const applyInteraction = useCallback(() => {
+    applyChartHostInteraction(
+      containerRef.current,
+      chartRef.current,
+      activeToolRef.current,
+      editingHandleRef.current,
+    );
+  }, [containerRef, chartRef]);
+
+  const startOrMovePreview = useCallback((start: Anchor, cursor: Anchor) => {
+    const tool = activeToolRef.current;
+    const chart = chartRef.current;
+    const series = candleSeriesRef.current;
+    const host = containerRef.current;
+    if (!tool || !chart || !series || !host) return;
+    if (!shouldShowPlacePreview(tool, start)) {
+      clearPlacePreview();
+      return;
+    }
+    let preview = previewDrawingRef.current;
+    if (!preview) {
+      preview = createPlacePreviewDrawing(tool, start, cursor);
+      if (!preview) return;
+      attachPlacePreview(preview, series, chart, host);
+      previewDrawingRef.current = preview;
+    } else {
+      movePlacePreview(preview, cursor);
+    }
+    markPlacePreviewHost(host, true);
+  }, [chartRef, candleSeriesRef, containerRef, clearPlacePreview]);
+
   const placeFromPoint = useCallback((point: ChartPlacePoint) => {
     const tool = activeToolRef.current;
     const chart = chartRef.current;
@@ -134,10 +184,8 @@ export function useChartDrawingManager({
     const manager = managerRef.current;
     if (!tool || !manager || !chart || !series) return;
 
-    const time = chart.timeScale().coordinateToTime(point.x);
-    const price = series.coordinateToPrice(point.y);
-    if (time === null || price === null) return;
-    const anchor: Anchor = { time, price };
+    const anchor = chartAnchorFromPoint(chart, series, point);
+    if (!anchor) return;
     const result = placeArmedToolClick({
       tool,
       pending: pendingAnchorRef.current,
@@ -146,13 +194,17 @@ export function useChartDrawingManager({
       singleAnchorTool: Boolean(CHART_SINGLE_ANCHOR_TOOLS[tool]),
     });
     pendingAnchorRef.current = result.pending;
-    if (result.action === 'two') {
+    if (result.action === 'wait') {
+      startOrMovePreview(anchor, anchor);
+    } else if (result.action === 'two') {
+      clearPlacePreview();
       const DrawingClass = CHART_TWO_ANCHOR_TOOLS[tool];
       if (!DrawingClass) return;
       manager.addDrawing(
         new DrawingClass(`${tool.toLowerCase()}-${Date.now()}`, result.anchors, CHART_DRAWING_STYLE),
       );
     } else if (result.action === 'one') {
+      clearPlacePreview();
       const DrawingClass = CHART_SINGLE_ANCHOR_TOOLS[tool];
       if (!DrawingClass) return;
       manager.addDrawing(
@@ -161,7 +213,17 @@ export function useChartDrawingManager({
     }
     const host = containerRef.current;
     if (host) host.dataset.drawingCount = String(manager.getAllDrawings().length);
-  }, [chartRef, candleSeriesRef, containerRef]);
+  }, [chartRef, candleSeriesRef, containerRef, startOrMovePreview, clearPlacePreview]);
+
+  const previewFromPoint = useCallback((point: ChartPlacePoint) => {
+    const pending = pendingAnchorRef.current;
+    const chart = chartRef.current;
+    const series = candleSeriesRef.current;
+    if (!pending || !chart || !series) return;
+    const cursor = chartAnchorFromPoint(chart, series, point);
+    if (!cursor) return;
+    startOrMovePreview(pending, cursor);
+  }, [chartRef, candleSeriesRef, startOrMovePreview]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -172,23 +234,53 @@ export function useChartDrawingManager({
     const manager = new DrawingManager();
     manager.attach(chartApi, candleSeries, container);
     managerRef.current = manager;
-    const unbind = bindArmedToolPointer(
+    const unbindPlace = bindArmedToolPointer(
       container,
       () => Boolean(activeToolRef.current),
       placeFromPoint,
     );
+    const unbindPreview = bindPlacePreviewPointer(
+      container,
+      () => shouldShowPlacePreview(activeToolRef.current, pendingAnchorRef.current),
+      previewFromPoint,
+    );
+    const unbindHandle = bindHandleEditPointer(
+      container,
+      () => managerRef.current,
+      () => Boolean(activeToolRef.current),
+      (editing) => {
+        editingHandleRef.current = editing;
+        applyInteraction();
+      },
+    );
     setManagerEpoch(e => e + 1);
 
     return () => {
-      unbind();
+      unbindPlace();
+      unbindPreview();
+      unbindHandle();
+      clearPlacePreview();
       manager.detach();
       managerRef.current = null;
       hydratedRef.current = null;
     };
-  }, [chartApi, containerRef, candleSeriesRef, chartRef, placeFromPoint]);
+  }, [
+    chartApi,
+    containerRef,
+    candleSeriesRef,
+    chartRef,
+    placeFromPoint,
+    previewFromPoint,
+    applyInteraction,
+    clearPlacePreview,
+  ]);
 
   // Load this symbol's stored set and follow every later change to it.
   useEffect(() => {
+    pendingAnchorRef.current = null;
+    editingHandleRef.current = false;
+    clearPlacePreview();
+    applyInteraction();
     const key = drawingsKey(symbol);
     if (!key) return;
     void ensureDrawings(key);
@@ -200,7 +292,7 @@ export function useChartDrawingManager({
       unsubscribe();
       window.removeEventListener('focus', onFocus);
     };
-  }, [symbol]);
+  }, [symbol, clearPlacePreview, applyInteraction]);
 
   // Rebuild the pane's drawings, snapped onto this timeframe's bar grid.
   useEffect(() => {
@@ -226,14 +318,16 @@ export function useChartDrawingManager({
   useEffect(() => {
     activeToolRef.current = activeTool;
     pendingAnchorRef.current = null;
+    editingHandleRef.current = false;
+    clearPlacePreview();
     managerRef.current?.setActiveTool(activeTool);
     if (activeTool) managerRef.current?.deselectAll();
     if (containerRef.current) {
       containerRef.current.style.cursor = activeTool ? 'crosshair' : 'default';
       containerRef.current.dataset.activeDrawTool = activeTool ?? '';
     }
-    chartRef.current?.applyOptions(chartInteractionForTool(activeTool));
-  }, [activeTool, containerRef, chartRef]);
+    applyInteraction();
+  }, [activeTool, containerRef, applyInteraction, clearPlacePreview]);
 
   useEffect(() => {
     const manager = managerRef.current;

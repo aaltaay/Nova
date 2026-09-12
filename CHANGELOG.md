@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- Drawing handle drag no longer pans; two-click rubber-band preview
+
+- **What:** Dragging a selected trend-line (or other drawing) handle moves only that drawing. After the first click of Trend Line / Extended / Ray, a live preview segment follows the pointer until the second click or cancel.
+- **Why:** Issue #119. D-010 / #112 locked pan only while a tool was armed. Idle handle-edit still used Lightweight Charts pressed-mouse pan, and `setActiveTool` still does not paint a rubber-band.
+- **Files touched:** `chartDrawingInteraction.ts`, `chartDrawingHandle.ts`, `chartDrawingPreview.ts`, `chartDrawingPlace.ts`, `useChartDrawingManager.ts`, chart drawing Vitest + `e2e/chart-trendline.spec.ts`.
+- **How it works now:** `chartInteractionForTool` also locks pan while `editingHandle` is true. Capture `pointerdown` uses the library `hitTestAnchor` on the selected drawing and applies that lock for the gesture only. After place action `wait`, Nova attaches the same TrendLine / ExtendedLine / Ray class as a series primitive (not `addDrawing`) and `updateAnchor(1)` on pointermove. Escape / tool change / second click detaches the preview. Idle + not editing restores pan. Armed-tool pan-off from D-010 is unchanged.
+- **Verified by:** Vitest chart drawing files (this turn). Broader lint / build / Playwright on the PR.
+- **Related:** Closes #119. Refs #38 #109 / PR #112. PROBLEM_LOG 2026-09-12 Drawing handle drag.
+
 ## 2026-09-12 -- Chart expand icon enters true fullscreen
 
 - **What:** The Trader pane header four-arrows control (⛶, next to Hide 10-Second / Restore grid chrome) enters browser/OS fullscreen for that chart. Double-click stays #113 grid-only maximize. Esc exits fullscreen and returns to the prior desk layout.
