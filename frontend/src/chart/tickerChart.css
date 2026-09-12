@@ -414,5 +414,35 @@ body.chart-maximized-open {
   white-space: nowrap;
 }
 
-/* ── Full ticker detail page (click symbol → dedicated trading view) ───────── */
+/* ── Chart Drawing Color Picker ─────────────────────────────────────────── */
+
+.chart-drawing-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.chart-drawing-color-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--swatch-color);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s, transform 0.1s;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+.chart-drawing-color-swatch:hover {
+  transform: scale(1.15);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.chart-drawing-color-swatch--active {
+  border-color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+/* ── Full ticker detail page (click symbol -> dedicated trading view) ───────── */
 
