@@ -1,0 +1,83 @@
+/* Webull-style chart right-click menu (WID-030). Portaled to <body>. */
+
+.chart-context-menu-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  pointer-events: none;
+}
+
+.chart-context-menu {
+  position: fixed;
+  min-width: 13.5rem;
+  padding: 0.3rem 0;
+  border: 1px solid var(--nova-border, #2a3040);
+  border-radius: 8px;
+  background: #1c212c;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+}
+
+.chart-context-menu--submenu {
+  min-width: 11rem;
+}
+
+.chart-context-menu__row--divider {
+  border-top: 1px solid var(--nova-border, #2a3040);
+  margin-top: 0.26rem;
+  padding-top: 0.26rem;
+}
+
+.chart-context-menu__item,
+.chart-context-menu .chart-position-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--nova-text, #e8eaed);
+  font: inherit;
+  text-align: left;
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chart-context-menu__item:hover:not(:disabled),
+.chart-context-menu .chart-position-menu__item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.chart-context-menu__item:disabled,
+.chart-context-menu .chart-position-menu__item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chart-context-menu__item--active {
+  color: var(--nova-accent, #3b82f6);
+}
+
+.chart-context-menu__caret {
+  opacity: 0.6;
+  font-size: 0.95em;
+}
+
+.chart-context-menu__item kbd {
+  opacity: 0.5;
+  font: 500 10px/1 ui-monospace, SFMono-Regular, monospace;
+}
+
+.chart-context-menu__hint {
+  margin: 0.2rem 0 0;
+  padding: 0.28rem 0.8rem 0.1rem;
+  border-top: 1px solid var(--nova-border, #2a3040);
+  color: var(--nova-text-dim, #8b93a7);
+  font-size: 10px;
+  line-height: 1.35;
+  white-space: normal;
+  max-width: 15rem;
+}

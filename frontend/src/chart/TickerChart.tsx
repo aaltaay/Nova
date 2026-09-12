@@ -2,9 +2,6 @@ import { useRef, useState, type CSSProperties } from 'react';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import {
   CHART_DEFAULT_TIMEFRAME,
-  CHART_HEIGHT_PANEL,
-  CHART_HEIGHT_PAGE,
-  CHART_HEIGHT_GRID,
   CHART_DEFAULT_INDICATORS,
   CHART_GRID_OSCILLATOR_MAX_PCT,
   CHART_GRID_OSCILLATOR_MIN_PCT,
@@ -32,8 +29,10 @@ import { useTickerChartEscape } from './useTickerChartEscape';
 import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { useVwapSourceBars } from './useVwapSourceBars';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
+import { ChartContextMenuHost } from './ChartContextMenuHost';
 import { ChartPositionTagHost } from './ChartPositionTag';
 import { findOpenPosition } from './positionOverlay';
+import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
 import { formatCoverageClockEt } from '../tickerChartData';
 import type { ChartTradeUpdate } from './types';
 
@@ -105,10 +104,7 @@ function TickerChartInner({
   maximizeInGrid = false,
   layoutEpoch = null,
 }: TickerChartProps) {
-  const chartHeight =
-    variant === 'grid' ? CHART_HEIGHT_GRID
-    : variant === 'page' ? CHART_HEIGHT_PAGE
-    : CHART_HEIGHT_PANEL;
+  const chartHeight = chartHeightForVariant(variant);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -235,15 +231,7 @@ function TickerChartInner({
 
   const coverageClock = formatCoverageClockEt(coverageAsOf);
   const gridOscillators = variant === 'grid' && oscillatorEnabled.length > 0;
-  const cardClass = [
-    'chart-card',
-    maximized ? 'chart-card--maximized' : '',
-    variant === 'grid' ? 'chart-card--grid' : '',
-    compactChrome ? 'chart-card--compact' : '',
-    focused ? 'chart-card--focused' : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const cardClass = tickerChartCardClass({ variant, maximized, compactChrome, focused });
 
   const card = (
     <div
@@ -307,6 +295,16 @@ function TickerChartInner({
           candleSeriesRef={candleSeriesRef}
           containerRef={containerRef}
           barsRevision={barsRevision}
+        />
+        <ChartContextMenuHost
+          symbol={symbol}
+          timeframe={timeframe}
+          barCount={indicatorBars.length}
+          chart={chartApi}
+          candleSeriesRef={candleSeriesRef}
+          containerRef={containerRef}
+          activeTool={activeTool}
+          onToolClick={handleToolClick}
         />
       </div>
       <TickerChartOverlays
