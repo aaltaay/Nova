@@ -169,7 +169,7 @@ Required policy (SSOT: `tools/master_branch_protection.py`):
 - Block force-push and deletion, including for admins (`enforce_admins`).
 - Require status checks before merge: `Backend tests`, `Frontend build`, `Frontend E2E`, `Agent contract`.
 - Do **not** require pull-request reviews (solo repo -- that deadlocks merges).
-- Do **not** require a pull request to push. Status-only `master` commits and `.github/workflows/ai-news.yml` stay allowed.
+- Do **not** require a pull request to push. Status-only `master` commits stay allowed. The AI news digest must not push `master` -- it opens a ready PR from `chore/ai-news-digest`.
 
 ```text
 py -3 tools/master_branch_protection.py check

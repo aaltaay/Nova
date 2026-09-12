@@ -7,7 +7,9 @@ Policy (solo public repo):
 - Block force-push and deletion, including for admins.
 - Require gating CI checks before a PR can merge.
 - Do not require pull-request reviews (would deadlock a solo merge).
-- Do not require a PR to push (status-only master commits + AI news digest).
+- Do not require a PR to push (status-only master commits).
+- The AI news digest must not push master -- it opens a ready PR from
+  chore/ai-news-digest (GH006 / required checks).
 
 Usage:
   python3 tools/master_branch_protection.py check
