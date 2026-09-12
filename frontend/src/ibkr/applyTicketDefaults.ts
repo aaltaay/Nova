@@ -16,6 +16,16 @@ export interface TopOfBookLike {
   ask: number | null;
 }
 
+/**
+ * Share count a fresh ticket starts on: forced override, else Settings > Trade.
+ * Shared with the chart context menu so its "Buy SYM 100" label cannot drift
+ * from the qty the ticket actually receives.
+ */
+export function defaultTicketQty(): string {
+  const forced = forcedManualOrderQty();
+  return String(forced ?? readTradeDefaultsPrefs().quantity);
+}
+
 export function applyTicketDefaults(
   symbolKey: string,
   referencePrice: number | null,
@@ -28,7 +38,6 @@ export function applyTicketDefaults(
   outsideRth: boolean;
   side: ManualOrderSide;
 } {
-  const forced = forcedManualOrderQty();
   const prefs = readTradeDefaultsPrefs();
   const side: ManualOrderSide = 'BUY';
   const book =
@@ -46,7 +55,7 @@ export function applyTicketDefaults(
   const outsideRth = wantExtended && orderType === 'LMT';
   return {
     orderType,
-    quantityValue: String(forced ?? prefs.quantity),
+    quantityValue: defaultTicketQty(),
     limitPrice: formatSeedPrice(limit),
     stopPrice: formatSeedPrice(stop),
     outsideRth,

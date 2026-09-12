@@ -12,11 +12,10 @@ import {
   type RefObject,
 } from 'react';
 import { ClosePositionButton } from '../closed_orders';
-import { useIbkrStatus } from '../ibkr/useIbkrStatus';
-import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
 import { requestStockViewDock } from '../stock_view/requestDockSurface';
-import { findOpenIbkrPosition, positionLineTitle } from './positionOverlay';
+import { positionLineTitle } from './positionOverlay';
+import { useChartPositionContext } from './useChartPositionContext';
 import {
   CHART_POSITION_LONG_COLOR,
   CHART_POSITION_MENU_CLOSE,
@@ -187,9 +186,8 @@ export function ChartPositionTagHost(props: {
   containerRef: RefObject<HTMLElement | null>;
   barsRevision: number;
 }) {
-  const account = useOptionalIbkrAccountContext();
-  const status = useIbkrStatus();
-  const row = findOpenIbkrPosition(account?.positions ?? [], props.symbol);
+  const ctx = useChartPositionContext(props.symbol);
+  const row = ctx.position;
   const placement = useChartPositionTagLayout({
     chart: props.chart,
     candleSeriesRef: props.candleSeriesRef,
@@ -198,17 +196,14 @@ export function ChartPositionTagHost(props: {
     barsRevision: props.barsRevision,
   });
   if (!row) return null;
-  const mode: IbkrMode = status.mode === 'live' ? 'live' : status.mode === 'disconnected'
-    ? 'disconnected'
-    : 'paper';
   return (
     <ChartPositionTag
       position={row}
       placement={placement}
-      mode={mode}
-      connected={Boolean(status.connected) && !account?.stale}
-      spendStatus={status.spend_status}
-      flattenDisabled={Boolean(account?.error || account?.stale)}
+      mode={ctx.mode}
+      connected={ctx.connected}
+      spendStatus={ctx.spendStatus}
+      flattenDisabled={ctx.flattenDisabled}
     />
   );
 }

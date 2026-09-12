@@ -16,6 +16,7 @@ import type { IbkrListingFlags } from '../types/ticker';
 import { applyTicketDefaults, seedPricesForSide } from './applyTicketDefaults';
 import { ManualOrderFields } from './ManualOrderFields';
 import { ManualOrderFooter } from './ManualOrderFooter';
+import { subscribeOrderTicketPrefill } from './orderTicketPrefill';
 import type { PlaceOrderResult } from './placeOrder';
 import { resolveShortabilityState } from './ShortabilityChip';
 import { isSpendLocked, spendLockReason } from './spendLock';
@@ -144,6 +145,21 @@ export function ManualOrderTicket({
     setStopPrice(next.stopPrice);
     setOutsideRth(next.outsideRth);
     resetSubmission();
+  }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Chart context menu stages an order here instead of placing one -- the PIN,
+  // spend-lock and confirm gates below stay the only way an order leaves Nova.
+  useEffect(() => {
+    return subscribeOrderTicketPrefill(symbol, (req) => {
+      setSide(req.side);
+      setShortEntry(false);
+      setOrderType(req.orderType);
+      setQuantityMode('shares');
+      if (!QTY_LOCKED) setQuantityValue(req.quantityValue);
+      setLimitPrice(req.limitPrice);
+      if (req.orderType !== 'LMT') setOutsideRth(false);
+      resetSubmission();
+    });
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function selectDirection(nextShort: boolean) {
