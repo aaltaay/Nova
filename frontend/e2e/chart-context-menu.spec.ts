@@ -154,6 +154,35 @@ test.describe('Trader chart right-click context menu', () => {
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });
 
+  test('still opens while the pane is in header fullscreen (#117)', async ({ page }) => {
+    const { errors } = attachErrorCollector(page);
+    await openSampleTrader(page);
+
+    const cell = page.getByTestId('chart-grid-cell-5Min');
+    await cell.getByTestId('chart-expand-btn').click();
+    await expect
+      .poll(async () => page.evaluate(() => document.fullscreenElement !== null))
+      .toBe(true);
+
+    // A document.body portal would be invisible here -- only the fullscreen
+    // element's subtree paints.
+    await rightClickChart(page, cell.locator('.chart-body'));
+    const menu = page.getByTestId('chart-context-menu');
+    await expect(menu).toBeVisible();
+    expect(
+      await menu.evaluate((node) => document.fullscreenElement?.contains(node) ?? false),
+    ).toBe(true);
+    await page.screenshot({
+      path: `${ARTIFACTS}/chart-context-menu-fullscreen.png`,
+      fullPage: true,
+    });
+
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+
+    expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
+  });
+
   test('does not break double-click pane maximize', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     const chart = await openSampleTrader(page);
