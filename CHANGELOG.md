@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- Double-click maximizes a Trader chart pane inside the grid
+
+- **What:** Double-click a Trader 2x2 pane to expand it across the chart region only. Restore with a second double-click, Esc (after it disarms any drawing tool), the pane Restore button, or desk-toolbar **Restore grid**.
+- **Why:** Issue #110. Operators need one timeframe full-size without covering quote / Level 2 / ticket rails, and without a new drawing-tool protocol.
+- **Files touched:** `ChartGrid.tsx`, `useChartGridMaximize.ts`, `chartPaneMaximize.ts`, `TickerChart.tsx`, `useTickerChartMaximize.ts`, `TickerChartControls.tsx`, `tickerChart.css`.
+- **How it works now:** `ChartGrid` owns session-only `maximizedPaneId`. CSS hides sibling cells and the row splitter; the desk toolbar stays. Body-portal maximize remains for Quote Panel / standalone charts. Double-click is ignored while a drawing tool is armed so place clicks stay place clicks. Rebased onto `1c80698` (#112 drawing-tool dropdown/portal + arming fix).
+- **Verified by:** Rebased onto `origin/master` (`1c80698`). Fresh post-rebase frontend tests + lint + build + Playwright maximize and trendline neighbors.
+- **Related:** Closes #110. Drawing-tool dropdown/place is #112 / #109, not this PR.
+
 ## 2026-09-12 -- Trader drawing toolbar dropdown and place work again
 
 - **What:** The Trader desk drawing-tool menu opens and stays selectable. Arming a tool (Trend Line and the other line tools) no longer dies when a pane re-hydrates existing drawings. Two-click place still uses container `pointerup`.

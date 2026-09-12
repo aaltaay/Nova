@@ -360,6 +360,31 @@ body.chart-maximized-open {
   min-height: 0;
 }
 
+/* Trader 2x2: one pane fills the chart region; quote/trade rails stay put. */
+.chart-grid.chart-grid--pane-maximized > .resize-handle {
+  display: none;
+}
+
+.chart-grid.chart-grid--pane-maximized
+  .chart-grid__row:not(:has(.chart-grid-cell--maximized)) {
+  display: none;
+}
+
+.chart-grid.chart-grid--pane-maximized
+  .chart-grid-cell:not(.chart-grid-cell--maximized) {
+  display: none;
+}
+
+.chart-grid.chart-grid--pane-maximized
+  .chart-grid__row:has(.chart-grid-cell--maximized),
+.stock-view-page
+  .stock-view-charts
+  .chart-grid.chart-grid--pane-maximized
+  .chart-grid__row:has(.chart-grid-cell--maximized) {
+  flex: 1 1 0;
+  grid-template-columns: 1fr;
+}
+
 .chart-mock-badge {
   font-size: 0.62rem;
   color: #ca8a04;

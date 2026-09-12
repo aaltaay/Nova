@@ -14,6 +14,7 @@ import {
   CHART_GRID_OPTIONAL_DEFAULT_ON,
   CHART_GRID_OPTIONAL_STORAGE_KEY,
   CHART_GRID_PANE_INDICATORS,
+  CHART_GRID_REGION_ARIA,
   STOCK_VIEW_CHART_ROW_SPLIT_KEY,
   STOCK_VIEW_CHART_ROW_SPLIT_MAX_PCT,
   STOCK_VIEW_CHART_ROW_SPLIT_MIN_PCT,
@@ -24,6 +25,7 @@ import { parseBoolFlag, readPref, writePref } from '../utils/prefStore';
 import { ensureBarsBatch } from '../chart/barsStore';
 import { clearDrawings, drawingsKey } from '../chart/chartDrawingsStore';
 import { toggleIndicator } from '../chartIndicators';
+import { useChartGridMaximize } from './useChartGridMaximize';
 
 interface Props {
   symbol: string;
@@ -65,6 +67,9 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
   const [indicatorsByPane, setIndicatorsByPane] = useState(defaultIndicatorsByPane);
 
   const panels = useMemo(() => buildChartGridPanels(showOptional), [showOptional]);
+  const panelIds = useMemo(() => panels.map((p) => p.id), [panels]);
+  const { maximizedPaneId, setPaneMaximized, onCellDoubleClick, restore } =
+    useChartGridMaximize(panelIds, activeTool, setActiveTool);
   // A hidden 10-Second pane cannot stay the toggle target.
   const focusedPane =
     panels.find((p) => p.id === focusedPaneId) ?? panels[0];
@@ -109,45 +114,73 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
     setActiveTool(null);
   };
 
-  const renderPane = (panel: (typeof panels)[number]) => (
-    <div key={panel.id} className="chart-grid-cell">
-      <TickerChart
-        symbol={symbol}
-        lastTrade={lastTrade}
-        variant="grid"
-        fixedTimeframe={panel.id}
-        title={panel.label}
-        subtitle={panel.note}
-        indicators={indicatorsByPane[panel.id] ?? CHART_DEFAULT_INDICATORS}
-        onIndicatorToggle={(id) => toggleIndicatorFor(panel.id, id)}
-        activeTool={activeTool}
-        onActiveToolChange={setActiveTool}
-        compactChrome
-        focused={panel.id === focusedPane.id}
-        onFocusPane={() => setFocusedPaneId(panel.id)}
-        chartActive={chartActive}
-      />
-    </div>
-  );
+  const renderPane = (panel: (typeof panels)[number]) => {
+    const paneMaximized = maximizedPaneId === panel.id;
+    return (
+      <div
+        key={panel.id}
+        className={`chart-grid-cell${paneMaximized ? ' chart-grid-cell--maximized' : ''}`}
+        data-testid={`chart-grid-cell-${panel.id}`}
+        data-maximized={paneMaximized ? '1' : '0'}
+        onDoubleClick={(event) => {
+          setFocusedPaneId(panel.id);
+          onCellDoubleClick(panel.id, event);
+        }}
+      >
+        <TickerChart
+          symbol={symbol}
+          lastTrade={lastTrade}
+          variant="grid"
+          fixedTimeframe={panel.id}
+          title={panel.label}
+          subtitle={panel.note}
+          indicators={indicatorsByPane[panel.id] ?? CHART_DEFAULT_INDICATORS}
+          onIndicatorToggle={(id) => toggleIndicatorFor(panel.id, id)}
+          activeTool={activeTool}
+          onActiveToolChange={setActiveTool}
+          compactChrome
+          focused={panel.id === focusedPane.id}
+          onFocusPane={() => setFocusedPaneId(panel.id)}
+          chartActive={chartActive}
+          maximizeInGrid
+          maximized={paneMaximized}
+          onMaximizeChange={(next) => {
+            setFocusedPaneId(panel.id);
+            setPaneMaximized(panel.id, next);
+          }}
+          layoutEpoch={maximizedPaneId}
+        />
+      </div>
+    );
+  };
 
   return (
     <div
       ref={gridRef}
-      className="chart-grid chart-grid--row-split"
+      className={`chart-grid chart-grid--row-split${
+        maximizedPaneId ? ' chart-grid--pane-maximized' : ''
+      }`}
       role="region"
-      aria-label="Multi-timeframe charts"
+      aria-label={
+        maximizedPaneId
+          ? `${CHART_GRID_REGION_ARIA}, ${focusedPane.label} maximized`
+          : CHART_GRID_REGION_ARIA
+      }
       style={{ ['--chart-row-top-pct' as string]: `${topPct}%` }}
       data-testid="chart-grid"
+      data-maximized-pane={maximizedPaneId ?? ''}
     >
       <ChartGridToolbar
         activeTool={activeTool}
         focusedLabel={focusedPane.label}
         focusedIndicators={indicatorsByPane[focusedPane.id] ?? CHART_DEFAULT_INDICATORS}
         showOptional={showOptional}
+        maximized={Boolean(maximizedPaneId)}
         onToolClick={handleToolClick}
         onClearAll={handleClearAll}
         onIndicatorToggle={(id) => toggleIndicatorFor(focusedPane.id, id)}
         onToggleOptional={toggleOptional}
+        onRestore={restore}
       />
       <div className="chart-grid__row chart-grid__row--top">
         {topPanels.map(renderPane)}

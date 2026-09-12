@@ -2,6 +2,8 @@ import {
   CHART_CARD_TITLE,
   CHART_INDICATORS,
   CHART_MOCK_DATA_LABEL,
+  CHART_PANE_MAXIMIZE_TITLE,
+  CHART_PANE_RESTORE_TITLE,
   CHART_TIMEFRAMES,
   type ChartIndicatorId,
 } from '../constants';
@@ -23,6 +25,13 @@ interface Props {
    * above the grid owns draw tools + indicator toggles for the focused pane.
    */
   compact?: boolean;
+  /**
+   * Grid-local maximize keeps the desk toolbar in view, so compact chrome
+   * stays one header line (do not grow a second per-pane toolbar).
+   */
+  keepCompactWhenMaximized?: boolean;
+  maximizeTitle?: string;
+  restoreTitle?: string;
   onClearAll: () => void;
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   onMaximize: () => void;
@@ -85,13 +94,23 @@ export function ChartToolbarControls({
   );
 }
 
-function MaximizeButton({ maximized, onMaximize }: { maximized: boolean; onMaximize: () => void }) {
+function MaximizeButton({
+  maximized,
+  onMaximize,
+  maximizeTitle = 'Maximize',
+  restoreTitle = 'Restore',
+}: {
+  maximized: boolean;
+  onMaximize: () => void;
+  maximizeTitle?: string;
+  restoreTitle?: string;
+}) {
   return (
     <button
       type="button"
       className={`chart-tool-btn chart-maximize-btn${maximized ? ' chart-tool-btn--active' : ''}`}
       onClick={onMaximize}
-      title={maximized ? 'Restore' : 'Maximize'}
+      title={maximized ? restoreTitle : maximizeTitle}
       aria-label={maximized ? 'Restore chart' : 'Maximize chart'}
     >
       <span className="chart-tool-icon">{maximized ? '⊙' : '⛶'}</span>
@@ -110,14 +129,30 @@ export function TickerChartControls({
   usingMock,
   fillingHint = null,
   compact = false,
+  keepCompactWhenMaximized = false,
+  maximizeTitle,
+  restoreTitle,
   onClearAll,
   onIndicatorToggle,
   onMaximize,
   onTimeframeChange,
   onToolClick,
 }: Props) {
-  // A maximized compact pane has no desk toolbar in view -- show its own.
-  const showToolbar = !compact || maximized;
+  // Viewport maximize covers the desk toolbar, so a compact pane grows one.
+  // Grid-local maximize keeps that toolbar, so chrome stays one header line.
+  const showToolbar = !compact || (maximized && !keepCompactWhenMaximized);
+  const maxTitle =
+    maximizeTitle ?? (keepCompactWhenMaximized ? CHART_PANE_MAXIMIZE_TITLE : 'Maximize');
+  const rstTitle =
+    restoreTitle ?? (keepCompactWhenMaximized ? CHART_PANE_RESTORE_TITLE : 'Restore');
+  const maxBtn = (
+    <MaximizeButton
+      maximized={maximized}
+      onMaximize={onMaximize}
+      maximizeTitle={maxTitle}
+      restoreTitle={rstTitle}
+    />
+  );
   return (
     <>
       <div className={`chart-header${compact ? ' chart-header--compact' : ''}`}>
@@ -145,7 +180,7 @@ export function TickerChartControls({
         ) : (
           <span className="chart-tf-badge" aria-label={`Timeframe ${timeframe}`}>{timeframe}</span>
         )}
-        {!showToolbar && <MaximizeButton maximized={maximized} onMaximize={onMaximize} />}
+        {!showToolbar && maxBtn}
       </div>
       {showToolbar && (
         <div className="chart-toolbar">
@@ -157,7 +192,7 @@ export function TickerChartControls({
             onToolClick={onToolClick}
           />
           <div className="chart-toolbar-spacer" />
-          <MaximizeButton maximized={maximized} onMaximize={onMaximize} />
+          {maxBtn}
         </div>
       )}
     </>

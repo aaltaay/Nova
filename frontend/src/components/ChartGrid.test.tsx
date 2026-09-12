@@ -16,6 +16,9 @@ vi.mock('../TickerChart', () => ({
     compactChrome,
     focused,
     onFocusPane,
+    maximized,
+    maximizeInGrid,
+    onMaximizeChange,
   }: {
     title?: string;
     indicators?: string[];
@@ -23,6 +26,9 @@ vi.mock('../TickerChart', () => ({
     compactChrome?: boolean;
     focused?: boolean;
     onFocusPane?: () => void;
+    maximized?: boolean;
+    maximizeInGrid?: boolean;
+    onMaximizeChange?: (next: boolean) => void;
   }) => (
     <div
       data-testid="ticker-chart"
@@ -30,8 +36,15 @@ vi.mock('../TickerChart', () => ({
       data-active-tool={activeTool ?? ''}
       data-compact={compactChrome ? '1' : '0'}
       data-focused={focused ? '1' : '0'}
+      data-maximized={maximized ? '1' : '0'}
+      data-maximize-in-grid={maximizeInGrid ? '1' : '0'}
       onClick={onFocusPane}
     >
+      <button
+        type="button"
+        aria-label={maximized ? 'Restore chart' : 'Maximize chart'}
+        onClick={() => onMaximizeChange?.(!(maximized ?? false))}
+      />
       {title}
     </div>
   ),
@@ -235,5 +248,140 @@ describe('ChartGrid', () => {
     expect(
       container.querySelector('[data-testid="chart-desk-toolbar-target"]')?.textContent,
     ).toBe('5-Minute');
+  });
+
+  it('double-click maximizes one pane inside the chart grid and keeps its indicators', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="TNON" />);
+    });
+    const cell = container.querySelector(
+      '[data-testid="chart-grid-cell-1Min"]',
+    ) as HTMLElement;
+    const before = cell.querySelector('[data-testid="ticker-chart"]') as HTMLElement;
+    expect(before.dataset.indicators).toContain('macd');
+    act(() => {
+      cell.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    const grid = container.querySelector('[data-testid="chart-grid"]') as HTMLElement;
+    expect(grid.classList.contains('chart-grid--pane-maximized')).toBe(true);
+    expect(grid.dataset.maximizedPane).toBe('1Min');
+    expect(cell.classList.contains('chart-grid-cell--maximized')).toBe(true);
+    expect(cell.dataset.maximized).toBe('1');
+    const after = cell.querySelector('[data-testid="ticker-chart"]') as HTMLElement;
+    expect(after.dataset.maximized).toBe('1');
+    expect(after.dataset.maximizeInGrid).toBe('1');
+    expect(after.dataset.indicators).toContain('macd');
+    expect(after.textContent).toContain('1-Minute');
+    expect(container.querySelector('[data-testid="chart-grid-restore"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="chart-desk-toolbar"]')).toBeTruthy();
+  });
+
+  it('restores the 2x2 from a second double-click, Esc, or Restore grid', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="TNON" />);
+    });
+    const cell = () =>
+      container.querySelector('[data-testid="chart-grid-cell-5Min"]') as HTMLElement;
+    const grid = () =>
+      container.querySelector('[data-testid="chart-grid"]') as HTMLElement;
+
+    act(() => {
+      cell().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    expect(grid().dataset.maximizedPane).toBe('5Min');
+
+    act(() => {
+      cell().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    expect(grid().dataset.maximizedPane).toBe('');
+    expect(grid().classList.contains('chart-grid--pane-maximized')).toBe(false);
+
+    act(() => {
+      cell().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(grid().dataset.maximizedPane).toBe('');
+
+    act(() => {
+      cell().dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    act(() => {
+      (container.querySelector('[data-testid="chart-grid-restore"]') as HTMLButtonElement).click();
+    });
+    expect(grid().dataset.maximizedPane).toBe('');
+  });
+
+  it('does not maximize on double-click while a drawing tool is armed', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="TNON" />);
+    });
+    act(() => {
+      (container.querySelector('[aria-label="Use Crosshair"]') as HTMLButtonElement).click();
+    });
+    act(() => {
+      (container.querySelector('[data-testid="chart-grid-cell-5Min"]') as HTMLElement)
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    const grid = container.querySelector('[data-testid="chart-grid"]') as HTMLElement;
+    expect(grid.dataset.maximizedPane).toBe('');
+    const charts = [...container.querySelectorAll<HTMLElement>('[data-testid="ticker-chart"]')];
+    expect(charts.every((el) => el.dataset.activeTool === 'CrossLine')).toBe(true);
+  });
+
+  it('Esc disarms the drawing tool before restoring a maximized pane', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="TNON" />);
+    });
+    act(() => {
+      (
+        container.querySelector(
+          '[data-testid="chart-grid-cell-5Min"] [aria-label="Maximize chart"]',
+        ) as HTMLButtonElement
+      ).click();
+    });
+    act(() => {
+      (container.querySelector('[aria-label="Use Crosshair"]') as HTMLButtonElement).click();
+    });
+    const grid = () =>
+      container.querySelector('[data-testid="chart-grid"]') as HTMLElement;
+    expect(grid().dataset.maximizedPane).toBe('5Min');
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(grid().dataset.maximizedPane).toBe('5Min');
+    const charts = [...container.querySelectorAll<HTMLElement>('[data-testid="ticker-chart"]')];
+    expect(charts.every((el) => el.dataset.activeTool === '')).toBe(true);
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(grid().dataset.maximizedPane).toBe('');
+  });
+
+  it('clears maximize when the expanded 10-Second pane is hidden', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="TNON" />);
+    });
+    act(() => {
+      (
+        container.querySelector(
+          '[data-testid="chart-grid-cell-10Sec"] [aria-label="Maximize chart"]',
+        ) as HTMLButtonElement
+      ).click();
+    });
+    expect(
+      (container.querySelector('[data-testid="chart-grid"]') as HTMLElement).dataset
+        .maximizedPane,
+    ).toBe('10Sec');
+    act(() => {
+      (container.querySelector('[data-testid="chart-grid-optional-toggle"]') as HTMLButtonElement)
+        .click();
+    });
+    expect(
+      (container.querySelector('[data-testid="chart-grid"]') as HTMLElement).dataset
+        .maximizedPane,
+    ).toBe('');
+    expect(container.querySelector('[data-testid="chart-grid-cell-10Sec"]')).toBeNull();
   });
 });

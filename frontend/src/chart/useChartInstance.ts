@@ -32,6 +32,8 @@ interface UseChartInstanceOptions extends ChartSeriesRefs {
   chartActive?: boolean;
   /** Remeasure fill height when RSI/MACD panes mount or unmount. */
   oscillatorPaneCount?: number;
+  /** Grid maximize/restore -- sibling panes also remeasure when the layout flips. */
+  layoutEpoch?: string | null;
 }
 
 export function useChartInstance({
@@ -45,6 +47,7 @@ export function useChartInstance({
   timeframe = '1Min',
   chartActive = true,
   oscillatorPaneCount = 0,
+  layoutEpoch = null,
 }: UseChartInstanceOptions): IChartApi | null {
   const [chartApi, setChartApi] = useState<IChartApi | null>(null);
 
@@ -155,7 +158,16 @@ export function useChartInstance({
     };
     apply();
     requestAnimationFrame(apply);
-  }, [containerRef, chartRef, maximized, fillParentHeight, chartHeight, chartActive, oscillatorPaneCount]);
+  }, [
+    containerRef,
+    chartRef,
+    maximized,
+    fillParentHeight,
+    chartHeight,
+    chartActive,
+    oscillatorPaneCount,
+    layoutEpoch,
+  ]);
 
   return chartApi;
 }
