@@ -175,10 +175,9 @@
 }
 
 .chart-draw-tools__menu {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  z-index: 30;
+  /* Portaled to document.body -- fixed so toolbar overflow cannot clip it. */
+  position: fixed;
+  z-index: 80;
   width: 190px;
   padding: 4px;
   border: 1px solid var(--border-color);

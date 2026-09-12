@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Time } from 'lightweight-charts';
 import type { SerializedDrawing } from 'lightweight-charts-drawing';
-import { drawingFactory, shouldHydrateDrawings, snapAll } from './chartDrawingHydrate';
+import {
+  drawingFactory,
+  shouldDisarmToolOnDrawingAdded,
+  shouldHydrateDrawings,
+  snapAll,
+} from './chartDrawingHydrate';
 import { buildSeriesTimeIndex } from './chartDrawingTime';
 
 const AT = { symbol: 'AAPL', revision: 3, hadBars: true } as const;
@@ -30,6 +35,14 @@ describe('shouldHydrateDrawings', () => {
 
   it('skips our own echo -- rebuilding would drop the held selection', () => {
     expect(shouldHydrateDrawings(AT, { symbol: 'AAPL', revision: 3, hasBars: true })).toBe(false);
+  });
+
+  it('does not disarm an armed tool when hydrate re-imports drawings', () => {
+    expect(shouldDisarmToolOnDrawingAdded(true)).toBe(false);
+  });
+
+  it('disarms after the operator actually places a drawing', () => {
+    expect(shouldDisarmToolOnDrawingAdded(false)).toBe(true);
   });
 
   it('skips when the pane still has no bars', () => {

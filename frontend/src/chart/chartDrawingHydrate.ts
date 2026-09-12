@@ -42,6 +42,15 @@ export function shouldHydrateDrawings(
   return !prev.hadBars && next.hasBars;
 }
 
+/**
+ * `importDrawings` calls `addDrawing`, which emits `drawing:added`.
+ * That echo must not disarm the shared desk tool -- otherwise a 2x2
+ * hydrate (bars arriving, sibling pane snap) kills Trend Line mid-arm.
+ */
+export function shouldDisarmToolOnDrawingAdded(applying: boolean): boolean {
+  return !applying;
+}
+
 /** Rebuild a `SerializedDrawing` into a live drawing via the library registry. */
 export function drawingFactory(type: string, data: SerializedDrawing): IDrawing | null {
   try {

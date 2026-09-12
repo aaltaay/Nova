@@ -35,6 +35,7 @@ import { toStorableDrawing } from './chartDrawingTime';
 import {
   drawingFactory,
   seriesTimeIndex,
+  shouldDisarmToolOnDrawingAdded,
   shouldHydrateDrawings,
   snapAll,
   type HydrateState,
@@ -239,7 +240,9 @@ export function useChartDrawingManager({
     if (!manager) return;
 
     const unsubAdded = manager.on('drawing:added', (event) => {
-      setActiveTool(null);
+      if (shouldDisarmToolOnDrawingAdded(applyingRef.current)) {
+        setActiveTool(null);
+      }
       storeDrawing(event.drawing);
     });
     // Fires per mousemove while dragging an anchor; the store debounces the PUT.

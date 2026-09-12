@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CHART_LINE_TOOLS } from '../chart/chartDrawingConfig';
 
 interface Props {
@@ -54,10 +55,21 @@ function ToolIcon({ toolId }: { toolId: string }) {
   );
 }
 
+const MENU_GAP_PX = 5;
+
+export function chartDrawToolsMenuPosition(rect: { bottom: number; left: number }): {
+  top: number;
+  left: number;
+} {
+  return { top: rect.bottom + MENU_GAP_PX, left: rect.left };
+}
+
 export function ChartDrawToolsMenu({ activeTool, onToolClick }: Props) {
   const [open, setOpen] = useState(false);
   const [lastUsedId, setLastUsedId] = useState(CHART_LINE_TOOLS[0].id);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const lastUsed = CHART_LINE_TOOLS.find((tool) => tool.id === lastUsedId)
     ?? CHART_LINE_TOOLS[0];
 
@@ -67,10 +79,29 @@ export function ChartDrawToolsMenu({ activeTool, onToolClick }: Props) {
     }
   }, [activeTool]);
 
+  useLayoutEffect(() => {
+    if (!open || !rootRef.current) return;
+    const sync = () => {
+      if (!rootRef.current) return;
+      setMenuPos(chartDrawToolsMenuPosition(rootRef.current.getBoundingClientRect()));
+    };
+    sync();
+    window.addEventListener('resize', sync);
+    window.addEventListener('scroll', sync, true);
+    return () => {
+      window.removeEventListener('resize', sync);
+      window.removeEventListener('scroll', sync, true);
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Node;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) {
+        return;
+      }
+      setOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -88,6 +119,35 @@ export function ChartDrawToolsMenu({ activeTool, onToolClick }: Props) {
     setOpen(false);
     onToolClick(toolId);
   };
+
+  const menu = open
+    ? createPortal(
+      <div
+        ref={menuRef}
+        className="chart-draw-tools__menu"
+        role="menu"
+        aria-label="Line drawing tools"
+        data-testid="chart-draw-tools-menu"
+        style={{ top: menuPos.top, left: menuPos.left }}
+      >
+        {CHART_LINE_TOOLS.map((tool) => (
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={activeTool === tool.id}
+            className={`chart-draw-tools__item${activeTool === tool.id ? ' chart-draw-tools__item--active' : ''}`}
+            key={tool.id}
+            onClick={() => chooseTool(tool.id)}
+          >
+            <ToolIcon toolId={tool.id} />
+            <span className="chart-draw-tools__label">{tool.label}</span>
+            <kbd>{tool.hotkey}</kbd>
+          </button>
+        ))}
+      </div>,
+      document.body,
+    )
+    : null;
 
   return (
     <div className="chart-draw-tools" ref={rootRef}>
@@ -111,24 +171,7 @@ export function ChartDrawToolsMenu({ activeTool, onToolClick }: Props) {
       >
         <span aria-hidden="true">▾</span>
       </button>
-      {open && (
-        <div className="chart-draw-tools__menu" role="menu" aria-label="Line drawing tools">
-          {CHART_LINE_TOOLS.map((tool) => (
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={activeTool === tool.id}
-              className={`chart-draw-tools__item${activeTool === tool.id ? ' chart-draw-tools__item--active' : ''}`}
-              key={tool.id}
-              onClick={() => chooseTool(tool.id)}
-            >
-              <ToolIcon toolId={tool.id} />
-              <span className="chart-draw-tools__label">{tool.label}</span>
-              <kbd>{tool.hotkey}</kbd>
-            </button>
-          ))}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }

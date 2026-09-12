@@ -69,6 +69,7 @@ describe('ChartGrid', () => {
       root.unmount();
     });
     container.remove();
+    document.body.querySelector('[data-testid="chart-draw-tools-menu"]')?.remove();
   });
 
   it('defaults to 5m|10s over Full Day|1m, with MACD on 1m and 5m', () => {
@@ -134,6 +135,26 @@ describe('ChartGrid', () => {
     expect(
       container.querySelector('[data-testid="chart-desk-toolbar-target"]')?.textContent,
     ).toBe('5-Minute');
+  });
+
+  it('desk toolbar dropdown opens and arms Trendline on every pane', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="SDOT" />);
+    });
+    act(() => {
+      (container.querySelector('[aria-label="Line drawing tools"]') as HTMLButtonElement).click();
+    });
+    const menu = document.body.querySelector('[data-testid="chart-draw-tools-menu"]');
+    expect(menu).not.toBeNull();
+    const trend = [...(menu?.querySelectorAll('button') ?? [])].find((button) =>
+      button.textContent?.includes('Trendline'),
+    ) as HTMLButtonElement;
+    act(() => {
+      trend.click();
+    });
+    const charts = [...container.querySelectorAll<HTMLElement>('[data-testid="ticker-chart"]')];
+    expect(charts.every((el) => el.dataset.activeTool === 'TrendLine')).toBe(true);
+    expect(document.body.querySelector('[data-testid="chart-draw-tools-menu"]')).toBeNull();
   });
 
   it('shared draw tool reaches every pane; indicator toggle hits only the focused pane', () => {

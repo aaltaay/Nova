@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- Trader drawing tools dead (dropdown + place)
+
+- **Symptom:** On the Trader 2x2 chart grid the drawing-tool chevron did nothing useful (menu never appeared). Trend Line / other tools would not stay armed, so two-click place never completed. Existing drawings still painted.
+- **Cause:** Two stacked bugs. (1) `.chart-grid > .chart-desk-toolbar` used `overflow-x: auto`, which computed overflow-y to `auto` and clipped the absolutely positioned menu. (2) `lightweight-charts-drawing` `importDrawings` calls `addDrawing`, which emits `drawing:added`. The manager treated every emit as a user place and ran `setActiveTool(null)`. On a four-pane desk that hydrates when bars arrive, the shared tool disarmed immediately -- worse when the symbol already had stored lines.
+- **Fix:** Portal the menu to `document.body` (`position: fixed`). Ignore `drawing:added` while `applyingRef` is true. Place from capture-phase `pointerup` on the LWC host when present.
+- **Fix class:** ownership
+- **Keywords:** #109, D-010, ChartDrawToolsMenu, overflow-x, portal, drawing:added, importDrawings, TrendLine, ChartGrid, activeTool
+
 ## 2026-09-11 -- Trader 10Sec recovery was one-shot despite live tape (D-003)
 
 - **Symptom:** A newly loaded Trader symbol could show live Time & Sales while the 10-Second pane stayed on "Loading IBKR historical..." for minutes.
