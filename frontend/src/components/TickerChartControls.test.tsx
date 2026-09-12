@@ -86,6 +86,32 @@ describe('TickerChartControls filling hint', () => {
     expect(container.querySelector('.chart-header [aria-label="Maximize chart"]')).toBeTruthy();
   });
 
+  it('grid-local maximize keeps compact chrome because the desk toolbar stays', async () => {
+    await act(async () => {
+      root.render(
+        <TickerChartControls
+          activeTool={null}
+          enabledIndicators={['vwap']}
+          lockTimeframe
+          maximized
+          timeframe="5Min"
+          title="5-Minute"
+          usingMock={false}
+          compact
+          keepCompactWhenMaximized
+          onClearAll={noop}
+          onIndicatorToggle={noop}
+          onMaximize={noop}
+          onTimeframeChange={noop}
+          onToolClick={noop}
+        />,
+      );
+    });
+    expect(container.querySelector('.chart-toolbar')).toBeNull();
+    expect(container.querySelector('[aria-label="Indicators"]')).toBeNull();
+    expect(container.querySelector('.chart-header [aria-label="Restore chart"]')).toBeTruthy();
+  });
+
   it('compact pane that is maximized gets its own toolbar back', async () => {
     await act(async () => {
       root.render(

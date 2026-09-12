@@ -6,6 +6,8 @@
 import {
   CHART_DESK_TOOLBAR_ARIA,
   CHART_DESK_TOOLBAR_TARGET_TITLE,
+  CHART_GRID_RESTORE_LABEL,
+  CHART_GRID_RESTORE_TITLE,
   type ChartIndicatorId,
 } from '../constants';
 import { ChartToolbarControls } from './TickerChartControls';
@@ -15,10 +17,12 @@ interface Props {
   focusedLabel: string;
   focusedIndicators: ChartIndicatorId[];
   showOptional: boolean;
+  maximized: boolean;
   onToolClick: (toolId: string) => void;
   onClearAll: () => void;
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   onToggleOptional: () => void;
+  onRestore: () => void;
 }
 
 export function ChartGridToolbar({
@@ -26,10 +30,12 @@ export function ChartGridToolbar({
   focusedLabel,
   focusedIndicators,
   showOptional,
+  maximized,
   onToolClick,
   onClearAll,
   onIndicatorToggle,
   onToggleOptional,
+  onRestore,
 }: Props) {
   return (
     <div
@@ -54,6 +60,18 @@ export function ChartGridToolbar({
           {focusedLabel}
         </span>
         <div className="chart-toolbar-spacer" />
+        {maximized && (
+          <button
+            type="button"
+            className="chart-grid__optional-toggle"
+            onClick={onRestore}
+            title={CHART_GRID_RESTORE_TITLE}
+            aria-label={CHART_GRID_RESTORE_LABEL}
+            data-testid="chart-grid-restore"
+          >
+            {CHART_GRID_RESTORE_LABEL}
+          </button>
+        )}
         <button
           type="button"
           className="chart-grid__optional-toggle"

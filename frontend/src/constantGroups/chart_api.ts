@@ -83,6 +83,15 @@ export const CHART_DESK_TOOLBAR_TARGET_TITLE =
   'Indicator toggles apply to the highlighted pane. Click a chart to pick it.';
 export const CHART_DESK_CLEAR_TITLE =
   'Clear every drawing on this symbol (all panes). Delete or Backspace removes the selected line.';
+/** Trader 2x2 pane maximize -- fills the chart grid only (session-only). */
+export const CHART_PANE_MAXIMIZE_TITLE =
+  'Maximize this pane across the chart grid (or double-click the pane)';
+export const CHART_PANE_RESTORE_TITLE =
+  'Restore the 2x2 grid (double-click, Esc, or Restore grid)';
+export const CHART_GRID_RESTORE_LABEL = 'Restore grid';
+export const CHART_GRID_RESTORE_TITLE =
+  'Show all chart panes again. Esc or double-click the pane also restores.';
+export const CHART_GRID_REGION_ARIA = 'Multi-timeframe charts';
 export const CHART_OSCILLATOR_CLOSE_TITLE = 'Hide this indicator pane';
 export const CHART_RSI_LENGTH = 14;
 export const CHART_MACD_FAST = 12;

@@ -1,5 +1,4 @@
 import { useRef, useState, type CSSProperties } from 'react';
-import { createPortal } from 'react-dom';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import {
   CHART_DEFAULT_TIMEFRAME,
@@ -20,9 +19,9 @@ import { TickerChartControls } from '../components/TickerChartControls';
 import { TickerChartErrorBoundary } from '../components/TickerChartErrorBoundary';
 import { TickerChartOverlays } from '../components/TickerChartOverlays';
 import { TickerChartOscillatorPanes } from '../components/TickerChartOscillatorPanes';
-import { useMaximizedChartPortal } from '../hooks/useMaximizedChartPortal';
 import { useResizableHeight } from '../hooks/useResizableHeight';
 import { toggleIndicator } from '../chartIndicators';
+import { ChartPortalFrame } from './ChartPortalFrame';
 import { useChartBars } from './useChartBars';
 import { useChartDrawingManager } from './useChartDrawingManager';
 import { claimChartDrawingHotkeyFocus } from './chartDrawingKeys';
@@ -30,6 +29,7 @@ import { useChartInstance } from './useChartInstance';
 import { useChartLiveTrade } from './useChartLiveTrade';
 import { useChartSessionHighlight } from './useChartSessionHighlight';
 import { useTickerChartEscape } from './useTickerChartEscape';
+import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { useVwapSourceBars } from './useVwapSourceBars';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import { findOpenPosition } from './positionOverlay';
@@ -65,6 +65,13 @@ interface TickerChartProps {
   onFocusPane?: () => void;
   /** When false, pause bar polling and resize work (hidden Trader tab). */
   chartActive?: boolean;
+  /** Controlled maximize (Trader grid owns session-only pane expand). */
+  maximized?: boolean;
+  onMaximizeChange?: (next: boolean) => void;
+  /** Expand inside the 2x2 chart region -- do not portal over quote/trade rails. */
+  maximizeInGrid?: boolean;
+  /** Bumps when the grid maximize layout flips so hidden siblings remeasure. */
+  layoutEpoch?: string | null;
 }
 
 export function TickerChart(props: TickerChartProps) {
@@ -92,6 +99,10 @@ function TickerChartInner({
   focused = false,
   onFocusPane,
   chartActive = true,
+  maximized: controlledMaximized,
+  onMaximizeChange,
+  maximizeInGrid = false,
+  layoutEpoch = null,
 }: TickerChartProps) {
   const chartHeight =
     variant === 'grid' ? CHART_HEIGHT_GRID
@@ -109,7 +120,12 @@ function TickerChartInner({
     fixedTimeframe ?? CHART_DEFAULT_TIMEFRAME,
   );
   const timeframe = fixedTimeframe ?? userTimeframe;
-  const [maximized, setMaximized] = useState(false);
+  const { maximized, setMaximized, toggleMaximize, portalMaximized, slotRef, host } =
+    useTickerChartMaximize({
+      maximizeInGrid,
+      maximized: controlledMaximized,
+      onMaximizeChange,
+    });
   const [localIndicators, setLocalIndicators] = useState<ChartIndicatorId[]>(
     () => [...(initialIndicators ?? CHART_DEFAULT_INDICATORS)],
   );
@@ -128,7 +144,6 @@ function TickerChartInner({
   // Panel: fill the Quote Panel slot so LWC (incl. time axis) fits under
   // header/toolbar instead of painting 280px and getting clipped by max-height.
   const fillParentHeight = variant === 'grid' || variant === 'panel' || maximized;
-  const { slotRef, host } = useMaximizedChartPortal(maximized);
   const lockTimeframe = !!fixedTimeframe;
   const oscillatorEnabled = enabledIndicators.filter((id): id is ChartOscillatorId =>
     (CHART_OSCILLATOR_IDS as readonly ChartOscillatorId[]).includes(id as ChartOscillatorId),
@@ -145,6 +160,7 @@ function TickerChartInner({
     timeframe,
     chartActive,
     oscillatorPaneCount: oscillatorEnabled.length,
+    layoutEpoch,
   });
 
   const { applyLiveTrade, lastCandleRef, resetTradeState, liveTipTime } = useChartLiveTrade(
@@ -208,10 +224,6 @@ function TickerChartInner({
   const account = useOptionalIbkrAccountContext();
   const openPosition = findOpenPosition(account?.positions ?? [], symbol);
 
-  function handleMaximize() {
-    setMaximized(m => !m);
-  }
-
   function handleIndicatorToggle(id: ChartIndicatorId) {
     if (onIndicatorToggle) {
       onIndicatorToggle(id);
@@ -263,6 +275,7 @@ function TickerChartInner({
         title={title}
         usingMock={usingMock}
         compact={compactChrome}
+        keepCompactWhenMaximized={maximizeInGrid}
         fillingHint={
           filling && indicatorBars.length > 0
             ? (coverageClock ? `as of ${coverageClock} ET, filling…` : 'filling…')
@@ -270,7 +283,7 @@ function TickerChartInner({
         }
         onClearAll={handleClearAll}
         onIndicatorToggle={handleIndicatorToggle}
-        onMaximize={handleMaximize}
+        onMaximize={toggleMaximize}
         onTimeframeChange={setUserTimeframe}
         onToolClick={handleToolClick}
       />
@@ -322,12 +335,13 @@ function TickerChartInner({
   );
 
   return (
-    <div
-      ref={slotRef}
-      className={`chart-portal-slot${maximized ? ' chart-portal-slot--maximized' : ''}`}
-      style={maximized ? { minHeight: chartHeight } : undefined}
+    <ChartPortalFrame
+      slotRef={slotRef}
+      host={host}
+      portalMaximized={portalMaximized}
+      chartHeight={chartHeight}
     >
-      {createPortal(card, host)}
-    </div>
+      {card}
+    </ChartPortalFrame>
   );
 }
