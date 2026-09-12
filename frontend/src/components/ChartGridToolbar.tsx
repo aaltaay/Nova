@@ -11,6 +11,7 @@ import {
   type ChartIndicatorId,
 } from '../constants';
 import { ChartToolbarControls } from './TickerChartControls';
+import type { DrawingSelectionState } from '../chart/useChartDrawingManager';
 
 interface Props {
   activeTool: string | null;
@@ -18,8 +19,10 @@ interface Props {
   focusedIndicators: ChartIndicatorId[];
   showOptional: boolean;
   maximized: boolean;
+  selection?: DrawingSelectionState | null;
   onToolClick: (toolId: string) => void;
   onClearAll: () => void;
+  onColorChange?: (color: string) => void;
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   onToggleOptional: () => void;
   onRestore: () => void;
@@ -31,8 +34,10 @@ export function ChartGridToolbar({
   focusedIndicators,
   showOptional,
   maximized,
+  selection = null,
   onToolClick,
   onClearAll,
+  onColorChange,
   onIndicatorToggle,
   onToggleOptional,
   onRestore,
@@ -48,7 +53,9 @@ export function ChartGridToolbar({
         <ChartToolbarControls
           activeTool={activeTool}
           enabledIndicators={focusedIndicators}
+          selection={selection}
           onClearAll={onClearAll}
+          onColorChange={onColorChange}
           onIndicatorToggle={onIndicatorToggle}
           onToolClick={onToolClick}
         />

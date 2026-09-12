@@ -202,6 +202,8 @@ function TickerChartInner({
     setActiveTool,
     handleToolClick,
     handleClearAll,
+    selection,
+    updateSelectedDrawingColor,
   } = useChartDrawingManager({
     containerRef,
     chartRef,
@@ -279,7 +281,9 @@ function TickerChartInner({
             ? (coverageClock ? `as of ${coverageClock} ET, filling…` : 'filling…')
             : null
         }
+        selection={selection}
         onClearAll={handleClearAll}
+        onColorChange={updateSelectedDrawingColor}
         onIndicatorToggle={handleIndicatorToggle}
         onMaximize={toggleMaximize}
         onTimeframeChange={setUserTimeframe}

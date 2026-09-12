@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- Chart drawing color picker (issue #121)
+
+- **What:** Selected chart drawings now show a color swatch bar in the toolbar. Clicking a swatch changes the drawing's `lineColor` immediately and persists it through the existing store-first debounced PUT path.
+- **Why:** Traders needed a way to distinguish drawn levels by color (GitHub #121).
+- **Files touched:** `chartDrawingConfig.ts` (palette), `chartDrawingColor.ts` (new -- apply + read), `useChartDrawingManager.ts` (selection tracking), `ChartDrawingColorPicker.tsx` (new component), `TickerChartControls.tsx` / `ChartGridToolbar.tsx` (wiring), `TickerChart.tsx` (props), `tickerChart.css` (swatch styles).
+- **How it works now:** `DrawingManager` emits `drawing:selected` / `drawing:deselected`. The hook tracks `{ id, color }` in React state. `applyDrawingColor()` calls `IDrawing.updateStyle({ lineColor })` then `upsertDrawing` so the store debounces a PUT. The color picker renders 8 preset swatches (blue default, red, green, amber, purple, cyan, orange, white) in a `radiogroup`; the active swatch gets a white ring. Color survives reload because `toJSON().style` already captures `lineColor`.
+- **Verified by:** `npm run build` clean; 12 new Vitest tests (chartDrawingColor + ChartDrawingColorPicker); full suite 1079/1079 green.
+- **Related:** Closes #121.
+
+
 ## 2026-09-12 -- Right-click a Trader chart for a Webull-style context menu
 
 - **What:** Right-click anywhere on a chart pane's plot area opens an in-app menu at the cursor (browser menu suppressed): **Create New Order @price**, **Buy SYM qty @price**, **Sell SYM qty @price**, **Close Position** (only with an open position), a **Drawings** submenu that arms the existing line tools, **Reset Chart**, and **Snapshot**. Esc, click-outside, window resize, and window blur dismiss it.

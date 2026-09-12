@@ -15,6 +15,18 @@ import {
 // Style matches the chart's own crosshair color.
 export const CHART_DRAWING_STYLE = { lineColor: '#3b82f6', lineWidth: 1 };
 
+/** Preset palette for the selection color picker (compact: 8 swatches). */
+export const CHART_DRAWING_COLORS: readonly string[] = [
+  '#3b82f6', // blue (default)
+  '#ef4444', // red
+  '#22c55e', // green
+  '#f59e0b', // amber
+  '#a855f7', // purple
+  '#06b6d4', // cyan
+  '#f97316', // orange
+  '#ffffff', // white
+];
+
 export interface ChartLineToolDefinition {
   id: string;
   label: string;

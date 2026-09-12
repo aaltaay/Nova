@@ -19,6 +19,7 @@ import {
   CHART_SINGLE_ANCHOR_TOOLS,
   CHART_TWO_ANCHOR_TOOLS,
 } from './chartDrawingConfig';
+export type { DrawingSelectionState } from './chartDrawingColor';
 import { applyChartHostInteraction } from './chartDrawingInteraction';
 import { bindHandleEditPointer } from './chartDrawingHandle';
 import {
@@ -62,6 +63,11 @@ import {
   subscribeDrawings,
   upsertDrawing,
 } from './chartDrawingsStore';
+import {
+  selectionStateFromDrawing,
+  applyDrawingColor,
+  type DrawingSelectionState,
+} from './chartDrawingColor';
 
 interface UseChartDrawingManagerOptions {
   containerRef: React.RefObject<HTMLDivElement | null>;
@@ -121,6 +127,7 @@ export function useChartDrawingManager({
   const [storeTick, setStoreTick] = useState(0);
   /** Bumped on every attach so listener and hydrate effects follow the new manager. */
   const [managerEpoch, setManagerEpoch] = useState(0);
+  const [selection, setSelection] = useState<DrawingSelectionState | null>(null);
 
   symbolRef.current = drawingsKey(symbol);
 
@@ -322,6 +329,7 @@ export function useChartDrawingManager({
     clearPlacePreview();
     managerRef.current?.setActiveTool(activeTool);
     if (activeTool) managerRef.current?.deselectAll();
+    if (activeTool) setSelection(null);
     if (containerRef.current) {
       containerRef.current.style.cursor = activeTool ? 'crosshair' : 'default';
       containerRef.current.dataset.activeDrawTool = activeTool ?? '';
@@ -348,6 +356,12 @@ export function useChartDrawingManager({
       if (applyingRef.current || !id) return;
       persist(() => removeDrawing(symbolRef.current, id));
     });
+    const unsubSelected = manager.on('drawing:selected', (event) => {
+      setSelection(selectionStateFromDrawing(event.drawing));
+    });
+    const unsubDeselected = manager.on('drawing:deselected', () => {
+      setSelection(null);
+    });
 
     const onDeleteKey = (event: KeyboardEvent) => {
       const current = managerRef.current;
@@ -364,6 +378,8 @@ export function useChartDrawingManager({
       unsubAdded();
       unsubUpdated();
       unsubRemoved();
+      unsubSelected();
+      unsubDeselected();
       window.removeEventListener('keydown', onDeleteKey);
       releaseChartDrawingHotkeyFocus(hotkeyOwner);
     };
@@ -388,10 +404,20 @@ export function useChartDrawingManager({
     setActiveTool(null);
   }
 
+  const updateSelectedDrawingColor = useCallback((color: string) => {
+    const manager = managerRef.current;
+    if (!manager) return;
+    const drawing = manager.getSelectedDrawing();
+    if (!drawing) return;
+    setSelection(applyDrawingColor(drawing, color, symbolRef.current, persist));
+  }, [persist]);
+
   return {
     activeTool,
     setActiveTool,
     handleToolClick,
     handleClearAll,
+    selection,
+    updateSelectedDrawingColor,
   };
 }

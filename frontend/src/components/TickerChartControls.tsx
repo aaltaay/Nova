@@ -10,6 +10,8 @@ import {
   type ChartIndicatorId,
 } from '../constants';
 import { ChartDrawToolsMenu } from './ChartDrawToolsMenu';
+import { ChartDrawingColorPicker } from './ChartDrawingColorPicker';
+import type { DrawingSelectionState } from '../chart/useChartDrawingManager';
 
 interface Props {
   activeTool: string | null;
@@ -32,11 +34,13 @@ interface Props {
    * stays one header line (do not grow a second per-pane toolbar).
    */
   keepCompactWhenMaximized?: boolean;
-  /** Header ⛶ uses the Fullscreen API (Trader grid). */
+  /** Header uses the Fullscreen API (Trader grid). */
   useFullscreenExpand?: boolean;
   maximizeTitle?: string;
   restoreTitle?: string;
+  selection?: DrawingSelectionState | null;
   onClearAll: () => void;
+  onColorChange?: (color: string) => void;
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   onMaximize: () => void;
   onTimeframeChange: (timeframe: string) => void;
@@ -46,7 +50,9 @@ interface Props {
 interface ToolbarProps {
   activeTool: string | null;
   enabledIndicators: ChartIndicatorId[];
+  selection?: DrawingSelectionState | null;
   onClearAll: () => void;
+  onColorChange?: (color: string) => void;
   onIndicatorToggle: (id: ChartIndicatorId) => void;
   onToolClick: (toolId: string) => void;
 }
@@ -55,7 +61,9 @@ interface ToolbarProps {
 export function ChartToolbarControls({
   activeTool,
   enabledIndicators,
+  selection = null,
   onClearAll,
+  onColorChange,
   onIndicatorToggle,
   onToolClick,
 }: ToolbarProps) {
@@ -69,7 +77,7 @@ export function ChartToolbarControls({
         title="Crosshair"
         aria-label="Use Crosshair"
       >
-        <span className="chart-tool-icon">┼</span>
+        <span className="chart-tool-icon">&#x253C;</span>
       </button>
       <button
         type="button"
@@ -78,8 +86,17 @@ export function ChartToolbarControls({
         title="Clear all drawings. Delete or Backspace removes the selected line."
         aria-label="Clear all drawings"
       >
-        <span className="chart-tool-icon">✕</span>
+        <span className="chart-tool-icon">&#x2715;</span>
       </button>
+      {selection && onColorChange && (
+        <>
+          <div className="chart-toolbar-divider" aria-hidden="true" />
+          <ChartDrawingColorPicker
+            currentColor={selection.color}
+            onColorChange={onColorChange}
+          />
+        </>
+      )}
       <div className="chart-toolbar-divider" aria-hidden="true" />
       <div className="chart-tabs" role="group" aria-label="Indicators">
         {CHART_INDICATORS.map(ind => (
@@ -142,7 +159,9 @@ export function TickerChartControls({
   useFullscreenExpand = false,
   maximizeTitle,
   restoreTitle,
+  selection = null,
   onClearAll,
+  onColorChange,
   onIndicatorToggle,
   onMaximize,
   onTimeframeChange,
@@ -200,7 +219,9 @@ export function TickerChartControls({
           <ChartToolbarControls
             activeTool={activeTool}
             enabledIndicators={enabledIndicators}
+            selection={selection}
             onClearAll={onClearAll}
+            onColorChange={onColorChange}
             onIndicatorToggle={onIndicatorToggle}
             onToolClick={onToolClick}
           />
