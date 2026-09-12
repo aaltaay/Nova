@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- AI news digest publishes via PR, never master
+
+- **What:** The scheduled `AI news digest` job still ranks, tests, and rebuilds the marketing digest, but it no longer `git push`es `master`. When `site/index.html`, `site/news/index.html`, or `site/news/feed.json` change, it force-updates `chore/ai-news-digest` and create-or-updates a ready (non-draft) PR. An empty diff stays a quiet exit 0.
+- **Why:** Required status checks on protected `master` reject the old direct push (GH006: "4 of 4 required status checks are expected"). PR/push CI was already fine. Do not weaken branch protection.
+- **Files touched:** `.github/workflows/ai-news.yml`, `tools/ai_news_digest_pr.py`, `tools/test_ai_news_digest_pr.py`, `.github/workflows/deploy.yml`, `tools/master_branch_protection.py`, `.cursor/rules/github-delivery.mdc`, `.cursor/skills/github-delivery/SKILL.md`.
+- **How it works now:** Ranking unit tests and `ai_news_digest.py` rebuild stay first. `tools/ai_news_digest_pr.py` is the only publisher: it refuses `master`/`main` as a push target, commits on `chore/ai-news-digest`, and uses `gh pr create` / update + `gh pr ready`. Token pattern matches Nova Delivery: `NOVA_PROJECT_TOKEN || GITHUB_TOKEN` (PAT preferred so the digest PR triggers CI). Existing auto-merge lands the ready PR after gating checks.
+- **Verified by:** `pytest tools/test_ai_news_digest_pr.py tools/test_ai_news_digest.py tools/test_master_branch_protection.py` (fresh this change). Failed digest run 34711400291 showed GH006 on `git push` to `master`.
+- **Related:** Closes #123. PROBLEM_LOG 2026-09-12 -- AI news digest GH006.
+
 ## 2026-09-12 -- Chart drawing color picker (issue #121)
 
 - **What:** Selected chart drawings now show a color swatch bar in the toolbar. Clicking a swatch changes the drawing's `lineColor` immediately and persists it through the existing store-first debounced PUT path.

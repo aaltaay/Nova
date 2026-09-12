@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- AI news digest GH006 on protected master
+
+- **Symptom:** Scheduled workflow `AI news digest` failed every run that had content changes. Log: `GH006: Protected branch update failed for refs/heads/master` / `4 of 4 required status checks are expected`. PR and push CI stayed green.
+- **Cause:** `.github/workflows/ai-news.yml` committed the rebuilt site files and ran bare `git push` on the default checkout (`master`). Required status checks reject that commit because it has no CI yet. Branch protection was doing its job; the digest path was the bug. No prior digest-via-PR implementation existed (only #58 pytest install and #108 the public news page).
+- **Fix:** Stop pushing `master`. `tools/ai_news_digest_pr.py` publishes only on `chore/ai-news-digest` and create-or-updates a ready PR. Empty diff still exits 0. Ranking tests + rebuild unchanged. Protection policy unchanged.
+- **Fix class:** infra
+- **Keywords:** GH006, ai-news.yml, protected branch, required status checks, chore/ai-news-digest, digest PR
+
 ## 2026-09-12 -- Drawing handle drag panned the chart; two-click tools had no preview
 
 - **Symptom:** With a trend line selected, dragging the blue handle panned the time scale instead of moving the line. After the first click of Trend Line / Extended / Ray, nothing followed the cursor until the second click.
