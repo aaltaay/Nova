@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- Drawing handle drag panned the chart; two-click tools had no preview
+
+- **Symptom:** With a trend line selected, dragging the blue handle panned the time scale instead of moving the line. After the first click of Trend Line / Extended / Ray, nothing followed the cursor until the second click.
+- **Cause:** D-010 only set `pressedMouseMove: false` while `activeTool` was set. Handle edit happens after the tool is disarmed, so Lightweight Charts still treated the press as a pan. `lightweight-charts-drawing` `setActiveTool` stores a name only -- it has no place/preview path. Nova collected A then B on `pointerup` but never attached a second-anchor primitive in between.
+- **Fix:** Lock the same pan/scale flags for the handle-edit gesture via library `hitTestAnchor`. After point A, attach the real two-anchor drawing class as a non-persisted preview and move its second anchor on pointermove. Do not add a third click protocol or a new drawing engine.
+- **Fix class:** ownership
+- **Keywords:** #119, D-010, handle drag, rubber-band, TrendLine, ExtendedLine, Ray, pressedMouseMove, hitTestAnchor, place preview
+
+## 2026-09-12 -- Chart expand icon shared grid maximize instead of fullscreen
+
+- **Symptom:** After #113, the four-arrows header control on Trader panes (e.g. 10-SECOND, near Hide 10-Second / Restore grid) toggled grid-only maximize. Operator wanted true browser/OS fullscreen; Esc should leave fullscreen and keep the prior desk.
+- **Cause:** `ChartGrid` passed `onMaximizeChange` into `TickerChart`, so `useTickerChartMaximize` treated header ⛶ as the same controlled grid path as double-click (`portalMaximized = !maximizeInGrid && maximized`).
+- **Fix:** Header ⛶ calls `requestFullscreen` on the chart portal host. Double-click still sets `maximizedPaneId`. Esc consumes fullscreen first (`shouldRestoreGridOnEscape`) and does not clear grid maximize on that keypress.
+- **Fix class:** ownership
+- **Keywords:** #115, #113, #110, fullscreen, requestFullscreen, chart-expand-btn, ChartGrid, useTickerChartMaximize
+
 ## 2026-09-12 -- Trader drawing tools dead (dropdown + place)
 
 - **Symptom:** On the Trader 2x2 chart grid the drawing-tool chevron did nothing useful (menu never appeared). Trend Line / other tools would not stay armed, so two-click place never completed. Existing drawings still painted.

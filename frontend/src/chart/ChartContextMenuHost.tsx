@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
 import { defaultTicketQty } from '../ibkr/applyTicketDefaults';
 import { ChartContextMenu } from './ChartContextMenu';
+import { chartContextMenuPortalTarget } from './chartContextMenuPortal';
 import { shouldOpenChartContextMenu } from './chartContextMenuItems';
 import { stageChartOrder, type ChartOrderIntent } from './chartOrderActions';
 import { placePointFromPointer } from './chartDrawingPlace';
@@ -77,15 +78,21 @@ export function ChartContextMenuHost(props: {
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('resize', dismiss);
     window.addEventListener('blur', dismiss);
+    // Entering / leaving pane fullscreen (#117) moves the portal root.
+    document.addEventListener('fullscreenchange', dismiss);
+    document.addEventListener('webkitfullscreenchange', dismiss);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('keydown', onKeyDown, true);
       window.removeEventListener('resize', dismiss);
       window.removeEventListener('blur', dismiss);
+      document.removeEventListener('fullscreenchange', dismiss);
+      document.removeEventListener('webkitfullscreenchange', dismiss);
     };
   }, [open, dismiss]);
 
-  if (!open || typeof document === 'undefined') return null;
+  const portalTarget = chartContextMenuPortalTarget(containerRef.current);
+  if (!open || !portalTarget) return null;
 
   return createPortal(
     <div ref={rootRef as RefObject<HTMLDivElement>} className="chart-context-menu-layer">
@@ -112,6 +119,6 @@ export function ChartContextMenuHost(props: {
         onDismiss={dismiss}
       />
     </div>,
-    document.body,
+    portalTarget,
   );
 }

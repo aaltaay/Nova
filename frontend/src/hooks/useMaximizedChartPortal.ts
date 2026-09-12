@@ -13,6 +13,7 @@ export function useMaximizedChartPortal(maximized: boolean) {
   if (hostRef.current === null) {
     hostRef.current = document.createElement('div');
     hostRef.current.className = 'chart-portal-host';
+    hostRef.current.setAttribute('data-testid', 'chart-portal-host');
   }
   const host = hostRef.current;
 

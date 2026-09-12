@@ -23,6 +23,17 @@ export type ChartPlaceResult =
   | { action: 'one'; pending: null; anchors: [ChartPlaceAnchor] }
   | { action: 'two'; pending: null; anchors: [ChartPlaceAnchor, ChartPlaceAnchor] };
 
+export function chartAnchorFromPoint(
+  chart: { timeScale: () => { coordinateToTime: (x: number) => Anchor['time'] | null } },
+  series: { coordinateToPrice: (y: number) => number | null },
+  point: ChartPlacePoint,
+): ChartPlaceAnchor | null {
+  const time = chart.timeScale().coordinateToTime(point.x);
+  const price = series.coordinateToPrice(point.y);
+  if (time === null || price === null) return null;
+  return { time, price };
+}
+
 export function pointerPointInElement(
   el: Pick<HTMLElement, 'getBoundingClientRect'>,
   clientX: number,

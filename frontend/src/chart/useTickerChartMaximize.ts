@@ -1,14 +1,20 @@
 import { useCallback, useState } from 'react';
 import { useMaximizedChartPortal } from '../hooks/useMaximizedChartPortal';
+import { consumeEscapeForFullscreen } from './chartFullscreen';
+import { useChartFullscreen } from './useChartFullscreen';
 
 interface Options {
-  /** Trader 2x2: expand inside the chart grid, do not portal over quote/trade rails. */
+  /** Trader 2x2: double-click expands inside the chart grid (parent-owned). */
   maximizeInGrid?: boolean;
   maximized?: boolean;
   onMaximizeChange?: (next: boolean) => void;
 }
 
-/** Local or controlled maximize. Grid scope never reparents to document.body. */
+/**
+ * Two expand paths:
+ * - Quote / standalone: header ⛶ portals over the Nova desk.
+ * - Trader grid: header ⛶ is browser/OS fullscreen; `maximized` is grid-only.
+ */
 export function useTickerChartMaximize({
   maximizeInGrid = false,
   maximized: controlledMaximized,
@@ -16,22 +22,48 @@ export function useTickerChartMaximize({
 }: Options) {
   const [localMaximized, setLocalMaximized] = useState(false);
   const isControlled = onMaximizeChange !== undefined && controlledMaximized !== undefined;
-  const maximized = isControlled ? controlledMaximized : localMaximized;
+  const portalMaximized = !maximizeInGrid && (isControlled ? controlledMaximized : localMaximized);
+  const gridMaximized = Boolean(maximizeInGrid && controlledMaximized);
+  const { slotRef, host } = useMaximizedChartPortal(portalMaximized);
+  const { isFullscreen, toggleFullscreen, exitFullscreen } = useChartFullscreen(
+    host,
+    maximizeInGrid,
+  );
 
   const setMaximized = useCallback(
     (next: boolean) => {
+      if (maximizeInGrid) {
+        if (!next) {
+          consumeEscapeForFullscreen();
+          exitFullscreen();
+        }
+        return;
+      }
       if (isControlled) onMaximizeChange(next);
       else setLocalMaximized(next);
     },
-    [isControlled, onMaximizeChange],
+    [exitFullscreen, isControlled, maximizeInGrid, onMaximizeChange],
   );
 
   const toggleMaximize = useCallback(() => {
-    setMaximized(!maximized);
-  }, [maximized, setMaximized]);
+    if (maximizeInGrid) {
+      toggleFullscreen();
+      return;
+    }
+    setMaximized(!portalMaximized);
+  }, [maximizeInGrid, portalMaximized, setMaximized, toggleFullscreen]);
 
-  const portalMaximized = !maximizeInGrid && maximized;
-  const { slotRef, host } = useMaximizedChartPortal(portalMaximized);
+  const headerMaximized = maximizeInGrid ? isFullscreen : portalMaximized;
+  const maximized = portalMaximized || gridMaximized || isFullscreen;
 
-  return { maximized, setMaximized, toggleMaximize, portalMaximized, slotRef, host };
+  return {
+    maximized,
+    headerMaximized,
+    isFullscreen,
+    setMaximized,
+    toggleMaximize,
+    portalMaximized,
+    slotRef,
+    host,
+  };
 }

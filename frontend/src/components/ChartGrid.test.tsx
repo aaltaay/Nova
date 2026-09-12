@@ -5,6 +5,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChartGrid } from './ChartGrid';
+import { markChartFullscreen, takeEscapeConsumedForFullscreen } from '../chart/chartFullscreen';
 import { ensureBarsBatch } from '../chart/barsStore';
 import { clearDrawings } from '../chart/chartDrawingsStore';
 
@@ -335,11 +336,8 @@ describe('ChartGrid', () => {
       root.render(<ChartGrid symbol="TNON" />);
     });
     act(() => {
-      (
-        container.querySelector(
-          '[data-testid="chart-grid-cell-5Min"] [aria-label="Maximize chart"]',
-        ) as HTMLButtonElement
-      ).click();
+      (container.querySelector('[data-testid="chart-grid-cell-5Min"]') as HTMLElement)
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     });
     act(() => {
       (container.querySelector('[aria-label="Use Crosshair"]') as HTMLButtonElement).click();
@@ -364,11 +362,8 @@ describe('ChartGrid', () => {
       root.render(<ChartGrid symbol="TNON" />);
     });
     act(() => {
-      (
-        container.querySelector(
-          '[data-testid="chart-grid-cell-10Sec"] [aria-label="Maximize chart"]',
-        ) as HTMLButtonElement
-      ).click();
+      (container.querySelector('[data-testid="chart-grid-cell-10Sec"]') as HTMLElement)
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     });
     expect(
       (container.querySelector('[data-testid="chart-grid"]') as HTMLElement).dataset
@@ -383,5 +378,47 @@ describe('ChartGrid', () => {
         .maximizedPane,
     ).toBe('');
     expect(container.querySelector('[data-testid="chart-grid-cell-10Sec"]')).toBeNull();
+  });
+
+  it('header expand does not grid-maximize', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="TNON" />);
+    });
+    act(() => {
+      (
+        container.querySelector(
+          '[data-testid="chart-grid-cell-10Sec"] [aria-label="Maximize chart"]',
+        ) as HTMLButtonElement
+      ).click();
+    });
+    expect(
+      (container.querySelector('[data-testid="chart-grid"]') as HTMLElement).dataset
+        .maximizedPane,
+    ).toBe('');
+    expect(
+      (container.querySelector('[data-testid="chart-grid"]') as HTMLElement).classList.contains(
+        'chart-grid--pane-maximized',
+      ),
+    ).toBe(false);
+  });
+
+  it('Esc while browser fullscreen keeps the grid-maximized desk', () => {
+    act(() => {
+      root.render(<ChartGrid symbol="TNON" />);
+    });
+    act(() => {
+      (container.querySelector('[data-testid="chart-grid-cell-5Min"]') as HTMLElement)
+        .dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    markChartFullscreen(true);
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(
+      (container.querySelector('[data-testid="chart-grid"]') as HTMLElement).dataset
+        .maximizedPane,
+    ).toBe('5Min');
+    markChartFullscreen(false);
+    takeEscapeConsumedForFullscreen();
   });
 });
