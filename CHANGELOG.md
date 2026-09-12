@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Issue #119. D-010 / #112 locked pan only while a tool was armed. Idle handle-edit still used Lightweight Charts pressed-mouse pan, and `setActiveTool` still does not paint a rubber-band.
 - **Files touched:** `chartDrawingInteraction.ts`, `chartDrawingHandle.ts`, `chartDrawingPreview.ts`, `chartDrawingPlace.ts`, `useChartDrawingManager.ts`, chart drawing Vitest + `e2e/chart-trendline.spec.ts`.
 - **How it works now:** `chartInteractionForTool` also locks pan while `editingHandle` is true. Capture `pointerdown` uses the library `hitTestAnchor` on the selected drawing and applies that lock for the gesture only. After place action `wait`, Nova attaches the same TrendLine / ExtendedLine / Ray class as a series primitive (not `addDrawing`) and `updateAnchor(1)` on pointermove. Escape / tool change / second click detaches the preview. Idle + not editing restores pan. Armed-tool pan-off from D-010 is unchanged.
-- **Verified by:** Vitest chart drawing files (this turn). Broader lint / build / Playwright on the PR.
+- **Verified by:** `npm test -- --run` -- 217 files / 1067 passed. `npm run lint` + `npm run build` exit 0. Playwright `e2e/chart-trendline.spec.ts` + neighbor `e2e/chart-pane-maximize.spec.ts` -- 6 passed. `doc_invariants.py` OK.
 - **Related:** Closes #119. Refs #38 #109 / PR #112. PROBLEM_LOG 2026-09-12 Drawing handle drag.
 
 ## 2026-09-12 -- Chart expand icon enters true fullscreen
