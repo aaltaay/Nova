@@ -86,19 +86,20 @@ describe('TickerChartControls filling hint', () => {
     expect(container.querySelector('.chart-header [aria-label="Maximize chart"]')).toBeTruthy();
   });
 
-  it('grid-local maximize keeps compact chrome because the desk toolbar stays', async () => {
+  it('grid-local maximize keeps compact chrome and the expand icon for fullscreen', async () => {
     await act(async () => {
       root.render(
         <TickerChartControls
           activeTool={null}
           enabledIndicators={['vwap']}
           lockTimeframe
-          maximized
+          maximized={false}
           timeframe="5Min"
           title="5-Minute"
           usingMock={false}
           compact
           keepCompactWhenMaximized
+          useFullscreenExpand
           onClearAll={noop}
           onIndicatorToggle={noop}
           onMaximize={noop}
@@ -109,7 +110,33 @@ describe('TickerChartControls filling hint', () => {
     });
     expect(container.querySelector('.chart-toolbar')).toBeNull();
     expect(container.querySelector('[aria-label="Indicators"]')).toBeNull();
-    expect(container.querySelector('.chart-header [aria-label="Restore chart"]')).toBeTruthy();
+    expect(container.querySelector('.chart-header [aria-label="Enter full screen"]')).toBeTruthy();
+    expect(container.querySelector('.chart-header [aria-label="Restore chart"]')).toBeNull();
+  });
+
+  it('fullscreen expand shows Exit full screen and grows pane chrome', async () => {
+    await act(async () => {
+      root.render(
+        <TickerChartControls
+          activeTool={null}
+          enabledIndicators={['vwap']}
+          lockTimeframe
+          maximized
+          timeframe="10Sec"
+          title="10-Second"
+          usingMock={false}
+          compact
+          useFullscreenExpand
+          onClearAll={noop}
+          onIndicatorToggle={noop}
+          onMaximize={noop}
+          onTimeframeChange={noop}
+          onToolClick={noop}
+        />,
+      );
+    });
+    expect(container.querySelector('.chart-toolbar')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Exit full screen"]')).toBeTruthy();
   });
 
   it('compact pane that is maximized gets its own toolbar back', async () => {

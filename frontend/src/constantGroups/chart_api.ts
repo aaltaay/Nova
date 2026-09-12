@@ -88,6 +88,11 @@ export const CHART_PANE_MAXIMIZE_TITLE =
   'Maximize this pane across the chart grid (or double-click the pane)';
 export const CHART_PANE_RESTORE_TITLE =
   'Restore the 2x2 grid (double-click, Esc, or Restore grid)';
+/** Header ⛶ -- browser/OS fullscreen for that chart. Double-click stays grid-only. */
+export const CHART_FULLSCREEN_TITLE = 'Full screen this chart';
+export const CHART_FULLSCREEN_RESTORE_TITLE = 'Exit full screen (Esc)';
+export const CHART_FULLSCREEN_ARIA = 'Enter full screen';
+export const CHART_FULLSCREEN_RESTORE_ARIA = 'Exit full screen';
 export const CHART_GRID_RESTORE_LABEL = 'Restore grid';
 export const CHART_GRID_RESTORE_TITLE =
   'Show all chart panes again. Esc or double-click the pane also restores.';
