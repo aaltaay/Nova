@@ -94,7 +94,7 @@ describe('positionPriceLineOptions', () => {
     expect(line.price).toBe(2.76);
     expect(line.color).toBe(CHART_POSITION_LONG_COLOR);
     expect(line.axisLabelVisible).toBe(true);
-    expect(line.title).toContain('$2.76');
+    expect(line.title).toBe('');
   });
 
   it('paints a short in the short color', () => {

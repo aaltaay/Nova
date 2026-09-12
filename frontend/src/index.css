@@ -27,6 +27,7 @@
 @import "./hod_momo/hodMomoSettings.css" layer(features);
 @import "./hod_momo/hodMomoDebug.css" layer(features);
 @import "./chart/tickerChart.css" layer(features);
+@import "./chart/chartPositionTag.css" layer(features);
 @import "./styles/stock-view.css" layer(features);
 @import "./stock_view/stockViewTerminal.css" layer(features);
 @import "./stock_view/openOrdersDock.css" layer(features);

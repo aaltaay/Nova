@@ -7,20 +7,20 @@ canonical; this memory tracks summary state, durable lessons, and next work.
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-09-11T00:00:00-04:00
-source_revision: working-tree-2026-09-11
-result: CHART_POSITION_OVERLAY_WID_028
+captured_at: 2026-09-12T00:00:00-04:00
+source_revision: working-tree-2026-09-12
+result: CHART_POSITION_MENU_WID_029
 metrics:
-  capabilities_total: 28
+  capabilities_total: 29
   matched: 7
-  partial: 15
+  partial: 16
   missing: 5
   nova_only: 0
   not_comparable: 1
   unknown: 0
 blockers: []
 dashboard_freshness: clean
-notes: "WID-028: open IBKR position paints avg-cost line + session fill arrows on every TickerChart pane. Not WID-017 chart trading. auto_live still NO-GO."
+notes: "WID-029: left-click Long/Short chart badge opens Close Position + View Trade Details. Flatten gates unchanged. Ticks/Color omitted. auto_live still NO-GO."
 ```
 
 
@@ -58,6 +58,10 @@ notes: "WID-028: open IBKR position paints avg-cost line + session fill arrows o
 - Chart position overlay (WID-028): avg-cost price line + session fill arrows
   on the open ticker. Qty/avg come from `ib.positions()`. Do not stage orders
   from the chart (that is WID-017). Webull screenshots are research-only.
+- Chart position menu (WID-029): left-click the Long/Short badge. Close
+  Position is `ClosePositionButton` / `closeFullPosition` (ADR 007). View
+  Trade Details is `requestStockViewDock({ surface: 'positions' })`. Do not
+  add Coming soon rows for Ticks Mode or Color Settings.
 - Execution latency must stay split by clock domain. Browser action/request/
   response/visible deltas use one document's `performance.now()`; backend
   stages use same-boot `perf_counter_ns`; paired wall clocks are uncertainty,
@@ -70,6 +74,8 @@ notes: "WID-028: open IBKR position paints avg-cost line + session fill arrows o
 
 - [ ] WID-028 follow-up: working limit/stop lines on the chart (not adjustable
       chart trading). Cost line + fill arrows shipped 2026-09-11.
+- [ ] WID-029 follow-up only if asked: badge color / ticks-mode display. Menu
+      Close + Positions dock shipped 2026-09-12.
 - [ ] Implement WID-020 CSV / multi-day History Records export (after Closed
       Orders usage evidence); still no order-edit until export exists.
 - [ ] Audit exact chart indicator/drawing coverage against WID-005.
@@ -85,6 +91,8 @@ notes: "WID-028: open IBKR position paints avg-cost line + session fill arrows o
 
 ### Completed
 
+- [x] 2026-09-12 — WID-029 chart position left-click menu (Close + Positions
+      dock) on the Long/Short badge. Ticks/Color omitted.
 - [x] 2026-09-11 — WID-028 chart position overlay (avg-cost line + session
       fill arrows) from IBKR positions / working / closed orders.
 - [x] 2026-07-24 — Modular Account → Latency dashboard + paired manual/cancel/
@@ -106,6 +114,18 @@ notes: "WID-028: open IBKR position paints avg-cost line + session fill arrows o
 ## Run log
 
 <!-- RUN_LOG_START -->
+
+### 2026-09-12 -- Chart position tag menu (WID-029)
+
+- **Scope:** Issue #111 -- left-click the Long/Short chart tag must open a
+  Webull-style in-app menu. Right-click was falling through to the browser.
+- **Result:** HTML badge over the avg-cost line. Menu ships Close Position
+  (existing flatten path) and View Trade Details (Positions dock). Esc /
+  click-outside dismiss. Sample SMPL 200 @ 3.10 demos the tag when the
+  series is empty. Ticks Mode / Color Settings omitted.
+- **Learning:** The LWC price-line title is canvas-only, so it cannot own
+  clicks. Keep the line + axis price; put the Long/Short copy on HTML.
+- **Verified:** Vitest layout/menu/tag/dock + Playwright sample SMPL path.
 
 ### 2026-09-11 -- Chart position overlay (WID-028)
 

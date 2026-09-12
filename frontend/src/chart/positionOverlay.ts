@@ -47,24 +47,33 @@ export interface ChartPositionLineOptions {
   title: string;
 }
 
-export function findOpenPosition(
+export function findOpenIbkrPosition(
   positions: readonly IbkrPosition[],
   symbol: string,
-): ChartPositionSnapshot | null {
+): IbkrPosition | null {
   const needle = symbol.trim().toUpperCase();
   if (!needle) return null;
   for (const row of positions) {
     if ((row.symbol || '').toUpperCase() !== needle) continue;
     if (!Number.isFinite(row.qty) || row.qty === 0) return null;
     if (row.avg_cost == null || !Number.isFinite(row.avg_cost)) return null;
-    return {
-      symbol: needle,
-      qty: row.qty,
-      avgCost: row.avg_cost,
-      unrealizedPnl: row.unrealized_pnl,
-    };
+    return row;
   }
   return null;
+}
+
+export function findOpenPosition(
+  positions: readonly IbkrPosition[],
+  symbol: string,
+): ChartPositionSnapshot | null {
+  const row = findOpenIbkrPosition(positions, symbol);
+  if (!row || row.avg_cost == null) return null;
+  return {
+    symbol: (row.symbol || '').toUpperCase(),
+    qty: row.qty,
+    avgCost: row.avg_cost,
+    unrealizedPnl: row.unrealized_pnl,
+  };
 }
 
 export function positionLineTitle(position: ChartPositionSnapshot): string {
@@ -86,7 +95,8 @@ export function positionPriceLineOptions(
     lineWidth: CHART_POSITION_LINE_WIDTH,
     lineStyle: LineStyle.Solid,
     axisLabelVisible: true,
-    title: positionLineTitle(position),
+    // HTML badge owns Long/Short copy so the tag can receive clicks.
+    title: '',
   };
 }
 
