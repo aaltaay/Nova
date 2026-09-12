@@ -550,11 +550,21 @@ body:has(.nova-shell--ticker-detail) #root .app-shell-host {
   border: 1px solid var(--border-color, #262a36);
   border-radius: 6px;
   background: var(--panel-bg, #161921);
+  /* Menu is portaled; do not clip a fallback absolute menu either. */
+  overflow: visible;
+}
+
+.chart-desk-toolbar__scroll {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.chart-grid > .chart-desk-toolbar::-webkit-scrollbar {
+.chart-desk-toolbar__scroll::-webkit-scrollbar {
   display: none;
 }
 

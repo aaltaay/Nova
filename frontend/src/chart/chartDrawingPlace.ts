@@ -32,6 +32,16 @@ export function pointerPointInElement(
   return { x: clientX - rect.left, y: clientY - rect.top };
 }
 
+/** Prefer the LWC host so axis/gap chrome on `.chart-body` does not shift anchors. */
+export function placePointFromPointer(
+  container: HTMLElement,
+  clientX: number,
+  clientY: number,
+): ChartPlacePoint {
+  const plot = container.querySelector<HTMLElement>('.tv-lightweight-charts') ?? container;
+  return pointerPointInElement(plot, clientX, clientY);
+}
+
 export function placeArmedToolClick(input: {
   tool: string | null;
   pending: ChartPlaceAnchor | null;
@@ -73,12 +83,13 @@ export function bindArmedToolPointer(
     } catch {
       // Same as capture -- ignore if the platform cannot track it.
     }
-    onPoint(pointerPointInElement(container, event.clientX, event.clientY));
+    onPoint(placePointFromPointer(container, event.clientX, event.clientY));
   };
-  container.addEventListener('pointerdown', onDown);
-  container.addEventListener('pointerup', onUp);
+  // Capture beats Lightweight Charts canvas handlers that stop bubble.
+  container.addEventListener('pointerdown', onDown, true);
+  container.addEventListener('pointerup', onUp, true);
   return () => {
-    container.removeEventListener('pointerdown', onDown);
-    container.removeEventListener('pointerup', onUp);
+    container.removeEventListener('pointerdown', onDown, true);
+    container.removeEventListener('pointerup', onUp, true);
   };
 }

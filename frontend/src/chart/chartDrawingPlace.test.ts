@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   bindArmedToolPointer,
   placeArmedToolClick,
+  placePointFromPointer,
   pointerPointInElement,
 } from './chartDrawingPlace';
 
@@ -61,6 +62,22 @@ describe('pointerPointInElement', () => {
       55,
       30,
     )).toEqual({ x: 15, y: 20 });
+  });
+});
+
+describe('placePointFromPointer', () => {
+  it('uses the LWC host when the plot does not fill chart-body', () => {
+    const body = document.createElement('div');
+    const plot = document.createElement('div');
+    plot.className = 'tv-lightweight-charts';
+    Object.defineProperty(body, 'getBoundingClientRect', {
+      value: () => ({ left: 0, top: 0 }),
+    });
+    Object.defineProperty(plot, 'getBoundingClientRect', {
+      value: () => ({ left: 10, top: 20 }),
+    });
+    body.appendChild(plot);
+    expect(placePointFromPointer(body, 25, 40)).toEqual({ x: 15, y: 20 });
   });
 });
 

@@ -2,6 +2,23 @@ import { test, expect } from '@playwright/test';
 import { attachErrorCollector } from './helpers/errorCollector';
 
 test.describe('D-010 Trend Line two-click place', () => {
+  test('dropdown opens and arms a tool on the sample desk', async ({ page }) => {
+    const { errors } = attachErrorCollector(page);
+    await page.goto('/?view=sample&symbol=SMPL');
+    await expect(page.getByTestId('chart-desk-toolbar')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Line drawing tools' }).click();
+    const menu = page.getByTestId('chart-draw-tools-menu');
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole('menuitemradio', { name: /Trendline/ })).toBeVisible();
+    await menu.getByRole('menuitemradio', { name: /Horizontal Line/ }).click();
+
+    const chart = page.locator('.chart-body').first();
+    await expect(chart).toHaveAttribute('data-active-draw-tool', 'HorizontalLine');
+    await expect(menu).toHaveCount(0);
+    expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
+  });
+
   test('Use Trendline arms the chart body for pointerup place', async ({ page }) => {
     const { errors } = attachErrorCollector(page);
     await page.goto('/?view=sample&symbol=SMPL');
