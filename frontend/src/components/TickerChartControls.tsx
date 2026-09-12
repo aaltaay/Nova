@@ -1,9 +1,11 @@
 import {
   CHART_CARD_TITLE,
+  CHART_FULLSCREEN_ARIA,
+  CHART_FULLSCREEN_RESTORE_ARIA,
+  CHART_FULLSCREEN_RESTORE_TITLE,
+  CHART_FULLSCREEN_TITLE,
   CHART_INDICATORS,
   CHART_MOCK_DATA_LABEL,
-  CHART_PANE_MAXIMIZE_TITLE,
-  CHART_PANE_RESTORE_TITLE,
   CHART_TIMEFRAMES,
   type ChartIndicatorId,
 } from '../constants';
@@ -30,6 +32,8 @@ interface Props {
    * stays one header line (do not grow a second per-pane toolbar).
    */
   keepCompactWhenMaximized?: boolean;
+  /** Header ⛶ uses the Fullscreen API (Trader grid). */
+  useFullscreenExpand?: boolean;
   maximizeTitle?: string;
   restoreTitle?: string;
   onClearAll: () => void;
@@ -99,11 +103,15 @@ function MaximizeButton({
   onMaximize,
   maximizeTitle = 'Maximize',
   restoreTitle = 'Restore',
+  maximizeAria = 'Maximize chart',
+  restoreAria = 'Restore chart',
 }: {
   maximized: boolean;
   onMaximize: () => void;
   maximizeTitle?: string;
   restoreTitle?: string;
+  maximizeAria?: string;
+  restoreAria?: string;
 }) {
   return (
     <button
@@ -111,7 +119,8 @@ function MaximizeButton({
       className={`chart-tool-btn chart-maximize-btn${maximized ? ' chart-tool-btn--active' : ''}`}
       onClick={onMaximize}
       title={maximized ? restoreTitle : maximizeTitle}
-      aria-label={maximized ? 'Restore chart' : 'Maximize chart'}
+      aria-label={maximized ? restoreAria : maximizeAria}
+      data-testid="chart-expand-btn"
     >
       <span className="chart-tool-icon">{maximized ? '⊙' : '⛶'}</span>
     </button>
@@ -130,6 +139,7 @@ export function TickerChartControls({
   fillingHint = null,
   compact = false,
   keepCompactWhenMaximized = false,
+  useFullscreenExpand = false,
   maximizeTitle,
   restoreTitle,
   onClearAll,
@@ -141,16 +151,19 @@ export function TickerChartControls({
   // Viewport maximize covers the desk toolbar, so a compact pane grows one.
   // Grid-local maximize keeps that toolbar, so chrome stays one header line.
   const showToolbar = !compact || (maximized && !keepCompactWhenMaximized);
+  const useFullscreenCopy = useFullscreenExpand;
   const maxTitle =
-    maximizeTitle ?? (keepCompactWhenMaximized ? CHART_PANE_MAXIMIZE_TITLE : 'Maximize');
+    maximizeTitle ?? (useFullscreenCopy ? CHART_FULLSCREEN_TITLE : 'Maximize');
   const rstTitle =
-    restoreTitle ?? (keepCompactWhenMaximized ? CHART_PANE_RESTORE_TITLE : 'Restore');
+    restoreTitle ?? (useFullscreenCopy ? CHART_FULLSCREEN_RESTORE_TITLE : 'Restore');
   const maxBtn = (
     <MaximizeButton
       maximized={maximized}
       onMaximize={onMaximize}
       maximizeTitle={maxTitle}
       restoreTitle={rstTitle}
+      maximizeAria={useFullscreenCopy ? CHART_FULLSCREEN_ARIA : 'Maximize chart'}
+      restoreAria={useFullscreenCopy ? CHART_FULLSCREEN_RESTORE_ARIA : 'Restore chart'}
     />
   );
   return (

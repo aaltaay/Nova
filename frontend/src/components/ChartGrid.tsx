@@ -68,7 +68,7 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
 
   const panels = useMemo(() => buildChartGridPanels(showOptional), [showOptional]);
   const panelIds = useMemo(() => panels.map((p) => p.id), [panels]);
-  const { maximizedPaneId, setPaneMaximized, onCellDoubleClick, restore } =
+  const { maximizedPaneId, onCellDoubleClick, restore } =
     useChartGridMaximize(panelIds, activeTool, setActiveTool);
   // A hidden 10-Second pane cannot stay the toggle target.
   const focusedPane =
@@ -144,10 +144,6 @@ export function ChartGrid({ symbol, lastTrade, chartActive = true }: Props) {
           chartActive={chartActive}
           maximizeInGrid
           maximized={paneMaximized}
-          onMaximizeChange={(next) => {
-            setFocusedPaneId(panel.id);
-            setPaneMaximized(panel.id, next);
-          }}
           layoutEpoch={maximizedPaneId}
         />
       </div>

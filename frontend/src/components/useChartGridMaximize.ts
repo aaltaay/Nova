@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { shouldRestoreGridOnEscape } from '../chart/chartFullscreen';
 import { shouldToggleChartPaneMaximize } from '../chart/chartPaneMaximize';
 
 /** Session-only: which Trader grid pane fills the chart region. */
@@ -22,6 +23,7 @@ export function useChartGridMaximize(
         setActiveTool(null);
         return;
       }
+      if (!shouldRestoreGridOnEscape(event, activeTool)) return;
       if (maximizedPaneId) setMaximizedPaneId(null);
     };
     window.addEventListener('keydown', onKeyDown);

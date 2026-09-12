@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- Chart expand icon enters true fullscreen
+
+- **What:** The Trader pane header four-arrows control (⛶, next to Hide 10-Second / Restore grid chrome) enters browser/OS fullscreen for that chart. Double-click stays #113 grid-only maximize. Esc exits fullscreen and returns to the prior desk layout.
+- **Why:** Issue #115. After #113 the header icon shared the grid-maximize path. Operator clarification: wire ⛶ to true fullscreen; keep double-click as grid maximize.
+- **Files touched:** `useTickerChartMaximize.ts`, `chartFullscreen.ts`, `useChartFullscreen.ts`, `useChartGridMaximize.ts`, `TickerChart.tsx`, `TickerChartControls.tsx`, `ChartGrid.tsx`, `tickerChart.css`.
+- **How it works now:** Two expand paths. Double-click sets `ChartGrid` `maximizedPaneId` (rails stay). Header ⛶ calls `requestFullscreen` on that pane's portal host. Esc exits fullscreen first and does not clear grid maximize on that same keypress. Quote Panel / standalone charts still use the body portal.
+- **Verified by:** Vitest (`chartFullscreen`, `useTickerChartMaximize`, `ChartGrid`, `TickerChartControls`) plus Playwright `chart-pane-maximize.spec.ts` (grid double-click, header fullscreen, Esc keeps grid-max).
+- **Related:** Closes #115. Refs #110 / PR #113. PROBLEM_LOG 2026-09-12 Chart expand icon.
+
 ## 2026-09-12 -- Chart Long/Short tag opens a position menu
 
 - **What:** Left-click (or right-click) the Long/Short position badge on a ticker chart opens an in-app menu: Close Position and View Trade Details. Esc and click-outside dismiss it. Chart draw/pan do not start from the badge.

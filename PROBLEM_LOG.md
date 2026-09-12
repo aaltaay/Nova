@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-12 -- Chart expand icon shared grid maximize instead of fullscreen
+
+- **Symptom:** After #113, the four-arrows header control on Trader panes (e.g. 10-SECOND, near Hide 10-Second / Restore grid) toggled grid-only maximize. Operator wanted true browser/OS fullscreen; Esc should leave fullscreen and keep the prior desk.
+- **Cause:** `ChartGrid` passed `onMaximizeChange` into `TickerChart`, so `useTickerChartMaximize` treated header ⛶ as the same controlled grid path as double-click (`portalMaximized = !maximizeInGrid && maximized`).
+- **Fix:** Header ⛶ calls `requestFullscreen` on the chart portal host. Double-click still sets `maximizedPaneId`. Esc consumes fullscreen first (`shouldRestoreGridOnEscape`) and does not clear grid maximize on that keypress.
+- **Fix class:** ownership
+- **Keywords:** #115, #113, #110, fullscreen, requestFullscreen, chart-expand-btn, ChartGrid, useTickerChartMaximize
+
 ## 2026-09-12 -- Trader drawing tools dead (dropdown + place)
 
 - **Symptom:** On the Trader 2x2 chart grid the drawing-tool chevron did nothing useful (menu never appeared). Trend Line / other tools would not stay armed, so two-click place never completed. Existing drawings still painted.

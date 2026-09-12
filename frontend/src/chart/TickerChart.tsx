@@ -66,10 +66,10 @@ interface TickerChartProps {
   onFocusPane?: () => void;
   /** When false, pause bar polling and resize work (hidden Trader tab). */
   chartActive?: boolean;
-  /** Controlled maximize (Trader grid owns session-only pane expand). */
+  /** Grid-local maximize (#113). Header ⛶ is fullscreen, not this flag. */
   maximized?: boolean;
   onMaximizeChange?: (next: boolean) => void;
-  /** Expand inside the 2x2 chart region -- do not portal over quote/trade rails. */
+  /** Double-click expands inside the 2x2; header ⛶ uses the Fullscreen API. */
   maximizeInGrid?: boolean;
   /** Bumps when the grid maximize layout flips so hidden siblings remeasure. */
   layoutEpoch?: string | null;
@@ -121,12 +121,20 @@ function TickerChartInner({
     fixedTimeframe ?? CHART_DEFAULT_TIMEFRAME,
   );
   const timeframe = fixedTimeframe ?? userTimeframe;
-  const { maximized, setMaximized, toggleMaximize, portalMaximized, slotRef, host } =
-    useTickerChartMaximize({
-      maximizeInGrid,
-      maximized: controlledMaximized,
-      onMaximizeChange,
-    });
+  const {
+    maximized,
+    headerMaximized,
+    isFullscreen,
+    setMaximized,
+    toggleMaximize,
+    portalMaximized,
+    slotRef,
+    host,
+  } = useTickerChartMaximize({
+    maximizeInGrid,
+    maximized: controlledMaximized,
+    onMaximizeChange,
+  });
   const [localIndicators, setLocalIndicators] = useState<ChartIndicatorId[]>(
     () => [...(initialIndicators ?? CHART_DEFAULT_INDICATORS)],
   );
@@ -220,7 +228,7 @@ function TickerChartInner({
   // One 04:00-anchored VWAP for every pane, not a per-timeframe accumulation.
   const vwapSource = useVwapSourceBars(symbol, chartActive);
 
-  useTickerChartEscape(activeTool, setActiveTool, maximized, setMaximized);
+  useTickerChartEscape(activeTool, setActiveTool, headerMaximized, setMaximized);
 
   const account = useOptionalIbkrAccountContext();
   const openPosition = findOpenPosition(account?.positions ?? [], symbol);
@@ -270,13 +278,14 @@ function TickerChartInner({
         activeTool={activeTool}
         enabledIndicators={enabledIndicators}
         lockTimeframe={lockTimeframe}
-        maximized={maximized}
+        maximized={headerMaximized}
         subtitle={subtitle}
         timeframe={timeframe}
         title={title}
         usingMock={usingMock}
         compact={compactChrome}
-        keepCompactWhenMaximized={maximizeInGrid}
+        keepCompactWhenMaximized={maximizeInGrid && !isFullscreen}
+        useFullscreenExpand={maximizeInGrid}
         fillingHint={
           filling && indicatorBars.length > 0
             ? (coverageClock ? `as of ${coverageClock} ET, filling…` : 'filling…')
