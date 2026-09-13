@@ -218,7 +218,20 @@ IBKR_COMPLETED_ORDERS_MIN_INTERVAL_SEC = 300.0
 IBKR_GATEWAY_ROOT = r"C:\Jts\ibgateway"
 IBKR_GATEWAY_EXE_DEFAULT = r"C:\Jts\ibgateway\1045\ibgateway.exe"
 # Optional IBC launcher (credentials stay outside git — see docs/ibc-gateway-setup.md).
+# Join with Path.home() / ".nova" / "ibc" / "start_gateway.ps1" -- do not
+# concatenate the backslash string on Linux Path (CI + Cloud).
 IBKR_IBC_LAUNCHER_REL = r".nova\ibc\start_gateway.ps1"
+IBKR_LAUNCH_MISSING_CREDS_MSG = (
+    "Open live/paper cannot prefill Gateway username/password -- "
+    "%USERPROFILE%\\.nova\\ibc\\config.ini is missing IbLoginId/IbPassword "
+    "(set IbLoginIdLive / IbLoginIdPaper too). See docs/ibc-gateway-setup.md."
+)
+IBKR_LAUNCH_MISSING_IBC_MSG = (
+    "Open live/paper cannot prefill Gateway login -- IBC launcher missing at "
+    "%USERPROFILE%\\.nova\\ibc\\start_gateway.ps1. "
+    "Copy scripts/start_gateway_ibc.ps1.example and install IBC. "
+    "Raw ibgateway.exe leaves username/password empty."
+)
 # Both doors keep the week-long Gateway token (self-restart nightly, no daily
 # cold 2FA) -- see PROBLEM_LOG 2026-08-25. A routine launch/attach never clears
 # it; only an explicit re-auth (force_fresh_login) does, via jts_ini.clear_restart_token.

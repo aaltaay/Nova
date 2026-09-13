@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-13 -- Open live empty login
+
+- **Symptom:** Localhost Trader desk offline. Open live Gateway did nothing; Gateway login stayed empty.
+- **Cause:** `spawn_mode_gateway` fell through to raw `ibgateway.exe` when IBC was missing or failed, while the UI claimed IBC filled username/password (SendInput fill was already abandoned). Vite `POST /__nova/launch-gateway` only ran after API 404, so localhost web 401 (`X-Nova-Api-Key`) never launched. Trader unmounts `DashboardPage`, which hid the only loud banner with those buttons.
+- **Fix:** IBC-only mode spawn (refuse `missing_credentials` / `missing_ibc`). Vite aligns `config.ini` and starts IBC, not the raw exe. `launchIbGateway` falls back on 401 as well as 404. `GatewayDisconnectedBannerHost` mounts above Scanner and Trader.
+- **Fix class:** ownership
+- **Keywords:** Open live Gateway, IBC, IbLoginId, IbPassword, launch-gateway, 401, Vite fallback, Trader banner
+
 ## 2026-09-12 -- AI news digest GH006 on protected master
 
 - **Symptom:** Scheduled workflow `AI news digest` failed every run that had content changes. Log: `GH006: Protected branch update failed for refs/heads/master` / `4 of 4 required status checks are expected`. PR and push CI stayed green.

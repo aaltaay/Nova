@@ -40,6 +40,15 @@ Never commit `config.ini`. Add to your global gitignore if needed:
 **/.nova/ibc/
 ```
 
+## Open live / Open paper from Nova
+
+Those buttons start IBC (`%USERPROFILE%\.nova\ibc\start_gateway.ps1`) after
+copying `IbLoginIdLive` / `IbLoginIdPaper` onto `IbLoginId`. IBC types
+username/password into Gateway. They do **not** start raw `ibgateway.exe` --
+that leaves the login form empty and looks like a no-op. If `config.ini` or
+the launcher is missing, Nova shows the error instead of opening an empty
+login. IBKR Mobile 2FA still needs you.
+
 ## Launch
 
 Preferred (after local setup under `%USERPROFILE%\.nova\ibc\`):

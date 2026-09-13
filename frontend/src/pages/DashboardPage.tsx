@@ -7,7 +7,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ScannerSideNav } from '../components/TabNav';
 import { TabModuleHost } from '../components/TabModuleHost';
 import { SelectedScannerWidget } from '../components/SelectedScannerWidget';
-import { GatewayDisconnectedBanner } from '../ibkr/GatewayDisconnectedBanner';
 import { SidePanel } from '../components/SidePanel';
 import { PanelResizeHandle } from '../components/PanelResizeHandle';
 import { GLOBAL_BAR_OPEN_TRADING_TAB_EVENT } from '../constants';
@@ -40,12 +39,6 @@ export function DashboardPage() {
     selectRowSymbol,
     setDiscoveryProvider: setWorkspaceDiscovery,
     setAlpacaFeed: setWorkspaceAlpacaFeed,
-    ibkrConnected,
-    ibkrTransportConnected,
-    ibkrPortsDark,
-    ibkrDisconnectHint,
-    ibkrSecondFactorStale,
-    ibkrGatewayMode,
   } = useWorkspace();
   const { hodCount, runningUpCount, focusDock } = useHodMomo();
   const [activeTab, setActiveTab] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
@@ -212,16 +205,6 @@ export function DashboardPage() {
       />
 
       <div className="main-col main-col--scanner-stack">
-        <GatewayDisconnectedBanner
-          discoveryProvider={settings.discoveryProvider}
-          ibkrConnected={ibkrConnected}
-          ibkrTransportConnected={ibkrTransportConnected}
-          ibkrPortsDark={ibkrPortsDark}
-          ibkrDisconnectHint={ibkrDisconnectHint}
-          ibkrGatewayMode={ibkrGatewayMode}
-          ibkrSecondFactorStale={ibkrSecondFactorStale}
-        />
-
         <HodMomoDock />
 
         <ScannerDesk>

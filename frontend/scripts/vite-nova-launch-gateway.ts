@@ -9,10 +9,9 @@ import os from 'node:os';
 import path from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
+import { alignIbcConfigIni, ibcConfigHasCredentials } from './alignIbcConfig';
 
 const START_PATH = '/__nova/launch-gateway';
-const GATEWAY_ROOT = 'C:\\Jts\\ibgateway';
-const GATEWAY_DEFAULT = 'C:\\Jts\\ibgateway\\1045\\ibgateway.exe';
 
 let launching = false;
 
@@ -22,22 +21,40 @@ function sendJson(res: ServerResponse, status: number, body: Record<string, unkn
   res.end(JSON.stringify(body));
 }
 
-function resolveGatewayExe(): string | null {
-  const override = (process.env.IBKR_GATEWAY_EXE || '').trim();
-  if (override && fs.existsSync(override)) return override;
-  if (fs.existsSync(GATEWAY_DEFAULT)) return GATEWAY_DEFAULT;
-  if (!fs.existsSync(GATEWAY_ROOT)) return null;
-  const versions = fs
-    .readdirSync(GATEWAY_ROOT, { withFileTypes: true })
-    .filter((d) => d.isDirectory())
-    .map((d) => path.join(GATEWAY_ROOT, d.name, 'ibgateway.exe'))
-    .filter((p) => fs.existsSync(p));
-  return versions.sort().at(-1) ?? null;
+function ibcDir(): string {
+  return path.join(os.homedir(), '.nova', 'ibc');
 }
 
 function ibcLauncher(): string | null {
-  const candidate = path.join(os.homedir(), '.nova', 'ibc', 'start_gateway.ps1');
+  const candidate = path.join(ibcDir(), 'start_gateway.ps1');
   return fs.existsSync(candidate) ? candidate : null;
+}
+
+function ibcConfigFile(): string {
+  return path.join(ibcDir(), 'config.ini');
+}
+
+function alignLocalIbc(mode: 'paper' | 'live'): { ok: boolean; action?: string; message?: string } {
+  const iniPath = ibcConfigFile();
+  if (!fs.existsSync(iniPath)) {
+    return {
+      ok: false,
+      action: 'missing_credentials',
+      message:
+        'Open live/paper cannot prefill Gateway login -- %USERPROFILE%\\.nova\\ibc\\config.ini is missing. See docs/ibc-gateway-setup.md.',
+    };
+  }
+  const next = alignIbcConfigIni(fs.readFileSync(iniPath, 'utf8'), mode);
+  fs.writeFileSync(iniPath, next, 'utf8');
+  if (!ibcConfigHasCredentials(next)) {
+    return {
+      ok: false,
+      action: 'missing_credentials',
+      message:
+        'Open live/paper cannot prefill Gateway login -- IBC config.ini is missing IbLoginId/IbPassword. See docs/ibc-gateway-setup.md.',
+    };
+  }
+  return { ok: true };
 }
 
 function probePort(port: number, timeoutMs = 400): Promise<boolean> {
@@ -58,6 +75,13 @@ function probePort(port: number, timeoutMs = 400): Promise<boolean> {
 async function focusOrLaunch(
   mode?: 'paper' | 'live',
 ): Promise<{ ok: boolean; action: string; message: string; path?: string }> {
+  if (process.platform !== 'win32') {
+    return {
+      ok: false,
+      action: 'unsupported',
+      message: 'Gateway launch is only supported on Windows.',
+    };
+  }
   if (mode) {
     const want = mode === 'live' ? 4001 : 4002;
     if (await probePort(want)) {
@@ -69,57 +93,36 @@ async function focusOrLaunch(
           'Did not start another Gateway.',
       };
     }
+    const aligned = alignLocalIbc(mode);
+    if (!aligned.ok) {
+      return {
+        ok: false,
+        action: aligned.action || 'missing_credentials',
+        message: aligned.message || 'IBC credentials missing.',
+      };
+    }
   }
   const ibc = ibcLauncher();
-  if (ibc) {
-    const extra = mode ? ['-TradingMode', mode] : [];
-    spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ibc, ...extra], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-    }).unref();
-    return {
-      ok: true,
-      action: 'launched_ibc',
-      path: ibc,
-      message:
-        'Started IB Gateway via IBC (Vite). Complete IBKR Mobile 2FA if prompted.',
-    };
-  }
-
-  const exe = resolveGatewayExe();
-  if (!exe) {
+  if (!ibc) {
     return {
       ok: false,
-      action: 'not_found',
-      message: `IB Gateway not found under ${GATEWAY_ROOT}. Install it or set IBKR_GATEWAY_EXE.`,
+      action: 'missing_ibc',
+      message:
+        'Open live/paper cannot prefill Gateway login -- IBC launcher missing at %USERPROFILE%\\.nova\\ibc\\start_gateway.ps1. Raw ibgateway.exe leaves username/password empty.',
     };
   }
-
-  spawn(exe, [], {
-    cwd: path.dirname(exe),
+  const extra = mode ? ['-TradingMode', mode] : [];
+  spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ibc, ...extra], {
     detached: true,
     stdio: 'ignore',
-    windowsHide: false,
+    windowsHide: true,
   }).unref();
-
-  // Best-effort focus (may race with window creation).
-  spawn(
-    'powershell',
-    [
-      '-NoProfile',
-      '-Command',
-      "Get-Process ibgateway,tws -ErrorAction SilentlyContinue | ForEach-Object { $_.MainWindowHandle }",
-    ],
-    { detached: true, stdio: 'ignore', windowsHide: true },
-  ).unref();
-
   return {
     ok: true,
-    action: 'launched',
-    path: exe,
+    action: 'launched_ibc',
+    path: ibc,
     message:
-      'Started IB Gateway (Vite). Look for its login window and complete 2FA if prompted.',
+      'Started IB Gateway via IBC (Vite). IBC fills username/password. Complete IBKR Mobile 2FA if prompted.',
   };
 }
 
@@ -152,7 +155,7 @@ export function novaLaunchGatewayPlugin(): Plugin {
             const q = new URL(rawUrl, 'http://vite.local').searchParams.get('mode');
             const mode = q === 'paper' || q === 'live' ? q : undefined;
             const result = await focusOrLaunch(mode);
-            sendJson(res, result.ok ? 200 : 404, result);
+            sendJson(res, result.ok ? 200 : 409, result);
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             console.error('[nova-launch-gateway]', message);

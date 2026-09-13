@@ -12,6 +12,16 @@ export type LaunchIbGatewayResult = {
   path?: string;
 };
 
+function shouldTryViteDevFallback(message: string): boolean {
+  return (
+    message.includes('404')
+    || message.includes('Not Found')
+    || message.includes('401')
+    || message.includes('X-Nova-Api-Key')
+    || /invalid or missing/i.test(message)
+  );
+}
+
 function parseBody(body: Record<string, unknown>): LaunchIbGatewayResult {
   const detail = typeof body.detail === 'string' ? body.detail : undefined;
   const message =
@@ -108,8 +118,9 @@ export async function launchIbGateway(
     );
     if (primary.httpOk) return primary.result;
 
-    // Stale API without the route → Vite can still spawn Gateway in local dev.
-    if (primary.result.message.includes('404') || primary.result.message.includes('Not Found')) {
+    // Stale API (404) or localhost web missing the desktop API key (401) --
+    // Vite can still start IBC and prefill from %USERPROFILE%\.nova\ibc.
+    if (shouldTryViteDevFallback(primary.result.message)) {
       const viaVite = await launchViaViteDev(mode);
       if (viaVite) return viaVite;
       return {

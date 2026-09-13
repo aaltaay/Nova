@@ -8,12 +8,13 @@ from pathlib import Path
 from constants_ibkr import (
     IBKR_GATEWAY_EXE_DEFAULT,
     IBKR_GATEWAY_ROOT,
-    IBKR_IBC_LAUNCHER_REL,
 )
 
 
 def _ibc_launcher() -> Path | None:
-    candidate = Path.home() / IBKR_IBC_LAUNCHER_REL
+    # IBKR_IBC_LAUNCHER_REL is a Windows relative string. Joining it onto
+    # Path.home() on POSIX makes one filename (".nova\\ibc\\..."). Use parts.
+    candidate = Path.home() / ".nova" / "ibc" / "start_gateway.ps1"
     return candidate if candidate.is_file() else None
 
 

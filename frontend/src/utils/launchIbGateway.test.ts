@@ -80,17 +80,43 @@ describe('launchIbGateway', () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain('/__nova/launch-gateway');
   });
 
-  it('surfaces non-404 HTTP failures', async () => {
+  it('falls back to Vite middleware when API rejects the key (localhost web)', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ detail: 'Invalid or missing X-Nova-Api-Key' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          action: 'launched_ibc',
+          message: 'Started via Vite',
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await launchIbGateway('live');
+    expect(result.ok).toBe(true);
+    expect(result.message).toMatch(/Vite/i);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/__nova/launch-gateway');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('mode=live');
+  });
+
+  it('surfaces non-auth HTTP failures when Vite is not available', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: false,
         status: 503,
-        json: async () => ({ message: 'API key required' }),
+        json: async () => ({ message: 'Gateway launch already in progress' }),
       }),
     );
     const result = await launchIbGateway();
     expect(result.ok).toBe(false);
-    expect(result.message).toMatch(/API key/);
+    expect(result.message).toMatch(/already in progress|503/);
   });
 });
