@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-13 -- Closed integrity false fail
+
+- **Symptom:** MARKET CLOSED + DESK up + Paper Live showed a red Integrity fail (empty surge/rvol, gainers/losers "no cache yet -- no sibling") and Gainers "Unavailable -- no live roster / not a quiet market."
+- **Cause:** `evaluate_hod_integrity` failed no-trades before the closed idle gate, and empty-buffer/coverage/enrichment checks had no session gate. `evaluate_scanner_integrity` failed empty no-cache tables whenever IBKR was up and no sibling was live, including Closed (no day-trade leases). EmptyState painted `honestyHint` before the closed-market copy.
+- **Fix:** Shared `session_is_idle` on `HOD_MOMO_INTEGRITY_TICK_IDLE_MODES`. Closed passes expected-empty HOD/scanner/L1 checks. Gateway disconnect and live RTH empty Gainers / stale L1 still fail. Closed empty state uses the market-closed copy.
+- **Fix class:** admission
+- **Keywords:** Integrity fail, MARKET CLOSED, hod_surge_buffer, hod_enrichment, scanner_gainers, no live roster, session_is_idle, HOD_MOMO_INTEGRITY_TICK_IDLE_MODES
+
 ## 2026-09-13 -- Open live empty login
 
 - **Symptom:** Localhost Trader desk offline. Open live Gateway did nothing; Gateway login stayed empty.

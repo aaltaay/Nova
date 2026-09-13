@@ -46,6 +46,23 @@ describe('EmptyState history', () => {
     expect(container.textContent).not.toContain('Scanning continues');
   });
 
+  it('closed session does not treat an unavailable roster as a feed death', async () => {
+    await act(() => {
+      root.render(
+        <EmptyState
+          health={{ status: 'ok', latency_ms: 1 }}
+          context="closed"
+          discoveryProvider="ibkr"
+          emptyLabel="gainers"
+          honestyHint="Unavailable -- no live roster"
+        />,
+      );
+    });
+    expect(container.textContent).toMatch(/Market is closed/);
+    expect(container.textContent).not.toMatch(/not a quiet market/);
+    expect(container.textContent).not.toMatch(/Unavailable -- no live roster/);
+  });
+
   it('does not point at the HOD integrity banner, and paints feed_error', async () => {
     await act(() => {
       root.render(

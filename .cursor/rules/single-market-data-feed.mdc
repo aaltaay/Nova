@@ -49,7 +49,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
  - **Roster admission is name-only (ADR 010 decision 5).** An IB scanner name becomes a row immediately, with `price=null` until the first L1 tick. Admission must never `await` a COLD `snapshot_quotes` / `reqTickersAsync` — that coupling emptied the desk for a full premarket on 2026-08-24 when every cold batch died on the 20s `on_ib` ceiling. Row order is IB's rank; do not re-sort a ranked scan.
  - **Premarket Gappers is a projection, not a lease.** `backend/ibkr/gapper_view.py` filters the live Gainers roster to `GAPPER_MIN_GAP_PCT`. `TOP_OPEN_PERC_GAIN` has no open to measure before 09:30 ET (IB answers with Warning 165), so it gets no premarket lease. The projection freezes at 09:30 like any other table.
  - **One roster owner per table.** With `discovery=ibkr` the persistent lease is the only writer: `scanner_runners/discovery.py` and `scanner_runners/movers.py` refuse, and `adapters/ibkr_scanner.py` raises. Rollback is git revert, not a second writer (ADR 010 decision 10).
- - **Empty is not fresh.** A batch with no names (Warning 165) must not stamp `table_state=live` + a new `last_scan`. Leave the roster untouched and let integrity alarm. Each table (`gappers`/`gainers`/`losers`/`afterhours`) carries its own `session_key` (04:00 ET-anchored), `state` (`live`/`frozen`/`unavailable`), `revision`, `roster_ts`, and `frozen_at` in `runtime_state`:
+ - **Empty is not fresh.** A batch with no names (Warning 165) must not stamp `table_state=live` + a new `last_scan`. Leave the roster untouched and let integrity alarm **inside the table's live window**. Closed (`HOD_MOMO_INTEGRITY_TICK_IDLE_MODES`) has no day-trade leases: empty hist/HOD/scanner buffers and missing L1 must pass, not Integrity fail. Gateway disconnect, live RTH/premarket empty Gainers with IBKR up, and hard-stale L1 still fail loud. Each table (`gappers`/`gainers`/`losers`/`afterhours`) carries its own `session_key` (04:00 ET-anchored), `state` (`live`/`frozen`/`unavailable`), `revision`, `roster_ts`, and `frozen_at` in `runtime_state`:
    - Gappers is `live` 04:00–09:30 ET, then `frozen` (immutable) for the rest of the session.
    - Gainers is `live` 04:00–16:00 ET, then `frozen`.
    - Afterhours is `live` 16:00–20:00 ET, then `frozen`.
@@ -103,6 +103,7 @@ Scanner discovery is **IBKR-only** (`NOVA_DISCOVERY_PROVIDER=ibkr`). Interactive
 - ❌ Rendering `0.00` for a newly admitted scanner name that has no L1 tick yet
 - ❌ Opening a `TOP_OPEN_PERC_GAIN` lease before 09:30 ET, or treating its Warning 165 empty result as "no gaps today"
 - ❌ Letting one empty table vouch for another ("OK if another scanner list is live") when both are empty
+- ❌ Painting Integrity fail for empty hist/HOD/scanner buffers when `current_mode` is closed (no live roster is expected)
 - ❌ Mutating a `frozen` table's membership/rank/values/timestamp after its session boundary
 - ❌ Applying a scanner/hydration callback from a superseded IB generation, subscription epoch, or session key
 - ❌ Reviving HOD volume seeds, a `belowPrice` Gainers pass, open-ticker priority, or Losers as HOD inputs

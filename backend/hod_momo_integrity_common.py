@@ -16,6 +16,21 @@ def check(cid: str, status: str, detail: str) -> dict[str, str]:
     return {"id": cid, "status": status, "detail": detail}
 
 
+def session_is_idle(mode: str | None) -> bool:
+    """Closed (and any other idle) session -- no live tape or roster expected.
+
+    Reuses ``HOD_MOMO_INTEGRITY_TICK_IDLE_MODES`` so HOD buffer checks and
+    scanner empty-cache checks share one session gate.
+    """
+    from constants import HOD_MOMO_INTEGRITY_TICK_IDLE_MODES
+
+    return (mode or "").strip().lower() in HOD_MOMO_INTEGRITY_TICK_IDLE_MODES
+
+
+def idle_pass(cid: str, mode: str, why: str) -> dict[str, str]:
+    return check(cid, "pass", f"market closed (mode={mode}) -- {why}")
+
+
 def age_gate(
     *,
     cid: str,

@@ -80,7 +80,9 @@ HOD_MOMO_INTEGRITY_TICK_WARN_SEC = 3.0         # soft warn before hard stale fai
 # (fail) gate stays tight -- a genuinely dead feed is still caught fast.
 HOD_MOMO_INTEGRITY_TICK_WARN_EXTENDED_SEC = 12.0  # warn for premarket/afterhours
 HOD_MOMO_INTEGRITY_TICK_WARN_MODES = frozenset({"premarket", "afterhours"})
-HOD_MOMO_INTEGRITY_TICK_IDLE_MODES = frozenset({"closed"})  # no live tape expected
+# Closed (and any future idle modes): no live tape, roster, or HOD buffers.
+# Scanner empty-cache and HOD hist/surge/rvol checks reuse this set.
+HOD_MOMO_INTEGRITY_TICK_IDLE_MODES = frozenset({"closed"})
 HOD_MOMO_INTEGRITY_WARMUP_SEC = 90.0           # grace after process start before tick check fails
 HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC = 240.0  # buffer span for "ready" (4 of 5 min window)
 HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT = 40.0  # % of buffered symbols that must be ready
