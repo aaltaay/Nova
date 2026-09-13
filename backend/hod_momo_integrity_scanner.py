@@ -11,7 +11,7 @@ from constants import (
     SCANNER_ROW_PRICE_GRACE_SEC,
     SCANNER_ROW_PRICE_WARN_PCT,
 )
-from hod_momo_integrity_common import check, worst
+from hod_momo_integrity_common import check, idle_pass, session_is_idle, worst
 
 # Gappers freeze at the open by design — do not fail RTH/AH on a stale gapper cache.
 _GAPPER_OPTIONAL_MODES = frozenset({"market", "regular", "rth", "afterhours", "closed"})
@@ -162,6 +162,15 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             ))
             continue
 
+        if session_is_idle(mode):
+            age_bit = f" age={float(age):.0f}s" if age is not None else ""
+            checks.append(idle_pass(
+                f"scanner_{name}",
+                mode,
+                f"{name}: {count} rows{age_bit} -- no live roster expected",
+            ))
+            continue
+
         if name == "gappers" and mode in _GAPPER_OPTIONAL_MODES:
             if age is not None:
                 detail = (
@@ -295,7 +304,11 @@ def evaluate_scanner_integrity(snap: dict[str, Any]) -> dict[str, Any]:
     l1_age = snap.get("scanner_l1_age_sec")
     stream_age = l1_event_age if l1_event_age is not None else l1_age
     if provider == "ibkr":
-        if stream_age is None:
+        if session_is_idle(mode):
+            checks.append(idle_pass(
+                "scanner_l1_stream", mode, "no active-table L1 expected",
+            ))
+        elif stream_age is None:
             checks.append(check(
                 "scanner_l1_stream",
                 "warn",

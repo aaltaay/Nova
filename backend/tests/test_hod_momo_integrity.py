@@ -238,6 +238,75 @@ def test_hod_tick_closed_mode_is_pass():
     assert tick["status"] == "pass"
 
 
+def _closed_empty_hod(**overrides):
+    """Sunday / MARKET CLOSED desk: empty hist/HOD/surge/rvol buffers."""
+    snap = _base_hod(
+        current_mode="closed",
+        universe_size=1,
+        active_set_size=1,
+        uncovered_count=0,
+        active_coverage_pct=0.0,
+        active_quote_age_p95=None,
+        active_quote_age_max=None,
+        active_eval_age_p95=None,
+        active_eval_age_max=None,
+        total_trades_seen=0,
+        last_trade_age_sec=None,
+        buffer_symbol_count=1,
+        surge_ready_count=0,
+        surge_seeded_count=1,
+        pending_surge_seeds=0,
+        snaps_with_rvol=0,
+        snaps_tracked=1,
+    )
+    snap.update(overrides)
+    return snap
+
+
+def test_closed_empty_hod_buffers_pass():
+    """Closed session: empty buffers must not overall Integrity fail or warn."""
+    report = evaluate_hod_integrity(_closed_empty_hod())
+    assert report["status"] == "pass"
+    for cid in (
+        "hod_ticks_flowing",
+        "hod_active_set",
+        "hod_active_quote_age",
+        "hod_active_eval_age",
+        "hod_surge_buffer",
+        "hod_enrichment",
+    ):
+        chk = next(c for c in report["checks"] if c["id"] == cid)
+        assert chk["status"] == "pass", cid
+
+
+def test_rth_empty_hod_tape_still_fails():
+    """Same empty buffers during live RTH stay fail-loud (no trades into HOD)."""
+    report = evaluate_hod_integrity(_closed_empty_hod(current_mode="market"))
+    assert report["status"] == "fail"
+    tick = next(c for c in report["checks"] if c["id"] == "hod_ticks_flowing")
+    assert tick["status"] == "fail"
+
+
+def test_closed_healthy_desk_merge_is_pass():
+    """Merged HOD+scanner report stays pass when closed and IBKR is up."""
+    hod = evaluate_hod_integrity(_closed_empty_hod())
+    scan = evaluate_scanner_integrity({
+        "discovery_provider": "ibkr",
+        "ibkr_connected": True,
+        "current_mode": "closed",
+        "gapper_count": 0,
+        "gainer_count": 0,
+        "loser_count": 0,
+        "gapper_age_sec": None,
+        "gainer_age_sec": None,
+        "loser_age_sec": None,
+        "scanner_l1_event_age_sec": None,
+    })
+    merged = merge_integrity(hod, scan)
+    assert merged["status"] == "pass"
+    assert merged["ok"] is True
+
+
 def test_hod_tick_stale_downgrades_when_delayed_data():
     """IBKR-reported delayed data makes a stale tick informational, not fail."""
     report = evaluate_hod_integrity(_base_hod(

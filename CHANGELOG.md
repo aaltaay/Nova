@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-13 -- Closed-session integrity is not a fail
+
+- **What:** Empty hist/HOD/scanner buffers and missing L1 no longer roll up to Integrity fail when the market is closed. Live RTH still fails loud on empty Gainers, stale L1, or Gateway down. Closed Gainers empty state uses the calm market-closed copy instead of "not a quiet market."
+- **Why:** A healthy closed desk (IBKR up, Paper positions, no leases) looked broken. Integrity already knew closed ticks are idle; empty-cache and buffer checks did not.
+- **Files touched:** `backend/hod_momo_integrity_hod.py`, `backend/hod_momo_integrity_scanner.py`, `backend/hod_momo_integrity_common.py`, `frontend/src/components/EmptyState.tsx`, `.cursor/rules/single-market-data-feed.mdc`.
+- **How it works now:** `session_is_idle` (`HOD_MOMO_INTEGRITY_TICK_IDLE_MODES`, currently `closed`) passes HOD buffer/coverage/enrichment/age SLOs and scanner empty-cache/L1 checks. `scanner_feed` still fails when IBKR is down. Premarket/RTH empty Gainers with IBKR up still fail. The banner still hides on pass.
+- **Verified by:** pytest `test_closed_empty_hod_buffers_pass`, `test_rth_empty_hod_tape_still_fails`, `test_closed_empty_caches_pass`, `test_rth_empty_gainers_still_fail_with_ibkr_up`, `test_rth_stale_l1_still_fails`, sibling-vouch suite; Vitest EmptyState closed+honestyHint.
+- **Related:** Closes #130. PROBLEM_LOG 2026-09-13 -- Closed integrity false fail.
+
 ## 2026-09-13 -- Open live Gateway prefills via IBC only
 
 - **What:** Open live/paper starts IBC with aligned `IbLoginId` / `IbPassword`. Missing IBC or credentials is a loud error. Localhost Vite also falls back after a 401 (missing desktop API key). The login banner stays mounted on Trader, not only Scanner.

@@ -13,14 +13,13 @@ from constants import (
     HOD_MOMO_INTEGRITY_ENRICHED_MIN_PCT,
     HOD_MOMO_INTEGRITY_SURGE_MIN_SPAN_SEC,
     HOD_MOMO_INTEGRITY_SURGE_READY_MIN_PCT,
-    HOD_MOMO_INTEGRITY_TICK_IDLE_MODES,
     HOD_MOMO_INTEGRITY_TICK_STALE_SEC,
     HOD_MOMO_INTEGRITY_TICK_WARN_EXTENDED_SEC,
     HOD_MOMO_INTEGRITY_TICK_WARN_MODES,
     HOD_MOMO_INTEGRITY_TICK_WARN_SEC,
     HOD_MOMO_INTEGRITY_WARMUP_SEC,
 )
-from hod_momo_integrity_common import age_gate, check, worst
+from hod_momo_integrity_common import age_gate, check, idle_pass, session_is_idle, worst
 
 
 def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
@@ -40,8 +39,14 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
     tracked = int(snap.get("snaps_tracked") or 0)
     surge_none_after_seed = int(snap.get("surge_none_after_seed_count") or 0)
     active_coverage = snap.get("active_coverage_pct")
+    mode = (snap.get("current_mode") or "").strip().lower()
+    idle = session_is_idle(mode)
 
-    if universe <= 0:
+    if idle:
+        checks.append(idle_pass(
+            "hod_ticks_flowing", mode, "no live tape expected",
+        ))
+    elif universe <= 0:
         checks.append(check(
             "hod_ticks_flowing",
             "warn",
@@ -62,65 +67,60 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
     else:
         # Session-aware warn gate: premarket/afterhours tapes print in bursts,
         # so multi-second gaps are healthy there; RTH stays second-by-second.
-        # The hard stale (fail) gate is session-independent -- a dead feed is
-        # always a dead feed.
-        mode = (snap.get("current_mode") or "").strip().lower()
-        if mode in HOD_MOMO_INTEGRITY_TICK_IDLE_MODES:
-            checks.append(check(
-                "hod_ticks_flowing",
-                "pass",
-                f"market closed (mode={mode}) -- no live tape expected",
-            ))
-        else:
-            warn_sec = (
-                HOD_MOMO_INTEGRITY_TICK_WARN_EXTENDED_SEC
-                if mode in HOD_MOMO_INTEGRITY_TICK_WARN_MODES
-                else HOD_MOMO_INTEGRITY_TICK_WARN_SEC
-            )
-            age_f = float(last_age)
-            # When IBKR itself reports delayed data or a line-limit overflow,
-            # sparse ticks are expected -- informational, not a Nova alarm.
-            degraded = bool(snap.get("delayed_data") or snap.get("max_tickers_hit"))
-            if age_f > HOD_MOMO_INTEGRITY_TICK_STALE_SEC:
-                if degraded:
-                    checks.append(check(
-                        "hod_ticks_flowing",
-                        "pass",
-                        f"last HOD tick {age_f:.1f}s ago -- IBKR delayed / "
-                        f"line-limit (informational, not a feed failure)",
-                    ))
-                else:
-                    checks.append(check(
-                        "hod_ticks_flowing",
-                        "fail",
-                        f"last HOD tick {age_f:.1f}s ago "
-                        f"(>{HOD_MOMO_INTEGRITY_TICK_STALE_SEC:.0f}s) -- not live",
-                    ))
-            elif age_f > warn_sec:
-                if degraded:
-                    checks.append(check(
-                        "hod_ticks_flowing",
-                        "pass",
-                        f"last HOD tick {age_f:.1f}s ago -- IBKR delayed / "
-                        f"line-limit (informational)",
-                    ))
-                else:
-                    checks.append(check(
-                        "hod_ticks_flowing",
-                        "warn",
-                        f"last HOD tick {age_f:.1f}s ago "
-                        f"(want <={warn_sec:.0f}s for mode={mode or 'rth'})",
-                    ))
-            else:
+        # Hard stale still fails in live sessions -- a dead feed is a dead feed.
+        warn_sec = (
+            HOD_MOMO_INTEGRITY_TICK_WARN_EXTENDED_SEC
+            if mode in HOD_MOMO_INTEGRITY_TICK_WARN_MODES
+            else HOD_MOMO_INTEGRITY_TICK_WARN_SEC
+        )
+        age_f = float(last_age)
+        # When IBKR itself reports delayed data or a line-limit overflow,
+        # sparse ticks are expected -- informational, not a Nova alarm.
+        degraded = bool(snap.get("delayed_data") or snap.get("max_tickers_hit"))
+        if age_f > HOD_MOMO_INTEGRITY_TICK_STALE_SEC:
+            if degraded:
                 checks.append(check(
                     "hod_ticks_flowing",
                     "pass",
-                    f"trades={trades} last_tick={age_f:.1f}s ago "
-                    f"universe={universe} mode={mode or 'rth'}",
+                    f"last HOD tick {age_f:.1f}s ago -- IBKR delayed / "
+                    f"line-limit (informational, not a feed failure)",
                 ))
+            else:
+                checks.append(check(
+                    "hod_ticks_flowing",
+                    "fail",
+                    f"last HOD tick {age_f:.1f}s ago "
+                    f"(>{HOD_MOMO_INTEGRITY_TICK_STALE_SEC:.0f}s) -- not live",
+                ))
+        elif age_f > warn_sec:
+            if degraded:
+                checks.append(check(
+                    "hod_ticks_flowing",
+                    "pass",
+                    f"last HOD tick {age_f:.1f}s ago -- IBKR delayed / "
+                    f"line-limit (informational)",
+                ))
+            else:
+                checks.append(check(
+                    "hod_ticks_flowing",
+                    "warn",
+                    f"last HOD tick {age_f:.1f}s ago "
+                    f"(want <={warn_sec:.0f}s for mode={mode or 'rth'})",
+                ))
+        else:
+            checks.append(check(
+                "hod_ticks_flowing",
+                "pass",
+                f"trades={trades} last_tick={age_f:.1f}s ago "
+                f"universe={universe} mode={mode or 'rth'}",
+            ))
 
     capacity = int(snap.get("active_set_capacity") or HOD_MOMO_ACTIVE_SET_CAPACITY)
-    if active_n <= 0 and universe > 0 and uptime >= HOD_MOMO_INTEGRITY_WARMUP_SEC:
+    if idle:
+        checks.append(idle_pass(
+            "hod_active_set", mode, "empty or unquoted active set expected",
+        ))
+    elif active_n <= 0 and universe > 0 and uptime >= HOD_MOMO_INTEGRITY_WARMUP_SEC:
         checks.append(check(
             "hod_active_set",
             "fail",
@@ -149,24 +149,36 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
         else:
             checks.append(check("hod_active_set", "pass", detail))
 
-    checks.append(age_gate(
-        cid="hod_active_quote_age",
-        p95=snap.get("active_quote_age_p95"),
-        mx=snap.get("active_quote_age_max"),
-        p95_limit=HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_P95_SEC,
-        max_limit=HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC,
-        label="active quote age",
-    ))
-    checks.append(age_gate(
-        cid="hod_active_eval_age",
-        p95=snap.get("active_eval_age_p95"),
-        mx=snap.get("active_eval_age_max"),
-        p95_limit=HOD_MOMO_INTEGRITY_ACTIVE_EVAL_P95_SEC,
-        max_limit=HOD_MOMO_INTEGRITY_ACTIVE_EVAL_MAX_SEC,
-        label="active eval age",
-    ))
+    if idle:
+        checks.append(idle_pass(
+            "hod_active_quote_age", mode, "quote SLO not required",
+        ))
+        checks.append(idle_pass(
+            "hod_active_eval_age", mode, "eval SLO not required",
+        ))
+    else:
+        checks.append(age_gate(
+            cid="hod_active_quote_age",
+            p95=snap.get("active_quote_age_p95"),
+            mx=snap.get("active_quote_age_max"),
+            p95_limit=HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_P95_SEC,
+            max_limit=HOD_MOMO_INTEGRITY_ACTIVE_QUOTE_MAX_SEC,
+            label="active quote age",
+        ))
+        checks.append(age_gate(
+            cid="hod_active_eval_age",
+            p95=snap.get("active_eval_age_p95"),
+            mx=snap.get("active_eval_age_max"),
+            p95_limit=HOD_MOMO_INTEGRITY_ACTIVE_EVAL_P95_SEC,
+            max_limit=HOD_MOMO_INTEGRITY_ACTIVE_EVAL_MAX_SEC,
+            label="active eval age",
+        ))
 
-    if buf_n <= 0:
+    if idle:
+        checks.append(idle_pass(
+            "hod_surge_buffer", mode, "squeeze buffers not required",
+        ))
+    elif buf_n <= 0:
         status = "warn" if universe > 0 else "pass"
         checks.append(check(
             "hod_surge_buffer",
@@ -201,7 +213,11 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
                 f"surge ready {ready_n}/{buf_n} ({ready_pct:.0f}%); seeded={seeded_n}",
             ))
 
-    if surge_none_after_seed > 0:
+    if idle:
+        checks.append(idle_pass(
+            "hod_surge_after_seed", mode, "squeeze after-seed not required",
+        ))
+    elif surge_none_after_seed > 0:
         # Hard-fail only when the live tape is also dead — otherwise Squeeze
         # simply skips those symbols while quote/eval SLOs can still pass.
         tape_dead = (
@@ -222,7 +238,11 @@ def evaluate_hod_integrity(snap: dict[str, Any]) -> dict[str, Any]:
             "no densely-windowed symbol with surge=None",
         ))
 
-    if tracked <= 0:
+    if idle:
+        checks.append(idle_pass(
+            "hod_enrichment", mode, "RelVol not required",
+        ))
+    elif tracked <= 0:
         checks.append(check("hod_enrichment", "warn", "no ticker snaps tracked yet"))
     else:
         pct = 100.0 * rvol_n / tracked

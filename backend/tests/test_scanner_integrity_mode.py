@@ -152,3 +152,59 @@ def test_empty_stale_losers_fail_when_gainers_also_dead():
     ))
     losers = next(c for c in report["checks"] if c["id"] == "scanner_losers")
     assert losers["status"] == "fail"
+
+
+def _closed_empty_scanner(**overrides):
+    snap = {
+        "discovery_provider": "ibkr",
+        "ibkr_connected": True,
+        "current_mode": "closed",
+        "gapper_count": 0,
+        "gainer_count": 0,
+        "loser_count": 0,
+        "afterhours_count": 0,
+        "gapper_age_sec": None,
+        "gainer_age_sec": None,
+        "loser_age_sec": None,
+        "afterhours_age_sec": None,
+        "scanner_l1_age_sec": None,
+        "scanner_l1_event_age_sec": None,
+    }
+    snap.update(overrides)
+    return snap
+
+
+def test_closed_empty_caches_pass():
+    """MARKET CLOSED + desk up: empty gainers/losers/L1 must not fail."""
+    report = evaluate_scanner_integrity(_closed_empty_scanner())
+    assert report["status"] == "pass"
+    for cid in ("scanner_gainers", "scanner_losers", "scanner_gappers", "scanner_l1_stream"):
+        chk = next(c for c in report["checks"] if c["id"] == cid)
+        assert chk["status"] == "pass", cid
+
+
+def test_closed_gateway_disconnect_still_fails():
+    report = evaluate_scanner_integrity(_closed_empty_scanner(ibkr_connected=False))
+    assert report["status"] == "fail"
+    feed = next(c for c in report["checks"] if c["id"] == "scanner_feed")
+    assert feed["status"] == "fail"
+
+
+def test_rth_empty_gainers_still_fail_with_ibkr_up():
+    report = evaluate_scanner_integrity(_closed_empty_scanner(
+        current_mode="market",
+        scanner_l1_event_age_sec=1.0,
+    ))
+    gainers = next(c for c in report["checks"] if c["id"] == "scanner_gainers")
+    assert gainers["status"] == "fail"
+    assert report["status"] == "fail"
+
+
+def test_rth_stale_l1_still_fails():
+    report = evaluate_scanner_integrity(_base(
+        current_mode="market",
+        scanner_l1_event_age_sec=20.0,
+    ))
+    l1 = next(c for c in report["checks"] if c["id"] == "scanner_l1_stream")
+    assert l1["status"] == "fail"
+    assert report["status"] == "fail"

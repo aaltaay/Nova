@@ -75,6 +75,13 @@ export function EmptyState({
       </div>
     );
   }
+  if (context === 'closed') {
+    return (
+      <div className="empty-state">
+        Market is closed — showing last available data. Scanning continues in the background.
+      </div>
+    );
+  }
   if (honestyHint) {
     return (
       <div className="empty-state">
@@ -82,13 +89,6 @@ export function EmptyState({
         <div className="empty-state-hint">
           This is not a quiet market. The roster did not commit a live list.
         </div>
-      </div>
-    );
-  }
-  if (context === 'closed') {
-    return (
-      <div className="empty-state">
-        Market is closed — showing last available data. Scanning continues in the background.
       </div>
     );
   }
