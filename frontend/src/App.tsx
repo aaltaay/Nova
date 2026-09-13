@@ -16,6 +16,7 @@ import { TopOfBookProvider } from './hotkeys/TopOfBookContext';
 import { HodMomoProvider } from './hod_momo/HodMomoProvider';
 import { ScannerDataProvider } from './scanner/ScannerDataContext';
 import { IbkrAccountProvider } from './ibkr/IbkrAccountContext';
+import { GatewayDisconnectedBannerHost } from './ibkr/GatewayDisconnectedBannerHost';
 import { TradingPrerequisitesGate } from './ibkr/TradingPrerequisitesGate';
 import { DashboardPage } from './pages/DashboardPage';
 import { isSampleView } from './sample_data/sampleNav';
@@ -67,6 +68,7 @@ function AppShell() {
             <GlobalBarStatusBridge />
             <GlobalAppBar />
             <TradingPrerequisitesGate />
+            <GatewayDisconnectedBannerHost />
             <NovaOsAttentionStrip global />
             <div className="nova-app-branch">
               <TraderDockLayer />

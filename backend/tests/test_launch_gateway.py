@@ -5,6 +5,14 @@ from pathlib import Path
 
 from ibkr import gateway_paths as gp
 from ibkr import launch_gateway as lg
+from ibkr.gateway_login_fill import Credentials
+
+
+def _stub_ibc_creds(monkeypatch):
+    monkeypatch.setattr(
+        "ibkr.gateway_spawn.load_ibc_credentials",
+        lambda: Credentials(username="u", password="p"),
+    )
 
 
 def test_resolve_exe_prefers_env(monkeypatch, tmp_path: Path):
@@ -106,6 +114,7 @@ def test_mode_launch_does_not_kill_authenticating_gateway(monkeypatch):
 
 
 def test_mode_launch_spawns_second_door_without_killing(monkeypatch, tmp_path: Path):
+    _stub_ibc_creds(monkeypatch)
     monkeypatch.setattr(lg.os, "name", "nt")
     monkeypatch.setattr(lg, "_gateway_process_running", lambda: True)
     monkeypatch.setattr(lg, "_probe_api_port", lambda port: port == 4002)
@@ -134,6 +143,7 @@ def test_mode_launch_spawns_second_door_without_killing(monkeypatch, tmp_path: P
 
 
 def test_mode_launch_force_restart_kills_listening_port(monkeypatch, tmp_path: Path):
+    _stub_ibc_creds(monkeypatch)
     monkeypatch.setattr(lg.os, "name", "nt")
     monkeypatch.setattr(lg, "_gateway_process_running", lambda: False)
     monkeypatch.setattr(lg, "_probe_api_port", lambda port: port == 4001)
@@ -168,6 +178,7 @@ def test_mode_launch_force_live_uses_ibc(monkeypatch, tmp_path: Path):
     (PROBLEM_LOG 2026-08-25: unconditional clearing forced a cold login every
     morning, and IBC silently discards a live 2FA approved >180s after Log In).
     """
+    _stub_ibc_creds(monkeypatch)
     monkeypatch.setattr(lg.os, "name", "nt")
     monkeypatch.setattr(lg, "_gateway_process_running", lambda: False)
     monkeypatch.setattr(lg, "_probe_api_port", lambda _port: False)
@@ -207,6 +218,7 @@ def test_mode_launch_force_fresh_login_clears_token_and_kills_stuck_process(
     Restart=OK and stops the stuck Authenticating process (which holds no
     LISTEN port, so _stop_listen_ports alone would find nothing to kill).
     """
+    _stub_ibc_creds(monkeypatch)
     monkeypatch.setattr(lg.os, "name", "nt")
     monkeypatch.setattr(lg, "_gateway_process_running", lambda: True)
     monkeypatch.setattr(lg, "_probe_api_port", lambda _port: False)
@@ -287,6 +299,34 @@ def test_mode_launch_rejects_garbage(monkeypatch):
     out = lg.launch_or_focus_gateway("demo")
     assert out["ok"] is False
     assert out["action"] == "invalid_mode"
+
+
+def test_mode_launch_refuses_without_ibc_credentials(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "ibkr.gateway_spawn.load_ibc_credentials",
+        lambda: None,
+    )
+    monkeypatch.setattr(lg.os, "name", "nt")
+    monkeypatch.setattr(lg, "_gateway_process_running", lambda: False)
+    monkeypatch.setattr(lg, "_probe_api_port", lambda _port: False)
+    monkeypatch.setattr(lg, "_stop_listen_ports", lambda *_ports: None)
+    monkeypatch.setattr(lg, "_stop_gateway_process", lambda: True)
+    launcher = tmp_path / "start_gateway.ps1"
+    launcher.write_text("#", encoding="utf-8")
+    monkeypatch.setattr(lg, "_ibc_launcher", lambda: launcher)
+    monkeypatch.setattr(lg, "_align_ibc_trading_mode", lambda _mode: None)
+    monkeypatch.setattr(lg, "_apply_nova_gateway_mode", lambda _mode: None)
+    started: list[tuple] = []
+    monkeypatch.setattr(
+        lg,
+        "_start_process",
+        lambda *a, **k: started.append((a, k)),
+    )
+    out = lg.launch_or_focus_gateway("live", force_restart=True)
+    assert out["ok"] is False
+    assert out["action"] == "missing_credentials"
+    assert "username" in (out.get("message") or "").lower()
+    assert started == []
 
 
 def test_rewrite_ini_key_first_match_only(tmp_path: Path):

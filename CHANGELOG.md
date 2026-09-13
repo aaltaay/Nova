@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-13 -- Open live Gateway prefills via IBC only
+
+- **What:** Open live/paper starts IBC with aligned `IbLoginId` / `IbPassword`. Missing IBC or credentials is a loud error. Localhost Vite also falls back after a 401 (missing desktop API key). The login banner stays mounted on Trader, not only Scanner.
+- **Why:** The click looked like a no-op: spawn fell through to empty `ibgateway.exe`, Vite only ran after 404, and Trader hid the banner with DashboardPage.
+- **Files touched:** `backend/ibkr/gateway_spawn.py`, `frontend/src/utils/launchIbGateway.ts`, `frontend/scripts/vite-nova-launch-gateway.ts`, `frontend/src/ibkr/GatewayDisconnectedBannerHost.tsx`, `docs/ibc-gateway-setup.md`.
+- **How it works now:** Open live copies `IbLoginIdLive` onto `IbLoginId` and runs `%USERPROFILE%/.nova/ibc/start_gateway.ps1`. IBC types username/password. Raw exe is not a fill path. 401/404 on localhost still uses the Vite IBC helper.
+- **Verified by:** pytest `test_gateway_spawn.py` + `test_launch_gateway.py`; Vitest `launchIbGateway` 401 fallback, `alignIbcConfig`, banner host.
+- **Related:** Closes #128. PROBLEM_LOG 2026-09-13 -- Open live empty login.
+
 ## 2026-09-12 -- AI news digest publishes via PR, never master
 
 - **What:** The scheduled `AI news digest` job still ranks, tests, and rebuilds the marketing digest, but it no longer `git push`es `master`. When `site/index.html`, `site/news/index.html`, or `site/news/feed.json` change, it force-updates `chore/ai-news-digest` and create-or-updates a ready (non-draft) PR. An empty diff stays a quiet exit 0.
