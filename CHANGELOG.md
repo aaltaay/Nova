@@ -32,13 +32,13 @@ Entry template (copy and fill in):
 
 ## 2026-09-15 -- Advise rail (TradingAgents advisory panel)
 
-- **What:** Manual Advise icon at the bottom of the scanner left rail. Run a full TradingAgents-style debate (fundamentals, news, sentiment, technical, bull/bear, trader, risk) via OpenRouter Claude Sonnet latest. SQLite book, live transcript, depth default 2, ticket prefill + chart jump. Never sends orders.
-- **Why:** Issue #146 -- advisory panel only. Human Places in Nova. Multi-model stays on #147.
+- **What:** Manual Advise icon at the bottom of the scanner left rail. Run a full TradingAgents-style debate (fundamentals, news, sentiment, technical, bull/bear, trader, risk) via OpenRouter Claude Sonnet latest. SQLite book, live transcript, depth default 2, ticket prefill + chart jump. Never sends orders. Pre-run cost is a loud `~$0.19 · ~4 min` line before Run; it loads on open and after typed symbol/depth (300ms debounce), even if the book endpoints fail.
+- **Why:** Issue #146 -- advisory panel only. Human Places in Nova. Multi-model stays on #147. Owner Edge smoke: cost never appeared because load was blur-only and `Promise.all` dropped estimate when latest/history failed.
 - **Files touched:** `backend/advise/`, `backend/routes/advise.py`, `backend/constants_advise.py`, `frontend/src/advise/`, `frontend/src/components/TabNav.tsx`, `.env.example`, `docs/advise-rail.md`.
-- **How it works now:** Prefill from the desk symbol is free. Run starts a subprocess worker (max 3, one per symbol). Identical symbol+session+model+graph+depth reopens the book. Cancel kills the worker. Failed rows keep the partial transcript. Market data is Yahoo (+ optional Finnhub/Reddit keys). IBKR L1 is not piped in.
-- **Verified by:** `pytest tests/test_advise_*.py` -- 22 passed; Vitest `src/advise` + `TabNav` + `orderTicketPrefill` -- 14 passed; `ruff check` advise files; ESLint advise/TabNav/App; `npm run build` (tsc + vite) exit 0.
+- **How it works now:** Prefill from the desk symbol is free. Estimate and book load independently (`Promise.allSettled`). Typing a symbol refreshes cost without blur. Run starts a subprocess worker (max 3, one per symbol; a busy symbol no longer blocks other symbols in the queue). Identical symbol+session+model+graph+depth reopens the book. Cancel kills the worker. Failed rows keep the partial transcript. Market data is Yahoo (+ optional Finnhub/Reddit keys). IBKR L1 is not piped in.
+- **Verified by:** `pytest tests/test_advise_*.py`; Vitest `src/advise` + `TabNav` + `orderTicketPrefill`; `ruff check` advise files; ESLint advise/TabNav/App; `npm run build` (tsc + vite).
 - **Follow-ups:** Multi-model picker is #147.
-- **Related:** Closes #146. Refs #147.
+- **Related:** Closes #146. Refs #147. PROBLEM_LOG 2026-09-15 -- Advise estimate never loaded.
 
 ## 2026-09-13 -- Closed-session integrity is not a fail
 

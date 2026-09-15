@@ -1,10 +1,12 @@
 /**
  * App-level Advise overlay. Prefill is free; Run spends OpenRouter tokens.
+ * Estimate loads independently of the book so a book failure cannot hide cost.
  */
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -18,7 +20,12 @@ import {
   postAdviseRetry,
   postAdviseRun,
 } from './adviseApi';
-import { ADVISE_DEFAULT_DEPTH } from './constants';
+import { isAdviseSymbol, normalizeAdviseSymbol } from './adviseSymbol';
+import {
+  ADVISE_DEFAULT_DEPTH,
+  ADVISE_ESTIMATE_DEBOUNCE_MS,
+  clampAdviseDepth,
+} from './constants';
 import type { AdviseEstimate, AdviseRun } from './types';
 import { useAdviseStream } from './useAdviseStream';
 
@@ -48,14 +55,18 @@ function deskSymbol(
   selected: string | null,
   trader: string | null,
 ): string {
-  return (trader || selected || '').trim().toUpperCase();
+  return normalizeAdviseSymbol(trader || selected || '');
+}
+
+function failMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 export function AdviseProvider({ children }: { children: ReactNode }) {
   const { selectedSymbol, activeTraderSymbol } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [symbol, setSymbol] = useState('');
-  const [depth, setDepth] = useState(ADVISE_DEFAULT_DEPTH);
+  const [depth, setDepthState] = useState(ADVISE_DEFAULT_DEPTH);
   const [run, setRun] = useState<AdviseRun | null>(null);
   const [history, setHistory] = useState<AdviseRun[]>([]);
   const [estimate, setEstimate] = useState<AdviseEstimate | null>(null);
@@ -65,30 +76,30 @@ export function AdviseProvider({ children }: { children: ReactNode }) {
   useAdviseStream(run, setRun);
 
   const loadBook = useCallback(async (nextSymbol?: string, nextDepth?: number) => {
-    const sym = (nextSymbol ?? symbol).trim().toUpperCase();
-    const rounds = nextDepth ?? depth;
+    const sym = normalizeAdviseSymbol(nextSymbol ?? symbol);
+    const rounds = clampAdviseDepth(nextDepth ?? depth);
     if (!sym) {
       setRun(null);
       setHistory([]);
       setEstimate(null);
+      setError(null);
       return;
     }
-    setBusy(true);
+    if (!isAdviseSymbol(sym)) return;
     setError(null);
-    try {
-      const [latest, rows, cost] = await Promise.all([
-        fetchAdviseLatest(sym, rounds),
-        fetchAdviseHistory(sym),
-        fetchAdviseEstimate(sym, rounds),
-      ]);
-      setRun(latest);
-      setHistory(rows);
-      setEstimate(cost);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+    const [estRes, latestRes, histRes] = await Promise.allSettled([
+      fetchAdviseEstimate(sym, rounds),
+      fetchAdviseLatest(sym, rounds),
+      fetchAdviseHistory(sym),
+    ]);
+    if (estRes.status === 'fulfilled') setEstimate(estRes.value);
+    if (latestRes.status === 'fulfilled') setRun(latestRes.value);
+    if (histRes.status === 'fulfilled') setHistory(histRes.value);
+    const parts: string[] = [];
+    if (estRes.status === 'rejected') parts.push(failMessage(estRes.reason));
+    if (latestRes.status === 'rejected') parts.push(failMessage(latestRes.reason));
+    if (histRes.status === 'rejected') parts.push(failMessage(histRes.reason));
+    setError(parts.length ? parts.join(' · ') : null);
   }, [depth, symbol]);
 
   const openAdvise = useCallback(() => {
@@ -100,14 +111,34 @@ export function AdviseProvider({ children }: { children: ReactNode }) {
 
   const closeAdvise = useCallback(() => setOpen(false), []);
 
+  const setDepth = useCallback((value: number) => {
+    setDepthState(clampAdviseDepth(value));
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const sym = normalizeAdviseSymbol(symbol);
+    if (!sym) {
+      setRun(null);
+      setHistory([]);
+      setEstimate(null);
+      return;
+    }
+    if (!isAdviseSymbol(sym)) return;
+    const handle = window.setTimeout(() => {
+      void loadBook(sym, depth);
+    }, ADVISE_ESTIMATE_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [open, symbol, depth, loadBook]);
+
   const loadHistoryRun = useCallback((runId: number) => {
     const found = history.find((row) => row.id === runId);
     if (found) setRun(found);
   }, [history]);
 
   const runDebate = useCallback(async (force: boolean) => {
-    const sym = symbol.trim().toUpperCase();
-    if (!sym) {
+    const sym = normalizeAdviseSymbol(symbol);
+    if (!isAdviseSymbol(sym)) {
       setError('Enter a symbol before Run');
       return;
     }
@@ -119,7 +150,7 @@ export function AdviseProvider({ children }: { children: ReactNode }) {
       const rows = await fetchAdviseHistory(sym);
       setHistory(rows);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(failMessage(err));
     } finally {
       setBusy(false);
     }
@@ -131,7 +162,7 @@ export function AdviseProvider({ children }: { children: ReactNode }) {
     try {
       setRun(await postAdviseCancel(run.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(failMessage(err));
     } finally {
       setBusy(false);
     }
@@ -144,7 +175,7 @@ export function AdviseProvider({ children }: { children: ReactNode }) {
     try {
       setRun(await postAdviseRetry(run.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(failMessage(err));
     } finally {
       setBusy(false);
     }
@@ -185,6 +216,7 @@ export function AdviseProvider({ children }: { children: ReactNode }) {
       retryDebate,
       run,
       runDebate,
+      setDepth,
       symbol,
     ],
   );

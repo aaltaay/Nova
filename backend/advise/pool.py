@@ -85,6 +85,7 @@ async def enqueue(run_id: int) -> None:
 
 async def pump() -> None:
     async with _lock:
+        blocked: list[int] = []
         while (len(_procs) + len(_reserved)) < ADVISE_MAX_WORKERS and _queue:
             run_id = _queue.pop(0)
             run = book.get_run(run_id)
@@ -92,11 +93,13 @@ async def pump() -> None:
                 continue
             symbol = run["symbol"]
             if symbol in _active_by_symbol and _active_by_symbol[symbol] != run_id:
-                _queue.append(run_id)
-                break
+                blocked.append(run_id)
+                continue
             _active_by_symbol[symbol] = run_id
             _reserved.add(run_id)
             asyncio.create_task(_spawn(run_id), name=f"advise-worker-{run_id}")
+        if blocked:
+            _queue[:] = blocked + _queue
 
 
 def _already_stopped(run_id: int) -> bool:

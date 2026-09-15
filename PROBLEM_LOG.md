@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-15 -- Advise estimate never loaded
+
+- **Symptom:** Advise panel opened on Edge / Vite with a symbol (or one typed in) but the pre-run cost never appeared -- only the empty "Pick a symbol and press Run" hint.
+- **Cause:** `loadBook` used `Promise.all([latest, history, estimate])`, so any book failure zeroed the whole load including cost. Typed symbols also did not refresh until blur, so an empty desk prefill stayed on the empty hint while the operator typed.
+- **Fix:** Load estimate with `Promise.allSettled` independently of latest/history. Debounce symbol/depth ~300ms while the panel is open. Paint a loud `~$0.19 · ~4 min` line before Run. Overlay z-index sits above the trading prerequisites gate.
+- **Fix class:** admission
+- **Keywords:** advise, estimate, Promise.all, blur, cost, #146, OpenRouter, Edge
+
 ## 2026-09-13 -- Closed integrity false fail
 
 - **Symptom:** MARKET CLOSED + DESK up + Paper Live showed a red Integrity fail (empty surge/rvol, gainers/losers "no cache yet -- no sibling") and Gainers "Unavailable -- no live roster / not a quiet market."

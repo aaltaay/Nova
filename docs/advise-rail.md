@@ -42,7 +42,8 @@ Optional vendor keys (Yahoo still runs without them):
 1. Set `OPENROUTER_API_KEY` in `.env` and restart the API sidecar / uvicorn.
 2. Vite: `cd frontend && npm run dev` -- or open Nova Desktop.
 3. Click **Advise** at the bottom of the left rail.
-4. Confirm the symbol prefills from the desk and the estimate shows before Run.
+4. Confirm the symbol prefills from the desk and the loud cost line (`~$0.19 · ~4 min`)
+   shows before Run -- no blur required. Typing a new symbol refreshes cost after ~300ms.
 5. Run -- transcript streams; card shows stance / reasons / risks.
 6. Reopen the same symbol the same session -- no second spend.
 7. **Open order ticket** prefills only; Place stays human. **Jump to chart** opens Trader.

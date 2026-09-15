@@ -3,6 +3,12 @@
 export const ADVISE_DEFAULT_DEPTH = 2;
 export const ADVISE_MIN_DEPTH = 1;
 export const ADVISE_MAX_DEPTH = 5;
+export const ADVISE_ESTIMATE_DEBOUNCE_MS = 300;
+
+export function clampAdviseDepth(depth: number): number {
+  const value = Number.isFinite(depth) ? Math.trunc(depth) : ADVISE_DEFAULT_DEPTH;
+  return Math.max(ADVISE_MIN_DEPTH, Math.min(ADVISE_MAX_DEPTH, value));
+}
 export const ADVISE_TITLE = 'Advise';
 export const ADVISE_RAIL_LABEL = 'Advise';
 export const ADVISE_DISCLAIMER =

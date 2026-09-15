@@ -1,10 +1,13 @@
+import { isAdviseSymbol } from './adviseSymbol';
 import {
   ADVISE_AGENTS_HINT,
   ADVISE_EMPTY_HINT,
   ADVISE_MAX_DEPTH,
   ADVISE_MIN_DEPTH,
   ADVISE_MODEL_LABEL,
+  clampAdviseDepth,
 } from './constants';
+import { estimateMatches, formatAdviseCostHeadline } from './estimateFormat';
 import { useAdvise } from './AdviseContext';
 
 function formatWhen(ts: number | null | undefined): string {
@@ -28,6 +31,8 @@ export function AdviseControls() {
     cancelDebate,
   } = useAdvise();
   const live = run?.status === 'queued' || run?.status === 'running';
+  const canSpend = isAdviseSymbol(symbol) && !busy && !live;
+  const matched = estimateMatches(estimate, symbol, depth);
 
   return (
     <div className="advise-controls">
@@ -50,9 +55,7 @@ export function AdviseControls() {
           max={ADVISE_MAX_DEPTH}
           value={depth}
           onChange={(e) => {
-            const next = Number(e.target.value) || ADVISE_MIN_DEPTH;
-            setDepth(next);
-            void loadBook(symbol, next);
+            setDepth(clampAdviseDepth(Number(e.target.value)));
           }}
         />
       </label>
@@ -74,11 +77,30 @@ export function AdviseControls() {
           ))}
         </select>
       </label>
+      <div className="advise-cost" data-testid="advise-estimate">
+        {matched && estimate ? (
+          <>
+            <p className="advise-cost__headline" data-testid="advise-estimate-headline">
+              {formatAdviseCostHeadline(estimate)}
+            </p>
+            <p className="advise-cost__summary" data-testid="advise-estimate-summary">
+              {estimate.summary}
+            </p>
+          </>
+        ) : isAdviseSymbol(symbol) ? (
+          <p className="advise-cost__pending" data-testid="advise-estimate-pending">
+            Estimating cost...
+          </p>
+        ) : (
+          <p className="advise-hint" data-testid="advise-empty-hint">{ADVISE_EMPTY_HINT}</p>
+        )}
+        <p className="advise-hint">{ADVISE_MODEL_LABEL}</p>
+      </div>
       <div className="advise-actions">
         <button
           type="button"
           data-testid="advise-run"
-          disabled={busy || live || !symbol.trim()}
+          disabled={!canSpend}
           onClick={() => void runDebate(false)}
         >
           Run
@@ -86,7 +108,7 @@ export function AdviseControls() {
         <button
           type="button"
           data-testid="advise-refresh"
-          disabled={busy || live || !symbol.trim()}
+          disabled={!canSpend}
           onClick={() => void runDebate(true)}
         >
           Force refresh
@@ -100,11 +122,6 @@ export function AdviseControls() {
           Cancel
         </button>
       </div>
-      <p className="advise-estimate" data-testid="advise-estimate">
-        {estimate ? estimate.summary : ADVISE_EMPTY_HINT}
-        {' · '}
-        {ADVISE_MODEL_LABEL}
-      </p>
       <p className="advise-hint">{ADVISE_AGENTS_HINT}</p>
       {run?.created_ts ? (
         <p className="advise-hint">Last run {formatWhen(run.created_ts)}</p>

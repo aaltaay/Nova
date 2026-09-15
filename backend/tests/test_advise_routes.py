@@ -28,6 +28,10 @@ def test_estimate_ok(advise_iso):
     assert body["depth"] == 2
     assert "est_usd" in body
     assert "not auto-trading" in body["disclaimer"]
+    deep = client.get("/api/advise/estimate", params={"symbol": "aapl", "depth": 99})
+    assert deep.status_code == 200
+    assert deep.json()["depth"] == 5
+    assert deep.json()["est_usd"] > body["est_usd"]
 
 
 def test_latest_empty(advise_iso):

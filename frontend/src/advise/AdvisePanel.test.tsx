@@ -8,6 +8,7 @@ import { AdvisePanel } from './AdvisePanel';
 import { AdviseProvider, useAdvise } from './AdviseContext';
 import * as api from './adviseApi';
 import * as ticket from './ticketFromStance';
+import * as placeOrder from '../ibkr/placeOrder';
 
 const openStockView = vi.fn();
 
@@ -119,5 +120,50 @@ describe('AdvisePanel', () => {
       await new Promise((r) => setTimeout(r, 90));
     });
     expect(stage).toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="advise-estimate-headline"]')?.textContent)
+      .toBe('~$0.50 · ~4 min');
+  });
+
+  it('shows stale nudge, fail reason, Retry, and never places', async () => {
+    const place = vi.spyOn(placeOrder, 'placeIbkrOrder');
+    const staleFail = {
+      ...COMPLETE,
+      status: 'failed' as const,
+      fail_reason: 'OpenRouter HTTP 401',
+      stale: true,
+      stale_nudge: 'This run is over ~2 hours old. Refresh?',
+      result: { ...COMPLETE.result, ticket: null },
+    };
+    vi.spyOn(api, 'fetchAdviseLatest').mockResolvedValue(staleFail);
+    vi.spyOn(api, 'fetchAdviseHistory').mockResolvedValue([staleFail]);
+    const retry = vi.spyOn(api, 'postAdviseRetry').mockResolvedValue({
+      ...staleFail,
+      id: 8,
+      status: 'queued',
+      fail_reason: null,
+    });
+    await act(async () => {
+      root.render(
+        <AdviseProvider>
+          <OpenOnMount />
+        </AdviseProvider>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[data-testid="advise-stale"]')?.textContent)
+      .toMatch(/2 hours/);
+    expect(container.querySelector('[data-testid="advise-fail"]')?.textContent)
+      .toMatch(/401/);
+    const retryBtn = container.querySelector('[data-testid="advise-retry"]') as HTMLButtonElement;
+    expect(retryBtn).toBeTruthy();
+    await act(async () => {
+      retryBtn.click();
+    });
+    expect(retry).toHaveBeenCalledWith(7);
+    expect(place).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="advise-open-ticket"]')).toBeNull();
   });
 });
