@@ -1,0 +1,208 @@
+/* Advise overlay -- advisory panel only. Owner: frontend/src/advise/ */
+
+.advise-overlay {
+  position: fixed;
+  inset: 0;
+  /* Above TradingPrerequisitesGate (9000) so cost/Run stay clickable. */
+  z-index: 10010;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.advise-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.advise-overlay__panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, 100%);
+  height: 100%;
+  background: var(--bg-secondary, var(--nova-panel));
+  border-left: 1px solid var(--border-color);
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.advise-overlay__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.advise-overlay__header h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.advise-overlay__header button,
+.advise-actions button,
+.advise-card__actions button {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.3rem 0.65rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.advise-overlay__header button:hover,
+.advise-actions button:hover,
+.advise-card__actions button:hover {
+  background: var(--hover-bg, rgba(255, 255, 255, 0.04));
+}
+
+.advise-overlay__header button:disabled,
+.advise-actions button:disabled,
+.advise-card__actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.advise-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.advise-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
+
+.advise-field input,
+.advise-field select {
+  min-width: 5.5rem;
+  background: var(--nova-panel, #12141a);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.3rem 0.4rem;
+}
+
+.advise-field--grow {
+  flex: 1 1 10rem;
+}
+
+.advise-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.advise-cost {
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-primary, #0e1116) 55%, transparent);
+}
+
+.advise-cost__headline {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-primary, #e8eef7);
+}
+
+.advise-cost__summary,
+.advise-cost__pending {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.advise-estimate,
+.advise-hint,
+.advise-disclaimer,
+.advise-stale,
+.advise-fail {
+  margin: 0;
+  width: 100%;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.advise-fail {
+  color: #f87171;
+  padding: 0 0.9rem;
+}
+
+.advise-stale {
+  color: #fbbf24;
+}
+
+.advise-overlay__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.7rem 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.advise-transcript {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.78rem;
+}
+
+.advise-transcript--empty {
+  color: var(--text-secondary);
+}
+
+.advise-transcript__who {
+  display: block;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.advise-card {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.7rem;
+}
+
+.advise-card__head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.4rem;
+}
+
+.advise-card ul {
+  margin: 0.2rem 0 0.6rem;
+  padding-left: 1.1rem;
+}
+
+.advise-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.advise-disclaimer {
+  font-size: 0.7rem;
+}

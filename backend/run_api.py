@@ -61,6 +61,10 @@ def _prepare_sys_path() -> None:
 def main() -> None:
     _force_utf8_io()
     _prepare_sys_path()
+    if "--advise-worker" in sys.argv:
+        from advise.worker_main import main as advise_worker_main
+
+        raise SystemExit(advise_worker_main(sys.argv[1:]))
     import uvicorn
 
     host = os.environ.get("NOVA_API_HOST", "127.0.0.1")

@@ -66,6 +66,20 @@ describe('ScannerSideNav', () => {
     expect(onTabClick).toHaveBeenCalledWith('gainers');
   });
 
+  it('keeps Advise off the rail without a provider', () => {
+    act(() => {
+      root.render(
+        <ScannerSideNav
+          activeTab="gappers"
+          onTabClick={vi.fn()}
+          counts={{}}
+          visibility={{ gappers: true }}
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="scanner-nav-advise"]')).toBeNull();
+  });
+
   it('hides modules with visibility false', () => {
     act(() => {
       root.render(
