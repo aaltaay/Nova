@@ -94,6 +94,14 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M12 20s-7-4.5-7-10a4 4 0 017-2.5A4 4 0 0119 10c0 5.5-7 10-7 10z" />
     </Icon>
   ),
+  advise: (
+    <Icon>
+      <path d="M8 7h8" />
+      <path d="M8 12h5" />
+      <path d="M17 12v7l-2-1-2 1v-7" />
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+    </Icon>
+  ),
 };
 
 export function scannerNavIcon(moduleId: string): ReactNode {

@@ -24,6 +24,8 @@ import { SettingsProvider } from './settings/SettingsContext';
 import { NovaOsAttentionStrip } from './strategy/NovaOsAttentionStrip';
 import { useNovaOsEventAttention } from './strategy/novaOsEventAttention';
 import { parseStockViewSymbol } from './utils/stockViewNav';
+import { AdviseHost } from './advise/AdvisePanel';
+import { AdviseProvider } from './advise/AdviseContext';
 import { AppDialogHost } from './ux';
 import { TraderDockLayer } from './workspace/traderDesk/TraderDockLayer';
 import { useWorkspace, WorkspaceProvider } from './workspace/WorkspaceContext';
@@ -121,9 +123,12 @@ function App() {
               <HotkeyDispatchProvider>
                 {/* Outer shell boundary: catches AppShell hook/provider failures
                     that page-level boundaries never see. Auto-reloads once. */}
-                <AppErrorBoundary source="app-shell">
-                  <AppShell />
-                </AppErrorBoundary>
+                <AdviseProvider>
+                  <AppErrorBoundary source="app-shell">
+                    <AppShell />
+                    <AdviseHost />
+                  </AppErrorBoundary>
+                </AdviseProvider>
               </HotkeyDispatchProvider>
             </TopOfBookProvider>
           </LayoutStoreProvider>

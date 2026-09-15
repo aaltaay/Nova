@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-15 -- Advise rail (TradingAgents advisory panel)
+
+- **What:** Manual Advise icon at the bottom of the scanner left rail. Run a full TradingAgents-style debate (fundamentals, news, sentiment, technical, bull/bear, trader, risk) via OpenRouter Claude Sonnet latest. SQLite book, live transcript, depth default 2, ticket prefill + chart jump. Never sends orders.
+- **Why:** Issue #146 -- advisory panel only. Human Places in Nova. Multi-model stays on #147.
+- **Files touched:** `backend/advise/`, `backend/routes/advise.py`, `backend/constants_advise.py`, `frontend/src/advise/`, `frontend/src/components/TabNav.tsx`, `.env.example`, `docs/advise-rail.md`.
+- **How it works now:** Prefill from the desk symbol is free. Run starts a subprocess worker (max 3, one per symbol). Identical symbol+session+model+graph+depth reopens the book. Cancel kills the worker. Failed rows keep the partial transcript. Market data is Yahoo (+ optional Finnhub/Reddit keys). IBKR L1 is not piped in.
+- **Verified by:** `pytest tests/test_advise_*.py` -- 22 passed; Vitest `src/advise` + `TabNav` + `orderTicketPrefill` -- 14 passed; `ruff check` advise files; ESLint advise/TabNav/App; `npm run build` (tsc + vite) exit 0.
+- **Follow-ups:** Multi-model picker is #147.
+- **Related:** Closes #146. Refs #147.
+
 ## 2026-09-13 -- Closed-session integrity is not a fail
 
 - **What:** Empty hist/HOD/scanner buffers and missing L1 no longer roll up to Integrity fail when the market is closed. Live RTH still fails loud on empty Gainers, stale L1, or Gateway down. Closed Gainers empty state uses the calm market-closed copy instead of "not a quiet market."
