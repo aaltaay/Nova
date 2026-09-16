@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** D-043 / #89. Backend already stored Large Cap snapshots; `fetchHistoryData` only requested gappers, movers, and afterhours, so Large Cap kept showing today's live rows while the rest of the desk showed the picked day.
 - **Files touched:** `frontend/src/scanner/scannerHistory.ts`, `frontend/src/hooks/useScannerData.ts`, `backend/tests/test_scan_large_cap_route.py`, Vitest history + EmptyState coverage.
 - **How it works now:** One shared date still drives every persisted scanner table. A missing Large Cap snapshot for that date becomes an honest empty table and does not fail gappers/movers/AH. Back to Live / `historyDate === null` resumes `fetchData` including `/api/large-cap`.
-- **Verified by:** Vitest `scannerHistory` + EmptyState history copy; pytest `test_history_snapshot_large_cap_*`.
+- **Verified by:** Vitest 241 files / 1194 passed (`scannerHistory` + EmptyState history copy). pytest `backend/tests` 1729 passed including `test_history_snapshot_large_cap_*`. `npm run lint` / `npm run build` exit 0. `ruff check backend`, `doc_invariants.py`, `agent_contract.py --ci` pass. HTTP TestClient: `/api/history/large_cap/2026-09-15` returns the NVDA snapshot; missing date returns `{}` without failing gappers.
 - **Related:** Closes #89. PROBLEM_LOG 2026-09-16 -- History date skipped Large Cap. Parent #13 (D-036).
 
 ## 2026-09-16 -- Chart right-click menu: layers, details, honest disables
