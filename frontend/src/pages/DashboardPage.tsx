@@ -29,6 +29,11 @@ import {
   isTabModuleId,
   type ActiveTab,
 } from '../workspace/registry';
+import {
+  applySessionAutoSwitch,
+  initialScannerTabState,
+  writePersistedScannerTab,
+} from '../workspace/scannerActiveTabPersist';
 import { useModuleVisibility } from '../workspace/useModuleVisibility';
 import { isDockTab, isMainScannerTab } from '../workspace/scannerTabs';
 
@@ -41,10 +46,11 @@ export function DashboardPage() {
     setAlpacaFeed: setWorkspaceAlpacaFeed,
   } = useWorkspace();
   const { hodCount, runningUpCount, focusDock } = useHodMomo();
-  const [activeTab, setActiveTab] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
-  const [railHighlight, setRailHighlight] = useState<ActiveTab>(DEFAULT_ACTIVE_TAB);
-  const [tabOverridden, setTabOverridden] = useState(false);
-  const tabOverriddenRef = useRef(false);
+  const persistedTab = initialScannerTabState();
+  const [activeTab, setActiveTab] = useState<ActiveTab>(persistedTab.tab);
+  const [railHighlight, setRailHighlight] = useState<ActiveTab>(persistedTab.tab);
+  const [tabOverridden, setTabOverridden] = useState(persistedTab.userPicked);
+  const tabOverriddenRef = useRef(persistedTab.userPicked);
   const { visibility } = useModuleVisibility();
   const { settings, exchangeFilter, registerOnConfigSaved } = useSettings();
   const sidePanel = useSidePanelWidth();
@@ -74,16 +80,7 @@ export function DashboardPage() {
 
   useEffect(() => {
     if (tabOverriddenRef.current) return;
-    setActiveTab(prev => {
-      // Preserve Gainers vs Losers (same movers feed); do not clobber an open scanner tab
-      // when session mode flips (e.g. market → afterhours) until the user opts in.
-      if (prev === 'gainers' || prev === 'losers' || prev === 'gappers' || prev === 'afterhours') {
-        return prev;
-      }
-      if (scanner.mode === 'market') return 'gainers';
-      if (scanner.mode === 'afterhours') return 'afterhours';
-      return 'gappers';
-    });
+    setActiveTab(prev => applySessionAutoSwitch(prev, scanner.mode, false));
   }, [scanner.mode, tabOverridden]);
 
   // If the active tab was hidden via Modules menu, fall back to Gappers.
@@ -141,6 +138,7 @@ export function DashboardPage() {
     setTabOverridden(true);
     setActiveTab(tab);
     setRailHighlight(tab);
+    writePersistedScannerTab(tab);
   }
 
   // Global Working menu / GlobalAppBar Account → Account / Trading tab.

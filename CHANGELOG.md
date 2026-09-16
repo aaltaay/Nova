@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Persist scanner activeTab across reload
+
+- **What:** The last user-picked main scanner tab (Gainers, Large Cap, Catalysts, and the other price/catalyst tables) is stored in prefStore and restored on mount. HOD dock prefs stay on their own keys.
+- **Why:** D-042 / #88. Reload always snapped back to Gappers, so operators who live on another table had to re-click every time.
+- **Files touched:** `frontend/src/constantGroups/market_ui.ts`, `frontend/src/workspace/scannerActiveTabPersist.ts`, `frontend/src/pages/DashboardPage.tsx`, `frontend/src/settings/prefsBundle.ts`.
+- **How it works now:** A click on a persistable scanner tab writes `nova.scanner.activeTab.v1`. Mount restores that pick and treats it as `userPicked`, so session-mode auto-switch (premkt Gappers / RTH Gainers / AH After Hours) does not overwrite it. No stored pick still lets those defaults run. Dock / Account / Watchlist clicks do not write this key.
+- **Verified by:** Vitest `scannerActiveTabPersist` (restore + session auto-switch) and `prefsBundle` allowlist.
+- **Related:** Closes #88. PROBLEM_LOG 2026-09-16 -- Scanner activeTab reset to Gappers. Parent #13 (D-036).
+
 ## 2026-09-16 -- Pop-out Dock restores the ticker; hide Pop out on float
 
 - **What:** A popped-out Trader window no longer shows **Pop out**. **Dock** puts the ticker back on the main Nova desk and closes the float. Clicking Pop out on an already-popped window no longer closes the screen.

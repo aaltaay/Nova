@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Scanner activeTab reset to Gappers
+
+- **Symptom:** Main scanner tab always came back as Gappers after reload. HOD dock height/collapsed already survived. Operators on Gainers / Large Cap / Catalysts had to re-click every refresh.
+- **Cause:** `DashboardPage` initialized `useState(DEFAULT_ACTIVE_TAB)` and never wrote the user pick. Session-mode auto-switch is supposed to own premkt/RTH/AH defaults until a pick exists; there was no persist bit to tell those two writers apart.
+- **Fix:** Named prefStore key `SCANNER_ACTIVE_TAB_STORAGE_KEY`. Restore sets `userPicked` so `applySessionAutoSwitch` leaves the pick alone. No stored pick keeps session defaults. HOD dock keys are untouched.
+- **Fix class:** ownership
+- **Keywords:** activeTab, persist, Gappers, prefStore, DashboardPage, D-042, #88, session auto-switch
+
 ## 2026-09-16 -- Pop-out Dock vanished ticker
 
 - **Symptom:** Dock on a popped-out ticker (e.g. F) did not return it to the main Nova window -- the tab disappeared. The float still showed **POP OUT**; clicking it made the window vanish.

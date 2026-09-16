@@ -290,6 +290,12 @@ export const SCANNER_EXCHANGE_DEFAULTS: string[] = [...SCANNER_EXCHANGE_OPTIONS]
 /** localStorage key used by useExchangeFilter. */
 export const SCANNER_EXCHANGE_STORAGE_KEY = 'nova_exchange_filter_v1';
 
+/**
+ * prefStore key for the last user-picked main scanner tab (D-042 / #88).
+ * Separate from HOD dock keys (`nova.hodMomo.dock.*`).
+ */
+export const SCANNER_ACTIVE_TAB_STORAGE_KEY = 'nova.scanner.activeTab.v1';
+
 /** localStorage key: module id → visible (Phase 4 Modules menu). */
 export const MODULE_VISIBILITY_STORAGE_KEY = 'nova_module_visibility_v1';
 
