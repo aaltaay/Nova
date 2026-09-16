@@ -4,10 +4,15 @@
  */
 import { expect, test } from '@playwright/test';
 
+const ARTIFACTS = '/opt/cursor/artifacts';
+
 test.describe('sample shortability (Phase K)', () => {
   test('SMPL Stock View shows Short on Side for the sample margin desk', async ({
     page,
   }) => {
+    await page.addInitScript(() => {
+      sessionStorage.setItem('nova.tickerTrade.sessionUnlocked', '1');
+    });
     await page.goto('/?view=sample&symbol=SMPL');
 
     await expect(page.getByText('Direction', { exact: true })).toHaveCount(0);
@@ -17,6 +22,11 @@ test.describe('sample shortability (Phase K)', () => {
     // No disabled-reason hint when sample shortability is green.
     await expect(page.getByTestId('manual-order-short-reason')).toHaveCount(0);
 
+    const ticket = page.locator('form.manual-order-ticket').first();
+    await ticket.scrollIntoViewIfNeeded();
+    await expect(page.getByTestId('manual-order-submit')).toHaveText('Buy SMPL');
+    await ticket.screenshot({ path: `${ARTIFACTS}/ticket-side-margin-buy.png` });
+
     await shortBtn.scrollIntoViewIfNeeded();
     await shortBtn.dispatchEvent('click');
     await expect(shortBtn).toHaveAttribute('aria-pressed', 'true', { timeout: 5_000 });
@@ -24,5 +34,7 @@ test.describe('sample shortability (Phase K)', () => {
       'aria-pressed',
       'false',
     );
+    await expect(page.getByTestId('manual-order-submit')).toHaveText('Short SMPL');
+    await ticket.screenshot({ path: `${ARTIFACTS}/ticket-side-margin-short.png` });
   });
 });
