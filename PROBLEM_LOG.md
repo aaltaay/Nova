@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Junk movers listicles flamed as news
+
+- **Symptom:** Trader News column and the yellow/orange/red flame treated Benzinga "12 Health Care Stocks Moving In Tuesday's After-Market Session" (and the same movers-listicle class) as real news. Fresh junk lit the circle and could drive `news_impact` as if it were a catalyst.
+- **Cause:** Flame was age-only. `_check_news`, ticker news fetch, catalyst ingest, and `evaluate_news_impact` used the newest Alpaca headline with no junk classifier. Benzinga is a "major" source, so listicles also boosted impact confidence.
+- **Fix:** Added `news.junk` (tunables in `constants_archive_news.py`). Hard listicles and movers URLs are always excluded. Sector roundups are excluded unless a named catalyst keyword is present. Ingest, impact, and the News strip all use the filter. Real single-name headlines still show and can flame. A ticker that appears only on a listicle stays blank and unflamed -- no muted recap chip.
+- **Fix class:** admission
+- **Keywords:** news, flame, listicle, movers, Benzinga, after-market session, news_impact, NewsHeadlineSection, newest_headline_at
+
 ## 2026-09-16 -- Advise failed-run spend
 
 - **Symptom:** Advise on a symbol with a failed/cancelled book row looked empty or showed an older complete. Past runs hid failed spend. Operator read the $10 OpenRouter key **limit** as the bill after a ~4 min 402 (`in_flight_budget_exhausted`) near `risk_neutral`.

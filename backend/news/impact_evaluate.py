@@ -25,6 +25,7 @@ from news.impact_helpers import (
     price_reaction,
 )
 from news.impact_verdict import NewsImpactVerdict
+from news.junk import partition_signal_articles
 from news.lexicon import classify_headline_lexicon
 from news.sentiment import classify_headline_sentiment
 from news.sources import any_official, best_source_name, best_source_tier, count_confirming_sources
@@ -50,11 +51,12 @@ def evaluate_news_impact(
       5. Fresh/aging + flat price + normal/unknown RVOL → no_effect.
       6. Otherwise → insufficient_data.
     """
-    articles = list(articles or [])
+    raw_articles = list(articles or [])
+    articles, junked = partition_signal_articles(raw_articles)
     reasons: list[str] = []
     factors = factors_snapshot()
 
-    newest = newest_headline_at
+    newest = newest_headline_at if articles else None
     headline: str | None = None
     headline_url: str | None = None
     if articles:
@@ -63,7 +65,7 @@ def evaluate_news_impact(
             key=lambda a: str(a.get("created_at") or ""),
             reverse=True,
         )
-        newest = newest or sorted_arts[0].get("created_at")
+        newest = sorted_arts[0].get("created_at") or newest
         headline = sorted_arts[0].get("headline") or sorted_arts[0].get("catalyst_headline")
         headline_url = sorted_arts[0].get("url") or sorted_arts[0].get("catalyst_url")
 
@@ -94,8 +96,18 @@ def evaluate_news_impact(
     }
 
     # --- Visible factor narration ---
+    if junked:
+        reasons.append(
+            f"Excluded {len(junked)} low-signal movers/listicle headline(s); "
+            "they do not count as catalysts."
+        )
     if not articles:
-        reasons.append("No news articles available for this symbol.")
+        if junked:
+            reasons.append(
+                "No company-specific news remains after excluding movers/listicle headlines."
+            )
+        else:
+            reasons.append("No news articles available for this symbol.")
     else:
         reasons.append(f"{len(articles)} article(s) considered; newest age bucket is '{bucket}'.")
         if age is not None:
