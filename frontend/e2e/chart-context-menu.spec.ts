@@ -49,6 +49,12 @@ test.describe('Trader chart right-click context menu', () => {
     await expect(page.getByTestId('chart-context-menu-close-position')).toHaveText(
       'Close Position',
     );
+    await expect(page.getByTestId('chart-context-menu-view_details')).toHaveText(
+      'View Trade Details',
+    );
+    await expect(page.getByTestId('chart-context-menu-show_layers')).toBeVisible();
+    await expect(page.getByTestId('chart-context-menu-create_alert')).toBeDisabled();
+    await expect(page.getByTestId('chart-context-menu-add_to_watchlist')).toBeDisabled();
     await expect(page.getByTestId('chart-context-menu-reset')).toBeVisible();
     await expect(page.getByTestId('chart-context-menu-snapshot')).toBeVisible();
     await expect(page.getByTestId('chart-context-menu-hint')).toContainText(
@@ -179,6 +185,37 @@ test.describe('Trader chart right-click context menu', () => {
 
     await page.keyboard.press('Escape');
     await expect(menu).toHaveCount(0);
+
+    expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
+  });
+
+  test('Show Layers toggles the same indicator SSOT as the desk toolbar', async ({ page }) => {
+    const { errors } = attachErrorCollector(page);
+    await openSampleTrader(page);
+    await rightClickChart(page);
+
+    await page.getByTestId('chart-context-menu-show_layers').click();
+    const vwap = page.getByTestId('chart-context-menu-layer-vwap');
+    await expect(vwap).toBeVisible();
+    const before = await vwap.getAttribute('aria-checked');
+    await vwap.click();
+    await expect(page.getByTestId('chart-context-menu')).toBeVisible();
+    await expect(vwap).toHaveAttribute('aria-checked', before === 'true' ? 'false' : 'true');
+    await page.screenshot({
+      path: `${ARTIFACTS}/chart-context-menu-layers.png`,
+      fullPage: true,
+    });
+
+    expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
+  });
+
+  test('View Trade Details docks Positions through the same event as the tag', async ({ page }) => {
+    const { errors } = attachErrorCollector(page);
+    await openSampleTrader(page);
+    await rightClickChart(page);
+    await page.getByTestId('chart-context-menu-view_details').click();
+    await expect(page.getByTestId('chart-context-menu')).toHaveCount(0);
+    await expect(page.getByTestId('stock-view-positions')).toBeVisible();
 
     expect(errors, `uncaught errors:\n${errors.join('\n')}`).toEqual([]);
   });

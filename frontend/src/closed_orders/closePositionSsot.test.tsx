@@ -161,6 +161,8 @@ describe('Close Position SSOT across every UI entry point', () => {
           containerRef={containerRef}
           activeTool={null}
           onToolClick={() => {}}
+          enabledIndicators={['emas', 'vwap']}
+          onIndicatorToggle={() => {}}
         />,
       );
     });

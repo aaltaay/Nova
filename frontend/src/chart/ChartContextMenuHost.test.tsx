@@ -9,6 +9,7 @@ import * as closeMod from '../ibkr/closeFullPosition';
 import * as prefillMod from '../ibkr/orderTicketPrefill';
 import type { IbkrPosition } from '../ibkr/types';
 import { ChartContextMenuHost } from './ChartContextMenuHost';
+import * as dockNav from '../stock_view/requestDockSurface';
 
 const SMPL: IbkrPosition = {
   symbol: 'SMPL',
@@ -58,6 +59,7 @@ describe('ChartContextMenuHost', () => {
   let containerRef: RefObject<HTMLElement | null>;
   let candleSeriesRef: RefObject<ISeriesApi<'Candlestick'> | null>;
   let onToolClick: ReturnType<typeof vi.fn>;
+  let onIndicatorToggle: ReturnType<typeof vi.fn>;
   let chart: IChartApi;
   let applyOptions: ReturnType<typeof vi.fn>;
   let fitContent: ReturnType<typeof vi.fn>;
@@ -77,6 +79,7 @@ describe('ChartContextMenuHost', () => {
       current: { coordinateToPrice: () => 4.253 } as unknown as ISeriesApi<'Candlestick'>,
     };
     onToolClick = vi.fn();
+    onIndicatorToggle = vi.fn();
     applyOptions = vi.fn();
     fitContent = vi.fn();
     takeScreenshot = vi.fn(() => ({
@@ -109,6 +112,8 @@ describe('ChartContextMenuHost', () => {
           containerRef={containerRef}
           activeTool={activeTool}
           onToolClick={onToolClick}
+          enabledIndicators={['emas', 'vwap']}
+          onIndicatorToggle={onIndicatorToggle}
         />,
       );
     });
@@ -305,5 +310,39 @@ describe('ChartContextMenuHost', () => {
     rightClick();
     expect(item('buy')).toBeNull();
     expect(item('reset')).toBeTruthy();
+  });
+
+  it('disables Create Alert and Add to Watchlist with a visible reason', () => {
+    render();
+    rightClick();
+    const alert = item('create_alert');
+    const watch = item('add_to_watchlist');
+    expect(alert.disabled).toBe(true);
+    expect(watch.disabled).toBe(true);
+    expect(alert.textContent).toContain('No price alerts in Nova');
+    expect(watch.textContent).toContain('Watchlist is ranked');
+    act(() => alert.click());
+    expect(menu()).toBeTruthy();
+  });
+
+  it('Show Layers toggles an existing indicator without dismissing', () => {
+    render();
+    rightClick();
+    act(() => item('show_layers').click());
+    expect(document.querySelector('[data-testid="chart-context-menu-layers-submenu"]'))
+      .toBeTruthy();
+    act(() => item('layer-vwap').click());
+    expect(onIndicatorToggle).toHaveBeenCalledWith('vwap');
+    expect(menu()).toBeTruthy();
+  });
+
+  it('View Trade Details docks Positions through the tag SSOT', () => {
+    const spy = vi.spyOn(dockNav, 'requestStockViewDock');
+    positions = [SMPL];
+    render();
+    rightClick();
+    act(() => item('view_details').click());
+    expect(spy).toHaveBeenCalledWith({ surface: 'positions' });
+    expect(menu()).toBeNull();
   });
 });

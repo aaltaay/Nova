@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Chart right-click menu: layers, details, honest disables
+
+- **What:** Trader chart right-click menu now includes **Show Layers** (same EMA/VWAP/RSI/MACD toggles as the desk toolbar), **View Trade Details** (same Positions dock event as the Long/Short tag), and honest disabled **Create Alert** / **Add to Watchlist** rows with a visible reason. Line Style and Chart Settings stay omitted -- Nova has no matching surfaces.
+- **Why:** Issue #116 stayed open after PR #118. That ship covered orders, flatten SSOT, drawings, reset, and snapshot. Acceptance still asked for layers where they exist, View Trade Details on the same dock SSOT, and disabled-with-reason for alert/watchlist instead of silent omit.
+- **Files touched:** `frontend/src/chart/chartContextMenuItems.ts`, `ChartContextMenu.tsx`, `ChartContextMenuHost.tsx`, `ChartContextSubmenu.tsx`, `ChartPaneOverlays.tsx`, `TickerChart.tsx`, `chartContextMenuConstants.ts`, `chartContextMenu.css`, Vitest + `e2e/chart-context-menu.spec.ts`.
+- **How it works now:** The chart still never places or flattens. Order rows stage `ManualOrderTicket`. Close Position is still `ClosePositionButton` -> `closeFullPosition`. Show Layers calls the pane's existing `onIndicatorToggle` and stays open. View Trade Details calls `requestStockViewDock({ surface: 'positions' })`, the same helper the tag menu uses. Create Alert / Add to Watchlist render disabled with "No price alerts in Nova" / "Watchlist is ranked, not a user list" -- Settings Alerts is Discord/Telegram delivery, and the watchlist is ranked Nova OS output with no add API. `auto_live` is untouched (NO-GO).
+- **Verified by:** `npx vitest run` -- 239 files / 1176 passed. `npm run lint` and `npm run build` exit 0. Playwright -- 37 passed / 2 skipped, including `e2e/chart-context-menu.spec.ts` (menu open, Buy/Sell ticket stage, layers toggle, View Trade Details dock, Esc/outside, tag ownership, fullscreen, maximize) and neighbors `chart-position-menu` / `chart-pane-maximize`. `python3 tools/doc_invariants.py` OK; `python3 tools/agent_contract.py --ci` PASS.
+- **Related:** Closes #116. Refs #111 / #114 / #118.
+
 ## 2026-09-16 -- Persist scanner activeTab across reload
 
 - **What:** The last user-picked main scanner tab (Gainers, Large Cap, Catalysts, and the other price/catalyst tables) is stored in prefStore and restored on mount. HOD dock prefs stay on their own keys.

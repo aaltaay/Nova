@@ -9,7 +9,9 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import type { IChartApi, ISeriesApi } from 'lightweight-charts';
+import type { ChartIndicatorId } from '../constants';
 import { defaultTicketQty } from '../ibkr/applyTicketDefaults';
+import { requestStockViewDock } from '../stock_view/requestDockSurface';
 import { ChartContextMenu } from './ChartContextMenu';
 import { chartContextMenuPortalTarget } from './chartContextMenuPortal';
 import { shouldOpenChartContextMenu } from './chartContextMenuItems';
@@ -34,6 +36,8 @@ export function ChartContextMenuHost(props: {
   containerRef: RefObject<HTMLElement | null>;
   activeTool: string | null;
   onToolClick: (toolId: string) => void;
+  enabledIndicators: ChartIndicatorId[];
+  onIndicatorToggle: (id: ChartIndicatorId) => void;
 }) {
   const [open, setOpen] = useState<OpenState | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
@@ -107,11 +111,16 @@ export function ChartContextMenuHost(props: {
         spendStatus={positionCtx.spendStatus}
         flattenDisabled={positionCtx.flattenDisabled}
         activeTool={props.activeTool}
+        enabledIndicators={props.enabledIndicators}
         onStageOrder={(intent: ChartOrderIntent) => {
           if (open.price == null) return;
           stageChartOrder({ symbol: props.symbol, intent, price: open.price });
         }}
         onToolClick={props.onToolClick}
+        onIndicatorToggle={props.onIndicatorToggle}
+        onViewDetails={() => {
+          requestStockViewDock({ surface: 'positions' });
+        }}
         onReset={() => resetChartViewport(props.chart, props.timeframe, props.barCount)}
         onSnapshot={() =>
           downloadChartSnapshot(props.chart, props.symbol, props.timeframe)
