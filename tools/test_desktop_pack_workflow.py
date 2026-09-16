@@ -2,12 +2,33 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "desktop-pack.yml"
 PACKAGE_JSON = REPO_ROOT / "frontend" / "package.json"
 PACK_SCRIPT = REPO_ROOT / "frontend" / "scripts" / "run-electron-pack.mjs"
+FRONTEND_SRC = REPO_ROOT / "frontend" / "src"
+TS_MODULE_SUFFIXES = {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx"}
+
+
+def windows_module_stem_collisions(paths: list[str]) -> dict[str, list[str]]:
+    """Group same-folder TS/JS files whose stems collide on Windows.
+
+    `import './MwcbBanner'` and `import './mwcbBanner'` resolve to one
+    Windows path even when the extensions differ (`.tsx` vs `.ts`).
+    CSS siblings (`AdvisePanel.tsx` + `advisePanel.css`) are a known
+    pattern and are ignored -- those imports keep the `.css` suffix.
+    """
+    groups: dict[str, list[str]] = defaultdict(list)
+    for path in paths:
+        parsed = Path(path)
+        if parsed.suffix.lower() not in TS_MODULE_SUFFIXES:
+            continue
+        parent = str(parsed.parent).replace("\\", "/").casefold()
+        groups[f"{parent}/{parsed.stem.casefold()}"].append(path)
+    return {key: names for key, names in groups.items() if len(names) > 1}
 
 
 def test_desktop_pack_workflow_exists():
@@ -55,6 +76,39 @@ def test_pack_script_defaults_to_nsis_and_portable():
     assert "nsis" in text
     assert "portable" in text
     assert "--win" in text
+
+
+def test_windows_case_collisions_detects_mwcb_banner_pair():
+    hits = windows_module_stem_collisions(
+        [
+            "ibkr/MwcbBanner.tsx",
+            "ibkr/mwcbBanner.ts",
+            "ibkr/MwcbBanner.test.tsx",
+            "ibkr/mwcbBanner.test.ts",
+            "ibkr/mwcbDesk.ts",
+            "ibkr/MwcbBanner.css",
+            "ibkr/mwcbBanner.css",
+        ]
+    )
+    assert sorted(hits["ibkr/mwcbbanner"]) == [
+        "ibkr/MwcbBanner.tsx",
+        "ibkr/mwcbBanner.ts",
+    ]
+    assert sorted(hits["ibkr/mwcbbanner.test"]) == [
+        "ibkr/MwcbBanner.test.tsx",
+        "ibkr/mwcbBanner.test.ts",
+    ]
+    assert "ibkr/mwcbdesk" not in hits
+
+
+def test_frontend_src_has_no_windows_case_collisions():
+    rels = [
+        str(path.relative_to(FRONTEND_SRC)).replace("\\", "/")
+        for path in FRONTEND_SRC.rglob("*")
+        if path.is_file()
+    ]
+    hits = windows_module_stem_collisions(rels)
+    assert hits == {}, f"Windows Desktop pack cannot distinguish: {hits}"
 
 
 def test_npm_electron_pack_does_not_force_nsis_only():

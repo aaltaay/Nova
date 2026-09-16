@@ -1,4 +1,8 @@
-/** Market-wide circuit breaker Level 1/2/3 -- desk banner copy (not LULD tier). */
+/** Market-wide circuit breaker Level 1/2/3 -- desk banner copy (not LULD tier).
+ *
+ * Filename is `mwcbDesk` on purpose. `mwcbBanner.ts` next to `MwcbBanner.tsx`
+ * collapses on Windows (`tsc` TS1261) and breaks Desktop pack.
+ */
 
 export type MwcbDesk = {
   level: number;

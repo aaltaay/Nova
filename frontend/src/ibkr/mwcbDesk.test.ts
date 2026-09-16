@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mwcbBannerLabel } from './mwcbBanner';
+import { mwcbBannerLabel } from './mwcbDesk';
 
 describe('mwcbBannerLabel', () => {
   it('labels Level 1/2/3 from RSS reason codes', () => {

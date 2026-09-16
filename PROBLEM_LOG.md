@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Desktop pack MwcbBanner Windows case collision
+
+- **Symptom:** Desktop pack on PR #191 failed at `npm run electron:pack` / `tsc -b` on `windows-latest`: `Module "./MwcbBanner" has no exported member 'MwcbBanner'` and `Already included file name .../MwcbBanner.ts differs from .../mwcbBanner.ts only in casing`. Linux Frontend build / Vitest stayed green.
+- **Cause:** This PR added `MwcbBanner.tsx` next to `mwcbBanner.ts` (and matching `*.test.*` files). Windows is case-insensitive, so TypeScript treated them as one file. Linux CI could not see the collision. Same class as 2026-07-29 ScannerBarBridge.
+- **Fix:** Rename the label helper to `mwcbDesk.ts` / `mwcbDesk.test.ts`. Linux contract test `test_frontend_src_has_no_windows_case_collisions` walks `frontend/src`.
+- **Fix class:** infra
+- **Keywords:** Desktop pack, windows-latest, TS1261, TS2305, MwcbBanner, mwcbBanner, case-insensitive, electron:pack, #191
+
 ## 2026-09-16 -- Warning 321 generic tick 49
 
 - **Symptom:** After PR #174, live ZTG L1 upgrade requested `233,49` / `233,49,236`. IBKR Warning 321: Incorrect generic tick list. Tick 49 is not in the legal STK list IB printed (100, 101, 105, 106, 165, 221/220, 225, 232/221, 233, 236, 258/47, 292, 375, 411, 456/59, ...).

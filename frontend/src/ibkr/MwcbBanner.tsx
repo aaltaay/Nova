@@ -1,5 +1,5 @@
 /** Rare desk-wide MWCB Level 1/2/3 banner from Nasdaq Trade Halt RSS. */
-import { mwcbBannerLabel, type MwcbDesk } from './mwcbBanner';
+import { mwcbBannerLabel, type MwcbDesk } from './mwcbDesk';
 
 interface Props {
   mwcb: MwcbDesk;

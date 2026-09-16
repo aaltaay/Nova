@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { API_BASE_URL } from '../constants';
 import { HALT_DESK_POLL_MS } from '../constantGroups/halt_eta';
 import { MwcbBanner } from './MwcbBanner';
-import type { MwcbDesk } from './mwcbBanner';
+import type { MwcbDesk } from './mwcbDesk';
 
 function readMwcb(body: unknown): MwcbDesk {
   if (!body || typeof body !== 'object') return null;
