@@ -59,6 +59,21 @@ def exchange_ts_unix(ticker: Any) -> float:
     return time.time()
 
 
+def l1_size_fields(ticker: Any) -> tuple[float | None, float | None]:
+    """lastSize plus cumulative volume from the shared L1 ticker.
+
+    ib_async maps generic tick 233 onto ``lastSize`` and ``rtVolume`` (the
+    RTVolume total, not IB's session VWAP). Tick 8 ``volume`` is the fallback
+    when 233 is not on the line yet. ``ticker.vwap`` is ignored -- we do not
+    invent a second VWAP metric (D-049).
+    """
+    last_size = clean(getattr(ticker, "lastSize", None))
+    rt_volume = clean(getattr(ticker, "rtVolume", None))
+    day_volume = clean(getattr(ticker, "volume", None))
+    cum = rt_volume if rt_volume is not None else day_volume
+    return last_size, cum
+
+
 def notify_quote_listeners(
     listeners: list[QuoteListenerFn],
     symbol: str,
@@ -69,6 +84,7 @@ def notify_quote_listeners(
     *,
     quote_quality: str | None,
     open_price: float | None = None,
+    last_size: float | None = None,
 ) -> None:
     for listener in list(listeners):
         try:
@@ -81,10 +97,10 @@ def notify_quote_listeners(
                     ts_unix,
                     quote_quality=quote_quality,
                     open_price=open_price,
+                    last_size=last_size,
                 )
             except TypeError:
                 try:
-                    # Listeners that take quote_quality but not open_price.
                     listener(
                         symbol,
                         float(price),
@@ -92,10 +108,22 @@ def notify_quote_listeners(
                         prev_close,
                         ts_unix,
                         quote_quality=quote_quality,
+                        open_price=open_price,
                     )
                 except TypeError:
-                    # Legacy 5-arg listeners (no keyword extras at all).
-                    listener(symbol, float(price), vol_i, prev_close, ts_unix)
+                    try:
+                        # Listeners that take quote_quality but not open_price.
+                        listener(
+                            symbol,
+                            float(price),
+                            vol_i,
+                            prev_close,
+                            ts_unix,
+                            quote_quality=quote_quality,
+                        )
+                    except TypeError:
+                        # Legacy 5-arg listeners (no keyword extras at all).
+                        listener(symbol, float(price), vol_i, prev_close, ts_unix)
         except Exception:
             logger.exception("IBKR ticks: quote listener failed for %s", symbol)
 
@@ -136,7 +164,8 @@ def on_ticker_update(
     if price is None:
         return
 
-    volume = clean(getattr(ticker, "volume", None))
+    last_size, cum_volume = l1_size_fields(ticker)
+    volume = cum_volume
     vol_i = int(volume) if volume is not None else None
     prev_close = close
     row = find_cache_row(symbol) if find_cache_row else None
@@ -156,8 +185,16 @@ def on_ticker_update(
     if sub is not None and price_changed:
         sub["last_price"] = price
 
+    volume_increased = False
+    if sub is not None and cum_volume is not None:
+        prev_cum = sub.get("last_cum_volume")
+        if prev_cum is not None and cum_volume > prev_cum:
+            volume_increased = True
+        sub["last_cum_volume"] = cum_volume
+
     # Also notify when day High arrives/raises so HOD can seed without a new last.
-    if price_changed or day_high_changed:
+    # Volume-only RTVolume prints keep l1_minute size honest on a flat last.
+    if price_changed or day_high_changed or volume_increased:
         notify_quote_listeners(
             quote_listeners,
             symbol,
@@ -167,6 +204,7 @@ def on_ticker_update(
             ts_unix,
             quote_quality=quote_quality,
             open_price=open_price if open_price and open_price > 0 else None,
+            last_size=last_size,
         )
 
     if not price_changed or broadcast is None:

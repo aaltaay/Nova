@@ -238,6 +238,78 @@ def test_hist_fill_replaces_live_minute(monkeypatch, tmp_path):
     assert sources == ["ibkr"]
 
 
+def test_volume_increment_baselines_then_deltas():
+    assert l1_minute.volume_increment(None, size=100, cum_volume=5_000_000) == (
+        100.0, 5_000_000.0,
+    )
+    assert l1_minute.volume_increment(5_000_000.0, size=50, cum_volume=5_000_400) == (
+        400.0, 5_000_400.0,
+    )
+    assert l1_minute.volume_increment(5_000_400.0, size=50, cum_volume=5_000_400) == (
+        0.0, 5_000_400.0,
+    )
+    assert l1_minute.volume_increment(None, size=75, cum_volume=None) == (75.0, None)
+    # Session reset: cumulative drops; keep this print, do not go negative.
+    assert l1_minute.volume_increment(5_000_400.0, size=80, cum_volume=120) == (
+        80.0, 120.0,
+    )
+
+
+def test_l1_minute_stamps_cum_volume_delta(monkeypatch, tmp_path):
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    l1_minute.reset_for_tests()
+
+    t0 = 1_700_000_040.0
+    l1_minute.on_last("pfsa", 10.0, t0, size=100, cum_volume=1_000_000)
+    l1_minute.on_last("pfsa", 10.2, t0 + 10.0, size=50, cum_volume=1_000_350)
+    l1_minute.on_last("pfsa", 10.1, t0 + 60.0, size=25, cum_volume=1_000_400)
+    wq.drain_once()
+
+    bar = bars_store.read("PFSA", "1Min", 10)["bars"][0]
+    assert bar["v"] == 450  # 100 first print + 350 delta; next-minute 25 stays open
+    assert bar["c"] == 10.2
+
+
+def test_l1_minute_stamped_volume_moves_vwap_vs_zero_overlay(monkeypatch, tmp_path):
+    """sessionVwapPoints skips volume=0, so a stamped overlay must move the tip."""
+    monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
+    archive_db.init_db()
+    wq.reset_for_tests()
+    l1_minute.reset_for_tests()
+
+    t0 = 1_700_000_000.0
+    l1_minute.on_last("aixc", 10.0, t0, size=1_000, cum_volume=1_000)
+    l1_minute.on_last("aixc", 10.0, t0 + 30.0, size=1_000, cum_volume=2_000)
+    l1_minute.on_last("aixc", 20.0, t0 + 60.0, size=2_000, cum_volume=4_000)
+    l1_minute.on_last("aixc", 20.0, t0 + 120.0, size=1, cum_volume=4_001)
+    wq.drain_once()
+
+    bars = bars_store.read("AIXC", "1Min", 10)["bars"]
+    assert [b["v"] for b in bars] == [2000, 2000]
+
+    def _hlc3_vwap(rows):
+        num = den = 0.0
+        tip = None
+        for row in rows:
+            vol = float(row["v"])
+            if vol <= 0:
+                continue
+            typical = (row["h"] + row["l"] + row["c"]) / 3.0
+            num += typical * vol
+            den += vol
+            tip = num / den
+        return tip
+
+    zero_overlay = [
+        {"h": 10.0, "l": 10.0, "c": 10.0, "v": 2000},
+        {"h": 20.0, "l": 20.0, "c": 20.0, "v": 0},
+    ]
+    assert _hlc3_vwap(zero_overlay) == 10.0
+    assert _hlc3_vwap(bars) == 15.0
+
+
 def test_l1_upsert_can_refine_live_only_row(monkeypatch, tmp_path):
     monkeypatch.setattr(archive_db, "cache_dir", lambda: tmp_path)
     archive_db.init_db()

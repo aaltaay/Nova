@@ -142,6 +142,22 @@ describe('sessionVwapPoints', () => {
     expect(points[1].value).toBeCloseTo(10, 10);
   });
 
+  it('moves the tip when a live 1Min overlay minute has stamped volume', () => {
+    const open = etTime(2026, 7, 25, 9, 30);
+    const hist = [
+      bar(open, 10, 1_000),
+      bar(open + 60, 10, 1_000),
+    ];
+    const overlayZero = [...hist, bar(open + 120, 20, 0)];
+    const overlayLive = [...hist, bar(open + 120, 20, 2_000)];
+
+    const stale = sessionVwapPoints(overlayZero);
+    const fresh = sessionVwapPoints(overlayLive);
+
+    expect(stale.at(-1)?.value).toBeCloseTo(10, 10);
+    expect(fresh.at(-1)?.value).toBeCloseTo(15, 10);
+  });
+
   it('resets at 16:00 ET so after-hours volume starts a new VWAP', () => {
     // LABT-shaped: dead RTH then a huge AH print. Mixing those volumes would
     // erase the daytime decision level (D-007). Webull/DAS start a new session.

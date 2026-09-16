@@ -323,8 +323,8 @@ def test_shortability_uses_the_shared_line_and_waits_for_the_tick(ticks_env):
 
     shares = asyncio.run(_run())
     assert shares == 25_000.0
-    # One line, opened with generic tick 236, released when listing let go.
-    assert fake_ib.mkt_data_calls == [("SOAR", "236")]
+    # One line: default RTVolume 233 merged with listing 236, then released.
+    assert fake_ib.mkt_data_calls == [("SOAR", "233,236")]
     assert fake_ib.cancel_calls == ["SOAR"]
     assert ticks_mod.owners_for("SOAR") == set()
 
@@ -342,10 +342,11 @@ def test_shortability_upgrades_an_existing_line_instead_of_opening_one(ticks_env
 
     shares, owners = asyncio.run(_run())
     assert shares == 900.0
-    assert fake_ib.mkt_data_calls == [("SOAR", ""), ("SOAR", "236")]
+    assert fake_ib.mkt_data_calls == [("SOAR", "233"), ("SOAR", "233,236")]
     # The scanner keeps its stream: the upgrade cancelled only to re-request.
     assert fake_ib.cancel_calls == ["SOAR"]
     assert owners == {"scanner"}
+    assert ticks_mod.has_generic_tick("SOAR", "233") is True
     assert ticks_mod.has_generic_tick("SOAR", "236") is True
 
 
@@ -355,6 +356,21 @@ def test_shortability_times_out_without_a_tick(ticks_env, monkeypatch):
     monkeypatch.setattr(listing_flags, "IBKR_SHORTABLE_TICK_WAIT_SEC", 0.05)
     shares = asyncio.run(listing_flags._shortable_shares("SOAR"))
     assert shares is None
+
+
+def test_scanner_subscribe_requests_rtvolume_on_the_shared_line(ticks_env):
+    ticks_mod, fake_ib = ticks_env
+
+    async def _run():
+        assert await ticks_mod.subscribe("PFSA", ticks_mod.OWNER_SCANNER)
+        assert await ticks_mod.subscribe("PFSA", ticks_mod.OWNER_DETAIL)
+        return ticks_mod.owners_for("PFSA"), ticks_mod.has_generic_tick("PFSA", "233")
+
+    owners, has_233 = asyncio.run(_run())
+    assert fake_ib.mkt_data_calls == [("PFSA", "233")]
+    assert fake_ib.cancel_calls == []
+    assert owners == {"scanner", "detail"}
+    assert has_233 is True
 
 
 def test_listing_flags_never_calls_req_mkt_data_directly():
