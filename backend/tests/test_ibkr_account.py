@@ -259,6 +259,63 @@ def test_positions_for_ui_joins_mtm_from_portfolio(monkeypatch):
     assert out[0]["unrealized_pnl"] == 10.0
 
 
+def test_positions_for_ui_prefers_live_l1_last_over_portfolio(monkeypatch):
+    fake_ib = MagicMock()
+    fake_ib.positions.return_value = [_FakePosition("SPCX", 100, 10.0)]
+    fake_ib.portfolio.return_value = [
+        _FakePortfolioItem("SPCX", 100, 10.50, 1050.0, 10.0, 50.0, 0.0),
+    ]
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(
+        account_mod,
+        "live_l1_last",
+        lambda symbol: 10.87 if symbol == "SPCX" else None,
+    )
+    out = account_mod.positions_for_ui()
+    assert len(out) == 1
+    assert out[0]["market_price"] == 10.87
+    assert out[0]["market_value"] == pytest.approx(1087.0)
+    assert out[0]["unrealized_pnl"] == pytest.approx(87.0)
+
+
+def test_account_summary_for_ui_reads_cache_and_overlays_l1(monkeypatch):
+    monkeypatch.setattr(
+        account_mod,
+        "get_account_summary",
+        lambda: {
+            "connected": True,
+            "mode": "live",
+            "NetLiquidation": 10_000.0,
+            "BuyingPower": 4_000.0,
+            "UnrealizedPnL": 50.0,
+            "RealizedPnL": 12.0,
+        },
+    )
+    monkeypatch.setattr(
+        account_mod,
+        "positions_for_ui",
+        lambda: [{
+            "symbol": "SPCX",
+            "qty": 100.0,
+            "avg_cost": 10.0,
+            "market_price": 10.87,
+            "market_value": 1087.0,
+            "unrealized_pnl": 87.0,
+            "realized_pnl": 0.0,
+        }],
+    )
+    out = account_mod.account_summary_for_ui()
+    assert out["UnrealizedPnL"] == pytest.approx(87.0)
+    assert out["NetLiquidation"] == pytest.approx(10_037.0)
+    assert out["BuyingPower"] == 4_000.0
+
+
+def test_ibkr_account_poll_sec_is_one_second_or_faster():
+    from constants_ibkr import IBKR_ACCOUNT_POLL_SEC
+
+    assert IBKR_ACCOUNT_POLL_SEC <= 1
+
+
 def test_get_portfolio_raises_when_disconnected(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", lambda: None)
     monkeypatch.setattr(client_mod, "is_connected", lambda: False)

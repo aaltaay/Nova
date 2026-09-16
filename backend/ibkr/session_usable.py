@@ -81,6 +81,9 @@ async def _earn_usable_locked(ib: Any, reason: str) -> tuple[bool, str]:
     async def _warm() -> None:
         await _account.refresh_positions_cache(ib)
         await _account.refresh_completed_orders_cache(ib, force=True)
+        from ibkr.account_stream import ensure_account_updates
+
+        await ensure_account_updates(ib)
 
     try:
         await asyncio.wait_for(_warm(), timeout=float(IBKR_EARN_USABLE_TIMEOUT_SEC))

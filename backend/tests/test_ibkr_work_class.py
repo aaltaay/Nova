@@ -36,6 +36,8 @@ def test_cold_labels(label: str) -> None:
         "reqTickByTickData",
         "connectAsync",
         "qualify_hot",
+        "reqAccountUpdatesAsync",
+        "account_updates",
     ],
 )
 def test_hot_labels(label: str) -> None:

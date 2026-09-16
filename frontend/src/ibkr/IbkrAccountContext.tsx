@@ -1,7 +1,7 @@
 /**
  * App-wide IBKR account / positions / orders poller.
- * Mount once under WorkspaceProvider so GlobalAppBar, Trader View, and the
- * Account tab share a single 5s poll instead of each owning a loop.
+ * Account cluster (summary + positions) ticks at IBKR_ACCOUNT_POLL_MS (<=1s).
+ * Orders / closed stay on IBKR_ORDERS_POLL_MS so we do not hammer IBKR.
  */
 import {
   createContext,
@@ -13,10 +13,11 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { API_BASE_URL, IBKR_ACCOUNT_POLL_MS } from '../constants';
+import { API_BASE_URL, IBKR_ACCOUNT_POLL_MS, IBKR_ORDERS_POLL_MS } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { lastKnownAsOfMessage } from './disconnectCopy';
+import { fetchAccountCluster, fetchOrdersCluster } from './ibkrAccountFetch';
 import type { IbkrAccountSummary, IbkrOrder, IbkrPosition } from './types';
 
 export interface IbkrAccountState {
@@ -65,6 +66,11 @@ export const SAMPLE_IBKR_ACCOUNT_STATE: IbkrAccountState = {
 
 const IbkrAccountContext = createContext<IbkrAccountState | null>(null);
 
+function mergeReadError(accountFails: string[], orderFails: string[]): string | null {
+  const failures = [...accountFails, ...orderFails];
+  return failures.length ? `IBKR read failed -- ${failures.join(', ')}` : null;
+}
+
 export function IbkrAccountProvider({ children }: { children: ReactNode }) {
   const sample = useSampleDataOptional();
   const { ibkrConnected } = useWorkspace();
@@ -77,48 +83,59 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
   const [stale, setStale] = useState(false);
   const [staleSince, setStaleSince] = useState<number | null>(null);
   const hadSessionRef = useRef(false);
+  const accountInflight = useRef(false);
+  const ordersInflight = useRef(false);
+  const accountFailsRef = useRef<string[]>([]);
+  const orderFailsRef = useRef<string[]>([]);
 
-  const refresh = useCallback(async () => {
-    if (sample || !ibkrConnected) return;
+  const publishError = useCallback(() => {
+    setError(mergeReadError(accountFailsRef.current, orderFailsRef.current));
+  }, []);
+
+  const refreshAccount = useCallback(async () => {
+    if (sample || !ibkrConnected || accountInflight.current) return;
+    accountInflight.current = true;
     setLoading(true);
     try {
-      const [sumRes, posRes, ordRes, closedRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/api/ibkr/account`),
-        fetch(`${API_BASE_URL}/api/ibkr/positions`),
-        fetch(`${API_BASE_URL}/api/ibkr/orders`),
-        fetch(`${API_BASE_URL}/api/ibkr/orders/closed`),
-      ]);
-      const failures: string[] = [];
-      if (sumRes.ok) {
-        setSummary(await sumRes.json());
-      } else {
-        failures.push(`account (HTTP ${sumRes.status})`);
-      }
-      if (posRes.ok) {
-        setPositions(await posRes.json());
-      } else {
-        failures.push(`positions (HTTP ${posRes.status})`);
-      }
-      if (ordRes.ok) {
-        setOrders(await ordRes.json());
-      } else {
-        failures.push(`orders (HTTP ${ordRes.status})`);
-      }
-      if (closedRes.ok) {
-        setClosedOrders(await closedRes.json());
-      } else {
-        failures.push(`closed orders (HTTP ${closedRes.status})`);
-      }
-      setError(failures.length ? `IBKR read failed -- ${failures.join(', ')}` : null);
+      const snap = await fetchAccountCluster(API_BASE_URL);
+      if (snap.summary) setSummary(snap.summary);
+      if (snap.positions) setPositions(snap.positions);
+      accountFailsRef.current = snap.failures;
       setStale(false);
       setStaleSince(null);
+      publishError();
     } catch (err) {
-      console.error('[Nova] IBKR account/positions/orders poll failed', err);
-      setError('IBKR account/positions/orders fetch failed -- retrying');
+      console.error('[Nova] IBKR account/positions poll failed', err);
+      accountFailsRef.current = ['account/positions fetch failed -- retrying'];
+      publishError();
     } finally {
+      accountInflight.current = false;
       setLoading(false);
     }
-  }, [sample, ibkrConnected]);
+  }, [sample, ibkrConnected, publishError]);
+
+  const refreshOrders = useCallback(async () => {
+    if (sample || !ibkrConnected || ordersInflight.current) return;
+    ordersInflight.current = true;
+    try {
+      const snap = await fetchOrdersCluster(API_BASE_URL);
+      if (snap.orders) setOrders(snap.orders);
+      if (snap.closedOrders) setClosedOrders(snap.closedOrders);
+      orderFailsRef.current = snap.failures;
+      publishError();
+    } catch (err) {
+      console.error('[Nova] IBKR orders poll failed', err);
+      orderFailsRef.current = ['orders fetch failed -- retrying'];
+      publishError();
+    } finally {
+      ordersInflight.current = false;
+    }
+  }, [sample, ibkrConnected, publishError]);
+
+  const refresh = useCallback(() => {
+    void refreshAccount();
+    void refreshOrders();
+  }, [refreshAccount, refreshOrders]);
 
   useEffect(() => {
     if (sample) return;
@@ -139,16 +156,22 @@ export function IbkrAccountProvider({ children }: { children: ReactNode }) {
     }
 
     let active = true;
-    const tick = () => {
-      if (active) void refresh();
+    const tickAccount = () => {
+      if (active) void refreshAccount();
     };
-    tick();
-    const id = setInterval(tick, IBKR_ACCOUNT_POLL_MS);
+    const tickOrders = () => {
+      if (active) void refreshOrders();
+    };
+    tickAccount();
+    tickOrders();
+    const accId = setInterval(tickAccount, IBKR_ACCOUNT_POLL_MS);
+    const ordId = setInterval(tickOrders, IBKR_ORDERS_POLL_MS);
     return () => {
       active = false;
-      clearInterval(id);
+      clearInterval(accId);
+      clearInterval(ordId);
     };
-  }, [sample, ibkrConnected, refresh]);
+  }, [sample, ibkrConnected, refreshAccount, refreshOrders]);
 
   const value = useMemo<IbkrAccountState>(() => {
     if (sample) return SAMPLE_IBKR_ACCOUNT_STATE;

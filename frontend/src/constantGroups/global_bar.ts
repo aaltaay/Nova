@@ -6,8 +6,10 @@
 /** Fixed height of the Webull-style top status row (px). */
 export const GLOBAL_APP_BAR_HEIGHT_PX = 40;
 
-/** IBKR account / positions / orders poll interval for the shared provider. */
-export const IBKR_ACCOUNT_POLL_MS = 5_000;
+/** Account cluster (Day P&L / Net Liq / BP / position marks) while Gateway is up. */
+export const IBKR_ACCOUNT_POLL_MS = 1_000;
+/** Working + closed orders -- slower so the 1s cluster poll does not hammer IBKR. */
+export const IBKR_ORDERS_POLL_MS = 5_000;
 /** One shared /api/ibkr/status interval for every useIbkrStatus subscriber. */
 export const IBKR_STATUS_POLL_MS = 5_000;
 /** Consecutive failed polls before last-good `connected` is forced false. */

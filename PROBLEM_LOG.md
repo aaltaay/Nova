@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- 5s account poll froze marks
+
+- **Symptom:** Header Day P&L / Net Liq / BP and Positions SPCX Mkt Price lagged live Time & Sales by tens of cents (2026-09-16).
+- **Cause:** `IbkrAccountContext` polled account + positions + orders + closed every `IBKR_ACCOUNT_POLL_MS = 5000`. Position marks came only from `ib.portfolio()` on that poll. `GET /account` also ran `accountSummaryAsync` (COLD) instead of the live `reqAccountUpdates` cache.
+- **Fix:** 1s account/positions cluster poll; 5s orders/closed; L1 last overlay when Nova already streams the symbol; cache-read account summary + connect-time `ensure_account_updates`. Overlay copies the IB snapshot so #181 `AccountType` is unchanged.
+- **Fix class:** ownership
+- **Keywords:** Day P&L, Net Liq, BP, market_price, IBKR_ACCOUNT_POLL_MS, SPCX, #182, L1 mark
+
 ## 2026-09-16 -- Nasdaq RSS last-write-wins stale overlay
 
 - **Symptom:** After the BOM fix, `/api/halts/desk` was `ok` but live DLXY LULD (`ticker.halted=2`) showed `exchange.matched=true` with a morning `trade_resume` while the current Nasdaq row was still open (`trade_resume` empty, age under 2m).
