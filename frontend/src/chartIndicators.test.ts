@@ -10,7 +10,7 @@ import {
   vwapAxisTitleFromLine,
   vwapWaitingTitle,
 } from './chartIndicators';
-import { CHART_EMA_LENGTHS } from './constants';
+import { CHART_EMA_COLORS, CHART_EMA_LENGTHS, CHART_VWAP_COLOR } from './constants';
 import type { RawBar } from './tickerChartData';
 
 function makeBars(n: number): RawBar[] {
@@ -71,9 +71,22 @@ describe('chartIndicators (library adapters)', () => {
     expect(histValued.every(p => 'color' in p && typeof p.color === 'string' && p.color.length > 0)).toBe(true);
   });
 
-  it('computes finite 9/20/50/200 EMA overlays via EMA.calculate', () => {
+  it('keeps the Warrior overlay set as 9 / 20 / 200 EMAs + VWAP (no 50)', () => {
+    expect([...CHART_EMA_LENGTHS]).toEqual([9, 20, 200]);
+    expect(CHART_EMA_LENGTHS).not.toContain(50);
+    expect(CHART_EMA_COLORS).toEqual({
+      9: '#9CA3AF',
+      20: '#7DD3FC',
+      200: '#A855F7',
+    });
+    expect(CHART_VWAP_COLOR).toBe('#F97316');
+    expect(Object.keys(CHART_EMA_COLORS)).not.toContain('50');
+  });
+
+  it('computes finite 9/20/200 EMA overlays via EMA.calculate', () => {
     const bars = rawBarsToIndicatorBars(makeBars(220), '1Min');
     const emas = computeEmaOverlays(bars);
+    expect(Object.keys(emas).map(Number).sort((a, b) => a - b)).toEqual([9, 20, 200]);
     for (const length of CHART_EMA_LENGTHS) {
       expect(emas[length].length).toBeGreaterThan(0);
       expect(emas[length].every(p => Number.isFinite(p.value))).toBe(true);

@@ -32,15 +32,14 @@ export const CHART_GRID_PANE_INDICATORS: Record<string, ChartIndicatorId[]> = {
 export const CHART_OVERLAY_IDS: ChartOverlayId[] = ['emas', 'vwap'];
 export const CHART_OSCILLATOR_IDS: ChartOscillatorId[] = ['rsi', 'macd'];
 
-/** Warrior EMA lengths: 9 / 20 / 50 / 200 (BA101 Ch.5 + free ebook). */
-export const CHART_EMA_LENGTHS = [9, 20, 50, 200] as const;
+/** Warrior-style EMA lengths: 9 / 20 / 200 (no 50). VWAP is a separate overlay. */
+export const CHART_EMA_LENGTHS = [9, 20, 200] as const;
 export type ChartEmaLength = (typeof CHART_EMA_LENGTHS)[number];
 
-/** Warrior chart overlay colors (BA101 Ch.5 + ebook MA/VWAP legend). */
+/** Overlay colors for 9 / 20 / 200 EMAs. VWAP stays `CHART_VWAP_COLOR`. */
 export const CHART_EMA_COLORS: Record<ChartEmaLength, string> = {
   9: '#9CA3AF',   // grey
   20: '#7DD3FC',  // light blue
-  50: '#EF4444',  // red
   200: '#A855F7', // purple
 };
 export const CHART_VWAP_COLOR = '#F97316'; // orange
