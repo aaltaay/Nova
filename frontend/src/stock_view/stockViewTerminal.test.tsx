@@ -245,7 +245,7 @@ describe('StockViewDepthTape', () => {
                 kind: 'luld',
                 halt_code: 2,
                 halt_start: 1_700_000_000,
-                source: 'ibkr_tick_49',
+                source: 'ibkr_ticker_halted',
               },
             })}
           />,

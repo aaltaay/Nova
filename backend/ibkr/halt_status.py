@@ -1,9 +1,10 @@
-"""In-memory IBKR tick-49 halt observe for the L2 HaltEtaChip.
+"""In-memory IBKR ticker.halted observe for the L2 HaltEtaChip.
 
 Owner: this module.
-Invalidation: tick 49 returns to 0 / -1 / NaN (trading resumed), or
+Invalidation: ticker.halted returns to 0 / -1 / NaN (trading resumed), or
 ``reset()`` (tests). Not persisted -- a process restart restarts
-``halt_start`` from the next observed halt tick (tooltip says observed).
+``halt_start`` from the next observed halt tick (tooltip says observed,
+not SIP). Incoming tick type 49 is default L1; never request generic 49.
 """
 from __future__ import annotations
 
@@ -50,7 +51,7 @@ def snapshot(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
         "halt_start_source": HALT_START_SOURCE,
         "reason": view["reason"],
         "rule": view["rule"],
-        "source": "ibkr_tick_49",
+        "source": "ibkr_ticker_halted",
     }
 
 
@@ -60,7 +61,7 @@ def observe_code(
     *,
     now: float | None = None,
 ) -> tuple[dict[str, Any] | None, bool]:
-    """Apply one tick-49 reading. Returns (snapshot_or_None, changed)."""
+    """Apply one ticker.halted reading. Returns (snapshot_or_None, changed)."""
     sym = (symbol or "").strip().upper()
     if not sym:
         return None, False
@@ -73,7 +74,7 @@ def observe_code(
         if prev is None:
             return None, False
         _state.pop(sym, None)
-        logger.info("IBKR halt: %s cleared (tick 49=%s)", sym, code)
+        logger.info("IBKR halt: %s cleared (ticker.halted=%s)", sym, code)
         return None, True
 
     if prev is not None and prev.get("kind") == kind and prev.get("halt_code") == code:
@@ -99,5 +100,5 @@ def observe_from_ticker(
     *,
     now: float | None = None,
 ) -> tuple[dict[str, Any] | None, bool]:
-    """Read ``ticker.halted`` (tick 49). Tape quiet is ignored here."""
+    """Read ``ticker.halted`` (incoming tick type 49). Tape quiet is ignored."""
     return observe_code(symbol, getattr(ticker, "halted", None), now=now)

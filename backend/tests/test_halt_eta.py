@@ -97,3 +97,10 @@ def test_unknown_kind_is_halted_eta_unknown():
     assert view is not None
     assert view["label"] == "HALTED · ETA unknown"
     assert "~" not in view["label"] or "ETA" in view["label"]
+
+
+def test_halt_start_source_is_observed_not_sip():
+    view = halt_chip_view(kind=KIND_LULD, halt_start=1.0, now=2.0)
+    assert view is not None
+    assert view["halt_start_source"] == "observed_ticker_halted"
+    assert "sip" not in view["halt_start_source"].lower()

@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def _observe_halt(symbol: str, ticker: Any) -> None:
-    """Prefer IBKR tick 49 over tape freeze. Broadcast only on change."""
+    """Prefer ticker.halted (incoming tick type 49) over tape freeze."""
     from ibkr import halt_status
 
     _snap, changed = halt_status.observe_from_ticker(symbol, ticker)
@@ -174,7 +174,7 @@ def on_ticker_update(
     if sub is not None:
         # Liveness for is_fresh() -- even when price is unchanged.
         sub["last_update_ts"] = time.time()
-    # Tick 49 halt can arrive with no last. Observe before the price-none return.
+    # ticker.halted can arrive with no last. Observe before the price-none return.
     _observe_halt(symbol, ticker)
     last = clean(getattr(ticker, "last", None))
     close = clean(getattr(ticker, "close", None))

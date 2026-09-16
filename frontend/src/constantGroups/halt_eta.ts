@@ -22,4 +22,4 @@ export const HALT_TYPE_REGULATORY = 'News / regulatory';
 export const HALT_TYPE_UNKNOWN = 'Unknown';
 
 export const HALT_START_OBSERVED_NOTE =
-  'observed; first IBKR tick 49 -- not the SIP official start';
+  'observed first ticker.halted (incoming tick type 49) -- not the SIP official start';

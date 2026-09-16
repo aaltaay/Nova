@@ -23,7 +23,7 @@ describe('HaltEtaChip', () => {
           kind: 'luld',
           halt_code: 2,
           halt_start: START,
-          source: 'ibkr_tick_49',
+          source: 'ibkr_ticker_halted',
         }}
         nowMs={(START + 30) * 1000}
       />,
@@ -31,7 +31,9 @@ describe('HaltEtaChip', () => {
     const chip = screen.getByTestId('halt-eta-chip');
     expect(chip.getAttribute('data-kind')).toBe('luld');
     expect(chip.textContent).toMatch(/LULD/);
-    expect(chip.getAttribute('title') ?? '').toMatch(/tick 49/);
+    const title = chip.getAttribute('title') ?? '';
+    expect(title).toMatch(/ticker\.halted/);
+    expect(title).toMatch(/not the SIP official start/);
   });
 
   it('does not look like a Place / order control', () => {

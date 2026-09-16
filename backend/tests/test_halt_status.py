@@ -21,8 +21,9 @@ def test_first_luld_tick_records_observed_start():
     assert snap["halted"] is True
     assert snap["kind"] == KIND_LULD
     assert snap["halt_start"] == 1_000.0
-    assert snap["halt_start_source"] == "observed_tick_49"
-    assert snap["source"] == "ibkr_tick_49"
+    assert snap["halt_start_source"] == "observed_ticker_halted"
+    assert snap["source"] == "ibkr_ticker_halted"
+    assert "sip" not in snap["halt_start_source"].lower()
 
 
 def test_same_halt_keeps_original_start():
