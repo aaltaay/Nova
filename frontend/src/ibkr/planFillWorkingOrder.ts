@@ -3,8 +3,9 @@
  *
  * IBKR does not fill MKT outside regular hours (Warning 2109 ignores
  * outsideRth on market orders; Warning 399 holds until the open). The
- * manual ticket already refuses MKT+EH. Fill now used to cancel+resubmit
- * the same unfillable MKT and treat broker-accept as success (#168).
+ * ticket may send MKT+EH from the Extended Hours checkbox (#170); that
+ * does not make those MKTs fill. Fill now used to cancel+resubmit the
+ * same unfillable MKT and treat broker-accept as success (#168).
  */
 import type { MarketSessionKind } from '../chart/sessionHighlight';
 import { sessionKindFromEtMinutes } from '../chart/sessionHighlight';

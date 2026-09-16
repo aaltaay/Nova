@@ -580,7 +580,7 @@ export const TICKER_TRADE_LABEL_ORDER_TYPE = 'Order Type';
 export const TICKER_TRADE_LABEL_QUANTITY = 'Quantity';
 export const TICKER_TRADE_LABEL_LIMIT_PRICE = 'Limit Price';
 export const TICKER_TRADE_LABEL_STOP_PRICE = 'Stop Price';
-export const TICKER_TRADE_LABEL_TRADING_HOURS = 'Trading Hours';
+export const TICKER_TRADE_LABEL_TRADING_HOURS = 'Extended Hours';
 /** Manual order ticket defaults and mode-specific quick-size presets. */
 export const TICKER_TRADE_DEFAULT_ORDER_TYPE = 'MKT' as const;
 export const TICKER_TRADE_SHARE_PRESETS = [10, 50, 100, 500] as const;

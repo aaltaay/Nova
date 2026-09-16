@@ -1,7 +1,7 @@
 /**
  * Fixed right rail: Stock Quote (stats + L2 + T&S) | drag | Trade ticket.
  * Horizontal splitter reallocates height between quote/depth and Order Entry.
- * TRADE keeps a min-height floor (depth shrinks first) so Trading Hours stays reachable.
+ * TRADE keeps a min-height floor (depth shrinks first) so Extended Hours stays reachable.
  */
 import { useRef, type CSSProperties } from 'react';
 import { ResizeHandle } from '../components/ResizeHandle';

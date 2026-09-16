@@ -157,7 +157,6 @@ export function ManualOrderTicket({
       setQuantityMode('shares');
       if (!QTY_LOCKED) setQuantityValue(req.quantityValue);
       setLimitPrice(req.limitPrice);
-      if (req.orderType !== 'LMT') setOutsideRth(false);
       resetSubmission();
     });
   }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -194,7 +193,6 @@ export function ManualOrderTicket({
 
   function selectOrderType(next: ManualOrderType) {
     setOrderType(next);
-    if (next !== 'LMT') setOutsideRth(false);
     resetSubmission();
   }
 

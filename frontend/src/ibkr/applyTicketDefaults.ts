@@ -50,9 +50,8 @@ export function applyTicketDefaults(
       : { last: referencePrice, bid: null, ask: null };
   const limit = seedLimitPrice(prefs.limitPriceSource, side, book);
   const stop = seedStopPrice(side, referencePrice, prefs.stopOffsetPct);
-  const wantExtended = prefs.tradingHours === 'extended';
   const orderType = prefs.orderType;
-  const outsideRth = wantExtended && orderType === 'LMT';
+  const outsideRth = prefs.tradingHours === 'extended';
   return {
     orderType,
     quantityValue: defaultTicketQty(),

@@ -150,6 +150,48 @@ def test_is_whole_share_qty():
     assert validate.is_whole_share_qty(-1) is False
 
 
+def test_place_allows_market_and_stop_outside_rth(monkeypatch):
+    """Place may send MKT/STP + EH; IBKR decides whether to accept."""
+    import ibkr.safety as safety_mod
+
+    monkeypatch.setattr(client_mod, "is_enabled", lambda: True)
+    monkeypatch.setattr(client_mod, "is_connected", lambda: True)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    monkeypatch.setattr(client_mod, "broker_account_kind", lambda: "paper")
+    monkeypatch.setattr(
+        safety_mod,
+        "assert_orders_allowed",
+        lambda **_k: (True, "OK"),
+    )
+    mkt = ExecutionCommand(
+        operation="place",
+        idempotency_key="eh-mkt",
+        source="manual",
+        symbol="AAPL",
+        side="BUY",
+        qty=1,
+        order_type="MKT",
+        outside_rth=True,
+    )
+    ok, _detail, reason = validate.validate_command(mkt)
+    assert ok is True
+    assert reason is None
+    stp = ExecutionCommand(
+        operation="place",
+        idempotency_key="eh-stp",
+        source="manual",
+        symbol="AAPL",
+        side="SELL",
+        qty=1,
+        order_type="STP",
+        stop_price=12.5,
+        outside_rth=True,
+    )
+    ok, _detail, reason = validate.validate_command(stp)
+    assert ok is True
+    assert reason is None
+
+
 def test_place_rejects_fractional_qty_preflight(monkeypatch):
     """IBKR Error 10243 — never submit fractional lots via the API."""
     import ibkr.safety as safety_mod

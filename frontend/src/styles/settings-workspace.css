@@ -159,47 +159,6 @@
   font-weight: 600;
 }
 
-.trade-defaults-form {
-  max-width: 28rem;
-}
-
-.trade-defaults-row {
-  display: grid;
-  grid-template-columns: 9.5rem 1fr;
-  gap: 0.75rem;
-  align-items: center;
-  margin-bottom: 0.65rem;
-}
-
-.trade-defaults-row label {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-.trade-defaults-row input,
-.trade-defaults-row select {
-  width: 100%;
-  font-size: 0.85rem;
-}
-
-.trade-defaults-warn {
-  color: #eab308;
-}
-
-.trade-prefs-check {
-  display: flex;
-  gap: 0.65rem;
-  align-items: flex-start;
-  font-size: 0.85rem;
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.trade-prefs-check .settings-block-hint {
-  display: block;
-  margin: 0.25rem 0 0;
-}
-
 .settings-account-dl {
   margin: 0 0 1rem;
   display: grid;

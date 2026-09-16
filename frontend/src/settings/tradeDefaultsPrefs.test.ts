@@ -17,9 +17,18 @@ describe('tradeDefaultsPrefs', () => {
 
   it('returns defaults when empty / corrupt', () => {
     expect(readTradeDefaultsPrefs()).toEqual(defaultTradeDefaultsPrefs());
+    expect(defaultTradeDefaultsPrefs().tradingHours).toBe('extended');
     localStorage.setItem(TRADE_DEFAULTS_STORAGE_KEY, '{not-json');
     expect(readTradeDefaultsPrefs()).toEqual(defaultTradeDefaultsPrefs());
     expect(parseTradeDefaultsPrefs(null)).toEqual(defaultTradeDefaultsPrefs());
+  });
+
+  it('keeps a saved Regular Hours pref instead of the new default', () => {
+    writeTradeDefaultsPrefs({
+      ...defaultTradeDefaultsPrefs(),
+      tradingHours: 'rth',
+    });
+    expect(readTradeDefaultsPrefs().tradingHours).toBe('rth');
   });
 
   it('round-trips a valid prefs object', () => {

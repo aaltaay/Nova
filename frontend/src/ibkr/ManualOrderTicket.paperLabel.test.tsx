@@ -21,6 +21,7 @@ describe('ManualOrderTicket paper place label', () => {
   let root: Root;
 
   beforeEach(() => {
+    localStorage.clear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -63,5 +64,17 @@ describe('ManualOrderTicket paper place label', () => {
     expect(btn).toBeTruthy();
     expect(btn.textContent).toBe(TICKER_TRADE_PLACE_ORDER_LABEL);
     expect(btn.classList.contains('manual-order-submit--paper')).toBe(false);
+  });
+
+  it('shows an enabled Extended Hours checkbox on Market (default)', () => {
+    localStorage.clear();
+    render('live');
+    const box = container.querySelector(
+      '[data-testid="manual-order-extended"]',
+    ) as HTMLInputElement;
+    expect(box).toBeTruthy();
+    expect(box.checked).toBe(true);
+    expect(box.disabled).toBe(false);
+    expect(container.querySelector('#manual-order-hours')).toBeNull();
   });
 });

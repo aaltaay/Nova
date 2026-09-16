@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Market ticket locked Regular Hours
+
+- **Symptom:** Trade ticket with Market (Default) showed Trading Hours stuck on Regular Hours with a blocked cursor. Operator could not enable extended hours in premarket. Place with default Market always sent `outside_rth=false`.
+- **Cause:** `ManualOrderFields` disabled the hours `<select>` unless `orderType === LMT`. `buildManualOrder` rejected EH unless LMT. `applyTicketDefaults` AND-ed prefs EH with LMT. Switching to Market/Stop cleared the flag. Flatten still sends MKT + EH via `shouldUseOutsideRth`. Fill now (#171) is a separate path: it must not cancel+resubmit an unfillable EH MKT.
+- **Fix:** Replace the dropdown with an Extended Hours checkbox (default on via `TRADE_DEFAULT_EXTENDED_HOURS`). Keep it enabled for MKT/STP. Allow Place payloads with MKT/STP + `outside_rth`. Drop the Nova STP+EH pre-reject so a broker error is the only block. Honor saved Regular Hours prefs. Do not change Fill now planning.
+- **Fix class:** admission
+- **Keywords:** Extended Hours, outside_rth, ManualOrderFields, buildManualOrder, Market, STP, #170, TRADE_DEFAULT_EXTENDED_HOURS
+
 ## 2026-09-16 -- Fill now EH MKT returned to Working
 
 - **Symptom:** Paper premarket ~09:01 ET. Operator clicked Fill now on FTFT #115067 (SELL MKT, Extended hours, Working, qty 1). Order stayed/returned to Working; filled_qty=0; long FTFT qty=1 unchanged. Desk L2 was on MEDS; banner said PRICES: no L1 yet. Toast earlier showed #115052.

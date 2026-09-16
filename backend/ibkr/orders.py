@@ -43,7 +43,7 @@ def _validation_error(
     order_type: str,
     limit_price: float | None,
     stop_price: float | None,
-    outside_rth: bool,
+    _outside_rth: bool,
 ) -> str | None:
     if side not in ("BUY", "SELL"):
         return "side must be BUY or SELL"
@@ -55,9 +55,8 @@ def _validation_error(
         return "limit_price must be greater than zero for LMT"
     if order_type == "STP" and (stop_price is None or stop_price <= 0):
         return "stop_price must be greater than zero for STP"
-    # MKT + LMT may trade extended; STP triggers stay RTH-only in Nova.
-    if outside_rth and order_type == "STP":
-        return "outside_rth is not supported for STP orders"
+    # MKT / LMT / STP all forward outside_rth. IBKR may reject or ignore
+    # (Error 2109) some combinations -- surface that after Place.
     return None
 
 
@@ -80,7 +79,7 @@ def _build_order(
         return LimitOrder(
             side, qty, limit_price, outsideRth=outside_rth, tif=tif,
         )
-    return StopOrder(side, qty, stop_price, outsideRth=False, tif=tif)
+    return StopOrder(side, qty, stop_price, outsideRth=bool(outside_rth), tif=tif)
 
 
 def place_order(

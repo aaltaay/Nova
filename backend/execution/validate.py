@@ -82,8 +82,6 @@ def validate_command(cmd: ExecutionCommand) -> tuple[bool, str, str | None]:
             return False, "limit_price required for LMT", "LIMIT_MISSING"
         if cmd.order_type == "STP" and (cmd.stop_price is None or cmd.stop_price <= 0):
             return False, "stop_price required for STP", "STOP_MISSING"
-        if cmd.outside_rth and cmd.order_type == "STP":
-            return False, "outside_rth is not supported for STP", "OUTSIDE_RTH_INVALID"
     elif cmd.operation == "bracket":
         if cmd.entry_price is None or cmd.stop_price is None or cmd.target_price is None:
             return False, "bracket requires entry/stop/target", "BRACKET_FIELDS"
