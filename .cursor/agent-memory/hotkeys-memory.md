@@ -9,15 +9,18 @@ Companion to: `.cursor/agents/hotkeys.md`
 ## Current snapshot
 
 ```yaml
-captured_at: 2026-08-25T22:22:00Z
-source_revision: e9fc955
-result: nova_action_key_edit_guarded_delete
+captured_at: 2026-09-16T05:10:00Z
+source_revision: d047-hide-coming-soon
+result: hide_dead_landing_tabs_and_ticket_automate
 metrics:
   nova_actions_default: 14  # 7 classic + 7 nova-wb-*
   overlay_key_btn: true
   overlay_action_edit: true
   overlay_two_step_delete: true
   delete_tombstones: removedNovaActionIds
+  landing_category_tabs: false
+  landing_coming_soon: false
+  order_ticket_automate: false
   desk_f1: buy_limit_ask_offset 1sh Ask+0.05 EH
   desk_f2: sell_limit_bid_offset 1sh Bid-0.05 EH
   desk_f5: sell_limit_ask_offset 1sh Ask+0.05 EH
@@ -68,6 +71,7 @@ Or:
 
 | Date | Note |
 |------|------|
+| 2026-09-16 | D-047: hid unused Hot Keys landing tabs + OrderTicket Automate coming-soon stub. Keymap editor unchanged. `auto_live` untouched. |
 | 2026-08-25 | Overlay Key / Edit / two-step trash on System 2; tombstones; Settings delete; reloadNovaActions moved off setProfile updater. |
 | 2026-08-17 | Desk self-heal: F5 epoch applies without hard refresh. |
 | 2026-08-17 | Rebound sell-Ask+$0.05 from F3 to F5. Epoch `f1-f5-eh-2026-08-17`. |

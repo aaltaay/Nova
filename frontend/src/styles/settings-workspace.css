@@ -842,33 +842,6 @@
   color: var(--text-secondary);
 }
 
-.hk-landing-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 0.85rem;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 0.5rem;
-}
-
-.hk-landing-tab {
-  font-size: 0.78rem;
-  padding: 0.35rem 0.7rem;
-  border: 1px solid transparent;
-  border-radius: 4px 4px 0 0;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.hk-landing-tab.is-active {
-  color: var(--text-primary);
-  border-color: var(--border-color);
-  border-bottom-color: var(--bg-primary, #111);
-  background: var(--bg-secondary, #1a1a1a);
-  font-weight: 600;
-}
-
 .hk-landing-cta-row {
   display: flex;
   flex-wrap: wrap;

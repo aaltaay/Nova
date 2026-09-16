@@ -10,7 +10,6 @@ import {
   HOTKEYS_CREATE_DIALOG_TITLE,
   HOTKEYS_SETTINGS_CTA,
   HOTKEYS_SETTINGS_DIALOG_TITLE,
-  HOTKEYS_TAB_SOON,
 } from '../constants';
 import { HotkeyManager } from './HotkeyManager';
 import { serializeHtk } from './htkFormat';
@@ -129,17 +128,16 @@ describe('HotkeyManager', () => {
   });
 
 
-  it('shows Coming soon for non-Trade tabs', async () => {
+  it('hides unused category tabs and Coming soon chrome', () => {
     act(() => {
       root.render(<HotkeyManager />);
     });
-    const chartTab = Array.from(container.querySelectorAll('[role="tab"]')).find(
-      (b) => b.textContent === 'Chart',
-    );
-    await act(async () => {
-      (chartTab as HTMLButtonElement).click();
-    });
-    expect(container.textContent).toContain(HOTKEYS_TAB_SOON);
+    expect(container.querySelector('[role="tablist"]')).toBeNull();
+    expect(container.querySelector('[data-testid="hotkeys-tab-soon"]')).toBeNull();
+    expect(container.textContent).not.toContain('Coming soon');
+    expect(container.textContent).not.toContain('Paper Trading');
+    expect(container.querySelector('[data-testid="hotkeys-settings-cta"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="hotkeys-landing-list"]')).toBeTruthy();
   });
 
   it('imports .htk via Advanced DAS preview then replace without fetch', async () => {

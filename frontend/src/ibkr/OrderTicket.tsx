@@ -63,15 +63,6 @@ export function OrderTicket({
         referencePrice={referencePrice}
         onOrderPlaced={onOrderPlaced}
       />
-
-      <button
-        type="button"
-        className="ibkr-automate-btn"
-        disabled
-        title="Coming soon — strategy/pattern-based automated execution"
-      >
-        ⚡ Automate (coming soon)
-      </button>
     </div>
   );
 }
