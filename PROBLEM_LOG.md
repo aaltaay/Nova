@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Advise failed-run spend
+
+- **Symptom:** Advise on a symbol with a failed/cancelled book row looked empty or showed an older complete. Past runs hid failed spend. Operator read the $10 OpenRouter key **limit** as the bill after a ~4 min 402 (`in_flight_budget_exhausted`) near `risk_neutral`.
+- **Cause:** `/advise/latest` preferred today's complete cache over the newest row. Book schema v1 had no usage columns; `llm.chat` discarded OpenRouter `usage` / cost headers. History is per-symbol (RETO empty while SPCX failed is correct).
+- **Fix:** Latest = newest row any status. Persist prompt/completion/`actual_usd` (response cost, `x-openrouter-cost`, or Sonnet rate fallback), including partial on fail. UI labels Estimate vs Actual; Past runs `time · status · $`.
+- **Fix class:** admission
+- **Keywords:** advise, latest, failed, actual_usd, OpenRouter, 402, in_flight_budget_exhausted, #146, #148
+
+## 2026-09-15 -- Advise estimate never loaded
+
+- **Symptom:** Advise panel opened on Edge / Vite with a symbol (or one typed in) but the pre-run cost never appeared -- only the empty "Pick a symbol and press Run" hint.
+- **Cause:** `loadBook` used `Promise.all([latest, history, estimate])`, so any book failure zeroed the whole load including cost. Typed symbols also did not refresh until blur, so an empty desk prefill stayed on the empty hint while the operator typed.
+- **Fix:** Load estimate with `Promise.allSettled` independently of latest/history. Debounce symbol/depth ~300ms while the panel is open. Paint a loud `~$0.19 · ~4 min` line before Run. Overlay z-index sits above the trading prerequisites gate.
+- **Fix class:** admission
+- **Keywords:** advise, estimate, Promise.all, blur, cost, #146, OpenRouter, Edge
+
 ## 2026-09-13 -- Closed integrity false fail
 
 - **Symptom:** MARKET CLOSED + DESK up + Paper Live showed a red Integrity fail (empty surge/rvol, gainers/losers "no cache yet -- no sibling") and Gainers "Unavailable -- no live roster / not a quiet market."

@@ -3,6 +3,7 @@
  * Horizontal tab bar retired; Account/Settings stay on GlobalAppBar.
  * HOD Momo / Running Up focus the AppShell dock (not a full-page tab body).
  */
+import { AdviseRailButton } from '../advise/AdviseRailButton';
 import { scannerNavIcon, formatScannerNavCount } from '../scanner/scannerNavIcons';
 import {
   listTabModules,
@@ -77,6 +78,9 @@ export function ScannerSideNav({
             </button>
           );
         })}
+      </div>
+      <div className="scanner-side-nav__footer">
+        <AdviseRailButton />
       </div>
     </nav>
   );

@@ -151,6 +151,12 @@ def _restore_caches() -> None:
 def _init_databases() -> None:
     _hod_momo.load_state()
     _journal_db.init_db()
+    try:
+        from advise import book as _advise_book
+
+        _advise_book.init_db()
+    except Exception:
+        logger.exception("advise book: init_db failed")
     _l2_db.init_db()
     _nova_os_events_db.init_db()
     _archive_db.init_db()

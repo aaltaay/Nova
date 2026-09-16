@@ -30,6 +30,26 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Advise actual spend and failed-run reopen
+
+- **What:** Advise book stores real OpenRouter usage per run (`prompt_tokens`, `completion_tokens`, `actual_usd`). Fail/complete cards and Past runs show `Actual: $X.XX` (partial on fail). Opening a symbol auto-loads its newest row, including failed/cancelled, with transcript + Retry. Pre-run cost stays labeled **Estimate**.
+- **Why:** Owner opened Advise on RETO (empty, per-symbol history is correct) while SPCX's only row was `failed`. Latest preferred today's complete cache, so a newer fail could hide. The $10 OpenRouter **limit** was mistaken for the bill; the run died HTTP 402 after ~$0.34 and the book stored no spend.
+- **Files touched:** `backend/advise/book.py`, `usage.py`, `llm.py`, `engine.py`, `worker_main.py`, `service.py`, `frontend/src/advise/*`, `docs/advise-rail.md`.
+- **How it works now:** Schema v2 migrates v1 books. Each LLM call records usage (`usage.include` cost, else `x-openrouter-cost`, else Sonnet rate). Stub path writes the same per-call tokens as the estimate so CI needs no key. `/advise/latest` is newest-any-status for that symbol. Run still reuses only a complete same-day cache.
+- **Verified by:** `python3 -m pytest tests/test_advise_*.py -q` -- 41 passed. `npm test -- --run src/advise src/components/TabNav.test.tsx src/ibkr/orderTicketPrefill.test.ts` -- 27 passed. ruff/eslint clean. `npm run build` tsc + vite exit 0.
+- **Follow-ups:** Multi-model picker stays #147. Owner Desktop smoke still required before merge (`do-not-merge`).
+- **Related:** Refs #146. PR #148. PROBLEM_LOG 2026-09-16 -- Advise failed-run spend.
+
+## 2026-09-15 -- Advise rail (TradingAgents advisory panel)
+
+- **What:** Manual Advise icon at the bottom of the scanner left rail. Run a full TradingAgents-style debate (fundamentals, news, sentiment, technical, bull/bear, trader, risk) via OpenRouter Claude Sonnet latest. SQLite book, live transcript, depth default 2, ticket prefill + chart jump. Never sends orders. Pre-run cost is a loud `~$0.19 · ~4 min` line before Run; it loads on open and after typed symbol/depth (300ms debounce), even if the book endpoints fail.
+- **Why:** Issue #146 -- advisory panel only. Human Places in Nova. Multi-model stays on #147. Owner Edge smoke: cost never appeared because load was blur-only and `Promise.all` dropped estimate when latest/history failed.
+- **Files touched:** `backend/advise/`, `backend/routes/advise.py`, `backend/constants_advise.py`, `frontend/src/advise/`, `frontend/src/components/TabNav.tsx`, `.env.example`, `docs/advise-rail.md`.
+- **How it works now:** Prefill from the desk symbol is free. Estimate and book load independently (`Promise.allSettled`). Typing a symbol refreshes cost without blur. Run starts a subprocess worker (max 3, one per symbol; a busy symbol no longer blocks other symbols in the queue). Identical symbol+session+model+graph+depth reopens the book. Cancel kills the worker. Failed rows keep the partial transcript. Market data is Yahoo (+ optional Finnhub/Reddit keys). IBKR L1 is not piped in.
+- **Verified by:** `pytest tests/test_advise_*.py`; Vitest `src/advise` + `TabNav` + `orderTicketPrefill`; `ruff check` advise files; ESLint advise/TabNav/App; `npm run build` (tsc + vite).
+- **Follow-ups:** Multi-model picker is #147.
+- **Related:** Closes #146. Refs #147. PROBLEM_LOG 2026-09-15 -- Advise estimate never loaded.
+
 ## 2026-09-13 -- Closed-session integrity is not a fail
 
 - **What:** Empty hist/HOD/scanner buffers and missing L1 no longer roll up to Integrity fail when the market is closed. Live RTH still fails loud on empty Gainers, stale L1, or Gateway down. Closed Gainers empty state uses the calm market-closed copy instead of "not a quiet market."
