@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { etMinutesNow, isExtendedTradingSessionNow } from './extendedSession';
+import { etMinutesNow, isExtendedTradingSessionNow, sessionKindNow } from './extendedSession';
 
 describe('extendedSession', () => {
   it('classifies premarket as extended', () => {
     // 2026-07-18 08:00 ET = 12:00 UTC (EDT)
     const d = new Date('2026-07-18T12:00:00.000Z');
     expect(etMinutesNow(d)).toBe(8 * 60);
+    expect(sessionKindNow(d)).toBe('premarket');
     expect(isExtendedTradingSessionNow(d)).toBe(true);
   });
 

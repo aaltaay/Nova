@@ -467,16 +467,16 @@ export const CLOSE_POSITION_NO_POSITION_TITLE = 'No open position to flatten';
 export const CLOSE_POSITION_ACCOUNT_ERROR_TITLE =
   'IBKR account/positions read failed — Flatten disabled until the poll recovers';
 export const CLOSE_POSITION_VS_CANCEL_HINT =
-  'Flatten closes the entire position with a market order (extended hours when pre/after-market). Cancel only removes a working order. Fill now cancels the rest of one order and markets that remainder.';
+  'Flatten closes the entire position with a market order (extended hours when pre/after-market). Cancel only removes a working order. Fill now cancels the rest of one order and fills that remainder -- market in regular hours, or a bid/ask limit sweep in pre/after-market when that symbol has a live Trader book.';
 /** Flatten is a user spend action — same PIN session as Place an order. */
 export const CLOSE_POSITION_PIN_LOCKED_TITLE =
   'Unlock trading (PIN) before Flatten — same lock as Place an order.';
-/** Working-order panic: cancel rest + market the remaining qty (same side). */
+/** Working-order remainder fill (RTH market / EH limit sweep). */
 export const FILL_WORKING_ORDER_BUTTON_LABEL = 'Fill now';
 export const FILL_WORKING_ORDER_BUTTON_TITLE =
-  'Cancel this working order and immediately market the remaining shares (same side). Uses extended hours when the resting order was EH or the session is pre/after-market. Not the same as Flatten (position exit).';
+  'Cancel this working order and fill the remaining shares (same side). Regular hours: market. Pre/after-market: IBKR does not fill market orders -- Fill now sweeps a limit at the live bid (sell) or ask (buy) when that symbol is open in Trader. Otherwise it stops and says so. Not Flatten.';
 export const FILL_WORKING_ORDER_CONFIRM_PREFIX =
-  'Fill now will cancel the resting order and market the remaining shares';
+  'Fill now will cancel the resting order and fill the remaining shares';
 /** localStorage JSON: working/closed/positions column order (drag headers). */
 /** Bump when default Open/Closed Orders column order changes (invalidates old layouts). */
 export const ORDER_TABLE_COLUMNS_STORAGE_KEY = 'nova.ibkr.orderTable.columns.v5';

@@ -25,9 +25,14 @@ export function etMinutesNow(now: Date = new Date()): number {
   return h * 60 + minute;
 }
 
+/** Current ET session kind (premarket / rth / afterhours / closed). */
+export function sessionKindNow(now: Date = new Date()) {
+  return sessionKindFromEtMinutes(etMinutesNow(now));
+}
+
 /** Premarket or after-hours (not RTH, not overnight closed). */
 export function isExtendedTradingSessionNow(now: Date = new Date()): boolean {
-  const kind = sessionKindFromEtMinutes(etMinutesNow(now));
+  const kind = sessionKindNow(now);
   return kind === 'premarket' || kind === 'afterhours';
 }
 
