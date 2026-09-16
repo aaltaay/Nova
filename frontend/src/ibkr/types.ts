@@ -71,6 +71,8 @@ export interface IbkrAccountSummary {
   UnrealizedPnL?: number | null;
   RealizedPnL?: number | null;
   GrossPositionValue?: number | null;
+  /** Raw IBKR account summary AccountType (CASH / MARGIN / INDIVIDUAL / ...). */
+  AccountType?: string | null;
   error?: string;
 }
 

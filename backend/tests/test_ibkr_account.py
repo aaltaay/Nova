@@ -90,6 +90,78 @@ def test_get_account_summary_marks_pending_when_no_net_liquidation(monkeypatch):
     monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
     out = account_mod.get_account_summary()
     assert out["pending"] is True
+    assert "AccountType" not in out
+
+
+def test_get_account_summary_keeps_cash_account_type_as_string(monkeypatch):
+    fake_ib = MagicMock()
+    fake_ib.accountValues.return_value = [
+        _FakeSummaryItem("NetLiquidation", "1000.00"),
+        _FakeSummaryItem("AccountType", "CASH"),
+        _FakeSummaryItem("BuyingPower", "1000.00"),
+    ]
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    out = account_mod.get_account_summary()
+    assert out["AccountType"] == "CASH"
+    assert out["NetLiquidation"] == 1000.0
+    assert out["BuyingPower"] == 1000.0
+
+
+def test_get_account_summary_keeps_margin_account_type_as_string(monkeypatch):
+    fake_ib = MagicMock()
+    fake_ib.accountValues.return_value = [
+        _FakeSummaryItem("NetLiquidation", "5000.00"),
+        _FakeSummaryItem("AccountType", "MARGIN"),
+    ]
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "live")
+    out = account_mod.get_account_summary()
+    assert out["AccountType"] == "MARGIN"
+
+
+def test_get_account_summary_does_not_invent_account_type_from_buying_power(
+    monkeypatch,
+):
+    fake_ib = MagicMock()
+    fake_ib.accountValues.return_value = [
+        _FakeSummaryItem("NetLiquidation", "1000.00"),
+        _FakeSummaryItem("BuyingPower", "4000.00"),
+    ]
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    out = account_mod.get_account_summary()
+    assert "AccountType" not in out
+    assert out["BuyingPower"] == 4000.0
+
+
+def test_get_account_summary_blank_account_type_is_none(monkeypatch):
+    fake_ib = MagicMock()
+    fake_ib.accountValues.return_value = [
+        _FakeSummaryItem("NetLiquidation", "1000.00"),
+        _FakeSummaryItem("AccountType", ""),
+    ]
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    out = account_mod.get_account_summary()
+    assert out["AccountType"] is None
+
+
+def test_refresh_account_summary_includes_account_type(monkeypatch):
+    fake_ib = MagicMock()
+
+    async def _fake_summary():
+        return [
+            _FakeSummaryItem("NetLiquidation", "1000.00"),
+            _FakeSummaryItem("AccountType", "INDIVIDUAL"),
+        ]
+
+    fake_ib.accountSummaryAsync = _fake_summary
+    monkeypatch.setattr(client_mod, "get_ib", lambda: fake_ib)
+    monkeypatch.setattr(client_mod, "account_mode", lambda: "paper")
+    out = asyncio.run(account_mod.refresh_account_summary())
+    assert out["AccountType"] == "INDIVIDUAL"
+    assert out["NetLiquidation"] == 1000.0
 
 
 def test_get_account_summary_raises_on_account_values_error(monkeypatch):

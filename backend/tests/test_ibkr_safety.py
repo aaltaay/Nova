@@ -696,7 +696,7 @@ class TestShouldSendCurrentBook:
 
 class TestAccountSummaryCache:
     def test_summary_from_items_usd(self):
-        import ibkr.account as account_mod
+        from ibkr.account_summary import summary_from_items
 
         class Item:
             def __init__(self, tag, value, currency="USD"):
@@ -704,12 +704,18 @@ class TestAccountSummaryCache:
                 self.value = value
                 self.currency = currency
 
-        out = account_mod._summary_from_items([
-            Item("NetLiquidation", "600.00"),
-            Item("BuyingPower", "600.00"),
-            Item("TotalCashValue", "600.00", "EUR"),  # skipped
-        ])
+        out = summary_from_items(
+            [
+                Item("NetLiquidation", "600.00"),
+                Item("BuyingPower", "600.00"),
+                Item("TotalCashValue", "600.00", "EUR"),  # skipped
+                Item("AccountType", "CASH"),
+            ],
+            mode="paper",
+        )
         assert out["connected"] is True
+        assert out["mode"] == "paper"
         assert out["NetLiquidation"] == 600.0
         assert out["BuyingPower"] == 600.0
+        assert out["AccountType"] == "CASH"
         assert "TotalCashValue" not in out
