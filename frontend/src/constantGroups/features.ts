@@ -298,11 +298,6 @@ export const HOTKEYS_CREATE_SUBMIT = 'Create';
 export const HOTKEYS_ADVANCED_DAS_TITLE = 'Advanced: DAS import';
 export const HOTKEYS_ADVANCED_DAS_HINT =
   'Import .htk files and Map rows to typed Nova Actions. Raw DAS scripts never auto-run.';
-export const HOTKEYS_TAB_TRADE = 'Trade';
-export const HOTKEYS_TAB_GENERAL = 'General';
-export const HOTKEYS_TAB_PAPER = 'Paper Trading';
-export const HOTKEYS_TAB_CHART = 'Chart';
-export const HOTKEYS_TAB_SOON = 'Coming soon';
 export const HOTKEYS_EMPTY_LIST = 'No Nova Actions yet -- open Hotkeys Settings to add one.';
 export const HOTKEYS_DEFAULT_CUSTOM_NAME = 'Custom1';
 

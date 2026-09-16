@@ -39,6 +39,15 @@ Entry template (copy and fill in):
 - **Verified by:** Vitest 241 files / 1194 passed (`scannerHistory` + EmptyState history copy). pytest `backend/tests` 1729 passed including `test_history_snapshot_large_cap_*`. `npm run lint` / `npm run build` exit 0. `ruff check backend`, `doc_invariants.py`, `agent_contract.py --ci` pass. HTTP TestClient: `/api/history/large_cap/2026-09-15` returns the NVDA snapshot; missing date returns `{}` without failing gappers.
 - **Related:** Closes #89. PROBLEM_LOG 2026-09-16 -- History date skipped Large Cap. Parent #13 (D-036).
 
+## 2026-09-16 -- Hide dead Hot Keys tabs and OrderTicket Automate
+
+- **What:** Settings > Hot Keys no longer shows unused General / Paper Trading / Chart tabs or `Coming soon`. The Trading tab Order Ticket no longer shows a permanently disabled Automate button. The Phase G3 keymap editor (Hotkeys Settings dialog) is unchanged.
+- **Why:** Those controls looked broken. Product call on #93 / D-047: hide dead chrome; do not enable Automate or `auto_live`.
+- **Files touched:** `frontend/src/hotkeys/HotkeyManager.tsx`, `frontend/src/ibkr/OrderTicket.tsx`, `frontend/src/constantGroups/features.ts`, landing/ticket CSS, Vitest for both surfaces.
+- **How it works now:** Hot Keys landing is Trade-only (list + Settings dialog + Advanced DAS). Manual Order Ticket stays the only ticket CTA. Executor `Confirm` / `Auto Paper` on the ticker bar is unchanged and still cannot raise `auto_live`.
+- **Verified by:** Vitest `HotkeyManager` (no tablist / Coming soon) and `OrderTicket` (no Automate affordance); scoped hotkeys + ticket tests; frontend lint/build; browser Settings > Hot Keys and Trader ticket.
+- **Related:** Closes #93 (D-047). Refs #13 (D-036). PROBLEM_LOG 2026-09-16 -- Coming soon chrome looked broken.
+
 ## 2026-09-16 -- Chart right-click menu: layers, details, honest disables
 
 - **What:** Trader chart right-click menu now includes **Show Layers** (same EMA/VWAP/RSI/MACD toggles as the desk toolbar), **View Trade Details** (same Positions dock event as the Long/Short tag), and honest disabled **Create Alert** / **Add to Watchlist** rows with a visible reason. Line Style and Chart Settings stay omitted -- Nova has no matching surfaces.
