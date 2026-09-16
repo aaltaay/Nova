@@ -39,6 +39,7 @@ from market import (
     now_et as _now_et,
 )
 from news.enrich import enrich_catalyst_row
+from news.junk import newest_signal_by_symbol
 from scanner import _fetch_snapshots
 from ticker import _find_ibkr_cache_row
 import exchanges as _exchanges
@@ -86,20 +87,7 @@ def run_news_catalyst_scan() -> None:
         if not articles:
             return
 
-        symbol_to_article: dict[str, dict] = {}
-        for article in articles:
-            created_at = article.get("created_at", "")
-            headline = article.get("headline", "")
-            url = article.get("url", "")
-            source = article.get("source", "")
-            for sym in article.get("symbols", []):
-                if sym not in symbol_to_article or created_at > symbol_to_article[sym]["created_at"]:
-                    symbol_to_article[sym] = {
-                        "created_at": created_at,
-                        "headline": headline,
-                        "url": url,
-                        "source": source,
-                    }
+        symbol_to_article = newest_signal_by_symbol(articles)
 
         universe = state.assets_cache_set
         news_symbols = [

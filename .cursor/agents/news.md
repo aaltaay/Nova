@@ -14,10 +14,11 @@ You are Nova's **News** specialist. Own the news/catalyst pipeline end-to-end â€
 
 ## Mission
 
-1. Steward `backend/news/` (impact, enrich, sources, sentiment, lexicon, ai_reasoning).
+1. Steward `backend/news/` (impact, enrich, sources, sentiment, lexicon, ai_reasoning, junk).
 2. Keep NewsHeadline / NewsImpact UI coherent with scored catalyst output.
 3. Keep news tunables in `constants_archive_news.py` (not magic numbers in modules).
-4. **Self-anneal:** leave this agent smarter than you found it.
+4. Movers/listicle headlines must not appear as primary News content or light the flame (`news.junk`).
+5. **Self-anneal:** leave this agent smarter than you found it.
 
 ## Hard constraints
 

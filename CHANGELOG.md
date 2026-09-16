@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Filter junk movers listicles from News + flame
+
+- **What:** Movers/listicle headlines (Benzinga "N stocks moving" recaps and the same class) are excluded from the trader News column, scanner NEWS timestamp, catalyst pick, and news_impact. They no longer light the age flame.
+- **Why:** Age-only flame plus no junk classifier treated sector movers listicles as real catalysts, so junk headlines drove the circle and buried company-specific news.
+- **Files touched:** `backend/news/junk.py`, `backend/news/impact_evaluate.py`, `backend/scanner.py`, `backend/ticker_alpaca.py`, `backend/scan_loop.py`, `backend/constants_archive_news.py`, `frontend/src/utils/newsJunk.ts`, `frontend/src/components/NewsHeadlineSection.tsx`.
+- **How it works now:** `news.junk` classifies hard listicles (count + "stocks moving", movers recap phrases, Benzinga `/trading-ideas/movers/` URLs) with no override. Sector roundups are junk unless the headline also names a company-specific catalyst. Ingest (`_check_news`, `fetch_ticker_news`, catalyst scan) keeps only signal articles. Impact evaluation drops junk before picking a headline or age. The News strip filters the same class and will not flame it. A ticker that appears only on a listicle stays blank and unflamed -- junk is not news; there is no muted recap chip.
+- **Verified by:** `pytest backend/tests -k 'news or junk or catalyst'` (100 passed); `ruff check` on touched Python; Vitest `newsJunk` + `NewsHeadlineSection` (8 passed); `npm run lint` on touched frontend; `npm run build` exit 0.
+- **Related:** Closes #155. PROBLEM_LOG 2026-09-16 -- Junk movers listicles flamed as news.
+
 ## 2026-09-16 -- Advise actual spend and failed-run reopen
 
 - **What:** Advise book stores real OpenRouter usage per run (`prompt_tokens`, `completion_tokens`, `actual_usd`). Fail/complete cards and Past runs show `Actual: $X.XX` (partial on fail). Opening a symbol auto-loads its newest row, including failed/cancelled, with transcript + Retry. Pre-run cost stays labeled **Estimate**.

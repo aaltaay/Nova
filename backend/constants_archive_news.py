@@ -119,6 +119,68 @@ NEWS_IMPACT_SECONDARY_SOURCE_KEYWORDS = (
     "hedgeweek", "finextra", "techcrunch", "ars technica",
 )
 
+# ── Low-signal movers / listicle headlines (News column + flame) ────────────
+# Owner: news.junk. Hard listicles never flame or drive news_impact.
+# Frontend mirror: frontend/src/constantGroups/news_junk.ts
+NEWS_JUNK_HEADLINE_RES = (
+    r"\b\d+\s+(?:\S+\s+){0,6}stocks?\s+moving\b",
+    r"\bstocks?\s+moving\s+in\b.*\b("
+    r"after[- ]?market|after[- ]?hours|pre[- ]?market|premarket|mid[- ]?day)\b",
+)
+NEWS_JUNK_HEADLINE_PHRASES = (
+    "stocks to watch",
+    "gainers and losers",
+    "most active stocks",
+    "movers recap",
+    "biggest movers",
+    "top movers",
+    "today's movers",
+    "todays movers",
+    "premarket movers",
+    "pre-market movers",
+    "after-hours movers",
+    "after hours movers",
+    "after-market movers",
+    "after market movers",
+    "midday movers",
+    "overnight movers",
+)
+NEWS_JUNK_SECTOR_ROUNDUP_RE = (
+    r"\b(?:health\s*care|healthcare|biotech|technology|tech|energy|financial|"
+    r"banks?|retail|industrial|consumer|semiconductor|china|crypto|pharma)"
+    r"\s+stocks\s+(?:moving|to\s+watch|roundup|recap|in\s+focus)\b"
+)
+NEWS_JUNK_URL_FRAGMENTS = (
+    "/trading-ideas/movers/",
+    "/after-hours-movers",
+    "/premarket-movers",
+    "/pre-market-movers",
+)
+# Company-specific catalyst language. Overrides sector-roundup only -- never
+# the hard "N stocks moving" / movers-URL class.
+NEWS_SIGNAL_HEADLINE_KEYWORDS = (
+    "earnings",
+    "fda",
+    "sec filing",
+    "8-k",
+    "8k",
+    "10-q",
+    "10-k",
+    "acquires",
+    "acquired",
+    "acquisition",
+    "merger",
+    "buyout",
+    "offering",
+    "bankruptcy",
+    "guidance",
+    "pdufa",
+    "phase 3",
+    "phase iii",
+    "clinical trial",
+    "press release",
+)
+
 # ── Nova News desk (AI-in-trading headlines -- not a price feed, not HOD) ─
 # Owner: nova_news.desk. Invalidation: TTL expiry or schema bump.
 # Disk snapshot lives under paths.cache_dir() / NOVA_NEWS_DESK_CACHE_FILENAME.
