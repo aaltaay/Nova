@@ -138,6 +138,7 @@ class TestIngestHelpers:
         )
         mapped = newest_signal_by_symbol([junk, real])
         assert mapped["UNH"]["headline"] == "UNH reports Q2 earnings miss"
+        # Listicle-only tickers stay blank / unflamed -- no muted recap chip.
         assert "PFE" not in mapped
 
     def test_partition_counts_junk(self):
@@ -238,6 +239,7 @@ class TestCheckNewsSkipsJunk:
         )
         out = scanner._check_news(["UNH", "PFE"], {"k": "v"})
         assert out["UNH"] == "2026-09-16T12:00:00Z"
+        # PFE appears only on the junk listicle -- NEWS timestamp stays empty.
         assert "PFE" not in out
 
 

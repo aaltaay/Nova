@@ -43,6 +43,7 @@ describe('NewsHeadlineSection junk exclusion', () => {
       );
     });
     expect(container.textContent).not.toContain('Health Care Stocks Moving');
+    expect(container.textContent).not.toMatch(/recap/i);
     expect(container.querySelector('.cq-news-chip-flame')).toBeNull();
   });
 
