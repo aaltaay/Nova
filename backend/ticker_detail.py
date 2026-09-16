@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from alpaca import _alpaca_headers, _env, _get_discovery_provider, _get_feed
 from constants import TICKER_AVG_VOLUME_CACHE_ONLY, TICKER_SLOW_CACHE_TTL
 from runtime_state import get_runtime_state
+from ibkr import halt_status
 from listing_compare import alpaca_listing_from_asset, build_listing_compare
 from ticker_alpaca import fetch_ticker_asset, fetch_ticker_news
 from ticker_cache import _ticker_slow_cache, _ticker_slow_cache_ts
@@ -106,6 +107,7 @@ def build_ticker_fast(symbol: str, base_url: str, headers: dict, feed: str) -> d
         "news": [],
         "fundamentals": {},
         "mode": state.current_mode,
+        "halt": halt_status.snapshot(symbol),
     }
 
 
@@ -176,4 +178,5 @@ def build_ticker_detail(symbol: str) -> dict:
         "fundamentals": slow.get("fundamentals") or {},
         "news_impact": build_ticker_news_impact(symbol, news, snapshot, rel_vol),
         "mode": fast.get("mode"),
+        "halt": halt_status.snapshot(symbol),
     }

@@ -186,6 +186,26 @@ def handle_trade(msg: dict) -> int | None:
     return updated_volume
 
 
+async def broadcast_halt_update(sym: str, halt: dict | None) -> None:
+    """Push tick-49 halt state to ticker-detail WS clients (L2 HaltEtaChip)."""
+    clients = _ticker_ws_clients.get(sym)
+    if not clients:
+        return
+    payload = json.dumps({
+        "type": "halt_update",
+        "symbol": sym,
+        "halt": halt,
+    })
+    dead: list = []
+    for ws in list(clients):
+        try:
+            await ws.send_text(payload)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        clients.discard(ws)
+
+
 async def broadcast_trade_update(
     sym: str,
     price: float,

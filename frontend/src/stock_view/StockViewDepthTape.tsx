@@ -2,6 +2,7 @@
  * Stock Quote module — last/change + stats + Level 2 | Time & Sales.
  * Height vs Order Entry is controlled by StockViewRail's horizontal splitter.
  */
+import { HaltEtaChip } from '../ibkr/HaltEtaChip';
 import { ShortabilityChip } from '../ibkr/ShortabilityChip';
 import { Level2Module } from '../modules/Level2Module';
 import { TimeSalesModule } from '../modules/TimeSalesModule';
@@ -89,7 +90,10 @@ export function StockViewDepthTape({
             <div className="sv-md-pane">
               <div className="sv-md-pane__head">
                 <h3 className="sv-md-pane__title">{STOCK_VIEW_MODULE_L2_TITLE}</h3>
-                <ShortabilityChip ibkr={listingIbkr} />
+                <div className="sv-md-pane__chips">
+                  <HaltEtaChip halt={detail.halt} />
+                  <ShortabilityChip ibkr={listingIbkr} />
+                </div>
               </div>
               <div className="sv-md-pane__body">
                 <Level2Module symbol={depthSymbol} />

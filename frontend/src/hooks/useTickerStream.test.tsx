@@ -142,6 +142,41 @@ describe('useTickerStream reconnect', () => {
     expect(latest?.disconnectedSince).toBeNull();
   });
 
+  it('applies halt_update onto the current symbol detail', () => {
+    renderSymbol('RETO');
+    act(() => {
+      sendInitial(FakeWebSocket.instances[0], 'RETO');
+    });
+    expect(latest?.detail?.halt).toBeUndefined();
+
+    act(() => {
+      FakeWebSocket.instances[0].onmessage?.({
+        data: JSON.stringify({
+          type: 'halt_update',
+          symbol: 'RETO',
+          halt: {
+            halted: true,
+            kind: 'luld',
+            halt_code: 2,
+            halt_start: 1_700_000_000,
+          },
+        }),
+      });
+    });
+    expect(latest?.detail?.halt?.kind).toBe('luld');
+
+    act(() => {
+      FakeWebSocket.instances[0].onmessage?.({
+        data: JSON.stringify({
+          type: 'halt_update',
+          symbol: 'RETO',
+          halt: null,
+        }),
+      });
+    });
+    expect(latest?.detail?.halt).toBeNull();
+  });
+
   it('cancels a pending reconnect timer on unmount', () => {
     renderSymbol('AAPL');
     act(() => {

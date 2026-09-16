@@ -120,6 +120,34 @@
   opacity: 0.85;
 }
 
+.sv-md-pane__chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sv-halt-eta-chip {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  border: 1px solid var(--nova-border, var(--border-color));
+  color: #c9a227;
+  white-space: nowrap;
+}
+
+.sv-halt-eta-chip--luld {
+  color: #c9a227;
+}
+
+.sv-halt-eta-chip--regulatory,
+.sv-halt-eta-chip--unknown {
+  color: var(--ask-color, #e35d6a);
+}
+
 .manual-order-hint {
   margin: 0 0 0.35rem;
   font-size: 0.72rem;

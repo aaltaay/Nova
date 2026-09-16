@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- LULD halt reopen ETA chip on Level 2
+
+- **What:** Trader Stock View Level 2 header shows a halt ETA chip beside SHORT. LULD/volatility gets a 0-5 / 5-10 / >10 clock; news/regulatory is HALTED + reason with no fake countdown; unknown is HALTED + ETA unknown.
+- **Why:** #173. RETO-style runners freeze the tape ("Waiting for prints...") with no timing on the L2 header.
+- **Files touched:** `backend/ibkr/halt_eta.py`, `halt_status.py`, `ticks_handler.py`, `ticker_detail.py`, `frontend/src/ibkr/HaltEtaChip.tsx`, `StockViewDepthTape.tsx`.
+- **How it works now:** Shared L1 merges tick 49 (`ticker.halted`). First observed halt stamps `halt_start` (not SIP official start -- tooltip says so). Tape quiet does not invent a chip. Tick 49=0 clears immediately. Chip is display-only and does not block Place.
+- **Verified by:** pytest `test_halt_eta` / `test_halt_status` / halt-on-missing-last; Vitest haltEta / HaltEtaChip / StockViewDepthTape / useTickerStream halt_update.
+- **Follow-ups:** Edge smoke on a live LULD if one prints; otherwise stubbed fixture is the proof.
+- **Related:** Closes #173.
+
 ## 2026-09-16 -- Trade ticket Extended Hours checkbox default ON
 
 - **What:** Trading Hours dropdown is now an Extended Hours checkbox, default checked. Market and Stop no longer lock or strip EH. Place may send MKT/STP + `outside_rth`. Flatten still sends MKT+EH. Fill now (#171) is a different path: plan first, LMT sweep outside RTH, never cancel+resubmit an unfillable EH MKT.

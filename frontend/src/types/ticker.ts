@@ -145,11 +145,25 @@ export interface TickerTradeUpdate {
   prev_close?: number | null;
 }
 
+/** IBKR tick-49 halt snapshot for the L2 HaltEtaChip. */
+export interface HaltSnapshot {
+  halted: boolean;
+  kind: 'luld' | 'regulatory' | 'unknown' | string;
+  halt_code?: number | null;
+  halt_start?: number | null;
+  halt_start_source?: string | null;
+  reason?: string | null;
+  rule?: string | null;
+  source?: string | null;
+}
+
 export interface TickerDetail {
   symbol: string;
   asset: AssetInfo;
   /** Dual-broker listing flags (Alpaca Assets + IBKR short/qualify). */
   listing?: ListingCompare | null;
+  /** Live IBKR halt (tick 49). Null/absent = not halted; quiet tape is not enough. */
+  halt?: HaltSnapshot | null;
   snapshot: SnapshotData;
   avg_volume: number | null;
   rel_volume: number | null;
