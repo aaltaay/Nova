@@ -88,12 +88,12 @@ Entry template (copy and fill in):
 
 ## 2026-09-16 -- Header IBKR Cash vs Margin chip
 
-- **What:** Global header shows IBKR Cash / Margin / Unknown between the trade-session lock and Account. `/api/ibkr/account` now includes raw `AccountType` from the IBKR account summary.
-- **Why:** #181. A cash account cannot short; `short_enabled` is only the Nova env gate. The desk needed an honest label so Sell-short is not confused with a long exit.
+- **What:** Global header shows IBKR Cash / Margin / Unknown between the trade-session lock and Account. `/api/ibkr/account` keeps raw `AccountType` plus debug `TradingType` / `WhatIfPMEnabled` / `Leverage`.
+- **Why:** #181. Live smoke: `AccountType` was `INDIVIDUAL` (ownership), not Cash vs Margin. BuyingPower ~376 is not a classifier.
 - **Files touched:** `backend/ibkr/account_summary.py`, `backend/ibkr/account.py`, `frontend/src/ibkr/IbkrAccountTypeChip.tsx`, `accountTypeChip.ts`, `GlobalAppBar.tsx`, `constantGroups/global_bar.ts`.
-- **How it works now:** Snapshot keeps `AccountType` as the IBKR string (never coerced to a float, never inferred from BuyingPower). The chip maps CASH / MARGIN tokens only. INDIVIDUAL and other structure tags stay Unknown. Disconnected or missing summary hides the chip. Tooltip: stock shorting needs margin; `IBKR_SHORT_ENABLED` is a separate env gate.
-- **Verified by:** pytest `test_ibkr_account` AccountType cases + `test_ibkr_safety` summary parse; Vitest `accountTypeChip` / `IbkrAccountTypeChip` / GlobalAppBar placement.
-- **Related:** Closes #181.
+- **How it works now:** Official TWS `AccountSummaryTags.GetAllTags` has no CASH / MARGIN / RegT / PM class field. Snapshot keeps the IBKR strings. `accountSummaryAsync` omits `TradingType-S`; refresh overlays it from `accountValues` without overwriting summary BuyingPower. The chip maps only explicit CASH / MARGIN tokens. Ahmed's INDIVIDUAL + STKNOPT snapshot is Unknown. Tooltip always includes `IBKR AccountType: <raw>` so Portal can be checked. Never invent Margin from BP / Leverage / WhatIfPMEnabled. Disconnected hides the chip.
+- **Verified by:** pytest overlay + Ahmed INDIVIDUAL fixture; Vitest chip Unknown + tooltip `IBKR AccountType: INDIVIDUAL`.
+- **Related:** Closes #181. PROBLEM_LOG 2026-09-16 -- AccountType is ownership.
 
 ## 2026-09-16 -- Stop requesting illegal IBKR generic tick 49
 

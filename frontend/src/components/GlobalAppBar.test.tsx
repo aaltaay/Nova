@@ -411,6 +411,30 @@ describe('GlobalAppBar', () => {
     expect(kids.indexOf(type as Element)).toBeLessThan(kids.indexOf(accountBtn as Element));
   });
 
+  it('shows Unknown with raw AccountType when IBKR reports INDIVIDUAL', () => {
+    account = baseAccount({
+      summary: {
+        connected: true,
+        mode: 'live',
+        AccountType: 'INDIVIDUAL',
+        TradingType: 'STKNOPT',
+        BuyingPower: 376,
+        TotalCashValue: 383,
+        NetLiquidation: 540,
+      },
+    });
+    renderBar();
+    const type = container.querySelector(
+      '[data-testid="global-bar-account-type"]',
+    ) as HTMLElement;
+    expect(type).toBeTruthy();
+    expect(type.textContent).toBe('Unknown');
+    expect(type.getAttribute('data-kind')).toBe('unknown');
+    expect(type.getAttribute('title') ?? '').toContain('IBKR AccountType: INDIVIDUAL');
+    expect(type.getAttribute('title') ?? '').toContain('IBKR TradingType-S: STKNOPT');
+    expect(type.getAttribute('title') ?? '').not.toMatch(/\bMargin\b/);
+  });
+
   it('hides the account-type chip when IBKR is disconnected', () => {
     workspace = baseWorkspace({ ibkrConnected: false, ibkrMode: 'disconnected' });
     account = baseAccount({ summary: null, orders: [] });

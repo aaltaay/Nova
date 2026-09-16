@@ -109,6 +109,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix class:** infra
 - **Keywords:** Desktop pack, windows-latest, TS1261, TS2305, MwcbBanner, mwcbBanner, case-insensitive, electron:pack, #191
 
+## 2026-09-16 -- AccountType is ownership
+
+- **Symptom:** After the first #181 ship, `GET /api/ibkr/account` on Ahmed's Gateway returned `AccountType: "INDIVIDUAL"` with BuyingPower ~376, TotalCashValue ~383, NetLiquidation ~540. The header chip would show Unknown -- the tag is ownership, not Cash vs Margin.
+- **Cause:** TWS `AccountType` is structure (INDIVIDUAL / LLC / IRA). Official `AccountSummaryTags.GetAllTags` has no CASH / MARGIN / RegT / PortfolioMargin class. `TradingType-S` is trading-config (STKNOPT). `WhatIfPMEnabled` / Leverage / BuyingPower are not classifiers. Flex Query `margin=CASH|MRGN|PMRGN` is not on the Gateway socket.
+- **Fix:** Keep raw AccountType on the snapshot. Overlay `TradingType-S` from `accountValues` after `accountSummaryAsync`. Map only explicit CASH / MARGIN tokens. Otherwise Unknown. Tooltip: `IBKR AccountType: INDIVIDUAL` (plus TradingType-S when present). Never infer Margin from BuyingPower.
+- **Fix class:** admission
+- **Keywords:** AccountType, INDIVIDUAL, Cash, Margin, TradingType-S, STKNOPT, #181, #185
+
 ## 2026-09-16 -- Warning 321 generic tick 49
 
 - **Symptom:** After PR #174, live ZTG L1 upgrade requested `233,49` / `233,49,236`. IBKR Warning 321: Incorrect generic tick list. Tick 49 is not in the legal STK list IB printed (100, 101, 105, 106, 165, 221/220, 225, 232/221, 233, 236, 258/47, 292, 375, 411, 456/59, ...).

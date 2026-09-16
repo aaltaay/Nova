@@ -77,6 +77,9 @@ export const GLOBAL_BAR_ACCOUNT_TYPE_MARGIN = 'Margin';
 export const GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN = 'Unknown';
 export const GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP =
   'Stock shorting requires a margin account. Nova IBKR_SHORT_ENABLED is a separate env gate.';
+export const GLOBAL_BAR_ACCOUNT_TYPE_RAW_PREFIX = 'IBKR AccountType:';
+export const GLOBAL_BAR_ACCOUNT_TYPE_RAW_MISSING = '(missing)';
+export const GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX = 'IBKR TradingType-S:';
 export const GLOBAL_BAR_ACCOUNT_TYPE_ARIA = 'IBKR account type';
 export const GLOBAL_BAR_SETTINGS_LABEL = 'Settings';
 export const GLOBAL_BAR_SETTINGS_TITLE = 'Open Settings';

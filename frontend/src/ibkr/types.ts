@@ -71,8 +71,14 @@ export interface IbkrAccountSummary {
   UnrealizedPnL?: number | null;
   RealizedPnL?: number | null;
   GrossPositionValue?: number | null;
-  /** Raw IBKR account summary AccountType (CASH / MARGIN / INDIVIDUAL / ...). */
+  /** Raw IBKR AccountType -- ownership/structure (INDIVIDUAL), not Cash vs Margin. */
   AccountType?: string | null;
+  /** From accountValues TradingType-S (often STKNOPT). Not a margin class. */
+  TradingType?: string | null;
+  /** Portfolio-Margin what-if switch -- not "this account is PM." */
+  WhatIfPMEnabled?: string | null;
+  /** GrossPositionValue / NetLiquidation. Debug only -- not a classifier. */
+  Leverage?: number | null;
   error?: string;
 }
 

@@ -1,11 +1,19 @@
 /**
- * Header Cash / Margin chip from IBKR AccountType only.
- * Never infer Margin from BuyingPower or account-structure tags.
+ * Header Cash / Margin chip.
+ *
+ * TWS AccountType is ownership (INDIVIDUAL / IRA / LLC), not Cash vs Margin.
+ * AccountSummaryTags has no CASH / MARGIN / RegT / PortfolioMargin field.
+ * TradingType-S is usually STKNOPT (securities trading config).
+ * WhatIfPMEnabled and Leverage / BuyingPower are not classifiers.
+ * Only explicit CASH / MARGIN tokens map. Otherwise Unknown.
  */
 import {
   GLOBAL_BAR_ACCOUNT_TYPE_CASH,
   GLOBAL_BAR_ACCOUNT_TYPE_MARGIN,
+  GLOBAL_BAR_ACCOUNT_TYPE_RAW_MISSING,
+  GLOBAL_BAR_ACCOUNT_TYPE_RAW_PREFIX,
   GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
+  GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX,
   GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN,
 } from '../constantGroups/global_bar';
 import type { IbkrAccountSummary } from './types';
@@ -45,15 +53,36 @@ export function classifyAccountType(raw: string | null | undefined): AccountType
   return 'unknown';
 }
 
+export function classifyMarginKind(summary: IbkrAccountSummary): AccountTypeKind {
+  for (const raw of [summary.AccountType, summary.TradingType]) {
+    const kind = classifyAccountType(raw);
+    if (kind !== 'unknown') return kind;
+  }
+  return 'unknown';
+}
+
+export function accountTypeTooltip(summary: IbkrAccountSummary): string {
+  const raw = (summary.AccountType ?? '').trim() || GLOBAL_BAR_ACCOUNT_TYPE_RAW_MISSING;
+  const parts = [
+    GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
+    `${GLOBAL_BAR_ACCOUNT_TYPE_RAW_PREFIX} ${raw}`,
+  ];
+  const trading = (summary.TradingType ?? '').trim();
+  if (trading) {
+    parts.push(`${GLOBAL_BAR_ACCOUNT_TYPE_TRADING_PREFIX} ${trading}`);
+  }
+  return parts.join(' ');
+}
+
 export function accountTypeChipView(opts: {
   ibkrConnected: boolean;
   summary: IbkrAccountSummary | null;
 }): AccountTypeChipView | null {
   if (!opts.ibkrConnected || !opts.summary?.connected) return null;
-  const kind = classifyAccountType(opts.summary.AccountType);
+  const kind = classifyMarginKind(opts.summary);
   return {
     kind,
     label: LABELS[kind],
-    tooltip: GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP,
+    tooltip: accountTypeTooltip(opts.summary),
   };
 }

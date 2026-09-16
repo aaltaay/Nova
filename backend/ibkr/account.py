@@ -15,7 +15,7 @@ import time
 
 from ibkr import client as _client
 from ibkr.account_marks import apply_l1_marks, live_l1_last, overlay_account_summary
-from ibkr.account_summary import summary_from_items
+from ibkr.account_summary import overlay_missing_tags, summary_from_items
 from ibkr.errors import IbkrAccountError, describe_exc
 from metrics.op_metrics import timed, timed_sync
 
@@ -218,6 +218,23 @@ def get_account_summary() -> dict:
         raise IbkrAccountError(f"get_account_summary failed: {detail}") from exc
 
 
+def _account_values_items(ib: object) -> list:
+    """Cached reqAccountUpdates rows. Empty on failure -- never raise here."""
+    getter = getattr(ib, "accountValues", None)
+    if getter is None:
+        return []
+    try:
+        raw = getter()
+    except Exception:
+        return []
+    if raw is None:
+        return []
+    try:
+        return list(raw)
+    except TypeError:
+        return []
+
+
 async def refresh_account_summary() -> dict:
     """Async refresh via accountSummaryAsync, then return snapshot.
 
@@ -231,7 +248,12 @@ async def refresh_account_summary() -> dict:
         async with timed("ibkr.account.summary_refresh"):
             items = await ib.accountSummaryAsync()
         if items:
-            return summary_from_items(list(items), mode=_client.account_mode())
+            summary = summary_from_items(list(items), mode=_client.account_mode())
+            extra_items = _account_values_items(ib)
+            if extra_items:
+                extra = summary_from_items(extra_items, mode=_client.account_mode())
+                summary = overlay_missing_tags(summary, extra)
+            return summary
         return get_account_summary()
     except IbkrAccountError:
         raise
