@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Ahmed does not use the 50 EMA; the red 50 line was clutter on the price pane.
 - **Files touched:** `frontend/src/constantGroups/chart_api.ts`, `frontend/src/chartIndicators.test.ts`.
 - **How it works now:** `CHART_EMA_LENGTHS` is `[9, 20, 200]`. Overlay rendering, axis titles, and `computeEmaOverlays` all walk that list, so the 50 line, color, and legend tag are gone. VWAP and the 9/20/200 colors stay as they were.
-- **Verified by:** Vitest `chartIndicators.test.ts` (failing with 50 still present, then green after the constant change); `npm test` + `npm run build` on this branch.
+- **Verified by:** Soft TDD on `chartIndicators.test.ts` (red with `[9, 20, 50, 200]`, then 9/9 green). Chart-adjacent Vitest: 39 files / 276 passed. ESLint on touched chart files exit 0. `npm run build` exit 0; built `constants-*.js` has `$e=[9,20,200]` and colors 9/20/200/VWAP only (`#EF4444` absent). `doc_invariants.py` OK.
 - **Related:** none (product preference, not a bug). Historical CHANGELOG / task-log rows that said 9/20/50/200 stay as dated history.
 
 ## 2026-09-16 -- Filter junk movers listicles from News + flame
