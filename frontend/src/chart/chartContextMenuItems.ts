@@ -1,21 +1,26 @@
 /**
  * Pure model for the chart right-click menu.
  *
- * Only rows Nova can actually perform are built. Webull's Create Alert / Add to
- * Watchlist / Line Style / Show Layers / Chart Settings have no Nova surface
- * yet (watchlist is read-only Nova OS output, alerts are delivery channels), so
- * they are omitted rather than shipped as dead "Coming soon" rows (#116).
+ * Money rows and layers are real Nova actions. Create Alert / Add to Watchlist
+ * have no price-alert or user-watchlist API, so they ship disabled with a
+ * reason (#116). Line Style and Chart Settings still have no surface -- omit.
  */
 import { formatSeedPrice } from '../ibkr/tradeDefaultSeed';
+import { CHART_POSITION_MENU_VIEW_DETAILS } from './positionOverlayConstants';
 import {
+  CHART_CONTEXT_MENU_ADD_WATCHLIST,
+  CHART_CONTEXT_MENU_ALERT_REASON,
   CHART_CONTEXT_MENU_BUY,
   CHART_CONTEXT_MENU_CLOSE_POSITION,
+  CHART_CONTEXT_MENU_CREATE_ALERT,
   CHART_CONTEXT_MENU_CREATE_ORDER,
   CHART_CONTEXT_MENU_DRAWINGS,
   CHART_CONTEXT_MENU_IGNORE_SELECTOR,
   CHART_CONTEXT_MENU_RESET,
   CHART_CONTEXT_MENU_SELL,
+  CHART_CONTEXT_MENU_SHOW_LAYERS,
   CHART_CONTEXT_MENU_SNAPSHOT,
+  CHART_CONTEXT_MENU_WATCHLIST_REASON,
 } from './chartContextMenuConstants';
 
 export type ChartContextMenuItemId =
@@ -23,17 +28,29 @@ export type ChartContextMenuItemId =
   | 'buy'
   | 'sell'
   | 'close_position'
+  | 'view_details'
   | 'drawings'
+  | 'show_layers'
+  | 'create_alert'
+  | 'add_to_watchlist'
   | 'reset'
   | 'snapshot';
+
+export type ChartContextMenuItemKind =
+  | 'order'
+  | 'position'
+  | 'submenu'
+  | 'view'
+  | 'unavailable';
 
 export interface ChartContextMenuItem {
   id: ChartContextMenuItemId;
   label: string;
-  /** `order` rows stage the trade ticket; `position` is the flatten SSOT row. */
-  kind: 'order' | 'position' | 'submenu' | 'view';
+  kind: ChartContextMenuItemKind;
   /** Render a divider above this row. */
   dividerBefore?: boolean;
+  /** Honest disable reason -- only on `unavailable` rows. */
+  reason?: string;
 }
 
 export interface ChartContextMenuInput {
@@ -83,6 +100,11 @@ export function chartContextMenuItems(
       kind: 'position',
       dividerBefore: priced,
     });
+    items.push({
+      id: 'view_details',
+      label: CHART_POSITION_MENU_VIEW_DETAILS,
+      kind: 'view',
+    });
   }
 
   items.push({
@@ -90,6 +112,23 @@ export function chartContextMenuItems(
     label: CHART_CONTEXT_MENU_DRAWINGS,
     kind: 'submenu',
     dividerBefore: items.length > 0,
+  });
+  items.push({
+    id: 'show_layers',
+    label: CHART_CONTEXT_MENU_SHOW_LAYERS,
+    kind: 'submenu',
+  });
+  items.push({
+    id: 'create_alert',
+    label: CHART_CONTEXT_MENU_CREATE_ALERT,
+    kind: 'unavailable',
+    reason: CHART_CONTEXT_MENU_ALERT_REASON,
+  });
+  items.push({
+    id: 'add_to_watchlist',
+    label: CHART_CONTEXT_MENU_ADD_WATCHLIST,
+    kind: 'unavailable',
+    reason: CHART_CONTEXT_MENU_WATCHLIST_REASON,
   });
   items.push({ id: 'reset', label: CHART_CONTEXT_MENU_RESET, kind: 'view', dividerBefore: true });
   items.push({ id: 'snapshot', label: CHART_CONTEXT_MENU_SNAPSHOT, kind: 'view' });

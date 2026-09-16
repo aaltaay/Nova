@@ -29,8 +29,7 @@ import { useTickerChartEscape } from './useTickerChartEscape';
 import { useTickerChartMaximize } from './useTickerChartMaximize';
 import { useVwapSourceBars } from './useVwapSourceBars';
 import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
-import { ChartContextMenuHost } from './ChartContextMenuHost';
-import { ChartPositionTagHost } from './ChartPositionTag';
+import { ChartPaneOverlays } from './ChartPaneOverlays';
 import { findOpenPosition } from './positionOverlay';
 import { chartHeightForVariant, tickerChartCardClass } from './tickerChartCard';
 import { formatCoverageClockEt } from '../tickerChartData';
@@ -302,22 +301,18 @@ function TickerChartInner({
         {!loading && error && indicatorBars.length === 0 && (
           <div className="chart-overlay chart-overlay--error">{error}</div>
         )}
-        <ChartPositionTagHost
-          symbol={symbol}
-          chart={chartApi}
-          candleSeriesRef={candleSeriesRef}
-          containerRef={containerRef}
-          barsRevision={barsRevision}
-        />
-        <ChartContextMenuHost
+        <ChartPaneOverlays
           symbol={symbol}
           timeframe={timeframe}
           barCount={indicatorBars.length}
+          barsRevision={barsRevision}
           chart={chartApi}
           candleSeriesRef={candleSeriesRef}
           containerRef={containerRef}
           activeTool={activeTool}
           onToolClick={handleToolClick}
+          enabledIndicators={enabledIndicators}
+          onIndicatorToggle={handleIndicatorToggle}
         />
       </div>
       <TickerChartOverlays

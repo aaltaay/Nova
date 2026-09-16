@@ -7,6 +7,10 @@ import {
   chartMenuPriceLabel,
   shouldOpenChartContextMenu,
 } from './chartContextMenuItems';
+import {
+  CHART_CONTEXT_MENU_ALERT_REASON,
+  CHART_CONTEXT_MENU_WATCHLIST_REASON,
+} from './chartContextMenuConstants';
 
 const BASE = { symbol: 'smpl', price: 4.2, quantityValue: '100', hasPosition: false };
 
@@ -18,22 +22,49 @@ describe('chartContextMenuItems', () => {
     expect(labels).toContain('Sell SMPL 100 @4.20');
   });
 
-  it('omits order rows when the series cannot price the cursor', () => {
+  it('keeps view actions when the series cannot price the cursor', () => {
     const ids = chartContextMenuItems({ ...BASE, price: null }).map((item) => item.id);
-    expect(ids).toEqual(['drawings', 'reset', 'snapshot']);
+    expect(ids).toEqual([
+      'drawings',
+      'show_layers',
+      'create_alert',
+      'add_to_watchlist',
+      'reset',
+      'snapshot',
+    ]);
   });
 
-  it('shows Close Position only while a position is open', () => {
-    expect(chartContextMenuItems(BASE).some((i) => i.id === 'close_position')).toBe(false);
+  it('shows Close Position and View Trade Details only while a position is open', () => {
+    const closed = chartContextMenuItems(BASE);
+    expect(closed.some((i) => i.id === 'close_position')).toBe(false);
+    expect(closed.some((i) => i.id === 'view_details')).toBe(false);
     const withPos = chartContextMenuItems({ ...BASE, hasPosition: true });
-    expect(withPos.some((i) => i.id === 'close_position')).toBe(true);
     expect(withPos.find((i) => i.id === 'close_position')?.kind).toBe('position');
+    expect(withPos.find((i) => i.id === 'view_details')?.label).toBe('View Trade Details');
   });
 
-  it('never offers a surface Nova cannot perform', () => {
+  it('disables Create Alert and Add to Watchlist with an honest reason', () => {
+    const items = chartContextMenuItems(BASE);
+    const alert = items.find((i) => i.id === 'create_alert');
+    const watch = items.find((i) => i.id === 'add_to_watchlist');
+    expect(alert).toEqual(
+      expect.objectContaining({
+        kind: 'unavailable',
+        reason: CHART_CONTEXT_MENU_ALERT_REASON,
+      }),
+    );
+    expect(watch).toEqual(
+      expect.objectContaining({
+        kind: 'unavailable',
+        reason: CHART_CONTEXT_MENU_WATCHLIST_REASON,
+      }),
+    );
+  });
+
+  it('exposes Show Layers and omits surfaces Nova cannot perform', () => {
     const ids = chartContextMenuItems({ ...BASE, hasPosition: true }).map((i) => i.id);
-    expect(ids).not.toContain('create_alert');
-    expect(ids).not.toContain('add_to_watchlist');
+    expect(ids).toContain('show_layers');
+    expect(ids).not.toContain('line_style');
     expect(ids).not.toContain('chart_settings');
   });
 

@@ -8,6 +8,8 @@
  */
 import { useLayoutEffect, useRef, useState, type MouseEvent } from 'react';
 import { ClosePositionButton } from '../closed_orders';
+import type { ChartIndicatorId } from '../constants';
+import { CHART_INDICATORS } from '../constants';
 import type { IbkrMode, IbkrPosition } from '../ibkr/types';
 import { CHART_LINE_TOOLS } from './chartDrawingConfig';
 import {
@@ -26,7 +28,13 @@ import {
   chartContextMenuPosition,
   chartSubmenuPosition,
 } from './chartContextMenuPosition';
+import {
+  ChartContextSubmenu,
+  ChartContextSubmenuRow,
+} from './ChartContextSubmenu';
 import type { ChartOrderIntent } from './chartOrderActions';
+
+type SubmenuId = 'drawings' | 'show_layers';
 
 export interface ChartContextMenuProps {
   symbol: string;
@@ -39,8 +47,11 @@ export interface ChartContextMenuProps {
   spendStatus?: string;
   flattenDisabled?: boolean;
   activeTool: string | null;
+  enabledIndicators: ChartIndicatorId[];
   onStageOrder: (intent: ChartOrderIntent) => void;
   onToolClick: (toolId: string) => void;
+  onIndicatorToggle: (id: ChartIndicatorId) => void;
+  onViewDetails: () => void;
   onReset: () => void;
   onSnapshot: () => void;
   onDismiss: () => void;
@@ -54,6 +65,7 @@ function viewport(): { width: number; height: number } {
 export function ChartContextMenu(props: ChartContextMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const drawingsRowRef = useRef<HTMLButtonElement>(null);
+  const layersRowRef = useRef<HTMLButtonElement>(null);
   const [placement, setPlacement] = useState(() => {
     const view = viewport();
     return chartContextMenuPosition({
@@ -65,7 +77,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
       viewportHeight: view.height,
     });
   });
-  const [submenuOpen, setSubmenuOpen] = useState(false);
+  const [submenu, setSubmenu] = useState<SubmenuId | null>(null);
   const [submenuPos, setSubmenuPos] = useState({ top: 0, left: 0 });
 
   const items = chartContextMenuItems({
@@ -75,7 +87,6 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     hasPosition: Boolean(props.position && props.position.qty !== 0),
   });
 
-  // Re-place once the real height is known (order rows are conditional).
   useLayoutEffect(() => {
     const node = rootRef.current;
     if (!node) return;
@@ -93,29 +104,32 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     );
   }, [props.anchor.x, props.anchor.y, items.length]);
 
-  function openSubmenu(): void {
+  function openSubmenu(id: SubmenuId): void {
     const root = rootRef.current;
-    const row = drawingsRowRef.current;
+    const row = id === 'drawings' ? drawingsRowRef.current : layersRowRef.current;
     if (!root || !row) return;
     const view = viewport();
     const rootRect = root.getBoundingClientRect();
+    const count = id === 'drawings' ? CHART_LINE_TOOLS.length : CHART_INDICATORS.length;
     setSubmenuPos(
       chartSubmenuPosition({
         parentLeft: rootRect.left,
         parentWidth: rootRect.width || CHART_CONTEXT_MENU_WIDTH_PX,
         rowTop: row.getBoundingClientRect().top,
         submenuWidth: CHART_CONTEXT_SUBMENU_WIDTH_PX,
-        submenuHeight: CHART_LINE_TOOLS.length * 30,
+        submenuHeight: count * 30,
         viewportWidth: view.width,
         viewportHeight: view.height,
       }),
     );
-    setSubmenuOpen(true);
+    setSubmenu(id);
   }
 
   function runItem(id: ChartContextMenuItemId): void {
     if (id === 'create_order' || id === 'buy' || id === 'sell') {
       props.onStageOrder(id);
+    } else if (id === 'view_details') {
+      props.onViewDetails();
     } else if (id === 'reset') {
       props.onReset();
     } else if (id === 'snapshot') {
@@ -142,21 +156,38 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
       );
     }
     if (item.kind === 'submenu') {
+      const id = item.id as SubmenuId;
+      return (
+        <ChartContextSubmenuRow
+          key={item.id}
+          testId={`chart-context-menu-${item.id}`}
+          label={item.label}
+          expanded={submenu === id}
+          rowRef={id === 'drawings' ? drawingsRowRef : layersRowRef}
+          onOpen={() => openSubmenu(id)}
+          onToggle={() => (submenu === id ? setSubmenu(null) : openSubmenu(id))}
+        />
+      );
+    }
+    if (item.kind === 'unavailable') {
       return (
         <button
           key={item.id}
-          ref={drawingsRowRef}
           type="button"
           role="menuitem"
-          className="chart-context-menu__item chart-context-menu__item--submenu"
-          aria-haspopup="menu"
-          aria-expanded={submenuOpen}
-          data-testid="chart-context-menu-drawings"
-          onPointerEnter={openSubmenu}
-          onClick={() => (submenuOpen ? setSubmenuOpen(false) : openSubmenu())}
+          className="chart-context-menu__item"
+          data-testid={`chart-context-menu-${item.id}`}
+          disabled
+          title={item.reason}
+          aria-disabled="true"
+          onPointerEnter={() => setSubmenu(null)}
         >
-          <span>{item.label}</span>
-          <span aria-hidden="true" className="chart-context-menu__caret">›</span>
+          <span className="chart-context-menu__item-stack">
+            <span>{item.label}</span>
+            {item.reason ? (
+              <span className="chart-context-menu__item-reason">{item.reason}</span>
+            ) : null}
+          </span>
         </button>
       );
     }
@@ -167,7 +198,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
         role="menuitem"
         className="chart-context-menu__item"
         data-testid={`chart-context-menu-${item.id}`}
-        onPointerEnter={() => setSubmenuOpen(false)}
+        onPointerEnter={() => setSubmenu(null)}
         onClick={() => runItem(item.id)}
       >
         {item.label}
@@ -204,13 +235,12 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
           {CHART_CONTEXT_MENU_ORDER_HINT}
         </p>
       )}
-      {submenuOpen && (
-        <div
-          className="chart-context-menu chart-context-menu--submenu"
-          role="menu"
-          aria-label="Drawings"
-          data-testid="chart-context-menu-drawings-submenu"
-          style={{ top: submenuPos.top, left: submenuPos.left }}
+      {submenu === 'drawings' && (
+        <ChartContextSubmenu
+          testId="chart-context-menu-drawings-submenu"
+          ariaLabel="Drawings"
+          top={submenuPos.top}
+          left={submenuPos.left}
         >
           {CHART_LINE_TOOLS.map((tool) => (
             <button
@@ -233,7 +263,37 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
               <kbd>{tool.hotkey}</kbd>
             </button>
           ))}
-        </div>
+        </ChartContextSubmenu>
+      )}
+      {submenu === 'show_layers' && (
+        <ChartContextSubmenu
+          testId="chart-context-menu-layers-submenu"
+          ariaLabel="Show Layers"
+          top={submenuPos.top}
+          left={submenuPos.left}
+        >
+          {CHART_INDICATORS.map((ind) => {
+            const on = props.enabledIndicators.includes(ind.id);
+            return (
+              <button
+                key={ind.id}
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={on}
+                className={
+                  on
+                    ? 'chart-context-menu__item chart-context-menu__item--active'
+                    : 'chart-context-menu__item'
+                }
+                data-testid={`chart-context-menu-layer-${ind.id}`}
+                onClick={() => props.onIndicatorToggle(ind.id)}
+              >
+                <span>{ind.label}</span>
+                <span aria-hidden="true">{on ? '✓' : ''}</span>
+              </button>
+            );
+          })}
+        </ChartContextSubmenu>
       )}
     </div>
   );
