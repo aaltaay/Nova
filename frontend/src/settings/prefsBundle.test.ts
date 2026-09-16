@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { exportPrefsBundle, importPrefsBundle, PREFS_BUNDLE_VERSION } from './prefsBundle';
+import { SCANNER_ACTIVE_TAB_STORAGE_KEY } from '../constantGroups/market_ui';
+import {
+  exportPrefsBundle,
+  importPrefsBundle,
+  PREFS_BUNDLE_KEYS,
+  PREFS_BUNDLE_VERSION,
+} from './prefsBundle';
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = { ...initial };
@@ -40,5 +46,14 @@ describe('prefsBundle', () => {
     expect(written).toBe(1);
     expect(storage.data['nova.theme']).toBe('light');
     expect(storage.data['evil.key']).toBeUndefined();
+  });
+
+  it('allowlists the scanner activeTab persist key', () => {
+    expect(PREFS_BUNDLE_KEYS).toContain(SCANNER_ACTIVE_TAB_STORAGE_KEY);
+    const storage = memoryStorage({
+      [SCANNER_ACTIVE_TAB_STORAGE_KEY]: '{"schema_version":1,"value":"gainers"}',
+    });
+    const bundle = exportPrefsBundle(storage);
+    expect(bundle.prefs[SCANNER_ACTIVE_TAB_STORAGE_KEY]).toContain('gainers');
   });
 });

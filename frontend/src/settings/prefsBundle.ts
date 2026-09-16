@@ -1,5 +1,7 @@
 /** Export / import browser desk prefs (localStorage only). */
 
+import { SCANNER_ACTIVE_TAB_STORAGE_KEY } from '../constantGroups/market_ui';
+
 export const PREFS_BUNDLE_VERSION = 1;
 export const PREFS_DOWNLOAD_NAME = 'nova-prefs.json';
 
@@ -25,6 +27,7 @@ export const PREFS_BUNDLE_KEYS = [
   'nova.ibkr.orderTable.sort.v1.working',
   'nova.ibkr.orderTable.sort.v1.closed',
   'nova_exchange_filter_v1',
+  SCANNER_ACTIVE_TAB_STORAGE_KEY,
   'nova.chartGrid.show10Sec',
   'nova.hodMomo.dock.v2.collapsed',
   'nova.hodMomo.dock.v2.heightPx',
