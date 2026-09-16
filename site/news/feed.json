@@ -1,11 +1,25 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-16T06:50:19+00:00",
+  "generated_at": "2026-09-16T12:14:20+00:00",
   "count": 60,
   "stories": [
     {
       "rank": 1,
-      "score": 8.27,
+      "score": 10.79,
+      "source": "Hedgeweek",
+      "domain": "hedgeweek.com",
+      "title": "Quant finance pay rises as AI reshapes skills demand, says survey",
+      "url": "https://www.hedgeweek.com/quant-finance-pay-rises-as-ai-reshapes-skills-demand-says-survey/",
+      "summary": "Quantitative finance professionals continue to see pay increases as artificial intelligence becomes increasingly embedded in research, trading, portfolio construction, risk management and...",
+      "published": "2026-09-16T07:56:57+00:00",
+      "why": [
+        "source x0.9",
+        "recency x0.96"
+      ]
+    },
+    {
+      "rank": 2,
+      "score": 7.85,
       "source": "Finextra",
       "domain": "finextra.com",
       "title": "TS Imagine ships AI platform for capital markets",
@@ -14,12 +28,41 @@
       "published": "2026-09-15T12:11:00+00:00",
       "why": [
         "source x0.88",
-        "recency x0.84"
+        "recency x0.79"
       ]
     },
     {
-      "rank": 2,
-      "score": 5.74,
+      "rank": 3,
+      "score": 6.91,
+      "source": "webull.com",
+      "domain": "webull.com",
+      "title": "AI Trading Bot vs Human Trader: Exploring the Differences",
+      "url": "https://news.google.com/rss/articles/CBMikgFBVV95cUxQWXhnZ2tvNVFfd1lMVlZYbFBHRWJlY081SzFnMjZzdTBGdHNsY0F4RXR2OEFHekJsS3lOaC1JN2pGMzZHOVdVZExzUHBpemxUQlZWcGxuZVEzd0tjY3VTcVNUZFlQbTBRNGZqb2FmMlpWWW92MGpFaDJ4eGxGMmtaWk9OYXVoX0p6bThveENidlEtdw?oc=5",
+      "summary": "",
+      "published": "2026-09-16T01:43:40+00:00",
+      "why": [
+        "2 AI-executes-trades phrase(s)",
+        "source x0.45",
+        "recency x0.90"
+      ]
+    },
+    {
+      "rank": 4,
+      "score": 5.89,
+      "source": "The TRADE",
+      "domain": "thetradenews.com",
+      "title": "AI in FX trading \u2013 cutting through the noise",
+      "url": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxOeTZRWlNDaXlxaGZmYmhSRDlSb19XenhPSlY4akVZaWtqZ2dzcndXZ2lUQkFCVEVDN0Rqc2dNOFd3SEo1dmtsQWIzRF8wZmFBU2ZleVg4dTcwSklmM2dqZnRmT09QRmVEdjltSV9Pa0NLQThNb0dPT28tRUIwLW85NGhMekdVQURGc3dj?oc=5",
+      "summary": "",
+      "published": "2026-09-15T13:13:09+00:00",
+      "why": [
+        "source x0.98",
+        "recency x0.80"
+      ]
+    },
+    {
+      "rank": 5,
+      "score": 5.45,
       "source": "Innovation & Tech Today",
       "domain": "innotechtoday.com",
       "title": "5 Best AI Trading Bot Platforms in 2026: How to Choose the Right Bot for Your Trading Strategy",
@@ -30,12 +73,12 @@
         "3 AI-executes-trades phrase(s)",
         "-1 promo phrase(s)",
         "source x0.45",
-        "recency x0.88"
+        "recency x0.84"
       ]
     },
     {
-      "rank": 3,
-      "score": 5.44,
+      "rank": 6,
+      "score": 5.17,
       "source": "Bloomberg.com",
       "domain": "bloomberg.com",
       "title": "Anthropic\u2019s AI Warning May Weigh on Chips, But Trade Seen Intact",
@@ -44,12 +87,12 @@
       "published": "2026-09-14T02:36:00+00:00",
       "why": [
         "source x1",
-        "recency x0.60"
+        "recency x0.57"
       ]
     },
     {
-      "rank": 4,
-      "score": 5.31,
+      "rank": 7,
+      "score": 5.04,
       "source": "Bloomberg.com",
       "domain": "bloomberg.com",
       "title": "Watch Canada\u2019s Carney on Capital Investment, AI, US Trade",
@@ -58,27 +101,12 @@
       "published": "2026-09-14T00:00:00+00:00",
       "why": [
         "source x1",
-        "recency x0.59"
+        "recency x0.56"
       ]
     },
     {
-      "rank": 5,
-      "score": 4.75,
-      "source": "Markets Media",
-      "domain": "marketsmedia.com",
-      "title": "BGC Group Executes its First Fully AI Brokered Trade",
-      "url": "https://news.google.com/rss/articles/CBMiigFBVV95cUxNbEhGel9hQWJrX3ZFRTdrbzc3N2JwVTBiajVhUnk2MS1QYUpReEdpTW1GeXJLYVRXa1p3RUQxMjNJWU15NnE2bjVhcG9NWGRYeEN6Tkc3T1oxSUFEdFZrWkN3Ny1XbDhwOHJTNnp5QllmSkROYThCWmIxRTRJeTFTWXVKYThGQ1p6b1E?oc=5",
-      "summary": "",
-      "published": "2026-09-11T00:07:32+00:00",
-      "why": [
-        "2 AI-executes-trades phrase(s)",
-        "source x0.92",
-        "recency x0.30"
-      ]
-    },
-    {
-      "rank": 6,
-      "score": 4.74,
+      "rank": 8,
+      "score": 4.5,
       "source": "Markets Media",
       "domain": "marketsmedia.com",
       "title": "Private Markets, AI are Defining Priorities for Buy Side",
@@ -87,12 +115,12 @@
       "published": "2026-09-14T15:44:56+00:00",
       "why": [
         "source x0.92",
-        "recency x0.69"
+        "recency x0.65"
       ]
     },
     {
-      "rank": 7,
-      "score": 4.35,
+      "rank": 9,
+      "score": 4.13,
       "source": "Reuters",
       "domain": "reuters.com",
       "title": "COMMENTARY: Trading Day: AI-pocalypse now",
@@ -101,13 +129,13 @@
       "published": "2026-09-14T21:23:16+00:00",
       "why": [
         "source x1",
-        "recency x0.72"
+        "recency x0.69"
       ]
     },
     {
-      "rank": 8,
-      "score": 4.02,
-      "source": "techeblog.com",
+      "rank": 10,
+      "score": 3.82,
+      "source": "TechEBlog -",
       "domain": "techeblog.com",
       "title": "Bracket22 Builds an AI Agent-Based Hedge Fund Staff That Never Leaves the Desk",
       "url": "https://news.google.com/rss/articles/CBMiekFVX3lxTFB5LUFxX3ZrN1dsYzNjSHRiZmplcEF3ZUxLdlV1NTFYUlV5VjNaVkZFcF9TdkxpdGplWlRQRExidEtNbnB6N1RneGNpenNmS2F4QlpVb0xpQnJWVGs4eUFlUnY4VUt3aHVjTVV0d2JGWDItd24tZHZySlJR?oc=5",
@@ -115,13 +143,29 @@
       "published": "2026-09-16T06:07:20+00:00",
       "why": [
         "source x0.45",
-        "recency x0.99"
+        "recency x0.94"
       ]
     },
     {
-      "rank": 9,
-      "score": 3.73,
-      "source": "eFinancialCareers",
+      "rank": 11,
+      "score": 3.64,
+      "source": "Innovation & Tech Today",
+      "domain": "innotechtoday.com",
+      "title": "5 Best AI Trading Bot Platforms in 2026: How Traders Use AI Bots for Smarter Strategies",
+      "url": "https://news.google.com/rss/articles/CBMiswFBVV95cUxPbktSRE9HZFN1T2tJS1FwZnhtUUlPcmRWMmNIOG9mTkFMSVZ6TFlmamJOdEJQTEdGTl9ITnFNcVdqQXNWYlVjQTVDVzVISVR1X2MwQlpPNDJBcEdzN0lJMUs2VTIzUmFYMEtrVnFUTGh1WUI0LXhmSWhod1ZNQnJZQXFjYUpEMlBISVFHX1NjSXltanlDaENnaUJxZDJfSFZjMGRvX1JKdnBmS3A3aHA3Y0RWdw?oc=5",
+      "summary": "",
+      "published": "2026-09-14T07:00:00+00:00",
+      "why": [
+        "2 AI-executes-trades phrase(s)",
+        "-1 promo phrase(s)",
+        "source x0.45",
+        "recency x0.60"
+      ]
+    },
+    {
+      "rank": 12,
+      "score": 3.54,
+      "source": "efinancialcareers.com",
       "domain": "efinancialcareers.com",
       "title": "JPMorgan is hiring high-frequency traders for a new 'AI Markets Lab'",
       "url": "https://news.google.com/rss/articles/CBMigAFBVV95cUxOUkp3ZzBDNnBtR0JoVzFBTnZHWnFkSG9sbURTeXB6clQ5RHNFTG95NEluajdYZ0RySnltVVV1bk93QmpuY25IOFZMMDBPeXZnUFVxc1VwRE9lMXBFQldhMjZaSlY3V0I5empONU5SaFhOd2hZak1iM3dSVHRkaGdFRw?oc=5",
@@ -129,12 +173,12 @@
       "published": "2026-09-14T16:23:21+00:00",
       "why": [
         "source x0.6",
-        "recency x0.69"
+        "recency x0.66"
       ]
     },
     {
-      "rank": 10,
-      "score": 3.64,
+      "rank": 13,
+      "score": 3.45,
       "source": "\u5bcc\u9014\u725b\u725b",
       "domain": "news.futunn.com",
       "title": "AI trading loses momentum! Goldman Sachs warns of the largest divergence in momentum trading in five years, with capital shifting from chips to software.",
@@ -144,12 +188,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.81"
+        "recency x0.77"
       ]
     },
     {
-      "rank": 11,
-      "score": 3.41,
+      "rank": 14,
+      "score": 3.24,
       "source": "\u5bcc\u9014\u725b\u725b",
       "domain": "news.futunn.com",
       "title": "AI Trading\u2019s \u201cBlack Monday\u201d: Cloud Giants Hold an \u201cImmunity Pass\u201d!",
@@ -159,13 +203,13 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.76"
+        "recency x0.72"
       ]
     },
     {
-      "rank": 12,
-      "score": 3.23,
-      "source": "Issuewire",
+      "rank": 15,
+      "score": 3.07,
+      "source": "issuewire.com",
       "domain": "issuewire.com",
       "title": "OKQuant.ai Turns Crypto Automation Into a Reviewable Quant Trading Workflow",
       "url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxNUVBUTXFzaEs4OXVvcXNjZlBHbXNGd25helRUZ1FQR0VGS2Y5MUdZTHpqWlFtY0hYdmVGd3oweW9HRm5LZmdDTC10VUp6LUdCOThTNElwRGM4RWo5UjViemxBaFVZaVVhZUhKMmtka1NYZ1dBU3NpLXFhZ1lIdDRPRkRiRkNtY1UtQ3hKOGt4d2Z4ZGFia3V3enpVUEFubkxvdU9DWTlNX0h3czNDVXJ0R1lTRWloX2xl?oc=5",
@@ -173,12 +217,12 @@
       "published": "2026-09-15T07:27:54+00:00",
       "why": [
         "source x0.45",
-        "recency x0.80"
+        "recency x0.76"
       ]
     },
     {
-      "rank": 13,
-      "score": 3.22,
+      "rank": 16,
+      "score": 3.06,
       "source": "CNBC Finance",
       "domain": "cnbc.com",
       "title": "OpenAI targets work of Wall Street junior bankers with new ChatGPT for Financial Services",
@@ -187,12 +231,12 @@
       "published": "2026-09-11T16:06:31+00:00",
       "why": [
         "source x0.85",
-        "recency x0.34"
+        "recency x0.33"
       ]
     },
     {
-      "rank": 14,
-      "score": 3.06,
+      "rank": 17,
+      "score": 2.91,
       "source": "AMBCrypto",
       "domain": "ambcrypto.com",
       "title": "Best AI trading bot apps in 2026: 10 platforms for crypto and stock trading automation",
@@ -203,12 +247,12 @@
         "2 AI-executes-trades phrase(s)",
         "-1 promo phrase(s)",
         "source x0.45",
-        "recency x0.65"
+        "recency x0.62"
       ]
     },
     {
-      "rank": 15,
-      "score": 3.04,
+      "rank": 18,
+      "score": 2.89,
       "source": "CoinGape",
       "domain": "coingape.com",
       "title": "Bitget Celebrates 8 Years With UEX Expansion, rTokens, AI Trading",
@@ -218,12 +262,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.68"
+        "recency x0.64"
       ]
     },
     {
-      "rank": 16,
-      "score": 3.03,
+      "rank": 19,
+      "score": 2.87,
       "source": "Yellow.com",
       "domain": "yellow.com",
       "title": "MEXC Completes Rollout of Six-Tool AI Trading Suite, Reaching Over 1.5 Million Users",
@@ -233,13 +277,13 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.67"
+        "recency x0.64"
       ]
     },
     {
-      "rank": 17,
-      "score": 2.98,
-      "source": "outlookmoney.com",
+      "rank": 20,
+      "score": 2.83,
+      "source": "Outlook Money",
       "domain": "outlookmoney.com",
       "title": "Bybit Rolls Out AI Trading Assistant For Crypto Traders In India",
       "url": "https://news.google.com/rss/articles/CBMiogFBVV95cUxOUzM3Ynd5TUdZdE1SdmtjeHl3dndfOEF1OU9ZZ3RhVXBTN1gybk5OcnY0VVpiaXU5cTk5THg4d0VWR01SanZqWUlyR19SWVlkdDE5Y01EVXRVbm54QVN1cnhBbXZFQTYyWkZiZ2ZfVzRtU3ZCaTdQT2ZISU5DZHY0WE5FbmdwMnd4djQ3d1dOZ3FlYmNNYnhPUnNOb1Y5TXZFR0HSAa8BQVVfeXFMT3RzSWY3VWNyQnlpbjZaNFdPZGQzOWN1NzlGN1lQckhUNTRsVm45eVRodXhqdXFaNVYtUnVTU3VTRXdDVEhpbHlMelp2S3I4Y3VtZTczYU1GQzU5THhzbnBKaUlWZGVRbUFVWkFMWkU3Zi1KdzFfYWZPMVJXcFIteDdqcDNKaWpkRUpUYklnb0U3YjZSSEdIcXRPTlBqZDlXejN4X0hmZEFjX29TTHQ1Zw?oc=5",
@@ -248,13 +292,13 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.51"
+        "recency x0.48"
       ]
     },
     {
-      "rank": 18,
-      "score": 2.78,
-      "source": "mondovisione.com",
+      "rank": 21,
+      "score": 2.64,
+      "source": "Mondo Visione",
       "domain": "mondovisione.com",
       "title": "Exchange Data International, Symbol Master, And CPZ Partner To Streamline Data For AI Trading - EDI\u2019s Global Reference And Pricing Data And SMI\u2019s Options Symbology Are Being Integrated Into CPZAI, The AI-Native Systematic Trading Operating System",
       "url": "https://news.google.com/rss/articles/CBMi0gFBVV95cUxNeEFVWkRSM0RRRDl6Qmx1SjdmcGtraEpodm1Xc1VCTGRvcF8wY2RXcUY4N2dLc1hoWXM4OW1sQkV1cmUzRUxpaTdhYUZFaHRiMktjRmlndUxtQUxqRDJlbUhtNlNIbkhCSGdiYjNoWDN4emFDTVdpZTdrQ1o4RE9FVGVZYjhjVGQ2WHZ4V1o0RGNXZ0FRQk9XMWgxT0R3dGtBZ1ZROHA1RUVLRThkbEhrYWlFcHRPT3Joc0hETk1KaDhHTndYbXVwR0pNQXptWXlqb3c?oc=5",
@@ -263,12 +307,12 @@
       "why": [
         "2 AI-executes-trades phrase(s)",
         "source x0.68",
-        "recency x0.23"
+        "recency x0.22"
       ]
     },
     {
-      "rank": 19,
-      "score": 2.7,
+      "rank": 22,
+      "score": 2.56,
       "source": "TheNigeriaLawyer",
       "domain": "thenigerialawyer.com",
       "title": "AI Trading Frenzy Raises Financial Stability Risks \u2014 Bank Of Korea Warns On Samsung, SK Hynix Derivatives",
@@ -278,12 +322,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.60"
+        "recency x0.57"
       ]
     },
     {
-      "rank": 20,
-      "score": 2.68,
+      "rank": 23,
+      "score": 2.54,
       "source": "CNBC Investing",
       "domain": "cnbc.com",
       "title": "Goldman picks China healthcare stocks for a post-AI trade",
@@ -292,12 +336,12 @@
       "published": "2026-09-13T11:54:40+00:00",
       "why": [
         "source x0.85",
-        "recency x0.53"
+        "recency x0.50"
       ]
     },
     {
-      "rank": 21,
-      "score": 2.54,
+      "rank": 24,
+      "score": 2.41,
       "source": "Hackread",
       "domain": "hackread.com",
       "title": "What Algorithmic Trading Teaches Us About the Agent Era",
@@ -307,27 +351,27 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.56"
+        "recency x0.54"
       ]
     },
     {
-      "rank": 22,
-      "score": 2.51,
+      "rank": 25,
+      "score": 2.39,
       "source": "TOP1markets",
       "domain": "top1markets.com",
       "title": "JPMorgan Cut Off Situational Awareness: What Losing a Prime Broker Does to an AI Hedge Fund",
-      "url": "https://news.google.com/rss/articles/CBMijgFBVV95cUxQWVBPQVRRXzhHTGs0bXZLTFNraTk5anFrZFZJVFBaNXVDbHVLZWJwb1VObV9ncEU5QWRiYTEtSnM1RE1GUGh5R0FmQjhybmsydllXMGJCSURvOHIxczhIaUtOSy1DWXRZMlNYWENPRHF1QUI3ZnhpSWQ2bUZNZ2tZcnY4MW82UHRIM0d4Tm1n?oc=5",
+      "url": "https://news.google.com/rss/articles/CBMikgFBVV95cUxPbl9iZDNEVGMzMlpWWHJRQ2VacWNoMERQaS1DR1NxVmUzaHRQMW1Oc2ptNnIzZ0ZyUHlzZ1poQ1ptUHU5dnFsSk1yMGZ0QWNDMkpLOWZCWjNZN05lckhYM0dZM2FxQjBiOGpELTN0OV9OX19hdlpfc2NFa1ZFLXFBX3VncDF5TVZ3QlhrZi1PQ2lJZw?oc=5",
       "summary": "",
       "published": "2026-09-12T15:08:54+00:00",
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.43"
+        "recency x0.41"
       ]
     },
     {
-      "rank": 23,
-      "score": 2.51,
+      "rank": 26,
+      "score": 2.38,
       "source": "\u5bcc\u9014\u725b\u725b",
       "domain": "news.futunn.com",
       "title": "Will \"AI trading\" take a severe hit today? The Big Three's support for a \"slowdown,\" coupled with OpenAI's decision to postpone its IPO, has sparked intense debate.",
@@ -338,12 +382,12 @@
         "1 AI-executes-trades phrase(s)",
         "-1 promo phrase(s)",
         "source x0.45",
-        "recency x0.59"
+        "recency x0.56"
       ]
     },
     {
-      "rank": 24,
-      "score": 2.44,
+      "rank": 27,
+      "score": 2.32,
       "source": "citybiz",
       "domain": "citybiz.co",
       "title": "Transient Secures Nasdaq Ventures Investment to Expand AI Governance Platform",
@@ -352,12 +396,12 @@
       "published": "2026-09-15T20:31:40+00:00",
       "why": [
         "source x0.45",
-        "recency x0.91"
+        "recency x0.86"
       ]
     },
     {
-      "rank": 25,
-      "score": 2.43,
+      "rank": 28,
+      "score": 2.31,
       "source": "CNBC Technology",
       "domain": "cnbc.com",
       "title": "Wall Street weighs prospect of an AI slowdown on data center buildout",
@@ -367,12 +411,12 @@
       "why": [
         "-1 promo phrase(s)",
         "source x0.85",
-        "recency x0.82"
+        "recency x0.78"
       ]
     },
     {
-      "rank": 26,
-      "score": 2.27,
+      "rank": 29,
+      "score": 2.15,
       "source": "Crowdfund Insider",
       "domain": "crowdfundinsider.com",
       "title": "Pave Finance Reports New Funding to Scale AI enabled Investment Portfolio Tools for Advisors",
@@ -382,12 +426,12 @@
       "why": [
         "-1 promo phrase(s)",
         "source x0.45",
-        "recency x0.92"
+        "recency x0.87"
       ]
     },
     {
-      "rank": 27,
-      "score": 2.22,
+      "rank": 30,
+      "score": 2.1,
       "source": "YouTube",
       "domain": "youtu.be",
       "title": "Vantheon Lux: Legit or scam AI-Trading platform in UK? market truths, strategies fully exposed!",
@@ -396,13 +440,13 @@
       "published": "2026-09-15T10:19:29+00:00",
       "why": [
         "source x0.45",
-        "recency x0.82"
+        "recency x0.78"
       ]
     },
     {
-      "rank": 28,
-      "score": 2.12,
-      "source": "The Economic Times",
+      "rank": 31,
+      "score": 2.02,
+      "source": "economictimes.com",
       "domain": "m.economictimes.com",
       "title": "ETMarkets Smart Talk| With 87.7% of F&O traders losing money, why systematic trading is becoming more rele",
       "url": "https://news.google.com/rss/articles/CBMiwgJBVV95cUxOdFBOQWt1akk3Nm05Z011OE5LWFVob0NSNHdPemFSYkM3VGZuS0ZfWVh3eExPRTZEbk95aVpqZlRMM1lOVnVFM1Yxc2xrdlVvWVJCcThFZnQ5a0sxVXctalBLUUZ3cDN5bHNBVUFIczhaa2I5TjFuVEZJcUhCQzBSQXlpb3hmSnhuOWxWUlV0U1o1SmVGNzh2YjMxOG12NDdUbGpCY1lJdDcyUnZKUndNSzNrazhhQ0dSTVhUR1lYT2F0c1dJcDdrODU4NUVCZjY3aDY5Y0xQLWpFQUhLZGVkWXU0WFpRVjAxb2lyTDQ0WTl2dWQ1am5BMTI3UWVjQTAyNzZ6YjNHWjhyQ2lmWFNjQTV1RDNtdk53UEhTQmkwOFRZUHdUVDNHSEJGcXhqRC1pNWtNbjV0WHZ0UVZiRkRYb3VR0gHHAkFVX3lxTE53d0c1bWZ1M0ltUVEzeWVqVk5mNHNpWkVGZVY3WFV6SXFiazhzRjJubnhFeHViZDFrdkh4QVduN3RPYXlFLUl5VTZ1Smt4UlVwWHhORmdPSWw5OWFSYUZ0OWY5X1JuNkhlQnlMbjVDQzhGSzJnZXlWeG84NG4zNDg4QU9QZ3lFcDhBUkhCRzgwRURnN1c5MS1Kcm5HYXBhRHh6and0SV9nTUpvT3JnZWZMMDVlcHRzUUZ2OWtJZjdsRnYwbWJXY1V5VkJuUmNrNHlGWGNNNHd5X1J2T0VKSmgzRFI2QXlCa3B3M0tMLS1VcmVBZ3otZHN6a1J3QzR2QlptZG9adGxsTzZVM3RDSm5IV1hVYzUzdjZlTnprTlBfOVFUTlZYUDlrN3BjQU5XZUlDWjkzejR2V1F4RGwyelcwOWFGLVVjYw?oc=5",
@@ -411,12 +455,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.7",
-        "recency x0.30"
+        "recency x0.29"
       ]
     },
     {
-      "rank": 29,
-      "score": 2.08,
+      "rank": 32,
+      "score": 1.98,
       "source": "Rebellion Research",
       "domain": "rebellionresearch.com",
       "title": "The Evolution of Machine Learning Asset Management: Structural Shifts in 2026",
@@ -425,13 +469,13 @@
       "published": "2026-09-15T03:51:56+00:00",
       "why": [
         "source x0.45",
-        "recency x0.77"
+        "recency x0.73"
       ]
     },
     {
-      "rank": 30,
-      "score": 2.06,
-      "source": "WSJ",
+      "rank": 33,
+      "score": 1.95,
+      "source": "wsj.com",
       "domain": "wsj.com",
       "title": "Exclusive | FirstMark, Chemistry Invest in a Startup Building an Exchange for AI Compute Power",
       "url": "https://news.google.com/rss/articles/CBMiyAFBVV95cUxQVzBEcFlDdTBJMDBJTWU0WDNubERyamNKdmdtTWhyZ0gxel96aDZFU3NqcHVZMUFvbEtVZksyVWxuSzZrQ05paGp1dGVFZWR2UHZxOGpBRjJ3RERIUFdQRnJLRGl1TFJoaTcyeFNQcGV4X3p0UlFPcEJyZkI2NmlqT0pLM3dZNS0zbEwwU25DVjdmREt5Y3RiaDQzcXRjNzNBLTlVN2l4SFZmNE9fVG4zTG9WS1JPT3BqUlVzMXB5d0FmLTFWZDB2Yg?oc=5",
@@ -440,13 +484,13 @@
       "why": [
         "-1 promo phrase(s)",
         "source x1",
-        "recency x0.82"
+        "recency x0.78"
       ]
     },
     {
-      "rank": 31,
-      "score": 1.95,
-      "source": "GV Wire",
+      "rank": 34,
+      "score": 1.85,
+      "source": "gvwire.com",
       "domain": "gvwire.com",
       "title": "AI Hedge Fund Faces Collapse After Major Losses",
       "url": "https://news.google.com/rss/articles/CBMiqwFBVV95cUxNeWoxeFZkYjN1MGpuN2I0NnY1MngzaGE5c2lPdmpCRUFTaEVyMS0yMVBWMS0yOFNxbm9rOFlnLWo1ZTg2VzUtSGszaFNZaGFuZ1FEdDR0MHFuMUVfaFByVW0tTnhJNFdIMmdwTHp1dGNYbjU3aFhzOWtMazcxT2duWmI4a20wZF9RX1RLMTI3OHFVNzJwbU5EUlZENEtPWDEzYklHVkRFeU01N0k?oc=5",
@@ -455,12 +499,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.43"
+        "recency x0.41"
       ]
     },
     {
-      "rank": 32,
-      "score": 1.93,
+      "rank": 35,
+      "score": 1.84,
       "source": "americanbazaaronline.com",
       "domain": "americanbazaaronline.com",
       "title": "From Microsoft to AI trading: Indian American Ramakant Yadav wants to turn market ideas into living portfolios",
@@ -470,12 +514,27 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.33"
+        "recency x0.31"
       ]
     },
     {
-      "rank": 33,
-      "score": 1.81,
+      "rank": 36,
+      "score": 1.78,
+      "source": "MarketBeat",
+      "domain": "marketbeat.com",
+      "title": "Robinhood Markets Targets Global Growth With Tokenization, AI Trading and Wealth Push",
+      "url": "https://news.google.com/rss/articles/CBMi3AFBVV95cUxPMWpINlktdFh0UXJXSUdmWnEtRE1waEdMM003UTVkRldDY0x4c3FIbnJWUjU2b0s2X2x3TktJOVFhVXZKbGJkMWIzY243bTZMU21icnZVUC1mRkpiZVBaX3pMaTV4Nk9FWGNDejJudUhycDdUYTlTRGVsVHVmNmlLZXBRZnVESEU0QWw5amtTbTFYbmcwby10aEI0XzZDUHl4eWdxcXQ3MnlEZTVZYWhNNmRvY3ZYeFkwZkg0WnhBWGNncV9MOTB6SUVPMFVqUFJ5V0hBYnJRT1ZTOGtQ?oc=5",
+      "summary": "",
+      "published": "2026-09-12T12:04:31+00:00",
+      "why": [
+        "1 AI-executes-trades phrase(s)",
+        "source x0.45",
+        "recency x0.40"
+      ]
+    },
+    {
+      "rank": 37,
+      "score": 1.72,
       "source": "Finimize",
       "domain": "finimize.com",
       "title": "JPMorgan Pulled Lending After An AI Hedge Fund\u2019s Losses",
@@ -485,12 +544,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.40"
+        "recency x0.38"
       ]
     },
     {
-      "rank": 34,
-      "score": 1.81,
+      "rank": 38,
+      "score": 1.72,
       "source": "CNA",
       "domain": "channelnewsasia.com",
       "title": "\u2018Trading chaos for reliability\u2019: AI slowdown could mean stricter regulations and more testing, say experts",
@@ -499,12 +558,12 @@
       "published": "2026-09-14T13:10:00+00:00",
       "why": [
         "source x0.45",
-        "recency x0.67"
+        "recency x0.64"
       ]
     },
     {
-      "rank": 35,
-      "score": 1.79,
+      "rank": 39,
+      "score": 1.7,
       "source": "FF News",
       "domain": "ffnews.com",
       "title": "PayBox Integrates Sunrise to Enable AI-Driven Crypto Trading on Solana via ChatGPT and Claude",
@@ -513,12 +572,12 @@
       "published": "2026-09-09T20:48:13+00:00",
       "why": [
         "source x0.7",
-        "recency x0.23"
+        "recency x0.22"
       ]
     },
     {
-      "rank": 36,
-      "score": 1.77,
+      "rank": 40,
+      "score": 1.68,
       "source": "Yellow.com",
       "domain": "yellow.com",
       "title": "Yellow Joins Internet Court, Bringing Clearing and Settlement to Agentic Trading",
@@ -527,12 +586,12 @@
       "published": "2026-09-14T11:02:59+00:00",
       "why": [
         "source x0.45",
-        "recency x0.66"
+        "recency x0.62"
       ]
     },
     {
-      "rank": 37,
-      "score": 1.7,
+      "rank": 41,
+      "score": 1.62,
       "source": "CNBC Finance",
       "domain": "cnbc.com",
       "title": "How one hedge-fund manager built his firm to be powered entirely by AI agents",
@@ -541,12 +600,12 @@
       "published": "2026-09-08T21:59:13+00:00",
       "why": [
         "source x0.85",
-        "recency x0.18"
+        "recency x0.17"
       ]
     },
     {
-      "rank": 38,
-      "score": 1.67,
+      "rank": 42,
+      "score": 1.58,
       "source": "Traders Magazine",
       "domain": "tradersmagazine.com",
       "title": "Goldman Sachs Sees AI Reshaping Institutional Investing",
@@ -555,13 +614,13 @@
       "published": "2026-09-10T08:00:00+00:00",
       "why": [
         "source x0.88",
-        "recency x0.25"
+        "recency x0.24"
       ]
     },
     {
-      "rank": 39,
-      "score": 1.65,
-      "source": "marketwatch.com",
+      "rank": 43,
+      "score": 1.57,
+      "source": "MarketWatch",
       "domain": "marketwatch.com",
       "title": "Investment chief at hedge-fund firm Bridgewater becomes latest to say AI could wipe out humanity",
       "url": "https://news.google.com/rss/articles/CBMipgFBVV95cUxQUVhDSllTZXUyRDlQZXQtTVpfQ29jOEJpbndjY0hkdWEyaUVXcDkyS0d6bURRdGt3OEh0UnRmY1RFUVBvdVBwTXFaM05jMmZOTTZvRlZpYUxRWEpacXUtaXk1QzRscmdMZHNrS1B5cFk3UUppSWxCVkQ1SDdPQWVvRUhfdFFRaWQ4Y0ViR0ZDeUFmS29lWTA4Uml2SW1KaG1GdHJaWVZB?oc=5",
@@ -569,13 +628,13 @@
       "published": "2026-09-11T09:42:00+00:00",
       "why": [
         "source x0.85",
-        "recency x0.32"
+        "recency x0.31"
       ]
     },
     {
-      "rank": 40,
-      "score": 1.63,
-      "source": "startupfortune.com",
+      "rank": 44,
+      "score": 1.55,
+      "source": "Startup Fortune",
       "domain": "startupfortune.com",
       "title": "JPMorgan Cuts Off Lending to Leopold Aschenbrenner's AI Hedge Fund",
       "url": "https://news.google.com/rss/articles/CBMimAFBVV95cUxQa0NVTXc1X1h0VzdneGtJLXM0OTdWZnIxRk16d0xXN2JsWlEwdkZvSXR1a0FJQnk5WVktaTZkaVZSaWZkRFdYeEdoNmlCYW1RWW1selBKUUdWMzFPMG9ORW03aWpPNFVUbTdLNGFFM2lVOVFCQl9SOXB4UmlRc3J1MXAwNVNOeHhkTVhwSTh5dGxpM19za3JKTQ?oc=5",
@@ -584,12 +643,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.36"
+        "recency x0.34"
       ]
     },
     {
-      "rank": 41,
-      "score": 1.63,
+      "rank": 45,
+      "score": 1.54,
       "source": "South China Morning Post",
       "domain": "scmp.com",
       "title": "AI tools are making \u2018experts\u2019 out of stock traders in mainland China, Hong Kong",
@@ -598,12 +657,12 @@
       "published": "2026-09-12T08:00:10+00:00",
       "why": [
         "source x0.45",
-        "recency x0.40"
+        "recency x0.38"
       ]
     },
     {
-      "rank": 42,
-      "score": 1.61,
+      "rank": 46,
+      "score": 1.53,
       "source": "Reuters",
       "domain": "reuters.com",
       "title": "Wall Street ends down, calls for AI slowdown pummel chipmakers",
@@ -613,41 +672,12 @@
       "why": [
         "-1 promo phrase(s)",
         "source x1",
-        "recency x0.64"
+        "recency x0.61"
       ]
     },
     {
-      "rank": 43,
-      "score": 1.54,
-      "source": "MEXC",
-      "domain": "mexc.co",
-      "title": "What Is an AI Trading Assistant and How Can Traders Use One?",
-      "url": "https://news.google.com/rss/articles/CBMipAFBVV95cUxOaDBGdWhiaHZieWVmQ3JqdE5kRXNHTVBVbURwWVExNlZua0Y5SGhtNEV6OGxnbnc4Y21TdHQwejBycTlRNzBPYXNHYVBjU2pGZjVfY0llZ1paY2VVT20zT0NmenFyMU1XT0k0QTROaDV5QmV6bFgyM2JudS1naWRwcXlyUzI3TDJWX3BzVHZGWnVtcVN0NklIdHA4cDZqRHVZREg5cQ?oc=5",
-      "summary": "",
-      "published": "2026-09-10T12:16:08+00:00",
-      "why": [
-        "1 AI-executes-trades phrase(s)",
-        "source x0.45",
-        "recency x0.26"
-      ]
-    },
-    {
-      "rank": 44,
-      "score": 1.49,
-      "source": "WSJ",
-      "domain": "wsj.com",
-      "title": "Bank of Korea Warns of Destabilizing Impact of High-Risk AI Trades",
-      "url": "https://news.google.com/rss/articles/CBMirwFBVV95cUxNSUVHaWQ5NkVFNW5PMmxHRFk4N1N5RDdCSjVBU3NiNFpmNUlVT1NBMmZSVFcxckFUcHBNZlR0ZURCN1hRLWx6QmpGLWhqc0lYbDduYWdFVGR0ZHNLVkdQQTR0Q0xvcldNd0I2UF8yUVlfakdoaEVSOVRwX1A2T1pjeG42VXhTNXRZQ05yWld5QVRfb3BiREFvVFRtNS03a2MwYzRvQ09hZFphYk5haGUw?oc=5",
-      "summary": "",
-      "published": "2026-09-10T05:57:00+00:00",
-      "why": [
-        "source x1",
-        "recency x0.25"
-      ]
-    },
-    {
-      "rank": 45,
-      "score": 1.37,
+      "rank": 47,
+      "score": 1.3,
       "source": "Hedgeweek",
       "domain": "hedgeweek.com",
       "title": "Bracket22\u2019s AI-only hedge fund model cuts costs",
@@ -656,12 +686,12 @@
       "published": "2026-09-09T09:03:27+00:00",
       "why": [
         "source x0.9",
-        "recency x0.20"
+        "recency x0.19"
       ]
     },
     {
-      "rank": 46,
-      "score": 1.25,
+      "rank": 48,
+      "score": 1.19,
       "source": "Rebellion Research",
       "domain": "rebellionresearch.com",
       "title": "AI Hedge Fund vs Traditional: The Architectural Shift in Alpha Generation for 2026",
@@ -671,12 +701,12 @@
       "why": [
         "2 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.20"
+        "recency x0.19"
       ]
     },
     {
-      "rank": 47,
-      "score": 1.05,
+      "rank": 49,
+      "score": 1.0,
       "source": "\ud5e4\ub7f4\ub4dc\uacbd\uc81c",
       "domain": "biz.heraldcorp.com",
       "title": "Bithumb warns of fake AI trading malware promising high returns",
@@ -686,12 +716,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.23"
+        "recency x0.22"
       ]
     },
     {
-      "rank": 48,
-      "score": 0.98,
+      "rank": 50,
+      "score": 0.93,
       "source": "Stocktwits",
       "domain": "stocktwits.com",
       "title": "BULL Stock Eyes Snapping Worst Weekly Losing Streak Ever: How Webull Plans To Tackle 'Wild West' Of AI Trading Tools",
@@ -701,12 +731,12 @@
       "why": [
         "1 AI-executes-trades phrase(s)",
         "source x0.45",
-        "recency x0.22"
+        "recency x0.21"
       ]
     },
     {
-      "rank": 49,
-      "score": 0.92,
+      "rank": 51,
+      "score": 0.88,
       "source": "EIN News",
       "domain": "einnews.com",
       "title": "CardSight AI Expands Trading Card Infrastructure to MMA, Surpassing 8,250 Supported Sets",
@@ -715,12 +745,12 @@
       "published": "2026-09-11T15:22:00+00:00",
       "why": [
         "source x0.45",
-        "recency x0.34"
+        "recency x0.32"
       ]
     },
     {
-      "rank": 50,
-      "score": 0.87,
+      "rank": 52,
+      "score": 0.83,
       "source": "TradingView",
       "domain": "tradingview.com",
       "title": "NinjaTrader Brings AI and MCP to Retail Futures Trading",
@@ -729,12 +759,12 @@
       "published": "2026-09-09T15:16:05+00:00",
       "why": [
         "source x0.45",
-        "recency x0.22"
+        "recency x0.20"
       ]
     },
     {
-      "rank": 51,
-      "score": 0.86,
+      "rank": 53,
+      "score": 0.81,
       "source": "Hedgeweek",
       "domain": "hedgeweek.com",
       "title": "Finding opportunity beyond the AI trade",
@@ -743,13 +773,13 @@
       "published": "2026-09-07T08:30:54+00:00",
       "why": [
         "source x0.9",
-        "recency x0.13"
+        "recency x0.12"
       ]
     },
     {
-      "rank": 52,
-      "score": 0.85,
-      "source": "AFR",
+      "rank": 54,
+      "score": 0.81,
+      "source": "afr.com",
       "domain": "afr.com",
       "title": "Companies spruiking AI becoming a red flag for hedge funds",
       "url": "https://news.google.com/rss/articles/CBMiuAFBVV95cUxPLS0xQ2NDVDhMSU11UWRrdk43VHU2ZlhzUk5VUWh5bFIxaG5ibGdMYVRTUzJkUUdoMFRUeExFcjNXVDNDdDN2OWcwbnJtX1ZwaHZTUE5wZXNOMlN2OEJZSnFtZlVNSWlEaFZLanFvd01NWEdyYXN6WEhnWnlNVmxmaFgxMUF1V3I1LS1QYWR3bjI0cTlVYkpqaW9pV0JGOERFRVFBSU04XzBuUUVma0dFN3RzRHdIMkdL?oc=5",
@@ -757,12 +787,12 @@
       "published": "2026-09-09T06:00:00+00:00",
       "why": [
         "source x0.72",
-        "recency x0.20"
+        "recency x0.19"
       ]
     },
     {
-      "rank": 53,
-      "score": 0.79,
+      "rank": 55,
+      "score": 0.75,
       "source": "CoinMarketCap",
       "domain": "coinmarketcap.com",
       "title": "Gemini Launches AI-Powered Agentic Trading on Its Exchange",
@@ -771,12 +801,12 @@
       "published": "2026-09-09T05:27:54+00:00",
       "why": [
         "source x0.45",
-        "recency x0.20"
+        "recency x0.19"
       ]
     },
     {
-      "rank": 54,
-      "score": 0.79,
+      "rank": 56,
+      "score": 0.75,
       "source": "Business Insider",
       "domain": "businessinsider.com",
       "title": "How AI and the hedge fund talent war pushed Man Group to reimagine its $156 billion quant empire",
@@ -785,13 +815,13 @@
       "published": "2026-09-07T07:12:00+00:00",
       "why": [
         "source x0.7",
-        "recency x0.13"
+        "recency x0.12"
       ]
     },
     {
-      "rank": 55,
-      "score": 0.71,
-      "source": "WSJ",
+      "rank": 57,
+      "score": 0.67,
+      "source": "wsj.com",
       "domain": "wsj.com",
       "title": "He\u2019s Letting AI Agents Invest His Money. They Even Have Names.",
       "url": "https://news.google.com/rss/articles/CBMinwFBVV95cUxQLThYM2VKejRrbndnaTJuYUFpNVBmMlFqa0xyQmhDRWVJSENSRlJ3dmRBMlZoS0lXNEY2VUEyRHFrQzNCV3dWYVlzNTlOMnRLeTZiNkNPTHJyR3FiYkV4OVJYamRqb2Q3bDBtMkdIOGxXTTRMRm0zZnRfUkRlTmNKMXFfSE5UVFV1dkdZOGRTREctd3ZsLXdnTFNPRk1SbVE?oc=5",
@@ -799,26 +829,12 @@
       "published": "2026-09-05T07:00:00+00:00",
       "why": [
         "source x1",
-        "recency x0.08"
+        "recency x0.07"
       ]
     },
     {
-      "rank": 56,
-      "score": 0.53,
-      "source": "GujaratSamachar English",
-      "domain": "english.gujaratsamachar.com",
-      "title": "Ex-Serviceman Loses \u20b946.92 Lakh in \u2018Quantum AI\u2019 Trading Sca\u2026",
-      "url": "https://news.google.com/rss/articles/CBMi8AFBVV95cUxOeW1WYVpBSEZKdE9pT0lFLW1TWGl6NXhqdTBmd3h2MVVFRTBTOVh2UURzWnlRUEFpNlc3RnpELWkzNFJOUU84dVplVURXb09LVkltVHdaeHR3U043VWpSR244WnR3U0NWRTFsY3dNSHRoa0d0YjdtOGtsWDNZS2ZNNVlrVGZxLXBEVDJrcFRoTEUxTmtGY1Bnc0l4RHhHTDV6dUZ1a2dCN0Jsd0RXUUU5YXM2UzhMc0hRUzI3Q1lMTC1Hc0w5d2VuUHZubmRCOUVDMHdnWFNpRDNYX3RWMld4MnNmVTh4NFZLWEJMVXRRU0Q?oc=5",
-      "summary": "",
-      "published": "2026-09-09T06:30:31+00:00",
-      "why": [
-        "source x0.45",
-        "recency x0.20"
-      ]
-    },
-    {
-      "rank": 57,
-      "score": 0.52,
+      "rank": 58,
+      "score": 0.49,
       "source": "Mezha",
       "domain": "mezha.ua",
       "title": "AI agents are already trading on the stock exchange and managing investments independently",
@@ -827,27 +843,12 @@
       "published": "2026-09-07T08:40:00+00:00",
       "why": [
         "source x0.45",
-        "recency x0.13"
-      ]
-    },
-    {
-      "rank": 58,
-      "score": 0.5,
-      "source": "CoinGape",
-      "domain": "coingape.com",
-      "title": "Best Crypto AI Trading Bots in 2026: Which Bots Actually Use AI?",
-      "url": "https://news.google.com/rss/articles/CBMiXkFVX3lxTE05Umw5TjFEUUNQUEUxZF83U2FzTkNXSnBIRDFEWmE5YkNCSU9weHJRcVhXZkVUbVlXZ1BULW5wWXNLeERVcFJELVo2STVsd2FnaGQ2Zl9CQmxXQ2NjOFE?oc=5",
-      "summary": "",
-      "published": "2026-09-05T07:00:00+00:00",
-      "why": [
-        "2 AI-executes-trades phrase(s)",
-        "source x0.45",
-        "recency x0.08"
+        "recency x0.12"
       ]
     },
     {
       "rank": 59,
-      "score": 0.43,
+      "score": 0.41,
       "source": "Hedgeweek",
       "domain": "hedgeweek.com",
       "title": "Balyasny launches AI fellowship to embed specialists in trading teams",
@@ -861,7 +862,7 @@
     },
     {
       "rank": 60,
-      "score": 0.4,
+      "score": 0.38,
       "source": "\uc7ac\uacbd\uc77c\ubcf4",
       "domain": "news.jkn.co.kr",
       "title": "\u201cAI Trades While I Sleep\u201d: Individual Investors\u2019 \u2018Agent Trading\u2019 : \uad6d\uc81c : JKN",
@@ -870,7 +871,7 @@
       "published": "2026-09-06T06:50:00+00:00",
       "why": [
         "source x0.45",
-        "recency x0.10"
+        "recency x0.09"
       ]
     }
   ]
