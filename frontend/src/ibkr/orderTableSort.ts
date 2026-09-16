@@ -130,6 +130,10 @@ export function compareOrderField(
       av = num(a.avg_fill_price);
       bv = num(b.avg_fill_price);
       break;
+    case 'commission':
+      av = num(a.commission);
+      bv = num(b.commission);
+      break;
     case 'order_id':
       av = a.order_id;
       bv = b.order_id;

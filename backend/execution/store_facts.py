@@ -12,6 +12,7 @@ def record_broker_facts(
     perm_id: int | None = None,
     filled_qty: float | None = None,
     avg_fill_price: float | None = None,
+    commission: float | None = None,
 ) -> bool:
     """Update permId / fill size / avg without touching stage clocks."""
     if not execution_id:
@@ -27,6 +28,9 @@ def record_broker_facts(
     if avg_fill_price is not None and float(avg_fill_price) != 0.0:
         fields.append("avg_fill_price = ?")
         values.append(float(avg_fill_price))
+    if commission is not None:
+        fields.append("commission = ?")
+        values.append(float(commission))
     if len(fields) == 1:
         return False
     values.append(execution_id)
@@ -91,6 +95,31 @@ def list_session_placed(*, since_ts: float, limit: int = 300) -> list[dict]:
         return [store._row_to_dict(r) for r in rows]
     finally:
         conn.close()
+
+
+def session_commission_by_symbol(*, since_ts: float) -> dict[str, float]:
+    """Sum real CommissionReport dollars per symbol this session. Never invent."""
+    totals: dict[str, float] = {}
+    for row in list_session_placed(since_ts=since_ts, limit=500):
+        try:
+            value = float(row.get("commission"))
+        except (TypeError, ValueError):
+            continue
+        if value == 0.0 and row.get("commission") is None:
+            continue
+        if row.get("commission") is None:
+            continue
+        try:
+            filled = float(row.get("filled_qty") or 0)
+        except (TypeError, ValueError):
+            filled = 0.0
+        if filled <= 0:
+            continue
+        symbol = str(row.get("symbol") or "").strip().upper()
+        if not symbol:
+            continue
+        totals[symbol] = totals.get(symbol, 0.0) + value
+    return totals
 
 
 def list_session_fills(*, since_ts: float, limit: int = 500) -> list[dict]:

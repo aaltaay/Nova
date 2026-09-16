@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Order outcome honesty (2109 + Failed+Filled)
+
+- **Symptom:** ZTG #116071: Warning 2109 shown as "Broker rejected"; real reject was Error 201 No Opening Trades: Small Cap. Orders Today showed Failed + Filled 1 @ $1.76 (limit mistaken for a fill). SPCX #115728 also emitted 2109 then filled -- 2109 must not open the reject modal.
+- **Cause:** `OrderWatch.note_error` latched the first error (2109). `closed_blotter` copied `sent_qty` into `filled_qty`. `trade_to_order_row` used `orderStatus.filled` / `avgFillPrice` when Trade.fills was empty.
+- **Fix:** Latest hard error wins (`execution.order_outcome`). Soft codes never latch. Filled qty / avg / filled_at only from execDetails. Closed blotter never invents a fill from requested size. CI fixtures SPCX success + ZTG fail trip Failed+Filled and 2109-as-reject.
+- **Fix class:** admission
+- **Keywords:** 2109, Error 201, ZTG, SPCX, Failed+Filled, execDetails, #175, #179
+
+## 2026-09-16 -- Desk overlay stole Place ticket
+
+- **Symptom:** SPCX filled while Trading prerequisites said the API was down. `autoOverlay: !apiOk` opened the overlay on a single health miss during Place.
+- **Cause:** One failed `/api/health` probe set `autoOverlay` true with no streak and no in-flight Place latch.
+- **Fix:** Overlay only after a sustained API_DOWN streak (`DESK_API_FAIL_STREAK_FOR_OVERLAY=2`) or a confirmed IB-loop wedge, and never while Place / Flatten / Fill now is in flight (`deskActionFlight`).
+- **Fix class:** surfacing
+- **Keywords:** autoOverlay, tradingPrerequisites, Place, #176, API_DOWN
+
 ## 2026-09-16 -- 5s account poll froze marks
 
 - **Symptom:** Header Day P&L / Net Liq / BP and Positions SPCX Mkt Price lagged live Time & Sales by tens of cents (2026-09-16).

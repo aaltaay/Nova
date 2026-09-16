@@ -7,6 +7,7 @@
 import {
   BACKEND_DIAG_FLAG_DOWN,
   BACKEND_DIAG_FLAG_WEDGED,
+  DESK_API_FAIL_STREAK_FOR_OVERLAY,
 } from '../constants';
 import type { HealthStatus } from '../types/health';
 import {
@@ -56,6 +57,10 @@ export interface TradingPrerequisitesInput {
   secondFactorStale?: boolean | null;
   /** status.second_factor_age_sec -- surfaced in the CTA detail copy. */
   secondFactorAgeSec?: number | null;
+  /** Consecutive failed Nova API probes. One miss is not enough to overlay. */
+  apiFailStreak?: number;
+  /** Place / Flatten / Fill now in flight -- never steal the ticket. */
+  deskActionInFlight?: boolean;
 }
 
 export interface TradingPrerequisites {
@@ -70,7 +75,7 @@ export interface TradingPrerequisites {
   autoOverlay: boolean;
 }
 
-function novaApiOk(health: HealthStatus | null | undefined): boolean {
+export function novaApiOk(health: HealthStatus | null | undefined): boolean {
   // Pending first probe: do not flash the gate before diagnose finishes.
   if (!health || health.status === 'loading') return true;
   if (health.ib_loop_lag_ms?.wedged) return false;
@@ -205,12 +210,16 @@ export function buildTradingPrerequisites(
   ];
 
   const deskReady = apiOk && enabled && gatewayOk;
+  const failStreak = input.apiFailStreak ?? 0;
+  const loopWedged = Boolean(input.health?.ib_loop_lag_ms?.wedged);
+  const sustainedApiDown = !apiOk && failStreak >= DESK_API_FAIL_STREAK_FOR_OVERLAY;
+  const inFlight = Boolean(input.deskActionInFlight);
 
   return {
     items,
     deskReady,
     tradeReady: deskReady,
     blockDesk: !deskReady,
-    autoOverlay: !apiOk,
+    autoOverlay: (loopWedged || sustainedApiDown) && !inFlight,
   };
 }

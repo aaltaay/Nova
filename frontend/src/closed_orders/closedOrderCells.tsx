@@ -7,6 +7,8 @@ import {
   orderSubmittedTimeTitle,
 } from '../ibkr/orderDisplay';
 import type { ClosedOrderColumnId } from '../ibkr/orderTableColumns';
+import { commissionCellTitle, formatCommission } from '../ibkr/orderCommission';
+import { displayFilledQty } from '../ibkr/orderFillHonesty';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { formatClosedOrderId } from './formatClosedOrderId';
@@ -61,7 +63,7 @@ export function renderClosedOrderCell(
         </td>
       );
     case 'filled': {
-      const filled = o.filled_qty ?? 0;
+      const filled = displayFilledQty(o);
       return (
         <td
           key={col}
@@ -88,6 +90,20 @@ export function renderClosedOrderCell(
       return (
         <td key={col} className="ibkr-col--num">
           {formatMoney(o.avg_fill_price ?? null)}
+        </td>
+      );
+    case 'commission':
+      return (
+        <td
+          key={col}
+          className="ibkr-col--num"
+          title={commissionCellTitle({
+            commission: o.commission,
+            avgFill: o.avg_fill_price,
+            filledQty: displayFilledQty(o),
+          })}
+        >
+          {formatCommission(o.commission)}
         </td>
       );
     case 'status':

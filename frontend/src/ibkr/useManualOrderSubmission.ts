@@ -13,6 +13,7 @@ import {
 import { executionTransportError } from './executionTransportError';
 import { newGestureKey } from './gestureKey';
 import { notifyOrderRejected } from './notifyOrderRejected';
+import { beginDeskAction } from './deskActionFlight';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
 import { readSkipPlaceConfirm } from './placeConfirmPrefs';
 import type {
@@ -111,6 +112,7 @@ export function useManualOrderSubmission(params: Params) {
     }
 
     inFlightRef.current = true;
+    const endDeskAction = beginDeskAction();
     const idempotencyKey = gestureKeyRef.current ?? newGestureKey('manual');
     gestureKeyRef.current = idempotencyKey;
     setSubmitting(true);
@@ -137,6 +139,7 @@ export function useManualOrderSubmission(params: Params) {
     } catch (error) {
       fail(executionTransportError(error));
     } finally {
+      endDeskAction();
       inFlightRef.current = false;
       gestureKeyRef.current = null;
       setSubmitting(false);

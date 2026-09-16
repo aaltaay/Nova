@@ -16,6 +16,7 @@ from execution import store
 from execution import telemetry
 from execution import verification_gate
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
+from execution.fill_audit import audit_place_watch
 from execution.place_reject_guard import confirm_terminal_reject
 from ibkr import client as _client
 from ibkr import orders as _orders
@@ -75,6 +76,7 @@ async def wait_broker_ack(
                 broker_ack_ns=receipt.timings.broker_ack_ns,
                 broker_status=receipt.broker_status,
             )
+            audit_place_watch(watch, cmd, receipt.mode or "", receipt.broker_status)
             return receipt
 
     status = (
@@ -91,6 +93,7 @@ async def wait_broker_ack(
         filled_ns=receipt.timings.filled_ns,
         broker_status=receipt.broker_status,
     )
+    audit_place_watch(watch, cmd, receipt.mode or "", receipt.broker_status)
     return receipt
 
 
@@ -364,6 +367,7 @@ async def finish_place(
                 broker_status=broker_status,
                 mode=mode,
             )
+            audit_place_watch(watch, cmd, mode, broker_status)
             return ExecutionReceipt(
                 ok=False, execution_id=execution_id, operation=cmd.operation,
                 source=cmd.source, idempotency_key=cmd.idempotency_key,
@@ -381,6 +385,7 @@ async def finish_place(
         broker_status=broker_status,
         mode=mode,
     )
+    audit_place_watch(watch, cmd, mode, broker_status)
     return ExecutionReceipt(
         ok=True, execution_id=execution_id, operation=cmd.operation,
         source=cmd.source, idempotency_key=cmd.idempotency_key,

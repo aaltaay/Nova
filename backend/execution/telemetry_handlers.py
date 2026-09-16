@@ -108,7 +108,17 @@ def make_handlers(get_watch):
         except Exception:
             logger.exception("execution.telemetry: execDetails handler error")
 
-    return on_ib_error, on_order_status, on_exec_details
+    def on_commission(trade, fill, report) -> None:
+        try:
+            oid = int(trade.order.orderId)
+            w = get_watch(oid)
+            if w is None:
+                return
+            w.note_commission(float_or_none(getattr(report, "commission", None)))
+        except Exception:
+            logger.exception("execution.telemetry: commissionReport handler error")
+
+    return on_ib_error, on_order_status, on_exec_details, on_commission
 
 
 def note_reconciliation_fill(fill: Any, get_watch, *, complete: bool = True) -> bool:

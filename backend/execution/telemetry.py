@@ -11,9 +11,7 @@ from execution import telemetry_persist as _persist
 
 logger = logging.getLogger(__name__)
 
-# Statuses that mean the broker/system has acknowledged the order beyond
-# local PendingSubmit assignment. IBKR may skip orderStatus for immediate
-# market fills — execDetails is the fallback (see TWS API docs).
+# Broker ack beyond local PendingSubmit. Fast MKT fills may skip orderStatus.
 _ACK_STATUSES = frozenset({
     "PreSubmitted",
     "Submitted",
@@ -69,10 +67,11 @@ class OrderWatch:
         self.fills: list[dict[str, Any]] = []
         self.error_code: int | None = None
         self.error_message: str | None = None
+        self.error_events: list[tuple[int, str]] = []
+        self.commission: float | None = None
+        self._fill_audit_emitted: bool = False
         self._ack_event = asyncio.Event()
         self._fill_event = asyncio.Event()
-        # Called synchronously on the IB loop from note_status, so a verifier
-        # awaiting on that same loop can wake on the callback instead of polling.
         self._status_listeners: list[Callable[[str], None]] = []
         self._last_status_filled = 0.0
         self._reconciled_fill_keys: set[tuple[str, str, str]] = set()
@@ -112,6 +111,7 @@ class OrderWatch:
             perm_id=self.perm_id,
             filled_qty=self.last_filled_qty,
             avg_fill_price=self.last_avg_fill,
+            commission=self.commission,
         )
 
     def note_status(
@@ -127,11 +127,7 @@ class OrderWatch:
     ) -> None:
         callback_perf = callback_perf_ns or time.perf_counter_ns()
         callback_wall = callback_wall_ns or time.time_ns()
-        self._remember_facts(
-            perm_id=perm_id,
-            filled=filled,
-            average_fill_price=average_fill_price,
-        )
+        self._remember_facts(perm_id=perm_id)
         self.latest_status = status
         if status:
             self._status_history.append(status)
@@ -139,7 +135,6 @@ class OrderWatch:
                 self._status_history = self._status_history[-16:]
 
         if status in WORKING_ACK_STATUSES:
-            # First working ack, or upgrade off a false Cancelled (Error 10349).
             if self.ack_ns is None or (
                 self.ack_status in TERMINAL_REJECT_STATUSES
             ):
@@ -257,13 +252,29 @@ class OrderWatch:
         _persist.submit_round_trip(self)
 
     def note_error(self, error_code: int, error_message: str) -> None:
-        """Record the first IBKR errorEvent for this order (e.g. Error 10243)."""
-        if self.error_code is None:
-            try:
-                self.error_code = int(error_code)
-            except (TypeError, ValueError):
-                self.error_code = None
-            self.error_message = str(error_message or "").strip() or None
+        from execution.order_outcome import latest_hard_error
+
+        try:
+            code = int(error_code)
+        except (TypeError, ValueError):
+            return
+        message = str(error_message or "").strip() or None
+        self.error_events.append((code, message or ""))
+        hard_code, hard_msg = latest_hard_error(self.error_events)
+        self.error_code = hard_code
+        self.error_message = hard_msg
+
+    def note_commission(self, commission: float | None) -> None:
+        """Sum IBKR CommissionReport dollars. Never invent from avg_cost."""
+        try:
+            value = float(commission)
+        except (TypeError, ValueError):
+            return
+        if self.commission is None:
+            self.commission = value
+        else:
+            self.commission += value
+        self._persist_facts()
 
     def add_status_listener(self, listener: Callable[[str], None]) -> None:
         if listener not in self._status_listeners:
@@ -284,7 +295,7 @@ class OrderWatch:
                 )
 
     def has_fill(self) -> bool:
-        return self.filled_ns is not None or bool(self.fills)
+        return bool(self.fills)
 
     async def wait_ack(self, timeout_sec: float) -> bool:
         if self.ack_ns is not None:
@@ -363,11 +374,13 @@ def ensure_handlers(ib) -> None:
     try:
         from execution.telemetry_handlers import make_handlers
 
-        on_err, on_status, on_exec = make_handlers(_watches.get)
+        on_err, on_status, on_exec, on_comm = make_handlers(_watches.get)
         ib.orderStatusEvent += on_status
         ib.execDetailsEvent += on_exec
         if hasattr(ib, "errorEvent"):
             ib.errorEvent += on_err
+        if hasattr(ib, "commissionReportEvent"):
+            ib.commissionReportEvent += on_comm
         _wired_instances.add(ib)
         logger.info("execution.telemetry: IBKR order status/exec handlers wired")
     except Exception:

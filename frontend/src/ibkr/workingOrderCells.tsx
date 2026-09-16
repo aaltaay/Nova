@@ -9,6 +9,8 @@ import {
   orderSubmittedTimeTitle,
 } from './orderDisplay';
 import { sessionKindNow } from './extendedSession';
+import { commissionCellTitle, formatCommission } from './orderCommission';
+import { displayFilledQty } from './orderFillHonesty';
 import { remainingShares } from './orderQtyMath';
 import type { WorkingOrderColumnId } from './orderTableColumns';
 import type { IbkrOrder } from './types';
@@ -53,7 +55,7 @@ export function renderWorkingOrderCell(
         </td>
       );
     case 'filled': {
-      const filled = o.filled_qty ?? 0;
+      const filled = displayFilledQty(o);
       return (
         <td
           key={col}
@@ -98,6 +100,20 @@ export function renderWorkingOrderCell(
       return (
         <td key={col} className="ibkr-col--num">
           {formatMoney(o.avg_fill_price ?? null)}
+        </td>
+      );
+    case 'commission':
+      return (
+        <td
+          key={col}
+          className="ibkr-col--num"
+          title={commissionCellTitle({
+            commission: o.commission,
+            avgFill: o.avg_fill_price,
+            filledQty: displayFilledQty(o),
+          })}
+        >
+          {formatCommission(o.commission)}
         </td>
       );
     case 'status': {

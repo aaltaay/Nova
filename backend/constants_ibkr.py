@@ -97,6 +97,23 @@ IBKR_ERROR_TIF_PRESET = 10349
 IBKR_ERROR_OUTSIDE_RTH_IGNORED = 2109
 # Informational: order held until next RTH open (Warning 399).
 IBKR_ERROR_HELD_UNTIL_OPEN = 399
+# Soft order warnings -- never a reject, never the reject-modal title.
+# Peers of 2109: held-until-open, TIF preset rewrite, cancel notice, data-farm OK.
+IBKR_SOFT_ORDER_WARNING_CODES = frozenset({
+    IBKR_ERROR_OUTSIDE_RTH_IGNORED,
+    IBKR_ERROR_HELD_UNTIL_OPEN,
+    IBKR_ERROR_TIF_PRESET,
+    202,  # order canceled notice (informational)
+    2104,
+    2106,
+    2108,
+})
+# Compliance / no-opening-trades (ZTG 2026-09-16). Hard reject.
+IBKR_ERROR_NO_OPENING_TRADES = 201
+# Fill latency detective (#177). MKT during RTH only; LMT working is expected.
+FILL_AUDIT_MKT_RTH_WARN_MS = 2_000
+FILL_AUDIT_MKT_RTH_DANGER_MS = 10_000
+FILL_AUDIT_JSONL_FILENAME = "fill-latency.jsonl"
 # Default TIF for all Nova API orders -- never leave blank (triggers 10349).
 IBKR_ORDER_TIF_DEFAULT = "DAY"
 # Connectivity lost / restored (async via errorEvent). 1100 = lost; 1101/1102 = restored.

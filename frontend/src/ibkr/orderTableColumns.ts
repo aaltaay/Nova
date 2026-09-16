@@ -16,6 +16,7 @@ export type WorkingOrderColumnId =
   | 'limit'
   | 'stop'
   | 'avg_fill'
+  | 'commission'
   | 'status'
   | 'time'
   | 'session';
@@ -28,6 +29,7 @@ export type ClosedOrderColumnId =
   | 'type'
   | 'limit'
   | 'avg_fill'
+  | 'commission'
   | 'status'
   | 'time'
   | 'filled_at';
@@ -36,6 +38,7 @@ export type PositionColumnId =
   | 'symbol'
   | 'qty'
   | 'avg_cost'
+  | 'commission'
   | 'mkt_price'
   | 'mkt_value'
   | 'unrealized';
@@ -53,6 +56,7 @@ export const DEFAULT_WORKING_ORDER_COLUMNS: WorkingOrderColumnId[] = [
   'limit',
   'stop',
   'avg_fill',
+  'commission',
   'order_id',
 ];
 
@@ -70,6 +74,7 @@ export const DEFAULT_CLOSED_ORDER_COLUMNS: ClosedOrderColumnId[] = [
   'filled',
   'limit',
   'avg_fill',
+  'commission',
   'order_id',
 ];
 
@@ -77,6 +82,7 @@ export const DEFAULT_POSITION_COLUMNS: PositionColumnId[] = [
   'symbol',
   'qty',
   'avg_cost',
+  'commission',
   'mkt_price',
   'mkt_value',
   'unrealized',
@@ -132,6 +138,13 @@ export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
     className: 'ibkr-col--num',
     title: 'Average fill price of shares filled so far (blank until first fill)',
   },
+  commission: {
+    id: 'commission',
+    label: 'Commissions',
+    className: 'ibkr-col--num',
+    title:
+      'IBKR CommissionReport sum for this order -- blank until a real report; never invented from avg cost',
+  },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
   time: {
     id: 'time',
@@ -172,6 +185,13 @@ export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
     className: 'ibkr-col--num',
     title: 'Average fill price of shares that filled (blank if none filled)',
   },
+  commission: {
+    id: 'commission',
+    label: 'Commissions',
+    className: 'ibkr-col--num',
+    title:
+      'IBKR CommissionReport sum for this order -- blank until a real report; never invented from avg cost',
+  },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
   time: {
     id: 'time',
@@ -203,6 +223,13 @@ export const POSITION_COLUMN_META: Record<PositionColumnId, ColumnMeta> = {
     title: 'Qty (fractional shares shown) — green = long, red = short',
   },
   avg_cost: { id: 'avg_cost', label: 'Avg Cost', className: 'ibkr-col--num' },
+  commission: {
+    id: 'commission',
+    label: 'Commissions',
+    className: 'ibkr-col--num',
+    title:
+      'Session CommissionReport sum for this symbol -- blank until IBKR sends a report; not avg_cost minus fill',
+  },
   mkt_price: { id: 'mkt_price', label: 'Mkt Price', className: 'ibkr-col--num' },
   mkt_value: { id: 'mkt_value', label: 'Mkt Value', className: 'ibkr-col--num' },
   unrealized: { id: 'unrealized', label: 'Unrealized P&L', className: 'ibkr-col--num' },

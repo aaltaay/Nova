@@ -135,3 +135,40 @@ def test_two_zero_ib_rows_match_two_ledger_fills():
     assert ids == [19085, 19112]
     assert all(r["source"] == "nova" for r in out)
     assert all(r["qty"] == 1.0 for r in out)
+
+
+def test_inactive_ledger_row_does_not_invent_a_fill():
+    """ZTG leftover -- sent_qty 1 + Inactive is Failed, not Filled 1 @ limit."""
+    led = _ledger(
+        id="e-ztg",
+        symbol="ZTG",
+        status="failed",
+        order_id=116071,
+        filled_qty=None,
+        avg_fill_price=None,
+        broker_status="Inactive",
+        payload={
+            "qty": 1,
+            "sent_qty": 1.0,
+            "side": "BUY",
+            "order_type": "LMT",
+            "requested_price": 1.76,
+        },
+    )
+    out = overlay_closed_orders([], ledger_rows=[led], limit=50)
+    assert len(out) == 1
+    row = out[0]
+    assert row["status"] == "Inactive"
+    assert row["qty"] == 1.0
+    assert row["filled_qty"] == 0.0
+    assert row["avg_fill_price"] is None
+    assert row["filled_at"] is None
+    assert row["commission"] is None
+    assert row["limit_price"] == 1.76
+
+
+def test_ledger_commission_passes_through_on_real_fill():
+    led = _ledger(commission=1.0)
+    out = overlay_closed_orders([], ledger_rows=[led], limit=50)
+    assert out[0]["commission"] == 1.0
+    assert out[0]["filled_qty"] == 1.0

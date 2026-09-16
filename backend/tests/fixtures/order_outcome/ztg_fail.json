@@ -1,0 +1,29 @@
+{
+  "name": "ZTG #116071 fail",
+  "order_id": 116071,
+  "symbol": "ZTG",
+  "side": "BUY",
+  "qty": 1,
+  "order_type": "LMT",
+  "limit_price": 1.76,
+  "stop_price": null,
+  "events": [
+    {"kind": "status", "status": "PendingSubmit", "filled": 0, "avg_fill": 0},
+    {
+      "kind": "error",
+      "code": 2109,
+      "message": "Order Event Warning 2109: Attribute 'outsideRth' specified but ignored by destination."
+    },
+    {
+      "kind": "status",
+      "status": "Inactive",
+      "filled": 1,
+      "avg_fill": 1.76
+    },
+    {
+      "kind": "error",
+      "code": 201,
+      "message": "Error 201: No Opening Trades: Small Cap / Compliance"
+    }
+  ]
+}

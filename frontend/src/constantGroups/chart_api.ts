@@ -499,6 +499,7 @@ export const ORDER_TABLE_DATA_SORT_KEYS = [
   'limit',
   'stop',
   'avg_fill',
+  'commission',
   'order_id',
   'filled_at',
 ] as const;

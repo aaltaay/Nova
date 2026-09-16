@@ -83,6 +83,7 @@ def test_finish_place_ok_when_cancelled_but_filled(monkeypatch):
     monkeypatch.setattr(guard, "order_still_open", lambda _oid: False)
     watch = telemetry.OrderWatch(100)
     watch.note_status("Filled")
+    watch.note_execution(avg_price=10.0, price=10.0, shares=1.0, cumulative_shares=1.0)
     watch.note_filled()
     # Unusual, but has_fill() must win over a later Cancelled label.
     watch.ack_status = "Cancelled"

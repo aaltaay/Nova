@@ -20,15 +20,15 @@ def trade_to_order_row(trade) -> dict:
 
     status = trade.orderStatus
     qty = trade.order.totalQuantity
-    filled = getattr(status, "filled", None)
     remaining = getattr(status, "remaining", None)
-    avg_fill = getattr(status, "avgFillPrice", None)
-    filled_qty = float(filled) if filled is not None else 0.0
     remaining_qty = float(remaining) if remaining is not None else None
-    if status.status == "Filled" and filled_qty == 0.0 and qty:
-        filled_qty = float(qty)
-        remaining_qty = 0.0
-    for fill in getattr(trade, "fills", None) or []:
+    fills = list(getattr(trade, "fills", None) or [])
+    filled_qty = 0.0
+    avg_fill: float | None = None
+    notional = 0.0
+    commission_total = 0.0
+    has_commission = False
+    for fill in fills:
         note_reconciliation_fill(
             fill,
             complete=bool(
@@ -36,7 +36,52 @@ def trade_to_order_row(trade) -> dict:
                 or (remaining_qty is not None and remaining_qty <= 0)
             ),
         )
+        execution = getattr(fill, "execution", None)
+        try:
+            shares = float(getattr(execution, "shares", 0) or 0)
+        except (TypeError, ValueError):
+            shares = 0.0
+        try:
+            price = float(getattr(execution, "price", 0) or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        if shares > 0 and price > 0:
+            filled_qty += shares
+            notional += shares * price
+        report = getattr(fill, "commissionReport", None)
+        if report is not None:
+            try:
+                commission_total += float(getattr(report, "commission", 0) or 0)
+                has_commission = True
+            except (TypeError, ValueError):
+                pass
+    if filled_qty > 0:
+        avg_fill = notional / filled_qty
+    elif fills:
+        # Real execDetails exist but shares/price were omitted on the object
+        # (unit fixtures). Status filled/avg are allowed only as companions
+        # to those fills -- never when Trade.fills is empty.
+        try:
+            status_filled = float(getattr(status, "filled", 0) or 0)
+        except (TypeError, ValueError):
+            status_filled = 0.0
+        if status_filled > 0:
+            filled_qty = status_filled
+        raw_avg = getattr(status, "avgFillPrice", None)
+        if raw_avg not in (None, 0, 0.0):
+            try:
+                avg_fill = float(raw_avg)
+            except (TypeError, ValueError):
+                avg_fill = None
+    if filled_qty <= 0:
+        remaining_qty = float(remaining) if remaining is not None else (
+            float(qty) if qty else None
+        )
     broker_submitted, updated_at, filled_at = extract_trade_times(trade)
+    if filled_qty <= 0 or not fills:
+        filled_at = None
+        avg_fill = None
+        filled_qty = 0.0
     oid = trade.order.orderId
     submitted_at = resolve_submitted_at(broker_submitted, oid)
     from ibkr.order_held_until import held_until_iso_from_trade
@@ -69,4 +114,5 @@ def trade_to_order_row(trade) -> dict:
         "updated_at": updated_at,
         "filled_at": filled_at,
         "held_until": held_until_iso_from_trade(trade),
+        "commission": commission_total if has_commission else None,
     }

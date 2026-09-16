@@ -17,7 +17,7 @@ describe('buildTradingPrerequisites', () => {
       ibkrConnected: true,
     });
     expect(out.blockDesk).toBe(true);
-    expect(out.autoOverlay).toBe(true);
+    expect(out.autoOverlay).toBe(false);
     expect(out.deskReady).toBe(false);
     expect(out.tradeReady).toBe(false);
     expect(out.items.find((i) => i.id === 'nova_api')?.action).toBe('start_api');
@@ -185,6 +185,66 @@ describe('buildTradingPrerequisites', () => {
     expect(out.blockDesk).toBe(true);
     expect(out.autoOverlay).toBe(true);
     expect(out.deskReady).toBe(false);
+  });
+
+  it('does not auto-overlay on a single API_DOWN probe', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_DOWN',
+      },
+      ibkrEnabled: true,
+      ibkrConnected: true,
+      apiFailStreak: 1,
+    });
+    expect(out.autoOverlay).toBe(false);
+    expect(out.blockDesk).toBe(true);
+  });
+
+  it('auto-overlays only after a sustained API_DOWN streak', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_DOWN',
+      },
+      ibkrEnabled: true,
+      ibkrConnected: true,
+      apiFailStreak: 2,
+    });
+    expect(out.autoOverlay).toBe(true);
+  });
+
+  it('never auto-overlays while Place / Flatten / Fill now is in flight', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_DOWN',
+      },
+      ibkrEnabled: true,
+      ibkrConnected: true,
+      apiFailStreak: 4,
+      deskActionInFlight: true,
+    });
+    expect(out.autoOverlay).toBe(false);
+  });
+
+  it('Gateway OK + one health miss does not steal the ticket', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_DOWN',
+      },
+      ibkrEnabled: true,
+      ibkrConnected: true,
+      apiFailStreak: 1,
+      deskActionInFlight: false,
+    });
+    expect(out.items.find((i) => i.id === 'ibkr_gateway')?.ok).toBe(true);
+    expect(out.autoOverlay).toBe(false);
   });
 
   it('offers Use paper Gateway when live is targeted but paper is listening', () => {

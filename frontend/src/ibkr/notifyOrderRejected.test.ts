@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isSoftOrderWarning } from './orderFillHonesty';
 import {
   inferOrderRejectReason,
   orderRejectTitle,
@@ -22,6 +23,10 @@ describe('notifyOrderRejected copy', () => {
   it('keeps a generic title for unknown codes', () => {
     expect(orderRejectTitle('MADE_UP')).toBe('Order rejected');
     expect(orderRejectTone('BROKER_REJECT')).toBe('danger');
+  });
+
+  it('does not treat Warning 2109 as a reject modal', () => {
+    expect(isSoftOrderWarning('Warning 2109: Attribute \'outsideRth\' ignored')).toBe(true);
   });
 
   it('gives Client Portal verification its own title', () => {
