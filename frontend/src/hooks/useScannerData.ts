@@ -1,6 +1,6 @@
 /**
- * Live + history scanner data (gappers / movers / AH / catalysts) and IBKR price stream.
- * Extracted from App.tsx.
+ * Live + history scanner data (gappers / movers / AH / large cap / catalysts)
+ * and IBKR price stream. Extracted from App.tsx.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -28,10 +28,10 @@ import {
   applyRosterTable,
   catalystsHttpError,
   feedErrorFromPayload,
-  historyLoadError,
   mergeRestTableMeta,
   SCANNER_CATALYSTS_FETCH_FAILED,
 } from '../scanner/scannerHonesty';
+import { fetchScannerHistory } from '../scanner/scannerHistory';
 
 type Mode = MarketMode;
 
@@ -284,33 +284,17 @@ export function useScannerData(opts: {
   }, []);
 
   const fetchHistoryData = useCallback(async (date: string) => {
-    try {
-      const [gr, moversRes, ahRes] = await Promise.all([
-        fetch(`${API_URL}/history/gappers/${date}`),
-        fetch(`${API_URL}/history/movers/${date}`),
-        fetch(`${API_URL}/history/afterhours/${date}`),
-      ]);
-      if (!gr.ok && !moversRes.ok && !ahRes.ok) {
-        setHistoryError(historyLoadError(date));
-        return;
-      }
-      setHistoryError(null);
-      if (gr.ok) {
-        const data = await gr.json();
-        setGappers(Array.isArray(data.gappers) ? data.gappers : []);
-      }
-      if (moversRes.ok) {
-        const data = await moversRes.json();
-        setGainers(Array.isArray(data.gainers) ? data.gainers : []);
-        setLosers(Array.isArray(data.losers) ? data.losers : []);
-      }
-      if (ahRes.ok) {
-        const data = await ahRes.json();
-        setAfterhours(Array.isArray(data.afterhours) ? data.afterhours : []);
-      }
-    } catch {
-      setHistoryError(historyLoadError(date));
+    const { tables, error } = await fetchScannerHistory(API_URL, date);
+    setLargeCap(tables.largeCap as ScannerRow[]);
+    if (error) {
+      setHistoryError(error);
+      return;
     }
+    setHistoryError(null);
+    if (tables.gappers) setGappers(tables.gappers as Gapper[]);
+    if (tables.gainers) setGainers(tables.gainers as Mover[]);
+    if (tables.losers) setLosers(tables.losers as Mover[]);
+    if (tables.afterhours) setAfterhours(tables.afterhours as Afterhours[]);
   }, []);
 
   useEffect(() => {

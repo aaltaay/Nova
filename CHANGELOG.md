@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Wire Large Cap into the shared history date control
+
+- **What:** The existing global history date (`historyDate` / bar picker) now also loads `/api/history/large_cap/{date}`. Clearing history still returns Large Cap to the live roster with the other tables. No second date picker.
+- **Why:** D-043 / #89. Backend already stored Large Cap snapshots; `fetchHistoryData` only requested gappers, movers, and afterhours, so Large Cap kept showing today's live rows while the rest of the desk showed the picked day.
+- **Files touched:** `frontend/src/scanner/scannerHistory.ts`, `frontend/src/hooks/useScannerData.ts`, `backend/tests/test_scan_large_cap_route.py`, Vitest history + EmptyState coverage.
+- **How it works now:** One shared date still drives every persisted scanner table. A missing Large Cap snapshot for that date becomes an honest empty table and does not fail gappers/movers/AH. Back to Live / `historyDate === null` resumes `fetchData` including `/api/large-cap`.
+- **Verified by:** Vitest `scannerHistory` + EmptyState history copy; pytest `test_history_snapshot_large_cap_*`.
+- **Related:** Closes #89. PROBLEM_LOG 2026-09-16 -- History date skipped Large Cap. Parent #13 (D-036).
+
 ## 2026-09-16 -- Chart right-click menu: layers, details, honest disables
 
 - **What:** Trader chart right-click menu now includes **Show Layers** (same EMA/VWAP/RSI/MACD toggles as the desk toolbar), **View Trade Details** (same Positions dock event as the Long/Short tag), and honest disabled **Create Alert** / **Add to Watchlist** rows with a visible reason. Line Style and Chart Settings stay omitted -- Nova has no matching surfaces.

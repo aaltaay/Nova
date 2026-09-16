@@ -8,6 +8,7 @@ from runtime_state.state import TABLE_STATE_LIVE
 from routes.scan import (
     LargeCapConfigPatch,
     get_history_dates,
+    get_history_snapshot,
     get_large_cap,
     get_large_cap_alerts,
     get_large_cap_config,
@@ -70,6 +71,27 @@ def test_history_dates_accepts_large_cap_type():
 def test_history_dates_rejects_unknown_type():
     body = get_history_dates(type="not-a-real-type")
     assert body["dates"] == []
+
+
+def test_history_snapshot_large_cap_returns_rows(tmp_path, monkeypatch):
+    import cache as cache_mod
+
+    monkeypatch.setattr(cache_mod, "_CACHE_DIR", str(tmp_path))
+    cache_mod._write_dated(
+        "large_cap",
+        "2026-09-15",
+        {"date": "2026-09-15", "ts": 1.0, "large_cap": [{"symbol": "NVDA"}]},
+    )
+    body = get_history_snapshot("large_cap", "2026-09-15")
+    assert body["large_cap"][0]["symbol"] == "NVDA"
+
+
+def test_history_snapshot_large_cap_missing_is_empty(tmp_path, monkeypatch):
+    import cache as cache_mod
+
+    monkeypatch.setattr(cache_mod, "_CACHE_DIR", str(tmp_path))
+    body = get_history_snapshot("large_cap", "2026-01-01")
+    assert body == {}
 
 
 def test_get_large_cap_decorates_shared_news_and_earnings(monkeypatch):
