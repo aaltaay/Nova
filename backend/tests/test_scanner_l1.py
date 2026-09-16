@@ -177,6 +177,24 @@ def test_flush_loop_drops_hod_only_ticks_for_a_frozen_table(monkeypatch):
     assert pushed[0]["table"] == "gainers"
 
 
+def test_on_l1_quote_with_last_size_still_buffers_a_fresh_patch(monkeypatch):
+    """D-049 size stamp must not drop the scanner L1 freshness path."""
+    scanner_l1._pending.clear()
+    scanner_l1._pending_started_ns = None
+    scanner_l1._active_tab_tables.clear()
+    scanner_l1._active_tab_tables["AAPL"] = "gainers"
+    monkeypatch.setattr(scanner_l1, "_apply_quote", None)
+
+    scanner_l1.on_l1_quote(
+        "AAPL", 10.0, 1_250, 9.0, 1_700_000_000.0, last_size=40,
+    )
+    row = scanner_l1._pending["AAPL"]
+    assert row["symbol"] == "AAPL"
+    assert row["price"] == 10.0
+    assert row["volume"] == 1_250
+    assert scanner_l1.get_last_ok_ts() == 1_700_000_000.0
+
+
 def test_flush_measures_first_buffered_tick_through_broadcast(monkeypatch):
     scanner_l1._pending.clear()
     scanner_l1._pending_started_ns = None

@@ -64,6 +64,8 @@ class _FakeTicker:
         lastTimestamp=None,
         rtTime=None,
         time=None,
+        lastSize=None,
+        rtVolume=None,
     ):
         self.last = last
         self.close = close
@@ -72,6 +74,8 @@ class _FakeTicker:
         self.lastTimestamp = lastTimestamp
         self.rtTime = rtTime
         self.time = time
+        self.lastSize = lastSize
+        self.rtVolume = rtVolume
 
 
 def test_set_owner_symbols_caps_adds_per_reconcile(monkeypatch):
@@ -166,6 +170,73 @@ def test_on_ticker_update_still_notifies_legacy_five_arg_listener():
     assert len(seen) == 1
     assert seen[0][0] == "ABC"
     assert seen[0][1] == 2.0
+
+
+def test_on_ticker_update_forwards_last_size_and_prefers_rt_volume():
+    _reset()
+    ticks._subs["ABC"] = {
+        "owners": {ticks.OWNER_SCANNER},
+        "last_price": None,
+        "last_update_ts": None,
+    }
+    ticks._broadcast = None
+    ticks._quote_listeners.clear()
+    captured: dict = {}
+
+    def listener(
+        symbol, price, volume, prev_close, ts_unix, *,
+        quote_quality=None, open_price=None, last_size=None,
+    ):
+        captured["volume"] = volume
+        captured["last_size"] = last_size
+        captured["price"] = price
+
+    ticks._quote_listeners.append(listener)
+    ticks._on_ticker_update(
+        _FakeTicker(last=2.5, volume=9_999, lastSize=40, rtVolume=1_250),
+        "ABC",
+    )
+    assert captured["price"] == 2.5
+    assert captured["last_size"] == 40
+    assert captured["volume"] == 1250  # RTVolume total, not the slower tick-8 day total
+
+
+def test_on_ticker_update_notifies_when_rt_volume_rises_on_a_flat_last():
+    _reset()
+    ticks._subs["ABC"] = {
+        "owners": {ticks.OWNER_SCANNER},
+        "last_price": 5.0,
+        "last_update_ts": None,
+        "last_cum_volume": 1_000.0,
+    }
+    ticks._broadcast = None
+    ticks._quote_listeners.clear()
+    seen: list[float] = []
+
+    def listener(symbol, price, volume, prev_close, ts_unix, **_kw):
+        seen.append(volume)
+
+    ticks._quote_listeners.append(listener)
+    ticks._on_ticker_update(
+        _FakeTicker(last=5.0, lastSize=80, rtVolume=1_250),
+        "ABC",
+    )
+    assert seen == [1250]
+    assert ticks.is_fresh("ABC", 8.0) is True
+
+
+def test_l1_size_fields_ignore_ticker_vwap():
+    from ibkr.ticks_handler import l1_size_fields
+
+    class _VwapTicker:
+        lastSize = 10
+        rtVolume = 500
+        volume = 9_000
+        vwap = 12.34
+
+    size, cum = l1_size_fields(_VwapTicker())
+    assert size == 10
+    assert cum == 500
 
 
 def test_ticker_budget_status_counts_unique_lines_and_owners():

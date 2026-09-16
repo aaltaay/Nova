@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- L1 1Min volume=0 starved VWAP
+
+- **Symptom:** Session VWAP on live 1Min lagged 1-2 minutes. The orange tip sat on the last hist minute until IB hist replaced the L1 overlay.
+- **Cause:** `l1_minute._flush` hardcoded `volume=0.0`. Frontend `sessionVwapPoints` only accumulates `volume > 0`, so overlay minutes were carry-forward only. Size was already on the shared L1 ticker (`lastSize`, tick-8 `volume`) but never passed into the bucket.
+- **Fix:** Stamp lastSize / RTVolume (`233`) / tick-8 deltas onto the existing ticks owner. First cumulative print is a baseline, not a day dump. Merge `IBKR_L1_GENERIC_TICKS` on subscribe/upgrade -- no second `reqMktData` (D-020). Do not paint `ticker.vwap`.
+- **Fix class:** admission
+- **Keywords:** VWAP, volume=0, RTVolume, 233, l1_minute, lastSize, D-049, #95, D-020
+
 ## 2026-09-16 -- History date skipped Large Cap
 
 - **Symptom:** Picking a past date in the shared history control updated Gappers / Gainers / Losers / Afterhours, but Large Cap kept today's live roster (or looked like it had no history at all).

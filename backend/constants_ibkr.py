@@ -348,6 +348,11 @@ IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE = 5
 IBKR_L1_ROW_STALE_SEC = 3.0
 # Shortability (tick 236) rides the shared L1 line — see ibkr/ticks_generic.py.
 IBKR_SHORTABLE_TICK_WAIT_SEC = 1.8              # max wait for the first 236 tick
+# RTVolume (233) rides the same shared scanner/detail/HOD line (D-049).
+# ib_async maps it onto last / lastSize / rtVolume / rtTime / vwap.
+# Stamp lastSize + rtVolume deltas onto l1_minute. Do not paint ticker.vwap
+# as a second session VWAP, and do not open a private reqMktData (D-020).
+IBKR_L1_GENERIC_TICKS = "233"
 IBKR_LISTING_FLAGS_TIMEOUT_SEC = 10.0           # sync bridge ceiling for ticker builders
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────

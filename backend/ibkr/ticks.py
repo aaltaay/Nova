@@ -12,6 +12,7 @@ import logging
 from typing import Any, Awaitable, Callable, Optional
 
 from constants import (
+    IBKR_L1_GENERIC_TICKS,
     IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE,
     IBKR_L1_QUALIFY_TIMEOUT_SEC,
 )
@@ -111,6 +112,8 @@ async def subscribe(
     line: ``reqMktData`` is idempotent per contract, so a caller that opens its
     own line gets the pooled ticker with no extra ticks and cancels the desk's
     stream on the way out. An existing line missing the ticks is upgraded.
+    ``IBKR_L1_GENERIC_TICKS`` (RTVolume ``233``) is always merged in so
+    scanner/detail/HOD size stamps do not open a second line (D-049 / D-020).
     """
     from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
 
@@ -122,17 +125,18 @@ async def subscribe(
         )
     symbol = (symbol or "").strip().upper()
     owner = (owner or OWNER_DETAIL).strip().lower()
+    requested = _generic.merge(IBKR_L1_GENERIC_TICKS, generic_ticks)
     if not symbol:
         return False
     async with _get_lock():
         existing = _subs.get(symbol)
         if existing is not None:
             existing["owners"].add(owner)
-            if generic_ticks and not _generic.has_all(
-                existing.get("generic_ticks"), generic_ticks,
+            if requested and not _generic.has_all(
+                existing.get("generic_ticks"), requested,
             ):
                 if not _generic.upgrade_line(
-                    _client.get_ib(), symbol, existing, generic_ticks,
+                    _client.get_ib(), symbol, existing, requested,
                 ):
                     _subs.pop(symbol, None)
                     return False
@@ -167,7 +171,7 @@ async def subscribe(
             return False
 
         try:
-            ticker = ib.reqMktData(contract, generic_ticks, False, False)
+            ticker = ib.reqMktData(contract, requested, False, False)
         except Exception as exc:
             logger.warning("IBKR ticks: reqMktData failed for %s: %s", symbol, exc)
             return False
@@ -181,7 +185,7 @@ async def subscribe(
             "contract": contract,
             "handler": handler,
             "owners": {owner},
-            "generic_ticks": generic_ticks,
+            "generic_ticks": requested,
             "last_price": None,
             "last_update_ts": None,
         }

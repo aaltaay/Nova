@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- L1 1Min overlay stamps real volume for session VWAP
+
+- **What:** L1-rolled 1Min bars now carry lastSize / RTVolume deltas instead of `volume=0`. Session VWAP on live 1Min walks when the overlay minute closes, instead of waiting 1-2 minutes for IB hist to replace it.
+- **Why:** D-049 / #95. `sessionVwapPoints` skips volume=0, so the tip stayed on the last hist minute until reconciliation.
+- **Files touched:** `backend/ibkr/l1_minute.py`, `backend/ibkr/ticks.py`, `backend/ibkr/ticks_handler.py`, `backend/ibkr/scanner_l1.py`, `backend/ibkr/scanner_l1_apply.py`, `backend/constants_ibkr.py`, `.cursor/rules/single-market-data-feed.mdc`.
+- **How it works now:** The shared scanner/detail/HOD `reqMktData` line always merges `IBKR_L1_GENERIC_TICKS` (`233`). ib_async maps that onto `lastSize` + `rtVolume` (total). `l1_minute` baselines the first cumulative print, then adds deltas. Tick 8 day volume is the fallback when 233 is not on the line yet. Hist still owns the candle. `ticker.vwap` is not painted as a second metric. No private `reqMktData` (D-020).
+- **Verified by:** `python3 -m pytest backend/tests` -- 1735 passed. Focused L1/ticks/scanner: 48 passed. Neighbor bars/HOD/tape: 44 passed. `ruff check` on touched backend files exit 0. `npx vitest run src/chart/vwapSession.test.ts src/chartIndicators.test.ts` -- 33 passed. `npm run lint` + `npm run build` exit 0. `doc_invariants.py` OK. Scanner L1 freshness: `test_on_l1_quote_with_last_size_still_buffers_a_fresh_patch` plus existing flush-loop tests.
+- **Related:** Closes #95. PROBLEM_LOG 2026-09-16 -- L1 1Min volume=0 starved VWAP. Parent #13 (D-036). Follow-up from 2026-08-25 session VWAP.
+
 ## 2026-09-16 -- Wire Large Cap into the shared history date control
 
 - **What:** The existing global history date (`historyDate` / bar picker) now also loads `/api/history/large_cap/{date}`. Clearing history still returns Large Cap to the live roster with the other tables. No second date picker.

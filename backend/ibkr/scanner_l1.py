@@ -23,6 +23,7 @@ from archive import bar_builder as _bar_builder
 from ibkr import ticks as _ticks
 from ibkr import l1_minute as _l1_minute
 from ibkr import tape_10sec as _tape_10sec
+from ibkr.scanner_l1_apply import apply_quote_compat, stamp_l1_minute
 from ibkr.scanner_l1_plan import count_tab_contributions, plan_stream_symbols
 from metrics.op_metrics import record_since
 
@@ -115,6 +116,7 @@ def on_l1_quote(
     *,
     quote_quality: str | None = None,
     open_price: float | None = None,
+    last_size: float | None = None,
 ) -> None:
     """ticks.py quote listener — buffer for the next batch flush."""
     sym = (symbol or "").strip().upper()
@@ -129,34 +131,21 @@ def on_l1_quote(
     }
     if quote_quality:
         row["quote_quality"] = quote_quality
-    try:
-        _l1_minute.on_last(sym, float(price), float(ts_unix))
-    except Exception:
-        logger.debug("scanner_l1: l1_minute.on_last failed", exc_info=True)
+    stamp_l1_minute(
+        sym, float(price), float(ts_unix), volume=volume, last_size=last_size,
+    )
     if _apply_quote is not None:
         try:
-            try:
-                patched = _apply_quote(
-                    sym,
-                    price,
-                    volume,
-                    prev_close,
-                    ts_unix,
-                    quote_quality=quote_quality,
-                    open_price=open_price,
-                )
-            except TypeError:
-                try:
-                    patched = _apply_quote(
-                        sym,
-                        price,
-                        volume,
-                        prev_close,
-                        ts_unix,
-                        quote_quality=quote_quality,
-                    )
-                except TypeError:
-                    patched = _apply_quote(sym, price, volume, prev_close, ts_unix)
+            patched = apply_quote_compat(
+                _apply_quote,
+                sym,
+                price,
+                volume,
+                prev_close,
+                ts_unix,
+                quote_quality=quote_quality,
+                open_price=open_price,
+            )
             if patched:
                 row.update(patched)
         except Exception:
