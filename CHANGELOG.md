@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Fill now refuses unfillable premarket MKTs
+
+- **What:** Fill now no longer cancel+resubmits an extended-hours market order. Premarket / after-hours / overnight: sweep a limit at the live IBKR bid (sell) or ask (buy) when that symbol's Trader book is open; otherwise refuse before any cancel. Regular hours still markets the remainder. Working rows label a leftover MKT as waiting for the open.
+- **Why:** #168 -- Ahmed clicked Fill now on FTFT #115067 (paper premarket SELL MKT, Extended hours). The order stayed Working; position stayed long 1. Nova had treated broker-accept as a fill.
+- **Files touched:** `frontend/src/ibkr/planFillWorkingOrder.ts`, `fillWorkingOrderImmediately.ts`, `workingOrderFillability.ts`, `workingOrderCells.tsx`, Trading / Stock View / Scanner Fill now callers, `chart_api.ts` copy.
+- **How it works now:** Plan first (`planFillWorkingOrder`). RTH -> MKT. Outside RTH -> LMT at same-symbol TopOfBook bid/ask, or an honest error (including "will not resubmit the same unfillable MKT" and "desk book is on MEDS"). Place/cancel still go through ADR 007. Flatten still sends MKT+EH (unchanged). Ticket EH checkbox default is a sibling issue, not this PR.
+- **Verified by:** Vitest planFillWorkingOrder / fillWorkingOrderImmediately / workingOrderFillability / extendedSession / orderEntry (MKT+EH reject) / closeFullPosition. `npm run lint` + `npm run build`. Neighbor: flatten still places MKT via `closeFullPosition`.
+- **Follow-ups:** Flatten can still leave an EH MKT working -- same IBKR limit, different button. Trading Hours dropdown -> Extended Hours checkbox default ON is a separate product issue.
+- **Related:** Closes #168. PROBLEM_LOG 2026-09-16 -- Fill now EH MKT returned to Working. Task-log 2026-07-18 Fill now (original MKT+EH allow).
+
 ## 2026-09-16 -- L1 1Min overlay stamps real volume for session VWAP
 
 - **What:** L1-rolled 1Min bars now carry lastSize / RTVolume deltas instead of `volume=0`. Session VWAP on live 1Min walks when the overlay minute closes, instead of waiting 1-2 minutes for IB hist to replace it.

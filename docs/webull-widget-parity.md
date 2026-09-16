@@ -155,7 +155,7 @@ Nova evidence was captured from revision `8c773f0` plus the uncommitted
 | Order id | `order_id` | yes |
 | Account | Gateway paper/live mode (status bar) | mode badge elsewhere; not a column |
 | Time placed | `submitted_at` snapshot | yes — **Time** (ET, fixed at place) |
-| Act on remainder | Fill now | yes — cancel rest + market remaining (`fillWorkingOrderImmediately`; not Flatten; hidden in sample preview) |
+| Act on remainder | Fill now | yes -- cancel rest + fill remaining (`fillWorkingOrderImmediately`; RTH market or EH bid/ask limit sweep; not Flatten; hidden in sample preview) |
 | Modify order | — | deferred (cancel / Fill now only) |
 | History / export CSV | — | WID-020 follow-up |
 

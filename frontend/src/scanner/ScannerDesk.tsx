@@ -17,6 +17,7 @@ import { useResizableHeight } from '../hooks/useResizableHeight';
 import { cancelIbkrOrderWithFeedback } from '../ibkr';
 import { confirmAndFillWorkingOrder } from '../ibkr/fillWorkingOrderImmediately';
 import type { IbkrOrder } from '../ibkr/types';
+import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import { useIbkrAccount } from '../ibkr/useIbkrAccount';
 import { useIbkrStatus } from '../ibkr/useIbkrStatus';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
@@ -31,6 +32,7 @@ type Props = {
 
 export function ScannerDesk({ children, onOpenTrading }: Props) {
   const { selectedSymbol, openStockView, selectRowSymbol } = useWorkspace();
+  const { topOfBook } = useTopOfBook();
   const ibkrStatus = useIbkrStatus();
   const {
     summary,
@@ -69,13 +71,13 @@ export function ScannerDesk({ children, onOpenTrading }: Props) {
 
   const onFillImmediately = useCallback(
     async (order: IbkrOrder) => {
-      const res = await confirmAndFillWorkingOrder(order);
+      const res = await confirmAndFillWorkingOrder(order, { book: topOfBook });
       if (!res.ok && res.error !== 'Fill now cancelled') {
         void alertApp({ title: 'Fill now failed', message: res.error, tone: 'danger' });
       }
       refresh();
     },
-    [refresh],
+    [refresh, topOfBook],
   );
 
   return (

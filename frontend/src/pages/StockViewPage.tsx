@@ -16,6 +16,7 @@ import { cancelIbkrOrderWithFeedback } from '../ibkr';
 import { confirmAndFillWorkingOrder } from '../ibkr/fillWorkingOrderImmediately';
 import type { PlaceOrderResult } from '../ibkr/placeOrder';
 import type { IbkrOrder } from '../ibkr/types';
+import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import { computeQuoteMetrics } from '../modules/quoteMetrics';
 import { PaperTradingBanner } from '../ibkr/PaperTradingBanner';
 import { StockViewOpenOrdersDock } from '../stock_view/StockViewOpenOrdersDock';
@@ -54,6 +55,7 @@ export function StockViewPage({
   chartActive = true,
 }: Props) {
   const { discoveryProvider } = useWorkspace();
+  const { topOfBook } = useTopOfBook();
   const { detail, loading, refreshing, fetchFailed } = useTickerStream(symbol);
   const ibkrStatus = useIbkrStatus();
   const {
@@ -135,7 +137,7 @@ export function StockViewPage({
 
   const onFillImmediately = useCallback(
     async (order: IbkrOrder) => {
-      const res = await confirmAndFillWorkingOrder(order);
+      const res = await confirmAndFillWorkingOrder(order, { book: topOfBook });
       if (res.ok && res.place_order_id != null) {
         setHighlightOrderId(res.place_order_id);
       }
@@ -144,7 +146,7 @@ export function StockViewPage({
       }
       refresh();
     },
-    [refresh],
+    [refresh, topOfBook],
   );
 
   return (

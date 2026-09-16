@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Fill now EH MKT returned to Working
+
+- **Symptom:** Paper premarket ~09:01 ET. Operator clicked Fill now on FTFT #115067 (SELL MKT, Extended hours, Working, qty 1). Order stayed/returned to Working; filled_qty=0; long FTFT qty=1 unchanged. Desk L2 was on MEDS; banner said PRICES: no L1 yet. Toast earlier showed #115052.
+- **Cause:** Fill now is cancel + place MKT with `shouldUseOutsideRth(order.outside_rth)` (resting EH flag OR clock EH). Nova treats place-accepted as success and does not wait for a fill. IBKR does not fill market orders outside regular hours -- the manual ticket already refuses MKT+EH (`Extended hours supports Limit orders only`), and Nova documents Warning 2109 (outsideRth ignored on MKT) plus Warning 399 (held until open). Snapshot after the click still showed 115067 Submitted / outside_rth=true / held_until=null, so paper accepted the MKT without a 399 stamp and without filling. Ticket Regular Hours on MKT vs Fill now sending EH MKT added to the confusion; it is not a second root cause.
+- **Fix:** Plan Fill now before cancel. Outside RTH, require a same-symbol live bid (sell) or ask (buy) and place an EH LMT sweep; otherwise refuse loud and leave the resting order. Already-MKT + no book says it will not resubmit the same unfillable MKT. Working status shows "MKT waits for open" when the clock is not RTH.
+- **Fix class:** admission
+- **Keywords:** Fill now, 115067, FTFT, MKT, outside_rth, premarket, #168, 2109, 399, MEDS, no L1
+
 ## 2026-09-16 -- L1 1Min volume=0 starved VWAP
 
 - **Symptom:** Session VWAP on live 1Min lagged 1-2 minutes. The orange tip sat on the last hist minute until IB hist replaced the L1 overlay.

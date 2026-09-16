@@ -8,9 +8,11 @@ import {
   formatOrderType,
   orderSubmittedTimeTitle,
 } from './orderDisplay';
+import { sessionKindNow } from './extendedSession';
 import { remainingShares } from './orderQtyMath';
 import type { WorkingOrderColumnId } from './orderTableColumns';
 import type { IbkrOrder } from './types';
+import { workingOrderStatusDisplay } from './workingOrderFillability';
 
 export type WorkingCellCtx = {
   statusLabel: string;
@@ -99,19 +101,18 @@ export function renderWorkingOrderCell(
         </td>
       );
     case 'status': {
-      const heldTitle = o.held_until
-        ? `${o.status} -- held until ${o.held_until} (exchange open)`
-        : o.status;
-      const label = o.held_until
-        ? `${ctx.statusLabel} (held to open)`
-        : ctx.statusLabel;
+      const shown = workingOrderStatusDisplay(
+        o,
+        ctx.statusLabel,
+        sessionKindNow(),
+      );
       return (
         <td key={col} className="ibkr-col--status">
           <span
             className={`ibkr-order-status ibkr-order-status--${ctx.tone}`}
-            title={heldTitle}
+            title={shown.title}
           >
-            {label}
+            {shown.label}
           </span>
         </td>
       );

@@ -31,6 +31,7 @@ import { isSpendLocked, spendLockReason, spendStatusLabel } from './spendLock';
 const ReportsTab = lazy(() =>
   import('../reports/ReportsTab').then(m => ({ default: m.ReportsTab })),
 );
+import { useTopOfBook } from '../hotkeys/TopOfBookContext';
 import { alertApp } from '../ux';
 import { cancelIbkrOrderWithFeedback } from './cancelOrder';
 import { confirmAndFillWorkingOrder } from './fillWorkingOrderImmediately';
@@ -65,6 +66,7 @@ export function TradingTab({
     refresh,
   } = useIbkrAccount(status.connected);
   const { isVisible } = useModuleVisibility();
+  const { topOfBook } = useTopOfBook();
   const [depthSymbol, setDepthSymbol] = useState<string | null>(null);
   const [depthInput, setDepthInput] = useState('');
   const [highlightOrderId, setHighlightOrderId] = useState<number | null>(null);
@@ -74,7 +76,7 @@ export function TradingTab({
   }, [refresh]);
 
   const handleFillImmediately = useCallback(async (order: IbkrOrder) => {
-    const res = await confirmAndFillWorkingOrder(order);
+    const res = await confirmAndFillWorkingOrder(order, { book: topOfBook });
     if (res.ok && res.place_order_id != null) {
       setHighlightOrderId(res.place_order_id);
     }
@@ -82,7 +84,7 @@ export function TradingTab({
       void alertApp({ title: 'Fill now failed', message: res.error, tone: 'danger' });
     }
     refresh();
-  }, [refresh]);
+  }, [refresh, topOfBook]);
 
   const handleOrderPlaced = useCallback(
     (result: PlaceOrderResult) => {

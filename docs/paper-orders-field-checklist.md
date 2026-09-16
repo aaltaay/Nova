@@ -20,7 +20,7 @@ Use after Open/Closed Orders UI or qty/time math changes. Automated pyramid laye
 | 3 | Check **Filled** / **Remaining**. | Remaining ≈ qty − filled (or matches IB remaining). No "—" while Fill now is enabled. |
 | 4 | Check **Average fill** after a partial. | Non-zero after fills; blank/"—" only when unfilled. |
 | 5 | **Cancel** remaining after a partial (optional). | Closed tab: **Cancelled (partial fill)**; filled qty + avg kept. |
-| 6 | Optional **Fill now** on a working remainder — **you** click only. | Resting cancelled; market remainder same side; no surprise live port. |
+| 6 | Optional **Fill now** on a working remainder -- **you** click only. | Resting cancelled; RTH markets remainder, EH sweeps bid/ask limit when that symbol has a live book; otherwise an honest refuse and the resting order stays. No surprise live port. |
 
 ## Fail → log
 
