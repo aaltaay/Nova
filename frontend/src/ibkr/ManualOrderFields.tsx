@@ -7,19 +7,20 @@ import {
   TICKER_TRADE_LABEL_TRADING_HOURS,
 } from '../constants';
 import {
-  TICKER_TRADE_LABEL_DIRECTION,
-  TICKER_TRADE_LABEL_LONG,
+  TICKER_TRADE_LABEL_BUY,
+  TICKER_TRADE_LABEL_SELL,
   TICKER_TRADE_LABEL_SHORT,
 } from '../constantGroups/shortability';
 import { ManualOrderQuantityRow } from './ManualOrderQuantityRow';
 import {
-  type ManualOrderSide,
   type ManualOrderType,
   type QuantityMode,
 } from './orderEntry';
+import type { TicketSide } from './ticketSide';
 
 interface Props {
-  side: ManualOrderSide;
+  ticketSide: TicketSide;
+  allowShort: boolean;
   orderType: ManualOrderType;
   quantityMode: QuantityMode;
   quantityValue: string;
@@ -29,11 +30,8 @@ interface Props {
   disabled: boolean;
   /** When true, quantity input / units / presets are inert (forced share qty). */
   quantityLocked?: boolean;
-  /** Phase K: Long vs Short opening direction. */
-  shortEntry?: boolean;
   shortDisabledReason?: string | null;
-  onDirectionChange?: (shortEntry: boolean) => void;
-  onSideChange: (side: ManualOrderSide) => void;
+  onTicketSideChange: (side: TicketSide) => void;
   onOrderTypeChange: (orderType: ManualOrderType) => void;
   onQuantityModeChange: (mode: QuantityMode) => void;
   onQuantityValueChange: (value: string) => void;
@@ -56,7 +54,8 @@ const ORDER_TYPES: readonly { value: ManualOrderType; label: string; title?: str
 ];
 
 export function ManualOrderFields({
-  side,
+  ticketSide,
+  allowShort,
   orderType,
   quantityMode,
   quantityValue,
@@ -65,10 +64,8 @@ export function ManualOrderFields({
   outsideRth,
   disabled,
   quantityLocked = false,
-  shortEntry = false,
   shortDisabledReason = null,
-  onDirectionChange,
-  onSideChange,
+  onTicketSideChange,
   onOrderTypeChange,
   onQuantityModeChange,
   onQuantityValueChange,
@@ -80,70 +77,53 @@ export function ManualOrderFields({
 
   return (
     <>
-      {onDirectionChange && (
-        <>
-          <label className="manual-order-label">{TICKER_TRADE_LABEL_DIRECTION}</label>
-          <div
-            className="manual-order-segment manual-order-direction"
-            role="group"
-            aria-label={TICKER_TRADE_LABEL_DIRECTION}
-          >
-            <button
-              type="button"
-              className={!shortEntry ? 'is-buy' : ''}
-              aria-pressed={!shortEntry}
-              onClick={() => onDirectionChange(false)}
-              disabled={disabled}
-            >
-              {TICKER_TRADE_LABEL_LONG}
-            </button>
-            <button
-              type="button"
-              className={shortEntry ? 'is-sell' : ''}
-              aria-pressed={shortEntry}
-              title={shortBlocked ? shortDisabledReason ?? undefined : undefined}
-              onClick={() => {
-                if (!shortBlocked) onDirectionChange(true);
-              }}
-              disabled={disabled || shortBlocked}
-              data-testid="manual-order-short-direction"
-            >
-              {TICKER_TRADE_LABEL_SHORT}
-            </button>
-          </div>
-          {shortBlocked && (
-            <p className="manual-order-hint" data-testid="manual-order-short-reason">
-              {shortDisabledReason}
-            </p>
-          )}
-        </>
-      )}
-
       <label className="manual-order-label">{TICKER_TRADE_LABEL_SIDE}</label>
       <div
-        className="manual-order-segment manual-order-side"
+        className={`manual-order-segment manual-order-side${allowShort ? ' manual-order-side--with-short' : ''}`}
         role="group"
         aria-label={TICKER_TRADE_LABEL_SIDE}
       >
         <button
           type="button"
-          className={side === 'BUY' ? 'is-buy' : ''}
-          aria-pressed={side === 'BUY'}
-          onClick={() => onSideChange('BUY')}
-          disabled={disabled || shortEntry}
+          className={ticketSide === 'buy' ? 'is-buy' : ''}
+          aria-pressed={ticketSide === 'buy'}
+          onClick={() => onTicketSideChange('buy')}
+          disabled={disabled}
+          data-testid="manual-order-side-buy"
         >
-          Buy
+          {TICKER_TRADE_LABEL_BUY}
         </button>
         <button
           type="button"
-          className={side === 'SELL' ? 'is-sell' : ''}
-          aria-pressed={side === 'SELL'}
-          onClick={() => onSideChange('SELL')}
+          className={ticketSide === 'sell' ? 'is-sell' : ''}
+          aria-pressed={ticketSide === 'sell'}
+          onClick={() => onTicketSideChange('sell')}
           disabled={disabled}
+          data-testid="manual-order-side-sell"
         >
-          Sell
+          {TICKER_TRADE_LABEL_SELL}
         </button>
+        {allowShort && (
+          <button
+            type="button"
+            className={ticketSide === 'short' ? 'is-short' : ''}
+            aria-pressed={ticketSide === 'short'}
+            title={shortBlocked ? shortDisabledReason ?? undefined : undefined}
+            onClick={() => {
+              if (!shortBlocked) onTicketSideChange('short');
+            }}
+            disabled={disabled || shortBlocked}
+            data-testid="manual-order-side-short"
+          >
+            {TICKER_TRADE_LABEL_SHORT}
+          </button>
+        )}
       </div>
+      {allowShort && shortBlocked && (
+        <p className="manual-order-hint" data-testid="manual-order-short-reason">
+          {shortDisabledReason}
+        </p>
+      )}
 
       <label className="manual-order-label">{TICKER_TRADE_LABEL_ORDER_TYPE}</label>
       <div

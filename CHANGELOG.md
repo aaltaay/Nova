@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Ticket Side Buy/Sell/Short; Direction removed
+
+- **What:** Trade ticket no longer has Direction Long/Short. Side is Buy | Sell | Short on a Margin IBKR account, Buy | Sell on Cash. Place / confirm copy follows the selection (Short SYMBOL). Sell does not open a short.
+- **Why:** #184. Dual Direction+Side made Sell-short look like a long exit. Webull-style three-way Side on margin; cash cannot short.
+- **Files touched:** `frontend/src/ibkr/ManualOrderFields.tsx`, `ManualOrderTicket.tsx`, `ManualOrderFooter.tsx`, `ticketSide.ts`, ADR 009 UI bullet.
+- **How it works now:** Short is visible only when `shortSideVisible(summary)` / `account_class === 'margin'` from #188. INDIVIDUAL is ownership, not a class -- Ahmed's live Cash desk stays Buy | Sell. Short still sends `short_entry=true` and keeps `SHORT_*` gates.
+- **Verified by:** Vitest ticketSide / accountType / ManualOrderFields.side / ManualOrderTicket.side; Playwright `sample-shortability`. No live orders.
+- **Follow-ups:** Edge smoke on a live Gateway -- Cash desk must hide Short; Margin desk Short is orange and Place says Short SYMBOL; do not click Place on live.
+- **Related:** Closes #184. Refs #181 / #188. ADR 009. Phase K4.
+
 ## 2026-09-16 -- Header Cash/Margin: never Unknown while connected
 
 - **What:** Connected IBKR accounts show Cash or Margin. Unknown is gone while Gateway is up. Ahmed's live `AccountType=INDIVIDUAL` + BP≈cash is Cash. Ticket Short uses the same class (`shortSideVisible` -- hidden on Cash). Optional `IBKR_ACCOUNT_CLASS=cash|margin` in `.env`.

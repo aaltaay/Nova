@@ -18,7 +18,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
 - **Reliability track (WS0-WS7):** shipped 2026-08-18; only **WS1 proof** is open (first unattended 03:55 ET run).
 - **Closed:** Phases A, D, E, F, G, G2, G3, H, J · Nova OS P0-P10 · Maintenance Phases 0-13 -> [[Nova-Roadmap-Archive]]
 - **Last verified commit:** `aad9bf9` (architecture close remediation Phase 7). Tip SHA: `git rev-parse --short HEAD`.
-- **Last updated:** 2026-09-08 (roadmap note trimmed; closed detail archived)
+- **Last updated:** 2026-09-16 (K4 ticket Side Buy/Sell/Short; Direction removed)
 
 ## Exact next action (human)
 
@@ -41,7 +41,7 @@ Checkbox legend: `[ ]` pending · `[~]` in progress · `[x]` verified / complete
   - [ ] ≥3 clean paper short days (`confirm` then `auto_paper`) with borrow state captured in receipts
   - [ ] Phase I scorecard re-run including short metrics
   - [ ] Operator sign-off after those days
-- **K4 UI** `[x]` -- Shortability chip beside L2 title, Long/Short ticket with `SHORT_*` reasons
+- **K4 UI** `[x]` -- Shortability chip beside L2 title; ticket Side Buy/Sell/Short on Margin (Buy/Sell on Cash); `SHORT_*` reasons. Direction Long/Short removed (#184).
   - [ ] Deferred: scanner-level shortable filter
 
 **K3 live unlock criteria (operator):** `IBKR_SHORT_ENABLED=true` on paper with ≥3 days of `short_entry` receipts + kill/flatten drills · no unresolved `SHORT_*` false-allow bugs in PROBLEM_LOG · explicit sign-off in History · then live short only with `IBKR_LIVE_TRADING_CONFIRMED=true`. `auto_live` stays NO-GO.
@@ -98,6 +98,7 @@ Newest first. Append here; do not rewrite prior rows. Rows before 2026-07-28 are
 
 | Date | What | Commit |
 |------|------|--------|
+| 2026-09-16 | K4 ticket UI: Direction Long/Short removed. Side is Buy/Sell/Short on Margin (Buy/Sell on Cash) from IBKR AccountType. `short_entry` unchanged. `auto_live` NO-GO. | (this commit) |
 | 2026-09-11 | Public source home is `aaltaay/Nova`. Marketing CTA retargeted. `Nova-public` is a private archive. Phase NEXT unchanged (K3). `auto_live` NO-GO. | (this commit) |
 | 2026-09-08 | Roadmap note trimmed to a live status page; closed phases, verification baselines, maintenance track, and pre-2026-07-28 History moved verbatim to [[Nova-Roadmap-Archive]]. Task narratives now default to PR bodies. No phase state changed; `auto_live` NO-GO. | (this commit) |
 | 2026-08-31 | Public domain `nova.altaystudio.com` is a static marketing page (`site/`), not the hosted scanner. CTA is Nova-public. Phase J local-first. `auto_live` NO-GO. | (that commit) |

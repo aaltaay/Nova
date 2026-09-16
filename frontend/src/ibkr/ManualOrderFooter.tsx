@@ -1,16 +1,17 @@
 import { Button } from '@/components/ui/button';
 import {
   TICKER_TRADE_FORCE_QTY,
-  TICKER_TRADE_PLACE_ORDER_LABEL,
-  TICKER_TRADE_PLACE_PAPER_ORDER_LABEL,
   TICKER_TRADE_UNLOCK_LABEL,
 } from '../constants';
 import { PlaceOrderConfirmDialog } from './PlaceOrderConfirmDialog';
 import { writeSkipPlaceConfirm } from './placeConfirmPrefs';
+import { placeActionLabel, type TicketSide } from './ticketSide';
 import { TradingPinDialog } from './TradingPinDialog';
 
 interface Props {
   isPaper: boolean;
+  ticketSide?: TicketSide;
+  symbol?: string;
   needsPinUnlock: boolean;
   connected: boolean;
   submitting: boolean;
@@ -30,6 +31,8 @@ interface Props {
 
 export function ManualOrderFooter({
   isPaper,
+  ticketSide = 'buy',
+  symbol = '',
   needsPinUnlock,
   connected,
   submitting,
@@ -46,9 +49,7 @@ export function ManualOrderFooter({
   onPinSubmit,
   onPinClose,
 }: Props) {
-  const placeLabel = isPaper
-    ? TICKER_TRADE_PLACE_PAPER_ORDER_LABEL
-    : TICKER_TRADE_PLACE_ORDER_LABEL;
+  const placeLabel = placeActionLabel(ticketSide, symbol);
   const lockReason =
     spendLockReason ?? 'IBKR orders remain gated by environment safety settings';
   // Unlock is not a place — keep the PIN affordance reachable while locked so
@@ -82,10 +83,13 @@ export function ManualOrderFooter({
         variant="default"
         size="lg"
         className={
-          isPaper && !needsPinUnlock && connected
+          ticketSide === 'short' && !needsPinUnlock && connected
+            ? 'manual-order-submit manual-order-submit--short mt-1 w-full'
+            : isPaper && !needsPinUnlock && connected
             ? 'manual-order-submit manual-order-submit--paper mt-1 w-full'
             : 'manual-order-submit mt-1 w-full'
         }
+        data-testid="manual-order-submit"
         disabled={!connected || submitting || placeBlockedBySpend}
         title={buttonTitle}
       >
