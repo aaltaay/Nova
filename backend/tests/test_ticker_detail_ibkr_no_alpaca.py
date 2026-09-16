@@ -57,3 +57,4 @@ def test_build_ticker_detail_ibkr_without_alpaca_keys(monkeypatch):
     assert out["symbol"] == "SPY"
     assert "error" not in out
     assert out["snapshot"]["latest_trade"]["price"] == 500.0
+    assert out.get("halt") is None

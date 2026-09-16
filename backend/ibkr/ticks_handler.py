@@ -12,6 +12,35 @@ from constants import IBKR_QUOTE_QUALITY_CLOSE_FALLBACK
 
 logger = logging.getLogger(__name__)
 
+
+def _observe_halt(symbol: str, ticker: Any) -> None:
+    """Prefer IBKR tick 49 over tape freeze. Broadcast only on change."""
+    from ibkr import halt_status
+
+    _snap, changed = halt_status.observe_from_ticker(symbol, ticker)
+    if not changed:
+        return
+    _broadcast_halt(symbol, _snap)
+
+
+def _broadcast_halt(symbol: str, halt: dict | None) -> None:
+    def _send() -> None:
+        try:
+            loop = asyncio.get_running_loop()
+            from websocket import broadcast_halt_update
+
+            loop.create_task(broadcast_halt_update(symbol, halt))
+        except RuntimeError:
+            logger.debug("IBKR halt: no running loop to broadcast %s", symbol)
+
+    from ibkr.loop_supervisor import is_ib_loop, publish_to_http
+
+    if is_ib_loop():
+        publish_to_http(_send)
+    else:
+        _send()
+
+
 BroadcastFn = Callable[..., Any]
 FindCacheRowFn = Callable[[str], Optional[dict]]
 QuoteListenerFn = Callable[..., None]
@@ -145,6 +174,8 @@ def on_ticker_update(
     if sub is not None:
         # Liveness for is_fresh() -- even when price is unchanged.
         sub["last_update_ts"] = time.time()
+    # Tick 49 halt can arrive with no last. Observe before the price-none return.
+    _observe_halt(symbol, ticker)
     last = clean(getattr(ticker, "last", None))
     close = clean(getattr(ticker, "close", None))
     # Tick type 14 = session OPEN. IB sends it on the same streaming ticker, so

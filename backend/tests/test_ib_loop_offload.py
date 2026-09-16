@@ -323,8 +323,9 @@ def test_shortability_uses_the_shared_line_and_waits_for_the_tick(ticks_env):
 
     shares = asyncio.run(_run())
     assert shares == 25_000.0
-    # One line: default RTVolume 233 merged with listing 236, then released.
-    assert fake_ib.mkt_data_calls == [("SOAR", "233,236")]
+    # One line: default L1 generic ticks merged with listing 236, then released.
+    from constants import IBKR_L1_GENERIC_TICKS
+    assert fake_ib.mkt_data_calls == [("SOAR", f"{IBKR_L1_GENERIC_TICKS},236")]
     assert fake_ib.cancel_calls == ["SOAR"]
     assert ticks_mod.owners_for("SOAR") == set()
 
@@ -342,11 +343,16 @@ def test_shortability_upgrades_an_existing_line_instead_of_opening_one(ticks_env
 
     shares, owners = asyncio.run(_run())
     assert shares == 900.0
-    assert fake_ib.mkt_data_calls == [("SOAR", "233"), ("SOAR", "233,236")]
+    from constants import IBKR_L1_GENERIC_TICKS
+    assert fake_ib.mkt_data_calls == [
+        ("SOAR", IBKR_L1_GENERIC_TICKS),
+        ("SOAR", f"{IBKR_L1_GENERIC_TICKS},236"),
+    ]
     # The scanner keeps its stream: the upgrade cancelled only to re-request.
     assert fake_ib.cancel_calls == ["SOAR"]
     assert owners == {"scanner"}
     assert ticks_mod.has_generic_tick("SOAR", "233") is True
+    assert ticks_mod.has_generic_tick("SOAR", "49") is True
     assert ticks_mod.has_generic_tick("SOAR", "236") is True
 
 
@@ -364,13 +370,19 @@ def test_scanner_subscribe_requests_rtvolume_on_the_shared_line(ticks_env):
     async def _run():
         assert await ticks_mod.subscribe("PFSA", ticks_mod.OWNER_SCANNER)
         assert await ticks_mod.subscribe("PFSA", ticks_mod.OWNER_DETAIL)
-        return ticks_mod.owners_for("PFSA"), ticks_mod.has_generic_tick("PFSA", "233")
+        return (
+            ticks_mod.owners_for("PFSA"),
+            ticks_mod.has_generic_tick("PFSA", "233"),
+            ticks_mod.has_generic_tick("PFSA", "49"),
+        )
 
-    owners, has_233 = asyncio.run(_run())
-    assert fake_ib.mkt_data_calls == [("PFSA", "233")]
+    owners, has_233, has_49 = asyncio.run(_run())
+    from constants import IBKR_L1_GENERIC_TICKS
+    assert fake_ib.mkt_data_calls == [("PFSA", IBKR_L1_GENERIC_TICKS)]
     assert fake_ib.cancel_calls == []
     assert owners == {"scanner", "detail"}
     assert has_233 is True
+    assert has_49 is True
 
 
 def test_listing_flags_never_calls_req_mkt_data_directly():

@@ -348,11 +348,18 @@ IBKR_L1_MAX_SUBSCRIBE_PER_RECONCILE = 5
 IBKR_L1_ROW_STALE_SEC = 3.0
 # Shortability (tick 236) rides the shared L1 line — see ibkr/ticks_generic.py.
 IBKR_SHORTABLE_TICK_WAIT_SEC = 1.8              # max wait for the first 236 tick
-# RTVolume (233) rides the same shared scanner/detail/HOD line (D-049).
-# ib_async maps it onto last / lastSize / rtVolume / rtTime / vwap.
-# Stamp lastSize + rtVolume deltas onto l1_minute. Do not paint ticker.vwap
-# as a second session VWAP, and do not open a private reqMktData (D-020).
-IBKR_L1_GENERIC_TICKS = "233"
+# RTVolume (233) + Halted (49) ride the same shared scanner/detail/HOD line.
+# ib_async maps 233 onto last / lastSize / rtVolume / rtTime / vwap and 49
+# onto ticker.halted. Stamp lastSize + rtVolume deltas onto l1_minute.
+# Halt chip prefers tick 49 over tape freeze. Do not paint ticker.vwap as a
+# second session VWAP, and do not open a private reqMktData (D-020).
+IBKR_HALT_GENERIC_TICK = "49"
+IBKR_L1_GENERIC_TICKS = "233,49"
+# LULD / volatility pause clock (issue #173). First 5m pause, next 5m auction.
+# After 10m still halted: no confident forever countdown.
+LULD_PAUSE_SEC = 5 * 60
+LULD_AUCTION_SEC = 5 * 60
+LULD_CONFIDENT_WINDOW_SEC = LULD_PAUSE_SEC + LULD_AUCTION_SEC
 IBKR_LISTING_FLAGS_TIMEOUT_SEC = 10.0           # sync bridge ceiling for ticker builders
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────

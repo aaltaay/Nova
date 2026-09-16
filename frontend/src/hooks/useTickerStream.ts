@@ -151,7 +151,15 @@ export function useTickerStream(symbol: string | null): TickerStreamState {
                 volume_in_5min: msg.volume_in_5min ?? prev.volume_in_5min,
                 news_impact: msg.news_impact ?? prev.news_impact,
                 listing: msg.listing ?? prev.listing,
+                halt: msg.halt !== undefined ? msg.halt : prev.halt,
               };
+            });
+          } else if (msg.type === 'halt_update') {
+            if (!initialReceived) return;
+            markLive();
+            setDetail(prev => {
+              if (!prev || prev.symbol.toUpperCase() !== symKey) return prev;
+              return { ...prev, halt: msg.halt ?? null };
             });
           } else if (msg.type === 'bars_patch') {
             const tf = typeof msg.timeframe === 'string' ? msg.timeframe : '';

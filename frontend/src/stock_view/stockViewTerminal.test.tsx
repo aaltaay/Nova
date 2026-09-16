@@ -231,6 +231,34 @@ describe('StockViewDepthTape', () => {
     expect(container.textContent).toMatch(new RegExp(STOCK_VIEW_MODULE_L2_TITLE, 'i'));
     expect(container.textContent).toMatch(new RegExp(STOCK_VIEW_MODULE_TAPE_TITLE, 'i'));
   });
+
+  it('shows the halt ETA chip beside SHORT in the Level 2 header', async () => {
+    await act(async () => {
+      root.render(
+        wrap(
+          <StockViewDepthTape
+            selectedSymbol="RETO"
+            detail={makeDetail({
+              symbol: 'RETO',
+              halt: {
+                halted: true,
+                kind: 'luld',
+                halt_code: 2,
+                halt_start: 1_700_000_000,
+                source: 'ibkr_tick_49',
+              },
+            })}
+          />,
+        ),
+      );
+    });
+    const head = container.querySelector('.sv-md-pane__head');
+    expect(head).toBeTruthy();
+    const chip = head!.querySelector('[data-testid="halt-eta-chip"]');
+    expect(chip).toBeTruthy();
+    expect(chip!.textContent).toMatch(/LULD|HALTED|Extended|Still halted/);
+    expect(head!.querySelector('[data-testid="shortability-chip"]')).toBeTruthy();
+  });
 });
 
 describe('StockViewRail order', () => {

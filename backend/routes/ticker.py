@@ -139,6 +139,7 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
             listing = await loop.run_in_executor(
                 None, lambda: build_listing_compare(symbol, fast.get("asset") or {})
             )
+            from ibkr import halt_status
             await websocket.send_text(json.dumps({
                 "type": "detail_update",
                 "news": slow["news"],
@@ -149,6 +150,7 @@ async def ws_ticker_detail(websocket: WebSocket, symbol: str):
                 "volume_in_5min": fast.get("volume_in_5min"),
                 "news_impact": news_impact,
                 "listing": listing,
+                "halt": halt_status.snapshot(symbol),
             }))
 
         while True:

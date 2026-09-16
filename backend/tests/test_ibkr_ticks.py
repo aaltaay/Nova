@@ -125,6 +125,28 @@ def test_on_ticker_update_marks_fresh_even_when_price_unchanged():
     assert ticks.is_fresh("ABC", 8.0) is True
 
 
+def test_on_ticker_update_observes_halt_when_last_is_missing():
+    """Tick 49 can arrive with no last -- still record halt (issue #173)."""
+    from ibkr import halt_status
+
+    _reset()
+    halt_status.reset()
+    ticks._subs["RETO"] = {
+        "owners": {ticks.OWNER_DETAIL}, "last_price": None, "last_update_ts": None,
+    }
+    ticks._broadcast = None
+    ticks._quote_listeners.clear()
+
+    ticker = _FakeTicker(last=None)
+    ticker.halted = 2.0
+    ticks._on_ticker_update(ticker, "RETO")
+
+    snap = halt_status.snapshot("RETO")
+    assert snap is not None
+    assert snap["kind"] == "luld"
+    halt_status.reset()
+
+
 def test_on_ticker_update_flags_close_fallback_and_prefers_exchange_time():
     _reset()
     ticks._subs["ABC"] = {
