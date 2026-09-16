@@ -105,6 +105,54 @@ def fills_only_qty_avg_at(
     return qty, notional / qty, last_time
 
 
+_NO_STATUS_FILL = frozenset({"Inactive", "OrderRejected"})
+
+
+def honest_broker_fill_qty(
+    *,
+    ib_status: str | None,
+    exec_filled_qty: float,
+    status_filled_qty: float | None,
+    requested_qty: float | None,
+) -> tuple[float, bool]:
+    """Row-mapping fill size. Live streams still use execDetails only.
+
+    1. execDetails shares win.
+    2. ``orderStatus.filled`` is real on Filled / working / cancelled.
+    3. Warm ``reqCompletedOrders`` Filled with filled=0 uses requested size.
+    4. Inactive / OrderRejected never borrow status.filled or requested size
+       (ZTG #116071: limit copied into filled / avgFillPrice).
+    """
+    if exec_filled_qty > 0:
+        return float(exec_filled_qty), False
+    status = str(ib_status or "")
+    if status in _NO_STATUS_FILL:
+        return 0.0, False
+    tracked = _as_float(status_filled_qty) or 0.0
+    if tracked > 0:
+        return tracked, False
+    if status == "Filled":
+        qty = _as_float(requested_qty)
+        if qty is not None and qty > 0:
+            return qty, True
+    return 0.0, False
+
+
+def warm_completed_fill_qty(
+    *,
+    ib_status: str | None,
+    exec_filled_qty: float,
+    requested_qty: float | None,
+) -> float:
+    qty, _ = honest_broker_fill_qty(
+        ib_status=ib_status,
+        exec_filled_qty=exec_filled_qty,
+        status_filled_qty=0.0,
+        requested_qty=requested_qty,
+    )
+    return qty
+
+
 def _commission_from_events(events: Iterable[Mapping[str, Any]]) -> float | None:
     total = 0.0
     found = False

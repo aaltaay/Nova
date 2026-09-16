@@ -147,6 +147,35 @@ def test_trade_to_order_row_stop_and_partial_fields():
     assert row["submitted_at"].startswith("2026-07-18T14:00:00")
 
 
+def test_warm_completed_filled_without_fills_uses_total_quantity():
+    """reqCompletedOrdersAsync: status Filled, orderStatus.filled=0, no fills."""
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=1,
+            action="BUY",
+            totalQuantity=100,
+            orderType="LMT",
+            lmtPrice=10.0,
+            auxPrice=None,
+            outsideRth=False,
+        ),
+        contract=SimpleNamespace(symbol="AAA"),
+        orderStatus=SimpleNamespace(
+            status="Filled",
+            filled=0,
+            remaining=100,
+            avgFillPrice=0.0,
+        ),
+        fills=[],
+    )
+    row = _trade_to_order_row(trade)
+    assert row["status"] == "Filled"
+    assert row["filled_qty"] == 100.0
+    assert row["remaining_qty"] == 0.0
+    assert row["avg_fill_price"] is None
+    assert row["filled_at"] is None
+
+
 def test_inactive_limit_without_fills_is_not_a_fill():
     """ZTG #116071 -- limit/aux must not become Filled 1 @ $1.76."""
     trade = SimpleNamespace(

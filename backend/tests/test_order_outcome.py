@@ -12,9 +12,11 @@ from constants import (
 )
 from execution.order_outcome import (
     assert_outcome_honest,
+    honest_broker_fill_qty,
     is_soft_warning,
     latest_hard_error,
     reduce_order_events,
+    warm_completed_fill_qty,
 )
 
 _FIXTURES = Path(__file__).resolve().parent / "fixtures" / "order_outcome"
@@ -119,6 +121,34 @@ def test_ci_fails_if_reject_modal_opens_on_2109_alone():
     )
     with pytest.raises(AssertionError, match="soft warning"):
         assert_outcome_honest(lie)
+
+
+def test_warm_completed_filled_uses_requested_qty():
+    assert warm_completed_fill_qty(
+        ib_status="Filled", exec_filled_qty=0.0, requested_qty=100.0,
+    ) == 100.0
+    assert warm_completed_fill_qty(
+        ib_status="Filled", exec_filled_qty=1.0, requested_qty=100.0,
+    ) == 1.0
+    assert warm_completed_fill_qty(
+        ib_status="Inactive", exec_filled_qty=0.0, requested_qty=1.0,
+    ) == 0.0
+    qty, inferred = honest_broker_fill_qty(
+        ib_status="ApiCancelled",
+        exec_filled_qty=0.0,
+        status_filled_qty=25.0,
+        requested_qty=100.0,
+    )
+    assert qty == 25.0
+    assert inferred is False
+    qty, inferred = honest_broker_fill_qty(
+        ib_status="Inactive",
+        exec_filled_qty=0.0,
+        status_filled_qty=1.0,
+        requested_qty=1.0,
+    )
+    assert qty == 0.0
+    assert inferred is False
 
 
 def test_status_filled_without_exec_is_not_a_fill():

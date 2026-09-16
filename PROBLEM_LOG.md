@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Warm completed Filled showed 0 qty
+
+- **Symptom:** CI `test_closed_orders_infers_filled_qty_for_warm_completed_order` -- `filled_qty` was 0.0, expected 100.0. Frontend lint: `usePrereqOverlayInputs` react-hooks/exhaustive-deps on `health`.
+- **Cause:** Honesty mapping zeroed qty whenever `Trade.fills` was empty. `reqCompletedOrdersAsync` stamps status Filled but does not backfill `orderStatus.filled` or fills. Overlay hook listed field slices but called `novaApiOk(health)`.
+- **Fix:** `warm_completed_fill_qty` infers requested size only when broker status is Filled and exec qty is 0. Inactive / limit stay 0. Hook deps are the health snapshot plus `apiOk` so each failed probe increments the streak.
+- **Fix class:** admission
+- **Keywords:** filled_qty, reqCompletedOrders, warm completed, exhaustive-deps, #175, PR 183
+
 ## 2026-09-16 -- Order outcome honesty (2109 + Failed+Filled)
 
 - **Symptom:** ZTG #116071: Warning 2109 shown as "Broker rejected"; real reject was Error 201 No Opening Trades: Small Cap. Orders Today showed Failed + Filled 1 @ $1.76 (limit mistaken for a fill). SPCX #115728 also emitted 2109 then filled -- 2109 must not open the reject modal.

@@ -15,6 +15,7 @@ def _nonzero_price(value) -> float | None:
 
 def trade_to_order_row(trade) -> dict:
     """Map one cached Trade; recording evidence adds no broker request."""
+    from execution.order_outcome import honest_broker_fill_qty
     from execution.telemetry import note_reconciliation_fill
     from ibkr.order_times import extract_trade_times, resolve_submitted_at
 
@@ -73,15 +74,39 @@ def trade_to_order_row(trade) -> dict:
                 avg_fill = float(raw_avg)
             except (TypeError, ValueError):
                 avg_fill = None
+    try:
+        status_filled = float(getattr(status, "filled", 0) or 0)
+    except (TypeError, ValueError):
+        status_filled = 0.0
+    inferred, warm_completed = honest_broker_fill_qty(
+        ib_status=status.status,
+        exec_filled_qty=filled_qty,
+        status_filled_qty=status_filled,
+        requested_qty=qty,
+    )
+    if inferred > 0:
+        filled_qty = inferred
+        if warm_completed:
+            remaining_qty = 0.0
+        if avg_fill is None:
+            raw_avg = getattr(status, "avgFillPrice", None)
+            if raw_avg not in (None, 0, 0.0):
+                try:
+                    avg_fill = float(raw_avg)
+                except (TypeError, ValueError):
+                    avg_fill = None
     if filled_qty <= 0:
         remaining_qty = float(remaining) if remaining is not None else (
             float(qty) if qty else None
         )
     broker_submitted, updated_at, filled_at = extract_trade_times(trade)
-    if filled_qty <= 0 or not fills:
+    if filled_qty <= 0:
         filled_at = None
         avg_fill = None
         filled_qty = 0.0
+    elif not fills:
+        # Broker fill size is real; no execDetails clock on this session.
+        filled_at = None
     oid = trade.order.orderId
     submitted_at = resolve_submitted_at(broker_submitted, oid)
     from ibkr.order_held_until import held_until_iso_from_trade
