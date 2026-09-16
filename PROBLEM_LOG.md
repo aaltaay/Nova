@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- History date skipped Large Cap
+
+- **Symptom:** Picking a past date in the shared history control updated Gappers / Gainers / Losers / Afterhours, but Large Cap kept today's live roster (or looked like it had no history at all).
+- **Cause:** `useScannerData.fetchHistoryData` `Promise.all` requested `/api/history/gappers|movers|afterhours/{date}` only. `/api/history/large_cap/{date}` already existed in `_HISTORY_CACHE_TYPES` and dated snapshots were written, but the client never fetched them. Live polling also stops while `historyDate` is set, so Large Cap froze on the last live list.
+- **Fix:** Shared `fetchScannerHistory` loads all four cache types for the same date. Large Cap always applies (rows or `[]`). A Large Cap miss does not set the global history error or drop the other tables. Back to Live still calls `fetchData`.
+- **Fix class:** admission
+- **Keywords:** D-043, #89, large_cap, historyDate, fetchHistoryData, /api/history/large_cap
+
 ## 2026-09-16 -- Coming soon chrome looked broken
 
 - **Symptom:** Settings > Hot Keys unused tabs rendered `Coming soon`. Order Ticket showed a permanently disabled **Automate (coming soon)** button. Both looked like a broken unfinished page.

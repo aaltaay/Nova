@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Wire Large Cap into the shared history date control
+
+- **What:** The existing global history date (`historyDate` / bar picker) now also loads `/api/history/large_cap/{date}`. Clearing history still returns Large Cap to the live roster with the other tables. No second date picker.
+- **Why:** D-043 / #89. Backend already stored Large Cap snapshots; `fetchHistoryData` only requested gappers, movers, and afterhours, so Large Cap kept showing today's live rows while the rest of the desk showed the picked day.
+- **Files touched:** `frontend/src/scanner/scannerHistory.ts`, `frontend/src/hooks/useScannerData.ts`, `backend/tests/test_scan_large_cap_route.py`, Vitest history + EmptyState coverage.
+- **How it works now:** One shared date still drives every persisted scanner table. A missing Large Cap snapshot for that date becomes an honest empty table and does not fail gappers/movers/AH. Back to Live / `historyDate === null` resumes `fetchData` including `/api/large-cap`.
+- **Verified by:** Vitest 241 files / 1194 passed (`scannerHistory` + EmptyState history copy). pytest `backend/tests` 1729 passed including `test_history_snapshot_large_cap_*`. `npm run lint` / `npm run build` exit 0. `ruff check backend`, `doc_invariants.py`, `agent_contract.py --ci` pass. HTTP TestClient: `/api/history/large_cap/2026-09-15` returns the NVDA snapshot; missing date returns `{}` without failing gappers.
+- **Related:** Closes #89. PROBLEM_LOG 2026-09-16 -- History date skipped Large Cap. Parent #13 (D-036).
+
 ## 2026-09-16 -- Hide dead Hot Keys tabs and OrderTicket Automate
 
 - **What:** Settings > Hot Keys no longer shows unused General / Paper Trading / Chart tabs or `Coming soon`. The Trading tab Order Ticket no longer shows a permanently disabled Automate button. The Phase G3 keymap editor (Hotkeys Settings dialog) is unchanged.

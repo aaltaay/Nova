@@ -46,6 +46,22 @@ describe('EmptyState history', () => {
     expect(container.textContent).not.toContain('Scanning continues');
   });
 
+  it('honest-empty Large Cap uses the shared history copy, not live L1', async () => {
+    await act(() => {
+      root.render(
+        <EmptyState
+          health={{ status: 'ok', latency_ms: 1 }}
+          context="market"
+          discoveryProvider="ibkr"
+          historyDate="2026-09-15"
+          emptyLabel="large cap movers"
+        />,
+      );
+    });
+    expect(container.textContent).toContain('No saved large cap movers for 2026-09-15');
+    expect(container.textContent).not.toContain('in the feed right now');
+  });
+
   it('closed session does not treat an unavailable roster as a feed death', async () => {
     await act(() => {
       root.render(
