@@ -50,6 +50,9 @@ const COMPLETE = {
   stale_nudge: null,
   disclaimer: 'Advisory only',
   places: false as const,
+  prompt_tokens: 80000,
+  completion_tokens: 12000,
+  actual_usd: 0.31,
 };
 
 function OpenOnMount() {
@@ -121,7 +124,11 @@ describe('AdvisePanel', () => {
     });
     expect(stage).toHaveBeenCalled();
     expect(container.querySelector('[data-testid="advise-estimate-headline"]')?.textContent)
-      .toBe('~$0.50 · ~4 min');
+      .toBe('Estimate: ~$0.50 · ~4 min');
+    expect(container.querySelector('[data-testid="advise-actual"]')?.textContent)
+      .toBe('Actual: $0.31');
+    const history = container.querySelector('[data-testid="advise-history"]') as HTMLSelectElement;
+    expect(history.querySelector('option[value="7"]')?.textContent).toMatch(/complete · \$0\.31/);
   });
 
   it('shows stale nudge, fail reason, Retry, and never places', async () => {
@@ -157,6 +164,11 @@ describe('AdvisePanel', () => {
       .toMatch(/2 hours/);
     expect(container.querySelector('[data-testid="advise-fail"]')?.textContent)
       .toMatch(/401/);
+    expect(container.querySelector('[data-testid="advise-actual"]')?.textContent)
+      .toBe('Actual: $0.31');
+    const history = container.querySelector('[data-testid="advise-history"]') as HTMLSelectElement;
+    expect(history.value).toBe('7');
+    expect(history.querySelector('option[value="7"]')?.textContent).toMatch(/failed · \$0\.31/);
     const retryBtn = container.querySelector('[data-testid="advise-retry"]') as HTMLButtonElement;
     expect(retryBtn).toBeTruthy();
     await act(async () => {

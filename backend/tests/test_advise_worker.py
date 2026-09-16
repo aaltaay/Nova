@@ -24,7 +24,8 @@ def advise_iso(tmp_path, monkeypatch):
 def test_stub_engine_emits_full_set(advise_iso, monkeypatch):
     monkeypatch.setenv("ADVISE_STUB_SLEEP_SEC", "0")
     events = []
-    result = run_debate("AAPL", 2, events.append)
+    usage = {}
+    result = run_debate("AAPL", 2, events.append, usage_out=usage)
     agents = [e.get("agent") for e in events if e.get("type") == "message"]
     assert "fundamentals" in agents
     assert "news" in agents
@@ -36,6 +37,10 @@ def test_stub_engine_emits_full_set(advise_iso, monkeypatch):
     assert "risk_judge" in agents
     assert result["stance"] == "HOLD"
     assert result["ticket"] is None
+    assert usage["prompt_tokens"] > 0
+    assert usage["completion_tokens"] > 0
+    assert usage["actual_usd"] is not None
+    assert usage["actual_usd"] > 0
 
 
 @pytest.mark.asyncio
@@ -71,6 +76,10 @@ def test_stub_worker_completes_and_saves_book(advise_iso, monkeypatch):
     assert run["status"] == "complete", run.get("fail_reason")
     assert run["result"]["stance"] == "HOLD"
     assert any(ev.get("agent") == "risk_judge" for ev in run["transcript"])
+    assert run["prompt_tokens"] > 0
+    assert run["completion_tokens"] > 0
+    assert run["actual_usd"] is not None
+    assert run["actual_usd"] > 0
 
     async def _reopen():
         return await service.start_run("AAPL", 1, force_refresh=False)
@@ -126,3 +135,30 @@ async def test_failed_retry_starts_new(advise_iso, monkeypatch):
     assert retried["id"] != failed["id"]
     assert retried["symbol"] == "AMD"
     await service.cancel_run(retried["id"])
+
+
+def test_stub_fail_records_partial_usage(advise_iso, monkeypatch):
+    monkeypatch.setenv("ADVISE_STUB_SLEEP_SEC", "0")
+    monkeypatch.setenv("ADVISE_STUB_FAIL_AFTER", "3")
+    started = book.create_run(
+        symbol="SPCX",
+        model=advise_model_id(),
+        graph_version=ADVISE_GRAPH_VERSION,
+        depth=2,
+        session_date="2026-09-16",
+    )
+    assert worker_main(["--run-id", str(started["id"])]) == 1
+    run = book.get_run(started["id"])
+    assert run is not None
+    assert run["status"] == "failed"
+    assert "ADVISE_STUB_FAIL_AFTER" in (run["fail_reason"] or "")
+    assert run["transcript"]
+    assert run["prompt_tokens"] > 0
+    assert run["completion_tokens"] > 0
+    assert run["actual_usd"] is not None
+    assert run["actual_usd"] > 0
+    monkeypatch.delenv("ADVISE_STUB_FAIL_AFTER", raising=False)
+    complete_usage = {}
+    run_debate("SPCX", 2, lambda _e: None, usage_out=complete_usage)
+    assert run["prompt_tokens"] < complete_usage["prompt_tokens"]
+    assert run["actual_usd"] < complete_usage["actual_usd"]

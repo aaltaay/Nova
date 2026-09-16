@@ -123,10 +123,18 @@
 }
 
 .advise-cost__summary,
-.advise-cost__pending {
+.advise-cost__pending,
+.advise-cost__actual,
+.advise-actual {
   margin: 0.2rem 0 0;
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.advise-cost__actual,
+.advise-actual {
+  font-weight: 700;
+  color: var(--text-primary, #e8eef7);
 }
 
 .advise-estimate,

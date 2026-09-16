@@ -92,9 +92,13 @@ export function AdviseProvider({ children }: { children: ReactNode }) {
       fetchAdviseLatest(sym, rounds),
       fetchAdviseHistory(sym),
     ]);
+    const latest = latestRes.status === 'fulfilled' ? latestRes.value : null;
+    const hist = histRes.status === 'fulfilled' ? histRes.value : [];
     if (estRes.status === 'fulfilled') setEstimate(estRes.value);
-    if (latestRes.status === 'fulfilled') setRun(latestRes.value);
-    if (histRes.status === 'fulfilled') setHistory(histRes.value);
+    if (histRes.status === 'fulfilled') setHistory(hist);
+    if (latestRes.status === 'fulfilled' || histRes.status === 'fulfilled') {
+      setRun(latest ?? hist[0] ?? null);
+    }
     const parts: string[] = [];
     if (estRes.status === 'rejected') parts.push(failMessage(estRes.reason));
     if (latestRes.status === 'rejected') parts.push(failMessage(latestRes.reason));

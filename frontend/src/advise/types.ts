@@ -42,6 +42,9 @@ export interface AdviseRun {
   fail_reason: string | null;
   transcript: AdviseEvent[];
   result: AdviseResult;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  actual_usd?: number | null;
   from_book?: boolean;
   stale?: boolean;
   stale_nudge?: string | null;

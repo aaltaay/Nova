@@ -7,13 +7,14 @@ import {
   ADVISE_MODEL_LABEL,
   clampAdviseDepth,
 } from './constants';
-import { estimateMatches, formatAdviseCostHeadline } from './estimateFormat';
+import {
+  estimateMatches,
+  formatAdviseActualLine,
+  formatAdviseCostHeadline,
+  formatAdviseHistoryOption,
+  formatAdviseTime,
+} from './estimateFormat';
 import { useAdvise } from './AdviseContext';
-
-function formatWhen(ts: number | null | undefined): string {
-  if (!ts) return '';
-  return new Date(ts * 1000).toLocaleString();
-}
 
 export function AdviseControls() {
   const {
@@ -33,6 +34,7 @@ export function AdviseControls() {
   const live = run?.status === 'queued' || run?.status === 'running';
   const canSpend = isAdviseSymbol(symbol) && !busy && !live;
   const matched = estimateMatches(estimate, symbol, depth);
+  const actualLine = formatAdviseActualLine(run?.actual_usd);
 
   return (
     <div className="advise-controls">
@@ -72,7 +74,7 @@ export function AdviseControls() {
           <option value="">Select a saved time</option>
           {history.map((row) => (
             <option key={row.id} value={row.id}>
-              {formatWhen(row.created_ts)} · {row.status}
+              {formatAdviseHistoryOption(row)}
             </option>
           ))}
         </select>
@@ -86,6 +88,9 @@ export function AdviseControls() {
             <p className="advise-cost__summary" data-testid="advise-estimate-summary">
               {estimate.summary}
             </p>
+            {actualLine ? (
+              <p className="advise-cost__actual">{actualLine}</p>
+            ) : null}
           </>
         ) : isAdviseSymbol(symbol) ? (
           <p className="advise-cost__pending" data-testid="advise-estimate-pending">
@@ -124,7 +129,7 @@ export function AdviseControls() {
       </div>
       <p className="advise-hint">{ADVISE_AGENTS_HINT}</p>
       {run?.created_ts ? (
-        <p className="advise-hint">Last run {formatWhen(run.created_ts)}</p>
+        <p className="advise-hint">Last run {formatAdviseTime(run.created_ts)}</p>
       ) : null}
     </div>
   );

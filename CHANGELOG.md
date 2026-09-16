@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Advise actual spend and failed-run reopen
+
+- **What:** Advise book stores real OpenRouter usage per run (`prompt_tokens`, `completion_tokens`, `actual_usd`). Fail/complete cards and Past runs show `Actual: $X.XX` (partial on fail). Opening a symbol auto-loads its newest row, including failed/cancelled, with transcript + Retry. Pre-run cost stays labeled **Estimate**.
+- **Why:** Owner opened Advise on RETO (empty, per-symbol history is correct) while SPCX's only row was `failed`. Latest preferred today's complete cache, so a newer fail could hide. The $10 OpenRouter **limit** was mistaken for the bill; the run died HTTP 402 after ~$0.34 and the book stored no spend.
+- **Files touched:** `backend/advise/book.py`, `usage.py`, `llm.py`, `engine.py`, `worker_main.py`, `service.py`, `frontend/src/advise/*`, `docs/advise-rail.md`.
+- **How it works now:** Schema v2 migrates v1 books. Each LLM call records usage (`usage.include` cost, else `x-openrouter-cost`, else Sonnet rate). Stub path writes the same per-call tokens as the estimate so CI needs no key. `/advise/latest` is newest-any-status for that symbol. Run still reuses only a complete same-day cache.
+- **Verified by:** `python3 -m pytest tests/test_advise_*.py -q` -- 41 passed. `npm test -- --run src/advise src/components/TabNav.test.tsx src/ibkr/orderTicketPrefill.test.ts` -- 27 passed. ruff/eslint clean. `npm run build` tsc + vite exit 0.
+- **Follow-ups:** Multi-model picker stays #147. Owner Desktop smoke still required before merge (`do-not-merge`).
+- **Related:** Refs #146. PR #148. PROBLEM_LOG 2026-09-16 -- Advise failed-run spend.
+
 ## 2026-09-15 -- Advise rail (TradingAgents advisory panel)
 
 - **What:** Manual Advise icon at the bottom of the scanner left rail. Run a full TradingAgents-style debate (fundamentals, news, sentiment, technical, bull/bear, trader, risk) via OpenRouter Claude Sonnet latest. SQLite book, live transcript, depth default 2, ticket prefill + chart jump. Never sends orders. Pre-run cost is a loud `~$0.19 · ~4 min` line before Run; it loads on open and after typed symbol/depth (300ms debounce), even if the book endpoints fail.

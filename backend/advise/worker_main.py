@@ -13,10 +13,22 @@ import traceback
 
 from dotenv import load_dotenv
 
-from advise.book import append_event, get_run, set_result, update_status
+from advise.book import append_event, get_run, set_result, set_usage, update_status
 from advise.engine import run_debate
 from advise.events import encode_event, make_event
+from advise.usage import empty_usage, should_persist
 from paths import env_file_path
+
+
+def _persist_usage(run_id: int, usage: dict) -> None:
+    if not should_persist(usage):
+        return
+    set_usage(
+        run_id,
+        prompt_tokens=int(usage.get("prompt_tokens") or 0),
+        completion_tokens=int(usage.get("completion_tokens") or 0),
+        actual_usd=usage.get("actual_usd"),
+    )
 
 
 def _emit_stdout(event: dict) -> None:
@@ -46,13 +58,16 @@ def main(argv: list[str] | None = None) -> int:
         append_event(run["id"], event)
         _emit_stdout(event)
 
+    usage = empty_usage()
     try:
-        result = run_debate(symbol, depth, emit)
+        result = run_debate(symbol, depth, emit, usage_out=usage)
         set_result(run["id"], result)
+        _persist_usage(run["id"], usage)
         update_status(run["id"], "complete", finished=True)
         _emit_stdout(make_event("done", status="complete"))
         return 0
     except KeyboardInterrupt:
+        _persist_usage(run["id"], usage)
         update_status(run["id"], "cancelled", fail_reason="cancelled", finished=True)
         _emit_stdout(make_event("error", message="cancelled"))
         return 130
@@ -63,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
             append_event(run["id"], event)
         except Exception:
             pass
+        _persist_usage(run["id"], usage)
         update_status(run["id"], "failed", fail_reason=reason, finished=True)
         _emit_stdout(event)
         traceback.print_exc(file=sys.stderr)

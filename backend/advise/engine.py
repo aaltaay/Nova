@@ -13,6 +13,7 @@ from typing import Any
 from advise.events import make_event
 from advise import llm
 from advise.market_data import gather, render_brief
+from advise.usage import add_usage, empty_usage, stub_call_usage
 from advise.prompts import (
     analyst_system,
     bear_system,
@@ -37,10 +38,11 @@ def _stub_enabled() -> bool:
     return (os.environ.get("ADVISE_STUB") or "").strip().lower() in ("1", "true", "yes")
 
 
-def _chat(system: str, user: str, stub_text: str) -> str:
+def _chat(system: str, user: str, stub_text: str) -> tuple[str, dict[str, Any]]:
     if _stub_enabled():
-        return stub_text
-    return llm.chat(system, user)
+        return stub_text, stub_call_usage()
+    result = llm.chat(system, user)
+    return result.content, result.usage
 
 
 def _emit_message(emit: Emit, agent: str, content: str) -> None:
@@ -51,9 +53,13 @@ def run_debate(
     symbol: str,
     depth: int,
     emit: Emit,
+    usage_out: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     symbol = symbol.strip().upper()
     rounds = _clamp_depth(depth)
+    acc = usage_out if usage_out is not None else empty_usage()
+    calls = 0
+    fail_after = int(os.environ.get("ADVISE_STUB_FAIL_AFTER") or "0")
     emit(make_event("status", message=f"Gathering Yahoo snapshot for {symbol}"))
     if _stub_enabled():
         snapshot = {
@@ -74,12 +80,17 @@ def run_debate(
     prior_parts: list[str] = []
 
     def ask(agent: str, system: str, stub: str) -> str:
+        nonlocal calls
+        calls += 1
+        if _stub_enabled() and fail_after > 0 and calls > fail_after:
+            raise RuntimeError("ADVISE_STUB_FAIL_AFTER")
         emit(make_event("status", message=f"{agent} speaking"))
         delay = float(os.environ.get("ADVISE_STUB_SLEEP_SEC") or "0")
         if _stub_enabled() and delay > 0:
             time.sleep(delay)
         user = user_block(symbol, brief, "\n\n".join(prior_parts[-8:]))
-        text = _chat(system, user, stub)
+        text, piece = _chat(system, user, stub)
+        add_usage(acc, piece)
         prior_parts.append(f"{agent}: {text}")
         _emit_message(emit, agent, text)
         return text

@@ -34,7 +34,13 @@ Optional vendor keys (Yahoo still runs without them):
 - **Run** starts a subprocess worker (not the IBKR loop).
 - Same symbol + session date + model + graph version + depth = book hit unless **Force refresh**.
 - **Cancel** kills the worker process.
-- Failed runs keep the partial transcript and show why + **Retry**.
+- Failed / cancelled / complete rows stay in the per-symbol book. Opening Advise
+  on that symbol auto-loads the newest row (partial transcript, fail reason,
+  Retry). Past runs lists every status, including failed.
+- Pre-run cost is an **estimate**. After a run the book stores actual OpenRouter
+  usage (`prompt_tokens`, `completion_tokens`, `actual_usd` from the response
+  cost / `x-openrouter-cost` header, else Sonnet rate fallback). Partial spend
+  is kept on fail. Key credit **limit** is not the bill.
 - Max 3 workers; one active debate per symbol; extras queue.
 
 ## Manual smoke (owner Desktop / Vite)
@@ -42,9 +48,11 @@ Optional vendor keys (Yahoo still runs without them):
 1. Set `OPENROUTER_API_KEY` in `.env` and restart the API sidecar / uvicorn.
 2. Vite: `cd frontend && npm run dev` -- or open Nova Desktop.
 3. Click **Advise** at the bottom of the left rail.
-4. Confirm the symbol prefills from the desk and the loud cost line (`~$0.19 · ~4 min`)
-   shows before Run -- no blur required. Typing a new symbol refreshes cost after ~300ms.
-5. Run -- transcript streams; card shows stance / reasons / risks.
+4. Confirm the symbol prefills from the desk and the loud **Estimate:** line
+   (`Estimate: ~$0.19 · ~4 min`) shows before Run -- no blur required. Typing a
+   new symbol refreshes cost after ~300ms.
+5. Run -- transcript streams; card shows stance / reasons / risks and
+   **Actual: $X.XX** when usage was stored. A failed symbol reopens that row.
 6. Reopen the same symbol the same session -- no second spend.
 7. **Open order ticket** prefills only; Place stays human. **Jump to chart** opens Trader.
 8. Start a run and **Cancel** -- worker dies; partial + reason remain.

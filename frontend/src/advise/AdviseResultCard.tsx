@@ -1,5 +1,6 @@
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import { ADVISE_DISCLAIMER, ADVISE_STALE_NUDGE } from './constants';
+import { formatAdviseActualLine } from './estimateFormat';
 import { useAdvise } from './AdviseContext';
 import { stageAdviseTicket } from './ticketFromStance';
 
@@ -12,6 +13,7 @@ export function AdviseResultCard() {
   const complete = run.status === 'complete';
   const result = run.result;
   const ticket = result?.ticket;
+  const actualLine = formatAdviseActualLine(run.actual_usd);
 
   return (
     <section className="advise-card" data-testid="advise-card">
@@ -26,6 +28,9 @@ export function AdviseResultCard() {
         <p className="advise-fail" data-testid="advise-fail">
           {run.fail_reason || run.status}
         </p>
+      ) : null}
+      {actualLine ? (
+        <p className="advise-actual" data-testid="advise-actual">{actualLine}</p>
       ) : null}
       {complete || result?.reasons?.length ? (
         <>

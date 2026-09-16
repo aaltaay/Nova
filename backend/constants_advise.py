@@ -8,7 +8,7 @@ import os
 
 # Persist
 ADVISE_DB_FILENAME = "advise_book.db"
-ADVISE_SCHEMA_VERSION = 1
+ADVISE_SCHEMA_VERSION = 2
 ADVISE_GRAPH_VERSION = 1
 
 # Product LLM -- OpenRouter alias that tracks latest Claude Sonnet.

@@ -95,7 +95,7 @@ describe('Advise estimate and spend gates', () => {
   it('shows the loud cost line after open with desk prefill', async () => {
     await renderOpen();
     const headline = container.querySelector('[data-testid="advise-estimate-headline"]');
-    expect(headline?.textContent).toBe('~$0.20 · ~4 min');
+    expect(headline?.textContent).toBe('Estimate: ~$0.20 · ~4 min');
     expect(container.querySelector('[data-testid="advise-estimate-summary"]')?.textContent)
       .toMatch(/2 debate/);
     expect(api.fetchAdviseEstimate).toHaveBeenCalledWith('AAPL', 2);
@@ -117,7 +117,7 @@ describe('Advise estimate and spend gates', () => {
     });
     expect(api.fetchAdviseEstimate).toHaveBeenCalledWith('MSFT', 2);
     expect(container.querySelector('[data-testid="advise-estimate-headline"]')?.textContent)
-      .toBe('~$0.20 · ~4 min');
+      .toBe('Estimate: ~$0.20 · ~4 min');
   });
 
   it('still shows estimate when latest and history fail', async () => {
@@ -125,9 +125,45 @@ describe('Advise estimate and spend gates', () => {
     vi.spyOn(api, 'fetchAdviseHistory').mockRejectedValue(new Error('history down'));
     await renderOpen();
     expect(container.querySelector('[data-testid="advise-estimate-headline"]')?.textContent)
-      .toBe('~$0.20 · ~4 min');
+      .toBe('Estimate: ~$0.20 · ~4 min');
     expect(container.querySelector('[data-testid="advise-error"]')?.textContent)
       .toMatch(/book down/);
+  });
+
+  it('auto-loads a failed history row when latest is empty', async () => {
+    const failed = {
+      id: 44,
+      symbol: 'SPCX',
+      session_date: '2026-09-16',
+      created_ts: 1_721_000_000,
+      finished_ts: 1_721_000_240,
+      model: 'sonnet',
+      graph_version: 1,
+      depth: 2,
+      status: 'failed' as const,
+      fail_reason: 'OpenRouter HTTP 402',
+      transcript: [{ type: 'message', agent: 'risk_neutral', content: 'partial' }],
+      result: { stance: null, reasons: [], risks: [], ticket: null },
+      disclaimer: 'Advisory only',
+      places: false as const,
+      prompt_tokens: 1000,
+      completion_tokens: 200,
+      actual_usd: 0.31,
+    };
+    workspace.selectedSymbol = 'SPCX';
+    vi.spyOn(api, 'fetchAdviseLatest').mockResolvedValue(null);
+    vi.spyOn(api, 'fetchAdviseHistory').mockResolvedValue([failed]);
+    vi.spyOn(api, 'fetchAdviseEstimate').mockResolvedValue(estimateFor('SPCX', 2));
+    await renderOpen();
+    expect(container.querySelector('[data-testid="advise-fail"]')?.textContent)
+      .toMatch(/402/);
+    expect(container.textContent).toMatch(/partial/);
+    expect(container.querySelector('[data-testid="advise-retry"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="advise-actual"]')?.textContent)
+      .toBe('Actual: $0.31');
+    const history = container.querySelector('[data-testid="advise-history"]') as HTMLSelectElement;
+    expect(history.value).toBe('44');
+    expect(history.querySelector('option[value="44"]')?.textContent).toMatch(/failed · \$0\.31/);
   });
 
   it('keeps Run disabled and skips spend when the symbol is empty', async () => {
@@ -155,6 +191,6 @@ describe('Advise estimate and spend gates', () => {
     });
     expect(api.fetchAdviseEstimate).toHaveBeenCalledWith('AAPL', 5);
     expect(container.querySelector('[data-testid="advise-estimate-headline"]')?.textContent)
-      .toBe('~$0.50 · ~10 min');
+      .toBe('Estimate: ~$0.50 · ~10 min');
   });
 });

@@ -40,6 +40,34 @@ def test_latest_empty(advise_iso):
     assert res.json()["run"] is None
 
 
+def test_latest_and_history_include_failed(advise_iso, monkeypatch):
+    monkeypatch.setattr(service, "session_key_et", lambda: "2026-09-16")
+    run = book.create_run(
+        symbol="SPCX",
+        model=advise_model_id(),
+        graph_version=ADVISE_GRAPH_VERSION,
+        depth=2,
+        session_date="2026-09-16",
+    )
+    book.append_event(run["id"], {"type": "message", "agent": "news", "content": "half"})
+    book.update_status(run["id"], "failed", fail_reason="OpenRouter HTTP 402", finished=True)
+    book.set_usage(run["id"], prompt_tokens=1000, completion_tokens=200, actual_usd=0.31)
+    latest = client.get("/api/advise/latest", params={"symbol": "SPCX", "depth": 2})
+    assert latest.status_code == 200
+    body = latest.json()["run"]
+    assert body["id"] == run["id"]
+    assert body["status"] == "failed"
+    assert body["fail_reason"] == "OpenRouter HTTP 402"
+    assert body["actual_usd"] == 0.31
+    assert body["transcript"][0]["content"] == "half"
+    hist = client.get("/api/advise/history", params={"symbol": "SPCX"})
+    assert hist.json()["count"] == 1
+    assert hist.json()["runs"][0]["status"] == "failed"
+    assert hist.json()["runs"][0]["actual_usd"] == 0.31
+    empty = client.get("/api/advise/latest", params={"symbol": "RETO", "depth": 2})
+    assert empty.json()["run"] is None
+
+
 def test_latest_and_history(advise_iso, monkeypatch):
     monkeypatch.setattr(service, "session_key_et", lambda: "2026-09-15")
     run = book.create_run(

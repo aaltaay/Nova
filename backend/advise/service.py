@@ -53,18 +53,9 @@ def _decorate(run: dict[str, Any], *, from_book: bool = False) -> dict[str, Any]
 
 def latest(symbol: str, depth: int | None = None) -> dict[str, Any] | None:
     sym = normalize_symbol(symbol)
-    rounds = clamp_depth(depth)
-    cached = book.find_complete_cached(
-        symbol=sym,
-        session_date=session_key_et(),
-        model=advise_model_id(),
-        graph_version=ADVISE_GRAPH_VERSION,
-        depth=rounds,
-    )
-    if cached:
-        return _decorate(cached, from_book=True)
-    history = book.list_history(sym, limit=1)
-    return _decorate(history[0], from_book=True) if history else None
+    clamp_depth(depth)
+    row = book.find_latest(sym)
+    return _decorate(row, from_book=True) if row else None
 
 
 def history(symbol: str) -> list[dict[str, Any]]:

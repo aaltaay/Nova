@@ -37,7 +37,10 @@ CREATE TABLE IF NOT EXISTS advise_runs (
     fail_reason TEXT,
     transcript_json TEXT NOT NULL DEFAULT '[]',
     result_json TEXT,
-    cache_key TEXT NOT NULL
+    cache_key TEXT NOT NULL,
+    prompt_tokens INTEGER NOT NULL DEFAULT 0,
+    completion_tokens INTEGER NOT NULL DEFAULT 0,
+    actual_usd REAL
 );
 
 CREATE INDEX IF NOT EXISTS idx_advise_runs_cache
@@ -62,6 +65,24 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def _table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
+    return {str(row[1]) for row in conn.execute(f"PRAGMA table_info({table})")}
+
+
+def _migrate_usage_columns(conn: sqlite3.Connection) -> None:
+    cols = _table_columns(conn, "advise_runs")
+    if "prompt_tokens" not in cols:
+        conn.execute(
+            "ALTER TABLE advise_runs ADD COLUMN prompt_tokens INTEGER NOT NULL DEFAULT 0"
+        )
+    if "completion_tokens" not in cols:
+        conn.execute(
+            "ALTER TABLE advise_runs ADD COLUMN completion_tokens INTEGER NOT NULL DEFAULT 0"
+        )
+    if "actual_usd" not in cols:
+        conn.execute("ALTER TABLE advise_runs ADD COLUMN actual_usd REAL")
+
+
 def init_db() -> None:
     conn = get_connection()
     try:
@@ -70,13 +91,26 @@ def init_db() -> None:
             "SELECT value FROM advise_meta WHERE key = 'schema_version'"
         ).fetchone()
         if row is None:
+            _migrate_usage_columns(conn)
             conn.execute(
                 "INSERT INTO advise_meta(key, value) VALUES ('schema_version', ?)",
                 (str(ADVISE_SCHEMA_VERSION),),
             )
         else:
             stored = int(row["value"])
-            if stored != ADVISE_SCHEMA_VERSION:
+            if stored == ADVISE_SCHEMA_VERSION:
+                _migrate_usage_columns(conn)
+            elif stored == 1:
+                _migrate_usage_columns(conn)
+                conn.execute(
+                    "UPDATE advise_runs SET schema_version = ?",
+                    (ADVISE_SCHEMA_VERSION,),
+                )
+                conn.execute(
+                    "UPDATE advise_meta SET value = ? WHERE key = 'schema_version'",
+                    (str(ADVISE_SCHEMA_VERSION),),
+                )
+            else:
                 raise AdviseBookError(
                     f"advise_book schema_version {stored} unsupported "
                     f"(expected {ADVISE_SCHEMA_VERSION})"
@@ -84,6 +118,15 @@ def init_db() -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def _opt_float(raw: Any) -> float | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_json(raw: str | None, fallback: Any) -> Any:
@@ -119,6 +162,9 @@ def row_to_run(row: sqlite3.Row | dict) -> dict[str, Any]:
         "transcript": transcript if isinstance(transcript, list) else [],
         "result": result if isinstance(result, dict) else empty_result(),
         "cache_key": data["cache_key"],
+        "prompt_tokens": int(data.get("prompt_tokens") or 0),
+        "completion_tokens": int(data.get("completion_tokens") or 0),
+        "actual_usd": _opt_float(data.get("actual_usd")),
     }
 
 
@@ -181,6 +227,11 @@ def list_history(symbol: str, limit: int = 50) -> list[dict[str, Any]]:
         return [row_to_run(row) for row in rows]
     finally:
         conn.close()
+
+
+def find_latest(symbol: str) -> dict[str, Any] | None:
+    rows = list_history(symbol, limit=1)
+    return rows[0] if rows else None
 
 
 def find_complete_cached(
@@ -264,6 +315,30 @@ def append_event(run_id: int, event: dict[str, Any]) -> list[dict[str, Any]]:
         )
         conn.commit()
         return transcript
+    finally:
+        conn.close()
+
+
+def set_usage(
+    run_id: int,
+    *,
+    prompt_tokens: int,
+    completion_tokens: int,
+    actual_usd: float | None,
+) -> None:
+    init_db()
+    usd = None if actual_usd is None else round(float(actual_usd), 4)
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            UPDATE advise_runs
+            SET prompt_tokens = ?, completion_tokens = ?, actual_usd = ?
+            WHERE id = ?
+            """,
+            (int(prompt_tokens), int(completion_tokens), usd, run_id),
+        )
+        conn.commit()
     finally:
         conn.close()
 

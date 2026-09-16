@@ -39,6 +39,61 @@ def test_invalid_symbol_refuses_spend_path(advise_iso):
         service.latest("", 2)
 
 
+def test_latest_returns_failed_over_older_complete(advise_iso, monkeypatch):
+    monkeypatch.setattr(service, "session_key_et", lambda: "2026-09-16")
+    complete = book.create_run(
+        symbol="SPCX",
+        model=advise_model_id(),
+        graph_version=ADVISE_GRAPH_VERSION,
+        depth=2,
+        session_date="2026-09-16",
+    )
+    book.update_status(complete["id"], "complete", finished=True)
+    failed = book.create_run(
+        symbol="SPCX",
+        model=advise_model_id(),
+        graph_version=ADVISE_GRAPH_VERSION,
+        depth=2,
+        session_date="2026-09-16",
+    )
+    book.append_event(failed["id"], {"type": "message", "agent": "risk_neutral", "content": "partial"})
+    book.update_status(
+        failed["id"],
+        "failed",
+        fail_reason="OpenRouter HTTP 402: in_flight_budget_exhausted",
+        finished=True,
+    )
+    book.set_usage(failed["id"], prompt_tokens=80000, completion_tokens=12000, actual_usd=0.31)
+    opened = service.latest("spcx", 2)
+    assert opened is not None
+    assert opened["id"] == failed["id"]
+    assert opened["status"] == "failed"
+    assert "402" in (opened["fail_reason"] or "")
+    assert opened["transcript"][0]["agent"] == "risk_neutral"
+    assert opened["actual_usd"] == 0.31
+    hist = service.history("SPCX")
+    assert [row["status"] for row in hist] == ["failed", "complete"]
+    assert hist[0]["actual_usd"] == 0.31
+
+
+def test_latest_failed_only_symbol(advise_iso, monkeypatch):
+    monkeypatch.setattr(service, "session_key_et", lambda: "2026-09-16")
+    run = book.create_run(
+        symbol="SPCX",
+        model=advise_model_id(),
+        graph_version=ADVISE_GRAPH_VERSION,
+        depth=2,
+        session_date="2026-09-16",
+    )
+    book.update_status(run["id"], "failed", fail_reason="boom", finished=True)
+    opened = service.latest("SPCX", 2)
+    assert opened is not None
+    assert opened["id"] == run["id"]
+    assert opened["status"] == "failed"
+    assert service.latest("RETO", 2) is None
+    assert service.history("RETO") == []
+
+
 def test_reopen_complete_is_free(advise_iso, monkeypatch):
     monkeypatch.setattr(service, "session_key_et", lambda: "2026-09-15")
     run = book.create_run(
