@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import {
-  NEWS_FLAME_HOT_HOURS,
-  NEWS_FLAME_MAX_HOURS,
-  NEWS_FLAME_WARM_HOURS,
   NEWS_SECTION_DEFAULT_EXPANDED,
   NEWS_SECTION_TITLE,
 } from '../constants';
 import { NewsImpactPanel } from './NewsImpactPanel';
 import type { NewsImpactVerdict } from '../types/newsImpact';
+import { filterSignalNews, isJunkHeadline, newsChipFlameClass } from '../utils/newsJunk';
 
 export interface NewsArticleRow {
   headline: string;
@@ -33,7 +31,9 @@ function previewHeadline(
   news: NewsArticleRow[],
 ): string {
   const fromImpact = impact?.headline?.trim();
-  if (fromImpact) return fromImpact;
+  if (fromImpact && !isJunkHeadline(fromImpact, impact?.headline_url ?? '')) {
+    return fromImpact;
+  }
   return news[0]?.headline?.trim() ?? '';
 }
 
@@ -50,10 +50,11 @@ export function NewsHeadlineSection({
 }: Props) {
   const impact = includeImpact ? newsImpact : null;
   const [expanded, setExpanded] = useState(NEWS_SECTION_DEFAULT_EXPANDED);
-  if (!news.length && !impact) return null;
+  const visibleNews = filterSignalNews(news);
+  if (!visibleNews.length && !impact) return null;
 
-  const headline = previewHeadline(impact ?? null, news);
-  const count = news.length;
+  const headline = previewHeadline(impact ?? null, visibleNews);
+  const count = visibleNews.length;
 
   return (
     <div
@@ -85,18 +86,10 @@ export function NewsHeadlineSection({
       {expanded && (
         <div className="cq-news-body" id="cq-news-body">
           {impact && <NewsImpactPanel verdict={impact} />}
-          {news.length > 0 && (
+          {visibleNews.length > 0 && (
             <div className="cq-news-list">
-              {news.map((article, i) => {
-                const ageHours =
-                  (Date.now() - new Date(article.created_at).getTime()) / 3_600_000;
-                const hasFlame = ageHours <= NEWS_FLAME_MAX_HOURS;
-                const flameClass =
-                  ageHours <= NEWS_FLAME_HOT_HOURS
-                    ? 'flame-hot'
-                    : ageHours <= NEWS_FLAME_WARM_HOURS
-                      ? 'flame-warm'
-                      : 'flame-cool';
+              {visibleNews.map((article, i) => {
+                const flameClass = newsChipFlameClass(article);
                 return (
                   <a
                     key={i}
@@ -108,7 +101,7 @@ export function NewsHeadlineSection({
                   >
                     <span className="cq-news-chip-headline">{article.headline}</span>
                     <span className="cq-news-chip-meta">
-                      {hasFlame && <span className={`cq-news-chip-flame ${flameClass}`} />}
+                      {flameClass && <span className={`cq-news-chip-flame ${flameClass}`} />}
                       {article.source && (
                         <span className="cq-news-source">{article.source}</span>
                       )}

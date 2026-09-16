@@ -42,6 +42,7 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 
 ### Completed
 
+- [x] 2026-09-16 -- Junk movers/listicle filter (`news.junk`) so listicles do not flame or drive impact (#155).
 - [x] 2026-07-18 — Agent scaffolded via `tools/create_nova_agent.py`.
 
 ---
@@ -51,6 +52,13 @@ Open improvements. Newest first. Mark `[x]` when done and move a one-line note t
 Newest first. Keep entries short.
 
 <!-- RUN_LOG_START -->
+
+### 2026-09-16 -- Junk listicle filter
+
+- **Scope:** News column + flame + news_impact (#155).
+- **Result:** `news.junk` excludes movers listicles at ingest, impact, and News strip. Company-specific headlines still flame.
+- **Learning:** Scanner NEWS flame is timestamp-only (`newest_headline_at`); junk must be dropped in `_check_news`, not only in the UI chip.
+- **Files updated:** `backend/news/junk.py`, ingest + impact call sites, `frontend/src/utils/newsJunk.ts`.
 
 ### 2026-07-18 — Agent install
 

@@ -102,13 +102,14 @@ def _check_news(symbols: list[str], headers: dict) -> dict[str, str]:
         )
         if resp.status_code != 200:
             return {}
-        out: dict[str, str] = {}
-        for article in resp.json().get("news", []):
-            created_at = article.get("created_at", "")
-            for s in article.get("symbols", []):
-                if s not in out or created_at > out[s]:
-                    out[s] = created_at
-        return out
+        from news.junk import newest_signal_by_symbol
+
+        mapped = newest_signal_by_symbol(resp.json().get("news", []))
+        return {
+            sym: payload["created_at"]
+            for sym, payload in mapped.items()
+            if payload.get("created_at")
+        }
     except Exception:
         logger.warning("_check_news failed for %s", symbols[:10], exc_info=True)
         return {}

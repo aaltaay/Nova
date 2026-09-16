@@ -171,6 +171,8 @@ def fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
             timeout=TICKER_HTTP_TIMEOUT_SEC,
         )
         if r.status_code == 200:
+            from news.junk import filter_signal_articles
+
             for article in r.json().get("news", []):
                 news.append({
                     "headline": article.get("headline", ""),
@@ -182,6 +184,7 @@ def fetch_ticker_news(symbol: str, headers: dict) -> list[dict]:
                     "symbols": article.get("symbols", []),
                     "images": article.get("images", []),
                 })
+            news = filter_signal_articles(news)
     except Exception:
         logger.warning("fetch_ticker_news failed for %s", symbol, exc_info=True)
     return news
