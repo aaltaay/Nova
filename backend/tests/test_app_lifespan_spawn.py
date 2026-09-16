@@ -17,3 +17,8 @@ def test_executor_fill_poll_loop_name() -> None:
     text = src.read_text(encoding="utf-8")
     assert "_executor.fill_poll_loop" in text
     assert "_executor.fills_poll_loop" not in text
+    assert "nasdaq_halt_rss" in text
+    assert hasattr(
+        __import__("ibkr.nasdaq_halt_feed", fromlist=["poll_loop"]),
+        "poll_loop",
+    )

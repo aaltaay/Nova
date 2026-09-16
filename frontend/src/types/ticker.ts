@@ -145,6 +145,17 @@ export interface TickerTradeUpdate {
   prev_close?: number | null;
 }
 
+/** Nasdaq Trade Halt RSS overlay -- missing fields stay null, never invented. */
+export interface HaltExchangeOverlay {
+  status: 'ok' | 'pending' | 'down' | string;
+  matched: boolean;
+  reason_code?: string | null;
+  pause_threshold?: string | null;
+  official_halt_start?: number | null;
+  quote_resume?: number | null;
+  trade_resume?: number | null;
+}
+
 /** IBKR ticker.halted snapshot for the L2 HaltEtaChip (incoming tick type 49). */
 export interface HaltSnapshot {
   halted: boolean;
@@ -152,9 +163,11 @@ export interface HaltSnapshot {
   halt_code?: number | null;
   halt_start?: number | null;
   halt_start_source?: string | null;
+  start_late?: boolean;
   reason?: string | null;
   rule?: string | null;
   source?: string | null;
+  exchange?: HaltExchangeOverlay | null;
 }
 
 export interface TickerDetail {

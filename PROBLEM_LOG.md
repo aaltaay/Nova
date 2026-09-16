@@ -37,6 +37,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Nasdaq RSS last-write-wins stale overlay
+
+- **Symptom:** After the BOM fix, `/api/halts/desk` was `ok` but live DLXY LULD (`ticker.halted=2`) showed `exchange.matched=true` with a morning `trade_resume` while the current Nasdaq row was still open (`trade_resume` empty, age under 2m).
+- **Cause:** `refresh` did `_rows[symbol] = row` in feed order. Nasdaq listed the open DLXY first and an older resumed LUDP last, so last-write-wins kept the stale schedule. `halt_chip_view` then treated that old `official_halt_start` as this halt's clock.
+- **Fix:** `better_overlay_row` prefers open over resumed, else newest official start. `sanitize_exchange_for_live_halt` will not attach a past `trade_resume` or restore a late-start countdown from a resumed-only row.
+- **Fix class:** admission
+- **Keywords:** DLXY, Nasdaq RSS, last-write-wins, trade_resume, official_halt_start, start_late, overlay, #191
+
+## 2026-09-16 -- Nasdaq Trade Halt RSS UTF-8 BOM
+
+- **Symptom:** Live `GET /api/halts/desk` returned `feed.status=down` with `xml: not well-formed (invalid token): line 1, column 1`. QCLS chip had IBKR `halted=true` / `kind=luld` but `exchange.status=down`.
+- **Cause:** Nasdaq RSS body starts with UTF-8 BOM `EF BB BF` then `<?xml`. `_default_fetch` used `requests.Response.text`; with no charset that is ISO-8859-1, so parse saw `ï»¿<?xml`. `fromstring` failed at column 1.
+- **Fix:** `prepare_rss_xml` strips BOM (bytes via `utf-8-sig`, text via U+FEFF or the latin-1 mojibake) and leading whitespace. Fetch decodes `response.content`. Recorded BOM fixture in tests.
+- **Fix class:** admission
+- **Keywords:** Nasdaq RSS, UTF-8 BOM, EF BB BF, not well-formed, /api/halts/desk, QCLS, requests.text, latin-1, #191
+
+## 2026-09-16 -- Desktop pack MwcbBanner Windows case collision
+
+- **Symptom:** Desktop pack on PR #191 failed at `npm run electron:pack` / `tsc -b` on `windows-latest`: `Module "./MwcbBanner" has no exported member 'MwcbBanner'` and `Already included file name .../MwcbBanner.ts differs from .../mwcbBanner.ts only in casing`. Linux Frontend build / Vitest stayed green.
+- **Cause:** This PR added `MwcbBanner.tsx` next to `mwcbBanner.ts` (and matching `*.test.*` files). Windows is case-insensitive, so TypeScript treated them as one file. Linux CI could not see the collision. Same class as 2026-07-29 ScannerBarBridge.
+- **Fix:** Rename the label helper to `mwcbDesk.ts` / `mwcbDesk.test.ts`. Linux contract test `test_frontend_src_has_no_windows_case_collisions` walks `frontend/src`.
+- **Fix class:** infra
+- **Keywords:** Desktop pack, windows-latest, TS1261, TS2305, MwcbBanner, mwcbBanner, case-insensitive, electron:pack, #191
+
 ## 2026-09-16 -- Warning 321 generic tick 49
 
 - **Symptom:** After PR #174, live ZTG L1 upgrade requested `233,49` / `233,49,236`. IBKR Warning 321: Incorrect generic tick list. Tick 49 is not in the legal STK list IB printed (100, 101, 105, 106, 165, 221/220, 225, 232/221, 233, 236, 258/47, 292, 375, 411, 456/59, ...).

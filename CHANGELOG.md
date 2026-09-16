@@ -30,6 +30,42 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Nasdaq RSS keep-best overlay per symbol
+
+- **What:** When RSS lists a symbol more than once, overlay keeps the open row (`trade_resume` empty) over a later resumed row, else the newest `official_halt_start`. A late start plus only a stale resumed row no longer restores a confident LULD countdown.
+- **Why:** Live DLXY: feed.status was ok but `/api/ticker/DLXY` attached a morning resumed LUDP (`trade_resume` set) after last-write-wins overwrote the current open row.
+- **Files touched:** `backend/ibkr/nasdaq_halt_rss.py`, `nasdaq_halt_feed.py`, `halt_status.py`, `backend/tests/fixtures/nasdaq_trade_halts_dlxy_dup.xml`.
+- **How it works now:** `better_overlay_row` picks one row per symbol. `sanitize_exchange_for_live_halt` drops official/resume times when `start_late` and the row already has `trade_resume`, or when that resume is already in the past. Open-row official start can still restore countdown. Poll / no-HTML / no invented resumes unchanged.
+- **Verified by:** pytest nasdaq_halt_feed DLXY dup, halt_status late-stale + on-time future resume, nasdaq_halt_rss better_overlay_row.
+- **Related:** PR #191 / #190. PROBLEM_LOG 2026-09-16 Nasdaq RSS last-write-wins.
+
+## 2026-09-16 -- Nasdaq Trade Halt RSS UTF-8 BOM parse
+
+- **What:** RSS fetch/parse strips a UTF-8 BOM and leading whitespace before XML parse. Live `requests.text` latin-1 of `EF BB BF` no longer marks `/api/halts/desk` down.
+- **Why:** Ahmed live smoke: desk feed `xml: not well-formed (invalid token): line 1, column 1`. Wire body is BOM then `<?xml`. QCLS stayed `exchange.status=down` while IBKR `halted=true`.
+- **Files touched:** `backend/ibkr/nasdaq_halt_rss.py`, `nasdaq_halt_feed.py`, `backend/tests/fixtures/nasdaq_trade_halts_bom.xml`.
+- **How it works now:** `prepare_rss_xml` decodes bytes as `utf-8-sig` and drops a text BOM or the latin-1 mojibake of that BOM, then lstrip. `_default_fetch` uses `response.content`, not `.text`. Poll is still 60s. HTML is still not scraped. Resume times are still never invented.
+- **Verified by:** pytest nasdaq_halt_rss / nasdaq_halt_feed including BOM fixture + latin-1 mojibake + leading whitespace.
+- **Related:** PR #191 / #190. PROBLEM_LOG 2026-09-16 Nasdaq RSS UTF-8 BOM.
+
+## 2026-09-16 -- Desktop pack Windows case collision on MWCB files
+
+- **What:** Renamed `mwcbBanner.ts` to `mwcbDesk.ts` (and its test) so Windows Desktop pack can see both the MWCB component and the label helper.
+- **Why:** PR #191 Desktop pack failed on `windows-latest` with TS2305 / TS1261. Linux Frontend build stayed green because Linux filesystems are case-sensitive.
+- **Files touched:** `frontend/src/ibkr/mwcbDesk.ts`, `MwcbBanner.tsx`, `MwcbBannerHost.tsx`, `tools/test_desktop_pack_workflow.py`.
+- **How it works now:** Same split as `HaltEtaChip.tsx` + `haltEta.ts`. A Linux contract test refuses any `frontend/src` pair that differs only by casing.
+- **Verified by:** `pytest tools/test_desktop_pack_workflow.py -q`; Vitest MwcbBanner / mwcbDesk / MwcbBannerHost; `npm run build`.
+- **Related:** PR #191. Same class as PROBLEM_LOG 2026-07-29 ScannerBarBridge.
+
+## 2026-09-16 -- Halt chip second-precise ETA + Nasdaq Trade Halt RSS
+
+- **What:** L2 HaltEtaChip uses a second-precise LULD clock (`LULD · 1:42 · 3:18 left`, then Auction, then `Extended · no ETA`) with LULD / NEWS / UNK badges. Nasdaq Trade Halt RSS overlays official start, reason, pause threshold, and scheduled resume when the symbol matches. MWCB Level 1/2/3 is a rare desk-wide banner.
+- **Why:** #190. Minute-rounded `~Xm` was too coarse, reconnect mid-halt invented a confident reopen ETA, and there was no official exchange enrichment.
+- **Files touched:** `backend/ibkr/halt_eta.py`, `halt_status.py`, `nasdaq_halt_rss.py`, `nasdaq_halt_feed.py`, `routes/halts.py`, `frontend/src/ibkr/haltEta.ts`, `HaltEtaChip.tsx`, `MwcbBanner.tsx`, `constantGroups/halt_eta.ts`.
+- **How it works now:** `ticker.halted` (incoming tick type 49) remains the on/off detector -- `IBKR_L1_GENERIC_TICKS` stays `233` with no 49. A first halt without a prior clear tick is `start_late` (elapsed-only) unless RSS supplies an official start. RSS is polled at most once per minute from `https://www.nasdaqtrader.com/rss.aspx?feed=tradehalts` (namespaced XML, not HTML). Miss or down keeps IBKR+clock and marks exchange detail pending -- resume times are never invented. Place is not gated by the chip or the MWCB banner. LULD Tier 1 vs 2 listing membership is out of scope.
+- **Verified by:** pytest halt_eta / halt_status / nasdaq_halt_rss / nasdaq_halt_feed / routes_halts / ticks_generic; Vitest haltEta / HaltEtaChip / mwcbDesk / MwcbBannerHost.
+- **Related:** Closes #190. Parent chip #173 / #178.
+
 ## 2026-09-16 -- Header IBKR Cash vs Margin chip
 
 - **What:** Global header shows IBKR Cash / Margin / Unknown between the trade-session lock and Account. `/api/ibkr/account` now includes raw `AccountType` from the IBKR account summary.

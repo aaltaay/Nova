@@ -90,6 +90,8 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     import large_cap_admin as _large_cap_admin
     import large_cap_alerts as _large_cap_alerts
     import large_cap_metrics as _large_cap_metrics
+    from ibkr import halt_status as _halt_status
+    from ibkr import nasdaq_halt_feed as _nasdaq_halt_feed
 
     # Position commitments are process-global; a working order left behind by
     # one module would refuse the next module's SELL (ADR 007 / D-011).
@@ -98,6 +100,15 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     _large_cap_admin.reset_for_testing()
     _large_cap_alerts.reset_for_testing()
     _large_cap_metrics.reset_for_testing()
+    _halt_status.reset()
+    _nasdaq_halt_feed.reset()
+    monkeypatch.setattr(
+        _nasdaq_halt_feed,
+        "_default_fetch",
+        lambda: (_ for _ in ()).throw(
+            RuntimeError("Nasdaq Trade Halt RSS blocked in pytest"),
+        ),
+    )
     yield
 
 

@@ -54,6 +54,7 @@ from ibkr import scanner_session as _scanner_session
 from ibkr import scanner_stream as _scanner_stream
 from ibkr import session_watchdog as _session_watchdog
 from ibkr import ticks as _ibkr_ticks
+from ibkr import nasdaq_halt_feed as _nasdaq_halt_feed
 from ibkr_bridge import (
     apply_l1_quote,
     get_ibkr_detail_symbols,
@@ -256,6 +257,7 @@ def _spawn_runtime_tasks() -> list[asyncio.Task]:
             lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),
         )),
         ("observability.loop_lag", _loop_lag.sample_loop_lag_loop),
+        ("nasdaq_halt_rss", _nasdaq_halt_feed.poll_loop),
     ]
     if maintenance_enabled():
         factories.append(("archive.maintenance", archive_maintenance_loop))

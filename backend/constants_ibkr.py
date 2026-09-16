@@ -358,6 +358,16 @@ IBKR_L1_GENERIC_TICKS = "233"
 LULD_PAUSE_SEC = 5 * 60
 LULD_AUCTION_SEC = 5 * 60
 LULD_CONFIDENT_WINDOW_SEC = LULD_PAUSE_SEC + LULD_AUCTION_SEC
+# Observed halt_start this many seconds after Nasdaq official start => late.
+HALT_LATE_START_SKEW_SEC = 15.0
+# Official Nasdaq Trade Halt RSS (not the HTML halt page). Poll <= once/min.
+NASDAQ_TRADE_HALT_RSS_URL = "https://www.nasdaqtrader.com/rss.aspx?feed=tradehalts"
+NASDAQ_TRADE_HALT_RSS_URL_HTTP = "http://www.nasdaqtrader.com/rss.aspx?feed=tradehalts"
+NASDAQ_TRADE_HALT_RSS_HALTDATE_PARAM = "haltdate"  # ?feed=tradehalts&haltdate=MM/DD/YYYY
+NASDAQ_TRADE_HALT_RSS_NS = "http://www.nasdaqtrader.com/"
+NASDAQ_TRADE_HALT_RSS_POLL_SEC = 60.0
+NASDAQ_TRADE_HALT_RSS_HTTP_TIMEOUT_SEC = 10.0
+NASDAQ_TRADE_HALT_RSS_USER_AGENT = "NovaHaltRss/1.0 (+https://github.com/aaltaay/Nova)"
 IBKR_LISTING_FLAGS_TIMEOUT_SEC = 10.0           # sync bridge ceiling for ticker builders
 
 # ── Strategy: Five Pillars of Stock Selection ─────────────────────────────────
