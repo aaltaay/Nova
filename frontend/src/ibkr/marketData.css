@@ -148,6 +148,16 @@
   color: var(--ask-color, #e35d6a);
 }
 
+.mwcb-banner {
+  margin: 0;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1a0b0b;
+  background: #e35d6a;
+  border-bottom: 1px solid var(--nova-border, var(--border-color));
+}
+
 .manual-order-hint {
   margin: 0 0 0.35rem;
   font-size: 0.72rem;

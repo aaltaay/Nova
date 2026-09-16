@@ -1,7 +1,8 @@
-"""Tick-49 observe: first start sticks, clear on resume, tape quiet ignored."""
+"""Tick-49 observe: first start sticks, late honesty, clear on resume."""
 from __future__ import annotations
 
 from ibkr import halt_status
+from ibkr import nasdaq_halt_feed
 from ibkr.halt_eta import KIND_LULD, KIND_REGULATORY, KIND_UNKNOWN
 
 
@@ -12,21 +13,36 @@ class _Ticker:
 
 def setup_function(_fn):
     halt_status.reset()
+    nasdaq_halt_feed.reset()
 
 
-def test_first_luld_tick_records_observed_start():
+def test_first_luld_tick_without_prior_clear_is_late():
     snap, changed = halt_status.observe_code("reto", 2, now=1_000.0)
     assert changed is True
     assert snap is not None
     assert snap["halted"] is True
     assert snap["kind"] == KIND_LULD
     assert snap["halt_start"] == 1_000.0
+    assert snap["start_late"] is True
     assert snap["halt_start_source"] == "observed_ticker_halted"
     assert snap["source"] == "ibkr_ticker_halted"
+    assert snap["exchange"]["status"] == "pending"
+    assert snap["exchange"]["matched"] is False
+    assert snap["exchange"]["trade_resume"] is None
     assert "sip" not in snap["halt_start_source"].lower()
 
 
+def test_watched_clear_then_halt_is_on_time():
+    halt_status.observe_code("RETO", 0, now=900.0)
+    snap, changed = halt_status.observe_code("RETO", 2, now=1_000.0)
+    assert changed is True
+    assert snap is not None
+    assert snap["start_late"] is False
+    assert snap["halt_start"] == 1_000.0
+
+
 def test_same_halt_keeps_original_start():
+    halt_status.observe_code("RETO", 0, now=900.0)
     halt_status.observe_code("RETO", 2.0, now=1_000.0)
     snap, changed = halt_status.observe_code("reto", 2, now=1_200.0)
     assert changed is False
@@ -47,7 +63,6 @@ def test_nan_and_unavailable_are_not_halts():
     assert snap is None and changed is False
     snap, changed = halt_status.observe_code("RETO", -1)
     assert snap is None and changed is False
-    # Quiet tape (no ticker.halted) must not invent a chip.
     snap, changed = halt_status.observe_from_ticker("RETO", _Ticker())
     assert snap is None and changed is False
 
@@ -60,3 +75,35 @@ def test_regulatory_and_unknown_codes():
     snap, _ = halt_status.observe_code("ODD", 7, now=50.0)
     assert snap is not None
     assert snap["kind"] == KIND_UNKNOWN
+
+
+def test_rss_match_overlays_official_fields():
+    from pathlib import Path
+
+    xml = Path(__file__).with_name("fixtures").joinpath("nasdaq_trade_halts.xml")
+    nasdaq_halt_feed.refresh(now=10.0, xml_text=xml.read_text(encoding="utf-8"))
+    halt_status.observe_code("ZTG", 2, now=1_800_000_000.0)
+    snap = halt_status.snapshot("ZTG", now=1_800_000_000.0)
+    assert snap is not None
+    ex = snap["exchange"]
+    assert ex["status"] == "ok"
+    assert ex["matched"] is True
+    assert ex["reason_code"] == "LUDP"
+    assert ex["pause_threshold"] == "4.25"
+    assert ex["official_halt_start"] is not None
+    assert ex["quote_resume"] is not None
+    assert ex["trade_resume"] is not None
+    assert snap["start_late"] is True
+
+
+def test_rss_miss_stays_pending_and_invents_nothing():
+    from pathlib import Path
+
+    xml = Path(__file__).with_name("fixtures").joinpath("nasdaq_trade_halts.xml")
+    nasdaq_halt_feed.refresh(now=10.0, xml_text=xml.read_text(encoding="utf-8"))
+    snap, _ = halt_status.observe_code("AAPL", 2, now=50.0)
+    assert snap is not None
+    assert snap["exchange"]["status"] == "pending"
+    assert snap["exchange"]["matched"] is False
+    assert snap["exchange"]["trade_resume"] is None
+    assert snap["exchange"]["quote_resume"] is None

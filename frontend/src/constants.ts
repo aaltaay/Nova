@@ -14,5 +14,6 @@ export * from './constantGroups/api_auth';
 export * from './constantGroups/theme';
 export * from './constantGroups/ux';
 export * from './constantGroups/global_bar';
+export * from './constantGroups/halt_eta';
 export * from './constantGroups/trade_defaults';
 export * from './constantGroups/news_junk';

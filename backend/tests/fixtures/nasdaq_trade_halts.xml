@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:ndaq="http://www.nasdaqtrader.com/">
+  <channel>
+    <title>NASDAQTrader.com</title>
+    <link>http://www.nasdaqtrader.com</link>
+    <ttl>1</ttl>
+    <ndaq:numItems>5</ndaq:numItems>
+    <item>
+      <title>ZTG</title>
+      <pubDate>Wed, 16 Sep 2026 14:30:00 GMT</pubDate>
+      <ndaq:HaltDate>09/16/2026</ndaq:HaltDate>
+      <ndaq:HaltTime>10:30:00.000</ndaq:HaltTime>
+      <ndaq:IssueSymbol>ZTG</ndaq:IssueSymbol>
+      <ndaq:IssueName>Fixture LULD name</ndaq:IssueName>
+      <ndaq:Market>NASDAQ</ndaq:Market>
+      <ndaq:ReasonCode>LUDP</ndaq:ReasonCode>
+      <ndaq:PauseThresholdPrice>4.25</ndaq:PauseThresholdPrice>
+      <ndaq:ResumptionDate>09/16/2026</ndaq:ResumptionDate>
+      <ndaq:ResumptionQuoteTime>10:35:00</ndaq:ResumptionQuoteTime>
+      <ndaq:ResumptionTradeTime>10:40:00</ndaq:ResumptionTradeTime>
+      <description>Namespaced XML is authoritative. Do not scrape this HTML table.</description>
+    </item>
+    <item>
+      <title>NEWS1</title>
+      <pubDate>Wed, 16 Sep 2026 14:10:00 GMT</pubDate>
+      <ndaq:HaltDate>09/16/2026</ndaq:HaltDate>
+      <ndaq:HaltTime>10:10:00</ndaq:HaltTime>
+      <ndaq:IssueSymbol>NEWS1</ndaq:IssueSymbol>
+      <ndaq:ReasonCode>T1</ndaq:ReasonCode>
+      <ndaq:PauseThresholdPrice></ndaq:PauseThresholdPrice>
+      <ndaq:ResumptionDate></ndaq:ResumptionDate>
+      <ndaq:ResumptionQuoteTime></ndaq:ResumptionQuoteTime>
+      <ndaq:ResumptionTradeTime></ndaq:ResumptionTradeTime>
+      <description>News pending -- no scheduled resume in this fixture row.</description>
+    </item>
+    <item>
+      <title>PLAIN</title>
+      <pubDate>Wed, 16 Sep 2026 15:00:00 GMT</pubDate>
+      <description>Issue Symbol: PLAIN
+Halt Date: 09/16/2026
+Halt Time: 11:00:00
+Reason Code: T12
+Pause Threshold Price:
+Resumption Date: 09/16/2026
+Resumption Quote Time: 11:05:00
+Resumption Trade Time:</description>
+    </item>
+    <item>
+      <title>TABLEONLY</title>
+      <description><![CDATA[<table><tr><td>Issue Symbol</td><td>FAKE</td></tr><tr><td>Reason Code</td><td>LUDP</td></tr><tr><td>Resumption Trade Time</td><td>99:99:99</td></tr></table>]]></description>
+    </item>
+    <item>
+      <title>Market Wide Circuit Breaker</title>
+      <ndaq:HaltDate>09/16/2026</ndaq:HaltDate>
+      <ndaq:HaltTime>09:45:00</ndaq:HaltTime>
+      <ndaq:IssueSymbol></ndaq:IssueSymbol>
+      <ndaq:ReasonCode>MWC2</ndaq:ReasonCode>
+      <ndaq:PauseThresholdPrice></ndaq:PauseThresholdPrice>
+      <ndaq:ResumptionDate></ndaq:ResumptionDate>
+      <ndaq:ResumptionQuoteTime></ndaq:ResumptionQuoteTime>
+      <ndaq:ResumptionTradeTime></ndaq:ResumptionTradeTime>
+      <description>Market-wide Level 2 -- not a per-symbol LULD tier.</description>
+    </item>
+  </channel>
+</rss>

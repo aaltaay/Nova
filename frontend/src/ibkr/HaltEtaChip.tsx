@@ -1,4 +1,4 @@
-/** LULD / halt reopen ETA chip for the Level 2 header (issue #173). */
+/** LULD / halt reopen ETA chip for the Level 2 header (issue #190). */
 import { useEffect, useState } from 'react';
 import type { HaltSnapshot } from '../types/ticker';
 import { haltChipView } from './haltEta';
@@ -28,7 +28,10 @@ export function HaltEtaChip({ halt, nowMs }: Props) {
       title={view.tooltip}
       data-testid="halt-eta-chip"
       data-kind={view.kind}
+      data-badge={view.badge}
       data-phase={view.phase}
+      data-late={view.startLate ? '1' : '0'}
+      data-exchange={view.exchangeStatus}
     >
       <span className="sv-halt-eta-chip__value">{view.label}</span>
     </span>

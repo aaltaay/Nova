@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Halt chip second-precise ETA + Nasdaq Trade Halt RSS
+
+- **What:** L2 HaltEtaChip uses a second-precise LULD clock (`LULD · 1:42 · 3:18 left`, then Auction, then `Extended · no ETA`) with LULD / NEWS / UNK badges. Nasdaq Trade Halt RSS overlays official start, reason, pause threshold, and scheduled resume when the symbol matches. MWCB Level 1/2/3 is a rare desk-wide banner.
+- **Why:** #190. Minute-rounded `~Xm` was too coarse, reconnect mid-halt invented a confident reopen ETA, and there was no official exchange enrichment.
+- **Files touched:** `backend/ibkr/halt_eta.py`, `halt_status.py`, `nasdaq_halt_rss.py`, `nasdaq_halt_feed.py`, `routes/halts.py`, `frontend/src/ibkr/haltEta.ts`, `HaltEtaChip.tsx`, `MwcbBanner.tsx`, `constantGroups/halt_eta.ts`.
+- **How it works now:** `ticker.halted` (incoming tick type 49) remains the on/off detector -- `IBKR_L1_GENERIC_TICKS` stays `233` with no 49. A first halt without a prior clear tick is `start_late` (elapsed-only) unless RSS supplies an official start. RSS is polled at most once per minute from `https://www.nasdaqtrader.com/rss.aspx?feed=tradehalts` (namespaced XML, not HTML). Miss or down keeps IBKR+clock and marks exchange detail pending -- resume times are never invented. Place is not gated by the chip or the MWCB banner. LULD Tier 1 vs 2 listing membership is out of scope.
+- **Verified by:** pytest halt_eta / halt_status / nasdaq_halt_rss / nasdaq_halt_feed / routes_halts / ticks_generic; Vitest haltEta / HaltEtaChip / mwcbBanner / MwcbBannerHost.
+- **Related:** Closes #190. Parent chip #173 / #178.
+
 ## 2026-09-16 -- Header IBKR Cash vs Margin chip
 
 - **What:** Global header shows IBKR Cash / Margin / Unknown between the trade-session lock and Account. `/api/ibkr/account` now includes raw `AccountType` from the IBKR account summary.
