@@ -9,6 +9,11 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TRADER_TABS_STORAGE_KEY } from '../constants';
+import {
+  TRADER_DESK_STORAGE_KEY,
+  encodeDeskStoragePayload,
+  traderDeskMessage,
+} from './traderDesk/protocol';
 import { useWorkspace, WorkspaceProvider } from './WorkspaceContext';
 
 vi.mock('../ibkr/useIbkrStatus', () => ({
@@ -38,6 +43,7 @@ describe('Trader open vs extract', () => {
   beforeEach(() => {
     latest = null;
     opened = [];
+    window.history.replaceState({}, '', '/');
     sessionStorage.removeItem(TRADER_TABS_STORAGE_KEY);
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -64,6 +70,7 @@ describe('Trader open vs extract', () => {
     });
     container.remove();
     sessionStorage.removeItem(TRADER_TABS_STORAGE_KEY);
+    window.history.replaceState({}, '', '/');
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -111,6 +118,46 @@ describe('Trader open vs extract', () => {
     });
     expect(latest?.traderTabs).toEqual(['SPY', 'IPST']);
     expect(latest?.activeTraderSymbol).toBe('SPY');
+  });
+
+  it('extractTraderTab is a no-op on an already popped-out window', async () => {
+    window.history.replaceState({}, '', '/?view=stock&symbol=F');
+    await mount();
+    expect(latest?.traderDeskRole).toBe('float');
+    expect(latest?.traderTabs).toEqual(['F']);
+    await act(async () => {
+      latest?.extractTraderTab('F');
+      await Promise.resolve();
+    });
+    expect(opened).toEqual([]);
+    expect(latest?.traderTabs).toEqual(['F']);
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('dock-request over the storage bus restores the ticker on the host desk', async () => {
+    await mount();
+    await act(async () => {
+      latest?.openStockView('F');
+    });
+    await act(async () => {
+      latest?.extractTraderTab('F');
+      await Promise.resolve();
+    });
+    expect(latest?.traderTabs).toEqual([]);
+    expect(latest?.traderViewActive).toBe(true);
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: TRADER_DESK_STORAGE_KEY,
+        newValue: encodeDeskStoragePayload(traderDeskMessage('dock-request', {
+          symbol: 'F',
+          sourceWindowId: 'float-other',
+          requestId: 'req-restore-f',
+        })),
+      }));
+    });
+    expect(latest?.traderTabs).toEqual(['F']);
+    expect(latest?.activeTraderSymbol).toBe('F');
+    expect(latest?.traderViewActive).toBe(true);
   });
 
   it('extractTraderTab opens a window and removes the tab here', async () => {

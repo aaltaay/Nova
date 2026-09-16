@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   TRADER_DESK_PROTOCOL_V,
+  encodeDeskStoragePayload,
   encodeTraderTabDrag,
+  parseDeskStoragePayload,
   parseTraderDeskMessage,
   parseTraderTabDrag,
   traderDeskMessage,
@@ -44,5 +46,17 @@ describe('trader desk protocol', () => {
       requestId: 'req-9',
     });
     expect(parseTraderDeskMessage(rejected)?.type).toBe('dock-reject');
+  });
+
+  it('round-trips a dock-request through the localStorage bus payload', () => {
+    const msg = traderDeskMessage('dock-request', {
+      symbol: 'F',
+      sourceWindowId: 'float-1',
+      requestId: 'req-dock-1',
+    });
+    const raw = encodeDeskStoragePayload(msg, 'seq-1');
+    expect(parseDeskStoragePayload(raw)).toEqual(msg);
+    expect(parseDeskStoragePayload('not-json')).toBeNull();
+    expect(parseDeskStoragePayload(JSON.stringify({ v: 1, msg: { type: 'unrelated' } }))).toBeNull();
   });
 });

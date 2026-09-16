@@ -95,6 +95,37 @@ describe('StockViewTabStrip', () => {
     expect(onDock).toHaveBeenCalledWith('IPST');
   });
 
+  it('hides Pop out on a float surface and does not extract on double-click', async () => {
+    const onExtract = vi.fn();
+    const onDock = vi.fn();
+    await act(async () => {
+      root.render(
+        <StockViewTabStrip
+          tabs={['F']}
+          active="F"
+          windowId="float-1"
+          showDock
+          showExtract={false}
+          onActivate={vi.fn()}
+          onClose={vi.fn()}
+          onRename={vi.fn()}
+          onAddDraft={vi.fn()}
+          onExtract={onExtract}
+          onDock={onDock}
+        />,
+      );
+    });
+    expect(container.querySelector('[data-testid="sv-tab-extract-F"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sv-tab-dock-F"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="sv-tab-F"] .sv-tab__close')).toBeTruthy();
+    const label = container.querySelector('[data-testid="sv-tab-F"] .sv-tab__label') as HTMLButtonElement;
+    expect(label.title).not.toMatch(/pop out/i);
+    await act(async () => {
+      label.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    });
+    expect(onExtract).not.toHaveBeenCalled();
+  });
+
   it('renders tabs, marks active, and disables add at cap', async () => {
     const onAddDraft = vi.fn();
     await act(async () => {

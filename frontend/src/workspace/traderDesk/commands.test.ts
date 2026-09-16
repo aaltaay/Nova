@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canExtractFromDesk,
   claimDockTarget,
   closePolicyAfterGive,
   deskRoleFromStockView,
@@ -17,6 +18,11 @@ describe('trader desk commands', () => {
   it('treats a stock-view URL as a float surface', () => {
     expect(deskRoleFromStockView('IPST')).toBe('float');
     expect(deskRoleFromStockView(null)).toBe('host');
+  });
+
+  it('allows Pop out only on the host desk', () => {
+    expect(canExtractFromDesk('host')).toBe(true);
+    expect(canExtractFromDesk('float')).toBe(false);
   });
 
   it('ignores a drag that originated in this window', () => {

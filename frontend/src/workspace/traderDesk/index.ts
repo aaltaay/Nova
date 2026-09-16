@@ -1,6 +1,7 @@
 export { createTraderDeskBus } from './bus';
 export { allowTraderTabDrop, startTraderTabDrag, takeForeignTraderTabDrop } from './domDrag';
 export {
+  canExtractFromDesk,
   claimDockTarget,
   closePolicyAfterGive,
   deskRoleFromStockView,
@@ -8,6 +9,7 @@ export {
 } from './commands';
 export {
   TRADER_DESK_CHANNEL,
+  TRADER_DESK_STORAGE_KEY,
   TRADER_DESK_PROTOCOL_V,
   TRADER_TAB_DRAG_MIME,
   dataTransferHasTraderTab,

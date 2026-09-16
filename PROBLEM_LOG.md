@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Pop-out Dock vanished ticker
+
+- **Symptom:** Dock on a popped-out ticker (e.g. F) did not return it to the main Nova window -- the tab disappeared. The float still showed **POP OUT**; clicking it made the window vanish.
+- **Cause:** Two bugs. (1) Desktop extract uses Electron `new BrowserWindow`, a separate browsing-context group, so `BroadcastChannel('nova.trader.desk')` never delivered `dock-request` to the host. The float then either sat unanswered or, if anything closed it, the host never had the symbol. (2) Float chrome reused the host extract button. `openOrFocusTraderWindow` returned true for the already-open symbol, `extractTraderTab` removed the last tab and called `window.close()`.
+- **Fix:** Hide Pop out / ignore extract on role `float`. Mirror desk messages through a `localStorage` storage signal so Electron host and float share the same ADR 011 protocol. Host accept path adds the tab synchronously before publishing `tab-docked`.
+- **Fix class:** ownership
+- **Keywords:** Dock, Pop out, BroadcastChannel, BrowserWindow, browsing context group, nova.trader.desk.bus, ADR 011, extractTraderTab, #158
+
 ## 2026-09-16 -- Junk movers listicles flamed as news
 
 - **Symptom:** Trader News column and the yellow/orange/red flame treated Benzinga "12 Health Care Stocks Moving In Tuesday's After-Market Session" (and the same movers-listicle class) as real news. Fresh junk lit the circle and could drive `news_impact` as if it were a catalyst.

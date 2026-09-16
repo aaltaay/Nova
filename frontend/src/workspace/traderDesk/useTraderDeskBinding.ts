@@ -2,7 +2,7 @@
  * Trader tab state + extract/dock actions for one OS window (ADR 011).
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   TRADER_BLOCK_NOTICE_MESSAGE,
   TRADER_DOCK_NO_HOST_MESSAGE,
@@ -20,7 +20,13 @@ import {
   replaceActiveTab,
   type TraderTabsState,
 } from '../../stock_view/traderTabsState';
-import { claimDockTarget, closePolicyAfterGive, deskRoleFromStockView, isForeignTabDrag } from './commands';
+import {
+  canExtractFromDesk,
+  claimDockTarget,
+  closePolicyAfterGive,
+  deskRoleFromStockView,
+  isForeignTabDrag,
+} from './commands';
 import {
   initialTraderState,
   persistSymbolReplace,
@@ -39,8 +45,11 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
   const [traderState, setTraderState] = useState<TraderTabsState>(boot.tabs);
   const [traderViewActive, setTraderViewActive] = useState(boot.tabs.tabs.length > 0);
   const [traderBlockNotice, setTraderBlockNotice] = useState<string | null>(boot.blockNotice);
+  const traderStateRef = useRef(traderState);
+  traderStateRef.current = traderState;
 
   const applyTraderState = useCallback((next: TraderTabsState) => {
+    traderStateRef.current = next;
     setTraderState(next);
     writeStoredTabs(next);
   }, []);
@@ -58,23 +67,18 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
   const tryAddTab = useCallback((symbol: string): boolean => {
     const sym = symbol.trim().toUpperCase();
     if (!sym) return false;
-    let ok = true;
+    const { state, blocked } = addTab(traderStateRef.current, sym, TRADER_MAX_TABS);
+    if (blocked) {
+      showBlockNotice(sym);
+      return false;
+    }
     setSelectedSymbol(sym);
     setTraderViewActive(true);
     writeBlockNotice(null);
     setTraderBlockNotice(null);
-    setTraderState((prev) => {
-      const { state, blocked } = addTab(prev, sym, TRADER_MAX_TABS);
-      if (blocked) {
-        ok = false;
-        showBlockNotice(sym);
-        return prev;
-      }
-      writeStoredTabs(state);
-      return state;
-    });
-    return ok;
-  }, [setSelectedSymbol, showBlockNotice]);
+    applyTraderState(state);
+    return true;
+  }, [applyTraderState, setSelectedSymbol, showBlockNotice]);
 
   /** Ticker click (ADR 011 decision 7): open the first tab, activate an
    * already-open symbol, or replace the active tab's symbol in place --
@@ -162,6 +166,7 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
   const extractTraderTab = useCallback((symbol: string) => {
     const sym = symbol.trim().toUpperCase();
     if (!sym || sym === TRADER_DRAFT_SYMBOL) return;
+    if (!canExtractFromDesk(role)) return;
     void openStockViewWindow(sym).then((opened) => {
       if (!opened) {
         writeBlockNotice(sym);
@@ -177,7 +182,7 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
         return next;
       });
     });
-  }, []);
+  }, [role]);
 
   const acceptTraderTabDrop = useCallback((payload: TraderTabDragPayload) => {
     if (!isForeignTabDrag(payload.sourceWindowId, windowId)) return false;

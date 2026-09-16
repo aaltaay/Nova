@@ -125,6 +125,20 @@ describe('StockViewTabs tab-strip placement', () => {
     expect(rootEl.querySelector('.sv-tab-strip')).toBeTruthy();
   });
 
+  it('hides Pop out on a float desk and keeps Dock plus close', () => {
+    workspace = baseWorkspace({
+      traderDeskRole: 'float',
+      traderTabs: ['F'],
+      activeTraderSymbol: 'F',
+    });
+    act(() => {
+      root.render(<StockViewTabs detached />);
+    });
+    expect(container.querySelector('[data-testid="sv-tab-extract-F"]')).toBeNull();
+    expect(container.querySelector('[data-testid="sv-tab-dock-F"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="sv-tab-F"] .sv-tab__close')).toBeTruthy();
+  });
+
   it('keeps the strip inline when Trader is hidden behind Scanner even if a slot exists', () => {
     workspace = baseWorkspace({ traderViewActive: false });
     act(() => {
