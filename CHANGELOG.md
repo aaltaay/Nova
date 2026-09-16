@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Drop 50 EMA from chart overlays
+
+- **What:** Chart overlays no longer draw a 50 EMA. The Warrior-style set is 9 / 20 / 200 EMAs plus VWAP. Existing hex colors for 9, 20, 200, and VWAP are unchanged.
+- **Why:** Ahmed does not use the 50 EMA; the red 50 line was clutter on the price pane.
+- **Files touched:** `frontend/src/constantGroups/chart_api.ts`, `frontend/src/chartIndicators.test.ts`.
+- **How it works now:** `CHART_EMA_LENGTHS` is `[9, 20, 200]`. Overlay rendering, axis titles, and `computeEmaOverlays` all walk that list, so the 50 line, color, and legend tag are gone. VWAP and the 9/20/200 colors stay as they were.
+- **Verified by:** Vitest `chartIndicators.test.ts` (failing with 50 still present, then green after the constant change); `npm test` + `npm run build` on this branch.
+- **Related:** none (product preference, not a bug). Historical CHANGELOG / task-log rows that said 9/20/50/200 stay as dated history.
+
 ## 2026-09-16 -- Filter junk movers listicles from News + flame
 
 - **What:** Movers/listicle headlines (Benzinga "N stocks moving" recaps and the same class) are excluded from the trader News column, scanner NEWS timestamp, catalyst pick, and news_impact. They no longer light the age flame.
