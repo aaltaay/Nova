@@ -150,14 +150,43 @@ describe('manual order payloads', () => {
     });
   });
 
-  it('rejects extended-hours market and stop orders', () => {
+  it('builds a market order with outside_rth', () => {
+    const result = buildManualOrder({ ...base, outsideRth: true }, context);
+    expect(result).toEqual({
+      ok: true,
+      payload: {
+        symbol: 'AAPL',
+        side: 'BUY',
+        qty: 100,
+        order_type: 'MKT',
+        outside_rth: true,
+      },
+      quantity: 100,
+      referencePrice: 25,
+    });
+  });
+
+  it('builds a stop order with outside_rth', () => {
     const result = buildManualOrder(
-      { ...base, outsideRth: true },
+      {
+        ...base,
+        side: 'SELL',
+        orderType: 'STP',
+        stopPrice: '23.5',
+        outsideRth: true,
+      },
       context,
     );
-    expect(result).toEqual({
-      ok: false,
-      error: 'Extended hours supports Limit orders only',
+    expect(result).toMatchObject({
+      ok: true,
+      payload: {
+        symbol: 'AAPL',
+        side: 'SELL',
+        qty: 100,
+        order_type: 'STP',
+        stop_price: 23.5,
+        outside_rth: true,
+      },
     });
   });
 

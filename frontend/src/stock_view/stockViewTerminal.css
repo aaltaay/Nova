@@ -796,7 +796,7 @@
   font-size: 0.72rem;
 }
 
-.stock-view-page .ticker-trade-bar--rail .manual-order-ticket input:not(.manual-order-quantity-input),
+.stock-view-page .ticker-trade-bar--rail .manual-order-ticket input:not(.manual-order-quantity-input):not(.manual-order-extended-check),
 .stock-view-page .ticker-trade-bar--rail .manual-order-ticket select {
   min-height: var(--mot-control-h);
   font-size: 0.72rem;

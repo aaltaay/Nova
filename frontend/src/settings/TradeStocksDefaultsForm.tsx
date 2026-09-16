@@ -13,7 +13,6 @@ import {
   TRADE_DEFAULTS_TIF_LABEL,
   type TradeDefaultLimitSource,
   type TradeDefaultOrderType,
-  type TradeDefaultTradingHours,
 } from '../constantGroups/trade_defaults';
 import {
   writeTradeDefaultsPrefs,
@@ -31,9 +30,6 @@ export function TradeStocksDefaultsForm({ prefs, onChange }: Props) {
     writeTradeDefaultsPrefs(next);
     onChange(next);
   }
-
-  const ehNeedsLimit =
-    prefs.tradingHours === 'extended' && prefs.orderType !== 'LMT';
 
   return (
     <div className="trade-defaults-form" data-testid="trade-stocks-defaults">
@@ -69,24 +65,22 @@ export function TradeStocksDefaultsForm({ prefs, onChange }: Props) {
         />
       </div>
 
-      <div className="trade-defaults-row">
-        <label htmlFor="trade-def-hours">{TRADE_DEFAULTS_HOURS_LABEL}</label>
-        <select
+      <label className="trade-prefs-check" htmlFor="trade-def-hours">
+        <input
           id="trade-def-hours"
-          value={prefs.tradingHours}
+          type="checkbox"
+          checked={prefs.tradingHours === 'extended'}
           onChange={(e) =>
             patch({
-              tradingHours: e.target.value as TradeDefaultTradingHours,
+              tradingHours: e.target.checked ? 'extended' : 'rth',
             })
           }
-        >
-          <option value="rth">Regular</option>
-          <option value="extended">Include Extended</option>
-        </select>
-      </div>
-      {ehNeedsLimit && (
-        <p className="settings-block-hint trade-defaults-warn">{TRADE_DEFAULTS_EH_HINT}</p>
-      )}
+        />
+        <span>
+          <strong>{TRADE_DEFAULTS_HOURS_LABEL}</strong>
+          <span className="settings-block-hint">{TRADE_DEFAULTS_EH_HINT}</span>
+        </span>
+      </label>
 
       <div className="trade-defaults-row">
         <label htmlFor="trade-def-tif">{TRADE_DEFAULTS_TIF_LABEL}</label>

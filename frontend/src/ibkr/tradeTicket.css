@@ -141,7 +141,7 @@
   appearance: textfield;
 }
 
-.manual-order-ticket input,
+.manual-order-ticket input:not([type='checkbox']),
 .manual-order-ticket select {
   width: 100%;
   min-width: 0;
@@ -155,6 +155,32 @@
   font: inherit;
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+}
+
+.manual-order-extended {
+  display: flex;
+  align-items: center;
+  gap: var(--mot-space-2);
+  min-height: var(--mot-control-h);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.manual-order-ticket input.manual-order-extended-check {
+  width: 1rem;
+  min-width: 1rem;
+  height: 1rem;
+  min-height: 1rem;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent, #38bdf8);
+  cursor: pointer;
+}
+
+.manual-order-extended:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .manual-order-ticket .manual-order-quantity-input {

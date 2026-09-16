@@ -12,7 +12,10 @@ export type TradeDefaultLimitSource = 'ask_bid' | 'last' | 'mid';
 
 export const TRADE_DEFAULT_ORDER_TYPE: TradeDefaultOrderType = 'MKT';
 export const TRADE_DEFAULT_QUANTITY = 100;
-export const TRADE_DEFAULT_TRADING_HOURS: TradeDefaultTradingHours = 'rth';
+/** Ticket Extended Hours checkbox default -- on. Saved prefs still win. */
+export const TRADE_DEFAULT_EXTENDED_HOURS = true;
+export const TRADE_DEFAULT_TRADING_HOURS: TradeDefaultTradingHours =
+  TRADE_DEFAULT_EXTENDED_HOURS ? 'extended' : 'rth';
 export const TRADE_DEFAULT_TIF: TradeDefaultTif = 'DAY';
 export const TRADE_DEFAULT_LIMIT_SOURCE: TradeDefaultLimitSource = 'ask_bid';
 export const TRADE_DEFAULT_STOP_OFFSET_PCT = 1;
@@ -20,12 +23,12 @@ export const TRADE_DEFAULT_STOP_OFFSET_PCT = 1;
 export const TRADE_DEFAULTS_SECTION_TITLE = 'Default Order Values';
 export const TRADE_DEFAULTS_ORDER_TYPE_LABEL = 'Order Type';
 export const TRADE_DEFAULTS_QUANTITY_LABEL = 'Quantity';
-export const TRADE_DEFAULTS_HOURS_LABEL = 'Trading Hours';
+export const TRADE_DEFAULTS_HOURS_LABEL = 'Extended Hours';
 export const TRADE_DEFAULTS_TIF_LABEL = 'Time-in-Force';
 export const TRADE_DEFAULTS_LIMIT_SOURCE_LABEL = 'Limit Price';
 export const TRADE_DEFAULTS_STOP_OFFSET_LABEL = 'Stop Offset (%)';
 export const TRADE_DEFAULTS_EH_HINT =
-  'Extended hours requires Limit orders (IBKR).';
+  'Default on. Uncheck for Regular Hours only. IBKR may reject some Market or Stop + EH combinations -- Nova shows that error after Place.';
 export const TRADE_DEFAULTS_TIF_HINT = 'DAY only for now — GTC coming later.';
 
 export const TRADE_ORDER_PREFS_SKIP_CONFIRM_LABEL =

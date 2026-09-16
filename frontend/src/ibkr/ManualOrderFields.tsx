@@ -220,19 +220,18 @@ export function ManualOrderFields({
         </>
       )}
 
-      <label className="manual-order-label" htmlFor="manual-order-hours">
+      <label className="manual-order-extended" htmlFor="manual-order-extended">
+        <input
+          id="manual-order-extended"
+          className="manual-order-extended-check"
+          type="checkbox"
+          checked={outsideRth}
+          onChange={event => onOutsideRthChange(event.target.checked)}
+          disabled={disabled}
+          data-testid="manual-order-extended"
+        />
         {TICKER_TRADE_LABEL_TRADING_HOURS}
       </label>
-      <select
-        id="manual-order-hours"
-        value={outsideRth ? 'extended' : 'regular'}
-        onChange={event => onOutsideRthChange(event.target.value === 'extended')}
-        disabled={disabled || orderType !== 'LMT'}
-        title={orderType === 'LMT' ? undefined : 'Extended hours supports Limit orders only'}
-      >
-        <option value="regular">Regular Hours</option>
-        <option value="extended">Include Extended Hours</option>
-      </select>
     </>
   );
 }

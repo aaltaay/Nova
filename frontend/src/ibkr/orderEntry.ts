@@ -176,9 +176,6 @@ export function buildManualOrder(
 ): BuildOrderResult {
   const symbol = values.symbol.trim().toUpperCase();
   if (!symbol) return { ok: false, error: 'Symbol is required' };
-  if (values.outsideRth && values.orderType !== 'LMT') {
-    return { ok: false, error: 'Extended hours supports Limit orders only' };
-  }
 
   const quantityResult = resolveOrderQuantity(values, context, options);
   if ('error' in quantityResult) {
