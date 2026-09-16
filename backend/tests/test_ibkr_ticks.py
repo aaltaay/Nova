@@ -126,7 +126,7 @@ def test_on_ticker_update_marks_fresh_even_when_price_unchanged():
 
 
 def test_on_ticker_update_observes_halt_when_last_is_missing():
-    """Tick 49 can arrive with no last -- still record halt (issue #173)."""
+    """ticker.halted can arrive with no last -- still record halt (#173)."""
     from ibkr import halt_status
 
     _reset()

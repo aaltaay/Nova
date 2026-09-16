@@ -17,19 +17,54 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Documented STK generic ticks Nova may put in reqMktData genericTickList.
+# Sources: TWS API "Generic tick required" column + the Warning 321 legal
+# list IB printed on ZTG (100, 101, 105, 106, 165, 221/220, 225, 232/221,
+# 233, 236, 258/47, 292, 375, 411, 456/59, ...). Tick TYPE 49 is absent.
+STK_GENERIC_TICKS_LEGAL = frozenset({
+    "47", "59", "100", "101", "104", "105", "106", "162", "165",
+    "220", "221", "225", "232", "233", "236", "258",
+    "292", "293", "294", "295", "318",
+    "375", "411", "456", "460",
+    "576", "577", "578", "586", "588", "595", "614", "619", "623",
+})
+
 
 def parse(generic_ticks: str | None) -> list[str]:
     return [part.strip() for part in str(generic_ticks or "").split(",") if part.strip()]
 
 
+def sanitize(generic_ticks: str | None) -> list[str]:
+    """Keep only documented legal STK generic ticks (Warning 321 / #178).
+
+    Incoming tick types such as 49 (Halted -> ``ticker.halted``) are not
+    requestable. Dropping them here is the last fence if a caller still asks.
+    """
+    kept: list[str] = []
+    for tick in parse(generic_ticks):
+        if tick in STK_GENERIC_TICKS_LEGAL:
+            if tick not in kept:
+                kept.append(tick)
+            continue
+        logger.warning(
+            "IBKR ticks: dropped illegal STK generic tick %s "
+            "(Halted is ticker.halted / tick type 49, not requestable)",
+            tick,
+        )
+    return kept
+
+
 def has_all(existing: str | None, requested: str | None) -> bool:
-    have = set(parse(existing))
+    have = set(sanitize(existing))
+    # Parse the raw ask: illegal ticks (49) are never on the line, so
+    # has_all("233", "49") is False. Sanitizing the ask would make
+    # all([]) True and hide Warning 321 regressions.
     return all(tick in have for tick in parse(requested))
 
 
 def merge(existing: str | None, requested: str | None) -> str:
-    merged = parse(existing)
-    for tick in parse(requested):
+    merged = sanitize(existing)
+    for tick in sanitize(requested):
         if tick not in merged:
             merged.append(tick)
     return ",".join(merged)

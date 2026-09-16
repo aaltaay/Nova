@@ -352,7 +352,7 @@ def test_shortability_upgrades_an_existing_line_instead_of_opening_one(ticks_env
     assert fake_ib.cancel_calls == ["SOAR"]
     assert owners == {"scanner"}
     assert ticks_mod.has_generic_tick("SOAR", "233") is True
-    assert ticks_mod.has_generic_tick("SOAR", "49") is True
+    assert ticks_mod.has_generic_tick("SOAR", "49") is False
     assert ticks_mod.has_generic_tick("SOAR", "236") is True
 
 
@@ -379,10 +379,28 @@ def test_scanner_subscribe_requests_rtvolume_on_the_shared_line(ticks_env):
     owners, has_233, has_49 = asyncio.run(_run())
     from constants import IBKR_L1_GENERIC_TICKS
     assert fake_ib.mkt_data_calls == [("PFSA", IBKR_L1_GENERIC_TICKS)]
+    assert "49" not in IBKR_L1_GENERIC_TICKS.split(",")
     assert fake_ib.cancel_calls == []
     assert owners == {"scanner", "detail"}
     assert has_233 is True
-    assert has_49 is True
+    assert has_49 is False
+
+
+def test_subscribe_drops_illegal_generic_tick_49(ticks_env):
+    """A caller that still asks for generic 49 must not put it on the wire."""
+    ticks_mod, fake_ib = ticks_env
+
+    async def _run():
+        assert await ticks_mod.subscribe(
+            "ZTG", ticks_mod.OWNER_DETAIL, generic_ticks="49",
+        )
+        return ticks_mod.has_generic_tick("ZTG", "49")
+
+    has_49 = asyncio.run(_run())
+    assert has_49 is False
+    assert fake_ib.mkt_data_calls
+    for _sym, generic in fake_ib.mkt_data_calls:
+        assert "49" not in str(generic).split(",")
 
 
 def test_listing_flags_never_calls_req_mkt_data_directly():

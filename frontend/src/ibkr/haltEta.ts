@@ -49,7 +49,9 @@ export function luldLabel(elapsedSec: number): string {
 }
 
 function formatHaltStartEt(haltStart: number | null | undefined): string {
-  if (haltStart == null || !Number.isFinite(haltStart)) return 'unknown';
+  if (haltStart == null || !Number.isFinite(haltStart)) {
+    return `unknown (${HALT_START_OBSERVED_NOTE})`;
+  }
   try {
     return `${new Date(haltStart * 1000).toLocaleString('en-US', {
       timeZone: STOCK_VIEW_CLOCK_TIMEZONE,

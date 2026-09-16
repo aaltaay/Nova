@@ -112,9 +112,10 @@ async def subscribe(
     line: ``reqMktData`` is idempotent per contract, so a caller that opens its
     own line gets the pooled ticker with no extra ticks and cancels the desk's
     stream on the way out. An existing line missing the ticks is upgraded.
-    ``IBKR_L1_GENERIC_TICKS`` (RTVolume ``233`` + Halted ``49``) is always
-    merged in so scanner/detail/HOD size stamps and the L2 halt chip do not
-    open a second line (D-049 / D-020 / #173).
+    ``IBKR_L1_GENERIC_TICKS`` (RTVolume ``233``) is always merged in so
+    scanner/detail/HOD size stamps do not open a second line (D-049 / D-020).
+    Halted is incoming tick type 49 on this same default line
+    (``ticker.halted``) -- never add ``49`` to genericTickList (#178).
     """
     from ibkr.loop_supervisor import is_ib_loop, is_started, on_ib
 

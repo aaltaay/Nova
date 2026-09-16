@@ -11,7 +11,8 @@ function luld(haltStart = START): HaltSnapshot {
     kind: 'luld',
     halt_code: 2,
     halt_start: haltStart,
-    source: 'ibkr_tick_49',
+    source: 'ibkr_ticker_halted',
+    halt_start_source: 'observed_ticker_halted',
   };
 }
 
@@ -61,5 +62,12 @@ describe('haltChipView clock', () => {
       (START + 120) * 1000,
     );
     expect(view?.label).toBe('HALTED · ETA unknown');
+  });
+
+  it('tooltip says halt start is observed, not SIP', () => {
+    const view = haltChipView(luld(), START * 1000);
+    expect(view?.tooltip).toMatch(/observed first ticker\.halted/i);
+    expect(view?.tooltip).toMatch(/not the SIP official start/i);
+    expect(view?.tooltip).toMatch(/incoming tick type 49/i);
   });
 });

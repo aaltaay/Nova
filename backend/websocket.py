@@ -187,7 +187,7 @@ def handle_trade(msg: dict) -> int | None:
 
 
 async def broadcast_halt_update(sym: str, halt: dict | None) -> None:
-    """Push tick-49 halt state to ticker-detail WS clients (L2 HaltEtaChip)."""
+    """Push ticker.halted state to ticker-detail WS clients (L2 HaltEtaChip)."""
     clients = _ticker_ws_clients.get(sym)
     if not clients:
         return

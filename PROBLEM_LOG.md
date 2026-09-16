@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Warning 321 generic tick 49
+
+- **Symptom:** After PR #174, live ZTG L1 upgrade requested `233,49` / `233,49,236`. IBKR Warning 321: Incorrect generic tick list. Tick 49 is not in the legal STK list IB printed (100, 101, 105, 106, 165, 221/220, 225, 232/221, 233, 236, 258/47, 292, 375, 411, 456/59, ...).
+- **Cause:** #174 treated incoming Halted tick **type** 49 as a requestable generic tick and merged it into `IBKR_L1_GENERIC_TICKS`. Official TWS table: Halted tick id 49, delivery `tickGeneric`, Generic tick required = `-`. ib_async maps that onto `ticker.halted` on default `reqMktData`. Asking for `49` is illegal and can fail the cancel+re-request upgrade (D-020).
+- **Fix:** `IBKR_L1_GENERIC_TICKS="233"`. Keep the chip on `ticker.halted`. `ticks_generic.merge` / `sanitize` drop illegal STK generic ticks. Tooltip: observed first `ticker.halted`, not SIP.
+- **Fix class:** ownership
+- **Keywords:** Warning 321, generic tick 49, ticker.halted, Halted, IBKR_L1_GENERIC_TICKS, ZTG, #178, #174
+
 ## 2026-09-16 -- Market ticket locked Regular Hours
 
 - **Symptom:** Trade ticket with Market (Default) showed Trading Hours stuck on Regular Hours with a blocked cursor. Operator could not enable extended hours in premarket. Place with default Market always sent `outside_rth=false`.

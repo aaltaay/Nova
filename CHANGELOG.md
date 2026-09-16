@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Stop requesting illegal IBKR generic tick 49
+
+- **What:** Shared L1 `reqMktData` no longer asks for generic tick 49. The Halt ETA chip still reads `ticker.halted` (incoming tick type 49 on the default line). Tooltip says the start is observed, not SIP.
+- **Why:** #178. Live ZTG after #174: Warning 321 Incorrect generic tick list `233,49` / `233,49,236`. Tick 49 is not in IBKR's legal STK generic list.
+- **Files touched:** `backend/constants_ibkr.py`, `backend/ibkr/ticks_generic.py`, `ticks.py`, `halt_eta.py`, `halt_status.py`, `frontend/src/constantGroups/halt_eta.ts`, `.cursor/rules/single-market-data-feed.mdc`.
+- **How it works now:** `IBKR_L1_GENERIC_TICKS` is `233` only. `ticks_generic.merge` drops any illegal STK generic tick (including 49). Halted is `EWrapper.tickGeneric` tick type 49 mapped by ib_async onto `ticker.halted` -- Generic tick required is `-`. `halt_start` stays the first observed `ticker.halted` transition. Place is untouched.
+- **Verified by:** pytest ticks_generic / halt_eta / halt_status / ib_loop_offload / ibkr_ticks; Vitest haltEta / HaltEtaChip.
+- **Related:** Closes #178. PROBLEM_LOG 2026-09-16 -- Warning 321 generic tick 49. Parent chip #173 / PR #174.
+
 ## 2026-09-16 -- LULD halt reopen ETA chip on Level 2
 
 - **What:** Trader Stock View Level 2 header shows a halt ETA chip beside SHORT. LULD/volatility gets a 0-5 / 5-10 / >10 clock; news/regulatory is HALTED + reason with no fake countdown; unknown is HALTED + ETA unknown.
