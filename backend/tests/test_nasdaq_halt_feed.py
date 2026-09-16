@@ -104,6 +104,22 @@ def test_empty_successful_feed_is_empty_not_down():
     assert result["feed"]["status"] == "empty"
 
 
+def test_refresh_utf8_bom_body_is_ok_not_down():
+    raw = (FIXTURES / "nasdaq_trade_halts_bom.xml").read_bytes()
+    # Live Ahmed desk: requests.text latin-1 of EF BB BF -> column-1 invalid token.
+    result = nasdaq_halt_feed.refresh(now=1.0, xml_text=raw.decode("latin-1"))
+    assert result["ok"] is True, result.get("feed", {}).get("error")
+    assert result["feed"]["status"] == "ok"
+    assert result["feed"]["error"] is None
+    hit = nasdaq_halt_feed.overlay_for("ZTG")
+    assert hit["matched"] is True
+    assert hit["status"] == "ok"
+    assert hit["reason_code"] == "LUDP"
+    miss = nasdaq_halt_feed.overlay_for("QCLS")
+    assert miss["matched"] is False
+    assert miss["trade_resume"] is None
+
+
 def test_default_fetch_is_not_used_when_xml_injected():
     def boom() -> str:
         raise AssertionError("CI must not hit live Nasdaq")

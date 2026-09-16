@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Nasdaq Trade Halt RSS UTF-8 BOM parse
+
+- **What:** RSS fetch/parse strips a UTF-8 BOM and leading whitespace before XML parse. Live `requests.text` latin-1 of `EF BB BF` no longer marks `/api/halts/desk` down.
+- **Why:** Ahmed live smoke: desk feed `xml: not well-formed (invalid token): line 1, column 1`. Wire body is BOM then `<?xml`. QCLS stayed `exchange.status=down` while IBKR `halted=true`.
+- **Files touched:** `backend/ibkr/nasdaq_halt_rss.py`, `nasdaq_halt_feed.py`, `backend/tests/fixtures/nasdaq_trade_halts_bom.xml`.
+- **How it works now:** `prepare_rss_xml` decodes bytes as `utf-8-sig` and drops a text BOM or the latin-1 mojibake of that BOM, then lstrip. `_default_fetch` uses `response.content`, not `.text`. Poll is still 60s. HTML is still not scraped. Resume times are still never invented.
+- **Verified by:** pytest nasdaq_halt_rss / nasdaq_halt_feed including BOM fixture + latin-1 mojibake + leading whitespace.
+- **Related:** PR #191 / #190. PROBLEM_LOG 2026-09-16 Nasdaq RSS UTF-8 BOM.
+
 ## 2026-09-16 -- Desktop pack Windows case collision on MWCB files
 
 - **What:** Renamed `mwcbBanner.ts` to `mwcbDesk.ts` (and its test) so Windows Desktop pack can see both the MWCB component and the label helper.

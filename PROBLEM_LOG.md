@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Nasdaq Trade Halt RSS UTF-8 BOM
+
+- **Symptom:** Live `GET /api/halts/desk` returned `feed.status=down` with `xml: not well-formed (invalid token): line 1, column 1`. QCLS chip had IBKR `halted=true` / `kind=luld` but `exchange.status=down`.
+- **Cause:** Nasdaq RSS body starts with UTF-8 BOM `EF BB BF` then `<?xml`. `_default_fetch` used `requests.Response.text`; with no charset that is ISO-8859-1, so parse saw `ï»¿<?xml`. `fromstring` failed at column 1.
+- **Fix:** `prepare_rss_xml` strips BOM (bytes via `utf-8-sig`, text via U+FEFF or the latin-1 mojibake) and leading whitespace. Fetch decodes `response.content`. Recorded BOM fixture in tests.
+- **Fix class:** admission
+- **Keywords:** Nasdaq RSS, UTF-8 BOM, EF BB BF, not well-formed, /api/halts/desk, QCLS, requests.text, latin-1, #191
+
 ## 2026-09-16 -- Desktop pack MwcbBanner Windows case collision
 
 - **Symptom:** Desktop pack on PR #191 failed at `npm run electron:pack` / `tsc -b` on `windows-latest`: `Module "./MwcbBanner" has no exported member 'MwcbBanner'` and `Already included file name .../MwcbBanner.ts differs from .../mwcbBanner.ts only in casing`. Linux Frontend build / Vitest stayed green.

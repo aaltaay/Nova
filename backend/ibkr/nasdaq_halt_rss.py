@@ -42,6 +42,10 @@ _KV_RE = re.compile(
 )
 _DATE_FMTS = ("%m/%d/%Y", "%Y-%m-%d", "%m-%d-%Y")
 _TIME_FMTS = ("%H:%M:%S", "%H:%M")
+# Live Nasdaq RSS starts EF BB BF. requests.text without charset is latin-1
+# and yields that BOM as three Latin-1 chars (column-1 invalid token).
+_UTF8_BOM = "\ufeff"
+_UTF8_BOM_AS_LATIN1 = b"\xef\xbb\xbf".decode("latin-1")
 
 # Re-export documented URLs so tests / docs can cite one module.
 RSS_URL = NASDAQ_TRADE_HALT_RSS_URL
@@ -171,12 +175,29 @@ def _row_from_fields(fields: dict[str, str], title: str) -> HaltRssRow | None:
     )
 
 
-def parse_trade_halt_rss(xml_text: str) -> dict[str, Any]:
+def prepare_rss_xml(xml_text: str | bytes) -> str:
+    """Drop UTF-8 BOM and leading whitespace before XML parse.
+
+    Bytes use utf-8-sig. Text also drops the latin-1 mojibake of EF BB BF
+    (``requests.Response.text`` default when Nasdaq omits charset).
+    """
+    if isinstance(xml_text, (bytes, bytearray)):
+        return bytes(xml_text).decode("utf-8-sig").lstrip()
+    text = str(xml_text)
+    if text.startswith(_UTF8_BOM):
+        text = text[len(_UTF8_BOM):]
+    elif text.startswith(_UTF8_BOM_AS_LATIN1):
+        text = text[len(_UTF8_BOM_AS_LATIN1):]
+    return text.lstrip()
+
+
+def parse_trade_halt_rss(xml_text: str | bytes) -> dict[str, Any]:
     """Parse a recorded or live RSS body. Never raises on bad XML."""
-    if not xml_text or not str(xml_text).strip():
+    body = prepare_rss_xml(xml_text)
+    if not body:
         return {"ok": False, "rows": [], "mwcb": None, "error": "empty"}
     try:
-        root = ElementTree.fromstring(xml_text)
+        root = ElementTree.fromstring(body)
     except ElementTree.ParseError as exc:
         return {"ok": False, "rows": [], "mwcb": None, "error": f"xml: {exc}"}
     if _localname(root.tag).lower() != "rss":

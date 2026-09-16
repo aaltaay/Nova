@@ -12,10 +12,14 @@ from ibkr.nasdaq_halt_rss import (
     mwcb_level,
     parse_et_datetime,
     parse_trade_halt_rss,
+    prepare_rss_xml,
 )
 
-FIXTURE = Path(__file__).with_name("fixtures") / "nasdaq_trade_halts.xml"
+FIXTURES = Path(__file__).with_name("fixtures")
+FIXTURE = FIXTURES / "nasdaq_trade_halts.xml"
+BOM_FIXTURE = FIXTURES / "nasdaq_trade_halts_bom.xml"
 ET = ZoneInfo("America/New_York")
+UTF8_BOM = b"\xef\xbb\xbf"
 
 
 def _xml() -> str:
@@ -95,6 +99,51 @@ def test_mwcb_level_2_from_reason_code_not_symbol_tier():
 def test_mwc0_and_mwcq_are_not_level_banners():
     assert mwcb_level("MWC0") is None
     assert mwcb_level("MWCQ") is None
+
+
+def test_bom_fixture_starts_with_utf8_bom_then_xml_decl():
+    raw = BOM_FIXTURE.read_bytes()
+    assert raw.startswith(UTF8_BOM + b"<?xml")
+    assert raw[3:5] == b"<?"
+
+
+def test_prepare_rss_xml_strips_bom_and_whitespace():
+    raw = BOM_FIXTURE.read_bytes()
+    clean = FIXTURE.read_text(encoding="utf-8").lstrip()
+    assert prepare_rss_xml(raw).startswith("<?xml")
+    assert prepare_rss_xml(raw.decode("utf-8")).startswith("<?xml")
+    assert prepare_rss_xml(raw.decode("latin-1")).startswith("<?xml")
+    assert prepare_rss_xml("\n\n  " + clean).startswith("<?xml")
+    assert prepare_rss_xml(b"\xef\xbb\xbf") == ""
+
+
+def test_parse_utf8_bom_fixture_succeeds():
+    raw = BOM_FIXTURE.read_bytes()
+    as_utf8 = raw.decode("utf-8")  # keeps U+FEFF, as utf-8 .text would
+    parsed_bytes = parse_trade_halt_rss(raw)
+    parsed_text = parse_trade_halt_rss(as_utf8)
+    assert parsed_bytes["ok"] is True
+    assert parsed_text["ok"] is True
+    by_sym = {row.symbol: row for row in parsed_text["rows"]}
+    assert by_sym["ZTG"].reason_code == "LUDP"
+    assert by_sym["NEWS1"].trade_resume is None
+
+
+def test_parse_latin1_mojibake_of_utf8_bom_matches_live_desk_error():
+    """Nasdaq omits charset; requests.text is ISO-8859-1 -> ï»¿<?xml (live error)."""
+    raw = BOM_FIXTURE.read_bytes()
+    as_latin1 = raw.decode("latin-1")
+    assert as_latin1.startswith("ï»¿<?xml")
+    parsed = parse_trade_halt_rss(as_latin1)
+    assert parsed["ok"] is True, parsed.get("error")
+    assert parsed["error"] is None
+    assert {row.symbol for row in parsed["rows"]} >= {"ZTG", "NEWS1"}
+
+
+def test_parse_leading_whitespace_before_xml_decl():
+    parsed = parse_trade_halt_rss("\n\n  " + _xml())
+    assert parsed["ok"] is True
+    assert {row.symbol for row in parsed["rows"]} >= {"ZTG"}
 
 
 def test_empty_or_invalid_xml_fails_loud_without_rows():

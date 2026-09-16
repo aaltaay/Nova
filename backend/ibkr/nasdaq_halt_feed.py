@@ -26,6 +26,7 @@ from constants import (
 from ibkr.nasdaq_halt_rss import (
     HaltRssRow,
     parse_trade_halt_rss,
+    prepare_rss_xml,
     row_to_overlay,
     normalize_symbol,
 )
@@ -62,7 +63,7 @@ def _default_fetch() -> str:
         headers={"User-Agent": NASDAQ_TRADE_HALT_RSS_USER_AGENT},
     )
     response.raise_for_status()
-    return response.text
+    return prepare_rss_xml(response.content)
 
 
 def overlay_for(symbol: str) -> dict[str, Any]:
