@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:ndaq="http://www.nasdaqtrader.com/">
+  <channel>
+    <title>NASDAQTrader.com</title>
+    <link>http://www.nasdaqtrader.com</link>
+    <ttl>1</ttl>
+    <ndaq:numItems>2</ndaq:numItems>
+    <item>
+      <title>DLXY</title>
+      <pubDate>Wed, 16 Sep 2026 18:28:00 GMT</pubDate>
+      <ndaq:HaltDate>09/16/2026</ndaq:HaltDate>
+      <ndaq:HaltTime>14:28:00.000</ndaq:HaltTime>
+      <ndaq:IssueSymbol>DLXY</ndaq:IssueSymbol>
+      <ndaq:ReasonCode>LUDP</ndaq:ReasonCode>
+      <ndaq:PauseThresholdPrice>1.10</ndaq:PauseThresholdPrice>
+      <ndaq:ResumptionDate></ndaq:ResumptionDate>
+      <ndaq:ResumptionQuoteTime></ndaq:ResumptionQuoteTime>
+      <ndaq:ResumptionTradeTime></ndaq:ResumptionTradeTime>
+      <description>Current open LULD -- trade_resume empty. Must win overlay.</description>
+    </item>
+    <item>
+      <title>DLXY</title>
+      <pubDate>Wed, 16 Sep 2026 13:36:34 GMT</pubDate>
+      <ndaq:HaltDate>09/16/2026</ndaq:HaltDate>
+      <ndaq:HaltTime>09:36:34.000</ndaq:HaltTime>
+      <ndaq:IssueSymbol>DLXY</ndaq:IssueSymbol>
+      <ndaq:ReasonCode>LUDP</ndaq:ReasonCode>
+      <ndaq:PauseThresholdPrice>0.90</ndaq:PauseThresholdPrice>
+      <ndaq:ResumptionDate>09/16/2026</ndaq:ResumptionDate>
+      <ndaq:ResumptionQuoteTime>09:36:34</ndaq:ResumptionQuoteTime>
+      <ndaq:ResumptionTradeTime>09:41:34</ndaq:ResumptionTradeTime>
+      <description>Older resumed LUDP later in the feed -- last-write-wins must not keep this.</description>
+    </item>
+  </channel>
+</rss>

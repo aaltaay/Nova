@@ -25,6 +25,7 @@ from constants import (
 )
 from ibkr.nasdaq_halt_rss import (
     HaltRssRow,
+    better_overlay_row,
     parse_trade_halt_rss,
     prepare_rss_xml,
     row_to_overlay,
@@ -138,8 +139,10 @@ def refresh(
 
     _rows.clear()
     for row in parsed["rows"]:
-        if row.symbol:
-            _rows[row.symbol] = row
+        if not row.symbol:
+            continue
+        prev = _rows.get(row.symbol)
+        _rows[row.symbol] = row if prev is None else better_overlay_row(prev, row)
     _mwcb = parsed["mwcb"]
     _last_success_at = ts
     _last_error = None

@@ -23,6 +23,7 @@ from ibkr.halt_eta import (
     halt_chip_view,
     parse_halt_code,
 )
+from ibkr.nasdaq_halt_rss import sanitize_exchange_for_live_halt
 
 logger = logging.getLogger(__name__)
 
@@ -56,10 +57,14 @@ def _exchange_overlay(symbol: str) -> dict[str, Any]:
 
 
 def _payload(symbol: str, row: dict[str, Any], now: float) -> dict[str, Any] | None:
-    exchange = _exchange_overlay(symbol)
-    official = exchange.get("official_halt_start")
     observed = row.get("halt_start")
     start_late = bool(row.get("start_late"))
+    exchange = sanitize_exchange_for_live_halt(
+        _exchange_overlay(symbol),
+        start_late=start_late,
+        now=now,
+    )
+    official = exchange.get("official_halt_start")
     if (
         official is not None
         and observed is not None

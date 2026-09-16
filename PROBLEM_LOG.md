@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Nasdaq RSS last-write-wins stale overlay
+
+- **Symptom:** After the BOM fix, `/api/halts/desk` was `ok` but live DLXY LULD (`ticker.halted=2`) showed `exchange.matched=true` with a morning `trade_resume` while the current Nasdaq row was still open (`trade_resume` empty, age under 2m).
+- **Cause:** `refresh` did `_rows[symbol] = row` in feed order. Nasdaq listed the open DLXY first and an older resumed LUDP last, so last-write-wins kept the stale schedule. `halt_chip_view` then treated that old `official_halt_start` as this halt's clock.
+- **Fix:** `better_overlay_row` prefers open over resumed, else newest official start. `sanitize_exchange_for_live_halt` will not attach a past `trade_resume` or restore a late-start countdown from a resumed-only row.
+- **Fix class:** admission
+- **Keywords:** DLXY, Nasdaq RSS, last-write-wins, trade_resume, official_halt_start, start_late, overlay, #191
+
 ## 2026-09-16 -- Nasdaq Trade Halt RSS UTF-8 BOM
 
 - **Symptom:** Live `GET /api/halts/desk` returned `feed.status=down` with `xml: not well-formed (invalid token): line 1, column 1`. QCLS chip had IBKR `halted=true` / `kind=luld` but `exchange.status=down`.

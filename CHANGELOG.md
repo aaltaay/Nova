@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Nasdaq RSS keep-best overlay per symbol
+
+- **What:** When RSS lists a symbol more than once, overlay keeps the open row (`trade_resume` empty) over a later resumed row, else the newest `official_halt_start`. A late start plus only a stale resumed row no longer restores a confident LULD countdown.
+- **Why:** Live DLXY: feed.status was ok but `/api/ticker/DLXY` attached a morning resumed LUDP (`trade_resume` set) after last-write-wins overwrote the current open row.
+- **Files touched:** `backend/ibkr/nasdaq_halt_rss.py`, `nasdaq_halt_feed.py`, `halt_status.py`, `backend/tests/fixtures/nasdaq_trade_halts_dlxy_dup.xml`.
+- **How it works now:** `better_overlay_row` picks one row per symbol. `sanitize_exchange_for_live_halt` drops official/resume times when `start_late` and the row already has `trade_resume`, or when that resume is already in the past. Open-row official start can still restore countdown. Poll / no-HTML / no invented resumes unchanged.
+- **Verified by:** pytest nasdaq_halt_feed DLXY dup, halt_status late-stale + on-time future resume, nasdaq_halt_rss better_overlay_row.
+- **Related:** PR #191 / #190. PROBLEM_LOG 2026-09-16 Nasdaq RSS last-write-wins.
+
 ## 2026-09-16 -- Nasdaq Trade Halt RSS UTF-8 BOM parse
 
 - **What:** RSS fetch/parse strips a UTF-8 BOM and leading whitespace before XML parse. Live `requests.text` latin-1 of `EF BB BF` no longer marks `/api/halts/desk` down.

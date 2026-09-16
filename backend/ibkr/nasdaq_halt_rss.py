@@ -231,6 +231,53 @@ def parse_trade_halt_rss(xml_text: str | bytes) -> dict[str, Any]:
     return {"ok": True, "rows": rows, "mwcb": mwcb, "error": None}
 
 
+def better_overlay_row(kept: HaltRssRow, incoming: HaltRssRow) -> HaltRssRow:
+    """One overlay row per symbol: open (no trade_resume) beats resumed.
+
+    Tie: newest official_halt_start. A later resumed item must not wipe
+    the current open LULD (live DLXY last-write-wins).
+    """
+    kept_open = kept.trade_resume is None
+    incoming_open = incoming.trade_resume is None
+    if kept_open != incoming_open:
+        return incoming if incoming_open else kept
+    kept_ts = kept.official_halt_start
+    incoming_ts = incoming.official_halt_start
+    if incoming_ts is None:
+        return kept
+    if kept_ts is None or incoming_ts > kept_ts:
+        return incoming
+    return kept
+
+
+def sanitize_exchange_for_live_halt(
+    exchange: dict[str, Any],
+    *,
+    start_late: bool,
+    now: float,
+) -> dict[str, Any]:
+    """Drop resumed-row times that are not this halt's schedule.
+
+    A past ``trade_resume`` is a prior event. A late start plus any
+    resumed row must not restore a confident countdown from that old
+    official_halt_start.
+    """
+    if not exchange.get("matched"):
+        return exchange
+    trade = exchange.get("trade_resume")
+    if trade is None:
+        return exchange
+    stale = bool(start_late) or float(trade) <= float(now)
+    if not stale:
+        return exchange
+    return {
+        **exchange,
+        "official_halt_start": None,
+        "quote_resume": None,
+        "trade_resume": None,
+    }
+
+
 def row_to_overlay(row: HaltRssRow | None, *, status: str) -> dict[str, Any]:
     if row is None:
         return {

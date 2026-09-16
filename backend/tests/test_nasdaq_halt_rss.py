@@ -9,6 +9,8 @@ from ibkr.nasdaq_halt_rss import (
     RSS_HALTDATE_PARAM,
     RSS_URL,
     RSS_URL_HTTP,
+    HaltRssRow,
+    better_overlay_row,
     mwcb_level,
     parse_et_datetime,
     parse_trade_halt_rss,
@@ -166,3 +168,28 @@ def test_parse_et_datetime_refuses_incomplete_pairs():
     assert parse_et_datetime("09/16/2026", "10:30:00.256") == datetime(
         2026, 9, 16, 10, 30, 0, tzinfo=ET,
     ).timestamp()
+
+
+def _row(**kwargs) -> HaltRssRow:
+    defaults = dict(
+        symbol="DLXY",
+        reason_code="LUDP",
+        official_halt_start=100.0,
+        pause_threshold=None,
+        quote_resume=None,
+        trade_resume=None,
+        mwcb_level=None,
+    )
+    defaults.update(kwargs)
+    return HaltRssRow(**defaults)
+
+
+def test_better_overlay_row_prefers_open_then_newest_start():
+    open_new = _row(official_halt_start=200.0, trade_resume=None)
+    open_old = _row(official_halt_start=50.0, trade_resume=None)
+    resumed_newer = _row(official_halt_start=300.0, trade_resume=400.0)
+    resumed_older = _row(official_halt_start=10.0, trade_resume=20.0)
+    assert better_overlay_row(resumed_newer, open_new) == open_new
+    assert better_overlay_row(open_new, resumed_older) == open_new
+    assert better_overlay_row(open_old, open_new) == open_new
+    assert better_overlay_row(resumed_older, resumed_newer) == resumed_newer

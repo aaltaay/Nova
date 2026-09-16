@@ -120,6 +120,32 @@ def test_refresh_utf8_bom_body_is_ok_not_down():
     assert miss["trade_resume"] is None
 
 
+def test_duplicate_symbol_keeps_open_row_not_later_resumed():
+    """Live DLXY: feed lists the current open LUDP first, older resumed last."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
+    result = nasdaq_halt_feed.refresh(
+        now=100.0, xml_text=_load("nasdaq_trade_halts_dlxy_dup.xml"),
+    )
+    assert result["ok"] is True
+    hit = nasdaq_halt_feed.overlay_for("dlxy")
+    assert hit["matched"] is True
+    assert hit["status"] == "ok"
+    assert hit["reason_code"] == "LUDP"
+    assert hit["trade_resume"] is None
+    assert hit["quote_resume"] is None
+    assert hit["official_halt_start"] == datetime(
+        2026, 9, 16, 14, 28, 0, tzinfo=et,
+    ).timestamp()
+    assert hit["pause_threshold"] == "1.10"
+    stale_start = datetime(2026, 9, 16, 9, 36, 34, tzinfo=et).timestamp()
+    stale_resume = datetime(2026, 9, 16, 9, 41, 34, tzinfo=et).timestamp()
+    assert hit["official_halt_start"] != stale_start
+    assert hit["trade_resume"] != stale_resume
+
+
 def test_default_fetch_is_not_used_when_xml_injected():
     def boom() -> str:
         raise AssertionError("CI must not hit live Nasdaq")
