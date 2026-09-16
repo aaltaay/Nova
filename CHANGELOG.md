@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Header IBKR Cash vs Margin chip
+
+- **What:** Global header shows IBKR Cash / Margin / Unknown between the trade-session lock and Account. `/api/ibkr/account` now includes raw `AccountType` from the IBKR account summary.
+- **Why:** #181. A cash account cannot short; `short_enabled` is only the Nova env gate. The desk needed an honest label so Sell-short is not confused with a long exit.
+- **Files touched:** `backend/ibkr/account_summary.py`, `backend/ibkr/account.py`, `frontend/src/ibkr/IbkrAccountTypeChip.tsx`, `accountTypeChip.ts`, `GlobalAppBar.tsx`, `constantGroups/global_bar.ts`.
+- **How it works now:** Snapshot keeps `AccountType` as the IBKR string (never coerced to a float, never inferred from BuyingPower). The chip maps CASH / MARGIN tokens only. INDIVIDUAL and other structure tags stay Unknown. Disconnected or missing summary hides the chip. Tooltip: stock shorting needs margin; `IBKR_SHORT_ENABLED` is a separate env gate.
+- **Verified by:** pytest `test_ibkr_account` AccountType cases + `test_ibkr_safety` summary parse; Vitest `accountTypeChip` / `IbkrAccountTypeChip` / GlobalAppBar placement.
+- **Related:** Closes #181.
+
 ## 2026-09-16 -- Stop requesting illegal IBKR generic tick 49
 
 - **What:** Shared L1 `reqMktData` no longer asks for generic tick 49. The Halt ETA chip still reads `ticker.halted` (incoming tick type 49 on the default line). Tooltip says the start is observed, not SIP.

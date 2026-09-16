@@ -386,4 +386,35 @@ describe('GlobalAppBar', () => {
     });
     expect(requestOpenTradingTab).toHaveBeenCalled();
   });
+
+  it('places Cash vs Margin between the trade lock and Account', () => {
+    account = baseAccount({
+      summary: {
+        connected: true,
+        mode: 'paper',
+        AccountType: 'CASH',
+        NetLiquidation: 1000,
+      },
+    });
+    renderBar();
+    const right = container.querySelector('.global-app-bar__right');
+    expect(right).toBeTruthy();
+    const lock = right!.querySelector('[data-testid="global-bar-trade-lock"]');
+    const type = right!.querySelector('[data-testid="global-bar-account-type"]');
+    const accountBtn = right!.querySelector('[data-testid="global-bar-account-nav"]');
+    expect(lock).toBeTruthy();
+    expect(type).toBeTruthy();
+    expect(accountBtn).toBeTruthy();
+    expect(type!.textContent).toBe('Cash');
+    const kids = Array.from(right!.children);
+    expect(kids.indexOf(lock as Element)).toBeLessThan(kids.indexOf(type as Element));
+    expect(kids.indexOf(type as Element)).toBeLessThan(kids.indexOf(accountBtn as Element));
+  });
+
+  it('hides the account-type chip when IBKR is disconnected', () => {
+    workspace = baseWorkspace({ ibkrConnected: false, ibkrMode: 'disconnected' });
+    account = baseAccount({ summary: null, orders: [] });
+    renderBar();
+    expect(container.querySelector('[data-testid="global-bar-account-type"]')).toBeNull();
+  });
 });

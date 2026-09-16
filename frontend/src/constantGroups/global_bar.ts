@@ -69,5 +69,12 @@ export const GLOBAL_BAR_MODE_DISCONNECTED = 'Disconnected';
 export const GLOBAL_BAR_ACCOUNT_LABEL = 'Account';
 export const GLOBAL_BAR_ACCOUNT_TITLE =
   'Account overview — positions, orders, and trading habit reports';
+/** IBKR AccountType chip between trade lock and Account (issue #181). */
+export const GLOBAL_BAR_ACCOUNT_TYPE_CASH = 'Cash';
+export const GLOBAL_BAR_ACCOUNT_TYPE_MARGIN = 'Margin';
+export const GLOBAL_BAR_ACCOUNT_TYPE_UNKNOWN = 'Unknown';
+export const GLOBAL_BAR_ACCOUNT_TYPE_TOOLTIP =
+  'Stock shorting requires a margin account. Nova IBKR_SHORT_ENABLED is a separate env gate.';
+export const GLOBAL_BAR_ACCOUNT_TYPE_ARIA = 'IBKR account type';
 export const GLOBAL_BAR_SETTINGS_LABEL = 'Settings';
 export const GLOBAL_BAR_SETTINGS_TITLE = 'Open Settings';

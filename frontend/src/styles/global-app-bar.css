@@ -465,6 +465,30 @@
   height: 1rem;
 }
 
+.global-app-bar__account-type {
+  flex-shrink: 0;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--radius-control, 8px);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--nova-text-muted);
+  line-height: 1.2;
+}
+
+.global-app-bar__account-type--cash {
+  color: var(--nova-text);
+}
+
+.global-app-bar__account-type--margin {
+  color: var(--nova-text);
+  border-color: color-mix(in srgb, var(--nova-accent, #3b82f6) 40%, var(--nova-border));
+}
+
+.global-app-bar__account-type--unknown {
+  color: var(--nova-text-muted);
+}
+
 .global-app-bar__account-nav,
 .global-app-bar__settings {
   flex-shrink: 0;

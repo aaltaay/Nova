@@ -14,6 +14,7 @@ import logging
 import time
 
 from ibkr import client as _client
+from ibkr.account_summary import summary_from_items
 from ibkr.errors import IbkrAccountError, describe_exc
 from metrics.op_metrics import timed, timed_sync
 
@@ -39,16 +40,6 @@ def reset_completed_orders_cooldown_for_testing() -> None:
     global _last_completed_orders_ok_at, _completed_orders_lock
     _last_completed_orders_ok_at = 0.0
     _completed_orders_lock = None
-
-_SUMMARY_TAGS = (
-    "NetLiquidation",
-    "TotalCashValue",
-    "BuyingPower",
-    "UnrealizedPnL",
-    "RealizedPnL",
-    "GrossPositionValue",
-)
-
 
 def get_positions() -> list[dict]:
     """Return open IBKR positions.
@@ -194,23 +185,6 @@ def positions_for_ui() -> list[dict]:
     return out
 
 
-def _summary_from_items(items: list) -> dict:
-    summary: dict = {"connected": True, "mode": _client.account_mode()}
-    for item in items:
-        tag = getattr(item, "tag", None)
-        if tag not in _SUMMARY_TAGS:
-            continue
-        currency = getattr(item, "currency", "") or ""
-        if currency and currency not in ("USD", "BASE", ""):
-            continue
-        raw = getattr(item, "value", None)
-        try:
-            summary[tag] = float(raw) if raw not in (None, "") else None
-        except (TypeError, ValueError):
-            summary[tag] = None
-    return summary
-
-
 def get_account_summary() -> dict:
     """Snapshot from Gateway cache (no nested event-loop wait).
 
@@ -226,7 +200,7 @@ def get_account_summary() -> dict:
     try:
         with timed_sync("ibkr.account.summary_read"):
             values = list(ib.accountValues())
-        summary = _summary_from_items(values)
+        summary = summary_from_items(values, mode=_client.account_mode())
         if "NetLiquidation" not in summary:
             summary["pending"] = True
         return summary
@@ -249,7 +223,7 @@ async def refresh_account_summary() -> dict:
         async with timed("ibkr.account.summary_refresh"):
             items = await ib.accountSummaryAsync()
         if items:
-            return _summary_from_items(list(items))
+            return summary_from_items(list(items), mode=_client.account_mode())
         return get_account_summary()
     except IbkrAccountError:
         raise
