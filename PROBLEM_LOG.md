@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Coming soon chrome looked broken
+
+- **Symptom:** Settings > Hot Keys unused tabs rendered `Coming soon`. Order Ticket showed a permanently disabled **Automate (coming soon)** button. Both looked like a broken unfinished page.
+- **Cause:** Webull-style landing shipped placeholder tabs, and the ticket shipped a disabled Automate stub. Phase G3 already owns typed Nova Actions; strategy auto-place / `auto_live` is NO-GO, so the stubs could never become real.
+- **Fix:** Hide the unused landing tabs and the Automate button. Keep the existing Hotkeys Settings keymap editor. Do not add a second place path.
+- **Fix class:** surfacing
+- **Keywords:** HOTKEYS_TAB_SOON, Coming soon, Automate, OrderTicket, HotkeyManager, D-047, #93, auto_live
+
 ## 2026-09-16 -- Scanner activeTab reset to Gappers
 
 - **Symptom:** Main scanner tab always came back as Gappers after reload. HOD dock height/collapsed already survived. Operators on Gainers / Large Cap / Catalysts had to re-click every refresh.

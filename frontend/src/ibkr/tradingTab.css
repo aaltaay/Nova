@@ -312,20 +312,6 @@
 .ibkr-side-btn.active-type { background: rgba(99,102,241,0.15); color: #818cf8; border-color: #818cf8; }
 .ibkr-side-btn:disabled { opacity: 0.4; cursor: default; }
 
-.ibkr-automate-btn {
-  margin-top: 0.2rem;
-  padding: 0.4rem 0;
-  font-size: 0.78rem;
-  font-weight: 600;
-  border: 1px dashed rgba(99,102,241,0.4);
-  border-radius: 5px;
-  background: rgba(99,102,241,0.06);
-  color: #818cf8;
-  cursor: not-allowed;
-  width: 100%;
-  opacity: 0.75;
-}
-
 .ibkr-submit-btn {
   margin-top: 0.3rem;
   padding: 0.45rem 0;
