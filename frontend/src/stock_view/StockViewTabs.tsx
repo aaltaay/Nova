@@ -16,6 +16,7 @@ import {
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import {
   allowTraderTabDrop,
+  canExtractFromDesk,
   isForeignTabDrag,
   takeForeignTraderTabDrop,
 } from '../workspace/traderDesk';
@@ -93,6 +94,7 @@ export function StockViewTabs({ detached }: Props) {
       active={activeTraderSymbol}
       windowId={traderWindowId}
       showDock={traderDeskRole === 'float'}
+      showExtract={canExtractFromDesk(traderDeskRole)}
       dropReady={dropReady}
       onActivate={onActivate}
       onClose={sym => {

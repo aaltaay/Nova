@@ -14,7 +14,9 @@ import {
   TRADER_TAB_EXTRACT_LABEL,
   TRADER_TAB_EXTRACT_TITLE,
   TRADER_TAB_LABEL_TITLE,
+  TRADER_TAB_LABEL_TITLE_FLOAT,
   TRADER_TAB_STRIP_HINT,
+  TRADER_TAB_STRIP_HINT_FLOAT,
 } from '../constants';
 import {
   allowTraderTabDrop,
@@ -29,6 +31,7 @@ interface Props {
   active: string | null;
   windowId?: string;
   showDock?: boolean;
+  showExtract?: boolean;
   dropReady?: boolean;
   onActivate: (symbol: string) => void;
   onClose: (symbol: string) => void;
@@ -46,6 +49,7 @@ export function StockViewTabStrip({
   active,
   windowId = '',
   showDock = false,
+  showExtract = true,
   dropReady = false,
   onActivate,
   onClose,
@@ -153,9 +157,13 @@ export function StockViewTabStrip({
                 onClick={() => onActivate(symbol)}
                 onDoubleClick={e => {
                   e.preventDefault();
-                  if (!isDraft) onExtract(symbol);
+                  if (!isDraft && showExtract) onExtract(symbol);
                 }}
-                title={isDraft ? 'Type a ticker, then Enter' : TRADER_TAB_LABEL_TITLE}
+                title={
+                  isDraft
+                    ? 'Type a ticker, then Enter'
+                    : (showExtract ? TRADER_TAB_LABEL_TITLE : TRADER_TAB_LABEL_TITLE_FLOAT)
+                }
               >
                 {label}
               </button>
@@ -175,7 +183,7 @@ export function StockViewTabStrip({
                 {TRADER_TAB_DOCK_LABEL}
               </button>
             )}
-            {!isDraft && (
+            {!isDraft && showExtract && (
               <button
                 type="button"
                 className="sv-tab__extract"
@@ -217,7 +225,7 @@ export function StockViewTabStrip({
         +
       </button>
       <span className="sv-tab-strip__hint" data-testid="sv-tab-strip-hint" title={TRADER_TAB_DRAG_TITLE}>
-        {TRADER_TAB_STRIP_HINT}
+        {showExtract ? TRADER_TAB_STRIP_HINT : TRADER_TAB_STRIP_HINT_FLOAT}
       </span>
     </div>
   );

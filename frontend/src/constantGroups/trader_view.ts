@@ -47,6 +47,8 @@ export const TRADER_BLOCK_NOTICE_MESSAGE =
 /** Tab label -- click stays here; double-click extracts. */
 export const TRADER_TAB_LABEL_TITLE =
   'Click to view this symbol here. Drag onto another Nova window to dock. Double-click to pop out.';
+export const TRADER_TAB_LABEL_TITLE_FLOAT =
+  'Click to view this symbol here. Drag onto the main Nova window to dock.';
 export const TRADER_TAB_EXTRACT_LABEL = 'Pop out';
 export const TRADER_TAB_EXTRACT_TITLE =
   'Open this symbol in a new window. You can also double-click the tab.';
@@ -54,6 +56,8 @@ export const TRADER_TAB_EXTRACT_ARIA = 'Open tab in a new window';
 export const TRADER_TAB_ADD_TITLE = 'Add a ticker tab in this window';
 export const TRADER_TAB_STRIP_HINT =
   'Drag a tab onto another Nova window to dock it. Double-click to pop out.';
+export const TRADER_TAB_STRIP_HINT_FLOAT =
+  'Drag this tab onto the main Nova window to dock it.';
 export const TRADER_TAB_DOCK_LABEL = 'Dock';
 export const TRADER_TAB_DOCK_TITLE =
   'Move this ticker back into the main Nova window';

@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Pop-out Dock restores the ticker; hide Pop out on float
+
+- **What:** A popped-out Trader window no longer shows **Pop out**. **Dock** puts the ticker back on the main Nova desk and closes the float. Clicking Pop out on an already-popped window no longer closes the screen.
+- **Why:** Issue #158. Desktop Pop out is `new BrowserWindow`, so `BroadcastChannel` never reached the host. Dock looked like it ate the ticker. The float strip reused host chrome, so a second Pop out focused the same window then closed it.
+- **Files touched:** `frontend/src/workspace/traderDesk/bus.ts`, `protocol.ts`, `useTraderDeskBinding.ts`, `commands.ts`, `frontend/src/stock_view/StockViewTabStrip.tsx`, `StockViewTabs.tsx`, ADR 011.
+- **How it works now:** Host-only extract. Float chrome is Dock + X. The desk bus still speaks the ADR 011 messages, and also writes `localStorage['nova.trader.desk.bus']` so Electron windows in a different browsing-context group hear `dock-request` / `tab-docked`. Host `tryAddTab` is synchronous so `tab-docked` is only published after the symbol is on the host strip.
+- **Verified by:** Vitest `StockViewTabStrip`, `StockViewTabs`, `traderDesk`, `traderOpen` (dock-request over storage restores F).
+- **Related:** Closes #158. PROBLEM_LOG 2026-09-16 -- Pop-out Dock vanished ticker.
+
 ## 2026-09-16 -- Drop 50 EMA from chart overlays
 
 - **What:** Chart overlays no longer draw a 50 EMA. The Warrior-style set is 9 / 20 / 200 EMAs plus VWAP. Existing hex colors for 9, 20, 200, and VWAP are unchanged.

@@ -6,6 +6,8 @@
 export const TRADER_DESK_PROTOCOL_V = 1 as const;
 
 export const TRADER_DESK_CHANNEL = 'nova.trader.desk';
+/** localStorage signal so Electron BrowserWindows (separate BC groups) still dock. */
+export const TRADER_DESK_STORAGE_KEY = 'nova.trader.desk.bus';
 export const TRADER_TAB_DRAG_MIME = 'application/x-nova-trader-tab';
 export const TRADER_TAB_DRAG_TEXT_PREFIX = 'nova-trader-tab:';
 
@@ -79,6 +81,35 @@ export function traderDeskMessage(
     ...(fields.targetWindowId ? { targetWindowId: fields.targetWindowId } : {}),
     ...(fields.requestId ? { requestId: fields.requestId } : {}),
   };
+}
+
+export type TraderDeskStoragePayload = {
+  v: typeof TRADER_DESK_PROTOCOL_V;
+  seq: string;
+  msg: TraderDeskMessage;
+};
+
+export function encodeDeskStoragePayload(
+  msg: TraderDeskMessage,
+  seq = `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+): string {
+  const payload: TraderDeskStoragePayload = {
+    v: TRADER_DESK_PROTOCOL_V,
+    seq,
+    msg,
+  };
+  return JSON.stringify(payload);
+}
+
+export function parseDeskStoragePayload(raw: string | null | undefined): TraderDeskMessage | null {
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw) as Partial<TraderDeskStoragePayload>;
+    if (data.v !== TRADER_DESK_PROTOCOL_V) return null;
+    return parseTraderDeskMessage(data.msg);
+  } catch {
+    return null;
+  }
 }
 
 export function parseTraderDeskMessage(raw: unknown): TraderDeskMessage | null {

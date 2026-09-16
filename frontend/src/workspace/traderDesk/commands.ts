@@ -12,6 +12,11 @@ export function deskRoleFromStockView(urlSymbol: string | null): TraderDeskRole 
   return urlSymbol ? 'float' : 'host';
 }
 
+/** Pop out is a host-only extract. A float is already its own OS window. */
+export function canExtractFromDesk(role: TraderDeskRole): boolean {
+  return role === 'host';
+}
+
 export function closePolicyAfterGive(role: TraderDeskRole, remainingTabs: number): CloseAfterGive {
   if (remainingTabs > 0) return 'keep';
   return role === 'float' ? 'close-window' : 'leave-scanner';

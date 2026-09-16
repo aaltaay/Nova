@@ -24,7 +24,7 @@ The operator needs Chrome-style docking: grab the ticker in the floated window a
    - Extract: open a float surface for symbol S, remove S from the source surface.
    - Dock: add S to the target surface, remove S from the source. If the source is a float and now empty, close that OS window. If the source is a host and now empty, return to the scanner (do not close the app).
 
-3. **Scoped desk bus, not a product event bus.** Windows coordinate on `BroadcastChannel('nova.trader.desk')` only. Message types: `offer` / `offer-end` (drag highlight), `dock-request` (Dock control when there is no drop target), `tab-docked` (target accepted; source must give the tab up), `dock-reject` (host saw the request but could not take the tab -- usually at cap). This is not a cross-feature chat bus (ADR 005 / architecture README still forbid that).
+3. **Scoped desk bus, not a product event bus.** Windows coordinate on `BroadcastChannel('nova.trader.desk')` plus a `localStorage` `storage` signal (`nova.trader.desk.bus`). Message types: `offer` / `offer-end` (drag highlight), `dock-request` (Dock control when there is no drop target), `tab-docked` (target accepted; source must give the tab up), `dock-reject` (host saw the request but could not take the tab -- usually at cap). This is not a cross-feature chat bus (ADR 005 / architecture README still forbid that). The storage signal is transport only -- tab strips stay per-window `sessionStorage`. Electron Pop out uses `new BrowserWindow`, which is a separate browsing-context group, so BroadcastChannel stays silent there; `storage` events still cross those windows.
 
 4. **HTML5 drag is the spatial gesture.** A tab carries `application/x-nova-trader-tab` plus a `text/plain` fallback. Drop is unambiguous: the window that receives `drop` is the target. Same-window drops are ignored (no silent reorder in this ADR). Drag-off-empty-space does **not** extract -- extract stays Pop out / double-click.
 
@@ -68,5 +68,5 @@ The operator needs Chrome-style docking: grab the ticker in the floated window a
 | Open vs extract | `frontend/src/workspace/traderDesk/useTraderDeskBinding.ts` |
 | Drag + message codec | `frontend/src/workspace/traderDesk/protocol.ts` |
 | Role / close / claim | `frontend/src/workspace/traderDesk/commands.ts` |
-| BroadcastChannel | `frontend/src/workspace/traderDesk/bus.ts` |
+| BroadcastChannel + localStorage signal | `frontend/src/workspace/traderDesk/bus.ts` |
 | Overlay when the host is on the scanner | `TraderDockLayer.tsx` |

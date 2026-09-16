@@ -4,6 +4,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TRADER_DESK_STORAGE_KEY } from './protocol';
 import { useTraderDesk } from './useTraderDesk';
 
 type Fan = {
@@ -119,5 +120,6 @@ describe('useTraderDesk', () => {
     expect(accepted).toEqual(['IPST']);
     expect(gave).toHaveBeenCalledWith('IPST');
     expect(hostDesk).toBeTruthy();
+    expect(localStorage.getItem(TRADER_DESK_STORAGE_KEY)).toMatch(/dock-request|tab-docked/);
   });
 });
