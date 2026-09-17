@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- PR delivery squash-merges green PRs and comments on conflicts
+
+- **What:** Auto-merge squash-merges ready PRs using the PR title as `commit_title` (credit as the merging GitHub actor). Dirty/conflicting PRs still `ACTION_BLOCK`, but sweep/merge post a one-time `gh pr comment` telling a Cursor cloud agent to rebase onto `origin/master`, resolve, push, and leave the PR ready.
+- **Why:** Merge commits from Auto-merge were the wrong history shape. Conflicts were staying silent until a human noticed.
+- **Files touched:** `tools/pr_delivery.py`, `tools/pr_delivery_actions.py`, `tools/pr_delivery_text.py`, `tools/test_pr_delivery.py`, `tools/test_pr_delivery_workflow.py`
+- **How it works now:** `decide()` gates are unchanged (required checks, Desktop pack if present, draft / `do-not-merge` / forks / protected heads). `_merge_now` sends `merge_method=squash` plus the PR title. A conflict comment is deduped with `<!-- nova-pr-delivery-conflict -->`. Sweep exits non-zero while a conflict remains.
+- **Verified by:** `python3 -m pytest tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py -q`
+- **Related:** Closes #239.
+
 ## 2026-09-17 -- Right price-scale gutter no longer shoves the plot
 
 - **What:** Live volume chips (`9.0K` -> `149.04K`) no longer grow the right axis and slide the candles left/right. The gutter is a reserved width; volume last-value text stays on a fixed character budget.
