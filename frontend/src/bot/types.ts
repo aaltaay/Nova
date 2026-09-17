@@ -3,9 +3,19 @@ import type { BotActionKind, BotPackId } from '../constantGroups/bot';
 export type BotPackStatus = 'live' | 'stub';
 
 export type BotPackInfo = {
-  id: BotPackId;
+  id: BotPackId | string;
   label: string;
-  status: BotPackStatus;
+  status: BotPackStatus | string;
+  description?: string;
+};
+
+export type BotLlmSpend = {
+  configured: boolean;
+  live_fire: boolean;
+  call_cap: number;
+  usd_cap: number;
+  usd_spent: number;
+  calls_used: number;
 };
 
 export type BotSession = {
@@ -35,6 +45,7 @@ export type BotSession = {
     usd_spent: number;
     calls_used: number;
   };
+  llm?: BotLlmSpend;
   soft_breaker_fired: boolean;
   hard_lock_until_date: string | null;
   day_lock_active: boolean;

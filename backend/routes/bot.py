@@ -14,6 +14,7 @@ from bot.api_models import (
     FocusBody,
     HeartbeatBody,
     LiveSyncBody,
+    LlmSpendBody,
     ProposalBody,
     SessionPatch,
 )
@@ -195,6 +196,17 @@ def bot_focus_set(body: FocusBody) -> dict:
 @router.post("/bot/focus/sync", dependencies=_write)
 def bot_focus_sync(body: LiveSyncBody) -> dict:
     return sync_trader_live(body.live)
+
+
+@router.post("/api/bot/llm/spend", dependencies=_write)
+@router.post("/bot/llm/spend", dependencies=_write)
+def bot_llm_spend(body: LlmSpendBody) -> dict:
+    from bot.llm_guard import assert_and_charge
+
+    try:
+        return assert_and_charge(body.usd)
+    except BotError as exc:
+        raise http_error(exc) from exc
 
 
 @router.get("/api/bot/advise/latest")

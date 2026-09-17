@@ -101,6 +101,16 @@ def apply_patch(
         if "call_cap" in patch:
             advise["call_cap"] = max(0, int(patch["call_cap"]))
         row["advise"] = advise
+    if "llm" in body and isinstance(body["llm"], dict):
+        from bot.llm_guard import default_llm
+
+        llm = {**default_llm(), **dict(row.get("llm") or {})}
+        patch = body["llm"]
+        if "usd_cap" in patch:
+            llm["usd_cap"] = max(0.0, float(patch["usd_cap"]))
+        if "call_cap" in patch:
+            llm["call_cap"] = max(0, int(patch["call_cap"]))
+        row["llm"] = llm
     if body.get("reenable") and desk:
         row["soft_breaker_fired"] = False
     return save_session(row)

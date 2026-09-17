@@ -15,6 +15,7 @@ class SessionPatch(BaseModel):
     pack_settings: dict[str, Any] | None = None
     caps: dict[str, Any] | None = None
     advise: dict[str, Any] | None = None
+    llm: dict[str, Any] | None = None
     reenable: bool | None = None
     brain_session_id: str | None = None
     desk_arm_token: str | None = None
@@ -72,3 +73,7 @@ class AdviseBody(BaseModel):
     symbol: str
     depth: int | None = None
     force_refresh: bool = False
+
+
+class LlmSpendBody(BaseModel):
+    usd: float = Field(default=0, ge=0)

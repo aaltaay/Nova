@@ -1,4 +1,4 @@
-import { BOT_ACTION_KINDS, BOT_PACK_LABELS } from '../constantGroups/bot';
+import { BOT_ACTION_KINDS, BOT_PACK_LABELS, packDescription } from '../constantGroups/bot';
 import { useBotSession } from './useBotSession';
 
 export function StrategyTab() {
@@ -11,6 +11,16 @@ export function StrategyTab() {
   const pending = proposals.filter(p => p.status === 'pending');
   const pack = String(session.active_pack || 'halt-luld');
   const packLabel = BOT_PACK_LABELS[pack as keyof typeof BOT_PACK_LABELS] || pack;
+  const selectedPack = session.packs?.find(row => row.id === pack);
+  const description = selectedPack?.description || packDescription(pack);
+  const llm = session.llm ?? {
+    configured: false,
+    live_fire: false,
+    call_cap: 10,
+    usd_cap: 2,
+    usd_spent: 0,
+    calls_used: 0,
+  };
 
   return (
     <div className="bot-strategy">
@@ -106,8 +116,42 @@ export function StrategyTab() {
         <p className="form-hint">
           Live L2 (max 3, shared with Trader): {session.trader_live.join(', ') || 'none'}
         </p>
+        <p className="form-hint" data-testid="bot-pack-desc">
+          {description}
+        </p>
+      </section>
+
+      <section className="bot-strategy__card">
+        <h3>LLM decide</h3>
+        <p className="form-hint" data-testid="bot-llm-fire-status">
+          {llm.live_fire
+            ? 'LLM may live-fire when Activate is on.'
+            : 'LLM may live-fire when Activate -- currently propose-only or idle.'}
+          {llm.configured ? '' : ' Pack is idle until NOVA_LLM_API_KEY, base URL, and model are set.'}
+        </p>
+        <div className="bot-strategy__grid">
+          <label>
+            LLM USD cap
+            <input
+              type="number"
+              min={0}
+              step={0.25}
+              value={llm.usd_cap}
+              onChange={e => void patch({ llm: { usd_cap: Number(e.target.value) } })}
+            />
+          </label>
+          <label>
+            LLM call cap
+            <input
+              type="number"
+              min={0}
+              value={llm.call_cap}
+              onChange={e => void patch({ llm: { call_cap: Number(e.target.value) } })}
+            />
+          </label>
+        </div>
         <p className="form-hint">
-          Quote spike and volume packs are stubs -- they heartbeat only and cannot fire.
+          Spent ${llm.usd_spent.toFixed(2)} / {llm.calls_used} calls
         </p>
       </section>
 

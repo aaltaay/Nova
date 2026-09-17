@@ -6,12 +6,20 @@ from typing import Any
 from bot.errors import BotError
 from constants_bot import (
     BOT_PACK_DEFAULT,
+    BOT_PACK_DESCRIPTIONS,
     BOT_PACK_HALT_LULD,
     BOT_PACK_LABELS,
+    BOT_PACK_LLM_DECIDE,
     BOT_PACK_STUBS,
     BOT_PACKS,
     BOT_REASON_PACK_STUB,
 )
+
+
+def pack_status(pack_id: str) -> str:
+    if pack_id in BOT_PACK_STUBS:
+        return "stub"
+    return "live"
 
 
 def catalog() -> list[dict[str, Any]]:
@@ -21,7 +29,8 @@ def catalog() -> list[dict[str, Any]]:
             {
                 "id": pack_id,
                 "label": BOT_PACK_LABELS[pack_id],
-                "status": "stub" if pack_id in BOT_PACK_STUBS else "live",
+                "status": pack_status(pack_id),
+                "description": BOT_PACK_DESCRIPTIONS[pack_id],
             }
         )
     return rows
@@ -45,6 +54,10 @@ def default_pack_settings() -> dict[str, Any]:
         },
         "quote-spike": {"enabled": False, "note": "stub -- no signal logic yet"},
         "volume": {"enabled": False, "note": "stub -- no signal logic yet"},
+        BOT_PACK_LLM_DECIDE: {
+            "min_interval_sec": 15,
+            "note": "Live fire needs L2 + Activate -- no hidden arm flag",
+        },
     }
 
 

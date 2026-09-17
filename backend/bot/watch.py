@@ -15,11 +15,28 @@ def halt_watch(row: dict[str, Any]) -> dict[str, Any]:
     items: list[dict[str, Any]] = []
     for symbol in symbols:
         snap = halt_status.snapshot(symbol)
+        last = None
+        position_qty = 0.0
+        try:
+            from bot.quotes import last_quote
+
+            quote = last_quote(symbol) or {}
+            last = quote.get("price")
+        except Exception:
+            last = None
+        try:
+            from ibkr import account as _account
+
+            position_qty = float(_account.long_qty(symbol) or 0)
+        except Exception:
+            position_qty = 0.0
         items.append(
             {
                 "symbol": symbol,
                 "halted": bool(snap and snap.get("halted")),
                 "halt": snap,
+                "last": last,
+                "position_qty": position_qty,
             }
         )
     view = public_view(row)

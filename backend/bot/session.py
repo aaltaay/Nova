@@ -9,6 +9,7 @@ from bot.clock import lock_is_active
 from bot.eligibility import normalize_symbols
 from bot.errors import BotError
 from bot.kinds import default_allowlist
+from bot.llm_guard import public_llm
 from bot.packs import catalog, default_pack_settings, normalize_pack
 from constants_bot import (
     BOT_ADVISE_DEFAULT_CALL_CAP,
@@ -67,6 +68,7 @@ def public_view(row: dict[str, Any]) -> dict[str, Any]:
             "usd_spent": float(advise.get("usd_spent") or 0),
             "calls_used": int(advise.get("calls_used") or 0),
         },
+        "llm": public_llm(row),
         "soft_breaker_fired": bool(row.get("soft_breaker_fired")),
         "hard_lock_until_date": lock_until,
         "day_lock_active": lock_is_active(lock_until),
