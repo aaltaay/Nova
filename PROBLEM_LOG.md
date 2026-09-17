@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- note_status Filled no longer latches ledger qty
+
+- **Symptom:** After the commission migrate-strip fix, `test_note_filled_writes_perm_id_and_qty` failed `filled_qty is None` (expected 1.0). Same class: journal round-trip from `note_status` + `note_filled` never recorded PnL.
+- **Cause:** Honesty made `note_status` remember perm_id only. `last_filled_qty` / `last_avg_fill` now come from `note_execution` (execDetails). Tests still treated orderStatus as a fill.
+- **Fix:** Tests call `note_execution` before `note_filled`, matching the production path.
+- **Fix class:** admission
+- **Keywords:** note_status, note_execution, filled_qty, journal, #175, PR 183
+
+## 2026-09-16 -- Ledger migrate test missed commission column
+
+- **Symptom:** CI `test_init_db_migrates_pre_facts_schema` -- `assert 'perm_id' not in columns` failed because the pre-facts string strip no longer matched `_SCHEMA` after `commission REAL` was added.
+- **Cause:** The test rebuilt a pre-facts CREATE by deleting a suffix that ended at `avg_fill_price`. The live schema now ends that block with `commission`.
+- **Fix:** Strip `perm_id` / `filled_qty` / `avg_fill_price` / `commission` together. After `init_db`, assert `commission` migrated too.
+- **Fix class:** infra
+- **Keywords:** commission, perm_id, _SCHEMA, test_init_db_migrates_pre_facts_schema, #179, PR 183
+
 ## 2026-09-16 -- Warm completed Filled showed 0 qty
 
 - **Symptom:** CI `test_closed_orders_infers_filled_qty_for_warm_completed_order` -- `filled_qty` was 0.0, expected 100.0. Frontend lint: `usePrereqOverlayInputs` react-hooks/exhaustive-deps on `health`.

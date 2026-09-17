@@ -36,13 +36,8 @@ Entry template (copy and fill in):
 - **Why:** ZTG #116071 showed Warning 2109 as "Broker rejected" and Failed + Filled 1 @ $1.76 from the limit. SPCX #115728 also emitted 2109 then filled, and the prerequisites overlay stole the ticket on a single probe miss. Commission $1.000003 was buried in avg_cost.
 - **Files touched:** `backend/execution/order_outcome.py`, `fill_audit.py`, `telemetry.py`, `closed_blotter.py`, `ibkr/order_rows.py`, `frontend/src/ibkr/tradingPrerequisites.ts`, `orderFillHonesty.ts`, `orderCommission.ts`, `orderTableColumns.ts`.
 - **How it works now:** A pure reducer folds the IBKR event stream into one outcome. Latest hard error (201) wins; 2109 never rejects. Overlay needs a sustained API_DOWN streak and must not fire while Place / Flatten / Fill now is in flight. Commissions stay blank until a real CommissionReport. Fill audit is log-only (no UI). Warm `reqCompletedOrders` rows stamped Filled with no backfilled fills still show requested size as `filled_qty`; Inactive never does.
-<<<<<<< HEAD
-- **Verified by:** pytest order_outcome / fill_audit / closed_blotter / open_orders_row / closed_orders / execution_store_facts; Vitest orderFillHonesty / orderCommission / tradingPrerequisites overlay gates; `eslint . --max-warnings 0`. No live IBKR orders.
+- **Verified by:** pytest order_outcome / fill_audit / closed_blotter / open_orders_row / closed_orders / execution_store_facts / journal_round_trip; Vitest orderFillHonesty / orderCommission / tradingPrerequisites overlay gates; `eslint . --max-warnings 0`. No live IBKR orders.
 - **Follow-ups:** Edge paper smoke of SPCX-style fill + ZTG-style 201 after merge. Halt chip / #191 stays on master -- this PR does not touch it.
-=======
-- **Verified by:** pytest order_outcome / fill_audit / closed_blotter / open_orders_row / closed_orders; Vitest orderFillHonesty / orderCommission / tradingPrerequisites overlay gates; `eslint . --max-warnings 0` on the overlay hook. No live IBKR orders.
-- **Follow-ups:** Edge paper smoke of SPCX-style fill + ZTG-style 201 after merge. #178 halt/tick 49 shipped separately on master (#180).
->>>>>>> 4f61899 (Restore warm completed Filled qty; fix overlay hook deps.)
 - **Related:** Closes #175 #176 #177 #179. PROBLEM_LOG 2026-09-16 order outcome honesty + desk overlay.
 
 ## 2026-09-16 -- Live Day P&L / Net Liq / BP / position marks
