@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Maximized chart drawing tools are flat and usable
+
+- **What:** Maximized / fullscreen chart chrome now shows Trendline, Horizontal Line, Vertical Line, Extended, Ray, and Horizontal Ray as individual toolbar buttons. The leftover cluster menu portals into the maximize / fullscreen host and stacks above that overlay. Timeframe and EMAs / VWAP / RSI / MACD stay put.
+- **Why:** #198. Clicking the drawings chevron on a maximized chart did nothing. The maxed toolbar also had unused horizontal space.
+- **Files touched:** `chartDrawToolsChrome.ts`, `ChartDrawToolsMenu.tsx`, `TickerChartControls.tsx`, `ChartGridToolbar.tsx`, `tickerChart.css`.
+- **How it works now:** `chartDrawToolsLayout(maximized)` is `flat` when quote-panel portal maximize, Trader fullscreen, or a grid pane is maximized. Compact un-maxed toolbars still use the last-used + chevron cluster. That cluster no longer portals to `document.body` at z-index 80 (buried by `.chart-portal-host--maximized` at 10000, and invisible under the Fullscreen API).
+- **Verified by:** Vitest `chartDrawToolsChrome`, `ChartDrawToolsMenu`, `TickerChartControls`, `ChartGrid`. No live market required.
+- **Follow-ups:** Ahmed Edge-smokes on Windows localhost (max chart, click each drawing tool) before squash-merge. Compact cluster can return later if the bar gets crowded. D-010 (#38) Trend Line two-click pan is a different bug -- not this PR.
+- **Related:** Closes #198. PROBLEM_LOG 2026-09-17 -- Maximized drawings dropdown buried. D-010 left open.
+
 ## 2026-09-17 -- Orders Today Symbol-first column layout
 
 - **What:** Closed + Working Orders Today default to Symbol first. Time Placed / Time Filled / Type no longer lead the table. Time and Type columns wrap and stay tight so Commissions, Latency, and Order ID stay readable.

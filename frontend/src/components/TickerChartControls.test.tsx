@@ -163,6 +163,58 @@ describe('TickerChartControls filling hint', () => {
     expect(container.querySelector('[aria-label="Restore chart"]')).toBeTruthy();
   });
 
+  it('maximized toolbar spreads line tools and keeps timeframe plus indicators', async () => {
+    const onToolClick = vi.fn();
+    const onIndicatorToggle = vi.fn();
+    const onTimeframeChange = vi.fn();
+    await act(async () => {
+      root.render(
+        <TickerChartControls
+          activeTool={null}
+          enabledIndicators={['emas', 'vwap']}
+          lockTimeframe={false}
+          maximized
+          timeframe="5Min"
+          usingMock={false}
+          onClearAll={noop}
+          onIndicatorToggle={onIndicatorToggle}
+          onMaximize={noop}
+          onTimeframeChange={onTimeframeChange}
+          onToolClick={onToolClick}
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="chart-draw-tools-flat"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-haspopup="menu"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Use Trendline"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Use Horizontal Ray"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Timeframe"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Indicators"]')).toBeTruthy();
+    expect(container.textContent).toContain('EMAs');
+    expect(container.textContent).toContain('VWAP');
+    expect(container.textContent).toContain('RSI');
+    expect(container.textContent).toContain('MACD');
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Use Ray"]')?.click();
+    });
+    expect(onToolClick).toHaveBeenCalledWith('Ray');
+
+    const rsi = [...container.querySelectorAll<HTMLButtonElement>('.chart-tab')].find(
+      (button) => button.textContent === 'RSI',
+    );
+    await act(async () => rsi?.click());
+    expect(onIndicatorToggle).toHaveBeenCalledWith('rsi');
+
+    const oneMin = [...container.querySelectorAll<HTMLButtonElement>('.chart-tab')].find(
+      (button) => button.textContent === '1m',
+    );
+    expect(oneMin).toBeTruthy();
+    await act(async () => oneMin?.click());
+    expect(onTimeframeChange).toHaveBeenCalledWith('1Min');
+  });
+
   it('does not spend chart header space on a session legend', async () => {
     await act(async () => {
       root.render(renderControls(null));

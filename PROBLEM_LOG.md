@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Maximized drawings dropdown buried
+
+- **Symptom:** On a maximized chart the top-left drawings control (diagonal-line + chevron) did not open. Indicator chips still worked. Plenty of empty toolbar space sat to their right.
+- **Cause:** Two stacking bugs, not overflow clipping of an in-flow menu. (1) Quote-panel maximize moves the chart into `.chart-portal-host--maximized` (`position: fixed; inset: 0; z-index: 10000`). The cluster menu was `createPortal(..., document.body)` at z-index 80, so it opened behind the overlay. (2) Trader header ⛶ uses the Fullscreen API; anything portaled to `document.body` is outside `document.fullscreenElement` and the browser hides it. `overflow: hidden` on `.chart-card--maximized` was a red herring -- the menu was already portaled.
+- **Fix:** Maximized chrome renders each line tool as a toolbar button (inside the overlay / fullscreen tree). Cluster menus that remain portal to the fullscreen element or maximize host and use z-index 10060.
+- **Fix class:** surfacing
+- **Keywords:** chart drawings, maximize, fullscreen, z-index, createPortal, ChartDrawToolsMenu, #198
+
 ## 2026-09-17 -- Orders Today time columns crushed the desk
 
 - **Symptom:** Edge smoke on #197 (Orders Today, All). Time Filled / Time Placed / Type ate ~60% of the table. Symbol, Qty, Status, Avg, Comm, Latency, Order ID truncated (`Symb…`, `Laten…`).
