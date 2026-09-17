@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Ahmed locked #218-#222 on epic #205. Brains/curl must not PATCH L2. Fire is fail-closed without Activate + fresh heartbeat + allowlist ∩ live focus.
 - **Files touched:** `backend/bot/`, `backend/nova_brain/`, `backend/auth.py`, `backend/routes/bot.py`, `frontend/src/bot/`, `GlobalAppBar.tsx`, chart/scanner/tab menus, `docs/bot-localhost-api.md`, `docs/bot-adapters.md`, ADR 016.
 - **How it works now:** POST `/session/arm` issues `X-Nova-Desk-Arm`. PATCH level>1 needs that token. Brains only claim + heartbeat + fire. Empty allowlist is closed. Halt/LULD is the only live pack. Stubs heartbeat only (`BOT_PACK_STUB`). `live_fire_ready` is L2 + armed + brain heartbeat. Same-day -$50 re-arm stays allowed via header Activate.
-- **Verified by:** pytest `test_bot_*` + `test_nova_brain` + `test_auth` bot mutate; Vitest BotArmControls / StrategyTab / chart menu; `npm run build`. No live IBKR orders.
+- **Verified by:** pytest bot + brain + auth 70 passed; Vitest BotArmControls / StrategyTab / allowlist store / chart menu 50 passed; `npm run lint` + `npm run build`. Rebased onto `origin/master` (`04e5716`, PR #224). No live IBKR orders.
 - **Follow-ups:** L3 parked (#216). Epic #205 stays open. Quote-spike/volume signal logic later.
 - **Related:** Closes #218 #219 #220 #221 #222. Refs #205. PROBLEM_LOG 2026-09-17 bot alias key + arming.
 
