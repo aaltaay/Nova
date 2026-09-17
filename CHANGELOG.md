@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Ahmed unlocked live fire (#227) on the same bot slice as #225/#226. Activate is the go -- no hidden `LLM_LIVE_FIRE` flag.
 - **Files touched:** `backend/bot/`, `backend/nova_brain/`, `backend/constants_bot.py`, `frontend/src/bot/BotArmControls.tsx`, `StrategyTab.tsx`, `constantGroups/bot.ts`, `docs/bot-localhost-api.md`, ADR 016, `.env.example`.
 - **How it works now:** `live_fire_ready` still means L2 + armed + brain heartbeat. llm-decide uses that as the fire gate. L0/L1 hide the checkbox. Spend/rate caps, audit, small-cap sleeve, breakers, `NOVA_API_KEY`, and "brains never raise autonomy" stay. Tests mock LLM HTTP. No live IBKR / no paid LLM in CI.
-- **Verified by:** pytest bot + nova_brain llm; Vitest BotArmControls / StrategyTab / pack copy; ruff; frontend build.
+- **Verified by:** `PYTHONPATH=backend python3 -m pytest backend/ -q` -- 1950 passed. Focused bot+brain -- 90 passed. Vitest BotArmControls / StrategyTab / pack copy / api / GlobalAppBar -- 29 passed. `ruff check` on bot + nova_brain -- All checks passed. `npm run lint` -- exit 0. `npm run build` -- exit 0. No live IBKR. No paid LLM.
 - **Follow-ups:** Epic #205 stays open. L3 parked (#216). Quote-spike/volume stay stubs.
 - **Related:** Closes #227. Closes #226. Closes #225. Closes #218-#222 already merged on #223. Refs #205.
 
