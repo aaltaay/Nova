@@ -22,6 +22,7 @@ import {
   formatChartCrosshairTime,
   formatChartTickMark,
 } from '../chart/chartTimeFormat';
+import { chartRightPriceScaleOptions } from '../chart/chartPriceScale';
 
 interface Props {
   parentChart: IChartApi | null;
@@ -116,7 +117,7 @@ function OscillatorPane({
         visible: false,
         tickMarkFormatter: formatChartTickMark,
       },
-      rightPriceScale: { borderColor: '#262a36' },
+      rightPriceScale: chartRightPriceScaleOptions(),
       width: container.clientWidth,
       height: initialH || CHART_INDICATOR_PANE_HEIGHT,
     });

@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- volume chip grew the right scale
+
+- **Symptom:** On a live 10Sec pane the whole plot shifted slightly left/right when the right-axis volume chip changed width (`9.0K` to pink/red `149.04K`).
+- **Cause:** lightweight-charts sizes the right price scale to the widest last-value / tick string. Overlay volume (`priceFormat: type volume`, `lastValueVisible` default on) auto-grows that gutter, so the plot area reflows on each tick.
+- **Fix:** Pin `rightPriceScale.minimumWidth` at 96px on the price chart and oscillator panes. Format volume last-value with a 7-character padded compact label so the chip cannot outgrow that gutter.
+- **Fix class:** ownership
+- **Keywords:** chart, price scale, minimumWidth, volume, 149.04K, 10Sec, lastValueVisible, gutter
+
+## 2026-09-17 -- 10Sec viewport fitContent on live setData
+
+- **Symptom:** Expanded 10-Second chart (Restore grid / Hide 10-Second) randomly jumped / zoomed out while watching. Symbol and interval did not change. About a 6-minute window could snap to the full session.
+- **Cause:** `paintFull` always called `applyTimeScale` after `setData`, twice (sync + rAF). 10Sec has no `CHART_PAINT_VISIBLE_BARS` pin, so that is `fitContent`. Tip-only tape prints stay incremental, but a hist `bars_patch`, older-bar rewrite, or 1500-bar rolling cap fails `canIncrementalBarsUpdate` and takes the full-paint path -- so live watching re-fit the whole series.
+- **Fix:** Snapshot the visible range before `setData`. First paint / Reset Chart still apply the default window. Later paints restore time range, or keep the same bar span and advance the right edge when the tip was visible. Never `fitContent` after the operator (or the first paint) already has a window. Brand `{from,to}` through LWC `Logical` so `tsc -b` accepts `LogicalRange`.
+- **Fix class:** ownership
+- **Keywords:** chart, viewport, fitContent, 10Sec, bars_patch, setVisibleLogicalRange, paintFull, useChartBars, zoom
+
 ## 2026-09-17 -- Bot persist teardown minted WindowsPath on Linux CI
 
 - **Symptom:** `pytest backend/ -x` reached 1372 passed, then ERROR at teardown of `test_launch_focuses_when_already_running`: `cannot instantiate 'WindowsPath' on your system` at `bot.persist._session_path` via autouse `_reset_bot_persist`.

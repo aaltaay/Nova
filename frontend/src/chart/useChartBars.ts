@@ -28,9 +28,14 @@ import {
   buildMockBars,
   canIncrementalBarsUpdate,
   rawBarsToSeries,
-  timeScaleRangeForSeries,
   type RawBar,
 } from '../tickerChartData';
+import {
+  applyTimeScaleCommand,
+  paintTimeScaleCommand,
+  snapshotChartViewport,
+  type ChartViewportSnapshot,
+} from './chartViewportPaint';
 import { useWorkspace } from '../workspace';
 import { allowMockBarsFallback, emptyBarsMessage } from './chartBarsPolicy';
 import {
@@ -55,18 +60,6 @@ interface UseChartBarsOptions {
   chartActive?: boolean;
 }
 
-function applyTimeScale(
-  chartRef: UseChartBarsOptions['chartRef'],
-  timeframe: string,
-  candleCount: number,
-): void {
-  const chart = chartRef.current;
-  if (!chart || candleCount <= 0) return;
-  const range = timeScaleRangeForSeries(timeframe, candleCount);
-  if (range) chart.timeScale().setVisibleLogicalRange(range);
-  else chart.timeScale().fitContent();
-}
-
 function paintFull(
   candles: CandlestickData<Time>[],
   volumes: ReturnType<typeof rawBarsToSeries>['volumes'],
@@ -74,12 +67,17 @@ function paintFull(
   volSeriesRef: UseChartBarsOptions['volSeriesRef'],
   chartRef: UseChartBarsOptions['chartRef'],
   timeframe: string,
+  snapshot: ChartViewportSnapshot | null,
+  paintEpoch: { current: number },
 ): void {
+  const epoch = ++paintEpoch.current;
   candleSeriesRef.current?.setData(candles);
   volSeriesRef.current?.setData(volumes);
-  applyTimeScale(chartRef, timeframe, candles.length);
+  const command = paintTimeScaleCommand(timeframe, candles.length, snapshot);
+  applyTimeScaleCommand(chartRef.current, command);
   requestAnimationFrame(() => {
-    applyTimeScale(chartRef, timeframe, candles.length);
+    if (paintEpoch.current !== epoch) return;
+    applyTimeScaleCommand(chartRef.current, command);
   });
 }
 
@@ -91,8 +89,12 @@ function paintBars(
   lastCandleRef: UseChartBarsOptions['lastCandleRef'],
   chartRef: UseChartBarsOptions['chartRef'],
   prevBars: RawBar[] | null,
+  paintEpoch: { current: number },
 ): IndicatorBar[] {
   const { candles, volumes } = rawBarsToSeries(bars, tf);
+  const snapshot = prevBars == null
+    ? null
+    : snapshotChartViewport(chartRef.current, prevBars.length);
   const canIncremental =
     prevBars != null
     && canIncrementalBarsUpdate(prevBars, bars)
@@ -107,10 +109,14 @@ function paintBars(
       candleSeriesRef.current!.update(tip);
       volSeriesRef.current!.update(tipVol);
     } catch {
-      paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, tf);
+      paintFull(
+        candles, volumes, candleSeriesRef, volSeriesRef, chartRef, tf, snapshot, paintEpoch,
+      );
     }
   } else {
-    paintFull(candles, volumes, candleSeriesRef, volSeriesRef, chartRef, tf);
+    paintFull(
+      candles, volumes, candleSeriesRef, volSeriesRef, chartRef, tf, snapshot, paintEpoch,
+    );
   }
   lastCandleRef.current = candles.length > 0 ? candles[candles.length - 1] : null;
   return rawBarsToIndicatorBars(bars, tf);
@@ -147,6 +153,7 @@ export function useChartBars({
   const barsRequestVersionRef = useRef(0);
   const lastTradeRef = useRef<ChartTradeUpdate | null | undefined>(lastTrade);
   const paintedBarsRef = useRef<RawBar[] | null>(null);
+  const paintEpochRef = useRef(0);
   const chartActiveRef = useRef(chartActive);
 
   useEffect(() => {
@@ -197,6 +204,7 @@ export function useChartBars({
       lastCandleRef,
       chartRef,
       paintedBarsRef.current,
+      paintEpochRef,
     );
     paintedBarsRef.current = next;
     setIndicatorBars(indicators);

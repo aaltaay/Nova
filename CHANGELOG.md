@@ -30,6 +30,24 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Right price-scale gutter no longer shoves the plot
+
+- **What:** Live volume chips (`9.0K` -> `149.04K`) no longer grow the right axis and slide the candles left/right. The gutter is a reserved width; volume last-value text stays on a fixed character budget.
+- **Why:** Mid-trade jitter on DAIC 10s (#235) -- Ahmed circled the pink/red `149.04K` chip.
+- **Files touched:** `frontend/src/chart/chartPriceScale.ts`, `useChartInstance.ts`, `TickerChartOscillatorPanes.tsx`.
+- **How it works now:** `rightPriceScale.minimumWidth` is `CHART_PRICE_SCALE_MIN_WIDTH_PX` (96) on price and oscillator charts. Callers cannot clear it. Volume uses a compact K/M/B formatter padded with figure spaces to 7 characters so the chip itself cannot widen. Label text still updates; plot width does not.
+- **Verified by:** `vitest run src/chart/chartPriceScale.test.ts` plus sibling chart tests -- 33 passed. `npm run build` -- exit 0.
+- **Related:** PROBLEM_LOG 2026-09-17 -- volume chip grew the right scale; Closes #235 (same PR as #232).
+
+## 2026-09-17 -- 10Sec chart viewport survives live setData
+
+- **What:** Watching an expanded 10-Second pane no longer auto-zooms out when live ticks or a hist `bars_patch` rewrite the series. Manual zoom/pan stays; live follow only advances the right edge at the same bar width.
+- **Why:** Mid-trade the viewport jumped on its own while symbol and interval stayed put (#232).
+- **Files touched:** `frontend/src/chart/chartViewportPaint.ts`, `useChartBars.ts`, `chartViewportReset.ts`, `useChartInstance.ts`.
+- **How it works now:** First paint (and Reset Chart) still uses the default window -- pinned last-N for long 1Min/5Min, `fitContent` for 10Sec. Every later `setData` snapshots the visible range first. If the tip was on screen, the same logical span moves to the new last bar. If the operator panned away, the time window is restored. Incremental `series.update` keeps `shiftVisibleRangeOnNewBar`. There is no Follow/Locked chrome -- follow is "right edge was visible."
+- **Verified by:** Full frontend Vitest -- 1355 passed / 271 files. `eslint . --max-warnings 0` -- exit 0. `npm run build` -- exit 0 after branding LWC `Logical` ranges. Playwright `chart-10sec-first-print` + `chart-pane-maximize` -- 4 passed.
+- **Related:** PROBLEM_LOG 2026-09-17 -- 10Sec viewport fitContent on live setData; Closes #232 (same PR as #235).
+
 ## 2026-09-17 -- Bot controls move to a second GlobalAppBar row
 
 - **What:** `BotArmControls` (level, pack, L2 "Bot is in control", status) plus `BotSymbolMenuHost` leave the primary right cluster. They sit on a bot-only second header row under the existing desk chrome.
