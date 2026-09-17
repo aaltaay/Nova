@@ -97,7 +97,7 @@ export function renderClosedOrderCell(
       return (
         <td
           key={col}
-          className="ibkr-col--num"
+          className="ibkr-col--num ibkr-col--commission"
           title={commissionCellTitle({
             commission: o.commission,
             avgFill: o.avg_fill_price,

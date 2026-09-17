@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ORDER_TABLE_COLUMNS_STORAGE_KEY } from '../constants';
 import {
   CLOSED_COLUMN_META,
   DEFAULT_CLOSED_ORDER_COLUMNS,
@@ -11,40 +12,51 @@ import {
 } from './orderTableColumns';
 
 describe('orderTableColumns', () => {
-  it('defaults working columns time → … → order_id', () => {
+  it('defaults working columns Symbol-first (times not first)', () => {
+    expect(DEFAULT_WORKING_ORDER_COLUMNS[0]).toBe('symbol');
+    expect(DEFAULT_WORKING_ORDER_COLUMNS.slice(0, 3)).not.toContain('time');
     expect(DEFAULT_WORKING_ORDER_COLUMNS).toEqual([
-      'time',
-      'session',
-      'type',
       'symbol',
       'qty',
       'status',
+      'type',
       'filled',
       'remaining',
+      'avg_fill',
       'limit',
       'stop',
-      'avg_fill',
       'commission',
       'latency',
+      'time',
+      'session',
       'order_id',
     ]);
   });
 
-  it('defaults closed columns to Time Filled first, then mirror open (time, status after qty)', () => {
+  it('defaults closed columns Symbol-first, matching the locked desk order', () => {
+    expect(DEFAULT_CLOSED_ORDER_COLUMNS[0]).toBe('symbol');
+    expect(DEFAULT_CLOSED_ORDER_COLUMNS.slice(0, 3)).not.toContain('time');
+    expect(DEFAULT_CLOSED_ORDER_COLUMNS.slice(0, 3)).not.toContain('filled_at');
     expect(DEFAULT_CLOSED_ORDER_COLUMNS).toEqual([
-      'filled_at',
-      'time',
-      'type',
       'symbol',
       'qty',
       'status',
+      'type',
       'filled',
-      'limit',
       'avg_fill',
+      'limit',
       'commission',
       'latency',
+      'time',
+      'filled_at',
       'order_id',
     ]);
+  });
+
+  it('uses a v7 column-store key so old time-first layouts are not reused', () => {
+    expect(ORDER_TABLE_COLUMNS_STORAGE_KEY).toBe(
+      'nova.ibkr.orderTable.columns.v7',
+    );
   });
 
   it('normalizes saved order and appends new defaults', () => {

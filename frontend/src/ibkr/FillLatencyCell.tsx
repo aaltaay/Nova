@@ -14,6 +14,7 @@ export function FillLatencyTd({
   const tone = fillLatencyTone(audit);
   const className = [
     'ibkr-col--num',
+    'ibkr-col--latency',
     'ibkr-fill-latency',
     tone ? `ibkr-fill-latency--${tone}` : '',
   ]

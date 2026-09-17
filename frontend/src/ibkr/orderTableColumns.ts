@@ -47,38 +47,38 @@ export type PositionColumnId =
 
 /** Left→right default for Open / Working Orders (Actions stay pinned right). */
 export const DEFAULT_WORKING_ORDER_COLUMNS: WorkingOrderColumnId[] = [
-  'time',
-  'session',
-  'type',
   'symbol',
   'qty',
   'status',
+  'type',
   'filled',
   'remaining',
+  'avg_fill',
   'limit',
   'stop',
-  'avg_fill',
   'commission',
   'latency',
+  'time',
+  'session',
   'order_id',
 ];
 
 /**
- * Mirror Open Orders left→right as closely as Closed columns allow
- * (no session / remaining / stop on Closed).
+ * Mirror Working left→right as closely as Closed columns allow
+ * (no remaining / stop / session on Closed). Symbol first; times last.
  */
 export const DEFAULT_CLOSED_ORDER_COLUMNS: ClosedOrderColumnId[] = [
-  'filled_at',
-  'time',
-  'type',
   'symbol',
   'qty',
   'status',
+  'type',
   'filled',
-  'limit',
   'avg_fill',
+  'limit',
   'commission',
   'latency',
+  'time',
+  'filled_at',
   'order_id',
 ];
 
@@ -106,11 +106,15 @@ export type ColumnMeta = {
 };
 
 export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
-  order_id: { id: 'order_id', label: 'Order ID', className: 'ibkr-col--text' },
+  order_id: {
+    id: 'order_id',
+    label: 'Order ID',
+    className: 'ibkr-col--text ibkr-col--order-id',
+  },
   symbol: {
     id: 'symbol',
     label: 'Symbol',
-    className: 'ibkr-col--text',
+    className: 'ibkr-col--text ibkr-col--symbol',
     title: TICKER_OPEN_TRADER_TITLE,
   },
   qty: {
@@ -145,14 +149,14 @@ export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
   commission: {
     id: 'commission',
     label: 'Commissions',
-    className: 'ibkr-col--num',
+    className: 'ibkr-col--num ibkr-col--commission',
     title:
       'IBKR CommissionReport sum for this order -- blank until a real report; never invented from avg cost',
   },
   latency: {
     id: 'latency',
     label: 'Latency',
-    className: 'ibkr-col--num',
+    className: 'ibkr-col--num ibkr-col--latency',
     title:
       'Click-to-fill when filled, else click-to-terminal. Hover for Nova→submit and submit→fill. MKT RTH warn/danger from fill-audit detective. Em dash when audit is missing -- never invented',
   },
@@ -168,11 +172,15 @@ export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
 };
 
 export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
-  order_id: { id: 'order_id', label: 'Order ID', className: 'ibkr-col--text' },
+  order_id: {
+    id: 'order_id',
+    label: 'Order ID',
+    className: 'ibkr-col--text ibkr-col--order-id',
+  },
   symbol: {
     id: 'symbol',
     label: 'Symbol',
-    className: 'ibkr-col--text',
+    className: 'ibkr-col--text ibkr-col--symbol',
     title: TICKER_OPEN_TRADER_TITLE,
   },
   qty: {
@@ -199,14 +207,14 @@ export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
   commission: {
     id: 'commission',
     label: 'Commissions',
-    className: 'ibkr-col--num',
+    className: 'ibkr-col--num ibkr-col--commission',
     title:
       'IBKR CommissionReport sum for this order -- blank until a real report; never invented from avg cost',
   },
   latency: {
     id: 'latency',
     label: 'Latency',
-    className: 'ibkr-col--num',
+    className: 'ibkr-col--num ibkr-col--latency',
     title:
       'Click-to-fill when filled, else click-to-terminal. Hover for Nova→submit and submit→fill. MKT RTH warn/danger from fill-audit detective. Em dash when audit is missing -- never invented',
   },
@@ -231,7 +239,7 @@ export const POSITION_COLUMN_META: Record<PositionColumnId, ColumnMeta> = {
   symbol: {
     id: 'symbol',
     label: 'Symbol',
-    className: 'ibkr-col--text',
+    className: 'ibkr-col--text ibkr-col--symbol',
     title: TICKER_OPEN_TRADER_TITLE,
   },
   qty: {
@@ -244,7 +252,7 @@ export const POSITION_COLUMN_META: Record<PositionColumnId, ColumnMeta> = {
   commission: {
     id: 'commission',
     label: 'Commissions',
-    className: 'ibkr-col--num',
+    className: 'ibkr-col--num ibkr-col--commission',
     title:
       'Session CommissionReport sum for this symbol -- blank until IBKR sends a report; not avg_cost minus fill',
   },

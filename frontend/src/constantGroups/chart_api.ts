@@ -479,7 +479,8 @@ export const FILL_WORKING_ORDER_CONFIRM_PREFIX =
   'Fill now will cancel the resting order and fill the remaining shares';
 /** localStorage JSON: working/closed/positions column order (drag headers). */
 /** Bump when default Open/Closed Orders column order changes (invalidates old layouts). */
-export const ORDER_TABLE_COLUMNS_STORAGE_KEY = 'nova.ibkr.orderTable.columns.v6';
+/** v7: Symbol-first defaults (Edge smoke #197 -- v6 kept Time Filled / Time Placed first). */
+export const ORDER_TABLE_COLUMNS_STORAGE_KEY = 'nova.ibkr.orderTable.columns.v7';
 export const ORDER_TABLE_COLUMN_DRAG_HINT =
   'Drag to reorder columns · Double-click header to reset';
 /** Persisted row-sort stack for working/closed order tables. */

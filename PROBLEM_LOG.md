@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Orders Today time columns crushed the desk
+
+- **Symptom:** Edge smoke on #197 (Orders Today, All). Time Filled / Time Placed / Type ate ~60% of the table. Symbol, Qty, Status, Avg, Comm, Latency, Order ID truncated (`Symb…`, `Laten…`).
+- **Cause:** Defaults put `filled_at` / `time` / `type` first. `closedOrders.css` set `.ibkr-col--time { width: 20% }` (two time columns = 40%) and Type at 14%. Combined with `table-layout: fixed` + nowrap + ellipsis, the remaining columns starved.
+- **Fix:** Symbol-first defaults on Closed + Working. Tight rem widths; time/type wrap. Drop the 20%/14% closed rules. Bump column store `v6`→`v7` so Ahmed gets the new layout without clearing storage.
+- **Fix class:** surfacing
+- **Keywords:** Orders Today, column order, Symbol first, ibkr-col--time, latency, commissions, localStorage, v7, #195, #197
+
 ## 2026-09-16 -- Connected desk rejected Unknown
 
 - **Symptom:** After #185, Ahmed's live Gateway returned `AccountType=INDIVIDUAL` with BP~376 vs cash~383. The header chip showed Unknown. He rejects Unknown on a live connected account -- it is Cash or Margin.

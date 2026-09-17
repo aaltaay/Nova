@@ -442,6 +442,10 @@
 .ibkr-positions-panel { overflow-x: auto; }
 
 .ibkr-working-orders { margin-top: 0.25rem; }
+.ibkr-working-orders,
+.ibkr-closed-orders {
+  overflow-x: auto;
+}
 .ibkr-working-orders .ibkr-section-title,
 .ibkr-closed-orders .ibkr-section-title {
   font-size: 0.9rem;
@@ -453,7 +457,7 @@
 
 .ibkr-table--orders {
   table-layout: fixed;
-  width: 100%;
+  width: max(100%, 58rem);
 }
 
 .ibkr-table--orders th,
@@ -462,8 +466,16 @@
   vertical-align: middle;
   text-align: center;
   font-size: 0.85rem;
-  white-space: nowrap;
   overflow: hidden;
+}
+
+.ibkr-table--orders th {
+  white-space: normal;
+  line-height: 1.15;
+}
+
+.ibkr-table--orders td {
+  white-space: nowrap;
   text-overflow: ellipsis;
 }
 
@@ -572,12 +584,61 @@
 
 .ibkr-table.ibkr-table--orders th.ibkr-col--time,
 .ibkr-table.ibkr-table--orders td.ibkr-col--time {
+  width: 6.5rem;
+  max-width: 6.5rem;
   text-align: left;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 550;
   color: var(--text, #d1d5db);
+}
+
+.ibkr-table--orders th.ibkr-col--type,
+.ibkr-table--orders td.ibkr-col--type {
+  width: 5.25rem;
+  max-width: 5.25rem;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.ibkr-table--orders th.ibkr-col--status,
+.ibkr-table--orders td.ibkr-col--status {
+  width: 5.5rem;
+  white-space: normal;
+}
+
+.ibkr-table--orders th.ibkr-col--symbol,
+.ibkr-table--orders td.ibkr-col--symbol,
+.ibkr-table--orders td.ibkr-symbol {
+  width: 5.25rem;
+  min-width: 4.75rem;
+}
+
+.ibkr-table--orders th.ibkr-col--num,
+.ibkr-table--orders td.ibkr-col--num {
+  width: 4.4rem;
+}
+
+.ibkr-table--orders th.ibkr-col--commission,
+.ibkr-table--orders td.ibkr-col--commission {
+  width: 5.6rem;
+  min-width: 5.6rem;
+}
+
+.ibkr-table--orders th.ibkr-col--latency,
+.ibkr-table--orders td.ibkr-col--latency {
+  width: 4.6rem;
+  min-width: 4.6rem;
+}
+
+.ibkr-table--orders th.ibkr-col--order-id,
+.ibkr-table--orders td.ibkr-col--order-id,
+.ibkr-table--orders td.ibkr-order-id {
+  width: 4.75rem;
+  min-width: 4.5rem;
 }
 
 .ibkr-table--orders th.ibkr-col--sortable {
@@ -595,14 +656,14 @@
 }
 
 .ibkr-table--orders .ibkr-order-type {
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .ibkr-table--orders .ibkr-order-status {
   display: inline-block;
   font-weight: 650;
   letter-spacing: 0.01em;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .ibkr-order-status--working { color: var(--accent, #3b82f6); }

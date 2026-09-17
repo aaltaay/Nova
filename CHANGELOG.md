@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Orders Today Symbol-first column layout
+
+- **What:** Closed + Working Orders Today default to Symbol first. Time Placed / Time Filled / Type no longer lead the table. Time and Type columns wrap and stay tight so Commissions, Latency, and Order ID stay readable.
+- **Why:** Ahmed Edge-smoke on #197. Default order was Time Filled / Time Placed / Type first. `closedOrders.css` gave each time column 20% (plus Type 14%), so the rest of the desk ellipsis-crushed (`Symb…`, `Laten…`).
+- **Files touched:** `orderTableColumns.ts`, `tradingTab.css`, `closedOrders.css`, `chart_api.ts` (`ORDER_TABLE_COLUMNS_STORAGE_KEY` v6→v7), `prefsBundle.ts`.
+- **How it works now:** Fresh layouts read `nova.ibkr.orderTable.columns.v7`. `parseColumnStore` still keeps a drag order saved under that key. v6 time-first JSON is ignored on purpose -- hard refresh / new key, no manual localStorage clear. Closed default: symbol, qty, status, type, filled, avg_fill, limit, commission, latency, time, filled_at, order_id. Working mirrors that (remaining / stop / session where they exist). Drag-to-reorder is unchanged.
+- **Verified by:** Vitest orderTableColumns + prefsBundle (Symbol-first + v7 key). No live IBKR orders.
+- **Follow-ups:** Ahmed re-smokes #197 on Windows localhost after a hard refresh. Keep `do-not-merge` until he says yes.
+- **Related:** #195 / PR #197. PROBLEM_LOG 2026-09-17 -- Orders Today time columns crushed the desk.
+
 ## 2026-09-17 -- Orders Today fill latency column
 
 - **What:** Orders Today gains one Latency column. The cell is click-to-fill when filled, else click-to-terminal (`180ms` / `1.2s`). Hover shows Nova→IBKR submit, IBKR submit→fill, and click→fill (or click→terminal). MKT RTH warn/danger reuses `classify_fill_audit`. Missing audit is an em dash -- never invented.
