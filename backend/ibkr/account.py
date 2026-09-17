@@ -14,6 +14,7 @@ import logging
 import time
 
 from ibkr import client as _client
+from ibkr.account_marks import apply_l1_marks, live_l1_last, overlay_account_summary
 from ibkr.account_summary import summary_from_items
 from ibkr.errors import IbkrAccountError, describe_exc
 from metrics.op_metrics import timed, timed_sync
@@ -182,7 +183,12 @@ def positions_for_ui() -> list[dict]:
             "unrealized_pnl": join.get("unrealized_pnl"),
             "realized_pnl": join.get("realized_pnl"),
         })
-    return out
+    return apply_l1_marks(out, live_l1_last)
+
+
+def account_summary_for_ui() -> dict:
+    """GET /account: accountValues cache + L1 unrealized overlay (no COLD refresh)."""
+    return overlay_account_summary(get_account_summary(), positions_for_ui())
 
 
 def get_account_summary() -> dict:

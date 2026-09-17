@@ -181,13 +181,10 @@ def test_positions_route_returns_503_not_empty_list_on_failure():
 
 
 def test_account_route_returns_503_on_summary_failure():
-    async def _boom():
-        raise IbkrAccountError("refresh_account_summary failed: boom")
-
     with patch.object(
         trading_routes._account,
-        "refresh_account_summary",
-        side_effect=_boom,
+        "account_summary_for_ui",
+        side_effect=IbkrAccountError("account_summary_for_ui failed: boom"),
     ):
         res = client.get("/api/ibkr/account")
     assert res.status_code == 503

@@ -175,9 +175,9 @@ def _client_safety_status() -> dict:
 
 @router.get("/account")
 async def ibkr_account() -> dict:
-    # Async refresh avoids "event loop is already running" from sync IB waits.
+    # Cache + L1 overlay. Do not accountSummaryAsync on the 1s UI poll.
     try:
-        return await _account.refresh_account_summary()
+        return _account.account_summary_for_ui()
     except IbkrAccountError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

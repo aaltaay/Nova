@@ -67,6 +67,8 @@ _HOT: frozenset[str] = frozenset(
         "qualify_l1",
         "positions",
         "portfolio",
+        "reqaccountupdatesasync",
+        "account_updates",
         "opentrades",
         "trades",
         "fills",

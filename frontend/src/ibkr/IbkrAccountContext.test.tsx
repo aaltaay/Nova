@@ -22,7 +22,12 @@ vi.mock('../workspace/WorkspaceContext', () => ({
 
 vi.mock('../constants', async () => {
   const actual = await vi.importActual<typeof import('../constants')>('../constants');
-  return { ...actual, IBKR_ACCOUNT_POLL_MS: 60_000, API_BASE_URL: 'http://test' };
+  return {
+    ...actual,
+    IBKR_ACCOUNT_POLL_MS: 1_000,
+    IBKR_ORDERS_POLL_MS: 5_000,
+    API_BASE_URL: 'http://test',
+  };
 });
 
 function Probe() {
@@ -54,6 +59,7 @@ describe('IbkrAccountProvider', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    vi.useFakeTimers();
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
@@ -81,6 +87,7 @@ describe('IbkrAccountProvider', () => {
       root.unmount();
     });
     container.remove();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -153,5 +160,51 @@ describe('IbkrAccountProvider', () => {
     const text = container.querySelector('[data-testid="probe"]')?.textContent ?? '';
     expect(text.startsWith('1:stale:')).toBe(true);
     expect(text).toContain('IBKR disconnected -- last known as of');
+  });
+
+  it('polls account/positions at 1s and leaves orders/closed on the slower cadence', async () => {
+    await act(async () => {
+      root.render(
+        <IbkrAccountProvider>
+          <Probe />
+        </IbkrAccountProvider>,
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const calls = () => (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => String(c[0]));
+    const count = (needle: string) => calls().filter((u) => u.includes(needle)).length;
+    expect(count('/account')).toBe(1);
+    expect(count('/positions')).toBe(1);
+    expect(count('/orders/closed')).toBe(1);
+    expect(count('/orders')).toBe(2);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(count('/account')).toBe(2);
+    expect(count('/positions')).toBe(2);
+    expect(count('/orders/closed')).toBe(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(count('/account')).toBe(3);
+    expect(count('/orders/closed')).toBe(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(3_000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(count('/orders/closed')).toBe(2);
+    expect(count('/account')).toBeGreaterThanOrEqual(3);
   });
 });

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Live Day P&L / Net Liq / BP / position marks
+
+- **What:** Header Day P&L / Net Liq / BP and Positions Mkt Price refresh at <=1s while Gateway is up. Open-position marks prefer an already-streamed L1 last; portfolio mark is the fallback. Working/closed orders stay on a 5s cadence.
+- **Why:** #182. Shared 5s `IbkrAccountContext` poll made SPCX Mkt Price lag Time & Sales by tens of cents (2026-09-16).
+- **Files touched:** `backend/ibkr/account_marks.py`, `account_stream.py`, `account.py`, `session_usable.py`, `routes/trading.py`, `constants_ibkr.py`, `frontend/src/ibkr/IbkrAccountContext.tsx`, `ibkrAccountFetch.ts`, `constantGroups/global_bar.ts`.
+- **How it works now:** `GET /api/ibkr/account` reads the `reqAccountUpdates` cache (no `accountSummaryAsync` on the 1s poll) and overlays L1 unrealized onto Day P&L / Net Liq. `positions_for_ui` joins `ib.positions()` qty with portfolio MTM, then `apply_l1_position_mark` when `ticks.last_quotes` already has a last. Frontend splits `IBKR_ACCOUNT_POLL_MS=1000` vs `IBKR_ORDERS_POLL_MS=5000` and coalesces in-flight cluster fetches. Overlay copies the IB snapshot so `AccountType` from #181 is unchanged. No new `reqMktData`. No live orders.
+- **Verified by:** pytest account_marks / account_stream / ibkr_account / orders_api_contract / session_usable / work_class; Vitest accountPollCadence / IbkrAccountContext / ibkrAccountFetch.
+- **Follow-ups:** Edge smoke on a desk with an open position (SPCX or any) -- marks should track tape within ~1s. Cloud agent has no Gateway.
+- **Related:** Closes #182. PROBLEM_LOG 2026-09-16 -- 5s account poll froze marks.
+
 ## 2026-09-16 -- Nasdaq RSS keep-best overlay per symbol
 
 - **What:** When RSS lists a symbol more than once, overlay keeps the open row (`trade_resume` empty) over a later resumed row, else the newest `official_halt_start`. A late start plus only a stale resumed row no longer restores a confident LULD countdown.
