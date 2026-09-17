@@ -23,7 +23,7 @@ export const PREFS_BUNDLE_KEYS = [
   'nova.stockView.openOrders.sampleHidden',
   'nova.stockView.dock.surface',
   'nova.stockView.ordersToday.filter',
-  'nova.ibkr.orderTable.columns.v5',
+  'nova.ibkr.orderTable.columns.v6',
   'nova.ibkr.orderTable.sort.v1.working',
   'nova.ibkr.orderTable.sort.v1.closed',
   'nova_exchange_filter_v1',

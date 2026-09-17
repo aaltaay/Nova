@@ -29,6 +29,7 @@ from fastapi import APIRouter, Body, HTTPException, WebSocket, WebSocketDisconne
 from pydantic import BaseModel
 
 from execution import closed_blotter as _closed_blotter
+from execution.fill_audit_attach import attach_fill_audit
 from ibkr import client as _client
 from ibkr import depth as _depth
 from ibkr import orders as _orders
@@ -194,7 +195,7 @@ async def ibkr_positions() -> list:
 @router.get("/orders")
 async def ibkr_open_orders() -> list:
     try:
-        return _orders.open_orders()
+        return attach_fill_audit(_orders.open_orders())
     except IbkrAccountError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -204,7 +205,9 @@ async def ibkr_closed_orders(limit: int | None = None) -> list:
     """Filled / cancelled / failed session orders (Webull History / Closed)."""
     try:
         rows = await _orders.closed_orders_async(limit=limit)
-        return _closed_blotter.overlay_closed_orders(rows, limit=limit)
+        return attach_fill_audit(
+            _closed_blotter.overlay_closed_orders(rows, limit=limit),
+        )
     except IbkrAccountError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 

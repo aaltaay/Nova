@@ -36,6 +36,70 @@ _WORKING = frozenset({
     "PendingSubmit", "PreSubmitted", "Submitted", "ApiPending", "Working",
 })
 
+# In-memory last audit for Orders Today (#195). Owner: this module.
+# Invalidation: process lifetime. Keyed by order_id and optional perm_id.
+_STORE_BY_ORDER: dict[int, dict[str, Any]] = {}
+_STORE_BY_PERM: dict[int, dict[str, Any]] = {}
+_PLACED_BY_ORDER: dict[int, str] = {}
+_PLACED_BY_PERM: dict[int, str] = {}
+
+
+def reset_fill_audit_store_for_testing() -> None:
+    """Test helper -- clear the process-lifetime audit join store."""
+    _STORE_BY_ORDER.clear()
+    _STORE_BY_PERM.clear()
+    _PLACED_BY_ORDER.clear()
+    _PLACED_BY_PERM.clear()
+
+
+def remember_fill_audit(
+    row: dict[str, Any],
+    *,
+    perm_id: int | None = None,
+    nova_placed_at: str | None = None,
+) -> None:
+    """Keep the last detective row so the blotter can join without JSONL."""
+    try:
+        oid = int(row.get("order_id") or 0)
+    except (TypeError, ValueError):
+        oid = 0
+    snapshot = dict(row)
+    if oid > 0:
+        _STORE_BY_ORDER[oid] = snapshot
+        if nova_placed_at:
+            _PLACED_BY_ORDER[oid] = nova_placed_at
+    try:
+        perm = int(perm_id or 0)
+    except (TypeError, ValueError):
+        perm = 0
+    if perm > 0:
+        _STORE_BY_PERM[perm] = snapshot
+        if nova_placed_at:
+            _PLACED_BY_PERM[perm] = nova_placed_at
+
+
+def lookup_fill_audit(
+    order_id: int | None,
+    perm_id: int | None = None,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Return (stored classify row, nova_placed_at ISO) if remembered."""
+    try:
+        oid = int(order_id or 0)
+    except (TypeError, ValueError):
+        oid = 0
+    try:
+        perm = int(perm_id or 0)
+    except (TypeError, ValueError):
+        perm = 0
+    if oid > 0 and oid in _STORE_BY_ORDER:
+        return _STORE_BY_ORDER[oid], _PLACED_BY_ORDER.get(oid)
+    if perm > 0 and perm in _STORE_BY_PERM:
+        return _STORE_BY_PERM[perm], _PLACED_BY_PERM.get(perm)
+    placed = _PLACED_BY_ORDER.get(oid) if oid > 0 else None
+    if placed is None and perm > 0:
+        placed = _PLACED_BY_PERM.get(perm)
+    return None, placed
+
 ClockIso = Callable[[], str]
 
 
@@ -141,6 +205,7 @@ def fill_audit_path() -> Path:
 
 def emit_fill_audit(row: dict[str, Any]) -> None:
     """Append JSONL + structured log. Caller owns de-dupe."""
+    remember_fill_audit(row)
     line = json.dumps(row, separators=(",", ":"), sort_keys=True)
     path = fill_audit_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -235,23 +300,27 @@ def queue_watch_fill_audit(
                 payload = row.get("payload") or {}
                 typ = str(payload.get("order_type") or typ or "MKT")
         now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-        emit_fill_audit(
-            classify_fill_audit(
-                order_id=oid,
-                symbol=symbol,
-                side=side,
-                order_type=typ,
-                mode=mode,
-                status=status or "",
-                nova_placed_at=placed,
-                submitted_at=None,
-                filled_at=now if has_fill else None,
-                terminal_at=None if has_fill else now,
-                has_fill=has_fill,
-                rth=not outside_rth,
-                status_history=history,
-                now_iso=now,
-            )
+        row = classify_fill_audit(
+            order_id=oid,
+            symbol=symbol,
+            side=side,
+            order_type=typ,
+            mode=mode,
+            status=status or "",
+            nova_placed_at=placed,
+            submitted_at=None,
+            filled_at=now if has_fill else None,
+            terminal_at=None if has_fill else now,
+            has_fill=has_fill,
+            rth=not outside_rth,
+            status_history=history,
+            now_iso=now,
         )
+        remember_fill_audit(
+            row,
+            perm_id=getattr(watch, "perm_id", None),
+            nova_placed_at=placed,
+        )
+        emit_fill_audit(row)
 
     persist_queue.submit(f"fill audit {oid}", _write)

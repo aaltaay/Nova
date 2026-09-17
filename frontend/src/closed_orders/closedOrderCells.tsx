@@ -7,6 +7,7 @@ import {
   orderSubmittedTimeTitle,
 } from '../ibkr/orderDisplay';
 import type { ClosedOrderColumnId } from '../ibkr/orderTableColumns';
+import { FillLatencyTd } from '../ibkr/FillLatencyCell';
 import { commissionCellTitle, formatCommission } from '../ibkr/orderCommission';
 import { displayFilledQty } from '../ibkr/orderFillHonesty';
 import { formatMoney } from '../utils/formatMoney';
@@ -106,6 +107,8 @@ export function renderClosedOrderCell(
           {formatCommission(o.commission)}
         </td>
       );
+    case 'latency':
+      return <FillLatencyTd key={col} audit={o.fill_audit} />;
     case 'status':
       return (
         <td key={col} className="ibkr-col--status">

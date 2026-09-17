@@ -97,6 +97,17 @@ export interface IbkrPosition {
   realized_pnl: number | null;
 }
 
+export type FillAuditLevel = 'ok' | 'warn' | 'danger';
+
+/** Subset of backend classify_fill_audit attached to order rows. */
+export interface OrderFillAudit {
+  place_to_submit_ms?: number | null;
+  place_to_fill_ms?: number | null;
+  place_to_terminal_ms?: number | null;
+  level?: FillAuditLevel | string | null;
+  reason?: string | null;
+}
+
 export interface IbkrOrder {
   order_id: number;
   /** IB permId -- durable across reconnect. Session orderId may be 0. */
@@ -117,6 +128,11 @@ export interface IbkrOrder {
   avg_fill_price?: number | null;
   /** IBKR CommissionReport sum -- null until a real report. */
   commission?: number | null;
+  /**
+   * Fill-audit join from the API -- null when clocks are missing.
+   * Never invent milliseconds on the client.
+   */
+  fill_audit?: OrderFillAudit | null;
   outside_rth?: boolean;
   status: string;
   /** ISO-8601 UTC when the order was first seen / submitted (IBKR trade log). */

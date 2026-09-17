@@ -172,4 +172,26 @@ describe('workingOrderCells — Open Orders column contract', () => {
   it('Limit is em-dash for market / stop without limit', () => {
     expect(renderCell('limit', STOP).text).toBe('—');
   });
+
+  it('Latency is em dash when fill_audit is missing', () => {
+    const { text, html } = renderCell('latency', PARTIAL);
+    expect(text).toBe('—');
+    expect(html).not.toContain('ibkr-fill-latency--warn');
+    expect(html).not.toContain('ibkr-fill-latency--danger');
+  });
+
+  it('Latency shows 180ms and warn class from fill_audit', () => {
+    const { text, html } = renderCell('latency', {
+      ...PARTIAL,
+      fill_audit: {
+        place_to_submit_ms: 12,
+        place_to_fill_ms: 180,
+        level: 'warn',
+        reason: 'mkt_rth_slow',
+      },
+    });
+    expect(text).toBe('180ms');
+    expect(html).toContain('ibkr-fill-latency--warn');
+    expect(html).toContain('Nova → IBKR submit: 12ms');
+  });
 });

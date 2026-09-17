@@ -25,6 +25,7 @@ describe('orderTableColumns', () => {
       'stop',
       'avg_fill',
       'commission',
+      'latency',
       'order_id',
     ]);
   });
@@ -41,6 +42,7 @@ describe('orderTableColumns', () => {
       'limit',
       'avg_fill',
       'commission',
+      'latency',
       'order_id',
     ]);
   });

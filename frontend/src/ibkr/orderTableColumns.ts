@@ -17,6 +17,7 @@ export type WorkingOrderColumnId =
   | 'stop'
   | 'avg_fill'
   | 'commission'
+  | 'latency'
   | 'status'
   | 'time'
   | 'session';
@@ -30,6 +31,7 @@ export type ClosedOrderColumnId =
   | 'limit'
   | 'avg_fill'
   | 'commission'
+  | 'latency'
   | 'status'
   | 'time'
   | 'filled_at';
@@ -57,6 +59,7 @@ export const DEFAULT_WORKING_ORDER_COLUMNS: WorkingOrderColumnId[] = [
   'stop',
   'avg_fill',
   'commission',
+  'latency',
   'order_id',
 ];
 
@@ -75,6 +78,7 @@ export const DEFAULT_CLOSED_ORDER_COLUMNS: ClosedOrderColumnId[] = [
   'limit',
   'avg_fill',
   'commission',
+  'latency',
   'order_id',
 ];
 
@@ -145,6 +149,13 @@ export const WORKING_COLUMN_META: Record<WorkingOrderColumnId, ColumnMeta> = {
     title:
       'IBKR CommissionReport sum for this order -- blank until a real report; never invented from avg cost',
   },
+  latency: {
+    id: 'latency',
+    label: 'Latency',
+    className: 'ibkr-col--num',
+    title:
+      'Click-to-fill when filled, else click-to-terminal. Hover for Nova→submit and submit→fill. MKT RTH warn/danger from fill-audit detective. Em dash when audit is missing -- never invented',
+  },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
   time: {
     id: 'time',
@@ -191,6 +202,13 @@ export const CLOSED_COLUMN_META: Record<ClosedOrderColumnId, ColumnMeta> = {
     className: 'ibkr-col--num',
     title:
       'IBKR CommissionReport sum for this order -- blank until a real report; never invented from avg cost',
+  },
+  latency: {
+    id: 'latency',
+    label: 'Latency',
+    className: 'ibkr-col--num',
+    title:
+      'Click-to-fill when filled, else click-to-terminal. Hover for Nova→submit and submit→fill. MKT RTH warn/danger from fill-audit detective. Em dash when audit is missing -- never invented',
   },
   status: { id: 'status', label: 'Status', className: 'ibkr-col--status' },
   time: {

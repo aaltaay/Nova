@@ -617,6 +617,17 @@
   font-style: italic;
 }
 
+/* Fill-audit detective -- same warn/danger ink as header status chips. */
+.ibkr-fill-latency--warn {
+  color: #ca8a04;
+  font-weight: 650;
+}
+
+.ibkr-fill-latency--danger {
+  color: color-mix(in srgb, var(--danger, #ef4444) 90%, var(--text-primary));
+  font-weight: 650;
+}
+
 /* Just-placed pulse sits on top of buy/sell row tint. */
 .ibkr-order-row--highlight td {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, #3b82f6) 55%, transparent);

@@ -154,4 +154,26 @@ describe('orderTableSort', () => {
     );
     expect(sorted.map((o) => o.order_id)).toEqual([3, 1, 2]);
   });
+
+  it('sorts latency by click-to-fill, missing last', () => {
+    const orders = [
+      row({
+        order_id: 1,
+        status: 'Filled',
+        fill_audit: { place_to_fill_ms: 2100, level: 'warn' },
+      }),
+      row({ order_id: 2, status: 'Filled' }),
+      row({
+        order_id: 3,
+        status: 'Filled',
+        fill_audit: { place_to_fill_ms: 180, level: 'ok' },
+      }),
+    ];
+    const sorted = sortOrders(
+      orders,
+      [{ key: 'latency', dir: 'asc' }],
+      'closed',
+    );
+    expect(sorted.map((o) => o.order_id)).toEqual([3, 1, 2]);
+  });
 });

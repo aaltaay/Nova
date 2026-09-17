@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- Orders Today fill latency column
+
+- **What:** Orders Today gains one Latency column. The cell is click-to-fill when filled, else click-to-terminal (`180ms` / `1.2s`). Hover shows Nova→IBKR submit, IBKR submit→fill, and click→fill (or click→terminal). MKT RTH warn/danger reuses `classify_fill_audit`. Missing audit is an em dash -- never invented.
+- **Why:** #195. Fill audit already wrote JSONL + `IBKR_FILL_AUDIT`. Commissions landed; latency did not.
+- **Files touched:** `backend/execution/fill_audit.py`, `fill_audit_attach.py`, `routes/trading.py`, `frontend/src/ibkr/orderFillLatency.ts`, `FillLatencyCell.tsx`, `orderTableColumns.ts`, working/closed cells.
+- **How it works now:** `GET /api/ibkr/orders` and `/orders/closed` attach `fill_audit` from the in-memory last classify row (keyed by order id / permId) or a recompute from ledger `created_ts` plus row `filled_at` / `updated_at`. Collapsed identical clocks stay blank. The FE does not scrape logs. Column store key is `nova.ibkr.orderTable.columns.v6`.
+- **Verified by:** pytest `test_fill_audit_attach` + `test_orders_api_contract` + `test_fill_audit`; Vitest orderFillLatency / orderTableColumns / working+closed cells / mockClosedOrders. No live IBKR orders.
+- **Follow-ups:** Ahmed Edge-smokes on Windows localhost before squash-merge. Closed sample rows 9002 (180ms ok) and 9008 (2.1s warn) preview the column when Gateway has no session fills.
+- **Related:** Closes #195. Refs #177 / #183.
+
 ## 2026-09-16 -- Ticket Side Buy/Sell/Short; Direction removed
 
 - **What:** Trade ticket no longer has Direction Long/Short. Side is Buy | Sell | Short on a Margin IBKR account, Buy | Sell on Cash. Place / confirm copy follows the selection (Short SYMBOL). Sell does not open a short.

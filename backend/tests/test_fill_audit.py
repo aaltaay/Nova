@@ -4,7 +4,20 @@ from __future__ import annotations
 import json
 import logging
 
-from execution.fill_audit import classify_fill_audit, emit_fill_audit
+import pytest
+
+from execution.fill_audit import (
+    classify_fill_audit,
+    emit_fill_audit,
+    reset_fill_audit_store_for_testing,
+)
+
+
+@pytest.fixture(autouse=True)
+def _clean_fill_audit_store():
+    reset_fill_audit_store_for_testing()
+    yield
+    reset_fill_audit_store_for_testing()
 
 
 def _base(**kw) -> dict:
