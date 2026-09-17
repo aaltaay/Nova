@@ -9,6 +9,8 @@ import { formatSeedPrice } from '../ibkr/tradeDefaultSeed';
 import { CHART_POSITION_MENU_VIEW_DETAILS } from './positionOverlayConstants';
 import {
   CHART_CONTEXT_MENU_ADD_WATCHLIST,
+  CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD,
+  CHART_CONTEXT_MENU_BOT_ALLOWLIST_REMOVE,
   CHART_CONTEXT_MENU_ALERT_REASON,
   CHART_CONTEXT_MENU_BUY,
   CHART_CONTEXT_MENU_CLOSE_POSITION,
@@ -33,6 +35,8 @@ export type ChartContextMenuItemId =
   | 'show_layers'
   | 'create_alert'
   | 'add_to_watchlist'
+  | 'bot_allowlist_add'
+  | 'bot_allowlist_remove'
   | 'reset'
   | 'snapshot';
 
@@ -41,7 +45,8 @@ export type ChartContextMenuItemKind =
   | 'position'
   | 'submenu'
   | 'view'
-  | 'unavailable';
+  | 'unavailable'
+  | 'action';
 
 export interface ChartContextMenuItem {
   id: ChartContextMenuItemId;
@@ -60,6 +65,7 @@ export interface ChartContextMenuInput {
   /** Share count the ticket would receive (see `defaultTicketQty`). */
   quantityValue: string;
   hasPosition: boolean;
+  allowlisted?: boolean;
 }
 
 /** Same formatter the ticket seeds with, so the label matches the staged price. */
@@ -129,6 +135,14 @@ export function chartContextMenuItems(
     label: CHART_CONTEXT_MENU_ADD_WATCHLIST,
     kind: 'unavailable',
     reason: CHART_CONTEXT_MENU_WATCHLIST_REASON,
+  });
+  items.push({
+    id: input.allowlisted ? 'bot_allowlist_remove' : 'bot_allowlist_add',
+    label: input.allowlisted
+      ? CHART_CONTEXT_MENU_BOT_ALLOWLIST_REMOVE
+      : CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD,
+    kind: 'action',
+    dividerBefore: true,
   });
   items.push({ id: 'reset', label: CHART_CONTEXT_MENU_RESET, kind: 'view', dividerBefore: true });
   items.push({ id: 'snapshot', label: CHART_CONTEXT_MENU_SNAPSHOT, kind: 'view' });

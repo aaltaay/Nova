@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from bot.packs import default_pack_settings
 from constants_bot import (
     BOT_ACTION_KINDS,
     BOT_ADVISE_DEFAULT_CALL_CAP,
@@ -22,8 +23,10 @@ from constants_bot import (
     BOT_DEFAULT_MAX_SHARES,
     BOT_DEFAULT_WORKING_TTL_SEC,
     BOT_LEVEL_OFF,
+    BOT_PACK_DEFAULT,
     BOT_PROPOSALS_FILENAME,
     BOT_SCHEMA_VERSION,
+    BOT_SCHEMA_VERSIONS,
     BOT_SESSION_FILENAME,
 )
 from paths import cache_dir
@@ -54,6 +57,12 @@ def default_session() -> dict[str, Any]:
         "armed": False,
         "strategy": None,
         "brain_session_id": None,
+        "desk_arm_token": None,
+        "claim_arm_token": None,
+        "brain_heartbeat_ts": None,
+        "active_pack": BOT_PACK_DEFAULT,
+        "symbol_allowlist": [],
+        "pack_settings": default_pack_settings(),
         "caps": {
             "max_shares": BOT_DEFAULT_MAX_SHARES,
             "bp_budget_usd": BOT_DEFAULT_BP_BUDGET_USD,
@@ -89,9 +98,9 @@ def _refuse_unknown(raw: Any, label: str) -> None:
     if version is None:
         raw["schema_version"] = BOT_SCHEMA_VERSION
         return
-    if int(version) != BOT_SCHEMA_VERSION:
+    if int(version) not in BOT_SCHEMA_VERSIONS:
         raise ValueError(
-            f"{label} schema_version={version!r} (expected {BOT_SCHEMA_VERSION})"
+            f"{label} schema_version={version!r} (expected one of {BOT_SCHEMA_VERSIONS})"
         )
 
 
@@ -110,6 +119,10 @@ def load_session() -> dict[str, Any]:
         merged.update(raw)
         merged["caps"] = {**default_session()["caps"], **(raw.get("caps") or {})}
         merged["advise"] = {**default_session()["advise"], **(raw.get("advise") or {})}
+        merged["pack_settings"] = {
+            **default_session()["pack_settings"],
+            **(raw.get("pack_settings") or {}),
+        }
         _session = merged
         return _session
 

@@ -37,6 +37,8 @@ import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { setGlobalBarTraderSlot } from './globalBarSlots';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { SymbolSearchBox } from './SymbolSearchBox';
+import { BotArmControls } from '../bot/BotArmControls';
+import { BotSymbolMenuHost } from '../bot/BotSymbolMenu';
 import { ThemeToggle } from './ThemeToggle';
 import { requestOpenTradingTab } from './openTradingTabNav';
 import { TraderNavButton } from './TraderNavButton';
@@ -218,6 +220,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
       </div>
 
       <div className="global-app-bar__right">
+        <BotArmControls />
+        <BotSymbolMenuHost />
         <ThemeToggle />
         <div
           className="global-app-bar__account"

@@ -19,6 +19,7 @@ import { stageChartOrder, type ChartOrderIntent } from './chartOrderActions';
 import { placePointFromPointer } from './chartDrawingPlace';
 import { downloadChartSnapshot } from './chartSnapshot';
 import { resetChartViewport } from './chartViewportReset';
+import { useBotAllowlist } from '../bot/useBotAllowlist';
 import { useChartPositionContext } from './useChartPositionContext';
 
 interface OpenState {
@@ -42,6 +43,7 @@ export function ChartContextMenuHost(props: {
   const [open, setOpen] = useState<OpenState | null>(null);
   const rootRef = useRef<HTMLElement | null>(null);
   const positionCtx = useChartPositionContext(props.symbol);
+  const allowlist = useBotAllowlist();
   const dismiss = useCallback(() => setOpen(null), []);
 
   const { containerRef, candleSeriesRef } = props;
@@ -125,6 +127,10 @@ export function ChartContextMenuHost(props: {
         onSnapshot={() =>
           downloadChartSnapshot(props.chart, props.symbol, props.timeframe)
         }
+        allowlisted={allowlist.isAllowed(props.symbol)}
+        onBotAllowlist={(op) => {
+          void (op === 'add' ? allowlist.add(props.symbol) : allowlist.remove(props.symbol));
+        }}
         onDismiss={dismiss}
       />
     </div>,

@@ -1,0 +1,77 @@
+"""Claim + heartbeat + one active pack. Never raises autonomy."""
+from __future__ import annotations
+
+import logging
+import time
+
+import requests
+
+from constants_bot import (
+    BOT_BRAIN_POLL_SEC,
+    BOT_LEVEL_STRATEGY,
+    BOT_PACK_HALT_LULD,
+    BOT_PACK_STUBS,
+)
+from nova_brain.client import BotApiClient
+from nova_brain.halt_luld import tick as halt_tick
+
+logger = logging.getLogger("nova_brain")
+
+
+def step(
+    client: BotApiClient,
+    *,
+    halt_prev: dict[str, bool],
+    last_fire: dict[str, float],
+    now: float | None = None,
+) -> dict[str, bool]:
+    session = client.session_get()
+    level = int(session.get("level") or 0)
+    if level < BOT_LEVEL_STRATEGY or not session.get("armed"):
+        return halt_prev
+    client.claim()
+    session = client.heartbeat()
+    pack = str(session.get("active_pack") or BOT_PACK_HALT_LULD)
+    if pack in BOT_PACK_STUBS:
+        logger.info("nova-brain: pack %s is a stub -- heartbeat only", pack)
+        return halt_prev
+    watch = client.watch()
+    ts = time.time() if now is None else now
+    return halt_tick(
+        session=session,
+        watch=watch,
+        previous=halt_prev,
+        last_fire=last_fire,
+        now=ts,
+        fire=client.fire,
+    )
+
+
+def run_forever(*, client: BotApiClient | None = None, poll_sec: float | None = None) -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    api = client or BotApiClient()
+    if not api.api_key:
+        logger.error("NOVA_API_KEY is required -- nova-brain will not start")
+        raise SystemExit(2)
+    misses = 0
+    seen_ok = False
+    halt_prev: dict[str, bool] = {}
+    last_fire: dict[str, float] = {}
+    delay = BOT_BRAIN_POLL_SEC if poll_sec is None else poll_sec
+    logger.info("nova-brain starting against %s as %s", api.base, api.brain_id)
+    while True:
+        try:
+            halt_prev = step(api, halt_prev=halt_prev, last_fire=last_fire)
+            misses = 0
+            seen_ok = True
+        except requests.RequestException as exc:
+            misses += 1
+            logger.warning("nova-brain: API unreachable (%s) miss=%s", exc, misses)
+            if seen_ok and misses >= 8:
+                logger.info("nova-brain: API gone -- exiting")
+                return
+        except SystemExit:
+            raise
+        except Exception:
+            logger.exception("nova-brain: tick failed")
+        time.sleep(delay)

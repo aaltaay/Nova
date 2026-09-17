@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchBotAudit, fetchBotProposals, fetchBotSession, patchBotSession, resolveProposal } from './api';
+import {
+  armBotSession,
+  disarmBotSession,
+  fetchBotAudit,
+  fetchBotProposals,
+  fetchBotSession,
+  patchBotSession,
+  resolveProposal,
+} from './api';
 import type { BotAuditEntry, BotProposal, BotSession } from './types';
 
-export function useBotSession() {
+export function useBotSession(pollMs = 0) {
   const [session, setSession] = useState<BotSession | null>(null);
   const [proposals, setProposals] = useState<BotProposal[]>([]);
   const [audit, setAudit] = useState<BotAuditEntry[]>([]);
@@ -29,14 +37,56 @@ export function useBotSession() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (!pollMs) return undefined;
+    const id = window.setInterval(() => {
+      void refresh();
+    }, pollMs);
+    return () => window.clearInterval(id);
+  }, [pollMs, refresh]);
+
   const patch = useCallback(async (body: Record<string, unknown>) => {
     setBusy(true);
     try {
       const next = await patchBotSession(body);
       setSession(next);
       setError(null);
+      return next;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'bot patch failed');
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  const activate = useCallback(async () => {
+    setBusy(true);
+    try {
+      const next = await armBotSession({
+        reenable: Boolean(session?.soft_breaker_fired),
+      });
+      setSession(next);
+      setError(null);
+      return next;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'bot activate failed');
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }, [session?.soft_breaker_fired]);
+
+  const stop = useCallback(async () => {
+    setBusy(true);
+    try {
+      const next = await disarmBotSession();
+      setSession(next);
+      setError(null);
+      return next;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'bot stop failed');
+      return null;
     } finally {
       setBusy(false);
     }
@@ -54,5 +104,5 @@ export function useBotSession() {
     }
   }, [refresh]);
 
-  return { session, proposals, audit, error, busy, refresh, patch, resolve };
+  return { session, proposals, audit, error, busy, refresh, patch, activate, stop, resolve };
 }

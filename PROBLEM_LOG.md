@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Bot alias writes skipped the API key and brains could raise L2
+
+- **Symptom:** `POST /bot/*` (no `/api` prefix) mutated the session without `NOVA_API_KEY`. `PATCH /session` `{"level":2}` from curl or a brain raised autonomy with no desk Activate. Fire looked live while no brain heartbeat existed.
+- **Cause:** `MutatingApiKeyMiddleware` only matched `/api/`. Loopback writes were open except `/api/config`. Autonomy treated desk PATCH as enough for L2. There was no arm token and no fail-closed heartbeat.
+- **Fix:** Middleware + `require_bot_auth` cover `/api/bot/*` and `/bot/*` and always require a configured key. L1->L2 needs `X-Nova-Desk-Arm` from POST `/session/arm`. Brains cannot arm. Fire needs L2 + armed + token + fresh heartbeat + allowlist ∩ live focus. Claim dies when Activate rotates.
+- **Fix class:** admission
+- **Keywords:** bot, NOVA_API_KEY, /bot alias, arm token, heartbeat, allowlist, L2
+
 ## 2026-09-17 -- Bot BP counted negative leftover qty
 
 - **Symptom:** An `exit_pos` larger than tracked `bot_qty` (manual shares in the same name) left a negative leftover. Open$ used `abs(qty)`, so a leftover short-looking count still ate the $50 budget.

@@ -1,10 +1,26 @@
-import type { BotActionKind } from '../constantGroups/bot';
+import type { BotActionKind, BotPackId } from '../constantGroups/bot';
+
+export type BotPackStatus = 'live' | 'stub';
+
+export type BotPackInfo = {
+  id: BotPackId;
+  label: string;
+  status: BotPackStatus;
+};
 
 export type BotSession = {
   level: 0 | 1 | 2 | 3;
   armed: boolean;
+  has_desk_arm?: boolean;
   strategy: string | null;
+  active_pack?: BotPackId | string;
+  packs?: BotPackInfo[];
+  symbol_allowlist?: string[];
+  pack_settings?: Record<string, Record<string, unknown>>;
   brain_session_id: string | null;
+  brain_heartbeat_ts?: number | null;
+  brain_alive?: boolean;
+  live_fire_ready?: boolean;
   caps: {
     max_shares: number;
     bp_budget_usd: number;
@@ -34,6 +50,7 @@ export type BotSession = {
     expire_ts: number;
   }>;
   updated_ts?: number;
+  desk_arm_token?: string;
 };
 
 export type BotProposal = {

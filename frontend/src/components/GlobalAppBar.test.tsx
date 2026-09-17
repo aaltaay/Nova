@@ -33,6 +33,13 @@ vi.mock('../closed_orders/useClosedOrders', () => ({
   }),
 }));
 
+vi.mock('../bot/BotArmControls', () => ({
+  BotArmControls: () => <div data-testid="bot-arm-controls-stub" />,
+}));
+vi.mock('../bot/BotSymbolMenu', () => ({
+  BotSymbolMenuHost: () => null,
+}));
+
 vi.mock('../workspace/useModuleVisibility', () => ({
   useModuleVisibility: () => ({
     visibility: { trading: true },

@@ -1,4 +1,4 @@
-import { BOT_ACTION_KINDS, BOT_LEVEL_LABELS } from '../constantGroups/bot';
+import { BOT_ACTION_KINDS, BOT_PACK_LABELS } from '../constantGroups/bot';
 import { useBotSession } from './useBotSession';
 
 export function StrategyTab() {
@@ -9,15 +9,17 @@ export function StrategyTab() {
   }
 
   const pending = proposals.filter(p => p.status === 'pending');
+  const pack = String(session.active_pack || 'halt-luld');
+  const packLabel = BOT_PACK_LABELS[pack as keyof typeof BOT_PACK_LABELS] || pack;
 
   return (
     <div className="bot-strategy">
       <header className="bot-strategy__header">
         <div>
-          <h2>Strategy -- small-cap</h2>
+          <h2>Strategy -- small-cap settings</h2>
           <p className="form-hint">
-            Brain stays outside Nova. This desk owns risk, allowlist, and the only order door.
-            L3 Unrestricted is parked. Advise never places.
+            Autonomy, Activate, and pack live on the header. This tab is risk
+            sleeve, Advise, proposals, and audit only. Brains cannot raise L2.
           </p>
         </div>
         {busy ? <span className="form-hint">Saving…</span> : null}
@@ -35,39 +37,22 @@ export function StrategyTab() {
       {session.soft_breaker_fired && !session.day_lock_active ? (
         <div className="bot-strategy__banner" role="status">
           -$50 breaker flattened the account and dropped the bot to L0.
-          Desk can still trade. Re-enable L2 only if you mean it.
-          <button
-            type="button"
-            className="bot-strategy__btn"
-            onClick={() => void patch({ reenable: true, level: 2 })}
-          >
-            Re-enable Strategy
-          </button>
+          Desk can still trade. Re-arm from the header Activate control.
         </div>
       ) : null}
 
       <section className="bot-strategy__card">
-        <h3>Autonomy</h3>
-        <div className="bot-strategy__levels">
-          {([0, 1, 2] as const).map(level => (
-            <label key={level}>
-              <input
-                type="radio"
-                name="bot-level"
-                checked={session.level === level}
-                onChange={() => void patch({ level })}
-              />
-              {BOT_LEVEL_LABELS[level]}
-            </label>
-          ))}
-          <label className="bot-strategy__disabled">
-            <input type="radio" disabled />
-            L3 Unrestricted -- parked (#216)
-          </label>
-        </div>
+        <h3>Status (read-only)</h3>
         <p className="form-hint">
-          Brain session: {session.brain_session_id || 'none'} · strategy:{' '}
-          {session.strategy || 'off'}
+          Level {session.level} · {session.armed ? 'Activate on' : 'stopped'} · pack {packLabel}
+          {session.live_fire_ready ? ' · live-fire ready' : ''}
+        </p>
+        <p className="form-hint">
+          Brain: {session.brain_session_id || 'none'}
+          {session.brain_alive ? ' (heartbeat alive)' : ' (heartbeat stale or missing)'}
+        </p>
+        <p className="form-hint">
+          Symbol allowlist: {session.symbol_allowlist?.join(', ') || 'empty -- fail closed'}
         </p>
       </section>
 
@@ -115,11 +100,14 @@ export function StrategyTab() {
           </label>
         </div>
         <p className="form-hint">
-          Allowlist: {BOT_ACTION_KINDS.join(', ')}. Free-form qty is refused.
+          Action kinds: {BOT_ACTION_KINDS.join(', ')}. Free-form qty is refused.
           New buys block while a bot working order exists.
         </p>
         <p className="form-hint">
           Live L2 (max 3, shared with Trader): {session.trader_live.join(', ') || 'none'}
+        </p>
+        <p className="form-hint">
+          Quote spike and volume packs are stubs -- they heartbeat only and cannot fire.
         </p>
       </section>
 

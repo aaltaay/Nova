@@ -29,6 +29,7 @@ describe('chartContextMenuItems', () => {
       'show_layers',
       'create_alert',
       'add_to_watchlist',
+      'bot_allowlist_add',
       'reset',
       'snapshot',
     ]);
@@ -59,6 +60,15 @@ describe('chartContextMenuItems', () => {
         reason: CHART_CONTEXT_MENU_WATCHLIST_REASON,
       }),
     );
+  });
+
+  it('adds or removes the bot allowlist from the live menu', () => {
+    const add = chartContextMenuItems(BASE).find((i) => i.id === 'bot_allowlist_add');
+    expect(add?.kind).toBe('action');
+    const remove = chartContextMenuItems({ ...BASE, allowlisted: true }).find(
+      (i) => i.id === 'bot_allowlist_remove',
+    );
+    expect(remove?.label).toBe('Remove from bot allowlist');
   });
 
   it('exposes Show Layers and omits surfaces Nova cannot perform', () => {

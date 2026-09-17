@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StrategyTab } from './StrategyTab';
 import type { BotSession } from './types';
@@ -16,7 +16,11 @@ function session(partial: Partial<BotSession> = {}): BotSession {
     level: 1,
     armed: false,
     strategy: null,
+    active_pack: 'halt-luld',
+    symbol_allowlist: [],
     brain_session_id: null,
+    brain_alive: false,
+    live_fire_ready: false,
     caps: {
       max_shares: 1,
       bp_budget_usd: 50,
@@ -42,24 +46,14 @@ function session(partial: Partial<BotSession> = {}): BotSession {
 }
 
 describe('StrategyTab', () => {
-  it('loads session settings and patches autonomy', async () => {
-    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+  it('loads settings only -- no autonomy radios', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       const href = String(url);
-      if (href.includes('/bot/session') && (!init || init.method === undefined || init.method === 'GET')) {
+      if (href.includes('/bot/session')) {
         return { ok: true, json: async () => session() };
       }
-      if (href.includes('/bot/session') && init?.method === 'PATCH') {
-        return { ok: true, json: async () => session({ level: 2, armed: true, strategy: 'small-cap' }) };
-      }
-      if (href.includes('/bot/proposals')) {
-        return { ok: true, json: async () => ({ proposals: [] }) };
-      }
-      if (href.includes('/bot/audit')) {
-        return { ok: true, json: async () => ({ entries: [] }) };
-      }
-      return { ok: false, json: async () => ({}) };
-    });
-    vi.stubGlobal('fetch', fetchMock);
+      return { ok: true, json: async () => (href.includes('proposals') ? { proposals: [] } : { entries: [] }) };
+    }));
 
     await act(async () => {
       render(<StrategyTab />);
@@ -67,18 +61,11 @@ describe('StrategyTab', () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByText(/Strategy -- small-cap/)).toBeTruthy();
+    expect(screen.getByText(/Strategy -- small-cap settings/)).toBeTruthy();
     expect(screen.getByText(/Live L2/)).toBeTruthy();
-    expect(screen.getByText(/parked \(#216\)/)).toBeTruthy();
-
-    await act(async () => {
-      fireEvent.click(screen.getByLabelText(/Strategy \(L2 small-cap\)/));
-      await Promise.resolve();
-    });
-
-    const patchCall = fetchMock.mock.calls.find(([, init]) => init && (init as RequestInit).method === 'PATCH');
-    expect(patchCall).toBeTruthy();
-    expect(String(patchCall?.[1] && (patchCall[1] as RequestInit).body)).toContain('"level":2');
+    expect(screen.queryByLabelText(/Strategy \(L2 small-cap\)/)).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.getByText(/header/)).toBeTruthy();
   });
 
   it('shows the -$200 day lock banner', async () => {

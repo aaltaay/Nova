@@ -21,6 +21,8 @@ from bot.risk import (
     resolve_percent,
     resolve_shares,
 )
+from bot.eligibility import assert_symbol_eligible
+from bot.packs import assert_pack_can_fire, normalize_pack
 from bot.session import require_l2_brain
 from constants_bot import BOT_REASON_DAY_LOCK
 from execution.models import ExecutionCommand
@@ -86,11 +88,10 @@ async def fire(
     brain_session_id: str | None,
 ) -> dict[str, Any]:
     row = assert_can_fire()
+    assert_pack_can_fire(normalize_pack(row.get("active_pack")))
     require_l2_brain(brain_session_id, claim=True)
     kind = assert_kind(str(body.get("kind") or body.get("action") or ""), row)
-    symbol = str(body.get("symbol") or "").strip().upper()
-    if not symbol:
-        raise BotError("symbol is required", 400, "SYMBOL_MISSING")
+    symbol = assert_symbol_eligible(str(body.get("symbol") or ""), row)
     if day_lock_active() and kind.startswith("buy_"):
         raise BotError("-$200 day lock -- buys locked until next ET midnight", 409, BOT_REASON_DAY_LOCK)
 

@@ -29,3 +29,20 @@ export const BOT_LEVEL_LABELS = {
   1: 'Eyes (L1 watch + propose)',
   2: 'Strategy (L2 small-cap)',
 } as const;
+
+export const BOT_PACK_HALT_LULD = 'halt-luld';
+export const BOT_PACK_QUOTE_SPIKE = 'quote-spike';
+export const BOT_PACK_VOLUME = 'volume';
+export const BOT_PACKS = [BOT_PACK_HALT_LULD, BOT_PACK_QUOTE_SPIKE, BOT_PACK_VOLUME] as const;
+export type BotPackId = (typeof BOT_PACKS)[number];
+
+export const BOT_PACK_LABELS: Record<BotPackId, string> = {
+  'halt-luld': 'Halt / LULD resume',
+  'quote-spike': 'Quote spike (stub)',
+  'volume': 'Volume boost (stub)',
+};
+
+export const BOT_DESK_ARM_HEADER = 'X-Nova-Desk-Arm';
+export const BOT_DESK_ARM_STORAGE = 'nova_bot_desk_arm';
+export const BOT_ALLOWLIST_ADD = 'Add to bot allowlist';
+export const BOT_ALLOWLIST_REMOVE = 'Remove from bot allowlist';

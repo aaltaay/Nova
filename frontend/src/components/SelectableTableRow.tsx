@@ -6,7 +6,8 @@
  * not open Trader. The ticker button is the one gesture that opens Trader.
  * This is a spatial split (row vs ticker), not the click-vs-double-click
  * split ADR 011 rejected. */
-import type { CSSProperties, ReactNode, KeyboardEvent } from 'react';
+import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import { openBotSymbolMenu } from '../bot/botSymbolMenuStore';
 import { ROW_SELECT_QUOTE_TITLE, TICKER_OPEN_TRADER_TITLE } from '../constants';
 
 interface Props {
@@ -25,6 +26,8 @@ interface Props {
    * body then only calls `onSelect`. Defaults to true for rows with no
    * ticker button (Positions, Orders, Journal, Executor, ...). */
   openOnRowClick?: boolean;
+  /** Scanner rows: right-click opens Add/Remove bot allowlist. */
+  botAllowlistMenu?: boolean;
 }
 
 export function SelectableTableRow({
@@ -38,6 +41,7 @@ export function SelectableTableRow({
   hintPrefix,
   dataRecent = false,
   openOnRowClick = true,
+  botAllowlistMenu = false,
 }: Props) {
   function openRow() {
     onSelect(symbol);
@@ -59,6 +63,14 @@ export function SelectableTableRow({
       className={`selectable-row${selected ? ' row-selected' : ''}${className ? ` ${className}` : ''}`}
       style={style}
       onClick={openRow}
+      onContextMenu={
+        botAllowlistMenu
+          ? (event: MouseEvent<HTMLTableRowElement>) => {
+              event.preventDefault();
+              openBotSymbolMenu(symbol, event.clientX, event.clientY);
+            }
+          : undefined
+      }
       onKeyDown={onKeyDown}
       tabIndex={0}
       aria-selected={selected}

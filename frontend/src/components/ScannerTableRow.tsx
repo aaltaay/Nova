@@ -212,6 +212,7 @@ function ScannerTableRowView({
       onSelect={onSelect}
       onOpenTrading={onOpenTrading}
       openOnRowClick={false}
+      botAllowlistMenu
     >
       <ScannerRowNumCell index={index} />
       {columns.map(([key]) =>

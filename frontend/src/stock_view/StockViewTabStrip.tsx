@@ -25,6 +25,7 @@ import {
   takeForeignTraderTabDrop,
   type TraderTabDragPayload,
 } from '../workspace/traderDesk';
+import { openBotSymbolMenu } from '../bot/botSymbolMenuStore';
 import { TRADER_DRAFT_SYMBOL } from './traderTabsState';
 
 interface Props {
@@ -134,6 +135,11 @@ export function StockViewTabStrip({
               onTabDragStart?.(symbol);
             }}
             onDragEnd={() => onTabDragEnd?.()}
+            onContextMenu={(e) => {
+              if (isDraft) return;
+              e.preventDefault();
+              openBotSymbolMenu(symbol, e.clientX, e.clientY);
+            }}
           >
             {isEditing ? (
               <input

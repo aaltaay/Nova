@@ -3,10 +3,9 @@
 Local loopback with no ``NOVA_API_KEY`` stays open for most mutating routes
 (single-operator desktop). Public binds require a key.
 
-``POST /api/config`` is the exception: it always requires a configured
-``NOVA_API_KEY`` and a matching ``X-Nova-Api-Key`` header, even on loopback.
-Any local process can reach ``127.0.0.1:8000``; rewriting ``.env`` (Alpaca
-keys, feed, discovery) is not a safe open-loopback action. The Desktop
+``POST /api/config`` and mutating ``/api/bot/*`` / ``/bot/*`` always require
+a configured ``NOVA_API_KEY`` and a matching ``X-Nova-Api-Key`` header, even
+on loopback. Any local process can reach ``127.0.0.1:8000``. The Desktop
 sidecar provisions the key and injects it. Vite Settings needs the same
 value as ``VITE_NOVA_API_KEY`` or ``localStorage.nova_api_key``.
 """
@@ -55,10 +54,25 @@ def is_config_mutate(method: str, path: str) -> bool:
     return method in _MUTATING and path.rstrip("/") == NOVA_CONFIG_MUTATE_PATH
 
 
+def is_bot_http_path(path: str) -> bool:
+    normalized = path.rstrip("/") or "/"
+    return normalized.startswith("/api/bot") or normalized.startswith("/bot")
+
+
+def is_bot_mutate(method: str, path: str) -> bool:
+    return method in _MUTATING and is_bot_http_path(path)
+
+
+_BOT_KEY_REQUIRED = (
+    "NOVA_API_KEY must be set for mutating bot routes, including on loopback"
+)
+
+
 def check_api_key(
     provided: str | None,
     *,
     require_configured_key: bool = False,
+    missing_key_detail: str | None = None,
 ) -> tuple[int, str] | None:
     """Return ``(status, detail)`` if rejected, else ``None``."""
     expected = _configured_api_key()
@@ -66,7 +80,8 @@ def check_api_key(
         if require_configured_key:
             return (
                 503,
-                "NOVA_API_KEY must be set to change config, including on loopback",
+                missing_key_detail
+                or "NOVA_API_KEY must be set to change config, including on loopback",
             )
         if _is_loopback_bind():
             return None
@@ -90,16 +105,33 @@ async def require_auth(
         raise HTTPException(status_code=status, detail=detail)
 
 
+async def require_bot_auth(
+    api_key: Annotated[str | None, Security(_api_key_header)] = None,
+) -> None:
+    """Mutating bot routes -- always require a configured API key."""
+    rejected = check_api_key(
+        api_key,
+        require_configured_key=True,
+        missing_key_detail=_BOT_KEY_REQUIRED,
+    )
+    if rejected is not None:
+        status, detail = rejected
+        raise HTTPException(status_code=status, detail=detail)
+
+
 class MutatingApiKeyMiddleware(BaseHTTPMiddleware):
-    """Enforce API key on mutating ``/api/*`` HTTP methods (not WebSockets)."""
+    """Enforce API key on mutating ``/api/*`` and ``/bot/*`` HTTP methods."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        if request.method in _MUTATING and request.url.path.startswith("/api/"):
+        path = request.url.path
+        mutating = request.method in _MUTATING
+        bot = is_bot_mutate(request.method, path)
+        api = path.startswith("/api/")
+        if mutating and (bot or api):
             rejected = check_api_key(
                 request.headers.get(NOVA_API_KEY_HEADER),
-                require_configured_key=is_config_mutate(
-                    request.method, request.url.path
-                ),
+                require_configured_key=is_config_mutate(request.method, path) or bot,
+                missing_key_detail=_BOT_KEY_REQUIRED if bot else None,
             )
             if rejected is not None:
                 status, detail = rejected
@@ -118,7 +150,7 @@ def configure_api_auth(app) -> None:
     elif _is_loopback_bind():
         logger.info(
             "API auth: mutating-route key unset on loopback bind (%s) -- "
-            "mutating routes open locally except %s (requires a key)",
+            "mutating routes open locally except %s and mutating bot routes (require a key)",
             _bind_host(),
             NOVA_CONFIG_MUTATE_PATH,
         )
@@ -135,6 +167,9 @@ __all__ = [
     "MutatingApiKeyMiddleware",
     "check_api_key",
     "configure_api_auth",
+    "is_bot_http_path",
+    "is_bot_mutate",
     "is_config_mutate",
     "require_auth",
+    "require_bot_auth",
 ]

@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Bot brain client + arming harden + allowlist UX
+
+- **What:** Desk Activate token + header L0/L1/L2/pack/Activate/Stop. Mutating `/api/bot` and `/bot` always need `NOVA_API_KEY`. `nova-brain` starts with Nova (localhost, exclusive claim, halt/LULD resume). Right-click Add/Remove bot allowlist. Quote-spike and volume packs are selectable stubs. Thin SDK/MCP adapter contract, not a server.
+- **Why:** Ahmed locked #218-#222 on epic #205. Brains/curl must not PATCH L2. Fire is fail-closed without Activate + fresh heartbeat + allowlist ∩ live focus.
+- **Files touched:** `backend/bot/`, `backend/nova_brain/`, `backend/auth.py`, `backend/routes/bot.py`, `frontend/src/bot/`, `GlobalAppBar.tsx`, chart/scanner/tab menus, `docs/bot-localhost-api.md`, `docs/bot-adapters.md`, ADR 016.
+- **How it works now:** POST `/session/arm` issues `X-Nova-Desk-Arm`. PATCH level>1 needs that token. Brains only claim + heartbeat + fire. Empty allowlist is closed. Halt/LULD is the only live pack. Stubs heartbeat only (`BOT_PACK_STUB`). `live_fire_ready` is L2 + armed + brain heartbeat. Same-day -$50 re-arm stays allowed via header Activate.
+- **Verified by:** pytest `test_bot_*` + `test_nova_brain` + `test_auth` bot mutate; Vitest BotArmControls / StrategyTab / chart menu; `npm run build`. No live IBKR orders.
+- **Follow-ups:** L3 parked (#216). Epic #205 stays open. Quote-spike/volume signal logic later.
+- **Related:** Closes #218 #219 #220 #221 #222. Refs #205. PROBLEM_LOG 2026-09-17 bot alias key + arming.
+
 ## 2026-09-17 -- Localhost bot API + L0/L1/L2 safety (ADR 016)
 
 - **What:** Loopback OpenAPI/HTTP/WS bot API. L0 dark, L1 Eyes proposals, L2 small-cap fire through `execution.service` `source=bot`. Strategy left-tab owns caps, Advise spend, and audit. L3 parked (#216).
