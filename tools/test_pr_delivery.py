@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -9,6 +11,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from tools import pr_delivery
 from tools.pr_delivery import (
     ACTION_BLOCK,
     ACTION_MERGE,
@@ -18,6 +21,12 @@ from tools.pr_delivery import (
     can_delete_closed_head,
     decide,
     normalize_check,
+)
+from tools.pr_delivery_text import (
+    CONFLICT_COMMENT_MARKER,
+    conflict_rebase_comment,
+    should_post_conflict_comment,
+    squash_merge_fields,
 )
 
 
@@ -81,6 +90,52 @@ def test_conflict_blocks():
     )
     assert result.action == ACTION_BLOCK
     assert result.reason == "conflict"
+
+
+def test_conflicting_state_also_blocks():
+    result = decide(
+        draft=False,
+        state="OPEN",
+        mergeable_state="conflicting",
+        labels=[],
+        head_ref="stale",
+        same_repo=True,
+        checks=_ok_checks(),
+    )
+    assert result.action == ACTION_BLOCK
+    assert result.reason == "conflict"
+
+
+def test_squash_merge_fields_use_pr_title():
+    fields = squash_merge_fields(239, "PR delivery: auto squash-merge", body="why")
+    assert fields["merge_method"] == "squash"
+    assert fields["commit_title"] == "PR delivery: auto squash-merge"
+    assert fields["commit_message"] == "why"
+    assert "Merge pull request" not in fields["commit_title"]
+
+
+def test_squash_title_fallback_is_not_merge_commit():
+    fields = squash_merge_fields(12, "  \n")
+    assert fields["commit_title"] == "#12"
+    assert fields["merge_method"] == "squash"
+    assert "Merge pull request" not in fields["commit_title"]
+
+
+def test_conflict_comment_is_actionable():
+    body = conflict_rebase_comment()
+    assert CONFLICT_COMMENT_MARKER in body
+    assert "origin/master" in body
+    assert "rebase" in body.lower()
+    assert "Cursor cloud agent" in body
+    assert "ready" in body.lower()
+
+
+def test_conflict_comment_dedupes():
+    assert should_post_conflict_comment([]) is True
+    assert should_post_conflict_comment(["unrelated"]) is True
+    assert (
+        should_post_conflict_comment([f"{CONFLICT_COMMENT_MARKER} already"]) is False
+    )
 
 
 def test_missing_required_check_waits():
@@ -194,3 +249,121 @@ def test_delete_closed_same_repo_ok():
     )
     assert ok is True
     assert reason == "ok"
+
+
+def _ok_pr(number: int = 239, merge_state: str = "CLEAN", **extra) -> dict:
+    payload = {
+        "number": number,
+        "title": "PR delivery: auto squash-merge",
+        "body": "squash please",
+        "isDraft": False,
+        "state": "OPEN",
+        "mergeStateStatus": merge_state,
+        "labels": [],
+        "headRefName": "altaaya/pr-delivery-squash-239-128b",
+        "headRepository": {"name": "Nova"},
+        "headRepositoryOwner": {"login": "aaltaay"},
+    }
+    payload.update(extra)
+    return payload
+
+
+def test_merge_now_sends_squash(monkeypatch):
+    calls: list[tuple[list[str], str | None]] = []
+
+    def fake_gh(args, check=True, stdin=None):
+        calls.append((list(args), stdin))
+        return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(pr_delivery, "cmd_delete_closed", lambda *a, **k: 0)
+    rc = pr_delivery._merge_now(
+        239,
+        "altaaya/pr-delivery-squash-239-128b",
+        title="PR delivery: auto squash-merge",
+        body="body",
+    )
+    assert rc == 0
+    args, stdin = calls[0]
+    assert "--input" in args
+    payload = json.loads(stdin or "{}")
+    assert payload["merge_method"] == "squash"
+    assert payload["commit_title"] == "PR delivery: auto squash-merge"
+    assert "Merge pull request" not in payload["commit_title"]
+
+
+def test_signal_conflict_posts_actionable_comment(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_gh(args, check=True, stdin=None):
+        calls.append(list(args))
+        if args[0] == "api" and "comments" in args[1]:
+            return subprocess.CompletedProcess(args, 0, stdout="[]", stderr="")
+        return subprocess.CompletedProcess(args, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    pr_delivery._signal_conflict(239)
+    comment_calls = [item for item in calls if item[:2] == ["pr", "comment"]]
+    assert comment_calls
+    body = comment_calls[0][comment_calls[0].index("--body") + 1]
+    assert "gh pr comment" not in body
+    assert "origin/master" in body
+    assert "rebase" in body.lower()
+    assert "Cursor cloud agent" in body
+
+
+def test_signal_conflict_skips_duplicate(monkeypatch):
+    calls: list[list[str]] = []
+
+    def fake_gh(args, check=True, stdin=None):
+        calls.append(list(args))
+        if args[0] == "api":
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=json.dumps([{"body": f"{CONFLICT_COMMENT_MARKER} already"}]),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    pr_delivery._signal_conflict(239)
+    assert not any(item[:2] == ["pr", "comment"] for item in calls)
+
+
+def test_cmd_merge_signals_conflict(monkeypatch):
+    posted: list[int] = []
+    monkeypatch.setattr(
+        pr_delivery,
+        "_fetch_pr",
+        lambda n: (_ok_pr(n, merge_state="DIRTY"), _ok_checks()),
+    )
+    monkeypatch.setattr(pr_delivery, "_signal_conflict", lambda n: posted.append(n))
+    rc = pr_delivery.cmd_merge(239, wait_desktop_minutes=0)
+    assert rc == 1
+    assert posted == [239]
+
+
+def test_cmd_sweep_signals_conflict(monkeypatch):
+    posted: list[int] = []
+
+    def fake_gh(args, check=True, stdin=None):
+        if args[:2] == ["pr", "list"]:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=json.dumps([{"number": 239}]),
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args, 0, stdout="[]", stderr="")
+
+    monkeypatch.setattr(pr_delivery, "_gh", fake_gh)
+    monkeypatch.setattr(
+        pr_delivery,
+        "_fetch_pr",
+        lambda n: (_ok_pr(n, merge_state="DIRTY"), _ok_checks()),
+    )
+    monkeypatch.setattr(pr_delivery, "_signal_conflict", lambda n: posted.append(n))
+    rc = pr_delivery.cmd_sweep()
+    assert rc == 1
+    assert posted == [239]

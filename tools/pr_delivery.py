@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Merge ready Nova PRs and delete closed heads. GitHub Actions owns this.
+"""Merge ready Nova PRs (squash) and delete closed heads.
 
-Agents open a verified, non-draft PR and stop. They do not wait for a human
-to say merge. Draft or label `do-not-merge` holds a PR. Closed heads are
-deleted here as well as by GitHub `delete_branch_on_merge`.
+Agents open a verified, non-draft PR and stop. Draft or `do-not-merge` holds.
+Closed heads are deleted here and by GitHub `delete_branch_on_merge`.
 
 Usage:
   python3 tools/pr_delivery.py decide --pr 64
@@ -22,6 +21,11 @@ import sys
 import time
 from dataclasses import dataclass
 from typing import Any
+
+try:
+    from tools.pr_delivery_actions import merge_now, merge_pr, signal_conflict
+except ImportError:  # `python tools/pr_delivery.py` puts tools/ on sys.path
+    from pr_delivery_actions import merge_now, merge_pr, signal_conflict
 
 DEFAULT_REPO = "aaltaay/Nova"
 REQUIRED_CHECKS: tuple[str, ...] = (
@@ -187,12 +191,18 @@ def can_delete_closed_head(
     return True, "ok"
 
 
-def _gh(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+def _gh(
+    args: list[str],
+    *,
+    check: bool = True,
+    stdin: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["gh", *args],
         text=True,
         capture_output=True,
         check=check,
+        input=stdin,
     )
 
 
@@ -211,8 +221,8 @@ def _fetch_pr(number: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
             "view",
             str(number),
             "--json",
-            "number,state,isDraft,mergeStateStatus,labels,headRefName,"
-            "headRepository,headRepositoryOwner",
+            "number,title,body,state,isDraft,mergeStateStatus,labels,"
+            "headRefName,headRepository,headRepositoryOwner",
         ]
     ).stdout
     pr = json.loads(raw)
@@ -245,33 +255,19 @@ def _decision_from_pr(pr: dict[str, Any], checks: list[dict[str, Any]]) -> Decis
     )
 
 
-def _merge_now(number: int, head_ref: str) -> int:
-    # Use the REST merge endpoint. `gh pr merge` waits for every check,
-    # including this Auto-merge job, so it deadlocks on itself.
-    slug = repo_slug()
-    proc = _gh(
-        [
-            "api",
-            "-X",
-            "PUT",
-            f"repos/{slug}/pulls/{number}/merge",
-            "-f",
-            "merge_method=merge",
-            "-f",
-            f"commit_title=Merge pull request #{number}",
-        ],
-        check=False,
+def _merge_now(number: int, head_ref: str, title: str = "", body: str = "") -> int:
+    # REST squash-merge -- `gh pr merge` waits for this Auto-merge job and deadlocks.
+    return merge_now(
+        _gh, repo_slug(), number, head_ref, title, body, cmd_delete_closed
     )
-    if proc.returncode != 0:
-        print(
-            proc.stderr or proc.stdout or f"merge #{number} failed",
-            file=sys.stderr,
-        )
-        return 2
-    print(f"merged #{number}")
-    if head_ref:
-        cmd_delete_closed(head_ref, same_repo=True)
-    return 0
+
+
+def _signal_conflict(number: int) -> None:
+    signal_conflict(_gh, repo_slug(), number)
+
+
+def _merge_pr(pr: dict[str, Any]) -> int:
+    return merge_pr(_gh, repo_slug(), pr, cmd_delete_closed)
 
 
 def cmd_decide(number: int) -> int:
@@ -288,7 +284,9 @@ def cmd_merge(number: int, *, wait_desktop_minutes: int) -> int:
         decision = _decision_from_pr(pr, checks)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
-            return _merge_now(number, str(pr.get("headRefName") or ""))
+            return _merge_pr(pr)
+        if decision.reason == "conflict":
+            _signal_conflict(number)
         if decision.action == ACTION_WAIT and time.time() < deadline:
             time.sleep(20)
             continue
@@ -311,13 +309,16 @@ def cmd_sweep() -> int:
     ).stdout
     rows = json.loads(raw)
     errors = 0
-    for pr in rows:
-        number = int(pr["number"])
-        _, checks = _fetch_pr(number)
+    for row in rows:
+        number = int(row["number"])
+        pr, checks = _fetch_pr(number)
         decision = _decision_from_pr(pr, checks)
         print(f"#{number} {decision.action} {decision.reason}")
         if decision.action == ACTION_MERGE:
-            errors += 0 if _merge_now(number, str(pr.get("headRefName") or "")) == 0 else 1
+            errors += 0 if _merge_pr(pr) == 0 else 1
+        elif decision.reason == "conflict":
+            _signal_conflict(number)
+            errors += 1
     return 1 if errors else 0
 
 
