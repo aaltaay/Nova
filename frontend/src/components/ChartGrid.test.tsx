@@ -275,6 +275,15 @@ describe('ChartGrid', () => {
     expect(after.textContent).toContain('1-Minute');
     expect(container.querySelector('[data-testid="chart-grid-restore"]')).toBeTruthy();
     expect(container.querySelector('[data-testid="chart-desk-toolbar"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="chart-draw-tools-flat"]')).toBeTruthy();
+    expect(container.querySelector('button[aria-haspopup="menu"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Use Trendline"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Use Horizontal Line"]')).toBeTruthy();
+    act(() => {
+      (container.querySelector('[aria-label="Use Trendline"]') as HTMLButtonElement).click();
+    });
+    const afterClick = [...container.querySelectorAll<HTMLElement>('[data-testid="ticker-chart"]')];
+    expect(afterClick.every((el) => el.dataset.activeTool === 'TrendLine')).toBe(true);
   });
 
   it('restores the 2x2 from a second double-click, Esc, or Restore grid', () => {

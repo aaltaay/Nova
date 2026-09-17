@@ -1,10 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  CHART_DRAW_TOOLS_MENU_Z_INDEX,
+  type ChartDrawToolsLayout,
+  chartDrawToolsMenuPortalTarget,
+} from '../chart/chartDrawToolsChrome';
 import { CHART_LINE_TOOLS } from '../chart/chartDrawingConfig';
 
 interface Props {
   activeTool: string | null;
   onToolClick: (toolId: string) => void;
+  /** Maximized chrome uses `flat`; compact toolbars keep the cluster. */
+  layout?: ChartDrawToolsLayout;
 }
 
 function ChartLineToolIcon({ toolId }: { toolId: string }) {
@@ -64,7 +71,43 @@ export function chartDrawToolsMenuPosition(rect: { bottom: number; left: number 
   return { top: rect.bottom + MENU_GAP_PX, left: rect.left };
 }
 
-export function ChartDrawToolsMenu({ activeTool, onToolClick }: Props) {
+function ChartDrawToolsBar({ activeTool, onToolClick }: Props) {
+  return (
+    <div
+      className="chart-draw-tools chart-draw-tools--flat"
+      role="group"
+      aria-label="Line drawing tools"
+      data-testid="chart-draw-tools-flat"
+    >
+      {CHART_LINE_TOOLS.map((tool) => (
+        <button
+          type="button"
+          key={tool.id}
+          className={`chart-tool-btn${activeTool === tool.id ? ' chart-tool-btn--active' : ''}`}
+          onClick={() => onToolClick(tool.id)}
+          aria-label={`Use ${tool.label}`}
+          aria-pressed={activeTool === tool.id}
+          title={`${tool.label} (${tool.hotkey})`}
+        >
+          <ToolIcon toolId={tool.id} />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function ChartDrawToolsMenu({
+  activeTool,
+  onToolClick,
+  layout = 'cluster',
+}: Props) {
+  if (layout === 'flat') {
+    return <ChartDrawToolsBar activeTool={activeTool} onToolClick={onToolClick} />;
+  }
+  return <ChartDrawToolsCluster activeTool={activeTool} onToolClick={onToolClick} />;
+}
+
+function ChartDrawToolsCluster({ activeTool, onToolClick }: Props) {
   const [open, setOpen] = useState(false);
   const [lastUsedId, setLastUsedId] = useState(CHART_LINE_TOOLS[0].id);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
@@ -128,7 +171,11 @@ export function ChartDrawToolsMenu({ activeTool, onToolClick }: Props) {
         role="menu"
         aria-label="Line drawing tools"
         data-testid="chart-draw-tools-menu"
-        style={{ top: menuPos.top, left: menuPos.left }}
+        style={{
+          top: menuPos.top,
+          left: menuPos.left,
+          zIndex: CHART_DRAW_TOOLS_MENU_Z_INDEX,
+        }}
       >
         {CHART_LINE_TOOLS.map((tool) => (
           <button
@@ -145,7 +192,7 @@ export function ChartDrawToolsMenu({ activeTool, onToolClick }: Props) {
           </button>
         ))}
       </div>,
-      document.body,
+      chartDrawToolsMenuPortalTarget(),
     )
     : null;
 

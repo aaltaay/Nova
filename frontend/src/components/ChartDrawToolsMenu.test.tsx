@@ -4,6 +4,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CHART_DRAW_TOOLS_MENU_Z_INDEX } from '../chart/chartDrawToolsChrome';
+import { CHART_LINE_TOOLS } from '../chart/chartDrawingConfig';
 import { ChartDrawToolsMenu, chartDrawToolsMenuPosition } from './ChartDrawToolsMenu';
 
 function lineToolsMenu(): HTMLElement | null {
@@ -100,5 +102,50 @@ describe('ChartDrawToolsMenu', () => {
       top: 85,
       left: 12,
     });
+  });
+
+  it('flat layout shows every line tool and hides the cluster chevron', async () => {
+    const onToolClick = vi.fn();
+    await act(async () => {
+      root.render(
+        <ChartDrawToolsMenu activeTool={null} onToolClick={onToolClick} layout="flat" />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="chart-draw-tools-flat"]')).not.toBeNull();
+    expect(
+      container.querySelector('button[aria-haspopup="menu"]'),
+    ).toBeNull();
+    for (const tool of CHART_LINE_TOOLS) {
+      expect(
+        container.querySelector(`[aria-label="Use ${tool.label}"]`),
+      ).not.toBeNull();
+    }
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Use Horizontal Line"]')?.click();
+    });
+    expect(onToolClick).toHaveBeenCalledWith('HorizontalLine');
+    expect(lineToolsMenu()).toBeNull();
+  });
+
+  it('portals the cluster menu into the maximize host above overlay stacking', async () => {
+    const host = document.createElement('div');
+    host.className = 'chart-portal-host chart-portal-host--maximized';
+    document.body.appendChild(host);
+
+    await act(async () => {
+      root.render(<ChartDrawToolsMenu activeTool={null} onToolClick={vi.fn()} />);
+    });
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Line drawing tools"]',
+      )?.click();
+    });
+
+    const menu = lineToolsMenu();
+    expect(menu?.parentElement).toBe(host);
+    expect(menu?.style.zIndex).toBe(String(CHART_DRAW_TOOLS_MENU_Z_INDEX));
+    host.remove();
   });
 });

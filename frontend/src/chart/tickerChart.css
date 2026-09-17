@@ -152,6 +152,10 @@
   display: flex;
 }
 
+.chart-draw-tools--flat {
+  gap: 2px;
+}
+
 .chart-draw-tools__main {
   border-radius: 4px 0 0 4px;
 }
@@ -175,9 +179,9 @@
 }
 
 .chart-draw-tools__menu {
-  /* Portaled to document.body -- fixed so toolbar overflow cannot clip it. */
+  /* Portaled to fullscreen / maximize host / body -- must beat z-index 10000. */
   position: fixed;
-  z-index: 80;
+  z-index: 10060;
   width: 190px;
   padding: 4px;
   border: 1px solid var(--border-color);
