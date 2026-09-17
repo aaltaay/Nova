@@ -1,6 +1,6 @@
 /**
  * Main dashboard shell — rail + middle stack + quote panel.
- * Scanner status chrome is merged into GlobalAppBar (one header row).
+ * Scanner status chrome is merged into GlobalAppBar (primary header row).
  * HOD stream/config live in HodMomoProvider (AppShell); dock UI is middle-column only.
  */
 import { useEffect, useRef, useState } from 'react';

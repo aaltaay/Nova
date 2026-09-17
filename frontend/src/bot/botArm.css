@@ -9,6 +9,10 @@
   background: var(--nova-panel, #12161e);
 }
 
+.bot-arm--idle {
+  opacity: 0.82;
+}
+
 .bot-arm--armed {
   border-color: #c9a227;
 }

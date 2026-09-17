@@ -112,11 +112,23 @@ describe('BotArmControls', () => {
     });
 
     expect(screen.getByTestId('bot-arm-controls').className).toContain('bot-arm--live');
+    expect(screen.getByTestId('bot-arm-controls').className).not.toContain('bot-arm--idle');
     expect(screen.getByTestId('bot-arm-status').textContent).toMatch(/L2 live/);
     const box = screen.getByTestId('bot-arm-in-control') as HTMLInputElement;
     expect(box.checked).toBe(true);
     expect(screen.getByTestId('bot-arm-in-control-label').textContent).toMatch(/Bot is in control/);
     expect(screen.queryByTestId('bot-arm-activate')).toBeNull();
+  });
+
+  it('marks L0 inactive chrome as idle so the header row can mute', async () => {
+    mockFetch(() => session({ level: 0, armed: false, live_fire_ready: false }));
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('bot-arm-controls').className).toContain('bot-arm--idle');
+    expect(screen.getByTestId('bot-arm-controls').className).not.toContain('bot-arm--live');
   });
 
   it('hides the in-control checkbox at L0 and L1', async () => {

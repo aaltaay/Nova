@@ -72,10 +72,11 @@ free-form qty, REST quote polls, a second broker path) was rejected.
     flag. Spend/rate caps, audit, small-cap sleeve, breakers, and
     `NOVA_API_KEY` stay. Brains never raise autonomy.
 
-14. **L2 header checkbox.** The existing GlobalAppBar `BotArmControls`
-    show **Bot is in control** when level is L2. Checked = arm. Unchecked
-    = Stop. Flashy when `live_fire_ready`. L0/L1 hide the checkbox.
-    Pack picker and Strategy settings show one sentence per pack.
+14. **L2 header checkbox.** GlobalAppBar `BotArmControls` live on the
+    bot-only second header row (issue #230). They show **Bot is in
+    control** when level is L2. Checked = arm. Unchecked = Stop. Flashy
+    when `live_fire_ready`. L0/L1 hide the checkbox. Pack picker and
+    Strategy settings show one sentence per pack.
 
 ## Consequences
 

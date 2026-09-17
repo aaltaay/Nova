@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Bot controls move to a second GlobalAppBar row
+
+- **What:** `BotArmControls` (level, pack, L2 "Bot is in control", status) plus `BotSymbolMenuHost` leave the primary right cluster. They sit on a bot-only second header row under the existing desk chrome.
+- **Why:** Issue #230 -- the primary bar was crowded. Ahmed wants bot chrome on its own row in parent and popped-out trader windows.
+- **Files touched:** `GlobalAppBar.tsx`, `GlobalBarBotRow.tsx`, `BotArmControls.tsx`, `botArm.css`, `global-app-bar.css`, `global-app-bar-responsive.css`, `constantGroups/global_bar.ts`, `e2e/global-bar-bot-row.spec.ts`, ADR 016 location note.
+- **How it works now:** Header is a column. `__primary` keeps the old 3-column grid (brand / context / theme+account+lock+Cash/Margin+Account+Settings). `__bot` is always present under it. L0 / unarmed chrome gets `bot-arm--idle` so the row can stay slim and muted. Narrow widths still hide low-value primary chips; the bot row wraps or scrolls on its own and does not steal primary columns.
+- **Verified by:** Vitest `GlobalAppBar` + `BotArmControls` -- 24 passed. Playwright `e2e/global-bar-bot-row.spec.ts` -- 2 passed (sample scanner + sample trader; bot row below primary at 1280 and 900). `npm run lint` -- exit 0. `npm run build` -- exit 0. No arming API change. No live IBKR.
+- **Related:** Closes #230. Refs ADR 016.
+
 ## 2026-09-17 -- LLM decide live fire + pack copy + L2 in-control checkbox
 
 - **What:** Pack `llm-decide` is selectable. A mocked/configured LLM may propose at L1 or when Activate is off, and may `POST /api/bot/action` only at L2 + Activate + claim + heartbeat + allowlist ∩ focus. Header pack picker and Strategy show one sentence per pack. At L2 the existing GlobalAppBar shows a **Bot is in control** checkbox wired to the same arm/stop API.
