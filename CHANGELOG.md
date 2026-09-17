@@ -30,6 +30,15 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- 10Sec chart viewport survives live setData
+
+- **What:** Watching an expanded 10-Second pane no longer auto-zooms out when live ticks or a hist `bars_patch` rewrite the series. Manual zoom/pan stays; live follow only advances the right edge at the same bar width.
+- **Why:** Mid-trade the viewport jumped on its own while symbol and interval stayed put (#232).
+- **Files touched:** `frontend/src/chart/chartViewportPaint.ts`, `useChartBars.ts`, `chartViewportReset.ts`, `useChartInstance.ts`.
+- **How it works now:** First paint (and Reset Chart) still uses the default window -- pinned last-N for long 1Min/5Min, `fitContent` for 10Sec. Every later `setData` snapshots the visible range first. If the tip was on screen, the same logical span moves to the new last bar. If the operator panned away, the time window is restored. Incremental `series.update` keeps `shiftVisibleRangeOnNewBar`. There is no Follow/Locked chrome -- follow is "right edge was visible."
+- **Verified by:** `vitest run src/chart/chartViewportPaint.test.ts src/chart/chartViewportReset.test.ts src/tickerChartData.test.ts` -- 23 passed.
+- **Related:** PROBLEM_LOG 2026-09-17 -- 10Sec viewport fitContent on live setData; Closes #232.
+
 ## 2026-09-17 -- Bot controls move to a second GlobalAppBar row
 
 - **What:** `BotArmControls` (level, pack, L2 "Bot is in control", status) plus `BotSymbolMenuHost` leave the primary right cluster. They sit on a bot-only second header row under the existing desk chrome.

@@ -90,6 +90,9 @@ export function useChartInstance({
         timeVisible: true,
         secondsVisible: showSecondsRef.current,
         borderColor: '#262a36',
+        // Incremental series.update of a new tip bar keeps zoom and only
+        // walks the right edge. Full setData uses chartViewportPaint.
+        shiftVisibleRangeOnNewBar: true,
         tickMarkFormatter: (t: Time, tickMarkType: TickMarkType, locale: string) =>
           formatChartTickMark(t, tickMarkType, locale, showSecondsRef.current),
       },

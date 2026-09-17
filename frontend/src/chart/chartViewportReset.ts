@@ -1,10 +1,10 @@
 /**
  * "Reset Chart" -- put one pane's scales back where a fresh paint leaves them.
- * Reuses the same visible-range policy as `useChartBars.applyTimeScale`, so a
- * reset lands on the pinned intraday window instead of full history.
+ * Reuses `defaultTimeScaleCommand` so a reset matches first paint, not a
+ * live `setData` preserve.
  */
 import type { IChartApi } from 'lightweight-charts';
-import { timeScaleRangeForSeries } from '../tickerChartData';
+import { applyTimeScaleCommand, defaultTimeScaleCommand } from './chartViewportPaint';
 
 export function resetChartViewport(
   chart: IChartApi | null,
@@ -14,9 +14,7 @@ export function resetChartViewport(
   if (!chart) return false;
   try {
     chart.priceScale('right').applyOptions({ autoScale: true });
-    const range = timeScaleRangeForSeries(timeframe, barCount);
-    if (range) chart.timeScale().setVisibleLogicalRange(range);
-    else chart.timeScale().fitContent();
+    applyTimeScaleCommand(chart, defaultTimeScaleCommand(timeframe, barCount));
     return true;
   } catch (err) {
     console.warn('chart reset: scales unavailable', timeframe, err);
