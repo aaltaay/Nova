@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 from bot.audit import list_entries, record
-from bot.autonomy import apply_patch
+from bot.autonomy import apply_desk_level
 from bot.session import require_l2_brain
 
 
 def test_audit_fields_and_append():
-    apply_patch({"level": 2}, desk=True)
+    apply_desk_level(2)
     require_l2_brain("brain-9", claim=True)
     first = record(
         action="buy_market",

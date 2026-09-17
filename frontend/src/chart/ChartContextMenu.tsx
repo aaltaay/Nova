@@ -54,6 +54,8 @@ export interface ChartContextMenuProps {
   onViewDetails: () => void;
   onReset: () => void;
   onSnapshot: () => void;
+  onBotAllowlist?: (op: 'add' | 'remove') => void;
+  allowlisted?: boolean;
   onDismiss: () => void;
 }
 
@@ -85,6 +87,7 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
     price: props.price,
     quantityValue: props.quantityValue,
     hasPosition: Boolean(props.position && props.position.qty !== 0),
+    allowlisted: props.allowlisted,
   });
 
   useLayoutEffect(() => {
@@ -134,6 +137,10 @@ export function ChartContextMenu(props: ChartContextMenuProps) {
       props.onReset();
     } else if (id === 'snapshot') {
       props.onSnapshot();
+    } else if (id === 'bot_allowlist_add') {
+      props.onBotAllowlist?.('add');
+    } else if (id === 'bot_allowlist_remove') {
+      props.onBotAllowlist?.('remove');
     }
     props.onDismiss();
   }

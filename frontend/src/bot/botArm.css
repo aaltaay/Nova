@@ -1,0 +1,98 @@
+.bot-arm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  padding: 0.15rem 0.3rem;
+  border: 1px solid var(--nova-border, #2a3140);
+  border-radius: 6px;
+  background: var(--nova-panel, #12161e);
+}
+
+.bot-arm--armed {
+  border-color: #c9a227;
+}
+
+.bot-arm--live {
+  border-color: #2ecc71;
+  background: #14532d;
+  color: #fff;
+  animation: bot-arm-pulse 1.2s ease-in-out infinite;
+}
+
+.bot-arm__field {
+  display: inline-flex;
+  align-items: center;
+}
+
+.bot-arm select,
+.bot-arm__btn {
+  font-size: 0.7rem;
+  background: var(--bg-secondary, #0f131a);
+  color: inherit;
+  border: 1px solid var(--nova-border, #2a3140);
+  border-radius: 4px;
+  padding: 0.15rem 0.3rem;
+}
+
+.bot-arm--live select,
+.bot-arm--live .bot-arm__btn {
+  background: #166534;
+  border-color: #86efac;
+}
+
+.bot-arm__btn:disabled {
+  opacity: 0.45;
+}
+
+.bot-arm__status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.bot-arm__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.bot-symbol-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 220px;
+  background: var(--nova-panel, #12161e);
+  border: 1px solid var(--nova-border, #2a3140);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 0.25rem;
+}
+
+.bot-symbol-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 0.78rem;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+}
+
+.bot-symbol-menu button:hover {
+  background: rgba(59, 130, 246, 0.18);
+}
+
+@keyframes bot-arm-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(46, 204, 113, 0);
+  }
+}

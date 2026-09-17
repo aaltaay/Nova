@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 from constants_ibkr import (
     IBKR_GATEWAY_EXE_DEFAULT,
     IBKR_GATEWAY_ROOT,
 )
+from paths import host_path as _local_path
 
 
 def _ibc_launcher() -> Path | None:
@@ -16,20 +16,6 @@ def _ibc_launcher() -> Path | None:
     # Path.home() on POSIX makes one filename (".nova\\ibc\\..."). Use parts.
     candidate = Path.home() / ".nova" / "ibc" / "start_gateway.ps1"
     return candidate if candidate.is_file() else None
-
-
-def _local_path(raw: str) -> Path:
-    """Build a filesystem Path on the real host OS, not a mocked ``os.name``.
-
-    Tests set ``os.name = "nt"`` so launch_or_focus_gateway takes the Windows
-    branch. ``pathlib.Path`` also follows ``os.name``, so a naive ``Path(...)``
-    tries ``WindowsPath`` and Linux CI dies.
-    """
-    if sys.platform != "win32":
-        from pathlib import PosixPath
-
-        return PosixPath(str(raw).replace("\\", "/"))
-    return Path(raw)
 
 
 def _resolve_gateway_exe() -> Path | None:

@@ -30,6 +30,25 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Bot persist teardown no longer mints WindowsPath
+
+- **What:** `cache_dir()` / `log_dir()` / `env_file_path()` build host-OS paths via `paths.host_path`. Gateway helpers reuse that helper. Bot persist test reset clears memory even if disk unlink cannot run.
+- **Why:** Linux CI `pytest backend/ -x` ERRORed at teardown of `test_launch_focuses_when_already_running` after 1372 passes. That test sets `os.name = "nt"`. `Path(raw)` can mint a `WindowsPath`; `path / filename` then raises.
+- **Files touched:** `backend/paths.py`, `backend/ibkr/gateway_paths.py`, `backend/bot/persist.py`, `backend/tests/test_paths.py`, `backend/tests/test_bot_session.py`.
+- **How it works now:** Cache paths follow `sys.platform`, not a mocked `os.name`. Autouse bot persist reset can run after Gateway Windows-branch tests without killing the suite.
+- **Verified by:** `test_persist_reset_survives_windows_os_name`, `test_cache_dir_is_host_path_when_os_name_is_nt`, `test_launch_gateway.py` (no teardown ERROR).
+- **Related:** PR #223. PROBLEM_LOG 2026-09-17 WindowsPath persist teardown. Same family as 2026-09-02 Gateway `_local_path`.
+
+## 2026-09-17 -- Bot brain client + arming harden + allowlist UX
+
+- **What:** Desk Activate token + header L0/L1/L2/pack/Activate/Stop. Mutating `/api/bot` and `/bot` always need `NOVA_API_KEY`. `nova-brain` starts with Nova (localhost, exclusive claim, halt/LULD resume). Right-click Add/Remove bot allowlist. Quote-spike and volume packs are selectable stubs. Thin SDK/MCP adapter contract, not a server.
+- **Why:** Ahmed locked #218-#222 on epic #205. Brains/curl must not PATCH L2. Fire is fail-closed without Activate + fresh heartbeat + allowlist ∩ live focus.
+- **Files touched:** `backend/bot/`, `backend/nova_brain/`, `backend/auth.py`, `backend/routes/bot.py`, `frontend/src/bot/`, `GlobalAppBar.tsx`, chart/scanner/tab menus, `docs/bot-localhost-api.md`, `docs/bot-adapters.md`, ADR 016.
+- **How it works now:** POST `/session/arm` issues `X-Nova-Desk-Arm`. PATCH level>1 needs that token. Brains only claim + heartbeat + fire. Empty allowlist is closed. Halt/LULD is the only live pack. Stubs heartbeat only (`BOT_PACK_STUB`). `live_fire_ready` is L2 + armed + brain heartbeat. Same-day -$50 re-arm stays allowed via header Activate.
+- **Verified by:** pytest bot + brain + auth 70 passed; Vitest BotArmControls / StrategyTab / allowlist store / chart menu 50 passed; `npm run lint` + `npm run build`. Rebased onto `origin/master` (`04e5716`, PR #224). No live IBKR orders.
+- **Follow-ups:** L3 parked (#216). Epic #205 stays open. Quote-spike/volume signal logic later.
+- **Related:** Closes #218 #219 #220 #221 #222. Refs #205. PROBLEM_LOG 2026-09-17 bot alias key + arming.
+
 ## 2026-09-17 -- Localhost bot API + L0/L1/L2 safety (ADR 016)
 
 - **What:** Loopback OpenAPI/HTTP/WS bot API. L0 dark, L1 Eyes proposals, L2 small-cap fire through `execution.service` `source=bot`. Strategy left-tab owns caps, Advise spend, and audit. L3 parked (#216).

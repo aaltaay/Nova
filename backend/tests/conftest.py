@@ -33,6 +33,15 @@ from hod_momo_state import HodMomoState
 
 
 @pytest.fixture(autouse=True)
+def _reset_bot_persist():
+    from bot.persist import reset_for_tests
+
+    reset_for_tests()
+    yield
+    reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _isolate_operator_state(tmp_path, monkeypatch):
     cache_root = tmp_path / "nova_cache"
     cache_root.mkdir()

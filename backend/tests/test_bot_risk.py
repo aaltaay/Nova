@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from bot.autonomy import apply_patch
+from bot.autonomy import apply_desk_level
 from bot.errors import BotError
 from bot.persist import load_session
 from bot.risk import (
@@ -32,7 +32,7 @@ from constants_bot import (
 
 @pytest.fixture
 def l2_row():
-    apply_patch({"level": 2}, desk=True)
+    apply_desk_level(2)
     return load_session()
 
 

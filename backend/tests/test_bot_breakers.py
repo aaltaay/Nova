@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from bot.autonomy import apply_patch
+from bot.autonomy import apply_desk_level, apply_patch
+from bot.arming import issue_arm_token
 from bot.breakers import poll_once, trip_hard, trip_soft
 from bot.buy_lock import buy_blocked, day_lock_active
 from bot.persist import load_session
@@ -11,7 +12,7 @@ from bot.persist import load_session
 
 @pytest.mark.asyncio
 async def test_soft_breaker_flattens_and_latches(monkeypatch):
-    apply_patch({"level": 2}, desk=True)
+    apply_desk_level(2)
     from bot.persist import save_session
 
     row = load_session()
@@ -39,7 +40,7 @@ async def test_soft_breaker_flattens_and_latches(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_hard_breaker_sets_day_lock(monkeypatch):
-    apply_patch({"level": 2}, desk=True)
+    apply_desk_level(2)
 
     async def fake_flatten():
         return {"ok": True, "attempt": 1}
@@ -62,7 +63,7 @@ async def test_hard_breaker_sets_day_lock(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_poll_prefers_hard_when_both(monkeypatch):
-    apply_patch({"level": 2}, desk=True)
+    apply_desk_level(2)
     seen = []
 
     async def fake_hard():
@@ -82,14 +83,15 @@ async def test_poll_prefers_hard_when_both(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_soft_reenable_allows_l2_again(monkeypatch):
-    apply_patch({"level": 2}, desk=True)
+    apply_desk_level(2)
 
     async def fake_flatten():
         return {"ok": True, "attempt": 1}
 
     monkeypatch.setattr("bot.breakers.flatten_account_with_retry", fake_flatten)
     await trip_soft()
-    apply_patch({"reenable": True, "level": 2}, desk=True)
+    token = issue_arm_token()
+    apply_patch({"reenable": True, "level": 2}, desk=True, arm_token=token)
     row = load_session()
     assert row["soft_breaker_fired"] is False
     assert row["level"] == 2

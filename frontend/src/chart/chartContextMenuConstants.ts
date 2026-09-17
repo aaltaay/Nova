@@ -9,6 +9,8 @@ export const CHART_CONTEXT_MENU_DRAWINGS = 'Drawings';
 export const CHART_CONTEXT_MENU_SHOW_LAYERS = 'Show Layers';
 export const CHART_CONTEXT_MENU_CREATE_ALERT = 'Create Alert';
 export const CHART_CONTEXT_MENU_ADD_WATCHLIST = 'Add to Watchlist';
+export const CHART_CONTEXT_MENU_BOT_ALLOWLIST_ADD = 'Add to bot allowlist';
+export const CHART_CONTEXT_MENU_BOT_ALLOWLIST_REMOVE = 'Remove from bot allowlist';
 export const CHART_CONTEXT_MENU_RESET = 'Reset Chart';
 export const CHART_CONTEXT_MENU_SNAPSHOT = 'Snapshot';
 

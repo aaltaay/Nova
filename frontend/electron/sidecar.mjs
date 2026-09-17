@@ -14,6 +14,7 @@ import {
 } from './envMerge.mjs';
 import { waitForPortFree } from './portWait.mjs';
 import { createSerialQueue } from './serialQueue.mjs';
+import { startBrainSidecar, stopBrainSidecar } from './brainSidecar.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -169,6 +170,7 @@ async function startApiSidecarUnlocked() {
   try {
     await waitForHealth(2_500);
     console.log('[nova-api] reusing existing healthy API at', API_BASE);
+    startBrainSidecar(sidecarEnv());
     return;
   } catch {
     // nothing listening -- start our own
@@ -197,9 +199,11 @@ async function startApiSidecarUnlocked() {
   apiChild.on('error', (err) => {
     console.error('[nova-api] spawn error', err);
   });
+  startBrainSidecar(env);
 }
 
 function stopApiSidecarUnlocked() {
+  stopBrainSidecar();
   if (!apiChild) return;
   const child = apiChild;
   apiChild = null;

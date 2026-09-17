@@ -23,6 +23,16 @@ const SMPL: IbkrPosition = {
 
 let positions: IbkrPosition[] = [];
 
+vi.mock('../bot/useBotAllowlist', () => ({
+  useBotAllowlist: () => ({
+    symbols: [],
+    isAllowed: () => false,
+    add: vi.fn(),
+    remove: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+
 vi.mock('../ibkr/useIbkrStatus', () => ({
   useIbkrStatus: () => ({
     connected: true,

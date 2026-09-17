@@ -7,6 +7,7 @@ from typing import Any
 
 from bot.audit import record as audit
 from bot.autonomy import assert_not_dark
+from bot.eligibility import assert_symbol_eligible
 from bot.errors import BotError
 from bot.persist import load_proposals, load_session, save_proposals
 from bot.risk import assert_kind
@@ -22,6 +23,7 @@ def _validate_proposal(body: dict[str, Any]) -> dict[str, Any]:
     if side not in ("BUY", "SELL"):
         raise BotError("proposal.side must be BUY or SELL", 400)
     row = load_session()
+    assert_symbol_eligible(symbol, row)
     assert_kind(kind, row)
     if body.get("qty") is not None or body.get("shares") is not None:
         raise BotError("proposal qty is the session preset -- do not send shares", 400)

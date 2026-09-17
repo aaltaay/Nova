@@ -40,10 +40,34 @@ free-form qty, REST quote polls, a second broker path) was rejected.
 7. **Audit is append-only JSONL** with the locked schema. Every decision,
    breaker, TTL cancel, and Advise spend lands there.
 
+## Amendment 2026-09-17 -- arming, packs, adapters (#218-#222)
+
+8. **Desk Activate is the only L1->L2 raise.** POST `/api/bot/session/arm`
+   issues `X-Nova-Desk-Arm`. PATCH level above Eyes without that token is
+   `403 BOT_ARM_REQUIRED`. Brains never PATCH level and cannot call arm/disarm
+   (`403 BOT_ARM_DESK_ONLY`). Strategy left tab is settings only.
+
+9. **Heartbeat fail-closed.** Exclusive claim is bound to the current arm
+   token. Fire needs a heartbeat newer than `BOT_HEARTBEAT_STALE_SEC` (15s).
+   UI `live_fire_ready` is L2 + armed + alive heartbeat.
+
+10. **Mutating bot routes always need `NOVA_API_KEY`**, including loopback,
+    on both `/api/bot/*` and `/bot/*`. GET session/watch/proposals stay open.
+
+11. **One active pack.** Day-one live pack is halt/LULD resume. Quote-spike
+    and volume are selectable stubs (`BOT_PACK_STUB` if they fire). Small-cap
+    remains the risk sleeve. Propose/fire require symbol allowlist AND live
+    Trader focus.
+
+12. **Adapters are clients.** `backend/bot/sdk.py` + `docs/bot-adapters.md`
+    point at OpenAPI. No MCP server in core. No model-vendor marriage.
+
 ## Consequences
 
 - `source="bot"` is a first-class ADR 007 source. Kill / flatten /
   `cancel_working` remain the only protective sources that may spend during
   a kill or a -$200 day lock.
 - FastAPI `/openapi.json` plus `docs/bot-localhost-api.md` are the client
-  contract. No live IBKR order tests in CI.
+  contract. Adapters stay optional (`docs/bot-adapters.md`). No live IBKR
+  order tests in CI.
+- Same-day -$50 re-arm stays allowed from the header Activate control.

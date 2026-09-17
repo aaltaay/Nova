@@ -87,6 +87,24 @@ def test_config_post_loopback_wrong_key_rejects(api_key):
     assert res.status_code == 401
 
 
+def test_bot_mutate_loopback_without_key_rejects(monkeypatch):
+    monkeypatch.delenv("NOVA_API_KEY", raising=False)
+    monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
+    for path in ("/api/bot/session", "/bot/session", "/bot/action"):
+        res = client.patch(path, json={"level": 1}) if path.endswith("session") else client.post(
+            path, json={"kind": "buy_market", "symbol": "ABCD"}
+        )
+        assert res.status_code == 503
+        assert "NOVA_API_KEY" in str(res.json()["detail"])
+
+
+def test_bot_get_session_open_without_key(monkeypatch):
+    monkeypatch.delenv("NOVA_API_KEY", raising=False)
+    monkeypatch.setenv("NOVA_API_HOST", "127.0.0.1")
+    assert client.get("/api/bot/session").status_code == 200
+    assert client.get("/bot/session").status_code == 200
+
+
 def test_config_post_loopback_valid_key_accepted(api_key, monkeypatch, tmp_path):
     env_path = tmp_path / ".env"
     env_path.write_text("NOVA_DISCOVERY_PROVIDER=ibkr\n", encoding="utf-8")
