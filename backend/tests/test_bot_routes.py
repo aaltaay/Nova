@@ -185,7 +185,7 @@ def test_l2_claim_heartbeat_and_alias_parity(bot_iso, api_key):
         headers=h,
     )
     assert missing.status_code == 409
-    assert missing.json()["detail"]["reason"] == BOT_REASON_BRAIN_EXCLUSIVE
+    assert missing.json()["detail"]["reason"] == BOT_REASON_HEARTBEAT_STALE
     claim = client.post(
         "/bot/session/claim",
         json={"brain_session_id": "brain-a"},

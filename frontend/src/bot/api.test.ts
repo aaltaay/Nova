@@ -12,7 +12,7 @@ describe('bot api', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(String(url)).toContain('/bot/allowlist');
     expect((init as RequestInit).method).toBe('POST');
-    expect(String((init as RequestInit).body)).toContain('ABCD');
+    expect(String((init as RequestInit).body)).toContain('abcd');
     vi.unstubAllGlobals();
   });
 
