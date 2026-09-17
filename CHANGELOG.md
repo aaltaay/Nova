@@ -30,7 +30,7 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
-## 2026-09-16 -- Orders Today fill latency column
+## 2026-09-17 -- Orders Today fill latency column
 
 - **What:** Orders Today gains one Latency column. The cell is click-to-fill when filled, else click-to-terminal (`180ms` / `1.2s`). Hover shows Nova→IBKR submit, IBKR submit→fill, and click→fill (or click→terminal). MKT RTH warn/danger reuses `classify_fill_audit`. Missing audit is an em dash -- never invented.
 - **Why:** #195. Fill audit already wrote JSONL + `IBKR_FILL_AUDIT`. Commissions landed; latency did not.
