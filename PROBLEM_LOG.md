@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Squash title fallback crashed on whitespace-only PR title
+
+- **Symptom:** `test_squash_title_fallback_is_not_merge_commit` raised `IndexError: list index out of range` in `squash_commit_title`.
+- **Cause:** `"  \\n".strip()` is empty, so `.splitlines()[0]` had no lines.
+- **Fix:** Take the first line only when the stripped title is non-empty; otherwise fall back to `#<number>`.
+- **Fix class:** admission
+- **Keywords:** pr_delivery, squash, commit_title, IndexError, whitespace
+
 ## 2026-09-17 -- volume chip grew the right scale
 
 - **Symptom:** On a live 10Sec pane the whole plot shifted slightly left/right when the right-axis volume chip changed width (`9.0K` to pink/red `149.04K`).

@@ -8,7 +8,8 @@ SQUASH_TITLE_MAX = 256
 
 
 def squash_commit_title(number: int, title: str) -> str:
-    line = (title or "").strip().splitlines()[0].strip()
+    raw = (title or "").strip()
+    line = raw.splitlines()[0].strip() if raw else ""
     if not line:
         line = f"#{int(number)}"
     return line[:SQUASH_TITLE_MAX]

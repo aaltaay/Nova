@@ -37,7 +37,7 @@ Entry template (copy and fill in):
 - **Files touched:** `tools/pr_delivery.py`, `tools/pr_delivery_actions.py`, `tools/pr_delivery_text.py`, `tools/test_pr_delivery.py`, `tools/test_pr_delivery_workflow.py`
 - **How it works now:** `decide()` gates are unchanged (required checks, Desktop pack if present, draft / `do-not-merge` / forks / protected heads). `_merge_now` sends `merge_method=squash` plus the PR title. A conflict comment is deduped with `<!-- nova-pr-delivery-conflict -->`. Sweep exits non-zero while a conflict remains.
 - **Verified by:** `python3 -m pytest tools/test_pr_delivery.py tools/test_pr_delivery_workflow.py -q`
-- **Related:** Closes #239.
+- **Related:** Closes #239. PROBLEM_LOG 2026-09-17 squash title fallback.
 
 ## 2026-09-17 -- Right price-scale gutter no longer shoves the plot
 
