@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createTraderDeskBus, type TraderDeskBus } from './bus';
+import { readLastHostWindow, shouldHandleDockRequest } from './commands';
 import type { TraderDeskRole } from './protocol';
 import { traderDeskMessage } from './protocol';
 
@@ -62,10 +63,14 @@ export function useTraderDesk(args: {
       }
       if (
         msg.type === 'dock-request'
-        && role === 'host'
         && msg.symbol
         && msg.requestId
-        && msg.sourceWindowId !== windowId
+        && shouldHandleDockRequest({
+          role,
+          sourceWindowId: msg.sourceWindowId,
+          thisWindowId: windowId,
+          targetWindowId: msg.targetWindowId,
+        })
       ) {
         const ok = onDockRequestRef.current(msg.symbol, msg.requestId, msg.sourceWindowId);
         bus.publish(traderDeskMessage(ok ? 'tab-docked' : 'dock-reject', {
@@ -120,10 +125,17 @@ export function useTraderDesk(args: {
   const requestDock = useCallback((symbol: string) => {
     const requestId = newRequestId();
     pendingDockRef.current = requestId;
+    let targetWindowId: string | undefined;
+    try {
+      targetWindowId = readLastHostWindow(localStorage) ?? undefined;
+    } catch {
+      targetWindowId = undefined;
+    }
     busRef.current?.publish(traderDeskMessage('dock-request', {
       symbol,
       sourceWindowId: windowId,
       requestId,
+      ...(targetWindowId ? { targetWindowId } : {}),
     }));
     window.setTimeout(() => {
       if (pendingDockRef.current === requestId) {

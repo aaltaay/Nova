@@ -6,6 +6,9 @@ export {
   closePolicyAfterGive,
   deskRoleFromStockView,
   isForeignTabDrag,
+  readLastHostWindow,
+  rememberLastHostWindow,
+  shouldHandleDockRequest,
 } from './commands';
 export {
   TRADER_DESK_CHANNEL,

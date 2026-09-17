@@ -31,6 +31,7 @@ interface Props {
 export function StockViewTabs({ detached }: Props) {
   const {
     traderTabs,
+    traderLiveTabs,
     activeTraderSymbol,
     traderBlockNotice,
     dismissTraderBlockNotice,
@@ -91,6 +92,7 @@ export function StockViewTabs({ detached }: Props) {
   const tabStrip = (
     <StockViewTabStrip
       tabs={traderTabs}
+      live={traderLiveTabs}
       active={activeTraderSymbol}
       windowId={traderWindowId}
       showDock={traderDeskRole === 'float'}
@@ -146,6 +148,19 @@ export function StockViewTabs({ detached }: Props) {
             );
           }
           const show = symbol === activeTraderSymbol;
+          const live = traderLiveTabs.includes(symbol);
+          if (!live) {
+            return (
+              <div
+                key={symbol}
+                className="sv-tabs-pane sv-tabs-pane--suspended"
+                hidden={!show}
+                aria-hidden={!show}
+                data-testid={`sv-tab-pane-${symbol}`}
+                data-suspended="1"
+              />
+            );
+          }
           return (
             <div
               key={symbol}

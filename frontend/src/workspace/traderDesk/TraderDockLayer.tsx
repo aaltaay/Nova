@@ -12,14 +12,16 @@ import './traderDockLayer.css';
 export function TraderDockLayer() {
   const {
     traderTabs,
+    traderViewActive,
     traderDockOffer,
     traderWindowId,
     acceptTraderTabDrop,
   } = useWorkspace();
   const [hover, setHover] = useState(false);
+  const scannerIsDropSurface = traderTabs.length === 0 || !traderViewActive;
 
   useEffect(() => {
-    if (traderTabs.length > 0) {
+    if (!scannerIsDropSurface) {
       setHover(false);
       return undefined;
     }
@@ -46,9 +48,9 @@ export function TraderDockLayer() {
       window.removeEventListener('drop', onDrop);
       window.removeEventListener('dragend', onEnd);
     };
-  }, [acceptTraderTabDrop, traderTabs.length, traderWindowId]);
+  }, [acceptTraderTabDrop, scannerIsDropSurface, traderWindowId]);
 
-  if (traderTabs.length > 0) return null;
+  if (!scannerIsDropSurface) return null;
 
   const ready = hover || Boolean(
     traderDockOffer && isForeignTabDrag(traderDockOffer.sourceWindowId, traderWindowId),

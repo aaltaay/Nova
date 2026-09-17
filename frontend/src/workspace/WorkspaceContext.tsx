@@ -48,7 +48,7 @@ export type WorkspaceValue = {
   ibkrIntentionalMode: 'paper' | 'live' | null;
   openStockView: (symbol: string) => void;
   /** Row-body click on a table with a separate ticker button (ADR 011 §7a):
-   * Quote Panel only on Scanner, switches the active tab on Trader. */
+   * Quote Panel only on Scanner; adds or activates a tab on Trader. */
   selectRowSymbol: (symbol: string) => void;
   extractTraderTab: (symbol: string) => void;
   acceptTraderTabDrop: (payload: TraderTabDragPayload) => boolean;
@@ -59,6 +59,7 @@ export type WorkspaceValue = {
   publishTraderTabOffer: (symbol: string) => void;
   publishTraderTabOfferEnd: () => void;
   traderTabs: string[];
+  traderLiveTabs: string[];
   activeTraderSymbol: string | null;
   traderBlockNotice: string | null;
   dismissTraderBlockNotice: () => void;
@@ -137,6 +138,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       publishTraderTabOffer: trader.desk.publishOffer,
       publishTraderTabOfferEnd: trader.desk.publishOfferEnd,
       traderTabs: trader.traderState.tabs,
+      traderLiveTabs: trader.traderState.live,
       activeTraderSymbol: trader.traderState.active,
       traderBlockNotice: trader.traderBlockNotice,
       dismissTraderBlockNotice: trader.dismissTraderBlockNotice,

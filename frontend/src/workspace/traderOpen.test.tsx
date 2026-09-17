@@ -1,9 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * A ticker click (openStockView) opens Trader here and replaces the active
- * tab (ADR 011 decision 7) -- it never stacks a second tab. Only `+` /
- * dock / drop grow the strip. Extract / tab double-click pops out.
+ * A ticker click (openStockView) adds a tab or activates one already open.
+ * Live L2 slots cap at 3; extras stay on the strip grayed. Extract / tab
+ * double-click pops out. Dock-back must restore the tab on the host.
  */
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -89,19 +89,48 @@ describe('Trader open vs extract', () => {
     });
   }
 
-  it('openStockView opens the first symbol here, then replaces the active tab', async () => {
+  it('openStockView adds A then B then C instead of replacing', async () => {
     await mount();
     await act(async () => {
-      latest?.openStockView('SPY');
+      latest?.openStockView('A');
     });
-    expect(latest?.traderTabs).toEqual(['SPY']);
-    expect(latest?.activeTraderSymbol).toBe('SPY');
     await act(async () => {
-      latest?.openStockView('IPST');
+      latest?.openStockView('B');
     });
-    expect(latest?.traderTabs).toEqual(['IPST']);
-    expect(latest?.activeTraderSymbol).toBe('IPST');
+    await act(async () => {
+      latest?.openStockView('C');
+    });
+    expect(latest?.traderTabs).toEqual(['A', 'B', 'C']);
+    expect(latest?.traderLiveTabs).toEqual(['A', 'B', 'C']);
+    expect(latest?.activeTraderSymbol).toBe('C');
     expect(opened).toEqual([]);
+  });
+
+  it('openStockView D keeps four tabs, lives D, and grays the least-recent live', async () => {
+    await mount();
+    for (const sym of ['A', 'B', 'C', 'D']) {
+      await act(async () => {
+        latest?.openStockView(sym);
+      });
+    }
+    expect(latest?.traderTabs).toEqual(['A', 'B', 'C', 'D']);
+    expect(latest?.activeTraderSymbol).toBe('D');
+    expect(latest?.traderLiveTabs).toEqual(['B', 'C', 'D']);
+  });
+
+  it('activating a gray tab promotes it and suspends the oldest live tab', async () => {
+    await mount();
+    for (const sym of ['A', 'B', 'C', 'D']) {
+      await act(async () => {
+        latest?.openStockView(sym);
+      });
+    }
+    await act(async () => {
+      latest?.activateTraderTab('A');
+    });
+    expect(latest?.activeTraderSymbol).toBe('A');
+    expect(latest?.traderLiveTabs).toEqual(['C', 'D', 'A']);
+    expect(latest?.traderTabs).toEqual(['A', 'B', 'C', 'D']);
   });
 
   it('openStockView activates an already-open symbol instead of duplicating it', async () => {
@@ -178,6 +207,20 @@ describe('Trader open vs extract', () => {
     expect(latest?.activeTraderSymbol).toBe('IPST');
   });
 
+  it('acceptTraderTabDrop can add a 4th name instead of blocking', async () => {
+    await mount();
+    for (const sym of ['A', 'B', 'C']) {
+      await act(async () => {
+        latest?.openStockView(sym);
+      });
+    }
+    await act(async () => {
+      latest?.acceptTraderTabDrop({ v: 1, symbol: 'D', sourceWindowId: 'float-other' });
+    });
+    expect(latest?.traderTabs).toEqual(['A', 'B', 'C', 'D']);
+    expect(latest?.traderLiveTabs).toEqual(['B', 'C', 'D']);
+  });
+
   it('acceptTraderTabDrop adds a foreign tab and ignores a self drag', async () => {
     await mount();
     await act(async () => {
@@ -212,7 +255,7 @@ describe('Trader open vs extract', () => {
     expect(latest?.traderViewActive).toBe(false);
   });
 
-  it('selectRowSymbol while Trader is showing switches the active tab instead', async () => {
+  it('selectRowSymbol while Trader is showing adds or activates, never replaces', async () => {
     await mount();
     await act(async () => {
       latest?.openStockView('SPY');
@@ -221,7 +264,7 @@ describe('Trader open vs extract', () => {
     await act(async () => {
       latest?.selectRowSymbol('IPST');
     });
-    expect(latest?.traderTabs).toEqual(['IPST']);
+    expect(latest?.traderTabs).toEqual(['SPY', 'IPST']);
     expect(latest?.activeTraderSymbol).toBe('IPST');
     expect(latest?.selectedSymbol).toBe('IPST');
   });

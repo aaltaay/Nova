@@ -2,6 +2,7 @@
  * Pure desk policy -- role, close-after-give, first-host claim (ADR 011).
  */
 
+import { TRADER_LAST_HOST_KEY } from '../../constantGroups/trader_view';
 import type { TraderDeskRole } from './protocol';
 
 export const TRADER_DOCK_CLAIM_KEY = 'nova.trader.dockClaim';
@@ -24,6 +25,35 @@ export function closePolicyAfterGive(role: TraderDeskRole, remainingTabs: number
 
 export function isForeignTabDrag(sourceWindowId: string, thisWindowId: string): boolean {
   return Boolean(sourceWindowId) && sourceWindowId !== thisWindowId;
+}
+
+export function rememberLastHostWindow(
+  storage: Pick<Storage, 'setItem'>,
+  windowId: string,
+): void {
+  if (!windowId) return;
+  storage.setItem(TRADER_LAST_HOST_KEY, windowId);
+}
+
+export function readLastHostWindow(storage: Pick<Storage, 'getItem'>): string | null {
+  try {
+    const value = storage.getItem(TRADER_LAST_HOST_KEY);
+    return value || null;
+  } catch {
+    return null;
+  }
+}
+
+export function shouldHandleDockRequest(args: {
+  role: TraderDeskRole;
+  sourceWindowId: string;
+  thisWindowId: string;
+  targetWindowId?: string;
+}): boolean {
+  if (args.role !== 'host') return false;
+  if (!args.sourceWindowId || args.sourceWindowId === args.thisWindowId) return false;
+  if (args.targetWindowId && args.targetWindowId !== args.thisWindowId) return false;
+  return true;
 }
 
 export function claimDockTarget(
