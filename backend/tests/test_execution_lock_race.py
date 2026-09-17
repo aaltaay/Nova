@@ -172,7 +172,7 @@ class TestConcurrentSellRace:
         blocked = asyncio.run(exec_svc.execute(_market("hold-b", "SELL", 100)))
         assert blocked.reason_code == "OVERSELL"
 
-        _err, on_status, _exec = make_handlers(telemetry._watches.get)
+        _err, on_status, _exec, _comm = make_handlers(telemetry._watches.get)
         on_status(
             SimpleNamespace(
                 order=SimpleNamespace(orderId=610, permId=0),

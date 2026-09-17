@@ -13,6 +13,7 @@ import {
 } from '../constants';
 import { alertApp, confirmApp } from '../ux';
 import { acknowledgeIbkrVerification } from './acknowledgeVerification';
+import { isSoftOrderWarning } from './orderFillHonesty';
 import { openIbkrClientPortal } from './openIbkrClientPortal';
 
 export function inferOrderRejectReason(
@@ -58,6 +59,7 @@ export async function notifyOrderRejected(opts: {
 }): Promise<boolean> {
   const message = (opts.message || '').trim();
   if (!message || ORDER_REJECT_SKIP_MESSAGES.includes(message)) return false;
+  if (isSoftOrderWarning(message, opts.reasonCode)) return false;
   const reason = inferOrderRejectReason(message, opts.reasonCode);
   try {
     if (reason === IBKR_VERIFICATION_REQUIRED_REASON) {

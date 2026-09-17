@@ -37,6 +37,46 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-16 -- note_status Filled no longer latches ledger qty
+
+- **Symptom:** After the commission migrate-strip fix, `test_note_filled_writes_perm_id_and_qty` failed `filled_qty is None` (expected 1.0). Same class: journal round-trip from `note_status` + `note_filled` never recorded PnL.
+- **Cause:** Honesty made `note_status` remember perm_id only. `last_filled_qty` / `last_avg_fill` now come from `note_execution` (execDetails). Tests still treated orderStatus as a fill.
+- **Fix:** Tests call `note_execution` before `note_filled`, matching the production path.
+- **Fix class:** admission
+- **Keywords:** note_status, note_execution, filled_qty, journal, #175, PR 183
+
+## 2026-09-16 -- Ledger migrate test missed commission column
+
+- **Symptom:** CI `test_init_db_migrates_pre_facts_schema` -- `assert 'perm_id' not in columns` failed because the pre-facts string strip no longer matched `_SCHEMA` after `commission REAL` was added.
+- **Cause:** The test rebuilt a pre-facts CREATE by deleting a suffix that ended at `avg_fill_price`. The live schema now ends that block with `commission`.
+- **Fix:** Strip `perm_id` / `filled_qty` / `avg_fill_price` / `commission` together. After `init_db`, assert `commission` migrated too.
+- **Fix class:** infra
+- **Keywords:** commission, perm_id, _SCHEMA, test_init_db_migrates_pre_facts_schema, #179, PR 183
+
+## 2026-09-16 -- Warm completed Filled showed 0 qty
+
+- **Symptom:** CI `test_closed_orders_infers_filled_qty_for_warm_completed_order` -- `filled_qty` was 0.0, expected 100.0. Frontend lint: `usePrereqOverlayInputs` react-hooks/exhaustive-deps on `health`.
+- **Cause:** Honesty mapping zeroed qty whenever `Trade.fills` was empty. `reqCompletedOrdersAsync` stamps status Filled but does not backfill `orderStatus.filled` or fills. Overlay hook listed field slices but called `novaApiOk(health)`.
+- **Fix:** `warm_completed_fill_qty` infers requested size only when broker status is Filled and exec qty is 0. Inactive / limit stay 0. Hook deps are the health snapshot plus `apiOk` so each failed probe increments the streak.
+- **Fix class:** admission
+- **Keywords:** filled_qty, reqCompletedOrders, warm completed, exhaustive-deps, #175, PR 183
+
+## 2026-09-16 -- Order outcome honesty (2109 + Failed+Filled)
+
+- **Symptom:** ZTG #116071: Warning 2109 shown as "Broker rejected"; real reject was Error 201 No Opening Trades: Small Cap. Orders Today showed Failed + Filled 1 @ $1.76 (limit mistaken for a fill). SPCX #115728 also emitted 2109 then filled -- 2109 must not open the reject modal.
+- **Cause:** `OrderWatch.note_error` latched the first error (2109). `closed_blotter` copied `sent_qty` into `filled_qty`. `trade_to_order_row` used `orderStatus.filled` / `avgFillPrice` when Trade.fills was empty.
+- **Fix:** Latest hard error wins (`execution.order_outcome`). Soft codes never latch. Filled qty / avg / filled_at only from execDetails. Closed blotter never invents a fill from requested size. CI fixtures SPCX success + ZTG fail trip Failed+Filled and 2109-as-reject.
+- **Fix class:** admission
+- **Keywords:** 2109, Error 201, ZTG, SPCX, Failed+Filled, execDetails, #175, #179
+
+## 2026-09-16 -- Desk overlay stole Place ticket
+
+- **Symptom:** SPCX filled while Trading prerequisites said the API was down. `autoOverlay: !apiOk` opened the overlay on a single health miss during Place.
+- **Cause:** One failed `/api/health` probe set `autoOverlay` true with no streak and no in-flight Place latch.
+- **Fix:** Overlay only after a sustained API_DOWN streak (`DESK_API_FAIL_STREAK_FOR_OVERLAY=2`) or a confirmed IB-loop wedge, and never while Place / Flatten / Fill now is in flight (`deskActionFlight`).
+- **Fix class:** surfacing
+- **Keywords:** autoOverlay, tradingPrerequisites, Place, #176, API_DOWN
+
 ## 2026-09-16 -- 5s account poll froze marks
 
 - **Symptom:** Header Day P&L / Net Liq / BP and Positions SPCX Mkt Price lagged live Time & Sales by tens of cents (2026-09-16).

@@ -39,6 +39,7 @@ def submit_facts(
     perm_id: int | None,
     filled_qty: float | None,
     avg_fill_price: float | None,
+    commission: float | None = None,
 ) -> None:
     def _write() -> None:
         from execution.store_facts import record_broker_facts
@@ -48,6 +49,7 @@ def submit_facts(
             perm_id=perm_id,
             filled_qty=filled_qty,
             avg_fill_price=avg_fill_price,
+            commission=commission,
         )
 
     persist_queue.submit(f"facts order {order_id}", _write)

@@ -15,6 +15,7 @@ import {
 } from '../execution_latency';
 import { confirmApp } from '../ux';
 import { cancelIbkrOrder } from './cancelOrder';
+import { beginDeskAction } from './deskActionFlight';
 import {
   planFillWorkingOrder,
   type FillWorkingBook,
@@ -94,58 +95,63 @@ export async function fillWorkingOrderImmediately(
     return { ok: false, error: plan.error };
   }
 
+  const endDeskAction = beginDeskAction();
   try {
-    const cancel = await cancelIbkrOrder(
-      order.order_id,
-      beginBrowserExecutionTiming('fill_now_cancel', actionTiming),
-    );
-    if (!cancel.ok) {
-      return {
-        ok: false,
-        error: cancel.error ?? `Cancel failed (HTTP ${cancel.httpStatus})`,
-      };
+    try {
+      const cancel = await cancelIbkrOrder(
+        order.order_id,
+        beginBrowserExecutionTiming('fill_now_cancel', actionTiming),
+      );
+      if (!cancel.ok) {
+        return {
+          ok: false,
+          error: cancel.error ?? `Cancel failed (HTTP ${cancel.httpStatus})`,
+        };
+      }
+    } catch {
+      return { ok: false, error: 'Network error cancelling order' };
     }
-  } catch {
-    return { ok: false, error: 'Network error cancelling order' };
-  }
 
-  try {
-    const place = await placeIbkrOrder(
-      placePayload(plan),
-      undefined,
-      {
-        timing: beginBrowserExecutionTiming('fill_now_place', actionTiming),
-        referencePrice:
-          plan.limit_price
-          ?? order.avg_fill_price
-          ?? order.limit_price,
-      },
-    );
-    if (!place.ok) {
+    try {
+      const place = await placeIbkrOrder(
+        placePayload(plan),
+        undefined,
+        {
+          timing: beginBrowserExecutionTiming('fill_now_place', actionTiming),
+          referencePrice:
+            plan.limit_price
+            ?? order.avg_fill_price
+            ?? order.limit_price,
+        },
+      );
+      if (!place.ok) {
+        return {
+          ok: false,
+          error:
+            place.error
+            ?? 'Order cancelled but market fill failed -- check Working Orders / Positions',
+          place,
+        };
+      }
+      return {
+        ok: true,
+        cancelled_order_id: order.order_id,
+        place_order_id: place.order_id,
+        side: plan.side,
+        qty: plan.qty,
+        outside_rth: plan.outside_rth,
+        order_type: plan.order_type,
+        limit_price: plan.limit_price,
+        mode: place.mode,
+      };
+    } catch {
       return {
         ok: false,
         error:
-          place.error
-          ?? 'Order cancelled but market fill failed -- check Working Orders / Positions',
-        place,
+          'Order cancelled but network error placing market fill -- check Working Orders / Positions',
       };
     }
-    return {
-      ok: true,
-      cancelled_order_id: order.order_id,
-      place_order_id: place.order_id,
-      side: plan.side,
-      qty: plan.qty,
-      outside_rth: plan.outside_rth,
-      order_type: plan.order_type,
-      limit_price: plan.limit_price,
-      mode: place.mode,
-    };
-  } catch {
-    return {
-      ok: false,
-      error:
-        'Order cancelled but network error placing market fill -- check Working Orders / Positions',
-    };
+  } finally {
+    endDeskAction();
   }
 }

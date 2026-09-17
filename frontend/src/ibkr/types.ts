@@ -82,6 +82,8 @@ export interface IbkrPosition {
   market_price: number | null;
   market_value: number | null;
   avg_cost: number | null;
+  /** Session CommissionReport sum -- null until IBKR sends a report. */
+  commission?: number | null;
   unrealized_pnl: number | null;
   realized_pnl: number | null;
 }
@@ -104,6 +106,8 @@ export interface IbkrOrder {
   stop_price?: number | null;
   /** Average fill price when any fills exist. */
   avg_fill_price?: number | null;
+  /** IBKR CommissionReport sum -- null until a real report. */
+  commission?: number | null;
   outside_rth?: boolean;
   status: string;
   /** ISO-8601 UTC when the order was first seen / submitted (IBKR trade log). */

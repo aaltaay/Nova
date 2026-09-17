@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { SelectableTableRow } from '../components/SelectableTableRow';
 import { ClosePositionButton } from '../closed_orders';
+import { commissionCellTitle, formatCommission } from './orderCommission';
 import { formatMoney } from '../utils/formatMoney';
 import { formatShareQty } from '../utils/formatShareQty';
 import { OrderTableColumnHeader, OrderTableDnd } from './OrderTableColumnHeader';
@@ -61,6 +62,20 @@ function renderPositionCell(
       return (
         <td key={col} className="ibkr-col--num">
           {formatMoney(p.avg_cost)}
+        </td>
+      );
+    case 'commission':
+      return (
+        <td
+          key={col}
+          className="ibkr-col--num"
+          title={commissionCellTitle({
+            commission: p.commission,
+            avgCost: p.avg_cost,
+            filledQty: Math.abs(p.qty),
+          })}
+        >
+          {formatCommission(p.commission)}
         </td>
       );
     case 'mkt_price':

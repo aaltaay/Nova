@@ -76,6 +76,7 @@ def test_trade_to_order_row_null_remaining_when_status_missing():
             remaining=None,
             avgFillPrice=5.01,
         ),
+        fills=[SimpleNamespace(execution=SimpleNamespace(shares=None, price=None))],
     )
     row = _trade_to_order_row(trade)
     assert row["filled_qty"] == 40.0
@@ -144,3 +145,93 @@ def test_trade_to_order_row_stop_and_partial_fields():
     assert row["submitted_at"] is not None
     # Fill activity must not rewrite submitted snapshot identity.
     assert row["submitted_at"].startswith("2026-07-18T14:00:00")
+
+
+def test_warm_completed_filled_without_fills_uses_total_quantity():
+    """reqCompletedOrdersAsync: status Filled, orderStatus.filled=0, no fills."""
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=1,
+            action="BUY",
+            totalQuantity=100,
+            orderType="LMT",
+            lmtPrice=10.0,
+            auxPrice=None,
+            outsideRth=False,
+        ),
+        contract=SimpleNamespace(symbol="AAA"),
+        orderStatus=SimpleNamespace(
+            status="Filled",
+            filled=0,
+            remaining=100,
+            avgFillPrice=0.0,
+        ),
+        fills=[],
+    )
+    row = _trade_to_order_row(trade)
+    assert row["status"] == "Filled"
+    assert row["filled_qty"] == 100.0
+    assert row["remaining_qty"] == 0.0
+    assert row["avg_fill_price"] is None
+    assert row["filled_at"] is None
+
+
+def test_inactive_limit_without_fills_is_not_a_fill():
+    """ZTG #116071 -- limit/aux must not become Filled 1 @ $1.76."""
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=116071,
+            action="BUY",
+            totalQuantity=1,
+            orderType="LMT",
+            lmtPrice=1.76,
+            auxPrice=1.76,
+            outsideRth=True,
+        ),
+        contract=SimpleNamespace(symbol="ZTG"),
+        orderStatus=SimpleNamespace(
+            status="Inactive",
+            filled=1,
+            remaining=0,
+            avgFillPrice=1.76,
+        ),
+        fills=[],
+    )
+    row = _trade_to_order_row(trade)
+    assert row["status"] == "Inactive"
+    assert row["filled_qty"] == 0.0
+    assert row["avg_fill_price"] is None
+    assert row["filled_at"] is None
+    assert row["commission"] is None
+    assert row["limit_price"] == 1.76
+
+
+def test_filled_commission_report_is_surfaced():
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=115728,
+            action="BUY",
+            totalQuantity=1,
+            orderType="MKT",
+            lmtPrice=0.0,
+            auxPrice=0.0,
+            outsideRth=False,
+        ),
+        contract=SimpleNamespace(symbol="SPCX"),
+        orderStatus=SimpleNamespace(
+            status="Filled",
+            filled=1,
+            remaining=0,
+            avgFillPrice=150.48,
+        ),
+        fills=[
+            SimpleNamespace(
+                execution=SimpleNamespace(shares=1.0, price=150.48),
+                commissionReport=SimpleNamespace(commission=1.0),
+            ),
+        ],
+    )
+    row = _trade_to_order_row(trade)
+    assert row["filled_qty"] == 1.0
+    assert row["avg_fill_price"] == 150.48
+    assert row["commission"] == 1.0

@@ -1,0 +1,27 @@
+{
+  "name": "SPCX #115728 success",
+  "order_id": 115728,
+  "symbol": "SPCX",
+  "side": "BUY",
+  "qty": 1,
+  "order_type": "MKT",
+  "limit_price": null,
+  "stop_price": null,
+  "events": [
+    {"kind": "status", "status": "PendingSubmit", "filled": 0, "avg_fill": 0},
+    {
+      "kind": "error",
+      "code": 2109,
+      "message": "Order Event Warning 2109: Attribute 'outsideRth' specified but ignored by destination."
+    },
+    {"kind": "status", "status": "PreSubmitted", "filled": 0, "avg_fill": 0},
+    {"kind": "status", "status": "Filled", "filled": 1, "avg_fill": 150.48},
+    {
+      "kind": "exec",
+      "shares": 1,
+      "price": 150.48,
+      "time": "2026-09-16T14:05:12.100Z"
+    },
+    {"kind": "commission", "commission": 1.000003}
+  ]
+}

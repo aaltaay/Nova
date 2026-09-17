@@ -10,6 +10,7 @@ import {
   beginBrowserExecutionTiming,
   type BrowserActionStamp,
 } from '../execution_latency';
+import { beginDeskAction } from './deskActionFlight';
 import { shouldUseOutsideRth } from './extendedSession';
 import { buildExitFullPosition } from './exitPosition';
 import { placeIbkrOrder, type PlaceOrderResult } from './placeOrder';
@@ -43,6 +44,7 @@ export async function closeFullPosition(
     'flatten_position',
     options?.timingAction,
   );
+  const endDeskAction = beginDeskAction();
   try {
     const res = await placeIbkrOrder(
       {
@@ -68,5 +70,7 @@ export async function closeFullPosition(
     };
   } catch {
     return { ok: false, error: 'Network error placing close' };
+  } finally {
+    endDeskAction();
   }
 }

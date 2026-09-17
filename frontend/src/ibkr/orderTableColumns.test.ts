@@ -24,6 +24,7 @@ describe('orderTableColumns', () => {
       'limit',
       'stop',
       'avg_fill',
+      'commission',
       'order_id',
     ]);
   });
@@ -39,6 +40,7 @@ describe('orderTableColumns', () => {
       'filled',
       'limit',
       'avg_fill',
+      'commission',
       'order_id',
     ]);
   });

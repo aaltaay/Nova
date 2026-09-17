@@ -19,6 +19,7 @@ import {
   orderStatusTone,
   orderSubmittedIso,
 } from './orderDisplay';
+import { displayFilledQty } from './orderFillHonesty';
 import { WORKING_COLUMN_META, visibleWorkingColumns } from './orderTableColumns';
 import { sortOrders } from './orderTableSort';
 import { remainingShares } from './orderQtyMath';
@@ -116,7 +117,7 @@ export function WorkingOrdersPanel({
               const highlighted = highlightOrderId === o.order_id;
               const statusLabel = formatOrderStatus(
                 o.status,
-                o.filled_qty ?? 0,
+                displayFilledQty(o),
                 o.qty,
               );
               const tone = orderStatusTone(statusLabel);

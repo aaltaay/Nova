@@ -26,6 +26,7 @@ import {
   gatewayPortMismatchHint,
   type PrereqItem,
 } from './tradingPrerequisites';
+import { usePrereqOverlayInputs } from './usePrereqOverlayInputs';
 import { GatewayModeLaunchButtons } from './GatewayModeLaunchButtons';
 import { GatewayDoorTrail } from './GatewayDoorTrail';
 import { refreshIbkrStatusNow, useIbkrStatus } from './useIbkrStatus';
@@ -162,6 +163,7 @@ export function TradingPrerequisitesGate() {
 
   const health = useMemo(() => bar?.health ?? { status: 'loading', latency_ms: 0 }, [bar?.health]);
   const discovery = bar?.discoveryProvider ?? DISCOVERY_PROVIDER_DEFAULT;
+  const overlayGates = usePrereqOverlayInputs(health);
 
   const prereqs = useMemo(
     () =>
@@ -176,9 +178,13 @@ export function TradingPrerequisitesGate() {
         sessionState: ibkr.session_state,
         secondFactorStale: ibkr.second_factor_stale,
         secondFactorAgeSec: ibkr.second_factor_age_sec,
+        apiFailStreak: overlayGates.apiFailStreak,
+        deskActionInFlight: overlayGates.deskActionInFlight,
       }),
     [
       health,
+      overlayGates.apiFailStreak,
+      overlayGates.deskActionInFlight,
       ibkr.enabled,
       ibkr.connected,
       ibkr.stale,

@@ -33,6 +33,7 @@ def test_init_db_adds_broker_fact_columns(tmp_path, monkeypatch):
     assert "perm_id" in columns
     assert "filled_qty" in columns
     assert "avg_fill_price" in columns
+    assert "commission" in columns
 
 
 def test_record_broker_facts_and_lookup_symbol():
@@ -92,13 +93,15 @@ def test_init_db_migrates_pre_facts_schema(tmp_path, monkeypatch):
         "    payload_json TEXT NOT NULL DEFAULT '{}',\n"
         "    perm_id INTEGER,\n"
         "    filled_qty REAL,\n"
-        "    avg_fill_price REAL\n",
+        "    avg_fill_price REAL,\n"
+        "    commission REAL\n",
         "    payload_json TEXT NOT NULL DEFAULT '{}'\n",
     )
     with sqlite3.connect(db_path) as conn:
         conn.executescript(pre_facts)
         columns = {row[1] for row in conn.execute("PRAGMA table_info(executions)")}
     assert "perm_id" not in columns
+    assert "commission" not in columns
     monkeypatch.setattr(store, "cache_dir", lambda: tmp_path)
     store.init_db()
     with sqlite3.connect(db_path) as conn:
@@ -109,6 +112,7 @@ def test_init_db_migrates_pre_facts_schema(tmp_path, monkeypatch):
     assert "perm_id" in columns
     assert "filled_qty" in columns
     assert "avg_fill_price" in columns
+    assert "commission" in columns
     assert "idx_exec_perm_id" in indexes
 
 
@@ -128,6 +132,14 @@ def test_note_filled_writes_perm_id_and_qty():
         filled=1.0,
         remaining=0.0,
         average_fill_price=3.5,
+        perm_id=777002,
+    )
+    # Ledger fill qty/avg come from execDetails, not orderStatus.
+    watch.note_execution(
+        avg_price=3.5,
+        price=3.5,
+        shares=1.0,
+        cumulative_shares=1.0,
         perm_id=777002,
     )
     watch.note_filled()

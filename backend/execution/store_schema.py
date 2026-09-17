@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS executions (
     payload_json TEXT NOT NULL DEFAULT '{}',
     perm_id INTEGER,
     filled_qty REAL,
-    avg_fill_price REAL
+    avg_fill_price REAL,
+    commission REAL
 );
 CREATE INDEX IF NOT EXISTS idx_exec_symbol ON executions(symbol);
 CREATE INDEX IF NOT EXISTS idx_exec_created ON executions(created_ts);
@@ -42,6 +43,7 @@ _EXEC_COLUMN_MIGRATIONS = (
     ("perm_id", "INTEGER"),
     ("filled_qty", "REAL"),
     ("avg_fill_price", "REAL"),
+    ("commission", "REAL"),
 )
 
 

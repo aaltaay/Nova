@@ -205,6 +205,9 @@ def test_note_filled_place_round_trip_journals():
     buy.note_status(
         "Filled", filled=1.0, remaining=0.0, average_fill_price=3.5,
     )
+    buy.note_execution(
+        avg_price=3.5, price=3.5, shares=1.0, cumulative_shares=1.0,
+    )
     buy.note_filled()
     assert "IVF" in round_trip.open_cycles()
 
@@ -220,6 +223,9 @@ def test_note_filled_place_round_trip_journals():
     sell = telemetry.watch_order(19112, sell_id, side="SELL")
     sell.note_status(
         "Filled", filled=1.0, remaining=0.0, average_fill_price=4.25,
+    )
+    sell.note_execution(
+        avg_price=4.25, price=4.25, shares=1.0, cumulative_shares=1.0,
     )
     sell.note_filled()
     trades = get_closed_trades()

@@ -183,7 +183,9 @@ def positions_for_ui() -> list[dict]:
             "unrealized_pnl": join.get("unrealized_pnl"),
             "realized_pnl": join.get("realized_pnl"),
         })
-    return apply_l1_marks(out, live_l1_last)
+    from ibkr.position_commission import attach_session_commissions
+
+    return attach_session_commissions(apply_l1_marks(out, live_l1_last))
 
 
 def account_summary_for_ui() -> dict:

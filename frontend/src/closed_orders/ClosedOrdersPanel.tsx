@@ -26,6 +26,7 @@ import {
   orderStatusTone,
   orderSubmittedIso,
 } from '../ibkr/orderDisplay';
+import { displayFilledQty } from '../ibkr/orderFillHonesty';
 import {
   CLOSED_COLUMN_META,
   DEFAULT_CLOSED_ORDER_COLUMNS,
@@ -172,7 +173,7 @@ export function ClosedOrdersPanel({
             {rows.map((o) => {
               const statusLabel = formatOrderStatus(
                 o.status,
-                o.filled_qty ?? 0,
+                displayFilledQty(o),
                 o.qty,
               );
               const tone = orderStatusTone(statusLabel);

@@ -92,6 +92,27 @@ describe('closedOrderCells — column contract', () => {
     expect(renderCell('qty', FILLED).text).toBe('100');
   });
 
+  it('shows $1.00 commission on a fill and blank on a reject', () => {
+    expect(renderCell('commission', { ...FILLED, commission: 1 }).text).toBe('$1.00');
+    expect(
+      renderCell('commission', {
+        ...FILLED,
+        status: 'Inactive',
+        filled_qty: 1,
+        filled_at: null,
+        commission: null,
+      }).text,
+    ).toBe('—');
+    expect(
+      renderCell('filled', {
+        ...FILLED,
+        status: 'Inactive',
+        filled_qty: 1,
+        filled_at: null,
+      }).text,
+    ).toBe('0');
+  });
+
   it('Order ID 0 with no permId shows --', () => {
     expect(renderCell('order_id', { ...FILLED, order_id: 0 }).text).toBe('--');
   });
