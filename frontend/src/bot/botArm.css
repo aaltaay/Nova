@@ -25,6 +25,24 @@
   align-items: center;
 }
 
+.bot-arm__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bot-arm__desc {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.64rem;
+  line-height: 1.3;
+  opacity: 0.88;
+  max-width: 36rem;
+}
+
 .bot-arm select,
 .bot-arm__btn {
   font-size: 0.7rem;

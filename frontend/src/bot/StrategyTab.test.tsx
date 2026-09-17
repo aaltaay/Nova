@@ -88,4 +88,42 @@ describe('StrategyTab', () => {
 
     expect(screen.getByRole('alert').textContent).toMatch(/-\$200 day lock/);
   });
+
+  it('shows the active pack description and LLM Activate copy', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const href = String(url);
+      if (href.includes('/bot/session')) {
+        return {
+          ok: true,
+          json: async () => session({
+            active_pack: 'llm-decide',
+            packs: [{
+              id: 'llm-decide',
+              label: 'LLM decide',
+              status: 'live',
+              description: 'Live fire needs L2 + Activate.',
+            }],
+            llm: {
+              configured: false,
+              live_fire: false,
+              call_cap: 10,
+              usd_cap: 2,
+              usd_spent: 0,
+              calls_used: 0,
+            },
+          }),
+        };
+      }
+      return { ok: true, json: async () => (href.includes('proposals') ? { proposals: [] } : { entries: [] }) };
+    }));
+
+    await act(async () => {
+      render(<StrategyTab />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('bot-pack-desc').textContent).toMatch(/L2 \+ Activate/);
+    expect(screen.getByTestId('bot-llm-fire-status').textContent).toMatch(/live-fire when Activate/);
+  });
 });

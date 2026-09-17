@@ -9,9 +9,10 @@ from bot.audit import record as audit
 from bot.autonomy import assert_not_dark
 from bot.eligibility import assert_symbol_eligible
 from bot.errors import BotError
+from bot.packs import normalize_pack
 from bot.persist import load_proposals, load_session, save_proposals
 from bot.risk import assert_kind
-from constants_bot import BOT_LEVEL_STRATEGY, BOT_REASON_L1_NO_FIRE
+from constants_bot import BOT_LEVEL_STRATEGY, BOT_PACK_LLM_DECIDE, BOT_REASON_L1_NO_FIRE
 
 
 def _validate_proposal(body: dict[str, Any]) -> dict[str, Any]:
@@ -60,7 +61,8 @@ def list_proposals() -> list[dict[str, Any]]:
 
 def submit(body: dict[str, Any], *, brain_session_id: str | None) -> dict[str, Any]:
     row = assert_not_dark()
-    if int(row.get("level") or 0) >= BOT_LEVEL_STRATEGY:
+    pack = normalize_pack(row.get("active_pack"))
+    if int(row.get("level") or 0) >= BOT_LEVEL_STRATEGY and pack != BOT_PACK_LLM_DECIDE:
         raise BotError(
             "L2 fires actions -- proposals are L1 Eyes only",
             409,

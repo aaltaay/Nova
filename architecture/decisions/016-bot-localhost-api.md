@@ -62,6 +62,21 @@ free-form qty, REST quote polls, a second broker path) was rejected.
 12. **Adapters are clients.** `backend/bot/sdk.py` + `docs/bot-adapters.md`
     point at OpenAPI. No MCP server in core. No model-vendor marriage.
 
+## Amendment 2026-09-17 -- LLM decide live fire + header checkbox (#225-#227)
+
+13. **`llm-decide` is a selectable pack inside `nova-brain`.** Validated
+    JSON may `POST /api/bot/action` only when pack is `llm-decide` **and**
+    L2 **and** desk Activate **and** exclusive claim + fresh heartbeat
+    **and** symbol is allowlist ∩ live focus. L1 or Activate off is
+    propose-only (or idle). Activate is the go -- no second hidden arm
+    flag. Spend/rate caps, audit, small-cap sleeve, breakers, and
+    `NOVA_API_KEY` stay. Brains never raise autonomy.
+
+14. **L2 header checkbox.** The existing GlobalAppBar `BotArmControls`
+    show **Bot is in control** when level is L2. Checked = arm. Unchecked
+    = Stop. Flashy when `live_fire_ready`. L0/L1 hide the checkbox.
+    Pack picker and Strategy settings show one sentence per pack.
+
 ## Consequences
 
 - `source="bot"` is a first-class ADR 007 source. Kill / flatten /

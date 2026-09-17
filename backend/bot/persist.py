@@ -23,6 +23,8 @@ from constants_bot import (
     BOT_DEFAULT_MAX_SHARES,
     BOT_DEFAULT_WORKING_TTL_SEC,
     BOT_LEVEL_OFF,
+    BOT_LLM_DEFAULT_CALL_CAP,
+    BOT_LLM_DEFAULT_USD_CAP,
     BOT_PACK_DEFAULT,
     BOT_PROPOSALS_FILENAME,
     BOT_SCHEMA_VERSION,
@@ -77,6 +79,12 @@ def default_session() -> dict[str, Any]:
             "usd_spent": 0.0,
             "calls_used": 0,
         },
+        "llm": {
+            "call_cap": BOT_LLM_DEFAULT_CALL_CAP,
+            "usd_cap": BOT_LLM_DEFAULT_USD_CAP,
+            "usd_spent": 0.0,
+            "calls_used": 0,
+        },
         "soft_breaker_fired": False,
         "hard_lock_until_date": None,
         "bot_qty": {},
@@ -119,6 +127,7 @@ def load_session() -> dict[str, Any]:
         merged.update(raw)
         merged["caps"] = {**default_session()["caps"], **(raw.get("caps") or {})}
         merged["advise"] = {**default_session()["advise"], **(raw.get("advise") or {})}
+        merged["llm"] = {**default_session()["llm"], **(raw.get("llm") or {})}
         merged["pack_settings"] = {
             **default_session()["pack_settings"],
             **(raw.get("pack_settings") or {}),

@@ -113,5 +113,79 @@ describe('BotArmControls', () => {
 
     expect(screen.getByTestId('bot-arm-controls').className).toContain('bot-arm--live');
     expect(screen.getByTestId('bot-arm-status').textContent).toMatch(/L2 live/);
+    const box = screen.getByTestId('bot-arm-in-control') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    expect(screen.getByTestId('bot-arm-in-control-label').textContent).toMatch(/Bot is in control/);
+    expect(screen.queryByTestId('bot-arm-activate')).toBeNull();
+  });
+
+  it('hides the in-control checkbox at L0 and L1', async () => {
+    mockFetch(() => session({ level: 1 }));
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId('bot-arm-in-control')).toBeNull();
+    expect(screen.getByTestId('bot-arm-activate')).toBeTruthy();
+  });
+
+  it('checkbox Stop and Activate use the same arm APIs', async () => {
+    mockFetch((href) => {
+      if (href.includes('/session/disarm')) {
+        return session({ level: 2, armed: false, strategy: 'small-cap' });
+      }
+      if (href.includes('/session/arm')) {
+        return session({
+          level: 2,
+          armed: true,
+          has_desk_arm: true,
+          desk_arm_token: 'desk-token-2',
+          strategy: 'small-cap',
+        });
+      }
+      return session({ level: 2, armed: true, has_desk_arm: true, strategy: 'small-cap' });
+    });
+
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('bot-arm-in-control'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/session/disarm'))).toBe(true);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('bot-arm-in-control'));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/session/arm'))).toBe(true);
+  });
+
+  it('updates pack description when the picker changes', async () => {
+    mockFetch(() => session({
+      packs: [
+        { id: 'halt-luld', label: 'Halt / LULD resume', status: 'live', description: 'Halt resume sentence.' },
+        { id: 'llm-decide', label: 'LLM decide', status: 'live', description: 'Live fire needs L2 + Activate.' },
+      ],
+    }));
+    await act(async () => {
+      render(<BotArmControls />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('bot-arm-pack-desc').textContent).toMatch(/Halt resume/);
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('bot-arm-pack'), { target: { value: 'llm-decide' } });
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('bot-arm-pack-desc').textContent).toMatch(/L2 \+ Activate/);
   });
 });

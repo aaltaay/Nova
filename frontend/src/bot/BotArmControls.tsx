@@ -1,19 +1,32 @@
-import { BOT_LEVEL_LABELS, BOT_PACK_LABELS, BOT_PACKS } from '../constantGroups/bot';
+import { useState } from 'react';
+import {
+  BOT_IN_CONTROL_LABEL,
+  BOT_LEVEL_LABELS,
+  BOT_PACK_LABELS,
+  BOT_PACKS,
+  packDescription,
+} from '../constantGroups/bot';
 import { useBotSession } from './useBotSession';
 
 export function BotArmControls() {
   const { session, error, busy, patch, activate, stop } = useBotSession(2500);
+  const [pickedPack, setPickedPack] = useState<string | null>(null);
   const level = session?.level ?? 0;
   const armed = Boolean(session?.armed);
   const live = Boolean(session?.live_fire_ready);
-  const pack = String(session?.active_pack || 'halt-luld');
+  const sessionPack = String(session?.active_pack || 'halt-luld');
+  const pack = pickedPack ?? sessionPack;
   const packs = session?.packs?.length
     ? session.packs
     : BOT_PACKS.map(id => ({
         id,
         label: BOT_PACK_LABELS[id],
-        status: id === 'halt-luld' ? 'live' : 'stub',
+        status: id === 'halt-luld' || id === 'llm-decide' ? 'live' : 'stub',
+        description: packDescription(id),
       }));
+  const selected = packs.find(row => row.id === pack);
+  const description = selected?.description || packDescription(pack);
+  const showControlBox = level >= 2;
 
   async function onLevel(next: number) {
     if (next >= 2 && !armed) {
@@ -21,6 +34,12 @@ export function BotArmControls() {
       if (!armedSession) return;
     }
     await patch({ level: next });
+  }
+
+  async function onControl(next: boolean) {
+    if (level < 2) return;
+    if (next) await activate();
+    else await stop();
   }
 
   return (
@@ -49,7 +68,11 @@ export function BotArmControls() {
           data-testid="bot-arm-pack"
           value={pack}
           disabled={busy || !session}
-          onChange={event => void patch({ active_pack: event.target.value })}
+          onChange={event => {
+            const next = event.target.value;
+            setPickedPack(next);
+            void patch({ active_pack: next });
+          }}
         >
           {packs.map(row => (
             <option key={row.id} value={row.id}>
@@ -58,24 +81,39 @@ export function BotArmControls() {
           ))}
         </select>
       </label>
-      <button
-        type="button"
-        className="bot-arm__btn"
-        data-testid="bot-arm-activate"
-        disabled={busy}
-        onClick={() => void activate()}
-      >
-        Activate
-      </button>
-      <button
-        type="button"
-        className="bot-arm__btn"
-        data-testid="bot-arm-stop"
-        disabled={busy || !armed}
-        onClick={() => void stop()}
-      >
-        Stop
-      </button>
+      {showControlBox ? (
+        <label className="bot-arm__check" data-testid="bot-arm-in-control-label">
+          <input
+            type="checkbox"
+            data-testid="bot-arm-in-control"
+            checked={armed}
+            disabled={busy || !session}
+            onChange={event => void onControl(event.target.checked)}
+          />
+          {BOT_IN_CONTROL_LABEL}
+        </label>
+      ) : (
+        <>
+          <button
+            type="button"
+            className="bot-arm__btn"
+            data-testid="bot-arm-activate"
+            disabled={busy}
+            onClick={() => void activate()}
+          >
+            Activate
+          </button>
+          <button
+            type="button"
+            className="bot-arm__btn"
+            data-testid="bot-arm-stop"
+            disabled={busy || !armed}
+            onClick={() => void stop()}
+          >
+            Stop
+          </button>
+        </>
+      )}
       <span
         className="bot-arm__status"
         data-testid="bot-arm-status"
@@ -83,6 +121,11 @@ export function BotArmControls() {
       >
         {live ? 'L2 live ✓' : armed ? 'Armed' : 'Bot off'}
       </span>
+      {description ? (
+        <p className="bot-arm__desc" data-testid="bot-arm-pack-desc">
+          {description}
+        </p>
+      ) : null}
     </div>
   );
 }

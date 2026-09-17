@@ -46,12 +46,16 @@ def test_schema_1_file_gains_v2_defaults():
     assert loaded["active_pack"] == "halt-luld"
     assert loaded.get("desk_arm_token") is None
     persist.save_session(loaded)
-    assert persist.load_session()["schema_version"] == 2
+    from constants_bot import BOT_SCHEMA_VERSION
+
+    assert persist.load_session()["schema_version"] == BOT_SCHEMA_VERSION
+    assert loaded["llm"]["call_cap"] == 10
 
 
 def test_pack_catalog_marks_stubs():
     ids = {row["id"]: row["status"] for row in catalog()}
     assert ids["halt-luld"] == "live"
+    assert ids["llm-decide"] == "live"
     assert ids["quote-spike"] == "stub"
     assert ids["volume"] == "stub"
     assert normalize_pack(None) == "halt-luld"

@@ -42,9 +42,10 @@ L1 -> L2 is **desk UI only**:
 `POST /arm` with `X-Nova-Brain-Session` is `403 BOT_ARM_DESK_ONLY`.
 Setting `armed` in a PATCH body is refused.
 
-Header owns L0/L1/L2, pack, Activate/Stop, and the flashy **L2 live** chip
-(`live_fire_ready` = L2 + armed + brain heartbeat). Strategy left tab is
-settings only.
+Header owns L0/L1/L2, pack, and arming. At L2 the header shows a
+**Bot is in control** checkbox (checked = Activate / armed, unchecked =
+Stop). L0/L1 hide that checkbox. The chip flashes when `live_fire_ready`
+(L2 + armed + brain heartbeat). Strategy left tab is settings only.
 
 Heartbeat older than 15s (`BOT_HEARTBEAT_STALE_SEC`) fail-closes fire
 (`409 BOT_HEARTBEAT_STALE`). Same-day -$50 re-arm is allowed (Activate
@@ -59,6 +60,7 @@ Risk sleeve stays `small-cap`. Packs are a separate picker:
 | `halt-luld` | live | Fire `resume_kind` once on halted -> clear, cooldown 30s. |
 | `quote-spike` | stub | Selectable. Heartbeat only. Fire is `409 BOT_PACK_STUB`. |
 | `volume` | stub | Same as quote-spike. |
+| `llm-decide` | live | Configured LLM posts fixed-schema proposals. Live fire needs L2 + Activate + claim + heartbeat + allowlist ∩ focus. No hidden `LLM_LIVE_FIRE` flag. Idle if key, base URL, or model is missing. |
 
 ## Symbol gate
 
@@ -85,6 +87,20 @@ Action-kind allowlist: `buy_market`, `buy_limit_ask_offset`,
   re-enables the same day.
 - `-$200`: flatten all, then lock bot **and** manual BUY until the next
   America/New_York midnight. Flatten / kill / cancel_working still spend.
+
+## LLM env
+
+Vendor-agnostic `POST {NOVA_LLM_BASE_URL}/chat/completions`.
+
+```text
+#NOVA_LLM_API_KEY=
+#NOVA_LLM_BASE_URL=https://api.example.com/v1
+#NOVA_LLM_MODEL=
+```
+
+Session call + USD caps live on Strategy (Advise-style). Brain charges
+`POST /api/bot/llm/spend` before each call. Missing config = idle, never
+place. Tests mock HTTP. No paid LLM in CI.
 
 ## nova-brain
 

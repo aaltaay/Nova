@@ -15,6 +15,7 @@ TOOLS = (
     {"name": "bot_heartbeat", "method": "POST", "path": "/api/bot/session/heartbeat", "auth": True},
     {"name": "bot_action", "method": "POST", "path": "/api/bot/action", "auth": True},
     {"name": "bot_propose", "method": "POST", "path": "/api/bot/proposals", "auth": True},
+    {"name": "bot_llm_spend", "method": "POST", "path": "/api/bot/llm/spend", "auth": True},
 )
 
 DESK_ONLY = (

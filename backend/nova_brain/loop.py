@@ -8,12 +8,15 @@ import requests
 
 from constants_bot import (
     BOT_BRAIN_POLL_SEC,
+    BOT_LEVEL_EYES,
     BOT_LEVEL_STRATEGY,
     BOT_PACK_HALT_LULD,
+    BOT_PACK_LLM_DECIDE,
     BOT_PACK_STUBS,
 )
 from nova_brain.client import BotApiClient
 from nova_brain.halt_luld import tick as halt_tick
+from nova_brain.llm_decide import tick as llm_tick
 
 logger = logging.getLogger("nova_brain")
 
@@ -23,20 +26,31 @@ def step(
     *,
     halt_prev: dict[str, bool],
     last_fire: dict[str, float],
+    last_llm: dict[str, float] | None = None,
     now: float | None = None,
 ) -> dict[str, bool]:
+    llm_state = last_llm if last_llm is not None else {}
     session = client.session_get()
     level = int(session.get("level") or 0)
+    pack = str(session.get("active_pack") or BOT_PACK_HALT_LULD)
+    ts = time.time() if now is None else now
+    if pack == BOT_PACK_LLM_DECIDE:
+        if level < BOT_LEVEL_EYES:
+            return halt_prev
+        if level >= BOT_LEVEL_STRATEGY and session.get("armed"):
+            client.claim()
+            session = client.heartbeat()
+        watch = client.watch()
+        llm_tick(client, session=session, now=ts, last=llm_state, watch=watch)
+        return halt_prev
     if level < BOT_LEVEL_STRATEGY or not session.get("armed"):
         return halt_prev
     client.claim()
     session = client.heartbeat()
-    pack = str(session.get("active_pack") or BOT_PACK_HALT_LULD)
     if pack in BOT_PACK_STUBS:
         logger.info("nova-brain: pack %s is a stub -- heartbeat only", pack)
         return halt_prev
     watch = client.watch()
-    ts = time.time() if now is None else now
     return halt_tick(
         session=session,
         watch=watch,
@@ -57,11 +71,12 @@ def run_forever(*, client: BotApiClient | None = None, poll_sec: float | None = 
     seen_ok = False
     halt_prev: dict[str, bool] = {}
     last_fire: dict[str, float] = {}
+    last_llm: dict[str, float] = {}
     delay = BOT_BRAIN_POLL_SEC if poll_sec is None else poll_sec
     logger.info("nova-brain starting against %s as %s", api.base, api.brain_id)
     while True:
         try:
-            halt_prev = step(api, halt_prev=halt_prev, last_fire=last_fire)
+            halt_prev = step(api, halt_prev=halt_prev, last_fire=last_fire, last_llm=last_llm)
             misses = 0
             seen_ok = True
         except requests.RequestException as exc:
