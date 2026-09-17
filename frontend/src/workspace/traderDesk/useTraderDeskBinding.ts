@@ -37,6 +37,7 @@ import {
   writeBlockNotice,
   writeStoredTabs,
 } from './traderSession';
+import { useBotFocusSync } from '../../bot/useBotFocusSync';
 import { useTraderDesk } from './useTraderDesk';
 import { getTraderWindowId } from './windowId';
 import type { TraderTabDragPayload } from './protocol';
@@ -265,6 +266,8 @@ export function useTraderDeskBinding(setSelectedSymbol: (sym: string | null) => 
     setTraderViewActive(false);
     dismissTraderBlockNotice();
   }, [applyTraderState, dismissTraderBlockNotice]);
+
+  useBotFocusSync(traderState.live);
 
   const showScannerView = useCallback(() => {
     setTraderViewActive(false);

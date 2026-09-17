@@ -92,6 +92,7 @@ describe('scannerActiveTabPersist session auto-switch', () => {
     expect(applySessionAutoSwitch('gappers', 'market', false)).toBe('gappers');
     expect(applySessionAutoSwitch('gappers', 'afterhours', false)).toBe('gappers');
     expect(applySessionAutoSwitch('gainers', 'premarket', false)).toBe('gainers');
+    expect(applySessionAutoSwitch('strategy', 'market', false)).toBe('strategy');
     expect(applySessionAutoSwitch('large_cap', 'market', false)).toBe('gainers');
     expect(applySessionAutoSwitch('catalysts', 'afterhours', false)).toBe(
       'afterhours',

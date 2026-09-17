@@ -22,6 +22,9 @@ Constitution (`gemini.md` / `AGENTS.md`) and `.cursor/rules/*` remain supreme fo
 | [011](./decisions/011-trader-window-desk.md) | Trader desk (extract and dock) | Accepted |
 | [012](./decisions/012-local-first-chart-bars.md) | Local-first chart bars + paced historicals | Accepted |
 | [013](./decisions/013-ibkr-account-vs-port.md) | IBKR account kind vs listen port vs requested door | Accepted |
+| [014](./decisions/014-large-cap-swing-table.md) | Large Cap swing table | Accepted |
+| [015](./decisions/015-persistent-chart-drawings.md) | Persistent chart drawings | Accepted |
+| [016](./decisions/016-bot-localhost-api.md) | Localhost bot API (brain-agnostic) | Accepted |
 
 ## Rules and maps
 

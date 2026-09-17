@@ -1,0 +1,96 @@
+.bot-strategy {
+  padding: 1rem 1.25rem 2rem;
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.bot-strategy__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.bot-strategy__header h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+
+.bot-strategy__card {
+  border: 1px solid var(--border-color, #2a3140);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.bot-strategy__card h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.9rem;
+}
+
+.bot-strategy__levels,
+.bot-strategy__grid {
+  display: grid;
+  gap: 0.5rem 1rem;
+}
+
+.bot-strategy__grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.bot-strategy__levels label,
+.bot-strategy__check,
+.bot-strategy__grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.bot-strategy__grid label {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.bot-strategy__grid input[type='number'] {
+  background: var(--bg-secondary, #12161e);
+  color: inherit;
+  border: 1px solid var(--border-color, #2a3140);
+  border-radius: 4px;
+  padding: 0.3rem 0.4rem;
+}
+
+.bot-strategy__disabled {
+  opacity: 0.55;
+}
+
+.bot-strategy__banner {
+  border: 1px solid var(--warning, #c9a227);
+  background: rgba(201, 162, 39, 0.08);
+  padding: 0.7rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+}
+
+.bot-strategy__banner--hard {
+  border-color: var(--danger, #d04b4b);
+  background: rgba(208, 75, 75, 0.1);
+}
+
+.bot-strategy__btn,
+.bot-strategy__row-actions button {
+  margin-left: 0.6rem;
+  font-size: 0.75rem;
+}
+
+.bot-strategy__list,
+.bot-strategy__audit {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+}
+
+.bot-strategy__row-actions {
+  margin-top: 0.25rem;
+}

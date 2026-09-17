@@ -40,4 +40,5 @@
 @import "./ibkr/tradeTicket.css" layer(features);
 @import "./earnings/earningsPanel.css" layer(features);
 @import "./nova_news/novaNews.css" layer(features);
+@import "./bot/strategyTab.css" layer(features);
 @import "./styles/tailwind-overrides.css" layer(overrides);

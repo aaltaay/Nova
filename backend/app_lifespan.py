@@ -18,17 +18,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import hod_momo as _hod_momo
-import hod_momo_enrichment as _hod_momo_enrichment
-import hod_momo_heartbeat as _hod_momo_heartbeat
-import hod_momo_surge_seed as _hod_momo_surge_seed
-import integrity_live as _integrity_live
 import journal.db as _journal_db
 import l2.db as _l2_db
 import nova_os.events_db as _nova_os_events_db
-import strategy.executor as _executor
-import strategy.risk as _risk
-import strategy.setups_stream as _setups_stream
-from alpaca import _alpaca_headers, _get_discovery_provider
+from alpaca import _alpaca_headers
 from cache import (
     _migrate_legacy_files,
     cleanup_old_snapshots,
@@ -39,36 +32,19 @@ from cache import (
 from constants import (
     CORS_ALLOWED_ORIGINS_DEFAULT,
     HISTORY_RETENTION_DAYS,
-    IBKR_DETAIL_STREAM_FRESH_SEC,
     IBKR_RECONNECT_DELAY_SEC,
-    L2_RETENTION_SWEEP_INTERVAL_SEC,
 )
 import archive.db as _archive_db
-import archive.write_queue as _archive_write_queue
-from archive.scheduler import archive_maintenance_loop, maintenance_enabled
 from health_status import mark_nova_process_health, set_health_broker_keys_missing
 from ibkr import client as _ibkr_client
-from ibkr import reprice as _ibkr_reprice
 from ibkr import scanner_l1 as _scanner_l1
 from ibkr import scanner_session as _scanner_session
-from ibkr import scanner_stream as _scanner_stream
 from ibkr import session_watchdog as _session_watchdog
 from ibkr import ticks as _ibkr_ticks
-from ibkr import nasdaq_halt_feed as _nasdaq_halt_feed
-from ibkr_bridge import (
-    apply_l1_quote,
-    get_ibkr_detail_symbols,
-    hod_stream_symbols,
-    run_ibkr,
-    symbols_for_tab,
-)
-import scanner_tab_registry as _scanner_tabs
-from scanner_push import broadcast as _scanner_broadcast
-from scan_loop import scan_loop
-import scanner_news_badge as _scanner_news_badge
+from ibkr_bridge import apply_l1_quote
 from ticker import _find_ibkr_cache_row
 from universe import invalidate_universe_cache
-from websocket import broadcast_trade_update, stream_loop
+from websocket import broadcast_trade_update
 from observability import init_sentry
 from runtime_state import get_runtime_state
 import instance_identity
@@ -197,88 +173,9 @@ async def _wait_ibkr_connected(budget_sec: float) -> bool:
 
 
 def _spawn_runtime_tasks() -> list[asyncio.Task]:
-    """Start background loops. Each task is spawned independently so one bad
-    import/name cannot abort the rest (e.g. scanner_l1 must not die because
-    a typo in fill_poll_loop aborted the list mid-build).
-    """
-    from l2 import batch as _l2_batch
+    from app_runtime_tasks import spawn_runtime_tasks
 
-    async def _l2_retention_loop() -> None:
-        while True:
-            try:
-                await asyncio.sleep(L2_RETENTION_SWEEP_INTERVAL_SEC)
-                _l2_db.purge_older_than()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                logger.exception("l2 retention sweep failed")
-
-    def _start(name: str, factory) -> asyncio.Task | None:
-        try:
-            task = asyncio.create_task(factory(), name=name)
-            return task
-        except Exception:
-            logger.exception("lifespan: failed to start background task %s", name)
-            return None
-
-    # scanner_l1 first — HOD Squeeze / active-set SLOs depend on it.
-    factories: list[tuple[str, object]] = [
-        ("scanner_l1.reconcile", lambda: _scanner_l1.reconcile_loop(
-            _get_discovery_provider,
-            _scanner_tabs.get_active_tables,
-            symbols_for_tab,
-            hod_stream_symbols,
-        )),
-        ("scanner_l1.flush", lambda: _scanner_l1.flush_loop(_scanner_broadcast)),
-        ("hod_momo.heartbeat", lambda: _hod_momo_heartbeat.active_heartbeat_loop()),
-        ("hod_momo.surge_seed", lambda: _hod_momo_surge_seed.surge_seed_loop(
-            _get_discovery_provider,
-        )),
-        ("scan_loop", scan_loop),
-        ("stream_loop", stream_loop),
-        ("hod_momo.flush_consolidated", _hod_momo.flush_consolidated_loop),
-        ("hod_momo.session_reset", _hod_momo.session_reset_loop),
-        ("hod_momo.universe_enrichment", _hod_momo_enrichment.universe_enrichment_loop),
-        ("hod_momo.fundamentals_enrichment", _hod_momo_enrichment.fundamentals_enrichment_loop),
-        ("integrity_live", _integrity_live.integrity_loop),
-        ("scanner_news_badge", _scanner_news_badge.refresh_loop),
-        ("setups_stream", _setups_stream.scan_loop),
-        ("risk.session_reset", _risk.session_reset_loop),
-        # Name is fill_poll_loop (singular). The old fills_poll_loop typo raised
-        # AttributeError mid-list and aborted spawn before scanner_l1.
-        ("executor.fill", _executor.fill_poll_loop),
-        ("l2.flush", _l2_batch.flush_loop),
-        ("l2.retention", _l2_retention_loop),
-        # Drains tape/L1/bar rows queued by IB-loop producers. Without this the
-        # archive never persists; with a synchronous write it wedged the IB loop.
-        ("archive.write_queue", _archive_write_queue.drain_loop),
-        ("ibkr.detail_reprice", lambda: _ibkr_reprice.detail_reprice_loop(
-            get_ibkr_detail_symbols, run_ibkr, broadcast_trade_update, _find_ibkr_cache_row,
-            lambda sym: _ibkr_ticks.is_fresh(sym, IBKR_DETAIL_STREAM_FRESH_SEC),
-        )),
-        ("observability.loop_lag", _loop_lag.sample_loop_lag_loop),
-        ("nasdaq_halt_rss", _nasdaq_halt_feed.poll_loop),
-    ]
-    if maintenance_enabled():
-        factories.append(("archive.maintenance", archive_maintenance_loop))
-        logger.info("archive.maintenance: enabled (ARCHIVE_MAINTENANCE_ENABLED)")
-
-    if (
-        _scanner_session.is_persistent_enabled()
-        and _get_discovery_provider() == "ibkr"
-    ):
-        factories.append(("scanner_stream", _scanner_stream.manager_loop))
-        logger.info(
-            "scanner_stream: enabled (authoritative=%s)",
-            _scanner_session.is_persistent_authoritative(),
-        )
-
-    tasks: list[asyncio.Task] = []
-    for name, factory in factories:
-        task = _start(name, factory)
-        if task is not None:
-            tasks.append(task)
-    return tasks
+    return spawn_runtime_tasks()
 
 
 def _local_startup() -> None:

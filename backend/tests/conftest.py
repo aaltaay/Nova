@@ -102,6 +102,9 @@ def _isolate_operator_state(tmp_path, monkeypatch):
     _large_cap_metrics.reset_for_testing()
     _halt_status.reset()
     _nasdaq_halt_feed.reset()
+    import bot as _bot
+
+    _bot.reset_for_tests()
     monkeypatch.setattr(
         _nasdaq_halt_feed,
         "_default_fetch",

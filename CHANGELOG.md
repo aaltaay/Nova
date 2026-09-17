@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Localhost bot API + L0/L1/L2 safety (ADR 016)
+
+- **What:** Loopback OpenAPI/HTTP/WS bot API. L0 dark, L1 Eyes proposals, L2 small-cap fire through `execution.service` `source=bot`. Strategy left-tab owns caps, Advise spend, and audit. L3 parked (#216).
+- **Why:** Epic #205 locked contract -- one risk gate, one order door, brain outside Nova, no SendKeys, no free-form qty, no live IBKR order tests in CI.
+- **Files touched:** `backend/bot/`, `backend/routes/bot.py`, `backend/routes/bot_ws.py`, `constants_bot.py`, `execution/models.py`, `execution/service.py`, `frontend/src/bot/`, ADR 016, `docs/bot-localhost-api.md`.
+- **How it works now:** Desk PATCH sets level/caps. L2 requires an exclusive `brain_session_id`. Qty is the session max-shares preset (1-10). BP = open bot $ + working BUY reservations, hard max $50. Working TTL 1-10s auto-cancels. -$50 flatten-all then L0 (same-day re-enable). -$200 flatten-all then lock bot+manual BUY until next ET midnight. Advise off by default; $2/10-call caps; never places. UI live tabs POST `/api/bot/focus/sync` so Eyes share the max-3 L2 cap.
+- **Verified by:** pytest `test_bot_*` (51) + `test_app_lifespan_spawn`; Vitest Strategy tab + registry + persist; `npm run build`. No live IBKR orders.
+- **Follow-ups:** Park L3 Unrestricted (#216). MCP/Astra/Fable clients later.
+- **Related:** #205, #207, #206, #208, #209, #210, #211, #212, #213, #214, #215, #216, ADR 016, PROBLEM_LOG 2026-09-17 ActionBody None + negative bot_qty.
+
 ## 2026-09-17 -- Trader tabs: unlimited strip, 3 live/gray, add-not-replace, dock-back
 
 - **What:** Trader keeps every clicked symbol on the strip. At most 3 tabs are live L2; extras are gray / suspended. Scanner ticker click adds or activates -- never silent-replace. Pop-out dock-back restores the tab on the drop-target host.

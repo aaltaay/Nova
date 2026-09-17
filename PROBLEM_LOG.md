@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Bot BP counted negative leftover qty
+
+- **Symptom:** An `exit_pos` larger than tracked `bot_qty` (manual shares in the same name) left a negative leftover. Open$ used `abs(qty)`, so a leftover short-looking count still ate the $50 budget.
+- **Cause:** `open_plus_working_usd` treated leftover as long dollars. Breaker L0 also left stale `bot_qty` / working rows, so a same-day L2 re-enable inherited dead reservations.
+- **Fix:** Count only `bot_qty > 0`. Clamp leftovers to zero. `drop_to_l0` clears `bot_qty` and working.
+- **Fix class:** admission
+- **Keywords:** bot, BP budget, bot_qty, flatten, breaker, negative qty
+
+## 2026-09-17 -- Bot ActionBody None looked like free-form qty
+
+- **Symptom:** L2 `POST /api/bot/action` with no qty still 400 `BOT_FREE_FORM_QTY`, and every offset kind 400 because `offset_dollars` was present.
+- **Cause:** FastAPI `model_dump()` keeps `qty=None` / `offset_dollars=None`. Risk treated key-presence as a brain override.
+- **Fix:** Refuse only when those fields are non-null. Routes dump `exclude_none=True`.
+- **Fix class:** admission
+- **Keywords:** bot, free-form qty, ActionBody, offset, model_dump
+
 ## 2026-09-17 -- Dock popped-out tab vanished
 
 - **Symptom:** Pop out worked. Dock-back (drag or Dock) made the ticker disappear; it never returned to the parent window (#199).

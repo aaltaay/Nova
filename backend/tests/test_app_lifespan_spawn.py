@@ -13,12 +13,17 @@ def test_executor_fill_poll_loop_name() -> None:
     """
     assert hasattr(executor, "fill_poll_loop")
     assert not hasattr(executor, "fills_poll_loop")
-    src = Path(__file__).resolve().parents[1] / "app_lifespan.py"
+    src = Path(__file__).resolve().parents[1] / "app_runtime_tasks.py"
     text = src.read_text(encoding="utf-8")
     assert "_executor.fill_poll_loop" in text
     assert "_executor.fills_poll_loop" not in text
     assert "nasdaq_halt_rss" in text
+    assert "bot.ttl" in text
+    assert "bot.breakers" in text
     assert hasattr(
         __import__("ibkr.nasdaq_halt_feed", fromlist=["poll_loop"]),
         "poll_loop",
     )
+    bot_loops = __import__("bot.loops", fromlist=["ttl_loop", "breaker_loop"])
+    assert hasattr(bot_loops, "ttl_loop")
+    assert hasattr(bot_loops, "breaker_loop")
