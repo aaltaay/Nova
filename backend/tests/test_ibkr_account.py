@@ -219,6 +219,7 @@ def test_refresh_account_summary_overlays_trading_type_from_account_values(
     assert out["Leverage"] == 0.29
     assert out["BuyingPower"] == 376.0
     assert out["NetLiquidation"] == 540.0
+    assert out["account_class"] == "cash"
 
 
 def test_get_account_summary_ahmed_individual_does_not_invent_margin(monkeypatch):

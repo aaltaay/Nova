@@ -485,10 +485,6 @@
   border-color: color-mix(in srgb, var(--nova-accent, #3b82f6) 40%, var(--nova-border));
 }
 
-.global-app-bar__account-type--unknown {
-  color: var(--nova-text-muted);
-}
-
 .global-app-bar__account-nav,
 .global-app-bar__settings {
   flex-shrink: 0;
