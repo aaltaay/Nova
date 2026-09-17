@@ -37,6 +37,22 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Halt chip missing on DAIC while halted
+
+- **Symptom:** DAIC trader tab while DAIC was LULD-paused: HaltEtaChip did not appear. Logs had halt events for other names but no `IBKR halt: DAIC`, plus `cancelMktData: No subscription for DAIC` on tab focus.
+- **Cause:** Depth-only unsubscribe called `cancelMktData` on a `reqMktDepth` line (or stole shared ticks L1). `ticks.subscribe` then short-circuited on a zombie sub and never re-`reqMktData`. Subscribe attached `updateEvent` after `reqMktData` and never observed an already-halted `ticker.halted`. NaN/-1 after resubscribe classified as resume. `snapshot()` returned None without an IBKR row, so an RSS-open halt never seeded the chip.
+- **Fix:** Drop `cancelMktData` from depth-only unsubscribe. Seed observe on subscribe/attach. Keep halt on NaN/None/-1; only code 0 clears. RSS-open rows seed `snapshot()` / `watch_symbols()` until IBKR clear. Fixture `nasdaq_trade_halts_daic.xml` proves LULD · 1:42 · 3:18 left.
+- **Fix class:** admission
+- **Keywords:** DAIC, HaltEtaChip, ticker.halted, cancelMktData, NaN, RSS, LULD, #237
+
+## 2026-09-17 -- False Backend unreachable while /api/health is 200
+
+- **Symptom:** Trading prerequisites overlay said Backend unreachable while GET /api/health returned 200. Desk felt lagged; health flipped under Electron+Vite poll load.
+- **Cause:** `diagnoseBackend` treated HTTP 200 as `API_UNREACHABLE` + message "Backend unreachable". Callers painted `status=disconnected`. `novaApiOk` requires `status===connected`, so leftover UNREACHABLE was a miss. Overlay fired after 2 painted misses. Duplicate account/closed-order/bot polls (N windows × 1s cluster + extra `/orders/closed`) starved probes.
+- **Fix:** 200 => `ok:true`; `healthAfterFailedRoute` keeps connected. `novaApiOk` / `apiProcessOk` treat UNREACHABLE as up. Probe timeout 4s; overlay streak 3; scanner grace 3. Shared account + bot pollers with a 1.8s leader heartbeat; `useClosedOrders` reads the account context.
+- **Fix class:** surfacing
+- **Keywords:** API_UNREACHABLE, diagnoseBackend, Backend unreachable, #238, poll storm, IbkrAccountProvider
+
 ## 2026-09-17 -- Squash title fallback crashed on whitespace-only PR title
 
 - **Symptom:** `test_squash_title_fallback_is_not_merge_commit` raised `IndexError: list index out of range` in `squash_commit_title`.

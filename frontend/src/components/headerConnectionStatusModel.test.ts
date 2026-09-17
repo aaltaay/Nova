@@ -81,6 +81,16 @@ describe('apiProcessOk', () => {
       }),
     ).toBe(false);
   });
+
+  it('treats API_UNREACHABLE as still up', () => {
+    expect(
+      apiProcessOk({
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_UNREACHABLE',
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('deskChipTone', () => {

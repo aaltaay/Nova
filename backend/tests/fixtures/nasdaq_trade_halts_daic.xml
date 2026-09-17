@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:ndaq="http://www.nasdaqtrader.com/">
+  <channel>
+    <title>NASDAQTrader.com</title>
+    <ttl>1</ttl>
+    <item>
+      <title>DAIC</title>
+      <ndaq:HaltDate>09/17/2026</ndaq:HaltDate>
+      <ndaq:HaltTime>10:00:00.000</ndaq:HaltTime>
+      <ndaq:IssueSymbol>DAIC</ndaq:IssueSymbol>
+      <ndaq:ReasonCode>LUDP</ndaq:ReasonCode>
+      <ndaq:PauseThresholdPrice>1.25</ndaq:PauseThresholdPrice>
+      <ndaq:ResumptionDate></ndaq:ResumptionDate>
+      <ndaq:ResumptionQuoteTime></ndaq:ResumptionQuoteTime>
+      <ndaq:ResumptionTradeTime></ndaq:ResumptionTradeTime>
+      <description>Open LULD -- no trade resume. Fixture for #237.</description>
+    </item>
+  </channel>
+</rss>

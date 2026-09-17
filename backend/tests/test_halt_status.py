@@ -67,6 +67,67 @@ def test_nan_and_unavailable_are_not_halts():
     assert snap is None and changed is False
 
 
+def test_nan_and_minus_one_do_not_clear_a_live_halt():
+    """cancel/resubscribe often delivers NaN/-1 before tick 49 repeats (#237)."""
+    halt_status.observe_code("DAIC", 2, now=1_000.0)
+    snap, changed = halt_status.observe_from_ticker("DAIC", _Ticker(float("nan")), now=1_010.0)
+    assert changed is False
+    assert snap is not None
+    assert snap["kind"] == KIND_LULD
+    assert snap["halt_start"] == 1_000.0
+    snap, changed = halt_status.observe_code("DAIC", -1, now=1_011.0)
+    assert changed is False
+    assert snap is not None
+    assert snap["halt_start"] == 1_000.0
+
+
+def test_rss_open_daic_seeds_chip_without_ticker_halted():
+    """Focused DAIC never logged IBKR halt -- RSS open row must still chip (#237)."""
+    from datetime import datetime
+    from pathlib import Path
+    from zoneinfo import ZoneInfo
+
+    et = ZoneInfo("America/New_York")
+    xml = Path(__file__).with_name("fixtures").joinpath(
+        "nasdaq_trade_halts_daic.xml",
+    )
+    nasdaq_halt_feed.refresh(now=10.0, xml_text=xml.read_text(encoding="utf-8"))
+    now = datetime(2026, 9, 17, 10, 1, 42, tzinfo=et).timestamp()
+    snap = halt_status.snapshot("DAIC", now=now)
+    assert snap is not None
+    assert snap["halted"] is True
+    assert snap["kind"] == KIND_LULD
+    assert snap["source"] == "nasdaq_trade_halt_rss"
+    assert snap["exchange"]["matched"] is True
+    assert snap["exchange"]["reason_code"] == "LUDP"
+    assert snap["exchange"]["trade_resume"] is None
+    from ibkr.halt_eta import halt_chip_view
+
+    view = halt_chip_view(
+        kind=snap["kind"],
+        halt_start=snap["halt_start"],
+        now=now,
+        start_late=snap["start_late"],
+        official_halt_start=snap["exchange"]["official_halt_start"],
+    )
+    assert view is not None
+    assert view["label"] == "LULD · 1:42 · 3:18 left"
+
+
+def test_ibkr_clear_wins_over_stale_rss_open_row():
+    from pathlib import Path
+
+    xml = Path(__file__).with_name("fixtures").joinpath(
+        "nasdaq_trade_halts_daic.xml",
+    )
+    nasdaq_halt_feed.refresh(now=10.0, xml_text=xml.read_text(encoding="utf-8"))
+    halt_status.observe_code("DAIC", 2, now=1_000.0)
+    snap, changed = halt_status.observe_code("DAIC", 0, now=1_100.0)
+    assert changed is True
+    assert snap is None
+    assert halt_status.snapshot("DAIC", now=1_200.0) is None
+
+
 def test_regulatory_and_unknown_codes():
     snap, _ = halt_status.observe_code("NEWS", 1, now=50.0)
     assert snap is not None

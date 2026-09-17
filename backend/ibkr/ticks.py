@@ -142,6 +142,7 @@ async def subscribe(
                 ):
                     _subs.pop(symbol, None)
                     return False
+            _seed_existing_ticker(symbol)
             return True
         if not _load_ib_types():
             return False
@@ -195,7 +196,16 @@ async def subscribe(
             "IBKR ticks: subscribed last-price for %s (conId=%s, owner=%s, ticks=%s)",
             symbol, contract.conId, owner, generic_ticks or "-",
         )
+        # Already-halted names may never fire another tick 49. Observe now.
+        _seed_existing_ticker(symbol)
         return True
+
+
+def _seed_existing_ticker(symbol: str) -> None:
+    ticker = get_ticker(symbol)
+    if ticker is None:
+        return
+    _on_ticker_update(ticker, symbol)
 
 
 async def unsubscribe(symbol: str, owner: str = OWNER_DETAIL) -> None:

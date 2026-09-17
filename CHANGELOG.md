@@ -30,6 +30,16 @@ Entry template (copy and fill in):
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Halt chip observe + no false API-down + desk poll thin-out
+
+- **What:** HaltEtaChip can show on a live-focused name (DAIC) that is halted even when tick 49 never logged. A successful GET /api/health no longer paints "Backend unreachable". Account / closed-orders / bot HTTP is one owner per process, with a cross-window leader so Electron+Vite do not N-times the 1s cluster.
+- **Why:** Ahmed locked fewer PRs. #237 (halt chip missing while DAIC halted), #238 (false API-down modal while health is 200), and the desk poll storm that drives lag and flaky health.
+- **Files touched:** `backend/ibkr/halt_status.py`, `halt_eta.py`, `ticks.py`, `depth/subscribe.py`, `nasdaq_halt_feed.py`, `frontend/src/utils/diagnoseBackend.ts`, `tradingPrerequisites.ts`, `ibkrAccountPoller.ts`, `deskSharedPoll.ts`, `useClosedOrders.ts`, `botSessionPoller.ts`.
+- **How it works now:** Depth-only unsubscribe does not `cancelMktData`. Subscribe seeds `ticker.halted` immediately. NaN/-1 keep a live halt. RSS-open rows seed the chip when IBKR never observed. `diagnoseBackend` returns `ok` on HTTP 200; `healthAfterFailedRoute` keeps connected. `novaApiOk` treats `API_UNREACHABLE` as up. Overlay streak is 3; health probe timeout is 4s. `useClosedOrders` reads `IbkrAccountProvider`. Account and bot pollers elect one leader (heartbeat stale 1.8s) so Day P&L stays 1s-honest.
+- **Verified by:** pytest halt/ticks/depth fixtures; Vitest diagnoseBackend, tradingPrerequisites, account/bot pollers, useClosedOrders context path.
+- **Follow-ups:** No poll-storm issue number -- see PR Refs. Out of scope: chart zoom (#233). PR delivery squash (#239) is on master.
+- **Related:** Closes #237. Closes #238. Refs #236 (duplicate halt title). PROBLEM_LOG 2026-09-17 halt chip / false API-down.
+
 ## 2026-09-17 -- PR delivery squash-merges green PRs and comments on conflicts
 
 - **What:** Auto-merge squash-merges ready PRs using the PR title as `commit_title` (credit as the merging GitHub actor). Dirty/conflicting PRs still `ACTION_BLOCK`, but sweep/merge post a one-time `gh pr comment` telling a Cursor cloud agent to rebase onto `origin/master`, resolve, push, and leave the PR ready.

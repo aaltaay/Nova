@@ -6,6 +6,7 @@
  */
 import {
   BACKEND_DIAG_FLAG_DOWN,
+  BACKEND_DIAG_FLAG_UNREACHABLE,
   BACKEND_DIAG_FLAG_WEDGED,
   DESK_API_FAIL_STREAK_FOR_OVERLAY,
 } from '../constants';
@@ -82,6 +83,8 @@ export function novaApiOk(health: HealthStatus | null | undefined): boolean {
   // Client API_WEDGED is a probe timeout while the PID still listens (Trader
   // open / IB work). Do not cover the desk or offer Start API -- ADR 010.
   if (health.flag === BACKEND_DIAG_FLAG_WEDGED) return true;
+  // Health probe succeeded; a different route timed out (#238).
+  if (health.flag === BACKEND_DIAG_FLAG_UNREACHABLE) return true;
   if (health.flag === BACKEND_DIAG_FLAG_DOWN) return false;
   return health.status === 'connected';
 }

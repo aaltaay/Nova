@@ -23,7 +23,7 @@ import {
   type ScannerTableMeta,
 } from './useScannerPriceStream';
 import type { ScannerScanAges } from '../utils/scanAge';
-import { diagnoseBackend, logBackendDiagnosis } from '../utils/diagnoseBackend';
+import { diagnoseBackend, healthAfterFailedRoute, logBackendDiagnosis } from '../utils/diagnoseBackend';
 import {
   applyRosterTable,
   catalystsHttpError,
@@ -75,6 +75,8 @@ export function useScannerData(opts: {
   const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [historyDates, setHistoryDates] = useState<string[]>([]);
   const consecutiveFailuresRef = useRef(0);
+  const healthRef = useRef(health);
+  healthRef.current = health;
 
   const onScannerPricePatch = useCallback(
     (rows: Parameters<typeof applyScannerPricePatch>[1], ts: number, table?: string | null) => {
@@ -234,21 +236,23 @@ export function useScannerData(opts: {
       }
       const diag = await diagnoseBackend();
       logBackendDiagnosis(diag);
-      console.error('[Nova] Scanner API network error', {
-        API_URL,
-        API_BASE_URL,
-        flag: diag.flag,
-        hint: diag.hint,
-        health_url: `${API_BASE_URL}/api/health`,
-        trace: isNovaApiDebug() ? e : '(set localStorage novaApiDebug=1 and reload for details)',
-      });
-      setHealth({
-        status: 'disconnected',
-        latency_ms: 0,
-        message: diag.message,
-        flag: diag.flag,
-        flag_hint: diag.hint,
-      });
+      if (diag.ok) {
+        console.warn('[Nova] Scanner API route failed; /api/health is OK', {
+          API_URL,
+          flag: diag.flag,
+          health_url: `${API_BASE_URL}/api/health`,
+        });
+      } else {
+        console.error('[Nova] Scanner API network error', {
+          API_URL,
+          API_BASE_URL,
+          flag: diag.flag,
+          hint: diag.hint,
+          health_url: `${API_BASE_URL}/api/health`,
+          trace: isNovaApiDebug() ? e : '(set localStorage novaApiDebug=1 and reload for details)',
+        });
+      }
+      setHealth(healthAfterFailedRoute(healthRef.current, diag));
     }
   }, [onActiveFeed, onFeedFellBack]);
 

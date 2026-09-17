@@ -213,6 +213,29 @@ class TestDepthL1FallbackReusesTicksStream:
         assert fake_ib.cancel_data_calls == ["AAPL"]
         assert ticks_clean.owners_for("AAPL") == set()
 
+    def test_depth_only_unsubscribe_does_not_cancel_ticks_mktdata(
+        self, depth, ticks_clean,
+    ):
+        """reqMktDepth success + tab remount must not steal the focused L1 (#237)."""
+        depth_mod, fake_ib = depth
+        ticks_clean._subs["DAIC"] = {
+            "owners": {ticks_clean.OWNER_DETAIL},
+            "ticker": _FakeTicker(),
+            "contract": _FakeContract(1, "DAIC"),
+            "handler": None,
+            "generic_ticks": "233",
+            "last_price": 1.0,
+            "last_update_ts": None,
+        }
+        result = asyncio.run(depth_mod.subscribe_async("DAIC"))
+        assert result["ok"] is True
+        assert fake_ib.depth_calls
+        assert ticks_clean.owners_for("DAIC") == {"detail"}
+
+        depth_mod.unsubscribe("DAIC")
+        assert fake_ib.cancel_data_calls == []
+        assert ticks_clean.owners_for("DAIC") == {"detail"}
+
 
 class TestCapEvictionForActiveViewer:
     def test_subscribe_at_full_cap_with_live_viewers_is_refused(self, depth):

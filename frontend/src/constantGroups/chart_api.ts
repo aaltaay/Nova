@@ -126,7 +126,7 @@ export const BACKEND_RELOAD_CONFIRM_TITLE = 'Reload backend?';
 export const BACKEND_RELOAD_CONFIRM_MESSAGE =
   'Restarts the local Nova API process. WebSocket feeds will reconnect; in-memory state resets from disk.';
 /** Short probe used to classify Backend unreachable (API_DOWN vs API_WEDGED). */
-export const BACKEND_PROBE_TIMEOUT_MS = 2_500;
+export const BACKEND_PROBE_TIMEOUT_MS = 4_000;
 /** Scanner poll fetch timeout — fail into diagnose instead of hanging for minutes. */
 export const SCANNER_FETCH_TIMEOUT_MS = 8_000;
 /** If ticker WS has not sent `initial` by then, seed from GET /api/ticker/{symbol}. */
@@ -158,7 +158,7 @@ export const SCANNER_CATALYST_POLL_MS = 60_000;
  * looked identical to a real hang and could trigger a competing API restart
  * mid-reload (see PROBLEM_LOG 2026-07-23).
  */
-export const SCANNER_HEALTH_FAIL_GRACE_COUNT = 2;
+export const SCANNER_HEALTH_FAIL_GRACE_COUNT = 3;
 
 /** Stable outage flags shown in the header + `[Nova][API_FLAG]` console lines. */
 export const BACKEND_DIAG_FLAG_DOWN = 'API_DOWN';
@@ -174,7 +174,7 @@ export const BACKEND_DIAG_HINTS: Record<string, string> = {
   [BACKEND_DIAG_FLAG_HTTP]:
     'API process responded but /api/health was not OK — check backend\\logs\\api-console.log.',
   [BACKEND_DIAG_FLAG_UNREACHABLE]:
-    'Backend unreachable — click Start API, or double-click Run Nova.bat.',
+    'GET /api/health returned 200 -- do not paint API-down. A different route failed or timed out.',
 };
 
 function readApiBase(): string {
