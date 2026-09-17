@@ -10,8 +10,12 @@
  * same bar span and advance `to`. If the operator panned away, restore
  * the time window so a prepend/trim does not yank them.
  */
-import type { IChartApi, IRange, LogicalRange, Time } from 'lightweight-charts';
+import type { IChartApi, IRange, Logical, LogicalRange, Time } from 'lightweight-charts';
 import { timeScaleRangeForSeries } from '../tickerChartData';
+
+function toLogicalRange(from: number, to: number): LogicalRange {
+  return { from: from as Logical, to: to as Logical };
+}
 
 /** Bars from the last index that still count as "following" the tip. */
 export const CHART_VIEWPORT_FOLLOW_SLACK_BARS = 2;
@@ -32,7 +36,7 @@ export function defaultTimeScaleCommand(
   candleCount: number,
 ): TimeScaleCommand {
   const range = timeScaleRangeForSeries(timeframe, candleCount);
-  if (range) return { kind: 'setVisibleLogicalRange', range };
+  if (range) return { kind: 'setVisibleLogicalRange', range: toLogicalRange(range.from, range.to) };
   return { kind: 'fitContent' };
 }
 
@@ -51,7 +55,7 @@ export function followLogicalRange(
 ): LogicalRange {
   const span = previous.to - previous.from;
   const to = Math.max(0, newBarCount - 1);
-  return { from: to - span, to };
+  return toLogicalRange(to - span, to);
 }
 
 export function paintTimeScaleCommand(

@@ -36,7 +36,7 @@ Entry template (copy and fill in):
 - **Why:** Mid-trade the viewport jumped on its own while symbol and interval stayed put (#232).
 - **Files touched:** `frontend/src/chart/chartViewportPaint.ts`, `useChartBars.ts`, `chartViewportReset.ts`, `useChartInstance.ts`.
 - **How it works now:** First paint (and Reset Chart) still uses the default window -- pinned last-N for long 1Min/5Min, `fitContent` for 10Sec. Every later `setData` snapshots the visible range first. If the tip was on screen, the same logical span moves to the new last bar. If the operator panned away, the time window is restored. Incremental `series.update` keeps `shiftVisibleRangeOnNewBar`. There is no Follow/Locked chrome -- follow is "right edge was visible."
-- **Verified by:** `vitest run src/chart/chartViewportPaint.test.ts src/chart/chartViewportReset.test.ts src/tickerChartData.test.ts` -- 23 passed.
+- **Verified by:** Full frontend Vitest -- 1355 passed / 271 files. `eslint . --max-warnings 0` -- exit 0. `npm run build` -- exit 0 after branding LWC `Logical` ranges. Playwright `chart-10sec-first-print` + `chart-pane-maximize` -- 4 passed.
 - **Related:** PROBLEM_LOG 2026-09-17 -- 10Sec viewport fitContent on live setData; Closes #232.
 
 ## 2026-09-17 -- Bot controls move to a second GlobalAppBar row
