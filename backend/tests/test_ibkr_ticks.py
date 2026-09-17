@@ -147,6 +147,29 @@ def test_on_ticker_update_observes_halt_when_last_is_missing():
     halt_status.reset()
 
 
+def test_seed_existing_ticker_observes_halt_without_update_event():
+    """reqMktData attach after an already-halted name -- tick 49 may not repeat."""
+    from ibkr import halt_status
+
+    _reset()
+    halt_status.reset()
+    ticker = _FakeTicker(last=None)
+    ticker.halted = 2.0
+    ticks._subs["DAIC"] = {
+        "owners": {ticks.OWNER_DETAIL},
+        "last_price": None,
+        "last_update_ts": None,
+        "ticker": ticker,
+    }
+    ticks._broadcast = None
+    ticks._quote_listeners.clear()
+    ticks._seed_existing_ticker("DAIC")
+    snap = halt_status.snapshot("DAIC")
+    assert snap is not None
+    assert snap["kind"] == "luld"
+    halt_status.reset()
+
+
 def test_on_ticker_update_flags_close_fallback_and_prefers_exchange_time():
     _reset()
     ticks._subs["ABC"] = {

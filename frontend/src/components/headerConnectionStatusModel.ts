@@ -1,5 +1,6 @@
 import {
   BACKEND_DIAG_FLAG_DOWN,
+  BACKEND_DIAG_FLAG_UNREACHABLE,
   BACKEND_DIAG_FLAG_WEDGED,
   HEADER_GATEWAY_DELAYED_LABEL,
   HEADER_GATEWAY_OFFLINE_LABEL,
@@ -45,6 +46,7 @@ export function apiProcessOk(health: HealthStatus): boolean {
   if (!health || health.status === 'loading') return true;
   if (health.ib_loop_lag_ms?.wedged) return false;
   if (health.flag === BACKEND_DIAG_FLAG_WEDGED) return true;
+  if (health.flag === BACKEND_DIAG_FLAG_UNREACHABLE) return true;
   if (health.flag === BACKEND_DIAG_FLAG_DOWN) return false;
   return health.status === 'connected';
 }

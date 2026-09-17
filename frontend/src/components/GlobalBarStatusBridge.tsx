@@ -11,7 +11,7 @@ import {
 import { enterSampleView } from '../sample_data/sampleNav';
 import { useSettings } from '../settings/SettingsContext';
 import type { HealthStatus } from '../types/health';
-import { diagnoseBackend, logBackendDiagnosis } from '../utils/diagnoseBackend';
+import { diagnoseBackend, healthAfterFailedRoute, logBackendDiagnosis } from '../utils/diagnoseBackend';
 import { useWorkspace } from '../workspace/WorkspaceContext';
 import type { GlobalAppBarScanner } from './globalAppBarScanner';
 import {
@@ -29,6 +29,8 @@ export function GlobalBarStatusBridge() {
   const bar = useScannerBarProps();
   const [mode, setMode] = useState<GlobalAppBarScanner['mode']>('loading');
   const [health, setHealth] = useState<HealthStatus>(EMPTY_HEALTH);
+  const healthRef = useRef(health);
+  healthRef.current = health;
   const historyDate = bar?.historyDate ?? null;
   const historyDates = useMemo(() => bar?.historyDates ?? [], [bar?.historyDates]);
   const modeFailStreak = useRef(0);
@@ -41,14 +43,7 @@ export function GlobalBarStatusBridge() {
       const diag = await diagnoseBackend();
       if (cancelled) return;
       logBackendDiagnosis(diag);
-      setHealth({
-        status: 'disconnected',
-        latency_ms: 0,
-        message: diag.message,
-        flag: diag.flag,
-        flag_hint: diag.hint,
-        health_source: 'nova_process',
-      });
+      setHealth(healthAfterFailedRoute(healthRef.current, diag));
     };
     const poll = async () => {
       try {

@@ -6,10 +6,11 @@ import {
   BOT_PACKS,
   packDescription,
 } from '../constantGroups/bot';
+import { DESK_BOT_POLL_MS } from '../constants';
 import { useBotSession } from './useBotSession';
 
 export function BotArmControls() {
-  const { session, error, busy, patch, activate, stop } = useBotSession(2500);
+  const { session, error, busy, patch, activate, stop } = useBotSession(DESK_BOT_POLL_MS);
   const [pickedPack, setPickedPack] = useState<string | null>(null);
   const level = session?.level ?? 0;
   const armed = Boolean(session?.armed);

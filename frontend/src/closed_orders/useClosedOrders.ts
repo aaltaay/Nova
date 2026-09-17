@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { novaFetch } from '../api/novaFetch';
-import { API_BASE_URL } from '../constants';
+import { API_BASE_URL, IBKR_ORDERS_POLL_MS } from '../constants';
 import { lastKnownAsOfMessage } from '../ibkr/disconnectCopy';
+import { useOptionalIbkrAccountContext } from '../ibkr/IbkrAccountContext';
 import type { ClosedOrder } from './types';
 
 interface State {
@@ -13,14 +14,13 @@ interface State {
   refresh: () => void;
 }
 
-/** Polls GET /api/ibkr/orders/closed when connected (session terminal orders). */
-export function useClosedOrders(connected: boolean): State {
+function useClosedOrdersPoll(enabled: boolean): State {
   const [orders, setOrders] = useState<ClosedOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!connected) return;
+    if (!enabled) return;
     setLoading(true);
     try {
       const res = await novaFetch(`${API_BASE_URL}/api/ibkr/orders/closed`);
@@ -28,7 +28,6 @@ export function useClosedOrders(connected: boolean): State {
         setOrders((await res.json()) as ClosedOrder[]);
         setError(null);
       } else {
-        // Keep last-good orders — a failed read is not "no closed orders".
         setError(`closed orders unavailable (HTTP ${res.status})`);
       }
     } catch (err) {
@@ -37,12 +36,10 @@ export function useClosedOrders(connected: boolean): State {
     } finally {
       setLoading(false);
     }
-  }, [connected]);
+  }, [enabled]);
 
   useEffect(() => {
-    if (!connected) {
-      setError(lastKnownAsOfMessage(Date.now()));
-      setLoading(false);
+    if (!enabled) {
       return;
     }
     let active = true;
@@ -50,12 +47,38 @@ export function useClosedOrders(connected: boolean): State {
       if (active) void refresh();
     };
     tick();
-    const id = setInterval(tick, 5_000);
+    const id = setInterval(tick, IBKR_ORDERS_POLL_MS);
     return () => {
       active = false;
       clearInterval(id);
     };
-  }, [connected, refresh]);
+  }, [enabled, refresh]);
 
   return { orders, loading, error, refresh };
+}
+
+/** Session terminal orders -- prefer the shared account poller when mounted. */
+export function useClosedOrders(connected: boolean): State {
+  const ctx = useOptionalIbkrAccountContext();
+  const fallback = useClosedOrdersPoll(connected && !ctx);
+
+  if (ctx) {
+    const error = connected
+      ? ctx.error
+      : lastKnownAsOfMessage(ctx.staleSince ?? Date.now());
+    return {
+      orders: ctx.closedOrders ?? [],
+      loading: ctx.loading,
+      error,
+      refresh: ctx.refresh,
+    };
+  }
+
+  if (!connected) {
+    return {
+      ...fallback,
+      error: lastKnownAsOfMessage(Date.now()),
+    };
+  }
+  return fallback;
 }

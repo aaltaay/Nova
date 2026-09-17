@@ -1,59 +1,48 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import {
+  applyBotSessionLocal,
+  getBotSessionSnapshot,
+  refreshBotSessionNow,
+  setBotSessionError,
+  subscribeBotSession,
+  voteBotPollInterval,
+} from './botSessionPoller';
 import {
   armBotSession,
   disarmBotSession,
-  fetchBotAudit,
-  fetchBotProposals,
-  fetchBotSession,
   patchBotSession,
   resolveProposal,
 } from './api';
-import type { BotAuditEntry, BotProposal, BotSession } from './types';
+
+const EMPTY = {
+  session: null,
+  proposals: [],
+  audit: [],
+  error: null,
+};
 
 export function useBotSession(pollMs = 0) {
-  const [session, setSession] = useState<BotSession | null>(null);
-  const [proposals, setProposals] = useState<BotProposal[]>([]);
-  const [audit, setAudit] = useState<BotAuditEntry[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const snap = useSyncExternalStore(
+    subscribeBotSession,
+    getBotSessionSnapshot,
+    () => EMPTY,
+  );
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => voteBotPollInterval(pollMs), [pollMs]);
+
   const refresh = useCallback(async () => {
-    try {
-      const [next, props, entries] = await Promise.all([
-        fetchBotSession(),
-        fetchBotProposals(),
-        fetchBotAudit(),
-      ]);
-      setSession(next);
-      setProposals(props);
-      setAudit(entries);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'bot session failed');
-    }
+    refreshBotSessionNow();
   }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    if (!pollMs) return undefined;
-    const id = window.setInterval(() => {
-      void refresh();
-    }, pollMs);
-    return () => window.clearInterval(id);
-  }, [pollMs, refresh]);
 
   const patch = useCallback(async (body: Record<string, unknown>) => {
     setBusy(true);
     try {
       const next = await patchBotSession(body);
-      setSession(next);
-      setError(null);
+      applyBotSessionLocal(next);
       return next;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'bot patch failed');
+      setBotSessionError(err instanceof Error ? err.message : 'bot patch failed');
       return null;
     } finally {
       setBusy(false);
@@ -64,28 +53,26 @@ export function useBotSession(pollMs = 0) {
     setBusy(true);
     try {
       const next = await armBotSession({
-        reenable: Boolean(session?.soft_breaker_fired),
+        reenable: Boolean(snap.session?.soft_breaker_fired),
       });
-      setSession(next);
-      setError(null);
+      applyBotSessionLocal(next);
       return next;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'bot activate failed');
+      setBotSessionError(err instanceof Error ? err.message : 'bot activate failed');
       return null;
     } finally {
       setBusy(false);
     }
-  }, [session?.soft_breaker_fired]);
+  }, [snap.session?.soft_breaker_fired]);
 
   const stop = useCallback(async () => {
     setBusy(true);
     try {
       const next = await disarmBotSession();
-      setSession(next);
-      setError(null);
+      applyBotSessionLocal(next);
       return next;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'bot stop failed');
+      setBotSessionError(err instanceof Error ? err.message : 'bot stop failed');
       return null;
     } finally {
       setBusy(false);
@@ -96,13 +83,24 @@ export function useBotSession(pollMs = 0) {
     setBusy(true);
     try {
       await resolveProposal(id, action);
-      await refresh();
+      refreshBotSessionNow();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'proposal update failed');
+      setBotSessionError(err instanceof Error ? err.message : 'proposal update failed');
     } finally {
       setBusy(false);
     }
-  }, [refresh]);
+  }, []);
 
-  return { session, proposals, audit, error, busy, refresh, patch, activate, stop, resolve };
+  return {
+    session: snap.session,
+    proposals: snap.proposals,
+    audit: snap.audit,
+    error: snap.error,
+    busy,
+    refresh,
+    patch,
+    activate,
+    stop,
+    resolve,
+  };
 }

@@ -77,6 +77,15 @@ def overlay_for(symbol: str) -> dict[str, Any]:
     return row_to_overlay(None, status=status)
 
 
+def open_symbols() -> list[str]:
+    """Symbols whose latest overlay row has no trade_resume (still halted)."""
+    return sorted(
+        symbol
+        for symbol, row in _rows.items()
+        if symbol and row.trade_resume is None and row.mwcb_level is None
+    )
+
+
 def desk_snapshot(*, now: float | None = None) -> dict[str, Any]:
     ts = time.time() if now is None else float(now)
     age = None if _last_success_at is None else max(0.0, ts - _last_success_at)

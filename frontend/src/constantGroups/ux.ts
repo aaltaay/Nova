@@ -45,7 +45,7 @@ export const ORDER_REJECT_SKIP_MESSAGES = [
   'Fill now cancelled',
 ];
 /** Consecutive Nova API probe misses before auto-covering the desk (#176). */
-export const DESK_API_FAIL_STREAK_FOR_OVERLAY = 2;
+export const DESK_API_FAIL_STREAK_FOR_OVERLAY = 3;
 /** Soft IBKR warning codes -- never a reject modal (peers of Warning 2109). */
 export const IBKR_SOFT_ORDER_WARNING_CODES = [
   2109, 399, 10349, 202, 2104, 2106, 2108,

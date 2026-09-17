@@ -37,6 +37,30 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Electron sidecar recycle killed a healthy :8000
+
+- **Symptom:** Daily UI roll-out (unpackaged Electron against a morning API) could Stop-NovaPorts or spawn a second `run_api.py` even when GET /api/health was 200. That is Lock A: health 200 means do not recycle the API.
+- **Cause:** `startApiSidecarUnlocked` reused a healthy API only after a 2.5s probe; a miss fell through to `resolveSpawn`. `restartApiSidecar` always called `stopExternalListener` (Stop-NovaPorts 8000). `Run Nova Desktop.bat` also kills 8000+5173 before `electron:dev`.
+- **Fix:** `NOVA_SKIP_API_SIDECAR=1` (`sidecarSkip.mjs`) makes start attach-only (no spawn), restart refuse + wait for existing health, and skip Stop-NovaPorts. `scripts/Start-NovaDevDesktop.ps1` is the attach helper: health 200 required, Vite 5173 via Start-NovaUi if needed, Electron with `NOVA_VITE_URL` + skip flag. Unhealthy API prints reload-API and exits 1.
+- **Fix class:** ownership
+- **Keywords:** NOVA_SKIP_API_SIDECAR, Start-NovaDevDesktop, Stop-NovaPorts, Lock A, sidecar, :8000
+
+## 2026-09-17 -- Halt chip missing on DAIC while halted
+
+- **Symptom:** DAIC trader tab while DAIC was LULD-paused: HaltEtaChip did not appear. Logs had halt events for other names but no `IBKR halt: DAIC`, plus `cancelMktData: No subscription for DAIC` on tab focus.
+- **Cause:** Depth-only unsubscribe called `cancelMktData` on a `reqMktDepth` line (or stole shared ticks L1). `ticks.subscribe` then short-circuited on a zombie sub and never re-`reqMktData`. Subscribe attached `updateEvent` after `reqMktData` and never observed an already-halted `ticker.halted`. NaN/-1 after resubscribe classified as resume. `snapshot()` returned None without an IBKR row, so an RSS-open halt never seeded the chip.
+- **Fix:** Drop `cancelMktData` from depth-only unsubscribe. Seed observe on subscribe/attach. Keep halt on NaN/None/-1; only code 0 clears. RSS-open rows seed `snapshot()` / `watch_symbols()` until IBKR clear. Fixture `nasdaq_trade_halts_daic.xml` proves LULD · 1:42 · 3:18 left.
+- **Fix class:** admission
+- **Keywords:** DAIC, HaltEtaChip, ticker.halted, cancelMktData, NaN, RSS, LULD, #237
+
+## 2026-09-17 -- False Backend unreachable while /api/health is 200
+
+- **Symptom:** Trading prerequisites overlay said Backend unreachable while GET /api/health returned 200. Desk felt lagged; health flipped under Electron+Vite poll load.
+- **Cause:** `diagnoseBackend` treated HTTP 200 as `API_UNREACHABLE` + message "Backend unreachable". Callers painted `status=disconnected`. `novaApiOk` requires `status===connected`, so leftover UNREACHABLE was a miss. Overlay fired after 2 painted misses. Duplicate account/closed-order/bot polls (N windows × 1s cluster + extra `/orders/closed`) starved probes.
+- **Fix:** 200 => `ok:true`; `healthAfterFailedRoute` keeps connected. `novaApiOk` / `apiProcessOk` treat UNREACHABLE as up. Probe timeout 4s; overlay streak 3; scanner grace 3. Shared account + bot pollers with a 1.8s leader heartbeat; `useClosedOrders` reads the account context.
+- **Fix class:** surfacing
+- **Keywords:** API_UNREACHABLE, diagnoseBackend, Backend unreachable, #238, poll storm, IbkrAccountProvider
+
 ## 2026-09-17 -- Squash title fallback crashed on whitespace-only PR title
 
 - **Symptom:** `test_squash_title_fallback_is_not_merge_commit` raised `IndexError: list index out of range` in `squash_commit_title`.

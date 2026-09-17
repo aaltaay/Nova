@@ -21,6 +21,22 @@ export const IBKR_STATUS_STALE_AFTER_MISSES = 2;
 /** sessionStorage last successful /api/ibkr/status -- avoids a false Disconnected flash. */
 export const IBKR_STATUS_SESSION_KEY = 'nova.ibkr.status.last';
 
+/**
+ * Cross-window leader heartbeat stale -- another Electron/Vite window may take
+ * the account/bot HTTP poll. Stay under 2s so Day P&L does not feel like 5s.
+ */
+export const DESK_POLL_LEADER_STALE_MS = 1_800;
+/** Followers treat a snapshot older than this as missing and try to claim. */
+export const DESK_POLL_SNAPSHOT_MAX_AGE_MS = 2_000;
+export const DESK_POLL_ACCOUNT_SHARE = 'ibkr-account';
+export const DESK_POLL_BOT_SHARE = 'bot-session';
+/** Bot header + Strategy share one poller; this is the armed interval. */
+export const DESK_BOT_POLL_MS = 2_500;
+export const DESK_POLL_LEADER_KEY_PREFIX = 'nova.desk.poll.leader.';
+export const DESK_POLL_SNAP_KEY_PREFIX = 'nova.desk.poll.snap.';
+export const DESK_POLL_CHANNEL_PREFIX = 'nova-desk-poll-';
+export const DESK_POLL_TAB_SESSION_KEY = 'nova.desk.poll.tab';
+
 export const GLOBAL_BAR_BRAND = 'NOVA';
 export const GLOBAL_BAR_NAV_SCANNER = 'Scanner';
 export const GLOBAL_BAR_NAV_TRADER = 'Trader';

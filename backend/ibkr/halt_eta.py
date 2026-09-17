@@ -71,6 +71,18 @@ def parse_halt_code(raw: Any) -> int | None:
     return int(val)
 
 
+def classify_rss_reason_code(reason_code: str | None) -> str:
+    """Map a Nasdaq Trade Halt reason to a chip kind (LUDP/T1/…)."""
+    raw = (reason_code or "").strip().upper()
+    if not raw:
+        return KIND_UNKNOWN
+    if raw.startswith("LUD") or raw == "LULD" or raw.startswith("VOL"):
+        return KIND_LULD
+    if raw.startswith("T") or raw.startswith("N"):
+        return KIND_REGULATORY
+    return KIND_UNKNOWN
+
+
 def classify_halt_code(code: int | None) -> str | None:
     """Map a ticker.halted code to a chip kind, or None when not halted.
 

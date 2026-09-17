@@ -8,6 +8,8 @@ import {
   IbkrAccountProvider,
   useIbkrAccountContext,
 } from './IbkrAccountContext';
+import { _resetIbkrAccountPollerForTests } from './ibkrAccountPoller';
+import { _resetDeskPollShareForTests } from './deskSharedPoll';
 import { useIbkrAccount } from './useIbkrAccount';
 
 vi.mock('../sample_data/SampleDataContext', () => ({
@@ -55,6 +57,8 @@ describe('IbkrAccountProvider', () => {
   let root: Root;
 
   beforeEach(() => {
+    _resetDeskPollShareForTests();
+    _resetIbkrAccountPollerForTests();
     workspace.ibkrConnected = true;
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -89,6 +93,8 @@ describe('IbkrAccountProvider', () => {
     container.remove();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    _resetIbkrAccountPollerForTests();
+    _resetDeskPollShareForTests();
   });
 
   it('serves one poll result to context and useIbkrAccount consumers', async () => {

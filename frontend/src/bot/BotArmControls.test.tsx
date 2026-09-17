@@ -2,12 +2,21 @@
  * @vitest-environment jsdom
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { _resetBotSessionPollerForTests } from './botSessionPoller';
 import { BotArmControls } from './BotArmControls';
 import type { BotSession } from './types';
+import { _resetDeskPollShareForTests } from '../ibkr/deskSharedPoll';
+
+beforeEach(() => {
+  _resetBotSessionPollerForTests();
+  _resetDeskPollShareForTests();
+});
 
 afterEach(() => {
   cleanup();
+  _resetBotSessionPollerForTests();
+  _resetDeskPollShareForTests();
   vi.unstubAllGlobals();
   localStorage.clear();
 });

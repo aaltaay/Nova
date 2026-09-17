@@ -197,18 +197,9 @@ def unsubscribe(symbol: str) -> None:
                 "IBKR: cancelMktDepth on unsubscribe for %s ignored: %s",
                 symbol, exc,
             )
-        # Shared fallback ticker is owned by ibkr.ticks (refcounted by owner) —
-        # cancelling it here would kill the stream out from under scanner/HOD/
-        # detail owners who still want it. Release the depth owner instead; ticks
-        # cancels only when depth was the last one holding the line.
-        if not shared:
-            try:
-                ib.cancelMktData(contract)
-            except Exception as exc:
-                logger.debug(
-                    "IBKR: cancelMktData on unsubscribe for %s ignored: %s",
-                    symbol, exc,
-                )
+        # Depth-only lines use reqMktDepth. cancelMktData here steals the
+        # shared ticks L1 (or logs "No subscription") and drops halt observe
+        # for the focused symbol (#237). L1 fallback is ticks-owned.
     if shared:
         from ibkr import ticks as _ticks
 

@@ -1,23 +1,24 @@
 /**
- * App-wide IBKR account / positions / orders poller.
- * Account cluster (summary + positions) ticks at IBKR_ACCOUNT_POLL_MS (<=1s).
- * Orders / closed stay on IBKR_ORDERS_POLL_MS so we do not hammer IBKR.
+ * App-wide IBKR account / positions / orders reader.
+ * HTTP lives in ibkrAccountPoller (one owner, cross-window leader).
  */
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useRef,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { API_BASE_URL, IBKR_ACCOUNT_POLL_MS, IBKR_ORDERS_POLL_MS } from '../constants';
 import { useSampleDataOptional } from '../sample_data/SampleDataContext';
 import { useWorkspace } from '../workspace/WorkspaceContext';
-import { lastKnownAsOfMessage } from './disconnectCopy';
-import { fetchAccountCluster, fetchOrdersCluster } from './ibkrAccountFetch';
+import {
+  configureIbkrAccountPoller,
+  getIbkrAccountSnapshot,
+  refreshIbkrAccountNow,
+  subscribeIbkrAccount,
+  type IbkrAccountPollSnap,
+} from './ibkrAccountPoller';
 import type { IbkrAccountSummary, IbkrOrder, IbkrPosition } from './types';
 
 export interface IbkrAccountState {
@@ -70,119 +71,45 @@ export const SAMPLE_IBKR_ACCOUNT_STATE: IbkrAccountState = {
 
 const IbkrAccountContext = createContext<IbkrAccountState | null>(null);
 
-function mergeReadError(accountFails: string[], orderFails: string[]): string | null {
-  const failures = [...accountFails, ...orderFails];
-  return failures.length ? `IBKR read failed -- ${failures.join(', ')}` : null;
+const EMPTY_SNAP: IbkrAccountPollSnap = {
+  summary: null,
+  positions: [],
+  orders: [],
+  closedOrders: [],
+  loading: false,
+  error: null,
+  stale: false,
+  staleSince: null,
+};
+
+function noopSubscribe(_onStoreChange: () => void): () => void {
+  return () => {};
 }
 
 export function IbkrAccountProvider({ children }: { children: ReactNode }) {
   const sample = useSampleDataOptional();
   const { ibkrConnected } = useWorkspace();
-  const [summary, setSummary] = useState<IbkrAccountSummary | null>(null);
-  const [positions, setPositions] = useState<IbkrPosition[]>([]);
-  const [orders, setOrders] = useState<IbkrOrder[]>([]);
-  const [closedOrders, setClosedOrders] = useState<IbkrOrder[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [stale, setStale] = useState(false);
-  const [staleSince, setStaleSince] = useState<number | null>(null);
-  const hadSessionRef = useRef(false);
-  const accountInflight = useRef(false);
-  const ordersInflight = useRef(false);
-  const accountFailsRef = useRef<string[]>([]);
-  const orderFailsRef = useRef<string[]>([]);
-
-  const publishError = useCallback(() => {
-    setError(mergeReadError(accountFailsRef.current, orderFailsRef.current));
-  }, []);
-
-  const refreshAccount = useCallback(async () => {
-    if (sample || !ibkrConnected || accountInflight.current) return;
-    accountInflight.current = true;
-    setLoading(true);
-    try {
-      const snap = await fetchAccountCluster(API_BASE_URL);
-      if (snap.summary) setSummary(snap.summary);
-      if (snap.positions) setPositions(snap.positions);
-      accountFailsRef.current = snap.failures;
-      setStale(false);
-      setStaleSince(null);
-      publishError();
-    } catch (err) {
-      console.error('[Nova] IBKR account/positions poll failed', err);
-      accountFailsRef.current = ['account/positions fetch failed -- retrying'];
-      publishError();
-    } finally {
-      accountInflight.current = false;
-      setLoading(false);
-    }
-  }, [sample, ibkrConnected, publishError]);
-
-  const refreshOrders = useCallback(async () => {
-    if (sample || !ibkrConnected || ordersInflight.current) return;
-    ordersInflight.current = true;
-    try {
-      const snap = await fetchOrdersCluster(API_BASE_URL);
-      if (snap.orders) setOrders(snap.orders);
-      if (snap.closedOrders) setClosedOrders(snap.closedOrders);
-      orderFailsRef.current = snap.failures;
-      publishError();
-    } catch (err) {
-      console.error('[Nova] IBKR orders poll failed', err);
-      orderFailsRef.current = ['orders fetch failed -- retrying'];
-      publishError();
-    } finally {
-      ordersInflight.current = false;
-    }
-  }, [sample, ibkrConnected, publishError]);
-
-  const refresh = useCallback(() => {
-    void refreshAccount();
-    void refreshOrders();
-  }, [refreshAccount, refreshOrders]);
 
   useEffect(() => {
-    if (sample) return;
-    if (ibkrConnected) {
-      hadSessionRef.current = true;
-    }
-    if (!ibkrConnected) {
-      if (!hadSessionRef.current) {
-        setLoading(false);
-        return;
-      }
-      const since = Date.now();
-      setStale(true);
-      setStaleSince(since);
-      setError(lastKnownAsOfMessage(since));
-      setLoading(false);
-      return;
-    }
+    configureIbkrAccountPoller({
+      connected: ibkrConnected,
+      sample: Boolean(sample),
+    });
+  }, [sample, ibkrConnected]);
 
-    let active = true;
-    const tickAccount = () => {
-      if (active) void refreshAccount();
-    };
-    const tickOrders = () => {
-      if (active) void refreshOrders();
-    };
-    tickAccount();
-    tickOrders();
-    const accId = setInterval(tickAccount, IBKR_ACCOUNT_POLL_MS);
-    const ordId = setInterval(tickOrders, IBKR_ORDERS_POLL_MS);
-    return () => {
-      active = false;
-      clearInterval(accId);
-      clearInterval(ordId);
-    };
-  }, [sample, ibkrConnected, refreshAccount, refreshOrders]);
+  const snap = useSyncExternalStore(
+    sample ? noopSubscribe : subscribeIbkrAccount,
+    sample ? () => EMPTY_SNAP : getIbkrAccountSnapshot,
+    () => EMPTY_SNAP,
+  );
 
   const value = useMemo<IbkrAccountState>(() => {
     if (sample) return SAMPLE_IBKR_ACCOUNT_STATE;
     return {
-      summary, positions, orders, closedOrders, loading, error, stale, staleSince, refresh,
+      ...snap,
+      refresh: refreshIbkrAccountNow,
     };
-  }, [sample, summary, positions, orders, closedOrders, loading, error, stale, staleSince, refresh]);
+  }, [sample, snap]);
 
   return (
     <IbkrAccountContext.Provider value={value}>{children}</IbkrAccountContext.Provider>

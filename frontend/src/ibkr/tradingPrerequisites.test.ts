@@ -211,9 +211,26 @@ describe('buildTradingPrerequisites', () => {
       },
       ibkrEnabled: true,
       ibkrConnected: true,
-      apiFailStreak: 2,
+      apiFailStreak: 3,
     });
     expect(out.autoOverlay).toBe(true);
+  });
+
+  it('does not overlay on API_UNREACHABLE leftover from a 200 health probe', () => {
+    const out = buildTradingPrerequisites({
+      health: {
+        status: 'disconnected',
+        latency_ms: 0,
+        flag: 'API_UNREACHABLE',
+        message: 'Nova API is reachable',
+      },
+      ibkrEnabled: true,
+      ibkrConnected: true,
+      apiFailStreak: 4,
+    });
+    expect(out.items.find((i) => i.id === 'nova_api')?.ok).toBe(true);
+    expect(out.autoOverlay).toBe(false);
+    expect(out.deskReady).toBe(true);
   });
 
   it('never auto-overlays while Place / Flatten / Fill now is in flight', () => {

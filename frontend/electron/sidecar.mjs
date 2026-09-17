@@ -15,6 +15,7 @@ import {
 import { waitForPortFree } from './portWait.mjs';
 import { createSerialQueue } from './serialQueue.mjs';
 import { startBrainSidecar, stopBrainSidecar } from './brainSidecar.mjs';
+import { skipApiSidecar } from './sidecarSkip.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -166,6 +167,17 @@ export function waitForHealth(timeoutMs = 90_000) {
 async function startApiSidecarUnlocked() {
   if (apiChild) return;
 
+  // Lock A: daily UI attach. Never spawn a second API and never fall
+  // through to resolveSpawn when a 2.5s health probe misses.
+  if (skipApiSidecar()) {
+    console.log(
+      '[nova-api] NOVA_SKIP_API_SIDECAR=1 -- attach only, will not spawn or recycle',
+      API_BASE,
+    );
+    startBrainSidecar(sidecarEnv());
+    return;
+  }
+
   // Reuse an already-running local API (e.g. Run Nova.bat) when healthy.
   try {
     await waitForHealth(2_500);
@@ -222,6 +234,10 @@ function stopApiSidecarUnlocked() {
 }
 
 function stopExternalListener() {
+  if (skipApiSidecar()) {
+    console.warn('[nova-api] skip Stop-NovaPorts -- NOVA_SKIP_API_SIDECAR=1');
+    return;
+  }
   if (process.platform !== 'win32') return;
   const stopScript = path.join(repoRootFromElectron(), 'scripts', 'Stop-NovaPorts.ps1');
   if (!fs.existsSync(stopScript)) return;
@@ -243,6 +259,13 @@ export function stopApiSidecar() {
 /** Stop our sidecar (if any), free port 8000, start fresh, wait for /api/health. */
 export function restartApiSidecar() {
   return sidecarQueue.enqueue(async () => {
+    if (skipApiSidecar()) {
+      console.warn(
+        '[nova-api] restart refused -- NOVA_SKIP_API_SIDECAR=1 (Lock A: keep existing API)',
+      );
+      await waitForHealth(8_000);
+      return;
+    }
     stopApiSidecarUnlocked();
     stopExternalListener();
     const freed = await waitForPortFree(API_HOST, API_PORT);

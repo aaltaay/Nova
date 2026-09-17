@@ -1,10 +1,12 @@
 """In-memory IBKR ticker.halted observe for the L2 HaltEtaChip.
 
 Owner: this module.
-Invalidation: ticker.halted returns to 0 / -1 / NaN (trading resumed), or
-``reset()`` (tests). Not persisted -- a process restart restarts
-``halt_start`` from the next observed halt tick (tooltip says observed,
-not SIP). Incoming tick type 49 is default L1; never request generic 49.
+Invalidation: ticker.halted returns to 0 (trading resumed), or ``reset()``
+(tests). NaN / None / -1 is unknown, not resume -- cancel+resubscribe
+often delivers that before tick 49 repeats (#237). Not persisted -- a
+process restart restarts ``halt_start`` from the next observed halt tick
+or an RSS-open row (tooltip says observed vs Nasdaq). Incoming tick type
+49 is default L1; never request generic 49.
 
 A first halt without a prior not-halted tick is ``start_late`` (reconnect
 or opened mid-halt). Nasdaq Trade Halt RSS may overlay official start /
@@ -19,7 +21,9 @@ from typing import Any
 from constants import HALT_LATE_START_SKEW_SEC
 from ibkr.halt_eta import (
     HALT_START_SOURCE,
+    HALT_START_SOURCE_NASDAQ,
     classify_halt_code,
+    classify_rss_reason_code,
     halt_chip_view,
     parse_halt_code,
 )
@@ -31,12 +35,15 @@ logger = logging.getLogger(__name__)
 _state: dict[str, dict[str, Any]] = {}
 # Symbols observed as not-halted this process -- a later halt is on-time.
 _seen_clear: set[str] = set()
+# RSS-open chips already logged this process (avoid snapshot spam).
+_rss_announced: set[str] = set()
 
 
 def reset() -> None:
     """Drop all observed halt rows (tests / reconnect hygiene)."""
     _state.clear()
     _seen_clear.clear()
+    _rss_announced.clear()
 
 
 def _exchange_overlay(symbol: str) -> dict[str, Any]:
@@ -97,18 +104,72 @@ def _payload(symbol: str, row: dict[str, Any], now: float) -> dict[str, Any] | N
 
 def snapshot(symbol: str, *, now: float | None = None) -> dict[str, Any] | None:
     """Current halt payload for ticker REST / WS, or None when not halted."""
-    row = _state.get((symbol or "").strip().upper())
-    if not row:
-        return None
-    return _payload(
-        (symbol or "").strip().upper(),
-        row,
-        time.time() if now is None else now,
-    )
+    ts = time.time() if now is None else now
+    sym = (symbol or "").strip().upper()
+    row = _state.get(sym)
+    if row:
+        return _payload(sym, row, ts)
+    return _rss_open_payload(sym, ts)
 
 
 def live_symbols() -> list[str]:
     return sorted(_state.keys())
+
+
+def watch_symbols() -> list[str]:
+    """IBKR-observed plus RSS-open names that snapshot() can chip."""
+    names = set(_state)
+    try:
+        from ibkr import nasdaq_halt_feed
+        names.update(nasdaq_halt_feed.open_symbols())
+    except Exception:
+        logger.debug("IBKR halt: RSS open-symbol list failed", exc_info=True)
+    return sorted(names)
+
+
+def _rss_open_payload(symbol: str, now: float) -> dict[str, Any] | None:
+    """Seed a chip from an RSS open row when ticker.halted never arrived (#237)."""
+    if not symbol or symbol in _seen_clear:
+        return None
+    exchange = _exchange_overlay(symbol)
+    if not exchange.get("matched"):
+        return None
+    if exchange.get("trade_resume") is not None:
+        return None
+    kind = classify_rss_reason_code(exchange.get("reason_code"))
+    official = exchange.get("official_halt_start")
+    official_ts = official if isinstance(official, (int, float)) else None
+    start_late = official_ts is None
+    view = halt_chip_view(
+        kind=kind,
+        halt_start=official_ts if official_ts is not None else now,
+        now=now,
+        halted=True,
+        start_late=start_late,
+        official_halt_start=official_ts,
+    )
+    if view is None:
+        return None
+    if symbol not in _rss_announced:
+        _rss_announced.add(symbol)
+        logger.info(
+            "Nasdaq halt: %s kind=%s reason=%s (RSS open row)",
+            symbol, kind, exchange.get("reason_code"),
+        )
+    return {
+        "halted": True,
+        "kind": kind,
+        "halt_code": None,
+        "halt_start": official_ts if official_ts is not None else now,
+        "halt_start_source": (
+            HALT_START_SOURCE_NASDAQ if official_ts is not None else HALT_START_SOURCE
+        ),
+        "start_late": start_late,
+        "reason": view["reason"],
+        "rule": view["rule"],
+        "source": "nasdaq_trade_halt_rss",
+        "exchange": exchange,
+    }
 
 
 def observe_code(
@@ -123,11 +184,19 @@ def observe_code(
         return None, False
     ts = time.time() if now is None else float(now)
     code = parse_halt_code(raw_code)
-    kind = classify_halt_code(code)
     prev = _state.get(sym)
+    # Missing / NaN / -1 is "unknown", not resume. cancel+resubscribe often
+    # delivers NaN on the first price tick before tick 49 repeats (#237).
+    if code is None or code == -1:
+        if prev is not None:
+            return snapshot(sym, now=ts), False
+        return _rss_open_payload(sym, ts), False
+
+    kind = classify_halt_code(code)
 
     if kind is None:
         _seen_clear.add(sym)
+        _rss_announced.discard(sym)
         if prev is None:
             return None, False
         _state.pop(sym, None)
@@ -176,7 +245,7 @@ async def broadcast_live_halts() -> None:
         logger.debug("IBKR halt: broadcast import failed", exc_info=True)
         return
     now = time.time()
-    for sym in live_symbols():
+    for sym in watch_symbols():
         snap = snapshot(sym, now=now)
         try:
             await broadcast_halt_update(sym, snap)
