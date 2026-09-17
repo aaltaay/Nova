@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- Electron sidecar recycle killed a healthy :8000
+
+- **Symptom:** Daily UI roll-out (unpackaged Electron against a morning API) could Stop-NovaPorts or spawn a second `run_api.py` even when GET /api/health was 200. That is Lock A: health 200 means do not recycle the API.
+- **Cause:** `startApiSidecarUnlocked` reused a healthy API only after a 2.5s probe; a miss fell through to `resolveSpawn`. `restartApiSidecar` always called `stopExternalListener` (Stop-NovaPorts 8000). `Run Nova Desktop.bat` also kills 8000+5173 before `electron:dev`.
+- **Fix:** `NOVA_SKIP_API_SIDECAR=1` (`sidecarSkip.mjs`) makes start attach-only (no spawn), restart refuse + wait for existing health, and skip Stop-NovaPorts. `scripts/Start-NovaDevDesktop.ps1` is the attach helper: health 200 required, Vite 5173 via Start-NovaUi if needed, Electron with `NOVA_VITE_URL` + skip flag. Unhealthy API prints reload-API and exits 1.
+- **Fix class:** ownership
+- **Keywords:** NOVA_SKIP_API_SIDECAR, Start-NovaDevDesktop, Stop-NovaPorts, Lock A, sidecar, :8000
+
 ## 2026-09-17 -- Halt chip missing on DAIC while halted
 
 - **Symptom:** DAIC trader tab while DAIC was LULD-paused: HaltEtaChip did not appear. Logs had halt events for other names but no `IBKR halt: DAIC`, plus `cancelMktData: No subscription for DAIC` on tab focus.

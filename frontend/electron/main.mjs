@@ -14,6 +14,7 @@ import {
   stopApiSidecar,
   waitForHealth,
 } from './sidecar.mjs';
+import { skipApiSidecar } from './sidecarSkip.mjs';
 import { openOrFocusTraderWindow } from './traderWindows.mjs';
 import {
   WINDOW_ID_MAIN,
@@ -94,6 +95,13 @@ ipcMain.on('nova:apiKeySync', (event) => {
 });
 
 ipcMain.handle('nova:restartApi', async () => {
+  if (skipApiSidecar()) {
+    return {
+      ok: false,
+      error:
+        'NOVA_SKIP_API_SIDECAR=1 -- will not recycle :8000. Reload the morning API if you changed backend.',
+    };
+  }
   try {
     await restartApiSidecar();
     return { ok: true };

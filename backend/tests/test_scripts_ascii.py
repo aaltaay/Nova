@@ -18,6 +18,7 @@ _CRITICAL_PS1 = (
     "Start-NovaApi.ps1",
     "Stop-NovaPorts.ps1",
     "Start-NovaUi.ps1",
+    "Start-NovaDevDesktop.ps1",
 )
 
 
