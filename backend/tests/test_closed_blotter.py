@@ -172,3 +172,170 @@ def test_ledger_commission_passes_through_on_real_fill():
     out = overlay_closed_orders([], ledger_rows=[led], limit=50)
     assert out[0]["commission"] == 1.0
     assert out[0]["filled_qty"] == 1.0
+
+
+_NOVA_PLACED = "2026-09-16T18:04:12.123456Z"
+_BROKER_SUBMIT = "2026-09-16T18:04:12.200000Z"
+_BROKER_FILL = "2026-09-16T18:04:12.380000Z"
+
+
+def _ztg_cancel_ib(**kw) -> dict:
+    row = _ib(
+        order_id=116071,
+        symbol="ZTG",
+        status="Cancelled",
+        qty=1,
+        filled_qty=0.0,
+        remaining_qty=1.0,
+        order_type="LMT",
+        limit_price=1.76,
+        submitted_at=None,
+        updated_at=None,
+        filled_at=None,
+        avg_fill_price=None,
+    )
+    row.update(kw)
+    return row
+
+
+def _ztg_cancel_ledger(**kw) -> dict:
+    row = _ledger(
+        id="e-ztg-116071",
+        symbol="ZTG",
+        status="failed",
+        order_id=116071,
+        filled_qty=None,
+        avg_fill_price=None,
+        broker_status="Cancelled",
+        created_ts=1_755_451_009.0,
+        payload={
+            "qty": 1,
+            "sent_qty": 1.0,
+            "side": "BUY",
+            "order_type": "LMT",
+            "requested_price": 1.76,
+            "nova_placed_at": _NOVA_PLACED,
+        },
+    )
+    row.update(kw)
+    return row
+
+
+def test_overlay_cancel_missing_broker_log_uses_persisted_nova_placed():
+    """ZTG #116071: IB clocks null, Nova ledger row present -- Time Placed lives."""
+    out = overlay_closed_orders(
+        [_ztg_cancel_ib()],
+        ledger_rows=[_ztg_cancel_ledger()],
+        limit=50,
+    )
+    assert len(out) == 1
+    row = out[0]
+    assert row["source"] == "nova"
+    assert row["execution_id"] == "e-ztg-116071"
+    assert row["submitted_at"] == _NOVA_PLACED
+    assert row["filled_at"] is None
+    assert row["status"] == "Cancelled"
+
+
+def test_overlay_prefers_broker_submit_over_ledger_stamp():
+    out = overlay_closed_orders(
+        [_ztg_cancel_ib(submitted_at=_BROKER_SUBMIT)],
+        ledger_rows=[_ztg_cancel_ledger()],
+        limit=50,
+    )
+    assert out[0]["submitted_at"] == _BROKER_SUBMIT
+    assert out[0]["filled_at"] is None
+
+
+def test_overlay_filled_keeps_broker_fill_clock():
+    ib = _ib(
+        order_id=115728,
+        symbol="SPCX",
+        qty=1,
+        filled_qty=1.0,
+        remaining_qty=0.0,
+        submitted_at=_BROKER_SUBMIT,
+        filled_at=_BROKER_FILL,
+        updated_at=_BROKER_FILL,
+    )
+    led = _ledger(
+        id="e-spcx",
+        symbol="SPCX",
+        order_id=115728,
+        filled_qty=1.0,
+        payload={
+            "qty": 1,
+            "sent_qty": 1.0,
+            "side": "BUY",
+            "order_type": "MKT",
+            "nova_placed_at": _NOVA_PLACED,
+        },
+    )
+    out = overlay_closed_orders([ib], ledger_rows=[led], limit=50)
+    assert out[0]["submitted_at"] == _BROKER_SUBMIT
+    assert out[0]["filled_at"] == _BROKER_FILL
+
+
+def test_overlay_survives_cleared_in_memory_nova_placed_map():
+    from ibkr.order_times import (
+        clear_nova_placed_for_tests,
+        remember_nova_placed,
+        resolve_submitted_at,
+    )
+
+    remember_nova_placed(116071, _NOVA_PLACED)
+    clear_nova_placed_for_tests()
+    assert resolve_submitted_at(None, 116071) is None
+    out = overlay_closed_orders(
+        [_ztg_cancel_ib()],
+        ledger_rows=[_ztg_cancel_ledger()],
+        limit=50,
+    )
+    assert out[0]["submitted_at"] == _NOVA_PLACED
+    assert out[0]["filled_at"] is None
+
+
+def test_ib_recovered_cancel_does_not_invent_time_placed():
+    out = overlay_closed_orders(
+        [_ztg_cancel_ib(order_id=555, symbol="FTFT")],
+        ledger_rows=[],
+        limit=50,
+    )
+    assert len(out) == 1
+    assert out[0]["source"] == "ib_recovered"
+    assert out[0]["submitted_at"] is None
+    assert out[0]["filled_at"] is None
+
+
+def test_overlay_created_ts_fallback_when_payload_lacks_nova_placed():
+    """Already-written Nova rows (ZTG before persist) still get an honest clock."""
+    from datetime import datetime, timezone
+
+    created_ts = 1_755_451_009.0
+    payload = {
+        "qty": 1,
+        "sent_qty": 1.0,
+        "side": "BUY",
+        "order_type": "LMT",
+        "requested_price": 1.76,
+    }
+    out = overlay_closed_orders(
+        [_ztg_cancel_ib()],
+        ledger_rows=[_ztg_cancel_ledger(payload=payload, created_ts=created_ts)],
+        limit=50,
+    )
+    expected = datetime.fromtimestamp(created_ts, tz=timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.000Z"
+    )
+    assert out[0]["submitted_at"] == expected
+    assert out[0]["filled_at"] is None
+
+
+def test_leftover_ledger_prefers_nova_placed_at_over_created_ts():
+    out = overlay_closed_orders(
+        [],
+        ledger_rows=[_ztg_cancel_ledger()],
+        limit=50,
+    )
+    assert out[0]["submitted_at"] == _NOVA_PLACED
+    assert out[0]["filled_at"] is None

@@ -4,7 +4,9 @@ Audit rules for Time Placed (`submitted_at`):
 1. Prefer IBKR trade.log[0].time (broker-authoritative place/ack trail).
 2. If the broker log is empty (race right after placeOrder), use the
    Nova wall-clock stamp recorded at send time (`remember_nova_placed`).
-3. Never invent a browser/client clock — UI only formats the ISO string.
+   That RAM map is intra-process only. ``execution.nova_placed`` persists
+   the same ISO on the ledger so Closed / Orders Today survives restart.
+3. Never invent a browser/client clock -- UI only formats the ISO string.
 """
 
 from __future__ import annotations

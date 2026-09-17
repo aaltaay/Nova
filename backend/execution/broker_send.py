@@ -17,6 +17,7 @@ from execution import telemetry
 from execution import verification_gate
 from execution.models import ExecutionCommand, ExecutionReceipt, StageTimings
 from execution.fill_audit import audit_place_watch
+from execution.nova_placed import persist_nova_placed_at
 from execution.place_reject_guard import confirm_terminal_reject
 from ibkr import client as _client
 from ibkr import orders as _orders
@@ -247,6 +248,9 @@ async def send_broker(
                 error=raw.get("error"), reason_code="BROKER_REJECT",
                 mode=mode, symbol=symbol, timings=timings,
             )
+        persist_nova_placed_at(
+            execution_id, raw.get("nova_placed_at") or raw.get("submitted_at")
+        )
         if watch is not None and wait_ack:
             await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)
             timings.broker_ack_ns = watch.ack_ns
@@ -326,6 +330,7 @@ async def finish_place(
             error=raw.get("error"), reason_code="BROKER_REJECT",
             mode=mode, symbol=cmd.normalized_symbol(), timings=timings,
         )
+    persist_nova_placed_at(execution_id, raw.get("nova_placed_at"))
     oid = raw.get("order_id")
     if watch is not None and wait_ack:
         await watch.wait_ack(EXECUTION_ACK_WAIT_SEC)

@@ -170,6 +170,12 @@ def _merge_ib_ledger(ib: dict, led: dict) -> dict:
             out["commission"] = comm
     if not str(out.get("symbol") or "").strip():
         out["symbol"] = str(led.get("symbol") or "").upper()
+    if not str(out.get("submitted_at") or "").strip():
+        from execution.nova_placed import ledger_placed_iso
+
+        fallback = ledger_placed_iso(led)
+        if fallback:
+            out["submitted_at"] = fallback
     out["source"] = "nova"
     out["execution_id"] = led.get("id")
     return out
@@ -196,7 +202,10 @@ def _row_from_ledger(led: dict) -> dict:
         status = "Filled"
     elif status not in IBKR_CLOSED_ORDER_STATUSES:
         status = "Filled" if filled > 0 else (status or "Inactive")
-    iso = _iso_from_ts(float(led.get("created_ts") or 0))
+    from execution.nova_placed import ledger_placed_iso
+
+    iso = ledger_placed_iso(led)
+    created_iso = _iso_from_ts(float(led.get("created_ts") or 0))
     perm = _as_int(led.get("perm_id"))
     return {
         "order_id": _as_int(led.get("order_id")),
@@ -213,8 +222,8 @@ def _row_from_ledger(led: dict) -> dict:
         "outside_rth": False,
         "status": status,
         "submitted_at": iso,
-        "updated_at": iso,
-        "filled_at": iso if filled > 0 else None,
+        "updated_at": created_iso,
+        "filled_at": created_iso if filled > 0 else None,
         "held_until": None,
         "source": "nova",
         "execution_id": led.get("id"),

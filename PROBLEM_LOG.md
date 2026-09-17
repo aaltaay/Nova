@@ -157,6 +157,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 - **Fix class:** ownership
 - **Keywords:** dock, pop out, windowId, sessionStorage, #199, #201, ADR 011, TRADER_MAX_LIVE_TABS
 
+## 2026-09-17 -- RAM-only nova_placed_at blanked cancel Time Placed
+
+- **Symptom:** Canceled Orders Today rows (ZTG `#116071`, source nova, execution_id present) showed blank Time Placed. Time Filled blank was correct (never filled). Filled SPCX `#115728` had clocks. IB-recovered cancels were also blank.
+- **Cause:** `remember_nova_placed` lived only in `backend/ibkr/order_times.py` RAM. `trade_to_order_row` falls back to that map when `trade.log` is empty. After restart or a fast cancel with no broker log, Closed overlay (`_merge_ib_ledger`) kept IB's null `submitted_at` even when a ledger row existed. Leftover-only rows already used `created_ts`; the matched-IB path did not.
+- **Fix:** Persist `payload.nova_placed_at` at Place (`finish_place`). Overlay Time Placed = broker submit else ledger send ISO else `created_ts`. Do not invent clocks for IB-recovered rows with no ledger. Time Filled stays fill-only.
+- **Fix class:** admission
+- **Keywords:** nova_placed_at, Time Placed, Orders Today, remember_nova_placed, submitted_at, ZTG, #202
+
 ## 2026-09-17 -- Maximized drawings dropdown buried
 
 - **Symptom:** On a maximized chart the top-left drawings control (diagonal-line + chevron) did not open. Indicator chips still worked. Plenty of empty toolbar space sat to their right.

@@ -164,6 +164,16 @@ Entry template (copy and fill in):
 - **Follow-ups:** Ahmed Edge-smokes add A/B/C/D, gray click, pop out + dock-back. Nova Repo squash-merges after yes.
 - **Related:** Closes #201, Closes #199. PROBLEM_LOG 2026-09-17 dock vanish.
 
+## 2026-09-17 -- Persist nova_placed_at for Orders Today Time Placed
+
+- **What:** Nova Place now writes `payload.nova_placed_at` on the execution ledger. Closed / Orders Today **Time Placed** uses the broker submit clock when IB has one, else that persisted click/send ISO (or honest `created_ts` for older Nova rows). **Time Filled** stays fill-only. IB-recovered cancels with no ledger row stay blank -- no invented browser clocks.
+- **Why:** #202. `remember_nova_placed` was RAM-only. Fast cancel ZTG `#116071` had `source: nova` and an `execution_id` but null `submitted_at` after restart / empty `trade.log`.
+- **Files touched:** `backend/execution/nova_placed.py`, `closed_blotter.py`, `broker_send.py`, `fill_audit.py`, `fill_audit_attach.py`, `backend/ibkr/orders.py`, `order_times.py`.
+- **How it works now:** `place_order` / `place_bracket_order` still stamp RAM and return `nova_placed_at`. `finish_place` persists that ISO onto the ledger (first stamp wins, off the IB loop). Overlay fills blank `submitted_at` from the ledger. Latency attach prefers the same payload stamp over `created_ts`.
+- **Verified by:** pytest `test_closed_blotter` + `test_nova_placed` + `test_fill_audit_attach` + execution/order neighbors. Rebased onto `origin/master` 2026-09-18 (`f8d8aa8`); log prepend only. Fixtures only -- no live IBKR orders.
+- **Follow-ups:** Ahmed Edge-smokes ZTG `#116071` (and any new Nova cancel) on Windows localhost. Time Cancelled from `updated_at` stays out of scope. Do not re-place for the smoke.
+- **Related:** Closes #202. PROBLEM_LOG 2026-09-17 -- RAM-only nova_placed_at blanked cancel Time Placed. Refs #195 / #197.
+
 ## 2026-09-17 -- Maximized chart drawing tools are flat and usable
 
 - **What:** Maximized / fullscreen chart chrome now shows Trendline, Horizontal Line, Vertical Line, Extended, Ray, and Horizontal Ray as individual toolbar buttons. The leftover cluster menu portals into the maximize / fullscreen host and stacks above that overlay. Timeframe and EMAs / VWAP / RSI / MACD stay put.
