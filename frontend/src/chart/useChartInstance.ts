@@ -12,6 +12,11 @@ import {
 } from 'lightweight-charts';
 import { formatChartCrosshairTime, formatChartTickMark } from './chartTimeFormat';
 import { CHART_CROSSHAIR_OPTIONS } from './chartInteractionConfig';
+import {
+  CHART_PRICE_SCALE_MIN_WIDTH_PX,
+  chartRightPriceScaleOptions,
+  formatChartVolumeLabel,
+} from './chartPriceScale';
 import { measureChartFillHeight } from './measureChartFillHeight';
 import { isSubMinuteTimeframe } from '../tickerChartData';
 
@@ -96,7 +101,7 @@ export function useChartInstance({
         tickMarkFormatter: (t: Time, tickMarkType: TickMarkType, locale: string) =>
           formatChartTickMark(t, tickMarkType, locale, showSecondsRef.current),
       },
-      rightPriceScale: { borderColor: '#262a36' },
+      rightPriceScale: chartRightPriceScaleOptions(),
       width: container.clientWidth,
       height: initialHeight,
     });
@@ -108,10 +113,18 @@ export function useChartInstance({
     });
 
     const volSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: 'volume' },
+      priceFormat: {
+        type: 'custom',
+        minMove: 1,
+        formatter: formatChartVolumeLabel,
+      },
       priceScaleId: 'volume',
+      lastValueVisible: true,
     });
-    chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+    chart.priceScale('volume').applyOptions({
+      scaleMargins: { top: 0.8, bottom: 0 },
+      minimumWidth: CHART_PRICE_SCALE_MIN_WIDTH_PX,
+    });
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;

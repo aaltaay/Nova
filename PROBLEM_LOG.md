@@ -37,6 +37,14 @@ scanners is exactly how the 2026-08-24 outage survived for a year.
 
 <!-- ENTRIES_START -->
 
+## 2026-09-17 -- volume chip grew the right scale
+
+- **Symptom:** On a live 10Sec pane the whole plot shifted slightly left/right when the right-axis volume chip changed width (`9.0K` to pink/red `149.04K`).
+- **Cause:** lightweight-charts sizes the right price scale to the widest last-value / tick string. Overlay volume (`priceFormat: type volume`, `lastValueVisible` default on) auto-grows that gutter, so the plot area reflows on each tick.
+- **Fix:** Pin `rightPriceScale.minimumWidth` at 96px on the price chart and oscillator panes. Format volume last-value with a 7-character padded compact label so the chip cannot outgrow that gutter.
+- **Fix class:** ownership
+- **Keywords:** chart, price scale, minimumWidth, volume, 149.04K, 10Sec, lastValueVisible, gutter
+
 ## 2026-09-17 -- 10Sec viewport fitContent on live setData
 
 - **Symptom:** Expanded 10-Second chart (Restore grid / Hide 10-Second) randomly jumped / zoomed out while watching. Symbol and interval did not change. About a 6-minute window could snap to the full session.
