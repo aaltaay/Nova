@@ -19,7 +19,7 @@ The operator wants short entry with: shortable / HTB visibility next to Level 2,
 6. **Reason codes.** Short-opening refusals use `SHORT_DISABLED`, `SHORT_NOT_SHORTABLE`, `SHORT_STALE_BORROW` (plus existing codes). Every refusal leaves a receipt.
 7. **Short brackets.** When `short_entry`, entry side is `SELL`; protective legs invert; journal `side="short"`; PnL/R math side-aware.
 8. **Buy-to-cover / flatten-from-short.** BUY that reduces a short is allowed up to short qty. Flatten covers shorts with market BUY (`source=flatten`).
-9. **UI.** Shortability chip beside Level 2 (estimate + staleness + TWS confirm tooltip). Order ticket Side is Buy / Sell / Short on Margin (Buy / Sell only on Cash). Short sends `short_entry=true` and disables with mirrored reason codes when blocked. Sell never opens a short. Direction Long/Short is gone (2026-09-16, #184). Never invent Margin from BuyingPower -- IBKR `AccountType` only.
+9. **UI.** Shortability chip beside Level 2 (estimate + staleness + TWS confirm tooltip). Order ticket Side is Buy / Sell / Short on Margin (Buy / Sell only on Cash). Short sends `short_entry=true` and disables with mirrored reason codes when blocked. Sell never opens a short. Direction Long/Short is gone (2026-09-16, #184). Short visibility is `shortSideVisible(summary)` / `account_class === 'margin'` (#188). INDIVIDUAL is ownership, not a class.
 10. **Paper before live short.** K3: ≥3 paper short days + kill/flatten/reconnect drills + operator sign-off before live short. `auto_live` remains rejected.
 
 ## Consequences

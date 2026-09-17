@@ -32,7 +32,7 @@ const SHORTABLE: IbkrListingFlags = {
   orderable: true,
 };
 
-describe('ManualOrderTicket Side vs AccountType', () => {
+describe('ManualOrderTicket Side vs account_class', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -67,11 +67,12 @@ describe('ManualOrderTicket Side vs AccountType', () => {
     });
   }
 
-  it('hides Direction and Short when AccountType is Cash', () => {
+  it('hides Direction and Short on Cash including INDIVIDUAL', () => {
     render({
       connected: true,
       mode: 'paper',
-      AccountType: 'CASH',
+      AccountType: 'INDIVIDUAL',
+      account_class: 'cash',
       BuyingPower: 4000,
     });
     expect(container.textContent).not.toContain('Direction');
@@ -95,7 +96,8 @@ describe('ManualOrderTicket Side vs AccountType', () => {
     render({
       connected: true,
       mode: 'paper',
-      AccountType: 'MARGIN',
+      AccountType: 'INDIVIDUAL',
+      account_class: 'margin',
       BuyingPower: 50_000,
     });
     const short = container.querySelector(

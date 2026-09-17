@@ -36,18 +36,26 @@ describe('ticketSideOptions', () => {
 });
 
 describe('allowShortSide', () => {
-  it('allows Short only when AccountType is a Margin token', () => {
+  it('allows Short only when shortSideVisible / account_class is margin', () => {
+    expect(allowShortSide(summary({ account_class: 'margin' }))).toBe(true);
     expect(allowShortSide(summary({ AccountType: 'MARGIN' }))).toBe(true);
+    expect(allowShortSide(summary({ account_class: 'cash' }))).toBe(false);
     expect(allowShortSide(summary({ AccountType: 'CASH' }))).toBe(false);
   });
 
-  it('does not invent Margin from BuyingPower or INDIVIDUAL', () => {
-    expect(allowShortSide(summary({ BuyingPower: 50_000 }))).toBe(false);
+  it('hides Short on INDIVIDUAL Cash -- stamped account_class wins', () => {
     expect(allowShortSide(summary({ AccountType: 'INDIVIDUAL' }))).toBe(false);
+    expect(
+      allowShortSide(summary({ AccountType: 'INDIVIDUAL', account_class: 'cash' })),
+    ).toBe(false);
+    expect(
+      allowShortSide(summary({ AccountType: 'INDIVIDUAL', account_class: 'margin' })),
+    ).toBe(true);
+    expect(allowShortSide(summary({ BuyingPower: 50_000 }))).toBe(false);
     expect(allowShortSide(null)).toBe(false);
-    expect(allowShortSide(summary({ connected: false, AccountType: 'MARGIN' }))).toBe(
-      false,
-    );
+    expect(
+      allowShortSide(summary({ connected: false, account_class: 'margin' })),
+    ).toBe(false);
   });
 });
 
