@@ -1,11 +1,12 @@
 /**
- * Webull-style single-row chrome shared by Scanner and Trader View.
+ * Webull-style chrome shared by Scanner and Trader View (parent + pop-out).
  * Mounted once in AppShell so every live page inherits it automatically.
  *
- * Middle column = context (Trader tab strip via portal slot, or scanner
- * controls) + always-on status cluster (session badge, Desk, clock, Paper/Live).
- * One row -- the old "scanner strip drops to row 2 under 1680px" is gone;
- * narrow widths hide low-value chips instead (global-app-bar-responsive.css).
+ * Primary row = brand, Scanner/Trader, center context, status, theme,
+ * account cluster, lock, Cash/Margin, Account, Settings.
+ * Bot row = BotArmControls + BotSymbolMenuHost (issue #230).
+ * Narrow widths hide low-value chips on the primary row
+ * (global-app-bar-responsive.css); the bot row wraps/scrolls on its own.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import {
@@ -37,8 +38,7 @@ import { GatewayModeCapsule } from '../ibkr/GatewayModeCapsule';
 import { setGlobalBarTraderSlot } from './globalBarSlots';
 import { HeaderConnectionStatus } from './HeaderConnectionStatus';
 import { SymbolSearchBox } from './SymbolSearchBox';
-import { BotArmControls } from '../bot/BotArmControls';
-import { BotSymbolMenuHost } from '../bot/BotSymbolMenu';
+import { GlobalBarBotRow } from '../bot/GlobalBarBotRow';
 import { ThemeToggle } from './ThemeToggle';
 import { requestOpenTradingTab } from './openTradingTabNav';
 import { TraderNavButton } from './TraderNavButton';
@@ -119,6 +119,7 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
 
   return (
     <header className="global-app-bar" data-testid="global-app-bar">
+      <div className="global-app-bar__primary" data-testid="global-bar-primary">
       <div className="global-app-bar__left">
         <div className="global-app-bar__brand" aria-label={GLOBAL_BAR_BRAND}>
           <NovaLogo />
@@ -220,8 +221,6 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
       </div>
 
       <div className="global-app-bar__right">
-        <BotArmControls />
-        <BotSymbolMenuHost />
         <ThemeToggle />
         <div
           className="global-app-bar__account"
@@ -291,6 +290,8 @@ export function GlobalAppBar({ scanner: scannerProp }: { scanner?: GlobalAppBarS
           </button>
         )}
       </div>
+      </div>
+      <GlobalBarBotRow />
     </header>
   );
 }

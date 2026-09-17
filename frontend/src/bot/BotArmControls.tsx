@@ -27,6 +27,7 @@ export function BotArmControls() {
   const selected = packs.find(row => row.id === pack);
   const description = selected?.description || packDescription(pack);
   const showControlBox = level >= 2;
+  const idle = !armed && !live;
 
   async function onLevel(next: number) {
     if (next >= 2 && !armed) {
@@ -44,7 +45,7 @@ export function BotArmControls() {
 
   return (
     <div
-      className={`bot-arm${live ? ' bot-arm--live' : ''}${armed ? ' bot-arm--armed' : ''}`}
+      className={`bot-arm${live ? ' bot-arm--live' : ''}${armed ? ' bot-arm--armed' : ''}${idle ? ' bot-arm--idle' : ''}`}
       data-testid="bot-arm-controls"
     >
       <label className="bot-arm__field">
