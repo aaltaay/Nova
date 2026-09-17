@@ -1,0 +1,82 @@
+"""Bot localhost API tunables (ADR 016 / epic #205).
+
+Owner: backend/bot/. Re-exported from the constants barrel.
+"""
+from __future__ import annotations
+
+BOT_SCHEMA_VERSION = 1
+BOT_SESSION_FILENAME = "bot-session.json"
+BOT_PROPOSALS_FILENAME = "bot-proposals.json"
+BOT_AUDIT_FILENAME = "bot-audit.jsonl"
+BOT_STATE_OWNER = "bot.persist"
+
+BOT_LEVEL_OFF = 0
+BOT_LEVEL_EYES = 1
+BOT_LEVEL_STRATEGY = 2
+BOT_LEVEL_UNRESTRICTED = 3  # parked -- refuse
+
+BOT_STRATEGY_SMALL_CAP = "small-cap"
+BOT_STRATEGIES = (BOT_STRATEGY_SMALL_CAP,)
+
+BOT_ACTION_KINDS = (
+    "buy_market",
+    "buy_limit_ask_offset",
+    "sell_limit_bid_offset",
+    "sell_limit_ask_offset",
+    "exit_pos",
+    "cancel_symbol",
+    "exit_pos_pct",
+    "sell_pos_pct_ask",
+    "sell_pos_pct_bid_offset",
+)
+
+BOT_LATER_KINDS = (
+    "cancel_and_exit",
+    "cancel_all_orders",
+)
+
+BOT_BUY_KINDS = frozenset({
+    "buy_market",
+    "buy_limit_ask_offset",
+})
+
+BOT_DEFAULT_MAX_SHARES = 1
+BOT_MAX_SHARES_CAP = 10
+BOT_DEFAULT_BP_BUDGET_USD = 50.0
+BOT_BP_BUDGET_HARD_MAX_USD = 50.0
+BOT_DEFAULT_WORKING_TTL_SEC = 3
+BOT_WORKING_TTL_MIN_SEC = 1
+BOT_WORKING_TTL_MAX_SEC = 10
+BOT_DEFAULT_EXIT_PCT = 50
+BOT_EXIT_PCTS = (25, 50)
+BOT_DEFAULT_ASK_OFFSET_USD = 0.05
+BOT_DEFAULT_BID_EXIT_OFFSET_USD = 0.03
+
+BOT_ADVISE_DEFAULT_USD_CAP = 2.0
+BOT_ADVISE_DEFAULT_CALL_CAP = 10
+
+BOT_SOFT_BREAKER_USD = -50.0
+BOT_HARD_BREAKER_USD = -200.0
+BOT_FLATTEN_RETRIES = 1
+BOT_BREAKER_POLL_SEC = 1.0
+BOT_TTL_POLL_SEC = 0.5
+BOT_EYES_PUSH_SEC = 0.25
+
+BOT_TZ = "America/New_York"
+BOT_LOOPBACK_HOSTS = ("127.0.0.1", "::1", "localhost", "testclient")
+
+BOT_REASON_L0_DARK = "BOT_L0_DARK"
+BOT_REASON_L1_NO_FIRE = "BOT_L1_NO_FIRE"
+BOT_REASON_L3_PARKED = "BOT_L3_PARKED"
+BOT_REASON_KIND_BLOCKED = "BOT_KIND_BLOCKED"
+BOT_REASON_FREE_FORM_QTY = "BOT_FREE_FORM_QTY"
+BOT_REASON_SHARES_CAP = "BOT_SHARES_CAP"
+BOT_REASON_BP_BUDGET = "BOT_BP_BUDGET"
+BOT_REASON_WORKING_BLOCK = "BOT_WORKING_BLOCK"
+BOT_REASON_DAY_LOCK = "BOT_DAY_LOCK"
+BOT_REASON_BRAIN_EXCLUSIVE = "BOT_BRAIN_EXCLUSIVE"
+BOT_REASON_ADVISE_OFF = "BOT_ADVISE_OFF"
+BOT_REASON_ADVISE_CAP = "BOT_ADVISE_CAP"
+BOT_REASON_NEEDS_DEPTH = "BOT_NEEDS_DEPTH"
+BOT_REASON_NOT_LOOPBACK = "BOT_NOT_LOOPBACK"
+BOT_REASON_TTL_EXPIRED = "working_ttl_expired"

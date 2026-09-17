@@ -237,6 +237,16 @@ async def execute(
                     "Kill switch tripped — reset it before placing any order",
                     "KILL_SWITCH",
                 )
+            from bot.buy_lock import buy_blocked
+
+            locked, lock_reason = buy_blocked(cmd.side, cmd.source)
+            if locked:
+                timings.validation_completed_ns = time.perf_counter_ns()
+                return _reject(
+                    execution_id, cmd, timings,
+                    "Bot -$200 day lock -- buys unlock next calendar midnight America/New_York",
+                    lock_reason or "BOT_DAY_LOCK",
+                )
 
         if not cmd.skip_risk and cmd.operation in ("place", "bracket"):
             from strategy import risk as _risk

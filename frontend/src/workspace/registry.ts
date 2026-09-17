@@ -53,6 +53,7 @@ export const TAB_MODULE_IDS = [
   'running_up',
   'trading',
   'watchlist',
+  'strategy',
   'reports',
 ] as const;
 
@@ -198,6 +199,14 @@ export const NOVA_MODULES: readonly NovaModule[] = [
     defaultPlacement: 'tab',
     showInTabNav: true,
     countKey: 'watchlist',
+  },
+  {
+    id: 'strategy',
+    title: 'Strategy',
+    component: host,
+    feedDeps: ['none'],
+    defaultPlacement: 'tab',
+    showInTabNav: true,
   },
   {
     id: 'reports',

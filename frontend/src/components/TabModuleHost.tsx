@@ -20,6 +20,9 @@ const EarningsPanel = lazy(() =>
 const NovaNewsPanel = lazy(() =>
   import('../nova_news/NovaNewsPanel').then(m => ({ default: m.NovaNewsPanel })),
 );
+const StrategyTab = lazy(() =>
+  import('../bot/StrategyTab').then(m => ({ default: m.StrategyTab })),
+);
 import type { Afterhours, Gapper, Mover, ScannerRow } from '../types/scanner';
 import type { ScannerTableMeta } from '../hooks/useScannerPriceStream';
 import type { Catalyst } from '../types/catalyst';
@@ -182,6 +185,17 @@ export function TabModuleHost(props: TabModuleHostProps) {
           onOpenTrading={onOpenTrading}
           sampleMode={sampleMode}
         />
+      </Suspense>
+    );
+  }
+
+  if (activeTab === 'strategy') {
+    if (sampleMode) {
+      return <div className="empty-state">Bot Strategy settings are not available in Sample Data mode.</div>;
+    }
+    return (
+      <Suspense fallback={<TabLazyFallback />}>
+        <StrategyTab />
       </Suspense>
     );
   }

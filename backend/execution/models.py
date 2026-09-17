@@ -13,6 +13,7 @@ Source = Literal[
     "cancel_working",
     "flatten",
     "benchmark",
+    "bot",
 ]
 
 

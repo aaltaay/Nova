@@ -27,6 +27,8 @@ from routes.metrics import router as metrics_router
 from routes.earnings import router as earnings_router
 from routes.advise import router as advise_router, ws_router as advise_ws_router
 from routes.halts import router as halts_router
+from routes.bot import router as bot_router
+from routes.bot_ws import ws_router as bot_ws_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -54,3 +56,5 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(advise_router)
     app.include_router(advise_ws_router)
     app.include_router(halts_router)
+    app.include_router(bot_router)
+    app.include_router(bot_ws_router)

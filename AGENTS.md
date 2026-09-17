@@ -194,7 +194,7 @@ All buy/sell/cancel/replace requests enter `execution.service.execute` with:
 {
   "operation": "place | bracket | cancel | replace",
   "idempotency_key": "stable-client-or-ticket-key",
-  "source": "manual | approve | auto_paper | kill | cancel_working | flatten | benchmark",
+  "source": "manual | approve | auto_paper | kill | cancel_working | flatten | benchmark | bot",
   "symbol": "AAPL",
   "side": "BUY",
   "qty": 1,
@@ -398,6 +398,7 @@ No open constitution compliance rows. `architecture/` (ADRs 001–009) and autom
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-09-17 | ADR 007 source list gains `bot` (localhost bot API, ADR 016). Same execution door; L3 parked. | User Directive + Cursor Agent |
 | 2026-09-11 | Nova Delivery board is https://github.com/users/aaltaay/projects/1. New issues/PRs auto-add via workflow; agents attach metadata; 403 is reported, never a new project. | User Directive + Cursor Agent |
 | 2026-09-11 | Session lifecycle (§5.1): clean start from `origin/master`; every coding session MUST end with a ready (non-draft) PR. Casual "quick fix" phrasing does not waive. | User Directive + Cursor Agent |
 | 2026-09-11 | Public source home is `aaltaay/Nova`. Marketing site CTA points here. `Nova-public` is a private archive. Master protection no longer blocked on "keep private." | User Directive + Cursor Agent |

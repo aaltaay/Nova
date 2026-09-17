@@ -84,6 +84,7 @@ EXECUTION_SOURCES = (
     "cancel_working",
     "flatten",
     "benchmark",
+    "bot",
 )
 EXECUTION_OPS = ("place", "bracket", "cancel", "replace")
 # NYSE full-day closures (ISO dates). Gate 0 + set_mode(auto_paper) refuse holidays.
