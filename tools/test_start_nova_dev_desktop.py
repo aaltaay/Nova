@@ -34,7 +34,7 @@ def test_dev_desktop_requires_health_200_and_skip_sidecar() -> None:
     assert "Start-NovaUi.ps1" in text
     assert "[switch]$PullMaster" in text
     assert "exit 1" in text
-    assert "reload the API" in text.lower() or "Reload the API" in text
+    assert "reload the api" in text.lower()
 
 
 def test_electron_honors_skip_api_sidecar() -> None:
