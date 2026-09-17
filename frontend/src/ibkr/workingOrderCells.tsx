@@ -9,6 +9,7 @@ import {
   orderSubmittedTimeTitle,
 } from './orderDisplay';
 import { sessionKindNow } from './extendedSession';
+import { FillLatencyTd } from './FillLatencyCell';
 import { commissionCellTitle, formatCommission } from './orderCommission';
 import { displayFilledQty } from './orderFillHonesty';
 import { remainingShares } from './orderQtyMath';
@@ -106,7 +107,7 @@ export function renderWorkingOrderCell(
       return (
         <td
           key={col}
-          className="ibkr-col--num"
+          className="ibkr-col--num ibkr-col--commission"
           title={commissionCellTitle({
             commission: o.commission,
             avgFill: o.avg_fill_price,
@@ -116,6 +117,8 @@ export function renderWorkingOrderCell(
           {formatCommission(o.commission)}
         </td>
       );
+    case 'latency':
+      return <FillLatencyTd key={col} audit={o.fill_audit} />;
     case 'status': {
       const shown = workingOrderStatusDisplay(
         o,

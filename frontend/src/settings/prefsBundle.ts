@@ -1,5 +1,6 @@
 /** Export / import browser desk prefs (localStorage only). */
 
+import { ORDER_TABLE_COLUMNS_STORAGE_KEY } from '../constantGroups/chart_api';
 import { SCANNER_ACTIVE_TAB_STORAGE_KEY } from '../constantGroups/market_ui';
 
 export const PREFS_BUNDLE_VERSION = 1;
@@ -23,7 +24,7 @@ export const PREFS_BUNDLE_KEYS = [
   'nova.stockView.openOrders.sampleHidden',
   'nova.stockView.dock.surface',
   'nova.stockView.ordersToday.filter',
-  'nova.ibkr.orderTable.columns.v5',
+  ORDER_TABLE_COLUMNS_STORAGE_KEY,
   'nova.ibkr.orderTable.sort.v1.working',
   'nova.ibkr.orderTable.sort.v1.closed',
   'nova_exchange_filter_v1',

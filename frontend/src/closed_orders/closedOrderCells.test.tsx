@@ -92,6 +92,21 @@ describe('closedOrderCells — column contract', () => {
     expect(renderCell('qty', FILLED).text).toBe('100');
   });
 
+  it('Latency is em dash without fill_audit and colors warn when present', () => {
+    expect(renderCell('latency', FILLED).text).toBe('—');
+    const warn = renderCell('latency', {
+      ...FILLED,
+      fill_audit: {
+        place_to_submit_ms: 20,
+        place_to_fill_ms: 2100,
+        level: 'warn',
+        reason: 'mkt_rth_slow',
+      },
+    });
+    expect(warn.text).toBe('2.1s');
+    expect(warn.html).toContain('ibkr-fill-latency--warn');
+  });
+
   it('shows $1.00 commission on a fill and blank on a reject', () => {
     expect(renderCell('commission', { ...FILLED, commission: 1 }).text).toBe('$1.00');
     expect(

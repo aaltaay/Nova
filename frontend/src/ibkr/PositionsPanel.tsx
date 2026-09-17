@@ -68,7 +68,7 @@ function renderPositionCell(
       return (
         <td
           key={col}
-          className="ibkr-col--num"
+          className="ibkr-col--num ibkr-col--commission"
           title={commissionCellTitle({
             commission: p.commission,
             avgCost: p.avg_cost,

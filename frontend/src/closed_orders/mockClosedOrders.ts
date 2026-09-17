@@ -103,6 +103,13 @@ export function buildMockClosedOrders(symbol?: string | null): ClosedOrder[] {
       outside_rth: false,
       status: 'Filled',
       ...MOCK_CLOSED_TIMES[9002],
+      fill_audit: {
+        place_to_submit_ms: 12,
+        place_to_fill_ms: 180,
+        place_to_terminal_ms: null,
+        level: 'ok',
+        reason: 'filled',
+      },
     },
     // Cancelled with zero fills.
     {
@@ -201,6 +208,13 @@ export function buildMockClosedOrders(symbol?: string | null): ClosedOrder[] {
       submitted_at: MOCK_CLOSED_TIMES[9008].submitted_at,
       updated_at: MOCK_RECENT_ACTIVITY_AT,
       filled_at: MOCK_RECENT_ACTIVITY_AT,
+      fill_audit: {
+        place_to_submit_ms: 20,
+        place_to_fill_ms: 2100,
+        place_to_terminal_ms: null,
+        level: 'warn',
+        reason: 'mkt_rth_slow',
+      },
     },
   ];
 }

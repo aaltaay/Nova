@@ -55,6 +55,18 @@ describe('buildMockClosedOrders', () => {
     expect(age).toBeLessThan(60_000);
   });
 
+  it('sample fill_audit is fixture-only -- 9002 ok, 9008 warn, others missing', () => {
+    const rows = buildMockClosedOrders('DEMO');
+    const ok = rows.find((r) => r.order_id === 9002);
+    const warn = rows.find((r) => r.order_id === 9008);
+    const blank = rows.find((r) => r.order_id === 9001);
+    expect(ok?.fill_audit?.place_to_fill_ms).toBe(180);
+    expect(ok?.fill_audit?.level).toBe('ok');
+    expect(warn?.fill_audit?.place_to_fill_ms).toBe(2100);
+    expect(warn?.fill_audit?.level).toBe('warn');
+    expect(blank?.fill_audit).toBeUndefined();
+  });
+
   it('every row has acceptable closed fill progress', () => {
     for (const row of buildMockClosedOrders('PYRAMID')) {
       expect(closedFillProgressAcceptable(row)).toBe(true);

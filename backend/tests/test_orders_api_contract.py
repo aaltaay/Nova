@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 import ibkr.client as client_mod
 import routes.trading as trading_routes
+from execution.fill_audit import reset_fill_audit_store_for_testing
 from ibkr.errors import IbkrAccountError
 from main import app
 
@@ -99,6 +100,7 @@ def _assert_row_shape(row: dict) -> None:
 
 
 def test_get_open_orders_contract_fields_and_invariant():
+    reset_fill_audit_store_for_testing()
     with (
         patch.object(client_mod, "is_connected", return_value=True),
         patch.object(
@@ -113,6 +115,8 @@ def test_get_open_orders_contract_fields_and_invariant():
     assert len(rows) == 2
     for row in rows:
         _assert_row_shape(row)
+        assert "fill_audit" in row
+        assert row["fill_audit"] is None
 
     partial = next(r for r in rows if r["order_id"] == 4242)
     assert partial["filled_qty"] + partial["remaining_qty"] == partial["qty"]
@@ -126,6 +130,7 @@ def test_get_open_orders_contract_fields_and_invariant():
 
 
 def test_get_closed_orders_contract_fields():
+    reset_fill_audit_store_for_testing()
     with (
         patch.object(client_mod, "is_connected", return_value=True),
         patch.object(
@@ -145,6 +150,7 @@ def test_get_closed_orders_contract_fields():
     assert len(rows) == 2
     for row in rows:
         _assert_row_shape(row)
+        assert "fill_audit" in row
 
     filled = next(r for r in rows if r["order_id"] == 9001)
     assert filled["filled_qty"] + filled["remaining_qty"] == filled["qty"]

@@ -134,6 +134,10 @@ export function compareOrderField(
       av = num(a.commission);
       bv = num(b.commission);
       break;
+    case 'latency':
+      av = num(a.fill_audit?.place_to_fill_ms ?? a.fill_audit?.place_to_terminal_ms);
+      bv = num(b.fill_audit?.place_to_fill_ms ?? b.fill_audit?.place_to_terminal_ms);
+      break;
     case 'order_id':
       av = a.order_id;
       bv = b.order_id;
